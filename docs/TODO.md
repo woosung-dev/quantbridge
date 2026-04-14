@@ -31,12 +31,14 @@
 - [x] pytest + pytest-asyncio 테스트 인프라 (health 엔드포인트 검증 1건 통과)
 - [x] ruff.toml + mypy.ini 개발 도구 (ruff/mypy/pytest 모두 clean)
 
-**Session 3 — Frontend Scaffold (feat/frontend-scaffold 워크트리):**
-- [ ] Next.js 16 프로젝트 초기화 (pnpm)
-- [ ] FSD Lite 디렉토리 구조 (app, components, features, lib)
-- [ ] Clerk 인증 (ClerkProvider + proxy.ts)
-- [ ] shadcn/ui v4 기본 컴포넌트
-- [ ] ESLint + Prettier + vitest 개발 도구
+**Session 3 — Frontend Scaffold (feat/frontend-scaffold 워크트리):** ✅ 완료
+- [x] Next.js 16 프로젝트 초기화 (pnpm)
+- [x] FSD Lite 디렉토리 구조 (app, components, features, lib)
+- [x] Clerk 인증 (ClerkProvider + proxy.ts)
+- [x] shadcn/ui v4 기본 컴포넌트
+- [x] ESLint + Prettier + vitest 개발 도구
+
+**머지 완료 (2026-04-15):** d82de8b (backend) + 059eca9 (frontend) on main
 
 ### Phase 0 완료 후
 
