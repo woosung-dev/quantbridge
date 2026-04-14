@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantBridge — 로그인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  /* ============== 디자인 토큰 ============== */
+  :root {
+    --bg: #FAFBFC;
+    --bg-alt: #F1F5F9;
+    --card: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --primary-100: #DBEAFE;
+    --success: #059669;
+    --destructive: #DC2626;
+    --border: #E2E8F0;
+    --border-dark: #CBD5E1;
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04);
+    --card-shadow-hover: 0 2px 8px rgba(0,0,0,0.08), 0 16px 40px rgba(0,0,0,0.06);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+  }
+
+  /* ============== 리셋 & 베이스 ============== */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    color: var(--text-primary);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  input {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* ============== 레이아웃 ============== */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+  }
+
+  /* ============== 좌측 브랜드 패널 ============== */
+  .brand-panel {
+    position: relative;
+    padding: 64px;
+    background: linear-gradient(135deg, #1E293B 0%, #0F172A 50%, #1E40AF 100%);
+    color: #fff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 48px;
+  }
+
+  /* 배경 장식 */
+  .brand-panel::before {
+    content: '';
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    top: -200px;
+    right: -200px;
+    background: radial-gradient(circle, rgba(37,99,235,0.25), transparent 70%);
+    pointer-events: none;
+  }
+  .brand-panel::after {
+    content: '';
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    bottom: -150px;
+    left: -150px;
+    background: radial-gradient(circle, rgba(37,99,235,0.18), transparent 70%);
+    pointer-events: none;
+  }
+
+  .brand-panel > * { position: relative; z-index: 1; }
+
+  /* 로고 */
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    animation: fadeInUp 0.6s ease-out;
+  }
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+  }
+  .logo-text {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+
+  /* 미들 섹션: 가치 제안 + 소셜 프루프 */
+  .brand-middle {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    animation: fadeInUp 0.7s ease-out 0.1s both;
+  }
+
+  .value-prop {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 2.5rem;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+    color: #fff;
+    margin: 0;
+    white-space: pre-line;
+  }
+  .value-sub {
+    margin: 16px 0 0;
+    color: rgba(255,255,255,0.7);
+    font-size: 1.05rem;
+    line-height: 1.6;
+  }
+
+  /* 소셜 프루프 카드 */
+  .social-proof {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 24px;
+  }
+
+  .avatars {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: #fff;
+    border: 2px solid #1E293B;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .avatar + .avatar { margin-left: -8px; }
+  .avatar-1 { background: linear-gradient(135deg, #2563EB, #1E40AF); }
+  .avatar-2 { background: linear-gradient(135deg, #059669, #047857); }
+  .avatar-3 { background: linear-gradient(135deg, #DC2626, #991B1B); }
+  .avatar-4 { background: linear-gradient(135deg, #7C3AED, #5B21B6); }
+  .avatar-5 { background: linear-gradient(135deg, #EA580C, #9A3412); }
+
+  .live-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.92rem;
+    color: rgba(255,255,255,0.88);
+    font-weight: 500;
+  }
+  .live-dot {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .live-dot::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    background: rgba(34,197,94,0.5);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.85); opacity: 0.75; }
+    70% { transform: scale(1.6); opacity: 0; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+
+  .stats-grid {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 20px;
+  }
+  .stat-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.85);
+  }
+  .stat-row .val {
+    font-weight: 600;
+    color: #fff;
+  }
+  .stat-row .lbl {
+    color: rgba(255,255,255,0.6);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+  }
+
+  /* 인용문 */
+  .testimonial {
+    position: relative;
+    padding-left: 28px;
+    animation: fadeInUp 0.8s ease-out 0.2s both;
+  }
+  .testimonial .quote-mark {
+    position: absolute;
+    left: -4px;
+    top: -10px;
+    opacity: 0.2;
+  }
+  .testimonial-text {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 500;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.92);
+    margin: 0 0 10px;
+  }
+  .testimonial-author {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.6);
+  }
+  .testimonial-author strong { color: rgba(255,255,255,0.88); font-weight: 600; }
+
+  /* ============== 우측 폼 패널 ============== */
+  .form-panel {
+    background: #fff;
+    padding: 80px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  .form-wrapper {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .form-wrapper > * {
+    animation: fadeInUp 0.5s ease-out backwards;
+  }
+  .form-wrapper > *:nth-child(1) { animation-delay: 0.05s; }
+  .form-wrapper > *:nth-child(2) { animation-delay: 0.15s; }
+  .form-wrapper > *:nth-child(3) { animation-delay: 0.25s; }
+  .form-wrapper > *:nth-child(4) { animation-delay: 0.35s; }
+  .form-wrapper > *:nth-child(5) { animation-delay: 0.45s; }
+  .form-wrapper > *:nth-child(6) { animation-delay: 0.55s; }
+  .form-wrapper > *:nth-child(7) { animation-delay: 0.65s; }
+
+  /* 탭 토글 */
+  .tab-toggle {
+    display: flex;
+    background: var(--bg-alt);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    gap: 4px;
+  }
+  .tab-btn {
+    flex: 1;
+    height: 40px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+  }
+  .tab-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.5);
+    color: var(--text-secondary);
+  }
+  .tab-btn.active {
+    background: #fff;
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  /* 헤더 */
+  .form-heading h1 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .form-heading p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
+
+  /* 소셜 로그인 버튼 */
+  .social-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    height: 48px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: #fff;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: all 0.18s ease;
+  }
+  .social-btn:hover {
+    background: #F9FAFB;
+    border-color: var(--border-dark);
+    transform: translateY(-1px);
+  }
+  .social-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  .social-btn svg { flex-shrink: 0; }
+
+  /* 디바이더 */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* 폼 필드 */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .input-wrap {
+    position: relative;
+  }
+  .input {
+    width: 100%;
+    height: 48px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    transition: all 0.18s ease;
+  }
+  .input::placeholder { color: var(--text-muted); }
+  .input:hover { border-color: var(--border-dark); }
+  .input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+  }
+  .input.has-icon { padding-right: 44px; }
+
+  .input-icon-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+  .input-icon-btn:hover { color: var(--text-primary); background: var(--bg-alt); }
+  .input-icon-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .field-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .forgot-link {
+    text-align: right;
+    font-size: 0.85rem;
+    color: var(--primary);
+    font-weight: 500;
+    transition: color 0.15s ease;
+  }
+  .forgot-link:hover { color: var(--primary-hover); text-decoration: underline; }
+  .forgot-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+
+  /* 제출 버튼 */
+  .submit-btn {
+    width: 100%;
+    height: 48px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 14px rgba(37,99,235,0.25);
+    transition: all 0.2s ease;
+  }
+  .submit-btn:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 6px 20px rgba(37,99,235,0.35);
+    transform: translateY(-1px);
+  }
+  .submit-btn:active { transform: translateY(0); }
+  .submit-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /* 푸터 */
+  .form-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+  }
+  .form-footer a { color: var(--primary); font-weight: 600; }
+  .form-footer a:hover { text-decoration: underline; }
+  .form-footer-sm {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* 보안 트러스트 */
+  .trust-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .trust-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .trust-divider {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  /* ============== 애니메이션 ============== */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ============== 반응형 ============== */
+  @media (max-width: 1024px) {
+    .brand-panel { padding: 48px; }
+    .form-panel { padding: 64px 32px; }
+    .value-prop { font-size: 2.1rem; }
+  }
+
+  @media (max-width: 768px) {
+    .split {
+      grid-template-columns: 1fr;
+    }
+    .brand-panel {
+      min-height: 40vh;
+      padding: 40px 24px;
+      gap: 32px;
+    }
+    .value-prop { font-size: 1.75rem; }
+    .value-sub { font-size: 0.95rem; }
+    .social-proof { padding: 20px; }
+    .form-panel {
+      min-height: auto;
+      padding: 48px 24px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .brand-panel { padding: 32px 20px; gap: 24px; }
+    .value-prop { font-size: 1.5rem; }
+    .testimonial-text { font-size: 0.95rem; }
+    .form-panel { padding: 40px 20px; }
+    .form-wrapper { gap: 18px; }
+    .form-heading h1 { font-size: 1.3rem; }
+    .stats-grid { grid-template-columns: 1fr; gap: 8px; }
+  }
+
+  /* ============== 모션 감소 환경 ============== */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    .live-dot::before { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="split">
+    <!-- ============== 좌측 브랜드 패널 ============== -->
+    <aside class="brand-panel" aria-label="QuantBridge 소개">
+      <!-- 로고 -->
+      <a href="00-landing.html" class="logo" aria-label="QuantBridge 홈으로 이동">
+        <span class="logo-icon" aria-hidden="true">
+          <!-- Bridge SVG -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 17h18M5 17V9a2 2 0 012-2h2M19 17V9a2 2 0 00-2-2h-2M9 7V4M15 7V4M3 21h18" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 11h6" stroke="#60A5FA" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="logo-text">QuantBridge</span>
+      </a>
+
+      <!-- 미들: 가치 제안 + 소셜 프루프 -->
+      <div class="brand-middle">
+        <div>
+          <h1 class="value-prop">Pine Script 전략을&#10;실전 수익으로</h1>
+          <p class="value-sub">10,000+ 트레이더가 선택한 퀀트 트레이딩 플랫폼</p>
+        </div>
+
+        <div class="social-proof" role="group" aria-label="사용자 현황">
+          <div class="avatars" aria-hidden="true">
+            <div class="avatar avatar-1">JK</div>
+            <div class="avatar avatar-2">MH</div>
+            <div class="avatar avatar-3">YS</div>
+            <div class="avatar avatar-4">DW</div>
+            <div class="avatar avatar-5">SJ</div>
+          </div>
+
+          <div class="live-line">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span>지금 <strong style="color:#fff;font-weight:600;">7,234명</strong>이 실전 매매 중입니다</span>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-row">
+              <span class="val">99.97%</span>
+              <span class="lbl">업타임</span>
+            </div>
+            <div class="stat-row">
+              <span class="val">&lt;35ms</span>
+              <span class="lbl">체결</span>
+            </div>
+            <div class="stat-row">
+              <span class="val">156</span>
+              <span class="lbl">거래소</span>
+            </div>
+            <div class="stat-row">
+              <span class="val">2.4B</span>
+              <span class="lbl">거래량</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 인용문 -->
+      <blockquote class="testimonial">
+        <svg class="quote-mark" width="36" height="28" viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M0 28V18.666c0-3.111.51-5.935 1.528-8.47C2.546 7.66 4.08 5.333 6.132 3.2 8.183 1.066 10.74.066 13.8 0v5.066c-2.037.8-3.6 2.4-4.69 4.8-1.09 2.4-1.528 4.933-1.313 7.6H13.8V28H0zm20.1 0V18.666c0-3.111.51-5.935 1.528-8.47 1.018-2.535 2.552-4.862 4.604-6.996C28.283 1.066 30.84.066 33.9 0v5.066c-2.037.8-3.6 2.4-4.69 4.8-1.09 2.4-1.528 4.933-1.313 7.6H33.9V28H20.1z" fill="#fff"/>
+        </svg>
+        <p class="testimonial-text">backtest에서 최적화까지 3분이면 끝난다</p>
+        <p class="testimonial-author"><strong>김지훈</strong> — Pro 트레이더</p>
+      </blockquote>
+    </aside>
+
+    <!-- ============== 우측 폼 패널 ============== -->
+    <main class="form-panel">
+      <div class="form-wrapper">
+        <!-- 탭 토글 -->
+        <div class="tab-toggle" role="tablist" aria-label="인증 모드 선택">
+          <button type="button" class="tab-btn active" role="tab" aria-selected="true" id="tab-signin" aria-controls="panel-signin" data-tab="signin">로그인</button>
+          <button type="button" class="tab-btn" role="tab" aria-selected="false" id="tab-signup" aria-controls="panel-signin" data-tab="signup">회원가입</button>
+        </div>
+
+        <!-- 헤딩 -->
+        <header class="form-heading">
+          <h1 id="form-title">다시 오신 것을 환영합니다</h1>
+          <p id="form-subtitle">이메일과 비밀번호로 로그인하세요</p>
+        </header>
+
+        <!-- 소셜 로그인 -->
+        <div class="social-buttons">
+          <button type="button" class="social-btn" aria-label="Google 계정으로 계속하기" onclick="location.href='03-trading-dashboard.html'">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M19.6 10.23c0-.68-.06-1.36-.17-2.02H10v3.82h5.39a4.6 4.6 0 01-2 3.02v2.5h3.24c1.9-1.76 3-4.35 3-7.32z" fill="#4285F4"/>
+              <path d="M10 20c2.7 0 4.97-.9 6.63-2.45l-3.24-2.5c-.9.6-2.05.95-3.39.95-2.6 0-4.8-1.76-5.6-4.12H1.06v2.58A10 10 0 0010 20z" fill="#34A853"/>
+              <path d="M4.4 11.88A6 6 0 014.1 10c0-.65.11-1.28.3-1.88V5.54H1.06A10 10 0 000 10c0 1.61.39 3.13 1.06 4.46l3.34-2.58z" fill="#FBBC04"/>
+              <path d="M10 3.98c1.47 0 2.78.5 3.82 1.5l2.86-2.87A10 10 0 0010 0 10 10 0 001.06 5.54L4.4 8.12C5.2 5.76 7.4 3.98 10 3.98z" fill="#EA4335"/>
+            </svg>
+            Google로 계속하기
+          </button>
+          <button type="button" class="social-btn" aria-label="GitHub 계정으로 계속하기" onclick="location.href='03-trading-dashboard.html'">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M10 0C4.48 0 0 4.58 0 10.25c0 4.52 2.87 8.35 6.84 9.7.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.5-1.11-1.5-.9-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.11 2.9.85.1-.66.35-1.11.63-1.37-2.22-.26-4.55-1.13-4.55-5.04 0-1.11.39-2.02 1.03-2.73-.1-.26-.45-1.3.1-2.7 0 0 .84-.28 2.75 1.04a9.3 9.3 0 015 0c1.9-1.32 2.75-1.04 2.75-1.04.55 1.4.2 2.44.1 2.7.64.71 1.03 1.62 1.03 2.73 0 3.92-2.34 4.78-4.57 5.03.36.31.68.93.68 1.87l-.01 2.78c0 .27.18.59.69.49A10.26 10.26 0 0020 10.25C20 4.58 15.52 0 10 0z" fill="#0F172A"/>
+            </svg>
+            GitHub로 계속하기
+          </button>
+        </div>
+
+        <!-- 디바이더 -->
+        <div class="divider" aria-hidden="true">또는 이메일로</div>
+
+        <!-- 폼 -->
+        <form class="field-form" id="panel-signin" onsubmit="event.preventDefault();" novalidate>
+          <div class="field">
+            <label class="field-label" for="email">이메일</label>
+            <div class="input-wrap">
+              <input
+                type="email"
+                id="email"
+                name="email"
+                class="input"
+                placeholder="name@quantbridge.io"
+                autocomplete="email"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="password">비밀번호</label>
+            <div class="input-wrap">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                class="input has-icon"
+                placeholder="••••••••"
+                autocomplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                class="input-icon-btn"
+                id="togglePw"
+                aria-label="비밀번호 표시"
+                aria-pressed="false"
+              >
+                <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <a href="#" class="forgot-link">비밀번호를 잊으셨나요?</a>
+
+          <button type="submit" class="submit-btn" id="submitBtn">로그인</button>
+        </form>
+
+        <!-- 푸터 링크 -->
+        <div class="form-footer">
+          <p style="margin:0;">
+            계정이 없으신가요?
+            <a href="05-onboarding.html" id="switchToSignup">회원가입</a>
+          </p>
+          <p class="form-footer-sm">
+            로그인 시 <a href="#" style="color:var(--text-secondary);text-decoration:underline;">이용약관</a>과
+            <a href="#" style="color:var(--text-secondary);text-decoration:underline;">개인정보처리방침</a>에 동의합니다.
+          </p>
+        </div>
+
+        <!-- 트러스트 배지 -->
+        <div class="trust-row" role="group" aria-label="보안 및 인증">
+          <span class="trust-item">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 2L4 6v6c0 5 3.4 9.5 8 10.5 4.6-1 8-5.5 8-10.5V6l-8-4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Bank-grade 보안
+          </span>
+          <span class="trust-divider" aria-hidden="true"></span>
+          <span class="trust-item">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 2L4 6v6c0 5 3.4 9.5 8 10.5 4.6-1 8-5.5 8-10.5V6l-8-4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+            SOC 2 Type II 준비 중
+          </span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ============== 비밀번호 표시/숨김 ==============
+    const togglePw = document.getElementById('togglePw');
+    const pwInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eyeIcon');
+
+    togglePw.addEventListener('click', () => {
+      const isHidden = pwInput.type === 'password';
+      pwInput.type = isHidden ? 'text' : 'password';
+      togglePw.setAttribute('aria-pressed', String(isHidden));
+      togglePw.setAttribute('aria-label', isHidden ? '비밀번호 숨기기' : '비밀번호 표시');
+
+      // 눈 아이콘 토글 (열린 눈 → 닫힌 눈)
+      if (isHidden) {
+        eyeIcon.innerHTML = `
+          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        `;
+      } else {
+        eyeIcon.innerHTML = `
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+        `;
+      }
+    });
+
+    // ============== 탭 전환 ==============
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const formTitle = document.getElementById('form-title');
+    const formSubtitle = document.getElementById('form-subtitle');
+    const submitBtn = document.querySelector('.submit-btn');
+    const footerSwitch = document.querySelector('.form-footer p');
+
+    function setTab(tab) {
+      tabBtns.forEach(b => {
+        const isActive = b.dataset.tab === tab;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-selected', String(isActive));
+      });
+
+      if (tab === 'signup') {
+        formTitle.textContent = 'QuantBridge에 가입하기';
+        formSubtitle.textContent = '이메일로 무료 계정을 만드세요';
+        submitBtn.textContent = '회원가입';
+        footerSwitch.innerHTML = '이미 계정이 있으신가요? <a href="#" data-switch="signin">로그인</a>';
+      } else {
+        formTitle.textContent = '다시 오신 것을 환영합니다';
+        formSubtitle.textContent = '이메일과 비밀번호로 로그인하세요';
+        submitBtn.textContent = '로그인';
+        footerSwitch.innerHTML = '계정이 없으신가요? <a href="#" data-switch="signup">회원가입</a>';
+      }
+      attachSwitchLink();
+    }
+
+    function attachSwitchLink() {
+      const link = document.querySelector('[data-switch]');
+      if (link) {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          setTab(link.dataset.switch);
+        });
+      }
+    }
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => setTab(btn.dataset.tab));
+    });
+
+    // Submit 버튼: 현재 탭에 따라 다르게 이동
+    // - 로그인 모드 → 03 대시보드 (로그인 성공 시뮬레이션)
+    // - 회원가입 모드 → 05 온보딩 (가입 완료 후 온보딩으로)
+    submitBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'signin';
+      if (activeTab === 'signup') {
+        location.href = '05-onboarding.html';
+      } else {
+        location.href = '03-trading-dashboard.html';
+      }
+    });
+
+    // 초기 푸터 링크 연결: "회원가입" 클릭 시 페이지 이동 대신 탭 전환
+    const initialSwitch = document.getElementById('switchToSignup');
+    if (initialSwitch) {
+      initialSwitch.dataset.switch = 'signup';
+      initialSwitch.removeAttribute('href');
+      initialSwitch.style.cursor = 'pointer';
+      initialSwitch.addEventListener('click', (e) => {
+        e.preventDefault();
+        setTab('signup');
+      });
+    }
+  </script>
+</body>
+</html>

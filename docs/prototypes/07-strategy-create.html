@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantBridge — 새 전략 만들기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --bg: #FAFBFC;
+    --bg-alt: #F1F5F9;
+    --card: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --primary-100: #DBEAFE;
+    --success: #059669;
+    --success-light: #D1FAE5;
+    --destructive: #DC2626;
+    --destructive-light: #FEE2E2;
+    --warning: #D97706;
+    --warning-light: #FEF3C7;
+    --border: #E2E8F0;
+    --border-dark: #CBD5E1;
+
+    --editor-bg: #1E293B;
+    --editor-gutter: #0F172A;
+    --editor-text: #E2E8F0;
+    --syntax-keyword: #FB923C;
+    --syntax-function: #60A5FA;
+    --syntax-string: #4ADE80;
+    --syntax-number: #C084FC;
+    --syntax-comment: #64748B;
+
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+    --card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.06);
+    --ring: 0 0 0 3px rgba(37, 99, 235, 0.15);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+
+    --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+    --header-h: 60px;
+    --sidebar-w: 220px;
+    --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+  input, select, textarea {
+    font-family: inherit;
+    color: inherit;
+  }
+  a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color var(--transition);
+  }
+  a:hover { color: var(--primary-hover); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ============================================================
+     UNIFIED APP SHELL — SIDEBAR
+     ============================================================ */
+  .app-sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 90;
+    transition: width var(--transition), transform var(--transition);
+  }
+  .sidebar-logo {
+    height: 44px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+  .sidebar-logo-mark {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+    border-radius: 8px;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+  }
+  .sidebar-logo-text {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .sidebar-nav-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0; margin: 0;
+    overflow-y: auto;
+  }
+  .sidebar-nav-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0; margin: 0;
+    flex-shrink: 0;
+  }
+  .nav-item {
+    position: relative;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 200ms ease;
+    white-space: nowrap;
+  }
+  .nav-item svg { flex-shrink: 0; stroke: currentColor; }
+  .nav-item:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .nav-item.active {
+    background: var(--primary-light);
+    color: var(--primary);
+    padding-left: 9px;
+    border-left: 3px solid var(--primary);
+  }
+  .nav-item.active svg { stroke: var(--primary); }
+  .nav-item .nav-badge {
+    position: absolute;
+    top: 6px; right: 8px;
+    min-width: 16px; height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--destructive);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .sidebar-divider {
+    margin: 16px 0;
+    border-top: 1px solid var(--border);
+  }
+  .nav-profile {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+  .nav-profile:hover { background: var(--bg-alt); }
+  .nav-profile-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    font-family: var(--font-display);
+    flex-shrink: 0;
+  }
+  .nav-profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0; flex: 1;
+  }
+  .nav-profile-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nav-profile-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 1px 6px;
+    border-radius: 999px;
+    width: fit-content;
+  }
+
+  /* ============================================================
+     GLOBAL HEADER
+     ============================================================ */
+  .app-header {
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-w);
+    right: 0;
+    height: var(--header-h);
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    z-index: 100;
+    transition: left var(--transition);
+  }
+  .header-left {
+    display: flex; align-items: center; gap: 12px; min-width: 0;
+  }
+  .mobile-menu-btn {
+    display: none;
+    width: 44px; height: 44px;
+    align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+  }
+  .mobile-menu-btn:hover { background: var(--bg-alt); color: var(--text-primary); }
+
+  .breadcrumb {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    min-width: 0;
+  }
+  .breadcrumb a { color: var(--text-secondary); font-weight: 500; cursor: pointer; }
+  .breadcrumb a:hover { color: var(--text-primary); }
+  .breadcrumb .chev { color: var(--text-muted); }
+  .breadcrumb .current {
+    color: var(--primary);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-center { flex: 1; display: flex; justify-content: center; padding: 0 16px; }
+  .header-search {
+    width: 320px; max-width: 100%;
+    height: 36px;
+    background: var(--bg-alt);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background var(--transition), border-color var(--transition);
+  }
+  .header-search:focus-within {
+    background: var(--card);
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+  .header-search svg { color: var(--text-muted); flex-shrink: 0; }
+  .header-search input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 0.875rem; color: var(--text-primary); min-width: 0;
+  }
+  .header-search input::placeholder { color: var(--text-muted); }
+  .header-search .kbd-pill {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition),
+                border-color var(--transition), box-shadow var(--transition),
+                transform var(--transition);
+  }
+  .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); padding: 8px 12px; }
+  .btn-ghost:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .btn-outline {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    color: var(--text-primary);
+    padding: 8px 16px;
+  }
+  .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    padding: 10px 18px;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  }
+  .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35); }
+  .btn-primary.lg { padding: 11px 22px; font-size: 0.9rem; }
+  .btn-text { color: var(--text-secondary); padding: 8px 4px; font-weight: 500; }
+  .btn-text:hover { color: var(--text-primary); }
+
+  .header-divider {
+    height: 24px;
+    border-left: 1px solid var(--border);
+    margin: 0 4px;
+  }
+  .icon-btn {
+    position: relative;
+    width: 44px; height: 44px;
+    display: grid; place-items: center;
+    color: var(--text-secondary);
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+  }
+  .icon-btn:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .icon-btn .notif-badge {
+    position: absolute;
+    top: 8px; right: 8px;
+    min-width: 16px; height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--destructive);
+    color: white;
+    font-size: 0.65rem; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .header-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    font-family: var(--font-display);
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color var(--transition);
+    flex-shrink: 0;
+  }
+  .header-avatar:hover { border-color: var(--primary-100); }
+
+  /* ============================================================
+     MAIN CONTENT
+     ============================================================ */
+  .app-main {
+    margin-left: var(--sidebar-w);
+    margin-top: var(--header-h);
+    padding: 32px;
+    min-height: calc(100vh - var(--header-h));
+    background: var(--bg);
+    transition: margin-left var(--transition);
+  }
+
+  .page-header {
+    max-width: 900px;
+    margin: 0 auto 24px;
+    text-align: left;
+  }
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  .page-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* ============================================================
+     PROGRESS STEPPER
+     ============================================================ */
+  .stepper {
+    max-width: 600px;
+    margin: 0 auto 32px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    position: relative;
+  }
+  .step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+  }
+  .step-circle {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--card);
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 0.95rem;
+    font-family: var(--font-display);
+    transition: all var(--transition);
+    position: relative;
+  }
+  .step.completed .step-circle {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+  }
+  .step.active .step-circle {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+    animation: pulseRing 2.4s ease-out infinite;
+  }
+  @keyframes pulseRing {
+    0%   { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35); }
+    70%  { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  }
+  .step.pending .step-circle {
+    background: var(--card);
+    border: 2px dashed var(--border-dark);
+    color: var(--text-muted);
+  }
+  .step-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+  .step.active .step-label { color: var(--primary); }
+  .step.completed .step-label { color: var(--text-primary); }
+  .step-status {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .step.active .step-status { color: var(--primary); font-weight: 600; }
+  .step.completed .step-status { color: var(--success); font-weight: 600; }
+
+  .step-line {
+    flex: 1;
+    height: 2px;
+    margin-top: 19px;
+    background: var(--border);
+    position: relative;
+    align-self: flex-start;
+  }
+  .step-line.completed { background: var(--success); }
+  .step-line.dashed {
+    background: transparent;
+    border-top: 2px dashed var(--border-dark);
+  }
+
+  /* ============================================================
+     MAIN CARD
+     ============================================================ */
+  .main-card {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: 32px;
+    border: 1px solid var(--border);
+    animation: slideFade 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @keyframes slideFade {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Tabs for input method */
+  .method-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    margin: -8px -8px 24px;
+    padding: 0 8px;
+    gap: 4px;
+  }
+  .method-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: not-allowed;
+    border-bottom: 2px solid transparent;
+    transition: color var(--transition), border-color var(--transition);
+    opacity: 0.55;
+  }
+  .method-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 1;
+  }
+  .method-tab.active:hover { color: var(--primary-hover); }
+  .method-tab svg { stroke: currentColor; flex-shrink: 0; }
+
+  /* Code label row */
+  .code-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .code-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: 0.01em;
+  }
+  .code-label-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8rem;
+  }
+  .pill-success {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: var(--success-light);
+    color: var(--success);
+    letter-spacing: 0.02em;
+  }
+  .monaco-link {
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  /* Monaco-style editor */
+  .code-editor {
+    position: relative;
+    height: 400px;
+    background: var(--editor-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    display: flex;
+    box-shadow: inset 0 0 0 1px #334155;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .editor-gutter {
+    background: var(--editor-gutter);
+    color: #475569;
+    padding: 16px 12px 16px 16px;
+    text-align: right;
+    user-select: none;
+    flex-shrink: 0;
+    border-right: 1px solid #334155;
+    min-width: 48px;
+  }
+  .editor-gutter .ln { display: block; font-size: 12px; }
+  .editor-code {
+    flex: 1;
+    padding: 16px 20px;
+    color: var(--editor-text);
+    overflow: auto;
+    white-space: pre;
+    tab-size: 4;
+  }
+  .editor-code .kw  { color: var(--syntax-keyword); }
+  .editor-code .fn  { color: var(--syntax-function); }
+  .editor-code .str { color: var(--syntax-string); }
+  .editor-code .num { color: var(--syntax-number); }
+  .editor-code .com { color: var(--syntax-comment); font-style: italic; }
+  .editor-code .var { color: #F8FAFC; }
+  .editor-code .op  { color: #CBD5E1; }
+
+  .char-count {
+    position: absolute;
+    right: 14px; bottom: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: #64748B;
+    background: rgba(15, 23, 42, 0.7);
+    padding: 3px 8px;
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Parsing Preview Panel */
+  .preview-panel {
+    margin-top: 20px;
+    background: var(--primary-light);
+    border: 1px solid var(--primary-100);
+    border-radius: var(--radius-md);
+    padding: 20px 22px;
+  }
+  .preview-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .pulse-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #22C55E;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+    animation: pulseDot 1.6s ease-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulseDot {
+    0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+    70%  { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+  .preview-title {
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 0.9rem;
+    font-family: var(--font-display);
+  }
+
+  .preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .preview-col h4 {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+  .kv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0; padding: 0;
+    list-style: none;
+  }
+  .kv-list li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.82rem;
+    opacity: 0;
+    animation: staggerIn 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  .kv-list li:nth-child(1) { animation-delay: 100ms; }
+  .kv-list li:nth-child(2) { animation-delay: 200ms; }
+  .kv-list li:nth-child(3) { animation-delay: 300ms; }
+  .kv-list li:nth-child(4) { animation-delay: 400ms; }
+  @keyframes staggerIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .kv-key   { color: var(--text-secondary); white-space: nowrap; }
+  .kv-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: right;
+  }
+  .kv-value.muted { color: var(--text-muted); font-family: var(--font-body); font-weight: 500; }
+
+  .feature-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--primary-100);
+  }
+  .feature-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--card);
+    border: 1px solid var(--primary-100);
+    color: var(--primary);
+  }
+  .feature-pill.miss {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: var(--bg-alt);
+  }
+  .feature-pill .chk-ok { color: var(--success); font-weight: 800; }
+  .feature-pill .chk-no { color: var(--text-muted); font-weight: 800; }
+
+  /* Action buttons row */
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    gap: 12px;
+  }
+  .actions-right { display: flex; align-items: center; gap: 12px; }
+
+  /* ============================================================
+     STEP PREVIEW TILES
+     ============================================================ */
+  .preview-tiles {
+    max-width: 900px;
+    margin: 24px auto 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .tile {
+    background: var(--card);
+    border: 1px dashed var(--border-dark);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    opacity: 0.7;
+    transition: opacity var(--transition), border-color var(--transition);
+  }
+  .tile:hover { opacity: 0.95; border-color: var(--primary-100); }
+  .tile-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .tile-icon {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: var(--bg-alt);
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .tile-title {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 6px;
+  }
+  .tile-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* ============================================================
+     HELP TOOLTIP
+     ============================================================ */
+  .help-tooltip {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 360px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.12);
+    padding: 20px;
+    z-index: 80;
+  }
+  .help-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .help-icon {
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: var(--primary-light);
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+  .help-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.4;
+  }
+  .help-close {
+    margin-left: auto;
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    color: var(--text-muted);
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .help-close:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .help-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0 0 12px;
+    line-height: 1.55;
+  }
+  .help-links {
+    display: flex;
+    gap: 14px;
+    font-size: 0.82rem;
+  }
+  .help-links a { font-weight: 600; }
+
+  /* Keyboard hint */
+  .kbd-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-left: 8px;
+  }
+  .kbd-hint kbd {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+  }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 1200px) {
+    .header-center { display: none; }
+    .help-tooltip {
+      width: auto;
+      left: 16px; right: 16px;
+      bottom: 12px;
+    }
+  }
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 60px; }
+    .sidebar-logo-text,
+    .nav-item span:not(.nav-badge),
+    .nav-profile-info { display: none; }
+    .nav-item { justify-content: center; padding: 10px; }
+    .nav-item.active { padding-left: 7px; }
+    .nav-profile { justify-content: center; padding: 6px; }
+  }
+  @media (max-width: 900px) {
+    .preview-tiles { grid-template-columns: 1fr; }
+    .preview-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    .mobile-menu-btn { display: inline-flex; }
+    .app-sidebar {
+      width: 240px;
+      transform: translateX(-100%);
+    }
+    .app-sidebar.open { transform: translateX(0); }
+    .app-sidebar.open .sidebar-logo-text,
+    .app-sidebar.open .nav-item span:not(.nav-badge),
+    .app-sidebar.open .nav-profile-info { display: inline; }
+    .app-sidebar.open .nav-item { justify-content: flex-start; padding: 10px 12px; }
+    .app-sidebar.open .nav-item.active { padding-left: 9px; }
+    .app-sidebar.open .nav-profile { justify-content: flex-start; padding: 6px 10px; }
+    .app-header { left: 0; padding: 0 12px; }
+    .app-main {
+      margin-left: 0;
+      padding: 20px 14px;
+    }
+    .main-card { padding: 22px 18px; }
+    .btn-hide-sm { display: none; }
+    .help-tooltip {
+      right: 8px; left: 8px;
+      bottom: 8px;
+      width: auto;
+    }
+    .code-editor { height: 320px; }
+  }
+
+  /* Overlay for mobile drawer */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 85;
+  }
+  .overlay.visible { display: block; }
+
+  .sr-only {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================= 통합 사이드바 ========================= -->
+<aside class="app-sidebar" id="sidebar" aria-label="메인 내비게이션">
+  <a href="03-trading-dashboard.html" class="sidebar-logo" aria-label="QuantBridge 홈" style="text-decoration:none;color:inherit;">
+    <span class="sidebar-logo-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 16h20"/>
+        <path d="M5 16V9"/>
+        <path d="M19 16V9"/>
+        <path d="M5 9c2 0 4-2 7-2s5 2 7 2"/>
+        <path d="M9 16v4"/>
+        <path d="M15 16v4"/>
+      </svg>
+    </span>
+    <span class="sidebar-logo-text">QuantBridge</span>
+  </a>
+
+  <ul class="sidebar-nav-main">
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='03-trading-dashboard.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='03-trading-dashboard.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <path d="M9 22V12h6v10"/>
+      </svg>
+      <span>대시보드</span>
+    </li>
+    <li class="nav-item active" tabindex="0" aria-current="page" style="cursor:pointer" onclick="location.href='06-strategies-list.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='06-strategies-list.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      <span>전략</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+        <polyline points="2 17 12 22 22 17"/>
+        <polyline points="2 12 12 17 22 12"/>
+      </svg>
+      <span>템플릿</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='09-backtests-list.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='09-backtests-list.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span>백테스트</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='03-trading-dashboard.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='03-trading-dashboard.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      <span>트레이딩</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span>거래소</span>
+    </li>
+  </ul>
+
+  <div class="sidebar-divider" aria-hidden="true"></div>
+
+  <ul class="sidebar-nav-bottom">
+    <li class="nav-item" tabindex="0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span>알림</span>
+      <span class="nav-badge" aria-label="읽지 않은 알림 3개">3</span>
+    </li>
+    <li class="nav-item" tabindex="0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span>설정</span>
+    </li>
+    <li class="nav-profile" tabindex="0" role="button" aria-label="프로필 메뉴">
+      <div class="nav-profile-avatar" aria-hidden="true">JK</div>
+      <div class="nav-profile-info">
+        <span class="nav-profile-name">김지훈</span>
+        <span class="nav-profile-badge">프로</span>
+      </div>
+    </li>
+  </ul>
+</aside>
+
+<!-- ========================= 글로벌 헤더 ========================= -->
+<header class="app-header" role="banner">
+  <div class="header-left">
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="메뉴 열기">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+    <nav class="breadcrumb" aria-label="경로">
+      <a href="06-strategies-list.html">전략</a>
+      <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+      <span class="current">새 전략</span>
+    </nav>
+  </div>
+
+  <div class="header-center">
+    <label class="header-search" aria-label="검색">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" placeholder="검색..." />
+      <span class="kbd-pill">⌘K</span>
+    </label>
+  </div>
+
+  <div class="header-right">
+    <button class="btn btn-outline btn-hide-sm" aria-label="저장하고 나가기" onclick="location.href='06-strategies-list.html'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/>
+        <polyline points="7 3 7 8 15 8"/>
+      </svg>
+      <span>저장하고 나가기</span>
+    </button>
+
+    <button class="btn btn-primary" aria-label="다음 단계로 이동" onclick="location.href='08-backtest-setup.html'">
+      <span>다음 단계</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </button>
+
+    <span class="header-divider" aria-hidden="true"></span>
+
+    <button class="icon-btn" aria-label="알림">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="notif-badge" aria-label="읽지 않은 알림 3개">3</span>
+    </button>
+
+    <div class="header-avatar" role="button" tabindex="0" aria-label="프로필 메뉴">JK</div>
+  </div>
+</header>
+
+<!-- 오버레이 (모바일) -->
+<div class="overlay" id="overlay" aria-hidden="true"></div>
+
+<!-- ========================= 메인 콘텐츠 ========================= -->
+<main class="app-main" aria-label="새 전략 만들기">
+
+  <!-- 페이지 헤더 -->
+  <div class="page-header">
+    <h1 class="page-title">새 전략 만들기</h1>
+    <p class="page-subtitle">Pine Script 전략을 업로드하고 자동 파싱을 진행합니다</p>
+  </div>
+
+  <!-- ========================= 진행 스텝퍼 ========================= -->
+  <nav class="stepper" aria-label="전략 생성 진행 단계">
+    <div class="step completed" aria-current="false">
+      <div class="step-circle" aria-label="1단계 완료">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <span class="step-label">업로드 방식</span>
+      <span class="step-status">완료</span>
+    </div>
+
+    <div class="step-line completed" aria-hidden="true"></div>
+
+    <div class="step active" aria-current="step">
+      <div class="step-circle" aria-label="2단계 진행 중">2</div>
+      <span class="step-label">코드 입력</span>
+      <span class="step-status">진행 중</span>
+    </div>
+
+    <div class="step-line dashed" aria-hidden="true"></div>
+
+    <div class="step pending">
+      <div class="step-circle" aria-label="3단계 대기 중">3</div>
+      <span class="step-label">확인</span>
+      <span class="step-status">대기</span>
+    </div>
+  </nav>
+
+  <!-- ========================= 메인 카드: Step 2 ========================= -->
+  <section class="main-card" aria-labelledby="step2-title">
+    <h2 id="step2-title" class="sr-only">Pine Script 입력</h2>
+
+    <!-- 입력 방식 탭 -->
+    <div class="method-tabs" role="tablist" aria-label="입력 방식 선택">
+      <button class="method-tab active" role="tab" aria-selected="true" data-method="direct">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>
+        <span>Pine Script 직접 입력</span>
+      </button>
+      <button class="method-tab" role="tab" aria-selected="false" data-method="upload">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span>파일 업로드</span>
+      </button>
+      <button class="method-tab" role="tab" aria-selected="false" data-method="url">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        <span>TV URL 가져오기</span>
+      </button>
+    </div>
+
+    <!-- 프로토타입 전환 알림 (탭 클릭 시 표시) -->
+    <div id="method-notice" role="status" aria-live="polite" style="display:none;background:#FEF3C7;border:1px solid #FDE68A;color:#92400E;padding:12px 16px;border-radius:10px;margin:12px 0;font-size:0.85rem;">
+      ℹ️ <strong>프로토타입 안내:</strong> <span id="method-notice-text"></span> 실제 구현 시 해당 입력 UI로 전환됩니다.
+    </div>
+
+    <!-- 코드 라벨 -->
+    <div class="code-label-row">
+      <label class="code-label" for="pineCode">Pine Script 코드
+        <span class="kbd-hint"><kbd>Tab</kbd> 들여쓰기 · <kbd>⌘</kbd>+<kbd>Enter</kbd> 파싱</span>
+      </label>
+      <div class="code-label-right">
+        <span class="pill-success">Pine v5</span>
+        <a class="monaco-link">Monaco 에디터에서 편집 →</a>
+      </div>
+    </div>
+
+    <!-- Monaco 스타일 코드 에디터 -->
+    <div class="code-editor" role="group" aria-label="Pine Script 에디터">
+      <div class="editor-gutter" aria-hidden="true">
+        <span class="ln">1</span>
+        <span class="ln">2</span>
+        <span class="ln">3</span>
+        <span class="ln">4</span>
+        <span class="ln">5</span>
+        <span class="ln">6</span>
+        <span class="ln">7</span>
+        <span class="ln">8</span>
+        <span class="ln">9</span>
+        <span class="ln">10</span>
+        <span class="ln">11</span>
+        <span class="ln">12</span>
+        <span class="ln">13</span>
+        <span class="ln">14</span>
+        <span class="ln">15</span>
+        <span class="ln">16</span>
+        <span class="ln">17</span>
+        <span class="ln">18</span>
+        <span class="ln">19</span>
+        <span class="ln">20</span>
+        <span class="ln">21</span>
+        <span class="ln">22</span>
+      </div>
+      <div
+        class="editor-code"
+        role="textbox"
+        tabindex="0"
+        aria-multiline="true"
+        aria-label="Pine Script 코드 입력 영역"
+        contenteditable="false"
+      ><span class="com">// @version=5</span>
+<span class="kw">strategy</span>(<span class="str">"MA Crossover Strategy"</span>, <span class="var">overlay</span>=<span class="kw">true</span>, <span class="var">initial_capital</span>=<span class="num">10000</span>)
+
+<span class="com">// 파라미터 정의</span>
+<span class="var">fast_length</span> <span class="op">=</span> <span class="kw">input</span>.<span class="fn">int</span>(<span class="num">10</span>, <span class="var">title</span>=<span class="str">"Fast MA Length"</span>, <span class="var">minval</span>=<span class="num">1</span>)
+<span class="var">slow_length</span> <span class="op">=</span> <span class="kw">input</span>.<span class="fn">int</span>(<span class="num">30</span>, <span class="var">title</span>=<span class="str">"Slow MA Length"</span>, <span class="var">minval</span>=<span class="num">1</span>)
+<span class="var">stop_loss_pct</span> <span class="op">=</span> <span class="kw">input</span>.<span class="fn">float</span>(<span class="num">2.0</span>, <span class="var">title</span>=<span class="str">"Stop Loss %"</span>, <span class="var">step</span>=<span class="num">0.1</span>)
+
+<span class="com">// 지표 계산</span>
+<span class="var">fast_ma</span> <span class="op">=</span> <span class="fn">ta.sma</span>(<span class="var">close</span>, <span class="var">fast_length</span>)
+<span class="var">slow_ma</span> <span class="op">=</span> <span class="fn">ta.sma</span>(<span class="var">close</span>, <span class="var">slow_length</span>)
+
+<span class="com">// 진입 조건</span>
+<span class="var">long_condition</span>  <span class="op">=</span> <span class="fn">ta.crossover</span>(<span class="var">fast_ma</span>, <span class="var">slow_ma</span>)
+<span class="var">short_condition</span> <span class="op">=</span> <span class="fn">ta.crossunder</span>(<span class="var">fast_ma</span>, <span class="var">slow_ma</span>)
+
+<span class="com">// 주문 실행</span>
+<span class="kw">if</span> (<span class="var">long_condition</span>)
+    <span class="fn">strategy.entry</span>(<span class="str">"Long"</span>, <span class="fn">strategy.long</span>)
+
+<span class="kw">if</span> (<span class="var">short_condition</span>)
+    <span class="fn">strategy.entry</span>(<span class="str">"Short"</span>, <span class="fn">strategy.short</span>)
+
+<span class="com">// 스탑로스 설정</span>
+<span class="fn">strategy.exit</span>(<span class="str">"SL"</span>, <span class="var">loss</span>=<span class="var">stop_loss_pct</span>)</div>
+      <div class="char-count" aria-live="polite">847 / 10,000자</div>
+    </div>
+
+    <!-- ========================= 파싱 프리뷰 ========================= -->
+    <div class="preview-panel" aria-live="polite" aria-label="실시간 파싱 결과">
+      <div class="preview-header">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        <span class="preview-title">실시간 파싱 결과</span>
+      </div>
+
+      <div class="preview-grid">
+        <!-- 감지된 전략 정보 -->
+        <div class="preview-col">
+          <h4>감지된 전략 정보</h4>
+          <ul class="kv-list">
+            <li>
+              <span class="kv-key">이름</span>
+              <span class="kv-value">MA Crossover Strategy</span>
+            </li>
+            <li>
+              <span class="kv-key">버전</span>
+              <span class="kv-value">Pine v5</span>
+            </li>
+            <li>
+              <span class="kv-key">타입</span>
+              <span class="kv-value">strategy</span>
+            </li>
+            <li>
+              <span class="kv-key">심볼</span>
+              <span class="kv-value muted">다음 단계에서 설정</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 파라미터 -->
+        <div class="preview-col">
+          <h4>파라미터 (3개)</h4>
+          <ul class="kv-list">
+            <li>
+              <span class="kv-key">fast_length</span>
+              <span class="kv-value">= 10</span>
+            </li>
+            <li>
+              <span class="kv-key">slow_length</span>
+              <span class="kv-value">= 30</span>
+            </li>
+            <li>
+              <span class="kv-key">stop_loss_pct</span>
+              <span class="kv-value">= 2.0</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 기능 뱃지 -->
+      <div class="feature-row" aria-label="감지된 기능">
+        <span class="feature-pill"><span class="chk-ok">✓</span> 진입 시그널</span>
+        <span class="feature-pill"><span class="chk-ok">✓</span> 청산 시그널</span>
+        <span class="feature-pill"><span class="chk-ok">✓</span> Stop Loss</span>
+        <span class="feature-pill miss"><span class="chk-no">✗</span> Take Profit</span>
+      </div>
+    </div>
+
+    <!-- 액션 버튼 -->
+    <div class="actions">
+      <button class="btn btn-text" aria-label="이전 단계로 돌아가기">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/>
+          <polyline points="12 19 5 12 12 5"/>
+        </svg>
+        <span>이전 단계</span>
+      </button>
+
+      <div class="actions-right">
+        <button class="btn btn-outline" aria-label="파싱 결과 미리보기" onclick="location.href='01-strategy-editor.html'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <span>미리보기</span>
+        </button>
+        <button class="btn btn-primary lg" aria-label="다음 단계로 이동" onclick="location.href='08-backtest-setup.html'">
+          <span>다음 단계</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= 다음 단계 프리뷰 타일 ========================= -->
+  <div class="preview-tiles" aria-label="다음 단계 미리보기">
+    <div class="tile">
+      <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </span>
+        다음: 전략 설정
+      </div>
+      <h3 class="tile-title">메타데이터 입력</h3>
+      <p class="tile-desc">전략 이름, 심볼, 타임프레임, 초기 자본, 수수료를 설정하세요.</p>
+    </div>
+
+    <div class="tile">
+      <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </span>
+        이후: 최종 확인
+      </div>
+      <h3 class="tile-title">요약 & 생성</h3>
+      <p class="tile-desc">입력 내용을 검토하고 전략 엔티티를 생성합니다.</p>
+    </div>
+
+    <div class="tile">
+      <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+        </span>
+        완료 후
+      </div>
+      <h3 class="tile-title">백테스트 실행</h3>
+      <p class="tile-desc">생성된 전략에 대해 즉시 백테스트를 실행할 수 있습니다.</p>
+    </div>
+  </div>
+</main>
+
+<!-- ========================= 도움말 툴팁 ========================= -->
+<aside class="help-tooltip" id="helpTooltip" role="complementary" aria-label="도움말">
+  <div class="help-header">
+    <span class="help-icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18h6"/>
+        <path d="M10 22h4"/>
+        <path d="M12 2a7 7 0 0 0-4 12.7c1 .7 1.5 1.3 1.5 2.3v1h5v-1c0-1 .5-1.6 1.5-2.3A7 7 0 0 0 12 2z"/>
+      </svg>
+    </span>
+    <h3 class="help-title">💡 팁: Pine Script 작성이 처음이라면?</h3>
+    <button class="help-close" id="helpClose" aria-label="도움말 닫기">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <p class="help-text">추천 템플릿 5개에서 시작하거나, Pine Script 공식 문서를 참고하세요. 기본 전략 구조를 빠르게 파악할 수 있습니다.</p>
+  <div class="help-links">
+    <a>템플릿 둘러보기 →</a>
+    <a>문서 보기 →</a>
+  </div>
+</aside>
+
+<script>
+  // 모바일 사이드바 토글
+  (function () {
+    var menuBtn = document.getElementById('mobileMenuBtn');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('overlay');
+    if (menuBtn && sidebar && overlay) {
+      menuBtn.addEventListener('click', function () {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+      });
+      overlay.addEventListener('click', function () {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+      });
+    }
+  })();
+
+  // 도움말 툴팁 닫기
+  (function () {
+    var closeBtn = document.getElementById('helpClose');
+    var tooltip = document.getElementById('helpTooltip');
+    if (closeBtn && tooltip) {
+      closeBtn.addEventListener('click', function () {
+        tooltip.style.display = 'none';
+      });
+    }
+  })();
+
+  // 방향키: 이전/다음 단계 포커스 이동 시뮬레이션
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey && e.key === 'Enter') {
+      // ⌘+Enter → 파싱 트리거 시뮬레이션
+      e.preventDefault();
+      var dot = document.querySelector('.pulse-dot');
+      if (dot) {
+        dot.style.background = '#2563EB';
+        setTimeout(function () { dot.style.background = '#22C55E'; }, 400);
+      }
+    }
+  });
+
+  // ========== 입력 방식 탭 전환 ==========
+  // 클릭 시 active 상태만 전환 (페이지 이동 X). 실제 구현 시 컨텐츠 영역 전환.
+  (function () {
+    var methodTabs = document.querySelectorAll('.method-tab');
+    var notice = document.getElementById('method-notice');
+    var noticeText = document.getElementById('method-notice-text');
+    var methodLabels = {
+      direct: 'Pine Script 직접 입력',
+      upload: '.pine 파일 업로드',
+      url: 'TradingView URL 가져오기'
+    };
+    methodTabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        methodTabs.forEach(function (t) {
+          t.classList.remove('active');
+          t.setAttribute('aria-selected', 'false');
+        });
+        tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
+
+        var method = tab.dataset.method;
+        if (method === 'direct') {
+          notice.style.display = 'none';
+        } else {
+          noticeText.textContent = '"' + methodLabels[method] + '" 방식이 선택되었습니다.';
+          notice.style.display = 'block';
+        }
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuantBridge — Error Pages (404 · 500 · 503)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* ========== 디자인 토큰 ========== */
+    :root {
+      --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+      --font-body: "Inter", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-100: #DBEAFE;
+      --primary-50: #EFF6FF;
+      --primary-light: #F5F9FF;
+
+      --success: #16A34A;
+      --success-light: #DCFCE7;
+      --warning: #F59E0B;
+      --warning-light: #FEF3C7;
+      --destructive: #DC2626;
+      --destructive-light: #FEE2E2;
+
+      --bg-page: #FAFBFC;
+      --bg-surface: #FFFFFF;
+      --bg-muted: #F8FAFC;
+      --bg-subtle: #F1F5F9;
+
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #94A3B8;
+
+      --border: #E2E8F0;
+      --border-strong: #CBD5E1;
+
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
+      --shadow-lg: 0 10px 28px rgba(15, 23, 42, 0.08);
+      --shadow-glow: 0 8px 20px rgba(37, 99, 235, 0.28);
+
+      --radius-sm: 8px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      color: var(--text-primary);
+      background: var(--bg-page);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+    /* ========== 상단 바 (심플) ========== */
+    .topbar {
+      position: sticky;
+      top: 0;
+      height: 60px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      z-index: 50;
+      backdrop-filter: saturate(180%) blur(8px);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 17px;
+      color: var(--text-primary);
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary) 0%, #3B82F6 100%);
+      display: grid;
+      place-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .topbar-link {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: color 0.15s ease;
+    }
+    .topbar-link:hover { color: var(--text-primary); }
+
+    .topbar-cta {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: var(--primary-50);
+      transition: all 0.15s ease;
+    }
+    .topbar-cta:hover {
+      background: var(--primary-100);
+    }
+
+    /* ========== 에러 섹션 공통 ========== */
+    .error-section {
+      min-height: calc(100vh - 60px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 56px 24px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .error-404 {
+      background: radial-gradient(ellipse at top, #EFF6FF 0%, var(--bg-page) 60%);
+    }
+
+    .error-500 {
+      background: radial-gradient(ellipse at top, #FEF2F2 0%, var(--bg-page) 60%);
+    }
+
+    .error-503 {
+      background: radial-gradient(ellipse at top, #F5F9FF 0%, var(--bg-page) 60%);
+    }
+
+    .error-content {
+      max-width: 560px;
+      width: 100%;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .error-code-backdrop {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(6rem, 15vw, 9rem);
+      line-height: 0.9;
+      color: var(--primary-50);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -58%);
+      z-index: 0;
+      pointer-events: none;
+      user-select: none;
+      letter-spacing: -0.04em;
+    }
+    .error-code-backdrop.destructive { color: #FEE2E2; }
+    .error-code-backdrop.warning { color: #FEF3C7; }
+
+    .error-icon-wrap {
+      position: relative;
+      z-index: 2;
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 24px;
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .error-icon-wrap.primary {
+      background: linear-gradient(135deg, var(--primary-50), var(--primary-100));
+    }
+    .error-icon-wrap.destructive {
+      background: linear-gradient(135deg, #FEF2F2, var(--destructive-light));
+    }
+    .error-icon-wrap.warning {
+      background: linear-gradient(135deg, #FFFBEB, var(--warning-light));
+    }
+
+    .error-heading {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 2rem;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+      letter-spacing: -0.02em;
+      position: relative;
+      z-index: 2;
+    }
+
+    .error-subtitle {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      max-width: 480px;
+      margin: 0 auto 32px;
+      white-space: pre-line;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* ========== 버튼 ========== */
+    .btn-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 2;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: var(--shadow-glow);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      border: 1px solid var(--border-strong);
+    }
+    .btn-outline:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+    }
+    .btn-ghost:hover {
+      background: var(--bg-subtle);
+      color: var(--text-primary);
+    }
+
+    .btn .icon { width: 16px; height: 16px; }
+
+    /* ========== 404: 추천 링크 카드 ========== */
+    .helpful-section {
+      margin-top: 48px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .helpful-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .helpful-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .helpful-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: left;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .helpful-card:hover {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+
+    .helpful-card-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--primary-50);
+      color: var(--primary);
+      display: grid;
+      place-items: center;
+    }
+
+    .helpful-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .helpful-card-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ========== 404: 검색 영역 ========== */
+    .search-section {
+      margin-top: 36px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .search-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      display: block;
+      text-align: center;
+    }
+
+    .search-input-wrap {
+      position: relative;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px 0 44px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      font-family: var(--font-body);
+      font-size: 14px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .search-icon {
+      position: absolute;
+      top: 50%;
+      left: 16px;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-chips {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .search-chips a {
+      color: var(--text-secondary);
+      font-weight: 500;
+      margin: 0 2px;
+      transition: color 0.15s ease;
+    }
+    .search-chips a:hover { color: var(--primary); }
+    .search-chips-sep { color: var(--border-strong); margin: 0 4px; }
+
+    /* ========== 섹션 구분선 ========== */
+    .section-divider {
+      background: var(--bg-muted);
+      padding: 20px 24px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-top: 1px dashed var(--border);
+      border-bottom: 1px dashed var(--border);
+      letter-spacing: 0.04em;
+    }
+
+    /* ========== 500: 기술 정보 박스 ========== */
+    .tech-info-box {
+      background: var(--destructive-light);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+      border-radius: 10px;
+      padding: 16px;
+      max-width: 480px;
+      margin: 28px auto 32px;
+      text-align: left;
+      position: relative;
+      z-index: 2;
+    }
+
+    .tech-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 13px;
+      gap: 12px;
+    }
+    .tech-info-row + .tech-info-row {
+      border-top: 1px solid rgba(220, 38, 38, 0.15);
+    }
+
+    .tech-info-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--destructive);
+      font-weight: 600;
+    }
+
+    .tech-info-value {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #7F1D1D;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .copy-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: rgba(220, 38, 38, 0.08);
+      color: var(--destructive);
+      display: grid;
+      place-items: center;
+      transition: background 0.15s ease;
+    }
+    .copy-btn:hover { background: rgba(220, 38, 38, 0.18); }
+
+    .tech-info-help {
+      font-size: 11px;
+      color: #991B1B;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(220, 38, 38, 0.15);
+      text-align: center;
+      font-weight: 500;
+    }
+
+    /* 500: 시스템 상태 */
+    .status-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 32px;
+      padding: 10px 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 13px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 2;
+    }
+
+    .status-dot {
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+    .status-dot::after {
+      content: "";
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: var(--success);
+      opacity: 0.35;
+      animation: pulse 2s ease-out infinite;
+    }
+
+    .status-label {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--success-light);
+      color: #166534;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .status-link {
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .status-link:hover { text-decoration: underline; }
+
+    /* ========== 503: 예상 복구 시간 카드 ========== */
+    .eta-card {
+      background: var(--primary-light);
+      border: 1px solid var(--primary-100);
+      border-radius: 14px;
+      padding: 24px;
+      max-width: 480px;
+      margin: 28px auto 28px;
+      text-align: left;
+      position: relative;
+      z-index: 2;
+    }
+
+    .eta-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .eta-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--bg-surface);
+      color: var(--primary);
+      display: grid;
+      place-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .eta-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .eta-time {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      color: var(--primary);
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      background: var(--primary-100);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 14px 0 10px;
+      position: relative;
+    }
+
+    .progress-fill {
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #3B82F6);
+      border-radius: 999px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-fill::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.45) 50%,
+        transparent 100%
+      );
+      animation: shimmer 1.8s linear infinite;
+    }
+
+    .eta-meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* 503: 점검 내용 */
+    .updates-box {
+      max-width: 480px;
+      margin: 0 auto 28px;
+      text-align: left;
+      padding: 18px 20px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .updates-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+    }
+
+    .updates-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .updates-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .update-badge {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .update-badge.done {
+      background: var(--success-light);
+      color: var(--success);
+    }
+    .update-badge.progress {
+      background: var(--primary-50);
+      color: var(--primary);
+      animation: pulse-soft 1.6s ease-in-out infinite;
+    }
+
+    /* 503: 트위터 카드 */
+    .twitter-card {
+      max-width: 480px;
+      margin: 28px auto 0;
+      padding: 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      text-align: left;
+      position: relative;
+      z-index: 2;
+    }
+
+    .twitter-avatar {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), #3B82F6);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .twitter-body { flex: 1; min-width: 0; }
+
+    .twitter-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .twitter-name { font-weight: 700; color: var(--text-primary); }
+    .twitter-handle { color: var(--text-muted); }
+    .twitter-time { color: var(--text-muted); margin-left: auto; font-size: 12px; }
+
+    .twitter-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    /* ========== 공통: 아이콘 애니메이션 ========== */
+    .float-anim {
+      animation: float 3.6s ease-in-out infinite;
+    }
+
+    .pulse-anim {
+      animation: pulse-soft 1.8s ease-in-out infinite;
+    }
+
+    .rotate-anim {
+      animation: rotate-slow 4s linear infinite;
+      transform-origin: center;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.5; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+
+    @keyframes pulse-soft {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.75; transform: scale(0.96); }
+    }
+
+    @keyframes rotate-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* ========== 푸터 ========== */
+    .footer {
+      background: var(--bg-subtle);
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      font-weight: 500;
+      transition: color 0.15s ease;
+      padding: 0 10px;
+    }
+    .footer-links a:hover { color: var(--primary); }
+    .footer-links a + a {
+      border-left: 1px solid var(--border-strong);
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ========== 시각적으로 숨기기 ========== */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ========== 반응형 ========== */
+    @media (max-width: 768px) {
+      .topbar { padding: 0 16px; }
+      .topbar-actions { gap: 12px; }
+
+      .error-section { padding: 40px 20px 60px; }
+      .error-heading { font-size: 1.6rem; }
+      .error-subtitle { font-size: 0.95rem; }
+
+      .btn-row { flex-direction: column; align-items: stretch; }
+      .btn { justify-content: center; }
+
+      .helpful-grid { grid-template-columns: 1fr; }
+
+      .tech-info-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+
+      .status-bar {
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 12px 16px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .error-code-backdrop { font-size: 5.5rem; }
+      .error-icon-wrap { width: 80px; height: 80px; }
+      .error-heading { font-size: 1.4rem; }
+      .eta-card, .updates-box, .tech-info-box, .twitter-card { padding: 16px; }
+      .eta-time { font-size: 1.25rem; }
+    }
+
+    /* ========== 모션 감소 ========== */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .progress-fill::after { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ========== 공통 심플 상단바 ========== -->
+  <header class="topbar" role="banner">
+    <a href="00-landing.html" class="brand" aria-label="QuantBridge 홈">
+      <span class="brand-logo" aria-hidden="true">
+        <!-- 브릿지 SVG 로고 -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 17C3 17 6 13 12 13C18 13 21 17 21 17" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          <path d="M5 17V21M19 17V21M9 13V17M15 13V17" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="12" cy="8" r="2" fill="#fff"/>
+        </svg>
+      </span>
+      <span>QuantBridge</span>
+    </a>
+    <nav class="topbar-actions" aria-label="주요 메뉴">
+      <a href="00-landing.html" class="topbar-link">홈으로</a>
+      <a href="04-login.html" class="topbar-link">로그인</a>
+      <a href="03-trading-dashboard.html" class="topbar-cta">대시보드</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- ============================================== -->
+    <!-- ========== 섹션 1: 404 에러 ========== -->
+    <!-- ============================================== -->
+    <section class="error-section error-404" aria-labelledby="err-404-heading">
+      <div aria-hidden="true" class="error-code-backdrop">404</div>
+
+      <div class="error-content">
+        <div class="error-icon-wrap primary float-anim" aria-hidden="true">
+          <!-- 기울어진 나침반 + 균열 -->
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g transform="rotate(-18 28 28)">
+              <circle cx="28" cy="28" r="22" stroke="#2563EB" stroke-width="2.5" fill="#EFF6FF"/>
+              <circle cx="28" cy="28" r="3" fill="#2563EB"/>
+              <path d="M28 10L32 28L28 28Z" fill="#2563EB"/>
+              <path d="M28 46L24 28L28 28Z" fill="#93C5FD"/>
+              <text x="28" y="15" text-anchor="middle" font-family="Plus Jakarta Sans" font-size="6" font-weight="700" fill="#1E40AF">N</text>
+            </g>
+            <!-- 빨간 균열 -->
+            <path d="M14 12L24 26L20 32L34 46" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <h1 id="err-404-heading" class="error-heading">페이지를 찾을 수 없습니다</h1>
+        <p class="error-subtitle">URL이 변경되었거나 삭제된 페이지입니다.
+주소를 다시 확인하시거나 홈으로 이동해주세요.</p>
+
+        <div class="btn-row" role="group" aria-label="복구 동작">
+          <a href="00-landing.html" class="btn btn-primary">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>
+            </svg>
+            홈으로 돌아가기
+          </a>
+          <a href="javascript:history.back()" class="btn btn-outline">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+            이전 페이지로
+          </a>
+          <a href="03-trading-dashboard.html" class="btn btn-ghost">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            대시보드로
+          </a>
+        </div>
+
+        <!-- 추천 링크 카드 -->
+        <section class="helpful-section" aria-labelledby="suggest-title">
+          <h2 id="suggest-title" class="helpful-title">찾으시는 페이지가 있으신가요?</h2>
+          <div class="helpful-grid">
+            <a href="06-strategies-list.html" class="helpful-card">
+              <span class="helpful-card-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+                </svg>
+              </span>
+              <span class="helpful-card-title">내 전략 보기</span>
+              <span class="helpful-card-path">/strategies</span>
+            </a>
+            <a href="09-backtests-list.html" class="helpful-card">
+              <span class="helpful-card-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+                </svg>
+              </span>
+              <span class="helpful-card-title">백테스트 결과</span>
+              <span class="helpful-card-path">/backtests</span>
+            </a>
+            <a href="#" class="helpful-card">
+              <span class="helpful-card-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                </svg>
+              </span>
+              <span class="helpful-card-title">도움말 센터</span>
+              <span class="helpful-card-path">/help</span>
+            </a>
+          </div>
+        </section>
+
+        <!-- 검색 영역 -->
+        <section class="search-section" aria-labelledby="search-title">
+          <label id="search-title" class="search-label" for="err-search-input">원하는 기능을 검색하세요</label>
+          <div class="search-input-wrap">
+            <span class="search-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </span>
+            <input
+              id="err-search-input"
+              type="search"
+              class="search-input"
+              placeholder="예: 백테스트, Pine Script 변환, 최적화..."
+              autocomplete="off"
+            />
+          </div>
+          <p class="search-chips">
+            자주 찾는 페이지:
+            <a href="#">전략 만들기</a><span class="search-chips-sep">·</span>
+            <a href="#">백테스트</a><span class="search-chips-sep">·</span>
+            <a href="#">API 문서</a><span class="search-chips-sep">·</span>
+            <a href="#">요금제</a>
+          </p>
+        </section>
+      </div>
+    </section>
+
+    <!-- 섹션 구분선 -->
+    <div class="section-divider" role="separator">
+      아래는 500 에러 페이지 예시입니다
+    </div>
+
+    <!-- ============================================== -->
+    <!-- ========== 섹션 2: 500 에러 ========== -->
+    <!-- ============================================== -->
+    <section class="error-section error-500" aria-labelledby="err-500-heading">
+      <div aria-hidden="true" class="error-code-backdrop destructive">500</div>
+
+      <div class="error-content">
+        <div class="error-icon-wrap destructive pulse-anim" aria-hidden="true">
+          <!-- 경고 삼각형 -->
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M28 6L52 46H4L28 6Z" fill="#FEE2E2" stroke="#DC2626" stroke-width="2.5" stroke-linejoin="round"/>
+            <line x1="28" y1="22" x2="28" y2="34" stroke="#DC2626" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="28" cy="40" r="2.5" fill="#DC2626"/>
+          </svg>
+        </div>
+
+        <h1 id="err-500-heading" class="error-heading">일시적인 문제가 발생했습니다</h1>
+        <p class="error-subtitle">서버에서 요청을 처리하지 못했습니다.
+잠시 후 다시 시도해주세요. 문제가 계속되면 고객센터로 문의 바랍니다.</p>
+
+        <!-- 기술 정보 박스 -->
+        <div class="tech-info-box" role="group" aria-label="에러 기술 정보">
+          <div class="tech-info-row">
+            <span class="tech-info-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              오류 코드
+            </span>
+            <span class="tech-info-value">500 Internal Server Error</span>
+          </div>
+          <div class="tech-info-row">
+            <span class="tech-info-label">요청 ID</span>
+            <span class="tech-info-value">
+              <span id="request-id">req_abc123xyz789</span>
+              <button class="copy-btn" aria-label="요청 ID 복사" onclick="copyRequestId()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </span>
+          </div>
+          <div class="tech-info-row">
+            <span class="tech-info-label">발생 시각</span>
+            <span class="tech-info-value">2026-04-14 14:23:45 KST</span>
+          </div>
+          <p class="tech-info-help">이 정보를 고객센터에 알려주세요</p>
+        </div>
+
+        <div class="btn-row" role="group" aria-label="복구 동작">
+          <button class="btn btn-primary" onclick="window.location.reload()">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            다시 시도
+          </button>
+          <a href="00-landing.html" class="btn btn-outline">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>
+            </svg>
+            홈으로
+          </a>
+          <a href="#" class="btn btn-ghost">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            고객센터 문의
+          </a>
+        </div>
+
+        <!-- 시스템 상태 -->
+        <div class="status-bar" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="status-label">시스템 상태:</span>
+          <span class="status-pill">정상 운영 중</span>
+          <a href="#" class="status-link">자세히 보기 →</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 섹션 구분선 -->
+    <div class="section-divider" role="separator">
+      아래는 503 점검 페이지 예시입니다
+    </div>
+
+    <!-- ============================================== -->
+    <!-- ========== 섹션 3: 503 점검 ========== -->
+    <!-- ============================================== -->
+    <section class="error-section error-503" aria-labelledby="err-503-heading">
+      <div aria-hidden="true" class="error-code-backdrop warning">503</div>
+
+      <div class="error-content">
+        <div class="error-icon-wrap primary" aria-hidden="true">
+          <!-- 렌치 + 톱니바퀴 회전 -->
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g class="rotate-anim">
+              <!-- 톱니바퀴 -->
+              <circle cx="28" cy="28" r="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+              <circle cx="28" cy="28" r="4" fill="#2563EB"/>
+              <g fill="#2563EB">
+                <rect x="26" y="10" width="4" height="5" rx="1"/>
+                <rect x="26" y="41" width="4" height="5" rx="1"/>
+                <rect x="10" y="26" width="5" height="4" rx="1"/>
+                <rect x="41" y="26" width="5" height="4" rx="1"/>
+                <rect x="14" y="14" width="5" height="4" rx="1" transform="rotate(45 16.5 16)"/>
+                <rect x="37" y="14" width="5" height="4" rx="1" transform="rotate(-45 39.5 16)"/>
+                <rect x="14" y="38" width="5" height="4" rx="1" transform="rotate(-45 16.5 40)"/>
+                <rect x="37" y="38" width="5" height="4" rx="1" transform="rotate(45 39.5 40)"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <h1 id="err-503-heading" class="error-heading">서비스 점검 중입니다</h1>
+        <p class="error-subtitle">더 나은 서비스 제공을 위해 시스템을 업데이트하고 있습니다.
+잠시 후 다시 이용해주세요.</p>
+
+        <!-- 예상 복구 시간 카드 -->
+        <div class="eta-card" role="group" aria-labelledby="eta-label" aria-live="polite">
+          <div class="eta-header">
+            <span class="eta-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </span>
+            <div>
+              <div id="eta-label" class="eta-label">예상 복구 시간</div>
+              <div class="eta-time">약 15분 남음</div>
+            </div>
+          </div>
+
+          <div class="progress-track" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" aria-label="점검 진행률 60%">
+            <div class="progress-fill"></div>
+          </div>
+
+          <p class="eta-meta">점검 시작: 14:10 KST · 예상 완료: 14:40 KST</p>
+        </div>
+
+        <!-- 점검 내용 -->
+        <section class="updates-box" aria-labelledby="updates-title">
+          <h2 id="updates-title" class="updates-title">이번 점검 내용:</h2>
+          <ul class="updates-list">
+            <li class="updates-item">
+              <span class="update-badge done" aria-label="완료">✓</span>
+              백테스트 엔진 성능 개선 (vectorbt v0.27)
+            </li>
+            <li class="updates-item">
+              <span class="update-badge done" aria-label="완료">✓</span>
+              실시간 차트 최적화
+            </li>
+            <li class="updates-item">
+              <span class="update-badge progress" aria-label="진행 중">⋯</span>
+              데이터베이스 정리 중
+            </li>
+          </ul>
+        </section>
+
+        <div class="btn-row" role="group" aria-label="복구 동작">
+          <a href="#" class="btn btn-primary" aria-label="점검 완료 시 이메일 및 SMS 알림 받기">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            알림 받기
+          </a>
+          <a href="#" class="btn btn-outline" target="_blank" rel="noopener">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            상태 페이지
+          </a>
+        </div>
+
+        <!-- 트위터 카드 -->
+        <article class="twitter-card" aria-label="QuantBridge 트위터 최신 공지">
+          <div class="twitter-avatar" aria-hidden="true">Q</div>
+          <div class="twitter-body">
+            <div class="twitter-header">
+              <span class="twitter-name">QuantBridge</span>
+              <span class="twitter-handle">@QuantBridge_io</span>
+              <span class="twitter-time">5분 전</span>
+            </div>
+            <p class="twitter-text">14:10 예정된 점검 시작. 약 15분 소요 예상. 불편을 드려 죄송합니다 🛠️</p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========== 공통 푸터 ========== -->
+  <footer class="footer" role="contentinfo">
+    <p class="footer-title">도움이 필요하신가요?</p>
+    <nav class="footer-links" aria-label="푸터 링크">
+      <a href="#">고객센터</a>
+      <a href="#">상태 페이지</a>
+      <a href="#">문서</a>
+      <a href="#">커뮤니티</a>
+    </nav>
+    <p class="footer-copy">© 2026 QuantBridge</p>
+  </footer>
+
+  <!-- ========== 상호작용 스크립트 ========== -->
+  <script>
+    // 요청 ID 복사
+    function copyRequestId() {
+      const requestId = document.getElementById('request-id')?.textContent?.trim();
+      if (!requestId) return;
+
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(requestId).then(() => {
+          announceCopy();
+        }).catch(() => {
+          fallbackCopy(requestId);
+        });
+      } else {
+        fallbackCopy(requestId);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try { document.execCommand('copy'); announceCopy(); } catch (e) {}
+      document.body.removeChild(textarea);
+    }
+
+    function announceCopy() {
+      const live = document.createElement('div');
+      live.setAttribute('role', 'status');
+      live.setAttribute('aria-live', 'polite');
+      live.className = 'sr-only';
+      live.textContent = '요청 ID가 클립보드에 복사되었습니다';
+      document.body.appendChild(live);
+      setTimeout(() => live.remove(), 2000);
+    }
+
+    // 503 ETA 카운트다운 (데모용, 실제로는 서버 값 사용)
+    (function etaCountdown() {
+      const etaTime = document.querySelector('.eta-time');
+      if (!etaTime) return;
+      let minutes = 15;
+      setInterval(() => {
+        if (minutes <= 0) {
+          etaTime.textContent = '곧 복구됩니다';
+          return;
+        }
+        // 데모이므로 갱신은 시각 효과용으로만 유지
+      }, 60000);
+    })();
+  </script>
+</body>
+</html>

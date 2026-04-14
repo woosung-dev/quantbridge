@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantBridge — 새 백테스트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --bg: #FAFBFC;
+    --bg-alt: #F1F5F9;
+    --card: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --primary-100: #DBEAFE;
+    --success: #059669;
+    --success-light: #D1FAE5;
+    --destructive: #DC2626;
+    --destructive-light: #FEE2E2;
+    --warning: #D97706;
+    --warning-light: #FEF3C7;
+    --border: #E2E8F0;
+    --border-dark: #CBD5E1;
+
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+    --card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.06);
+    --ring: 0 0 0 3px rgba(37, 99, 235, 0.15);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+
+    --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+    --header-h: 60px;
+    --sidebar-w: 220px;
+    --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+  input, select, textarea {
+    font-family: inherit;
+    color: inherit;
+  }
+  a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color var(--transition);
+  }
+  a:hover { color: var(--primary-hover); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ============================================================
+     UNIFIED APP SHELL — SIDEBAR
+     ============================================================ */
+  .app-sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 90;
+    transition: width var(--transition), transform var(--transition);
+  }
+  .sidebar-logo {
+    height: 44px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+  .sidebar-logo-mark {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+    border-radius: 8px;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+  }
+  .sidebar-logo-text {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .sidebar-nav-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0; margin: 0;
+    overflow-y: auto;
+  }
+  .sidebar-nav-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0; margin: 0;
+    flex-shrink: 0;
+  }
+  .nav-item {
+    position: relative;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 200ms ease;
+    white-space: nowrap;
+  }
+  .nav-item svg { flex-shrink: 0; stroke: currentColor; }
+  .nav-item:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .nav-item.active {
+    background: var(--primary-light);
+    color: var(--primary);
+    padding-left: 9px;
+    border-left: 3px solid var(--primary);
+  }
+  .nav-item.active svg { stroke: var(--primary); }
+  .nav-item .nav-badge {
+    position: absolute;
+    top: 6px; right: 8px;
+    min-width: 16px; height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--destructive);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .sidebar-divider {
+    margin: 16px 0;
+    border-top: 1px solid var(--border);
+  }
+  .nav-profile {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+  .nav-profile:hover { background: var(--bg-alt); }
+  .nav-profile-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    font-family: var(--font-display);
+    flex-shrink: 0;
+  }
+  .nav-profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0; flex: 1;
+  }
+  .nav-profile-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nav-profile-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 1px 6px;
+    border-radius: 999px;
+    width: fit-content;
+  }
+
+  /* ============================================================
+     GLOBAL HEADER
+     ============================================================ */
+  .app-header {
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-w);
+    right: 0;
+    height: var(--header-h);
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    z-index: 100;
+    transition: left var(--transition);
+  }
+  .header-left {
+    display: flex; align-items: center; gap: 12px; min-width: 0;
+  }
+  .mobile-menu-btn {
+    display: none;
+    width: 44px; height: 44px;
+    align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+  }
+  .mobile-menu-btn:hover { background: var(--bg-alt); color: var(--text-primary); }
+
+  .breadcrumb {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    min-width: 0;
+  }
+  .breadcrumb a { color: var(--text-secondary); font-weight: 500; cursor: pointer; }
+  .breadcrumb a:hover { color: var(--text-primary); }
+  .breadcrumb .chev { color: var(--text-muted); }
+  .breadcrumb .current {
+    color: var(--primary);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .breadcrumb-note {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 400;
+    margin-left: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-center { flex: 1; display: flex; justify-content: center; padding: 0 16px; }
+  .header-search {
+    width: 320px; max-width: 100%;
+    height: 36px;
+    background: var(--bg-alt);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background var(--transition), border-color var(--transition);
+  }
+  .header-search:focus-within {
+    background: var(--card);
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+  .header-search svg { color: var(--text-muted); flex-shrink: 0; }
+  .header-search input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 0.875rem; color: var(--text-primary); min-width: 0;
+  }
+  .header-search input::placeholder { color: var(--text-muted); }
+  .header-search .kbd-pill {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition),
+                border-color var(--transition), box-shadow var(--transition),
+                transform var(--transition);
+  }
+  .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); padding: 8px 12px; }
+  .btn-ghost:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .btn-outline {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    color: var(--text-primary);
+    padding: 8px 16px;
+  }
+  .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    padding: 10px 18px;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  }
+  .btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  }
+  .btn-primary.lg {
+    padding: 14px 20px;
+    height: 52px;
+    font-size: 0.95rem;
+    width: 100%;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.3);
+  }
+  .btn-primary.lg:hover {
+    box-shadow: 0 10px 26px rgba(37, 99, 235, 0.4);
+  }
+  .btn-text { color: var(--text-secondary); padding: 8px 4px; font-weight: 500; }
+  .btn-text:hover { color: var(--text-primary); }
+
+  .header-divider {
+    height: 24px;
+    border-left: 1px solid var(--border);
+    margin: 0 4px;
+  }
+  .icon-btn {
+    position: relative;
+    width: 44px; height: 44px;
+    display: grid; place-items: center;
+    color: var(--text-secondary);
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+  }
+  .icon-btn:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .icon-btn .notif-badge {
+    position: absolute;
+    top: 8px; right: 8px;
+    min-width: 16px; height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--destructive);
+    color: white;
+    font-size: 0.65rem; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .header-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    font-family: var(--font-display);
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color var(--transition);
+    flex-shrink: 0;
+  }
+  .header-avatar:hover { border-color: var(--primary-100); }
+
+  /* ============================================================
+     MAIN CONTENT
+     ============================================================ */
+  .app-main {
+    margin-left: var(--sidebar-w);
+    margin-top: var(--header-h);
+    padding: 32px;
+    min-height: calc(100vh - var(--header-h));
+    background: var(--bg);
+    transition: margin-left var(--transition);
+  }
+
+  .page-header {
+    max-width: 1280px;
+    margin: 0 auto 24px;
+  }
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  .page-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* ============================================================
+     TWO-COLUMN LAYOUT
+     ============================================================ */
+  .page-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .form-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  /* ============================================================
+     FORM SECTION CARDS
+     ============================================================ */
+  .form-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: 28px;
+    animation: sectionFadeIn 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .form-card:nth-child(1) { animation-delay: 0ms; }
+  .form-card:nth-child(2) { animation-delay: 60ms; }
+  .form-card:nth-child(3) { animation-delay: 120ms; }
+  .form-card:nth-child(4) { animation-delay: 180ms; }
+  .form-card:nth-child(5) { animation-delay: 240ms; }
+
+  @keyframes sectionFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .form-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .form-card-title {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .required-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--destructive);
+    background: var(--destructive-light);
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+
+  /* Form grids */
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+  }
+  .form-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .form-field.span-2 { grid-column: 1 / -1; }
+  .form-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .form-label .req-mark { color: var(--destructive); }
+  .form-helper {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .form-helper.warn { color: var(--warning); }
+
+  .input-base {
+    width: 100%;
+    height: 44px;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.9rem;
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .input-base:focus {
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+  .input-base.mono { font-family: var(--font-mono); font-weight: 500; }
+
+  .input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .input-wrap .input-prefix,
+  .input-wrap .input-suffix {
+    position: absolute;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 0.9rem;
+    pointer-events: none;
+  }
+  .input-wrap .input-prefix { left: 14px; }
+  .input-wrap .input-suffix { right: 14px; }
+  .input-wrap.has-prefix .input-base { padding-left: 30px; }
+  .input-wrap.has-suffix .input-base { padding-right: 38px; }
+  .input-wrap.has-icon .input-base { padding-right: 42px; }
+  .input-wrap .icon-right {
+    position: absolute; right: 12px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  .select-wrap {
+    position: relative;
+  }
+  .select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 14px; top: 50%;
+    width: 10px; height: 10px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: translateY(-75%) rotate(45deg);
+    pointer-events: none;
+  }
+  .select-wrap select {
+    width: 100%;
+    height: 44px;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 0 38px 0 14px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .select-wrap select:focus {
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+
+  /* ============================================================
+     SECTION 1: STRATEGY PICKER
+     ============================================================ */
+  .strategy-selected {
+    background: var(--primary-light);
+    border: 1.5px solid var(--primary-100);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .strategy-selected:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+  }
+  .strategy-selected-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.18);
+  }
+  .strategy-name {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+  .strategy-badges { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+  }
+  .badge.primary {
+    color: var(--primary);
+    background: var(--card);
+    border-color: var(--primary-100);
+  }
+  .strategy-change-btn {
+    margin-left: auto;
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: background var(--transition);
+  }
+  .strategy-change-btn:hover { background: var(--primary-100); }
+  .strategy-meta {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--primary-100);
+    padding-top: 10px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .strategy-meta span { color: var(--text-muted); margin-right: 4px; }
+  .strategy-meta strong {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .strategy-meta strong.pos { color: var(--success); }
+  .strategy-browse {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--primary);
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  /* ============================================================
+     SECTION 2: DATE RANGE & PRESETS
+     ============================================================ */
+  .date-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .date-input-wrap input {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .date-input-wrap .calendar-icon {
+    position: absolute;
+    right: 14px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .preset-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .preset-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-alt);
+    border: 1.5px solid transparent;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .preset-pill:hover {
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+  .preset-pill.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  }
+  .range-info {
+    margin-top: 14px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .range-info svg { color: var(--text-muted); }
+
+  /* ============================================================
+     SECTION 3: SLIDER
+     ============================================================ */
+  .slider-field {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .slider-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 0.95rem;
+  }
+  .slider-value .eq {
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-left: 6px;
+    font-size: 0.8rem;
+  }
+  .range-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+    background-image: linear-gradient(to right, var(--primary), var(--primary));
+    background-size: 10% 100%;
+    background-repeat: no-repeat;
+    transition: background-size 200ms ease;
+  }
+  .range-slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+    cursor: grab;
+    transition: transform var(--transition);
+  }
+  .range-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .range-slider::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+    cursor: grab;
+    border: none;
+  }
+  .range-slider:focus-visible { box-shadow: var(--ring); }
+
+  /* ============================================================
+     TOGGLE SWITCH
+     ============================================================ */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+  }
+  .toggle-label-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .toggle-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .toggle-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .switch {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border-dark);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 200ms ease;
+  }
+  .slider-track::before {
+    content: "";
+    position: absolute;
+    width: 18px; height: 18px;
+    background: white;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform 200ms ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  }
+  .switch input:checked + .slider-track {
+    background: var(--primary);
+  }
+  .switch input:checked + .slider-track::before {
+    transform: translateX(18px);
+  }
+  .switch input:focus-visible + .slider-track {
+    box-shadow: var(--ring);
+  }
+
+  .tooltip-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+  .tooltip-icon {
+    width: 14px; height: 14px;
+    color: var(--text-muted);
+    cursor: help;
+  }
+  .tooltip-wrap:hover .tooltip-icon { color: var(--primary); }
+  .tooltip-content {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-primary);
+    color: white;
+    font-size: 0.72rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition);
+    z-index: 10;
+  }
+  .tooltip-wrap:hover .tooltip-content { opacity: 1; }
+
+  /* ============================================================
+     SECTION 5: COLLAPSIBLE
+     ============================================================ */
+  .form-card.collapsible {
+    padding: 0;
+  }
+  .collapsible summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 24px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: var(--radius-lg);
+    user-select: none;
+  }
+  .collapsible summary::-webkit-details-marker { display: none; }
+  .collapsible summary:hover { background: var(--bg); }
+  .collapsible[open] summary {
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .collapsible .chevron {
+    color: var(--text-muted);
+    transition: transform 300ms ease;
+  }
+  .collapsible[open] .chevron { transform: rotate(180deg); }
+  .collapsible-body {
+    padding: 20px 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .toggle-row + .toggle-row {
+    border-top: 1px solid var(--border);
+  }
+
+  /* ============================================================
+     RIGHT COLUMN — SUMMARY CARD
+     ============================================================ */
+  .summary-card {
+    position: sticky;
+    top: calc(var(--header-h) + 32px);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: sectionFadeIn 450ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: 100ms;
+  }
+  .summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .summary-title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .live-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--success);
+    font-family: var(--font-mono);
+  }
+  .live-dot::before {
+    content: "";
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7);
+    animation: livePulse 2s ease-out infinite;
+  }
+  @keyframes livePulse {
+    0% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.6); }
+    70% { box-shadow: 0 0 0 8px rgba(5, 150, 105, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+  }
+
+  .summary-divider {
+    border-top: 1px solid var(--border);
+    margin: 4px 0;
+  }
+  .summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .summary-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .summary-item-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .summary-item-value {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: right;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .summary-item-value.muted { color: var(--text-muted); }
+
+  /* Prediction card */
+  .pred-card {
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0;
+  }
+  .pred-card.primary {
+    background: var(--primary-light);
+    border: 1px solid var(--primary-100);
+  }
+  .pred-card.success {
+    background: var(--success-light);
+    border: 1px solid rgba(5, 150, 105, 0.25);
+  }
+  .pred-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .pred-header svg.primary-ic { color: var(--primary); }
+  .pred-header svg.success-ic { color: var(--success); }
+  .pred-value {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    animation: subtlePulse 3s ease-in-out infinite;
+  }
+  .pred-card.primary .pred-value { color: var(--primary); }
+  .pred-card.success .pred-value { color: var(--success); font-size: 1.15rem; }
+  @keyframes subtlePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.82; }
+  }
+  .pred-sub {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .submit-cluster {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .submit-hint {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+  .submit-hint kbd {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+  }
+
+  .help-link {
+    margin-top: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 1200px) {
+    .header-center { display: none; }
+  }
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 60px; }
+    .sidebar-logo-text,
+    .nav-item span:not(.nav-badge),
+    .nav-profile-info { display: none; }
+    .nav-item { justify-content: center; padding: 10px; }
+    .nav-item.active { padding-left: 7px; }
+    .nav-profile { justify-content: center; padding: 6px; }
+    .page-grid {
+      grid-template-columns: 1fr;
+    }
+    .summary-card {
+      position: static;
+      top: auto;
+    }
+    .breadcrumb-note { display: none; }
+  }
+  @media (max-width: 768px) {
+    .mobile-menu-btn { display: inline-flex; }
+    .app-sidebar {
+      transform: translateX(-100%);
+      width: 240px;
+    }
+    .app-sidebar.open { transform: translateX(0); }
+    .app-sidebar.open .sidebar-logo-text,
+    .app-sidebar.open .nav-item span:not(.nav-badge),
+    .app-sidebar.open .nav-profile-info { display: inline; }
+    .app-sidebar.open .nav-item { justify-content: flex-start; padding: 10px 12px; }
+    .app-sidebar.open .nav-item.active { padding-left: 9px; }
+    .app-sidebar.open .nav-profile { justify-content: flex-start; padding: 6px 10px; }
+    .app-header { left: 0; padding: 0 12px; }
+    .app-main { margin-left: 0; padding: 16px; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .btn-hide-sm { display: none !important; }
+    .overlay.show {
+      display: block;
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, 0.5);
+      z-index: 80;
+    }
+    .form-card { padding: 20px; }
+    .collapsible summary { padding: 20px; }
+    .collapsible-body { padding: 16px 20px 20px; }
+  }
+  .overlay { display: none; }
+
+  /* Accessible sr-only */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================= 통합 사이드바 ========================= -->
+<aside class="app-sidebar" id="sidebar" aria-label="메인 내비게이션">
+  <a href="03-trading-dashboard.html" class="sidebar-logo" aria-label="QuantBridge 홈" style="text-decoration:none;color:inherit;">
+    <span class="sidebar-logo-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 16h20"/>
+        <path d="M5 16V9"/>
+        <path d="M19 16V9"/>
+        <path d="M5 9c2 0 4-2 7-2s5 2 7 2"/>
+        <path d="M9 16v4"/>
+        <path d="M15 16v4"/>
+      </svg>
+    </span>
+    <span class="sidebar-logo-text">QuantBridge</span>
+  </a>
+
+  <ul class="sidebar-nav-main">
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='03-trading-dashboard.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='03-trading-dashboard.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <path d="M9 22V12h6v10"/>
+      </svg>
+      <span>대시보드</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='06-strategies-list.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='06-strategies-list.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      <span>전략</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+        <polyline points="2 17 12 22 22 17"/>
+        <polyline points="2 12 12 17 22 12"/>
+      </svg>
+      <span>템플릿</span>
+    </li>
+    <li class="nav-item active" tabindex="0" aria-current="page" style="cursor:pointer" onclick="location.href='09-backtests-list.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='09-backtests-list.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span>백테스트</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='03-trading-dashboard.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='03-trading-dashboard.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      <span>트레이딩</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span>거래소</span>
+    </li>
+  </ul>
+
+  <div class="sidebar-divider" aria-hidden="true"></div>
+
+  <ul class="sidebar-nav-bottom">
+    <li class="nav-item" tabindex="0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span>알림</span>
+      <span class="nav-badge" aria-label="읽지 않은 알림 3개">3</span>
+    </li>
+    <li class="nav-item" tabindex="0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span>설정</span>
+    </li>
+    <li class="nav-profile" tabindex="0" role="button" aria-label="프로필 메뉴">
+      <div class="nav-profile-avatar" aria-hidden="true">JK</div>
+      <div class="nav-profile-info">
+        <span class="nav-profile-name">김지훈</span>
+        <span class="nav-profile-badge">프로</span>
+      </div>
+    </li>
+  </ul>
+</aside>
+
+<!-- ========================= 글로벌 헤더 ========================= -->
+<header class="app-header" role="banner">
+  <div class="header-left">
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="메뉴 열기">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+    <nav class="breadcrumb" aria-label="경로">
+      <a href="09-backtests-list.html">백테스트</a>
+      <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+      <span class="current">새 백테스트</span>
+      <span class="breadcrumb-note">· 전략을 선택하고 실행하세요</span>
+    </nav>
+  </div>
+
+  <div class="header-center">
+    <label class="header-search" aria-label="검색">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" placeholder="검색..." />
+      <span class="kbd-pill">⌘K</span>
+    </label>
+  </div>
+
+  <div class="header-right">
+    <button class="btn btn-ghost btn-hide-sm" aria-label="취소" onclick="location.href='09-backtests-list.html'">취소</button>
+
+    <button class="btn btn-outline btn-hide-sm" aria-label="설정 저장">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/>
+        <polyline points="7 3 7 8 15 8"/>
+      </svg>
+      <span>저장</span>
+    </button>
+
+    <button class="btn btn-primary" aria-label="백테스트 실행" onclick="location.href='02-backtest-report.html'">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <polygon points="6 4 20 12 6 20 6 4"/>
+      </svg>
+      <span>백테스트 실행</span>
+    </button>
+
+    <span class="header-divider" aria-hidden="true"></span>
+
+    <button class="icon-btn" aria-label="알림">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="notif-badge" aria-label="읽지 않은 알림 3개">3</span>
+    </button>
+
+    <div class="header-avatar" role="button" tabindex="0" aria-label="프로필 메뉴">JK</div>
+  </div>
+</header>
+
+<!-- 오버레이 (모바일) -->
+<div class="overlay" id="overlay" aria-hidden="true"></div>
+
+<!-- ========================= 메인 콘텐츠 ========================= -->
+<main class="app-main" aria-label="백테스트 설정">
+
+  <!-- 페이지 헤더 -->
+  <div class="page-header">
+    <h1 class="page-title">백테스트 설정</h1>
+    <p class="page-subtitle">전략을 선택하고 백테스트 조건을 지정하세요</p>
+  </div>
+
+  <div class="page-grid">
+
+    <!-- ========================= LEFT: FORM ========================= -->
+    <div class="form-column">
+
+      <!-- SECTION 1: 전략 선택 -->
+      <section class="form-card" aria-labelledby="sec1-title">
+        <div class="form-card-header">
+          <h2 class="form-card-title" id="sec1-title">
+            1. 전략 선택
+          </h2>
+          <span class="required-pill" aria-label="필수 항목">필수</span>
+        </div>
+
+        <div class="strategy-selected">
+          <div class="strategy-selected-row">
+            <span class="status-dot" aria-label="활성 전략" role="img"></span>
+            <span class="strategy-name">MA Crossover Strategy</span>
+            <div class="strategy-badges">
+              <span class="badge primary">BTC/USDT</span>
+              <span class="badge">1h</span>
+              <span class="badge">Pine v5</span>
+            </div>
+            <button class="strategy-change-btn" type="button" aria-label="전략 변경" onclick="location.href='06-strategies-list.html'">변경</button>
+          </div>
+          <div class="strategy-meta">
+            <div><span>지난 백테스트:</span><strong class="pos">+127%</strong></div>
+            <div><span>Sharpe</span><strong>2.47</strong></div>
+            <div><span>Trades</span><strong>186</strong></div>
+          </div>
+        </div>
+
+        <a class="strategy-browse" href="#" aria-label="다른 전략 보기">
+          다른 전략 보기
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </a>
+      </section>
+
+      <!-- SECTION 2: 데이터 범위 -->
+      <section class="form-card" aria-labelledby="sec2-title">
+        <div class="form-card-header">
+          <h2 class="form-card-title" id="sec2-title">2. 데이터 범위</h2>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label class="form-label" for="date-start">시작일</label>
+            <div class="date-input-wrap">
+              <input
+                id="date-start"
+                class="input-base"
+                type="date"
+                value="2024-01-01"
+                aria-describedby="date-start-help"
+              />
+            </div>
+            <span id="date-start-help" class="form-helper">UTC 기준</span>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="date-end">종료일</label>
+            <div class="date-input-wrap">
+              <input
+                id="date-end"
+                class="input-base"
+                type="date"
+                value="2026-04-14"
+                aria-describedby="date-end-help"
+              />
+            </div>
+            <span id="date-end-help" class="form-helper">오늘까지 선택 가능</span>
+          </div>
+        </div>
+
+        <div class="preset-pills" role="group" aria-label="기간 프리셋">
+          <button class="preset-pill" type="button">1개월</button>
+          <button class="preset-pill" type="button">3개월</button>
+          <button class="preset-pill" type="button">6개월</button>
+          <button class="preset-pill" type="button">1년</button>
+          <button class="preset-pill active" type="button" aria-pressed="true">2년</button>
+          <button class="preset-pill" type="button">3년</button>
+          <button class="preset-pill" type="button">5년</button>
+          <button class="preset-pill" type="button">커스텀</button>
+        </div>
+
+        <div class="range-info" aria-live="polite">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>총 836일 (20,064시간봉)</span>
+        </div>
+      </section>
+
+      <!-- SECTION 3: 자본 & 리스크 -->
+      <section class="form-card" aria-labelledby="sec3-title">
+        <div class="form-card-header">
+          <h2 class="form-card-title" id="sec3-title">3. 자본 &amp; 리스크</h2>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label class="form-label" for="capital">초기 자본 <span class="req-mark" aria-hidden="true">*</span></label>
+            <div class="input-wrap has-prefix">
+              <span class="input-prefix" aria-hidden="true">$</span>
+              <input
+                id="capital"
+                class="input-base mono"
+                type="text"
+                value="10,000"
+                inputmode="numeric"
+                aria-required="true"
+              />
+            </div>
+            <span class="form-helper">USDT 단위</span>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="position-size">포지션 크기</label>
+            <div class="slider-field">
+              <div class="slider-header">
+                <span class="sr-only">현재 값</span>
+                <span class="slider-value" id="posValue">10%<span class="eq">≈ $1,000</span></span>
+                <span class="form-helper" style="margin-top:0;">Max 100%</span>
+              </div>
+              <input
+                id="position-size"
+                class="range-slider"
+                type="range"
+                min="1"
+                max="100"
+                value="10"
+                aria-valuemin="1"
+                aria-valuemax="100"
+                aria-valuenow="10"
+                aria-label="포지션 크기 퍼센트"
+              />
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="max-dd">최대 낙폭 한도 (Max Drawdown)</label>
+            <div class="input-wrap has-suffix">
+              <input
+                id="max-dd"
+                class="input-base mono"
+                type="text"
+                value="15"
+                inputmode="decimal"
+                aria-describedby="max-dd-help"
+              />
+              <span class="input-suffix" aria-hidden="true">%</span>
+            </div>
+            <span id="max-dd-help" class="form-helper warn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              이 한도 초과 시 백테스트 중단
+            </span>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="leverage">레버리지</label>
+            <div class="select-wrap">
+              <select id="leverage" aria-describedby="leverage-help">
+                <option value="1" selected>1x (No Leverage)</option>
+                <option value="2">2x</option>
+                <option value="3">3x</option>
+                <option value="5">5x</option>
+                <option value="10">10x</option>
+                <option value="20">20x</option>
+              </select>
+            </div>
+            <span id="leverage-help" class="form-helper">선물 거래소 기준</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 4: 거래 비용 -->
+      <section class="form-card" aria-labelledby="sec4-title">
+        <div class="form-card-header">
+          <h2 class="form-card-title" id="sec4-title">4. 거래 비용</h2>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label class="form-label" for="commission">수수료 (Commission)</label>
+            <div class="input-wrap has-suffix">
+              <input
+                id="commission"
+                class="input-base mono"
+                type="text"
+                value="0.075"
+                inputmode="decimal"
+                aria-describedby="commission-help"
+              />
+              <span class="input-suffix" aria-hidden="true">%</span>
+            </div>
+            <span id="commission-help" class="form-helper">Bybit Taker 기준</span>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="slippage">
+              슬리피지 (Slippage)
+              <span class="tooltip-wrap" role="tooltip">
+                <svg class="tooltip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span class="tooltip-content">체결 가격 미끄러짐 추정치</span>
+              </span>
+            </label>
+            <div class="input-wrap has-suffix">
+              <input
+                id="slippage"
+                class="input-base mono"
+                type="text"
+                value="0.05"
+                inputmode="decimal"
+                aria-describedby="slippage-help"
+              />
+              <span class="input-suffix" aria-hidden="true">%</span>
+            </div>
+            <span id="slippage-help" class="form-helper">주문 가격 대비 평균 편차</span>
+          </div>
+
+          <div class="form-field span-2">
+            <div class="toggle-row">
+              <div class="toggle-label-group">
+                <span class="toggle-label">펀딩비 (Funding Rate) 반영</span>
+                <span class="toggle-desc">선물 포지션 8시간 주기 정산을 수익률에 반영합니다</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" checked role="switch" aria-checked="true" aria-label="펀딩비 반영" />
+                <span class="slider-track"></span>
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <div class="toggle-label-group">
+                <span class="toggle-label">스프레드 (Spread) 반영</span>
+                <span class="toggle-desc">bid/ask 스프레드를 주문 체결가에 반영합니다</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" checked role="switch" aria-checked="true" aria-label="스프레드 반영" />
+                <span class="slider-track"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 5: 고급 옵션 (collapsible) -->
+      <details class="form-card collapsible" open aria-labelledby="sec5-title">
+        <summary>
+          <h2 class="form-card-title" id="sec5-title">5. 고급 옵션</h2>
+          <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </summary>
+        <div class="collapsible-body">
+          <div class="toggle-row">
+            <div class="toggle-label-group">
+              <span class="toggle-label">복수 심볼 테스트</span>
+              <span class="toggle-desc">추가 심볼 선택하려면 활성화</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" role="switch" aria-checked="false" aria-label="복수 심볼 테스트" />
+              <span class="slider-track"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label-group">
+              <span class="toggle-label">Walk-Forward 분석</span>
+              <span class="toggle-desc">in-sample/out-of-sample 분할 검증</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" role="switch" aria-checked="false" aria-label="Walk-Forward 분석" />
+              <span class="slider-track"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label-group">
+              <span class="toggle-label">Monte Carlo 시뮬레이션 (1000회)</span>
+              <span class="toggle-desc">거래 순서 무작위 재배열로 신뢰구간 산출</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" role="switch" aria-checked="false" aria-label="Monte Carlo 시뮬레이션" />
+              <span class="slider-track"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label-group">
+              <span class="toggle-label">리얼리스틱 시장 영향 (Market Impact)</span>
+              <span class="toggle-desc">주문 크기에 비례한 가격 충격 반영</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" checked role="switch" aria-checked="true" aria-label="시장 영향 반영" />
+              <span class="slider-track"></span>
+            </label>
+          </div>
+        </div>
+      </details>
+
+    </div>
+
+    <!-- ========================= RIGHT: SUMMARY ========================= -->
+    <aside class="summary-card" aria-label="백테스트 요약">
+      <div class="summary-header">
+        <h2 class="summary-title">백테스트 요약</h2>
+        <span class="live-dot" aria-label="실시간 예상">실시간 예상</span>
+      </div>
+
+      <div class="summary-divider" aria-hidden="true"></div>
+
+      <div class="summary-list">
+        <div class="summary-item">
+          <span class="summary-item-label">전략</span>
+          <span class="summary-item-value">MA Crossover Strategy</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-label">심볼</span>
+          <span class="summary-item-value">BTC/USDT</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-label">기간</span>
+          <span class="summary-item-value">2024-01-01 ~ 2026-04-14</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-label">데이터 포인트</span>
+          <span class="summary-item-value">20,064</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-label">초기 자본</span>
+          <span class="summary-item-value">$10,000</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-label">포지션 크기</span>
+          <span class="summary-item-value">10%</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item-label">예상 수수료</span>
+          <span class="summary-item-value muted">~$87</span>
+        </div>
+      </div>
+
+      <div class="summary-divider" aria-hidden="true"></div>
+
+      <!-- Prediction card 1 -->
+      <div class="pred-card primary" role="status">
+        <div class="pred-header">
+          <svg class="primary-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          <span>예상 실행 시간</span>
+        </div>
+        <div class="pred-value">~3.2초</div>
+        <div class="pred-sub">vectorbt 벡터화 엔진 사용</div>
+      </div>
+
+      <!-- Prediction card 2 -->
+      <div class="pred-card success" role="status">
+        <div class="pred-header">
+          <svg class="success-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>예상 큐 대기 시간</span>
+        </div>
+        <div class="pred-value">즉시 실행</div>
+        <div class="pred-sub">Pro 플랜: 우선 순위 보장</div>
+      </div>
+
+      <div class="submit-cluster">
+        <button class="btn btn-primary lg" type="button" aria-label="백테스트 실행" onclick="location.href='02-backtest-report.html'">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="6 4 20 12 6 20 6 4"/>
+          </svg>
+          <span>백테스트 실행</span>
+        </button>
+        <span class="submit-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> 로 바로 실행</span>
+      </div>
+
+      <a class="help-link" href="#" aria-label="백테스트 결과 해석 가이드">
+        백테스트 결과 해석하는 방법
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
+    </aside>
+
+  </div>
+</main>
+
+<script>
+  /* 모바일 사이드바 토글 */
+  (function () {
+    var btn = document.getElementById('mobileMenuBtn');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('overlay');
+    if (!btn) return;
+    function toggle() {
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('show');
+    }
+    btn.addEventListener('click', toggle);
+    overlay && overlay.addEventListener('click', toggle);
+  })();
+
+  /* 포지션 크기 슬라이더 → 값 업데이트 */
+  (function () {
+    var slider = document.getElementById('position-size');
+    var valueEl = document.getElementById('posValue');
+    var capitalEl = document.getElementById('capital');
+    if (!slider || !valueEl) return;
+
+    function update() {
+      var pct = parseInt(slider.value, 10);
+      var capStr = (capitalEl && capitalEl.value || '10000').replace(/,/g, '');
+      var cap = parseFloat(capStr) || 10000;
+      var eq = Math.round(cap * pct / 100).toLocaleString();
+      valueEl.innerHTML = pct + '%<span class="eq">≈ $' + eq + '</span>';
+      slider.setAttribute('aria-valuenow', String(pct));
+      slider.style.backgroundSize = pct + '% 100%';
+    }
+    slider.addEventListener('input', update);
+    capitalEl && capitalEl.addEventListener('input', update);
+    update();
+  })();
+
+  /* 프리셋 필 활성 전환 */
+  (function () {
+    var pills = document.querySelectorAll('.preset-pill');
+    pills.forEach(function (p) {
+      p.addEventListener('click', function () {
+        pills.forEach(function (o) {
+          o.classList.remove('active');
+          o.setAttribute('aria-pressed', 'false');
+        });
+        p.classList.add('active');
+        p.setAttribute('aria-pressed', 'true');
+      });
+    });
+  })();
+
+  /* 토글 스위치 aria-checked 동기화 */
+  (function () {
+    var switches = document.querySelectorAll('.switch input[type="checkbox"]');
+    switches.forEach(function (input) {
+      input.addEventListener('change', function () {
+        input.setAttribute('aria-checked', input.checked ? 'true' : 'false');
+      });
+    });
+  })();
+
+  /* Ctrl+Enter 단축키 힌트 동작 */
+  (function () {
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        var btn = document.querySelector('.summary-card .btn-primary.lg');
+        if (btn) {
+          btn.focus();
+          btn.classList.add('keyflash');
+          setTimeout(function () { btn.classList.remove('keyflash'); }, 250);
+        }
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

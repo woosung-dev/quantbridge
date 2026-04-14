@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantBridge — 시작하기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  /* ===============================
+     Design Tokens (DESIGN.md)
+     =============================== */
+  :root {
+    --bg: #FAFBFC;
+    --bg-alt: #F1F5F9;
+    --card: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --primary-100: #DBEAFE;
+    --success: #059669;
+    --success-light: #D1FAE5;
+    --destructive: #DC2626;
+    --destructive-light: #FEE2E2;
+    --border: #E2E8F0;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+
+    --font-heading: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --font-body: "Inter", system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+
+  /* ===============================
+     Reset / Base
+     =============================== */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+  a { color: inherit; text-decoration: none; }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* ===============================
+     Brand Bar
+     =============================== */
+  .brand-bar {
+    height: 60px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    flex-shrink: 0;
+  }
+  .brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+  .brand-logo-icon {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--primary) 0%, #3B82F6 100%);
+    border-radius: 8px;
+    color: #fff;
+  }
+  .brand-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .brand-link {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    transition: color 200ms ease;
+  }
+  .brand-link:hover { color: var(--text-primary); }
+  .brand-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+  .brand-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: grid;
+    place-items: center;
+  }
+
+  /* ===============================
+     Page Shell
+     =============================== */
+  main {
+    flex: 1;
+    padding: 48px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ===============================
+     Progress Indicator
+     =============================== */
+  .progress-wrap {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 40px;
+  }
+  .progress-step-counter {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-weight: 500;
+    margin-bottom: 16px;
+    letter-spacing: 0.02em;
+  }
+  .progress {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: relative;
+  }
+  .progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    z-index: 2;
+  }
+  .progress-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.875rem;
+    display: grid;
+    place-items: center;
+    transition: all 250ms ease;
+  }
+  .progress-step.completed .progress-circle {
+    background: var(--success);
+    border-color: var(--success);
+    color: #fff;
+  }
+  .progress-step.active .progress-circle {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 0 0 6px var(--primary-light);
+    animation: pulse 2s infinite ease-in-out;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 6px var(--primary-light); }
+    50%      { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0.08); }
+  }
+  .progress-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .progress-step.completed .progress-label { color: var(--success); font-weight: 600; }
+  .progress-step.active .progress-label { color: var(--primary); font-weight: 600; }
+
+  /* connecting lines */
+  .progress-line {
+    position: absolute;
+    top: 15px;
+    height: 2px;
+    z-index: 1;
+  }
+  .progress-line.completed { background: var(--success); }
+  .progress-line.pending {
+    background: transparent;
+    border-top: 2px dashed var(--border);
+    height: 0;
+  }
+  .progress-line.seg-1 { left: calc(12.5% + 20px); right: calc(62.5% + 20px); }
+  .progress-line.seg-2 { left: calc(37.5% + 20px); right: calc(37.5% + 20px); }
+  .progress-line.seg-3 { left: calc(62.5% + 20px); right: calc(12.5% + 20px); }
+
+  /* ===============================
+     Main Card
+     =============================== */
+  .card {
+    width: 100%;
+    max-width: 720px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--card-shadow);
+    padding: 56px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    animation: cardIn 350ms ease-out both;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Illustration */
+  .illustration {
+    background: linear-gradient(135deg, #EFF6FF 0%, #F1F5F9 100%);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    min-height: 340px;
+  }
+  .illustration-svg { width: 100%; height: auto; max-width: 280px; }
+
+  /* Content */
+  .content { display: flex; flex-direction: column; }
+  .step-badge {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    background: var(--primary-light);
+    color: var(--primary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.02em;
+  }
+  .content-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.75rem;
+    line-height: 1.25;
+    margin: 12px 0 0;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+  .content-desc {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 12px 0 0;
+  }
+
+  /* Option cards */
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    cursor: pointer;
+    transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
+    width: 100%;
+    text-align: left;
+  }
+  .option:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+  }
+  .option.selected {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  }
+  .option-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: grid;
+    place-items: center;
+  }
+  .option.selected .option-icon {
+    background: var(--primary);
+    color: #fff;
+  }
+  .option-text { flex: 1; min-width: 0; }
+  .option-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .option-desc {
+    margin-top: 2px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .option-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--success-light);
+    color: var(--success);
+    letter-spacing: 0.02em;
+  }
+  .option-check {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: grid;
+    place-items: center;
+    color: transparent;
+    flex-shrink: 0;
+    transition: all 200ms ease;
+  }
+  .option.selected .option-check {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 32px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    transition: background 200ms ease, color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+    white-space: nowrap;
+  }
+  .btn-ghost { color: var(--text-secondary); }
+  .btn-ghost:hover { background: var(--bg-alt); color: var(--text-primary); }
+  .btn-muted { color: var(--text-muted); }
+  .btn-muted:hover { color: var(--text-secondary); }
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+    transform: translateX(-100%);
+    transition: transform 600ms ease;
+  }
+  .btn-primary:hover::after { transform: translateX(100%); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .actions-left { display: flex; gap: 8px; align-items: center; }
+
+  /* Skip link */
+  .skip-link {
+    display: block;
+    text-align: center;
+    margin-top: 24px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: color 200ms ease;
+  }
+  .skip-link:hover { color: var(--text-secondary); }
+
+  /* ===============================
+     Preview Tiles
+     =============================== */
+  .preview {
+    width: 100%;
+    max-width: 1320px;
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .preview-tile {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .preview-tile.completed { background: #F8FAF9; border-color: #BBF7D0; }
+  .preview-tile.active {
+    border: 2px solid var(--primary);
+    box-shadow: 0 0 0 4px var(--primary-light), var(--card-shadow);
+  }
+  .preview-tile.muted { opacity: 0.7; }
+  .tile-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .tile-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .preview-tile.completed .tile-icon { background: var(--success-light); color: var(--success); }
+  .preview-tile.muted .tile-icon { background: var(--bg-alt); color: var(--text-muted); }
+  .tile-status {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 10px;
+    letter-spacing: 0.02em;
+  }
+  .tile-status.done { background: var(--success-light); color: var(--success); }
+  .tile-status.current { background: var(--primary-light); color: var(--primary); }
+  .tile-status.soon { background: var(--bg-alt); color: var(--text-muted); }
+  .tile-title {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-primary);
+  }
+  .preview-tile.completed .tile-title { color: var(--text-secondary); }
+  .preview-tile.completed .tile-title .strike {
+    text-decoration: line-through;
+    text-decoration-color: var(--success);
+    text-decoration-thickness: 1.5px;
+  }
+  .tile-desc { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+  .tile-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .preview-tile.completed .tile-meta { color: var(--success); }
+
+  /* ===============================
+     Responsive
+     =============================== */
+  @media (max-width: 1100px) {
+    .preview { grid-template-columns: repeat(2, 1fr); max-width: 720px; }
+  }
+  @media (max-width: 768px) {
+    main { padding: 32px 16px 64px; }
+    .brand-bar { padding: 0 16px; }
+    .brand-link { display: none; }
+    .progress-label { display: none; }
+    .progress-step-counter { margin-bottom: 12px; }
+    .card {
+      grid-template-columns: 1fr;
+      padding: 32px 24px;
+      gap: 24px;
+    }
+    .illustration { min-height: 220px; padding: 20px; }
+    .content-title { font-size: 1.4rem; }
+    .actions { flex-wrap: wrap; }
+  }
+  @media (max-width: 480px) {
+    main { padding: 24px 12px 48px; }
+    .card { padding: 24px 16px; }
+    .content-title { font-size: 1.25rem; }
+    .content-desc { font-size: 0.88rem; }
+    .option { padding: 12px; }
+    .option-icon { width: 36px; height: 36px; }
+    .option-title { font-size: 0.88rem; }
+    .option-desc { font-size: 0.74rem; }
+    .preview { grid-template-columns: 1fr; }
+    .btn { padding: 8px 14px; font-size: 0.85rem; }
+  }
+
+  /* ===============================
+     Reduced Motion
+     =============================== */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  /* SR-only helper */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================
+     1. Brand Bar
+     ========================================= -->
+<header class="brand-bar" role="banner">
+  <a href="00-landing.html" class="brand-logo" aria-label="QuantBridge 로고" style="text-decoration:none;color:inherit;">
+    <span class="brand-logo-icon" aria-hidden="true">
+      <!-- bridge SVG -->
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 16h18"/>
+        <path d="M5 16V9a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v7"/>
+        <path d="M9 16v-4"/>
+        <path d="M15 16v-4"/>
+        <path d="M12 16V9"/>
+      </svg>
+    </span>
+    QuantBridge
+  </a>
+  <div class="brand-right">
+    <a href="03-trading-dashboard.html" class="brand-link">나중에 설정하기</a>
+    <div class="brand-user" aria-label="현재 사용자">
+      <span class="brand-avatar" aria-hidden="true">KJ</span>
+      <span>김지훈 님</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- =========================================
+       2. Progress Indicator
+       ========================================= -->
+  <section class="progress-wrap" aria-label="온보딩 진행 상태">
+    <span class="progress-step-counter" aria-live="polite">단계 2 / 4</span>
+
+    <div class="progress" role="list">
+      <!-- connecting lines -->
+      <span class="progress-line completed seg-1" aria-hidden="true"></span>
+      <span class="progress-line pending   seg-2" aria-hidden="true"></span>
+      <span class="progress-line pending   seg-3" aria-hidden="true"></span>
+
+      <div class="progress-step completed" role="listitem" aria-label="1단계 거래소 연결, 완료">
+        <span class="progress-circle" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </span>
+        <span class="progress-label">거래소 연결</span>
+      </div>
+
+      <div class="progress-step active" role="listitem" aria-current="step" aria-label="2단계 전략 업로드, 현재 단계">
+        <span class="progress-circle">2</span>
+        <span class="progress-label">전략 업로드</span>
+      </div>
+
+      <div class="progress-step" role="listitem" aria-label="3단계 백테스트">
+        <span class="progress-circle">3</span>
+        <span class="progress-label">백테스트</span>
+      </div>
+
+      <div class="progress-step" role="listitem" aria-label="4단계 데모 시작">
+        <span class="progress-circle">4</span>
+        <span class="progress-label">데모 시작</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================
+       3. Main Card
+       ========================================= -->
+  <section class="card" aria-labelledby="step-title">
+
+    <!-- Illustration -->
+    <div class="illustration" aria-hidden="true">
+      <svg class="illustration-svg" viewBox="0 0 280 320" xmlns="http://www.w3.org/2000/svg" role="img">
+        <defs>
+          <linearGradient id="codeBg" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="#FFFFFF"/>
+            <stop offset="1" stop-color="#F8FAFC"/>
+          </linearGradient>
+          <linearGradient id="targetGrad" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stop-color="#2563EB"/>
+            <stop offset="1" stop-color="#1D4ED8"/>
+          </linearGradient>
+          <filter id="codeShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#1E293B" flood-opacity="0.08"/>
+          </filter>
+        </defs>
+
+        <!-- Sparkles -->
+        <g opacity="0.8">
+          <path d="M30 40 l3 7 l7 3 l-7 3 l-3 7 l-3-7 l-7-3 l7-3 z" fill="#DBEAFE"/>
+          <path d="M250 70 l2 5 l5 2 l-5 2 l-2 5 l-2-5 l-5-2 l5-2 z" fill="#DBEAFE"/>
+          <path d="M245 250 l2.5 6 l6 2.5 l-6 2.5 l-2.5 6 l-2.5-6 l-6-2.5 l6-2.5 z" fill="#BFDBFE"/>
+        </g>
+
+        <!-- Code card -->
+        <g filter="url(#codeShadow)">
+          <rect x="20" y="50" width="180" height="160" rx="12" fill="url(#codeBg)" stroke="#E2E8F0"/>
+          <!-- title bar dots -->
+          <circle cx="36" cy="66" r="3.5" fill="#F87171"/>
+          <circle cx="48" cy="66" r="3.5" fill="#FBBF24"/>
+          <circle cx="60" cy="66" r="3.5" fill="#34D399"/>
+          <text x="80" y="70" font-family="JetBrains Mono, monospace" font-size="9" fill="#94A3B8">strategy.pine</text>
+          <line x1="28" y1="82" x2="192" y2="82" stroke="#F1F5F9"/>
+
+          <!-- code lines (mock Pine Script) -->
+          <g font-family="JetBrains Mono, monospace" font-size="9">
+            <text x="30" y="98"  fill="#94A3B8">1</text>
+            <text x="46" y="98"  fill="#7C3AED">//@version=5</text>
+
+            <text x="30" y="114" fill="#94A3B8">2</text>
+            <text x="46" y="114" fill="#2563EB">strategy</text>
+            <text x="92" y="114" fill="#475569">(</text>
+            <text x="97" y="114" fill="#059669">"EMA Cross"</text>
+
+            <text x="30" y="130" fill="#94A3B8">3</text>
+            <text x="46" y="130" fill="#2563EB">fast</text>
+            <text x="68" y="130" fill="#475569">=</text>
+            <text x="76" y="130" fill="#DC2626">ema</text>
+            <text x="94" y="130" fill="#475569">(close,</text>
+            <text x="128" y="130" fill="#F59E0B">12</text>
+            <text x="140" y="130" fill="#475569">)</text>
+
+            <text x="30" y="146" fill="#94A3B8">4</text>
+            <text x="46" y="146" fill="#2563EB">slow</text>
+            <text x="68" y="146" fill="#475569">=</text>
+            <text x="76" y="146" fill="#DC2626">ema</text>
+            <text x="94" y="146" fill="#475569">(close,</text>
+            <text x="128" y="146" fill="#F59E0B">26</text>
+            <text x="140" y="146" fill="#475569">)</text>
+
+            <text x="30" y="162" fill="#94A3B8">5</text>
+            <text x="46" y="162" fill="#7C3AED">if</text>
+            <text x="60" y="162" fill="#475569">ta.crossover(fast,</text>
+            <text x="152" y="162" fill="#475569">slow)</text>
+
+            <text x="30" y="178" fill="#94A3B8">6</text>
+            <text x="52" y="178" fill="#475569">strategy.entry(</text>
+            <text x="120" y="178" fill="#059669">"L"</text>
+            <text x="135" y="178" fill="#475569">, </text>
+            <text x="145" y="178" fill="#2563EB">long</text>
+            <text x="168" y="178" fill="#475569">)</text>
+
+            <text x="30" y="194" fill="#94A3B8">7</text>
+            <!-- caret -->
+            <rect x="46" y="186" width="6" height="10" fill="#2563EB">
+              <animate attributeName="opacity" values="1;0;1" dur="1.1s" repeatCount="indefinite"/>
+            </rect>
+          </g>
+        </g>
+
+        <!-- Arrow -->
+        <g stroke="#2563EB" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M210 130 C 230 130, 230 180, 210 200" stroke-dasharray="4 5">
+            <animate attributeName="stroke-dashoffset" from="18" to="0" dur="1.4s" repeatCount="indefinite"/>
+          </path>
+          <path d="M205 195 l8 8 l-2 -11 z" fill="#2563EB"/>
+        </g>
+
+        <!-- Target icon (QuantBridge bridge mark) -->
+        <g transform="translate(170 225)">
+          <circle cx="45" cy="40" r="46" fill="url(#targetGrad)"/>
+          <circle cx="45" cy="40" r="46" fill="none" stroke="#2563EB" stroke-opacity="0.15" stroke-width="6"/>
+          <g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M24 48 h42"/>
+            <path d="M28 48 V34 a6 6 0 0 1 6 -6 h22 a6 6 0 0 1 6 6 v14"/>
+            <path d="M36 48 v-6"/>
+            <path d="M54 48 v-6"/>
+            <path d="M45 48 v-14"/>
+          </g>
+        </g>
+
+        <!-- Small spark near target -->
+        <circle cx="218" cy="220" r="4" fill="#FBBF24">
+          <animate attributeName="r" values="3;5;3" dur="1.6s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <span class="step-badge">2단계</span>
+      <h1 class="content-title" id="step-title">첫 전략을 업로드하세요</h1>
+      <p class="content-desc">
+        TradingView에서 쓰던 Pine Script 전략을 그대로 가져오거나, 추천 템플릿으로 시작할 수 있습니다.
+      </p>
+
+      <!-- Options -->
+      <div class="options" role="radiogroup" aria-label="전략 업로드 방법 선택">
+
+        <!-- Option 1: Paste Pine Script -->
+        <button type="button" class="option selected" role="radio" aria-checked="true" tabindex="0" data-option="paste">
+          <span class="option-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"/>
+              <polyline points="8 6 2 12 8 18"/>
+            </svg>
+          </span>
+          <span class="option-text">
+            <span class="option-title">Pine Script 붙여넣기</span>
+            <span class="option-desc">TradingView에서 코드 복사</span>
+          </span>
+          <span class="option-check" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </span>
+        </button>
+
+        <!-- Option 2: File upload -->
+        <button type="button" class="option" role="radio" aria-checked="false" tabindex="0" data-option="upload">
+          <span class="option-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </span>
+          <span class="option-text">
+            <span class="option-title">파일 업로드</span>
+            <span class="option-desc">.pine 파일 드래그 앤 드롭</span>
+          </span>
+          <span class="option-check" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </span>
+        </button>
+
+        <!-- Option 3: Template -->
+        <button type="button" class="option" role="radio" aria-checked="false" tabindex="0" data-option="template">
+          <span class="option-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+              <polyline points="2 17 12 22 22 17"/>
+              <polyline points="2 12 12 17 22 12"/>
+            </svg>
+          </span>
+          <span class="option-text">
+            <span class="option-title">
+              템플릿에서 시작
+              <span class="option-badge">추천</span>
+            </span>
+            <span class="option-desc">추천 전략 5개</span>
+          </span>
+          <span class="option-check" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <div class="actions-left">
+          <button type="button" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            이전
+          </button>
+          <button type="button" class="btn btn-muted" onclick="location.href='03-trading-dashboard.html'">건너뛰기</button>
+        </div>
+        <button type="button" class="btn btn-primary" id="next-btn" onclick="location.href='07-strategy-create.html'">
+          다음
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Skip link -->
+  <a href="03-trading-dashboard.html" class="skip-link">모든 설정을 나중에 하기 →</a>
+
+  <!-- =========================================
+       4. Preview Tiles
+       ========================================= -->
+  <section class="preview" aria-label="전체 온보딩 단계 미리보기">
+
+    <!-- Step 1: completed -->
+    <article class="preview-tile completed" aria-label="1단계 거래소 연결 완료">
+      <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="6" width="18" height="13" rx="2"/>
+            <path d="M3 10h18"/>
+            <path d="M7 15h4"/>
+          </svg>
+        </span>
+        <span class="tile-status done">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          완료
+        </span>
+      </div>
+      <div class="tile-title"><span class="strike">거래소 연결</span></div>
+      <div class="tile-desc">데모 거래 계정을 안전하게 연결했습니다.</div>
+      <div class="tile-meta">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Bybit · Demo 연결됨
+      </div>
+    </article>
+
+    <!-- Step 2: active -->
+    <article class="preview-tile active" aria-label="2단계 전략 업로드, 현재">
+      <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/>
+            <polyline points="8 6 2 12 8 18"/>
+          </svg>
+        </span>
+        <span class="tile-status current">진행 중</span>
+      </div>
+      <div class="tile-title">전략 업로드</div>
+      <div class="tile-desc">Pine Script 코드 또는 템플릿으로 첫 전략을 생성하세요.</div>
+      <div class="tile-meta">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>
+        </svg>
+        3가지 방식 중 선택
+      </div>
+    </article>
+
+    <!-- Step 3: muted -->
+    <article class="preview-tile muted" aria-label="3단계 백테스트 실행, 대기">
+      <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"/>
+            <path d="M7 15l4-4 3 3 5-6"/>
+          </svg>
+        </span>
+        <span class="tile-status soon">대기 중</span>
+      </div>
+      <div class="tile-title">백테스트 실행</div>
+      <div class="tile-desc">과거 데이터로 전략의 성과와 리스크를 검증합니다.</div>
+      <div class="tile-meta">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 9h6v6H9z"/>
+        </svg>
+        vectorbt 엔진
+      </div>
+    </article>
+
+    <!-- Step 4: muted -->
+    <article class="preview-tile muted" aria-label="4단계 데모 시작, 대기">
+      <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+        </span>
+        <span class="tile-status soon">대기 중</span>
+      </div>
+      <div class="tile-title">데모 시작</div>
+      <div class="tile-desc">실전 전에 가상 자금으로 전략을 안전하게 실행합니다.</div>
+      <div class="tile-meta">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2l7 4v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-4z"/>
+        </svg>
+        Risk-free
+      </div>
+    </article>
+  </section>
+</main>
+
+<script>
+  // ============================================
+  // Option selection (radio group behavior)
+  // ============================================
+  (function () {
+    const options = document.querySelectorAll('.option');
+    const nextBtn = document.getElementById('next-btn');
+
+    function select(el) {
+      options.forEach(o => {
+        o.classList.remove('selected');
+        o.setAttribute('aria-checked', 'false');
+      });
+      el.classList.add('selected');
+      el.setAttribute('aria-checked', 'true');
+      nextBtn.disabled = false;
+    }
+
+    options.forEach((opt) => {
+      opt.addEventListener('click', () => select(opt));
+      opt.addEventListener('keydown', (e) => {
+        // Arrow key navigation between radios
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const idx = Array.from(options).indexOf(opt);
+          const next = options[(idx + 1) % options.length];
+          next.focus();
+          select(next);
+        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          const idx = Array.from(options).indexOf(opt);
+          const prev = options[(idx - 1 + options.length) % options.length];
+          prev.focus();
+          select(prev);
+        } else if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          select(opt);
+        }
+      });
+    });
+  })();
+</script>
+</body>
+</html>

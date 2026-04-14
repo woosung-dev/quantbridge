@@ -1,0 +1,2209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>백테스트 결과 - MA Crossover Strategy | QuantBridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #FAFBFC;
+    --bg-alt: #F1F5F9;
+    --card: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --primary-100: #DBEAFE;
+    --success: #059669;
+    --success-light: #D1FAE5;
+    --destructive: #DC2626;
+    --destructive-light: #FEE2E2;
+    --border: #E2E8F0;
+    --dash-bg: #0B1120;
+    --dash-surface: rgba(255, 255, 255, 0.04);
+    --dash-border: rgba(255, 255, 255, 0.08);
+    --dash-text: #EDEDEF;
+    --dash-text-muted: #8A8F98;
+    --dash-green: #34D399;
+    --dash-red: #F87171;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --chart-bullish: #26A69A;
+    --chart-bearish: #EF5350;
+    --chart-line: #34D399;
+    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sidebar-w: 220px;
+    --header-h: 60px;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body {
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button, a, input, select, .clickable {
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .display { font-family: var(--font-display); }
+  .text-success { color: var(--success); }
+  .text-destructive { color: var(--destructive); }
+  .text-muted { color: var(--text-muted); }
+  .text-secondary { color: var(--text-secondary); }
+
+  /* =========================================
+     통합 사이드바 (App Shell)
+     ========================================= */
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-w);
+    height: 100vh;
+    background-color: #FFFFFF;
+    border-right: 1px solid #E2E8F0;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 110;
+  }
+
+  .sidebar-logo {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px;
+    margin-bottom: 24px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #0F172A;
+    text-decoration: none;
+  }
+
+  .sidebar-logo-mark {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, var(--primary), #06B6D4);
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-item {
+    position: relative;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #475569;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 200ms ease;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    text-align: left;
+    width: 100%;
+    font-family: var(--font-body);
+  }
+
+  .nav-item svg {
+    stroke: #475569;
+    stroke-width: 1.5;
+    flex-shrink: 0;
+    transition: stroke 200ms ease;
+  }
+
+  .nav-item:hover {
+    background-color: #F1F5F9;
+    color: #0F172A;
+  }
+  .nav-item:hover svg { stroke: #0F172A; }
+
+  .nav-item.active {
+    background-color: #EFF6FF;
+    color: #2563EB;
+    border-left: 3px solid #2563EB;
+    padding-left: 9px;
+  }
+  .nav-item.active svg { stroke: #2563EB; }
+
+  .nav-badge {
+    margin-left: auto;
+    background-color: #DC2626;
+    color: white;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-divider {
+    margin: 16px 0;
+    border: none;
+    border-top: 1px solid #E2E8F0;
+  }
+
+  .sidebar-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: auto;
+  }
+
+  .sidebar-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 200ms ease;
+  }
+  .sidebar-profile:hover { background-color: #F1F5F9; }
+
+  .sidebar-profile-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #2563EB;
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.78rem;
+    font-family: var(--font-display);
+    flex-shrink: 0;
+  }
+
+  .sidebar-profile-name {
+    font-size: 0.85rem;
+    color: #0F172A;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-profile-plan {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: #EFF6FF;
+    color: #2563EB;
+    text-transform: uppercase;
+  }
+
+  /* =========================================
+     통합 글로벌 헤더 (App Shell)
+     ========================================= */
+  .app-header {
+    position: sticky;
+    top: 0;
+    left: var(--sidebar-w);
+    right: 0;
+    height: var(--header-h);
+    background-color: #FFFFFF;
+    border-bottom: 1px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 24px;
+    z-index: 100;
+    margin-left: var(--sidebar-w);
+  }
+
+  .header-hamburger {
+    display: none;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    color: #475569;
+    align-items: center;
+    justify-content: center;
+  }
+  .header-hamburger:hover { background-color: #F1F5F9; color: #0F172A; }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    min-width: 0;
+  }
+
+  .breadcrumb .crumb {
+    color: var(--text-secondary);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .breadcrumb .crumb:hover { color: var(--primary); }
+
+  .breadcrumb .crumb.current {
+    color: var(--text-primary);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .breadcrumb .sep {
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .breadcrumb .date {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    margin-left: 4px;
+    white-space: nowrap;
+  }
+
+  .header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+
+  .global-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #F1F5F9;
+    border-radius: 8px;
+    padding: 8px 14px;
+    width: 320px;
+    max-width: 100%;
+    color: var(--text-muted);
+  }
+
+  .global-search input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    min-width: 0;
+  }
+  .global-search input::placeholder { color: var(--text-muted); }
+
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background-color: #FFFFFF;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-icon-btn {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+  .header-icon-btn:hover { background-color: #F1F5F9; color: var(--text-primary); }
+
+  .header-icon-btn .bell-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background-color: #DC2626;
+    color: white;
+    font-size: 0.62rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    padding: 0 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #FFFFFF;
+  }
+
+  .header-btn-outline {
+    height: 40px;
+    padding: 8px 14px;
+    border: 1.5px solid #E2E8F0;
+    background-color: #FFFFFF;
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+  .header-btn-outline:hover { background-color: #F1F5F9; border-color: #CBD5E1; }
+
+  .header-btn-ghost-danger {
+    height: 40px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    color: #DC2626;
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: background-color 200ms ease;
+  }
+  .header-btn-ghost-danger:hover { background-color: #FEE2E2; }
+
+  .header-divider {
+    height: 24px;
+    border-left: 1px solid #E2E8F0;
+    margin: 0 4px;
+  }
+
+  .header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #2563EB;
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.82rem;
+    font-family: var(--font-display);
+    cursor: pointer;
+    border: none;
+  }
+
+  /* =========================================
+     앱 쉘: 메인 컨테이너
+     ========================================= */
+  .app-main {
+    margin-left: var(--sidebar-w);
+    min-height: calc(100vh - var(--header-h));
+  }
+
+  /* =========================================
+     페이지 헤더 (전략 정보)
+     ========================================= */
+  .strategy-bar {
+    min-height: 72px;
+    background-color: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .strategy-title-block { flex: 1; min-width: 0; }
+
+  .strategy-title {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+
+  .strategy-meta {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 6px;
+  }
+
+  .strategy-badges {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--font-body);
+  }
+
+  .pill-success { background-color: var(--success-light); color: var(--success); }
+  .pill-muted { background-color: var(--bg-alt); color: var(--text-secondary); font-family: var(--font-mono); font-weight: 500; }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentColor;
+  }
+
+  /* =========================================
+     메인 레이아웃
+     ========================================= */
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 32px 48px;
+  }
+
+  .section {
+    margin-bottom: 24px;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.15rem;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  /* =========================================
+     기본 버튼 (툴바 등에서 사용)
+     ========================================= */
+  .btn {
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    background-color: var(--card);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+  }
+
+  .btn:hover { background-color: var(--bg-alt); }
+
+  .btn-primary {
+    background-color: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+  .btn-primary:hover { background-color: var(--primary-hover); border-color: var(--primary-hover); }
+
+  /* =========================================
+     KPI 그리드
+     ========================================= */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .kpi-card {
+    position: relative;
+    background-color: var(--card);
+    border-radius: var(--radius-lg);
+    padding: 24px 24px 22px 28px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .kpi-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background-color: var(--accent, var(--primary));
+  }
+
+  .kpi-card.accent-success { --accent: var(--success); }
+  .kpi-card.accent-primary { --accent: var(--primary); }
+  .kpi-card.accent-destructive { --accent: var(--destructive); }
+
+  .kpi-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .kpi-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .kpi-info {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    border: none;
+    background: transparent;
+  }
+  .kpi-info:hover { background-color: var(--bg-alt); color: var(--text-secondary); }
+
+  .kpi-value {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+  }
+
+  .kpi-value.success { color: var(--success); }
+  .kpi-value.destructive { color: var(--destructive); }
+
+  .kpi-compare {
+    margin-top: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+
+  .kpi-compare-pill {
+    margin-top: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background-color: var(--success-light);
+    color: var(--success);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  /* =========================================
+     Equity Curve 카드
+     ========================================= */
+  .card {
+    background-color: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--border);
+    padding: 24px;
+  }
+
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.15rem;
+    color: var(--text-primary);
+  }
+
+  .card-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .tab-pills {
+    display: inline-flex;
+    background-color: var(--bg-alt);
+    border-radius: var(--radius-md);
+    padding: 4px;
+  }
+
+  .tab-pill {
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    font-family: var(--font-mono);
+    min-height: 32px;
+  }
+
+  .tab-pill.active {
+    background-color: var(--primary);
+    color: white;
+    font-weight: 600;
+  }
+
+  .tab-pill:not(.active):hover { background-color: rgba(0, 0, 0, 0.04); color: var(--text-primary); }
+
+  .checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    user-select: none;
+  }
+
+  .checkbox-label input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+    cursor: pointer;
+  }
+
+  .chart-dark {
+    background-color: var(--dash-bg);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    position: relative;
+  }
+
+  .chart-dark-tall { height: 400px; }
+  .chart-dark-short { height: 200px; }
+
+  .chart-watermark {
+    position: absolute;
+    right: 16px;
+    bottom: 12px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--dash-text-muted);
+    opacity: 0.7;
+  }
+
+  .chart-legend {
+    position: absolute;
+    left: 20px;
+    top: 16px;
+    display: flex;
+    gap: 16px;
+    font-size: 0.72rem;
+    color: var(--dash-text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-swatch {
+    width: 14px;
+    height: 3px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  /* =========================================
+     3-column grid
+     ========================================= */
+  .charts-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .mini-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .mini-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+  }
+
+  .mini-badge {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background-color: var(--destructive-light);
+    color: var(--destructive);
+  }
+
+  /* 히트맵 */
+  .heatmap {
+    display: grid;
+    grid-template-columns: 40px repeat(12, 1fr);
+    grid-template-rows: 18px repeat(3, 1fr);
+    gap: 3px;
+    height: 200px;
+    padding: 4px;
+  }
+
+  .heatmap-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .heatmap-cell {
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 600;
+    background-color: var(--bg-alt);
+    color: var(--text-muted);
+  }
+
+  .cell-vpos { background-color: rgba(5, 150, 105, 0.75); color: white; }
+  .cell-pos { background-color: var(--success-light); color: var(--success); }
+  .cell-neu { background-color: var(--bg-alt); color: var(--text-muted); }
+  .cell-neg { background-color: var(--destructive-light); color: var(--destructive); }
+  .cell-vneg { background-color: rgba(220, 38, 38, 0.75); color: white; }
+  .cell-empty { background-color: transparent; }
+
+  /* =========================================
+     상세 지표 테이블
+     ========================================= */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .detail-col {
+    padding: 20px 20px 4px;
+    border-right: 1px solid var(--border);
+  }
+  .detail-col:last-child { border-right: none; }
+
+  .detail-col-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .detail-row:last-child { border-bottom: none; }
+
+  .detail-row-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  .detail-row-value {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .detail-row-value.pos { color: var(--success); }
+  .detail-row-value.neg { color: var(--destructive); }
+
+  /* =========================================
+     거래 내역 테이블
+     ========================================= */
+  .trade-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    height: 40px;
+    padding: 0 12px 0 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--card);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><path d='M21 21l-4.3-4.3'></path></svg>");
+    background-repeat: no-repeat;
+    background-position: 12px center;
+    font-size: 0.85rem;
+    width: 240px;
+    color: var(--text-primary);
+    min-height: 44px;
+  }
+
+  .search-input:focus {
+    outline: 2px solid var(--primary-light);
+    border-color: var(--primary);
+  }
+
+  .select {
+    height: 40px;
+    padding: 0 32px 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--card);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    min-height: 44px;
+  }
+
+  .trades-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-top: 16px;
+  }
+
+  table.trades {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  table.trades thead th {
+    background-color: var(--bg-alt);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  table.trades thead th.num {
+    text-align: right;
+    font-family: var(--font-mono);
+  }
+
+  table.trades tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  table.trades tbody td.mono-num {
+    font-family: var(--font-mono);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  table.trades tbody tr:hover { background-color: var(--bg-alt); }
+  table.trades tbody tr:last-child td { border-bottom: none; }
+
+  .badge-direction {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .badge-long { background-color: var(--success-light); color: var(--success); }
+  .badge-short { background-color: var(--destructive-light); color: var(--destructive); }
+
+  .profit-pos { color: var(--success); font-weight: 600; }
+  .profit-neg { color: var(--destructive); font-weight: 600; }
+
+  /* 페이지네이션 */
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding: 8px 0 0;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .page-nums {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .page-btn {
+    min-width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .page-btn:hover { background-color: var(--bg-alt); color: var(--text-primary); }
+  .page-btn.active { background-color: var(--primary); color: white; border-color: var(--primary); }
+  .page-btn.dots { border: none; background: transparent; min-width: auto; }
+
+  /* =========================================
+     CTA 섹션
+     ========================================= */
+  .cta-card {
+    background: linear-gradient(135deg, var(--primary-light), #FFFFFF);
+    border: 1px solid var(--primary-100);
+    border-radius: var(--radius-xl);
+    padding: 32px;
+    text-align: center;
+  }
+
+  .cta-icon-wrap {
+    width: 64px;
+    height: 64px;
+    background-color: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .cta-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+
+  .cta-desc {
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin: 0 auto 28px;
+    font-size: 0.95rem;
+  }
+
+  .cta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    text-align: left;
+  }
+
+  .cta-action-card {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+  }
+
+  .cta-action-card.highlight {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  .cta-action-card .recommend-tag {
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background-color: var(--primary);
+    color: white;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+  }
+
+  .cta-action-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background-color: var(--primary-light);
+    color: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cta-action-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text-primary);
+  }
+
+  .cta-action-sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .cta-action-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    margin-bottom: 4px;
+  }
+
+  .cta-action-btn {
+    width: 100%;
+    height: 42px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 0.88rem;
+    border: 1px solid var(--border);
+    background-color: var(--card);
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    margin-top: auto;
+  }
+
+  .cta-action-btn:hover { background-color: var(--bg-alt); }
+
+  .cta-action-btn.primary {
+    background-color: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .cta-action-btn.primary:hover { background-color: var(--primary-hover); }
+
+  /* =========================================
+     푸터
+     ========================================= */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 32px;
+    margin-top: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  /* =========================================
+     반응형
+     ========================================= */
+  @media (max-width: 1200px) {
+    .header-center { display: none; }
+  }
+
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 60px; }
+    .sidebar-logo {
+      justify-content: center;
+      padding: 0;
+    }
+    .sidebar-logo span.logo-text { display: none; }
+    .nav-item {
+      justify-content: center;
+      padding: 10px;
+      gap: 0;
+    }
+    .nav-item.active { padding-left: 7px; }
+    .nav-item span.nav-label { display: none; }
+    .nav-item .nav-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      margin: 0;
+    }
+    .sidebar-profile {
+      justify-content: center;
+      padding: 8px 0;
+    }
+    .sidebar-profile-name,
+    .sidebar-profile-plan { display: none; }
+
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: repeat(2, 1fr); }
+    .charts-row > *:nth-child(3) { grid-column: 1 / -1; }
+    .detail-grid { grid-template-columns: repeat(2, 1fr); }
+    .detail-col:nth-child(2) { border-right: none; }
+    .detail-col:nth-child(1), .detail-col:nth-child(2) { border-bottom: 1px solid var(--border); }
+    .cta-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    .app-sidebar { display: none; }
+    :root { --sidebar-w: 0px; }
+    .app-header {
+      left: 0;
+      margin-left: 0;
+      padding: 0 14px;
+    }
+    .app-main { margin-left: 0; }
+    .header-hamburger { display: inline-flex; }
+    .breadcrumb .crumb:not(.current),
+    .breadcrumb .sep:not(:last-of-type) { display: none; }
+    .header-btn-outline .lbl,
+    .header-btn-ghost-danger .lbl { display: none; }
+
+    .strategy-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 18px;
+    }
+    .strategy-badges { flex-wrap: wrap; }
+    .page { padding: 16px; }
+    .kpi-grid { grid-template-columns: 1fr; }
+    .charts-row { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .detail-col { border-right: none; border-bottom: 1px solid var(--border); }
+    .detail-col:last-child { border-bottom: none; }
+    .card-head-actions { width: 100%; justify-content: flex-start; }
+    .trade-toolbar { width: 100%; }
+    .search-input { width: 100%; }
+    .cta-card { padding: 22px 16px; }
+    .cta-title { font-size: 1.25rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================
+     통합 사이드바
+     ========================================= -->
+<aside class="app-sidebar" role="navigation" aria-label="메인 내비게이션">
+  <a href="03-trading-dashboard.html" class="sidebar-logo" aria-label="QuantBridge 홈">
+    <span class="sidebar-logo-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
+    </span>
+    <span class="logo-text">QuantBridge</span>
+  </a>
+
+  <nav class="sidebar-nav" aria-label="주요 메뉴">
+    <a href="03-trading-dashboard.html" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+      <span class="nav-label">대시보드</span>
+    </a>
+    <a href="06-strategies-list.html" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span class="nav-label">전략</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      <span class="nav-label">템플릿</span>
+    </a>
+    <a href="09-backtests-list.html" class="nav-item active" aria-current="page">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span class="nav-label">백테스트</span>
+    </a>
+    <a href="03-trading-dashboard.html" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <span class="nav-label">트레이딩</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <span class="nav-label">거래소</span>
+    </a>
+  </nav>
+
+  <hr class="sidebar-divider" />
+
+  <div class="sidebar-bottom">
+    <a href="#" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="nav-label">알림</span>
+      <span class="nav-badge">3</span>
+    </a>
+    <a href="#" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m6.22-13.22l-4.24 4.24m-4.96 4.96l-4.24 4.24M23 12h-6m-6 0H1m19.22 9.22l-4.24-4.24m-4.96-4.96L6.78 6.78"/></svg>
+      <span class="nav-label">설정</span>
+    </a>
+    <div class="sidebar-profile" role="button" tabindex="0" aria-label="프로필 메뉴">
+      <span class="sidebar-profile-avatar" aria-hidden="true">JK</span>
+      <span class="sidebar-profile-name">김지훈</span>
+      <span class="sidebar-profile-plan">프로</span>
+    </div>
+  </div>
+</aside>
+
+<!-- =========================================
+     통합 글로벌 헤더
+     ========================================= -->
+<header class="app-header" role="banner">
+  <button class="header-hamburger" aria-label="메뉴 열기">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+
+  <div class="header-left">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+      <a href="09-backtests-list.html" class="crumb">백테스트</a>
+      <span class="sep">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </span>
+      <span class="crumb current">MA Crossover Strategy</span>
+      <span class="date">- 2026-04-14</span>
+    </nav>
+  </div>
+
+  <div class="header-center">
+    <div class="global-search" role="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" placeholder="전략, 심볼 검색..." aria-label="검색" />
+      <span class="kbd">⌘K</span>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <button class="header-icon-btn" aria-label="공유" title="공유">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="11.49"/></svg>
+    </button>
+    <button class="header-btn-outline" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span class="lbl">PDF 다운로드</span>
+    </button>
+    <button class="header-btn-ghost-danger" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      <span class="lbl">삭제</span>
+    </button>
+    <span class="header-divider" aria-hidden="true"></span>
+    <button class="header-icon-btn" aria-label="알림">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="bell-badge">3</span>
+    </button>
+    <button class="header-avatar" aria-label="프로필 메뉴">JK</button>
+  </div>
+</header>
+
+<!-- =========================================
+     메인 컨테이너 (사이드바 오프셋)
+     ========================================= -->
+<div class="app-main">
+
+  <!-- 전략 정보 페이지 헤더 -->
+  <div class="strategy-bar">
+    <div class="strategy-title-block">
+      <div class="strategy-title">MA Crossover Strategy</div>
+      <div class="strategy-meta">BTC/USDT · 1h · Bybit · 2024-01-01 ~ 2026-04-14 (836일)</div>
+    </div>
+    <div class="strategy-badges">
+      <span class="pill pill-success">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        완료
+      </span>
+      <span class="pill pill-muted">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        실행 시간: 3.2초
+      </span>
+      <span class="pill pill-muted">ID: bt_abc123</span>
+    </div>
+  </div>
+
+  <!-- 메인 컨텐츠 -->
+  <main class="page" role="main">
+
+    <!-- KPI 대시보드 -->
+    <section class="section" aria-label="핵심 성과 지표">
+      <div class="kpi-grid">
+
+        <!-- 카드 1: 총 수익률 -->
+        <div class="kpi-card accent-success">
+          <div class="kpi-head">
+            <span class="kpi-label">총 수익률</span>
+            <button class="kpi-info" aria-label="정보">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
+          </div>
+          <div class="kpi-value success">+127.53%</div>
+          <div class="kpi-compare">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+            <span>Buy &amp; Hold 대비 <strong style="color:var(--success);">+42%</strong></span>
+          </div>
+        </div>
+
+        <!-- 카드 2: 샤프 비율 -->
+        <div class="kpi-card accent-primary">
+          <div class="kpi-head">
+            <span class="kpi-label">샤프 비율</span>
+            <button class="kpi-info" aria-label="정보">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
+          </div>
+          <div class="kpi-value">2.47</div>
+          <div class="kpi-compare-pill">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            우수 (&gt; 2.0 기준)
+          </div>
+        </div>
+
+        <!-- 카드 3: 최대 낙폭 -->
+        <div class="kpi-card accent-destructive">
+          <div class="kpi-head">
+            <span class="kpi-label">최대 낙폭 (MDD)</span>
+            <button class="kpi-info" aria-label="정보">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
+          </div>
+          <div class="kpi-value destructive">-12.34%</div>
+          <div class="kpi-compare mono">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="text-muted">2024-06-15 발생</span>
+          </div>
+        </div>
+
+        <!-- 카드 4: 승률 -->
+        <div class="kpi-card accent-primary">
+          <div class="kpi-head">
+            <span class="kpi-label">승률</span>
+            <button class="kpi-info" aria-label="정보">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
+          </div>
+          <div class="kpi-value">68.4%</div>
+          <div class="kpi-compare mono">
+            <span class="text-muted">127승 59패 (186 trades)</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Equity Curve 차트 -->
+    <section class="section" aria-label="자산 곡선">
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">자산 곡선 (Equity Curve)</h2>
+          <div class="card-head-actions">
+            <div class="tab-pills" role="tablist">
+              <button class="tab-pill" role="tab">1M</button>
+              <button class="tab-pill" role="tab">3M</button>
+              <button class="tab-pill" role="tab">6M</button>
+              <button class="tab-pill active" role="tab" aria-selected="true">전체</button>
+            </div>
+            <label class="checkbox-label"><input type="checkbox" checked /> Buy &amp; Hold 비교</label>
+            <label class="checkbox-label"><input type="checkbox" checked /> 드로다운 영역 표시</label>
+          </div>
+        </div>
+
+        <div class="chart-dark chart-dark-tall" role="img" aria-label="자산 곡선 차트">
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--dash-green);"></span>전략</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#60A5FA; height:2px; background:repeating-linear-gradient(90deg,#60A5FA 0 4px,transparent 4px 7px);"></span>Buy &amp; Hold</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:rgba(239,68,68,0.4);"></span>드로다운</span>
+          </div>
+
+          <svg width="100%" height="100%" viewBox="0 0 1120 360" preserveAspectRatio="none" style="display:block;">
+            <defs>
+              <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#34D399" stop-opacity="0.35" />
+                <stop offset="100%" stop-color="#34D399" stop-opacity="0" />
+              </linearGradient>
+              <linearGradient id="ddFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#EF4444" stop-opacity="0.08" />
+                <stop offset="100%" stop-color="#EF4444" stop-opacity="0.02" />
+              </linearGradient>
+            </defs>
+
+            <!-- Grid horizontal lines -->
+            <g stroke="rgba(255,255,255,0.05)" stroke-width="1">
+              <line x1="60" y1="40" x2="1100" y2="40" />
+              <line x1="60" y1="90" x2="1100" y2="90" />
+              <line x1="60" y1="140" x2="1100" y2="140" />
+              <line x1="60" y1="190" x2="1100" y2="190" />
+              <line x1="60" y1="240" x2="1100" y2="240" />
+              <line x1="60" y1="290" x2="1100" y2="290" />
+            </g>
+
+            <!-- Y axis labels -->
+            <g font-family="JetBrains Mono, monospace" font-size="10" fill="#8A8F98" text-anchor="end">
+              <text x="52" y="44">$22K</text>
+              <text x="52" y="94">$20K</text>
+              <text x="52" y="144">$18K</text>
+              <text x="52" y="194">$16K</text>
+              <text x="52" y="244">$14K</text>
+              <text x="52" y="294">$12K</text>
+              <text x="52" y="324">$10K</text>
+            </g>
+
+            <!-- X axis labels -->
+            <g font-family="JetBrains Mono, monospace" font-size="10" fill="#8A8F98" text-anchor="middle">
+              <text x="90" y="348">Jan 24</text>
+              <text x="260" y="348">Apr 24</text>
+              <text x="430" y="348">Jul 24</text>
+              <text x="600" y="348">Oct 24</text>
+              <text x="770" y="348">Jan 25</text>
+              <text x="940" y="348">Apr 25</text>
+              <text x="1080" y="348">Apr 26</text>
+            </g>
+
+            <!-- Drawdown band (bottom) -->
+            <path d="M60 305 Q180 305 220 310 T330 315 Q400 318 440 310 T540 312 Q620 316 680 318 T780 313 Q860 310 920 312 T1060 310 L1100 308 L1100 325 L60 325 Z"
+                  fill="url(#ddFill)" />
+
+            <!-- Buy & Hold dashed line -->
+            <path d="M60 320 C 150 300, 260 295, 360 270 S 560 255, 700 230 S 900 210, 1100 180"
+                  stroke="#60A5FA" stroke-width="1.5" stroke-dasharray="5 5" fill="none" opacity="0.8"/>
+
+            <!-- Equity curve area fill -->
+            <path d="M60 320
+                     C 120 310, 180 290, 240 270
+                     S 320 240, 380 235
+                     S 450 245, 500 220
+                     S 570 195, 620 200
+                     S 690 220, 740 190
+                     S 810 140, 870 130
+                     S 940 125, 990 100
+                     S 1050 75, 1100 55
+                     L 1100 325 L 60 325 Z"
+                  fill="url(#equityFill)" />
+
+            <!-- Equity curve line -->
+            <path d="M60 320
+                     C 120 310, 180 290, 240 270
+                     S 320 240, 380 235
+                     S 450 245, 500 220
+                     S 570 195, 620 200
+                     S 690 220, 740 190
+                     S 810 140, 870 130
+                     S 940 125, 990 100
+                     S 1050 75, 1100 55"
+                  stroke="#34D399" stroke-width="2.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+
+            <!-- End marker dot -->
+            <circle cx="1100" cy="55" r="4" fill="#34D399" />
+            <circle cx="1100" cy="55" r="7" fill="#34D399" fill-opacity="0.25" />
+
+            <!-- Crosshair hint (static) -->
+            <line x1="780" y1="40" x2="780" y2="325" stroke="rgba(255,255,255,0.12)" stroke-width="1" stroke-dasharray="2 3" />
+            <circle cx="780" cy="128" r="3" fill="#fff" />
+          </svg>
+
+          <div class="chart-watermark">TradingView Lightweight Charts v4</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3-컬럼 차트 -->
+    <section class="section">
+      <div class="charts-row">
+
+        <!-- 5-1 드로다운 차트 -->
+        <div class="card">
+          <div class="mini-head">
+            <span class="mini-title">드로다운 (%)</span>
+            <span class="mini-badge">최대 -12.3%</span>
+          </div>
+          <div class="chart-dark chart-dark-short" role="img" aria-label="드로다운 차트">
+            <svg width="100%" height="100%" viewBox="0 0 360 160" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="ddAreaFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#EF4444" stop-opacity="0.05" />
+                  <stop offset="100%" stop-color="#EF4444" stop-opacity="0.25" />
+                </linearGradient>
+              </defs>
+
+              <!-- Grid -->
+              <g stroke="rgba(255,255,255,0.05)" stroke-width="1">
+                <line x1="36" y1="20" x2="350" y2="20" />
+                <line x1="36" y1="60" x2="350" y2="60" />
+                <line x1="36" y1="100" x2="350" y2="100" />
+                <line x1="36" y1="140" x2="350" y2="140" />
+              </g>
+
+              <!-- Zero line -->
+              <line x1="36" y1="20" x2="350" y2="20" stroke="rgba(255,255,255,0.3)" stroke-width="1" />
+
+              <!-- Y labels -->
+              <g font-family="JetBrains Mono, monospace" font-size="9" fill="#8A8F98" text-anchor="end">
+                <text x="30" y="23">0%</text>
+                <text x="30" y="63">-4%</text>
+                <text x="30" y="103">-8%</text>
+                <text x="30" y="143">-12%</text>
+              </g>
+
+              <!-- Drawdown area -->
+              <path d="M36 20 L60 25 L85 45 L110 60 L135 40 L160 55 L185 90 L210 130 L230 110 L255 70 L280 45 L305 55 L330 35 L350 22 L350 150 L36 150 Z"
+                    fill="url(#ddAreaFill)" />
+              <!-- Drawdown line -->
+              <path d="M36 20 L60 25 L85 45 L110 60 L135 40 L160 55 L185 90 L210 130 L230 110 L255 70 L280 45 L305 55 L330 35 L350 22"
+                    stroke="#EF4444" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+
+              <!-- Max DD marker -->
+              <circle cx="210" cy="130" r="3.5" fill="#F87171" />
+              <text x="214" y="138" font-family="JetBrains Mono, monospace" font-size="9" fill="#F87171">-12.3%</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 5-2 월별 수익률 히트맵 -->
+        <div class="card">
+          <div class="mini-head">
+            <span class="mini-title">월별 수익률</span>
+            <span class="text-muted mono" style="font-size:0.72rem;">단위: %</span>
+          </div>
+          <div class="heatmap">
+            <!-- 헤더 -->
+            <div class="heatmap-label"></div>
+            <div class="heatmap-label">J</div>
+            <div class="heatmap-label">F</div>
+            <div class="heatmap-label">M</div>
+            <div class="heatmap-label">A</div>
+            <div class="heatmap-label">M</div>
+            <div class="heatmap-label">J</div>
+            <div class="heatmap-label">J</div>
+            <div class="heatmap-label">A</div>
+            <div class="heatmap-label">S</div>
+            <div class="heatmap-label">O</div>
+            <div class="heatmap-label">N</div>
+            <div class="heatmap-label">D</div>
+
+            <!-- 2024 -->
+            <div class="heatmap-label">'24</div>
+            <div class="heatmap-cell cell-pos">+3.4</div>
+            <div class="heatmap-cell cell-vpos">+8.2</div>
+            <div class="heatmap-cell cell-pos">+4.1</div>
+            <div class="heatmap-cell cell-neg">-1.2</div>
+            <div class="heatmap-cell cell-pos">+2.8</div>
+            <div class="heatmap-cell cell-vneg">-9.8</div>
+            <div class="heatmap-cell cell-pos">+5.3</div>
+            <div class="heatmap-cell cell-neu">+0.4</div>
+            <div class="heatmap-cell cell-vpos">+11.5</div>
+            <div class="heatmap-cell cell-pos">+6.7</div>
+            <div class="heatmap-cell cell-neg">-2.1</div>
+            <div class="heatmap-cell cell-pos">+4.9</div>
+
+            <!-- 2025 -->
+            <div class="heatmap-label">'25</div>
+            <div class="heatmap-cell cell-vpos">+9.7</div>
+            <div class="heatmap-cell cell-pos">+3.2</div>
+            <div class="heatmap-cell cell-neg">-3.4</div>
+            <div class="heatmap-cell cell-pos">+5.8</div>
+            <div class="heatmap-cell cell-pos">+6.1</div>
+            <div class="heatmap-cell cell-neu">+0.9</div>
+            <div class="heatmap-cell cell-neg">-2.7</div>
+            <div class="heatmap-cell cell-pos">+4.4</div>
+            <div class="heatmap-cell cell-vpos">+10.3</div>
+            <div class="heatmap-cell cell-pos">+2.9</div>
+            <div class="heatmap-cell cell-neg">-1.8</div>
+            <div class="heatmap-cell cell-pos">+7.2</div>
+
+            <!-- 2026 -->
+            <div class="heatmap-label">'26</div>
+            <div class="heatmap-cell cell-pos">+5.1</div>
+            <div class="heatmap-cell cell-pos">+3.8</div>
+            <div class="heatmap-cell cell-vpos">+8.6</div>
+            <div class="heatmap-cell cell-pos">+2.4</div>
+            <div class="heatmap-cell cell-empty"></div>
+            <div class="heatmap-cell cell-empty"></div>
+            <div class="heatmap-cell cell-empty"></div>
+            <div class="heatmap-cell cell-empty"></div>
+            <div class="heatmap-cell cell-empty"></div>
+            <div class="heatmap-cell cell-empty"></div>
+            <div class="heatmap-cell cell-empty"></div>
+            <div class="heatmap-cell cell-empty"></div>
+          </div>
+        </div>
+
+        <!-- 5-3 트레이드 분포 히스토그램 -->
+        <div class="card">
+          <div class="mini-head">
+            <span class="mini-title">트레이드 수익 분포</span>
+            <span class="text-muted mono" style="font-size:0.72rem;">n=186</span>
+          </div>
+          <div class="chart-dark chart-dark-short" role="img" aria-label="트레이드 분포">
+            <svg width="100%" height="100%" viewBox="0 0 360 160" preserveAspectRatio="none">
+              <!-- Grid -->
+              <g stroke="rgba(255,255,255,0.05)" stroke-width="1">
+                <line x1="20" y1="20" x2="350" y2="20" />
+                <line x1="20" y1="55" x2="350" y2="55" />
+                <line x1="20" y1="90" x2="350" y2="90" />
+                <line x1="20" y1="125" x2="350" y2="125" />
+              </g>
+
+              <!-- Zero line (vertical) -->
+              <line x1="180" y1="20" x2="180" y2="130" stroke="#FFFFFF" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+
+              <!-- Bars: 21 bins from -10% to +10% -->
+              <!-- Negative bars (red) -->
+              <g fill="#EF5350">
+                <rect x="22"  y="118" width="13" height="12" rx="1"/>
+                <rect x="37"  y="112" width="13" height="18" rx="1"/>
+                <rect x="52"  y="108" width="13" height="22" rx="1"/>
+                <rect x="67"  y="98"  width="13" height="32" rx="1"/>
+                <rect x="82"  y="88"  width="13" height="42" rx="1"/>
+                <rect x="97"  y="75"  width="13" height="55" rx="1"/>
+                <rect x="112" y="60"  width="13" height="70" rx="1"/>
+                <rect x="127" y="48"  width="13" height="82" rx="1"/>
+                <rect x="142" y="38"  width="13" height="92" rx="1"/>
+                <rect x="157" y="30"  width="13" height="100" rx="1"/>
+              </g>
+
+              <!-- Positive bars (teal) -->
+              <g fill="#26A69A">
+                <rect x="172" y="25"  width="13" height="105" rx="1"/>
+                <rect x="187" y="22"  width="13" height="108" rx="1"/>
+                <rect x="202" y="28"  width="13" height="102" rx="1"/>
+                <rect x="217" y="36"  width="13" height="94" rx="1"/>
+                <rect x="232" y="45"  width="13" height="85" rx="1"/>
+                <rect x="247" y="55"  width="13" height="75" rx="1"/>
+                <rect x="262" y="68"  width="13" height="62" rx="1"/>
+                <rect x="277" y="80"  width="13" height="50" rx="1"/>
+                <rect x="292" y="95"  width="13" height="35" rx="1"/>
+                <rect x="307" y="105" width="13" height="25" rx="1"/>
+                <rect x="322" y="115" width="13" height="15" rx="1"/>
+              </g>
+
+              <!-- X labels -->
+              <g font-family="JetBrains Mono, monospace" font-size="9" fill="#8A8F98" text-anchor="middle">
+                <text x="30"  y="148">-10%</text>
+                <text x="105" y="148">-5%</text>
+                <text x="180" y="148">0%</text>
+                <text x="255" y="148">+5%</text>
+                <text x="340" y="148">+10%</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 상세 지표 테이블 -->
+    <section class="section">
+      <div class="card" style="padding:0;">
+        <div style="padding:24px 24px 16px;">
+          <h2 class="card-title">상세 지표</h2>
+        </div>
+        <div class="detail-grid">
+
+          <div class="detail-col">
+            <div class="detail-col-title">수익성</div>
+            <div class="detail-row">
+              <span class="detail-row-label">최종 자산</span>
+              <span class="detail-row-value">$22,753.21</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">순이익</span>
+              <span class="detail-row-value pos">+$12,753</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">총 수익</span>
+              <span class="detail-row-value pos">+$18,420</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">총 손실</span>
+              <span class="detail-row-value neg">-$5,667</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">수익 팩터</span>
+              <span class="detail-row-value">3.25</span>
+            </div>
+          </div>
+
+          <div class="detail-col">
+            <div class="detail-col-title">리스크</div>
+            <div class="detail-row">
+              <span class="detail-row-label">샤프 비율</span>
+              <span class="detail-row-value">2.47</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">소르티노 비율</span>
+              <span class="detail-row-value">3.12</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">칼마 비율</span>
+              <span class="detail-row-value">10.34</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">최대 낙폭</span>
+              <span class="detail-row-value neg">-12.34%</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">MDD 기간</span>
+              <span class="detail-row-value">27일</span>
+            </div>
+          </div>
+
+          <div class="detail-col">
+            <div class="detail-col-title">거래 통계</div>
+            <div class="detail-row">
+              <span class="detail-row-label">총 거래 수</span>
+              <span class="detail-row-value">186</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">승 / 패</span>
+              <span class="detail-row-value">127 / 59</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">승률</span>
+              <span class="detail-row-value pos">68.4%</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">평균 수익</span>
+              <span class="detail-row-value pos">+2.1%</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">평균 손실</span>
+              <span class="detail-row-value neg">-1.4%</span>
+            </div>
+          </div>
+
+          <div class="detail-col">
+            <div class="detail-col-title">기타</div>
+            <div class="detail-row">
+              <span class="detail-row-label">최대 연속 승</span>
+              <span class="detail-row-value pos">8</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">최대 연속 패</span>
+              <span class="detail-row-value neg">4</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">평균 보유 시간</span>
+              <span class="detail-row-value">14h 32m</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">총 수수료</span>
+              <span class="detail-row-value neg">-$234</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">총 슬리피지</span>
+              <span class="detail-row-value neg">-$87</span>
+            </div>
+          </div>
+
+        </div>
+        <div style="height:16px;"></div>
+      </div>
+    </section>
+
+    <!-- 거래 내역 테이블 -->
+    <section class="section">
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title"><a href="10-trades-detail.html" style="color:inherit;text-decoration:none;">거래 내역 <span class="text-muted mono" style="font-weight:500; font-size:0.9rem;">(186)</span></a></h2>
+          <div class="trade-toolbar">
+            <input type="text" class="search-input" placeholder="거래 검색..." aria-label="거래 검색" />
+            <select class="select" aria-label="필터">
+              <option>전체</option>
+              <option>수익</option>
+              <option>손실</option>
+            </select>
+            <button class="btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              CSV 내보내기
+            </button>
+          </div>
+        </div>
+
+        <div class="trades-table-wrap">
+          <table class="trades">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>진입 시간</th>
+                <th>청산 시간</th>
+                <th>방향</th>
+                <th class="num">진입가</th>
+                <th class="num">청산가</th>
+                <th class="num">수량</th>
+                <th class="num">수익($)</th>
+                <th class="num">수익(%)</th>
+                <th class="num">수수료</th>
+                <th class="num">보유 시간</th>
+              </tr>
+            </thead>
+            <tbody>
+
+              <tr>
+                <td class="mono-num">#186</td>
+                <td class="mono-num" style="text-align:left;">2026-04-14 14:23</td>
+                <td class="mono-num" style="text-align:left;">2026-04-14 16:45</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$67,843</td>
+                <td class="mono-num">$68,945</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-pos">+$165</td>
+                <td class="mono-num profit-pos">+1.62%</td>
+                <td class="mono-num">$0.50</td>
+                <td class="mono-num">2h 22m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#185</td>
+                <td class="mono-num" style="text-align:left;">2026-04-13 09:12</td>
+                <td class="mono-num" style="text-align:left;">2026-04-13 14:18</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$67,200</td>
+                <td class="mono-num">$67,890</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-pos">+$103</td>
+                <td class="mono-num profit-pos">+1.03%</td>
+                <td class="mono-num">$0.48</td>
+                <td class="mono-num">5h 6m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#184</td>
+                <td class="mono-num" style="text-align:left;">2026-04-12 22:45</td>
+                <td class="mono-num" style="text-align:left;">2026-04-13 04:23</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$67,500</td>
+                <td class="mono-num">$66,830</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-neg">-$100</td>
+                <td class="mono-num profit-neg">-0.99%</td>
+                <td class="mono-num">$0.48</td>
+                <td class="mono-num">5h 38m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#183</td>
+                <td class="mono-num" style="text-align:left;">2026-04-11 18:30</td>
+                <td class="mono-num" style="text-align:left;">2026-04-12 09:12</td>
+                <td><span class="badge-direction badge-short">▼ Short</span></td>
+                <td class="mono-num">$68,120</td>
+                <td class="mono-num">$67,450</td>
+                <td class="mono-num">0.14 BTC</td>
+                <td class="mono-num profit-pos">+$94</td>
+                <td class="mono-num profit-pos">+0.98%</td>
+                <td class="mono-num">$0.45</td>
+                <td class="mono-num">14h 42m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#182</td>
+                <td class="mono-num" style="text-align:left;">2026-04-10 11:05</td>
+                <td class="mono-num" style="text-align:left;">2026-04-10 19:28</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$66,980</td>
+                <td class="mono-num">$68,450</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-pos">+$221</td>
+                <td class="mono-num profit-pos">+2.19%</td>
+                <td class="mono-num">$0.48</td>
+                <td class="mono-num">8h 23m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#181</td>
+                <td class="mono-num" style="text-align:left;">2026-04-09 06:40</td>
+                <td class="mono-num" style="text-align:left;">2026-04-09 10:15</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$66,340</td>
+                <td class="mono-num">$66,012</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-neg">-$49</td>
+                <td class="mono-num profit-neg">-0.49%</td>
+                <td class="mono-num">$0.45</td>
+                <td class="mono-num">3h 35m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#180</td>
+                <td class="mono-num" style="text-align:left;">2026-04-08 20:15</td>
+                <td class="mono-num" style="text-align:left;">2026-04-09 02:48</td>
+                <td><span class="badge-direction badge-short">▼ Short</span></td>
+                <td class="mono-num">$67,890</td>
+                <td class="mono-num">$67,120</td>
+                <td class="mono-num">0.14 BTC</td>
+                <td class="mono-num profit-pos">+$108</td>
+                <td class="mono-num profit-pos">+1.13%</td>
+                <td class="mono-num">$0.46</td>
+                <td class="mono-num">6h 33m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#179</td>
+                <td class="mono-num" style="text-align:left;">2026-04-07 13:22</td>
+                <td class="mono-num" style="text-align:left;">2026-04-08 01:40</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$66,210</td>
+                <td class="mono-num">$68,015</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-pos">+$271</td>
+                <td class="mono-num profit-pos">+2.72%</td>
+                <td class="mono-num">$0.48</td>
+                <td class="mono-num">12h 18m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#178</td>
+                <td class="mono-num" style="text-align:left;">2026-04-06 08:10</td>
+                <td class="mono-num" style="text-align:left;">2026-04-06 12:45</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$65,830</td>
+                <td class="mono-num">$65,210</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-neg">-$93</td>
+                <td class="mono-num profit-neg">-0.94%</td>
+                <td class="mono-num">$0.44</td>
+                <td class="mono-num">4h 35m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#177</td>
+                <td class="mono-num" style="text-align:left;">2026-04-05 16:20</td>
+                <td class="mono-num" style="text-align:left;">2026-04-06 03:50</td>
+                <td><span class="badge-direction badge-short">▼ Short</span></td>
+                <td class="mono-num">$66,100</td>
+                <td class="mono-num">$64,980</td>
+                <td class="mono-num">0.14 BTC</td>
+                <td class="mono-num profit-pos">+$157</td>
+                <td class="mono-num profit-pos">+1.69%</td>
+                <td class="mono-num">$0.44</td>
+                <td class="mono-num">11h 30m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#176</td>
+                <td class="mono-num" style="text-align:left;">2026-04-04 22:05</td>
+                <td class="mono-num" style="text-align:left;">2026-04-05 14:12</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$66,720</td>
+                <td class="mono-num">$66,540</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-neg">-$27</td>
+                <td class="mono-num profit-neg">-0.27%</td>
+                <td class="mono-num">$0.45</td>
+                <td class="mono-num">16h 7m</td>
+              </tr>
+
+              <tr>
+                <td class="mono-num">#175</td>
+                <td class="mono-num" style="text-align:left;">2026-04-03 10:40</td>
+                <td class="mono-num" style="text-align:left;">2026-04-04 05:18</td>
+                <td><span class="badge-direction badge-long">▲ Long</span></td>
+                <td class="mono-num">$65,300</td>
+                <td class="mono-num">$67,150</td>
+                <td class="mono-num">0.15 BTC</td>
+                <td class="mono-num profit-pos">+$278</td>
+                <td class="mono-num profit-pos">+2.83%</td>
+                <td class="mono-num">$0.45</td>
+                <td class="mono-num">18h 38m</td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <div class="pagination">
+          <div class="text-muted mono" style="font-size:0.8rem;">
+            1-12 / 186 거래 표시 중
+          </div>
+          <div class="page-nums" role="navigation" aria-label="페이지 네비게이션">
+            <button class="page-btn" aria-label="이전">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              이전
+            </button>
+            <button class="page-btn active" aria-current="page">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+            <button class="page-btn">4</button>
+            <button class="page-btn">5</button>
+            <span class="page-btn dots">...</span>
+            <button class="page-btn">19</button>
+            <button class="page-btn" aria-label="다음">
+              다음
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          <div style="display:inline-flex; align-items:center; gap:8px;">
+            <span class="text-secondary" style="font-size:0.8rem;">페이지당:</span>
+            <select class="select" style="height:36px; min-height:36px;" aria-label="페이지당 항목 수">
+              <option>10개</option>
+              <option selected>12개</option>
+              <option>25개</option>
+              <option>50개</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 다음 단계 CTA -->
+    <section class="section">
+      <div class="cta-card">
+        <div class="cta-icon-wrap" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        </div>
+        <h2 class="cta-title">다음 단계로 진행하세요</h2>
+        <p class="cta-desc">백테스트가 우수한 성과를 보였습니다. 이제 스트레스 테스트로 실전 내구성을 검증하거나 데모 트레이딩을 시작해보세요.</p>
+
+        <div class="cta-grid">
+
+          <!-- 스트레스 테스트 -->
+          <div class="cta-action-card">
+            <div class="cta-action-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="cta-action-title">스트레스 테스트</div>
+            <div class="cta-action-sub">Monte Carlo &amp; Walk-Forward</div>
+            <p class="cta-action-desc">전략이 다양한 시장 조건에서 얼마나 견디는지 검증합니다.</p>
+            <button class="cta-action-btn">
+              스트레스 테스트 시작
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- 최적화 -->
+          <div class="cta-action-card">
+            <div class="cta-action-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+            </div>
+            <div class="cta-action-title">파라미터 최적화</div>
+            <div class="cta-action-sub">Grid / Bayesian / Genetic</div>
+            <p class="cta-action-desc">최적의 파라미터를 자동으로 탐색하여 성과를 극대화합니다.</p>
+            <button class="cta-action-btn">
+              최적화 시작
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+          <!-- 데모 트레이딩 (하이라이트) -->
+          <div class="cta-action-card highlight">
+            <span class="recommend-tag">권장</span>
+            <div class="cta-action-icon" style="background-color: var(--success-light); color: var(--success);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+            </div>
+            <div class="cta-action-title">데모 트레이딩</div>
+            <div class="cta-action-sub">Bybit Demo 연동</div>
+            <p class="cta-action-desc">실제 시장 데이터로 위험 없이 전략을 실전 검증합니다.</p>
+            <button class="cta-action-btn primary" onclick="location.href='03-trading-dashboard.html'">
+              데모 시작하기
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 푸터 -->
+    <footer class="footer">
+      <span>&copy; 2026 QuantBridge</span>
+      <span>백테스트 엔진: vectorbt v0.26 | 실행 시간: 3.24s</span>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>

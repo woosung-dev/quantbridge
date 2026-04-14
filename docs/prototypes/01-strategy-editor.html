@@ -1,0 +1,1939 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantBridge — MA Crossover Strategy 편집</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --bg: #FAFBFC;
+    --bg-alt: #F1F5F9;
+    --card: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --primary-100: #DBEAFE;
+    --success: #059669;
+    --success-light: #D1FAE5;
+    --destructive: #DC2626;
+    --destructive-light: #FEE2E2;
+    --warning: #D97706;
+    --warning-light: #FEF3C7;
+    --border: #E2E8F0;
+    --border-dark: #CBD5E1;
+    --dash-bg: #0B1120;
+    --editor-bg: #1E1E1E;
+    --editor-line: #252526;
+    --editor-gutter: #1a1a1a;
+
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+    --card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.06);
+    --ring: 0 0 0 3px rgba(37, 99, 235, 0.15);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+
+    --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+    --header-h: 60px;
+    --sidebar-w: 220px;
+    --right-panel-w: 340px;
+    --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+
+  input, select {
+    font-family: inherit;
+    color: inherit;
+  }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color var(--transition);
+  }
+  a:hover { color: var(--primary-hover); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-dark);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ============================================================
+     UNIFIED APP SHELL — SIDEBAR
+     ============================================================ */
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 90;
+    transition: width var(--transition), transform var(--transition);
+  }
+
+  .sidebar-logo {
+    height: 44px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+  .sidebar-logo-mark {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+    border-radius: 8px;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+  }
+  .sidebar-logo-text {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .sidebar-nav-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+  }
+  .sidebar-nav-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .nav-item {
+    position: relative;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 200ms ease;
+    white-space: nowrap;
+  }
+  .nav-item svg {
+    flex-shrink: 0;
+    stroke: currentColor;
+  }
+  .nav-item:hover {
+    background: var(--bg-alt);
+    color: var(--text-primary);
+  }
+  .nav-item.active {
+    background: var(--primary-light);
+    color: var(--primary);
+    padding-left: 9px;
+    border-left: 3px solid var(--primary);
+  }
+  .nav-item.active svg {
+    stroke: var(--primary);
+  }
+
+  .nav-item .nav-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--destructive);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .sidebar-divider {
+    margin: 16px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav-profile {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+  .nav-profile:hover { background: var(--bg-alt); }
+  .nav-profile-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    font-family: var(--font-display);
+    flex-shrink: 0;
+  }
+  .nav-profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  .nav-profile-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nav-profile-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 1px 6px;
+    border-radius: 999px;
+    width: fit-content;
+  }
+
+  /* ============================================================
+     UNIFIED APP SHELL — GLOBAL HEADER
+     ============================================================ */
+  .app-header {
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-w);
+    right: 0;
+    height: var(--header-h);
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    z-index: 100;
+    transition: left var(--transition);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .mobile-menu-btn {
+    display: none;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+  }
+  .mobile-menu-btn:hover {
+    background: var(--bg-alt);
+    color: var(--text-primary);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    min-width: 0;
+  }
+  .breadcrumb a {
+    color: var(--text-secondary);
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .breadcrumb a:hover { color: var(--text-primary); }
+  .breadcrumb .chev { color: var(--text-muted); }
+  .breadcrumb .current {
+    color: var(--text-primary);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .last-saved {
+    margin-left: 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 0 16px;
+  }
+  .header-search {
+    width: 320px;
+    max-width: 100%;
+    height: 36px;
+    background: var(--bg-alt);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background var(--transition), border-color var(--transition);
+  }
+  .header-search:focus-within {
+    background: var(--card);
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+  .header-search svg { color: var(--text-muted); flex-shrink: 0; }
+  .header-search input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    min-width: 0;
+  }
+  .header-search input::placeholder { color: var(--text-muted); }
+  .header-search .kbd-pill {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition),
+      border-color var(--transition), box-shadow var(--transition),
+      transform var(--transition);
+  }
+  .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+  }
+  .btn-ghost:hover {
+    background: var(--bg-alt);
+    color: var(--text-primary);
+  }
+
+  .btn-outline {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    color: var(--text-primary);
+    padding: 8px 16px;
+  }
+  .btn-outline:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    padding: 10px 18px;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  }
+  .btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  }
+
+  .header-divider {
+    height: 24px;
+    border-left: 1px solid var(--border);
+    margin: 0 4px;
+  }
+
+  .icon-btn {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    color: var(--text-secondary);
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+  }
+  .icon-btn:hover {
+    background: var(--bg-alt);
+    color: var(--text-primary);
+  }
+  .icon-btn .notif-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--destructive);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    font-family: var(--font-display);
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color var(--transition);
+    flex-shrink: 0;
+  }
+  .header-avatar:hover { border-color: var(--primary-100); }
+
+  /* ============================================================
+     MAIN CONTENT AREA
+     ============================================================ */
+  .app-main {
+    margin-left: var(--sidebar-w);
+    margin-top: var(--header-h);
+    min-height: calc(100vh - var(--header-h));
+    display: flex;
+    transition: margin-left var(--transition);
+  }
+
+  .editor-region {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg);
+    height: calc(100vh - var(--header-h));
+  }
+
+  /* 탭 바 */
+  .tab-bar {
+    height: 42px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: stretch;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color var(--transition), border-color var(--transition);
+    min-height: 44px;
+  }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+  .tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warning);
+  }
+
+  .tab-bar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .tab-bar-right .mono {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    background: var(--success-light);
+    color: var(--success);
+    letter-spacing: 0.02em;
+  }
+
+  /* 에디터 영역 */
+  .editor-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--editor-bg);
+  }
+
+  .editor-toolbar {
+    height: 36px;
+    background: #252526;
+    border-bottom: 1px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .editor-file-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--editor-bg);
+    border-radius: 6px 6px 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: #E2E8F0;
+    border-top: 2px solid #FB923C;
+    margin-bottom: -1px;
+  }
+  .editor-file-tab .close {
+    opacity: 0.5;
+    transition: opacity var(--transition);
+    cursor: pointer;
+  }
+  .editor-file-tab .close:hover { opacity: 1; }
+
+  .editor-toolbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .editor-icon-btn {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    color: #94A3B8;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+  }
+  .editor-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #E2E8F0;
+  }
+
+  .editor {
+    flex: 1;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: #E2E8F0;
+    position: relative;
+  }
+
+  .code-line {
+    display: flex;
+    min-width: max-content;
+    transition: background var(--transition);
+    border-left: 2px solid transparent;
+  }
+  .code-line:hover { background: rgba(255, 255, 255, 0.03); }
+  .code-line.active {
+    background: rgba(37, 99, 235, 0.08);
+    border-left-color: #60A5FA;
+  }
+
+  .line-number {
+    width: 52px;
+    text-align: right;
+    padding: 0 14px 0 0;
+    color: #5A6470;
+    user-select: none;
+    flex-shrink: 0;
+    font-size: 12px;
+    padding-top: 1px;
+  }
+  .code-line.active .line-number {
+    color: #E2E8F0;
+  }
+
+  .line-content {
+    padding-right: 24px;
+    white-space: pre;
+  }
+
+  /* 신택스 색상 */
+  .tok-key { color: #FB923C; font-weight: 500; }       /* 키워드 */
+  .tok-fn { color: #60A5FA; }                            /* 함수 */
+  .tok-str { color: #4ADE80; }                           /* 문자열 */
+  .tok-num { color: #C084FC; }                           /* 숫자 */
+  .tok-cmt { color: #64748B; font-style: italic; }       /* 주석 */
+  .tok-var { color: #E2E8F0; }                           /* 변수 */
+  .tok-op { color: #F87171; }                            /* 연산자 */
+  .tok-prop { color: #FBBF24; }                          /* 속성 */
+
+  /* 하단 패널 */
+  .bottom-panel {
+    height: 200px;
+    background: #F8FAFC;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .bottom-tabs {
+    height: 38px;
+    display: flex;
+    align-items: stretch;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    flex-shrink: 0;
+    gap: 2px;
+  }
+  .bottom-tab {
+    padding: 0 14px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+    min-height: 38px;
+  }
+  .bottom-tab:hover { color: var(--text-primary); }
+  .bottom-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+  .bottom-tab .count {
+    background: var(--bg-alt);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    padding: 1px 7px;
+    border-radius: 100px;
+    font-weight: 600;
+  }
+  .bottom-tab.active .count {
+    background: var(--primary-100);
+    color: var(--primary-hover);
+  }
+
+  .bottom-tabs-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .bottom-tabs-right .editor-icon-btn {
+    color: var(--text-muted);
+  }
+  .bottom-tabs-right .editor-icon-btn:hover {
+    background: var(--bg-alt);
+    color: var(--text-primary);
+  }
+
+  .bottom-content {
+    flex: 1;
+    overflow: auto;
+    padding: 14px 18px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+  .parse-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    line-height: 1.5;
+  }
+  .parse-item .check {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--success-light);
+    color: var(--success);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .parse-item code {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    background: var(--card);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+  .parse-item strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* =========== 오른쪽 패널 =========== */
+  .right-panel {
+    width: var(--right-panel-w);
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    padding: 20px;
+    overflow-y: auto;
+    height: calc(100vh - var(--header-h));
+    position: sticky;
+    top: var(--header-h);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .badge-soft {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+  .link-subtle {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+  }
+  .link-subtle:hover { color: var(--primary-hover); }
+
+  /* 폼 필드 */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .field-input,
+  .field-select {
+    width: 100%;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    min-height: 40px;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .field-input:focus,
+  .field-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+  .field-input.mono { font-family: var(--font-mono); font-weight: 500; }
+
+  .field-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 34px;
+  }
+
+  .select-with-prefix {
+    position: relative;
+  }
+  .select-with-prefix .prefix {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+    color: white;
+    display: grid;
+    place-items: center;
+    font-size: 0.625rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .select-with-prefix .field-select {
+    padding-left: 38px;
+  }
+
+  /* 타임프레임 필 그룹 */
+  .pill-group {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    background: var(--bg-alt);
+    border-radius: 8px;
+    width: fit-content;
+  }
+  .pill-option {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    font-family: var(--font-mono);
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .pill-option:hover { color: var(--text-primary); }
+  .pill-option.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+  }
+
+  /* 파라미터 row */
+  .param-row {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 10px 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .param-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .param-row:first-of-type { padding-top: 0; }
+  .param-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .param-label small {
+    font-size: 0.6875rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+  .param-input {
+    width: 100%;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--text-primary);
+    min-height: 38px;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .param-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--ring);
+  }
+  .param-hint {
+    grid-column: 1 / -1;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin-top: -4px;
+    padding-left: 2px;
+  }
+
+  /* 리스크 관리 */
+  .risk-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--border);
+    gap: 12px;
+  }
+  .risk-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .risk-row:first-of-type { padding-top: 0; }
+  .risk-row-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .risk-row-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+  .risk-row-value.warn { color: var(--warning); }
+
+  .slider-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 180px;
+  }
+  .slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: linear-gradient(to right, var(--primary) 0%, var(--primary) 10%, var(--bg-alt) 10%, var(--bg-alt) 100%);
+    border-radius: 100px;
+    outline: none;
+    cursor: pointer;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform var(--transition);
+  }
+  .slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: white;
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .slider-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.8125rem;
+    color: var(--primary);
+    min-width: 34px;
+    text-align: right;
+  }
+
+  .inline-select {
+    background: var(--bg-alt);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 6px 28px 6px 10px;
+    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    transition: background-color var(--transition), border-color var(--transition);
+  }
+  .inline-select:hover { background-color: var(--border); }
+  .inline-select:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+
+  /* 백테스트 이력 */
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .history-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 10px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color var(--transition), transform var(--transition),
+      box-shadow var(--transition);
+  }
+  .history-card:hover {
+    border-color: var(--primary-100);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.06);
+  }
+  .history-date {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .history-roi {
+    font-family: var(--font-mono);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    text-align: right;
+  }
+  .history-roi.positive { color: var(--success); }
+  .history-roi.negative { color: var(--destructive); }
+  .history-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .history-meta .dot-sep {
+    width: 3px;
+    height: 3px;
+    background: var(--text-muted);
+    border-radius: 50%;
+  }
+  .history-sharpe {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-align: right;
+  }
+  .history-sharpe strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* ============================================================
+     반응형
+     ============================================================ */
+  /* 1200px: 검색바 숨김 */
+  @media (max-width: 1200px) {
+    .header-search { display: none; }
+  }
+
+  /* 1024px: 사이드바 60px 아이콘만 */
+  @media (max-width: 1024px) {
+    :root {
+      --sidebar-w: 60px;
+    }
+    .sidebar-logo-text,
+    .nav-item span:not(.nav-badge),
+    .nav-profile-info { display: none; }
+    .nav-item { justify-content: center; padding: 10px; }
+    .nav-item.active { padding-left: 7px; }
+    .nav-profile { justify-content: center; padding: 6px; }
+    .right-panel {
+      position: fixed;
+      top: var(--header-h);
+      right: 0;
+      bottom: 0;
+      width: 380px;
+      z-index: 80;
+      transform: translateX(100%);
+      transition: transform var(--transition);
+      box-shadow: -10px 0 30px rgba(15, 23, 42, 0.08);
+    }
+    .right-panel.open { transform: translateX(0); }
+    .drawer-toggle { display: inline-flex !important; }
+    .last-saved { display: none; }
+  }
+
+  /* 768px: 사이드바 숨김 + 햄버거 토글 */
+  @media (max-width: 768px) {
+    .app-sidebar {
+      transform: translateX(-100%);
+      width: 260px;
+      z-index: 110;
+    }
+    .app-sidebar.open { transform: translateX(0); }
+    .app-sidebar.open .sidebar-logo-text,
+    .app-sidebar.open .nav-item span:not(.nav-badge),
+    .app-sidebar.open .nav-profile-info { display: inline; }
+    .app-sidebar.open .nav-item { justify-content: flex-start; padding: 10px 12px; }
+    .app-sidebar.open .nav-item.active { padding-left: 9px; }
+    .app-sidebar.open .nav-profile { justify-content: flex-start; padding: 6px 10px; }
+    .app-header { left: 0; padding: 0 12px; }
+    .app-main { margin-left: 0; }
+    .mobile-menu-btn { display: inline-flex; }
+    .breadcrumb a:not(.current) { display: none; }
+    .breadcrumb .chev:first-of-type { display: none; }
+    .btn-hide-sm { display: none; }
+    .right-panel { width: 100%; }
+    .bottom-panel { height: 160px; }
+  }
+
+  .drawer-toggle { display: none; }
+
+  /* 오버레이 */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 75;
+    animation: fadeIn 200ms ease;
+  }
+  .overlay.visible { display: block; }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* 보조 요소 */
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    background: var(--bg-alt);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0);
+    white-space: nowrap; border: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================= 통합 사이드바 ========================= -->
+<aside class="app-sidebar" id="sidebar" aria-label="메인 내비게이션">
+  <a href="03-trading-dashboard.html" class="sidebar-logo" aria-label="QuantBridge 홈" style="text-decoration:none;color:inherit;">
+    <span class="sidebar-logo-mark" aria-hidden="true">
+      <!-- 브릿지 아이콘 SVG -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 16h20"/>
+        <path d="M5 16V9"/>
+        <path d="M19 16V9"/>
+        <path d="M5 9c2 0 4-2 7-2s5 2 7 2"/>
+        <path d="M9 16v4"/>
+        <path d="M15 16v4"/>
+      </svg>
+    </span>
+    <span class="sidebar-logo-text">QuantBridge</span>
+  </a>
+
+  <ul class="sidebar-nav-main">
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='03-trading-dashboard.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='03-trading-dashboard.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <path d="M9 22V12h6v10"/>
+      </svg>
+      <span>대시보드</span>
+    </li>
+    <li class="nav-item active" tabindex="0" aria-current="page" style="cursor:pointer" onclick="location.href='06-strategies-list.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='06-strategies-list.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      <span>전략</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+        <polyline points="2 17 12 22 22 17"/>
+        <polyline points="2 12 12 17 22 12"/>
+      </svg>
+      <span>템플릿</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='09-backtests-list.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='09-backtests-list.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span>백테스트</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer" onclick="location.href='03-trading-dashboard.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='03-trading-dashboard.html'}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      <span>트레이딩</span>
+    </li>
+    <li class="nav-item" tabindex="0" style="cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span>거래소</span>
+    </li>
+  </ul>
+
+  <div class="sidebar-divider" aria-hidden="true"></div>
+
+  <ul class="sidebar-nav-bottom">
+    <li class="nav-item" tabindex="0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span>알림</span>
+      <span class="nav-badge" aria-label="읽지 않은 알림 3개">3</span>
+    </li>
+    <li class="nav-item" tabindex="0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span>설정</span>
+    </li>
+    <li class="nav-profile" tabindex="0" role="button" aria-label="프로필 메뉴">
+      <div class="nav-profile-avatar" aria-hidden="true">JK</div>
+      <div class="nav-profile-info">
+        <span class="nav-profile-name">김지훈</span>
+        <span class="nav-profile-badge">프로</span>
+      </div>
+    </li>
+  </ul>
+</aside>
+
+<!-- ========================= 통합 글로벌 헤더 ========================= -->
+<header class="app-header" role="banner">
+  <div class="header-left">
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="메뉴 열기">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+    <nav class="breadcrumb" aria-label="경로">
+      <a href="06-strategies-list.html">전략</a>
+      <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+      <span class="current" title="MA Crossover Strategy">MA Crossover Strategy</span>
+    </nav>
+
+    <span class="last-saved" aria-live="polite">· 마지막 저장 2분 전</span>
+  </div>
+
+  <div class="header-center">
+    <label class="header-search" aria-label="검색">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" placeholder="전략, 심볼 검색..." />
+      <span class="kbd-pill">⌘K</span>
+    </label>
+  </div>
+
+  <div class="header-right">
+    <button class="btn btn-ghost btn-hide-sm" aria-label="변경 사항 초기화">초기화</button>
+
+    <button class="btn btn-outline btn-hide-sm" aria-label="저장" title="저장 (Cmd+S)" onclick="location.href='06-strategies-list.html'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/>
+        <polyline points="7 3 7 8 15 8"/>
+      </svg>
+      <span>저장</span>
+    </button>
+
+    <button class="btn btn-primary" aria-label="백테스트 실행" onclick="location.href='08-backtest-setup.html'">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+      <span>백테스트 실행</span>
+    </button>
+
+    <span class="header-divider" aria-hidden="true"></span>
+
+    <button class="icon-btn" aria-label="알림">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="notif-badge" aria-label="읽지 않은 알림 3개">3</span>
+    </button>
+
+    <button class="icon-btn drawer-toggle" id="drawerToggle" aria-label="설정 패널 열기">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="4" y1="21" x2="4" y2="14"/>
+        <line x1="4" y1="10" x2="4" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12" y2="3"/>
+        <line x1="20" y1="21" x2="20" y2="16"/>
+        <line x1="20" y1="12" x2="20" y2="3"/>
+        <line x1="1" y1="14" x2="7" y2="14"/>
+        <line x1="9" y1="8" x2="15" y2="8"/>
+        <line x1="17" y1="16" x2="23" y2="16"/>
+      </svg>
+    </button>
+
+    <div class="header-avatar" role="button" tabindex="0" aria-label="프로필 메뉴">JK</div>
+  </div>
+</header>
+
+<!-- 오버레이 (모바일 드로어용) -->
+<div class="overlay" id="overlay" aria-hidden="true"></div>
+
+<!-- ========================= 메인 콘텐츠 영역 ========================= -->
+<div class="app-main">
+
+  <!-- ========================= 중앙: 에디터 영역 ========================= -->
+  <main class="editor-region" aria-label="전략 편집 영역">
+    <!-- 상단 탭 바 -->
+    <div class="tab-bar" role="tablist">
+      <button class="tab active" role="tab" aria-selected="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>
+        <span>코드</span>
+      </button>
+      <button class="tab" role="tab" aria-selected="false">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>파싱 결과</span>
+      </button>
+      <button class="tab" role="tab" aria-selected="false">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span>메타데이터</span>
+      </button>
+
+      <div class="tab-bar-right">
+        <span class="mono">//@version=5</span>
+        <span class="pill">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="12"/></svg>
+          Pine v5
+        </span>
+      </div>
+    </div>
+
+    <!-- Monaco 스타일 에디터 -->
+    <div class="editor-wrap">
+      <div class="editor-toolbar">
+        <div class="editor-file-tab">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FB923C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span>ma_crossover.pine</span>
+          <span class="close">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </span>
+        </div>
+
+        <div class="editor-toolbar-right">
+          <button class="editor-icon-btn" aria-label="찾기" title="찾기 (Cmd+F)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </button>
+          <button class="editor-icon-btn" aria-label="포맷팅" title="자동 포맷">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="21" y1="10" x2="3" y2="10"/>
+              <line x1="21" y1="6" x2="3" y2="6"/>
+              <line x1="21" y1="14" x2="3" y2="14"/>
+              <line x1="21" y1="18" x2="9" y2="18"/>
+            </svg>
+          </button>
+          <button class="editor-icon-btn" aria-label="접기" title="모두 접기">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="17 11 12 6 7 11"/>
+              <polyline points="17 18 12 13 7 18"/>
+            </svg>
+          </button>
+          <button class="editor-icon-btn" aria-label="전체화면" title="전체화면">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 3 21 3 21 9"/>
+              <polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/>
+              <line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="editor" role="textbox" aria-label="Pine Script 에디터" aria-readonly="true" tabindex="0">
+        <div class="code-line"><span class="line-number">1</span><span class="line-content"><span class="tok-cmt">//@version=5</span></span></div>
+        <div class="code-line"><span class="line-number">2</span><span class="line-content"><span class="tok-key">strategy</span>(<span class="tok-str">"MA Crossover"</span>, overlay=<span class="tok-key">true</span>, initial_capital=<span class="tok-num">10000</span>)</span></div>
+        <div class="code-line"><span class="line-number">3</span><span class="line-content"></span></div>
+        <div class="code-line"><span class="line-number">4</span><span class="line-content"><span class="tok-cmt">// === 파라미터 ===</span></span></div>
+        <div class="code-line"><span class="line-number">5</span><span class="line-content"><span class="tok-var">fast_length</span> = <span class="tok-fn">input.int</span>(<span class="tok-num">10</span>, <span class="tok-str">"Fast MA"</span>, minval=<span class="tok-num">1</span>)</span></div>
+        <div class="code-line"><span class="line-number">6</span><span class="line-content"><span class="tok-var">slow_length</span> = <span class="tok-fn">input.int</span>(<span class="tok-num">30</span>, <span class="tok-str">"Slow MA"</span>, minval=<span class="tok-num">1</span>)</span></div>
+        <div class="code-line"><span class="line-number">7</span><span class="line-content"><span class="tok-var">stop_loss_pct</span> = <span class="tok-fn">input.float</span>(<span class="tok-num">2.0</span>, <span class="tok-str">"Stop Loss %"</span>, minval=<span class="tok-num">0</span>)</span></div>
+        <div class="code-line"><span class="line-number">8</span><span class="line-content"></span></div>
+        <div class="code-line"><span class="line-number">9</span><span class="line-content"><span class="tok-cmt">// === 지표 계산 ===</span></span></div>
+        <div class="code-line active"><span class="line-number">10</span><span class="line-content"><span class="tok-var">fast_ma</span> = <span class="tok-fn">ta.sma</span>(<span class="tok-var">close</span>, <span class="tok-var">fast_length</span>)</span></div>
+        <div class="code-line"><span class="line-number">11</span><span class="line-content"><span class="tok-var">slow_ma</span> = <span class="tok-fn">ta.sma</span>(<span class="tok-var">close</span>, <span class="tok-var">slow_length</span>)</span></div>
+        <div class="code-line"><span class="line-number">12</span><span class="line-content"></span></div>
+        <div class="code-line"><span class="line-number">13</span><span class="line-content"><span class="tok-cmt">// === 시그널 ===</span></span></div>
+        <div class="code-line"><span class="line-number">14</span><span class="line-content"><span class="tok-var">long_signal</span> = <span class="tok-fn">ta.crossover</span>(<span class="tok-var">fast_ma</span>, <span class="tok-var">slow_ma</span>)</span></div>
+        <div class="code-line"><span class="line-number">15</span><span class="line-content"><span class="tok-var">short_signal</span> = <span class="tok-fn">ta.crossunder</span>(<span class="tok-var">fast_ma</span>, <span class="tok-var">slow_ma</span>)</span></div>
+        <div class="code-line"><span class="line-number">16</span><span class="line-content"></span></div>
+        <div class="code-line"><span class="line-number">17</span><span class="line-content"><span class="tok-cmt">// === 주문 실행 ===</span></span></div>
+        <div class="code-line"><span class="line-number">18</span><span class="line-content"><span class="tok-key">if</span> <span class="tok-var">long_signal</span></span></div>
+        <div class="code-line"><span class="line-number">19</span><span class="line-content">    <span class="tok-fn">strategy.entry</span>(<span class="tok-str">"Long"</span>, <span class="tok-prop">strategy.long</span>)</span></div>
+        <div class="code-line"><span class="line-number">20</span><span class="line-content">    <span class="tok-fn">strategy.exit</span>(<span class="tok-str">"Long SL"</span>, <span class="tok-str">"Long"</span>, </span></div>
+        <div class="code-line"><span class="line-number">21</span><span class="line-content">        stop=<span class="tok-var">close</span> * (<span class="tok-num">1</span> - <span class="tok-var">stop_loss_pct</span> / <span class="tok-num">100</span>))</span></div>
+        <div class="code-line"><span class="line-number">22</span><span class="line-content"></span></div>
+        <div class="code-line"><span class="line-number">23</span><span class="line-content"><span class="tok-key">if</span> <span class="tok-var">short_signal</span></span></div>
+        <div class="code-line"><span class="line-number">24</span><span class="line-content">    <span class="tok-fn">strategy.close</span>(<span class="tok-str">"Long"</span>)</span></div>
+        <div class="code-line"><span class="line-number">25</span><span class="line-content"></span></div>
+        <div class="code-line"><span class="line-number">26</span><span class="line-content"><span class="tok-cmt">// === 차트 플롯 ===</span></span></div>
+        <div class="code-line"><span class="line-number">27</span><span class="line-content"><span class="tok-fn">plot</span>(<span class="tok-var">fast_ma</span>, color=<span class="tok-prop">color.blue</span>, linewidth=<span class="tok-num">2</span>)</span></div>
+        <div class="code-line"><span class="line-number">28</span><span class="line-content"><span class="tok-fn">plot</span>(<span class="tok-var">slow_ma</span>, color=<span class="tok-prop">color.orange</span>, linewidth=<span class="tok-num">2</span>)</span></div>
+        <div class="code-line"><span class="line-number">29</span><span class="line-content"></span></div>
+      </div>
+
+      <!-- 하단 패널 -->
+      <div class="bottom-panel" aria-label="파싱 결과 패널">
+        <div class="bottom-tabs" role="tablist">
+          <button class="bottom-tab active" role="tab" aria-selected="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 11 12 14 22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            파싱 결과
+          </button>
+          <button class="bottom-tab" role="tab" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            문제
+            <span class="count">0</span>
+          </button>
+          <button class="bottom-tab" role="tab" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5"/>
+              <line x1="12" y1="19" x2="20" y2="19"/>
+            </svg>
+            출력
+          </button>
+
+          <div class="bottom-tabs-right">
+            <button class="editor-icon-btn" aria-label="지우기" title="출력 지우기">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+            <button class="editor-icon-btn" aria-label="축소" title="패널 축소">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="bottom-content" role="tabpanel">
+          <div class="parse-item">
+            <span class="check" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span><strong>Pine Script v5</strong> 감지 — 호환 가능한 스트래티지 타입</span>
+          </div>
+          <div class="parse-item">
+            <span class="check" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span><strong>3개 파라미터</strong> 추출됨: <code>fast_length</code>, <code>slow_length</code>, <code>stop_loss_pct</code></span>
+          </div>
+          <div class="parse-item">
+            <span class="check" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span><strong>2개 지표</strong> 사용: <code>ta.sma</code> (Simple Moving Average)</span>
+          </div>
+          <div class="parse-item">
+            <span class="check" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span><strong>2개 시그널</strong> 감지: <code>crossover</code>, <code>crossunder</code></span>
+          </div>
+          <div class="parse-item">
+            <span class="check" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span><strong>Long-only 전략</strong>으로 분류됨 — vectorbt 트랜스파일 준비 완료</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ========================= 오른쪽 패널 ========================= -->
+  <aside class="right-panel" id="rightPanel" aria-label="전략 설정">
+
+    <!-- 전략 정보 -->
+    <section class="card" aria-labelledby="strategy-info-title">
+      <div class="card-header">
+        <h2 class="card-title" id="strategy-info-title">전략 정보</h2>
+      </div>
+      <div class="field-group">
+        <div class="field">
+          <label class="field-label" for="strategy-name">이름</label>
+          <input id="strategy-name" class="field-input" type="text" value="MA Crossover Strategy" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="strategy-symbol">심볼</label>
+          <div class="select-with-prefix">
+            <span class="prefix" aria-hidden="true">₿</span>
+            <select id="strategy-symbol" class="field-select">
+              <option>BTC/USDT</option>
+              <option>ETH/USDT</option>
+              <option>SOL/USDT</option>
+              <option>BNB/USDT</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">타임프레임</span>
+          <div class="pill-group" role="radiogroup" aria-label="타임프레임 선택">
+            <button class="pill-option" role="radio" aria-checked="false">1m</button>
+            <button class="pill-option" role="radio" aria-checked="false">5m</button>
+            <button class="pill-option" role="radio" aria-checked="false">15m</button>
+            <button class="pill-option active" role="radio" aria-checked="true">1h</button>
+            <button class="pill-option" role="radio" aria-checked="false">4h</button>
+            <button class="pill-option" role="radio" aria-checked="false">1D</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="strategy-exchange">거래소</label>
+          <select id="strategy-exchange" class="field-select">
+            <option>Bybit Demo</option>
+            <option>Bybit Live</option>
+            <option>Binance Testnet</option>
+            <option>Binance Live</option>
+            <option>OKX Demo</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 파라미터 -->
+    <section class="card" aria-labelledby="params-title">
+      <div class="card-header">
+        <h2 class="card-title" id="params-title">파라미터</h2>
+        <span class="badge-soft">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          자동 감지됨
+        </span>
+      </div>
+      <div>
+        <div class="param-row">
+          <label class="param-label" for="param-fast">
+            Fast MA
+            <small>fast_length</small>
+          </label>
+          <input id="param-fast" class="param-input" type="number" value="10" min="1" max="200" />
+          <span class="param-hint">기본값 10 · 범위 1–200 · 짧은 기간 이동평균</span>
+        </div>
+        <div class="param-row">
+          <label class="param-label" for="param-slow">
+            Slow MA
+            <small>slow_length</small>
+          </label>
+          <input id="param-slow" class="param-input" type="number" value="30" min="1" max="500" />
+          <span class="param-hint">기본값 30 · 범위 1–500 · 긴 기간 이동평균</span>
+        </div>
+        <div class="param-row">
+          <label class="param-label" for="param-sl">
+            Stop Loss %
+            <small>stop_loss_pct</small>
+          </label>
+          <input id="param-sl" class="param-input" type="number" value="2.0" min="0" max="20" step="0.1" />
+          <span class="param-hint">기본값 2.0% · 진입가 대비 손절 비율</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 리스크 관리 -->
+    <section class="card" aria-labelledby="risk-title">
+      <div class="card-header">
+        <h2 class="card-title" id="risk-title">리스크 관리</h2>
+        <span class="badge-soft" style="background: var(--warning-light); color: var(--warning);">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v4"/>
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          중요
+        </span>
+      </div>
+      <div>
+        <div class="risk-row">
+          <span class="risk-row-label">Initial Capital</span>
+          <span class="risk-row-value">$10,000.00</span>
+        </div>
+        <div class="risk-row">
+          <span class="risk-row-label">Position Size</span>
+          <div class="slider-wrap">
+            <input class="slider" type="range" min="0" max="100" value="10" aria-label="포지션 크기" />
+            <span class="slider-value">10%</span>
+          </div>
+        </div>
+        <div class="risk-row">
+          <span class="risk-row-label">Max Drawdown Limit</span>
+          <span class="risk-row-value warn">15%</span>
+        </div>
+        <div class="risk-row">
+          <span class="risk-row-label">Leverage</span>
+          <select class="inline-select" aria-label="레버리지">
+            <option>1x (No Leverage)</option>
+            <option>2x</option>
+            <option>3x</option>
+            <option>5x</option>
+            <option>10x</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 백테스트 이력 -->
+    <section class="card" aria-labelledby="history-title">
+      <div class="card-header">
+        <h2 class="card-title" id="history-title">최근 백테스트</h2>
+        <a class="link-subtle">
+          모두 보기
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </a>
+      </div>
+      <div class="history-list">
+        <article class="history-card" tabindex="0" aria-label="오늘 14:23 백테스트 결과 +12.4%">
+          <span class="history-date">오늘 14:23</span>
+          <span class="history-roi positive">+12.4%</span>
+          <span class="history-meta">
+            <span>47 trades</span>
+            <span class="dot-sep" aria-hidden="true"></span>
+            <span>Win 62%</span>
+          </span>
+          <span class="history-sharpe">Sharpe <strong>2.1</strong></span>
+        </article>
+        <article class="history-card" tabindex="0" aria-label="어제 백테스트 결과 +8.7%">
+          <span class="history-date">어제 09:10</span>
+          <span class="history-roi positive">+8.7%</span>
+          <span class="history-meta">
+            <span>52 trades</span>
+            <span class="dot-sep" aria-hidden="true"></span>
+            <span>Win 58%</span>
+          </span>
+          <span class="history-sharpe">Sharpe <strong>1.8</strong></span>
+        </article>
+        <article class="history-card" tabindex="0" aria-label="3일 전 백테스트 결과 -2.1%">
+          <span class="history-date">3일 전</span>
+          <span class="history-roi negative">−2.1%</span>
+          <span class="history-meta">
+            <span>31 trades</span>
+            <span class="dot-sep" aria-hidden="true"></span>
+            <span>Win 45%</span>
+          </span>
+          <span class="history-sharpe">Sharpe <strong>0.4</strong></span>
+        </article>
+      </div>
+    </section>
+
+  </aside>
+</div>
+
+<script>
+  // ========== 탭 클릭 (상단) ==========
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+    });
+  });
+
+  // ========== 하단 탭 클릭 ==========
+  document.querySelectorAll('.bottom-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.bottom-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+    });
+  });
+
+  // ========== 타임프레임 선택 ==========
+  document.querySelectorAll('.pill-option').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.pill-option').forEach(p => {
+        p.classList.remove('active');
+        p.setAttribute('aria-checked', 'false');
+      });
+      pill.classList.add('active');
+      pill.setAttribute('aria-checked', 'true');
+    });
+  });
+
+  // ========== 네비게이션 활성 ==========
+  document.querySelectorAll('.sidebar-nav-main .nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar-nav-main .nav-item').forEach(i => {
+        i.classList.remove('active');
+        i.removeAttribute('aria-current');
+      });
+      item.classList.add('active');
+      item.setAttribute('aria-current', 'page');
+    });
+  });
+
+  // ========== 포지션 사이즈 슬라이더 ==========
+  const slider = document.querySelector('.slider');
+  const sliderValue = document.querySelector('.slider-value');
+  if (slider && sliderValue) {
+    const updateSlider = () => {
+      const v = slider.value;
+      sliderValue.textContent = `${v}%`;
+      slider.style.background = `linear-gradient(to right, var(--primary) 0%, var(--primary) ${v}%, var(--bg-alt) ${v}%, var(--bg-alt) 100%)`;
+    };
+    slider.addEventListener('input', updateSlider);
+    updateSlider();
+  }
+
+  // ========== 코드 라인 클릭으로 active ==========
+  document.querySelectorAll('.code-line').forEach(line => {
+    line.addEventListener('click', () => {
+      document.querySelectorAll('.code-line').forEach(l => l.classList.remove('active'));
+      line.classList.add('active');
+    });
+  });
+
+  // ========== 모바일 사이드바 ==========
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const sidebar = document.getElementById('sidebar');
+  const drawerToggle = document.getElementById('drawerToggle');
+  const rightPanel = document.getElementById('rightPanel');
+  const overlay = document.getElementById('overlay');
+
+  function closeAll() {
+    sidebar.classList.remove('open');
+    rightPanel.classList.remove('open');
+    overlay.classList.remove('visible');
+  }
+
+  mobileMenuBtn?.addEventListener('click', () => {
+    const opening = !sidebar.classList.contains('open');
+    closeAll();
+    if (opening) {
+      sidebar.classList.add('open');
+      overlay.classList.add('visible');
+    }
+  });
+
+  drawerToggle?.addEventListener('click', () => {
+    const opening = !rightPanel.classList.contains('open');
+    closeAll();
+    if (opening) {
+      rightPanel.classList.add('open');
+      overlay.classList.add('visible');
+    }
+  });
+
+  overlay?.addEventListener('click', closeAll);
+
+  // ========== 단축키 ==========
+  document.addEventListener('keydown', (e) => {
+    // Cmd+S — 저장 (실제로는 프로토타입)
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      const saved = document.querySelector('.last-saved');
+      if (saved) {
+        saved.textContent = '· 방금 저장됨';
+      }
+    }
+    // Cmd+K — 검색 포커스
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      document.querySelector('.header-search input')?.focus();
+    }
+    // ESC — 드로어 닫기
+    if (e.key === 'Escape') closeAll();
+  });
+</script>
+
+</body>
+</html>
