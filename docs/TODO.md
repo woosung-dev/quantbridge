@@ -23,12 +23,12 @@
 - [ ] .husky/pre-commit (lint-staged)
 - [ ] root 설정 파일 (.editorconfig 등)
 
-**Session 2 — Backend Scaffold (feat/backend-scaffold 워크트리):**
-- [ ] FastAPI 프로젝트 초기화 (uv + pyproject.toml)
-- [ ] 3-Layer 디렉토리 구조 (src/core, common, auth, 7개 도메인)
-- [ ] Alembic async migration 인프라
-- [ ] pytest + pytest-asyncio 테스트 인프라
-- [ ] ruff.toml + mypy.ini 개발 도구
+**Session 2 — Backend Scaffold (feat/backend-scaffold 워크트리):** ✅ 완료
+- [x] FastAPI 프로젝트 초기화 (uv + pyproject.toml)
+- [x] 3-Layer 디렉토리 구조 (src/core, common, auth, 7개 도메인)
+- [x] Alembic async migration 인프라
+- [x] pytest + pytest-asyncio 테스트 인프라 (health 엔드포인트 검증 1건 통과)
+- [x] ruff.toml + mypy.ini 개발 도구 (ruff/mypy/pytest 모두 clean)
 
 **Session 3 — Frontend Scaffold (feat/frontend-scaffold 워크트리):**
 - [ ] Next.js 16 프로젝트 초기화 (pnpm)
