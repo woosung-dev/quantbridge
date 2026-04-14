@@ -1,0 +1,25 @@
+{
+  "name": "quantbridge-root",
+  "version": "0.0.0",
+  "private": true,
+  "description": "QuantBridge 루트 — husky pre-commit 훅 및 레포 전역 도구 전용 (frontend/backend는 각자 독립)",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10"
+  },
+  "lint-staged": {
+    "frontend/**/*.{ts,tsx,js,jsx}": [
+      "bash -c 'cd frontend && pnpm lint --fix --file $(pwd)/$0'"
+    ],
+    "backend/**/*.py": [
+      "bash -c 'cd backend && ruff check --fix ${0#backend/}'",
+      "bash -c 'cd backend && ruff format ${0#backend/}'"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

@@ -1,4 +1,46 @@
+# === AI tooling ===
 .ai/
 .claude/
 .agents/
 .gstack/
+
+# === 환경 변수 ===
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# === Node / Frontend ===
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.pnpm-store/
+
+# === Python / Backend ===
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# === IDE / OS ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# === 로그 / 임시 파일 ===
+*.log
+logs/
+tmp/
+.cache/

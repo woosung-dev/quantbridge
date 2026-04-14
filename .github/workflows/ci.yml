@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 변경된 경로 감지 — frontend/backend 스캐폴딩 전에는 빈 결과로 스킵
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm tsc --noEmit
+      - run: pnpm test -- --run
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      db:
+        image: timescale/timescaledb:2.14.2-pg15
+        env:
+          POSTGRES_USER: quantbridge
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: quantbridge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quantbridge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-extras --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src/
+      - run: uv run pytest -v
+        env:
+          DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+          REDIS_URL: redis://localhost:6379/0
+
+  # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
+  ci:
+    needs: [frontend, backend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "frontend=${{ needs.frontend.result }}"
+          echo "backend=${{ needs.backend.result }}"
+          if [[ "${{ needs.frontend.result }}" == "failure" || "${{ needs.backend.result }}" == "failure" ]]; then
+            exit 1
+          fi

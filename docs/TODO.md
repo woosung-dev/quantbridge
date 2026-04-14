@@ -16,12 +16,13 @@
 
 ### Phase 0: 병렬 스캐폴딩 (autoplan과 동시 진행)
 
-**Session 1 — Root Infrastructure (main):**
-- [ ] 초기 커밋 (planning docs + config)
-- [ ] docker-compose.yml (PostgreSQL + TimescaleDB + Redis)
-- [ ] .github/workflows/ci.yml (lint + typecheck + test)
-- [ ] .husky/pre-commit (lint-staged)
-- [ ] root 설정 파일 (.editorconfig 등)
+**Session 1 — Root Infrastructure (main):** ✅ 완료 (2026-04-15)
+- [x] 초기 커밋 (planning docs + config)
+- [x] docker-compose.yml (TimescaleDB 단일 인스턴스 + Redis)
+- [x] .github/workflows/ci.yml (changes-aware, frontend/backend 분리 + 요약 잡)
+- [x] .husky/pre-commit + root package.json (husky + lint-staged)
+- [x] .editorconfig + .gitignore 보강
+- [x] .env.example POSTGRES_* 정렬 (docker-compose SSOT)
 
 **Session 2 — Backend Scaffold (feat/backend-scaffold 워크트리):**
 - [ ] FastAPI 프로젝트 초기화 (uv + pyproject.toml)

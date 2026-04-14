@@ -1,0 +1,54 @@
+# QuantBridge — 로컬 개발 환경
+# Phase 0 Session 1 (ADR-002)
+# 실행: docker compose up -d
+
+services:
+  # PostgreSQL + TimescaleDB extension (단일 인스턴스)
+  # OHLCV 시계열은 hypertable로, 일반 테이블은 public 스키마로 분리 운영
+  db:
+    image: timescale/timescaledb:2.14.2-pg15
+    container_name: quantbridge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-quantbridge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-quantbridge}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quantbridge} -d ${POSTGRES_DB:-quantbridge}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantbridge
+
+  # Redis — 캐시 + Celery 브로커 + Celery 결과 백엔드
+  # DB 0: 캐시, DB 1: Celery broker, DB 2: Celery result backend
+  redis:
+    image: redis:7-alpine
+    container_name: quantbridge-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantbridge
+
+volumes:
+  db-data:
+  redis-data:
+
+networks:
+  quantbridge:
+    driver: bridge
