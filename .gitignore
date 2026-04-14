@@ -19,6 +19,8 @@ build/
 coverage/
 *.tsbuildinfo
 .pnpm-store/
+# Clerk keyless mode 로컬 상태 (Next.js가 자동 생성)
+frontend/.clerk/
 
 # === Python / Backend ===
 __pycache__/
