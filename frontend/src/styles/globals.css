@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+/* 폰트는 next/font/google로 로드 (app/layout.tsx 참조) — DESIGN.md 3.1 */
+
+/* ───────────────────────────────────────────────
+ * Light Theme — 마케팅, 설정, 일반 페이지
+ * DESIGN.md 2.1
+ * ───────────────────────────────────────────── */
+:root {
+  /* 배경 */
+  --bg: #fafbfc;
+  --bg-alt: #f1f5f9;
+  --card: #ffffff;
+
+  /* 텍스트 */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* 브랜드 */
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #eff6ff;
+  --primary-100: #dbeafe;
+
+  /* 시맨틱 */
+  --success: #059669;
+  --success-light: #d1fae5;
+  --destructive: #dc2626;
+  --destructive-light: #fee2e2;
+
+  /* 보더 */
+  --border: #e2e8f0;
+  --border-dark: #cbd5e1;
+
+  /* Dark Theme 토큰 (테마 독립적으로 접근 가능) — DESIGN.md 2.2 */
+  --dash-bg: #0b1120;
+  --dash-surface: rgba(255, 255, 255, 0.04);
+  --dash-surface-elevated: rgba(255, 255, 255, 0.07);
+  --dash-text: #ededef;
+  --dash-text-muted: #8a8f98;
+  --dash-accent: #6366f1;
+  --dash-accent-glow: rgba(99, 102, 241, 0.25);
+  --dash-green: #34d399;
+  --dash-red: #f87171;
+  --dash-border: rgba(255, 255, 255, 0.08);
+
+  /* 차트 — DESIGN.md 2.3 */
+  --chart-bullish: #26a69a;
+  --chart-bearish: #ef5350;
+  --chart-area-top: rgba(52, 211, 153, 0.3);
+  --chart-area-bottom: rgba(52, 211, 153, 0);
+  --chart-line: #34d399;
+  --chart-grid: rgba(255, 255, 255, 0.04);
+  --chart-axis: #8a8f98;
+
+  /* Radius — DESIGN.md 5 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 20px;
+
+  /* Elevation — DESIGN.md 6 */
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+  --card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.08), 0 16px 40px rgba(0, 0, 0, 0.06);
+  --nav-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --btn-primary-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  --btn-primary-shadow-hover: 0 6px 20px rgba(37, 99, 235, 0.35);
+  --dash-glow: 0 0 80px rgba(99, 102, 241, 0.06);
+
+  /* Z-Index — DESIGN.md 4.4 */
+  --z-base: 0;
+  --z-card: 1;
+  --z-sticky: 10;
+  --z-overlay: 50;
+  --z-modal: 60;
+  --z-nav: 100;
+}
+
+/* ───────────────────────────────────────────────
+ * Tailwind v4 theme 매핑 — CSS 변수를 Tailwind 토큰으로 노출
+ * ───────────────────────────────────────────── */
+@theme {
+  --color-bg: var(--bg);
+  --color-bg-alt: var(--bg-alt);
+  --color-card: var(--card);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
+  --color-destructive: var(--destructive);
+  --color-destructive-light: var(--destructive-light);
+  --color-border-default: var(--border);
+  --color-dash-bg: var(--dash-bg);
+  --color-dash-text: var(--dash-text);
+  --color-dash-text-muted: var(--dash-text-muted);
+  --color-dash-accent: var(--dash-accent);
+  --color-dash-green: var(--dash-green);
+  --color-dash-red: var(--dash-red);
+  --color-dash-border: var(--dash-border);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-jakarta), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-mono-code), ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+}
+
+/* ───────────────────────────────────────────────
+ * Dark Theme 활성화 — [data-theme="dash"] 범위 내 적용
+ * 대시보드/트레이딩 화면에서 스코프 적용
+ * ───────────────────────────────────────────── */
+[data-theme="dash"] {
+  --bg: var(--dash-bg);
+  --card: var(--dash-surface);
+  --text-primary: var(--dash-text);
+  --text-secondary: var(--dash-text-muted);
+  --text-muted: var(--dash-text-muted);
+  --border: var(--dash-border);
+  --primary: var(--dash-accent);
+  --primary-hover: #4f46e5;
+  color-scheme: dark;
+}
+
+/* ───────────────────────────────────────────────
+ * Base styles
+ * ───────────────────────────────────────────── */
+html,
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.mono,
+[data-type="number"] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* reduced-motion 대응 — DESIGN.md 1 접근성 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
