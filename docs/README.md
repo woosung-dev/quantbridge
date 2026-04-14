@@ -45,6 +45,23 @@ cd frontend && pnpm install && pnpm dev
 cd backend && uv sync && uvicorn src.main:app --reload
 ```
 
+## 핵심 의사결정 (gstack 스킬 확정)
+
+> 아래 결정은 `/office-hours` + `/autoplan` (Codex+Claude 듀얼 검증) 으로 확정됨.
+> **규칙 변경 전 반드시 ADR 확인 및 보안/아키텍처 재검토 필요.**
+
+- **제품 프레이밍:** QuantBridge = TradingView Trust Layer (범용 퀀트 ❌)
+  MVP 핵심 화면: Import → Verify → Verdict
+  타겟: 파트타임 크립토 트레이더, $1K~$50K, Python 없음
+  `[/office-hours 2026-04-13]`
+
+- **Pine 런타임 + 파서 범위:** [ADR-003](./dev-log/003-pine-runtime-safety-and-parser-scope.md)
+  - `exec()`/`eval()` 금지 → 인터프리터 패턴
+  - 미지원 함수 1개라도 있으면 전체 "Unsupported" (부분 실행 금지)
+  - Celery zombie task 복구 인프라 필수 (on_failure + Beat cleanup + cancel)
+  - TV 상위 50개 전략 분류 선행 (80%+ 커버리지 가정 폐기)
+  `[/autoplan 2026-04-13, Codex+Claude 듀얼 검증]`
+
 ## 주요 문서 바로가기
 
 | 문서 | 설명 |
@@ -56,3 +73,4 @@ cd backend && uv sync && uvicorn src.main:app --reload
 | [guides/development-methodology.md](./guides/development-methodology.md) | 6-Stage 개발 방법론 + 병렬 개발 전략 |
 | [dev-log/001-tech-stack.md](./dev-log/001-tech-stack.md) | ADR-001: 기술 스택 결정 |
 | [dev-log/002-parallel-scaffold-strategy.md](./dev-log/002-parallel-scaffold-strategy.md) | ADR-002: 병렬 스캐폴딩 전략 |
+| [dev-log/003-pine-runtime-safety-and-parser-scope.md](./dev-log/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 (/autoplan 확정) |

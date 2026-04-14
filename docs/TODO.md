@@ -7,9 +7,11 @@
 
 ## Next Actions
 
-### Stage 1: 계획 + 아키텍처 (현재)
+### Stage 1: 계획 + 아키텍처 ✅ 완료
 
-- [ ] /autoplan 완료 (다른 세션에서 진행 중)
+- [x] /office-hours 완료 (2026-04-13, Trust Layer 프레이밍 확정)
+- [x] /autoplan 완료 (2026-04-13, CEO+Design+Eng 리뷰, Codex+Claude 듀얼 검증)
+  - 4개 critical 인사이트 → CLAUDE.md + ADR-003 + lessons.md에 증류 완료
 - [x] DESIGN.md 작성 — /design-consultation + ui-ux-pro-max (8개 변형 비교 → Final 확정)
 
 ### Phase 0: 병렬 스캐폴딩 (autoplan과 동시 진행)
@@ -51,8 +53,7 @@
 
 ## In Progress
 
-- [ ] /autoplan 실행 중 (다른 세션)
-- [ ] 병렬 스캐폴딩 전략 확정 (이 세션) → ADR-002 작성 완료
+_(현재 진행 중 없음 — Phase 0 대기 상태)_
 
 ## Blocked
 
@@ -84,7 +85,9 @@ _(없음)_
 
 ## Completed
 
-- [x] Stage 2 완료 — DESIGN.md + 4개 프로토타입 (docs/prototypes/)
+- [x] ADR-003 작성 — Pine 런타임 안전성 + 파서 범위 (/autoplan 인사이트 증류)
+- [x] /autoplan 인사이트 증류 — CLAUDE.md 보안 규칙 2개 + lessons.md LESSON-001/002/003
+- [x] Stage 2 완료 — DESIGN.md + 12개 프로토타입 (docs/prototypes/)
 - [x] DESIGN.md 확정 — 8개 디자인 변형 비교, 실제 렌더링 검증, Final 91.0점
 - [x] PRD 초안 작성 (QUANTBRIDGE_PRD.md)
 - [x] .ai/ 규칙 셋업 (ai-rules 클론)
