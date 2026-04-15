@@ -31,7 +31,15 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(AppException)
     async def _app_exc_handler(_req: Request, exc: AppException) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        # code 속성이 설정된 예외는 {"detail": {"code": ..., "detail": ...}} 형식으로
+        # 직렬화해 Frontend가 code로 분기 처리 가능 (spec §4.4).
+        if exc.code is not None:
+            body: dict[str, object] = {
+                "detail": {"code": exc.code, "detail": exc.detail},
+            }
+        else:
+            body = {"detail": exc.detail}
+        return JSONResponse(status_code=exc.status_code, content=body)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict[str, str]:
