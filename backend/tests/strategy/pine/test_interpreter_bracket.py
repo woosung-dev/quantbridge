@@ -129,3 +129,52 @@ if bar_index == 1
     signal = outcome.result
     assert signal is not None
     assert signal.position_size is None
+
+
+def test_strategy_short_entry_is_unsupported():
+    """strategy.entry(direction=strategy.short)는 Sprint 2에서 Unsupported."""
+    src = """//@version=5
+strategy("short")
+if bar_index == 1
+    strategy.entry("Short", strategy.short)
+"""
+    ohlcv = _ohlcv([10.0, 11.0, 12.0])
+
+    outcome = parse_and_run(src, ohlcv)
+
+    assert outcome.status == "unsupported"
+    assert outcome.error is not None
+    assert "short" in outcome.error.feature.lower()
+
+
+def test_strategy_entry_qty_percent_is_unsupported():
+    """qty_percent= 는 Sprint 2에서 Unsupported."""
+    src = """//@version=5
+strategy("qty percent")
+if bar_index == 1
+    strategy.entry("Long", strategy.long, qty_percent=50)
+"""
+    ohlcv = _ohlcv([10.0, 11.0, 12.0])
+
+    outcome = parse_and_run(src, ohlcv)
+
+    assert outcome.status == "unsupported"
+    assert outcome.error is not None
+    assert "qty_percent" in outcome.error.feature
+
+
+def test_strategy_entry_qty_non_literal_is_unsupported():
+    """qty=<expression> (non-literal)은 Sprint 2에서 Unsupported."""
+    src = """//@version=5
+strategy("qty expr")
+sz = 2
+if bar_index == 1
+    strategy.entry("Long", strategy.long, qty=sz)
+"""
+    ohlcv = _ohlcv([10.0, 11.0, 12.0])
+
+    outcome = parse_and_run(src, ohlcv)
+
+    assert outcome.status == "unsupported"
+    assert outcome.error is not None
+    assert "qty" in outcome.error.feature.lower()

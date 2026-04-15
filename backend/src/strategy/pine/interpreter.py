@@ -381,11 +381,61 @@ def _execute_fncall_stmt(
 
     # 진입 시그널
     if name == "strategy.entry":
-        # Task 2: qty=<Literal> 캡처 (비-리터럴 qty / qty_percent / strategy.short은 Task 3에서 Unsupported 처리)
+        # Task 3: 미지원 케이스 명시적 가드. 검사 순서는 중요 —
+        # direction → kwargs(direction/qty_percent/qty) → entries 등록.
+
+        # 2번째 positional arg가 strategy.short (Ident) 또는 "short" 리터럴이면 Unsupported
+        if len(node.args) >= 2:
+            dir_arg = node.args[1]
+            if isinstance(dir_arg, Ident) and dir_arg.name == "strategy.short":
+                raise PineUnsupportedError(
+                    "strategy.entry(direction=strategy.short) is deferred to a future sprint",
+                    feature="strategy.short",
+                    category="function",
+                    line=node.source_span.line,
+                    column=node.source_span.column,
+                )
+            if isinstance(dir_arg, Literal) and dir_arg.value == "short":
+                raise PineUnsupportedError(
+                    "strategy.entry with short direction is deferred",
+                    feature="strategy.short",
+                    category="function",
+                    line=node.source_span.line,
+                    column=node.source_span.column,
+                )
+
         for kw in node.kwargs:
+            if kw.name == "direction":
+                v = kw.value
+                if (isinstance(v, Ident) and v.name == "strategy.short") or (
+                    isinstance(v, Literal) and v.value == "short"
+                ):
+                    raise PineUnsupportedError(
+                        "strategy.entry(direction=strategy.short) is deferred",
+                        feature="strategy.short",
+                        category="function",
+                        line=node.source_span.line,
+                        column=node.source_span.column,
+                    )
+            if kw.name == "qty_percent":
+                raise PineUnsupportedError(
+                    "strategy.entry(qty_percent=...) is deferred",
+                    feature="strategy.entry(qty_percent)",
+                    category="function",
+                    line=node.source_span.line,
+                    column=node.source_span.column,
+                )
             if kw.name == "qty":
-                if isinstance(kw.value, Literal) and isinstance(kw.value.value, (int, float)):
-                    signals.entry_qty_literal = float(kw.value.value)
+                if not (isinstance(kw.value, Literal) and isinstance(kw.value.value, (int, float))):
+                    raise PineUnsupportedError(
+                        "strategy.entry(qty=<non-literal>) is deferred; only literal qty supported",
+                        feature="strategy.entry(qty-non-literal)",
+                        category="function",
+                        line=node.source_span.line,
+                        column=node.source_span.column,
+                    )
+                signals.entry_qty_literal = float(kw.value.value)
+
         signals.entries = signals.entries | _gate_as_bool_series(gate, signals.entries.index)
         return
 
