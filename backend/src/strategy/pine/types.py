@@ -43,6 +43,13 @@ class ParseOutcome:
 
     status: Literal["ok", "unsupported", "error"]
     source_version: Literal["v4", "v5"]
-    signals: SignalResult | None = None
+    # result: 실행 성공 시 SignalResult, 실패 시 None (signals의 공개 API 별칭)
+    result: SignalResult | None = None
     error: PineError | None = None
+    supported_feature_report: dict[str, list[str]] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def signals(self) -> SignalResult | None:
+        """하위 호환성을 위한 별칭 (result와 동일)."""
+        return self.result

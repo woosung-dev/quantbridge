@@ -54,7 +54,7 @@ def test_signal_result_optional_fields_default_none() -> None:
 # ── ParseOutcome ──────────────────────────────────────────────────────────────
 
 def test_parse_outcome_ok() -> None:
-    """status='ok'일 때 signals가 채워지고 error는 None이다."""
+    """status='ok'일 때 result가 채워지고 error는 None이다."""
     idx = pd.date_range("2024-01-01", periods=2, freq="D")
     signals = SignalResult(
         entries=pd.Series([True, False], index=idx),
@@ -63,9 +63,11 @@ def test_parse_outcome_ok() -> None:
     outcome = ParseOutcome(
         status="ok",
         source_version="v5",
-        signals=signals,
+        result=signals,
     )
     assert outcome.status == "ok"
+    assert outcome.result is signals
+    # signals 프로퍼티는 result의 하위 호환 별칭
     assert outcome.signals is signals
     assert outcome.error is None
 
@@ -85,5 +87,6 @@ def test_parse_outcome_unsupported() -> None:
         error=err,
     )
     assert outcome.status == "unsupported"
+    assert outcome.result is None
     assert outcome.signals is None
     assert outcome.error is err
