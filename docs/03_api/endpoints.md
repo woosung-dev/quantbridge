@@ -10,10 +10,10 @@
 
 > 회원가입/로그인/토큰 갱신은 Clerk가 처리. Backend는 토큰 검증만 수행.
 
-| Method | Path | 설명 | Auth |
-|--------|------|------|------|
-| `GET` | `/api/v1/auth/me` | Clerk 토큰 검증 → 현재 사용자 정보 | Required |
-| `POST` | `/api/v1/auth/webhook` | Clerk Webhook → 사용자 생성/업데이트 DB 동기화 | Svix 서명 |
+| Method | Path | 설명 | Auth | 상태 |
+|--------|------|------|------|------|
+| `GET` | `/api/v1/auth/me` | Clerk 토큰 검증 → 현재 사용자 정보 | Required | ✅ Sprint 3 |
+| `POST` | `/api/v1/auth/webhook` | Clerk Webhook → 사용자 생성/업데이트 DB 동기화 | Svix 서명 | ✅ Sprint 3 |
 
 **Webhook 이벤트:**
 - `user.created` → users 테이블에 INSERT
@@ -24,15 +24,15 @@
 
 ## 전략 (Strategies)
 
-| Method | Path | 설명 | Auth | 도메인 |
-|--------|------|------|------|--------|
-| `GET` | `/api/v1/strategies` | 내 전략 목록 (페이지네이션) | Required | strategy |
-| `POST` | `/api/v1/strategies` | 새 전략 생성 (Pine Script 업로드) | Required | strategy |
-| `GET` | `/api/v1/strategies/:id` | 전략 상세 조회 | Required | strategy |
-| `PUT` | `/api/v1/strategies/:id` | 전략 수정 | Required | strategy |
-| `DELETE` | `/api/v1/strategies/:id` | 전략 삭제 | Required | strategy |
-| `POST` | `/api/v1/strategies/parse` | Pine Script 파싱만 수행 (미리보기) | Required | strategy |
-| `POST` | `/api/v1/strategies/import-url` | TradingView URL로 가져오기 | Required | strategy |
+| Method | Path | 설명 | Auth | 도메인 | 상태 |
+|--------|------|------|------|--------|------|
+| `GET` | `/api/v1/strategies` | 내 전략 목록 (페이지네이션) | Required | strategy | ✅ Sprint 3 |
+| `POST` | `/api/v1/strategies` | 새 전략 생성 (Pine Script 업로드) | Required | strategy | ✅ Sprint 3 |
+| `GET` | `/api/v1/strategies/:id` | 전략 상세 조회 | Required | strategy | ✅ Sprint 3 |
+| `PUT` | `/api/v1/strategies/:id` | 전략 수정 | Required | strategy | ✅ Sprint 3 |
+| `DELETE` | `/api/v1/strategies/:id` | 전략 삭제 | Required | strategy | ✅ Sprint 3 |
+| `POST` | `/api/v1/strategies/parse` | Pine Script 파싱만 수행 (미리보기) | Required | strategy | ✅ Sprint 3 |
+| `POST` | `/api/v1/strategies/import-url` | TradingView URL로 가져오기 | Required | strategy | Sprint 4+ |
 
 ---
 

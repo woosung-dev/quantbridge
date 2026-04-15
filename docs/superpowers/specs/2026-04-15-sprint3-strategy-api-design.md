@@ -700,4 +700,49 @@ def test_alembic_roundtrip():
 
 ## 10. Sprint 3 구현 후 노트 (스펙 이탈 기록)
 
-_(구현 완료 후 실측과 스펙의 차이가 발견되면 여기 기록. Sprint 1/2의 post-impl notes 섹션과 동일 형식.)_
+Sprint 3 구현 과정에서 발견된 현실과의 차이. Sprint 4 이후 참고용.
+
+### 10.1 SQLModel `sa_column_kwargs={"ondelete": "CASCADE"}` 미지원 (Task 3)
+
+- 원 스펙 §3.2: `Strategy.user_id`에 `sa_column_kwargs={"ondelete": "CASCADE"}`로 CASCADE 지정.
+- 실제: SQLModel이 이 kwarg를 컬럼 레벨에서 받지 못함. `sa_column=Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)`로 명시적 Column 정의로 해결.
+- 영향: 모델 코드 패턴 변경. 향후 다른 FK CASCADE 필드도 동일 패턴 사용 필요.
+
+### 10.2 DateTime naive UTC workaround (Task 4, S3-05로 이월)
+
+- 원 스펙 §3.1/3.2: `created_at`/`updated_at`를 PostgreSQL `TIMESTAMPTZ` 의도.
+- 실제: `sa_column_kwargs={"server_default": text("NOW()")}`만 명시하면 Alembic이 `sa.DateTime()` (naive, TIMESTAMP WITHOUT TIME ZONE)로 migration 생성. asyncpg는 tz-aware datetime을 이 컬럼에 거부.
+- workaround: `_utcnow()`가 `datetime.now(UTC).replace(tzinfo=None)` 반환. 동작은 정상.
+- 정석 fix: 모델에 `sa_column=Column(DateTime(timezone=True), ...)` 명시 + migration 재생성. TimescaleDB hypertable 도입 전(Sprint 5+) 반드시 처리 — S3-05 follow-up으로 등록됨.
+
+### 10.3 AppException.code 속성 추가 (Task 6)
+
+- 원 스펙 §4.4: 에러 응답 `{"detail": {"code": "auth_invalid_token", "detail": "..."}}` 구조.
+- 기존 `common/exceptions.py`의 `AppException`은 `detail: str`만 지원, `code` 필드 없음.
+- 추가: `AppException.code: str | None = None` 클래스 속성 + `main.py` exception handler 분기. `code`가 설정되면 응답 body를 nested 형식으로, 없으면 기존 `{"detail": "..."}` 유지.
+- 영향: spec §4.4 완전 충족. 기존 스프린트 2 예외(`UnsupportedPineScriptError` 등)와 backward-compatible.
+
+### 10.4 ParseOutcome 속성명 — `source_version`/`error` (Task 10)
+
+- 원 스펙 §2.5 / Plan Task 10: `outcome.version`, `outcome.errors` (복수) 사용 가정.
+- 실제 Sprint 1 `ParseOutcome`: `source_version: Literal["v4", "v5"]`, `error: PineError | None` (단수).
+- `StrategyService._parse()`에서 올바른 속성명 사용. Plan이 부정확했던 것을 수정.
+
+### 10.5 Alembic env.py async/sync URL 분기 (Task 3)
+
+- 원 스펙에는 없음. Alembic 동기 드라이버(`psycopg2`)와 런타임 비동기 드라이버(`asyncpg`) 공존 필요.
+- 추가: `env.py`에서 URL 스킴 자동 감지 — `+asyncpg` 포함 시 async engine, 아니면 sync engine 사용.
+- dev 의존성에 `psycopg2-binary>=2.9.0` 추가.
+- 영향: 테스트 환경(`DATABASE_URL` env로 sync URL 주입 가능) + 런타임 환경 모두 지원.
+
+### 10.6 Svix Webhook.sign timestamp UTC 이슈 (Task 8)
+
+- svix Python SDK `Webhook.sign(msg_id, timestamp, data)` 호출 시 `timestamp`에 naive `datetime` 전달하면 내부에서 `.replace(tzinfo=utc).timestamp()` 처리로 로컬 timezone offset만큼 epoch가 어긋남 (KST +9h).
+- 해결: `datetime.fromtimestamp(ts, tz=UTC)` (UTC aware) 사용.
+- svix `Webhook.verify`의 base64 검증 실패 시 `binascii.Error`(ValueError 서브클래스) 발생 → router에서 `(WebhookVerificationError, ValueError)` 둘 다 catch.
+
+### 10.7 StrategyRepository stub 선행 구현 (Task 8)
+
+- Task 8(Webhook)이 Task 9(StrategyRepository)보다 먼저 `archive_all_by_owner` 필요.
+- 해결: Task 8에서 해당 메서드만 선행 stub 구현, Task 9에서 전체 CRUD 확장.
+- 영향: Task 간 순서 의존성이 Plan과 약간 다름. 결과는 spec대로.

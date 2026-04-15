@@ -151,12 +151,13 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 ```
 
 ### 현재 작업
-- Stage 1: 계획 + 아키텍처 ✅ 완료 (/office-hours + /autoplan 2026-04-13)
-- Stage 2: 디자인 ✅ 완료 (DESIGN.md + 12개 프로토타입)
+- Stage 1: 계획 + 아키텍처 ✅ 완료
+- Stage 2: 디자인 ✅ 완료
 - Phase 0: 병렬 스캐폴딩 ✅ 완료
-- Stage 3 / Sprint 1: Pine Parser MVP ✅ 완료 (2026-04-15, merge `e433a45`)
+- Stage 3 / Sprint 1: Pine Parser MVP ✅ 완료 (2026-04-15)
 - Stage 3 / Sprint 2: vectorbt Engine + SignalResult Fill ✅ 완료 (2026-04-15)
-- **다음:** Sprint 3 계획 — Strategy CRUD API + Celery task wrapper + `/backtests` 엔드포인트 (후보)
+- Stage 3 / Sprint 3: Strategy API + Clerk 실배선 ✅ 완료 (2026-04-15)
+- **다음:** Sprint 4 — Celery task wrapper + POST /backtests + S3-03/04/05 follow-ups
 
 ---
 
