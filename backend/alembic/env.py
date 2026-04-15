@@ -22,9 +22,7 @@ from alembic import context
 from src.auth import models as _auth_models  # noqa: F401
 from src.core.config import settings
 from src.strategy import models as _strategy_models  # noqa: F401
-
-# from src.backtest import models as _backtest_models  # Sprint 4에서 추가
-# ... (나머지 도메인)
+from src.backtest import models as _backtest_models  # noqa: F401
 
 config = context.config
 
