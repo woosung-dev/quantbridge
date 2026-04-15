@@ -56,14 +56,15 @@ if sell
     assert result.exits.any()
 
 
-def test_strategy_exit_with_bracket_order_raises_unsupported():
-    # stop/limit 인자가 있으면 스프린트 1에서 Unsupported
+def test_strategy_exit_with_bracket_order_populates_brackets():
+    # stop/limit 인자가 있으면 스프린트 2에서 bracket 필드를 채움
     src = """x = close
 strategy.exit("tp", "Long", stop=x, limit=x)
 """
-    with pytest.raises(PineUnsupportedError) as ei:
-        execute_program(parse(tokenize(src)), **_ohlcv())
-    assert ei.value.feature == "strategy.exit(stop,limit)"
+    result = execute_program(parse(tokenize(src)), **_ohlcv())
+    # stop/limit 둘 다 있으면 sl_stop, tp_limit Series가 채워짐
+    assert result.sl_stop is not None
+    assert result.tp_limit is not None
 
 
 def test_assign_walrus_updates_binding():
