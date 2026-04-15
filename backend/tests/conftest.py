@@ -24,9 +24,9 @@ from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
 from src.auth.models import User
+from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 — metadata 등록
 from src.common.database import get_async_session
 from src.main import create_app
-from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 — metadata 등록
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
 
 DB_URL = os.environ.get(

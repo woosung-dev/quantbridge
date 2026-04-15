@@ -20,9 +20,9 @@ from alembic import context
 # 도메인 models 를 import 하여 SQLModel.metadata 에 테이블이 등록되도록 함.
 # 새 도메인 models 추가 시 여기에 import 라인을 추가한다.
 from src.auth import models as _auth_models  # noqa: F401
+from src.backtest import models as _backtest_models  # noqa: F401
 from src.core.config import settings
 from src.strategy import models as _strategy_models  # noqa: F401
-from src.backtest import models as _backtest_models  # noqa: F401
 
 config = context.config
 
