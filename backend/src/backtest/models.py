@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, ForeignKey, Index, String
+from sqlalchemy import Column, ForeignKey, Index, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
@@ -83,7 +83,7 @@ class Backtest(SQLModel, table=True):
     # 결과 (completed 시에만)
     metrics: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
     equity_curve: list[Any] | None = Field(default=None, sa_column=Column(JSONB))
-    error: str | None = Field(default=None, sa_column=Column(String(2000)))
+    error: str | None = Field(default=None, sa_column=Column(Text))
 
     # Timestamps (S3-05 workaround — naive UTC)
     created_at: datetime = Field(default_factory=_utcnow, nullable=False)
@@ -96,7 +96,7 @@ class Backtest(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    __table_args__ = (
+    __table_args__ = (  # Sprint 3 Strategy 패턴 — 클래스 최하단 배치
         Index("ix_backtests_user_created", "user_id", "created_at"),
         Index("ix_backtests_status", "status"),
     )
