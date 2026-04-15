@@ -18,7 +18,7 @@ def to_portfolio_kwargs(
 
     항상 포함: close, entries, exits, init_cash, fees, slippage, freq
     조건부 포함 (None이면 생략):
-      - sl_stop  : signal.sl_stop (가격 Series 직접 전달)
+      - sl_stop  : signal.sl_stop 가격 → 비율로 변환 ((close - sl_price) / close)
       - tp_stop  : signal.tp_limit 가격 → 비율로 변환 ((target - close) / close)
       - size     : signal.position_size
     """
