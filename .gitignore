@@ -46,3 +46,6 @@ Thumbs.db
 logs/
 tmp/
 .cache/
+
+# === AI 도구 세션 캐시 (codex consult 등) ===
+.context/
