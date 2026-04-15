@@ -68,6 +68,7 @@
 - [ ] **S3-02:** 중복 `strategy.exit` 호출 시 `warnings`에 기록 (현재 조용히 마지막 값으로 덮어씀)
 - [ ] **S3-03:** `src/backtest/engine/` 커버리지 91% → 95% (spec §5.4 목표) — `run_backtest` 예외 분기 fault injection 테스트 추가
 - [ ] **S3-04:** `adapter._price_to_sl_ratio` 음수 비율 방어적 clamp/assert (sl_price > close 시 silent mis-stop 방지)
+- [ ] **S3-05:** `_utcnow()` naive UTC workaround → `DateTime(timezone=True)` + `datetime.now(UTC)` 복원 (`auth/models.py`, `strategy/models.py`) + Alembic migration 재생성. 사유: asyncpg가 tz-aware datetime을 `TIMESTAMP WITHOUT TIME ZONE` 컬럼에 거부. TimescaleDB hypertable 도입 시점(Sprint 5+) 전 필수.
 
 ### 미완성 문서 (Stage 2 이후 채울 예정)
 

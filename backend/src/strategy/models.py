@@ -11,7 +11,11 @@ from sqlmodel import Column, Field, Index, SQLModel
 
 
 def _utcnow() -> datetime:
-    return datetime.now(UTC)
+    # [임시 workaround — S3-05 follow-up]
+    # 정석: 컬럼을 DateTime(timezone=True) (TIMESTAMPTZ)로 정의 + datetime.now(UTC) (tz-aware) 반환.
+    # 현재: migration이 sa.DateTime() (naive)으로 생성됐고 asyncpg가 tz-aware를 거부 → naive UTC 반환.
+    # TimescaleDB hypertable 도입 시점(Sprint 5+) 전에 docs/TODO.md S3-05로 복구 예정.
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class ParseStatus(StrEnum):
