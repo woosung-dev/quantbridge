@@ -353,6 +353,19 @@ def _combine_gate(
     return bool(gate) and bool(cond)
 
 
+def _apply_bracket_gate(
+    raw: pd.Series,
+    gate: pd.Series | bool | None,
+) -> pd.Series:
+    """gate가 Series면 False 바에서 NaN으로 마스킹. 스칼라 True/None이면 원본 유지."""
+    if isinstance(gate, pd.Series):
+        return raw.where(gate, other=np.nan)
+    if gate is False:
+        return pd.Series(np.nan, index=raw.index)
+    # gate is None or True
+    return raw
+
+
 def _execute_fncall_stmt(
     node: FnCall,
     env: Environment,
@@ -384,13 +397,15 @@ def _execute_fncall_stmt(
                 column=node.source_span.column,
             )
         if has_stop:
-            brackets.stop_series = _ensure_series(
+            stop_raw = _ensure_series(
                 evaluate_expression(kwargs["stop"], env), signals.entries.index
             )
+            brackets.stop_series = _apply_bracket_gate(stop_raw, gate)
         if has_limit:
-            brackets.limit_series = _ensure_series(
+            limit_raw = _ensure_series(
                 evaluate_expression(kwargs["limit"], env), signals.entries.index
             )
+            brackets.limit_series = _apply_bracket_gate(limit_raw, gate)
         # S3-02: 호출 라인 기록 (중복 감지용)
         brackets.exit_call_lines.append(node.source_span.line)
         return
