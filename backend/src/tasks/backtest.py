@@ -47,14 +47,12 @@ def run_backtest_task(self: object, backtest_id: str) -> None:
 
 
 async def _execute(backtest_id: UUID) -> None:
-    """async 실행 본체 — Task 18에서 BacktestService.run() 호출로 채움.
-
-    현재 Task 17: Placeholder. Task 18 이전에 dispatch되면 Celery가 FAILED로 마크하여
-    silent success + backtest row QUEUED 고착을 방지한다.
-    """
-    raise NotImplementedError(
-        f"Task 18: BacktestService.run({backtest_id}) 연결 전 dispatch 금지"
-    )
+    """Worker entry — BacktestService.run() 호출."""
+    from src.backtest.dependencies import build_backtest_service_for_worker
+    sm = async_sessionmaker_factory()
+    async with sm() as session:
+        service = build_backtest_service_for_worker(session)
+        await service.run(backtest_id)
 
 
 async def reclaim_stale_running() -> int:
