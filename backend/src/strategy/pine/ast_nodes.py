@@ -55,10 +55,10 @@ class BinOp:
 
 @dataclass(frozen=True)
 class Kwarg:
-    """함수 호출 시 키워드 인자 (key=value)."""
+    """함수 호출 시 키워드 인자 (name=value)."""
 
     source_span: SourceSpan
-    key: str
+    name: str
     value: Node
     annotations: dict[str, object] = field(default_factory=dict, compare=False, hash=False)
 

@@ -317,7 +317,7 @@ class _Parser:
                 self.advance()  # ASSIGN 소비
                 value = self.expression()
                 kw_span = SourceSpan(line=tok.line, column=tok.column, length=len(tok.value))
-                kwargs.append(Kwarg(source_span=kw_span, key=tok.value, value=value))
+                kwargs.append(Kwarg(source_span=kw_span, name=tok.value, value=value))
                 return
             else:
                 # 일반 위치 인자 — 파서 위치 복원 후 재파싱

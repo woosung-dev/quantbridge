@@ -190,7 +190,7 @@ def test_fn_call_kwargs() -> None:
     assert node.args == ()
     assert len(node.kwargs) == 2
     assert isinstance(node.kwargs[0], Kwarg)
-    assert node.kwargs[0].key == "source"
+    assert node.kwargs[0].name == "source"
     assert isinstance(node.kwargs[0].value, Ident)
 
 

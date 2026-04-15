@@ -60,8 +60,8 @@ def test_binop_basic() -> None:
 
 def test_kwarg_basic() -> None:
     val = Literal(source_span=SPAN, value=14)
-    node = Kwarg(source_span=SPAN, key="length", value=val)
-    assert node.key == "length"
+    node = Kwarg(source_span=SPAN, name="length", value=val)
+    assert node.name == "length"
     assert node.value is val
 
 
@@ -76,7 +76,7 @@ def test_fncall_no_args() -> None:
 
 def test_fncall_with_args() -> None:
     arg = Literal(source_span=SPAN, value=14)
-    kw = Kwarg(source_span=SPAN, key="src", value=Ident(source_span=SPAN, name="close"))
+    kw = Kwarg(source_span=SPAN, name="src", value=Ident(source_span=SPAN, name="close"))
     node = FnCall(source_span=SPAN, name="ta.sma", args=(arg,), kwargs=(kw,))
     assert len(node.args) == 1
     assert len(node.kwargs) == 1
