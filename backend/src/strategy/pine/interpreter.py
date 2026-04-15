@@ -168,6 +168,10 @@ def _eval_fncall(node: FnCall, env: Environment) -> Any:
     if is_supported(node.name):
         args = [evaluate_expression(a, env) for a in node.args]
         kwargs = {kw.name: evaluate_expression(kw.value, env) for kw in node.kwargs}
+        # ta.atr(length) — Pine Script 암묵적 OHLCV 컨텍스트 주입
+        # TradingView에서 ta.atr(length)는 (high, low, close, length) 와 동치.
+        if node.name == "ta.atr" and len(args) == 1 and not kwargs:
+            args = [env.lookup("high"), env.lookup("low"), env.lookup("close"), args[0]]
         try:
             return SUPPORTED[node.name](*args, **kwargs)
         except Exception as e:

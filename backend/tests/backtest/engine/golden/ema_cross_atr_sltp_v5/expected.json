@@ -1,0 +1,33 @@
+{
+  "status": "ok",
+  "source_version": "v5",
+  "entries_indices": [
+    3,
+    13,
+    22,
+    26,
+    40,
+    59,
+    64,
+    78,
+    90,
+    119,
+    123,
+    138,
+    157,
+    164,
+    166,
+    179
+  ],
+  "exits_indices": [],
+  "description": "EMA cross with ATR-based stop and limit bracket order",
+  "backtest": {
+    "metrics": {
+      "total_return": "-0.1737458137737016",
+      "sharpe_ratio": "-2.5757467634966096",
+      "max_drawdown": "-0.2127561611026919",
+      "win_rate": "0.2",
+      "num_trades": 10
+    }
+  }
+}
