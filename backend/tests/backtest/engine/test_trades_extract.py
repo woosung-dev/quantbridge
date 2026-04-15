@@ -64,3 +64,26 @@ class TestExtractTrades:
         ohlcv = pd.DataFrame({"close": close})
         trades = extract_trades(pf, ohlcv)
         assert trades == []
+
+    def test_bar_index_matches_vectorbt(self, simple_portfolio: vbt.Portfolio) -> None:
+        """entry_bar_index / exit_bar_index는 vectorbt 출력 정확히 보존."""
+        ohlcv = pd.DataFrame({"close": simple_portfolio.close}, index=simple_portfolio.wrapper.index)
+        trades = extract_trades(simple_portfolio, ohlcv)
+        df = simple_portfolio.trades.records_readable
+        for i, t in enumerate(trades):
+            assert t.entry_bar_index == int(df.iloc[i]["Entry Timestamp"])
+            if t.status == "closed":
+                assert t.exit_bar_index == int(df.iloc[i]["Exit Timestamp"])
+
+    def test_negative_return_pct_losing_trade(self) -> None:
+        """손실 거래도 정확히 처리되어야 함 (return_pct < 0)."""
+        close = pd.Series([100.0, 102.0, 101.0, 99.0, 97.0, 95.0])
+        entries = pd.Series([True, False, False, False, False, False])
+        exits = pd.Series([False, False, False, False, False, True])
+        pf = vbt.Portfolio.from_signals(close, entries, exits, init_cash=10000, fees=0.001)
+        ohlcv = pd.DataFrame({"close": close}, index=close.index)
+
+        trades = extract_trades(pf, ohlcv)
+        assert len(trades) == 1
+        assert trades[0].return_pct < Decimal("0")
+        assert trades[0].pnl < Decimal("0")
