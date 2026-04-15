@@ -194,6 +194,7 @@ class _SignalAccumulator:
 
     entries: pd.Series
     exits: pd.Series
+    entry_qty_literal: float | None = None  # Task 2: strategy.entry(qty=<literal>) 캡처
 
     @classmethod
     def zero_like(cls, series: pd.Series) -> _SignalAccumulator:
@@ -247,14 +248,20 @@ def _assemble_signal_result(
 
     direction = pd.Series("long", index=entries.index) if bool(entries.any()) else None
 
-    # position_size는 Task 2에서 채움. 이 Task에선 None 유지.
+    if signals.entry_qty_literal is not None:
+        position_size: pd.Series | None = pd.Series(
+            signals.entry_qty_literal, index=entries.index
+        )
+    else:
+        position_size = None
+
     return SignalResult(
         entries=entries,
         exits=exits,
         direction=direction,
         sl_stop=sl_stop,
         tp_limit=tp_limit,
-        position_size=None,
+        position_size=position_size,
         metadata={"vars": dict(env.variables)},
     )
 
@@ -374,6 +381,11 @@ def _execute_fncall_stmt(
 
     # 진입 시그널
     if name == "strategy.entry":
+        # Task 2: qty=<Literal> 캡처 (비-리터럴 qty / qty_percent / strategy.short은 Task 3에서 Unsupported 처리)
+        for kw in node.kwargs:
+            if kw.name == "qty":
+                if isinstance(kw.value, Literal) and isinstance(kw.value.value, (int, float)):
+                    signals.entry_qty_literal = float(kw.value.value)
         signals.entries = signals.entries | _gate_as_bool_series(gate, signals.entries.index)
         return
 

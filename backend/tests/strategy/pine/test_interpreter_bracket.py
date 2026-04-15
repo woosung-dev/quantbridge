@@ -94,3 +94,38 @@ strategy.exit("Exit")
     assert outcome.status == "unsupported"
     assert outcome.error is not None
     assert "strategy.exit" in outcome.error.feature
+
+
+def test_strategy_entry_qty_literal_populates_position_size():
+    """strategy.entry(qty=2) 리터럴 → position_size는 2.0 상수 Series."""
+    src = """//@version=5
+strategy("qty literal")
+if bar_index == 1
+    strategy.entry("Long", strategy.long, qty=2)
+"""
+    ohlcv = _ohlcv([10.0, 11.0, 12.0])
+
+    outcome = parse_and_run(src, ohlcv)
+
+    assert outcome.status == "ok"
+    signal = outcome.result
+    assert signal is not None
+    assert signal.position_size is not None
+    np.testing.assert_allclose(signal.position_size.to_numpy(), [2.0, 2.0, 2.0])
+
+
+def test_strategy_entry_without_qty_leaves_position_size_none():
+    """qty 생략 → position_size None 유지 (vectorbt 기본값 사용 예정)."""
+    src = """//@version=5
+strategy("no qty")
+if bar_index == 1
+    strategy.entry("Long", strategy.long)
+"""
+    ohlcv = _ohlcv([10.0, 11.0, 12.0])
+
+    outcome = parse_and_run(src, ohlcv)
+
+    assert outcome.status == "ok"
+    signal = outcome.result
+    assert signal is not None
+    assert signal.position_size is None
