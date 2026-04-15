@@ -1,0 +1,7 @@
+{
+  "status": "ok",
+  "source_version": "v5",
+  "entries_indices": [1, 28],
+  "exits_indices": [17],
+  "description": "EMA(3)/EMA(8) crossover — ground zero v5 case"
+}
