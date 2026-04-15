@@ -131,6 +131,53 @@ def test_adapter_raises_on_index_misalignment():
         to_portfolio_kwargs(signal, ohlcv, cfg)
 
 
+def test_adapter_masks_carry_forward_sl_above_close() -> None:
+    """carry-forward sl_price가 non-entry bar에서 close를 초과해도 ValueError 발생 안 함.
+
+    masking이 없으면: 음수 ratio → ValueError 발생.
+    masking이 있으면: non-entry bar NaN 처리 → 통과 (carry-forward 방지).
+
+    regression test: masking 제거 시 이 test가 실패해 즉시 감지.
+    """
+    # OHLCV: close = [10, 11, 12, 11.5, 13]
+    idx = pd.date_range("2024-01-01", periods=5, freq="1h")
+    ohlcv = pd.DataFrame(
+        {
+            "open": [10.0, 11.0, 12.0, 11.5, 13.0],
+            "high": [10.5, 11.5, 12.5, 12.0, 13.5],
+            "low": [9.5, 10.5, 11.5, 11.0, 12.5],
+            "close": [10.0, 11.0, 12.0, 11.5, 13.0],
+            "volume": [100.0] * 5,
+        },
+        index=idx,
+    )
+
+    entries = pd.Series([False, True, False, False, False], index=idx)
+    exits = pd.Series([False, False, False, False, True], index=idx)
+
+    # idx=2 (non-entry): sl_price=12.5 > close=12.0 → 음수 ratio without masking
+    sl_price = pd.Series(
+        [float("nan"), 10.0, 12.5, float("nan"), float("nan")], index=idx
+    )
+
+    signal = SignalResult(
+        entries=entries,
+        exits=exits,
+        sl_stop=sl_price,
+        tp_limit=None,
+        position_size=None,
+        warnings=[],
+    )
+
+    # should NOT raise — masking zeroes out non-entry sl_price before ratio calc
+    kwargs = to_portfolio_kwargs(signal, ohlcv, BacktestConfig())
+
+    # idx=2 sl_stop이 NaN인지 확인 (masked out)
+    assert math.isnan(kwargs["sl_stop"].iloc[2])
+    # idx=1 entry bar는 정상 ratio (10 → (11 - 10) / 11 ≈ 0.0909)
+    assert kwargs["sl_stop"].iloc[1] == pytest.approx((11 - 10) / 11)
+
+
 class TestPriceToSlRatio:
     """adapter._price_to_sl_ratio S3-04 회귀 방지 테스트."""
 
