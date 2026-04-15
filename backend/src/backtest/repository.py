@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backtest.models import Backtest, BacktestStatus, BacktestTrade, _utcnow
@@ -192,10 +192,14 @@ class BacktestRepository:
     async def reclaim_stale(
         self, *, threshold_seconds: int, now: datetime
     ) -> tuple[int, int]:
-        """running/cancelling 중 started_at + threshold < now → terminal.
+        """running/cancelling 중 stale → terminal.
+
+        Running: started_at + threshold < now → failed.
+        Cancelling: started_at 있으면 그 기준, 없으면 (QUEUED→CANCELLING 케이스)
+                    created_at + threshold < now 기준으로 reclaim → cancelled.
+                    후자 없으면 worker가 pickup 못 한 queued-cancel이 영영 stuck.
 
         Returns (reclaimed_running, reclaimed_cancelling).
-        NULL started_at은 SQL에서 < 비교가 NULL(=False) 반환이라 자동 제외.
         """
         cutoff = now - timedelta(seconds=threshold_seconds)
 
@@ -212,7 +216,15 @@ class BacktestRepository:
         cancelling_result = await self.session.execute(
             update(Backtest)
             .where(Backtest.status == BacktestStatus.CANCELLING)  # type: ignore[arg-type]
-            .where(Backtest.started_at < cutoff)  # type: ignore[arg-type,operator]
+            .where(
+                or_(
+                    Backtest.started_at < cutoff,  # type: ignore[arg-type,operator]
+                    and_(
+                        Backtest.started_at.is_(None),  # type: ignore[union-attr]
+                        Backtest.created_at < cutoff,  # type: ignore[arg-type]
+                    ),
+                )
+            )
             .values(
                 status=BacktestStatus.CANCELLED,
                 completed_at=now,

@@ -1213,7 +1213,24 @@ from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 (Sprint 4 
 - [ ] `docs/TODO.md` Sprint 4 완료 표시 + Sprint 5 이월 목록
 
 ### 10.5 Sprint 5 이관 목록 (구현 중 발견)
-- [ ] _구현 중 Sprint 5 이관 필요 사항 수시 기록_
+
+**Retroactive review (D) 에서 발견된 Important 항목 (Sprint 4 critical fix 제외, Sprint 5 backlog):**
+
+- [ ] **Task 14**: `BacktestRepository.create()`에 `session.refresh()` 추가 (Sprint 3 `StrategyRepository.create()` 패턴과 통일). 현재는 `flush()`만 호출 — DB default/trigger 값이 즉시 반영되지 않을 수 있음.
+- [ ] **Task 14**: `fail()`, `insert_trades_bulk()`, `delete()` 단위 테스트 추가 (현재 조건부 UPDATE `fail()`은 happy path만, `insert_trades_bulk`/`delete`는 미커버).
+- [ ] **Task 14**: `test_complete_conditional`에 wrong-status에서 rows=0 검증 케이스 추가.
+- [ ] **Task 14**: `test_list_by_user_pagination`에 offset 동작 검증 추가.
+- [ ] **Task 9**: `metrics_to_jsonb()` `num_trades: int` 왜 str가 아닌지 주석 추가 (cardinality 필드, precision 필드 아님).
+- [ ] **Task 9**: `equity_curve_to_jsonb()`의 `pd.Timestamp(str(ts))` → `ts.to_pydatetime()` 직접 변환으로 리팩토링 (2-hop 변환 → 1-hop).
+- [ ] **Task 9**: edge case 테스트 추가 — 빈 Series, NaN, microsecond precision, 큰 Decimal 값.
+- [ ] **Task 9**: `equity_curve_from_jsonb` docstring에 "DB trusted input, no validation" 명시.
+- [ ] **Task 16**: `@worker_ready` signal handler의 `except Exception:` silencing 의도 주석 추가 ("stale reclaim은 best-effort; worker 계속 실행 허용").
+- [ ] **Task 8**: Alembic migration의 FK 중복 인덱스 cleanup (`ix_backtests_strategy_id`, `ix_backtests_user_id`가 FK index와 중복 — PostgreSQL 자동 deduplication되나 cosmetic).
+- [ ] **Task 8**: Alembic migration 인덱스 naming 일관성 (일부 `op.f()` auto-name, 일부 explicit) — explicit로 통일 권장.
+- [ ] **Task 15**: CreateBacktestRequest에 tz-aware vs naive datetime validation 추가 (`_utcnow()` naive 전제 명시).
+
+**Fixed in Sprint 4 (critical):**
+- [x] **Task 14 critical bug**: `reclaim_stale()` cancelling 경로가 `started_at=NULL`(QUEUED→CANCELLING 케이스) 영영 미처리 → `created_at` 기준 fallback 추가. 회귀 테스트 `test_reclaim_stale_cancelling_with_null_started_at` 추가.
 
 ---
 

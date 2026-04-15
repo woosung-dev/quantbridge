@@ -136,3 +136,38 @@ class TestBacktestRepository:
         )
         assert running_reclaimed == 1
         assert cancelling_reclaimed == 0
+
+    @pytest.mark.asyncio
+    async def test_reclaim_stale_cancelling_with_null_started_at(
+        self, db_session: AsyncSession
+    ) -> None:
+        """QUEUED → CANCELLING 전이된 backtest (started_at=NULL)도 stale reclaim 대상.
+
+        created_at 기준으로 threshold 초과 시 cancelled 전이되어야 함.
+        이 없으면 worker가 pickup 못 한 queued-cancel이 영영 stuck.
+        """
+        from datetime import timedelta
+        bt = await _seed_bt(db_session, status=BacktestStatus.QUEUED)
+        # created_at을 2h 전으로 조정, started_at NULL 유지
+        bt.created_at = _utcnow() - timedelta(hours=2)
+        db_session.add(bt)
+        await db_session.flush()
+
+        repo = BacktestRepository(db_session)
+        # QUEUED → CANCELLING 전이
+        rows = await repo.request_cancel(bt.id)
+        assert rows == 1
+        await db_session.refresh(bt)
+        assert bt.started_at is None  # QUEUED에서 cancel이라 NULL
+
+        # reclaim 호출 — cancelling 경로가 created_at 기준으로 잡아야 함
+        running_reclaimed, cancelling_reclaimed = await repo.reclaim_stale(
+            threshold_seconds=1800,  # 30 min
+            now=_utcnow(),
+        )
+        assert running_reclaimed == 0
+        assert cancelling_reclaimed == 1
+
+        await db_session.refresh(bt)
+        assert bt.status == BacktestStatus.CANCELLED
+        assert bt.completed_at is not None
