@@ -163,7 +163,12 @@ class BacktestService:
 
         # Guard #2: pre-engine
         bt2 = await self.repo.get_by_id(backtest_id)
-        assert bt2 is not None
+        if bt2 is None:
+            logger.error(
+                "backtest_vanished_pre_engine",
+                extra={"bt_id": str(backtest_id)},
+            )
+            return
         if bt2.status == BacktestStatus.CANCELLING:
             await self.repo.finalize_cancelled(backtest_id, completed_at=_utcnow())
             await self.repo.commit()
@@ -174,13 +179,21 @@ class BacktestService:
 
         # Guard #3: post-engine
         bt3 = await self.repo.get_by_id(backtest_id)
-        assert bt3 is not None
+        if bt3 is None:
+            logger.error(
+                "backtest_vanished_post_engine",
+                extra={"bt_id": str(backtest_id)},
+            )
+            return
         if bt3.status == BacktestStatus.CANCELLING:
             await self.repo.finalize_cancelled(backtest_id, completed_at=_utcnow())
             await self.repo.commit()
             return
 
-        # Terminal write
+        # Terminal write (조건부 UPDATE + bulk insert trades):
+        # Spec §5.1 Step 10의 begin_nested() savepoint는 commit이 분리될 때의 원자성용.
+        # 현재 설계는 complete() + insert_trades_bulk() + commit()을 단일 트랜잭션으로 묶으므로
+        # savepoint 없이 atomically correct. 미래에 commit을 중간에 분리하지 말 것.
         if outcome.status == "ok" and outcome.result is not None:
             metrics_jsonb = metrics_to_jsonb(outcome.result.metrics)
             equity_jsonb = equity_curve_to_jsonb(outcome.result.equity_curve)
@@ -314,7 +327,9 @@ class BacktestService:
         # Best-effort revoke
         if bt.celery_task_id:
             try:
-                from celery.result import AsyncResult  # type: ignore[import-untyped]  # 지연 import (순환 방지)
+                from celery.result import (  # type: ignore[import-untyped]  # 지연 import (순환 방지)
+                    AsyncResult,
+                )
 
                 from src.tasks.celery_app import celery_app
                 AsyncResult(bt.celery_task_id, app=celery_app).revoke(terminate=True)
@@ -323,7 +338,12 @@ class BacktestService:
 
         rows = await self.repo.request_cancel(backtest_id)
         if rows == 0:
-            raise BacktestStateConflict(detail="Already terminal")
+            # Race loser — re-fetch for accurate error detail
+            current = await self.repo.get_by_id(backtest_id, user_id=user_id)
+            current_status = current.status.value if current else "unknown"
+            raise BacktestStateConflict(
+                detail=f"Already terminal: {current_status}"
+            )
         await self.repo.commit()
 
         return BacktestCancelResponse(

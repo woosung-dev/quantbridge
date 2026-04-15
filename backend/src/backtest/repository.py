@@ -66,13 +66,6 @@ class BacktestRepository:
 
     # --- 조건부 상태 전이 (3-guard cancel logic §5.1) ---
 
-    async def set_celery_task_id(self, backtest_id: UUID, task_id: str) -> None:
-        await self.session.execute(
-            update(Backtest)
-            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
-            .values(celery_task_id=task_id)
-        )
-
     async def transition_to_running(
         self, backtest_id: UUID, *, started_at: datetime
     ) -> int:
