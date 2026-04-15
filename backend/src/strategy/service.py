@@ -1,11 +1,13 @@
 """strategy Service. Pine 파싱 + CRUD 조율."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import pandas as pd
+from sqlalchemy.exc import IntegrityError
 
-from src.strategy.exceptions import StrategyNotFoundError
+from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.strategy.pine import parse_and_run
 from src.strategy.repository import StrategyRepository
@@ -18,6 +20,9 @@ from src.strategy.schemas import (
     StrategyResponse,
     UpdateStrategyRequest,
 )
+
+if TYPE_CHECKING:
+    from src.backtest.repository import BacktestRepository
 
 
 def _empty_ohlcv() -> pd.DataFrame:
@@ -87,8 +92,13 @@ def _parse(
 
 
 class StrategyService:
-    def __init__(self, repo: StrategyRepository) -> None:
+    def __init__(
+        self,
+        repo: StrategyRepository,
+        backtest_repo: BacktestRepository | None = None,
+    ) -> None:
         self.repo = repo
+        self.backtest_repo = backtest_repo
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
         status, version, warnings, errors, entry_count, exit_count = _parse(pine_source)
@@ -192,5 +202,22 @@ class StrategyService:
         strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
         if strategy is None:
             raise StrategyNotFoundError()
-        await self.repo.delete(strategy.id)
-        await self.repo.commit()
+
+        # 선조회 — Sprint 4부터 backtest_repo 주입됨
+        if self.backtest_repo is not None and await self.backtest_repo.exists_for_strategy(strategy_id):
+            raise StrategyHasBacktests()
+
+        # TOCTOU 방어: FK RESTRICT가 race loser를 DB 레벨에서 catch
+        try:
+            await self.repo.delete(strategy.id)
+            await self.repo.commit()
+        except IntegrityError as exc:
+            await self.repo.rollback()
+            # asyncpg FK violation → StrategyHasBacktests 변환
+            orig_type_name = type(exc.orig).__name__ if exc.orig is not None else ""
+            if (
+                "ForeignKeyViolation" in orig_type_name
+                or "foreign key" in str(exc).lower()
+            ):
+                raise StrategyHasBacktests() from exc
+            raise
