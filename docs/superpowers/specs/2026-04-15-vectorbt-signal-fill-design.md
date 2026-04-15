@@ -382,3 +382,43 @@ tests/backtest/engine/golden/ema_cross_atr_sltp_v5/
 - CLAUDE.md §QuantBridge 고유 규칙 (금융 숫자 Decimal, Celery 비동기, exec/eval 금지)
 - docs/01_requirements/pine-coverage-assignment.md (Phase A 템플릿)
 - vectorbt: https://vectorbt.dev/ (BSD, `Portfolio.from_signals` API)
+
+---
+
+## 10. Sprint 2 구현 후 노트 (스펙 이탈 기록)
+
+본 스펙 작성 시점 이후 구현 과정에서 발견된 현실과의 차이. 이후 스프린트에서는 아래 내용이 실제 구현을 반영하도록 참고한다.
+
+### 10.1 vectorbt 버전 상향 (0.26 → 0.28.5)
+- 원 스펙: `vectorbt>=0.26,<0.27`
+- 실제: `vectorbt>=0.28,<0.29` (`backend/pyproject.toml`)
+- 이유: vectorbt 0.26.x가 numpy 1.x 전용 private API(`numpy.lib.stride_tricks._broadcast_shape`)에 의존. `pandas-ta`가 numpy≥2.2.6을 요구하므로 공존 불가.
+- 영향: `Portfolio.from_signals` API 서명 동일 → 어댑터 코드 변경 없음.
+
+### 10.2 `sl_stop` 시맨틱 — 가격 → 비율 변환 필요
+- 원 스펙 §3.3: `sl_stop`은 가격 Series 직접 전달 가능.
+- 실제: vectorbt 0.28.x에서 `sl_stop`은 **비율(ratio)만 해석**. 절대 가격 Series 전달 시 SL 미작동 (smoke test로 확인).
+- 해결: `adapter._price_to_sl_ratio(sl_price, close) = (close - sl_price) / close`로 변환 후 전달. `tp_stop`(이미 비율 변환)과 동일한 패턴.
+- 주의: sl_price > close인 malformed 입력 시 음수 ratio가 silent pass됨 → Sprint 3 follow-up S3-04에서 방어적 clamp 추가 예정.
+
+### 10.3 SignalResult 필드 타입 정정
+- 원 스펙 §1.4는 `direction`/`sl_stop`/`tp_limit`/`position_size`를 `pd.Series | None`으로 기술.
+- Sprint 1의 실제 types.py는 `float | None` / `str | None`이었음 (스펙과 불일치).
+- Task 1에서 `pd.Series | None`으로 정정 (스펙 §1.4 의도대로).
+
+### 10.4 `ta.atr(length)` OHLCV 암묵 주입 패치 (Task 10 중 발견)
+- Pine Script에서 `ta.atr(14)`는 `high`/`low`/`close` 컨텍스트를 암묵적으로 사용.
+- Sprint 1 인터프리터는 인자를 그대로 stdlib 함수에 넘겨 호출 실패.
+- 픽스: `interpreter._eval_fncall`에 4줄 surgical 패치 — `node.name == "ta.atr" and len(args) == 1 and not kwargs` 조건에서 `env.lookup("high"/"low"/"close")`로 주입.
+- 영향 범위: `ta.atr` 1-arg 호출에만 한정. 다른 `ta.*` 함수는 무영향.
+- 후속: 다른 implicit-OHLCV 함수들(`ta.rsi` 등)도 유사 패턴 필요 시 Sprint 3에서 확장.
+
+### 10.5 커버리지 목표 미달 (91% vs 95%)
+- 스펙 §5.4 목표: 신규 `src/backtest/engine/` 모듈 ≥95% 라인 커버리지.
+- 실제: 91% (exception 분기 일부 미커버).
+- 원인: `run_backtest` 예외 분기는 현재 fixture로 자연 트리거가 어려움.
+- 후속: Sprint 3 S3-03 — fault injection 테스트 추가.
+
+### 10.6 Task 1 follow-ups (Sprint 3로 이월)
+- S3-01: `strategy.exit` gate propagation — `if cond: strategy.exit(...)` 시 gate 무시됨.
+- S3-02: 중복 `strategy.exit` 호출 시 경고 (현재 조용히 마지막 값 덮어씀).

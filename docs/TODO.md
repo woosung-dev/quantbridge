@@ -42,9 +42,32 @@
 
 ### Phase 0 완료 후
 
-- [ ] 3개 워크트리 머지 (main ← backend ← frontend)
-- [ ] `docker compose up && pnpm dev && uvicorn` 동작 확인
-- [ ] Stage 3 첫 스프린트 계획 시작
+- [x] 3개 워크트리 머지 (main ← backend ← frontend)
+- [x] `docker compose up && pnpm dev && uvicorn` 동작 확인
+- [x] Stage 3 첫 스프린트 계획 시작
+
+### Stage 3 / Sprint 1 — Pine Parser MVP ✅ 완료 (2026-04-15, merge `e433a45`)
+
+- [x] Pine v4/v5 파서 + 인터프리터 MVP
+- [x] Ground zero EMA Cross v4/v5 golden 통과
+- [x] `parse_and_run(source, ohlcv) -> ParseOutcome` 공개 API
+
+### Stage 3 / Sprint 2 — vectorbt Engine + SignalResult Fill ✅ 완료 (2026-04-15)
+
+- [x] `strategy.exit(stop=, limit=)` 해금 + SignalResult 브래킷 필드 채움
+- [x] `strategy.short` / pyramiding / `qty_percent` / non-literal `qty` 명시적 Unsupported
+- [x] `src/backtest/engine/` — types/adapter/metrics/public `run_backtest()` 구현
+- [x] vectorbt 0.28.5 의존성 추가 (spec은 0.26 이었으나 numpy 2.x 호환 문제로 상향)
+- [x] Ground zero EMA Cross v4/v5 backtest snapshot 추가
+- [x] 합성 브래킷 골든 `ema_cross_atr_sltp_v5` 통과
+- [x] 테스트 201 → 230 passing
+
+### Sprint 3 follow-ups (Sprint 2 최종 리뷰에서 도출)
+
+- [ ] **S3-01:** `strategy.exit` gate propagation — `if cond: strategy.exit(...)` 구조에서 현재 gate 무시됨 (`src/strategy/pine/interpreter.py:356-384`)
+- [ ] **S3-02:** 중복 `strategy.exit` 호출 시 `warnings`에 기록 (현재 조용히 마지막 값으로 덮어씀)
+- [ ] **S3-03:** `src/backtest/engine/` 커버리지 91% → 95% (spec §5.4 목표) — `run_backtest` 예외 분기 fault injection 테스트 추가
+- [ ] **S3-04:** `adapter._price_to_sl_ratio` 음수 비율 방어적 clamp/assert (sl_price > close 시 silent mis-stop 방지)
 
 ### 미완성 문서 (Stage 2 이후 채울 예정)
 
@@ -56,7 +79,7 @@
 
 ## In Progress
 
-_(현재 진행 중 없음 — Phase 0 대기 상태)_
+_(현재 진행 중 없음 — Sprint 2 머지 대기 상태)_
 
 ## Blocked
 

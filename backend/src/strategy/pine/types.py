@@ -30,10 +30,10 @@ class SignalResult:
     exits: pd.Series
 
     # vectorbt from_signals() 선택 파라미터 — sprint 2에서 채울 예정
-    direction: str | None = None
-    sl_stop: float | None = None
-    tp_limit: float | None = None
-    position_size: float | None = None
+    direction: pd.Series | None = None
+    sl_stop: pd.Series | None = None
+    tp_limit: pd.Series | None = None
+    position_size: pd.Series | None = None
     metadata: dict[str, object] = field(default_factory=dict)
 
 

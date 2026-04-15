@@ -229,15 +229,15 @@ def test_for_loop_execution_raises_unsupported():
 # ---------------------------------------------------------------------------
 
 
-def test_strategy_exit_no_bracket_is_noop():
+def test_strategy_exit_no_bracket_raises_unsupported():
+    # stop/limit 없는 strategy.exit은 Unsupported
     src = """//@version=5
 strategy("X")
 strategy.exit("tp", "Long")
 """
-    result = execute_program(parse(tokenize(src)), **_ohlcv())
-    # 시그널 없음 — no-op 확인
-    assert not result.entries.any()
-    assert not result.exits.any()
+    with pytest.raises(PineUnsupportedError) as ei:
+        execute_program(parse(tokenize(src)), **_ohlcv())
+    assert "strategy.exit" in ei.value.feature
 
 
 # ---------------------------------------------------------------------------

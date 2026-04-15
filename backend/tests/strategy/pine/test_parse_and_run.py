@@ -74,7 +74,8 @@ def test_syntax_error_returns_error_status():
     assert outcome.error is not None
 
 
-def test_strategy_exit_with_bracket_returns_unsupported():
+def test_strategy_exit_with_bracket_returns_ok():
+    # stop/limit 있는 strategy.exit은 스프린트 2에서 정상 처리
     src = """//@version=5
 strategy("X")
 if close > 15
@@ -82,6 +83,7 @@ if close > 15
 strategy.exit("tp", "Long", stop=close - 1, limit=close + 1)
 """
     outcome = parse_and_run(src, _ohlcv())
-    assert outcome.status == "unsupported"
-    assert outcome.error is not None
-    assert "bracket" in str(outcome.error).lower() or outcome.error.feature.startswith("strategy.exit")
+    assert outcome.status == "ok"
+    assert outcome.result is not None
+    assert outcome.result.sl_stop is not None
+    assert outcome.result.tp_limit is not None

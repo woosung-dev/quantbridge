@@ -168,6 +168,10 @@ def _eval_fncall(node: FnCall, env: Environment) -> Any:
     if is_supported(node.name):
         args = [evaluate_expression(a, env) for a in node.args]
         kwargs = {kw.name: evaluate_expression(kw.value, env) for kw in node.kwargs}
+        # ta.atr(length) — Pine Script 암묵적 OHLCV 컨텍스트 주입
+        # TradingView에서 ta.atr(length)는 (high, low, close, length) 와 동치.
+        if node.name == "ta.atr" and len(args) == 1 and not kwargs:
+            args = [env.lookup("high"), env.lookup("low"), env.lookup("close"), args[0]]
         try:
             return SUPPORTED[node.name](*args, **kwargs)
         except Exception as e:
@@ -194,11 +198,20 @@ class _SignalAccumulator:
 
     entries: pd.Series
     exits: pd.Series
+    entry_qty_literal: float | None = None  # Task 2: strategy.entry(qty=<literal>) 캡처
 
     @classmethod
     def zero_like(cls, series: pd.Series) -> _SignalAccumulator:
         false_like = pd.Series(False, index=series.index)
         return cls(entries=false_like.copy(), exits=false_like.copy())
+
+
+@dataclass
+class _BracketState:
+    """strategy.exit 호출 시 평가된 stop/limit 가격 Series."""
+
+    stop_series: pd.Series | None = None
+    limit_series: pd.Series | None = None
 
 
 def execute_program(
@@ -215,15 +228,60 @@ def execute_program(
         open_=open_, high=high, low=low, close=close, volume=volume,
     )
     signals = _SignalAccumulator.zero_like(close)
+    brackets = _BracketState()
 
     for stmt in program.statements:
-        _execute_statement(stmt, env, signals, gate=None)
+        _execute_statement(stmt, env, signals, brackets=brackets, gate=None)
+
+    return _assemble_signal_result(signals, brackets, env)
+
+
+def _assemble_signal_result(
+    signals: _SignalAccumulator,
+    brackets: _BracketState,
+    env: Environment,
+) -> SignalResult:
+    entries = signals.entries.astype(bool)
+    exits = signals.exits.astype(bool)
+
+    pos_change = entries.astype(int) - exits.astype(int)
+    position = pos_change.cumsum().clip(lower=0, upper=1)
+
+    sl_stop = _carry_bracket(brackets.stop_series, entries, position)
+    tp_limit = _carry_bracket(brackets.limit_series, entries, position)
+
+    direction = pd.Series("long", index=entries.index) if bool(entries.any()) else None
+
+    if signals.entry_qty_literal is not None:
+        position_size: pd.Series | None = pd.Series(
+            signals.entry_qty_literal, index=entries.index
+        )
+    else:
+        position_size = None
 
     return SignalResult(
-        entries=signals.entries,
-        exits=signals.exits,
+        entries=entries,
+        exits=exits,
+        direction=direction,
+        sl_stop=sl_stop,
+        tp_limit=tp_limit,
+        position_size=position_size,
         metadata={"vars": dict(env.variables)},
     )
+
+
+def _carry_bracket(
+    value_at_call: pd.Series | None,
+    entries: pd.Series,
+    position: pd.Series,
+) -> pd.Series | None:
+    """진입 바에서 value를 샘플링, 포지션 기간 동안 carry forward, flat에선 NaN."""
+    if value_at_call is None:
+        return None
+    sampled = value_at_call.where(entries)
+    carried = sampled.ffill()
+    masked = carried.where(position == 1)
+    return masked.astype(float)
 
 
 def _execute_statement(
@@ -231,6 +289,7 @@ def _execute_statement(
     env: Environment,
     signals: _SignalAccumulator,
     *,
+    brackets: _BracketState,
     gate: pd.Series | bool | None,
 ) -> None:
     """문 실행. `gate`는 상위 if의 누적 조건 (시그널 Series와 AND 결합)."""
@@ -248,21 +307,19 @@ def _execute_statement(
         cond_value = evaluate_expression(node.cond, env)
         new_gate = _combine_gate(gate, cond_value)
         for s in node.body:
-            _execute_statement(s, env, signals, gate=new_gate)
+            _execute_statement(s, env, signals, brackets=brackets, gate=new_gate)
         if node.else_body:
             neg = ~cond_value if isinstance(cond_value, pd.Series) else (not cond_value)
             else_gate = _combine_gate(gate, neg)
             for s in node.else_body:
-                _execute_statement(s, env, signals, gate=else_gate)
+                _execute_statement(s, env, signals, brackets=brackets, gate=else_gate)
         return
 
     if isinstance(node, FnCall):
-        _execute_fncall_stmt(node, env, signals, gate=gate)
+        _execute_fncall_stmt(node, env, signals, brackets=brackets, gate=gate)
         return
 
     if isinstance(node, ForLoop):
-        # 스프린트 1: 단순 전략 타겟이므로 for 루프 실행은 지원하지 않음.
-        # (파서는 허용하되 실행 시 Unsupported)
         raise PineUnsupportedError(
             "for loop execution is not supported in sprint 1",
             feature="for",
@@ -291,26 +348,98 @@ def _execute_fncall_stmt(
     env: Environment,
     signals: _SignalAccumulator,
     *,
+    brackets: _BracketState,
     gate: pd.Series | bool | None,
 ) -> None:
     name = node.name
 
-    # 브래킷 오더(TP/SL) → Unsupported (SignalResult 확장 필드 필요, 다음 스프린트)
     if name == "strategy.exit":
-        kwarg_names = {kw.name for kw in node.kwargs}
-        if "stop" in kwarg_names or "limit" in kwarg_names or "profit" in kwarg_names or "loss" in kwarg_names:
+        kwargs = {kw.name: kw.value for kw in node.kwargs}
+        has_stop = "stop" in kwargs
+        has_limit = "limit" in kwargs
+        if "profit" in kwargs or "loss" in kwargs:
             raise PineUnsupportedError(
-                "strategy.exit with bracket orders (stop/limit) is deferred to next sprint",
-                feature="strategy.exit(stop,limit)",
+                "strategy.exit(profit=, loss=) offset-based brackets are deferred",
+                feature="strategy.exit(profit/loss)",
                 category="function",
                 line=node.source_span.line,
                 column=node.source_span.column,
             )
-        # 인자 없는 exit은 현재 스프린트에선 무시
+        if not has_stop and not has_limit:
+            raise PineUnsupportedError(
+                "strategy.exit requires stop= or limit= argument",
+                feature="strategy.exit(no-args)",
+                category="function",
+                line=node.source_span.line,
+                column=node.source_span.column,
+            )
+        if has_stop:
+            brackets.stop_series = _ensure_series(
+                evaluate_expression(kwargs["stop"], env), signals.entries.index
+            )
+        if has_limit:
+            brackets.limit_series = _ensure_series(
+                evaluate_expression(kwargs["limit"], env), signals.entries.index
+            )
         return
 
     # 진입 시그널
     if name == "strategy.entry":
+        # Task 3: 미지원 케이스 명시적 가드. 검사 순서는 중요 —
+        # direction → kwargs(direction/qty_percent/qty) → entries 등록.
+
+        # 2번째 positional arg가 strategy.short (Ident) 또는 "short" 리터럴이면 Unsupported
+        if len(node.args) >= 2:
+            dir_arg = node.args[1]
+            if isinstance(dir_arg, Ident) and dir_arg.name == "strategy.short":
+                raise PineUnsupportedError(
+                    "strategy.entry(direction=strategy.short) is deferred to a future sprint",
+                    feature="strategy.short",
+                    category="function",
+                    line=node.source_span.line,
+                    column=node.source_span.column,
+                )
+            if isinstance(dir_arg, Literal) and dir_arg.value == "short":
+                raise PineUnsupportedError(
+                    "strategy.entry with short direction is deferred",
+                    feature="strategy.short",
+                    category="function",
+                    line=node.source_span.line,
+                    column=node.source_span.column,
+                )
+
+        for kw in node.kwargs:
+            if kw.name == "direction":
+                v = kw.value
+                if (isinstance(v, Ident) and v.name == "strategy.short") or (
+                    isinstance(v, Literal) and v.value == "short"
+                ):
+                    raise PineUnsupportedError(
+                        "strategy.entry(direction=strategy.short) is deferred",
+                        feature="strategy.short",
+                        category="function",
+                        line=node.source_span.line,
+                        column=node.source_span.column,
+                    )
+            if kw.name == "qty_percent":
+                raise PineUnsupportedError(
+                    "strategy.entry(qty_percent=...) is deferred",
+                    feature="strategy.entry(qty_percent)",
+                    category="function",
+                    line=node.source_span.line,
+                    column=node.source_span.column,
+                )
+            if kw.name == "qty":
+                if not (isinstance(kw.value, Literal) and isinstance(kw.value.value, (int, float))):
+                    raise PineUnsupportedError(
+                        "strategy.entry(qty=<non-literal>) is deferred; only literal qty supported",
+                        feature="strategy.entry(qty-non-literal)",
+                        category="function",
+                        line=node.source_span.line,
+                        column=node.source_span.column,
+                    )
+                signals.entry_qty_literal = float(kw.value.value)
+
         signals.entries = signals.entries | _gate_as_bool_series(gate, signals.entries.index)
         return
 
@@ -329,6 +458,13 @@ def _execute_fncall_stmt(
 
     # 그 외는 표현식으로 평가 (값 폐기)
     evaluate_expression(node, env)
+
+
+def _ensure_series(value: Any, index: pd.Index) -> pd.Series:
+    """스칼라 → 동일 값 Series, Series → 그대로."""
+    if isinstance(value, pd.Series):
+        return value.astype(float)
+    return pd.Series(float(value), index=index)
 
 
 def _gate_as_bool_series(gate: pd.Series | bool | None, index: pd.Index) -> pd.Series:

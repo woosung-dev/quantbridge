@@ -3,5 +3,14 @@
   "source_version": "v5",
   "entries_indices": [1, 28],
   "exits_indices": [17],
-  "description": "EMA(3)/EMA(8) crossover — ground zero v5 case"
+  "description": "EMA(3)/EMA(8) crossover — ground zero v5 case",
+  "backtest": {
+    "metrics": {
+      "total_return": "0.7810591985626106",
+      "sharpe_ratio": "9.454556956405568",
+      "max_drawdown": "-0.0916181270004357",
+      "win_rate": "1.0",
+      "num_trades": 2
+    }
+  }
 }
