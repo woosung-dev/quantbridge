@@ -5,7 +5,6 @@ from decimal import Decimal
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.backtest.engine import BacktestConfig, BacktestOutcome, run_backtest
 

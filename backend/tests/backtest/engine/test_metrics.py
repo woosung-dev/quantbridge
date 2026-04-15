@@ -4,7 +4,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pandas as pd
-import pytest
 import vectorbt as vbt
 
 from src.backtest.engine.metrics import extract_metrics

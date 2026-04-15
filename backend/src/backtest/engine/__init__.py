@@ -45,7 +45,7 @@ def run_backtest(
         pf = vbt.Portfolio.from_signals(**kwargs)
         metrics = extract_metrics(pf)
         equity_curve = _as_series(pf.value())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("backtest_engine_error")
         return BacktestOutcome(
             status="error",

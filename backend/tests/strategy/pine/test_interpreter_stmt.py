@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from src.strategy.pine.errors import PineUnsupportedError
 from src.strategy.pine.interpreter import execute_program
 from src.strategy.pine.lexer import tokenize
 from src.strategy.pine.parser import parse
