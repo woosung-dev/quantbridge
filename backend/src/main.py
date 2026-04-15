@@ -46,6 +46,9 @@ def create_app() -> FastAPI:
         return {"status": "ok", "env": settings.app_env}
 
     # 도메인 라우터는 Stage 3 스프린트에서 순차 등록
+    from src.auth.router import router as auth_router
+    app.include_router(auth_router, prefix="/api/v1")
+
     return app
 
 
