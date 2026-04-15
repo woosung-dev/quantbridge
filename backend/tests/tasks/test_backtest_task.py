@@ -53,21 +53,24 @@ async def test_reclaim_stale_running_marks_failed(
     db_session.add(stale_bt)
     await db_session.commit()
 
-    # Patch the async_sessionmaker factory inside tasks.backtest to reuse test session
+    # async_sessionmaker_factory()를 monkeypatch로 대체하여 테스트 세션 재사용.
+    # 새 패턴: async_sessionmaker_factory() → sm, async with sm() as session.
     from contextlib import asynccontextmanager
 
     import src.tasks.backtest as task_mod
 
     @asynccontextmanager
-    async def _mock_sessionmaker_context():
+    async def _session_ctx():
         yield db_session
 
-    # Replace the `async_sessionmaker` callable with one that returns our test session context
-    class _MockSM:
-        def __call__(self):
-            return _mock_sessionmaker_context()
+    class _FakeSM:
+        """sm() 호출 시 테스트 세션을 yield하는 context manager 반환."""
 
-    monkeypatch.setattr(task_mod, "async_sessionmaker_factory", _MockSM())
+        def __call__(self):
+            return _session_ctx()
+
+    # async_sessionmaker_factory는 이제 함수이므로 lambda로 _FakeSM 인스턴스를 반환.
+    monkeypatch.setattr(task_mod, "async_sessionmaker_factory", lambda: _FakeSM())
 
     from src.tasks.backtest import reclaim_stale_running
 

@@ -9,7 +9,7 @@ import asyncio
 import logging
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.backtest.models import _utcnow
 from src.backtest.repository import BacktestRepository
@@ -19,10 +19,22 @@ from src.tasks.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-# Worker-local async session factory (prefork pool 전제).
-# 테스트에서는 monkeypatch로 async_sessionmaker_factory를 대체 가능.
-_worker_engine = create_async_engine(settings.database_url, echo=False)
-async_sessionmaker_factory = async_sessionmaker(_worker_engine, expire_on_commit=False)
+# Worker-local, lazy-initialized (prefork-safe — master 프로세스에서 생성되지 않음).
+_worker_engine = None
+_sessionmaker_cache: async_sessionmaker[AsyncSession] | None = None
+
+
+def async_sessionmaker_factory() -> async_sessionmaker[AsyncSession]:
+    """Worker-local async_sessionmaker. Lazy — 첫 호출 시(worker 프로세스 내) engine 생성.
+
+    Prefork 안전성: import 시점에 절대 호출되지 않음. asyncpg pool은 worker 전용.
+    테스트에서는 이 함수를 monkeypatch로 대체 가능.
+    """
+    global _worker_engine, _sessionmaker_cache
+    if _sessionmaker_cache is None:
+        _worker_engine = create_async_engine(settings.database_url, echo=False)
+        _sessionmaker_cache = async_sessionmaker(_worker_engine, expire_on_commit=False)
+    return _sessionmaker_cache
 
 
 @celery_app.task(bind=True, name="backtest.run", max_retries=0)  # type: ignore[untyped-decorator]
@@ -37,19 +49,12 @@ def run_backtest_task(self: object, backtest_id: str) -> None:
 async def _execute(backtest_id: UUID) -> None:
     """async 실행 본체 — Task 18에서 BacktestService.run() 호출로 채움.
 
-    현재 Task 17: skeleton only. worker 진입 경로 검증용 placeholder.
-
-    Task 18 구현 시 아래 TODO 블록으로 교체:
-        from src.backtest.dependencies import build_backtest_service_for_worker
-        async with async_sessionmaker_factory() as session:
-            service = build_backtest_service_for_worker(session)
-            await service.run(backtest_id)
+    현재 Task 17: Placeholder. Task 18 이전에 dispatch되면 Celery가 FAILED로 마크하여
+    silent success + backtest row QUEUED 고착을 방지한다.
     """
-    logger.info(
-        "backtest_task_execute_placeholder",
-        extra={"backtest_id": str(backtest_id)},
+    raise NotImplementedError(
+        f"Task 18: BacktestService.run({backtest_id}) 연결 전 dispatch 금지"
     )
-    # TODO Task 18: replace stub with BacktestService.run() call.
 
 
 async def reclaim_stale_running() -> int:
@@ -58,7 +63,8 @@ async def reclaim_stale_running() -> int:
     Returns: reclaimed row 총수 (running + cancelling).
     """
     threshold = settings.backtest_stale_threshold_seconds
-    async with async_sessionmaker_factory() as session:
+    sm = async_sessionmaker_factory()
+    async with sm() as session:
         repo = BacktestRepository(session)
         running, cancelling = await repo.reclaim_stale(
             threshold_seconds=threshold,
