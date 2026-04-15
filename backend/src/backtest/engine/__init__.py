@@ -8,11 +8,13 @@ import vectorbt as vbt
 
 from src.backtest.engine.adapter import to_portfolio_kwargs
 from src.backtest.engine.metrics import extract_metrics
+from src.backtest.engine.trades import extract_trades
 from src.backtest.engine.types import (
     BacktestConfig,
     BacktestMetrics,
     BacktestOutcome,
     BacktestResult,
+    RawTrade,
 )
 from src.strategy.pine import parse_and_run
 
@@ -26,7 +28,7 @@ def run_backtest(
 ) -> BacktestOutcome:
     """Pine source + OHLCV → BacktestOutcome.
 
-    파서가 ok로 반환하면 vectorbt로 백테스트를 실행하고 지표를 추출한다.
+    파서가 ok로 반환하면 vectorbt로 백테스트를 실행하고 지표+trades를 추출한다.
     파서가 ok 외 상태를 반환하면 status='parse_failed'로 즉시 반환한다.
     """
     cfg = config if config is not None else BacktestConfig()
@@ -45,6 +47,7 @@ def run_backtest(
         pf = vbt.Portfolio.from_signals(**kwargs)
         metrics = extract_metrics(pf)
         equity_curve = _as_series(pf.value())
+        trades = extract_trades(pf, ohlcv)
     except Exception as exc:
         logger.exception("backtest_engine_error")
         return BacktestOutcome(
@@ -54,10 +57,19 @@ def run_backtest(
             error=str(exc),
         )
 
-    result = BacktestResult(metrics=metrics, equity_curve=equity_curve, config_used=cfg)
+    result = BacktestResult(
+        metrics=metrics,
+        equity_curve=equity_curve,
+        trades=trades,
+        config_used=cfg,
+    )
     logger.info(
         "backtest_ok",
-        extra={"num_trades": metrics.num_trades, "total_return": str(metrics.total_return)},
+        extra={
+            "num_trades": metrics.num_trades,
+            "total_return": str(metrics.total_return),
+            "trades_extracted": len(trades),
+        },
     )
     return BacktestOutcome(status="ok", parse=parse, result=result, error=None)
 
@@ -76,5 +88,6 @@ __all__ = [
     "BacktestMetrics",
     "BacktestOutcome",
     "BacktestResult",
+    "RawTrade",
     "run_backtest",
 ]
