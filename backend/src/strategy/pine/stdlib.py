@@ -118,3 +118,89 @@ def call_supported(name: str, *args: Any, **kwargs: Any) -> Any:
     if name not in SUPPORTED:
         raise KeyError(f"unsupported function: {name}")
     return SUPPORTED[name](*args, **kwargs)
+
+
+from src.strategy.pine.ast_nodes import (  # noqa: E402
+    Assign,
+    BinOp,
+    FnCall,
+    ForLoop,
+    HistoryRef,
+    IfExpr,
+    IfStmt,
+    Node,
+    Program,
+    VarDecl,
+)
+from src.strategy.pine.errors import PineUnsupportedError  # noqa: E402
+
+
+def validate_functions(
+    program: Program,
+    *,
+    allowed_structural: set[str],
+) -> dict[str, Any]:
+    """AST 전체 순회해 함수 호출을 화이트리스트와 대조.
+
+    - stdlib SUPPORTED 에 있거나 allowed_structural 에 있으면 통과.
+    - 아무 데도 없으면 PineUnsupportedError(category='function') 즉시 throw.
+    - 리턴: 사용된 함수/식별자 리포트 (supported_feature_report).
+    """
+    used: set[str] = set()
+
+    def walk(node: Node) -> None:
+        if isinstance(node, FnCall):
+            used.add(node.name)
+            if not is_supported(node.name) and node.name not in allowed_structural:
+                raise PineUnsupportedError(
+                    f"function not supported: {node.name}",
+                    feature=node.name,
+                    category="function",
+                    line=node.source_span.line,
+                    column=node.source_span.column,
+                )
+            for arg in node.args:
+                walk(arg)
+            for kw in node.kwargs:
+                walk(kw.value)
+            return
+        # 재귀 순회
+        if isinstance(node, BinOp):
+            walk(node.left)
+            walk(node.right)
+            return
+        if isinstance(node, IfExpr):
+            walk(node.cond)
+            walk(node.then)
+            walk(node.else_)
+            return
+        if isinstance(node, IfStmt):
+            walk(node.cond)
+            for s in node.body:
+                walk(s)
+            for s in node.else_body:
+                walk(s)
+            return
+        if isinstance(node, ForLoop):
+            walk(node.start)
+            walk(node.end)
+            if node.step is not None:
+                walk(node.step)
+            for s in node.body:
+                walk(s)
+            return
+        if isinstance(node, VarDecl):
+            walk(node.expr)
+            return
+        if isinstance(node, Assign):
+            walk(node.value)
+            return
+        if isinstance(node, HistoryRef):
+            walk(node.target)
+            walk(node.offset)
+            return
+
+    for stmt in program.statements:
+        walk(stmt)
+
+    return {"functions_used": sorted(used)}
