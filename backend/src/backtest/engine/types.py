@@ -1,7 +1,7 @@
 """백테스트 엔진 타입 정의."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
 
@@ -32,12 +32,33 @@ class BacktestMetrics:
 
 
 @dataclass(frozen=True)
+class RawTrade:
+    """엔진 레벨 trade 레코드. vectorbt records_readable → 도메인 중립 DTO.
+
+    bar_index는 유지 (service layer에서 ohlcv.index로 datetime 변환).
+    """
+
+    trade_index: int
+    direction: Literal["long", "short"]
+    status: Literal["open", "closed"]
+    entry_bar_index: int
+    exit_bar_index: int | None
+    entry_price: Decimal
+    exit_price: Decimal | None
+    size: Decimal
+    pnl: Decimal
+    return_pct: Decimal
+    fees: Decimal
+
+
+@dataclass(frozen=True)
 class BacktestResult:
     """백테스트 실행 결과."""
 
     metrics: BacktestMetrics
     equity_curve: pd.Series
-    config_used: BacktestConfig
+    trades: list[RawTrade] = field(default_factory=list)    # Sprint 4 신규
+    config_used: BacktestConfig = field(default_factory=BacktestConfig)
 
 
 @dataclass
