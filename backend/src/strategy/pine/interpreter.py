@@ -212,6 +212,7 @@ class _BracketState:
 
     stop_series: pd.Series | None = None
     limit_series: pd.Series | None = None
+    exit_call_lines: list[int] = field(default_factory=list)  # S3-02: 호출 라인 번호 누적
 
 
 def execute_program(
@@ -259,6 +260,14 @@ def _assemble_signal_result(
     else:
         position_size = None
 
+    # S3-02: 중복 strategy.exit 호출 감지 — 2회 이상이면 경고 기록
+    warnings: list[str] = []
+    if len(brackets.exit_call_lines) > 1:
+        lines = ", ".join(str(ln) for ln in brackets.exit_call_lines)
+        warnings.append(
+            f"duplicate strategy.exit calls at lines [{lines}]; only last stop/limit is used"
+        )
+
     return SignalResult(
         entries=entries,
         exits=exits,
@@ -267,6 +276,7 @@ def _assemble_signal_result(
         tp_limit=tp_limit,
         position_size=position_size,
         metadata={"vars": dict(env.variables)},
+        warnings=warnings,
     )
 
 
@@ -381,6 +391,8 @@ def _execute_fncall_stmt(
             brackets.limit_series = _ensure_series(
                 evaluate_expression(kwargs["limit"], env), signals.entries.index
             )
+        # S3-02: 호출 라인 기록 (중복 감지용)
+        brackets.exit_call_lines.append(node.source_span.line)
         return
 
     # 진입 시그널

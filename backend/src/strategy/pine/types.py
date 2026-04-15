@@ -35,6 +35,7 @@ class SignalResult:
     tp_limit: pd.Series | None = None
     position_size: pd.Series | None = None
     metadata: dict[str, object] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)  # S3-02: 중복 호출 등 비치명적 경고
 
 
 @dataclass
