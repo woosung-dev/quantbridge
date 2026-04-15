@@ -1,7 +1,9 @@
 """strategy HTTP 라우터."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Path, Query
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
@@ -13,6 +15,7 @@ from src.strategy.schemas import (
     ParseRequest,
     StrategyListResponse,
     StrategyResponse,
+    UpdateStrategyRequest,
 )
 from src.strategy.service import StrategyService
 
@@ -53,3 +56,33 @@ async def list_strategies(
         parse_status=parse_status,
         is_archived=is_archived,
     )
+
+
+@router.get("/{strategy_id}", response_model=StrategyResponse)
+async def get_strategy(
+    strategy_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: StrategyService = Depends(get_strategy_service),
+) -> StrategyResponse:
+    return await service.get(strategy_id=strategy_id, owner_id=current_user.id)
+
+
+@router.put("/{strategy_id}", response_model=StrategyResponse)
+async def update_strategy(
+    data: UpdateStrategyRequest,
+    strategy_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: StrategyService = Depends(get_strategy_service),
+) -> StrategyResponse:
+    return await service.update(
+        strategy_id=strategy_id, owner_id=current_user.id, data=data
+    )
+
+
+@router.delete("/{strategy_id}", status_code=204)
+async def delete_strategy(
+    strategy_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: StrategyService = Depends(get_strategy_service),
+) -> None:
+    await service.delete(strategy_id=strategy_id, owner_id=current_user.id)
