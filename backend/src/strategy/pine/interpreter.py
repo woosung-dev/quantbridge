@@ -212,6 +212,7 @@ class _BracketState:
 
     stop_series: pd.Series | None = None
     limit_series: pd.Series | None = None
+    exit_call_lines: list[int] = field(default_factory=list)  # S3-02: 호출 라인 번호 누적
 
 
 def execute_program(
@@ -259,6 +260,14 @@ def _assemble_signal_result(
     else:
         position_size = None
 
+    # S3-02: 중복 strategy.exit 호출 감지 — 2회 이상이면 경고 기록
+    warnings: list[str] = []
+    if len(brackets.exit_call_lines) > 1:
+        lines = ", ".join(str(ln) for ln in brackets.exit_call_lines)
+        warnings.append(
+            f"duplicate strategy.exit calls at lines [{lines}]; only last stop/limit is used"
+        )
+
     return SignalResult(
         entries=entries,
         exits=exits,
@@ -267,6 +276,7 @@ def _assemble_signal_result(
         tp_limit=tp_limit,
         position_size=position_size,
         metadata={"vars": dict(env.variables)},
+        warnings=warnings,
     )
 
 
@@ -343,6 +353,19 @@ def _combine_gate(
     return bool(gate) and bool(cond)
 
 
+def _apply_bracket_gate(
+    raw: pd.Series,
+    gate: pd.Series | bool | None,
+) -> pd.Series:
+    """gate가 Series면 False 바에서 NaN으로 마스킹. 스칼라 True/None이면 원본 유지."""
+    if isinstance(gate, pd.Series):
+        return raw.where(gate, other=np.nan)
+    if gate is False:
+        return pd.Series(np.nan, index=raw.index)
+    # gate is None or True
+    return raw
+
+
 def _execute_fncall_stmt(
     node: FnCall,
     env: Environment,
@@ -374,13 +397,17 @@ def _execute_fncall_stmt(
                 column=node.source_span.column,
             )
         if has_stop:
-            brackets.stop_series = _ensure_series(
+            stop_raw = _ensure_series(
                 evaluate_expression(kwargs["stop"], env), signals.entries.index
             )
+            brackets.stop_series = _apply_bracket_gate(stop_raw, gate)
         if has_limit:
-            brackets.limit_series = _ensure_series(
+            limit_raw = _ensure_series(
                 evaluate_expression(kwargs["limit"], env), signals.entries.index
             )
+            brackets.limit_series = _apply_bracket_gate(limit_raw, gate)
+        # S3-02: 호출 라인 기록 (중복 감지용)
+        brackets.exit_call_lines.append(node.source_span.line)
         return
 
     # 진입 시그널

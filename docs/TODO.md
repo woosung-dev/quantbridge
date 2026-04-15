@@ -62,12 +62,22 @@
 - [x] 합성 브래킷 골든 `ema_cross_atr_sltp_v5` 통과
 - [x] 테스트 201 → 230 passing
 
-### Sprint 3 follow-ups (Sprint 2 최종 리뷰에서 도출)
+### Stage 3 / Sprint 3 — Strategy API + Clerk 실배선 ✅ 완료 (2026-04-15)
 
-- [ ] **S3-01:** `strategy.exit` gate propagation — `if cond: strategy.exit(...)` 구조에서 현재 gate 무시됨 (`src/strategy/pine/interpreter.py:356-384`)
-- [ ] **S3-02:** 중복 `strategy.exit` 호출 시 `warnings`에 기록 (현재 조용히 마지막 값으로 덮어씀)
+- [x] Strategy 도메인 CRUD (6 엔드포인트) + /strategies/parse 미리보기
+- [x] Clerk JWT 실검증 + User 모델 + /auth/me
+- [x] Clerk Webhook (Svix 서명 검증) + user.created/updated/deleted 3 이벤트
+- [x] Alembic 첫 migration + round-trip 테스트
+- [x] pytest conftest (DB savepoint 격리 + FastAPI AsyncClient)
+- [x] S3-01 gate propagation + S3-02 duplicate strategy.exit warning
+- [x] AppException.code 추가 (spec §4.4 error code 구조)
+- [x] 테스트 289 passing (230 → 289, 신규 59건)
+
+### Sprint 4 follow-ups (Sprint 3 리뷰에서 이월)
+
 - [ ] **S3-03:** `src/backtest/engine/` 커버리지 91% → 95% (spec §5.4 목표) — `run_backtest` 예외 분기 fault injection 테스트 추가
 - [ ] **S3-04:** `adapter._price_to_sl_ratio` 음수 비율 방어적 clamp/assert (sl_price > close 시 silent mis-stop 방지)
+- [ ] **S3-05:** `_utcnow()` naive UTC workaround → `DateTime(timezone=True)` + `datetime.now(UTC)` 복원 (`auth/models.py`, `strategy/models.py`) + Alembic migration 재생성. 사유: asyncpg가 tz-aware datetime을 `TIMESTAMP WITHOUT TIME ZONE` 컬럼에 거부. TimescaleDB hypertable 도입 시점(Sprint 5+) 전 필수.
 
 ### 미완성 문서 (Stage 2 이후 채울 예정)
 

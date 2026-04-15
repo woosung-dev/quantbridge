@@ -26,6 +26,7 @@ dependencies = [
     "numpy>=1.26.0",
     "pandas-ta>=0.3.14b",
     "vectorbt>=0.28,<0.29",
+    "svix>=1.37.0",  # Clerk Webhook Svix 서명 검증
 ]
 
 [dependency-groups]
@@ -38,6 +39,7 @@ dev = [
     "mypy>=1.13.0",
     "types-python-jose>=3.3.4",
     "pandas-stubs>=2.2.0",
+    "psycopg2-binary>=2.9.0",  # Alembic migration round-trip 테스트용 (sync driver)
 ]
 
 [tool.uv]
