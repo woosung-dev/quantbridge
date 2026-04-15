@@ -115,10 +115,9 @@ _SINGLE_CHAR: dict[str, TokenType] = {
 
 
 def tokenize(source: str) -> list[Token]:
-    """Pine Script 소스 문자열을 토큰 목록으로 변환한다.
+    """Pine v5 소스를 토큰 리스트로 변환.
 
-    주석 처리와 INDENT/DEDENT는 T10에서 추가된다.
-    이 함수는 숫자, 문자열, 식별자, 연산자, 구두점을 처리한다.
+    주석은 스킵. 들여쓰기는 INDENT/DEDENT 토큰으로 변환 (Python 스타일).
 
     Args:
         source: Pine Script v5 소스 코드.
@@ -131,44 +130,98 @@ def tokenize(source: str) -> list[Token]:
     """
     tokens: list[Token] = []
     i = 0
-    n = len(source)
     line = 1
-    line_start = 0  # 현재 라인의 시작 인덱스
+    line_start = 0
+    at_line_start = True
+    indent_stack: list[int] = [0]
 
-    while i < n:
+    while i < len(source):
         ch = source[i]
+        col = i - line_start + 1  # 1-based column
 
-        # 개행 문자 처리
-        if ch == "\n":
-            col = i - line_start + 1
-            tokens.append(Token(TokenType.NEWLINE, "\n", line, col))
-            line += 1
-            i += 1
-            line_start = i
+        # 라인 시작 시 인덴트 계산
+        if at_line_start:
+            # 공백/탭 건너뛰어 첫 실제 문자 위치 확인
+            j = i
+            while j < len(source) and source[j] in (" ", "\t"):
+                j += 1
+            if j >= len(source) or source[j] == "\n":
+                # 빈 줄: 인덴트 계산 제외, 개행만 처리
+                i = j
+                if i < len(source) and source[i] == "\n":
+                    tokens.append(Token(TokenType.NEWLINE, "\n", line, i - line_start + 1))
+                    line += 1
+                    line_start = i + 1
+                    i += 1
+                at_line_start = True
+                continue
+            # 주석만 있는 줄
+            if j + 1 < len(source) and source[j] == "/" and source[j + 1] == "/":
+                # 주석 끝까지 스킵 (개행 미포함)
+                while j < len(source) and source[j] != "\n":
+                    j += 1
+                i = j
+                if i < len(source) and source[i] == "\n":
+                    line += 1
+                    line_start = i + 1
+                    i += 1
+                at_line_start = True
+                continue
+            # 실제 인덴트 레벨 계산 (탭 = 공백 4개)
+            indent_width = 0
+            k = i
+            while k < j:
+                indent_width += 4 if source[k] == "\t" else 1
+                k += 1
+            if indent_width > indent_stack[-1]:
+                indent_stack.append(indent_width)
+                tokens.append(Token(TokenType.INDENT, "", line, 1))
+            while indent_width < indent_stack[-1]:
+                indent_stack.pop()
+                tokens.append(Token(TokenType.DEDENT, "", line, 1))
+            i = j
+            at_line_start = False
             continue
 
-        # 공백/탭 스킵 (INDENT/DEDENT는 T10에서 처리)
+        # 주석 (인라인): 줄 끝까지 스킵
+        if ch == "/" and i + 1 < len(source) and source[i + 1] == "/":
+            while i < len(source) and source[i] != "\n":
+                i += 1
+            continue
+
+        # 공백/탭 스킵
         if ch in (" ", "\t", "\r"):
             i += 1
             continue
 
-        col = i - line_start + 1  # 1-based column
+        # 개행
+        if ch == "\n":
+            tokens.append(Token(TokenType.NEWLINE, "\n", line, col))
+            line += 1
+            line_start = i + 1
+            i += 1
+            at_line_start = True
+            continue
 
         # 숫자 리터럴: 정수, 부동소수점, 과학적 표기법
-        if ch.isdigit():
+        if ch.isdigit() or (ch == "." and i + 1 < len(source) and source[i + 1].isdigit()):
             j = i
-            while j < n and source[j].isdigit():
-                j += 1
-            if j < n and source[j] == ".":
-                j += 1
-                while j < n and source[j].isdigit():
+            has_dot = False
+            has_exp = False
+            while j < len(source):
+                c = source[j]
+                if c.isdigit():
                     j += 1
-            if j < n and source[j] in ("e", "E"):
-                j += 1
-                if j < n and source[j] in ("+", "-"):
+                elif c == "." and not has_dot and not has_exp:
+                    has_dot = True
                     j += 1
-                while j < n and source[j].isdigit():
+                elif c in ("e", "E") and not has_exp:
+                    has_exp = True
                     j += 1
+                    if j < len(source) and source[j] in ("+", "-"):
+                        j += 1
+                else:
+                    break
             tokens.append(Token(TokenType.NUMBER, source[i:j], line, col))
             i = j
             continue
@@ -178,11 +231,11 @@ def tokenize(source: str) -> list[Token]:
             quote = ch
             j = i + 1
             chars: list[str] = []
-            while j < n and source[j] != quote:
+            while j < len(source) and source[j] != quote:
                 if source[j] == "\\":
                     # 이스케이프 처리
                     j += 1
-                    if j < n:
+                    if j < len(source):
                         chars.append(source[j])
                         j += 1
                     else:
@@ -191,10 +244,16 @@ def tokenize(source: str) -> list[Token]:
                             line=line,
                             column=col,
                         )
+                elif source[j] == "\n":
+                    raise PineLexError(
+                        "unterminated string literal",
+                        line=line,
+                        column=col,
+                    )
                 else:
                     chars.append(source[j])
                     j += 1
-            if j >= n:
+            if j >= len(source):
                 raise PineLexError(
                     f"종료되지 않은 문자열 리터럴 (시작: 라인 {line}, 컬럼 {col})",
                     line=line,
@@ -207,7 +266,7 @@ def tokenize(source: str) -> list[Token]:
         # 식별자 / 키워드
         if ch.isalpha() or ch == "_":
             j = i
-            while j < n and (source[j].isalnum() or source[j] == "_"):
+            while j < len(source) and (source[j].isalnum() or source[j] == "_"):
                 j += 1
             word = source[i:j]
             tok_type = TokenType.KEYWORD if word in _KEYWORDS else TokenType.IDENT
@@ -215,49 +274,39 @@ def tokenize(source: str) -> list[Token]:
             i = j
             continue
 
-        # 다중 문자 연산자: <=, >=, ==, !=, :=
-        if i + 1 < n:
-            two = source[i : i + 2]
-            if two in ("<=", ">=", "==", "!="):
-                tokens.append(Token(TokenType.OP, two, line, col))
+        # 2글자 연산자: <=, >=, ==, !=, :=
+        if ch in "<>=!:":
+            nxt = source[i + 1] if i + 1 < len(source) else ""
+            two = ch + nxt
+            if two in ("<=", ">=", "==", "!=", ":="):
+                tt = TokenType.WALRUS if two == ":=" else TokenType.OP
+                tokens.append(Token(tt, two, line, col))
                 i += 2
                 continue
-            if two == ":=":
-                tokens.append(Token(TokenType.WALRUS, two, line, col))
-                i += 2
+            if ch == ":":
+                tokens.append(Token(TokenType.COLON, ":", line, col))
+                i += 1
                 continue
+            if ch == "=":
+                tokens.append(Token(TokenType.ASSIGN, "=", line, col))
+                i += 1
+                continue
+            if ch in ("<", ">"):
+                tokens.append(Token(TokenType.OP, ch, line, col))
+                i += 1
+                continue
+            if ch == "!":
+                raise PineLexError(
+                    f"인식할 수 없는 문자 '!' (라인 {line}, 컬럼 {col}). '!=' 를 의미하셨나요?",
+                    line=line,
+                    column=col,
+                )
 
         # 단일 문자 연산자 / 구두점
         if ch in _SINGLE_CHAR:
             tokens.append(Token(_SINGLE_CHAR[ch], ch, line, col))
             i += 1
             continue
-
-        # `=` 단독: ASSIGN
-        if ch == "=":
-            tokens.append(Token(TokenType.ASSIGN, ch, line, col))
-            i += 1
-            continue
-
-        # `:` 단독: COLON
-        if ch == ":":
-            tokens.append(Token(TokenType.COLON, ch, line, col))
-            i += 1
-            continue
-
-        # `<` 또는 `>` 단독 (비교 연산자)
-        if ch in ("<", ">"):
-            tokens.append(Token(TokenType.OP, ch, line, col))
-            i += 1
-            continue
-
-        # `!` 단독은 오류 (`!=`는 위에서 처리됨)
-        if ch == "!":
-            raise PineLexError(
-                f"인식할 수 없는 문자 '!' (라인 {line}, 컬럼 {col}). '!=' 를 의미하셨나요?",
-                line=line,
-                column=col,
-            )
 
         # 인식 불가 문자
         raise PineLexError(
@@ -266,7 +315,10 @@ def tokenize(source: str) -> list[Token]:
             column=col,
         )
 
-    # EOF 토큰 추가
-    eof_col = (n - line_start + 1) if n > 0 else 1
+    # 종료 시 남은 인덴트 해소
+    while len(indent_stack) > 1:
+        indent_stack.pop()
+        tokens.append(Token(TokenType.DEDENT, "", line, 1))
+    eof_col = (len(source) - line_start + 1) if len(source) > 0 else 1
     tokens.append(Token(TokenType.EOF, "", line, eof_col))
     return tokens
