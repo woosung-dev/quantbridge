@@ -1,1 +1,93 @@
-"""strategy 도메인 Pydantic V2 스키마 (입출력). Stage 3에서 채움."""
+"""strategy 도메인 Pydantic V2 스키마."""
+from __future__ import annotations
+
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.strategy.models import ParseStatus, PineVersion
+
+
+class CreateStrategyRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    pine_source: str = Field(min_length=1)
+    timeframe: str | None = Field(default=None, max_length=16)
+    symbol: str | None = Field(default=None, max_length=32)
+    tags: list[str] = Field(default_factory=list)
+
+
+class UpdateStrategyRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    pine_source: str | None = Field(default=None, min_length=1)
+    timeframe: str | None = Field(default=None, max_length=16)
+    symbol: str | None = Field(default=None, max_length=32)
+    tags: list[str] | None = None
+    is_archived: bool | None = None
+
+
+class ParseRequest(BaseModel):
+    pine_source: str = Field(min_length=1)
+
+
+class ParseError(BaseModel):
+    code: str
+    message: str
+    line: int | None = None
+
+
+class ParsePreviewResponse(BaseModel):
+    status: ParseStatus
+    pine_version: PineVersion
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[ParseError] = Field(default_factory=list)
+    entry_count: int = 0
+    exit_count: int = 0
+
+
+class StrategyListItem(BaseModel):
+    """목록 DTO — pine_source/description 제외."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    pine_version: PineVersion
+    parse_status: ParseStatus
+    parse_errors: list[dict[str, object]] | None = None
+    timeframe: str | None = None
+    symbol: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    is_archived: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class StrategyResponse(BaseModel):
+    """상세 DTO — 전 필드 포함."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None
+    pine_source: str
+    pine_version: PineVersion
+    parse_status: ParseStatus
+    parse_errors: list[dict[str, object]] | None
+    timeframe: str | None
+    symbol: str | None
+    tags: list[str] = Field(default_factory=list)
+    is_archived: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class StrategyListResponse(BaseModel):
+    items: list[StrategyListItem]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
