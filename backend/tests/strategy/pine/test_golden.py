@@ -76,6 +76,23 @@ def test_golden_case(case_dir: Path) -> None:
         assert actual_exits == expected_exits, (
             f"exits mismatch:\n  expected: {expected_exits}\n  actual:   {actual_exits}"
         )
+
+        # Sprint 2: optional backtest snapshot
+        if "backtest" in expected:
+            from src.backtest.engine import run_backtest
+
+            bt_out = run_backtest(src, ohlcv)
+            assert bt_out.status == "ok", f"backtest status={bt_out.status}, error={bt_out.error}"
+            assert bt_out.result is not None
+            expected_metrics = expected["backtest"]["metrics"]
+            actual = bt_out.result.metrics
+            # num_trades는 정확히 일치
+            assert actual.num_trades == expected_metrics["num_trades"]
+            # 나머지는 문자열 Decimal 비교 (snapshot 고정)
+            for field in ("total_return", "sharpe_ratio", "max_drawdown", "win_rate"):
+                assert str(getattr(actual, field)) == expected_metrics[field], (
+                    f"{field}: expected {expected_metrics[field]}, got {getattr(actual, field)}"
+                )
     elif expected["status"] == "unsupported":
         assert outcome.error is not None
         assert isinstance(outcome.error, PineUnsupportedError)
