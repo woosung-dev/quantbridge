@@ -1229,6 +1229,8 @@ from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 (Sprint 4 
 - [ ] **Task 8**: Alembic migration 인덱스 naming 일관성 (일부 `op.f()` auto-name, 일부 explicit) — explicit로 통일 권장.
 - [ ] **Task 15**: CreateBacktestRequest에 tz-aware vs naive datetime validation 추가 (`_utcnow()` naive 전제 명시).
 - [ ] **Engine bar_index TypeError** (Task 18 integration 중 발견): `engine/trades.py`의 `int(row["Entry Timestamp"])` — vectorbt가 DatetimeIndex OHLCV와 함께 사용될 때 `Entry Timestamp`가 `pd.Timestamp` 반환 → `int()` 실패. 현재 `test_run_happy_path`는 `COMPLETED | FAILED` 둘 다 허용하며 우회. Sprint 5에서 bar_index 계산을 `ohlcv.index.get_loc(ts)` 또는 vectorbt `records` (raw int index) 사용으로 전환 예정.
+- [ ] **Task 19 Minor**: `BacktestRepository.exists_for_strategy` `COUNT(*)` → `EXISTS` 변경 (큰 테이블에서 불필요한 row scan 제거).
+- [ ] **Task 19 Minor**: `StrategyRepository.delete()` rowcount 반환 + service에서 0이면 경고 로그 (concurrent delete 감지).
 
 **Fixed in Sprint 4 (critical):**
 - [x] **Task 14 critical bug**: `reclaim_stale()` cancelling 경로가 `started_at=NULL`(QUEUED→CANCELLING 케이스) 영영 미처리 → `created_at` 기준 fallback 추가. 회귀 테스트 `test_reclaim_stale_cancelling_with_null_started_at` 추가.
