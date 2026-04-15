@@ -38,12 +38,16 @@ def to_portfolio_kwargs(
         # vectorbt 0.28.x sl_stop 시맨틱스 확인 (smoke check):
         # sl_stop은 비율(ratio)로 해석됨. 절대 가격 Series를 전달하면 SL이 작동하지 않음.
         # 따라서 가격 → 비율 변환 필수: ratio = (close - sl_price) / close
-        # (entry 기준 하락 비율이므로 음수가 되지 않도록 반전하지 않음 — vectorbt는 |ratio| 사용)
-        kwargs["sl_stop"] = _price_to_sl_ratio(signal.sl_stop, ohlcv["close"])
+        # S3-04: entry bar에서만 stop price 적용 — carry-forward된 bars에서 sl_price > close가
+        # 되면 음수 ratio가 생겨 silent mis-stop 발생. entry bar only 마스킹으로 방지.
+        sl_entry_only = signal.sl_stop.where(signal.entries)
+        kwargs["sl_stop"] = _price_to_sl_ratio(sl_entry_only, ohlcv["close"])
 
     if signal.tp_limit is not None:
         # vectorbt tp_stop도 비율만 허용 → 가격을 비율로 변환
-        kwargs["tp_stop"] = _price_to_ratio(signal.tp_limit, ohlcv["close"])
+        # entry bar에서만 tp_limit 적용 (sl_stop과 동일한 이유)
+        tp_entry_only = signal.tp_limit.where(signal.entries)
+        kwargs["tp_stop"] = _price_to_ratio(tp_entry_only, ohlcv["close"])
 
     if signal.position_size is not None:
         kwargs["size"] = signal.position_size
@@ -76,5 +80,16 @@ def _price_to_sl_ratio(sl_price: pd.Series, close: pd.Series) -> pd.Series:
     smoke check 결과: vectorbt 0.28.x는 sl_stop을 비율로 해석함.
     절대 가격 Series를 직접 전달하면 SL이 작동하지 않음.
     NaN은 NaN 유지.
+    음수 ratio (sl_price > close) 는 silent mis-stop 방지를 위해 ValueError.
     """
-    return (close - sl_price) / close
+    ratio = (close - sl_price) / close
+    # NaN은 허용. 음수만 감지
+    dropped = ratio.dropna()
+    if (dropped < 0).any():
+        bad_idx = ratio.index[ratio.fillna(0) < 0]
+        raise ValueError(
+            f"Invalid SL price: sl_price exceeds close at index {list(bad_idx[:3])} "
+            f"(would produce negative stop ratio, silent mis-stop). "
+            f"Check strategy.exit(stop=...) value."
+        )
+    return ratio

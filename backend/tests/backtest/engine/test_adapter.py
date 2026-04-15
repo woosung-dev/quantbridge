@@ -6,7 +6,7 @@ import math
 import pandas as pd
 import pytest
 
-from src.backtest.engine.adapter import to_portfolio_kwargs
+from src.backtest.engine.adapter import _price_to_sl_ratio, to_portfolio_kwargs
 from src.backtest.engine.types import BacktestConfig
 from src.strategy.pine.types import SignalResult
 
@@ -58,10 +58,14 @@ def test_adapter_converts_sl_stop_price_to_ratio():
     smoke check 확인:
     - sl_stop=10.5 (절대 가격)로 전달 시 SL 미작동 (Exit Status=Open)
     - sl_stop=0.05 (5% 비율)로 전달 시 SL 정상 작동 (bar3 exit, Return≈-0.14)
+
+    S3-04: entry bar에서만 sl_stop 적용 — non-entry bar는 NaN 마스킹.
+    carry-forward된 bars에서 sl_price > close → 음수 ratio → silent mis-stop 방지.
     """
     ohlcv = _ohlcv()
     signal = _minimal_signal(ohlcv.index)
     # close = [10, 11, 12, 11.5, 13]; sl_stop at entry=11 → 10.0 (9.09% 하락)
+    # idx=1이 entry bar (_minimal_signal: entries=[F, T, F, F, F])
     sl_price = pd.Series([float("nan"), 10.0, 10.0, float("nan"), float("nan")], index=ohlcv.index)
     signal.sl_stop = sl_price
     cfg = BacktestConfig()
@@ -70,18 +74,23 @@ def test_adapter_converts_sl_stop_price_to_ratio():
 
     assert "sl_stop" in kwargs
     sl = kwargs["sl_stop"]
-    # close=11, sl_price=10 → ratio = (11 - 10) / 11 ≈ 0.0909
+    # entry bar(idx=1): close=11, sl_price=10 → ratio = (11 - 10) / 11 ≈ 0.0909
     assert sl.iloc[1] == pytest.approx((11.0 - 10.0) / 11.0, rel=1e-9)
-    assert sl.iloc[2] == pytest.approx((12.0 - 10.0) / 12.0, rel=1e-9)
+    # non-entry bars → NaN (S3-04: entry bar only 마스킹)
     assert math.isnan(sl.iloc[0])
+    assert math.isnan(sl.iloc[2])
     assert math.isnan(sl.iloc[3])
 
 
 def test_adapter_converts_tp_limit_price_to_ratio():
-    """tp_stop은 비율만 받으므로, 가격 Series를 (target/close - 1)로 변환."""
+    """tp_stop은 비율만 받으므로, 가격 Series를 (target/close - 1)로 변환.
+
+    S3-04: entry bar에서만 tp_limit 적용 (sl_stop과 동일한 이유).
+    """
     ohlcv = _ohlcv()
     signal = _minimal_signal(ohlcv.index)
     # close = [10, 11, 12, 11.5, 13]; tp_limit at entry=11 → 13.2 (20% 위)
+    # idx=1이 entry bar (_minimal_signal: entries=[F, T, F, F, F])
     signal.tp_limit = pd.Series(
         [float("nan"), 13.2, 13.2, float("nan"), float("nan")], index=ohlcv.index
     )
@@ -90,10 +99,11 @@ def test_adapter_converts_tp_limit_price_to_ratio():
     kwargs = to_portfolio_kwargs(signal, ohlcv, cfg)
 
     tp = kwargs["tp_stop"]
-    # close=11, target=13.2 → ratio = (13.2 - 11) / 11 = 0.2
+    # entry bar(idx=1): close=11, target=13.2 → ratio = (13.2 - 11) / 11 = 0.2
     assert tp.iloc[1] == pytest.approx(0.2, rel=1e-9)
-    assert tp.iloc[2] == pytest.approx((13.2 - 12.0) / 12.0, rel=1e-9)
+    # non-entry bars → NaN (S3-04: entry bar only 마스킹)
     assert math.isnan(tp.iloc[0])
+    assert math.isnan(tp.iloc[2])
     assert math.isnan(tp.iloc[3])
 
 
@@ -119,3 +129,36 @@ def test_adapter_raises_on_index_misalignment():
 
     with pytest.raises(ValueError, match="index"):
         to_portfolio_kwargs(signal, ohlcv, cfg)
+
+
+class TestPriceToSlRatio:
+    """adapter._price_to_sl_ratio S3-04 회귀 방지 테스트."""
+
+    def test_valid_positive_ratio(self) -> None:
+        """sl_price < close → 양수 ratio."""
+        close = pd.Series([100.0, 110.0, 120.0])
+        sl = pd.Series([95.0, 104.5, 114.0])
+        result = _price_to_sl_ratio(sl, close)
+        assert result.tolist() == pytest.approx([0.05, 0.05, 0.05])
+
+    def test_nan_preserved(self) -> None:
+        """NaN (signal 없는 bar) 는 NaN 유지."""
+        close = pd.Series([100.0, 110.0])
+        sl = pd.Series([95.0, float("nan")])
+        result = _price_to_sl_ratio(sl, close)
+        assert result.iloc[0] == pytest.approx(0.05)
+        assert pd.isna(result.iloc[1])
+
+    def test_negative_ratio_raises(self) -> None:
+        """sl_price > close → ValueError (silent mis-stop 방지)."""
+        close = pd.Series([100.0, 110.0])
+        sl = pd.Series([95.0, 115.0])  # 2번째 bar는 sl > close
+        with pytest.raises(ValueError, match="Invalid SL price"):
+            _price_to_sl_ratio(sl, close)
+
+    def test_all_nan_no_error(self) -> None:
+        """전체 NaN은 error 아님."""
+        close = pd.Series([100.0, 110.0])
+        sl = pd.Series([float("nan"), float("nan")])
+        result = _price_to_sl_ratio(sl, close)
+        assert pd.isna(result).all()
