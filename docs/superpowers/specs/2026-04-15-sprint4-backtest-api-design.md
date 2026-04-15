@@ -1190,7 +1190,8 @@ from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 (Sprint 4 
 - [ ] S3 Running cancel: submit → cancel → 최종 state 확인, `cancelling` 잔류 없음 확인
 
 ### 10.2 엔진/Follow-up
-- [ ] S3-04 ValueError 도달 테스트 케이스 목록
+- [x] S3-04 ValueError 도달 테스트 케이스 목록 — `TestPriceToSlRatio` 4건 (`test_valid_positive_ratio`, `test_nan_preserved`, `test_negative_ratio_raises`, `test_all_nan_no_error`)
+- [x] **S3-04 side-effect (Task 1 구현 중 발견):** `to_portfolio_kwargs`의 `sl_stop`/`tp_limit`에 `.where(signal.entries)` 마스킹 추가. 이유: Sprint 2 `_carry_bracket`이 sl_price를 non-entry bars로 carry-forward → 새 ValueError가 golden fixture(`ema_cross_atr_sltp_v5`)의 46개 non-entry bars에서 음수 ratio 감지 → 골든 테스트 실패. **Pine semantics(`strategy.exit`은 entry 시점 stop 가격)와 실제로 정합**. 수치 회귀 없이 golden expected metrics 통과 확인 (commit `5519b76`). 기존 `test_adapter_converts_sl/tp_*` 2건도 새 시맨틱에 맞게 업데이트.
 - [ ] S3-03 커버리지 실측치 (전/후 %). 미달 시 미커버 라인 목록 → Sprint 5 이관
 
 ### 10.3 Celery 운영 관찰
