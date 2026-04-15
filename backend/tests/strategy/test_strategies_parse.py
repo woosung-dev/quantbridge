@@ -3,19 +3,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.auth.dependencies import get_current_user
-from src.auth.schemas import CurrentUser
-
-
-@pytest.fixture
-def mock_clerk_auth(app, authed_user):
-    """get_current_user를 authed_user로 bypass."""
-    async def _fake_current_user() -> CurrentUser:
-        return CurrentUser.model_validate(authed_user)
-
-    app.dependency_overrides[get_current_user] = _fake_current_user
-    yield authed_user
-
 
 @pytest.mark.asyncio
 async def test_parse_preview_returns_ok_for_valid_source(client, mock_clerk_auth):

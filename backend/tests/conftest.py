@@ -107,5 +107,18 @@ async def authed_user(db_session: AsyncSession) -> User:
     return user
 
 
-# mock_clerk_auth fixture는 Task 7에서 추가됨
-# (현재는 src/auth/dependencies.py가 501 스켈레톤 + CurrentUser schema도 재정의 예정)
+@pytest_asyncio.fixture
+async def mock_clerk_auth(app, authed_user):
+    """get_current_user dependency를 authed_user로 bypass.
+
+    Task 7~14 E2E 테스트에서 인증 경로를 우회할 때 사용.
+    실제 Clerk SDK 호출 테스트는 별도 (test_clerk_auth.py).
+    """
+    from src.auth.dependencies import get_current_user
+    from src.auth.schemas import CurrentUser
+
+    async def _fake_current_user() -> CurrentUser:
+        return CurrentUser.model_validate(authed_user)
+
+    app.dependency_overrides[get_current_user] = _fake_current_user
+    yield authed_user
