@@ -99,8 +99,6 @@ _VERSION_HEADER_RE = re.compile(r"^//@version\s*=\s*(\d+)", re.MULTILINE)
 # 문자열 리터럴 (단/쌍 따옴표) 마스킹용 패턴
 _STRING_LITERAL_RE = re.compile(r'("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')')
 
-# 한 줄 주석 패턴
-_COMMENT_RE = re.compile(r"(//.*)")
 
 # input() 호출 패턴 — 첫 번째 인수 캡처
 _INPUT_CALL_RE = re.compile(r"\binput\s*\(([^)]*)\)")
