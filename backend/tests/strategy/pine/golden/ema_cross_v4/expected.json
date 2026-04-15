@@ -1,0 +1,7 @@
+{
+  "status": "ok",
+  "source_version": "v4",
+  "entries_indices": [1, 28],
+  "exits_indices": [17],
+  "description": "EMA Cross v4 — should produce identical result after v4->v5 normalization"
+}
