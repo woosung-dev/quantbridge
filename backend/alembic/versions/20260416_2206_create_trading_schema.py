@@ -11,6 +11,13 @@ NOTE:
 - autogenerate가 감지한 ts.ohlcv 블록은 제거됨. 원인: T1 모델의
   AwareDateTime 타입과 cdecaaed829b 의 sa.DateTime(timezone=True) 사이
   compare_type drift. T2 scope가 아니므로 별도 과제로 defer.
+- TODO(sprint6-followup): ts.ohlcv drift는 영구 해결되지 않음. OHLCV.time
+  필드는 AwareDateTime() 인데 hypertable migration cdecaaed829b 는
+  sa.DateTime(timezone=True) 로 선언 → 향후 autogenerate 실행 시 동일 drift
+  가 다시 감지된다. 해결 옵션: (a) ALTER COLUMN type 백필 마이그레이션,
+  (b) OHLCV.time 을 sa.DateTime(timezone=True) 로 변경. 둘 다 hypertable
+  partition column 이라 trivial 하지 않음 — 별도 task 로 처리. 그 전까지는
+  autogenerate 가 만들어내는 ts.ohlcv ops 를 manual 로 drop 해야 한다.
 - FK ondelete 정책:
   - exchange_accounts.user_id → users.id CASCADE
   - orders.strategy_id → strategies.id RESTRICT (진행 중 주문 보호)
@@ -176,8 +183,8 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "(trigger_type = 'cumulative_loss' AND strategy_id IS NOT NULL AND exchange_account_id IS NULL) "
-            "OR (trigger_type IN ('daily_loss','api_error')     "
-            "AND exchange_account_id IS NOT NULL AND strategy_id IS NULL)",
+            "OR (trigger_type IN ('daily_loss','api_error') "
+            "    AND exchange_account_id IS NOT NULL AND strategy_id IS NULL)",
             name='ck_kill_switch_events_trigger_scope',
         ),
         sa.ForeignKeyConstraint(

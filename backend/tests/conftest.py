@@ -52,8 +52,10 @@ async def _test_engine():
         # 회귀 테스트(test_migrations.py)와 동일 환경 보장 위해 함께 보장.
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS ts;"))
-        # trading schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시.
-        # Alembic T2 migration 전에도 test DB에서 create_all이 동작하도록 bootstrap.
+        # trading schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시적으로 bootstrap.
+        # 이 라인은 영구적 — conftest 엔진은 Alembic이 아니라 metadata.create_all로 테이블을
+        # 만들기 때문에, T2 migration(faa9ad7b4585)이 머지된 뒤에도 필요하다.
+        # (Alembic 경로는 마이그레이션이 자체적으로 CREATE SCHEMA 한다.)
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS trading;"))
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
