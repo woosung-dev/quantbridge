@@ -1,17 +1,30 @@
-"""trading Service. 비즈니스 로직 + 트랜잭션 경계. AsyncSession import 절대 금지."""
+"""trading Service. 비즈니스 로직 + 트랜잭션 경계.
+
+AsyncSession import 절대 금지 — OrderService.execute advisory lock 경로만 예외.
+동일 트랜잭션에서 advisory lock + 쿼리가 필요하므로 예외적 주입.
+"""
 from __future__ import annotations
 
 import logging
 import secrets
 from datetime import UTC, datetime
+from typing import Protocol
 from uuid import UUID
+
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,  # 예외적 주입 — OrderService.execute advisory lock 전용
+)
 
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import AccountNotFound
-from src.trading.models import ExchangeAccount, WebhookSecret
+from src.trading.models import ExchangeAccount, Order, OrderState, WebhookSecret
 from src.trading.providers import Credentials
-from src.trading.repository import ExchangeAccountRepository, WebhookSecretRepository
-from src.trading.schemas import RegisterAccountRequest
+from src.trading.repository import (
+    ExchangeAccountRepository,
+    OrderRepository,
+    WebhookSecretRepository,
+)
+from src.trading.schemas import OrderRequest, OrderResponse, RegisterAccountRequest
 
 logger = logging.getLogger(__name__)
 
@@ -97,3 +110,73 @@ class WebhookSecretService:
             extra={"strategy_id": str(strategy_id), "grace_seconds": grace_period_seconds},
         )
         return plaintext
+
+
+class OrderDispatcher(Protocol):
+    async def dispatch_order_execution(self, order_id: UUID) -> None: ...
+
+
+class OrderService:
+    """주문 생성 경로. Celery dispatch는 반드시 commit 이후 (visibility race 방지).
+
+    kill_switch 통합은 T15에서 추가.
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        repo: OrderRepository,
+        dispatcher: OrderDispatcher,
+    ) -> None:
+        self._session = session
+        self._repo = repo
+        self._dispatcher = dispatcher
+
+    async def execute(
+        self, req: OrderRequest, *, idempotency_key: str | None
+    ) -> OrderResponse:
+        created_order_id: UUID | None = None
+        cached_response: OrderResponse | None = None
+
+        async with self._session.begin_nested():
+            if idempotency_key is not None:
+                await self._repo.acquire_idempotency_lock(idempotency_key)
+                existing = await self._repo.get_by_idempotency_key(idempotency_key)
+                if existing:
+                    cached_response = OrderResponse.model_validate(existing)
+                else:
+                    order = await self._repo.save(Order(
+                        strategy_id=req.strategy_id,
+                        exchange_account_id=req.exchange_account_id,
+                        symbol=req.symbol,
+                        side=req.side,
+                        type=req.type,
+                        quantity=req.quantity,
+                        price=req.price,
+                        state=OrderState.pending,
+                        idempotency_key=idempotency_key,
+                    ))
+                    created_order_id = order.id
+            else:
+                order = await self._repo.save(Order(
+                    strategy_id=req.strategy_id,
+                    exchange_account_id=req.exchange_account_id,
+                    symbol=req.symbol,
+                    side=req.side,
+                    type=req.type,
+                    quantity=req.quantity,
+                    price=req.price,
+                    state=OrderState.pending,
+                    idempotency_key=None,
+                ))
+                created_order_id = order.id
+        # context exit -> commit (lock 해제, row visible)
+
+        if cached_response is not None:
+            return cached_response
+
+        assert created_order_id is not None
+        await self._dispatcher.dispatch_order_execution(created_order_id)
+        fetched = await self._repo.get_by_id(created_order_id)
+        assert fetched is not None
+        return OrderResponse.model_validate(fetched)
