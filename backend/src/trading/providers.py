@@ -19,10 +19,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class Credentials:
-    """평문 credentials — 수명을 함수 스코프로 한정."""
+    """평문 credentials — 수명을 함수 스코프로 한정.
+
+    SECURITY: __repr__는 마스킹. logging/traceback/Sentry에 평문 노출 방지.
+    api_key는 마지막 4자만 표시, api_secret은 완전 마스킹.
+    """
 
     api_key: str
     api_secret: str
+
+    def __repr__(self) -> str:
+        masked_key = f"***{self.api_key[-4:]}" if len(self.api_key) >= 4 else "***"
+        return f"Credentials(api_key='{masked_key}', api_secret='***')"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,9 +44,17 @@ class OrderSubmit:
 
 @dataclass(frozen=True, slots=True)
 class OrderReceipt:
+    """Provider 응답의 정규화된 형태.
+
+    `raw`는 원본 응답 그대로 — 로깅/persistence 시 PII 주의.
+    """
+
     exchange_order_id: str
     filled_price: Decimal | None
     status: Literal["filled", "submitted", "rejected"]
+    # PII-suspect: Bybit 응답엔 accountId/balance/fills 포함 가능.
+    # T11+ Order.raw_response 저장 시 INFO+ 레벨 로깅 금지. T6 BybitDemoProvider는
+    # 가능하면 known-key allow-list로 projection 권장.
     raw: dict[str, Any]
 
 
@@ -78,4 +94,4 @@ class FixtureExchangeProvider:
         )
 
     async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
-        logger.debug("fixture_cancel_order", extra={"id": exchange_order_id})
+        logger.debug("fixture_cancel_order", extra={"exchange_order_id": exchange_order_id})

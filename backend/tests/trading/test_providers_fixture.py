@@ -65,3 +65,19 @@ async def test_fixture_provider_raises_on_configured_failure(credentials, order_
     # 그 다음 요청은 정상
     receipt = await provider.create_order(credentials, order_submit)
     assert receipt.status == "filled"
+
+
+def test_credentials_repr_masks_secrets():
+    """SECURITY: Credentials.__repr__ must NOT leak api_key/api_secret plaintext.
+
+    Prevents leaks via tracebacks, structured logs, Sentry, pytest fixture introspection.
+    """
+    from src.trading.providers import Credentials
+
+    creds = Credentials(api_key="AKIA1234567890SECRET", api_secret="SUPER_SENSITIVE_VALUE")
+    rendered = repr(creds)
+
+    assert "SUPER_SENSITIVE_VALUE" not in rendered
+    assert "AKIA1234567890SECRET" not in rendered
+    assert "CRET" in rendered  # last 4 chars of api_key visible — debug-friendly suffix
+    assert "***" in rendered
