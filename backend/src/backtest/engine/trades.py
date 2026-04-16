@@ -2,12 +2,27 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
+import numpy as np
 import pandas as pd
 import vectorbt as vbt
 
 from src.backtest.engine.types import RawTrade
+
+
+def _resolve_bar_index(ts: Any, ohlcv_index: pd.Index) -> int:
+    """vectorbt timestamp → ohlcv index position. 중복 timestamp 시 first occurrence 반환."""
+    if isinstance(ts, (int, np.integer)):
+        return int(ts)
+    loc = ohlcv_index.get_loc(ts)
+    if isinstance(loc, (int, np.integer)):
+        return int(loc)
+    if isinstance(loc, slice):
+        return int(loc.start)
+    if isinstance(loc, np.ndarray):
+        return int(np.argmax(loc))
+    raise TypeError(f"Unexpected get_loc return type: {type(loc)}")
 
 
 def extract_trades(pf: vbt.Portfolio, ohlcv: pd.DataFrame) -> list[RawTrade]:
@@ -15,14 +30,13 @@ def extract_trades(pf: vbt.Portfolio, ohlcv: pd.DataFrame) -> list[RawTrade]:
 
     Args:
         pf: vectorbt Portfolio 인스턴스.
-        ohlcv: OHLCV DataFrame. 이 함수에서 직접 사용하지 않으나,
-            run_backtest()가 (pf, ohlcv) 쌍을 관례적으로 전달하므로 서명에 포함.
-            service layer에서 ohlcv.index로 bar_index → datetime 변환.
+        ohlcv: OHLCV DataFrame. ohlcv.index를 사용하여 vectorbt가 반환하는
+            Timestamp/int 혼합 bar index를 int 위치로 정규화한다.
 
     Decimal 변환 원칙: float 공간에서 arithmetic 수행 전 str() 경유로 Decimal 진입.
     fees 같이 합산이 필요한 필드는 Decimal 변환 후 합산 — CLAUDE.md 금융 규칙.
     """
-    del ohlcv  # signature convention only
+    ohlcv_index = ohlcv.index
 
     df = pf.trades.records_readable
 
@@ -65,8 +79,12 @@ def extract_trades(pf: vbt.Portfolio, ohlcv: pd.DataFrame) -> list[RawTrade]:
                 trade_index=int(row["Exit Trade Id"]),
                 direction=direction,
                 status=status,
-                entry_bar_index=int(row["Entry Timestamp"]),
-                exit_bar_index=int(row["Exit Timestamp"]) if is_closed else None,
+                entry_bar_index=_resolve_bar_index(row["Entry Timestamp"], ohlcv_index),
+                exit_bar_index=(
+                    _resolve_bar_index(row["Exit Timestamp"], ohlcv_index)
+                    if is_closed
+                    else None
+                ),
                 entry_price=Decimal(str(row["Avg Entry Price"])),
                 exit_price=Decimal(str(row["Avg Exit Price"])) if is_closed else None,
                 size=Decimal(str(row["Size"])),

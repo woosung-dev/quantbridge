@@ -3,12 +3,44 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import numpy as np
 import pandas as pd
 import pytest
 import vectorbt as vbt
 
-from src.backtest.engine.trades import extract_trades
+from src.backtest.engine.trades import _resolve_bar_index, extract_trades
 from src.backtest.engine.types import RawTrade
+
+
+def test_resolve_bar_index_with_int():
+    idx = pd.DatetimeIndex(pd.date_range("2024-01-01", periods=10, freq="1h", tz="UTC"))
+    assert _resolve_bar_index(3, idx) == 3
+    assert _resolve_bar_index(np.int64(5), idx) == 5
+
+
+def test_resolve_bar_index_with_timestamp():
+    idx = pd.DatetimeIndex(pd.date_range("2024-01-01", periods=10, freq="1h", tz="UTC"))
+    ts = pd.Timestamp("2024-01-01 03:00:00", tz="UTC")
+    assert _resolve_bar_index(ts, idx) == 3
+
+
+def test_resolve_bar_index_with_duplicate_timestamp_returns_first():
+    times = [
+        pd.Timestamp("2024-01-01 00:00:00", tz="UTC"),
+        pd.Timestamp("2024-01-01 01:00:00", tz="UTC"),
+        pd.Timestamp("2024-01-01 01:00:00", tz="UTC"),  # duplicate
+        pd.Timestamp("2024-01-01 02:00:00", tz="UTC"),
+    ]
+    idx = pd.DatetimeIndex(times)
+    ts = pd.Timestamp("2024-01-01 01:00:00", tz="UTC")
+    assert _resolve_bar_index(ts, idx) == 1
+
+
+def test_resolve_bar_index_missing_raises_keyerror():
+    idx = pd.DatetimeIndex(pd.date_range("2024-01-01", periods=10, freq="1h", tz="UTC"))
+    ts = pd.Timestamp("2030-01-01", tz="UTC")
+    with pytest.raises(KeyError):
+        _resolve_bar_index(ts, idx)
 
 
 @pytest.fixture
