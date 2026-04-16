@@ -74,7 +74,7 @@ async def test_execute_without_idempotency_creates_order(
 
     assert resp.state == OrderState.pending
     assert resp.symbol == "BTC/USDT"
-    assert fake.count == 1
+    assert fake.dispatched_count == 1
 
 
 async def test_execute_with_idempotency_returns_cached_on_second_call(
@@ -93,7 +93,7 @@ async def test_execute_with_idempotency_returns_cached_on_second_call(
     second = await svc.execute(order_request, idempotency_key=key)
 
     assert first.id == second.id
-    assert fake.count == 1  # dispatch only once
+    assert fake.dispatched_count == 1  # dispatch only once
 
 
 async def test_advisory_lock_prevents_concurrent_insert(
@@ -111,24 +111,24 @@ async def test_advisory_lock_prevents_concurrent_insert(
     key = f"lock-{uuid4().hex}"
     resp = await svc.execute(order_request, idempotency_key=key)
     assert resp.state == OrderState.pending
-    assert fake.count == 1
+    assert fake.dispatched_count == 1
 
     # Re-entry with same key: should return cached, no deadlock
     resp2 = await svc.execute(order_request, idempotency_key=key)
     assert resp2.id == resp.id
-    assert fake.count == 1
+    assert fake.dispatched_count == 1
 
 
 # ---------- helpers ----------
 
 
 class _FakeDispatcher:
-    """Tracks dispatch_order_execution calls."""
+    """Celery dispatcher mock — commit 후 dispatch 카운팅."""
 
     def __init__(self) -> None:
-        self.count = 0
-        self.last_order_id: UUID | None = None
+        self.dispatched_count = 0
+        self.dispatched_ids: list = []
 
     async def dispatch_order_execution(self, order_id: UUID) -> None:
-        self.count += 1
-        self.last_order_id = order_id
+        self.dispatched_count += 1
+        self.dispatched_ids.append(order_id)

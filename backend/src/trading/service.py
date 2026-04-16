@@ -175,8 +175,10 @@ class OrderService:
         if cached_response is not None:
             return cached_response
 
-        assert created_order_id is not None
+        if created_order_id is None:
+            raise RuntimeError("OrderService bug: created_order_id is None after insert")
         await self._dispatcher.dispatch_order_execution(created_order_id)
         fetched = await self._repo.get_by_id(created_order_id)
-        assert fetched is not None
+        if fetched is None:
+            raise RuntimeError(f"OrderService bug: order {created_order_id} not found after commit")
         return OrderResponse.model_validate(fetched)
