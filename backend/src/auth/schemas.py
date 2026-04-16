@@ -1,10 +1,9 @@
 """auth 도메인 Pydantic V2 스키마."""
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict
 
 
 class CurrentUser(BaseModel):
@@ -30,4 +29,4 @@ class UserResponse(BaseModel):
     email: str | None
     username: str | None
     is_active: bool
-    created_at: datetime
+    created_at: AwareDatetime

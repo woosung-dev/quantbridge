@@ -1,10 +1,9 @@
 """strategy 도메인 Pydantic V2 스키마."""
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from src.strategy.models import ParseStatus, PineVersion
 
@@ -61,8 +60,8 @@ class StrategyListItem(BaseModel):
     symbol: str | None = None
     tags: list[str] = Field(default_factory=list)
     is_archived: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
 
 
 class StrategyResponse(BaseModel):
@@ -81,8 +80,8 @@ class StrategyResponse(BaseModel):
     symbol: str | None
     tags: list[str] = Field(default_factory=list)
     is_archived: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
 
 
 class StrategyListResponse(BaseModel):

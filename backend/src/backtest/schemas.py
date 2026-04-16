@@ -1,12 +1,11 @@
 """Backtest 도메인 Pydantic V2 스키마 — Request/Response DTOs."""
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from src.backtest.models import BacktestStatus, TradeDirection, TradeStatus
 
@@ -18,8 +17,8 @@ class CreateBacktestRequest(BaseModel):
     strategy_id: UUID
     symbol: str = Field(min_length=3, max_length=32)
     timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d"]
-    period_start: datetime
-    period_end: datetime
+    period_start: AwareDatetime
+    period_end: AwareDatetime
     initial_capital: Decimal = Field(gt=Decimal("0"), max_digits=20, decimal_places=8)
 
     @model_validator(mode="after")
@@ -36,7 +35,7 @@ class BacktestCreatedResponse(BaseModel):
 
     backtest_id: UUID
     status: BacktestStatus
-    created_at: datetime
+    created_at: AwareDatetime
 
 
 class BacktestProgressResponse(BaseModel):
@@ -44,8 +43,8 @@ class BacktestProgressResponse(BaseModel):
 
     backtest_id: UUID
     status: BacktestStatus
-    started_at: datetime | None
-    completed_at: datetime | None
+    started_at: AwareDatetime | None
+    completed_at: AwareDatetime | None
     error: str | None
     stale: bool = False
 
@@ -71,11 +70,11 @@ class BacktestSummary(BaseModel):
     strategy_id: UUID
     symbol: str
     timeframe: str
-    period_start: datetime
-    period_end: datetime
+    period_start: AwareDatetime
+    period_end: AwareDatetime
     status: BacktestStatus
-    created_at: datetime
-    completed_at: datetime | None
+    created_at: AwareDatetime
+    completed_at: AwareDatetime | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -97,7 +96,7 @@ class BacktestMetricsOut(BaseModel):
 class EquityPoint(BaseModel):
     """equity_curve 1 point."""
 
-    timestamp: datetime
+    timestamp: AwareDatetime
     value: Decimal
 
     @field_serializer("value")
@@ -126,8 +125,8 @@ class TradeItem(BaseModel):
     trade_index: int
     direction: TradeDirection
     status: TradeStatus
-    entry_time: datetime
-    exit_time: datetime | None
+    entry_time: AwareDatetime
+    exit_time: AwareDatetime | None
     entry_price: Decimal
     exit_price: Decimal | None
     size: Decimal
