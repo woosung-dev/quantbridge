@@ -8,14 +8,20 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import and_, delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import ExchangeAccount, Order, OrderState
+from src.trading.models import (
+    ExchangeAccount,
+    KillSwitchEvent,
+    KillSwitchTriggerType,
+    Order,
+    OrderState,
+)
 
 
 class ExchangeAccountRepository:
@@ -164,3 +170,66 @@ class OrderRepository:
             text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
             {"k": key},
         )
+
+
+class KillSwitchEventRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def save(self, event: KillSwitchEvent) -> KillSwitchEvent:
+        self.session.add(event)
+        await self.session.flush()
+        return event
+
+    async def get_by_id(self, event_id: UUID) -> KillSwitchEvent | None:
+        result = await self.session.execute(
+            select(KillSwitchEvent).where(KillSwitchEvent.id == event_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
+    async def get_active(
+        self, *, strategy_id: UUID, account_id: UUID
+    ) -> KillSwitchEvent | None:
+        """spec §2.2 매칭 규칙:
+        - cumulative_loss → strategy_id 매칭 (ADR-006 CEO F4)
+        - daily_loss, api_error → account_id 매칭
+        - resolved_at IS NULL
+        """
+        stmt = select(KillSwitchEvent).where(
+            KillSwitchEvent.resolved_at.is_(None),  # type: ignore[union-attr]
+            or_(
+                and_(
+                    KillSwitchEvent.trigger_type == KillSwitchTriggerType.cumulative_loss,  # type: ignore[arg-type]
+                    KillSwitchEvent.strategy_id == strategy_id,  # type: ignore[arg-type]
+                ),
+                and_(
+                    KillSwitchEvent.trigger_type.in_(  # type: ignore[attr-defined]
+                        [KillSwitchTriggerType.daily_loss, KillSwitchTriggerType.api_error]
+                    ),
+                    KillSwitchEvent.exchange_account_id == account_id,  # type: ignore[arg-type]
+                ),
+            ),
+        ).order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def resolve(self, event_id: UUID, *, note: str | None = None) -> int:
+        result = await self.session.execute(
+            update(KillSwitchEvent)
+            .where(KillSwitchEvent.id == event_id)  # type: ignore[arg-type]
+            .where(KillSwitchEvent.resolved_at.is_(None))  # type: ignore[union-attr]
+            .values(resolved_at=datetime.now(UTC), resolution_note=note)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def list_recent(
+        self, *, limit: int, offset: int
+    ) -> Sequence[KillSwitchEvent]:
+        result = await self.session.execute(
+            select(KillSwitchEvent)
+            .order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
+            .limit(limit).offset(offset)
+        )
+        return result.scalars().all()
