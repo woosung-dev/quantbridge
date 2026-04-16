@@ -23,7 +23,8 @@ class TestUtcIso:
         assert _utc_iso(dt) == "2024-01-01T12:34:56Z"
 
     def test_roundtrip(self) -> None:
-        original = datetime(2024, 6, 15, 9, 0, 0)
+        """_parse_utc_iso는 tz-aware UTC datetime 반환 (Sprint 5 Stage B)."""
+        original = datetime(2024, 6, 15, 9, 0, 0, tzinfo=UTC)
         assert _parse_utc_iso(_utc_iso(original)) == original
 
     def test_tz_aware_normalized(self) -> None:
@@ -86,6 +87,6 @@ class TestEquityCurveSerialization:
         ]
         restored = equity_curve_from_jsonb(data)
         assert restored == [
-            (datetime(2024, 1, 1, 0, 0, 0), Decimal("10000")),
-            (datetime(2024, 1, 1, 1, 0, 0), Decimal("10050.25")),
+            (datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC), Decimal("10000")),
+            (datetime(2024, 1, 1, 1, 0, 0, tzinfo=UTC), Decimal("10050.25")),
         ]

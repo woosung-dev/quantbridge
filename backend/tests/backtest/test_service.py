@@ -1,7 +1,7 @@
 """BacktestService — submit/run/cancel/delete/list/get."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -58,7 +58,7 @@ def _mini_fixture_root(tmp_path: Path) -> Path:
     root = tmp_path / "ohlcv"
     root.mkdir()
     rows = ["timestamp,open,high,low,close,volume"]
-    t = datetime(2024, 1, 1)
+    t = datetime(2024, 1, 1, tzinfo=UTC)
     for i in range(50):
         price = 100 + i * 0.5 + (i % 7) * 0.3
         ts = (t + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -72,8 +72,8 @@ def _request(strategy_id: object) -> CreateBacktestRequest:
         strategy_id=strategy_id,  # type: ignore[arg-type]
         symbol="BTCUSDT",
         timeframe="1h",
-        period_start=datetime(2024, 1, 1, 0, 0, 0),
-        period_end=datetime(2024, 1, 2, 0, 0, 0),
+        period_start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+        period_end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC),
         initial_capital=Decimal("10000"),
     )
 

@@ -25,8 +25,11 @@ def _utc_iso(dt: datetime) -> str:
 
 
 def _parse_utc_iso(s: str) -> datetime:
-    """'2024-01-01T00:00:00Z' → naive UTC datetime."""
-    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+    """'2024-01-01T00:00:00Z' → tz-aware UTC datetime.
+
+    EquityPoint 스키마는 AwareDatetime이므로 tzinfo=UTC 필수.
+    """
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
 # --- metrics ---

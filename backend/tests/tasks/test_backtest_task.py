@@ -1,14 +1,19 @@
 """tasks/backtest.py — reclaim_stale_running + _execute skeleton."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.backtest.models import Backtest, BacktestStatus, _utcnow
+from src.backtest.models import Backtest, BacktestStatus
+
+
+def _utcnow() -> datetime:
+    """테스트 헬퍼: tz-aware UTC now."""
+    return datetime.now(UTC)
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,7 @@
 """GET /api/v1/backtests/:id/trades — pagination + Decimal str."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -28,7 +28,8 @@ async def test_trades_pagination_and_decimal_str(
     bt = Backtest(
         id=uuid4(), user_id=user.id, strategy_id=strategy.id,
         symbol="BTCUSDT", timeframe="1h",
-        period_start=datetime(2024, 1, 1), period_end=datetime(2024, 1, 2),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 2, tzinfo=UTC),
         initial_capital=Decimal("10000"), status=BacktestStatus.COMPLETED,
     )
     db_session.add(bt)
@@ -38,7 +39,8 @@ async def test_trades_pagination_and_decimal_str(
         db_session.add(BacktestTrade(
             id=uuid4(), backtest_id=bt.id, trade_index=i,
             direction=TradeDirection.LONG, status=TradeStatus.CLOSED,
-            entry_time=datetime(2024, 1, 1, i), exit_time=datetime(2024, 1, 1, i + 1),
+            entry_time=datetime(2024, 1, 1, i, tzinfo=UTC),
+            exit_time=datetime(2024, 1, 1, i + 1, tzinfo=UTC),
             entry_price=Decimal("100.12345678"), exit_price=Decimal("102.00000001"),
             size=Decimal("10"), pnl=Decimal("18.87654321"), return_pct=Decimal("0.018765"),
             fees=Decimal("0.10000000"),

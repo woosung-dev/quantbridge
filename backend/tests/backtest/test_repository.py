@@ -1,15 +1,20 @@
 """BacktestRepository — CRUD + 조건부 UPDATE."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.backtest.models import Backtest, BacktestStatus, _utcnow
+from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
+
+
+def _utcnow() -> datetime:
+    """테스트 헬퍼: tz-aware UTC now."""
+    return datetime.now(UTC)
 
 
 async def _seed_bt(
@@ -44,8 +49,8 @@ async def _seed_bt(
         strategy_id=strategy.id,
         symbol="BTCUSDT",
         timeframe="1h",
-        period_start=datetime(2024, 1, 1),
-        period_end=datetime(2024, 1, 31),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 31, tzinfo=UTC),
         initial_capital=Decimal("10000"),
         status=status,
     )

@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -49,11 +49,11 @@ async def _seed_backtest(
         strategy_id=strategy_id,
         symbol="BTCUSDT",
         timeframe="1h",
-        period_start=datetime(2024, 1, 1),
-        period_end=datetime(2024, 1, 2),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 2, tzinfo=UTC),
         initial_capital=Decimal("1000"),
         status=BacktestStatus.COMPLETED,
-        completed_at=datetime(2024, 1, 2, 1, 0, 0),
+        completed_at=datetime(2024, 1, 2, 1, 0, 0, tzinfo=UTC),
     )
     session.add(bt)
     await session.flush()
