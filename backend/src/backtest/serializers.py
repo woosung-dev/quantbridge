@@ -2,7 +2,8 @@
 
 metrics/equity_curve는 PostgreSQL JSONB 컬럼에 저장.
 Decimal → str, datetime → ISO 8601 Z.
-naive UTC datetime 전제 (Sprint 3 _utcnow() 규약).
+tz-aware UTC datetime 전제 (AwareDateTime TypeDecorator, Sprint 5 Stage B).
+_utc_iso()는 방어적으로 naive 입력도 처리하지만, 신규 코드는 tz-aware 사용.
 """
 from __future__ import annotations
 
