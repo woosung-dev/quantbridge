@@ -14,11 +14,14 @@ class EncryptionError(AppException):
 
 
 class AccountNotFound(AppException):
+    """Raised when ExchangeAccount lookup fails. account_id is required."""
+
     status_code = 404
     code = "account_not_found"
 
     def __init__(self, account_id: UUID) -> None:
         super().__init__(f"ExchangeAccount not found: {account_id}")
+        self.account_id = account_id
 
 
 class KillSwitchActive(AppException):
@@ -41,11 +44,14 @@ class IdempotencyConflict(AppException):
 
 
 class OrderNotFound(AppException):
+    """Raised when Order lookup fails. order_id is required."""
+
     status_code = 404
     code = "order_not_found"
 
     def __init__(self, order_id: UUID) -> None:
         super().__init__(f"Order not found: {order_id}")
+        self.order_id = order_id
 
 
 class ProviderError(AppException):

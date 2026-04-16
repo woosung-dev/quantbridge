@@ -8,6 +8,10 @@ MultiFernet 동작:
 - decrypt: 리스트 순회하며 첫 성공 결과 반환
 
 복호화는 Service 레이어의 명시적 메서드에서만 호출 — Repository는 암호문만 다룬다.
+
+⚠️ 보안 주의: `vars(EncryptionService)` / `repr(svc._multi)` / 디버그 dump를 통해 내부
+`cryptography.fernet.Fernet._signing_key` / `_encryption_key` 가 노출될 수 있다 (upstream
+라이브러리 특성). 인스턴스 자체를 로깅하거나 Sentry breadcrumbs에 attach 금지.
 """
 from __future__ import annotations
 
