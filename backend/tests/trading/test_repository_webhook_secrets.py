@@ -69,3 +69,51 @@ async def test_revoked_outside_grace_is_excluded(db_session, strategy):
         strategy.id, grace_cutoff=datetime.now(UTC) - timedelta(hours=1)
     )
     assert all(v.secret_encrypted != b"cipher-old" for v in valid)
+
+
+async def test_get_by_id_returns_secret(db_session, strategy):
+    """T10 review I1: get_by_id primitive for T11 Service layer."""
+    from src.trading.models import WebhookSecret
+    from src.trading.repository import WebhookSecretRepository
+
+    repo = WebhookSecretRepository(db_session)
+    ws = WebhookSecret(strategy_id=strategy.id, secret_encrypted=b"cipher-x")
+    saved = await repo.save(ws)
+    await repo.commit()
+
+    fetched = await repo.get_by_id(saved.id)
+    assert fetched is not None
+    assert fetched.id == saved.id
+    assert fetched.secret_encrypted == b"cipher-x"
+
+
+async def test_get_by_id_miss_returns_none(db_session, strategy):
+    from uuid import uuid4
+
+    from src.trading.repository import WebhookSecretRepository
+
+    repo = WebhookSecretRepository(db_session)
+    assert await repo.get_by_id(uuid4()) is None
+
+
+async def test_list_valid_secrets_orders_newest_first(db_session, strategy):
+    """T10 review S3: newer secrets first (common path optimization for HMAC verify)."""
+    from src.trading.models import WebhookSecret
+    from src.trading.repository import WebhookSecretRepository
+
+    repo = WebhookSecretRepository(db_session)
+
+    v1 = WebhookSecret(strategy_id=strategy.id, secret_encrypted=b"cipher-v1")
+    await repo.save(v1)
+    await repo.commit()
+
+    v2 = WebhookSecret(strategy_id=strategy.id, secret_encrypted=b"cipher-v2")
+    await repo.save(v2)
+    await repo.commit()
+
+    valid = await repo.list_valid_secrets(
+        strategy.id, grace_cutoff=datetime.now(UTC) - timedelta(hours=1)
+    )
+    assert len(valid) == 2
+    assert valid[0].secret_encrypted == b"cipher-v2"
+    assert valid[1].secret_encrypted == b"cipher-v1"

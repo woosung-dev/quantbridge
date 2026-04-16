@@ -251,6 +251,12 @@ class WebhookSecretRepository:
         await self.session.flush()
         return ws
 
+    async def get_by_id(self, secret_id: UUID) -> WebhookSecret | None:
+        result = await self.session.execute(
+            select(WebhookSecret).where(WebhookSecret.id == secret_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
     async def list_valid_secrets(
         self, strategy_id: UUID, *, grace_cutoff: datetime
     ) -> Sequence[WebhookSecret]:
@@ -267,6 +273,7 @@ class WebhookSecretRepository:
                     WebhookSecret.revoked_at > grace_cutoff,  # type: ignore[arg-type,operator]
                 )
             )
+            .order_by(WebhookSecret.created_at.desc())  # type: ignore[attr-defined]
         )
         return result.scalars().all()
 
