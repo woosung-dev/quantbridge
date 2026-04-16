@@ -46,15 +46,44 @@ class Settings(BaseSettings):
     )
 
     # --- Sprint 6 Trading ---
-    # autoplan CEO F3 + Eng E4: MultiFernet 기반 다중 키 지원 (comma-separated, newest first)
-    trading_encryption_keys: SecretStr = Field(...)
-    exchange_provider: Literal["fixture", "bybit_demo"] = Field(default="fixture")
-    # autoplan CEO F4: MddEvaluator → CumulativeLossEvaluator rename 반영
-    kill_switch_cumulative_loss_percent: Decimal = Field(default=Decimal("10.0"))
-    kill_switch_daily_loss_usd: Decimal = Field(default=Decimal("500.0"))
-    kill_switch_api_error_streak: int = Field(default=5)
-    kill_switch_capital_base_usd: Decimal = Field(default=Decimal("10000"))
-    webhook_secret_grace_seconds: int = Field(default=3600)
+    trading_encryption_keys: SecretStr = Field(
+        ...,
+        description=(
+            "Comma-separated Fernet keys (newest first) for MultiFernet. "
+            "Rotation: prepend new key, keep old keys for grace period. "
+            "ADR-006 결정 1 / autoplan CEO F3 + Eng E4."
+        ),
+    )
+    exchange_provider: Literal["fixture", "bybit_demo"] = Field(
+        default="fixture",
+        description="ExchangeProvider 선택. fixture=테스트, bybit_demo=운영 demo.",
+    )
+    kill_switch_cumulative_loss_percent: Decimal = Field(
+        default=Decimal("10.0"),
+        description=(
+            "Cumulative loss % of capital_base가 이 값 초과 시 strategy-scoped "
+            "kill switch 발동. autoplan CEO F4: MddEvaluator → CumulativeLossEvaluator."
+        ),
+    )
+    kill_switch_daily_loss_usd: Decimal = Field(
+        default=Decimal("500.0"),
+        description="당일 누적 손실(USD) 초과 시 account-scoped kill switch 발동.",
+    )
+    kill_switch_api_error_streak: int = Field(
+        default=5,
+        description="연속 API error N회 도달 시 account-scoped kill switch 발동.",
+    )
+    kill_switch_capital_base_usd: Decimal = Field(
+        default=Decimal("10000"),
+        description=(
+            "cumulative loss % 산출용 기준 자본. Sprint 6은 config 고정값, "
+            "Sprint 7+에서 ExchangeAccount.fetch_balance() 동적 바인딩."
+        ),
+    )
+    webhook_secret_grace_seconds: int = Field(
+        default=3600,
+        description="Webhook secret rotation 후 구 secret 수락 grace period (초).",
+    )
 
     @field_validator("trading_encryption_keys")
     @classmethod
