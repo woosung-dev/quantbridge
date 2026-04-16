@@ -161,7 +161,8 @@ class OrderService:
                     if body_hash is not None and existing.idempotency_payload_hash != body_hash:
                         raise IdempotencyConflict(
                             f"Idempotency-Key 재사용됐지만 payload가 다름. "
-                            f"original_order_id={existing.id}"
+                            f"original_order_id={existing.id}",
+                            original_order_id=existing.id,
                         )
                     cached_response = OrderResponse.model_validate(existing)
                 else:

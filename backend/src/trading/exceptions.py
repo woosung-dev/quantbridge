@@ -37,10 +37,17 @@ class WebhookUnauthorized(AppException):
 
 
 class IdempotencyConflict(AppException):
-    """동일 idempotency_key로 이미 다른 payload의 주문 존재 (DB UNIQUE 위반)."""
+    """동일 idempotency_key로 이미 다른 payload의 주문 존재 — autoplan E2.
+
+    original_order_id: 기존 주문의 UUID (T17 router가 409 응답에 포함).
+    """
 
     status_code = 409
     code = "idempotency_conflict"
+
+    def __init__(self, message: str, *, original_order_id: UUID | None = None) -> None:
+        super().__init__(message)
+        self.original_order_id = original_order_id
 
 
 class OrderNotFound(AppException):

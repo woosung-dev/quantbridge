@@ -153,3 +153,45 @@ class _FakeDispatcher:
     async def dispatch_order_execution(self, order_id: UUID) -> None:
         self.dispatched_count += 1
         self.dispatched_ids.append(order_id)
+
+
+async def test_idempotency_conflict_on_different_body_hash(db_session, user, strategy, order_request):
+    """Autoplan E2: 동일 key + 다른 body_hash → IdempotencyConflict (422, signal loss 방지)."""
+    from src.trading.exceptions import IdempotencyConflict
+    from src.trading.repository import OrderRepository
+    from src.trading.service import OrderService
+
+    repo = OrderRepository(db_session)
+    fake = _FakeDispatcher()
+    svc = OrderService(
+        session=db_session, repo=repo, dispatcher=fake, kill_switch=_NoopKillSwitch()
+    )
+    key = "hash-conflict-test"
+
+    await svc.execute(order_request, idempotency_key=key, body_hash=b"hash-A")
+
+    with pytest.raises(IdempotencyConflict) as exc_info:
+        await svc.execute(order_request, idempotency_key=key, body_hash=b"hash-B")
+
+    assert exc_info.value.original_order_id is not None
+
+
+async def test_idempotency_replay_with_matching_hash(db_session, user, strategy, order_request):
+    """Autoplan E2: 동일 key + 동일 body_hash → cached response (200 replay)."""
+    from src.trading.repository import OrderRepository
+    from src.trading.service import OrderService
+
+    repo = OrderRepository(db_session)
+    fake = _FakeDispatcher()
+    svc = OrderService(
+        session=db_session, repo=repo, dispatcher=fake, kill_switch=_NoopKillSwitch()
+    )
+    key = "hash-match-test"
+
+    first, first_replayed = await svc.execute(order_request, idempotency_key=key, body_hash=b"hash-X")
+    second, second_replayed = await svc.execute(order_request, idempotency_key=key, body_hash=b"hash-X")
+
+    assert not first_replayed
+    assert second_replayed
+    assert first.id == second.id
+    assert fake.dispatched_count == 1  # dispatch only on first call
