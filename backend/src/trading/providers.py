@@ -124,6 +124,9 @@ class BybitDemoProvider:
                 float(order.quantity),
                 float(order.price) if order.price is not None else None,
             )
+            if "id" not in result:
+                # 응답 손상 — 주문 추적 불가, 빠르게 실패. 일부 키만 노출 (PII 회피).
+                raise ProviderError(f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})")
             avg = result.get("average")
             return OrderReceipt(
                 exchange_order_id=str(result["id"]),
@@ -131,10 +134,19 @@ class BybitDemoProvider:
                 status=_map_ccxt_status(result.get("status")),
                 raw=dict(result),
             )
+        except ProviderError:
+            raise  # already wrapped, do not re-wrap
         except ccxt_async.BaseError as e:
             raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
+            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
         finally:
-            await exchange.close()
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_close_failed", exc_info=True)
 
     async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
         exchange = ccxt_async.bybit(
@@ -147,10 +159,19 @@ class BybitDemoProvider:
         )
         try:
             await exchange.cancel_order(exchange_order_id)
+        except ProviderError:
+            raise  # already wrapped, do not re-wrap
         except ccxt_async.BaseError as e:
             raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
+            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
         finally:
-            await exchange.close()
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_close_failed", exc_info=True)
 
 
 def _map_ccxt_status(ccxt_status: str | None) -> Literal["filled", "submitted", "rejected"]:

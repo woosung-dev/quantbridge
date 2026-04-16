@@ -63,6 +63,9 @@ async def test_bybit_demo_create_order_uses_credentials(credentials, order_submi
     assert call_kwargs["apiKey"] == "test-key"
     assert call_kwargs["secret"] == "test-secret"
     assert call_kwargs["options"]["testnet"] is True
+    assert call_kwargs["enableRateLimit"] is True
+    assert call_kwargs["timeout"] == 30000
+    assert call_kwargs["options"]["defaultType"] == "spot"
 
     # 2. create_order 호출 인자
     mock_exchange.create_order.assert_awaited_once_with(
@@ -102,3 +105,41 @@ async def test_bybit_demo_cancel_order(credentials, ccxt_mock):
     await provider.cancel_order(credentials, "bybit-order-42")
     mock_exchange.cancel_order.assert_awaited_once_with("bybit-order-42")
     mock_exchange.close.assert_awaited_once()
+
+
+async def test_bybit_demo_non_ccxt_exception_wrapped_safely(credentials, order_submit, ccxt_mock):
+    """SECURITY C1: non-CCXT 예외도 ProviderError로 wrap + close() 호출 보장.
+
+    raw exception이 traceback에 누출되면 ccxt.bybit의 apiKey/secret이 Sentry로 유출됨.
+    """
+    mock_exchange, _ = ccxt_mock
+    mock_exchange.create_order = AsyncMock(side_effect=KeyError("simulated transport error"))
+    from src.trading.exceptions import ProviderError
+    from src.trading.providers import BybitDemoProvider
+
+    provider = BybitDemoProvider()
+    with pytest.raises(ProviderError, match="unexpected non-CCXT error: KeyError"):
+        await provider.create_order(credentials, order_submit)
+
+    # close() must still be called (finally guarantee)
+    mock_exchange.close.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "ccxt_status,expected",
+    [
+        ("closed", "filled"),
+        ("filled", "filled"),
+        ("canceled", "rejected"),
+        ("rejected", "rejected"),
+        ("open", "submitted"),
+        ("partially_filled", "submitted"),
+        (None, "submitted"),
+        ("weird-status", "submitted"),
+    ],
+)
+def test_map_ccxt_status(ccxt_status, expected):
+    """CCXT 상태 어휘 변경 시 silent mis-classification 회귀 방지."""
+    from src.trading.providers import _map_ccxt_status
+
+    assert _map_ccxt_status(ccxt_status) == expected
