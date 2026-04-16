@@ -14,6 +14,18 @@
 >
 > **추가 공수:** +1.85d → buffer 1.5d → -0.35d 초과. 대응: M1→M1a/M1b 분할 + T 병렬화 (CEO F6). 상세 findings은 본 문서 하단 "autoplan 리뷰 결과" 섹션 참조.
 
+> **🔒 /cso 보안 감사 결과 (2026-04-16, daily mode 8/10):** 6 findings (3 HIGH, 3 MEDIUM). Critical 0. 상세는 본 문서 하단 "/cso 보안 감사 결과" 섹션 참조.
+>
+> **CSO-1 이미 plan 반영:** `WebhookSecret.secret_encrypted: bytes` — spec §8 Open Item 1 해소 (평문 TEXT → MultiFernet 암호화). T10/T11/T17 구현 시 EncryptionService 복호화 경로 배선 필요.
+>
+> **실행 전 체크리스트 (추가 +0.7d):**
+> - [ ] CSO-1: `WebhookSecretRepository` / `WebhookSecretService` / `WebhookService.verify`에 EncryptionService 주입 배선 (T10/T11/T17)
+> - [ ] CSO-2: `backend/Dockerfile`에 `USER appuser` 추가 (3 lines)
+> - [ ] CSO-3: `.github/workflows/ci.yml`의 3 third-party actions SHA pin
+> - [ ] CSO-4: `docker-compose.yml` `ENCRYPTION_KEY` → `TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required}` rename
+> - [ ] CSO-6: T19 webhook router에 `MAX_WEBHOOK_BODY = 64 * 1024` Content-Length cap
+> - [ ] (Sprint 7 이연 OK) CSO-5: Frontend dev CVEs `pnpm update`
+
 ---
 
 
@@ -465,7 +477,9 @@ class WebhookSecret(SQLModel, table=True):
             nullable=False,
         ),
     )
-    secret: str = Field(sa_column=Column(Text, nullable=False))
+    # /cso CSO-1: EncryptionService(MultiFernet)로 암호화 저장. 평문 TEXT 금지.
+    # Sprint 6 spec §8 Open Item 1 공식 해소 — DB leak = webhook 위조 방지.
+    secret_encrypted: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
@@ -5462,6 +5476,88 @@ EOF
 - DX: Claude subagent only (`[subagent-only]`) — Codex 401
 
 **Codex quota 복귀 (~4/18 이후)** 시 Eng phase dual-voice 재실행 권장. 현재는 single-voice full-depth.
+
+---
+
+## /cso 보안 감사 결과 (2026-04-16, daily mode, 8/10 confidence gate)
+
+**실행 범위:** Sprint 6 구현 코드 미존재 상태 → Sprint 1-5 기존 코드 + Sprint 6 plan/spec의 security posture 중심. autoplan과 overlap되는 findings는 "confirmed by autoplan EN" 표시.
+
+### Critical/High Findings (3)
+
+| # | Sev | Conf | Finding | Fix |
+|---|-----|------|---------|-----|
+| **CSO-1** | **HIGH** | 9/10 | **spec §8 Open Item 1 결정: `trading.webhook_secrets.secret` 평문 TEXT 저장 → EncryptionService로 암호화 필수.** DB dump/replica/backup 유출 시 모든 webhook 위조 가능. EncryptionService 이미 T4에서 MultiFernet 기반으로 존재 → 통합 비용 거의 없음 | T1 schema: `secret BYTEA` (암호문), T11/T17 WebhookSecretService + WebhookService에 `EncryptionService.decrypt` 경로 추가. HMAC 검증 시 복호화 후 compare_digest. plan T10/T11/T17/T19 업데이트 필요 |
+| **CSO-2** | **HIGH** | 9/10 | `backend/Dockerfile`에 `USER` directive 없음 → prod 컨테이너가 root로 실행. privileged escalation 위험 | Dockerfile 말미에 `RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app` + `USER appuser`. `docker-compose up -d` 재검증 |
+| **CSO-3** | **HIGH** | 8/10 | `.github/workflows/ci.yml`의 third-party actions 3개 unpinned (태그 기반): `dorny/paths-filter@v3`, `pnpm/action-setup@v4`, `astral-sh/setup-uv@v3` | 각 action의 최신 release SHA로 pin: `dorny/paths-filter@<SHA> # v3.x`. 첫party `actions/*`는 MEDIUM이라 Sprint 6은 유지 |
+
+### Medium Findings (3)
+
+| # | Sev | Conf | Finding | Fix |
+|---|-----|------|---------|-----|
+| CSO-4 | MEDIUM | 8/10 | `docker-compose.yml` L66 `ENCRYPTION_KEY=dev_aes_256_key_change_in_production_xxxxxxxxxxxxxx` 기본값. Fernet invalid(44자 미달)이라 실제로는 가동 안 됨 but (a) Sprint 6 MultiFernet rename 미반영(`TRADING_ENCRYPTION_KEYS`), (b) prod 실수 시 risk | T3 rename 병행: docker-compose의 `ENCRYPTION_KEY:-` → `TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required}` (명시 설정 요구, 기본값 없음). 첫 실행 시 `Fernet.generate_key()` 안내 |
+| CSO-5 | MEDIUM | 7/10 | Frontend 2 moderate CVEs — esbuild (dev server CORS) + Vite (path traversal in `.map`). **둘 다 devDependency, dev server 한정**. Prod build 영향 없음 | `pnpm update --latest` 시도. 수용 시 Sprint 6 후속으로 이연 가능 (prod impact 없음) |
+| CSO-6 | MEDIUM | 8/10 | Sprint 6 T19 webhook endpoint `await request.body()` Content-Length cap 없음 → 100MB body DoS 가능. *autoplan Eng E14 confirmed* | T19 router에 `MAX_WEBHOOK_BODY = 64 * 1024` + `Content-Length > MAX` 시 413 Payload Too Large |
+
+### /cso가 **autoplan과 독립 확인한 기존 findings**
+
+- autoplan E3 (HMAC short-circuit timing) — /cso Phase 9 A02에서 동일 확인 ✓
+- autoplan E4 (single Fernet → MultiFernet) — /cso Phase 11 Data Classification에서 동일 ✓ **이미 plan fix 반영됨**
+- autoplan E5 (credential lifetime in worker) — /cso Phase 9 A02 ✓
+- autoplan E14 (Content-Length cap) — /cso CSO-6로 승격 ✓
+- autoplan E15 (cancel endpoint ownership skip) — /cso Phase 9 A01 동일 ✓
+
+### /cso 결정: spec §8 Open Item 1 공식 해소
+
+**webhook_secret 저장 방식:** TEXT 평문 → **EncryptionService(MultiFernet) 암호화 필수**.
+
+이유:
+1. DB 유출 시 webhook 완전 위조 가능 → 주문 집행까지 커널
+2. EncryptionService 이미 T4에서 MultiFernet 기반으로 존재 → 통합 cost 거의 없음
+3. Sprint 6 Premise 4 "demo도 실전 경로" 철학과 정합 (credentials은 암호화하면서 HMAC 키는 평문이면 일관성 파괴)
+
+이 결정을 Sprint 6 plan에 반영 필요 — 최소 T1 schema (secret BYTEA) + T10 Repository 복호화 메서드 + T17 webhook.verify에서 복호화 후 compare_digest.
+
+### Phase 13 요약 테이블
+
+| Phase | 실행 | 결과 |
+|-------|------|------|
+| P0 Mental model + stack detect | ✓ | FastAPI + Next.js + Celery + PostgreSQL. 4 도메인 + Sprint 6 trading 신규 |
+| P1 Attack surface census | ✓ | 9 신규 REST endpoints + 1 webhook + Celery task + FE dashboard |
+| P2 Secrets archaeology | ✓ | **PASS** — .env gitignored, git history 깨끗, AWS/OpenAI/GitHub/Slack 키 미노출 |
+| P3 Supply chain | ✓ | uv.lock tracked ✓ + 2 moderate frontend CVEs (dev only) |
+| P4 CI/CD security | ✓ | 3 unpinned third-party actions (CSO-3). No pull_request_target/script injection/secrets in env |
+| P5 Infrastructure | ✓ | Backend Dockerfile root (CSO-2). docker-compose ENCRYPTION_KEY 기본값 (CSO-4) |
+| P6 Webhook audit | ✓ | Clerk webhook has secret verify (auth/router.py:39). Sprint 6 trading webhook 미구현 (plan review됨) |
+| P7 LLM security | N/A | Sprint 6 LLM 미사용 (Sprint 1 Pine parser는 deterministic) |
+| P8 Skill supply chain | ✓ | gstack 본체만 사용 (trusted source) + 프로젝트 로컬 skill 없음 |
+| P9 OWASP Top 10 | △ | A01(cancel ownership — E15 중복), A02(Fernet single key — E4 해결됨), A03(SQLModel parameterized OK), A07(Clerk JWT 실사용 ✓) |
+| P10 STRIDE | △ | Sprint 6 plan 내 dual voices가 이미 커버 |
+| P11 Data classification | ✓ | RESTRICTED: API Key/Secret (AES-256), webhook secret (**현재 평문 → 암호화 필수 CSO-1**). CONFIDENTIAL: 주문 내역 |
+| P12 FP filter + verification | ✓ | 총 후보 9 → FP 3 → 최종 6 findings |
+| P13 Report | ✓ | 본 테이블 |
+| P14 Save | ✓ | `.gstack/security-reports/<date>.json` |
+
+**Filter stats:** 9 candidates → 3 FP filtered (autoplan 중복 제외) → 6 reported
+
+**Trend:** First run (prior report 없음)
+
+### Remediation Roadmap (Top 6)
+
+| Priority | Finding | Action | 공수 |
+|----------|---------|--------|------|
+| 1 | CSO-1 webhook_secret encrypt | T1 schema + T10/T17 암호화 배선 | +0.3d |
+| 2 | CSO-2 Dockerfile USER | 3 lines in Dockerfile | +0.05d |
+| 3 | CSO-3 CI SHA pin | 3 actions SHA 조회 후 pin | +0.15d |
+| 4 | CSO-6 body size cap | T19 router 1 middleware | +0.1d |
+| 5 | CSO-4 docker-compose env | T3 + docker-compose wiring | +0.1d |
+| 6 | CSO-5 frontend CVEs | pnpm update 시도 → Sprint 7 이연 OK | 0d (defer) |
+
+**Total:** +0.7d. autoplan 누적 +1.85d + /cso +0.7d = **+2.55d**. Critical path 12.5d + 2.55d = **15.05d** → 14d 초과 **+1.05d**. 대응: 병렬화 확장 + 일부 Sprint 7 이연.
+
+### Disclaimer
+
+This /cso audit is AI-assisted and not a substitute for professional penetration testing. For production systems handling real trading capital, engage a qualified security firm. Use as first-pass to catch low-hanging fruit between professional audits.
 
 ### DX Phase — Claude subagent (API + webhook surface)
 
