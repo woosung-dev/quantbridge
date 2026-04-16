@@ -1,3 +1,4 @@
+<!-- /autoplan restore point: /Users/woosung/.gstack/projects/quant-bridge/feat-sprint6-trading-demo-docs-autoplan-restore-20260416-203650.md -->
 # Sprint 6 Trading 데모 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -5135,4 +5136,161 @@ EOF
 - [ ] **Parent doc D0~D12 매핑:** D0(baseline)은 사용자 진행 중, D1(T1+T2), D2(T5+T6), D3(T3+T4), D4(T7~T12), D5(T16), D6(T17+T19), D7(T13+T14), D8(T15), D9(T20), D10(T22), D11(T21), D12(T23).
 - [ ] **Success Criteria 측정 가능:** Webhook latency < 2s (T21 E2E에서 측정), 중복 주문 0건 (T21 idempotency test), 테스트 380 → 440+ (신규 60+ 테스트), CI green (T23 Step 4).
 - [ ] **Open Items (spec §8)** — 4개 모두 `/cso` + `/plan-eng-review`로 분리 완료.
+
+---
+
+## /autoplan 리뷰 결과 (2026-04-16)
+
+### CEO Phase — Claude subagent (single-voice, Codex Eng phase에서 dual voice)
+
+**Verdict: NEEDS-REVISION (block 아님 — 3 이슈 수정 후 proceed)**
+
+| # | Severity | Finding | 제안 Fix | Task 영향 |
+|---|----------|---------|----------|-----------|
+| F1 | HIGH | "놓침률 30→5%" vanity metric. N=5로 통계 검증 불가. moat 미측정 | Success Criteria에 "backtest signal vs live signal divergence=0" + "baseline N≥20 realized PnL delta" 추가 | T21 E2E +0.25d, D0 baseline 확대 |
+| F2 | HIGH | Premise 1 경쟁자 오지목 (TV/3Commas는 이미 webhook auto). moat = Pine 동일 경로 | divergence 회귀 테스트 추가 (F1과 겹침) | T21 확장 |
+| F3 | HIGH | Single Fernet key + env 평문. Sprint 7 re-encrypt 부채. Fernet은 MultiFernet 네이티브 | T4를 처음부터 `MultiFernet([active_key])` 기반 구현 | T4 +0.5d |
+| **F4** | **CRITICAL** | `MddEvaluator.capital_base=Decimal("10000")` 하드코드. 실제 MDD (peak equity drawdown)가 아닌 누적손실% — 네이밍·시맨틱 버그 | `CumulativeLossEvaluator`로 rename + capital_base를 `fetch_balance`로 바인딩 | T13 +0.25d |
+| F5 | MEDIUM | Approach C 기각 성급 (본인 commitment 되돌림). Telegram 원터치 = 운영 백업 채널 | T19 `POST /v1/notifications/telegram` fire-and-forget 추가 | +0.5d |
+| F6 | MEDIUM | 12.5d 10-20% 낙관적. T6 / T16 / T21 쉽게 슬립. real testnet smoke 부재 | T6 뒤 "real Bybit testnet BTC 0.001 buy/close" 수동 checklist + M1~M4를 M1a/M1b로 분할 | +0.25d |
+| F7 | LOW | Bybit-only 락인 (testnet 다운 시 blocked). 구조적 락인은 Provider Protocol로 해결됨 | T6에 Binance testnet 15분 smoke fallback 확보 (본격은 Sprint 7) | +0.1d |
+| F8 | MEDIUM | spec §2.3 `self._audit.record_decryption(...)` 스텁. `audit_logger` 구현 미정의 | T11에 `trading.audit_log` 테이블 또는 명시적 `structlog.info` + 90일 제외 명시 | T11 +0.25d |
+
+**CEO Top 3 실행 전 필수:** F4 (CRITICAL), F3 (HIGH), F1+F2 (HIGH) — 합 +1.0d
+
+### Design Phase — Claude subagent (UI scope: T22 /trading 대시보드)
+
+**Sleep Test Verdict: NO** — 현 상태로는 실자본 못 맡김
+
+| # | Severity | Finding | Fix |
+|---|----------|---------|-----|
+| D1 | HIGH | KillSwitch 3 패널 중 하나로 동일 weight, 시각적 앵커 없음 | `active.length > 0` 시 full-width red banner `sticky top-0 z-50` 승격 |
+| D2 | MEDIUM | OrdersPanel/ExchangeAccountsPanel empty state 누락 — 빈 테이블 렌더 | `if items.length === 0` 시 "No orders yet" / "Connect exchange" 메시지 |
+| D3 | HIGH | `useQuery`에서 `isError`/`error` destructure 안 함 — 500 시 silent fail | `isError`, `refetch` 추가 + Next.js `error.tsx` 래핑 |
+| **D4** | **CRITICAL** | Kill Switch 알림 passive (refetchInterval 10s, 탭 focused 필요). 발동 시 founder 모를 수 있음 | `0→>0` transition에 `Audio + Notification API + document.title 변경`; 서버측 Telegram 알림 (T19 F5 병합) |
+| D5 | HIGH | 반응형 전략 없음. `<table>` 6열 375px에서 깨짐 | `md:hidden` card layout + `hidden md:table` swap (shadcn DataTable 사용) |
+| D6 | MEDIUM | 접근성 — Resolve 버튼 contrast 4.0:1 (AA fail), touch target 24px (44 fail), no `aria-live` | `bg-red-600` + `min-h-[44px]` + `aria-live="assertive"` + confirm dialog |
+| D7 | MEDIUM | shadcn 미사용. 전부 raw Tailwind → Sprint 7 refactor 부채 | shadcn Card/Button/Table 즉시 도입 (+15분) |
+| D8 | MEDIUM | ExchangeAccount trust signal 부재 — last_verified, 연결 상태 | `last_verified_at` + 녹/적색 dot + nightly `fetch_balance` 또는 load 시 verify |
+
+**Design Top 2 블로커:** D4 (Kill Switch silent alert), D3 (silent error) — 둘 다 실자본 전 해결 필수
+
+### Eng Phase — Claude subagent (`[subagent-only]` — Codex 401 Unauthorized)
+
+| # | Severity | Finding | Fix |
+|---|----------|---------|-----|
+| **E1** | **CRITICAL** | OrderService가 `session.begin()` 전체에 advisory_xact_lock 보유 → 동일 key 동시 2건 시 pool 연결 2개 홀드, `max_size=10`에서 burst ~10건이면 포화. 또한 INSERT+commit까지 lock 유지 | `pg_try_advisory_xact_lock` + 빠른 실패 → 409 retry-after. 또는 lock scope을 "dedup 체크 + stub INSERT" 짧은 tx로 분리 후 본 처리는 밖에서. pool 메트릭 추가 |
+| **E2** | **CRITICAL** | 동일 Idempotency-Key + **다른 body** → 첫 주문의 cached response 반환 (signal silently lost). `IdempotencyConflict`는 정의만 있고 raise 경로 없음 | T1에 `idempotency_payload_hash BYTEA` 컬럼 추가. second request 시 `hash(body) != stored_hash` → 422 (클라이언트 버그). IETF draft 준수. E2E 테스트 케이스 추가 |
+| **E3** | **HIGH** | webhook.py HMAC 후보 순회 **short-circuit on match** → timing side-channel ("0 valid" vs "first match" vs "second match" 구분 가능). grace 중 candidate=2이 보통 | 모든 후보 unconditional 순회 후 bitwise accumulator로 OR 집계. + webhook_secret TEXT 암호화(§8 Open Item 1 즉시 해소) |
+| **E4** | **HIGH** | T4 `EncryptionService`가 single Fernet. spec §2.3은 "Sprint 7 rotate_all 추가"라고 했으나 단일키 foundation으로는 rotation 불가 — env 키 교체 시 **모든 기존 credential 복호화 불가 = P0 incident** | T4를 처음부터 `MultiFernet([active_key])`. Config `TRADING_ENCRYPTION_KEYS` (comma-separated, newest first). "old-key ciphertext 신키로 복호화" 테스트. (CEO F3과 동일) |
+| **E5** | **HIGH** | Celery worker에서 `creds`가 `_async_execute` 스코프 = `transition_to_filled` + commit까지 수백ms~수초 메모리 상주. OOM core dump 시 복구 가능 | `provider.create_order` 직후 `del creds + gc.collect()`. `Credentials.__del__`에 api_key/api_secret zero-out. 현 `@dataclass(frozen=True, slots=True)`는 zero 안 함 |
+| **E6** | **HIGH** | T16에 CCXT timeout 30s이고 tenacity retry 없음. Bybit degraded → 30s hang + `task_soft_time_limit` 미설정. submitted 상태 zombie | Celery `task_time_limit=60 / task_soft_time_limit=45`. `NetworkError/RequestTimeout`에 tenacity retry (1s/2s/4s, max 3, `InsufficientFunds`는 제외). submitted>2min reclaim beat task |
+| **E7** | **HIGH** | Bybit 시장가 주문 부분체결 가능 (`filled < quantity`). `Order.filled_quantity` 컬럼 없음. MDD evaluator가 잘못된 포지션 사이즈로 트리거 | T1에 `filled_quantity: Decimal` 추가. CCXT `result["filled"]` 저장. MDD evaluator는 `filled_quantity` 참조 |
+| E8 | MEDIUM | `hashtext()` = int4 → 77k key에서 50% collision. 공격자가 crafted key로 희생자 advisory lock 차단 가능 (DoS) | `hashtextextended(strategy_id::text \|\| ':' \|\| key, 0)` int8. + slowapi 레이트리밋 per strategy_id |
+| **E9** | **MEDIUM** | `ensure_not_gated()`는 session.begin 밖. gate check → INSERT 사이에 다른 worker가 MDD 초과 commit → 이 요청은 이미 통과해 gate 무시하고 주문 삽입 | `ensure_not_gated`를 `session.begin` 블록 **안**, `acquire_idempotency_lock` 뒤로 이동. `asyncio.gather` 2 concurrent race test 추가 |
+| E10 | MEDIUM | Alembic `create_index` non-CONCURRENTLY. Sprint 6 첫 배포는 빈 테이블이라 impact 0이지만 precedent | 가이드라인 노트 추가: `op.create_index(..., postgresql_concurrently=True)` + `op.execute("BEGIN; COMMIT;")` wrap |
+| E11 | MEDIUM | `_exchange_provider` module global + `_get_exchange_provider` no-lock lazy init. prefork OK. `-P threads` 사용 시 double-init 경쟁 | `celery_app.conf.worker_pool = "prefork"` 명시 + `threading.Lock()` 방어. test로 pool=prefork 보장 |
+| **E12** | **MEDIUM** | `execute_order_task.delay()`는 동기 Redis RPUSH인데 FastAPI async 핸들러에서 직접 호출 → Redis 지연 시 event loop block | `asyncio.to_thread(execute_order_task.delay, str(order_id))` 또는 celery-aio-pool. 느린 Redis mock 테스트 |
+| E13 | MEDIUM | T16 test의 `crypto` fixture는 언급만 있고 conftest에 정의 없음 → 첫 실행 시 실패 | T7 conftest에 `crypto` + `_force_fixture_provider` autouse fixture 정의 추가 |
+| **E14** | **GAP** | 테스트 누락 체크리스트 — F1 pool saturation / F2 same-key diff-body / F3 HMAC timing / F4 key rotation / F6 CCXT timeout / F7 partial fill / F9 Kill Switch race / webhook body size DoS (Content-Length cap 없음) / Strategy revoked webhook | E2E T21에 8 테스트 추가 → 68+ 테스트 |
+| E15 | MEDIUM | T20 cancel endpoint **ownership 검증 skip** 명시 주석 — 인증된 누구든 UUID guess로 취소 가능 | 5 라인 `get_order`와 동일 패턴 복사. TODO로 남기지 말 것 |
+| E16 | LOW | spec §2.5 commit-before-dispatch 불변식은 plan에 명시됐으나 "Kill Switch state는 Order insert와 같은 serializable view 안에서 읽혀야" 불변식 누락 (F9 예방) | spec §2.5에 추가 불변식 문서화 |
+
+**Eng Top 5 실행 전 필수:** E4 (MultiFernet), E2 (idempotency_payload_hash), E7 (filled_quantity), E1 (advisory lock scope), E9 (Kill Switch in-tx gate)
+
+---
+
+## Cross-Phase 교차 발견 (테마)
+
+여러 phase에서 **독립적으로** 지목된 항목 → high-confidence 신호:
+
+### 🔴 테마 A: HMAC/Webhook 보안 미비 (CEO·Eng·DX 3 phase 교차)
+- E3 timing side-channel (short-circuit loop)
+- DX2 HMAC in query string (Stripe/GitHub 전부 header 사용)
+- DX3 generic 401 detail (5개 원인 구분 못함)
+- Eng F3 + spec §8 Open Item 1 webhook_secret 평문 TEXT 저장
+- **통합 Fix:** (1) header 이전, (2) unconditional candidate 순회, (3) 구조화 error_code, (4) EncryptionService로 webhook_secret 암호화
+
+### 🔴 테마 B: Kill Switch 운영 공백 (Design·Eng·CEO 3 phase)
+- D4 passive notification (founder 3am 모름)
+- E9 gate-insert race
+- CEO F4 MDD 시맨틱 버그 (실제 peak drawdown이 아닌 누적손실%)
+- **통합 Fix:** (1) `CumulativeLossEvaluator`로 rename + 잔고 기반 capital_base, (2) ensure_not_gated를 idempotency tx 안으로, (3) UI sticky red banner + Audio + Notification API + server-side Telegram (F5 흡수)
+
+### 🟡 테마 C: MultiFernet foundation (CEO·Eng 2 phase — 동일 결론)
+- CEO F3 + Eng E4: 둘 다 "T4를 처음부터 MultiFernet" 권고
+- **통합 Fix:** T4 재구현 (+0.5d), Config `TRADING_ENCRYPTION_KEYS` (comma-separated)
+
+### 🟡 테마 D: 관측성 (DX·Eng 2 phase)
+- DX6 webhook receive 로깅 zero
+- Eng F1 pool saturation 메트릭 없음
+- **통합 Fix:** 구조화 로깅 체인 + `GET /v1/webhooks/{id}/recent` audit + Prometheus-ready pool gauge
+
+### 🟡 테마 E: Idempotency contract 엄밀화 (DX·Eng 2 phase)
+- DX4 201 cached vs first 구분 없음 + IETF 위반
+- Eng F2 same-key different-body silent collision
+- **통합 Fix:** 201/200+`Idempotency-Replayed`/409+`original_order_id` triad + `idempotency_payload_hash` 컬럼
+
+---
+
+## 최종 판정
+
+**Verdict: NEEDS_REVISION_THEN_SHIP** — block이 아님. 기반 구조 탄탄, 3 critical 수정 후 실행.
+
+### 실행 전 반드시 처리 (Top 5)
+
+| # | Finding | 출처 | Fix | 공수 |
+|---|---------|------|-----|------|
+| 1 | MultiFernet foundation | CEO F3 + Eng E4 | T4 재구현 `MultiFernet([key])` | +0.5d |
+| 2 | `idempotency_payload_hash` 컬럼 | Eng E2 + DX4 | T1 스키마 추가 + T12/T19 검증 분기 | +0.5d |
+| 3 | `filled_quantity` 컬럼 | Eng E7 | T1 스키마 추가 + MDD evaluator 수정 | +0.3d |
+| 4 | `ensure_not_gated` in-tx | Eng E9 | T15 수정 + 경쟁 테스트 | +0.3d |
+| 5 | `CumulativeLossEvaluator` rename + capital_base 실잔고 | CEO F4 | T13 네이밍/시맨틱 수정 | +0.25d |
+
+**총 추가 공수:** +1.85d. Original buffer 1.5d → **-0.35d 오버런**. 대응: M1~M4 → M1a/M1b 분할 (CEO F6) + 가능한 task 병렬화 확장.
+
+### Sprint 6 진입 시 처리 (후속)
+
+- E1 advisory lock scope + 메트릭
+- E3 HMAC unconditional 순회 + webhook_secret 암호화 (§8 Open Item 1 해소)
+- E5 credentials zero-out
+- E6 Celery timeout + tenacity + reclaim beat
+- DX2 HMAC header 이전 + DX1 quickstart 가이드 + DX8 Strategy/Account binding
+- Design D1/D3/D4/D5 — FE hardening (sticky banner, error boundary, Notification API, responsive)
+- E14 8 테스트 추가
+
+### 이연 OK (Sprint 7+ 또는 후속 ADR)
+
+- E8 hashtextextended (현재 Sprint 6 볼륨에선 collision 위험 낮음)
+- E10 CREATE INDEX CONCURRENTLY 가이드라인
+- CEO F7 Binance testnet fallback
+- CEO F5 Telegram 알림 (테마 B 통합 Fix에 포함되면 이연 가능)
+
+### Dual voice 현황
+
+- CEO: Claude subagent only (`[subagent-only]`) — Codex 401
+- Design: Claude subagent only (`[subagent-only]`) — Codex 401
+- Eng: Claude subagent only (`[subagent-only]`) — Codex 401  
+- DX: Claude subagent only (`[subagent-only]`) — Codex 401
+
+**Codex quota 복귀 (~4/18 이후)** 시 Eng phase dual-voice 재실행 권장. 현재는 single-voice full-depth.
+
+### DX Phase — Claude subagent (API + webhook surface)
+
+| # | Severity | Finding | Fix |
+|---|----------|---------|-----|
+| **DX1** | **CRITICAL** | endpoints.md 10행 table만 있고 HMAC 서명 방법 zero example. TV 알림은 동적 body 지원 안 함 → 정적 payload + 전략별 secret signature surrogate 권장 | `docs/guides/trading-demo-quickstart.md` 신설: bash `openssl dgst -sha256 -hmac` + Python `hmac.hexdigest()` + TV template |
+| **DX2** | **HIGH** | `?token=<hmac>` 쿼리스트링 — nginx/Cloudflare access log / browser history / Sentry에 서명 노출. Stripe/GitHub 전부 header 사용 | `X-QuantBridge-Signature: sha256=<hex>` header로 이전. `?token=` deprecated fallback + 경고 로그 |
+| **DX3** | **HIGH** | `WebhookUnauthorized("Invalid HMAC token or strategy_id")` — 5개 실패 사유(strategy 없음 / secret 없음 / HMAC 불일치 / grace 지남 / body 변조)를 1개 string으로 축약 | `{error_code: "hmac_mismatch", hint: "grace window(3600s) 내 어떤 secret과도 불일치..."}` 구조화. strategy 미존재는 generic 401 (enumeration 방지) |
+| **DX4** | **HIGH** | idempotency 201 (first) vs 201 (cached replay) 구분 없음. IETF draft는 200 for replay. TV/proxy 재시도 시 첫 생성 vs 조회 구분 불가 | 201 Created (first) / 200 OK + `Idempotency-Replayed: true` header (replay) / 409 + `original_order_id` (payload mismatch) |
+| DX5 | MEDIUM | 첫 secret 발급 path 불명확. `rotate-webhook-secret`만 있음. response가 평문 secret 유일 노출 — 분실 시 재발급 외 복구 없음 | `POST /v1/strategies/{id}/webhook-secret` (idempotent create-or-rotate) + `GET ...` masked view |
+| **DX6** | **HIGH** | webhook **receive** 이벤트 로깅 zero. TV "delivery successful" 후 주문 안 떴을 때 founder breadcrumb 없음 | `receive_webhook`에서 구조화 이벤트: `webhook_received / hmac_failed / payload_invalid / order_dispatched`. `GET /v1/webhooks/{id}/recent?limit=20` audit endpoint 신설 |
+| DX7 | LOW | rotate endpoint에 `reason` body 없음 — 순환이 anonymous | optional `{reason}` body + `webhook_secrets.rotation_note` 컬럼 |
+| **DX8** | **MEDIUM** | `exchange_account_id`를 TV payload에 smuggle (plan:4298). TV alert JSON은 founder 수작성 → UUID 복사 error-magnet. Parent doc step 3 strategy→account binding **lost** | `Strategy.default_exchange_account_id` 컬럼 + `POST /v1/strategies/{id}/bind-account`. webhook body에서 UUID 제거 |
+| DX9 | MEDIUM | endpoints.md는 reference table only. TTHW path (account → secret → TV 설정 → 첫 fill) 시퀀스 없음 | `docs/guides/trading-demo-quickstart.md` 5단계 실행 가이드 (DX1 병합) |
+
+**DX Top 3 blocker:** DX6 (webhook receive observability — 3am debug), DX1+DX2 (HMAC signing end-to-end undocumented + query string), DX4 (idempotency status 코드 ambiguity)
+
+**⚠️ 교차 발견 — Parent doc vs Plan drift:**
+- DX8: Parent doc "Narrowest Wedge step 3 (Strategy ↔ ExchangeAccount 바인딩)" 실행 plan에서 누락. webhook에서 매번 account UUID 요구 = bad DX. T19에 binding endpoint 추가 필요.
 
