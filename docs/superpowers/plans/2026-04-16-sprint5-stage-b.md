@@ -276,7 +276,7 @@ EOF
 `backend/tests/common/test_datetime_types.py`:
 
 ```python
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -295,7 +295,7 @@ def test_aware_datetime_accepts_utc_aware():
 
 def test_aware_datetime_accepts_other_tz():
     decorator = AwareDateTime()
-    kst = timezone.utc  # 어떤 tz든 OK (DB에는 UTC로 변환되어 저장)
+    kst = timezone(timedelta(hours=9))  # non-UTC (ruff UP017이 timezone.utc를 UTC로 재작성하는 것 회피)
     ts = datetime(2024, 1, 1, tzinfo=kst)
     assert decorator.process_bind_param(ts, FakeDialect()) == ts
 

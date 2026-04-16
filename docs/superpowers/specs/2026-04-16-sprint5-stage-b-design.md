@@ -150,7 +150,7 @@ from typing import Any
 from sqlalchemy import DateTime, TypeDecorator
 
 class AwareDateTime(TypeDecorator[datetime]):
-    """naive datetime을 거부하고 UTC tz-aware만 허용."""
+    """tz-aware datetime만 허용 (UTC 외 tz도 OK, DB는 UTC로 정규화 저장). naive datetime 입력 시 즉시 ValueError."""
     impl = DateTime(timezone=True)
     cache_ok = True
 
