@@ -1,0 +1,206 @@
+# QuantBridge — 로컬 개발 환경 셋업
+
+> **목적:** 처음 클론한 개발자가 5분 내에 dev 서버 부팅.
+> **SSOT:** 환경변수 정의는 [`../../.env.example`](../../.env.example), 인프라는 [`../../docker-compose.yml`](../../docker-compose.yml).
+
+---
+
+## 1. Prerequisites
+
+| 도구 | 버전 | 설치 |
+|------|------|------|
+| Python | 3.11+ | `brew install python@3.11` 또는 pyenv |
+| uv | 최신 | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Node | 22+ | `brew install node` 또는 nvm |
+| pnpm | 최신 | `npm install -g pnpm` 또는 `corepack enable` |
+| Docker Desktop | 최신 | https://www.docker.com/products/docker-desktop |
+| Git | 최신 | `brew install git` |
+
+확인:
+```bash
+python --version    # 3.11+
+uv --version
+node --version      # 22+
+pnpm --version
+docker --version
+docker compose version
+```
+
+---
+
+## 2. 클론 + 환경 설정
+
+```bash
+git clone <repo>
+cd quant-bridge
+
+# 환경 변수 복사 — 위치 3곳 (혹은 심링크)
+cp .env.example .env.local
+cp .env.example backend/.env.local
+cp .env.example frontend/.env.local
+```
+
+> `.env.example` 상단 주석 참조: docker compose는 root `.env.local`, uvicorn은 `backend/.env.local`, Next.js는 `frontend/.env.local` 사용.
+
+### 2.1 필수로 채워야 할 키 (Sprint 3+)
+
+`.env.local` 에서 아래 4개만 실값으로 교체:
+
+```env
+CLERK_SECRET_KEY=sk_test_...                  # Clerk Dashboard → API Keys → Secret keys
+CLERK_PUBLISHABLE_KEY=pk_test_...             # Clerk Dashboard → API Keys → Publishable keys
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_... # 동일 값 (Next.js 노출용)
+# CLERK_WEBHOOK_SECRET은 Sprint 7 배포까지 placeholder OK
+```
+
+> 상세 획득법은 [`clerk-setup.md`](./clerk-setup.md). 모든 변수는 [`env-vars.md`](./env-vars.md) 카탈로그.
+
+---
+
+## 3. 인프라 기동 (DB + Redis)
+
+```bash
+docker compose up -d
+
+# healthy 확인
+docker compose ps
+# NAME                STATUS
+# quantbridge-db      Up (healthy)
+# quantbridge-redis   Up (healthy)
+```
+
+서비스 상세는 [`../06_devops/docker-compose-guide.md`](../06_devops/docker-compose-guide.md).
+
+---
+
+## 4. Backend 셋업
+
+```bash
+cd backend
+
+# 의존성 설치 (uv lock 기반)
+uv sync
+
+# DB 마이그레이션 적용
+uv run alembic upgrade head
+
+# API 서버 (개발)
+uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+별도 터미널에서 Celery worker:
+```bash
+cd backend
+uv run celery -A src.tasks worker --loglevel=info --concurrency=4 --pool=prefork
+```
+
+> Sprint 5 예정: docker-compose에 worker 서비스 통합.
+
+### 4.1 Backend 검증
+
+```bash
+curl http://localhost:8000/health           # 200 {"status": "ok"}
+curl http://localhost:8000/auth/me          # 401 (인증 필요)
+curl http://localhost:8000/docs             # FastAPI Swagger UI
+```
+
+---
+
+## 5. Frontend 셋업
+
+별도 터미널:
+```bash
+cd frontend
+pnpm install
+pnpm dev      # http://localhost:3000
+```
+
+### 5.1 Frontend 검증
+
+- 브라우저: http://localhost:3000 → 홈 200
+- Clerk 로그인 동작 (Clerk 키 정상 등록 시)
+
+---
+
+## 6. 테스트 실행
+
+### Backend
+```bash
+cd backend
+uv run pytest -q              # 전체
+uv run pytest tests/strategy  # 도메인별
+uv run pytest -k "test_cancel" # 키워드
+```
+
+### Frontend
+```bash
+cd frontend
+pnpm test
+```
+
+### 린트/타입
+```bash
+# Backend
+cd backend
+uv run ruff check .
+uv run mypy src/
+
+# Frontend
+cd frontend
+pnpm lint
+pnpm tsc --noEmit
+```
+
+---
+
+## 7. Smoke 체크리스트 (셋업 완료 검증)
+
+| 항목 | 명령 | 기대 |
+|------|------|------|
+| DB healthy | `docker compose ps` | `quantbridge-db Up (healthy)` |
+| Redis healthy | `docker compose ps` | `quantbridge-redis Up (healthy)` |
+| API health | `curl localhost:8000/health` | 200 |
+| API docs | 브라우저 `localhost:8000/docs` | Swagger UI |
+| FE 홈 | 브라우저 `localhost:3000` | 200 (Clerk 키 누락 시 401 페이지 가능) |
+| pytest | `cd backend && uv run pytest -q` | 모두 pass (현재 368) |
+| Migration round-trip | `cd backend && uv run alembic downgrade -1 && uv run alembic upgrade head` | 에러 없음 |
+
+---
+
+## 8. 자주 발생하는 문제
+
+### 8.1 `.env.local`이 로드 안 됨
+- 위치 확인: docker compose는 **root**, uvicorn은 **backend/**, Next.js는 **frontend/**
+- 심링크로 통일하려면: `ln -s ../.env.local backend/.env.local`
+
+### 8.2 DB 연결 거부
+- `docker compose ps` 로 healthy 확인
+- `DATABASE_URL` 호스트가 `localhost`인지 확인 (compose 내부면 `db`)
+
+### 8.3 Celery 워커가 task를 못 받음
+- Redis URL 환경변수 확인 (`CELERY_BROKER_URL=redis://localhost:6379/1`)
+- worker 로그에 `[tasks]` 등록 확인
+- pool=prefork 명시 확인 (gevent/eventlet 비호환 — Sprint 4 D3)
+
+### 8.4 ruff 통과 / CI 실패
+- 로컬 `.ruff_cache` stale 가능성 — `rm -rf backend/.ruff_cache` 후 재실행 (Sprint 4 D1)
+
+### 8.5 mypy `Pyright`와 결과 다름
+- IDE Pyright는 uv venv 미연결로 false positive 가능 — `uv run mypy` 결과만 신뢰 (Sprint 4 D1)
+
+---
+
+## 9. 다음 단계
+
+- 환경 변수 의미: [`env-vars.md`](./env-vars.md)
+- Clerk 셋업 상세: [`clerk-setup.md`](./clerk-setup.md)
+- Compose 운영: [`../06_devops/docker-compose-guide.md`](../06_devops/docker-compose-guide.md)
+- CI/CD: [`../06_devops/ci-cd.md`](../06_devops/ci-cd.md)
+- 개발 방법론: [`../guides/development-methodology.md`](../guides/development-methodology.md)
+- Sprint 진행 상태: [`../TODO.md`](../TODO.md)
+
+---
+
+## 변경 이력
+
+- **2026-04-16** — 초안 작성 (Sprint 5 Stage A)

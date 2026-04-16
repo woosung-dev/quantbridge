@@ -101,6 +101,10 @@
 
 **PR:** https://github.com/woosung-dev/quantbridge/pull/3 (Draft)
 
+### Sprint 5 Stage B — Option A: Infra Hardening + market_data 도메인 (코드 작업)
+
+> Sprint 4 spec §10.5/§11.2 명시 path. Stage A (문서 채우기) 완료 후 진행.
+
 ### Sprint 5+ 이관 (Sprint 4 spec §10.5 참조)
 
 - [ ] **S3-05:** `_utcnow()` naive UTC workaround → `DateTime(timezone=True)` + `datetime.now(UTC)` 복원 + Alembic migration 재생성. 사유: asyncpg가 tz-aware datetime을 `TIMESTAMP WITHOUT TIME ZONE` 컬럼에 거부. TimescaleDB hypertable 도입 시점(Sprint 5+) 전 필수.
@@ -115,17 +119,19 @@
 - [ ] FE Strategy delete UX (archive 유도)
 - [ ] Task 14/15/19/21 Minor improvements (세부 항목 spec §10.5 참조)
 
-### 미완성 문서 (Stage 2 이후 채울 예정)
+### 미완성 문서 → ✅ 완료 (Sprint 5 Stage A, 2026-04-16)
 
-- [ ] docs/01_requirements/ — 상세 요구사항
-- [ ] docs/02_domain/ — 도메인 모델 상세
-- [ ] docs/05_env/ — 환경 설정 가이드
-- [ ] docs/06_devops/ — Docker, CI/CD 상세
-- [ ] docs/07_infra/ — 배포, 모니터링
+- [x] docs/01_requirements/ — requirements-overview.md + req-catalog.md
+- [x] docs/02_domain/ — domain-overview.md + entities.md + state-machines.md
+- [x] docs/04_architecture/ — system-architecture.md + data-flow.md (보강)
+- [x] docs/05_env/ — local-setup.md + env-vars.md + clerk-setup.md
+- [x] docs/06_devops/ — docker-compose-guide.md + ci-cd.md + pre-commit.md
+- [x] docs/07_infra/ — deployment-plan.md + observability-plan.md + runbook.md (draft)
 
 ## In Progress
 
-_(현재 진행 중 없음 — Sprint 2 머지 대기 상태)_
+- Sprint 5 Stage A: 미완성 docs 채우기 + CLAUDE.md 동기화 (2026-04-16)
+- Sprint 5 Stage B: Infra Hardening + market_data (예정 — Stage A 완료 후)
 
 ## Blocked
 
@@ -133,9 +139,9 @@ _(없음)_
 
 ## Questions
 
-- [ ] DB 호스팅: Self-hosted PostgreSQL vs Neon Serverless — TimescaleDB 요구사항 때문에 self-hosted가 유리하나 최종 결정 필요
-- [ ] 배포 전략: Vercel + Cloud Run vs Docker + K8s — MVP 단계 결정 필요
-- [ ] Socket.IO vs 순수 FastAPI WebSocket — 실시간 데이터 전송 방식 결정 필요
+- [ ] DB 호스팅: Self-hosted vs Neon vs Fly Postgres vs TimescaleDB Cloud — TimescaleDB 필수. 상세 비교는 [`07_infra/deployment-plan.md`](./07_infra/deployment-plan.md) §4
+- [ ] 배포 전략: Vercel+Cloud Run vs K8s vs Fly.io — 상세 비교는 [`07_infra/deployment-plan.md`](./07_infra/deployment-plan.md) §2
+- [ ] Socket.IO vs 순수 FastAPI WebSocket — 실시간 데이터 전송 방식 결정 필요 (Sprint 7+)
 
 ### Stage 2: 디자인 ✅ 완료 (Tier 1 Phase 1 MVP 커버)
 

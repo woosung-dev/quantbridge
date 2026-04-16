@@ -2,7 +2,13 @@
 
 > **아키텍처:** 3-Layer (Router/Service/Repository) — `.ai/rules/backend.md` 참조
 > **인증:** Clerk JWT 검증 (자체 토큰 발급 없음)
-> **비동기 작업:** Celery (백테스트, 최적화, 스트레스테스트) → 202 Accepted + task_id
+> **비동기 작업:** Celery (백테스트, 최적화, 스트레스테스트) → 202 Accepted + backtest_id
+> **SSOT:** 각 도메인 `backend/src/<domain>/router.py`. 본 문서와 코드 충돌 시 코드 우선.
+> **갱신:** Sprint 4 완료 시점 (2026-04-16)
+
+### 구현 상태 범례
+- ✅ — 구현 + `main.py` 등록됨
+- ⏳ — 라우터 스캐폴딩만 존재 (`main.py` 미등록)
 
 ---
 
@@ -26,13 +32,24 @@
 
 | Method | Path | 설명 | Auth | 도메인 | 상태 |
 |--------|------|------|------|--------|------|
-| `GET` | `/api/v1/strategies` | 내 전략 목록 (페이지네이션) | Required | strategy | ✅ Sprint 3 |
+| `GET` | `/api/v1/strategies` | 내 전략 목록 | Required | strategy | ✅ Sprint 3 |
 | `POST` | `/api/v1/strategies` | 새 전략 생성 (Pine Script 업로드) | Required | strategy | ✅ Sprint 3 |
 | `GET` | `/api/v1/strategies/:id` | 전략 상세 조회 | Required | strategy | ✅ Sprint 3 |
 | `PUT` | `/api/v1/strategies/:id` | 전략 수정 | Required | strategy | ✅ Sprint 3 |
-| `DELETE` | `/api/v1/strategies/:id` | 전략 삭제 | Required | strategy | ✅ Sprint 3 |
+| `DELETE` | `/api/v1/strategies/:id` | 전략 삭제 (FK backtest 참조 시 409) | Required | strategy | ✅ Sprint 3/4 |
 | `POST` | `/api/v1/strategies/parse` | Pine Script 파싱만 수행 (미리보기) | Required | strategy | ✅ Sprint 3 |
-| `POST` | `/api/v1/strategies/import-url` | TradingView URL로 가져오기 | Required | strategy | Sprint 4+ |
+| `POST` | `/api/v1/strategies/import-url` | TradingView URL로 가져오기 | Required | strategy | ⏳ Sprint 5+ |
+
+**목록 쿼리 파라미터 (`GET /strategies`):**
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|----------|------|--------|------|
+| `page` | int (≥1) | 1 | 페이지 번호 |
+| `limit` | int (1~100) | 20 | 페이지당 항목 수 |
+| `parse_status` | ParseStatus | null | 필터: `ok` / `unsupported` / `error` |
+| `is_archived` | bool | false | true 시 archive된 전략만 |
+
+> ⚠️ 페이지네이션 drift: Strategy는 `page/limit`, Backtest는 `limit/offset`. Sprint 5에서 `limit/offset`으로 통일 예정.
 
 ---
 
@@ -45,53 +62,55 @@
 | `POST` | `/api/v1/backtests` | 백테스트 실행 요청 | Required | **202 + backtest_id** |
 | `GET` | `/api/v1/backtests` | 내 백테스트 목록 (`?limit=20&offset=0`) | Required | - |
 | `GET` | `/api/v1/backtests/:id` | 백테스트 결과 조회 | Required | - |
-| `GET` | `/api/v1/backtests/:id/trades` | 개별 거래 내역 (`?limit=100&offset=0`) | Required | - |
+| `GET` | `/api/v1/backtests/:id/trades` | 개별 거래 내역 (`?limit=100&offset=0`, max 500) | Required | - |
 | `GET` | `/api/v1/backtests/:id/progress` | 진행률 + `stale` flag (polling용) | Required | - |
 | `POST` | `/api/v1/backtests/:id/cancel` | 실행 중 백테스트 취소 (best-effort) | Required | **202 + `cancelling`** |
 | `DELETE` | `/api/v1/backtests/:id` | 백테스트 결과 삭제 (terminal only) | Required | **204** |
 
 ---
 
-## 스트레스 테스트 (Stress Tests)
+## 스트레스 테스트 (Stress Tests) — ⏳ Sprint 6+
 
-> 모두 Celery 비동기. `202 Accepted` + `stress_test_id` 반환.
-
-| Method | Path | 설명 | Auth | 비동기 |
-|--------|------|------|------|--------|
-| `POST` | `/api/v1/stress-tests/monte-carlo` | Monte Carlo 시뮬레이션 | Required | **202** |
-| `POST` | `/api/v1/stress-tests/walk-forward` | Walk-Forward 분석 | Required | **202** |
-| `POST` | `/api/v1/stress-tests/parameter-stability` | 파라미터 안정성 분석 | Required | **202** |
-| `GET` | `/api/v1/stress-tests/:id` | 결과 조회 | Required | - |
-
----
-
-## 최적화 (Optimization)
-
-> Celery 비동기. `202 Accepted`.
+> 코드 prefix: `/stress-test` (단수). 모두 Celery 비동기.
 
 | Method | Path | 설명 | Auth | 비동기 |
 |--------|------|------|------|--------|
-| `POST` | `/api/v1/optimize/grid` | 그리드 서치 | Required | **202** |
-| `POST` | `/api/v1/optimize/bayesian` | 베이지안 최적화 (Optuna) | Required | **202** |
-| `GET` | `/api/v1/optimize/:id` | 결과 조회 | Required | - |
+| `POST` | `/api/v1/stress-test/monte-carlo` | Monte Carlo 시뮬레이션 | Required | **202** |
+| `POST` | `/api/v1/stress-test/walk-forward` | Walk-Forward 분석 | Required | **202** |
+| `POST` | `/api/v1/stress-test/parameter-stability` | 파라미터 안정성 분석 | Required | **202** |
+| `GET` | `/api/v1/stress-test/:id` | 결과 조회 | Required | - |
 
 ---
 
-## 거래소 계정 (Exchange Accounts)
+## 최적화 (Optimization) — ⏳ Sprint 6+
 
-> API Key는 AES-256 암호화 저장. 평문 반환 금지.
+> 코드 prefix: `/optimizer`. Celery 비동기.
+
+| Method | Path | 설명 | Auth | 비동기 |
+|--------|------|------|------|--------|
+| `POST` | `/api/v1/optimizer/grid` | 그리드 서치 | Required | **202** |
+| `POST` | `/api/v1/optimizer/bayesian` | 베이지안 최적화 (Optuna) | Required | **202** |
+| `GET` | `/api/v1/optimizer/:id` | 결과 조회 | Required | - |
+
+---
+
+## 거래소 계정 (Exchange Accounts) — ⏳ Sprint 7+
+
+> 코드 prefix: `/exchange`. API Key는 AES-256 암호화 저장. 평문 반환 금지.
 
 | Method | Path | 설명 | Auth |
 |--------|------|------|------|
-| `GET` | `/api/v1/exchanges/accounts` | 등록된 거래소 계정 목록 | Required |
-| `POST` | `/api/v1/exchanges/accounts` | API Key 등록 (암호화 저장) | Required |
-| `DELETE` | `/api/v1/exchanges/accounts/:id` | 계정 삭제 | Required |
-| `POST` | `/api/v1/exchanges/accounts/:id/test` | API Key 유효성 테스트 | Required |
-| `GET` | `/api/v1/exchanges/accounts/:id/balance` | 잔고 조회 (데모/라이브) | Required |
+| `GET` | `/api/v1/exchange/accounts` | 등록된 거래소 계정 목록 | Required |
+| `POST` | `/api/v1/exchange/accounts` | API Key 등록 (암호화 저장) | Required |
+| `DELETE` | `/api/v1/exchange/accounts/:id` | 계정 삭제 | Required |
+| `POST` | `/api/v1/exchange/accounts/:id/test` | API Key 유효성 테스트 | Required |
+| `GET` | `/api/v1/exchange/accounts/:id/balance` | 잔고 조회 (데모/라이브) | Required |
 
 ---
 
-## 트레이딩 (Trading Sessions)
+## 트레이딩 (Trading Sessions) — ⏳ Sprint 7+
+
+> 코드 prefix: `/trading`.
 
 | Method | Path | 설명 | Auth |
 |--------|------|------|------|
@@ -107,17 +126,20 @@
 
 ---
 
-## 시장 데이터 (Market Data)
+## 시장 데이터 (Market Data) — ⏳ Sprint 5+
+
+> 코드 prefix: `/market-data`.
 
 | Method | Path | 설명 | Auth |
 |--------|------|------|------|
-| `GET` | `/api/v1/market/symbols` | 지원 심볼 목록 (거래소별) | Required |
-| `GET` | `/api/v1/market/ohlcv` | OHLCV 데이터 조회 | Required |
-| `GET` | `/api/v1/market/funding-rates` | 펀딩비 데이터 조회 | Required |
+| `GET` | `/api/v1/market-data/symbols` | 지원 심볼 목록 (거래소별) | Required |
+| `GET` | `/api/v1/market-data/ohlcv` | OHLCV 데이터 조회 | Required |
+| `POST` | `/api/v1/market-data/sync` | OHLCV 동기화 트리거 (Celery, 202) | Required |
+| `GET` | `/api/v1/market-data/funding-rates` | 펀딩비 데이터 조회 | Required |
 
 ---
 
-## 전략 템플릿 (Templates)
+## 전략 템플릿 (Templates) — ⏳ Sprint 6+
 
 | Method | Path | 설명 | Auth |
 |--------|------|------|------|
