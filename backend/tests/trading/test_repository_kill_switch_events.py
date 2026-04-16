@@ -116,3 +116,29 @@ async def test_list_recent_returns_ordered(db_session, strategy):
     # 최신이 먼저
     for a, b in pairwise(recent):
         assert a.triggered_at >= b.triggered_at
+
+
+async def test_resolve_truncates_long_note(db_session, strategy):
+    """T9 review I2: resolution_note > 500 chars must be pre-truncated (matches T8 defensive pattern)."""
+    from src.trading.repository import KillSwitchEventRepository
+
+    repo = KillSwitchEventRepository(db_session)
+    event = KillSwitchEvent(
+        trigger_type=KillSwitchTriggerType.cumulative_loss,
+        strategy_id=strategy.id,
+        trigger_value=Decimal("15"), threshold=Decimal("10"),
+    )
+    saved = await repo.save(event)
+    await repo.commit()
+
+    # 600-char note → must be truncated to 500 at repository layer
+    long_note = "x" * 600
+    rowcount = await repo.resolve(saved.id, note=long_note)
+    await repo.commit()
+    assert rowcount == 1
+
+    fetched = await repo.get_by_id(saved.id)
+    assert fetched is not None
+    assert fetched.resolution_note is not None
+    assert len(fetched.resolution_note) == 500
+    assert fetched.resolution_note == "x" * 500

@@ -220,7 +220,10 @@ class KillSwitchEventRepository:
             update(KillSwitchEvent)
             .where(KillSwitchEvent.id == event_id)  # type: ignore[arg-type]
             .where(KillSwitchEvent.resolved_at.is_(None))  # type: ignore[union-attr]
-            .values(resolved_at=datetime.now(UTC), resolution_note=note)
+            .values(
+                resolved_at=datetime.now(UTC),
+                resolution_note=(note[:500] if note else None),
+            )
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
