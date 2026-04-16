@@ -1,5 +1,21 @@
 <!-- /autoplan restore point: /Users/woosung/.gstack/projects/quant-bridge/feat-sprint6-trading-demo-docs-autoplan-restore-20260416-203650.md -->
+<!-- /autoplan critical fixes applied 2026-04-16: CEO F3/F4, Eng E2/E4/E7/E9 → +1.85d estimated. -->
 # Sprint 6 Trading 데모 Implementation Plan
+
+> **🛠 autoplan critical fixes 반영 완료 (2026-04-16):**
+>
+> | # | Fix | 출처 | Task 영향 |
+> |---|-----|------|-----------|
+> | 1 | `EncryptionService`를 `MultiFernet` 기반으로 (Sprint 7 rotation 무중단 전환) | CEO F3 + Eng E4 | T3 config (`TRADING_ENCRYPTION_KEYS`), T4 재작성 |
+> | 2 | `Order.idempotency_payload_hash BYTEA` 컬럼 + same-key/different-body 감지 (422 `IdempotencyConflict`) | Eng E2 | T1 schema, T15 execute flow |
+> | 3 | `Order.filled_quantity Decimal` 컬럼 + CCXT partial fill 지원 | Eng E7 | T1 schema (MDD evaluator는 Sprint 7 참조) |
+> | 4 | `ensure_not_gated`를 `session.begin()` **안**, INSERT 직전으로 이동 (race 방지) | Eng E9 | T15 execute flow |
+> | 5 | `MddEvaluator` → `CumulativeLossEvaluator` rename (peak-based MDD 아님). enum value도 `cumulative_loss`로 정합. Real MDD는 Sprint 7 equity snapshot | CEO F4 | T13, enum, CHECK constraint |
+>
+> **추가 공수:** +1.85d → buffer 1.5d → -0.35d 초과. 대응: M1→M1a/M1b 분할 + T 병렬화 (CEO F6). 상세 findings은 본 문서 하단 "autoplan 리뷰 결과" 섹션 참조.
+
+---
+
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -35,7 +51,7 @@
 backend/src/trading/models.py             # ExchangeAccount, Order, KillSwitchEvent, WebhookSecret (1-line stub → 실체)
 backend/src/trading/encryption.py         # EncryptionService (Fernet wrapper)
 backend/src/trading/providers.py          # ExchangeProvider Protocol + BybitDemoProvider + FixtureExchangeProvider + DTOs
-backend/src/trading/kill_switch.py        # KillSwitchEvaluator Protocol + MddEvaluator + DailyLossEvaluator + KillSwitchService
+backend/src/trading/kill_switch.py        # KillSwitchEvaluator Protocol + CumulativeLossEvaluator + DailyLossEvaluator + KillSwitchService
 backend/src/trading/webhook.py            # HMAC verify + TV payload validator
 backend/src/trading/service.py            # ExchangeAccountService, OrderService, WebhookSecretService (stub → 실체)
 backend/src/trading/repository.py         # 4 Repository (stub → 실체)
@@ -181,12 +197,12 @@ def test_kill_switch_event_model_fields():
     from src.trading.models import KillSwitchEvent, KillSwitchTriggerType
 
     event = KillSwitchEvent(
-        trigger_type=KillSwitchTriggerType.mdd,
+        trigger_type=KillSwitchTriggerType.cumulative_loss,
         strategy_id=uuid4(),
         trigger_value=Decimal("15.0"),
         threshold=Decimal("10.0"),
     )
-    assert event.trigger_type == KillSwitchTriggerType.mdd
+    assert event.trigger_type == KillSwitchTriggerType.cumulative_loss
     assert event.resolved_at is None
     assert event.triggered_at.tzinfo is not None
 
@@ -264,7 +280,8 @@ class OrderState(StrEnum):
 
 
 class KillSwitchTriggerType(StrEnum):
-    mdd = "mdd"
+    # autoplan CEO F4: "cumulative_loss"는 peak-based drawdown이 아니므로 semantic-correct naming 사용
+    cumulative_loss = "cumulative_loss"
     daily_loss = "daily_loss"
     api_error = "api_error"
 
@@ -348,8 +365,16 @@ class Order(SQLModel, table=True):
     filled_price: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 8), nullable=True)
     )
+    # autoplan Eng E7: CCXT partial fill (filled < quantity) 지원. MDD evaluator가 참조.
+    filled_quantity: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
     realized_pnl: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
+    # autoplan Eng E2: same-key + different-body 충돌 감지용 payload hash (SHA-256 bytes).
+    idempotency_payload_hash: bytes | None = Field(
+        default=None, sa_column=Column(LargeBinary, nullable=True)
     )
     error_message: str | None = Field(default=None, max_length=2000, nullable=True)
     submitted_at: datetime | None = Field(
@@ -377,7 +402,7 @@ class KillSwitchEvent(SQLModel, table=True):
     __tablename__ = "kill_switch_events"
     __table_args__ = (
         CheckConstraint(
-            "(trigger_type = 'mdd' AND strategy_id IS NOT NULL AND exchange_account_id IS NULL) "
+            "(trigger_type = 'cumulative_loss' AND strategy_id IS NOT NULL AND exchange_account_id IS NULL) "
             "OR (trigger_type IN ('daily_loss','api_error') "
             "    AND exchange_account_id IS NOT NULL AND strategy_id IS NULL)",
             name="ck_kill_switch_events_trigger_scope",
@@ -574,17 +599,45 @@ git commit -m "feat(trading): T2 — Alembic migration (trading schema + 4 table
 
 ```python
 def test_settings_has_trading_fields(monkeypatch):
-    monkeypatch.setenv("TRADING_ENCRYPTION_KEY", "K" * 44 + "=")  # Fernet 44-char base64
+    from cryptography.fernet import Fernet
+    test_key = Fernet.generate_key().decode()
+    monkeypatch.setenv("TRADING_ENCRYPTION_KEYS", test_key)
     monkeypatch.setenv("EXCHANGE_PROVIDER", "fixture")
-    monkeypatch.setenv("KILL_SWITCH_MDD_PERCENT", "10.0")
+    monkeypatch.setenv("KILL_SWITCH_CUMULATIVE_LOSS_PERCENT", "10.0")
     monkeypatch.setenv("KILL_SWITCH_DAILY_LOSS_USD", "500.0")
+    monkeypatch.setenv("KILL_SWITCH_CAPITAL_BASE_USD", "10000")
 
     from src.core.config import Settings
     s = Settings()
-    assert s.trading_encryption_key.get_secret_value().endswith("=")
+    assert test_key in s.trading_encryption_keys.get_secret_value()
     assert s.exchange_provider == "fixture"
-    assert s.kill_switch_mdd_percent == Decimal("10.0")
+    assert s.kill_switch_cumulative_loss_percent == Decimal("10.0")
     assert s.kill_switch_daily_loss_usd == Decimal("500.0")
+    assert s.kill_switch_capital_base_usd == Decimal("10000")
+
+
+def test_settings_multiple_encryption_keys(monkeypatch):
+    """autoplan Eng E4 — MultiFernet 기반 다중 키."""
+    from cryptography.fernet import Fernet
+    k1 = Fernet.generate_key().decode()
+    k2 = Fernet.generate_key().decode()
+    monkeypatch.setenv("TRADING_ENCRYPTION_KEYS", f"{k1},{k2}")
+    monkeypatch.setenv("EXCHANGE_PROVIDER", "fixture")
+
+    from src.core.config import Settings
+    s = Settings()
+    keys = s.trading_encryption_keys.get_secret_value()
+    assert k1 in keys and k2 in keys
+
+
+def test_settings_invalid_encryption_key_raises(monkeypatch):
+    monkeypatch.setenv("TRADING_ENCRYPTION_KEYS", "not-a-valid-fernet-key")
+    monkeypatch.setenv("EXCHANGE_PROVIDER", "fixture")
+
+    from src.core.config import Settings
+    import pytest
+    with pytest.raises(ValueError, match="Invalid Fernet key"):
+        Settings()
 ```
 
 - [ ] **Step 2: 테스트 실행 — FAIL 확인**
@@ -618,14 +671,19 @@ cd backend && uv sync
 
 ```dotenv
 # --- Sprint 6 Trading ---
-# Fernet 마스터 키 (44자 base64). 생성: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-TRADING_ENCRYPTION_KEY=
+# Fernet 마스터 키들 (comma-separated, 최신순). MultiFernet 기반.
+# 생성: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# rotation 시 새 키를 맨 앞에 추가, 구키는 grace 기간 후 제거.
+# autoplan CEO F3 + Eng E4 반영.
+TRADING_ENCRYPTION_KEYS=
 # Exchange provider: fixture (테스트) | bybit_demo (운영)
 EXCHANGE_PROVIDER=fixture
 # Kill Switch thresholds (Decimal)
-KILL_SWITCH_MDD_PERCENT=10.0
+KILL_SWITCH_CUMULATIVE_LOSS_PERCENT=10.0
 KILL_SWITCH_DAILY_LOSS_USD=500.0
 KILL_SWITCH_API_ERROR_STREAK=5
+# capital base for cumulative loss calc — Sprint 6은 config, Sprint 7은 ExchangeAccount.fetch_balance()
+KILL_SWITCH_CAPITAL_BASE_USD=10000
 # Webhook secret rotation grace period (초)
 WEBHOOK_SECRET_GRACE_SECONDS=3600
 ```
@@ -637,16 +695,35 @@ WEBHOOK_SECRET_GRACE_SECONDS=3600
 ```python
 from decimal import Decimal
 from typing import Literal
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 
 class Settings(BaseSettings):
     # ... 기존 ...
-    trading_encryption_key: SecretStr = Field(...)
+    # autoplan CEO F3 + Eng E4: MultiFernet 기반 다중 키 지원 (comma-separated, newest first)
+    trading_encryption_keys: SecretStr = Field(...)
     exchange_provider: Literal["fixture", "bybit_demo"] = Field(default="fixture")
-    kill_switch_mdd_percent: Decimal = Field(default=Decimal("10.0"))
+    # autoplan CEO F4: CumulativeLossEvaluator → CumulativeLossEvaluator rename 반영
+    kill_switch_cumulative_loss_percent: Decimal = Field(default=Decimal("10.0"))
     kill_switch_daily_loss_usd: Decimal = Field(default=Decimal("500.0"))
     kill_switch_api_error_streak: int = Field(default=5)
+    kill_switch_capital_base_usd: Decimal = Field(default=Decimal("10000"))
     webhook_secret_grace_seconds: int = Field(default=3600)
+
+    @field_validator("trading_encryption_keys")
+    @classmethod
+    def _validate_keys(cls, v: SecretStr) -> SecretStr:
+        """comma-separated Fernet keys — 1개 이상, 각각 44-char URL-safe base64."""
+        from cryptography.fernet import Fernet
+        raw = v.get_secret_value()
+        keys = [k.strip() for k in raw.split(",") if k.strip()]
+        if not keys:
+            raise ValueError("TRADING_ENCRYPTION_KEYS must contain at least 1 Fernet key")
+        for k in keys:
+            try:
+                Fernet(k.encode())
+            except ValueError as e:
+                raise ValueError(f"Invalid Fernet key: {e}") from e
+        return v
 ```
 
 - [ ] **Step 6: 테스트 실행 — PASS 확인**
@@ -666,7 +743,9 @@ git commit -m "feat(trading): T3 — cryptography dep + trading config fields"
 
 ---
 
-## Task 4: `EncryptionService` — Fernet wrapper (TDD)
+## Task 4: `EncryptionService` — **MultiFernet** wrapper (TDD, autoplan CEO F3 + Eng E4 반영)
+
+> **Why MultiFernet from T4:** Single-key foundation은 Sprint 7 key rotation 시 "storage format 변경 + 전체 re-encrypt + 장애 리스크" 발생. `MultiFernet`은 encryption은 첫 키(newest), decryption은 list 순차 시도 — 단일 키라도 list 추상화로 시작하면 Sprint 7 rotation이 "새 키 prepend"만으로 끝남. autoplan Eng E4 권고.
 
 **Files:**
 - Create: `backend/src/trading/encryption.py`
@@ -678,7 +757,7 @@ git commit -m "feat(trading): T3 — cryptography dep + trading config fields"
 `backend/tests/trading/test_encryption.py`:
 
 ```python
-"""EncryptionService — Fernet round-trip + 실패 케이스."""
+"""EncryptionService — MultiFernet round-trip + 키 로테이션 케이스."""
 from __future__ import annotations
 
 import pytest
@@ -687,25 +766,33 @@ from pydantic import SecretStr
 
 
 @pytest.fixture
-def key() -> SecretStr:
+def single_key() -> SecretStr:
     return SecretStr(Fernet.generate_key().decode())
 
 
-def test_encrypt_then_decrypt_returns_original(key):
+@pytest.fixture
+def two_keys() -> SecretStr:
+    """newest first convention."""
+    k1 = Fernet.generate_key().decode()
+    k2 = Fernet.generate_key().decode()
+    return SecretStr(f"{k1},{k2}")
+
+
+def test_encrypt_then_decrypt_returns_original(single_key):
     from src.trading.encryption import EncryptionService
 
-    svc = EncryptionService(key)
+    svc = EncryptionService(single_key)
     ciphertext = svc.encrypt("my-api-secret-xyz")
     assert isinstance(ciphertext, bytes)
-    assert ciphertext != b"my-api-secret-xyz"  # 실제로 암호화되는지
+    assert ciphertext != b"my-api-secret-xyz"
     assert svc.decrypt(ciphertext) == "my-api-secret-xyz"
 
 
-def test_decrypt_with_wrong_key_raises_encryption_error(key):
+def test_decrypt_with_wrong_key_raises_encryption_error(single_key):
     from src.trading.encryption import EncryptionService
     from src.trading.exceptions import EncryptionError
 
-    svc_a = EncryptionService(key)
+    svc_a = EncryptionService(single_key)
     ciphertext = svc_a.encrypt("secret")
 
     other_key = SecretStr(Fernet.generate_key().decode())
@@ -714,22 +801,67 @@ def test_decrypt_with_wrong_key_raises_encryption_error(key):
         svc_b.decrypt(ciphertext)
 
 
-def test_decrypt_with_invalid_ciphertext_raises(key):
+def test_decrypt_with_invalid_ciphertext_raises(single_key):
     from src.trading.encryption import EncryptionService
     from src.trading.exceptions import EncryptionError
 
-    svc = EncryptionService(key)
+    svc = EncryptionService(single_key)
     with pytest.raises(EncryptionError):
         svc.decrypt(b"not-a-valid-fernet-ciphertext")
 
 
-def test_unicode_secret_round_trip(key):
-    """비ASCII 문자 포함 secret도 정상 복호화 (UTF-8 명시 인코딩 검증)."""
+def test_unicode_secret_round_trip(single_key):
     from src.trading.encryption import EncryptionService
 
-    svc = EncryptionService(key)
+    svc = EncryptionService(single_key)
     original = "한국어-secret-🔑"
     assert svc.decrypt(svc.encrypt(original)) == original
+
+
+def test_multifernet_encrypts_with_first_key_decrypts_any(two_keys):
+    """autoplan Eng E4 — 다중 키 list에서 encryption은 첫 키(newest), decryption은 순차 시도."""
+    from src.trading.encryption import EncryptionService
+
+    svc = EncryptionService(two_keys)
+    ciphertext = svc.encrypt("rotation-test")
+    # cryptography.MultiFernet은 첫 키로 암호화 → fallback 복호화 지원
+    assert svc.decrypt(ciphertext) == "rotation-test"
+
+
+def test_key_rotation_old_ciphertext_decrypts_after_prepending_new_key():
+    """CEO F3 + Eng E4 핵심 — 새 키 prepend만으로 구 ciphertext 유지."""
+    from cryptography.fernet import Fernet
+    from src.trading.encryption import EncryptionService
+
+    # Phase 1: 단일 키로 시작
+    old_key = Fernet.generate_key().decode()
+    svc_before = EncryptionService(SecretStr(old_key))
+    old_ciphertext = svc_before.encrypt("long-lived-secret")
+
+    # Phase 2: 새 키 prepend (rotation 시점)
+    new_key = Fernet.generate_key().decode()
+    svc_after = EncryptionService(SecretStr(f"{new_key},{old_key}"))
+
+    # 구 ciphertext 여전히 복호화 가능
+    assert svc_after.decrypt(old_ciphertext) == "long-lived-secret"
+
+    # 새 암호화는 new_key 사용
+    new_ciphertext = svc_after.encrypt("new-secret")
+    assert svc_after.decrypt(new_ciphertext) == "new-secret"
+
+    # old_key 제거 후엔 old_ciphertext 복호화 불가 (grace 종료 시나리오)
+    svc_final = EncryptionService(SecretStr(new_key))
+    from src.trading.exceptions import EncryptionError
+    with pytest.raises(EncryptionError):
+        svc_final.decrypt(old_ciphertext)
+
+
+def test_empty_keys_string_raises():
+    from src.trading.encryption import EncryptionService
+    from src.trading.exceptions import EncryptionError
+
+    with pytest.raises(EncryptionError):
+        EncryptionService(SecretStr(""))
 ```
 
 - [ ] **Step 2: 테스트 실행 — FAIL 확인**
@@ -803,41 +935,48 @@ class ProviderError(AppException):
 - [ ] **Step 4: `src/trading/encryption.py` 구현**
 
 ```python
-"""EncryptionService — AES-256 Fernet wrapper.
+"""EncryptionService — AES-256 MultiFernet wrapper (autoplan CEO F3 + Eng E4).
 
-Sprint 6: single master key (env var TRADING_ENCRYPTION_KEY).
-Sprint 7+: multi-key rotation 지원 예정 (Fernet native).
+Sprint 6: 단일 키로 시작하되 MultiFernet 리스트 추상화로 구조화 — Sprint 7+
+key rotation 시 "새 키 prepend"만으로 무중단 전환 가능.
+
+MultiFernet 동작:
+- encrypt: 리스트의 첫 키 (newest) 사용
+- decrypt: 리스트 순회하며 첫 성공 결과 반환
 
 복호화는 Service 레이어의 명시적 메서드에서만 호출 — Repository는 암호문만 다룬다.
 """
 from __future__ import annotations
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 from pydantic import SecretStr
 
 from src.trading.exceptions import EncryptionError
 
 
 class EncryptionService:
-    """Fernet 단일 키 래퍼. DI로 주입되어 ExchangeAccountService가 사용."""
+    """MultiFernet 래퍼. DI로 주입되어 ExchangeAccountService가 사용."""
 
-    def __init__(self, master_key: SecretStr) -> None:
-        key_str = master_key.get_secret_value()
+    def __init__(self, master_keys: SecretStr) -> None:
+        """master_keys: comma-separated Fernet keys, newest first."""
+        raw = master_keys.get_secret_value()
+        key_strs = [k.strip() for k in raw.split(",") if k.strip()]
+        if not key_strs:
+            raise EncryptionError("TRADING_ENCRYPTION_KEYS must contain at least 1 Fernet key")
         try:
-            self._fernet = Fernet(key_str.encode("utf-8"))
+            fernets = [Fernet(k.encode("utf-8")) for k in key_strs]
         except ValueError as e:
-            raise EncryptionError(
-                "Invalid TRADING_ENCRYPTION_KEY — must be 44-char URL-safe base64"
-            ) from e
+            raise EncryptionError(f"Invalid Fernet key: {e}") from e
+        self._multi = MultiFernet(fernets)
 
     def encrypt(self, plaintext: str) -> bytes:
-        return self._fernet.encrypt(plaintext.encode("utf-8"))
+        return self._multi.encrypt(plaintext.encode("utf-8"))
 
     def decrypt(self, ciphertext: bytes) -> str:
         try:
-            return self._fernet.decrypt(ciphertext).decode("utf-8")
+            return self._multi.decrypt(ciphertext).decode("utf-8")
         except InvalidToken as e:
-            raise EncryptionError("AES-256 복호화 실패 — ciphertext 손상 또는 키 불일치") from e
+            raise EncryptionError("AES-256 복호화 실패 — ciphertext 손상 또는 모든 키 불일치") from e
 ```
 
 - [ ] **Step 5: 테스트 실행 — PASS 확인**
@@ -1836,7 +1975,7 @@ async def test_get_active_matches_mdd_by_strategy(db_session, strategy):
 
     repo = KillSwitchEventRepository(db_session)
     event = KillSwitchEvent(
-        trigger_type=KillSwitchTriggerType.mdd,
+        trigger_type=KillSwitchTriggerType.cumulative_loss,
         strategy_id=strategy.id,
         trigger_value=Decimal("15.0"),
         threshold=Decimal("10.0"),
@@ -1847,7 +1986,7 @@ async def test_get_active_matches_mdd_by_strategy(db_session, strategy):
     # 동일 strategy 매칭 → hit
     active = await repo.get_active(strategy_id=strategy.id, account_id=uuid4())
     assert active is not None
-    assert active.trigger_type == KillSwitchTriggerType.mdd
+    assert active.trigger_type == KillSwitchTriggerType.cumulative_loss
 
 
 async def test_get_active_matches_daily_loss_by_account(db_session, user):
@@ -1881,7 +2020,7 @@ async def test_get_active_skips_resolved(db_session, strategy):
 
     repo = KillSwitchEventRepository(db_session)
     event = KillSwitchEvent(
-        trigger_type=KillSwitchTriggerType.mdd,
+        trigger_type=KillSwitchTriggerType.cumulative_loss,
         strategy_id=strategy.id,
         trigger_value=Decimal("15"), threshold=Decimal("10"),
         resolved_at=datetime.now(UTC),
@@ -1898,7 +2037,7 @@ async def test_resolve_event_sets_resolved_at(db_session, strategy):
 
     repo = KillSwitchEventRepository(db_session)
     event = KillSwitchEvent(
-        trigger_type=KillSwitchTriggerType.mdd,
+        trigger_type=KillSwitchTriggerType.cumulative_loss,
         strategy_id=strategy.id,
         trigger_value=Decimal("15"), threshold=Decimal("10"),
     )
@@ -1920,7 +2059,7 @@ async def test_list_recent_returns_ordered(db_session, strategy):
     repo = KillSwitchEventRepository(db_session)
     for i, threshold in enumerate([Decimal("10"), Decimal("20"), Decimal("30")]):
         await repo.create(KillSwitchEvent(
-            trigger_type=KillSwitchTriggerType.mdd,
+            trigger_type=KillSwitchTriggerType.cumulative_loss,
             strategy_id=strategy.id,
             trigger_value=threshold + 1, threshold=threshold,
         ))
@@ -1974,7 +2113,7 @@ class KillSwitchEventRepository:
             KillSwitchEvent.resolved_at.is_(None),  # type: ignore[attr-defined]
             or_(
                 and_(
-                    KillSwitchEvent.trigger_type == KillSwitchTriggerType.mdd,  # type: ignore[arg-type]
+                    KillSwitchEvent.trigger_type == KillSwitchTriggerType.cumulative_loss,  # type: ignore[arg-type]
                     KillSwitchEvent.strategy_id == strategy_id,  # type: ignore[arg-type]
                 ),
                 and_(
@@ -2416,7 +2555,7 @@ class KillSwitchEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    trigger_type: Literal["mdd", "daily_loss", "api_error"]
+    trigger_type: Literal["cumulative_loss", "daily_loss", "api_error"]
     strategy_id: UUID | None
     exchange_account_id: UUID | None
     trigger_value: Decimal
@@ -2762,7 +2901,9 @@ git commit -m "feat(trading): T12 — OrderService core (idempotency + advisory 
 
 # Milestone 3 — Kill Switch + Celery Integration (D5, D7, D8)
 
-## Task 13: `MddEvaluator` + `DailyLossEvaluator` (Protocol + 2 구현체)
+## Task 13: `CumulativeLossEvaluator` + `DailyLossEvaluator` (Protocol + 2 구현체, autoplan CEO F4 반영)
+
+> **Rename rationale (autoplan CEO F4):** 기존 `CumulativeLossEvaluator`는 "peak equity 대비 drawdown"인 실제 MDD가 아니라 "누적 realized PnL 손실 / capital_base %"였음. 네이밍·시맨틱 정합 위해 `CumulativeLossEvaluator`로 rename. 진짜 peak-based MDD는 equity snapshot 테이블이 필요하므로 Sprint 7+에 `MaxDrawdownEvaluator` 별도 구현. Sprint 6 capital_base는 config (`KILL_SWITCH_CAPITAL_BASE_USD`), Sprint 7에서 `ExchangeAccount.fetch_balance()` 동적 바인딩.
 
 **Files:**
 - Create: `backend/src/trading/kill_switch.py`
@@ -2818,31 +2959,31 @@ async def _make_filled_order(
 
 
 async def test_mdd_evaluator_not_gated_when_below_threshold(db_session, strat_account):
-    from src.trading.kill_switch import EvaluationContext, MddEvaluator
+    from src.trading.kill_switch import EvaluationContext, CumulativeLossEvaluator
     from src.trading.repository import OrderRepository
 
     strategy, account = strat_account
     await _make_filled_order(db_session, strategy, account, pnl=Decimal("-50"), filled_at=datetime.now(UTC))
 
-    ev = MddEvaluator(OrderRepository(db_session), threshold_percent=Decimal("10"), capital_base=Decimal("10000"))
+    ev = CumulativeLossEvaluator(OrderRepository(db_session), threshold_percent=Decimal("10"), capital_base=Decimal("10000"))
     result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is False
 
 
 async def test_mdd_evaluator_gated_when_cumulative_loss_exceeds(db_session, strat_account):
-    from src.trading.kill_switch import EvaluationContext, MddEvaluator
+    from src.trading.kill_switch import EvaluationContext, CumulativeLossEvaluator
     from src.trading.repository import OrderRepository
 
     strategy, account = strat_account
     # 누적 손실 -$1,500 / capital $10,000 = 15% > threshold 10%
     await _make_filled_order(db_session, strategy, account, pnl=Decimal("-1500"), filled_at=datetime.now(UTC))
 
-    ev = MddEvaluator(OrderRepository(db_session), threshold_percent=Decimal("10"), capital_base=Decimal("10000"))
+    ev = CumulativeLossEvaluator(OrderRepository(db_session), threshold_percent=Decimal("10"), capital_base=Decimal("10000"))
     result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is True
-    assert result.trigger_type == "mdd"
+    assert result.trigger_type == "cumulative_loss"
     assert result.trigger_value == Decimal("15.00")
     assert result.threshold == Decimal("10")
 
@@ -2929,7 +3070,7 @@ class EvaluationContext:
 @dataclass(frozen=True, slots=True)
 class EvaluationResult:
     gated: bool
-    trigger_type: Literal["mdd", "daily_loss", "api_error"] | None = None
+    trigger_type: Literal["cumulative_loss", "daily_loss", "api_error"] | None = None
     trigger_value: Decimal | None = None
     threshold: Decimal | None = None
 
@@ -2938,7 +3079,7 @@ class KillSwitchEvaluator(Protocol):
     async def evaluate(self, ctx: EvaluationContext) -> EvaluationResult: ...
 
 
-class MddEvaluator:
+class CumulativeLossEvaluator:
     """MDD % = |누적 손실| / capital_base × 100. Strategy 단위.
 
     capital_base는 Sprint 6에선 설정값(단일). Sprint 7+에서 account equity로 확장.
@@ -2973,7 +3114,7 @@ class MddEvaluator:
         if loss_percent > self._threshold:
             return EvaluationResult(
                 gated=True,
-                trigger_type="mdd",
+                trigger_type="cumulative_loss",
                 trigger_value=loss_percent,
                 threshold=self._threshold,
             )
@@ -3055,7 +3196,7 @@ class KillSwitchService:
             # trigger_type별 strategy/account scope 매칭 (spec §2.2 + CHECK constraint)
             event = KillSwitchEvent(
                 trigger_type=KillSwitchTriggerType(result.trigger_type),
-                strategy_id=strategy_id if result.trigger_type == "mdd" else None,
+                strategy_id=strategy_id if result.trigger_type == "cumulative_loss" else None,
                 exchange_account_id=(
                     account_id if result.trigger_type in ("daily_loss", "api_error") else None
                 ),
@@ -3075,7 +3216,7 @@ class KillSwitchService:
 ```bash
 cd backend && uv run pytest tests/trading/test_kill_switch_evaluators.py -v
 git add backend/src/trading/kill_switch.py backend/tests/trading/test_kill_switch_evaluators.py
-git commit -m "feat(trading): T13 — MddEvaluator + DailyLossEvaluator (Protocol, 결정적 테스트)"
+git commit -m "feat(trading): T13 — CumulativeLossEvaluator + DailyLossEvaluator (Protocol, 결정적 테스트)"
 ```
 
 ---
@@ -3164,7 +3305,7 @@ async def test_existing_active_event_blocks_without_reevaluation(db_session, str
     db_session.add(acc)
 
     event = KillSwitchEvent(
-        trigger_type=KillSwitchTriggerType.mdd,
+        trigger_type=KillSwitchTriggerType.cumulative_loss,
         strategy_id=strategy.id,
         trigger_value=Decimal("12"), threshold=Decimal("10"),
     )
@@ -3204,7 +3345,11 @@ git commit -m "feat(trading): T14 — KillSwitchService 통합 테스트 (재진
 
 ---
 
-## Task 15: `OrderService.execute`에 KillSwitchService 통합 (D8)
+## Task 15: `OrderService.execute` KillSwitchService 통합 + autoplan E9 (in-tx gate) + E2 (payload hash) 반영 (D8)
+
+> **autoplan critical patches 적용:**
+> - **E9 (HIGH→CRITICAL):** `ensure_not_gated`를 `session.begin()` **안**, `acquire_idempotency_lock` **뒤**로 이동. gate check와 order insert가 같은 serializable view 안에서 수행되어야 race 방지.
+> - **E2 (CRITICAL):** `body_hash` 파라미터 추가. 동일 idempotency_key + 다른 body → `IdempotencyConflict` raise (422). same-key same-body → cached response. T12 baseline도 업데이트.
 
 **Files:**
 - Modify: `backend/src/trading/service.py` (OrderService.__init__ + execute)
@@ -3244,7 +3389,7 @@ async def test_execute_blocked_by_kill_switch(db_session, user, strategy):
     class _Violator:
         async def evaluate(self, ctx):
             return EvaluationResult(
-                gated=True, trigger_type="mdd",
+                gated=True, trigger_type="cumulative_loss",
                 trigger_value=Decimal("15"), threshold=Decimal("10"),
             )
 
@@ -3315,15 +3460,24 @@ class OrderService:
         self._kill_switch = kill_switch
 
     async def execute(
-        self, req: OrderRequest, *, idempotency_key: str | None
-    ) -> OrderResponse:
-        # 1. Kill Switch gate — evaluator 순회 + 위반 시 이벤트 기록 + raise
-        await self._kill_switch.ensure_not_gated(
-            strategy_id=req.strategy_id,
-            account_id=req.exchange_account_id,
-        )
+        self,
+        req: OrderRequest,
+        *,
+        idempotency_key: str | None,
+        body_hash: bytes | None = None,  # autoplan E2
+    ) -> tuple[OrderResponse, bool]:
+        """Returns (response, is_replayed). is_replayed=True → router 응답에 200 OK + X-Idempotency-Replayed: true.
 
-        # 2. 이하 T12에서 작성한 idempotency + advisory lock + create + dispatch 그대로
+        Flow (autoplan E9 + E2 반영):
+        1. session.begin() 진입
+        2. [idempotency 경로] advisory lock → 기존 주문 조회
+           - hit + hash 불일치 → IdempotencyConflict (422, original_order_id 포함)
+           - hit + hash 일치 → cached response (replay=True)
+           - miss → ensure_not_gated (in-tx gate) → INSERT
+        3. [비idempotency 경로] ensure_not_gated → INSERT
+        4. commit (lock 해제)
+        5. commit 후에만 Celery dispatch — visibility race 방지
+        """
         created_order_id: UUID | None = None
         cached_response: OrderResponse | None = None
 
@@ -3332,8 +3486,19 @@ class OrderService:
                 await self._repo.acquire_idempotency_lock(idempotency_key)
                 existing = await self._repo.get_by_idempotency_key(idempotency_key)
                 if existing:
+                    # E2: body_hash mismatch → IdempotencyConflict (422)
+                    if body_hash is not None and existing.idempotency_payload_hash != body_hash:
+                        raise IdempotencyConflict(
+                            f"Idempotency-Key 재사용됐지만 payload가 다름. "
+                            f"original_order_id={existing.id}"
+                        )
                     cached_response = OrderResponse.model_validate(existing)
                 else:
+                    # E9: Kill Switch gate를 tx 안, INSERT 직전에 — same serializable view
+                    await self._kill_switch.ensure_not_gated(
+                        strategy_id=req.strategy_id,
+                        account_id=req.exchange_account_id,
+                    )
                     order = await self._repo.create(Order(
                         strategy_id=req.strategy_id,
                         exchange_account_id=req.exchange_account_id,
@@ -3341,26 +3506,49 @@ class OrderService:
                         quantity=req.quantity, price=req.price,
                         state=OrderState.pending,
                         idempotency_key=idempotency_key,
+                        idempotency_payload_hash=body_hash,
                     ))
                     created_order_id = order.id
             else:
+                # 비idempotency: gate 안쪽에서 — 동일하게 in-tx
+                await self._kill_switch.ensure_not_gated(
+                    strategy_id=req.strategy_id,
+                    account_id=req.exchange_account_id,
+                )
                 order = await self._repo.create(Order(
                     strategy_id=req.strategy_id,
                     exchange_account_id=req.exchange_account_id,
                     symbol=req.symbol, side=req.side, type=req.type,
                     quantity=req.quantity, price=req.price,
                     state=OrderState.pending, idempotency_key=None,
+                    idempotency_payload_hash=None,
                 ))
                 created_order_id = order.id
 
         if cached_response is not None:
-            return cached_response
+            return cached_response, True  # replay
 
         assert created_order_id is not None
         await self._dispatcher.dispatch_order_execution(created_order_id)
         fetched = await self._repo.get_by_id(created_order_id)
         assert fetched is not None
-        return OrderResponse.model_validate(fetched)
+        return OrderResponse.model_validate(fetched), False  # first create
+```
+
+**T12 baseline 동시 업데이트:** T12의 OrderService.execute도 이 시그너처(`body_hash` 파라미터 + `(response, is_replayed)` 반환)로 맞추되, `kill_switch`는 `_NoopKillSwitch`로 주입 (T15에서 실체 주입으로 교체).
+
+**T19 router 업데이트 (HTTP 상태 매핑, autoplan DX4):**
+```python
+response, is_replayed = await order_svc.execute(req, idempotency_key=idem_key, body_hash=body_hash)
+if is_replayed:
+    return JSONResponse(
+        status_code=200,
+        content=response.model_dump(mode="json"),
+        headers={"Idempotency-Replayed": "true"},
+    )
+return JSONResponse(status_code=201, content=response.model_dump(mode="json"))
+
+# body_hash 계산: hashlib.sha256(body_bytes).digest()  # bytes, DB에 저장
 ```
 
 - [ ] **Step 4: T12의 test_service_orders_idempotency.py도 업데이트**
@@ -3942,7 +4130,7 @@ from src.common.database import get_async_session
 from src.core.config import settings
 from src.trading.encryption import EncryptionService
 from src.trading.kill_switch import (
-    DailyLossEvaluator, KillSwitchEvaluator, KillSwitchService, MddEvaluator,
+    DailyLossEvaluator, KillSwitchEvaluator, KillSwitchService, CumulativeLossEvaluator,
 )
 from src.trading.repository import (
     ExchangeAccountRepository, KillSwitchEventRepository, OrderRepository,
@@ -3986,9 +4174,9 @@ async def get_kill_switch_service(
 ) -> KillSwitchService:
     order_repo = OrderRepository(session)
     evaluators: list[KillSwitchEvaluator] = [
-        MddEvaluator(
+        CumulativeLossEvaluator(
             order_repo,
-            threshold_percent=settings.kill_switch_mdd_percent,
+            threshold_percent=settings.kill_switch_cumulative_loss_percent,
             capital_base=settings.kill_switch_capital_base_usd,  # 아래 config 필드 추가 필요
         ),
         DailyLossEvaluator(order_repo, threshold_usd=settings.kill_switch_daily_loss_usd),
@@ -4415,7 +4603,7 @@ async def test_list_kill_switch_events(client, auth_headers, db_session, user):
     db_session.add(strategy)
     await db_session.flush()
     event = KillSwitchEvent(
-        trigger_type=KillSwitchTriggerType.mdd, strategy_id=strategy.id,
+        trigger_type=KillSwitchTriggerType.cumulative_loss, strategy_id=strategy.id,
         trigger_value=Decimal("15"), threshold=Decimal("10"),
     )
     db_session.add(event)
@@ -4435,7 +4623,7 @@ async def test_resolve_kill_switch(client, auth_headers, db_session, user):
     db_session.add(strategy)
     await db_session.flush()
     event = KillSwitchEvent(
-        trigger_type=KillSwitchTriggerType.mdd, strategy_id=strategy.id,
+        trigger_type=KillSwitchTriggerType.cumulative_loss, strategy_id=strategy.id,
         trigger_value=Decimal("15"), threshold=Decimal("10"),
     )
     db_session.add(event)
@@ -5150,7 +5338,7 @@ EOF
 | F1 | HIGH | "놓침률 30→5%" vanity metric. N=5로 통계 검증 불가. moat 미측정 | Success Criteria에 "backtest signal vs live signal divergence=0" + "baseline N≥20 realized PnL delta" 추가 | T21 E2E +0.25d, D0 baseline 확대 |
 | F2 | HIGH | Premise 1 경쟁자 오지목 (TV/3Commas는 이미 webhook auto). moat = Pine 동일 경로 | divergence 회귀 테스트 추가 (F1과 겹침) | T21 확장 |
 | F3 | HIGH | Single Fernet key + env 평문. Sprint 7 re-encrypt 부채. Fernet은 MultiFernet 네이티브 | T4를 처음부터 `MultiFernet([active_key])` 기반 구현 | T4 +0.5d |
-| **F4** | **CRITICAL** | `MddEvaluator.capital_base=Decimal("10000")` 하드코드. 실제 MDD (peak equity drawdown)가 아닌 누적손실% — 네이밍·시맨틱 버그 | `CumulativeLossEvaluator`로 rename + capital_base를 `fetch_balance`로 바인딩 | T13 +0.25d |
+| **F4** | **CRITICAL** | `CumulativeLossEvaluator.capital_base=Decimal("10000")` 하드코드. 실제 MDD (peak equity drawdown)가 아닌 누적손실% — 네이밍·시맨틱 버그 | `CumulativeLossEvaluator`로 rename + capital_base를 `fetch_balance`로 바인딩 | T13 +0.25d |
 | F5 | MEDIUM | Approach C 기각 성급 (본인 commitment 되돌림). Telegram 원터치 = 운영 백업 채널 | T19 `POST /v1/notifications/telegram` fire-and-forget 추가 | +0.5d |
 | F6 | MEDIUM | 12.5d 10-20% 낙관적. T6 / T16 / T21 쉽게 슬립. real testnet smoke 부재 | T6 뒤 "real Bybit testnet BTC 0.001 buy/close" 수동 checklist + M1~M4를 M1a/M1b로 분할 | +0.25d |
 | F7 | LOW | Bybit-only 락인 (testnet 다운 시 blocked). 구조적 락인은 Provider Protocol로 해결됨 | T6에 Binance testnet 15분 smoke fallback 확보 (본격은 Sprint 7) | +0.1d |
