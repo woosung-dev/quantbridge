@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -29,18 +29,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 # repo root import path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.auth.models import User  # noqa: E402
-from src.backtest.dispatcher import CeleryTaskDispatcher  # noqa: E402
-from src.backtest.exceptions import TaskDispatchError  # noqa: E402
-from src.backtest.models import Backtest, BacktestStatus, _utcnow  # noqa: E402
-from src.backtest.repository import BacktestRepository  # noqa: E402
-from src.backtest.schemas import CreateBacktestRequest  # noqa: E402
-from src.backtest.service import BacktestService  # noqa: E402
-from src.core.config import settings  # noqa: E402
-from src.market_data.providers.fixture import FixtureProvider  # noqa: E402
-from src.strategy.models import ParseStatus, PineVersion, Strategy  # noqa: E402
-from src.strategy.repository import StrategyRepository  # noqa: E402
-
+from src.auth.models import User
+from src.backtest.dispatcher import CeleryTaskDispatcher
+from src.backtest.exceptions import TaskDispatchError
+from src.backtest.models import BacktestStatus
+from src.backtest.repository import BacktestRepository
+from src.backtest.schemas import CreateBacktestRequest
+from src.backtest.service import BacktestService
+from src.core.config import settings
+from src.market_data.providers.fixture import FixtureProvider
+from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.repository import StrategyRepository
 
 engine = create_async_engine(settings.database_url, echo=False)
 SM = async_sessionmaker(engine, expire_on_commit=False)
@@ -169,7 +168,7 @@ async def s2_broker_down() -> bool:
     # DB row 미생성 확인 (submit rollback)
     async with SM() as session:
         repo = BacktestRepository(session)
-        items, total = await repo.list_by_user(user.id, limit=10, offset=0)
+        _items, total = await repo.list_by_user(user.id, limit=10, offset=0)
         if total == 0:
             print(f"  ✅ DB row 미생성 (total={total})")
             return True
