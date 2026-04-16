@@ -21,6 +21,7 @@ from src.trading.models import (
     KillSwitchTriggerType,
     Order,
     OrderState,
+    WebhookSecret,
 )
 
 
@@ -236,3 +237,54 @@ class KillSwitchEventRepository:
             .limit(limit).offset(offset)
         )
         return result.scalars().all()
+
+
+class WebhookSecretRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def save(self, ws: WebhookSecret) -> WebhookSecret:
+        self.session.add(ws)
+        await self.session.flush()
+        return ws
+
+    async def list_valid_secrets(
+        self, strategy_id: UUID, *, grace_cutoff: datetime
+    ) -> Sequence[WebhookSecret]:
+        """revoked_at IS NULL OR revoked_at > grace_cutoff.
+
+        T11 Service layer는 반환된 암호문(bytes)을 EncryptionService.decrypt로 풀어 HMAC 비교.
+        """
+        result = await self.session.execute(
+            select(WebhookSecret)
+            .where(WebhookSecret.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(
+                or_(
+                    WebhookSecret.revoked_at.is_(None),  # type: ignore[union-attr]
+                    WebhookSecret.revoked_at > grace_cutoff,  # type: ignore[arg-type,operator]
+                )
+            )
+        )
+        return result.scalars().all()
+
+    async def mark_revoked(self, secret_id: UUID, *, at: datetime) -> int:
+        result = await self.session.execute(
+            update(WebhookSecret)
+            .where(WebhookSecret.id == secret_id)  # type: ignore[arg-type]
+            .where(WebhookSecret.revoked_at.is_(None))  # type: ignore[union-attr]
+            .values(revoked_at=at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def revoke_all_active(self, strategy_id: UUID, *, at: datetime) -> int:
+        """rotate 시점에 해당 strategy의 모든 active secret을 일괄 revoke."""
+        result = await self.session.execute(
+            update(WebhookSecret)
+            .where(WebhookSecret.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(WebhookSecret.revoked_at.is_(None))  # type: ignore[union-attr]
+            .values(revoked_at=at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
