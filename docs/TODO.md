@@ -180,6 +180,43 @@
 - [ ] Sprint 4 spec §10.5 Minor: BacktestRepository session.refresh, exists_for_strategy EXISTS, fixture 통합
 - [ ] conftest 완전 Alembic 전환 (현재는 metadata.create_all + 회귀 diff로 부분 보강)
 
+### Sprint 6 — Trading 데모 MVP 설계/리뷰 ✅ 완료 (2026-04-16, PR #8)
+
+**6-Step 방법론 중 5단계 완료 — SDD만 남음.**
+
+- [x] Step 1 /office-hours → `docs/01_requirements/trading-demo.md` (design doc APPROVED, spec review 2 iterations)
+- [x] Step 2 /brainstorming → `docs/superpowers/specs/2026-04-16-trading-demo-design.md` (5 기술 결정 Q1~Q5)
+- [x] Step 3 /writing-plans → `docs/superpowers/plans/2026-04-16-trading-demo.md` (T1~T23, 5381 라인)
+- [x] Step 4 /autoplan → 41 findings / 5 critical fixes plan 반영 (ADR-006)
+- [x] Step 5 /cso → 6 security findings / CSO-1 plan 반영 (`docs/audit/2026-04-16-trading-demo-security.md`)
+- [ ] Step 6 SDD (Subagent-Driven Development) — 새 세션 + worktree 생성 후 진행
+
+**진입 명령 (새 세션):**
+```bash
+cd /Users/woosung/project/agy-project/quant-bridge
+git worktree add ../quant-bridge-impl -b feat/sprint6-trading-impl feat/sprint6-trading-demo-docs
+cd ../quant-bridge-impl
+claude
+# 첫 메시지: "Sprint 6 Trading 데모 SDD 시작. Plan: docs/superpowers/plans/2026-04-16-trading-demo.md.
+#           /subagent-driven-development으로 T1부터 실행."
+```
+
+**SDD 전 처리 체크리스트 (plan 헤더 명시):**
+- [ ] CSO-1: T10/T11/T17 구현 시 EncryptionService 배선 (webhook secret 복호화)
+- [ ] CSO-2: `backend/Dockerfile`에 `USER appuser` 추가
+- [ ] CSO-3: `.github/workflows/ci.yml` 3 third-party actions SHA pin
+- [ ] CSO-4: `docker-compose.yml` `ENCRYPTION_KEY` → `TRADING_ENCRYPTION_KEYS` rename
+- [ ] CSO-6: T19 webhook router `MAX_WEBHOOK_BODY = 64 * 1024` Content-Length cap
+- [ ] (Sprint 7 이연 OK) CSO-5: Frontend dev CVEs
+
+**타임라인 영향:** Critical path 12.5d → **15.05d** (autoplan +1.85d + /cso +0.7d). Buffer 초과 -1.05d. 대응: M1→M1a/M1b 분할 + task 병렬화.
+
+**Known 함정:**
+- Codex 401 Unauthorized (quota 복귀 ~2026-04-18). autoplan 4 phase 전부 `[subagent-only]` degrade됨. 복귀 시 Eng phase dual-voice 재실행 권장.
+- `.gstack/` gitignored → security JSON 로컬 전용. 공개 가능한 audit는 `docs/audit/`에 기록.
+
+**Baseline 수집 중** (48h, CEO F1 권고 N≥20 확장): `docs/01_requirements/trading-demo-baseline.md`
+
 ### 미완성 문서 → ✅ 완료 (Sprint 5 Stage A, 2026-04-16)
 
 - [x] docs/01_requirements/ — requirements-overview.md + req-catalog.md
@@ -192,8 +229,9 @@
 ## In Progress
 
 - Sprint 5 Stage A docs sync ✅ 완료 (2026-04-16)
-- Sprint 5 Stage B M1~M4 ✅ 완료 (2026-04-16, PR #6 ready for review)
-- **다음:** PR #6 사용자 리뷰/머지 후 Sprint 6+ 라인 (실시간 트레이딩, optimizer, FE 연동 등)
+- Sprint 5 Stage B M1~M4 ✅ 완료 (2026-04-16, PR #6 머지)
+- Sprint 6 Trading 데모 설계/리뷰 ✅ 완료 (2026-04-16, PR #8 6 commits)
+- **다음:** Sprint 6 Step 6 SDD (새 세션 + worktree) — 상세는 "Sprint 6 — Trading 데모 MVP 설계/리뷰" 섹션
 
 ## Blocked
 
