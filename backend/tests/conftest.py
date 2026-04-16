@@ -30,6 +30,12 @@ from src.common.database import get_async_session
 from src.main import create_app
 from src.market_data.models import OHLCV  # noqa: F401 — metadata 등록 (ts.ohlcv)
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
+from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
+    ExchangeAccount,
+    KillSwitchEvent,
+    Order,
+    WebhookSecret,
+)
 
 DB_URL = os.environ.get(
     "DATABASE_URL",
@@ -46,6 +52,9 @@ async def _test_engine():
         # 회귀 테스트(test_migrations.py)와 동일 환경 보장 위해 함께 보장.
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS ts;"))
+        # trading schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시.
+        # Alembic T2 migration 전에도 test DB에서 create_all이 동작하도록 bootstrap.
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS trading;"))
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
     yield engine
