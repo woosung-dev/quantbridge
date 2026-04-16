@@ -30,6 +30,18 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
+# Beat schedule — worker 상주 시 주기 task 실행.
+celery_app.conf.beat_schedule = {
+    "reclaim-stale-backtests": {
+        "task": "backtest.reclaim_stale",
+        "schedule": 300.0,  # 5분 주기 — startup @worker_ready hook 보완
+        "options": {
+            # 4분 내 처리 안 되면 폐기 (다음 schedule까지 bursts 방지)
+            "expires": 240,
+        },
+    },
+}
+
 
 @worker_ready.connect  # type: ignore[untyped-decorator]
 def _on_worker_ready(sender: object = None, **_kwargs: object) -> None:

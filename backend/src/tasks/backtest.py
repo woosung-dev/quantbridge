@@ -55,6 +55,15 @@ async def _execute(backtest_id: UUID) -> None:
         await service.run(backtest_id)
 
 
+@celery_app.task(name="backtest.reclaim_stale", max_retries=0)  # type: ignore[untyped-decorator]
+def reclaim_stale_running_task() -> int:
+    """Celery Beat 주기 호출용 sync wrapper.
+
+    Beat schedule에 등록 — worker가 reclaim_stale_running()을 5분마다 실행.
+    """
+    return asyncio.run(reclaim_stale_running())
+
+
 async def reclaim_stale_running() -> int:
     """Worker 기동 시 호출. stale running/cancelling → failed/cancelled (§8.3).
 
