@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
@@ -91,6 +91,5 @@ async def delete_backtest(
     backtest_id: UUID,
     user: CurrentUser = Depends(get_current_user),
     service: BacktestService = Depends(get_backtest_service),
-) -> Response:
+) -> None:
     await service.delete(backtest_id, user_id=user.id)
-    return Response(status_code=204)
