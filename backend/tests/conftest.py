@@ -15,6 +15,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
+import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -132,3 +133,15 @@ async def mock_clerk_auth(app, authed_user):
     # 명시적 cleanup — app fixture의 dependency_overrides.clear()에 의존하지 않음.
     # 혹시 teardown 순서/로직이 바뀌어도 override leak 방지.
     app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture(autouse=True)
+def _force_fixture_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """모든 테스트는 기본적으로 fixture provider 강제 — 외부 CCXT 호출 차단.
+
+    Timescale/CCXT 경로를 명시적으로 테스트하는 곳(test_timescale_provider,
+    test_ccxt_provider)은 provider를 직접 instantiate하므로 이 flag 영향 없음.
+    """
+    monkeypatch.setattr(
+        "src.core.config.settings.ohlcv_provider", "fixture"
+    )
