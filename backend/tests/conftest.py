@@ -18,7 +18,7 @@ from typing import Any
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
@@ -27,6 +27,7 @@ from src.auth.models import User
 from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 — metadata 등록
 from src.common.database import get_async_session
 from src.main import create_app
+from src.market_data.models import OHLCV  # noqa: F401 — metadata 등록 (ts.ohlcv)
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
 
 DB_URL = os.environ.get(
@@ -39,6 +40,11 @@ DB_URL = os.environ.get(
 async def _test_engine():
     engine = create_async_engine(DB_URL, poolclass=NullPool, echo=False)
     async with engine.begin() as conn:
+        # ts schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시.
+        # timescaledb extension은 advisory_lock에는 불필요하지만 hypertable
+        # 회귀 테스트(test_migrations.py)와 동일 환경 보장 위해 함께 보장.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS ts;"))
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
     yield engine
