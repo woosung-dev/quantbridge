@@ -103,21 +103,82 @@
 
 ### Sprint 5 Stage B — Option A: Infra Hardening + market_data 도메인 (코드 작업)
 
-> Sprint 4 spec §10.5/§11.2 명시 path. Stage A (문서 채우기) 완료 후 진행.
+> Sprint 4 spec §10.5/§11.2 명시 path. plan: [`superpowers/plans/2026-04-16-sprint5-stage-b.md`](./superpowers/plans/2026-04-16-sprint5-stage-b.md), spec: [`superpowers/specs/2026-04-16-sprint5-stage-b-design.md`](./superpowers/specs/2026-04-16-sprint5-stage-b-design.md).
+
+#### M1 — DateTime tz-aware + bar_index Fix + Metadata Diff ✅ 완료 (2026-04-16, PR #6 `514ab84`)
+
+- [x] AwareDateTime TypeDecorator 신규 (`backend/src/common/datetime_types.py`) + ORM 가드
+- [x] 3개 도메인 모델 `_utcnow()` 제거 + `datetime.now(UTC)` 일원화
+- [x] Alembic migration `convert_datetime_to_timestamptz` (11개 컬럼, period_start/end 포함)
+- [x] Pydantic `AwareDatetime` 적용 (Backtest/Strategy/Auth schemas + period validator)
+- [x] Engine `trades.py` `_resolve_bar_index` helper + 중복 timestamp 회귀 테스트
+- [x] `serializers._parse_utc_iso` naive 반환 production 버그 fix (M1 Task 8 catch)
+- [x] utcnow() 코드베이스 전수 audit + Celery task datetime 인자 점검
+- [x] datetime 비교 패턴 tz-aware 통일 (21 failures + 3 collection errors 회귀 fix)
+- [x] metadata diff 회귀 테스트 (SQLModel.metadata vs alembic upgrade schema)
+- [x] 테스트: 368 → **380 pass** / ruff clean / mypy clean / CI green
+- [x] [ADR-005](./dev-log/005-datetime-tz-aware.md) 작성
+
+#### M2 — market_data Infrastructure (T11~T18) ✅ 완료 (2026-04-16, PR #6)
+
+- [x] T11: ccxt 4.5.49 + tenacity 9.1.4 의존성 추가
+- [x] T12: Docker init SQL — TimescaleDB extension + `ts` schema (manual + future fresh setup)
+- [x] T13: `market_data/constants.py` (Timeframe Literal + TIMEFRAME_SECONDS + normalize_symbol)
+- [x] T14: OHLCV Hypertable 모델 (Numeric(18,8) + composite PK + `ts` schema + AwareDateTime)
+- [x] T15: Alembic migration `create_ohlcv_hypertable` (7-day chunk + idempotent extension/schema)
+- [x] T16: OHLCVRepository (get_range + insert_bulk ON CONFLICT + find_gaps generate_series + advisory_lock)
+- [x] T17: Advisory lock 동시성 테스트 (pg_try_advisory_xact_lock 결정적 probe)
+- [x] T18: M2 milestone push + CI green (391 tests)
+- [x] metadata diff 회귀 테스트 multi-schema 지원 (ts.ohlcv 같은 non-public schema drift 감지)
+
+#### M3 — CCXT + TimescaleProvider + Backtest 통합 (T19~T28) ✅ 완료 (2026-04-16, PR #6)
+
+- [x] T19: Config — `ohlcv_provider` Literal flag + `timescale_url` 제거
+- [x] T20: CCXTProvider — pagination + tenacity 재시도 + closed bar 필터
+- [x] T21: TimescaleProvider — cache → CCXT fallback + advisory lock
+- [x] T22: FastAPI Lifespan — CCXTProvider singleton (timescale 경로만 init)
+- [x] T23: Celery Worker CCXTProvider lazy singleton + worker_shutdown close (prefork-safe)
+- [x] T24: `get_ohlcv_provider` DI — config flag 분기 (HTTP)
+- [x] T25: Backtest dependencies + worker provider 조립 통합
+- [x] T26: conftest `_force_fixture_provider` autouse — CCXT 외부 호출 차단
+- [x] T27: Backtest E2E with TimescaleProvider (mock CCXT) — cache miss → fetch → hit 검증
+- [x] T28: M3 milestone push + CI green (400 tests)
+
+#### M4 — Beat Schedule + Docker-compose Worker + Sprint 3 Drift (T29~T33) ✅ 완료 (2026-04-16, PR #6)
+
+- [x] T29: Celery Beat schedule — `backtest.reclaim_stale` 5분 주기 (worker_ready hook과 이중 안전망)
+- [x] T30: Backend Dockerfile (uv 기반, api/worker/beat 공용)
+- [x] T31: docker-compose backend-worker + backend-beat 통합 — 4 services UP 검증
+- [x] T32: Strategy pagination drift fix — limit/offset 표준화 + page deprecated fallback
+- [x] T33: M4 final push + PR ready + TODO/CLAUDE.md 동기화
 
 ### Sprint 5+ 이관 (Sprint 4 spec §10.5 참조)
 
-- [ ] **S3-05:** `_utcnow()` naive UTC workaround → `DateTime(timezone=True)` + `datetime.now(UTC)` 복원 + Alembic migration 재생성. 사유: asyncpg가 tz-aware datetime을 `TIMESTAMP WITHOUT TIME ZONE` 컬럼에 거부. TimescaleDB hypertable 도입 시점(Sprint 5+) 전 필수.
-- [ ] Engine `trades.py` bar_index TypeError fix (vectorbt DatetimeIndex 경로)
-- [ ] Stale cancelling 주기적 reclaim beat task (Sprint 4는 startup reclaim만 보유)
+> M1 완료로 일부 항목 해소됨. 잔여 항목은 M2~M4 또는 Sprint 6+로 이관.
+
+- [x] **S3-05:** `_utcnow()` → AwareDateTime + TIMESTAMPTZ 복원 ← M1 완료 (ADR-005)
+- [x] Engine `trades.py` bar_index TypeError fix ← M1 완료 (`_resolve_bar_index` helper)
+- [x] Stale cancelling 주기적 reclaim beat task ← M4 T29 완료 (5분 주기)
+- [ ] Idempotency-Key 지원 (`POST /backtests`) → Sprint 6+ 이관
+- [ ] Real broker integration 테스트 인프라 (pytest-celery) → Sprint 7+ (Trading 도메인 시점)
+- [x] OHLCV 실데이터 수집 (CCXT + TimescaleDB hypertable) ← M2/M3 완료
+- [ ] conftest Alembic-based 전환 → 부분 해소 (metadata diff 회귀로 drift 감지 추가). 완전 전환은 미정
+- [x] Sprint 3 Strategy router pagination drift (`page/limit` → `limit/offset`) ← M4 T32 완료
+- [x] docker-compose에 worker 서비스 추가 ← M4 T31 완료 (worker + beat)
+- [ ] FE Strategy delete UX (archive 유도) → Sprint 6+ FE 라인
+- [ ] Task 14/15/19/21 Minor improvements (Sprint 4 spec §10.5) → 보류
+
+### Sprint 6+ Open Issues (Stage B 이후)
+
 - [ ] Idempotency-Key 지원 (`POST /backtests`)
 - [ ] Real broker integration 테스트 인프라 (pytest-celery)
-- [ ] OHLCV 실데이터 수집 (CCXT + TimescaleDB hypertable)
-- [ ] conftest Alembic-based 전환
-- [ ] Sprint 3 Strategy router pagination drift (`page/limit` → `limit/offset` 통일)
-- [ ] docker-compose에 worker 서비스 추가
+- [ ] CCXT 호출 계측 (Prometheus/logfire)
+- [ ] 초기 backfill Celery task 분리 (대용량 OHLCV 백필)
+- [ ] TimescaleDB compression / retention policy
+- [ ] Multi-worker split-brain Redis lock (현재는 PG advisory만)
 - [ ] FE Strategy delete UX (archive 유도)
-- [ ] Task 14/15/19/21 Minor improvements (세부 항목 spec §10.5 참조)
+- [ ] Sprint 4 spec §10.5 Minor: BacktestRepository session.refresh, exists_for_strategy EXISTS, fixture 통합
+- [ ] conftest 완전 Alembic 전환 (현재는 metadata.create_all + 회귀 diff로 부분 보강)
 
 ### 미완성 문서 → ✅ 완료 (Sprint 5 Stage A, 2026-04-16)
 
@@ -130,8 +191,9 @@
 
 ## In Progress
 
-- Sprint 5 Stage A: 미완성 docs 채우기 + CLAUDE.md 동기화 (2026-04-16)
-- Sprint 5 Stage B: Infra Hardening + market_data (예정 — Stage A 완료 후)
+- Sprint 5 Stage A docs sync ✅ 완료 (2026-04-16)
+- Sprint 5 Stage B M1~M4 ✅ 완료 (2026-04-16, PR #6 ready for review)
+- **다음:** PR #6 사용자 리뷰/머지 후 Sprint 6+ 라인 (실시간 트레이딩, optimizer, FE 연동 등)
 
 ## Blocked
 
@@ -163,6 +225,7 @@ _(없음)_
 
 ## Completed
 
+- [x] ADR-005 작성 — DateTime tz-aware + AwareDateTime TypeDecorator (Sprint 5 Stage B M1, 2026-04-16)
 - [x] ADR-003 작성 — Pine 런타임 안전성 + 파서 범위 (/autoplan 인사이트 증류)
 - [x] /autoplan 인사이트 증류 — CLAUDE.md 보안 규칙 2개 + lessons.md LESSON-001/002/003
 - [x] Stage 2 완료 — DESIGN.md + 12개 프로토타입 (docs/prototypes/)

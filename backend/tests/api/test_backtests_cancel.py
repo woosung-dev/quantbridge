@@ -1,7 +1,7 @@
 """POST /api/v1/backtests/:id/cancel."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -24,7 +24,8 @@ async def _seed_bt(session: AsyncSession, user_id, status: BacktestStatus) -> Ba
     bt = Backtest(
         id=uuid4(), user_id=user_id, strategy_id=strategy.id,
         symbol="BTCUSDT", timeframe="1h",
-        period_start=datetime(2024, 1, 1), period_end=datetime(2024, 1, 2),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 2, tzinfo=UTC),
         initial_capital=Decimal("10000"),
         status=status,
         celery_task_id="fake-celery-id",

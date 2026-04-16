@@ -14,13 +14,7 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
-
-def _utcnow() -> datetime:
-    # [임시 workaround — S3-05 follow-up]
-    # 정석: 컬럼을 DateTime(timezone=True) (TIMESTAMPTZ)로 정의 + datetime.now(UTC) (tz-aware) 반환.
-    # 현재: migration이 sa.DateTime() (naive)으로 생성됐고 asyncpg가 tz-aware를 거부 → naive UTC 반환.
-    # TimescaleDB hypertable 도입 시점(Sprint 5+) 전에 docs/TODO.md S3-05로 복구 예정.
-    return datetime.now(UTC).replace(tzinfo=None)
+from src.common.datetime_types import AwareDateTime
 
 
 class BacktestStatus(StrEnum):
@@ -66,8 +60,12 @@ class Backtest(SQLModel, table=True):
     # 입력 파라미터 (불변)
     symbol: str = Field(max_length=32, nullable=False)
     timeframe: str = Field(max_length=8, nullable=False)
-    period_start: datetime = Field(nullable=False)
-    period_end: datetime = Field(nullable=False)
+    period_start: datetime = Field(
+        sa_column=Column(AwareDateTime(), nullable=False),
+    )
+    period_end: datetime = Field(
+        sa_column=Column(AwareDateTime(), nullable=False),
+    )
     initial_capital: Decimal = Field(max_digits=20, decimal_places=8, nullable=False)
 
     # 실행 상태
@@ -85,10 +83,19 @@ class Backtest(SQLModel, table=True):
     equity_curve: list[Any] | None = Field(default=None, sa_column=Column(JSONB))
     error: str | None = Field(default=None, sa_column=Column(Text))
 
-    # Timestamps (S3-05 workaround — naive UTC)
-    created_at: datetime = Field(default_factory=_utcnow, nullable=False)
-    started_at: datetime | None = Field(default=None)
-    completed_at: datetime | None = Field(default=None)
+    # Timestamps
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False),
+    )
+    started_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(AwareDateTime(), nullable=True),
+    )
+    completed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(AwareDateTime(), nullable=True),
+    )
 
     # Relations — Backtest가 BacktestTrade보다 먼저 정의되므로 문자열 forward ref 필수
     trades: list["BacktestTrade"] = Relationship(
@@ -122,8 +129,13 @@ class BacktestTrade(SQLModel, table=True):
         sa_column=Column(SAEnum(TradeStatus, name="trade_status"), nullable=False)
     )
 
-    entry_time: datetime = Field(nullable=False)
-    exit_time: datetime | None = Field(default=None)
+    entry_time: datetime = Field(
+        sa_column=Column(AwareDateTime(), nullable=False),
+    )
+    exit_time: datetime | None = Field(
+        default=None,
+        sa_column=Column(AwareDateTime(), nullable=True),
+    )
     entry_price: Decimal = Field(max_digits=20, decimal_places=8)
     exit_price: Decimal | None = Field(default=None, max_digits=20, decimal_places=8)
     size: Decimal = Field(max_digits=20, decimal_places=8)

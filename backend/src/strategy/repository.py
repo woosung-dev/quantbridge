@@ -42,8 +42,8 @@ class StrategyRepository:
         self,
         owner_id: UUID,
         *,
-        page: int,
         limit: int,
+        offset: int,
         parse_status: ParseStatus | None = None,
         is_archived: bool = False,
     ) -> tuple[list[Strategy], int]:
@@ -61,7 +61,6 @@ class StrategyRepository:
         count_stmt = select(func.count()).select_from(Strategy).where(filters)
         total = (await self.session.execute(count_stmt)).scalar_one()
 
-        offset = (page - 1) * limit
         items_stmt = (
             select(Strategy)
             .where(filters)

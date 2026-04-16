@@ -42,17 +42,25 @@ async def create_strategy(
 
 @router.get("", response_model=StrategyListResponse)
 async def list_strategies(
-    page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    page: int | None = Query(
+        None,
+        ge=1,
+        deprecated=True,
+        description="Deprecated: use offset (= (page-1)*limit). Sprint 6+ 제거 예정.",
+    ),
     parse_status: ParseStatus | None = Query(None),
     is_archived: bool = Query(False),
     current_user: CurrentUser = Depends(get_current_user),
     service: StrategyService = Depends(get_strategy_service),
 ) -> StrategyListResponse:
+    # legacy 호환: page가 들어오면 offset으로 변환
+    effective_offset = (page - 1) * limit if page is not None else offset
     return await service.list(
         owner_id=current_user.id,
-        page=page,
         limit=limit,
+        offset=effective_offset,
         parse_status=parse_status,
         is_archived=is_archived,
     )

@@ -1,7 +1,7 @@
 """GET /api/v1/backtests/:id/progress — stale flag + 404."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -9,7 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.backtest.models import Backtest, BacktestStatus, _utcnow
+from src.backtest.models import Backtest, BacktestStatus
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 
 
@@ -24,7 +24,8 @@ async def _seed_bt(session, user_id, status, started_at=None):
     bt = Backtest(
         id=uuid4(), user_id=user_id, strategy_id=strategy.id,
         symbol="BTCUSDT", timeframe="1h",
-        period_start=datetime(2024, 1, 1), period_end=datetime(2024, 1, 2),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 2, tzinfo=UTC),
         initial_capital=Decimal("10000"), status=status,
         started_at=started_at,
     )
@@ -57,7 +58,7 @@ async def test_progress_stale_running(
     user = mock_clerk_auth
     bt = await _seed_bt(
         db_session, user.id, BacktestStatus.RUNNING,
-        started_at=_utcnow() - timedelta(hours=2),
+        started_at=datetime.now(UTC) - timedelta(hours=2),
     )
     await db_session.commit()
 

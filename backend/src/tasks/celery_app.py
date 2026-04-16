@@ -1,13 +1,17 @@
-"""Celery 인스턴스 + @worker_ready stale reclaim hook."""
+"""Celery 인스턴스 + @worker_ready stale reclaim hook + CCXTProvider singleton."""
 from __future__ import annotations
 
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from celery import Celery
-from celery.signals import worker_ready
+from celery.signals import worker_ready, worker_shutdown
 
 from src.core.config import settings
+
+if TYPE_CHECKING:
+    from src.market_data.providers.ccxt import CCXTProvider
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,18 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
+# Beat schedule — worker 상주 시 주기 task 실행.
+celery_app.conf.beat_schedule = {
+    "reclaim-stale-backtests": {
+        "task": "backtest.reclaim_stale",
+        "schedule": 300.0,  # 5분 주기 — startup @worker_ready hook 보완
+        "options": {
+            # 4분 내 처리 안 되면 폐기 (다음 schedule까지 bursts 방지)
+            "expires": 240,
+        },
+    },
+}
+
 
 @worker_ready.connect  # type: ignore[untyped-decorator]
 def _on_worker_ready(sender: object = None, **_kwargs: object) -> None:
@@ -43,3 +59,36 @@ def _on_worker_ready(sender: object = None, **_kwargs: object) -> None:
             )
     except Exception:
         logger.exception("stale_reclaim_failed_on_startup")
+
+
+# -----------------------------------------------------------------------------
+# CCXTProvider worker singleton (prefork-safe: lazy init per child process)
+# -----------------------------------------------------------------------------
+_ccxt_provider: CCXTProvider | None = None
+
+
+def get_ccxt_provider_for_worker() -> CCXTProvider:
+    """Worker 자식 프로세스 lazy singleton.
+
+    prefork-safe: 모듈 import 시점이 아닌 task 실행 시점에 생성되어
+    fork() 이후 새 프로세스 컨텍스트에서 초기화됨 (D3 교훈).
+    """
+    global _ccxt_provider
+    if _ccxt_provider is None:
+        from src.market_data.providers.ccxt import CCXTProvider
+
+        _ccxt_provider = CCXTProvider(exchange_name=settings.default_exchange)
+    return _ccxt_provider
+
+
+@worker_shutdown.connect  # type: ignore[untyped-decorator]
+def _on_worker_shutdown(sender: object = None, **_kwargs: object) -> None:
+    """Worker 종료 시 CCXTProvider 리소스 해제."""
+    global _ccxt_provider
+    if _ccxt_provider is not None:
+        try:
+            asyncio.run(_ccxt_provider.close())
+        except Exception:
+            logger.exception("ccxt_close_failed_on_shutdown")
+        finally:
+            _ccxt_provider = None

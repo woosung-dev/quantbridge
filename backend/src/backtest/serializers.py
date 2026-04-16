@@ -2,7 +2,8 @@
 
 metrics/equity_curve는 PostgreSQL JSONB 컬럼에 저장.
 Decimal → str, datetime → ISO 8601 Z.
-naive UTC datetime 전제 (Sprint 3 _utcnow() 규약).
+tz-aware UTC datetime 전제 (AwareDateTime TypeDecorator, Sprint 5 Stage B).
+_utc_iso()는 방어적으로 naive 입력도 처리하지만, 신규 코드는 tz-aware 사용.
 """
 from __future__ import annotations
 
@@ -24,8 +25,11 @@ def _utc_iso(dt: datetime) -> str:
 
 
 def _parse_utc_iso(s: str) -> datetime:
-    """'2024-01-01T00:00:00Z' → naive UTC datetime."""
-    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+    """'2024-01-01T00:00:00Z' → tz-aware UTC datetime.
+
+    EquityPoint 스키마는 AwareDatetime이므로 tzinfo=UTC 필수.
+    """
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
 # --- metrics ---

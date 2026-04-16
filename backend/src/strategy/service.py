@@ -145,20 +145,22 @@ class StrategyService:
         self,
         *,
         owner_id: UUID,
-        page: int,
         limit: int,
+        offset: int,
         parse_status: ParseStatus | None,
         is_archived: bool,
     ) -> StrategyListResponse:
         items, total = await self.repo.list_by_owner(
             owner_id,
-            page=page,
             limit=limit,
+            offset=offset,
             parse_status=parse_status,
             is_archived=is_archived,
         )
 
+        # response 호환성: page/total_pages는 limit/offset에서 역산.
         total_pages = (total + limit - 1) // limit if total > 0 else 0
+        page = (offset // limit) + 1 if limit > 0 else 1
         return StrategyListResponse(
             items=[StrategyListItem.model_validate(s) for s in items],
             total=total,

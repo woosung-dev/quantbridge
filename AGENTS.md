@@ -158,7 +158,13 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 - Stage 3 / Sprint 2: vectorbt Engine + SignalResult Fill ✅ 완료 (2026-04-15)
 - Stage 3 / Sprint 3: Strategy API + Clerk 실배선 ✅ 완료 (2026-04-15)
 - Stage 3 / Sprint 4: Celery + Backtest REST API ✅ 완료 (2026-04-16, PR #3 merge `777e623`)
-- **다음:** Sprint 5 Stage A — `docs/01_requirements/` · `02_domain/` · `04_architecture/` · `05_env/` · `06_devops/` · `07_infra/` 미완성 문서 채우기 + CLAUDE.md 동기화 → Stage B Option A: Infra Hardening (S3-05 datetime tz-aware + Engine bar_index fix + conftest Alembic 전환) + market_data 도메인 (CCXT + TimescaleDB hypertable)
+- Sprint 5 Stage A: docs sync ✅ 완료 (2026-04-16, vision.md 보강 + ADR-005 + TODO.md 동기화)
+- Sprint 5 Stage B ✅ 완료 (2026-04-16, PR #6 ready, 406 tests / CI green)
+  - M1: DateTime tz-aware + Engine bar_index fix + Metadata diff ([ADR-005](docs/dev-log/005-datetime-tz-aware.md))
+  - M2: market_data infra (TimescaleDB hypertable + OHLCVRepository + advisory lock)
+  - M3: CCXT + TimescaleProvider + lifespan/worker singleton + backtest 통합
+  - M4: Beat schedule (5분 reclaim) + docker-compose worker/beat + Strategy pagination drift
+- **다음:** PR #6 사용자 리뷰/머지 후 Sprint 6+ — FE 연동, Stress Test, Optimizer, Trading 도메인
 
 ---
 

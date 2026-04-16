@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -22,7 +22,6 @@ from src.backtest.models import (
     BacktestTrade,
     TradeDirection,
     TradeStatus,
-    _utcnow,
 )
 from src.backtest.repository import BacktestRepository
 from src.backtest.schemas import (
@@ -115,7 +114,7 @@ class BacktestService:
 
         # Guard #1: pickup
         if bt.status == BacktestStatus.CANCELLING:
-            await self.repo.finalize_cancelled(backtest_id, completed_at=_utcnow())
+            await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
             return
         if bt.status != BacktestStatus.QUEUED:
@@ -153,10 +152,10 @@ class BacktestService:
             return
 
         # Transition queued → running (조건부)
-        rows = await self.repo.transition_to_running(backtest_id, started_at=_utcnow())
+        rows = await self.repo.transition_to_running(backtest_id, started_at=datetime.now(UTC))
         if rows == 0:
             # cancel이 선행됨 → cancelling → finalize_cancelled
-            await self.repo.finalize_cancelled(backtest_id, completed_at=_utcnow())
+            await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
             return
         await self.repo.commit()
@@ -170,7 +169,7 @@ class BacktestService:
             )
             return
         if bt2.status == BacktestStatus.CANCELLING:
-            await self.repo.finalize_cancelled(backtest_id, completed_at=_utcnow())
+            await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
             return
 
@@ -186,7 +185,7 @@ class BacktestService:
             )
             return
         if bt3.status == BacktestStatus.CANCELLING:
-            await self.repo.finalize_cancelled(backtest_id, completed_at=_utcnow())
+            await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
             await self.repo.commit()
             return
 
@@ -205,7 +204,7 @@ class BacktestService:
             )
             if completed_rows == 0:
                 await self.repo.finalize_cancelled(
-                    backtest_id, completed_at=_utcnow()
+                    backtest_id, completed_at=datetime.now(UTC)
                 )
                 await self.repo.commit()
                 return
@@ -224,7 +223,7 @@ class BacktestService:
             )
             if fail_rows == 0:
                 await self.repo.finalize_cancelled(
-                    backtest_id, completed_at=_utcnow()
+                    backtest_id, completed_at=datetime.now(UTC)
                 )
 
         await self.repo.commit()
@@ -284,7 +283,7 @@ class BacktestService:
     ) -> BacktestProgressResponse:
         bt = await self._load_owned(backtest_id, user_id)
         threshold = settings.backtest_stale_threshold_seconds
-        now = _utcnow()
+        now = datetime.now(UTC)
         is_stale = (
             bt.status in (BacktestStatus.RUNNING, BacktestStatus.CANCELLING)
             and bt.started_at is not None

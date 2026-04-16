@@ -70,7 +70,7 @@ async def test_list_by_owner_filters_and_paginates(db_session):
     await repo.create(_new_strategy(owner.id, "archived", archived=True))
     await repo.commit()
 
-    items, total = await repo.list_by_owner(owner.id, page=1, limit=3, is_archived=False)
+    items, total = await repo.list_by_owner(owner.id, limit=3, offset=0, is_archived=False)
     assert total == 5  # archived 제외
     assert len(items) == 3
 
@@ -88,7 +88,7 @@ async def test_list_by_owner_parse_status_filter(db_session):
     await repo.commit()
 
     items, total = await repo.list_by_owner(
-        owner.id, page=1, limit=20, parse_status=ParseStatus.unsupported, is_archived=False
+        owner.id, limit=20, offset=0, parse_status=ParseStatus.unsupported, is_archived=False
     )
     assert total == 1
     assert items[0].name == "bad"
@@ -136,5 +136,5 @@ async def test_archive_all_by_owner_bulk(db_session):
     await repo.archive_all_by_owner(owner.id)
     await repo.commit()
 
-    _items, total = await repo.list_by_owner(owner.id, page=1, limit=20, is_archived=True)
+    _items, total = await repo.list_by_owner(owner.id, limit=20, offset=0, is_archived=True)
     assert total == 3

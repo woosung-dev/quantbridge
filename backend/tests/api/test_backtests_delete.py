@@ -1,7 +1,7 @@
 """DELETE /api/v1/backtests/:id — terminal only + CASCADE trades."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -25,7 +25,8 @@ async def _seed_bt(session, user_id, status=BacktestStatus.COMPLETED, with_trade
     bt = Backtest(
         id=uuid4(), user_id=user_id, strategy_id=strategy.id,
         symbol="BTCUSDT", timeframe="1h",
-        period_start=datetime(2024, 1, 1), period_end=datetime(2024, 1, 2),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        period_end=datetime(2024, 1, 2, tzinfo=UTC),
         initial_capital=Decimal("10000"),
         status=status,
     )
@@ -35,7 +36,8 @@ async def _seed_bt(session, user_id, status=BacktestStatus.COMPLETED, with_trade
         session.add(BacktestTrade(
             id=uuid4(), backtest_id=bt.id, trade_index=0,
             direction=TradeDirection.LONG, status=TradeStatus.CLOSED,
-            entry_time=datetime(2024, 1, 1), exit_time=datetime(2024, 1, 1, 1),
+            entry_time=datetime(2024, 1, 1, tzinfo=UTC),
+            exit_time=datetime(2024, 1, 1, 1, tzinfo=UTC),
             entry_price=Decimal("100"), exit_price=Decimal("102"),
             size=Decimal("10"), pnl=Decimal("20"), return_pct=Decimal("0.02"),
             fees=Decimal("0.1"),

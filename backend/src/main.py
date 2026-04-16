@@ -10,8 +10,22 @@ from src.core.config import settings
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """CCXTProvider singleton 관리 — ohlcv_provider=timescale일 때만 init."""
+    if settings.ohlcv_provider == "timescale":
+        # lazy import: ccxt 의존성을 fixture 경로에서는 로드하지 않음
+        from src.market_data.providers.ccxt import CCXTProvider
+
+        app.state.ccxt_provider = CCXTProvider(
+            exchange_name=settings.default_exchange
+        )
+    else:
+        app.state.ccxt_provider = None
+
     yield
+
+    if getattr(app.state, "ccxt_provider", None) is not None:
+        await app.state.ccxt_provider.close()
 
 
 def create_app() -> FastAPI:

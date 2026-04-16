@@ -23,9 +23,8 @@ class Settings(BaseSettings):
     clerk_publishable_key: str = ""
     clerk_webhook_secret: SecretStr = SecretStr("")
 
-    # Database
+    # Database — TimescaleDB extension은 동일 DB의 ts schema에 위치 (M2)
     database_url: str = "postgresql+asyncpg://quantbridge:password@db:5432/quantbridge"
-    timescale_url: str = "postgresql+asyncpg://quantbridge:password@timescaledb:5432/quantbridge_ts"
 
     # Redis / Celery
     redis_url: str = "redis://redis:6379/0"
@@ -51,8 +50,15 @@ class Settings(BaseSettings):
     # CORS / URLs
     frontend_url: str = "http://localhost:3000"
 
-    # Exchange
+    # Exchange / OHLCV provider
     default_exchange: str = "bybit"
+    ohlcv_provider: Literal["fixture", "timescale"] = Field(
+        default="fixture",
+        description=(
+            "OHLCV 데이터 소스. 'fixture'=Sprint 4 CSV, "
+            "'timescale'=CCXT+TimescaleDB cache (Sprint 5 M3+)."
+        ),
+    )
 
 
 @lru_cache(maxsize=1)

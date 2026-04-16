@@ -54,8 +54,8 @@ def _body(strategy_id) -> dict:
         "strategy_id": str(strategy_id),
         "symbol": "BTCUSDT",
         "timeframe": "1h",
-        "period_start": "2024-01-01T00:00:00",
-        "period_end": "2024-01-02T00:00:00",
+        "period_start": "2024-01-01T00:00:00+00:00",
+        "period_end": "2024-01-02T00:00:00+00:00",
         "initial_capital": "10000",
     }
 
@@ -113,7 +113,7 @@ async def test_submit_422_invalid_period(
     await db_session.commit()
 
     body = _body(strategy.id)
-    body["period_end"] = "2023-01-01T00:00:00"  # period_start보다 이전
+    body["period_end"] = "2023-01-01T00:00:00+00:00"  # period_start보다 이전
     r = await client.post("/api/v1/backtests", json=body)
     assert r.status_code == 422
 
