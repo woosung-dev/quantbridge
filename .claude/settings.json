@@ -53,7 +53,6 @@
       "Bash(git reset --hard*)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
-      "Bash(git push*)",
       "Bash(gh pr merge*)",
       "Bash(docker rm*)",
       "Bash(docker volume rm*)",
