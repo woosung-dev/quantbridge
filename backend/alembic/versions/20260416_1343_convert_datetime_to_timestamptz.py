@@ -4,10 +4,11 @@ WARNING: ALTER COLUMN TYPE TIMESTAMPTZ 는 ACCESS EXCLUSIVE lock 사용.
 현재 테이블은 작아서 무영향. 향후 대용량 테이블(예: backtest_trades, ohlcv)에
 동일 패턴 적용 금지 — pg_repack 등 별도 전략 필요.
 
-대상 컬럼 (9개):
+대상 컬럼 (11개):
 - users.created_at, users.updated_at
 - strategies.created_at, strategies.updated_at
-- backtests.created_at, backtests.started_at, backtests.completed_at
+- backtests.created_at, backtests.started_at, backtests.completed_at,
+  backtests.period_start, backtests.period_end
 - backtest_trades.entry_time, backtest_trades.exit_time
 
 USING ... AT TIME ZONE 'UTC' 로 기존 naive datetime 값을 UTC 로 해석.
@@ -65,6 +66,14 @@ def upgrade() -> None:
         "ALTER TABLE backtests ALTER COLUMN completed_at TYPE TIMESTAMPTZ "
         "USING completed_at AT TIME ZONE 'UTC'"
     )
+    op.execute(
+        "ALTER TABLE backtests ALTER COLUMN period_start TYPE TIMESTAMPTZ "
+        "USING period_start AT TIME ZONE 'UTC'"
+    )
+    op.execute(
+        "ALTER TABLE backtests ALTER COLUMN period_end TYPE TIMESTAMPTZ "
+        "USING period_end AT TIME ZONE 'UTC'"
+    )
     # backtest_trades
     op.execute(
         "ALTER TABLE backtest_trades ALTER COLUMN entry_time TYPE TIMESTAMPTZ "
@@ -86,6 +95,14 @@ def downgrade() -> None:
     op.execute(
         "ALTER TABLE backtest_trades ALTER COLUMN entry_time TYPE TIMESTAMP "
         "USING entry_time AT TIME ZONE 'UTC'"
+    )
+    op.execute(
+        "ALTER TABLE backtests ALTER COLUMN period_end TYPE TIMESTAMP "
+        "USING period_end AT TIME ZONE 'UTC'"
+    )
+    op.execute(
+        "ALTER TABLE backtests ALTER COLUMN period_start TYPE TIMESTAMP "
+        "USING period_start AT TIME ZONE 'UTC'"
     )
     op.execute(
         "ALTER TABLE backtests ALTER COLUMN completed_at TYPE TIMESTAMP "
