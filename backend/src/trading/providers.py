@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
+import ccxt.async_support as ccxt_async
+
 from src.trading.exceptions import ProviderError
 from src.trading.models import OrderSide, OrderType
 
@@ -95,3 +97,68 @@ class FixtureExchangeProvider:
 
     async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
         logger.debug("fixture_cancel_order", extra={"exchange_order_id": exchange_order_id})
+
+
+class BybitDemoProvider:
+    """Bybit demo (testnet) ephemeral CCXT client.
+
+    create_order/cancel_order마다 credentials로 새 CCXT 인스턴스를 생성하고,
+    finally 블록에서 close()로 즉시 해제. 평문 credentials는 함수 스코프에만 존재.
+    """
+
+    async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "spot", "testnet": True},
+            }
+        )
+        try:
+            result = await exchange.create_order(
+                order.symbol,
+                order.type.value,
+                order.side.value,
+                float(order.quantity),
+                float(order.price) if order.price is not None else None,
+            )
+            avg = result.get("average")
+            return OrderReceipt(
+                exchange_order_id=str(result["id"]),
+                filled_price=Decimal(str(avg)) if avg is not None else None,
+                status=_map_ccxt_status(result.get("status")),
+                raw=dict(result),
+            )
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        finally:
+            await exchange.close()
+
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "options": {"defaultType": "spot", "testnet": True},
+            }
+        )
+        try:
+            await exchange.cancel_order(exchange_order_id)
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        finally:
+            await exchange.close()
+
+
+def _map_ccxt_status(ccxt_status: str | None) -> Literal["filled", "submitted", "rejected"]:
+    """CCXT status → OrderReceipt status 매핑."""
+    match ccxt_status:
+        case "closed" | "filled":
+            return "filled"
+        case "canceled" | "rejected":
+            return "rejected"
+        case _:
+            return "submitted"
