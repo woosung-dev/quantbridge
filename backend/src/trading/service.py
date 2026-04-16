@@ -16,7 +16,8 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.trading.encryption import EncryptionService
-from src.trading.exceptions import AccountNotFound
+from src.trading.exceptions import AccountNotFound, IdempotencyConflict
+from src.trading.kill_switch import KillSwitchService
 from src.trading.models import ExchangeAccount, Order, OrderState, WebhookSecret
 from src.trading.providers import Credentials
 from src.trading.repository import (
@@ -119,7 +120,8 @@ class OrderDispatcher(Protocol):
 class OrderService:
     """주문 생성 경로. Celery dispatch는 반드시 commit 이후 (visibility race 방지).
 
-    kill_switch 통합은 T15에서 추가.
+    E9: kill_switch.ensure_not_gated — begin_nested 내부, advisory lock 이후, INSERT 이전.
+    E2: body_hash — 동일 idempotency_key + 다른 payload → IdempotencyConflict.
     """
 
     def __init__(
@@ -127,14 +129,27 @@ class OrderService:
         session: AsyncSession,
         repo: OrderRepository,
         dispatcher: OrderDispatcher,
+        kill_switch: KillSwitchService,
     ) -> None:
         self._session = session
         self._repo = repo
         self._dispatcher = dispatcher
+        self._kill_switch = kill_switch
 
     async def execute(
-        self, req: OrderRequest, *, idempotency_key: str | None
-    ) -> OrderResponse:
+        self,
+        req: OrderRequest,
+        *,
+        idempotency_key: str | None,
+        body_hash: bytes | None = None,
+    ) -> tuple[OrderResponse, bool]:
+        """Returns (response, is_replayed).
+
+        Flow (autoplan E9 + E2):
+        1. begin_nested() — advisory lock + gate + insert 동일 tx
+        2. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
+        3. commit 후 Celery dispatch (visibility race 방지)
+        """
         created_order_id: UUID | None = None
         cached_response: OrderResponse | None = None
 
@@ -143,8 +158,17 @@ class OrderService:
                 await self._repo.acquire_idempotency_lock(idempotency_key)
                 existing = await self._repo.get_by_idempotency_key(idempotency_key)
                 if existing:
+                    if body_hash is not None and existing.idempotency_payload_hash != body_hash:
+                        raise IdempotencyConflict(
+                            f"Idempotency-Key 재사용됐지만 payload가 다름. "
+                            f"original_order_id={existing.id}"
+                        )
                     cached_response = OrderResponse.model_validate(existing)
                 else:
+                    await self._kill_switch.ensure_not_gated(
+                        strategy_id=req.strategy_id,
+                        account_id=req.exchange_account_id,
+                    )
                     order = await self._repo.save(Order(
                         strategy_id=req.strategy_id,
                         exchange_account_id=req.exchange_account_id,
@@ -155,9 +179,14 @@ class OrderService:
                         price=req.price,
                         state=OrderState.pending,
                         idempotency_key=idempotency_key,
+                        idempotency_payload_hash=body_hash,
                     ))
                     created_order_id = order.id
             else:
+                await self._kill_switch.ensure_not_gated(
+                    strategy_id=req.strategy_id,
+                    account_id=req.exchange_account_id,
+                )
                 order = await self._repo.save(Order(
                     strategy_id=req.strategy_id,
                     exchange_account_id=req.exchange_account_id,
@@ -168,12 +197,13 @@ class OrderService:
                     price=req.price,
                     state=OrderState.pending,
                     idempotency_key=None,
+                    idempotency_payload_hash=None,
                 ))
                 created_order_id = order.id
         # context exit -> commit (lock 해제, row visible)
 
         if cached_response is not None:
-            return cached_response
+            return cached_response, True
 
         if created_order_id is None:
             raise RuntimeError("OrderService bug: created_order_id is None after insert")
@@ -181,4 +211,4 @@ class OrderService:
         fetched = await self._repo.get_by_id(created_order_id)
         if fetched is None:
             raise RuntimeError(f"OrderService bug: order {created_order_id} not found after commit")
-        return OrderResponse.model_validate(fetched)
+        return OrderResponse.model_validate(fetched), False

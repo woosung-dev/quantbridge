@@ -56,6 +56,16 @@ def order_request(exchange_account: ExchangeAccount, strategy) -> OrderRequest:
     )
 
 
+# ---------- helpers (kill switch) ----------
+
+
+class _NoopKillSwitch:
+    """T12 idempotency 테스트 전용 — gate 통과."""
+
+    async def ensure_not_gated(self, strategy_id, account_id):
+        return
+
+
 # ---------- tests ----------
 
 
@@ -68,10 +78,13 @@ async def test_execute_without_idempotency_creates_order(
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()
-    svc = OrderService(session=db_session, repo=repo, dispatcher=fake)
+    svc = OrderService(
+        session=db_session, repo=repo, dispatcher=fake, kill_switch=_NoopKillSwitch()
+    )
 
-    resp = await svc.execute(order_request, idempotency_key=None)
+    resp, is_replayed = await svc.execute(order_request, idempotency_key=None)
 
+    assert not is_replayed
     assert resp.state == OrderState.pending
     assert resp.symbol == "BTC/USDT"
     assert fake.dispatched_count == 1
@@ -86,12 +99,16 @@ async def test_execute_with_idempotency_returns_cached_on_second_call(
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()
-    svc = OrderService(session=db_session, repo=repo, dispatcher=fake)
+    svc = OrderService(
+        session=db_session, repo=repo, dispatcher=fake, kill_switch=_NoopKillSwitch()
+    )
 
     key = f"idem-{uuid4().hex}"
-    first = await svc.execute(order_request, idempotency_key=key)
-    second = await svc.execute(order_request, idempotency_key=key)
+    first, first_replayed = await svc.execute(order_request, idempotency_key=key)
+    second, second_replayed = await svc.execute(order_request, idempotency_key=key)
 
+    assert not first_replayed
+    assert second_replayed
     assert first.id == second.id
     assert fake.dispatched_count == 1  # dispatch only once
 
@@ -106,15 +123,19 @@ async def test_advisory_lock_prevents_concurrent_insert(
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()
-    svc = OrderService(session=db_session, repo=repo, dispatcher=fake)
+    svc = OrderService(
+        session=db_session, repo=repo, dispatcher=fake, kill_switch=_NoopKillSwitch()
+    )
 
     key = f"lock-{uuid4().hex}"
-    resp = await svc.execute(order_request, idempotency_key=key)
+    resp, is_replayed = await svc.execute(order_request, idempotency_key=key)
+    assert not is_replayed
     assert resp.state == OrderState.pending
     assert fake.dispatched_count == 1
 
     # Re-entry with same key: should return cached, no deadlock
-    resp2 = await svc.execute(order_request, idempotency_key=key)
+    resp2, is_replayed2 = await svc.execute(order_request, idempotency_key=key)
+    assert is_replayed2
     assert resp2.id == resp.id
     assert fake.dispatched_count == 1
 
