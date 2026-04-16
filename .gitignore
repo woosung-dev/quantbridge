@@ -1,6 +1,9 @@
 # === AI tooling ===
 .ai/
-.claude/
+# .claude/ 하위는 전체 무시하되 settings.json만 예외 (팀 공유 baseline)
+.claude/*
+!.claude/settings.json
+# .claude/settings.local.json (개인 override)은 위 .claude/* 규칙으로 자동 무시됨
 .agents/
 .gstack/
 
