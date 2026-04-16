@@ -1,6 +1,9 @@
-"""trading Repository. AsyncSession 유일 보유. commit은 Service 요청으로만.
+"""trading Repository 레이어. AsyncSession 유일 보유. commit은 Service 요청으로만.
 
-Sprint 4 BacktestRepository 3-guard 패턴 계승 (transition_*).
+네이밍 컨벤션:
+- `save()` = add + flush (ID/created_at 채워진 동일 인스턴스 반환). upsert-by-identity:
+  수정 후 재저장도 같은 메서드. Sprint 4는 create/update 분리 — Sprint 6은 단일화.
+- T8 OrderRepository에서 Sprint 4 BacktestRepository의 3-guard `transition_*` 패턴 계승 예정.
 """
 from __future__ import annotations
 
