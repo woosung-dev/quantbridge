@@ -214,43 +214,52 @@ sequenceDiagram
 
 ---
 
-## 6. CCXT OHLCV 동기화 (Sprint 5 예정)
+## 6. OHLCV cache flow (Sprint 5 M3 ✅)
+
+> Sprint 5 결정: 별도 sync API/UI 없음. **Backtest가 OHLCV를 요청하는 시점에 cache → CCXT fallback** (TimescaleProvider on-demand). MarketDataService/sync route는 미구현, Sprint 6+ "초기 backfill task" 분리 시 추가 검토.
 
 ```mermaid
 sequenceDiagram
-    actor User
-    participant FE
-    participant Router as market_data/router
-    participant SVC as MarketDataService
-    participant Disp as TaskDispatcher
-    participant Redis
-    participant W as Celery Worker
-    participant CCXT as ccxt.async_support
-    participant Repo as MarketDataRepository
-    participant TS as TimescaleDB hypertable
+    participant Backtest as BacktestService<br/>(또는 Celery task)
+    participant TP as TimescaleProvider
+    participant Repo as OHLCVRepository
+    participant TS as ts.ohlcv hypertable
+    participant CCXT as CCXTProvider
 
-    User->>FE: 심볼·타임프레임·기간 입력
-    FE->>Router: POST /market-data/sync {exchange, symbol, timeframe, start, end}
-    Router->>SVC: enqueue_sync(user_id, data)
-    SVC->>Disp: dispatch(sync_task_id)
-    Disp->>Redis: enqueue
-    SVC-->>FE: 202 + {task_id}
+    Backtest->>TP: get_ohlcv(symbol, tf, start, end)
+    TP->>Repo: acquire_fetch_lock(symbol, tf, start, end)
+    Repo->>TS: SELECT pg_advisory_xact_lock(hashtext(key))
+    Note over Repo,TS: 동시 fetch 직렬화 — tx commit 시 자동 해제
 
-    W->>Redis: consume
-    loop until end
-        W->>CCXT: fetch_ohlcv(symbol, timeframe, since, limit=1000)
-        CCXT-->>W: candles[]
-        W->>Repo: upsert_bulk(candles)
-        Repo->>TS: INSERT ... ON CONFLICT DO UPDATE
-        alt rate limit
-            W->>W: backoff sleep
+    TP->>Repo: find_gaps(symbol, tf, start, end, tf_sec)
+    Repo->>TS: WITH expected AS (generate_series ...) EXCEPT ohlcv → island grouping
+    TS-->>Repo: list[(gap_start, gap_end)]
+
+    alt gaps 존재 (cache miss/partial)
+        loop 각 gap
+            TP->>CCXT: fetch_ohlcv(symbol, tf, gap_start, gap_end)
+            CCXT->>CCXT: pagination + tenacity retry + closed bar 필터
+            CCXT-->>TP: raw bars[ts_ms, o, h, l, c, v]
+            TP->>Repo: insert_bulk(rows) — ON CONFLICT DO NOTHING
+            Repo->>TS: INSERT idempotent
         end
+        TP->>Repo: commit() → advisory lock 해제
     end
 
-    Note over W,Repo: 완료 후 sync 메타 업데이트 (last_sync_at)
+    TP->>Repo: get_range(symbol, tf, start, end)
+    Repo->>TS: SELECT ... WHERE time BETWEEN ... ORDER BY time
+    TS-->>Repo: list[OHLCV]
+    TP-->>Backtest: pd.DataFrame[time index, open/high/low/close/volume float]
 ```
 
-> [가정] 동기화 메타 테이블 / 중복 처리 정책은 Sprint 5 spec에서 확정.
+### 핵심 결정 (Sprint 5 M3)
+
+- **on-demand cache-first** — Backtest 실행 시점에 필요한 구간만 fetch. 별도 동기화 task 없음.
+- **gap 계산은 Postgres가 책임** — `generate_series + EXCEPT + ROW_NUMBER` island grouping (FE/BE 가공 없음).
+- **idempotent insert** — `ON CONFLICT DO NOTHING`. UPDATE 안 함 (CCXT 데이터는 immutable past data).
+- **동시 fetch race** — `pg_advisory_xact_lock(hashtext(key))`. 같은 (symbol, tf, period) lock 보유 중인 타 트랜잭션은 대기. tx commit 시 해제.
+- **closed bar filter** — CCXTProvider가 `last_closed_ts = (now // tf_sec) * tf_sec - tf_sec` 이하만 반환 (진행 중 캔들 제외).
+- **provider lifecycle** — HTTP는 FastAPI lifespan singleton, Worker는 prefork-safe lazy + worker_shutdown close ([`system-architecture.md`](./system-architecture.md) §lifecycle 참조).
 
 ---
 
@@ -272,11 +281,11 @@ sequenceDiagram
 
 | API | 패턴 | 비고 |
 |-----|------|------|
-| `GET /strategies` | `page` + `limit` (Sprint 3 drift) | Sprint 5에서 `limit + offset` 통일 예정 |
+| `GET /strategies` | `limit` + `offset` (Sprint 5 M4 통일) | `page`는 deprecated fallback (Sprint 6+ 제거) |
 | `GET /backtests` | `limit` + `offset` (Sprint 4 표준) | `common/pagination.py` |
 | `GET /backtests/:id/trades` | `limit` + `offset` | 동일 |
 
-> Sprint 5 이관 항목 #10: Strategy router pagination drift 통일.
+> ✅ Sprint 5 M4 T32 완료: 모든 list endpoint `limit/offset` 표준 + `page` legacy fallback.
 
 ---
 

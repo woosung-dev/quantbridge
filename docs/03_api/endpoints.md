@@ -44,12 +44,13 @@
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `page` | int (≥1) | 1 | 페이지 번호 |
 | `limit` | int (1~100) | 20 | 페이지당 항목 수 |
+| `offset` | int (≥0) | 0 | skip 개수 |
+| `page` | int (≥1) | _none_ | **Deprecated** (Sprint 5 M4). 들어오면 `(page-1)*limit`로 `offset` 환산. Sprint 6+ 제거 예정. |
 | `parse_status` | ParseStatus | null | 필터: `ok` / `unsupported` / `error` |
 | `is_archived` | bool | false | true 시 archive된 전략만 |
 
-> ⚠️ 페이지네이션 drift: Strategy는 `page/limit`, Backtest는 `limit/offset`. Sprint 5에서 `limit/offset`으로 통일 예정.
+> ✅ 페이지네이션 drift 해소 (Sprint 5 M4 T32): Strategy / Backtest 모두 `limit/offset` 표준. `page`는 호환 fallback만 유지.
 
 ---
 

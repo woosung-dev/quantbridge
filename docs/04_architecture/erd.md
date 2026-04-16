@@ -220,7 +220,7 @@ erDiagram
 | `exchange_accounts` | ❌ 빈 파일 | ❌ | Sprint 7+ |
 | `trading_sessions` | ❌ 빈 파일 | ❌ | Sprint 7+ |
 | `live_trades` | ❌ 빈 파일 | ❌ | Sprint 7+ |
-| `ohlcv` (hypertable) | ❌ 빈 파일 | ❌ | Sprint 5 |
+| `ts.ohlcv` (hypertable) | ✅ `market_data/models.py` | ✅ M2 | 5 |
 | `funding_rates` (hypertable) | ❌ 빈 파일 | ❌ | Sprint 6+ |
 
 > 미구현 도메인의 스키마는 PRD 설계 기준. 구현 sprint에서 SQLModel과 재정합 필수.
@@ -263,39 +263,55 @@ erDiagram
 
 ---
 
-## TimescaleDB 테이블 (시계열, Sprint 5 도입)
+## TimescaleDB 테이블 (시계열)
 
-### ohlcv (hypertable)
+### ts.ohlcv (hypertable, ✅ Sprint 5 M2 활성)
 ```sql
-CREATE TABLE ohlcv (
-    time TIMESTAMPTZ NOT NULL,
-    exchange VARCHAR(50) NOT NULL,
-    symbol VARCHAR(50) NOT NULL,
-    timeframe VARCHAR(10) NOT NULL,
-    open DECIMAL(20, 8) NOT NULL,
-    high DECIMAL(20, 8) NOT NULL,
-    low DECIMAL(20, 8) NOT NULL,
-    close DECIMAL(20, 8) NOT NULL,
-    volume DECIMAL(20, 8) NOT NULL,
-    PRIMARY KEY (time, exchange, symbol, timeframe)
+-- 마이그레이션 파일: backend/alembic/versions/20260416_1458_create_ohlcv_hypertable.py
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+CREATE SCHEMA IF NOT EXISTS ts;
+
+CREATE TABLE ts.ohlcv (
+    time TIMESTAMPTZ NOT NULL,                  -- AwareDateTime (ADR-005)
+    symbol VARCHAR(32) NOT NULL,                -- CCXT unified format ("BTC/USDT")
+    timeframe VARCHAR(8) NOT NULL,              -- Literal["1m","5m","15m","1h","4h","1d"]
+    exchange VARCHAR(32) NOT NULL,              -- "bybit", "binance", ...
+    open NUMERIC(18, 8) NOT NULL,               -- Decimal-first 정책 (float 금지)
+    high NUMERIC(18, 8) NOT NULL,
+    low NUMERIC(18, 8) NOT NULL,
+    close NUMERIC(18, 8) NOT NULL,
+    volume NUMERIC(18, 8) NOT NULL,
+    PRIMARY KEY (time, symbol, timeframe)       -- partition key(time) 포함 필수
 );
-SELECT create_hypertable('ohlcv', 'time');
-CREATE INDEX idx_ohlcv_lookup ON ohlcv (exchange, symbol, timeframe, time DESC);
+SELECT create_hypertable(
+    'ts.ohlcv', 'time',
+    chunk_time_interval => INTERVAL '7 days',
+    if_not_exists => TRUE
+);
+-- 보조 인덱스: 최신 캔들 조회 reverse scan (Postgres ASC 인덱스 양방향 가능)
+CREATE INDEX ix_ohlcv_symbol_tf_time_desc ON ts.ohlcv (symbol, timeframe, time);
 ```
 
-### funding_rates (hypertable)
+**운영 정책:**
+- Repository: `OHLCVRepository` (`backend/src/market_data/repository.py`)
+  - `insert_bulk` — `ON CONFLICT (time, symbol, timeframe) DO NOTHING` (idempotent)
+  - `find_gaps` — `generate_series` + `EXCEPT` + ROW_NUMBER island grouping
+  - `acquire_fetch_lock` — `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))` (동시 fetch race 방지)
+- Provider: `TimescaleProvider` cache → CCXT fallback fetch + advisory lock + insert (자세한 flow는 [`data-flow.md`](./data-flow.md) §OHLCV cache)
+
+### funding_rates (hypertable, ⏳ Sprint 6+ 계획)
 ```sql
-CREATE TABLE funding_rates (
+CREATE TABLE ts.funding_rates (
     time TIMESTAMPTZ NOT NULL,
-    exchange VARCHAR(50) NOT NULL,
-    symbol VARCHAR(50) NOT NULL,
-    funding_rate DECIMAL(20, 10) NOT NULL,
+    exchange VARCHAR(32) NOT NULL,
+    symbol VARCHAR(32) NOT NULL,
+    funding_rate NUMERIC(20, 10) NOT NULL,
     PRIMARY KEY (time, exchange, symbol)
 );
-SELECT create_hypertable('funding_rates', 'time');
+SELECT create_hypertable('ts.funding_rates', 'time', chunk_time_interval => INTERVAL '7 days');
 ```
 
-> TimescaleDB 테이블은 Alembic 마이그레이션과 별도로 초기화 (Sprint 5 결정).
+> 마이그레이션 자체가 `CREATE EXTENSION` + `CREATE SCHEMA`까지 책임 — `docker/db/init/01-timescaledb.sql`이 누락된 환경(test/fresh)에서도 단독 동작 보장.
 
 ---
 
