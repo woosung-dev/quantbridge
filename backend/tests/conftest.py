@@ -15,6 +15,15 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
+# Sprint 6 T3 — src.core.config.Settings.trading_encryption_keys is a required
+# field (no default). src.core.config module evaluates `settings = get_settings()`
+# at import time, so we MUST set TRADING_ENCRYPTION_KEYS before any import that
+# transitively imports src.core.config. Generate a valid Fernet key on demand.
+if not os.environ.get("TRADING_ENCRYPTION_KEYS"):
+    from cryptography.fernet import Fernet as _Fernet
+
+    os.environ["TRADING_ENCRYPTION_KEYS"] = _Fernet.generate_key().decode()
+
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI

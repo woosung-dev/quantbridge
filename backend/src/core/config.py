@@ -1,7 +1,8 @@
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,8 +45,32 @@ class Settings(BaseSettings):
         description="FixtureProvider가 OHLCV CSV를 읽는 루트 경로. 프로세스 CWD 기준.",
     )
 
-    # Encryption (거래소 API Key AES-256)
-    encryption_key: SecretStr = SecretStr("")
+    # --- Sprint 6 Trading ---
+    # autoplan CEO F3 + Eng E4: MultiFernet 기반 다중 키 지원 (comma-separated, newest first)
+    trading_encryption_keys: SecretStr = Field(...)
+    exchange_provider: Literal["fixture", "bybit_demo"] = Field(default="fixture")
+    # autoplan CEO F4: MddEvaluator → CumulativeLossEvaluator rename 반영
+    kill_switch_cumulative_loss_percent: Decimal = Field(default=Decimal("10.0"))
+    kill_switch_daily_loss_usd: Decimal = Field(default=Decimal("500.0"))
+    kill_switch_api_error_streak: int = Field(default=5)
+    kill_switch_capital_base_usd: Decimal = Field(default=Decimal("10000"))
+    webhook_secret_grace_seconds: int = Field(default=3600)
+
+    @field_validator("trading_encryption_keys")
+    @classmethod
+    def _validate_keys(cls, v: SecretStr) -> SecretStr:
+        """comma-separated Fernet keys — 1개 이상, 각각 44-char URL-safe base64."""
+        from cryptography.fernet import Fernet
+        raw = v.get_secret_value()
+        keys = [k.strip() for k in raw.split(",") if k.strip()]
+        if not keys:
+            raise ValueError("TRADING_ENCRYPTION_KEYS must contain at least 1 Fernet key")
+        for k in keys:
+            try:
+                Fernet(k.encode())
+            except ValueError as e:
+                raise ValueError(f"Invalid Fernet key: {e}") from e
+        return v
 
     # CORS / URLs
     frontend_url: str = "http://localhost:3000"
