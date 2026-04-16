@@ -42,12 +42,13 @@
 
 | Method | Path | 설명 | Auth | 비동기 |
 |--------|------|------|------|--------|
-| `POST` | `/api/v1/backtests` | 백테스트 실행 요청 | Required | **202 + task_id** |
-| `GET` | `/api/v1/backtests` | 내 백테스트 목록 | Required | - |
+| `POST` | `/api/v1/backtests` | 백테스트 실행 요청 | Required | **202 + backtest_id** |
+| `GET` | `/api/v1/backtests` | 내 백테스트 목록 (`?limit=20&offset=0`) | Required | - |
 | `GET` | `/api/v1/backtests/:id` | 백테스트 결과 조회 | Required | - |
-| `GET` | `/api/v1/backtests/:id/trades` | 개별 거래 내역 (페이지네이션) | Required | - |
-| `GET` | `/api/v1/backtests/:id/progress` | 진행률 (polling용, WS 대안) | Required | - |
-| `DELETE` | `/api/v1/backtests/:id` | 백테스트 결과 삭제 | Required | - |
+| `GET` | `/api/v1/backtests/:id/trades` | 개별 거래 내역 (`?limit=100&offset=0`) | Required | - |
+| `GET` | `/api/v1/backtests/:id/progress` | 진행률 + `stale` flag (polling용) | Required | - |
+| `POST` | `/api/v1/backtests/:id/cancel` | 실행 중 백테스트 취소 (best-effort) | Required | **202 + `cancelling`** |
+| `DELETE` | `/api/v1/backtests/:id` | 백테스트 결과 삭제 (terminal only) | Required | **204** |
 
 ---
 

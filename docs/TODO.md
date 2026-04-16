@@ -73,11 +73,47 @@
 - [x] AppException.code 추가 (spec §4.4 error code 구조)
 - [x] 테스트 289 passing (230 → 289, 신규 59건)
 
-### Sprint 4 follow-ups (Sprint 3 리뷰에서 이월)
+### Stage 3 / Sprint 4 — Celery + Backtest API ✅ 완료 (2026-04-16)
 
-- [ ] **S3-03:** `src/backtest/engine/` 커버리지 91% → 95% (spec §5.4 목표) — `run_backtest` 예외 분기 fault injection 테스트 추가
-- [ ] **S3-04:** `adapter._price_to_sl_ratio` 음수 비율 방어적 clamp/assert (sl_price > close 시 silent mis-stop 방지)
-- [ ] **S3-05:** `_utcnow()` naive UTC workaround → `DateTime(timezone=True)` + `datetime.now(UTC)` 복원 (`auth/models.py`, `strategy/models.py`) + Alembic migration 재생성. 사유: asyncpg가 tz-aware datetime을 `TIMESTAMP WITHOUT TIME ZONE` 컬럼에 거부. TimescaleDB hypertable 도입 시점(Sprint 5+) 전 필수.
+- [x] S3-04 `_price_to_sl_ratio` 음수 ratio → ValueError (Pine semantics 정합 + golden 회귀 없음)
+- [x] S3-03 (stretch) engine fault injection 테스트 — 91% 유지, 미커버 4영역 Sprint 5 이관 (spec §10.2)
+- [x] `RawTrade` DTO + `BacktestResult.trades` + `extract_trades()` — Decimal-first fees 합산
+- [x] `run_backtest()`가 trades 반환
+- [x] Config Settings: `backtest_stale_threshold_seconds` + `ohlcv_fixture_root`
+- [x] `Backtest` + `BacktestTrade` SQLModel (6-state enum, JSONB metrics/equity_curve, FK 정책)
+- [x] Alembic migration `add_backtests_and_backtest_trades_tables` + round-trip 통과
+- [x] JSONB serializers (Decimal → str, naive UTC → ISO 8601 Z)
+- [x] Backtest + Strategy 예외 (`StrategyHasBacktests` 포함)
+- [x] `TaskDispatcher` Protocol + Celery/Noop/Fake 3 impls
+- [x] OHLCVProvider Protocol + FixtureProvider + BTCUSDT_1h fixture (8760 rows)
+- [x] `BacktestRepository` CRUD + 조건부 UPDATE + reclaim_stale (running + cancelling 둘 다 커버)
+- [x] Pydantic V2 schemas (9 DTOs, Decimal str, period validator)
+- [x] Celery `celery_app.py` + `@worker_ready` stale reclaim hook
+- [x] `tasks/backtest.py` run_backtest_task + `_execute` + `reclaim_stale_running` (prefork-safe lazy engine)
+- [x] `BacktestService` 8 methods + 3-guard cancel 로직 (§5.1) + transient `CANCELLING` 처리
+- [x] `StrategyService.delete()` cross-domain — 선조회 + `IntegrityError → StrategyHasBacktests` 번역 + `rollback()` 추가
+- [x] Router 7 REST endpoints + main.py 등록
+- [x] API E2E tests: submit/list/detail + cancel/delete/trades/progress (23 신규)
+- [x] L4 로컬 smoke 3건 완료 (S1 ✅ / S2 ✅ / S3 ⚠️partial — spec §10.1 기록)
+- [x] endpoints.md 갱신 (cancel 추가 + task_id → backtest_id)
+- [x] 테스트: 289 → **368 pass**
+- [x] CI: ruff / mypy / pytest / alembic upgrade 모두 green
+
+**PR:** https://github.com/woosung-dev/quantbridge/pull/3 (Draft)
+
+### Sprint 5+ 이관 (Sprint 4 spec §10.5 참조)
+
+- [ ] **S3-05:** `_utcnow()` naive UTC workaround → `DateTime(timezone=True)` + `datetime.now(UTC)` 복원 + Alembic migration 재생성. 사유: asyncpg가 tz-aware datetime을 `TIMESTAMP WITHOUT TIME ZONE` 컬럼에 거부. TimescaleDB hypertable 도입 시점(Sprint 5+) 전 필수.
+- [ ] Engine `trades.py` bar_index TypeError fix (vectorbt DatetimeIndex 경로)
+- [ ] Stale cancelling 주기적 reclaim beat task (Sprint 4는 startup reclaim만 보유)
+- [ ] Idempotency-Key 지원 (`POST /backtests`)
+- [ ] Real broker integration 테스트 인프라 (pytest-celery)
+- [ ] OHLCV 실데이터 수집 (CCXT + TimescaleDB hypertable)
+- [ ] conftest Alembic-based 전환
+- [ ] Sprint 3 Strategy router pagination drift (`page/limit` → `limit/offset` 통일)
+- [ ] docker-compose에 worker 서비스 추가
+- [ ] FE Strategy delete UX (archive 유도)
+- [ ] Task 14/15/19/21 Minor improvements (세부 항목 spec §10.5 참조)
 
 ### 미완성 문서 (Stage 2 이후 채울 예정)
 

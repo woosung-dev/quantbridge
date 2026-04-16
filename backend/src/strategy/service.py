@@ -1,11 +1,19 @@
 """strategy Service. Pine 파싱 + CRUD 조율."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-import pandas as pd
+# asyncpg FK violation 타입 — 드라이버 부재 시 None으로 fallback (단위 테스트 호환)
+try:
+    from asyncpg.exceptions import ForeignKeyViolationError as _AsyncpgFKViolation
+except ImportError:
+    _AsyncpgFKViolation = None
 
-from src.strategy.exceptions import StrategyNotFoundError
+import pandas as pd
+from sqlalchemy.exc import IntegrityError
+
+from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.strategy.pine import parse_and_run
 from src.strategy.repository import StrategyRepository
@@ -18,6 +26,9 @@ from src.strategy.schemas import (
     StrategyResponse,
     UpdateStrategyRequest,
 )
+
+if TYPE_CHECKING:
+    from src.backtest.repository import BacktestRepository
 
 
 def _empty_ohlcv() -> pd.DataFrame:
@@ -87,8 +98,16 @@ def _parse(
 
 
 class StrategyService:
-    def __init__(self, repo: StrategyRepository) -> None:
+    def __init__(
+        self,
+        repo: StrategyRepository,
+        # backtest_repo: Sprint 3 호환을 위한 optional. 프로덕션 DI(get_strategy_service)는
+        # 항상 주입; None은 unit test 또는 background CLI 경로에서만 허용.
+        # None일 경우 backtest 선조회 스킵 — DB FK RESTRICT가 최종 안전망.
+        backtest_repo: BacktestRepository | None = None,
+    ) -> None:
         self.repo = repo
+        self.backtest_repo = backtest_repo
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
         status, version, warnings, errors, entry_count, exit_count = _parse(pine_source)
@@ -192,5 +211,28 @@ class StrategyService:
         strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
         if strategy is None:
             raise StrategyNotFoundError()
-        await self.repo.delete(strategy.id)
-        await self.repo.commit()
+
+        # 선조회 — Sprint 4부터 backtest_repo 주입됨
+        if self.backtest_repo is not None and await self.backtest_repo.exists_for_strategy(strategy_id):
+            raise StrategyHasBacktests()
+
+        # TOCTOU 방어: FK RESTRICT가 race loser를 DB 레벨에서 catch
+        try:
+            await self.repo.delete(strategy.id)
+            await self.repo.commit()
+        except IntegrityError as exc:
+            # Note: rollback은 명시적 호출 (get_async_session의 catch-all과 redundant이지만
+            # 의도 명확화 + 트랜잭션 lifecycle 책임 분명히).
+            await self.repo.rollback()
+            # asyncpg FK violation → StrategyHasBacktests 변환 (substring 매칭 대신 isinstance)
+            # exc.orig: 직접 asyncpg FKViolationError (unit test mock) 또는
+            #           SQLAlchemy asyncpg dialect DBAPI IntegrityError (실제 DB 경로).
+            #           후자의 경우 __cause__가 asyncpg 원본 에러.
+            _orig_cause = getattr(exc.orig, "__cause__", None)
+            is_fk_violation = _AsyncpgFKViolation is not None and (
+                isinstance(exc.orig, _AsyncpgFKViolation)
+                or isinstance(_orig_cause, _AsyncpgFKViolation)
+            )
+            if is_fk_violation:
+                raise StrategyHasBacktests() from exc
+            raise

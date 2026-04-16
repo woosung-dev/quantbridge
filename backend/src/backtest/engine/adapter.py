@@ -18,8 +18,11 @@ def to_portfolio_kwargs(
 
     항상 포함: close, entries, exits, init_cash, fees, slippage, freq
     조건부 포함 (None이면 생략):
-      - sl_stop  : signal.sl_stop 가격 → 비율로 변환 ((close - sl_price) / close)
-      - tp_stop  : signal.tp_limit 가격 → 비율로 변환 ((target - close) / close)
+      - sl_stop  : signal.sl_stop 가격 → entry bar만 비율로 변환 ((close - sl_price) / close).
+                   non-entry bar는 NaN 마스킹 (carry-forward 방지, Pine strategy.exit semantics).
+      - tp_stop  : signal.tp_limit 가격 → entry bar만 비율로 변환 ((target - close) / close).
+                   non-entry bar는 NaN 마스킹 (carry-forward TP target이 close를 넘어서 false-positive
+                   TP 발동되는 것 방지).
       - size     : signal.position_size
     """
     _assert_aligned(signal, ohlcv)
@@ -38,12 +41,16 @@ def to_portfolio_kwargs(
         # vectorbt 0.28.x sl_stop 시맨틱스 확인 (smoke check):
         # sl_stop은 비율(ratio)로 해석됨. 절대 가격 Series를 전달하면 SL이 작동하지 않음.
         # 따라서 가격 → 비율 변환 필수: ratio = (close - sl_price) / close
-        # (entry 기준 하락 비율이므로 음수가 되지 않도록 반전하지 않음 — vectorbt는 |ratio| 사용)
-        kwargs["sl_stop"] = _price_to_sl_ratio(signal.sl_stop, ohlcv["close"])
+        # S3-04: entry bar에서만 stop price 적용 — carry-forward된 bars에서 sl_price > close가
+        # 되면 음수 ratio가 생겨 silent mis-stop 발생. entry bar only 마스킹으로 방지.
+        sl_entry_only = signal.sl_stop.where(signal.entries)
+        kwargs["sl_stop"] = _price_to_sl_ratio(sl_entry_only, ohlcv["close"])
 
     if signal.tp_limit is not None:
-        # vectorbt tp_stop도 비율만 허용 → 가격을 비율로 변환
-        kwargs["tp_stop"] = _price_to_ratio(signal.tp_limit, ohlcv["close"])
+        # carry-forward TP target 위를 close가 넘으면 비율이 0 또는 음수 → 거짓 TP 발동 가능.
+        # entry bar에서만 TP 적용 — Pine strategy.exit(limit=...) semantics.
+        tp_entry_only = signal.tp_limit.where(signal.entries)
+        kwargs["tp_stop"] = _price_to_ratio(tp_entry_only, ohlcv["close"])
 
     if signal.position_size is not None:
         kwargs["size"] = signal.position_size
@@ -76,5 +83,16 @@ def _price_to_sl_ratio(sl_price: pd.Series, close: pd.Series) -> pd.Series:
     smoke check 결과: vectorbt 0.28.x는 sl_stop을 비율로 해석함.
     절대 가격 Series를 직접 전달하면 SL이 작동하지 않음.
     NaN은 NaN 유지.
+    음수 ratio (sl_price > close) 는 silent mis-stop 방지를 위해 ValueError.
     """
-    return (close - sl_price) / close
+    ratio = (close - sl_price) / close
+    # NaN < 0 은 False이므로 dropna 불필요. 음수만 감지.
+    invalid_mask = ratio < 0
+    if invalid_mask.any():
+        bad_idx = ratio.index[invalid_mask]
+        raise ValueError(
+            f"Invalid SL price: sl_price exceeds close at index {list(bad_idx[:3])} "
+            f"(would produce negative stop ratio, silent mis-stop). "
+            f"stop price must be below close at entry bar — check strategy.exit(stop=...) value."
+        )
+    return ratio

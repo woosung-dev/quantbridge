@@ -24,6 +24,7 @@ from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
 from src.auth.models import User
+from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 — metadata 등록
 from src.common.database import get_async_session
 from src.main import create_app
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
@@ -122,3 +123,6 @@ async def mock_clerk_auth(app, authed_user):
 
     app.dependency_overrides[get_current_user] = _fake_current_user
     yield authed_user
+    # 명시적 cleanup — app fixture의 dependency_overrides.clear()에 의존하지 않음.
+    # 혹시 teardown 순서/로직이 바뀌어도 override leak 방지.
+    app.dependency_overrides.pop(get_current_user, None)
