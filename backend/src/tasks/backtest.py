@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from src.backtest.models import _utcnow
 from src.backtest.repository import BacktestRepository
 from src.core.config import settings
 from src.tasks.celery_app import celery_app
@@ -66,7 +66,7 @@ async def reclaim_stale_running() -> int:
         repo = BacktestRepository(session)
         running, cancelling = await repo.reclaim_stale(
             threshold_seconds=threshold,
-            now=_utcnow(),
+            now=datetime.now(UTC),
         )
         await repo.commit()
         return running + cancelling

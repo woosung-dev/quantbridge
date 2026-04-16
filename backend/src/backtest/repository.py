@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.backtest.models import Backtest, BacktestStatus, BacktestTrade, _utcnow
+from src.backtest.models import Backtest, BacktestStatus, BacktestTrade
 
 
 class BacktestRepository:
@@ -95,7 +95,7 @@ class BacktestRepository:
                 status=BacktestStatus.COMPLETED,
                 metrics=metrics,
                 equity_curve=equity_curve,
-                completed_at=_utcnow(),
+                completed_at=datetime.now(UTC),
             )
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
@@ -115,7 +115,7 @@ class BacktestRepository:
             .values(
                 status=BacktestStatus.FAILED,
                 error=error[:2000],  # defensive truncation
-                completed_at=_utcnow(),
+                completed_at=datetime.now(UTC),
             )
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
