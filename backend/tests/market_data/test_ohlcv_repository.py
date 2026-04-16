@@ -1,9 +1,10 @@
 """OHLCVRepository — TimescaleDB ts.ohlcv 접근 테스트."""
+import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.market_data.repository import OHLCVRepository
 
@@ -101,3 +102,53 @@ async def test_find_gaps_no_gap_when_complete(db_session: AsyncSession) -> None:
         "BTC/USDT", "1h", base, base + timedelta(hours=4), 3600
     )
     assert gaps == []
+
+
+@pytest.mark.asyncio
+async def test_acquire_fetch_lock_blocks_concurrent_call(
+    _test_engine: AsyncEngine,
+) -> None:
+    """첫 번째 lock holder가 트랜잭션을 commit/rollback할 때까지 두 번째는 대기.
+
+    db_session(savepoint 격리) 우회 — advisory lock은 실제 outer transaction
+    boundary에서만 해제되므로 별도 connection + 별도 transaction 필요.
+    """
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    completed_order: list[str] = []
+
+    async def first_lock_holder() -> None:
+        async with _test_engine.connect() as conn:
+            tx = await conn.begin()
+            session = async_sessionmaker(bind=conn, expire_on_commit=False)()
+            repo = OHLCVRepository(session)
+            await repo.acquire_fetch_lock(
+                "BTC/USDT", "1h", base, base + timedelta(hours=1)
+            )
+            completed_order.append("first_acquired")
+            await asyncio.sleep(0.5)  # hold the lock
+            await tx.commit()
+            completed_order.append("first_released")
+            await session.close()
+
+    async def second_lock_holder() -> None:
+        # first_lock_holder가 먼저 획득하도록 보장
+        await asyncio.sleep(0.1)
+        async with _test_engine.connect() as conn:
+            tx = await conn.begin()
+            session = async_sessionmaker(bind=conn, expire_on_commit=False)()
+            repo = OHLCVRepository(session)
+            await repo.acquire_fetch_lock(
+                "BTC/USDT", "1h", base, base + timedelta(hours=1)
+            )
+            completed_order.append("second_acquired")
+            await tx.commit()
+            await session.close()
+
+    await asyncio.gather(first_lock_holder(), second_lock_holder())
+
+    # 핵심: second_acquired는 반드시 first_released 이후
+    assert completed_order == [
+        "first_acquired",
+        "first_released",
+        "second_acquired",
+    ]
