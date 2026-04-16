@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
@@ -18,6 +19,12 @@ from src.auth.models import User  # noqa: F401
 from src.backtest.models import Backtest, BacktestTrade  # noqa: F401
 from src.market_data.models import OHLCV  # noqa: F401
 from src.strategy.models import Strategy  # noqa: F401
+from src.trading.models import (  # noqa: F401
+    ExchangeAccount,
+    KillSwitchEvent,
+    Order,
+    WebhookSecret,
+)
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -38,18 +45,6 @@ def test_alembic_roundtrip(tmp_path, monkeypatch):
     """upgrade head → downgrade base → upgrade head가 모두 성공해야 함."""
     monkeypatch.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     cfg = _alembic_cfg()
-
-    # T1 임시 정합성: trading 테이블은 conftest의 SQLModel.metadata.create_all로
-    # 생성될 수 있지만 아직 Alembic 관리 대상이 아니다 (T2에서 추가 예정).
-    # FK가 strategies에 걸려 있어 alembic downgrade 시 strategies DROP을 차단하므로,
-    # roundtrip 전에 trading 스키마 전체를 CASCADE drop해 정리한다.
-    sync_url = cfg.get_main_option("sqlalchemy.url")
-    sync_engine = create_engine(sync_url)
-    try:
-        with sync_engine.begin() as conn:
-            conn.execute(text("DROP SCHEMA IF EXISTS trading CASCADE"))
-    finally:
-        sync_engine.dispose()
 
     command.upgrade(cfg, "head")
     command.downgrade(cfg, "base")
@@ -99,19 +94,8 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     # alembic_version 테이블 제외 (Alembic 전용 메타, public schema)
     alembic_tables.pop(("public", "alembic_version"), None)
 
-    # T1 임시: trading 도메인 테이블은 이미 metadata에 등록됐지만 Alembic
-    # 마이그레이션은 T2에서 추가된다. T2 머지와 함께 이 화이트리스트 제거.
-    pending_trading_tables = {
-        ("trading", "exchange_accounts"),
-        ("trading", "orders"),
-        ("trading", "kill_switch_events"),
-        ("trading", "webhook_secrets"),
-    }
-
     # metadata의 모든 table + column이 DB schema에 존재해야 함
     for (schema, table_name), metadata_cols in metadata_tables.items():
-        if (schema, table_name) in pending_trading_tables:
-            continue
         full_name = f"{schema}.{table_name}"
         assert (schema, table_name) in alembic_tables, (
             f"Table '{full_name}' defined in SQLModel metadata but missing from alembic schema. "
@@ -123,3 +107,45 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             f"Table '{full_name}' missing columns in DB: {missing}. "
             f"Migration 누락 또는 drift 발생."
         )
+
+
+def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
+    """alembic upgrade head 후 sync Inspector 반환 (engine 포함 — 호출자가 dispose)."""
+    monkeypatch.chdir(_BACKEND_ROOT)
+    cfg = _alembic_cfg()
+    command.upgrade(cfg, "head")
+    url = cfg.get_main_option("sqlalchemy.url")
+    assert url is not None
+    engine = create_engine(url)
+    inspector = inspect(engine)
+    return engine, inspector
+
+
+def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """trading schema + 4 테이블이 upgrade head 후 존재하는지 검증."""
+    engine, inspector = _upgrade_and_inspect(monkeypatch)
+    try:
+        schemas = inspector.get_schema_names()
+        assert "trading" in schemas, f"trading schema 누락. 실제: {schemas}"
+
+        trading_tables = set(inspector.get_table_names(schema="trading"))
+        assert trading_tables == {
+            "exchange_accounts",
+            "orders",
+            "kill_switch_events",
+            "webhook_secrets",
+        }, f"예상 4 테이블과 불일치: {trading_tables}"
+    finally:
+        engine.dispose()
+
+
+def test_trading_orders_idempotency_unique(monkeypatch: pytest.MonkeyPatch) -> None:
+    """orders.idempotency_key partial UNIQUE index 존재 검증."""
+    engine, inspector = _upgrade_and_inspect(monkeypatch)
+    try:
+        indexes = inspector.get_indexes("orders", schema="trading")
+        idem = [i for i in indexes if i["name"] == "uq_orders_idempotency_key"]
+        assert len(idem) == 1
+        assert idem[0]["unique"] is True
+    finally:
+        engine.dispose()
