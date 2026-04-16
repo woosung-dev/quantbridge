@@ -119,28 +119,38 @@
 - [x] 테스트: 368 → **380 pass** / ruff clean / mypy clean / CI green
 - [x] [ADR-005](./dev-log/005-datetime-tz-aware.md) 작성
 
-#### M2 — market_data Infrastructure (T11~T18) ⏳ 다음
+#### M2 — market_data Infrastructure (T11~T18) ✅ 완료 (2026-04-16, PR #6)
 
-- [ ] T11: ccxt + tenacity 의존성 추가
-- [ ] T12: Docker init SQL — TimescaleDB extension + `ts` schema (fresh DB 재생성 필요)
-- [ ] T13: `market_data/constants.py` (Timeframe Literal + normalize_symbol)
-- [ ] T14: OHLCV Hypertable 모델 (Numeric(18,8) + composite PK + `ts` schema)
-- [ ] T15: Alembic migration `create_ohlcv_hypertable` (7-day chunk)
-- [ ] T16: OHLCVRepository (get_range + insert_bulk ON CONFLICT + find_gaps + advisory_lock)
-- [ ] T17: Advisory lock 동시성 테스트
-- [ ] T18: M2 milestone push + CI
+- [x] T11: ccxt 4.5.49 + tenacity 9.1.4 의존성 추가
+- [x] T12: Docker init SQL — TimescaleDB extension + `ts` schema (manual + future fresh setup)
+- [x] T13: `market_data/constants.py` (Timeframe Literal + TIMEFRAME_SECONDS + normalize_symbol)
+- [x] T14: OHLCV Hypertable 모델 (Numeric(18,8) + composite PK + `ts` schema + AwareDateTime)
+- [x] T15: Alembic migration `create_ohlcv_hypertable` (7-day chunk + idempotent extension/schema)
+- [x] T16: OHLCVRepository (get_range + insert_bulk ON CONFLICT + find_gaps generate_series + advisory_lock)
+- [x] T17: Advisory lock 동시성 테스트 (pg_try_advisory_xact_lock 결정적 probe)
+- [x] T18: M2 milestone push + CI green (391 tests)
+- [x] metadata diff 회귀 테스트 multi-schema 지원 (ts.ohlcv 같은 non-public schema drift 감지)
 
-#### M3 — CCXT + TimescaleProvider + Backtest 통합 (T19~T28) ⏳
+#### M3 — CCXT + TimescaleProvider + Backtest 통합 (T19~T28) ✅ 완료 (2026-04-16, PR #6)
 
-- [ ] T19~T28: CCXTProvider + TimescaleProvider + lifespan + DI + backtest E2E (TimescaleProvider mock CCXT)
+- [x] T19: Config — `ohlcv_provider` Literal flag + `timescale_url` 제거
+- [x] T20: CCXTProvider — pagination + tenacity 재시도 + closed bar 필터
+- [x] T21: TimescaleProvider — cache → CCXT fallback + advisory lock
+- [x] T22: FastAPI Lifespan — CCXTProvider singleton (timescale 경로만 init)
+- [x] T23: Celery Worker CCXTProvider lazy singleton + worker_shutdown close (prefork-safe)
+- [x] T24: `get_ohlcv_provider` DI — config flag 분기 (HTTP)
+- [x] T25: Backtest dependencies + worker provider 조립 통합
+- [x] T26: conftest `_force_fixture_provider` autouse — CCXT 외부 호출 차단
+- [x] T27: Backtest E2E with TimescaleProvider (mock CCXT) — cache miss → fetch → hit 검증
+- [x] T28: M3 milestone push + CI green (400 tests)
 
-#### M4 — Beat Schedule + Docker-compose Worker + Sprint 3 Drift (T29~T33) ⏳
+#### M4 — Beat Schedule + Docker-compose Worker + Sprint 3 Drift (T29~T33) ✅ 완료 (2026-04-16, PR #6)
 
-- [ ] T29: Celery Beat schedule (stale reclaim 주기화 등)
-- [ ] T30: Backend Dockerfile
-- [ ] T31: docker-compose worker + beat 서비스 추가
-- [ ] T32: Sprint 3 Strategy router pagination drift (`page/limit` → `limit/offset`)
-- [ ] T33: M4 final push + PR ready + TODO 업데이트
+- [x] T29: Celery Beat schedule — `backtest.reclaim_stale` 5분 주기 (worker_ready hook과 이중 안전망)
+- [x] T30: Backend Dockerfile (uv 기반, api/worker/beat 공용)
+- [x] T31: docker-compose backend-worker + backend-beat 통합 — 4 services UP 검증
+- [x] T32: Strategy pagination drift fix — limit/offset 표준화 + page deprecated fallback
+- [x] T33: M4 final push + PR ready + TODO/CLAUDE.md 동기화
 
 ### Sprint 5+ 이관 (Sprint 4 spec §10.5 참조)
 
@@ -148,15 +158,27 @@
 
 - [x] **S3-05:** `_utcnow()` → AwareDateTime + TIMESTAMPTZ 복원 ← M1 완료 (ADR-005)
 - [x] Engine `trades.py` bar_index TypeError fix ← M1 완료 (`_resolve_bar_index` helper)
-- [ ] Stale cancelling 주기적 reclaim beat task → **M4 T29로 이동**
+- [x] Stale cancelling 주기적 reclaim beat task ← M4 T29 완료 (5분 주기)
 - [ ] Idempotency-Key 지원 (`POST /backtests`) → Sprint 6+ 이관
 - [ ] Real broker integration 테스트 인프라 (pytest-celery) → Sprint 7+ (Trading 도메인 시점)
-- [ ] OHLCV 실데이터 수집 (CCXT + TimescaleDB hypertable) → **M2/M3로 이동 (진행 중)**
+- [x] OHLCV 실데이터 수집 (CCXT + TimescaleDB hypertable) ← M2/M3 완료
 - [ ] conftest Alembic-based 전환 → 부분 해소 (metadata diff 회귀로 drift 감지 추가). 완전 전환은 미정
-- [ ] Sprint 3 Strategy router pagination drift (`page/limit` → `limit/offset`) → **M4 T32로 이동**
-- [ ] docker-compose에 worker 서비스 추가 → **M4 T31로 이동**
+- [x] Sprint 3 Strategy router pagination drift (`page/limit` → `limit/offset`) ← M4 T32 완료
+- [x] docker-compose에 worker 서비스 추가 ← M4 T31 완료 (worker + beat)
 - [ ] FE Strategy delete UX (archive 유도) → Sprint 6+ FE 라인
 - [ ] Task 14/15/19/21 Minor improvements (Sprint 4 spec §10.5) → 보류
+
+### Sprint 6+ Open Issues (Stage B 이후)
+
+- [ ] Idempotency-Key 지원 (`POST /backtests`)
+- [ ] Real broker integration 테스트 인프라 (pytest-celery)
+- [ ] CCXT 호출 계측 (Prometheus/logfire)
+- [ ] 초기 backfill Celery task 분리 (대용량 OHLCV 백필)
+- [ ] TimescaleDB compression / retention policy
+- [ ] Multi-worker split-brain Redis lock (현재는 PG advisory만)
+- [ ] FE Strategy delete UX (archive 유도)
+- [ ] Sprint 4 spec §10.5 Minor: BacktestRepository session.refresh, exists_for_strategy EXISTS, fixture 통합
+- [ ] conftest 완전 Alembic 전환 (현재는 metadata.create_all + 회귀 diff로 부분 보강)
 
 ### 미완성 문서 → ✅ 완료 (Sprint 5 Stage A, 2026-04-16)
 
@@ -169,9 +191,9 @@
 
 ## In Progress
 
-- Sprint 5 Stage A docs sync ✅ 완료 (2026-04-16) — vision.md 보강 + ADR-005 신규 + TODO/CLAUDE.md 동기화
-- Sprint 5 Stage B M1 ✅ 완료 (2026-04-16, PR #6 `514ab84`)
-- Sprint 5 Stage B M2 (T11~T18) — 다음 진입 예정 (market_data 인프라)
+- Sprint 5 Stage A docs sync ✅ 완료 (2026-04-16)
+- Sprint 5 Stage B M1~M4 ✅ 완료 (2026-04-16, PR #6 ready for review)
+- **다음:** PR #6 사용자 리뷰/머지 후 Sprint 6+ 라인 (실시간 트레이딩, optimizer, FE 연동 등)
 
 ## Blocked
 
