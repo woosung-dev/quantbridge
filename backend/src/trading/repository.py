@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import ExchangeAccount
+from src.trading.models import ExchangeAccount, Order, OrderState
 
 
 class ExchangeAccountRepository:
@@ -47,3 +49,116 @@ class ExchangeAccountRepository:
             delete(ExchangeAccount).where(ExchangeAccount.id == account_id)  # type: ignore[arg-type]
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
+
+
+class OrderRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def save(self, order: Order) -> Order:
+        self.session.add(order)
+        await self.session.flush()
+        return order
+
+    async def get_by_id(self, order_id: UUID) -> Order | None:
+        result = await self.session.execute(
+            select(Order).where(Order.id == order_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_idempotency_key(self, key: str) -> Order | None:
+        result = await self.session.execute(
+            select(Order).where(Order.idempotency_key == key)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
+    async def list_by_user(
+        self, user_id: UUID, *, limit: int, offset: int
+    ) -> tuple[Sequence[Order], int]:
+        """Join ExchangeAccount → user_id 매칭. Sprint 5 M4 pagination 스타일."""
+        total_stmt = (
+            select(func.count(Order.id))  # type: ignore[arg-type]
+            .join(ExchangeAccount, Order.exchange_account_id == ExchangeAccount.id)  # type: ignore[arg-type]
+            .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
+        )
+        total = (await self.session.execute(total_stmt)).scalar_one()
+
+        stmt = (
+            select(Order)
+            .join(ExchangeAccount, Order.exchange_account_id == ExchangeAccount.id)  # type: ignore[arg-type]
+            .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
+            .order_by(Order.created_at.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+            .offset(offset)
+        )
+        return (await self.session.execute(stmt)).scalars().all(), total
+
+    # --- 3-guard 상태 전이 (Sprint 4 BacktestRepository 패턴 계승) ---
+
+    async def transition_to_submitted(self, order_id: UUID, *, submitted_at: datetime) -> int:
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
+            .values(state=OrderState.submitted, submitted_at=submitted_at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def transition_to_filled(
+        self,
+        order_id: UUID,
+        *,
+        exchange_order_id: str,
+        filled_price: Decimal | None,
+        filled_at: datetime,
+        realized_pnl: Decimal | None = None,
+    ) -> int:
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .values(
+                state=OrderState.filled,
+                exchange_order_id=exchange_order_id,
+                filled_price=filled_price,
+                filled_at=filled_at,
+                realized_pnl=realized_pnl,
+            )
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def transition_to_rejected(
+        self, order_id: UUID, *, error_message: str, failed_at: datetime
+    ) -> int:
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .values(
+                state=OrderState.rejected,
+                error_message=error_message[:2000],
+                filled_at=failed_at,
+            )
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def transition_to_cancelled(self, order_id: UUID, *, cancelled_at: datetime) -> int:
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .values(state=OrderState.cancelled, filled_at=cancelled_at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    # --- Idempotency 동시성 제어 (Sprint 5 M2 advisory lock 패턴) ---
+
+    async def acquire_idempotency_lock(self, key: str) -> None:
+        """pg_advisory_xact_lock — 트랜잭션 종료 시 자동 해제."""
+        await self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+            {"k": key},
+        )
