@@ -12,8 +12,10 @@
 |--------|--------|--------------|------|----------|------------|
 | `db` | `timescale/timescaledb:2.14.2-pg15` | `quantbridge-db` | 5432 | `pg_isready` | `db-data` |
 | `redis` | `redis:7-alpine` | `quantbridge-redis` | 6379 | `redis-cli ping` | `redis-data` |
+| `backend-worker` | `quant-bridge-backend-worker` (build `./backend`) | `quantbridge-worker` | — | — | — |
+| `backend-beat` | `quant-bridge-backend-beat` (build `./backend`) | `quantbridge-beat` | — | — | `beat-data` |
 
-> Frontend, Backend API/Worker는 현재 compose 외부에서 직접 실행. Sprint 5에서 worker를 compose에 통합 예정 (Open Issue #11).
+> Backend API (uvicorn)와 Frontend (Next.js dev)는 호스트에서 직접 실행 권장 — HMR/디버깅 편의. Worker/Beat는 Sprint 5 M4 T31에서 compose에 통합 완료 (단일 `docker compose up -d`).
 
 ---
 
@@ -135,12 +137,15 @@ docker compose exec redis redis-cli FLUSHALL       # 전체
 
 ---
 
-## 8. Sprint 5+ 확장 계획
+## 8. Sprint 5 M4 통합 결과 + Sprint 6+ 확장 계획
 
-| 항목 | 추가될 서비스 | 비고 |
-|------|----------------|------|
-| Celery worker | `worker` | API와 동일 이미지, prefork pool, `--concurrency=4` |
-| Celery beat | `beat` | stale reclaim, market_data sync 스케줄 |
+**Sprint 5 M4 (2026-04-16) 통합 완료:**
+- `backend-worker` — Celery prefork `--concurrency=2`, `tasks.celery_app` worker 실행
+- `backend-beat` — `tasks.celery_app` beat scheduler, `backtest.reclaim_stale` 5분 주기
+
+| 항목 | 향후 추가 | 비고 |
+|------|-----------|------|
+| Backend API | `backend-api` | 현재는 호스트 uvicorn. 프로덕션 배포 시 추가 (Sprint 7+) |
 | (선택) FE | `frontend` | dev는 호스트에서 실행 권장 (HMR 속도) |
 
 ---

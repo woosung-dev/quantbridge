@@ -55,8 +55,8 @@
 | `POSTGRES_PASSWORD` | [자동] | 동일. 로컬 전용 비밀번호 |
 | `POSTGRES_DB` | [자동] | 기본 `quantbridge` |
 | `DATABASE_URL` | [기본값 OK] | `postgresql+asyncpg://...`. asyncpg 드라이버 필수 |
-| `TIMESCALE_URL` | [기본값 OK] | 동일 DB의 TimescaleDB extension 사용 — `${DATABASE_URL}` 참조 |
 
+> TimescaleDB extension은 동일 DB의 `ts` schema에서 사용 (Sprint 5 M2~). 별도 URL 불필요 — `TIMESCALE_URL` 항목은 제거되었음.
 > 테스트는 별도 DB `quantbridge_test` 사용. `pytest conftest`가 `DATABASE_URL` 우선.
 
 ---
@@ -77,10 +77,9 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 | 변수 | 마킹 | 설명 |
 |------|------|------|
-| `BACKTEST_STALE_THRESHOLD_SECONDS` | [기본값 OK] | RUNNING/CANCELLING 자동 reclaim 임계 (기본 1800s = 30분) |
+| `BACKTEST_STALE_THRESHOLD_SECONDS` | [기본값 OK] | RUNNING/CANCELLING 자동 reclaim 임계 (기본 1800s = 30분). Beat 5분 주기 + worker_ready hook 이중 안전망 |
 | `OHLCV_FIXTURE_ROOT` | [기본값 OK] | FixtureProvider가 OHLCV CSV 로드하는 경로 |
-
-> Sprint 5에서 TimescaleProvider 도입 시 fixture 의존도 감소.
+| `OHLCV_PROVIDER` | [기본값 OK] | `fixture`(기본) \| `timescale`. Sprint 5 M3 도입 — `timescale` 시 CCXT + TimescaleDB cache 사용 |
 
 ---
 

@@ -167,20 +167,22 @@
 
 ---
 
-## ENT-010 — OHLCV *(Sprint 5 도입)*
+## ENT-010 — OHLCV *(Sprint 5 M2 ✅ 활성)*
 
 - **도메인:** market_data
-- **코드:** `backend/src/market_data/models.py` (스캐폴딩, Sprint 5에서 활성)
-- **테이블:** `ohlcv` (TimescaleDB hypertable)
-- **책임:** 거래소별 시계열 가격 데이터.
-- **계획 필드 (ERD §TimescaleDB):**
-  - `time: TIMESTAMPTZ`, `exchange`, `symbol`, `timeframe`
-  - `open`, `high`, `low`, `close`, `volume` (모두 `DECIMAL(20, 8)`)
-  - PK: `(time, exchange, symbol, timeframe)`
-- **하이퍼테이블 설정:** `create_hypertable('ohlcv', 'time')` + `chunk_time_interval` 1주 [가정]
+- **코드:** `backend/src/market_data/models.py`, `repository.py`, `providers/timescale.py`
+- **테이블:** `ts.ohlcv` (TimescaleDB hypertable, `ts` schema 격리)
+- **책임:** 거래소별 시계열 가격 데이터. Backtest의 OHLCV 캐시 + CCXT fallback fetch.
+- **필드 (실제):**
+  - `time: TIMESTAMPTZ` (AwareDateTime), `symbol: VARCHAR(32)`, `timeframe: VARCHAR(8)`, `exchange: VARCHAR(32)`
+  - `open`, `high`, `low`, `close`, `volume`: 모두 `NUMERIC(18, 8)` (Decimal-first 정책)
+  - PK: `(time, symbol, timeframe)` — TimescaleDB가 partition key(`time`) 포함 요구
+  - 보조 인덱스: `ix_ohlcv_symbol_tf_time_desc(symbol, timeframe, time)` — 최신 캔들 조회 reverse scan
+- **하이퍼테이블 설정:** `create_hypertable('ts.ohlcv', 'time', chunk_time_interval => INTERVAL '7 days')`
 - **불변량:**
-  - 동일 PK 중복 시 idempotent (UPSERT 정책 — Sprint 5 결정)
-  - Alembic migration과 별도 초기화 (`scripts/init_db.py` 또는 별도 migration step)
+  - 동일 PK 중복 insert는 `ON CONFLICT DO NOTHING`으로 idempotent (Repository 정책)
+  - Alembic migration이 schema/extension까지 책임 (test/fresh DB 단독 동작 보장)
+  - 동시 fetch race는 `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))`로 직렬화
 
 ---
 

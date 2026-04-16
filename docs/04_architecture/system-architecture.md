@@ -219,6 +219,59 @@ flowchart TB
 
 ---
 
+## 5.5 Provider Lifecycle (Sprint 5 M3 ✅)
+
+`OHLCVProvider` 추상 인터페이스는 두 가지 구현체와 두 가지 lifecycle 패턴을 갖는다.
+
+| Provider | 사용처 | Lifecycle | 의존성 |
+|----------|--------|-----------|--------|
+| `FixtureProvider` | dev/test 기본, CI | stateless (instance per request) | CSV (`backend/data/fixtures/ohlcv/*.csv`) |
+| `TimescaleProvider` | 운영 (`OHLCV_PROVIDER=timescale`) | per-request, but `CCXTProvider` is singleton | DB cache + CCXTProvider |
+
+### CCXTProvider singleton 패턴
+
+CCXT exchange 객체는 내부 connection pool/rate limiter를 보유 — request마다 생성하면 누수 + rate limit 무력화. **단일 인스턴스를 lifecycle 동안 공유**하고 close()로 정리.
+
+```mermaid
+graph TB
+    subgraph HTTP["HTTP (FastAPI process)"]
+        Lifespan["lifespan() startup<br/>app.state.ccxt_provider = CCXTProvider(exchange)"]
+        ReqA["request A → get_ohlcv_provider()"]
+        ReqB["request B → get_ohlcv_provider()"]
+        ReqA --> Singleton["app.state.ccxt_provider"]
+        ReqB --> Singleton
+        Lifespan -.shutdown.-> CloseHTTP["await ccxt_provider.close()"]
+    end
+
+    subgraph Worker["Celery Worker (prefork child process)"]
+        TaskFire["task fire → get_ccxt_provider_for_worker()"]
+        Lazy["_ccxt_provider is None?<br/>→ CCXTProvider(exchange) 첫 호출 시 생성"]
+        SingletonW["module-level _ccxt_provider"]
+        Reuse["다음 task → 이미 생성된 singleton 재사용"]
+        WorkerShutdown["worker_shutdown signal<br/>→ asyncio.run(close())"]
+        TaskFire --> Lazy
+        Lazy --> SingletonW
+        Reuse --> SingletonW
+        SingletonW -.shutdown.-> WorkerShutdown
+    end
+
+    style Singleton fill:#9333ea,color:#fff
+    style SingletonW fill:#9333ea,color:#fff
+```
+
+### Prefork 안전성 (D3 교훈 준수)
+
+- `_ccxt_provider`는 **모듈 import 시점에 생성하지 않음** (worker 자식 프로세스 fork 전).
+- 첫 `get_ccxt_provider_for_worker()` 호출 시점(= task 실행 시점, fork 후)에 lazy init.
+- ccxt async loop는 fork된 자식 프로세스 컨텍스트에서 새로 만들어짐 → 부모 process 상태 오염 없음.
+- worker pool 정책: **prefork 고정**. gevent/eventlet은 ccxt async + asyncpg와 비호환.
+
+### Test 격리
+
+`tests/conftest.py`의 `_force_fixture_provider` autouse fixture가 모든 테스트에서 `settings.ohlcv_provider = "fixture"`를 강제 — 의도치 않은 외부 CCXT 호출 차단.
+
+---
+
 ## 6. 트랜잭션 경계
 
 | 경계 | 위치 | 패턴 |
@@ -234,7 +287,7 @@ flowchart TB
 | 대상 | 위치 | TTL | 상태 |
 |------|------|-----|------|
 | Clerk JWKS | API 메모리 | Clerk SDK 기본 | ✅ |
-| OHLCV 핫 데이터 | Redis | 미결정 | ⏳ Sprint 5+ |
+| OHLCV bars | TimescaleDB `ts.ohlcv` hypertable (DB-as-cache) | TTL 없음 (immutable past) | ✅ Sprint 5 M3 (TimescaleProvider) |
 | 백테스트 결과 | DB only (캐시 없음) | — | ✅ |
 | 전략 list | DB only | — | ✅ |
 | 실시간 가격 | Zustand (FE) | 세션 | ⏳ Sprint 7+ WebSocket |

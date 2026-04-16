@@ -47,7 +47,8 @@ PRD §구현 순서를 sprint 단위로 매핑.
 | Phase | 기간 (계획) | 핵심 산출물 | 진행 상태 |
 |-------|-------------|-------------|-----------|
 | Phase 0 | 1주 | 스캐폴딩 (Next.js 16 + FastAPI + Docker + Clerk) | ✅ 2026-04-15 완료 |
-| Phase 1 | 4주 | Pine 파서 + 백테스트 + 전략 CRUD + 백테스트 리포트 UI | 🔄 BE 완료, FE 진행 예정 |
+| Phase 1 | 4주 | Pine 파서 + 백테스트 + 전략 CRUD + 백테스트 리포트 BE | ✅ Sprint 1~4 완료 (2026-04-16) |
+| Phase 1.5 | 2주 | Infra Hardening + market_data (TimescaleDB hypertable + CCXT/TimescaleProvider + Beat) | ✅ Sprint 5 Stage B 완료 (2026-04-16, PR #6 머지) |
 | Phase 2 | 4주 | 스트레스 테스트 + 파라미터 최적화 | ⏳ Sprint 6+ |
 | Phase 3 | 4주 | 데모 트레이딩 (Bybit/Binance), 리스크 관리 | ⏳ Sprint 7+ |
 | Phase 4 | 4주 | 라이브 트레이딩, 멀티 거래소, 알림 | ⏳ Sprint 8+ |
@@ -73,7 +74,7 @@ PRD §구현 순서를 sprint 단위로 매핑.
 | Auth | REQ-AUTH-* (Clerk JWT, Webhook) | Sprint 3 ✅ |
 | Strategy | REQ-STR-* (CRUD, Pine 파싱, 트랜스파일) | Sprint 1, 3 ✅ |
 | Backtest | REQ-BT-* (제출, 진행, 취소, 결과 조회) | Sprint 2, 4 ✅ |
-| Market Data | REQ-MD-* (OHLCV 수집, 캐싱) | Sprint 5 (예정) |
+| Market Data | REQ-MD-* (OHLCV 수집, 캐싱) | Sprint 5 ✅ (TimescaleDB hypertable + CCXT cache) |
 | Stress Test | REQ-ST-* (Monte Carlo, Walk-Forward) | Sprint 6+ (예정) |
 | Optimizer | REQ-OPT-* (Grid, Bayesian) | Sprint 6+ (예정) |
 | Trading | REQ-TRD-* (데모/라이브, Risk Mgmt, Kill Switch) | Sprint 7+ (예정) |
