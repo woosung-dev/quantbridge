@@ -130,6 +130,28 @@ async def test_get_by_idempotency_key_miss_returns_none(db_session, strategy, ac
     assert await repo.get_by_idempotency_key("never-seen") is None
 
 
+async def test_transition_to_filled_records_partial_quantity(db_session, strategy, account):
+    """CCXT 부분체결 — filled_quantity < quantity. ADR-006 / autoplan Eng E7."""
+    repo, order = await _make_order(db_session, strategy, account)
+    await repo.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await repo.commit()
+
+    rowcount = await repo.transition_to_filled(
+        order.id,
+        exchange_order_id="bybit-partial-1",
+        filled_price=Decimal("50000"),
+        filled_quantity=Decimal("0.005"),  # ordered 0.01, partial fill 0.005
+        filled_at=datetime.now(UTC),
+    )
+    await repo.commit()
+    assert rowcount == 1
+
+    fetched = await repo.get_by_id(order.id)
+    assert fetched is not None
+    assert fetched.filled_quantity == Decimal("0.005")
+    assert fetched.quantity == Decimal("0.01")  # 원 주문 수량 유지
+
+
 async def test_advisory_lock_acquire_and_release(db_session, strategy, account):
     """pg_advisory_xact_lock 트랜잭션 범위 내 동작 검증 (Sprint 5 M2 패턴).
 

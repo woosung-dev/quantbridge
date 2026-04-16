@@ -148,6 +148,9 @@ class Order(SQLModel, table=True):
     submitted_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
     )
+    # NOTE: terminal timestamp — repository.transition_to_{filled,rejected,cancelled}가
+    # 모두 이 컬럼에 기록한다. "filled"라는 이름은 오래된 의미 잔재. 향후 analytics가
+    # rejected/cancelled 시점을 따로 쓸 이유가 생기면 terminal_at으로 rename 고려.
     filled_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
     )

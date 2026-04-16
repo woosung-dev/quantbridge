@@ -113,6 +113,7 @@ class OrderRepository:
         *,
         exchange_order_id: str,
         filled_price: Decimal | None,
+        filled_quantity: Decimal | None = None,  # NEW — CCXT partial fill 지원 (ADR-006 / autoplan Eng E7)
         filled_at: datetime,
         realized_pnl: Decimal | None = None,
     ) -> int:
@@ -124,6 +125,7 @@ class OrderRepository:
                 state=OrderState.filled,
                 exchange_order_id=exchange_order_id,
                 filled_price=filled_price,
+                filled_quantity=filled_quantity,
                 filled_at=filled_at,
                 realized_pnl=realized_pnl,
             )
