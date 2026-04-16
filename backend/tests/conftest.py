@@ -165,3 +165,13 @@ def _force_fixture_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "src.core.config.settings.ohlcv_provider", "fixture"
     )
+
+
+@pytest.fixture
+def celery_eager(monkeypatch: pytest.MonkeyPatch):
+    """Celery eager mode — task.apply() executes synchronously in-process."""
+    from src.tasks.celery_app import celery_app
+
+    monkeypatch.setattr(celery_app.conf, "task_always_eager", True)
+    monkeypatch.setattr(celery_app.conf, "task_eager_propagates", True)
+    return celery_app
