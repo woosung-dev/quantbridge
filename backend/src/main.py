@@ -69,6 +69,9 @@ def create_app() -> FastAPI:
     from src.backtest.router import router as backtest_router
     app.include_router(backtest_router, prefix="/api/v1")
 
+    from src.trading.router import router as trading_router
+    app.include_router(trading_router, prefix="/api/v1")
+
     return app
 
 

@@ -88,3 +88,15 @@ class PaginationResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+def mask_api_key(plaintext: str) -> str:
+    """앞 4자 + ****** + 뒤 4자. 길이 < 8인 경우 전부 마스킹."""
+    if len(plaintext) < 8:
+        return "*" * len(plaintext)
+    return f"{plaintext[:4]}******{plaintext[-4:]}"
+
+
+class PaginatedExchangeAccounts(BaseModel):
+    items: list[ExchangeAccountResponse]
+    total: int
