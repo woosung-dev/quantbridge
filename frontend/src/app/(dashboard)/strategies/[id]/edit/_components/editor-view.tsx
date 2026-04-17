@@ -54,16 +54,23 @@ export function EditorView({ id }: { id: string }) {
   }
   if (isError || !strategy) {
     return (
-      <div className="p-8">
-        <p className="text-destructive">전략을 불러오지 못했습니다.</p>
-        <Button
-          variant="outline"
-          className="mt-4"
-          render={<Link href="/strategies" />}
-          nativeButton={false}
-        >
-          목록으로
-        </Button>
+      <div className="mx-auto max-w-[1200px] px-6 py-8">
+        <div className="mx-auto max-w-md rounded-[var(--radius-lg)] border border-[color:var(--destructive-light)] bg-[color:var(--destructive-light)] p-8 text-center">
+          <h2 className="font-display text-lg font-semibold text-[color:var(--destructive)]">
+            전략을 찾을 수 없습니다
+          </h2>
+          <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
+            전략이 삭제되었거나 접근 권한이 없을 수 있습니다.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-5"
+            render={<Link href="/strategies" />}
+            nativeButton={false}
+          >
+            ← 전략 목록으로
+          </Button>
+        </div>
       </div>
     );
   }

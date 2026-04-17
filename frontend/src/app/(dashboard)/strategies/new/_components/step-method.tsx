@@ -27,10 +27,12 @@ export function StepMethod(props: {
         <CodeIcon className="size-8 text-[color:var(--primary)]" strokeWidth={1.5} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-[color:var(--text-primary)]">Pine Script 직접 입력</span>
+            <span className="break-keep font-semibold text-[color:var(--text-primary)]">
+              Pine Script 직접 입력
+            </span>
             <Badge variant="secondary" className="text-[0.65rem]">권장</Badge>
           </div>
-          <p className="mt-0.5 text-xs text-[color:var(--text-secondary)]">
+          <p className="mt-0.5 break-keep text-xs text-[color:var(--text-secondary)]">
             TradingView에서 코드를 복사해 붙여넣습니다. 실시간 파싱으로 즉시 확인.
           </p>
         </div>
