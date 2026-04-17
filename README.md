@@ -31,33 +31,41 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ### 2. Clone + 환경 변수
 
+`.env.example`은 서비스별로 분리됨 (loader 관행에 맞춤). root는 docker compose가 자동 로드하는 `.env`, backend/frontend는 각 loader 관행인 `.env.local`.
+
 ```bash
 git clone <repo-url> quant-bridge
 cd quant-bridge
 
-# 3곳에 .env.local 복사 (docker compose: root / backend / frontend 각자 로드)
-cp .env.example .env.local
-cp .env.example backend/.env.local
-cp .env.example frontend/.env.local
+# Root (docker compose) — 파일명 주의: .env (NOT .env.local)
+cp .env.example .env
+
+# Backend (pydantic-settings가 .env.local 읽음)
+cp backend/.env.example backend/.env.local
+
+# Frontend (Next.js가 .env.local 읽음)
+cp frontend/.env.example frontend/.env.local
 ```
 
-필수 4개 키만 실값으로 교체 (Clerk Dashboard → API Keys):
-- `CLERK_SECRET_KEY`
-- `CLERK_PUBLISHABLE_KEY`
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (동일 값)
-- `TRADING_ENCRYPTION_KEYS` ([생성 방법](#3-trading_encryption_keys-생성-sprint-6))
+필수 실값 교체 (각 파일 `[필수 …]` 마킹된 키):
+- `backend/.env.local` + `.env`: `CLERK_SECRET_KEY` (Clerk Dashboard → API Keys → Secret keys), `TRADING_ENCRYPTION_KEYS` ([생성 방법](#3-trading_encryption_keys-생성-sprint-6))
+- `frontend/.env.local`: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (Clerk Dashboard → Publishable keys)
+
+> **왜 3파일?** docker compose는 `./env`만 자동 로드, backend pydantic-settings는 `backend/.env.local` → `backend/.env` 순서로 로드, Next.js는 `frontend/.env.local` 로드. 파일 하나에 몰면 "이 변수가 어디서 쓰이나?" 추론 필요 + loader 간 약속이 drift됨. 서비스별 분리가 turborepo/cal.com/Vercel 공식 예제 표준.
 
 ### 3. `TRADING_ENCRYPTION_KEYS` 생성 (Sprint 6+)
 
-거래소 API Key AES-256 암호화용 Fernet 키. **최초 1회만 생성**해서 `backend/.env.local`에 영구 저장:
+거래소 API Key AES-256 암호화용 Fernet 키. **최초 1회만 생성**, 변경 시 기존 암호화된 API Key 복호화 불가:
 
 ```bash
 cd backend
 KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local
-echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../.env.local   # docker compose용
+echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local      # uvicorn/celery (로컬)
+echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../.env         # docker compose 컨테이너
 cd ..
 ```
+
+두 파일 값이 **반드시 동일**해야 compose 워커와 로컬 uvicorn이 같은 키로 복호화 일관 유지.
 
 ### 4. 인프라 + 서버
 

@@ -32,17 +32,26 @@ docker compose version
 
 ## 2. 클론 + 환경 설정
 
+`.env.example`은 **3개로 분리** (Pattern 2 — 서비스별, turborepo/cal.com 표준). 각 파일이 해당 loader만 담당:
+
+| 위치 | Loader | 파일명 |
+|------|--------|-------|
+| `./.env.example` | docker compose (`docker-compose.yml`의 `${VAR}` interpolation) | `.env` (NOT `.env.local`) |
+| `backend/.env.example` | pydantic-settings (`cd backend && uv run uvicorn/celery`) | `.env.local` |
+| `frontend/.env.example` | Next.js (`cd frontend && pnpm dev`) | `.env.local` |
+
 ```bash
 git clone <repo>
 cd quant-bridge
 
-# 환경 변수 복사 — 위치 3곳 (혹은 심링크)
-cp .env.example .env.local
-cp .env.example backend/.env.local
-cp .env.example frontend/.env.local
+# 3 파일 복사 (각 loader 관행에 맞춘 파일명)
+cp .env.example .env                                  # docker compose (자동 로드: ./.env)
+cp backend/.env.example backend/.env.local            # pydantic-settings
+cp frontend/.env.example frontend/.env.local          # Next.js
 ```
 
-> `.env.example` 상단 주석 참조: docker compose는 root `.env.local`, uvicorn은 `backend/.env.local`, Next.js는 `frontend/.env.local` 사용.
+> **왜 root만 `.env`?** docker compose는 `./env`만 자동 로드하고 `.env.local`은 매번 `--env-file .env.local` 플래그 필요. 표준 관행 준수가 plumbing 적음.
+> **왜 backend/frontend는 `.env.local`?** pydantic-settings 및 Next.js 공식 관행. `.gitignore`에도 `.env.local` 패턴으로 이미 안전 처리됨.
 
 ### 2.1 필수로 채워야 할 키
 
@@ -248,3 +257,4 @@ pnpm tsc --noEmit
 
 - **2026-04-16** — 초안 작성 (Sprint 5 Stage A)
 - **2026-04-17** — Sprint 7c 반영: Python 3.12+/uv-only 명시, TRADING_ENCRYPTION_KEYS 생성 섹션(§2.1 Sprint 6+), 테스트 수 368→524, FE tsc/lint smoke, §8.6~8.9 트러블슈팅 4건 추가
+- **2026-04-17** — `.env.example` Pattern 2(service별 분리)로 재구성 — root `.env` (compose), `backend/.env.local` (uvicorn), `frontend/.env.local` (Next.js). 3 파일로 분리. turborepo/cal.com 표준 준수
