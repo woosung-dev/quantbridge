@@ -7,16 +7,18 @@ import type { ApiError } from "@/lib/api-client";
 import type { ParseStatus } from "./schemas";
 
 /**
- * parse_status별 표시 메타데이터 (라벨, Badge tone).
- * `tone`은 shadcn Badge `variant`에 대응.
+ * parse_status별 표시 메타데이터 (라벨, tone).
+ * `tone`은 globals.css의 `[data-tone="*"]` CSS 규칙과 매칭되며,
+ * T3 Step 3.6에서 `<Badge data-tone={meta.tone}>` 형태로 소비됨.
+ * shadcn Badge `variant`와는 별개 — DESIGN.md 색상 토큰 직접 매핑.
  */
 export const PARSE_STATUS_META: Record<
   ParseStatus,
-  { label: string; tone: "default" | "secondary" | "destructive" | "outline" }
+  { label: string; tone: "success" | "warning" | "destructive" }
 > = {
-  ok: { label: "Parsed", tone: "default" },
-  unsupported: { label: "Unsupported", tone: "secondary" },
-  error: { label: "Error", tone: "destructive" },
+  ok: { label: "파싱 성공", tone: "success" },
+  unsupported: { label: "미지원", tone: "warning" },
+  error: { label: "파싱 실패", tone: "destructive" },
 };
 
 /**
