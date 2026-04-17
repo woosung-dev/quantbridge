@@ -181,6 +181,9 @@ class OrderService:
                         state=OrderState.pending,
                         idempotency_key=idempotency_key,
                         idempotency_payload_hash=body_hash,
+                        # Sprint 7a: Futures. Spot은 모두 None.
+                        leverage=req.leverage,
+                        margin_mode=req.margin_mode,
                     ))
                     created_order_id = order.id
             else:
@@ -199,6 +202,9 @@ class OrderService:
                     state=OrderState.pending,
                     idempotency_key=None,
                     idempotency_payload_hash=None,
+                    # Sprint 7a: Futures. Spot은 모두 None.
+                    leverage=req.leverage,
+                    margin_mode=req.margin_mode,
                 ))
                 created_order_id = order.id
         # context exit -> commit (lock 해제, row visible)

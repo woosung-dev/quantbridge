@@ -73,6 +73,11 @@ def _build_exchange_provider() -> ExchangeProvider:
         from src.trading.providers import BybitDemoProvider
 
         return BybitDemoProvider()
+    elif provider_name == "bybit_futures":
+        # Sprint 7a: Bybit Linear Perpetual (USDT margined) testnet.
+        from src.trading.providers import BybitFuturesProvider
+
+        return BybitFuturesProvider()
     else:
         raise ValueError(f"Unknown exchange_provider: {provider_name}")
 
@@ -155,6 +160,10 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 type=order.type,
                 quantity=order.quantity,
                 price=order.price,
+                # Sprint 7a: Futures. Spot은 모두 None. DB는 str로 저장되지만
+                # OrderRequest schema validator가 insert 시점에 Literal 검증 완료.
+                leverage=order.leverage,
+                margin_mode=order.margin_mode,  # type: ignore[arg-type]
             )
             receipt = await provider.create_order(creds, order_submit)
         except ProviderError as e:
