@@ -226,8 +226,11 @@
 
 ### Sprint 7 Next Actions
 
-- [ ] 실 CCXT 거래소 연동 (Binance/Bybit sandbox) — OrderExecutionService 구현
-- [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill)
+- [x] 실 CCXT 거래소 연동 (Bybit testnet Futures + Cross Margin) — Sprint 7a ✅ 완료 (2026-04-17)
+- [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기
+- [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7b+
+- [ ] OKX 멀티 거래소 추가 — Sprint 7b
+- [ ] Kill Switch `capital_base` 동적 바인딩 (`ExchangeAccount.fetch_balance()`) — Sprint 8+
 - [ ] WebSocket 실시간 주문 상태 스트리밍
 - [ ] CSO-5: Frontend dev CVEs 해소
 - [ ] Rate limiting middleware (per-user, per-endpoint)
