@@ -164,6 +164,10 @@
  * 대시보드/트레이딩 화면에서 스코프 적용
  * ───────────────────────────────────────────── */
 [data-theme="dash"] {
+  /* DESIGN.md §11: 대시보드/트레이딩 다크 테마. Sprint 7c는 light only이므로
+     본 스코프는 /trading 페이지 전용(기존 Sprint 6 구현). shadcn 시맨틱 토큰
+     (--background/--foreground/--card/--primary 등)까지 dash 값으로 재매핑.
+     Sprint 7c strategy 라우트는 light 테마만 사용 → 본 스코프 미적용. */
   --bg: var(--dash-bg);
   --card: var(--dash-surface);
   --text-primary: var(--dash-text);
@@ -172,6 +176,16 @@
   --border: var(--dash-border);
   --primary: var(--dash-accent);
   --primary-hover: #4f46e5;
+  /* shadcn 시맨틱 토큰 재매핑 — /trading 화면에서 shadcn 컴포넌트가 dash 테마 준수 */
+  --background: var(--dash-bg);
+  --foreground: var(--dash-text);
+  --card-foreground: var(--dash-text);
+  --popover: var(--dash-surface);
+  --popover-foreground: var(--dash-text);
+  --primary-foreground: #FFFFFF;
+  --muted: var(--dash-surface-elevated);
+  --muted-foreground: var(--dash-text-muted);
+  --ring: var(--dash-accent);
   color-scheme: dark;
 }
 
@@ -253,13 +267,8 @@ h6 {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* radius 토큰은 상단 @theme 블록 (--radius-sm/md/lg/xl)에서 DESIGN.md §5 값으로 정의됨.
+     shadcn 기본 calc(var(--radius) * N) 오버라이드는 제거 — rounded-md가 8px로 드리프트하는 이슈 해결 (ADR 009). */
 }
 
 /* ───────────────────────────────────────────────

@@ -100,7 +100,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-[var(--z-nav)] flex h-16 items-center justify-between border-b border-[color:var(--dash-border)] bg-[color:var(--dash-surface)] px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-[100] flex h-16 items-center justify-between border-b border-[color:var(--dash-border)] bg-[color:var(--dash-surface)] px-4 backdrop-blur md:px-6">
           <button
             type="button"
             onClick={toggleSidebar}
