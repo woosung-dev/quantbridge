@@ -202,6 +202,17 @@
 - [ ] Keyboard shortcut help dialog (? key) — 전역 단축키 목록 모달. Context: plan P6 a11y §2
 - [ ] localStorage draft user_id scoping — Clerk session 만료 시 draft auto-clear + user_id key prefix. Context: plan P7-9
 
+### /qa Quick tier findings (2026-04-17 — 상세 `.gstack/qa-reports/qa-report-localhost-2026-04-17.md`)
+
+- [x] **ISSUE-001 (CRITICAL) — `/trading` App Shell 누락** → `src/app/trading/` → `src/app/(dashboard)/trading/` 이동으로 해소 (commit `5bb0223`). 사이드바·유저메뉴·nav 복구
+- [ ] **ISSUE-002 (Medium) — Landing `/` CTA/네비 없음.** 서버 `auth()` 체크 → 인증 시 `redirect("/strategies")`, 미인증 시 "시작하기" 버튼 추가. "Stage 0 scaffold" 배지 제거. Horizon H2 공개 전 필수
+- [ ] **ISSUE-003 (Medium) — Edit 코드 탭 우측 패널 misleading empty state.** 저장된 코드 있을 때도 "코드를 입력하면..." 문구 노출. 마운트 시 자동 파싱 or last-parsed snapshot 기본 렌더
+- [ ] **ISSUE-004 (Medium) — 파싱 결과 탭 정보량 부족.** 버전/아카이브만 표시. warnings count, parse_errors, detected indicators, SL/TP brackets 풍부화
+- [ ] **ISSUE-005 (Medium) — `/trading` 모바일 테이블 overflow.** Recent Orders(6컬럼) + Exchange Accounts(4컬럼) 375px에서 찌그러짐. `.ai/stacks/nextjs-shared.md §4` 의 `overflow-x-auto` 래퍼 규칙 미준수
+- [ ] **ISSUE-006 (Medium) — `/trading` 빈 상태 copy 없음.** "Recent Orders (0)" 헤더만 있고 안내 문구 부재. Empty state + CTA (ExchangeAccount UI 연결) 추가
+- [ ] **ISSUE-007 (Low) — Clerk `@clerk/ui` 미사용 경고.** ClerkProvider에 `ui={ui}` 전달 시 구조적 CSS pin 제거. Clerk 버전 호환성 확인 후
+- [ ] **ISSUE-009 (Low) — `/dashboard` scaffold vs 사이드바 disabled 불일치.** scaffold placeholder 유지하고 사이드바 활성화 or `DashboardPage` 제거 후 `redirect("/strategies")`
+
 ### Sprint 6 — Trading 데모 MVP ✅ 완료 (2026-04-16)
 
 **6-Step 방법론 전체 완료. T1~T23 구현 + CSO 체크리스트 해소.**
