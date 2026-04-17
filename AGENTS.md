@@ -164,7 +164,10 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
   - M2: market_data infra (TimescaleDB hypertable + OHLCVRepository + advisory lock)
   - M3: CCXT + TimescaleProvider + lifespan/worker singleton + backtest 통합
   - M4: Beat schedule (5분 reclaim) + docker-compose worker/beat + Strategy pagination drift
-- **다음:** PR #6 사용자 리뷰/머지 후 Sprint 6+ — FE 연동, Stress Test, Optimizer, Trading 도메인
+- Sprint 6 Trading 데모 MVP ✅ 완료 (2026-04-16, PR #9 — 자동 집행 + Kill Switch + AES-256, 34 commits)
+- Sprint 7a Bybit Futures + Cross Margin ✅ 완료 (2026-04-17, PR #10 — leverage/margin_mode + leverage cap, 524 tests)
+- Sprint 7c FE 따라잡기 (Strategy CRUD UI) ✅ 완료 (2026-04-17, 3 라우트 + Monaco Pine Monarch + shadcn/ui 12개 + sonner + Delete 409 archive fallback + design-review 7-pass 5/10→9/10)
+- **다음:** Sprint 7b (OKX 멀티 거래소 + Trading Sessions) → Sprint 8+ (Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩)
 
 ---
 

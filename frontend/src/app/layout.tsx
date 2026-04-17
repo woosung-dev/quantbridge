@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
+import { Toaster } from "@/components/ui/sonner";
 import "@/styles/globals.css";
 
 // DESIGN.md §3.1 — 3종 폰트 (Inter 본문 / Plus Jakarta 제목 / JetBrains Mono 숫자)
@@ -40,7 +41,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <body>
+        {/* Skip link (WCAG 2.4.1 bypass blocks) — Tab 첫 포커스 시 노출 */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-[color:var(--primary)] focus:px-4 focus:py-2 focus:text-white"
+        >
+          본문으로 바로가기
+        </a>
         <AppProviders>{children}</AppProviders>
+        {/* Sonner Toaster — provider 체인 최하단 (z-index: modal 위) */}
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   );

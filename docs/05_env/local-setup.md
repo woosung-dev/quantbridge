@@ -9,7 +9,7 @@
 
 | 도구 | 버전 | 설치 |
 |------|------|------|
-| Python | 3.11+ | `brew install python@3.11` 또는 pyenv |
+| Python | 3.12+ | `brew install python@3.12` 또는 `uv python install 3.12` |
 | uv | 최신 | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | Node | 22+ | `brew install node` 또는 nvm |
 | pnpm | 최신 | `npm install -g pnpm` 또는 `corepack enable` |
@@ -18,33 +18,44 @@
 
 확인:
 ```bash
-python --version    # 3.11+
-uv --version
-node --version      # 22+
+uv --version                              # uv가 python 3.12+ 자동 관리
+uv run --project backend python --version # 3.12+
+node --version                            # 22+
 pnpm --version
 docker --version
 docker compose version
 ```
 
+> **시스템 python 불필요.** `uv`가 프로젝트별 Python + 의존성 격리 관리. 아래 모든 Python 명령은 `uv run` prefix로 실행.
+
 ---
 
 ## 2. 클론 + 환경 설정
+
+`.env.example`은 **3개로 분리** (Pattern 2 — 서비스별, turborepo/cal.com 표준). 각 파일이 해당 loader만 담당:
+
+| 위치 | Loader | 파일명 |
+|------|--------|-------|
+| `./.env.example` | docker compose (`docker-compose.yml`의 `${VAR}` interpolation) | `.env` (NOT `.env.local`) |
+| `backend/.env.example` | pydantic-settings (`cd backend && uv run uvicorn/celery`) | `.env.local` |
+| `frontend/.env.example` | Next.js (`cd frontend && pnpm dev`) | `.env.local` |
 
 ```bash
 git clone <repo>
 cd quant-bridge
 
-# 환경 변수 복사 — 위치 3곳 (혹은 심링크)
-cp .env.example .env.local
-cp .env.example backend/.env.local
-cp .env.example frontend/.env.local
+# 3 파일 복사 (각 loader 관행에 맞춘 파일명)
+cp .env.example .env                                  # docker compose (자동 로드: ./.env)
+cp backend/.env.example backend/.env.local            # pydantic-settings
+cp frontend/.env.example frontend/.env.local          # Next.js
 ```
 
-> `.env.example` 상단 주석 참조: docker compose는 root `.env.local`, uvicorn은 `backend/.env.local`, Next.js는 `frontend/.env.local` 사용.
+> **왜 root만 `.env`?** docker compose는 `./env`만 자동 로드하고 `.env.local`은 매번 `--env-file .env.local` 플래그 필요. 표준 관행 준수가 plumbing 적음.
+> **왜 backend/frontend는 `.env.local`?** pydantic-settings 및 Next.js 공식 관행. `.gitignore`에도 `.env.local` 패턴으로 이미 안전 처리됨.
 
-### 2.1 필수로 채워야 할 키 (Sprint 3+)
+### 2.1 필수로 채워야 할 키
 
-`.env.local` 에서 아래 4개만 실값으로 교체:
+**Sprint 3+ (Clerk 인증):**
 
 ```env
 CLERK_SECRET_KEY=sk_test_...                  # Clerk Dashboard → API Keys → Secret keys
@@ -52,6 +63,21 @@ CLERK_PUBLISHABLE_KEY=pk_test_...             # Clerk Dashboard → API Keys →
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_... # 동일 값 (Next.js 노출용)
 # CLERK_WEBHOOK_SECRET은 Sprint 7 배포까지 placeholder OK
 ```
+
+**Sprint 6+ (거래소 API Key AES-256 암호화, 필수):**
+
+`TRADING_ENCRYPTION_KEYS`는 Fernet 키. 최초 1회만 생성해서 영구 저장 (변경 시 기존 암호화된 API Key 복호화 불가):
+
+```bash
+cd backend
+KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+# 3곳 모두에 추가 (docker compose: root / uvicorn: backend / 기타 검증 스크립트)
+echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local
+echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../.env.local
+cd ..
+```
+
+> **rotation 전략:** 콤마 구분으로 여러 키 허용 (`TRADING_ENCRYPTION_KEYS=new_key,old_key`). 첫 번째 키가 encrypt, 나머지는 decrypt 허용 — 무중단 키 교체.
 
 > 상세 획득법은 [`clerk-setup.md`](./clerk-setup.md). 모든 변수는 [`env-vars.md`](./env-vars.md) 카탈로그.
 
@@ -162,8 +188,10 @@ pnpm tsc --noEmit
 | API health | `curl localhost:8000/health` | 200 |
 | API docs | 브라우저 `localhost:8000/docs` | Swagger UI |
 | FE 홈 | 브라우저 `localhost:3000` | 200 (Clerk 키 누락 시 401 페이지 가능) |
-| pytest | `cd backend && uv run pytest -q` | 모두 pass (현재 368) |
+| pytest | `cd backend && uv run pytest -q` | 모두 pass (Sprint 7a 기준 524) |
 | Migration round-trip | `cd backend && uv run alembic downgrade -1 && uv run alembic upgrade head` | 에러 없음 |
+| FE tsc/lint | `cd frontend && pnpm tsc --noEmit && pnpm lint` | EXIT 0 (Sprint 7c 기준) |
+| Sprint 7c E2E | `/strategies` 접속 → 새 전략 생성 wizard → 편집 탭 3개 | Monaco 5색 하이라이트 + 300ms 실시간 파싱 |
 
 ---
 
@@ -188,6 +216,30 @@ pnpm tsc --noEmit
 ### 8.5 mypy `Pyright`와 결과 다름
 - IDE Pyright는 uv venv 미연결로 false positive 가능 — `uv run mypy` 결과만 신뢰 (Sprint 4 D1)
 
+### 8.6 `docker compose up` 시 `TRADING_ENCRYPTION_KEYS` missing 에러
+- root `.env.local`에 `TRADING_ENCRYPTION_KEYS=<Fernet key>` 있는지 확인 (§2.1 Sprint 6+ 섹션 참조)
+- `cp backend/.env.local .env.local` 로 빠르게 동기화 가능 (값은 동일해야 함)
+- Fernet 키 자체는 `cd backend && uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` 로 생성
+
+### 8.7 `python: command not found` (uv-only 환경)
+- 시스템 python 없어도 됨 — 모든 python 명령은 `uv run python ...` 또는 `uv run --project backend python ...`
+- cryptography / pandas 등 backend 의존성이 필요하면 `uv run` 앞에 붙이면 backend venv 자동 사용
+- 일회성 실행은 `uvx --from cryptography python -c "..."` 도 가능
+
+### 8.8 Frontend `.env.local` 미생성 시 로그인 페이지 에러
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 누락 시 Clerk가 "Missing publishable key" 에러
+- `frontend/.env.local`에 최소 3줄:
+  ```env
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+  NEXT_PUBLIC_API_URL=http://localhost:8000
+  NEXT_PUBLIC_WS_URL=ws://localhost:8000
+  ```
+
+### 8.9 Monaco Editor 번들 로딩 실패 (Sprint 7c+)
+- `/strategies/new` 또는 `/strategies/[id]/edit`에서 에디터 영역이 검은 박스로 남아있음
+- `next/dynamic({ ssr: false })` 패턴이므로 브라우저만 로드. Next.js dev 로그에 `@monaco-editor/react` chunk 오류 있는지 확인
+- `pnpm install` 재실행 + `.next/` 삭제 후 `pnpm dev` 재시작
+
 ---
 
 ## 9. 다음 단계
@@ -204,3 +256,5 @@ pnpm tsc --noEmit
 ## 변경 이력
 
 - **2026-04-16** — 초안 작성 (Sprint 5 Stage A)
+- **2026-04-17** — Sprint 7c 반영: Python 3.12+/uv-only 명시, TRADING_ENCRYPTION_KEYS 생성 섹션(§2.1 Sprint 6+), 테스트 수 368→524, FE tsc/lint smoke, §8.6~8.9 트러블슈팅 4건 추가
+- **2026-04-17** — `.env.example` Pattern 2(service별 분리)로 재구성 — root `.env` (compose), `backend/.env.local` (uvicorn), `frontend/.env.local` (Next.js). 3 파일로 분리. turborepo/cal.com 표준 준수

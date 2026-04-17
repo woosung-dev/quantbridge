@@ -180,6 +180,25 @@
 - [ ] Sprint 4 spec §10.5 Minor: BacktestRepository session.refresh, exists_for_strategy EXISTS, fixture 통합
 - [ ] conftest 완전 Alembic 전환 (현재는 metadata.create_all + 회귀 diff로 부분 보강)
 
+### Sprint 8+ 후보
+
+- [ ] Strategy template gallery (`/templates`) — Sprint 7c에서 placeholder만 처리
+- [ ] Strategy clone + share — Sprint 7c에서 드롭다운만 disabled (design review P7-4)
+- [ ] Backtest run from /strategies/[id]/edit — `/backtest?strategy_id=` 연결 (Sprint 7b/7d 후보)
+- [ ] FE component test infra (Vitest + @testing-library/react) — Sprint 7c 이관
+- [ ] FE E2E test infra (Playwright + @clerk/testing) — Sprint 7c 수동 smoke만 돌렸으나 자동화 안 됨. Clerk Dashboard testing token 발급 + Playwright fixture 구축. 9 시나리오 spec은 plan §5.7에 기록됨 (재사용). Context: 2026-04-17 Playwright MCP smoke 경험
+
+### Sprint 7c 이후 FE Design Debt (design review 2026-04-17 기록)
+
+- [ ] Chip-style tag input (type + Enter + Backspace 제거) — 현재 comma-split. 파워 유저 마찰. Context: plan P7-6, 2~4시간
+- [ ] Coachmark tour — first-visit edit 페이지의 ⌘+S/Enter 단축키 1회성 overlay. Context: plan Persona C storyboard
+- [ ] Save conflict OCC — 백엔드 ETag 또는 `If-Unmodified-Since` header 도입 후 FE에서 409 Conflict 분기. Context: plan P7-10, 스키마 변경 필요
+- [ ] Bottom sheet dialog (mobile <768px) — DeleteDialog가 thumb-reach 위해 하단 시트로 전환. Context: plan P6 Responsive
+- [ ] Monaco Pine autocomplete — Pine v5 builtin 함수 자동완성 등록. Context: plan P7-7, full grammar 선행 필요
+- [ ] Full Pine TextMate grammar — 현재 5색 Monarch → 전체 keyword + builtin + operator 완전 grammar. 3~5일. Context: plan P7-7
+- [ ] Keyboard shortcut help dialog (? key) — 전역 단축키 목록 모달. Context: plan P6 a11y §2
+- [ ] localStorage draft user_id scoping — Clerk session 만료 시 draft auto-clear + user_id key prefix. Context: plan P7-9
+
 ### Sprint 6 — Trading 데모 MVP ✅ 완료 (2026-04-16)
 
 **6-Step 방법론 전체 완료. T1~T23 구현 + CSO 체크리스트 해소.**
@@ -222,10 +241,13 @@
 - Sprint 5 Stage A docs sync ✅ 완료 (2026-04-16)
 - Sprint 5 Stage B M1~M4 ✅ 완료 (2026-04-16, PR #6 머지)
 - Sprint 6 Trading 데모 MVP ✅ 완료 (2026-04-16, PR #9 — 34 commits)
-- **다음:** Sprint 7 — 실거래소 연동 + Trading Sessions 확장
+- Sprint 7a Bybit Futures + Cross Margin ✅ 완료 (2026-04-17, PR #10, 524 tests)
+- Sprint 7c FE 따라잡기 (Strategy CRUD UI) ✅ 완료 (2026-04-17, 3 라우트 + Monaco Pine Monarch + shadcn/ui 12개 + sonner + Delete 409 archive fallback + design-review 7-pass 5/10→9/10)
+- **다음:** Sprint 7b — Trading Sessions / OKX → Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
 
 ### Sprint 7 Next Actions
 
+- [x] Strategy CRUD UI (목록/생성 3-step/편집 3탭 + delete 409 archive fallback) — Sprint 7c ✅ 완료 (2026-04-17)
 - [x] 실 CCXT 거래소 연동 (Bybit testnet Futures + Cross Margin) — Sprint 7a ✅ 완료 (2026-04-17)
 - [x] `bybit_futures_max_leverage` config 값이 `OrderService.execute`에서 enforce (422 `LeverageCapExceeded`) — Sprint 7a 리뷰 합의로 완료 (2026-04-17)
 - [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기
@@ -238,6 +260,19 @@
 - [ ] Prometheus/Grafana 계측 (CCXT 호출 + 주문 처리 latency)
 - [ ] Bybit v5 `set_margin_mode`/`set_leverage` "not modified" error handling (codes 110026, 34036) — Sprint 8+ mainnet 준비 (BybitFuturesProvider 반복 주문 시 legitimate error를 idempotent no-op로 처리)
 - [ ] `trading.orders.margin_mode` DB-level `CHECK (margin_mode IN ('cross','isolated') OR margin_mode IS NULL)` — Sprint 8+ mainnet 전, DB-string↔DTO-Literal 경계 불변식 하드닝 (ADR-007 §구현 노트 참조)
+
+### Sprint 7c — FE 따라잡기 (Strategy CRUD UI)
+
+> **Scope 결정 완료:** 2026-04-17 (gstack `/office-hours` session 12 + `/plan-design-review` Step 0 lite). 상세 근거·Stage 2 자산 재채택·개정 premises 전부 [`dev-log/008-sprint7c-scope-decision.md`](./dev-log/008-sprint7c-scope-decision.md) 참조.
+>
+> **Implementation plan 대기:** 별도 세션에서 `/superpowers:writing-plans` 호출 → `docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md` 생성 예정. 그 전까지 SDD 실행 금지. Stage 2 자산(DESIGN.md + 프로토타입 3개 + INTERACTION_SPEC)을 반드시 input으로 사용.
+
+- [ ] **선행 Assignment (plan 작성 전 OK):** Pine 소스 1개를 현재 `curl` 방식으로 등록·Parse·백테스트까지 직접 돌리고 스텝별 초단위 시간 측정 — Sprint 7c 완료 후 before/after 정량 평가 지표
+- [ ] **Step 2:** `/superpowers:writing-plans` 세션 호출하여 경량 plan (T1~Tn task 분해) 생성. Input: ADR 008 + DESIGN.md + 프로토타입 3개 + INTERACTION_SPEC
+- [ ] **Step 2.5 (선택):** writing-plans 산출물을 대상으로 `/plan-design-review` 정식 7-pass 재실행하여 empty/error/responsive/a11y 세부 gap 확인
+- [ ] **Step 3:** `/superpowers:subagent-driven-development`로 plan 실행 (Sprint 7b 시작 전 merge, 1~1.5주 time box)
+- [ ] **라우트 구성 (ADR 개정 반영):** `/strategies`(목록) + `/strategies/new`(3-step wizard) + `/strategies/[id]/edit`(Monaco 탭 UI). Drawer 패턴 폐기
+- [ ] **비스코프 확인:** 주문 생성 폼 / OrderList 상세·필터 / ExchangeAccount UI / Strategy versioning 전부 Sprint 8+에서 재평가 (Monaco는 Stage 2 결정대로 포함)
 
 ## Blocked
 
