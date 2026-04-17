@@ -223,8 +223,3 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
         "BTC/USDT:USDT", "market", "buy", 0.001, None
     )
     mock_exchange.close.assert_awaited_once()
-
-    # ── 10. KillSwitchService Protocol 검사 (서비스 레이어가 실제 instance를 기대하는지) ──
-    # _NoopKillSwitch가 ensure_not_gated를 올바르게 구현해 OrderService.execute가 통과했음을
-    # 이미 8번 단계에서 filled 전이로 간접 검증 완료. KillSwitchService import는 상단에서
-    # F401 억제로 re-export guard 유지.

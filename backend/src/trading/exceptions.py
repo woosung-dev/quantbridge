@@ -66,3 +66,22 @@ class ProviderError(AppException):
 
     status_code = 502
     code = "provider_error"
+
+
+class LeverageCapExceeded(AppException):
+    """OrderRequest.leverage가 settings.bybit_futures_max_leverage 상한 초과.
+
+    Sprint 7a: OrderRequest의 정적 `le=125` (Bybit 이론 상한)과 별개로, 운영
+    리스크 관리용 동적 cap을 서비스 계층에서 enforce. 4/4 리뷰 컨센서스.
+    """
+
+    status_code = 422
+    code = "leverage_cap_exceeded"
+
+    def __init__(self, requested: int, cap: int) -> None:
+        super().__init__(
+            f"leverage={requested} exceeds configured cap "
+            f"bybit_futures_max_leverage={cap}"
+        )
+        self.requested = requested
+        self.cap = cap

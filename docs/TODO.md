@@ -227,7 +227,7 @@
 ### Sprint 7 Next Actions
 
 - [x] 실 CCXT 거래소 연동 (Bybit testnet Futures + Cross Margin) — Sprint 7a ✅ 완료 (2026-04-17)
-- [ ] `bybit_futures_max_leverage` config 값이 `OrderService.execute`에서 enforce되도록 서비스 계층 가드 추가 (422 on exceed) — Sprint 7a 이관
+- [x] `bybit_futures_max_leverage` config 값이 `OrderService.execute`에서 enforce (422 `LeverageCapExceeded`) — Sprint 7a 리뷰 합의로 완료 (2026-04-17)
 - [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기
 - [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7b+
 - [ ] OKX 멀티 거래소 추가 — Sprint 7b

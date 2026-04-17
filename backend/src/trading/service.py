@@ -15,8 +15,13 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,  # 예외적 주입 — OrderService.execute advisory lock 전용
 )
 
+from src.core.config import settings
 from src.trading.encryption import EncryptionService
-from src.trading.exceptions import AccountNotFound, IdempotencyConflict
+from src.trading.exceptions import (
+    AccountNotFound,
+    IdempotencyConflict,
+    LeverageCapExceeded,
+)
 from src.trading.kill_switch import KillSwitchService
 from src.trading.models import ExchangeAccount, Order, OrderState, WebhookSecret
 from src.trading.providers import Credentials
@@ -146,10 +151,19 @@ class OrderService:
         """Returns (response, is_replayed).
 
         Flow (autoplan E9 + E2):
-        1. begin_nested() — advisory lock + gate + insert 동일 tx
-        2. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
-        3. commit 후 Celery dispatch (visibility race 방지)
+        1. leverage cap 가드 (Sprint 7a 서비스 계층 enforcement)
+        2. begin_nested() — advisory lock + gate + insert 동일 tx
+        3. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
+        4. commit 후 Celery dispatch (visibility race 방지)
         """
+        # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
+        # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
+        if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
+            raise LeverageCapExceeded(
+                requested=req.leverage,
+                cap=settings.bybit_futures_max_leverage,
+            )
+
         created_order_id: UUID | None = None
         cached_response: OrderResponse | None = None
 
