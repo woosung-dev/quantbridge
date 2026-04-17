@@ -60,6 +60,7 @@ export function EditorView({ id }: { id: string }) {
           variant="outline"
           className="mt-4"
           render={<Link href="/strategies" />}
+          nativeButton={false}
         >
           목록으로
         </Button>
@@ -77,6 +78,7 @@ export function EditorView({ id }: { id: string }) {
           size="icon"
           aria-label="목록으로"
           render={<Link href="/strategies" />}
+          nativeButton={false}
         >
           <ArrowLeftIcon className="size-4" />
         </Button>

@@ -40,19 +40,8 @@ export function StrategyList() {
 
   const { data, isLoading, isError, refetch } = useStrategies(query);
 
-  if (isError) {
-    return (
-      <section className="p-8">
-        <p className="text-destructive">전략 목록을 불러오지 못했습니다.</p>
-        <Button variant="outline" className="mt-4" onClick={() => refetch()}>
-          다시 시도
-        </Button>
-      </section>
-    );
-  }
-
   const totalPages = data?.total_pages ?? 0;
-  const isEmpty = !isLoading && (data?.items.length ?? 0) === 0 && page === 0 && status === "all";
+  const isEmpty = !isLoading && !isError && (data?.items.length ?? 0) === 0 && page === 0 && status === "all";
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-8">
@@ -66,7 +55,7 @@ export function StrategyList() {
             Pine Script 전략 관리
           </p>
         </div>
-        <Button render={<Link href="/strategies/new" />}>
+        <Button render={<Link href="/strategies/new" />} nativeButton={false}>
           <PlusIcon className="size-4" />새 전략
         </Button>
       </header>
@@ -108,8 +97,20 @@ export function StrategyList() {
         </div>
       </div>
 
-      {/* 로딩 / 빈 상태 / 콘텐츠 */}
-      {isLoading ? (
+      {/* 로딩 / 에러 / 빈 상태 / 콘텐츠 */}
+      {isError ? (
+        <div className="rounded-[var(--radius-lg)] border border-[color:var(--destructive-light)] bg-[color:var(--destructive-light)] p-6 text-sm">
+          <p className="font-medium text-[color:var(--destructive)]">
+            전략 목록을 불러오지 못했습니다.
+          </p>
+          <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
+            네트워크 또는 인증 문제가 있을 수 있습니다.
+          </p>
+          <Button variant="outline" className="mt-4" onClick={() => refetch()}>
+            다시 시도
+          </Button>
+        </div>
+      ) : isLoading ? (
         <ListSkeleton view={view} />
       ) : isEmpty ? (
         <StrategyEmptyState />

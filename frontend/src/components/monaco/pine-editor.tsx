@@ -4,7 +4,7 @@
 // ⌘+Enter / Ctrl+Enter 커맨드 등록 → 상위 onTriggerParse delegate.
 
 import dynamic from "next/dynamic";
-import type { OnMount } from "@monaco-editor/react";
+import type { BeforeMount, OnMount } from "@monaco-editor/react";
 import { registerPineLanguage } from "./pine-language";
 
 // Monaco는 bundle size가 커서 client-only + dynamic import.
@@ -22,8 +22,12 @@ export interface PineEditorProps {
 }
 
 export function PineEditor(props: PineEditorProps) {
-  const handleMount: OnMount = (editor, monaco) => {
+  // beforeMount: editor instance 생성 전에 language + theme 등록 (theme prop과 race 방지).
+  const handleBeforeMount: BeforeMount = (monaco) => {
     registerPineLanguage(monaco);
+  };
+
+  const handleMount: OnMount = (editor, monaco) => {
     // ⌘+Enter / Ctrl+Enter → 상위로 파싱 트리거 delegate.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
       props.onTriggerParse?.();
@@ -37,6 +41,7 @@ export function PineEditor(props: PineEditorProps) {
       theme="pine-dark"
       value={props.value}
       onChange={(v) => props.onChange(v ?? "")}
+      beforeMount={handleBeforeMount}
       onMount={handleMount}
       options={{
         readOnly: props.readOnly,
