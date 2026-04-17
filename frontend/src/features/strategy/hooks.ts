@@ -66,11 +66,16 @@ export function useStrategy(
   });
 }
 
-export function useCreateStrategy(): UseMutationResult<
-  StrategyResponse,
-  Error,
-  CreateStrategyRequest
-> {
+// T5에서 추가된 hook-level callback 옵션. cache invalidation은 내부에서 유지하고,
+// 호출부의 UX 반응(toast, dialog phase 전환 등)만 선택적으로 주입.
+export interface MutationCallbacks<TData, TError = Error> {
+  onSuccess?: (data: TData) => void;
+  onError?: (err: TError) => void;
+}
+
+export function useCreateStrategy(
+  opts: MutationCallbacks<StrategyResponse> = {},
+): UseMutationResult<StrategyResponse, Error, CreateStrategyRequest> {
   const { getToken } = useAuth();
   const qc = useQueryClient();
   return useMutation({
@@ -81,12 +86,15 @@ export function useCreateStrategy(): UseMutationResult<
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: strategyKeys.lists() });
       qc.setQueryData(strategyKeys.detail(created.id), created);
+      opts.onSuccess?.(created);
     },
+    onError: (err) => opts.onError?.(err),
   });
 }
 
 export function useUpdateStrategy(
   id: string,
+  opts: MutationCallbacks<StrategyResponse> = {},
 ): UseMutationResult<StrategyResponse, Error, UpdateStrategyRequest> {
   const { getToken } = useAuth();
   const qc = useQueryClient();
@@ -98,11 +106,15 @@ export function useUpdateStrategy(
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: strategyKeys.lists() });
       qc.setQueryData(strategyKeys.detail(updated.id), updated);
+      opts.onSuccess?.(updated);
     },
+    onError: (err) => opts.onError?.(err),
   });
 }
 
-export function useDeleteStrategy(): UseMutationResult<void, Error, string> {
+export function useDeleteStrategy(
+  opts: MutationCallbacks<void> = {},
+): UseMutationResult<void, Error, string> {
   const { getToken } = useAuth();
   const qc = useQueryClient();
   return useMutation({
@@ -113,7 +125,9 @@ export function useDeleteStrategy(): UseMutationResult<void, Error, string> {
     onSuccess: (_void, id) => {
       qc.invalidateQueries({ queryKey: strategyKeys.lists() });
       qc.removeQueries({ queryKey: strategyKeys.detail(id) });
+      opts.onSuccess?.();
     },
+    onError: (err) => opts.onError?.(err),
   });
 }
 
