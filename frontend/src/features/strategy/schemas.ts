@@ -23,6 +23,8 @@ export const ParsePreviewResponseSchema = z.object({
   errors: z.array(ParseErrorSchema).default([]),
   entry_count: z.number().int().default(0),
   exit_count: z.number().int().default(0),
+  // Sprint 7b ISSUE-004: BE ParseOutcome.supported_feature_report["functions_used"] 반영.
+  functions_used: z.array(z.string()).default([]),
 });
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
 
