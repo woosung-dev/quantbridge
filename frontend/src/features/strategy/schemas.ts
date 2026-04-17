@@ -27,7 +27,7 @@ export const ParsePreviewResponseSchema = z.object({
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
 
 export const StrategyResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
   description: z.string().nullable(),
   pine_source: z.string(),
@@ -38,8 +38,8 @@ export const StrategyResponseSchema = z.object({
   symbol: z.string().nullable(),
   tags: z.array(z.string()).default([]),
   is_archived: z.boolean(),
-  created_at: z.string().datetime({ offset: true }),
-  updated_at: z.string().datetime({ offset: true }),
+  created_at: z.iso.datetime({ offset: true }),
+  updated_at: z.iso.datetime({ offset: true }),
 });
 export type StrategyResponse = z.infer<typeof StrategyResponseSchema>;
 
