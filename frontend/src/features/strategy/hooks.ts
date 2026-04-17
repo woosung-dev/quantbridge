@@ -131,16 +131,16 @@ export function useDeleteStrategy(
   });
 }
 
-export function useParseStrategy(): UseMutationResult<
-  ParsePreviewResponse,
-  Error,
-  string
-> {
+export function useParseStrategy(
+  opts: MutationCallbacks<ParsePreviewResponse> = {},
+): UseMutationResult<ParsePreviewResponse, Error, string> {
   const { getToken } = useAuth();
   return useMutation({
     mutationFn: async (pine_source: string) => {
       const token = await getToken();
       return parseStrategy(pine_source, token);
     },
+    onSuccess: (data) => opts.onSuccess?.(data),
+    onError: (err) => opts.onError?.(err),
   });
 }
