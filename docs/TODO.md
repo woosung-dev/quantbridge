@@ -186,6 +186,7 @@
 - [ ] Strategy clone + share — Sprint 7c에서 드롭다운만 disabled (design review P7-4)
 - [ ] Backtest run from /strategies/[id]/edit — `/backtest?strategy_id=` 연결 (Sprint 7b/7d 후보)
 - [ ] FE component test infra (Vitest + @testing-library/react) — Sprint 7c 이관
+- [ ] FE E2E test infra (Playwright + @clerk/testing) — Sprint 7c 수동 smoke만 돌렸으나 자동화 안 됨. Clerk Dashboard testing token 발급 + Playwright fixture 구축. 9 시나리오 spec은 plan §5.7에 기록됨 (재사용). Context: 2026-04-17 Playwright MCP smoke 경험
 
 ### Sprint 7c 이후 FE Design Debt (design review 2026-04-17 기록)
 
