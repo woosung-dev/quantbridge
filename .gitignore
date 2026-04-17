@@ -53,7 +53,4 @@ tmp/
 # === AI 도구 세션 캐시 (codex consult 등) ===
 .context/
 
-# Playwright MCP artifacts (dogfood QA)
-.playwright-mcp/
-sprint7c-*.png
 

@@ -20,6 +20,7 @@ import {
   parseStrategy,
   updateStrategy,
 } from "./api";
+import { strategyKeys } from "./query-keys";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
@@ -29,14 +30,8 @@ import type {
   UpdateStrategyRequest,
 } from "./schemas";
 
-export const strategyKeys = {
-  all: ["strategies"] as const,
-  lists: () => [...strategyKeys.all, "list"] as const,
-  list: (query: StrategyListQuery) => [...strategyKeys.lists(), query] as const,
-  details: () => [...strategyKeys.all, "detail"] as const,
-  detail: (id: string) => [...strategyKeys.details(), id] as const,
-  parse: () => [...strategyKeys.all, "parse"] as const,
-};
+// RSC에서도 참조할 수 있도록 key factory는 query-keys.ts에 분리. 호환성 re-export.
+export { strategyKeys };
 
 export function useStrategies(
   query: StrategyListQuery,

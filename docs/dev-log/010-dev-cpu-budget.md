@@ -123,6 +123,20 @@ rm -rf frontend/.next
 
 3. **`.ai/templates/settings.json.example` PostToolUse prettier hook을 주석 처리(opt-in)**
 
+### P0 적용 결과 (2026-04-17 session2)
+
+**Sprint 7c 후속 세션에서 context7 감사와 병행 처리:**
+
+- ✅ P0 Turbopack/typedRoutes: 선행 세션에서 이미 적용 (commit e68a541, c568528)
+- ✅ `QueryProvider` SSR-aware 패턴 추가 (context7 TanStack 공식) — `typeof window` 분기 + browser singleton. 이전 `useState` 패턴은 suspense boundary 부재 시 client 리셋 위험
+- ✅ `step-code.tsx:28-37` useEffect deps 안정화 — `useRef(props.onParsed)` 캡슐화로 부모 re-render마다 parse mutation 재호출되던 잠재적 무한 루프 차단 (본 ADR #5 예제와 동일 패턴)
+- ✅ Trading 모듈 폴링 완화 — 5s/10s → **30s** + `q.state.status === "error"`일 때 자동 일시 정지 (ADR 권장 ≥30초 준수)
+- ✅ Trading 모듈 구조 재편 — `features/trading/{schemas.ts, query-keys.ts, hooks.ts, components/, index.ts}`. 기존 `features/trading/*.tsx`에서 `fetch()` 직접 호출하던 anti-pattern 제거 (Clerk JWT 주입 누락 보안 문제 동시 해소)
+- ✅ `app/(dashboard)/error.tsx`, `strategies/{loading,error}.tsx` 추가 — Next.js 규약 기반 Suspense/ErrorBoundary 라우트 경계
+- ✅ `strategies/page.tsx` 서버 prefetch + `HydrationBoundary` PoC — Clerk `auth()` 서버측 토큰으로 초기 waterfall 해소
+
+**검증:** `pnpm tsc --noEmit` ✅ / `pnpm lint` ✅ / `pnpm test` 7/7 ✅
+
 ### P2 — Sprint 7d+ 이관
 
 4. **`AGENTS.md:40` "완전한 코드" → "YAGNI-first"로 문구 완화**

@@ -1,59 +1,63 @@
-import { z } from 'zod';
+// Trading 도메인 API — apiFetch + Clerk JWT 주입 일원화 (Strategy 모듈과 동일).
+// 토큰 주입은 hooks.ts에서 `useAuth().getToken()`으로 담당하여 이 모듈은 pure.
 
-export const OrderSchema = z.object({
-  id: z.string().uuid(),
-  symbol: z.string(),
-  side: z.enum(['buy', 'sell']),
-  state: z.enum(['pending', 'submitted', 'filled', 'rejected', 'cancelled']),
-  quantity: z.string(),
-  filled_price: z.string().nullable(),
-  exchange_order_id: z.string().nullable(),
-  error_message: z.string().nullable(),
-  created_at: z.string(),
-});
-export type Order = z.infer<typeof OrderSchema>;
+import { apiFetch } from "@/lib/api-client";
 
-export async function fetchOrders(limit = 50): Promise<{ items: Order[]; total: number }> {
-  const res = await fetch(`/api/v1/orders?limit=${limit}&offset=0`);
-  if (!res.ok) throw new Error('failed to fetch orders');
-  const data = await res.json();
-  return {
-    items: z.array(OrderSchema).parse(data.items),
-    total: data.total,
-  };
+import {
+  ExchangeAccountListResponseSchema,
+  KillSwitchListResponseSchema,
+  OrderListResponseSchema,
+  type ExchangeAccount,
+  type KillSwitchEvent,
+  type Order,
+} from "./schemas";
+
+const ORDERS_PATH = "/api/v1/orders";
+const KILL_SWITCH_PATH = "/api/v1/kill-switch/events";
+const EXCHANGE_ACCOUNTS_PATH = "/api/v1/exchange-accounts";
+
+export async function listOrders(
+  limit: number,
+  token: string | null,
+): Promise<{ items: Order[]; total: number }> {
+  const raw = await apiFetch<unknown>(ORDERS_PATH, {
+    method: "GET",
+    token,
+    params: { limit, offset: 0 },
+  });
+  return OrderListResponseSchema.parse(raw);
 }
 
-// KillSwitchEvent — trigger_type corrected per ADR-006 CEO F4 rename
-export const KillSwitchEventSchema = z.object({
-  id: z.string().uuid(),
-  trigger_type: z.enum(['cumulative_loss', 'daily_loss', 'api_error']),
-  trigger_value: z.string(),
-  threshold: z.string(),
-  triggered_at: z.string(),
-  resolved_at: z.string().nullable(),
-});
-export type KillSwitchEvent = z.infer<typeof KillSwitchEventSchema>;
-
-export async function fetchKillSwitchEvents(): Promise<{ items: KillSwitchEvent[] }> {
-  const res = await fetch('/api/v1/kill-switch/events?limit=20');
-  if (!res.ok) throw new Error('failed to fetch kill switch events');
-  const data = await res.json();
-  return { items: z.array(KillSwitchEventSchema).parse(data.items) };
+export async function listKillSwitchEvents(
+  token: string | null,
+  limit = 20,
+): Promise<{ items: KillSwitchEvent[] }> {
+  const raw = await apiFetch<unknown>(KILL_SWITCH_PATH, {
+    method: "GET",
+    token,
+    params: { limit },
+  });
+  return KillSwitchListResponseSchema.parse(raw);
 }
 
-export const ExchangeAccountSchema = z.object({
-  id: z.string().uuid(),
-  exchange: z.string(),
-  mode: z.string(),
-  label: z.string().nullable(),
-  api_key_masked: z.string(),
-  created_at: z.string(),
-});
-export type ExchangeAccount = z.infer<typeof ExchangeAccountSchema>;
+export async function resolveKillSwitchEvent(
+  id: string,
+  token: string | null,
+  note = "manual unlock from dashboard",
+): Promise<void> {
+  await apiFetch<void>(`${KILL_SWITCH_PATH}/${id}/resolve`, {
+    method: "POST",
+    token,
+    body: { note },
+  });
+}
 
-export async function fetchExchangeAccounts(): Promise<ExchangeAccount[]> {
-  const res = await fetch('/api/v1/exchange-accounts');
-  if (!res.ok) throw new Error('failed to fetch accounts');
-  const data = await res.json();
-  return z.array(ExchangeAccountSchema).parse(data.items);
+export async function listExchangeAccounts(
+  token: string | null,
+): Promise<ExchangeAccount[]> {
+  const raw = await apiFetch<unknown>(EXCHANGE_ACCOUNTS_PATH, {
+    method: "GET",
+    token,
+  });
+  return ExchangeAccountListResponseSchema.parse(raw).items;
 }

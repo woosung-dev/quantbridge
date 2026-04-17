@@ -1,6 +1,13 @@
-import { OrdersPanel } from '@/features/trading/OrdersPanel';
-import { KillSwitchPanel } from '@/features/trading/KillSwitchPanel';
-import { ExchangeAccountsPanel } from '@/features/trading/ExchangeAccountsPanel';
+import type { Metadata } from "next";
+import {
+  ExchangeAccountsPanel,
+  KillSwitchPanel,
+  OrdersPanel,
+} from "@/features/trading";
+
+export const metadata: Metadata = {
+  title: "Trading | QuantBridge",
+};
 
 export default function TradingPage() {
   return (

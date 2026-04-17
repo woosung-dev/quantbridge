@@ -246,6 +246,15 @@
 - Sprint 6 Trading 데모 MVP ✅ 완료 (2026-04-16, PR #9 — 34 commits)
 - Sprint 7a Bybit Futures + Cross Margin ✅ 완료 (2026-04-17, PR #10, 524 tests)
 - Sprint 7c FE 따라잡기 (Strategy CRUD UI) ✅ 완료 (2026-04-17, 3 라우트 + Monaco Pine Monarch + shadcn/ui 12개 + sonner + Delete 409 archive fallback + design-review 7-pass 5/10→9/10)
+- Sprint 7c 후속 — Next.js 16 Anti-Pattern 해소 ✅ 완료 (2026-04-17, `chore/dev-cpu-optimization` — context7 감사 P0~P7 적용)
+  - [x] P0: `QueryProvider` → context7 TanStack SSR 공식 패턴 (typeof window 분기 + browser singleton)
+  - [x] P1: Trading API `fetch()` → `apiFetch` + Clerk 토큰 일원화 (보안 401 누락 fix)
+  - [x] P2: `strategies/page.tsx` 서버 prefetch + `HydrationBoundary` PoC (Clerk `auth()` server-side)
+  - [x] P3: `step-code.tsx` useEffect deps 안정화 (`useRef` 캡슐화, ADR-010 #5 반영)
+  - [x] P5: Suspense/ErrorBoundary — Next.js 규약 `loading.tsx`+`error.tsx` 라우트 레벨 (strategies + dashboard group)
+  - [x] P6: `app/(dashboard)/error.tsx` 추가 (route-group 레벨 경계)
+  - [x] P7: Trading FSD 구조 (`schemas.ts`/`query-keys.ts`/`hooks.ts`/`components/` 분리 + `index.ts` barrel)
+  - 검증: `tsc --noEmit` ✅ / `eslint` ✅ / `vitest` 7/7 ✅
 - **다음:** Sprint 7b — Trading Sessions / OKX → Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
 
 ### Sprint 7 Next Actions
@@ -280,6 +289,15 @@
 ## Blocked
 
 _(없음)_
+
+## Next Actions (P0~P7 후속)
+
+- [ ] **P4 (zod 경로 정정):** `.ai/stacks/nextjs-shared.md §2`의 `import { z } from "zod/v4"` 규칙은 zod@4 미설치 시점의 transition 문구. zod@4.3.6 기준 `"zod"`가 곧 v4 → 규칙을 `import { z } from "zod"`로 완화 필요. (`.ai/`는 gitignored라 원본 repo에서 처리) [확인 필요]
+- [ ] `.uuid()` → `z.uuid()` 전수 migration (strategy/trading 완료, 나머지 전수검사 필요)
+- [ ] 나머지 대시보드 라우트(`/strategies/[id]/edit`, `/strategies/new`)에도 `loading.tsx`+`error.tsx` 라우트 규약 적용
+- [ ] `strategy-list.tsx` 수동 `isLoading`/`isError` 분기 → `useSuspenseQuery`로 최종 전환 (현재는 route-level boundary로 1차 해소)
+- [ ] 기타 `"use client"` 27개 중 presentational 컴포넌트 서버 컴포넌트화 (`strategy-card`, `strategy-table` 후보) — React Query hook chain 재설계 필요
+- [ ] 사용자 수동 조치: `kill <dev-pid>` + `rm -rf frontend/.next frontend/tsconfig.tsbuildinfo` → `pnpm dev` 재시작 → idle CPU <20% 검증 (ADR-010 budget 대조)
 
 ## Questions
 
