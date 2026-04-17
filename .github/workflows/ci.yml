@@ -99,10 +99,12 @@ jobs:
       - run: uv run alembic upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+          TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
       - run: uv run pytest -v
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           REDIS_URL: redis://localhost:6379/0
+          TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
 
   # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
   ci:
