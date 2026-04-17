@@ -267,7 +267,10 @@
   - [x] `next.config.ts`: `create-next-app` 기본값으로 회귀 (reactStrictMode/typedRoutes/env 3개 필드 제거)
   - [x] 필터 URL sync (Plan §5.7 시나리오 7): `useSearchParams`+`router.replace` + 서버 `page.tsx` `searchParams` 동기화. `parse_status` / `archived` / `page` 3개 쿼리 반영
   - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
-- **다음:** Sprint 7d — Trading Sessions / OKX → Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
+- **다음 (결정 대기):** Sprint 7d vs Sprint 8a-pre 우선순위 — [ADR-011](./dev-log/011-pine-execution-strategy-v4.md) 참조
+  - **A (Claude 추천):** Sprint 8a-pre 먼저 — Pine 실행 전략 v4(Alert Hook Parser + 3-Track) 실측 착수. 본인 dogfood 루프 핵심
+  - **B:** Sprint 7d 먼저 — OKX 멀티 거래소 + Trading Sessions (기존 맥락 유지)
+- Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
 
 ### Sprint 7 Next Actions
 
@@ -299,9 +302,99 @@
 - [ ] **라우트 구성 (ADR 개정 반영):** `/strategies`(목록) + `/strategies/new`(3-step wizard) + `/strategies/[id]/edit`(Monaco 탭 UI). Drawer 패턴 폐기
 - [ ] **비스코프 확인:** 주문 생성 폼 / OrderList 상세·필터 / ExchangeAccount UI / Strategy versioning 전부 Sprint 8+에서 재평가 (Monaco는 Stage 2 결정대로 포함)
 
+### Sprint 8 — Pine Execution Strategy v4 (Alert Hook Parser + 3-Track)
+
+> **Architecture:** [`dev-log/011-pine-execution-strategy-v4.md`](./dev-log/011-pine-execution-strategy-v4.md) (ADR) + [`04_architecture/pine-execution-architecture.md`](./04_architecture/pine-execution-architecture.md) (구현 명세) + [`superpowers/specs/2026-04-17-pine-execution-v4-design.md`](./superpowers/specs/2026-04-17-pine-execution-v4-design.md) (세션 아카이브)
+>
+> **핵심 통찰 3:** (1) `alert()`은 자발적 매매 신호 선언 (2) 매매 로직은 Pine 전체의 13% 이하 (3) 실측 없는 설계 5라운드 < 실측 1번
+>
+> **Horizon H1 Stealth 완료 기준 (Sprint 8d 종료 시):** DrFX/LuxAlgo 3종 PyneCore 대비 상대 오차 <0.1%, `strategy.exit trail_points` 지원, 본인 dogfood TV→QB 30초 내
+
+#### Sprint 8a-pre — Phase -1 실측 (2주, 2026-04-18~05-01 예정)
+
+> **목표:** v4 아키텍처 가정 실증. 실측 결과에 따라 ADR-011 amendment 가능.
+
+- [ ] Day 1-2: PyneCore 로컬 설치 + RTB/DrFX/LuxAlgo 3종 E2E 실행
+  - `strategy.exit trail_points/trail_offset` 실제 지원 여부 확인 (RTB 필수)
+  - 렌더링 객체(box.get_top 등) 재참조 동작 확인
+  - 실행 속도 측정 (8760 봉 기준)
+- [ ] Day 3: LLM 변환 Python vs PyneCore vs TV 3-way 비교
+  - 신호 배열 bar-by-bar 상대 오차 측정
+  - LLM 변환 버그 3개(SL 기준점/부동소수점 ==/look-ahead) 실제 영향 수치화
+  - KPI 검증: "상대 오차 <0.1% MVP" 현실성
+- [ ] Day 4-5: TV 공개 스크립트 15~20개 alert 패턴 프로파일링
+  - pynescript AST로 alert/alertcondition 호출 추출
+  - 메시지 포맷 분류 (JSON/키워드/자유 텍스트/한국어)
+  - Track S/A/M 실제 비율 확정 (20-30%/40-50%/20-30% 가정 검증)
+- [ ] Day 6-7: Phase -1 findings 리포트 작성
+  - `.gstack/experiments/phase-minus-1-drfx/README.md`
+  - ADR-011 amendment (필요 시)
+- [ ] Day 8-10: Tier-0 공통 코어 착수
+  - pynescript(LGPL) 포크 → QB 파서 이식 시작
+
+#### Sprint 8a — Tier-0 공통 코어 (3주, 05-02~22 예정)
+
+- [ ] pynescript 포크 완료 + QB `backend/src/strategy/pine/parser.py` 대체
+- [ ] AST 노드 확장: 배열 리터럴, switch, method-call, Matrix/Map/UDT, 4단계 타입 수식어
+- [ ] PyneCore var/varip/rollback 런타임 이식 (Apache 2.0, NOTICE 의무)
+- [ ] bar-by-bar 이벤트 루프 백테스터 (vectorbt는 지표 계산 전용으로 격리)
+- [ ] 렌더링 객체 런타임 범위 A (box/label/line 좌표 저장 + getter, 차트 렌더 NOP)
+- [ ] PyneCore 골든 CI 하네스 구축 (상대 오차 <0.1% MVP)
+- [ ] 완료 기준: DrFX/LuxAlgo 런타임 오류 없이 완주 + PyneCore 대비 10% 이내 오차
+
+#### Sprint 8b — Tier-1 Alert Hook Parser + Tier-3 strategy() (3주, 05-23~06-12)
+
+- [ ] Alert Hook Parser 구현
+  - AST에서 `alert()`/`alertcondition()` 호출 자동 수집
+  - 메시지 분류기 (JSON → 키워드 → fallback)
+  - 조건식 역추적 (시그널 변수 → 정의)
+- [ ] 가상 strategy() 래퍼 자동 생성기
+- [ ] 사용자 1질문 UX (Sprint 7b에서 만든 TabParse 확장)
+  - "추출된 매매 로직" 섹션 추가
+  - 정보성 alert 구분 (사용자 확인)
+- [ ] 3-Track 라우터 (S/A/M 분류기)
+- [ ] `strategy.entry/exit/close/cancel` 네이티브 구현
+- [ ] `strategy.exit trail_points/trail_offset` 구현 (RTB/LuxAlgo 필수, 3~5일)
+- [ ] 분할 익절 (multiple `limit=` 지원)
+- [ ] 피라미딩 지원
+
+#### Sprint 8c — Tier-2 검증 + Tier-4 Variable Explorer (2주, 06-13~26)
+
+- [ ] PyneCore 골든 오라클 CI 완성 (상대 오차 <0.01% v1.0 달성)
+- [ ] TV 수동 간헐 검증 인프라 (샘플 10개, 분기 1회)
+- [ ] Variable Explorer MVP (Track M 수동 UX)
+  - 변수 탐색기 + Bool 시계열 시각화
+  - 매수/매도/청산 수동 매핑
+  - 청산 규칙 템플릿 (ATR/R:R/반대신호/커스텀)
+
+#### Sprint 8d — Tier-5 LLM 하이브리드 + 베타 오픈 (2주, 06-27~07-10)
+
+- [ ] LLM 하이브리드 (Amazon Oxidizer Rule+LLM 패턴)
+  - 파서 에러 자연어 수정 제안
+  - 비표준 Pine → 지원 Pine 재작성 (사용자 승인 후)
+  - 미지원 stdlib 초안 생성 + 골든 테스트 승격 파이프라인
+- [ ] MTF 지원 (`request.security` / `security_lower_tf`)
+- [ ] ToS 법적 방어 조항 추가 (invite-only DMCA, 라이선스 승계)
+- [ ] 첫 베타 10명 온보딩 준비
+
+#### Sprint 8 공통 — 기피 전략 (명시적 거부)
+
+- ❌ PyneTS 포팅/참조 (AGPL SaaS 조항 차단)
+- ❌ PyneSys SaaS 영구 구독 (vendor lock-in + 아키텍처 불일치)
+- ❌ LLM 원샷 번역 주경로 (2.1~47.3% 정확도)
+- ❌ 자체 ANTLR Pine v6 6~12개월 포팅 (pynescript 1~2주 포크로 대체)
+- ❌ 바이트코드 VM / LLVM / MLIR / WASM (과대투자)
+- ❌ 렌더링 완전 구현 (범위 B — 백테스트 무관)
+- ❌ TV 헤드리스 스크래핑 (ToS 회색지대)
+
 ## Blocked
 
-_(없음)_
+- [ ] **Sprint 7d vs Sprint 8a-pre 우선순위** — 사용자 결정 필요 (**blocker**)
+  - Claude 추천: **Sprint 8a-pre 먼저** (본인 dogfood 루프에 Pine이 핵심, DrFX 실측으로 Phase -1 1/3 이미 완료)
+- [ ] **PyneCore `strategy.exit trail_points` 지원 여부** — Phase -1 Day 1-2에서 검증
+- [ ] **Pine 해석이 QB 진짜 차별점인가?** — H2 진입 전 외부 유저 5명 인터뷰 필요 (H1 Stealth에선 본인 dogfood로 진행)
+
+_(기존 Blocked 항목 없음 유지)_
 
 ## Next Actions (P0~P7 후속)
 
