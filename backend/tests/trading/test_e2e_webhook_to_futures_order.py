@@ -5,6 +5,17 @@ task_mod._async_execute → BybitFuturesProvider → CCXT mock → Order(filled)
 CCXT mock으로 네트워크 차단. Webhook TV payload parser 확장은 Sprint 7b로 분리되므로
 manual service-level 경로를 통과해 leverage/margin_mode 전파 체인을 end-to-end 검증.
 
+범위 & 경계:
+- **service-level integration test** — HTTP/authz E2E 아님. Bybit v5 UTA CCXT 불변식
+  (set_margin_mode → set_leverage → create_order 순서 + defaultType=linear + testnet)
+  을 propagation 체인 전체로 잠그는 목적.
+- HTTP/authz 경로는 Sprint 6 `test_router_orders.py`에서 이미 커버됨.
+- 이 테스트는 conftest `db_session`의 savepoint wrapper와 `OrderService.execute`의
+  `begin_nested()`가 같은 세션을 공유하기 때문에 벤인(benign) `SAWarning:
+  nested transaction already deassociated`를 발생시킨다. Production에서 Celery
+  워커는 별도 세션에서 돌기 때문에 이 경로를 타지 않는다. warnings-as-errors CI
+  승격 시 이 테스트만 조용히 깨지지 않도록 `filterwarnings` 마크로 명시적 억제.
+
 검증 포인트:
 1. Order row state == filled
 2. Order row leverage=5, margin_mode="cross"
@@ -26,7 +37,9 @@ from src.auth.models import User
 from src.core.config import settings
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.trading.encryption import EncryptionService
-from src.trading.kill_switch import KillSwitchService
+
+# re-export guard: OrderService 레이어가 실제 instance를 기대하는 타입 참조 유지
+from src.trading.kill_switch import KillSwitchService  # noqa: F401
 from src.trading.models import (
     ExchangeAccount,
     ExchangeMode,
@@ -94,6 +107,9 @@ class _NoopKillSwitch:
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings(
+    "ignore:nested transaction already deassociated:sqlalchemy.exc.SAWarning"
+)
 async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
     db_session: AsyncSession,
     ccxt_futures_mock,
@@ -210,5 +226,5 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
 
     # ── 10. KillSwitchService Protocol 검사 (서비스 레이어가 실제 instance를 기대하는지) ──
     # _NoopKillSwitch가 ensure_not_gated를 올바르게 구현해 OrderService.execute가 통과했음을
-    # 이미 8번 단계에서 filled 전이로 간접 검증 완료.
-    _ = KillSwitchService  # re-export guard: 타입 참조 유지
+    # 이미 8번 단계에서 filled 전이로 간접 검증 완료. KillSwitchService import는 상단에서
+    # F401 억제로 re-export guard 유지.

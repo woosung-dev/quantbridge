@@ -77,6 +77,8 @@ class CumulativeLossEvaluator:
         if total_pnl >= Decimal("0"):
             return EvaluationResult(gated=False)
 
+        # Sprint 7a 경계: capital_base는 config 고정값 — leverage x notional 반영은
+        # Sprint 8+ ExchangeAccount.fetch_balance() 바인딩 시 class docstring 참조.
         loss_percent = (abs(total_pnl) / self._capital * Decimal("100")).quantize(
             Decimal("0.01")
         )
