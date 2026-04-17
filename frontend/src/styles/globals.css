@@ -320,3 +320,24 @@ h6 {
     @apply font-sans;
   }
 }
+
+/* ───────────────────────────────────────────────
+ * Badge data-tone 확장 — DESIGN.md 시맨틱 톤을 shadcn Badge로 확장
+ * Sprint 7c Task 3 Step 3.6: PARSE_STATUS_META.tone과 매칭되는 규칙
+ * <Badge variant="outline" data-tone="success|warning|destructive"> 형태로 소비
+ * ───────────────────────────────────────────── */
+[data-tone="success"] {
+  background-color: var(--success-light);
+  color: var(--success);
+  border-color: transparent;
+}
+[data-tone="warning"] {
+  background-color: #FEF3C7;
+  color: #92400E;
+  border-color: transparent;
+}
+[data-tone="destructive"] {
+  background-color: var(--destructive-light);
+  color: var(--destructive);
+  border-color: transparent;
+}
