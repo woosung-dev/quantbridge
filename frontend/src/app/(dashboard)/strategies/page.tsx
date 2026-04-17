@@ -8,24 +8,44 @@ import {
 
 import { listStrategies } from "@/features/strategy/api";
 import { strategyKeys } from "@/features/strategy/query-keys";
-import type { StrategyListQuery } from "@/features/strategy/schemas";
+import type { ParseStatus, StrategyListQuery } from "@/features/strategy/schemas";
 import { StrategyList } from "./_components/strategy-list";
 
 export const metadata: Metadata = {
   title: "전략 | QuantBridge",
 };
 
-// StrategyList의 초기 렌더 query와 동일해야 캐시 히트.
-const INITIAL_QUERY: StrategyListQuery = {
-  limit: 20,
-  offset: 0,
-  is_archived: false,
-};
+const PAGE_SIZE = 20;
 
-export default async function StrategiesPage() {
+function parseStatusOrUndefined(v?: string): ParseStatus | undefined {
+  return v === "ok" || v === "unsupported" || v === "error" ? v : undefined;
+}
+
+export default async function StrategiesPage({
+  searchParams,
+}: {
+  // Next 16 App Router — searchParams는 Promise. StrategyList 클라이언트 필터와 동일 key 체계.
+  searchParams: Promise<{
+    parse_status?: string;
+    archived?: string;
+    page?: string;
+  }>;
+}) {
+  const sp = await searchParams;
+  const archived = sp.archived === "true";
+  const parseStatus = parseStatusOrUndefined(sp.parse_status);
+  const page = Math.max(0, Number(sp.page ?? "0") || 0);
+
+  const query: StrategyListQuery = {
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+    is_archived: archived,
+  };
+  if (parseStatus) query.parse_status = parseStatus;
+
   const queryClient = new QueryClient();
 
-  // 서버에서 Clerk 토큰 획득 → 서버 prefetch.
+  // 서버 prefetch는 URL 쿼리 그대로 반영하여 client query key와 일치시킨다.
   // proxy.ts가 이 라우트를 보호하므로 익명 접근은 여기까지 오지 않음.
   const { getToken } = await auth();
   const token = await getToken();
@@ -33,8 +53,8 @@ export default async function StrategiesPage() {
   if (token) {
     try {
       await queryClient.prefetchQuery({
-        queryKey: strategyKeys.list(INITIAL_QUERY),
-        queryFn: () => listStrategies(INITIAL_QUERY, token),
+        queryKey: strategyKeys.list(query),
+        queryFn: () => listStrategies(query, token),
       });
     } catch {
       // prefetch 실패는 silent degrade — 클라이언트 측에서 재시도.
