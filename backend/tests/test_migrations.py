@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import inspect
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
@@ -18,6 +19,12 @@ from src.auth.models import User  # noqa: F401
 from src.backtest.models import Backtest, BacktestTrade  # noqa: F401
 from src.market_data.models import OHLCV  # noqa: F401
 from src.strategy.models import Strategy  # noqa: F401
+from src.trading.models import (  # noqa: F401
+    ExchangeAccount,
+    KillSwitchEvent,
+    Order,
+    WebhookSecret,
+)
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -100,3 +107,45 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             f"Table '{full_name}' missing columns in DB: {missing}. "
             f"Migration 누락 또는 drift 발생."
         )
+
+
+def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
+    """alembic upgrade head 후 sync Inspector 반환 (engine 포함 — 호출자가 dispose)."""
+    monkeypatch.chdir(_BACKEND_ROOT)
+    cfg = _alembic_cfg()
+    command.upgrade(cfg, "head")
+    url = cfg.get_main_option("sqlalchemy.url")
+    assert url is not None
+    engine = create_engine(url)
+    inspector = inspect(engine)
+    return engine, inspector
+
+
+def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """trading schema + 4 테이블이 upgrade head 후 존재하는지 검증."""
+    engine, inspector = _upgrade_and_inspect(monkeypatch)
+    try:
+        schemas = inspector.get_schema_names()
+        assert "trading" in schemas, f"trading schema 누락. 실제: {schemas}"
+
+        trading_tables = set(inspector.get_table_names(schema="trading"))
+        assert trading_tables == {
+            "exchange_accounts",
+            "orders",
+            "kill_switch_events",
+            "webhook_secrets",
+        }, f"예상 4 테이블과 불일치: {trading_tables}"
+    finally:
+        engine.dispose()
+
+
+def test_trading_orders_idempotency_unique(monkeypatch: pytest.MonkeyPatch) -> None:
+    """orders.idempotency_key partial UNIQUE index 존재 검증."""
+    engine, inspector = _upgrade_and_inspect(monkeypatch)
+    try:
+        indexes = inspector.get_indexes("orders", schema="trading")
+        idem = [i for i in indexes if i["name"] == "uq_orders_idempotency_key"]
+        assert len(idem) == 1
+        assert idem[0]["unique"] is True
+    finally:
+        engine.dispose()

@@ -19,7 +19,7 @@ celery_app = Celery(
     "quantbridge",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["src.tasks.backtest"],
+    include=["src.tasks.backtest", "src.tasks.trading"],
 )
 
 celery_app.conf.update(

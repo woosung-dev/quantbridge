@@ -4,7 +4,7 @@
 > **인증:** Clerk JWT 검증 (자체 토큰 발급 없음)
 > **비동기 작업:** Celery (백테스트, 최적화, 스트레스테스트) → 202 Accepted + backtest_id
 > **SSOT:** 각 도메인 `backend/src/<domain>/router.py`. 본 문서와 코드 충돌 시 코드 우선.
-> **갱신:** Sprint 4 완료 시점 (2026-04-16)
+> **갱신:** Sprint 6 완료 시점 (2026-04-16)
 
 ### 구현 상태 범례
 - ✅ — 구현 + `main.py` 등록됨
@@ -95,15 +95,32 @@
 
 ---
 
-## 거래소 계정 (Exchange Accounts) — ⏳ Sprint 7+
+## Trading (Sprint 6) — ✅ 구현 완료
 
-> 코드 prefix: `/exchange`. API Key는 AES-256 암호화 저장. 평문 반환 금지.
+> Sprint 6 Trading 데모 MVP. Exchange Account + Webhook + Order + Kill Switch.
+> API Key는 AES-256-GCM 암호화 저장 (EncryptionService). 평문 반환 금지.
+
+| Method | Path | 설명 | 인증 |
+|--------|------|-----|------|
+| `POST` | `/api/v1/exchange-accounts` | 계정 등록 (AES-256 암호화 저장) | Clerk JWT |
+| `GET` | `/api/v1/exchange-accounts` | 본인 계정 목록 (masked API key) | Clerk JWT |
+| `DELETE` | `/api/v1/exchange-accounts/{id}` | 계정 삭제 | Clerk JWT |
+| `POST` | `/api/v1/webhooks/{strategy_id}?token=<hmac>` | TV Alert 수신, Idempotency-Key header | HMAC-SHA256 |
+| `GET` | `/api/v1/orders?limit&offset` | 본인 주문 목록 | Clerk JWT |
+| `GET` | `/api/v1/orders/{id}` | 주문 상세 | Clerk JWT |
+| `POST` | `/api/v1/orders/{id}/cancel` | 주문 취소 (DB만 Sprint 6) | Clerk JWT |
+| `GET` | `/api/v1/kill-switch/events?limit&offset` | Kill Switch 이벤트 감사 | Clerk JWT |
+| `POST` | `/api/v1/kill-switch/events/{id}/resolve` | Kill Switch 수동 해제 | Clerk JWT |
+| `POST` | `/api/v1/strategies/{id}/rotate-webhook-secret` | Webhook secret rotate | Clerk JWT |
+
+---
+
+## 거래소 계정 (Exchange Accounts) — ⏳ Sprint 7+ (확장)
+
+> Sprint 6에서 기본 CRUD 구현 완료. Sprint 7+에서 test/balance 등 확장.
 
 | Method | Path | 설명 | Auth |
 |--------|------|------|------|
-| `GET` | `/api/v1/exchange/accounts` | 등록된 거래소 계정 목록 | Required |
-| `POST` | `/api/v1/exchange/accounts` | API Key 등록 (암호화 저장) | Required |
-| `DELETE` | `/api/v1/exchange/accounts/:id` | 계정 삭제 | Required |
 | `POST` | `/api/v1/exchange/accounts/:id/test` | API Key 유효성 테스트 | Required |
 | `GET` | `/api/v1/exchange/accounts/:id/balance` | 잔고 조회 (데모/라이브) | Required |
 
@@ -111,7 +128,7 @@
 
 ## 트레이딩 (Trading Sessions) — ⏳ Sprint 7+
 
-> 코드 prefix: `/trading`.
+> 코드 prefix: `/trading`. Sprint 6 Kill Switch 기반 위에 세션 관리 확장.
 
 | Method | Path | 설명 | Auth |
 |--------|------|------|------|

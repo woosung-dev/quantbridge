@@ -15,6 +15,15 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
+# Sprint 6 T3 — src.core.config.Settings.trading_encryption_keys is a required
+# field (no default). src.core.config module evaluates `settings = get_settings()`
+# at import time, so we MUST set TRADING_ENCRYPTION_KEYS before any import that
+# transitively imports src.core.config. Generate a valid Fernet key on demand.
+if not os.environ.get("TRADING_ENCRYPTION_KEYS"):
+    from cryptography.fernet import Fernet as _Fernet
+
+    os.environ["TRADING_ENCRYPTION_KEYS"] = _Fernet.generate_key().decode()
+
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
@@ -30,6 +39,12 @@ from src.common.database import get_async_session
 from src.main import create_app
 from src.market_data.models import OHLCV  # noqa: F401 — metadata 등록 (ts.ohlcv)
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
+from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
+    ExchangeAccount,
+    KillSwitchEvent,
+    Order,
+    WebhookSecret,
+)
 
 DB_URL = os.environ.get(
     "DATABASE_URL",
@@ -46,6 +61,11 @@ async def _test_engine():
         # 회귀 테스트(test_migrations.py)와 동일 환경 보장 위해 함께 보장.
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS ts;"))
+        # trading schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시적으로 bootstrap.
+        # 이 라인은 영구적 — conftest 엔진은 Alembic이 아니라 metadata.create_all로 테이블을
+        # 만들기 때문에, T2 migration(faa9ad7b4585)이 머지된 뒤에도 필요하다.
+        # (Alembic 경로는 마이그레이션이 자체적으로 CREATE SCHEMA 한다.)
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS trading;"))
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
     yield engine
@@ -145,3 +165,13 @@ def _force_fixture_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "src.core.config.settings.ohlcv_provider", "fixture"
     )
+
+
+@pytest.fixture
+def celery_eager(monkeypatch: pytest.MonkeyPatch):
+    """Celery eager mode — task.apply() executes synchronously in-process."""
+    from src.tasks.celery_app import celery_app
+
+    monkeypatch.setattr(celery_app.conf, "task_always_eager", True)
+    monkeypatch.setattr(celery_app.conf, "task_eager_propagates", True)
+    return celery_app
