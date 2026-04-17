@@ -1,9 +1,9 @@
 "use client";
 
-// Sprint 7c T5: 코드 탭 — Monaco Pine 에디터 + 실시간 파싱 미리보기 + 저장 mutation.
-// ParsePreviewPanel은 T4 /strategies/new 에서 재사용 (동일 UX 유지).
+// Sprint 7c T5 + Sprint 7b ISSUE-003: 코드 탭 — Monaco Pine 에디터 + 실시간 파싱 + 저장.
+// 마운트 시 저장된 pine_source 자동 파싱으로 우측 패널 빈 상태 오표시 제거.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SaveIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +22,19 @@ export function TabCode({ strategy }: { strategy: StrategyResponse }) {
     onSuccess: () => toast.success("저장되었습니다"),
     onError: (e) => toast.error(`저장 실패: ${e.message}`),
   });
+
+  // 마운트 자동 파싱 — strategy.id 기준 1회만 실행.
+  // StrictMode double-invoke 방어를 위해 id별 ref로 가드.
+  const mountedForId = useRef<string | null>(null);
+  useEffect(() => {
+    if (mountedForId.current === strategy.id) return;
+    mountedForId.current = strategy.id;
+    if (strategy.pine_source.trim().length > 0) {
+      parse.mutate(strategy.pine_source);
+    }
+    // mutate는 react-query 안정 참조 — deps에서 제외.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strategy.id, strategy.pine_source]);
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
