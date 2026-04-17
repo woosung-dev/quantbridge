@@ -246,6 +246,21 @@
 - Sprint 6 Trading 데모 MVP ✅ 완료 (2026-04-16, PR #9 — 34 commits)
 - Sprint 7a Bybit Futures + Cross Margin ✅ 완료 (2026-04-17, PR #10, 524 tests)
 - Sprint 7c FE 따라잡기 (Strategy CRUD UI) ✅ 완료 (2026-04-17, 3 라우트 + Monaco Pine Monarch + shadcn/ui 12개 + sonner + Delete 409 archive fallback + design-review 7-pass 5/10→9/10)
+- Sprint 7c 후속 — Next.js 16 Anti-Pattern 해소 ✅ 완료 (2026-04-17, `chore/dev-cpu-optimization` — context7 감사 P0~P7 적용)
+  - [x] P0: `QueryProvider` → context7 TanStack SSR 공식 패턴 (typeof window 분기 + browser singleton)
+  - [x] P1: Trading API `fetch()` → `apiFetch` + Clerk 토큰 일원화 (보안 401 누락 fix)
+  - [x] P2: `strategies/page.tsx` 서버 prefetch + `HydrationBoundary` PoC (Clerk `auth()` server-side)
+  - [x] P3: `step-code.tsx` useEffect deps 안정화 (`useRef` 캡슐화, ADR-010 #5 반영)
+  - [x] P5: Suspense/ErrorBoundary — Next.js 규약 `loading.tsx`+`error.tsx` 라우트 레벨 (strategies + dashboard group)
+  - [x] P6: `app/(dashboard)/error.tsx` 추가 (route-group 레벨 경계)
+  - [x] P7: Trading FSD 구조 (`schemas.ts`/`query-keys.ts`/`hooks.ts`/`components/` 분리 + `index.ts` barrel)
+  - 검증: `tsc --noEmit` ✅ / `eslint` ✅ / `vitest` 7/7 ✅
+- Sprint 7c 후속 — CPU 근본 원인 정정 + E2E 검증 ✅ 완료 (2026-04-17)
+  - **진짜 원인 판명:** Next.js 16.2.3 Turbopack `turbo-tasks` recomputation 무한 루프 버그 — 16.2.4에서 [PR #92725](https://github.com/vercel/next.js/pull/92725) + [PR #92631](https://github.com/vercel/next.js/pull/92631) 수정. 본 세션의 ADR-010 15 anti-pattern 분석과 P0 `typedRoutes: isBuild` 회피 모두 오진에 기반 → **철회**
+  - [x] `frontend/package.json`: `next@^16.2.4` 업그레이드로 근본 해결 (사용자 확인 — idle 0.0% CPU)
+  - [x] `next.config.ts`: `create-next-app` 기본값으로 회귀 (reactStrictMode/typedRoutes/env 3개 필드 제거)
+  - [x] 필터 URL sync (Plan §5.7 시나리오 7): `useSearchParams`+`router.replace` + 서버 `page.tsx` `searchParams` 동기화. `parse_status` / `archived` / `page` 3개 쿼리 반영
+  - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
 - **다음:** Sprint 7b — Trading Sessions / OKX → Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
 
 ### Sprint 7 Next Actions
@@ -280,6 +295,15 @@
 ## Blocked
 
 _(없음)_
+
+## Next Actions (P0~P7 후속)
+
+- [ ] **P4 (zod 경로 정정):** `.ai/stacks/nextjs-shared.md §2`의 `import { z } from "zod/v4"` 규칙은 zod@4 미설치 시점의 transition 문구. zod@4.3.6 기준 `"zod"`가 곧 v4 → 규칙을 `import { z } from "zod"`로 완화 필요. (`.ai/`는 gitignored라 원본 repo에서 처리) [확인 필요]
+- [ ] `.uuid()` → `z.uuid()` 전수 migration (strategy/trading 완료, 나머지 전수검사 필요)
+- [ ] 나머지 대시보드 라우트(`/strategies/[id]/edit`, `/strategies/new`)에도 `loading.tsx`+`error.tsx` 라우트 규약 적용
+- [ ] `strategy-list.tsx` 수동 `isLoading`/`isError` 분기 → `useSuspenseQuery`로 최종 전환 (현재는 route-level boundary로 1차 해소)
+- [ ] 기타 `"use client"` 27개 중 presentational 컴포넌트 서버 컴포넌트화 (`strategy-card`, `strategy-table` 후보) — React Query hook chain 재설계 필요
+- [ ] 사용자 수동 조치: `kill <dev-pid>` + `rm -rf frontend/.next frontend/tsconfig.tsbuildinfo` → `pnpm dev` 재시작 → idle CPU <20% 검증 (ADR-010 budget 대조)
 
 ## Questions
 

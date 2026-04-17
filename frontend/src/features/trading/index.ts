@@ -1,3 +1,20 @@
-// Trading 도메인 — CCXT 데모/라이브 주문, 리스크 관리, Kill Switch
-// Stage 3에서 구현
-export {};
+// Trading 모듈 공개 surface.
+
+export { OrdersPanel } from "./components/orders-panel";
+export { KillSwitchPanel } from "./components/kill-switch-panel";
+export { ExchangeAccountsPanel } from "./components/exchange-accounts-panel";
+export {
+  useOrders,
+  useKillSwitchEvents,
+  useResolveKillSwitchEvent,
+  useExchangeAccounts,
+  tradingKeys,
+} from "./hooks";
+export type {
+  Order,
+  KillSwitchEvent,
+  ExchangeAccount,
+  OrderListResponse,
+  KillSwitchListResponse,
+  ExchangeAccountListResponse,
+} from "./schemas";

@@ -3,7 +3,7 @@
 // Sprint 7c T4 Step 2 — Monaco Pine editor + 300ms debounce 실시간 파싱.
 // Pass 6 Responsive: Monaco 높이 adaptive 300/400/520. Pass 3: empty state Lightbulb helper.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { LightbulbIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PineEditor } from "@/components/monaco/pine-editor";
@@ -22,19 +22,25 @@ export function StepCode(props: {
   const debounced = useDebouncedValue(props.pineSource, 300);
   const parse = useParseStrategy();
   const { mutate: parseMutate } = parse;
-  const { onParsed } = props;
 
-  // 자동 파싱: debounced 값이 비어있지 않을 때만 + 응답 콜백으로 상위 전파.
+  // 부모가 매 렌더 새 onParsed를 내려주는 경우 effect deps 폭주 방지.
+  // ADR-010 anti-pattern #5 (useEffect deps 안정화) 적용.
+  const onParsedRef = useRef(props.onParsed);
+  useEffect(() => {
+    onParsedRef.current = props.onParsed;
+  });
+
+  // 자동 파싱: debounced 값이 비어있지 않을 때만.
   useEffect(() => {
     if (debounced.trim().length === 0) {
-      onParsed(null);
+      onParsedRef.current(null);
       return;
     }
     parseMutate(debounced, {
-      onSuccess: (data) => onParsed(data),
-      onError: () => onParsed(null),
+      onSuccess: (data) => onParsedRef.current(data),
+      onError: () => onParsedRef.current(null),
     });
-  }, [debounced, parseMutate, onParsed]);
+  }, [debounced, parseMutate]);
 
   const canProceed =
     parse.data?.status === "ok" || parse.data?.status === "unsupported";
@@ -65,8 +71,8 @@ export function StepCode(props: {
           onTriggerParse={() => {
             if (debounced.trim()) {
               parseMutate(debounced, {
-                onSuccess: (data) => onParsed(data),
-                onError: () => onParsed(null),
+                onSuccess: (data) => onParsedRef.current(data),
+                onError: () => onParsedRef.current(null),
               });
             }
           }}

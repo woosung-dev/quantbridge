@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PlusIcon, LayoutGridIcon, ListIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,39 @@ type ViewMode = "grid" | "list";
 type StatusFilter = "all" | ParseStatus | "archived";
 
 export function StrategyList() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // 뷰 토글은 세션 한정 (URL 노출 가치 낮음), 필터·페이지는 URL 단일 source.
   const [view, setView] = useState<ViewMode>("grid");
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [page, setPage] = useState(0);
+
+  const status: StatusFilter = (() => {
+    if (searchParams.get("archived") === "true") return "archived";
+    const ps = searchParams.get("parse_status");
+    if (ps === "ok" || ps === "unsupported" || ps === "error") return ps;
+    return "all";
+  })();
+  const page = Math.max(0, Number(searchParams.get("page") ?? "0") || 0);
+
+  const pushStatus = (v: StatusFilter) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("parse_status");
+    params.delete("archived");
+    params.delete("page");
+    if (v === "archived") params.set("archived", "true");
+    else if (v !== "all") params.set("parse_status", v);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const pushPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 0) params.delete("page");
+    else params.set("page", String(p));
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
 
   const query = useMemo<StrategyListQuery>(() => {
     const q: StrategyListQuery = {
@@ -62,7 +93,7 @@ export function StrategyList() {
 
       {/* 필터 / 뷰 토글 */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <FilterChips value={status} onChange={(s) => { setStatus(s); setPage(0); }} />
+        <FilterChips value={status} onChange={pushStatus} />
         <div className="ml-auto flex items-center gap-2">
           <Select defaultValue="updated_desc">
             <SelectTrigger className="h-9 w-[160px]">
@@ -129,7 +160,7 @@ export function StrategyList() {
           totalPages={totalPages}
           total={data!.total}
           limit={data!.limit}
-          onPage={setPage}
+          onPage={pushPage}
         />
       )}
     </div>
