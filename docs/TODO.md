@@ -237,6 +237,7 @@
 - [ ] Rate limiting middleware (per-user, per-endpoint)
 - [ ] Prometheus/Grafana 계측 (CCXT 호출 + 주문 처리 latency)
 - [ ] Bybit v5 `set_margin_mode`/`set_leverage` "not modified" error handling (codes 110026, 34036) — Sprint 8+ mainnet 준비 (BybitFuturesProvider 반복 주문 시 legitimate error를 idempotent no-op로 처리)
+- [ ] `trading.orders.margin_mode` DB-level `CHECK (margin_mode IN ('cross','isolated') OR margin_mode IS NULL)` — Sprint 8+ mainnet 전, DB-string↔DTO-Literal 경계 불변식 하드닝 (ADR-007 §구현 노트 참조)
 
 ## Blocked
 
