@@ -1,4 +1,7 @@
-"""strategy HTTP 라우터."""
+"""strategy HTTP 라우터.
+
+T19: rotate-webhook-secret endpoint 추가 (ownership은 StrategyService.get으로 검증).
+"""
 from __future__ import annotations
 
 from uuid import UUID
@@ -7,6 +10,7 @@ from fastapi import APIRouter, Depends, Path, Query
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
+from src.core.config import settings
 from src.strategy.dependencies import get_strategy_service
 from src.strategy.models import ParseStatus
 from src.strategy.schemas import (
@@ -18,6 +22,9 @@ from src.strategy.schemas import (
     UpdateStrategyRequest,
 )
 from src.strategy.service import StrategyService
+from src.trading.dependencies import get_webhook_secret_service
+from src.trading.schemas import WebhookRotateResponse
+from src.trading.service import WebhookSecretService
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
 
@@ -94,3 +101,31 @@ async def delete_strategy(
     service: StrategyService = Depends(get_strategy_service),
 ) -> None:
     await service.delete(strategy_id=strategy_id, owner_id=current_user.id)
+
+
+# ── Webhook Secret Rotation (T19) ────────────────────────────────────
+
+
+@router.post(
+    "/{strategy_id}/rotate-webhook-secret",
+    response_model=WebhookRotateResponse,
+)
+async def rotate_webhook_secret(
+    strategy_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    strategy_svc: StrategyService = Depends(get_strategy_service),
+    secret_svc: WebhookSecretService = Depends(get_webhook_secret_service),
+) -> WebhookRotateResponse:
+    """Rotate the webhook secret for a strategy.
+
+    Ownership check via StrategyService.get (raises 404 if not owner).
+    """
+    # Ownership check — raises StrategyNotFoundError (404) if not owner
+    await strategy_svc.get(strategy_id=strategy_id, owner_id=current_user.id)
+
+    plaintext = await secret_svc.rotate(
+        strategy_id,
+        grace_period_seconds=settings.webhook_secret_grace_seconds,
+    )
+    webhook_url = f"/api/v1/webhooks/{strategy_id}?token={{HMAC}}"
+    return WebhookRotateResponse(secret=plaintext, webhook_url=webhook_url)

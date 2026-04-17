@@ -1,25 +1,126 @@
-"""trading HTTP 라우터 — ExchangeAccount endpoints (T18).
+"""trading HTTP 라우터 — ExchangeAccount + Webhook endpoints.
 
 URL prefix 없음 — main.py에서 /api/v1로 include.
+T19: Webhook POST (public, HMAC auth) + CSO-6 body cap.
 """
 from __future__ import annotations
 
+import hashlib
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi.responses import JSONResponse
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
-from src.trading.dependencies import get_exchange_account_service
+from src.trading.dependencies import (
+    get_exchange_account_service,
+    get_order_service,
+    get_webhook_service,
+)
 from src.trading.schemas import (
     ExchangeAccountResponse,
+    OrderRequest,
+    OrderResponse,
     PaginatedExchangeAccounts,
     RegisterAccountRequest,
     mask_api_key,
 )
-from src.trading.service import ExchangeAccountService
+from src.trading.service import ExchangeAccountService, OrderService
+from src.trading.webhook import WebhookService, parse_tv_payload
 
 router = APIRouter(tags=["trading"])
+
+# CSO-6: webhook body size cap (64 KB)
+MAX_WEBHOOK_BODY = 64 * 1024
+
+
+# ── Webhook POST (PUBLIC — no JWT, HMAC is the auth) ──────────────────
+
+
+@router.post(
+    "/webhooks/{strategy_id}",
+    status_code=201,
+    response_model=OrderResponse,
+)
+async def receive_webhook(
+    request: Request,
+    strategy_id: UUID = Path(...),
+    token: str = Query(..., description="HMAC-SHA256 hex digest"),
+    idempotency_key: str | None = Query(None, alias="Idempotency-Key"),
+    webhook_svc: WebhookService = Depends(get_webhook_service),
+    order_svc: OrderService = Depends(get_order_service),
+) -> OrderResponse | JSONResponse:
+    """TradingView webhook receiver.
+
+    - CSO-6: Content-Length + post-read body size cap
+    - HMAC token verification (WebhookService.ensure_authorized)
+    - TV payload parsing -> OrderRequest -> OrderService.execute
+    - Idempotency: body_hash (SHA-256) for E2 conflict detection
+    """
+    # ── CSO-6: body size guard ──
+    content_length = int(request.headers.get("content-length", 0))
+    if content_length > MAX_WEBHOOK_BODY:
+        from fastapi import HTTPException
+
+        raise HTTPException(413, f"body too large (max {MAX_WEBHOOK_BODY}B)")
+
+    body_bytes = await request.body()
+    if len(body_bytes) > MAX_WEBHOOK_BODY:
+        from fastapi import HTTPException
+
+        raise HTTPException(413, "body too large")
+
+    # ── HMAC verification ──
+    await webhook_svc.ensure_authorized(
+        strategy_id, token=token, payload=body_bytes
+    )
+
+    # ── Parse TV payload ──
+    import json
+
+    payload_dict: dict[str, object] = json.loads(body_bytes)
+    signal = parse_tv_payload(payload_dict)
+
+    # extract exchange_account_id from payload body
+    exchange_account_id_raw = payload_dict.get("exchange_account_id")
+    if exchange_account_id_raw is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            422, "Missing required field: exchange_account_id"
+        )
+    exchange_account_id = UUID(str(exchange_account_id_raw))
+
+    # ── Build OrderRequest ──
+    req = OrderRequest(
+        strategy_id=strategy_id,
+        exchange_account_id=exchange_account_id,
+        symbol=signal.symbol,
+        side=signal.side,
+        type=signal.type,
+        quantity=signal.quantity,
+        price=signal.price,
+    )
+
+    # ── Execute order (tuple unpack: T15 correction) ──
+    body_hash = hashlib.sha256(body_bytes).digest() if idempotency_key else None
+    response, is_replayed = await order_svc.execute(
+        req,
+        idempotency_key=idempotency_key,
+        body_hash=body_hash,
+    )
+
+    if is_replayed:
+        return JSONResponse(
+            status_code=200,
+            content=response.model_dump(mode="json"),
+            headers={"Idempotency-Replayed": "true"},
+        )
+    return response  # 201 via status_code on route
+
+
+# ── ExchangeAccount CRUD ──────────────────────────────────────────────
 
 
 @router.post(
