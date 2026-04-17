@@ -145,6 +145,9 @@ class Order(SQLModel, table=True):
         default=None, sa_column=Column(LargeBinary, nullable=True)
     )
     error_message: str | None = Field(default=None, max_length=2000, nullable=True)
+    # Sprint 7a: Bybit Futures 레버리지/마진 모드. Spot 경로는 NULL.
+    leverage: int | None = Field(default=None, nullable=True)
+    margin_mode: str | None = Field(default=None, max_length=16, nullable=True)
     submitted_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
     )

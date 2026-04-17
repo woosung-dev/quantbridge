@@ -152,6 +152,33 @@ async def test_transition_to_filled_records_partial_quantity(db_session, strateg
     assert fetched.quantity == Decimal("0.01")  # 원 주문 수량 유지
 
 
+async def test_order_persists_leverage_and_margin_mode(db_session, strategy, account):
+    """Sprint 7a T1 — leverage/margin_mode 컬럼 round-trip 저장/조회."""
+    from src.trading.repository import OrderRepository
+
+    repo = OrderRepository(db_session)
+    order = await repo.save(
+        Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT:USDT",
+            side=OrderSide.buy,
+            type=OrderType.market,
+            quantity=Decimal("0.001"),
+            price=None,
+            state=OrderState.pending,
+            leverage=5,
+            margin_mode="cross",
+        )
+    )
+    await repo.commit()
+
+    fetched = await repo.get_by_id(order.id)
+    assert fetched is not None
+    assert fetched.leverage == 5
+    assert fetched.margin_mode == "cross"
+
+
 async def test_advisory_lock_acquire_and_release(db_session, strategy, account):
     """pg_advisory_xact_lock 트랜잭션 범위 내 동작 검증 (Sprint 5 M2 패턴).
 

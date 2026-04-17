@@ -42,6 +42,9 @@ class OrderSubmit:
     type: OrderType
     quantity: Decimal
     price: Decimal | None
+    # Sprint 7a: Futures/Margin 파생상품 지원. Spot 경로는 모두 None.
+    leverage: int | None = None
+    margin_mode: Literal["cross", "isolated"] | None = None
 
 
 @dataclass(frozen=True, slots=True)
