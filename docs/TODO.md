@@ -232,6 +232,7 @@
 - [ ] CSO-5: Frontend dev CVEs 해소
 - [ ] Rate limiting middleware (per-user, per-endpoint)
 - [ ] Prometheus/Grafana 계측 (CCXT 호출 + 주문 처리 latency)
+- [ ] Bybit v5 `set_margin_mode`/`set_leverage` "not modified" error handling (codes 110026, 34036) — Sprint 8+ mainnet 준비 (BybitFuturesProvider 반복 주문 시 legitimate error를 idempotent no-op로 처리)
 
 ## Blocked
 
