@@ -42,14 +42,23 @@ def _empty_ohlcv() -> pd.DataFrame:
 
 def _parse(
     source: str,
-) -> tuple[ParseStatus, PineVersion, list[str], list[ParseError], int, int]:
-    """parse_and_run → (status, version, warnings, errors, entry_count, exit_count).
+) -> tuple[
+    ParseStatus,
+    PineVersion,
+    list[str],
+    list[ParseError],
+    int,
+    int,
+    list[str],
+]:
+    """parse_and_run → (status, version, warnings, errors, entry_count, exit_count, functions_used).
 
     ParseOutcome 실제 속성:
       - source_version: Literal["v4", "v5"]
       - error: PineError | None  (단수 — 복수 아님)
       - result: SignalResult | None  (signals property alias)
       - warnings: list[str]
+      - supported_feature_report: dict[str, list[str]]  ({"functions_used": sorted names})
     """
     try:
         outcome = parse_and_run(source, _empty_ohlcv())
@@ -61,6 +70,7 @@ def _parse(
             [ParseError(code=type(exc).__name__, message=str(exc))],
             0,
             0,
+            [],
         )
 
     # warnings: ParseOutcome 레벨 + SignalResult 레벨 병합
@@ -93,8 +103,9 @@ def _parse(
 
     entry_count = int(outcome.signals.entries.sum()) if outcome.signals is not None else 0
     exit_count = int(outcome.signals.exits.sum()) if outcome.signals is not None else 0
+    functions_used = list(outcome.supported_feature_report.get("functions_used", []))
 
-    return status, version, warnings, errors, entry_count, exit_count
+    return status, version, warnings, errors, entry_count, exit_count, functions_used
 
 
 class StrategyService:
@@ -110,7 +121,9 @@ class StrategyService:
         self.backtest_repo = backtest_repo
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
-        status, version, warnings, errors, entry_count, exit_count = _parse(pine_source)
+        status, version, warnings, errors, entry_count, exit_count, functions_used = (
+            _parse(pine_source)
+        )
         return ParsePreviewResponse(
             status=status,
             pine_version=version,
@@ -118,12 +131,13 @@ class StrategyService:
             errors=errors,
             entry_count=entry_count,
             exit_count=exit_count,
+            functions_used=functions_used,
         )
 
     async def create(
         self, data: CreateStrategyRequest, *, owner_id: UUID
     ) -> StrategyResponse:
-        status, version, _warnings, errors, _e, _x = _parse(data.pine_source)
+        status, version, _warnings, errors, _e, _x, _fu = _parse(data.pine_source)
         parse_errors = [e.model_dump() for e in errors] if errors else None
         strategy = Strategy(
             user_id=owner_id,
@@ -199,7 +213,7 @@ class StrategyService:
         if data.is_archived is not None:
             strategy.is_archived = data.is_archived
         if data.pine_source is not None:
-            status, version, _w, errors, _e, _x = _parse(data.pine_source)
+            status, version, _w, errors, _e, _x, _fu = _parse(data.pine_source)
             strategy.pine_source = data.pine_source
             strategy.pine_version = version
             strategy.parse_status = status
