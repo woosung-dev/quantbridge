@@ -3,6 +3,9 @@
 > 사람과 AI가 공동 관리하는 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
+> **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
+> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 순서: **Sprint 7c → 7b → 8a → 8b → dogfood 1~2주**. 외부 공개 없음. Build in public 주 1회.
+
 ---
 
 ## Next Actions
