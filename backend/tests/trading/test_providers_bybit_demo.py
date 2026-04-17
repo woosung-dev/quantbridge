@@ -26,7 +26,30 @@ def order_submit():
         type=OrderType.market,
         quantity=Decimal("0.001"),
         price=None,
+        leverage=None,
+        margin_mode=None,
     )
+
+
+def test_order_submit_accepts_futures_fields():
+    """Sprint 7a T1 — OrderSubmit이 futures 확장 필드를 수용.
+
+    Spot 경로는 leverage/margin_mode 모두 None. Linear Perp 경로는 값 전달.
+    """
+    from src.trading.models import OrderSide, OrderType
+    from src.trading.providers import OrderSubmit
+
+    submit = OrderSubmit(
+        symbol="BTC/USDT:USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        leverage=5,
+        margin_mode="cross",
+    )
+    assert submit.leverage == 5
+    assert submit.margin_mode == "cross"
 
 
 @pytest.fixture

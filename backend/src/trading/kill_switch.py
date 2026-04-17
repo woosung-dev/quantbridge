@@ -46,6 +46,10 @@ class CumulativeLossEvaluator:
     """MDD % = |누적 손실| / capital_base x 100. Strategy 단위.
 
     capital_base는 Sprint 6에선 설정값(단일). Sprint 7+에서 account equity로 확장.
+
+    Sprint 7a 경계: Order.leverage가 persist되나 capital_base는 여전히 config 고정값.
+    레버리지 x notional 반영은 Sprint 8+에서 ExchangeAccount.fetch_balance() 바인딩과
+    함께 처리 (spec 007 보안 체크리스트 참조).
     """
 
     def __init__(
@@ -73,6 +77,8 @@ class CumulativeLossEvaluator:
         if total_pnl >= Decimal("0"):
             return EvaluationResult(gated=False)
 
+        # Sprint 7a 경계: capital_base는 config 고정값 — leverage x notional 반영은
+        # Sprint 8+ ExchangeAccount.fetch_balance() 바인딩 시 class docstring 참조.
         loss_percent = (abs(total_pnl) / self._capital * Decimal("100")).quantize(
             Decimal("0.01")
         )

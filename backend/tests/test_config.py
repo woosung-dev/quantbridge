@@ -45,3 +45,17 @@ def test_settings_invalid_encryption_key_raises(monkeypatch):
     from src.core.config import Settings
     with pytest.raises(ValueError, match="Invalid Fernet key"):
         Settings()
+
+
+def test_exchange_provider_accepts_bybit_futures(monkeypatch):
+    """Sprint 7a T1 — exchange_provider Literal에 bybit_futures 추가."""
+    from cryptography.fernet import Fernet
+
+    from src.core.config import Settings
+
+    monkeypatch.setenv("TRADING_ENCRYPTION_KEYS", Fernet.generate_key().decode())
+    monkeypatch.setenv("EXCHANGE_PROVIDER", "bybit_futures")
+
+    s = Settings()
+    assert s.exchange_provider == "bybit_futures"
+    assert s.bybit_futures_max_leverage == 20

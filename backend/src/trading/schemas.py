@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
@@ -40,6 +41,9 @@ class OrderRequest(BaseModel):
     type: OrderType
     quantity: Decimal = Field(gt=0, decimal_places=8)
     price: Decimal | None = Field(default=None, gt=0, decimal_places=8)
+    # Sprint 7a: Futures. Spot은 모두 None.
+    leverage: int | None = Field(default=None, ge=1, le=125)
+    margin_mode: Literal["cross", "isolated"] | None = Field(default=None)
 
 
 class OrderResponse(BaseModel):
@@ -61,6 +65,9 @@ class OrderResponse(BaseModel):
     submitted_at: AwareDatetime | None
     filled_at: AwareDatetime | None
     created_at: AwareDatetime
+    # Sprint 7a 추가 — Spot 경로는 None.
+    leverage: int | None = None
+    margin_mode: Literal["cross", "isolated"] | None = None
 
 
 class KillSwitchEventResponse(BaseModel):

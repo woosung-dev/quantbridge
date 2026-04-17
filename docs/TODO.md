@@ -226,12 +226,18 @@
 
 ### Sprint 7 Next Actions
 
-- [ ] 실 CCXT 거래소 연동 (Binance/Bybit sandbox) — OrderExecutionService 구현
-- [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill)
+- [x] 실 CCXT 거래소 연동 (Bybit testnet Futures + Cross Margin) — Sprint 7a ✅ 완료 (2026-04-17)
+- [x] `bybit_futures_max_leverage` config 값이 `OrderService.execute`에서 enforce (422 `LeverageCapExceeded`) — Sprint 7a 리뷰 합의로 완료 (2026-04-17)
+- [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기
+- [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7b+
+- [ ] OKX 멀티 거래소 추가 — Sprint 7b
+- [ ] Kill Switch `capital_base` 동적 바인딩 (`ExchangeAccount.fetch_balance()`) — Sprint 8+
 - [ ] WebSocket 실시간 주문 상태 스트리밍
 - [ ] CSO-5: Frontend dev CVEs 해소
 - [ ] Rate limiting middleware (per-user, per-endpoint)
 - [ ] Prometheus/Grafana 계측 (CCXT 호출 + 주문 처리 latency)
+- [ ] Bybit v5 `set_margin_mode`/`set_leverage` "not modified" error handling (codes 110026, 34036) — Sprint 8+ mainnet 준비 (BybitFuturesProvider 반복 주문 시 legitimate error를 idempotent no-op로 처리)
+- [ ] `trading.orders.margin_mode` DB-level `CHECK (margin_mode IN ('cross','isolated') OR margin_mode IS NULL)` — Sprint 8+ mainnet 전, DB-string↔DTO-Literal 경계 불변식 하드닝 (ADR-007 §구현 노트 참조)
 
 ## Blocked
 

@@ -75,3 +75,46 @@ async def test_get_order_by_id_404_if_not_owner(client, mock_clerk_auth):
 
     resp = await client.get(f"/api/v1/orders/{uuid4()}")
     assert resp.status_code == 404
+
+
+def test_order_request_accepts_futures_fields():
+    """Sprint 7a T1 — OrderRequest가 leverage/margin_mode를 수용."""
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from src.trading.models import OrderSide, OrderType
+    from src.trading.schemas import OrderRequest
+
+    req = OrderRequest(
+        strategy_id=uuid4(),
+        exchange_account_id=uuid4(),
+        symbol="BTC/USDT:USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        leverage=5,
+        margin_mode="cross",
+    )
+    assert req.leverage == 5
+    assert req.margin_mode == "cross"
+
+
+def test_order_request_defaults_to_none_for_spot():
+    """Sprint 7a T1 — Spot 경로(futures 필드 미지정) 시 기본값 None."""
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from src.trading.models import OrderSide, OrderType
+    from src.trading.schemas import OrderRequest
+
+    req = OrderRequest(
+        strategy_id=uuid4(),
+        exchange_account_id=uuid4(),
+        symbol="BTC/USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+    )
+    assert req.leverage is None
+    assert req.margin_mode is None

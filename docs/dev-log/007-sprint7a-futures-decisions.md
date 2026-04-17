@@ -2,7 +2,10 @@
 
 > **작성일:** 2026-04-17
 > **작성 세션:** Sprint 6 SDD 세션 (PR #9 머지 후)
-> **상태:** 결정 완료, 구현 대기
+> **상태:** ✅ 구현 완료 (2026-04-17)
+> **구현 브랜치:** feat/sprint7a-futures
+> **관련 커밋:** e1126a0 (T1), 07d4ed7 (T2), 67414e9 (T2 review fix), fe82ca2 (T3),
+> T4 커밋은 이 파일과 함께 기록 (`git log feat/sprint7a-futures` 참고)
 
 ---
 
@@ -89,6 +92,20 @@ T5: (Optional) 실서버 준비
 - [ ] InsufficientMargin 등 Futures 전용 에러 타입 ProviderError 매핑
 - [ ] Kill Switch capital_base가 레버리지 포지션 반영하는지 확인
 - [ ] Funding rate 비용이 PnL 계산에 반영되는지 (Sprint 7a는 skip 가능)
+
+## 구현 노트: DB string ↔ DTO Literal 경계
+
+**불변식:** `Order.margin_mode: str | None` (SQLModel 컬럼) vs
+`OrderSubmit.margin_mode: Literal["cross","isolated"] | None` (frozen dataclass).
+
+**Runtime 검증 없음 — defense-in-depth 3계층에 의존:**
+1. Pydantic V2 `OrderRequest.margin_mode: Literal[...]` (HTTP 경계)
+2. Celery `_async_execute`가 `# type: ignore[arg-type]`로 narrowing
+3. CCXT `set_margin_mode(value, symbol)`가 서버측 검증 (ProviderError 최종 wrap)
+
+**향후 주의:** DB seed / raw SQL / 외부 writer가 `margin_mode`에 임의 문자열을 넣으면
+runtime에서는 잡히지 않고 CCXT 호출 시점까지 전파된다. Sprint 8+에서 mainnet
+연동 전 DB-level `CHECK constraint` 추가를 고려할 것 (T1 code review M1 참조).
 
 ## 참조 파일
 

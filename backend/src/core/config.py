@@ -54,9 +54,12 @@ class Settings(BaseSettings):
             "ADR-006 결정 1 / autoplan CEO F3 + Eng E4."
         ),
     )
-    exchange_provider: Literal["fixture", "bybit_demo"] = Field(
+    exchange_provider: Literal["fixture", "bybit_demo", "bybit_futures"] = Field(
         default="fixture",
-        description="ExchangeProvider 선택. fixture=테스트, bybit_demo=운영 demo.",
+        description=(
+            "ExchangeProvider 선택. "
+            "fixture=테스트, bybit_demo=Spot testnet, bybit_futures=Linear Perp testnet."
+        ),
     )
     kill_switch_cumulative_loss_percent: Decimal = Field(
         default=Decimal("10.0"),
@@ -83,6 +86,17 @@ class Settings(BaseSettings):
     webhook_secret_grace_seconds: int = Field(
         default=3600,
         description="Webhook secret rotation 후 구 secret 수락 grace period (초).",
+    )
+
+    # --- Sprint 7a Bybit Futures ---
+    bybit_futures_max_leverage: int = Field(
+        default=20,
+        ge=1,
+        le=125,
+        description=(
+            "OrderRequest.leverage 상한. 초과 시 422. "
+            "Bybit USDT Perp 이론 상한 125x이나 리스크 관리로 20x 기본."
+        ),
     )
 
     @field_validator("trading_encryption_keys")

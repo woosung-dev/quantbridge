@@ -42,6 +42,9 @@ class OrderSubmit:
     type: OrderType
     quantity: Decimal
     price: Decimal | None
+    # Sprint 7a: Futures/Margin 파생상품 지원. Spot 경로는 모두 None.
+    leverage: int | None = None
+    margin_mode: Literal["cross", "isolated"] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +175,100 @@ class BybitDemoProvider:
                 await exchange.close()
             except Exception:
                 logger.warning("bybit_close_failed", exc_info=True)
+
+
+class BybitFuturesProvider:
+    """Bybit futures (Linear Perpetual, USDT margined) testnet provider.
+
+    Spec decisions (docs/dev-log/007-sprint7a-futures-decisions.md):
+    - Q1: BybitDemoProvider 파라미터화 대신 별도 클래스 (심볼/설정/에러 표면이 다름)
+    - Q3: One-way position mode only (Hedge는 CCXT 이슈 #24848)
+
+    Flow:
+    1. set_margin_mode(order.margin_mode, symbol) — cross/isolated
+    2. set_leverage(order.leverage, symbol)
+    3. create_order(...)
+    모두 동일 ephemeral client에서 실행 후 finally close().
+    """
+
+    async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
+        if order.leverage is None or order.margin_mode is None:
+            # 방어: OrderService가 Futures 경로에서 반드시 채워야 함.
+            # 누락은 계약 위반이므로 fast-fail.
+            raise ProviderError(
+                "BybitFuturesProvider requires leverage and margin_mode "
+                f"(got leverage={order.leverage}, margin_mode={order.margin_mode})"
+            )
+
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": True},
+            }
+        )
+        try:
+            # 마진 모드 먼저 → 레버리지 → 주문 순서 (Bybit v5 UTA 요구사항)
+            await exchange.set_margin_mode(order.margin_mode, order.symbol)
+            await exchange.set_leverage(order.leverage, order.symbol)
+            result = await exchange.create_order(
+                order.symbol,
+                order.type.value,
+                order.side.value,
+                float(order.quantity),
+                float(order.price) if order.price is not None else None,
+            )
+            if "id" not in result:
+                raise ProviderError(
+                    f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})"
+                )
+            avg = result.get("average")
+            return OrderReceipt(
+                exchange_order_id=str(result["id"]),
+                filled_price=Decimal(str(avg)) if avg is not None else None,
+                status=_map_ccxt_status(result.get("status")),
+                raw=dict(result),
+            )
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
+            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "options": {"defaultType": "linear", "testnet": True},
+            }
+        )
+        try:
+            await exchange.cancel_order(exchange_order_id)
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
+            # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
 
 
 def _map_ccxt_status(ccxt_status: str | None) -> Literal["filled", "submitted", "rejected"]:
