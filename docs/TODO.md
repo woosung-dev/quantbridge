@@ -255,13 +255,19 @@
   - [x] P6: `app/(dashboard)/error.tsx` 추가 (route-group 레벨 경계)
   - [x] P7: Trading FSD 구조 (`schemas.ts`/`query-keys.ts`/`hooks.ts`/`components/` 분리 + `index.ts` barrel)
   - 검증: `tsc --noEmit` ✅ / `eslint` ✅ / `vitest` 7/7 ✅
+- Sprint 7b Edit UX 풍부화 ✅ 완료 (2026-04-17, `feat/sprint7b-edit-parse-ux`)
+  - T1: BE `ParsePreviewResponse.functions_used` 노출 (Pydantic schema 1필드, Alembic migration 없음, Strategy 모델 불변)
+  - T2–T3: FE Zod schema round-trip test + `ParsePreviewPanel`에 감지 함수 섹션(지표/전략콜/기타) + 빈 상태 copy "⌘+Enter로 첫 파싱을 실행하세요"
+  - T4: `TabCode` 마운트 시 자동 `useParseStrategy` 호출 → 우측 패널 empty-state 오표시 제거 (ISSUE-003)
+  - T5: `TabParse` 4-섹션 재작성 (에러 → 경고 → 감지 함수 → 메타), 실시간 스냅샷 + 저장 시점 스냅샷 구분 표시 (ISSUE-004)
+  - 검증: backend 528 tests ✅ / ruff + mypy clean / frontend 9 vitest ✅ / tsc + eslint clean
 - Sprint 7c 후속 — CPU 근본 원인 정정 + E2E 검증 ✅ 완료 (2026-04-17)
   - **진짜 원인 판명:** Next.js 16.2.3 Turbopack `turbo-tasks` recomputation 무한 루프 버그 — 16.2.4에서 [PR #92725](https://github.com/vercel/next.js/pull/92725) + [PR #92631](https://github.com/vercel/next.js/pull/92631) 수정. 본 세션의 ADR-010 15 anti-pattern 분석과 P0 `typedRoutes: isBuild` 회피 모두 오진에 기반 → **철회**
   - [x] `frontend/package.json`: `next@^16.2.4` 업그레이드로 근본 해결 (사용자 확인 — idle 0.0% CPU)
   - [x] `next.config.ts`: `create-next-app` 기본값으로 회귀 (reactStrictMode/typedRoutes/env 3개 필드 제거)
   - [x] 필터 URL sync (Plan §5.7 시나리오 7): `useSearchParams`+`router.replace` + 서버 `page.tsx` `searchParams` 동기화. `parse_status` / `archived` / `page` 3개 쿼리 반영
   - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
-- **다음:** Sprint 7b — Trading Sessions / OKX → Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
+- **다음:** Sprint 7d — Trading Sessions / OKX → Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
 
 ### Sprint 7 Next Actions
 
@@ -269,8 +275,9 @@
 - [x] 실 CCXT 거래소 연동 (Bybit testnet Futures + Cross Margin) — Sprint 7a ✅ 완료 (2026-04-17)
 - [x] `bybit_futures_max_leverage` config 값이 `OrderService.execute`에서 enforce (422 `LeverageCapExceeded`) — Sprint 7a 리뷰 합의로 완료 (2026-04-17)
 - [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기
-- [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7b+
-- [ ] OKX 멀티 거래소 추가 — Sprint 7b
+- [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7d+
+- [ ] OKX 멀티 거래소 추가 — Sprint 7d
+- [x] Edit 페이지 Pine 이터레이션 UX 풍부화 (ISSUE-003 + ISSUE-004) — Sprint 7b ✅ 완료 (2026-04-17)
 - [ ] Kill Switch `capital_base` 동적 바인딩 (`ExchangeAccount.fetch_balance()`) — Sprint 8+
 - [ ] WebSocket 실시간 주문 상태 스트리밍
 - [ ] CSO-5: Frontend dev CVEs 해소
