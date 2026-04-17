@@ -2,13 +2,12 @@
 
 // Sprint 7c T5 + Sprint 7b ISSUE-004: 파싱 결과 탭.
 // 섹션 순서: (1) 에러 → (2) 경고 → (3) 감지 지표/전략 콜 → (4) 메타.
-// 실시간 스냅샷은 useParseStrategy 마운트 호출. 저장 스냅샷은 strategy.parse_errors.
-
-import { useEffect, useRef } from "react";
+// 마운트 자동 파싱은 useQuery(usePreviewParse) — StrictMode-safe.
+// 저장 시점 스냅샷(strategy.parse_errors)은 라이브 결과와 구분 표시.
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { useParseStrategy } from "@/features/strategy/hooks";
+import { usePreviewParse } from "@/features/strategy/hooks";
 import type { ParseError, StrategyResponse } from "@/features/strategy/schemas";
 import { PARSE_STATUS_META } from "@/features/strategy/utils";
 
@@ -37,19 +36,9 @@ function normalizeSnapshotError(raw: Record<string, unknown>): ParseError {
 }
 
 export function TabParse({ strategy }: { strategy: StrategyResponse }) {
-  const parse = useParseStrategy();
-  const mountedForId = useRef<string | null>(null);
+  const preview = usePreviewParse(strategy.pine_source);
+  const live = preview.data;
 
-  useEffect(() => {
-    if (mountedForId.current === strategy.id) return;
-    mountedForId.current = strategy.id;
-    if (strategy.pine_source.trim().length > 0) {
-      parse.mutate(strategy.pine_source);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strategy.id, strategy.pine_source]);
-
-  const live = parse.data;
   const meta = PARSE_STATUS_META[live?.status ?? strategy.parse_status];
   const liveErrors = live?.errors ?? [];
   const snapshotErrors = (strategy.parse_errors ?? []).map(normalizeSnapshotError);
@@ -70,7 +59,7 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
           <Badge variant="secondary">
             Pine {live?.pine_version ?? strategy.pine_version}
           </Badge>
-          {parse.isPending && (
+          {preview.isFetching && (
             <span className="text-xs text-[color:var(--text-muted)]">파싱 중...</span>
           )}
         </div>
@@ -123,7 +112,7 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
           </section>
         )}
 
-        {parse.isPending && !live && (
+        {preview.isFetching && !live && (
           <p className="text-xs text-[color:var(--text-muted)]">
             저장된 코드를 파싱 중입니다...
           </p>

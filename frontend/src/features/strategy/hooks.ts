@@ -139,3 +139,28 @@ export function useParseStrategy(
     onError: (err) => opts.onError?.(err),
   });
 }
+
+// Sprint 7b FIX (ISSUE-003/004 regression): 마운트 자동 파싱용 useQuery.
+// useMutation + useEffect + StrictMode 조합에서 첫 effect의 mutate 호출 후
+// cleanup 시 observer가 unsubscribe되어 isPending=true에 stuck되는 버그를 회피.
+// useQuery는 idempotent하므로 StrictMode 더블 인보크에도 안전.
+// ⌘+Enter 수동 재파싱은 useParseStrategy mutation을 그대로 사용.
+export function usePreviewParse(
+  pineSource: string,
+): UseQueryResult<ParsePreviewResponse, Error> {
+  const { getToken } = useAuth();
+  const trimmed = pineSource.trim();
+  return useQuery({
+    queryKey: strategyKeys.parsePreview(trimmed),
+    queryFn: async () => {
+      const token = await getToken();
+      return parseStrategy(trimmed, token);
+    },
+    enabled: trimmed.length > 0,
+    // 같은 pine_source 문자열 자체가 식별자라 재검증 불필요.
+    staleTime: Infinity,
+    // 같은 소스가 다시 필요해지면 캐시 히트로 즉시 서빙.
+    gcTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
