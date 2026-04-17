@@ -341,3 +341,13 @@ h6 {
   color: var(--destructive);
   border-color: transparent;
 }
+
+/* ───────────────────────────────────────────────
+ * Pass 3 microanimation — 파싱 성공 체크마크 scale-in
+ * Sprint 7c T4: parse-preview-panel.tsx `result.status === "ok"` 체크마크.
+ * Tailwind arbitrary animation `motion-safe:animate-[scale-in_200ms_ease-out]`와 매칭.
+ * ───────────────────────────────────────────── */
+@keyframes scale-in {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
