@@ -184,27 +184,29 @@
 
 **6-Step 방법론 전체 완료. T1~T23 구현 + CSO 체크리스트 해소.**
 
-- [x] Step 1 /office-hours → `docs/01_requirements/trading-demo.md` (design doc APPROVED)
-- [x] Step 2 /brainstorming → `docs/superpowers/specs/2026-04-16-trading-demo-design.md` (5 기술 결정)
+- [x] Step 1 /office-hours → `docs/01_requirements/trading-demo.md` (design doc APPROVED, spec review 2 iterations)
+- [x] Step 2 /brainstorming → `docs/superpowers/specs/2026-04-16-trading-demo-design.md` (5 기술 결정 Q1~Q5)
 - [x] Step 3 /writing-plans → `docs/superpowers/plans/2026-04-16-trading-demo.md` (T1~T23, 5381 라인)
 - [x] Step 4 /autoplan → 41 findings / 5 critical fixes plan 반영 (ADR-006)
-- [x] Step 5 /cso → 6 security findings / CSO-1 plan 반영 (`docs/audit/`)
-- [x] Step 6 SDD — T1~T23 전체 구현 완료 (feat/sprint6-trading-impl-v2)
+- [x] Step 5 /cso → 6 security findings / CSO-1 plan 반영 (`docs/audit/2026-04-16-trading-demo-security.md`)
+- [x] Step 6 SDD — T1~T23 전체 구현 완료 (feat/sprint6-trading-impl-v2, PR #9)
 
 **CSO 체크리스트:**
-- [x] CSO-1: EncryptionService AES-256-GCM (T4/T10/T11/T17)
+- [x] CSO-1: EncryptionService MultiFernet (T4/T10/T11/T17 — 5회 plan drift 교정)
 - [x] CSO-2: `backend/Dockerfile` `USER appuser` 추가 (T23)
 - [x] CSO-3: `.github/workflows/ci.yml` 3 third-party actions SHA pin (T23)
-- [x] CSO-4: `docker-compose.yml` `TRADING_ENCRYPTION_KEYS` env (T3)
+- [x] CSO-4: `docker-compose.yml` `TRADING_ENCRYPTION_KEYS` env rename (T3)
 - [x] CSO-6: Webhook router `MAX_WEBHOOK_BODY = 64 * 1024` Content-Length cap (T19)
 - [ ] (Sprint 7 이연) CSO-5: Frontend dev CVEs
 
 **구현 요약:**
-- Backend: 6 도메인 (trading_common, exchange_account, webhook_secret, webhook, order, kill_switch)
-- 10 REST endpoints (`/api/v1/exchange-accounts`, `/api/v1/webhooks`, `/api/v1/orders`, `/api/v1/kill-switch`, `/api/v1/strategies/{id}/rotate-webhook-secret`)
-- Frontend: `/trading` 대시보드 페이지 (Exchange Accounts + Orders + Kill Switch)
-- Alembic migration: `create_trading_tables` (5 테이블)
-- 테스트: backend 456+ pass, frontend 1 pass
+- 34 commits (23 feat + 11 polish), 58 files, +5,715 lines
+- 4 신규 테이블 (`trading` 스키마) + Alembic migration
+- 10 REST endpoints + webhook receiver (HMAC + Idempotency-Key)
+- Kill Switch 2 evaluator (CumulativeLoss + DailyLoss)
+- Celery execute_order_task (prefork-safe, 3-guard transitions)
+- Frontend `/trading` read-only 대시보드 (3 panels)
+- Tests: backend 506 pass + frontend 7 pass (baseline 391 → 513 total)
 
 ### 미완성 문서 → ✅ 완료 (Sprint 5 Stage A, 2026-04-16)
 
@@ -219,7 +221,7 @@
 
 - Sprint 5 Stage A docs sync ✅ 완료 (2026-04-16)
 - Sprint 5 Stage B M1~M4 ✅ 완료 (2026-04-16, PR #6 머지)
-- Sprint 6 Trading 데모 MVP ✅ 완료 (2026-04-16, feat/sprint6-trading-impl-v2)
+- Sprint 6 Trading 데모 MVP ✅ 완료 (2026-04-16, PR #9 — 34 commits)
 - **다음:** Sprint 7 — 실거래소 연동 + Trading Sessions 확장
 
 ### Sprint 7 Next Actions
