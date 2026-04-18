@@ -77,3 +77,45 @@ def test_reassign_falls_through_to_persistent_when_not_local() -> None:
     interp._exec_stmt(tree.body[0])
     assert interp.store.get("main::p") == 42
     assert "p" not in interp._scope_stack[-1]
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — user function Call dispatch + parameter binding + single return
+# ---------------------------------------------------------------------------
+
+
+def test_user_function_single_arg_single_expr() -> None:
+    tree = pyne_ast.parse("foo(x) => x * 2\n")
+    interp = _interp([10.0])
+    interp.bar.advance()
+    interp.execute(tree)
+    # 직접 Call 평가
+    call_node = pyne_ast.parse("foo(5)").body[0].value  # Expr.value = Call
+    assert interp._eval_expr(call_node) == 10
+
+
+def test_user_function_multi_arg_multi_stmt_body() -> None:
+    src = """foo(x, y) =>
+    a = x + y
+    a * 2
+"""
+    tree = pyne_ast.parse(src)
+    interp = _interp([10.0])
+    interp.bar.advance()
+    interp.execute(tree)
+    call_node = pyne_ast.parse("foo(3, 4)").body[0].value
+    assert interp._eval_expr(call_node) == 14
+
+
+def test_user_function_local_does_not_leak() -> None:
+    src = """foo(x) =>
+    tmp = x + 1
+    tmp
+"""
+    tree = pyne_ast.parse(src)
+    interp = _interp([10.0])
+    interp.bar.advance()
+    interp.execute(tree)
+    call_node = pyne_ast.parse("foo(5)").body[0].value
+    _ = interp._eval_expr(call_node)
+    assert "tmp" not in interp._transient

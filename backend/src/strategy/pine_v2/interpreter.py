@@ -681,7 +681,51 @@ class Interpreter:
                     return self._eval_expr(args[0])  # defval (첫 arg)
                 return None
             return None
+
+        # User-defined function (Sprint 8c) — Script top-level `foo(x) => ...`.
+        # Name 단일 식별자만 매칭 (chain name 아님). 네임스페이스 prefix 없음.
+        if name and name in self._user_functions:
+            return self._call_user_function(self._user_functions[name], node)
+
         raise PineRuntimeError(f"Call to {name!r} not supported in current scope")
+
+    def _call_user_function(self, fn_def: Any, call_node: Any) -> Any:
+        """Pine user function 호출: 매개변수 바인딩 + body 실행 + 마지막 Expr 값 반환.
+
+        Pine 규칙:
+        - body는 statement 리스트. 마지막 Expr(value=X)의 X가 반환값.
+        - Tuple/List literal을 마지막 Expr로 두면 Python tuple 반환 (multi-return) — Task 4.
+        - 로컬 변수는 로컬 frame에만 존재. 외부 transient/persistent 영향 X.
+        """
+        if len(self._scope_stack) >= self._max_call_depth:
+            raise PineRuntimeError(
+                f"user function call depth exceeded: {fn_def.name} "
+                f"(max={self._max_call_depth})"
+            )
+        # 실인자 평가 (positional only — named arg는 H2+).
+        actual_args = [
+            self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+            for a in call_node.args
+        ]
+        params = [p.name for p in fn_def.args]
+        if len(actual_args) != len(params):
+            raise PineRuntimeError(
+                f"user function {fn_def.name}: expected {len(params)} args, "
+                f"got {len(actual_args)}"
+            )
+        frame: dict[str, Any] = dict(zip(params, actual_args, strict=True))
+        self._scope_stack.append(frame)
+        try:
+            last_expr_val: Any = None
+            for stmt in fn_def.body:
+                if isinstance(stmt, pyne_ast.Expr):
+                    # 마지막 Expr의 값이 반환값. 그 외 Expr은 side-effect.
+                    last_expr_val = self._eval_expr(stmt.value)
+                else:
+                    self._exec_stmt(stmt)
+            return last_expr_val
+        finally:
+            self._scope_stack.pop()
 
     # ---- Name 해석 (built-in + var + transient) ------------------------
 
