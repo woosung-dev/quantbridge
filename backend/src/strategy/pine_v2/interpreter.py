@@ -264,12 +264,15 @@ class Interpreter:
                 varip=(var_kind == "varip"),
             )
         else:
-            # 비영속: 매 bar 평가
+            # 비영속: 매 bar 평가. 함수 호출 중이면 로컬 frame에 기록.
             value = self._eval_expr(node.value) if getattr(node, "value", None) is not None else None
-            self._transient[target_name] = value
+            if self._scope_stack:
+                self._scope_stack[-1][target_name] = value
+            else:
+                self._transient[target_name] = value
 
     def _exec_reassign(self, node: Any) -> None:
-        """`x := expr` — 이미 선언된 변수에 새 값 (Pine 재할당)."""
+        """`x := expr` — 재할당. 로컬 frame > PersistentStore > transient 순."""
         targets_attr = getattr(node, "targets", None)
         target_list = targets_attr if targets_attr else [getattr(node, "target", None)]
         target_name = next(
@@ -279,15 +282,21 @@ class Interpreter:
         if target_name is None:
             return
         value = self._eval_expr(node.value)
-        # PersistentStore에 있으면 거기에 set, 아니면 transient
+        # 로컬 scope 활성 & 해당 이름이 현재 frame에 존재 → frame에 재할당.
+        if self._scope_stack and target_name in self._scope_stack[-1]:
+            self._scope_stack[-1][target_name] = value
+            return
         key = f"main::{target_name}"
         if self.store.is_declared(key):
             self.store.set(key, value)
         elif target_name in self._transient:
             self._transient[target_name] = value
         else:
-            # Pine은 미선언 변수에 := 불가이지만, 인터프리터는 관대하게 transient 생성
-            self._transient[target_name] = value
+            # 인터프리터는 관대하게 transient 생성. 함수 내부면 로컬 frame에.
+            if self._scope_stack:
+                self._scope_stack[-1][target_name] = value
+            else:
+                self._transient[target_name] = value
 
     def _exec_if(self, node: Any) -> None:
         """if-else 분기."""
@@ -677,6 +686,9 @@ class Interpreter:
     # ---- Name 해석 (built-in + var + transient) ------------------------
 
     def _resolve_name(self, name: str) -> Any:
+        # 로컬 frame 우선 — user function 호출 중 매개변수/로컬 변수 lookup.
+        if self._scope_stack and name in self._scope_stack[-1]:
+            return self._scope_stack[-1][name]
         if name in _BUILTIN_SERIES:
             return self.bar.current(name)
         if name == "bar_index":
