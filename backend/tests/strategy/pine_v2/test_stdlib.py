@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 
 import pandas as pd
+import pytest
 
 from src.strategy.pine_v2.event_loop import run_historical
 from src.strategy.pine_v2.stdlib import (
@@ -203,3 +204,80 @@ signal := close > open ? close : signal[1]
     assert hist[2] == 15.0
     # bar 3: close=20 > open=12 → True → 20
     assert hist[3] == 20.0
+
+
+# -------- Sprint 8b: Pine v4 legacy alias + iff --------------------------
+
+
+def test_v4_stdlib_alias_atr_ema_crossover() -> None:
+    """Pine v4 prefix 없는 atr/ema/crossover가 ta.* 로 재라우팅."""
+    source = (
+        "//@version=4\n"
+        "study('t', overlay=true)\n"
+        "x = atr(5)\n"
+        "y = ema(close, 3)\n"
+        "crossed = crossover(close, ema(close, 2))\n"
+    )
+    ohlcv = _ohlcv([101.0, 102.0, 103.0, 104.0, 105.0, 106.0])
+    result = run_historical(source, ohlcv)
+    assert result.bars_processed == 6
+    # 마지막 bar의 x(atr)가 float 값 산출
+    final_x = result.final_state.get("x")
+    assert isinstance(final_x, float)
+
+
+def test_v4_iff_ternary_equivalent() -> None:
+    """iff(cond, then, else) = cond ? then : else."""
+    source = (
+        "//@version=4\n"
+        "study('t')\n"
+        "z = iff(close > open, 1.0, 0.0)\n"
+    )
+    # bar 0: close==open → 0.0, bar 1: close>open → 1.0
+    ohlcv = pd.DataFrame(
+        {
+            "open": [100.0, 100.0],
+            "high": [101.0, 111.0],
+            "low": [99.0, 99.0],
+            "close": [100.0, 110.0],
+            "volume": [100.0, 100.0],
+        }
+    )
+    result = run_historical(source, ohlcv)
+    assert result.final_state.get("z") == 1.0
+
+
+def test_v4_nz_with_two_args() -> None:
+    """nz(value, default) — value가 na면 default."""
+    source = (
+        "//@version=4\n"
+        "study('t')\n"
+        "x = close\n"
+        "y = nz(x[1], 42.0)\n"
+    )
+    ohlcv = _ohlcv([100.0, 110.0])
+    result = run_historical(source, ohlcv)
+    # bar 0에서 x[1]은 na → y=42.0, bar 1에서 x[1]=100 → y=100
+    assert result.state_history[0]["y"] == 42.0
+    assert result.state_history[1]["y"] == 100.0
+
+
+def test_ta_stdev_returns_std_after_warmup() -> None:
+    """ta.stdev(source, 3) — 최근 3 bar 표준편차."""
+    state = IndicatorState()
+    from src.strategy.pine_v2.stdlib import ta_stdev
+    vals = [ta_stdev(state, 1, v, 3) for v in [2.0, 4.0, 4.0, 4.0]]
+    assert math.isnan(vals[0])
+    assert math.isnan(vals[1])
+    # [2,4,4] mean=3.33, var=((2-3.33)^2+(4-3.33)^2*2)/3 ≈ 0.8889, std≈0.9428
+    assert vals[2] == pytest.approx(0.9428, abs=1e-3)
+
+
+def test_ta_variance_is_stdev_squared() -> None:
+    from src.strategy.pine_v2.stdlib import ta_stdev, ta_variance
+    s1 = IndicatorState()
+    s2 = IndicatorState()
+    for v in [1.0, 2.0, 3.0, 4.0, 5.0]:
+        stdev_v = ta_stdev(s1, 1, v, 3)
+        var_v = ta_variance(s2, 2, v, 3)
+    assert var_v == pytest.approx(stdev_v ** 2, rel=1e-9)

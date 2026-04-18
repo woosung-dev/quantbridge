@@ -35,6 +35,13 @@ from typing import Any
 import pandas as pd
 from pynescript import ast as pyne_ast
 
+from src.strategy.pine_v2.rendering import (
+    BoxObject,
+    LabelObject,
+    LineObject,
+    RenderingRegistry,
+    TableObject,
+)
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
 from src.strategy.pine_v2.strategy_state import StrategyState
@@ -80,6 +87,27 @@ class BarContext:
 
 _BUILTIN_SERIES = frozenset({"open", "high", "low", "close", "volume"})
 
+# 렌더링 scope A (ADR-011 §2.0.4) — factory/getter는 name 기반 직접 dispatch.
+# handle.method() 형식은 _exec_rendering_method에서 타입별 접두어로 라우팅.
+_RENDERING_FACTORIES: dict[str, str] = {
+    "line.new": "line_new",
+    "box.new": "box_new",
+    "label.new": "label_new",
+    "table.new": "table_new",
+    "line.get_price": "line_get_price",
+    "box.get_top": "box_get_top",
+    "box.get_bottom": "box_get_bottom",
+    "line.set_xy1": "line_set_xy1",
+    "line.set_xy2": "line_set_xy2",
+    "line.delete": "line_delete",
+    "box.set_right": "box_set_right",
+    "box.delete": "box_delete",
+    "label.set_xy": "label_set_xy",
+    "label.delete": "label_delete",
+    "table.cell": "table_cell",
+    "table.delete": "table_delete",
+}
+
 # 연산자 매핑
 _BINOP: dict[str, Any] = {
     "Add": operator.add,
@@ -118,7 +146,13 @@ class Interpreter:
             store.commit_bar()
     """
 
-    def __init__(self, bar_context: BarContext, store: PersistentStore) -> None:
+    def __init__(
+        self,
+        bar_context: BarContext,
+        store: PersistentStore,
+        *,
+        rendering: RenderingRegistry | None = None,
+    ) -> None:
         self.bar = bar_context
         self.store = store
         # 비영속(transient) 변수 — 매 bar 재초기화
@@ -131,6 +165,8 @@ class Interpreter:
         self._var_series: dict[str, list[Any]] = {}
         # 이전 close (ta.atr 등 prev close 필요 시 사용)
         self._prev_close: float = float("nan")
+        # 렌더링 scope A — line/box/label/table 객체 handle 관리
+        self.rendering = rendering or RenderingRegistry()
 
     def reset_transient(self) -> None:
         self._transient = {}
@@ -281,8 +317,53 @@ class Interpreter:
             return self._eval_attribute(node)
         if isinstance(node, pyne_ast.Call):
             return self._eval_call(node)
+        if isinstance(node, pyne_ast.Switch):
+            return self._eval_switch(node)
         # 기타: Day 1-2 범위 밖
         raise PineRuntimeError(f"Unsupported expression node: {type(node).__name__}")
+
+    def _eval_switch(self, node: Any) -> Any:
+        """Pine switch expression: subject 값과 각 Case.pattern 비교.
+
+        - subject가 있으면: cases 순회하며 pattern == subject이면 그 body 실행
+        - subject가 None(pattern-only switch)이면: 각 pattern을 truthy 조건으로 평가
+        - pattern이 None인 Case는 default (마지막 배치 권장; 순회 순서 그대로 처리)
+        - Case.body는 statements 리스트. 마지막 Expr(value=...)의 값이 반환값.
+        """
+        subject = (
+            self._eval_expr(node.subject) if getattr(node, "subject", None) else None
+        )
+        default_body: Any | None = None
+        for case in getattr(node, "cases", []):
+            pattern = getattr(case, "pattern", None)
+            body = getattr(case, "body", [])
+            if pattern is None:
+                default_body = body
+                continue
+            pat_val = self._eval_expr(pattern)
+            matched = (
+                (pat_val == subject)
+                if subject is not None
+                else self._truthy(pat_val)
+            )
+            if matched:
+                return self._exec_case_body(body)
+        if default_body is not None:
+            return self._exec_case_body(default_body)
+        return None
+
+    def _exec_case_body(self, body: list[Any]) -> Any:
+        """switch Case body 실행: 마지막 Expr(value=...) 의 값 반환.
+
+        body는 일반 statement도 허용하지만 최종 평가되는 것은 마지막 expression.
+        """
+        last_value: Any = None
+        for stmt in body:
+            if isinstance(stmt, pyne_ast.Expr):
+                last_value = self._eval_expr(stmt.value)
+            else:
+                self._exec_stmt(stmt)
+        return last_value
 
     def _eval_binop(self, node: Any) -> Any:
         op_name = type(node.op).__name__
@@ -384,9 +465,151 @@ class Interpreter:
             f"Subscript on non-Name expression not supported: {_describe(value_node)}"
         )
 
+    def _resolve_name_if_declared(self, name: str) -> Any:
+        """_resolve_name의 안전 버전 — 미정의면 None 반환 (렌더링 handle 검사용)."""
+        key = f"main::{name}"
+        if self.store.is_declared(key):
+            return self.store.get(key)
+        return self._transient.get(name)
+
+    def _collect_args(self, node: Any) -> tuple[list[Any], dict[str, Any]]:
+        """Call.args에서 positional/keyword 분리 + 각 argument evaluate."""
+        positional: list[Any] = []
+        kwargs: dict[str, Any] = {}
+        for a in node.args:
+            val = self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+            arg_name = (
+                getattr(a, "name", None) if isinstance(a, pyne_ast.Arg) else None
+            )
+            if arg_name:
+                kwargs[arg_name] = val
+            else:
+                positional.append(val)
+        return positional, kwargs
+
+    def _exec_rendering_call(self, name: str, node: Any) -> Any:
+        """line.new/box.new/label.new/table.new + getter 호출."""
+        method_name = _RENDERING_FACTORIES[name]
+        args, kwargs = self._collect_args(node)
+        bound = getattr(self.rendering, method_name)
+        return bound(*args, **kwargs)
+
+    def _exec_rendering_method(
+        self, handle: Any, method_name: str, node: Any
+    ) -> Any:
+        """handle.method(...) 형식 호출.
+
+        handle 타입에 따라 registry 메서드 이름 prefix 결정:
+        LineObject → line_*, BoxObject → box_*, 등.
+        """
+        prefix = {
+            LineObject: "line",
+            BoxObject: "box",
+            LabelObject: "label",
+            TableObject: "table",
+        }[type(handle)]
+        full = f"{prefix}_{method_name}"
+        args, kwargs = self._collect_args(node)
+        bound = getattr(self.rendering, full, None)
+        if bound is None:
+            raise PineRuntimeError(
+                f"rendering method not supported: {prefix}.{method_name}"
+            )
+        return bound(handle, *args, **kwargs)
+
     def _eval_call(self, node: Any) -> Any:
         """Call 해석: stdlib(ta.*/na/nz) → strategy.* → 선언/렌더링 NOP → 에러."""
         name = _call_chain_name(node.func)
+
+        # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* / math.* 로 재라우팅
+        # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
+        _V4_ALIASES: dict[str, str] = {
+            "atr": "ta.atr",
+            "ema": "ta.ema",
+            "sma": "ta.sma",
+            "rsi": "ta.rsi",
+            "crossover": "ta.crossover",
+            "crossunder": "ta.crossunder",
+            "highest": "ta.highest",
+            "lowest": "ta.lowest",
+            "change": "ta.change",
+            "pivothigh": "ta.pivothigh",
+            "pivotlow": "ta.pivotlow",
+            "max": "math.max",
+            "min": "math.min",
+            "abs": "math.abs",
+        }
+        if name in _V4_ALIASES:
+            name = _V4_ALIASES[name]
+
+        # math.* — 순수 함수, caller state 없음. na 전파.
+        if name and name.startswith("math."):
+            args = [
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+                for a in node.args
+            ]
+            if any(_is_na(a) for a in args):
+                return float("nan")
+            if name == "math.abs":
+                return abs(args[0])
+            if name == "math.max":
+                return max(args)
+            if name == "math.min":
+                return min(args)
+            if name == "math.floor":
+                return math.floor(args[0])
+            if name == "math.ceil":
+                return math.ceil(args[0])
+            if name == "math.round":
+                return round(args[0])
+            if name == "math.sqrt":
+                return math.sqrt(args[0])
+            if name == "math.log":
+                return math.log(args[0]) if len(args) == 1 else math.log(args[0], args[1])
+            if name == "math.pow":
+                return args[0] ** args[1]
+            raise PineRuntimeError(f"math function not supported: {name}")
+
+        # timestamp(y, mo, d, h, mi[, s]) — v4/v5 built-in. 실제 datetime은 불필요
+        # (time_cond 같은 기간 필터에서만 사용). year/month/day/hour/minute을 반영한
+        # approx epoch ms 반환. time(=bar_index 기반 stub)과 같은 scale로 비교됨.
+        if name == "timestamp":
+            if not node.args:
+                return 0
+            parts: list[int] = []
+            for a in node.args[:5]:
+                val = self._eval_expr(
+                    a.value if isinstance(a, pyne_ast.Arg) else a
+                )
+                try:
+                    parts.append(int(val))
+                except (TypeError, ValueError):
+                    parts.append(0)
+            while len(parts) < 5:
+                parts.append(0)
+            year, month, day, hour, minute = parts[:5]
+            if year <= 1970:
+                return 0
+            # approx: (year-1970)*365일 + (month-1)*30일 + (day-1)*1일 → 초/ms 변환
+            # 월·일 정보 보존이 목적 (정확한 calendar math는 H2+).
+            days = (year - 1970) * 365 + (month - 1) * 30 + (day - 1)
+            return days * 86_400 * 1000 + hour * 3_600_000 + minute * 60_000
+
+        # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
+        if name == "iff":
+            if len(node.args) != 3:
+                raise PineRuntimeError(
+                    f"iff expects 3 args, got {len(node.args)}"
+                )
+            cond_arg, then_arg, else_arg = (
+                a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args
+            )
+            cond_val = self._eval_expr(cond_arg)
+            return (
+                self._eval_expr(then_arg)
+                if self._truthy(cond_val)
+                else self._eval_expr(else_arg)
+            )
 
         # ta.* / na / nz — stdlib 디스패치
         _STDLIB_NAMES = {
@@ -394,6 +617,7 @@ class Interpreter:
             "ta.crossover", "ta.crossunder",
             "ta.highest", "ta.lowest", "ta.change",
             "ta.pivothigh", "ta.pivotlow",
+            "ta.stdev", "ta.variance",
             "na", "nz",
         }
         if name in _STDLIB_NAMES:
@@ -408,6 +632,17 @@ class Interpreter:
         # strategy.* 실행 핸들러
         if name in ("strategy.entry", "strategy.close", "strategy.close_all"):
             return self._exec_strategy_call(name, node)
+
+        # 렌더링 scope A — line/box/label/table. 좌표 저장 + getter만, 렌더링 NOP.
+        if name in _RENDERING_FACTORIES:
+            return self._exec_rendering_call(name, node)
+
+        # handle.method() 형태 — line/box/label/table 객체의 메서드 호출
+        if name and "." in name:
+            head, _, tail = name.rpartition(".")
+            handle = self._resolve_name_if_declared(head)
+            if isinstance(handle, (LineObject, BoxObject, LabelObject, TableObject)):
+                return self._exec_rendering_method(handle, tail, node)
 
         # 선언/렌더링/alert NOP
         _NOP_NAMES = {
@@ -435,6 +670,12 @@ class Interpreter:
             return self.bar.current(name)
         if name == "bar_index":
             return self.bar.bar_index
+        if name == "time":
+            # Pine `time` = 현재 bar의 timestamp (epoch ms). OHLCV에 timestamp 없으면
+            # 2020-01-01 기준(≈ 50년 * 365*86400*1000 ms)으로 bar_index 분봉 가정.
+            # backtest range 필터(time >= startDate and time <= finishDate)가
+            # fromYear=1970 / toYear=2100 범위에서 True가 되도록 맞춤.
+            return 50 * 365 * 86_400 * 1000 + self.bar.bar_index * 60_000
         if name == "na":
             return float("nan")
         if name == "true":
@@ -460,11 +701,58 @@ class Interpreter:
     # ---- Attribute 해석 (`strategy.long` 등 built-in 상수) -----------
 
     def _eval_attribute(self, node: Any) -> Any:
-        """Attribute 체인을 'a.b.c' 로 합친 뒤 built-in 상수 룩업."""
+        """Attribute 체인을 'a.b.c' 로 합친 뒤 built-in 상수 룩업.
+
+        렌더링 scope A 지원(ADR-011 §2.0.4)을 위해 Pine 그리기 enum 상수도 매핑.
+        실제 차트에 영향 없지만 call arg로 전달될 수 있어 평가는 필요.
+        """
         chain = _attr_chain(node)
         _ATTR_CONSTANTS = {
             "strategy.long": "long",
             "strategy.short": "short",
+            # 렌더링 scope A — enum 상수 (string identity 유지)
+            "line.style_dashed": "dashed",
+            "line.style_dotted": "dotted",
+            "line.style_solid": "solid",
+            "line.style_arrow_left": "arrow_left",
+            "line.style_arrow_right": "arrow_right",
+            "line.style_arrow_both": "arrow_both",
+            "extend.none": "none",
+            "extend.left": "left",
+            "extend.right": "right",
+            "extend.both": "both",
+            "shape.labelup": "labelup",
+            "shape.labeldown": "labeldown",
+            "shape.triangleup": "triangleup",
+            "shape.triangledown": "triangledown",
+            "shape.arrowup": "arrowup",
+            "shape.arrowdown": "arrowdown",
+            "shape.circle": "circle",
+            "shape.cross": "cross",
+            "shape.xcross": "xcross",
+            "shape.flag": "flag",
+            "shape.square": "square",
+            "shape.diamond": "diamond",
+            "location.absolute": "absolute",
+            "location.abovebar": "abovebar",
+            "location.belowbar": "belowbar",
+            "location.top": "top",
+            "location.bottom": "bottom",
+            "size.auto": "auto",
+            "size.tiny": "tiny",
+            "size.small": "small",
+            "size.normal": "normal",
+            "size.large": "large",
+            "size.huge": "huge",
+            "position.top_left": "top_left",
+            "position.top_center": "top_center",
+            "position.top_right": "top_right",
+            "position.middle_left": "middle_left",
+            "position.middle_center": "middle_center",
+            "position.middle_right": "middle_right",
+            "position.bottom_left": "bottom_left",
+            "position.bottom_center": "bottom_center",
+            "position.bottom_right": "bottom_right",
         }
         if chain in _ATTR_CONSTANTS:
             return _ATTR_CONSTANTS[chain]
@@ -481,6 +769,11 @@ class Interpreter:
         # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):
             return float("nan")
+        # alert.freq_* / display.* 등 추가 Pine enum은 문자열 stub 반환
+        if chain.startswith(
+            ("alert.freq_", "display.", "xloc.", "yloc.", "text.", "font.")
+        ):
+            return chain.split(".", 1)[1]
         raise PineRuntimeError(f"Attribute access not supported: {chain}")
 
     # ---- strategy.* 핸들러 --------------------------------------------
@@ -502,19 +795,55 @@ class Interpreter:
                 positional.append(val)
 
         if name == "strategy.entry":
-            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
-            direction = positional[1] if len(positional) >= 2 else kwargs.get("direction", "long")
-            qty = float(kwargs.get("qty", positional[2] if len(positional) >= 3 else 1.0))
+            trade_id = (
+                str(positional[0])
+                if positional
+                else str(kwargs.get("id", "default"))
+            )
+            # when= kwarg: False면 entry skip (Pine v4 backtest range 필터)
+            when_val = kwargs.get("when")
+            if when_val is not None and not self._truthy(when_val):
+                return None
+
+            # direction 결정 — v4는 2번째 positional이 boolean(true=long, false=short),
+            # v5는 strategy.long/short 상수 문자열. direction= kwarg도 가능.
+            raw_dir: Any
+            if len(positional) >= 2:
+                raw_dir = positional[1]
+            elif "direction" in kwargs:
+                raw_dir = kwargs["direction"]
+            else:
+                raw_dir = "long"
+            if isinstance(raw_dir, bool):
+                direction: str = "long" if raw_dir else "short"
+            elif raw_dir == "long":
+                direction = "long"
+            elif raw_dir == "short":
+                direction = "short"
+            else:
+                # 알 수 없는 값은 long 기본 (보수적)
+                direction = "long"
+
+            qty = float(
+                kwargs.get(
+                    "qty",
+                    positional[2] if len(positional) >= 3 else 1.0,
+                )
+            )
             comment = str(kwargs.get("comment", ""))
             # stop= 는 지원 (Week 3 Day 1부터). limit/trail은 여전히 미지원.
             stop_raw = kwargs.get("stop")
             stop: float | None = None
             if stop_raw is not None and not _is_na(stop_raw):
                 stop = float(stop_raw)
-            unsupported = [k for k in kwargs if k in ("limit", "trail_points", "trail_offset", "qty_percent")]
+            unsupported = [
+                k
+                for k in kwargs
+                if k in ("limit", "trail_points", "trail_offset", "qty_percent")
+            ]
             self.strategy.entry(
                 trade_id,
-                "long" if direction == "long" else "short",
+                direction,  # type: ignore[arg-type]
                 qty=qty,
                 bar=bar_idx,
                 fill_price=current_close,

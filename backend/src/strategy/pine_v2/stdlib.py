@@ -284,6 +284,41 @@ def ta_change(
     return source - buf[0]
 
 
+def ta_stdev(
+    state: IndicatorState, node_id: int, source: float, length: int
+) -> float:
+    """슬라이딩 윈도우 표준편차 (모집단). warmup < length → nan."""
+    if length <= 0:
+        return float("nan")
+    buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
+    if _is_na(source):
+        buf.append(source)
+        return float("nan")
+    buf.append(source)
+    if len(buf) < length:
+        return float("nan")
+    m = sum(buf) / length
+    var = sum((x - m) ** 2 for x in buf) / length
+    return math.sqrt(var)
+
+
+def ta_variance(
+    state: IndicatorState, node_id: int, source: float, length: int
+) -> float:
+    """슬라이딩 윈도우 분산 (모집단). warmup < length → nan."""
+    if length <= 0:
+        return float("nan")
+    buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
+    if _is_na(source):
+        buf.append(source)
+        return float("nan")
+    buf.append(source)
+    if len(buf) < length:
+        return float("nan")
+    m = sum(buf) / length
+    return sum((x - m) ** 2 for x in buf) / length
+
+
 # -------- 유틸 (na / nz) ------------------------------------------------
 
 
@@ -339,6 +374,10 @@ class StdlibDispatcher:
         if func_name == "ta.change":
             length = args[1] if len(args) >= 2 else 1
             return ta_change(self.state, node_id, args[0], int(length))
+        if func_name == "ta.stdev":
+            return ta_stdev(self.state, node_id, args[0], int(args[1]))
+        if func_name == "ta.variance":
+            return ta_variance(self.state, node_id, args[0], int(args[1]))
         if func_name == "ta.pivothigh":
             left, right = int(args[0]), int(args[1])
             return ta_pivothigh(self.state, node_id, left, right, high)
