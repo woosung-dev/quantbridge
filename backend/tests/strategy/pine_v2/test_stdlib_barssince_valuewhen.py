@@ -47,3 +47,32 @@ def test_barssince_nan_before_first_true() -> None:
     snaps = _run_script(src, [5.0, 10.0, 20.0])
     series = snaps[-1]._var_series["cnt"]
     assert all(_math.isnan(v) for v in series)
+
+
+def test_valuewhen_occurrence_zero_returns_latest_match() -> None:
+    # cond = close > 10: bar0=F, bar1=T(15), bar2=F, bar3=T(20), bar4=F
+    # valuewhen(cond, close, 0) = 가장 최근 true일 때 close
+    # = [nan, 15, 15, 20, 20]
+    src = """
+c = close > 10
+v = ta.valuewhen(c, close, 0)
+"""
+    snaps = _run_script(src, [5.0, 15.0, 8.0, 20.0, 9.0])
+    series = snaps[-1]._var_series["v"]
+    assert _math.isnan(series[0])
+    assert series[1:] == [15.0, 15.0, 20.0, 20.0]
+
+
+def test_valuewhen_occurrence_one_returns_previous_match() -> None:
+    # occurrence=1 → 직전 true
+    src = """
+c = close > 10
+v = ta.valuewhen(c, close, 1)
+"""
+    snaps = _run_script(src, [5.0, 15.0, 8.0, 20.0, 9.0])
+    series = snaps[-1]._var_series["v"]
+    assert _math.isnan(series[0])
+    assert _math.isnan(series[1])
+    assert _math.isnan(series[2])
+    assert series[3] == 15.0
+    assert series[4] == 15.0
