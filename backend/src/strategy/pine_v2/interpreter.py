@@ -783,8 +783,12 @@ class Interpreter:
             for stmt in fn_def.body:
                 if isinstance(stmt, pyne_ast.Expr):
                     inner = stmt.value
-                    # 마지막 Expr(Tuple/List literal)은 Python tuple로 반환
-                    # (multi-return: `[a, b] = foo(...)` unpack 대응).
+                    # pynescript는 top-level if를 Expr(value=If)로 래핑. 이건 statement
+                    # 실행이지 return expr이 아니므로 _exec_if로 우회.
+                    if isinstance(inner, pyne_ast.If):
+                        self._exec_if(inner)
+                        continue
+                    # 마지막 Expr(Tuple literal)은 Python tuple로 반환 — multi-return.
                     if isinstance(inner, pyne_ast.Tuple):
                         last_expr_val = tuple(
                             self._eval_expr(e) for e in inner.elts
