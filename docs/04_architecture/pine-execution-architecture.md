@@ -404,17 +404,48 @@ backend/src/backtest/engine/
 
 ## 5. 구현 순서 & 마일스톤
 
-### Phase -1 (Sprint 8a-pre, 2주)
+### Phase -1 (Sprint 8a-pre, 2주) — N-way 비교 매트릭스로 확장 (2026-04-18 amendment)
 
-**목표:** 본 아키텍처의 가정 실증
+**목표:** 본 아키텍처의 가정 실증. 원안의 2-way(LLM vs PyneCore vs TV 3-way)에서 **N-way 매트릭스**로 확장하여 LLM 모델 편향 + 단일 엔진 해석 모호성 동시 차단.
+
+**상세 실행 계획:** [`docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md)
+
+#### 실측 후보 (Day 1-3 주후보 8 + 조건부 3)
+
+| # | 후보 | 라이선스 | 역할 | Day |
+|:---:|------|:--:|------|:---:|
+| E1 | PyneCore v6.4.2 | Apache 2.0 | **주 오라클** | 1-3 |
+| E2 | pynescript v0.3.0 | LGPL | 파서 커버리지 | 1 |
+| E3 | 현재 QB 파서 | 내부 | **ADR-004 AST 인터프리터 baseline** | 1 |
+| E4 | Claude Opus 4.7 변환본 | Anthropic | 기존 `/tmp/drfx_test` 재실행 | 1-2 |
+| E5 | Claude Sonnet 4.6 변환본 | Anthropic | Claude Code 내부 생성 | 2 |
+| E6 | GPT-5 변환본 | OpenAI | 키 조건부 | 2 |
+| E7 | Gemini 2.5 Pro 변환본 | Google | 키 조건부 | 2 |
+| E8 | TV 수동 스폿체크 | - | ground truth (1구간) | 3 |
+| (조건부) | PineTS / PinePyConvert / 상용 SaaS | 다양 | Day 4+ 재평가 | - |
+
+#### 스크립트 매트릭스 (5종, LuxAlgo 실행은 Day 4+ 이연)
+
+| # | Track | 난이도 | 스크립트 | 비교 깊이 |
+|:--:|:---:|:---:|---------|:---:|
+| S1 | S | 🟢 쉬움 | RTB EMA crossover | 얕음 (E1 + E3) |
+| S2 | S | 🟠 중간 | (사용자 제공) | 얕음 (E1 + E3) |
+| I1 | A/M | 🟢 쉬움 | (사용자 제공) | 얕음 (E1 + E3) |
+| I2 | A/M | 🟠 중간 | (사용자 제공) | 얕음 (E1 + E3) |
+| **I3** | **A** | **🔴 어려움** | **DrFX Diamond Algo** | **심층 (E1~E7 × 8 지표)** |
+
+#### 일수별 작업 (Day 4+ 원안 유지)
 
 | 일수 | 작업 | 산출물 |
 |:---:|------|-------|
-| Day 1-2 | PyneCore 로컬 설치 + RTB/DrFX/LuxAlgo 3종 실행 | PyneCore 지원 범위 리포트 |
-| Day 3 | LLM 변환본 vs PyneCore vs TV 3-way 비교 | 상대 오차 측정 + 버그 3개 재현 |
-| Day 4-5 | TV 공개 스크립트 15~20개 alert 패턴 프로파일링 | Track S/A/M 실제 비율 확정 |
-| Day 6-7 | Phase -1 findings 리포트 | ADR-011 amendment (필요 시) |
-| Day 8-10 | Tier-0 공통 코어 시작 | pynescript 포크 초기 |
+| Day 1 | 환경 + 5종 파서 커버리지(E2/E3) + I3 PyneCore(E1) + OHLCV 고정 CSV | E1~E4 실행 결과 |
+| Day 2 | I3 DrFX LLM 매트릭스(E4~E7) + trail_points/qty_percent probe | N-way 심층 diff |
+| Day 3 | S1/S2/I1/I2 얕은 실행 + TV 스폿체크 + 가정 3개 판정 | continue/amend/abort 권고 |
+| Day 4-5 | TV 공개 스크립트 15~20개 alert 패턴 프로파일링 | Track S/A/M 실제 비율 |
+| Day 6-7 | Phase -1 findings + ADR-011 amendment (필요 시) | amendment PR |
+| Day 8-10 | Tier-0 공통 코어 착수 | pynescript 포크 초기 |
+
+**확장 근거:** 단일 LLM 모델(Opus)로 생성된 변환본 버그 3개(SL 기준점/float `==`/look-ahead)의 재현성은 다른 모델에서 달라질 수 있어 편향 위험. N-way 매트릭스로 모델 공통 버그 / 모델 고유 버그 분리 가능. Track S/A 다양성도 RTB 1종 → strategy 2종 + indicator 3종으로 확보.
 
 ### Phase 1 (Sprint 8a, 3주)
 

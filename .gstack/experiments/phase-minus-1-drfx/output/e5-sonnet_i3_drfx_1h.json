@@ -1,0 +1,18 @@
+{
+  "engine": "e5-sonnet",
+  "script": "i3_drfx",
+  "timeframe": "1h",
+  "ohlcv_source": "/Users/woosung/project/agy-project/quant-bridge/.gstack/experiments/phase-minus-1-drfx/ohlcv/btc_usdt_1h_frozen.csv",
+  "total_return_pct": -52.21494616451573,
+  "max_drawdown_pct": -52.21494616451573,
+  "sharpe_ratio": -25.17468602765523,
+  "profit_factor": 0.502945200056802,
+  "total_trades": 100,
+  "winning_trades": 41,
+  "losing_trades": 59,
+  "win_rate": 0.41,
+  "exit_reasons": {
+    "SL": 59,
+    "TP": 41
+  }
+}

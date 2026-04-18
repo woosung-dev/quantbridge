@@ -5,7 +5,13 @@
 !.claude/settings.json
 # .claude/settings.local.json (개인 override)은 위 .claude/* 규칙으로 자동 무시됨
 .agents/
-.gstack/
+# .gstack/ 는 gstack skill 임시 산출물 전반 무시. experiments/ 는 실측 자산이라 예외.
+.gstack/*
+!.gstack/experiments/
+.gstack/experiments/**/.venv/
+.gstack/experiments/**/workdir/
+.gstack/experiments/**/__pycache__/
+.gstack/experiments/**/*.py[cod]
 
 # === 환경 변수 ===
 .env
@@ -48,6 +54,7 @@ Thumbs.db
 *.log
 logs/
 tmp/
+tmp_code/
 .cache/
 
 # === AI 도구 세션 캐시 (codex consult 등) ===
