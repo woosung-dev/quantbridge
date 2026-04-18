@@ -304,3 +304,47 @@ def test_run_result_repr() -> None:
     d = result.to_dict()
     assert d["bars_processed"] == 3
     assert d["state_history_length"] == 3
+
+
+# ---- Sprint 8b: switch statement -----------------------------------------
+
+
+def test_switch_selects_matching_branch() -> None:
+    """Pine switch → 매칭 pattern의 body 반환 (subject=='Atr' → 10.0)."""
+    from src.strategy.pine_v2.event_loop import run_historical
+
+    source = (
+        "//@version=5\n"
+        "indicator('t')\n"
+        "m = 'Atr'\n"
+        "slope = switch m\n"
+        "    'Atr' => 10.0\n"
+        "    'Stdev' => 20.0\n"
+        "    => 0.0\n"
+    )
+    ohlcv = pd.DataFrame({
+        "open": [100.0], "high": [101.0], "low": [99.0],
+        "close": [100.0], "volume": [100.0],
+    })
+    result = run_historical(source, ohlcv, strict=True)
+    assert result.final_state.get("slope") == 10.0
+
+
+def test_switch_falls_through_to_default_on_no_match() -> None:
+    """매칭 pattern이 없으면 default branch(pattern=None) 실행."""
+    from src.strategy.pine_v2.event_loop import run_historical
+
+    source = (
+        "//@version=5\n"
+        "indicator('t')\n"
+        "m = 'Zzz'\n"
+        "slope = switch m\n"
+        "    'Atr' => 10.0\n"
+        "    => 99.0\n"
+    )
+    ohlcv = pd.DataFrame({
+        "open": [100.0], "high": [101.0], "low": [99.0],
+        "close": [100.0], "volume": [100.0],
+    })
+    result = run_historical(source, ohlcv, strict=True)
+    assert result.final_state.get("slope") == 99.0

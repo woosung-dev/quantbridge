@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 
 import pandas as pd
+import pytest
 
 from src.strategy.pine_v2.event_loop import run_historical
 from src.strategy.pine_v2.stdlib import (
@@ -259,3 +260,24 @@ def test_v4_nz_with_two_args() -> None:
     # bar 0에서 x[1]은 na → y=42.0, bar 1에서 x[1]=100 → y=100
     assert result.state_history[0]["y"] == 42.0
     assert result.state_history[1]["y"] == 100.0
+
+
+def test_ta_stdev_returns_std_after_warmup() -> None:
+    """ta.stdev(source, 3) — 최근 3 bar 표준편차."""
+    state = IndicatorState()
+    from src.strategy.pine_v2.stdlib import ta_stdev
+    vals = [ta_stdev(state, 1, v, 3) for v in [2.0, 4.0, 4.0, 4.0]]
+    assert math.isnan(vals[0])
+    assert math.isnan(vals[1])
+    # [2,4,4] mean=3.33, var=((2-3.33)^2+(4-3.33)^2*2)/3 ≈ 0.8889, std≈0.9428
+    assert vals[2] == pytest.approx(0.9428, abs=1e-3)
+
+
+def test_ta_variance_is_stdev_squared() -> None:
+    from src.strategy.pine_v2.stdlib import ta_stdev, ta_variance
+    s1 = IndicatorState()
+    s2 = IndicatorState()
+    for v in [1.0, 2.0, 3.0, 4.0, 5.0]:
+        stdev_v = ta_stdev(s1, 1, v, 3)
+        var_v = ta_variance(s2, 2, v, 3)
+    assert var_v == pytest.approx(stdev_v ** 2, rel=1e-9)

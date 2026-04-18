@@ -317,8 +317,53 @@ class Interpreter:
             return self._eval_attribute(node)
         if isinstance(node, pyne_ast.Call):
             return self._eval_call(node)
+        if isinstance(node, pyne_ast.Switch):
+            return self._eval_switch(node)
         # 기타: Day 1-2 범위 밖
         raise PineRuntimeError(f"Unsupported expression node: {type(node).__name__}")
+
+    def _eval_switch(self, node: Any) -> Any:
+        """Pine switch expression: subject 값과 각 Case.pattern 비교.
+
+        - subject가 있으면: cases 순회하며 pattern == subject이면 그 body 실행
+        - subject가 None(pattern-only switch)이면: 각 pattern을 truthy 조건으로 평가
+        - pattern이 None인 Case는 default (마지막 배치 권장; 순회 순서 그대로 처리)
+        - Case.body는 statements 리스트. 마지막 Expr(value=...)의 값이 반환값.
+        """
+        subject = (
+            self._eval_expr(node.subject) if getattr(node, "subject", None) else None
+        )
+        default_body: Any | None = None
+        for case in getattr(node, "cases", []):
+            pattern = getattr(case, "pattern", None)
+            body = getattr(case, "body", [])
+            if pattern is None:
+                default_body = body
+                continue
+            pat_val = self._eval_expr(pattern)
+            matched = (
+                (pat_val == subject)
+                if subject is not None
+                else self._truthy(pat_val)
+            )
+            if matched:
+                return self._exec_case_body(body)
+        if default_body is not None:
+            return self._exec_case_body(default_body)
+        return None
+
+    def _exec_case_body(self, body: list[Any]) -> Any:
+        """switch Case body 실행: 마지막 Expr(value=...) 의 값 반환.
+
+        body는 일반 statement도 허용하지만 최종 평가되는 것은 마지막 expression.
+        """
+        last_value: Any = None
+        for stmt in body:
+            if isinstance(stmt, pyne_ast.Expr):
+                last_value = self._eval_expr(stmt.value)
+            else:
+                self._exec_stmt(stmt)
+        return last_value
 
     def _eval_binop(self, node: Any) -> Any:
         op_name = type(node.op).__name__
@@ -547,6 +592,7 @@ class Interpreter:
             "ta.crossover", "ta.crossunder",
             "ta.highest", "ta.lowest", "ta.change",
             "ta.pivothigh", "ta.pivotlow",
+            "ta.stdev", "ta.variance",
             "na", "nz",
         }
         if name in _STDLIB_NAMES:
