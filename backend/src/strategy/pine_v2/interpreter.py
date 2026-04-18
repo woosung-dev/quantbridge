@@ -369,6 +369,9 @@ class Interpreter:
             return self._eval_call(node)
         if isinstance(node, pyne_ast.Switch):
             return self._eval_switch(node)
+        if isinstance(node, pyne_ast.Tuple):
+            # Tuple literal (예: input(options=['A','B'])의 options 값). Python tuple 반환.
+            return tuple(self._eval_expr(e) for e in node.elts)
         # 기타: Day 1-2 범위 밖
         raise PineRuntimeError(f"Unsupported expression node: {type(node).__name__}")
 
@@ -727,12 +730,18 @@ class Interpreter:
             "input", "input.int", "input.float", "input.bool", "input.string",
             "input.source", "input.color", "input.time", "input.timeframe",
             "input.price", "input.session", "input.symbol",
+            # Sprint 8c — 렌더링 색상/스타일 관련 순수 함수(값은 렌더링 NOP과만 interact).
+            "color.new", "color.rgb", "color.from_gradient",
         }
         if name in _NOP_NAMES:
             if name and name.startswith("input"):
-                args = [a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args]
-                if args:
-                    return self._eval_expr(args[0])  # defval (첫 arg)
+                # Pine input 시그니처: v4는 input(title=, type=, defval=, ...) keyword 사용 빈번.
+                # defval= kwarg 우선, 없으면 첫 positional arg를 defval로 간주.
+                pos_args, kw_args = self._collect_args(node)
+                if "defval" in kw_args:
+                    return kw_args["defval"]
+                if pos_args:
+                    return pos_args[0]
                 return None
             return None
 

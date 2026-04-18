@@ -426,11 +426,22 @@ class StdlibDispatcher:
         if func_name == "ta.variance":
             return ta_variance(self.state, node_id, args[0], int(args[1]))
         if func_name == "ta.pivothigh":
-            left, right = int(args[0]), int(args[1])
-            return ta_pivothigh(self.state, node_id, left, right, high)
+            # Pine: pivothigh(left, right) OR pivothigh(source, left, right)
+            if len(args) == 2:
+                left, right = int(args[0]), int(args[1])
+                src_val = high
+            else:
+                src_val = args[0] if not _is_na(args[0]) else high
+                left, right = int(args[1]), int(args[2])
+            return ta_pivothigh(self.state, node_id, left, right, src_val)
         if func_name == "ta.pivotlow":
-            left, right = int(args[0]), int(args[1])
-            return ta_pivotlow(self.state, node_id, left, right, low)
+            if len(args) == 2:
+                left, right = int(args[0]), int(args[1])
+                src_val = low
+            else:
+                src_val = args[0] if not _is_na(args[0]) else low
+                left, right = int(args[1]), int(args[2])
+            return ta_pivotlow(self.state, node_id, left, right, src_val)
         if func_name == "ta.barssince":
             return ta_barssince(self.state, node_id, args[0])
         if func_name == "ta.valuewhen":
