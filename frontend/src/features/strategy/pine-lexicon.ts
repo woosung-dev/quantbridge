@@ -115,8 +115,63 @@ export const PINE_FUNCTION_LEXICON: Record<string, PineFunctionDescription> = {
   },
   input: {
     summary: "사용자 입력",
-    purpose: "차트에서 조정 가능한 파라미터 정의",
+    purpose: "차트에서 조정 가능한 파라미터 정의 (v4 레거시 함수)",
     example: "input(14, 'length')",
+  },
+  "input.int": {
+    summary: "정수 입력",
+    purpose: "정수형 파라미터를 차트에서 조정 가능하게 노출",
+    example: 'input.int(14, "length", minval=1)',
+  },
+  "input.bool": {
+    summary: "불리언 입력",
+    purpose: "참/거짓 토글 파라미터 (신호 on/off 등)",
+    example: 'input.bool(true, "enable filter")',
+  },
+  "input.string": {
+    summary: "문자열 입력",
+    purpose: "문자열 파라미터 (옵션 선택 포함)",
+    example: 'input.string("EMA", options=["SMA","EMA"])',
+  },
+  "input.float": {
+    summary: "실수 입력",
+    purpose: "실수형 파라미터 (배수, 임계치 등)",
+    example: 'input.float(1.5, "multiplier", step=0.1)',
+  },
+  "input.color": {
+    summary: "색상 입력",
+    purpose: "차트 요소 색상을 사용자 조정 가능하게 노출",
+    example: 'input.color(color.green, "up color")',
+  },
+  "input.source": {
+    summary: "가격 소스 입력",
+    purpose: "계산 대상 가격을 open/high/low/close/hl2 등에서 선택",
+    example: 'input.source(close, "source")',
+  },
+  "input.symbol": {
+    summary: "심볼 입력",
+    purpose: "다른 종목 심볼을 파라미터로 선택 (MTF / 페어 비교)",
+    example: 'input.symbol("BTCUSDT", "reference")',
+  },
+  "input.timeframe": {
+    summary: "타임프레임 입력",
+    purpose: "분봉/시봉/일봉 등 타임프레임 선택 (MTF 전략)",
+    example: 'input.timeframe("15", "timeframe")',
+  },
+  "input.session": {
+    summary: "세션 입력",
+    purpose: "거래 세션 시간대 선택 (예: 09:00-15:30)",
+    example: 'input.session("0930-1530", "session")',
+  },
+  "input.time": {
+    summary: "시간 입력",
+    purpose: "특정 시각을 timestamp로 선택",
+    example: 'input.time(timestamp("2026-01-01"), "start")',
+  },
+  "input.price": {
+    summary: "가격 입력",
+    purpose: "차트에서 직접 가격 레벨을 찍어 파라미터로 사용",
+    example: 'input.price(100.0, "target")',
   },
   plot: {
     summary: "선 그리기",
