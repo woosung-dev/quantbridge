@@ -203,3 +203,59 @@ signal := close > open ? close : signal[1]
     assert hist[2] == 15.0
     # bar 3: close=20 > open=12 → True → 20
     assert hist[3] == 20.0
+
+
+# -------- Sprint 8b: Pine v4 legacy alias + iff --------------------------
+
+
+def test_v4_stdlib_alias_atr_ema_crossover() -> None:
+    """Pine v4 prefix 없는 atr/ema/crossover가 ta.* 로 재라우팅."""
+    source = (
+        "//@version=4\n"
+        "study('t', overlay=true)\n"
+        "x = atr(5)\n"
+        "y = ema(close, 3)\n"
+        "crossed = crossover(close, ema(close, 2))\n"
+    )
+    ohlcv = _ohlcv([101.0, 102.0, 103.0, 104.0, 105.0, 106.0])
+    result = run_historical(source, ohlcv)
+    assert result.bars_processed == 6
+    # 마지막 bar의 x(atr)가 float 값 산출
+    final_x = result.final_state.get("x")
+    assert isinstance(final_x, float)
+
+
+def test_v4_iff_ternary_equivalent() -> None:
+    """iff(cond, then, else) = cond ? then : else."""
+    source = (
+        "//@version=4\n"
+        "study('t')\n"
+        "z = iff(close > open, 1.0, 0.0)\n"
+    )
+    # bar 0: close==open → 0.0, bar 1: close>open → 1.0
+    ohlcv = pd.DataFrame(
+        {
+            "open": [100.0, 100.0],
+            "high": [101.0, 111.0],
+            "low": [99.0, 99.0],
+            "close": [100.0, 110.0],
+            "volume": [100.0, 100.0],
+        }
+    )
+    result = run_historical(source, ohlcv)
+    assert result.final_state.get("z") == 1.0
+
+
+def test_v4_nz_with_two_args() -> None:
+    """nz(value, default) — value가 na면 default."""
+    source = (
+        "//@version=4\n"
+        "study('t')\n"
+        "x = close\n"
+        "y = nz(x[1], 42.0)\n"
+    )
+    ohlcv = _ohlcv([100.0, 110.0])
+    result = run_historical(source, ohlcv)
+    # bar 0에서 x[1]은 na → y=42.0, bar 1에서 x[1]=100 → y=100
+    assert result.state_history[0]["y"] == 42.0
+    assert result.state_history[1]["y"] == 100.0

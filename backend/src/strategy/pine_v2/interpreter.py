@@ -388,6 +388,40 @@ class Interpreter:
         """Call 해석: stdlib(ta.*/na/nz) → strategy.* → 선언/렌더링 NOP → 에러."""
         name = _call_chain_name(node.func)
 
+        # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* 로 재라우팅
+        # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
+        _V4_ALIASES: dict[str, str] = {
+            "atr": "ta.atr",
+            "ema": "ta.ema",
+            "sma": "ta.sma",
+            "rsi": "ta.rsi",
+            "crossover": "ta.crossover",
+            "crossunder": "ta.crossunder",
+            "highest": "ta.highest",
+            "lowest": "ta.lowest",
+            "change": "ta.change",
+            "pivothigh": "ta.pivothigh",
+            "pivotlow": "ta.pivotlow",
+        }
+        if name in _V4_ALIASES:
+            name = _V4_ALIASES[name]
+
+        # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
+        if name == "iff":
+            if len(node.args) != 3:
+                raise PineRuntimeError(
+                    f"iff expects 3 args, got {len(node.args)}"
+                )
+            cond_arg, then_arg, else_arg = (
+                a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args
+            )
+            cond_val = self._eval_expr(cond_arg)
+            return (
+                self._eval_expr(then_arg)
+                if self._truthy(cond_val)
+                else self._eval_expr(else_arg)
+            )
+
         # ta.* / na / nz — stdlib 디스패치
         _STDLIB_NAMES = {
             "ta.sma", "ta.ema", "ta.atr", "ta.rsi",
