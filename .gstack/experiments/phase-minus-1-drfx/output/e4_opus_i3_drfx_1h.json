@@ -1,0 +1,22 @@
+{
+  "engine": "E4",
+  "model": "Claude Opus 4.7 (추정)",
+  "script": "i3_drfx",
+  "timeframe": "1h",
+  "ohlcv_source": "/Users/woosung/project/agy-project/quant-bridge/.gstack/experiments/phase-minus-1-drfx/ohlcv/btc_usdt_1h_frozen.csv",
+  "ohlcv_rows": 8760,
+  "initial_capital": 10000.0,
+  "final_capital": 5920.273500440935,
+  "total_return_pct": -40.79726499559065,
+  "max_drawdown_pct": -44.06143239471202,
+  "sharpe_ratio": -4.412939458922289,
+  "profit_factor": 0.3705313811818237,
+  "total_trades": 145,
+  "winning_trades": 37,
+  "losing_trades": 108,
+  "win_rate": 0.25517241379310346,
+  "exit_reasons": {
+    "SL": 108,
+    "TP2": 37
+  }
+}
