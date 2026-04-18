@@ -65,7 +65,7 @@ export const PINE_FUNCTION_LEXICON: Record<string, PineFunctionDescription> = {
   },
   "ta.lowest": {
     summary: "최근 N봉 최저값",
-    purpose: "롤링 최저가 계산",
+    purpose: "롤링 최저가 계산 (이탈·지지선 전략에 사용)",
     example: "ta.lowest(low, 20)",
   },
   "ta.change": {

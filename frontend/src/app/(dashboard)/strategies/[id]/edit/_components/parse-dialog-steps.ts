@@ -9,7 +9,7 @@ import {
   type WarningAdvice,
 } from "@/features/strategy/pine-lexicon";
 
-const FUNCTION_CAP = 14;
+export const FUNCTION_CAP = 14;
 
 export type StepSummary = {
   errorCount: number;

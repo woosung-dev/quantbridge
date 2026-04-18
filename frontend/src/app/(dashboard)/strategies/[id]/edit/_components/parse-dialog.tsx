@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,15 @@ type Props = {
 export function ParseDialog({ open, onOpenChange, result, onSave }: Props) {
   const steps = useMemo(() => buildParseSteps(result), [result]);
   const [index, setIndex] = useState(0);
+  const savedRef = useRef(false);
+
+  // result 변경 시 stale index / counter 방지 (BUG-A 회귀 가드).
+  // result는 상위 쿼리가 refetch할 때 바뀌는 외부 동기화 trigger라 effect + setState가 정당.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setIndex(0);
+  }, [result]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const clampedIndex = Math.min(index, steps.length - 1);
   const step: ParseStep = steps[clampedIndex] ?? steps[0]!;
@@ -34,13 +43,18 @@ export function ParseDialog({ open, onOpenChange, result, onSave }: Props) {
   const handleNext = () => setIndex((i) => Math.min(i + 1, steps.length - 1));
   const handlePrev = () => setIndex((i) => Math.max(i - 1, 0));
   const handleSave = () => {
+    if (savedRef.current) return;
+    savedRef.current = true;
     onSave();
     onOpenChange(false);
   };
   const handleReturn = () => onOpenChange(false);
 
   const resetOnOpen = (next: boolean) => {
-    if (next) setIndex(0);
+    if (next) {
+      setIndex(0);
+      savedRef.current = false;
+    }
     onOpenChange(next);
   };
 
@@ -50,7 +64,7 @@ export function ParseDialog({ open, onOpenChange, result, onSave }: Props) {
         <DialogHeader>
           <DialogTitle>{renderTitle(step)}</DialogTitle>
           <DialogDescription>
-            {index + 1} / {steps.length} 단계
+            {clampedIndex + 1} / {steps.length} 단계
           </DialogDescription>
         </DialogHeader>
         <div className="py-3" aria-live="polite">
@@ -174,11 +188,12 @@ function StepBody({ step }: { step: ParseStep }) {
       );
     case "final": {
       if (!step.canSave) {
-        return (
-          <p className="text-sm">
-            에러가 {step.summary.errorCount}건 있습니다. 코드로 돌아가 수정한 뒤 다시 시도해주세요.
-          </p>
-        );
+        const { errorCount } = step.summary;
+        const msg =
+          errorCount > 0
+            ? `에러가 ${errorCount}건 있습니다. 코드로 돌아가 수정한 뒤 다시 시도해주세요.`
+            : "이 스크립트는 지원되지 않는 기능을 포함하고 있어 저장할 수 없습니다. 코드를 수정한 뒤 다시 시도해주세요.";
+        return <p className="text-sm">{msg}</p>;
       }
       return (
         <div className="space-y-2 text-sm">
