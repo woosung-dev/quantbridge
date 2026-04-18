@@ -668,6 +668,7 @@ class Interpreter:
             "ta.highest", "ta.lowest", "ta.change",
             "ta.pivothigh", "ta.pivotlow",
             "ta.stdev", "ta.variance",
+            "ta.barssince", "ta.valuewhen",  # Sprint 8c
             "na", "nz",
         }
         if name in _STDLIB_NAMES:

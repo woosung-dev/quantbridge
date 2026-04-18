@@ -200,6 +200,53 @@ def ta_lowest(
     return min(buf)
 
 
+# -------- barssince / valuewhen (Sprint 8c) ---------------------------
+#
+# 상태 의존 검색: s3_rsid 계열 전략이 필수로 사용.
+# - barssince: 조건이 마지막으로 true였던 시점 이후 경과 bar 수.
+# - valuewhen: 조건이 occurrence번째로 true였을 때의 source 값.
+
+
+def ta_barssince(state: IndicatorState, node_id: int, cond: Any) -> float:
+    """Pine `ta.barssince(cond)` — cond가 마지막 true였던 시점 이후 bar 수.
+
+    - true 발생 bar: 0 반환.
+    - 이전에 true 없음: nan 반환 (Pine v5 na 호환).
+    """
+    slot = state.buffers.setdefault(node_id, {"since": None})
+    cond_bool = bool(cond) if not _is_na(cond) else False
+    if cond_bool:
+        slot["since"] = 0
+        return 0
+    if slot["since"] is None:
+        return float("nan")
+    slot["since"] += 1
+    return int(slot["since"])
+
+
+def ta_valuewhen(
+    state: IndicatorState,
+    node_id: int,
+    cond: Any,
+    source: Any,
+    occurrence: int,
+) -> float:
+    """Pine `ta.valuewhen(cond, source, occurrence)` — occurrence번째 최근 cond=true 시점의 source.
+
+    occurrence=0: 가장 최근 true 시점의 source.
+    occurrence=1: 그 이전 true 시점.
+    history 부족 시 nan.
+    """
+    slot = state.buffers.setdefault(node_id, {"history": []})
+    hist: list[float] = slot["history"]
+    cond_bool = bool(cond) if not _is_na(cond) else False
+    if cond_bool and source is not None and not _is_na(source):
+        hist.insert(0, float(source))
+    if occurrence >= len(hist):
+        return float("nan")
+    return hist[occurrence]
+
+
 # -------- pivot high / pivot low ---------------------------------------
 
 
@@ -384,6 +431,12 @@ class StdlibDispatcher:
         if func_name == "ta.pivotlow":
             left, right = int(args[0]), int(args[1])
             return ta_pivotlow(self.state, node_id, left, right, low)
+        if func_name == "ta.barssince":
+            return ta_barssince(self.state, node_id, args[0])
+        if func_name == "ta.valuewhen":
+            # args: (cond, source, occurrence)
+            occ = int(args[2])
+            return ta_valuewhen(self.state, node_id, args[0], args[1], occ)
         if func_name == "na":
             return fn_na(args[0] if args else float("nan"))
         if func_name == "nz":
