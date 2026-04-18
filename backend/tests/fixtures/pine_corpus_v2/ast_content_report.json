@@ -1,0 +1,1619 @@
+{
+  "i1_utbot": {
+    "declaration": {
+      "kind": "indicator",
+      "title": "UT Bot Alerts",
+      "args": [
+        {
+          "name": "title",
+          "value": "'UT Bot Alerts'"
+        },
+        {
+          "name": "overlay",
+          "value": "True"
+        }
+      ]
+    },
+    "inputs": [
+      {
+        "input_type": "generic",
+        "var_name": "a",
+        "defval": "1",
+        "title": "Key Vaule. 'This changes the sensitivity'",
+        "args": [
+          {
+            "name": null,
+            "value": "1"
+          },
+          {
+            "name": "title",
+            "value": "\"Key Vaule. 'This changes the sensitivity'\""
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "c",
+        "defval": "10",
+        "title": "ATR Period",
+        "args": [
+          {
+            "name": null,
+            "value": "10"
+          },
+          {
+            "name": "title",
+            "value": "'ATR Period'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "h",
+        "defval": "False",
+        "title": "Signals from Heikin Ashi Candles",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": "title",
+            "value": "'Signals from Heikin Ashi Candles'"
+          }
+        ]
+      }
+    ],
+    "var_declarations": [],
+    "strategy_calls": []
+  },
+  "i2_luxalgo": {
+    "declaration": {
+      "kind": "indicator",
+      "title": "Trendlines with Breaks [LuxAlgo]",
+      "args": [
+        {
+          "name": null,
+          "value": "'Trendlines with Breaks [LuxAlgo]'"
+        },
+        {
+          "name": null,
+          "value": "'LuxAlgo - Trendlines with Breaks'"
+        },
+        {
+          "name": "overlay",
+          "value": "True"
+        }
+      ]
+    },
+    "inputs": [
+      {
+        "input_type": "int",
+        "var_name": "length",
+        "defval": "14",
+        "title": "Swing Detection Lookback",
+        "args": [
+          {
+            "name": null,
+            "value": "14"
+          },
+          {
+            "name": null,
+            "value": "'Swing Detection Lookback'"
+          }
+        ]
+      },
+      {
+        "input_type": "float",
+        "var_name": "mult",
+        "defval": "1.0",
+        "title": "Slope",
+        "args": [
+          {
+            "name": null,
+            "value": "1.0"
+          },
+          {
+            "name": null,
+            "value": "'Slope'"
+          },
+          {
+            "name": "minval",
+            "value": "0"
+          },
+          {
+            "name": "step",
+            "value": "0.1"
+          }
+        ]
+      },
+      {
+        "input_type": "string",
+        "var_name": "calcMethod",
+        "defval": "'Atr'",
+        "title": "Slope Calculation Method",
+        "args": [
+          {
+            "name": null,
+            "value": "'Atr'"
+          },
+          {
+            "name": null,
+            "value": "'Slope Calculation Method'"
+          },
+          {
+            "name": "options",
+            "value": "<Tuple>"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "backpaint",
+        "defval": "True",
+        "title": null,
+        "args": [
+          {
+            "name": null,
+            "value": "True"
+          },
+          {
+            "name": "tooltip",
+            "value": "'Backpainting offset displayed elements in the past. Disable backpainting to see real time information returned by the indicator.'"
+          }
+        ]
+      },
+      {
+        "input_type": "color",
+        "var_name": "upCss",
+        "defval": "color.teal",
+        "title": "Up Trendline Color",
+        "args": [
+          {
+            "name": null,
+            "value": "color.teal"
+          },
+          {
+            "name": null,
+            "value": "'Up Trendline Color'"
+          },
+          {
+            "name": "group",
+            "value": "'Style'"
+          }
+        ]
+      },
+      {
+        "input_type": "color",
+        "var_name": "dnCss",
+        "defval": "color.red",
+        "title": "Down Trendline Color",
+        "args": [
+          {
+            "name": null,
+            "value": "color.red"
+          },
+          {
+            "name": null,
+            "value": "'Down Trendline Color'"
+          },
+          {
+            "name": "group",
+            "value": "'Style'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "showExt",
+        "defval": "True",
+        "title": "Show Extended Lines",
+        "args": [
+          {
+            "name": null,
+            "value": "True"
+          },
+          {
+            "name": null,
+            "value": "'Show Extended Lines'"
+          }
+        ]
+      }
+    ],
+    "var_declarations": [
+      {
+        "var_name": "upper",
+        "kind": "var",
+        "initial_expr": "0.0"
+      },
+      {
+        "var_name": "lower",
+        "kind": "var",
+        "initial_expr": "0.0"
+      },
+      {
+        "var_name": "slope_ph",
+        "kind": "var",
+        "initial_expr": "0.0"
+      },
+      {
+        "var_name": "slope_pl",
+        "kind": "var",
+        "initial_expr": "0.0"
+      },
+      {
+        "var_name": "offset",
+        "kind": "var",
+        "initial_expr": "<Conditional>"
+      },
+      {
+        "var_name": "upos",
+        "kind": "var",
+        "initial_expr": "0"
+      },
+      {
+        "var_name": "dnos",
+        "kind": "var",
+        "initial_expr": "0"
+      },
+      {
+        "var_name": "uptl",
+        "kind": "var",
+        "initial_expr": "line.new(na, na, na, ...)"
+      },
+      {
+        "var_name": "dntl",
+        "kind": "var",
+        "initial_expr": "line.new(na, na, na, ...)"
+      }
+    ],
+    "strategy_calls": []
+  },
+  "i3_drfx": {
+    "declaration": {
+      "kind": "indicator",
+      "title": "💎DrFX Diamond Algo 💎",
+      "args": [
+        {
+          "name": null,
+          "value": "'💎DrFX Diamond Algo 💎'"
+        },
+        {
+          "name": "overlay",
+          "value": "True"
+        }
+      ]
+    },
+    "inputs": [
+      {
+        "input_type": "generic",
+        "var_name": "showDashboard",
+        "defval": "True",
+        "title": "Smart Panel",
+        "args": [
+          {
+            "name": null,
+            "value": "True"
+          },
+          {
+            "name": null,
+            "value": "'Smart Panel'"
+          },
+          {
+            "name": "group",
+            "value": "'Dashboard Settings'"
+          }
+        ]
+      },
+      {
+        "input_type": "string",
+        "var_name": "locationDashboard",
+        "defval": "'Bottom Right'",
+        "title": "Location",
+        "args": [
+          {
+            "name": null,
+            "value": "'Bottom Right'"
+          },
+          {
+            "name": null,
+            "value": "'Location'"
+          },
+          {
+            "name": null,
+            "value": "<Tuple>"
+          },
+          {
+            "name": "group",
+            "value": "'Dashboard Settings'"
+          },
+          {
+            "name": "inline",
+            "value": "'agfh1'"
+          }
+        ]
+      },
+      {
+        "input_type": "string",
+        "var_name": "sizeDashboard",
+        "defval": "'Small'",
+        "title": "Size",
+        "args": [
+          {
+            "name": null,
+            "value": "'Small'"
+          },
+          {
+            "name": null,
+            "value": "'Size'"
+          },
+          {
+            "name": null,
+            "value": "<Tuple>"
+          },
+          {
+            "name": "group",
+            "value": "'Dashboard Settings'"
+          },
+          {
+            "name": "inline",
+            "value": "'agfh1'"
+          }
+        ]
+      },
+      {
+        "input_type": "bool",
+        "var_name": "nbuysell",
+        "defval": "True",
+        "title": "Show Signals",
+        "args": [
+          {
+            "name": null,
+            "value": "True"
+          },
+          {
+            "name": null,
+            "value": "'Show Signals'"
+          },
+          {
+            "name": "inline",
+            "value": "'BSNM'"
+          },
+          {
+            "name": "group",
+            "value": "'BUY AND SELL SIGNALS SETTINGS'"
+          }
+        ]
+      },
+      {
+        "input_type": "float",
+        "var_name": "nsensitivity",
+        "defval": "2",
+        "title": "Sensitivity",
+        "args": [
+          {
+            "name": "defval",
+            "value": "2"
+          },
+          {
+            "name": "title",
+            "value": "'Sensitivity'"
+          },
+          {
+            "name": "minval",
+            "value": "1"
+          },
+          {
+            "name": "maxval",
+            "value": "20"
+          },
+          {
+            "name": "group",
+            "value": "'BUY AND SELL SIGNALS SETTINGS'"
+          }
+        ]
+      },
+      {
+        "input_type": "bool",
+        "var_name": "smartsignalsonly",
+        "defval": "False",
+        "title": "Smart Signals Only",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Smart Signals Only'"
+          },
+          {
+            "name": "group",
+            "value": "'BUY AND SELL SIGNALS SETTINGS'"
+          }
+        ]
+      },
+      {
+        "input_type": "string",
+        "var_name": "barcoloringmode",
+        "defval": "'Trend'",
+        "title": "Bar Coloring",
+        "args": [
+          {
+            "name": null,
+            "value": "'Trend'"
+          },
+          {
+            "name": null,
+            "value": "'Bar Coloring'"
+          },
+          {
+            "name": null,
+            "value": "<Tuple>"
+          },
+          {
+            "name": "inline",
+            "value": "'levels'"
+          },
+          {
+            "name": "group",
+            "value": "'BUY AND SELL SIGNALS SETTINGS'"
+          }
+        ]
+      },
+      {
+        "input_type": "bool",
+        "var_name": "levels",
+        "defval": "False",
+        "title": "Take Profit/ Stop-Loss Areas",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Take Profit/ Stop-Loss Areas'"
+          },
+          {
+            "name": "group",
+            "value": "'RISK MANAGEMENT SETTINGS'"
+          },
+          {
+            "name": "inline",
+            "value": "'MMDB2'"
+          }
+        ]
+      },
+      {
+        "input_type": "int",
+        "var_name": "lvlDistance",
+        "defval": "20",
+        "title": "Distance",
+        "args": [
+          {
+            "name": null,
+            "value": "20"
+          },
+          {
+            "name": null,
+            "value": "'Distance'"
+          },
+          {
+            "name": null,
+            "value": "1"
+          },
+          {
+            "name": "inline",
+            "value": "'levels2'"
+          },
+          {
+            "name": "group",
+            "value": "'RISK MANAGEMENT SETTINGS'"
+          }
+        ]
+      },
+      {
+        "input_type": "int",
+        "var_name": "lvlDecimals",
+        "defval": "2",
+        "title": "\\u2003\\u2003\\u2003Decimals",
+        "args": [
+          {
+            "name": null,
+            "value": "2"
+          },
+          {
+            "name": null,
+            "value": "'\\u2003\\u2003\\u2003Decimals'"
+          },
+          {
+            "name": null,
+            "value": "1"
+          },
+          {
+            "name": null,
+            "value": "8"
+          },
+          {
+            "name": "inline",
+            "value": "'levels2'"
+          },
+          {
+            "name": "group",
+            "value": "'RISK MANAGEMENT SETTINGS'"
+          }
+        ]
+      },
+      {
+        "input_type": "int",
+        "var_name": "atrRisk",
+        "defval": "1",
+        "title": "Risk %\\u2003",
+        "args": [
+          {
+            "name": null,
+            "value": "1"
+          },
+          {
+            "name": null,
+            "value": "'Risk %\\u2003'"
+          },
+          {
+            "name": null,
+            "value": "1"
+          },
+          {
+            "name": "group",
+            "value": "'RISK MANAGEMENT SETTINGS'"
+          },
+          {
+            "name": "inline",
+            "value": "'levels3'"
+          }
+        ]
+      },
+      {
+        "input_type": "int",
+        "var_name": "atrLen",
+        "defval": "14",
+        "title": "\\u2003\\u2003ATR Length",
+        "args": [
+          {
+            "name": null,
+            "value": "14"
+          },
+          {
+            "name": null,
+            "value": "'\\u2003\\u2003ATR Length'"
+          },
+          {
+            "name": null,
+            "value": "1"
+          },
+          {
+            "name": "group",
+            "value": "'RISK MANAGEMENT SETTINGS'"
+          },
+          {
+            "name": "inline",
+            "value": "'levels3'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "LongTrendAverage",
+        "defval": "False",
+        "title": "Trend Cloud",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Trend Cloud'"
+          },
+          {
+            "name": "group",
+            "value": "'INDICATOR OVERLAY'"
+          },
+          {
+            "name": "inline",
+            "value": "'1'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "TrendFollower",
+        "defval": "False",
+        "title": "Trend Follower",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Trend Follower'"
+          },
+          {
+            "name": "group",
+            "value": "'INDICATOR OVERLAY'"
+          },
+          {
+            "name": "inline",
+            "value": "'1'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "ShowComulus",
+        "defval": "False",
+        "title": "Comulus Cloud",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Comulus Cloud'"
+          },
+          {
+            "name": "group",
+            "value": "'INDICATOR OVERLAY'"
+          },
+          {
+            "name": "inline",
+            "value": "'2'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "CirrusCloud",
+        "defval": "False",
+        "title": "Cirrus Cloud",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Cirrus Cloud'"
+          },
+          {
+            "name": "group",
+            "value": "'INDICATOR OVERLAY'"
+          },
+          {
+            "name": "inline",
+            "value": "'2'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "ShowSmartTrail",
+        "defval": "False",
+        "title": "Smart Trail",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Smart Trail'"
+          },
+          {
+            "name": "group",
+            "value": "'INDICATOR OVERLAY'"
+          },
+          {
+            "name": "inline",
+            "value": "'3'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "Showtrendlines",
+        "defval": "False",
+        "title": "Trend Lines",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": null,
+            "value": "'Trend Lines'"
+          },
+          {
+            "name": "group",
+            "value": "'INDICATOR OVERLAY'"
+          },
+          {
+            "name": "inline",
+            "value": "'3'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "showsr",
+        "defval": "False",
+        "title": "Support & Resistance",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": "title",
+            "value": "'Support & Resistance'"
+          },
+          {
+            "name": "group",
+            "value": "'INDICATOR OVERLAY'"
+          },
+          {
+            "name": "inline",
+            "value": "'4'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "buyalert",
+        "defval": "True",
+        "title": "Buy Alert",
+        "args": [
+          {
+            "name": null,
+            "value": "True"
+          },
+          {
+            "name": null,
+            "value": "'Buy Alert'"
+          },
+          {
+            "name": "group",
+            "value": "'Alerts'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "sellalert",
+        "defval": "True",
+        "title": "Sell Alert",
+        "args": [
+          {
+            "name": null,
+            "value": "True"
+          },
+          {
+            "name": null,
+            "value": "'Sell Alert'"
+          },
+          {
+            "name": "group",
+            "value": "'Alerts'"
+          }
+        ]
+      }
+    ],
+    "var_declarations": [
+      {
+        "var_name": "demandRejections",
+        "kind": "var",
+        "initial_expr": "array.new_int(history_of_demand_to_keep, 0)"
+      },
+      {
+        "var_name": "supplyRejections",
+        "kind": "var",
+        "initial_expr": "array.new_int(history_of_demand_to_keep, 0)"
+      },
+      {
+        "var_name": "demandCreationBars",
+        "kind": "var",
+        "initial_expr": "array.new_int(history_of_demand_to_keep, na)"
+      },
+      {
+        "var_name": "supplyCreationBars",
+        "kind": "var",
+        "initial_expr": "array.new_int(history_of_demand_to_keep, na)"
+      },
+      {
+        "var_name": "current_demand_box",
+        "kind": "var",
+        "initial_expr": "array.new_box(history_of_demand_to_keep, na)"
+      },
+      {
+        "var_name": "current_supply_box",
+        "kind": "var",
+        "initial_expr": "array.new_box(history_of_demand_to_keep, na)"
+      },
+      {
+        "var_name": "label_text",
+        "kind": "var",
+        "initial_expr": "na"
+      },
+      {
+        "var_name": "box_top",
+        "kind": "var",
+        "initial_expr": "0.0"
+      },
+      {
+        "var_name": "box_bottom",
+        "kind": "var",
+        "initial_expr": "0.0"
+      },
+      {
+        "var_name": "poi",
+        "kind": "var",
+        "initial_expr": "0.0"
+      },
+      {
+        "var_name": "strength_text",
+        "kind": "var",
+        "initial_expr": "''"
+      },
+      {
+        "var_name": "extend_option",
+        "kind": "var",
+        "initial_expr": "extend.right"
+      },
+      {
+        "var_name": "swing_high_values",
+        "kind": "var",
+        "initial_expr": "array.new_float(5, 0.0)"
+      },
+      {
+        "var_name": "swing_low_values",
+        "kind": "var",
+        "initial_expr": "array.new_float(5, 0.0)"
+      },
+      {
+        "var_name": "swing_high_bns",
+        "kind": "var",
+        "initial_expr": "array.new_int(5, 0)"
+      },
+      {
+        "var_name": "swing_low_bns",
+        "kind": "var",
+        "initial_expr": "array.new_int(5, 0)"
+      },
+      {
+        "var_name": "current_supply_poi",
+        "kind": "var",
+        "initial_expr": "array.new_box(history_of_demand_to_keep, na)"
+      },
+      {
+        "var_name": "current_demand_poi",
+        "kind": "var",
+        "initial_expr": "array.new_box(history_of_demand_to_keep, na)"
+      },
+      {
+        "var_name": "supply_bos",
+        "kind": "var",
+        "initial_expr": "array.new_box(5, na)"
+      },
+      {
+        "var_name": "demand_bos",
+        "kind": "var",
+        "initial_expr": "array.new_box(5, na)"
+      },
+      {
+        "var_name": "tz",
+        "kind": "var",
+        "initial_expr": "<Conditional>"
+      },
+      {
+        "var_name": "dashboard_loc",
+        "kind": "var",
+        "initial_expr": "<Conditional>"
+      },
+      {
+        "var_name": "dashboard_size",
+        "kind": "var",
+        "initial_expr": "<Conditional>"
+      },
+      {
+        "var_name": "dashboard",
+        "kind": "var",
+        "initial_expr": "<Conditional>"
+      }
+    ],
+    "strategy_calls": []
+  },
+  "s1_pbr": {
+    "declaration": {
+      "kind": "strategy",
+      "title": "Pivot Reversal Strategy",
+      "args": [
+        {
+          "name": null,
+          "value": "'Pivot Reversal Strategy'"
+        },
+        {
+          "name": "overlay",
+          "value": "True"
+        }
+      ]
+    },
+    "inputs": [
+      {
+        "input_type": "generic",
+        "var_name": "leftBars",
+        "defval": "4",
+        "title": "Pivot Lookback Left",
+        "args": [
+          {
+            "name": null,
+            "value": "4"
+          },
+          {
+            "name": null,
+            "value": "'Pivot Lookback Left'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "rightBars",
+        "defval": "2",
+        "title": "Pivot Lookback Right",
+        "args": [
+          {
+            "name": null,
+            "value": "2"
+          },
+          {
+            "name": null,
+            "value": "'Pivot Lookback Right'"
+          }
+        ]
+      }
+    ],
+    "var_declarations": [],
+    "strategy_calls": [
+      {
+        "name": "strategy.entry",
+        "args": [
+          {
+            "name": null,
+            "value": "'PivRevLE'"
+          },
+          {
+            "name": null,
+            "value": "strategy.long"
+          },
+          {
+            "name": "comment",
+            "value": "'PivRevLE'"
+          },
+          {
+            "name": "stop",
+            "value": "hprice Add syminfo.mintick"
+          }
+        ]
+      },
+      {
+        "name": "strategy.entry",
+        "args": [
+          {
+            "name": null,
+            "value": "'PivRevSE'"
+          },
+          {
+            "name": null,
+            "value": "strategy.short"
+          },
+          {
+            "name": "comment",
+            "value": "'PivRevSE'"
+          },
+          {
+            "name": "stop",
+            "value": "lprice Sub syminfo.mintick"
+          }
+        ]
+      }
+    ]
+  },
+  "s2_utbot": {
+    "declaration": {
+      "kind": "strategy",
+      "title": "UT Bot Strategy",
+      "args": [
+        {
+          "name": "title",
+          "value": "'UT Bot Strategy'"
+        },
+        {
+          "name": "overlay",
+          "value": "True"
+        }
+      ]
+    },
+    "inputs": [
+      {
+        "input_type": "generic",
+        "var_name": "a",
+        "defval": "1",
+        "title": "Key Vaule. 'This changes the sensitivity'",
+        "args": [
+          {
+            "name": null,
+            "value": "1"
+          },
+          {
+            "name": "title",
+            "value": "\"Key Vaule. 'This changes the sensitivity'\""
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "c",
+        "defval": "10",
+        "title": "ATR Period",
+        "args": [
+          {
+            "name": null,
+            "value": "10"
+          },
+          {
+            "name": "title",
+            "value": "'ATR Period'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "h",
+        "defval": "False",
+        "title": "Signals from Heikin Ashi Candles",
+        "args": [
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": "title",
+            "value": "'Signals from Heikin Ashi Candles'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "fromDay",
+        "defval": "1",
+        "title": "From Day",
+        "args": [
+          {
+            "name": "defval",
+            "value": "1"
+          },
+          {
+            "name": "title",
+            "value": "'From Day'"
+          },
+          {
+            "name": "minval",
+            "value": "1"
+          },
+          {
+            "name": "maxval",
+            "value": "31"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "fromMonth",
+        "defval": "1",
+        "title": "From Month",
+        "args": [
+          {
+            "name": "defval",
+            "value": "1"
+          },
+          {
+            "name": "title",
+            "value": "'From Month'"
+          },
+          {
+            "name": "minval",
+            "value": "1"
+          },
+          {
+            "name": "maxval",
+            "value": "12"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "fromYear",
+        "defval": "2019",
+        "title": "From Year",
+        "args": [
+          {
+            "name": "defval",
+            "value": "2019"
+          },
+          {
+            "name": "title",
+            "value": "'From Year'"
+          },
+          {
+            "name": "minval",
+            "value": "1970"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "toDay",
+        "defval": "1",
+        "title": "To Day",
+        "args": [
+          {
+            "name": "defval",
+            "value": "1"
+          },
+          {
+            "name": "title",
+            "value": "'To Day'"
+          },
+          {
+            "name": "minval",
+            "value": "1"
+          },
+          {
+            "name": "maxval",
+            "value": "31"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "toMonth",
+        "defval": "1",
+        "title": "To Month",
+        "args": [
+          {
+            "name": "defval",
+            "value": "1"
+          },
+          {
+            "name": "title",
+            "value": "'To Month'"
+          },
+          {
+            "name": "minval",
+            "value": "1"
+          },
+          {
+            "name": "maxval",
+            "value": "12"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "toYear",
+        "defval": "2100",
+        "title": "To Year",
+        "args": [
+          {
+            "name": "defval",
+            "value": "2100"
+          },
+          {
+            "name": "title",
+            "value": "'To Year'"
+          },
+          {
+            "name": "minval",
+            "value": "1970"
+          }
+        ]
+      }
+    ],
+    "var_declarations": [],
+    "strategy_calls": [
+      {
+        "name": "strategy.entry",
+        "args": [
+          {
+            "name": null,
+            "value": "'long'"
+          },
+          {
+            "name": null,
+            "value": "True"
+          },
+          {
+            "name": "when",
+            "value": "<BoolOp>"
+          }
+        ]
+      },
+      {
+        "name": "strategy.entry",
+        "args": [
+          {
+            "name": null,
+            "value": "'short'"
+          },
+          {
+            "name": null,
+            "value": "False"
+          },
+          {
+            "name": "when",
+            "value": "<BoolOp>"
+          }
+        ]
+      }
+    ]
+  },
+  "s3_rsid": {
+    "declaration": {
+      "kind": "strategy",
+      "title": "RSI Divergence Indicator",
+      "args": [
+        {
+          "name": "title",
+          "value": "'RSI Divergence Indicator'"
+        },
+        {
+          "name": "overlay",
+          "value": "False"
+        },
+        {
+          "name": "pyramiding",
+          "value": "2"
+        },
+        {
+          "name": "default_qty_value",
+          "value": "2"
+        },
+        {
+          "name": "default_qty_type",
+          "value": "strategy.fixed"
+        },
+        {
+          "name": "initial_capital",
+          "value": "10000"
+        },
+        {
+          "name": "currency",
+          "value": "currency.USD"
+        }
+      ]
+    },
+    "inputs": [
+      {
+        "input_type": "generic",
+        "var_name": "len",
+        "defval": "9",
+        "title": "RSI Period",
+        "args": [
+          {
+            "name": "title",
+            "value": "'RSI Period'"
+          },
+          {
+            "name": "minval",
+            "value": "1"
+          },
+          {
+            "name": "defval",
+            "value": "9"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "src",
+        "defval": "close",
+        "title": "RSI Source",
+        "args": [
+          {
+            "name": "title",
+            "value": "'RSI Source'"
+          },
+          {
+            "name": "defval",
+            "value": "close"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "lbR",
+        "defval": "3",
+        "title": "Pivot Lookback Right",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Pivot Lookback Right'"
+          },
+          {
+            "name": "defval",
+            "value": "3"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "lbL",
+        "defval": "1",
+        "title": "Pivot Lookback Left",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Pivot Lookback Left'"
+          },
+          {
+            "name": "defval",
+            "value": "1"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "takeProfitRSILevel",
+        "defval": "80",
+        "title": "Take Profit at RSI Level",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Take Profit at RSI Level'"
+          },
+          {
+            "name": "minval",
+            "value": "70"
+          },
+          {
+            "name": "defval",
+            "value": "80"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "rangeUpper",
+        "defval": "60",
+        "title": "Max of Lookback Range",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Max of Lookback Range'"
+          },
+          {
+            "name": "defval",
+            "value": "60"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "rangeLower",
+        "defval": "5",
+        "title": "Min of Lookback Range",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Min of Lookback Range'"
+          },
+          {
+            "name": "defval",
+            "value": "5"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "plotBull",
+        "defval": "True",
+        "title": "Plot Bullish",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Plot Bullish'"
+          },
+          {
+            "name": "defval",
+            "value": "True"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "plotHiddenBull",
+        "defval": "True",
+        "title": "Plot Hidden Bullish",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Plot Hidden Bullish'"
+          },
+          {
+            "name": "defval",
+            "value": "True"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "plotBear",
+        "defval": "True",
+        "title": "Plot Bearish",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Plot Bearish'"
+          },
+          {
+            "name": "defval",
+            "value": "True"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "plotHiddenBear",
+        "defval": "False",
+        "title": "Plot Hidden Bearish",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Plot Hidden Bearish'"
+          },
+          {
+            "name": "defval",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "sl_type",
+        "defval": "'NONE'",
+        "title": "Trailing StopLoss Type",
+        "args": [
+          {
+            "name": null,
+            "value": "'NONE'"
+          },
+          {
+            "name": "title",
+            "value": "'Trailing StopLoss Type'"
+          },
+          {
+            "name": "options",
+            "value": "<Tuple>"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "stopLoss",
+        "defval": "5",
+        "title": "Stop Loss%",
+        "args": [
+          {
+            "name": "title",
+            "value": "'Stop Loss%'"
+          },
+          {
+            "name": "defval",
+            "value": "5"
+          },
+          {
+            "name": "minval",
+            "value": "1"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "atrLength",
+        "defval": "14",
+        "title": "ATR Length (for Trailing stop loss)",
+        "args": [
+          {
+            "name": null,
+            "value": "14"
+          },
+          {
+            "name": "title",
+            "value": "'ATR Length (for Trailing stop loss)'"
+          }
+        ]
+      },
+      {
+        "input_type": "generic",
+        "var_name": "atrMultiplier",
+        "defval": "3.5",
+        "title": "ATR Multiplier (for Trailing stop loss)",
+        "args": [
+          {
+            "name": null,
+            "value": "3.5"
+          },
+          {
+            "name": "title",
+            "value": "'ATR Multiplier (for Trailing stop loss)'"
+          }
+        ]
+      }
+    ],
+    "var_declarations": [],
+    "strategy_calls": [
+      {
+        "name": "strategy.entry",
+        "args": [
+          {
+            "name": "id",
+            "value": "'RSIDivLE'"
+          },
+          {
+            "name": "long",
+            "value": "True"
+          },
+          {
+            "name": "when",
+            "value": "longCondition"
+          }
+        ]
+      },
+      {
+        "name": "strategy.close",
+        "args": [
+          {
+            "name": "id",
+            "value": "'RSIDivLE'"
+          },
+          {
+            "name": "comment",
+            "value": "'Close All=' Add tostring(close Sub strategy.position_avg_price, '####.##')"
+          },
+          {
+            "name": "when",
+            "value": "<BoolOp>"
+          }
+        ]
+      },
+      {
+        "name": "strategy.close",
+        "args": [
+          {
+            "name": "id",
+            "value": "'RSIDivLE'"
+          },
+          {
+            "name": "comment",
+            "value": "'TSL=' Add tostring(close Sub strategy.position_avg_price, '####.##')"
+          },
+          {
+            "name": "when",
+            "value": "<BoolOp>"
+          }
+        ]
+      }
+    ]
+  }
+}
