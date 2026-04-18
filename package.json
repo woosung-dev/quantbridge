@@ -8,11 +8,12 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "lint-staged": "^15.2.10"
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.8.2"
   },
   "lint-staged": {
     "frontend/**/*.{ts,tsx,js,jsx}": [
-      "bash -c 'cd frontend && pnpm lint --fix --file $(pwd)/$0'"
+      "bash -c 'cd frontend && pnpm exec eslint --fix --no-warn-ignored --'"
     ],
     "backend/**/*.py": [
       "bash -c 'cd backend && ruff check --fix ${0#backend/}'",

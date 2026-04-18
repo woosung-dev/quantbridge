@@ -1,0 +1,28 @@
+# Sprint FE-01 LESSON-004: push 전에 FE 타입체크 + 테스트로 회귀 방어.
+# 로컬에서 무한 루프 / 타입 에러 / 테스트 실패 코드가 원격에 올라가기 전에 차단.
+# 스킵하려면 --no-verify (단, PR이 올라가면 CI에서 다시 검사됨)
+
+# stash 없이 현재 staged/working tree 상태 그대로 검증
+set -e
+
+# FE 변경이 있을 때만 FE 검사 실행
+if git diff --name-only @{u}.. 2>/dev/null | grep -q '^frontend/'; then
+  echo "→ pre-push: frontend typecheck + test (hooks 안전 방어선)"
+  cd frontend
+  pnpm typecheck
+  pnpm test
+  cd -
+else
+  echo "→ pre-push: frontend 변경 없음, 스킵"
+fi
+
+# BE 변경이 있을 때만 BE 검사 실행
+if git diff --name-only @{u}.. 2>/dev/null | grep -q '^backend/'; then
+  echo "→ pre-push: backend ruff + pytest"
+  cd backend
+  uv run ruff check .
+  uv run pytest -q
+  cd -
+else
+  echo "→ pre-push: backend 변경 없음, 스킵"
+fi

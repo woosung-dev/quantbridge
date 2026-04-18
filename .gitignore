@@ -60,4 +60,12 @@ tmp_code/
 # === AI 도구 세션 캐시 (codex consult 등) ===
 .context/
 
+# === Playwright (Sprint FE-01 LESSON-004 E2E) ===
+frontend/playwright-report/
+frontend/test-results/
+frontend/playwright/.cache/
+
+# === Root 부트스트랩 아티팩트 ===
+# Root package.json은 husky/lint-staged/prettier 용. lockfile은 로컬에서만 생성.
+/pnpm-lock.yaml
 

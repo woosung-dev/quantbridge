@@ -51,9 +51,25 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # LESSON-004 보조 방어선: `rules-of-hooks` override 만 차단.
+      # set-state-in-effect 는 Next.js router (useSearchParams) / DOM subscription
+      # 등 정당한 외부 동기화 케이스가 있어 grep 대신 ESLint error-level 에서 처리
+      # (override 시 disable 주석이 파일에 남음 → PR 리뷰에서 정당성 판단).
+      - name: Block react-hooks/rules-of-hooks ESLint disable
+        run: |
+          if grep -rn --include='*.ts' --include='*.tsx' \
+             'eslint-disable.*react-hooks/rules-of-hooks' src/; then
+            echo "::error::react-hooks/rules-of-hooks disable 금지 (LESSON-004)"
+            exit 1
+          fi
       - run: pnpm lint
       - run: pnpm tsc --noEmit
       - run: pnpm test -- --run
+      # NOTE: pnpm build / Playwright E2E 는 실제 Clerk publishable key 가 있어야
+      # 작동 (placeholder 로는 /strategies/new prerender + dev 서버 기동 실패).
+      # Follow-up 스프린트: CLERK_TEST_PUBLISHABLE_KEY / _SECRET_KEY 를 repo secret
+      # 으로 등록한 뒤 이 주석 영역을 build + e2e job 으로 복원.
+      # 로컬 수동: `cd frontend && pnpm build` + `pnpm e2e` 로 실행 가능.
 
   backend:
     needs: changes
@@ -106,6 +122,12 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
 
+  # Sprint FE-01 LESSON-004 Playwright E2E job은 Clerk test key secret 설정
+  # 이후 활성화 예정. 현재 frontend/playwright.config.ts + frontend/e2e/smoke.spec.ts
+  # 파일은 보존되어 로컬 수동 실행 가능 (cd frontend && pnpm e2e).
+  # CI 자동화 추가 시 위 주석 영역을 job 으로 복원 + repo secret 3개 주입:
+  #   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY / PLAYWRIGHT_BASE_URL(선택)
+
   # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
   ci:
     needs: [frontend, backend]
@@ -116,6 +138,7 @@ jobs:
         run: |
           echo "frontend=${{ needs.frontend.result }}"
           echo "backend=${{ needs.backend.result }}"
-          if [[ "${{ needs.frontend.result }}" == "failure" || "${{ needs.backend.result }}" == "failure" ]]; then
+          if [[ "${{ needs.frontend.result }}" == "failure" || \
+                "${{ needs.backend.result }}" == "failure" ]]; then
             exit 1
           fi
