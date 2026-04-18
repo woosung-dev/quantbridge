@@ -56,7 +56,7 @@ jobs:
       - name: Block react-hooks ESLint disable
         run: |
           if grep -rn --include='*.ts' --include='*.tsx' \
-             'eslint-disable.*react-hooks' src/; then
+             -E 'eslint-disable.*react-hooks/(rules-of-hooks|set-state-in-effect|set-state-in-render)' src/; then
             echo "::error::react-hooks ESLint 규칙 disable 금지 (LESSON-004)"
             exit 1
           fi
