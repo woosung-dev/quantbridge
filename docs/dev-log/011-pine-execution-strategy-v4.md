@@ -88,7 +88,7 @@ DrFX Diamond Algo 650줄 분해 실측:
 |:---:|------|:---:|-----------|
 | **0** | 공통 코어 | ⭐⭐⭐⭐⭐ | pynescript 포크 + PyneCore 이식 + bar-by-bar 이벤트 루프 + 렌더링 객체 범위 A |
 | **1** | Alert Hook Parser ⭐ | ⭐⭐⭐⭐⭐ | 차별화 핵심. AST alert 수집 + 메시지 분류 + 가상 strategy 래퍼 + 3-Track 라우터 |
-| **2** | PyneCore 골든 오라클 | ⭐⭐⭐⭐⭐ | Trust Layer 생명선. Day 1 CI 하네스 + 상대 오차 <0.1% MVP |
+| **2** | Tier-0 자체 구현체 회귀 CI ([2026-04-18 amendment](#13-phase--1-실측-결과-부록-2026-04-18)) | ⭐⭐⭐⭐⭐ | Trust Layer 생명선. 비교 기준점: **QB Tier-0 구현체 vs pynescript AST + PyneCore `transformers/` 참조 이식**. 상대 오차 <0.1% MVP (기준점 변경, KPI 유지) |
 | **3** | strategy() 네이티브 | ⭐⭐⭐⭐ | Track S 엔진. trail_points/offset + 분할 익절 |
 | **4** | Variable Explorer | ⭐⭐⭐ | Track M Fallback. H1 Stealth엔 우선순위 낮음 |
 | **5** | LLM 하이브리드 + MTF | ⭐⭐⭐ | 장기 지속 개선. Rule+LLM (Oxidizer 73% 패턴) |
@@ -122,6 +122,21 @@ DrFX Diamond Algo 650줄 분해 실측:
 4. **결정성 유지** — LLM을 주경로가 아닌 Tier-5 보조로만 활용
 5. **기존 자산 활용** — pynescript 포크(1~2주)로 ANTLR 6~12개월 포팅 회피
 
+### 📏 H1 MVP scope (2026-04-18 amendment)
+
+Phase -1 실측 종료 후 사용자 결정. H1 Stealth는 dogfood-first이므로 **치명 경로 최소화**:
+
+| 요소 | H1 In-Scope | H2+ 이연 |
+|------|:----------:|:--------:|
+| 진입: `strategy.entry(long/short)` | ✅ | |
+| 청산: `strategy.exit(limit=TP, stop=SL)` | ✅ | |
+| 명시 청산: `strategy.close`, `strategy.close_all` | ✅ | |
+| Trailing stop: `trail_points`/`trail_offset` | | ✅ (RTB/LuxAlgo 필수 기능이지만 H1 dogfood 범위 밖) |
+| 분할 익절: `qty_percent` | | ✅ |
+| 피라미딩: `pyramiding` | | ✅ |
+
+**근거:** Phase -1 DrFX 실측에서 사용자 주력 전략 2개 모두 TP/SL만으로 재현 가능. 복합 exit 로직은 Sprint 8b~8c Tier-3 확장 단계에서 편성.
+
 ### ⚠️ 부정적 결과 / 제약
 
 1. **Sprint 3개월(12주) 필요** — Sprint 8a-pre → 8d
@@ -144,7 +159,7 @@ DrFX Diamond Algo 650줄 분해 실측:
 | 전략 | 거부 사유 |
 |------|-----------|
 | **PyneTS 포팅/참조** | AGPL-3.0 → QB는 SaaS이므로 네트워크 서비스 조항 자동 발동. Clean-room 설계 참조만 허용 |
-| **PyneSys SaaS 영구 구독** | Vendor lock-in + QB 엔진과 호환 불가 (vectorbt vs PyneCore 런타임). 일방향 변환물이라 해도 실행 환경 의존성 전이 |
+| **PyneSys SaaS 영구 구독** | Vendor lock-in + QB 엔진과 호환 불가. 2026-04-18 Phase -1 실측에서 **PyneCore CLI(`pyne compile`)가 PyneSys 상용 API 의존성 확인** — 독립 오라클 불가. 대안: PyneCore 레포의 Apache 2.0 `transformers/` 모듈(`persistent.py` var/varip, `series.py`, `security.py` 등)을 **참조 이식**만 허용. NOTICE 파일 + 원본 헤더 유지 의무 |
 | **LLM 원샷 번역 주경로** | IBM ICSE 2024: 상용 LLM 정확 번역률 2.1~47.3%. 비결정성 + 재현성 파괴 + Trust Layer 훼손 |
 | **자체 ANTLR Pine v6 문법 6~12개월 포팅** | pynescript(LGPL) 포크 1~2주로 대체 가능. ROI 불명확 |
 | **바이트코드 VM / LLVM JIT / MLIR / WASM** | vectorbt + Numba 이미 커버. 과대투자. 솔로 indie H1 Stealth 단계 부적합 |
@@ -177,7 +192,7 @@ ADR-011 (2026-04-17): Alert Hook Parser + 3-Track 상위 아키텍처 ← 본 AD
 
 ## 9. 신뢰도 (Confidence)
 
-**8/10** — Phase -1 실측 완료 전까지.
+**9/10** — Phase -1 실측 완료 (2026-04-18, PR #18). 상세: [§13 Phase -1 실측 결과 부록](#13-phase--1-실측-결과-부록-2026-04-18).
 
 ### 신뢰도를 낮추는 가정 (3가지)
 
@@ -192,9 +207,11 @@ ADR-011 (2026-04-17): Alert Hook Parser + 3-Track 상위 아키텍처 ← 본 AD
 3. **pynescript v0.3.0** — LGPL, 88★, ANTLR4 기반. 파서 포크 가능
 4. **Amazon Oxidizer PLDI'25 73% 동등성** — Rule+LLM 하이브리드의 실증 사례 (Tier-5 근거)
 
-### Phase -1 실측 통과 후 상승 예상
+### Phase -1 실측 후 신뢰도 상승 근거 (2026-04-18 갱신)
 
-- 신뢰도 8/10 → **9.5/10** (PyneCore 지원 확인 + Track 비율 확정 + 상대 오차 측정)
+- A2(상대 오차 <0.1% KPI 현실성): **반증** — LLM 변환본 단독으론 오라클 불가. 비교 기준점 변경으로 KPI는 유지(§4 Tier-2 참조)
+- A3(LLM 변환 버그 3개 재현성): **강하게 실증** — 모델별 구조적 버그 상이, LLM 원샷 주경로 기각 근거 강화
+- Track 비율·상대 오차 실측은 Sprint 8a 완료 시점에 추가 상승 여지 (→ 9.5/10)
 
 ---
 
@@ -223,15 +240,51 @@ ADR-011 (2026-04-17): Alert Hook Parser + 3-Track 상위 아키텍처 ← 본 AD
 | 날짜 | 사유 | 변경 |
 |------|------|------|
 | 2026-04-17 | 최초 작성 | 전체 초안 |
-| (예정) Phase -1 완료 후 | 실측 결과 반영 | Track S/A/M 실제 비율, PyneCore 지원 범위, 상대 오차 KPI 실증 |
+| **2026-04-18** | **Phase -1 실측 완료 (PR #18)** | §9 신뢰도 8→9, §12 blocker 2개 해소, §4 Tier-2 KPI 기준점 재정의, §6 H1 MVP scope 축소 명시, §7 PyneSys 거부 강화, §13 실측 부록 신규 |
 
 ---
 
 ## 12. 결정 대기 (Blockers)
 
-본 ADR 실행에 앞서 사용자 결정 필요:
+본 ADR 실행에 앞서 남은 결정:
 
-1. **Sprint 7d vs Sprint 8a-pre 우선순위**
-   - A: Pine 엔진 강화 먼저 (Sprint 8a-pre) — **Claude 추천**
-   - B: OKX/Trading Sessions 먼저 (Sprint 7d 유지)
-2. **Pine 해석이 QB 진짜 차별점인가?** — H2 진입 전 외부 유저 5명 인터뷰 필요 (H1 Stealth에선 본인 dogfood만으로 진행)
+1. ~~**Sprint 7d vs Sprint 8a-pre 우선순위**~~ → **해소 (2026-04-18)**: Sprint 8a-pre 선착수 완료, Sprint 7d(OKX + Trading Sessions)는 Sprint 8a/8b 종료 후 H1 내 편성
+2. ~~**PyneCore `trail_points/trail_offset` 지원 여부**~~ → **N/A (2026-04-18)**: H1 MVP scope 축소로 `trail_points`/`qty_percent`/`pyramiding` H2+ 이연 (§6 H1 MVP scope 참조)
+3. **Pine 해석이 QB 진짜 차별점인가?** — H2 Build-in-Public 진입 전 외부 유저 5명 인터뷰 필요. H1 Stealth에선 본인 dogfood만으로 진행. (변경 없음)
+
+---
+
+## 13. Phase -1 실측 결과 부록 (2026-04-18)
+
+**상세 리포트:** [`.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md`](../../.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
+**실측 계획:** [`docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md)
+**관련 PR:** [#18](https://github.com/woosung-dev/quantbridge/pull/18) (main merge `0f6583d`)
+
+### 13.1 핵심 수치 3가지
+
+1. **파서 커버리지:** pynescript 0.3.0 **6/6 (100%)** vs 현재 QB 파서 **0/6 (0%)**
+   - QB 파서 실패 단계별: lex 실패 2종 (i3_drfx 38KB, s3_rsid 6.5KB), normalize 실패 2종 (i1_utbot, s2_utbot), parse 실패 1종 (i2_luxalgo 배열 리터럴), stdlib 실패 1종 (s1_pbr)
+   - **함의:** Tier-0 pynescript 포크 결정을 **최대 강도로 실증**. 자체 ANTLR 포팅 시나리오 완전 폐기.
+
+2. **LLM 원샷 변환 수렴도 0:** 1H·4H 두 타임프레임 모두 4개 모델(Opus / Sonnet / GPT-5 / Gemini-flash-lite) 상이한 구조적 버그
+   - GPT-5·Gemini: **진입 로직 자체 실패** (0 trades)
+   - Opus·Sonnet: 승률 25~41% 편차, 수익률 -52% ~ -10% 편차
+   - **함의:** ADR-011 §7 "LLM 원샷 번역 주경로" 거부 실증. Tier-5 Rule+Verify 보조 위치 재확인.
+
+3. **PyneCore 독립 오라클 불가:** PyneCore 런타임(Apache 2.0)은 OK지만 Pine→Python 변환기는 `pyne compile --api-key`로 PyneSys 상용 API($8-45/mo) 호출 요구
+   - **함의:** PyneSys SaaS 구독 영구 거부(§7) + PyneCore `transformers/` 모듈 참조 이식 경로 확정(§4 Tier-2)
+
+### 13.2 Phase -1 가정 3개 판정
+
+| 가정 (plan §7) | 판정 | 근거 |
+|------|:--:|------|
+| A1: PyneCore `trail_points/trail_offset` 지원 | **N/A** | H1 MVP scope 축소 (§6 H1 MVP scope 참조) |
+| A2: 상대 오차 <0.1% MVP KPI 현실성 | ❌ **반증** | LLM 단독 대비 불가. 비교 기준점 변경 (QB Tier-0 vs pynescript AST + PyneCore transformers 이식본) |
+| A3: LLM 변환 버그 3개 재현성 | ✅ **강하게 실증** | 모델별 전혀 다른 구조적 버그 패턴 |
+
+### 13.3 후속 반영
+
+- **이 amendment:** 상기 5개 소수정 반영
+- **Sprint 8a Day 1+:** Tier-0 pynescript 포크 착수 (본 ADR Phase 1 계획)
+- **Sprint 8b+ Tier-2 CI:** 비교 기준점 변경 반영 (§4 참조)
+- **Day 4-5 (선택):** TV 공개 스크립트 15~20개 alert 패턴 프로파일링 — Sprint 8b Tier-1 Alert Hook Parser 구현 전 필수
