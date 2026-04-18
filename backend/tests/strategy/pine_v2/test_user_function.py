@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import math
+
 import pandas as pd
 import pytest
 from pynescript import ast as pyne_ast
 
-from src.strategy.pine_v2.event_loop import run_historical
 from src.strategy.pine_v2.interpreter import BarContext, Interpreter, PineRuntimeError
 from src.strategy.pine_v2.runtime import PersistentStore
 

@@ -10,10 +10,8 @@ import math as _math
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.strategy.pine_v2 import parse_and_run_v2
-
 
 SUPERTREND_ISOLATED = '''
 indicator("T", overlay=true)

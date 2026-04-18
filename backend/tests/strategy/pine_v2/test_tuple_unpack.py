@@ -51,5 +51,5 @@ def test_tuple_unpack_arity_mismatch_raises() -> None:
     [x, x * 2]
 [a, b, c] = pair(5)
 """
-    with pytest.raises(PineRuntimeError, match="tuple unpack.*expected.*got"):
+    with pytest.raises(PineRuntimeError, match=r"tuple unpack.*expected.*got"):
         _run_one_bar(src, [10.0])
