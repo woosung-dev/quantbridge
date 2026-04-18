@@ -393,6 +393,7 @@ class Interpreter:
             "ta.sma", "ta.ema", "ta.atr", "ta.rsi",
             "ta.crossover", "ta.crossunder",
             "ta.highest", "ta.lowest", "ta.change",
+            "ta.pivothigh", "ta.pivotlow",
             "na", "nz",
         }
         if name in _STDLIB_NAMES:
@@ -472,9 +473,14 @@ class Interpreter:
             return self.strategy.position_size
         if chain == "strategy.position_avg_price":
             return self.strategy.position_avg_price
-        # color.* / syminfo.mintick — Day 4 범위 밖은 일단 nan 반환 (렌더링 맥락에서만 쓰이므로)
-        if chain.startswith("color.") or chain in ("syminfo.mintick", "syminfo.tickerid"):
-            return float("nan")  # 미지원 상수는 관대하게 na
+        # syminfo 상수 — 심볼 메타데이터. Day 7: s1_pbr 호환을 위해 mintick 실제 값 반환
+        if chain == "syminfo.mintick":
+            return 0.01  # 기본값 — 심볼별 설정 기능은 향후 추가
+        if chain == "syminfo.tickerid":
+            return "UNKNOWN"
+        # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
+        if chain.startswith("color."):
+            return float("nan")
         raise PineRuntimeError(f"Attribute access not supported: {chain}")
 
     # ---- strategy.* 핸들러 --------------------------------------------
@@ -500,8 +506,12 @@ class Interpreter:
             direction = positional[1] if len(positional) >= 2 else kwargs.get("direction", "long")
             qty = float(kwargs.get("qty", positional[2] if len(positional) >= 3 else 1.0))
             comment = str(kwargs.get("comment", ""))
-            # 미지원 kwarg 추적
-            unsupported = [k for k in kwargs if k in ("stop", "limit", "trail_points", "trail_offset", "qty_percent")]
+            # stop= 는 지원 (Week 3 Day 1부터). limit/trail은 여전히 미지원.
+            stop_raw = kwargs.get("stop")
+            stop: float | None = None
+            if stop_raw is not None and not _is_na(stop_raw):
+                stop = float(stop_raw)
+            unsupported = [k for k in kwargs if k in ("limit", "trail_points", "trail_offset", "qty_percent")]
             self.strategy.entry(
                 trade_id,
                 "long" if direction == "long" else "short",
@@ -509,6 +519,7 @@ class Interpreter:
                 bar=bar_idx,
                 fill_price=current_close,
                 comment=comment,
+                stop=stop,
                 unsupported_kwargs=unsupported,
             )
             return None

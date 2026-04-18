@@ -76,6 +76,13 @@ def run_historical(
         store.begin_bar()
         interp.reset_transient()
         interp.begin_bar_snapshot()  # prev_close 갱신 (ta.atr 등에 사용)
+        # pending stop 주문 체결 검사 — 이번 bar의 OHLC로 trigger 확인
+        interp.strategy.check_pending_fills(
+            bar=bar.bar_index,
+            open_=bar.current("open"),
+            high=bar.current("high"),
+            low=bar.current("low"),
+        )
         try:
             interp.execute(tree)
         except PineRuntimeError as e:

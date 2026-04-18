@@ -227,11 +227,14 @@ current = strategy.position_size
     assert history[2] == 3.0  # bar 2 open 유지
 
 
-def test_strategy_entry_ignores_stop_kwarg_with_warning() -> None:
-    """H1 MVP scope 밖인 stop=/limit= 인자는 경고 기록 후 무시."""
+def test_strategy_entry_ignores_limit_kwarg_with_warning() -> None:
+    """H1 MVP scope 밖인 limit=/trail_points= 인자는 경고 기록 후 무시.
+
+    Note: Week 3 Day 1부터 stop=는 지원됨. limit/trail은 여전히 미지원.
+    """
     source = """//@version=5
 strategy("t")
-strategy.entry("X", strategy.long, qty=1.0, stop=99.0)
+strategy.entry("X", strategy.long, qty=1.0, limit=99.0, trail_points=5.0)
 """
     ohlcv = _ohlcv([10.0, 20.0])
     bar = BarContext(ohlcv)
@@ -248,7 +251,8 @@ strategy.entry("X", strategy.long, qty=1.0, stop=99.0)
 
     warnings = interp.strategy.warnings
     assert len(warnings) >= 1
-    assert any("stop" in w for w in warnings)
+    assert any("limit" in w for w in warnings)
+    assert any("trail_points" in w for w in warnings)
 
 
 def test_trade_dataclass_roundtrip() -> None:

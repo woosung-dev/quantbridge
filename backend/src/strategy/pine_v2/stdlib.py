@@ -200,6 +200,76 @@ def ta_lowest(
     return min(buf)
 
 
+# -------- pivot high / pivot low ---------------------------------------
+
+
+def ta_pivothigh(
+    state: IndicatorState,
+    node_id: int,
+    left: int,
+    right: int,
+    high: float,
+) -> float:
+    """Pine `ta.pivothigh(left, right)` — pivot high 감지.
+
+    현재 bar N에서 "바 N-right가 pivot high인가?" 검사:
+    - high[right] > high[right+1..right+left]  (왼쪽 left 바들보다 높음)
+    - high[right] > high[0..right-1]           (오른쪽 right 바들보다 높음)
+
+    반환: pivot 감지되면 high[right] (= pivot 가격), 아니면 nan.
+    """
+    slot = state.buffers.setdefault(node_id, {"highs": []})
+    highs = slot["highs"]
+    highs.append(high)
+
+    window = left + right + 1
+    if len(highs) < window:
+        return float("nan")
+    if len(highs) > 2 * window:
+        highs[:] = highs[-2 * window:]
+
+    pivot_idx = len(highs) - right - 1
+    pivot_val = highs[pivot_idx]
+
+    for i in range(max(0, pivot_idx - left), pivot_idx):
+        if highs[i] >= pivot_val:
+            return float("nan")
+    for i in range(pivot_idx + 1, len(highs)):
+        if highs[i] >= pivot_val:
+            return float("nan")
+    return float(pivot_val)
+
+
+def ta_pivotlow(
+    state: IndicatorState,
+    node_id: int,
+    left: int,
+    right: int,
+    low: float,
+) -> float:
+    """Pine `ta.pivotlow(left, right)` — pivot low 감지 (pivothigh의 대칭)."""
+    slot = state.buffers.setdefault(node_id, {"lows": []})
+    lows = slot["lows"]
+    lows.append(low)
+
+    window = left + right + 1
+    if len(lows) < window:
+        return float("nan")
+    if len(lows) > 2 * window:
+        lows[:] = lows[-2 * window:]
+
+    pivot_idx = len(lows) - right - 1
+    pivot_val = lows[pivot_idx]
+
+    for i in range(max(0, pivot_idx - left), pivot_idx):
+        if lows[i] <= pivot_val:
+            return float("nan")
+    for i in range(pivot_idx + 1, len(lows)):
+        if lows[i] <= pivot_val:
+            return float("nan")
+    return float(pivot_val)
+
+
 # -------- change -------------------------------------------------------
 
 
@@ -269,6 +339,12 @@ class StdlibDispatcher:
         if func_name == "ta.change":
             length = args[1] if len(args) >= 2 else 1
             return ta_change(self.state, node_id, args[0], int(length))
+        if func_name == "ta.pivothigh":
+            left, right = int(args[0]), int(args[1])
+            return ta_pivothigh(self.state, node_id, left, right, high)
+        if func_name == "ta.pivotlow":
+            left, right = int(args[0]), int(args[1])
+            return ta_pivotlow(self.state, node_id, left, right, low)
         if func_name == "na":
             return fn_na(args[0] if args else float("nan"))
         if func_name == "nz":

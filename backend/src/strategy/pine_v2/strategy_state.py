@@ -23,6 +23,41 @@ Direction = Literal["long", "short"]
 
 
 @dataclass
+class PendingOrder:
+    """Stop/Limit 지연 체결 주문.
+
+    - direction='long', stop=price: BUY STOP (high >= price에서 fill, 돌파 매수)
+    - direction='short', stop=price: SELL STOP (low <= price에서 fill, 돌파 매도)
+    - limit 주문(가격 도달 시 지정가 체결)은 H1 MVP scope 외 — 추후 확장
+    """
+    id: str
+    direction: Direction
+    qty: float
+    stop_price: float
+    placed_bar: int
+    comment: str = ""
+
+    def try_fill(self, bar: int, high: float, low: float, open_: float) -> float | None:
+        """이 bar의 OHLC로 체결 가능한지 판단. 체결 시 fill price 반환, 아니면 None.
+
+        Pine 표준: stop price가 bar open과 high/low 사이면 stop price에 체결,
+        bar open이 이미 stop을 넘어섰으면 open에 체결 (갭).
+        """
+        if self.placed_bar >= bar:
+            # 같은 bar에서 즉시 체결 방지 (Pine 표준: 다음 bar부터 체결 가능)
+            return None
+        if self.direction == "long":
+            # BUY STOP: high가 stop_price에 도달해야 fill
+            if high >= self.stop_price:
+                return max(open_, self.stop_price)
+        else:  # short
+            # SELL STOP: low가 stop_price에 도달해야 fill
+            if low <= self.stop_price:
+                return min(open_, self.stop_price)
+        return None
+
+
+@dataclass
 class Trade:
     id: str
     direction: Direction
@@ -61,7 +96,9 @@ class StrategyState:
 
     open_trades: dict[str, Trade] = field(default_factory=dict)
     closed_trades: list[Trade] = field(default_factory=list)
-    # 경고/미지원 파라미터 추적 (`stop=`, `limit=` 등) — 사용자에게 알림용
+    # pending 주문: id → PendingOrder (stop/limit 아직 미체결)
+    pending_orders: dict[str, PendingOrder] = field(default_factory=dict)
+    # 경고/미지원 파라미터 추적 (`limit=`, `trail_points=` 등) — 사용자에게 알림용
     warnings: list[str] = field(default_factory=list)
 
     # ---- 포지션 정보 (strategy.position_size 등 built-in 응답) -------
@@ -99,18 +136,33 @@ class StrategyState:
         bar: int,
         fill_price: float,
         comment: str = "",
+        stop: float | None = None,
         unsupported_kwargs: list[str] | None = None,
-    ) -> Trade:
-        """시장가 진입 — 현재 bar의 fill_price에서 즉시 체결.
+    ) -> Trade | None:
+        """시장가 또는 stop 주문 진입.
 
-        이미 같은 id가 open인 경우 Pine 기본 동작은 "override"이나, 구현 단순화를 위해
-        기존 trade를 먼저 close한 뒤 새 entry를 건다.
+        - stop=None → 시장가 즉시 체결
+        - stop=price → pending BUY/SELL STOP 주문 생성 (다음 bar에서 high/low 도달 시 fill)
+        - 같은 id가 pending이면 덮어씀 (Pine은 re-issue 시 가격만 갱신)
         """
         if unsupported_kwargs:
             self.warnings.append(
                 f"strategy.entry({trade_id!r}): ignored unsupported kwargs: {unsupported_kwargs}"
             )
-        # 중복 id 처리 — 기존 청산
+
+        if stop is not None:
+            # Pending stop 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론)
+            self.pending_orders[trade_id] = PendingOrder(
+                id=trade_id,
+                direction=direction,
+                qty=qty,
+                stop_price=stop,
+                placed_bar=bar,
+                comment=comment,
+            )
+            return None
+
+        # 시장가: 중복 id 청산 후 새로 진입
         if trade_id in self.open_trades:
             self.close(trade_id, bar=bar, fill_price=fill_price)
 
@@ -155,7 +207,40 @@ class StrategyState:
             t = self.close(tid, bar=bar, fill_price=fill_price)
             if t is not None:
                 closed.append(t)
+        # pending 주문도 취소
+        self.pending_orders.clear()
         return closed
+
+    def check_pending_fills(
+        self, *, bar: int, open_: float, high: float, low: float,
+    ) -> list[Trade]:
+        """현재 bar OHLC로 pending 주문 체결 검사. 체결된 주문은 Trade로 전환.
+
+        Event loop가 매 bar 시작 시 호출 (execute 전).
+        """
+        filled: list[Trade] = []
+        to_remove: list[str] = []
+        for order_id, order in list(self.pending_orders.items()):
+            fill_price = order.try_fill(bar, high, low, open_)
+            if fill_price is None:
+                continue
+            # 체결: 중복 id open이면 먼저 청산
+            if order_id in self.open_trades:
+                self.close(order_id, bar=bar, fill_price=fill_price)
+            trade = Trade(
+                id=order_id,
+                direction=order.direction,
+                qty=order.qty,
+                entry_bar=bar,
+                entry_price=fill_price,
+                comment=order.comment,
+            )
+            self.open_trades[order_id] = trade
+            filled.append(trade)
+            to_remove.append(order_id)
+        for oid in to_remove:
+            self.pending_orders.pop(oid, None)
+        return filled
 
     def to_report(self) -> dict[str, Any]:
         """실행 결과 리포트 딕셔너리."""
