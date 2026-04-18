@@ -1,21 +1,30 @@
 {
-  "s1_pbr": [],
-  "s2_utbot": [],
-  "s3_rsid": [],
   "i1_utbot": [
     {
       "index": 1,
       "kind": "alertcondition",
       "message": "UT Long",
       "condition_expr": "buy",
-      "signal": "long_entry"
+      "enclosing_if_condition": null,
+      "enclosing_if_branch": null,
+      "resolved_condition": "src <cmp> xATRTrailingStop and above",
+      "message_signal": "long_entry",
+      "condition_signal": "long_entry",
+      "signal": "long_entry",
+      "discrepancy": false
     },
     {
       "index": 2,
       "kind": "alertcondition",
       "message": "UT Short",
       "condition_expr": "sell",
-      "signal": "short_entry"
+      "enclosing_if_condition": null,
+      "enclosing_if_branch": null,
+      "resolved_condition": "src <cmp> xATRTrailingStop and below",
+      "message_signal": "short_entry",
+      "condition_signal": "short_entry",
+      "signal": "short_entry",
+      "discrepancy": false
     }
   ],
   "i2_luxalgo": [
@@ -24,14 +33,26 @@
       "kind": "alertcondition",
       "message": "Price broke the down-trendline upward",
       "condition_expr": "upos <cmp> <Subscript>",
-      "signal": "information"
+      "enclosing_if_condition": null,
+      "enclosing_if_branch": null,
+      "resolved_condition": "upos <cmp> <Subscript>",
+      "message_signal": "information",
+      "condition_signal": null,
+      "signal": "information",
+      "discrepancy": false
     },
     {
       "index": 2,
       "kind": "alertcondition",
       "message": "Price broke the up-trendline downward",
       "condition_expr": "dnos <cmp> <Subscript>",
-      "signal": "information"
+      "enclosing_if_condition": null,
+      "enclosing_if_branch": null,
+      "resolved_condition": "dnos <cmp> <Subscript>",
+      "message_signal": "information",
+      "condition_signal": null,
+      "signal": "information",
+      "discrepancy": false
     }
   ],
   "i3_drfx": [
@@ -40,42 +61,81 @@
       "kind": "alertcondition",
       "message": "BUY",
       "condition_expr": "bull",
-      "signal": "long_entry"
+      "enclosing_if_condition": null,
+      "enclosing_if_branch": null,
+      "resolved_condition": "ta.crossover(close, supertrend) and close <cmp> sma9",
+      "message_signal": "long_entry",
+      "condition_signal": "long_entry",
+      "signal": "long_entry",
+      "discrepancy": false
     },
     {
       "index": 2,
       "kind": "alertcondition",
       "message": "BUY",
       "condition_expr": "bear",
-      "signal": "long_entry"
+      "enclosing_if_condition": null,
+      "enclosing_if_branch": null,
+      "resolved_condition": "ta.crossunder(close, supertrend) and close <cmp> sma9",
+      "message_signal": "long_entry",
+      "condition_signal": "short_entry",
+      "signal": "short_entry",
+      "discrepancy": true
     },
     {
       "index": 3,
       "kind": "alert",
       "message": "break down trendline",
       "condition_expr": null,
-      "signal": "information"
+      "enclosing_if_condition": "ta.crossunder(close, line.get_price(sup, <Subscript>))",
+      "enclosing_if_branch": "then",
+      "resolved_condition": "ta.crossunder(close, line.get_price(sup, <Subscript>))",
+      "message_signal": "information",
+      "condition_signal": null,
+      "signal": "information",
+      "discrepancy": false
     },
     {
       "index": 4,
       "kind": "alert",
       "message": "break upper trendline",
       "condition_expr": null,
-      "signal": "information"
+      "enclosing_if_condition": "ta.crossover(close, line.get_price(res, <Subscript>))",
+      "enclosing_if_branch": "then",
+      "resolved_condition": "ta.crossover(close, line.get_price(res, <Subscript>))",
+      "message_signal": "information",
+      "condition_signal": null,
+      "signal": "information",
+      "discrepancy": false
     },
     {
       "index": 5,
       "kind": "alert",
       "message": "Buy Alert",
       "condition_expr": null,
-      "signal": "long_entry"
+      "enclosing_if_condition": "bull and buyalert",
+      "enclosing_if_branch": "then",
+      "resolved_condition": "bull and buyalert",
+      "message_signal": "long_entry",
+      "condition_signal": "long_entry",
+      "signal": "long_entry",
+      "discrepancy": false
     },
     {
       "index": 6,
       "kind": "alert",
       "message": "Sell Alert",
       "condition_expr": null,
-      "signal": "short_entry"
+      "enclosing_if_condition": "bear and sellalert",
+      "enclosing_if_branch": "then",
+      "resolved_condition": "bear and sellalert",
+      "message_signal": "short_entry",
+      "condition_signal": "short_entry",
+      "signal": "short_entry",
+      "discrepancy": false
     }
-  ]
+  ],
+  "s1_pbr": [],
+  "s2_utbot": [],
+  "s3_rsid": []
 }

@@ -1,16 +1,23 @@
-"""Alert Hook 추출 + 메시지 분류기 v0 (ADR-011 §2.1 Tier-1 사전 조사).
+"""Alert Hook 추출 + 메시지/조건 분류기 v1 (ADR-011 §2.1 Tier-1 사전 조사).
 
 `alert()` / `alertcondition()` 호출을 AST에서 수집하여 매매 신호로 분류한다.
 
-분류 우선순위 (3단계):
+v1 개선 (Day 6 — ADR-011 §2.1.3 condition-trace 구현):
+- 감싸는 `if` 문의 test 조건 ancestor tracking
+- 조건 변수명을 AST의 대응 Assign으로 역추적하여 정의 문자열 확보
+- 메시지 기반 분류 vs 조건 기반 분류 독립 수행 → `discrepancy` 플래그
+- i3_drfx alert #6(`message='BUY'` + `condition=bear`) 같은 소스 불일치를 **자동 감지**
+
+분류 우선순위 (3단계, 메시지·조건 공통):
 1. JSON 파싱 — `alert('{"action":"buy","size":1}')` 구조화 메시지 (`action` 필드 사용)
 2. 키워드 매칭 (word-boundary, case-insensitive)
 3. Fallback — `unknown`
 
-한계 (Day 3 v0):
-- 조건식 역추적(ADR-011 §2.1.3) 미구현 — 감싸는 `if` 조건은 Tier-1에서 구현
+v1 한계 (Sprint 8b Tier-1에서 완성 예정):
+- ancestor 탐색은 직계 If에 한정; 중첩 if + and/or 복합 조건은 얕은 stringify만
+- 변수 해석은 top-level Assign 1회 look-up (체인은 미지원)
+- else 분기 alert의 의미 반전은 자동화하지 않음(branch 메타만 기록)
 - 메시지 concat(`"BUY at " + str.tostring(close)`)은 literal 부분만 추출
-- alert은 자발적 매매 신호 선언 가정이지만 Pine 개발자가 정보성 메시지를 alert()로 쓰는 경우 많음 → `information` 분류 유지
 
 공개 API:
 - `collect_alerts(source) -> list[AlertHook]`
@@ -39,13 +46,32 @@ class SignalKind(StrEnum):
 
 @dataclass(frozen=True)
 class AlertHook:
-    """단일 alert/alertcondition 호출의 추출 결과."""
+    """단일 alert/alertcondition 호출의 v1 추출 결과.
+
+    분류 필드:
+    - `message_signal`: 메시지 문자열 기반 분류 (항상 수행)
+    - `condition_signal`: 조건식 기반 분류 (조건 확보 가능 시)
+    - `signal`: 최종 권고 값 (condition 우선, 없으면 message)
+    - `discrepancy`: message vs condition 불일치 (둘 다 UNKNOWN 아닐 때만 True)
+
+    조건 소스 필드:
+    - `condition_expr`: alertcondition arg0 직접 stringify
+    - `enclosing_if_condition`: 감싸는 if 의 test 조건 stringify
+    - `enclosing_if_branch`: "then" | "else" | None (alert의 위치)
+    - `resolved_condition`: 변수 해석 적용한 최종 조건 텍스트
+    """
 
     kind: str  # "alert" | "alertcondition"
-    message: str  # 추출된 메시지 (literal 우선, concat은 부분 복원)
-    condition_expr: str | None  # alertcondition의 arg0 조건식 텍스트 요약 (있을 때만)
-    signal: SignalKind  # 메시지 기반 분류 결과
-    index: int  # corpus 내 순서 (1-based)
+    message: str
+    condition_expr: str | None
+    enclosing_if_condition: str | None
+    enclosing_if_branch: str | None  # "then" | "else" | None
+    resolved_condition: str | None
+    message_signal: SignalKind
+    condition_signal: SignalKind | None
+    signal: SignalKind  # 최종 권고 (condition 우선)
+    discrepancy: bool
+    index: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,12 +79,18 @@ class AlertHook:
             "kind": self.kind,
             "message": self.message,
             "condition_expr": self.condition_expr,
+            "enclosing_if_condition": self.enclosing_if_condition,
+            "enclosing_if_branch": self.enclosing_if_branch,
+            "resolved_condition": self.resolved_condition,
+            "message_signal": self.message_signal.value,
+            "condition_signal": (
+                self.condition_signal.value if self.condition_signal is not None else None
+            ),
             "signal": self.signal.value,
+            "discrepancy": self.discrepancy,
         }
 
 
-# 분류 규칙 — 순서가 우선순위. information을 먼저 (돌파 알림이 "buy/sell" 포함 가능하기 때문).
-# word-boundary 매칭으로 오매칭 방지.
 _KEYWORD_RULES: list[tuple[SignalKind, tuple[str, ...]]] = [
     (SignalKind.INFORMATION, (
         r"\bbreak\b", r"\btrendline\b", r"\bsession\b", r"\bpivot\b",
@@ -80,9 +112,12 @@ _KEYWORD_RULES: list[tuple[SignalKind, tuple[str, ...]]] = [
 
 
 def classify_message(text: str) -> SignalKind:
-    """메시지 문자열을 신호 종류로 분류."""
-    # 1. JSON 파싱 시도
+    """문자열(메시지 또는 조건식 stringify)을 신호 종류로 분류."""
+    if not text:
+        return SignalKind.UNKNOWN
+
     stripped = text.strip()
+    # 1. JSON 파싱 시도
     if stripped.startswith("{") and stripped.endswith("}"):
         try:
             data = json.loads(stripped)
@@ -109,7 +144,6 @@ def classify_message(text: str) -> SignalKind:
 
 
 def _stringify(node: Any) -> str:
-    """AST 노드를 사람이 읽을 수 있는 문자열로 근사 복원 (메시지/조건식 요약용)."""
     if isinstance(node, pyne_ast.Constant):
         return str(node.value)
     if isinstance(node, pyne_ast.Name):
@@ -120,28 +154,29 @@ def _stringify(node: Any) -> str:
         return f"{_stringify(node.left)} + {_stringify(node.right)}"
     if isinstance(node, pyne_ast.Compare):
         left = _stringify(node.left)
-        # Compare는 comparators / ops 쌍으로 되어 있으나 v0는 첫 관계만 표시
         comps = getattr(node, "comparators", [])
         if comps:
             return f"{left} <cmp> {_stringify(comps[0])}"
         return left
+    if isinstance(node, pyne_ast.BoolOp):
+        op = type(node.op).__name__.lower()  # And | Or
+        values = getattr(node, "values", [])
+        return f" {op} ".join(_stringify(v) for v in values)
+    if isinstance(node, pyne_ast.UnaryOp):
+        return f"not {_stringify(node.operand)}"
     if isinstance(node, pyne_ast.Call):
         func = _stringify(node.func)
-        args = ", ".join(_stringify(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args[:2])
+        args = ", ".join(
+            _stringify(a.value if isinstance(a, pyne_ast.Arg) else a)
+            for a in node.args[:2]
+        )
         if len(node.args) > 2:
             args += ", ..."
         return f"{func}({args})"
     return f"<{type(node).__name__}>"
 
 
-def _walk(node: Any) -> Iterator[Any]:
-    yield node
-    for child in pyne_ast.iter_child_nodes(node):
-        yield from _walk(child)
-
-
 def _is_call_named(node: Any, names: tuple[str, ...]) -> bool:
-    """Call 노드의 함수명이 names에 포함되는지."""
     if not isinstance(node, pyne_ast.Call):
         return False
     f = node.func
@@ -151,12 +186,10 @@ def _is_call_named(node: Any, names: tuple[str, ...]) -> bool:
 
 
 def _arg_value(arg: Any) -> Any:
-    """Arg 래퍼가 있으면 value를 벗기고, 없으면 원본."""
     return arg.value if isinstance(arg, pyne_ast.Arg) else arg
 
 
 def _extract_literal_message(arg_node: Any) -> str:
-    """메시지 인자에서 literal 문자열 우선 추출, concat은 literal 부분만."""
     val = _arg_value(arg_node)
     if isinstance(val, pyne_ast.Constant) and isinstance(val.value, str):
         return val.value
@@ -167,50 +200,155 @@ def _extract_literal_message(arg_node: Any) -> str:
     return ""
 
 
+def _build_symbol_table(tree: Any) -> dict[str, str]:
+    """top-level `Assign`에서 `Name = expr` 매핑 수집 (ADR-011 §2.1.3 look-up 테이블).
+
+    중복 정의 시 마지막 것 유지(Pine은 재할당 허용; 보수적으로 마지막 정의 채택).
+    """
+    table: dict[str, str] = {}
+    for stmt in getattr(tree, "body", []):
+        if isinstance(stmt, pyne_ast.Assign):
+            # pynescript는 targets(list) 또는 target(single) 중 하나 사용 — 양쪽 지원
+            targets_attr = getattr(stmt, "targets", None)
+            if targets_attr:
+                targets = targets_attr
+            else:
+                single = getattr(stmt, "target", None)
+                targets = [single] if single is not None else []
+            value = getattr(stmt, "value", None)
+            if value is None:
+                continue
+            for tgt in targets:
+                if isinstance(tgt, pyne_ast.Name):
+                    table[tgt.id] = _stringify(value)
+    return table
+
+
+def _resolve_condition(
+    expr: str | None,
+    *,
+    symbol_table: dict[str, str],
+    depth: int = 2,
+) -> str | None:
+    """조건 텍스트를 symbol_table로 해석. 단순 Name 한 개면 1회 look-up.
+
+    재귀 체인은 피함 (v1 단순성) — depth 2까지.
+    """
+    if expr is None:
+        return None
+    cur = expr.strip()
+    for _ in range(depth):
+        if cur in symbol_table:
+            cur = symbol_table[cur]
+        else:
+            break
+    return cur
+
+
+def _walk_with_if_context(node: Any) -> Iterator[tuple[Any, Any | None, str | None]]:
+    """AST 순회: (node, enclosing_if, branch) 튜플. branch="then"|"else"|None."""
+
+    def recurse(
+        n: Any,
+        enclosing_if: Any | None,
+        branch: str | None,
+    ) -> Iterator[tuple[Any, Any | None, str | None]]:
+        yield n, enclosing_if, branch
+        # If 노드에 들어갈 땐 test/body/orelse 자식들의 컨텍스트를 분기
+        if isinstance(n, pyne_ast.If):
+            # test 자식들: 아직 bodies 밖. enclosing_if는 한 단계 위 그대로
+            yield from recurse(n.test, enclosing_if, branch)
+            for stmt in n.body:
+                yield from recurse(stmt, n, "then")
+            for stmt in (n.orelse or []):
+                yield from recurse(stmt, n, "else")
+            return
+        # 일반 노드: 자식들 상속
+        for child in pyne_ast.iter_child_nodes(n):
+            yield from recurse(child, enclosing_if, branch)
+
+    yield from recurse(node, None, None)
+
+
 def collect_alerts(source: str) -> list[AlertHook]:
-    """Pine 소스에서 alert() / alertcondition() 호출을 순서대로 추출·분류."""
+    """Pine 소스에서 alert/alertcondition을 추출·분류 (v1: condition-trace 포함)."""
     tree = pyne_ast.parse(source)
+    symbol_table = _build_symbol_table(tree)
     hooks: list[AlertHook] = []
     idx = 0
 
-    for node in _walk(tree):
-        # alert(message, freq, ...) — message는 arg0
-        if _is_call_named(node, ("alert",)):
-            idx += 1
-            if not node.args:
-                continue
-            message = _extract_literal_message(node.args[0])
-            hooks.append(AlertHook(
-                kind="alert",
-                message=message,
-                condition_expr=None,
-                signal=classify_message(message),
-                index=idx,
-            ))
+    for node, enclosing_if, branch in _walk_with_if_context(tree):
+        is_alert = _is_call_named(node, ("alert",))
+        is_alertcondition = _is_call_named(node, ("alertcondition",))
+        if not (is_alert or is_alertcondition):
             continue
 
-        # alertcondition(condition, title, message) — condition=arg0, message=arg2
-        if _is_call_named(node, ("alertcondition",)):
-            idx += 1
-            if not node.args:
-                continue
+        idx += 1
+        if not node.args:
+            continue
+
+        # 메시지 추출
+        message = ""
+        condition_expr: str | None = None
+
+        if is_alert:
+            message = _extract_literal_message(node.args[0])
+        else:  # alertcondition
             condition_expr = _stringify(_arg_value(node.args[0]))
-            # message는 3번째 positional 또는 name='message' keyword
-            message = ""
             if len(node.args) >= 3:
                 message = _extract_literal_message(node.args[2])
-            # Pine에서 kwarg 스타일도 지원 — Arg.name 체크
             if not message:
                 for a in node.args:
                     if isinstance(a, pyne_ast.Arg) and getattr(a, "name", None) == "message":
                         message = _extract_literal_message(a)
                         break
-            hooks.append(AlertHook(
-                kind="alertcondition",
-                message=message,
-                condition_expr=condition_expr,
-                signal=classify_message(message),
-                index=idx,
-            ))
+
+        # 감싸는 if 정보
+        enclosing_if_condition: str | None = None
+        if enclosing_if is not None:
+            enclosing_if_condition = _stringify(enclosing_if.test)
+
+        # 조건 소스 우선순위: alertcondition arg0 > enclosing if test
+        condition_source = condition_expr or enclosing_if_condition
+        resolved_condition = _resolve_condition(
+            condition_source, symbol_table=symbol_table
+        )
+
+        # 분류
+        message_signal = classify_message(message)
+
+        # 조건 기반 분류: 원본 condition_expr(변수명) → enclosing_if → resolved 순으로 시도
+        # 'bear' 같은 의미 있는 변수명을 해석 결과(ta.crossunder...)보다 우선 반영.
+        condition_signal: SignalKind | None = None
+        for candidate in (condition_expr, enclosing_if_condition, resolved_condition):
+            if candidate:
+                cs = classify_message(candidate)
+                if cs != SignalKind.UNKNOWN:
+                    condition_signal = cs
+                    break
+
+        # 최종 signal: condition 우선, 없으면 message
+        final = condition_signal if condition_signal is not None else message_signal
+
+        # discrepancy: 둘 다 확정적인데 다를 때
+        discrepancy = (
+            condition_signal is not None
+            and message_signal != SignalKind.UNKNOWN
+            and message_signal != condition_signal
+        )
+
+        hooks.append(AlertHook(
+            kind="alert" if is_alert else "alertcondition",
+            message=message,
+            condition_expr=condition_expr,
+            enclosing_if_condition=enclosing_if_condition,
+            enclosing_if_branch=branch if enclosing_if is not None else None,
+            resolved_condition=resolved_condition,
+            message_signal=message_signal,
+            condition_signal=condition_signal,
+            signal=final,
+            discrepancy=discrepancy,
+            index=idx,
+        ))
 
     return hooks

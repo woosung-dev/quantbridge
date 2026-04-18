@@ -1,10 +1,13 @@
-"""Alert Hook 추출 + 메시지 분류기 v0 회귀.
+"""Alert Hook 추출 + 메시지/조건 분류기 v1 회귀.
 
-Day 3 스냅샷 `alert_hook_report.json`과 완전 일치해야 한다.
-추가: `classify_message` 유닛 테스트로 규칙 엣지 검증.
+Day 6 스냅샷 `alert_hook_report.json`과 완전 일치해야 한다 (v1 schema:
+enclosing_if_* / resolved_condition / message_signal / condition_signal /
+signal / discrepancy 필드 추가).
 
-본 테스트의 가치는 단순 회귀 고정이 아니라 **ADR-011 §2.1.2 분류기 정확도 가정**
-(키워드 매칭 80% 이상)을 6 corpus + 10 alert 실데이터로 유지하는 것.
+v0 → v1 개선 자동 감지 요건:
+- i3_drfx #2 message='BUY' + condition='bear' → **자동 discrepancy=True**
+- condition_signal이 None(불가)인 경우 message_signal로 fallback
+- alert inside `if cond`의 enclosing 컨텍스트 추적
 """
 from __future__ import annotations
 
@@ -41,19 +44,17 @@ def test_collect_alerts_matches_baseline(script_name: str) -> None:
 def test_total_alert_count_across_corpus() -> None:
     """ADR-011 §2.1 Alert Hook 사전 조사: Track A 3종에서 alert 총 10개."""
     total = sum(len(hooks) for hooks in _REPORT.values())
-    assert total == 10, f"corpus 총 alert는 Phase -1 snapshot 기준 10개 (실측 {total})"
+    assert total == 10
 
 
-def test_classify_coverage_v0() -> None:
-    """분류 커버리지: 10 alert 중 unknown은 0 (N=10 한계 인정)."""
-    unknown_count = 0
+def test_classify_coverage_v1() -> None:
+    """v1 커버리지: 10 alert 모두 final signal 결정 (unknown 0)."""
+    unknown = 0
     for hooks in _REPORT.values():
         for h in hooks:
             if h["signal"] == SignalKind.UNKNOWN.value:
-                unknown_count += 1
-    assert unknown_count == 0, (
-        f"분류 커버리지 100% 기대 (N=10). unknown {unknown_count}개 — 규칙 보강 필요"
-    )
+                unknown += 1
+    assert unknown == 0
 
 
 @pytest.mark.parametrize(("message", "expected"), [
@@ -77,18 +78,90 @@ def test_classify_message_keyword_rules(message: str, expected: SignalKind) -> N
 
 
 def test_information_takes_precedence_over_direction_keyword() -> None:
-    """LuxAlgo 'Price broke the down-trendline upward'는 information으로 분류되어야.
-    'down'이나 'up' 같은 방향성 키워드가 있어도 'break/trendline'이 우선."""
-    msg = "Price broke the down-trendline upward"
-    assert classify_message(msg) == SignalKind.INFORMATION
+    """'Price broke the down-trendline upward'는 information (break/trendline 우선)."""
+    assert classify_message("Price broke the down-trendline upward") == SignalKind.INFORMATION
 
 
-def test_i3_drfx_alert_2_has_message_condition_mismatch() -> None:
-    """i3_drfx alert #2: 메시지 'BUY' + condition 'bear' — 소스 불일치 (또는 저자 의도).
-    메시지 전용 분류기는 long_entry로 판정하나 condition 기준으론 short.
-    Tier-1 condition-trace(ADR-011 §2.1.3)가 필요한 근거 사례."""
+# -------- v1 핵심: condition-trace 자동 감지 --------------------------
+
+
+def test_i3_drfx_alert_2_auto_discrepancy_detection() -> None:
+    """v1 핵심 가치: message='BUY' + condition=`bear` 불일치 **자동 감지**.
+
+    v0에서는 수동 assertion만 있었고, v1은 condition_signal 분류 후
+    message_signal 과 비교하여 discrepancy=True로 자동 플래그.
+    최종 권고 signal은 condition 기반 우선 (short_entry).
+    """
     drfx = _REPORT["i3_drfx"]
     alert_2 = next(h for h in drfx if h["index"] == 2)
     assert alert_2["message"] == "BUY"
     assert alert_2["condition_expr"] == "bear"
-    assert alert_2["signal"] == SignalKind.LONG_ENTRY.value  # 메시지 기반 v0 결과
+    assert alert_2["message_signal"] == SignalKind.LONG_ENTRY.value
+    assert alert_2["condition_signal"] == SignalKind.SHORT_ENTRY.value
+    assert alert_2["discrepancy"] is True, (
+        "v1 condition-trace가 message-condition mismatch를 자동 플래그해야 함"
+    )
+    assert alert_2["signal"] == SignalKind.SHORT_ENTRY.value, (
+        "최종 권고는 condition 우선 — BUY 메시지 오타/저자 실수 보호"
+    )
+
+
+def test_no_other_discrepancy_in_corpus() -> None:
+    """i3_drfx #2 외에는 discrepancy 없어야 — 의도치 않은 false positive 방지."""
+    discrepancies = [
+        (name, h["index"])
+        for name, hooks in _REPORT.items()
+        for h in hooks
+        if h["discrepancy"]
+    ]
+    assert discrepancies == [("i3_drfx", 2)], (
+        f"기대 discrepancy 1건 (i3_drfx #2)만. 실측: {discrepancies}"
+    )
+
+
+def test_alertcondition_condition_expr_captured_for_all() -> None:
+    """alertcondition은 arg0을 condition_expr에 항상 기록해야."""
+    for name, hooks in _REPORT.items():
+        for h in hooks:
+            if h["kind"] == "alertcondition":
+                assert h["condition_expr"] is not None, (
+                    f"{name} #{h['index']} alertcondition인데 condition_expr 없음"
+                )
+
+
+def test_bare_alert_uses_enclosing_if_branch() -> None:
+    """alert() (bare)는 감싸는 if 컨텍스트를 enclosing_if_* 필드로 기록해야."""
+    drfx = _REPORT["i3_drfx"]
+    bare_alerts = [h for h in drfx if h["kind"] == "alert"]
+    assert len(bare_alerts) == 4, "i3_drfx에 bare alert은 4개 (#3,4,5,6)"
+    for h in bare_alerts:
+        assert h["enclosing_if_condition"] is not None, (
+            f"bare alert #{h['index']}은 if 안에 있으므로 enclosing_if_condition 있어야"
+        )
+        assert h["enclosing_if_branch"] == "then", (
+            "모든 bare alert은 THEN 분기 (ELSE 케이스는 corpus에 없음)"
+        )
+
+
+def test_resolved_condition_performs_variable_lookup() -> None:
+    """i3_drfx #1 `bull` 변수가 resolved_condition에서 정의 expression으로 풀려야."""
+    drfx = _REPORT["i3_drfx"]
+    alert_1 = next(h for h in drfx if h["index"] == 1)
+    assert alert_1["condition_expr"] == "bull"
+    assert alert_1["resolved_condition"] is not None
+    assert "ta.crossover" in alert_1["resolved_condition"], (
+        "bull 변수는 ta.crossover 기반으로 정의되어야 함"
+    )
+
+
+def test_condition_signal_prioritizes_variable_name_over_resolved() -> None:
+    """변수명 자체가 의미 있는 경우(bull/bear), 해석 결과보다 변수명 우선.
+
+    i3_drfx #1: condition_expr='bull' → LONG_ENTRY (resolved=ta.crossover(...)도 동일 의도이나
+    키워드 매칭 불가). 분류기는 원본 변수명을 먼저 시도해야 한다.
+    """
+    drfx = _REPORT["i3_drfx"]
+    alert_1 = next(h for h in drfx if h["index"] == 1)
+    assert alert_1["condition_signal"] == SignalKind.LONG_ENTRY.value, (
+        "condition_expr='bull' → bull 키워드 매칭으로 long_entry"
+    )
