@@ -81,7 +81,6 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
               <p className="mt-1 font-mono">{previewError}</p>
               <Button
                 variant="outline"
-                size="sm"
                 onClick={handleRetry}
                 className="mt-2"
               >

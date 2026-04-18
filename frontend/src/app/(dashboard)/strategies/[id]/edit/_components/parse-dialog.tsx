@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,8 +60,8 @@ export function ParseDialog({ open, onOpenChange, result, onSave }: Props) {
           {isLast ? (
             <>
               <Button variant="ghost" onClick={handleReturn}>
-                <ChevronLeftIcon className="mr-1 size-4" />
-                코드로 돌아가기
+                <XIcon className="mr-1 size-4" />
+                닫기
               </Button>
               <Button
                 onClick={handleSave}
@@ -182,7 +182,7 @@ function StepBody({ step }: { step: ParseStep }) {
       }
       return (
         <div className="space-y-2 text-sm">
-          <p>파싱 결과를 확인하셨습니다. 이 전략을 지금 저장할까요?</p>
+          <p>파싱 결과를 확인하셨습니다. 이 전략을 저장할까요?</p>
           {step.hiddenFunctionCount > 0 && (
             <p className="text-xs text-[color:var(--text-muted)]">
               (총 {step.summary.functionCount}개 중 {step.hiddenFunctionCount}개는 요약에서 생략)
