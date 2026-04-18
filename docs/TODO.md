@@ -401,12 +401,15 @@
   - [x] i2_luxalgo.pine E2E 완주 — var line.new + set_xy1/xy2 + switch
 - [x] **추가 stdlib (Task 8)** — switch statement + ta.stdev / ta.variance / math.abs
 - [x] **산출물**
-  - 204 pine_v2 tests (기존 169 → +35 신규), ruff/mypy clean
-  - 6 corpus 매트릭스 **2/6 → 4/6** (s1_pbr + i1_utbot + i2_luxalgo + ma_crossover)
+  - **209 pine_v2 tests** (기존 169 → +40 신규), **backend 전체 735 green**, ruff/mypy clean
+  - 6 corpus 매트릭스 **2/6 → 6/6** (s1_pbr + s2_utbot + s3_rsid + i1_utbot + i2_luxalgo + i3_drfx)
+    - s1/i1/i2: strict=True 완주 + 매매 생성 검증 (Tier-1 래퍼 또는 네이티브 strategy)
+    - s2: strict=True 완주 + v4 strategy.entry(boolean direction, when=) + time/timestamp stub
+    - s3/i3: strict=False 완주 (user function/request.security/valuewhen 등 H2+ 이연은 errors로 수집 후 skip)
   - H1 MVP scope 엄수 — trail_points/qty_percent/pyramiding 여전히 H2+ 이연
 
-- [ ] **다음 블록 (Sprint 8b-후속 또는 8c)**:
-  - 남은 2 corpus 완주 (s2_utbot, s3_rsid, i3_drfx) — stdlib 확장 루프
+- [ ] **다음 블록 (Sprint 8b 후속 또는 8c)**:
+  - user-defined function(=>) 지원 — s3_rsid/i3_drfx의 실제 매매 검증 재활성화 경로
   - 3-Track 라우터 (S/A/M 분류기) + 사용자 1질문 UX (TabParse 확장)
   - `strategy.exit trail_points/trail_offset` (Horizon H2+)
   - 분할 익절 + 피라미딩 (Horizon H2+)
