@@ -1,0 +1,35 @@
+QuantBridge — Third-Party Notices
+==================================
+
+This product depends on third-party software licensed under terms separate from
+QuantBridge's own license. This NOTICE file is maintained in compliance with
+those licenses.
+
+---------------------------------------------------------------------------
+pynescript  (https://github.com/elbakramer/pynescript)
+---------------------------------------------------------------------------
+License:  GNU Lesser General Public License v3.0 (LGPL-3.0)
+Pinned:   0.3.0  (see backend/pyproject.toml)
+Usage:    External Python package dependency installed via uv/pip.
+          QuantBridge invokes pynescript through its public API only. No
+          pynescript source code is copied, modified, or redistributed as
+          part of the QuantBridge repository.
+
+Full license text: https://www.gnu.org/licenses/lgpl-3.0.txt
+
+Future vendoring/forking policy: if pynescript sources are ever brought
+into this repository (e.g. to patch the grammar), they will live under
+`backend/src/strategy/pine_v2/third_party/pynescript/`, retain their
+original LGPL-3.0 file headers, and this NOTICE will be updated with the
+in-tree path.
+
+---------------------------------------------------------------------------
+PyneCore transformers  (https://github.com/PyneSys/pynecore)  [Sprint 8a Week 2+]
+---------------------------------------------------------------------------
+License:  Apache License 2.0
+Usage:    Reference porting (transformers/ module) planned for Sprint 8a Week 2+.
+          Source files will be adapted, not copied verbatim. When porting
+          begins, this NOTICE will be updated with the specific files
+          referenced (persistent.py, series.py, security.py, nabool.py).
+
+Full license text: https://www.apache.org/licenses/LICENSE-2.0

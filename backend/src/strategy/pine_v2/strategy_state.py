@@ -1,0 +1,255 @@
+"""Pine `strategy.*` 실행 상태 (Week 2 Day 4).
+
+ADR-011 §6 H1 MVP scope 엄수 (#19 PR):
+- In-scope: strategy.entry(long/short), strategy.close, strategy.close_all
+- H2+ 이연: trail_points, qty_percent (분할익절), pyramiding, stop/limit 쌍 OCO 지연 체결
+
+Day 4 단순화:
+- 시장가(market) entry만 — 주문 즉시 현재 bar close에서 체결
+- 단일 포지션 슬롯 (id별 중복 진입 시 기존 덮어씀)
+- stop=/limit= 인자가 있으면 현 구현 범위 밖 → 경고 로그 후 무시 (NOP)
+- 수수료/슬리피지 Day 4 범위 밖 (Week 3 또는 별도 Sprint)
+- PnL은 청산 시점에 기록
+
+공개 API:
+- `StrategyState` — entry/close/close_all 호출 + 체결 결과
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+Direction = Literal["long", "short"]
+
+
+@dataclass
+class PendingOrder:
+    """Stop/Limit 지연 체결 주문.
+
+    - direction='long', stop=price: BUY STOP (high >= price에서 fill, 돌파 매수)
+    - direction='short', stop=price: SELL STOP (low <= price에서 fill, 돌파 매도)
+    - limit 주문(가격 도달 시 지정가 체결)은 H1 MVP scope 외 — 추후 확장
+    """
+    id: str
+    direction: Direction
+    qty: float
+    stop_price: float
+    placed_bar: int
+    comment: str = ""
+
+    def try_fill(self, bar: int, high: float, low: float, open_: float) -> float | None:
+        """이 bar의 OHLC로 체결 가능한지 판단. 체결 시 fill price 반환, 아니면 None.
+
+        Pine 표준: stop price가 bar open과 high/low 사이면 stop price에 체결,
+        bar open이 이미 stop을 넘어섰으면 open에 체결 (갭).
+        """
+        if self.placed_bar >= bar:
+            # 같은 bar에서 즉시 체결 방지 (Pine 표준: 다음 bar부터 체결 가능)
+            return None
+        if self.direction == "long":
+            # BUY STOP: high가 stop_price에 도달해야 fill
+            if high >= self.stop_price:
+                return max(open_, self.stop_price)
+        else:  # short
+            # SELL STOP: low가 stop_price에 도달해야 fill
+            if low <= self.stop_price:
+                return min(open_, self.stop_price)
+        return None
+
+
+@dataclass
+class Trade:
+    id: str
+    direction: Direction
+    qty: float
+    entry_bar: int
+    entry_price: float
+    exit_bar: int | None = None
+    exit_price: float | None = None
+    pnl: float | None = None
+    comment: str = ""
+
+    @property
+    def is_open(self) -> bool:
+        return self.exit_bar is None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "direction": self.direction,
+            "qty": self.qty,
+            "entry_bar": self.entry_bar,
+            "entry_price": self.entry_price,
+            "exit_bar": self.exit_bar,
+            "exit_price": self.exit_price,
+            "pnl": self.pnl,
+            "comment": self.comment,
+        }
+
+
+@dataclass
+class StrategyState:
+    """포지션 상태 + 체결 기록.
+
+    단일 포지션 가정 — id별 슬롯이지만 한 번에 하나의 id만 open 권장.
+    """
+
+    open_trades: dict[str, Trade] = field(default_factory=dict)
+    closed_trades: list[Trade] = field(default_factory=list)
+    # pending 주문: id → PendingOrder (stop/limit 아직 미체결)
+    pending_orders: dict[str, PendingOrder] = field(default_factory=dict)
+    # 경고/미지원 파라미터 추적 (`limit=`, `trail_points=` 등) — 사용자에게 알림용
+    warnings: list[str] = field(default_factory=list)
+
+    # ---- 포지션 정보 (strategy.position_size 등 built-in 응답) -------
+
+    @property
+    def position_size(self) -> float:
+        """현재 순 포지션 크기 (long: +qty, short: -qty, flat: 0)."""
+        if not self.open_trades:
+            return 0.0
+        total = 0.0
+        for t in self.open_trades.values():
+            total += t.qty if t.direction == "long" else -t.qty
+        return total
+
+    @property
+    def position_avg_price(self) -> float:
+        """가중 평균 진입가 (현재 open trades)."""
+        opens = list(self.open_trades.values())
+        if not opens:
+            return float("nan")
+        total_qty = sum(t.qty for t in opens)
+        if total_qty == 0:
+            return float("nan")
+        weighted = sum(t.entry_price * t.qty for t in opens)
+        return weighted / total_qty
+
+    # ---- 주문 접수 --------------------------------------------------
+
+    def entry(
+        self,
+        trade_id: str,
+        direction: Direction,
+        *,
+        qty: float,
+        bar: int,
+        fill_price: float,
+        comment: str = "",
+        stop: float | None = None,
+        unsupported_kwargs: list[str] | None = None,
+    ) -> Trade | None:
+        """시장가 또는 stop 주문 진입.
+
+        - stop=None → 시장가 즉시 체결
+        - stop=price → pending BUY/SELL STOP 주문 생성 (다음 bar에서 high/low 도달 시 fill)
+        - 같은 id가 pending이면 덮어씀 (Pine은 re-issue 시 가격만 갱신)
+        """
+        if unsupported_kwargs:
+            self.warnings.append(
+                f"strategy.entry({trade_id!r}): ignored unsupported kwargs: {unsupported_kwargs}"
+            )
+
+        if stop is not None:
+            # Pending stop 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론)
+            self.pending_orders[trade_id] = PendingOrder(
+                id=trade_id,
+                direction=direction,
+                qty=qty,
+                stop_price=stop,
+                placed_bar=bar,
+                comment=comment,
+            )
+            return None
+
+        # 시장가: 중복 id 청산 후 새로 진입
+        if trade_id in self.open_trades:
+            self.close(trade_id, bar=bar, fill_price=fill_price)
+
+        trade = Trade(
+            id=trade_id,
+            direction=direction,
+            qty=qty,
+            entry_bar=bar,
+            entry_price=fill_price,
+            comment=comment,
+        )
+        self.open_trades[trade_id] = trade
+        return trade
+
+    def close(
+        self,
+        trade_id: str,
+        *,
+        bar: int,
+        fill_price: float,
+        comment: str = "",
+    ) -> Trade | None:
+        """id 기준 포지션 청산. open 없으면 None."""
+        trade = self.open_trades.pop(trade_id, None)
+        if trade is None:
+            return None
+        trade.exit_bar = bar
+        trade.exit_price = fill_price
+        if comment:
+            trade.comment = f"{trade.comment};{comment}" if trade.comment else comment
+        # PnL: long이면 (exit - entry) * qty, short면 반대
+        sign = 1.0 if trade.direction == "long" else -1.0
+        trade.pnl = (fill_price - trade.entry_price) * trade.qty * sign
+        self.closed_trades.append(trade)
+        return trade
+
+    def close_all(self, *, bar: int, fill_price: float) -> list[Trade]:
+        """모든 open 포지션 청산."""
+        ids = list(self.open_trades.keys())
+        closed: list[Trade] = []
+        for tid in ids:
+            t = self.close(tid, bar=bar, fill_price=fill_price)
+            if t is not None:
+                closed.append(t)
+        # pending 주문도 취소
+        self.pending_orders.clear()
+        return closed
+
+    def check_pending_fills(
+        self, *, bar: int, open_: float, high: float, low: float,
+    ) -> list[Trade]:
+        """현재 bar OHLC로 pending 주문 체결 검사. 체결된 주문은 Trade로 전환.
+
+        Event loop가 매 bar 시작 시 호출 (execute 전).
+        """
+        filled: list[Trade] = []
+        to_remove: list[str] = []
+        for order_id, order in list(self.pending_orders.items()):
+            fill_price = order.try_fill(bar, high, low, open_)
+            if fill_price is None:
+                continue
+            # 체결: 중복 id open이면 먼저 청산
+            if order_id in self.open_trades:
+                self.close(order_id, bar=bar, fill_price=fill_price)
+            trade = Trade(
+                id=order_id,
+                direction=order.direction,
+                qty=order.qty,
+                entry_bar=bar,
+                entry_price=fill_price,
+                comment=order.comment,
+            )
+            self.open_trades[order_id] = trade
+            filled.append(trade)
+            to_remove.append(order_id)
+        for oid in to_remove:
+            self.pending_orders.pop(oid, None)
+        return filled
+
+    def to_report(self) -> dict[str, Any]:
+        """실행 결과 리포트 딕셔너리."""
+        return {
+            "open_trades": [t.to_dict() for t in self.open_trades.values()],
+            "closed_trades": [t.to_dict() for t in self.closed_trades],
+            "position_size": self.position_size,
+            "position_avg_price": self.position_avg_price,
+            "warnings": list(self.warnings),
+            "total_pnl": sum((t.pnl or 0.0) for t in self.closed_trades),
+            "trade_count": len(self.closed_trades) + len(self.open_trades),
+        }

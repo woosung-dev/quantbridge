@@ -30,6 +30,7 @@ dependencies = [
     "svix>=1.37.0",  # Clerk Webhook Svix 서명 검증
     "ccxt>=4.0.0",
     "tenacity>=8.0.0",
+    "pynescript==0.3.0",
 ]
 
 [dependency-groups]

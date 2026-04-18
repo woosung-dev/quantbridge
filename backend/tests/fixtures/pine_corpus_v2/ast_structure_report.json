@@ -1,0 +1,100 @@
+{
+  "i1_utbot": {
+    "declaration": "indicator",
+    "track": "A",
+    "alert_count": 2,
+    "security_count": 0,
+    "strategy_calls": {},
+    "render_scope_a": {},
+    "render_nop": {
+      "barcolor": 2,
+      "plotshape": 2
+    }
+  },
+  "i2_luxalgo": {
+    "declaration": "indicator",
+    "track": "A",
+    "alert_count": 2,
+    "security_count": 0,
+    "strategy_calls": {},
+    "render_scope_a": {
+      "line.new": 2
+    },
+    "render_nop": {
+      "plot": 2,
+      "plotshape": 2
+    }
+  },
+  "i3_drfx": {
+    "declaration": "indicator",
+    "track": "A",
+    "alert_count": 6,
+    "security_count": 8,
+    "strategy_calls": {},
+    "render_scope_a": {
+      "box.delete": 8,
+      "box.get_bottom": 6,
+      "box.get_top": 6,
+      "box.new": 4,
+      "box.set_right": 1,
+      "label.delete": 5,
+      "label.get_x": 5,
+      "label.new": 15,
+      "label.set_x": 5,
+      "label.set_y": 5,
+      "line.delete": 7,
+      "line.get_price": 2,
+      "line.new": 7,
+      "table.cell": 1,
+      "table.cell_set_bgcolor": 1,
+      "table.new": 1
+    },
+    "render_nop": {
+      "barcolor": 1,
+      "fill": 3,
+      "plot": 8
+    }
+  },
+  "s1_pbr": {
+    "declaration": "strategy",
+    "track": "S",
+    "alert_count": 0,
+    "security_count": 0,
+    "strategy_calls": {
+      "strategy.entry": 2
+    },
+    "render_scope_a": {},
+    "render_nop": {}
+  },
+  "s2_utbot": {
+    "declaration": "strategy",
+    "track": "S",
+    "alert_count": 0,
+    "security_count": 0,
+    "strategy_calls": {
+      "strategy.entry": 2
+    },
+    "render_scope_a": {},
+    "render_nop": {
+      "barcolor": 2,
+      "plotshape": 2
+    }
+  },
+  "s3_rsid": {
+    "declaration": "strategy",
+    "track": "S",
+    "alert_count": 0,
+    "security_count": 0,
+    "strategy_calls": {
+      "strategy.close": 2,
+      "strategy.entry": 1
+    },
+    "render_scope_a": {},
+    "render_nop": {
+      "fill": 1,
+      "hline": 3,
+      "plot": 5,
+      "plotshape": 4
+    }
+  }
+}

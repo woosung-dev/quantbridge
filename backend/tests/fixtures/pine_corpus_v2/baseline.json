@@ -1,0 +1,8 @@
+{
+  "s1_pbr":     {"types": 24, "nodes":   231},
+  "s2_utbot":   {"types": 27, "nodes":   734},
+  "s3_rsid":    {"types": 32, "nodes":  1245},
+  "i1_utbot":   {"types": 25, "nodes":   587},
+  "i2_luxalgo": {"types": 30, "nodes":   822},
+  "i3_drfx":    {"types": 40, "nodes": 10289}
+}
