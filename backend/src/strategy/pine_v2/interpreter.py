@@ -388,7 +388,7 @@ class Interpreter:
         """Call 해석: stdlib(ta.*/na/nz) → strategy.* → 선언/렌더링 NOP → 에러."""
         name = _call_chain_name(node.func)
 
-        # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* 로 재라우팅
+        # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* / math.* 로 재라우팅
         # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
         _V4_ALIASES: dict[str, str] = {
             "atr": "ta.atr",
@@ -402,9 +402,40 @@ class Interpreter:
             "change": "ta.change",
             "pivothigh": "ta.pivothigh",
             "pivotlow": "ta.pivotlow",
+            "max": "math.max",
+            "min": "math.min",
+            "abs": "math.abs",
         }
         if name in _V4_ALIASES:
             name = _V4_ALIASES[name]
+
+        # math.* — 순수 함수, caller state 없음. na 전파.
+        if name and name.startswith("math."):
+            args = [
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+                for a in node.args
+            ]
+            if any(_is_na(a) for a in args):
+                return float("nan")
+            if name == "math.abs":
+                return abs(args[0])
+            if name == "math.max":
+                return max(args)
+            if name == "math.min":
+                return min(args)
+            if name == "math.floor":
+                return math.floor(args[0])
+            if name == "math.ceil":
+                return math.ceil(args[0])
+            if name == "math.round":
+                return round(args[0])
+            if name == "math.sqrt":
+                return math.sqrt(args[0])
+            if name == "math.log":
+                return math.log(args[0]) if len(args) == 1 else math.log(args[0], args[1])
+            if name == "math.pow":
+                return args[0] ** args[1]
+            raise PineRuntimeError(f"math function not supported: {name}")
 
         # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
         if name == "iff":

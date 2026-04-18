@@ -166,6 +166,7 @@ def run_virtual_strategy(
     wrapper = VirtualStrategyWrapper(alerts, interp, strict=strict)
 
     errors: list[tuple[int, str]] = []
+    bars_processed = 0
     while bar.advance():
         store.begin_bar()
         interp.reset_transient()
@@ -186,9 +187,10 @@ def run_virtual_strategy(
             errors.append((bar.bar_index, str(exc)))
         store.commit_bar()
         interp.append_var_series()
+        bars_processed += 1
 
     return VirtualRunResult(
-        bars_processed=bar.bar_index + 1,
+        bars_processed=bars_processed,
         strategy_state=interp.strategy,
         alerts=alerts,
         warnings=wrapper.warnings,
