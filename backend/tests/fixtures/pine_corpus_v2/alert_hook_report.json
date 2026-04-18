@@ -1,0 +1,81 @@
+{
+  "s1_pbr": [],
+  "s2_utbot": [],
+  "s3_rsid": [],
+  "i1_utbot": [
+    {
+      "index": 1,
+      "kind": "alertcondition",
+      "message": "UT Long",
+      "condition_expr": "buy",
+      "signal": "long_entry"
+    },
+    {
+      "index": 2,
+      "kind": "alertcondition",
+      "message": "UT Short",
+      "condition_expr": "sell",
+      "signal": "short_entry"
+    }
+  ],
+  "i2_luxalgo": [
+    {
+      "index": 1,
+      "kind": "alertcondition",
+      "message": "Price broke the down-trendline upward",
+      "condition_expr": "upos <cmp> <Subscript>",
+      "signal": "information"
+    },
+    {
+      "index": 2,
+      "kind": "alertcondition",
+      "message": "Price broke the up-trendline downward",
+      "condition_expr": "dnos <cmp> <Subscript>",
+      "signal": "information"
+    }
+  ],
+  "i3_drfx": [
+    {
+      "index": 1,
+      "kind": "alertcondition",
+      "message": "BUY",
+      "condition_expr": "bull",
+      "signal": "long_entry"
+    },
+    {
+      "index": 2,
+      "kind": "alertcondition",
+      "message": "BUY",
+      "condition_expr": "bear",
+      "signal": "long_entry"
+    },
+    {
+      "index": 3,
+      "kind": "alert",
+      "message": "break down trendline",
+      "condition_expr": null,
+      "signal": "information"
+    },
+    {
+      "index": 4,
+      "kind": "alert",
+      "message": "break upper trendline",
+      "condition_expr": null,
+      "signal": "information"
+    },
+    {
+      "index": 5,
+      "kind": "alert",
+      "message": "Buy Alert",
+      "condition_expr": null,
+      "signal": "long_entry"
+    },
+    {
+      "index": 6,
+      "kind": "alert",
+      "message": "Sell Alert",
+      "condition_expr": null,
+      "signal": "short_entry"
+    }
+  ]
+}
