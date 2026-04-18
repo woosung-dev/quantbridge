@@ -16,8 +16,8 @@ describe("buildParseSteps", () => {
   it("returns intro + final when nothing to show", () => {
     const steps = buildParseSteps(emptyResponse);
     expect(steps).toHaveLength(2);
-    expect(steps[0].kind).toBe("intro");
-    expect(steps[1].kind).toBe("final");
+    expect(steps[0]?.kind).toBe("intro");
+    expect(steps[1]?.kind).toBe("final");
   });
 
   it("orders steps error -> warning -> function", () => {
