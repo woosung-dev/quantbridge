@@ -6,6 +6,8 @@
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
 > **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 순서: **Sprint 7c → 7b → 8a → 8b → dogfood 1~2주**. 외부 공개 없음. Build in public 주 1회.
 
+> **🚀 다음 세션 시작 프롬프트:** [`next-session-sprint-8b-prompt.md`](./next-session-sprint-8b-prompt.md) — Sprint 8b 초입 (Tier-1 가상 strategy 래퍼 + Tier-0 렌더링 scope A). 새 세션에서 코드블록 전체 복사·붙여넣기
+
 ---
 
 ## Next Actions
