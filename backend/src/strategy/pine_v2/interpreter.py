@@ -37,6 +37,7 @@ from pynescript import ast as pyne_ast
 
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
+from src.strategy.pine_v2.strategy_state import StrategyState
 
 # ------------------------------------------------------------
 # Bar Context — OHLCV 시계열 접근 계층
@@ -124,6 +125,8 @@ class Interpreter:
         self._transient: dict[str, Any] = {}
         # ta.* stdlib 디스패처 (bar 교차 상태 유지)
         self.stdlib = StdlibDispatcher()
+        # strategy.* 실행 상태 (포지션/체결 기록)
+        self.strategy = StrategyState()
         # 사용자 변수 시리즈 — 각 변수명 → [bar별 값...]. `myvar[n]` 지원용.
         self._var_series: dict[str, list[Any]] = {}
         # 이전 close (ta.atr 등 prev close 필요 시 사용)
@@ -275,11 +278,7 @@ class Interpreter:
         if isinstance(node, pyne_ast.Subscript):
             return self._eval_subscript(node)
         if isinstance(node, pyne_ast.Attribute):
-            # Day 1-2: ta.sma 같은 attribute chain은 Call에서 처리되며,
-            # raw attribute 평가는 지원 안 함 (stdlib 접근은 Day 3+ stdlib에서)
-            raise PineRuntimeError(
-                f"Attribute access not yet supported: {_attr_chain(node)}"
-            )
+            return self._eval_attribute(node)
         if isinstance(node, pyne_ast.Call):
             return self._eval_call(node)
         # 기타: Day 1-2 범위 밖
@@ -386,7 +385,7 @@ class Interpreter:
         )
 
     def _eval_call(self, node: Any) -> Any:
-        """Call 해석: stdlib(ta.*/na/nz) → 선언/렌더링 NOP → 에러."""
+        """Call 해석: stdlib(ta.*/na/nz) → strategy.* → 선언/렌더링 NOP → 에러."""
         name = _call_chain_name(node.func)
 
         # ta.* / na / nz — stdlib 디스패치
@@ -404,6 +403,10 @@ class Interpreter:
                 low=self.bar.current("low"),
                 close_prev=self._prev_close,
             )
+
+        # strategy.* 실행 핸들러
+        if name in ("strategy.entry", "strategy.close", "strategy.close_all"):
+            return self._exec_strategy_call(name, node)
 
         # 선언/렌더링/alert NOP
         _NOP_NAMES = {
@@ -437,12 +440,92 @@ class Interpreter:
             return True
         if name == "false":
             return False
+        # strategy.* built-in constants + 상태
+        if name == "strategy.long":
+            return "long"
+        if name == "strategy.short":
+            return "short"
+        if name == "strategy.position_size":
+            return self.strategy.position_size
+        if name == "strategy.position_avg_price":
+            return self.strategy.position_avg_price
         key = f"main::{name}"
         if self.store.is_declared(key):
             return self.store.get(key)
         if name in self._transient:
             return self._transient[name]
         raise PineRuntimeError(f"Undefined name: {name}")
+
+    # ---- Attribute 해석 (`strategy.long` 등 built-in 상수) -----------
+
+    def _eval_attribute(self, node: Any) -> Any:
+        """Attribute 체인을 'a.b.c' 로 합친 뒤 built-in 상수 룩업."""
+        chain = _attr_chain(node)
+        _ATTR_CONSTANTS = {
+            "strategy.long": "long",
+            "strategy.short": "short",
+        }
+        if chain in _ATTR_CONSTANTS:
+            return _ATTR_CONSTANTS[chain]
+        # strategy.position_size / strategy.position_avg_price
+        if chain == "strategy.position_size":
+            return self.strategy.position_size
+        if chain == "strategy.position_avg_price":
+            return self.strategy.position_avg_price
+        # color.* / syminfo.mintick — Day 4 범위 밖은 일단 nan 반환 (렌더링 맥락에서만 쓰이므로)
+        if chain.startswith("color.") or chain in ("syminfo.mintick", "syminfo.tickerid"):
+            return float("nan")  # 미지원 상수는 관대하게 na
+        raise PineRuntimeError(f"Attribute access not supported: {chain}")
+
+    # ---- strategy.* 핸들러 --------------------------------------------
+
+    def _exec_strategy_call(self, name: str, node: Any) -> None:
+        """strategy.entry/close/close_all 실행 — 시장가, 현재 bar close 체결."""
+        current_close = self.bar.current("close")
+        bar_idx = self.bar.bar_index
+
+        # 인자 평가: positional + kwarg
+        positional: list[Any] = []
+        kwargs: dict[str, Any] = {}
+        for a in node.args:
+            val = self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+            arg_name = getattr(a, "name", None) if isinstance(a, pyne_ast.Arg) else None
+            if arg_name:
+                kwargs[arg_name] = val
+            else:
+                positional.append(val)
+
+        if name == "strategy.entry":
+            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
+            direction = positional[1] if len(positional) >= 2 else kwargs.get("direction", "long")
+            qty = float(kwargs.get("qty", positional[2] if len(positional) >= 3 else 1.0))
+            comment = str(kwargs.get("comment", ""))
+            # 미지원 kwarg 추적
+            unsupported = [k for k in kwargs if k in ("stop", "limit", "trail_points", "trail_offset", "qty_percent")]
+            self.strategy.entry(
+                trade_id,
+                "long" if direction == "long" else "short",
+                qty=qty,
+                bar=bar_idx,
+                fill_price=current_close,
+                comment=comment,
+                unsupported_kwargs=unsupported,
+            )
+            return None
+
+        if name == "strategy.close":
+            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
+            comment = str(kwargs.get("comment", ""))
+            self.strategy.close(
+                trade_id, bar=bar_idx, fill_price=current_close, comment=comment,
+            )
+            return None
+
+        if name == "strategy.close_all":
+            self.strategy.close_all(bar=bar_idx, fill_price=current_close)
+            return None
+
+        raise PineRuntimeError(f"Unexpected strategy call: {name}")
 
     # ---- 보조 ----------------------------------------------------------
 
