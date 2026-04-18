@@ -570,6 +570,24 @@ class Interpreter:
                 return args[0] ** args[1]
             raise PineRuntimeError(f"math function not supported: {name}")
 
+        # timestamp(y, mo, d, h, mi[, s]) — v4/v5 built-in. 실제 datetime은 불필요
+        # (time_cond 같은 기간 필터에서만 사용). year 기반 approx epoch ms 반환.
+        # time(=bar_index 기반 stub)과 같은 scale에서 비교되도록 조정.
+        if name == "timestamp":
+            if not node.args:
+                return 0
+            first = self._eval_expr(
+                node.args[0].value if isinstance(node.args[0], pyne_ast.Arg) else node.args[0]
+            )
+            try:
+                year = int(first)
+            except (TypeError, ValueError):
+                return 0
+            if year <= 1970:
+                return 0
+            # (year - 1970) * 365일 * 86400초 * 1000ms — approx epoch millis
+            return (year - 1970) * 365 * 86_400 * 1000
+
         # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
         if name == "iff":
             if len(node.args) != 3:
@@ -645,6 +663,12 @@ class Interpreter:
             return self.bar.current(name)
         if name == "bar_index":
             return self.bar.bar_index
+        if name == "time":
+            # Pine `time` = 현재 bar의 timestamp (epoch ms). OHLCV에 timestamp 없으면
+            # 2020-01-01 기준(≈ 50년 * 365*86400*1000 ms)으로 bar_index 분봉 가정.
+            # backtest range 필터(time >= startDate and time <= finishDate)가
+            # fromYear=1970 / toYear=2100 범위에서 True가 되도록 맞춤.
+            return 50 * 365 * 86_400 * 1000 + self.bar.bar_index * 60_000
         if name == "na":
             return float("nan")
         if name == "true":
@@ -764,19 +788,55 @@ class Interpreter:
                 positional.append(val)
 
         if name == "strategy.entry":
-            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
-            direction = positional[1] if len(positional) >= 2 else kwargs.get("direction", "long")
-            qty = float(kwargs.get("qty", positional[2] if len(positional) >= 3 else 1.0))
+            trade_id = (
+                str(positional[0])
+                if positional
+                else str(kwargs.get("id", "default"))
+            )
+            # when= kwarg: False면 entry skip (Pine v4 backtest range 필터)
+            when_val = kwargs.get("when")
+            if when_val is not None and not self._truthy(when_val):
+                return None
+
+            # direction 결정 — v4는 2번째 positional이 boolean(true=long, false=short),
+            # v5는 strategy.long/short 상수 문자열. direction= kwarg도 가능.
+            raw_dir: Any
+            if len(positional) >= 2:
+                raw_dir = positional[1]
+            elif "direction" in kwargs:
+                raw_dir = kwargs["direction"]
+            else:
+                raw_dir = "long"
+            if isinstance(raw_dir, bool):
+                direction: str = "long" if raw_dir else "short"
+            elif raw_dir == "long":
+                direction = "long"
+            elif raw_dir == "short":
+                direction = "short"
+            else:
+                # 알 수 없는 값은 long 기본 (보수적)
+                direction = "long"
+
+            qty = float(
+                kwargs.get(
+                    "qty",
+                    positional[2] if len(positional) >= 3 else 1.0,
+                )
+            )
             comment = str(kwargs.get("comment", ""))
             # stop= 는 지원 (Week 3 Day 1부터). limit/trail은 여전히 미지원.
             stop_raw = kwargs.get("stop")
             stop: float | None = None
             if stop_raw is not None and not _is_na(stop_raw):
                 stop = float(stop_raw)
-            unsupported = [k for k in kwargs if k in ("limit", "trail_points", "trail_offset", "qty_percent")]
+            unsupported = [
+                k
+                for k in kwargs
+                if k in ("limit", "trail_points", "trail_offset", "qty_percent")
+            ]
             self.strategy.entry(
                 trade_id,
-                "long" if direction == "long" else "short",
+                direction,  # type: ignore[arg-type]
                 qty=qty,
                 bar=bar_idx,
                 fill_price=current_close,
