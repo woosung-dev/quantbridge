@@ -670,11 +670,58 @@ class Interpreter:
     # ---- Attribute 해석 (`strategy.long` 등 built-in 상수) -----------
 
     def _eval_attribute(self, node: Any) -> Any:
-        """Attribute 체인을 'a.b.c' 로 합친 뒤 built-in 상수 룩업."""
+        """Attribute 체인을 'a.b.c' 로 합친 뒤 built-in 상수 룩업.
+
+        렌더링 scope A 지원(ADR-011 §2.0.4)을 위해 Pine 그리기 enum 상수도 매핑.
+        실제 차트에 영향 없지만 call arg로 전달될 수 있어 평가는 필요.
+        """
         chain = _attr_chain(node)
         _ATTR_CONSTANTS = {
             "strategy.long": "long",
             "strategy.short": "short",
+            # 렌더링 scope A — enum 상수 (string identity 유지)
+            "line.style_dashed": "dashed",
+            "line.style_dotted": "dotted",
+            "line.style_solid": "solid",
+            "line.style_arrow_left": "arrow_left",
+            "line.style_arrow_right": "arrow_right",
+            "line.style_arrow_both": "arrow_both",
+            "extend.none": "none",
+            "extend.left": "left",
+            "extend.right": "right",
+            "extend.both": "both",
+            "shape.labelup": "labelup",
+            "shape.labeldown": "labeldown",
+            "shape.triangleup": "triangleup",
+            "shape.triangledown": "triangledown",
+            "shape.arrowup": "arrowup",
+            "shape.arrowdown": "arrowdown",
+            "shape.circle": "circle",
+            "shape.cross": "cross",
+            "shape.xcross": "xcross",
+            "shape.flag": "flag",
+            "shape.square": "square",
+            "shape.diamond": "diamond",
+            "location.absolute": "absolute",
+            "location.abovebar": "abovebar",
+            "location.belowbar": "belowbar",
+            "location.top": "top",
+            "location.bottom": "bottom",
+            "size.auto": "auto",
+            "size.tiny": "tiny",
+            "size.small": "small",
+            "size.normal": "normal",
+            "size.large": "large",
+            "size.huge": "huge",
+            "position.top_left": "top_left",
+            "position.top_center": "top_center",
+            "position.top_right": "top_right",
+            "position.middle_left": "middle_left",
+            "position.middle_center": "middle_center",
+            "position.middle_right": "middle_right",
+            "position.bottom_left": "bottom_left",
+            "position.bottom_center": "bottom_center",
+            "position.bottom_right": "bottom_right",
         }
         if chain in _ATTR_CONSTANTS:
             return _ATTR_CONSTANTS[chain]
@@ -691,6 +738,11 @@ class Interpreter:
         # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):
             return float("nan")
+        # alert.freq_* / display.* 등 추가 Pine enum은 문자열 stub 반환
+        if chain.startswith(
+            ("alert.freq_", "display.", "xloc.", "yloc.", "text.", "font.")
+        ):
+            return chain.split(".", 1)[1]
         raise PineRuntimeError(f"Attribute access not supported: {chain}")
 
     # ---- strategy.* 핸들러 --------------------------------------------

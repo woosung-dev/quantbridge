@@ -25,6 +25,7 @@ from src.strategy.pine_v2.alert_hook import AlertHook, SignalKind, collect_alert
 from src.strategy.pine_v2.event_loop import _validate_ohlcv
 from src.strategy.pine_v2.interpreter import BarContext, Interpreter, PineRuntimeError
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
+from src.strategy.pine_v2.rendering import RenderingRegistry
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.strategy_state import StrategyState
 
@@ -63,6 +64,7 @@ class VirtualRunResult:
     bars_processed: int
     strategy_state: StrategyState
     alerts: list[AlertHook]
+    rendering: RenderingRegistry | None = None  # line/box/label/table handle 수집
     warnings: list[str] = field(default_factory=list)
     errors: list[tuple[int, str]] = field(default_factory=list)
 
@@ -193,6 +195,7 @@ def run_virtual_strategy(
         bars_processed=bars_processed,
         strategy_state=interp.strategy,
         alerts=alerts,
+        rendering=interp.rendering,
         warnings=wrapper.warnings,
         errors=errors,
     )
