@@ -51,13 +51,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      # LESSON-004 방어선: `eslint-disable react-hooks/*` grep 차단
-      # (react-hooks 규칙 우회는 CPU 100% 무한 루프 위험 직결)
-      - name: Block react-hooks ESLint disable
+      # LESSON-004 보조 방어선: `rules-of-hooks` override 만 차단.
+      # set-state-in-effect 는 Next.js router (useSearchParams) / DOM subscription
+      # 등 정당한 외부 동기화 케이스가 있어 grep 대신 ESLint error-level 에서 처리
+      # (override 시 disable 주석이 파일에 남음 → PR 리뷰에서 정당성 판단).
+      - name: Block react-hooks/rules-of-hooks ESLint disable
         run: |
           if grep -rn --include='*.ts' --include='*.tsx' \
-             -E 'eslint-disable.*react-hooks/(rules-of-hooks|set-state-in-effect|set-state-in-render)' src/; then
-            echo "::error::react-hooks ESLint 규칙 disable 금지 (LESSON-004)"
+             'eslint-disable.*react-hooks/rules-of-hooks' src/; then
+            echo "::error::react-hooks/rules-of-hooks disable 금지 (LESSON-004)"
             exit 1
           fi
       - run: pnpm lint
