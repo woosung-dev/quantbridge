@@ -1,0 +1,444 @@
+"""Pine AST interpreter (Week 2 Day 1-2) — ADR-011 Tier-0 핵심.
+
+pynescript AST 위에서 bar-by-bar 실행되는 tree-walking 인터프리터.
+Day 8 통합 POC의 "수작업 해석"을 체계적 visitor로 확장.
+
+Day 1-2 범위:
+- 표현식: Constant / Name / BinOp / UnaryOp / BoolOp / Compare / Conditional(ternary) / Subscript / Attribute / Call(stdlib pass-through)
+- 문장: Assign (regular / var / varip) / ReAssign / If(+orelse) / Expr (호출 포함)
+- built-in 변수: open / high / low / close / volume / bar_index / na / true / false
+- Pine history `close[n]` = n bar 전 값 (DataFrame look-back)
+
+범위 밖 (2단계 이상):
+- 함수 정의 / 호출 (=>, builtins ta.* 등 stdlib 미지원 — Call은 에러 발생)
+- for / while 루프
+- 배열 / Matrix / Map / UDT
+- strategy.* 실행 핸들러 (포지션 상태)
+- 렌더링 호출 (plot/box/label/line/table) — 조용히 NOP 처리
+
+공개 API:
+- `Interpreter(bar_context, store)` — 생성
+- `interp.execute(tree)` — 한 bar 분량 실행 (이벤트 루프가 반복 호출)
+
+Key 네이밍 관례:
+- 영속(var/varip): `main::{name}` — PersistentStore에 저장
+- 비영속(transient): `{name}` — dict에 저장 (매 bar 초기화)
+"""
+from __future__ import annotations
+
+import math
+import operator
+from collections.abc import Iterator
+from dataclasses import dataclass
+from typing import Any
+
+import pandas as pd
+from pynescript import ast as pyne_ast
+
+from src.strategy.pine_v2.runtime import PersistentStore
+
+# ------------------------------------------------------------
+# Bar Context — OHLCV 시계열 접근 계층
+# ------------------------------------------------------------
+
+
+@dataclass
+class BarContext:
+    """현재 bar + 히스토리 접근 인터페이스.
+
+    Pine의 `close`는 현재 bar의 종가. `close[n]`은 n bar 전 종가.
+    na(not available): 히스토리가 없는 구간 → float('nan') 반환.
+    """
+
+    ohlcv: pd.DataFrame  # columns: open/high/low/close/volume (float)
+    bar_index: int = -1
+
+    def advance(self) -> bool:
+        """다음 bar로 이동. 데이터가 남아있으면 True, 끝났으면 False."""
+        self.bar_index += 1
+        return self.bar_index < len(self.ohlcv)
+
+    def current(self, field: str) -> float:
+        return float(self.ohlcv.iloc[self.bar_index][field])
+
+    def history(self, field: str, offset: int) -> float:
+        """offset bar 이전 값. 음수/범위 밖 → nan (Pine의 na)."""
+        if offset < 0:
+            raise ValueError(f"history offset must be >= 0, got {offset}")
+        idx = self.bar_index - offset
+        if idx < 0:
+            return float("nan")
+        return float(self.ohlcv.iloc[idx][field])
+
+
+# ------------------------------------------------------------
+# Interpreter — Pine AST visit + 표현식 평가 + 문장 실행
+# ------------------------------------------------------------
+
+
+_BUILTIN_SERIES = frozenset({"open", "high", "low", "close", "volume"})
+
+# 연산자 매핑
+_BINOP: dict[str, Any] = {
+    "Add": operator.add,
+    "Sub": operator.sub,
+    "Mult": operator.mul,
+    "Div": operator.truediv,
+    "Mod": operator.mod,
+    "Pow": operator.pow,
+}
+_CMPOP: dict[str, Any] = {
+    "Eq": operator.eq,
+    "NotEq": operator.ne,
+    "Lt": operator.lt,
+    "LtE": operator.le,
+    "Gt": operator.gt,
+    "GtE": operator.ge,
+}
+# BoolOp 단축평가는 _eval_boolop에서 직접 처리 (And/Or)
+
+
+class PineRuntimeError(RuntimeError):
+    """Pine 실행 중 발생한 오류 (미지원 노드, 미정의 변수 등)."""
+
+
+class Interpreter:
+    """Pine AST interpreter — per-bar 실행.
+
+    Usage:
+        bar = BarContext(ohlcv)
+        store = PersistentStore()
+        interp = Interpreter(bar, store)
+        while bar.advance():
+            store.begin_bar()
+            interp.reset_transient()
+            interp.execute(tree)
+            store.commit_bar()
+    """
+
+    def __init__(self, bar_context: BarContext, store: PersistentStore) -> None:
+        self.bar = bar_context
+        self.store = store
+        # 비영속(transient) 변수 — 매 bar 재초기화
+        self._transient: dict[str, Any] = {}
+
+    def reset_transient(self) -> None:
+        self._transient = {}
+
+    # ---- 실행 엔트리 --------------------------------------------------
+
+    def execute(self, tree: Any) -> None:
+        """pynescript Script 노드의 body를 순차 실행 (한 bar 분량)."""
+        for stmt in getattr(tree, "body", []):
+            self._exec_stmt(stmt)
+
+    # ---- 문장 디스패치 -------------------------------------------------
+
+    def _exec_stmt(self, node: Any) -> None:
+        if isinstance(node, pyne_ast.Assign):
+            self._exec_assign(node)
+        elif isinstance(node, pyne_ast.ReAssign):
+            self._exec_reassign(node)
+        elif isinstance(node, pyne_ast.If):
+            self._exec_if(node)
+        elif isinstance(node, pyne_ast.Expr):
+            # pynescript는 top-level `if`를 Expr(value=If(...))로 래핑함
+            inner = node.value
+            if isinstance(inner, pyne_ast.If):
+                self._exec_if(inner)
+            else:
+                # 표현식 문장: 호출 등 side-effect만 있는 것 (e.g., alert)
+                self._eval_expr(inner)
+        else:
+            # 함수 정의, Return, for/while 등 Day 1-2 범위 밖 — 조용히 skip
+            pass
+
+    def _exec_assign(self, node: Any) -> None:
+        """`x = expr`, `var x = expr`, `varip x = expr` 처리.
+
+        Var/VarIp marker 자식 노드로 유형 구분. 대상 Name이 없는 destructure 등은 skip.
+        """
+        var_kind = self._detect_var_kind(node)
+        # 대상 이름
+        targets_attr = getattr(node, "targets", None)
+        target_list = targets_attr if targets_attr else [getattr(node, "target", None)]
+        target_name = next(
+            (t.id for t in target_list if isinstance(t, pyne_ast.Name)),
+            None,
+        )
+        if target_name is None:
+            return
+
+        if var_kind is not None:
+            # 영속: 첫 bar에서만 RHS 평가. PersistentStore.declare_if_new가 lazy 처리.
+            key = f"main::{target_name}"
+            value_expr = node.value
+
+            def factory() -> Any:
+                return self._eval_expr(value_expr)
+
+            self.store.declare_if_new(
+                key,
+                factory,
+                varip=(var_kind == "varip"),
+            )
+        else:
+            # 비영속: 매 bar 평가
+            value = self._eval_expr(node.value) if getattr(node, "value", None) is not None else None
+            self._transient[target_name] = value
+
+    def _exec_reassign(self, node: Any) -> None:
+        """`x := expr` — 이미 선언된 변수에 새 값 (Pine 재할당)."""
+        targets_attr = getattr(node, "targets", None)
+        target_list = targets_attr if targets_attr else [getattr(node, "target", None)]
+        target_name = next(
+            (t.id for t in target_list if isinstance(t, pyne_ast.Name)),
+            None,
+        )
+        if target_name is None:
+            return
+        value = self._eval_expr(node.value)
+        # PersistentStore에 있으면 거기에 set, 아니면 transient
+        key = f"main::{target_name}"
+        if self.store.is_declared(key):
+            self.store.set(key, value)
+        elif target_name in self._transient:
+            self._transient[target_name] = value
+        else:
+            # Pine은 미선언 변수에 := 불가이지만, 인터프리터는 관대하게 transient 생성
+            self._transient[target_name] = value
+
+    def _exec_if(self, node: Any) -> None:
+        """if-else 분기."""
+        if self._truthy(self._eval_expr(node.test)):
+            for stmt in node.body:
+                self._exec_stmt(stmt)
+        else:
+            for stmt in (node.orelse or []):
+                self._exec_stmt(stmt)
+
+    # ---- 표현식 평가 --------------------------------------------------
+
+    def _eval_expr(self, node: Any) -> Any:
+        if node is None:
+            return None
+        if isinstance(node, pyne_ast.Constant):
+            return node.value
+        if isinstance(node, pyne_ast.Name):
+            return self._resolve_name(node.id)
+        if isinstance(node, pyne_ast.BinOp):
+            return self._eval_binop(node)
+        if isinstance(node, pyne_ast.UnaryOp):
+            return self._eval_unaryop(node)
+        if isinstance(node, pyne_ast.BoolOp):
+            return self._eval_boolop(node)
+        if isinstance(node, pyne_ast.Compare):
+            return self._eval_compare(node)
+        if isinstance(node, pyne_ast.Conditional):
+            # Pine의 ternary a ? b : c
+            return (
+                self._eval_expr(node.body)
+                if self._truthy(self._eval_expr(node.test))
+                else self._eval_expr(node.orelse)
+            )
+        if isinstance(node, pyne_ast.Subscript):
+            return self._eval_subscript(node)
+        if isinstance(node, pyne_ast.Attribute):
+            # Day 1-2: ta.sma 같은 attribute chain은 Call에서 처리되며,
+            # raw attribute 평가는 지원 안 함 (stdlib 접근은 Day 3+ stdlib에서)
+            raise PineRuntimeError(
+                f"Attribute access not yet supported: {_attr_chain(node)}"
+            )
+        if isinstance(node, pyne_ast.Call):
+            return self._eval_call(node)
+        # 기타: Day 1-2 범위 밖
+        raise PineRuntimeError(f"Unsupported expression node: {type(node).__name__}")
+
+    def _eval_binop(self, node: Any) -> Any:
+        op_name = type(node.op).__name__
+        fn = _BINOP.get(op_name)
+        if fn is None:
+            raise PineRuntimeError(f"Unsupported BinOp: {op_name}")
+        left = self._eval_expr(node.left)
+        right = self._eval_expr(node.right)
+        # Pine na 전파: 피연산자가 nan이면 결과도 nan
+        if _is_na(left) or _is_na(right):
+            return float("nan")
+        return fn(left, right)
+
+    def _eval_unaryop(self, node: Any) -> Any:
+        op_name = type(node.op).__name__
+        val = self._eval_expr(node.operand)
+        if op_name == "USub":
+            return float("nan") if _is_na(val) else -val
+        if op_name == "UAdd":
+            return val
+        if op_name == "Not":
+            return not self._truthy(val)
+        raise PineRuntimeError(f"Unsupported UnaryOp: {op_name}")
+
+    def _eval_boolop(self, node: Any) -> Any:
+        """And/Or — Python 단축평가 채택 (Pine도 동일)."""
+        op_name = type(node.op).__name__
+        values = node.values
+        if op_name == "And":
+            result: Any = True
+            for v in values:
+                cur = self._eval_expr(v)
+                if not self._truthy(cur):
+                    return cur  # 첫 falsy 반환
+                result = cur
+            return result
+        if op_name == "Or":
+            if not values:
+                return False
+            last: Any = False
+            for v in values:
+                last = self._eval_expr(v)
+                if self._truthy(last):
+                    return last  # 첫 truthy 반환
+            return last  # 모두 falsy면 마지막 값 반환 (Pine 단축평가 관례)
+        raise PineRuntimeError(f"Unsupported BoolOp: {op_name}")
+
+    def _eval_compare(self, node: Any) -> Any:
+        """a < b < c 같은 chained compare 지원."""
+        left = self._eval_expr(node.left)
+        for op_node, cmp_node in zip(node.ops, node.comparators, strict=True):
+            right = self._eval_expr(cmp_node)
+            op_name = type(op_node).__name__
+            fn = _CMPOP.get(op_name)
+            if fn is None:
+                raise PineRuntimeError(f"Unsupported compare: {op_name}")
+            if _is_na(left) or _is_na(right):
+                # Pine의 na 전파 — 비교 결과도 na. Python bool로 표현 불가하므로 False 처리
+                return False
+            if not fn(left, right):
+                return False
+            left = right
+        return True
+
+    def _eval_subscript(self, node: Any) -> Any:
+        """Pine `x[n]` — 시계열 히스토리. Day 1-2는 built-in series만."""
+        value_node = node.value
+        # slice가 Constant 정수여야 함 (Pine 표준)
+        slice_node = node.slice
+        offset = self._eval_expr(slice_node)
+        if not isinstance(offset, int) or offset < 0:
+            raise PineRuntimeError(f"Subscript offset must be non-negative int, got {offset!r}")
+
+        if isinstance(value_node, pyne_ast.Name) and value_node.id in _BUILTIN_SERIES:
+            return self.bar.history(value_node.id, offset)
+        # 사용자 변수 시계열 (예: var 값의 과거 참조)은 Day 1-2 범위 밖
+        raise PineRuntimeError(
+            f"Subscript on non-builtin series not yet supported: {_describe(value_node)}"
+        )
+
+    def _eval_call(self, node: Any) -> Any:
+        """Day 1-2는 Call을 하드에러 대신 NOP으로 관대하게 처리 (단, stdlib 결과 의존 로직은 오류 발생).
+
+        실제 stdlib 매핑(ta.sma 등)은 Week 2 Day 3+에서 별도 모듈로 구현.
+        indicator/strategy/plot/alert 같은 선언·렌더링 호출은 **NOP으로 통과**하여
+        전체 실행이 중단되지 않도록 함.
+        """
+        name = _call_chain_name(node.func)
+        # 선언/렌더링/alert은 조용히 NOP — Day 2 범위 (alert 수집은 L3 alert_hook이 별도 담당)
+        _NOP_NAMES = {
+            "indicator", "study", "strategy", "library",
+            "plot", "plotshape", "plotchar", "plotbar", "plotcandle", "plotarrow",
+            "bgcolor", "barcolor", "fill", "hline",
+            "alert", "alertcondition",
+            "input", "input.int", "input.float", "input.bool", "input.string",
+            "input.source", "input.color", "input.time", "input.timeframe",
+            "input.price", "input.session", "input.symbol",
+        }
+        if name in _NOP_NAMES:
+            # input*()은 defval을 돌려줄 필요가 있음 (수식에 쓰일 수 있으므로)
+            if name and name.startswith("input"):
+                args = [a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args]
+                if args:
+                    return self._eval_expr(args[0])  # defval (첫 arg)
+                return None
+            return None
+        raise PineRuntimeError(f"Call to {name!r} not supported in Week 2 Day 1-2 scope")
+
+    # ---- Name 해석 (built-in + var + transient) ------------------------
+
+    def _resolve_name(self, name: str) -> Any:
+        if name in _BUILTIN_SERIES:
+            return self.bar.current(name)
+        if name == "bar_index":
+            return self.bar.bar_index
+        if name == "na":
+            return float("nan")
+        if name == "true":
+            return True
+        if name == "false":
+            return False
+        key = f"main::{name}"
+        if self.store.is_declared(key):
+            return self.store.get(key)
+        if name in self._transient:
+            return self._transient[name]
+        raise PineRuntimeError(f"Undefined name: {name}")
+
+    # ---- 보조 ----------------------------------------------------------
+
+    @staticmethod
+    def _detect_var_kind(assign_node: Any) -> str | None:
+        for child in pyne_ast.iter_child_nodes(assign_node):
+            cls = type(child).__name__
+            if cls == "Var":
+                return "var"
+            if cls == "VarIp":
+                return "varip"
+        return None
+
+    @staticmethod
+    def _truthy(value: Any) -> bool:
+        """Pine 진리값 — na는 False 취급."""
+        if _is_na(value):
+            return False
+        return bool(value)
+
+
+# ------------------------------------------------------------
+# 헬퍼
+# ------------------------------------------------------------
+
+
+def _is_na(value: Any) -> bool:
+    return isinstance(value, float) and math.isnan(value)
+
+
+def _attr_chain(node: Any) -> str:
+    """Attribute 체인을 `a.b.c` 문자열로."""
+    parts: list[str] = []
+    cur: Any = node
+    while isinstance(cur, pyne_ast.Attribute):
+        parts.append(cur.attr)
+        cur = cur.value
+    if isinstance(cur, pyne_ast.Name):
+        parts.append(cur.id)
+    return ".".join(reversed(parts))
+
+
+def _call_chain_name(func_node: Any) -> str | None:
+    """Call.func이 Name이면 id, Attribute면 chain."""
+    if isinstance(func_node, pyne_ast.Name):
+        return func_node.id
+    if isinstance(func_node, pyne_ast.Attribute):
+        return _attr_chain(func_node)
+    return None
+
+
+def _describe(node: Any) -> str:
+    if isinstance(node, pyne_ast.Name):
+        return node.id
+    if isinstance(node, pyne_ast.Attribute):
+        return _attr_chain(node)
+    return type(node).__name__
+
+
+def iter_statements(tree: Any) -> Iterator[Any]:
+    """편의: top-level body를 반복."""
+    yield from getattr(tree, "body", [])
