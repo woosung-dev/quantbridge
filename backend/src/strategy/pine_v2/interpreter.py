@@ -571,22 +571,29 @@ class Interpreter:
             raise PineRuntimeError(f"math function not supported: {name}")
 
         # timestamp(y, mo, d, h, mi[, s]) — v4/v5 built-in. 실제 datetime은 불필요
-        # (time_cond 같은 기간 필터에서만 사용). year 기반 approx epoch ms 반환.
-        # time(=bar_index 기반 stub)과 같은 scale에서 비교되도록 조정.
+        # (time_cond 같은 기간 필터에서만 사용). year/month/day/hour/minute을 반영한
+        # approx epoch ms 반환. time(=bar_index 기반 stub)과 같은 scale로 비교됨.
         if name == "timestamp":
             if not node.args:
                 return 0
-            first = self._eval_expr(
-                node.args[0].value if isinstance(node.args[0], pyne_ast.Arg) else node.args[0]
-            )
-            try:
-                year = int(first)
-            except (TypeError, ValueError):
-                return 0
+            parts: list[int] = []
+            for a in node.args[:5]:
+                val = self._eval_expr(
+                    a.value if isinstance(a, pyne_ast.Arg) else a
+                )
+                try:
+                    parts.append(int(val))
+                except (TypeError, ValueError):
+                    parts.append(0)
+            while len(parts) < 5:
+                parts.append(0)
+            year, month, day, hour, minute = parts[:5]
             if year <= 1970:
                 return 0
-            # (year - 1970) * 365일 * 86400초 * 1000ms — approx epoch millis
-            return (year - 1970) * 365 * 86_400 * 1000
+            # approx: (year-1970)*365일 + (month-1)*30일 + (day-1)*1일 → 초/ms 변환
+            # 월·일 정보 보존이 목적 (정확한 calendar math는 H2+).
+            days = (year - 1970) * 365 + (month - 1) * 30 + (day - 1)
+            return days * 86_400 * 1000 + hour * 3_600_000 + minute * 60_000
 
         # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
         if name == "iff":

@@ -85,15 +85,25 @@ class RenderingRegistry:
         return obj
 
     def line_set_xy1(self, line: LineObject, x: float, y: float) -> None:
+        if line.deleted:
+            # 삭제된 line에 대한 좌표 수정은 no-op (Pine 관례: 에러 회피 + 좌표 동결)
+            return
         line.x1 = x
         line.y1 = y
 
     def line_set_xy2(self, line: LineObject, x: float, y: float) -> None:
+        if line.deleted:
+            return
         line.x2 = x
         line.y2 = y
 
     def line_get_price(self, line: LineObject, x: float) -> float:
-        """x 좌표의 y 값 (선형보간). x1==x2이면 y1 반환 (수직선 회피)."""
+        """x 좌표의 y 값 (선형보간). x1==x2이면 y1 반환 (수직선 회피).
+
+        삭제된 line은 nan 반환 (Pine TV의 `line is na` 오동작 패턴 방어).
+        """
+        if line.deleted:
+            return float("nan")
         if line.x2 == line.x1:
             return line.y1
         t = (x - line.x1) / (line.x2 - line.x1)
