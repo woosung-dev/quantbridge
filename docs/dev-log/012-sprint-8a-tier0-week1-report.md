@@ -1,6 +1,6 @@
 # Sprint 8a Tier-0 Week 1 Foundation Report
 
-> **일자:** 2026-04-18
+> **일자:** 2026-04-18 (Day 1-8 통합 v1.1)
 > **브랜치:** `feat/sprint8a-tier0-pynescript-fork`
 > **관련 PR:** #20
 > **ADR:** [ADR-011 Pine Execution Strategy v4](011-pine-execution-strategy-v4.md) (+[#19 amendment](https://github.com/woosung-dev/quantbridge/pull/19))
@@ -10,21 +10,23 @@
 
 ## 🎯 한 줄 권고
 
-> **CONTINUE to Sprint 8a Week 2-3 (Tier-0 bar-by-bar 이벤트 루프 + 렌더링 범위 A 런타임). Week 1 Foundation 4개 레이어 모두 6 corpus 실측으로 작동 확인. ADR-011 §9 가정 3개 중 2개는 실증, 1개는 재정의 필요(Track M 비율 — N=6 한계).**
+> **CONTINUE to Sprint 8a Week 2-3 (bar-by-bar 이벤트 루프 + 렌더링 범위 A 런타임 + strategy.* 실행). Week 1 Foundation 5개 레이어 + 통합 POC가 6 corpus × 99 tests로 검증됨. Day 6-8 심화로 v0 약점 4개(condition-trace 미구현 / 선언 kwargs 손실 / 파서 에러 경로 미검증 / 4레이어 통합 미증명)가 전부 해소.**
 
 ---
 
-## 1. Week 1 실측 범위 — 4 레이어 Foundation
+## 1. Week 1 실측 범위 — 5 레이어 Foundation (Day 1-8)
 
-Sprint 8a 3주 중 Week 1(Day 1-5)을 4개 수직 레이어 구축에 투입:
+Sprint 8a 3주 중 Week 1(Day 1-8)을 5개 수직 레이어 구축 + 통합 POC에 투입:
 
 | # | 레이어 | 파일 | 테스트 수 | 가치 |
 |:--:|------|------|:--:|------|
-| **L1** | **Pine 파서** (pynescript 0.3.0 래퍼) | `parser_adapter.py`, `ast_metrics.py` | 6 (+1 stub) | pynescript AST 생성 + Phase -1 E2 노드 수치 회귀 고정 |
+| **L1** | **Pine 파서** (pynescript 0.3.0 래퍼) | `parser_adapter.py`, `ast_metrics.py` | 7 + **10 edges** | AST 생성 + E2 노드 수치 회귀 + **빈/공백/주석/구문오류/unicode 에러 경로 고정** |
 | **L2** | **AST 분류기** | `ast_classifier.py` | 12 | Track S/A/M 자동 판정 + 호출 분포 프로파일 |
-| **L3** | **Alert Hook 추출/분류** | `alert_hook.py` | 24 | 매매 신호 메시지 파싱 (JSON/키워드/fallback) |
-| **L4** | **런타임 primitive** (var/varip) | `runtime/persistent.py` | 15 | PyneCore Apache 2.0 `transformers/persistent.py` 의미론 참조 이식 |
-| **합계** | — | 6 소스 / 4 테스트 파일 | **58 tests** | ruff/mypy clean, 기존 526 regression green |
+| **L3** | **Alert Hook** (v1, condition-trace) | `alert_hook.py` | **29** | 메시지 + **조건 변수 역추적** + i3_drfx #2 mismatch 자동 감지 |
+| **L4** | **런타임 primitive** (var/varip) | `runtime/persistent.py` | 15 | PyneCore Apache 2.0 의미론 참조 이식 |
+| **L7** | **AST content extractor** | `ast_extractor.py` | 21 | strategy kwargs + inputs + var 선언 + strategy.* 실행 call 전부 |
+| **Integration** | **L1 → L7 → L4 POC** | `test_runtime_integration.py` | 5 | 파싱 → 추출 → 스토어 등록 → multi-bar 시뮬레이션 |
+| **합계** | — | 9 소스 / 6 테스트 파일 | **99 tests** | ruff/mypy clean, 기존 526 regression green |
 
 ---
 
@@ -69,9 +71,9 @@ Phase -1 E2 실측 수치와 **strict equality** 회귀 고정:
 
 **Track 분포 (N=6):** S 3/6 (50%) / A 3/6 (50%) / **M 0/6 (0%)** — 사용자 제공 corpus 특성 반영. TV 공개 스크립트 15~20개 프로파일링(별도 Day 6-7 액션) 필요.
 
-### L3 — Alert Hook 추출 + 분류기 v0
+### L3 — Alert Hook v1 (condition-trace 포함, Day 6)
 
-Track A 3 corpus에서 **alert 10개 전부 추출 + 신호 분류** (메시지 전용 v0):
+Track A 3 corpus에서 **alert 10개 추출 + 메시지/조건 독립 분류 + discrepancy 자동 감지**:
 
 | # | Corpus | kind | message | condition | **signal** |
 |:--:|:---|:---|---|---|:---:|
@@ -86,13 +88,14 @@ Track A 3 corpus에서 **alert 10개 전부 추출 + 신호 분류** (메시지 
 | 9 | i3_drfx | alert | `"Buy Alert"` | (no cond arg) | **long_entry** |
 | 10 | i3_drfx | alert | `"Sell Alert"` | (no cond arg) | **short_entry** |
 
-- **분류 커버리지 100% (unknown 0/10)** — ADR-011 §2.1.2 정확도 >80% 가정 충족 (N=10 한계 인정)
-- **분포:** long_entry 4 / short_entry 2 / information 4 / unknown 0
-- **⚠️ #6 (i3_drfx alertcondition)** : 메시지 `'BUY'` + 조건 변수 `bear` → **메시지-조건 불일치**. 메시지 전용 v0는 long_entry로 판정하나 condition 기준으론 short. **Tier-1 condition-trace (ADR-011 §2.1.3) 필요성 실증**.
+- **분류 커버리지 100% (unknown 0/10)** — ADR-011 §2.1.2 정확도 >80% 가정 충족
+- **최종 분포 (v1 condition 우선):** long_entry 3 / short_entry 3 / information 4
+- **⚠️ i3_drfx #2 자동 감지 (v1 핵심):** `alertcondition(bear, "BUY", "BUY")` → message_signal=LONG_ENTRY vs condition_signal=SHORT_ENTRY → **discrepancy=True 자동 플래그**, 최종 signal=SHORT_ENTRY(condition 우선). 소스 오타·저자 실수 자동 방어.
+- **v1 구현 메커니즘 (ADR-011 §2.1.3):** AST ancestor 추적으로 감싸는 if 조건 수집 → symbol_table(top-level Assign)로 변수명 1-step look-up → 원본 변수명 우선, 해석 결과는 fallback
 
 ### L4 — PersistentStore (var/varip 런타임 primitive)
 
-6 corpus는 아직 런타임에 연결되지 않음 (인터프리터 Week 2-3 예정). L4는 **PyneCore `transformers/persistent.py` 의미론 참조 이식 + 15 유닛 테스트 격리 검증**:
+PyneCore `transformers/persistent.py` 의미론 참조 이식 + 15 유닛 테스트:
 
 - `declare_if_new(key, factory, varip=False)` — lazy init (첫 bar에서만 factory 평가)
 - Bar lifecycle: `begin_bar() → [execute] → commit_bar() | rollback_bar()`
@@ -101,7 +104,27 @@ Track A 3 corpus에서 **alert 10개 전부 추출 + 신호 분류** (메시지 
 - 이번 바 신규 선언 var는 rollback에서 제거, 신규 varip은 유지
 - historical 5-bar 시뮬레이션: `var highest := max(highest, close)` 패턴 검증
 
-**Week 2-3 연결 예정:** pine AST interpreter가 `Assign` 노드를 만나면 Pine 수식어(`var`/`varip`) 에 따라 `declare_if_new()` 호출. `ast_nodes.py`의 대응 노드 타입은 pynescript `ast.Assign` + 선언 수식어 확인 로직 필요.
+**Day 8 통합 POC (Week 2-3 교두보):** 실제 Pine 소스 `var counter = 0`을 pynescript로 파싱 → ast_extractor로 `VarDecl` 추출 → PersistentStore에 등록 → 3-bar `counter := counter + 1` 시뮬레이션 → `[1, 2, 3]` 확인. i2_luxalgo 9개 var 등록도 통과. **4개 레이어가 조립 가능함을 실증**.
+
+### L7 — AST content extractor (Day 7)
+
+strategy()/indicator() 선언의 **전체 kwargs 보존** + inputs + var 선언 + strategy.* 실행 call 구조화 추출.
+
+**추출 총량 (N=6 corpus):**
+
+| 요소 | 총합 | 내역 |
+|:---|---:|---|
+| **inputs** | 57 | s1:2, s2:9, s3:15, i1:3, i2:7, i3:21 |
+| **var/varip 선언** | 33 | s1/s2/s3/i1:0, i2:9, i3:24 |
+| **strategy.* 실행** | 7 | s1:2 entry, s2:2 entry, s3:1 entry+2 close, i1-i3:0 |
+| **strategy() kwargs** | s3 기준 7개 | title, overlay, initial_capital, commission_type, commission_value, pyramiding |
+
+**핵심 성과:** s3_rsid의 `initial_capital`, `commission_value`, `pyramiding` 같은 백테스트 정밀도 좌우 kwargs가 이제 interpreter에서 사용 가능. Pine v4 legacy `input()` vs v5+ `input.int/float` 모두 감지.
+
+### L1 edge cases + Integration POC (Day 8)
+
+- **L1 에러 경로 10개:** 빈/공백/주석 → 파싱 OK (body 빈 리스트) / syntax error / invalid token / unbalanced paren → `pynescript.ast.error.SyntaxError` (Python 내장 SyntaxError 미상속, Week 2+ error UX 전제 고정) / 긴 line + unicode 파싱 통과
+- **통합 POC 5개:** L1 파싱 → L7 VarDecl 추출 → L4 등록 → 3-bar 시뮬레이션 → 값 확인. corpus s1_pbr 통과, corpus i2_luxalgo 9 var 모두 등록 성공
 
 ---
 
@@ -111,11 +134,12 @@ Track A 3 corpus에서 **alert 10개 전부 추출 + 신호 분류** (메시지 
 |:--:|---|---|:--:|
 | **A1** | Track S/A/M 비율 **20~30% / 40~50% / 20~30%** | L2: N=6에서 S 50%, A 50%, M 0%. 사용자 corpus 특성이 반영되어 일반화는 **불가**. TV 15~20개 프로파일링 별도 필요 | 🟡 **재정의** |
 | **A2** | PyneCore가 `strategy.exit trail_points/offset` 지원 | Phase -1 amendment로 H2+ 이연 확정 (#19 PR, §6 H1 MVP scope) | ✅ **N/A** (scope 축소) |
-| **A3** | Alert 메시지 분류기 정확도 **>80%** | L3: N=10 alert 100% 분류 성공 (unknown 0). 단 #6 메시지-조건 불일치 발견 → Tier-1 condition-trace 근거 확보 | ✅ **실증** |
+| **A3** | Alert 메시지 분류기 정확도 **>80%** | L3 v1: N=10 alert 100% 분류 + **discrepancy 자동 감지** (1건, i3_drfx #2). ADR-011 §2.1.3 condition-trace 구현 완료 | ✅ **강하게 실증** |
 
 ### 신뢰도 업데이트
 - Phase -1 amendment 후 9/10 (ADR-011 §9)
-- Week 1 A3 강실증으로 **9.0/10 유지** (추가 상승은 Week 2-3 bar 이벤트 루프 작동 확인 후)
+- Week 1 A3 **v1 condition-trace 구현 + discrepancy 자동 감지**로 **9.2/10 소폭 상승**
+- Week 2-3 bar 이벤트 루프 + 렌더링 범위 A 런타임 작동 확인 시 9.5/10 예상
 
 ---
 
@@ -171,9 +195,10 @@ git diff --stat main -- backend/src/strategy/pine/
 
 ### 다음 세션 Week 2 (1주 내 목표)
 
-1. **Pine AST interpreter 스켈레톤** — `interpreter.py`. pynescript AST를 visit하며 scope 관리 + `Assign` 시 var/varip 수식어 확인 → PersistentStore 연결
-2. **bar-by-bar 이벤트 루프** — `event_loop.py`. OHLCV DataFrame 순회 + interpreter 호출 + begin/commit/rollback 관리
-3. **Indicators bridge** — vectorbt/TA-Lib를 지표 계산용으로만 호출 (ADR-011 §2.0.3 분리 원칙)
+1. **Pine AST interpreter 스켈레톤** — `interpreter.py`. pynescript AST visit + scope 관리 + Assign/ReAssign/If 해석. **Day 8 통합 POC의 패턴 확장** (수작업 해석 → 체계적 visitor). var/varip 수식어 감지는 ast_extractor.VarDecl 재활용.
+2. **bar-by-bar 이벤트 루프** — `event_loop.py`. OHLCV DataFrame 순회 + interpreter 호출 + PersistentStore begin/commit/rollback 관리
+3. **Indicators bridge** — vectorbt/TA-Lib을 지표 계산용으로만 호출 (ADR-011 §2.0.3 분리 원칙). ta.sma/ta.ema/ta.atr/ta.crossover 등 8-10개 함수부터
+4. **strategy.* 실행 핸들러** — `strategy.entry(id, direction, qty, limit, stop)` + `strategy.exit(limit, stop)` + `strategy.close`. **ast_extractor.StrategyCall로 추출된 args 재활용**. H1 MVP 범위 준수(trail_points/qty_percent/pyramiding H2+ 이연)
 
 ### Week 3 (Tier-0 완성)
 
@@ -191,15 +216,19 @@ git diff --stat main -- backend/src/strategy/pine/
 
 | Day | Commit | 내용 |
 |:---:|:---:|---|
-| 1 | `fb9d318` | pynescript 0.3.0 scaffold + NOTICE + E2 baseline parity 회귀 (6) |
+| 1 | `fb9d318` | pynescript 0.3.0 scaffold + NOTICE + E2 baseline parity 회귀 (7) |
 | 2 | `ec1175a` | AST 분류기 + Track S/A/M 판정 + structure report fixture (12) |
-| 3 | `92a5af9` | Alert Hook 추출 + 메시지 분류기 v0 (24) |
+| 3 | `92a5af9` | Alert Hook v0 (24) |
 | 4 | `3a5896f` | PersistentStore var/varip 런타임 (15) |
-| 5 | (본 커밋) | Week 1 종합 보고서 |
+| 5 | `7352345` | Week 1 보고서 v1.0 |
+| **6** | `4f278d8` | **Alert Hook v1 — condition-trace + discrepancy 자동 감지** (+5) |
+| **7** | `725b035` | **AST content extractor — strategy kwargs + inputs + var decls + strategy.* calls** (21) |
+| **8** | `7cc3225` | **L1 에러 경로 10 + L1→L7→L4 통합 POC 5** |
+| 8b | (본 커밋) | 보고서 v1.1 갱신 (Day 6-8 반영) |
 
-**총 변경:** 4 소스 + 4 테스트 + 3 fixture JSON + NOTICE + README + 본 보고서
-**총 테스트:** 58 pine_v2 (58/58 PASS) + 526 기존 회귀 green
-**품질 게이트:** ruff ✅ · mypy ✅ (8 source files)
+**총 변경:** 5 소스 모듈 + 6 테스트 파일 + 4 fixture JSON + NOTICE + README + 본 보고서
+**총 테스트:** **99 pine_v2** (99/99 PASS) + 526 기존 회귀 green
+**품질 게이트:** ruff ✅ · mypy ✅ (9 source files)
 
 ---
 
