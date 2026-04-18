@@ -18,11 +18,19 @@ sys.path.insert(0, str(OPUS_SRC))
 
 from drfx_backtest import BacktestConfig, DrFXBacktester  # type: ignore[reportMissingImports]  # noqa: E402
 
+import argparse
+
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--timeframe", default="1h", choices=["1h", "4h", "1d"])
+_args = _ap.parse_args()
+_TF = _args.timeframe
+_BARS_PER_YEAR = {"1h": 24 * 365, "4h": 6 * 365, "1d": 365}[_TF]
+
 EXP_ROOT = Path(__file__).resolve().parents[1]
-CSV_PATH = EXP_ROOT / "ohlcv" / "btc_usdt_1h_frozen.csv"
-OUT_PATH = EXP_ROOT / "output" / "e4_opus_i3_drfx_1h.json"
-TRADES_PATH = EXP_ROOT / "output" / "e4_opus_i3_drfx_1h_trades.csv"
-EQUITY_PATH = EXP_ROOT / "output" / "e4_opus_i3_drfx_1h_equity.csv"
+CSV_PATH = EXP_ROOT / "ohlcv" / f"btc_usdt_{_TF}_frozen.csv"
+OUT_PATH = EXP_ROOT / "output" / f"e4_opus_i3_drfx_{_TF}.json"
+TRADES_PATH = EXP_ROOT / "output" / f"e4_opus_i3_drfx_{_TF}_trades.csv"
+EQUITY_PATH = EXP_ROOT / "output" / f"e4_opus_i3_drfx_{_TF}_equity.csv"
 
 
 def load_frozen() -> pd.DataFrame:
@@ -46,8 +54,8 @@ def main() -> None:
     bt = DrFXBacktester(cfg)
     result = bt.run(df)
 
-    # bars_per_year 주입 (샤프 계산용 — 1H)
-    object.__setattr__(result, "bars_per_year", 24 * 365)
+    # bars_per_year 주입 (샤프 계산용)
+    object.__setattr__(result, "bars_per_year", _BARS_PER_YEAR)
 
     # 결과 요약
     exit_reasons: dict[str, int] = {}
@@ -61,7 +69,7 @@ def main() -> None:
         "engine": "E4",
         "model": "Claude Opus 4.7 (추정)",
         "script": "i3_drfx",
-        "timeframe": "1h",
+        "timeframe": _TF,
         "ohlcv_source": str(CSV_PATH),
         "ohlcv_rows": int(len(df)),
         "initial_capital": float(cfg.initial_capital),

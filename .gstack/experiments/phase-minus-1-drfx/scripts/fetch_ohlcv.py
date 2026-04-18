@@ -14,11 +14,14 @@ from pathlib import Path
 import ccxt
 import pandas as pd
 
+import sys as _sys
+
 SYMBOL = "BTC/USDT"
-TIMEFRAME = "1h"
+TIMEFRAME = _sys.argv[1] if len(_sys.argv) > 1 else "1h"
 START_UTC = datetime(2025, 4, 18, 0, 0, tzinfo=timezone.utc)
 END_UTC = datetime(2026, 4, 17, 23, 0, tzinfo=timezone.utc)
-OUT_PATH = Path(__file__).resolve().parents[1] / "ohlcv" / "btc_usdt_1h_frozen.csv"
+_TF_SUFFIX = TIMEFRAME.replace(" ", "").lower()
+OUT_PATH = Path(__file__).resolve().parents[1] / "ohlcv" / f"btc_usdt_{_TF_SUFFIX}_frozen.csv"
 SHA_PATH = OUT_PATH.with_suffix(".sha256")
 
 
@@ -38,7 +41,9 @@ def fetch_all() -> pd.DataFrame:
         last_ts = batch[-1][0]
         if last_ts <= cursor:
             break
-        cursor = last_ts + 60 * 60 * 1000
+        # timeframe ms (1h=3600000, 4h=14400000, 1d=86400000)
+        tf_seconds = int(exchange.parse_timeframe(TIMEFRAME))
+        cursor = last_ts + tf_seconds * 1000
         time.sleep(exchange.rateLimit / 1000)
 
     df = pd.DataFrame(all_rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
