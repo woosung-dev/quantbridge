@@ -11,5 +11,19 @@ WARNING (라이선스):
 from __future__ import annotations
 
 from src.strategy.pine_v2.compat import parse_and_run_v2
+from src.strategy.pine_v2.virtual_strategy import (
+    VirtualAction,
+    VirtualRunResult,
+    VirtualStrategyWrapper,
+    run_virtual_strategy,
+    signal_to_action,
+)
 
-__all__ = ["parse_and_run_v2"]
+__all__ = [
+    "VirtualAction",
+    "VirtualRunResult",
+    "VirtualStrategyWrapper",
+    "parse_and_run_v2",
+    "run_virtual_strategy",
+    "signal_to_action",
+]
