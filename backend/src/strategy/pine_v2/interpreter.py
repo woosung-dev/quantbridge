@@ -235,14 +235,44 @@ class Interpreter:
             pass
 
     def _exec_assign(self, node: Any) -> None:
-        """`x = expr`, `var x = expr`, `varip x = expr` 처리.
+        """`x = expr`, `var x = expr`, `varip x = expr`, `[a, b] = expr` 처리.
 
-        Var/VarIp marker 자식 노드로 유형 구분. 대상 Name이 없는 destructure 등은 skip.
+        Var/VarIp marker 자식 노드로 유형 구분. 대상 Name이 없는 destructure는 Tuple/List
+        unpack으로 처리.
         """
         var_kind = self._detect_var_kind(node)
-        # 대상 이름
         targets_attr = getattr(node, "targets", None)
         target_list = targets_attr if targets_attr else [getattr(node, "target", None)]
+        primary = target_list[0] if target_list else None
+
+        # Tuple / List 좌변 — multi-return unpack. var/varip 미지원(H2+).
+        if isinstance(primary, pyne_ast.Tuple):
+            if var_kind is not None:
+                raise PineRuntimeError(
+                    "var/varip with tuple destructuring is not supported"
+                )
+            value = (
+                self._eval_expr(node.value)
+                if getattr(node, "value", None) is not None
+                else None
+            )
+            elts = primary.elts
+            if not isinstance(value, (tuple, list)) or len(value) != len(elts):
+                expected = len(elts)
+                got = len(value) if isinstance(value, (tuple, list)) else "scalar"
+                raise PineRuntimeError(
+                    f"tuple unpack: expected {expected} values, got {got}"
+                )
+            for name_node, item in zip(elts, value, strict=True):
+                if not isinstance(name_node, pyne_ast.Name):
+                    raise PineRuntimeError("tuple unpack target must be identifier")
+                if self._scope_stack:
+                    self._scope_stack[-1][name_node.id] = item
+                else:
+                    self._transient[name_node.id] = item
+            return
+
+        # 단일 Name target (기존 경로)
         target_name = next(
             (t.id for t in target_list if isinstance(t, pyne_ast.Name)),
             None,
@@ -719,8 +749,15 @@ class Interpreter:
             last_expr_val: Any = None
             for stmt in fn_def.body:
                 if isinstance(stmt, pyne_ast.Expr):
-                    # 마지막 Expr의 값이 반환값. 그 외 Expr은 side-effect.
-                    last_expr_val = self._eval_expr(stmt.value)
+                    inner = stmt.value
+                    # 마지막 Expr(Tuple/List literal)은 Python tuple로 반환
+                    # (multi-return: `[a, b] = foo(...)` unpack 대응).
+                    if isinstance(inner, pyne_ast.Tuple):
+                        last_expr_val = tuple(
+                            self._eval_expr(e) for e in inner.elts
+                        )
+                    else:
+                        last_expr_val = self._eval_expr(inner)
                 else:
                     self._exec_stmt(stmt)
             return last_expr_val
