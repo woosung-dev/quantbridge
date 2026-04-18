@@ -11,6 +11,13 @@ WARNING (라이선스):
 from __future__ import annotations
 
 from src.strategy.pine_v2.compat import parse_and_run_v2
+from src.strategy.pine_v2.rendering import (
+    BoxObject,
+    LabelObject,
+    LineObject,
+    RenderingRegistry,
+    TableObject,
+)
 from src.strategy.pine_v2.virtual_strategy import (
     VirtualAction,
     VirtualRunResult,
@@ -20,6 +27,11 @@ from src.strategy.pine_v2.virtual_strategy import (
 )
 
 __all__ = [
+    "BoxObject",
+    "LabelObject",
+    "LineObject",
+    "RenderingRegistry",
+    "TableObject",
     "VirtualAction",
     "VirtualRunResult",
     "VirtualStrategyWrapper",

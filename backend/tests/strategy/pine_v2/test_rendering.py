@@ -83,3 +83,49 @@ def test_table_new_and_cell() -> None:
     reg.table_cell(table, column=1, row=0, text="123.45")
     assert table.cells[(0, 0)] == "PnL"
     assert table.cells[(1, 0)] == "123.45"
+
+
+# ---- Interpreter 통합 테스트 ----------------------------------------
+
+
+import pandas as pd  # noqa: E402
+
+from src.strategy.pine_v2.event_loop import run_historical  # noqa: E402
+
+
+def _ohlcv(closes: list[float]) -> pd.DataFrame:
+    opens = [closes[0], *closes[:-1]]
+    return pd.DataFrame({
+        "open": opens,
+        "high": [c + 1.0 for c in closes],
+        "low": [c - 1.0 for c in closes],
+        "close": closes,
+        "volume": [100.0] * len(closes),
+    })
+
+
+def test_interpreter_calls_line_new_and_get_price() -> None:
+    """Pine 스크립트의 line.new(...) + line.get_price(...)가 registry를 통해 실행."""
+    source = (
+        "//@version=5\n"
+        "indicator('t', overlay=true)\n"
+        "var l = line.new(0, 100.0, 10, 200.0)\n"
+        "mid = line.get_price(l, 5)\n"
+    )
+    ohlcv = _ohlcv([100.0, 101.0])
+    result = run_historical(source, ohlcv, strict=True)
+    assert result.final_state.get("mid") == pytest.approx(150.0)
+
+
+def test_interpreter_handles_line_set_xy1_method_call() -> None:
+    """`l.set_xy1(x, y)` 메서드 호출도 registry로 디스패치."""
+    source = (
+        "//@version=5\n"
+        "indicator('t', overlay=true)\n"
+        "var l = line.new(na, na, na, na)\n"
+        "l.set_xy1(bar_index, close)\n"
+        "l.set_xy2(bar_index + 1, close + 10.0)\n"
+    )
+    ohlcv = _ohlcv([100.0, 102.0, 104.0])
+    result = run_historical(source, ohlcv, strict=True)
+    assert result.bars_processed == 3

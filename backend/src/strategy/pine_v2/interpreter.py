@@ -35,6 +35,13 @@ from typing import Any
 import pandas as pd
 from pynescript import ast as pyne_ast
 
+from src.strategy.pine_v2.rendering import (
+    BoxObject,
+    LabelObject,
+    LineObject,
+    RenderingRegistry,
+    TableObject,
+)
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
 from src.strategy.pine_v2.strategy_state import StrategyState
@@ -80,6 +87,27 @@ class BarContext:
 
 _BUILTIN_SERIES = frozenset({"open", "high", "low", "close", "volume"})
 
+# 렌더링 scope A (ADR-011 §2.0.4) — factory/getter는 name 기반 직접 dispatch.
+# handle.method() 형식은 _exec_rendering_method에서 타입별 접두어로 라우팅.
+_RENDERING_FACTORIES: dict[str, str] = {
+    "line.new": "line_new",
+    "box.new": "box_new",
+    "label.new": "label_new",
+    "table.new": "table_new",
+    "line.get_price": "line_get_price",
+    "box.get_top": "box_get_top",
+    "box.get_bottom": "box_get_bottom",
+    "line.set_xy1": "line_set_xy1",
+    "line.set_xy2": "line_set_xy2",
+    "line.delete": "line_delete",
+    "box.set_right": "box_set_right",
+    "box.delete": "box_delete",
+    "label.set_xy": "label_set_xy",
+    "label.delete": "label_delete",
+    "table.cell": "table_cell",
+    "table.delete": "table_delete",
+}
+
 # 연산자 매핑
 _BINOP: dict[str, Any] = {
     "Add": operator.add,
@@ -118,7 +146,13 @@ class Interpreter:
             store.commit_bar()
     """
 
-    def __init__(self, bar_context: BarContext, store: PersistentStore) -> None:
+    def __init__(
+        self,
+        bar_context: BarContext,
+        store: PersistentStore,
+        *,
+        rendering: RenderingRegistry | None = None,
+    ) -> None:
         self.bar = bar_context
         self.store = store
         # 비영속(transient) 변수 — 매 bar 재초기화
@@ -131,6 +165,8 @@ class Interpreter:
         self._var_series: dict[str, list[Any]] = {}
         # 이전 close (ta.atr 등 prev close 필요 시 사용)
         self._prev_close: float = float("nan")
+        # 렌더링 scope A — line/box/label/table 객체 handle 관리
+        self.rendering = rendering or RenderingRegistry()
 
     def reset_transient(self) -> None:
         self._transient = {}
@@ -384,6 +420,58 @@ class Interpreter:
             f"Subscript on non-Name expression not supported: {_describe(value_node)}"
         )
 
+    def _resolve_name_if_declared(self, name: str) -> Any:
+        """_resolve_name의 안전 버전 — 미정의면 None 반환 (렌더링 handle 검사용)."""
+        key = f"main::{name}"
+        if self.store.is_declared(key):
+            return self.store.get(key)
+        return self._transient.get(name)
+
+    def _collect_args(self, node: Any) -> tuple[list[Any], dict[str, Any]]:
+        """Call.args에서 positional/keyword 분리 + 각 argument evaluate."""
+        positional: list[Any] = []
+        kwargs: dict[str, Any] = {}
+        for a in node.args:
+            val = self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+            arg_name = (
+                getattr(a, "name", None) if isinstance(a, pyne_ast.Arg) else None
+            )
+            if arg_name:
+                kwargs[arg_name] = val
+            else:
+                positional.append(val)
+        return positional, kwargs
+
+    def _exec_rendering_call(self, name: str, node: Any) -> Any:
+        """line.new/box.new/label.new/table.new + getter 호출."""
+        method_name = _RENDERING_FACTORIES[name]
+        args, kwargs = self._collect_args(node)
+        bound = getattr(self.rendering, method_name)
+        return bound(*args, **kwargs)
+
+    def _exec_rendering_method(
+        self, handle: Any, method_name: str, node: Any
+    ) -> Any:
+        """handle.method(...) 형식 호출.
+
+        handle 타입에 따라 registry 메서드 이름 prefix 결정:
+        LineObject → line_*, BoxObject → box_*, 등.
+        """
+        prefix = {
+            LineObject: "line",
+            BoxObject: "box",
+            LabelObject: "label",
+            TableObject: "table",
+        }[type(handle)]
+        full = f"{prefix}_{method_name}"
+        args, kwargs = self._collect_args(node)
+        bound = getattr(self.rendering, full, None)
+        if bound is None:
+            raise PineRuntimeError(
+                f"rendering method not supported: {prefix}.{method_name}"
+            )
+        return bound(handle, *args, **kwargs)
+
     def _eval_call(self, node: Any) -> Any:
         """Call 해석: stdlib(ta.*/na/nz) → strategy.* → 선언/렌더링 NOP → 에러."""
         name = _call_chain_name(node.func)
@@ -473,6 +561,17 @@ class Interpreter:
         # strategy.* 실행 핸들러
         if name in ("strategy.entry", "strategy.close", "strategy.close_all"):
             return self._exec_strategy_call(name, node)
+
+        # 렌더링 scope A — line/box/label/table. 좌표 저장 + getter만, 렌더링 NOP.
+        if name in _RENDERING_FACTORIES:
+            return self._exec_rendering_call(name, node)
+
+        # handle.method() 형태 — line/box/label/table 객체의 메서드 호출
+        if name and "." in name:
+            head, _, tail = name.rpartition(".")
+            handle = self._resolve_name_if_declared(head)
+            if isinstance(handle, (LineObject, BoxObject, LabelObject, TableObject)):
+                return self._exec_rendering_method(handle, tail, node)
 
         # 선언/렌더링/alert NOP
         _NOP_NAMES = {
