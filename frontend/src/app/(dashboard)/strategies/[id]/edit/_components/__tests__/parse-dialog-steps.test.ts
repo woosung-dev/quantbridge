@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildParseSteps } from "../parse-dialog-steps";
+import { buildParseSteps, FUNCTION_CAP } from "../parse-dialog-steps";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 
 const emptyResponse: ParsePreviewResponse = {
@@ -77,5 +77,57 @@ describe("buildParseSteps", () => {
     const final = steps.at(-1);
     if (final?.kind !== "final") throw new Error("unreachable");
     expect(final.canSave).toBe(true);
+  });
+
+  // T-B: status="unsupported" path (coverage 0 in initial suite)
+  it("final.canSave is false when status is unsupported", () => {
+    const steps = buildParseSteps({ ...emptyResponse, status: "unsupported" });
+    const final = steps.at(-1);
+    if (final?.kind !== "final") throw new Error("unreachable");
+    expect(final.canSave).toBe(false);
+    // intro + final only (0 errors/warnings/fns)
+    expect(steps).toHaveLength(2);
+  });
+
+  // T-E: functions_used 중복 엔트리 → 중복 step 생성 (current behavior pinning)
+  it("keeps duplicate function names as separate steps (no dedupe)", () => {
+    const steps = buildParseSteps({
+      ...emptyResponse,
+      functions_used: ["ta.rsi", "ta.rsi", "ta.sma"],
+    });
+    const names = steps
+      .filter((s): s is Extract<typeof s, { kind: "function" }> => s.kind === "function")
+      .map((s) => s.name);
+    expect(names).toEqual(["ta.rsi", "ta.rsi", "ta.sma"]);
+  });
+
+  // T-E: 빈 문자열 / whitespace 엔트리 — unknown 그룹으로 분류, fallback 설명 적용
+  it("handles empty-string and whitespace function names via fallback describe", () => {
+    const steps = buildParseSteps({
+      ...emptyResponse,
+      functions_used: ["", "  ", "ta.rsi"],
+    });
+    const fnSteps = steps.filter(
+      (s): s is Extract<typeof s, { kind: "function" }> => s.kind === "function",
+    );
+    // stdlib 우선 — ta.rsi 먼저, 그 다음 unknown ("" + "  ")
+    expect(fnSteps[0]?.name).toBe("ta.rsi");
+    expect(fnSteps).toHaveLength(3);
+    // fallback이 non-empty purpose 반환하는지 확인 (blank UI 방지 pin)
+    for (const s of fnSteps) {
+      expect(s.description.purpose.length).toBeGreaterThan(0);
+    }
+  });
+
+  // T-F: FUNCTION_CAP export + boundary regression guard
+  it("exposes FUNCTION_CAP=14 and produces exactly CAP function steps at boundary", () => {
+    expect(FUNCTION_CAP).toBe(14);
+    const exactly = Array.from({ length: FUNCTION_CAP }, (_, i) => `u.fn_${i}`);
+    const steps = buildParseSteps({ ...emptyResponse, functions_used: exactly });
+    const fnSteps = steps.filter((s) => s.kind === "function");
+    expect(fnSteps).toHaveLength(FUNCTION_CAP);
+    const final = steps.at(-1);
+    if (final?.kind !== "final") throw new Error("unreachable");
+    expect(final.hiddenFunctionCount).toBe(0);
   });
 });

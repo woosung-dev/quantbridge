@@ -41,6 +41,16 @@ describe("PINE_FUNCTION_LEXICON", () => {
     expect(d.summary).toContain("some.unknown.fn");
     expect(d.purpose).toBeTruthy();
   });
+
+  // T-G: schema guard — 새 엔트리 추가 시 빈 summary/purpose 회귀 방지
+  it("every lexicon entry has non-empty summary and meaningful purpose", () => {
+    const entries = Object.entries(PINE_FUNCTION_LEXICON);
+    expect(entries.length).toBeGreaterThan(20);
+    for (const [name, desc] of entries) {
+      expect(desc.summary.length, `${name}: summary empty`).toBeGreaterThan(0);
+      expect(desc.purpose.length, `${name}: purpose too short`).toBeGreaterThan(9);
+    }
+  });
 });
 
 describe("adviseError", () => {
