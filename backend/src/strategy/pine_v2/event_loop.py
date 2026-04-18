@@ -36,6 +36,9 @@ class RunResult:
     final_state: dict[str, Any]  # PersistentStore snapshot (key → value)
     state_history: list[dict[str, Any]] = field(default_factory=list)  # 각 bar commit 후 state
     errors: list[tuple[int, str]] = field(default_factory=list)  # (bar_index, 메시지)
+    # Sprint 8c: 외부 assertion 접근용. run_historical 종료 시 채워짐.
+    strategy_state: Any | None = None  # StrategyState (trades / position_size 포함)
+    var_series: dict[str, list[Any]] = field(default_factory=dict)  # user 변수 시계열
 
     def __len__(self) -> int:
         return self.bars_processed
@@ -46,6 +49,7 @@ class RunResult:
             "final_state": self.final_state,
             "state_history_length": len(self.state_history),
             "errors": self.errors,
+            "var_series_keys": sorted(self.var_series.keys()),
         }
 
 
@@ -101,6 +105,9 @@ def run_historical(
 
     # 마지막 bar의 병합 스냅샷
     result.final_state = {**store.snapshot_dict(), **interp._transient}
+    # Sprint 8c: 테스트 접근용 — StrategyState + user 변수 시계열 복사.
+    result.strategy_state = interp.strategy
+    result.var_series = dict(interp._var_series)  # shallow copy
     return result
 
 

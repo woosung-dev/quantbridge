@@ -157,6 +157,12 @@ class Interpreter:
         self.store = store
         # 비영속(transient) 변수 — 매 bar 재초기화
         self._transient: dict[str, Any] = {}
+        # 사용자 정의 함수 (=>) — Script.body의 FunctionDef 노드 보관. 호출은 _eval_call에서 dispatch.
+        self._user_functions: dict[str, Any] = {}
+        # 함수 호출 중 로컬 스코프 스택. 최상단 = 현재 frame. 빈 리스트 = 최상위.
+        self._scope_stack: list[dict[str, Any]] = []
+        # 재귀 depth guard (Pine은 공식 재귀 미지원; 무한 재귀 방지).
+        self._max_call_depth: int = 32
         # ta.* stdlib 디스패처 (bar 교차 상태 유지)
         self.stdlib = StdlibDispatcher()
         # strategy.* 실행 상태 (포지션/체결 기록)
@@ -219,19 +225,54 @@ class Interpreter:
             else:
                 # 표현식 문장: 호출 등 side-effect만 있는 것 (e.g., alert)
                 self._eval_expr(inner)
+        elif isinstance(node, pyne_ast.FunctionDef):
+            # Pine user function 정의: top-level에서만 등록. 호출은 _eval_call에서 dispatch.
+            # (함수 내부 중첩 함수 정의는 H2+ — Pine 공식 범위 밖.)
+            if not self._scope_stack:
+                self._user_functions[node.name] = node
         else:
-            # 함수 정의, Return, for/while 등 Day 1-2 범위 밖 — 조용히 skip
+            # Return, for/while 등 Day 1-2 범위 밖 — 조용히 skip
             pass
 
     def _exec_assign(self, node: Any) -> None:
-        """`x = expr`, `var x = expr`, `varip x = expr` 처리.
+        """`x = expr`, `var x = expr`, `varip x = expr`, `[a, b] = expr` 처리.
 
-        Var/VarIp marker 자식 노드로 유형 구분. 대상 Name이 없는 destructure 등은 skip.
+        Var/VarIp marker 자식 노드로 유형 구분. 대상 Name이 없는 destructure는 Tuple/List
+        unpack으로 처리.
         """
         var_kind = self._detect_var_kind(node)
-        # 대상 이름
         targets_attr = getattr(node, "targets", None)
         target_list = targets_attr if targets_attr else [getattr(node, "target", None)]
+        primary = target_list[0] if target_list else None
+
+        # Tuple / List 좌변 — multi-return unpack. var/varip 미지원(H2+).
+        if isinstance(primary, pyne_ast.Tuple):
+            if var_kind is not None:
+                raise PineRuntimeError(
+                    "var/varip with tuple destructuring is not supported"
+                )
+            value = (
+                self._eval_expr(node.value)
+                if getattr(node, "value", None) is not None
+                else None
+            )
+            elts = primary.elts
+            if not isinstance(value, (tuple, list)) or len(value) != len(elts):
+                expected = len(elts)
+                got = len(value) if isinstance(value, (tuple, list)) else "scalar"
+                raise PineRuntimeError(
+                    f"tuple unpack: expected {expected} values, got {got}"
+                )
+            for name_node, item in zip(elts, value, strict=True):
+                if not isinstance(name_node, pyne_ast.Name):
+                    raise PineRuntimeError("tuple unpack target must be identifier")
+                if self._scope_stack:
+                    self._scope_stack[-1][name_node.id] = item
+                else:
+                    self._transient[name_node.id] = item
+            return
+
+        # 단일 Name target (기존 경로)
         target_name = next(
             (t.id for t in target_list if isinstance(t, pyne_ast.Name)),
             None,
@@ -253,12 +294,15 @@ class Interpreter:
                 varip=(var_kind == "varip"),
             )
         else:
-            # 비영속: 매 bar 평가
+            # 비영속: 매 bar 평가. 함수 호출 중이면 로컬 frame에 기록.
             value = self._eval_expr(node.value) if getattr(node, "value", None) is not None else None
-            self._transient[target_name] = value
+            if self._scope_stack:
+                self._scope_stack[-1][target_name] = value
+            else:
+                self._transient[target_name] = value
 
     def _exec_reassign(self, node: Any) -> None:
-        """`x := expr` — 이미 선언된 변수에 새 값 (Pine 재할당)."""
+        """`x := expr` — 재할당. 로컬 frame > PersistentStore > transient 순."""
         targets_attr = getattr(node, "targets", None)
         target_list = targets_attr if targets_attr else [getattr(node, "target", None)]
         target_name = next(
@@ -268,15 +312,21 @@ class Interpreter:
         if target_name is None:
             return
         value = self._eval_expr(node.value)
-        # PersistentStore에 있으면 거기에 set, 아니면 transient
+        # 로컬 scope 활성 & 해당 이름이 현재 frame에 존재 → frame에 재할당.
+        if self._scope_stack and target_name in self._scope_stack[-1]:
+            self._scope_stack[-1][target_name] = value
+            return
         key = f"main::{target_name}"
         if self.store.is_declared(key):
             self.store.set(key, value)
         elif target_name in self._transient:
             self._transient[target_name] = value
         else:
-            # Pine은 미선언 변수에 := 불가이지만, 인터프리터는 관대하게 transient 생성
-            self._transient[target_name] = value
+            # 인터프리터는 관대하게 transient 생성. 함수 내부면 로컬 frame에.
+            if self._scope_stack:
+                self._scope_stack[-1][target_name] = value
+            else:
+                self._transient[target_name] = value
 
     def _exec_if(self, node: Any) -> None:
         """if-else 분기."""
@@ -319,6 +369,9 @@ class Interpreter:
             return self._eval_call(node)
         if isinstance(node, pyne_ast.Switch):
             return self._eval_switch(node)
+        if isinstance(node, pyne_ast.Tuple):
+            # Tuple literal (예: input(options=['A','B'])의 options 값). Python tuple 반환.
+            return tuple(self._eval_expr(e) for e in node.elts)
         # 기타: Day 1-2 범위 밖
         raise PineRuntimeError(f"Unsupported expression node: {type(node).__name__}")
 
@@ -535,6 +588,8 @@ class Interpreter:
             "change": "ta.change",
             "pivothigh": "ta.pivothigh",
             "pivotlow": "ta.pivotlow",
+            "barssince": "ta.barssince",  # Sprint 8c
+            "valuewhen": "ta.valuewhen",  # Sprint 8c
             "max": "math.max",
             "min": "math.min",
             "abs": "math.abs",
@@ -595,6 +650,27 @@ class Interpreter:
             days = (year - 1970) * 365 + (month - 1) * 30 + (day - 1)
             return days * 86_400 * 1000 + hour * 3_600_000 + minute * 60_000
 
+        # tostring(x[, format]) — Pine v4/v5 numeric→str 변환. format은 무시(H2+).
+        if name == "tostring":
+            if not node.args:
+                return ""
+            val = self._eval_expr(
+                node.args[0].value if isinstance(node.args[0], pyne_ast.Arg) else node.args[0]
+            )
+            if isinstance(val, float) and math.isnan(val):
+                return "NaN"
+            return str(val)
+
+        # request.security(sym, tf, expression, ...) — Sprint 8c MVP: expression 인자 그대로.
+        # (실제 MTF fetch는 H2+; NOP으로 graceful degrade.)
+        if name in ("request.security", "request.security_lower_tf"):
+            if len(node.args) < 3:
+                return float("nan")
+            expr_arg = node.args[2]
+            return self._eval_expr(
+                expr_arg.value if isinstance(expr_arg, pyne_ast.Arg) else expr_arg
+            )
+
         # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
         if name == "iff":
             if len(node.args) != 3:
@@ -618,6 +694,7 @@ class Interpreter:
             "ta.highest", "ta.lowest", "ta.change",
             "ta.pivothigh", "ta.pivotlow",
             "ta.stdev", "ta.variance",
+            "ta.barssince", "ta.valuewhen",  # Sprint 8c
             "na", "nz",
         }
         if name in _STDLIB_NAMES:
@@ -653,19 +730,83 @@ class Interpreter:
             "input", "input.int", "input.float", "input.bool", "input.string",
             "input.source", "input.color", "input.time", "input.timeframe",
             "input.price", "input.session", "input.symbol",
+            # Sprint 8c — 렌더링 색상/스타일 관련 순수 함수(값은 렌더링 NOP과만 interact).
+            "color.new", "color.rgb", "color.from_gradient",
         }
         if name in _NOP_NAMES:
             if name and name.startswith("input"):
-                args = [a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args]
-                if args:
-                    return self._eval_expr(args[0])  # defval (첫 arg)
+                # Pine input 시그니처: v4는 input(title=, type=, defval=, ...) keyword 사용 빈번.
+                # defval= kwarg 우선, 없으면 첫 positional arg를 defval로 간주.
+                pos_args, kw_args = self._collect_args(node)
+                if "defval" in kw_args:
+                    return kw_args["defval"]
+                if pos_args:
+                    return pos_args[0]
                 return None
             return None
+
+        # User-defined function (Sprint 8c) — Script top-level `foo(x) => ...`.
+        # Name 단일 식별자만 매칭 (chain name 아님). 네임스페이스 prefix 없음.
+        if name and name in self._user_functions:
+            return self._call_user_function(self._user_functions[name], node)
+
         raise PineRuntimeError(f"Call to {name!r} not supported in current scope")
+
+    def _call_user_function(self, fn_def: Any, call_node: Any) -> Any:
+        """Pine user function 호출: 매개변수 바인딩 + body 실행 + 마지막 Expr 값 반환.
+
+        Pine 규칙:
+        - body는 statement 리스트. 마지막 Expr(value=X)의 X가 반환값.
+        - Tuple/List literal을 마지막 Expr로 두면 Python tuple 반환 (multi-return) — Task 4.
+        - 로컬 변수는 로컬 frame에만 존재. 외부 transient/persistent 영향 X.
+        """
+        if len(self._scope_stack) >= self._max_call_depth:
+            raise PineRuntimeError(
+                f"user function call depth exceeded: {fn_def.name} "
+                f"(max={self._max_call_depth})"
+            )
+        # 실인자 평가 (positional only — named arg는 H2+).
+        actual_args = [
+            self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
+            for a in call_node.args
+        ]
+        params = [p.name for p in fn_def.args]
+        if len(actual_args) != len(params):
+            raise PineRuntimeError(
+                f"user function {fn_def.name}: expected {len(params)} args, "
+                f"got {len(actual_args)}"
+            )
+        frame: dict[str, Any] = dict(zip(params, actual_args, strict=True))
+        self._scope_stack.append(frame)
+        try:
+            last_expr_val: Any = None
+            for stmt in fn_def.body:
+                if isinstance(stmt, pyne_ast.Expr):
+                    inner = stmt.value
+                    # pynescript는 top-level if를 Expr(value=If)로 래핑. 이건 statement
+                    # 실행이지 return expr이 아니므로 _exec_if로 우회.
+                    if isinstance(inner, pyne_ast.If):
+                        self._exec_if(inner)
+                        continue
+                    # 마지막 Expr(Tuple literal)은 Python tuple로 반환 — multi-return.
+                    if isinstance(inner, pyne_ast.Tuple):
+                        last_expr_val = tuple(
+                            self._eval_expr(e) for e in inner.elts
+                        )
+                    else:
+                        last_expr_val = self._eval_expr(inner)
+                else:
+                    self._exec_stmt(stmt)
+            return last_expr_val
+        finally:
+            self._scope_stack.pop()
 
     # ---- Name 해석 (built-in + var + transient) ------------------------
 
     def _resolve_name(self, name: str) -> Any:
+        # 로컬 frame 우선 — user function 호출 중 매개변수/로컬 변수 lookup.
+        if self._scope_stack and name in self._scope_stack[-1]:
+            return self._scope_stack[-1][name]
         if name in _BUILTIN_SERIES:
             return self.bar.current(name)
         if name == "bar_index":

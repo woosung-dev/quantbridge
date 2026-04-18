@@ -261,14 +261,14 @@ def test_undefined_name_raises_pine_runtime_error() -> None:
 
 
 def test_unsupported_call_raises() -> None:
-    """아직 구현 안된 Pine 함수(ta.valuewhen 등)는 Call 에러."""
-    source = '//@version=5\nindicator("t")\nx = ta.valuewhen(close > 0, close, 0)\n'
+    """아직 구현 안된 Pine 함수(ta.ewma 등)는 Call 에러."""
+    source = '//@version=5\nindicator("t")\nx = ta.ewma(close, 10)\n'
     with pytest.raises(PineRuntimeError, match="not supported"):
         run_historical(source, _make_ohlcv([10.0]))
 
 
 def test_strict_false_collects_errors() -> None:
-    source = '//@version=5\nindicator("t")\nx = ta.valuewhen(close > 0, close, 0)\n'
+    source = '//@version=5\nindicator("t")\nx = ta.ewma(close, 10)\n'
     result = run_historical(source, _make_ohlcv([10.0, 11.0]), strict=False)
     assert len(result.errors) == 2
     assert all("not supported" in msg for _, msg in result.errors)
