@@ -157,6 +157,12 @@ class Interpreter:
         self.store = store
         # 비영속(transient) 변수 — 매 bar 재초기화
         self._transient: dict[str, Any] = {}
+        # 사용자 정의 함수 (=>) — Script.body의 FunctionDef 노드 보관. 호출은 _eval_call에서 dispatch.
+        self._user_functions: dict[str, Any] = {}
+        # 함수 호출 중 로컬 스코프 스택. 최상단 = 현재 frame. 빈 리스트 = 최상위.
+        self._scope_stack: list[dict[str, Any]] = []
+        # 재귀 depth guard (Pine은 공식 재귀 미지원; 무한 재귀 방지).
+        self._max_call_depth: int = 32
         # ta.* stdlib 디스패처 (bar 교차 상태 유지)
         self.stdlib = StdlibDispatcher()
         # strategy.* 실행 상태 (포지션/체결 기록)
@@ -219,8 +225,13 @@ class Interpreter:
             else:
                 # 표현식 문장: 호출 등 side-effect만 있는 것 (e.g., alert)
                 self._eval_expr(inner)
+        elif isinstance(node, pyne_ast.FunctionDef):
+            # Pine user function 정의: top-level에서만 등록. 호출은 _eval_call에서 dispatch.
+            # (함수 내부 중첩 함수 정의는 H2+ — Pine 공식 범위 밖.)
+            if not self._scope_stack:
+                self._user_functions[node.name] = node
         else:
-            # 함수 정의, Return, for/while 등 Day 1-2 범위 밖 — 조용히 skip
+            # Return, for/while 등 Day 1-2 범위 밖 — 조용히 skip
             pass
 
     def _exec_assign(self, node: Any) -> None:
