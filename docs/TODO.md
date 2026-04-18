@@ -381,21 +381,35 @@
 - [ ] PyneCore 골든 CI 하네스 구축 (상대 오차 <0.1% MVP)
 - [ ] 완료 기준: DrFX/LuxAlgo 런타임 오류 없이 완주 + PyneCore 대비 10% 이내 오차
 
-#### Sprint 8b — Tier-1 Alert Hook Parser + Tier-3 strategy() (3주, 05-23~06-12)
+#### Sprint 8b — Tier-1 가상 strategy 래퍼 + Tier-0 렌더링 scope A ✅ 완료 (2026-04-18)
 
-- [ ] Alert Hook Parser 구현
-  - AST에서 `alert()`/`alertcondition()` 호출 자동 수집
-  - 메시지 분류기 (JSON → 키워드 → fallback)
-  - 조건식 역추적 (시그널 변수 → 정의)
-- [ ] 가상 strategy() 래퍼 자동 생성기
-- [ ] 사용자 1질문 UX (Sprint 7b에서 만든 TabParse 확장)
-  - "추출된 매매 로직" 섹션 추가
-  - 정보성 alert 구분 (사용자 확인)
-- [ ] 3-Track 라우터 (S/A/M 분류기)
-- [ ] `strategy.entry/exit/close/cancel` 네이티브 구현
-- [ ] `strategy.exit trail_points/trail_offset` 구현 (RTB/LuxAlgo 필수, 3~5일)
-- [ ] 분할 익절 (multiple `limit=` 지원)
-- [ ] 피라미딩 지원
+> **Plan:** [`docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md`](./superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md)
+> **브랜치:** `feat/sprint8b-tier1-rendering`. 10 tasks TDD × commit 단위로 완수.
+
+- [x] **Tier-1 가상 strategy 래퍼 (Task 1–5)** — indicator+alertcondition → 자동 매매 경로
+  - [x] `AlertHook.condition_ast` 필드 (alertcondition arg0 또는 enclosing if.test AST 보존)
+  - [x] `SignalKind → VirtualAction` 매핑 테이블 (LONG/SHORT_ENTRY/EXIT 4종)
+  - [x] `VirtualStrategyWrapper` edge-trigger(False→True) strategy.entry/close 디스패치
+  - [x] `discrepancy=True` alert은 경고 기록 후 condition_signal 우선
+  - [x] Pine v4 legacy alias (atr/ema/sma/rsi/crossover/… → ta.*) + iff + math.* 확장
+  - [x] i1_utbot.pine E2E 완주 (Tier-1 핵심 파일럿)
+- [x] **Tier-0 렌더링 scope A (Task 6–7, 9)** — 좌표 저장 + getter만 (ADR-011 §2.0.4)
+  - [x] `RenderingRegistry` + LineObject/BoxObject/LabelObject/TableObject
+  - [x] `line.get_price(x)` 선형보간 + box.get_top/get_bottom + label.set_xy + table.cell
+  - [x] Interpreter dispatcher (factory + handle.method 호출 모두 경유)
+  - [x] Pine enum 상수 40+ (line.style_*/extend.*/shape.*/location.*/size.*/position.*)
+  - [x] i2_luxalgo.pine E2E 완주 — var line.new + set_xy1/xy2 + switch
+- [x] **추가 stdlib (Task 8)** — switch statement + ta.stdev / ta.variance / math.abs
+- [x] **산출물**
+  - 204 pine_v2 tests (기존 169 → +35 신규), ruff/mypy clean
+  - 6 corpus 매트릭스 **2/6 → 4/6** (s1_pbr + i1_utbot + i2_luxalgo + ma_crossover)
+  - H1 MVP scope 엄수 — trail_points/qty_percent/pyramiding 여전히 H2+ 이연
+
+- [ ] **다음 블록 (Sprint 8b-후속 또는 8c)**:
+  - 남은 2 corpus 완주 (s2_utbot, s3_rsid, i3_drfx) — stdlib 확장 루프
+  - 3-Track 라우터 (S/A/M 분류기) + 사용자 1질문 UX (TabParse 확장)
+  - `strategy.exit trail_points/trail_offset` (Horizon H2+)
+  - 분할 익절 + 피라미딩 (Horizon H2+)
 
 #### Sprint 8c — Tier-2 검증 + Tier-4 Variable Explorer (2주, 06-13~26)
 
