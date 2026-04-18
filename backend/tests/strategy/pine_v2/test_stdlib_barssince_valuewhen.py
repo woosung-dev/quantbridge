@@ -76,3 +76,37 @@ v = ta.valuewhen(c, close, 1)
     assert _math.isnan(series[2])
     assert series[3] == 15.0
     assert series[4] == 15.0
+
+
+# ---------------------------------------------------------------------------
+# Task 8 — tostring / request.security NOP / v4 alias barssince/valuewhen
+# ---------------------------------------------------------------------------
+
+
+def test_v4_alias_barssince_routes_to_ta() -> None:
+    # v4 스크립트처럼 prefix 없이 barssince(...) 호출 가능해야
+    src = "cnt = barssince(close > 10)\n"
+    snaps = _run_script(src, [11.0, 5.0])
+    assert snaps[-1]._var_series["cnt"] == [0, 1]
+
+
+def test_v4_alias_valuewhen_routes_to_ta() -> None:
+    src = """
+c = close > 10
+v = valuewhen(c, close, 0)
+"""
+    snaps = _run_script(src, [11.0, 5.0])
+    assert snaps[-1]._var_series["v"][0] == 11.0
+
+
+def test_tostring_numeric_returns_string() -> None:
+    src = "s = tostring(3.14)\n"
+    snaps = _run_script(src, [10.0])
+    assert snaps[-1]._var_series["s"] == ["3.14"]
+
+
+def test_request_security_is_nop_returns_expression_arg() -> None:
+    # request.security(symbol, tf, expression) → Sprint 8c stub: expression arg 값
+    src = "v = request.security(syminfo.tickerid, '1D', close)\n"
+    snaps = _run_script(src, [10.0, 20.0])
+    assert snaps[-1]._var_series["v"] == [10.0, 20.0]

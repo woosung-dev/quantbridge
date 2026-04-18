@@ -585,6 +585,8 @@ class Interpreter:
             "change": "ta.change",
             "pivothigh": "ta.pivothigh",
             "pivotlow": "ta.pivotlow",
+            "barssince": "ta.barssince",  # Sprint 8c
+            "valuewhen": "ta.valuewhen",  # Sprint 8c
             "max": "math.max",
             "min": "math.min",
             "abs": "math.abs",
@@ -644,6 +646,27 @@ class Interpreter:
             # 월·일 정보 보존이 목적 (정확한 calendar math는 H2+).
             days = (year - 1970) * 365 + (month - 1) * 30 + (day - 1)
             return days * 86_400 * 1000 + hour * 3_600_000 + minute * 60_000
+
+        # tostring(x[, format]) — Pine v4/v5 numeric→str 변환. format은 무시(H2+).
+        if name == "tostring":
+            if not node.args:
+                return ""
+            val = self._eval_expr(
+                node.args[0].value if isinstance(node.args[0], pyne_ast.Arg) else node.args[0]
+            )
+            if isinstance(val, float) and math.isnan(val):
+                return "NaN"
+            return str(val)
+
+        # request.security(sym, tf, expression, ...) — Sprint 8c MVP: expression 인자 그대로.
+        # (실제 MTF fetch는 H2+; NOP으로 graceful degrade.)
+        if name in ("request.security", "request.security_lower_tf"):
+            if len(node.args) < 3:
+                return float("nan")
+            expr_arg = node.args[2]
+            return self._eval_expr(
+                expr_arg.value if isinstance(expr_arg, pyne_ast.Arg) else expr_arg
+            )
 
         # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
         if name == "iff":
