@@ -75,6 +75,7 @@ def run_historical(
     while bar.advance():
         store.begin_bar()
         interp.reset_transient()
+        interp.begin_bar_snapshot()  # prev_close 갱신 (ta.atr 등에 사용)
         try:
             interp.execute(tree)
         except PineRuntimeError as e:
@@ -84,6 +85,7 @@ def run_historical(
                 raise
             result.errors.append((bar.bar_index, msg))
         store.commit_bar()
+        interp.append_var_series()  # 이번 bar의 user 변수 값을 시리즈에 append
         # persistent("main::name") + transient(bare name) 병합하여 스냅샷
         combined = {**store.snapshot_dict(), **interp._transient}
         if capture_history:

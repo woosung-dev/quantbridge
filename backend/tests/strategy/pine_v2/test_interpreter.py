@@ -261,16 +261,16 @@ def test_undefined_name_raises_pine_runtime_error() -> None:
 
 
 def test_unsupported_call_raises() -> None:
-    """Day 1-2 범위 밖인 stdlib Call은 stdlib 연결 전까지 에러."""
-    source = '//@version=5\nindicator("t")\nx = ta.sma(close, 14)\n'
+    """아직 구현 안된 Pine 함수(ta.pivothigh 등)는 Call 에러."""
+    source = '//@version=5\nindicator("t")\nx = ta.pivothigh(4, 2)\n'
     with pytest.raises(PineRuntimeError, match="not supported"):
         run_historical(source, _make_ohlcv([10.0]))
 
 
 def test_strict_false_collects_errors() -> None:
-    source = '//@version=5\nindicator("t")\nx = ta.sma(close, 14)\n'
+    source = '//@version=5\nindicator("t")\nx = ta.pivothigh(4, 2)\n'
     result = run_historical(source, _make_ohlcv([10.0, 11.0]), strict=False)
-    assert len(result.errors) == 2  # 각 bar마다 오류
+    assert len(result.errors) == 2
     assert all("not supported" in msg for _, msg in result.errors)
 
 

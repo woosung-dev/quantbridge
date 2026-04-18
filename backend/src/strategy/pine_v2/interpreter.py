@@ -36,6 +36,7 @@ import pandas as pd
 from pynescript import ast as pyne_ast
 
 from src.strategy.pine_v2.runtime import PersistentStore
+from src.strategy.pine_v2.stdlib import StdlibDispatcher
 
 # ------------------------------------------------------------
 # Bar Context — OHLCV 시계열 접근 계층
@@ -121,9 +122,39 @@ class Interpreter:
         self.store = store
         # 비영속(transient) 변수 — 매 bar 재초기화
         self._transient: dict[str, Any] = {}
+        # ta.* stdlib 디스패처 (bar 교차 상태 유지)
+        self.stdlib = StdlibDispatcher()
+        # 사용자 변수 시리즈 — 각 변수명 → [bar별 값...]. `myvar[n]` 지원용.
+        self._var_series: dict[str, list[Any]] = {}
+        # 이전 close (ta.atr 등 prev close 필요 시 사용)
+        self._prev_close: float = float("nan")
 
     def reset_transient(self) -> None:
         self._transient = {}
+
+    def begin_bar_snapshot(self) -> None:
+        """Bar 시작 시 호출 — ta.atr 등 prev-close 참조용.
+
+        이벤트 루프 정책: bar.advance() 후 begin_bar → begin_bar_snapshot → execute → commit_bar → 시리즈 append
+        """
+        # 첫 bar는 prev_close == nan; 그 이후엔 직전 bar_index의 close
+        idx = self.bar.bar_index
+        self._prev_close = (
+            float(self.bar.ohlcv.iloc[idx - 1]["close"]) if idx > 0 else float("nan")
+        )
+
+    def append_var_series(self) -> None:
+        """Bar 종료 시 호출 — 현재 bar의 모든 user 변수 값을 시리즈에 append.
+
+        transient + persistent 양쪽 수집. `myvar[n]` subscript는 과거 bar 값을 찾을 때 이 시리즈 조회.
+        """
+        # transient: bare name
+        for name, value in self._transient.items():
+            self._var_series.setdefault(name, []).append(value)
+        # persistent: "main::name" 접두어 제거
+        for full_key, value in self.store.snapshot_dict().items():
+            short = full_key.split("::", 1)[1] if "::" in full_key else full_key
+            self._var_series.setdefault(short, []).append(value)
 
     # ---- 실행 엔트리 --------------------------------------------------
 
@@ -318,30 +349,63 @@ class Interpreter:
         return True
 
     def _eval_subscript(self, node: Any) -> Any:
-        """Pine `x[n]` — 시계열 히스토리. Day 1-2는 built-in series만."""
+        """Pine `x[n]` — 시계열 히스토리. built-in + 사용자 변수 시리즈 지원.
+
+        의미:
+        - `x[0]` = 현재 bar의 현재 값 (이번 bar 내 재할당 반영). 즉 `x`와 동일.
+        - `x[1]` = 직전 bar 종료 시점의 값.
+        - `x[n]` (n≥1) = n bar 전 종료 시점의 값.
+
+        Event loop는 bar 종료 시 append_var_series()를 호출해 시리즈에 값을 쌓는다.
+        따라서 bar N 실행 중: `_var_series['x']` = [bar 0의 값, ..., bar N-1의 값].
+        `x[1]`은 series[-1] (방금 전 bar), `x[n]`은 series[-n].
+        """
         value_node = node.value
-        # slice가 Constant 정수여야 함 (Pine 표준)
         slice_node = node.slice
         offset = self._eval_expr(slice_node)
         if not isinstance(offset, int) or offset < 0:
             raise PineRuntimeError(f"Subscript offset must be non-negative int, got {offset!r}")
 
+        # built-in series: 직접 DataFrame 조회
         if isinstance(value_node, pyne_ast.Name) and value_node.id in _BUILTIN_SERIES:
             return self.bar.history(value_node.id, offset)
-        # 사용자 변수 시계열 (예: var 값의 과거 참조)은 Day 1-2 범위 밖
+
+        # 사용자 변수 series
+        if isinstance(value_node, pyne_ast.Name):
+            name = value_node.id
+            if offset == 0:
+                # 현재 값 — 통상 _resolve_name 경유 (transient/persistent/built-in)
+                return self._resolve_name(name)
+            series = self._var_series.get(name)
+            if series is None or len(series) < offset:
+                return float("nan")  # 이력 부족 → na
+            return series[-offset]
+
         raise PineRuntimeError(
-            f"Subscript on non-builtin series not yet supported: {_describe(value_node)}"
+            f"Subscript on non-Name expression not supported: {_describe(value_node)}"
         )
 
     def _eval_call(self, node: Any) -> Any:
-        """Day 1-2는 Call을 하드에러 대신 NOP으로 관대하게 처리 (단, stdlib 결과 의존 로직은 오류 발생).
-
-        실제 stdlib 매핑(ta.sma 등)은 Week 2 Day 3+에서 별도 모듈로 구현.
-        indicator/strategy/plot/alert 같은 선언·렌더링 호출은 **NOP으로 통과**하여
-        전체 실행이 중단되지 않도록 함.
-        """
+        """Call 해석: stdlib(ta.*/na/nz) → 선언/렌더링 NOP → 에러."""
         name = _call_chain_name(node.func)
-        # 선언/렌더링/alert은 조용히 NOP — Day 2 범위 (alert 수집은 L3 alert_hook이 별도 담당)
+
+        # ta.* / na / nz — stdlib 디스패치
+        _STDLIB_NAMES = {
+            "ta.sma", "ta.ema", "ta.atr", "ta.rsi",
+            "ta.crossover", "ta.crossunder",
+            "ta.highest", "ta.lowest", "ta.change",
+            "na", "nz",
+        }
+        if name in _STDLIB_NAMES:
+            args = [self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args]
+            return self.stdlib.call(
+                name, id(node), args,
+                high=self.bar.current("high"),
+                low=self.bar.current("low"),
+                close_prev=self._prev_close,
+            )
+
+        # 선언/렌더링/alert NOP
         _NOP_NAMES = {
             "indicator", "study", "strategy", "library",
             "plot", "plotshape", "plotchar", "plotbar", "plotcandle", "plotarrow",
@@ -352,14 +416,13 @@ class Interpreter:
             "input.price", "input.session", "input.symbol",
         }
         if name in _NOP_NAMES:
-            # input*()은 defval을 돌려줄 필요가 있음 (수식에 쓰일 수 있으므로)
             if name and name.startswith("input"):
                 args = [a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args]
                 if args:
                     return self._eval_expr(args[0])  # defval (첫 arg)
                 return None
             return None
-        raise PineRuntimeError(f"Call to {name!r} not supported in Week 2 Day 1-2 scope")
+        raise PineRuntimeError(f"Call to {name!r} not supported in current scope")
 
     # ---- Name 해석 (built-in + var + transient) ------------------------
 
