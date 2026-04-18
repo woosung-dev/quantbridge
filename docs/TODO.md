@@ -321,27 +321,53 @@
 >
 > **Horizon H1 Stealth 완료 기준 (Sprint 8d 종료 시):** DrFX/LuxAlgo 3종 PyneCore 대비 상대 오차 <0.1%, `strategy.exit trail_points` 지원, 본인 dogfood TV→QB 30초 내
 
-#### Sprint 8a-pre — Phase -1 실측 (2주, 2026-04-18~05-01 예정)
+#### Sprint 8a-pre — Phase -1 실측 (2주, 2026-04-18~05-01)
 
-> **목표:** v4 아키텍처 가정 실증. 실측 결과에 따라 ADR-011 amendment 가능.
+> **상세 plan:** [`superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](./superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md)
+> **브랜치:** `experiment/phase-minus-1-drfx` (main `d36793e` 기준)
+> **작업 디렉토리:** `.gstack/experiments/phase-minus-1-drfx/` (격리)
+> **원안 변경(2026-04-18):** 3-way(LLM 1개 vs PyneCore vs TV) → **N-way 5 스크립트 × 최대 7 엔진 × 8 지표** 매트릭스로 확장
 
-- [ ] Day 1-2: PyneCore 로컬 설치 + RTB/DrFX/LuxAlgo 3종 E2E 실행
-  - `strategy.exit trail_points/trail_offset` 실제 지원 여부 확인 (RTB 필수)
-  - 렌더링 객체(box.get_top 등) 재참조 동작 확인
-  - 실행 속도 측정 (8760 봉 기준)
-- [ ] Day 3: LLM 변환 Python vs PyneCore vs TV 3-way 비교
-  - 신호 배열 bar-by-bar 상대 오차 측정
-  - LLM 변환 버그 3개(SL 기준점/부동소수점 ==/look-ahead) 실제 영향 수치화
-  - KPI 검증: "상대 오차 <0.1% MVP" 현실성
-- [ ] Day 4-5: TV 공개 스크립트 15~20개 alert 패턴 프로파일링
-  - pynescript AST로 alert/alertcondition 호출 추출
-  - 메시지 포맷 분류 (JSON/키워드/자유 텍스트/한국어)
-  - Track S/A/M 실제 비율 확정 (20-30%/40-50%/20-30% 가정 검증)
-- [ ] Day 6-7: Phase -1 findings 리포트 작성
-  - `.gstack/experiments/phase-minus-1-drfx/README.md`
-  - ADR-011 amendment (필요 시)
-- [ ] Day 8-10: Tier-0 공통 코어 착수
-  - pynescript(LGPL) 포크 → QB 파서 이식 시작
+##### Day 1 — 환경 + I3 DrFX PyneCore + 파서 커버리지
+- [x] PR #17 `--squash` merge 완료 (`d36793e`)
+- [ ] `experiment/phase-minus-1-drfx` 브랜치 + `.gstack/experiments/phase-minus-1-drfx/` 격리 디렉토리
+- [ ] `uv init` + `uv add pynecore pynescript ccxt pandas numpy matplotlib`
+- [ ] OpenAI / Google API 키 존재 확인 → E6/E7 skip 여부 사전 결정
+- [ ] 사용자 제공 5개 `.pine` → `corpus/{s1,s2,i1,i2,i3}_*.pine`
+  - S1 RTB (strategy, 쉬움) / S2 (strategy, 중간)
+  - I1 (indicator, 쉬움) / I2 (indicator, 중간) / I3 DrFX Diamond Algo (indicator, 어려움)
+- [ ] BTCUSDT 1H 2025-04-18 ~ 2026-04-17 고정 OHLCV CSV + SHA256
+- [ ] E1 PyneCore → I3 DrFX 실행
+- [ ] E2 pynescript → 5종 파싱 커버리지 리포트
+- [ ] E3 현재 QB 파서 → 5종 baseline 리포트 (ADR-004 baseline)
+- [ ] E4 `/tmp/drfx_test/drfx_backtest.py` 고정 CSV 재실행
+
+##### Day 2 — LLM 매트릭스 + trail_points probe
+- [ ] E5 Claude Sonnet 4.6 — I3 DrFX 변환 (Claude Code 내부)
+- [ ] E6 GPT-5 / E7 Gemini 2.5 Pro — 키 존재 시 자동 호출, 부재 시 skip + 사유 기록
+- [ ] 8 지표 수치 비교표 + bar-by-bar Jaccard (E1 oracle 기준)
+- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) 모델별 PASS/FAIL
+- [ ] `strategy.exit trail_points/trail_offset` 지원 probe (DrFX or 합성 `probe_trail.pine`)
+- [ ] `qty_percent` 분할 익절 probe 1건
+
+##### Day 3 — S1/S2/I1/I2 얕은 실행 + TV 스폿체크 + 판단
+- [ ] S1/S2/I1/I2 얕은 실행 (E1 + E3 중심)
+- [ ] `nway_diff_matrix.csv` (5 엔진 × 5 스크립트 × 8 지표)
+- [ ] 상대 오차 계산 (I3 심층 기준): `|candidate - E1| / |E1|`
+- [ ] TV 수동 스폿체크 1건 (I3 1H 최근 30일, Supertrend/ATR 2~3점)
+- [ ] 가정 3개 판정표 → ✅/🟡/❌
+- [ ] `README.md` 상단 한 줄 권고: continue / ADR amend / abort
+- [ ] 사용자 승인 → Day 4+ 이행
+
+##### Day 4-10 (scope 밖, 참고)
+- [ ] Day 4-5: TV 공개 스크립트 15~20개 alert 패턴 프로파일링 (Track S/A/M 실제 비율)
+- [ ] Day 6-7: ADR-011 amendment (실측 반영)
+- [ ] Day 8-10: Tier-0 pynescript 포크 착수
+
+##### 가정 3개 (Day 3 판정 대상)
+1. PyneCore가 `strategy.exit trail_points/trail_offset` 지원 (RTB/LuxAlgo 필수)
+2. LLM 변환본 vs PyneCore 상대 오차 <0.1% MVP KPI 현실적
+3. LLM 변환 버그 3개(SL 기준점/float ==/look-ahead)가 수익률에 실질 영향
 
 #### Sprint 8a — Tier-0 공통 코어 (3주, 05-02~22 예정)
 
