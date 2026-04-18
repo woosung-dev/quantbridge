@@ -83,9 +83,14 @@ describe("ParseDialog", () => {
     expect(saveBtn).toBeDisabled();
   });
 
-  // T-A: result prop 변경 시 index 리셋 + counter clamp (BUG-A regression guard)
-  it("resets index and counter when result prop changes mid-walkthrough", () => {
-    const longer: ParsePreviewResponse = { ...sample, functions_used: ["ta.rsi", "ta.ema"] };
+  // T-A: result prop 축소 시 index는 clamp (BUG-A regression guard).
+  // NOTE: 초기에는 useEffect로 index=0 리셋 설계였으나 CPU 100% 무한 루프 사고 발생 후
+  //       clamp-only 전략으로 전환. counter는 `clampedIndex + 1`로 항상 steps.length와 동기화.
+  it("clamps index and counter when result prop shrinks (stays at last valid step)", () => {
+    const longer: ParsePreviewResponse = {
+      ...sample,
+      functions_used: ["ta.rsi", "ta.ema"],
+    };
     const shorter: ParsePreviewResponse = { ...sample, functions_used: [] };
     const { rerender } = render(
       <ParseDialog
@@ -96,7 +101,8 @@ describe("ParseDialog", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /다음/ }));
-    fireEvent.click(screen.getByRole("button", { name: /다음/ })); // at function 2/2
+    fireEvent.click(screen.getByRole("button", { name: /다음/ }));
+    fireEvent.click(screen.getByRole("button", { name: /다음/ })); // at final (index=3 of 4 steps)
     rerender(
       <ParseDialog
         open={true}
@@ -105,9 +111,10 @@ describe("ParseDialog", () => {
         onSave={() => {}}
       />,
     );
-    // shorter에는 intro + final (2 steps), index reset to 0 → "1 / 2 단계"
-    expect(screen.getByText(/1 \/ 2 단계/)).toBeInTheDocument();
-    expect(screen.getByText(/파싱 결과를 함께 살펴/)).toBeInTheDocument();
+    // shorter: intro + final = 2 steps. clampedIndex = min(3, 1) = 1 → 최종 step, counter "2 / 2"
+    expect(screen.getByText(/2 \/ 2 단계/)).toBeInTheDocument();
+    // 최종 step에 머무름 (intro 로 튕기지 않음) — save 버튼 가시성으로 검증
+    expect(screen.getByRole("button", { name: /이 전략 저장/ })).toBeInTheDocument();
   });
 
   // T-C: 이중 클릭으로 save 중복 호출 방지

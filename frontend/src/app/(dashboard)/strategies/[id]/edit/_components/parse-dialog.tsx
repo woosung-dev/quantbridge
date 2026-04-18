@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,14 +27,11 @@ export function ParseDialog({ open, onOpenChange, result, onSave }: Props) {
   const [index, setIndex] = useState(0);
   const savedRef = useRef(false);
 
-  // result 변경 시 stale index / counter 방지 (BUG-A 회귀 가드).
-  // result는 상위 쿼리가 refetch할 때 바뀌는 외부 동기화 trigger라 effect + setState가 정당.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    setIndex(0);
-  }, [result]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
+  // BUG-A 가드: index가 steps 길이를 초과하면 render에서 clamp.
+  // NOTE: useEffect로 setIndex(0) 리셋은 result 참조가 살짝만 흔들려도 무한 렌더 루프를
+  //       유발하므로 금지 (react-hooks/set-state-in-effect 경고 그대로 존중).
+  //       result가 축소되면 clamp-only로 마지막 유효 step에 머물고, 사용자가 "이전" 또는
+  //       모달 재오픈(resetOnOpen)으로 복귀. 계산상 UX 손실 적음, CPU 안정성 확보.
   const clampedIndex = Math.min(index, steps.length - 1);
   const step: ParseStep = steps[clampedIndex] ?? steps[0]!;
   const isFirst = clampedIndex === 0;
