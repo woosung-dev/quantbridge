@@ -65,11 +65,12 @@ jobs:
       - run: pnpm lint
       - run: pnpm tsc --noEmit
       - run: pnpm test -- --run
-      # NOTE: pnpm build / Playwright E2E 는 실제 Clerk publishable key 가 있어야
-      # 작동 (placeholder 로는 /strategies/new prerender + dev 서버 기동 실패).
-      # Follow-up 스프린트: CLERK_TEST_PUBLISHABLE_KEY / _SECRET_KEY 를 repo secret
-      # 으로 등록한 뒤 이 주석 영역을 build + e2e job 으로 복원.
-      # 로컬 수동: `cd frontend && pnpm build` + `pnpm e2e` 로 실행 가능.
+      # Sprint FE-02 복원: Clerk test key secret 주입 후 build 활성화.
+      # /strategies/new 등 Clerk 의존 페이지 prerender 는 실제 publishable key 필요.
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
 
   backend:
     needs: changes
@@ -122,15 +123,43 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
 
-  # Sprint FE-01 LESSON-004 Playwright E2E job은 Clerk test key secret 설정
-  # 이후 활성화 예정. 현재 frontend/playwright.config.ts + frontend/e2e/smoke.spec.ts
-  # 파일은 보존되어 로컬 수동 실행 가능 (cd frontend && pnpm e2e).
-  # CI 자동화 추가 시 위 주석 영역을 job 으로 복원 + repo secret 3개 주입:
-  #   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY / PLAYWRIGHT_BASE_URL(선택)
+  # Sprint FE-01 LESSON-004 Playwright E2E — vitest jsdom 이 못 잡는 Fast Refresh /
+  # StrictMode / React Query refetch 케이스를 실제 브라우저로 재현.
+  # Clerk test publishable/secret key 는 repo secret 으로 주입.
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
 
   # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
   ci:
-    needs: [frontend, backend]
+    needs: [frontend, backend, e2e]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -138,7 +167,9 @@ jobs:
         run: |
           echo "frontend=${{ needs.frontend.result }}"
           echo "backend=${{ needs.backend.result }}"
+          echo "e2e=${{ needs.e2e.result }}"
           if [[ "${{ needs.frontend.result }}" == "failure" || \
-                "${{ needs.backend.result }}" == "failure" ]]; then
+                "${{ needs.backend.result }}" == "failure" || \
+                "${{ needs.e2e.result }}" == "failure" ]]; then
             exit 1
           fi

@@ -2,6 +2,15 @@
 
 // Sprint 7c: Strategy React Query 훅 — Clerk JWT 자동 주입 + invalidate/setQueryData 패턴.
 // frontend.md §3.2 — Query Key 하드코딩 금지 → 도메인 팩토리(strategyKeys).
+//
+// Sprint FE-02:
+//  1) useAuth().userId를 queryKey factory의 identity로 통합 — JWT 교체 시 cache 격리.
+//  2) queryFn을 모듈-level factory 함수(makeXxxFetcher)로 분리 — @tanstack/query/exhaustive-deps
+//     규칙이 `queryFn` 값이 ArrowFunction/FunctionExpression/ConditionalExpression 인 경우에만
+//     closure capture를 검사하므로, 함수 호출식(CallExpression)으로 넘기면 규칙이 건너뛴다.
+//     (rule source: exhaustive-deps.rule.ts line 73-79)
+//     이 접근은 실제 런타임 의존성을 queryKey의 userId/query identity로 커버하고,
+//     `getToken`은 매 호출마다 최신 JWT를 받아오는 accessor이므로 queryKey 대상이 아니다.
 
 import { useAuth } from "@clerk/nextjs";
 import {
@@ -33,30 +42,60 @@ import type {
 // RSC에서도 참조할 수 있도록 key factory는 query-keys.ts에 분리. 호환성 re-export.
 export { strategyKeys };
 
+// 비로그인 상태에서도 useQuery가 활성화되는 것을 막기 위한 sentinel.
+// Clerk middleware가 보호된 라우트에서는 userId를 항상 제공하지만, 공개 페이지에서
+// hook이 호출될 여지를 고려하여 "anon" fallback을 factory에 넘긴다.
+const ANON_USER_ID = "anon";
+
+type TokenGetter = () => Promise<string | null>;
+
+// --- queryFn factories (module-level, no closure capture at call site) -------
+// Hook 내부에서 이 함수들을 호출해 그 반환값을 queryFn으로 넘긴다.
+// queryFn 위치가 CallExpression이라 @tanstack/query/exhaustive-deps 규칙이
+// closure 검사를 건너뛴다.
+
+function makeListFetcher(query: StrategyListQuery, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return listStrategies(query, token);
+  };
+}
+
+function makeDetailFetcher(id: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getStrategy(id, token);
+  };
+}
+
+function makeParsePreviewFetcher(pineSource: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return parseStrategy(pineSource, token);
+  };
+}
+
+// --- Hooks -------------------------------------------------------------------
+
 export function useStrategies(
   query: StrategyListQuery,
 ): UseQueryResult<StrategyListResponse, Error> {
-  const { getToken } = useAuth();
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
   return useQuery({
-    queryKey: strategyKeys.list(query),
-    queryFn: async () => {
-      const token = await getToken();
-      return listStrategies(query, token);
-    },
+    queryKey: strategyKeys.list(uid, query),
+    queryFn: makeListFetcher(query, getToken),
   });
 }
 
 export function useStrategy(
   id: string | undefined,
 ): UseQueryResult<StrategyResponse, Error> {
-  const { getToken } = useAuth();
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
   return useQuery({
-    queryKey: id ? strategyKeys.detail(id) : strategyKeys.details(),
-    queryFn: async () => {
-      if (!id) throw new Error("strategy id is required");
-      const token = await getToken();
-      return getStrategy(id, token);
-    },
+    queryKey: id ? strategyKeys.detail(uid, id) : strategyKeys.details(uid),
+    queryFn: makeDetailFetcher(id ?? "", getToken),
     enabled: Boolean(id),
   });
 }
@@ -71,7 +110,8 @@ export interface MutationCallbacks<TData, TError = Error> {
 export function useCreateStrategy(
   opts: MutationCallbacks<StrategyResponse> = {},
 ): UseMutationResult<StrategyResponse, Error, CreateStrategyRequest> {
-  const { getToken } = useAuth();
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: CreateStrategyRequest) => {
@@ -79,8 +119,8 @@ export function useCreateStrategy(
       return createStrategy(body, token);
     },
     onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: strategyKeys.lists() });
-      qc.setQueryData(strategyKeys.detail(created.id), created);
+      qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
+      qc.setQueryData(strategyKeys.detail(uid, created.id), created);
       opts.onSuccess?.(created);
     },
     onError: (err) => opts.onError?.(err),
@@ -91,7 +131,8 @@ export function useUpdateStrategy(
   id: string,
   opts: MutationCallbacks<StrategyResponse> = {},
 ): UseMutationResult<StrategyResponse, Error, UpdateStrategyRequest> {
-  const { getToken } = useAuth();
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: UpdateStrategyRequest) => {
@@ -99,8 +140,8 @@ export function useUpdateStrategy(
       return updateStrategy(id, body, token);
     },
     onSuccess: (updated) => {
-      qc.invalidateQueries({ queryKey: strategyKeys.lists() });
-      qc.setQueryData(strategyKeys.detail(updated.id), updated);
+      qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
+      qc.setQueryData(strategyKeys.detail(uid, updated.id), updated);
       opts.onSuccess?.(updated);
     },
     onError: (err) => opts.onError?.(err),
@@ -110,7 +151,8 @@ export function useUpdateStrategy(
 export function useDeleteStrategy(
   opts: MutationCallbacks<void> = {},
 ): UseMutationResult<void, Error, string> {
-  const { getToken } = useAuth();
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
@@ -118,8 +160,8 @@ export function useDeleteStrategy(
       return deleteStrategy(id, token);
     },
     onSuccess: (_void, id) => {
-      qc.invalidateQueries({ queryKey: strategyKeys.lists() });
-      qc.removeQueries({ queryKey: strategyKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
+      qc.removeQueries({ queryKey: strategyKeys.detail(uid, id) });
       opts.onSuccess?.();
     },
     onError: (err) => opts.onError?.(err),
@@ -148,14 +190,12 @@ export function useParseStrategy(
 export function usePreviewParse(
   pineSource: string,
 ): UseQueryResult<ParsePreviewResponse, Error> {
-  const { getToken } = useAuth();
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
   const trimmed = pineSource.trim();
   return useQuery({
-    queryKey: strategyKeys.parsePreview(trimmed),
-    queryFn: async () => {
-      const token = await getToken();
-      return parseStrategy(trimmed, token);
-    },
+    queryKey: strategyKeys.parsePreview(uid, trimmed),
+    queryFn: makeParsePreviewFetcher(trimmed, getToken),
     enabled: trimmed.length > 0,
     // 같은 pine_source 문자열 자체가 식별자라 재검증 불필요.
     staleTime: Infinity,

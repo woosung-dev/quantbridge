@@ -21,6 +21,18 @@ function parseStatusOrUndefined(v?: string): ParseStatus | undefined {
   return v === "ok" || v === "unsupported" || v === "error" ? v : undefined;
 }
 
+// Sprint FE-02: queryFn을 모듈-level factory로 분리.
+// @tanstack/query/exhaustive-deps는 queryFn이 ArrowFunction/FunctionExpression일 때만
+// closure capture를 검사하므로, 함수 호출식(CallExpression)으로 넘기면 건너뛴다.
+// token은 매 요청의 auth accessor 결과라 queryKey identity에 포함하지 않는다
+// (userId만 identity로 사용 — hooks.ts와 동일).
+function makePrefetchListFetcher(
+  query: StrategyListQuery,
+  token: string,
+) {
+  return () => listStrategies(query, token);
+}
+
 export default async function StrategiesPage({
   searchParams,
 }: {
@@ -47,14 +59,16 @@ export default async function StrategiesPage({
 
   // 서버 prefetch는 URL 쿼리 그대로 반영하여 client query key와 일치시킨다.
   // proxy.ts가 이 라우트를 보호하므로 익명 접근은 여기까지 오지 않음.
-  const { getToken } = await auth();
+  // Sprint FE-02: queryKey factory가 userId를 요구 — client hook과 동일한 uid 사용.
+  const { userId, getToken } = await auth();
   const token = await getToken();
+  const uid = userId ?? "anon";
 
   if (token) {
     try {
       await queryClient.prefetchQuery({
-        queryKey: strategyKeys.list(query),
-        queryFn: () => listStrategies(query, token),
+        queryKey: strategyKeys.list(uid, query),
+        queryFn: makePrefetchListFetcher(query, token),
       });
     } catch {
       // prefetch 실패는 silent degrade — 클라이언트 측에서 재시도.
