@@ -165,3 +165,43 @@ def test_condition_signal_prioritizes_variable_name_over_resolved() -> None:
     assert alert_1["condition_signal"] == SignalKind.LONG_ENTRY.value, (
         "condition_expr='bull' → bull 키워드 매칭으로 long_entry"
     )
+
+
+# --- Sprint 8b: condition_ast 필드 (Tier-1 bar 단위 재평가용) ---------
+
+
+def test_collect_alerts_preserves_condition_ast_for_alertcondition() -> None:
+    """AlertHook.condition_ast가 alertcondition arg0의 원본 AST 노드를 보존해야 함."""
+    from pynescript import ast as pyne_ast
+
+    source = (
+        "//@version=5\n"
+        "indicator('t', overlay=true)\n"
+        "buy = close > open\n"
+        "alertcondition(buy, 'Long', 'LONG')\n"
+    )
+    hooks = collect_alerts(source)
+    assert len(hooks) == 1
+    h = hooks[0]
+    # condition_ast는 존재해야 하고 AST 노드(Name/Compare/BoolOp 등)
+    assert h.condition_ast is not None
+    assert isinstance(
+        h.condition_ast, (pyne_ast.Name, pyne_ast.Compare, pyne_ast.BoolOp)
+    )
+
+
+def test_collect_alerts_preserves_enclosing_if_test_ast_for_alert() -> None:
+    """alert() 호출의 경우 enclosing if의 test AST가 condition_ast에 보존."""
+    from pynescript import ast as pyne_ast
+
+    source = (
+        "//@version=5\n"
+        "indicator('t', overlay=true)\n"
+        "if close > open\n"
+        "    alert('LONG', alert.freq_once_per_bar)\n"
+    )
+    hooks = collect_alerts(source)
+    assert len(hooks) == 1
+    h = hooks[0]
+    assert h.condition_ast is not None
+    assert isinstance(h.condition_ast, pyne_ast.Compare)

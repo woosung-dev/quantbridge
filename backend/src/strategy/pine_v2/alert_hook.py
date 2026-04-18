@@ -72,6 +72,9 @@ class AlertHook:
     signal: SignalKind  # 최종 권고 (condition 우선)
     discrepancy: bool
     index: int
+    # Tier-1 bar 단위 조건 재평가용 — alertcondition arg0 또는 enclosing if.test의 AST 노드.
+    # JSON 직렬화 대상 아님 (to_dict에서 제외). pyne_ast.Expression 하위 노드 허용.
+    condition_ast: Any | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -287,14 +290,17 @@ def collect_alerts(source: str) -> list[AlertHook]:
         if not node.args:
             continue
 
-        # 메시지 추출
+        # 메시지 추출 + 조건 AST 보존 (Tier-1 bar 재평가용)
         message = ""
         condition_expr: str | None = None
+        condition_ast_node: Any | None = None
 
         if is_alert:
             message = _extract_literal_message(node.args[0])
+            # alert()는 조건을 enclosing if에서 가져옴 (아래에서 설정)
         else:  # alertcondition
-            condition_expr = _stringify(_arg_value(node.args[0]))
+            condition_ast_node = _arg_value(node.args[0])
+            condition_expr = _stringify(condition_ast_node)
             if len(node.args) >= 3:
                 message = _extract_literal_message(node.args[2])
             if not message:
@@ -307,6 +313,9 @@ def collect_alerts(source: str) -> list[AlertHook]:
         enclosing_if_condition: str | None = None
         if enclosing_if is not None:
             enclosing_if_condition = _stringify(enclosing_if.test)
+            # alert()는 조건 AST를 enclosing if.test에서 상속
+            if is_alert and condition_ast_node is None:
+                condition_ast_node = enclosing_if.test
 
         # 조건 소스 우선순위: alertcondition arg0 > enclosing if test
         condition_source = condition_expr or enclosing_if_condition
@@ -349,6 +358,7 @@ def collect_alerts(source: str) -> list[AlertHook]:
             signal=final,
             discrepancy=discrepancy,
             index=idx,
+            condition_ast=condition_ast_node,
         ))
 
     return hooks
