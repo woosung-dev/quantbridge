@@ -102,17 +102,34 @@ Sprint 8b 완료 상태 (브랜치 `feat/sprint8b-tier1-rendering`, 15 commits, 
     ast_metrics / ast_classifier / alert_hook / ast_extractor / interpreter)
   - **ruff/mypy clean** + 기존 224 regression green 유지
 
-  ## 방법론 — superpowers
-  1. **writing-plans 스킬로 plan 먼저 작성**
+  ## 방법론 — superpowers + gstack eng-review 1 pass (★★★★☆ B안)
+
+  Sprint 8b의 ★★★★★ 경로(writing-plans → executing-plans → hardening) 대비
+  **plan-eng-review 1 pass 추가**. 이유: user function은 interpreter 코어 수정
+  (FunctionDef 수집 + Call dispatch 재귀 평가 + multi-return destructuring)으로
+  구조 변경이 크므로 실행 전 설계 허점 1회 체크가 효율적.
+
+  1. **writing-plans 스킬로 plan 먼저 작성** (superpowers)
      (`docs/superpowers/plans/YYYY-MM-DD-sprint-8c-user-function-3track.md`)
-     - user function AST 수집 + call dispatch 설계
+     - user function AST 수집 + call dispatch 설계 (재귀, scope, multi-return)
      - 3-Track classifier 기준 명시
      - 병렬 가능 항목 표시
-  2. **ExitPlanMode로 사용자 승인** 받기
-  3. **executing-plans 스킬로 task-by-task 진행** — TDD (test 먼저 → 구현 → verification)
-  4. 각 task 완료마다 commit (체크포인트)
-  5. Sprint 8b 관례대로 **외부 독립 리뷰 (Opus/Sonnet) 교차 hardening** 단계 포함
+  2. **plan-eng-review 스킬로 아키텍처 1-pass** (gstack)
+     - interpreter 코어 변경 설계 검토 (FunctionDef / Call / destructuring)
+     - recursion depth / scope resolution / Call context 엣지
+     - 기존 224 tests regression 리스크 파악
+     - eng-review 피드백을 plan에 반영 후 다음 단계 진행
+  3. **ExitPlanMode로 사용자 승인** 받기
+  4. **executing-plans 스킬로 task-by-task 진행** (superpowers) — TDD
+     (test 먼저 → 구현 → verification)
+  5. 각 task 완료마다 commit (체크포인트)
+  6. Sprint 8b 관례대로 **외부 독립 리뷰 (Opus/Sonnet) 교차 hardening** 단계 포함
      — 완주 직후 공통 gap 추출 후 보강
+
+  ### 대안 분기 (방법론 변경이 필요하면 첫 판단 시점에 재논의)
+  - **A. eng-review 생략 (Sprint 8b 복사, ★★★★★)** — 빠르게, 구현 중 발견 리스크 감수
+  - **C. brainstorming 먼저 (★★★☆☆)** — user function scope 경계가 흔들린다면
+    (closure / 고차함수 / nested func의 H2+ 이연 확정 여부 재검토 필요 시)
 
   ## 브랜치 전략
   - **새 브랜치 권장:** `feat/sprint8c-user-function-3track` (main에서 분기)
