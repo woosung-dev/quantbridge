@@ -119,3 +119,39 @@ def test_user_function_local_does_not_leak() -> None:
     call_node = pyne_ast.parse("foo(5)").body[0].value
     _ = interp._eval_expr(call_node)
     assert "tmp" not in interp._transient
+
+
+# ---------------------------------------------------------------------------
+# Task 5 — na 전파 / arity / depth guard 엣지
+# ---------------------------------------------------------------------------
+
+
+def test_user_function_na_arg_propagates_to_body() -> None:
+    src = "dbl(x) => x * 2\n"
+    interp = _interp([10.0])
+    interp.bar.advance()
+    interp.execute(pyne_ast.parse(src))
+    call_node = pyne_ast.parse("dbl(na)").body[0].value
+    result = interp._eval_expr(call_node)
+    assert math.isnan(result)
+
+
+def test_user_function_arity_mismatch_raises() -> None:
+    src = "pair(x, y) => x + y\n"
+    interp = _interp([10.0])
+    interp.bar.advance()
+    interp.execute(pyne_ast.parse(src))
+    call_node = pyne_ast.parse("pair(1)").body[0].value
+    with pytest.raises(PineRuntimeError, match="expected 2 args, got 1"):
+        interp._eval_expr(call_node)
+
+
+def test_user_function_depth_guard_blocks_infinite_recursion() -> None:
+    src = "rec(x) => rec(x - 1)\n"
+    interp = _interp([10.0])
+    interp.bar.advance()
+    interp._max_call_depth = 5  # 테스트 단축
+    interp.execute(pyne_ast.parse(src))
+    call_node = pyne_ast.parse("rec(10)").body[0].value
+    with pytest.raises(PineRuntimeError, match="depth exceeded"):
+        interp._eval_expr(call_node)
