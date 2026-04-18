@@ -3,9 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 // Sprint FE-01 LESSON-004: React Query + Next.js 조합 infinite loop 검출용 E2E.
 // vitest jsdom이 못 잡는 Fast Refresh / StrictMode / Query refetch 케이스 실제 브라우저 재현.
 //
-// CI에서는 pnpm dev가 Next.js 초기 컴파일로 120초를 넘길 수 있어 pnpm build + start 로
-// prod 번들을 미리 만들고 실행 (더 빠른 기동 + 실제 배포 경로 검증).
-// 로컬에서는 pnpm dev 로 Fast Refresh 포함 검증.
+// CI/로컬 모두 pnpm dev 사용 — prod build는 Clerk API 의존 페이지가 prerender 실패.
+// dev는 Clerk placeholder key로도 기동 가능. CI ubuntu는 초기 컴파일이 느리니 240s 대기.
 const isCI = !!process.env.CI;
 
 export default defineConfig({
@@ -30,9 +29,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: isCI
-          ? "pnpm build && pnpm start --port 3000"
-          : "pnpm dev",
+        command: "pnpm dev",
         url: "http://localhost:3000",
         reuseExistingServer: !isCI,
         timeout: isCI ? 240_000 : 120_000,
