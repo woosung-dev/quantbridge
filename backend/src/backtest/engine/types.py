@@ -18,6 +18,9 @@ class BacktestConfig:
     fees: float = 0.001        # 0.1%
     slippage: float = 0.0005   # 0.05%
     freq: str = "1D"           # pandas offset alias
+    # Sprint 7d: 빈 리스트면 24h. 값은 {"asia","london","ny"} 부분집합.
+    # 엔진은 entries를 바 timestamp의 UTC hour로 필터링한다.
+    trading_sessions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

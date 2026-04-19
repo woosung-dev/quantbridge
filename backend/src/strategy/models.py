@@ -58,6 +58,13 @@ class Strategy(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
+    # Sprint 7d: market session gate. Empty list = 24h (no filter). Values are a
+    # subset of {"asia", "london", "ny"} enforced at the Pydantic schema layer.
+    # Nullable in DB for backward compatibility with pre-migration rows.
+    trading_sessions: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSONB, nullable=True, server_default="[]"),
+    )
     is_archived: bool = Field(default=False, index=True, nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

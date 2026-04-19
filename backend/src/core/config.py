@@ -54,11 +54,14 @@ class Settings(BaseSettings):
             "ADR-006 결정 1 / autoplan CEO F3 + Eng E4."
         ),
     )
-    exchange_provider: Literal["fixture", "bybit_demo", "bybit_futures"] = Field(
+    exchange_provider: Literal[
+        "fixture", "bybit_demo", "bybit_futures", "okx_demo"
+    ] = Field(
         default="fixture",
         description=(
             "ExchangeProvider 선택. "
-            "fixture=테스트, bybit_demo=Spot testnet, bybit_futures=Linear Perp testnet."
+            "fixture=테스트, bybit_demo=Spot testnet, bybit_futures=Linear Perp testnet, "
+            "okx_demo=Sprint 7d OKX Spot sandbox."
         ),
     )
     kill_switch_cumulative_loss_percent: Decimal = Field(

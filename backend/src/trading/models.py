@@ -21,6 +21,7 @@ from src.common.datetime_types import AwareDateTime
 class ExchangeName(StrEnum):
     bybit = "bybit"
     binance = "binance"  # Sprint 7+
+    okx = "okx"  # Sprint 7d — CCXT sandbox, spot only, passphrase required
 
 
 class ExchangeMode(StrEnum):
@@ -73,6 +74,12 @@ class ExchangeAccount(SQLModel, table=True):
     mode: ExchangeMode = Field(nullable=False)
     api_key_encrypted: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
     api_secret_encrypted: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    # Sprint 7d: OKX requires a passphrase on top of key+secret. NULL for exchanges
+    # that don't use passphrase (Bybit/Binance).
+    passphrase_encrypted: bytes | None = Field(
+        default=None,
+        sa_column=Column(LargeBinary, nullable=True),
+    )
     label: str | None = Field(default=None, max_length=120, nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

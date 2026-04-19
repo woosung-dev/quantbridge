@@ -68,6 +68,25 @@ class ProviderError(AppException):
     code = "provider_error"
 
 
+class TradingSessionClosed(AppException):
+    """요청 시점이 전략의 허용 trading_sessions 밖. Sprint 7d.
+
+    strategy.trading_sessions가 비어있지 않고 현재 UTC hour가 어느 세션에도
+    속하지 않을 때 OrderService.execute가 raise.
+    """
+
+    status_code = 422
+    code = "trading_session_closed"
+
+    def __init__(self, *, sessions: list[str], current_hour_utc: int) -> None:
+        super().__init__(
+            f"current UTC hour {current_hour_utc} is outside allowed "
+            f"trading_sessions={sessions}"
+        )
+        self.sessions = sessions
+        self.current_hour_utc = current_hour_utc
+
+
 class LeverageCapExceeded(AppException):
     """OrderRequest.leverage가 settings.bybit_futures_max_leverage 상한 초과.
 

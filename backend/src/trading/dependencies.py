@@ -8,10 +8,12 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.database import get_async_session
 from src.core.config import settings
+from src.strategy.models import Strategy
 from src.trading.encryption import EncryptionService
 from src.trading.kill_switch import (
     CumulativeLossEvaluator,
@@ -102,6 +104,25 @@ def get_order_dispatcher() -> OrderDispatcher:
     return _CeleryOrderDispatcher()
 
 
+# ── StrategySessionsPort (Sprint 7d) ─────────────────────────────────
+class _StrategySessionsAdapter:
+    """StrategySessionsPort 구현 — Strategy row를 로드하고 trading_sessions만 추출.
+
+    trading_sessions 컬럼은 nullable이므로 NULL(pre-migration rows) → []로 정규화.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_sessions(self, strategy_id: UUID) -> list[str]:
+        stmt = select(Strategy).where(Strategy.id == strategy_id)  # type: ignore[arg-type]
+        result = await self._session.execute(stmt)
+        strategy = result.scalar_one_or_none()
+        if strategy is None or strategy.trading_sessions is None:
+            return []
+        return list(strategy.trading_sessions)
+
+
 # ── OrderService ─────────────────────────────────────────────────────
 async def get_order_service(
     session: AsyncSession = Depends(get_async_session),
@@ -114,4 +135,5 @@ async def get_order_service(
         repo=repo,
         dispatcher=dispatcher,
         kill_switch=kill_switch,
+        sessions_port=_StrategySessionsAdapter(session),
     )
