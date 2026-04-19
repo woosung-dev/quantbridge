@@ -1,18 +1,31 @@
 "use client";
 
-// Sprint 7c T5: EditorView — 3 탭(코드/파싱/메타) + 헤더(back/백테스트stub/삭제) + URL 쿼리 동기화.
-// asChild prop은 Base UI에서 미지원 → render prop으로 변환 (Button render={<Link />}).
+// Sprint 7c T5 / FE-03:
+// EditorView — 3 탭(코드/파싱/메타) + 헤더(back/백테스트stub/저장/삭제) + URL 쿼리 동기화.
+// Sprint FE-03 에서 편집 버퍼를 Zustand edit-store 로 lift-up. 페이지 진입 시
+// loadServerSnapshot 으로 store 초기화, Save 는 header 에서 담당, isDirty 시 unload 경고.
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeftIcon, PlayIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  PlayIcon,
+  SaveIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useStrategy } from "@/features/strategy/hooks";
+import {
+  selectIsDirty,
+  selectPineSource,
+  selectStrategyId,
+  useEditStore,
+} from "@/features/strategy/edit-store";
+import { useStrategy, useUpdateStrategy } from "@/features/strategy/hooks";
 import { PARSE_STATUS_META } from "@/features/strategy/utils";
 
 import { DeleteDialog } from "./delete-dialog";
@@ -33,8 +46,28 @@ export function EditorView({ id }: { id: string }) {
 
   const { data: strategy, isLoading, isError } = useStrategy(id);
 
+  // Sprint FE-03: store 구독 — scalar selector 만 사용 (LESSON-004).
+  const storeStrategyId = useEditStore(selectStrategyId);
+  const isDirty = useEditStore(selectIsDirty);
+  const pineSource = useEditStore(selectPineSource);
+  const loadServerSnapshot = useEditStore((s) => s.loadServerSnapshot);
+  const markSaved = useEditStore((s) => s.markSaved);
+
+  // 서버에서 받은 strategy 로 store 초기화.
+  // - isLoading/isError 완료 시 & store 가 다른 strategy 를 보고 있거나 비어있을 때 1회 실행.
+  // - primitive dep (strategy.id, strategy.pine_source) 만 넣고 actions 는 store 에서 꺼내 쓰므로
+  //   참조가 안정적이다 (Zustand create 반환 actions 는 불변).
+  const serverPineSource = strategy?.pine_source;
+  const serverStrategyId = strategy?.id;
+  useEffect(() => {
+    if (serverStrategyId && typeof serverPineSource === "string") {
+      if (storeStrategyId !== serverStrategyId) {
+        loadServerSnapshot(serverStrategyId, serverPineSource);
+      }
+    }
+  }, [serverStrategyId, serverPineSource, storeStrategyId, loadServerSnapshot]);
+
   // URL 쿼리 ?action=archive/delete 초기 처리.
-  // 아카이브 바로가기는 별도 다이얼로그 없이 DeleteDialog의 archive fallback 재사용.
   // useSearchParams는 Next.js router 외부 API라 effect 내 setState가 정당한 동기화 패턴.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -44,6 +77,30 @@ export function EditorView({ id }: { id: string }) {
     }
   }, [params]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Sprint FE-03: unload 경고 — isDirty 동안 browser tab close / refresh 시 확인.
+  // 최신 브라우저는 preventDefault() 만으로 leave prompt 를 띄운다 (returnValue 는 legacy).
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  const update = useUpdateStrategy(id, {
+    onSuccess: () => {
+      markSaved(new Date());
+      toast.success("저장되었습니다");
+    },
+    onError: (e) => toast.error(`저장 실패: ${e.message}`),
+  });
+
+  const handleSave = () => {
+    if (!isDirty || update.isPending) return;
+    update.mutate({ pine_source: pineSource });
+  };
 
   if (isLoading) {
     return (
@@ -79,7 +136,7 @@ export function EditorView({ id }: { id: string }) {
 
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-6">
-      <header className="mb-5 flex flex-wrap items-center gap-3">
+      <header className="sticky top-0 z-10 mb-5 flex flex-wrap items-center gap-3 bg-[color:var(--bg-primary)] py-2">
         <Button
           variant="ghost"
           size="icon"
@@ -99,9 +156,22 @@ export function EditorView({ id }: { id: string }) {
               {strategy.symbol ?? "—"} · {strategy.timeframe ?? "—"} · Pine {strategy.pine_version}
             </span>
             {strategy.is_archived && <Badge variant="secondary">보관됨</Badge>}
+            {isDirty && (
+              <Badge variant="outline" data-tone="warn">
+                저장되지 않은 변경
+              </Badge>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={!isDirty || update.isPending}
+            aria-label="변경사항 저장"
+          >
+            <SaveIcon className="size-4" />
+            {update.isPending ? "저장 중..." : "저장"}
+          </Button>
           <Button
             variant="outline"
             onClick={() => router.push(`/backtest?strategy_id=${strategy.id}`)}
