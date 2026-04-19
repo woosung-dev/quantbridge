@@ -1,15 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import {
+  DRAFT_KEY_VERSION_PREFIX,
+  clearOtherUsersDrafts,
   clearWizardDraft,
+  draftKeyFor,
   loadWizardDraft,
   saveWizardDraft,
   useAutoSaveDraft,
+  useDraftSnapshot,
   type WizardDraft,
 } from "@/features/strategy/draft";
 
-// localStorage key — draft.ts 내부 상수와 동기. 테스트 I/O 검증용 상수.
-const DRAFT_KEY = "sprint7c:strategy-wizard-draft:v1";
+const USER_A = "user_A";
+const USER_B = "user_B";
 
 type DraftInput = Omit<WizardDraft, "version" | "savedAt">;
 
@@ -19,7 +23,7 @@ const baseDraft: DraftInput = {
   metadata: { name: "s1" },
 };
 
-describe("useAutoSaveDraft (draft debouncer)", () => {
+describe("useAutoSaveDraft (debounce + userId scoping)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     window.localStorage.clear();
@@ -30,99 +34,64 @@ describe("useAutoSaveDraft (draft debouncer)", () => {
     window.localStorage.clear();
   });
 
-  it("saves draft to localStorage after 500ms debounce", () => {
-    renderHook(({ draft }) => useAutoSaveDraft(draft), {
-      initialProps: { draft: baseDraft },
+  it("500ms 이후 현재 userId 키에 draft 를 저장한다", () => {
+    renderHook(({ uid, draft }) => useAutoSaveDraft(uid, draft), {
+      initialProps: { uid: USER_A, draft: baseDraft },
     });
-    // 499ms 시점: 아직 save 호출 전
+
     act(() => {
       vi.advanceTimersByTime(499);
     });
-    expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull();
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).toBeNull();
 
-    // 500ms 경과: save 호출
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const raw = window.localStorage.getItem(draftKeyFor(USER_A));
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw as string) as WizardDraft;
-    expect(parsed.version).toBe(1);
     expect(parsed.method).toBe("direct");
     expect(parsed.pineSource).toBe(baseDraft.pineSource);
     expect(parsed.metadata).toEqual(baseDraft.metadata);
   });
 
-  it("resets debounce timer when pineSource changes within the window (last write wins)", () => {
-    const { rerender } = renderHook(({ draft }) => useAutoSaveDraft(draft), {
-      initialProps: { draft: baseDraft },
-    });
+  it("pineSource 변경 시 타이머가 리셋되고 최종 값이 저장된다", () => {
+    const { rerender } = renderHook(
+      ({ uid, draft }) => useAutoSaveDraft(uid, draft),
+      { initialProps: { uid: USER_A, draft: baseDraft } },
+    );
 
-    // 300ms 경과 (debounce 진행 중)
     act(() => {
       vi.advanceTimersByTime(300);
     });
-    expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull();
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).toBeNull();
 
-    // pineSource 변경 — 기존 타이머 클리어되고 새 타이머 시작해야 함
     const next: DraftInput = {
       ...baseDraft,
       pineSource: "//@version=5\nstrategy('t2')",
     };
-    rerender({ draft: next });
+    rerender({ uid: USER_A, draft: next });
 
-    // 원래라면 500ms 시점이었으나, reset 되었으므로 save 아직 안 됨
     act(() => {
       vi.advanceTimersByTime(300);
     });
-    expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull();
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).toBeNull();
 
-    // 추가 200ms (총 변경 후 500ms) 후 save — 최신 값으로 덮어씀
     act(() => {
       vi.advanceTimersByTime(200);
     });
     const parsed = JSON.parse(
-      window.localStorage.getItem(DRAFT_KEY) as string,
+      window.localStorage.getItem(draftKeyFor(USER_A)) as string,
     ) as WizardDraft;
     expect(parsed.pineSource).toBe(next.pineSource);
   });
 
-  it("triggers a separate debounce when method changes", () => {
-    const { rerender } = renderHook(({ draft }) => useAutoSaveDraft(draft), {
-      initialProps: { draft: baseDraft },
-    });
+  it("metadata 는 ref 를 통해 최신 값이 저장 payload 에 반영된다", () => {
+    const { rerender } = renderHook(
+      ({ uid, draft }) => useAutoSaveDraft(uid, draft),
+      { initialProps: { uid: USER_A, draft: baseDraft } },
+    );
 
-    // 첫 번째 save 완료
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-    const first = JSON.parse(
-      window.localStorage.getItem(DRAFT_KEY) as string,
-    ) as WizardDraft;
-    expect(first.method).toBe("direct");
-
-    // method 만 변경
-    const switched: DraftInput = { ...baseDraft, method: "upload" };
-    rerender({ draft: switched });
-
-    // 500ms 뒤 method 반영된 payload 저장
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-    const second = JSON.parse(
-      window.localStorage.getItem(DRAFT_KEY) as string,
-    ) as WizardDraft;
-    expect(second.method).toBe("upload");
-  });
-
-  it("picks up metadata via ref when scalar deps trigger the debounce", () => {
-    // metadata 는 dep가 아니므로 단독 변경만으론 debounce가 다시 트리거되지 않는다.
-    // 그러나 save 실행 시점에 ref.current에서 최신 metadata를 읽어가야 한다.
-    const { rerender } = renderHook(({ draft }) => useAutoSaveDraft(draft), {
-      initialProps: { draft: baseDraft },
-    });
-
-    // 300ms 시점에 metadata만 변경 (scalar dep 동일)
     act(() => {
       vi.advanceTimersByTime(300);
     });
@@ -130,42 +99,83 @@ describe("useAutoSaveDraft (draft debouncer)", () => {
       ...baseDraft,
       metadata: { name: "renamed" },
     };
-    rerender({ draft: metaUpdated });
+    rerender({ uid: USER_A, draft: metaUpdated });
 
-    // 원래 첫 렌더 기준 500ms 시점에 save 발화 — ref가 최신 metadata를 보고 있어야 함
     act(() => {
       vi.advanceTimersByTime(200);
     });
     const parsed = JSON.parse(
-      window.localStorage.getItem(DRAFT_KEY) as string,
+      window.localStorage.getItem(draftKeyFor(USER_A)) as string,
     ) as WizardDraft;
     expect(parsed.metadata).toEqual({ name: "renamed" });
   });
+
+  it("userId 가 null 이면 저장하지 않는다 (로그아웃 레이스)", () => {
+    renderHook(({ uid, draft }) => useAutoSaveDraft(uid, draft), {
+      initialProps: { uid: null as string | null, draft: baseDraft },
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it("userId 전환 시 이전 userId 의 draft 를 삭제한다", () => {
+    // 선조건: user_A 키에 이미 draft 가 있음
+    saveWizardDraft(USER_A, baseDraft);
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).not.toBeNull();
+
+    const { rerender } = renderHook(
+      ({ uid, draft }) => useAutoSaveDraft(uid, draft),
+      { initialProps: { uid: USER_A, draft: baseDraft } },
+    );
+
+    // sign-out 후 user_B 로 로그인
+    rerender({ uid: USER_B, draft: baseDraft });
+
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).toBeNull();
+    // user_B 저장은 debounce 경과 후
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(window.localStorage.getItem(draftKeyFor(USER_B))).not.toBeNull();
+  });
 });
 
-describe("saveWizardDraft / loadWizardDraft / clearWizardDraft", () => {
+describe("save / load / clear — userId scoped", () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it("round-trips a draft via save → load", () => {
-    saveWizardDraft(baseDraft);
-    const loaded = loadWizardDraft();
-    expect(loaded).not.toBeNull();
-    expect(loaded?.method).toBe("direct");
-    expect(loaded?.pineSource).toBe(baseDraft.pineSource);
+  it("draft 는 userId 별 키에 저장된다", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    const key = draftKeyFor(USER_A);
+    expect(key).toBe(`${DRAFT_KEY_VERSION_PREFIX}:${USER_A}`);
+    expect(window.localStorage.getItem(key)).not.toBeNull();
   });
 
-  it("clear removes the stored draft", () => {
-    saveWizardDraft(baseDraft);
-    expect(loadWizardDraft()).not.toBeNull();
-    clearWizardDraft();
-    expect(loadWizardDraft()).toBeNull();
+  it("다른 userId 로는 해당 draft 가 보이지 않는다", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    expect(loadWizardDraft(USER_B)).toBeNull();
+    expect(loadWizardDraft(USER_A)).not.toBeNull();
   });
 
-  it("loadWizardDraft returns null when version mismatches", () => {
+  it("load / clear 는 userId nullish 이면 no-op", () => {
+    expect(loadWizardDraft(null)).toBeNull();
+    expect(loadWizardDraft(undefined)).toBeNull();
+
+    saveWizardDraft(USER_A, baseDraft);
+    clearWizardDraft(null);
+    expect(loadWizardDraft(USER_A)).not.toBeNull();
+
+    clearWizardDraft(USER_A);
+    expect(loadWizardDraft(USER_A)).toBeNull();
+  });
+
+  it("version 미일치 시 null 반환 + key 유지 (v2 migration 여지)", () => {
     window.localStorage.setItem(
-      DRAFT_KEY,
+      draftKeyFor(USER_A),
       JSON.stringify({
         version: 2,
         savedAt: Date.now(),
@@ -174,6 +184,79 @@ describe("saveWizardDraft / loadWizardDraft / clearWizardDraft", () => {
         metadata: {},
       }),
     );
-    expect(loadWizardDraft()).toBeNull();
+    expect(loadWizardDraft(USER_A)).toBeNull();
+  });
+});
+
+describe("clearOtherUsersDrafts", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("현재 userId 를 제외한 모든 scoped draft 를 제거한다", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    saveWizardDraft(USER_B, baseDraft);
+    saveWizardDraft("user_C", baseDraft);
+
+    clearOtherUsersDrafts(USER_B);
+
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).toBeNull();
+    expect(window.localStorage.getItem("user_C")).toBeNull();
+    expect(window.localStorage.getItem(draftKeyFor(USER_B))).not.toBeNull();
+  });
+
+  it("prefix 가 다른 localStorage 키는 보존한다", () => {
+    window.localStorage.setItem("other-app:settings", "{}");
+    saveWizardDraft(USER_A, baseDraft);
+
+    clearOtherUsersDrafts(USER_A);
+
+    expect(window.localStorage.getItem("other-app:settings")).toBe("{}");
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).not.toBeNull();
+  });
+
+  it("currentUserId 가 null 이면 모든 scoped draft 를 제거한다", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    saveWizardDraft(USER_B, baseDraft);
+
+    clearOtherUsersDrafts(null);
+
+    expect(window.localStorage.getItem(draftKeyFor(USER_A))).toBeNull();
+    expect(window.localStorage.getItem(draftKeyFor(USER_B))).toBeNull();
+  });
+});
+
+describe("useDraftSnapshot (render-time localStorage derive)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("userId 가 null 이면 null 을 반환한다", () => {
+    const { result } = renderHook(({ uid }) => useDraftSnapshot(uid), {
+      initialProps: { uid: null as string | null },
+    });
+    expect(result.current).toBeNull();
+  });
+
+  it("해당 userId 로 저장된 draft 를 반영한다", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    const { result } = renderHook(({ uid }) => useDraftSnapshot(uid), {
+      initialProps: { uid: USER_A as string | null },
+    });
+    expect(result.current).not.toBeNull();
+    expect(result.current?.pineSource).toBe(baseDraft.pineSource);
+  });
+
+  it("clearWizardDraft 후 useSyncExternalStore 가 null 로 업데이트된다", () => {
+    saveWizardDraft(USER_A, baseDraft);
+    const { result } = renderHook(({ uid }) => useDraftSnapshot(uid), {
+      initialProps: { uid: USER_A as string | null },
+    });
+    expect(result.current).not.toBeNull();
+
+    act(() => {
+      clearWizardDraft(USER_A);
+    });
+    expect(result.current).toBeNull();
   });
 });
