@@ -1,30 +1,75 @@
 "use client";
 
-// Sprint FE-01: 요약 카드 + ParseDialog 런처로 전환. 상세 워크스루는 모달에서.
-// BE 변경 없음. ParsePreviewResponse 그대로 사용.
-// NOTE: TabCode가 pine_source 편집 버퍼를 소유하므로 여기 "저장" 액션은
-// 저장된 strategy.pine_source에 대한 re-save (토스트 피드백용). 편집 버퍼 기반
-// 저장을 원하면 EditorView로 source state를 리프트업 (TODO).
+// Sprint FE-01 / FE-03:
+// 요약 카드 + ParseDialog 런처. Sprint FE-03 에서 편집 버퍼를 Zustand edit-store 로 구독,
+// 500ms debounce 후 preview 재파싱 — TabCode 가 편집해도 TabParse 가 최신 상태 반영.
+//
+// debounce 패턴은 LESSON-006 엄수 (ref.current = render body 대입 금지):
+//  1) sync useEffect (deps 없음) 에서 ref.current <- 최신 값 commit
+//  2) 별도 useEffect 의 scalar dep (pineSource) 로 debounce timer 트리거
+//
+// 저장 액션은 dialog 내부 "이 전략 저장" 버튼이 Zustand store 의 최신 pineSource 를
+// 그대로 사용해 useUpdateStrategy → markSaved 호출 (header 저장 버튼과 동일 로직).
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  selectPineSource,
+  useEditStore,
+} from "@/features/strategy/edit-store";
 import { usePreviewParse, useUpdateStrategy } from "@/features/strategy/hooks";
 import type { StrategyResponse } from "@/features/strategy/schemas";
 import { PARSE_STATUS_META } from "@/features/strategy/utils";
 
 import { ParseDialog } from "./parse-dialog";
 
+const PREVIEW_DEBOUNCE_MS = 500;
+
+/**
+ * pineSource 값이 변경된 뒤 `delay` ms 동안 추가 변경이 없을 때 반환값이 갱신된다.
+ *
+ * ref.current 를 render body 에서 직접 대입하면 React Compiler 의 "refs during render"
+ * 규칙 위반이라, `draft.ts` 의 useAutoSaveDraft 패턴 그대로
+ *  - sync useEffect (deps 없음) 에서 ref 최신값 commit
+ *  - 별도 useEffect 에서 primitive dep 기반 timeout schedule
+ * 로 분리한다.
+ */
+function useDebouncedValue(value: string, delay: number): string {
+  const [debounced, setDebounced] = useState(value);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  });
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebounced(valueRef.current);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+
+  return debounced;
+}
+
 export function TabParse({ strategy }: { strategy: StrategyResponse }) {
-  const preview = usePreviewParse(strategy.pine_source);
+  const pineSource = useEditStore(selectPineSource);
+  const debouncedSource = useDebouncedValue(pineSource, PREVIEW_DEBOUNCE_MS);
+  const preview = usePreviewParse(debouncedSource);
   const live = preview.data;
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const markSaved = useEditStore((s) => s.markSaved);
   const update = useUpdateStrategy(strategy.id, {
-    onSuccess: () => toast.success("전략을 저장했습니다"),
+    onSuccess: () => {
+      markSaved(new Date());
+      toast.success("전략을 저장했습니다");
+    },
     onError: (e) => toast.error(`저장 실패: ${e.message}`),
   });
 
@@ -32,8 +77,8 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
   const canWalkthrough = Boolean(live);
   const previewError = preview.isError ? (preview.error as Error).message : null;
 
-  const handleSave = () => {
-    update.mutate({ pine_source: strategy.pine_source });
+  const handleSaveFromDialog = () => {
+    update.mutate({ pine_source: pineSource });
   };
   const handleRetry = () => {
     preview.refetch();
@@ -51,7 +96,9 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
               Pine {live?.pine_version ?? strategy.pine_version}
             </Badge>
             {preview.isFetching && (
-              <span className="text-xs text-[color:var(--text-muted)]">파싱 중...</span>
+              <span className="text-xs text-[color:var(--text-muted)]">
+                파싱 중...
+              </span>
             )}
           </div>
         </CardHeader>
@@ -79,18 +126,14 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
                 파싱 요청 실패
               </p>
               <p className="mt-1 font-mono">{previewError}</p>
-              <Button
-                variant="outline"
-                onClick={handleRetry}
-                className="mt-2"
-              >
+              <Button variant="outline" onClick={handleRetry} className="mt-2">
                 다시 시도
               </Button>
             </div>
           ) : (
             <Button
               onClick={() => setDialogOpen(true)}
-              disabled={!canWalkthrough}
+              disabled={!canWalkthrough || update.isPending}
               className="w-full"
             >
               <SparklesIcon className="mr-1 size-4" />
@@ -107,7 +150,7 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           result={live}
-          onSave={handleSave}
+          onSave={handleSaveFromDialog}
         />
       )}
     </>
