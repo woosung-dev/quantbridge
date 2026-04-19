@@ -1,11 +1,21 @@
-// 랜딩 페이지 — Stage 3 스프린트에서 프로토타입(docs/prototypes/00-landing.html) 기반으로 구현
-export default function LandingPage() {
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
+
+import { Button } from "@/components/ui/button";
+
+export default async function LandingPage() {
+  const { userId } = await auth();
+  if (userId) {
+    redirect("/strategies");
+  }
+
   return (
-    <main className="mx-auto max-w-[1200px] px-6 py-20">
+    <main
+      id="main-content"
+      className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1200px] flex-col justify-center gap-10 px-6 py-20"
+    >
       <section className="flex flex-col gap-6">
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[color:var(--primary-100)] bg-[color:var(--primary-light)] px-4 py-1.5 text-xs font-medium text-[color:var(--primary)]">
-          QuantBridge — Stage 0 scaffold
-        </span>
         <h1 className="font-display text-4xl font-extrabold tracking-tight md:text-5xl lg:text-6xl">
           Pine Script를 실전 트레이딩으로.
         </h1>
@@ -14,6 +24,11 @@ export default function LandingPage() {
           트레이딩까지 한 번에 연결하는 퀀트 플랫폼입니다.
         </p>
       </section>
+      <div className="flex flex-wrap gap-3">
+        <Button size="lg" render={<Link href="/sign-in" />} nativeButton={false}>
+          시작하기
+        </Button>
+      </div>
     </main>
   );
 }
