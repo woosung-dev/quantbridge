@@ -16,11 +16,13 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.core.config import settings
+from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
     AccountNotFound,
     IdempotencyConflict,
     LeverageCapExceeded,
+    TradingSessionClosed,
 )
 from src.trading.kill_switch import KillSwitchService
 from src.trading.models import ExchangeAccount, Order, OrderState, WebhookSecret
@@ -47,12 +49,17 @@ class ExchangeAccountService:
     async def register(
         self, user_id: UUID, req: RegisterAccountRequest
     ) -> ExchangeAccount:
+        # Sprint 7d: passphrase는 선택적. 존재 시 동일 AES-256 레이어로 암호화.
+        passphrase_ct = (
+            self._crypto.encrypt(req.passphrase) if req.passphrase else None
+        )
         account = ExchangeAccount(
             user_id=user_id,
             exchange=req.exchange,
             mode=req.mode,
             api_key_encrypted=self._crypto.encrypt(req.api_key),
             api_secret_encrypted=self._crypto.encrypt(req.api_secret),
+            passphrase_encrypted=passphrase_ct,
             label=req.label,
         )
         return await self._repo.save(account)
@@ -71,9 +78,15 @@ class ExchangeAccountService:
                 "purpose": "order_execution",
             },
         )
+        passphrase_pt = (
+            self._crypto.decrypt(account.passphrase_encrypted)
+            if account.passphrase_encrypted is not None
+            else None
+        )
         return Credentials(
             api_key=self._crypto.decrypt(account.api_key_encrypted),
             api_secret=self._crypto.decrypt(account.api_secret_encrypted),
+            passphrase=passphrase_pt,
         )
 
 
@@ -122,11 +135,24 @@ class OrderDispatcher(Protocol):
     async def dispatch_order_execution(self, order_id: UUID) -> None: ...
 
 
+class StrategySessionsPort(Protocol):
+    """Sprint 7d: OrderService → strategy.trading_sessions 조회 어댑터.
+
+    strategy 도메인 repository와 trading 도메인 사이의 직접 의존을 피하기 위한 port.
+    default DI는 SQL one-liner로 trading_sessions 컬럼만 select.
+    """
+
+    async def get_sessions(self, strategy_id: UUID) -> list[str]: ...
+
+
 class OrderService:
     """주문 생성 경로. Celery dispatch는 반드시 commit 이후 (visibility race 방지).
 
     E9: kill_switch.ensure_not_gated — begin_nested 내부, advisory lock 이후, INSERT 이전.
     E2: body_hash — 동일 idempotency_key + 다른 payload → IdempotencyConflict.
+
+    Sprint 7d: strategy.trading_sessions 가드. 현재 UTC hour가 허용 세션 밖이면
+    TradingSessionClosed 로 빠르게 실패 (kill switch / advisory lock 이전에 평가).
     """
 
     def __init__(
@@ -135,11 +161,13 @@ class OrderService:
         repo: OrderRepository,
         dispatcher: OrderDispatcher,
         kill_switch: KillSwitchService,
+        sessions_port: StrategySessionsPort | None = None,
     ) -> None:
         self._session = session
         self._repo = repo
         self._dispatcher = dispatcher
         self._kill_switch = kill_switch
+        self._sessions_port = sessions_port
 
     async def execute(
         self,
@@ -163,6 +191,18 @@ class OrderService:
                 requested=req.leverage,
                 cap=settings.bybit_futures_max_leverage,
             )
+
+        # Sprint 7d: 전략의 trading_sessions 가드. 비어있으면 24h(통과). 채워진 값이면
+        # 현재 UTC hour가 허용 세션 중 하나에 속해야 함. kill switch / advisory lock
+        # 이전에 평가하여 DB 사이드이펙트 최소화.
+        if self._sessions_port is not None:
+            sessions = await self._sessions_port.get_sessions(req.strategy_id)
+            now = datetime.now(UTC)
+            if not _sessions_is_allowed(sessions, now):
+                raise TradingSessionClosed(
+                    sessions=sessions,
+                    current_hour_utc=now.hour,
+                )
 
         created_order_id: UUID | None = None
         cached_response: OrderResponse | None = None

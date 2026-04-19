@@ -24,15 +24,22 @@ class Credentials:
     """평문 credentials — 수명을 함수 스코프로 한정.
 
     SECURITY: __repr__는 마스킹. logging/traceback/Sentry에 평문 노출 방지.
-    api_key는 마지막 4자만 표시, api_secret은 완전 마스킹.
+    api_key는 마지막 4자만 표시, api_secret/passphrase는 완전 마스킹.
+
+    Sprint 7d: OKX는 passphrase 필수. Bybit/Binance는 None.
     """
 
     api_key: str
     api_secret: str
+    passphrase: str | None = None
 
     def __repr__(self) -> str:
         masked_key = f"***{self.api_key[-4:]}" if len(self.api_key) >= 4 else "***"
-        return f"Credentials(api_key='{masked_key}', api_secret='***')"
+        passphrase_marker = "present" if self.passphrase else "none"
+        return (
+            f"Credentials(api_key='{masked_key}', api_secret='***', "
+            f"passphrase=<{passphrase_marker}>)"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,6 +276,98 @@ class BybitFuturesProvider:
                 await exchange.close()
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
+
+
+class OkxDemoProvider:
+    """OKX demo (sandbox) ephemeral CCXT client — Sprint 7d.
+
+    OKX 특이사항:
+    - API Key + Secret에 더해 Passphrase 필수 (CCXT 옵션명: ``password``).
+    - Demo/sandbox 전환은 ``enableRateLimit`` 옵션이 아니라 ``set_sandbox_mode(True)``
+      — CCXT OKX 어댑터가 dedicated sandbox 라우팅을 제공.
+    - Sprint 7d 범위는 spot only. Futures/Perpetual/Margin은 후속 스프린트.
+
+    Credentials.passphrase 가 None이면 ProviderError로 빠르게 실패 (계약 위반).
+    """
+
+    async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
+        if creds.passphrase is None:
+            # 방어: OKX 라우팅인데 passphrase가 비어 있으면 CCXT가 런타임에 auth error를
+            # 던지기 전에 명시적으로 실패시켜 traceback에 credentials가 섞이지 않게 한다.
+            raise ProviderError("OkxDemoProvider requires a passphrase (OKX auth)")
+
+        exchange = ccxt_async.okx(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "password": creds.passphrase,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "spot"},
+            }
+        )
+        # OKX는 sandbox 라우팅을 전용 API로 전환. testnet 옵션은 무시됨.
+        exchange.set_sandbox_mode(True)
+        try:
+            result = await exchange.create_order(
+                order.symbol,
+                order.type.value,
+                order.side.value,
+                float(order.quantity),
+                float(order.price) if order.price is not None else None,
+            )
+            if "id" not in result:
+                raise ProviderError(
+                    f"malformed OKX response: missing 'id' (keys={list(result)[:5]})"
+                )
+            avg = result.get("average")
+            return OrderReceipt(
+                exchange_order_id=str(result["id"]),
+                filled_price=Decimal(str(avg)) if avg is not None else None,
+                status=_map_ccxt_status(result.get("status")),
+                raw=dict(result),
+            )
+        except ProviderError:
+            raise  # already wrapped, do not re-wrap
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt.okx 인스턴스 (apiKey/secret/password
+            # 보유) 노출 위험. from None으로 chain 제거.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("okx_close_failed", exc_info=True)
+
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+        if creds.passphrase is None:
+            raise ProviderError("OkxDemoProvider requires a passphrase (OKX auth)")
+
+        exchange = ccxt_async.okx(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "password": creds.passphrase,
+                "enableRateLimit": True,
+                "options": {"defaultType": "spot"},
+            }
+        )
+        exchange.set_sandbox_mode(True)
+        try:
+            await exchange.cancel_order(exchange_order_id)
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("okx_close_failed", exc_info=True)
 
 
 def _map_ccxt_status(ccxt_status: str | None) -> Literal["filled", "submitted", "rejected"]:

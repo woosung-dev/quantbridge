@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from src.trading.models import ExchangeMode, ExchangeName, OrderSide, OrderState, OrderType
 
@@ -17,7 +17,15 @@ class RegisterAccountRequest(BaseModel):
     mode: ExchangeMode
     api_key: str = Field(min_length=1, max_length=200)
     api_secret: str = Field(min_length=1, max_length=200)
+    # Sprint 7d: OKX auth 3요소. Bybit/Binance는 생략 가능.
+    passphrase: str | None = Field(default=None, min_length=1, max_length=200)
     label: str | None = Field(default=None, max_length=120)
+
+    @model_validator(mode="after")
+    def _require_passphrase_for_okx(self) -> RegisterAccountRequest:
+        if self.exchange == ExchangeName.okx and not self.passphrase:
+            raise ValueError("OKX accounts require a passphrase")
+        return self
 
 
 class ExchangeAccountResponse(BaseModel):

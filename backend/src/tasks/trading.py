@@ -78,6 +78,11 @@ def _build_exchange_provider() -> ExchangeProvider:
         from src.trading.providers import BybitFuturesProvider
 
         return BybitFuturesProvider()
+    elif provider_name == "okx_demo":
+        # Sprint 7d: OKX Spot sandbox via CCXT (passphrase required).
+        from src.trading.providers import OkxDemoProvider
+
+        return OkxDemoProvider()
     else:
         raise ValueError(f"Unknown exchange_provider: {provider_name}")
 

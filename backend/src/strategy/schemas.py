@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from src.strategy.models import ParseStatus, PineVersion
+from src.strategy.trading_sessions import validate_session_names
 
 
 class CreateStrategyRequest(BaseModel):
@@ -15,6 +16,13 @@ class CreateStrategyRequest(BaseModel):
     timeframe: str | None = Field(default=None, max_length=16)
     symbol: str | None = Field(default=None, max_length=32)
     tags: list[str] = Field(default_factory=list)
+    # Sprint 7d: empty list = 24h. Subset of {"asia","london","ny"}.
+    trading_sessions: list[str] = Field(default_factory=list)
+
+    @field_validator("trading_sessions")
+    @classmethod
+    def _validate_sessions(cls, v: list[str]) -> list[str]:
+        return validate_session_names(v)
 
 
 class UpdateStrategyRequest(BaseModel):
@@ -24,7 +32,13 @@ class UpdateStrategyRequest(BaseModel):
     timeframe: str | None = Field(default=None, max_length=16)
     symbol: str | None = Field(default=None, max_length=32)
     tags: list[str] | None = None
+    trading_sessions: list[str] | None = None
     is_archived: bool | None = None
+
+    @field_validator("trading_sessions")
+    @classmethod
+    def _validate_sessions(cls, v: list[str] | None) -> list[str] | None:
+        return validate_session_names(v) if v is not None else None
 
 
 class ParseRequest(BaseModel):
@@ -62,6 +76,7 @@ class StrategyListItem(BaseModel):
     timeframe: str | None = None
     symbol: str | None = None
     tags: list[str] = Field(default_factory=list)
+    trading_sessions: list[str] = Field(default_factory=list)
     is_archived: bool
     created_at: AwareDatetime
     updated_at: AwareDatetime
@@ -82,6 +97,7 @@ class StrategyResponse(BaseModel):
     timeframe: str | None
     symbol: str | None
     tags: list[str] = Field(default_factory=list)
+    trading_sessions: list[str] = Field(default_factory=list)
     is_archived: bool
     created_at: AwareDatetime
     updated_at: AwareDatetime

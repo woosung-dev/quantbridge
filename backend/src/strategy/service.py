@@ -150,6 +150,7 @@ class StrategyService:
             timeframe=data.timeframe,
             symbol=data.symbol,
             tags=list(data.tags),
+            trading_sessions=list(data.trading_sessions),
         )
         saved = await self.repo.create(strategy)
         await self.repo.commit()
@@ -210,6 +211,8 @@ class StrategyService:
             strategy.symbol = data.symbol
         if data.tags is not None:
             strategy.tags = list(data.tags)
+        if data.trading_sessions is not None:
+            strategy.trading_sessions = list(data.trading_sessions)
         if data.is_archived is not None:
             strategy.is_archived = data.is_archived
         if data.pine_source is not None:

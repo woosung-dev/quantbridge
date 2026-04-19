@@ -17,8 +17,51 @@ from src.backtest.engine.types import (
     RawTrade,
 )
 from src.strategy.pine import parse_and_run
+from src.strategy.pine.types import SignalResult
+from src.strategy.trading_sessions import SESSION_UTC_HOURS, TradingSession
 
 logger = logging.getLogger(__name__)
+
+
+def _build_session_hour_mask(
+    index: pd.DatetimeIndex, sessions: tuple[str, ...]
+) -> pd.Series:
+    """True인 바만 entry 허용. UTC hour로 평가.
+
+    입력 index가 naïve면 UTC로 간주 (localize). tz-aware면 UTC로 convert.
+    알 수 없는 세션 이름은 무시 (schema 레이어에서 이미 검증).
+    """
+    hours = (
+        index.tz_localize("UTC").hour
+        if index.tz is None
+        else index.tz_convert("UTC").hour
+    )
+
+    allowed = [False] * 24
+    for name in sessions:
+        try:
+            session = TradingSession(name)
+        except ValueError:
+            continue
+        start, end = SESSION_UTC_HOURS[session]
+        for h in range(start, end):
+            allowed[h] = True
+    mask_values = [allowed[h] for h in hours]
+    return pd.Series(mask_values, index=index)
+
+
+def _apply_trading_sessions(
+    signal: SignalResult, sessions: tuple[str, ...]
+) -> None:
+    """Mask signal.entries in place by the session hour-of-day filter.
+
+    exits는 그대로 둔다 — 세션 밖에도 청산은 허용해야 포지션 관리가 깨지지 않는다.
+    """
+    if not isinstance(signal.entries.index, pd.DatetimeIndex):
+        # DatetimeIndex가 아니면 hour 필터 의미 없음 — no-op (parser가 보장하지만 방어).
+        return
+    mask = _build_session_hour_mask(signal.entries.index, sessions)
+    signal.entries = signal.entries & mask
 
 
 def run_backtest(
@@ -30,6 +73,9 @@ def run_backtest(
 
     파서가 ok로 반환하면 vectorbt로 백테스트를 실행하고 지표+trades를 추출한다.
     파서가 ok 외 상태를 반환하면 status='parse_failed'로 즉시 반환한다.
+
+    Sprint 7d: cfg.trading_sessions가 비어있지 않으면 바 timestamp UTC hour로
+    entries를 마스킹한다 — 세션 밖 bar는 진입 신호를 드롭. exits는 건드리지 않음.
     """
     cfg = config if config is not None else BacktestConfig()
     parse = parse_and_run(source, ohlcv)
@@ -41,6 +87,9 @@ def run_backtest(
             result=None,
             error=parse.error,
         )
+
+    if cfg.trading_sessions:
+        _apply_trading_sessions(parse.result, cfg.trading_sessions)
 
     try:
         kwargs = to_portfolio_kwargs(parse.result, ohlcv, cfg)
