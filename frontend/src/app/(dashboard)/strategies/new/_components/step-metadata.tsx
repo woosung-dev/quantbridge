@@ -1,7 +1,7 @@
 "use client";
 
 // Sprint 7c T4 Step 3 — 메타데이터 입력 + 확인 제출.
-// react-hook-form + Zod v4 (CreateStrategyRequestSchema.omit pine_source) + comma-split tag input.
+// Sprint FE-D: tags 필드를 chip-style TagInput 으로 교체. RHF Controller 로 배선.
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { TagInput } from "@/features/strategy/components/tag-input";
 import {
   CreateStrategyRequestSchema,
   type CreateStrategyRequest,
@@ -132,22 +133,23 @@ export function StepMetadata(props: {
           />
         </div>
 
-        {/* 태그: 간단히 comma-separated 문자열을 배열로 변환 */}
-        <FormItem>
-          <FormLabel>태그 (쉼표로 구분)</FormLabel>
-          <FormControl>
-            <Input
-              placeholder="trend, ema, crossover"
-              onChange={(e) => {
-                const tags = e.target.value
-                  .split(",")
-                  .map((t) => t.trim())
-                  .filter(Boolean);
-                form.setValue("tags", tags, { shouldDirty: true });
-              }}
-            />
-          </FormControl>
-        </FormItem>
+        <FormField
+          control={form.control}
+          name="tags"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>태그</FormLabel>
+              <FormControl>
+                <TagInput
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  placeholder="Enter 또는 쉼표로 구분 (예: trend, ema)"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="flex items-center justify-between pt-4">
           <Button type="button" variant="ghost" onClick={props.onBack}>
