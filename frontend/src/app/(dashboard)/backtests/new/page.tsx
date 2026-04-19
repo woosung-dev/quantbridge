@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { BacktestForm } from "../_components/backtest-form";
 
@@ -17,7 +18,9 @@ export default function NewBacktestPage() {
       </header>
 
       <section className="rounded-xl border bg-card p-6">
-        <BacktestForm />
+        <Suspense fallback={null}>
+          <BacktestForm />
+        </Suspense>
       </section>
     </div>
   );

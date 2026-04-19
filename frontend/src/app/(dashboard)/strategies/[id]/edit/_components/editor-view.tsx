@@ -174,9 +174,9 @@ export function EditorView({ id }: { id: string }) {
           </Button>
           <Button
             variant="outline"
-            onClick={() => router.push(`/backtest?strategy_id=${strategy.id}`)}
-            disabled
-            title="백테스트 탭은 Sprint 7b에서 연결됩니다"
+            render={<Link href={`/backtests/new?strategy_id=${strategy.id}`} />}
+            nativeButton={false}
+            aria-label="백테스트 실행"
           >
             <PlayIcon className="size-4" />
             백테스트 실행
