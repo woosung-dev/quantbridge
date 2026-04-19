@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, useWatch, type SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -43,6 +43,8 @@ function toIsoUtc(dateOnly: string): string {
 
 export function BacktestForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialStrategyId = searchParams.get("strategy_id") ?? "";
   const strategies = useStrategies({ limit: 100, offset: 0, is_archived: false });
 
   const {
@@ -53,7 +55,7 @@ export function BacktestForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     defaultValues: {
-      strategy_id: "",
+      strategy_id: initialStrategyId,
       symbol: "BTC/USDT",
       timeframe: "1h",
       period_start: "",
