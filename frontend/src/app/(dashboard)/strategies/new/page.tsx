@@ -1,10 +1,11 @@
 "use client";
 
 // Sprint 7c T4: /strategies/new — 3-step wizard + localStorage draft 복원 Dialog.
-// Pass 4 Copy Cut: 헤더 sub 문구 축약. useCreateStrategy mutate에 inline onSuccess/onError 전달.
+// Sprint FE-C: Clerk userId 별 localStorage scoping — draft 가 계정 전환 시 누출되지 않도록.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
 
 import {
@@ -23,10 +24,10 @@ import type {
 } from "@/features/strategy/schemas";
 import { handleMutationError } from "@/features/strategy/error-handler";
 import {
+  clearOtherUsersDrafts,
   clearWizardDraft,
-  loadWizardDraft,
   useAutoSaveDraft,
-  type WizardDraft,
+  useDraftSnapshot,
 } from "@/features/strategy/draft";
 
 import { WizardStepper } from "./_components/wizard-stepper";
@@ -39,30 +40,29 @@ type Method = "direct" | "upload" | "url";
 
 export default function NewStrategyPage() {
   const router = useRouter();
+  const { userId } = useAuth();
   const [step, setStep] = useState<Step>(1);
   const [method, setMethod] = useState<Method>("direct");
   const [pineSource, setPineSource] = useState("");
   const [lastParse, setLastParse] = useState<ParsePreviewResponse | null>(null);
 
-  // Draft 복원 관련 state
-  const [restorePromptOpen, setRestorePromptOpen] = useState(false);
-  const [availableDraft, setAvailableDraft] = useState<WizardDraft | null>(null);
+  // Draft 복원 — Sprint FE-C: setState-in-effect 없이 localStorage 를 render-time 에 derive.
+  // LESSON-004 정책: react-hooks/set-state-in-effect 규칙은 disable 하지 않는다.
+  const availableDraft = useDraftSnapshot(userId);
+  const [promptDismissed, setPromptDismissed] = useState(false);
+  const shouldPromptRestore =
+    !promptDismissed &&
+    availableDraft !== null &&
+    (availableDraft.pineSource.trim().length > 0 || Boolean(availableDraft.metadata.name));
 
-  // mount 시 localStorage draft 존재 체크 → 복원 프롬프트.
-  // localStorage는 client-only 외부 저장소이므로 effect 내 setState는 안전한 동기화 패턴.
-  // (SSR hydration mismatch 회피 목적으로 useState lazy init 대신 effect 사용.)
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // 계정 전환 대비 — 다른 userId 의 잔여 draft 를 best-effort 로 정리.
   useEffect(() => {
-    const d = loadWizardDraft();
-    if (d && (d.pineSource.trim().length > 0 || d.metadata.name)) {
-      setAvailableDraft(d);
-      setRestorePromptOpen(true);
-    }
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    if (!userId) return;
+    clearOtherUsersDrafts(userId);
+  }, [userId]);
 
   // auto-save (500ms debounce, primitive deps로 무한 루프 회피)
-  useAutoSaveDraft({
+  useAutoSaveDraft(userId, {
     method,
     pineSource,
     metadata: {}, // Sprint 7c: form values는 persist하지 않음 (StepMetadata 내부 form 상태)
@@ -75,7 +75,7 @@ export default function NewStrategyPage() {
       { ...meta, pine_source: pineSource },
       {
         onSuccess: (data) => {
-          clearWizardDraft();
+          clearWizardDraft(userId);
           toast.success(`"${data.name}" 전략이 생성되었습니다`);
           router.push(`/strategies/${data.id}/edit`);
         },
@@ -92,13 +92,12 @@ export default function NewStrategyPage() {
       setPineSource(availableDraft.pineSource);
       setStep(availableDraft.pineSource.trim().length > 0 ? 2 : 1);
     }
-    setRestorePromptOpen(false);
+    setPromptDismissed(true);
   };
 
   const handleDiscardDraft = () => {
-    clearWizardDraft();
-    setAvailableDraft(null);
-    setRestorePromptOpen(false);
+    clearWizardDraft(userId);
+    setPromptDismissed(true);
   };
 
   return (
@@ -140,7 +139,12 @@ export default function NewStrategyPage() {
       </section>
 
       {/* Draft 복원 Dialog */}
-      <Dialog open={restorePromptOpen} onOpenChange={setRestorePromptOpen}>
+      <Dialog
+        open={shouldPromptRestore}
+        onOpenChange={(open) => {
+          if (!open) setPromptDismissed(true);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>이어서 작성하시겠어요?</DialogTitle>

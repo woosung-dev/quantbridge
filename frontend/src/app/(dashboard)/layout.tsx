@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { ShortcutHelpDialog } from "@/components/shortcut-help-dialog";
 
 // 인증된 앱 페이지 공통 레이아웃 — Clerk 인증 보호(proxy.ts) + App Shell.
 // DESIGN.md §11 페이지별 테마: /strategies* 는 Light, /trading 은 Dark.
@@ -8,6 +9,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-[color:var(--bg)] text-[color:var(--text-primary)]">
       <DashboardShell>{children}</DashboardShell>
+      <ShortcutHelpDialog />
     </div>
   );
 }
