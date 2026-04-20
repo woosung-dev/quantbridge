@@ -4,9 +4,9 @@
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 순서: **Sprint 7c → 7b → 8a → 8b → dogfood 1~2주**. 외부 공개 없음. Build in public 주 1회.
+> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 ✅. **남은 게이트: Kill Switch capital_base + Bybit mainnet dogfood 1~2주** → H2 진입.
 
-> **🚀 다음 세션 시작 프롬프트:** [`next-session-sprint-8b-prompt.md`](./next-session-sprint-8b-prompt.md) — Sprint 8b 초입 (Tier-1 가상 strategy 래퍼 + Tier-0 렌더링 scope A). 새 세션에서 코드블록 전체 복사·붙여넣기
+> **🚀 현재 세션 작업:** H1 Stealth 클로징 5-Step 풀패키지 (Bundle 2 클로징 → LESSON 승격 → Kill Switch capital_base → Bybit mainnet 준비 → H2 게이트 설계). 2026-04-20.
 
 ---
 
@@ -22,14 +22,16 @@
 ### Phase 0: 병렬 스캐폴딩 (autoplan과 동시 진행)
 
 **Session 1 — Root Infrastructure (main):** ✅ 완료 (2026-04-15)
+
 - [x] 초기 커밋 (planning docs + config)
 - [x] docker-compose.yml (TimescaleDB 단일 인스턴스 + Redis)
 - [x] .github/workflows/ci.yml (changes-aware, frontend/backend 분리 + 요약 잡)
 - [x] .husky/pre-commit + root package.json (husky + lint-staged)
 - [x] .editorconfig + .gitignore 보강
-- [x] .env.example POSTGRES_* 정렬 (docker-compose SSOT)
+- [x] .env.example POSTGRES\_\* 정렬 (docker-compose SSOT)
 
 **Session 2 — Backend Scaffold (feat/backend-scaffold 워크트리):** ✅ 완료
+
 - [x] FastAPI 프로젝트 초기화 (uv + pyproject.toml)
 - [x] 3-Layer 디렉토리 구조 (src/core, common, auth, 7개 도메인)
 - [x] Alembic async migration 인프라
@@ -37,6 +39,7 @@
 - [x] ruff.toml + mypy.ini 개발 도구 (ruff/mypy/pytest 모두 clean)
 
 **Session 3 — Frontend Scaffold (feat/frontend-scaffold 워크트리):** ✅ 완료
+
 - [x] Next.js 16 프로젝트 초기화 (pnpm)
 - [x] FSD Lite 디렉토리 구조 (app, components, features, lib)
 - [x] Clerk 인증 (ClerkProvider + proxy.ts)
@@ -195,25 +198,25 @@
 
 ### Sprint 7c 이후 FE Design Debt (design review 2026-04-17 기록)
 
-- [ ] Chip-style tag input (type + Enter + Backspace 제거) — 현재 comma-split. 파워 유저 마찰. Context: plan P7-6, 2~4시간
+- [x] Chip-style tag input (type + Enter + Backspace 제거) — Sprint FE-D ✅ 완료 (2026-04-20, PR #33, 118 tests)
 - [ ] Coachmark tour — first-visit edit 페이지의 ⌘+S/Enter 단축키 1회성 overlay. Context: plan Persona C storyboard
 - [ ] Save conflict OCC — 백엔드 ETag 또는 `If-Unmodified-Since` header 도입 후 FE에서 409 Conflict 분기. Context: plan P7-10, 스키마 변경 필요
-- [ ] Bottom sheet dialog (mobile <768px) — DeleteDialog가 thumb-reach 위해 하단 시트로 전환. Context: plan P6 Responsive
+- [x] Bottom sheet dialog (mobile <768px) — Sprint FE-E ✅ 완료 (2026-04-20, PR #34, 124 tests)
 - [ ] Monaco Pine autocomplete — Pine v5 builtin 함수 자동완성 등록. Context: plan P7-7, full grammar 선행 필요
 - [ ] Full Pine TextMate grammar — 현재 5색 Monarch → 전체 keyword + builtin + operator 완전 grammar. 3~5일. Context: plan P7-7
-- [ ] Keyboard shortcut help dialog (? key) — 전역 단축키 목록 모달. Context: plan P6 a11y §2
-- [ ] localStorage draft user_id scoping — Clerk session 만료 시 draft auto-clear + user_id key prefix. Context: plan P7-9
+- [x] Keyboard shortcut help dialog (? key) — Sprint FE-C ✅ 완료 (2026-04-19, PR #31)
+- [x] localStorage draft user_id scoping — Sprint FE-C ✅ 완료 (2026-04-19, PR #31)
 
 ### /qa Quick tier findings (2026-04-17 — 상세 `.gstack/qa-reports/qa-report-localhost-2026-04-17.md`)
 
 - [x] **ISSUE-001 (CRITICAL) — `/trading` App Shell 누락** → `src/app/trading/` → `src/app/(dashboard)/trading/` 이동으로 해소 (commit `5bb0223`). 사이드바·유저메뉴·nav 복구
-- [ ] **ISSUE-002 (Medium) — Landing `/` CTA/네비 없음.** 서버 `auth()` 체크 → 인증 시 `redirect("/strategies")`, 미인증 시 "시작하기" 버튼 추가. "Stage 0 scaffold" 배지 제거. Horizon H2 공개 전 필수
-- [ ] **ISSUE-003 (Medium) — Edit 코드 탭 우측 패널 misleading empty state.** 저장된 코드 있을 때도 "코드를 입력하면..." 문구 노출. 마운트 시 자동 파싱 or last-parsed snapshot 기본 렌더
-- [ ] **ISSUE-004 (Medium) — 파싱 결과 탭 정보량 부족.** 버전/아카이브만 표시. warnings count, parse_errors, detected indicators, SL/TP brackets 풍부화
-- [ ] **ISSUE-005 (Medium) — `/trading` 모바일 테이블 overflow.** Recent Orders(6컬럼) + Exchange Accounts(4컬럼) 375px에서 찌그러짐. `.ai/stacks/nextjs-shared.md §4` 의 `overflow-x-auto` 래퍼 규칙 미준수
-- [ ] **ISSUE-006 (Medium) — `/trading` 빈 상태 copy 없음.** "Recent Orders (0)" 헤더만 있고 안내 문구 부재. Empty state + CTA (ExchangeAccount UI 연결) 추가
+- [x] **ISSUE-002 (Medium) — Landing `/` CTA/네비 없음** → Sprint FE-A ✅ 완료 (2026-04-19, PR #30 via stage/fe-polish #32)
+- [x] **ISSUE-003 (Medium) — Edit 코드 탭 우측 패널 misleading empty state** → Sprint 7b ✅ 완료 (2026-04-17)
+- [x] **ISSUE-004 (Medium) — 파싱 결과 탭 정보량 부족** → Sprint 7b + FE-01 ✅ 완료 (2026-04-17~19)
+- [x] **ISSUE-005 (Medium) — `/trading` 모바일 테이블 overflow** → Sprint FE-B ✅ 완료 (2026-04-19, PR #29)
+- [x] **ISSUE-006 (Medium) — `/trading` 빈 상태 copy 없음** → Sprint FE-B ✅ 완료 (2026-04-19, PR #29)
 - [ ] **ISSUE-007 (Low) — Clerk `@clerk/ui` 미사용 경고.** ClerkProvider에 `ui={ui}` 전달 시 구조적 CSS pin 제거. Clerk 버전 호환성 확인 후
-- [ ] **ISSUE-009 (Low) — `/dashboard` scaffold vs 사이드바 disabled 불일치.** scaffold placeholder 유지하고 사이드바 활성화 or `DashboardPage` 제거 후 `redirect("/strategies")`
+- [x] **ISSUE-009 (Low) — `/dashboard` scaffold vs 사이드바 disabled 불일치** → Sprint FE-A ✅ 완료 (2026-04-19, PR #30 via #32)
 
 ### Sprint 6 — Trading 데모 MVP ✅ 완료 (2026-04-16)
 
@@ -227,6 +230,7 @@
 - [x] Step 6 SDD — T1~T23 전체 구현 완료 (feat/sprint6-trading-impl-v2, PR #9)
 
 **CSO 체크리스트:**
+
 - [x] CSO-1: EncryptionService MultiFernet (T4/T10/T11/T17 — 5회 plan drift 교정)
 - [x] CSO-2: `backend/Dockerfile` `USER appuser` 추가 (T23)
 - [x] CSO-3: `.github/workflows/ci.yml` 3 third-party actions SHA pin (T23)
@@ -235,6 +239,7 @@
 - [ ] (Sprint 7 이연) CSO-5: Frontend dev CVEs
 
 **구현 요약:**
+
 - 34 commits (23 feat + 11 polish), 58 files, +5,715 lines
 - 4 신규 테이블 (`trading` 스키마) + Alembic migration
 - 10 REST endpoints + webhook receiver (HMAC + Idempotency-Key)
@@ -280,21 +285,29 @@
   - [x] `next.config.ts`: `create-next-app` 기본값으로 회귀 (reactStrictMode/typedRoutes/env 3개 필드 제거)
   - [x] 필터 URL sync (Plan §5.7 시나리오 7): `useSearchParams`+`router.replace` + 서버 `page.tsx` `searchParams` 동기화. `parse_status` / `archived` / `page` 3개 쿼리 반영
   - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
-- **다음 (결정 대기):** Sprint 7d vs Sprint 8a-pre 우선순위 — [ADR-011](./dev-log/011-pine-execution-strategy-v4.md) 참조
-  - **A (Claude 추천):** Sprint 8a-pre 먼저 — Pine 실행 전략 v4(Alert Hook Parser + 3-Track) 실측 착수. 본인 dogfood 루프 핵심
-  - **B:** Sprint 7d 먼저 — OKX 멀티 거래소 + Trading Sessions (기존 맥락 유지)
-- Sprint 8+ — Binance mainnet 실거래 + Kill Switch capital_base 동적 바인딩
+- Sprint 8a-pre Phase -1 실측 ✅ 완료 (2026-04-18, PR #18)
+- Sprint 8a Tier-0 Foundation ✅ 완료 (2026-04-18, PR #20, 169 tests)
+- Sprint 8b Tier-1 래퍼 + Tier-0 렌더링 + 6/6 corpus ✅ 완료 (2026-04-18, PR #21, 224 tests)
+- Sprint 8c user-defined function + 3-Track dispatcher ✅ 완료 (2026-04-19, PR #22, 252 tests)
+- Sprint 7d OKX + Trading Sessions ✅ 완료 (2026-04-19, PR #28, 823 tests)
+- Sprint FE-01 TabParse 1질문 UX + LESSON-004 ✅ 완료 (2026-04-19, PR #23/#24, 35 FE tests)
+- Sprint FE-02 FE tech debt 제로 + CI 복원 ✅ 완료 (2026-04-19, PR #25, 53 FE tests, LESSON-005/006)
+- Sprint FE-03 Edit Zustand lift-up ✅ 완료 (2026-04-19, PR #27, 59 FE tests)
+- Sprint FE-04 Backtest UI MVP ✅ 완료 (2026-04-19, PR #26, 86 FE tests)
+- FE Polish Bundle 1 (FE-A/B/C) ✅ 완료 (2026-04-19, PR #32 merge, autonomous-parallel-sprints Option C 기본)
+- FE Polish Bundle 2 (FE-D/E/F) ✅ 완료 (2026-04-20, PR #36 merge, Option C P0+P1 dogfood 4/4 달성, BUG-1/2/3 발견)
+- **다음:** H1 Stealth 종료 클로징 — Kill Switch `capital_base` 동적 바인딩 + Bybit mainnet dogfood 준비 → H2 진입 게이트 설계
 
 ### Sprint 7 Next Actions
 
 - [x] Strategy CRUD UI (목록/생성 3-step/편집 3탭 + delete 409 archive fallback) — Sprint 7c ✅ 완료 (2026-04-17)
 - [x] 실 CCXT 거래소 연동 (Bybit testnet Futures + Cross Margin) — Sprint 7a ✅ 완료 (2026-04-17)
 - [x] `bybit_futures_max_leverage` config 값이 `OrderService.execute`에서 enforce (422 `LeverageCapExceeded`) — Sprint 7a 리뷰 합의로 완료 (2026-04-17)
-- [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기
-- [ ] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7d+
-- [ ] OKX 멀티 거래소 추가 — Sprint 7d
+- [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기 (Step 4에서 runbook/체크리스트 지원 예정)
+- [x] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7d ✅ 완료 (2026-04-19, PR #28)
+- [x] OKX 멀티 거래소 추가 — Sprint 7d ✅ 완료 (2026-04-19, PR #28)
 - [x] Edit 페이지 Pine 이터레이션 UX 풍부화 (ISSUE-003 + ISSUE-004) — Sprint 7b ✅ 완료 (2026-04-17)
-- [ ] Kill Switch `capital_base` 동적 바인딩 (`ExchangeAccount.fetch_balance()`) — Sprint 8+
+- [ ] **Kill Switch `capital_base` 동적 바인딩 (`ExchangeAccount.fetch_balance()`) — 현재 세션 Step 3 착수 (P0, H1 종료 gate)**
 - [ ] WebSocket 실시간 주문 상태 스트리밍
 - [ ] CSO-5: Frontend dev CVEs 해소
 - [ ] Rate limiting middleware (per-user, per-endpoint)
@@ -331,6 +344,7 @@
 > **원안 변경(2026-04-18):** 3-way(LLM 1개 vs PyneCore vs TV) → **N-way 5 스크립트 × 최대 7 엔진 × 8 지표** 매트릭스로 확장
 
 ##### Day 1 — 환경 + I3 DrFX PyneCore + 파서 커버리지
+
 - [x] PR #17 `--squash` merge 완료 (`d36793e`)
 - [ ] `experiment/phase-minus-1-drfx` 브랜치 + `.gstack/experiments/phase-minus-1-drfx/` 격리 디렉토리
 - [ ] `uv init` + `uv add pynecore pynescript ccxt pandas numpy matplotlib`
@@ -345,6 +359,7 @@
 - [ ] E4 `/tmp/drfx_test/drfx_backtest.py` 고정 CSV 재실행
 
 ##### Day 2 — LLM 매트릭스 + trail_points probe
+
 - [ ] E5 Claude Sonnet 4.6 — I3 DrFX 변환 (Claude Code 내부)
 - [ ] E6 GPT-5 / E7 Gemini 2.5 Pro — 키 존재 시 자동 호출, 부재 시 skip + 사유 기록
 - [ ] 8 지표 수치 비교표 + bar-by-bar Jaccard (E1 oracle 기준)
@@ -353,6 +368,7 @@
 - [ ] `qty_percent` 분할 익절 probe 1건
 
 ##### Day 3 — S1/S2/I1/I2 얕은 실행 + TV 스폿체크 + 판단
+
 - [ ] S1/S2/I1/I2 얕은 실행 (E1 + E3 중심)
 - [ ] `nway_diff_matrix.csv` (5 엔진 × 5 스크립트 × 8 지표)
 - [ ] 상대 오차 계산 (I3 심층 기준): `|candidate - E1| / |E1|`
@@ -362,11 +378,13 @@
 - [ ] 사용자 승인 → Day 4+ 이행
 
 ##### Day 4-10 (scope 밖, 참고)
+
 - [ ] Day 4-5: TV 공개 스크립트 15~20개 alert 패턴 프로파일링 (Track S/A/M 실제 비율)
 - [ ] Day 6-7: ADR-011 amendment (실측 반영)
 - [ ] Day 8-10: Tier-0 pynescript 포크 착수
 
 ##### 가정 3개 (Day 3 판정 대상)
+
 1. PyneCore가 `strategy.exit trail_points/trail_offset` 지원 (RTB/LuxAlgo 필수)
 2. LLM 변환본 vs PyneCore 상대 오차 <0.1% MVP KPI 현실적
 3. LLM 변환 버그 3개(SL 기준점/float ==/look-ahead)가 수익률에 실질 영향
@@ -391,13 +409,13 @@
   - [x] `SignalKind → VirtualAction` 매핑 테이블 (LONG/SHORT_ENTRY/EXIT 4종)
   - [x] `VirtualStrategyWrapper` edge-trigger(False→True) strategy.entry/close 디스패치
   - [x] `discrepancy=True` alert은 경고 기록 후 condition_signal 우선
-  - [x] Pine v4 legacy alias (atr/ema/sma/rsi/crossover/… → ta.*) + iff + math.* 확장
+  - [x] Pine v4 legacy alias (atr/ema/sma/rsi/crossover/… → ta._) + iff + math._ 확장
   - [x] i1_utbot.pine E2E 완주 (Tier-1 핵심 파일럿)
 - [x] **Tier-0 렌더링 scope A (Task 6–7, 9)** — 좌표 저장 + getter만 (ADR-011 §2.0.4)
   - [x] `RenderingRegistry` + LineObject/BoxObject/LabelObject/TableObject
   - [x] `line.get_price(x)` 선형보간 + box.get_top/get_bottom + label.set_xy + table.cell
   - [x] Interpreter dispatcher (factory + handle.method 호출 모두 경유)
-  - [x] Pine enum 상수 40+ (line.style_*/extend.*/shape.*/location.*/size.*/position.*)
+  - [x] Pine enum 상수 40+ (line.style\__/extend._/shape._/location._/size._/position._)
   - [x] i2_luxalgo.pine E2E 완주 — var line.new + set_xy1/xy2 + switch
 - [x] **추가 stdlib (Task 8)** — switch statement + ta.stdev / ta.variance / math.abs
 - [x] **산출물**
@@ -408,11 +426,13 @@
     - s3/i3: strict=False 완주 (user function/request.security/valuewhen 등 H2+ 이연은 errors로 수집 후 skip)
   - H1 MVP scope 엄수 — trail_points/qty_percent/pyramiding 여전히 H2+ 이연
 
-- [ ] **다음 블록 (Sprint 8b 후속 또는 8c)**:
-  - user-defined function(=>) 지원 — s3_rsid/i3_drfx의 실제 매매 검증 재활성화 경로
-  - 3-Track 라우터 (S/A/M 분류기) + 사용자 1질문 UX (TabParse 확장)
-  - `strategy.exit trail_points/trail_offset` (Horizon H2+)
-  - 분할 익절 + 피라미딩 (Horizon H2+)
+- [x] **다음 블록 (Sprint 8b 후속 또는 8c)**:
+  - [x] user-defined function(=>) 지원 — Sprint 8c ✅ 완료 (2026-04-19, PR #22)
+  - [x] 3-Track 라우터 (S/A/M 분류기) — Sprint 8c ✅ 완료 (2026-04-19, PR #22)
+  - [x] 사용자 1질문 UX (TabParse 확장) — Sprint FE-01 ✅ 완료 (2026-04-19, PR #23)
+  - [ ] `strategy.exit trail_points/trail_offset` (Horizon H2+, pine_v2 H2 심화 sprint)
+  - [ ] 분할 익절 + 피라미딩 (Horizon H2+, pine_v2 H2 심화 sprint)
+  - [ ] pine_v2 local history ring + valuewhen cap + user function stdlib state isolation (H2+)
 
 #### Sprint 8c — Tier-2 검증 + Tier-4 Variable Explorer (2주, 06-13~26)
 
@@ -445,10 +465,30 @@
 
 ## Blocked
 
-- [ ] **Sprint 7d vs Sprint 8a-pre 우선순위** — 사용자 결정 필요 (**blocker**)
-  - Claude 추천: **Sprint 8a-pre 먼저** (본인 dogfood 루프에 Pine이 핵심, DrFX 실측으로 Phase -1 1/3 이미 완료)
-- [ ] **PyneCore `strategy.exit trail_points` 지원 여부** — Phase -1 Day 1-2에서 검증
-- [ ] **Pine 해석이 QB 진짜 차별점인가?** — H2 진입 전 외부 유저 5명 인터뷰 필요 (H1 Stealth에선 본인 dogfood로 진행)
+- [x] ~~Sprint 7d vs Sprint 8a-pre 우선순위~~ — 2026-04-18~19에 8a-pre → 8a → 8b → 8c → 7d 순으로 모두 해소 ✅
+- [x] ~~PyneCore `strategy.exit trail_points` 지원 여부~~ — Phase -1 Day 1-2 실측 완료 (Sprint 8a-pre, PR #18) ✅
+- [ ] **Pine 해석이 QB 진짜 차별점인가?** — H2 진입 전 외부 유저 5명 인터뷰 필요 (H1 Stealth에선 본인 dogfood로 진행, Step 5에서 재검토)
+- [ ] **본인 Bybit Futures 실자본 1~2주 dogfood** — H1 Stealth 종료 조건. Kill Switch capital_base(Step 3) + mainnet runbook(Step 4) 완료 후 사용자 수동 실행
+
+## H1 Stealth 종료 대기 작업 (Horizon 전환 gate)
+
+> H1 → H2 진입 전 해소해야 할 최종 게이트. 2026-04-20 현재 세션에서 Step 3/4 착수.
+
+- [ ] **P0: Kill Switch `capital_base` 동적 바인딩 + leverage cap 검증** (현재 세션 Step 3, 4~5h)
+  - Bybit Futures balance endpoint → periodic refresh (30s)
+  - leverage × capital 초과 시 hard-reject
+  - pytest + PR
+- [ ] **P0: Bybit mainnet dogfood 준비** (현재 세션 Step 4, 3~4h)
+  - `docs/07_infra/runbook.md` 확장 (mainnet 절차, API key 로테이션, emergency kill)
+  - `docs/07_infra/bybit-mainnet-checklist.md` (신규, IP whitelist/출금 권한/레버리지 1:1/소액)
+  - `scripts/bybit-smoke.sh` 소액 dry-run 스크립트
+- [ ] **P0: 본인 실자본 1~2주 dogfood** (사용자 수동) — H1 종료 확정 조건
+- [ ] **P1: autonomous-parallel-sprints 스킬 patch (BUG-1/2/3 → LESSON-007/008/009 반영)**
+  - 스킬 repo: `~/.claude/skills/autonomous-parallel-sprints/`
+  - BUG-1 kickoff-worker.sh symlink → `--git-common-dir` 기반 교체
+  - BUG-2 Planner SIG_ID full-id 강제
+  - BUG-3 Worker plan 저장 경로 worktree-only 강제
+- [ ] **P2: H2 진입 게이트 설계** (현재 세션 Step 5, 3~5h) — `/office-hours` Q4 narrowest wedge, Monte Carlo/Walk-Forward 우선순위, Beta 5~10명 온보딩 기준
 
 _(기존 Blocked 항목 없음 유지)_
 
