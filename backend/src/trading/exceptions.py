@@ -1,6 +1,7 @@
 """trading 도메인 예외. src.common.exceptions.AppException 상속."""
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import UUID
 
 from src.common.exceptions import AppException
@@ -104,3 +105,32 @@ class LeverageCapExceeded(AppException):
         )
         self.requested = requested
         self.cap = cap
+
+
+class NotionalExceeded(AppException):
+    """주문 notional(qty x price x leverage)이 계좌 자본 x max_leverage x safety 초과.
+
+    Sprint 8+ Kill Switch capital_base 동적 바인딩과 함께 도입. leverage cap이 비율
+    상한만 보는 반면, 본 가드는 실제 포지션 규모가 잔고 대비 과도한지 금액 단위로 검증.
+    safety factor 0.95로 청산 여유 확보.
+    """
+
+    status_code = 422
+    code = "notional_exceeded"
+
+    def __init__(
+        self,
+        *,
+        notional: Decimal,
+        available: Decimal,
+        leverage: int,
+        max_notional: Decimal,
+    ) -> None:
+        super().__init__(
+            f"notional {notional} exceeds max {max_notional} "
+            f"(available={available}, leverage={leverage}x)"
+        )
+        self.notional = notional
+        self.available = available
+        self.leverage = leverage
+        self.max_notional = max_notional

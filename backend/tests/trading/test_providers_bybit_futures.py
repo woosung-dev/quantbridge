@@ -184,3 +184,68 @@ async def test_bybit_futures_cancel_order(credentials, ccxt_mock):
     await provider.cancel_order(credentials, "bybit-futures-42")
     mock_exchange.cancel_order.assert_awaited_once_with("bybit-futures-42")
     mock_exchange.close.assert_awaited_once()
+
+
+# ── Sprint 8+ fetch_balance ───────────────────────────────────────────
+
+async def test_bybit_futures_fetch_balance_returns_free_as_decimal(
+    credentials, ccxt_mock
+):
+    """CCXT fetch_balance 응답의 free 값을 Decimal로 정규화."""
+    mock_exchange, _ = ccxt_mock
+    mock_exchange.fetch_balance = AsyncMock(
+        return_value={
+            "USDT": {"free": "1234.5", "used": "100.0", "total": "1334.5"},
+            "BTC": {"free": 0.01, "used": 0, "total": 0.01},
+            "info": {"raw": "bybit_response"},  # dict but no "free" — skipped
+        }
+    )
+    from src.trading.providers import BybitFuturesProvider
+
+    provider = BybitFuturesProvider()
+    balances = await provider.fetch_balance(credentials)
+
+    assert balances["USDT"] == Decimal("1234.5")
+    assert balances["BTC"] == Decimal("0.01")
+    assert "info" not in balances
+    mock_exchange.close.assert_awaited_once()
+
+
+async def test_bybit_futures_fetch_balance_wraps_ccxt_error(
+    credentials, ccxt_mock
+):
+    """CCXT BaseError → ProviderError 래핑 + 클라이언트 close."""
+    import ccxt.async_support as ccxt_async
+
+    mock_exchange, _ = ccxt_mock
+    mock_exchange.fetch_balance = AsyncMock(
+        side_effect=ccxt_async.NetworkError("connection timeout")
+    )
+    from src.trading.exceptions import ProviderError
+    from src.trading.providers import BybitFuturesProvider
+
+    provider = BybitFuturesProvider()
+    with pytest.raises(ProviderError, match="NetworkError"):
+        await provider.fetch_balance(credentials)
+    mock_exchange.close.assert_awaited_once()
+
+
+async def test_bybit_futures_fetch_balance_skips_malformed_entries(
+    credentials, ccxt_mock
+):
+    """free 값이 None·비숫자·dict 아님인 항목은 건너뜀."""
+    mock_exchange, _ = ccxt_mock
+    mock_exchange.fetch_balance = AsyncMock(
+        return_value={
+            "USDT": {"free": "500"},
+            "ETH": {"free": None},  # None → skip
+            "XRP": {"free": "not-a-number"},  # ValueError → skip
+            "LTC": "not-a-dict",  # dict 아님 → skip
+        }
+    )
+    from src.trading.providers import BybitFuturesProvider
+
+    provider = BybitFuturesProvider()
+    balances = await provider.fetch_balance(credentials)
+
+    assert balances == {"USDT": Decimal("500")}

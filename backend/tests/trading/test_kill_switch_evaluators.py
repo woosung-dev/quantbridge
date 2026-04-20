@@ -147,3 +147,107 @@ async def test_daily_loss_evaluator_gated_when_today_exceeds(db_session, strat_a
     assert result.trigger_type == "daily_loss"
     assert result.trigger_value == Decimal("-600")
     assert result.threshold == Decimal("500")
+
+
+# ── Sprint 8+ dynamic capital_base via BalanceProvider ────────────────
+
+class _StubBalanceProvider:
+    """BalanceProvider Protocol fake. 생성 시 지정한 값을 그대로 반환."""
+
+    def __init__(self, value: Decimal | None) -> None:
+        self._value = value
+        self.call_count = 0
+
+    async def fetch_balance_usdt(self, account_id):
+        self.call_count += 1
+        return self._value
+
+
+async def test_cumulative_loss_uses_dynamic_capital_when_provider_returns_value(
+    db_session, strat_account
+):
+    """balance_provider가 $5000 반환 → $1000 손실 = 20% > 10% 임계치 → gated.
+    (동일 손실을 config $10000로 계산하면 10% = 경계선이라 통과해야 함에 주의)"""
+    from decimal import Decimal
+
+    from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
+    from src.trading.repository import OrderRepository
+
+    strategy, account = strat_account
+    await _make_filled_order(
+        db_session, strategy, account, pnl=Decimal("-1000"), filled_at=datetime.now(UTC)
+    )
+
+    provider = _StubBalanceProvider(Decimal("5000"))
+    ev = CumulativeLossEvaluator(
+        OrderRepository(db_session),
+        threshold_percent=Decimal("10"),
+        capital_base=Decimal("10000"),  # config fallback
+        balance_provider=provider,
+    )
+    result = await ev.evaluate(
+        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
+    )
+
+    assert result.gated is True
+    assert result.trigger_value == Decimal("20.00")
+    assert provider.call_count == 1
+
+
+async def test_cumulative_loss_falls_back_to_config_when_provider_returns_none(
+    db_session, strat_account
+):
+    """provider가 None 반환 (fetch 실패) → config fallback 적용. $1000/$10000 = 10% = 경계.
+    threshold=10 strict 초과 조건이므로 통과."""
+    from decimal import Decimal
+
+    from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
+    from src.trading.repository import OrderRepository
+
+    strategy, account = strat_account
+    await _make_filled_order(
+        db_session, strategy, account, pnl=Decimal("-1000"), filled_at=datetime.now(UTC)
+    )
+
+    provider = _StubBalanceProvider(None)  # fetch 실패
+    ev = CumulativeLossEvaluator(
+        OrderRepository(db_session),
+        threshold_percent=Decimal("10"),
+        capital_base=Decimal("10000"),
+        balance_provider=provider,
+    )
+    result = await ev.evaluate(
+        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
+    )
+
+    assert result.gated is False  # 10.00 > 10 이 아니므로 통과
+    assert provider.call_count == 1
+
+
+async def test_cumulative_loss_ignores_zero_or_negative_dynamic_capital(
+    db_session, strat_account
+):
+    """동적 capital이 0 이하로 들어오면 fallback (계좌 이관 중 edge case)."""
+    from decimal import Decimal
+
+    from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
+    from src.trading.repository import OrderRepository
+
+    strategy, account = strat_account
+    await _make_filled_order(
+        db_session, strategy, account, pnl=Decimal("-2000"), filled_at=datetime.now(UTC)
+    )
+
+    # balance 0 → 나누기 0 방지 + fallback. config 20000 → 10% = 경계 → 통과
+    provider = _StubBalanceProvider(Decimal("0"))
+    ev = CumulativeLossEvaluator(
+        OrderRepository(db_session),
+        threshold_percent=Decimal("10"),
+        capital_base=Decimal("20000"),
+        balance_provider=provider,
+    )
+    result = await ev.evaluate(
+        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
+    )
+
+    assert result.gated is False  # fallback 20000 사용 → 10% 경계

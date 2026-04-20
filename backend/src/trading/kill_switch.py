@@ -42,14 +42,25 @@ class KillSwitchEvaluator(Protocol):
     async def evaluate(self, ctx: EvaluationContext) -> EvaluationResult: ...
 
 
+class BalanceProvider(Protocol):
+    """account별 USDT 잔고를 비동기로 조회. 동적 capital_base 바인딩용.
+
+    Protocol로 선언하여 kill_switch → trading.service (ExchangeAccountService)
+    순환 import 회피. None 반환 시 caller는 config fallback 사용.
+    """
+
+    async def fetch_balance_usdt(self, account_id: UUID) -> Decimal | None: ...
+
+
 class CumulativeLossEvaluator:
     """MDD % = |누적 손실| / capital_base x 100. Strategy 단위.
 
-    capital_base는 Sprint 6에선 설정값(단일). Sprint 7+에서 account equity로 확장.
+    capital_base 우선순위:
+    1. balance_provider로 조회한 실제 계좌 USDT 잔고 (>0)
+    2. balance_provider가 None/실패 시 생성자 주입 capital_base (config fallback)
 
-    Sprint 7a 경계: Order.leverage가 persist되나 capital_base는 여전히 config 고정값.
-    레버리지 x notional 반영은 Sprint 8+에서 ExchangeAccount.fetch_balance() 바인딩과
-    함께 처리 (spec 007 보안 체크리스트 참조).
+    Sprint 8+ (2026-04-20): ExchangeAccount.fetch_balance() 동적 바인딩 완료.
+    BalanceProvider Protocol로 경계를 두어 trading.service와 순환 의존성 방지.
     """
 
     def __init__(
@@ -58,10 +69,12 @@ class CumulativeLossEvaluator:
         *,
         threshold_percent: Decimal,
         capital_base: Decimal,
+        balance_provider: BalanceProvider | None = None,
     ) -> None:
         self._repo = repo
         self._threshold = threshold_percent
         self._capital = capital_base
+        self._balance_provider = balance_provider
 
     async def evaluate(self, ctx: EvaluationContext) -> EvaluationResult:
         # Strategy의 filled 주문 realized_pnl 합
@@ -77,9 +90,15 @@ class CumulativeLossEvaluator:
         if total_pnl >= Decimal("0"):
             return EvaluationResult(gated=False)
 
-        # Sprint 7a 경계: capital_base는 config 고정값 — leverage x notional 반영은
-        # Sprint 8+ ExchangeAccount.fetch_balance() 바인딩 시 class docstring 참조.
-        loss_percent = (abs(total_pnl) / self._capital * Decimal("100")).quantize(
+        # Sprint 8+ 동적 capital_base: balance_provider 주입 시 실제 잔고 우선.
+        # None/0 이하는 config fallback (계좌 이관 중, API 실패 등 edge case 방어).
+        capital = self._capital
+        if self._balance_provider is not None:
+            dynamic = await self._balance_provider.fetch_balance_usdt(ctx.account_id)
+            if dynamic is not None and dynamic > Decimal("0"):
+                capital = dynamic
+
+        loss_percent = (abs(total_pnl) / capital * Decimal("100")).quantize(
             Decimal("0.01")
         )
         if loss_percent > self._threshold:

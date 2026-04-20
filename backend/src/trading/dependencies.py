@@ -21,6 +21,7 @@ from src.trading.kill_switch import (
     KillSwitchEvaluator,
     KillSwitchService,
 )
+from src.trading.providers import BybitFuturesProvider
 from src.trading.repository import (
     ExchangeAccountRepository,
     KillSwitchEventRepository,
@@ -41,13 +42,28 @@ def get_encryption_service() -> EncryptionService:
     return EncryptionService(settings.trading_encryption_keys)
 
 
+# ── BybitFuturesProvider (module-level singleton, stateless) ─────────
+# 주문 경로는 `OrderDispatcher → Celery task`에서 별도 인스턴스 사용.
+# 여기 singleton은 fetch_balance 같은 lightweight 조회용 (ExchangeAccountService 주입).
+_bybit_futures_provider = BybitFuturesProvider()
+
+
+def get_bybit_futures_provider() -> BybitFuturesProvider:
+    return _bybit_futures_provider
+
+
 # ── ExchangeAccount ──────────────────────────────────────────────────
 async def get_exchange_account_service(
     session: AsyncSession = Depends(get_async_session),
     crypto: EncryptionService = Depends(get_encryption_service),
+    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
 ) -> ExchangeAccountService:
     repo = ExchangeAccountRepository(session)
-    return ExchangeAccountService(repo=repo, crypto=crypto)
+    return ExchangeAccountService(
+        repo=repo,
+        crypto=crypto,
+        bybit_futures_provider=bybit_futures_provider,
+    )
 
 
 # ── WebhookSecret ────────────────────────────────────────────────────
@@ -75,6 +91,7 @@ async def get_webhook_service(
 # ── KillSwitch ───────────────────────────────────────────────────────
 async def get_kill_switch_service(
     session: AsyncSession = Depends(get_async_session),
+    exchange_service: ExchangeAccountService = Depends(get_exchange_account_service),
 ) -> KillSwitchService:
     order_repo = OrderRepository(session)
     events_repo = KillSwitchEventRepository(session)
@@ -83,6 +100,9 @@ async def get_kill_switch_service(
             order_repo,
             threshold_percent=settings.kill_switch_cumulative_loss_percent,
             capital_base=settings.kill_switch_capital_base_usd,
+            # Sprint 8+ 동적 바인딩: ExchangeAccountService가 BalanceProvider Protocol 충족.
+            # config capital_base는 fetch 실패 시 fallback.
+            balance_provider=exchange_service,
         ),
         DailyLossEvaluator(
             order_repo,
@@ -128,6 +148,7 @@ async def get_order_service(
     session: AsyncSession = Depends(get_async_session),
     kill_switch: KillSwitchService = Depends(get_kill_switch_service),
     dispatcher: OrderDispatcher = Depends(get_order_dispatcher),
+    exchange_service: ExchangeAccountService = Depends(get_exchange_account_service),
 ) -> OrderService:
     repo = OrderRepository(session)
     return OrderService(
@@ -136,4 +157,6 @@ async def get_order_service(
         dispatcher=dispatcher,
         kill_switch=kill_switch,
         sessions_port=_StrategySessionsAdapter(session),
+        # Sprint 8+ notional check: qty x price x leverage ≤ available x max_leverage x 0.95
+        exchange_service=exchange_service,
     )
