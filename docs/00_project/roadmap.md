@@ -1,9 +1,10 @@
 # QuantBridge — Product Roadmap
 
-> **작성일:** 2026-04-17
+> **작성일:** 2026-04-17 (초안) · **최종 수정:** 2026-04-20 (H1 클로징 sync)
 > **프레임:** Horizon 3 × Strategy Pillars 하이브리드
 > **철학:** Dogfood-first Indie SaaS — "내가 돈 내고 쓰고 싶은 것"이 quality bar
-> **현재 단계:** H1 진입 (Sprint 7a 완료 → Sprint 7c 대기)
+> **현재 단계:** **H1 클로징** — 코드 게이트 전부 merge. **남은 건 본인 실자본 dogfood 1~2주** → H2 진입
+> **H2 Kickoff plan:** [`../superpowers/plans/2026-04-20-h2-kickoff.md`](../superpowers/plans/2026-04-20-h2-kickoff.md) — 6 결정 포인트 + Sprint 9~11 분해 + Beta 5~10명 획득 경로
 
 ---
 
@@ -34,11 +35,11 @@
 
 ## Pillar 정의
 
-| Pillar | 의미 | 우선순위 |
-|---|---|---|
-| 🛡 **Trust (신뢰)** | 본인이 실자본 맡겨도 안심되는 품질. 실거래 안정성, 리스크 관리, 백테스트 신뢰성, 보안. | **최우선** — H1에 집중 |
-| 🚀 **Scale (확장)** | 기능·거래소·사용자 확장. Trust 충족 후에만 가속. | 중간 |
-| 💰 **Monetize (수익화)** | 수익화 모델 검증. 가격 실험, 티어 경계, 법무/세무. | **H1 금지** → H2 가설 → H3 실험 |
+| Pillar                   | 의미                                                                                   | 우선순위                        |
+| ------------------------ | -------------------------------------------------------------------------------------- | ------------------------------- |
+| 🛡 **Trust (신뢰)**      | 본인이 실자본 맡겨도 안심되는 품질. 실거래 안정성, 리스크 관리, 백테스트 신뢰성, 보안. | **최우선** — H1에 집중          |
+| 🚀 **Scale (확장)**      | 기능·거래소·사용자 확장. Trust 충족 후에만 가속.                                       | 중간                            |
+| 💰 **Monetize (수익화)** | 수익화 모델 검증. 가격 실험, 티어 경계, 법무/세무.                                     | **H1 금지** → H2 가설 → H3 실험 |
 
 **원칙:** Trust가 깨지면 Scale/Monetize 정지. 예) mainnet 버그 발견 → H2 Monte Carlo 연기하고 fix 먼저.
 
@@ -48,30 +49,30 @@
 
 ### H1 (0–1.5m) · Stealth, 본인 dogfood
 
-| Pillar | 작업 |
-|---|---|
-| 🛡 Trust | **Sprint 7c** Strategy CRUD UI (plan: [`docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md))<br>**Sprint 7b** OKX 통합 + Trading Sessions<br>**Sprint 8a** Binance mainnet DB CHECK constraint + `margin_mode` string↔Literal 경계 검증 ([ADR-007](../dev-log/007-sprint7a-futures-decisions.md) 미해결)<br>**Sprint 8b** Kill Switch `capital_base` 레버리지 반영 검증 (ADR-006 미해결)<br>**본인 실자본 1~2주 Bybit Futures dogfood** |
-| 🚀 Scale | CCXT 계측 초기 (Prometheus 최소)<br>초기 backfill Celery task 분리 (대용량 OHLCV) |
-| 💰 Monetize | ❌ **설계 금지.** 신규 기능에 `[free/paid 후보]` 태그만 부착하여 H2 가설 수립 재료로 축적. |
-| Launch | Stealth. Twitter/X `#buildinpublic` 주 1회 포스트 시작 (한국어+영어 병기). |
+| Pillar      | 작업                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🛡 Trust    | **Sprint 7c** Strategy CRUD UI (plan: [`docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md))<br>**Sprint 7b** OKX 통합 + Trading Sessions<br>**Sprint 8a** Binance mainnet DB CHECK constraint + `margin_mode` string↔Literal 경계 검증 ([ADR-007](../dev-log/007-sprint7a-futures-decisions.md) 미해결)<br>**Sprint 8b** Kill Switch `capital_base` 레버리지 반영 검증 (ADR-006 미해결)<br>**본인 실자본 1~2주 Bybit Futures dogfood** |
+| 🚀 Scale    | CCXT 계측 초기 (Prometheus 최소)<br>초기 backfill Celery task 분리 (대용량 OHLCV)                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 💰 Monetize | ❌ **설계 금지.** 신규 기능에 `[free/paid 후보]` 태그만 부착하여 H2 가설 수립 재료로 축적.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Launch      | Stealth. Twitter/X `#buildinpublic` 주 1회 포스트 시작 (한국어+영어 병기).                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ### H2 (1.5–4m) · 지인 Beta 5~10명
 
-| Pillar | 작업 |
-|---|---|
-| 🛡 Trust | **Sprint 9** Monte Carlo 1000회 + Walk-Forward 분석<br>관측성 스택 — Prometheus + Grafana + alert 1개 이상 실전 동작<br>Multi-worker split-brain Redis lock (현재 PG advisory만)<br>Real broker 테스트 인프라 (pytest-celery)<br>**Disclaimer + ToS 작성** (법무 자문 권장) |
-| 🚀 Scale | **Sprint 10** 파라미터 최적화 (Grid → Bayesian → Genetic)<br>TimescaleDB compression / retention policy<br>**지인 Beta 5~10명 온보딩**<br>**US·EU geo-block** 구현 (결제 gateway + landing 문구 이중 차단) |
-| 💰 Monetize | **가설 수립 (실행 아님)**<br>Freemium 티어 경계 — 기본=단일 거래소, Paid=다중 거래소 + 고급 분석(MC/WFA/Bayesian)<br>Gumroad / LemonSqueezy 셋업 검토<br>**한국 세무·사업자 등록 확인** (개인사업자 / 통신판매업 / 부가세) |
-| Launch | H2 말 지인 Beta 오픈. waitlist 수집 시작. Build in public 주 1회 유지. |
+| Pillar      | 작업                                                                                                                                                                                                                                                                        |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🛡 Trust    | **Sprint 9** Monte Carlo 1000회 + Walk-Forward 분석<br>관측성 스택 — Prometheus + Grafana + alert 1개 이상 실전 동작<br>Multi-worker split-brain Redis lock (현재 PG advisory만)<br>Real broker 테스트 인프라 (pytest-celery)<br>**Disclaimer + ToS 작성** (법무 자문 권장) |
+| 🚀 Scale    | **Sprint 10** 파라미터 최적화 (Grid → Bayesian → Genetic)<br>TimescaleDB compression / retention policy<br>**지인 Beta 5~10명 온보딩**<br>**US·EU geo-block** 구현 (결제 gateway + landing 문구 이중 차단)                                                                  |
+| 💰 Monetize | **가설 수립 (실행 아님)**<br>Freemium 티어 경계 — 기본=단일 거래소, Paid=다중 거래소 + 고급 분석(MC/WFA/Bayesian)<br>Gumroad / LemonSqueezy 셋업 검토<br>**한국 세무·사업자 등록 확인** (개인사업자 / 통신판매업 / 부가세)                                                  |
+| Launch      | H2 말 지인 Beta 오픈. waitlist 수집 시작. Build in public 주 1회 유지.                                                                                                                                                                                                      |
 
 ### H3 (4–9m) · TV 커뮤니티 공개
 
-| Pillar | 작업 |
-|---|---|
-| 🛡 Trust | Binance + OKX + Bybit 풀 라이브 안정화<br>(실험 태그) AI 전략 생성·최적화 — [ADR-003](../dev-log/003-pine-runtime-safety-and-parser-scope.md) Pine 보안과의 충돌 검증 선행 |
-| 🚀 Scale | **TV 커뮤니티 공식 공개** (r/TradingView, TV Scripts, Discord 서버)<br>(실험 태그) 전략 마켓플레이스 기초 가설 검증 |
-| 💰 Monetize | **가격 실험 A/B** ($19 / $29 / 단일)<br>(실험 태그) 거래소 referral fee share<br>**첫 $1 유료 사용자 목표** |
-| Launch | TV 커뮤니티 공개 포스트. Post-H3 Product Hunt 런치 준비. |
+| Pillar      | 작업                                                                                                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🛡 Trust    | Binance + OKX + Bybit 풀 라이브 안정화<br>(실험 태그) AI 전략 생성·최적화 — [ADR-003](../dev-log/003-pine-runtime-safety-and-parser-scope.md) Pine 보안과의 충돌 검증 선행 |
+| 🚀 Scale    | **TV 커뮤니티 공식 공개** (r/TradingView, TV Scripts, Discord 서버)<br>(실험 태그) 전략 마켓플레이스 기초 가설 검증                                                        |
+| 💰 Monetize | **가격 실험 A/B** ($19 / $29 / 단일)<br>(실험 태그) 거래소 referral fee share<br>**첫 $1 유료 사용자 목표**                                                                |
+| Launch      | TV 커뮤니티 공개 포스트. Post-H3 Product Hunt 런치 준비.                                                                                                                   |
 
 ---
 
@@ -87,16 +88,19 @@
 ## Checkpoint (단계별 전환 조건)
 
 ### H1 → H2 전환 조건 (모두 충족)
+
 - [ ] 본인 Bybit Futures 실자본 1주 무사고 운영
 - [ ] Kill Switch · leverage cap · AES-256 재검증 pass
 - [ ] Prometheus alert 1개 이상 실전 동작 (예: 주문 실패율 > 5%)
 
 ### H2 → H3 전환 조건 (모두 충족)
+
 - [ ] 지인 Beta 5명 중 3명 이상 1주 연속 사용
 - [ ] Monte Carlo / Walk-Forward 본인 사용 1회 이상
 - [ ] Freemium 티어 경계 결정 (구현 전)
 
 ### H3 성공 정의 (2개 이상 달성)
+
 - [ ] 첫 $1 유료 사용자 확보
 - [ ] TV 커뮤니티 공개 포스트 1건 이상
 - [ ] MRR 검증 가능한 가설 1개 (증명 불필요, 데이터 수집 가능한 수준)
@@ -105,13 +109,13 @@
 
 ## 리스크 & 대응
 
-| 리스크 | 발동 조건 | 대응 |
-|---|---|---|
-| **번아웃** (9m 공격적 페이스) | Sprint 3개 연속 overrun | H2/H3 time-box 10% 확장 허용. 주 1일 휴식 규칙. |
-| **외부 demand 없음 지속** ([ADR-008](../dev-log/008-sprint7c-scope-decision.md) red flag) | H2 말 Beta 5명 미확보 | Launch 전략 재검토 — Build in public 비중↑, 타깃 페르소나 재정렬. |
-| **규제 변화** (한국 특금법 개정 등) | 2026년 내 금융 당국 발표 | BYOK/tool-framed 프레이밍 재검토. 최악의 경우 글로벌 타깃만 유지 (KR 차단). |
-| **Dogfood 불일치** | H1 종료 시점 본인 사용 빈도 주 3회 미만 | NoCode 편집 UX 집중으로 "통합·속도" 가치 재증명. Python-capable 페르소나 가설 재검토. |
-| **Trust 회귀** | mainnet 실거래 중 데이터 손실·버그 | 현 Sprint 즉시 중단. Post-mortem ADR 작성. 외부 공개 시점 연기. |
+| 리스크                                                                                    | 발동 조건                               | 대응                                                                                  |
+| ----------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------- |
+| **번아웃** (9m 공격적 페이스)                                                             | Sprint 3개 연속 overrun                 | H2/H3 time-box 10% 확장 허용. 주 1일 휴식 규칙.                                       |
+| **외부 demand 없음 지속** ([ADR-008](../dev-log/008-sprint7c-scope-decision.md) red flag) | H2 말 Beta 5명 미확보                   | Launch 전략 재검토 — Build in public 비중↑, 타깃 페르소나 재정렬.                     |
+| **규제 변화** (한국 특금법 개정 등)                                                       | 2026년 내 금융 당국 발표                | BYOK/tool-framed 프레이밍 재검토. 최악의 경우 글로벌 타깃만 유지 (KR 차단).           |
+| **Dogfood 불일치**                                                                        | H1 종료 시점 본인 사용 빈도 주 3회 미만 | NoCode 편집 UX 집중으로 "통합·속도" 가치 재증명. Python-capable 페르소나 가설 재검토. |
+| **Trust 회귀**                                                                            | mainnet 실거래 중 데이터 손실·버그      | 현 Sprint 즉시 중단. Post-mortem ADR 작성. 외부 공개 시점 연기.                       |
 
 ---
 
@@ -119,30 +123,33 @@
 
 `docs/TODO.md`의 Pending 항목이 본 로드맵 6칸 중 어디에 속하는지 명시 (out of roadmap이면 별도 태그):
 
-| TODO 항목 | Horizon | Pillar | 비고 |
-|---|---|---|---|
-| Bybit testnet Live smoke test (실 API key) | H1 | Trust | 사용자 수동 확인 대기 |
-| Trading Sessions 도메인 확장 | H1 | Trust | Sprint 7b 범위 |
-| OKX 멀티 거래소 | H1 | Trust | Sprint 7b 범위 |
-| Kill Switch `capital_base` 동적 바인딩 | H1 | Trust | Sprint 8b |
-| `margin_mode` DB CHECK constraint | H1 | Trust | Sprint 8a |
-| Bybit v5 "not modified" error handling | H1 | Trust | Sprint 8a 부속 |
-| WebSocket 실시간 주문 상태 | H2 | Scale | 관측성 스택과 함께 |
-| CSO-5 Frontend dev CVEs | H2 | Trust | 보안 유지보수 |
-| Rate limiting middleware | H2 | Trust | Beta 전 필수 |
-| Prometheus/Grafana 계측 | H1/H2 | Scale/Trust | H1=최소, H2=완전 |
-| Idempotency-Key for `POST /backtests` | H2 | Trust | Beta 전 권장 |
-| Real broker 테스트 인프라 (pytest-celery) | H2 | Trust | Beta 전 필수 |
-| 초기 backfill Celery task 분리 | H1 | Scale | 대용량 OHLCV 대비 |
-| TimescaleDB compression/retention | H2 | Scale | 데이터량 증가 시점 |
-| Multi-worker split-brain Redis lock | H2 | Trust | Beta 전 권장 |
-| FE Strategy delete UX (archive) | H1 | Trust | Sprint 7c 내 |
-| conftest 완전 Alembic 전환 | H2 | Scale | Beta 전 테스트 안정성 |
-| DB 호스팅 결정 (TODO Questions Q1) | H2 | Scale | Beta 전 필수 |
-| 배포 전략 결정 (TODO Questions Q2) | H2 | Scale | Beta 전 필수 |
-| Socket.IO vs WebSocket (TODO Questions Q3) | H2 | Scale | 실시간 기능 도입 시 |
+| TODO 항목                                          | Horizon | Pillar      | 비고                                                               |
+| -------------------------------------------------- | ------- | ----------- | ------------------------------------------------------------------ |
+| Bybit testnet Live smoke test (실 API key)         | H1      | Trust       | 사용자 수동 확인 대기. PR #39에 smoke script 추가 (2026-04-20)     |
+| Trading Sessions 도메인 확장                       | H1      | Trust       | ✅ Sprint 7d 완료 (2026-04-19, PR #28)                             |
+| OKX 멀티 거래소                                    | H1      | Trust       | ✅ Sprint 7d 완료 (2026-04-19, PR #28)                             |
+| Kill Switch `capital_base` 동적 바인딩             | H1      | Trust       | ✅ 완료 (2026-04-20, PR #38) — notional check + fetch_balance_usdt |
+| `margin_mode` DB CHECK constraint                  | H1      | Trust       | Sprint 8a (mainnet 전, 별도 PR)                                    |
+| Bybit v5 "not modified" error handling             | H1      | Trust       | Sprint 8a 부속 (mainnet 전)                                        |
+| WebSocket 실시간 주문 상태                         | H2      | Scale       | 관측성 스택과 함께                                                 |
+| CSO-5 Frontend dev CVEs                            | H2      | Trust       | 보안 유지보수                                                      |
+| Rate limiting middleware                           | H2      | Trust       | Beta 전 필수 (Sprint 10)                                           |
+| Prometheus/Grafana 계측                            | H1/H2   | Scale/Trust | H1 metric 5종 문서화 ✅ (PR #39). H2 Sprint 9 계측 실행            |
+| Idempotency-Key for `POST /backtests`              | H2      | Trust       | Beta 전 권장 (Sprint 9)                                            |
+| Real broker 테스트 인프라 (pytest-celery)          | H2      | Trust       | Beta 전 필수 (Sprint 10)                                           |
+| 초기 backfill Celery task 분리                     | H1      | Scale       | 대용량 OHLCV 대비                                                  |
+| TimescaleDB compression/retention                  | H2      | Scale       | Sprint 10                                                          |
+| Multi-worker split-brain Redis lock                | H2      | Trust       | Beta 전 권장 (Sprint 10)                                           |
+| FE Strategy delete UX (archive)                    | H1      | Trust       | ✅ Sprint 7c 내 완료                                               |
+| conftest 완전 Alembic 전환                         | H2      | Scale       | Beta 전 테스트 안정성                                              |
+| DB 호스팅 결정 (TODO Questions Q1)                 | H2      | Scale       | Beta 전 필수                                                       |
+| 배포 전략 결정 (TODO Questions Q2)                 | H2      | Scale       | Beta 전 필수                                                       |
+| Socket.IO vs WebSocket (TODO Questions Q3)         | H2      | Scale       | 실시간 기능 도입 시                                                |
+| Credentials.testnet 필드화 (mainnet 전환)          | H1      | Trust       | dogfood 직전 단발 PR (PR #39 §12.1)                                |
+| autonomous-parallel-sprints 스킬 patch (BUG-1/2/3) | H1      | Scale       | LESSON-007/008/009 기반. `~/.claude/skills/` (별도 repo)           |
 
 **Out of roadmap** (의식적 제외):
+
 - Web3 / 온체인 자동매매 — `vision.md` 비범위 유지
 - 멀티 사용자 실시간 협업 — `vision.md` 비범위 유지
 - 옵션/선물 외 파생상품 — `vision.md` 비범위 유지
@@ -164,3 +171,4 @@
 ## 변경 이력
 
 - **2026-04-17** — 초안. Horizon × Pillars 프레임, Indie SaaS dogfood-first 철학 확정. 11개 입력값 결정([ADR-010](../dev-log/010-product-roadmap.md) 참조).
+- **2026-04-20** — H1 클로징 sync. Sprint 7d/8c/Kill Switch capital_base/mainnet 준비 완료 반영. H2 kickoff plan 링크 추가 (`docs/superpowers/plans/2026-04-20-h2-kickoff.md`). TODO.md 매핑 업데이트.
