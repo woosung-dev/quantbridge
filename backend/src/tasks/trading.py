@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from src.core.config import settings
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import OrderNotFound, ProviderError
-from src.trading.models import ExchangeAccount, ExchangeMode, OrderState
+from src.trading.models import ExchangeAccount, OrderState
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
 from src.trading.repository import OrderRepository
 
@@ -146,7 +146,7 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 api_key=crypto.decrypt(account.api_key_encrypted),
                 api_secret=crypto.decrypt(account.api_secret_encrypted),
                 passphrase=passphrase_pt,
-                testnet=(account.mode != ExchangeMode.live),
+                environment=account.mode,
             )
         except Exception as e:
             error_msg = f"credential_decrypt_failed: {type(e).__name__}"

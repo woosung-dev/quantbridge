@@ -28,7 +28,7 @@ from src.trading.exceptions import (
     TradingSessionClosed,
 )
 from src.trading.kill_switch import KillSwitchService
-from src.trading.models import ExchangeAccount, ExchangeMode, Order, OrderState, WebhookSecret
+from src.trading.models import ExchangeAccount, Order, OrderState, WebhookSecret
 from src.trading.providers import BybitFuturesProvider, Credentials
 from src.trading.repository import (
     ExchangeAccountRepository,
@@ -92,7 +92,7 @@ class ExchangeAccountService:
             api_key=self._crypto.decrypt(account.api_key_encrypted),
             api_secret=self._crypto.decrypt(account.api_secret_encrypted),
             passphrase=passphrase_pt,
-            testnet=(account.mode != ExchangeMode.live),
+            environment=account.mode,
         )
 
     async def fetch_balance_usdt(self, account_id: UUID) -> Decimal | None:

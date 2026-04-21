@@ -1,9 +1,10 @@
-"""Credentials.testnet 필드 — testnet/live 모드 분기 회귀 테스트.
+"""Credentials.environment 필드 — demo/testnet/live 모드 분기 회귀 테스트.
 
 검증:
-- live 모드 계정 → Credentials.testnet=False → CCXT options "testnet": False
-- testnet 모드 계정 → Credentials.testnet=True → CCXT options "testnet": True
-- default testnet=True (필드 미지정 시 안전 우선)
+- live 모드 계정 → Credentials.environment=live → CCXT options "testnet": False
+- testnet 모드 계정 → Credentials.environment=testnet → CCXT options "testnet": True
+- demo 모드 계정 → Credentials.environment=demo → CCXT urls['api'] 오버라이드
+- default environment=testnet (필드 미지정 시 안전 우선)
 - tasks/trading.py passphrase 누락 버그 수정 검증 (OKX passphrase 포함)
 """
 from __future__ import annotations
@@ -48,6 +49,15 @@ def ccxt_bybit_mock(monkeypatch):
     mock_exchange.set_leverage = AsyncMock(return_value=None)
     mock_exchange.set_margin_mode = AsyncMock(return_value=None)
     mock_exchange.close = AsyncMock()
+    mock_exchange.urls = {
+        "api": {
+            "public": "https://api.bybit.com",
+            "private": "https://api.bybit.com",
+            "spot": "https://api.bybit.com",
+            "futures": "https://api.bybit.com",
+            "v2": "https://api.bybit.com",
+        }
+    }
 
     mock_bybit_cls = MagicMock(return_value=mock_exchange)
     import ccxt.async_support as ccxt_async
@@ -60,42 +70,54 @@ def ccxt_bybit_mock(monkeypatch):
 # Credentials 기본값
 # ---------------------------------------------------------------------------
 
-def test_credentials_default_testnet_is_true():
+def test_credentials_default_environment_is_testnet():
+    from src.trading.models import ExchangeMode
     from src.trading.providers import Credentials
 
     creds = Credentials(api_key="k", api_secret="s")
-    assert creds.testnet is True
+    assert creds.environment == ExchangeMode.testnet
 
 
-def test_credentials_live_mode():
+def test_credentials_live_environment():
+    from src.trading.models import ExchangeMode
     from src.trading.providers import Credentials
 
-    creds = Credentials(api_key="k", api_secret="s", testnet=False)
-    assert creds.testnet is False
+    creds = Credentials(api_key="k", api_secret="s", environment=ExchangeMode.live)
+    assert creds.environment == ExchangeMode.live
 
 
-def test_credentials_repr_includes_testnet():
+def test_credentials_demo_environment():
+    from src.trading.models import ExchangeMode
     from src.trading.providers import Credentials
 
-    creds = Credentials(api_key="abcd1234", api_secret="s", testnet=False)
+    creds = Credentials(api_key="k", api_secret="s", environment=ExchangeMode.demo)
+    assert creds.environment == ExchangeMode.demo
+
+
+def test_credentials_repr_includes_environment():
+    from src.trading.models import ExchangeMode
+    from src.trading.providers import Credentials
+
+    creds = Credentials(api_key="abcd1234", api_secret="s", environment=ExchangeMode.live)
     r = repr(creds)
-    assert "testnet=False" in r
+    assert "environment=live" in r
     # 민감 필드 마스킹 유지 확인
     assert "api_secret='***'" in r
     assert "abcd" not in r  # api_key 평문 노출 금지
 
 
 # ---------------------------------------------------------------------------
-# BybitFuturesProvider — testnet 플래그가 CCXT에 전달되는지 검증
+# BybitFuturesProvider — environment 플래그가 CCXT에 전달되는지 검증
 # ---------------------------------------------------------------------------
 
 async def test_live_mode_sets_testnet_false(
     ccxt_bybit_mock, order_submit_futures
 ):
     _mock_exchange, mock_bybit_cls = ccxt_bybit_mock
+    from src.trading.models import ExchangeMode
     from src.trading.providers import BybitFuturesProvider, Credentials
 
-    creds = Credentials(api_key="key", api_secret="secret", testnet=False)
+    creds = Credentials(api_key="key", api_secret="secret", environment=ExchangeMode.live)
     provider = BybitFuturesProvider()
     await provider.create_order(creds, order_submit_futures)
 
@@ -107,9 +129,10 @@ async def test_testnet_mode_sets_testnet_true(
     ccxt_bybit_mock, order_submit_futures
 ):
     _mock_exchange, mock_bybit_cls = ccxt_bybit_mock
+    from src.trading.models import ExchangeMode
     from src.trading.providers import BybitFuturesProvider, Credentials
 
-    creds = Credentials(api_key="key", api_secret="secret", testnet=True)
+    creds = Credentials(api_key="key", api_secret="secret", environment=ExchangeMode.testnet)
     provider = BybitFuturesProvider()
     await provider.create_order(creds, order_submit_futures)
 
@@ -117,14 +140,30 @@ async def test_testnet_mode_sets_testnet_true(
     assert call_kwargs["options"]["testnet"] is True
 
 
+async def test_demo_mode_overrides_url(
+    ccxt_bybit_mock, order_submit_futures
+):
+    """ExchangeMode.demo → testnet=False + urls['api'] api-demo.bybit.com 오버라이드."""
+    mock_exchange, mock_bybit_cls = ccxt_bybit_mock
+    from src.trading.models import ExchangeMode
+    from src.trading.providers import BybitFuturesProvider, Credentials
+
+    creds = Credentials(api_key="key", api_secret="secret", environment=ExchangeMode.demo)
+    provider = BybitFuturesProvider()
+    await provider.create_order(creds, order_submit_futures)
+
+    call_kwargs = mock_bybit_cls.call_args[0][0]
+    assert call_kwargs["options"]["testnet"] is False
+    for url_val in mock_exchange.urls["api"].values():
+        assert url_val == "https://api-demo.bybit.com"
+
+
 # ---------------------------------------------------------------------------
-# ExchangeAccountService.get_credentials_for_order — mode → testnet 매핑
+# ExchangeAccountService.get_credentials_for_order — mode → environment 매핑
 # ---------------------------------------------------------------------------
 
-async def test_get_credentials_live_mode_returns_testnet_false():
-    """ExchangeMode.live → testnet=False."""
-    from unittest.mock import AsyncMock, MagicMock
-
+async def test_get_credentials_live_mode_returns_live_environment():
+    """ExchangeMode.live → environment=live."""
     from src.trading.models import ExchangeMode
     from src.trading.service import ExchangeAccountService
 
@@ -144,13 +183,11 @@ async def test_get_credentials_live_mode_returns_testnet_false():
     service = ExchangeAccountService(repo=mock_repo, crypto=mock_crypto)
     creds = await service.get_credentials_for_order(account.id)
 
-    assert creds.testnet is False
+    assert creds.environment == ExchangeMode.live
 
 
-async def test_get_credentials_testnet_mode_returns_testnet_true():
-    """ExchangeMode.testnet → testnet=True."""
-    from unittest.mock import AsyncMock, MagicMock
-
+async def test_get_credentials_testnet_mode_returns_testnet_environment():
+    """ExchangeMode.testnet → environment=testnet."""
     from src.trading.models import ExchangeMode
     from src.trading.service import ExchangeAccountService
 
@@ -170,13 +207,11 @@ async def test_get_credentials_testnet_mode_returns_testnet_true():
     service = ExchangeAccountService(repo=mock_repo, crypto=mock_crypto)
     creds = await service.get_credentials_for_order(account.id)
 
-    assert creds.testnet is True
+    assert creds.environment == ExchangeMode.testnet
 
 
-async def test_get_credentials_demo_mode_returns_testnet_true():
-    """ExchangeMode.demo → testnet=True."""
-    from unittest.mock import AsyncMock, MagicMock
-
+async def test_get_credentials_demo_mode_returns_demo_environment():
+    """ExchangeMode.demo → environment=demo (api-demo.bybit.com으로 라우팅됨)."""
     from src.trading.models import ExchangeMode
     from src.trading.service import ExchangeAccountService
 
@@ -196,13 +231,11 @@ async def test_get_credentials_demo_mode_returns_testnet_true():
     service = ExchangeAccountService(repo=mock_repo, crypto=mock_crypto)
     creds = await service.get_credentials_for_order(account.id)
 
-    assert creds.testnet is True
+    assert creds.environment == ExchangeMode.demo
 
 
 async def test_get_credentials_includes_passphrase():
     """passphrase_encrypted 존재 시 복호화된 값이 Credentials에 포함되는지."""
-    from unittest.mock import AsyncMock, MagicMock
-
     from src.trading.models import ExchangeMode
     from src.trading.service import ExchangeAccountService
 
@@ -223,4 +256,4 @@ async def test_get_credentials_includes_passphrase():
     creds = await service.get_credentials_for_order(account.id)
 
     assert creds.passphrase == "enc_pass"
-    assert creds.testnet is True
+    assert creds.environment == ExchangeMode.testnet
