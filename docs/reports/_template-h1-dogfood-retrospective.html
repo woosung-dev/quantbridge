@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantBridge — H1 Dogfood 회고 · YYYY-MM-DD</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-soft: #131a30;
+    --card: #1a2340;
+    --card-alt: #151d38;
+    --border: #2a3760;
+    --text: #e6ebff;
+    --text-dim: #9fb0d4;
+    --text-dimmer: #6b7a9f;
+    --accent: #6cb1ff;
+    --accent-2: #8aa5ff;
+    --ok: #5fd97b;
+    --warn: #ffc657;
+    --err: #ff7a85;
+    --purple: #b794f6;
+    --mono: "SF Mono", Monaco, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", sans-serif; line-height: 1.65; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: 0.92em; background: var(--card-alt); padding: 1px 5px; border-radius: 4px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 96px; }
+
+  header.hero {
+    padding: 48px 32px 36px;
+    background: linear-gradient(135deg, #1a2340 0%, #263156 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-bottom: 32px;
+  }
+  header.hero .eyebrow { color: var(--accent-2); font-size: 0.84rem; letter-spacing: 0.08em; text-transform: uppercase; margin:0 0 10px; }
+  header.hero h1 { margin: 0 0 12px; font-size: 2.1rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; }
+  header.hero .subtitle { color: var(--text-dim); font-size: 1.05rem; margin: 0; }
+  header.hero .meta { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-dimmer); }
+  header.hero .meta b { color: var(--text); font-weight: 600; }
+
+  section { margin-top: 40px; }
+  h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 0 0 20px; }
+  h3 { font-size: 1.1rem; margin: 24px 0 10px; color: var(--accent-2); }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin: 18px 0 28px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .kpi .label { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dimmer); }
+  .kpi .value { font-size: 1.75rem; font-weight: 700; margin-top: 4px; }
+  .kpi .delta { font-size: 0.82rem; margin-top: 2px; }
+  .kpi .delta.ok { color: var(--ok); }
+  .kpi .delta.warn { color: var(--warn); }
+  .kpi .delta.err { color: var(--err); }
+  .kpi.highlight { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(108,177,255,0.18); }
+  @media (max-width: 720px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .gate-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 12px 0 24px; }
+  .gate { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; display: flex; gap: 12px; align-items: flex-start; }
+  .gate .icon { font-size: 1.4rem; flex-shrink: 0; margin-top: 2px; }
+  .gate .gate-title { font-size: 0.88rem; color: var(--text-dim); margin-bottom: 4px; }
+  .gate .gate-value { font-size: 1.05rem; font-weight: 600; }
+  .gate.pass { border-color: rgba(95,217,123,0.45); background: rgba(95,217,123,0.06); }
+  .gate.fail { border-color: rgba(255,122,133,0.45); background: rgba(255,122,133,0.06); }
+  .gate.pending { border-color: rgba(255,198,87,0.35); background: rgba(255,198,87,0.05); }
+  @media (max-width: 640px) { .gate-grid { grid-template-columns: 1fr; } }
+
+  .chart-placeholder { background: var(--card); border: 1px dashed var(--border); border-radius: 12px; height: 220px; display: flex; align-items: center; justify-content: center; color: var(--text-dimmer); font-size: 0.92rem; margin: 12px 0 24px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.9rem; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; background: var(--card-alt); }
+  tr:hover td { background: rgba(108,177,255,0.04); }
+  .mono { font-family: var(--mono); font-size: 0.87rem; color: var(--text-dim); }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.74rem; border: 1px solid; white-space: nowrap; }
+  .pill.ok { color: var(--ok); border-color: rgba(95,217,123,0.5); background: rgba(95,217,123,0.08); }
+  .pill.warn { color: var(--warn); border-color: rgba(255,198,87,0.5); background: rgba(255,198,87,0.08); }
+  .pill.err { color: var(--err); border-color: rgba(255,122,133,0.5); background: rgba(255,122,133,0.08); }
+  .pill.info { color: var(--accent); border-color: rgba(108,177,255,0.5); background: rgba(108,177,255,0.08); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin: 12px 0; }
+  .card p { margin: 0 0 10px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  .lesson { display: flex; gap: 12px; padding: 14px 16px; border-radius: 10px; background: var(--card-alt); border-left: 3px solid var(--accent); margin: 10px 0; }
+  .lesson .num { color: var(--accent); font-weight: 700; font-family: var(--mono); font-size: 0.9rem; flex-shrink: 0; }
+  .lesson .body { font-size: 0.92rem; }
+
+  .verdict { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 28px 30px; margin-top: 12px; }
+  .verdict .verdict-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dimmer); margin-bottom: 8px; }
+  .verdict .verdict-text { font-size: 1.45rem; font-weight: 700; line-height: 1.35; }
+  .verdict .verdict-sub { margin-top: 12px; color: var(--text-dim); font-size: 0.95rem; }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--text-dimmer); font-size: 0.82rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ─────────── HEADER ─────────── -->
+  <header class="hero">
+    <div class="eyebrow">QuantBridge · H1 Dogfood 회고</div>
+    <h1>Testnet Dogfood 종료 리포트</h1>
+    <p class="subtitle">3~4주 Bybit Testnet 운영 결과 요약 및 H2 진입 결정</p>
+    <div class="meta">
+      <span>기간: <b>YYYY-MM-DD ~ YYYY-MM-DD</b></span>
+      <span>전략: <b>s1_pbr.pine (Pivot Breakout Reversal)</b></span>
+      <span>거래소: <b>Bybit Testnet / USDT Perp</b></span>
+      <span>작성일: <b>YYYY-MM-DD</b></span>
+    </div>
+  </header>
+
+  <!-- ─────────── KPI ─────────── -->
+  <section>
+    <h2>📊 핵심 KPI</h2>
+    <div class="kpi-grid">
+      <div class="kpi highlight">
+        <div class="label">총 PnL (testnet)</div>
+        <div class="value" style="color: var(--ok)">$+0.00</div>
+        <div class="delta ok">초기 가상 자본 대비 +0.0%</div>
+      </div>
+      <div class="kpi">
+        <div class="label">승률</div>
+        <div class="value">0%</div>
+        <div class="delta">총 0건 / 체결 0건</div>
+      </div>
+      <div class="kpi">
+        <div class="label">최대 Drawdown</div>
+        <div class="value" style="color: var(--warn)">0.0%</div>
+        <div class="delta warn">목표 &lt; 10%</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Kill Switch 발동</div>
+        <div class="value">0회</div>
+        <div class="delta ok">false positive 0건</div>
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="label">운영 기간</div>
+        <div class="value">0일</div>
+        <div class="delta">목표 21~28일</div>
+      </div>
+      <div class="kpi">
+        <div class="label">주문 성공률</div>
+        <div class="value">0%</div>
+        <div class="delta">filled / (filled+rejected)</div>
+      </div>
+      <div class="kpi">
+        <div class="label">QB/Bybit PnL 차이</div>
+        <div class="value">0%</div>
+        <div class="delta ok">목표 &lt; 1%</div>
+      </div>
+      <div class="kpi">
+        <div class="label">다운타임</div>
+        <div class="value">0분</div>
+        <div class="delta ok">목표 0분</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── H2 GATE ─────────── -->
+  <section>
+    <h2>🎯 H2 진입 게이트 체크</h2>
+    <div class="gate-grid">
+      <div class="gate pending">
+        <div class="icon">⏳</div>
+        <div>
+          <div class="gate-title">Testnet 운영 기간</div>
+          <div class="gate-value">0주 / 목표 3~4주</div>
+        </div>
+      </div>
+      <div class="gate pending">
+        <div class="icon">⏳</div>
+        <div>
+          <div class="gate-title">Kill Switch false positive</div>
+          <div class="gate-value">0건/주 (목표 &lt; 1건/주)</div>
+        </div>
+      </div>
+      <div class="gate pending">
+        <div class="icon">⏳</div>
+        <div>
+          <div class="gate-title">QB/Bybit PnL 차이</div>
+          <div class="gate-value">0% (목표 &lt; 1%)</div>
+        </div>
+      </div>
+      <div class="gate pending">
+        <div class="icon">⏳</div>
+        <div>
+          <div class="gate-title">주관 평가</div>
+          <div class="gate-value">— "지인 5명에게 추천 가능?"</div>
+        </div>
+      </div>
+      <div class="gate pending">
+        <div class="icon">⏳</div>
+        <div>
+          <div class="gate-title">시스템 다운타임</div>
+          <div class="gate-value">0분 (목표 0분)</div>
+        </div>
+      </div>
+      <div class="gate pending">
+        <div class="icon">⏳</div>
+        <div>
+          <div class="gate-title">일일 리포트 연속 생성</div>
+          <div class="gate-value">0주 (목표 3주 이상)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── DAILY PnL CHART ─────────── -->
+  <section>
+    <h2>📈 일별 PnL 추이</h2>
+    <div class="chart-placeholder">
+      [ 일별 PnL 차트 — dogfood 완료 후 실제 데이터로 교체 ]<br>
+      (도구: recharts 또는 HTML Canvas, docs/reports/dogfood/*.html 참조)
+    </div>
+  </section>
+
+  <!-- ─────────── TRADE LOG ─────────── -->
+  <section>
+    <h2>📋 주요 거래 내역</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>날짜</th>
+          <th>심볼</th>
+          <th>방향</th>
+          <th>수량</th>
+          <th>체결가</th>
+          <th>PnL</th>
+          <th>상태</th>
+          <th>비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">YYYY-MM-DD</td>
+          <td class="mono">BTC/USDT:USDT</td>
+          <td><span class="pill ok">BUY</span></td>
+          <td class="mono">0.001</td>
+          <td class="mono">$00,000</td>
+          <td class="mono" style="color: var(--ok)">+$0.00</td>
+          <td><span class="pill ok">filled</span></td>
+          <td>—</td>
+        </tr>
+        <!-- 거래 데이터 추가 -->
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ─────────── KS EVENTS ─────────── -->
+  <section>
+    <h2>🛡 Kill Switch 이벤트</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>발동 시각</th>
+          <th>전략</th>
+          <th>트리거 유형</th>
+          <th>임계값</th>
+          <th>실측값</th>
+          <th>평가</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="6" style="text-align:center; color: var(--text-dimmer); padding: 20px;">
+            이벤트 없음 ✓
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ─────────── LESSONS ─────────── -->
+  <section>
+    <h2>💡 교훈 (Lessons Learned)</h2>
+    <div class="lesson">
+      <div class="num">L-1</div>
+      <div class="body">
+        <strong>[현상]</strong> — 설명.<br>
+        <strong>[원인]</strong> — 분석.<br>
+        <strong>[조치]</strong> — 대응 또는 코드 수정 링크.
+      </div>
+    </div>
+    <div class="lesson">
+      <div class="num">L-2</div>
+      <div class="body">
+        교훈 2 내용.
+      </div>
+    </div>
+    <!-- 교훈 추가 -->
+  </section>
+
+  <!-- ─────────── VERDICT ─────────── -->
+  <section>
+    <h2>🏁 결론 및 H2 권고</h2>
+    <div class="verdict">
+      <div class="verdict-label">최종 판정</div>
+      <div class="verdict-text">[ H2 직진입 / 추가 검증 필요 / mainnet 72h 선택 진행 ]</div>
+      <div class="verdict-sub">
+        <p>판정 근거: 게이트 기준 X/6 충족 (위 체크 섹션 참조).</p>
+        <p>
+          <strong>다음 액션:</strong>
+          [ 예: `/office-hours` (H2 kickoff) 세션 스케줄링 / Sprint 9 우선순위 조정 / mainnet 72h 진행 ]
+        </p>
+      </div>
+    </div>
+
+    <h3>H2 Sprint 9~11 우선순위 권고</h3>
+    <div class="card">
+      <p>dogfood 중 발견된 이슈를 기반으로 Sprint 9 우선순위 조정 권고:</p>
+      <table>
+        <thead>
+          <tr><th>Sprint</th><th>태스크</th><th>우선순위</th><th>근거</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Sprint 9</td>
+            <td>Monte Carlo 1000회 리샘플링</td>
+            <td><span class="pill ok">유지</span></td>
+            <td>dogfood 중 백테스트 신뢰도 확인 필요</td>
+          </tr>
+          <tr>
+            <td>Sprint 9</td>
+            <td>Idempotency-Key for POST /backtests</td>
+            <td><span class="pill ok">유지</span></td>
+            <td>중복 제출 방지 Beta 전 필수</td>
+          </tr>
+          <!-- 우선순위 항목 추가 -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    QuantBridge H1 Dogfood 회고 · 생성: YYYY-MM-DD ·
+    <a href="../00_project/roadmap.md">roadmap.md</a> ·
+    <a href="../07_infra/h1-testnet-dogfood-guide.md">운영 가이드</a>
+  </footer>
+
+</div>
+</body>
+</html>

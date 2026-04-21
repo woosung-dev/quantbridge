@@ -1,8 +1,81 @@
-# Bybit Mainnet Dogfood — 체크리스트
+# Bybit Dogfood 체크리스트 (Testnet 3~4주 + 선택 Mainnet 72h)
 
-> **목적:** QuantBridge H1 Stealth 종료 조건인 본인 실자본 1~2주 dogfood를 안전하게 수행하기 위한 사전·일일·긴급 체크리스트.
+> **목적:** QuantBridge H1 Stealth 종료 조건 dogfood를 안전하게 수행하기 위한 사전·일일·긴급 체크리스트.
+> **2026-04-21 결정:** **Testnet 3~4주가 기본 경로.** 기술 검증 90%+ testnet으로 충분. 실자본 부담 제거.
+> 선택: Beta 오픈(Sprint 11-5) 직전 극소액 mainnet 72h 별도 진행 가능 (§ Mainnet 72h 선택 섹션 참조).
 > **전제:** Kill Switch `capital_base` 동적 바인딩 완료 (PR #38), Sprint 7a Bybit Futures + Cross Margin 동작.
-> **참조:** [`./runbook.md`](./runbook.md) §12 Bybit Testnet → Mainnet 전환.
+> **참조:** [`./runbook.md`](./runbook.md) §12 Bybit Testnet → Mainnet 전환, [`./h1-testnet-dogfood-guide.md`](./h1-testnet-dogfood-guide.md).
+
+---
+
+## 🧪 Testnet Dogfood 3~4주 — 운영 절차 (기본 경로)
+
+### 환경 설정 (ONE-TIME)
+
+- [ ] **Bybit Testnet 계정 접속:** https://testnet.bybit.com — 별도 계정 필요
+- [ ] **Testnet API Key 발급:** Read + Trade 권한 (IP whitelist 선택)
+- [ ] **환경 변수 설정:**
+  ```bash
+  EXCHANGE_PROVIDER=bybit_futures
+  BYBIT_TESTNET_KEY=<testnet_api_key>
+  BYBIT_TESTNET_SECRET=<testnet_api_secret>
+  KILL_SWITCH_CAPITAL_BASE_USD=10000   # testnet 가상 자본 기준
+  KILL_SWITCH_DAILY_LOSS_USD=500       # 가상 $500 초과 시 자동 중지
+  KILL_SWITCH_CUMULATIVE_LOSS_PERCENT=5
+  BYBIT_FUTURES_MAX_LEVERAGE=1
+  ```
+- [ ] **`ExchangeAccount.mode = "testnet"` 확인:** `Credentials.testnet = True` 자동 설정 (PR-B 이후)
+- [ ] **Testnet smoke script 성공:**
+  ```bash
+  cd backend
+  uv run python scripts/bybit_testnet_smoke.py \
+      --api-key "$BYBIT_TESTNET_KEY" \
+      --api-secret "$BYBIT_TESTNET_SECRET" \
+      --symbol "BTC/USDT:USDT" --quantity 0.001
+  ```
+- [ ] **DB row 생성 확인:** `SELECT * FROM trading.orders ORDER BY created_at DESC LIMIT 1`
+
+### Week 1~2 — 기본 동작 검증
+
+**일일 체크 (5분):**
+
+- [ ] 주문 성공률: `filled : rejected ≥ 95%`
+- [ ] Kill Switch 이벤트: 0건 = 정상, 1건 이상 = 원인 분석
+- [ ] 오픈 포지션 밤새 잔존 여부 확인
+- [ ] QB PnL vs Bybit Testnet PnL 대조 (5건 샘플, 차이 < 1%)
+
+**주간 체크 (30분):**
+
+- [ ] fee 정확성 검증 (QB 계산 vs Bybit testnet 수수료 내역)
+- [ ] funding rate 반영 여부 확인 (PR-C 이후)
+- [ ] Runbook §9 인시던트 절차 재검토
+
+### Week 3~4 — 안정성 검증
+
+- [ ] **Kill Switch false positive < 1건/주** (정상 주문을 잘못 차단)
+- [ ] **시스템 다운타임 0분** (API 응답 불가 / DB 접근 불가)
+- [ ] **주간 PnL 리포트 QB vs Bybit 차이 < 1%** (fee 반영)
+- [ ] **일일 dogfood 리포트 자동 생성 확인** (PR-D Celery beat 22:00 UTC)
+
+### Testnet 종료 기준 → H2 진입 결정
+
+| 기준                       | 목표값                   | 실측값 |
+| -------------------------- | ------------------------ | ------ |
+| Testnet 운영 기간          | 3~4주                    |        |
+| Kill Switch false positive | < 1건/주                 |        |
+| 주문 성공률                | ≥ 95%                    |        |
+| QB/Bybit PnL 차이          | < 1%                     |        |
+| 시스템 다운타임            | 0분                      |        |
+| 주관 평가                  | "지인 5명에게 추천 가능" |        |
+
+모두 PASS → **H2 직진입** 또는 **선택: mainnet 72h** 진행.
+
+---
+
+## 🚀 Mainnet 72h (선택, Beta 오픈 직전)
+
+> **이 섹션은 선택 사항.** Testnet 완료 후 Beta 오픈(Sprint 11-5) 전에 실자본 신뢰도 추가 확보가 필요하다고 판단할 경우에만 진행.
+> 실자본 금액: $100~500 (이 금액을 잃어도 감당 가능한 수준).
 
 ---
 
@@ -118,6 +191,7 @@
 ### 저녁 (작업 종료 후)
 
 - [ ] **주문 성공률 확인:**
+
   ```sql
   SELECT status, COUNT(*) FROM trading.orders
   WHERE created_at > NOW() - INTERVAL '24 hours'
@@ -126,6 +200,7 @@
 
   - `filled` : `rejected` 비율 ≥ 95% 정상
   - `pending`이 1시간 이상 남아있으면 stale 조사
+
 - [ ] **Bybit PnL vs QB 계산 PnL 대조 (5건 샘플):** 차이 < 0.5% 정상
 - [ ] **API 에러 burst 확인 (application log):** 분당 5건 이상이면 조사
 
@@ -185,13 +260,14 @@
 
 ## 🎯 H2 진입 게이트 (dogfood 완료 조건)
 
-1~2주 후 아래 정량 기준 **모두 충족** 시 H2 진입 검토:
+**기본 경로 (Testnet 3~4주):** 아래 정량 기준 모두 충족 시 H2 진입.
+선택 경로를 택했다면 mainnet 72h 완료 후 동일 기준 재확인.
 
-- [ ] **실자본 drawdown < 10%** (초기 자본 대비)
 - [ ] **Kill Switch false positive < 1건/주** (정상 주문을 잘못 차단한 경우)
 - [ ] **시스템 다운타임 0분** (API 응답 불가 또는 db 접근 불가)
 - [ ] **본인 주관 평가:** "이 시스템을 친한 지인 5명에게 추천할 수 있다" YES
 - [ ] **주간 PnL 리포트 QB 계산 vs Bybit 실제 차이 < 1%** (fee 반영)
+- [ ] **일일 dogfood 리포트 3주 연속 생성** (Celery beat 정상 동작 확인)
 
 모두 PASS → `/office-hours` (H2 kickoff) 세션 스케줄링.
 
@@ -200,3 +276,4 @@
 ## 변경 이력
 
 - **2026-04-20** — 초안 작성 (H1 Stealth 클로징 5-Step 풀패키지 Step 4)
+- **2026-04-21** — Testnet dogfood 결정 반영. 기본 경로를 testnet 3~4주로 변경. mainnet 72h는 선택 경로로 이동. H2 진입 게이트 기준 업데이트.
