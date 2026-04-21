@@ -252,8 +252,8 @@ class KillSwitchEventRepository:
                     ),
                 ),
             )
-            .order_by(KillSwitchEvent.triggered_at.desc())
-        )  # type: ignore[attr-defined]
+            .order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
+        )
         return (await self.session.execute(stmt)).scalars().first()
 
     async def resolve(self, event_id: UUID, *, note: str | None = None) -> int:
