@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, ForeignKey, Index, Text
+from sqlalchemy import Column, ForeignKey, Index, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
@@ -83,6 +83,9 @@ class Backtest(SQLModel, table=True):
     equity_curve: list[Any] | None = Field(default=None, sa_column=Column(JSONB))
     error: str | None = Field(default=None, sa_column=Column(Text))
 
+    # 멱등성 키 (Sprint 9-6) — 클라이언트가 Idempotency-Key 헤더로 전달
+    idempotency_key: str | None = Field(default=None, max_length=128, nullable=True)
+
     # Timestamps
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
@@ -106,6 +109,7 @@ class Backtest(SQLModel, table=True):
     __table_args__ = (  # Sprint 3 Strategy 패턴 — 클래스 최하단 배치
         Index("ix_backtests_user_created", "user_id", "created_at"),
         Index("ix_backtests_status", "status"),
+        UniqueConstraint("idempotency_key", name="uq_backtests_idempotency_key"),
     )
 
 

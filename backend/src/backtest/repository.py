@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backtest.models import Backtest, BacktestStatus, BacktestTrade
@@ -170,6 +170,21 @@ class BacktestRepository:
         )
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
+
+    # --- Idempotency (Sprint 9-6) ---
+
+    async def get_by_idempotency_key(self, key: str) -> Backtest | None:
+        result = await self.session.execute(
+            select(Backtest).where(Backtest.idempotency_key == key)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
+    async def acquire_idempotency_lock(self, key: str) -> None:
+        """pg_advisory_xact_lock — 트랜잭션 종료 시 자동 해제."""
+        await self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+            {"k": key},
+        )
 
     # --- Cross-domain query (§4.8 Strategy delete 선조회) ---
 
