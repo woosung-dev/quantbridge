@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantBridge — Dogfood 시작 상태 대시보드 · 2026-04-22</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-soft: #131a30;
+    --card: #1a2340;
+    --card-alt: #151d38;
+    --border: #2a3760;
+    --text: #e6ebff;
+    --text-dim: #9fb0d4;
+    --text-dimmer: #6b7a9f;
+    --accent: #6cb1ff;
+    --accent-2: #8aa5ff;
+    --ok: #5fd97b;
+    --warn: #ffc657;
+    --err: #ff7a85;
+    --purple: #b794f6;
+    --mono: "SF Mono", Monaco, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", sans-serif; line-height: 1.65; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, kbd, samp { font-family: var(--mono); font-size: 0.92em; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px 96px; }
+
+  header.hero {
+    padding: 48px 32px 36px;
+    background: linear-gradient(135deg, #1a2340 0%, #263156 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-bottom: 32px;
+  }
+  header.hero .eyebrow { color: var(--accent-2); font-size: 0.84rem; letter-spacing: 0.08em; text-transform: uppercase; margin:0 0 10px; }
+  header.hero h1 { margin: 0 0 12px; font-size: 2.15rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; }
+  header.hero .subtitle { color: var(--text-dim); font-size: 1.05rem; margin: 0; }
+  header.hero .meta { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-dimmer); }
+  header.hero .meta b { color: var(--text); font-weight: 600; }
+
+  section { margin-top: 40px; }
+  h2 { font-size: 1.55rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 0 0 20px; }
+  h3 { font-size: 1.15rem; margin: 24px 0 10px; color: var(--accent-2); }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin: 18px 0 28px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px; position: relative; }
+  .kpi .label { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dimmer); }
+  .kpi .value { font-size: 1.7rem; font-weight: 700; margin-top: 4px; }
+  .kpi .delta { font-size: 0.82rem; color: var(--ok); margin-top: 2px; }
+  .kpi.warn .delta { color: var(--warn); }
+  .kpi.err  .delta { color: var(--err); }
+  .kpi.here { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(108,177,255,0.25); }
+  .kpi.here::after { content: "YOU ARE HERE"; position: absolute; top: -10px; right: 10px; background: var(--accent); color: #0b1020; padding: 2px 8px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; border-radius: 4px; }
+  @media (max-width: 720px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .progress { background: var(--card-alt); border-radius: 8px; height: 22px; overflow: hidden; position: relative; margin: 6px 0; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--ok) 0%, #4ade80 100%); display: flex; align-items: center; padding: 0 10px; color: #0b1020; font-size: 0.78rem; font-weight: 700; }
+  .progress-bar.partial { background: linear-gradient(90deg, var(--warn) 0%, #fbbf24 100%); }
+  .progress-bar.tiny { background: linear-gradient(90deg, var(--purple) 0%, #a78bfa 100%); }
+  .progress-bar.empty { background: var(--card); color: var(--text-dimmer); padding: 0 10px; width: 100% !important; font-weight: 400; }
+  .progress-label { display: grid; grid-template-columns: 200px 1fr 50px; gap: 12px; align-items: center; margin: 10px 0; }
+  .progress-label .name { font-size: 0.92rem; color: var(--text); }
+  .progress-label .pct { font-size: 0.85rem; color: var(--text-dim); text-align: right; font-family: var(--mono); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 0.92rem; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; background: var(--card-alt); }
+  tr:hover td { background: rgba(108,177,255,0.04); }
+  .mono { font-family: var(--mono); font-size: 0.88rem; color: var(--text-dim); }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.76rem; border: 1px solid; white-space: nowrap; }
+  .pill.ok { color: var(--ok); border-color: rgba(95,217,123,0.5); background: rgba(95,217,123,0.08); }
+  .pill.warn { color: var(--warn); border-color: rgba(255,198,87,0.5); background: rgba(255,198,87,0.08); }
+  .pill.err { color: var(--err); border-color: rgba(255,122,133,0.5); background: rgba(255,122,133,0.08); }
+  .pill.info { color: var(--accent); border-color: rgba(108,177,255,0.5); background: rgba(108,177,255,0.08); }
+  .pill.purple { color: var(--purple); border-color: rgba(183,148,246,0.5); background: rgba(183,148,246,0.08); }
+
+  .callout { background: var(--card); border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; padding: 14px 18px; margin: 16px 0; font-size: 0.95rem; }
+  .callout.ok { border-left-color: var(--ok); }
+  .callout.warn { border-left-color: var(--warn); }
+
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ""; position: absolute; left: 8px; top: 6px; bottom: 0; width: 2px; background: var(--border); }
+  .timeline-item { position: relative; margin-bottom: 20px; }
+  .timeline-item::before { content: ""; position: absolute; left: -24px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
+  .timeline-item.ok::before { background: var(--ok); }
+  .timeline-item.active::before { background: var(--warn); box-shadow: 0 0 0 4px rgba(255,198,87,0.25); }
+  .timeline-item.future::before { background: var(--border); }
+  .timeline-item .tl-date { font-size: 0.78rem; color: var(--text-dimmer); font-family: var(--mono); }
+  .timeline-item .tl-title { font-weight: 600; margin: 2px 0; }
+  .timeline-item .tl-body { font-size: 0.9rem; color: var(--text-dim); }
+
+  footer { margin-top: 64px; text-align: center; color: var(--text-dimmer); font-size: 0.82rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+  <p class="eyebrow">QuantBridge · H2 Kick-off · 2026-04-22</p>
+  <h1>Testnet Dogfood 시작 상태 대시보드</h1>
+  <p class="subtitle">H1 Stealth 클로징 완료 → Testnet 3~4주 롱런 돌입. 실자본 투입 전 신뢰도 검증 단계.</p>
+  <div class="meta">
+    <span>작성일 <b>2026-04-22</b></span>
+    <span>Phase <b>H2 Dogfood Week 0</b></span>
+    <span>테스트 커버리지 <b>838+</b> (PR-A~F 반영 시)</span>
+    <span>최종 PR <b>#42~#47 (6 PRs)</b></span>
+  </div>
+</header>
+
+<!-- KPI -->
+<section>
+  <h2>📊 핵심 지표 스냅샷</h2>
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="label">H1 완료 PR</div>
+      <div class="value" style="color:var(--ok)">41</div>
+      <div class="delta">전체 H1 스코프 100% 완료</div>
+    </div>
+    <div class="kpi">
+      <div class="label">H2 킥오프 PR</div>
+      <div class="value" style="color:var(--accent)">6</div>
+      <div class="delta">#42~#47 — 이번 세션</div>
+    </div>
+    <div class="kpi">
+      <div class="label">백엔드 테스트</div>
+      <div class="value">838+</div>
+      <div class="delta">+60 (이번 세션)</div>
+    </div>
+    <div class="kpi here">
+      <div class="label">현재 단계</div>
+      <div class="value" style="color:var(--warn)">Testnet</div>
+      <div class="delta warn">Week 0 — 환경 세팅</div>
+    </div>
+  </div>
+</section>
+
+<!-- H2 6PR 진행 현황 -->
+<section>
+  <h2>🚀 H2 킥오프 PR 진행 현황</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>PR</th>
+        <th>브랜치</th>
+        <th>제목</th>
+        <th>상태</th>
+        <th>테스트</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="mono">#42</span></td>
+        <td><span class="mono">docs/h1-gate-testnet-dogfood</span></td>
+        <td>H1 gate testnet 대체 + 3~4주 운영 가이드</td>
+        <td><span class="pill ok">merged</span></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><span class="mono">#43</span></td>
+        <td><span class="mono">feat/credentials-testnet-field</span></td>
+        <td>Credentials.testnet 필드 + mainnet/testnet 분기</td>
+        <td><span class="pill ok">merged</span></td>
+        <td>+4 tests</td>
+      </tr>
+      <tr>
+        <td><span class="mono">#44</span></td>
+        <td><span class="mono">feat/fee-schedule-funding-rate</span></td>
+        <td>Bybit 수수료 테이블 + FundingRate fetcher</td>
+        <td><span class="pill warn">CI 대기</span></td>
+        <td>+15 tests</td>
+      </tr>
+      <tr>
+        <td><span class="mono">#45</span></td>
+        <td><span class="mono">feat/dogfood-daily-report</span></td>
+        <td>일일 Dogfood 리포트 Celery 태스크</td>
+        <td><span class="pill warn">CI 대기</span></td>
+        <td>+7 tests</td>
+      </tr>
+      <tr>
+        <td><span class="mono">#46</span></td>
+        <td><span class="mono">feat/backtest-idempotency-key</span></td>
+        <td>POST /backtests Idempotency-Key 헤더 지원</td>
+        <td><span class="pill warn">CI 대기</span></td>
+        <td>+5 tests</td>
+      </tr>
+      <tr>
+        <td><span class="mono">#47</span></td>
+        <td><span class="mono">feat/backtest-monte-carlo</span></td>
+        <td>Monte Carlo bootstrap 엔진 초안</td>
+        <td><span class="pill warn">CI 대기</span></td>
+        <td>+8 tests</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- Testnet 롱런 타임라인 -->
+<section>
+  <h2>🗓 Testnet 롱런 타임라인</h2>
+
+  <div class="timeline">
+    <div class="timeline-item ok">
+      <div class="tl-date">2026-04-20~21</div>
+      <div class="tl-title">H1 클로징 + H2 킥오프 준비</div>
+      <div class="tl-body">PR #37~#41 머지, testnet gate 정책 변경, dogfood 가이드 작성</div>
+    </div>
+    <div class="timeline-item ok">
+      <div class="tl-date">2026-04-22</div>
+      <div class="tl-title">H2 킥오프 6 PR (이번 세션)</div>
+      <div class="tl-body">Credentials.testnet / 수수료 / FundingRate / 일일 리포트 / Idempotency / Monte Carlo</div>
+    </div>
+    <div class="timeline-item active">
+      <div class="tl-date">2026-04-22 ~ Week 1</div>
+      <div class="tl-title">Testnet Day 0~7: 환경 검증</div>
+      <div class="tl-body">s1_pbr.pine 전략 주입 → Bybit testnet 첫 주문 관찰 → Kill Switch 정상 작동 확인</div>
+    </div>
+    <div class="timeline-item future">
+      <div class="tl-date">Week 2~3</div>
+      <div class="tl-title">Testnet 안정성 확인</div>
+      <div class="tl-body">일일 PnL 리포트 자동 생성 → 이상 없으면 지속, funding rate 반영 정확도 검증</div>
+    </div>
+    <div class="timeline-item future">
+      <div class="tl-date">Week 4 (2026-05-13 기준)</div>
+      <div class="tl-title">Testnet 종료 기준 평가</div>
+      <div class="tl-body">승률 ≥ 백테스트 60%, 최대 낙폭 ≤ 15%, KS 오발동 0건 → mainnet 파일럿 or 재검토</div>
+    </div>
+    <div class="timeline-item future">
+      <div class="tl-date">H2 후반 (2026-06+)</div>
+      <div class="tl-title">극소액 Mainnet 72h 파일럿</div>
+      <div class="tl-body">testnet 3기준 모두 충족 시 → $100 이하 mainnet → 이상 없으면 Beta 오픈</div>
+    </div>
+  </div>
+</section>
+
+<!-- Dogfood 종료 기준 -->
+<section>
+  <h2>✅ Testnet 종료 기준 (3-of-3 필요)</h2>
+
+  <table>
+    <thead>
+      <tr><th>#</th><th>기준</th><th>목표</th><th>현재</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>승률 vs 백테스트 비율</td>
+        <td>≥ 60% 달성</td>
+        <td><span class="pill info">Week 1 시작 후 측정</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>최대 낙폭 (MDD)</td>
+        <td>≤ 15%</td>
+        <td><span class="pill info">측정 전</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Kill Switch 오발동</td>
+        <td>0건</td>
+        <td><span class="pill ok">0건 (시작 전)</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <strong>실패 기준:</strong> MDD &gt; 20% 또는 연속 API 에러 5회 → 즉시 중단 + 원인 분석 + 코드 수정 후 재시작
+  </div>
+</section>
+
+<!-- H2 Phase 로드맵 -->
+<section>
+  <h2>🗺 H2 Phase 로드맵</h2>
+
+  <div class="progress-label">
+    <span class="name">Phase 1: Dogfood 준비</span>
+    <div class="progress"><div class="progress-bar" style="width:100%">완료</div></div>
+    <span class="pct">100%</span>
+  </div>
+  <div class="progress-label">
+    <span class="name">Phase 2: Testnet 신뢰도 보강</span>
+    <div class="progress"><div class="progress-bar partial" style="width:60%">CI 대기</div></div>
+    <span class="pct">60%</span>
+  </div>
+  <div class="progress-label">
+    <span class="name">Phase 3: Sprint 9 선행</span>
+    <div class="progress"><div class="progress-bar partial" style="width:70%">PR 제출</div></div>
+    <span class="pct">70%</span>
+  </div>
+  <div class="progress-label">
+    <span class="name">Phase 4: Build-in-Public</span>
+    <div class="progress"><div class="progress-bar tiny" style="width:50%">초안 완료</div></div>
+    <span class="pct">50%</span>
+  </div>
+  <div class="progress-label">
+    <span class="name">Testnet Dogfood (3~4주)</span>
+    <div class="progress"><div class="progress-bar empty">아직 시작 전</div></div>
+    <span class="pct">0%</span>
+  </div>
+
+</section>
+
+<!-- 다음 액션 -->
+<section>
+  <h2>⚡ 다음 즉시 액션</h2>
+
+  <table>
+    <thead>
+      <tr><th>우선순위</th><th>액션</th><th>담당</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="pill ok">P0</span></td>
+        <td>PR #44~#47 머지 (CI 통과 후)</td>
+        <td>사용자 승인</td>
+      </tr>
+      <tr>
+        <td><span class="pill ok">P0</span></td>
+        <td><code>.env</code> Bybit testnet API Key 설정 + <code>EXCHANGE_PROVIDER=bybit_futures</code></td>
+        <td>사용자</td>
+      </tr>
+      <tr>
+        <td><span class="pill ok">P0</span></td>
+        <td>s1_pbr.pine 전략 UI에서 생성 + 첫 주문 관찰</td>
+        <td>사용자</td>
+      </tr>
+      <tr>
+        <td><span class="pill warn">P1</span></td>
+        <td>Twitter/X dogfood-start thread 게시</td>
+        <td>사용자 (<a href="../marketing/2026-04-21-dogfood-start-thread.md">초안 링크</a>)</td>
+      </tr>
+      <tr>
+        <td><span class="pill warn">P1</span></td>
+        <td>일일 리포트 Celery beat 설정 확인 (22:00 UTC)</td>
+        <td>사용자</td>
+      </tr>
+      <tr>
+        <td><span class="pill info">P2</span></td>
+        <td>Monte Carlo UI 연동 (Sprint 9-1 후속)</td>
+        <td>다음 세션</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  QuantBridge · H2 Dogfood 시작 대시보드 · 2026-04-22<br>
+  <span style="color:var(--text-dimmer)">Generated by Claude Code (claude-sonnet-4-6)</span>
+</footer>
+
+</div>
+</body>
+</html>
