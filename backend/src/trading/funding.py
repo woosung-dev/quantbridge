@@ -89,7 +89,7 @@ async def fetch_and_store_funding_rates(
                 "funding_timestamp": row.funding_timestamp,
             },
         )
-        inserted += result.rowcount
+        inserted += result.rowcount  # type: ignore[attr-defined]
     await session.commit()
     logger.info(
         "funding_rates_stored",
