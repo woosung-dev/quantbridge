@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import worker_ready, worker_shutdown
 
 from src.core.config import settings
@@ -19,7 +20,12 @@ celery_app = Celery(
     "quantbridge",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["src.tasks.backtest", "src.tasks.trading", "src.tasks.funding"],
+    include=[
+        "src.tasks.backtest",
+        "src.tasks.trading",
+        "src.tasks.funding",
+        "src.tasks.dogfood_report",
+    ],
 )
 
 celery_app.conf.update(
@@ -51,6 +57,11 @@ celery_app.conf.beat_schedule = {
         "schedule": 3600.0,
         "args": ["bybit", "ETH/USDT:USDT", 2],
         "options": {"expires": 3000},
+    },
+    "dogfood-daily-report": {
+        "task": "reporting.dogfood_daily",
+        "schedule": crontab(hour=22, minute=0),  # 매일 22:00 UTC
+        "options": {"expires": 3600},
     },
 }
 
