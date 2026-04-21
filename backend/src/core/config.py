@@ -90,6 +90,12 @@ class Settings(BaseSettings):
         description="Webhook secret rotation 후 구 secret 수락 grace period (초).",
     )
 
+    # --- Dogfood Daily Report ---
+    dogfood_report_output_dir: str = Field(
+        default="docs/reports/dogfood",
+        description="Dogfood 일일 리포트 HTML 출력 디렉토리 (프로젝트 루트 상대 경로).",
+    )
+
     # --- Sprint 7a Bybit Futures ---
     bybit_futures_max_leverage: int = Field(
         default=20,

@@ -7,8 +7,9 @@
 """
 from __future__ import annotations
 
+import datetime as _dt_module
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -163,6 +164,43 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    async def get_daily_summary(
+        self, date: _dt_module.date
+    ) -> tuple[Decimal, int, int]:
+        """특정 날짜(UTC)의 일일 요약.
+
+        Returns:
+            (total_realized_pnl, filled_count, rejected_count)
+        """
+        day_start = datetime(date.year, date.month, date.day, tzinfo=UTC)
+        day_end = day_start + timedelta(days=1)
+
+        pnl_result = await self.session.execute(
+            select(func.coalesce(func.sum(Order.realized_pnl), 0))  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.filled_at >= day_start)  # type: ignore[attr-defined]
+            .where(Order.filled_at < day_end)  # type: ignore[attr-defined]
+        )
+        total_pnl = Decimal(str(pnl_result.scalar_one() or 0))
+
+        filled_result = await self.session.execute(
+            select(func.count(Order.id))  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.filled_at >= day_start)  # type: ignore[attr-defined]
+            .where(Order.filled_at < day_end)  # type: ignore[attr-defined]
+        )
+        filled_count = filled_result.scalar_one() or 0
+
+        rejected_result = await self.session.execute(
+            select(func.count(Order.id))  # type: ignore[arg-type]
+            .where(Order.state == OrderState.rejected)  # type: ignore[arg-type]
+            .where(Order.created_at >= day_start)  # type: ignore[attr-defined]
+            .where(Order.created_at < day_end)  # type: ignore[attr-defined]
+        )
+        rejected_count = rejected_result.scalar_one() or 0
+
+        return total_pnl, int(filled_count), int(rejected_count)
+
     # --- Idempotency 동시성 제어 (Sprint 5 M2 advisory lock 패턴) ---
 
     async def acquire_idempotency_lock(self, key: str) -> None:
@@ -235,6 +273,18 @@ class KillSwitchEventRepository:
             select(KillSwitchEvent)
             .order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
             .limit(limit).offset(offset)
+        )
+        return result.scalars().all()
+
+    async def list_by_date(self, date: _dt_module.date) -> Sequence[KillSwitchEvent]:
+        """특정 날짜(UTC) 트리거된 Kill Switch 이벤트 목록."""
+        day_start = datetime(date.year, date.month, date.day, tzinfo=UTC)
+        day_end = day_start + timedelta(days=1)
+        result = await self.session.execute(
+            select(KillSwitchEvent)
+            .where(KillSwitchEvent.triggered_at >= day_start)  # type: ignore[attr-defined]
+            .where(KillSwitchEvent.triggered_at < day_end)  # type: ignore[attr-defined]
+            .order_by(KillSwitchEvent.triggered_at.asc())  # type: ignore[attr-defined]
         )
         return result.scalars().all()
 
