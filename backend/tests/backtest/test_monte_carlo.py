@@ -1,12 +1,12 @@
 """Monte Carlo 엔진 테스트 — seed=42 결정적 snapshot + 경계 케이스."""
+
 from __future__ import annotations
 
 from decimal import Decimal
 
-import numpy as np
 import pytest
 
-from src.backtest.monte_carlo import MonteCarloResult, run_monte_carlo
+from src.backtest.monte_carlo import run_monte_carlo
 
 # ---------------------------------------------------------------------------
 # 공유 fixture
@@ -18,6 +18,7 @@ _BASE_CURVE = [Decimal(str(v)) for v in [10000, 10050, 10120, 9980, 10200, 10350
 # ---------------------------------------------------------------------------
 # Snapshot test (seed=42 결정성)
 # ---------------------------------------------------------------------------
+
 
 def test_snapshot_seed42() -> None:
     result = run_monte_carlo(_BASE_CURVE, n_samples=1000, seed=42)
@@ -48,6 +49,7 @@ def test_different_seeds_produce_different_results() -> None:
 # 경계 케이스
 # ---------------------------------------------------------------------------
 
+
 def test_empty_curve_raises_value_error() -> None:
     with pytest.raises(ValueError, match="at least 2 data points"):
         run_monte_carlo([], n_samples=100, seed=42)
@@ -60,7 +62,7 @@ def test_single_point_raises_value_error() -> None:
 
 def test_all_positive_returns_has_positive_ci() -> None:
     # 균등 1% 수익률 — bootstrap 리샘플링해도 동일 수익률만 선택됨 → CI bounds 일치
-    curve = [Decimal(str(10000 * (1.01 ** i))) for i in range(20)]
+    curve = [Decimal(str(10000 * (1.01**i))) for i in range(20)]
     result = run_monte_carlo(curve, n_samples=500, seed=42)
     assert result.ci_lower_95 > Decimal("0")
     assert result.ci_upper_95 >= result.ci_lower_95
