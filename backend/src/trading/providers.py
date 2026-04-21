@@ -32,13 +32,15 @@ class Credentials:
     api_key: str
     api_secret: str
     passphrase: str | None = None
+    # testnet=True → CCXT testnet 라우팅. False이면 mainnet. 기본 True로 안전 우선.
+    testnet: bool = True
 
     def __repr__(self) -> str:
         masked_key = f"***{self.api_key[-4:]}" if len(self.api_key) >= 4 else "***"
         passphrase_marker = "present" if self.passphrase else "none"
         return (
             f"Credentials(api_key='{masked_key}', api_secret='***', "
-            f"passphrase=<{passphrase_marker}>)"
+            f"passphrase=<{passphrase_marker}>, testnet={self.testnet})"
         )
 
 
@@ -123,7 +125,7 @@ class BybitDemoProvider:
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
                 "timeout": 30000,
-                "options": {"defaultType": "spot", "testnet": True},
+                "options": {"defaultType": "spot", "testnet": creds.testnet},
             }
         )
         try:
@@ -164,7 +166,7 @@ class BybitDemoProvider:
                 "apiKey": creds.api_key,
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
-                "options": {"defaultType": "spot", "testnet": True},
+                "options": {"defaultType": "spot", "testnet": creds.testnet},
             }
         )
         try:
@@ -213,7 +215,7 @@ class BybitFuturesProvider:
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
                 "timeout": 30000,
-                "options": {"defaultType": "linear", "testnet": True},
+                "options": {"defaultType": "linear", "testnet": creds.testnet},
             }
         )
         try:
@@ -258,7 +260,7 @@ class BybitFuturesProvider:
                 "apiKey": creds.api_key,
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
-                "options": {"defaultType": "linear", "testnet": True},
+                "options": {"defaultType": "linear", "testnet": creds.testnet},
             }
         )
         try:
@@ -290,7 +292,7 @@ class BybitFuturesProvider:
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
                 "timeout": 30000,
-                "options": {"defaultType": "linear", "testnet": True},
+                "options": {"defaultType": "linear", "testnet": creds.testnet},
             }
         )
         try:
@@ -350,7 +352,7 @@ class OkxDemoProvider:
             }
         )
         # OKX는 sandbox 라우팅을 전용 API로 전환. testnet 옵션은 무시됨.
-        exchange.set_sandbox_mode(True)
+        exchange.set_sandbox_mode(creds.testnet)
         try:
             result = await exchange.create_order(
                 order.symbol,
@@ -397,7 +399,7 @@ class OkxDemoProvider:
                 "options": {"defaultType": "spot"},
             }
         )
-        exchange.set_sandbox_mode(True)
+        exchange.set_sandbox_mode(creds.testnet)
         try:
             await exchange.cancel_order(exchange_order_id)
         except ProviderError:
