@@ -5,6 +5,7 @@
   수정 후 재저장도 같은 메서드. Sprint 4는 create/update 분리 — Sprint 6은 단일화.
 - T8 OrderRepository에서 Sprint 4 BacktestRepository의 3-guard `transition_*` 패턴 계승 예정.
 """
+
 from __future__ import annotations
 
 import datetime as _dt_module
@@ -121,7 +122,8 @@ class OrderRepository:
         *,
         exchange_order_id: str,
         filled_price: Decimal | None,
-        filled_quantity: Decimal | None = None,  # NEW — CCXT partial fill 지원 (ADR-006 / autoplan Eng E7)
+        filled_quantity: Decimal
+        | None = None,  # NEW — CCXT partial fill 지원 (ADR-006 / autoplan Eng E7)
         filled_at: datetime,
         realized_pnl: Decimal | None = None,
     ) -> int:
@@ -164,9 +166,7 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
-    async def get_daily_summary(
-        self, date: _dt_module.date
-    ) -> tuple[Decimal, int, int]:
+    async def get_daily_summary(self, date: _dt_module.date) -> tuple[Decimal, int, int]:
         """특정 날짜(UTC)의 일일 요약.
 
         Returns:
@@ -176,26 +176,26 @@ class OrderRepository:
         day_end = day_start + timedelta(days=1)
 
         pnl_result = await self.session.execute(
-            select(func.coalesce(func.sum(Order.realized_pnl), 0))  # type: ignore[arg-type]
+            select(func.coalesce(func.sum(Order.realized_pnl), 0))
             .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
-            .where(Order.filled_at >= day_start)  # type: ignore[attr-defined]
-            .where(Order.filled_at < day_end)  # type: ignore[attr-defined]
+            .where(Order.filled_at >= day_start)  # type: ignore[operator, arg-type]
+            .where(Order.filled_at < day_end)  # type: ignore[operator, arg-type]
         )
         total_pnl = Decimal(str(pnl_result.scalar_one() or 0))
 
         filled_result = await self.session.execute(
             select(func.count(Order.id))  # type: ignore[arg-type]
             .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
-            .where(Order.filled_at >= day_start)  # type: ignore[attr-defined]
-            .where(Order.filled_at < day_end)  # type: ignore[attr-defined]
+            .where(Order.filled_at >= day_start)  # type: ignore[operator, arg-type]
+            .where(Order.filled_at < day_end)  # type: ignore[operator, arg-type]
         )
         filled_count = filled_result.scalar_one() or 0
 
         rejected_result = await self.session.execute(
             select(func.count(Order.id))  # type: ignore[arg-type]
             .where(Order.state == OrderState.rejected)  # type: ignore[arg-type]
-            .where(Order.created_at >= day_start)  # type: ignore[attr-defined]
-            .where(Order.created_at < day_end)  # type: ignore[attr-defined]
+            .where(Order.created_at >= day_start)  # type: ignore[arg-type]
+            .where(Order.created_at < day_end)  # type: ignore[arg-type]
         )
         rejected_count = rejected_result.scalar_one() or 0
 
@@ -229,29 +229,31 @@ class KillSwitchEventRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_active(
-        self, *, strategy_id: UUID, account_id: UUID
-    ) -> KillSwitchEvent | None:
+    async def get_active(self, *, strategy_id: UUID, account_id: UUID) -> KillSwitchEvent | None:
         """spec §2.2 매칭 규칙:
         - cumulative_loss → strategy_id 매칭 (ADR-006 CEO F4)
         - daily_loss, api_error → account_id 매칭
         - resolved_at IS NULL
         """
-        stmt = select(KillSwitchEvent).where(
-            KillSwitchEvent.resolved_at.is_(None),  # type: ignore[union-attr]
-            or_(
-                and_(
-                    KillSwitchEvent.trigger_type == KillSwitchTriggerType.cumulative_loss,  # type: ignore[arg-type]
-                    KillSwitchEvent.strategy_id == strategy_id,  # type: ignore[arg-type]
-                ),
-                and_(
-                    KillSwitchEvent.trigger_type.in_(  # type: ignore[attr-defined]
-                        [KillSwitchTriggerType.daily_loss, KillSwitchTriggerType.api_error]
+        stmt = (
+            select(KillSwitchEvent)
+            .where(
+                KillSwitchEvent.resolved_at.is_(None),  # type: ignore[union-attr]
+                or_(
+                    and_(
+                        KillSwitchEvent.trigger_type == KillSwitchTriggerType.cumulative_loss,  # type: ignore[arg-type]
+                        KillSwitchEvent.strategy_id == strategy_id,  # type: ignore[arg-type]
                     ),
-                    KillSwitchEvent.exchange_account_id == account_id,  # type: ignore[arg-type]
+                    and_(
+                        KillSwitchEvent.trigger_type.in_(  # type: ignore[attr-defined]
+                            [KillSwitchTriggerType.daily_loss, KillSwitchTriggerType.api_error]
+                        ),
+                        KillSwitchEvent.exchange_account_id == account_id,  # type: ignore[arg-type]
+                    ),
                 ),
-            ),
-        ).order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
+            )
+            .order_by(KillSwitchEvent.triggered_at.desc())
+        )  # type: ignore[attr-defined]
         return (await self.session.execute(stmt)).scalars().first()
 
     async def resolve(self, event_id: UUID, *, note: str | None = None) -> int:
@@ -266,13 +268,12 @@ class KillSwitchEventRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
-    async def list_recent(
-        self, *, limit: int, offset: int
-    ) -> Sequence[KillSwitchEvent]:
+    async def list_recent(self, *, limit: int, offset: int) -> Sequence[KillSwitchEvent]:
         result = await self.session.execute(
             select(KillSwitchEvent)
             .order_by(KillSwitchEvent.triggered_at.desc())  # type: ignore[attr-defined]
-            .limit(limit).offset(offset)
+            .limit(limit)
+            .offset(offset)
         )
         return result.scalars().all()
 
@@ -282,8 +283,8 @@ class KillSwitchEventRepository:
         day_end = day_start + timedelta(days=1)
         result = await self.session.execute(
             select(KillSwitchEvent)
-            .where(KillSwitchEvent.triggered_at >= day_start)  # type: ignore[attr-defined]
-            .where(KillSwitchEvent.triggered_at < day_end)  # type: ignore[attr-defined]
+            .where(KillSwitchEvent.triggered_at >= day_start)  # type: ignore[arg-type]
+            .where(KillSwitchEvent.triggered_at < day_end)  # type: ignore[arg-type]
             .order_by(KillSwitchEvent.triggered_at.asc())  # type: ignore[attr-defined]
         )
         return result.scalars().all()
