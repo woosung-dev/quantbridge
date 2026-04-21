@@ -3,14 +3,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from types import SimpleNamespace
-
-from src.trading.models import ExchangeName, FundingRate
-
 
 # ---------------------------------------------------------------------------
 # apply_funding_to_pnl
@@ -99,7 +95,7 @@ async def test_fetch_and_store_inserts_new_records():
             session=mock_session,
         )
 
-    assert inserted == 2  # rowcount=1 per row × 2 rows
+    assert inserted == 2  # rowcount=1 per row x 2 rows
     assert mock_session.commit.called
 
 

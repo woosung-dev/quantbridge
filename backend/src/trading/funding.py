@@ -3,6 +3,7 @@
 FundingRate 모델은 trading/models.py에 정의.
 이 모듈은 CCXT fetch + DB 저장, PnL 계산 두 함수만 담당.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,7 +27,7 @@ async def fetch_and_store_funding_rates(
     symbol: str,
     since: datetime,
     limit: int = 100,
-    session: "AsyncSession",
+    session: AsyncSession,
 ) -> int:
     """CCXT로 funding rate 기록을 가져와 DB에 저장.
 
