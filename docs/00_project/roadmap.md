@@ -1,16 +1,16 @@
 # QuantBridge — Product Roadmap
 
-> **작성일:** 2026-04-17 (초안) · **최종 수정:** 2026-04-20 (H1 클로징 sync)
+> **작성일:** 2026-04-17 (초안) · **최종 수정:** 2026-04-21 (testnet dogfood 결정 반영)
 > **프레임:** Horizon 3 × Strategy Pillars 하이브리드
 > **철학:** Dogfood-first Indie SaaS — "내가 돈 내고 쓰고 싶은 것"이 quality bar
-> **현재 단계:** **H1 클로징** — 코드 게이트 전부 merge. **남은 건 본인 실자본 dogfood 1~2주** → H2 진입
+> **현재 단계:** **H1 클로징** — 코드 게이트 전부 merge. **남은 건 Testnet dogfood 3~4주 (+ 선택: 극소액 mainnet 72h)** → H2 진입
 > **H2 Kickoff plan:** [`../superpowers/plans/2026-04-20-h2-kickoff.md`](../superpowers/plans/2026-04-20-h2-kickoff.md) — 6 결정 포인트 + Sprint 9~11 분해 + Beta 5~10명 획득 경로
 
 ---
 
 ## 한 페이지 요약
 
-- **지금 (H1, 0–1.5m):** Sprint 7c(FE) → 7b(OKX) → 8a(DB CHECK) → 8b(capital_base) → 본인 Bybit Futures 실자본 1~2주 dogfood. 외부 공개 없음.
+- **지금 (H1, 0–1.5m):** Sprint 7c(FE) → 7b(OKX) → 8a(DB CHECK) → 8b(capital_base) → **Testnet dogfood 3~4주** (기술 검증 90%+ 충분, 실자본 부담 제거). 선택: Beta 오픈 직전 극소액 mainnet 72h 별도 검토. 외부 공개 없음.
 - **다음 (H2, 1.5–4m):** Monte Carlo + Walk-Forward + 관측성 + 파라미터 최적화 + 지인 Beta 5~10명 + US·EU geo-block. Freemium 티어 가설 수립.
 - **나중 (H3, 4–9m):** TV 커뮤니티 공개 + 가격 실험 A/B + 첫 $1 유료 사용자.
 - **Build in public**: H1부터 Twitter/X 주 1회.
@@ -49,12 +49,12 @@
 
 ### H1 (0–1.5m) · Stealth, 본인 dogfood
 
-| Pillar      | 작업                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🛡 Trust    | **Sprint 7c** Strategy CRUD UI (plan: [`docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md))<br>**Sprint 7b** OKX 통합 + Trading Sessions<br>**Sprint 8a** Binance mainnet DB CHECK constraint + `margin_mode` string↔Literal 경계 검증 ([ADR-007](../dev-log/007-sprint7a-futures-decisions.md) 미해결)<br>**Sprint 8b** Kill Switch `capital_base` 레버리지 반영 검증 (ADR-006 미해결)<br>**본인 실자본 1~2주 Bybit Futures dogfood** |
-| 🚀 Scale    | CCXT 계측 초기 (Prometheus 최소)<br>초기 backfill Celery task 분리 (대용량 OHLCV)                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 💰 Monetize | ❌ **설계 금지.** 신규 기능에 `[free/paid 후보]` 태그만 부착하여 H2 가설 수립 재료로 축적.                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Launch      | Stealth. Twitter/X `#buildinpublic` 주 1회 포스트 시작 (한국어+영어 병기).                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Pillar      | 작업                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🛡 Trust    | **Sprint 7c** Strategy CRUD UI (plan: [`docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md))<br>**Sprint 7b** OKX 통합 + Trading Sessions<br>**Sprint 8a** Binance mainnet DB CHECK constraint + `margin_mode` string↔Literal 경계 검증 ([ADR-007](../dev-log/007-sprint7a-futures-decisions.md) 미해결)<br>**Sprint 8b** Kill Switch `capital_base` 레버리지 반영 검증 (ADR-006 미해결)<br>**Testnet dogfood 3~4주** — Bybit Futures testnet. 기술 검증 90%+ 충분. 선택: Beta 오픈 전 극소액 mainnet 72h |
+| 🚀 Scale    | CCXT 계측 초기 (Prometheus 최소)<br>초기 backfill Celery task 분리 (대용량 OHLCV)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 💰 Monetize | ❌ **설계 금지.** 신규 기능에 `[free/paid 후보]` 태그만 부착하여 H2 가설 수립 재료로 축적.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Launch      | Stealth. Twitter/X `#buildinpublic` 주 1회 포스트 시작 (한국어+영어 병기).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ### H2 (1.5–4m) · 지인 Beta 5~10명
 
@@ -89,7 +89,7 @@
 
 ### H1 → H2 전환 조건 (모두 충족)
 
-- [ ] 본인 Bybit Futures 실자본 1주 무사고 운영
+- [ ] **Testnet dogfood 3~4주 무사고 운영** (선택: 극소액 mainnet 72h 추가 검증)
 - [ ] Kill Switch · leverage cap · AES-256 재검증 pass
 - [ ] Prometheus alert 1개 이상 실전 동작 (예: 주문 실패율 > 5%)
 
@@ -172,3 +172,4 @@
 
 - **2026-04-17** — 초안. Horizon × Pillars 프레임, Indie SaaS dogfood-first 철학 확정. 11개 입력값 결정([ADR-010](../dev-log/010-product-roadmap.md) 참조).
 - **2026-04-20** — H1 클로징 sync. Sprint 7d/8c/Kill Switch capital_base/mainnet 준비 완료 반영. H2 kickoff plan 링크 추가 (`docs/superpowers/plans/2026-04-20-h2-kickoff.md`). TODO.md 매핑 업데이트.
+- **2026-04-21** — Testnet dogfood 결정 반영. H1→H2 gate: "실자본 1주" → "Testnet 3~4주 + 선택 mainnet 72h". 이유: 기술 검증 90%+ testnet 충분, 실자본 부담 제거.
