@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
@@ -28,8 +28,9 @@ async def submit_backtest(
     data: CreateBacktestRequest,
     user: CurrentUser = Depends(get_current_user),
     service: BacktestService = Depends(get_backtest_service),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
 ) -> BacktestCreatedResponse:
-    return await service.submit(data, user_id=user.id)
+    return await service.submit(data, user_id=user.id, idempotency_key=idempotency_key)
 
 
 @router.get("", response_model=Page[BacktestSummary])

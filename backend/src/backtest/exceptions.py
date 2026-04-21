@@ -40,3 +40,11 @@ class TaskDispatchError(BacktestError):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     code = "task_dispatch_failed"
     detail = "Failed to dispatch background task"
+
+
+class BacktestDuplicateIdempotencyKey(BacktestError):
+    """동일 Idempotency-Key로 backtest가 이미 존재함. detail에 existing_id 포함."""
+
+    status_code = status.HTTP_409_CONFLICT
+    code = "backtest_idempotency_conflict"
+    detail = "Duplicate Idempotency-Key"

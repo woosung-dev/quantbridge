@@ -12,6 +12,7 @@ from src.backtest.dispatcher import TaskDispatcher
 from src.backtest.engine import run_backtest
 from src.backtest.engine.types import RawTrade
 from src.backtest.exceptions import (
+    BacktestDuplicateIdempotencyKey,
     BacktestNotFound,
     BacktestStateConflict,
     TaskDispatchError,
@@ -67,8 +68,20 @@ class BacktestService:
     # --- HTTP submit path ---
 
     async def submit(
-        self, data: CreateBacktestRequest, *, user_id: UUID
+        self,
+        data: CreateBacktestRequest,
+        *,
+        user_id: UUID,
+        idempotency_key: str | None = None,
     ) -> BacktestCreatedResponse:
+        if idempotency_key is not None:
+            await self.repo.acquire_idempotency_lock(idempotency_key)
+            existing = await self.repo.get_by_idempotency_key(idempotency_key)
+            if existing is not None:
+                raise BacktestDuplicateIdempotencyKey(
+                    detail=f"Duplicate Idempotency-Key; existing backtest_id={existing.id}"
+                )
+
         strategy = await self.strategy_repo.find_by_id_and_owner(
             data.strategy_id, user_id
         )
@@ -84,6 +97,7 @@ class BacktestService:
             period_end=data.period_end,
             initial_capital=data.initial_capital,
             status=BacktestStatus.QUEUED,
+            idempotency_key=idempotency_key,
         )
         await self.repo.create(bt)
 
