@@ -6,8 +6,8 @@ type TradingEmptyStateProps = {
   icon: LucideIcon;
   title: string;
   description: string;
-  ctaLabel: string;
-  ctaHref: string;
+  ctaLabel?: string;
+  ctaHref?: string;
 };
 
 export function TradingEmptyState({
@@ -28,11 +28,13 @@ export function TradingEmptyState({
       <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
         {description}
       </p>
-      <div className="mt-5 flex justify-center">
-        <Button render={<Link href={ctaHref} />} nativeButton={false} size="sm">
-          {ctaLabel}
-        </Button>
-      </div>
+      {ctaLabel && ctaHref && (
+        <div className="mt-5 flex justify-center">
+          <Button render={<Link href={ctaHref} />} nativeButton={false} size="sm">
+            {ctaLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,11 +5,13 @@ import { apiFetch } from "@/lib/api-client";
 
 import {
   ExchangeAccountListResponseSchema,
+  ExchangeAccountSchema,
   KillSwitchListResponseSchema,
   OrderListResponseSchema,
   type ExchangeAccount,
   type KillSwitchEvent,
   type Order,
+  type RegisterAccountRequest,
 } from "./schemas";
 
 const ORDERS_PATH = "/api/v1/orders";
@@ -60,4 +62,26 @@ export async function listExchangeAccounts(
     token,
   });
   return ExchangeAccountListResponseSchema.parse(raw).items;
+}
+
+export async function registerExchangeAccount(
+  req: RegisterAccountRequest,
+  token: string | null,
+): Promise<ExchangeAccount> {
+  const raw = await apiFetch<unknown>(EXCHANGE_ACCOUNTS_PATH, {
+    method: "POST",
+    token,
+    body: req,
+  });
+  return ExchangeAccountSchema.parse(raw);
+}
+
+export async function deleteExchangeAccount(
+  id: string,
+  token: string | null,
+): Promise<void> {
+  await apiFetch<void>(`${EXCHANGE_ACCOUNTS_PATH}/${id}`, {
+    method: "DELETE",
+    token,
+  });
 }
