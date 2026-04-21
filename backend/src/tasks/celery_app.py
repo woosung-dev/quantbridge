@@ -19,7 +19,7 @@ celery_app = Celery(
     "quantbridge",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["src.tasks.backtest", "src.tasks.trading"],
+    include=["src.tasks.backtest", "src.tasks.trading", "src.tasks.funding"],
 )
 
 celery_app.conf.update(
@@ -39,6 +39,18 @@ celery_app.conf.beat_schedule = {
             # 4분 내 처리 안 되면 폐기 (다음 schedule까지 bursts 방지)
             "expires": 240,
         },
+    },
+    "fetch-funding-rates-btc": {
+        "task": "trading.fetch_funding_rates",
+        "schedule": 3600.0,  # 매 1시간 (Bybit funding 정산 주기 8h, 여유있게 1h)
+        "args": ["bybit", "BTC/USDT:USDT", 2],
+        "options": {"expires": 3000},
+    },
+    "fetch-funding-rates-eth": {
+        "task": "trading.fetch_funding_rates",
+        "schedule": 3600.0,
+        "args": ["bybit", "ETH/USDT:USDT", 2],
+        "options": {"expires": 3000},
     },
 }
 

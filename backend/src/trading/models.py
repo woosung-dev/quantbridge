@@ -11,7 +11,7 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, text
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Index, LargeBinary, SQLModel
 
@@ -229,6 +229,32 @@ class KillSwitchEvent(SQLModel, table=True):
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
     )
     resolution_note: str | None = Field(default=None, max_length=500, nullable=True)
+
+
+class FundingRate(SQLModel, table=True):
+    """거래소 funding rate 기록 — 선물 포지션 PnL 보정용.
+
+    8시간마다 정산되는 Bybit/OKX USDT Perpetual funding rate를 저장.
+    Alembic: 20260421_0001_add_funding_rates_table.py
+    """
+    __tablename__ = "funding_rates"
+    __table_args__ = (
+        UniqueConstraint("exchange", "symbol", "funding_timestamp", name="uq_funding_rates_exchange_symbol_ts"),
+        Index("ix_funding_rates_exchange_symbol", "exchange", "symbol"),
+        {"schema": "trading"},
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    symbol: str = Field(max_length=32, nullable=False)
+    exchange: ExchangeName = Field(nullable=False)
+    funding_rate: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    funding_timestamp: datetime = Field(
+        sa_column=Column(AwareDateTime(), nullable=False)
+    )
+    fetched_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
+    )
 
 
 class WebhookSecret(SQLModel, table=True):
