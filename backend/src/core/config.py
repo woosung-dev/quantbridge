@@ -54,9 +54,7 @@ class Settings(BaseSettings):
             "ADR-006 결정 1 / autoplan CEO F3 + Eng E4."
         ),
     )
-    exchange_provider: Literal[
-        "fixture", "bybit_demo", "bybit_futures", "okx_demo"
-    ] = Field(
+    exchange_provider: Literal["fixture", "bybit_demo", "bybit_futures", "okx_demo"] = Field(
         default="fixture",
         description=(
             "ExchangeProvider 선택. "
@@ -82,8 +80,9 @@ class Settings(BaseSettings):
     kill_switch_capital_base_usd: Decimal = Field(
         default=Decimal("10000"),
         description=(
-            "cumulative loss % 산출용 기준 자본. Sprint 6은 config 고정값, "
-            "Sprint 7+에서 ExchangeAccount.fetch_balance() 동적 바인딩."
+            "cumulative loss % 산출용 기준 자본 fallback. Sprint 8+ (2026-04-20): "
+            "ExchangeAccountService.fetch_balance_usdt() 동적 바인딩 완료 — 실제 "
+            "계좌 USDT 잔고 우선, fetch 실패 시 본 값 fallback."
         ),
     )
     webhook_secret_grace_seconds: int = Field(
@@ -107,6 +106,7 @@ class Settings(BaseSettings):
     def _validate_keys(cls, v: SecretStr) -> SecretStr:
         """comma-separated Fernet keys — 1개 이상, 각각 44-char URL-safe base64."""
         from cryptography.fernet import Fernet
+
         raw = v.get_secret_value()
         keys = [k.strip() for k in raw.split(",") if k.strip()]
         if not keys:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, Protocol
 
 import ccxt.async_support as ccxt_async
@@ -270,6 +270,49 @@ class BybitFuturesProvider:
         except Exception as e:
             # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
             # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_balance(self, creds: Credentials) -> dict[str, Decimal]:
+        """USDT-margined Linear Perp 계좌의 자산별 free balance (Decimal).
+
+        Sprint 8+ capital_base 동적 바인딩용. ephemeral CCXT 클라이언트로 1회 조회 후
+        즉시 close. 반환: {"USDT": Decimal("1234.5"), "BTC": Decimal("0.01"), ...}
+        CCXT 응답의 free 값이 누락·None이면 0으로 정규화.
+        """
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": True},
+            }
+        )
+        try:
+            raw = await exchange.fetch_balance()
+            result: dict[str, Decimal] = {}
+            for asset, data in raw.items():
+                if not isinstance(data, dict):
+                    continue
+                free = data.get("free")
+                if free is None:
+                    continue
+                try:
+                    result[asset] = Decimal(str(free))
+                except (ValueError, TypeError, InvalidOperation):
+                    continue
+            return result
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
             raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
         finally:
             try:

@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -22,11 +23,13 @@ from src.trading.exceptions import (
     AccountNotFound,
     IdempotencyConflict,
     LeverageCapExceeded,
+    NotionalExceeded,
+    ProviderError,
     TradingSessionClosed,
 )
 from src.trading.kill_switch import KillSwitchService
 from src.trading.models import ExchangeAccount, Order, OrderState, WebhookSecret
-from src.trading.providers import Credentials
+from src.trading.providers import BybitFuturesProvider, Credentials
 from src.trading.repository import (
     ExchangeAccountRepository,
     OrderRepository,
@@ -42,9 +45,11 @@ class ExchangeAccountService:
         self,
         repo: ExchangeAccountRepository,
         crypto: EncryptionService,
+        bybit_futures_provider: BybitFuturesProvider | None = None,
     ) -> None:
         self._repo = repo
         self._crypto = crypto
+        self._bybit_futures_provider = bybit_futures_provider
 
     async def register(
         self, user_id: UUID, req: RegisterAccountRequest
@@ -88,6 +93,41 @@ class ExchangeAccountService:
             api_secret=self._crypto.decrypt(account.api_secret_encrypted),
             passphrase=passphrase_pt,
         )
+
+    async def fetch_balance_usdt(self, account_id: UUID) -> Decimal | None:
+        """계좌 USDT 자유잔고 조회. Sprint 8+ Kill Switch capital_base 동적 바인딩.
+
+        현재 구현: Bybit 거래소 계정만 Linear Perp 잔고 조회. OKX / Binance는 H2+ 확장.
+        ExchangeMode는 환경 구분(demo/testnet/live)이라 Futures/Spot 판단에 사용 X —
+        provider 선택으로만 분기한다. 계정당 Futures/Spot 배타 사용이 규약.
+
+        반환 None 조건 (fallback 경로):
+        - 계좌 미발견
+        - 비-Bybit 계좌 (OKX/Binance는 H2+)
+        - Provider 미주입 (테스트/CI 환경)
+        - Provider 호출 실패 (네트워크/API 에러 — 경고 로깅)
+
+        H1 Stealth 기간에는 매 호출마다 CCXT fetch_balance (~200ms).
+        TTL cache는 H2+에서 WebSocket 스트리밍으로 대체 예정.
+        """
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        if (
+            self._bybit_futures_provider is None
+            or account.exchange.value != "bybit"
+        ):
+            return None
+        creds = await self.get_credentials_for_order(account_id)
+        try:
+            balances = await self._bybit_futures_provider.fetch_balance(creds)
+        except ProviderError as exc:
+            logger.warning(
+                "fetch_balance_failed",
+                extra={"account_id": str(account_id), "error": str(exc)},
+            )
+            return None
+        return balances.get("USDT")
 
 
 class WebhookSecretService:
@@ -153,6 +193,9 @@ class OrderService:
 
     Sprint 7d: strategy.trading_sessions 가드. 현재 UTC hour가 허용 세션 밖이면
     TradingSessionClosed 로 빠르게 실패 (kill switch / advisory lock 이전에 평가).
+
+    Sprint 8+ (2026-04-20): notional check — qty x price x leverage가 계좌 자본 x
+    max_leverage x 0.95 초과 시 NotionalExceeded 422. exchange_service 주입 시만 enforce.
     """
 
     def __init__(
@@ -162,12 +205,14 @@ class OrderService:
         dispatcher: OrderDispatcher,
         kill_switch: KillSwitchService,
         sessions_port: StrategySessionsPort | None = None,
+        exchange_service: ExchangeAccountService | None = None,
     ) -> None:
         self._session = session
         self._repo = repo
         self._dispatcher = dispatcher
         self._kill_switch = kill_switch
         self._sessions_port = sessions_port
+        self._exchange_service = exchange_service
 
     async def execute(
         self,
@@ -180,9 +225,10 @@ class OrderService:
 
         Flow (autoplan E9 + E2):
         1. leverage cap 가드 (Sprint 7a 서비스 계층 enforcement)
-        2. begin_nested() — advisory lock + gate + insert 동일 tx
-        3. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
-        4. commit 후 Celery dispatch (visibility race 방지)
+        2. notional check (Sprint 8+ exchange_service 주입 시)
+        3. begin_nested() — advisory lock + gate + insert 동일 tx
+        4. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
+        5. commit 후 Celery dispatch (visibility race 방지)
         """
         # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
         # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
@@ -191,6 +237,33 @@ class OrderService:
                 requested=req.leverage,
                 cap=settings.bybit_futures_max_leverage,
             )
+
+        # Sprint 8+ (2026-04-20): notional check. exchange_service 주입 + leverage + price
+        # 모두 존재할 때만 enforce. market order(price=None)는 이 게이트 건너뜀 — 진입가
+        # 불확실성 때문에 leverage cap으로만 1차 방어. fetch_balance 실패 시 None 반환
+        # 하므로 fallback (서비스 중단 금지).
+        if (
+            self._exchange_service is not None
+            and req.leverage is not None
+            and req.price is not None
+        ):
+            available = await self._exchange_service.fetch_balance_usdt(
+                req.exchange_account_id
+            )
+            if available is not None and available > Decimal("0"):
+                notional = req.quantity * req.price * Decimal(req.leverage)
+                max_notional = (
+                    available
+                    * Decimal(settings.bybit_futures_max_leverage)
+                    * Decimal("0.95")
+                )
+                if notional > max_notional:
+                    raise NotionalExceeded(
+                        notional=notional,
+                        available=available,
+                        leverage=req.leverage,
+                        max_notional=max_notional,
+                    )
 
         # Sprint 7d: 전략의 trading_sessions 가드. 비어있으면 24h(통과). 채워진 값이면
         # 현재 UTC hour가 허용 세션 중 하나에 속해야 함. kill switch / advisory lock
