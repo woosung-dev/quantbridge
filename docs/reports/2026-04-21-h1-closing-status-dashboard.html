@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantBridge — H1 클로징 상태 대시보드 · 2026-04-21</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-soft: #131a30;
+    --card: #1a2340;
+    --card-alt: #151d38;
+    --border: #2a3760;
+    --text: #e6ebff;
+    --text-dim: #9fb0d4;
+    --text-dimmer: #6b7a9f;
+    --accent: #6cb1ff;
+    --accent-2: #8aa5ff;
+    --ok: #5fd97b;
+    --warn: #ffc657;
+    --err: #ff7a85;
+    --purple: #b794f6;
+    --mono: "SF Mono", Monaco, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", sans-serif; line-height: 1.65; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, kbd, samp { font-family: var(--mono); font-size: 0.92em; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px 96px; }
+
+  header.hero {
+    padding: 48px 32px 36px;
+    background: linear-gradient(135deg, #1a2340 0%, #263156 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-bottom: 32px;
+  }
+  header.hero .eyebrow { color: var(--accent-2); font-size: 0.84rem; letter-spacing: 0.08em; text-transform: uppercase; margin:0 0 10px; }
+  header.hero h1 { margin: 0 0 12px; font-size: 2.15rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; }
+  header.hero .subtitle { color: var(--text-dim); font-size: 1.05rem; margin: 0; }
+  header.hero .meta { margin-top: 22px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-dimmer); }
+  header.hero .meta b { color: var(--text); font-weight: 600; }
+
+  section { margin-top: 40px; }
+  h2 { font-size: 1.55rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 0 0 20px; }
+  h3 { font-size: 1.15rem; margin: 24px 0 10px; color: var(--accent-2); }
+  h4 { font-size: 1rem; margin: 18px 0 8px; color: var(--text); }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin: 18px 0 28px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px; position: relative; }
+  .kpi .label { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dimmer); }
+  .kpi .value { font-size: 1.7rem; font-weight: 700; margin-top: 4px; }
+  .kpi .delta { font-size: 0.82rem; color: var(--ok); margin-top: 2px; }
+  .kpi.warn .delta { color: var(--warn); }
+  .kpi.err  .delta { color: var(--err); }
+  .kpi.here { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(108,177,255,0.25); }
+  .kpi.here::after { content: "YOU ARE HERE"; position: absolute; top: -10px; right: 10px; background: var(--accent); color: #0b1020; padding: 2px 8px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; border-radius: 4px; }
+  @media (max-width: 720px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .progress { background: var(--card-alt); border-radius: 8px; height: 22px; overflow: hidden; position: relative; margin: 6px 0; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--ok) 0%, #4ade80 100%); transition: width 0.5s; display: flex; align-items: center; padding: 0 10px; color: #0b1020; font-size: 0.78rem; font-weight: 700; }
+  .progress-bar.partial { background: linear-gradient(90deg, var(--warn) 0%, #fbbf24 100%); }
+  .progress-bar.tiny { background: linear-gradient(90deg, var(--purple) 0%, #a78bfa 100%); }
+  .progress-bar.empty { background: var(--card); color: var(--text-dimmer); padding: 0 10px; width: 100% !important; font-weight: 400; }
+  .progress-label { display: grid; grid-template-columns: 220px 1fr 50px; gap: 12px; align-items: center; margin: 10px 0; }
+  .progress-label .name { font-size: 0.92rem; color: var(--text); }
+  .progress-label .pct { font-size: 0.85rem; color: var(--text-dim); text-align: right; font-family: var(--mono); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 0.92rem; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; background: var(--card-alt); }
+  tr:hover td { background: rgba(108,177,255,0.04); }
+  .mono { font-family: var(--mono); font-size: 0.88rem; color: var(--text-dim); }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.76rem; border: 1px solid; white-space: nowrap; }
+  .pill.ok { color: var(--ok); border-color: rgba(95,217,123,0.5); background: rgba(95,217,123,0.08); }
+  .pill.warn { color: var(--warn); border-color: rgba(255,198,87,0.5); background: rgba(255,198,87,0.08); }
+  .pill.err { color: var(--err); border-color: rgba(255,122,133,0.5); background: rgba(255,122,133,0.08); }
+  .pill.info { color: var(--accent); border-color: rgba(108,177,255,0.5); background: rgba(108,177,255,0.08); }
+  .pill.purple { color: var(--purple); border-color: rgba(183,148,246,0.5); background: rgba(183,148,246,0.08); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin: 14px 0; }
+  .card.alt { background: var(--card-alt); }
+  .card.warn { border-color: rgba(255,198,87,0.55); background: rgba(255,198,87,0.05); }
+  .card.err { border-color: rgba(255,122,133,0.55); background: rgba(255,122,133,0.05); }
+  .card.ok { border-color: rgba(95,217,123,0.4); background: rgba(95,217,123,0.04); }
+  .card.here { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(108,177,255,0.2); background: rgba(108,177,255,0.05); }
+
+  pre { background: #0a0f1e; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; color: #e6ebff; font-family: var(--mono); font-size: 0.85rem; line-height: 1.55; }
+
+  .star { color: var(--warn); letter-spacing: 1px; font-size: 1.05em; }
+  .star-dim { color: var(--border); letter-spacing: 1px; font-size: 1.05em; }
+
+  .timeline { position: relative; padding: 20px 0; }
+  .timeline-track { position: absolute; top: 30px; left: 0; right: 0; height: 4px; background: var(--border); border-radius: 2px; }
+  .timeline-fill { position: absolute; top: 30px; left: 0; height: 4px; background: linear-gradient(90deg, var(--ok) 0%, var(--warn) 80%, var(--accent) 100%); border-radius: 2px; }
+  .timeline-nodes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; position: relative; }
+  .t-node { text-align: center; position: relative; padding-top: 48px; }
+  .t-node::before { content: ""; position: absolute; top: 22px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--bg); z-index: 2; }
+  .t-node.done::before { background: var(--ok); }
+  .t-node.current::before { background: var(--accent); box-shadow: 0 0 0 4px rgba(108,177,255,0.25); animation: pulse 2s infinite; }
+  .t-node.pending::before { background: var(--card); border-color: var(--border); }
+  .t-node .t-title { font-size: 0.86rem; font-weight: 600; color: var(--text); }
+  .t-node .t-sub { font-size: 0.72rem; color: var(--text-dimmer); margin-top: 2px; }
+  .t-node.current .t-title { color: var(--accent); }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(108,177,255,0.25); } 50% { box-shadow: 0 0 0 8px rgba(108,177,255,0.1); } }
+
+  .dep-matrix { display: grid; grid-template-columns: 200px repeat(6, 1fr); gap: 2px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 0.82rem; }
+  .dep-matrix .dep-cell { background: var(--card); padding: 8px 10px; }
+  .dep-matrix .dep-header { background: var(--card-alt); color: var(--text-dim); font-weight: 600; text-align: center; }
+  .dep-matrix .dep-row-label { background: var(--card-alt); color: var(--text); font-weight: 500; }
+  .dep-matrix .dep-cell.yes { background: rgba(95,217,123,0.12); color: var(--ok); text-align: center; font-weight: 600; }
+  .dep-matrix .dep-cell.no { background: rgba(255,122,133,0.12); color: var(--err); text-align: center; font-weight: 600; }
+  .dep-matrix .dep-cell.partial { background: rgba(255,198,87,0.12); color: var(--warn); text-align: center; font-weight: 600; }
+
+  .toc { background: var(--card-alt); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin-bottom: 30px; }
+  .toc h3 { margin-top: 0; color: var(--text); border: none; font-size: 1rem; letter-spacing: 0.02em; }
+  .toc ol { columns: 2; -webkit-columns: 2; column-gap: 40px; margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.82rem; color: var(--text-dim); margin: 12px 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+
+  footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--text-dimmer); font-size: 0.82rem; text-align: center; }
+
+  .callout { background: rgba(108,177,255,0.08); border-left: 4px solid var(--accent); padding: 14px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .callout.warn { background: rgba(255,198,87,0.08); border-color: var(--warn); }
+  .callout.err { background: rgba(255,122,133,0.08); border-color: var(--err); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+  <p class="eyebrow">Status Dashboard · QuantBridge · 2026-04-21</p>
+  <h1>H1 Stealth 클로징 — 현재 위치 & 다음 스텝</h1>
+  <p class="subtitle">4개 PR (#37/#38/#39/#40) 머지 완료. 코드 게이트 100%. 남은 건 본인 dogfood 1~2주 — 또는 <b>그 동안 H2 Sprint 9~11 선행 가능</b>.</p>
+  <div class="meta">
+    <span><b>main HEAD</b>: #40 merged</span>
+    <span><b>Horizon</b>: H1 (0–1.5m)</span>
+    <span><b>Vision Phase</b>: 4 완료</span>
+    <span><b>Backend tests</b>: 837 passing</span>
+    <span><b>다음 blocker</b>: Credentials.testnet 필드화 (1~2h)</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <h3>📋 목차</h3>
+  <ol>
+    <li><a href="#snapshot">1. Snapshot (한 눈에 보기)</a></li>
+    <li><a href="#timeline">2. 전체 여정 타임라인</a></li>
+    <li><a href="#progress">3. 3-Axis 진행도</a></li>
+    <li><a href="#pillar">4. Pillar별 상태</a></li>
+    <li><a href="#dep">5. dogfood 의존성 매트릭스</a></li>
+    <li><a href="#option">6. dogfood 연기 옵션</a></li>
+    <li><a href="#next">7. 다음 스텝 (권장 플랜)</a></li>
+    <li><a href="#decision">8. 이번 세션 결정 후보</a></li>
+  </ol>
+</nav>
+
+<!-- =================== 1. SNAPSHOT =================== -->
+<section id="snapshot">
+  <h2>1. Snapshot — 한 눈에 보기</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">Vision Phase</div><div class="value">4 / 4</div><div class="delta">Pine Execution v4 완료</div></div>
+    <div class="kpi here"><div class="label">Horizon</div><div class="value">H1 · 90%</div><div class="delta">dogfood만 남음</div></div>
+    <div class="kpi"><div class="label">완료 Sprint</div><div class="value">18</div><div class="delta">Phase 0 ~ Bundle 2</div></div>
+    <div class="kpi"><div class="label">Merged PRs (본 세션)</div><div class="value">4</div><div class="delta">#37/#38/#39/#40</div></div>
+  </div>
+
+  <div class="callout">
+    <b>핵심 메시지:</b> H2 Sprint 9, 10, 11-1~11-4 는 dogfood와 <b>완전 독립</b>. 실자본 dogfood 연기해도 <b>약 7~10주 치 작업</b> 선행 가능.
+    단, Sprint 11-5 (실 Beta 사용자 온보딩)과 H3 (TV 공개)는 dogfood 선행 필수.
+  </div>
+</section>
+
+<!-- =================== 2. TIMELINE =================== -->
+<section id="timeline">
+  <h2>2. 전체 여정 타임라인 (9개월)</h2>
+
+  <div class="timeline">
+    <div class="timeline-track"></div>
+    <div class="timeline-fill" style="width: 17%;"></div>
+    <div class="timeline-nodes">
+      <div class="t-node done"><div class="t-title">Phase 1~4</div><div class="t-sub">2026-04-15~19<br/>Pine Parser → v4</div></div>
+      <div class="t-node current"><div class="t-title">H1 클로징</div><div class="t-sub">2026-04-20~21<br/>코드 게이트 100%</div></div>
+      <div class="t-node pending"><div class="t-title">H1 dogfood</div><div class="t-sub">사용자 1~2주<br/>연기 가능</div></div>
+      <div class="t-node pending"><div class="t-title">H2 Sprint 9~11</div><div class="t-sub">7~10주<br/>dogfood 무관 가능</div></div>
+      <div class="t-node pending"><div class="t-title">Beta 5~10명</div><div class="t-sub">dogfood 필수</div></div>
+      <div class="t-node pending"><div class="t-title">H3 TV 공개</div><div class="t-sub">4~9m<br/>유료화 실험</div></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background: var(--ok);"></span>완료</div>
+    <div class="legend-item"><span class="legend-dot" style="background: var(--accent);"></span>현재 위치</div>
+    <div class="legend-item"><span class="legend-dot" style="background: var(--card); border: 2px solid var(--border);"></span>예정</div>
+  </div>
+</section>
+
+<!-- =================== 3. PROGRESS BARS =================== -->
+<section id="progress">
+  <h2>3. 3-Axis 진행도</h2>
+
+  <h3>🎯 Vision.md — 기술 Phase 1~4</h3>
+  <div class="progress-label"><div class="name">Phase 1 Pine Parser MVP</div>
+    <div class="progress"><div class="progress-bar" style="width: 100%;">완료</div></div>
+    <div class="pct">100%</div></div>
+  <div class="progress-label"><div class="name">Phase 2 vectorbt Engine + API</div>
+    <div class="progress"><div class="progress-bar" style="width: 100%;">완료</div></div>
+    <div class="pct">100%</div></div>
+  <div class="progress-label"><div class="name">Phase 3 Strategy CRUD UI + 데모</div>
+    <div class="progress"><div class="progress-bar" style="width: 100%;">완료</div></div>
+    <div class="pct">100%</div></div>
+  <div class="progress-label"><div class="name">Phase 4 Pine Execution v4</div>
+    <div class="progress"><div class="progress-bar" style="width: 100%;">완료</div></div>
+    <div class="pct">100%</div></div>
+
+  <h3>🗺 Roadmap.md — Horizon H1 ~ H3</h3>
+  <div class="progress-label"><div class="name">H1 Stealth (0~1.5m) ⬅ 현재</div>
+    <div class="progress"><div class="progress-bar partial" style="width: 90%;">90% — dogfood만 남음</div></div>
+    <div class="pct">90%</div></div>
+  <div class="progress-label"><div class="name">H2 Beta (1.5~4m)</div>
+    <div class="progress"><div class="progress-bar tiny" style="width: 10%;">10% · plan only</div></div>
+    <div class="pct">10%</div></div>
+  <div class="progress-label"><div class="name">H3 Public (4~9m)</div>
+    <div class="progress"><div class="progress-bar empty">정의만</div></div>
+    <div class="pct">0%</div></div>
+
+  <h3>📦 Sprint 단위 (주요 Sprint)</h3>
+  <table>
+    <thead><tr><th>Sprint</th><th>상태</th><th>완료일</th><th>PR</th></tr></thead>
+    <tbody>
+      <tr><td>Phase 0 스캐폴딩</td><td><span class="pill ok">완료</span></td><td>2026-04-15</td><td>—</td></tr>
+      <tr><td>Sprint 1~4 (Parser/Engine/CRUD/Celery)</td><td><span class="pill ok">완료</span></td><td>2026-04-15~16</td><td>#3</td></tr>
+      <tr><td>Sprint 5 Stage A/B (docs + TimescaleDB)</td><td><span class="pill ok">완료</span></td><td>2026-04-16</td><td>#6, #7</td></tr>
+      <tr><td>Sprint 6 Trading 데모 MVP</td><td><span class="pill ok">완료</span></td><td>2026-04-16</td><td>#9</td></tr>
+      <tr><td>Sprint 7a Bybit Futures + Cross Margin</td><td><span class="pill ok">완료</span></td><td>2026-04-17</td><td>#10</td></tr>
+      <tr><td>Sprint 7b/7c (Edit UX / CRUD UI)</td><td><span class="pill ok">완료</span></td><td>2026-04-17</td><td>—</td></tr>
+      <tr><td>Sprint 7d OKX + Trading Sessions</td><td><span class="pill ok">완료</span></td><td>2026-04-19</td><td>#28</td></tr>
+      <tr><td>Sprint 8a-pre Phase -1 실측</td><td><span class="pill ok">완료</span></td><td>2026-04-18</td><td>#18</td></tr>
+      <tr><td>Sprint 8a Tier-0 Foundation</td><td><span class="pill ok">완료</span></td><td>2026-04-18</td><td>#20</td></tr>
+      <tr><td>Sprint 8b Tier-1 + Rendering</td><td><span class="pill ok">완료</span></td><td>2026-04-18</td><td>#21</td></tr>
+      <tr><td>Sprint 8c user-function + 3-Track</td><td><span class="pill ok">완료</span></td><td>2026-04-19</td><td>#22</td></tr>
+      <tr><td>Sprint FE-01~04</td><td><span class="pill ok">완료</span></td><td>2026-04-19</td><td>#23~27</td></tr>
+      <tr><td>FE Polish Bundle 1 (A/B/C)</td><td><span class="pill ok">완료</span></td><td>2026-04-19</td><td>#32</td></tr>
+      <tr><td>FE Polish Bundle 2 (D/E/F)</td><td><span class="pill ok">완료</span></td><td>2026-04-20</td><td>#36</td></tr>
+      <tr><td><b>Kill Switch capital_base 동적 바인딩</b></td><td><span class="pill ok">완료</span></td><td>2026-04-20</td><td>#38</td></tr>
+      <tr><td><b>Bybit mainnet dogfood 준비</b></td><td><span class="pill ok">완료</span></td><td>2026-04-20</td><td>#39</td></tr>
+      <tr><td><b>H2 Kickoff plan</b></td><td><span class="pill ok">완료</span></td><td>2026-04-20</td><td>#40</td></tr>
+      <tr><td><b>Credentials.testnet 필드화</b></td><td><span class="pill info">다음</span></td><td>—</td><td>—</td></tr>
+      <tr><td>Bybit mainnet 1~2주 dogfood</td><td><span class="pill warn">사용자 수동</span></td><td>—</td><td>—</td></tr>
+      <tr><td>H2 Sprint 9 (MC + WFA + 관측성)</td><td><span class="pill purple">H2</span></td><td>—</td><td>—</td></tr>
+      <tr><td>H2 Sprint 10 (Multi-worker + Real broker)</td><td><span class="pill purple">H2</span></td><td>—</td><td>—</td></tr>
+      <tr><td>H2 Sprint 11 (Beta 오픈)</td><td><span class="pill purple">H2</span></td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================== 4. PILLAR =================== -->
+<section id="pillar">
+  <h2>4. Pillar별 상태 (Trust / Scale / Monetize)</h2>
+
+  <div class="card ok">
+    <h3 style="color: var(--ok); margin-top:0;">🛡 Trust — 최우선 Pillar</h3>
+    <div class="progress-label"><div class="name">H1 (dogfood 남음)</div>
+      <div class="progress"><div class="progress-bar partial" style="width: 90%;">90%</div></div>
+      <div class="pct">90%</div></div>
+    <div class="progress-label"><div class="name">H2 (plan only)</div>
+      <div class="progress"><div class="progress-bar tiny" style="width: 10%;">10%</div></div>
+      <div class="pct">10%</div></div>
+    <div class="progress-label"><div class="name">H3</div>
+      <div class="progress"><div class="progress-bar empty">—</div></div>
+      <div class="pct">0%</div></div>
+    <p class="mono" style="margin-bottom:0;">Kill Switch + leverage cap + AES-256 + OKX passphrase + notional check 완료. 실자본 실증만 남음.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color: var(--accent-2); margin-top:0;">🚀 Scale — 중간 우선</h3>
+    <div class="progress-label"><div class="name">H1</div>
+      <div class="progress"><div class="progress-bar partial" style="width: 80%;">80%</div></div>
+      <div class="pct">80%</div></div>
+    <div class="progress-label"><div class="name">H2 (Multi-worker / Real broker / TimescaleDB retention)</div>
+      <div class="progress"><div class="progress-bar tiny" style="width: 10%;">10%</div></div>
+      <div class="pct">10%</div></div>
+    <div class="progress-label"><div class="name">H3 (TV 공개 + 마켓플레이스)</div>
+      <div class="progress"><div class="progress-bar empty">—</div></div>
+      <div class="pct">0%</div></div>
+    <p class="mono" style="margin-bottom:0;">OKX + Trading Sessions + Tier-0~1 Pine Execution v4 완료. Observability 설계만 완료, 계측은 H2 Sprint 9.</p>
+  </div>
+
+  <div class="card warn">
+    <h3 style="color: var(--warn); margin-top:0;">💰 Monetize — H1 금지 규칙 준수</h3>
+    <div class="progress-label"><div class="name">H1 (금지)</div>
+      <div class="progress"><div class="progress-bar empty">규칙 준수</div></div>
+      <div class="pct">—</div></div>
+    <div class="progress-label"><div class="name">H2 (가설 수립)</div>
+      <div class="progress"><div class="progress-bar tiny" style="width: 10%;">10%</div></div>
+      <div class="pct">10%</div></div>
+    <div class="progress-label"><div class="name">H3 (가격 실험 A/B)</div>
+      <div class="progress"><div class="progress-bar empty">—</div></div>
+      <div class="pct">0%</div></div>
+    <p class="mono" style="margin-bottom:0;">H2 kickoff plan에 Freemium 경계 (⭐⭐⭐⭐ 거래소 수 기반) + 법무 전략 (⭐⭐⭐⭐⭐ 한국 변호사 스타트업 패키지) 문서화만.</p>
+  </div>
+</section>
+
+<!-- =================== 5. DEPENDENCY =================== -->
+<section id="dep">
+  <h2>5. dogfood 의존성 매트릭스 (H2 Sprint별)</h2>
+
+  <div class="callout">
+    <b>의미:</b> "dogfood 없이 진행 가능한가?" 매트릭스. ✅ = 독립, ⚠️ = dogfood 후 필수, ❌ = 실자본 dogfood 선행 절대 필수.
+  </div>
+
+  <table>
+    <thead><tr><th style="width:30%;">Sprint / Task</th><th style="width:15%;">dogfood 독립?</th><th>이유 / 설명</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3" style="background: var(--card-alt); font-weight: 600; color: var(--accent-2);">Sprint 9 — Monte Carlo + WFA + 관측성 (3~4주)</td></tr>
+      <tr><td>9-1 Monte Carlo 리샘플링</td><td><span class="pill ok">✅ 독립</span></td><td>백테스트 후처리. 실자본 무관</td></tr>
+      <tr><td>9-2 Walk-Forward Analysis</td><td><span class="pill ok">✅ 독립</span></td><td>train/test window 이동</td></tr>
+      <tr><td>9-3 Frontend UI (MC/WFA)</td><td><span class="pill ok">✅ 독립</span></td><td>순수 FE 작업 (recharts)</td></tr>
+      <tr><td>9-4 Prometheus metric 5종 계측</td><td><span class="pill ok">✅ 독립</span></td><td>코드만 추가. testnet/fixture 데이터로 검증</td></tr>
+      <tr><td>9-5 Grafana Cloud Free 대시보드 + alert 1개</td><td><span class="pill ok">✅ 독립</span></td><td>테스트 데이터로 alert rule 발동 검증</td></tr>
+      <tr><td>9-6 Idempotency-Key (POST /backtests)</td><td><span class="pill ok">✅ 독립</span></td><td>REST API 개선</td></tr>
+
+      <tr><td colspan="3" style="background: var(--card-alt); font-weight: 600; color: var(--accent-2);">Sprint 10 — Multi-worker + Real broker (2~3주)</td></tr>
+      <tr><td>10-1 Multi-worker Redis lock</td><td><span class="pill ok">✅ 독립</span></td><td>인프라 하드닝</td></tr>
+      <tr><td>10-2 Real broker 테스트 (pytest-celery)</td><td><span class="pill ok">✅ 독립</span></td><td>testnet 기반 자동화</td></tr>
+      <tr><td>10-3 TimescaleDB compression/retention</td><td><span class="pill ok">✅ 독립</span></td><td>데이터 관리</td></tr>
+      <tr><td>10-4 CCXT 계측 상세화</td><td><span class="pill ok">✅ 독립</span></td><td>per-exchange latency/error</td></tr>
+      <tr><td>10-5 Rate limiting middleware</td><td><span class="pill ok">✅ 독립</span></td><td>API 보호</td></tr>
+
+      <tr><td colspan="3" style="background: var(--card-alt); font-weight: 600; color: var(--accent-2);">Sprint 11 — Beta 오픈 준비 (2주)</td></tr>
+      <tr><td>11-1 US·EU geo-block 3계층</td><td><span class="pill ok">✅ 독립</span></td><td>Cloudflare/Clerk/landing</td></tr>
+      <tr><td>11-2 Disclaimer + ToS 임시</td><td><span class="pill ok">✅ 독립</span></td><td>문서 작업</td></tr>
+      <tr><td>11-3 Waitlist 페이지 + 초대 이메일</td><td><span class="pill ok">✅ 독립</span></td><td>FE + 이메일 인프라</td></tr>
+      <tr><td>11-4 Onboarding flow 개선</td><td><span class="pill ok">✅ 독립</span></td><td>UX 작업</td></tr>
+      <tr><td><b>11-5 Beta 5~10명 실사용자 온보딩</b></td><td><span class="pill warn">⚠️ 필수</span></td><td>"본인도 dogfood 안 했는데 유저에게 → 도덕/법적 책임"</td></tr>
+
+      <tr><td colspan="3" style="background: var(--card-alt); font-weight: 600; color: var(--err);">H3 — TV 커뮤니티 공개 (4~9m)</td></tr>
+      <tr><td>H3 전체</td><td><span class="pill err">❌ 완전 금지</span></td><td>낯선 사용자 5K~50K 대상. Trust 미검증 + 실자본 실증 없으면 규제/소송 리스크 극대화</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================== 6. OPTIONS =================== -->
+<section id="option">
+  <h2>6. dogfood 연기 옵션 (별점 추천)</h2>
+
+  <table>
+    <thead><tr><th>추천도</th><th>옵션</th><th>내용</th><th>Trust Layer 검증</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="star">★★★★★</span></td>
+        <td><b>A. Sprint 9→10→11-1~4 순차 진행</b></td>
+        <td>7~10주치 dogfood-무관 작업. Beta 오픈 직전까지 완성</td>
+        <td><span class="pill warn">보류 (dogfood 후 재개)</span></td>
+      </tr>
+      <tr>
+        <td><span class="star">★★★★</span><span class="star-dim">★</span></td>
+        <td>B. Paper trading (testnet) 대체 dogfood</td>
+        <td>2주간 testnet에서 실 전략 운용</td>
+        <td><span class="pill warn">50% 검증 (slippage/fee 한계)</span></td>
+      </tr>
+      <tr>
+        <td><span class="star">★★★</span><span class="star-dim">★★</span></td>
+        <td>C. 극소액 mainnet ($30~$100)</td>
+        <td>checklist $100~$500보다 작게. 심리 부담 ↓</td>
+        <td><span class="pill ok">실제 fill/fee 검증</span></td>
+      </tr>
+      <tr>
+        <td><span class="star">★★</span><span class="star-dim">★★★</span></td>
+        <td>D. 다른 방향 pivot (AI 실험)</td>
+        <td>vision.md 범위 벗어남</td>
+        <td><span class="pill err">비권장</span></td>
+      </tr>
+      <tr>
+        <td><span class="star-dim">★★★★★</span></td>
+        <td>E. dogfood 없이 Beta/H3 강행</td>
+        <td><b>도덕·법적 리스크. 절대 금지</b></td>
+        <td><span class="pill err">❌</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================== 7. NEXT STEPS =================== -->
+<section id="next">
+  <h2>7. 다음 스텝 (권장 플랜 A)</h2>
+
+  <div class="card here">
+    <h3 style="color: var(--accent); margin-top:0;">⭐ 권장 경로: Sprint 9 → 10 → 11-1~4, dogfood는 유연 삽입</h3>
+    <p>9~10주간 dogfood 무관 작업 풍부. 실자본 dogfood는 Sprint 9 중/10 중/11 중 어느 시점이든 1~2주 break로 삽입 가능. Beta 오픈 직전까지 모든 준비 완료 → dogfood 1~2주 후 바로 Beta 시작.</p>
+  </div>
+
+  <h3>🔢 마일스톤 순서</h3>
+  <table>
+    <thead><tr><th style="width:5%;">#</th><th>마일스톤</th><th>주체</th><th>소요</th><th>선행 조건</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>M1</b></td>
+        <td><b>Credentials.testnet 필드화 PR</b><br/><span class="mono">providers.py · Credentials · test</span></td>
+        <td><span class="pill info">나</span></td>
+        <td>1~2h</td>
+        <td>없음 (지금 가능)</td>
+      </tr>
+      <tr>
+        <td><b>M2</b></td>
+        <td><b>Sprint 9 kickoff</b> — writing-plans로 task 분해<br/><span class="mono">9-1 ~ 9-6</span></td>
+        <td><span class="pill info">나 + 사용자</span></td>
+        <td>1~2h</td>
+        <td>M1 merge (권장)</td>
+      </tr>
+      <tr>
+        <td><b>M3</b></td>
+        <td><b>Sprint 9 구현</b> — Monte Carlo + WFA + 관측성</td>
+        <td><span class="pill info">나</span></td>
+        <td>3~4주</td>
+        <td>M2</td>
+      </tr>
+      <tr>
+        <td>M3.5</td>
+        <td>(선택) 실자본 또는 testnet dogfood 1~2주</td>
+        <td><span class="pill warn">사용자</span></td>
+        <td>1~2주</td>
+        <td>언제든 M1 이후</td>
+      </tr>
+      <tr>
+        <td><b>M4</b></td>
+        <td><b>Sprint 10 구현</b> — Multi-worker + Real broker 테스트</td>
+        <td><span class="pill info">나</span></td>
+        <td>2~3주</td>
+        <td>M3</td>
+      </tr>
+      <tr>
+        <td><b>M5</b></td>
+        <td><b>Sprint 11-1~4</b> — Beta 오픈 준비 (실사용자 온보딩 제외)</td>
+        <td><span class="pill info">나</span></td>
+        <td>2주</td>
+        <td>M4</td>
+      </tr>
+      <tr>
+        <td>M5.5</td>
+        <td>(필수) H1 dogfood 완료</td>
+        <td><span class="pill err">사용자</span></td>
+        <td>1~2주</td>
+        <td>M3.5 미완료 시</td>
+      </tr>
+      <tr>
+        <td><b>M6</b></td>
+        <td><b>Sprint 11-5</b> — 지인 Beta 5~10명 온보딩</td>
+        <td><span class="pill info">사용자 + 나</span></td>
+        <td>2~3주</td>
+        <td>M5 + M5.5</td>
+      </tr>
+      <tr>
+        <td><b>M7</b></td>
+        <td><b>H3</b> — TV 커뮤니티 공개 + 가격 실험</td>
+        <td><span class="pill info">사용자 + 나</span></td>
+        <td>4~5개월</td>
+        <td>M6 완료 + H2→H3 gate PASS</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================== 8. DECISION =================== -->
+<section id="decision">
+  <h2>8. 이번 세션 결정 후보</h2>
+
+  <table>
+    <thead><tr><th>추천도</th><th>선택</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="star">★★★★★</span></td>
+        <td><b>A. M1 (Credentials.testnet 필드화) 지금 진행</b></td>
+        <td>오늘 1~2h. mainnet 준비 100% 완료. 다음 세션에 Sprint 9 kickoff 바로</td>
+      </tr>
+      <tr>
+        <td><span class="star">★★★★</span><span class="star-dim">★</span></td>
+        <td>B. M1 건너뛰고 Sprint 9 kickoff 바로</td>
+        <td>Sprint 9은 FE/백테스트라 mainnet 무관. M1은 dogfood 시점에 붙여도 OK</td>
+      </tr>
+      <tr>
+        <td><span class="star">★★★</span><span class="star-dim">★★</span></td>
+        <td>C. 세션 종료, 다음 세션에 M1 또는 Sprint 9</td>
+        <td>충분히 진행. 휴식 후 fresh 세션</td>
+      </tr>
+      <tr>
+        <td><span class="star">★★</span><span class="star-dim">★★★</span></td>
+        <td>D. Paper trading (testnet) 설계 후 dogfood 대체 시도</td>
+        <td>Trust Layer 50% 검증. H2 진행과 병렬 가능하나 slippage/fee 한계</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <b>알림:</b> 어느 선택이든 <b>M1 ~ M5까지 dogfood 없이 진행 가능</b>. dogfood는 M6 이전 아무 시점에만 삽입하면 됨.
+    절대 금지: <b>M6 (Beta 실사용자) 이후 단계를 dogfood 없이 진행</b>.
+  </div>
+</section>
+
+<footer>
+  🤖 Generated with <a href="https://claude.com/claude-code">Claude Code</a> · QuantBridge Status Dashboard · 2026-04-21
+</footer>
+
+</div>
+</body>
+</html>
