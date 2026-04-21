@@ -8,6 +8,7 @@ Session monkeypatch pattern from Sprint 4 (test_backtest_task.py:61-78):
 Replace task module's `async_session_factory` with a fake that yields
 the test's `db_session`, so the task sees savepoint-committed test data.
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -118,11 +119,14 @@ async def test_execute_order_task_transitions_pending_to_filled(
 ) -> None:
     """Happy path: pending → submitted → filled (FixtureExchangeProvider)."""
     import src.tasks.trading as task_mod
+    from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = pending_order
 
     # Session monkeypatch — Sprint 4 pattern
     monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
+    # Provider monkeypatch — FixtureExchangeProvider 강제 (EXCHANGE_PROVIDER 환경변수 독립)
+    monkeypatch.setattr(task_mod, "_exchange_provider", FixtureExchangeProvider())
 
     result = await task_mod._async_execute(order.id)
 

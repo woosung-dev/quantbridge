@@ -21,6 +21,7 @@ from src.market_data.models import OHLCV  # noqa: F401
 from src.strategy.models import Strategy  # noqa: F401
 from src.trading.models import (  # noqa: F401
     ExchangeAccount,
+    FundingRate,
     KillSwitchEvent,
     Order,
     WebhookSecret,
@@ -134,7 +135,8 @@ def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
             "orders",
             "kill_switch_events",
             "webhook_secrets",
-        }, f"예상 4 테이블과 불일치: {trading_tables}"
+            "funding_rates",
+        }, f"예상 5 테이블과 불일치: {trading_tables}"
     finally:
         engine.dispose()
 
