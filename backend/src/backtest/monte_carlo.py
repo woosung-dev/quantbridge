@@ -23,7 +23,7 @@ class MonteCarloResult:
     max_drawdown_p95: Decimal
 
 
-def _max_drawdown(equity: np.ndarray) -> float:
+def _max_drawdown(equity: np.ndarray[tuple[int], np.dtype[np.float64]]) -> float:
     """단일 equity 시계열의 최대 낙폭 (0~1 비율)."""
     peak = np.maximum.accumulate(equity)
     dd = (equity - peak) / np.where(peak == 0, 1.0, peak)
