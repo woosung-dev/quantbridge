@@ -56,6 +56,7 @@ async def run_smoke(
     symbol: str,
     quantity: Decimal,
     leverage: int,
+    mode: str = "testnet",
 ) -> int:
     """Return exit code (0=success, 1=failure)."""
     exchange = ccxt_async.bybit(
@@ -64,9 +65,18 @@ async def run_smoke(
             "secret": api_secret,
             "enableRateLimit": True,
             "timeout": 30000,
-            "options": {"defaultType": "linear", "testnet": True},
+            "options": {"defaultType": "linear", "testnet": mode == "testnet"},
         }
     )
+    if mode == "demo":
+        log_event("smoke_config", endpoint="api-demo.bybit.com")
+        api_urls = exchange.urls.get("api", {})
+        if isinstance(api_urls, dict):
+            exchange.urls["api"] = dict.fromkeys(api_urls, "https://api-demo.bybit.com")
+        else:
+            exchange.urls["api"] = "https://api-demo.bybit.com"
+    else:
+        log_event("smoke_config", endpoint="api-testnet.bybit.com")
 
     try:
         # 1. Balance
@@ -187,6 +197,12 @@ def main() -> int:
         default=1,
         help="Leverage 1~20 (default: 1)",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["testnet", "demo"],
+        default="testnet",
+        help="bybit 환경: testnet(api-testnet.bybit.com) 또는 demo(api-demo.bybit.com)",
+    )
     args = parser.parse_args()
 
     if args.leverage < 1 or args.leverage > 20:
@@ -200,6 +216,7 @@ def main() -> int:
             symbol=args.symbol,
             quantity=args.quantity,
             leverage=args.leverage,
+            mode=args.mode,
         )
     )
 

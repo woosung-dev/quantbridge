@@ -105,6 +105,7 @@ export function RegisterExchangeAccountDialog() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="demo">Demo</SelectItem>
                       <SelectItem value="testnet">Testnet</SelectItem>
                       <SelectItem value="live">Live</SelectItem>
                     </SelectContent>

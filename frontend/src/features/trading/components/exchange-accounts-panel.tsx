@@ -51,7 +51,9 @@ export function ExchangeAccountsPanel() {
                   <td className="py-1.5">
                     <span
                       className={
-                        a.mode === "testnet"
+                        a.mode === "demo"
+                          ? "text-blue-600 font-medium"
+                          : a.mode === "testnet"
                           ? "text-yellow-600 font-medium"
                           : "text-green-600 font-medium"
                       }
