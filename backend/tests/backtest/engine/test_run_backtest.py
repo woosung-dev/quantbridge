@@ -49,20 +49,19 @@ if ta.crossunder(fast, slow)
 
 
 def test_run_backtest_parse_failed_returns_parse_failed_status():
-    # bare strategy.exit (Task 1에서 Unsupported 처리)
-    src = """//@version=5
-strategy("bad")
-if bar_index == 1
-    strategy.entry("Long", strategy.long)
-strategy.exit("Exit")
-"""
+    """pine_v2 가 파싱/classify 할 수 없는 소스 → parse_failed.
+
+    구 엔진 시절 `strategy.exit` bare 호출을 unsupported 로 분류했으나
+    pine_v2 는 pynescript 문법 파싱만 요구 — 선언(indicator/strategy/library)
+    자체가 없는 소스가 parse_failed 트리거 시나리오.
+    """
+    src = "this is not pine script @@@ $$$"
     ohlcv = _ohlcv()
 
     out = run_backtest(src, ohlcv)
 
     assert out.status == "parse_failed"
     assert out.result is None
-    assert out.parse.status == "unsupported"
 
 
 def test_run_backtest_accepts_custom_config():
