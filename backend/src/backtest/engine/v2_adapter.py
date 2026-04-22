@@ -194,7 +194,7 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
         raw.append(
             RawTrade(
                 trade_index=idx,
-                direction=t.direction,  # type: ignore[arg-type]
+                direction=t.direction,
                 status="closed" if t.exit_bar is not None else "open",
                 entry_bar_index=int(t.entry_bar),
                 exit_bar_index=int(t.exit_bar) if t.exit_bar is not None else None,
