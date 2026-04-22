@@ -171,6 +171,17 @@ if bar_index == 3
 
 
 def test_strategy_close_all() -> None:
+    """close_all + opposite-direction flip semantic 검증 (codex Q3 강화).
+
+    Sprint 9-2 D1 이후 Pine auto-flip 정책이 적용되므로 bar 2 의 SHORT entry
+    가 기존 LONG "A" 를 자동 close (flip). bar 4 의 close_all 은 남은 SHORT "B" 만 close.
+
+    Semantic invariant:
+    1. 총 closed=2 (A: flip, B: close_all)
+    2. 최종 position_size=0 이면서 direction 분포가 flat (long/short 모두 0)
+    3. flip 된 A 의 exit_bar (=2) < close_all 로 닫힌 B 의 exit_bar (=4)
+    4. A 는 long direction, B 는 short direction 유지
+    """
     source = """//@version=5
 strategy("t")
 if bar_index == 1
@@ -193,10 +204,22 @@ if bar_index == 4
         store.commit_bar()
         interp.append_var_series()
 
-    # A: long entry 20 → exit 35 → pnl = +15
-    # B: short entry 25 → exit 35 → pnl = -10
     assert len(interp.strategy.closed_trades) == 2
     assert interp.strategy.position_size == 0.0
+    assert len(interp.strategy.open_trades) == 0
+
+    by_id = {t.id: t for t in interp.strategy.closed_trades}
+    assert set(by_id.keys()) == {"A", "B"}
+    assert by_id["A"].direction == "long"
+    assert by_id["B"].direction == "short"
+    # A 는 bar 2 에 flip 으로 닫히고, B 는 bar 4 에 close_all 로 닫힘
+    assert by_id["A"].exit_bar == 2
+    assert by_id["B"].exit_bar == 4
+    assert by_id["A"].exit_bar < by_id["B"].exit_bar
+    # direction 분포 semantic — long 과 short 모두 정확히 1 건씩
+    directions = [t.direction for t in interp.strategy.closed_trades]
+    assert directions.count("long") == 1
+    assert directions.count("short") == 1
 
 
 def test_strategy_position_size_name_access() -> None:

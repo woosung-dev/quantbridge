@@ -236,3 +236,62 @@ class TestDelete:
 
         with pytest.raises(BacktestStateConflict):
             await service.delete(created.backtest_id, user_id=user.id)
+
+
+# ---------------------------------------------------------------------------
+# TestExtendedMetricsMapping — Sprint 9-2 D1 회귀 방지
+# ---------------------------------------------------------------------------
+
+class TestExtendedMetricsMapping:
+    """`_to_detail` 이 BacktestMetricsOut 생성 시 7개 확장 필드 전부 전달하는지.
+
+    Sprint 9-2 Bundle D1 이전: total_return/sharpe/mdd/win_rate/num_trades 5개만
+    명시적으로 매핑되어 long_count/short_count 등 7개 확장 필드가 응답에서 항상 null.
+    """
+
+    def test_to_detail_maps_all_seven_extended_metrics(
+        self, service: BacktestService,
+    ) -> None:
+        from src.backtest.models import Backtest
+
+        bt = Backtest(
+            id=uuid4(),
+            user_id=uuid4(),
+            strategy_id=uuid4(),
+            symbol="BTCUSDT",
+            timeframe="1h",
+            period_start=datetime(2024, 1, 1, tzinfo=UTC),
+            period_end=datetime(2024, 2, 1, tzinfo=UTC),
+            initial_capital=Decimal("10000"),
+            status=BacktestStatus.COMPLETED,
+            metrics={
+                "total_return": "0.15",
+                "sharpe_ratio": "1.2",
+                "max_drawdown": "-0.08",
+                "win_rate": "0.55",
+                "num_trades": 20,
+                "sortino_ratio": "1.5",
+                "calmar_ratio": "0.9",
+                "profit_factor": "1.8",
+                "avg_win": "0.02",
+                "avg_loss": "-0.01",
+                "long_count": 12,
+                "short_count": 8,
+            },
+            equity_curve=None,
+            created_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+        )
+
+        detail = service._to_detail(bt)
+
+        assert detail.metrics is not None
+        m = detail.metrics
+        assert m.total_return == Decimal("0.15")
+        assert m.sortino_ratio == Decimal("1.5")
+        assert m.calmar_ratio == Decimal("0.9")
+        assert m.profit_factor == Decimal("1.8")
+        assert m.avg_win == Decimal("0.02")
+        assert m.avg_loss == Decimal("-0.01")
+        assert m.long_count == 12
+        assert m.short_count == 8
