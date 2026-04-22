@@ -8,6 +8,7 @@ trades))` 형태로 변환한다. vectorbt 는 사용하지 않으며, bar-by-ba
 Decimal-first 합산 규칙 (CLAUDE.md LESSON) 준수 — 금융 수치는 float 공간에서
 합산 후 Decimal 로 바꾸지 않는다.
 """
+
 from __future__ import annotations
 
 import logging
@@ -45,13 +46,13 @@ def run_backtest_v2(
 
     if cfg.trading_sessions:
         # Sprint 7d 의 bar-hour 마스킹은 pine_v2 경로에서 아직 미구현. corpus/기본 경로엔 무관.
-        logger.warning(
-            "v2_adapter: trading_sessions filter not yet implemented for pine_v2 path"
-        )
+        logger.warning("v2_adapter: trading_sessions filter not yet implemented for pine_v2 path")
 
     try:
         v2 = parse_and_run_v2(source, ohlcv, strict=False)
-    except Exception as exc:  # parse/runtime 모두 catch (strict=False 이지만 classify 는 raise 가능)
+    except (
+        Exception
+    ) as exc:  # parse/runtime 모두 catch (strict=False 이지만 classify 는 raise 가능)
         logger.exception("v2_adapter_parse_failed")
         return BacktestOutcome(
             status="parse_failed",
@@ -66,14 +67,14 @@ def run_backtest_v2(
             status="error",
             parse=parse_stub,
             result=None,
-            error="pine_v2: strategy state 수집 실패 (track=%s)" % v2.track,
+            error=f"pine_v2: strategy state 수집 실패 (track={v2.track})",
         )
 
     try:
         trades = _build_raw_trades(state, cfg)
         equity = _compute_equity_curve(trades, ohlcv, cfg)
         metrics = _compute_metrics(trades, equity, cfg)
-    except Exception as exc:  # noqa: BLE001 — adapter 내부 계산 실패는 error outcome 으로
+    except Exception as exc:
         logger.exception("v2_adapter_build_failed")
         return BacktestOutcome(
             status="error",
@@ -116,9 +117,7 @@ def _extract_state_and_errors(
 # --- trades --------------------------------------------------------------
 
 
-def _build_raw_trades(
-    state: StrategyState, cfg: BacktestConfig
-) -> list[RawTrade]:
+def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrade]:
     all_trades: list[Trade] = list(state.closed_trades) + list(state.open_trades.values())
     # 체결 순서 = entry_bar 오름차순 (같은 bar 면 기존 리스트 순서 유지)
     all_trades.sort(key=lambda t: (t.entry_bar, 0 if t.is_open else 1))
@@ -183,39 +182,45 @@ def _compute_equity_curve(
     각 bar 에 대해:
       equity[bar] = init_cash
                   + Σ net_pnl (exit_bar_index <= bar)
-                  + Σ mark-to-market unrealized (open trade, entry_bar_index <= bar)
+                  + Σ mark-to-market unrealized
+                      (trade 가 entry 됐고 아직 exit 되지 않은 bar; 즉
+                       entry_bar_index <= bar AND (open 이거나 exit_bar_index > bar))
 
-    unrealized = (close[bar] - entry_price) * qty * direction_sign — 수수료는 이미 net_pnl 에.
+    unrealized = (close[bar] - entry_price) * qty * direction_sign. 수수료/슬리피지는
+    이미 net_pnl 에 녹아 있어 mark-to-market 에서는 재차 빼지 않는다.
     """
     n = len(ohlcv)
     init_cash = cfg.init_cash
     values: list[Decimal] = []
     close_series = ohlcv["close"].astype(float)
 
-    # 조기 exit 매핑
+    # exit bar 별 realized pnl 누적
     exits_by_bar: dict[int, list[RawTrade]] = {}
     for t in trades:
         if t.exit_bar_index is not None:
             exits_by_bar.setdefault(t.exit_bar_index, []).append(t)
-    open_trades = [t for t in trades if t.status == "open"]
 
     realized_cum = Decimal("0")
     for bar_idx in range(n):
-        # 이 bar 에 exit 된 trade pnl 누적에 추가
+        # 이 bar 에 exit 된 trade pnl 을 실현 누적에 추가 (bar 종료 시점 관점)
         for t in exits_by_bar.get(bar_idx, []):
             realized_cum += t.pnl
 
         close_px = Decimal(str(close_series.iloc[bar_idx]))
         unrealized = Decimal("0")
-        for t in open_trades:
+        for t in trades:
             if t.entry_bar_index > bar_idx:
                 continue
+            # 아직 exit 안 된 포지션만 mark-to-market — open 이거나 (closed 이지만 이 bar 이후 exit)
+            if t.status == "closed":
+                assert t.exit_bar_index is not None
+                if t.exit_bar_index <= bar_idx:
+                    continue
             direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
             unrealized += (close_px - t.entry_price) * t.size * direction_sign
 
         values.append(init_cash + realized_cum + unrealized)
 
-    # pd.Series 는 float 을 요구하는 경우가 많음 — Decimal 을 float 으로 변환해 보관.
     return pd.Series([float(v) for v in values], index=ohlcv.index)
 
 
@@ -230,11 +235,9 @@ def _compute_metrics(
     init_cash = cfg.init_cash
     final_equity = Decimal(str(float(equity.iloc[-1]))) if len(equity) > 0 else init_cash
 
-    total_return = (
-        (final_equity - init_cash) / init_cash if init_cash != 0 else Decimal("0")
-    )
+    total_return = (final_equity - init_cash) / init_cash if init_cash != 0 else Decimal("0")
 
-    # Sharpe: bar-level 단순 수익률 (equity.pct_change) 의 mean/std × sqrt(N).
+    # Sharpe: bar-level 단순 수익률 (equity.pct_change) 의 mean/std * sqrt(N).
     # N: cfg.freq 기반 annualization 대신 bar 샘플 수 기반 단순화 (근사).
     sharpe_ratio = _sharpe(equity)
     max_drawdown = _max_drawdown(equity)
