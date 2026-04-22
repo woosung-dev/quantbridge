@@ -20,11 +20,13 @@ if long
 
 
 @pytest.mark.asyncio
-async def test_parse_preview_returns_unsupported(client, mock_clerk_auth):
-    source = """//@version=5
-strategy("no")
-x = request.security(syminfo.tickerid, "1D", close)
-"""
+async def test_parse_preview_returns_error_for_malformed(client, mock_clerk_auth):
+    """pine_v2 가 파싱 불가한 소스 → status=error + errors 수집.
+
+    구 엔진은 `request.security` 등을 unsupported 로 분류했으나 pine_v2 는
+    pynescript 문법만 요구 — malformed 소스가 error 트리거 시나리오.
+    """
+    source = "@@@ this is not pine $$$"
     res = await client.post("/api/v1/strategies/parse", json={"pine_source": source})
     assert res.status_code == 200
     body = res.json()

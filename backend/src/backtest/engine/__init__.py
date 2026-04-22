@@ -1,14 +1,18 @@
-"""백테스트 엔진 공개 API."""
+"""백테스트 엔진 공개 API.
+
+pine_v2 엔진 기반으로 마이그레이션됨 — `run_backtest` 는 `v2_adapter.run_backtest_v2`
+로 위임한다. 구 Pine 인터프리터 + vectorbt 경로는 제거.
+
+Trading session 헬퍼 (`_build_session_hour_mask` / `_apply_trading_sessions`) 는
+기존 test/호환성을 위해 legacy 모듈로 유지된다 — 하지만 v2 경로 실행 흐름엔
+사용되지 않는다. 다음 sprint 에서 pine_v2 경로에도 동일 필터 로직을 통합
+예정.
+"""
+
 from __future__ import annotations
 
-import logging
-
 import pandas as pd
-import vectorbt as vbt
 
-from src.backtest.engine.adapter import to_portfolio_kwargs
-from src.backtest.engine.metrics import extract_metrics
-from src.backtest.engine.trades import extract_trades
 from src.backtest.engine.types import (
     BacktestConfig,
     BacktestMetrics,
@@ -16,26 +20,23 @@ from src.backtest.engine.types import (
     BacktestResult,
     RawTrade,
 )
-from src.strategy.pine import parse_and_run
+from src.backtest.engine.v2_adapter import run_backtest_v2
 from src.strategy.pine.types import SignalResult
 from src.strategy.trading_sessions import SESSION_UTC_HOURS, TradingSession
 
-logger = logging.getLogger(__name__)
+run_backtest = run_backtest_v2
 
 
-def _build_session_hour_mask(
-    index: pd.DatetimeIndex, sessions: tuple[str, ...]
-) -> pd.Series:
+def _build_session_hour_mask(index: pd.DatetimeIndex, sessions: tuple[str, ...]) -> pd.Series:
     """True인 바만 entry 허용. UTC hour로 평가.
 
     입력 index가 naïve면 UTC로 간주 (localize). tz-aware면 UTC로 convert.
     알 수 없는 세션 이름은 무시 (schema 레이어에서 이미 검증).
+
+    Legacy — pine_v2 경로로 마이그레이션된 이후 v1 은 사용하지 않는다.
+    다음 sprint 에서 Trade 사후 필터로 재도입 예정.
     """
-    hours = (
-        index.tz_localize("UTC").hour
-        if index.tz is None
-        else index.tz_convert("UTC").hour
-    )
+    hours = index.tz_localize("UTC").hour if index.tz is None else index.tz_convert("UTC").hour
 
     allowed = [False] * 24
     for name in sessions:
@@ -50,86 +51,17 @@ def _build_session_hour_mask(
     return pd.Series(mask_values, index=index)
 
 
-def _apply_trading_sessions(
-    signal: SignalResult, sessions: tuple[str, ...]
-) -> None:
+def _apply_trading_sessions(signal: SignalResult, sessions: tuple[str, ...]) -> None:
     """Mask signal.entries in place by the session hour-of-day filter.
 
     exits는 그대로 둔다 — 세션 밖에도 청산은 허용해야 포지션 관리가 깨지지 않는다.
+
+    Legacy — pine_v2 경로로 마이그레이션된 이후 v1 은 사용하지 않는다.
     """
     if not isinstance(signal.entries.index, pd.DatetimeIndex):
-        # DatetimeIndex가 아니면 hour 필터 의미 없음 — no-op (parser가 보장하지만 방어).
         return
     mask = _build_session_hour_mask(signal.entries.index, sessions)
     signal.entries = signal.entries & mask
-
-
-def run_backtest(
-    source: str,
-    ohlcv: pd.DataFrame,
-    config: BacktestConfig | None = None,
-) -> BacktestOutcome:
-    """Pine source + OHLCV → BacktestOutcome.
-
-    파서가 ok로 반환하면 vectorbt로 백테스트를 실행하고 지표+trades를 추출한다.
-    파서가 ok 외 상태를 반환하면 status='parse_failed'로 즉시 반환한다.
-
-    Sprint 7d: cfg.trading_sessions가 비어있지 않으면 바 timestamp UTC hour로
-    entries를 마스킹한다 — 세션 밖 bar는 진입 신호를 드롭. exits는 건드리지 않음.
-    """
-    cfg = config if config is not None else BacktestConfig()
-    parse = parse_and_run(source, ohlcv)
-
-    if parse.status != "ok" or parse.result is None:
-        return BacktestOutcome(
-            status="parse_failed",
-            parse=parse,
-            result=None,
-            error=parse.error,
-        )
-
-    if cfg.trading_sessions:
-        _apply_trading_sessions(parse.result, cfg.trading_sessions)
-
-    try:
-        kwargs = to_portfolio_kwargs(parse.result, ohlcv, cfg)
-        pf = vbt.Portfolio.from_signals(**kwargs)
-        metrics = extract_metrics(pf)
-        equity_curve = _as_series(pf.value())
-        trades = extract_trades(pf, ohlcv)
-    except Exception as exc:
-        logger.exception("backtest_engine_error")
-        return BacktestOutcome(
-            status="error",
-            parse=parse,
-            result=None,
-            error=str(exc),
-        )
-
-    result = BacktestResult(
-        metrics=metrics,
-        equity_curve=equity_curve,
-        trades=trades,
-        config_used=cfg,
-    )
-    logger.info(
-        "backtest_ok",
-        extra={
-            "num_trades": metrics.num_trades,
-            "total_return": str(metrics.total_return),
-            "trades_extracted": len(trades),
-        },
-    )
-    return BacktestOutcome(status="ok", parse=parse, result=result, error=None)
-
-
-def _as_series(value: object) -> pd.Series:
-    """pf.value() 반환이 Series/DataFrame 어느 쪽이든 1-D Series로 정규화."""
-    if isinstance(value, pd.DataFrame):
-        return value.iloc[:, 0]
-    if isinstance(value, pd.Series):
-        return value
-    return pd.Series([value])
 
 
 __all__ = [
