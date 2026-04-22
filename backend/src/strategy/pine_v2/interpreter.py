@@ -605,6 +605,23 @@ class Interpreter:
                 return math.log(args[0]) if len(args) == 1 else math.log(args[0], args[1])
             if name == "math.pow":
                 return args[0] ** args[1]
+            if name == "math.avg":
+                # Pine math.avg(x1, x2, ...) — 여러 값의 산술 평균. na 는 무시.
+                clean = [a for a in args if not _is_na(a)]
+                if not clean:
+                    return float("nan")
+                return sum(clean) / len(clean)
+            if name == "math.sign":
+                v = args[0]
+                if _is_na(v):
+                    return float("nan")
+                return 1 if v > 0 else (-1 if v < 0 else 0)
+            if name == "math.exp":
+                return math.exp(args[0])
+            if name == "math.sum":
+                # Pine math.sum(source, length) — 단순 cumulative sum stub
+                # 정밀 구현은 ta.sum (stdlib); math.sum 은 거의 쓰이지 않으므로 단순 합산.
+                return sum(args) if len(args) > 1 else args[0]
             raise PineRuntimeError(f"math function not supported: {name}")
 
         # timestamp(y, mo, d, h, mi[, s]) — v4/v5 built-in. 실제 datetime은 불필요

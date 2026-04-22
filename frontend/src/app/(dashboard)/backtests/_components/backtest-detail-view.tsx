@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,8 @@ import {
   useBacktestTrades,
 } from "@/features/backtest/hooks";
 import { formatDate } from "@/features/backtest/utils";
+
+const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
 import { BacktestStatusBadge } from "./status-badge";
 import { EquityChart } from "./equity-chart";
@@ -33,6 +36,19 @@ export function BacktestDetailView({ id }: { id: string }) {
   const tradesEnabled = status === "completed";
 
   const trades = useBacktestTrades(id, TRADE_QUERY, { enabled: tradesEnabled });
+
+  // Terminal 전환 시 detail refetch — queued→completed 감지되면 initial cache (metrics=null)
+  // 를 신선화. 안 하면 폴링이 멈춘 후 metrics 가 null 로 stuck.
+  // LESSON-004 guard: primitive dep (string) + stable function reference.
+  const progressStatus = progress.data?.status;
+  const detailStatus = detail.data?.status;
+  const refetchDetail = detail.refetch;
+  useEffect(() => {
+    if (!progressStatus) return;
+    if (!(TERMINAL_STATUSES as readonly string[]).includes(progressStatus)) return;
+    if (detailStatus === progressStatus) return;
+    refetchDetail();
+  }, [progressStatus, detailStatus, refetchDetail]);
 
   if (detail.isLoading) {
     return (
@@ -100,6 +116,12 @@ export function BacktestDetailView({ id }: { id: string }) {
       {effectiveStatus === "cancelled" ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
           사용자에 의해 취소된 백테스트입니다
+        </p>
+      ) : null}
+
+      {effectiveStatus === "completed" && !bt.metrics ? (
+        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+          결과를 불러오는 중…
         </p>
       ) : null}
 
