@@ -1,4 +1,5 @@
 """CCXTProvider — raw OHLCV fetch mock 기반 단위 테스트."""
+import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
@@ -74,3 +75,39 @@ async def test_fetch_ohlcv_empty_page_stops(monkeypatch) -> None:
     assert bars == []
 
     await provider.close()
+
+
+# -----------------------------------------------------------------------
+# Celery prefork asyncio loop 재사용 회귀 방지 (Sprint 9-2 D1 후속)
+# -----------------------------------------------------------------------
+
+def test_exchange_rebuilds_when_event_loop_changes() -> None:
+    """Celery prefork worker 의 `asyncio.run()` 이 task 마다 새 loop 를 만들 때
+    CCXTProvider 가 이전 loop 에 bound 된 exchange 를 폐기하고 새 loop 용 exchange 를
+    재생성해야 한다. 재생성 안 되면 "Event loop is closed" 로 다음 task 가 실패.
+
+    두 개의 asyncio.run() 호출을 이어서 실행 → 각 호출에서 exchange 가 **다른** 객체여야.
+    """
+    provider = CCXTProvider("bybit")
+
+    async def _capture_exchange() -> object:
+        return provider.exchange
+
+    first = asyncio.run(_capture_exchange())
+    second = asyncio.run(_capture_exchange())
+
+    assert first is not second, (
+        "Loop 이 바뀌었는데 exchange 가 재생성 안 됨 — "
+        "다음 task 에서 'Event loop is closed' 발생 예상"
+    )
+
+
+def test_exchange_returns_same_instance_within_same_loop() -> None:
+    """같은 loop 내 반복 접근은 singleton 유지 (resource 낭비 방지)."""
+    provider = CCXTProvider("bybit")
+
+    async def _capture_twice() -> tuple[object, object]:
+        return provider.exchange, provider.exchange
+
+    first, second = asyncio.run(_capture_twice())
+    assert first is second, "같은 loop 내에서는 exchange 재사용되어야 함"
