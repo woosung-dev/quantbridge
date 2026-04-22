@@ -7,7 +7,12 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.backtest.repository import BacktestRepository
 from src.core.config import settings
@@ -21,14 +26,15 @@ logger = logging.getLogger(__name__)
 # 두 번째 task부터 "got Future attached to a different loop" → 이후 pool이 깨져
 # "another operation is in progress"가 연쇄된다. 따라서 engine/sessionmaker는
 # _execute/reclaim 내부에서 매 호출마다 새로 만들고 dispose한다.
-def async_sessionmaker_factory() -> async_sessionmaker[AsyncSession]:
-    """매 호출마다 새 engine + async_sessionmaker 반환.
+def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
 
-    반환된 sessionmaker의 engine은 호출자가 dispose해야 한다 (아래 헬퍼 사용 권장).
-    테스트에서는 이 함수를 monkeypatch로 대체 가능.
+    _execute/reclaim_stale_running 은 반환된 engine을 finally에서 dispose해야 한다.
+    테스트에서는 이 함수를 monkeypatch로 대체하여 공유 세션/no-op engine을 주입 가능.
     """
     engine = create_async_engine(settings.database_url, echo=False)
-    return async_sessionmaker(engine, expire_on_commit=False)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    return engine, sm
 
 
 @celery_app.task(bind=True, name="backtest.run", max_retries=0)  # type: ignore[untyped-decorator]
@@ -44,9 +50,8 @@ async def _execute(backtest_id: UUID) -> None:
     """Worker entry — BacktestService.run() 호출. Engine lifecycle을 task에 고정."""
     from src.backtest.dependencies import build_backtest_service_for_worker
 
-    engine = create_async_engine(settings.database_url, echo=False)
+    engine, sm = create_worker_engine_and_sm()
     try:
-        sm = async_sessionmaker(engine, expire_on_commit=False)
         async with sm() as session:
             service = build_backtest_service_for_worker(session)
             await service.run(backtest_id)
@@ -63,9 +68,8 @@ def reclaim_stale_running_task() -> int:
 async def reclaim_stale_running() -> int:
     """stale running/cancelling → failed/cancelled (§8.3). Engine lifecycle을 task에 고정."""
     threshold = settings.backtest_stale_threshold_seconds
-    engine = create_async_engine(settings.database_url, echo=False)
+    engine, sm = create_worker_engine_and_sm()
     try:
-        sm = async_sessionmaker(engine, expire_on_commit=False)
         async with sm() as session:
             repo = BacktestRepository(session)
             running, cancelling = await repo.reclaim_stale(

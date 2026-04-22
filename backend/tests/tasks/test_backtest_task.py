@@ -58,8 +58,9 @@ async def test_reclaim_stale_running_marks_failed(
     db_session.add(stale_bt)
     await db_session.commit()
 
-    # async_sessionmaker_factory()를 monkeypatch로 대체하여 테스트 세션 재사용.
-    # 새 패턴: async_sessionmaker_factory() → sm, async with sm() as session.
+    # create_worker_engine_and_sm()을 monkeypatch로 대체하여 테스트 세션 재사용.
+    # 새 패턴: (engine, sm) 튜플 반환 → reclaim 은 sm() 으로 session 획득 후
+    # finally 에서 engine.dispose() 호출. 테스트에서는 no-op engine을 주입.
     from contextlib import asynccontextmanager
 
     import src.tasks.backtest as task_mod
@@ -74,8 +75,17 @@ async def test_reclaim_stale_running_marks_failed(
         def __call__(self):
             return _session_ctx()
 
-    # async_sessionmaker_factory는 이제 함수이므로 lambda로 _FakeSM 인스턴스를 반환.
-    monkeypatch.setattr(task_mod, "async_sessionmaker_factory", lambda: _FakeSM())
+    class _FakeEngine:
+        """finally의 engine.dispose() 호출을 받아주는 no-op engine."""
+
+        async def dispose(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        task_mod,
+        "create_worker_engine_and_sm",
+        lambda: (_FakeEngine(), _FakeSM()),
+    )
 
     from src.tasks.backtest import reclaim_stale_running
 
