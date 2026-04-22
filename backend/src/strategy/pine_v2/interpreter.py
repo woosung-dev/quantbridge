@@ -24,6 +24,7 @@ Key 네이밍 관례:
 - 영속(var/varip): `main::{name}` — PersistentStore에 저장
 - 비영속(transient): `{name}` — dict에 저장 (매 bar 초기화)
 """
+
 from __future__ import annotations
 
 import math
@@ -184,9 +185,7 @@ class Interpreter:
         """
         # 첫 bar는 prev_close == nan; 그 이후엔 직전 bar_index의 close
         idx = self.bar.bar_index
-        self._prev_close = (
-            float(self.bar.ohlcv.iloc[idx - 1]["close"]) if idx > 0 else float("nan")
-        )
+        self._prev_close = float(self.bar.ohlcv.iloc[idx - 1]["close"]) if idx > 0 else float("nan")
 
     def append_var_series(self) -> None:
         """Bar 종료 시 호출 — 현재 bar의 모든 user 변수 값을 시리즈에 append.
@@ -248,21 +247,15 @@ class Interpreter:
         # Tuple / List 좌변 — multi-return unpack. var/varip 미지원(H2+).
         if isinstance(primary, pyne_ast.Tuple):
             if var_kind is not None:
-                raise PineRuntimeError(
-                    "var/varip with tuple destructuring is not supported"
-                )
+                raise PineRuntimeError("var/varip with tuple destructuring is not supported")
             value = (
-                self._eval_expr(node.value)
-                if getattr(node, "value", None) is not None
-                else None
+                self._eval_expr(node.value) if getattr(node, "value", None) is not None else None
             )
             elts = primary.elts
             if not isinstance(value, (tuple, list)) or len(value) != len(elts):
                 expected = len(elts)
                 got = len(value) if isinstance(value, (tuple, list)) else "scalar"
-                raise PineRuntimeError(
-                    f"tuple unpack: expected {expected} values, got {got}"
-                )
+                raise PineRuntimeError(f"tuple unpack: expected {expected} values, got {got}")
             for name_node, item in zip(elts, value, strict=True):
                 if not isinstance(name_node, pyne_ast.Name):
                     raise PineRuntimeError("tuple unpack target must be identifier")
@@ -295,7 +288,9 @@ class Interpreter:
             )
         else:
             # 비영속: 매 bar 평가. 함수 호출 중이면 로컬 frame에 기록.
-            value = self._eval_expr(node.value) if getattr(node, "value", None) is not None else None
+            value = (
+                self._eval_expr(node.value) if getattr(node, "value", None) is not None else None
+            )
             if self._scope_stack:
                 self._scope_stack[-1][target_name] = value
             else:
@@ -334,7 +329,7 @@ class Interpreter:
             for stmt in node.body:
                 self._exec_stmt(stmt)
         else:
-            for stmt in (node.orelse or []):
+            for stmt in node.orelse or []:
                 self._exec_stmt(stmt)
 
     # ---- 표현식 평가 --------------------------------------------------
@@ -383,9 +378,7 @@ class Interpreter:
         - pattern이 None인 Case는 default (마지막 배치 권장; 순회 순서 그대로 처리)
         - Case.body는 statements 리스트. 마지막 Expr(value=...)의 값이 반환값.
         """
-        subject = (
-            self._eval_expr(node.subject) if getattr(node, "subject", None) else None
-        )
+        subject = self._eval_expr(node.subject) if getattr(node, "subject", None) else None
         default_body: Any | None = None
         for case in getattr(node, "cases", []):
             pattern = getattr(case, "pattern", None)
@@ -394,11 +387,7 @@ class Interpreter:
                 default_body = body
                 continue
             pat_val = self._eval_expr(pattern)
-            matched = (
-                (pat_val == subject)
-                if subject is not None
-                else self._truthy(pat_val)
-            )
+            matched = (pat_val == subject) if subject is not None else self._truthy(pat_val)
             if matched:
                 return self._exec_case_body(body)
         if default_body is not None:
@@ -531,9 +520,7 @@ class Interpreter:
         kwargs: dict[str, Any] = {}
         for a in node.args:
             val = self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
-            arg_name = (
-                getattr(a, "name", None) if isinstance(a, pyne_ast.Arg) else None
-            )
+            arg_name = getattr(a, "name", None) if isinstance(a, pyne_ast.Arg) else None
             if arg_name:
                 kwargs[arg_name] = val
             else:
@@ -547,9 +534,7 @@ class Interpreter:
         bound = getattr(self.rendering, method_name)
         return bound(*args, **kwargs)
 
-    def _exec_rendering_method(
-        self, handle: Any, method_name: str, node: Any
-    ) -> Any:
+    def _exec_rendering_method(self, handle: Any, method_name: str, node: Any) -> Any:
         """handle.method(...) 형식 호출.
 
         handle 타입에 따라 registry 메서드 이름 prefix 결정:
@@ -565,9 +550,7 @@ class Interpreter:
         args, kwargs = self._collect_args(node)
         bound = getattr(self.rendering, full, None)
         if bound is None:
-            raise PineRuntimeError(
-                f"rendering method not supported: {prefix}.{method_name}"
-            )
+            raise PineRuntimeError(f"rendering method not supported: {prefix}.{method_name}")
         return bound(handle, *args, **kwargs)
 
     def _eval_call(self, node: Any) -> Any:
@@ -600,8 +583,7 @@ class Interpreter:
         # math.* — 순수 함수, caller state 없음. na 전파.
         if name and name.startswith("math."):
             args = [
-                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
-                for a in node.args
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
             ]
             if any(_is_na(a) for a in args):
                 return float("nan")
@@ -633,9 +615,7 @@ class Interpreter:
                 return 0
             parts: list[int] = []
             for a in node.args[:5]:
-                val = self._eval_expr(
-                    a.value if isinstance(a, pyne_ast.Arg) else a
-                )
+                val = self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
                 try:
                     parts.append(int(val))
                 except (TypeError, ValueError):
@@ -674,33 +654,43 @@ class Interpreter:
         # iff(cond, then, else) — v4 built-in (v5는 ternary로 대체). 단축평가.
         if name == "iff":
             if len(node.args) != 3:
-                raise PineRuntimeError(
-                    f"iff expects 3 args, got {len(node.args)}"
-                )
+                raise PineRuntimeError(f"iff expects 3 args, got {len(node.args)}")
             cond_arg, then_arg, else_arg = (
                 a.value if isinstance(a, pyne_ast.Arg) else a for a in node.args
             )
             cond_val = self._eval_expr(cond_arg)
             return (
-                self._eval_expr(then_arg)
-                if self._truthy(cond_val)
-                else self._eval_expr(else_arg)
+                self._eval_expr(then_arg) if self._truthy(cond_val) else self._eval_expr(else_arg)
             )
 
         # ta.* / na / nz — stdlib 디스패치
         _STDLIB_NAMES = {
-            "ta.sma", "ta.ema", "ta.atr", "ta.rsi",
-            "ta.crossover", "ta.crossunder",
-            "ta.highest", "ta.lowest", "ta.change",
-            "ta.pivothigh", "ta.pivotlow",
-            "ta.stdev", "ta.variance",
-            "ta.barssince", "ta.valuewhen",  # Sprint 8c
-            "na", "nz",
+            "ta.sma",
+            "ta.ema",
+            "ta.atr",
+            "ta.rsi",
+            "ta.crossover",
+            "ta.crossunder",
+            "ta.highest",
+            "ta.lowest",
+            "ta.change",
+            "ta.pivothigh",
+            "ta.pivotlow",
+            "ta.stdev",
+            "ta.variance",
+            "ta.barssince",
+            "ta.valuewhen",  # Sprint 8c
+            "na",
+            "nz",
         }
         if name in _STDLIB_NAMES:
-            args = [self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args]
+            args = [
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
+            ]
             return self.stdlib.call(
-                name, id(node), args,
+                name,
+                id(node),
+                args,
                 high=self.bar.current("high"),
                 low=self.bar.current("low"),
                 close_prev=self._prev_close,
@@ -723,15 +713,38 @@ class Interpreter:
 
         # 선언/렌더링/alert NOP
         _NOP_NAMES = {
-            "indicator", "study", "strategy", "library",
-            "plot", "plotshape", "plotchar", "plotbar", "plotcandle", "plotarrow",
-            "bgcolor", "barcolor", "fill", "hline",
-            "alert", "alertcondition",
-            "input", "input.int", "input.float", "input.bool", "input.string",
-            "input.source", "input.color", "input.time", "input.timeframe",
-            "input.price", "input.session", "input.symbol",
+            "indicator",
+            "study",
+            "strategy",
+            "library",
+            "plot",
+            "plotshape",
+            "plotchar",
+            "plotbar",
+            "plotcandle",
+            "plotarrow",
+            "bgcolor",
+            "barcolor",
+            "fill",
+            "hline",
+            "alert",
+            "alertcondition",
+            "input",
+            "input.int",
+            "input.float",
+            "input.bool",
+            "input.string",
+            "input.source",
+            "input.color",
+            "input.time",
+            "input.timeframe",
+            "input.price",
+            "input.session",
+            "input.symbol",
             # Sprint 8c — 렌더링 색상/스타일 관련 순수 함수(값은 렌더링 NOP과만 interact).
-            "color.new", "color.rgb", "color.from_gradient",
+            "color.new",
+            "color.rgb",
+            "color.from_gradient",
         }
         if name in _NOP_NAMES:
             if name and name.startswith("input"):
@@ -762,19 +775,16 @@ class Interpreter:
         """
         if len(self._scope_stack) >= self._max_call_depth:
             raise PineRuntimeError(
-                f"user function call depth exceeded: {fn_def.name} "
-                f"(max={self._max_call_depth})"
+                f"user function call depth exceeded: {fn_def.name} (max={self._max_call_depth})"
             )
         # 실인자 평가 (positional only — named arg는 H2+).
         actual_args = [
-            self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
-            for a in call_node.args
+            self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in call_node.args
         ]
         params = [p.name for p in fn_def.args]
         if len(actual_args) != len(params):
             raise PineRuntimeError(
-                f"user function {fn_def.name}: expected {len(params)} args, "
-                f"got {len(actual_args)}"
+                f"user function {fn_def.name}: expected {len(params)} args, got {len(actual_args)}"
             )
         frame: dict[str, Any] = dict(zip(params, actual_args, strict=True))
         self._scope_stack.append(frame)
@@ -790,9 +800,7 @@ class Interpreter:
                         continue
                     # 마지막 Expr(Tuple literal)은 Python tuple로 반환 — multi-return.
                     if isinstance(inner, pyne_ast.Tuple):
-                        last_expr_val = tuple(
-                            self._eval_expr(e) for e in inner.elts
-                        )
+                        last_expr_val = tuple(self._eval_expr(e) for e in inner.elts)
                     else:
                         last_expr_val = self._eval_expr(inner)
                 else:
@@ -911,9 +919,7 @@ class Interpreter:
         if chain.startswith("color."):
             return float("nan")
         # alert.freq_* / display.* 등 추가 Pine enum은 문자열 stub 반환
-        if chain.startswith(
-            ("alert.freq_", "display.", "xloc.", "yloc.", "text.", "font.")
-        ):
+        if chain.startswith(("alert.freq_", "display.", "xloc.", "yloc.", "text.", "font.")):
             return chain.split(".", 1)[1]
         raise PineRuntimeError(f"Attribute access not supported: {chain}")
 
@@ -936,11 +942,7 @@ class Interpreter:
                 positional.append(val)
 
         if name == "strategy.entry":
-            trade_id = (
-                str(positional[0])
-                if positional
-                else str(kwargs.get("id", "default"))
-            )
+            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
             # when= kwarg: False면 entry skip (Pine v4 backtest range 필터)
             when_val = kwargs.get("when")
             if when_val is not None and not self._truthy(when_val):
@@ -978,9 +980,7 @@ class Interpreter:
             if stop_raw is not None and not _is_na(stop_raw):
                 stop = float(stop_raw)
             unsupported = [
-                k
-                for k in kwargs
-                if k in ("limit", "trail_points", "trail_offset", "qty_percent")
+                k for k in kwargs if k in ("limit", "trail_points", "trail_offset", "qty_percent")
             ]
             self.strategy.entry(
                 trade_id,
@@ -996,13 +996,26 @@ class Interpreter:
 
         if name == "strategy.close":
             trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
+            # when= kwarg: False면 close skip (strategy.entry 와 동일 정책).
+            # Pine의 `strategy.close(id=..., when=cond, ...)` 호출이 cond 가 거짓일 때
+            # 무조건 close 되던 버그 (dogfood 2026-04-22) 수정.
+            when_val = kwargs.get("when")
+            if when_val is not None and not self._truthy(when_val):
+                return None
             comment = str(kwargs.get("comment", ""))
             self.strategy.close(
-                trade_id, bar=bar_idx, fill_price=current_close, comment=comment,
+                trade_id,
+                bar=bar_idx,
+                fill_price=current_close,
+                comment=comment,
             )
             return None
 
         if name == "strategy.close_all":
+            # when= kwarg: False면 close_all skip.
+            when_val = kwargs.get("when")
+            if when_val is not None and not self._truthy(when_val):
+                return None
             self.strategy.close_all(bar=bar_idx, fill_price=current_close)
             return None
 
