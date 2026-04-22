@@ -206,6 +206,32 @@ def test_metrics_no_trades_returns_zero_totals() -> None:
     assert metrics.short_count == 0
 
 
+def test_equity_curve_charges_entry_cost_while_open_position_held() -> None:
+    """Codex review P1: open 포지션 보유 중 entry fee+slip 이 equity 에서 빠져야 한다."""
+    state = _state_with_trades(
+        Trade(id="L", direction="long", qty=1.0, entry_bar=0, entry_price=100.0),
+    )
+    cfg = _cfg(init="10000", fees=0.001, slippage=0.0005)
+    trades = _build_raw_trades(state, cfg)
+    curve = _compute_equity_curve(trades, _ohlcv([100, 100, 100]), cfg)
+    # entry 비용 = 100 * 1 * (0.001 + 0.0005) = 0.15
+    # bar 0..2 가격이 100 고정 → price_pnl = 0 → unrealized = -0.15
+    expected = Decimal("10000") - Decimal("0.15")
+    for bar_idx in range(3):
+        assert curve.iloc[bar_idx] == expected, f"bar {bar_idx}: {curve.iloc[bar_idx]}"
+
+
+def test_equity_curve_returns_decimal_series() -> None:
+    """Decimal-first 규칙 — equity 시리즈는 object dtype Decimal 을 유지해야 한다."""
+    state = _state_with_trades(
+        Trade(id="L", direction="long", qty=1.0, entry_bar=0, entry_price=100.0),
+    )
+    curve = _compute_equity_curve(_build_raw_trades(state, _cfg()), _ohlcv([100, 101]), _cfg())
+    assert curve.dtype == object
+    for v in curve:
+        assert isinstance(v, Decimal)
+
+
 def test_metrics_win_rate_from_closed_trades() -> None:
     cfg = _cfg()
     state = _state_with_trades(

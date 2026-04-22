@@ -85,3 +85,21 @@ class TestRunBacktestFaultInjection:
         outcome = run_backtest(malformed, valid_ohlcv)
         assert outcome.status == "parse_failed"
         assert outcome.result is None
+
+    def test_empty_ohlcv_becomes_error_not_parse_failed(self) -> None:
+        """Codex P2: empty OHLCV 는 data 오류 → status=error ('parse_failed' 오분류 방지)."""
+        outcome = run_backtest(SIMPLE_PINE_V5, pd.DataFrame(columns=["open", "high", "low", "close", "volume"]))
+        assert outcome.status == "error"
+        assert outcome.result is None
+
+    def test_failure_outcome_parse_stub_has_error_status(
+        self, valid_ohlcv: pd.DataFrame
+    ) -> None:
+        """Codex P2: 실패 경로의 ParseOutcome stub 은 status='error' 를 반환해야 한다.
+
+        소비자가 out.parse.status 를 읽어 파싱 성공으로 오해하지 않도록 한다.
+        """
+        malformed = "@@@ bad $$$"
+        outcome = run_backtest(malformed, valid_ohlcv)
+        assert outcome.status == "parse_failed"
+        assert outcome.parse.status == "error"

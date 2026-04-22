@@ -6,7 +6,8 @@ trades))` 형태로 변환한다. vectorbt 는 사용하지 않으며, bar-by-ba
 방식으로 equity curve 를 재구성한다.
 
 Decimal-first 합산 규칙 (CLAUDE.md LESSON) 준수 — 금융 수치는 float 공간에서
-합산 후 Decimal 로 바꾸지 않는다.
+합산 후 Decimal 로 바꾸지 않는다. equity 시리즈는 dtype=object 로 Decimal 을
+보관하고, Sharpe/DD 같은 근사 지표만 float 으로 변환해 계산한다.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from src.backtest.engine.types import (
 )
 from src.strategy.pine.types import ParseOutcome, SignalResult
 from src.strategy.pine_v2.compat import V2RunResult, parse_and_run_v2
+from src.strategy.pine_v2.interpreter import PineRuntimeError
 from src.strategy.pine_v2.strategy_state import StrategyState, Trade
 
 logger = logging.getLogger(__name__)
@@ -40,32 +42,64 @@ def run_backtest_v2(
     ohlcv: pd.DataFrame,
     config: BacktestConfig | None = None,
 ) -> BacktestOutcome:
-    """pine_v2 엔진으로 Pine 을 실행한 뒤 `BacktestOutcome` 으로 변환."""
+    """pine_v2 엔진으로 Pine 을 실행한 뒤 `BacktestOutcome` 으로 변환.
+
+    실패 분기
+    ---------
+    - `PineRuntimeError` (bar-level 실행 오류) → status="error". "부분 실행 금지"
+      규칙에 따라 silent skip 하지 않는다.
+    - `SyntaxError` (pynescript 파싱 실패) → status="parse_failed"
+    - `ValueError` (_validate_ohlcv 같은 데이터 오류) → status="error"
+    - classify 가 unknown track 반환 (`ValueError` 에 포함) → status="error"
+    """
     cfg = config if config is not None else BacktestConfig()
-    parse_stub = _stub_parse_outcome(source)
 
     if cfg.trading_sessions:
         # Sprint 7d 의 bar-hour 마스킹은 pine_v2 경로에서 아직 미구현. corpus/기본 경로엔 무관.
         logger.warning("v2_adapter: trading_sessions filter not yet implemented for pine_v2 path")
 
     try:
-        v2 = parse_and_run_v2(source, ohlcv, strict=False)
-    except (
-        Exception
-    ) as exc:  # parse/runtime 모두 catch (strict=False 이지만 classify 는 raise 가능)
-        logger.exception("v2_adapter_parse_failed")
+        # strict=True — bar-level PineRuntimeError 를 raise 시켜 상위에서 status=error 로 변환.
+        v2 = parse_and_run_v2(source, ohlcv, strict=True)
+    except PineRuntimeError as exc:
+        logger.info("v2_adapter_runtime_error: %s", exc)
+        return BacktestOutcome(
+            status="error",
+            parse=_stub_parse_outcome(source, status="error"),
+            result=None,
+            error=str(exc),
+        )
+    except SyntaxError as exc:
+        logger.info("v2_adapter_parse_failed (syntax): %s", exc)
         return BacktestOutcome(
             status="parse_failed",
-            parse=parse_stub,
+            parse=_stub_parse_outcome(source, status="error"),
+            result=None,
+            error=str(exc),
+        )
+    except ValueError as exc:
+        # 데이터 오류 (empty OHLCV 등) 또는 classify unknown — parse 자체는 성공했을 가능성이 높다.
+        logger.info("v2_adapter_data_error: %s", exc)
+        return BacktestOutcome(
+            status="error",
+            parse=_stub_parse_outcome(source, status="error"),
+            result=None,
+            error=str(exc),
+        )
+    except Exception as exc:
+        logger.exception("v2_adapter_parse_failed_unexpected")
+        return BacktestOutcome(
+            status="parse_failed",
+            parse=_stub_parse_outcome(source, status="error"),
             result=None,
             error=str(exc),
         )
 
-    state, errors = _extract_state_and_errors(v2)
+    state, _errors = _extract_state_and_errors(v2)
     if state is None:
         return BacktestOutcome(
             status="error",
-            parse=parse_stub,
+            parse=_stub_parse_outcome(source, status="error"),
             result=None,
             error=f"pine_v2: strategy state 수집 실패 (track={v2.track})",
         )
@@ -78,7 +112,7 @@ def run_backtest_v2(
         logger.exception("v2_adapter_build_failed")
         return BacktestOutcome(
             status="error",
-            parse=parse_stub,
+            parse=_stub_parse_outcome(source, status="error"),
             result=None,
             error=str(exc),
         )
@@ -95,10 +129,14 @@ def run_backtest_v2(
             "track": v2.track,
             "num_trades": metrics.num_trades,
             "total_return": str(metrics.total_return),
-            "bar_errors": len(errors),
         },
     )
-    return BacktestOutcome(status="ok", parse=parse_stub, result=result, error=None)
+    return BacktestOutcome(
+        status="ok",
+        parse=_stub_parse_outcome(source, status="ok"),
+        result=result,
+        error=None,
+    )
 
 
 # --- extraction ----------------------------------------------------------
@@ -182,17 +220,24 @@ def _compute_equity_curve(
     각 bar 에 대해:
       equity[bar] = init_cash
                   + Σ net_pnl (exit_bar_index <= bar)
-                  + Σ mark-to-market unrealized
-                      (trade 가 entry 됐고 아직 exit 되지 않은 bar; 즉
-                       entry_bar_index <= bar AND (open 이거나 exit_bar_index > bar))
+                  + Σ unrealized_position_pnl (open/aboutToExit, entry 비용 차감 포함)
 
-    unrealized = (close[bar] - entry_price) * qty * direction_sign. 수수료/슬리피지는
-    이미 net_pnl 에 녹아 있어 mark-to-market 에서는 재차 빼지 않는다.
+    unrealized_position_pnl = (close[bar] - entry_price) * qty * direction_sign
+                            - entry_cost (fee + slip at entry)
+
+    exit 비용은 실현 시점에 net_pnl 에 반영되므로 MTM 구간에서는 entry 비용만
+    차감한다. 수수료/슬리피지 미반영 equity 로 Sharpe/DD 가 낙관 편향되는
+    것을 방지 (Codex review P1).
+
+    Decimal-first 합산을 위해 반환 Series 는 dtype=object 로 Decimal 을 보관한다.
     """
     n = len(ohlcv)
     init_cash = cfg.init_cash
+    fee_rate = Decimal(str(cfg.fees))
+    slip_rate = Decimal(str(cfg.slippage))
+    entry_cost_rate = fee_rate + slip_rate
+
     values: list[Decimal] = []
-    close_series = ohlcv["close"].astype(float)
 
     # exit bar 별 realized pnl 누적
     exits_by_bar: dict[int, list[RawTrade]] = {}
@@ -206,7 +251,10 @@ def _compute_equity_curve(
         for t in exits_by_bar.get(bar_idx, []):
             realized_cum += t.pnl
 
-        close_px = Decimal(str(close_series.iloc[bar_idx]))
+        # close price — numpy/float 소스라도 str() 경유로 Decimal 진입
+        close_raw = ohlcv["close"].iloc[bar_idx]
+        close_px = Decimal(str(close_raw))
+
         unrealized = Decimal("0")
         for t in trades:
             if t.entry_bar_index > bar_idx:
@@ -217,11 +265,14 @@ def _compute_equity_curve(
                 if t.exit_bar_index <= bar_idx:
                     continue
             direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
-            unrealized += (close_px - t.entry_price) * t.size * direction_sign
+            price_pnl = (close_px - t.entry_price) * t.size * direction_sign
+            entry_cost = t.entry_price * t.size * entry_cost_rate
+            unrealized += price_pnl - entry_cost
 
         values.append(init_cash + realized_cum + unrealized)
 
-    return pd.Series([float(v) for v in values], index=ohlcv.index)
+    # object dtype 으로 Decimal 을 보관 — float drift 방지.
+    return pd.Series(values, index=ohlcv.index, dtype=object)
 
 
 # --- metrics -------------------------------------------------------------
@@ -233,14 +284,23 @@ def _compute_metrics(
     closed = [t for t in trades if t.status == "closed"]
     num_trades = len(closed)
     init_cash = cfg.init_cash
-    final_equity = Decimal(str(float(equity.iloc[-1]))) if len(equity) > 0 else init_cash
+
+    # equity 는 dtype=object 에 Decimal 을 보관. 마지막 원소를 Decimal 그대로 사용해
+    # float drift 없이 total_return 을 계산한다.
+    if len(equity) > 0:
+        last = equity.iloc[-1]
+        final_equity = last if isinstance(last, Decimal) else Decimal(str(last))
+    else:
+        final_equity = init_cash
 
     total_return = (final_equity - init_cash) / init_cash if init_cash != 0 else Decimal("0")
+    if total_return.is_nan():
+        total_return = Decimal("0")
 
-    # Sharpe: bar-level 단순 수익률 (equity.pct_change) 의 mean/std * sqrt(N).
-    # N: cfg.freq 기반 annualization 대신 bar 샘플 수 기반 단순화 (근사).
-    sharpe_ratio = _sharpe(equity)
-    max_drawdown = _max_drawdown(equity)
+    # Sharpe/MDD 는 근사 지표 — float 변환하여 numpy/pandas 연산 활용.
+    equity_float = _as_float_series(equity)
+    sharpe_ratio = _sharpe(equity_float)
+    max_drawdown = _max_drawdown(equity_float)
 
     win_count = sum(1 for t in closed if t.pnl > 0)
     win_rate = Decimal(win_count) / Decimal(num_trades) if num_trades > 0 else Decimal("0")
@@ -279,6 +339,13 @@ def _compute_metrics(
     )
 
 
+def _as_float_series(equity: pd.Series) -> pd.Series:
+    """Sharpe/MDD 계산용 Decimal → float 변환. object dtype 이면 원소별 float 화."""
+    if equity.dtype == object:
+        return pd.Series([float(v) for v in equity], index=equity.index, dtype=float)
+    return equity.astype(float)
+
+
 def _sharpe(equity: pd.Series) -> Decimal:
     if len(equity) < 2:
         return Decimal("0")
@@ -315,11 +382,15 @@ def _mean(values: list[Decimal]) -> Decimal:
 # --- ParseOutcome stub ---------------------------------------------------
 
 
-def _stub_parse_outcome(source: str) -> ParseOutcome:
-    """pine_v2 경로는 ParseOutcome 을 생성하지 않음. legacy 필드 호환을 위해 최소 stub.
+def _stub_parse_outcome(
+    source: str, *, status: Literal["ok", "unsupported", "error"] = "ok"
+) -> ParseOutcome:
+    """pine_v2 경로는 ParseOutcome 을 생성하지 않음. legacy 필드 호환용 최소 stub.
 
-    BacktestOutcome(parse=...) 필수라 기본 값만 채운다. 실제 parse 결과는
-    strategy service 레벨에서 pine_v2 기반으로 다시 계산된다 (별도 커밋).
+    BacktestOutcome.parse 필드가 non-optional 이라 최소 구조를 채워주되, 실패
+    경로에서는 status="error" 를 넘겨 소비자가 파싱 상태를 오해하지 않도록 한다.
+    entries/exits 시리즈는 구 엔진 SignalResult 용이라 pine_v2 경로에선 빈 값.
+    실제 파싱 판정은 strategy service `_parse` 가 pine_v2 기반으로 수행한다.
     """
     version: Literal["v4", "v5"] = _detect_version(source)
     empty = SignalResult(
@@ -327,7 +398,7 @@ def _stub_parse_outcome(source: str) -> ParseOutcome:
         exits=pd.Series(dtype=bool),
     )
     return ParseOutcome(
-        status="ok",
+        status=status,
         source_version=version,
         result=empty,
         error=None,
