@@ -120,8 +120,14 @@ async def test_async_generate_success(tmp_path):
     repo_mod.OrderRepository = lambda s: mock_order_repo  # type: ignore[assignment]
     repo_mod.KillSwitchEventRepository = lambda s: mock_ks_repo  # type: ignore[assignment]
 
-    with patch("src.tasks.dogfood_report._get_sessionmaker", return_value=mock_sm), \
-         patch("src.tasks.dogfood_report.settings") as mock_cfg:
+    class _FakeEngine:
+        async def dispose(self) -> None:
+            pass
+
+    with patch(
+        "src.tasks.dogfood_report.create_worker_engine_and_sm",
+        return_value=(_FakeEngine(), mock_sm),
+    ), patch("src.tasks.dogfood_report.settings") as mock_cfg:
         mock_cfg.dogfood_report_output_dir = str(tmp_path / "reports")
         try:
             result = await _async_generate(date(2026, 4, 21))

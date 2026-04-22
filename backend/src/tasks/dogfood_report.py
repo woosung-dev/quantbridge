@@ -7,6 +7,7 @@ ReportData 집계:
 - OrderRepository.get_daily_summary() → total_pnl, filled_count, rejected_count
 - KillSwitchEventRepository.list_by_date() → ks_events
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,30 +20,36 @@ from typing import Any
 from uuid import UUID
 
 from celery import shared_task
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Worker-local lazy sessionmaker (prefork-safe, D3 교훈)
-# ---------------------------------------------------------------------------
-_worker_engine = None
-_sessionmaker_cache: async_sessionmaker[AsyncSession] | None = None
 
+# Celery prefork 워커의 event loop 재사용 버그 (PR #51) 방지를 위해
+# 전역 engine cache 를 두지 않고 매 task 호출마다 새 engine 을 생성한 뒤
+# try/finally 로 dispose 한다.
+def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
 
-def _get_sessionmaker() -> async_sessionmaker[AsyncSession]:
-    global _worker_engine, _sessionmaker_cache
-    if _sessionmaker_cache is None:
-        _worker_engine = create_async_engine(settings.database_url, echo=False)
-        _sessionmaker_cache = async_sessionmaker(_worker_engine, expire_on_commit=False)
-    return _sessionmaker_cache
+    호출자는 engine 을 finally 에서 dispose 해야 한다. 테스트에서는 이 함수를
+    monkeypatch 로 대체 가능.
+    """
+    engine = create_async_engine(settings.database_url, echo=False)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    return engine, sm
 
 
 # ---------------------------------------------------------------------------
 # ReportData
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class KsEventSummary:
@@ -67,6 +74,7 @@ class ReportData:
 # Celery task
 # ---------------------------------------------------------------------------
 
+
 @shared_task(name="reporting.dogfood_daily", max_retries=0)  # type: ignore[untyped-decorator]
 def dogfood_daily_report_task(report_date_iso: str | None = None) -> dict[str, Any]:
     """일일 리포트 생성. report_date_iso 미지정 시 어제(UTC) 날짜 사용."""
@@ -81,13 +89,16 @@ def dogfood_daily_report_task(report_date_iso: str | None = None) -> dict[str, A
 async def _async_generate(report_date: date) -> dict[str, Any]:
     from src.trading.repository import KillSwitchEventRepository, OrderRepository
 
-    sm = _get_sessionmaker()
-    async with sm() as session:
-        order_repo = OrderRepository(session)
-        ks_repo = KillSwitchEventRepository(session)
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            order_repo = OrderRepository(session)
+            ks_repo = KillSwitchEventRepository(session)
 
-        total_pnl, filled, rejected = await order_repo.get_daily_summary(report_date)
-        ks_events_raw = await ks_repo.list_by_date(report_date)
+            total_pnl, filled, rejected = await order_repo.get_daily_summary(report_date)
+            ks_events_raw = await ks_repo.list_by_date(report_date)
+    finally:
+        await engine.dispose()
 
     ks_events = [
         KsEventSummary(
