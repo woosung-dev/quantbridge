@@ -149,7 +149,7 @@ export function BacktestDetailView({ id }: { id: string }) {
           </TabsContent>
 
           <TabsContent value="analysis" className="mt-4">
-            <TradeAnalysis metrics={bt.metrics} />
+            <TradeAnalysis metrics={bt.metrics} trades={trades.data?.items} />
           </TabsContent>
 
           <TabsContent value="trades" className="mt-4">
