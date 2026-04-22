@@ -87,10 +87,21 @@ class BacktestMetricsOut(BaseModel):
     max_drawdown: Decimal
     win_rate: Decimal
     num_trades: int
+    # 확장 지표 — Optional (기존 완료 백테스트는 None 반환)
+    sortino_ratio: Decimal | None = None
+    calmar_ratio: Decimal | None = None
+    profit_factor: Decimal | None = None
+    avg_win: Decimal | None = None
+    avg_loss: Decimal | None = None
+    long_count: int | None = None
+    short_count: int | None = None
 
-    @field_serializer("total_return", "sharpe_ratio", "max_drawdown", "win_rate")
-    def _decimal_to_str(self, v: Decimal) -> str:
-        return str(v)
+    @field_serializer(
+        "total_return", "sharpe_ratio", "max_drawdown", "win_rate",
+        "sortino_ratio", "calmar_ratio", "profit_factor", "avg_win", "avg_loss",
+    )
+    def _decimal_to_str(self, v: Decimal | None) -> str | None:
+        return None if v is None else str(v)
 
 
 class EquityPoint(BaseModel):

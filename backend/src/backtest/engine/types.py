@@ -25,13 +25,21 @@ class BacktestConfig:
 
 @dataclass(frozen=True)
 class BacktestMetrics:
-    """5개 표준 지표. 금융 수치는 Decimal."""
+    """표준 지표. 금융 수치는 Decimal. 신규 필드는 None=미추출 또는 NaN."""
 
     total_return: Decimal
     sharpe_ratio: Decimal
     max_drawdown: Decimal      # 음수 (-0.25 = -25%)
     win_rate: Decimal          # 0.0 ~ 1.0
     num_trades: int
+    # 확장 지표 (vectorbt에서 추출; 기존 완료 백테스트는 None)
+    sortino_ratio: Decimal | None = None
+    calmar_ratio: Decimal | None = None
+    profit_factor: Decimal | None = None
+    avg_win: Decimal | None = None       # 평균 수익거래 수익률
+    avg_loss: Decimal | None = None      # 평균 손실거래 수익률 (음수)
+    long_count: int | None = None
+    short_count: int | None = None
 
 
 @dataclass(frozen=True)
