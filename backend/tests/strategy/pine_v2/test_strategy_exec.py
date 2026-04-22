@@ -276,3 +276,85 @@ def test_strategy_report_summary() -> None:
     assert report["total_pnl"] == 5.0
     assert len(report["open_trades"]) == 1
     assert len(report["closed_trades"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# when= kwarg — 2026-04-22 dogfood 에서 SLTP close 가 무조건 발동하던 버그.
+# ---------------------------------------------------------------------------
+
+
+def test_strategy_close_when_false_skips() -> None:
+    """strategy.close(id=..., when=false) 는 close 를 skip해야 한다."""
+    source = """//@version=5
+strategy("t")
+if bar_index == 1
+    strategy.entry("X", strategy.long, qty=1.0)
+strategy.close(id="X", when=false)
+"""
+    ohlcv = _ohlcv([10.0, 20.0, 30.0, 40.0, 50.0])
+    bar = BarContext(ohlcv)
+    store = PersistentStore()
+    interp = Interpreter(bar, store)
+    tree = parse_to_ast(source)
+    while bar.advance():
+        store.begin_bar()
+        interp.reset_transient()
+        interp.begin_bar_snapshot()
+        interp.execute(tree)
+        store.commit_bar()
+        interp.append_var_series()
+
+    # when=false 이므로 close 가 skip 되어야 함 → open 유지
+    assert len(interp.strategy.closed_trades) == 0
+    assert "X" in interp.strategy.open_trades
+
+
+def test_strategy_close_when_true_closes() -> None:
+    """strategy.close(id=..., when=cond) cond=true 일 때 close 되어야 한다."""
+    source = """//@version=5
+strategy("t")
+if bar_index == 1
+    strategy.entry("X", strategy.long, qty=1.0)
+strategy.close(id="X", when=(bar_index == 3))
+"""
+    ohlcv = _ohlcv([10.0, 20.0, 30.0, 40.0, 50.0])
+    bar = BarContext(ohlcv)
+    store = PersistentStore()
+    interp = Interpreter(bar, store)
+    tree = parse_to_ast(source)
+    while bar.advance():
+        store.begin_bar()
+        interp.reset_transient()
+        interp.begin_bar_snapshot()
+        interp.execute(tree)
+        store.commit_bar()
+        interp.append_var_series()
+
+    assert len(interp.strategy.closed_trades) == 1
+    closed = interp.strategy.closed_trades[0]
+    assert closed.exit_bar == 3 and closed.exit_price == 40.0
+
+
+def test_strategy_close_all_when_false_skips() -> None:
+    """strategy.close_all(when=false) 도 close skip."""
+    source = """//@version=5
+strategy("t")
+if bar_index == 1
+    strategy.entry("X", strategy.long, qty=1.0)
+strategy.close_all(when=false)
+"""
+    ohlcv = _ohlcv([10.0, 20.0, 30.0, 40.0, 50.0])
+    bar = BarContext(ohlcv)
+    store = PersistentStore()
+    interp = Interpreter(bar, store)
+    tree = parse_to_ast(source)
+    while bar.advance():
+        store.begin_bar()
+        interp.reset_transient()
+        interp.begin_bar_snapshot()
+        interp.execute(tree)
+        store.commit_bar()
+        interp.append_var_series()
+
+    assert len(interp.strategy.closed_trades) == 0
+    assert "X" in interp.strategy.open_trades
