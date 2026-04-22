@@ -265,16 +265,16 @@ KILL_SWITCH_CUMULATIVE_LOSS_PERCENT=5
 - [ ] `ExchangeAccount.mode == "live"`일 때만 mainnet URL 사용
 - [ ] 해당 PR은 별도 (이번 H1 범위 밖, dogfood 직전 단발성)
 
-### 12.2 Dry-run (Testnet Smoke)
+### 12.2 Dry-run (Demo Smoke)
 
-**목표:** 실제 mainnet 주문 전 testnet에서 전체 경로 1회 검증.
+**목표:** 실제 mainnet 주문 전 demo 환경에서 전체 경로 1회 검증.
 
 ```bash
-# backend/scripts/bybit_testnet_smoke.py — 소액 BUY 1건 → 즉시 CANCEL
+# backend/scripts/bybit_demo_smoke.py — 소액 BUY 1건 → 즉시 CANCEL
 cd backend
-uv run python scripts/bybit_testnet_smoke.py \
-    --api-key "$BYBIT_TESTNET_KEY" \
-    --api-secret "$BYBIT_TESTNET_SECRET" \
+uv run python scripts/bybit_demo_smoke.py \
+    --api-key "$BYBIT_DEMO_KEY" \
+    --api-secret "$BYBIT_DEMO_SECRET" \
     --symbol "BTC/USDT:USDT" \
     --quantity 0.001 \
     --leverage 1

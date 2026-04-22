@@ -26,8 +26,7 @@ class ExchangeName(StrEnum):
 
 class ExchangeMode(StrEnum):
     demo = "demo"
-    testnet = "testnet"
-    live = "live"  # Sprint 7+
+    live = "live"
 
 
 class OrderSide(StrEnum):

@@ -4,7 +4,7 @@
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 ✅. **남은 게이트: Kill Switch capital_base + Bybit mainnet dogfood 1~2주** → H2 진입.
+> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 → Exchange Account Dialog ✅. **남은 게이트: Bybit demo dogfood 3~4주** → H2 진입. (Kill Switch capital_base 동적 바인딩은 이미 완료됨 — 2026-04-22 확인)
 
 > **🚀 현재 세션 작업:** H1 Stealth 클로징 5-Step 풀패키지 (Bundle 2 클로징 → LESSON 승격 → Kill Switch capital_base → Bybit mainnet 준비 → H2 게이트 설계). 2026-04-20.
 
@@ -307,7 +307,11 @@
 - [x] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7d ✅ 완료 (2026-04-19, PR #28)
 - [x] OKX 멀티 거래소 추가 — Sprint 7d ✅ 완료 (2026-04-19, PR #28)
 - [x] Edit 페이지 Pine 이터레이션 UX 풍부화 (ISSUE-003 + ISSUE-004) — Sprint 7b ✅ 완료 (2026-04-17)
-- [ ] **Kill Switch `capital_base` 동적 바인딩 (`ExchangeAccount.fetch_balance()`) — 현재 세션 Step 3 착수 (P0, H1 종료 gate)**
+- [x] **Kill Switch `capital_base` 동적 바인딩 (`ExchangeAccount.fetch_balance()`) ✅ 이미 완료 (2026-04-22 확인)**
+  - `kill_switch.py:95-99`: `CumulativeLossEvaluator` balance_provider 동적 바인딩 구현됨
+  - `dependencies.py:105`: `balance_provider=exchange_service` DI 연결 완료
+  - `service.py:98-131`: `fetch_balance_usdt()` CCXT 조회 + config fallback 구현됨
+  - Redis TTL cache는 서비스 주석 기준 H2+ (WebSocket 스트리밍으로 대체 예정)
 - [ ] WebSocket 실시간 주문 상태 스트리밍
 - [ ] CSO-5: Frontend dev CVEs 해소
 - [ ] Rate limiting middleware (per-user, per-endpoint)

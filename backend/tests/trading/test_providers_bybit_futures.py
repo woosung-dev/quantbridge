@@ -70,12 +70,13 @@ async def test_bybit_futures_create_order_sets_leverage_and_margin_mode(
     provider = BybitFuturesProvider()
     receipt = await provider.create_order(credentials, order_submit_futures)
 
-    # 1. CCXT config — defaultType=linear + testnet
+    # 1. CCXT config — defaultType=linear + demo
     call_kwargs = mock_bybit_cls.call_args.args[0]
     assert call_kwargs["apiKey"] == "test-key"
     assert call_kwargs["secret"] == "test-secret"
     assert call_kwargs["options"]["defaultType"] == "linear"
-    assert call_kwargs["options"]["testnet"] is True
+    assert call_kwargs["options"]["testnet"] is False
+    mock_exchange.enable_demo_trading.assert_called_once_with(True)
 
     # 2. set_margin_mode BEFORE set_leverage BEFORE create_order
     mock_exchange.set_margin_mode.assert_awaited_once_with("cross", "BTC/USDT:USDT")

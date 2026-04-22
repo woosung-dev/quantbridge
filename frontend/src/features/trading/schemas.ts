@@ -51,3 +51,13 @@ export const ExchangeAccountListResponseSchema = z.object({
   items: z.array(ExchangeAccountSchema),
 });
 export type ExchangeAccountListResponse = z.infer<typeof ExchangeAccountListResponseSchema>;
+
+export const RegisterAccountRequestSchema = z.object({
+  exchange: z.enum(["bybit", "okx"]),
+  mode: z.enum(["demo", "live"]),
+  label: z.string().nullable(),
+  api_key: z.string().min(1, "API Key를 입력해주세요"),
+  api_secret: z.string().min(1, "API Secret을 입력해주세요"),
+  passphrase: z.string().nullable(),
+});
+export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequestSchema>;

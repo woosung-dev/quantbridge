@@ -14,7 +14,7 @@ from typing import Any, Literal, Protocol
 import ccxt.async_support as ccxt_async
 
 from src.trading.exceptions import ProviderError
-from src.trading.models import OrderSide, OrderType
+from src.trading.models import ExchangeMode, OrderSide, OrderType
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +32,15 @@ class Credentials:
     api_key: str
     api_secret: str
     passphrase: str | None = None
-    # testnet=True → CCXT testnet 라우팅. False이면 mainnet. 기본 True로 안전 우선.
-    testnet: bool = True
+    # environment: demo → 가상 자금(안전 기본값). live → 실제 자금.
+    environment: ExchangeMode = ExchangeMode.demo
 
     def __repr__(self) -> str:
         masked_key = f"***{self.api_key[-4:]}" if len(self.api_key) >= 4 else "***"
         passphrase_marker = "present" if self.passphrase else "none"
         return (
             f"Credentials(api_key='{masked_key}', api_secret='***', "
-            f"passphrase=<{passphrase_marker}>, testnet={self.testnet})"
+            f"passphrase=<{passphrase_marker}>, environment={self.environment.value})"
         )
 
 
@@ -112,7 +112,7 @@ class FixtureExchangeProvider:
 
 
 class BybitDemoProvider:
-    """Bybit demo (testnet) ephemeral CCXT client.
+    """Bybit demo (api-demo.bybit.com) ephemeral CCXT client.
 
     create_order/cancel_order마다 credentials로 새 CCXT 인스턴스를 생성하고,
     finally 블록에서 close()로 즉시 해제. 평문 credentials는 함수 스코프에만 존재.
@@ -125,9 +125,13 @@ class BybitDemoProvider:
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
                 "timeout": 30000,
-                "options": {"defaultType": "spot", "testnet": creds.testnet},
+                "options": {
+                    "defaultType": "spot",
+                    "testnet": False,
+                },
             }
         )
+        _apply_bybit_env(exchange, creds.environment)
         try:
             result = await exchange.create_order(
                 order.symbol,
@@ -166,9 +170,13 @@ class BybitDemoProvider:
                 "apiKey": creds.api_key,
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
-                "options": {"defaultType": "spot", "testnet": creds.testnet},
+                "options": {
+                    "defaultType": "spot",
+                    "testnet": False,
+                },
             }
         )
+        _apply_bybit_env(exchange, creds.environment)
         try:
             await exchange.cancel_order(exchange_order_id)
         except ProviderError:
@@ -187,7 +195,7 @@ class BybitDemoProvider:
 
 
 class BybitFuturesProvider:
-    """Bybit futures (Linear Perpetual, USDT margined) testnet provider.
+    """Bybit futures (Linear Perpetual, USDT margined) demo/live provider.
 
     Spec decisions (docs/dev-log/007-sprint7a-futures-decisions.md):
     - Q1: BybitDemoProvider 파라미터화 대신 별도 클래스 (심볼/설정/에러 표면이 다름)
@@ -215,9 +223,13 @@ class BybitFuturesProvider:
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
                 "timeout": 30000,
-                "options": {"defaultType": "linear", "testnet": creds.testnet},
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
             }
         )
+        _apply_bybit_env(exchange, creds.environment)
         try:
             # 마진 모드 먼저 → 레버리지 → 주문 순서 (Bybit v5 UTA 요구사항)
             await exchange.set_margin_mode(order.margin_mode, order.symbol)
@@ -260,9 +272,13 @@ class BybitFuturesProvider:
                 "apiKey": creds.api_key,
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
-                "options": {"defaultType": "linear", "testnet": creds.testnet},
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
             }
         )
+        _apply_bybit_env(exchange, creds.environment)
         try:
             await exchange.cancel_order(exchange_order_id)
         except ProviderError:
@@ -292,9 +308,13 @@ class BybitFuturesProvider:
                 "secret": creds.api_secret,
                 "enableRateLimit": True,
                 "timeout": 30000,
-                "options": {"defaultType": "linear", "testnet": creds.testnet},
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
             }
         )
+        _apply_bybit_env(exchange, creds.environment)
         try:
             raw = await exchange.fetch_balance()
             result: dict[str, Decimal] = {}
@@ -352,7 +372,7 @@ class OkxDemoProvider:
             }
         )
         # OKX는 sandbox 라우팅을 전용 API로 전환. testnet 옵션은 무시됨.
-        exchange.set_sandbox_mode(creds.testnet)
+        exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
             result = await exchange.create_order(
                 order.symbol,
@@ -399,7 +419,7 @@ class OkxDemoProvider:
                 "options": {"defaultType": "spot"},
             }
         )
-        exchange.set_sandbox_mode(creds.testnet)
+        exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
             await exchange.cancel_order(exchange_order_id)
         except ProviderError:
@@ -413,6 +433,17 @@ class OkxDemoProvider:
                 await exchange.close()
             except Exception:
                 logger.warning("okx_close_failed", exc_info=True)
+
+
+def _apply_bybit_env(exchange: Any, environment: ExchangeMode) -> None:
+    """CCXT Bybit 인스턴스에 environment 라우팅을 적용한다.
+
+    - demo: exchange.enable_demo_trading(True) — URL + enableDemoTrading 플래그를 함께 세팅.
+      URL만 오버라이드하면 CCXT가 /v5/user/query-api를 호출해 retCode:10032 발생.
+    - live: 기본값(api.bybit.com)이므로 no-op.
+    """
+    if environment == ExchangeMode.demo:
+        exchange.enable_demo_trading(True)
 
 
 def _map_ccxt_status(ccxt_status: str | None) -> Literal["filled", "submitted", "rejected"]:

@@ -19,13 +19,20 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  deleteExchangeAccount,
   listExchangeAccounts,
   listKillSwitchEvents,
   listOrders,
+  registerExchangeAccount,
   resolveKillSwitchEvent,
 } from "./api";
 import { tradingKeys } from "./query-keys";
-import type { ExchangeAccount, KillSwitchEvent, Order } from "./schemas";
+import type {
+  ExchangeAccount,
+  KillSwitchEvent,
+  Order,
+  RegisterAccountRequest,
+} from "./schemas";
 
 const ORDERS_REFETCH_INTERVAL_MS = 30_000;
 const KILL_SWITCH_REFETCH_INTERVAL_MS = 30_000;
@@ -112,5 +119,39 @@ export function useExchangeAccounts(): UseQueryResult<ExchangeAccount[], Error> 
   return useQuery({
     queryKey: tradingKeys.exchangeAccounts(uid),
     queryFn: makeExchangeAccountsFetcher(getToken),
+  });
+}
+
+export function useRegisterExchangeAccount(): UseMutationResult<
+  ExchangeAccount,
+  Error,
+  RegisterAccountRequest
+> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (req: RegisterAccountRequest) => {
+      const token = await getToken();
+      return registerExchangeAccount(req, token);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: tradingKeys.exchangeAccounts(uid) });
+    },
+  });
+}
+
+export function useDeleteExchangeAccount(): UseMutationResult<void, Error, string> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = await getToken();
+      return deleteExchangeAccount(id, token);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: tradingKeys.exchangeAccounts(uid) });
+    },
   });
 }

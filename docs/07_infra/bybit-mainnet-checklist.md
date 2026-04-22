@@ -25,12 +25,12 @@
   BYBIT_FUTURES_MAX_LEVERAGE=1
   ```
 - [ ] **`ExchangeAccount.mode = "testnet"` 확인:** `Credentials.testnet = True` 자동 설정 (PR-B 이후)
-- [ ] **Testnet smoke script 성공:**
+- [ ] **Demo smoke script 성공:**
   ```bash
   cd backend
-  uv run python scripts/bybit_testnet_smoke.py \
-      --api-key "$BYBIT_TESTNET_KEY" \
-      --api-secret "$BYBIT_TESTNET_SECRET" \
+  uv run python scripts/bybit_demo_smoke.py \
+      --api-key "$BYBIT_DEMO_KEY" \
+      --api-secret "$BYBIT_DEMO_SECRET" \
       --symbol "BTC/USDT:USDT" --quantity 0.001
   ```
 - [ ] **DB row 생성 확인:** `SELECT * FROM trading.orders ORDER BY created_at DESC LIMIT 1`
@@ -115,12 +115,12 @@
 
 ### ✅ Dry-run (Testnet)
 
-- [ ] **Testnet smoke script 성공:**
+- [ ] **Demo smoke script 성공:**
   ```bash
   cd backend
-  uv run python scripts/bybit_testnet_smoke.py \
-      --api-key "$BYBIT_TESTNET_KEY" \
-      --api-secret "$BYBIT_TESTNET_SECRET" \
+  uv run python scripts/bybit_demo_smoke.py \
+      --api-key "$BYBIT_DEMO_KEY" \
+      --api-secret "$BYBIT_DEMO_SECRET" \
       --symbol "BTC/USDT:USDT" \
       --quantity 0.001
   ```

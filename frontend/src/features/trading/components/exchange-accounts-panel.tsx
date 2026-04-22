@@ -1,11 +1,13 @@
 "use client";
 
-import { WalletIcon } from "lucide-react";
-import { useExchangeAccounts } from "../hooks";
+import { Trash2, WalletIcon } from "lucide-react";
+import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
+import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
 import { TradingEmptyState } from "./trading-empty-state";
 
 export function ExchangeAccountsPanel() {
   const { data, isError } = useExchangeAccounts();
+  const deleteAccount = useDeleteExchangeAccount();
 
   if (isError) {
     return (
@@ -20,33 +22,56 @@ export function ExchangeAccountsPanel() {
 
   return (
     <section className="p-4 border rounded">
-      <h2 className="font-semibold mb-3">Exchange Accounts</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold">Exchange Accounts</h2>
+        <RegisterExchangeAccountDialog />
+      </div>
       {data.length === 0 ? (
         <TradingEmptyState
           icon={WalletIcon}
           title="연결된 거래소 계정이 없습니다."
-          description="계정을 추가하고 자동매매를 시작하세요."
-          ctaLabel="계정 추가"
-          ctaHref="/trading"
+          description="위 '계정 추가' 버튼으로 거래소 계정을 연결하세요."
         />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[520px]">
             <thead>
-              <tr>
-                <th>Exchange</th>
-                <th>Mode</th>
-                <th>Label</th>
-                <th>API Key</th>
+              <tr className="text-left text-[color:var(--text-secondary)]">
+                <th className="py-1 font-medium">Exchange</th>
+                <th className="py-1 font-medium">Mode</th>
+                <th className="py-1 font-medium">Label</th>
+                <th className="py-1 font-medium">API Key</th>
+                <th className="py-1 w-8"></th>
               </tr>
             </thead>
             <tbody>
               {data.map((a) => (
                 <tr key={a.id} className="border-t">
-                  <td>{a.exchange}</td>
-                  <td>{a.mode}</td>
-                  <td>{a.label ?? "—"}</td>
-                  <td className="font-mono">{a.api_key_masked}</td>
+                  <td className="py-1.5">{a.exchange}</td>
+                  <td className="py-1.5">
+                    <span
+                      className={
+                        a.mode === "demo"
+                          ? "text-blue-600 font-medium"
+                          : "text-green-600 font-medium"
+                      }
+                    >
+                      {a.mode}
+                    </span>
+                  </td>
+                  <td className="py-1.5">{a.label ?? "—"}</td>
+                  <td className="py-1.5 font-mono text-xs">{a.api_key_masked}</td>
+                  <td className="py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => deleteAccount.mutate(a.id)}
+                      disabled={deleteAccount.isPending}
+                      aria-label="계정 삭제"
+                      className="text-[color:var(--destructive)] hover:opacity-70 disabled:opacity-40 transition-opacity"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

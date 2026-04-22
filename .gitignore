@@ -69,3 +69,5 @@ frontend/playwright/.cache/
 # Root package.json은 husky/lint-staged/prettier 용. lockfile은 로컬에서만 생성.
 /pnpm-lock.yaml
 
+# === Git Worktrees ===
+.worktrees/

@@ -2,7 +2,7 @@
 
 실행 예:
     cd backend
-    uv run python scripts/bybit_testnet_smoke.py \\
+    uv run python scripts/bybit_demo_smoke.py \\
         --api-key "$BYBIT_TESTNET_KEY" \\
         --api-secret "$BYBIT_TESTNET_SECRET" \\
         --symbol "BTC/USDT:USDT" \\
@@ -56,6 +56,7 @@ async def run_smoke(
     symbol: str,
     quantity: Decimal,
     leverage: int,
+    mode: str = "demo",
 ) -> int:
     """Return exit code (0=success, 1=failure)."""
     exchange = ccxt_async.bybit(
@@ -64,9 +65,13 @@ async def run_smoke(
             "secret": api_secret,
             "enableRateLimit": True,
             "timeout": 30000,
-            "options": {"defaultType": "linear", "testnet": True},
+            "options": {"defaultType": "linear", "testnet": False},
         }
     )
+    # enable_demo_trading(True) = URL 교체 + enableDemoTrading 플래그 세팅.
+    # URL만 바꾸면 retCode:10032 (/v5/user/query-api 미지원 엔드포인트 호출).
+    exchange.enable_demo_trading(True)
+    log_event("smoke_config", endpoint="api-demo.bybit.com")
 
     try:
         # 1. Balance
@@ -166,10 +171,10 @@ async def run_smoke(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Bybit testnet smoke test — mainnet 전환 전 전체 경로 검증"
+        description="Bybit demo smoke test — mainnet 전환 전 전체 경로 검증"
     )
-    parser.add_argument("--api-key", required=True, help="Bybit testnet API key")
-    parser.add_argument("--api-secret", required=True, help="Bybit testnet API secret")
+    parser.add_argument("--api-key", required=True, help="Bybit demo API key")
+    parser.add_argument("--api-secret", required=True, help="Bybit demo API secret")
     parser.add_argument(
         "--symbol",
         default="BTC/USDT:USDT",
@@ -187,6 +192,12 @@ def main() -> int:
         default=1,
         help="Leverage 1~20 (default: 1)",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["demo"],
+        default="demo",
+        help="bybit 환경: demo(api-demo.bybit.com, mainnet 실제 가격)",
+    )
     args = parser.parse_args()
 
     if args.leverage < 1 or args.leverage > 20:
@@ -200,6 +211,7 @@ def main() -> int:
             symbol=args.symbol,
             quantity=args.quantity,
             leverage=args.leverage,
+            mode=args.mode,
         )
     )
 

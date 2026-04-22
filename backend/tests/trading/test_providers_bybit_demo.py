@@ -85,7 +85,8 @@ async def test_bybit_demo_create_order_uses_credentials(credentials, order_submi
     call_kwargs = mock_bybit_cls.call_args.args[0]  # bybit({config})
     assert call_kwargs["apiKey"] == "test-key"
     assert call_kwargs["secret"] == "test-secret"
-    assert call_kwargs["options"]["testnet"] is True
+    assert call_kwargs["options"]["testnet"] is False
+    mock_exchange.enable_demo_trading.assert_called_once_with(True)
     assert call_kwargs["enableRateLimit"] is True
     assert call_kwargs["timeout"] == 30000
     assert call_kwargs["options"]["defaultType"] == "spot"
