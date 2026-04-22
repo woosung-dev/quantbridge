@@ -47,6 +47,17 @@ export function StrategyCard({ strategy }: { strategy: StrategyListItem }) {
               {t}
             </Badge>
           ))}
+          {strategy.trading_sessions.length === 0 ? (
+            <Badge variant="secondary" className="font-mono text-xs">
+              24h
+            </Badge>
+          ) : (
+            strategy.trading_sessions.map((s) => (
+              <Badge key={s} variant="outline" className="font-mono text-xs uppercase">
+                {s}
+              </Badge>
+            ))
+          )}
         </div>
       </CardContent>
       <CardFooter className="flex items-center justify-between pt-0 text-xs text-[color:var(--text-muted)]">
