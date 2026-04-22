@@ -30,7 +30,7 @@ export function ExchangeAccountsPanel() {
         <TradingEmptyState
           icon={WalletIcon}
           title="연결된 거래소 계정이 없습니다."
-          description="위 '계정 추가' 버튼으로 Bybit Testnet 계정을 연결하세요."
+          description="위 '계정 추가' 버튼으로 거래소 계정을 연결하세요."
         />
       ) : (
         <div className="overflow-x-auto">
@@ -53,8 +53,6 @@ export function ExchangeAccountsPanel() {
                       className={
                         a.mode === "demo"
                           ? "text-blue-600 font-medium"
-                          : a.mode === "testnet"
-                          ? "text-yellow-600 font-medium"
                           : "text-green-600 font-medium"
                       }
                     >

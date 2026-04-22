@@ -75,7 +75,7 @@ def _build_exchange_provider() -> ExchangeProvider:
 
         return BybitDemoProvider()
     elif provider_name == "bybit_futures":
-        # Sprint 7a: Bybit Linear Perpetual (USDT margined) testnet.
+        # Sprint 7a: Bybit Linear Perpetual (USDT margined) demo.
         from src.trading.providers import BybitFuturesProvider
 
         return BybitFuturesProvider()

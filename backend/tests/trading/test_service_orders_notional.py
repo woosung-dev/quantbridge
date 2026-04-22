@@ -40,7 +40,7 @@ async def exchange_account(
     acct = ExchangeAccount(
         user_id=user.id,
         exchange=ExchangeName.bybit,
-        mode=ExchangeMode.testnet,
+        mode=ExchangeMode.demo,
         api_key_encrypted=crypto.encrypt("k"),
         api_secret_encrypted=crypto.encrypt("s"),
     )

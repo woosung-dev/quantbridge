@@ -40,7 +40,7 @@ export function RegisterExchangeAccountDialog() {
     resolver: zodResolver(RegisterAccountRequestSchema),
     defaultValues: {
       exchange: "bybit",
-      mode: "testnet",
+      mode: "demo",
       label: null,
       api_key: "",
       api_secret: "",
@@ -106,7 +106,6 @@ export function RegisterExchangeAccountDialog() {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="demo">Demo</SelectItem>
-                      <SelectItem value="testnet">Testnet</SelectItem>
                       <SelectItem value="live">Live</SelectItem>
                     </SelectContent>
                   </Select>
@@ -122,7 +121,7 @@ export function RegisterExchangeAccountDialog() {
                   <FormLabel>레이블 (선택)</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="예: bybit-testnet-main"
+                      placeholder="예: bybit-demo-main"
                       {...field}
                       value={field.value ?? ""}
                       onChange={(e) => field.onChange(e.target.value || null)}

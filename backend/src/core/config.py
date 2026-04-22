@@ -58,7 +58,7 @@ class Settings(BaseSettings):
         default="fixture",
         description=(
             "ExchangeProvider 선택. "
-            "fixture=테스트, bybit_demo=Spot testnet, bybit_futures=Linear Perp testnet, "
+            "fixture=테스트, bybit_demo=Spot demo, bybit_futures=Linear Perp demo/live, "
             "okx_demo=Sprint 7d OKX Spot sandbox."
         ),
     )

@@ -1,10 +1,9 @@
-"""Credentials.environment 필드 — demo/testnet/live 모드 분기 회귀 테스트.
+"""Credentials.environment 필드 — demo/live 환경 분기 회귀 테스트.
 
 검증:
+- default environment=demo (필드 미지정 시 가상 자금으로 안전 우선)
 - live 모드 계정 → Credentials.environment=live → CCXT options "testnet": False
-- testnet 모드 계정 → Credentials.environment=testnet → CCXT options "testnet": True
-- demo 모드 계정 → Credentials.environment=demo → CCXT urls['api'] 오버라이드
-- default environment=testnet (필드 미지정 시 안전 우선)
+- demo 모드 계정 → Credentials.environment=demo → exchange.enable_demo_trading(True) 호출
 - tasks/trading.py passphrase 누락 버그 수정 검증 (OKX passphrase 포함)
 """
 from __future__ import annotations
@@ -70,12 +69,12 @@ def ccxt_bybit_mock(monkeypatch):
 # Credentials 기본값
 # ---------------------------------------------------------------------------
 
-def test_credentials_default_environment_is_testnet():
+def test_credentials_default_environment_is_demo():
     from src.trading.models import ExchangeMode
     from src.trading.providers import Credentials
 
     creds = Credentials(api_key="k", api_secret="s")
-    assert creds.environment == ExchangeMode.testnet
+    assert creds.environment == ExchangeMode.demo
 
 
 def test_credentials_live_environment():
@@ -101,9 +100,8 @@ def test_credentials_repr_includes_environment():
     creds = Credentials(api_key="abcd1234", api_secret="s", environment=ExchangeMode.live)
     r = repr(creds)
     assert "environment=live" in r
-    # 민감 필드 마스킹 유지 확인
     assert "api_secret='***'" in r
-    assert "abcd" not in r  # api_key 평문 노출 금지
+    assert "abcd" not in r
 
 
 # ---------------------------------------------------------------------------
@@ -123,27 +121,17 @@ async def test_live_mode_sets_testnet_false(
 
     call_kwargs = mock_bybit_cls.call_args[0][0]
     assert call_kwargs["options"]["testnet"] is False
+    _mock_exchange.enable_demo_trading.assert_not_called()
 
 
-async def test_testnet_mode_sets_testnet_true(
+async def test_demo_mode_calls_enable_demo_trading(
     ccxt_bybit_mock, order_submit_futures
 ):
-    _mock_exchange, mock_bybit_cls = ccxt_bybit_mock
-    from src.trading.models import ExchangeMode
-    from src.trading.providers import BybitFuturesProvider, Credentials
+    """ExchangeMode.demo → testnet=False + enable_demo_trading(True) 호출.
 
-    creds = Credentials(api_key="key", api_secret="secret", environment=ExchangeMode.testnet)
-    provider = BybitFuturesProvider()
-    await provider.create_order(creds, order_submit_futures)
-
-    call_kwargs = mock_bybit_cls.call_args[0][0]
-    assert call_kwargs["options"]["testnet"] is True
-
-
-async def test_demo_mode_overrides_url(
-    ccxt_bybit_mock, order_submit_futures
-):
-    """ExchangeMode.demo → testnet=False + urls['api'] api-demo.bybit.com 오버라이드."""
+    URL dict 수동 오버라이드 대신 CCXT 공식 API를 사용해야 enableDemoTrading 플래그도
+    함께 세팅됨 — 미세팅 시 fetch_balance 내부에서 retCode:10032 발생.
+    """
     mock_exchange, mock_bybit_cls = ccxt_bybit_mock
     from src.trading.models import ExchangeMode
     from src.trading.providers import BybitFuturesProvider, Credentials
@@ -154,8 +142,7 @@ async def test_demo_mode_overrides_url(
 
     call_kwargs = mock_bybit_cls.call_args[0][0]
     assert call_kwargs["options"]["testnet"] is False
-    for url_val in mock_exchange.urls["api"].values():
-        assert url_val == "https://api-demo.bybit.com"
+    mock_exchange.enable_demo_trading.assert_called_once_with(True)
 
 
 # ---------------------------------------------------------------------------
@@ -184,30 +171,6 @@ async def test_get_credentials_live_mode_returns_live_environment():
     creds = await service.get_credentials_for_order(account.id)
 
     assert creds.environment == ExchangeMode.live
-
-
-async def test_get_credentials_testnet_mode_returns_testnet_environment():
-    """ExchangeMode.testnet → environment=testnet."""
-    from src.trading.models import ExchangeMode
-    from src.trading.service import ExchangeAccountService
-
-    account = MagicMock()
-    account.mode = ExchangeMode.testnet
-    account.exchange = MagicMock(value="bybit")
-    account.api_key_encrypted = b"enc_key"
-    account.api_secret_encrypted = b"enc_secret"
-    account.passphrase_encrypted = None
-
-    mock_repo = MagicMock()
-    mock_repo.get_by_id = AsyncMock(return_value=account)
-
-    mock_crypto = MagicMock()
-    mock_crypto.decrypt = lambda x: x.decode() if isinstance(x, bytes) else x
-
-    service = ExchangeAccountService(repo=mock_repo, crypto=mock_crypto)
-    creds = await service.get_credentials_for_order(account.id)
-
-    assert creds.environment == ExchangeMode.testnet
 
 
 async def test_get_credentials_demo_mode_returns_demo_environment():
@@ -240,7 +203,7 @@ async def test_get_credentials_includes_passphrase():
     from src.trading.service import ExchangeAccountService
 
     account = MagicMock()
-    account.mode = ExchangeMode.testnet
+    account.mode = ExchangeMode.demo
     account.exchange = MagicMock(value="okx")
     account.api_key_encrypted = b"enc_key"
     account.api_secret_encrypted = b"enc_secret"
@@ -256,4 +219,4 @@ async def test_get_credentials_includes_passphrase():
     creds = await service.get_credentials_for_order(account.id)
 
     assert creds.passphrase == "enc_pass"
-    assert creds.environment == ExchangeMode.testnet
+    assert creds.environment == ExchangeMode.demo

@@ -7,7 +7,7 @@ manual service-level 경로를 통과해 leverage/margin_mode 전파 체인을 e
 
 범위 & 경계:
 - **service-level integration test** — HTTP/authz E2E 아님. Bybit v5 UTA CCXT 불변식
-  (set_margin_mode → set_leverage → create_order 순서 + defaultType=linear + testnet)
+  (set_margin_mode → set_leverage → create_order 순서 + defaultType=linear + demo)
   을 propagation 체인 전체로 잠그는 목적.
 - HTTP/authz 경로는 Sprint 6 `test_router_orders.py`에서 이미 커버됨.
 - 이 테스트는 conftest `db_session`의 savepoint wrapper와 `OrderService.execute`의
@@ -21,7 +21,7 @@ manual service-level 경로를 통과해 leverage/margin_mode 전파 체인을 e
 2. Order row leverage=5, margin_mode="cross"
 3. Order row exchange_order_id + filled_price 채움
 4. CCXT mock: set_margin_mode(("cross","BTC/USDT:USDT")) → set_leverage((5,"BTC/USDT:USDT"))
-   → create_order 순서. defaultType="linear", testnet=True. close() await 됨.
+   → create_order 순서. defaultType="linear", testnet=False(demo), enable_demo_trading(True). close() await 됨.
 """
 from __future__ import annotations
 
@@ -215,7 +215,9 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
     assert call_kwargs["apiKey"] == "e2e-api-key-futures"
     assert call_kwargs["secret"] == "e2e-api-secret-futures"
     assert call_kwargs["options"]["defaultType"] == "linear"
-    assert call_kwargs["options"]["testnet"] is True
+    # account.mode=demo → testnet=False, enable_demo_trading(True) 호출
+    assert call_kwargs["options"]["testnet"] is False
+    mock_exchange.enable_demo_trading.assert_called_once_with(True)
 
     mock_exchange.set_margin_mode.assert_awaited_once_with("cross", "BTC/USDT:USDT")
     mock_exchange.set_leverage.assert_awaited_once_with(5, "BTC/USDT:USDT")

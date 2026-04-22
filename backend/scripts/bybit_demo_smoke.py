@@ -2,7 +2,7 @@
 
 실행 예:
     cd backend
-    uv run python scripts/bybit_testnet_smoke.py \\
+    uv run python scripts/bybit_demo_smoke.py \\
         --api-key "$BYBIT_TESTNET_KEY" \\
         --api-secret "$BYBIT_TESTNET_SECRET" \\
         --symbol "BTC/USDT:USDT" \\
@@ -56,7 +56,7 @@ async def run_smoke(
     symbol: str,
     quantity: Decimal,
     leverage: int,
-    mode: str = "testnet",
+    mode: str = "demo",
 ) -> int:
     """Return exit code (0=success, 1=failure)."""
     exchange = ccxt_async.bybit(
@@ -65,18 +65,13 @@ async def run_smoke(
             "secret": api_secret,
             "enableRateLimit": True,
             "timeout": 30000,
-            "options": {"defaultType": "linear", "testnet": mode == "testnet"},
+            "options": {"defaultType": "linear", "testnet": False},
         }
     )
-    if mode == "demo":
-        log_event("smoke_config", endpoint="api-demo.bybit.com")
-        api_urls = exchange.urls.get("api", {})
-        if isinstance(api_urls, dict):
-            exchange.urls["api"] = dict.fromkeys(api_urls, "https://api-demo.bybit.com")
-        else:
-            exchange.urls["api"] = "https://api-demo.bybit.com"
-    else:
-        log_event("smoke_config", endpoint="api-testnet.bybit.com")
+    # enable_demo_trading(True) = URL 교체 + enableDemoTrading 플래그 세팅.
+    # URL만 바꾸면 retCode:10032 (/v5/user/query-api 미지원 엔드포인트 호출).
+    exchange.enable_demo_trading(True)
+    log_event("smoke_config", endpoint="api-demo.bybit.com")
 
     try:
         # 1. Balance
@@ -176,10 +171,10 @@ async def run_smoke(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Bybit testnet smoke test — mainnet 전환 전 전체 경로 검증"
+        description="Bybit demo smoke test — mainnet 전환 전 전체 경로 검증"
     )
-    parser.add_argument("--api-key", required=True, help="Bybit testnet API key")
-    parser.add_argument("--api-secret", required=True, help="Bybit testnet API secret")
+    parser.add_argument("--api-key", required=True, help="Bybit demo API key")
+    parser.add_argument("--api-secret", required=True, help="Bybit demo API secret")
     parser.add_argument(
         "--symbol",
         default="BTC/USDT:USDT",
@@ -199,9 +194,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=["testnet", "demo"],
-        default="testnet",
-        help="bybit 환경: testnet(api-testnet.bybit.com) 또는 demo(api-demo.bybit.com)",
+        choices=["demo"],
+        default="demo",
+        help="bybit 환경: demo(api-demo.bybit.com, mainnet 실제 가격)",
     )
     args = parser.parse_args()
 

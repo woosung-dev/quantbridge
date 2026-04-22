@@ -4,7 +4,7 @@
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 → Exchange Account Dialog ✅. **남은 게이트: Bybit testnet dogfood 3~4주** → H2 진입. (Kill Switch capital_base 동적 바인딩은 이미 완료됨 — 2026-04-22 확인)
+> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 → Exchange Account Dialog ✅. **남은 게이트: Bybit demo dogfood 3~4주** → H2 진입. (Kill Switch capital_base 동적 바인딩은 이미 완료됨 — 2026-04-22 확인)
 
 > **🚀 현재 세션 작업:** H1 Stealth 클로징 5-Step 풀패키지 (Bundle 2 클로징 → LESSON 승격 → Kill Switch capital_base → Bybit mainnet 준비 → H2 게이트 설계). 2026-04-20.
 

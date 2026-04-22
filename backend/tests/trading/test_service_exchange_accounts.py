@@ -153,7 +153,7 @@ async def test_fetch_balance_usdt_returns_provider_value_for_bybit(
     )
     req = RegisterAccountRequest(
         exchange=ExchangeName.bybit,
-        mode=ExchangeMode.testnet,
+        mode=ExchangeMode.demo,
         api_key="fk",
         api_secret="fs",
     )
@@ -193,7 +193,7 @@ async def test_fetch_balance_usdt_returns_none_on_provider_error(
     )
     req = RegisterAccountRequest(
         exchange=ExchangeName.bybit,
-        mode=ExchangeMode.testnet,
+        mode=ExchangeMode.demo,
         api_key="ek",
         api_secret="es",
     )

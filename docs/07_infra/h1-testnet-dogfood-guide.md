@@ -67,9 +67,9 @@ uv run pytest tests/trading/ -v -x   # Kill Switch 회귀 테스트 pass 확인
 
 ```bash
 cd backend
-uv run python scripts/bybit_testnet_smoke.py \
-    --api-key "$BYBIT_TESTNET_KEY" \
-    --api-secret "$BYBIT_TESTNET_SECRET" \
+uv run python scripts/bybit_demo_smoke.py \
+    --api-key "$BYBIT_DEMO_KEY" \
+    --api-secret "$BYBIT_DEMO_SECRET" \
     --symbol "BTC/USDT:USDT" --quantity 0.001
 ```
 

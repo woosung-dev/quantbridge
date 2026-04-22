@@ -99,7 +99,7 @@ class ExchangeAccountService:
         """계좌 USDT 자유잔고 조회. Sprint 8+ Kill Switch capital_base 동적 바인딩.
 
         현재 구현: Bybit 거래소 계정만 Linear Perp 잔고 조회. OKX / Binance는 H2+ 확장.
-        ExchangeMode는 환경 구분(demo/testnet/live)이라 Futures/Spot 판단에 사용 X —
+        ExchangeMode는 환경 구분(demo/live)이라 Futures/Spot 판단에 사용 X —
         provider 선택으로만 분기한다. 계정당 Futures/Spot 배타 사용이 규약.
 
         반환 None 조건 (fallback 경로):

@@ -32,8 +32,8 @@ class Credentials:
     api_key: str
     api_secret: str
     passphrase: str | None = None
-    # environment: demo/testnet → 비실자본 라우팅. live → mainnet. 기본 testnet으로 안전 우선.
-    environment: ExchangeMode = ExchangeMode.testnet
+    # environment: demo → 가상 자금(안전 기본값). live → 실제 자금.
+    environment: ExchangeMode = ExchangeMode.demo
 
     def __repr__(self) -> str:
         masked_key = f"***{self.api_key[-4:]}" if len(self.api_key) >= 4 else "***"
@@ -112,7 +112,7 @@ class FixtureExchangeProvider:
 
 
 class BybitDemoProvider:
-    """Bybit demo (testnet) ephemeral CCXT client.
+    """Bybit demo (api-demo.bybit.com) ephemeral CCXT client.
 
     create_order/cancel_order마다 credentials로 새 CCXT 인스턴스를 생성하고,
     finally 블록에서 close()로 즉시 해제. 평문 credentials는 함수 스코프에만 존재.
@@ -127,7 +127,7 @@ class BybitDemoProvider:
                 "timeout": 30000,
                 "options": {
                     "defaultType": "spot",
-                    "testnet": creds.environment == ExchangeMode.testnet,
+                    "testnet": False,
                 },
             }
         )
@@ -172,7 +172,7 @@ class BybitDemoProvider:
                 "enableRateLimit": True,
                 "options": {
                     "defaultType": "spot",
-                    "testnet": creds.environment == ExchangeMode.testnet,
+                    "testnet": False,
                 },
             }
         )
@@ -195,7 +195,7 @@ class BybitDemoProvider:
 
 
 class BybitFuturesProvider:
-    """Bybit futures (Linear Perpetual, USDT margined) testnet provider.
+    """Bybit futures (Linear Perpetual, USDT margined) demo/live provider.
 
     Spec decisions (docs/dev-log/007-sprint7a-futures-decisions.md):
     - Q1: BybitDemoProvider 파라미터화 대신 별도 클래스 (심볼/설정/에러 표면이 다름)
@@ -225,7 +225,7 @@ class BybitFuturesProvider:
                 "timeout": 30000,
                 "options": {
                     "defaultType": "linear",
-                    "testnet": creds.environment == ExchangeMode.testnet,
+                    "testnet": False,
                 },
             }
         )
@@ -274,7 +274,7 @@ class BybitFuturesProvider:
                 "enableRateLimit": True,
                 "options": {
                     "defaultType": "linear",
-                    "testnet": creds.environment == ExchangeMode.testnet,
+                    "testnet": False,
                 },
             }
         )
@@ -310,7 +310,7 @@ class BybitFuturesProvider:
                 "timeout": 30000,
                 "options": {
                     "defaultType": "linear",
-                    "testnet": creds.environment == ExchangeMode.testnet,
+                    "testnet": False,
                 },
             }
         )
@@ -372,7 +372,7 @@ class OkxDemoProvider:
             }
         )
         # OKX는 sandbox 라우팅을 전용 API로 전환. testnet 옵션은 무시됨.
-        exchange.set_sandbox_mode(creds.environment != ExchangeMode.live)
+        exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
             result = await exchange.create_order(
                 order.symbol,
@@ -419,7 +419,7 @@ class OkxDemoProvider:
                 "options": {"defaultType": "spot"},
             }
         )
-        exchange.set_sandbox_mode(creds.environment != ExchangeMode.live)
+        exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
             await exchange.cancel_order(exchange_order_id)
         except ProviderError:
@@ -435,22 +435,15 @@ class OkxDemoProvider:
                 logger.warning("okx_close_failed", exc_info=True)
 
 
-_BYBIT_DEMO_BASE = "https://api-demo.bybit.com"
-
-
 def _apply_bybit_env(exchange: Any, environment: ExchangeMode) -> None:
     """CCXT Bybit 인스턴스에 environment 라우팅을 적용한다.
 
-    - testnet: options.testnet=True 로 이미 처리됨 (호출 전에 설정).
-    - demo: api-demo.bybit.com URL 오버라이드 (testnet 옵션과 독립).
+    - demo: exchange.enable_demo_trading(True) — URL + enableDemoTrading 플래그를 함께 세팅.
+      URL만 오버라이드하면 CCXT가 /v5/user/query-api를 호출해 retCode:10032 발생.
     - live: 기본값(api.bybit.com)이므로 no-op.
     """
     if environment == ExchangeMode.demo:
-        api_urls = exchange.urls.get("api", {})
-        if isinstance(api_urls, dict):
-            exchange.urls["api"] = dict.fromkeys(api_urls, _BYBIT_DEMO_BASE)
-        else:
-            exchange.urls["api"] = _BYBIT_DEMO_BASE
+        exchange.enable_demo_trading(True)
 
 
 def _map_ccxt_status(ccxt_status: str | None) -> Literal["filled", "submitted", "rejected"]:
