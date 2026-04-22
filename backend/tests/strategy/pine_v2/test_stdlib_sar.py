@@ -5,11 +5,10 @@ Wilder 1978 Parabolic SAR 알고리즘 구현 검증:
 - EP (Extreme Point) 추적 + 추세 반전 시 새 SAR = 직전 EP
 - nan 입력 전파, warmup 단계
 """
+
 from __future__ import annotations
 
 import math
-
-import pytest
 
 from src.strategy.pine_v2.stdlib import SarState, ta_sar
 
@@ -23,8 +22,8 @@ def _run_series(
 ) -> list[float]:
     state = SarState()
     results: list[float] = []
-    for h, l in zip(highs, lows):
-        sar = ta_sar(state, h, l, start, increment, maximum)
+    for h, lo in zip(highs, lows):
+        sar = ta_sar(state, h, lo, start, increment, maximum)
         results.append(sar)
     return results
 
@@ -41,9 +40,7 @@ def test_ta_sar_uptrend_sar_stays_below_lows() -> None:
     lows = [99.0 + i for i in range(20)]
     sar = _run_series(highs, lows)
     # 2번째 bar 이후부터 실값 (warmup 1 + init 1)
-    valid_pairs = [
-        (i + 2, s) for i, s in enumerate(sar[2:]) if not math.isnan(s)
-    ]
+    valid_pairs = [(i + 2, s) for i, s in enumerate(sar[2:]) if not math.isnan(s)]
     assert valid_pairs, f"uptrend SAR should produce values: sar={sar}"
     for idx, s in valid_pairs:
         assert s <= lows[idx], (
@@ -56,9 +53,7 @@ def test_ta_sar_downtrend_sar_stays_above_highs() -> None:
     highs = [100.0 - i for i in range(20)]
     lows = [99.0 - i for i in range(20)]
     sar = _run_series(highs, lows)
-    valid_pairs = [
-        (i + 2, s) for i, s in enumerate(sar[2:]) if not math.isnan(s)
-    ]
+    valid_pairs = [(i + 2, s) for i, s in enumerate(sar[2:]) if not math.isnan(s)]
     assert valid_pairs, f"downtrend SAR should produce values: sar={sar}"
     for idx, s in valid_pairs:
         assert s >= highs[idx], (
@@ -89,8 +84,8 @@ def test_ta_sar_af_capped_at_maximum() -> None:
     lows = [h - 0.5 for h in highs]
     state = SarState()
     last_sar: float | None = None
-    for h, l in zip(highs, lows):
-        last_sar = ta_sar(state, h, l, 0.02, 0.02, 0.2)
+    for h, lo in zip(highs, lows):
+        last_sar = ta_sar(state, h, lo, 0.02, 0.02, 0.2)
     assert last_sar is not None and math.isfinite(last_sar)
     assert state.acceleration_factor <= 0.2 + 1e-9, (
         f"AF must be capped at maximum: af={state.acceleration_factor}"
@@ -112,8 +107,8 @@ def test_ta_sar_constant_high_low() -> None:
     highs = [100.0] * 10
     lows = [100.0] * 10
     state = SarState()
-    for h, l in zip(highs, lows):
-        sar = ta_sar(state, h, l, 0.02, 0.02, 0.2)
+    for h, lo in zip(highs, lows):
+        sar = ta_sar(state, h, lo, 0.02, 0.02, 0.2)
         # nan 이거나 finite — Inf 금지
         assert not math.isinf(sar), f"SAR must not be inf: {sar}"
 
@@ -123,8 +118,8 @@ def test_ta_sar_zero_increment() -> None:
     highs = [float(i) for i in range(100, 120)]
     lows = [h - 0.5 for h in highs]
     state = SarState()
-    for h, l in zip(highs, lows):
-        ta_sar(state, h, l, 0.02, 0.0, 0.2)
+    for h, lo in zip(highs, lows):
+        ta_sar(state, h, lo, 0.02, 0.0, 0.2)
     assert abs(state.acceleration_factor - 0.02) < 1e-9, (
         f"AF must stay at start when increment=0: af={state.acceleration_factor}"
     )
@@ -142,11 +137,11 @@ def test_ta_sar_two_bar_clamp_uptrend() -> None:
     """
     # 의도적: low 가 일정하게 90 → 일반 step 에서 clamp 가 90 으로 강제
     lows = [90.0, 99.0, 105.0, 108.0, 112.0]
-    highs = [l + 1.0 for l in lows]
+    highs = [lo + 1.0 for lo in lows]
     state = SarState()
     sars: list[float] = []
-    for h, l in zip(highs, lows):
-        sars.append(ta_sar(state, h, l, 0.02, 0.02, 0.2))
+    for h, lo in zip(highs, lows):
+        sars.append(ta_sar(state, h, lo, 0.02, 0.02, 0.2))
     # bar 2 일반 step: state.prev_low=99(lows[1]), state.prev2_low=90(lows[0])
     # SAR_2 ≤ min(99, 90) = 90 강제 검증
     assert not math.isnan(sars[2])
@@ -166,8 +161,8 @@ def test_ta_sar_two_bar_clamp_downtrend() -> None:
     lows = [h - 1.0 for h in highs]
     state = SarState()
     sars: list[float] = []
-    for h, l in zip(highs, lows):
-        sars.append(ta_sar(state, h, l, 0.02, 0.02, 0.2))
+    for h, lo in zip(highs, lows):
+        sars.append(ta_sar(state, h, lo, 0.02, 0.02, 0.2))
     # bar 2: state.prev_high=101(highs[1]), state.prev2_high=120(highs[0])
     # SAR_2 ≥ max(101, 120) = 120
     assert not math.isnan(sars[2])
