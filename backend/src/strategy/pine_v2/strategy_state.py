@@ -127,6 +127,32 @@ class StrategyState:
 
     # ---- 주문 접수 --------------------------------------------------
 
+    def _flip_opposite_positions(
+        self,
+        new_direction: Direction,
+        *,
+        bar: int,
+        fill_price: float,
+    ) -> None:
+        """opposite-direction auto-flip 근사: 신규 direction 과 반대편 open 을 전부 close.
+
+        TradingView 는 pyramiding 값과 무관하게 `strategy.entry` 가 반대 방향 entry
+        를 받으면 기존 opposite-side open 포지션을 전부 reverse-close 한다
+        (예: long 3 개 open 상태 + short entry → long 3 개 전부 close 후 short open).
+        이 auto-flip 이 없으면 long+short 동시 유지로 `position_size = long_qty - short_qty = 0`
+        이 되어 SLTP 의 `strategy.position_size > 0` 조건이 영구 False 가 되는
+        dogfood 버그가 발생한다.
+
+        comment 는 전달하지 않는다 — TradingView 는 reverse 로 닫힌 trade 에 synthetic
+        comment 를 부여하지 않으며, 덮어쓰면 사용자 entry comment 오염.
+        """
+        opposite: Direction = "short" if new_direction == "long" else "long"
+        ids_to_flip = [
+            tid for tid, tr in self.open_trades.items() if tr.direction == opposite
+        ]
+        for tid in ids_to_flip:
+            self.close(tid, bar=bar, fill_price=fill_price)
+
     def entry(
         self,
         trade_id: str,
@@ -144,6 +170,7 @@ class StrategyState:
         - stop=None → 시장가 즉시 체결
         - stop=price → pending BUY/SELL STOP 주문 생성 (다음 bar에서 high/low 도달 시 fill)
         - 같은 id가 pending이면 덮어씀 (Pine은 re-issue 시 가격만 갱신)
+        - opposite direction entry → 기존 same-side open 모두 자동 close (Pine pyramiding)
         """
         if unsupported_kwargs:
             self.warnings.append(
@@ -151,7 +178,8 @@ class StrategyState:
             )
 
         if stop is not None:
-            # Pending stop 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론)
+            # Pending stop 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론).
+            # flip 은 체결 시점(check_pending_fills)에서 처리 — pending 상태에서는 반대 포지션 유지.
             self.pending_orders[trade_id] = PendingOrder(
                 id=trade_id,
                 direction=direction,
@@ -162,7 +190,8 @@ class StrategyState:
             )
             return None
 
-        # 시장가: 중복 id 청산 후 새로 진입
+        # 시장가: opposite direction 전부 flip (Pine 표준) → 중복 id 청산 → 신규 entry
+        self._flip_opposite_positions(direction, bar=bar, fill_price=fill_price)
         if trade_id in self.open_trades:
             self.close(trade_id, bar=bar, fill_price=fill_price)
 
@@ -218,13 +247,24 @@ class StrategyState:
 
         Event loop가 매 bar 시작 시 호출 (execute 전).
         """
-        filled: list[Trade] = []
-        to_remove: list[str] = []
-        for order_id, order in list(self.pending_orders.items()):
+        # Same-bar 에 long stop + short stop 둘 다 trigger 되는 경우 결정성 확보:
+        # dict 순회 대신 먼저 체결 후보를 전부 수집한 뒤 "open 가격과의 거리 오름차순"
+        # 으로 정렬 → bar open 에서 가장 빨리 닿는 주문부터 순차 체결.
+        # TradingView 는 pessimistic simulation 을 기본으로 쓰지만 intrabar path 는 알 수 없으므로
+        # 거리 기반 결정론이 최소 가정이고, dict insertion order 의존보다 훨씬 안전하다.
+        candidates: list[tuple[str, PendingOrder, float]] = []
+        for order_id, order in self.pending_orders.items():
             fill_price = order.try_fill(bar, high, low, open_)
             if fill_price is None:
                 continue
-            # 체결: 중복 id open이면 먼저 청산
+            candidates.append((order_id, order, fill_price))
+        candidates.sort(key=lambda c: abs(c[2] - open_))
+
+        filled: list[Trade] = []
+        to_remove: list[str] = []
+        for order_id, order, fill_price in candidates:
+            # 체결: opposite direction flip → 동일 id 중복 청산 → 신규 open
+            self._flip_opposite_positions(order.direction, bar=bar, fill_price=fill_price)
             if order_id in self.open_trades:
                 self.close(order_id, bar=bar, fill_price=fill_price)
             trade = Trade(

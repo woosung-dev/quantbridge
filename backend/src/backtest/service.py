@@ -1,4 +1,5 @@
 """BacktestService — HTTP 경로와 Worker 경로 양쪽에서 사용."""
+
 from __future__ import annotations
 
 import logging
@@ -82,9 +83,7 @@ class BacktestService:
                     detail=f"Duplicate Idempotency-Key; existing backtest_id={existing.id}"
                 )
 
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            data.strategy_id, user_id
-        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(data.strategy_id, user_id)
         if strategy is None:
             raise StrategyNotFoundError()
 
@@ -139,9 +138,7 @@ class BacktestService:
             return
 
         # Strategy + OHLCV
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            bt.strategy_id, bt.user_id
-        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             await self.repo.fail(
                 backtest_id,
@@ -217,9 +214,7 @@ class BacktestService:
                 equity_curve=equity_jsonb,
             )
             if completed_rows == 0:
-                await self.repo.finalize_cancelled(
-                    backtest_id, completed_at=datetime.now(UTC)
-                )
+                await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
                 await self.repo.commit()
                 return
 
@@ -229,16 +224,14 @@ class BacktestService:
             if trade_models:
                 await self.repo.insert_trades_bulk(trade_models)
         else:
-            error_str = str(outcome.error) if outcome.error is not None else (
-                f"engine status={outcome.status}"
+            error_str = (
+                str(outcome.error)
+                if outcome.error is not None
+                else (f"engine status={outcome.status}")
             )
-            fail_rows = await self.repo.fail(
-                backtest_id, error=error_str
-            )
+            fail_rows = await self.repo.fail(backtest_id, error=error_str)
             if fail_rows == 0:
-                await self.repo.finalize_cancelled(
-                    backtest_id, completed_at=datetime.now(UTC)
-                )
+                await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
 
         await self.repo.commit()
 
@@ -279,12 +272,8 @@ class BacktestService:
         bt = await self._load_owned(backtest_id, user_id)
         return self._to_detail(bt)
 
-    async def list(
-        self, *, user_id: UUID, limit: int, offset: int
-    ) -> Page[BacktestSummary]:
-        items, total = await self.repo.list_by_user(
-            user_id, limit=limit, offset=offset
-        )
+    async def list(self, *, user_id: UUID, limit: int, offset: int) -> Page[BacktestSummary]:
+        items, total = await self.repo.list_by_user(user_id, limit=limit, offset=offset)
         return Page[BacktestSummary](
             items=[BacktestSummary.model_validate(bt) for bt in items],
             total=total,
@@ -292,9 +281,7 @@ class BacktestService:
             offset=offset,
         )
 
-    async def progress(
-        self, backtest_id: UUID, *, user_id: UUID
-    ) -> BacktestProgressResponse:
+    async def progress(self, backtest_id: UUID, *, user_id: UUID) -> BacktestProgressResponse:
         bt = await self._load_owned(backtest_id, user_id)
         threshold = settings.backtest_stale_threshold_seconds
         now = datetime.now(UTC)
@@ -316,9 +303,7 @@ class BacktestService:
         self, backtest_id: UUID, *, user_id: UUID, limit: int, offset: int
     ) -> Page[TradeItem]:
         await self._load_owned(backtest_id, user_id)  # 404 guard
-        items, total = await self.repo.list_trades(
-            backtest_id, limit=limit, offset=offset
-        )
+        items, total = await self.repo.list_trades(backtest_id, limit=limit, offset=offset)
         return Page[TradeItem](
             items=[TradeItem.model_validate(t) for t in items],
             total=total,
@@ -328,9 +313,7 @@ class BacktestService:
 
     # --- HTTP mutation paths ---
 
-    async def cancel(
-        self, backtest_id: UUID, *, user_id: UUID
-    ) -> BacktestCancelResponse:
+    async def cancel(self, backtest_id: UUID, *, user_id: UUID) -> BacktestCancelResponse:
         bt = await self._load_owned(backtest_id, user_id)
         if bt.status not in (BacktestStatus.QUEUED, BacktestStatus.RUNNING):
             raise BacktestStateConflict(
@@ -345,6 +328,7 @@ class BacktestService:
                 )
 
                 from src.tasks.celery_app import celery_app
+
                 AsyncResult(bt.celery_task_id, app=celery_app).revoke(terminate=True)
             except Exception:
                 logger.exception("revoke_failed", extra={"bt_id": str(bt.id)})
@@ -354,18 +338,13 @@ class BacktestService:
             # Race loser — re-fetch for accurate error detail
             current = await self.repo.get_by_id(backtest_id, user_id=user_id)
             current_status = current.status.value if current else "unknown"
-            raise BacktestStateConflict(
-                detail=f"Already terminal: {current_status}"
-            )
+            raise BacktestStateConflict(detail=f"Already terminal: {current_status}")
         await self.repo.commit()
 
         return BacktestCancelResponse(
             backtest_id=bt.id,
             status=BacktestStatus.CANCELLING,
-            message=(
-                "Cancellation requested. "
-                "Final state via GET /:id/progress."
-            ),
+            message=("Cancellation requested. Final state via GET /:id/progress."),
         )
 
     async def delete(self, backtest_id: UUID, *, user_id: UUID) -> None:
@@ -405,6 +384,13 @@ class BacktestService:
                     max_drawdown=m.max_drawdown,
                     win_rate=m.win_rate,
                     num_trades=m.num_trades,
+                    sortino_ratio=m.sortino_ratio,
+                    calmar_ratio=m.calmar_ratio,
+                    profit_factor=m.profit_factor,
+                    avg_win=m.avg_win,
+                    avg_loss=m.avg_loss,
+                    long_count=m.long_count,
+                    short_count=m.short_count,
                 )
             if bt.equity_curve:
                 equity_out = [
