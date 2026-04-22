@@ -1,4 +1,5 @@
 """CCXTProvider — raw OHLCV fetch from exchange (pagination + tenacity 재시도)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -24,11 +25,21 @@ class CCXTProvider:
 
     TimescaleProvider가 gap 구간을 채울 때 내부 호출. FastAPI lifespan 또는
     Celery worker_shutdown에서 close()로 리소스 해제.
+
+    Event loop 인식: Celery prefork worker 는 task 마다 `asyncio.run()` 으로 새 loop 를
+    만들기 때문에 한 번 생성된 exchange(aiohttp ClientSession)는 이전 loop 에 bound 되어
+    다음 task 에서 "Event loop is closed" 로 실패한다. 매 호출 시점에 현재 loop 을 확인해
+    loop 변경을 감지하면 exchange 를 투명하게 재생성한다 (Sprint 9-2 D1 후속 fix).
     """
 
     def __init__(self, exchange_name: str = "bybit") -> None:
-        cls = getattr(ccxt_async, exchange_name)
-        self.exchange = cls(
+        self.exchange_name = exchange_name
+        self._exchange: Any | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def _build_exchange(self) -> Any:
+        cls = getattr(ccxt_async, self.exchange_name)
+        return cls(
             {
                 "enableRateLimit": True,
                 "timeout": 30000,
@@ -36,9 +47,36 @@ class CCXTProvider:
             }
         )
 
+    @property
+    def exchange(self) -> Any:
+        """현재 event loop 에 bound 된 exchange 반환. loop 변경 시 재생성.
+
+        이전 loop 에 bound 된 exchange 는 close() 호출이 불가능하므로 그대로 폐기.
+        aiohttp 가 "Unclosed client session" 경고를 낼 수 있으나 loop 가 이미 닫힌
+        상태라 session cleanup 자체가 무의미.
+        """
+        current_loop = asyncio.get_event_loop()
+        if self._exchange is None or self._loop is not current_loop:
+            self._exchange = self._build_exchange()
+            self._loop = current_loop
+        return self._exchange
+
     async def close(self) -> None:
-        """리소스 해제 — lifespan 종료 또는 worker_shutdown에서 호출."""
-        await self.exchange.close()
+        """리소스 해제 — lifespan 종료 또는 worker_shutdown에서 호출.
+
+        현재 loop 에 bound 된 exchange 만 close. 이전 loop 에 bound 된 exchange 는
+        loop 자체가 닫혔으므로 close 호출 불가 — skip.
+        """
+        if self._exchange is None:
+            return
+        try:
+            current_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            return
+        if self._loop is current_loop:
+            await self._exchange.close()
+        self._exchange = None
+        self._loop = None
 
     @retry(
         retry=retry_if_exception_type(
@@ -55,9 +93,7 @@ class CCXTProvider:
     async def _fetch_page(
         self, symbol: str, timeframe: str, since_ms: int, limit: int
     ) -> list[list[Any]]:
-        result = await self.exchange.fetch_ohlcv(
-            symbol, timeframe, since=since_ms, limit=limit
-        )
+        result = await self.exchange.fetch_ohlcv(symbol, timeframe, since=since_ms, limit=limit)
         return list(result)  # ccxt는 list[list[float|int]] 반환 (type stub 없음)
 
     async def fetch_ohlcv(
@@ -76,9 +112,7 @@ class CCXTProvider:
         tf_sec = TIMEFRAME_SECONDS[timeframe]
         now_ts = int(datetime.now(UTC).timestamp())
         last_closed_ts = (now_ts // tf_sec) * tf_sec - tf_sec
-        actual_until_ms = min(
-            int(until.timestamp() * 1000), last_closed_ts * 1000
-        )
+        actual_until_ms = min(int(until.timestamp() * 1000), last_closed_ts * 1000)
 
         since_ms = int(since.timestamp() * 1000)
         all_bars: list[list[Any]] = []
@@ -91,11 +125,7 @@ class CCXTProvider:
             if not page:
                 break
 
-            new_bars = [
-                b
-                for b in page
-                if b[0] not in seen_timestamps and b[0] <= actual_until_ms
-            ]
+            new_bars = [b for b in page if b[0] not in seen_timestamps and b[0] <= actual_until_ms]
             if not new_bars:
                 break
 

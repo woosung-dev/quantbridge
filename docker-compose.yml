@@ -19,7 +19,11 @@ services:
       - db-data:/var/lib/postgresql/data
       - ./docker/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quantbridge} -d ${POSTGRES_DB:-quantbridge}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-quantbridge} -d ${POSTGRES_DB:-quantbridge}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,7 +63,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
-      OHLCV_PROVIDER: ${OHLCV_PROVIDER:-fixture}
+      OHLCV_PROVIDER: ${OHLCV_PROVIDER:-timescale}
       OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
       DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
       BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
