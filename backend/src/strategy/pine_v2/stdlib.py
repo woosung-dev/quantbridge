@@ -366,6 +366,132 @@ def ta_variance(
     return sum((x - m) ** 2 for x in buf) / length
 
 
+# -------- Parabolic SAR (Wilder 1978) ----------------------------------
+#
+# Sprint X1+X3 W2 — i3_drfx 의 ta.sar 호출 dispatch 공백 해소.
+# 기존 stdlib pattern (state.buffers[node_id] dict slot) 을 mirror 하기 위해
+# SarState dataclass + ta_sar 함수 두 가지를 모두 제공:
+#   - 단위 테스트는 SarState 를 직접 만들어 ta_sar(state, h, l, ...) 호출
+#   - dispatcher 는 state.buffers.setdefault(node_id, SarState()) 로 slot 보관 후 위임
+
+
+@dataclass
+class SarState:
+    """Parabolic SAR 계산 상태 — bar-by-bar 유지.
+
+    최초 1 bar 는 추세 결정용 warmup (nan 반환).
+    두 번째 bar 에서 prev_high 와 비교해 추세 방향 + 초기 SAR/EP 결정.
+
+    Wilder 규칙상 SAR 는 직전 2 bar 의 low(uptrend)/high(downtrend) 보다
+    공격적이지 않아야 하므로 prev/prev2 두 단계 high/low 를 보관.
+    """
+
+    is_initialized: bool = False
+    is_uptrend: bool = True  # True=long bias, False=short bias
+    sar: float = float("nan")
+    extreme_point: float = float("nan")  # uptrend=max high, downtrend=min low
+    acceleration_factor: float = 0.02
+    prev_high: float = float("nan")  # t-1
+    prev_low: float = float("nan")  # t-1
+    prev2_high: float = float("nan")  # t-2 (Wilder 2-bar clamp)
+    prev2_low: float = float("nan")  # t-2
+
+
+def ta_sar(
+    state: SarState,
+    high: float,
+    low: float,
+    start: float = 0.02,
+    increment: float = 0.02,
+    maximum: float = 0.2,
+) -> float:
+    """Wilder Parabolic SAR — bar-by-bar 계산.
+
+    알고리즘:
+    - 추세별 SAR_t+1 = SAR_t + AF * (EP - SAR_t)
+    - SAR 는 직전 2 bar 의 low(uptrend)/high(downtrend) 를 침범하지 않도록 clamp
+    - low(uptrend) 또는 high(downtrend) 가 SAR 를 침범 → 반전 → 새 SAR = 직전 EP
+    - EP 갱신 시마다 AF += increment (단, ≤ maximum)
+
+    nan high/low 는 nan 반환 + 상태 갱신 생략 (다음 bar 에 영향 없음).
+    """
+    if math.isnan(high) or math.isnan(low):
+        return float("nan")
+
+    # warmup: 첫 valid bar — 상태만 기록
+    if not state.is_initialized:
+        state.prev_high = high
+        state.prev_low = low
+        state.is_initialized = True
+        return float("nan")
+
+    # 두 번째 valid bar: 추세 결정 + 초기 SAR/EP 설정
+    if math.isnan(state.sar):
+        if high >= state.prev_high:
+            state.is_uptrend = True
+            state.sar = state.prev_low  # uptrend 초기 SAR = 이전 low
+            state.extreme_point = max(high, state.prev_high)
+        else:
+            state.is_uptrend = False
+            state.sar = state.prev_high  # downtrend 초기 SAR = 이전 high
+            state.extreme_point = min(low, state.prev_low)
+        state.acceleration_factor = start
+        # prev2 ← bar t-1 (init step 직전), prev ← 이번 bar (bar 1)
+        state.prev2_high = state.prev_high
+        state.prev2_low = state.prev_low
+        state.prev_high = high
+        state.prev_low = low
+        return state.sar
+
+    # 일반 bar: Wilder 규칙
+    prev_sar = state.sar
+    prev_ep = state.extreme_point
+    af = state.acceleration_factor
+
+    if state.is_uptrend:
+        new_sar = prev_sar + af * (prev_ep - prev_sar)
+        # Wilder 규칙: SAR 는 직전 2 bar 의 low 보다 높을 수 없음.
+        # (이번 bar 의 low 는 반전 판정용 — clamp 대상이 아님)
+        new_sar = min(new_sar, state.prev_low)
+        if not math.isnan(state.prev2_low):
+            new_sar = min(new_sar, state.prev2_low)
+        # 반전 체크: 이번 low 가 새 SAR 를 침범
+        if low < new_sar:
+            # 하락 반전: 새 추세의 SAR = 직전 EP, EP = 이번 low
+            state.is_uptrend = False
+            state.sar = prev_ep
+            state.extreme_point = low
+            state.acceleration_factor = start
+        else:
+            state.sar = new_sar
+            if high > prev_ep:
+                state.extreme_point = high
+                state.acceleration_factor = min(af + increment, maximum)
+    else:
+        new_sar = prev_sar + af * (prev_ep - prev_sar)
+        # Wilder 규칙: SAR 는 직전 2 bar 의 high 보다 낮을 수 없음.
+        new_sar = max(new_sar, state.prev_high)
+        if not math.isnan(state.prev2_high):
+            new_sar = max(new_sar, state.prev2_high)
+        # 반전 체크: 이번 high 가 새 SAR 를 침범
+        if high > new_sar:
+            state.is_uptrend = True
+            state.sar = prev_ep
+            state.extreme_point = high
+            state.acceleration_factor = start
+        else:
+            state.sar = new_sar
+            if low < prev_ep:
+                state.extreme_point = low
+                state.acceleration_factor = min(af + increment, maximum)
+
+    state.prev2_high = state.prev_high
+    state.prev2_low = state.prev_low
+    state.prev_high = high
+    state.prev_low = low
+    return state.sar
+
+
 # -------- 유틸 (na / nz) ------------------------------------------------
 
 
@@ -442,6 +568,13 @@ class StdlibDispatcher:
                 src_val = args[0] if not _is_na(args[0]) else low
                 left, right = int(args[1]), int(args[2])
             return ta_pivotlow(self.state, node_id, left, right, src_val)
+        if func_name == "ta.sar":
+            # Pine: ta.sar(start, increment, maximum) — high/low 는 dispatcher 가 주입
+            start = float(args[0]) if len(args) >= 1 else 0.02
+            increment = float(args[1]) if len(args) >= 2 else 0.02
+            maximum = float(args[2]) if len(args) >= 3 else 0.2
+            sar_state = self.state.buffers.setdefault(node_id, SarState())
+            return ta_sar(sar_state, high, low, start, increment, maximum)
         if func_name == "ta.barssince":
             return ta_barssince(self.state, node_id, args[0])
         if func_name == "ta.valuewhen":

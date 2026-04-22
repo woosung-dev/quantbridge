@@ -695,6 +695,7 @@ class Interpreter:
             "ta.pivotlow",
             "ta.stdev",
             "ta.variance",
+            "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
             "ta.barssince",
             "ta.valuewhen",  # Sprint 8c
             "na",
