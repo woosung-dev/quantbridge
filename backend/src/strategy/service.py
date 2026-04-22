@@ -1,6 +1,7 @@
 """strategy Service. Pine 파싱 + CRUD 조율."""
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -10,12 +11,11 @@ try:
 except ImportError:
     _AsyncpgFKViolation = None
 
-import pandas as pd
 from sqlalchemy.exc import IntegrityError
 
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
-from src.strategy.pine import parse_and_run
+from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import (
     CreateStrategyRequest,
@@ -31,13 +31,53 @@ if TYPE_CHECKING:
     from src.backtest.repository import BacktestRepository
 
 
-def _empty_ohlcv() -> pd.DataFrame:
-    """파싱만 수행하기 위한 최소 OHLCV (길이 1)."""
-    idx = pd.date_range("2026-01-01", periods=1, freq="h")
-    return pd.DataFrame(
-        {"open": [0.0], "high": [0.0], "low": [0.0], "close": [0.0], "volume": [0.0]},
-        index=idx,
-    )
+_VERSION_RE = re.compile(r"//\s*@version\s*=\s*(\d+)", re.MULTILINE)
+_STRATEGY_ENTRY_RE = re.compile(r"\bstrategy\.entry\s*\(", re.MULTILINE)
+_STRATEGY_EXIT_RE = re.compile(
+    r"\bstrategy\.(?:close(?:_all)?|exit)\s*\(", re.MULTILINE
+)
+_CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
+_COMMENT_RE = re.compile(r"//[^\n]*")
+
+
+def _detect_version(source: str) -> PineVersion:
+    m = _VERSION_RE.search(source)
+    if m is None:
+        return PineVersion.v5
+    try:
+        v = int(m.group(1))
+    except ValueError:
+        return PineVersion.v5
+    return PineVersion.v4 if v == 4 else PineVersion.v5
+
+
+def _strip_comments(source: str) -> str:
+    return _COMMENT_RE.sub("", source)
+
+
+def _collect_functions(source: str) -> list[str]:
+    """소스 텍스트에서 호출된 함수명 best-effort 수집. 주석 제거 후 토큰 매칭."""
+    clean = _strip_comments(source)
+    # python/pine 공통 예약어 중 call-like 로 잡히는 것 제거
+    skip = {
+        "if",
+        "for",
+        "while",
+        "and",
+        "or",
+        "not",
+        "in",
+        "true",
+        "false",
+        "input",
+    }
+    found: dict[str, None] = {}
+    for m in _CALL_RE.finditer(clean):
+        name = m.group(1)
+        if name.lower() in skip:
+            continue
+        found.setdefault(name, None)
+    return sorted(found.keys())
 
 
 def _parse(
@@ -51,61 +91,45 @@ def _parse(
     int,
     list[str],
 ]:
-    """parse_and_run → (status, version, warnings, errors, entry_count, exit_count, functions_used).
+    """pine_v2 `parse_to_ast` 로 파싱 → (status, version, warnings, errors, entry_count, exit_count, functions_used).
 
-    ParseOutcome 실제 속성:
-      - source_version: Literal["v4", "v5"]
-      - error: PineError | None  (단수 — 복수 아님)
-      - result: SignalResult | None  (signals property alias)
-      - warnings: list[str]
-      - supported_feature_report: dict[str, list[str]]  ({"functions_used": sorted names})
+    AST 생성에 성공하면 status=ok. entry/exit 개수와 함수 사용 목록은 원본
+    소스에서 regex 로 근사 수집 (실행 없이 정적 분석).
     """
+    version = _detect_version(source)
+    clean = _strip_comments(source)
+    entry_count = len(_STRATEGY_ENTRY_RE.findall(clean))
+    exit_count = len(_STRATEGY_EXIT_RE.findall(clean))
+    functions_used = _collect_functions(source)
+
     try:
-        outcome = parse_and_run(source, _empty_ohlcv())
-    except Exception as exc:  # 파싱 중 모든 예외를 error로 변환
+        parse_to_ast(source)
+    except Exception as exc:  # pynescript / lexer / classifier 오류 전부 error
         return (
             ParseStatus.error,
-            PineVersion.v5,
+            version,
             [],
-            [ParseError(code=type(exc).__name__, message=str(exc))],
-            0,
-            0,
-            [],
+            [
+                ParseError(
+                    code=type(exc).__name__,
+                    message=str(exc),
+                    line=getattr(exc, "line", None),
+                )
+            ],
+            entry_count,
+            exit_count,
+            functions_used,
         )
 
-    # warnings: ParseOutcome 레벨 + SignalResult 레벨 병합
-    warnings: list[str] = list(outcome.warnings)
-    if outcome.signals is not None:
-        warnings.extend(outcome.signals.warnings)
-
-    # errors: ParseOutcome.error 는 단수 PineError | None
-    errors: list[ParseError] = []
-    if outcome.error is not None:
-        e = outcome.error
-        errors.append(
-            ParseError(
-                code=getattr(e, "category", type(e).__name__),
-                message=str(e),
-                line=getattr(e, "line", None),
-            )
-        )
-
-    status = (
-        ParseStatus(outcome.status)
-        if outcome.status in {"ok", "unsupported", "error"}
-        else ParseStatus.error
+    return (
+        ParseStatus.ok,
+        version,
+        [],
+        [],
+        entry_count,
+        exit_count,
+        functions_used,
     )
-    version = (
-        PineVersion(outcome.source_version)
-        if outcome.source_version in {"v4", "v5"}
-        else PineVersion.v5
-    )
-
-    entry_count = int(outcome.signals.entries.sum()) if outcome.signals is not None else 0
-    exit_count = int(outcome.signals.exits.sum()) if outcome.signals is not None else 0
-    functions_used = list(outcome.supported_feature_report.get("functions_used", []))
-
-    return status, version, warnings, errors, entry_count, exit_count, functions_used
 
 
 class StrategyService:

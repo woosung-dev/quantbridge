@@ -29,10 +29,9 @@ if long
     strategy.entry("L", strategy.long)
 """
 
-_UNSUPPORTED_SOURCE = """//@version=5
-strategy("no")
-x = request.security(syminfo.tickerid, "1D", close)
-"""
+# pine_v2 마이그레이션: 구 엔진 'unsupported' 분류는 제거됨.
+# parse 실패 시나리오로 malformed 소스 사용 → status=error + parse_errors 수집.
+_UNSUPPORTED_SOURCE = "@@@ this is not pine $$$"
 
 
 @pytest.mark.asyncio

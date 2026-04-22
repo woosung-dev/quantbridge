@@ -10,10 +10,7 @@ if long
     strategy.entry("L", strategy.long)
 """
 
-_BAD = """//@version=5
-strategy("bad")
-x = request.security(syminfo.tickerid, "1D", close)
-"""
+_BAD = "@@@ this is not pine script $$$"
 
 
 @pytest.mark.asyncio
