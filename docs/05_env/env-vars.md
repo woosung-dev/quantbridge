@@ -14,34 +14,34 @@
 
 ### 범례
 
-| 마킹 | 의미 |
-|------|------|
-| `[필수 Sprint N]` | 해당 sprint부터 실값 필요 |
-| `[선택]` | 기본값으로 동작, 고급 설정 시 변경 |
-| `[기본값 OK]` | 로컬 개발은 기본값 그대로 사용 |
-| `[자동]` | docker-compose가 자동 주입 |
+| 마킹              | 의미                               |
+| ----------------- | ---------------------------------- |
+| `[필수 Sprint N]` | 해당 sprint부터 실값 필요          |
+| `[선택]`          | 기본값으로 동작, 고급 설정 시 변경 |
+| `[기본값 OK]`     | 로컬 개발은 기본값 그대로 사용     |
+| `[자동]`          | docker-compose가 자동 주입         |
 
 ---
 
 ## 2. 앱 설정
 
-| 변수 | 마킹 | 설명 |
-|------|------|------|
-| `APP_NAME` | [기본값 OK] | 표시명 |
-| `APP_ENV` | [선택] | `development` / `staging` / `production` |
-| `DEBUG` | [선택] | true 시 디버그 로그/리로드 활성 |
+| 변수         | 마킹                          | 설명                                              |
+| ------------ | ----------------------------- | ------------------------------------------------- |
+| `APP_NAME`   | [기본값 OK]                   | 표시명                                            |
+| `APP_ENV`    | [선택]                        | `development` / `staging` / `production`          |
+| `DEBUG`      | [선택]                        | true 시 디버그 로그/리로드 활성                   |
 | `SECRET_KEY` | [기본값 OK] (프로덕션은 실값) | 세션/토큰 서명. 프로덕션은 `openssl rand -hex 32` |
 
 ---
 
 ## 3. Clerk 인증 (Sprint 3+)
 
-| 변수 | 마킹 | 설명 / 획득법 |
-|------|------|----------------|
-| `CLERK_SECRET_KEY` | [필수 Sprint 3] | Clerk Dashboard → API Keys → Secret keys (`sk_test_...`) |
-| `CLERK_PUBLISHABLE_KEY` | [필수 Sprint 5 FE] | Clerk Dashboard → API Keys → Publishable keys (`pk_test_...`). 백엔드는 미사용 |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | [필수 Sprint 5 FE] | 위와 동일 값. Next.js 노출 prefix `NEXT_PUBLIC_*` 필수 |
-| `CLERK_WEBHOOK_SECRET` | [필수 Sprint 7] | Webhook 엔드포인트 등록 후 발급되는 `whsec_...`. 로컬/CI는 placeholder OK (테스트는 mock 서명) |
+| 변수                                | 마킹               | 설명 / 획득법                                                                                  |
+| ----------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| `CLERK_SECRET_KEY`                  | [필수 Sprint 3]    | Clerk Dashboard → API Keys → Secret keys (`sk_test_...`)                                       |
+| `CLERK_PUBLISHABLE_KEY`             | [필수 Sprint 5 FE] | Clerk Dashboard → API Keys → Publishable keys (`pk_test_...`). 백엔드는 미사용                 |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | [필수 Sprint 5 FE] | 위와 동일 값. Next.js 노출 prefix `NEXT_PUBLIC_*` 필수                                         |
+| `CLERK_WEBHOOK_SECRET`              | [필수 Sprint 7]    | Webhook 엔드포인트 등록 후 발급되는 `whsec_...`. 로컬/CI는 placeholder OK (테스트는 mock 서명) |
 
 상세 셋업: [`clerk-setup.md`](./clerk-setup.md).
 
@@ -49,12 +49,12 @@
 
 ## 4. 데이터베이스 (Sprint 3+)
 
-| 변수 | 마킹 | 설명 |
-|------|------|------|
-| `POSTGRES_USER` | [자동] | docker-compose 자동. compose 외부면 명시 필요 |
-| `POSTGRES_PASSWORD` | [자동] | 동일. 로컬 전용 비밀번호 |
-| `POSTGRES_DB` | [자동] | 기본 `quantbridge` |
-| `DATABASE_URL` | [기본값 OK] | `postgresql+asyncpg://...`. asyncpg 드라이버 필수 |
+| 변수                | 마킹        | 설명                                              |
+| ------------------- | ----------- | ------------------------------------------------- |
+| `POSTGRES_USER`     | [자동]      | docker-compose 자동. compose 외부면 명시 필요     |
+| `POSTGRES_PASSWORD` | [자동]      | 동일. 로컬 전용 비밀번호                          |
+| `POSTGRES_DB`       | [자동]      | 기본 `quantbridge`                                |
+| `DATABASE_URL`      | [기본값 OK] | `postgresql+asyncpg://...`. asyncpg 드라이버 필수 |
 
 > TimescaleDB extension은 동일 DB의 `ts` schema에서 사용 (Sprint 5 M2~). 별도 URL 불필요 — `TIMESCALE_URL` 항목은 제거되었음.
 > 테스트는 별도 DB `quantbridge_test` 사용. `pytest conftest`가 `DATABASE_URL` 우선.
@@ -63,10 +63,10 @@
 
 ## 5. Redis / Celery (Sprint 4+)
 
-| 변수 | 마킹 | 설명 |
-|------|------|------|
-| `REDIS_URL` | [기본값 OK] | DB 0 — 캐시 |
-| `CELERY_BROKER_URL` | [기본값 OK] | DB 1 — Celery 큐 |
+| 변수                    | 마킹        | 설명               |
+| ----------------------- | ----------- | ------------------ |
+| `REDIS_URL`             | [기본값 OK] | DB 0 — 캐시        |
+| `CELERY_BROKER_URL`     | [기본값 OK] | DB 1 — Celery 큐   |
 | `CELERY_RESULT_BACKEND` | [기본값 OK] | DB 2 — Celery 결과 |
 
 Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy allkeys-lru`) 참조.
@@ -75,18 +75,19 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 ## 6. Backtest (Sprint 4)
 
-| 변수 | 마킹 | 설명 |
-|------|------|------|
-| `BACKTEST_STALE_THRESHOLD_SECONDS` | [기본값 OK] | RUNNING/CANCELLING 자동 reclaim 임계 (기본 1800s = 30분). Beat 5분 주기 + worker_ready hook 이중 안전망 |
-| `OHLCV_FIXTURE_ROOT` | [기본값 OK] | FixtureProvider가 OHLCV CSV 로드하는 경로 |
-| `OHLCV_PROVIDER` | [기본값 OK] | `fixture`(기본) \| `timescale`. Sprint 5 M3 도입 — `timescale` 시 CCXT + TimescaleDB cache 사용 |
+| 변수                               | 마킹        | 설명                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BACKTEST_STALE_THRESHOLD_SECONDS` | [기본값 OK] | RUNNING/CANCELLING 자동 reclaim 임계 (기본 1800s = 30분). Beat 5분 주기 + worker_ready hook 이중 안전망                                                                                                                                                  |
+| `OHLCV_FIXTURE_ROOT`               | [기본값 OK] | FixtureProvider가 OHLCV CSV 로드하는 경로                                                                                                                                                                                                                |
+| `OHLCV_PROVIDER`                   | [기본값 OK] | `fixture`(기본) \| `timescale`. Sprint 5 M3 도입 — `timescale` 시 CCXT + TimescaleDB cache 사용                                                                                                                                                          |
+| `PINE_ALERT_HEURISTIC_MODE`        | [기본값 OK] | `strict`(기본) \| `loose`. Sprint X1+X3 도입 — alert 메시지 분류 우선순위. `loose` 는 LuxAlgo 류 "Long break of trendline" 같은 alert 을 LONG_ENTRY 로 분류 (i2_luxalgo dogfood 용). `strict` 는 break/trendline/session/pivot 키워드를 INFORMATION 우선 |
 
 ---
 
 ## 7. 암호화 (Sprint 7+ 거래소 연동)
 
-| 변수 | 마킹 | 설명 |
-|------|------|------|
+| 변수             | 마킹                        | 설명                                                                          |
+| ---------------- | --------------------------- | ----------------------------------------------------------------------------- |
 | `ENCRYPTION_KEY` | [기본값 OK] (프로덕션 실값) | AES-256-GCM 32-byte. 거래소 API Key 암호화. 프로덕션은 `openssl rand -hex 32` |
 
 > 프로덕션 키 회전 시 데이터 마이그레이션 필요 — Sprint 7+ 절차 정의 예정.
@@ -95,18 +96,18 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 ## 8. CORS / URL
 
-| 변수 | 마킹 | 설명 |
-|------|------|------|
-| `FRONTEND_URL` | [기본값 OK] | 백엔드 CORS allowlist |
-| `NEXT_PUBLIC_API_URL` | [기본값 OK] | Frontend → Backend HTTP base URL |
-| `NEXT_PUBLIC_WS_URL` | [기본값 OK] | Frontend → Backend WebSocket base URL (Sprint 7+) |
+| 변수                  | 마킹        | 설명                                              |
+| --------------------- | ----------- | ------------------------------------------------- |
+| `FRONTEND_URL`        | [기본값 OK] | 백엔드 CORS allowlist                             |
+| `NEXT_PUBLIC_API_URL` | [기본값 OK] | Frontend → Backend HTTP base URL                  |
+| `NEXT_PUBLIC_WS_URL`  | [기본값 OK] | Frontend → Backend WebSocket base URL (Sprint 7+) |
 
 ---
 
 ## 9. 거래소 (Sprint 7+)
 
-| 변수 | 마킹 | 설명 |
-|------|------|------|
+| 변수               | 마킹        | 설명                        |
+| ------------------ | ----------- | --------------------------- |
 | `DEFAULT_EXCHANGE` | [기본값 OK] | `bybit` / `binance` / `okx` |
 
 > 거래소별 API Key는 환경 변수가 아니라 사용자별 `exchange_accounts` 테이블에 AES-256 암호화 저장.
@@ -115,11 +116,11 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 ## 10. 환경별 차이 (현재/계획)
 
-| 환경 | 상태 | 비고 |
-|------|------|------|
-| local | ✅ 운영 중 | docker-compose + uvicorn + pnpm dev |
-| staging | ⏳ 미정 | 배포 전략 결정 후 (`07_infra/deployment-plan.md`) |
-| production | ⏳ 미정 | 동일 |
+| 환경       | 상태       | 비고                                              |
+| ---------- | ---------- | ------------------------------------------------- |
+| local      | ✅ 운영 중 | docker-compose + uvicorn + pnpm dev               |
+| staging    | ⏳ 미정    | 배포 전략 결정 후 (`07_infra/deployment-plan.md`) |
+| production | ⏳ 미정    | 동일                                              |
 
 > staging/prod는 `[확인 필요]` — 결정 시 본 문서에 환경별 컬럼 추가.
 

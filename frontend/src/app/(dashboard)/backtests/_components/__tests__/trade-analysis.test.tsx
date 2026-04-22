@@ -80,4 +80,24 @@ describe("TradeAnalysis", () => {
     expect(screen.getByText(/롱 · 1건/)).toBeInTheDocument();
     expect(screen.getByText("거래 없음")).toBeInTheDocument(); // short 카드
   });
+
+  // Sprint X1+X3 orchestrator follow-up: pagination disclosure boundary regression
+  // (W4 codex+Sonnet evaluator finding — `<` 가 실수로 `<=` 로 바뀌는 회귀 방지)
+  it("does NOT show pagination disclosure when trades.length === num_trades", () => {
+    const trades: TradeItem[] = [
+      mkTrade({ direction: "long", pnl: 10 }),
+      mkTrade({ direction: "long", pnl: -5 }),
+      mkTrade({ direction: "short", pnl: 20 }),
+    ]; // 3 === METRICS.num_trades(3)
+    render(<TradeAnalysis metrics={METRICS} trades={trades} />);
+    expect(screen.queryByText(/표시된 거래/)).not.toBeInTheDocument();
+  });
+
+  it("shows pagination disclosure when trades.length < num_trades", () => {
+    const metricsMore = { ...METRICS, num_trades: 10 };
+    const trades: TradeItem[] = [mkTrade({ direction: "long", pnl: 10 })];
+    render(<TradeAnalysis metrics={metricsMore} trades={trades} />);
+    expect(screen.getByText(/표시된 거래 1건 기준/)).toBeInTheDocument();
+    expect(screen.getByText(/전체 10건 중/)).toBeInTheDocument();
+  });
 });
