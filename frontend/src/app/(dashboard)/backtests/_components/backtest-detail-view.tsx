@@ -23,6 +23,7 @@ import { BacktestStatusBadge } from "./status-badge";
 import { EquityChart } from "./equity-chart";
 import { MetricsCards } from "./metrics-cards";
 import { MetricsDetail } from "./metrics-detail";
+import { RerunButton } from "./rerun-button";
 import { TradeAnalysis } from "./trade-analysis";
 import { TradeTable } from "./trade-table";
 
@@ -89,12 +90,20 @@ export function BacktestDetailView({ id }: { id: string }) {
             {formatDate(bt.period_start)} → {formatDate(bt.period_end)}
           </p>
         </div>
-        <Link
-          href="/backtests"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← 목록
-        </Link>
+        <div className="flex items-center gap-3">
+          <RerunButton
+            backtest={bt}
+            isEnabled={(TERMINAL_STATUSES as readonly string[]).includes(
+              effectiveStatus,
+            )}
+          />
+          <Link
+            href="/backtests"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            ← 목록
+          </Link>
+        </div>
       </header>
 
       {effectiveStatus === "queued" ||
