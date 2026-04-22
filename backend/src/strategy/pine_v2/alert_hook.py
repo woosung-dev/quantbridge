@@ -23,9 +23,11 @@ v1 한계 (Sprint 8b Tier-1에서 완성 예정):
 - `collect_alerts(source) -> list[AlertHook]`
 - `classify_message(text) -> SignalKind`
 """
+
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -95,32 +97,138 @@ class AlertHook:
 
 
 _KEYWORD_RULES: list[tuple[SignalKind, tuple[str, ...]]] = [
-    (SignalKind.INFORMATION, (
-        r"\bbreak\b", r"\btrendline\b", r"\bsession\b", r"\bpivot\b",
-        r"돌파", r"세션",
-    )),
-    (SignalKind.LONG_EXIT, (
-        r"\bclose\s+long\b", r"\bexit\s+long\b", r"롱\s*청산", r"매수\s*청산",
-    )),
-    (SignalKind.SHORT_EXIT, (
-        r"\bclose\s+short\b", r"\bexit\s+short\b", r"숏\s*청산", r"매도\s*청산",
-    )),
-    (SignalKind.LONG_ENTRY, (
-        r"\blong\b", r"\bbuy\b", r"\bbull\b", r"매수",
-    )),
-    (SignalKind.SHORT_ENTRY, (
-        r"\bshort\b", r"\bsell\b", r"\bbear\b", r"매도",
-    )),
+    (
+        SignalKind.INFORMATION,
+        (
+            r"\bbreak\b",
+            r"\btrendline\b",
+            r"\bsession\b",
+            r"\bpivot\b",
+            r"돌파",
+            r"세션",
+        ),
+    ),
+    (
+        SignalKind.LONG_EXIT,
+        (
+            r"\bclose\s+long\b",
+            r"\bexit\s+long\b",
+            r"롱\s*청산",
+            r"매수\s*청산",
+        ),
+    ),
+    (
+        SignalKind.SHORT_EXIT,
+        (
+            r"\bclose\s+short\b",
+            r"\bexit\s+short\b",
+            r"숏\s*청산",
+            r"매도\s*청산",
+        ),
+    ),
+    (
+        SignalKind.LONG_ENTRY,
+        (
+            r"\blong\b",
+            r"\bbuy\b",
+            r"\bbull\b",
+            r"매수",
+        ),
+    ),
+    (
+        SignalKind.SHORT_ENTRY,
+        (
+            r"\bshort\b",
+            r"\bsell\b",
+            r"\bbear\b",
+            r"매도",
+        ),
+    ),
+]
+
+# loose 모드: INFORMATION을 마지막 우선순위로 이동 + bull/bear는 prefix 매칭(bullish/bearish)
+# (Sprint X1 — i2_luxalgo 류 LuxAlgo indicator alert을 매매 신호로 분류 가능하게 함)
+_KEYWORD_RULES_LOOSE: list[tuple[SignalKind, tuple[str, ...]]] = [
+    (
+        SignalKind.LONG_EXIT,
+        (
+            r"\bclose\s+long\b",
+            r"\bexit\s+long\b",
+            r"롱\s*청산",
+            r"매수\s*청산",
+        ),
+    ),
+    (
+        SignalKind.SHORT_EXIT,
+        (
+            r"\bclose\s+short\b",
+            r"\bexit\s+short\b",
+            r"숏\s*청산",
+            r"매도\s*청산",
+        ),
+    ),
+    (
+        SignalKind.LONG_ENTRY,
+        (
+            r"\blong\b",
+            r"\bbuy\b",
+            r"\bbull",
+            r"매수",
+        ),
+    ),
+    (
+        SignalKind.SHORT_ENTRY,
+        (
+            r"\bshort\b",
+            r"\bsell\b",
+            r"\bbear",
+            r"매도",
+        ),
+    ),
+    (
+        SignalKind.INFORMATION,
+        (
+            r"\bbreak\b",
+            r"\btrendline\b",
+            r"\bsession\b",
+            r"\bpivot\b",
+            r"돌파",
+            r"세션",
+        ),
+    ),
 ]
 
 
+def _get_heuristic_mode() -> str:
+    """환경변수 `PINE_ALERT_HEURISTIC_MODE` 를 읽어 'strict' 또는 'loose' 반환.
+
+    - 미설정·잘못된 값 → 'strict' (후방호환).
+    - 대소문자 무관(`LOOSE`/`Loose`/`loose` 모두 동일).
+    - **lazy read** — `os.environ.get` 호출이 매번 일어나므로 pytest monkeypatch가
+      안전하게 동작한다 (모듈 import 시점 캐싱 없음).
+
+    loose 모드는 break/trendline/session/pivot 같은 context 키워드보다
+    방향 키워드(long/short/bull/bear/매수/매도)를 우선 매칭하여 LuxAlgo류
+    indicator alert을 매매 신호로 분류할 수 있게 한다.
+    """
+    raw = os.environ.get("PINE_ALERT_HEURISTIC_MODE", "strict")
+    mode = raw.lower().strip() if isinstance(raw, str) else "strict"
+    return "loose" if mode == "loose" else "strict"
+
+
 def classify_message(text: str) -> SignalKind:
-    """문자열(메시지 또는 조건식 stringify)을 신호 종류로 분류."""
+    """문자열(메시지 또는 조건식 stringify)을 신호 종류로 분류.
+
+    모드 (환경변수 `PINE_ALERT_HEURISTIC_MODE`):
+    - **strict** (default): INFORMATION(break/trendline/session/pivot) > 방향 > UNKNOWN
+    - **loose**: 방향(long/short/bull*/bear*/매수/매도) > INFORMATION > UNKNOWN
+      (loose는 bull/bear에 한해 prefix 매칭으로 'bullish'/'bearish'도 잡음)
+    """
     if not text:
         return SignalKind.UNKNOWN
 
     stripped = text.strip()
-    # 1. JSON 파싱 시도
+    # 1. JSON 파싱 시도 (모드 무관)
     if stripped.startswith("{") and stripped.endswith("}"):
         try:
             data = json.loads(stripped)
@@ -136,8 +244,9 @@ def classify_message(text: str) -> SignalKind:
         except (json.JSONDecodeError, ValueError):
             pass
 
-    # 2. 키워드 매칭
-    for signal, patterns in _KEYWORD_RULES:
+    # 2. 키워드 매칭 (모드별 rule set 선택)
+    rules = _KEYWORD_RULES_LOOSE if _get_heuristic_mode() == "loose" else _KEYWORD_RULES
+    for signal, patterns in rules:
         for pat in patterns:
             if re.search(pat, text, flags=re.IGNORECASE):
                 return signal
@@ -170,8 +279,7 @@ def _stringify(node: Any) -> str:
     if isinstance(node, pyne_ast.Call):
         func = _stringify(node.func)
         args = ", ".join(
-            _stringify(a.value if isinstance(a, pyne_ast.Arg) else a)
-            for a in node.args[:2]
+            _stringify(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args[:2]
         )
         if len(node.args) > 2:
             args += ", ..."
@@ -263,7 +371,7 @@ def _walk_with_if_context(node: Any) -> Iterator[tuple[Any, Any | None, str | No
             yield from recurse(n.test, enclosing_if, branch)
             for stmt in n.body:
                 yield from recurse(stmt, n, "then")
-            for stmt in (n.orelse or []):
+            for stmt in n.orelse or []:
                 yield from recurse(stmt, n, "else")
             return
         # 일반 노드: 자식들 상속
@@ -319,9 +427,7 @@ def collect_alerts(source: str) -> list[AlertHook]:
 
         # 조건 소스 우선순위: alertcondition arg0 > enclosing if test
         condition_source = condition_expr or enclosing_if_condition
-        resolved_condition = _resolve_condition(
-            condition_source, symbol_table=symbol_table
-        )
+        resolved_condition = _resolve_condition(condition_source, symbol_table=symbol_table)
 
         # 분류
         message_signal = classify_message(message)
@@ -346,19 +452,21 @@ def collect_alerts(source: str) -> list[AlertHook]:
             and message_signal != condition_signal
         )
 
-        hooks.append(AlertHook(
-            kind="alert" if is_alert else "alertcondition",
-            message=message,
-            condition_expr=condition_expr,
-            enclosing_if_condition=enclosing_if_condition,
-            enclosing_if_branch=branch if enclosing_if is not None else None,
-            resolved_condition=resolved_condition,
-            message_signal=message_signal,
-            condition_signal=condition_signal,
-            signal=final,
-            discrepancy=discrepancy,
-            index=idx,
-            condition_ast=condition_ast_node,
-        ))
+        hooks.append(
+            AlertHook(
+                kind="alert" if is_alert else "alertcondition",
+                message=message,
+                condition_expr=condition_expr,
+                enclosing_if_condition=enclosing_if_condition,
+                enclosing_if_branch=branch if enclosing_if is not None else None,
+                resolved_condition=resolved_condition,
+                message_signal=message_signal,
+                condition_signal=condition_signal,
+                signal=final,
+                discrepancy=discrepancy,
+                index=idx,
+                condition_ast=condition_ast_node,
+            )
+        )
 
     return hooks

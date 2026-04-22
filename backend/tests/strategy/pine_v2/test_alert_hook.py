@@ -205,3 +205,101 @@ def test_collect_alerts_preserves_enclosing_if_test_ast_for_alert() -> None:
     h = hooks[0]
     assert h.condition_ast is not None
     assert isinstance(h.condition_ast, pyne_ast.Compare)
+
+
+# -------- v2: loose mode (Sprint X1) --------------------------------------
+
+
+@pytest.fixture
+def loose_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "loose")
+
+
+@pytest.fixture
+def strict_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "strict")
+
+
+def test_loose_mode_breakout_long_becomes_long_entry(loose_mode: None) -> None:
+    """loose: 'Long break of trendline' → LONG_ENTRY (방향 키워드가 INFORMATION 우선).
+
+    이 메시지는 strict에서는 INFORMATION (`\bbreak\b` + `\btrendline\b` 우선),
+    loose에서는 LONG_ENTRY (`\blong\b` 우선) — 두 모드의 동작 차이를 명확히 증명.
+    """
+    assert classify_message("Long break of trendline") == SignalKind.LONG_ENTRY
+
+
+def test_loose_mode_short_breakout_becomes_short_entry(loose_mode: None) -> None:
+    """loose: 'Short break of trendline' → SHORT_ENTRY."""
+    assert classify_message("Short break of trendline") == SignalKind.SHORT_ENTRY
+
+
+def test_loose_mode_pure_information_still_information(loose_mode: None) -> None:
+    """loose 에서도 방향 키워드 없는 순수 information 은 INFORMATION."""
+    assert classify_message("Session started") == SignalKind.INFORMATION
+    assert classify_message("Pivot formed at high") == SignalKind.INFORMATION
+
+
+def test_strict_mode_preserves_legacy_behavior(strict_mode: None) -> None:
+    """strict (default): break/trendline word-boundary 매칭 시 INFORMATION 우선.
+
+    참고: `\bbreak\b` word boundary 때문에 'breakout'(붙어있는 한 단어)은
+    INFORMATION으로 매칭되지 않는다 — 기존 baseline 그대로. 본 테스트는
+    정확히 이 baseline을 보존(공백으로 분리된 'break of trendline')함을
+    증명한다.
+    """
+    assert classify_message("Short break of trendline") == SignalKind.INFORMATION
+    assert classify_message("Long break of trendline") == SignalKind.INFORMATION
+
+
+def test_unset_mode_defaults_to_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """환경변수 미설정 시 strict (후방호환 보장).
+
+    "Long break of trendline" 처럼 word-boundary `\bbreak\b` 가 명확히 매칭되는
+    문장으로 strict의 INFORMATION 우선 동작을 검증.
+    """
+    monkeypatch.delenv("PINE_ALERT_HEURISTIC_MODE", raising=False)
+    assert classify_message("Long break of trendline") == SignalKind.INFORMATION
+
+
+def test_loose_mode_uppercase_env_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PINE_ALERT_HEURISTIC_MODE=LOOSE (대문자) → loose로 정규화."""
+    monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "LOOSE")
+    assert classify_message("Long breakout confirmed") == SignalKind.LONG_ENTRY
+
+
+def test_invalid_mode_falls_back_to_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """잘못된 값(foo/오타) → strict fallback (`\bbreak\b` INFORMATION 우선)."""
+    monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "foo")
+    assert classify_message("Long break of trendline") == SignalKind.INFORMATION
+
+
+def test_empty_string_env_falls_back_to_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """빈 문자열 env → strip 후 빈값 → strict fallback (codex review 권고)."""
+    monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "")
+    assert classify_message("Long break of trendline") == SignalKind.INFORMATION
+
+
+def test_whitespace_env_falls_back_to_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """공백만 있는 env → strip 후 빈값 → strict fallback."""
+    monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "   ")
+    assert classify_message("Long break of trendline") == SignalKind.INFORMATION
+
+
+def test_loose_mode_empty_message_unknown(loose_mode: None) -> None:
+    """빈 문자열 → mode 무관 UNKNOWN."""
+    assert classify_message("") == SignalKind.UNKNOWN
+
+
+def test_loose_mode_bullish_breakout_is_long_entry(loose_mode: None) -> None:
+    """'Bullish breakout' → loose=LONG_ENTRY (bull/bullish prefix 매칭).
+
+    `\bbull` (word-start, no end boundary) prefix로 'Bullish' / 'bullish' 매칭.
+    loose 모드 전용 — strict는 기존 word-boundary `\bbull\b` 유지.
+    """
+    assert classify_message("Bullish breakout") == SignalKind.LONG_ENTRY
+
+
+def test_loose_mode_bearish_break_is_short_entry(loose_mode: None) -> None:
+    """대칭: 'Bearish breakdown' → loose=SHORT_ENTRY."""
+    assert classify_message("Bearish breakdown") == SignalKind.SHORT_ENTRY
