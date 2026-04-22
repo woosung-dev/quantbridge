@@ -3,7 +3,7 @@
 // 따라서 응답 파싱 시 str → number transform + Number.isFinite 가드가 필수.
 // 요청은 BE가 Pydantic Decimal 파싱을 지원하므로 number 그대로 전송.
 
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // --- Decimal 문자열 → finite number 변환 ----------------------------------
 
@@ -112,6 +112,14 @@ export const BacktestMetricsOutSchema = z.object({
   max_drawdown: decimalString,
   win_rate: decimalString,
   num_trades: z.number().int(),
+  // 확장 지표 — 구 완료 백테스트는 null; UI에서 "—" 표시
+  sortino_ratio: decimalString.nullable().optional(),
+  calmar_ratio: decimalString.nullable().optional(),
+  profit_factor: decimalString.nullable().optional(),
+  avg_win: decimalString.nullable().optional(),
+  avg_loss: decimalString.nullable().optional(),
+  long_count: z.number().int().nullable().optional(),
+  short_count: z.number().int().nullable().optional(),
 });
 export type BacktestMetricsOut = z.infer<typeof BacktestMetricsOutSchema>;
 

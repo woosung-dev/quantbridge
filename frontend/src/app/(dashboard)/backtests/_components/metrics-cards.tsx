@@ -22,6 +22,14 @@ export function MetricsCards({ metrics }: { metrics: BacktestMetricsOut }) {
       tone: "negative",
     },
     {
+      label: "Profit Factor",
+      value:
+        metrics.profit_factor != null
+          ? metrics.profit_factor.toFixed(2)
+          : "—",
+      tone: "neutral",
+    },
+    {
       label: "승률 · 거래",
       value: `${formatPercent(metrics.win_rate)} · ${metrics.num_trades}`,
       tone: "neutral",
@@ -29,7 +37,7 @@ export function MetricsCards({ metrics }: { metrics: BacktestMetricsOut }) {
   ] as const;
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
       {items.map((it) => (
         <Card key={it.label} size="sm">
           <CardHeader>

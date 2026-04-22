@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { cn } from "@/lib/utils";
 import type { TradeItem } from "@/features/backtest/schemas";
 import {
   formatCurrency,
@@ -12,6 +14,16 @@ const TRADE_LIMIT = 200;
 export function TradeTable({ trades }: { trades: readonly TradeItem[] }) {
   const visible = trades.slice(0, TRADE_LIMIT);
   const truncated = trades.length > TRADE_LIMIT;
+
+  // 누적 PnL — FE에서 reduce로 계산 (API 변경 없음, 불변 패턴)
+  const tradesWithCumulative = useMemo(
+    () =>
+      visible.reduce<Array<TradeItem & { cumulativePnl: number }>>((acc, t) => {
+        const prevCum = acc.at(-1)?.cumulativePnl ?? 0;
+        return [...acc, { ...t, cumulativePnl: prevCum + t.pnl }];
+      }, []),
+    [visible],
+  );
 
   if (visible.length === 0) {
     return (
@@ -33,10 +45,11 @@ export function TradeTable({ trades }: { trades: readonly TradeItem[] }) {
             <th scope="col" className="px-3 py-2 text-right">Size</th>
             <th scope="col" className="px-3 py-2 text-right">PnL</th>
             <th scope="col" className="px-3 py-2 text-right">Return</th>
+            <th scope="col" className="px-3 py-2 text-right">누적 PnL</th>
           </tr>
         </thead>
         <tbody>
-          {visible.map((t) => (
+          {tradesWithCumulative.map((t) => (
             <tr
               key={t.trade_index}
               className="border-t"
@@ -61,17 +74,40 @@ export function TradeTable({ trades }: { trades: readonly TradeItem[] }) {
               <td className="px-3 py-2 text-right tabular-nums">
                 {formatCurrency(t.size, 4)}
               </td>
-              <td
-                className="px-3 py-2 text-right tabular-nums"
-                data-tone={t.pnl >= 0 ? "positive" : "negative"}
-              >
-                {formatCurrency(t.pnl)}
+              {/* PnL 색상 바 — return_pct 비례 */}
+              <td className="relative overflow-hidden px-3 py-2 text-right tabular-nums">
+                <div
+                  className="absolute inset-y-0 right-0 opacity-15"
+                  style={{
+                    width: `${Math.min(Math.abs(t.return_pct) * 100, 100)}%`,
+                    backgroundColor:
+                      t.pnl >= 0 ? "rgb(34,197,94)" : "rgb(239,68,68)",
+                  }}
+                />
+                <span
+                  className={cn(
+                    "relative",
+                    t.pnl >= 0 ? "text-green-500" : "text-red-500",
+                  )}
+                  data-tone={t.pnl >= 0 ? "positive" : "negative"}
+                >
+                  {formatCurrency(t.pnl)}
+                </span>
               </td>
               <td
                 className="px-3 py-2 text-right tabular-nums"
                 data-tone={t.return_pct >= 0 ? "positive" : "negative"}
               >
                 {formatPercent(t.return_pct)}
+              </td>
+              <td
+                className={cn(
+                  "px-3 py-2 text-right font-mono tabular-nums",
+                  t.cumulativePnl >= 0 ? "text-green-500" : "text-red-500",
+                )}
+              >
+                {t.cumulativePnl >= 0 ? "+" : ""}
+                {t.cumulativePnl.toFixed(2)}
               </td>
             </tr>
           ))}

@@ -4,6 +4,12 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   useBacktest,
   useBacktestProgress,
   useBacktestTrades,
@@ -13,6 +19,8 @@ import { formatDate } from "@/features/backtest/utils";
 import { BacktestStatusBadge } from "./status-badge";
 import { EquityChart } from "./equity-chart";
 import { MetricsCards } from "./metrics-cards";
+import { MetricsDetail } from "./metrics-detail";
+import { TradeAnalysis } from "./trade-analysis";
 import { TradeTable } from "./trade-table";
 
 const TRADE_QUERY = { limit: 200, offset: 0 };
@@ -27,7 +35,11 @@ export function BacktestDetailView({ id }: { id: string }) {
   const trades = useBacktestTrades(id, TRADE_QUERY, { enabled: tradesEnabled });
 
   if (detail.isLoading) {
-    return <p className="py-12 text-center text-sm text-muted-foreground">불러오는 중…</p>;
+    return (
+      <p className="py-12 text-center text-sm text-muted-foreground">
+        불러오는 중…
+      </p>
+    );
   }
 
   if (detail.isError || !detail.data) {
@@ -69,7 +81,9 @@ export function BacktestDetailView({ id }: { id: string }) {
         </Link>
       </header>
 
-      {effectiveStatus === "queued" || effectiveStatus === "running" || effectiveStatus === "cancelling" ? (
+      {effectiveStatus === "queued" ||
+      effectiveStatus === "running" ||
+      effectiveStatus === "cancelling" ? (
         <InProgressCard status={effectiveStatus} />
       ) : null}
 
@@ -90,47 +104,80 @@ export function BacktestDetailView({ id }: { id: string }) {
       ) : null}
 
       {effectiveStatus === "completed" && bt.metrics ? (
-        <MetricsCards metrics={bt.metrics} />
-      ) : null}
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview">개요</TabsTrigger>
+            <TabsTrigger value="metrics">성과 지표</TabsTrigger>
+            <TabsTrigger value="analysis">거래 분석</TabsTrigger>
+            <TabsTrigger value="trades">거래 목록</TabsTrigger>
+          </TabsList>
 
-      {effectiveStatus === "completed" && bt.equity_curve ? (
-        <section className="rounded-xl border bg-card p-4">
-          <h2 className="mb-2 text-sm font-medium">Equity Curve</h2>
-          <EquityChart points={bt.equity_curve} />
-        </section>
-      ) : null}
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            <MetricsCards metrics={bt.metrics} />
+            {bt.equity_curve && bt.equity_curve.length > 0 && (
+              <section className="rounded-xl border bg-card p-4">
+                <h2 className="mb-2 text-sm font-medium">Equity Curve</h2>
+                <EquityChart points={bt.equity_curve} />
+              </section>
+            )}
+          </TabsContent>
 
-      {effectiveStatus === "completed" ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium">거래 기록</h2>
-          {trades.isLoading ? (
-            <p className="text-sm text-muted-foreground">거래 불러오는 중…</p>
-          ) : trades.isError ? (
-            <p className="text-sm text-destructive">
-              거래 기록 로드 실패: {trades.error?.message}
-            </p>
-          ) : (
-            <TradeTable trades={trades.data?.items ?? []} />
-          )}
-        </section>
+          <TabsContent value="metrics" className="mt-4">
+            <MetricsDetail metrics={bt.metrics} />
+          </TabsContent>
+
+          <TabsContent value="analysis" className="mt-4">
+            <TradeAnalysis metrics={bt.metrics} />
+          </TabsContent>
+
+          <TabsContent value="trades" className="mt-4">
+            {trades.isLoading ? (
+              <p className="text-sm text-muted-foreground">
+                거래 불러오는 중…
+              </p>
+            ) : trades.isError ? (
+              <p className="text-sm text-destructive">
+                거래 기록 로드 실패: {trades.error?.message}
+              </p>
+            ) : (
+              <TradeTable trades={trades.data?.items ?? []} />
+            )}
+          </TabsContent>
+        </Tabs>
       ) : null}
     </div>
   );
 }
 
-function InProgressCard({ status }: { status: "queued" | "running" | "cancelling" }) {
-  const label = status === "queued" ? "대기 중" : status === "running" ? "실행 중" : "취소 중";
+function InProgressCard({
+  status,
+}: {
+  status: "queued" | "running" | "cancelling";
+}) {
+  const label =
+    status === "queued"
+      ? "대기 중"
+      : status === "running"
+        ? "실행 중"
+        : "취소 중";
   return (
     <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
       <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-primary" />
       <p className="text-sm">
-        {label}입니다. 결과가 준비되면 자동으로 화면이 전환됩니다. (30초 간격 폴링)
+        {label}입니다. 결과가 준비되면 자동으로 화면이 전환됩니다. (30초 간격
+        폴링)
       </p>
     </div>
   );
 }
 
-function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorCard({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
       <p className="text-sm text-destructive">{message}</p>
