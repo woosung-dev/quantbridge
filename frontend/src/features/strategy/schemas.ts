@@ -1,7 +1,7 @@
 // Sprint 7c: Strategy domain Zod 스키마 — Backend API 응답/요청 런타임 검증.
 // 타입은 z.infer로 단일 소스화 (schema-first 원칙).
 
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const ParseStatusSchema = z.enum(["ok", "unsupported", "error"]);
 export type ParseStatus = z.infer<typeof ParseStatusSchema>;
@@ -28,6 +28,9 @@ export const ParsePreviewResponseSchema = z.object({
 });
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
 
+export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
+export type TradingSession = z.infer<typeof TradingSessionSchema>;
+
 export const StrategyResponseSchema = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -39,6 +42,7 @@ export const StrategyResponseSchema = z.object({
   timeframe: z.string().nullable(),
   symbol: z.string().nullable(),
   tags: z.array(z.string()).default([]),
+  trading_sessions: z.array(z.string()).default([]),
   is_archived: z.boolean(),
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
@@ -77,6 +81,7 @@ export const UpdateStrategyRequestSchema = z.object({
   timeframe: z.string().max(16).nullable().optional(),
   symbol: z.string().max(32).nullable().optional(),
   tags: z.array(z.string()).optional(),
+  trading_sessions: z.array(z.string()).optional(),
   is_archived: z.boolean().optional(),
 });
 export type UpdateStrategyRequest = z.infer<typeof UpdateStrategyRequestSchema>;

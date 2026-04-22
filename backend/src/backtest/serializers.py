@@ -35,24 +35,50 @@ def _parse_utc_iso(s: str) -> datetime:
 # --- metrics ---
 
 def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
-    """BacktestMetrics → JSONB dict (Decimal → str)."""
-    return {
+    """BacktestMetrics → JSONB dict (Decimal → str, None 필드는 키 생략)."""
+    d: dict[str, Any] = {
         "total_return": str(m.total_return),
         "sharpe_ratio": str(m.sharpe_ratio),
         "max_drawdown": str(m.max_drawdown),
         "win_rate": str(m.win_rate),
         "num_trades": m.num_trades,
     }
+    if m.sortino_ratio is not None:
+        d["sortino_ratio"] = str(m.sortino_ratio)
+    if m.calmar_ratio is not None:
+        d["calmar_ratio"] = str(m.calmar_ratio)
+    if m.profit_factor is not None:
+        d["profit_factor"] = str(m.profit_factor)
+    if m.avg_win is not None:
+        d["avg_win"] = str(m.avg_win)
+    if m.avg_loss is not None:
+        d["avg_loss"] = str(m.avg_loss)
+    if m.long_count is not None:
+        d["long_count"] = m.long_count
+    if m.short_count is not None:
+        d["short_count"] = m.short_count
+    return d
 
 
 def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
-    """JSONB dict → BacktestMetrics."""
+    """JSONB dict → BacktestMetrics (신규 Optional 필드는 .get()으로 하위 호환)."""
+    def _opt_decimal(key: str) -> Decimal | None:
+        raw = data.get(key)
+        return Decimal(raw) if raw is not None else None
+
     return BacktestMetrics(
         total_return=Decimal(data["total_return"]),
         sharpe_ratio=Decimal(data["sharpe_ratio"]),
         max_drawdown=Decimal(data["max_drawdown"]),
         win_rate=Decimal(data["win_rate"]),
         num_trades=int(data["num_trades"]),
+        sortino_ratio=_opt_decimal("sortino_ratio"),
+        calmar_ratio=_opt_decimal("calmar_ratio"),
+        profit_factor=_opt_decimal("profit_factor"),
+        avg_win=_opt_decimal("avg_win"),
+        avg_loss=_opt_decimal("avg_loss"),
+        long_count=data.get("long_count"),
+        short_count=data.get("short_count"),
     )
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 // Sprint 7c T5: 메타데이터 탭 — react-hook-form + Zod (UpdateStrategyRequestSchema).
-// 태그는 comma-split (디자인 debt: chip-style은 Sprint 7d 이관).
+// Sprint FE-TradingSession: trading_sessions toggle chip 추가.
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -24,6 +25,7 @@ import {
   UpdateStrategyRequestSchema,
   type UpdateStrategyRequest,
 } from "@/features/strategy/schemas";
+import { SessionChips } from "./session-chips";
 
 export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
   const form = useForm<UpdateStrategyRequest>({
@@ -34,6 +36,7 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
       symbol: strategy.symbol ?? "",
       timeframe: strategy.timeframe ?? "",
       tags: strategy.tags,
+      trading_sessions: strategy.trading_sessions ?? [],
     },
   });
   const update = useUpdateStrategy(strategy.id, {
@@ -116,6 +119,27 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
             />
           </FormControl>
         </FormItem>
+        <FormField
+          control={form.control}
+          name="trading_sessions"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>거래 세션</FormLabel>
+              <FormControl>
+                <SessionChips
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                />
+              </FormControl>
+              <FormDescription>
+                {(field.value ?? []).length === 0
+                  ? "24시간 제한 없음 — 선택 없으면 언제든 주문 실행"
+                  : "선택한 세션 시간에만 주문 실행 (BE UTC 필터링)"}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <div className="pt-2">
           <Button
             type="submit"
