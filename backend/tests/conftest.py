@@ -8,6 +8,7 @@
 - authed_user: 테스트용 User 레코드 생성.
 - mock_clerk_auth: get_current_user dependency를 authed_user로 bypass (Task 7+에서 활성화).
 """
+
 from __future__ import annotations
 
 import os
@@ -45,6 +46,35 @@ from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
     Order,
     WebhookSecret,
 )
+
+# -------------------------------------------------------------------------
+# Path β Stage 2c C-1 — Mutation Oracle marker 기반 실행 제어 (Gate-3 codex
+# W-2c1 / opus W-1 해소). 기본 pytest 실행에서는 `mutation` marker test 를
+# 자동 skip (CI 시간 예산 ≤3분 보호). `--run-mutations` 명시 시 실행.
+# ADR-013 §10.1 Q2 "nightly only" 결정의 실 구현.
+# -------------------------------------------------------------------------
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--run-mutations",
+        action="store_true",
+        default=False,
+        help="Path β Mutation Oracle 실행. 기본은 skip — nightly workflow 또는 수동 실행.",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """기본 실행에서 @pytest.mark.mutation 테스트를 자동 skip (ADR-013 §10.1 Q2)."""
+    if config.getoption("--run-mutations"):
+        return
+    skip_mutation = pytest.mark.skip(
+        reason="Mutation Oracle — `pytest --run-mutations` 또는 nightly workflow 에서 실행"
+    )
+    for item in items:
+        if "mutation" in item.keywords:
+            item.add_marker(skip_mutation)
+
 
 DB_URL = os.environ.get(
     "DATABASE_URL",
@@ -162,9 +192,7 @@ def _force_fixture_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     Timescale/CCXT 경로를 명시적으로 테스트하는 곳(test_timescale_provider,
     test_ccxt_provider)은 provider를 직접 instantiate하므로 이 flag 영향 없음.
     """
-    monkeypatch.setattr(
-        "src.core.config.settings.ohlcv_provider", "fixture"
-    )
+    monkeypatch.setattr("src.core.config.settings.ohlcv_provider", "fixture")
 
 
 @pytest.fixture

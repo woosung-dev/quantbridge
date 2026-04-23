@@ -99,7 +99,7 @@ def _drift_any_corpus(expected_by_id: dict[str, dict[str, Any]]) -> tuple[bool, 
         source = (_CORPUS_DIR / f"{corpus_id}.pine").read_text()
         try:
             outcome = run_backtest_v2(source, ohlcv)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             details.append(f"{corpus_id}: exception → drift ({exc})")
             continue
         if outcome.status != "ok" or outcome.result is None:
@@ -130,7 +130,7 @@ def _drift_any_corpus(expected_by_id: dict[str, dict[str, Any]]) -> tuple[bool, 
                 details.append(f"{corpus_id}: trades_digest drift")
             if digest_sequence(warnings) != expected["warnings_digest"]:
                 details.append(f"{corpus_id}: warnings_digest drift")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             details.append(f"{corpus_id}: v2 parse exception ({exc})")
 
     if details:
@@ -157,7 +157,9 @@ def test_m1_atr_drift_is_detected() -> None:
 
     original_call = sl.StdlibDispatcher.call
 
-    def mutated_call(self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any) -> Any:
+    def mutated_call(
+        self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any
+    ) -> Any:
         result = original_call(self, func_name, node_id, args, **kwargs)
         if func_name == "ta.atr" and isinstance(result, (int, float)) and not math.isnan(result):
             return result * 1.01  # 1% drift → stop 값 변화 → entry/exit 시점 drift
@@ -185,7 +187,9 @@ def test_m2_rsi_divzero_guard_is_detected() -> None:
 
     original_call = sl.StdlibDispatcher.call
 
-    def mutated_call(self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any) -> Any:
+    def mutated_call(
+        self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any
+    ) -> Any:
         result = original_call(self, func_name, node_id, args, **kwargs)
         if func_name == "ta.rsi" and isinstance(result, (int, float)) and not math.isnan(result):
             return result * 1.005  # 0.5% drift → win_rate/sharpe 변화 유발
@@ -210,7 +214,9 @@ def test_m4_crossover_boundary_is_detected() -> None:
     original_call = sl.StdlibDispatcher.call
     call_count = {"crossover_hits": 0}
 
-    def mutated_call(self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any) -> Any:
+    def mutated_call(
+        self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any
+    ) -> Any:
         if func_name == "ta.crossover":
             call_count["crossover_hits"] += 1
             # 3 번째 호출마다 True 강제 → 추가 trade 유발
@@ -260,7 +266,9 @@ def test_m7_stdlib_global_drift_is_detected() -> None:
 
     original_call = sl.StdlibDispatcher.call
 
-    def mutated_call(self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any) -> Any:
+    def mutated_call(
+        self: sl.StdlibDispatcher, func_name: str, node_id: int, args: list[Any], **kwargs: Any
+    ) -> Any:
         result = original_call(self, func_name, node_id, args, **kwargs)
         if isinstance(result, (int, float)) and not math.isnan(result) and result != 0:
             return result * 1.001  # 0.1% global drift
@@ -278,7 +286,9 @@ def test_m7_stdlib_global_drift_is_detected() -> None:
 
 @pytest.mark.mutation
 @pytest.mark.skip(reason="Stage 2c 2차 iteration (H1 종료 전) — M3/M6/M8")
-@pytest.mark.parametrize("mutation_id", ["M3_strategy_entry_return", "M6_decimal_float_leak", "M8_alert_hook_duplicate"])
+@pytest.mark.parametrize(
+    "mutation_id", ["M3_strategy_entry_return", "M6_decimal_float_leak", "M8_alert_hook_duplicate"]
+)
 def test_mutation_stage2c_second_iter(mutation_id: str) -> None:
     """Stage 2c 2차: M3/M6/M8 구현 예정."""
     del mutation_id
