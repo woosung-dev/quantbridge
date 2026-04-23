@@ -106,8 +106,9 @@ def run_historical(
     # 마지막 bar의 병합 스냅샷
     result.final_state = {**store.snapshot_dict(), **interp._transient}
     # Sprint 8c: 테스트 접근용 — StrategyState + user 변수 시계열 복사.
+    # deque → list 변환: RunResult.var_series 타입은 dict[str, list[Any]]
     result.strategy_state = interp.strategy
-    result.var_series = dict(interp._var_series)  # shallow copy
+    result.var_series = {k: list(v) for k, v in interp._var_series.items()}
     return result
 
 
