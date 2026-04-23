@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "ohlcv_sha256": "1a99144813f15ebc029f4c2d18cf4e657eb54f1a7317e28820380b80ebec5038",
-  "pine_v2_commit": "78e73b2",
+  "pine_v2_commit": "a6e0f42",
   "tool_versions": {
     "pynescript": "0.3.0",
     "python": "3.12"
   },
-  "generated_at": "2026-04-23T11:23:48Z",
+  "generated_at": "2026-04-23T12:17:42Z",
   "corpora": {
     "s1_pbr": {
       "metrics": {
@@ -25,7 +25,8 @@
       },
       "var_series_digest": "sha256:6bc332f2382c5d667eed420f07338c42ecc453172192d3e86530fce4be342785",
       "trades_digest": "sha256:b04e1ddc0632bbde03cc32d83fd982ca649319bf18be7f1cd3319c3ba7a214e8",
-      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "updated_at": "2026-04-23T12:17:11Z"
     },
     "s2_utbot": {
       "metrics": {
@@ -44,7 +45,8 @@
       },
       "var_series_digest": "sha256:7c30fa568d64422c7d629b84e8a82cd553fa78710aa9fc7cf49cf75470fbf309",
       "trades_digest": "sha256:a0066e3854952f210a68ed22aaf8134440e0b691be67dcb67ccd87feb7e84be4",
-      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "updated_at": "2026-04-23T12:17:21Z"
     },
     "s3_rsid": {
       "metrics": {
@@ -63,7 +65,8 @@
       },
       "var_series_digest": "sha256:1bcb06162d267c8cbbacb24b2a5d02db6bf4159583fb1dce8c073e7ccce5aab1",
       "trades_digest": "sha256:e04d418e23bcf480317b6fed0aab67f8ccd23aff03396b01fc0132f9f6ad98b5",
-      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "updated_at": "2026-04-23T12:17:33Z"
     },
     "i1_utbot": {
       "metrics": {
@@ -82,7 +85,8 @@
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:a0066e3854952f210a68ed22aaf8134440e0b691be67dcb67ccd87feb7e84be4",
-      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "updated_at": "2026-04-23T12:17:35Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -101,7 +105,8 @@
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "updated_at": "2026-04-23T12:17:42Z"
     },
     "i3_drfx": {
       "note": "Skipped \u2014 is_runnable=false per Y1 Coverage Analyzer",

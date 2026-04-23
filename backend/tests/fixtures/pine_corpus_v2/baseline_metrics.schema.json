@@ -87,6 +87,11 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "해당 corpus regen 시각 (ISO 8601 UTC Z). opus Gate-2 M-4: envelope generated_at 과 분리하여 부분 regen 의 git diff 가짜 변경 방지."
+        },
         "metrics": {
           "type": "object",
           "description": "engine/metrics.py 의 13 지표. Decimal 은 문자열로 직렬화, 정수는 integer.",

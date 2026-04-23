@@ -55,6 +55,9 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "mutation: Path β Mutation Oracle — nightly only (Stage 2c)",
+]
 
 [tool.coverage.run]
 source = ["src"]
