@@ -308,6 +308,54 @@ def test_m7_stdlib_global_drift_is_detected() -> None:
 
 
 # =====================================================================
+# M6 — PnL Decimal precision leak amplifier (close() 반환 pnl × 1.0001)
+# =====================================================================
+
+
+@pytest.mark.mutation
+@pytest.mark.skipif(not _MUTATIONS_RUNNABLE, reason="fixture 미생성")
+def test_m6_pnl_decimal_float_leak_is_detected() -> None:
+    """M6 Stage 2c 2차: close() 반환 Trade.pnl 에 Decimal amplifier 주입.
+
+    ADR-013 §10.4 설계 — `Decimal(str(pnl)) * Decimal("1.0001")` 0.01% drift.
+    대형 corpus (i1/s2: 461 trades) 에서 누적 PnL 합산 drift 가 ABS_TOL(0.001) 또는
+    REL_TOL(0.1%) 초과 → metrics.total_return digest mismatch 감지.
+    trades_digest 의 pnl 필드도 함께 drift (보조 감지 경로).
+
+    원안 (ADR-013 §4.4) "Decimal → float 암묵적 leak — `Decimal(str(a+b))` vs
+    `Decimal(str(a)) + Decimal(str(b))`" 의 실측 drift 는 극소 (ABS_TOL 0.001 내)
+    로 확인됨 (Stage 2b). 따라서 amplifier 배율을 명시 주입하여 동등한 감지 기회
+    확보. 감지 의도 (precision leak 이 누적되어 PnL 편차 유발) 는 보존.
+
+    StrategyState.close signature (`strategy_state.py:209-229`):
+        close(self, trade_id, *, bar, fill_price, comment="") -> Trade | None
+    """
+    from decimal import Decimal
+
+    from src.strategy.pine_v2.strategy_state import StrategyState
+
+    original_close = StrategyState.close
+
+    def mutated_close(
+        self: StrategyState,
+        trade_id: str,
+        *,
+        bar: int,
+        fill_price: float,
+        comment: str = "",
+    ) -> Any:
+        trade = original_close(self, trade_id, bar=bar, fill_price=fill_price, comment=comment)
+        if trade is not None and trade.pnl is not None:
+            # 0.01% Decimal amplifier — ABS_TOL(0.001) 초과 drift 유도
+            trade.pnl = float(Decimal(str(trade.pnl)) * Decimal("1.0001"))
+        return trade
+
+    with patch.object(StrategyState, "close", mutated_close):
+        drifted, msg = _drift_any_corpus(_load_baseline()["corpora"])
+    assert drifted, f"M6 (pnl decimal leak amplifier) 미감지: {msg}"
+
+
+# =====================================================================
 # M3 — StrategyState.entry no-op cascade (반환 None + 내부 등록 skip)
 # =====================================================================
 
@@ -346,13 +394,13 @@ def test_m3_strategy_entry_return_is_detected() -> None:
 
 
 # =====================================================================
-# M6 / M8 — Stage 2c 2차 iteration (M3/M5 구현 후 후속)
+# M8 — Stage 2c 2차 iteration (후속 commit)
 # =====================================================================
 
 
 @pytest.mark.mutation
-@pytest.mark.skip(reason="Stage 2c 2차 iteration — M6/M8 후속 commit")
-@pytest.mark.parametrize("mutation_id", ["M6_decimal_float_leak", "M8_alert_hook_duplicate"])
+@pytest.mark.skip(reason="Stage 2c 2차 iteration — M8 후속 commit")
+@pytest.mark.parametrize("mutation_id", ["M8_alert_hook_duplicate"])
 def test_mutation_stage2c_second_iter(mutation_id: str) -> None:
     """Stage 2c 2차 후속: M6/M8 구현 예정."""
     del mutation_id
