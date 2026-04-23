@@ -248,6 +248,9 @@ def ta_barssince(state: IndicatorState, node_id: int, cond: Any) -> float:
     return int(slot["since"])
 
 
+_VALUEWHEN_MAX_HIST: int = 500
+
+
 def ta_valuewhen(
     state: IndicatorState,
     node_id: int,
@@ -260,12 +263,19 @@ def ta_valuewhen(
     occurrence=0: 가장 최근 true 시점의 source.
     occurrence=1: 그 이전 true 시점.
     history 부족 시 nan.
+
+    deque(maxlen=500) + appendleft O(1). list.insert(0, ...) O(n) 대비 성능 개선.
+    음수 occurrence → nan. float occurrence → int 변환.
     """
-    slot = state.buffers.setdefault(node_id, {"history": []})
-    hist: list[float] = slot["history"]
+    if not isinstance(occurrence, int):
+        occurrence = int(occurrence)
+    if occurrence < 0:
+        return float("nan")
+    slot = state.buffers.setdefault(node_id, {"history": deque(maxlen=_VALUEWHEN_MAX_HIST)})
+    hist: deque[float] = slot["history"]
     cond_bool = bool(cond) if not _is_na(cond) else False
     if cond_bool and source is not None and not _is_na(source):
-        hist.insert(0, float(source))
+        hist.appendleft(float(source))
     if occurrence >= len(hist):
         return float("nan")
     return hist[occurrence]
@@ -536,9 +546,38 @@ def fn_nz(x: Any, replacement: Any = 0.0) -> Any:
 
 @dataclass
 class StdlibDispatcher:
-    """Pine 함수명 → 호출 로직. Interpreter가 Call 노드 해석 시 사용."""
+    """Pine 함수명 → 호출 로직. Interpreter가 Call 노드 해석 시 사용.
+
+    call-site 상태 격리:
+    - _prefix_stack: 현재 user function 호출 체인의 call-site prefix 스택.
+    - push/pop으로 user function 진입/탈출 시 관리.
+    - _scoped_node_id: prefix + node_id의 해시 조합으로 call-site별 독립 state slot 생성.
+    """
 
     state: IndicatorState = field(default_factory=IndicatorState)
+
+    def __post_init__(self) -> None:
+        self._prefix_stack: list[str] = []
+
+    def push_call_prefix(self, prefix: str) -> None:
+        """user function 진입 시 call-site prefix push."""
+        self._prefix_stack.append(prefix)
+
+    def pop_call_prefix(self) -> None:
+        """user function 탈출 시 call-site prefix pop."""
+        if self._prefix_stack:
+            self._prefix_stack.pop()
+
+    def _scoped_node_id(self, node_id: int) -> int:
+        """call-site prefix를 반영한 scoped node id.
+
+        prefix_stack이 비어있으면 원래 node_id 그대로 반환 (top-level 호출).
+        user function 내부라면 prefix hash와 node_id를 조합해 독립 slot 생성.
+        """
+        if not self._prefix_stack:
+            return node_id
+        prefix_hash = hash("::".join(self._prefix_stack)) & 0xFFFF_FFFF
+        return (prefix_hash << 32) | (node_id & 0xFFFF_FFFF)
 
     def call(
         self,
@@ -550,33 +589,38 @@ class StdlibDispatcher:
         low: float = float("nan"),
         close_prev: float = float("nan"),
     ) -> Any:
-        """func_name이 ta.* 또는 na/nz이면 호출, 아니면 KeyError."""
+        """func_name이 ta.* 또는 na/nz이면 호출, 아니면 KeyError.
+
+        scoped_id: user function 호출 체인의 call-site prefix를 반영한 node_id.
+        top-level 호출 시 원래 node_id 그대로 사용 (backward compatible).
+        """
+        scoped_id = self._scoped_node_id(node_id)
         if func_name == "ta.sma":
-            return ta_sma(self.state, node_id, *args)
+            return ta_sma(self.state, scoped_id, *args)
         if func_name == "ta.ema":
-            return ta_ema(self.state, node_id, *args)
+            return ta_ema(self.state, scoped_id, *args)
         if func_name == "ta.rma":
-            return ta_rma(self.state, node_id, *args)
+            return ta_rma(self.state, scoped_id, *args)
         if func_name == "ta.atr":
             (length,) = args
-            return ta_atr(self.state, node_id, length, high, low, close_prev)
+            return ta_atr(self.state, scoped_id, length, high, low, close_prev)
         if func_name == "ta.rsi":
-            return ta_rsi(self.state, node_id, *args)
+            return ta_rsi(self.state, scoped_id, *args)
         if func_name == "ta.crossover":
-            return ta_crossover(self.state, node_id, *args)
+            return ta_crossover(self.state, scoped_id, *args)
         if func_name == "ta.crossunder":
-            return ta_crossunder(self.state, node_id, *args)
+            return ta_crossunder(self.state, scoped_id, *args)
         if func_name == "ta.highest":
-            return ta_highest(self.state, node_id, *args)
+            return ta_highest(self.state, scoped_id, *args)
         if func_name == "ta.lowest":
-            return ta_lowest(self.state, node_id, *args)
+            return ta_lowest(self.state, scoped_id, *args)
         if func_name == "ta.change":
             length = args[1] if len(args) >= 2 else 1
-            return ta_change(self.state, node_id, args[0], int(length))
+            return ta_change(self.state, scoped_id, args[0], int(length))
         if func_name == "ta.stdev":
-            return ta_stdev(self.state, node_id, args[0], int(args[1]))
+            return ta_stdev(self.state, scoped_id, args[0], int(args[1]))
         if func_name == "ta.variance":
-            return ta_variance(self.state, node_id, args[0], int(args[1]))
+            return ta_variance(self.state, scoped_id, args[0], int(args[1]))
         if func_name == "ta.pivothigh":
             # Pine: pivothigh(left, right) OR pivothigh(source, left, right)
             if len(args) == 2:
@@ -585,7 +629,7 @@ class StdlibDispatcher:
             else:
                 src_val = args[0] if not _is_na(args[0]) else high
                 left, right = int(args[1]), int(args[2])
-            return ta_pivothigh(self.state, node_id, left, right, src_val)
+            return ta_pivothigh(self.state, scoped_id, left, right, src_val)
         if func_name == "ta.pivotlow":
             if len(args) == 2:
                 left, right = int(args[0]), int(args[1])
@@ -593,20 +637,20 @@ class StdlibDispatcher:
             else:
                 src_val = args[0] if not _is_na(args[0]) else low
                 left, right = int(args[1]), int(args[2])
-            return ta_pivotlow(self.state, node_id, left, right, src_val)
+            return ta_pivotlow(self.state, scoped_id, left, right, src_val)
         if func_name == "ta.sar":
             # Pine: ta.sar(start, increment, maximum) — high/low 는 dispatcher 가 주입
             start = float(args[0]) if len(args) >= 1 else 0.02
             increment = float(args[1]) if len(args) >= 2 else 0.02
             maximum = float(args[2]) if len(args) >= 3 else 0.2
-            sar_state = self.state.buffers.setdefault(node_id, SarState())
+            sar_state = self.state.buffers.setdefault(scoped_id, SarState())
             return ta_sar(sar_state, high, low, start, increment, maximum)
         if func_name == "ta.barssince":
-            return ta_barssince(self.state, node_id, args[0])
+            return ta_barssince(self.state, scoped_id, args[0])
         if func_name == "ta.valuewhen":
             # args: (cond, source, occurrence)
             occ = int(args[2])
-            return ta_valuewhen(self.state, node_id, args[0], args[1], occ)
+            return ta_valuewhen(self.state, scoped_id, args[0], args[1], occ)
         if func_name == "na":
             return fn_na(args[0] if args else float("nan"))
         if func_name == "nz":
