@@ -75,9 +75,9 @@ GROUP BY status;
 
 > 오늘 Dogfood 도중 "불편했던" 것 1~3건 메모. Trust Layer CI 외의 개선 후보.
 
-- [ ] 메모 1: ******\_\_\_\_******
-- [ ] 메모 2: ******\_\_\_\_******
-- [ ] 메모 3: ******\_\_\_\_******
+- [ ] 메모 1: **\*\***\_\_\_\_**\*\***
+- [ ] 메모 2: **\*\***\_\_\_\_**\*\***
+- [ ] 메모 3: **\*\***\_\_\_\_**\*\***
 
 → 주간 집계 시 Sprint Y2 candidate 판정 후보.
 
@@ -146,13 +146,17 @@ GROUP BY status;
 
 ### 3.3 Path β 진행 결정
 
-| 주차 말 상태                | 조치                                                               |
-| --------------------------- | ------------------------------------------------------------------ |
-| D-A/B/C/D 모두 ✅           | Stage 2 완료 여부 확인 → Path β 완료 선언                          |
-| D-A ❌ (Kill Switch 오작동) | 즉시 dogfood 중단 → bug ticket 최우선                              |
-| D-B < 95% 지속              | CCXT 에러 pattern 분석 → Sprint 7d 이후 어댑터 개선                |
-| D-C > 10%                   | backtest engine 검토 → 잠재적 stdlib regression 확인 (P-3 로 curb) |
-| D-D > 3건                   | Sprint Y2 candidate 로 등록, Path β 는 그대로 진행                 |
+> **Sample size 주의 (opus Gate-0 W3 반영):** D-C 의 **Sharpe 편차는 통계적으로 noisy**. s1_pbr 기준 일 1~3 신호 → 주 7~21 trade 로 variance 가 매우 크다. 아래 매트릭스는 **3주차부터 판정 유효**. 1~2주차는 **관찰 전용**이며 이상 징후만 기록.
+
+| 주차 말 상태                | 조치                                                               | 판정 유효 시점 |
+| --------------------------- | ------------------------------------------------------------------ | :------------: |
+| D-A ❌ (Kill Switch 오작동) | **즉시** dogfood 중단 → bug ticket 최우선 (sample size 무관)       |   1주차부터    |
+| D-B < 95% 지속              | CCXT 에러 pattern 분석 → Sprint 7d 이후 어댑터 개선                |   2주차부터    |
+| D-C > 10% (Sharpe 편차)     | backtest engine 검토 → 잠재적 stdlib regression 확인 (P-3 로 curb) | **3주차부터**  |
+| D-D > 3건 누적              | Sprint Y2 candidate 로 등록, Path β 는 그대로 진행                 |   1주차부터    |
+| D-A/B/C/D 모두 ✅           | Stage 2 완료 여부 확인 → Path β 완료 선언                          |   3주차부터    |
+
+**대안 지표 (small sample robust, 참고용)**: Sharpe 대신 **누적 PnL / max DD (Calmar proxy)** 가 작은 sample 에선 더 robust. 3주차에도 variance 가 크면 Calmar 로 전환 검토 (Stage 1 opus W3 오픈 이슈).
 
 ---
 

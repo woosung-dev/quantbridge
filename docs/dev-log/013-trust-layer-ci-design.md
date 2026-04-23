@@ -79,9 +79,13 @@ stdlib 의 **단 한 줄 수정** (예: `ta.rsi` 의 warm-up 기간을 14 → 15
 **구현** (신규 `test_coverage_ssot_sync.py`):
 
 - Import `pine_v2.coverage as cov`, `pine_v2.interpreter as interp`, `pine_v2.stdlib as sl`
-- 리플렉션으로 실제 콜러블 수집:
-  - `sl.TA_CALLABLES`, `sl.MATH_CALLABLES`, `sl.STRATEGY_CALLABLES` 등 내부 dispatch table
-  - `interp._handle_plot_nop`, `_handle_alert`, `_handle_input` 등 NOP 핸들러 바인딩
+- 실제 dispatch 실체 수집 (codex Gate-1 W-C1 반영 — 2026-04-23 실측 확인):
+  - **`interp._STDLIB_NAMES`** (set, `interpreter.py:684~`) — 현재 실체인 SSOT
+  - **`sl.StdlibDispatcher.call()`** (`stdlib.py:538~`) — if-elif 체인 dispatch
+  - `interp._handle_plot_nop / _handle_alert / _handle_input` 등 NOP 핸들러
+  - 과거 언급된 `TA_CALLABLES / MATH_CALLABLES` 등 dict 기반 dispatch 는 **존재하지 않음** —
+    Stage 2 구현자는 `_STDLIB_NAMES` 를 SSOT 로 사용하거나 `StdlibDispatcher.call`
+    소스를 AST 파싱 중 택 1
 - 양방향 assertion:
   - `cov.SUPPORTED_FUNCTIONS ⊆ {실제 바인딩된 것 ∪ NOP 허용 목록}` (coverage 가 거짓말 안 함)
   - `{실제 구현된 것 ∪ NOP} ⊆ cov.SUPPORTED_FUNCTIONS` (구현은 있는데 coverage 가 모르는 상태 차단)
@@ -264,11 +268,12 @@ SLO-1~3 는 main merge 게이트. SLO-4 초과 시 subset marker 도입 (degrade
 
 ## 8. 다음 단계
 
-### Path β Stage 1 (Design, Day 3)
+### Path β Stage 1 (Design, Day 3) ✅ 완료 (2026-04-23)
 
-- [ ] `test_trust_layer_parity.py` 스켈레톤 (NotImplementedError stub) + `baseline_metrics.json` schema 전용 파일
-- [ ] Gate-1 evaluator (codex + opus 2중 blind)
-- [ ] Day 3 오픈 질문 결정: evaluator 병렬 vs 직렬 / mutation CI 포함 여부 / baseline 포맷
+- [x] `test_trust_layer_parity.py` 스켈레톤 + `_tolerance.py` stub (Stage 2 에서 채움)
+- [x] `baseline_metrics.schema.json` (JSON Schema Draft 2020-12, `tool_versions` 포함)
+- [x] Day 3 오픈 질문 결정 → §10.1 참조
+- [ ] Gate-1 evaluator (codex + opus 2중 blind) — 다음 단계
 
 ### Path β Stage 2 (Implement, Day 4~7)
 
@@ -310,10 +315,54 @@ SLO-1~3 는 main merge 게이트. SLO-4 초과 시 subset marker 도입 (degrade
 2. **corpus 6 종 미만으로 Path β 시작 (i3_drfx 제외 → 5 종)**: Y1 Coverage 가 reject 하는 i3_drfx 는 baseline 에 `"note": "Skipped"` 로 기록만. 실행 테스트 X.
 3. **pynescript 버전 고정 정책**: 현재 `==0.3.0`. P-1 은 이 버전 기준 baseline. 업그레이드는 별도 PR + baseline 동시 갱신.
 
+### 10.1 Stage 1 에서 확정 (2026-04-23)
+
+Stage 1 Day 3 오픈 질문 3 개 결정 + Gate-0 Opus evaluator Warning (W2/W3/W4/W5) 반영.
+
+|                  #                  | 결정                                                               | 근거                                                                             |
+| :---------------------------------: | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+|     **Q1** Evaluator 실행 방식      | **병렬** (codex + opus 동시)                                       | Gate-0 에서 병렬 2중 blind 성공 (confidence 8/10, 8.5/10). 속도 + 편향 완화 양립 |
+|   **Q2** Mutation Oracle CI 포함    | **Nightly only** (`--run-mutations` 수동 또는 `schedule` workflow) | CI 시간 예산 (≤3분, SLO TL-E-4) 초과 방지. 실패 시 GitHub issue 자동 생성        |
+| **Q3** `baseline_metrics.json` 포맷 | **plain JSON** (msgpack/pickle 금지)                               | `git diff` 가능 → PR 리뷰 가치가 속도 절감보다 큼. Decimal 은 문자열로 직렬화    |
+
+**Opus Warning 반영**:
+
+|   #    | Warning                                                       | 반영 위치                                                                                                                      |
+| :----: | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **W2** | Mutation M3 (strategy.entry 반환값) 가 "P-2 or P-3" 분류 모호 | `test_trust_layer_parity.py` 주석에 "Stage 2 실측 후 재분류" 명시. 현재는 양쪽 layer 중 하나라도 포착하면 PASS (SLO ≥7/8 기준) |
+| **W3** | Dogfood D-C 판정 1주 sample size 불충분                       | `docs/guides/dogfood-checklist.md` §3.3 에 "1~2주차는 관찰, **3주차부터 판정**" 단서 추가 (별도 커밋)                          |
+| **W4** | Decimal `getcontext().prec` 정책 문서화 누락                  | `_tolerance.py` 파일 docstring 에 "기본 `prec = 28` 유지 — metric 범위 [1e-4, 1e1] 에서 충분" 명시                             |
+| **W5** | `baseline_metrics.json` schema 에 외부 의존 버전 미기록       | `baseline_metrics.schema.json` 에 `tool_versions.pynescript / python` 필수 필드 추가. regen 시 자동 기록                       |
+
+**Stage 2 전 남은 결정 (Gate-1 에서 확정 대상)**:
+
+- Mutation 8 개에 **가중치** 도입 여부: **등가 가중 유지 확정** (Gate-1 codex + opus 양쪽 동의).
+  근거: (1) 8/8 → 7/8 → 6/8 drift 를 트렌드로 보는 게 가치, 가중치 도입 시 해석 왜곡.
+  (2) M6/M8 모두 P-3 digest diff 로 탐지는 binary — 가중치 무관.
+  (3) ≥7/8 "1개 허용" 의 실용 buffer 가 가중치 없을 때 가장 선명.
+- baseline_metrics 의 `schema_version` 업그레이드 (1→2) 시 **migration 정책** 부재. Stage 2 에서 v1 확정 후 v2 migration 규약 별도 ADR.
+
+### 10.2 Decimal 문자열 정규화 규약 (Gate-1 opus W-1 반영)
+
+Gate-1 에서 발견: `DecimalString` 패턴 `^-?\d+(\.\d+)?$` 는 `"0.0832"` / `"0.08320"` / `"0.083200000"` 모두 valid → regen 스크립트가 trailing zero 를 어떻게 출력하느냐에 따라 **git diff 가짜 변경** 발생 위험. requirements §5.2 "변경 크기 > 5% 시 PR 설명 의무" 프로세스가 노이즈로 마비 가능.
+
+**확정 규약** (Stage 2 에서 `backend/scripts/regen_trust_layer_baseline.py` 및 `_tolerance.py` 에 반영):
+
+1. **Decimal 직렬화 포맷**: `f"{Decimal(str(value)):.8f}"` — 고정 소수점 **8자리** 로 zero-pad.
+   (예: `Decimal("0.0832")` → `"0.08320000"`, `Decimal("1.5")` → `"1.50000000"`)
+2. **정수 지표** (`num_trades`, `long_count`, `short_count`): JSON `integer` 타입 그대로 (포맷 규약 없음).
+3. **NaN / None 처리**: `sharpe_ratio` 등 sample 부족 시 JSON `null` — 문자열 `"NaN"` 금지.
+4. **비교 시 trailing zero 무시**: `within_tolerance(Decimal(str(a)), Decimal(str(b)))` 는 Decimal 자체 같음성 기반이므로 0 수 무관.
+5. **8자리 소수 선택 근거**: Bybit 최소 tick 은 8 자리 (`.00000001` BTC) → 금융 도메인 자연수. metric 범위 [1e-4, 1e1] 에서 충분한 해상도.
+
+**영향**: Stage 2 P-3 구현 시 baseline 생성 스크립트가 이 규약 강제 + Stage 2 첫 commit 에 정규화 유틸 추가.
+
 ---
 
 ## 11. Amendment History
 
-| 날짜       | 사유      | 변경                                                                      |
-| ---------- | --------- | ------------------------------------------------------------------------- |
-| 2026-04-23 | 최초 초안 | Path β Stage 0 에서 작성. Stage 2 구현 완료 시 "구현 결과" 섹션 추가 예정 |
+| 날짜           | 사유                                       | 변경                                                                                                                                                 |
+| -------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-04-23     | 최초 초안                                  | Path β Stage 0 에서 작성. Stage 2 구현 완료 시 "구현 결과" 섹션 추가 예정                                                                            |
+| 2026-04-23     | Stage 1 Design 완료                        | §8 체크 갱신 + §10.1 "Stage 1 에서 확정" (Q1/Q2/Q3 + Opus W2/W3/W4/W5 반영)                                                                          |
+| **2026-04-23** | **Gate-1 PASS (codex 7.5/10 + opus 8/10)** | **§4.2 실체 정정 (`_STDLIB_NAMES + StdlibDispatcher.call`, codex W-C1) + §10.1 Mutation 등가 가중 확정 + §10.2 Decimal 정규화 규약 신규 (opus W-1)** |
