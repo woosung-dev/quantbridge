@@ -934,6 +934,15 @@ class Interpreter:
             return 0.01  # 기본값 — 심볼별 설정 기능은 향후 추가
         if chain == "syminfo.tickerid":
             return "UNKNOWN"
+        # ta.tr — built-in series: True Range = max(high-low, |high-prev_close|, |low-prev_close|)
+        # 첫 bar 는 prev_close 가 nan → high-low 만 (Pine 동작과 동일)
+        if chain == "ta.tr":
+            high = self.bar.current("high")
+            low = self.bar.current("low")
+            prev_close = self.bar.history("close", 1)
+            if math.isnan(prev_close):
+                return high - low
+            return max(high - low, abs(high - prev_close), abs(low - prev_close))
         # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):
             return float("nan")
