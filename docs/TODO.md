@@ -512,20 +512,25 @@
 - [x] **M-4 `generated_at` 부분 regen fix** — `--corpus` 모드 envelope 보존 + corpus 별 `updated_at` 분리 (opus Gate-2 W-OPUS-G2-4)
 - [x] **Gate-3 1차 CONDITIONAL PASS** — codex 8/10 + opus 8/10. C-1 즉시 해소 (`conftest.py` `--run-mutations` 플래그 + `@pytest.mark.mutation` skip + `.github/workflows/trust-layer-nightly.yml` 18:00 UTC cron 신규)
 
-#### Stage 2c 2차 — Mutation 7/8 + W-2/W-3 🟡 In Progress (2026-04-23 시작, deadline 2026-05-31)
+#### Stage 2c 2차 — Mutation 8/8 + W-2/W-3 ✅ 완료 (2026-04-23, branch `feat/path-beta-stage2c-2nd`)
 
-**Path β 완료 선언 조건** (SLO TL-E-5 ≥ 7/8 green). ADR-013 §10.4 구현 설계 선행 완료.
+**Path β 완료 선언 조건 초과 달성** (SLO TL-E-5 ≥ 7/8 → 실질 8/8 green). ADR-013 §11 Amendment 행 기재.
 **브랜치**: `feat/path-beta-stage2c-2nd` ← main(`115292a`). PR base=main 직접.
-**세션 plan**: `~/.claude/plans/path-lucky-squid.md`.
+**세션 plan**: `~/.claude/plans/path-lucky-squid.md`. 프로젝트 plan: `docs/superpowers/plans/2026-04-23-stage2c-2nd-plan.md`.
 
-- [ ] **T1 M3** `StrategyState.entry` no-op cascade → `num_trades` drop 감지 (Track S+A)
-- [ ] **T2 M5** `fill_price + 0.005` ABS_TOL drift → `trades_digest` entry_price 필드 변경 감지
-- [ ] **T3 M6** `StrategyState.close` 반환 `trade.pnl × Decimal("1.0001")` amplifier → `metrics.total_return` drift
-- [ ] **T4 M8** `VirtualStrategyWrapper.process_bar` duplicate fire → `num_trades` 증가 (Track A only, i1_utbot)
-- [ ] **T5 W-2 + W-3** M2 `test_m2_rsi_noise_drift_is_detected` rename + docstring 정합 + M4 `@pytest.mark.xfail(strict=False)` marker (Gate-3 codex W-2c1 클로즈)
-- [ ] **T6 docs/memory** ADR-013 §11 Amendment "Stage 2c 2차 완료" 행 + TODO.md sync + memory `project_path_beta_stage2c_2nd_complete.md`
-- [ ] **Gate-4 2중 blind** — codex + opus, PASS 기준: 감지 ≥ 7/8 (M4 xfail 허용) + 양쪽 confidence ≥ 8/10 + blocker 0 + backend 985 regression 0
+- [x] **T1 M3** `StrategyState.entry` no-op cascade → `num_trades` drop 감지 (c1 `bfdfca4`)
+- [x] **T2 M5** `fill_price + 0.005` ABS_TOL drift → `trades_digest` entry_price 필드 변경 감지 (c2 `297b121`)
+- [x] **T3 M6** `StrategyState.close` 반환 `trade.pnl × Decimal("1.0001")` amplifier → `metrics.total_return` drift (c3 `005047f`)
+- [x] **T4 M8** `VirtualStrategyWrapper.process_bar` duplicate fire → `num_trades` 증가 (Track A, c4 `9a0d70c`)
+- [x] **T5 W-2 + W-3** M2 `test_m2_rsi_noise_drift_is_detected` rename + M4 `@pytest.mark.xfail(strict=False)` marker (c5 `cfaffbc`)
+- [x] **T6 docs/memory** ADR-013 §11 완료 행 + 본 TODO sync + memory `project_path_beta_stage2c_2nd_complete.md` (진행 중)
+- [ ] **Gate-4 2중 blind** — codex + opus 병렬 review pending (PR 생성 후)
 - [ ] Stage 2c 완료 후 requirements.md §4.1 에 "Mutation 측정 불가 = scope-reducing" 명시화 (codex Gate-2 W-2)
+
+**검증 실측**:
+
+- Mutation suite: **7 passed + 1 xpassed** (M4 XPASS = 현 corpus 에서 drift 포착) = **실질 8/8 감지**, 2:31
+- Backend full regression: **985 passed / 17 skipped / 0 failed**, 2:34 (mutation 외 0 regression)
 
 #### Stage 2 — 관찰 후보 (Warning 수준, 차기 sprint 검토)
 
