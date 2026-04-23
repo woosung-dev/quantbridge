@@ -394,14 +394,45 @@ def test_m3_strategy_entry_return_is_detected() -> None:
 
 
 # =====================================================================
-# M8 — Stage 2c 2차 iteration (후속 commit)
+# M8 — VirtualStrategyWrapper.process_bar duplicate fire (Track A only)
 # =====================================================================
 
 
 @pytest.mark.mutation
-@pytest.mark.skip(reason="Stage 2c 2차 iteration — M8 후속 commit")
-@pytest.mark.parametrize("mutation_id", ["M8_alert_hook_duplicate"])
-def test_mutation_stage2c_second_iter(mutation_id: str) -> None:
-    """Stage 2c 2차 후속: M6/M8 구현 예정."""
-    del mutation_id
-    pytest.skip("Stage 2c 2차 iteration")
+@pytest.mark.skipif(not _MUTATIONS_RUNNABLE, reason="fixture 미생성")
+def test_m8_alert_hook_duplicate_is_detected() -> None:
+    """M8 Stage 2c 2차: 같은 bar 에서 alert hook 이 2회 fire 되도록 강제.
+
+    ADR-013 §10.4 설계 — VirtualStrategyWrapper.process_bar 를 wrap:
+      1) 원본 1회 호출 (정상 edge-trigger False→True fire)
+      2) `self._prev[hook.index] = False` 로 모든 hook 의 edge 상태 리셋
+      3) 원본 재호출 → 같은 bar 에서 edge transition 이 재발생 → 중복 fire
+
+    중복 fire 는 `state.entry()` 재진입 유발:
+      - 동일 trade_id 가 이미 open 이면 기존을 close 하고 재open (state 교체)
+      - 새 trade_id 면 추가 trade → num_trades 증가
+
+    Track A 한정 (alert hook 이 Track S 에는 없음). _MUTATION_CORPORA 중
+    i1_utbot (461 trades) 에서 변동 확률 가장 높음. i2_luxalgo (0 trades) 에서는
+    trade 생성 불가 → `_drift_any_corpus` any-of 매치로 i1 단일 감지 충분.
+
+    VirtualStrategyWrapper 내부 (`virtual_strategy.py:82-148`):
+        self._prev: dict[int, bool] = {a.index: False for a in alerts}
+        def process_bar(self, bar_idx: int) -> None: ...
+    """
+    from src.strategy.pine_v2.virtual_strategy import VirtualStrategyWrapper
+
+    original_process_bar = VirtualStrategyWrapper.process_bar
+
+    def mutated_process_bar(self: VirtualStrategyWrapper, bar_idx: int) -> None:
+        # 1회차: 정상 경로 실행
+        original_process_bar(self, bar_idx)
+        # 동일 bar 내 duplicate fire 강제: edge 상태 전면 리셋
+        for hook in self.alerts:
+            self._prev[hook.index] = False
+        # 2회차: 같은 bar 에서 False→True edge 재전이 → 중복 fire
+        original_process_bar(self, bar_idx)
+
+    with patch.object(VirtualStrategyWrapper, "process_bar", mutated_process_bar):
+        drifted, msg = _drift_any_corpus(_load_baseline()["corpora"])
+    assert drifted, f"M8 (alert hook duplicate) 미감지: {msg}"
