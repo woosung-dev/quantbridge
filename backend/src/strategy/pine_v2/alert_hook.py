@@ -173,6 +173,7 @@ _KEYWORD_RULES_LOOSE: list[tuple[SignalKind, tuple[str, ...]]] = [
             r"\blong\b",
             r"\bbuy\b",
             r"\bbull",
+            r"\bupward\b",  # LuxAlgo 류 "broke trendline upward" → LONG_ENTRY (X1+X3 follow-up)
             r"매수",
         ),
     ),
@@ -182,6 +183,7 @@ _KEYWORD_RULES_LOOSE: list[tuple[SignalKind, tuple[str, ...]]] = [
             r"\bshort\b",
             r"\bsell\b",
             r"\bbear",
+            r"\bdownward\b",  # LuxAlgo 류 "broke trendline downward" → SHORT_ENTRY (X1+X3 follow-up)
             r"매도",
         ),
     ),
