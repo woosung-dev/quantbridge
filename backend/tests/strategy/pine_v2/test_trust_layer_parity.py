@@ -346,6 +346,57 @@ def test_p3_i3_drfx_is_skipped_in_baseline() -> None:
     assert "metrics" not in i3, "i3_drfx 는 metrics 없어야 함 (Y1 reject)"
 
 
+# metric 범위 가정 (opus Gate-1 W-2 / Gate-2 M-2)
+# _tolerance.py docstring 이 `[1e-4, 1e1]` 가정 → 실측 baseline 이 이 범위 안인지 검증.
+# 범위 초과 시 ABS_TOL/REL_TOL 재정규화 의무 신호.
+_METRIC_RANGE_MIN = 1e-4  # 절대값 이하는 precision 28 에서 안전
+_METRIC_RANGE_MAX = 1e2  # 절대값 이 이상이면 REL_TOL 0.1% 가 과민반응
+# 주의: max_drawdown 은 음수이나 절대값만 체크. total_return 도 손실이면 음수.
+
+
+@pytest.mark.skipif(
+    not _BASELINE_PRESENT,
+    reason="Stage 2 fixtures 미생성",
+)
+@pytest.mark.parametrize("corpus_id", RUNNABLE_CORPUS)
+def test_p3_baseline_metric_range_sanity(corpus_id: str) -> None:
+    """P-3 sanity (opus Gate-2 M-2): baseline Decimal metric 절대값이 허용 범위.
+
+    `_tolerance.py` docstring 이 metric 범위를 `[1e-4, 1e1]` 로 가정하지만
+    실측 분포가 이 경계에 근접 (예: max_drawdown=-7.75 는 78% 경계). 범위를
+    **[1e-4, 1e2]** 로 완화하되 그래도 초과 시 assert fail 하여 `_tolerance.py`
+    ABS_TOL/REL_TOL 재정규화 PR 의무를 트리거.
+
+    정수 metric (num_trades, long_count, short_count), None 값은 스킵.
+    0 값은 범위 체크 통과 (within_tolerance 의 abs 경로로 처리).
+    """
+    from decimal import Decimal
+
+    baseline = json.loads(_BASELINE_METRICS.read_text())
+    corpus = baseline["corpora"].get(corpus_id, {})
+    metrics = corpus.get("metrics")
+    assert metrics is not None, (
+        f"{corpus_id}: baseline metrics 누락 — regen 필요"
+    )
+
+    for key in _DECIMAL_METRIC_KEYS:
+        value_str = metrics.get(key)
+        if value_str is None:
+            continue
+        value = abs(Decimal(value_str))
+        if value == 0:
+            continue
+        assert value >= Decimal(str(_METRIC_RANGE_MIN)), (
+            f"{corpus_id}.{key}={value_str} 절대값 < {_METRIC_RANGE_MIN}. "
+            "precision 28 에서 유효숫자 부족 가능 — _tolerance.py ABS_TOL 재검토."
+        )
+        assert value <= Decimal(str(_METRIC_RANGE_MAX)), (
+            f"{corpus_id}.{key}={value_str} 절대값 > {_METRIC_RANGE_MAX}. "
+            "REL_TOL 0.1% 가 과민반응 가능 — _tolerance.py REL_TOL 완화 또는 "
+            "해당 metric 정규화 (예: total_return 을 백분율 대신 비율로) 재검토."
+        )
+
+
 # =====================================================================
 # Mutation Oracle (메타 게이트, nightly only)
 # =====================================================================

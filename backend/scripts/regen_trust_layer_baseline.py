@@ -292,7 +292,10 @@ def main() -> int:
             print(f"      {corpus_id}: skipped (Y1 Coverage reject)")
         else:
             print(f"      {corpus_id}: running backtest...")
-            corpora[corpus_id] = _runnable_corpus_record(corpus_id, ohlcv_df)
+            new_record = _runnable_corpus_record(corpus_id, ohlcv_df)
+            # opus Gate-2 M-4: corpus 별 updated_at 분리. git diff 가짜 변경 방지.
+            new_record["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+            corpora[corpus_id] = new_record
             rec = corpora[corpus_id]
             if "error" in rec:
                 print(f"        ⚠️  error: {rec['error']}")
@@ -304,16 +307,31 @@ def main() -> int:
                     f"sharpe={m['sharpe_ratio']}"
                 )
 
+    # opus Gate-2 M-4: 부분 regen (--corpus 모드) 에서 envelope generated_at 보존
+    # → `--corpus` 모드는 "해당 corpus 만 갱신" 의 의미이므로 envelope 는 기존 값 유지.
+    # 전체 regen (args.corpus is None) 일 때만 generated_at 새로 기록.
+    is_full_regen = args.corpus is None
+    if is_full_regen or not existing:
+        envelope_generated_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        envelope_pine_v2_commit = _git_commit_short()
+    else:
+        # 부분 regen: 기존 envelope 값 보존 (단 없으면 신규 생성)
+        envelope_generated_at = existing.get(
+            "generated_at",
+            datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        )
+        envelope_pine_v2_commit = existing.get("pine_v2_commit", _git_commit_short())
+
     print("[3/4] Building metadata envelope...")
     baseline = {
         "schema_version": 1,
         "ohlcv_sha256": _file_sha256(OHLCV_PATH),
-        "pine_v2_commit": _git_commit_short(),
+        "pine_v2_commit": envelope_pine_v2_commit,
         "tool_versions": {
             "pynescript": _pynescript_version(),
             "python": _python_minor(),
         },
-        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": envelope_generated_at,
         "corpora": corpora,
     }
 

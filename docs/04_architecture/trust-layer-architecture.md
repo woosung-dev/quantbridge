@@ -114,6 +114,32 @@ flowchart TB
 
 `*` i3_drfx 는 Y1 Coverage 에서 `is_runnable=false` → baseline 에 `"note": "Skipped"` 로 기록만.
 
+### 3.1.1 Corpus 독립성 실측 (opus Gate-2 M-3, 2026-04-23)
+
+Stage 2b baseline 생성 후 실측 조사 결과:
+
+|   Corpus   | 소스                       | Track |       독립 algorithm       | 비고                                                                                                                                                                                   |
+| :--------: | -------------------------- | :---: | :------------------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|   s1_pbr   | v6 Pivot Breakout Reversal |   S   |             ✅             | 465 trades, sharpe 1.14                                                                                                                                                                |
+|  s2_utbot  | v4 strategy() UT Bot       |   S   | 🟡 i1 과 **동일 알고리즘** | 461 trades. Track S 실행 경로                                                                                                                                                          |
+|  i1_utbot  | v4 study() UT Bot          |   A   | 🟡 s2 와 **동일 알고리즘** | 461 trades (동일). Track A VirtualStrategyWrapper 경로. **의도된 교차 검증** (같은 알고리즘 × 두 Track 이 같은 결과 생성해야)                                                          |
+|  s3_rsid   | v5 RSI Divergence          |   S   |             ✅             | 59 trades, sharpe 1.71                                                                                                                                                                 |
+| i2_luxalgo | v5 LuxAlgo indicator       |   A   |         ✅ (구조)          | **0 trades** — alert 이 trading signal 아닌 information 계열 (trendline break 등). VirtualStrategyWrapper 가 매매 로직 도출 못함. `var_series_digest` + `warnings_digest` 만 검증 효과 |
+|  i3_drfx   | —                          |   —   |             —              | Y1 reject                                                                                                                                                                              |
+
+**실질 독립성**: 5 runnable corpus → **3 독립 알고리즘** (PBR, UT Bot, RSI-D) × **Track S/A 교차** (s2/i1) + 1 indicator only (i2) + 1 Y1 reject (i3).
+
+**P-3 effect coverage 해석**:
+
+- s2_utbot 과 i1_utbot 이 같은 값을 내는 것은 **엔진 정합성 검증** — Track S 와 Track A 가 같은 알고리즘을 같은 결과로 실행함을 증명
+- i2_luxalgo 0-trades 는 **strategy_state drift** 는 못 잡지만 `var_series_digest` / `warnings_digest` 로 **인터프리터 상태 drift** 는 검증
+- **실질 "숫자 regression" 검증 범위**: 3 독립 알고리즘 × 다양한 metric set
+
+**한계 (Stage 3+ 고려)**:
+
+- `sortino_ratio`, `calmar_ratio` 가 모든 corpus 에서 `null` — engine (v2_adapter) 이 해당 metric 계산 미구현. 향후 engine 확장 시 baseline 갱신 예정
+- 독립 corpus 가 3개뿐 → TV 공개 스크립트 15~20 개 프로파일링 (Path γ §3) 으로 corpus 확장 시 P-3 coverage 선형 증가
+
 ### 3.2 각 Layer 의 역할
 
 |           Layer            | 잡는 것                                                              | 못 잡는 것                                                     |            Path β 비용             |
