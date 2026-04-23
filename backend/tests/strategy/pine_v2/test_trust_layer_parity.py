@@ -1,6 +1,8 @@
-"""Trust Layer CI — 3-Layer Parity (P-1 / P-2 / P-3) + Mutation Oracle 스켈레톤.
+"""Trust Layer CI — 3-Layer Parity (P-1 / P-2 / P-3) + Mutation Oracle.
 
-Path β Stage 1 산출물 (2026-04-23 작성). Stage 2 에서 실제 구현.
+Path β Stage 2 실 구현 (2026-04-23). P-1 은 기존
+`test_pynescript_baseline_parity.py` 로 위임, P-2 는 여기서 실 구현,
+P-3 / Mutation / regen 은 fixture 생성 후 green (현재는 skipif).
 
 **참조:**
 - ADR-013: `docs/dev-log/013-trust-layer-ci-design.md`
@@ -9,14 +11,10 @@ Path β Stage 1 산출물 (2026-04-23 작성). Stage 2 에서 실제 구현.
 
 **구조 (ADR-013 §4):**
 
-- **P-1** AST Shape Parity — 부모-자식 edge digest (기존 `baseline.json` 확장)
-- **P-2** Coverage SSOT Sync — `coverage.SUPPORTED_*` ⟺ `stdlib/interpreter` 리플렉션
+- **P-1** AST Shape Parity — `test_pynescript_baseline_parity.py` (types/nodes/edge_digest)
+- **P-2** Coverage SSOT Sync — `coverage._TA_FUNCTIONS ∪ _UTILITY_FUNCTIONS == interpreter.STDLIB_NAMES`
 - **P-3** Execution Golden — 6 corpus × `corpus_ohlcv_frozen.parquet` → metrics digest diff
 - **Meta** Mutation Oracle — 8개 hand-crafted mutation, ≥ 7/8 포착 요구 (nightly)
-
-본 파일은 **스켈레톤** — pytest.skip 으로 collection error 없이 실행 가능하되
-실제 검증 로직은 Stage 2 에서 채운다. Gate-1 (codex + opus 2중 blind) 는
-본 스켈레톤의 **계약 (함수 시그니처 + docstring + 마커)** 을 대상으로 평가.
 
 **Stage 1 확정 결정 (Day 3 오픈 질문 답):**
 
@@ -29,9 +27,20 @@ Path β Stage 1 산출물 (2026-04-23 작성). Stage 2 에서 실제 구현.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
 
+import pandas as pd
 import pytest
+
+from src.strategy.pine_v2 import coverage as cov
+from src.strategy.pine_v2.interpreter import STDLIB_NAMES
+from tests.strategy.pine_v2._tolerance import (
+    digest_sequence,
+    normalize_decimal,
+    within_tolerance,
+)
 
 # ---------------------------------------------------------------------
 # Fixture paths (Stage 2 에서 실 값 채움)
@@ -52,9 +61,7 @@ RUNNABLE_CORPUS: tuple[str, ...] = (
     "i2_luxalgo",
 )
 
-# Mutation Oracle 8개 (ADR-013 §4.4)
-# M3 (strategy.entry 반환값) 의 최종 layer 분류는 Stage 2 실측 후 확정
-# (opus Gate-0 W2 반영 — 현재는 "P-2 or P-3" 로 유보)
+# Mutation Oracle 8개 (ADR-013 §4.4). M3 는 Stage 2 실측 후 layer 재분류 (opus W2).
 MUTATION_IDS: tuple[str, ...] = (
     "M1_sma_off_by_one",
     "M2_rsi_divzero_guard_removed",
@@ -68,77 +75,177 @@ MUTATION_IDS: tuple[str, ...] = (
 
 
 # =====================================================================
-# P-1 AST Shape Parity (edge digest 확장)
+# P-1 AST Shape Parity — `test_pynescript_baseline_parity.py` 로 위임
+# =====================================================================
+# (Stage 2 에서 기존 파일에 edge_digest 검증 추가. 중복 방지로 본 파일엔 stub 없음.)
+
+
+# =====================================================================
+# P-2 Coverage SSOT Sync (리플렉션 기반 실 구현)
 # =====================================================================
 
 
-@pytest.mark.parametrize("script_name", sorted((*RUNNABLE_CORPUS, "i3_drfx")))
-def test_p1_ast_edge_digest_matches_baseline(script_name: str) -> None:
-    """P-1: pynescript AST 의 부모-자식 edge digest 가 baseline.json 과 일치한다.
+def test_p2_stdlib_names_equals_coverage_ta_plus_utility() -> None:
+    """P-2: `interpreter.STDLIB_NAMES == coverage._TA_FUNCTIONS | coverage._UTILITY_FUNCTIONS`.
 
-    기존 `test_pynescript_baseline_parity.py` 는 노드 수 + 타입 히스토그램만 검증.
-    Stage 2 에서 `parent_qualname → child_qualname` 쌍 정렬 튜플의 sha256 을
-    `baseline.json[script_name]["edge_digest"]` 로 추가 비교.
+    양방향 strict equality. 이 하나로 다음 두 실패 시나리오 모두 감지:
 
-    감지 대상:
-    - pynescript 버전 업그레이드 시 AST 구조 변경
-    - corpus .pine 파일 의도치 않은 수정
+    1. "stdlib 에 새 함수 추가 + coverage.py 갱신 누락"
+       → STDLIB_NAMES 에는 있으나 coverage 에 없음 → 좌 ⊄ 우 → FAIL
+       → 사용자가 parse_preview 경고 못 봄 (whack-a-mole 재발)
 
-    Stage 2 구현 예정.
+    2. "coverage.py 에는 있는데 stdlib 구현 삭제"
+       → coverage 에는 있으나 STDLIB_NAMES 에 없음 → 우 ⊄ 좌 → FAIL
+       → 런타임 NotImplementedError
+
+    SSOT 동기화 규약 (ADR-016 §5): stdlib.py / interpreter.STDLIB_NAMES /
+    coverage._TA_FUNCTIONS 3곳을 **동시 갱신** 의무.
     """
-    del script_name  # Stage 1 stub — Stage 2 에서 사용
-    pytest.skip("Stage 2 구현 예정 (P-1 edge digest)")
+    coverage_side = cov._TA_FUNCTIONS | cov._UTILITY_FUNCTIONS
+    extra_in_interpreter = STDLIB_NAMES - coverage_side
+    extra_in_coverage = coverage_side - STDLIB_NAMES
+
+    assert extra_in_interpreter == frozenset(), (
+        f"interpreter.STDLIB_NAMES 에는 있으나 coverage.py 에 누락된 함수: "
+        f"{sorted(extra_in_interpreter)}. "
+        "coverage.py 의 _TA_FUNCTIONS / _UTILITY_FUNCTIONS 에 추가하세요. "
+        "사용자가 parse_preview 에서 경고를 못 보는 whack-a-mole 재발 위험."
+    )
+    assert extra_in_coverage == frozenset(), (
+        f"coverage.py 에는 있으나 interpreter.STDLIB_NAMES 에 누락된 함수: "
+        f"{sorted(extra_in_coverage)}. "
+        "interpreter.STDLIB_NAMES (모듈 top-level frozenset) 에 추가하세요. "
+        "런타임 NotImplementedError 위험."
+    )
 
 
-# =====================================================================
-# P-2 Coverage SSOT Sync (리플렉션 기반)
-# =====================================================================
+def test_p2_coverage_strategy_functions_match_spec() -> None:
+    """P-2: `coverage._STRATEGY_FUNCTIONS` 가 4개 핵심 호출 (entry/close/close_all/exit).
 
-
-def test_p2_supported_functions_are_all_bound() -> None:
-    """P-2 (→): `coverage.SUPPORTED_FUNCTIONS` 의 모든 원소가 실제 구현과 매핑.
-
-    Stage 2 — 실측된 실체 (codex Gate-1 W-C1 반영, TA_CALLABLES 는 존재하지 않음):
-
-    - **SSOT**: `interpreter._STDLIB_NAMES` (set, interpreter.py:684~) — 실제 dispatch 대상
-    - **Dispatch**: `stdlib.StdlibDispatcher.call()` (stdlib.py:538) 의 if-elif 체인
-    - **NOP 핸들러**: `interpreter._handle_plot_nop / _handle_alert / _handle_input` 등
-    - **리플렉션 방식**: `_STDLIB_NAMES` 를 SSOT 로 사용하거나, `StdlibDispatcher.call`
-      소스를 AST 파싱하여 dispatch 케이스 추출 (Stage 2 에서 둘 중 택1 결정)
-
-    양방향 assertion 중 정방향:
-        `cov.SUPPORTED_FUNCTIONS ⊆ {_STDLIB_NAMES ∪ NOP 허용 목록}`
-
-    잡는 것: "coverage.py 에는 있는데 stdlib 구현 삭제" → 런타임 NotImplementedError
+    interpreter 의 `_exec_strategy_call` 및 관련 핸들러가 이 4 함수를 처리.
+    새로운 strategy.* 함수 추가 시 (예: strategy.cancel) 여기도 갱신 필요.
     """
-    pytest.skip("Stage 2 구현 예정 (P-2 forward direction)")
+    expected = frozenset(
+        {
+            "strategy.entry",
+            "strategy.close",
+            "strategy.close_all",
+            "strategy.exit",
+        }
+    )
+    assert expected == cov._STRATEGY_FUNCTIONS, (
+        f"strategy.* 함수 드리프트: "
+        f"코드 {sorted(cov._STRATEGY_FUNCTIONS)} vs 스펙 {sorted(expected)}"
+    )
 
 
-def test_p2_all_bindings_are_in_supported() -> None:
-    """P-2 (←): 실제 구현된 stdlib 함수는 모두 `SUPPORTED_FUNCTIONS` 에 등재.
+def test_p2_supported_functions_union_consistency() -> None:
+    """P-2: `SUPPORTED_FUNCTIONS` 가 9개 하위 그룹 합집합과 일치.
 
-    Stage 2: `{_STDLIB_NAMES ∪ NOP} ⊆ cov.SUPPORTED_FUNCTIONS` (codex W-C1 반영).
-
-    잡는 것: "stdlib 에 새 함수 추가 + coverage.py 갱신 누락"
-    → 사용자가 parse_preview 에서 경고 못 봄 (whack-a-mole 재발)
+    coverage.py 의 내부 그룹 frozenset 들을 `|` 한 결과가 SUPPORTED_FUNCTIONS.
+    그룹 추가/삭제 시 합집합 재계산 누락 방지.
     """
-    pytest.skip("Stage 2 구현 예정 (P-2 reverse direction)")
+    expected_union = (
+        cov._TA_FUNCTIONS
+        | cov._UTILITY_FUNCTIONS
+        | cov._STRATEGY_FUNCTIONS
+        | cov._DECLARATION_FUNCTIONS
+        | cov._PLOT_FUNCTIONS
+        | cov._INPUT_FUNCTIONS
+        | cov._STRING_FUNCTIONS
+        | cov._MATH_FUNCTIONS
+        | cov._V4_ALIASES
+    )
+    assert expected_union == cov.SUPPORTED_FUNCTIONS, (
+        "SUPPORTED_FUNCTIONS 가 9 하위 그룹 합집합과 불일치. "
+        "coverage.py 의 그룹 정의와 최종 변수 선언 재확인 필요."
+    )
 
 
-def test_p2_supported_attributes_bidirectional() -> None:
-    """P-2: `SUPPORTED_ATTRIBUTES` 도 양방향 동기화.
+def test_p2_supported_attributes_union_consistency() -> None:
+    """P-2: `SUPPORTED_ATTRIBUTES` 가 3 그룹 합집합 (series + strategy_attrs + syminfo).
 
-    `interpreter._eval_attribute` 분기와 매치. 시계열 / strategy state / syminfo /
-    barstate 카테고리 모두 동일 규칙.
-
-    Stage 2 구현 예정.
+    Enum 상수 (color.*, shape.* 등) 는 is_supported_attribute 내 prefix 검사 경로
+    로 처리. 본 테스트는 fixed attribute set 만 검증.
     """
-    pytest.skip("Stage 2 구현 예정 (P-2 attributes)")
+    expected_union = cov._SERIES_ATTRS | cov._STRATEGY_ATTRS | cov._SYMINFO_ATTRS
+    assert expected_union == cov.SUPPORTED_ATTRIBUTES, (
+        "SUPPORTED_ATTRIBUTES 가 3 하위 그룹 합집합과 불일치."
+    )
 
 
 # =====================================================================
-# P-3 Execution Golden (metrics digest diff)
+# P-3 Execution Golden (metrics digest diff) — fixture 생성 후 활성
 # =====================================================================
+
+
+def _load_frozen_ohlcv() -> pd.DataFrame:
+    """고정 parquet → DataFrame (engine 계약)."""
+    df = pd.read_parquet(_OHLCV_FROZEN)
+    if "timestamp" in df.columns:
+        df = df.set_index("timestamp")
+    return df
+
+
+def _extract_trades_and_runtime(
+    source: str, ohlcv_df: pd.DataFrame
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[str]]:
+    """corpus 실행 → (trades_as_dicts, var_series, warnings). regen 스크립트 동일 로직."""
+    from src.backtest.engine.v2_adapter import run_backtest_v2
+    from src.strategy.pine_v2.compat import parse_and_run_v2
+
+    outcome = run_backtest_v2(source, ohlcv_df)
+    if outcome.status != "ok" or outcome.result is None:
+        raise RuntimeError(f"run_backtest_v2 failed: status={outcome.status} error={outcome.error}")
+
+    trades = [
+        {
+            "trade_index": t.trade_index,
+            "direction": t.direction,
+            "status": t.status,
+            "entry_bar_index": t.entry_bar_index,
+            "exit_bar_index": t.exit_bar_index,
+            "entry_price": str(t.entry_price),
+            "exit_price": str(t.exit_price) if t.exit_price is not None else None,
+            "size": str(t.size),
+            "pnl": str(t.pnl),
+            "return_pct": str(t.return_pct),
+            "fees": str(t.fees),
+        }
+        for t in outcome.result.trades
+    ]
+
+    # var_series + warnings 는 parse_and_run_v2 재호출 (ADR-013 §4.3)
+    v2 = parse_and_run_v2(source, ohlcv_df, strict=False)
+    var_series: dict[str, Any] = {}
+    warnings: list[str] = []
+    if v2.historical is not None:
+        var_series = dict(v2.historical.var_series or {})
+        if v2.historical.strategy_state is not None:
+            warnings = list(getattr(v2.historical.strategy_state, "warnings", []) or [])
+    elif v2.virtual is not None:
+        var_series = dict(getattr(v2.virtual, "var_series", {}) or {})
+        state = getattr(v2.virtual, "strategy_state", None)
+        if state is not None:
+            warnings = list(getattr(state, "warnings", []) or [])
+        else:
+            warnings = list(getattr(v2.virtual, "warnings", []) or [])
+
+    return trades, var_series, warnings
+
+
+_DECIMAL_METRIC_KEYS = (
+    "total_return",
+    "sharpe_ratio",
+    "max_drawdown",
+    "win_rate",
+    "profit_factor",
+    "sortino_ratio",
+    "calmar_ratio",
+    "avg_win",
+    "avg_loss",
+)
+_INT_METRIC_KEYS = ("num_trades", "long_count", "short_count")
 
 
 @pytest.mark.skipif(
@@ -147,21 +254,81 @@ def test_p2_supported_attributes_bidirectional() -> None:
 )
 @pytest.mark.parametrize("corpus_id", RUNNABLE_CORPUS)
 def test_p3_execution_metrics_match_golden(corpus_id: str) -> None:
-    """P-3: 6 corpus × `corpus_ohlcv_frozen.parquet` → metrics digest 가 baseline 과 일치.
+    """P-3: 6 corpus × corpus_ohlcv_frozen.parquet → metrics + digests baseline 일치.
 
-    Stage 2 실행 단계:
-    1. `run_backtest_v2(corpus_source, ohlcv_frozen)` → `BacktestOutcome`
-    2. outcome.metrics 를 baseline_metrics.json[corpus_id].metrics 와 비교
-       - 허용 오차: `_tolerance.within_tolerance(...)` (max 절대 1e-3 / 상대 1e-3)
-    3. `var_series` / `trades` / `warnings` 는 sha256 digest 로 비교 (길이 독립)
-    4. 실패 시 artifact 로 전체 dump 업로드 (GitHub Actions upload-artifact)
-
-    Decimal-first 엄수: 모든 중간 값 `Decimal(str(x))` 로 변환. float 금지.
-
-    Stage 2 구현 예정.
+    stdlib/interpreter/strategy_state 의 숫자 편차를 CI 에서 감지.
+    허용 오차 = max(절대 0.001, 상대 0.1%) per ADR-013 §4.3.
     """
-    del corpus_id  # Stage 1 stub
-    pytest.skip("Stage 2 구현 예정 (P-3 execution golden)")
+    from src.backtest.engine.v2_adapter import run_backtest_v2
+
+    baseline = json.loads(_BASELINE_METRICS.read_text())
+    expected = baseline["corpora"].get(corpus_id, {})
+    assert "metrics" in expected, (
+        f"{corpus_id}: baseline 에 metrics 누락 (skip/error 상태). "
+        "scripts/regen_trust_layer_baseline.py --confirm 로 재생성."
+    )
+
+    source = (_CORPUS_DIR / f"{corpus_id}.pine").read_text()
+    ohlcv_df = _load_frozen_ohlcv()
+
+    outcome = run_backtest_v2(source, ohlcv_df)
+    assert outcome.status == "ok" and outcome.result is not None, (
+        f"{corpus_id}: run_backtest_v2 status={outcome.status} error={outcome.error}"
+    )
+
+    actual = outcome.result.metrics
+    expected_m = expected["metrics"]
+
+    # Decimal metric 비교
+    for key in _DECIMAL_METRIC_KEYS:
+        actual_val = getattr(actual, key)
+        expected_val = expected_m.get(key)
+        if expected_val is None:
+            is_none_like = actual_val is None or (
+                hasattr(actual_val, "is_nan") and actual_val.is_nan()
+            )
+            assert is_none_like, f"{corpus_id}.{key}: baseline=None 이지만 actual={actual_val}"
+        else:
+            assert actual_val is not None, (
+                f"{corpus_id}.{key}: actual=None, baseline={expected_val}"
+            )
+            assert within_tolerance(actual_val, expected_val), (
+                f"{corpus_id}.{key}: 드리프트\n"
+                f"  actual={normalize_decimal(actual_val)} baseline={expected_val}\n"
+                "의도된 변경이면 regen_trust_layer_baseline.py --confirm 실행."
+            )
+
+    # Integer metric 비교
+    for key in _INT_METRIC_KEYS:
+        actual_val = getattr(actual, key)
+        expected_val = expected_m.get(key, 0)
+        if actual_val is None:
+            actual_val = 0
+        assert actual_val == expected_val, (
+            f"{corpus_id}.{key}: expected={expected_val} actual={actual_val}"
+        )
+
+    # Digest 비교 (길이 독립 fingerprint)
+    trades, var_series, warnings = _extract_trades_and_runtime(source, ohlcv_df)
+    actual_trades_digest = digest_sequence(trades)
+    actual_var_series_digest = digest_sequence(var_series)
+    actual_warnings_digest = digest_sequence(warnings)
+
+    assert actual_trades_digest == expected["trades_digest"], (
+        f"{corpus_id}: trades digest drift\n"
+        f"  actual={actual_trades_digest}\n"
+        f"  baseline={expected['trades_digest']}"
+    )
+    assert actual_var_series_digest == expected["var_series_digest"], (
+        f"{corpus_id}: var_series digest drift\n"
+        f"  actual={actual_var_series_digest}\n"
+        f"  baseline={expected['var_series_digest']}"
+    )
+    assert actual_warnings_digest == expected["warnings_digest"], (
+        f"{corpus_id}: warnings digest drift\n"
+        f"  actual={actual_warnings_digest}\n"
+        f"  baseline={expected['warnings_digest']}"
+    )
 
 
 @pytest.mark.skipif(
@@ -169,16 +336,14 @@ def test_p3_execution_metrics_match_golden(corpus_id: str) -> None:
     reason="Stage 2 fixtures 미생성",
 )
 def test_p3_i3_drfx_is_skipped_in_baseline() -> None:
-    """P-3 부록: i3_drfx 는 baseline 에 `{"note": "Skipped — is_runnable=false"}` 기록만.
-
-    Sprint Y1 Coverage Analyzer 에서 ta.supertrend / tostring / request.security 등
-    미지원 → 422 reject. Trust Layer P-3 대상에서도 자연스럽게 제외.
-
-    baseline 스키마 정합성 확인용.
-
-    Stage 2 구현 예정.
-    """
-    pytest.skip("Stage 2 구현 예정 (P-3 skip semantics)")
+    """P-3 부록: i3_drfx 는 baseline 에 Skipped note 만 포함 (Y1 Coverage reject)."""
+    baseline = json.loads(_BASELINE_METRICS.read_text())
+    i3 = baseline["corpora"].get("i3_drfx", {})
+    assert "note" in i3, "i3_drfx baseline 에 'note' 필드 필요"
+    assert i3["note"].startswith("Skipped"), (
+        f"i3_drfx.note 는 'Skipped' 로 시작해야 함, got: {i3['note']!r}"
+    )
+    assert "metrics" not in i3, "i3_drfx 는 metrics 없어야 함 (Y1 reject)"
 
 
 # =====================================================================
@@ -189,28 +354,9 @@ def test_p3_i3_drfx_is_skipped_in_baseline() -> None:
 @pytest.mark.skip(reason="Mutation oracle 은 nightly workflow 또는 `pytest --run-mutations` 수동")
 @pytest.mark.parametrize("mutation_id", MUTATION_IDS)
 def test_mutation_is_detected_by_some_parity_layer(mutation_id: str) -> None:
-    """Mutation Oracle: 각 mutation 이 P-1/2/3 중 **최소 1 layer** 에 의해 포착된다.
-
-    Stage 2 실행 단계 (nightly):
-    1. 해당 mutation 을 pine_v2 구현에 inject (subprocess 에서 isolated venv)
-    2. P-1/2/3 테스트 실행
-    3. 하나라도 fail 하면 "포착 성공"
-    4. 8 개 중 ≥ 7 개 성공 필요 (SLO TL-E-5)
-
-    Layer 별 포착 예상:
-    - M1 (sma off-by-one) → P-3 (total_return drift)
-    - M2 (rsi divzero) → P-3 (corpus 실행 실패 또는 NaN leak)
-    - M3 (strategy.entry return) → P-2 or P-3 (Stage 2 실측 후 재분류; opus Gate-0 W2)
-    - M4 (crossover >=) → P-3 (trade 발생 시점 shift)
-    - M5 (position_size 부호) → P-3 (trades_digest 변화)
-    - M6 (Decimal → float leak) → P-3 (상대 오차 >0.001% 확대)
-    - M7 (persistent rollback 누락) → P-3 (var_series_digest 변화)
-    - M8 (alert 중복 hook) → P-3 (trade 수 2배 + trades_digest 변화)
-
-    Stage 2 구현 예정.
-    """
-    del mutation_id  # Stage 1 stub
-    pytest.skip("Mutation oracle — nightly only")
+    """Mutation Oracle: 각 mutation 이 P-1/2/3 중 **최소 1 layer** 에 의해 포착된다."""
+    del mutation_id
+    pytest.skip("Mutation oracle — nightly only (Stage 2 후속)")
 
 
 # =====================================================================
@@ -218,11 +364,30 @@ def test_mutation_is_detected_by_some_parity_layer(mutation_id: str) -> None:
 # =====================================================================
 
 
+_REGEN_SCRIPT = Path(__file__).parents[3] / "scripts" / "regen_trust_layer_baseline.py"
+
+
+@pytest.mark.skipif(not _REGEN_SCRIPT.exists(), reason="regen_trust_layer_baseline.py 미생성")
 def test_regen_script_without_confirm_fails() -> None:
-    """`regen_trust_layer_baseline.py` 가 `--confirm` 없이 호출되면 exit code ≠ 0.
+    """`regen_trust_layer_baseline.py` 가 `--confirm` 없이 호출되면 exit code != 0.
 
-    SLO TL-E-6 (requirements §3.1 Hard Block). 오남용 방지 게이트.
-
-    Stage 2 구현 예정 (subprocess 로 스크립트 실행 후 returncode 검증).
+    SLO TL-E-6 (requirements §3.1 Hard Block) — 오남용 방지 게이트.
     """
-    pytest.skip("Stage 2 구현 예정 (regen --confirm 게이트)")
+    import shutil
+    import subprocess
+    import sys
+
+    # sys.executable 을 사용해 현재 venv python 으로 실행 (shell 우회, S603 안전)
+    py = sys.executable or shutil.which("python") or "python"
+    result = subprocess.run(
+        [py, str(_REGEN_SCRIPT)],
+        capture_output=True,
+        text=True,
+        cwd=_REGEN_SCRIPT.parents[1],  # backend/
+        timeout=30,
+    )
+    assert result.returncode != 0, (
+        f"--confirm 없이 호출했는데 성공함: returncode={result.returncode}\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "--confirm" in result.stderr, f"에러 메시지에 '--confirm' 힌트 누락: {result.stderr}"

@@ -117,7 +117,11 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
-      - run: uv run pytest -v
+      # Trust Layer Parity (Path β, ADR-013) 는 pine_v2 하위 테스트로 자동 포함됨:
+      # - test_pynescript_baseline_parity.py (P-1 AST Shape + edge_digest)
+      # - test_trust_layer_parity.py (P-2 Coverage SSOT Sync + P-3/Mutation stub)
+      # `--durations=10` 은 SLO TL-E-4 (Trust Layer step ≤3분) 모니터링 용도.
+      - run: uv run pytest -v --durations=10
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           REDIS_URL: redis://localhost:6379/0

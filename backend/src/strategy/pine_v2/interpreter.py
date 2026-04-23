@@ -47,6 +47,32 @@ from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
 from src.strategy.pine_v2.strategy_state import StrategyState
 
+# ta.* / na / nz — stdlib 디스패치 대상 이름
+# Path β P-2 Coverage SSOT Sync — `coverage._TA_FUNCTIONS | _UTILITY_FUNCTIONS` 와
+# 완전 일치해야 함 (ADR-013 §4.2). 새 stdlib 함수 추가 시 **3 파일 동시 갱신**
+# (stdlib.py + interpreter.STDLIB_NAMES + coverage.py).
+STDLIB_NAMES: frozenset[str] = frozenset({
+    "ta.sma",
+    "ta.ema",
+    "ta.atr",
+    "ta.rsi",
+    "ta.crossover",
+    "ta.crossunder",
+    "ta.highest",
+    "ta.lowest",
+    "ta.change",
+    "ta.pivothigh",
+    "ta.pivotlow",
+    "ta.stdev",
+    "ta.variance",
+    "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
+    "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
+    "ta.barssince",
+    "ta.valuewhen",  # Sprint 8c
+    "na",
+    "nz",
+})
+
 # ------------------------------------------------------------
 # Bar Context — OHLCV 시계열 접근 계층
 # ------------------------------------------------------------
@@ -680,29 +706,8 @@ class Interpreter:
                 self._eval_expr(then_arg) if self._truthy(cond_val) else self._eval_expr(else_arg)
             )
 
-        # ta.* / na / nz — stdlib 디스패치
-        _STDLIB_NAMES = {
-            "ta.sma",
-            "ta.ema",
-            "ta.atr",
-            "ta.rsi",
-            "ta.crossover",
-            "ta.crossunder",
-            "ta.highest",
-            "ta.lowest",
-            "ta.change",
-            "ta.pivothigh",
-            "ta.pivotlow",
-            "ta.stdev",
-            "ta.variance",
-            "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
-            "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
-            "ta.barssince",
-            "ta.valuewhen",  # Sprint 8c
-            "na",
-            "nz",
-        }
-        if name in _STDLIB_NAMES:
+        # ta.* / na / nz — stdlib 디스패치 (참조: STDLIB_NAMES 모듈-level frozenset)
+        if name in STDLIB_NAMES:
             args = [
                 self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
             ]
