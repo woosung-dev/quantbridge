@@ -26,6 +26,7 @@ Path β Stage 1 산출물 (2026-04-23 작성). Stage 2 에서 실제 구현.
 | Q2. Mutation oracle CI 포함 | **Nightly only** (`--run-mutations`) | CI 시간 예산 (≤3분) 초과 방지. 회귀는 main nightly 로 검증 |
 | Q3. baseline_metrics.json 포맷 | **plain JSON** (no msgpack/pickle) | git diff 가능 → PR 리뷰 가치가 속도 절감보다 큼 |
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -71,7 +72,7 @@ MUTATION_IDS: tuple[str, ...] = (
 # =====================================================================
 
 
-@pytest.mark.parametrize("script_name", sorted(RUNNABLE_CORPUS + ("i3_drfx",)))
+@pytest.mark.parametrize("script_name", sorted((*RUNNABLE_CORPUS, "i3_drfx")))
 def test_p1_ast_edge_digest_matches_baseline(script_name: str) -> None:
     """P-1: pynescript AST 의 부모-자식 edge digest 가 baseline.json 과 일치한다.
 
