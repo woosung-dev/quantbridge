@@ -83,6 +83,30 @@ def ta_ema(state: IndicatorState, node_id: int, source: float, length: int) -> f
     return float(ema)
 
 
+def ta_rma(state: IndicatorState, node_id: int, source: float, length: int) -> float:
+    """Wilder Running Moving Average (alpha = 1/length, EMA-style smoothing).
+
+    첫 값 = SMA(length) seed, 이후 = (prev * (length-1) + source) / length.
+    Pine v5 ta.rma 호환. Sprint X1+X3 dogfood follow-up (i3_drfx ta.rma 의존).
+    """
+    if length <= 0:
+        return float("nan")
+    slot = state.buffers.setdefault(node_id, {"prev": float("nan"), "warmup": []})
+    if _is_na(source):
+        return float(slot["prev"])
+    warmup = slot["warmup"]
+    if _is_na(slot["prev"]):
+        warmup.append(source)
+        if len(warmup) < length:
+            return float("nan")
+        seed = sum(warmup) / length
+        slot["prev"] = seed
+        return float(seed)
+    rma = (slot["prev"] * (length - 1) + source) / length
+    slot["prev"] = rma
+    return float(rma)
+
+
 # -------- 변동성 / 범위 ------------------------------------------------
 
 
@@ -531,6 +555,8 @@ class StdlibDispatcher:
             return ta_sma(self.state, node_id, *args)
         if func_name == "ta.ema":
             return ta_ema(self.state, node_id, *args)
+        if func_name == "ta.rma":
+            return ta_rma(self.state, node_id, *args)
         if func_name == "ta.atr":
             (length,) = args
             return ta_atr(self.state, node_id, length, high, low, close_prev)
