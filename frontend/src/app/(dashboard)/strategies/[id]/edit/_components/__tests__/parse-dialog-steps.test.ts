@@ -10,6 +10,8 @@ const emptyResponse: ParsePreviewResponse = {
   entry_count: 0,
   exit_count: 0,
   functions_used: [],
+  unsupported_builtins: [],
+  is_runnable: true,
 };
 
 describe("buildParseSteps", () => {
@@ -27,6 +29,8 @@ describe("buildParseSteps", () => {
       errors: [{ code: "syntax", message: "bad", line: 12 }],
       warnings: ["duplicate strategy.exit calls at lines [5, 9]"],
       functions_used: ["ta.rsi"],
+  unsupported_builtins: [],
+  is_runnable: true,
     });
     expect(steps.map((s) => s.kind)).toEqual([
       "intro",
@@ -94,6 +98,8 @@ describe("buildParseSteps", () => {
     const steps = buildParseSteps({
       ...emptyResponse,
       functions_used: ["ta.rsi", "ta.rsi", "ta.sma"],
+  unsupported_builtins: [],
+  is_runnable: true,
     });
     const names = steps
       .filter((s): s is Extract<typeof s, { kind: "function" }> => s.kind === "function")
@@ -106,6 +112,8 @@ describe("buildParseSteps", () => {
     const steps = buildParseSteps({
       ...emptyResponse,
       functions_used: ["", "  ", "ta.rsi"],
+  unsupported_builtins: [],
+  is_runnable: true,
     });
     const fnSteps = steps.filter(
       (s): s is Extract<typeof s, { kind: "function" }> => s.kind === "function",

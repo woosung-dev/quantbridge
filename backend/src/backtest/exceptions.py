@@ -1,4 +1,5 @@
 """backtest 도메인 예외."""
+
 from __future__ import annotations
 
 from fastapi import status
@@ -48,3 +49,15 @@ class BacktestDuplicateIdempotencyKey(BacktestError):
     status_code = status.HTTP_409_CONFLICT
     code = "backtest_idempotency_conflict"
     detail = "Duplicate Idempotency-Key"
+
+
+class StrategyNotRunnable(BacktestError):
+    """Pine 소스에 미지원 built-in 함수/변수가 있어 backtest 실행 불가.
+
+    Sprint Y1 (B+D): pre-flight coverage analyzer 가 unsupported_builtins 발견 시 raise.
+    detail 에 미지원 항목 목록 포함 — UI 에서 사용자 안내.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "strategy_not_runnable"
+    detail = "Strategy contains unsupported Pine built-ins"

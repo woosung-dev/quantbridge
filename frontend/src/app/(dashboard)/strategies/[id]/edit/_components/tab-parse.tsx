@@ -120,6 +120,27 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
               tone="info"
             />
           </dl>
+          {/* Sprint Y1 (B+D): pre-flight unsupported builtins — backtest 실행 차단 사유 */}
+          {live && live.unsupported_builtins.length > 0 && (
+            <div className="rounded border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-700 dark:bg-amber-950/40">
+              <p className="font-bold text-amber-800 dark:text-amber-200">
+                ⚠️ 미지원 Pine 함수/변수 ({live.unsupported_builtins.length}건) — 백테스트 실행 불가
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-1.5 font-mono">
+                {live.unsupported_builtins.map((fn) => (
+                  <li
+                    key={fn}
+                    className="rounded bg-amber-200 px-1.5 py-0.5 text-amber-900 dark:bg-amber-800 dark:text-amber-100"
+                  >
+                    {fn}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[0.7rem] text-amber-700 dark:text-amber-300">
+                지원 목록은 <code>docs/02_domain/supported-indicators.md</code> 참조.
+              </p>
+            </div>
+          )}
           {previewError ? (
             <div className="rounded border border-[color:var(--destructive-light)] bg-[color:var(--destructive-light)] p-2 text-xs">
               <p className="font-bold text-[color:var(--destructive)]">

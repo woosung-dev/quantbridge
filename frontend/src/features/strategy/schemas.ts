@@ -25,6 +25,9 @@ export const ParsePreviewResponseSchema = z.object({
   exit_count: z.number().int().default(0),
   // Sprint 7b ISSUE-004: BE ParseOutcome.supported_feature_report["functions_used"] 반영.
   functions_used: z.array(z.string()).default([]),
+  // Sprint Y1: pre-flight coverage analyzer — 미지원 built-in 명시 (whack-a-mole 종식)
+  unsupported_builtins: z.array(z.string()).default([]),
+  is_runnable: z.boolean().default(true),
 });
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
 

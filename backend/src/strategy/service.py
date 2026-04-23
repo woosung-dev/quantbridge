@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import (
@@ -148,6 +149,8 @@ class StrategyService:
         status, version, warnings, errors, entry_count, exit_count, functions_used = (
             _parse(pine_source)
         )
+        # Sprint Y1: pre-flight coverage analyzer — 미지원 built-in 식별
+        coverage = analyze_coverage(pine_source)
         return ParsePreviewResponse(
             status=status,
             pine_version=version,
@@ -156,6 +159,8 @@ class StrategyService:
             entry_count=entry_count,
             exit_count=exit_count,
             functions_used=functions_used,
+            unsupported_builtins=list(coverage.all_unsupported),
+            is_runnable=(status == ParseStatus.ok and coverage.is_runnable),
         )
 
     async def create(

@@ -132,6 +132,25 @@ function ResultBody({ result }: { result: ParsePreviewResponse }) {
         </section>
       )}
 
+      {/* Sprint Y1 (B+D): pre-flight unsupported builtins */}
+      {result.unsupported_builtins.length > 0 && (
+        <section className="mt-3">
+          <h4 className="text-[0.65rem] font-bold uppercase tracking-wide text-amber-700">
+            ⚠️ 미지원 Pine 함수/변수 ({result.unsupported_builtins.length}) — 백테스트 실행 불가
+          </h4>
+          <ul className="mt-1 flex flex-wrap gap-1 text-xs">
+            {result.unsupported_builtins.map((fn) => (
+              <li key={fn} className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-amber-900">
+                {fn}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[0.65rem] text-[color:var(--text-secondary)]">
+            지원 목록: <code>docs/02_domain/supported-indicators.md</code>
+          </p>
+        </section>
+      )}
+
       {hasFunctions && (
         <section className="mt-3">
           <h4 className="text-[0.65rem] font-bold uppercase tracking-wide text-[color:var(--text-secondary)]">

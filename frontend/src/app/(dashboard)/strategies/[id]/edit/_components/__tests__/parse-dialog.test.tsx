@@ -11,6 +11,8 @@ const sample: ParsePreviewResponse = {
   entry_count: 1,
   exit_count: 1,
   functions_used: ["ta.rsi", "strategy.entry"],
+  unsupported_builtins: [],
+  is_runnable: true,
 };
 
 describe("ParseDialog", () => {
@@ -67,6 +69,8 @@ describe("ParseDialog", () => {
       status: "error",
       errors: [{ code: "syntax", message: "bad", line: 3 }],
       functions_used: [],
+  unsupported_builtins: [],
+  is_runnable: true,
     };
     render(
       <ParseDialog
@@ -90,6 +94,8 @@ describe("ParseDialog", () => {
     const longer: ParsePreviewResponse = {
       ...sample,
       functions_used: ["ta.rsi", "ta.ema"],
+  unsupported_builtins: [],
+  is_runnable: true,
     };
     const shorter: ParsePreviewResponse = { ...sample, functions_used: [] };
     const { rerender } = render(
@@ -147,6 +153,8 @@ describe("ParseDialog", () => {
       status: "error",
       errors: [{ code: "syntax", message: "bad start", line: 0 }],
       functions_used: [],
+  unsupported_builtins: [],
+  is_runnable: true,
     };
     render(
       <ParseDialog
@@ -167,6 +175,8 @@ describe("ParseDialog", () => {
       status: "unsupported",
       errors: [],
       functions_used: [],
+  unsupported_builtins: [],
+  is_runnable: true,
     };
     render(
       <ParseDialog
