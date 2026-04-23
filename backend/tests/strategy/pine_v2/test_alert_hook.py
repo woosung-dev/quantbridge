@@ -303,3 +303,30 @@ def test_loose_mode_bullish_breakout_is_long_entry(loose_mode: None) -> None:
 def test_loose_mode_bearish_break_is_short_entry(loose_mode: None) -> None:
     """대칭: 'Bearish breakdown' → loose=SHORT_ENTRY."""
     assert classify_message("Bearish breakdown") == SignalKind.SHORT_ENTRY
+
+
+# -------- v2 follow-up: LuxAlgo trendline-break upward/downward (X1+X3 dogfood) --
+
+
+def test_loose_mode_upward_break_is_long_entry(loose_mode: None) -> None:
+    """i2_luxalgo 'Price broke the down-trendline upward' → LONG_ENTRY (loose)."""
+    assert (
+        classify_message("Price broke the down-trendline upward")
+        == SignalKind.LONG_ENTRY
+    )
+
+
+def test_loose_mode_downward_break_is_short_entry(loose_mode: None) -> None:
+    """i2_luxalgo 'Price broke the up-trendline downward' → SHORT_ENTRY (loose)."""
+    assert (
+        classify_message("Price broke the up-trendline downward")
+        == SignalKind.SHORT_ENTRY
+    )
+
+
+def test_strict_mode_upward_break_still_information(strict_mode: None) -> None:
+    """strict 에서는 break/trendline 키워드 우선 → INFORMATION 유지 (회귀 방지)."""
+    assert (
+        classify_message("Price broke the down-trendline upward")
+        == SignalKind.INFORMATION
+    )
