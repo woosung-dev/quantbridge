@@ -485,18 +485,39 @@
 - [ ] Day 3 오픈 질문 결정: evaluator 병렬/직렬, mutation CI 포함 여부, baseline 포맷
 - [ ] Gate-1: codex + opus 2중 blind 검증 (G1-A~E)
 
-#### Stage 2 — Implement (Day 4~7)
+#### Stage 2a — Data-independent (commit `060725d`, PR #65 base) ✅ 완료 (2026-04-23)
 
-- [ ] `corpus_ohlcv_frozen.parquet` 생성 (BTCUSDT 1h 2024-01-01~06-30)
-- [ ] `baseline_metrics.json` 실 값 채움 (6 corpus, i3 제외 5)
-- [ ] P-1 AST Shape 테스트 확장 (edge digest)
-- [ ] P-2 Coverage SSOT Sync 테스트 (리플렉션)
-- [ ] P-3 Execution Golden 테스트 (metrics digest diff <0.1%)
-- [ ] Mutation oracle 8개 (skip by default)
-- [ ] `backend/scripts/regen_trust_layer_baseline.py --confirm` 게이트
-- [ ] `.github/workflows/ci.yml` trust-layer step 추가 (≤3분)
-- [ ] ADR-013 "구현 결과" 섹션 보강
-- [ ] Gate-2: codex + opus 2중 blind + mutation ≥7/8 (G2-A~G)
+- [x] `_tolerance.py` 실 구현 (4 public func + Decimal precision guard)
+- [x] P-1 AST Shape edge_digest (`test_pynescript_baseline_parity.py` 확장, 12/12)
+- [x] P-2 Coverage SSOT Sync (양방향 strict equality + 3 union consistency, 4/4)
+- [x] `generate_corpus_ohlcv_frozen.py` + `regen_trust_layer_baseline.py` (--confirm gate)
+- [x] CI `--durations=10` 모니터링 + `ruff.toml` per-file-ignores (RUF001-003)
+
+#### Stage 2b — Execution Golden 실측 (commit `ec532ef`) ✅ 완료 (2026-04-23)
+
+- [x] `corpus_ohlcv_frozen.parquet` 생성 (Bybit BTCUSDT 1h 2024-01~06, 4,368 bars, sha256 `1a99144813...5038`)
+- [x] `baseline_metrics.json` 실값 생성 (5 runnable corpus + i3_drfx skip)
+- [x] P-3 Execution Golden 실 assertion (6/6 green, 허용 오차 max(0.001 abs, 0.1% rel))
+- [x] regen `--confirm` gate test 실 구현 (subprocess, 0.38s)
+- [x] ADR-013 §11 Amendment 추가 (Stage 2b 완료 + Stage 2c 이연 명시)
+- [x] **Gate-2 CONDITIONAL PASS**: codex 8.5/10 + opus 8/10 (blockers 0)
+  - SLO 9개 중 8개 실 달성 (TL-E-1/2/3/4/6/7/8/9)
+  - TL-E-5 (Mutation ≥7/8) Stage 2c 이연 — ADR-013 §10.1 Q2 "nightly only" 결정 근거
+
+#### Stage 2c — Mutation Oracle + Gate-2 후속 의무 (opus Gate-2 M-1~M-4)
+
+**Path β 완료 선언 조건** (Path γ 진입 전 또는 H1 종료 전 이행):
+
+- [ ] **M-1 Mutation Oracle harness** — 8 mutation subprocess inject + AST-level patch. 우선순위: M1/M2/M4/M5/M7 (P-3 포착 확실) 5개 먼저. Deadline 제안: **2026-05-31** (H1 종료 전)
+- [ ] **M-2 metric 범위 assert 추가** — `test_p3_baseline_metric_range_sanity` 신규. 실측 분포가 `[1e-4, 1e1]` 내인지 검증 (opus Gate-1 W-2 / Gate-2 W-OPUS-G2-2)
+- [ ] **M-3 P-3 corpus 독립성 보강** — s2_utbot/i1_utbot 동일값 + i2_luxalgo 0-trades + sortino/calmar null 조사. "5 corpus" → "3 독립 strategy + 2 지표" 로 문서 정정 (opus Gate-2 W-OPUS-G2-3)
+- [ ] **M-4 `generated_at` 부분 regen fix** — `--corpus` 모드에서 envelope 부분 보존 + corpus 별 `updated_at` 분리 (opus Gate-2 W-OPUS-G2-4)
+- [ ] Stage 2c 완료 후 requirements.md §4.1 에 "Mutation 측정 불가 = scope-reducing" 명시화 (codex Gate-2 W-2)
+
+#### Stage 2 — 관찰 후보 (Warning 수준, 차기 sprint 검토)
+
+- [ ] codex Gate-2 W-3: P-3 중복 실행 (`run_backtest_v2` + `parse_and_run_v2`) → 엔진 API 통합 후 1회 호출로 축소
+- [ ] opus Gate-2 W-OPUS-G2-5: CI 시간 선형 증가 대비 subset marker (`@pytest.mark.trust_layer_full`) 도입 시점
 
 #### Dogfood (A 트랙) — Stage 2 중 병행
 

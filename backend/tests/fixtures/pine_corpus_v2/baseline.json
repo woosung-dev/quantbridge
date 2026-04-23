@@ -1,8 +1,32 @@
 {
-  "s1_pbr":     {"types": 24, "nodes":   231},
-  "s2_utbot":   {"types": 27, "nodes":   734},
-  "s3_rsid":    {"types": 32, "nodes":  1245},
-  "i1_utbot":   {"types": 25, "nodes":   587},
-  "i2_luxalgo": {"types": 30, "nodes":   822},
-  "i3_drfx":    {"types": 40, "nodes": 10289}
+  "i1_utbot": {
+    "edge_digest": "d4f9252a3b07283fc942e159bf0329512a0d4f589e575ae950250af1cca301b8",
+    "nodes": 587,
+    "types": 25
+  },
+  "i2_luxalgo": {
+    "edge_digest": "7649ec94e803d484faa5358ebf9cfff6222ef15abba6133e6ef9f0b34315d9a1",
+    "nodes": 822,
+    "types": 30
+  },
+  "i3_drfx": {
+    "edge_digest": "dffa21fb505fe5e026e2604a352abdda1d7282d4aeb713f745ef7a31c862457a",
+    "nodes": 10289,
+    "types": 40
+  },
+  "s1_pbr": {
+    "edge_digest": "4b1d0dbf0d1fac1b9f7be0d7c55982cda5023914963a15880934018b438de6e7",
+    "nodes": 231,
+    "types": 24
+  },
+  "s2_utbot": {
+    "edge_digest": "747f04a59438b89b36ee0f05208ae52827a857c42b7f3e3275e35ffe38f3554e",
+    "nodes": 734,
+    "types": 27
+  },
+  "s3_rsid": {
+    "edge_digest": "541fd215cd3e767d481ba5fa23223462073f97e086c3ce4a690d6f5e10a99473",
+    "nodes": 1245,
+    "types": 32
+  }
 }

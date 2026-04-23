@@ -273,7 +273,7 @@ SLO-1~3 는 main merge 게이트. SLO-4 초과 시 subset marker 도입 (degrade
 - [x] `test_trust_layer_parity.py` 스켈레톤 + `_tolerance.py` stub (Stage 2 에서 채움)
 - [x] `baseline_metrics.schema.json` (JSON Schema Draft 2020-12, `tool_versions` 포함)
 - [x] Day 3 오픈 질문 결정 → §10.1 참조
-- [ ] Gate-1 evaluator (codex + opus 2중 blind) — 다음 단계
+- [x] Gate-1 evaluator (codex 7.5/10 + opus 8/10 PASS) — §10.1/§10.2/§10.3 반영
 
 ### Path β Stage 2 (Implement, Day 4~7)
 
@@ -342,6 +342,22 @@ Stage 1 Day 3 오픈 질문 3 개 결정 + Gate-0 Opus evaluator Warning (W2/W3/
   (3) ≥7/8 "1개 허용" 의 실용 buffer 가 가중치 없을 때 가장 선명.
 - baseline_metrics 의 `schema_version` 업그레이드 (1→2) 시 **migration 정책** 부재. Stage 2 에서 v1 확정 후 v2 migration 규약 별도 ADR.
 
+### 10.3 Schema v1 → v2 Migration 원칙 (Gate-1 codex W-C4 반영)
+
+`baseline_metrics.schema.json` 의 `schema_version` 이 현재 `const: 1`. 향후 breaking
+change (예: 새 metric 필드 추가, digest 알고리즘 교체) 가 필요하면:
+
+1. **v2 schema 추가** (기존 v1 유지): `baseline_metrics.v2.schema.json` 신규 파일
+2. **Migration 스크립트**: `regen_trust_layer_baseline.py --migrate v1-to-v2` 로 자동 변환.
+   변환 불가능한 필드 (예: 새 metric 추가) 는 regen 필수 — 스크립트가 사용자에게 명시
+3. **단일 ADR 필수**: v2 도입은 ADR-013 amendment 또는 신규 ADR 로 근거 기록
+4. **`additionalProperties: false` 완화 불가**: 의도적 필드 추가는 schema 변경 의무.
+   임시 필드 (`extra_versions` 같은 bag) 로 우회 금지 — drift 누적 방지
+5. **Backward compat 유지 기간**: v2 ship 후 최소 1 sprint 동안 v1 reader 병행 지원
+
+미결정: regen 스크립트의 migration 구현 시기는 실제 v2 필요 시점 (Path γ 이후 예상).
+현재는 **원칙만 기록**, 코드는 불필요.
+
 ### 10.2 Decimal 문자열 정규화 규약 (Gate-1 opus W-1 반영)
 
 Gate-1 에서 발견: `DecimalString` 패턴 `^-?\d+(\.\d+)?$` 는 `"0.0832"` / `"0.08320"` / `"0.083200000"` 모두 valid → regen 스크립트가 trailing zero 를 어떻게 출력하느냐에 따라 **git diff 가짜 변경** 발생 위험. requirements §5.2 "변경 크기 > 5% 시 PR 설명 의무" 프로세스가 노이즈로 마비 가능.
@@ -361,8 +377,9 @@ Gate-1 에서 발견: `DecimalString` 패턴 `^-?\d+(\.\d+)?$` 는 `"0.0832"` / 
 
 ## 11. Amendment History
 
-| 날짜           | 사유                                       | 변경                                                                                                                                                 |
-| -------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-04-23     | 최초 초안                                  | Path β Stage 0 에서 작성. Stage 2 구현 완료 시 "구현 결과" 섹션 추가 예정                                                                            |
-| 2026-04-23     | Stage 1 Design 완료                        | §8 체크 갱신 + §10.1 "Stage 1 에서 확정" (Q1/Q2/Q3 + Opus W2/W3/W4/W5 반영)                                                                          |
-| **2026-04-23** | **Gate-1 PASS (codex 7.5/10 + opus 8/10)** | **§4.2 실체 정정 (`_STDLIB_NAMES + StdlibDispatcher.call`, codex W-C1) + §10.1 Mutation 등가 가중 확정 + §10.2 Decimal 정규화 규약 신규 (opus W-1)** |
+| 날짜           | 사유                                   | 변경                                                                                                                                                                                                                                                                                  |
+| -------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-04-23     | 최초 초안                              | Path β Stage 0 에서 작성. Stage 2 구현 완료 시 "구현 결과" 섹션 추가 예정                                                                                                                                                                                                             |
+| 2026-04-23     | Stage 1 Design 완료                    | §8 체크 갱신 + §10.1 "Stage 1 에서 확정" (Q1/Q2/Q3 + Opus W2/W3/W4/W5 반영)                                                                                                                                                                                                           |
+| 2026-04-23     | Gate-1 PASS (codex 7.5/10 + opus 8/10) | §4.2 실체 정정 (`_STDLIB_NAMES + StdlibDispatcher.call`, codex W-C1) + §10.1 Mutation 등가 가중 확정 + §10.2 Decimal 정규화 규약 신규 (opus W-1)                                                                                                                                      |
+| **2026-04-23** | **Stage 2b 실 구현 완료**              | **OHLCV fetch 실측 (4,368 bars, BTCUSDT 1h 2024-01~06) + baseline_metrics.json 실값 + P-3 6/6 corpus green + regen `--confirm` gate 실 검증. Mutation Oracle (S2-6) 은 subprocess isolation + AST mutation 복잡도로 **Stage 2c 이연**. pine_v2 총 321 pass / 8 skip (Mutation only)** |
