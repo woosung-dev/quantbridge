@@ -280,16 +280,52 @@ def test_m7_stdlib_global_drift_is_detected() -> None:
 
 
 # =====================================================================
-# M3 / M6 / M8 — Stage 2c 2차 iteration 으로 이연
+# M3 — StrategyState.entry no-op cascade (반환 None + 내부 등록 skip)
 # =====================================================================
 
 
 @pytest.mark.mutation
-@pytest.mark.skip(reason="Stage 2c 2차 iteration (H1 종료 전) — M3/M6/M8")
-@pytest.mark.parametrize(
-    "mutation_id", ["M3_strategy_entry_return", "M6_decimal_float_leak", "M8_alert_hook_duplicate"]
-)
+@pytest.mark.skipif(not _MUTATIONS_RUNNABLE, reason="fixture 미생성")
+def test_m3_strategy_entry_return_is_detected() -> None:
+    """M3 Stage 2c 2차: StrategyState.entry 를 no-op 으로 강제 → trade 미등록.
+
+    ADR-013 §4.4 원안 (반환 None → False) 은 호출자가 반환값을 직접 참조하지 않기
+    때문에 단순 return 변경 만으로는 감지 불가. 본 테스트는 그 의도를 보존하면서
+    **entry 자체를 no-op (원본 미호출 + return None)** 으로 시뮬레이션:
+
+    - Track S (`interpreter.py:1018-1027`) 와 Track A (`virtual_strategy.py:139-145`)
+      양쪽에서 `state.entry(...)` 호출 시 Trade 객체 생성/등록이 skip 됨
+    - 후속 close 호출도 open_trades 에 대상 trade 없음 → 거래 전혀 기록 안 됨
+    - `num_trades` 가 baseline 대비 drop → `_drift_any_corpus` 에서 감지
+
+    P-3 감지 경로: metrics.num_trades 편차. trades_digest 공디지스트 drift 보조.
+    """
+    from src.strategy.pine_v2.strategy_state import StrategyState
+
+    def mutated_entry(
+        self: StrategyState,
+        trade_id: str,
+        direction: Any,
+        **kwargs: Any,
+    ) -> None:
+        """원본 entry 를 호출하지 않고 즉시 return None — trade 생성/등록 전부 skip."""
+        del self, trade_id, direction, kwargs
+        return None
+
+    with patch.object(StrategyState, "entry", mutated_entry):
+        drifted, msg = _drift_any_corpus(_load_baseline()["corpora"])
+    assert drifted, f"M3 (entry no-op cascade) 미감지: {msg}"
+
+
+# =====================================================================
+# M6 / M8 — Stage 2c 2차 iteration (M3/M5 구현 후 후속)
+# =====================================================================
+
+
+@pytest.mark.mutation
+@pytest.mark.skip(reason="Stage 2c 2차 iteration — M6/M8 후속 commit")
+@pytest.mark.parametrize("mutation_id", ["M6_decimal_float_leak", "M8_alert_hook_duplicate"])
 def test_mutation_stage2c_second_iter(mutation_id: str) -> None:
-    """Stage 2c 2차: M3/M6/M8 구현 예정."""
+    """Stage 2c 2차 후속: M6/M8 구현 예정."""
     del mutation_id
     pytest.skip("Stage 2c 2차 iteration")
