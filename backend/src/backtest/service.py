@@ -16,6 +16,7 @@ from src.backtest.exceptions import (
     BacktestDuplicateIdempotencyKey,
     BacktestNotFound,
     BacktestStateConflict,
+    StrategyNotRunnable,
     TaskDispatchError,
 )
 from src.backtest.models import (
@@ -47,6 +48,7 @@ from src.common.pagination import Page
 from src.core.config import settings
 from src.market_data.providers import OHLCVProvider
 from src.strategy.exceptions import StrategyNotFoundError
+from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.repository import StrategyRepository
 
 logger = logging.getLogger(__name__)
@@ -86,6 +88,18 @@ class BacktestService:
         strategy = await self.strategy_repo.find_by_id_and_owner(data.strategy_id, user_id)
         if strategy is None:
             raise StrategyNotFoundError()
+
+        # Sprint Y1: pre-flight coverage check — 미지원 built-in 발견 시 즉시 reject
+        # (whack-a-mole 패턴 종식 — backtest 실행 전에 명확히 안내)
+        coverage = analyze_coverage(strategy.pine_source)
+        if not coverage.is_runnable:
+            unsupported = ", ".join(coverage.all_unsupported)
+            raise StrategyNotRunnable(
+                detail=(
+                    f"Strategy contains unsupported Pine built-ins: {unsupported}. "
+                    f"See docs/02_domain/supported-indicators.md for the supported list."
+                )
+            )
 
         bt = Backtest(
             user_id=user_id,

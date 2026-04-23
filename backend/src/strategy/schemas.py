@@ -61,6 +61,11 @@ class ParsePreviewResponse(BaseModel):
     # Sprint 7b ISSUE-004: UI 파싱 결과 탭 '감지된 지표/전략 콜' 섹션 렌더링을 위해
     # parser supported_feature_report["functions_used"]를 응답에 노출.
     functions_used: list[str] = Field(default_factory=list)
+    # Sprint Y1 (B+D): pre-flight coverage analyzer — 미지원 built-in 명시.
+    # `unsupported_builtins` 가 비어있을 때만 backtest 실행 가능 (CLAUDE.md Golden Rule).
+    unsupported_builtins: list[str] = Field(default_factory=list)
+    # 실행 가능 여부 (FE 가 backtest 버튼 비활성화 + 안내 표시 결정에 사용)
+    is_runnable: bool = True
 
 
 class StrategyListItem(BaseModel):
