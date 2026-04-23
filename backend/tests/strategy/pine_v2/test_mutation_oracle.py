@@ -238,13 +238,41 @@ def test_m4_crossover_boundary_is_detected() -> None:
 
 
 @pytest.mark.mutation
-@pytest.mark.skip(reason="M5 Stage 2c 2차 이연 — StrategyState.entry signature 실측 후 재구현")
+@pytest.mark.skipif(not _MUTATIONS_RUNNABLE, reason="fixture 미생성")
 def test_m5_entry_price_drift_is_detected() -> None:
-    """M5 Stage 2c 2차: StrategyState.entry signature 가 corpus 별 호출 형태와
-    다름 (positional/keyword 혼재). signature 실측 후 robust monkeypatch 재구현.
-    현 Stage 2c 1차는 M1/M2/M4/M7 4개 감지로 pattern 확립.
+    """M5 Stage 2c 2차: StrategyState.entry 의 fill_price 에 ABS_TOL 초과 drift 주입.
+
+    ADR-013 §10.4 설계 — `fill_price + 0.005` 는 ABS_TOL(0.001) × 5 로 확실한 drift.
+    Track S/A 양쪽에서 entry 시 Trade.entry_price 가 baseline 대비 이격 →
+    `_extract_trades_and_warnings` 가 `str(t.entry_price)` 로 직렬화 →
+    `digest_sequence(trades) != expected["trades_digest"]` 로 감지.
+
+    원안 (position_size 부호 반전) 은 corpus 별 호출 형태 다양성으로 robust
+    monkeypatch 가 어려워 entry price drift 로 재정의. 핵심 의도 (entry 시 state
+    변화 drift 감지) 동일.
+
+    StrategyState.entry signature (`strategy_state.py:156-207`):
+        entry(self, trade_id, direction, *, qty, bar, fill_price, comment="",
+              stop=None, unsupported_kwargs=None) -> Trade | None
     """
-    pytest.skip("Stage 2c 2차")
+    from src.strategy.pine_v2.strategy_state import StrategyState
+
+    original_entry = StrategyState.entry
+
+    def mutated_entry(
+        self: StrategyState,
+        trade_id: str,
+        direction: Any,
+        **kwargs: Any,
+    ) -> Any:
+        # fill_price 키워드 인자에 ABS_TOL(0.001) 을 크게 초과하는 +0.005 drift 주입
+        if "fill_price" in kwargs and kwargs["fill_price"] is not None:
+            kwargs["fill_price"] = kwargs["fill_price"] + 0.005
+        return original_entry(self, trade_id, direction, **kwargs)
+
+    with patch.object(StrategyState, "entry", mutated_entry):
+        drifted, msg = _drift_any_corpus(_load_baseline()["corpora"])
+    assert drifted, f"M5 (entry fill_price drift) 미감지: {msg}"
 
 
 # =====================================================================
