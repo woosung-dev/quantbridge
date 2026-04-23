@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QuantBridge 백테스트 아키텍처 & 고도화 옵션 — 2026-04-23</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --bg-elev: #ffffff;
+    --bg-soft: #f5f5f4;
+    --fg: #1c1917;
+    --fg-soft: #57534e;
+    --fg-muted: #78716c;
+    --border: #e7e5e4;
+    --border-strong: #d6d3d1;
+    --accent: #0f766e;
+    --accent-soft: #ccfbf1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --ok: #15803d;
+    --ok-soft: #dcfce7;
+    --shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.04);
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+    --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0a09;
+      --bg-elev: #1c1917;
+      --bg-soft: #292524;
+      --fg: #fafaf9;
+      --fg-soft: #d6d3d1;
+      --fg-muted: #a8a29e;
+      --border: #292524;
+      --border-strong: #44403c;
+      --accent: #2dd4bf;
+      --accent-soft: #134e4a;
+      --warn: #fbbf24;
+      --warn-soft: #451a03;
+      --danger: #fca5a5;
+      --danger-soft: #450a0a;
+      --ok: #86efac;
+      --ok-soft: #052e16;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    color: var(--fg);
+    background: var(--bg);
+    line-height: 1.65;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    max-width: 1280px;
+    margin: 0 auto;
+    gap: 32px;
+    padding: 32px;
+  }
+  /* TOC */
+  nav.toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    border-right: 1px solid var(--border);
+    padding-right: 16px;
+    font-size: 13px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  nav.toc h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+  nav.toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: toc;
+  }
+  nav.toc li {
+    counter-increment: toc;
+    padding: 4px 0;
+  }
+  nav.toc li::before {
+    content: counter(toc) ".";
+    color: var(--fg-muted);
+    margin-right: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  nav.toc a {
+    color: var(--fg-soft);
+    text-decoration: none;
+  }
+  nav.toc a:hover { color: var(--accent); }
+  /* Main */
+  main { min-width: 0; }
+  header.doc-head {
+    border-bottom: 2px solid var(--fg);
+    padding-bottom: 16px;
+    margin-bottom: 32px;
+  }
+  header.doc-head .meta {
+    color: var(--fg-muted);
+    font-size: 13px;
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+  }
+  header.doc-head h1 {
+    margin: 0 0 4px;
+    font-size: 28px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  header.doc-head .sub {
+    color: var(--fg-soft);
+    font-size: 14px;
+  }
+  section {
+    margin-bottom: 56px;
+  }
+  section > h2 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid var(--border-strong);
+    padding-bottom: 8px;
+  }
+  section > .lede {
+    color: var(--fg-muted);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  h3 {
+    font-size: 16px;
+    margin: 28px 0 8px;
+    letter-spacing: -0.005em;
+  }
+  h4 {
+    font-size: 14px;
+    margin: 20px 0 6px;
+    color: var(--fg-soft);
+  }
+  p, li { color: var(--fg); }
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--bg-soft);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; border: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13.5px;
+  }
+  th, td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    background: var(--bg-soft);
+    font-weight: 600;
+    color: var(--fg-soft);
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  tr:hover td { background: var(--bg-soft); }
+  td.center, th.center { text-align: center; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .stars { color: var(--accent); letter-spacing: 1px; font-size: 13px; }
+  .stars-empty { color: var(--border-strong); }
+  /* Mermaid container */
+  .mermaid-wrap {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+  }
+  .mermaid { font-family: var(--sans) !important; }
+  /* Callouts */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout.danger { border-color: var(--danger); background: var(--danger-soft); }
+  .callout.ok { border-color: var(--ok); background: var(--ok-soft); }
+  .callout strong { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; opacity: 0.8; }
+  /* Cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .card .card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .card h4 {
+    margin: 0;
+    color: var(--fg);
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .card .badge {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--bg-soft);
+    color: var(--fg-muted);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .card .badge.recommended { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+  .card .badge.defer { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+  .card .badge.skip { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+  .card dl { margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .card dt { color: var(--fg-muted); }
+  .card dd { margin: 0; }
+  .card .why {
+    font-size: 13.5px;
+    color: var(--fg-soft);
+    margin: 8px 0 0;
+    line-height: 1.55;
+  }
+  /* Before/After */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .compare > div {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .compare .before { border-left: 3px solid var(--danger); }
+  .compare .after  { border-left: 3px solid var(--ok); }
+  .compare h4 { margin-top: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    margin-top: 64px;
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
+  /* Print */
+  @media print {
+    .layout { grid-template-columns: 1fr; padding: 16px; max-width: none; gap: 0; }
+    nav.toc { display: none; }
+    section { page-break-inside: avoid; margin-bottom: 32px; }
+    section > h2 { page-break-after: avoid; }
+    .mermaid-wrap { page-break-inside: avoid; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    body { font-size: 12px; }
+  }
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; padding: 16px; }
+    nav.toc { position: static; border-right: 0; border-bottom: 1px solid var(--border); padding: 0 0 16px; max-height: none; }
+    .compare { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#summary">한 페이지 요약</a></li>
+      <li><a href="#layers">현재 백테스트 실행 계층</a></li>
+      <li><a href="#dataflow">Pine Source → Trade 흐름</a></li>
+      <li><a href="#whack">Whack-a-mole → Trust Layer</a></li>
+      <li><a href="#blueprint">ADR-011 원래 청사진</a></li>
+      <li><a href="#position">현재 위치 매핑</a></li>
+      <li><a href="#breakthroughs">적용 가능 돌파구 (5개)</a></li>
+      <li><a href="#decision">권장 다음 단계</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="doc-head">
+      <div class="meta">QuantBridge · Architecture Survey · 2026-04-23</div>
+      <h1>백테스트 실행 아키텍처 &amp; 고도화 옵션</h1>
+      <div class="sub">현재 10 계층 구조 · ADR-011 원래 청사진 (Tier 0~5 + 3-Track) · Sprint Y1 (Pre-flight Coverage) 의 위치 · 다음 sprint 결정 매트릭스</div>
+    </header>
+
+    <!-- ============================================================ -->
+    <section id="summary">
+      <h2>1. 한 페이지 요약</h2>
+      <p class="lede">"지금 어디에 있고, 다음 어디로 가야 하나" — 결정 한 장.</p>
+
+      <div class="callout ok">
+        <strong>지난 4개월 누적 성과</strong>
+        Sprint 8a (Tier-0 Pine 공통 코어) → X1+X3 (5 워커 병렬 + 3-way Evaluator) → Y1 (Pre-flight Coverage Analyzer).
+        총 <code>BE 961 / FE 167 tests</code>. 6 PR (#55~#61) main merged.
+      </div>
+
+      <h3>오늘 (2026-04-23) 의 결정 1줄</h3>
+      <p>
+        <strong>Sprint Y1 의 Pre-flight Coverage Analyzer 가 ADR-011 의 Tier-2 (Trust Layer CI) 의 prerequisite 가 됨.</strong>
+        whack-a-mole 패턴 (<code>ta.sar</code> → <code>ta.rma</code> → <code>ta.tr</code> → <code>fixnan</code> → ...) 이 종식되어,
+        이제 백테스트 실행 <em>전</em> 에 미지원 항목을 명시하고 422로 reject. 이 인프라가 깔린 위에서 다음 sprint 의 우선순위는
+        <strong>"qualified corpus 의 dogfood 깊이" vs "Tier-2 CI 자동화" vs "Bulk stdlib 확충"</strong> 중 하나.
+      </p>
+
+      <h3>다음 sprint 후보 빠른 비교</h3>
+      <table>
+        <thead>
+          <tr><th>옵션</th><th>설명</th><th>예상 시간</th><th class="center">추천도</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>A. dogfood-first</strong></td>
+            <td>qualified corpus (s1/s2/s3, i1/i2) 만으로 실제 매매. 신뢰 누적 후 사용자 피드백으로 다음 sprint 결정</td>
+            <td>~2주 (관찰 위주)</td>
+            <td class="center"><span class="stars">★★★★★</span></td>
+          </tr>
+          <tr>
+            <td><strong>B. Tier-2 CI</strong></td>
+            <td>QB Tier-0 vs pynescript AST 자동 diff CI. 회귀 방지 망. ADR-011 §4 Tier 2</td>
+            <td>~1주</td>
+            <td class="center"><span class="stars">★★★★☆</span></td>
+          </tr>
+          <tr>
+            <td><strong>C. Bulk stdlib (top-N)</strong></td>
+            <td><code>fixnan / ta.supertrend / ta.cci / array.from</code> 등 i3_drfx 류 차단 함수 일괄 추가</td>
+            <td>1~2주</td>
+            <td class="center"><span class="stars">★★★☆☆</span></td>
+          </tr>
+          <tr>
+            <td><strong>D. Coverage analyzer AST 기반</strong></td>
+            <td>regex → AST 정밀화. false positive/negative ↓. Y1 follow-up</td>
+            <td>2~3일</td>
+            <td class="center"><span class="stars">★★★☆☆</span></td>
+          </tr>
+          <tr>
+            <td><strong>E. PyneCore transformers/ 참조 이식</strong></td>
+            <td>ADR-011 §7 합법 path. var/varip/series semantics 강화. Tier-0 신뢰도 ↑</td>
+            <td>~1주</td>
+            <td class="center"><span class="stars">★★★★☆</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top: 16px;">
+        <strong>권장 path:</strong> <code>A (관찰 1주) → B (Tier-2 CI 자동화) → 사용자 피드백 기반 C/D/E 우선순위 재정렬</code>.
+        근거: Y1 으로 차단점이 명시되었으니 dogfood 가 먼저 가치 있음. CI 는 백그라운드에서 안전망 형성.
+      </p>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="layers">
+      <h2>2. 현재 백테스트 실행 계층</h2>
+      <p class="lede">10 계층 — Router 부터 V2Adapter 까지. 어느 계층이 stable 이고 어느 계층이 증분형 (whack-a-mole 발생 지점) 인지.</p>
+
+      <div class="mermaid-wrap">
+<div class="mermaid">
+flowchart TB
+  classDef stable fill:#dcfce7,stroke:#15803d,color:#052e16
+  classDef new    fill:#ccfbf1,stroke:#0f766e,color:#134e4a
+  classDef growth fill:#fef3c7,stroke:#b45309,color:#451a03
+  classDef async  fill:#e0e7ff,stroke:#4338ca,color:#1e1b4b
+
+  User([사용자<br/>Pine 코드]) --> Router["Router<br/>POST /backtests"]:::stable
+  Router --> Service["BacktestService.create"]:::stable
+  Service --> Coverage{{"Coverage Analyzer<br/>analyze_coverage<br/>Sprint Y1"}}:::new
+  Coverage -- "is_runnable=false" --> Reject["422<br/>StrategyNotRunnable"]:::stable
+  Coverage -- "is_runnable=true" --> Repo["BacktestRepository<br/>INSERT QUEUED"]:::stable
+  Repo --> Dispatcher["TaskDispatcher<br/>celery_app.send_task"]:::stable
+  Dispatcher --> Celery>"Redis 큐 / Celery prefork"]:::async
+  Celery --> Worker["run_backtest_task<br/>tasks/backtest.py"]:::async
+
+  Worker --> EventLoop["event_loop.py<br/>run_historical<br/>bar-by-bar"]:::stable
+  EventLoop --> Interpreter["interpreter.py<br/>tree-walker"]:::stable
+  Interpreter --> Stdlib["stdlib.py<br/>ta.sma/ta.rsi/ta.sar/..."]:::growth
+  Interpreter --> Strat["strategy_state.py<br/>position / trade"]:::stable
+  Interpreter --> Runtime["runtime/persistent.py<br/>var/varip"]:::stable
+  Stdlib --> Interpreter
+  Strat --> Interpreter
+  Runtime --> Interpreter
+
+  EventLoop --> Adapter["engine/v2_adapter.py<br/>RunResult → BacktestOutcome"]:::stable
+  Adapter --> Metrics["engine/metrics.py<br/>sharpe/dd/win_rate"]:::stable
+  Metrics --> Repo2["repository.complete()<br/>UPDATE COMPLETED"]:::stable
+
+  Repo2 --> User2([사용자<br/>GET /backtests/id])
+</div>
+      </div>
+
+      <h3>계층별 책임 + 안정도</h3>
+      <table>
+        <thead><tr><th>계층</th><th>파일</th><th>역할</th><th class="center">안정도</th></tr></thead>
+        <tbody>
+          <tr><td>HTTP 진입</td><td><code>backtest/router.py</code></td><td>요청 수신 + 스키마 검증</td><td class="center"><span class="stars">★★★★★</span></td></tr>
+          <tr><td>비즈니스</td><td><code>backtest/service.py</code></td><td>워크플로우 + Coverage 가드 (Y1)</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td>데이터</td><td><code>backtest/repository.py</code></td><td>AsyncSession 유일 보유 + DB 접근</td><td class="center"><span class="stars">★★★★★</span></td></tr>
+          <tr><td>디스패치</td><td><code>backtest/dispatcher.py</code></td><td>Celery Protocol</td><td class="center"><span class="stars">★★★★★</span></td></tr>
+          <tr><td>Pine 파싱</td><td><code>pine_v2/parser_adapter.py</code></td><td>pynescript 래퍼 → AST</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td>Alert Hook</td><td><code>pine_v2/alert_hook.py</code></td><td>alert() 메시지 분류 (loose mode 포함)</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td>이벤트 루프</td><td><code>pine_v2/event_loop.py</code></td><td>bar-by-bar 드라이버 (169 tests)</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td>인터프리터</td><td><code>pine_v2/interpreter.py</code></td><td>AST tree-walker</td><td class="center"><span class="stars">★★★★★</span></td></tr>
+          <tr><td><strong>stdlib</strong> ⚠</td><td><code>pine_v2/stdlib.py</code></td><td>ta.* / math.* / strategy.* — <strong>증분형</strong> (whack-a-mole 발생 지점)</td><td class="center"><span class="stars">★★★☆☆</span></td></tr>
+          <tr><td>전략 상태</td><td><code>pine_v2/strategy_state.py</code></td><td>position/trade/PnL + pending OCO</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td>런타임 저장소</td><td><code>pine_v2/runtime/persistent.py</code></td><td>var/varip lifecycle</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td><strong>Coverage 분석</strong> ✨</td><td><code>pine_v2/coverage.py</code></td><td><strong>Sprint Y1 신규.</strong> pre-flight unsupported 식별</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td>V2 어댑터</td><td><code>engine/v2_adapter.py</code></td><td>RunResult → BacktestOutcome</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+          <tr><td>메트릭</td><td><code>engine/metrics.py</code></td><td>sharpe / DD / win_rate / profit_factor</td><td class="center"><span class="stars">★★★★☆</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>핵심 관찰</strong>
+        14 계층 중 <strong>오직 1 계층 (stdlib)</strong> 만 증분형. 나머지는 안정. Whack-a-mole 의 정확한 위치는 <code>stdlib.py</code> + <code>interpreter.py</code> 의 <code>_eval_attribute</code> 분기. Y1 의 Coverage Analyzer 가 이 1 계층의 변경을 즉시 사용자에게 노출하는 안전망 역할.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="dataflow">
+      <h2>3. Pine Source → Trade 데이터 흐름</h2>
+      <p class="lede">사용자가 strategy 등록 → backtest 클릭 → 결과 화면까지 한 번에.</p>
+
+      <div class="mermaid-wrap">
+<div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as 사용자
+  participant R as Router/Service
+  participant C as Coverage<br/>(Sprint Y1)
+  participant Q as Celery 큐
+  participant W as Worker
+  participant I as Interpreter +<br/>stdlib
+  participant D as DB
+
+  U->>R: POST /strategies<br/>(pine_source)
+  R->>C: analyze_coverage(source)
+  alt 미지원 발견
+    C-->>R: unsupported_builtins=[...]
+    R-->>U: 200 + 노란 경고 박스
+  else 모두 지원
+    C-->>R: is_runnable=true
+    R-->>U: 200 + 파싱 OK
+  end
+
+  U->>R: POST /backtests
+  R->>C: 재검사 (is_runnable?)
+  alt 미지원
+    R-->>U: 422 StrategyNotRunnable
+  else OK
+    R->>D: INSERT backtest QUEUED
+    R->>Q: dispatch_backtest(id)
+    R-->>U: 202 Accepted
+  end
+
+  Q->>W: run_backtest_task(id)
+  W->>D: SELECT strategy + ohlcv
+  loop bar-by-bar
+    W->>I: execute(ast, bar)
+    I->>I: stdlib calls<br/>(ta.sma/ta.sar/...)
+    I-->>W: trades, equity
+  end
+  W->>D: UPDATE COMPLETED + metrics
+  W-->>Q: ack
+
+  U->>R: GET /backtests/id
+  R->>D: SELECT
+  R-->>U: BacktestDetail<br/>(metrics + trades)
+</div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="whack">
+      <h2>4. Whack-a-mole → Trust Layer 전환</h2>
+      <p class="lede">Sprint Y1 (PR #61) 의 가장 큰 가치 — 사용자 신뢰도 + 엔지니어 생산성.</p>
+
+      <div class="compare">
+        <div class="before">
+          <h4>Before (X1+X3 dogfood)</h4>
+          <pre><code>1. backtest 실행 → FAILED
+   "Call to 'ta.sar' not supported"
+2. ta.sar 함수 추가 → PR merge
+3. backtest 재실행 → FAILED
+   "Call to 'ta.rma' not supported"
+4. ta.rma 추가 → PR merge
+5. backtest 재실행 → FAILED
+   "Attribute access not supported: ta.tr"
+6. ta.tr 추가 → PR merge
+7. backtest 재실행 → FAILED
+   "Call to 'fixnan' not supported"
+8. ... (무한)</code></pre>
+          <p class="why" style="margin-top: 10px;">사용자 인내력 소진. 매 반복마다 docker rebuild + 5~10분 대기. <strong>"내가 돈 내고 쓸 품질"</strong> 미달.</p>
+        </div>
+        <div class="after">
+          <h4>After (Sprint Y1, PR #61)</h4>
+          <pre><code>1. strategy 등록
+   → parse_preview 가 즉시 호출
+   → analyze_coverage(source)
+   → is_runnable + unsupported_builtins
+2. UI 노란 경고 박스:
+   "⚠ 미지원 (3건): fixnan,
+    ta.supertrend, request.security"
+3. 사용자가 backtest 시도:
+   → 422 StrategyNotRunnable
+   → 미지원 목록 + 문서 링크</code></pre>
+          <p class="why" style="margin-top: 10px;">백테스트 실행 <strong>전</strong> 에 명확. <code>docs/02_domain/supported-indicators.md</code> 화이트리스트로 사용자가 strategy 선택. <strong>Trust layer 철학 정합</strong>.</p>
+        </div>
+      </div>
+
+      <div class="callout ok">
+        <strong>SSOT (Single Source of Truth)</strong>
+        <code>backend/src/strategy/pine_v2/coverage.py</code> 의 <code>SUPPORTED_FUNCTIONS</code> + <code>SUPPORTED_ATTRIBUTES</code>. interpreter / stdlib 의 capability 와 SSOT 동기화 — 새 함수 추가 시 <strong>3 파일 (stdlib + interpreter + coverage)</strong> 갱신 필요.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="blueprint">
+      <h2>5. ADR-011 원래 청사진 — Tier 0~5 + 3-Track + Phase -1~4</h2>
+      <p class="lede">출처: <code>docs/dev-log/011-pine-execution-strategy-v4.md</code> + <code>docs/04_architecture/pine-execution-architecture.md</code> (확정 신뢰도 8/10, 2026-04-18 amendment).</p>
+
+      <h3>3-Track 분류 (Pine 스크립트 입력 분기)</h3>
+      <div class="mermaid-wrap">
+<div class="mermaid">
+flowchart LR
+  Pine[Pine Source]:::input --> Classifier{ast_classifier.classify}:::router
+  Classifier -- "strategy() 선언<br/>~50%" --> S[Track S<br/>Tier-3 native]:::trackS
+  Classifier -- "indicator() + alert()<br/>~50%" --> A[Track A<br/>Tier-1 Alert Hook<br/>차별화 핵심]:::trackA
+  Classifier -- "indicator() only<br/>0% 미구현" --> M[Track M<br/>Tier-4 Variable Explorer<br/>수동 UX]:::trackM
+
+  classDef input fill:#f5f5f4,stroke:#78716c,color:#1c1917
+  classDef router fill:#e0e7ff,stroke:#4338ca,color:#1e1b4b
+  classDef trackS fill:#dcfce7,stroke:#15803d,color:#052e16
+  classDef trackA fill:#ccfbf1,stroke:#0f766e,color:#134e4a
+  classDef trackM fill:#fef3c7,stroke:#b45309,color:#451a03
+</div>
+      </div>
+
+      <h3>Tier 0~5 + 추천도 (ADR-011 §4)</h3>
+      <table>
+        <thead><tr><th class="center">Tier</th><th>역할</th><th class="center">추천도</th><th>주요 내용</th></tr></thead>
+        <tbody>
+          <tr><td class="center">0</td><td>공통 코어</td><td class="center"><span class="stars">★★★★★</span></td><td>pynescript 포크 + PyneCore 이식 + bar-by-bar event loop + 렌더링 범위 A</td></tr>
+          <tr><td class="center">1</td><td>Alert Hook Parser ⭐</td><td class="center"><span class="stars">★★★★★</span></td><td>차별화 핵심. AST alert 수집 + 메시지 분류 + 가상 strategy 래퍼 + 3-Track 라우터</td></tr>
+          <tr><td class="center">2</td><td>Trust Layer CI</td><td class="center"><span class="stars">★★★★★</span></td><td>QB Tier-0 vs pynescript AST + PyneCore <code>transformers/</code> 비교. 상대 오차 &lt;0.1%</td></tr>
+          <tr><td class="center">3</td><td>strategy() 네이티브</td><td class="center"><span class="stars">★★★★☆</span></td><td>Track S 엔진. <code>trail_points/offset</code> + 분할 익절</td></tr>
+          <tr><td class="center">4</td><td>Variable Explorer</td><td class="center"><span class="stars">★★★☆☆</span></td><td>Track M Fallback. H1 우선순위 낮음</td></tr>
+          <tr><td class="center">5</td><td>LLM 하이브리드 + MTF</td><td class="center"><span class="stars">★★★☆☆</span></td><td>장기 지속 개선. Rule + LLM (Oxidizer 73% 패턴)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Phase -1 ~ 4 timeline (12주 H1)</h3>
+      <div class="mermaid-wrap">
+<div class="mermaid">
+gantt
+  dateFormat  YYYY-MM-DD
+  axisFormat  %m/%d
+  title       ADR-011 Phase Roadmap (H1)
+
+  section Phase -1 측정
+  PyneCore E2E 실측 (PR #18~19)        :done, p1, 2026-04-15, 4d
+
+  section Sprint 8a (Tier-0)
+  공통 코어 + 169 tests (PR #20)        :done, s8a, after p1, 21d
+
+  section Sprint 8b (Tier-1 + Tier-3)
+  Alert Hook 정제 + TV 15-20 corpus     :s8b, 2026-04-25, 21d
+  strategy() native (trail_points 등)   :s8b2, after s8b, 7d
+
+  section Sprint 8c (Tier-2 + Tier-4)
+  Trust Layer CI                        :s8c, after s8b2, 7d
+  Variable Explorer (Track M)            :s8c2, after s8c, 7d
+
+  section Sprint 8d (Tier-5)
+  LLM 하이브리드 + 베타 오픈              :s8d, after s8c2, 14d
+
+  section Sprint Y1 (현재) ⭐
+  Pre-flight Coverage Analyzer (PR #61)  :crit, y1, 2026-04-23, 1d
+</div>
+      </div>
+
+      <div class="callout warn">
+        <strong>거부된 대안 (ADR-011 §7)</strong>
+        ❌ PyneTS 포팅 (AGPL-3.0 SaaS 충돌) · ❌ PyneSys SaaS 영구 구독 (vendor lock-in) · ❌ LLM 원샷 번역 주경로 (2.1~47.3% 오류율, IBM ICSE 2024) · ❌ 자체 ANTLR Pine v6 6~12개월 포팅 · ❌ 바이트코드 VM/LLVM JIT/WASM (vectorbt+Numba 이미 충분).
+        <br>✅ <strong>합법 path</strong>: PyneCore Apache 2.0 <code>transformers/</code> 모듈 (<code>persistent.py</code>, <code>series.py</code>, <code>security.py</code>) <strong>참조 이식</strong>만 허용 (NOTICE + 원본 헤더 유지).
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="position">
+      <h2>6. 현재 위치 매핑</h2>
+      <p class="lede">ADR-011 의 Tier × Sprint 매트릭스에 "지금 어디" 표시.</p>
+
+      <table>
+        <thead>
+          <tr><th class="center">Tier</th><th>Sprint</th><th class="center">상태</th><th>증거</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="center"><strong>0</strong></td>
+            <td>Sprint 8a (3주, ~2026-04-18)</td>
+            <td class="center"><span style="color: var(--ok);">✅ 완료</span></td>
+            <td>PR #20 merge. 169 tests. <code>s1_pbr.pine</code> E2E 완주. <code>pine_v2/</code> 8 레이어 구축</td>
+          </tr>
+          <tr>
+            <td class="center"><strong>1</strong></td>
+            <td>Sprint 8b (계획)</td>
+            <td class="center"><span style="color: var(--warn);">🟡 v1 완료</span></td>
+            <td><code>alert_hook.py</code> 존재 (X1+X3 W1 으로 loose mode 추가). 8b 에서 정제 + TV 15~20 corpus 프로파일링 예정</td>
+          </tr>
+          <tr>
+            <td class="center"><strong>2</strong></td>
+            <td>Sprint 8c (계획)</td>
+            <td class="center"><span style="color: var(--accent);">⏳ Y1 가 prerequisite</span></td>
+            <td><strong>Sprint Y1 의 Coverage Analyzer 가 prerequisite.</strong> 다음 단계: QB AST vs pynescript AST 자동 diff CI</td>
+          </tr>
+          <tr>
+            <td class="center"><strong>3</strong></td>
+            <td>Sprint 8b (병행)</td>
+            <td class="center"><span style="color: var(--warn);">🟡 부분 완료</span></td>
+            <td><code>strategy.entry/close/close_all/exit</code> 구현. <code>trail_points/offset</code> 은 H2 deferred (ADR-011 §6 H1 scope)</td>
+          </tr>
+          <tr>
+            <td class="center"><strong>4</strong></td>
+            <td>Sprint 8c (계획)</td>
+            <td class="center"><span style="color: var(--fg-muted);">⬜ 미착수</span></td>
+            <td>Track M (~20-30%) 처리 — H1 Stealth 에선 우선순위 낮음 (i3_drfx 같은 indicator 만 있는 script)</td>
+          </tr>
+          <tr>
+            <td class="center"><strong>5</strong></td>
+            <td>Sprint 8d (계획)</td>
+            <td class="center"><span style="color: var(--fg-muted);">⬜ 미착수</span></td>
+            <td>LLM 하이브리드 + 베타 오픈. H2 후</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>X1+X3 + Y1 누적 PR 흐름</h3>
+      <pre><code>main timeline:
+  aad44e2  PR #57   (X1+X3 직전 baseline)
+   ↓
+  a8b4e0b  W1 alert heuristic loose
+  b692812  W2 ta.sar Parabolic SAR
+  f613733  W3 EquityChart width fix
+  05a2231  W4 Trade direction breakdown
+  dd06e45  W5 RerunButton
+  f483598  orchestrator follow-up (.env.example + W4 boundary test)
+  da366b9  ruff E741 fix
+  8b1028b  X1+X3 final report
+   ↓
+  36dcb78  PR #58   ta.rma (i3_drfx 다음 미지원 노출)
+  b2cacca  PR #59   loose upward/downward (i2_luxalgo 124 trades)
+  (after)  PR #60   ta.tr attribute access
+  (open)   PR #61   ★ Sprint Y1 Coverage Analyzer ★
+</code></pre>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="breakthroughs">
+      <h2>7. 적용 가능한 돌파구 (5개)</h2>
+      <p class="lede">docs 에 명시된 옵션 + Sprint Y1 와 시너지가 있는 것. 각 카드는 효과/시간/위험/별점.</p>
+
+      <div class="cards">
+
+        <article class="card">
+          <div class="card-head">
+            <h4>① Tier-2 Trust Layer CI</h4>
+            <span class="badge recommended">Y1 직접 후속</span>
+          </div>
+          <dl>
+            <dt>출처</dt><dd>ADR-011 §4 Tier 2 ★★★★★</dd>
+            <dt>효과</dt><dd>QB Tier-0 구현 vs pynescript AST + PyneCore <code>transformers/</code> 차이를 매 commit CI 에서 자동 비교. 상대 오차 &lt;0.1% 게이트</dd>
+            <dt>시간</dt><dd>~1주</dd>
+            <dt>위험</dt><dd>낮음 — pynescript 가 이미 dependency. 비교 로직만 추가</dd>
+            <dt>시너지</dt><dd>Y1 의 Coverage Analyzer 가 어떤 함수를 비교 대상에 포함할지 결정. SSOT 자동 동기화</dd>
+            <dt>추천</dt><dd><span class="stars">★★★★★</span></dd>
+          </dl>
+          <p class="why">B+D 후 자연스러운 다음 단계. dogfood 에서 발견 안 되는 미세 semantic mismatch 를 잡아준다.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h4>② PyneCore <code>transformers/</code> 참조 이식</h4>
+            <span class="badge recommended">합법 path</span>
+          </div>
+          <dl>
+            <dt>출처</dt><dd>ADR-011 §7 (PyneSys 거부와 함께 명시된 합법 대안)</dd>
+            <dt>효과</dt><dd>var/varip 생명주기 (<code>persistent.py</code>) + series 의미 (<code>series.py</code>) + MTF 하부구조 (<code>security.py</code>) 의 검증된 구현체 import. 자체 작성 비교 1/3 시간</dd>
+            <dt>시간</dt><dd>~1주 (NOTICE 파일 + 원본 헤더 유지)</dd>
+            <dt>위험</dt><dd>중간 — 이식 후 QB API 와 통합 테스트 필수. Apache 2.0 라이선스 준수</dd>
+            <dt>시너지</dt><dd>Tier-0 신뢰도 ↑ → Tier-2 CI 의 비교 기준점 자동 강화</dd>
+            <dt>추천</dt><dd><span class="stars">★★★★☆</span></dd>
+          </dl>
+          <p class="why">Sprint 8b week 1 의 가장 가치 있는 작업. var/varip 의 미묘한 bug 들이 여기서 해소될 가능성.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h4>③ TV 15-20 corpus 프로파일링</h4>
+            <span class="badge">Sprint 8b week 1</span>
+          </div>
+          <dl>
+            <dt>출처</dt><dd>ADR-011 amendment 2026-04-18 — Phase -1 후 재평가 대기</dd>
+            <dt>효과</dt><dd>실제 TV top indicator 15~20개를 수집 + Track S/A/M 비율 실측. 현재 추정 (S 50% / A 50% / M 0%) 검증. 다음 sprint 의 우선순위 데이터 확보</dd>
+            <dt>시간</dt><dd>3~5일 (수집 1일 + 분류 2일 + 보고 1일)</dd>
+            <dt>위험</dt><dd>매우 낮음 — 분석만</dd>
+            <dt>시너지</dt><dd>Y1 의 SUPPORTED set 갱신 우선순위가 명확해짐 (어떤 함수가 자주 쓰이는지)</dd>
+            <dt>추천</dt><dd><span class="stars">★★★★☆</span></dd>
+          </dl>
+          <p class="why">"무엇을 먼저 만들지" 결정의 근거 확보. 8b 본 작업 전에 1주 reconnaissance 로 권장.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h4>④ Bulk stdlib (top-N indicator)</h4>
+            <span class="badge defer">corpus 프로파일링 후</span>
+          </div>
+          <dl>
+            <dt>출처</dt><dd><code>docs/01_requirements/pine-coverage-assignment.md</code> — pending 함수 목록</dd>
+            <dt>효과</dt><dd><code>fixnan / ta.supertrend / ta.cci / ta.mom / ta.mfi / ta.willr / array.from / ta.tostring</code> 등 일괄 추가. i3_drfx 류 indicator 차단 해소</dd>
+            <dt>시간</dt><dd>1~2주 (함수당 ~30분 + 테스트)</dd>
+            <dt>위험</dt><dd>중간 — semantic mismatch 위험. Tier-2 CI 가 있으면 안전</dd>
+            <dt>시너지</dt><dd>Y1 SUPPORTED set 자동 확장. Coverage Analyzer 가 갱신 추적</dd>
+            <dt>추천</dt><dd><span class="stars">★★★☆☆</span></dd>
+          </dl>
+          <p class="why">③ corpus 프로파일링 결과 우선순위 N 의 함수만 추가. 무차별 bulk 는 over-engineering.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h4>⑤ Coverage Analyzer AST 기반 정밀화</h4>
+            <span class="badge">Y1 follow-up</span>
+          </div>
+          <dl>
+            <dt>출처</dt><dd>Sprint Y1 (PR #61) 의 limitation 노트</dd>
+            <dt>효과</dt><dd>regex → pynescript AST visitor 기반. user-defined function 추적 정확도 ↑. false positive (사용자 변수 method) / false negative (string literal 안의 함수명) 모두 ↓</dd>
+            <dt>시간</dt><dd>2~3일</dd>
+            <dt>위험</dt><dd>낮음 — 결과는 동일 (CoverageReport), 내부만 교체</dd>
+            <dt>시너지</dt><dd>Tier-2 CI 와 동일 AST 인프라 공유. 한 번 만들면 둘 다 활용</dd>
+            <dt>추천</dt><dd><span class="stars">★★★☆☆</span></dd>
+          </dl>
+          <p class="why">①+② 와 함께 묶어서 진행하면 시너지 ↑. 단독으로는 작은 효과.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="decision">
+      <h2>8. 권장 다음 단계 — 결정 매트릭스</h2>
+      <p class="lede">사용자가 "A 를 진행하기 전" 이라고 했음. dogfood (A) 를 시작하면서 백그라운드로 어떤 sprint 를 묶을지.</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>경로</th>
+            <th>구성</th>
+            <th>주차</th>
+            <th>가치</th>
+            <th class="center">추천도</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Path α</strong> — dogfood-only</td>
+            <td>A (qualified corpus 만 실제 매매 1~2주 관찰)</td>
+            <td>1~2주</td>
+            <td>사용자 피드백 데이터 누적. 진짜 우선순위 발견</td>
+            <td class="center"><span class="stars">★★★★☆</span></td>
+          </tr>
+          <tr>
+            <td><strong>Path β</strong> — dogfood + Tier-2 CI</td>
+            <td>A 병행 + B (Tier-2 Trust Layer CI 자동화, ★)</td>
+            <td>1주</td>
+            <td>안전망 형성. dogfood 중 silent regression 방지</td>
+            <td class="center"><span class="stars">★★★★★</span></td>
+          </tr>
+          <tr>
+            <td><strong>Path γ</strong> — full reconnaissance</td>
+            <td>A 병행 + ③ (TV 15-20 corpus 프로파일) + ② (PyneCore transformers 이식)</td>
+            <td>2주</td>
+            <td>Sprint 8b 의 정확한 scope 결정 + Tier-0 신뢰도 ↑</td>
+            <td class="center"><span class="stars">★★★★☆</span></td>
+          </tr>
+          <tr>
+            <td><strong>Path δ</strong> — bulk push</td>
+            <td>A 병행 + ④ (top-N stdlib bulk 추가)</td>
+            <td>1~2주</td>
+            <td>indicator 커버리지 단기 ↑. 단, 우선순위 데이터 없이 진행 시 over-engineering 위험</td>
+            <td class="center"><span class="stars">★★★☆☆</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout ok" style="margin-top: 24px;">
+        <strong>최종 권장: Path β</strong>
+        <p style="margin: 8px 0 0;">
+          <strong>1주차</strong>: dogfood 시작 (i2_luxalgo loose 모드 + s1_pbr 등 qualified corpus). 동시에 Tier-2 CI 자동화 PR 진행 (~5일).<br>
+          <strong>2주차</strong>: dogfood 피드백 종합 → Path γ (corpus 프로파일링) 또는 Path δ (bulk stdlib) 중 데이터 기반 선택.<br>
+          <strong>3주차+</strong>: ADR-011 의 Sprint 8b 본 작업 (Tier-1 정제 + Tier-3 native).
+        </p>
+      </div>
+
+      <h3>왜 Path β 인가</h3>
+      <ul>
+        <li><strong>Y1 의 가치 극대화</strong> — Coverage Analyzer 는 사용자 facing. CI (Tier-2) 는 엔지니어 facing. 둘이 합쳐져야 trust layer 완성.</li>
+        <li><strong>dogfood 와 시너지</strong> — CI 가 매 commit 마다 silent regression 막아주므로 dogfood 안전성 ↑.</li>
+        <li><strong>비용 균형</strong> — A 는 관찰 위주 (low effort), B 는 1주 작업. 합산 1주 + 관찰 1주.</li>
+        <li><strong>위험 분산</strong> — γ/δ 는 우선순위 데이터 없이 진행 시 ROI 불명확. β 는 즉시 가치.</li>
+      </ul>
+    </section>
+
+    <footer>
+      QuantBridge Architecture Survey · 생성: 2026-04-23 · 출처: ADR-011 (확정), Sprint Y1 (PR #61), 코드 SSOT (<code>backend/src/strategy/pine_v2/coverage.py</code>)
+      <br>이 파일은 <code>docs/superpowers/reports/2026-04-23-architecture-survey.html</code> 에 저장됨. 인쇄 시 자동 page-break.
+    </footer>
+  </main>
+</div>
+
+<script>
+  if (window.mermaid) {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: isDark ? 'dark' : 'default',
+      flowchart: { htmlLabels: true, useMaxWidth: true },
+      sequence: { useMaxWidth: true },
+      gantt: { useMaxWidth: true, fontSize: 12 },
+    });
+  }
+</script>
+</body>
+</html>

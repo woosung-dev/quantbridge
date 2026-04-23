@@ -4,9 +4,9 @@
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 → Exchange Account Dialog ✅. **남은 게이트: Bybit demo dogfood 3~4주** → H2 진입. (Kill Switch capital_base 동적 바인딩은 이미 완료됨 — 2026-04-22 확인)
+> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 → Exchange Account Dialog ✅ → X1+X3 (5 워커 L2 Deep Parallel) ✅ → Y1 (Pre-flight Coverage Analyzer, PR #61) ✅ → **Path β (문서 선행 + Tier-2 Trust Layer CI + dogfood) 진행 중**. **남은 게이트: Bybit demo dogfood 3~4주 + Path β Gate-2** → H2 진입. (Kill Switch capital_base 동적 바인딩은 이미 완료됨 — 2026-04-22 확인)
 
-> **🚀 현재 세션 작업:** H1 Stealth 클로징 5-Step 풀패키지 (Bundle 2 클로징 → LESSON 승격 → Kill Switch capital_base → Bybit mainnet 준비 → H2 게이트 설계). 2026-04-20.
+> **🚀 현재 세션 작업:** Path β Stage 0 (문서 선행) — 2026-04-23. ADR-013 Trust Layer CI + 누락 회고 ADR-014/015/016/017 + Trust Layer 요구사항/아키텍처 + dogfood 체크리스트. Gate-0 검증 후 Stage 1/2 진행.
 
 ---
 
@@ -296,7 +296,14 @@
 - Sprint FE-04 Backtest UI MVP ✅ 완료 (2026-04-19, PR #26, 86 FE tests)
 - FE Polish Bundle 1 (FE-A/B/C) ✅ 완료 (2026-04-19, PR #32 merge, autonomous-parallel-sprints Option C 기본)
 - FE Polish Bundle 2 (FE-D/E/F) ✅ 완료 (2026-04-20, PR #36 merge, Option C P0+P1 dogfood 4/4 달성, BUG-1/2/3 발견)
-- **다음:** H1 Stealth 종료 클로징 — Kill Switch `capital_base` 동적 바인딩 + Bybit mainnet dogfood 준비 → H2 진입 게이트 설계
+- Sprint X1+X3 (5 워커 L2 Deep Parallel + 3-way Evaluator) ✅ 완료 (2026-04-23, stage `8b1028b`, 946 BE / 167 FE tests)
+- Sprint Y1 Pre-flight Pine Coverage Analyzer ✅ 완료 (2026-04-23, PR #61 merge, 961 BE / 167 FE tests, whack-a-mole 종식)
+- **Path β — Documentation-First → Tier-2 Trust Layer CI (진행 중)** — 2026-04-23 Stage 0 시작
+  - Stage 0 (Docs): ADR-013/014/015/016/017, trust-layer-architecture.md, trust-layer-requirements.md, dogfood-checklist.md, LESSON 승격 → Gate-0
+  - Stage 1 (Design): 3-Layer Parity 스켈레톤 → Gate-1 (codex + opus 2중 blind)
+  - Stage 2 (Implement): P-1/2/3 tests + baseline_metrics.json + mutation oracle + CI workflow → Gate-2
+  - Dogfood 병행: Kill Switch 0 오작동 + 체결 ≥95% + sharpe 편차 <5% + UX ticket 화
+- **다음:** Path β Gate-0 (Stage 0 완결성 검증, codex 단일) → Stage 1 설계 착수
 
 ### Sprint 7 Next Actions
 
@@ -440,12 +447,90 @@
 
 #### Sprint 8c — Tier-2 검증 + Tier-4 Variable Explorer (2주, 06-13~26)
 
-- [ ] PyneCore 골든 오라클 CI 완성 (상대 오차 <0.01% v1.0 달성)
-- [ ] TV 수동 간헐 검증 인프라 (샘플 10개, 분기 1회)
-- [ ] Variable Explorer MVP (Track M 수동 UX)
+> **변경 (2026-04-23):** 원안 Tier-2 (PyneCore 골든) 는 Phase -1 실측에서 PyneCore CLI 가 PyneSys 상용 API 의존 확인 → **Path β 로 재정의** (3-Layer Parity P-1/2/3). PyneCore transformers/ 이식 기반 P-4 는 Path γ (~3주) 로 이연. 본 섹션의 "Variable Explorer MVP" 도 H2 이후로 재평가.
+
+- [ ] ~~PyneCore 골든 오라클 CI 완성~~ → Path β 3-Layer Parity 로 대체 (ADR-013)
+- [ ] ~~TV 수동 간헐 검증 인프라~~ → Path β 완료 후 분기 1회 샘플 10개 로 축소
+- [ ] Variable Explorer MVP (Track M 수동 UX) → H2 이후 dogfood 피드백 재평가
   - 변수 탐색기 + Bool 시계열 시각화
   - 매수/매도/청산 수동 매핑
   - 청산 규칙 템플릿 (ATR/R:R/반대신호/커스텀)
+
+### Path β — Documentation-First → Tier-2 Trust Layer CI (2026-04-23 시작)
+
+> **ADR:** [`dev-log/013-trust-layer-ci-design.md`](./dev-log/013-trust-layer-ci-design.md) · **아키텍처:** [`04_architecture/trust-layer-architecture.md`](./04_architecture/trust-layer-architecture.md) · **SLO:** [`01_requirements/trust-layer-requirements.md`](./01_requirements/trust-layer-requirements.md)
+> **플랜 파일:** `~/.claude/plans/file-users-woosung-project-agy-project-q-humming-dewdrop.md`
+
+#### Stage 0 — 문서 선행 (진행 중, Day 1~2)
+
+- [x] C1. ADR-010 번호 중복 해소 (010a/010b rename)
+- [x] A1. `dev-log/013-trust-layer-ci-design.md` 작성
+- [x] A2. `04_architecture/trust-layer-architecture.md` 작성
+- [x] A3. `01_requirements/trust-layer-requirements.md` 작성
+- [x] A4. `guides/dogfood-checklist.md` 작성 (기존 `07_infra/h1-testnet-dogfood-guide.md` 와 역할 분리)
+- [x] B1. `dev-log/014-sprint-8b-8c-pine-v2-expansion.md` 회고 작성
+- [x] B2. `dev-log/015-sprint-7d-okx-sessions.md` 회고 작성
+- [x] B3. `dev-log/016-sprint-y1-coverage-analyzer.md` 회고 작성
+- [x] B4. `dev-log/017-fe-polish-bundle-1-2-retro.md` 회고 작성
+- [x] C3. `04_architecture/pine-execution-architecture.md` 에 Y1 + 8c 섹션 추가
+- [x] C4. TODO.md 동기화 (본 PR)
+- [x] C5. LESSON-004/005/006 → `.ai/stacks/nextjs/frontend.md` 승격
+- [x] B5. `superpowers/reports/2026-04-23-documentation-audit.md` 회고 작성
+- [x] Gate-0. **codex + opus 2중 blind evaluator PASS** (codex 8/10, opus 8.5/10, blocker 0) — 2026-04-23 완료
+
+#### Stage 1 — Design (Day 3, Gate-0 통과 후)
+
+- [ ] `backend/tests/strategy/pine_v2/test_trust_layer_parity.py` 스켈레톤
+- [ ] `backend/tests/fixtures/pine_corpus_v2/baseline_metrics.json` 스키마
+- [ ] Day 3 오픈 질문 결정: evaluator 병렬/직렬, mutation CI 포함 여부, baseline 포맷
+- [ ] Gate-1: codex + opus 2중 blind 검증 (G1-A~E)
+
+#### Stage 2 — Implement (Day 4~7)
+
+- [ ] `corpus_ohlcv_frozen.parquet` 생성 (BTCUSDT 1h 2024-01-01~06-30)
+- [ ] `baseline_metrics.json` 실 값 채움 (6 corpus, i3 제외 5)
+- [ ] P-1 AST Shape 테스트 확장 (edge digest)
+- [ ] P-2 Coverage SSOT Sync 테스트 (리플렉션)
+- [ ] P-3 Execution Golden 테스트 (metrics digest diff <0.1%)
+- [ ] Mutation oracle 8개 (skip by default)
+- [ ] `backend/scripts/regen_trust_layer_baseline.py --confirm` 게이트
+- [ ] `.github/workflows/ci.yml` trust-layer step 추가 (≤3분)
+- [ ] ADR-013 "구현 결과" 섹션 보강
+- [ ] Gate-2: codex + opus 2중 blind + mutation ≥7/8 (G2-A~G)
+
+#### Dogfood (A 트랙) — Stage 2 중 병행
+
+- [ ] Bybit testnet s1_pbr + s2_utbot 자동 집행 2주
+- [ ] OKX testnet i2_luxalgo (PR #28 merge 후)
+- [ ] 일일 체크리스트 (`docs/guides/dogfood-checklist.md`)
+- [ ] Week 1 / Week 2 요약 (`dev-log/dogfood-week1-path-beta.md`, `dogfood-week2-path-beta.md`)
+- [ ] 성공 기준: D-A 오작동 0 / D-B ≥95% / D-C sharpe 편차 <5% / D-D UX ticket 화
+
+### Path γ/δ 후보 (Path β 완료 후)
+
+- [ ] **Path γ — PyneCore transformers 이식** (~3주)
+  - `persistent.py` / `series.py` / `security.py` / `nabool.py` 참조 이식
+  - Apache 2.0 NOTICE + 원본 헤더 유지
+  - `test_pynecore_reference_oracle.py` 추가 → ADR-013 amend "P-1/2/3/4 Full Tier-2"
+- [ ] **Path δ — Bulk stdlib top-N** (1~2주, dogfood 피드백 기반)
+  - TV 15~20 corpus 프로파일링 후 우선순위 top-N 함수 (fixnan, ta.supertrend, ta.cci, ta.mfi, ta.willr, array.from, ta.tostring 등)
+  - Path β Tier-2 CI 안전망 활용
+- [ ] **Coverage Analyzer AST 기반 정밀화** (Y1 follow-up, 2~3일)
+  - regex → pynescript AST visitor
+  - false positive/negative ↓
+
+### LLM 활용 후보 (Trust Layer 외 UX 개선, Path β 완료 후)
+
+> **원칙:** Trust Layer (정확성 게이트) 에는 LLM 불포함. UX 레이어에서만 활용.
+
+- [ ] **L-1. Pine 소스 자연어 요약** (Sprint Y2 후보, ★★★★☆)
+  - 전략 등록 시 자동 한국어 설명 박스 (`/strategies/{id}/explain`)
+  - Read-only. 잘못돼도 백테스트/거래 영향 없음
+- [ ] **L-2. Backtest 결과 해석** (Sprint Y2 후보, ★★★★☆)
+  - "Sharpe 1.2 + DD 15% = 중상위권" 자연어 서술
+  - FE MVP 1일 추정
+- [ ] **L-3. Unused 변수/함수 프루닝 제안** (★★☆☆☆, 위험 중)
+  - 의미 변경 위험. Path β Gate-2 G2-C (mutation ≥7/8) 증명 후 재검토
 
 #### Sprint 8d — Tier-5 LLM 하이브리드 + 베타 오픈 (2주, 06-27~07-10)
 

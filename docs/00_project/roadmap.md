@@ -162,7 +162,7 @@
 
 - **비전 / 타깃 사용자**: [`vision.md`](./vision.md)
 - **Sprint 추적**: [`TODO.md`](../TODO.md) — Completed / Next Actions / Blocked / Questions
-- **프레임·철학 근거**: [`dev-log/010-product-roadmap.md`](../dev-log/010-product-roadmap.md) (ADR)
+- **프레임·철학 근거**: [`dev-log/010b-product-roadmap.md`](../dev-log/010b-product-roadmap.md) (ADR)
 - **Sprint 7c scope (H1)**: [`dev-log/008-sprint7c-scope-decision.md`](../dev-log/008-sprint7c-scope-decision.md)
 - **요구사항 상세**: [`01_requirements/requirements-overview.md`](../01_requirements/requirements-overview.md)
 - **배포 플랜**: [`07_infra/deployment-plan.md`](../07_infra/deployment-plan.md)
@@ -170,6 +170,6 @@
 
 ## 변경 이력
 
-- **2026-04-17** — 초안. Horizon × Pillars 프레임, Indie SaaS dogfood-first 철학 확정. 11개 입력값 결정([ADR-010](../dev-log/010-product-roadmap.md) 참조).
+- **2026-04-17** — 초안. Horizon × Pillars 프레임, Indie SaaS dogfood-first 철학 확정. 11개 입력값 결정([ADR-010b](../dev-log/010b-product-roadmap.md) 참조).
 - **2026-04-20** — H1 클로징 sync. Sprint 7d/8c/Kill Switch capital_base/mainnet 준비 완료 반영. H2 kickoff plan 링크 추가 (`docs/superpowers/plans/2026-04-20-h2-kickoff.md`). TODO.md 매핑 업데이트.
 - **2026-04-21** — Testnet dogfood 결정 반영. H1→H2 gate: "실자본 1주" → "Testnet 3~4주 + 선택 mainnet 72h". 이유: 기술 검증 90%+ testnet 충분, 실자본 부담 제거.
