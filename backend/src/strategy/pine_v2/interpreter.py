@@ -696,6 +696,7 @@ class Interpreter:
             "ta.stdev",
             "ta.variance",
             "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
+            "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
             "ta.barssince",
             "ta.valuewhen",  # Sprint 8c
             "na",
