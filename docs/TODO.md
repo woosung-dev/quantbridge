@@ -593,6 +593,8 @@
 
 ## Blocked
 
+- [ ] **H2 Sprint 1 Phase A T4 Smoke Test** — BYBIT_DEMO_KEY / BYBIT_DEMO_SECRET 미설정으로 실행 불가. `.env.demo` 파일에 실제 키 설정 후 `cd backend && uv run python scripts/bybit_demo_smoke.py` 재실행 필요. [확인 필요]
+
 - [x] ~~Sprint 7d vs Sprint 8a-pre 우선순위~~ — 2026-04-18~19에 8a-pre → 8a → 8b → 8c → 7d 순으로 모두 해소 ✅
 - [x] ~~PyneCore `strategy.exit trail_points` 지원 여부~~ — Phase -1 Day 1-2 실측 완료 (Sprint 8a-pre, PR #18) ✅
 - [ ] **Pine 해석이 QB 진짜 차별점인가?** — H2 진입 전 외부 유저 5명 인터뷰 필요 (H1 Stealth에선 본인 dogfood로 진행, Step 5에서 재검토)
