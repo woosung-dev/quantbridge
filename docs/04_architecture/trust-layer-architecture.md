@@ -140,6 +140,33 @@ Stage 2b baseline 생성 후 실측 조사 결과:
 - `sortino_ratio`, `calmar_ratio` 가 모든 corpus 에서 `null` — engine (v2_adapter) 이 해당 metric 계산 미구현. 향후 engine 확장 시 baseline 갱신 예정
 - 독립 corpus 가 3개뿐 → TV 공개 스크립트 15~20 개 프로파일링 (Path γ §3) 으로 corpus 확장 시 P-3 coverage 선형 증가
 
+### 3.1.2 Mutation Oracle 커버리지 (Stage 2c 1차 실측 + 2차 설계, 2026-04-23)
+
+`test_mutation_oracle.py` 는 **P-1/2/3 이 실제 regression 을 잡는가?** 를 검증하는 메타 게이트. 현재 (Stage 2c 1차, PR #66) **4/8 감지**, SLO TL-E-5 (≥ 7/8) 는 Stage 2c 2차 (Deadline 2026-05-31) 로 이연. 자세한 설계는 [ADR-013 §10.4](../dev-log/013-trust-layer-ci-design.md#104-stage-2c-2차-구현-설계-2026-04-23-pre-entry) 참조.
+
+**Mutation × 대상 레이어 매핑**:
+
+|  #  | Mutation                             | Hook 레이어                          | 대상 Track | 감지 metric                       | Stage 2c 상태          |
+| :-: | ------------------------------------ | ------------------------------------ | :--------: | --------------------------------- | ---------------------- |
+| M1  | `ta.atr` × 1.01 drift                | `StdlibDispatcher.call`              |    S+A     | `metrics.total_return` drift      | ✅ 1차 감지            |
+| M2  | `ta.rsi` × 1.005 drift (noise proxy) | `StdlibDispatcher.call`              |    S+A     | `metrics` + `trades_digest` drift | ✅ 1차 감지            |
+| M3  | `StrategyState.entry` no-op cascade  | `StrategyState.entry`                |    S+A     | `num_trades` drop                 | 🟡 2차 (skeleton)      |
+| M4  | `ta.crossover` 3회마다 True 강제     | `StdlibDispatcher.call`              |    S+A     | `trades_digest` drift             | ✅ 1차 감지 (일부 N/A) |
+| M5  | `fill_price` ABS_TOL drift (+0.005)  | `StrategyState.entry`                |    S+A     | `trades_digest` entry_price 필드  | 🟡 2차 (skip)          |
+| M6  | PnL Decimal × 1.0001 amplifier       | `StrategyState.close`                |    S+A     | `metrics.total_return` + PnL 필드 | 🟡 2차 (skeleton)      |
+| M7  | 전역 stdlib × 1.001 drift            | `StdlibDispatcher.call`              |    S+A     | `metrics` 전면 drift              | ✅ 1차 감지            |
+| M8  | `process_bar` duplicate fire         | `VirtualStrategyWrapper.process_bar` |   A only   | `num_trades` 증가                 | 🟡 2차 (skeleton)      |
+
+**`_MUTATION_CORPORA` 구성 (5 종)**:
+`(s1_pbr, s2_utbot, s3_rsid, i1_utbot, i2_luxalgo)` — Y1 reject 대상인 **i3_drfx 는 baseline 부재로 미포함**. M8 (Track A only) 은 i1_utbot (461 trades) 단일 감지 기준 (i2_luxalgo 는 0 trades → 감지 불가).
+
+**Drift 판정 로직** (`_drift_any_corpus`): 5 corpus 전체 실행 후 `metrics.total_return` / `metrics.sharpe_ratio` / `metrics.num_trades` 또는 `trades_digest` / `warnings_digest` 중 **하나라도** ABS_TOL(0.001) 또는 REL_TOL(0.1%) 초과 drift 면 감지 성공. any-of 매치로 corpus 개별 coverage 부족을 보완.
+
+**W-2/W-3 정비 (Stage 2c 2차 동반)**:
+
+- W-2: `test_m2_rsi_divzero_guard_is_detected` → `test_m2_rsi_noise_drift_is_detected` rename. divzero guard 제거의 **직접 시뮬은 NaN 위험** 이므로 0.5% drift proxy 임을 함수명/docstring/구현 3단 정합.
+- W-3: M4 의 `pytest.skip("ta.crossover 미사용 시")` 분기를 `@pytest.mark.xfail(strict=False)` marker 로 변경. **"미감지" 와 "N/A" 의 의미론 구분** (Gate-3 codex W-2c1 클로즈).
+
 ### 3.2 각 Layer 의 역할
 
 |           Layer            | 잡는 것                                                              | 못 잡는 것                                                     |            Path β 비용             |

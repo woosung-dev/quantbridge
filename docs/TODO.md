@@ -504,14 +504,27 @@
   - SLO 9개 중 8개 실 달성 (TL-E-1/2/3/4/6/7/8/9)
   - TL-E-5 (Mutation ≥7/8) Stage 2c 이연 — ADR-013 §10.1 Q2 "nightly only" 결정 근거
 
-#### Stage 2c — Mutation Oracle + Gate-2 후속 의무 (opus Gate-2 M-1~M-4)
+#### Stage 2c 1차 — Mutation Oracle 4/8 + Gate-2 후속 의무 ✅ 완료 (2026-04-23, PR #66 merge `115292a`)
 
-**Path β 완료 선언 조건** (Path γ 진입 전 또는 H1 종료 전 이행):
+- [x] **M-1 Mutation Oracle harness (1차)** — 8 mutation 중 M1/M2/M4/M7 4개 **감지 PASS**. in-process monkeypatch 패턴 확립 (`StdlibDispatcher.call` wrap). pine_v2 330 pass / 12 skip. M3/M5/M6/M8 은 2차 이연
+- [x] **M-2 metric 범위 assert 추가** — `test_p3_baseline_metric_range_sanity` 5/5 (opus Gate-2 W-OPUS-G2-2)
+- [x] **M-3 P-3 corpus 독립성 보강** — s2/i1 Track S/A 교차 + i2 0-trades + sortino/calmar null 문서 정정 (opus Gate-2 W-OPUS-G2-3)
+- [x] **M-4 `generated_at` 부분 regen fix** — `--corpus` 모드 envelope 보존 + corpus 별 `updated_at` 분리 (opus Gate-2 W-OPUS-G2-4)
+- [x] **Gate-3 1차 CONDITIONAL PASS** — codex 8/10 + opus 8/10. C-1 즉시 해소 (`conftest.py` `--run-mutations` 플래그 + `@pytest.mark.mutation` skip + `.github/workflows/trust-layer-nightly.yml` 18:00 UTC cron 신규)
 
-- [ ] **M-1 Mutation Oracle harness** — 8 mutation subprocess inject + AST-level patch. 우선순위: M1/M2/M4/M5/M7 (P-3 포착 확실) 5개 먼저. Deadline 제안: **2026-05-31** (H1 종료 전)
-- [ ] **M-2 metric 범위 assert 추가** — `test_p3_baseline_metric_range_sanity` 신규. 실측 분포가 `[1e-4, 1e1]` 내인지 검증 (opus Gate-1 W-2 / Gate-2 W-OPUS-G2-2)
-- [ ] **M-3 P-3 corpus 독립성 보강** — s2_utbot/i1_utbot 동일값 + i2_luxalgo 0-trades + sortino/calmar null 조사. "5 corpus" → "3 독립 strategy + 2 지표" 로 문서 정정 (opus Gate-2 W-OPUS-G2-3)
-- [ ] **M-4 `generated_at` 부분 regen fix** — `--corpus` 모드에서 envelope 부분 보존 + corpus 별 `updated_at` 분리 (opus Gate-2 W-OPUS-G2-4)
+#### Stage 2c 2차 — Mutation 7/8 + W-2/W-3 🟡 In Progress (2026-04-23 시작, deadline 2026-05-31)
+
+**Path β 완료 선언 조건** (SLO TL-E-5 ≥ 7/8 green). ADR-013 §10.4 구현 설계 선행 완료.
+**브랜치**: `feat/path-beta-stage2c-2nd` ← main(`115292a`). PR base=main 직접.
+**세션 plan**: `~/.claude/plans/path-lucky-squid.md`.
+
+- [ ] **T1 M3** `StrategyState.entry` no-op cascade → `num_trades` drop 감지 (Track S+A)
+- [ ] **T2 M5** `fill_price + 0.005` ABS_TOL drift → `trades_digest` entry_price 필드 변경 감지
+- [ ] **T3 M6** `StrategyState.close` 반환 `trade.pnl × Decimal("1.0001")` amplifier → `metrics.total_return` drift
+- [ ] **T4 M8** `VirtualStrategyWrapper.process_bar` duplicate fire → `num_trades` 증가 (Track A only, i1_utbot)
+- [ ] **T5 W-2 + W-3** M2 `test_m2_rsi_noise_drift_is_detected` rename + docstring 정합 + M4 `@pytest.mark.xfail(strict=False)` marker (Gate-3 codex W-2c1 클로즈)
+- [ ] **T6 docs/memory** ADR-013 §11 Amendment "Stage 2c 2차 완료" 행 + TODO.md sync + memory `project_path_beta_stage2c_2nd_complete.md`
+- [ ] **Gate-4 2중 blind** — codex + opus, PASS 기준: 감지 ≥ 7/8 (M4 xfail 허용) + 양쪽 confidence ≥ 8/10 + blocker 0 + backend 985 regression 0
 - [ ] Stage 2c 완료 후 requirements.md §4.1 에 "Mutation 측정 불가 = scope-reducing" 명시화 (codex Gate-2 W-2)
 
 #### Stage 2 — 관찰 후보 (Warning 수준, 차기 sprint 검토)
