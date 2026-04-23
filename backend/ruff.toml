@@ -21,7 +21,10 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"tests/**/*.py" = ["S", "B"]
+# Test files: 한국어 docstring + 수학 기호 (×, ∪, ⊆, ⟺ 등) 허용
+# scripts/: 유틸 스크립트도 한국어 docstring + 수학 기호 동일 허용
+"tests/**/*.py" = ["S", "B", "RUF001", "RUF002", "RUF003"]
+"scripts/**/*.py" = ["RUF001", "RUF002", "RUF003"]
 
 [lint.isort]
 known-first-party = ["src"]

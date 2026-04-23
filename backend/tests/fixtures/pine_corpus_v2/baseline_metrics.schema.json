@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantbridge.internal/schemas/baseline_metrics.schema.json",
+  "title": "Trust Layer P-3 Baseline Metrics",
+  "description": "Path β Trust Layer CI — P-3 Execution Golden 의 baseline 스키마. 6 corpus × corpus_ohlcv_frozen.parquet 실행 결과의 metrics + digests 스냅샷. Stage 1 (2026-04-23) 정의, Stage 2 에서 실 값 채움. 관련: docs/dev-log/013-trust-layer-ci-design.md §4.3.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ohlcv_sha256",
+    "pine_v2_commit",
+    "tool_versions",
+    "generated_at",
+    "corpora"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "스키마 버전 (breaking change 시 +1). 현재 v1 = Path β Stage 1 설계."
+    },
+    "ohlcv_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "corpus_ohlcv_frozen.parquet 의 sha256 hex. 파일 변경 시 전체 baseline regen 의무."
+    },
+    "pine_v2_commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{7,40}$",
+      "description": "마지막 regen 시점의 pine_v2/ HEAD commit hash (단축 또는 full)."
+    },
+    "tool_versions": {
+      "type": "object",
+      "description": "외부 의존 버전 pinning (opus Gate-0 W5 반영). 버전 변경 시 baseline regen + ADR-013 부록 갱신.",
+      "required": ["pynescript", "python"],
+      "additionalProperties": false,
+      "properties": {
+        "pynescript": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "pynescript 패키지 버전 (pyproject.toml pin 과 일치, 현재 0.3.0)."
+        },
+        "python": {
+          "type": "string",
+          "pattern": "^3\\.1[12]$",
+          "description": "Python minor 버전 (3.11 또는 3.12). Decimal precision 영향 있음."
+        },
+        "pine_v2_tests": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "regen 시점의 pine_v2 테스트 수 (참고용, 비필수)."
+        }
+      }
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "regen 실행 시각 (ISO 8601 UTC, `Z` suffix)."
+    },
+    "corpora": {
+      "type": "object",
+      "description": "corpus_id → 실행 결과 매핑. 6 종 (s1_pbr, s2_utbot, s3_rsid, i1_utbot, i2_luxalgo, i3_drfx).",
+      "minProperties": 6,
+      "maxProperties": 6,
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/CorpusExecutionRecord" },
+          { "$ref": "#/$defs/CorpusSkippedRecord" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "DecimalString": {
+      "type": "string",
+      "pattern": "^-?\\d+(\\.\\d+)?$",
+      "description": "Decimal 직렬화 (Sprint 4 D8 원칙). float 금지 — `Decimal(str(x))` 왕복 안전."
+    },
+    "CorpusExecutionRecord": {
+      "type": "object",
+      "description": "실행 가능 corpus (Y1 Coverage 통과) 의 metrics + digests.",
+      "required": [
+        "metrics",
+        "var_series_digest",
+        "trades_digest",
+        "warnings_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "type": "object",
+          "description": "engine/metrics.py 의 13 지표. Decimal 은 문자열로 직렬화, 정수는 integer.",
+          "required": [
+            "total_return",
+            "sharpe_ratio",
+            "max_drawdown",
+            "win_rate",
+            "num_trades",
+            "profit_factor",
+            "sortino_ratio",
+            "calmar_ratio",
+            "avg_win",
+            "avg_loss",
+            "long_count",
+            "short_count"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "total_return": { "$ref": "#/$defs/DecimalString" },
+            "sharpe_ratio": {
+              "oneOf": [
+                { "$ref": "#/$defs/DecimalString" },
+                {
+                  "type": "null",
+                  "description": "sample 부족 시 null (NaN → None)"
+                }
+              ]
+            },
+            "max_drawdown": { "$ref": "#/$defs/DecimalString" },
+            "win_rate": { "$ref": "#/$defs/DecimalString" },
+            "num_trades": { "type": "integer", "minimum": 0 },
+            "profit_factor": {
+              "oneOf": [{ "$ref": "#/$defs/DecimalString" }, { "type": "null" }]
+            },
+            "sortino_ratio": {
+              "oneOf": [{ "$ref": "#/$defs/DecimalString" }, { "type": "null" }]
+            },
+            "calmar_ratio": {
+              "oneOf": [{ "$ref": "#/$defs/DecimalString" }, { "type": "null" }]
+            },
+            "avg_win": {
+              "oneOf": [{ "$ref": "#/$defs/DecimalString" }, { "type": "null" }]
+            },
+            "avg_loss": {
+              "oneOf": [{ "$ref": "#/$defs/DecimalString" }, { "type": "null" }]
+            },
+            "long_count": { "type": "integer", "minimum": 0 },
+            "short_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "var_series_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "RunResult.var_series (bar-by-bar user 변수 값) 정규화 JSON 의 sha256."
+        },
+        "trades_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "strategy_state.closed_trades + open_trades 직렬화의 sha256."
+        },
+        "warnings_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "strategy_state.warnings 리스트 직렬화의 sha256."
+        }
+      }
+    },
+    "CorpusSkippedRecord": {
+      "type": "object",
+      "description": "Y1 Coverage Analyzer 에서 is_runnable=false 로 reject 된 corpus. 현재 i3_drfx 만.",
+      "required": ["note"],
+      "additionalProperties": false,
+      "properties": {
+        "note": {
+          "type": "string",
+          "pattern": "^Skipped",
+          "description": "\"Skipped — is_runnable=false per Y1 Coverage Analyzer\" 등 사유."
+        },
+        "unsupported": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Coverage Analyzer 가 reject 한 함수/속성 목록 (참고용, 비필수)."
+        }
+      }
+    }
+  }
+}
