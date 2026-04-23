@@ -1,26 +1,26 @@
-"""Mutation Oracle (Path β Stage 2c M-1) — P-1/2/3 의 감지력 메타 검증.
+"""Mutation Oracle (Path β Stage 2c) — P-1/2/3 의 감지력 메타 검증.
 
 ADR-013 §4.4 + §10.1 Q2 (nightly only) + §10.1 등가 가중. 각 mutation 을
 in-process monkeypatch 로 inject 한 뒤 P-3 Execution Golden 이 drift 를
-감지하는지 확인. 8 mutation 중 Stage 2c 1차 iteration 에서는 **5개 구현**
-(M1/M2/M4/M5/M7 — P-3 fail 이 결정적). M3/M6/M8 은 Stage 2c 2차 (H1 종료 전).
+감지하는지 확인.
 
 **실행 방법**:
 - 기본 `pytest tests/strategy/pine_v2/` 에서는 `--run-mutations` 마커로 skip
 - `pytest --run-mutations` 또는 nightly workflow 에서 실행
-- SLO TL-E-5: 8 mutations 중 ≥7 포착 → Path β 완료. 현재 5/8 구현 + 3/8 이연
+- SLO TL-E-5: 8 mutations 중 ≥7 포착 → Path β 완료. 실측 **8/8 감지** (M4 xfail XPASS)
 
 **감지 로직**:
-1. 원본 baseline 에서 expected_metrics 로드 (s1_pbr)
-2. monkeypatch 로 stdlib/strategy_state 함수를 mutation 된 버전으로 교체
-3. `run_backtest_v2(s1_pbr_source, frozen_ohlcv)` 실행
-4. 실측 metrics 와 baseline 비교 → `within_tolerance` 가 False 이면 포착 성공
-5. AssertionError → mutation 감지됨 / 변화 없음 → mutation 미감지 (FAIL)
+1. 원본 baseline 에서 expected_metrics 로드 (5 corpus: s1_pbr/s2_utbot/s3_rsid/i1_utbot/i2_luxalgo)
+2. monkeypatch 로 stdlib/strategy_state/virtual_strategy 함수를 mutation 된 버전으로 교체
+3. `_drift_any_corpus` — 5 corpus 중 하나라도 metrics(total_return/sharpe/num_trades) 또는 trades_digest/warnings_digest drift 시 감지 성공
+4. AssertionError → mutation 감지됨 / 변화 없음 → mutation 미감지 (FAIL)
 
-Stage 2c 2차 이연 (M3/M6/M8):
-- M3 (strategy.entry 반환): return type 변경은 Pyton 에서 downstream 영향 복잡
-- M6 (Decimal→float leak): str(Decimal(str(a+b))) vs str(Decimal(str(a)) + Decimal(str(b))) 의 실측 drift 는 극소 (ABS_TOL 0.001 내)
-- M8 (alert 중복 hook): Track A VirtualStrategyWrapper 의 alert_hook 내부 patch 가 복잡
+**구현 현황 (Stage 2c 2차 완료, 2026-04-23)**:
+- M1/M2/M7: stdlib 수치 변조 (Track S/A 공통)
+- M3/M5: StrategyState.entry 경로 (Track S + Track A)
+- M4: ta.crossover 시그널 변조 — xfail(strict=False) (corpus 의존적 N/A)
+- M6: StrategyState.close PnL amplifier (Track S + Track A)
+- M8: VirtualStrategyWrapper.process_bar 중복 fire (Track A 전용, i1_utbot 감지)
 """
 
 from __future__ import annotations
