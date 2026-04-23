@@ -65,7 +65,20 @@ _INPUT_FUNCTIONS: frozenset[str] = frozenset({
 _STRING_FUNCTIONS: frozenset[str] = frozenset({
     "str.tostring", "str.tonumber", "str.format", "str.length",
     "tostring", "tonumber",
-    "request.security",  # NOP placeholder (Sprint 8c — MTF는 H2+)
+})
+
+# Known-unsupported functions — 정적 분석에서 명시적으로 unsupported_functions에 포함.
+# interpreter는 런타임 NOP/graceful degrade로 처리하지만,
+# coverage analyzer는 사용자에게 "지원되지 않는 함수" 로 명시해야 함.
+# (ADR-013 §4 Trust Layer 철학: partial silentfail → 명시적 unsupported 선언)
+_KNOWN_UNSUPPORTED_FUNCTIONS: frozenset[str] = frozenset({
+    "request.security",
+    "request.security_lower_tf",
+    "request.dividends",
+    "request.earnings",
+    "request.quandl",
+    "request.financial",
+    "ticker.new",
 })
 
 # Math built-ins (사용자 호출)
@@ -143,6 +156,7 @@ _KNOWN_NAMESPACES: frozenset[str] = frozenset({
     "alert", "display", "xloc", "yloc", "text", "font", "barstate",
     "session", "currency", "dayofweek", "earnings", "splits",
     "dividends", "chart", "timeframe", "time",
+    "ticker",  # ticker.new 등 (H2+ 미지원)
 })
 
 
@@ -228,9 +242,14 @@ def analyze_coverage(source: str) -> CoverageReport:
         f for f in used_funcs_all
         if "." not in f or _is_pine_namespace(f)
     ]
-    unsupp_funcs = tuple(
-        f for f in used_funcs if f not in SUPPORTED_FUNCTIONS
-    )
+    # known-unsupported를 먼저 분리: SUPPORTED_FUNCTIONS에서 제거 후 명시적 unsupported 처리
+    # (interpreter는 NOP으로 graceful degrade하지만 coverage analyzer는 명시적 노출)
+    unsupp_funcs_raw = [f for f in used_funcs if f not in SUPPORTED_FUNCTIONS]
+    # known-unsupported는 used_funcs에 감지되면 항상 unsupported로 분류
+    known_found = [f for f in used_funcs if f in _KNOWN_UNSUPPORTED_FUNCTIONS]
+    # 중복 없이 합산 (known_found는 이미 SUPPORTED_FUNCTIONS에서 제외됐으므로 union)
+    unsupp_funcs_set = set(unsupp_funcs_raw) | set(known_found)
+    unsupp_funcs = tuple(sorted(unsupp_funcs_set))
 
     # attributes (call site 제외 — `(` 직후 위치는 함수로 이미 잡힘)
     used_attrs_set: set[str] = set()
