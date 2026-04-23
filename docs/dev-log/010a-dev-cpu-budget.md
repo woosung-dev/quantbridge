@@ -13,11 +13,11 @@ Sprint 7c FE 구현 중 `next-server` Node 프로세스가 **331% CPU (3.3 cores
 
 ## 증상
 
-| 프로세스 | CPU | 원인 |
-|---|---|---|
-| `next-server (v16.2.3)` | 331% | Webpack + heavy deps (Monaco) 재컴파일 폭주 |
-| `fseventsd` | 45.8% | HMR 파일 watcher 이벤트 과부하 |
-| Chrome Helper × N | 5~15%씩 | Playwright Chromium 인스턴스 누적 |
+| 프로세스                | CPU     | 원인                                        |
+| ----------------------- | ------- | ------------------------------------------- |
+| `next-server (v16.2.3)` | 331%    | Webpack + heavy deps (Monaco) 재컴파일 폭주 |
+| `fseventsd`             | 45.8%   | HMR 파일 watcher 이벤트 과부하              |
+| Chrome Helper × N       | 5~15%씩 | Playwright Chromium 인스턴스 누적           |
 
 `.next/` 523MB · `node_modules/` 789MB · `globals.css` 353줄. Monaco/Clerk/React Query 조합.
 
@@ -32,6 +32,7 @@ Sprint 7c FE 구현 중 `next-server` Node 프로세스가 **331% CPU (3.3 cores
 ### 2) "완전한 코드 + Atomic Update + 확장성 고려" 트리오
 
 `AGENTS.md:40` **"`...` 처리로 생략하지 않고 완전한 코드를 제공"** + `AGENTS.md:37` **"유지보수 가능한 아키텍처"** 조합이 LLM에:
+
 - 단일 feature = 20~30 파일 변경
 - Premature Context API / Provider 계층 abstraction
 - `noUncheckedIndexedAccess` strict 옵션과 결합해 복잡 generic 남발 → tsc 비용 ↑
@@ -77,6 +78,7 @@ Sprint 7c FE 구현 중 `next-server` Node 프로세스가 **331% CPU (3.3 cores
 ### P0 — 즉시 (이 ADR + 본 브랜치에 적용)
 
 **Turbopack 활성화:**
+
 ```json
 // package.json
 "dev": "next dev --turbopack",
@@ -84,17 +86,19 @@ Sprint 7c FE 구현 중 `next-server` Node 프로세스가 **331% CPU (3.3 cores
 ```
 
 **typedRoutes를 build 타임 한정:**
+
 ```ts
 // next.config.ts
 const isBuild = process.env.NEXT_PHASE === "phase-production-build";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  typedRoutes: isBuild,  // dev에선 false
+  typedRoutes: isBuild, // dev에선 false
   // ...
 };
 ```
 
 **`.next/` 캐시 주기적 정리 (주 1회):**
+
 ```bash
 rm -rf frontend/.next
 ```
@@ -110,15 +114,17 @@ rm -rf frontend/.next
    - Tailwind v4 `@source` directive 권장
 
 2. **`.ai/common/typescript.md` 하단에 "React Hook Deps 안정화" 섹션 신설**
+
    ```markdown
    ## 3. React Hook Dependencies (Client Components)
 
    ### useEffect / useCallback deps 안정화
+
    - Object literal / inline function을 deps에 두지 말 것
    - useMemo로 dependency 객체 메모이제이션
-   
+
    ✅ const filters = useMemo(() => ({ status: "active" }), []);
-   ❌ useEffect(() => { fetch({ status: "active" }) }, []);  // inline object
+   ❌ useEffect(() => { fetch({ status: "active" }) }, []); // inline object
    ```
 
 3. **`.ai/templates/settings.json.example` PostToolUse prettier hook을 주석 처리(opt-in)**
@@ -128,30 +134,35 @@ rm -rf frontend/.next
 > ⚠️ **본 ADR의 Phase 1/2 분석은 부분 오진.** CPU 폭증의 **진짜 root cause는 Next.js 16.2.3 Turbopack 프레임워크 버그**였음 — 16.2.4로 업그레이드만으로 완전 해소됨.
 
 **결정적 증거:**
+
 - `frontend/package.json`에서 `next@^16.2.3` → `^16.2.4` 업그레이드 직후 사용자 측정: **`next-server` idle CPU 0.0%** (폭증 시 326% → 정상)
 - Next.js 16.2.4 공식 수정 PR:
   - [**PR #92725**](https://github.com/vercel/next.js/pull/92725): `turbo-tasks: Fix recomputation loop by allowing cell cleanup on error during recomputation` — 본 ADR에서 관찰했던 **Turbopack cache 파일 00000324→00000354 무한 증식**과 정확히 일치
   - [**PR #92631**](https://github.com/vercel/next.js/pull/92631): `Turbopack: fix filesystem watcher config not applying follow_symlinks(false)` — `fseventsd 45.7% CPU`의 원인
 
-**16.2.3 배경:** 16.2.3 릴리즈 노트 *"Stability improvements in turbo-tasks-backend for task cancellation and error handling"* — task cancellation이 불완전해 error 시 cell cleanup이 누락되는 회귀를 남긴 채 릴리즈. 16.2.4는 **backport-only** 수습 릴리즈.
+**16.2.3 배경:** 16.2.3 릴리즈 노트 _"Stability improvements in turbo-tasks-backend for task cancellation and error handling"_ — task cancellation이 불완전해 error 시 cell cleanup이 누락되는 회귀를 남긴 채 릴리즈. 16.2.4는 **backport-only** 수습 릴리즈.
 
 **Phase 1/2 분석 철회:**
+
 - ❌ `typedRoutes: isBuild` 우회 — **철회**. 기반 가설(dev CPU 누수)이 오진. `next.config.ts`를 create-next-app 기본값(빈 객체)으로 회귀
 - ❌ `.next/build` vs `.next/dev` 공존, tsconfig `include: .next/dev/types/**` self-watch, `.ai/` 루트 배치 — 모두 **contributing factor 아님**. 관찰된 증상(cache 증식, watcher 폭주)은 Turbopack 내부 버그가 직접 유발
 - ❌ "15 anti-pattern" 중 CPU 원인으로 지목된 5건(ralph 50 iter, prettier hook, 완전한 코드, useEffect deps, HMR watch 가이드) — **정상 Next 동작에선 무해**. 16.2.3 버그가 증폭시킨 것이지 원인 창출 아님
 - ❌ P0 처방 `rm -rf .next` — 16.2.3을 유지한 채 캐시만 지우면 수 분 내 재발 (사용자 확인)
 
 **여전히 가치 있는 Phase 2(P0~P7) 작업:**
+
 - ✅ P1 (Trading Clerk JWT 누락) — 보안 버그로 CPU와 독립
 - ✅ P0 (QueryProvider SSR 패턴), P2 (HydrationBoundary), P5/P6 (loading/error.tsx), P7 (Trading FSD) — context7 공식 패턴 준수
 - ✅ P3 (useEffect deps 안정화) — 브라우저 접속 시 잠재 re-render 루프 예방
 
 **교훈:**
+
 - 증상(관찰 가능한 측정값) → 원인(프레임워크 버그) 매핑 시, 업스트림 changelog를 **먼저** 확인했어야 함
 - ADR 작성 전 `pnpm up <lib>` 실험 1회로 30분 절약 가능했음
 - 복잡한 가설 체인(dual cache + tsconfig self-watch + 루트 배치)보다 *"upstream을 의심하라"*가 더 저렴한 검증
 
 **2026-04-17 session3 적용 변경:**
+
 - `frontend/next.config.ts`: 3개 커스텀 필드 제거 → 기본값 회귀
 - `docs/TODO.md`: 본 ADR 원인 정정 + P4 zod 규칙 완화 follow-up
 - Filter URL sync (`parse_status`/`archived`/`page` 쿼리 반영) — 독립 작업
@@ -186,13 +197,13 @@ rm -rf frontend/.next
 
 각 프로젝트가 다음 기준 유지:
 
-| 측정 | 목표 | Warning | Critical |
-|---|---|---|---|
-| `next-server` CPU (idle) | < 20% | 20~100% | > 100% |
-| `next-server` CPU (HMR 직후) | < 100% | 100~200% | > 200% |
-| `.next/` 크기 | < 200MB | 200~500MB | > 500MB |
-| HMR cycle 시간 | < 300ms | 300~1000ms | > 1s |
-| `fseventsd` CPU | < 10% | 10~30% | > 30% |
+| 측정                         | 목표    | Warning    | Critical |
+| ---------------------------- | ------- | ---------- | -------- |
+| `next-server` CPU (idle)     | < 20%   | 20~100%    | > 100%   |
+| `next-server` CPU (HMR 직후) | < 100%  | 100~200%   | > 200%   |
+| `.next/` 크기                | < 200MB | 200~500MB  | > 500MB  |
+| HMR cycle 시간               | < 300ms | 300~1000ms | > 1s     |
+| `fseventsd` CPU              | < 10%   | 10~30%     | > 30%    |
 
 Critical 초과 시 **즉시** 본 ADR 참조 + fix 체크리스트 적용.
 
