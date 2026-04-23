@@ -310,7 +310,7 @@
 - [x] Strategy CRUD UI (목록/생성 3-step/편집 3탭 + delete 409 archive fallback) — Sprint 7c ✅ 완료 (2026-04-17)
 - [x] 실 CCXT 거래소 연동 (Bybit testnet Futures + Cross Margin) — Sprint 7a ✅ 완료 (2026-04-17)
 - [x] `bybit_futures_max_leverage` config 값이 `OrderService.execute`에서 enforce (422 `LeverageCapExceeded`) — Sprint 7a 리뷰 합의로 완료 (2026-04-17)
-- [ ] Bybit testnet Live smoke test (실 API key로 수동 주문 1건) — 사용자 테스트 대기 (Step 4에서 runbook/체크리스트 지원 예정)
+- [ ] Bybit Demo Trading Live smoke test (Demo API key로 수동 주문 1건) — 사용자 테스트 대기
 - [x] Trading Sessions 도메인 확장 (세션 생성/시작/중지/kill) — Sprint 7d ✅ 완료 (2026-04-19, PR #28)
 - [x] OKX 멀티 거래소 추가 — Sprint 7d ✅ 완료 (2026-04-19, PR #28)
 - [x] Edit 페이지 Pine 이터레이션 UX 풍부화 (ISSUE-003 + ISSUE-004) — Sprint 7b ✅ 완료 (2026-04-17)
@@ -539,8 +539,8 @@
 
 #### Dogfood (A 트랙) — Stage 2 중 병행
 
-- [ ] Bybit testnet s1_pbr + s2_utbot 자동 집행 2주
-- [ ] OKX testnet i2_luxalgo (PR #28 merge 후)
+- [ ] Bybit Demo s1_pbr + s2_utbot 자동 집행 2주
+- [ ] OKX demo i2_luxalgo (PR #28 merge 후)
 - [ ] 일일 체크리스트 (`docs/guides/dogfood-checklist.md`)
 - [ ] Week 1 / Week 2 요약 (`dev-log/dogfood-week1-path-beta.md`, `dogfood-week2-path-beta.md`)
 - [ ] 성공 기준: D-A 오작동 0 / D-B ≥95% / D-C sharpe 편차 <5% / D-D UX ticket 화

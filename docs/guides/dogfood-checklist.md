@@ -8,7 +8,7 @@
 
 > **전제 조건 (하기 전 확인):**
 >
-> 1. `07_infra/h1-testnet-dogfood-guide.md` §2 (환경 준비) 완료
+> 1. `07_infra/h1-testnet-dogfood-guide.md` §2 (환경 준비) 완료 — Demo Trading API 키 발급 포함
 > 2. `scripts/bybit_demo_smoke.py` PASS 확인
 > 3. Path β Stage 0 문서 완료 (ADR-013, trust-layer-architecture.md, trust-layer-requirements.md)
 
@@ -16,9 +16,9 @@
 
 ## 1. 시작 전 1회 체크
 
-- [ ] 관찰 대상 corpus 확정 (s1_pbr + s2_utbot 기본, i2_luxalgo loose 는 OKX testnet 셋업 시 추가)
+- [ ] 관찰 대상 corpus 확정 (s1_pbr + s2_utbot 기본, i2_luxalgo loose 는 OKX demo 셋업 시 추가)
 - [ ] 각 전략의 **예상 metric baseline** 기록 (백테스트 recent run 의 sharpe / win_rate / max_dd)
-- [ ] Kill Switch 설정 재확인 (`.env.testnet` 기준값)
+- [ ] Kill Switch 설정 재확인 (`.env.demo` 기준값)
 - [ ] `docs/dev-log/dogfood-week1-path-beta.md` 주간 리포트 파일 생성 (빈 스켈레톤)
 
 ---
@@ -162,18 +162,19 @@ GROUP BY status;
 
 ## 4. 본 체크리스트 외 참고
 
-| 상황                          | 참고 문서                                                               |
-| ----------------------------- | ----------------------------------------------------------------------- |
-| Bybit/OKX testnet 환경 재셋업 | `07_infra/h1-testnet-dogfood-guide.md` §2                               |
-| Kill Switch 발동 시 대응      | `07_infra/h1-testnet-dogfood-guide.md` §5                               |
-| CI 가 잡는 regression 기준    | `04_architecture/trust-layer-architecture.md` §3                        |
-| SLO 상세                      | `01_requirements/trust-layer-requirements.md` §3                        |
-| 주간 리포트 파일 위치         | `docs/dev-log/dogfood-week1-path-beta.md`, `dogfood-week2-path-beta.md` |
+| 상황                       | 참고 문서                                                               |
+| -------------------------- | ----------------------------------------------------------------------- |
+| Bybit/OKX demo 환경 재셋업 | `07_infra/h1-testnet-dogfood-guide.md` §2                               |
+| Kill Switch 발동 시 대응   | `07_infra/h1-testnet-dogfood-guide.md` §5                               |
+| CI 가 잡는 regression 기준 | `04_architecture/trust-layer-architecture.md` §3                        |
+| SLO 상세                   | `01_requirements/trust-layer-requirements.md` §3                        |
+| 주간 리포트 파일 위치      | `docs/dev-log/dogfood-week1-path-beta.md`, `dogfood-week2-path-beta.md` |
 
 ---
 
 ## 5. 변경 이력
 
-| 날짜       | 사유      | 변경                                                                |
-| ---------- | --------- | ------------------------------------------------------------------- |
-| 2026-04-23 | 최초 작성 | Path β Stage 0. `07_infra/h1-testnet-dogfood-guide.md` 와 역할 분리 |
+| 날짜       | 사유                | 변경                                                                 |
+| ---------- | ------------------- | -------------------------------------------------------------------- |
+| 2026-04-23 | 최초 작성           | Path β Stage 0. `07_infra/h1-testnet-dogfood-guide.md` 와 역할 분리  |
+| 2026-04-24 | Testnet → Demo 전환 | OKX/Bybit testnet → demo 참조 업데이트, `.env.testnet` → `.env.demo` |
