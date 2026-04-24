@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     celery_broker_url: str = "redis://redis:6379/1"
     celery_result_backend: str = "redis://redis:6379/2"
+    redis_lock_url: str = Field(
+        default="redis://redis:6379/3",
+        description=(
+            "분산 락 + slowapi rate-limit storage 전용 Redis URL. "
+            "Celery broker(DB 1) / result(DB 2)와 격리된 DB 3 사용. "
+            "Sprint 10 Phase A1."
+        ),
+    )
 
     # Backtest (Sprint 4)
     backtest_stale_threshold_seconds: int = Field(

@@ -43,9 +43,12 @@ def _verify_prometheus_bearer(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """CCXTProvider singleton 관리 — ohlcv_provider=timescale일 때만 init."""
+    """Startup/shutdown 자원 라이프사이클.
+
+    - CCXTProvider singleton (ohlcv_provider=timescale 일 때만)
+    - Redis lock pool healthcheck (Sprint 10 A1) — 실패 시 degraded 모드
+    """
     if settings.ohlcv_provider == "timescale":
-        # lazy import: ccxt 의존성을 fixture 경로에서는 로드하지 않음
         from src.market_data.providers.ccxt import CCXTProvider
 
         app.state.ccxt_provider = CCXTProvider(
@@ -53,6 +56,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     else:
         app.state.ccxt_provider = None
+
+    from src.common.redis_client import healthcheck_redis_lock
+
+    await healthcheck_redis_lock(app)
 
     yield
 
@@ -66,6 +73,10 @@ def create_app() -> FastAPI:
         debug=settings.debug,
         lifespan=lifespan,
     )
+
+    # Phase A2/B 가 본 플래그를 평가하기 전 lifespan 이 healthcheck 호출.
+    # startup 미진입 / 테스트가 lifespan 우회 시 AttributeError 봉쇄용 기본값.
+    app.state.redis_lock_healthy = False
 
     app.add_middleware(
         CORSMiddleware,
