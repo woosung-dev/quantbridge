@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, ForeignKey, Index, Text, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Index, LargeBinary, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
@@ -85,6 +85,13 @@ class Backtest(SQLModel, table=True):
 
     # 멱등성 키 (Sprint 9-6) — 클라이언트가 Idempotency-Key 헤더로 전달
     idempotency_key: str | None = Field(default=None, max_length=128, nullable=True)
+    # Sprint 9-6 E2 — same-key + different-body 충돌 감지용 SHA-256 hash (32 bytes).
+    # user_id 를 hash payload 에 포함해 cross-user key 재사용도 충돌로 처리.
+    # 기존 row (NULL) 는 어떤 body hash 와도 match 되지 않음 (안전성 우선).
+    idempotency_payload_hash: bytes | None = Field(
+        default=None,
+        sa_column=Column(LargeBinary, nullable=True),
+    )
 
     # Timestamps
     created_at: datetime = Field(

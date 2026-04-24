@@ -40,6 +40,7 @@ from src.common.database import get_async_session
 from src.main import create_app
 from src.market_data.models import OHLCV  # noqa: F401 — metadata 등록 (ts.ohlcv)
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
+from src.stress_test.models import StressTest  # noqa: F401 — metadata 등록
 from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
     ExchangeAccount,
     KillSwitchEvent,

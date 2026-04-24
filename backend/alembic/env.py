@@ -24,6 +24,7 @@ from src.backtest import models as _backtest_models  # noqa: F401
 from src.core.config import settings
 from src.market_data import models as _market_data_models  # noqa: F401
 from src.strategy import models as _strategy_models  # noqa: F401
+from src.stress_test import models as _stress_test_models  # noqa: F401
 from src.trading import models as _trading_models  # noqa: F401
 
 config = context.config
