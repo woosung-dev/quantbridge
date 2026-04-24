@@ -36,6 +36,15 @@ if not os.environ.get("WAITLIST_ADMIN_EMAILS"):
     # 가 만드는 email 과 매칭 불가 (random) — 따라서 테스트는 override 로 admin 검증 우회.
     os.environ["WAITLIST_ADMIN_EMAILS"] = "admin@example.com"
 
+# Sprint 11 Phase C — slowapi rate-limit storage. `.env.example` 의 기본값
+# `redis://redis:6379/3` 은 Docker 내부 호스트명이라 로컬 pytest 에서 해석 불가.
+# `@limiter.limit` 가 붙은 endpoint (예: POST /waitlist) 를 호출하는 테스트는
+# Redis 연결을 실제로 시도 → ConnectionError 발생. swallow_errors=True 가 있어도
+# evalsha 단계에서 Exception 으로 fall-through. localhost 로 override 하여
+# docker compose up 중인 Redis (포트 6379) 를 사용하도록 강제.
+if not os.environ.get("REDIS_LOCK_URL"):
+    os.environ["REDIS_LOCK_URL"] = "redis://localhost:6379/3"
+
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
