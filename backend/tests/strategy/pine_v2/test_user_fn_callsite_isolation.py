@@ -12,7 +12,6 @@ from __future__ import annotations
 import math
 
 import pandas as pd
-import pytest
 
 from src.strategy.pine_v2.event_loop import run_historical
 from src.strategy.pine_v2.stdlib import StdlibDispatcher

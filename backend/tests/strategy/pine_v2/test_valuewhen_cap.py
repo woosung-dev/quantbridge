@@ -11,7 +11,7 @@ from collections import deque
 
 import pytest
 
-from src.strategy.pine_v2.stdlib import IndicatorState, ta_valuewhen, _VALUEWHEN_MAX_HIST
+from src.strategy.pine_v2.stdlib import _VALUEWHEN_MAX_HIST, IndicatorState, ta_valuewhen
 
 
 def test_valuewhen_occurrence_cap() -> None:

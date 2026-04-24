@@ -4,16 +4,13 @@ Sprint Y1 Trust Layer 철학:
 - coverage analyzer는 pre-flight에서 미지원 함수를 명시적으로 보고해야 함
 - request.security는 interpreter가 NOP으로 처리하지만 사용자에게 "미지원" 명시 필요
 """
+
 from __future__ import annotations
 
-import pytest
-
 from src.strategy.pine_v2.coverage import (
-    CoverageReport,
     _KNOWN_UNSUPPORTED_FUNCTIONS,
     analyze_coverage,
 )
-
 
 # -------- _KNOWN_UNSUPPORTED_FUNCTIONS 상수 검증 -----------------------
 

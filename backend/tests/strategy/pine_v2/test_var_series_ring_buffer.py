@@ -8,13 +8,11 @@ deque(maxlen=500) 전환 후:
 """
 from __future__ import annotations
 
-import math
 from collections import deque
 
 import pandas as pd
-import pytest
 
-from src.strategy.pine_v2.event_loop import RunResult, run_historical
+from src.strategy.pine_v2.event_loop import run_historical
 from src.strategy.pine_v2.interpreter import BarContext, Interpreter
 from src.strategy.pine_v2.runtime import PersistentStore
 
