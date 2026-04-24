@@ -624,6 +624,34 @@ _(기존 Blocked 항목 없음 유지)_
 
 ## Next Actions (P0~P7 후속)
 
+### H2 Sprint 11 완료 후 (Beta 오픈 수동 작업) — 2026-04-25
+
+**stage/h2-sprint11 → main PR 완료 후 즉시:**
+
+- [ ] **Cloudflare WAF Custom Rule 수동 설정** — `docs/07_infra/geo-block-setup.md` 따라 US + EU 27 + GB 블록 (Phase A L1). 무료 요금제 5 rule slot 중 1 사용.
+- [ ] **Resend 계정 가입 + 도메인 DNS 검증** — SPF/DKIM 설정 (24h 전파). `noreply@quantbridge.ai` sender. free tier 100 email/일.
+- [ ] **프로덕션 환경변수 주입** (Fly.io / Vercel / GCP Cloud Run 어디든):
+  - `RESEND_API_KEY` — Resend dashboard
+  - `WAITLIST_TOKEN_SECRET` — `openssl rand -hex 32`
+  - `WAITLIST_ADMIN_EMAILS` — 콤마 구분 admin 이메일 리스트
+  - (기존) `REDIS_LOCK_URL` / `TRADING_ENCRYPTION_KEYS` / Clerk
+- [ ] **Alembic migration 프로덕션 적용** — `20260425_0001_add_waitlist_table` + `20260425_0002_add_user_country_code`.
+
+**Beta 오픈 준비 (Week 1~2):**
+
+- [ ] Twitter/X `#buildinpublic` 첫 포스트 — `/waitlist` 랜딩 공개, Monte Carlo/Walk-Forward 데모
+- [ ] Beta 지원서 (`/waitlist`) 에 최소 5 건 유입 대기 + narrowest wedge (TV Pro+ · Bybit/OKX $1k+) 심사
+- [ ] 본인 dogfood 1주 연속 + Bybit Demo 무사고 확인
+
+**H2 말 (~2026-06-30) 이관:**
+
+- [ ] **D-5 A 안:** Termly 임시 템플릿 → 한국 변호사 검토본 교체 (Disclaimer/Terms/Privacy). `docs/07_infra/legal-temporary.md` 절차 따라 $500~$1,500. `LegalNoticeBanner` 의 "법무 임시" 문구 제거.
+- [ ] **slowapi 0.2.x major upgrade 검토** — Phase F 는 minor 범위만. breaking 검토 후 `_RateLimitStateInitMiddleware` workaround 제거 가능성.
+- [ ] Allowlist 조정 — 프로덕션 ccxt 예외 실측 후 `_ALLOWLIST_ERROR_CLASSES` 추가/삭제 (`_CCXT_ERROR_CLASSES` 28 vs Bybit/OKX specific).
+- [ ] Onboarding 성공률 지표 추가 (`qb_onboarding_completion_total{step}`) — 5분 target 대비 실측.
+
+---
+
 - [ ] **P4 (zod 경로 정정):** `.ai/stacks/nextjs-shared.md §2`의 `import { z } from "zod/v4"` 규칙은 zod@4 미설치 시점의 transition 문구. zod@4.3.6 기준 `"zod"`가 곧 v4 → 규칙을 `import { z } from "zod"`로 완화 필요. (`.ai/`는 gitignored라 원본 repo에서 처리) [확인 필요]
 - [ ] `.uuid()` → `z.uuid()` 전수 migration (strategy/trading 완료, 나머지 전수검사 필요)
 - [ ] 나머지 대시보드 라우트(`/strategies/[id]/edit`, `/strategies/new`)에도 `loading.tsx`+`error.tsx` 라우트 규약 적용
