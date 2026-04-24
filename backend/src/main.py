@@ -72,6 +72,9 @@ def create_app() -> FastAPI:
     from src.trading.router import router as trading_router
     app.include_router(trading_router, prefix="/api/v1")
 
+    from src.stress_test.router import router as stress_test_router
+    app.include_router(stress_test_router, prefix="/api/v1")
+
     return app
 
 
