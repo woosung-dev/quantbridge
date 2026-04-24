@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import math
 import operator
+from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -194,8 +195,10 @@ class Interpreter:
         self.stdlib = StdlibDispatcher()
         # strategy.* 실행 상태 (포지션/체결 기록)
         self.strategy = StrategyState()
-        # 사용자 변수 시리즈 — 각 변수명 → [bar별 값...]. `myvar[n]` 지원용.
-        self._var_series: dict[str, list[Any]] = {}
+        # 사용자 변수 시리즈 — 각 변수명 → deque[bar별 값...]. `myvar[n]` 지원용.
+        # max_bars_back=500: Pine v5 기본값과 동일. 메모리 한계 방지.
+        self._max_bars_back: int = 500
+        self._var_series: dict[str, deque[Any]] = {}
         # 이전 close (ta.atr 등 prev close 필요 시 사용)
         self._prev_close: float = float("nan")
         # 렌더링 scope A — line/box/label/table 객체 handle 관리
@@ -217,14 +220,19 @@ class Interpreter:
         """Bar 종료 시 호출 — 현재 bar의 모든 user 변수 값을 시리즈에 append.
 
         transient + persistent 양쪽 수집. `myvar[n]` subscript는 과거 bar 값을 찾을 때 이 시리즈 조회.
+        deque(maxlen=_max_bars_back) 사용으로 메모리 상한 보장.
         """
         # transient: bare name
         for name, value in self._transient.items():
-            self._var_series.setdefault(name, []).append(value)
+            if name not in self._var_series:
+                self._var_series[name] = deque(maxlen=self._max_bars_back)
+            self._var_series[name].append(value)
         # persistent: "main::name" 접두어 제거
         for full_key, value in self.store.snapshot_dict().items():
             short = full_key.split("::", 1)[1] if "::" in full_key else full_key
-            self._var_series.setdefault(short, []).append(value)
+            if short not in self._var_series:
+                self._var_series[short] = deque(maxlen=self._max_bars_back)
+            self._var_series[short].append(value)
 
     # ---- 실행 엔트리 --------------------------------------------------
 
@@ -511,8 +519,11 @@ class Interpreter:
         value_node = node.value
         slice_node = node.slice
         offset = self._eval_expr(slice_node)
+        # 음수 offset → Pine na (잘못된 인덱스 silently degrade)
+        if isinstance(offset, float) and not math.isnan(offset):
+            offset = int(offset)
         if not isinstance(offset, int) or offset < 0:
-            raise PineRuntimeError(f"Subscript offset must be non-negative int, got {offset!r}")
+            return float("nan")
 
         # built-in series: 직접 DataFrame 조회
         if isinstance(value_node, pyne_ast.Name) and value_node.id in _BUILTIN_SERIES:
@@ -812,6 +823,14 @@ class Interpreter:
             )
         frame: dict[str, Any] = dict(zip(params, actual_args, strict=True))
         self._scope_stack.append(frame)
+        # ta.* 상태 격리: call-site별 고유 prefix push → 동일 함수의 서로 다른 호출 위치가
+        # 각자 독립 상태를 가지게 됨. call_node의 node_id/lineno/id 중 가용한 값 사용.
+        call_prefix = str(
+            getattr(call_node, "node_id", None)
+            or getattr(call_node, "lineno", None)
+            or id(call_node)
+        )
+        self.stdlib.push_call_prefix(call_prefix)
         try:
             last_expr_val: Any = None
             for stmt in fn_def.body:
@@ -832,6 +851,7 @@ class Interpreter:
             return last_expr_val
         finally:
             self._scope_stack.pop()
+            self.stdlib.pop_call_prefix()
 
     # ---- Name 해석 (built-in + var + transient) ------------------------
 

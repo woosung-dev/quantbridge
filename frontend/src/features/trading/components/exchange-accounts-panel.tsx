@@ -1,9 +1,43 @@
 "use client";
 
 import { Trash2, WalletIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
 import { TradingEmptyState } from "./trading-empty-state";
+
+// C-2: Demo/Live 배지 컴포넌트.
+// null/undefined 가드 필수 — ExchangeAccount.mode 는 string (nullable 아님이지만 방어적으로 처리).
+function ModeBadge({ mode }: { mode: string | null | undefined }) {
+  if (mode === "demo") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-amber-500 text-amber-600 uppercase text-xs font-semibold"
+      >
+        DEMO
+      </Badge>
+    );
+  }
+  if (mode === "live") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-green-500 text-green-600 uppercase text-xs font-semibold"
+      >
+        LIVE
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="border-gray-400 text-gray-500 uppercase text-xs"
+    >
+      {mode ?? "UNKNOWN"}
+    </Badge>
+  );
+}
 
 export function ExchangeAccountsPanel() {
   const { data, isError } = useExchangeAccounts();
@@ -49,15 +83,7 @@ export function ExchangeAccountsPanel() {
                 <tr key={a.id} className="border-t">
                   <td className="py-1.5">{a.exchange}</td>
                   <td className="py-1.5">
-                    <span
-                      className={
-                        a.mode === "demo"
-                          ? "text-blue-600 font-medium"
-                          : "text-green-600 font-medium"
-                      }
-                    >
-                      {a.mode}
-                    </span>
+                    <ModeBadge mode={a.mode} />
                   </td>
                   <td className="py-1.5">{a.label ?? "—"}</td>
                   <td className="py-1.5 font-mono text-xs">{a.api_key_masked}</td>
