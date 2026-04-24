@@ -25,3 +25,15 @@ export const backtestKeys = {
   trades: (userId: string, id: string, query: BacktestTradesQuery) =>
     [...backtestKeys.all(userId), "trades", id, query] as const,
 };
+
+// --- Stress Test (Phase C) -----------------------------------------------
+// 동일하게 userId 를 첫 인자로 넣어 Clerk JWT 교체 시 cache 격리.
+
+export const stressTestKeys = {
+  all: (userId: string) => ["stress_test", userId] as const,
+  details: (userId: string) => [...stressTestKeys.all(userId), "detail"] as const,
+  detail: (userId: string, id: string) =>
+    [...stressTestKeys.details(userId), id] as const,
+  byBacktest: (userId: string, backtestId: string) =>
+    [...stressTestKeys.all(userId), "by_backtest", backtestId] as const,
+};
