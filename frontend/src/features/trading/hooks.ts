@@ -15,8 +15,9 @@
 //    - submitted/pending → filled  → toast.success
 //    - submitted/pending → cancelled → toast.warning
 //    - submitted/pending → rejected  → toast.error
-//  LESSON-004: react-hooks/exhaustive-deps disable 금지.
-//              [query.data] dep는 RQ structural sharing으로 동일 객체 유지 → 안전.
+//  LESSON-004 / H-1 (.ai/stacks/nextjs/frontend.md): useEffect dep 에 React Query data 객체 직접
+//  사용 금지. H-1 의 공식 대안은 "dep array 없는 sync useEffect" — 매 commit 직후 실행되며,
+//  prevStatesRef 로 실질 변경만 걸러내므로 중복 toast 위험 없음.
 
 import { useEffect, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
@@ -131,8 +132,7 @@ export function useOrders(
   });
 
   // C-3: 주문 상태 전환 감지 + toast.
-  // LESSON-004: dep 배열에 query.data 객체 직접 사용.
-  // RQ structural sharing 덕분에 데이터가 실제로 변경된 경우에만 새 참조 발행.
+  // H-1 준수: dep array 없는 sync useEffect — 매 commit 후 실행. prevStatesRef 가 실질 변경만 토스트.
   useEffect(() => {
     const items = query.data?.items;
     if (!items) return;
@@ -169,7 +169,7 @@ export function useOrders(
         prevMap.delete(id);
       }
     }
-  }, [query.data]);
+  });
 
   return query;
 }
