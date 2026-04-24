@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.backtest.repository import BacktestRepository
+from src.common.metrics import qb_backtest_duration_seconds
 from src.core.config import settings
 from src.tasks.celery_app import celery_app
 
@@ -42,8 +44,15 @@ def run_backtest_task(self: object, backtest_id: str) -> None:
     """Sync Celery task — asyncio.run() 진입점.
 
     Worker pool 제약: prefork only (§2.4). gevent/eventlet 비호환.
+
+    Sprint 9 Phase D: 실행 시간을 qb_backtest_duration_seconds histogram 에 기록.
+    성공/실패 무관하게 finally 에서 1회 observe.
     """
-    asyncio.run(_execute(UUID(backtest_id)))
+    started = time.monotonic()
+    try:
+        asyncio.run(_execute(UUID(backtest_id)))
+    finally:
+        qb_backtest_duration_seconds.observe(time.monotonic() - started)
 
 
 async def _execute(backtest_id: UUID) -> None:
