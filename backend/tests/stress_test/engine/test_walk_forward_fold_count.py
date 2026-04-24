@@ -26,3 +26,8 @@ def test_max_folds_caps_output() -> None:
         max_folds=5,
     )
     assert len(result.folds) == 5
+    # FIX-3: truncation visibility — consumer 가 aggregate 편향을 감지할 수 있어야 함.
+    assert result.was_truncated is True
+    assert result.total_possible_folds > len(result.folds)
+    # (2000 - 100 - 50) / 10 + 1 = 186 folds 가능 → 5 로 truncate.
+    assert result.total_possible_folds == (2000 - 100 - 50) // 10 + 1

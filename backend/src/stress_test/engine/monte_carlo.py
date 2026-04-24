@@ -26,8 +26,10 @@ class MonteCarloResult:
     median_final_equity: Decimal
     max_drawdown_mean: Decimal
     max_drawdown_p95: Decimal
-    # fan chart 용 — key=percentile(5/25/50/75/95), value=시계열 (len = len(equity_curve))
-    equity_percentiles: dict[int, list[Decimal]] = field(default_factory=dict)
+    # fan chart 용 — key=percentile 문자열("5"/"25"/"50"/"75"/"95"), value=시계열
+    # (len = len(equity_curve)). JSON 직렬화 시 int → str 변환을 BE 에 고정해
+    # Phase B API / FE 가 key type 에 대해 동일한 스펙을 공유한다.
+    equity_percentiles: dict[str, list[Decimal]] = field(default_factory=dict)
 
 
 def _max_drawdown(equity: np.ndarray[tuple[int], np.dtype[np.float64]]) -> float:
@@ -82,9 +84,9 @@ def run_monte_carlo(
         final_equities[i] = simulated[-1]
         max_drawdowns[i] = _max_drawdown(simulated)
 
-    # per-bar percentile (축 0 = samples, 축 1 = bars)
-    percentiles: dict[int, list[Decimal]] = {
-        p: [_to_decimal(float(v)) for v in np.percentile(all_paths, p, axis=0)]
+    # per-bar percentile (축 0 = samples, 축 1 = bars) — JSON 안전한 string key.
+    percentiles: dict[str, list[Decimal]] = {
+        str(p): [_to_decimal(float(v)) for v in np.percentile(all_paths, p, axis=0)]
         for p in (5, 25, 50, 75, 95)
     }
 
