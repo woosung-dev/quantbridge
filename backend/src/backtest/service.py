@@ -79,6 +79,26 @@ class BacktestService:
         user_id: UUID,
         idempotency_key: str | None = None,
     ) -> BacktestCreatedResponse:
+        """Sprint 11 Phase E — idempotency_key 가 있을 때 Service-level RedisLock 으로 감싼다.
+        실질 분산 mutex. Redis 장애 시 RedisLock 이 graceful degrade → PG advisory 가 권위.
+        """
+        if idempotency_key is None:
+            return await self._submit_inner(data, user_id=user_id, idempotency_key=None)
+
+        from src.common.redlock import RedisLock
+
+        async with RedisLock(f"idem:backtest:{idempotency_key}", ttl_ms=30_000):
+            return await self._submit_inner(
+                data, user_id=user_id, idempotency_key=idempotency_key
+            )
+
+    async def _submit_inner(
+        self,
+        data: CreateBacktestRequest,
+        *,
+        user_id: UUID,
+        idempotency_key: str | None,
+    ) -> BacktestCreatedResponse:
         body_hash: bytes | None = None
         if idempotency_key is not None:
             body_hash = _compute_body_hash(data, user_id)

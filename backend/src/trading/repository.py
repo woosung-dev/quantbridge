@@ -204,16 +204,10 @@ class OrderRepository:
     # --- Idempotency 동시성 제어 (Sprint 5 M2 advisory lock 패턴) ---
 
     async def acquire_idempotency_lock(self, key: str) -> None:
-        """Redis contention-detect signal + PG advisory authoritative — Sprint 10 Phase A2.
-
-        동일 wrapping 패턴 (backtest repository 참고). Redis = observability,
-        PG = correctness. Follow-up: Service-level lock hold 확장.
+        """PG advisory lock (tx-scoped). Sprint 11 Phase E 에서 Redis wrapping 은
+        Service layer 로 이동 (`async with RedisLock(...): await service.execute(...)`).
+        Repository 는 PG advisory 만 담당 — tx 경계 + UNIQUE 제약 + IntegrityError fallback.
         """
-        from src.common.redlock import RedisLock
-
-        async with RedisLock(f"idem:trading:{key}", ttl_ms=10_000):
-            pass
-
         await self.session.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
             {"k": key},

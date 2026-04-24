@@ -59,30 +59,27 @@ end
 
 
 class RedisLock:
-    """Redis SET NX PX + unique token + Lua CAS. **Fast-path only, NOT a full mutex.**
+    """Redis SET NX PX + unique token + Lua CAS 기반 분산 mutex.
 
-    **현재 wrapping 패턴 (Phase A2):**
+    **Sprint 11 Phase E 완료 상태 (2026-04-25):**
+    Service layer 에서 `async with RedisLock(...): await self._submit_inner(...)`
+    패턴으로 PG tx + INSERT 전체를 Redis lock 안에 둠 — **real distributed mutex**.
+    backtest/service.py::submit + trading/service.py::execute 가 Option A 구현.
 
-        async with RedisLock(key, ttl_ms=10_000):
-            pass  # body 비어 있음
-        await session.execute(pg_advisory_xact_lock(...))
+    **역사적 맥락 (Sprint 10 Phase A2, 과도기):**
+    Phase A2 에서는 Repository 의 `acquire_idempotency_lock` 직전에 빈 wrapping
+    (`async with RedisLock(...): pass`) 만 두었음. 이 경우 lock hold ≈ 1 RTT 로
+    실질 mutex 가 아니라 "contention 감지 신호 + metrics 관찰" 역할. Phase E 에서
+    Service layer 로 이동하여 **lock hold 를 PG tx 전 구간으로 확장**.
 
-    → Redis SET NX 직후 `__aexit__` 가 Lua CAS DEL. Lock hold 시간 ≈ 1 RTT.
-       두 워커가 RTT 이상 간격으로 진입하면 둘 다 `acquired=True` 반환.
-       **즉 현재 구현은 mutual exclusion 이 아니라 "contention 감지 신호 + metrics 관찰" 역할.**
-       실제 correctness 는 이어지는 PG advisory_xact_lock 이 보장.
+    **호출자 계약:** `acquired=False` (Redis 장애 / contention) 일 때도 context body
+    는 계속 실행 가능. correctness 는 호출자 내부 PG advisory_xact_lock 이 권위.
+    Redis 는 optimistic fast-path, PG 는 authoritative — 두 계층으로 분산 환경
+    안전성 + 단일 서버 fallback 동시 확보.
 
-    **Observability 효과:**
-    - `qb_redlock_acquire_total{outcome=contention}` 증가가 multi-server 동시 요청 감지.
-    - `qb_redis_lock_pool_healthy` + degraded 로그로 infra 건강 관측.
-
-    **실질 분산 mutex 로 확장하려면 (Follow-up):**
-    - Option A: Service-level lock hold — `async with RedisLock(...): await service.submit(...)`
-      로 PG tx + INSERT 전체를 Redis lock 안에 둠. Redis 가 1차 mutex, PG 가 2차 권위.
-    - Option B: `__aexit__` 을 PG tx commit 이후 on_commit hook 으로 지연.
-
-    **호출자 계약:** `acquired=False` 일 때도 PG fallback 경로로 진행 가능해야 함.
-    correctness 는 절대 Redis 단독 의존 금지.
+    **Observability:**
+    - `qb_redlock_acquire_total{outcome=success|contention|unavailable}` — 멀티 워커 동시 요청 감지
+    - `qb_redis_lock_pool_healthy` + degraded 로그 — infra 건강 관측
 
     구현:
     - acquire: `SET key token NX PX ttl_ms` — atomicity 보장
