@@ -13,6 +13,7 @@ from typing import Any, Literal, Protocol
 
 import ccxt.async_support as ccxt_async
 
+from src.common.metrics import ccxt_timer
 from src.trading.exceptions import ProviderError
 from src.trading.models import ExchangeMode, OrderSide, OrderType
 
@@ -133,13 +134,14 @@ class BybitDemoProvider:
         )
         _apply_bybit_env(exchange, creds.environment)
         try:
-            result = await exchange.create_order(
-                order.symbol,
-                order.type.value,
-                order.side.value,
-                float(order.quantity),
-                float(order.price) if order.price is not None else None,
-            )
+            async with ccxt_timer("bybit", "create_order"):
+                result = await exchange.create_order(
+                    order.symbol,
+                    order.type.value,
+                    order.side.value,
+                    float(order.quantity),
+                    float(order.price) if order.price is not None else None,
+                )
             if "id" not in result:
                 # 응답 손상 — 주문 추적 불가, 빠르게 실패. 일부 키만 노출 (PII 회피).
                 raise ProviderError(f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})")
@@ -178,7 +180,8 @@ class BybitDemoProvider:
         )
         _apply_bybit_env(exchange, creds.environment)
         try:
-            await exchange.cancel_order(exchange_order_id)
+            async with ccxt_timer("bybit", "cancel_order"):
+                await exchange.cancel_order(exchange_order_id)
         except ProviderError:
             raise  # already wrapped, do not re-wrap
         except ccxt_async.BaseError as e:
@@ -232,15 +235,18 @@ class BybitFuturesProvider:
         _apply_bybit_env(exchange, creds.environment)
         try:
             # 마진 모드 먼저 → 레버리지 → 주문 순서 (Bybit v5 UTA 요구사항)
-            await exchange.set_margin_mode(order.margin_mode, order.symbol)
-            await exchange.set_leverage(order.leverage, order.symbol)
-            result = await exchange.create_order(
-                order.symbol,
-                order.type.value,
-                order.side.value,
-                float(order.quantity),
-                float(order.price) if order.price is not None else None,
-            )
+            async with ccxt_timer("bybit_futures", "set_margin_mode"):
+                await exchange.set_margin_mode(order.margin_mode, order.symbol)
+            async with ccxt_timer("bybit_futures", "set_leverage"):
+                await exchange.set_leverage(order.leverage, order.symbol)
+            async with ccxt_timer("bybit_futures", "create_order"):
+                result = await exchange.create_order(
+                    order.symbol,
+                    order.type.value,
+                    order.side.value,
+                    float(order.quantity),
+                    float(order.price) if order.price is not None else None,
+                )
             if "id" not in result:
                 raise ProviderError(
                     f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})"
@@ -280,7 +286,8 @@ class BybitFuturesProvider:
         )
         _apply_bybit_env(exchange, creds.environment)
         try:
-            await exchange.cancel_order(exchange_order_id)
+            async with ccxt_timer("bybit_futures", "cancel_order"):
+                await exchange.cancel_order(exchange_order_id)
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:
@@ -316,7 +323,8 @@ class BybitFuturesProvider:
         )
         _apply_bybit_env(exchange, creds.environment)
         try:
-            raw = await exchange.fetch_balance()
+            async with ccxt_timer("bybit_futures", "fetch_balance"):
+                raw = await exchange.fetch_balance()
             result: dict[str, Decimal] = {}
             for asset, data in raw.items():
                 if not isinstance(data, dict):
@@ -374,13 +382,14 @@ class OkxDemoProvider:
         # OKX는 sandbox 라우팅을 전용 API로 전환. testnet 옵션은 무시됨.
         exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
-            result = await exchange.create_order(
-                order.symbol,
-                order.type.value,
-                order.side.value,
-                float(order.quantity),
-                float(order.price) if order.price is not None else None,
-            )
+            async with ccxt_timer("okx", "create_order"):
+                result = await exchange.create_order(
+                    order.symbol,
+                    order.type.value,
+                    order.side.value,
+                    float(order.quantity),
+                    float(order.price) if order.price is not None else None,
+                )
             if "id" not in result:
                 raise ProviderError(
                     f"malformed OKX response: missing 'id' (keys={list(result)[:5]})"
@@ -421,7 +430,8 @@ class OkxDemoProvider:
         )
         exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
-            await exchange.cancel_order(exchange_order_id)
+            async with ccxt_timer("okx", "cancel_order"):
+                await exchange.cancel_order(exchange_order_id)
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:

@@ -19,6 +19,7 @@ from uuid import UUID
 from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from src.common.metrics import qb_active_orders
 from src.core.config import settings
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import OrderNotFound, ProviderError
@@ -158,6 +159,7 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 order_id, error_message=error_msg, failed_at=datetime.now(UTC)
             )
             await session.commit()
+            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -189,6 +191,7 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 order_id, error_message=error_msg, failed_at=datetime.now(UTC)
             )
             await session.commit()
+            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -210,6 +213,7 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
             )
             return {"order_id": str(order_id), "state": "conflict", "skipped": True}
         await session.commit()
+        qb_active_orders.dec()  # Sprint 9 Phase D: terminal state (filled)
 
         logger.info(
             "order_executed",

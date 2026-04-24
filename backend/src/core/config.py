@@ -124,6 +124,16 @@ class Settings(BaseSettings):
                 raise ValueError(f"Invalid Fernet key: {e}") from e
         return v
 
+    # --- Sprint 9 Phase D: Observability ---
+    prometheus_bearer_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Bearer token for GET /metrics. 값이 설정되면 Grafana Cloud Agent 의 "
+            "bearer_token 과 일치해야 허용. 비어 있으면 /metrics 는 인증 없이 접근 가능 "
+            "(로컬 개발용). Sprint 9 Phase D."
+        ),
+    )
+
     # CORS / URLs
     frontend_url: str = "http://localhost:3000"
 
