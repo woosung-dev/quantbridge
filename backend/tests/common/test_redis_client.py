@@ -1,10 +1,11 @@
-"""Sprint 10 Phase A1 — Redis lock pool client.
+"""Sprint 10 Phase A1/A2 — Redis lock pool client.
 
-src/common/redis_client.py 의 4 가지 계약:
+src/common/redis_client.py 의 5 가지 계약:
 1. get_redis_lock_pool() singleton 재사용
 2. prefork-safe (asyncio.run 다회 호출 안전)
-3. healthcheck PING 정상 → True
-4. healthcheck PING 실패 → False (timeout/connection error 모두)
+3. healthcheck PING+SET+GET+DEL 정상 → True (Phase A2 upgrade)
+4. healthcheck PING+SET+GET+DEL 실패 → False (timeout/connection error 모두)
+5. get_redis_lock_pool() ValueError raise 시 흡수 → False
 """
 
 from __future__ import annotations
@@ -71,7 +72,7 @@ def test_get_pool_safe_across_event_loops() -> None:
 
 @pytest.mark.asyncio
 async def test_healthcheck_ping_success_sets_healthy_true() -> None:
-    """PING 정상 응답 → app.state.redis_lock_healthy = True."""
+    """PING+SET+GET+DEL 정상 응답 → app.state.redis_lock_healthy = True (Phase A2 upgrade)."""
     from src.common.redis_client import (
         healthcheck_redis_lock,
         reset_redis_lock_pool,
@@ -81,6 +82,9 @@ async def test_healthcheck_ping_success_sets_healthy_true() -> None:
 
     fake_pool = AsyncMock()
     fake_pool.ping = AsyncMock(return_value=True)
+    fake_pool.set = AsyncMock(return_value=True)
+    fake_pool.get = AsyncMock(return_value=b"1")
+    fake_pool.delete = AsyncMock(return_value=1)
 
     fake_app = type("FakeApp", (), {"state": type("State", (), {})()})()
 
@@ -93,11 +97,14 @@ async def test_healthcheck_ping_success_sets_healthy_true() -> None:
     assert result is True
     assert fake_app.state.redis_lock_healthy is True
     fake_pool.ping.assert_awaited_once()
+    fake_pool.set.assert_awaited_once()
+    fake_pool.get.assert_awaited_once()
+    fake_pool.delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_healthcheck_ping_failure_sets_healthy_false() -> None:
-    """connection error → degraded 플래그 + 예외 raise 안 함."""
+    """PING connection error → degraded 플래그 + 예외 raise 안 함 (Phase A2 upgrade)."""
     from src.common.redis_client import (
         healthcheck_redis_lock,
         reset_redis_lock_pool,
@@ -107,6 +114,10 @@ async def test_healthcheck_ping_failure_sets_healthy_false() -> None:
 
     fake_pool = AsyncMock()
     fake_pool.ping = AsyncMock(side_effect=ConnectionError("boom"))
+    # PING 단계에서 이미 실패하므로 set/get/delete 는 호출되지 않음
+    fake_pool.set = AsyncMock(return_value=True)
+    fake_pool.get = AsyncMock(return_value=b"1")
+    fake_pool.delete = AsyncMock(return_value=1)
 
     fake_app = type("FakeApp", (), {"state": type("State", (), {})()})()
 

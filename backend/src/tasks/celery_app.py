@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from celery import Celery
 from celery.schedules import crontab
-from celery.signals import worker_ready, worker_shutdown
+from celery.signals import worker_process_init, worker_ready, worker_shutdown
 
 from src.core.config import settings
 
@@ -65,6 +65,19 @@ celery_app.conf.beat_schedule = {
         "options": {"expires": 3600},
     },
 }
+
+
+@worker_process_init.connect  # type: ignore[untyped-decorator]
+def _reset_redis_lock_pool_after_fork(**_kwargs: object) -> None:
+    """Celery prefork 자식 프로세스에서 부모의 Redis 연결 FD 폐기 후 재생성.
+
+    Sprint 10 Phase A1 follow-up / Phase A2 wire-up — 분산 락 storage 가 fork 후
+    stale connection 을 공유하지 않도록 lazy 재생성 트리거.
+    import 시점에 등록되므로 테스트 환경에서 실제 fork 없어도 no-op.
+    """
+    from src.common.redis_client import reset_redis_lock_pool
+
+    reset_redis_lock_pool()
 
 
 @worker_ready.connect  # type: ignore[untyped-decorator]

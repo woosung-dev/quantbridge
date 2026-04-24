@@ -1,12 +1,15 @@
-"""Prometheus metrics — Sprint 9 Phase D / Sprint 10 Phase D.
+"""Prometheus metrics — Sprint 9 Phase D / Sprint 10 Phase A2 + D.
 
-6종 metrics:
+8종 metrics:
 - qb_backtest_duration_seconds    (Histogram)
 - qb_order_rejected_total         (Counter, labels: exchange, reason)
 - qb_kill_switch_triggered_total  (Counter, labels: trigger_type)
 - qb_ccxt_request_duration_seconds (Histogram, labels: exchange, endpoint)
 - qb_active_orders                (Gauge)
+- qb_rate_limit_throttled_total   (Counter, labels: scope, endpoint)  ← Sprint 10 Phase B
 - qb_ccxt_request_errors_total    (Counter, labels: exchange, endpoint, error_class)  ← Sprint 10 Phase D
+- qb_redlock_acquire_total        (Counter, labels: outcome)  ← Sprint 10 Phase A2
+- qb_redis_lock_pool_healthy      (Gauge)  ← Sprint 10 Phase A2
 
 원칙:
 - registry 는 기본 `REGISTRY` (single-process). Sprint 10+ 에서 multi-process 고려.
@@ -85,6 +88,26 @@ qb_ccxt_request_errors_total = Counter(
     "qb_ccxt_request_errors_total",
     "CCXT exchange API errors — raise 직전 inc, exchange/endpoint/exception class 로 라벨링",
     labelnames=("exchange", "endpoint", "error_class"),
+)
+
+
+# 8. Redis distributed lock acquire outcomes (Sprint 10 Phase A2)
+# outcome ∈ {success, contention, unavailable, timeout}
+# - success:     SET NX 성공 (분산 lock 획득)
+# - contention:  SET NX 실패 (다른 워커가 이미 보유)
+# - unavailable: Redis 연결 장애 (socket timeout, ConnectionError)
+# - timeout:     asyncio.wait_for timeout (reserved — 본 Phase 미구현)
+qb_redlock_acquire_total = Counter(
+    "qb_redlock_acquire_total",
+    "Redis distributed lock acquire 시도 결과",
+    labelnames=("outcome",),
+)
+
+# 9. Redis lock pool healthy (Sprint 10 Phase A2) — lifespan healthcheck 결과
+# 1: PING+SET+GET+DEL 정상, 0: 장애. startup 에서 1회 세팅.
+qb_redis_lock_pool_healthy = Gauge(
+    "qb_redis_lock_pool_healthy",
+    "1 if startup PING+SET+GET+DEL succeeded, 0 otherwise",
 )
 
 
