@@ -219,6 +219,17 @@ Grafana Cloud → `Alerting` → `Alert rules` → `New rule`.
 3. 백엔드 재시작 → Prometheus reload (`SIGHUP`)
 4. 구 토큰은 즉시 무효 (grace 불필요)
 
+### /metrics 네트워크 보호
+
+`/metrics` endpoint 는 `bearer_token` 인증 외에 rate limit 가 없습니다. `generate_latest()` 는 모든 metric 을 매 요청마다 직렬화하므로 외부 스캐너가 폭주 호출할 경우 성능 영향이 있습니다. 프로덕션에서는 아래 중 하나 이상 권장:
+
+- **Private network**: Grafana Agent 를 QuantBridge 백엔드와 동일 VPC/Kubernetes 네임스페이스에 배치하고 `/metrics` 를 외부 노출하지 않음.
+- **Nginx rate limit**: `limit_req zone=metrics burst=5 nodelay;` (upstream 앞단)
+- **Cloudflare WAF rule**: `/metrics` path 에 대해 rate limit + allowed IP (Grafana Cloud IP 목록) 제한.
+- **bearer_token rotation**: 90일 주기 rotation (이미 §토큰 생성/로테이션 에 기술).
+
+위 방어가 미구현 상태에서는 Grafana Cloud Free 의 공개 Prometheus remote_write endpoint 에 직접 push 하는 pattern (QuantBridge → Grafana agent 없이) 을 고려.
+
 ---
 
 ## 추후 확장 (Sprint 10+)
