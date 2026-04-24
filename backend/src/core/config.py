@@ -159,6 +159,43 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Sprint 11 Phase C: Waitlist ---
+    resend_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        description=(
+            "Resend API key (Email provider). "
+            "발급: https://resend.com/ → API Keys. Free tier 100/일."
+        ),
+    )
+    waitlist_token_secret: SecretStr = Field(
+        default=SecretStr(""),
+        description=(
+            "Waitlist invite token HMAC-SHA256 서명 비밀. "
+            "최소 32바이트. openssl rand -hex 32 로 생성."
+        ),
+    )
+    waitlist_admin_emails_raw: str = Field(
+        default="",
+        alias="waitlist_admin_emails",
+        description=(
+            "Admin 권한 이메일 화이트리스트 (콤마 구분). "
+            "admin endpoint 접근 시 CurrentUser.email 과 비교. 빈 값 = admin 엔드포인트 차단."
+        ),
+    )
+    waitlist_invite_base_url: str = Field(
+        default="http://localhost:3000/invite",
+        description="Invite landing page base URL — email 본문에 token 이 append 됨.",
+    )
+
+    @property
+    def waitlist_admin_emails(self) -> list[str]:
+        """콤마 구분 문자열 → lowercase list[str]. 빈 값 → []."""
+        return [
+            s.strip().lower()
+            for s in self.waitlist_admin_emails_raw.split(",")
+            if s.strip()
+        ]
+
     # CORS / URLs
     frontend_url: str = "http://localhost:3000"
 

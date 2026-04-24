@@ -25,6 +25,17 @@ if not os.environ.get("TRADING_ENCRYPTION_KEYS"):
 
     os.environ["TRADING_ENCRYPTION_KEYS"] = _Fernet.generate_key().decode()
 
+# Sprint 11 Phase C — Waitlist. `WAITLIST_TOKEN_SECRET` 은 InviteTokenService
+# 가 생성자에서 길이 검증. 테스트에서 설정되지 않았다면 dummy secret 주입.
+if not os.environ.get("WAITLIST_TOKEN_SECRET"):
+    os.environ["WAITLIST_TOKEN_SECRET"] = "test-waitlist-token-secret-min-32-bytes-xxxx"
+if not os.environ.get("RESEND_API_KEY"):
+    os.environ["RESEND_API_KEY"] = "test-resend-api-key"
+if not os.environ.get("WAITLIST_ADMIN_EMAILS"):
+    # 테스트 fixture 의 authed_user 를 admin 으로 인정하려면 conftest authed_user fixture
+    # 가 만드는 email 과 매칭 불가 (random) — 따라서 테스트는 override 로 admin 검증 우회.
+    os.environ["WAITLIST_ADMIN_EMAILS"] = "admin@example.com"
+
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
@@ -47,6 +58,7 @@ from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
     Order,
     WebhookSecret,
 )
+from src.waitlist.models import WaitlistApplication  # noqa: F401 — metadata 등록
 
 # -------------------------------------------------------------------------
 # Path β Stage 2c C-1 — Mutation Oracle marker 기반 실행 제어 (Gate-3 codex
