@@ -32,7 +32,10 @@ dependencies = [
     "tenacity>=8.0.0",
     "pynescript==0.3.0",
     "prometheus-client>=0.21.0",
-    "slowapi>=0.1.9",
+    # Sprint 11 Phase F — minor upgrade 범위 제한. 0.1.9 가 0.1.x 최신 (PyPI 확인 2026-04-25).
+    # 0.2.x major 는 breaking 가능성 — Sprint 12+ 에서 별도 검토. `_RateLimitStateInitMiddleware`
+    # (swallow_errors 경로 view_rate_limit 미설정 버그) 는 0.1.x 전반 유지 → workaround 존치.
+    "slowapi>=0.1.9,<0.2",
 ]
 
 [dependency-groups]
