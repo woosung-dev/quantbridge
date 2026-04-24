@@ -70,25 +70,75 @@ qb_rate_limit_throttled_total = Counter(
     labelnames=("scope", "endpoint"),
 )
 
-# 7. CCXT exchange API errors (Sprint 10 Phase D)
-# `ccxt_timer` 의 except 분기에서 inc. `error_class = type(exc).__name__`.
+# 7. CCXT exchange API errors (Sprint 10 Phase D + Sprint 11 Phase G allowlist)
+# `ccxt_timer` 의 except 분기에서 inc. `error_class = _normalize_error_class(exc)`.
 # 정상 경로에서는 inc 되지 않음. `qb_ccxt_request_duration_seconds` 와 상관관계로
 # rate(errors[5m]) / rate(duration_count[5m]) 가 error rate alert 의 기준.
 #
-# Cardinality 실측 (2026-04-25):
+# Cardinality 실측 (2026-04-25, Sprint 11 Phase G):
 # - exchange ∈ {bybit, bybit_futures, okx, ...} ≤ 4
 # - endpoint ∈ {create_order, cancel_order, fetch_balance, fetch_ohlcv, fetch_ticker, ...} ≤ 10
-# - error_class: ccxt 공식 예외 ~20종 + exchange-specific 확장 ~10 = ≤ 30
-#   (ExchangeError, NetworkError, RequestTimeout, AuthenticationError,
-#    PermissionDenied, InvalidOrder, InsufficientFunds, RateLimitExceeded,
-#    ExchangeNotAvailable, OnMaintenance, ExchangeClosedByUser, DDoSProtection, ...)
-# 총 4 x 10 x 30 = ~1,200 series (Grafana Cloud Free 10k 한도 내).
-# 동적 예외 클래스 ccxt 외부 경로에서 주입 시 leak 가능성 — follow-up allowlist 검토.
+# - error_class: allowlist 28 (ccxt 공식) + 5 (built-in) + "Other" = 34.
+# 총 4 x 10 x 34 ≈ 1,360 series (Grafana Cloud Free 10k 한도 내).
+# 동적 커스텀 예외는 "Other" 버킷으로 수렴 → cardinality leak 차단.
 qb_ccxt_request_errors_total = Counter(
     "qb_ccxt_request_errors_total",
-    "CCXT exchange API errors — raise 직전 inc, exchange/endpoint/exception class 로 라벨링",
+    "CCXT exchange API errors — raise 직전 inc, exchange/endpoint/error_class 로 라벨링 (allowlist)",
     labelnames=("exchange", "endpoint", "error_class"),
 )
+
+
+# Sprint 11 Phase G — error_class allowlist. 외부에서 동적 custom Exception 이
+# 주입돼도 Prometheus cardinality 가 폭발하지 않도록 "Other" 버킷으로 수렴.
+_CCXT_ERROR_CLASSES: frozenset[str] = frozenset(
+    {
+        # ccxt.base.errors (2026-04 기준)
+        "BaseError",
+        "ExchangeError",
+        "NetworkError",
+        "DDoSProtection",
+        "RequestTimeout",
+        "AuthenticationError",
+        "PermissionDenied",
+        "AccountNotEnabled",
+        "AccountSuspended",
+        "ArgumentsRequired",
+        "BadRequest",
+        "BadSymbol",
+        "BadResponse",
+        "NullResponse",
+        "InsufficientFunds",
+        "InvalidAddress",
+        "InvalidOrder",
+        "OrderNotFound",
+        "OrderNotCached",
+        "CancelPending",
+        "OrderImmediatelyFillable",
+        "OrderNotFillable",
+        "DuplicateOrderId",
+        "NotSupported",
+        "OnMaintenance",
+        "InvalidNonce",
+        "RateLimitExceeded",
+        "ExchangeNotAvailable",
+    }
+)
+_BUILTIN_ERROR_CLASSES: frozenset[str] = frozenset(
+    {
+        "TimeoutError",
+        "ConnectionError",
+        "OSError",
+        "RuntimeError",
+        "ValueError",
+    }
+)
+_ALLOWLIST_ERROR_CLASSES: frozenset[str] = _CCXT_ERROR_CLASSES | _BUILTIN_ERROR_CLASSES
+
+
+def _normalize_error_class(exc: BaseException) -> str:
+    """Prometheus cardinality 보호 — allowlist 에 없는 예외는 "Other" 버킷."""
+    name = type(exc).__name__
+    return name if name in _ALLOWLIST_ERROR_CLASSES else "Other"
 
 
 # 8. Redis distributed lock acquire outcomes (Sprint 10 Phase A2)
@@ -121,8 +171,9 @@ async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:
 
     - latency: 정상/예외 관계없이 finally 블록에서 duration histogram 에 observe.
     - error:   except 블록에서 `qb_ccxt_request_errors_total` counter 를
-               `(exchange, endpoint, type(exc).__name__)` 라벨로 +1 후 `raise`.
-               원 예외는 변형 없이 전파 (Sprint 10 Phase D).
+               `(exchange, endpoint, _normalize_error_class(exc))` 라벨로 +1 후 `raise`.
+               원 예외는 변형 없이 전파. allowlist 외 예외는 "Other" 버킷으로 수렴
+               (Sprint 11 Phase G cardinality 보호).
     """
     started = time.monotonic()
     try:
@@ -132,7 +183,7 @@ async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:
         qb_ccxt_request_errors_total.labels(
             exchange=exchange,
             endpoint=endpoint,
-            error_class=type(exc).__name__,
+            error_class=_normalize_error_class(exc),
         ).inc()
         raise
     finally:
