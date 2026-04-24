@@ -58,19 +58,28 @@ export function StressTestPanel({ backtestId }: Props) {
 
   const stressData = stress.data;
 
+  // polling 중 (queued/running) 버튼 재클릭 시 activeStressTestId 가 교체되어
+  // 첫 stress test 가 UI 에서 고아가 되는 것을 방지 (Celery 에서는 계속 실행).
+  const isStressTestActive =
+    stressData?.status === "queued" || stressData?.status === "running";
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={handleRunMonteCarlo}
-          disabled={mcMutation.isPending || wfMutation.isPending}
+          disabled={
+            mcMutation.isPending || wfMutation.isPending || isStressTestActive
+          }
         >
           Monte Carlo 실행
         </Button>
         <Button
           variant="outline"
           onClick={handleRunWalkForward}
-          disabled={mcMutation.isPending || wfMutation.isPending}
+          disabled={
+            mcMutation.isPending || wfMutation.isPending || isStressTestActive
+          }
         >
           Walk-Forward 실행
         </Button>

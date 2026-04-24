@@ -92,11 +92,8 @@ describe("StressTestPanel", () => {
     });
   });
 
-  it("after mutation onSuccess, activeStressTestId is set and detail branch renders", () => {
-    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
-    fireEvent.click(screen.getByRole("button", { name: /Monte Carlo/ }));
-
-    // mock useStressTest to now return running state
+  it("running 상태에서 실행 버튼이 disabled 된다 + '실행 중' 텍스트 표시", () => {
+    // useStressTest 가 running 상태를 반환하도록 사전 주입.
     stressData = {
       id: "11111111-1111-4111-8111-111111111111",
       backtest_id: "abc12345-1111-4111-8111-111111111111",
@@ -107,22 +104,28 @@ describe("StressTestPanel", () => {
       walk_forward_result: null,
       error: null,
       created_at: "2026-04-24T00:00:00+00:00",
-      started_at: null,
+      started_at: "2026-04-24T00:00:00+00:00",
       completed_at: null,
     };
 
-    // onSuccess 콜백 발화 → activeStressTestId 설정 (state update → act 로 감쌈)
+    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
+
+    // 실제 플로우 재현: click → mutation onSuccess → setActiveStressTestId →
+    // polling (running) 으로 전환. 이후 panel 은 running UI + disabled 버튼을 보여야 함.
+    fireEvent.click(screen.getByRole("button", { name: /Monte Carlo/ }));
     act(() => {
       lastMcOpts?.onSuccess?.({
         stress_test_id: "11111111-1111-4111-8111-111111111111",
       });
     });
 
-    // Panel 은 재렌더되어 running 상태 메시지를 보여줘야 함
-    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
-    // 새 render 에서는 초기 상태이므로 hint 가 먼저 뜸 — 여기서는 onSuccess 콜백이
-    // mcMutation 에 전달되었는지만 검증 (state 리렌더는 별도 통합 테스트에서)
-    expect(lastMcOpts).not.toBeNull();
-    expect(typeof lastMcOpts?.onSuccess).toBe("function");
+    // FIX-C1: polling 중복 클릭 방지 — 두 버튼 모두 disabled.
+    const mcBtn = screen.getByRole("button", { name: /Monte Carlo/ });
+    const wfBtn = screen.getByRole("button", { name: /Walk-Forward/ });
+    expect(mcBtn).toBeDisabled();
+    expect(wfBtn).toBeDisabled();
+
+    // running 상태 UI 텍스트 렌더 확인.
+    expect(screen.getByText(/실행 중/)).toBeInTheDocument();
   });
 });
