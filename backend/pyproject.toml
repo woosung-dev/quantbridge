@@ -48,6 +48,8 @@ dev = [
     "psycopg2-binary>=2.9.0",  # Alembic migration round-trip 테스트용 (sync driver)
     "pyarrow>=24.0.0",
     "fakeredis[lua]>=2.20",
+    "pytest-celery>=1.0",
+    "pytest-timeout>=2.3",
 ]
 
 [tool.uv]
@@ -60,6 +62,7 @@ pythonpath = ["."]
 addopts = "-ra --strict-markers --strict-config"
 markers = [
   "mutation: Path β Mutation Oracle — nightly only (Stage 2c)",
+  "real_broker: requires Bybit Demo API credentials (skip by default, run with --run-real-broker)",
 ]
 
 [tool.coverage.run]
