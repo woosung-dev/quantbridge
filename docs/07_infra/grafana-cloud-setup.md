@@ -230,6 +230,74 @@ Grafana Cloud → `Alerting` → `Alert rules` → `New rule`.
 
 위 방어가 미구현 상태에서는 Grafana Cloud Free 의 공개 Prometheus remote_write endpoint 에 직접 push 하는 pattern (QuantBridge → Grafana agent 없이) 을 고려.
 
+### Alert: CCXT error rate > 5%
+
+**Sprint 10 Phase D**
+
+CCXT 호출 실패가 전체 호출의 5% 를 초과 시 페이지. `qb_ccxt_request_errors_total`
+(신규) 와 `qb_ccxt_request_duration_seconds_count` (Histogram 의 count series) 비율.
+
+**PromQL:**
+
+```promql
+sum by (exchange) (rate(qb_ccxt_request_errors_total[5m]))
+  / clamp_min(
+      sum by (exchange) (rate(qb_ccxt_request_duration_seconds_count[5m])),
+      1e-9
+    )
+  > 0.05
+```
+
+`clamp_min(..., 1e-9)` 은 호출 0건 시 division-by-zero 방지.
+
+**Panel (Grafana JSON):**
+
+- panel type: `stat` 또는 `timeseries`
+- legend: `{{exchange}}`
+- thresholds: 0.01 (green) / 0.05 (yellow) / 0.10 (red)
+- unit: `percentunit`
+
+**Alert rule (Grafana Cloud Free):**
+
+- evaluate every: 1m
+- pending period: 5m (false-positive 방지)
+- labels: `severity=warning`
+- annotations:
+  - summary: `CCXT {{ $labels.exchange }} error rate {{ $value | humanizePercentage }}`
+  - runbook_url: (향후 Sprint 11 runbook docs)
+
+**Retry loop 해석 주석:**
+
+`qb_ccxt_request_errors_total` 은 `ccxt_timer` 호출마다 1 증가하는 raw counter.
+호출자가 retry 루프 (예: exponential backoff with 3 attempts) 안에서 같은
+요청을 반복하면 동일 path 에서 counter +3 증가. 이는 의도된 per-attempt 계측.
+즉 dashboard 에서 error rate > 100% 가 관측될 수 있음 (N attempts per logical request).
+per-request dedupe 는 Sprint 11 application-level retry aggregation 에서 고려.
+
+**Endpoint drilldown (alert fire 시 1단계 액션):**
+
+```promql
+# 어느 endpoint 가 가장 많은 에러를 만드는가
+topk(5,
+  sum by (exchange, endpoint) (rate(qb_ccxt_request_errors_total[5m]))
+)
+
+# 어느 error_class 가 가장 자주 발생하는가 (rate 기준)
+topk(5,
+  sum by (exchange, error_class) (rate(qb_ccxt_request_errors_total[5m]))
+)
+```
+
+이 두 쿼리를 Grafana explore 에서 실행해서 `exchange=<X>, endpoint=<Y>, error_class=<Z>` 트리플을 식별 → 아래 체크리스트로 drill-down.
+
+**해결 체크리스트:**
+
+1. `qb_ccxt_request_errors_total{exchange=...}` 의 top error_class 확인
+2. `RateLimitExceeded` 다수 → 거래소 rate limit 초과. API key 분리 또는 backoff 조정
+3. `NetworkError` / `RequestTimeout` 다수 → 거래소 API 장애 또는 네트워크 이슈. Bybit status 페이지 확인
+4. `AuthenticationError` → API key 만료/revoked. ExchangeAccount 회전 필요
+5. `InsufficientFunds` → 거래 전략이 잔고 부족 상태에서 반복 시도. Kill Switch 검토
+
 ---
 
 ## 추후 확장 (Sprint 10+)

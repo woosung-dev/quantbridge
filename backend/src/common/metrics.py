@@ -1,11 +1,12 @@
-"""Prometheus metrics — Sprint 9 Phase D.
+"""Prometheus metrics — Sprint 9 Phase D / Sprint 10 Phase D.
 
-5종 metrics:
+6종 metrics:
 - qb_backtest_duration_seconds    (Histogram)
 - qb_order_rejected_total         (Counter, labels: exchange, reason)
 - qb_kill_switch_triggered_total  (Counter, labels: trigger_type)
 - qb_ccxt_request_duration_seconds (Histogram, labels: exchange, endpoint)
 - qb_active_orders                (Gauge)
+- qb_ccxt_request_errors_total    (Counter, labels: exchange, endpoint, error_class)  ← Sprint 10 Phase D
 
 원칙:
 - registry 는 기본 `REGISTRY` (single-process). Sprint 10+ 에서 multi-process 고려.
@@ -66,20 +67,51 @@ qb_rate_limit_throttled_total = Counter(
     labelnames=("scope", "endpoint"),
 )
 
+# 7. CCXT exchange API errors (Sprint 10 Phase D)
+# `ccxt_timer` 의 except 분기에서 inc. `error_class = type(exc).__name__`.
+# 정상 경로에서는 inc 되지 않음. `qb_ccxt_request_duration_seconds` 와 상관관계로
+# rate(errors[5m]) / rate(duration_count[5m]) 가 error rate alert 의 기준.
+#
+# Cardinality 실측 (2026-04-25):
+# - exchange ∈ {bybit, bybit_futures, okx, ...} ≤ 4
+# - endpoint ∈ {create_order, cancel_order, fetch_balance, fetch_ohlcv, fetch_ticker, ...} ≤ 10
+# - error_class: ccxt 공식 예외 ~20종 + exchange-specific 확장 ~10 = ≤ 30
+#   (ExchangeError, NetworkError, RequestTimeout, AuthenticationError,
+#    PermissionDenied, InvalidOrder, InsufficientFunds, RateLimitExceeded,
+#    ExchangeNotAvailable, OnMaintenance, ExchangeClosedByUser, DDoSProtection, ...)
+# 총 4 x 10 x 30 = ~1,200 series (Grafana Cloud Free 10k 한도 내).
+# 동적 예외 클래스 ccxt 외부 경로에서 주입 시 leak 가능성 — follow-up allowlist 검토.
+qb_ccxt_request_errors_total = Counter(
+    "qb_ccxt_request_errors_total",
+    "CCXT exchange API errors — raise 직전 inc, exchange/endpoint/exception class 로 라벨링",
+    labelnames=("exchange", "endpoint", "error_class"),
+)
+
 
 @asynccontextmanager
 async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:
-    """CCXT 호출을 감싸 latency histogram 에 기록.
+    """CCXT 호출을 감싸 latency + error 를 관측.
 
     사용:
         async with ccxt_timer("bybit", "create_order"):
             await exchange.create_order(...)
 
-    예외 경로에서도 finally 블록으로 항상 observe — 실패한 요청도 latency 에 포함.
+    - latency: 정상/예외 관계없이 finally 블록에서 duration histogram 에 observe.
+    - error:   except 블록에서 `qb_ccxt_request_errors_total` counter 를
+               `(exchange, endpoint, type(exc).__name__)` 라벨로 +1 후 `raise`.
+               원 예외는 변형 없이 전파 (Sprint 10 Phase D).
     """
     started = time.monotonic()
     try:
         yield
+    except Exception as exc:
+        # 거래소 API 오류 계측 — BaseException (CancelledError, KeyboardInterrupt 등) 제외
+        qb_ccxt_request_errors_total.labels(
+            exchange=exchange,
+            endpoint=endpoint,
+            error_class=type(exc).__name__,
+        ).inc()
+        raise
     finally:
         qb_ccxt_request_duration_seconds.labels(exchange=exchange, endpoint=endpoint).observe(
             time.monotonic() - started
