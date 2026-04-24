@@ -50,10 +50,12 @@ class UserRepository:
         clerk_user_id: str,
         email: str | None = None,
         username: str | None = None,
+        country_code: str | None = None,
     ) -> User:
         """Webhook user.created/updated 처리.
 
-        INSERT ... ON CONFLICT DO UPDATE — email/username을 최신으로 덮어씀.
+        INSERT ... ON CONFLICT DO UPDATE — email/username/country_code 를 최신으로 덮어씀.
+        country_code 는 Sprint 11 Phase A 에서 추가. public_metadata.country 기반.
         """
         stmt = (
             pg_insert(User)
@@ -61,10 +63,15 @@ class UserRepository:
                 clerk_user_id=clerk_user_id,
                 email=email,
                 username=username,
+                country_code=country_code,
             )
             .on_conflict_do_update(
                 index_elements=["clerk_user_id"],
-                set_={"email": email, "username": username},
+                set_={
+                    "email": email,
+                    "username": username,
+                    "country_code": country_code,
+                },
             )
         )
         await self.session.execute(stmt)
