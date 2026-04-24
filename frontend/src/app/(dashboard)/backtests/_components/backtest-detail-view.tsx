@@ -24,6 +24,7 @@ import { EquityChart } from "./equity-chart";
 import { MetricsCards } from "./metrics-cards";
 import { MetricsDetail } from "./metrics-detail";
 import { RerunButton } from "./rerun-button";
+import { StressTestPanel } from "./stress-test-panel";
 import { TradeAnalysis } from "./trade-analysis";
 import { TradeTable } from "./trade-table";
 
@@ -141,6 +142,7 @@ export function BacktestDetailView({ id }: { id: string }) {
             <TabsTrigger value="metrics">성과 지표</TabsTrigger>
             <TabsTrigger value="analysis">거래 분석</TabsTrigger>
             <TabsTrigger value="trades">거래 목록</TabsTrigger>
+            <TabsTrigger value="stress-test">스트레스 테스트</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
@@ -173,6 +175,10 @@ export function BacktestDetailView({ id }: { id: string }) {
             ) : (
               <TradeTable trades={trades.data?.items ?? []} />
             )}
+          </TabsContent>
+
+          <TabsContent value="stress-test" className="mt-4">
+            <StressTestPanel backtestId={bt.id} />
           </TabsContent>
         </Tabs>
       ) : null}

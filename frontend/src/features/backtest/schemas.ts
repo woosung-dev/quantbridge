@@ -170,3 +170,114 @@ export type BacktestListResponse = z.infer<typeof BacktestListResponseSchema>;
 
 export const TradeListResponseSchema = pageSchema(TradeItemSchema);
 export type TradeListResponse = z.infer<typeof TradeListResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Stress Test (Phase C)
+// ---------------------------------------------------------------------------
+
+export const StressTestKindSchema = z.enum(["monte_carlo", "walk_forward"]);
+export type StressTestKind = z.infer<typeof StressTestKindSchema>;
+
+export const StressTestStatusSchema = z.enum([
+  "queued",
+  "running",
+  "completed",
+  "failed",
+]);
+export type StressTestStatus = z.infer<typeof StressTestStatusSchema>;
+
+// Monte Carlo result — BE Decimal → str 직렬화에 대해 transform 적용.
+// `equity_percentiles` 는 "5"/"25"/"50"/"75"/"95" 키를 가진 dict; 각 시계열은 number 배열로 변환.
+export const MonteCarloResultSchema = z.object({
+  samples: z.number().int(),
+  ci_lower_95: decimalString,
+  ci_upper_95: decimalString,
+  median_final_equity: decimalString,
+  max_drawdown_mean: decimalString,
+  max_drawdown_p95: decimalString,
+  equity_percentiles: z.record(z.string(), z.array(decimalString)),
+});
+export type MonteCarloResult = z.infer<typeof MonteCarloResultSchema>;
+
+// Walk-Forward fold — oos_sharpe 는 null 허용.
+export const WalkForwardFoldSchema = z.object({
+  fold_index: z.number().int(),
+  train_start: z.iso.datetime({ offset: true }),
+  train_end: z.iso.datetime({ offset: true }),
+  test_start: z.iso.datetime({ offset: true }),
+  test_end: z.iso.datetime({ offset: true }),
+  in_sample_return: decimalString,
+  out_of_sample_return: decimalString,
+  oos_sharpe: decimalString.nullable(),
+  num_trades_oos: z.number().int(),
+});
+export type WalkForwardFold = z.infer<typeof WalkForwardFoldSchema>;
+
+// Walk-Forward result — degradation_ratio 는 문자열 유지 (Decimal or "Infinity").
+// UI 는 valid_positive_regime === false 시 "N/A" 로 렌더.
+export const WalkForwardResultSchema = z.object({
+  folds: z.array(WalkForwardFoldSchema),
+  aggregate_oos_return: decimalString,
+  degradation_ratio: z.string(),
+  valid_positive_regime: z.boolean(),
+  total_possible_folds: z.number().int(),
+  was_truncated: z.boolean(),
+});
+export type WalkForwardResult = z.infer<typeof WalkForwardResultSchema>;
+
+// Detail — BE StressTestDetail 을 그대로 미러. `result` 단일 union 대신 kind 별 개별 필드.
+export const StressTestDetailSchema = z.object({
+  id: z.uuid(),
+  backtest_id: z.uuid(),
+  kind: StressTestKindSchema,
+  status: StressTestStatusSchema,
+  params: z.record(z.string(), z.unknown()),
+  monte_carlo_result: MonteCarloResultSchema.nullable().optional(),
+  walk_forward_result: WalkForwardResultSchema.nullable().optional(),
+  error: z.string().nullable().optional(),
+  created_at: z.iso.datetime({ offset: true }),
+  started_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  completed_at: z.iso.datetime({ offset: true }).nullable().optional(),
+});
+export type StressTestDetail = z.infer<typeof StressTestDetailSchema>;
+
+export const StressTestCreatedResponseSchema = z.object({
+  stress_test_id: z.uuid(),
+  kind: StressTestKindSchema,
+  status: StressTestStatusSchema,
+  created_at: z.iso.datetime({ offset: true }),
+});
+export type StressTestCreatedResponse = z.infer<
+  typeof StressTestCreatedResponseSchema
+>;
+
+// Requests — BE 는 `{backtest_id, params: {...}}` 중첩 구조.
+export const MonteCarloParamsSchema = z.object({
+  n_samples: z.number().int().min(10).max(10_000).default(1000),
+  seed: z.number().int().min(0).default(42),
+});
+export type MonteCarloParams = z.infer<typeof MonteCarloParamsSchema>;
+
+export const CreateMonteCarloRequestSchema = z.object({
+  backtest_id: z.uuid(),
+  params: MonteCarloParamsSchema.default({ n_samples: 1000, seed: 42 }),
+});
+export type CreateMonteCarloRequest = z.infer<
+  typeof CreateMonteCarloRequestSchema
+>;
+
+export const WalkForwardParamsSchema = z.object({
+  train_bars: z.number().int().min(1),
+  test_bars: z.number().int().min(1),
+  step_bars: z.number().int().min(1).nullable().optional(),
+  max_folds: z.number().int().min(1).max(100).default(20),
+});
+export type WalkForwardParams = z.infer<typeof WalkForwardParamsSchema>;
+
+export const CreateWalkForwardRequestSchema = z.object({
+  backtest_id: z.uuid(),
+  params: WalkForwardParamsSchema,
+});
+export type CreateWalkForwardRequest = z.infer<
+  typeof CreateWalkForwardRequestSchema
+>;
