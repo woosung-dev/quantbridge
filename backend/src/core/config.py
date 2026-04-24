@@ -40,6 +40,23 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Sprint 10 Phase B: Rate limiting (TRUSTED_PROXIES whitelist) ---
+    # pydantic-settings v2 는 list[str] 환경변수를 JSON 배열로만 파싱.
+    # 콤마 구분 문자열 지원을 위해 str 로 저장 후 property 에서 파싱.
+    trusted_proxies_raw: str = Field(
+        default="",
+        alias="trusted_proxies",
+        description=(
+            "신뢰 가능한 reverse proxy IP 화이트리스트 (콤마 구분 문자열). "
+            "trusted_proxies property 에서 list[str] 로 변환. Sprint 10 Phase B."
+        ),
+    )
+
+    @property
+    def trusted_proxies(self) -> list[str]:
+        """콤마 구분 문자열 → list[str]. 빈 값 → []."""
+        return [s.strip() for s in self.trusted_proxies_raw.split(",") if s.strip()]
+
     # Backtest (Sprint 4)
     backtest_stale_threshold_seconds: int = Field(
         default=1800,

@@ -5,15 +5,17 @@ POST /stress-tests/walk-forward       — submit WFA (202)
 GET  /stress-tests                    — list (page)
 GET  /stress-tests/{id}               — detail
 """
+
 from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
 from src.common.pagination import Page
+from src.common.rate_limit import limiter
 from src.stress_test.dependencies import get_stress_test_service
 from src.stress_test.schemas import (
     MonteCarloSubmitRequest,
@@ -32,8 +34,11 @@ router = APIRouter(prefix="/stress-tests", tags=["stress_test"])
     response_model=StressTestCreatedResponse,
     status_code=202,
 )
+@limiter.limit("5/minute")
 async def submit_monte_carlo(
+    request: Request,  # slowapi 가 IP/key 추출에 사용
     data: MonteCarloSubmitRequest,
+    response: Response,
     user: CurrentUser = Depends(get_current_user),
     service: StressTestService = Depends(get_stress_test_service),
 ) -> StressTestCreatedResponse:
@@ -45,8 +50,11 @@ async def submit_monte_carlo(
     response_model=StressTestCreatedResponse,
     status_code=202,
 )
+@limiter.limit("5/minute")
 async def submit_walk_forward(
+    request: Request,  # slowapi 가 IP/key 추출에 사용
     data: WalkForwardSubmitRequest,
+    response: Response,
     user: CurrentUser = Depends(get_current_user),
     service: StressTestService = Depends(get_stress_test_service),
 ) -> StressTestCreatedResponse:
@@ -61,9 +69,7 @@ async def list_stress_tests(
     offset: int = Query(0, ge=0),
     backtest_id: UUID | None = Query(None),
 ) -> Page[StressTestSummary]:
-    return await service.list(
-        user_id=user.id, limit=limit, offset=offset, backtest_id=backtest_id
-    )
+    return await service.list(user_id=user.id, limit=limit, offset=offset, backtest_id=backtest_id)
 
 
 @router.get("/{stress_test_id}", response_model=StressTestDetail)

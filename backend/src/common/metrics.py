@@ -59,6 +59,13 @@ qb_active_orders = Gauge(
     "Current pending + submitted order count (eventually consistent)",
 )
 
+# 6. Rate limit throttled (Sprint 10 Phase B)
+qb_rate_limit_throttled_total = Counter(
+    "qb_rate_limit_throttled_total",
+    "Rate limit 초과로 429 응답한 횟수",
+    labelnames=("scope", "endpoint"),
+)
+
 
 @asynccontextmanager
 async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:

@@ -1,9 +1,10 @@
 """Backtest REST API — 7 endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
@@ -19,12 +20,15 @@ from src.backtest.schemas import (
 )
 from src.backtest.service import BacktestService
 from src.common.pagination import Page
+from src.common.rate_limit import limiter
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
 
 
 @router.post("", response_model=BacktestCreatedResponse, status_code=202)
+@limiter.limit("10/minute")
 async def submit_backtest(
+    request: Request,  # slowapi 가 IP/key 추출에 사용 (첫 번째 위치)
     data: CreateBacktestRequest,
     response: Response,
     user: CurrentUser = Depends(get_current_user),
@@ -37,9 +41,7 @@ async def submit_backtest(
     응답 헤더 `X-Idempotency-Replayed: true`. 상태 코드는 replay/신규 모두
     202 유지 ("Accepted" 의미 — 신규 or 기존 queued 둘 다 async).
     """
-    result = await service.submit(
-        data, user_id=user.id, idempotency_key=idempotency_key
-    )
+    result = await service.submit(data, user_id=user.id, idempotency_key=idempotency_key)
     if result.replayed:
         response.headers["X-Idempotency-Replayed"] = "true"
     return result
@@ -72,9 +74,7 @@ async def list_backtest_trades(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> Page[TradeItem]:
-    return await service.list_trades(
-        backtest_id, user_id=user.id, limit=limit, offset=offset
-    )
+    return await service.list_trades(backtest_id, user_id=user.id, limit=limit, offset=offset)
 
 
 @router.get("/{backtest_id}/progress", response_model=BacktestProgressResponse)

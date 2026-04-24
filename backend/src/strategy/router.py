@@ -6,10 +6,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
+from src.common.rate_limit import limiter
 from src.core.config import settings
 from src.strategy.dependencies import get_strategy_service
 from src.strategy.models import ParseStatus
@@ -39,8 +40,11 @@ async def parse_preview(
 
 
 @router.post("", status_code=201, response_model=StrategyResponse)
+@limiter.limit("30/minute")
 async def create_strategy(
+    request: Request,  # slowapi 가 IP/key 추출에 사용
     data: CreateStrategyRequest,
+    response: Response,
     current_user: CurrentUser = Depends(get_current_user),
     service: StrategyService = Depends(get_strategy_service),
 ) -> StrategyResponse:
