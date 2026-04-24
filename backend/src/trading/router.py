@@ -4,6 +4,7 @@ URL prefix 없음 — main.py에서 /api/v1로 include.
 T19: Webhook POST (public, HMAC auth) + CSO-6 body cap.
 T20: Orders (list/get/cancel) + KillSwitch (events/resolve) REST endpoints.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
 from src.common.database import get_async_session
+from src.common.metrics import qb_active_orders
 from src.trading.dependencies import (
     get_exchange_account_service,
     get_order_service,
@@ -77,9 +79,7 @@ async def receive_webhook(
         raise HTTPException(413, "body too large")
 
     # ── HMAC verification ──
-    await webhook_svc.ensure_authorized(
-        strategy_id, token=token, payload=body_bytes
-    )
+    await webhook_svc.ensure_authorized(strategy_id, token=token, payload=body_bytes)
 
     # ── Parse TV payload ──
     import json
@@ -90,9 +90,7 @@ async def receive_webhook(
     # extract exchange_account_id from payload body
     exchange_account_id_raw = payload_dict.get("exchange_account_id")
     if exchange_account_id_raw is None:
-        raise HTTPException(
-            422, "Missing required field: exchange_account_id"
-        )
+        raise HTTPException(422, "Missing required field: exchange_account_id")
     exchange_account_id = UUID(str(exchange_account_id_raw))
 
     # ── Build OrderRequest ──
@@ -205,9 +203,7 @@ async def list_orders(
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, object]:
     repo = OrderRepository(session)
-    items, total = await repo.list_by_user(
-        current_user.id, limit=limit, offset=offset
-    )
+    items, total = await repo.list_by_user(current_user.id, limit=limit, offset=offset)
     return {
         "items": [OrderResponse.model_validate(o).model_dump(mode="json") for o in items],
         "total": total,
@@ -254,14 +250,14 @@ async def cancel_order(
     if acc is None or acc.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="order not found")
 
-    rowcount = await repo.transition_to_cancelled(
-        order_id, cancelled_at=datetime.now(UTC)
-    )
+    rowcount = await repo.transition_to_cancelled(order_id, cancelled_at=datetime.now(UTC))
     await repo.commit()
     if rowcount == 0:
-        raise HTTPException(
-            status_code=409, detail="cannot cancel in current state"
-        )
+        raise HTTPException(status_code=409, detail="cannot cancel in current state")
+    # Sprint 9 Phase D FIX-D1: cancel path 에서 gauge decrement
+    # (service.execute 에서 +1 한 것을 cancelled terminal state 로 전이 시 -1).
+    # filled/rejected 는 tasks/trading.py 가 처리하지만 user-initiated cancel 은 router 가 직접 처리.
+    qb_active_orders.dec()
     fetched = await repo.get_by_id(order_id)
     if not fetched:
         raise HTTPException(status_code=500, detail="order fetch failed after cancel")
@@ -283,8 +279,7 @@ async def list_kill_switch_events(
     events = await repo.list_recent(limit=limit, offset=offset)
     return {
         "items": [
-            KillSwitchEventResponse.model_validate(e).model_dump(mode="json")
-            for e in events
+            KillSwitchEventResponse.model_validate(e).model_dump(mode="json") for e in events
         ],
         "total": len(events),
         "limit": limit,
@@ -308,12 +303,8 @@ async def resolve_kill_switch(
     rowcount = await repo.resolve(event_id, note=note)
     await repo.commit()
     if rowcount == 0:
-        raise HTTPException(
-            status_code=404, detail="event not found or already resolved"
-        )
+        raise HTTPException(status_code=404, detail="event not found or already resolved")
     fetched = await repo.get_by_id(event_id)
     if not fetched:
-        raise HTTPException(
-            status_code=500, detail="event fetch failed after resolve"
-        )
+        raise HTTPException(status_code=500, detail="event fetch failed after resolve")
     return KillSwitchEventResponse.model_validate(fetched)

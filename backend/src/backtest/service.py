@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -77,12 +79,29 @@ class BacktestService:
         user_id: UUID,
         idempotency_key: str | None = None,
     ) -> BacktestCreatedResponse:
+        body_hash: bytes | None = None
         if idempotency_key is not None:
+            body_hash = _compute_body_hash(data, user_id)
             await self.repo.acquire_idempotency_lock(idempotency_key)
             existing = await self.repo.get_by_idempotency_key(idempotency_key)
             if existing is not None:
+                # Sprint 9-6 E2: hash 비교 — 일치 → replay, 불일치(또는 NULL) → 409.
+                # 기존 NULL hash row (E1 이전) 은 어떤 body 와도 match 불가 (안전성).
+                if (
+                    existing.idempotency_payload_hash is not None
+                    and existing.idempotency_payload_hash == body_hash
+                ):
+                    return BacktestCreatedResponse(
+                        backtest_id=existing.id,
+                        status=existing.status,
+                        created_at=existing.created_at,
+                        replayed=True,
+                    )
                 raise BacktestDuplicateIdempotencyKey(
-                    detail=f"Duplicate Idempotency-Key; existing backtest_id={existing.id}"
+                    detail=(
+                        f"Idempotency-Key reused with different payload; "
+                        f"existing backtest_id={existing.id}"
+                    )
                 )
 
         strategy = await self.strategy_repo.find_by_id_and_owner(data.strategy_id, user_id)
@@ -111,6 +130,7 @@ class BacktestService:
             initial_capital=data.initial_capital,
             status=BacktestStatus.QUEUED,
             idempotency_key=idempotency_key,
+            idempotency_payload_hash=body_hash,
         )
         await self.repo.create(bt)
 
@@ -429,3 +449,21 @@ class BacktestService:
             equity_curve=equity_out,
             error=bt.error,
         )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 9-6 E2 — Idempotency body hash.
+# ---------------------------------------------------------------------------
+
+
+def _compute_body_hash(data: CreateBacktestRequest, user_id: UUID) -> bytes:
+    """SHA-256(CreateBacktestRequest JSON + user_id).
+
+    user_id 포함으로 cross-user key 재사용을 conflict 로 분류 (user A 가 key=K
+    로 제출 후 user B 가 같은 key 로 제출 → 409). `model_dump(mode="json")` 는
+    Decimal/datetime 을 JSON-safe string 으로 직렬화해 결정적 bytes 생성.
+    """
+    payload = {**data.model_dump(mode="json"), "user_id": str(user_id)}
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).digest()

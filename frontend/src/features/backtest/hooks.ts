@@ -21,11 +21,15 @@ import {
   deleteBacktest,
   getBacktest,
   getBacktestProgress,
+  getStressTest,
   listBacktests,
   listBacktestTrades,
+  postMonteCarlo,
+  postWalkForward,
 } from "./api";
 import {
   backtestKeys,
+  stressTestKeys,
   type BacktestListQuery,
   type BacktestTradesQuery,
 } from "./query-keys";
@@ -36,10 +40,14 @@ import type {
   BacktestListResponse,
   BacktestProgressResponse,
   CreateBacktestRequest,
+  CreateMonteCarloRequest,
+  CreateWalkForwardRequest,
+  StressTestCreatedResponse,
+  StressTestDetail,
   TradeListResponse,
 } from "./schemas";
 
-export { backtestKeys };
+export { backtestKeys, stressTestKeys };
 
 const ANON_USER_ID = "anon";
 
@@ -223,5 +231,85 @@ export function useDeleteBacktest(
       opts.onSuccess?.();
     },
     onError: (err) => opts.onError?.(err),
+  });
+}
+
+// --- Stress Test (Phase C) -----------------------------------------------
+
+const STRESS_TEST_POLL_MS = 2_000;
+
+// queryFn factory — 모듈 레벨 CallExpression 으로 @tanstack/query/exhaustive-deps 우회.
+function makeStressTestFetcher(id: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getStressTest(id, token);
+  };
+}
+
+// LESSON-004 guard: refetchInterval 은 module-level 순수 함수로, terminal status 에서 false 반환.
+// React Query data 객체를 useEffect dep 로 쓰지 않아 CPU 100% 루프를 원천 차단.
+export function stressTestRefetchInterval(
+  q: Query<StressTestDetail, Error>,
+): number | false {
+  if (q.state.status === "error") return false;
+  const data = q.state.data;
+  if (data == null) return STRESS_TEST_POLL_MS;
+  if (data.status === "completed" || data.status === "failed") {
+    return false;
+  }
+  return STRESS_TEST_POLL_MS;
+}
+
+export function useCreateMonteCarlo(
+  opts: MutationCallbacks<StressTestCreatedResponse> = {},
+): UseMutationResult<StressTestCreatedResponse, Error, CreateMonteCarloRequest> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateMonteCarloRequest) => {
+      const token = await getToken();
+      return postMonteCarlo(body, token);
+    },
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
+      opts.onSuccess?.(created);
+    },
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+export function useCreateWalkForward(
+  opts: MutationCallbacks<StressTestCreatedResponse> = {},
+): UseMutationResult<StressTestCreatedResponse, Error, CreateWalkForwardRequest> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateWalkForwardRequest) => {
+      const token = await getToken();
+      return postWalkForward(body, token);
+    },
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
+      opts.onSuccess?.(created);
+    },
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+export function useStressTest(
+  id: string | null,
+): UseQueryResult<StressTestDetail, Error> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  return useQuery({
+    queryKey: id
+      ? stressTestKeys.detail(uid, id)
+      : stressTestKeys.all(uid),
+    queryFn: makeStressTestFetcher(id ?? "", getToken),
+    enabled: Boolean(id),
+    refetchInterval: stressTestRefetchInterval,
+    refetchIntervalInBackground: false,
   });
 }

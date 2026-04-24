@@ -31,11 +31,17 @@ class CreateBacktestRequest(BaseModel):
 # --- Response: base ---
 
 class BacktestCreatedResponse(BaseModel):
-    """POST /backtests → 202 Accepted."""
+    """POST /backtests → 202 Accepted.
+
+    Sprint 9-6 E2: `replayed=True` 는 Idempotency-Key + body hash 가 기존
+    row 와 일치하여 기존 backtest 를 그대로 반환한 경우. Router 는 응답 헤더
+    `X-Idempotency-Replayed: true` 를 함께 설정한다.
+    """
 
     backtest_id: UUID
     status: BacktestStatus
     created_at: AwareDatetime
+    replayed: bool = False
 
 
 class BacktestProgressResponse(BaseModel):

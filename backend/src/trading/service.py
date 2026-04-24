@@ -16,12 +16,14 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,  # 예외적 주입 — OrderService.execute advisory lock 전용
 )
 
+from src.common.metrics import qb_active_orders, qb_order_rejected_total
 from src.core.config import settings
 from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
     AccountNotFound,
     IdempotencyConflict,
+    KillSwitchActive,
     LeverageCapExceeded,
     NotionalExceeded,
     ProviderError,
@@ -231,9 +233,16 @@ class OrderService:
         4. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
         5. commit 후 Celery dispatch (visibility race 방지)
         """
+        # Sprint 9 Phase D: service 레이어에서 exchange 직접 조회 회피 (async fetch 불필요).
+        # 각 reject 카운터는 "unknown" exchange 로 집계 — dashboard 에서는 reason split 으로 충분.
+        _metric_exchange = "unknown"
+
         # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
         # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
         if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
+            qb_order_rejected_total.labels(
+                exchange=_metric_exchange, reason="leverage_cap"
+            ).inc()
             raise LeverageCapExceeded(
                 requested=req.leverage,
                 cap=settings.bybit_futures_max_leverage,
@@ -259,6 +268,9 @@ class OrderService:
                     * Decimal("0.95")
                 )
                 if notional > max_notional:
+                    qb_order_rejected_total.labels(
+                        exchange=_metric_exchange, reason="notional"
+                    ).inc()
                     raise NotionalExceeded(
                         notional=notional,
                         available=available,
@@ -273,6 +285,9 @@ class OrderService:
             sessions = await self._sessions_port.get_sessions(req.strategy_id)
             now = datetime.now(UTC)
             if not _sessions_is_allowed(sessions, now):
+                qb_order_rejected_total.labels(
+                    exchange=_metric_exchange, reason="session_closed"
+                ).inc()
                 raise TradingSessionClosed(
                     sessions=sessions,
                     current_hour_utc=now.hour,
@@ -287,6 +302,9 @@ class OrderService:
                 existing = await self._repo.get_by_idempotency_key(idempotency_key)
                 if existing:
                     if body_hash is not None and existing.idempotency_payload_hash != body_hash:
+                        qb_order_rejected_total.labels(
+                            exchange=_metric_exchange, reason="idempotency_conflict"
+                        ).inc()
                         raise IdempotencyConflict(
                             f"Idempotency-Key 재사용됐지만 payload가 다름. "
                             f"original_order_id={existing.id}",
@@ -294,10 +312,16 @@ class OrderService:
                         )
                     cached_response = OrderResponse.model_validate(existing)
                 else:
-                    await self._kill_switch.ensure_not_gated(
-                        strategy_id=req.strategy_id,
-                        account_id=req.exchange_account_id,
-                    )
+                    try:
+                        await self._kill_switch.ensure_not_gated(
+                            strategy_id=req.strategy_id,
+                            account_id=req.exchange_account_id,
+                        )
+                    except KillSwitchActive:
+                        qb_order_rejected_total.labels(
+                            exchange=_metric_exchange, reason="kill_switch"
+                        ).inc()
+                        raise
                     order = await self._repo.save(Order(
                         strategy_id=req.strategy_id,
                         exchange_account_id=req.exchange_account_id,
@@ -315,10 +339,16 @@ class OrderService:
                     ))
                     created_order_id = order.id
             else:
-                await self._kill_switch.ensure_not_gated(
-                    strategy_id=req.strategy_id,
-                    account_id=req.exchange_account_id,
-                )
+                try:
+                    await self._kill_switch.ensure_not_gated(
+                        strategy_id=req.strategy_id,
+                        account_id=req.exchange_account_id,
+                    )
+                except KillSwitchActive:
+                    qb_order_rejected_total.labels(
+                        exchange=_metric_exchange, reason="kill_switch"
+                    ).inc()
+                    raise
                 order = await self._repo.save(Order(
                     strategy_id=req.strategy_id,
                     exchange_account_id=req.exchange_account_id,
@@ -342,6 +372,11 @@ class OrderService:
 
         if created_order_id is None:
             raise RuntimeError("OrderService bug: created_order_id is None after insert")
+
+        # Sprint 9 Phase D: 신규 pending 주문 생성 → active_orders gauge inc.
+        # 터미널 전이 (filled/rejected/canceled) 시 tasks/trading.py 가 dec.
+        qb_active_orders.inc()
+
         await self._dispatcher.dispatch_order_execution(created_order_id)
         fetched = await self._repo.get_by_id(created_order_id)
         if fetched is None:

@@ -10,6 +10,10 @@ import {
   BacktestListResponseSchema,
   BacktestProgressResponseSchema,
   CreateBacktestRequestSchema,
+  CreateMonteCarloRequestSchema,
+  CreateWalkForwardRequestSchema,
+  StressTestCreatedResponseSchema,
+  StressTestDetailSchema,
   TradeListResponseSchema,
   type BacktestCancelResponse,
   type BacktestCreatedResponse,
@@ -17,10 +21,15 @@ import {
   type BacktestListResponse,
   type BacktestProgressResponse,
   type CreateBacktestRequest,
+  type CreateMonteCarloRequest,
+  type CreateWalkForwardRequest,
+  type StressTestCreatedResponse,
+  type StressTestDetail,
   type TradeListResponse,
 } from "./schemas";
 
 const BACKTESTS_PATH = "/api/v1/backtests";
+const STRESS_TESTS_PATH = "/api/v1/stress-tests";
 
 export async function listBacktests(
   query: BacktestListQuery,
@@ -101,4 +110,43 @@ export async function deleteBacktest(
     method: "DELETE",
     token,
   });
+}
+
+// --- Stress Test (Phase C) -----------------------------------------------
+
+export async function postMonteCarlo(
+  body: CreateMonteCarloRequest,
+  token: string | null,
+): Promise<StressTestCreatedResponse> {
+  const parsed = CreateMonteCarloRequestSchema.parse(body);
+  const raw = await apiFetch<unknown>(`${STRESS_TESTS_PATH}/monte-carlo`, {
+    method: "POST",
+    token,
+    body: parsed,
+  });
+  return StressTestCreatedResponseSchema.parse(raw);
+}
+
+export async function postWalkForward(
+  body: CreateWalkForwardRequest,
+  token: string | null,
+): Promise<StressTestCreatedResponse> {
+  const parsed = CreateWalkForwardRequestSchema.parse(body);
+  const raw = await apiFetch<unknown>(`${STRESS_TESTS_PATH}/walk-forward`, {
+    method: "POST",
+    token,
+    body: parsed,
+  });
+  return StressTestCreatedResponseSchema.parse(raw);
+}
+
+export async function getStressTest(
+  id: string,
+  token: string | null,
+): Promise<StressTestDetail> {
+  const raw = await apiFetch<unknown>(`${STRESS_TESTS_PATH}/${id}`, {
+    method: "GET",
+    token,
+  });
+  return StressTestDetailSchema.parse(raw);
 }

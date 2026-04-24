@@ -25,6 +25,7 @@ celery_app = Celery(
         "src.tasks.trading",
         "src.tasks.funding",
         "src.tasks.dogfood_report",
+        "src.tasks.stress_test_tasks",
     ],
 )
 

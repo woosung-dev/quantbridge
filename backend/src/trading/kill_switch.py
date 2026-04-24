@@ -13,6 +13,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, select
 
+from src.common.metrics import qb_kill_switch_triggered_total
 from src.trading.exceptions import KillSwitchActive
 from src.trading.models import (
     KillSwitchEvent,
@@ -207,6 +208,12 @@ class KillSwitchService:
             )
             # Correction 1: create() → save() (Sprint 6 convention)
             created = await self._events_repo.save(event)
+
+            # Sprint 9 Phase D: 신규 발동만 카운트 (기존 unresolved 재히트는 제외).
+            qb_kill_switch_triggered_total.labels(
+                trigger_type=result.trigger_type
+            ).inc()
+
             raise KillSwitchActive(
                 f"New kill switch: {result.trigger_type} "
                 f"(value={result.trigger_value}, threshold={result.threshold}, "
