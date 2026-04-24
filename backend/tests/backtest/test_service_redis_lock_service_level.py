@@ -8,7 +8,7 @@ Service layer 에서 `async with RedisLock(...): await self._submit_inner(...)`
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession

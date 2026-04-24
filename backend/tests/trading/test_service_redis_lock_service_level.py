@@ -7,12 +7,12 @@ Phase A2 Repository wrapping (1 RTT contention signal only) 제거 후 Service l
 from __future__ import annotations
 
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 from cryptography.fernet import Fernet
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import patch
 
 from src.auth.models import User
 from src.trading.encryption import EncryptionService
