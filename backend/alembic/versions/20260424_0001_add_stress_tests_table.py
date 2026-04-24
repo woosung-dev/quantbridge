@@ -23,9 +23,28 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Enum 타입은 create_table 내부의 Column(Enum(...)) 이 자동으로 CREATE TYPE 하도록
-    # 위임. 별도 .create() 호출 시 중복 실행 위험 (SQLAlchemy Column Enum 이 동일
-    # name 에 대해 다시 CREATE TYPE 을 emit 하여 DuplicateObjectError 발생).
+    # 멱등 보장 — 테스트 conftest 의 SQLModel.metadata.create_all 이 alembic 과
+    # 병행해 같은 enum/table 을 pre-create 하는 환경에서도 성공하도록 설계.
+    # enum: DO block + EXCEPTION(duplicate_object). table: check pg_class before create.
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE stress_test_kind AS ENUM ('monte_carlo','walk_forward'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+    )
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE stress_test_status AS ENUM "
+        "('queued','running','completed','failed'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+    )
+
+    # 존재 시 skip — conftest pre-create 대응. downgrade→upgrade roundtrip 에서는
+    # 깨끗한 DB 이므로 정상 실행.
+    bind = op.get_bind()
+    existing = bind.execute(sa.text("SELECT to_regclass('public.stress_tests')")).scalar()
+    if existing is not None:
+        return
+
     op.create_table(
         "stress_tests",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
@@ -43,21 +62,23 @@ def upgrade() -> None:
         ),
         sa.Column(
             "kind",
-            sa.Enum(
+            postgresql.ENUM(
                 "monte_carlo",
                 "walk_forward",
                 name="stress_test_kind",
+                create_type=False,
             ),
             nullable=False,
         ),
         sa.Column(
             "status",
-            sa.Enum(
+            postgresql.ENUM(
                 "queued",
                 "running",
                 "completed",
                 "failed",
                 name="stress_test_status",
+                create_type=False,
             ),
             nullable=False,
         ),

@@ -101,9 +101,14 @@ async def test_first_submit_with_idempotency_key_succeeds(
 
 
 @pytest.mark.asyncio
-async def test_duplicate_idempotency_key_raises_409(
+async def test_duplicate_idempotency_key_with_different_body_raises_409(
     db_session: AsyncSession, tmp_path: Path
 ) -> None:
+    """Sprint 9-6 E2: 같은 key 지만 body 가 다르면 409.
+
+    (E1 에서는 body 무관하게 409 였으나, E2 업그레이드 후 body 가 같으면
+    replay — 자세한 동작은 `test_idempotency_e2_*` 참조.)
+    """
     user, strat = await _seed(db_session)
     service = _make_service(db_session, _mini_fixture_root(tmp_path))
 
@@ -111,8 +116,17 @@ async def test_duplicate_idempotency_key_raises_409(
     first = await service.submit(_make_request(strat.id), user_id=user.id, idempotency_key=key)
     assert first.status == BacktestStatus.QUEUED
 
+    # 다른 body (initial_capital 변경)
+    alt_req = CreateBacktestRequest(
+        strategy_id=strat.id,  # type: ignore[arg-type]
+        symbol="BTCUSDT",
+        timeframe="1h",
+        period_start=datetime(2023, 1, 1, tzinfo=UTC),
+        period_end=datetime(2023, 1, 3, tzinfo=UTC),
+        initial_capital=Decimal("20000"),  # 다른 금액
+    )
     with pytest.raises(BacktestDuplicateIdempotencyKey) as exc_info:
-        await service.submit(_make_request(strat.id), user_id=user.id, idempotency_key=key)
+        await service.submit(alt_req, user_id=user.id, idempotency_key=key)
 
     assert str(first.backtest_id) in exc_info.value.detail
 
