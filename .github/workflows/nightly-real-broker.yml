@@ -1,0 +1,126 @@
+# KST 03:00 (UTC 18:00) 매일 + 수동 trigger
+# Sprint 10 Phase C — Bybit Demo 실호출 E2E nightly regression
+"on":
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+name: Nightly Real Broker E2E
+
+permissions:
+  contents: read
+  issues: write # 실패 시 issue auto-create
+
+jobs:
+  real_broker_e2e:
+    name: Bybit Demo E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg17
+        env:
+          POSTGRES_USER: quantbridge
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: quantbridge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quantbridge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      REDIS_LOCK_URL: redis://localhost:6379/3
+      BYBIT_DEMO_API_KEY_TEST: ${{ secrets.BYBIT_DEMO_API_KEY_TEST }}
+      BYBIT_DEMO_API_SECRET_TEST: ${{ secrets.BYBIT_DEMO_API_SECRET_TEST }}
+      TRADING_ENCRYPTION_KEYS: ${{ secrets.TRADING_ENCRYPTION_KEYS_TEST }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend deps
+        working-directory: backend
+        run: uv sync
+
+      - name: Alembic migrate
+        working-directory: backend
+        # postgres service health-check 가 steps 실행 전 gate → race condition 없음
+        run: uv run alembic upgrade head
+
+      - name: Run real_broker E2E (skeleton)
+        working-directory: backend
+        shell: bash -eo pipefail {0}
+        run: |
+          uv run pytest tests/real_broker/ \
+            --run-real-broker \
+            -v \
+            --tb=short \
+            --timeout=300 \
+            | tee /tmp/real-broker-output.txt
+
+      - name: Flaky detection — auto-label issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 라벨 사전 생성 (repo 에 없으면 422 에러 방지, 이미 있으면 catch 하고 계속)
+            const ensureLabel = async (name, color, description) => {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color,
+                  description,
+                });
+              } catch (err) {
+                // 422: already exists — ignore
+                if (err.status !== 422) throw err;
+              }
+            };
+            await ensureLabel('flaky-real-broker', 'ffcc00', 'Nightly real broker E2E flakiness');
+            await ensureLabel('sprint-10', '0e8a16', 'H2 Sprint 10 관련');
+
+            const title = `[flaky-real-broker] Nightly failure ${new Date().toISOString().split('T')[0]}`;
+            const body = `Nightly real_broker E2E failed at ${new Date().toISOString()}.
+
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Triage steps:
+            1. Bybit Demo status page — https://announcements.bybit.com/
+            2. Verify BYBIT_DEMO_API_KEY_TEST credentials (not expired)
+            3. Check qb_ccxt_request_errors_total metric from last successful run
+            4. Re-run via workflow_dispatch if transient
+            5. If persistent → add to TODO.md + Sprint 11 investigation`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['flaky-real-broker', 'sprint-10']
+            });

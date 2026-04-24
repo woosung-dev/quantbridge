@@ -1,4 +1,5 @@
 """BacktestRepository — AsyncSession 유일 보유, DB 접근 전담."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -31,9 +32,7 @@ class BacktestRepository:
         await self.session.flush()
         return bt
 
-    async def get_by_id(
-        self, backtest_id: UUID, *, user_id: UUID | None = None
-    ) -> Backtest | None:
+    async def get_by_id(self, backtest_id: UUID, *, user_id: UUID | None = None) -> Backtest | None:
         stmt = select(Backtest).where(Backtest.id == backtest_id)  # type: ignore[arg-type]
         if user_id is not None:
             stmt = stmt.where(Backtest.user_id == user_id)  # type: ignore[arg-type]
@@ -43,8 +42,12 @@ class BacktestRepository:
     async def list_by_user(
         self, user_id: UUID, *, limit: int, offset: int
     ) -> tuple[Sequence[Backtest], int]:
-        total_stmt = select(func.count()).select_from(Backtest).where(
-            Backtest.user_id == user_id  # type: ignore[arg-type]
+        total_stmt = (
+            select(func.count())
+            .select_from(Backtest)
+            .where(
+                Backtest.user_id == user_id  # type: ignore[arg-type]
+            )
         )
         total = (await self.session.execute(total_stmt)).scalar_one()
 
@@ -66,9 +69,7 @@ class BacktestRepository:
 
     # --- 조건부 상태 전이 (3-guard cancel logic §5.1) ---
 
-    async def transition_to_running(
-        self, backtest_id: UUID, *, started_at: datetime
-    ) -> int:
+    async def transition_to_running(self, backtest_id: UUID, *, started_at: datetime) -> int:
         """queued → running. 조건부 UPDATE. Returns affected rows."""
         result = await self.session.execute(
             update(Backtest)
@@ -134,9 +135,7 @@ class BacktestRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
-    async def finalize_cancelled(
-        self, backtest_id: UUID, *, completed_at: datetime
-    ) -> int:
+    async def finalize_cancelled(self, backtest_id: UUID, *, completed_at: datetime) -> int:
         """cancelling → cancelled. 조건부. Worker guards에서 호출."""
         result = await self.session.execute(
             update(Backtest)
@@ -156,8 +155,12 @@ class BacktestRepository:
     async def list_trades(
         self, backtest_id: UUID, *, limit: int, offset: int
     ) -> tuple[Sequence[BacktestTrade], int]:
-        total_stmt = select(func.count()).select_from(BacktestTrade).where(
-            BacktestTrade.backtest_id == backtest_id  # type: ignore[arg-type]
+        total_stmt = (
+            select(func.count())
+            .select_from(BacktestTrade)
+            .where(
+                BacktestTrade.backtest_id == backtest_id  # type: ignore[arg-type]
+            )
         )
         total = (await self.session.execute(total_stmt)).scalar_one()
 
@@ -180,7 +183,29 @@ class BacktestRepository:
         return result.scalar_one_or_none()
 
     async def acquire_idempotency_lock(self, key: str) -> None:
-        """pg_advisory_xact_lock — 트랜잭션 종료 시 자동 해제."""
+        """Redis contention-detect signal + PG advisory authoritative — Sprint 10 Phase A2.
+
+        **현재 wrapping 은 mutex 가 아님.** Redis SET NX + 즉시 DEL 사이클로 lock hold ≈ 1 RTT.
+        다른 워커가 RTT 간격 이상으로 진입하면 양쪽 모두 Redis SET NX 성공. Redis 는
+        `qb_redlock_acquire_total{outcome=contention}` metric 으로 multi-server 동시 요청을
+        **관측**할 뿐 막지는 않는다.
+
+        실제 correctness 는 이어지는 `pg_advisory_xact_lock` 이 보장 — DB 트랜잭션 경계 +
+        UNIQUE 제약 + IntegrityError fallback 이 최종 권위자.
+
+        **Wrapping 동기:**
+        1. Redis contention observability (metric + 로그) 확보
+        2. 향후 Service-level lock hold 로 확장 시 infra 재사용 가능
+        3. Redis 장애 시 graceful degradation 으로 PG 단독 동작 (correctness 무영향)
+
+        Follow-up: Service layer 에서 `async with RedisLock(...): await submit(...)` 로
+        감싸면 실질 분산 mutex. 본 Phase 는 infra + observability 만.
+        """
+        from src.common.redlock import RedisLock
+
+        async with RedisLock(f"idem:backtest:{key}", ttl_ms=10_000):
+            pass
+
         await self.session.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
             {"k": key},
@@ -189,17 +214,19 @@ class BacktestRepository:
     # --- Cross-domain query (§4.8 Strategy delete 선조회) ---
 
     async def exists_for_strategy(self, strategy_id: UUID) -> bool:
-        stmt = select(func.count()).select_from(Backtest).where(
-            Backtest.strategy_id == strategy_id  # type: ignore[arg-type]
+        stmt = (
+            select(func.count())
+            .select_from(Backtest)
+            .where(
+                Backtest.strategy_id == strategy_id  # type: ignore[arg-type]
+            )
         )
         count = (await self.session.execute(stmt)).scalar_one()
         return count > 0
 
     # --- Stale reclaim (§8.3) ---
 
-    async def reclaim_stale(
-        self, *, threshold_seconds: int, now: datetime
-    ) -> tuple[int, int]:
+    async def reclaim_stale(self, *, threshold_seconds: int, now: datetime) -> tuple[int, int]:
         """running/cancelling 중 stale → terminal.
 
         Running: started_at + threshold < now → failed.

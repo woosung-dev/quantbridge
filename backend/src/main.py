@@ -43,16 +43,21 @@ def _verify_prometheus_bearer(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """CCXTProvider singleton 관리 — ohlcv_provider=timescale일 때만 init."""
+    """Startup/shutdown 자원 라이프사이클.
+
+    - CCXTProvider singleton (ohlcv_provider=timescale 일 때만)
+    - Redis lock pool healthcheck (Sprint 10 A1) — 실패 시 degraded 모드
+    """
     if settings.ohlcv_provider == "timescale":
-        # lazy import: ccxt 의존성을 fixture 경로에서는 로드하지 않음
         from src.market_data.providers.ccxt import CCXTProvider
 
-        app.state.ccxt_provider = CCXTProvider(
-            exchange_name=settings.default_exchange
-        )
+        app.state.ccxt_provider = CCXTProvider(exchange_name=settings.default_exchange)
     else:
         app.state.ccxt_provider = None
+
+    from src.common.redis_client import healthcheck_redis_lock
+
+    await healthcheck_redis_lock(app)
 
     yield
 
@@ -66,6 +71,15 @@ def create_app() -> FastAPI:
         debug=settings.debug,
         lifespan=lifespan,
     )
+
+    # Phase A2/B 가 본 플래그를 평가하기 전 lifespan 이 healthcheck 호출.
+    # startup 미진입 / 테스트가 lifespan 우회 시 AttributeError 봉쇄용 기본값.
+    app.state.redis_lock_healthy = False
+
+    # Sprint 10 Phase B — rate limit middleware (slowapi + Redis storage DB 3)
+    from src.common.rate_limit import install_rate_limit
+
+    install_rate_limit(app)
 
     app.add_middleware(
         CORSMiddleware,
@@ -108,20 +122,39 @@ def create_app() -> FastAPI:
 
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+    # Sprint 10 Phase B — /metrics, /health 는 rate limit 면제
+    # (Prometheus 스크래퍼 + health-check 는 무제한 허용)
+    app.state.limiter.exempt(metrics_endpoint)
+    app.state.limiter.exempt(health)
+
+    # Sprint 10 Phase B — /api/v1/webhooks/* 는 TradingView alert 수신. HMAC 인증이
+    # primary 보안 레이어이므로 default 100/min 제외. high-freq strategy 시
+    # alert drop 방지 (Sonnet review Critical).
+    from src.trading.router import router as _trading_router
+
+    for route in _trading_router.routes:
+        if hasattr(route, "path") and route.path.startswith("/webhooks") and hasattr(route, "endpoint"):
+            app.state.limiter.exempt(route.endpoint)
+
     # 도메인 라우터는 Stage 3 스프린트에서 순차 등록
     from src.auth.router import router as auth_router
+
     app.include_router(auth_router, prefix="/api/v1")
 
     from src.strategy.router import router as strategy_router
+
     app.include_router(strategy_router, prefix="/api/v1")
 
     from src.backtest.router import router as backtest_router
+
     app.include_router(backtest_router, prefix="/api/v1")
 
     from src.trading.router import router as trading_router
+
     app.include_router(trading_router, prefix="/api/v1")
 
     from src.stress_test.router import router as stress_test_router
+
     app.include_router(stress_test_router, prefix="/api/v1")
 
     return app

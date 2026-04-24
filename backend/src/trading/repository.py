@@ -204,7 +204,16 @@ class OrderRepository:
     # --- Idempotency 동시성 제어 (Sprint 5 M2 advisory lock 패턴) ---
 
     async def acquire_idempotency_lock(self, key: str) -> None:
-        """pg_advisory_xact_lock — 트랜잭션 종료 시 자동 해제."""
+        """Redis contention-detect signal + PG advisory authoritative — Sprint 10 Phase A2.
+
+        동일 wrapping 패턴 (backtest repository 참고). Redis = observability,
+        PG = correctness. Follow-up: Service-level lock hold 확장.
+        """
+        from src.common.redlock import RedisLock
+
+        async with RedisLock(f"idem:trading:{key}", ttl_ms=10_000):
+            pass
+
         await self.session.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
             {"k": key},
