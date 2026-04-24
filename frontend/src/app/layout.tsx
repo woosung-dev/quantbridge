@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
+import { LegalNoticeBanner } from "@/components/legal-notice-banner";
 import { Toaster } from "@/components/ui/sonner";
 import "@/styles/globals.css";
 
@@ -48,6 +49,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           본문으로 바로가기
         </a>
+        {/* Sprint 11 Phase B — 법무 임시 고지 배너 (전 페이지 상단). H2 말 정식 변호사 교체 예정. */}
+        <LegalNoticeBanner />
         <AppProviders>{children}</AppProviders>
         {/* Sonner Toaster — provider 체인 최하단 (z-index: modal 위) */}
         <Toaster position="top-center" richColors closeButton />

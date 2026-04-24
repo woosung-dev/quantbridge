@@ -10,12 +10,19 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/webhooks/(.*)",
   "/not-available",
+  // Sprint 11 Phase B — 법무 페이지는 인증 불필요
+  "/disclaimer",
+  "/terms",
+  "/privacy",
 ]);
 
-// Sprint 11 Phase A — geo-block 제외 라우트 (landing 자체는 안내 배너만 표시).
+// Sprint 11 Phase A/B — geo-block 제외 라우트 (landing, 법무, webhook 은 모든 지역 표시).
 const isGeoExemptRoute = createRouteMatcher([
   "/",
   "/not-available",
+  "/disclaimer",
+  "/terms",
+  "/privacy",
   "/api/webhooks/(.*)",
 ]);
 
