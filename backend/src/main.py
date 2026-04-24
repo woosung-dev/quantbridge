@@ -133,7 +133,11 @@ def create_app() -> FastAPI:
     from src.trading.router import router as _trading_router
 
     for route in _trading_router.routes:
-        if hasattr(route, "path") and route.path.startswith("/webhooks") and hasattr(route, "endpoint"):
+        if (
+            hasattr(route, "path")
+            and route.path.startswith("/webhooks")
+            and hasattr(route, "endpoint")
+        ):
             app.state.limiter.exempt(route.endpoint)
 
     # 도메인 라우터는 Stage 3 스프린트에서 순차 등록
@@ -156,6 +160,11 @@ def create_app() -> FastAPI:
     from src.stress_test.router import router as stress_test_router
 
     app.include_router(stress_test_router, prefix="/api/v1")
+
+    # Sprint 11 Phase C — Waitlist domain
+    from src.waitlist.router import router as waitlist_router
+
+    app.include_router(waitlist_router, prefix="/api/v1")
 
     return app
 
