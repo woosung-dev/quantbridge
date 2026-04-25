@@ -624,6 +624,60 @@ _(기존 Blocked 항목 없음 유지)_
 
 ## Next Actions (P0~P7 후속)
 
+### H2 Sprint 12 완료 후 — 2026-04-25
+
+**Sprint 12 = dogfood 가속**: Phase A (Slack alert) + Phase C (Bybit Private WebSocket + Reconciliation). codex 6 게이트 (G0~G4 + revisit) 2.6M tokens · BE 1171 / FE 219 · 0 fail.
+
+**머지 직후 즉시 (5분):**
+
+- [ ] `stage/h2-sprint12` → `main` PR 생성 + 머지 — https://github.com/woosung-dev/quantbridge/pull/new/stage/h2-sprint12
+  - Sprint 11 PR (`stage/h2-sprint11`) 가 아직 main 에 안 들어가 있다면 그것부터 먼저
+- [ ] 로컬 dev 환경 smoke test:
+  - `docker compose up -d` (6 services UP — backend + worker + beat + **ws-stream** 신규 포함)
+  - `cd backend && uv run alembic upgrade head` (변경 없음 — Sprint 12 는 migration 없음)
+- [ ] Worktree cleanup:
+  ```bash
+  cd /Users/woosung/project/agy-project/quant-bridge
+  git worktree remove --force .worktrees/h2s12-a-slack
+  git worktree remove --force .worktrees/h2s12-c-bybit-ws
+  # feat 브랜치는 GitHub 자동 정리 또는 수동:
+  git branch -D feat/h2s12-a-slack feat/h2s12-c-bybit-ws stage/h2-sprint12
+  ```
+
+**dogfood 셋업 (30~60분, 외부 발급 + 첫 주문):**
+
+- [ ] **Slack incoming webhook 발급** + `.env` 의 `SLACK_WEBHOOK_URL` 주입
+- [ ] **Bybit Demo API key 발급** (Read + Trade + Position) + `.env` 의 `BYBIT_DEMO_KEY/SECRET` 주입
+- [ ] **Bybit Demo 지갑** simulated USDT 1,000+ 충전
+- [ ] **G5 self-checklist 10 항목** 통과 — 상세: [`07_infra/sprint12-dogfood-checklist.md`](./07_infra/sprint12-dogfood-checklist.md)
+  - G5-1 SLACK_WEBHOOK_URL 환경변수 / G5-2 Slack ping / G5-3 API key 권한
+  - G5-4 6 services UP / G5-5 ws-stream connected / G5-6 reconnect+reconcile
+  - G5-7 multi-account guard / G5-8 /metrics 6 신규 / G5-9 SIGTERM graceful
+  - G5-10 rollback hash 보관
+- [ ] **첫 주문 시나리오** — Pine 전략 1개 + Trading Session 1h + Kill Switch 임계값 (daily_loss 100 USDT, cumulative 300) + 작은 quantity 주문
+
+**Sprint 12 후속 (운영 1주~3주차):**
+
+- [ ] dogfood 매일 5분 모니터링 (ws-stream connected / orphan_buffer / reconcile_unknown / DB 잔고 일치)
+- [ ] 1주차 데이터 기반 KS 임계값 조정
+- [ ] WebSocket reconnect_count 추이 (1주 < 10 정상)
+
+### Sprint 13 이관 (Sprint 12 G3/G4 결정으로 분리)
+
+**WebSocket / Trading 안정성:**
+
+- [ ] **Redis lease + heartbeat** — multi-account scaling. 현재 `--pool=solo` + process-level set 으로 dogfood 1-user 우회. 2계정 이상은 lease 필요.
+- [ ] **prefork 복귀** — `--pool=solo` 의 단일 process 한계 (concurrency=1 = 1 account). prefork + Redis lease + `worker_process_init/shutdown` hook 으로 N account 지원.
+- [ ] **Auth circuit breaker** — `BybitAuthError` 시 1h TTL 격리. 현재 Beat 가 5분마다 재시도 → 동일 alert 반복 (사용자 수동 fix 신호).
+- [ ] **Partial fill cumExecQty tracking** — `order_executions` append-only table 검토. 현재 terminal status 만 transition.
+- [ ] **OKX Private WS** — Bybit 안정화 후. signing 방식 다름 (clOrdId 매핑은 이미 C-pre 에서 완료).
+- [ ] **`__aenter__` first_connect race 강화** — codex G4 revisit advisory B 보완. 현재 60s timeout 만.
+
+**관측성:**
+
+- [ ] **Phase B Grafana Cloud** — Sprint 12 에서 drop. dogfood 운영 중 본인 필요 metric 식별 후 별도 세션. 이미 `/metrics` 6 신규 노출 (qb*ws*\*).
+- [ ] **dogfood 통합 대시보드** (`/dashboard/today`) — 화면 부족 자각 시.
+
 ### H2 Sprint 11 완료 후 — 2026-04-25
 
 **본 세션 중 확인된 프로덕션 인프라 현황 (2026-04-25):**
