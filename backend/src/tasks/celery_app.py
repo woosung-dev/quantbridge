@@ -1,4 +1,5 @@
 """Celery 인스턴스 + @worker_ready stale reclaim hook + CCXTProvider singleton."""
+
 from __future__ import annotations
 
 import asyncio
@@ -26,6 +27,7 @@ celery_app = Celery(
         "src.tasks.funding",
         "src.tasks.dogfood_report",
         "src.tasks.stress_test_tasks",
+        "src.tasks.websocket_task",
     ],
 )
 
@@ -37,6 +39,21 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
+# Sprint 12 Phase C — long-running ws_stream task 운영 모델 (codex G3 #3).
+# - acks_late=True: worker crash 시 ack 안 된 task 가 broker 로 복귀 → re-enqueue 보장.
+# - reject_on_worker_lost=True: worker_lost SIGKILL 시 동일.
+# - prefetch_multiplier=1: ws_stream worker 가 1 task 만 prefetch (concurrency=1 + 1 task).
+celery_app.conf.update(
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    worker_prefetch_multiplier=1,
+)
+
+# Sprint 12 Phase C — ws_stream queue routing
+celery_app.conf.task_routes = {
+    "trading.run_bybit_private_stream": {"queue": "ws_stream"},
+}
+
 # Beat schedule — worker 상주 시 주기 task 실행.
 celery_app.conf.beat_schedule = {
     "reclaim-stale-backtests": {
@@ -46,6 +63,13 @@ celery_app.conf.beat_schedule = {
             # 4분 내 처리 안 되면 폐기 (다음 schedule까지 bursts 방지)
             "expires": 240,
         },
+    },
+    # Sprint 12 Phase C — ws_stream worker crash 시 자동 re-enqueue (codex G3 #3).
+    # 5분 주기로 active ExchangeAccount 중 stream 미동작인 것 enqueue.
+    "reconcile-ws-streams": {
+        "task": "trading.reconcile_ws_streams",
+        "schedule": 300.0,
+        "options": {"expires": 240},
     },
     "fetch-funding-rates-btc": {
         "task": "trading.fetch_funding_rates",
@@ -91,9 +115,7 @@ def _on_worker_ready(sender: object = None, **_kwargs: object) -> None:
     try:
         reclaimed = asyncio.run(reclaim_stale_running())
         if reclaimed:
-            logger.info(
-                "stale_reclaim_on_startup", extra={"reclaimed_count": reclaimed}
-            )
+            logger.info("stale_reclaim_on_startup", extra={"reclaimed_count": reclaimed})
     except Exception:
         logger.exception("stale_reclaim_failed_on_startup")
 
