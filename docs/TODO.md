@@ -626,32 +626,88 @@ _(기존 Blocked 항목 없음 유지)_
 
 ### H2 Sprint 11 완료 후 — 2026-04-25
 
-**PR #74 머지 직후 (최소 필수 — 5분):**
+**본 세션 중 확인된 프로덕션 인프라 현황 (2026-04-25):**
 
-- [ ] `stage/h2-sprint11` → `main` 머지 (PR #74)
-- [ ] **프로덕션 환경변수 주입 (최소)** — Vercel 현재 배포 환경:
-  - `WAITLIST_TOKEN_SECRET=$(openssl rand -hex 32)` — HMAC invite token (Resend 여부 무관하게 필수)
-  - `REDIS_LOCK_URL` — Sprint 10 부터 필수 (Redis 주소). 이미 주입돼 있으면 skip.
-- [ ] **Alembic migration 프로덕션 적용** — 2개 신규:
-  - `20260425_0001_add_waitlist_table`
-  - `20260425_0002_add_user_country_code`
-- [ ] 배포 후 `/waitlist` 폼 submit → 202 smoke test. 이메일 발송은 아직 불필요 (admin approve 안 누르면 OK).
+- ✅ Frontend: Vercel 배포 (단 `NEXT_PUBLIC_API_URL=http://localhost:8000` 으로 API 미동작 상태 — 껍데기)
+- ❌ Backend (FastAPI): **프로덕션 배포 안 됨** (로컬 docker-compose 만)
+- ❌ Database: **Cloud SQL 없음**. TimescaleDB extension 은 Cloud SQL 공식 미지원 → 대체 필요
+- ❌ Redis: **Memorystore API 비활성**
+- ✅ Secret Manager: `waitlist-token-secret` v1 저장 완료 (asia-northeast3, woosung-dev 프로젝트)
+- ✅ Artifact Registry: 기존 3 repo (`cloud-run-source-deploy`, `kairos`, `truewords-docker`)
+- ❓ Clerk production instance: 미확인 (로컬 dev 키만 사용 중일 가능성)
 
-**[BLOCKED/DEFERRED] Beta 퍼블릭 오픈 번들** — 도메인 확보 + Resend + (옵션) Cloudflare 동시 작업 시점에 일괄 처리. 작업량 ~1일 + DNS 전파 24h.
+**PR #74 머지 직후 즉시 (5분):**
 
-- [ ] **Step 1: 도메인 구매** — 후보 `quantbridge.app` ($11 Porkbun) · `qbridge.dev` · `quantbridge.ai` ($70~80/년) · 카페24 (`.co.kr` 국내 한정 고려). H2 말 공개 시점 기준 네이밍 재검토.
-- [ ] **Step 2: Vercel 에 custom domain 연결** — Vercel Dashboard → Project → Settings → Domains → Add. Vercel 이 주는 DNS record 2개 (A or CNAME + TXT verification) 등록사에 등록.
-- [ ] **Step 3: (옵션) Cloudflare 경유 구성** — 등록사 네임서버 → Cloudflare 이관 → Cloudflare DNS 에 Vercel record 추가 (proxied) → Cloudflare WAF Custom Rule 적용 (`docs/07_infra/geo-block-setup.md` §1). Beta 지인 대상일 때는 **생략 권장** — L2 (proxy.ts) + L3 (Clerk webhook) 2계층으로 충분.
-- [ ] **Step 4: Resend 가입 + 도메인 verify** — `docs/07_infra/resend-setup.md` 따라 (후속 생성 예정):
-  - `send.<domain>` subdomain 에 SPF / DKIM / MX / DMARC TXT 4개 등록
-  - Resend dashboard 에서 verify 대기 (15분~24h)
-  - API Key 발급 → `RESEND_API_KEY` 주입
-  - `WAITLIST_ADMIN_EMAILS=fornerdsofficial@gmail.com` 주입
-  - `backend/src/waitlist/email_service.py` 의 `from` 주소를 `noreply@send.<domain>` 으로 맞춤 (하드코딩 값 검증 필요)
-- [ ] **Step 5: Twitter/X `#buildinpublic` 캠페인 시작** — `/waitlist` 랜딩 공개, narrowest wedge (TV Pro+ · Bybit/OKX $1k+) 필터링. Beta 5~10명 초대.
-- [ ] **Step 6: Beta 인터뷰 3명 × 3회** — narrowest wedge 일치율 60% 이상 확인 후 H3 진입 게이트.
+- [ ] `stage/h2-sprint11` → `main` 머지 (PR #74) — **코드 레벨 완료만. 배포 효과 없음 (backend 프로덕션 부재)**
+- [ ] 로컬 dev 환경에서 Sprint 11 smoke test (`docker compose up` + `alembic upgrade head` 이미 완료):
+  - `/waitlist` 폼 submit → 202 응답
+  - `/not-available` redirect (proxy.ts)
+  - `/onboarding` 4-step wizard (샘플 EMA crossover)
+- [ ] Worktree cleanup — 7개 feat worktree + stage 1개 총 8개. 머지 후 병합 완료 브랜치 제거:
+  ```bash
+  cd /Users/woosung/project/agy-project/quant-bridge
+  for w in .worktrees/h2s11-{a-geo-block,b-legal-temporary,c-waitlist,d-onboarding,e-service-lock,f-slowapi-minor,g-error-class-allowlist}; do
+    git worktree remove --force "$w"
+  done
+  git worktree remove --force .worktrees/stage 2>/dev/null || true
+  # feat 브랜치는 main 머지 후 GitHub 에서 자동 제거되거나 수동:
+  git branch -D feat/h2s11-{a-geo-block,b-legal-temporary,c-waitlist,d-onboarding,e-service-lock,f-slowapi-minor,g-error-class-allowlist} stage/h2-sprint11
+  ```
 
-> **번들 처리 이유:** 도메인 없이는 Resend verify 불가 · Vercel 기본 `.vercel.app` URL 은 Twitter 공유 시 신뢰도 낮음 · Cloudflare 는 도메인 이관 선행 필요. 셋이 상호 의존적이므로 한 번에 처리. Beta 오픈 자체가 이 번들 완성 후에 가능.
+**[BLOCKED/DEFERRED] Beta 퍼블릭 오픈 번들 (Sprint 12)** — 아래 3 덩어리 동시 착수. 총 예상 4~8h + DNS 전파 24h.
+
+#### A. 도메인 + DNS + (옵션) Cloudflare
+
+- [ ] **A1: 도메인 구매** — 후보 `quantbridge.app` ($11 Porkbun) · `qbridge.dev` · `quantbridge.ai` ($70~80/년) · 카페24 (`.co.kr`). H2 말 공개 시점 기준 네이밍 재검토.
+- [ ] **A2: Vercel 에 custom domain 연결** — Vercel Dashboard → Project → Settings → Domains → Add. Vercel 이 주는 DNS record 2개 (A or CNAME + TXT verification) 등록사에 등록.
+- [ ] **A3: (옵션) Cloudflare 경유** — 등록사 네임서버 → Cloudflare 이관 → proxied DNS → WAF Custom Rule 적용 (`docs/07_infra/geo-block-setup.md` §1). **Beta 지인 대상일 때는 생략 권장** — L2 (proxy.ts `X-Vercel-IP-Country`) + L3 (Clerk webhook) 2계층으로 충분.
+
+#### B. Backend 프로덕션 배포 (가장 큰 덩어리 — 2~4h)
+
+- [ ] **B1: TimescaleDB 호스팅 결정** — `docs/07_infra/deployment-plan.md` §4 참조. 옵션:
+  - **Timescale Cloud** (~$30/월 Starter, TimescaleDB 공식, 가장 단순)
+  - **Neon** (serverless Postgres, timescale extension 일부 지원, 무료 tier)
+  - **GCE VM 자가호스팅** (PostgreSQL + TimescaleDB 수동, $10~15/월 small VM)
+- [ ] **B2: Redis 호스팅** — GCP Memorystore ($40~/월 1GB basic) vs Upstash free tier vs 자가호스팅 GCE. Sprint 10 Phase A2 는 DB 3 격리 전제.
+- [ ] **B3: Clerk production instance 생성** — Clerk dashboard → production 모드 전환. `CLERK_SECRET_KEY` / `CLERK_PUBLISHABLE_KEY` / `CLERK_WEBHOOK_SECRET` 프로덕션 값 획득.
+- [ ] **B4: GCP Secret Manager 에 env 전부 저장** (이미 저장된 것은 재사용):
+  - `waitlist-token-secret` ✅ (이미 저장, v1)
+  - `trading-encryption-keys` (Fernet key, rotation 주의)
+  - `clerk-secret-key` / `clerk-webhook-secret`
+  - `database-url` (B1 결정 후)
+  - `redis-url` / `redis-lock-url` (B2 결정 후)
+  - `resend-api-key` (Step C4 후)
+  - `waitlist-admin-emails`
+- [ ] **B5: Backend Docker build + Artifact Registry push**:
+  ```bash
+  gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+  cd backend && docker build -t asia-northeast3-docker.pkg.dev/woosung-dev/cloud-run-source-deploy/quantbridge-backend:latest .
+  docker push asia-northeast3-docker.pkg.dev/woosung-dev/cloud-run-source-deploy/quantbridge-backend:latest
+  ```
+- [ ] **B6: Cloud Run deploy** — `gcloud run deploy quantbridge-backend --image=... --region=asia-northeast3 --set-secrets=WAITLIST_TOKEN_SECRET=waitlist-token-secret:latest,...`. VPC connector 로 Cloud SQL + Memorystore 접근.
+- [ ] **B7: Alembic migration 프로덕션 DB 에 적용** — Cloud Run Jobs 또는 로컬에서 Cloud SQL Proxy 경유:
+  ```bash
+  cloud-sql-proxy woosung-dev:asia-northeast3:<INSTANCE> &
+  DATABASE_URL=postgresql+asyncpg://... alembic upgrade head
+  ```
+- [ ] **B8: Frontend `NEXT_PUBLIC_API_URL` 업데이트** — Vercel Dashboard → Project → Environment Variables → `NEXT_PUBLIC_API_URL=https://quantbridge-backend-xxx.run.app` → Redeploy.
+- [ ] **B9: Clerk webhook URL 교체** — Clerk dashboard → Webhooks → URL 을 `https://<backend-url>/api/v1/auth/webhook` 로 업데이트.
+
+#### C. Resend 이메일 + Waitlist 활성화
+
+- [ ] **C1: Resend 가입 + 도메인 추가** — dashboard `send.<domain>` subdomain 등록.
+- [ ] **C2: DNS records (SPF / DKIM / MX / DMARC 4개)** 를 등록사 또는 Cloudflare DNS 에 추가.
+- [ ] **C3: verify 대기** (15분~24h, 통상 1시간).
+- [ ] **C4: API Key 발급 → Secret Manager 저장** + Cloud Run 에 주입.
+- [ ] **C5: email_service `from` 주소 검증** — `backend/src/waitlist/email_service.py:81` 하드코딩 `waitlist@quantbridge.app` 를 실 도메인으로 교체 필요. 일치 안 하면 403.
+- [ ] **C6: `WAITLIST_ADMIN_EMAILS` 주입** — 본인 email (`fornerdsofficial@gmail.com`) 콤마 구분.
+
+#### 캠페인 (인프라 완성 후)
+
+- [ ] **Twitter/X `#buildinpublic` 캠페인 시작** — `/waitlist` 랜딩 공개, narrowest wedge (TV Pro+ · Bybit/OKX $1k+) 필터링. Beta 5~10명 초대.
+- [ ] **Beta 인터뷰 3명 × 3회** — narrowest wedge 일치율 60% 이상 확인 후 H3 진입 게이트.
+
+> **번들 처리 이유:** A·B·C 는 상호 의존. (B9 Clerk webhook URL 은 A/B 후에야 결정) · (C5 email from 은 A 후) · (B8 Frontend API URL 은 B6 후). 개별 진행 시 재작업 2~3배.
 
 **H2 말 (~2026-06-30) 이관 — 변화 없음:**
 
