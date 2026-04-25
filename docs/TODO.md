@@ -624,31 +624,42 @@ _(기존 Blocked 항목 없음 유지)_
 
 ## Next Actions (P0~P7 후속)
 
-### H2 Sprint 11 완료 후 (Beta 오픈 수동 작업) — 2026-04-25
+### H2 Sprint 11 완료 후 — 2026-04-25
 
-**stage/h2-sprint11 → main PR 완료 후 즉시:**
+**PR #74 머지 직후 (최소 필수 — 5분):**
 
-- [ ] **Cloudflare WAF Custom Rule 수동 설정** — `docs/07_infra/geo-block-setup.md` 따라 US + EU 27 + GB 블록 (Phase A L1). 무료 요금제 5 rule slot 중 1 사용.
-- [ ] **Resend 계정 가입 + 도메인 DNS 검증** — SPF/DKIM 설정 (24h 전파). `noreply@quantbridge.ai` sender. free tier 100 email/일.
-- [ ] **프로덕션 환경변수 주입** (Fly.io / Vercel / GCP Cloud Run 어디든):
-  - `RESEND_API_KEY` — Resend dashboard
-  - `WAITLIST_TOKEN_SECRET` — `openssl rand -hex 32`
-  - `WAITLIST_ADMIN_EMAILS` — 콤마 구분 admin 이메일 리스트
-  - (기존) `REDIS_LOCK_URL` / `TRADING_ENCRYPTION_KEYS` / Clerk
-- [ ] **Alembic migration 프로덕션 적용** — `20260425_0001_add_waitlist_table` + `20260425_0002_add_user_country_code`.
+- [ ] `stage/h2-sprint11` → `main` 머지 (PR #74)
+- [ ] **프로덕션 환경변수 주입 (최소)** — Vercel 현재 배포 환경:
+  - `WAITLIST_TOKEN_SECRET=$(openssl rand -hex 32)` — HMAC invite token (Resend 여부 무관하게 필수)
+  - `REDIS_LOCK_URL` — Sprint 10 부터 필수 (Redis 주소). 이미 주입돼 있으면 skip.
+- [ ] **Alembic migration 프로덕션 적용** — 2개 신규:
+  - `20260425_0001_add_waitlist_table`
+  - `20260425_0002_add_user_country_code`
+- [ ] 배포 후 `/waitlist` 폼 submit → 202 smoke test. 이메일 발송은 아직 불필요 (admin approve 안 누르면 OK).
 
-**Beta 오픈 준비 (Week 1~2):**
+**[BLOCKED/DEFERRED] Beta 퍼블릭 오픈 번들** — 도메인 확보 + Resend + (옵션) Cloudflare 동시 작업 시점에 일괄 처리. 작업량 ~1일 + DNS 전파 24h.
 
-- [ ] Twitter/X `#buildinpublic` 첫 포스트 — `/waitlist` 랜딩 공개, Monte Carlo/Walk-Forward 데모
-- [ ] Beta 지원서 (`/waitlist`) 에 최소 5 건 유입 대기 + narrowest wedge (TV Pro+ · Bybit/OKX $1k+) 심사
-- [ ] 본인 dogfood 1주 연속 + Bybit Demo 무사고 확인
+- [ ] **Step 1: 도메인 구매** — 후보 `quantbridge.app` ($11 Porkbun) · `qbridge.dev` · `quantbridge.ai` ($70~80/년) · 카페24 (`.co.kr` 국내 한정 고려). H2 말 공개 시점 기준 네이밍 재검토.
+- [ ] **Step 2: Vercel 에 custom domain 연결** — Vercel Dashboard → Project → Settings → Domains → Add. Vercel 이 주는 DNS record 2개 (A or CNAME + TXT verification) 등록사에 등록.
+- [ ] **Step 3: (옵션) Cloudflare 경유 구성** — 등록사 네임서버 → Cloudflare 이관 → Cloudflare DNS 에 Vercel record 추가 (proxied) → Cloudflare WAF Custom Rule 적용 (`docs/07_infra/geo-block-setup.md` §1). Beta 지인 대상일 때는 **생략 권장** — L2 (proxy.ts) + L3 (Clerk webhook) 2계층으로 충분.
+- [ ] **Step 4: Resend 가입 + 도메인 verify** — `docs/07_infra/resend-setup.md` 따라 (후속 생성 예정):
+  - `send.<domain>` subdomain 에 SPF / DKIM / MX / DMARC TXT 4개 등록
+  - Resend dashboard 에서 verify 대기 (15분~24h)
+  - API Key 발급 → `RESEND_API_KEY` 주입
+  - `WAITLIST_ADMIN_EMAILS=fornerdsofficial@gmail.com` 주입
+  - `backend/src/waitlist/email_service.py` 의 `from` 주소를 `noreply@send.<domain>` 으로 맞춤 (하드코딩 값 검증 필요)
+- [ ] **Step 5: Twitter/X `#buildinpublic` 캠페인 시작** — `/waitlist` 랜딩 공개, narrowest wedge (TV Pro+ · Bybit/OKX $1k+) 필터링. Beta 5~10명 초대.
+- [ ] **Step 6: Beta 인터뷰 3명 × 3회** — narrowest wedge 일치율 60% 이상 확인 후 H3 진입 게이트.
 
-**H2 말 (~2026-06-30) 이관:**
+> **번들 처리 이유:** 도메인 없이는 Resend verify 불가 · Vercel 기본 `.vercel.app` URL 은 Twitter 공유 시 신뢰도 낮음 · Cloudflare 는 도메인 이관 선행 필요. 셋이 상호 의존적이므로 한 번에 처리. Beta 오픈 자체가 이 번들 완성 후에 가능.
+
+**H2 말 (~2026-06-30) 이관 — 변화 없음:**
 
 - [ ] **D-5 A 안:** Termly 임시 템플릿 → 한국 변호사 검토본 교체 (Disclaimer/Terms/Privacy). `docs/07_infra/legal-temporary.md` 절차 따라 $500~$1,500. `LegalNoticeBanner` 의 "법무 임시" 문구 제거.
 - [ ] **slowapi 0.2.x major upgrade 검토** — Phase F 는 minor 범위만. breaking 검토 후 `_RateLimitStateInitMiddleware` workaround 제거 가능성.
 - [ ] Allowlist 조정 — 프로덕션 ccxt 예외 실측 후 `_ALLOWLIST_ERROR_CLASSES` 추가/삭제 (`_CCXT_ERROR_CLASSES` 28 vs Bybit/OKX specific).
 - [ ] Onboarding 성공률 지표 추가 (`qb_onboarding_completion_total{step}`) — 5분 target 대비 실측.
+- [ ] `backend/src/waitlist/email_service.py` `RESEND_API_KEY` 미설정 시 graceful fallback 검증 — 현재 상태 미점검. admin approve 호출 시 crash 여부 확인 후 fix 필요 시 bug-fix PR.
 
 ---
 
