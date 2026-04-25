@@ -46,16 +46,31 @@ import type {
   RegisterAccountRequest,
 } from "./schemas";
 
-const ORDERS_REFETCH_INTERVAL_ACTIVE_MS = 5_000;
-const ORDERS_REFETCH_INTERVAL_IDLE_MS = 30_000;
+// Sprint 12 Phase C — test-public 상수 + helper export.
+// useOrders refetchInterval 분기 로직 (active orders > 0 ? 5s : 30s) 단위 테스트용.
+export const ORDERS_REFETCH_INTERVAL_ACTIVE_MS = 5_000;
+export const ORDERS_REFETCH_INTERVAL_IDLE_MS = 30_000;
 const KILL_SWITCH_REFETCH_INTERVAL_MS = 30_000;
 const ANON_USER_ID = "anon";
 
 // "진행 중" 상태 — 이 상태가 존재할 때 빠른 폴링
-const ACTIVE_ORDER_STATES: ReadonlySet<Order["state"]> = new Set([
+export const ACTIVE_ORDER_STATES: ReadonlySet<Order["state"]> = new Set([
   "pending",
   "submitted",
 ]);
+
+/**
+ * Sprint 12 Phase C — pure helper for unit testing.
+ * orders 배열에 active state(`pending|submitted`) 가 1개라도 있으면 5s, 없으면 30s.
+ */
+export function computeOrdersRefetchInterval(
+  orders: ReadonlyArray<Pick<Order, "state">>,
+): number {
+  const hasActive = orders.some((o) => ACTIVE_ORDER_STATES.has(o.state));
+  return hasActive
+    ? ORDERS_REFETCH_INTERVAL_ACTIVE_MS
+    : ORDERS_REFETCH_INTERVAL_IDLE_MS;
+}
 
 // 이전 상태가 "진행 중"이었고 새 상태로 전환될 때 toast 알림
 type TransitionRule = {
@@ -122,12 +137,8 @@ export function useOrders(
     queryFn: makeOrdersFetcher(limit, getToken),
     refetchInterval: (q) => {
       if (q.state.status === "error") return false;
-      // 진행 중 주문이 있으면 빠른 폴링, 없으면 느린 폴링
-      const items = q.state.data?.items ?? [];
-      const hasActive = items.some((o) => ACTIVE_ORDER_STATES.has(o.state));
-      return hasActive
-        ? ORDERS_REFETCH_INTERVAL_ACTIVE_MS
-        : ORDERS_REFETCH_INTERVAL_IDLE_MS;
+      // 진행 중 주문이 있으면 빠른 폴링, 없으면 느린 폴링 (computeOrdersRefetchInterval).
+      return computeOrdersRefetchInterval(q.state.data?.items ?? []);
     },
   });
 
