@@ -179,6 +179,9 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 # OrderRequest schema validator가 insert 시점에 Literal 검증 완료.
                 leverage=order.leverage,
                 margin_mode=order.margin_mode,  # type: ignore[arg-type]
+                # Sprint 12 Phase C-pre: Order.id (UUID4) → exchange orderLinkId/clOrdId.
+                # WebSocket order event 가 이 값으로 local DB row 매핑.
+                client_order_id=str(order.id),
             )
             receipt = await provider.create_order(creds, order_submit)
         except ProviderError as e:

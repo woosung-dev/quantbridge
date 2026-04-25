@@ -160,6 +160,46 @@ qb_redis_lock_pool_healthy = Gauge(
     "1 if startup PING+SET+GET+DEL succeeded, 0 otherwise",
 )
 
+# --- Sprint 12 Phase C: Bybit Private WebSocket ---
+# 10. WebSocket order event arrived 이전에 REST 가 Order row 생성 못 함 → orphan buffer.
+qb_ws_orphan_event_total = Counter(
+    "qb_ws_orphan_event_total",
+    "WS order events arrived before local DB row exists (REST/WS race)",
+    labelnames=("account_id",),
+)
+
+# 11. orphan buffer 현재 크기 (FIFO max 1000).
+qb_ws_orphan_buffer_size = Gauge(
+    "qb_ws_orphan_buffer_size",
+    "Current size of WS orphan buffer (capped at 1000)",
+)
+
+# 12. reconnect 직후 reconciliation 에서 exchange 에 없는 local active order.
+qb_ws_reconcile_unknown_total = Counter(
+    "qb_ws_reconcile_unknown_total",
+    "Local active orders not found in exchange open/recent (state unchanged + alert)",
+    labelnames=("account_id",),
+)
+
+# 13. reconciliation debounce 30s 로 skip 된 횟수.
+qb_ws_reconcile_skipped_total = Counter(
+    "qb_ws_reconcile_skipped_total",
+    "Reconciliation skipped due to 30s debounce",
+)
+
+# 14. 같은 account 에 대해 process-level guard 가 중복 enqueue 차단.
+qb_ws_duplicate_enqueue_total = Counter(
+    "qb_ws_duplicate_enqueue_total",
+    "ws_stream task duplicate enqueue blocked by process-level guard",
+)
+
+# 15. WebSocket 재연결 횟수.
+qb_ws_reconnect_total = Counter(
+    "qb_ws_reconnect_total",
+    "WebSocket reconnect attempts",
+    labelnames=("account_id",),
+)
+
 
 @asynccontextmanager
 async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:

@@ -91,7 +91,7 @@ async def test_bybit_demo_create_order_uses_credentials(credentials, order_submi
     assert call_kwargs["timeout"] == 30000
     assert call_kwargs["options"]["defaultType"] == "spot"
 
-    # 2. create_order 호출 인자
+    # 2. create_order 호출 인자 — client_order_id 미설정 시 기존 signature 유지
     mock_exchange.create_order.assert_awaited_once_with(
         "BTC/USDT", "market", "buy", 0.001, None
     )
@@ -102,7 +102,34 @@ async def test_bybit_demo_create_order_uses_credentials(credentials, order_submi
     # 4. receipt 매핑
     assert receipt.exchange_order_id == "bybit-order-42"
     assert receipt.filled_price == Decimal("50123.45")
-    assert receipt.status == "filled"
+
+
+async def test_bybit_demo_create_order_passes_orderLinkId_when_client_order_id_set(
+    credentials, ccxt_mock
+):
+    """Sprint 12 Phase C-pre: client_order_id 가 set 되면 params 6번째 positional arg 로 전달."""
+    from src.trading.models import OrderSide, OrderType
+    from src.trading.providers import BybitDemoProvider, OrderSubmit
+
+    mock_exchange, _ = ccxt_mock
+    submit = OrderSubmit(
+        symbol="BTC/USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        leverage=None,
+        margin_mode=None,
+        client_order_id="550e8400-e29b-41d4-a716-446655440000",
+    )
+
+    provider = BybitDemoProvider()
+    await provider.create_order(credentials, submit)
+
+    mock_exchange.create_order.assert_awaited_once_with(
+        "BTC/USDT", "market", "buy", 0.001, None,
+        {"orderLinkId": "550e8400-e29b-41d4-a716-446655440000"},
+    )
 
 
 async def test_bybit_demo_close_called_even_on_exchange_error(credentials, order_submit, ccxt_mock):

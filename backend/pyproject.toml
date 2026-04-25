@@ -29,6 +29,8 @@ dependencies = [
     "vectorbt>=0.28,<0.29",
     "svix>=1.37.0",  # Clerk Webhook Svix 서명 검증
     "ccxt>=4.0.0",
+    # Sprint 12 Phase C — Bybit V5 Private WebSocket (raw lib, 명시 dep)
+    "websockets>=12,<17",
     "tenacity>=8.0.0",
     "pynescript==0.3.0",
     "prometheus-client>=0.21.0",

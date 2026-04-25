@@ -1,9 +1,16 @@
 """Kill Switch evaluators + service (spec S2.2).
 
 각 evaluator는 독립적으로 테스트 가능. KillSwitchService가 DI로 주입받아 순회.
+
+Sprint 12 Phase A: 첫 gated 전이 시 Slack alert 발송 (codex G0 #1 결정 — Service
+layer hook, Evaluator 안 X). best-effort fire-and-forget. 자세한 정책은
+``src/common/alert.py`` 모듈 docstring 참조.
 """
+
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,7 +20,9 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, select
 
+from src.common.alert import _PENDING_ALERTS, send_critical_alert
 from src.common.metrics import qb_kill_switch_triggered_total
+from src.core.config import Settings, get_settings
 from src.trading.exceptions import KillSwitchActive
 from src.trading.models import (
     KillSwitchEvent,
@@ -22,6 +31,8 @@ from src.trading.models import (
     OrderState,
 )
 from src.trading.repository import KillSwitchEventRepository, OrderRepository
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,9 +110,7 @@ class CumulativeLossEvaluator:
             if dynamic is not None and dynamic > Decimal("0"):
                 capital = dynamic
 
-        loss_percent = (abs(total_pnl) / capital * Decimal("100")).quantize(
-            Decimal("0.01")
-        )
+        loss_percent = (abs(total_pnl) / capital * Decimal("100")).quantize(Decimal("0.01"))
         if loss_percent > self._threshold:
             return EvaluationResult(
                 gated=True,
@@ -131,9 +140,7 @@ class DailyLossEvaluator:
                 Order.filled_at < day_end,  # type: ignore[arg-type,operator]
             )
         )
-        daily: Decimal = Decimal(
-            str((await self._repo.session.execute(stmt)).scalar_one())
-        )
+        daily: Decimal = Decimal(str((await self._repo.session.execute(stmt)).scalar_one()))
 
         if daily >= Decimal("0"):
             return EvaluationResult(gated=False)
@@ -152,27 +159,31 @@ class KillSwitchService:
     """Evaluator 순회 + 위반 시 KillSwitchEvent 기록 + 예외 raise.
 
     OrderService.execute() 진입부에서 ensure_not_gated 호출.
+
+    Sprint 12 Phase A: 첫 gated 전이 시 Slack alert 발송 (best-effort).
+    기존 unresolved 이벤트가 있는 경우(=재진입)는 alert 발송 X (이미 발송됨).
     """
 
     def __init__(
         self,
         evaluators: Sequence[KillSwitchEvaluator],
         events_repo: KillSwitchEventRepository,
+        settings: Settings | None = None,
     ) -> None:
         self._evaluators = evaluators
         self._events_repo = events_repo
+        # None → alert 발송 시점에 lru_cache get_settings() 로 lazy resolve.
+        # 명시 주입은 test 또는 lifespan-owned singleton (Sprint 13+).
+        self._settings = settings
 
-    async def ensure_not_gated(
-        self, strategy_id: UUID, account_id: UUID
-    ) -> None:
+    async def ensure_not_gated(self, strategy_id: UUID, account_id: UUID) -> None:
         # 1. 기존 unresolved 이벤트 있으면 즉시 raise (재평가 스킵)
         existing = await self._events_repo.get_active(
             strategy_id=strategy_id, account_id=account_id
         )
         if existing is not None:
             raise KillSwitchActive(
-                f"Active kill switch: {existing.trigger_type.value} "
-                f"(event_id={existing.id})"
+                f"Active kill switch: {existing.trigger_type.value} (event_id={existing.id})"
             )
 
         # 2. Evaluator 순회 — 첫 위반에서 이벤트 기록 + raise
@@ -195,13 +206,9 @@ class KillSwitchService:
             # trigger_type별 strategy/account scope 매칭 (spec S2.2 + CHECK constraint)
             event = KillSwitchEvent(
                 trigger_type=KillSwitchTriggerType(result.trigger_type),
-                strategy_id=(
-                    strategy_id if result.trigger_type == "cumulative_loss" else None
-                ),
+                strategy_id=(strategy_id if result.trigger_type == "cumulative_loss" else None),
                 exchange_account_id=(
-                    account_id
-                    if result.trigger_type in ("daily_loss", "api_error")
-                    else None
+                    account_id if result.trigger_type in ("daily_loss", "api_error") else None
                 ),
                 trigger_value=result.trigger_value,
                 threshold=result.threshold,
@@ -210,12 +217,35 @@ class KillSwitchService:
             created = await self._events_repo.save(event)
 
             # Sprint 9 Phase D: 신규 발동만 카운트 (기존 unresolved 재히트는 제외).
-            qb_kill_switch_triggered_total.labels(
-                trigger_type=result.trigger_type
-            ).inc()
+            qb_kill_switch_triggered_total.labels(trigger_type=result.trigger_type).inc()
+
+            # Sprint 12 Phase A: 첫 gated 전이 → Slack alert (fire-and-forget).
+            # alert 실패가 raise 를 막지 않도록 별도 task. _PENDING_ALERTS set
+            # 이 strong ref 로 task 보존 (asyncio loop weak-ref 함정 방어).
+            task = asyncio.create_task(self._send_alert_safely(result, created))
+            _PENDING_ALERTS.add(task)
+            task.add_done_callback(_PENDING_ALERTS.discard)
 
             raise KillSwitchActive(
                 f"New kill switch: {result.trigger_type} "
                 f"(value={result.trigger_value}, threshold={result.threshold}, "
                 f"event_id={created.id})"
             )
+
+    async def _send_alert_safely(self, result: EvaluationResult, event: KillSwitchEvent) -> None:
+        """Slack alert 발송. 실패는 swallow + log (raise 차단 금지)."""
+        try:
+            settings = self._settings or get_settings()
+            title = f"Kill Switch — {result.trigger_type}"
+            message = f"value={result.trigger_value}, threshold={result.threshold}"
+            context = {
+                "event_id": str(event.id),
+                "strategy_id": (str(event.strategy_id) if event.strategy_id else "—"),
+                "account_id": (
+                    str(event.exchange_account_id) if event.exchange_account_id else "—"
+                ),
+                "trigger_type": str(result.trigger_type),
+            }
+            await send_critical_alert(settings, title, message, context)
+        except Exception as exc:
+            logger.warning("ks_alert_failed err=%s", exc)

@@ -159,6 +159,31 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Sprint 12 Phase A: Slack alerts ---
+    slack_webhook_url: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Slack incoming webhook URL for critical alerts (Kill Switch / daily_loss). "
+            "None or empty = silent skip (alert.py best-effort policy). "
+            "발급: Slack workspace → Apps → Incoming Webhooks → Add to Slack."
+        ),
+    )
+
+    @field_validator("slack_webhook_url")
+    @classmethod
+    def _validate_slack_webhook(cls, v: SecretStr | None) -> SecretStr | None:
+        """codex G1 #10 — https://hooks.slack.com/ prefix 검증. 빈 값은 None 으로."""
+        if v is None:
+            return None
+        raw = v.get_secret_value()
+        if not raw:
+            return None
+        if not raw.startswith("https://hooks.slack.com/"):
+            raise ValueError(
+                "SLACK_WEBHOOK_URL must start with https://hooks.slack.com/"
+            )
+        return v
+
     # --- Sprint 11 Phase C: Waitlist ---
     resend_api_key: SecretStr = Field(
         default=SecretStr(""),
