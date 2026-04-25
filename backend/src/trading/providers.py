@@ -55,6 +55,10 @@ class OrderSubmit:
     # Sprint 7a: Futures/Margin 파생상품 지원. Spot 경로는 모두 None.
     leverage: int | None = None
     margin_mode: Literal["cross", "isolated"] | None = None
+    # Sprint 12 Phase C-pre: client-side order id (UUID4 string of Order.id).
+    # Bybit V5 orderLinkId / OKX clOrdId 로 전달되어 WebSocket order event 와
+    # local DB row 매핑. None = 외부 등록 또는 legacy 주문.
+    client_order_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,13 +139,25 @@ class BybitDemoProvider:
         _apply_bybit_env(exchange, creds.environment)
         try:
             async with ccxt_timer("bybit", "create_order"):
-                result = await exchange.create_order(
-                    order.symbol,
-                    order.type.value,
-                    order.side.value,
-                    float(order.quantity),
-                    float(order.price) if order.price is not None else None,
-                )
+                # Sprint 12 Phase C — orderLinkId 가 있을 때만 params 전달
+                # (기존 caller 호환성 + WS order event 매핑용).
+                if order.client_order_id is not None:
+                    result = await exchange.create_order(
+                        order.symbol,
+                        order.type.value,
+                        order.side.value,
+                        float(order.quantity),
+                        float(order.price) if order.price is not None else None,
+                        {"orderLinkId": order.client_order_id},
+                    )
+                else:
+                    result = await exchange.create_order(
+                        order.symbol,
+                        order.type.value,
+                        order.side.value,
+                        float(order.quantity),
+                        float(order.price) if order.price is not None else None,
+                    )
             if "id" not in result:
                 # 응답 손상 — 주문 추적 불가, 빠르게 실패. 일부 키만 노출 (PII 회피).
                 raise ProviderError(f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})")
@@ -240,13 +256,23 @@ class BybitFuturesProvider:
             async with ccxt_timer("bybit_futures", "set_leverage"):
                 await exchange.set_leverage(order.leverage, order.symbol)
             async with ccxt_timer("bybit_futures", "create_order"):
-                result = await exchange.create_order(
-                    order.symbol,
-                    order.type.value,
-                    order.side.value,
-                    float(order.quantity),
-                    float(order.price) if order.price is not None else None,
-                )
+                if order.client_order_id is not None:
+                    result = await exchange.create_order(
+                        order.symbol,
+                        order.type.value,
+                        order.side.value,
+                        float(order.quantity),
+                        float(order.price) if order.price is not None else None,
+                        {"orderLinkId": order.client_order_id},
+                    )
+                else:
+                    result = await exchange.create_order(
+                        order.symbol,
+                        order.type.value,
+                        order.side.value,
+                        float(order.quantity),
+                        float(order.price) if order.price is not None else None,
+                    )
             if "id" not in result:
                 raise ProviderError(
                     f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})"
@@ -383,13 +409,24 @@ class OkxDemoProvider:
         exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
             async with ccxt_timer("okx", "create_order"):
-                result = await exchange.create_order(
-                    order.symbol,
-                    order.type.value,
-                    order.side.value,
-                    float(order.quantity),
-                    float(order.price) if order.price is not None else None,
-                )
+                if order.client_order_id is not None:
+                    # Sprint 12 Phase C — OKX clOrdId. WS order event 매핑용.
+                    result = await exchange.create_order(
+                        order.symbol,
+                        order.type.value,
+                        order.side.value,
+                        float(order.quantity),
+                        float(order.price) if order.price is not None else None,
+                        {"clOrdId": order.client_order_id},
+                    )
+                else:
+                    result = await exchange.create_order(
+                        order.symbol,
+                        order.type.value,
+                        order.side.value,
+                        float(order.quantity),
+                        float(order.price) if order.price is not None else None,
+                    )
             if "id" not in result:
                 raise ProviderError(
                     f"malformed OKX response: missing 'id' (keys={list(result)[:5]})"

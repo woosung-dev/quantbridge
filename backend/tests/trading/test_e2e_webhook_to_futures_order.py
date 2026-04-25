@@ -221,7 +221,10 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
 
     mock_exchange.set_margin_mode.assert_awaited_once_with("cross", "BTC/USDT:USDT")
     mock_exchange.set_leverage.assert_awaited_once_with(5, "BTC/USDT:USDT")
-    mock_exchange.create_order.assert_awaited_once_with(
-        "BTC/USDT:USDT", "market", "buy", 0.001, None
-    )
+    # Sprint 12 Phase C: Celery task 가 OrderSubmit.client_order_id=str(order.id) 채움
+    # → 6번째 positional 인자로 {"orderLinkId": <UUID-str>} 전달.
+    create_call = mock_exchange.create_order.await_args
+    assert create_call.args[:5] == ("BTC/USDT:USDT", "market", "buy", 0.001, None)
+    assert "orderLinkId" in create_call.args[5]
+    assert len(create_call.args[5]["orderLinkId"]) == 36  # UUID4 string
     mock_exchange.close.assert_awaited_once()
