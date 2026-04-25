@@ -83,7 +83,10 @@ services:
     build:
       context: ./backend
     container_name: quantbridge-ws-stream
-    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=prefork --concurrency=1 --loglevel=info
+    # G4 revisit fix: --pool=solo (prefork 시 worker_shutdown 이 main 에서 실행되어
+    # task child process 의 _STOP_EVENTS 못 봄). solo pool 은 main process 가 직접
+    # task 실행 → worker_shutdown 가 같은 process 에서 stop_event set 가능.
+    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=solo --concurrency=1 --loglevel=info
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

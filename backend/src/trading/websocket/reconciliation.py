@@ -33,13 +33,22 @@ from src.trading.repository import OrderRepository
 logger = logging.getLogger(__name__)
 
 
-_TERMINAL_STATUSES = frozenset({"Cancelled", "Rejected", "Filled"})
-
-# CCXT unified status → local OrderState.
+# G4 revisit fix #11: CCXT unified status 와 Bybit raw status 둘 다 수용.
+# - CCXT fetch_*_orders 는 status 를 "open"/"closed"/"canceled"/"rejected" 로 정규화.
+# - Bybit V5 raw API 는 "New"/"Filled"/"Cancelled"/"Rejected".
+# 양쪽 모두 매핑하여 운영 reconciler 가 dead code 안 되도록.
+_TERMINAL_STATUSES = frozenset(
+    {"Cancelled", "Rejected", "Filled", "closed", "canceled", "rejected"}
+)
 _STATUS_MAP: dict[str, OrderState] = {
+    # Bybit V5 raw
     "Filled": OrderState.filled,
     "Cancelled": OrderState.cancelled,
     "Rejected": OrderState.rejected,
+    # CCXT unified
+    "closed": OrderState.filled,
+    "canceled": OrderState.cancelled,
+    "rejected": OrderState.rejected,
 }
 
 

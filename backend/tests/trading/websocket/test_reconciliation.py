@@ -166,3 +166,61 @@ async def test_no_local_active_orders_skips_fetch(session_factory):
     await reconciler.run(account_id=uuid4())
     fetcher.fetch_open_orders.assert_not_called()
     fetcher.fetch_recent_orders.assert_not_called()
+
+
+async def test_ccxt_unified_status_closed_transitions_to_filled(
+    submitted_order, session_factory, db_session, monkeypatch
+):
+    """G4 revisit #11 — CCXT unified status 'closed' 도 filled 로 매핑."""
+    order, acc = submitted_order
+    fetcher = _make_fetcher(
+        recent_orders=[
+            {
+                "clientOrderId": str(order.id),
+                "status": "closed",  # CCXT unified
+                "average": "50100.00",
+                "id": "EX-200",
+            }
+        ]
+    )
+    monkeypatch.setattr(
+        "src.trading.websocket.reconciliation.send_critical_alert",
+        AsyncMock(return_value=False),
+    )
+    reconciler = Reconciler(
+        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    )
+    await reconciler.run(account_id=acc.id)
+
+    from sqlalchemy import select
+
+    stmt = select(Order).where(Order.id == order.id)  # type: ignore[arg-type]
+    refreshed = (await db_session.execute(stmt)).scalar_one()
+    assert refreshed.state == OrderState.filled
+    assert refreshed.filled_price == Decimal("50100.00")
+
+
+async def test_ccxt_unified_canceled_transitions(
+    submitted_order, session_factory, db_session, monkeypatch
+):
+    """CCXT 'canceled' (single-l) → cancelled."""
+    order, acc = submitted_order
+    fetcher = _make_fetcher(
+        open_orders=[
+            {"clientOrderId": str(order.id), "status": "canceled", "id": "EX-201"}
+        ]
+    )
+    monkeypatch.setattr(
+        "src.trading.websocket.reconciliation.send_critical_alert",
+        AsyncMock(return_value=False),
+    )
+    reconciler = Reconciler(
+        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    )
+    await reconciler.run(account_id=acc.id)
+
+    from sqlalchemy import select
+
+    stmt = select(Order).where(Order.id == order.id)  # type: ignore[arg-type]
+    refreshed = (await db_session.execute(stmt)).scalar_one()
+    assert refreshed.state == OrderState.cancelled

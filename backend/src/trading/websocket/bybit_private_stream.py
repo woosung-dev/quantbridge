@@ -37,6 +37,9 @@ logger = logging.getLogger(__name__)
 _RECONCILE_DEBOUNCE_S = 30.0
 _AUTH_TIMEOUT_S = 5.0
 _MAX_BACKOFF_S = 30.0
+# G4 revisit fix B: 첫 connect 가 60s 안에 성공 못 하면 fail-fast.
+# 무한 connection failure 시 __aenter__ 영원 block 방지.
+_FIRST_CONNECT_TIMEOUT_S = 60.0
 
 
 class BybitAuthError(Exception):
@@ -48,9 +51,7 @@ class BybitAuthError(Exception):
 
 
 class OrderEventHandler(Protocol):
-    async def handle_order_event(
-        self, account_id: UUID, payload: dict[str, Any]
-    ) -> None: ...
+    async def handle_order_event(self, account_id: UUID, payload: dict[str, Any]) -> None: ...
 
 
 class StreamReconciler(Protocol):
@@ -114,24 +115,16 @@ class BybitPrivateStream:
 
     def _sign(self, expires: int) -> str:
         msg = f"GET/realtime{expires}"
-        return hmac.new(
-            self.api_secret.encode(), msg.encode(), hashlib.sha256
-        ).hexdigest()
+        return hmac.new(self.api_secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
 
     async def _authenticate(self) -> None:
         """auth payload 송신 + response 검증. 실패 시 BybitAuthError."""
         # codex G0-5: 공식 예시 기준 +1s
         expires = int((time.time() + 1) * 1000)
         signature = self._sign(expires)
-        await self._ws.send(
-            json.dumps(
-                {"op": "auth", "args": [self.api_key, expires, signature]}
-            )
-        )
+        await self._ws.send(json.dumps({"op": "auth", "args": [self.api_key, expires, signature]}))
         try:
-            raw = await asyncio.wait_for(
-                self._ws.recv(), timeout=_AUTH_TIMEOUT_S
-            )
+            raw = await asyncio.wait_for(self._ws.recv(), timeout=_AUTH_TIMEOUT_S)
         except TimeoutError as exc:
             raise BybitAuthError(
                 f"Bybit auth response timeout after {_AUTH_TIMEOUT_S}s — "
@@ -162,9 +155,7 @@ class BybitPrivateStream:
         try:
             await self.reconciler.run(account_id=self.account_id)
         except Exception as exc:
-            logger.warning(
-                "ws_reconcile_failed account=%s err=%s", self.account_id, exc
-            )
+            logger.warning("ws_reconcile_failed account=%s err=%s", self.account_id, exc)
 
     async def _heartbeat_loop(self) -> None:
         try:
@@ -194,9 +185,7 @@ class BybitPrivateStream:
                     continue
                 for item in msg.get("data", []):
                     try:
-                        await self.handler.handle_order_event(
-                            self.account_id, item
-                        )
+                        await self.handler.handle_order_event(self.account_id, item)
                     except Exception as exc:
                         logger.warning(
                             "ws_handler_failed account=%s err=%s",
@@ -240,9 +229,7 @@ class BybitPrivateStream:
                     asyncio.create_task(self._heartbeat_loop()),
                     asyncio.create_task(self._receive_loop()),
                 ]
-                _, pending = await asyncio.wait(
-                    tasks, return_when=asyncio.FIRST_COMPLETED
-                )
+                _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 for p in pending:
                     p.cancel()
                 await asyncio.gather(*pending, return_exceptions=True)
@@ -252,9 +239,7 @@ class BybitPrivateStream:
                     return
                 # 연결 끊김 → reconnect 카운트 + metric
                 self.reconnect_count += 1
-                qb_ws_reconnect_total.labels(
-                    account_id=str(self.account_id)
-                ).inc()
+                qb_ws_reconnect_total.labels(account_id=str(self.account_id)).inc()
                 logger.info(
                     "ws_supervisor_reconnect account=%s count=%d backoff=%.1f",
                     self.account_id,
@@ -286,30 +271,36 @@ class BybitPrivateStream:
 
     async def __aenter__(self) -> BybitPrivateStream:
         if self._stop_event.is_set():
-            raise RuntimeError(
-                "BybitPrivateStream stop_event set before connect"
-            )
+            raise RuntimeError("BybitPrivateStream stop_event set before connect")
         self._supervisor_task = asyncio.create_task(self._supervisor_loop())
         # 첫 연결 또는 stop 까지 대기
         first_done = asyncio.create_task(self._first_connect_event.wait())
         stop_done = asyncio.create_task(self._stop_event.wait())
         try:
+            # G4 revisit fix B: 60s startup timeout. 첫 connect 안 되면 fail-fast.
             await asyncio.wait(
-                [first_done, stop_done], return_when=asyncio.FIRST_COMPLETED
+                [first_done, stop_done],
+                timeout=_FIRST_CONNECT_TIMEOUT_S,
+                return_when=asyncio.FIRST_COMPLETED,
             )
         finally:
             for p in (first_done, stop_done):
                 if not p.done():
                     p.cancel()
+        # G4 revisit fix B: timeout 발생 = Event 둘 다 미 set (cancel 된 task 와 무관).
+        if not self._first_connect_event.is_set() and not self._stop_event.is_set():
+            await self._wait_supervisor_done()
+            raise TimeoutError(
+                f"BybitPrivateStream first connect timeout after "
+                f"{_FIRST_CONNECT_TIMEOUT_S}s (account={self.account_id})"
+            )
         # auth 실패는 first_connect_event 도 set 됨 — 구분 필요
         if self._auth_error is not None:
             await self._wait_supervisor_done()
             raise self._auth_error
         if not self.connected and self._stop_event.is_set():
             await self._wait_supervisor_done()
-            raise RuntimeError(
-                "BybitPrivateStream stop_event set before first connect"
-            )
+            raise RuntimeError("BybitPrivateStream stop_event set before first connect")
         return self
 
     async def _wait_supervisor_done(self) -> None:
