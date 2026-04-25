@@ -3,11 +3,28 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.auth.exceptions import GeoBlockedCountryError
 from src.auth.models import User
 from src.auth.repository import UserRepository
 
 if TYPE_CHECKING:
     from src.strategy.repository import StrategyRepository
+
+
+# Sprint 11 Phase A — 3계층 geo-block L3. US + EU 27개국 차단.
+# L1 (Cloudflare WAF) + L2 (Next.js proxy.ts geo header) 도 병행 운영.
+RESTRICTED_COUNTRIES: frozenset[str] = frozenset(
+    {
+        # United States
+        "US",
+        # EU 27 (2026-04 기준)
+        "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
+        "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
+        "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+        # United Kingdom (post-Brexit, FCA 규제)
+        "GB",
+    }
+)
 
 
 class UserService:
@@ -67,10 +84,16 @@ class UserService:
             email = _extract_email(data)
             username_val = data.get("username")
             username = str(username_val) if username_val is not None else None
+            country_code = _extract_country(data)
+            # Sprint 11 Phase A — user.created 시점에만 차단. user.updated 는
+            # 기존 사용자 프로필 동기화이므로 country 변경으로 kick-out 하지 않음.
+            if event_type == "user.created" and country_code in RESTRICTED_COUNTRIES:
+                raise GeoBlockedCountryError(country_code)
             await self.user_repo.upsert_from_webhook(
                 clerk_user_id=str(clerk_user_id),
                 email=email,
                 username=username,
+                country_code=country_code,
             )
             await self.user_repo.commit()
             return
@@ -86,6 +109,24 @@ class UserService:
             return
 
         # 기타 이벤트: silently ignore
+
+
+def _extract_country(data: dict[str, object]) -> str | None:
+    """Clerk data payload 의 public_metadata.country 에서 ISO 3166-1 alpha-2 국가코드 추출.
+
+    FE 가입 플로우에서 Cloudflare CF-IPCountry 또는 Clerk signUp.publicMetadata 로 주입.
+    존재하지 않으면 None 반환 (기존 사용자 마이그레이션 호환).
+    """
+    pm_raw = data.get("public_metadata")
+    if not isinstance(pm_raw, dict):
+        return None
+    country_val = pm_raw.get("country")
+    if country_val is None:
+        return None
+    country = str(country_val).strip().upper()
+    if not country or len(country) != 2:
+        return None
+    return country
 
 
 def _extract_email(data: dict[str, object]) -> str | None:

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
+import { GeoBlockBanner } from "@/components/geo-block-banner";
 import { Button } from "@/components/ui/button";
 
 export default async function LandingPage() {
@@ -11,11 +12,13 @@ export default async function LandingPage() {
   }
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1200px] flex-col justify-center gap-10 px-6 py-20"
-    >
-      <section className="flex flex-col gap-6">
+    <>
+      <GeoBlockBanner />
+      <main
+        id="main-content"
+        className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1200px] flex-col justify-center gap-10 px-6 py-20"
+      >
+        <section className="flex flex-col gap-6">
         <h1 className="font-display text-4xl font-extrabold tracking-tight md:text-5xl lg:text-6xl">
           Pine Script를 실전 트레이딩으로.
         </h1>
@@ -24,11 +27,12 @@ export default async function LandingPage() {
           트레이딩까지 한 번에 연결하는 퀀트 플랫폼입니다.
         </p>
       </section>
-      <div className="flex flex-wrap gap-3">
-        <Button size="lg" render={<Link href="/sign-in" />} nativeButton={false}>
-          시작하기
-        </Button>
-      </div>
-    </main>
+        <div className="flex flex-wrap gap-3">
+          <Button size="lg" render={<Link href="/sign-in" />} nativeButton={false}>
+            시작하기
+          </Button>
+        </div>
+      </main>
+    </>
   );
 }

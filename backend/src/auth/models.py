@@ -22,6 +22,7 @@ class User(SQLModel, table=True):
     )
     email: str | None = Field(default=None, max_length=320, nullable=True)
     username: str | None = Field(default=None, max_length=64, nullable=True)
+    country_code: str | None = Field(default=None, max_length=2, nullable=True)
     is_active: bool = Field(default=True, index=True, nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

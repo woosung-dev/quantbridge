@@ -76,8 +76,9 @@ async def test_handle_user_created_event_upserts(service, user_repo_mock):
     }
     await service.handle_clerk_event(event)
 
+    # Sprint 11 Phase A — country_code 는 public_metadata 없으면 None.
     user_repo_mock.upsert_from_webhook.assert_awaited_once_with(
-        clerk_user_id="user_z", email="z@b.com", username="z"
+        clerk_user_id="user_z", email="z@b.com", username="z", country_code=None
     )
 
 

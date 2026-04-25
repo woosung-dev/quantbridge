@@ -1,0 +1,23 @@
+//@version=5
+strategy("EMA Crossover Demo", overlay=true, initial_capital=10000)
+
+// 입력 파라미터
+fast_length = input.int(12, title="Fast EMA Length", minval=1)
+slow_length = input.int(26, title="Slow EMA Length", minval=2)
+
+// 지표 계산
+fast_ema = ta.ema(close, fast_length)
+slow_ema = ta.ema(close, slow_length)
+
+// 시각화
+plot(fast_ema, color=color.blue, linewidth=2, title="Fast EMA")
+plot(slow_ema, color=color.orange, linewidth=2, title="Slow EMA")
+
+// 진입 조건
+long_condition  = ta.crossover(fast_ema, slow_ema)
+short_condition = ta.crossunder(fast_ema, slow_ema)
+
+if long_condition
+    strategy.entry("Long", strategy.long)
+if short_condition
+    strategy.close("Long")

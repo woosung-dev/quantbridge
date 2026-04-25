@@ -624,6 +624,101 @@ _(기존 Blocked 항목 없음 유지)_
 
 ## Next Actions (P0~P7 후속)
 
+### H2 Sprint 11 완료 후 — 2026-04-25
+
+**본 세션 중 확인된 프로덕션 인프라 현황 (2026-04-25):**
+
+- ✅ Frontend: Vercel 배포 (단 `NEXT_PUBLIC_API_URL=http://localhost:8000` 으로 API 미동작 상태 — 껍데기)
+- ❌ Backend (FastAPI): **프로덕션 배포 안 됨** (로컬 docker-compose 만)
+- ❌ Database: **Cloud SQL 없음**. TimescaleDB extension 은 Cloud SQL 공식 미지원 → 대체 필요
+- ❌ Redis: **Memorystore API 비활성**
+- ✅ Secret Manager: `waitlist-token-secret` v1 저장 완료 (asia-northeast3, woosung-dev 프로젝트)
+- ✅ Artifact Registry: 기존 3 repo (`cloud-run-source-deploy`, `kairos`, `truewords-docker`)
+- ❓ Clerk production instance: 미확인 (로컬 dev 키만 사용 중일 가능성)
+
+**PR #74 머지 직후 즉시 (5분):**
+
+- [ ] `stage/h2-sprint11` → `main` 머지 (PR #74) — **코드 레벨 완료만. 배포 효과 없음 (backend 프로덕션 부재)**
+- [ ] 로컬 dev 환경에서 Sprint 11 smoke test (`docker compose up` + `alembic upgrade head` 이미 완료):
+  - `/waitlist` 폼 submit → 202 응답
+  - `/not-available` redirect (proxy.ts)
+  - `/onboarding` 4-step wizard (샘플 EMA crossover)
+- [ ] Worktree cleanup — 7개 feat worktree + stage 1개 총 8개. 머지 후 병합 완료 브랜치 제거:
+  ```bash
+  cd /Users/woosung/project/agy-project/quant-bridge
+  for w in .worktrees/h2s11-{a-geo-block,b-legal-temporary,c-waitlist,d-onboarding,e-service-lock,f-slowapi-minor,g-error-class-allowlist}; do
+    git worktree remove --force "$w"
+  done
+  git worktree remove --force .worktrees/stage 2>/dev/null || true
+  # feat 브랜치는 main 머지 후 GitHub 에서 자동 제거되거나 수동:
+  git branch -D feat/h2s11-{a-geo-block,b-legal-temporary,c-waitlist,d-onboarding,e-service-lock,f-slowapi-minor,g-error-class-allowlist} stage/h2-sprint11
+  ```
+
+**[BLOCKED/DEFERRED] Beta 퍼블릭 오픈 번들 (Sprint 12)** — 아래 3 덩어리 동시 착수. 총 예상 4~8h + DNS 전파 24h.
+
+#### A. 도메인 + DNS + (옵션) Cloudflare
+
+- [ ] **A1: 도메인 구매** — 후보 `quantbridge.app` ($11 Porkbun) · `qbridge.dev` · `quantbridge.ai` ($70~80/년) · 카페24 (`.co.kr`). H2 말 공개 시점 기준 네이밍 재검토.
+- [ ] **A2: Vercel 에 custom domain 연결** — Vercel Dashboard → Project → Settings → Domains → Add. Vercel 이 주는 DNS record 2개 (A or CNAME + TXT verification) 등록사에 등록.
+- [ ] **A3: (옵션) Cloudflare 경유** — 등록사 네임서버 → Cloudflare 이관 → proxied DNS → WAF Custom Rule 적용 (`docs/07_infra/geo-block-setup.md` §1). **Beta 지인 대상일 때는 생략 권장** — L2 (proxy.ts `X-Vercel-IP-Country`) + L3 (Clerk webhook) 2계층으로 충분.
+
+#### B. Backend 프로덕션 배포 (가장 큰 덩어리 — 2~4h)
+
+- [ ] **B1: TimescaleDB 호스팅 결정** — `docs/07_infra/deployment-plan.md` §4 참조. 옵션:
+  - **Timescale Cloud** (~$30/월 Starter, TimescaleDB 공식, 가장 단순)
+  - **Neon** (serverless Postgres, timescale extension 일부 지원, 무료 tier)
+  - **GCE VM 자가호스팅** (PostgreSQL + TimescaleDB 수동, $10~15/월 small VM)
+- [ ] **B2: Redis 호스팅** — GCP Memorystore ($40~/월 1GB basic) vs Upstash free tier vs 자가호스팅 GCE. Sprint 10 Phase A2 는 DB 3 격리 전제.
+- [ ] **B3: Clerk production instance 생성** — Clerk dashboard → production 모드 전환. `CLERK_SECRET_KEY` / `CLERK_PUBLISHABLE_KEY` / `CLERK_WEBHOOK_SECRET` 프로덕션 값 획득.
+- [ ] **B4: GCP Secret Manager 에 env 전부 저장** (이미 저장된 것은 재사용):
+  - `waitlist-token-secret` ✅ (이미 저장, v1)
+  - `trading-encryption-keys` (Fernet key, rotation 주의)
+  - `clerk-secret-key` / `clerk-webhook-secret`
+  - `database-url` (B1 결정 후)
+  - `redis-url` / `redis-lock-url` (B2 결정 후)
+  - `resend-api-key` (Step C4 후)
+  - `waitlist-admin-emails`
+- [ ] **B5: Backend Docker build + Artifact Registry push**:
+  ```bash
+  gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+  cd backend && docker build -t asia-northeast3-docker.pkg.dev/woosung-dev/cloud-run-source-deploy/quantbridge-backend:latest .
+  docker push asia-northeast3-docker.pkg.dev/woosung-dev/cloud-run-source-deploy/quantbridge-backend:latest
+  ```
+- [ ] **B6: Cloud Run deploy** — `gcloud run deploy quantbridge-backend --image=... --region=asia-northeast3 --set-secrets=WAITLIST_TOKEN_SECRET=waitlist-token-secret:latest,...`. VPC connector 로 Cloud SQL + Memorystore 접근.
+- [ ] **B7: Alembic migration 프로덕션 DB 에 적용** — Cloud Run Jobs 또는 로컬에서 Cloud SQL Proxy 경유:
+  ```bash
+  cloud-sql-proxy woosung-dev:asia-northeast3:<INSTANCE> &
+  DATABASE_URL=postgresql+asyncpg://... alembic upgrade head
+  ```
+- [ ] **B8: Frontend `NEXT_PUBLIC_API_URL` 업데이트** — Vercel Dashboard → Project → Environment Variables → `NEXT_PUBLIC_API_URL=https://quantbridge-backend-xxx.run.app` → Redeploy.
+- [ ] **B9: Clerk webhook URL 교체** — Clerk dashboard → Webhooks → URL 을 `https://<backend-url>/api/v1/auth/webhook` 로 업데이트.
+
+#### C. Resend 이메일 + Waitlist 활성화
+
+- [ ] **C1: Resend 가입 + 도메인 추가** — dashboard `send.<domain>` subdomain 등록.
+- [ ] **C2: DNS records (SPF / DKIM / MX / DMARC 4개)** 를 등록사 또는 Cloudflare DNS 에 추가.
+- [ ] **C3: verify 대기** (15분~24h, 통상 1시간).
+- [ ] **C4: API Key 발급 → Secret Manager 저장** + Cloud Run 에 주입.
+- [ ] **C5: email_service `from` 주소 검증** — `backend/src/waitlist/email_service.py:81` 하드코딩 `waitlist@quantbridge.app` 를 실 도메인으로 교체 필요. 일치 안 하면 403.
+- [ ] **C6: `WAITLIST_ADMIN_EMAILS` 주입** — 본인 email (`fornerdsofficial@gmail.com`) 콤마 구분.
+
+#### 캠페인 (인프라 완성 후)
+
+- [ ] **Twitter/X `#buildinpublic` 캠페인 시작** — `/waitlist` 랜딩 공개, narrowest wedge (TV Pro+ · Bybit/OKX $1k+) 필터링. Beta 5~10명 초대.
+- [ ] **Beta 인터뷰 3명 × 3회** — narrowest wedge 일치율 60% 이상 확인 후 H3 진입 게이트.
+
+> **번들 처리 이유:** A·B·C 는 상호 의존. (B9 Clerk webhook URL 은 A/B 후에야 결정) · (C5 email from 은 A 후) · (B8 Frontend API URL 은 B6 후). 개별 진행 시 재작업 2~3배.
+
+**H2 말 (~2026-06-30) 이관 — 변화 없음:**
+
+- [ ] **D-5 A 안:** Termly 임시 템플릿 → 한국 변호사 검토본 교체 (Disclaimer/Terms/Privacy). `docs/07_infra/legal-temporary.md` 절차 따라 $500~$1,500. `LegalNoticeBanner` 의 "법무 임시" 문구 제거.
+- [ ] **slowapi 0.2.x major upgrade 검토** — Phase F 는 minor 범위만. breaking 검토 후 `_RateLimitStateInitMiddleware` workaround 제거 가능성.
+- [ ] Allowlist 조정 — 프로덕션 ccxt 예외 실측 후 `_ALLOWLIST_ERROR_CLASSES` 추가/삭제 (`_CCXT_ERROR_CLASSES` 28 vs Bybit/OKX specific).
+- [ ] Onboarding 성공률 지표 추가 (`qb_onboarding_completion_total{step}`) — 5분 target 대비 실측.
+- [ ] `backend/src/waitlist/email_service.py` `RESEND_API_KEY` 미설정 시 graceful fallback 검증 — 현재 상태 미점검. admin approve 호출 시 crash 여부 확인 후 fix 필요 시 bug-fix PR.
+
+---
+
 - [ ] **P4 (zod 경로 정정):** `.ai/stacks/nextjs-shared.md §2`의 `import { z } from "zod/v4"` 규칙은 zod@4 미설치 시점의 transition 문구. zod@4.3.6 기준 `"zod"`가 곧 v4 → 규칙을 `import { z } from "zod"`로 완화 필요. (`.ai/`는 gitignored라 원본 repo에서 처리) [확인 필요]
 - [ ] `.uuid()` → `z.uuid()` 전수 migration (strategy/trading 완료, 나머지 전수검사 필요)
 - [ ] 나머지 대시보드 라우트(`/strategies/[id]/edit`, `/strategies/new`)에도 `loading.tsx`+`error.tsx` 라우트 규약 적용

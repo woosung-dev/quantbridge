@@ -183,29 +183,14 @@ class BacktestRepository:
         return result.scalar_one_or_none()
 
     async def acquire_idempotency_lock(self, key: str) -> None:
-        """Redis contention-detect signal + PG advisory authoritative — Sprint 10 Phase A2.
+        """PG advisory lock (tx-scoped) — final authority 로서 correctness 보장.
 
-        **현재 wrapping 은 mutex 가 아님.** Redis SET NX + 즉시 DEL 사이클로 lock hold ≈ 1 RTT.
-        다른 워커가 RTT 간격 이상으로 진입하면 양쪽 모두 Redis SET NX 성공. Redis 는
-        `qb_redlock_acquire_total{outcome=contention}` metric 으로 multi-server 동시 요청을
-        **관측**할 뿐 막지는 않는다.
-
-        실제 correctness 는 이어지는 `pg_advisory_xact_lock` 이 보장 — DB 트랜잭션 경계 +
-        UNIQUE 제약 + IntegrityError fallback 이 최종 권위자.
-
-        **Wrapping 동기:**
-        1. Redis contention observability (metric + 로그) 확보
-        2. 향후 Service-level lock hold 로 확장 시 infra 재사용 가능
-        3. Redis 장애 시 graceful degradation 으로 PG 단독 동작 (correctness 무영향)
-
-        Follow-up: Service layer 에서 `async with RedisLock(...): await submit(...)` 로
-        감싸면 실질 분산 mutex. 본 Phase 는 infra + observability 만.
+        Sprint 10 Phase A2 에서 Redis contention-detect wrapping (SET NX + 즉시 DEL) 을
+        본 메서드 직전에 두었으나 **lock hold ≈ 1 RTT 로 mutual exclusion 미성립**.
+        Sprint 11 Phase E 에서 Service layer 로 이동하여 real distributed mutex 승격:
+        `async with RedisLock(...): await service.submit(...)` 패턴. Repository 는
+        PG advisory lock 만 담당 (tx 경계 + UNIQUE 제약 + IntegrityError fallback).
         """
-        from src.common.redlock import RedisLock
-
-        async with RedisLock(f"idem:backtest:{key}", ttl_ms=10_000):
-            pass
-
         await self.session.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
             {"k": key},

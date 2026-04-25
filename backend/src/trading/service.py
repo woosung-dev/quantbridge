@@ -224,6 +224,28 @@ class OrderService:
         idempotency_key: str | None,
         body_hash: bytes | None = None,
     ) -> tuple[OrderResponse, bool]:
+        """Sprint 11 Phase E — idempotency_key 가 있을 때 Service-level RedisLock 감싸기.
+        실질 분산 mutex. Redis 장애 시 graceful degrade → PG advisory 가 권위.
+        """
+        if idempotency_key is None:
+            return await self._execute_inner(
+                req, idempotency_key=None, body_hash=None
+            )
+
+        from src.common.redlock import RedisLock
+
+        async with RedisLock(f"idem:trading:{idempotency_key}", ttl_ms=30_000):
+            return await self._execute_inner(
+                req, idempotency_key=idempotency_key, body_hash=body_hash
+            )
+
+    async def _execute_inner(
+        self,
+        req: OrderRequest,
+        *,
+        idempotency_key: str | None,
+        body_hash: bytes | None,
+    ) -> tuple[OrderResponse, bool]:
         """Returns (response, is_replayed).
 
         Flow (autoplan E9 + E2):

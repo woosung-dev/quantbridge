@@ -35,3 +35,18 @@ class WebhookSignatureError(AuthError):
     status_code = status.HTTP_400_BAD_REQUEST
     code = "webhook_signature_invalid"
     detail = "Svix signature verification failed"
+
+
+class GeoBlockedCountryError(AuthError):
+    """Sprint 11 Phase A — 지원 제외 국가 (US/EU) 가입 차단.
+
+    3 계층 방어의 L3 (Clerk webhook). L1 (Cloudflare WAF) + L2 (Next.js proxy.ts)
+    통과한 경우에도 본 계층에서 거절. public_metadata.country 가 restricted set 에 포함되면 400.
+    """
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    code = "geo_blocked_country"
+    detail = "Country not supported"
+
+    def __init__(self, country: str) -> None:
+        super().__init__(detail=f"Country {country} is not supported. QuantBridge is currently available in Asia only.")

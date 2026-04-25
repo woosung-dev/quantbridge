@@ -51,21 +51,22 @@ async def test_ccxt_timer_normal_path_does_not_increment_errors() -> None:
     assert after == before, f"counter must not inc on success (before={before}, after={after})"
 
 
-class _SimulatedExchangeError(Exception):
-    """ccxt.ExchangeError 시뮬레이션 (본 테스트는 ccxt import 회피)."""
-
-
 @pytest.mark.asyncio
 async def test_ccxt_timer_on_exception_increments_errors_and_reraises() -> None:
-    """예외 raise 시 errors counter +1 + 원 예외 그대로 전파 + finally duration 기록."""
-    before_err = _counter_value("bybit_futures", "cancel_order", "_SimulatedExchangeError")
+    """예외 raise 시 errors counter +1 + 원 예외 그대로 전파 + finally duration 기록.
+
+    Sprint 11 Phase G 이후 allowlist 기반으로 레이블링 → ccxt 공식 예외 사용 필수.
+    """
+    from ccxt import ExchangeError
+
+    before_err = _counter_value("bybit_futures", "cancel_order", "ExchangeError")
     before_hist = _histogram_count("bybit_futures", "cancel_order")
 
-    with pytest.raises(_SimulatedExchangeError, match="boom"):
+    with pytest.raises(ExchangeError, match="boom"):
         async with ccxt_timer("bybit_futures", "cancel_order"):
-            raise _SimulatedExchangeError("boom")
+            raise ExchangeError("boom")
 
-    after_err = _counter_value("bybit_futures", "cancel_order", "_SimulatedExchangeError")
+    after_err = _counter_value("bybit_futures", "cancel_order", "ExchangeError")
     after_hist = _histogram_count("bybit_futures", "cancel_order")
 
     assert after_err == before_err + 1, (
@@ -80,27 +81,25 @@ async def test_ccxt_timer_on_exception_increments_errors_and_reraises() -> None:
 
 @pytest.mark.asyncio
 async def test_ccxt_timer_labels_error_class_exactly() -> None:
-    """서로 다른 예외 클래스 각각 독립 시리즈로 라벨링."""
+    """서로 다른 예외 클래스 각각 독립 시리즈로 라벨링.
 
-    class _RateLimitExceeded(Exception):
-        pass
+    Sprint 11 Phase G — allowlist 에 포함된 ccxt 공식 예외는 원 이름 유지.
+    """
+    from ccxt import InsufficientFunds, RateLimitExceeded
 
-    class _InsufficientFunds(Exception):
-        pass
+    before_rate = _counter_value("okx", "fetch_balance", "RateLimitExceeded")
+    before_funds = _counter_value("okx", "fetch_balance", "InsufficientFunds")
 
-    before_rate = _counter_value("okx", "fetch_balance", "_RateLimitExceeded")
-    before_funds = _counter_value("okx", "fetch_balance", "_InsufficientFunds")
-
-    with pytest.raises(_RateLimitExceeded):
+    with pytest.raises(RateLimitExceeded):
         async with ccxt_timer("okx", "fetch_balance"):
-            raise _RateLimitExceeded()
+            raise RateLimitExceeded()
 
-    with pytest.raises(_InsufficientFunds):
+    with pytest.raises(InsufficientFunds):
         async with ccxt_timer("okx", "fetch_balance"):
-            raise _InsufficientFunds()
+            raise InsufficientFunds()
 
-    assert _counter_value("okx", "fetch_balance", "_RateLimitExceeded") == before_rate + 1
-    assert _counter_value("okx", "fetch_balance", "_InsufficientFunds") == before_funds + 1
+    assert _counter_value("okx", "fetch_balance", "RateLimitExceeded") == before_rate + 1
+    assert _counter_value("okx", "fetch_balance", "InsufficientFunds") == before_funds + 1
 
 
 @pytest.mark.asyncio
