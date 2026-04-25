@@ -127,17 +127,29 @@ class SlackAlertService:
             ],
         }
 
+        # codex G2 #6 fix: wait_for 를 semaphore 밖에 두어 9번째 alert 가 30s+ 누적되는
+        # 시나리오 차단. 전체 (semaphore acquire + send) 경로가 _SEND_TIMEOUT_S 한도.
+        try:
+            return await asyncio.wait_for(
+                self._send_with_semaphore(url, payload), timeout=_SEND_TIMEOUT_S
+            )
+        except TimeoutError:
+            logger.warning("slack_alert_timeout severity=%s title=%s", severity, title)
+            return False
+        except RetryError as exc:
+            # tenacity 재시도 소진 시 RetryError
+            logger.warning("slack_alert_failed_retry severity=%s err=%s", severity, exc)
+            return False
+        except httpx.HTTPError as exc:
+            # codex G2 #5 fix: tenacity reraise=True 시 마지막 HTTPError 가 그대로 전파.
+            # send() 의 "False 반환" 계약을 지키기 위해 catch.
+            logger.warning("slack_alert_failed_http severity=%s err=%s", severity, exc)
+            return False
+
+    async def _send_with_semaphore(self, url: str, payload: dict[str, Any]) -> bool:
+        """semaphore acquire + send_inner 의 묶음 (wait_for 의 cancel 대상)."""
         async with _SEND_SEMAPHORE:
-            try:
-                return await asyncio.wait_for(
-                    self._send_inner(url, payload), timeout=_SEND_TIMEOUT_S
-                )
-            except TimeoutError:
-                logger.warning("slack_alert_timeout severity=%s title=%s", severity, title)
-                return False
-            except RetryError as exc:
-                logger.warning("slack_alert_failed severity=%s err=%s", severity, exc)
-                return False
+            return await self._send_inner(url, payload)
 
     async def _send_inner(self, url: str, payload: dict[str, Any]) -> bool:
         owns_client = self._client is None

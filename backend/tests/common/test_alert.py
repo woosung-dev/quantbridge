@@ -178,3 +178,31 @@ def test_cap_context_handles_none() -> None:
     """None / 빈 dict 모두 안전."""
     assert _cap_context(None) == {}
     assert _cap_context({}) == {}
+
+
+@pytest.mark.asyncio
+async def test_send_returns_false_on_persistent_4xx(settings_with_slack: Settings) -> None:
+    """codex G2 #5 회귀 — tenacity 재시도 소진 후 마지막 HTTPError(4xx) 가 raise 되어도
+    send() 가 False 반환 (raise 차단). 4xx 는 retry 대상 아님 → 1회 후 즉시 fail.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"error": "channel_not_found"})
+
+    async with _make_mock_client(handler) as client:
+        service = SlackAlertService(settings_with_slack, client=client)
+        result = await service.send("critical", "t", "m", None)
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_send_returns_false_on_persistent_503(settings_with_slack: Settings) -> None:
+    """codex G2 #5 회귀 — 503 이 retry 후에도 지속 → RetryError 가 catch 되어 False."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "throttled"})
+
+    async with _make_mock_client(handler) as client:
+        service = SlackAlertService(settings_with_slack, client=client)
+        result = await service.send("critical", "t", "m", None)
+    assert result is False

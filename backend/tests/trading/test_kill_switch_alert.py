@@ -210,3 +210,50 @@ async def test_pending_alerts_set_tracks_task(db_session, strategy, user, monkey
     barrier.set()
     await _flush_pending_alerts()
     assert len(alert_module._PENDING_ALERTS) == initial_size
+
+
+async def test_explicit_settings_injection(db_session, strategy, user, monkeypatch):
+    """codex G2 #11 회귀 — 명시 settings 주입 경로 (lazy fallback 우회)."""
+    from src.core.config import Settings
+
+    acc = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"k",
+        api_secret_encrypted=b"s",
+    )
+    db_session.add(acc)
+    await db_session.flush()
+
+    captured_settings_seen: list[Settings] = []
+
+    async def capture_alert(settings, *args, **kwargs):  # type: ignore[no-untyped-def]
+        captured_settings_seen.append(settings)
+        return True
+
+    monkeypatch.setattr("src.trading.kill_switch.send_critical_alert", capture_alert)
+
+    # 명시 주입된 Settings (env 의 lazy get_settings 가 아님)
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/EXPLICIT")
+    explicit_settings = Settings()
+
+    repo = KillSwitchEventRepository(db_session)
+    violating = _StaticEvaluator(
+        EvaluationResult(
+            gated=True,
+            trigger_type="daily_loss",
+            trigger_value=Decimal("-600"),
+            threshold=Decimal("500"),
+        )
+    )
+    svc = KillSwitchService(
+        evaluators=[violating], events_repo=repo, settings=explicit_settings
+    )
+    with pytest.raises(KillSwitchActive):
+        await svc.ensure_not_gated(strategy_id=strategy.id, account_id=acc.id)
+
+    await _flush_pending_alerts()
+    assert len(captured_settings_seen) == 1
+    # 명시 주입된 instance 자체가 alert 함수에 전달됐는지 확인
+    assert captured_settings_seen[0] is explicit_settings
