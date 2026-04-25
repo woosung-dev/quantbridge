@@ -54,3 +54,39 @@ async def test_duplicate_enqueue_returns_no_op():
     finally:
         with websocket_task._PROCESS_LOCK:
             websocket_task._PROCESS_ACTIVE_STREAMS.discard(account_id)
+
+
+@pytest.mark.asyncio
+async def test_signal_all_stop_events_signals_registered():
+    """G4 fix #4 — _STOP_EVENTS 에 등록된 stream 이 worker_shutdown 시 set 됨."""
+    import asyncio
+
+    from src.tasks import websocket_task
+
+    loop = asyncio.get_running_loop()
+    evt1 = asyncio.Event()
+    evt2 = asyncio.Event()
+    with websocket_task._STOP_EVENTS_LOCK:
+        websocket_task._STOP_EVENTS["acc-1"] = (loop, evt1)
+        websocket_task._STOP_EVENTS["acc-2"] = (loop, evt2)
+    try:
+        count = websocket_task.signal_all_stop_events()
+        # call_soon_threadsafe 는 다음 loop iteration 에 실행
+        await asyncio.sleep(0.01)
+        assert count == 2
+        assert evt1.is_set() is True
+        assert evt2.is_set() is True
+    finally:
+        with websocket_task._STOP_EVENTS_LOCK:
+            websocket_task._STOP_EVENTS.pop("acc-1", None)
+            websocket_task._STOP_EVENTS.pop("acc-2", None)
+
+
+def test_signal_all_stop_events_empty_returns_zero():
+    """등록된 stream 없으면 count=0."""
+    from src.tasks import websocket_task
+
+    with websocket_task._STOP_EVENTS_LOCK:
+        snapshot_size = len(websocket_task._STOP_EVENTS)
+    if snapshot_size == 0:
+        assert websocket_task.signal_all_stop_events() == 0

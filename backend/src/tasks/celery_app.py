@@ -142,7 +142,18 @@ def get_ccxt_provider_for_worker() -> CCXTProvider:
 
 @worker_shutdown.connect  # type: ignore[untyped-decorator]
 def _on_worker_shutdown(sender: object = None, **_kwargs: object) -> None:
-    """Worker 종료 시 CCXTProvider 리소스 해제."""
+    """Worker 종료 시 CCXTProvider 리소스 해제 + WebSocket stream graceful close."""
+    # Sprint 12 Phase C — G4 fix #4: 모든 active ws_stream 의 stop_event set.
+    # _stream_main 의 await stop_event.wait() 가 즉시 깨어나 supervisor → ws.close.
+    try:
+        from src.tasks.websocket_task import signal_all_stop_events
+
+        count = signal_all_stop_events()
+        if count > 0:
+            logger.info("ws_streams_signaled_on_shutdown count=%d", count)
+    except Exception:
+        logger.exception("ws_stream_shutdown_signal_failed")
+
     global _ccxt_provider
     if _ccxt_provider is not None:
         try:

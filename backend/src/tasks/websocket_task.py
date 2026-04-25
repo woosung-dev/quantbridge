@@ -34,6 +34,34 @@ logger = logging.getLogger(__name__)
 _PROCESS_ACTIVE_STREAMS: set[str] = set()
 _PROCESS_LOCK = threading.Lock()
 
+# G4 fix #4: stop_event 글로벌 dict — worker_shutdown signal 이 모든 active stream
+# 의 stop_event 를 set 하여 graceful shutdown 보장. account_id → (loop, event).
+# loop 참조 보관: signal handler 가 다른 thread 에서 실행되므로 set 호출 시
+# call_soon_threadsafe 로 task asyncio loop 에 전달.
+_STOP_EVENTS: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Event]] = {}
+_STOP_EVENTS_LOCK = threading.Lock()
+
+
+def signal_all_stop_events() -> int:
+    """worker_shutdown signal 핸들러에서 호출. 모든 active stream 의 stop_event set.
+
+    return: 신호 보낸 stream 수.
+    """
+    count = 0
+    with _STOP_EVENTS_LOCK:
+        snapshot = list(_STOP_EVENTS.items())
+    for account_id, (loop, evt) in snapshot:
+        try:
+            # 다른 thread (Celery shutdown) 에서 asyncio.Event.set 안전 호출.
+            loop.call_soon_threadsafe(evt.set)
+            count += 1
+            logger.info("ws_stream_stop_signaled account=%s", account_id)
+        except Exception as exc:
+            logger.warning(
+                "ws_stream_stop_signal_failed account=%s err=%s", account_id, exc
+            )
+    return count
+
 
 # Bybit V5 Private WebSocket endpoint.
 # Demo endpoint 는 공식 문서 기준 (https://bybit-exchange.github.io/docs/v5/ws/connect).
@@ -116,15 +144,24 @@ async def _stream_main(account_id: str) -> dict[str, Any]:
 
     endpoint = _BYBIT_WS_ENDPOINTS.get(env, _BYBIT_WS_ENDPOINTS["demo"])
 
-    # 2. Handler / Reconciler 조립
+    # 2. Handler / Reconciler 조립 (G4 fix #11 production wiring)
     handler = StateHandler(session_factory=sf, settings=settings)
-    # Reconciler 는 운영 환경에서 별도 ReconcileFetcher 구현 필요 (Sprint 13).
-    # 본 dogfood 단계에서는 reconciler=None 으로 진입 — first-connect reconcile skip.
-    # NOTE: 추후 ``BybitReconcileFetcher`` (CCXT fetch_open_orders + fetch_closed_orders)
-    # 구현 후 reconciler= 채워 호출.
-    reconciler: Reconciler | None = None
+    # BybitReconcileFetcher: ephemeral CCXT 어댑터 (account credentials 매 호출
+    # decrypt). reconnect 직후 fetch_open_orders + fetch_recent_orders 로 missed
+    # event 보정. 기본 category=linear (Bybit Demo USDT perp).
+    from src.trading.websocket.reconcile_fetcher import BybitReconcileFetcher
+
+    fetcher = BybitReconcileFetcher(account=account, crypto=crypto)
+    reconciler: Reconciler | None = Reconciler(
+        session_factory=sf, fetcher=fetcher, settings=settings
+    )
 
     stop_event = asyncio.Event()
+
+    # G4 fix #4: 글로벌 dict 등록 → worker_shutdown signal 이 set 가능.
+    loop = asyncio.get_running_loop()
+    with _STOP_EVENTS_LOCK:
+        _STOP_EVENTS[account_id] = (loop, stop_event)
 
     # 3. WebSocket 진입 + stop_event wait
     try:
@@ -162,6 +199,10 @@ async def _stream_main(account_id: str) -> dict[str, Any]:
             {"account_id": account_id, "error": str(exc)[:200]},
         )
         return {"status": "auth_failed", "account_id": account_id}
+    finally:
+        # G4 fix #4: 글로벌 dict 에서 제거 — worker_shutdown signal 이후 stale 방지.
+        with _STOP_EVENTS_LOCK:
+            _STOP_EVENTS.pop(account_id, None)
 
 
 @shared_task(name="trading.reconcile_ws_streams")  # type: ignore[untyped-decorator]

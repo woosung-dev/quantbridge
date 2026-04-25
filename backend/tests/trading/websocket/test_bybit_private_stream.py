@@ -142,6 +142,88 @@ async def test_stop_event_set_before_connect_raises(fake_connect):
 
 
 @pytest.mark.asyncio
+async def test_reconnect_after_connection_closed(fake_ws, monkeypatch):
+    """G4 fix #1: supervisor 가 ConnectionClosed 후 자동 재연결.
+
+    fake_ws_first 가 close 되면 connect_func 가 fake_ws_second 를 반환.
+    """
+    from src.trading.websocket.bybit_private_stream import BybitPrivateStream
+    from tests.trading.websocket.conftest import FakeWebSocket
+
+    fake_ws_2 = FakeWebSocket()
+    fake_ws.queue_recv(_success_auth())
+    fake_ws_2.queue_recv(_success_auth())
+
+    call_count = 0
+
+    async def connect_sequence(_endpoint):
+        nonlocal call_count
+        call_count += 1
+        return fake_ws if call_count == 1 else fake_ws_2
+
+    stream = BybitPrivateStream(
+        endpoint="wss://test",
+        api_key="k",
+        api_secret="s",
+        account_id=uuid4(),
+        connect_func=connect_sequence,
+    )
+
+    async with stream:
+        # 첫 연결 후 force close
+        fake_ws.queue_close()
+        # supervisor 가 재연결 시도할 시간 — 기본 backoff 1.0s + 여유
+        # backoff 후 두 번째 connect_func 호출 + auth 까지 wait
+        for _ in range(40):
+            if stream.reconnect_count >= 1 and call_count >= 2:
+                break
+            await asyncio.sleep(0.05)
+    assert stream.reconnect_count >= 1, (
+        f"reconnect_count={stream.reconnect_count} call_count={call_count}"
+    )
+    assert call_count >= 2, (
+        f"reconnect_count={stream.reconnect_count} call_count={call_count}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_aexit_closes_websocket_cleanly(fake_ws, fake_connect):
+    """G4 fix #5: __aexit__ 가 ws close 보장."""
+    fake_ws.queue_recv(_success_auth())
+    stream = BybitPrivateStream(
+        endpoint="wss://test",
+        api_key="k",
+        api_secret="s",
+        account_id=uuid4(),
+        connect_func=fake_connect,
+    )
+    async with stream:
+        pass
+    # supervisor 종료 + ws close 호출됨
+    assert stream._supervisor_task is not None
+    assert stream._supervisor_task.done()
+    assert fake_ws._closed is True
+
+
+@pytest.mark.asyncio
+async def test_auth_failure_closes_websocket_no_fd_leak(fake_ws, fake_connect):
+    """G4 fix #5: auth 실패 시 ws close 보장 (FD leak 방지)."""
+    fake_ws.queue_recv(_failure_auth())
+    stream = BybitPrivateStream(
+        endpoint="wss://test",
+        api_key="k",
+        api_secret="s",
+        account_id=uuid4(),
+        connect_func=fake_connect,
+    )
+    with pytest.raises(BybitAuthError):
+        async with stream:
+            pass
+    # supervisor finally 가 ws close
+    assert fake_ws._closed is True
+
+
+@pytest.mark.asyncio
 async def test_sign_matches_bybit_v5_spec():
     """`GET/realtime{expires}` HMAC-SHA256 hex 검증."""
     import hashlib
