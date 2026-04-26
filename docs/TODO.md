@@ -4,9 +4,9 @@
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 (0–1.5m, Stealth, 본인 dogfood). 진행: 7c → 7b → 8a → 8b → 8c → 7d → FE-01~04 → FE Polish Bundle 1/2 → Exchange Account Dialog ✅ → X1+X3 (5 워커 L2 Deep Parallel) ✅ → Y1 (Pre-flight Coverage Analyzer, PR #61) ✅ → **Path β (문서 선행 + Tier-2 Trust Layer CI + dogfood) 진행 중**. **남은 게이트: Bybit demo dogfood 3~4주 + Path β Gate-2** → H2 진입. (Kill Switch capital_base 동적 바인딩은 이미 완료됨 — 2026-04-22 확인)
+> **📍 현재 Horizon:** H1 → H2 transition (dogfood 검증 단계). Sprint 1~12 + Path β + dogfood Day 1 (2026-04-25/26) 완료. **H1→H2 gate 미통과 (self-assessment 3/10)** — Trading 도메인 dogfood UX 부재가 결정적. 다음: **Sprint 13 Track UX (신설)** → Phase A/B/C 완료 후 dogfood Day 2 재평가.
 
-> **🚀 현재 세션 작업:** Path β Stage 0 (문서 선행) — 2026-04-23. ADR-013 Trust Layer CI + 누락 회고 ADR-014/015/016/017 + Trust Layer 요구사항/아키텍처 + dogfood 체크리스트. Gate-0 검증 후 Stage 1/2 진행.
+> **🚀 현재 세션 작업:** dogfood Day 1 종료 (2026-04-26). 회고: [`docs/dev-log/2026-04-25-dogfood-day1.md`](dev-log/2026-04-25-dogfood-day1.md). 다음 세션 프롬프트: [`~/.claude/plans/h2-sprint-13-prompt.md`](~/.claude/plans/h2-sprint-13-prompt.md). Pain top 5 + Track UX 우선순위 변경 정당화.
 
 ---
 

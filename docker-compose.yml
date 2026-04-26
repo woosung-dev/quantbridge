@@ -104,18 +104,32 @@ services:
     networks:
       - quantbridge
 
-  # Beat scheduler — reclaim_stale_running 5분 주기 (M3 T29)
+  # Beat scheduler — reclaim_stale_running 5분 주기 (M3 T29) + ws_reconcile 5분 (Sprint 12)
+  # Settings() 가 src.core.config import 시 trading_encryption_keys 등 require →
+  # backend-worker 와 동일 env 셋업.
   backend-beat:
     build:
       context: ./backend
     container_name: quantbridge-beat
     command: uv run celery -A src.tasks.celery_app beat --loglevel=info --schedule=/data/celerybeat-schedule
     depends_on:
+      db: { condition: service_healthy }
       redis: { condition: service_healthy }
     environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
-      REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
+      OHLCV_PROVIDER: ${OHLCV_PROVIDER:-timescale}
+      OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
+      DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
+      BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
+      PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
+      TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
       - beat-data:/data
     restart: unless-stopped
