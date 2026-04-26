@@ -6,8 +6,17 @@ dogfood Day 1 의 webhook_secrets 0건 root cause:
 
 이 회귀 테스트는 issue() default commit=True + rotate() 자체 commit 을 강제하여
 Sprint 6 broken bug 의 재발을 차단.
+
+G.2 codex challenge P2 #1 보강: db_session 기반 테스트는 same-session
+read-your-writes 로 인해 commit() 누락도 통과 가능. AsyncMock spy 로 repo.commit()
+호출 자체를 직접 검증 (Sprint 6 broken bug 가 commit 누락이라 commit 호출 검증이
+가장 정확한 회귀 테스트).
 """
+
 from __future__ import annotations
+
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from cryptography.fernet import Fernet
@@ -86,3 +95,60 @@ async def test_rotate_commits_to_db(db_session, strategy, crypto):
         .where(WebhookSecret.strategy_id == strategy.id)  # type: ignore[arg-type]
     )
     assert result.scalar_one() == 2
+
+
+# ── Mock spy 회귀 (G.2 challenge P2 #1 보강) — repo.commit() 호출 자체 검증 ──
+# db_session 기반 테스트는 same-session read-your-writes 로 commit() 누락도 통과
+# 가능. mock spy 가 Sprint 6 broken bug 의 본질 (commit 호출 누락) 을 직접 검증.
+
+
+@pytest.mark.asyncio
+async def test_issue_default_calls_repo_commit():
+    """A.1.1 spy: issue() default commit=True 가 repo.commit() 호출 강제."""
+    from src.trading.service import WebhookSecretService
+
+    repo = AsyncMock()
+    crypto_mock = MagicMock()
+    crypto_mock.encrypt.return_value = b"encrypted_bytes"
+    svc = WebhookSecretService(repo=repo, crypto=crypto_mock)
+
+    plaintext = await svc.issue(uuid4())
+    assert plaintext
+
+    repo.save.assert_awaited_once()
+    repo.commit.assert_awaited_once()  # ← Sprint 6 broken bug 핵심
+
+
+@pytest.mark.asyncio
+async def test_issue_commit_false_does_not_call_commit():
+    """A.1.1 spy: issue(commit=False) — atomic create 흐름. repo.commit() 호출 X."""
+    from src.trading.service import WebhookSecretService
+
+    repo = AsyncMock()
+    crypto_mock = MagicMock()
+    crypto_mock.encrypt.return_value = b"encrypted_bytes"
+    svc = WebhookSecretService(repo=repo, crypto=crypto_mock)
+
+    plaintext = await svc.issue(uuid4(), commit=False)
+    assert plaintext
+
+    repo.save.assert_awaited_once()
+    repo.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rotate_calls_repo_commit():
+    """A.1.1 spy: rotate() 가 repo.commit() 호출 강제 (Sprint 6 broken bug 핵심)."""
+    from src.trading.service import WebhookSecretService
+
+    repo = AsyncMock()
+    crypto_mock = MagicMock()
+    crypto_mock.encrypt.return_value = b"encrypted_bytes"
+    svc = WebhookSecretService(repo=repo, crypto=crypto_mock)
+
+    plaintext = await svc.rotate(uuid4(), grace_period_seconds=300)
+    assert plaintext
+
+    repo.revoke_all_active.assert_awaited_once()
+    repo.save.assert_awaited_once()
+    repo.commit.assert_awaited_once()  # ← Sprint 6 broken bug 핵심

@@ -129,7 +129,13 @@ export function useCreateStrategy(
         cacheWebhookSecret(created.id, created.webhook_secret);
       }
       qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
-      qc.setQueryData(strategyKeys.detail(uid, created.id), created);
+      // G.2 challenge P2 #2 fix: webhook_secret 은 sessionStorage TTL/hide 정책으로
+      // 만 수명 관리. react-query detail cache 에는 secret 제외 sanitized 만 저장.
+      const { webhook_secret: _omitted, ...sanitized } = created;
+      qc.setQueryData(
+        strategyKeys.detail(uid, created.id),
+        sanitized as StrategyResponse,
+      );
       opts.onSuccess?.(created);
     },
     onError: (err) => opts.onError?.(err),
