@@ -1,43 +1,35 @@
 // Sprint 13 Phase A.2 — TabWebhook 컴포넌트 vitest.
+// Sprint 14 Phase A — useSyncExternalStore 호환 mock 으로 갱신. webhook-secret-storage 는
+// 실제 모듈 사용 (jsdom sessionStorage 작동) — listeners notify 가 useSyncExternalStore 의
+// re-render trigger 로 정확히 동작하도록. spy 로 호출 카운트 추적.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import * as storageModule from "@/features/strategy/webhook-secret-storage";
+
 // react-query mutation 체인 mock — 실제 hooks.ts 의 useRotateWebhookSecret 가
-// onSuccess 콜백을 호출해서 cacheWebhookSecret + setState 한다.
+// onSuccess 콜백 안에서 cacheWebhookSecret 을 호출하므로 mock 도 동일 emulate.
 const rotateMutate = vi.fn();
 let rotateOnSuccess: ((data: { secret: string; webhook_url: string }) => void) | null = null;
 let rotateIsPending = false;
 
 vi.mock("@/features/strategy/hooks", () => ({
   useRotateWebhookSecret: (
-    _strategyId: string,
+    strategyId: string,
     opts: { onSuccess?: (data: { secret: string; webhook_url: string }) => void } = {},
   ) => {
-    rotateOnSuccess = opts.onSuccess ?? null;
+    rotateOnSuccess = (data) => {
+      // 실제 hooks.ts onSuccess emulate — cacheWebhookSecret 가 sessionStorage write +
+      // notify() 호출 → useSyncExternalStore 가 새 snapshot 읽어 amber card 갱신.
+      storageModule.cacheWebhookSecret(strategyId, data.secret);
+      opts.onSuccess?.(data);
+    };
     return {
       mutate: rotateMutate,
       isPending: rotateIsPending,
     };
   },
 }));
-
-const cacheCalls: { strategyId: string; plaintext: string }[] = [];
-const clearCalls: string[] = [];
-
-vi.mock("@/features/strategy/webhook-secret-storage", () => ({
-  cacheWebhookSecret: (strategyId: string, plaintext: string) => {
-    cacheCalls.push({ strategyId, plaintext });
-  },
-  readWebhookSecret: (strategyId: string) => readSecretMock(strategyId),
-  clearWebhookSecret: (strategyId: string) => {
-    clearCalls.push(strategyId);
-  },
-}));
-
-let _readReturn: string | null = null;
-function readSecretMock(_strategyId: string): string | null {
-  return _readReturn;
-}
 
 vi.mock("sonner", () => ({
   toast: {
@@ -50,13 +42,16 @@ import { TabWebhook } from "../tab-webhook";
 
 const STRATEGY_ID = "550e8400-e29b-41d4-a716-446655440000";
 
+const cacheSpy = vi.spyOn(storageModule, "cacheWebhookSecret");
+const clearSpy = vi.spyOn(storageModule, "clearWebhookSecret");
+
 beforeEach(() => {
   rotateMutate.mockReset();
   rotateOnSuccess = null;
   rotateIsPending = false;
-  cacheCalls.length = 0;
-  clearCalls.length = 0;
-  _readReturn = null;
+  cacheSpy.mockClear();
+  clearSpy.mockClear();
+  sessionStorage.clear();
   // navigator.clipboard mock
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -67,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
 });
 
 describe("TabWebhook", () => {
@@ -115,8 +111,10 @@ describe("TabWebhook", () => {
     expect(plaintextEl.textContent).toBe("new-plaintext-abc-32chars-or-more");
   });
 
-  it("with cached plaintext (sessionStorage) → renders amber card immediately on mount", () => {
-    _readReturn = "cached-plaintext-from-create-flow";
+  it("with cached plaintext (sessionStorage) → renders amber card immediately on mount (Sprint 14 hydration race fix)", () => {
+    // Sprint 14 Phase A — sessionStorage 에 plaintext 캐시된 상태에서 mount 하면
+    // useSyncExternalStore 의 client snapshot 이 mount 시점 read → amber card 즉시 표시.
+    storageModule.cacheWebhookSecret(STRATEGY_ID, "cached-plaintext-from-create-flow");
     render(<TabWebhook strategyId={STRATEGY_ID} />);
 
     const card = screen.getByTestId("webhook-secret-amber-card");
@@ -125,8 +123,8 @@ describe("TabWebhook", () => {
     expect(plaintextEl.textContent).toBe("cached-plaintext-from-create-flow");
   });
 
-  it("hide button → clearWebhookSecret 호출 + amber card 사라짐 + 재표시 불가", () => {
-    _readReturn = "to-be-hidden";
+  it("hide button → clearWebhookSecret 호출 + notify 로 amber card 자동 사라짐 + 재표시 불가", () => {
+    storageModule.cacheWebhookSecret(STRATEGY_ID, "to-be-hidden");
     render(<TabWebhook strategyId={STRATEGY_ID} />);
 
     expect(screen.queryByTestId("webhook-secret-amber-card")).not.toBeNull();
@@ -134,8 +132,10 @@ describe("TabWebhook", () => {
     const hideBtn = screen.getByRole("button", { name: "Secret 숨기기" });
     fireEvent.click(hideBtn);
 
-    // clearWebhookSecret 호출 + amber card 사라짐
-    expect(clearCalls).toEqual([STRATEGY_ID]);
+    // clearWebhookSecret 호출 + notify → useSyncExternalStore 가 null snapshot 읽어 amber 사라짐
+    expect(clearSpy).toHaveBeenCalledWith(STRATEGY_ID);
     expect(screen.queryByTestId("webhook-secret-amber-card")).toBeNull();
+    // sessionStorage 에서도 실제로 제거됐는지 확인 (재표시 불가 회귀 안전)
+    expect(storageModule.readWebhookSecret(STRATEGY_ID)).toBeNull();
   });
 });

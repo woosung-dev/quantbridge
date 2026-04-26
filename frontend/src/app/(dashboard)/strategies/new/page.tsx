@@ -77,7 +77,10 @@ export default function NewStrategyPage() {
         onSuccess: (data) => {
           clearWizardDraft(userId);
           toast.success(`"${data.name}" 전략이 생성되었습니다`);
-          router.push(`/strategies/${data.id}/edit`);
+          // Sprint 14 Phase A C안: webhook tab 으로 직접 진입 — sessionStorage 캐시 된
+          // 1회 표시 plaintext 가 EditorView 새 mount + TabWebhook useEffect read 로
+          // 즉시 amber card 에 노출. 사용자가 webhook 탭 직접 클릭 안 해도 됨.
+          router.push(`/strategies/${data.id}/edit?tab=webhook`);
         },
         onError: (err) => {
           handleMutationError(err);
