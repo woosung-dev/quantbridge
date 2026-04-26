@@ -108,6 +108,17 @@ class StrategyResponse(BaseModel):
     updated_at: AwareDatetime
 
 
+class StrategyCreateResponse(StrategyResponse):
+    """create 응답 전용. 신규 발급된 webhook_secret plaintext 1회 포함.
+
+    Sprint 13 Phase A.1.4: Strategy 생성 시 atomic auto-issue 된 secret 의 plaintext 를
+    1회만 응답에 포함. GET / list 응답에서는 절대 사용 금지 — frontend 는 sessionStorage
+    캐시 (TTL 30분) 로 재사용.
+    """
+
+    webhook_secret: str | None = None
+
+
 class StrategyListResponse(BaseModel):
     items: list[StrategyListItem]
     total: int

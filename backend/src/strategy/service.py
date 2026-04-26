@@ -22,6 +22,7 @@ from src.strategy.schemas import (
     CreateStrategyRequest,
     ParseError,
     ParsePreviewResponse,
+    StrategyCreateResponse,
     StrategyListItem,
     StrategyListResponse,
     StrategyResponse,
@@ -30,6 +31,7 @@ from src.strategy.schemas import (
 
 if TYPE_CHECKING:
     from src.backtest.repository import BacktestRepository
+    from src.trading.service import WebhookSecretService
 
 
 _VERSION_RE = re.compile(r"//\s*@version\s*=\s*(\d+)", re.MULTILINE)
@@ -141,9 +143,14 @@ class StrategyService:
         # 항상 주입; None은 unit test 또는 background CLI 경로에서만 허용.
         # None일 경우 backtest 선조회 스킵 — DB FK RESTRICT가 최종 안전망.
         backtest_repo: BacktestRepository | None = None,
+        # Sprint 13 Phase A.1.3: webhook_secret atomic auto-issue. 동일 session 으로
+        # 주입되면 create() 가 strategy + secret 을 단일 트랜잭션으로 commit.
+        # None 이면 auto-issue 스킵 (테스트 / CLI 경로 호환).
+        secret_svc: WebhookSecretService | None = None,
     ) -> None:
         self.repo = repo
         self.backtest_repo = backtest_repo
+        self._secret_svc = secret_svc
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
         status, version, warnings, errors, entry_count, exit_count, functions_used = (
@@ -165,7 +172,13 @@ class StrategyService:
 
     async def create(
         self, data: CreateStrategyRequest, *, owner_id: UUID
-    ) -> StrategyResponse:
+    ) -> StrategyCreateResponse:
+        """Sprint 13 Phase A.1.2: webhook_secret atomic auto-issue.
+
+        secret_svc 주입 시 strategy + webhook_secret 단일 트랜잭션. issue(commit=False)
+        가 add+flush 만 하고, repo.commit() 이 둘 다 영구 저장. repo.commit() 실패 시
+        plaintext 응답 X (둘 다 rollback).
+        """
         status, version, _warnings, errors, _e, _x, _fu = _parse(data.pine_source)
         parse_errors = [e.model_dump() for e in errors] if errors else None
         strategy = Strategy(
@@ -182,8 +195,20 @@ class StrategyService:
             trading_sessions=list(data.trading_sessions),
         )
         saved = await self.repo.create(strategy)
-        await self.repo.commit()
-        return StrategyResponse.model_validate(saved)
+
+        webhook_secret_plaintext: str | None = None
+        if self._secret_svc is not None:
+            # commit=False: 동일 session 내 add+flush 만. repo.commit() 이 atomic.
+            webhook_secret_plaintext = await self._secret_svc.issue(
+                saved.id, commit=False
+            )
+
+        await self.repo.commit()  # strategy + webhook_secret 동일 트랜잭션 commit
+        base = StrategyResponse.model_validate(saved)
+        return StrategyCreateResponse(
+            **base.model_dump(),
+            webhook_secret=webhook_secret_plaintext,
+        )
 
     async def list(
         self,

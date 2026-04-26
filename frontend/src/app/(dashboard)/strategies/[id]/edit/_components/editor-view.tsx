@@ -32,8 +32,9 @@ import { DeleteDialog } from "./delete-dialog";
 import { TabCode } from "./tab-code";
 import { TabMetadata } from "./tab-metadata";
 import { TabParse } from "./tab-parse";
+import { TabWebhook } from "./tab-webhook";
 
-type TabKey = "code" | "parse" | "metadata";
+type TabKey = "code" | "parse" | "metadata" | "webhook";
 
 export function EditorView({ id }: { id: string }) {
   const router = useRouter();
@@ -200,6 +201,7 @@ export function EditorView({ id }: { id: string }) {
           <TabsTrigger value="code">코드</TabsTrigger>
           <TabsTrigger value="parse">파싱 결과</TabsTrigger>
           <TabsTrigger value="metadata">메타데이터</TabsTrigger>
+          <TabsTrigger value="webhook">Webhook</TabsTrigger>
         </TabsList>
         <TabsContent value="code" className="mt-4">
           <TabCode strategy={strategy} />
@@ -209,6 +211,9 @@ export function EditorView({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="metadata" className="mt-4">
           <TabMetadata strategy={strategy} />
+        </TabsContent>
+        <TabsContent value="webhook" className="mt-4">
+          <TabWebhook strategyId={strategy.id} />
         </TabsContent>
       </Tabs>
 
