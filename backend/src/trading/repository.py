@@ -166,6 +166,23 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    async def attach_exchange_order_id(
+        self, order_id: UUID, exchange_order_id: str
+    ) -> int:
+        """Sprint 14 Phase C — submitted 상태 유지 + exchange_order_id 만 저장.
+
+        Bybit Demo / Live 의 REST 주문 접수 후 receipt.status="submitted" 일 때
+        DB filled 거짓 양성 회피. WS order event 또는 reconciler 가 terminal
+        evidence 받을 때 transition_to_filled / transition_to_rejected 호출.
+        """
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .values(exchange_order_id=exchange_order_id)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
     async def get_daily_summary(self, date: _dt_module.date) -> tuple[Decimal, int, int]:
         """특정 날짜(UTC)의 일일 요약.
 
