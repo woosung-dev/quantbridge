@@ -3,6 +3,7 @@
 AsyncSession import 절대 금지 — OrderService.execute advisory lock 경로만 예외.
 동일 트랜잭션에서 advisory lock + 쿼리가 필요하므로 예외적 주입.
 """
+
 from __future__ import annotations
 
 import logging
@@ -53,13 +54,9 @@ class ExchangeAccountService:
         self._crypto = crypto
         self._bybit_futures_provider = bybit_futures_provider
 
-    async def register(
-        self, user_id: UUID, req: RegisterAccountRequest
-    ) -> ExchangeAccount:
+    async def register(self, user_id: UUID, req: RegisterAccountRequest) -> ExchangeAccount:
         # Sprint 7d: passphrase는 선택적. 존재 시 동일 AES-256 레이어로 암호화.
-        passphrase_ct = (
-            self._crypto.encrypt(req.passphrase) if req.passphrase else None
-        )
+        passphrase_ct = self._crypto.encrypt(req.passphrase) if req.passphrase else None
         account = ExchangeAccount(
             user_id=user_id,
             exchange=req.exchange,
@@ -116,10 +113,7 @@ class ExchangeAccountService:
         account = await self._repo.get_by_id(account_id)
         if account is None:
             return None
-        if (
-            self._bybit_futures_provider is None
-            or account.exchange.value != "bybit"
-        ):
+        if self._bybit_futures_provider is None or account.exchange.value != "bybit":
             return None
         creds = await self.get_credentials_for_order(account_id)
         try:
@@ -161,9 +155,7 @@ class WebhookSecretService:
         """
         plaintext = secrets.token_urlsafe(32)
         encrypted = self._crypto.encrypt(plaintext)
-        await self._repo.save(
-            WebhookSecret(strategy_id=strategy_id, secret_encrypted=encrypted)
-        )
+        await self._repo.save(WebhookSecret(strategy_id=strategy_id, secret_encrypted=encrypted))
         if commit:
             await self._repo.commit()
         return plaintext
@@ -178,9 +170,7 @@ class WebhookSecretService:
         await self._repo.revoke_all_active(strategy_id, at=now)
         plaintext = secrets.token_urlsafe(32)
         encrypted = self._crypto.encrypt(plaintext)
-        await self._repo.save(
-            WebhookSecret(strategy_id=strategy_id, secret_encrypted=encrypted)
-        )
+        await self._repo.save(WebhookSecret(strategy_id=strategy_id, secret_encrypted=encrypted))
         await self._repo.commit()  # Sprint 13 Phase A.1.1 — Sprint 6 broken bug fix
         logger.info(
             "webhook_secret_rotated",
@@ -243,9 +233,7 @@ class OrderService:
         실질 분산 mutex. Redis 장애 시 graceful degrade → PG advisory 가 권위.
         """
         if idempotency_key is None:
-            return await self._execute_inner(
-                req, idempotency_key=None, body_hash=None
-            )
+            return await self._execute_inner(req, idempotency_key=None, body_hash=None)
 
         from src.common.redlock import RedisLock
 
@@ -277,9 +265,7 @@ class OrderService:
         # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
         # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
         if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
-            qb_order_rejected_total.labels(
-                exchange=_metric_exchange, reason="leverage_cap"
-            ).inc()
+            qb_order_rejected_total.labels(exchange=_metric_exchange, reason="leverage_cap").inc()
             raise LeverageCapExceeded(
                 requested=req.leverage,
                 cap=settings.bybit_futures_max_leverage,
@@ -294,15 +280,11 @@ class OrderService:
             and req.leverage is not None
             and req.price is not None
         ):
-            available = await self._exchange_service.fetch_balance_usdt(
-                req.exchange_account_id
-            )
+            available = await self._exchange_service.fetch_balance_usdt(req.exchange_account_id)
             if available is not None and available > Decimal("0"):
                 notional = req.quantity * req.price * Decimal(req.leverage)
                 max_notional = (
-                    available
-                    * Decimal(settings.bybit_futures_max_leverage)
-                    * Decimal("0.95")
+                    available * Decimal(settings.bybit_futures_max_leverage) * Decimal("0.95")
                 )
                 if notional > max_notional:
                     qb_order_rejected_total.labels(
@@ -359,21 +341,23 @@ class OrderService:
                             exchange=_metric_exchange, reason="kill_switch"
                         ).inc()
                         raise
-                    order = await self._repo.save(Order(
-                        strategy_id=req.strategy_id,
-                        exchange_account_id=req.exchange_account_id,
-                        symbol=req.symbol,
-                        side=req.side,
-                        type=req.type,
-                        quantity=req.quantity,
-                        price=req.price,
-                        state=OrderState.pending,
-                        idempotency_key=idempotency_key,
-                        idempotency_payload_hash=body_hash,
-                        # Sprint 7a: Futures. Spot은 모두 None.
-                        leverage=req.leverage,
-                        margin_mode=req.margin_mode,
-                    ))
+                    order = await self._repo.save(
+                        Order(
+                            strategy_id=req.strategy_id,
+                            exchange_account_id=req.exchange_account_id,
+                            symbol=req.symbol,
+                            side=req.side,
+                            type=req.type,
+                            quantity=req.quantity,
+                            price=req.price,
+                            state=OrderState.pending,
+                            idempotency_key=idempotency_key,
+                            idempotency_payload_hash=body_hash,
+                            # Sprint 7a: Futures. Spot은 모두 None.
+                            leverage=req.leverage,
+                            margin_mode=req.margin_mode,
+                        )
+                    )
                     created_order_id = order.id
             else:
                 try:
@@ -386,23 +370,29 @@ class OrderService:
                         exchange=_metric_exchange, reason="kill_switch"
                     ).inc()
                     raise
-                order = await self._repo.save(Order(
-                    strategy_id=req.strategy_id,
-                    exchange_account_id=req.exchange_account_id,
-                    symbol=req.symbol,
-                    side=req.side,
-                    type=req.type,
-                    quantity=req.quantity,
-                    price=req.price,
-                    state=OrderState.pending,
-                    idempotency_key=None,
-                    idempotency_payload_hash=None,
-                    # Sprint 7a: Futures. Spot은 모두 None.
-                    leverage=req.leverage,
-                    margin_mode=req.margin_mode,
-                ))
+                order = await self._repo.save(
+                    Order(
+                        strategy_id=req.strategy_id,
+                        exchange_account_id=req.exchange_account_id,
+                        symbol=req.symbol,
+                        side=req.side,
+                        type=req.type,
+                        quantity=req.quantity,
+                        price=req.price,
+                        state=OrderState.pending,
+                        idempotency_key=None,
+                        idempotency_payload_hash=None,
+                        # Sprint 7a: Futures. Spot은 모두 None.
+                        leverage=req.leverage,
+                        margin_mode=req.margin_mode,
+                    )
+                )
                 created_order_id = order.id
-        # context exit -> commit (lock 해제, row visible)
+        # begin_nested 의 context exit 은 SAVEPOINT release 만. outer transaction 은
+        # 별도 commit 필요 — 누락 시 session.close() 시 ROLLBACK 으로 INSERT 가
+        # 영구 저장 안 됨 (Sprint 6 webhook_secret broken bug 와 동일 패턴).
+        # Sprint 13 dogfood Day 2 발견 hotfix.
+        await self._session.commit()
 
         if cached_response is not None:
             return cached_response, True

@@ -152,3 +152,74 @@ async def test_rotate_calls_repo_commit():
     repo.revoke_all_active.assert_awaited_once()
     repo.save.assert_awaited_once()
     repo.commit.assert_awaited_once()  # ← Sprint 6 broken bug 핵심
+
+
+# ── Mock spy 회귀: OrderService outer commit (Sprint 13 dogfood Day 2 hotfix) ──
+# OrderService._execute_inner 가 begin_nested context exit 후 outer commit 호출하지
+# 않으면 session.close() 시 ROLLBACK 으로 INSERT 영구 저장 안 됨. dogfood Day 2
+# 첫 webhook 호출에서 발견된 broken bug. Sprint 6 webhook_secret 과 동일 패턴.
+
+
+@pytest.mark.asyncio
+async def test_order_service_execute_calls_outer_commit():
+    """Sprint 13 dogfood Day 2 hotfix: OrderService.execute 가 outer commit 호출 강제."""
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.trading.models import Order, OrderSide, OrderState, OrderType
+    from src.trading.schemas import OrderRequest
+    from src.trading.service import OrderService
+
+    session = AsyncMock(spec=AsyncSession)
+    # begin_nested 가 async context manager 지원 — __aenter__/__aexit__ 자체 동작
+    session.begin_nested = MagicMock(return_value=AsyncMock())
+
+    repo = AsyncMock()
+    saved_order = Order(
+        id=uuid4(),
+        strategy_id=uuid4(),
+        exchange_account_id=uuid4(),
+        symbol="BTCUSDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        state=OrderState.pending,
+        idempotency_key=None,
+        idempotency_payload_hash=None,
+        leverage=None,
+        margin_mode=None,
+    )
+    repo.save = AsyncMock(return_value=saved_order)
+    repo.get_by_id = AsyncMock(return_value=saved_order)
+
+    kill_switch = AsyncMock()
+    kill_switch.ensure_not_gated = AsyncMock()
+
+    dispatcher = AsyncMock()
+
+    svc = OrderService(
+        session=session,
+        repo=repo,
+        dispatcher=dispatcher,
+        kill_switch=kill_switch,
+        sessions_port=None,
+        exchange_service=None,
+    )
+
+    req = OrderRequest(
+        strategy_id=saved_order.strategy_id,
+        exchange_account_id=saved_order.exchange_account_id,
+        symbol="BTCUSDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+    )
+
+    await svc.execute(req, idempotency_key=None, body_hash=None)
+
+    # 핵심 검증 — outer commit 호출 강제 (Sprint 6 broken bug 와 동일 패턴)
+    session.commit.assert_awaited_once()
