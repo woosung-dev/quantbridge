@@ -51,9 +51,13 @@ export function BacktestForm() {
     register,
     handleSubmit,
     setValue,
+    setError,
+    clearErrors,
     control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
+    // Sprint 13 Phase C: 첫 제출 전에도 필드 단위 에러 노출 (시작일/종료일 누락 등)
+    mode: "onChange",
     defaultValues: {
       strategy_id: initialStrategyId,
       symbol: "BTC/USDT",
@@ -70,11 +74,23 @@ export function BacktestForm() {
       router.push(`/backtests/${data.backtest_id}`);
     },
     onError: (err) => {
-      toast.error(`요청 실패: ${err.message}`);
+      // Sprint 13 Phase C: 422 백엔드 응답은 form-level inline 에러로 표시.
+      // ApiError 는 numeric `status` 를 보존하므로 안전하게 narrow 한다.
+      const status = (err as { status?: number }).status;
+      if (status === 422) {
+        setError("root.serverError", {
+          type: "manual",
+          message: err.message || "입력값이 유효하지 않습니다",
+        });
+      } else {
+        toast.error(`요청 실패: ${err.message}`);
+      }
     },
   });
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
+    // 재제출 시 직전 422 form-level 에러 메시지 클리어.
+    clearErrors("root.serverError");
     create.mutate({
       strategy_id: values.strategy_id,
       symbol: values.symbol,
@@ -236,6 +252,16 @@ export function BacktestForm() {
           </p>
         ) : null}
       </div>
+
+      {errors.root?.serverError?.message ? (
+        <p
+          className="text-sm text-destructive"
+          role="alert"
+          data-testid="backtest-form-server-error"
+        >
+          {errors.root.serverError.message}
+        </p>
+      ) : null}
 
       <div className="flex justify-end gap-2">
         <Button

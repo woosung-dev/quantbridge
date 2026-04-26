@@ -52,6 +52,20 @@ export const StrategyResponseSchema = z.object({
 });
 export type StrategyResponse = z.infer<typeof StrategyResponseSchema>;
 
+// Sprint 13 Phase A.1.4: Strategy create 응답에만 webhook_secret plaintext 1회 포함.
+// GET / list 응답은 StrategyResponse 유지 — webhook_secret 노출 X.
+export const StrategyCreateResponseSchema = StrategyResponseSchema.extend({
+  webhook_secret: z.string().nullable().optional(),
+});
+export type StrategyCreateResponse = z.infer<typeof StrategyCreateResponseSchema>;
+
+// Sprint 13 Phase A.2: rotate-webhook-secret 응답 (Sprint 6 broken bug fix 후).
+export const WebhookRotateResponseSchema = z.object({
+  secret: z.string(),
+  webhook_url: z.string(),
+});
+export type WebhookRotateResponse = z.infer<typeof WebhookRotateResponseSchema>;
+
 export const StrategyListItemSchema = StrategyResponseSchema.omit({
   pine_source: true,
   description: true,

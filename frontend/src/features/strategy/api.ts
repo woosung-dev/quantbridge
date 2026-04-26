@@ -6,16 +6,20 @@ import { apiFetch } from "@/lib/api-client";
 import {
   CreateStrategyRequestSchema,
   ParsePreviewResponseSchema,
+  StrategyCreateResponseSchema,
   StrategyListQuerySchema,
   StrategyListResponseSchema,
   StrategyResponseSchema,
   UpdateStrategyRequestSchema,
+  WebhookRotateResponseSchema,
   type CreateStrategyRequest,
   type ParsePreviewResponse,
+  type StrategyCreateResponse,
   type StrategyListQuery,
   type StrategyListResponse,
   type StrategyResponse,
   type UpdateStrategyRequest,
+  type WebhookRotateResponse,
 } from "./schemas";
 
 const STRATEGIES_PATH = "/api/v1/strategies";
@@ -53,14 +57,32 @@ export async function getStrategy(
 export async function createStrategy(
   body: CreateStrategyRequest,
   token: string | null,
-): Promise<StrategyResponse> {
+): Promise<StrategyCreateResponse> {
+  // Sprint 13 Phase A.1.4: response 에 webhook_secret plaintext 1회 포함.
+  // 호출자 (useCreateStrategy onSuccess) 가 sessionStorage 에 캐시 (TTL 30분).
   const parsed = CreateStrategyRequestSchema.parse(body);
   const raw = await apiFetch<unknown>(STRATEGIES_PATH, {
     method: "POST",
     token,
     body: parsed,
   });
-  return StrategyResponseSchema.parse(raw);
+  return StrategyCreateResponseSchema.parse(raw);
+}
+
+// Sprint 13 Phase A.2: webhook secret rotate (Sprint 6 broken bug fix 후 정상 동작).
+// plaintext 는 응답에서 1회만 받음 — 호출자가 sessionStorage 캐시.
+export async function rotateWebhookSecret(
+  strategyId: string,
+  token: string | null,
+): Promise<WebhookRotateResponse> {
+  const raw = await apiFetch<unknown>(
+    `${STRATEGIES_PATH}/${strategyId}/rotate-webhook-secret`,
+    {
+      method: "POST",
+      token,
+    },
+  );
+  return WebhookRotateResponseSchema.parse(raw);
 }
 
 export async function updateStrategy(

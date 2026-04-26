@@ -18,6 +18,7 @@ from src.strategy.schemas import (
     CreateStrategyRequest,
     ParsePreviewResponse,
     ParseRequest,
+    StrategyCreateResponse,
     StrategyListResponse,
     StrategyResponse,
     UpdateStrategyRequest,
@@ -39,7 +40,7 @@ async def parse_preview(
     return await service.parse_preview(data.pine_source)
 
 
-@router.post("", status_code=201, response_model=StrategyResponse)
+@router.post("", status_code=201, response_model=StrategyCreateResponse)
 @limiter.limit("30/minute")
 async def create_strategy(
     request: Request,  # slowapi 가 IP/key 추출에 사용
@@ -47,7 +48,12 @@ async def create_strategy(
     response: Response,
     current_user: CurrentUser = Depends(get_current_user),
     service: StrategyService = Depends(get_strategy_service),
-) -> StrategyResponse:
+) -> StrategyCreateResponse:
+    """Sprint 13 Phase A.1.4: response 에 webhook_secret plaintext 1회 포함.
+
+    Frontend 가 sessionStorage 캐시 (TTL 30분) 로 후속 Test Order Dialog 에서 재사용.
+    GET / list 응답은 StrategyResponse 유지 — webhook_secret 노출 X.
+    """
     return await service.create(data, owner_id=current_user.id)
 
 

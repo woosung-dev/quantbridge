@@ -1,11 +1,15 @@
 "use client";
 
 import { ListChecksIcon } from "lucide-react";
-import { useOrders } from "../hooks";
+import { useIsOrderDisabledByKs, useOrders } from "../hooks";
+import { TestOrderDialog } from "./test-order-dialog";
 import { TradingEmptyState } from "./trading-empty-state";
 
 export function OrdersPanel() {
   const { data, isLoading, isError } = useOrders(50);
+  const ksDisabled = useIsOrderDisabledByKs();
+  const isTestOrderEnabled =
+    process.env.NEXT_PUBLIC_ENABLE_TEST_ORDER === "true";
 
   if (isError) {
     return (
@@ -21,7 +25,14 @@ export function OrdersPanel() {
 
   return (
     <section className="p-4 border rounded">
-      <h2 className="font-semibold mb-3">Recent Orders ({data.total})</h2>
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <h2 className="font-semibold">Recent Orders ({data.total})</h2>
+        {isTestOrderEnabled ? (
+          <div className={ksDisabled ? "pointer-events-none opacity-50" : ""}>
+            <TestOrderDialog />
+          </div>
+        ) : null}
+      </div>
       {data.items.length === 0 ? (
         <TradingEmptyState
           icon={ListChecksIcon}

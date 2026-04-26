@@ -27,17 +27,21 @@ import {
   getStrategy,
   listStrategies,
   parseStrategy,
+  rotateWebhookSecret,
   updateStrategy,
 } from "./api";
 import { strategyKeys } from "./query-keys";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
+  StrategyCreateResponse,
   StrategyListQuery,
   StrategyListResponse,
   StrategyResponse,
   UpdateStrategyRequest,
+  WebhookRotateResponse,
 } from "./schemas";
+import { cacheWebhookSecret } from "./webhook-secret-storage";
 
 // RSC에서도 참조할 수 있도록 key factory는 query-keys.ts에 분리. 호환성 re-export.
 export { strategyKeys };
@@ -108,8 +112,8 @@ export interface MutationCallbacks<TData, TError = Error> {
 }
 
 export function useCreateStrategy(
-  opts: MutationCallbacks<StrategyResponse> = {},
-): UseMutationResult<StrategyResponse, Error, CreateStrategyRequest> {
+  opts: MutationCallbacks<StrategyCreateResponse> = {},
+): UseMutationResult<StrategyCreateResponse, Error, CreateStrategyRequest> {
   const { userId, getToken } = useAuth();
   const uid = userId ?? ANON_USER_ID;
   const qc = useQueryClient();
@@ -119,9 +123,41 @@ export function useCreateStrategy(
       return createStrategy(body, token);
     },
     onSuccess: (created) => {
+      // Sprint 13 Phase A.1.4: webhook_secret plaintext 가 응답에 포함되면
+      // sessionStorage 에 캐시 (TTL 30분) — Phase B Test Order Dialog 가 사용.
+      if (created.webhook_secret) {
+        cacheWebhookSecret(created.id, created.webhook_secret);
+      }
       qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
-      qc.setQueryData(strategyKeys.detail(uid, created.id), created);
+      // G.2 challenge P2 #2 fix: webhook_secret 은 sessionStorage TTL/hide 정책으로
+      // 만 수명 관리. react-query detail cache 에는 secret 제외 sanitized 만 저장.
+      const { webhook_secret: _omitted, ...sanitized } = created;
+      qc.setQueryData(
+        strategyKeys.detail(uid, created.id),
+        sanitized as StrategyResponse,
+      );
       opts.onSuccess?.(created);
+    },
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+// Sprint 13 Phase A.2: webhook secret rotate hook.
+// Sprint 6 broken bug fix 후 BE 가 commit() 호출하므로 DB 영구 저장. response 의
+// plaintext 를 sessionStorage 에 캐시 + 호출자 (TabWebhook) 에게 전달.
+export function useRotateWebhookSecret(
+  strategyId: string,
+  opts: MutationCallbacks<WebhookRotateResponse> = {},
+): UseMutationResult<WebhookRotateResponse, Error, void> {
+  const { getToken } = useAuth();
+  return useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      return rotateWebhookSecret(strategyId, token);
+    },
+    onSuccess: (data) => {
+      cacheWebhookSecret(strategyId, data.secret);
+      opts.onSuccess?.(data);
     },
     onError: (err) => opts.onError?.(err),
   });
