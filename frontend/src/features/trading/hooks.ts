@@ -260,3 +260,12 @@ export function useDeleteExchangeAccount(): UseMutationResult<void, Error, strin
     },
   });
 }
+
+// Sprint 13 Phase B: KillSwitch active 시 주문 진입 차단 helper.
+// 기존 useKillSwitchEvents 를 재사용 — resolved_at == null 인 이벤트가 1개라도 있으면 true.
+// Test Order Dialog 와 향후 manual 주문 UI 에서 button disabled 판단에 사용.
+export function useIsOrderDisabledByKs(): boolean {
+  const { data } = useKillSwitchEvents();
+  if (!data) return false;
+  return data.items.some((e) => !e.resolved_at);
+}
