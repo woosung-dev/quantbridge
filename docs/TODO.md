@@ -4,9 +4,17 @@
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 → H2 transition (dogfood 검증 단계). Sprint 1~12 + Path β + dogfood Day 1 (2026-04-25/26) 완료. **H1→H2 gate 미통과 (self-assessment 3/10)** — Trading 도메인 dogfood UX 부재가 결정적. 다음: **Sprint 13 Track UX (신설)** → Phase A/B/C 완료 후 dogfood Day 2 재평가.
+> **📍 현재 Horizon:** H1 → H2 transition (dogfood 검증 단계). Sprint 1~13 + Path β + dogfood Day 1 (2026-04-25/26) 완료. **Sprint 13 Track UX 완료 (PR #78)** — Sprint 6 broken bug fix + atomic webhook auto-issue + TabWebhook + TestOrderDialog + Backtest 422 inline. **dogfood Day 2 검증 대기** (PR 머지 후 즉시 — self-assessment ≥ 7/10 시 H1→H2 gate 통과).
 
-> **🚀 현재 세션 작업:** dogfood Day 1 종료 (2026-04-26). 회고: [`docs/dev-log/2026-04-25-dogfood-day1.md`](dev-log/2026-04-25-dogfood-day1.md). 다음 세션 프롬프트: [`~/.claude/plans/h2-sprint-13-prompt.md`](~/.claude/plans/h2-sprint-13-prompt.md). Pain top 5 + Track UX 우선순위 변경 정당화.
+> **🚀 현재 세션 작업:** Sprint 13 Track UX 완료 (2026-04-26). PR #78 작성. 회고 다음 세션. dogfood Day 2 시나리오 6건 (`docs/dev-log/2026-04-26-dogfood-day2-pending.md` 신설 예정).
+
+### Sprint 14 이관 (G.4 P2 잔존)
+
+- [ ] WebCrypto error 처리 — `crypto.subtle.sign` / `randomUUID` 실패 시 inline error (현재는 unhandled promise reject 가능)
+- [ ] Strategies/Accounts query loading/error UX — 빈 목록 vs 실패가 동일 UX. `useExchangeAccounts` 실패 시 안내 메시지
+- [ ] `NEXT_PUBLIC_API_URL` trailing slash strip + production 누락 처리 — string concat 으로 `//api/v1` 가능성
+- [ ] webhook 응답 `response.text()` size cap + JSON detail 정규화 — large body / stack trace 노출 방어
+- [ ] sessionStorage hardening (Sprint 14+): CSP `connect-src` allowlist + Trusted Types + secret masking
 
 ---
 
