@@ -30,6 +30,7 @@ import {
   readWebhookSecret,
   subscribeWebhookSecret,
 } from "@/features/strategy/webhook-secret-storage";
+import { getApiBase } from "@/lib/api-base";
 
 type TabWebhookProps = {
   strategyId: string;
@@ -37,11 +38,8 @@ type TabWebhookProps = {
 
 function buildWebhookUrl(strategyId: string): string {
   // Phase B 가 token (HMAC-SHA256 hex) 을 동적으로 추가. 표시용 URL 은 placeholder.
-  const apiBase =
-    typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-      : "http://localhost:8000";
-  return `${apiBase}/api/v1/webhooks/${strategyId}?token={HMAC}`;
+  // Sprint 14 Phase B-3 — getApiBase helper 통합 (3 곳 일관성).
+  return `${getApiBase()}/api/v1/webhooks/${strategyId}?token={HMAC}`;
 }
 
 export function TabWebhook({ strategyId }: TabWebhookProps) {

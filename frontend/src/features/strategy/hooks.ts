@@ -89,6 +89,9 @@ export function useStrategies(
   return useQuery({
     queryKey: strategyKeys.list(uid, query),
     queryFn: makeListFetcher(query, getToken),
+    // Sprint 14 Phase B-2 — 기본 3 retries 는 dogfood 지연 발생.
+    // 1회만 retry 후 isError 로 명시 표시 (StrategyList 가 retry 버튼 제공).
+    retry: 1,
   });
 }
 

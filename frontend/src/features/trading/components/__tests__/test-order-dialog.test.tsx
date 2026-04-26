@@ -312,6 +312,33 @@ describe("TestOrderDialog", () => {
     ).toBeInTheDocument();
   });
 
+  // Sprint 14 Phase B-1 — WebCrypto 미지원 / SubtleCrypto throw 시 unhandled
+  // promise rejection 방지. form error inline 표시 + dialog 유지 + fetch 미호출.
+  it("WebCrypto subtle.sign throws → inline error + dialog stays + no fetch", async () => {
+    isKsDisabledMock.mockReturnValue(false);
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    // crypto.subtle.sign mock — 첫 호출에서 throw (구식 브라우저 / non-HTTPS / 정책).
+    vi.spyOn(crypto.subtle, "sign").mockRejectedValue(
+      new Error("SubtleCrypto unavailable"),
+    );
+
+    renderDialog();
+    openDialog();
+    await fillForm();
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/암호화 처리 실패/);
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    // dialog 유지
+    expect(
+      screen.getByText(/테스트 주문 \(dogfood-only\)/),
+    ).toBeInTheDocument();
+  });
+
   // G.4 P1 #5 — KS active 시 submit 차단 (CSS pointer-events 만으론 키보드/직접 호출 우회 가능).
   it("KS active → submit button disabled + onSubmit 차단 + inline error", async () => {
     isKsDisabledMock.mockReturnValue(true);

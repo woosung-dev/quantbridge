@@ -2,6 +2,7 @@
 
 import { Trash2, WalletIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
 import { TradingEmptyState } from "./trading-empty-state";
@@ -40,7 +41,9 @@ function ModeBadge({ mode }: { mode: string | null | undefined }) {
 }
 
 export function ExchangeAccountsPanel() {
-  const { data, isError } = useExchangeAccounts();
+  // Sprint 14 Phase B-2 — isLoading 분기 추가 (skeleton) + isError 시 retry 버튼.
+  // 기존: !data return null → 로딩 중 빈 화면. 이제 skeleton 으로 명시.
+  const { data, isError, isLoading, refetch } = useExchangeAccounts();
   const deleteAccount = useDeleteExchangeAccount();
 
   if (isError) {
@@ -49,10 +52,30 @@ export function ExchangeAccountsPanel() {
         <p className="text-sm text-[color:var(--destructive)]">
           거래소 계정 목록을 불러오지 못했습니다.
         </p>
+        <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
+          네트워크 또는 인증 문제가 있을 수 있습니다.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={() => refetch()}
+        >
+          다시 시도
+        </Button>
       </section>
     );
   }
-  if (!data) return null;
+  if (isLoading || !data) {
+    return (
+      <section className="p-4 border rounded">
+        <div
+          aria-label="거래소 계정 불러오는 중"
+          className="h-20 animate-pulse rounded-md bg-[color:var(--bg-alt)]"
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="p-4 border rounded">

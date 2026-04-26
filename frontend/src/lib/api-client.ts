@@ -1,7 +1,9 @@
 // FastAPI 백엔드와 통신하는 fetch 기반 얇은 클라이언트.
 // 실제 토큰 주입/에러 매핑은 features/[domain]/api.ts에서 Clerk `getToken()`을 래핑해 수행.
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getApiBase, readErrorBody } from "./api-base";
+
+const API_BASE_URL = getApiBase();
 
 export class ApiError extends Error {
   constructor(
@@ -45,12 +47,9 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   });
 
   if (!res.ok) {
-    let detail: unknown;
-    try {
-      detail = await res.json();
-    } catch {
-      detail = await res.text();
-    }
+    // Sprint 14 Phase B-4 — error body size cap (8KB) + JSON detail 정규화.
+    // 큰 HTML 에러 페이지 (Nginx/Cloudflare) 가 ApiError.detail 에 그대로 흘러가는 위험 회피.
+    const detail = await readErrorBody(res);
     const code =
       detail && typeof detail === "object" && "code" in detail
         ? String((detail as { code: unknown }).code)
