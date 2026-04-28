@@ -263,27 +263,89 @@ sequenceDiagram
 
 ---
 
-## 7. 상태 폴링 vs WebSocket (현재/계획)
+## 7. Polling + Bybit Private WebSocket (Sprint 12 도입 ✅)
 
-### 현재 (Sprint 4)
+### 7.1 백테스트 진행 — 폴링 유지
 
-- 백테스트 진행: `GET /backtests/:id/progress` 폴링 (예: 1~2초 간격)
-- 단순, 캐시 친화적, 부담 낮음
+`GET /backtests/:id/progress` 1~2초 간격 폴링. 단순 + 캐시 친화적 + 부담 낮음. WS 로 마이그 안 함.
 
-### Sprint 7+ 예정
+### 7.2 Trading 주문 체결 — Bybit Private WebSocket (Sprint 12 Phase C)
 
-- WebSocket 채널: `/ws/sessions/:id` (트레이딩 세션 PnL/체결 push)
-- Zustand 캐시 (React Query와 분리, CLAUDE.md 규칙)
+```mermaid
+sequenceDiagram
+    participant W as ws-stream Worker<br/>(--pool=solo)
+    participant Sup as BybitPrivateStream<br/>supervisor
+    participant Stream as websockets connection
+    participant SH as StateHandler
+    participant DB as PostgreSQL
+    participant Buf as orphan_buffer<br/>(FIFO max 1000)
+    participant Beat as Celery Beat (5분)
+    participant Rec as Reconciler
+    participant CCXT as fetchOrder REST
+
+    W->>Sup: reconcile_ws_streams beat trigger
+    Sup->>Stream: connect + auth (60s startup timeout)
+    Stream-->>Sup: subscribed (order topic)
+
+    Note over Sup,Stream: 정상 흐름 — order event 수신
+    Stream-->>SH: order event {orderLinkId=UUID, status, ...}
+    SH->>DB: SELECT WHERE id = orderLinkId
+    alt UUID 매핑 OK
+        SH->>DB: UPDATE state (terminal evidence only)
+    else UUID 미상 / pending → terminal 점프
+        SH->>Buf: appendleft (FIFO 1000)
+        SH->>SH: qb_ws_orphan_event_total.inc()
+    end
+
+    Note over Sup,Stream: 끊김 — supervisor 재시작
+    Stream-xSup: ConnectionClosed / heartbeat 종료
+    Sup->>Sup: 1→30s exponential backoff
+    Sup->>Stream: reconnect + reauth
+    Sup->>Sup: qb_ws_reconnect_total.inc()
+
+    Note over Beat,Rec: 5분 beat — orphan + WS 끊김 보강
+    Beat->>Rec: reconcile_ws_streams
+    Rec->>DB: SELECT WHERE state IN ('submitted')<br/>AND created_at < now - 30s
+    Rec->>CCXT: fetchOrder(orderLinkId)
+    CCXT-->>Rec: unified status
+    alt status == 'closed' AND cumExecQty == quantity
+        Rec->>DB: UPDATE state = filled
+    else status == 'canceled'
+        Rec->>DB: UPDATE state = cancelled
+    else ambiguous (open / submitted)
+        Rec->>Rec: skip — qb_ws_reconcile_skipped_total.inc()
+    end
+```
+
+### 7.3 핵심 결정 (Sprint 12)
+
+- **supervisor 패턴** — supervisor task 가 child stream task 의 종료를 감지하여 자동 재시작 (1→30s exponential)
+- **`--pool=solo` 강제** — prefork 워커 의 `worker_shutdown` hook 이 main process 만 신호 받음 (자식 프로세스의 `_STOP_EVENTS` 미연결). solo pool 은 main 이 직접 task 실행
+- **OrderLinkId UUID 매핑** — CCXT 어댑터가 `params={orderLinkId: str(Order.id)}` 전달. WebSocket order event 가 들어오면 StateHandler 가 UUID 로 정확 매핑
+- **orphan_buffer FIFO max 1000** — UUID 미상 / pending → terminal 점프 등 즉시 매핑 불가 event 임시 보존
+- **terminal-evidence-only transition** — Reconciler 는 명확 매핑 (`closed + cumExecQty == quantity` → filled, `canceled` → cancelled) 만 적용. ambiguous 손대지 않음
+- **best-effort Slack alert** — KillSwitch event save 직후 alert task. alert 실패 ≠ KillSwitch 차단
+
+### 7.4 신규 metrics
+
+§7.2 시퀀스 안에 표시. 카탈로그는 [`system-architecture.md`](./system-architecture.md) §8.
+
+### 7.5 Sprint 13+ 이관
+
+- prefork+Redis lease 패턴 확장 (현재 `--pool=solo` 우회)
+- partial fill `cumExecQty` tracking
+- auth circuit breaker (1h TTL)
+- OKX Private WebSocket 어댑터
 
 ---
 
 ## 8. 페이지네이션 패턴
 
-| API | 패턴 | 비고 |
-|-----|------|------|
-| `GET /strategies` | `limit` + `offset` (Sprint 5 M4 통일) | `page`는 deprecated fallback (Sprint 6+ 제거) |
-| `GET /backtests` | `limit` + `offset` (Sprint 4 표준) | `common/pagination.py` |
-| `GET /backtests/:id/trades` | `limit` + `offset` | 동일 |
+| API                         | 패턴                                  | 비고                                          |
+| --------------------------- | ------------------------------------- | --------------------------------------------- |
+| `GET /strategies`           | `limit` + `offset` (Sprint 5 M4 통일) | `page`는 deprecated fallback (Sprint 6+ 제거) |
+| `GET /backtests`            | `limit` + `offset` (Sprint 4 표준)    | `common/pagination.py`                        |
+| `GET /backtests/:id/trades` | `limit` + `offset`                    | 동일                                          |
 
 > ✅ Sprint 5 M4 T32 완료: 모든 list endpoint `limit/offset` 표준 + `page` legacy fallback.
 

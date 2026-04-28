@@ -66,7 +66,12 @@ class ExchangeAccountService:
             passphrase_encrypted=passphrase_ct,
             label=req.label,
         )
-        return await self._repo.save(account)
+        saved = await self._repo.save(account)
+        # Sprint 15-A: commit 누락 fix. Sprint 6 (webhook_secret) / Sprint 13 (OrderService)
+        # 와 동일 broken bug 3 번째 재발 — get_async_session() 자동 commit 안 함이라
+        # request 종료 시 ROLLBACK. 회귀 테스트 test_register_calls_repo_commit.
+        await self._repo.commit()
+        return saved
 
     async def get_credentials_for_order(self, account_id: UUID) -> Credentials:
         """Provider가 주문 직전에만 호출. 감사 로깅 포인트."""
