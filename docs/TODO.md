@@ -27,8 +27,8 @@
 **카테고리:**
 
 - ✅ **영구 (정상)**: #2, #3, #8, #17 — opt-in flag 가 정확한 안전장치
-- 🟡 **fixture 활성화 후 자동 해소**: #4-7, #9-15 — Path β Stage 2c 2차 (✅ 2026-04-23) 후 회귀 검토 필요
-- 🔴 **dette**: #1 (golden 재생성), #16 (KIND-B/C 정밀도)
+- 🟡 **fixture 활성화 후 자동 해소**: #4-7, #9-15 — Path β Stage 2c 2차 (✅ 2026-04-23) 후 회귀 검토 필요 → [BL-026](./REFACTORING-BACKLOG.md#bl-026)
+- 🔴 **dette**: #1 (golden 재생성) → [BL-022](./REFACTORING-BACKLOG.md#bl-022) / #16 (KIND-B/C 정밀도) → [BL-023](./REFACTORING-BACKLOG.md#bl-023)
 
 **관리 규약:**
 
@@ -37,13 +37,15 @@
 
 ---
 
-### Sprint 14 이관 (G.4 P2 잔존)
+### Sprint 14 이관 (G.4 P2 잔존) → 백로그 이관 완료
 
-- [ ] WebCrypto error 처리 — `crypto.subtle.sign` / `randomUUID` 실패 시 inline error (현재는 unhandled promise reject 가능)
-- [ ] Strategies/Accounts query loading/error UX — 빈 목록 vs 실패가 동일 UX. `useExchangeAccounts` 실패 시 안내 메시지
-- [ ] `NEXT_PUBLIC_API_URL` trailing slash strip + production 누락 처리 — string concat 으로 `//api/v1` 가능성
-- [ ] webhook 응답 `response.text()` size cap + JSON detail 정규화 — large body / stack trace 노출 방어
-- [ ] sessionStorage hardening (Sprint 14+): CSP `connect-src` allowlist + Trusted Types + secret masking
+> 본 5 항목은 [`REFACTORING-BACKLOG.md`](./REFACTORING-BACKLOG.md) 의 BL-017~021 로 이관됨 (2026-04-30). active 처리 시 본 섹션 부활.
+
+- BL-017 — WebCrypto error 처리
+- BL-018 — Strategies/Accounts query loading/error UX
+- BL-019 — `NEXT_PUBLIC_API_URL` trailing slash + production 누락
+- BL-020 — webhook 응답 size cap + JSON detail 정규화
+- BL-021 — sessionStorage hardening
 
 ---
 
