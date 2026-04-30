@@ -201,34 +201,83 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 "error_message": error_msg,
             }
 
-        # 5. Transition: submitted → filled
-        filled_at = datetime.now(UTC)
-        rows = await repo.transition_to_filled(
-            order_id,
-            exchange_order_id=receipt.exchange_order_id,
-            filled_price=receipt.filled_price,
-            filled_at=filled_at,
-        )
-        if rows == 0:
-            logger.warning(
-                "concurrent_transition_filled",
-                extra={"order_id": str(order_id)},
+        # 5. Transition based on receipt.status (Sprint 14 Phase C — codex G.0 P1 #1 fix).
+        #    receipt.status 는 _map_ccxt_status() 의 결과:
+        #      - "filled"    → CCXT status="closed"|"filled"  → DB filled 전이
+        #      - "rejected"  → CCXT status="canceled"|"rejected" → DB rejected 전이
+        #      - "submitted" → CCXT status="open"|"pending"|null  → submitted 유지
+        #                       (WS order event / reconciler 가 terminal evidence 시 전이)
+        #
+        #    이 분기 추가 전엔 status="submitted" 도 무조건 transition_to_filled() 호출하여
+        #    DB 거짓 양성 발생 (REST 주문 접수 ≠ 실제 체결). dogfood Day 2 가 broker
+        #    실체결 미검증으로 끝난 원인 중 하나. Bybit Demo limit 주문이나 시장가 주문의
+        #    "WaitForFill" 상태는 status="open" 으로 받음.
+        if receipt.status == "filled":
+            filled_at = datetime.now(UTC)
+            rows = await repo.transition_to_filled(
+                order_id,
+                exchange_order_id=receipt.exchange_order_id,
+                filled_price=receipt.filled_price,
+                filled_at=filled_at,
             )
-            return {"order_id": str(order_id), "state": "conflict", "skipped": True}
-        await session.commit()
-        qb_active_orders.dec()  # Sprint 9 Phase D: terminal state (filled)
+            if rows == 0:
+                logger.warning(
+                    "concurrent_transition_filled",
+                    extra={"order_id": str(order_id)},
+                )
+                return {"order_id": str(order_id), "state": "conflict", "skipped": True}
+            await session.commit()
+            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state (filled)
+            logger.info(
+                "order_executed",
+                extra={
+                    "order_id": str(order_id),
+                    "exchange_order_id": receipt.exchange_order_id,
+                    "filled_price": str(receipt.filled_price) if receipt.filled_price else None,
+                },
+            )
+            return {
+                "order_id": str(order_id),
+                "state": "filled",
+                "exchange_order_id": receipt.exchange_order_id,
+                "filled_price": str(receipt.filled_price) if receipt.filled_price else None,
+            }
 
+        if receipt.status == "rejected":
+            error_msg = "exchange_rejected_at_submission"
+            await repo.transition_to_rejected(
+                order_id, error_message=error_msg, failed_at=datetime.now(UTC)
+            )
+            await session.commit()
+            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+            logger.info(
+                "order_rejected_by_exchange",
+                extra={
+                    "order_id": str(order_id),
+                    "exchange_order_id": receipt.exchange_order_id,
+                },
+            )
+            return {
+                "order_id": str(order_id),
+                "state": "rejected",
+                "exchange_order_id": receipt.exchange_order_id,
+                "error_message": error_msg,
+            }
+
+        # status == "submitted" — exchange_order_id 만 attach. submitted 유지.
+        # WS order event 가 orderLinkId(=Order.id) 또는 exchange_order_id 로 매칭하여
+        # terminal 시 transition_to_filled / transition_to_rejected 호출.
+        await repo.attach_exchange_order_id(order_id, receipt.exchange_order_id)
+        await session.commit()
         logger.info(
-            "order_executed",
+            "order_submitted_pending_fill",
             extra={
                 "order_id": str(order_id),
                 "exchange_order_id": receipt.exchange_order_id,
-                "filled_price": str(receipt.filled_price) if receipt.filled_price else None,
             },
         )
         return {
             "order_id": str(order_id),
-            "state": "filled",
+            "state": "submitted",
             "exchange_order_id": receipt.exchange_order_id,
-            "filled_price": str(receipt.filled_price) if receipt.filled_price else None,
         }

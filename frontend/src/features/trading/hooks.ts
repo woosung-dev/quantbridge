@@ -224,6 +224,8 @@ export function useExchangeAccounts(): UseQueryResult<ExchangeAccount[], Error> 
   return useQuery({
     queryKey: tradingKeys.exchangeAccounts(uid),
     queryFn: makeExchangeAccountsFetcher(getToken),
+    // Sprint 14 Phase B-2 — dogfood 지연 회피용 retry: 1.
+    retry: 1,
   });
 }
 

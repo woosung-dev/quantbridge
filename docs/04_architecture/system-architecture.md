@@ -25,11 +25,11 @@ flowchart LR
 
 ### 외부 의존성
 
-| 시스템 | 역할 | 의존 도메인 |
-|--------|------|-------------|
-| Clerk | 사용자 인증 (세션, JWT, Webhook) | auth |
-| TradingView | Pine Script 코드 원본 (사용자 수동 복사) | strategy (input only) |
-| CCXT 거래소 (Binance/Bybit/OKX) | OHLCV 수집, 주문 실행 | market_data, trading |
+| 시스템                          | 역할                                     | 의존 도메인           |
+| ------------------------------- | ---------------------------------------- | --------------------- |
+| Clerk                           | 사용자 인증 (세션, JWT, Webhook)         | auth                  |
+| TradingView                     | Pine Script 코드 원본 (사용자 수동 복사) | strategy (input only) |
+| CCXT 거래소 (Binance/Bybit/OKX) | OHLCV 수집, 주문 실행                    | market_data, trading  |
 
 ---
 
@@ -75,14 +75,14 @@ flowchart TB
 
 ### 컨테이너 책임
 
-| 컨테이너 | 책임 | 이미지/런타임 | 포트 |
-|----------|------|----------------|------|
-| Frontend | Next.js 16 SSR/CSR, Clerk SDK, React Query, Zustand | `node:22` | 3000 |
-| API | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch | `python:3.11-slim` + `uv` | 8000 |
-| Worker | Celery prefork, vectorbt 실행, OHLCV 수집 | API와 동일 이미지 | — |
-| Beat | Celery beat scheduler (stale reclaim, market_data sync) | API와 동일 이미지 | — |
-| DB | PostgreSQL 15 + TimescaleDB 확장 | `timescale/timescaledb:latest-pg15` | 5432 |
-| Redis | Celery 브로커 + 결과 백엔드 + 캐시 | `redis:7-alpine` | 6379 |
+| 컨테이너 | 책임                                                     | 이미지/런타임                       | 포트 |
+| -------- | -------------------------------------------------------- | ----------------------------------- | ---- |
+| Frontend | Next.js 16 SSR/CSR, Clerk SDK, React Query, Zustand      | `node:22`                           | 3000 |
+| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch | `python:3.11-slim` + `uv`           | 8000 |
+| Worker   | Celery prefork, vectorbt 실행, OHLCV 수집                | API와 동일 이미지                   | —    |
+| Beat     | Celery beat scheduler (stale reclaim, market_data sync)  | API와 동일 이미지                   | —    |
+| DB       | PostgreSQL 15 + TimescaleDB 확장                         | `timescale/timescaledb:latest-pg15` | 5432 |
+| Redis    | Celery 브로커 + 결과 백엔드 + 캐시                       | `redis:7-alpine`                    | 6379 |
 
 > Frontend는 현재 dev 환경에서 `pnpm dev` 직접 실행 (compose 미포함). Worker/Beat는 Sprint 5에서 compose 통합 예정.
 
@@ -122,11 +122,11 @@ sequenceDiagram
 
 ### 인가 경계
 
-| 위치 | 책임 |
-|------|------|
-| Router | JWT 검증 (Depends) + user_id 추출 |
-| Service | 행 소유자 검증 (`user_id` 일치) + 비즈니스 가드 |
-| Repository | 권한 무관, DB 접근만 |
+| 위치       | 책임                                            |
+| ---------- | ----------------------------------------------- |
+| Router     | JWT 검증 (Depends) + user_id 추출               |
+| Service    | 행 소유자 검증 (`user_id` 일치) + 비즈니스 가드 |
+| Repository | 권한 무관, DB 접근만                            |
 
 ---
 
@@ -167,6 +167,7 @@ flowchart LR
 ### 디스패처 추상화
 
 `TaskDispatcher` Protocol (`backend/src/common/task_dispatcher.py`):
+
 - `CeleryDispatcher` — 프로덕션
 - `NoopDispatcher` — 테스트 (큐 없이 즉시 실행 안 함)
 - `FakeDispatcher` — 단위 테스트용 spy
@@ -203,12 +204,12 @@ flowchart TB
 }
 ```
 
-| 도메인 코드 prefix | 예시 |
-|---------------------|------|
-| `auth.*` | `auth.invalid_token`, `auth.unauthenticated` |
-| `strategy.*` | `strategy.not_found`, `strategy.has_backtests`, `strategy.unsupported_pine` |
-| `backtest.*` | `backtest.not_found`, `backtest.invalid_state_transition`, `backtest.cancellation_already_terminal` |
-| `market_data.*` | (Sprint 5 도입) |
+| 도메인 코드 prefix | 예시                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `auth.*`           | `auth.invalid_token`, `auth.unauthenticated`                                                        |
+| `strategy.*`       | `strategy.not_found`, `strategy.has_backtests`, `strategy.unsupported_pine`                         |
+| `backtest.*`       | `backtest.not_found`, `backtest.invalid_state_transition`, `backtest.cancellation_already_terminal` |
+| `market_data.*`    | (Sprint 5 도입)                                                                                     |
 
 ### IntegrityError 번역 (Sprint 4 D5)
 
@@ -223,10 +224,10 @@ flowchart TB
 
 `OHLCVProvider` 추상 인터페이스는 두 가지 구현체와 두 가지 lifecycle 패턴을 갖는다.
 
-| Provider | 사용처 | Lifecycle | 의존성 |
-|----------|--------|-----------|--------|
-| `FixtureProvider` | dev/test 기본, CI | stateless (instance per request) | CSV (`backend/data/fixtures/ohlcv/*.csv`) |
-| `TimescaleProvider` | 운영 (`OHLCV_PROVIDER=timescale`) | per-request, but `CCXTProvider` is singleton | DB cache + CCXTProvider |
+| Provider            | 사용처                            | Lifecycle                                    | 의존성                                    |
+| ------------------- | --------------------------------- | -------------------------------------------- | ----------------------------------------- |
+| `FixtureProvider`   | dev/test 기본, CI                 | stateless (instance per request)             | CSV (`backend/data/fixtures/ohlcv/*.csv`) |
+| `TimescaleProvider` | 운영 (`OHLCV_PROVIDER=timescale`) | per-request, but `CCXTProvider` is singleton | DB cache + CCXTProvider                   |
 
 ### CCXTProvider singleton 패턴
 
@@ -274,36 +275,72 @@ graph TB
 
 ## 6. 트랜잭션 경계
 
-| 경계 | 위치 | 패턴 |
-|------|------|------|
-| 단일 도메인 | Service 한 메서드 내 | `repo.<ops>` 후 `repo.commit()` 한 번 |
-| 크로스 도메인 (예: Strategy delete with backtest 조회) | Service 동일 session 주입 | `dependencies.py`에서 같은 session으로 두 repo 조립 |
-| 백테스트 완료 + trades insert | Worker `_execute()` | `complete()` + `insert_trades_bulk()` 단일 트랜잭션 (atomicity 주석 명시) |
+| 경계                                                   | 위치                      | 패턴                                                                      |
+| ------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------- |
+| 단일 도메인                                            | Service 한 메서드 내      | `repo.<ops>` 후 `repo.commit()` 한 번                                     |
+| 크로스 도메인 (예: Strategy delete with backtest 조회) | Service 동일 session 주입 | `dependencies.py`에서 같은 session으로 두 repo 조립                       |
+| 백테스트 완료 + trades insert                          | Worker `_execute()`       | `complete()` + `insert_trades_bulk()` 단일 트랜잭션 (atomicity 주석 명시) |
 
 ---
 
 ## 7. 캐싱 전략 (현재/계획)
 
-| 대상 | 위치 | TTL | 상태 |
-|------|------|-----|------|
-| Clerk JWKS | API 메모리 | Clerk SDK 기본 | ✅ |
-| OHLCV bars | TimescaleDB `ts.ohlcv` hypertable (DB-as-cache) | TTL 없음 (immutable past) | ✅ Sprint 5 M3 (TimescaleProvider) |
-| 백테스트 결과 | DB only (캐시 없음) | — | ✅ |
-| 전략 list | DB only | — | ✅ |
-| 실시간 가격 | Zustand (FE) | 세션 | ⏳ Sprint 7+ WebSocket |
+| 대상          | 위치                                            | TTL                       | 상태                               |
+| ------------- | ----------------------------------------------- | ------------------------- | ---------------------------------- |
+| Clerk JWKS    | API 메모리                                      | Clerk SDK 기본            | ✅                                 |
+| OHLCV bars    | TimescaleDB `ts.ohlcv` hypertable (DB-as-cache) | TTL 없음 (immutable past) | ✅ Sprint 5 M3 (TimescaleProvider) |
+| 백테스트 결과 | DB only (캐시 없음)                             | —                         | ✅                                 |
+| 전략 list     | DB only                                         | —                         | ✅                                 |
+| 실시간 가격   | Zustand (FE)                                    | 세션                      | ⏳ Sprint 7+ WebSocket             |
 
 ---
 
-## 8. Observability (계획)
+## 8. Observability (Sprint 10/12 도입 ✅)
 
-> 상세는 [`07_infra/observability-plan.md`](../07_infra/observability-plan.md).
+> 상세는 [`07_infra/observability-plan.md`](../07_infra/observability-plan.md). 메트릭 카탈로그는 [`backend/src/common/metrics.py`](../../backend/src/common/metrics.py).
 
-- 로그: 현재 stdlib `logging` (structured 미적용)
-- 메트릭: 미적용
-- 트레이싱: 미적용
-- 알림: 미적용
+| 영역     | 현재 상태                                                               | 도입 sprint                              |
+| -------- | ----------------------------------------------------------------------- | ---------------------------------------- |
+| 로그     | stdlib `logging` + structured `extra={...}` 점진 도입                   | Sprint 9+                                |
+| 메트릭   | Prometheus `prometheus_client` (single-process REGISTRY) — 14종 운영 중 | Sprint 9 Phase D / Sprint 10 / Sprint 12 |
+| 알림     | Slack webhook (best-effort, BoundedSemaphore(8) + 15s timeout)          | Sprint 12 Phase A                        |
+| 트레이싱 | 미적용 — H2 후반 OpenTelemetry 검토                                     | TODO                                     |
+| 대시보드 | Grafana Cloud — 부분 도입 (Sprint 12 alert runbook 기준)                | Sprint 12 docs                           |
 
-Sprint 7+에서 OpenTelemetry + Prometheus + Grafana 검토.
+### 메트릭 카탈로그
+
+**Backtest / Trading (Sprint 9~10):**
+
+- `qb_backtest_duration_seconds` Histogram
+- `qb_order_rejected_total{exchange, reason}` Counter
+- `qb_kill_switch_triggered_total{trigger_type}` Counter
+- `qb_active_orders` Gauge
+- `qb_ccxt_request_duration_seconds{exchange, endpoint}` Histogram
+- `qb_ccxt_request_errors_total{exchange, endpoint, error_class}` Counter — 4×10×34 ≈ 1,360 series (10k 한도 내, error_class allowlist 33 + "Other")
+- `qb_rate_limit_throttled_total{scope, endpoint}` Counter
+- `qb_redlock_acquire_total{outcome}` Counter
+- `qb_redis_lock_pool_healthy` Gauge
+
+**WebSocket (Sprint 12 Phase C):**
+
+- `qb_ws_orphan_event_total{exchange, reason}` Counter
+- `qb_ws_orphan_buffer_size{exchange}` Gauge
+- `qb_ws_reconcile_unknown_total{exchange}` Counter
+- `qb_ws_reconcile_skipped_total{exchange, reason}` Counter
+- `qb_ws_duplicate_enqueue_total{exchange}` Counter
+- `qb_ws_reconnect_total{exchange, reason}` Counter
+
+### 카디널리티 가드
+
+- 민감 정보 label 금지 (user_id, strategy_id, account_id, api_key)
+- exchange / trigger_type / reason / outcome 은 모두 enum 으로 카디널리티 한도 명시
+- prometheus_client 는 fork-safe → Celery prefork 워커가 동일 counter 참조
+
+### 알림 정책
+
+- KillSwitch event save 직후 Slack alert task 발송 (best-effort, alert 실패가 KillSwitch 로직 차단 안 함)
+- module-level `_PENDING_ALERTS` set 으로 task strong reference 보존
+- per-call httpx client + tenacity 503 retry
 
 ---
 

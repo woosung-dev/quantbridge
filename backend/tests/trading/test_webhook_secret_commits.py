@@ -223,3 +223,37 @@ async def test_order_service_execute_calls_outer_commit():
 
     # 핵심 검증 — outer commit 호출 강제 (Sprint 6 broken bug 와 동일 패턴)
     session.commit.assert_awaited_once()
+
+
+# ── Mock spy 회귀: ExchangeAccountService.register (Sprint 15-A) ──
+# Sprint 14 architecture review (2026-04-28) 가 발견한 동일 broken bug 3 번째 재발.
+# Sprint 6 (webhook_secret) → Sprint 13 (OrderService) → Sprint 15 (register) =
+# mutation service.method 가 self._repo.commit() 누락 시 production 만 ROLLBACK.
+# db_session 기반 테스트는 conftest fixture 가 트랜잭션을 잡고 있어 통과 = false-positive.
+# AsyncMock spy 로 repo.commit 호출 자체를 검증.
+
+
+@pytest.mark.asyncio
+async def test_register_calls_repo_commit():
+    """Sprint 15-A: register() 가 repo.commit() 호출 강제 (broken bug 3rd 재발 방어)."""
+    from src.trading.models import ExchangeMode, ExchangeName
+    from src.trading.schemas import RegisterAccountRequest
+    from src.trading.service import ExchangeAccountService
+
+    repo = AsyncMock()
+    crypto_mock = MagicMock()
+    crypto_mock.encrypt.return_value = b"encrypted_bytes"
+    svc = ExchangeAccountService(repo=repo, crypto=crypto_mock)
+
+    req = RegisterAccountRequest(
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key="ABCD1234EFGH5678",
+        api_secret="secret_value_here_1234",
+        label="spy-test",
+    )
+
+    await svc.register(uuid4(), req)
+
+    repo.save.assert_awaited_once()
+    repo.commit.assert_awaited_once()  # ← Sprint 15-A broken bug 핵심

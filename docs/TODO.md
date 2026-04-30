@@ -8,6 +8,35 @@
 
 > **🚀 현재 세션 작업:** Sprint 13 Track UX 완료 (2026-04-26). PR #78 작성. 회고 다음 세션. dogfood Day 2 시나리오 6건 (`docs/dev-log/2026-04-26-dogfood-day2-pending.md` 신설 예정).
 
+### Test Skip / xfail 추적표 (Sprint 15-C, 2026-04-28 신설)
+
+> 18 skip + 0 fail (Sprint 14 기준). 본 표는 "이 skip 이 왜 존재하는가 + 언제 해소되는가" 를 명시. 신규 skip 추가 시 표 업데이트 의무.
+
+| #    | 위치                                                                                   | 종류                     | 사유                                                                                 | 해소 트리거                                                                    |
+| ---- | -------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| 1    | `tests/backtest/engine/test_golden_backtest.py:19`                                     | `pytestmark.skip`        | legacy golden expectations — pine_v2 `strategy.exit` 지원 + expected 재생성 필요     | pine_v2 strategy.exit 도입 후 golden 재생성                                    |
+| 2    | `tests/real_broker/test_webhook_to_filled_e2e.py:31`                                   | `pytestmark.real_broker` | nightly E2E (Bybit Demo 실 호출). `--run-real-broker` flag + `BYBIT_DEMO_*` env 필요 | 매일 nightly cron (`.github/workflows/nightly-real-broker.yml`)                |
+| 3    | `tests/real_broker/conftest.py:43`                                                     | `skip_marker`            | 위 #2 의 conftest fallback (env 미주입 시 collection-time skip)                      | 동일                                                                           |
+| 4-7  | `tests/strategy/pine_v2/test_trust_layer_parity.py:251/334/357/421`                    | `skipif`                 | Trust Layer fixture (`regen_trust_layer_baseline.py` / 8 mutation set) 미생성        | Path β Stage 2c 2차 mutation 8/8 도달 (✅ 2026-04-23 완료, 회귀로 활성화 검토) |
+| 8    | `tests/strategy/pine_v2/test_trust_layer_parity.py:405`                                | `pytest.mark.skip`       | Mutation oracle 은 nightly workflow 또는 `--run-mutations` 수동 (CI default 차단)    | nightly mutation workflow 또는 manual gate                                     |
+| 9-15 | `tests/strategy/pine_v2/test_mutation_oracle.py:147/179/212/253/296/328/376/414` (8건) | `skipif`                 | mutation fixture 미생성 시 collection skip                                           | Stage 2c 2차 fixture 활성화 후 ✅ 사용 가능 (현재는 안전 fallback)             |
+| 16   | `tests/strategy/pine_v2/test_mutation_oracle.py:213`                                   | `xfail(strict=False)`    | KIND=B/C 가 NaN-tolerance 한계로 mutation 구분 못 함. strict=False 로 명시           | KIND-B/C 분류 정밀도 향상 (Trust Layer v2 검토)                                |
+| 17   | `tests/conftest.py:93`                                                                 | `skip_mutation` autouse  | 모든 `@pytest.mark.mutation` 자동 skip (CI default), `--run-mutations` 시 활성화     | pytest collection-time guard (영구)                                            |
+| 18   | (집계 차이)                                                                            | xfail/skip 누적          | pytest collection-time 자동 분기 (real_broker / mutation 기본 차단)                  | 표 업데이트 의무                                                               |
+
+**카테고리:**
+
+- ✅ **영구 (정상)**: #2, #3, #8, #17 — opt-in flag 가 정확한 안전장치
+- 🟡 **fixture 활성화 후 자동 해소**: #4-7, #9-15 — Path β Stage 2c 2차 (✅ 2026-04-23) 후 회귀 검토 필요
+- 🔴 **dette**: #1 (golden 재생성), #16 (KIND-B/C 정밀도)
+
+**관리 규약:**
+
+- 신규 skip 추가 시 본 표 동일 PR 업데이트
+- 매 sprint 끝에 🟡 카테고리 재검토
+
+---
+
 ### Sprint 14 이관 (G.4 P2 잔존)
 
 - [ ] WebCrypto error 처리 — `crypto.subtle.sign` / `randomUUID` 실패 시 inline error (현재는 unhandled promise reject 가능)

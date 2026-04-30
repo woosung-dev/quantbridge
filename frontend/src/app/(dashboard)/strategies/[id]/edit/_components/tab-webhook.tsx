@@ -11,7 +11,7 @@
 // LESSON-004 준수: rotate response data 를 useEffect dep 로 사용 X — onSuccess 콜백
 // 직접 처리 (cacheWebhookSecret + setState scalar).
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { CheckIcon, CopyIcon, EyeOffIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +28,9 @@ import { useRotateWebhookSecret } from "@/features/strategy/hooks";
 import {
   clearWebhookSecret,
   readWebhookSecret,
+  subscribeWebhookSecret,
 } from "@/features/strategy/webhook-secret-storage";
+import { getApiBase } from "@/lib/api-base";
 
 type TabWebhookProps = {
   strategyId: string;
@@ -36,28 +38,31 @@ type TabWebhookProps = {
 
 function buildWebhookUrl(strategyId: string): string {
   // Phase B 가 token (HMAC-SHA256 hex) 을 동적으로 추가. 표시용 URL 은 placeholder.
-  const apiBase =
-    typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-      : "http://localhost:8000";
-  return `${apiBase}/api/v1/webhooks/${strategyId}?token={HMAC}`;
+  // Sprint 14 Phase B-3 — getApiBase helper 통합 (3 곳 일관성).
+  return `${getApiBase()}/api/v1/webhooks/${strategyId}?token={HMAC}`;
 }
 
 export function TabWebhook({ strategyId }: TabWebhookProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // sessionStorage 에 캐시된 plaintext (create 시 자동 또는 rotate 후) 즉시 표시.
-  // 화면 mount 시점 1회 read — 닫기/rotate 후 setState 로만 업데이트 (LESSON-004).
-  const [displayedSecret, setDisplayedSecret] = useState<string | null>(() =>
-    readWebhookSecret(strategyId),
+  // Sprint 14 Phase A — useSyncExternalStore 패턴 (Day 2 Pain #2 hydration race fix).
+  // sessionStorage 를 external store 로 추상화 — server snapshot 은 항상 null (SSR
+  // 단계 prerender 가 amber card 미렌더 보장), client snapshot 은 mount 후 read.
+  // cacheWebhookSecret/clearWebhookSecret 가 notify() 호출하면 구독 컴포넌트 자동
+  // re-render → rotate / hide / 다른 탭 변경에도 반응. LESSON-004 의
+  // react-hooks/set-state-in-effect 차단을 회피 (React 공식 external state hook).
+  const displayedSecret = useSyncExternalStore<string | null>(
+    subscribeWebhookSecret,
+    () => readWebhookSecret(strategyId),
+    () => null,
   );
   const [copiedField, setCopiedField] = useState<"url" | "secret" | null>(null);
 
   const webhookUrl = buildWebhookUrl(strategyId);
 
   const rotate = useRotateWebhookSecret(strategyId, {
-    onSuccess: (data) => {
-      // hooks.ts onSuccess 가 cacheWebhookSecret 호출. 여기는 화면 표시만.
-      setDisplayedSecret(data.secret);
+    onSuccess: () => {
+      // hooks.ts onSuccess 가 cacheWebhookSecret 호출 → notify() →
+      // useSyncExternalStore 가 새 snapshot 읽어 자동 re-render. setState 불필요.
       setConfirmOpen(false);
       toast.success("새 webhook secret 발급됨");
     },
@@ -78,7 +83,7 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
 
   const handleHideSecret = () => {
     clearWebhookSecret(strategyId);
-    setDisplayedSecret(null);
+    // notify() → useSyncExternalStore 가 새 snapshot 읽어 null 반영, amber card 자동 사라짐.
   };
 
   return (

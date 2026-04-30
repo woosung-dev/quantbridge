@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { useStrategies } from "@/features/strategy/hooks";
 import { readWebhookSecret } from "@/features/strategy/webhook-secret-storage";
+import { getApiBase, readErrorBody } from "@/lib/api-base";
 import { useExchangeAccounts, useIsOrderDisabledByKs } from "../hooks";
 
 const TEST_ORDER_FORM_SCHEMA = z.object({
@@ -90,8 +91,8 @@ function zodV4Resolver<TValues extends FieldValues>(
   return resolver;
 }
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Sprint 14 Phase B-3 — getApiBase helper 통합 (3 곳 일관성 + trailing slash strip).
+const API_BASE_URL = getApiBase();
 
 // ArrayBuffer → lowercase hex string. Python `.hexdigest()` 호환.
 function bufferToHex(buf: ArrayBuffer): string {
@@ -183,8 +184,25 @@ function TestOrderDialogInner() {
     };
     // ── 핵심: bodyStr 은 단 1회만 직렬화. HMAC 입력과 fetch body 가 동일 byte. ──
     const bodyStr = JSON.stringify(payload);
-    const hmacHex = await computeHmacSha256Hex(secret, bodyStr);
-    const idempotencyKey = crypto.randomUUID();
+
+    // Sprint 14 Phase B-1 — WebCrypto error 처리. 구식 브라우저 / non-HTTPS local /
+    // SubtleCrypto 미지원 환경에서 unhandled promise rejection 방지.
+    let hmacHex: string;
+    let idempotencyKey: string;
+    try {
+      hmacHex = await computeHmacSha256Hex(secret, bodyStr);
+      idempotencyKey = crypto.randomUUID();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "WebCrypto 처리 실패";
+      form.setError("root.serverError", {
+        type: "manual",
+        message:
+          `암호화 처리 실패: ${message}. ` +
+          "브라우저가 WebCrypto (SubtleCrypto) 를 지원하지 않거나 " +
+          "HTTPS / localhost 가 아닌 환경입니다.",
+      });
+      return;
+    }
 
     const url = `${API_BASE_URL}/api/v1/webhooks/${values.strategy_id}?token=${hmacHex}&Idempotency-Key=${idempotencyKey}`;
 
@@ -214,10 +232,25 @@ function TestOrderDialogInner() {
       return;
     }
 
-    const text = await res.text().catch(() => "");
+    // Sprint 14 Phase B-4 — error body size cap + JSON detail 정규화.
+    // FastAPI HTTPException detail 우선, JSON 아니면 text 8KB cap.
+    const detail = await readErrorBody(res);
+    let bodyText: string;
+    if (detail && typeof detail === "object") {
+      const detailField = (detail as { detail?: unknown }).detail;
+      if (typeof detailField === "string" && detailField.length > 0) {
+        bodyText = detailField;
+      } else {
+        bodyText = JSON.stringify(detail);
+      }
+    } else if (typeof detail === "string" && detail.length > 0) {
+      bodyText = detail;
+    } else {
+      bodyText = "응답 본문 없음";
+    }
     form.setError("root.serverError", {
       type: "manual",
-      message: `요청 실패 (${res.status}): ${text || "응답 본문 없음"}`,
+      message: `요청 실패 (${res.status}): ${bodyText}`,
     });
   };
 
