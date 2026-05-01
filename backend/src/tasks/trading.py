@@ -1,11 +1,11 @@
-"""execute_order_task — Celery shared_task + prefork-safe lazy init.
+"""execute_order_task — Celery shared_task + prefork-safe per-call engine.
 
 Task 16: pending → submitted → provider.create_order → filled/rejected.
 3-guard transitions via OrderRepository (Sprint 4 패턴).
 
-Module-level imports:
-- `async_session_factory` is module-level so tests can monkeypatch it.
-- `_exchange_provider` is a lazy singleton via `_get_exchange_provider()`.
+Sprint 17 Phase C (codex G.0 P1 #1 격상): module-level _worker_engine 제거.
+매 task 마다 fresh engine + finally dispose (backtest.py / funding.py mirror).
+- `_exchange_provider` 는 stateless lazy singleton 유지 (Connection 미보유).
 """
 
 from __future__ import annotations
@@ -17,7 +17,12 @@ from typing import Any
 from uuid import UUID
 
 from celery import shared_task
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.common.alert import send_critical_alert
 from src.common.metrics import qb_active_orders
@@ -37,24 +42,23 @@ _WATCHDOG_MAX_ATTEMPTS = 3
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Worker-local, lazy-initialized (prefork-safe)
-# ---------------------------------------------------------------------------
-_worker_engine = None
-_sessionmaker_cache: async_sessionmaker[AsyncSession] | None = None
+# Sprint 17 Phase C — Celery prefork worker 의 매 task 마다 asyncio.run() 으로
+# 새 event loop 가 생기는데, asyncpg connection pool 은 생성 당시 loop 에 bind
+# 되므로 module-level cached engine 은 두 번째 task 부터 InterfaceError ("another
+# operation is in progress") 또는 RuntimeError ("attached to a different loop")
+# 로 silent fail. broker side effect (실제 거래소 주문) ↔ DB 상태 분기 위험.
+# 따라서 backtest.py / funding.py 와 동일하게 매 호출마다 fresh engine + finally dispose.
+def create_worker_engine_and_sm() -> (
+    tuple[AsyncEngine, async_sessionmaker[AsyncSession]]
+):
+    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
 
-
-def async_session_factory() -> async_sessionmaker[AsyncSession]:
-    """Worker-local async_sessionmaker. Lazy init per child process.
-
-    Tests monkeypatch this at module level:
-        monkeypatch.setattr(task_mod, "async_session_factory", _FakeSM())
+    호출자는 engine 을 finally 에서 dispose 해야 한다. 테스트는 monkeypatch 로
+    공유 세션 + no-op engine 주입 가능.
     """
-    global _worker_engine, _sessionmaker_cache
-    if _sessionmaker_cache is None:
-        _worker_engine = create_async_engine(settings.database_url, echo=False)
-        _sessionmaker_cache = async_sessionmaker(_worker_engine, expire_on_commit=False)
-    return _sessionmaker_cache
+    engine = create_async_engine(settings.database_url, echo=False)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    return engine, sm
 
 
 # ---------------------------------------------------------------------------
@@ -109,8 +113,19 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
     """Core logic: pending → submitted → provider.create_order → filled/rejected.
 
     Returns dict with order state for Celery result backend.
+
+    Sprint 17 Phase C (codex G.0 P1 #1): per-call engine + finally dispose.
     """
-    sm = async_session_factory()
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _execute_with_session(order_id, sm)
+    finally:
+        await engine.dispose()
+
+
+async def _execute_with_session(
+    order_id: UUID, sm: async_sessionmaker[AsyncSession]
+) -> dict[str, Any]:
     async with sm() as session:
         repo = OrderRepository(session)
 
@@ -359,8 +374,21 @@ async def _async_fetch_order_status(order_id: UUID, attempt: int) -> dict[str, A
          단, rowcount=1 일 때만 dec (G.0 P1 #1 — race winner only)
        - submitted + attempt < max → watchdog_retry signal
        - submitted + attempt >= max → throttled alert + watchdog_giveup signal
+
+    Sprint 17 Phase C (codex G.0 P1 #1): per-call engine + finally dispose.
     """
-    sm = async_session_factory()
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _fetch_order_status_with_session(order_id, attempt, sm)
+    finally:
+        await engine.dispose()
+
+
+async def _fetch_order_status_with_session(
+    order_id: UUID,
+    attempt: int,
+    sm: async_sessionmaker[AsyncSession],
+) -> dict[str, Any]:
     async with sm() as session:
         repo = OrderRepository(session)
         order = await repo.get_by_id(order_id)

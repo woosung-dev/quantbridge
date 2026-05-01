@@ -161,25 +161,26 @@
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
-| ID                | 제목                                                            | Trigger                                     | Est      | 출처                          |
-| ----------------- | --------------------------------------------------------------- | ------------------------------------------- | -------- | ----------------------------- |
-| [BL-010](#bl-010) | commit-spy 도메인 확장 (LESSON-019 backfill)                    | 다음 mutation PR 직전                       | S (2-3h) | architecture-conformance §A2  |
-| [BL-011](#bl-011) | Redis lease + heartbeat (multi-account scaling)                 | 2 계정 이상 dogfood 진입 시                 | M (5-6h) | TODO.md L706                  |
-| [BL-012](#bl-012) | prefork 복귀 (`--pool=solo` 한계 해소)                          | BL-011 직후                                 | M (4h)   | TODO.md L707                  |
-| [BL-013](#bl-013) | Auth circuit breaker (`BybitAuthError` 1h TTL)                  | dogfood 1주 운영 중 alert flood 시          | S (2-3h) | TODO.md L708                  |
-| [BL-014](#bl-014) | Partial fill `cumExecQty` tracking                              | partial fill 1건 발견 시                    | M (4-5h) | TODO.md L709                  |
-| [BL-015](#bl-015) | OKX Private WS                                                  | Bybit Demo 안정화 후                        | M (6-8h) | TODO.md L710                  |
-| [BL-016](#bl-016) | `__aenter__` first_connect race 강화                            | 60s timeout 실측 발견 시                    | S (2h)   | TODO.md L711                  |
-| [BL-017](#bl-017) | WebCrypto error 처리 (HTTP local 환경)                          | dogfood HTTP 환경 발견 시                   | S (1-2h) | TODO.md L42 (Sprint 14 이관)  |
-| [BL-018](#bl-018) | Strategies/Accounts query loading/error UX                      | dogfood Day 4+ 발견 시                      | S (1-2h) | TODO.md L43 (Sprint 14 이관)  |
-| [BL-019](#bl-019) | `NEXT_PUBLIC_API_URL` trailing slash + production 누락          | Vercel 프로덕션 배포 직전                   | S (1h)   | TODO.md L44 (Sprint 14 이관)  |
-| [BL-020](#bl-020) | webhook 응답 size cap + JSON detail 정규화                      | on-demand (대용량 stack trace 노출 발견 시) | S (1h)   | TODO.md L45 (Sprint 14 이관)  |
-| [BL-021](#bl-021) | sessionStorage hardening (CSP + Trusted Types + secret masking) | Beta 5명 onboarding 후                      | M (4-6h) | TODO.md L46 (Sprint 14+ 이관) |
-| [BL-022](#bl-022) | golden expectations 재생성                                      | pine_v2 `strategy.exit` 도입 후             | M (3-4h) | TODO.md L17 (skip #1)         |
-| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                    | Trust Layer v2 검토 시                      | M (5-6h) | TODO.md L23 (skip #16)        |
-| [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                          | Bybit Demo credentials + seed data 준비 시  | L (8h+)  | CLAUDE.md Sprint 10 Phase C   |
-| [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                          | on-demand (BUG-1/2/3 재발 시)               | S (2h)   | TODO.md L653                  |
-| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                 | Stage 2c 2차 fixture 활성화 후              | S (1-2h) | TODO.md L20-22                |
+| ID                | 제목                                                            | Trigger                                     | Est       | 출처                          |
+| ----------------- | --------------------------------------------------------------- | ------------------------------------------- | --------- | ----------------------------- |
+| [BL-010](#bl-010) | commit-spy 도메인 확장 (LESSON-019 backfill)                    | 다음 mutation PR 직전                       | S (2-3h)  | architecture-conformance §A2  |
+| [BL-011](#bl-011) | Redis lease + heartbeat (multi-account scaling)                 | 2 계정 이상 dogfood 진입 시                 | M (5-6h)  | TODO.md L706                  |
+| [BL-012](#bl-012) | prefork 복귀 (`--pool=solo` 한계 해소)                          | BL-011 직후                                 | M (4h)    | TODO.md L707                  |
+| [BL-013](#bl-013) | Auth circuit breaker (`BybitAuthError` 1h TTL)                  | dogfood 1주 운영 중 alert flood 시          | S (2-3h)  | TODO.md L708                  |
+| [BL-014](#bl-014) | Partial fill `cumExecQty` tracking                              | partial fill 1건 발견 시                    | M (4-5h)  | TODO.md L709                  |
+| [BL-015](#bl-015) | OKX Private WS                                                  | Bybit Demo 안정화 후                        | M (6-8h)  | TODO.md L710                  |
+| [BL-016](#bl-016) | `__aenter__` first_connect race 강화                            | 60s timeout 실측 발견 시                    | S (2h)    | TODO.md L711                  |
+| [BL-017](#bl-017) | WebCrypto error 처리 (HTTP local 환경)                          | dogfood HTTP 환경 발견 시                   | S (1-2h)  | TODO.md L42 (Sprint 14 이관)  |
+| [BL-018](#bl-018) | Strategies/Accounts query loading/error UX                      | dogfood Day 4+ 발견 시                      | S (1-2h)  | TODO.md L43 (Sprint 14 이관)  |
+| [BL-019](#bl-019) | `NEXT_PUBLIC_API_URL` trailing slash + production 누락          | Vercel 프로덕션 배포 직전                   | S (1h)    | TODO.md L44 (Sprint 14 이관)  |
+| [BL-020](#bl-020) | webhook 응답 size cap + JSON detail 정규화                      | on-demand (대용량 stack trace 노출 발견 시) | S (1h)    | TODO.md L45 (Sprint 14 이관)  |
+| [BL-021](#bl-021) | sessionStorage hardening (CSP + Trusted Types + secret masking) | Beta 5명 onboarding 후                      | M (4-6h)  | TODO.md L46 (Sprint 14+ 이관) |
+| [BL-022](#bl-022) | golden expectations 재생성                                      | pine_v2 `strategy.exit` 도입 후             | M (3-4h)  | TODO.md L17 (skip #1)         |
+| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                    | Trust Layer v2 검토 시                      | M (5-6h)  | TODO.md L23 (skip #16)        |
+| [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                          | Bybit Demo credentials + seed data 준비 시  | L (8h+)   | CLAUDE.md Sprint 10 Phase C   |
+| [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                          | on-demand (BUG-1/2/3 재발 시)               | S (2h)    | TODO.md L653                  |
+| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                 | Stage 2c 2차 fixture 활성화 후              | S (1-2h)  | TODO.md L20-22                |
+| [BL-080](#bl-080) | **scan/reconcile/trading prefork-safe architectural fix**       | self-assessment 5 → ≥7 (Sprint 18 우선)     | L (1-2일) | Sprint 17 dev-log §7          |
 
 ### BL-010
 
@@ -387,6 +388,48 @@
 
 ---
 
+### BL-080
+
+**Title:** scan/reconcile/trading prefork-safe **architectural fix**
+**Category:** Trading / WebSocket / Watchdog (Celery prefork + asyncio + SQLAlchemy)
+**Priority:** P1
+**Trigger:** Sprint 18 우선. self-assessment 5 → ≥7 도달 위해 필수. dogfood 진입 차단 항목.
+**Est:** L (1-2일)
+**출처:** [`docs/dev-log/2026-05-02-sprint17-prefork-fix.md`](dev-log/2026-05-02-sprint17-prefork-fix.md) §7
+
+**현황:** Sprint 17 Phase A+B+C 가 module-level cached AsyncEngine 제거 + per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` 도입 (backtest.py:31 mirror). **1st task / child success**. 하지만 같은 child 의 2nd+ task 가 RuntimeError "attached to a different loop" / InterfaceError "another operation is in progress" 재발 — SQLAlchemy/asyncpg 의 process-level state (dialect cache 등) 가 stale loop Future 보유. `worker_max_tasks_per_child=1` 효과 약함.
+
+**라이브 evidence (격리 docker, 2026-05-02 post-Sprint 17 fix)**:
+
+```
+1st scan_stuck_orders: succeeded (0.11s) — Phase 0 의 100% silent fail 대비 진전
+2nd scan_stuck_orders: RuntimeError("attached to a different loop")
+3rd scan_stuck_orders: InterfaceError("another operation is in progress")
+```
+
+**Question (Sprint 18 G.0 의 핵심)**: backtest.reclaim_stale 이 동일 6h 동안 34/34 success 였는데 우리 task 만 fail — 무엇이 다른가? candidate diff:
+
+1. `_get_redis_lock_pool_for_alert` (alert path) — module-level Redis pool stale loop bind?
+2. `_exchange_provider` lazy singleton — CCXT internal state?
+3. `OrderRepository.list_stuck_pending` 의 specific SQLAlchemy statement caching?
+4. import 순서 (`from src.tasks.trading import execute_order_task`) 가 trading.py top-level state trigger?
+
+**권장 접근**:
+
+1. **diff 정밀 분석** (4-8h) — backtest.py vs orphan_scanner.py runtime state 비교 (profiling, debugging)
+2. 후보 fix:
+   - **A. Celery solo pool** — scan/reconcile/trading 각각 dedicated worker (`--pool=solo`). Sprint 12 ws-stream worker 패턴 mirror. **운영 복잡도 ↑** (4-6h)
+   - **B. asyncpg/SQLAlchemy module-level state reset** — `_get_redis_lock_pool_for_alert` + dialect cache 매 task reset. Hot path overhead. (1일)
+   - **C. fork-fresh interpreter** — `worker_pool=prefork` + `worker_init` hook 으로 module reset. Invasive. (1-2일)
+3. **G.2 challenge** 의무 — silent failure mode 가 또 있는가?
+4. 라이브 검증 — `asyncio.run() 즉시 3회 연속` + `5분 cycle 1시간` 둘 다 성공 확인.
+
+**의존성:** 없음. Sprint 17 의 Phase A+B+C foundation 위에 빌드.
+
+**Cross-link**: Sprint 17 dev-log §7. Sprint 18 master plan v1.
+
+---
+
 ## P2 — Hardening / 건강도 작업
 
 | ID                 | 제목                                                                              | Trigger                                      | Est           | 출처                                                     |
@@ -531,3 +574,15 @@
     - **G.2** (high, iter cap 2) — 6 break vector 검토 (silent rollback / SQLAlchemy lazy flush / 변수 shadowing / spy false negative / pytest fixture / OrderState fallthrough). **P1 critical 0건** confirm. 515k tokens. iter 1 만으로 종료.
   - **신규 등록** (Optimizer 구현 시점에 추가): Optimizer commit-spy backfill (BL-010 의 5번째 도메인, H1 구현 후).
   - **합계 변동**: 53 BL. P0 잔여 3 (BL-003/004/005). P1 잔여 16 (BL-010 ✅). P2 잔여 2 (BL-028/029, BL-027 ✅). dev-log: [`docs/dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md`](dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md).
+
+- **2026-05-02 (Sprint 17)** — `stage/h2-sprint17` 결과 반영.
+  - **Phase 0 라이브 검증 발견**: Sprint 15 watchdog (BL-001) 6h 동안 **141/141 silent fail** + Sprint 12 reconcile_ws_streams 6h **18/35 fail**. Root cause: module-level cached AsyncEngine + Celery prefork 의 asyncio.run() 새 loop 가 SQLAlchemy/asyncpg connection pool loop binding mismatch. self-assessment 2/10 = Path C emergency.
+  - **Partial fix (Phase A+B+C)**: orphan_scanner.py / websocket_task.py / tasks/trading.py 모두 module-level singleton 제거 + per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` (backtest.py:31 mirror). 신규 19 tests + 회귀 fix (test_celery_task / test_fetch_order_status_task / test_orphan_scanner). ruff 0 / mypy 0. **1st task / child success** 검증.
+  - **잔존 P1 (라이브 검증으로 Phase 4.5 architectural problem 발견)**: 같은 child 의 2nd+ task 가 RuntimeError "attached to a different loop" / InterfaceError 재발. SQLAlchemy/asyncpg 의 process-level state (dialect cache 등) 가 stale loop Future 보유. `worker_max_tasks_per_child=1` 효과 약함 (broker prefetch + max 도달 전 multi-task).
+  - **codex 게이트**:
+    - **G.0** (medium, iter cap 2) — P1 #1 (trading.py wedge 확장) + P1 #2 (real DB integration test 필수) + P1 #3 (BaseException dispose) 모두 발견. wedge 확장 = 사용자 재결정 채택. 219k tokens. iter 2 codex resume empty 응답.
+    - **G.2 challenge** skip — 시간 제약 + master plan 자체가 narrowest wedge + 잔존 P1 codex G.0 가 예측 (asyncio.run 두 번 연속 fail).
+  - **신규 등록**:
+    - **BL-080** scan/reconcile/trading prefork-safe **architectural fix** (asyncpg/SQLAlchemy module-level state reset). Sprint 17 의 narrowest wedge 한계. Sprint 18 우선. trigger: self-assessment 5 → ≥7. est L (1-2일).
+  - **self-assessment**: 2/10 → **5/10** (+3 진전). H1→H2 gate (≥7) 미통과 — Sprint 18 BL-080 root fix 후 재평가.
+  - **합계 변동**: 54 BL. P0 잔여 3. P1 잔여 17 (BL-080 신규). P2 잔여 2. dev-log: [`docs/dev-log/2026-05-02-sprint17-prefork-fix.md`](dev-log/2026-05-02-sprint17-prefork-fix.md).
