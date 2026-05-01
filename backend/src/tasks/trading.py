@@ -19,13 +19,20 @@ from uuid import UUID
 from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from src.common.alert import send_critical_alert
 from src.common.metrics import qb_active_orders
+from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import OrderNotFound, ProviderError
 from src.trading.models import ExchangeAccount, OrderState
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
 from src.trading.repository import OrderRepository
+
+# Sprint 15 Phase A.2 — submitted watchdog (BL-001) 상수.
+_WATCHDOG_ALERT_TTL_SECONDS = 3600  # 1h Redis throttle (G.0 P1 #2)
+_WATCHDOG_RETRY_BASE_SECONDS = 15
+_WATCHDOG_MAX_ATTEMPTS = 3
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +276,10 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
         # terminal 시 transition_to_filled / transition_to_rejected 호출.
         await repo.attach_exchange_order_id(order_id, receipt.exchange_order_id)
         await session.commit()
+        # Sprint 15 Phase A.2 — submitted watchdog (BL-001) enqueue.
+        # WS event 유실 / OKX private WS 부재 / Bybit 응답 손상 시 영구 submitted 고착 회피.
+        # countdown=15s → 첫 fetch_order_status_task 호출 시점은 broker 응답 안정화 후.
+        fetch_order_status_task.apply_async(args=[str(order_id)], countdown=15)
         logger.info(
             "order_submitted_pending_fill",
             extra={
@@ -281,3 +292,281 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
             "state": "submitted",
             "exchange_order_id": receipt.exchange_order_id,
         }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 15 Phase A.2 — fetch_order_status_task (BL-001 submitted watchdog)
+# ---------------------------------------------------------------------------
+
+
+def _get_redis_lock_pool_for_alert() -> Any:
+    """Redis pool indirection — test 가 monkeypatch 가능. 운영은 lock pool 그대로."""
+    return get_redis_lock_pool()
+
+
+async def _try_watchdog_alert_throttled(
+    order_id: UUID,
+    exchange_order_id: str | None,
+    attempt: int,
+    reason: str,
+) -> bool:
+    """codex G.0 P1 #2 — Redis SET NX EX 3600 throttle. 동일 order 의 두 번째 alert 차단.
+
+    Returns True if alert fired, False if throttled (Redis key 이미 존재).
+    """
+    pool = _get_redis_lock_pool_for_alert()
+    key = f"qb_watchdog_alert:{order_id}".encode()
+    can_fire = bool(await pool.set(key, b"1", nx=True, ex=_WATCHDOG_ALERT_TTL_SECONDS))
+    if not can_fire:
+        logger.info("watchdog_alert_throttled", extra={"order_id": str(order_id)})
+        return False
+
+    await send_critical_alert(
+        settings,
+        title=f"Order stuck submitted (attempt={attempt})",
+        message=(
+            f"Watchdog gave up after {attempt} fetch attempts. "
+            f"Order remains submitted at exchange. Reason: {reason}"
+        ),
+        context={
+            "order_id": str(order_id)[:8],
+            "exchange_order_id": exchange_order_id or "<null>",
+            "attempt": str(attempt),
+            "reason": reason,
+        },
+    )
+    return True
+
+
+async def _async_fetch_order_status(order_id: UUID, attempt: int) -> dict[str, Any]:
+    """Sprint 15 Phase A.2 — submitted watchdog core (BL-001).
+
+    Flow:
+    1. Fetch order; not_found / already_terminal / not_submitted 시 skip
+    2. exchange_order_id IS NULL skip (G.0 P1 #3 — fetch 호출 불가)
+    3. Decrypt creds; account missing 시 skip
+    4. provider.fetch_order — ProviderError graceful skip (Celery layer 가 retry 결정)
+    5. status 분기:
+       - filled/rejected/cancelled → transition_* + commit + qb_active_orders.dec()
+         단, rowcount=1 일 때만 dec (G.0 P1 #1 — race winner only)
+       - submitted + attempt < max → watchdog_retry signal
+       - submitted + attempt >= max → throttled alert + watchdog_giveup signal
+    """
+    sm = async_session_factory()
+    async with sm() as session:
+        repo = OrderRepository(session)
+        order = await repo.get_by_id(order_id)
+        if order is None:
+            return {"order_id": str(order_id), "skipped": "not_found"}
+
+        if order.state in (
+            OrderState.filled,
+            OrderState.rejected,
+            OrderState.cancelled,
+        ):
+            return {
+                "order_id": str(order_id),
+                "state": order.state.value,
+                "skipped": "already_terminal",
+            }
+
+        if order.state != OrderState.submitted:
+            return {
+                "order_id": str(order_id),
+                "state": order.state.value,
+                "skipped": "not_submitted",
+            }
+
+        if order.exchange_order_id is None:
+            # G.0 P1 #3 — submitted + null exchange_order_id (transition_to_submitted commit
+            # ~ attach_exchange_order_id 윈도우 또는 worker crash). fetch 호출 불가.
+            # orphan_scanner (Phase A.3) 가 별도 alert/manual cleanup 처리.
+            return {
+                "order_id": str(order_id),
+                "skipped": "no_exchange_order_id",
+            }
+
+        try:
+            crypto = EncryptionService(settings.trading_encryption_keys)
+            account = await session.get(ExchangeAccount, order.exchange_account_id)
+            if account is None:
+                return {"order_id": str(order_id), "skipped": "account_missing"}
+
+            passphrase_pt = (
+                crypto.decrypt(account.passphrase_encrypted)
+                if account.passphrase_encrypted is not None
+                else None
+            )
+            creds = Credentials(
+                api_key=crypto.decrypt(account.api_key_encrypted),
+                api_secret=crypto.decrypt(account.api_secret_encrypted),
+                passphrase=passphrase_pt,
+                environment=account.mode,
+            )
+        except Exception as e:
+            logger.error(
+                "watchdog_credential_decrypt_failed",
+                extra={"order_id": str(order_id), "error": str(e)},
+            )
+            return {"order_id": str(order_id), "skipped": "decrypt_failed"}
+
+        provider = _get_exchange_provider()
+        try:
+            status_fetch = await provider.fetch_order(
+                creds, order.exchange_order_id, order.symbol
+            )
+        except ProviderError as e:
+            # codex G.2 P1 #2 fix — provider 일시 장애 (rate limit / auth /
+            # network) 가 silent skip 되면 영원히 submitted 고착. 따라서
+            # retry signal 발사 (max attempts 후 alert).
+            logger.error(
+                "watchdog_fetch_order_failed",
+                extra={
+                    "order_id": str(order_id),
+                    "attempt": attempt,
+                    "error": str(e),
+                },
+            )
+            if attempt < _WATCHDOG_MAX_ATTEMPTS:
+                countdown = _WATCHDOG_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+                return {
+                    "order_id": str(order_id),
+                    "skipped": "provider_error",
+                    "error": str(e),
+                    "watchdog_retry": True,
+                    "next_attempt": attempt + 1,
+                    "countdown": countdown,
+                }
+            await _try_watchdog_alert_throttled(
+                order_id,
+                order.exchange_order_id,
+                attempt,
+                reason=f"provider_error:{type(e).__name__}",
+            )
+            return {
+                "order_id": str(order_id),
+                "skipped": "provider_error",
+                "error": str(e),
+                "watchdog_giveup": True,
+            }
+
+        now = datetime.now(UTC)
+
+        # codex G.0 P1 #1 — rowcount=1 일 때만 dec gauge. WS / reconciler / 다른 watchdog
+        # task 가 winner 일 수 있어 rowcount=0 = race loser, dec 호출 차단.
+        if status_fetch.status == "filled":
+            rows = await repo.transition_to_filled(
+                order_id,
+                exchange_order_id=order.exchange_order_id,
+                filled_price=status_fetch.filled_price,
+                filled_quantity=status_fetch.filled_quantity,
+                filled_at=now,
+            )
+            if rows == 1:
+                await session.commit()
+                qb_active_orders.dec()
+                logger.info(
+                    "watchdog_filled",
+                    extra={
+                        "order_id": str(order_id),
+                        "filled_price": (
+                            str(status_fetch.filled_price)
+                            if status_fetch.filled_price
+                            else None
+                        ),
+                    },
+                )
+                return {"order_id": str(order_id), "state": "filled"}
+            logger.info(
+                "watchdog_race_skip_filled", extra={"order_id": str(order_id)}
+            )
+            return {
+                "order_id": str(order_id),
+                "state": "filled",
+                "skipped": "race",
+            }
+
+        if status_fetch.status == "rejected":
+            rows = await repo.transition_to_rejected(
+                order_id,
+                error_message="exchange_rejected_after_submission",
+                failed_at=now,
+            )
+            if rows == 1:
+                await session.commit()
+                qb_active_orders.dec()
+                return {"order_id": str(order_id), "state": "rejected"}
+            return {
+                "order_id": str(order_id),
+                "state": "rejected",
+                "skipped": "race",
+            }
+
+        if status_fetch.status == "cancelled":
+            rows = await repo.transition_to_cancelled(order_id, cancelled_at=now)
+            if rows == 1:
+                await session.commit()
+                qb_active_orders.dec()
+                return {"order_id": str(order_id), "state": "cancelled"}
+            return {
+                "order_id": str(order_id),
+                "state": "cancelled",
+                "skipped": "race",
+            }
+
+        # status == "submitted" — exchange 가 여전히 미체결 보고.
+        if attempt < _WATCHDOG_MAX_ATTEMPTS:
+            # backoff: 15s → 30s → 60s (이전 attempt 의 누적 wait 후 재시도)
+            countdown = _WATCHDOG_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+            return {
+                "order_id": str(order_id),
+                "state": "submitted",
+                "watchdog_retry": True,
+                "next_attempt": attempt + 1,
+                "countdown": countdown,
+            }
+
+        # attempt >= max — Redis throttle 안에서 alert 발화.
+        await _try_watchdog_alert_throttled(
+            order_id,
+            order.exchange_order_id,
+            attempt,
+            reason="still_submitted_after_max_attempts",
+        )
+        return {
+            "order_id": str(order_id),
+            "state": "submitted",
+            "watchdog_giveup": True,
+        }
+
+
+def _build_watchdog_retry_kwargs(
+    order_id: str, result: dict[str, Any]
+) -> dict[str, Any] | None:
+    """codex G.2 P1 #1 fix — Celery retry args/kwargs 정확히 빌드.
+
+    원본 positional args 보존 시 duplicate keyword argument TypeError → retry chain
+    깨짐. 명시적 args=[order_id] + kwargs={attempt:N} 로 회피. None = no retry.
+    Pure function — test 가 직접 호출 가능.
+    """
+    if not result.get("watchdog_retry"):
+        return None
+    return {
+        "args": [order_id],
+        "kwargs": {"attempt": result["next_attempt"]},
+        "countdown": result["countdown"],
+    }
+
+
+@shared_task(name="trading.fetch_order_status", bind=True, max_retries=_WATCHDOG_MAX_ATTEMPTS)  # type: ignore[untyped-decorator]
+def fetch_order_status_task(self: Any, order_id: str, attempt: int = 1) -> dict[str, Any]:
+    """Sprint 15 Phase A.2 — Celery sync entry. submitted watchdog (BL-001).
+
+    _async_fetch_order_status 가 watchdog_retry 신호 반환 시 self.retry() 로
+    Celery 가 backoff 재enqueue. giveup 신호 시 result dict 만 반환 (alert 는 inner).
+    """
+    result = asyncio.run(_async_fetch_order_status(UUID(order_id), attempt))
+    retry_kwargs = _build_watchdog_retry_kwargs(order_id, result)
+    if retry_kwargs is not None:
+        raise self.retry(**retry_kwargs)
+    return result

@@ -28,6 +28,7 @@ celery_app = Celery(
         "src.tasks.dogfood_report",
         "src.tasks.stress_test_tasks",
         "src.tasks.websocket_task",
+        "src.tasks.orphan_scanner",
     ],
 )
 
@@ -87,6 +88,13 @@ celery_app.conf.beat_schedule = {
         "task": "reporting.dogfood_daily",
         "schedule": crontab(hour=22, minute=0),  # 매일 22:00 UTC
         "options": {"expires": 3600},
+    },
+    # Sprint 15 Phase A.3 — stuck order watchdog (BL-001 + BL-002).
+    # 30분 이상 pending/submitted 자동 reconcile + throttled alert.
+    "scan-stuck-orders": {
+        "task": "trading.scan_stuck_orders",
+        "schedule": 300.0,  # 5분
+        "options": {"expires": 240},
     },
 }
 

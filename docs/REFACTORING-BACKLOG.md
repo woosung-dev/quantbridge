@@ -59,12 +59,14 @@
 
 ### BL-001
 
+**Status:** ✅ Resolved (2026-05-01, Sprint 15 stage/h2-sprint15)
 **Title:** submitted 영구 고착 watchdog (silent data corruption 위험)
 **Category:** 트랜잭션 / Order
 **Priority:** P0 — silent data corruption 위험 (PnL / Kill Switch / dogfood report 가 거래소 현실과 다름)
 **Trigger:** Sprint 15 진입 즉시
 **Est:** M (3-4h)
 **출처:** [`docs/dev-log/2026-04-27-dogfood-day3.md`](dev-log/2026-04-27-dogfood-day3.md) §5 (codex G.2 P1 #1, session `019dca46-ff2b-7a63-bce5-b45f8ed45442`)
+**해결:** [`docs/dev-log/2026-05-01-sprint15-watchdog.md`](dev-log/2026-05-01-sprint15-watchdog.md) — Phase A.1 provider.fetch_order interface + Phase A.2 fetch_order_status_task Celery (retry 3회 backoff 15s→30s→60s + Redis throttle 1h alert) + Phase A.3 scan_stuck_orders beat 5min. codex G.0 P1 #1+#2+#3 + G.2 P1 #1+#2 모두 반영.
 
 **원인 / 영향:** Sprint 14 Phase C fix 후 `receipt.status="submitted"` 분기는 `attach_exchange_order_id` 만 호출. terminal 전이는 WS event / reconciler 책임. 그러나 `tasks/websocket_task.py:208-250 reconcile_ws_streams` 는 stream 재시작만 하고 orphan submitted Order 전이 안 함. WS event 유실 / OKX (private WS 미보유) / Bybit 응답 손상 시 DB 영원히 submitted 고착.
 
@@ -81,12 +83,14 @@
 
 ### BL-002
 
+**Status:** ✅ Resolved (2026-05-01, Sprint 15 stage/h2-sprint15)
 **Title:** Day 2 stuck pending order 분석 + cleanup
 **Category:** 트랜잭션 / Order
 **Priority:** P0
 **Trigger:** Sprint 15 진입 (BL-001 직후 또는 병렬)
 **Est:** S (2h)
 **출처:** [`docs/dev-log/2026-04-27-dogfood-day3.md`](dev-log/2026-04-27-dogfood-day3.md) §3
+**해결:** Sprint 15 Phase A.3 의 `scan_stuck_orders_task` 가 `list_stuck_pending` 으로 30분 이상 pending 자동 감지 + `execute_order_task.apply_async` 재dispatch + per-order throttled alert. Day 2 stuck order `13705a91` 는 dogfood Day 4 라이브 검증 시 자동 reconcile 예정. root cause 추정: Day 2 hotfix 직후 worker container 코드 outdated 또는 broker 메시지 만료. 본 watchdog 가 동일 패턴 재발 시 자동 복구.
 
 **원인 / 영향:** Day 2 stuck pending order (`13705a91-...`) 가 Day 2 §2.4 hotfix (OrderService outer commit) 후 INSERT + COMMIT 됐으나 14h+ state=pending 그대로. dispatch 또는 worker 처리 누락. **즉 OrderService outer commit fix 외 별도 broken bug 잔존 가능성**.
 
@@ -498,3 +502,11 @@
 ## 변경 이력
 
 - **2026-04-30** — 초기 작성. CLAUDE.md / TODO.md / dev-log/2026-04-\* / docs/superpowers/plans 4 곳에서 47 follow-up 통합 + Phase 1 architecture-conformance audit TBD 2 건 (BL-010, BL-050) 등록 = **총 50 BL (P0 5 + P1 17 + P2 14 + P3 8 + Beta 6)**. 중복 4 건 통합 (WebSocket 안정화 4 곳 → BL-001/011/012/013/014/015/016 분리, Bybit infra 3 곳 → BL-003 통합, Backtest UX 422 inline 은 Sprint 13 완료로 등록 X, OrderService broken bug 는 Sprint 13~14 hotfix 완료 — Day 2 stuck pending 잔여 BL-002 만).
+
+- **2026-05-01** — Sprint 15 (`stage/h2-sprint15`) 결과 반영.
+  - **Resolved**: BL-001 (submitted watchdog), BL-002 (Day 2 stuck pending cleanup) — `docs/dev-log/2026-05-01-sprint15-watchdog.md`. 1216 BE tests / mypy 0 / ruff 0.
+  - **신규 등록 (Sprint 15 codex G.2 + scope minimization 결과)**:
+    - **BL-027** WS state_handler.py:176 unconditional `qb_active_orders.dec()` + reconciliation.py:182 dec 누락 — codex G.2 P1 #3 분리, Sprint 15 watchdog 가 worse 만들지 않음 확인. trigger: Sprint 16 직후 cleanup. est M (3-4h)
+    - **BL-028** `scripts/force-reject-stuck.py` — submitted+null exchange_order_id manual cleanup (codex G.0 P1 #3 잔존 surface). trigger: submission_interrupted alert 발화 시. est S (1-2h)
+    - **BL-029** provider.fetch_order CCXT rate limit Redis throttle middleware — Sprint 15 watchdog 가 retry 마다 fetch_order 호출. dogfood 1-user 영향 적지만 BL-005 (1-2주 dogfood) 완료 후 점검. trigger: rate limit alert 다발 시. est M (3-4h)
+  - **합계 변동**: 50 → 53 BL. P0 잔여 3 (BL-003/004/005). P1 잔여 17 (변동 없음, BL-010 trigger 도래 — Sprint 16 우선). P2 신규 3 (BL-027/028/029).
