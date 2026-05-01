@@ -134,25 +134,30 @@
 
 ### Operational Commands
 
+> **Makefile shortcut (권장)** — 자세한 타깃은 `make help`. 두 모드 지원:
+>
+> - 기본: `make up` / `make be` / `make fe` → 3000 / 8000 / 5432 / 6379
+> - 격리: `make up-isolated` / `make be-isolated` / `make fe-isolated` → 3100 / 8100 / 5433 / 6380 (다른 웹앱과 병렬 실행 시. `docker-compose.isolated.yml` 을 `-f` merge, .env.local 변형 없이 inline env override)
+
 ```bash
 # Frontend (Next.js 16)
-cd frontend && pnpm dev          # 개발 서버 (http://localhost:3000)
+cd frontend && pnpm dev          # 개발 서버 (http://localhost:3000) — 또는 `make fe`
 cd frontend && pnpm build        # 프로덕션 빌드
-cd frontend && pnpm test         # 테스트
+cd frontend && pnpm test         # 테스트 — 또는 `make fe-test`
 cd frontend && pnpm lint         # 린트
 cd frontend && pnpm tsc --noEmit # 타입 체크
 
 # Backend (FastAPI)
-cd backend && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000  # 개발 서버
-cd backend && pytest -v          # 테스트
+cd backend && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000  # 개발 서버 — 또는 `make be`
+cd backend && pytest -v          # 테스트 — 또는 `make be-test`
 cd backend && ruff check .       # 린트
 cd backend && mypy src/          # 타입 체크
 cd backend && alembic upgrade head       # 마이그레이션 적용
 cd backend && alembic revision --autogenerate -m "description"  # 마이그레이션 생성
 
 # Infrastructure
-docker compose up -d             # 전체 서비스 (DB, Redis, TimescaleDB)
-docker compose logs -f backend   # 백엔드 로그
+docker compose up -d             # 전체 서비스 (DB, Redis, TimescaleDB) — 또는 `make up`
+docker compose logs -f backend   # 백엔드 로그 — 또는 `make logs`
 
 # Celery
 cd backend && celery -A src.tasks worker --loglevel=info --concurrency=4  # 워커
