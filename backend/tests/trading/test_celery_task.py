@@ -229,6 +229,14 @@ async def test_execute_order_task_keeps_submitted_when_receipt_status_submitted(
     order, _acc = pending_order
     monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
     monkeypatch.setattr(task_mod, "_exchange_provider", _SubmittedReceiptProvider())
+    # Sprint 16 CI fix: Sprint 15 watchdog 가 _async_execute 의 submitted 분기에 추가한
+    # fetch_order_status_task.apply_async 가 CI Celery result backend (Redis) 연결 retry
+    # limit 초과 → RuntimeError. test 단위에서는 watchdog enqueue 를 no-op 으로 mock.
+    monkeypatch.setattr(
+        task_mod.fetch_order_status_task,
+        "apply_async",
+        lambda *args, **kwargs: None,
+    )
 
     result = await task_mod._async_execute(order.id)
 
@@ -288,6 +296,12 @@ async def test_execute_order_task_calls_session_commit_on_submitted_path(
     order, _acc = pending_order
     monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
     monkeypatch.setattr(task_mod, "_exchange_provider", _SubmittedReceiptProvider())
+    # Sprint 16 CI fix — submitted 분기의 fetch_order_status_task.apply_async 우회 (Redis result backend retry limit).
+    monkeypatch.setattr(
+        task_mod.fetch_order_status_task,
+        "apply_async",
+        lambda *args, **kwargs: None,
+    )
 
     # Spy on session.commit (Sprint 13 LESSON)
     commit_spy = pytest.MonkeyPatch()
