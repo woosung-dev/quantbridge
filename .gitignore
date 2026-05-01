@@ -18,7 +18,6 @@
 .env.local
 .env.*.local
 .env.demo
-docker-compose.override.yml
 !.env.example
 
 # === Node / Frontend ===

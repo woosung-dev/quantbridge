@@ -1,0 +1,18 @@
+# 로컬 포트 격리 — 다른 웹앱과 병렬 실행 시 host port 만 변경
+# 컨테이너 내부 포트(5432/6379)는 그대로 유지 → 워커/beat 등 내부 통신 영향 0
+#
+# 사용법: `make up-isolated`
+#   == `docker compose -f docker-compose.yml -f docker-compose.isolated.yml up -d`
+# 기본 모드는 본 파일을 사용하지 않음 (docker-compose.yml 단독). 격리 시에만 -f 로 명시 merge.
+#
+# `!override` tag (Compose Spec, docker compose v2.24+) — list 키를 append 가 아니라 완전 대체.
+# 미사용 시 ports 가 base 의 5432:5432 와 append 되어 host 5432 충돌 발생.
+
+services:
+  db:
+    ports: !override
+      - "5433:5432"
+
+  redis:
+    ports: !override
+      - "6380:6379"
