@@ -183,6 +183,57 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    # --- Sprint 15 Phase A.3: stuck order watchdog scope (BL-001 + BL-002) ---
+
+    async def list_stuck_pending(self, cutoff: datetime) -> Sequence[Order]:
+        """30분 이상 pending 주문 — dispatch 누락 (BL-002 day 2 stuck order 13705a91 패턴).
+
+        scan_stuck_orders 가 execute_order_task 재enqueue 시도. LIMIT 100 으로 cardinality cap.
+        """
+        stmt = (
+            select(Order)
+            .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
+            .where(Order.created_at < cutoff)  # type: ignore[arg-type]
+            .order_by(Order.created_at.asc())  # type: ignore[attr-defined]
+            .limit(100)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_stuck_submitted(self, cutoff: datetime) -> Sequence[Order]:
+        """30분 이상 submitted 주문 — terminal evidence 미수신 (BL-001 watchdog target).
+
+        codex G.0 P1 #3 fix — exchange_order_id IS NOT NULL 필터. null 인 경우는
+        list_stuck_submission_interrupted 가 별도 처리 (fetch 호출 불가).
+        """
+        stmt = (
+            select(Order)
+            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
+            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
+            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .limit(100)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_stuck_submission_interrupted(
+        self, cutoff: datetime
+    ) -> Sequence[Order]:
+        """submitted + exchange_order_id IS NULL — transition_to_submitted commit 후
+        attach_exchange_order_id 전 worker crash 또는 race 윈도우.
+
+        codex G.0 P1 #3 — fetch_order 호출 불가 (id 없음). scan_stuck_orders 가
+        throttled alert 만 발화. 사용자 수동 cleanup (BL-028 force-reject script) 대상.
+        """
+        stmt = (
+            select(Order)
+            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
+            .where(Order.exchange_order_id.is_(None))  # type: ignore[union-attr]
+            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .limit(100)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
     async def get_daily_summary(self, date: _dt_module.date) -> tuple[Decimal, int, int]:
         """특정 날짜(UTC)의 일일 요약.
 
