@@ -5,13 +5,16 @@
 #   격리:   3100 / 8100 / 5433 / 6380  (다른 웹앱과 병렬 실행 시)
 #
 # 사용 예:
+#   make dev                    # 한 줄에 up + be + fe 동시 실행 (Ctrl+C 로 양쪽 종료)
+#   make dev-isolated           # 격리 포트로 동일
+#
+#   # 또는 분리 실행:
 #   make up && make be          # 한 터미널에서 인프라 + 백엔드
 #   make fe                     # 다른 터미널에서 프론트
-#   make up-isolated && make be-isolated && (다른 터미널) make fe-isolated
 
 .DEFAULT_GOAL := help
-.PHONY: help up down logs be fe \
-        up-isolated down-isolated logs-isolated be-isolated fe-isolated \
+.PHONY: help dev up down logs be fe \
+        dev-isolated up-isolated down-isolated logs-isolated be-isolated fe-isolated \
         test be-test fe-test lint typecheck
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
@@ -22,6 +25,7 @@ help:
 	@echo "QuantBridge dev commands"
 	@echo ""
 	@echo "  기본 포트 (3000 / 8000 / 5432 / 6379)"
+	@echo "    make dev          # up + be + fe 동시 (한 줄, Ctrl+C 로 양쪽 종료)"
 	@echo "    make up           # docker compose up -d (db + redis + workers)"
 	@echo "    make down         # docker compose down"
 	@echo "    make logs         # docker compose logs -f"
@@ -29,6 +33,7 @@ help:
 	@echo "    make fe           # frontend Next.js (port 3000)"
 	@echo ""
 	@echo "  격리 포트 (3100 / 8100 / 5433 / 6380) — 다른 웹앱과 병렬"
+	@echo "    make dev-isolated # up + be + fe 동시 (한 줄)"
 	@echo "    make up-isolated"
 	@echo "    make down-isolated"
 	@echo "    make logs-isolated"
@@ -41,6 +46,17 @@ help:
 	@echo "    make typecheck    # mypy + tsc"
 
 # === 기본 모드 (3000 / 8000 / 5432 / 6379) ===
+
+# `dev` — up + be + fe 동시. trap 으로 Ctrl+C 시 양쪽 자식 프로세스 종료.
+# be / fe 는 둘 다 long-running foreground (uvicorn --reload, pnpm dev) 라
+# `&&` chain 으로는 동시 실행 불가 → `&` + `wait` + `trap 'kill 0'` 패턴.
+# 두 프로세스 stdout/stderr 가 한 터미널에 섞여 출력됨 (분리 원하면 make be / make fe 별도 터미널).
+dev: up
+	@echo "▶ make be + make fe 동시 실행 (Ctrl+C 로 양쪽 종료)"
+	@trap 'kill 0' INT TERM; \
+	  $(MAKE) -s be & \
+	  $(MAKE) -s fe & \
+	  wait
 
 up:
 	docker compose up -d
@@ -58,6 +74,13 @@ fe:
 	cd frontend && pnpm dev
 
 # === 격리 모드 (3100 / 8100 / 5433 / 6380) ===
+
+dev-isolated: up-isolated
+	@echo "▶ make be-isolated + make fe-isolated 동시 실행 (Ctrl+C 로 양쪽 종료)"
+	@trap 'kill 0' INT TERM; \
+	  $(MAKE) -s be-isolated & \
+	  $(MAKE) -s fe-isolated & \
+	  wait
 
 up-isolated:
 	docker compose $(ISOLATED_COMPOSE) up -d
