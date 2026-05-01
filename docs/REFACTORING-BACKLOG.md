@@ -188,6 +188,7 @@
 **Priority:** P1 — 4번째 broken bug 재발 예방 (Sprint 6 webhook_secret → Sprint 13 OrderService → Sprint 15 ExchangeAccount → ?)
 **Trigger:** 다음 mutation PR 직전 또는 Sprint 16 직후
 **Est:** S (2-3h)
+**Status:** ✅ **Resolved** (Sprint 16, 2026-05-01) — 4 도메인 (Strategy / Backtest / Waitlist / StressTest) commit-spy backfill 완료, 11 spy 추가. codex G.0 audit 결과 5 도메인 모두 commit 호출 OK = broken bug 0건 confirmed. Optimizer 는 H1 미구현 (스캐폴드만) → 별도 BL (Optimizer 구현 시점에 spy 추가).
 **출처:** [`docs/04_architecture/architecture-conformance.md`](04_architecture/architecture-conformance.md) §A2 / Phase 1 audit TBD
 
 **원인 / 영향:** LESSON-019 가 trading 도메인의 broken bug 3 회 재발에서 승격됐지만, **backtest / strategy / waitlist / stress_test / market_data / auth 도메인의 commit-spy 회귀 테스트 미발견**. 다음 service mutation 추가 시 동일 패턴 재발 가능.
@@ -200,6 +201,15 @@
 4. `.ai/stacks/fastapi/backend.md` §트랜잭션 commit 보장 섹션에 "모든 도메인 적용" 명시
 
 **의존성:** —
+
+**Sprint 16 산출물:**
+
+- `backend/tests/strategy/test_strategy_commits.py` (4 spy: create / atomic auto-issue / update / delete)
+- `backend/tests/backtest/test_backtest_commits.py` (3 spy: submit / cancel / delete)
+- `backend/tests/waitlist/test_waitlist_commits.py` (2 spy + autouse `_reset_rate_limiter` override)
+- `backend/tests/stress_test/test_stress_test_commits.py` (2 spy: monte_carlo / walk_forward)
+- 회고: [`docs/dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md`](dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md) §4
+- 커밋: `beacc89` (4 files / 460 insertions)
 
 ---
 
@@ -379,22 +389,23 @@
 
 ## P2 — Hardening / 건강도 작업
 
-| ID                | 제목                                                          | Trigger                                      | Est           | 출처                          |
-| ----------------- | ------------------------------------------------------------- | -------------------------------------------- | ------------- | ----------------------------- |
-| [BL-030](#bl-030) | CI lupa C ext 빌드 검증                                       | on-demand                                    | S (1h)        | CLAUDE.md Sprint 11 follow-up |
-| [BL-031](#bl-031) | Sentinel/Cluster 검토                                         | Redis 단일 인스턴스 한계 도달 시             | L (다음 분기) | CLAUDE.md Sprint 11 follow-up |
-| [BL-032](#bl-032) | cardinality allowlist 조정                                    | 프로덕션 ccxt 예외 실측 후                   | S (1-2h)      | TODO.md L807 (H2 말 이관)     |
-| [BL-033](#bl-033) | issue 중복 방지 (auto-label workflow)                         | dogfood 1주 운영 중 issue 중복 발견 시       | S (1h)        | CLAUDE.md Sprint 11 follow-up |
-| [BL-034](#bl-034) | slowapi 0.2.x major upgrade 검토                              | H2 말 (~2026-06-30)                          | M (3-4h)      | TODO.md L806                  |
-| [BL-035](#bl-035) | Phase B Grafana Cloud (dogfood 통합 대시보드)                 | dogfood 운영 중 본인 필요 metric 식별 후     | M (4-6h)      | TODO.md L715 (Sprint 12 이관) |
-| [BL-036](#bl-036) | dogfood 통합 대시보드 `/dashboard/today`                      | "화면 부족" 자각 시                          | M (3-4h)      | TODO.md L716                  |
-| [BL-037](#bl-037) | Coverage Analyzer AST 정밀화 (regex → pynescript visitor)     | Sprint Y2 또는 사용자 false-positive 보고 시 | M (4h)        | CLAUDE.md Y1 follow-up        |
-| [BL-038](#bl-038) | P-3 중복 실행 통합 (`run_backtest_v2` + `parse_and_run_v2`)   | Sprint 16 정리 sprint 시                     | M (3-4h)      | CLAUDE.md codex Gate-2 W-3    |
-| [BL-039](#bl-039) | `qb_redis_lock_pool_healthy` startup race                     | dogfood 운영 중 false alert 1건 이상 발견 시 | S (1-2h)      | dogfood-day1 §3 (관찰)        |
-| [BL-040](#bl-040) | Path γ — PyneCore transformers 이식                           | H2~H3 path 평가 시                           | XL (~3주)     | CLAUDE.md ADR-011 amendment   |
-| [BL-041](#bl-041) | Path δ — Bulk stdlib top-N                                    | dogfood 피드백 기반 우선순위 결정 후         | L (1~2주)     | CLAUDE.md ADR-011 amendment   |
-| [BL-042](#bl-042) | Onboarding 성공률 지표 `qb_onboarding_completion_total{step}` | Beta 5명 onboarding 후                       | S (1-2h)      | TODO.md L808                  |
-| [BL-043](#bl-043) | waitlist email_service Resend 미설정 graceful fallback 검증   | Beta 오픈 직전                               | S (1-2h)      | TODO.md L809                  |
+| ID                 | 제목                                                                              | Trigger                                      | Est           | 출처                                                     |
+| ------------------ | --------------------------------------------------------------------------------- | -------------------------------------------- | ------------- | -------------------------------------------------------- |
+| BL-027 ✅ Resolved | WS state_handler / reconciliation / tasks/trading dec winner-only commit-then-dec | (Sprint 16, 2026-05-01)                      | M (3-4h)      | dev-log Sprint 15 watchdog G.2 P1 #3 분리, Sprint 16 fix |
+| [BL-030](#bl-030)  | CI lupa C ext 빌드 검증                                                           | on-demand                                    | S (1h)        | CLAUDE.md Sprint 11 follow-up                            |
+| [BL-031](#bl-031)  | Sentinel/Cluster 검토                                                             | Redis 단일 인스턴스 한계 도달 시             | L (다음 분기) | CLAUDE.md Sprint 11 follow-up                            |
+| [BL-032](#bl-032)  | cardinality allowlist 조정                                                        | 프로덕션 ccxt 예외 실측 후                   | S (1-2h)      | TODO.md L807 (H2 말 이관)                                |
+| [BL-033](#bl-033)  | issue 중복 방지 (auto-label workflow)                                             | dogfood 1주 운영 중 issue 중복 발견 시       | S (1h)        | CLAUDE.md Sprint 11 follow-up                            |
+| [BL-034](#bl-034)  | slowapi 0.2.x major upgrade 검토                                                  | H2 말 (~2026-06-30)                          | M (3-4h)      | TODO.md L806                                             |
+| [BL-035](#bl-035)  | Phase B Grafana Cloud (dogfood 통합 대시보드)                                     | dogfood 운영 중 본인 필요 metric 식별 후     | M (4-6h)      | TODO.md L715 (Sprint 12 이관)                            |
+| [BL-036](#bl-036)  | dogfood 통합 대시보드 `/dashboard/today`                                          | "화면 부족" 자각 시                          | M (3-4h)      | TODO.md L716                                             |
+| [BL-037](#bl-037)  | Coverage Analyzer AST 정밀화 (regex → pynescript visitor)                         | Sprint Y2 또는 사용자 false-positive 보고 시 | M (4h)        | CLAUDE.md Y1 follow-up                                   |
+| [BL-038](#bl-038)  | P-3 중복 실행 통합 (`run_backtest_v2` + `parse_and_run_v2`)                       | Sprint 16 정리 sprint 시                     | M (3-4h)      | CLAUDE.md codex Gate-2 W-3                               |
+| [BL-039](#bl-039)  | `qb_redis_lock_pool_healthy` startup race                                         | dogfood 운영 중 false alert 1건 이상 발견 시 | S (1-2h)      | dogfood-day1 §3 (관찰)                                   |
+| [BL-040](#bl-040)  | Path γ — PyneCore transformers 이식                                               | H2~H3 path 평가 시                           | XL (~3주)     | CLAUDE.md ADR-011 amendment                              |
+| [BL-041](#bl-041)  | Path δ — Bulk stdlib top-N                                                        | dogfood 피드백 기반 우선순위 결정 후         | L (1~2주)     | CLAUDE.md ADR-011 amendment                              |
+| [BL-042](#bl-042)  | Onboarding 성공률 지표 `qb_onboarding_completion_total{step}`                     | Beta 5명 onboarding 후                       | S (1-2h)      | TODO.md L808                                             |
+| [BL-043](#bl-043)  | waitlist email_service Resend 미설정 graceful fallback 검증                       | Beta 오픈 직전                               | S (1-2h)      | TODO.md L809                                             |
 
 (상세 내용은 출처 인용 — 표 형태로 충분, 각 항목 1-3 줄로 충분히 self-contained)
 
@@ -510,3 +521,13 @@
     - **BL-028** `scripts/force-reject-stuck.py` — submitted+null exchange_order_id manual cleanup (codex G.0 P1 #3 잔존 surface). trigger: submission_interrupted alert 발화 시. est S (1-2h)
     - **BL-029** provider.fetch_order CCXT rate limit Redis throttle middleware — Sprint 15 watchdog 가 retry 마다 fetch_order 호출. dogfood 1-user 영향 적지만 BL-005 (1-2주 dogfood) 완료 후 점검. trigger: rate limit alert 다발 시. est M (3-4h)
   - **합계 변동**: 50 → 53 BL. P0 잔여 3 (BL-003/004/005). P1 잔여 17 (변동 없음, BL-010 trigger 도래 — Sprint 16 우선). P2 신규 3 (BL-027/028/029).
+
+- **2026-05-01 (Sprint 16)** — `stage/h2-sprint16` 결과 반영.
+  - **Resolved**:
+    - **BL-027** WS state_handler / reconciliation / tasks/trading dec winner-only commit-then-dec — codex G.0 P1 #1 (silent corruption: dec 가 commit 전 발화) + P1 #2 (scope 누락: `tasks/trading.py:165/200/253` 의 \_async_execute rejected 분기) 모두 fix. Sprint 15 watchdog `tasks/trading.py:458` 표준 패턴 (rows==1 → commit → dec) 3 path 통일. 신규 15 tests. 커밋 `a3d4a20`.
+    - **BL-010** commit-spy 도메인 확장 — 4 도메인 (Strategy / Backtest / Waitlist / StressTest) backfill 11 spy. codex G.0 audit 결과 5 도메인 모두 commit 호출 OK = broken bug 0건 confirmed. Optimizer 는 H1 미구현 → 별도 BL. 커밋 `beacc89`.
+  - **codex 게이트**:
+    - **G.0** (medium, iter cap 2) — P1 #1 silent corruption + P1 #2 scope 누락 + Phase B broken bug 0건 confirm. 426k tokens. iter 1 만으로 종료.
+    - **G.2** (high, iter cap 2) — 6 break vector 검토 (silent rollback / SQLAlchemy lazy flush / 변수 shadowing / spy false negative / pytest fixture / OrderState fallthrough). **P1 critical 0건** confirm. 515k tokens. iter 1 만으로 종료.
+  - **신규 등록** (Optimizer 구현 시점에 추가): Optimizer commit-spy backfill (BL-010 의 5번째 도메인, H1 구현 후).
+  - **합계 변동**: 53 BL. P0 잔여 3 (BL-003/004/005). P1 잔여 16 (BL-010 ✅). P2 잔여 2 (BL-028/029, BL-027 ✅). dev-log: [`docs/dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md`](dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md).
