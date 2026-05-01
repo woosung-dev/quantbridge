@@ -162,11 +162,15 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 "credential_decrypt_failed",
                 extra={"order_id": str(order_id), "error": str(e)},
             )
-            await repo.transition_to_rejected(
+            # Sprint 16 BL-027 (codex G.0 P1 #2): winner-only dec.
+            # 다른 path (WS / reconciler / watchdog / user-cancel) 가 먼저 terminal
+            # 전이 시 rowcount=0 loser 도 dec → 음수 drift. rowcount==1 winner 만 dec.
+            rows = await repo.transition_to_rejected(
                 order_id, error_message=error_msg, failed_at=datetime.now(UTC)
             )
             await session.commit()
-            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+            if rows == 1:
+                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -197,11 +201,13 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
                 "provider_create_order_failed",
                 extra={"order_id": str(order_id), "error": str(e)},
             )
-            await repo.transition_to_rejected(
+            # Sprint 16 BL-027 (codex G.0 P1 #2): winner-only dec.
+            rows = await repo.transition_to_rejected(
                 order_id, error_message=error_msg, failed_at=datetime.now(UTC)
             )
             await session.commit()
-            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+            if rows == 1:
+                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -252,11 +258,13 @@ async def _async_execute(order_id: UUID) -> dict[str, Any]:
 
         if receipt.status == "rejected":
             error_msg = "exchange_rejected_at_submission"
-            await repo.transition_to_rejected(
+            # Sprint 16 BL-027 (codex G.0 P1 #2): winner-only dec.
+            rows = await repo.transition_to_rejected(
                 order_id, error_message=error_msg, failed_at=datetime.now(UTC)
             )
             await session.commit()
-            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+            if rows == 1:
+                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
             logger.info(
                 "order_rejected_by_exchange",
                 extra={
@@ -412,9 +420,7 @@ async def _async_fetch_order_status(order_id: UUID, attempt: int) -> dict[str, A
 
         provider = _get_exchange_provider()
         try:
-            status_fetch = await provider.fetch_order(
-                creds, order.exchange_order_id, order.symbol
-            )
+            status_fetch = await provider.fetch_order(creds, order.exchange_order_id, order.symbol)
         except ProviderError as e:
             # codex G.2 P1 #2 fix — provider 일시 장애 (rate limit / auth /
             # network) 가 silent skip 되면 영원히 submitted 고착. 따라서
@@ -470,16 +476,12 @@ async def _async_fetch_order_status(order_id: UUID, attempt: int) -> dict[str, A
                     extra={
                         "order_id": str(order_id),
                         "filled_price": (
-                            str(status_fetch.filled_price)
-                            if status_fetch.filled_price
-                            else None
+                            str(status_fetch.filled_price) if status_fetch.filled_price else None
                         ),
                     },
                 )
                 return {"order_id": str(order_id), "state": "filled"}
-            logger.info(
-                "watchdog_race_skip_filled", extra={"order_id": str(order_id)}
-            )
+            logger.info("watchdog_race_skip_filled", extra={"order_id": str(order_id)})
             return {
                 "order_id": str(order_id),
                 "state": "filled",
@@ -540,9 +542,7 @@ async def _async_fetch_order_status(order_id: UUID, attempt: int) -> dict[str, A
         }
 
 
-def _build_watchdog_retry_kwargs(
-    order_id: str, result: dict[str, Any]
-) -> dict[str, Any] | None:
+def _build_watchdog_retry_kwargs(order_id: str, result: dict[str, Any]) -> dict[str, Any] | None:
     """codex G.2 P1 #1 fix — Celery retry args/kwargs 정확히 빌드.
 
     원본 positional args 보존 시 duplicate keyword argument TypeError → retry chain

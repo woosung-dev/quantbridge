@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.common.alert import send_critical_alert
-from src.common.metrics import qb_ws_reconcile_unknown_total
+from src.common.metrics import qb_active_orders, qb_ws_reconcile_unknown_total
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
 from src.trading.repository import OrderRepository
@@ -92,6 +92,9 @@ class Reconciler:
             )
             all_exch = exch_open + exch_recent
 
+            # Sprint 16 BL-027 (codex G.0 P1 #1): commit-then-dec winner-only.
+            # _apply_transition 가 rowcount return → 누적 후 commit 성공 시점에 dec 발화.
+            winners: list[OrderState] = []
             for local in local_active:
                 exch = self._find_match(all_exch, str(local.id))
                 if exch is None:
@@ -104,12 +107,23 @@ class Reconciler:
                 if status in _TERMINAL_STATUSES:
                     new_state = _STATUS_MAP[status]
                     if new_state != local.state:
-                        await self._apply_transition(
+                        rowcount = await self._apply_transition(
                             session, local, new_state, exch
                         )
+                        if rowcount == 1:
+                            winners.append(new_state)
                 # else: 명시 status 없으면 state 유지
 
             await session.commit()
+
+            # Sprint 16 BL-027: commit 성공 후 winner-only dec — 이전엔 dec 누락 (drift).
+            for new_state in winners:
+                if new_state in (
+                    OrderState.filled,
+                    OrderState.rejected,
+                    OrderState.cancelled,
+                ):
+                    qb_active_orders.dec()
 
     async def _list_local_active(
         self, session: AsyncSession, account_id: UUID
@@ -171,33 +185,41 @@ class Reconciler:
         local: Order,
         new_state: OrderState,
         exch: dict[str, Any],
-    ) -> None:
+    ) -> int:
+        """Sprint 16 BL-027: rowcount return — caller (run) 가 commit 성공 후 winner-only dec.
+
+        codex G.0 P1 #1: 이전엔 dec() 자체 누락 → reconcile transition 시 gauge 감소
+        안 됨 = drift. caller layer 에서 commit-then-dec 패턴으로 통일.
+        """
         repo = OrderRepository(session)
         now = datetime.now(UTC)
+        rowcount = 0
         if new_state == OrderState.filled:
             from decimal import Decimal
 
             avg = exch.get("average") or exch.get("avgPrice")
             filled_price = Decimal(str(avg)) if avg else None
-            await repo.transition_to_filled(
+            rowcount = await repo.transition_to_filled(
                 local.id,
                 exchange_order_id=str(exch.get("id", local.exchange_order_id or "")),
                 filled_price=filled_price,
                 filled_at=now,
             )
         elif new_state == OrderState.cancelled:
-            await repo.transition_to_cancelled(local.id, cancelled_at=now)
+            rowcount = await repo.transition_to_cancelled(local.id, cancelled_at=now)
         elif new_state == OrderState.rejected:
             reason = exch.get("info", {}).get("rejectReason", "reconcile_rejected")
-            await repo.transition_to_rejected(
+            rowcount = await repo.transition_to_rejected(
                 local.id, error_message=str(reason), failed_at=now
             )
         logger.info(
-            "ws_reconcile_transition order=%s old=%s new=%s",
+            "ws_reconcile_transition order=%s old=%s new=%s rowcount=%d",
             local.id,
             local.state,
             new_state,
+            rowcount,
         )
+        return rowcount
 
     # NOTE: Sprint 13 follow-up — 1h stale + cancelled-by-evidence 별도 정책 추가 가능.
     _STALE_HOURS = timedelta(hours=1)

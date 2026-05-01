@@ -104,20 +104,31 @@ class StateHandler:
                 # New / PartiallyFilled / 기타 — MVP skip
                 return
 
-            await self._apply_transition(repo, order.id, new_state, payload)
+            # Sprint 16 BL-027 (codex G.0 P1 #1): commit-then-dec winner-only.
+            # _apply_transition 은 rowcount 만 return — dec/alert 호출은 caller responsibility.
+            # commit 성공 후에만 dec 발화 (commit 실패 시 DB rollback ↔ gauge 일관 보장).
+            rowcount = await self._apply_transition(repo, order.id, new_state, payload)
             await session.commit()
 
-            if new_state == OrderState.rejected:
-                await self._alert_sender(
-                    self._settings,
-                    "Order Rejected (WS)",
-                    f"{order.symbol} {order.side} {order.quantity}",
-                    {
-                        "order_id": str(order.id),
-                        "account_id": str(account_id),
-                        "reason": payload.get("rejectReason", "unknown"),
-                    },
-                )
+            if rowcount == 1:
+                if new_state in (
+                    OrderState.filled,
+                    OrderState.rejected,
+                    OrderState.cancelled,
+                ):
+                    qb_active_orders.dec()
+
+                if new_state == OrderState.rejected:
+                    await self._alert_sender(
+                        self._settings,
+                        "Order Rejected (WS)",
+                        f"{order.symbol} {order.side} {order.quantity}",
+                        {
+                            "order_id": str(order.id),
+                            "account_id": str(account_id),
+                            "reason": payload.get("rejectReason", "unknown"),
+                        },
+                    )
 
     async def replay_orphan(self, key: str, account_id: UUID) -> bool:
         """REST 응답 직후 호출 — buffer 에 있으면 재처리 + 제거. True if replayed."""
@@ -165,32 +176,35 @@ class StateHandler:
         order_id: UUID,
         new_state: OrderState,
         payload: dict[str, Any],
-    ) -> None:
-        """OrderRepository.transition_to_* 라우팅."""
+    ) -> int:
+        """Sprint 16 BL-027: rowcount return — caller 가 commit 성공 후 winner-only dec/alert.
+
+        codex G.0 P1 #1: 이전엔 dec() 가 commit 전 발화 → commit 실패/rollback 시
+        DB 는 active 인데 gauge 만 감소 = drift. 패턴 통일 (`tasks/trading.py:458`):
+        rows == 1 → commit 성공 → dec.
+        """
         now = datetime.now(UTC)
         if new_state == OrderState.filled:
             avg = payload.get("avgPrice") or payload.get("average")
             from decimal import Decimal
 
             filled_price = Decimal(str(avg)) if avg else None
-            await repo.transition_to_filled(
+            return await repo.transition_to_filled(
                 order_id,
                 exchange_order_id=str(payload.get("orderId", "")),
                 filled_price=filled_price,
                 filled_at=now,
             )
-            qb_active_orders.dec()
         elif new_state == OrderState.rejected:
             reason = payload.get("rejectReason", "ws_rejected")
-            await repo.transition_to_rejected(
+            return await repo.transition_to_rejected(
                 order_id,
                 error_message=f"ws_rejected: {reason}",
                 failed_at=now,
             )
-            qb_active_orders.dec()
         elif new_state == OrderState.cancelled:
-            await repo.transition_to_cancelled(order_id, cancelled_at=now)
-            qb_active_orders.dec()
+            return await repo.transition_to_cancelled(order_id, cancelled_at=now)
+        return 0
 
     async def _get_by_exchange_order_id(
         self, repo: OrderRepository, exchange_order_id: str
