@@ -92,30 +92,63 @@ make up-isolated
 # 4. self-assessment 갱신 (8 → 9 회복 검증)
 ```
 
-## §5. 후속 (Phase D + E + F + G)
+## §5. Phase D — FE BL-093+095 ✅ 완료
 
-남은 Sprint 21 작업:
+**파일** (4 source + 3 test):
 
-1. **Phase D — FE BL-093+095** (~2-3h)
-   - `frontend/src/features/trading/components/test-order-dialog.tsx` — toast description 에 `#${order_id.slice(-8)}` (1 vitest)
-   - `frontend/src/features/trading/components/orders-panel.tsx` — `Broker ID` 컬럼 + `<BrokerBadge orderId={...} />` (3 vitest)
-   - `frontend/src/app/(dashboard)/backtests/_components/backtest-form.tsx` — 422 detail.unsupported_builtins inline 카드 (4 vitest)
-   - `frontend/src/lib/unsupported-builtin-hints.ts` 신규 — friendly mapping table
+- `frontend/src/lib/unsupported-builtin-hints.ts` 신규 — heikinashi/security/request.security/timeframe.\* 등 friendly mapping (corruption / noop / alternative 카테고리 분기)
+- `frontend/src/features/trading/components/test-order-dialog.tsx` — `await res.json()` body 의 `id` 캡처 → `toast.success("테스트 주문 발송됨", { description: "#" + id.slice(-8) })`. body parse 실패 시 idempotency_key fallback (`client #${slice(-8)}`)
+- `frontend/src/features/trading/components/orders-panel.tsx` — 7번째 컬럼 `Broker ID` + `<BrokerBadge orderId={...} />` (fixture-\* 오렌지 mock vs broker 녹색 시각 분기, codex G.2 P2 — UUID 판정 X)
+- `frontend/src/app/(dashboard)/backtests/_components/backtest-form.tsx` — 422 응답의 `err.detail?.detail?.unsupported_builtins` (구조화 list) 직접 접근 → `getUnsupportedBuiltinHints()` 변환 → inline 카드 + edit link. 빈 list 또는 detail 부재 시 fallback root.serverError
 
-2. **Phase E — codex G.2 challenge** (high reasoning, iter cap 2)
-   - alias ordering 회귀 / explicit set 누락 / friendly mapping 번역 정확성
+**Tests** (8 신규):
 
-3. **Phase F — docs sync**
-   - `docs/REFACTORING-BACKLOG.md` — BL-096 / BL-093 / BL-095 ✅ Resolved
-   - `docs/02_domain/supported-indicators.md` — supported list SSOT 갱신
+- `__tests__/test-order-dialog.test.tsx`: +1 happy path with json body — toast description 에 broker order id slice(-8) 검증
+- `__tests__/OrdersPanel.test.tsx`: +3 broker evidence 시나리오 (null / fixture-\* / real broker)
+- `__tests__/backtest-form.test.tsx`: +4 422 패턴 (구조화 list / 빈 list / detail 부재 / non-422)
 
-4. **Phase G — commit + PR**
-   - 묶음 PR (BL-096 + BL-093 + BL-095 + alias ordering fix)
-   - 사용자 수동 stage→main
+**자동 검증**: FE 251 passed / 0 fail. tsc 0 / eslint 0 / pnpm build OK.
 
-5. **Phase H — 사용자 라이브 self-assessment**
-   - 8 → 9 회복 검증
-   - `docs/dev-log/2026-05-XX-dogfood-day1.md` 작성
+## §6. Phase E — codex G.2 Challenge
+
+**G.2 (high reasoning, iter cap 2, 808k tokens)** — VERDICT: GO_WITH_FIXES + 신규 P1 3건 발견.
+
+| 발견                                                                                                                                                                                                                                         | 분류                       | 처리                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **P1 #1 `timeframe.*` false-pass** — Sprint 21 v2 plan 에 추가한 `_TIMEFRAME_CONSTANTS` 가 coverage supported 였지만 interpreter `_eval_attribute` 의 `timeframe.*` runtime 평가 미구현 = preflight pass 후 runtime fail (silent corruption) | Sprint 21 직접 신규 추가분 | **즉시 fix** (frozenset 빈 세트로 회수) + dogfood corpus test 갱신 + friendly hints 의 `timeframe.*` noop 추가 |
+| P1 #2 `strategy.exit` coverage/interpreter parity (pre-existing)                                                                                                                                                                             | Sprint Y1 부터 잔존        | **BL-098 분리** Sprint 22+                                                                                     |
+| P1 #3 `vline` coverage/interpreter parity (pre-existing)                                                                                                                                                                                     | Sprint Y1 부터 잔존        | **BL-099 분리** Sprint 22+                                                                                     |
+
+**P2** (해소 또는 Sprint 22+):
+
+- `unsupported-builtin-hints.ts` 의 `max/min/abs` 권장 hint 부정확 (Sprint 21 alias ordering fix 후 user function 우선 → 충돌 risk 사라짐) → **즉시 정정** (3 hint 제거, generic fallback 활용)
+- BrokerBadge `title` 의 broker order id privacy → Sprint 22+ (스크린캡처 risk, secret 은 아님)
+- `api-client.ts:53` 의 nested `detail.code` 미추출 (`ApiError.code = "unknown_error"` 항상) → Sprint 22+ (현재 BacktestForm 영향 작음)
+- QB-authored fixture test 가 "at least one Sprint 22+ unsupported" 만 검증 → expected unsupported 전체 set 회귀로 강화 (Sprint 22+)
+
+**G.2 후속 자동 검증** (P1 #1 fix 후): BE 388 회귀 + Sprint 21 신규 50+8 tests / 0 fail. FE 251 / 0 fail. tsc/eslint/ruff/mypy 0/0/0/0.
+
+## §7. 신규 BL 등록 (codex G.2 분리)
+
+| ID                     | 제목                                                                                                     | Priority | est                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | -------- | -------------------------- |
+| **BL-097** ✅ Resolved | interpreter alias ordering correctness — user_functions 우선 dispatch                                    | P1       | (Sprint 21 Phase A.1 흡수) |
+| **BL-098**             | `strategy.exit` coverage/interpreter parity — coverage supported / interpreter dispatch 미구현           | P1       | S (1h)                     |
+| **BL-099**             | `vline` coverage/interpreter parity — coverage supported / `_NOP_NAMES` 미포함                           | P1       | S (30m)                    |
+| **BL-100**             | `timeframe.*` runtime NOP — interpreter `_eval_attribute` 추가 또는 strict toggle 설계 후 supported 전환 | P2       | M (2-4h)                   |
+
+## §8. 후속 (Phase G + H)
+
+1. **Phase G — commit + PR**
+   - FE + docs sync + G.2 fix 묶음 commit (BE 는 이미 commit `f45c3ce`)
+   - 사용자 수동 stage→main PR
+
+2. **Phase H — 사용자 라이브 self-assessment**
+   - `make up-isolated` → `localhost:3100/strategies/new` → 본인 RsiD strategy paste → parse_preview ✅ + backtest ✅ 검증
+   - UtBot easy/medium → 422 inline 카드 + heikinashi/security/timeframe.period 친절 표시 확인
+   - TestOrderDialog → toast description broker id slice 노출 확인 + OrdersPanel BrokerBadge 시각 분기 확인
+   - 8 → 9 회복 검증 (Trust Layer 정합 + alias ordering correctness + backend shape 표준화 의 trust signal)
+   - `docs/dev-log/2026-05-XX-dogfood-day1-sprint21.md` 작성
 
 ## §6. Sprint 22+ 이관
 

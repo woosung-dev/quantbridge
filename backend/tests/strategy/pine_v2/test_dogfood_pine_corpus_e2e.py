@@ -68,8 +68,10 @@ def test_utbot_minimal_rejects_heikinashi_and_security_trust_layer(
     # Sprint 21 신규 fix 된 항목은 unsupported 에서 제외 — supported 로 분류
     assert "max" not in all_unsupported
     assert "min" not in all_unsupported
-    assert "timeframe.period" not in all_unsupported
     assert "study" not in all_unsupported
+    # Sprint 21 G.2 P1 #1 — timeframe.* 는 runtime 미구현 (silent corruption risk)
+    # 으로 unsupported 유지. Sprint 22+ 에서 interpreter NOP 또는 strict toggle 설계.
+    assert "timeframe.period" in all_unsupported
 
 
 def test_drfx_partial_baseline_for_sprint22(drfx_partial: str) -> None:
@@ -100,7 +102,8 @@ def test_drfx_partial_baseline_for_sprint22(drfx_partial: str) -> None:
     assert "max" not in all_unsupported, (
         "Sprint 21 fixed `max` should be supported in DrFX-partial baseline."
     )
-    assert "timeframe.period" not in all_unsupported
+    # Sprint 21 G.2 P1 #1 — timeframe.* 는 runtime 미구현으로 unsupported 유지.
+    assert "timeframe.period" in all_unsupported
 
 
 def test_dogfood_corpus_pass_rate_50_percent_baseline(

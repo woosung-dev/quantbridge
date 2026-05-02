@@ -52,6 +52,17 @@ dogfood 환경에서 backtest 통과 확인된 항목. `backend/tests/fixtures/p
 
 `rma`, `sma`, `ema`, `rsi`, `atr`, `highest`, `lowest`, `crossover`, `crossunder`, `change`, `stdev`, `variance`, `iff`, `switch`
 
+**Sprint 21 추가** (`abs/max/min/pivothigh/pivotlow/barssince/valuewhen/timestamp`) — v4 no-namespace 형식. interpreter alias map 에서 `math.*` 또는 `ta.*` 로 재라우팅. **사용자 정의 함수 우선 dispatch** (Sprint 21 Phase A.1, codex G.0 P1 #1+#4 — `abs(x) =>` 정의 시 alias 압도 차단).
+
+### 2.7 Explicit constant sets (Sprint 21 신규)
+
+namespace prefix 기반 wildcards 가 아닌 **명시적 frozenset** — false-pass 차단 (codex G.0 P1 #3):
+
+- **`_CURRENCY_CONSTANTS`** (12개): `currency.USD`, `currency.EUR`, `currency.JPY`, `currency.GBP`, `currency.AUD`, `currency.CAD`, `currency.CHF`, `currency.NZD`, `currency.HKD`, `currency.SGD`, `currency.KRW`, `currency.NONE`
+- **`_STRATEGY_CONSTANTS_EXTRA`** (6개): `strategy.fixed`, `strategy.cash`, `strategy.percent_of_equity`, `strategy.commission_percent`, `strategy.commission_cash_per_contract`, `strategy.commission_cash_per_order`
+
+**`timeframe.*`** — Sprint 21 v2 plan 에 추가 의도였으나 codex G.2 P1 #1 발견으로 회수 (interpreter `_eval_attribute` 의 `timeframe.*` runtime 평가 미구현 = silent corruption risk). Sprint 22+ 의 BL-100 에서 NOP 또는 strict toggle 후 supported.
+
 ### 2.7 Plot/Visual (NOP — backtest 영향 없음)
 
 `plot`, `plotshape`, `plotchar`, `plotarrow`, `plotcandle`, `plotbar`, `bgcolor`, `fill`, `hline`, `vline`, `alertcondition`, `alert`, `label.new`, `line.new`, `box.new`, `table.new`, `color.*`
@@ -125,6 +136,7 @@ backtest 실행 시 `pre-flight coverage analyzer` 가 즉시 reject. 별도 spr
 
 ## 5. 변경 이력
 
+- **2026-05-02 (Sprint 21)** — v4 alias 8 추가 (`abs/max/min/pivothigh/pivotlow/barssince/valuewhen/timestamp`) + `_CURRENCY_CONSTANTS` (12) + `_STRATEGY_CONSTANTS_EXTRA` (6) explicit set + `study` declaration alias NOP. **Backend 422 shape 표준화** (`StrategyNotRunnable.unsupported_builtins: list[str]`) + **interpreter alias ordering correctness fix** (user_functions 우선 dispatch). codex G.0 round 1 RETHINK + round 2 GO_WITH_FIXES + G.2 GO_WITH_FIXES (P1 3건 — timeframe 회수 / strategy.exit / vline BL 분리).
 - **2026-04-23 (Sprint Y1)** — 본 문서 신설. pre-flight coverage analyzer 도입.
 - **2026-04-23 (Sprint X1+X3 follow-up)** — `ta.sar`, `ta.rma`, `ta.tr`, loose mode 추가
 - **이전** — `pine-v2-migration` PR #52 + Sprint 8c (user-defined function + 3-Track dispatcher)

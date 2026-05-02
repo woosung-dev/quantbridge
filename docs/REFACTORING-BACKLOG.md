@@ -665,6 +665,28 @@
   - **신규 등록** (Optimizer 구현 시점에 추가): Optimizer commit-spy backfill (BL-010 의 5번째 도메인, H1 구현 후).
   - **합계 변동**: 53 BL. P0 잔여 3 (BL-003/004/005). P1 잔여 16 (BL-010 ✅). P2 잔여 2 (BL-028/029, BL-027 ✅). dev-log: [`docs/dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md`](dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md).
 
+- **2026-05-02 (Sprint 21 BE+FE)** — `stage/h2-sprint21` 결과 반영.
+  - **Resolved**:
+    - **BL-093** TestOrderDialog success confirmation — toast description 에 broker order id slice / idempotency_key fallback. + OrdersPanel 7번째 컬럼 `Broker ID` + `<BrokerBadge>` (fixture-\* 오렌지 mock vs broker 녹색 시각 분기).
+    - **BL-095** Backtest 422 inline detail — backend 422 shape `{detail:{code,detail,unsupported_builtins:list[str]}}` 표준화 (Phase A.0). FE friendly hints inline 카드 + edit link (Phase D). `unsupported-builtin-hints.ts` 신규 mapping table.
+    - **BL-097** (신규+Resolved) interpreter alias ordering correctness — `_eval_call` 시작 직후 user_functions 우선 dispatch + `"." not in name` guard. 사용자 `abs(x) =>` / `max(a,b) =>` 정의 시 v4 alias 압도 차단 (Sprint 8c 의 silent correctness bug 해소). codex G.0 P1 #1+#4.
+    - **BL-096 Partial** — coverage.py supported list 확장 (V4 alias 8 + 2 explicit constant frozenset (currency 12 / strategy_extra 6) + study NOP). RsiD 통과 (8 unsupported 모두 fix). UtBot×2 잔존 (heikinashi/security Trust Layer 정합 의도, codex G.0 P1 #2). DrFX scope (Sprint 22+).
+
+  - **신규 등록 (codex G.2 challenge P1 — Sprint 21 무관 pre-existing)**:
+    - **BL-098** `strategy.exit` coverage/interpreter parity — coverage.py:40 supported 인데 interpreter `_eval_call` dispatch 미구현. preflight pass 후 runtime fail risk. P1. est S (1h).
+    - **BL-099** `vline` coverage/interpreter parity — coverage.py:52 `_PLOT_FUNCTIONS` supported 인데 interpreter `_NOP_NAMES` 미포함. P1. est S (30m).
+    - **BL-100** `timeframe.*` runtime NOP — Sprint 21 v2 plan 에서 추가했으나 G.2 P1 #1 발견 (interpreter `_eval_attribute` 미구현 = silent corruption risk). 본 Sprint 에서 `_TIMEFRAME_CONSTANTS` 빈 frozenset 으로 회수. interpreter NOP 추가 또는 strict toggle 설계 후 supported 전환. P2. est M (2-4h).
+
+  - **codex 게이트**:
+    - **G.0 round 1** (medium, 397k tokens) RETHINK + P1 9건. round 2 (medium, 254k tokens) GO_WITH_FIXES + 신규 P1 0건.
+    - **G.2** (high, 808k tokens) GO_WITH_FIXES + 신규 P1 3건. #1 즉시 fix (timeframe 회수). #2/#3 BL 분리.
+    - **G.5 self-checklist**: 자동 검증 ✅. 라이브 RsiD 검증 + self-assessment 8 → 9 = Phase H 후속.
+
+  - **누적**: BE +38 신규 tests (385+/0/16 skip), FE +8 신규 tests (251/0). ruff/mypy/tsc/eslint 0/0/0/0. Sprint 8c 388 회귀 PASS. SLO: 본인 6 pine 통과율 33% → 50% (3/6, +1 RsiD).
+  - **Self-assessment 본질** (codex G.0 free-2): 통과율 절대값 < 신뢰. alias ordering correctness fix + backend shape 표준화 + Trust Layer 정합 = trust ↑ (Phase H 라이브 검증 후 8 → 9 측정).
+  - **합계 변동**: 67 BL (BL-093/095/097 ✅ Resolved, BL-096 Partial Resolved + BL-098/099/100 신규 3).
+  - **dev-log**: [`docs/dev-log/2026-05-02-sprint21-bl096-coverage-expansion.md`](dev-log/2026-05-02-sprint21-bl096-coverage-expansion.md).
+
 - **2026-05-02 (Sprint 17)** — `stage/h2-sprint17` 결과 반영.
   - **Phase 0 라이브 검증 발견**: Sprint 15 watchdog (BL-001) 6h 동안 **141/141 silent fail** + Sprint 12 reconcile_ws_streams 6h **18/35 fail**. Root cause: module-level cached AsyncEngine + Celery prefork 의 asyncio.run() 새 loop 가 SQLAlchemy/asyncpg connection pool loop binding mismatch. self-assessment 2/10 = Path C emergency.
   - **Partial fix (Phase A+B+C)**: orphan_scanner.py / websocket_task.py / tasks/trading.py 모두 module-level singleton 제거 + per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` (backtest.py:31 mirror). 신규 19 tests + 회귀 fix (test_celery_task / test_fetch_order_status_task / test_orphan_scanner). ruff 0 / mypy 0. **1st task / child success** 검증.

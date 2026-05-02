@@ -130,16 +130,21 @@ strategy("UnknownStrategy", overlay=true, default_qty_type=strategy.foobar_qty_t
         "timeframe.isintraday",
     ],
 )
-def test_timeframe_constants_supported(constant: str) -> None:
-    """_TIMEFRAME_CONSTANTS 의 명시 항목은 supported (UtBot timeframe.period 통과)."""
+def test_timeframe_constants_remain_unsupported(constant: str) -> None:
+    """timeframe.* 는 unsupported 유지 (codex G.2 P1 #1 — runtime 미구현).
+
+    Sprint 21 v2 plan 에선 `_TIMEFRAME_CONSTANTS` 추가했지만 interpreter._eval_attribute
+    의 `timeframe.*` runtime 평가가 없어 preflight pass 후 runtime fail = silent corruption.
+    Sprint 22+ 의 interpreter NOP 추가 또는 strict toggle 설계 후 supported 전환.
+    """
     src = f"""
 //@version=5
 strategy("TimeframeConstants", overlay=true)
 tf = {constant}
 """
     r = analyze_coverage(src)
-    assert constant not in r.unsupported_attributes, (
-        f"{constant} should be supported. "
+    assert constant in r.unsupported_attributes, (
+        f"{constant} should be unsupported (Sprint 21 G.2 fix — runtime 미구현). "
         f"unsupported_attributes={r.unsupported_attributes}"
     )
 
