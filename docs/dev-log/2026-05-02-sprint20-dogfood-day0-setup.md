@@ -192,17 +192,48 @@ ws-stream:
 
 ---
 
-## §7. self-assessment (≥9 유지 의무 — Sprint 19 추세)
+## §7. self-assessment — 사용자 본인 채점 (2026-05-02 KST 22:00)
 
-| 항목                                | 가중치 | 점수      | 비고                                               |
-| ----------------------------------- | ------ | --------- | -------------------------------------------------- |
-| watchdog (BL-001 / BL-080 / BL-027) | 4      | \_/4      | scan_stuck_orders 5min cycle 정상, BL-080 fix 검증 |
-| retry/alert (Sprint 12/15/19)       | 2      | \_/2      | qb_pending_alerts 0 유지, ws supervisor 정상       |
-| Pain 발견 (의무)                    | 2      | \_/2      | P1 BL-091 + P2/P3 α/β/γ 4건 발견                   |
-| 매일 사용 quality                   | 2      | \_/2      | Phase 0 + 첫 real broker smoke 완료                |
-| **합계**                            | **10** | **\_/10** |                                                    |
+### §7.1 사용자 친화 8 항목 (jargon 배제 — Y/N/P)
 
-> **사용자 self-assessment 자리** — 위 발견 + 본인 체감 종합해 채점.
+| #   | 질문                                                                      | 답    | 비고                                                                                       |
+| --- | ------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------ |
+| 1   | 거래소 계정 등록 (`/trading` Dialog) — 끝까지 됐고 안전해 보임?           | **Y** | bybit demo + AES-256                                                                       |
+| 2   | Strategy 만들기 (3-step wizard) — Pine 붙여넣고 저장까지 막힘 없음?       | **Y** | v4/v5/v6 모두 파싱                                                                         |
+| 3   | webhook URL/Secret 받기 (?tab=webhook amber card) — 1회 노출 정책 합리적? | **Y** | 단 TTL 30분 (BL-094) — dogfood 사이클 내 OK                                                |
+| 4   | Backtest 결과 보기 (5탭 + Equity Curve) — 6개월 결과 신뢰됨?              | **P** | 결과 시각화 OK / 하지만 over -100% MDD (BL-004) 신뢰도 의심                                |
+| 5   | TestOrderDialog 발사 (실제 Bybit Demo broker) — 진짜 broker 갔다고 확신?  | **Y** | hot-fix 후 1.95s + Bybit 푸시 알림 받음                                                    |
+| 6   | 본인 보관 indicator 6개 중 backtest 되는 비율 — 만족?                     | **N** | 2/6 = 33% (PbR + LuxAlgo). UtBot×2 + DrFX + RsiD 거부 (BL-096)                             |
+| 7   | Bybit Demo UI 와 일치 확인 — **우리 UI 안에서** 쉽게 확인 됐나?           | **N** | 우리 UI 안 broker 도달 evidence 부재 → demo.bybit.com 직접 가서 확인 (BL-093+095 superset) |
+| 8   | **이 시스템 매일 1시간 쓰고 싶나?** ⭐ Sprint 20 본질                     | **P** | 가능성 봤지만 본인 indicator 못 쓰는 큰 막힘 (BL-096 P1)                                   |
+
+**총: Y×5, P×2, N×2** = 5/8 완전 OK + 2/8 부분 + 2/8 미달.
+
+### §7.2 가중치 환산
+
+| 항목                                     | 가중치 | 답 매핑 | 점수     | 비고                                                                               |
+| ---------------------------------------- | ------ | ------- | -------- | ---------------------------------------------------------------------------------- |
+| watchdog (계정 등록 + 주문 발사 안정성)  | 4      | 1Y + 5Y | **4/4**  | scan_stuck_orders 5min cycle + BL-080 prefork-safe 8 backtest 안정                 |
+| retry/alert (UI 안에서 broker 도달 확인) | 2      | 5Y + 7N | **1/2**  | 발사는 Y / 우리 UI 안 evidence N → BL-093+095 superset                             |
+| Pain 발견 (의무)                         | 2      | BL 6건  | **2/2**  | BL-091 + BL-096 + BL-092~095 — **풍성**                                            |
+| 매일 사용 quality                        | 2      | 8P      | **1/2**  | 가능성 봤지만 본인 indicator 못 쓰는 큰 막힘                                       |
+| **합계**                                 | **10** |         | **8/10** | Sprint 18~19 **9/10** vs 라이브 Day 0 **8/10** = 자동 9 → 라이브 8 (자연스러움 -1) |
+
+### §7.3 결정적 신호 (Sprint 21 분기 근거)
+
+- **N×2 (6번 indicator + 7번 UI evidence)** = Sprint 21 **P1 우선순위 명확**
+  - **BL-096 (Coverage Analyzer 좁음, 33% 통과)** = dogfood 매일 사용 가장 큰 friction
+  - **BL-093+095 superset (UI broker 도달 evidence)** = Sprint 21 frontend P1
+- **P×1 (8번 매일 사용)** = 8/10 정확히 일치. 본인 indicator 통과율 33% → 80%+ 가 핵심 trigger
+- gate ≥7 통과 = **dogfood 진행 OK**, 단 Sprint 21 BL-096 P1 우선
+
+### §7.4 Sprint 21 분기 권장 (별점)
+
+| Path                                    | 별점  | 적합도                                                                                                             |
+| --------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------ |
+| **B-1. BL-096 + BL-093+095 우선 (1주)** | ★★★★★ | Day 0 N×2 직접 해소. 통과율 33% → 80%+ + UI broker evidence. **self-assessment 8 → 9+ 회복** + 본인 매일 사용 가능 |
+| B-2. BL-091 architectural (1-2일)       | ★★★★  | Sprint 20 hot-fix 의 proper fix (account.mode 기반 dynamic dispatch). 즉시 risk 낮지만 architectural 의무          |
+| C. Path A Beta 오픈 진입                | ★★    | 8/10 → 본인 매일 사용 P 상태에서 외부 노출은 시기상조. BL-096 fix 후 권장                                          |
 
 ---
 
