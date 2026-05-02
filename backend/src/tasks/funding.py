@@ -5,7 +5,6 @@ Beat schedule: celery_app.py에 등록 (매 1시간).
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -51,8 +50,13 @@ def fetch_funding_rates_task(
     symbol: str = "BTC/USDT:USDT",
     lookback_hours: int = 2,
 ) -> dict[str, Any]:
-    """최근 lookback_hours 내 funding rate 수집 + DB 저장."""
-    return asyncio.run(_async_fetch(exchange_name, symbol, lookback_hours))
+    """최근 lookback_hours 내 funding rate 수집 + DB 저장.
+
+    Sprint 18 BL-080: asyncio.run → run_in_worker_loop (Option C).
+    """
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_fetch(exchange_name, symbol, lookback_hours))
 
 
 async def _async_fetch(exchange_name: str, symbol: str, lookback_hours: int) -> dict[str, Any]:

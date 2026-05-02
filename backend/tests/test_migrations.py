@@ -30,15 +30,25 @@ from src.trading.models import (  # noqa: F401
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _alembic_cfg() -> Config:
-    cfg = Config("alembic.ini")
-    cfg.set_main_option(
-        "sqlalchemy.url",
-        os.environ.get(
-            "DATABASE_URL",
-            "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test",
-        ).replace("+asyncpg", ""),  # alembic은 sync driver 필요
+def _resolved_test_db_url() -> str:
+    """Sprint 19 BL-083 (codex G.0 P1 #1): TEST_DATABASE_URL > DATABASE_URL > default.
+
+    Sprint 18 의 conftest.DB_URL 우선순위와 일치하여 격리 docker stack (5433) 에서
+    실행 시 정확한 DSN 사용.
+    """
+    return (
+        os.environ.get("TEST_DATABASE_URL")
+        or os.environ.get("DATABASE_URL")
+        or "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test"
     )
+
+
+def _alembic_cfg() -> Config:
+    """Sprint 19 BL-083: psycopg2 sync DSN 변환은 conftest._to_psycopg2_url 사용."""
+    from tests.conftest import _to_psycopg2_url
+
+    cfg = Config("alembic.ini")
+    cfg.set_main_option("sqlalchemy.url", _to_psycopg2_url(_resolved_test_db_url()))
     return cfg
 
 
@@ -63,10 +73,8 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     monkeypatch.chdir(_BACKEND_ROOT)
     command.upgrade(_alembic_cfg(), "head")
 
-    db_url = os.environ.get(
-        "DATABASE_URL",
-        "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test",
-    )
+    # Sprint 19 BL-083: 격리 stack 호환 위해 conftest 우선순위 함수 사용.
+    db_url = _resolved_test_db_url()
     engine = create_async_engine(db_url, poolclass=NullPool)
 
     # metadata가 사용하는 schema 목록 (None은 default = public)

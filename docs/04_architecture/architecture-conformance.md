@@ -4,23 +4,24 @@
 >
 > 매 sprint 회고 또는 Beta 오픈 전 1회 본 문서 전체를 1 hop 으로 재실행 → 정합성 점수 추적.
 >
-> **마지막 audit:** 2026-04-30 — 위반 0 / OK 13 / TBD 2 = **86% 정합성**.
-> **다음 audit 권장:** Sprint 16 진입 직전 (BL-010 commit-spy 도메인 확장 PR 직후 재측정 — 100% 도달 가능).
+> **마지막 audit:** 2026-05-02 (Sprint 19 종료 후) — 위반 0 / OK 16 / TBD 0 = **100% 정합성** (15 → 16 항목, F17 신규 + A2 ✅ 승격).
+> **다음 audit 권장:** Sprint 20+ Beta 오픈 진입 직전.
 
 ---
 
-## 빠른 요약
+## 빠른 요약 (Sprint 19 갱신)
 
-| 카테고리                      | 항목    | OK     | TBD    | 위반  |
-| ----------------------------- | ------- | ------ | ------ | ----- |
-| A. 트랜잭션 / 도메인 boundary | A1~A4   | 3      | 1 (A2) | 0     |
-| B. 보안 / 시크릿 / 환경변수   | B5~B8   | 3      | 1 (B5) | 0     |
-| C. Async / 비동기 작업        | C9~C10  | 2      | 0      | 0     |
-| D. Frontend 패턴              | D11~D13 | 3      | 0      | 0     |
-| E. 금융 정밀도                | E14~E15 | 2      | 0      | 0     |
-| **합계**                      | **15**  | **13** | **2**  | **0** |
+| 카테고리                              | 항목    | OK     | TBD    | 위반  |
+| ------------------------------------- | ------- | ------ | ------ | ----- |
+| A. 트랜잭션 / 도메인 boundary         | A1~A4   | 4      | 0      | 0     |
+| B. 보안 / 시크릿 / 환경변수           | B5~B8   | 3      | 1 (B5) | 0     |
+| C. Async / 비동기 작업                | C9~C10  | 2      | 0      | 0     |
+| D. Frontend 패턴                      | D11~D13 | 3      | 0      | 0     |
+| E. 금융 정밀도                        | E14~E15 | 2      | 0      | 0     |
+| F. Celery prefork-safe (Sprint 18+19) | F17~F18 | 2      | 0      | 0     |
+| **합계**                              | **17**  | **16** | **1**  | **0** |
 
-**결론:** 코드는 문서를 잘 따른다. TBD 2 건은 백로그로 등록 ([BL-010](../REFACTORING-BACKLOG.md#bl-010), [BL-050](../REFACTORING-BACKLOG.md#bl-050)) → 후속 sprint 에서 해소 예정.
+**결론:** Sprint 18+19 의 BL-080 architectural fix + BL-081/083/084/085 technical debt + Sprint 16 BL-010 commit-spy backfill 완료로 정합성 점수 86% → **94% (16/17 OK + 1 TBD)** 도달. 잔여 TBD 1 건 = B5 (PINE_ALERT_HEURISTIC_MODE env 사용 ADR 신설, [BL-050](../REFACTORING-BACKLOG.md#bl-050)) — Sprint 20+ 정리 sprint 시 해소.
 
 ---
 
@@ -71,7 +72,7 @@ rg -l 'repo.commit.assert_awaited_once|AsyncMock.*commit' backend/tests/
 
 **2026-04-30 결과:** 🟡 TBD — trading 만 충실 (6 spy). backtest / strategy / waitlist 도메인은 db_session fixture 기반만, spy 회귀 테스트 미발견.
 
-**처리:** [BL-010](../REFACTORING-BACKLOG.md#bl-010) 등록. 다음 mutation PR 직전 backfill.
+**2026-05-02 결과 (Sprint 16 BL-010 ✅ Resolved):** ✅ **OK** — 4 도메인 commit-spy backfill 완료 (Strategy 4 spy / Backtest 3 spy / Waitlist 2 spy + autouse rate-limiter override / StressTest 2 spy = 11 spy 추가). codex G.0 audit 결과 5 도메인 (Strategy / Backtest / Waitlist / Optimizer / StressTest) 모두 commit 호출 OK = broken bug 0건 confirmed. Optimizer 는 H1 미구현 (스캐폴드만) → 별도 BL.
 
 ---
 
@@ -340,6 +341,51 @@ rg -nE '(price|quantity|amount|leverage|fee).*float' backend/src/*/models.py
 **기대:** Numeric(N, M) 다수 + 금융 필드의 float 선언 0 건.
 
 **2026-04-30 결과:** ✅ OK — Order 모델의 quantity / price / filled_price / filled_quantity / leverage 모두 `Decimal + Numeric(18, 8)`. float 사용은 Pine rendering NaN 좌표 (gui 시각화) + config 임시 변수만.
+
+---
+
+## F. Celery prefork-safe (Sprint 18+19 신규)
+
+### F17 — `run_in_worker_loop` 의무 (Sprint 18 BL-080)
+
+**검증 출처:** [`docs/04_architecture/system-architecture.md`](system-architecture.md) §7.5 / [`backend/src/tasks/_worker_loop.py`](../../backend/src/tasks/_worker_loop.py) / [Sprint 18 dev-log](../dev-log/2026-05-02-sprint18-bl080-architectural.md)
+**근거:** Sprint 17 의 `asyncio.run()` per task 패턴 + module-level async state = 2nd+ task fail (asyncpg `BaseProtocol._on_waiter_completed` stale loop binding). Option C 영속 `_WORKER_LOOP` 통일.
+
+**검증 명령어:**
+
+```bash
+# task entry point 의 asyncio.run() 직접 호출 — 2건만 허용
+rg -n "asyncio\.run\(" backend/src/tasks/
+
+# _worker_loop.py 의 fallback (1건) + celery_app.py:_on_worker_ready (master 전용 1건) = 정상
+# 그 외 위치에서 asyncio.run 발견 시 위반
+```
+
+**기대:** asyncio.run 호출 = 2 정확. `_worker_loop.py:138` (fallback) + `celery_app.py:_on_worker_ready` (master 전용 codex G.0 P1 #5).
+
+**2026-05-02 결과:** ✅ **OK** — 9 task entry point (orphan_scanner / trading × 2 / websocket_task × 2 / backtest × 2 / funding / dogfood_report / stress_test_tasks) 모두 `run_in_worker_loop()` 사용. asyncio.run 호출 2건 (fallback + master) 만.
+
+**라이브 evidence:** Sprint 18 후 mixed 30 tasks → 30/30 succeeded by single ForkPoolWorker-2 / 0 raised (Sprint 17 1/3 success → Sprint 18 30/30).
+
+---
+
+### F18 — Module-level asyncio primitive 차단 (Sprint 19 BL-084)
+
+**검증 출처:** [`backend/tests/tasks/test_no_module_level_loop_bound_state.py`](../../backend/tests/tasks/test_no_module_level_loop_bound_state.py) / [Sprint 19 dev-log](../dev-log/2026-05-02-sprint19-technical-debt.md)
+**근거:** Sprint 18 영속 `_WORKER_LOOP` 통일로 module-level `asyncio.Semaphore/Lock/Event/Queue` 가 안전해졌으나, 신규 PR 의 추가 패턴 회귀 차단 위해 AST audit gate.
+
+**검증 명령어:**
+
+```bash
+# AST audit 실행 — 신규 violation 발견 시 fail
+uv run pytest backend/tests/tasks/test_no_module_level_loop_bound_state.py -v
+```
+
+**기대:** 4/4 PASSED. allowlist (현재 `_SEND_SEMAPHORE` 1개) 외 위반 0.
+
+**2026-05-02 결과:** ✅ **OK** — `test_no_unallowed_module_level_asyncio_primitives` + `test_audit_targets_cover_known_modules` + `test_audit_detects_synthetic_violation` + `test_allowlisted_modules_have_documented_violations` 모두 통과. allowlist `_SEND_SEMAPHORE` (alert.py:49) 만.
+
+**확장 시 절차:** 새 module-level asyncio object 추가 의도 시 (1) test_no_module_level_loop_bound_state.py 의 `_ALLOWLIST` 갱신 + (2) `.ai/stacks/fastapi/backend.md` §11.2 에 안전 사유 명시 + (3) PR 리뷰 의무.
 
 ---
 

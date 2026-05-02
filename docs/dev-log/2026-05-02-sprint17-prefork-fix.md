@@ -193,6 +193,24 @@ post-restart `worker_max_tasks_per_child=1` 적용 후 동일 패턴:
 
 ---
 
-## 11. 다음 세션 prompt
+## 11. CI hotfix (2026-05-02 post-push)
+
+첫 commit `f236b8f` push 후 GitHub Actions CI fail.
+
+```
+FAILED tests/trading/test_celery_task_futures.py::test_async_execute_uses_bybit_futures_provider_with_leverage
+FAILED tests/trading/test_e2e_webhook_to_futures_order.py::test_e2e_manual_futures_order_propagates_leverage_through_ccxt
+AttributeError: <module 'src.tasks.trading'> has no attribute 'async_session_factory'
+```
+
+**Root cause**: 첫 grep 시 `monkeypatch.*async_session_factory` 패턴 검색에서 2 파일은 `setattr.*async_session_factory` 형태로 작성되어 잡히지 않음. **5 files (test_celery_task / test_fetch_order_status_task / test_celery_task_futures / test_e2e_webhook_to_futures_order / test_orphan_scanner) 모두 수정 필요**였는데 3개만 처리.
+
+**Hotfix `bd61c08`**: 누락된 2 파일 monkeypatch path 변경 (helper `_make_fake_session_factory` → `_make_fake_create_worker_engine_and_sm`, attr `async_session_factory` → `create_worker_engine_and_sm`). 2 files / +34 / -9.
+
+**Lesson (LESSON-020 후보)**: monkeypatch path 변경 시 `grep -rn '"<old_attr>"'` (attribute 이름 자체) 로 1차 검색 후, helper 함수 정의 ref 도 별도 grep. PR 머지 전 CI 단계 fail 으로 발견 = 정상 동작.
+
+---
+
+## 12. 다음 세션 prompt
 
 `~/.claude/plans/h2-sprint-18-prompt.md` — Sprint 18 = BL-080 architectural fix Path 명시.

@@ -66,7 +66,7 @@ flowchart TB
     API -- enqueue task --> Redis
 
     Worker -- consume --> Redis
-    Worker -- AsyncSession\n(prefork-safe lazy engine) --> DB
+    Worker -- AsyncSession\n(per-call engine + persistent _WORKER_LOOP) --> DB
     Beat -- schedule --> Redis
 
     Worker -- CCXT 호출\n(Sprint 5+) --> Exch
@@ -260,12 +260,13 @@ graph TB
     style SingletonW fill:#9333ea,color:#fff
 ```
 
-### Prefork 안전성 (D3 교훈 준수)
+### Prefork 안전성 (D3 교훈 + Sprint 18 BL-080 보강)
 
 - `_ccxt_provider`는 **모듈 import 시점에 생성하지 않음** (worker 자식 프로세스 fork 전).
 - 첫 `get_ccxt_provider_for_worker()` 호출 시점(= task 실행 시점, fork 후)에 lazy init.
 - ccxt async loop는 fork된 자식 프로세스 컨텍스트에서 새로 만들어짐 → 부모 process 상태 오염 없음.
 - worker pool 정책: **prefork 고정**. gevent/eventlet은 ccxt async + asyncpg와 비호환.
+- **Sprint 18 BL-080 — 영속 `_WORKER_LOOP`**: worker child fork 후 `worker_process_init` signal 에서 `init_worker_loop()` 가 1회 `asyncio.new_event_loop()` 생성하여 child lifetime 동안 모든 task 가 동일 loop 사용. `_ccxt_provider` 의 ccxt async client / `_pool` (Redis lock) / `_SEND_SEMAPHORE` 등 module-level async object 가 같은 loop 에 bind 되어 stale loop reference 차단. 상세 §7.5.
 
 ### Test 격리
 
@@ -292,6 +293,78 @@ graph TB
 | 백테스트 결과 | DB only (캐시 없음)                             | —                         | ✅                                 |
 | 전략 list     | DB only                                         | —                         | ✅                                 |
 | 실시간 가격   | Zustand (FE)                                    | 세션                      | ⏳ Sprint 7+ WebSocket             |
+
+---
+
+## 7.5 Celery prefork-safe 패턴 (Sprint 18 BL-080 ✅)
+
+> 상세 회고: [`dev-log/2026-05-02-sprint18-bl080-architectural.md`](../dev-log/2026-05-02-sprint18-bl080-architectural.md). 표준 reference: [`backend/src/tasks/_worker_loop.py`](../../backend/src/tasks/_worker_loop.py) + `backend/src/tasks/celery_app.py:_init_worker_state_after_fork`. 위반 audit: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084).
+
+### 문제 본질
+
+Celery prefork worker 의 매 task 가 `asyncio.run()` 으로 새 event loop 를 만들면, asyncpg connection 의 `BaseProtocol._on_waiter_completed` callback 이 _생성 당시 loop_ 에 capture 되어 stale binding 형성. `engine.dispose()` 후에도 internal transport waiter 가 GC 안 됨 → 2nd task 의 새 loop 에서 동일 connection (또는 새 connection 의 internal cache) 사용 시 `RuntimeError("Future ... attached to a different loop")` 또는 `InterfaceError("another operation is in progress")`.
+
+라이브 evidence: Sprint 17 의 `scan_stuck_orders` 즉시 3회 = 1/3 success. 같은 ForkPoolWorker child 의 2nd+ task fail.
+
+### 해결책 (Option C — Persistent worker loop)
+
+worker child fork 직후 1회 `asyncio.new_event_loop()` 영속 loop 보유. 모든 task entry point 가 `asyncio.run()` 대신 `_WORKER_LOOP.run_until_complete(coro)` 사용 → asyncpg/SQLAlchemy 의 모든 async state 가 같은 loop 에 bind.
+
+라이브 evidence: Sprint 18 후 mixed 30 tasks (scan + reconcile + reclaim x10 cycles) → 30/30 succeeded by single ForkPoolWorker-2 / 0 raised.
+
+### Lifecycle hook (codex G.0 P1 #4)
+
+```mermaid
+sequenceDiagram
+    participant M as Master process
+    participant C as Worker child (prefork)
+    participant L as _WORKER_LOOP
+    participant T as Task (scan/reconcile/...)
+
+    M->>C: fork()
+    Note over C: worker_process_init signal
+    C->>L: init_worker_loop() — asyncio.new_event_loop()
+    C->>C: reset_redis_lock_pool()
+    Note over C,L: child READY (loop persistent)
+
+    loop 매 task (250 까지)
+        Redis-->>C: task delivered
+        C->>L: run_in_worker_loop(coro)
+        L->>T: run_until_complete(coro)
+        T->>L: 결과
+        L-->>C: 반환
+    end
+
+    Note over C: worker_max_tasks_per_child=250 도달
+    Note over C: worker_process_shutdown signal
+    C->>L: shutdown_worker_loop() — pending cancel + asyncgens drain + close
+    C->>M: child 종료, master 새 child fork
+```
+
+- `worker_process_init` (prefork child fork 후 1회) → `init_worker_loop()` + `reset_redis_lock_pool()` (parent fork 의 stale FD 폐기).
+- `worker_process_shutdown` (prefork child shutdown) → `shutdown_worker_loop()`. Cleanup 순서: pending task cancel → `loop.shutdown_asyncgens()` → `loop.shutdown_default_executor()` → `loop.close()` (codex G.2 P2 #3).
+- `worker_shutdown` 은 master process / solo pool 만 시그널 — `_WORKER_LOOP.is_running()` 검사 후 cleanup skip (codex G.2 P1 #1: solo ws-stream task in-flight race 회피).
+
+### 의무 규약
+
+1. **모든 prefork child task entry point** 는 `run_in_worker_loop(coro)` 사용. `asyncio.run()` 직접 호출 금지.
+2. **예외 (master process 만)**: `celery_app.py:_on_worker_ready` (Celery `@worker_ready.connect` 는 master process 1회 발화) — `asyncio.run()` 그대로 유지 (codex G.0 P1 #5).
+3. `run_in_worker_loop()` 는 nested running loop (pytest-asyncio / celery_eager) 안에서 호출 시 `RuntimeError` raise + `coro.close()`. silent fallback 금지 (codex G.0 P1 #6 + G.2 P3 #1).
+4. **per-task `create_worker_engine_and_sm()` + finally `engine.dispose()` 규칙 보존** (Sprint 17 패턴) — connection pool stale connection 누수 방어.
+5. **Module-level async state (`asyncio.Semaphore/Lock/Event/Queue`) 추가 금지** — AST audit gate (`tests/tasks/test_no_module_level_loop_bound_state.py`) 가 차단. 신규 추가 시 `_ALLOWLIST` 갱신 + PR 리뷰 의무 (Sprint 19 BL-084).
+6. `worker_max_tasks_per_child=250` (Sprint 18 보수, soak gate 미수행). Sprint 20+ BL-082 의 1h RSS slope 측정 후 `=1000` 검토.
+
+### 영향받은 task entry point (9개)
+
+`asyncio.run(coro)` → `run_in_worker_loop(coro)`:
+
+- `orphan_scanner.py:scan_stuck_orders_task`
+- `trading.py:execute_order_task`, `:fetch_order_status_task`
+- `websocket_task.py:run_bybit_private_stream`, `:reconcile_ws_streams`
+- `backtest.py:run_backtest_task`, `:reclaim_stale_running_task`
+- `funding.py:fetch_funding_rates_task`
+- `dogfood_report.py:dogfood_daily_report_task`
+- `stress_test_tasks.py:run_stress_test_task`
 
 ---
 
@@ -329,6 +402,10 @@ graph TB
 - `qb_ws_reconcile_skipped_total{exchange, reason}` Counter
 - `qb_ws_duplicate_enqueue_total{exchange}` Counter
 - `qb_ws_reconnect_total{exchange, reason}` Counter
+
+**Alert (Sprint 19 BL-081):**
+
+- `qb_pending_alerts` Gauge — In-flight fire-and-forget alert tasks. Sprint 18 영속 `_WORKER_LOOP` 채택 후 alert task 가 cross-task 경계 살아남을 수 있어 unbounded 누적 risk 방어. **per-process** (Prometheus default registry 는 process-local) — 다중 worker 시 각 worker 별 in-flight count. >50 임계 시 Slack/Grafana alert 권장 (Sprint 20+ BL-089).
 
 ### 카디널리티 가드
 

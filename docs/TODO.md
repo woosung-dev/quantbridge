@@ -4,9 +4,28 @@
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 → H2 transition (dogfood 검증 단계). Sprint 1~13 + Path β + dogfood Day 1 (2026-04-25/26) 완료. **Sprint 13 Track UX 완료 (PR #78)** — Sprint 6 broken bug fix + atomic webhook auto-issue + TabWebhook + TestOrderDialog + Backtest 422 inline. **dogfood Day 2 검증 대기** (PR 머지 후 즉시 — self-assessment ≥ 7/10 시 H1→H2 gate 통과).
+> **📍 현재 Horizon:** H1 → H2 transition. Sprint 1~19 + Path β + dogfood Day 1~3 완료. **Sprint 18 BL-080 ✅ + Sprint 19 BL-081/083/084/085 ✅ Resolved (2026-05-02)** — self-assessment 5/10 → **9/10**. **H1→H2 gate (≥7) 통과**. Sprint 20 = Path B 본인 1-2주 dogfood (BL-005, ★★★★★).
 
-> **🚀 현재 세션 작업:** Sprint 13 Track UX 완료 (2026-04-26). PR #78 작성. 회고 다음 세션. dogfood Day 2 시나리오 6건 (`docs/dev-log/2026-04-26-dogfood-day2-pending.md` 신설 예정).
+> **🚀 현재 세션 작업:** Sprint 18 + 19 코드 + atomic update backfill 완료. `stage/h2-sprint18` 브랜치 (3 commits) → main PR 생성 대기. 다음 prompt: `~/.claude/plans/h2-sprint-20-prompt.md`.
+
+### Completed (Sprint 18 + 19, 2026-05-02)
+
+- [x] **BL-080** prefork-safe architectural fix (Option C persistent worker loop) — Sprint 18
+- [x] **BL-081** `qb_pending_alerts` Gauge + `track_pending_alert(task)` idempotent helper — Sprint 19
+- [x] **BL-083** `tests/test_migrations.py` 격리 stack 호환 (296 errors → 0) — Sprint 19
+- [x] **BL-084** AST audit gate (module-level asyncio primitive 차단) — Sprint 19
+- [x] **BL-085** prefork smoke integration test (real asyncpg, `@pytest.mark.integration`) — Sprint 19
+
+### Backlog Preview (Sprint 20+)
+
+Sprint 19 codex G.2 잔존 P2 + Sprint 18 BL-082:
+
+- BL-082 1h prefork soak gate + RSS slope (max_tasks_per_child 250 → 1000 검증) — 본인 dogfood 중 자연 측정
+- BL-086 AST audit factory function detection (codex G.2 P2 #1 Sprint 19)
+- BL-087 audit target glob `src/tasks/**/*.py` (codex G.2 P2 #2)
+- BL-088 `drain_pending_alerts()` helper (codex G.2 P2 #3)
+- BL-089 `qb_pending_alerts` Grafana alert wire-up (>50 임계)
+- BL-090 `tests/db_url.py` 분리 (codex G.2 P3 #1)
 
 ### Test Skip / xfail 추적표 (Sprint 15-C, 2026-04-28 신설)
 

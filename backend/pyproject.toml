@@ -68,6 +68,7 @@ addopts = "-ra --strict-markers --strict-config"
 markers = [
   "mutation: Path β Mutation Oracle — nightly only (Stage 2c)",
   "real_broker: requires Bybit Demo API credentials (skip by default, run with --run-real-broker)",
+  "integration: real-DB / real-Redis prefork smoke test — opt-in via --run-integration (Sprint 19 BL-085)",
 ]
 
 [tool.coverage.run]

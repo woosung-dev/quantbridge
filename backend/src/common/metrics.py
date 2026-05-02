@@ -200,6 +200,15 @@ qb_ws_reconnect_total = Counter(
     labelnames=("account_id",),
 )
 
+# 16. (Sprint 19 BL-081) Pending fire-and-forget alert task 의 현재 in-flight 개수.
+# Sprint 18 의 영속 _WORKER_LOOP 채택 후 alert task 가 cross-task 경계를 살아남을
+# 수 있어 unbounded 누적 risk. 본 gauge 는 운영 모니터링 — 임계 (e.g. >50)
+# 초과 시 Slack/Grafana alert 권장 (Sprint 20+ 운영 wire-up).
+qb_pending_alerts = Gauge(
+    "qb_pending_alerts",
+    "In-flight fire-and-forget alert tasks (kill switch / scan watchdog 등)",
+)
+
 
 @asynccontextmanager
 async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:

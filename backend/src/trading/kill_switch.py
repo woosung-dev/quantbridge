@@ -20,7 +20,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, select
 
-from src.common.alert import _PENDING_ALERTS, send_critical_alert
+from src.common.alert import send_critical_alert, track_pending_alert
 from src.common.metrics import qb_kill_switch_triggered_total
 from src.core.config import Settings, get_settings
 from src.trading.exceptions import KillSwitchActive
@@ -220,11 +220,11 @@ class KillSwitchService:
             qb_kill_switch_triggered_total.labels(trigger_type=result.trigger_type).inc()
 
             # Sprint 12 Phase A: 첫 gated 전이 → Slack alert (fire-and-forget).
-            # alert 실패가 raise 를 막지 않도록 별도 task. _PENDING_ALERTS set
-            # 이 strong ref 로 task 보존 (asyncio loop weak-ref 함정 방어).
+            # Sprint 19 BL-081: track_pending_alert() helper — set add + gauge
+            # inc + idempotent done_callback (gauge 동기화). 기존 패턴
+            # `_PENDING_ALERTS.add + discard` 의 cross-task semantic 명시화.
             task = asyncio.create_task(self._send_alert_safely(result, created))
-            _PENDING_ALERTS.add(task)
-            task.add_done_callback(_PENDING_ALERTS.discard)
+            track_pending_alert(task)
 
             raise KillSwitchActive(
                 f"New kill switch: {result.trigger_type} "

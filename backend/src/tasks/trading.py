@@ -10,7 +10,6 @@ Sprint 17 Phase C (codex G.0 P1 #1 격상): module-level _worker_engine 제거.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -105,8 +104,10 @@ def _build_exchange_provider() -> ExchangeProvider:
 # ---------------------------------------------------------------------------
 @shared_task(name="trading.execute_order", max_retries=0)  # type: ignore[untyped-decorator]
 def execute_order_task(order_id: str) -> dict[str, Any]:
-    """Sync Celery entry point — asyncio.run() for prefork pool."""
-    return asyncio.run(_async_execute(UUID(order_id)))
+    """Sync Celery entry point — Sprint 18 BL-080 Option C run_in_worker_loop."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_execute(UUID(order_id)))
 
 
 async def _async_execute(order_id: UUID) -> dict[str, Any]:
@@ -592,8 +593,12 @@ def fetch_order_status_task(self: Any, order_id: str, attempt: int = 1) -> dict[
 
     _async_fetch_order_status 가 watchdog_retry 신호 반환 시 self.retry() 로
     Celery 가 backoff 재enqueue. giveup 신호 시 result dict 만 반환 (alert 는 inner).
+
+    Sprint 18 BL-080: asyncio.run → run_in_worker_loop (Option C).
     """
-    result = asyncio.run(_async_fetch_order_status(UUID(order_id), attempt))
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    result = run_in_worker_loop(_async_fetch_order_status(UUID(order_id), attempt))
     retry_kwargs = _build_watchdog_retry_kwargs(order_id, result)
     if retry_kwargs is not None:
         raise self.retry(**retry_kwargs)
