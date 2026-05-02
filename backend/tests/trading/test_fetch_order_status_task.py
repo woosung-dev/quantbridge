@@ -78,7 +78,16 @@ async def submitted_order(db_session: AsyncSession):
     return order, account
 
 
-def _fake_session_factory(db_session: AsyncSession):
+class _NoopEngine:
+    """Sprint 17 Phase C — async dispose no-op for tests."""
+
+    async def dispose(self) -> None:
+        return None
+
+
+def _fake_create_worker_engine_and_sm(db_session: AsyncSession):
+    """Sprint 17 Phase C — (engine, sm) tuple mock matching backtest.py:31."""
+
     @asynccontextmanager
     async def _ctx():
         yield db_session
@@ -87,7 +96,10 @@ def _fake_session_factory(db_session: AsyncSession):
         def __call__(self):
             return _ctx()
 
-    return lambda: _SM()
+    def _factory():
+        return _NoopEngine(), _SM()
+
+    return _factory
 
 
 class _MockRedisPool:
@@ -119,7 +131,7 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
         "_exchange_provider",
@@ -153,7 +165,7 @@ async def test_fetch_order_status_cancelled_transitions(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
         "_exchange_provider",
@@ -182,7 +194,7 @@ async def test_fetch_order_status_rejected_transitions(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
         "_exchange_provider",
@@ -217,7 +229,7 @@ async def test_fetch_order_status_still_submitted_returns_retry_signal(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
         "_exchange_provider",
@@ -250,7 +262,7 @@ async def test_fetch_order_status_max_attempts_alerts_and_giveup(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
         "_exchange_provider",
@@ -287,7 +299,7 @@ async def test_fetch_order_status_alert_throttled_on_second_giveup(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
         "_exchange_provider",
@@ -331,7 +343,7 @@ async def test_fetch_order_status_already_terminal_skip(
     # 이미 filled 로 직접 transition (race winner 시나리오)
     order.state = OrderState.filled
     await db_session.commit()
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
 
     dec_calls = {"n": 0}
     monkeypatch.setattr(
@@ -355,7 +367,7 @@ async def test_fetch_provider_error_returns_retry_signal_when_under_max(
     from src.trading.exceptions import ProviderError
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
 
     class _FailingProvider:
         async def create_order(self, creds, o):  # type: ignore[no-untyped-def]
@@ -388,7 +400,7 @@ async def test_fetch_provider_error_alerts_at_max_attempts(
     from src.trading.exceptions import ProviderError
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
 
     class _FailingProvider:
         async def create_order(self, creds, o):  # type: ignore[no-untyped-def]
@@ -462,7 +474,7 @@ async def test_fetch_order_status_null_exchange_order_id_skipped(
     order, _acc = submitted_order
     order.exchange_order_id = None
     await db_session.commit()
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
 
@@ -546,7 +558,7 @@ async def test_async_execute_submitted_enqueues_fetch_order_status_task(
     await db_session.commit()
     order_id = o.id
 
-    monkeypatch.setattr(task_mod, "async_session_factory", _fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
 
     class _Submitted:
         async def create_order(self, creds, order):  # type: ignore[no-untyped-def]

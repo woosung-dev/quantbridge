@@ -20,13 +20,42 @@ from typing import Any
 from uuid import UUID
 
 from celery import shared_task
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.common.alert import send_critical_alert
 from src.common.metrics import qb_ws_duplicate_enqueue_total
 from src.core.config import get_settings
+from src.core.config import settings as _module_settings
 from src.tasks.celery_app import celery_app  # noqa: F401 — Celery beat 가 모듈 import
 
 logger = logging.getLogger(__name__)
+
+
+# Sprint 17 Phase B — Celery prefork worker 의 매 task 마다 asyncio.run() 으로
+# 새 event loop 가 생기는데, asyncpg connection pool 은 생성 당시 loop 에 bind
+# 되므로 module-level (또는 다른 module 의 uvicorn-only) 캐시된 engine 은 두 번째
+# task 부터 RuntimeError("Future attached to a different loop") 또는 InterfaceError
+# 로 silent fail. 따라서 backtest.py / funding.py 와 동일하게 매 호출마다 fresh
+# engine + finally dispose.
+def create_worker_engine_and_sm() -> (
+    tuple[AsyncEngine, async_sessionmaker[AsyncSession]]
+):
+    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
+
+    호출자는 engine 을 finally 에서 dispose 해야 한다. 테스트는 monkeypatch 로
+    공유 세션 + no-op engine 주입 가능.
+
+    Long-running stream (`_stream_main`): engine 1개를 stream lifetime 동안 유지
+    + finally dispose. Short beat (`_reconcile_async`): per-call.
+    """
+    engine = create_async_engine(_module_settings.database_url, echo=False)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    return engine, sm
 
 
 # Process-local active streams. Single Celery worker (concurrency=1) 가정.
@@ -106,8 +135,11 @@ async def _run_async(account_id: str) -> dict[str, Any]:
 
 
 async def _stream_main(account_id: str) -> dict[str, Any]:
-    """실제 stream 실행 — account 조회 + decrypt + WebSocket 진입."""
-    from src.common.database import async_session_factory
+    """실제 stream 실행 — account 조회 + decrypt + WebSocket 진입.
+
+    Sprint 17 Phase B: per-stream engine 1개 + outer try/finally engine.dispose().
+    BaseException (CancelledError / KeyboardInterrupt) 까지 dispose 보장.
+    """
     from src.trading.encryption import EncryptionService
     from src.trading.models import ExchangeAccount, ExchangeName
     from src.trading.websocket import (
@@ -118,91 +150,94 @@ async def _stream_main(account_id: str) -> dict[str, Any]:
     )
 
     settings = get_settings()
-    # async_session_factory 자체가 callable sessionmaker (호출 시 새 session).
-    sf = async_session_factory
-
-    # 1. ExchangeAccount fetch + credentials decrypt
-    async with sf() as session:
-        account_uuid = UUID(account_id)
-        account = await session.get(ExchangeAccount, account_uuid)
-        if account is None:
-            logger.error("ws_stream_account_not_found account=%s", account_id)
-            return {"status": "error", "reason": "account_not_found"}
-        if account.exchange != ExchangeName.bybit:
-            # OKX 는 Sprint 13 (다른 endpoint + signing 방식)
-            logger.warning(
-                "ws_stream_unsupported_exchange account=%s exchange=%s",
-                account_id,
-                account.exchange,
-            )
-            return {"status": "error", "reason": "unsupported_exchange"}
-
-        crypto = EncryptionService(settings.trading_encryption_keys)
-        api_key = crypto.decrypt(account.api_key_encrypted)
-        api_secret = crypto.decrypt(account.api_secret_encrypted)
-        env = account.mode.value  # "demo" | "live"
-
-    endpoint = _BYBIT_WS_ENDPOINTS.get(env, _BYBIT_WS_ENDPOINTS["demo"])
-
-    # 2. Handler / Reconciler 조립 (G4 fix #11 production wiring)
-    handler = StateHandler(session_factory=sf, settings=settings)
-    # BybitReconcileFetcher: ephemeral CCXT 어댑터 (account credentials 매 호출
-    # decrypt). reconnect 직후 fetch_open_orders + fetch_recent_orders 로 missed
-    # event 보정. 기본 category=linear (Bybit Demo USDT perp).
-    from src.trading.websocket.reconcile_fetcher import BybitReconcileFetcher
-
-    fetcher = BybitReconcileFetcher(account=account, crypto=crypto)
-    reconciler: Reconciler | None = Reconciler(
-        session_factory=sf, fetcher=fetcher, settings=settings
-    )
-
-    stop_event = asyncio.Event()
-
-    # G4 fix #4: 글로벌 dict 등록 → worker_shutdown signal 이 set 가능.
-    loop = asyncio.get_running_loop()
-    with _STOP_EVENTS_LOCK:
-        _STOP_EVENTS[account_id] = (loop, stop_event)
-
-    # 3. WebSocket 진입 + stop_event wait
+    # Sprint 17 Phase B P1 #3 — engine 1개를 stream lifetime 동안 유지하고 모든
+    # 종료 경로 (정상 / Exception / CancelledError / KeyboardInterrupt) 에서
+    # dispose 보장. try/finally 가 BaseException 류 통과 — Python 공식.
+    engine, sm = create_worker_engine_and_sm()
     try:
-        async with BybitPrivateStream(
-            endpoint=endpoint,
-            api_key=api_key,
-            api_secret=api_secret,
-            account_id=account_uuid,
-            handler=handler,
-            reconciler=reconciler,
-            stop_event=stop_event,
-        ) as stream:
-            logger.info(
-                "ws_stream_connected account=%s endpoint=%s reconnect_count=%d",
-                account_id,
-                endpoint,
-                stream.reconnect_count,
-            )
-            # stop_event 까지 무한 대기. SIGTERM 시 worker_shutdown 가 set.
-            await stop_event.wait()
-        return {
-            "status": "completed",
-            "account_id": account_id,
-            "reconnect_count": stream.reconnect_count,
-        }
-    except BybitAuthError as exc:
-        logger.error("ws_stream_auth_failed account=%s err=%s", account_id, exc)
-        # codex G3 #12: circuit breaker 미구현 — Slack alert + manual fix.
-        await send_critical_alert(
-            settings,
-            "Bybit WS Auth Failed",
-            f"WebSocket stream auth rejected for account {account_id}. "
-            "Check API key validity, IP whitelist, system clock. "
-            "Manual credentials update required.",
-            {"account_id": account_id, "error": str(exc)[:200]},
+        # 1. ExchangeAccount fetch + credentials decrypt
+        async with sm() as session:
+            account_uuid = UUID(account_id)
+            account = await session.get(ExchangeAccount, account_uuid)
+            if account is None:
+                logger.error("ws_stream_account_not_found account=%s", account_id)
+                return {"status": "error", "reason": "account_not_found"}
+            if account.exchange != ExchangeName.bybit:
+                # OKX 는 Sprint 13 (다른 endpoint + signing 방식)
+                logger.warning(
+                    "ws_stream_unsupported_exchange account=%s exchange=%s",
+                    account_id,
+                    account.exchange,
+                )
+                return {"status": "error", "reason": "unsupported_exchange"}
+
+            crypto = EncryptionService(settings.trading_encryption_keys)
+            api_key = crypto.decrypt(account.api_key_encrypted)
+            api_secret = crypto.decrypt(account.api_secret_encrypted)
+            env = account.mode.value  # "demo" | "live"
+
+        endpoint = _BYBIT_WS_ENDPOINTS.get(env, _BYBIT_WS_ENDPOINTS["demo"])
+
+        # 2. Handler / Reconciler 조립 — sm() 가 stream lifetime 동안 새 session 발급.
+        handler = StateHandler(session_factory=sm, settings=settings)
+        from src.trading.websocket.reconcile_fetcher import BybitReconcileFetcher
+
+        fetcher = BybitReconcileFetcher(account=account, crypto=crypto)
+        reconciler: Reconciler | None = Reconciler(
+            session_factory=sm, fetcher=fetcher, settings=settings
         )
-        return {"status": "auth_failed", "account_id": account_id}
-    finally:
-        # G4 fix #4: 글로벌 dict 에서 제거 — worker_shutdown signal 이후 stale 방지.
+
+        stop_event = asyncio.Event()
+
+        # G4 fix #4: 글로벌 dict 등록 → worker_shutdown signal 이 set 가능.
+        loop = asyncio.get_running_loop()
         with _STOP_EVENTS_LOCK:
-            _STOP_EVENTS.pop(account_id, None)
+            _STOP_EVENTS[account_id] = (loop, stop_event)
+
+        # 3. WebSocket 진입 + stop_event wait
+        try:
+            async with BybitPrivateStream(
+                endpoint=endpoint,
+                api_key=api_key,
+                api_secret=api_secret,
+                account_id=account_uuid,
+                handler=handler,
+                reconciler=reconciler,
+                stop_event=stop_event,
+            ) as stream:
+                logger.info(
+                    "ws_stream_connected account=%s endpoint=%s reconnect_count=%d",
+                    account_id,
+                    endpoint,
+                    stream.reconnect_count,
+                )
+                # stop_event 까지 무한 대기. SIGTERM 시 worker_shutdown 가 set.
+                await stop_event.wait()
+            return {
+                "status": "completed",
+                "account_id": account_id,
+                "reconnect_count": stream.reconnect_count,
+            }
+        except BybitAuthError as exc:
+            logger.error(
+                "ws_stream_auth_failed account=%s err=%s", account_id, exc
+            )
+            # codex G3 #12: circuit breaker 미구현 — Slack alert + manual fix.
+            await send_critical_alert(
+                settings,
+                "Bybit WS Auth Failed",
+                f"WebSocket stream auth rejected for account {account_id}. "
+                "Check API key validity, IP whitelist, system clock. "
+                "Manual credentials update required.",
+                {"account_id": account_id, "error": str(exc)[:200]},
+            )
+            return {"status": "auth_failed", "account_id": account_id}
+        finally:
+            # G4 fix #4: 글로벌 dict 에서 제거 — worker_shutdown signal 이후 stale 방지.
+            with _STOP_EVENTS_LOCK:
+                _STOP_EVENTS.pop(account_id, None)
+    finally:
+        await engine.dispose()
 
 
 @shared_task(name="trading.reconcile_ws_streams")  # type: ignore[untyped-decorator]
@@ -216,37 +251,40 @@ def reconcile_ws_streams() -> dict[str, Any]:
 
 
 async def _reconcile_async() -> dict[str, Any]:
+    """Sprint 17 Phase B: per-call engine + finally dispose."""
     from sqlalchemy import select
 
-    from src.common.database import async_session_factory
     from src.trading.models import ExchangeAccount, ExchangeName
 
-    sf = async_session_factory
     enqueued: list[str] = []
     skipped: list[str] = []
 
-    async with sf() as session:
-        # Sprint 13+ scope: TradingSession.is_active 또는 별도 ws_enabled 컬럼 검토.
-        # 현재는 모든 Bybit demo/live 계정이 stream 대상.
-        stmt = select(ExchangeAccount).where(
-            ExchangeAccount.exchange == ExchangeName.bybit,  # type: ignore[arg-type]
-        )
-        accounts = (await session.execute(stmt)).scalars().all()
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            # Sprint 13+ scope: TradingSession.is_active 또는 별도 ws_enabled 컬럼 검토.
+            # 현재는 모든 Bybit demo/live 계정이 stream 대상.
+            stmt = select(ExchangeAccount).where(
+                ExchangeAccount.exchange == ExchangeName.bybit,  # type: ignore[arg-type]
+            )
+            accounts = (await session.execute(stmt)).scalars().all()
 
-    with _PROCESS_LOCK:
-        active_snapshot = set(_PROCESS_ACTIVE_STREAMS)
+        with _PROCESS_LOCK:
+            active_snapshot = set(_PROCESS_ACTIVE_STREAMS)
 
-    for acc in accounts:
-        acc_id_str = str(acc.id)
-        if acc_id_str in active_snapshot:
-            skipped.append(acc_id_str)
-            continue
-        run_bybit_private_stream.delay(acc_id_str)
-        enqueued.append(acc_id_str)
-        logger.info("ws_stream_reenqueued account=%s", acc_id_str)
+        for acc in accounts:
+            acc_id_str = str(acc.id)
+            if acc_id_str in active_snapshot:
+                skipped.append(acc_id_str)
+                continue
+            run_bybit_private_stream.delay(acc_id_str)
+            enqueued.append(acc_id_str)
+            logger.info("ws_stream_reenqueued account=%s", acc_id_str)
 
-    return {
-        "enqueued": enqueued,
-        "skipped_active": skipped,
-        "total": len(accounts),
-    }
+        return {
+            "enqueued": enqueued,
+            "skipped_active": skipped,
+            "total": len(accounts),
+        }
+    finally:
+        await engine.dispose()

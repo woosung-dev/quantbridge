@@ -86,15 +86,22 @@ async def pending_order(db_session: AsyncSession):
     return order, account
 
 
-def _make_fake_session_factory(db_session: AsyncSession):
-    """Build a fake async_session_factory replacement.
+class _NoopEngine:
+    """Sprint 17 Phase C — async dispose no-op for tests."""
 
-    Sprint 4 pattern (test_backtest_task.py:61-78):
-    - Task calls: sm = async_session_factory()  → returns sessionmaker-like
-    - Then: async with sm() as session            → yields test db_session
+    async def dispose(self) -> None:
+        return None
 
-    So the factory (function) must return a _FakeSM instance,
-    and _FakeSM().__call__() must return the async context manager.
+
+def _make_fake_create_worker_engine_and_sm(db_session: AsyncSession):
+    """Build a fake create_worker_engine_and_sm replacement (Sprint 17 Phase C).
+
+    New contract (backtest.py:31 mirror):
+    - Task calls: engine, sm = create_worker_engine_and_sm()
+    - Then: async with sm() as session  → yields test db_session
+    - finally: await engine.dispose()
+
+    So the factory must return a (engine, sm_callable) tuple.
     """
 
     @asynccontextmanager
@@ -107,8 +114,10 @@ def _make_fake_session_factory(db_session: AsyncSession):
         def __call__(self):
             return _session_ctx()
 
-    # Return a lambda that produces _FakeSM — matches async_session_factory() call
-    return lambda: _FakeSM()
+    def _factory():
+        return _NoopEngine(), _FakeSM()
+
+    return _factory
 
 
 @pytest.mark.asyncio
@@ -124,7 +133,7 @@ async def test_execute_order_task_transitions_pending_to_filled(
     order, _acc = pending_order
 
     # Session monkeypatch — Sprint 4 pattern
-    monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
     # Provider monkeypatch — FixtureExchangeProvider 강제 (EXCHANGE_PROVIDER 환경변수 독립)
     monkeypatch.setattr(task_mod, "_exchange_provider", FixtureExchangeProvider())
 
@@ -157,7 +166,7 @@ async def test_execute_order_task_transitions_to_rejected_on_provider_error(
     order, _acc = pending_order
 
     # Session monkeypatch — Sprint 4 pattern
-    monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
 
     # Inject failing provider — bypass lazy singleton
     monkeypatch.setattr(task_mod, "_exchange_provider", FixtureExchangeProvider(fail_next_n=1))
@@ -227,7 +236,7 @@ async def test_execute_order_task_keeps_submitted_when_receipt_status_submitted(
     import src.tasks.trading as task_mod
 
     order, _acc = pending_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(task_mod, "_exchange_provider", _SubmittedReceiptProvider())
     # Sprint 16 CI fix: Sprint 15 watchdog 가 _async_execute 의 submitted 분기에 추가한
     # fetch_order_status_task.apply_async 가 CI Celery result backend (Redis) 연결 retry
@@ -263,7 +272,7 @@ async def test_execute_order_task_transitions_to_rejected_when_receipt_status_re
     import src.tasks.trading as task_mod
 
     order, _acc = pending_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(task_mod, "_exchange_provider", _RejectedReceiptProvider())
 
     result = await task_mod._async_execute(order.id)
@@ -294,7 +303,7 @@ async def test_execute_order_task_calls_session_commit_on_submitted_path(
     import src.tasks.trading as task_mod
 
     order, _acc = pending_order
-    monkeypatch.setattr(task_mod, "async_session_factory", _make_fake_session_factory(db_session))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(task_mod, "_exchange_provider", _SubmittedReceiptProvider())
     # Sprint 16 CI fix — submitted 분기의 fetch_order_status_task.apply_async 우회 (Redis result backend retry limit).
     monkeypatch.setattr(

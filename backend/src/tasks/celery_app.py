@@ -44,10 +44,18 @@ celery_app.conf.update(
 # - acks_late=True: worker crash 시 ack 안 된 task 가 broker 로 복귀 → re-enqueue 보장.
 # - reject_on_worker_lost=True: worker_lost SIGKILL 시 동일.
 # - prefetch_multiplier=1: ws_stream worker 가 1 task 만 prefetch (concurrency=1 + 1 task).
+#
+# Sprint 17 Phase C+ (architectural fix for codex G.0 P1 #2): Celery prefork worker
+# 의 같은 child 가 여러 task 처리 시 SQLAlchemy/asyncpg dialect cache 가 stale loop
+# 의 Future 보유 → 두 번째 task 부터 RuntimeError("attached to a different loop")
+# 또는 InterfaceError. per-call create_worker_engine_and_sm + dispose 만으로 부족.
+# worker_max_tasks_per_child=1 로 매 task 마다 child rotate (memory bloat 방어 +
+# stale state 완전 정리). 5분 cycle task 빈도라 fork overhead acceptable.
 celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
+    worker_max_tasks_per_child=1,
 )
 
 # Sprint 12 Phase C — ws_stream queue routing

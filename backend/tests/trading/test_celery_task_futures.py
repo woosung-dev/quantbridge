@@ -5,6 +5,7 @@ OrderSubmit에 leverage/margin_mode가 주입되는지 검증.
 
 Monkeypatch 패턴은 test_celery_task.py (Sprint 4 세션 팩토리 교체 + provider 직접 주입)를 따른다.
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -84,8 +85,15 @@ async def pending_futures_order(db_session: AsyncSession):
     return order, account
 
 
-def _make_fake_session_factory(db_session: AsyncSession):
-    """test_celery_task.py와 동일 패턴 — task가 보는 session을 테스트 session으로 대체."""
+class _NoopEngine:
+    """Sprint 17 Phase C — async dispose no-op for tests."""
+
+    async def dispose(self) -> None:
+        return None
+
+
+def _make_fake_create_worker_engine_and_sm(db_session: AsyncSession):
+    """Sprint 17 Phase C — (engine, sm) tuple matching backtest.py:31."""
 
     @asynccontextmanager
     async def _session_ctx():
@@ -95,7 +103,10 @@ def _make_fake_session_factory(db_session: AsyncSession):
         def __call__(self):
             return _session_ctx()
 
-    return lambda: _FakeSM()
+    def _factory():
+        return _NoopEngine(), _FakeSM()
+
+    return _factory
 
 
 class _CapturingFuturesProvider:
@@ -136,7 +147,9 @@ async def test_async_execute_uses_bybit_futures_provider_with_leverage(
     order, _account = pending_futures_order
 
     monkeypatch.setattr(
-        task_mod, "async_session_factory", _make_fake_session_factory(db_session)
+        task_mod,
+        "create_worker_engine_and_sm",
+        _make_fake_create_worker_engine_and_sm(db_session),
     )
 
     fake_provider = _CapturingFuturesProvider()

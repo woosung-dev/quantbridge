@@ -18,7 +18,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from celery import shared_task
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.common.alert import send_critical_alert
 from src.common.redis_client import get_redis_lock_pool
@@ -29,23 +34,22 @@ from src.trading.repository import OrderRepository
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Worker-local lazy session factory (mirrors src.tasks.trading pattern)
-# ---------------------------------------------------------------------------
-_worker_engine = None
-_sessionmaker_cache: async_sessionmaker[AsyncSession] | None = None
+# Sprint 17 Phase A — Celery prefork worker 의 매 task 마다 asyncio.run() 으로
+# 새 event loop 가 생기는데, asyncpg connection pool 은 생성 당시 loop 에 bind
+# 되므로 module-level cached engine 은 두 번째 task 부터 InterfaceError("another
+# operation is in progress") 로 silent fail. 따라서 funding.py / backtest.py 와
+# 동일하게 매 호출마다 fresh engine + finally dispose.
+def create_worker_engine_and_sm() -> (
+    tuple[AsyncEngine, async_sessionmaker[AsyncSession]]
+):
+    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
 
-
-def async_session_factory() -> async_sessionmaker[AsyncSession]:
-    """Worker-local async_sessionmaker. Lazy init per child process.
-
-    Tests monkeypatch this at module level.
+    호출자는 engine 을 finally 에서 dispose 해야 한다. 테스트는 이 함수를
+    monkeypatch 로 대체하여 공유 세션 + no-op engine 주입 가능.
     """
-    global _worker_engine, _sessionmaker_cache
-    if _sessionmaker_cache is None:
-        _worker_engine = create_async_engine(settings.database_url, echo=False)
-        _sessionmaker_cache = async_sessionmaker(_worker_engine, expire_on_commit=False)
-    return _sessionmaker_cache
+    engine = create_async_engine(settings.database_url, echo=False)
+    sm = async_sessionmaker(engine, expire_on_commit=False)
+    return engine, sm
 
 
 def _get_redis_lock_pool_for_alert() -> Any:
@@ -83,62 +87,69 @@ async def _try_alert_throttled(
 
 
 async def _async_scan_stuck_orders() -> dict[str, Any]:
-    """Core scan logic. Sprint 16+ 에서 multi-instance 병렬 실행 시 lease 추가 검토."""
+    """Core scan logic. Sprint 17 Phase A: per-call engine + finally dispose."""
     cutoff = datetime.now(UTC) - timedelta(minutes=_SCAN_STUCK_THRESHOLD_MINUTES)
 
-    sm = async_session_factory()
-    async with sm() as session:
-        repo = OrderRepository(session)
-        stuck_pending = await repo.list_stuck_pending(cutoff)
-        stuck_submitted = await repo.list_stuck_submitted(cutoff)
-        stuck_interrupted = await repo.list_stuck_submission_interrupted(cutoff)
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            repo = OrderRepository(session)
+            stuck_pending = await repo.list_stuck_pending(cutoff)
+            stuck_submitted = await repo.list_stuck_submitted(cutoff)
+            stuck_interrupted = await repo.list_stuck_submission_interrupted(cutoff)
 
-    # 1. pending — execute_order_task 재enqueue (dispatch 누락 복구).
-    for order in stuck_pending:
-        execute_order_task.apply_async(args=[str(order.id)], countdown=0)
-        await _try_alert_throttled(
-            cycle_key=f"pending:{order.id}",
-            message=f"Pending order stuck > {_SCAN_STUCK_THRESHOLD_MINUTES}min — re-dispatched",
-            context={
-                "order_id": str(order.id)[:8],
-                "symbol": order.symbol,
-                "created_at": order.created_at.isoformat(),
-                "kind": "pending_stuck",
-            },
-        )
-
-    # 2. submitted + ex_id — fetch_order_status_task 재enqueue (terminal evidence 확인).
-    for order in stuck_submitted:
-        fetch_order_status_task.apply_async(
-            args=[str(order.id)], countdown=0
-        )
-        # alert 는 fetch_order_status_task 가 attempt>=max 후 별도 발화 (qb_watchdog_alert).
-        # scan 시점엔 noise 줄이기 위해 alert 안 함.
-
-    # 3. submitted + null ex_id — throttled alert 만 (manual cleanup).
-    for order in stuck_interrupted:
-        await _try_alert_throttled(
-            cycle_key=f"interrupted:{order.id}",
-            message=(
-                "Order stuck submitted with NULL exchange_order_id — "
-                "submission interrupted (worker crash or race). "
-                "Manual cleanup required."
-            ),
-            context={
-                "order_id": str(order.id)[:8],
-                "symbol": order.symbol,
-                "submitted_at": (
-                    order.submitted_at.isoformat() if order.submitted_at else "unknown"
+        # 1. pending — execute_order_task 재enqueue (dispatch 누락 복구).
+        for order in stuck_pending:
+            execute_order_task.apply_async(args=[str(order.id)], countdown=0)
+            await _try_alert_throttled(
+                cycle_key=f"pending:{order.id}",
+                message=(
+                    f"Pending order stuck > {_SCAN_STUCK_THRESHOLD_MINUTES}min "
+                    "— re-dispatched"
                 ),
-                "kind": "submission_interrupted",
-            },
-        )
+                context={
+                    "order_id": str(order.id)[:8],
+                    "symbol": order.symbol,
+                    "created_at": order.created_at.isoformat(),
+                    "kind": "pending_stuck",
+                },
+            )
 
-    return {
-        "pending": len(stuck_pending),
-        "submitted": len(stuck_submitted),
-        "interrupted": len(stuck_interrupted),
-    }
+        # 2. submitted + ex_id — fetch_order_status_task 재enqueue (terminal evidence).
+        for order in stuck_submitted:
+            fetch_order_status_task.apply_async(
+                args=[str(order.id)], countdown=0
+            )
+            # alert 는 fetch_order_status_task 가 attempt>=max 후 별도 발화.
+
+        # 3. submitted + null ex_id — throttled alert 만 (manual cleanup).
+        for order in stuck_interrupted:
+            await _try_alert_throttled(
+                cycle_key=f"interrupted:{order.id}",
+                message=(
+                    "Order stuck submitted with NULL exchange_order_id — "
+                    "submission interrupted (worker crash or race). "
+                    "Manual cleanup required."
+                ),
+                context={
+                    "order_id": str(order.id)[:8],
+                    "symbol": order.symbol,
+                    "submitted_at": (
+                        order.submitted_at.isoformat()
+                        if order.submitted_at
+                        else "unknown"
+                    ),
+                    "kind": "submission_interrupted",
+                },
+            )
+
+        return {
+            "pending": len(stuck_pending),
+            "submitted": len(stuck_submitted),
+            "interrupted": len(stuck_interrupted),
+        }
+    finally:
+        await engine.dispose()
 
 
 @shared_task(name="trading.scan_stuck_orders")  # type: ignore[untyped-decorator]

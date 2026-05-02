@@ -94,7 +94,19 @@ async def stuck_orders_factory(db_session: AsyncSession):
     await db_session.commit()
 
 
-def _fake_session_factory(db_session: AsyncSession):
+class _NoopEngine:
+    """Sprint 17 Phase A — async dispose no-op for tests."""
+
+    async def dispose(self) -> None:
+        return None
+
+
+def _fake_create_worker_engine_and_sm(db_session: AsyncSession):
+    """Sprint 17 Phase A — create_worker_engine_and_sm 의 (engine, sm) tuple mock.
+
+    db_session 을 yield 하는 sessionmaker callable + dispose no-op engine.
+    """
+
     @asynccontextmanager
     async def _ctx():
         yield db_session
@@ -103,7 +115,10 @@ def _fake_session_factory(db_session: AsyncSession):
         def __call__(self):
             return _ctx()
 
-    return lambda: _SM()
+    def _factory():
+        return _NoopEngine(), _SM()
+
+    return _factory
 
 
 # -------------------------------------------------------------------------
@@ -225,7 +240,9 @@ async def test_scan_stuck_orders_enqueues_pending_via_execute_order_task(
     await db_session.commit()
 
     monkeypatch.setattr(
-        scanner_mod, "async_session_factory", _fake_session_factory(db_session)
+        scanner_mod,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
     )
 
     enqueued: list[tuple] = []
@@ -263,7 +280,9 @@ async def test_scan_stuck_orders_enqueues_submitted_via_fetch_order_status_task(
     await db_session.commit()
 
     monkeypatch.setattr(
-        scanner_mod, "async_session_factory", _fake_session_factory(db_session)
+        scanner_mod,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
     )
 
     enqueued: list[tuple] = []
@@ -306,7 +325,9 @@ async def test_scan_stuck_orders_alerts_throttled_per_order(
     await db_session.commit()
 
     monkeypatch.setattr(
-        scanner_mod, "async_session_factory", _fake_session_factory(db_session)
+        scanner_mod,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
     )
     monkeypatch.setattr(
         trading_mod.execute_order_task,
@@ -339,7 +360,9 @@ async def test_scan_stuck_orders_no_op_returns_zero(
     import src.tasks.orphan_scanner as scanner_mod
 
     monkeypatch.setattr(
-        scanner_mod, "async_session_factory", _fake_session_factory(db_session)
+        scanner_mod,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
     )
     pool = _MockRedisPool()
     monkeypatch.setattr(scanner_mod, "_get_redis_lock_pool_for_alert", lambda: pool)
