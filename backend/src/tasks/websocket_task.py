@@ -109,13 +109,16 @@ _BYBIT_WS_ENDPOINTS: dict[str, str] = {
 def run_bybit_private_stream(account_id: str) -> dict[str, Any]:
     """Bybit Private WebSocket order stream — long-running.
 
-    asyncio.run() 안에서 BybitPrivateStream context manager 가 stop_event 까지 대기.
-    SIGTERM 시 worker_shutdown 시그널이 stop_event set → graceful close.
+    Sprint 18 BL-080 Option C: run_in_worker_loop 으로 영속 `_WORKER_LOOP` 안에서
+    BybitPrivateStream context manager 가 stop_event 까지 대기. SIGTERM 시
+    worker_shutdown 시그널이 stop_event set → graceful close.
 
     Returns:
         {"status": "completed" | "duplicate" | "auth_failed" | "error", ...}
     """
-    return asyncio.run(_run_async(account_id))
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_run_async(account_id))
 
 
 async def _run_async(account_id: str) -> dict[str, Any]:
@@ -246,8 +249,12 @@ def reconcile_ws_streams() -> dict[str, Any]:
 
     codex G3 #3: long-running task auto-respawn 메커니즘. worker crash/restart
     후 broker 가 task 를 재배달해도 process state 가 휘발됐으니 명시적 enqueue 필요.
+
+    Sprint 18 BL-080: asyncio.run → run_in_worker_loop (Option C).
     """
-    return asyncio.run(_reconcile_async())
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_reconcile_async())
 
 
 async def _reconcile_async() -> dict[str, Any]:

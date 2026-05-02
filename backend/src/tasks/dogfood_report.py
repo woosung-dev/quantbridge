@@ -10,7 +10,6 @@ ReportData 집계:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -83,7 +82,10 @@ def dogfood_daily_report_task(report_date_iso: str | None = None) -> dict[str, A
     else:
         report_date = datetime.now(UTC).date()
         # 22:00 UTC에 실행 → 당일 리포트 (오늘 0:00~22:00 포함)
-    return asyncio.run(_async_generate(report_date))
+    # Sprint 18 BL-080: asyncio.run → run_in_worker_loop (Option C).
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_generate(report_date))
 
 
 async def _async_generate(report_date: date) -> dict[str, Any]:

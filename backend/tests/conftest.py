@@ -42,8 +42,15 @@ if not os.environ.get("WAITLIST_ADMIN_EMAILS"):
 # Redis 연결을 실제로 시도 → ConnectionError 발생. swallow_errors=True 가 있어도
 # evalsha 단계에서 Exception 으로 fall-through. localhost 로 override 하여
 # docker compose up 중인 Redis (포트 6379) 를 사용하도록 강제.
+#
+# Sprint 18 BL-080 (codex G.0 P1 #7): 격리 docker stack 은 redis 를 host port
+# 6380 에 publish (docker-compose.isolated.yml `redis: 6380:6379`). 격리 stack
+# 안에서 pytest 실행 시 `TEST_REDIS_LOCK_URL=redis://localhost:6380/3` 환경변수
+# 를 export 후 실행 권장. 그래도 미설정 시 비격리 stack 의 6379 가 default.
 if not os.environ.get("REDIS_LOCK_URL"):
-    os.environ["REDIS_LOCK_URL"] = "redis://localhost:6379/3"
+    os.environ["REDIS_LOCK_URL"] = (
+        os.environ.get("TEST_REDIS_LOCK_URL") or "redis://localhost:6379/3"
+    )
 
 import pytest
 import pytest_asyncio
@@ -84,24 +91,72 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Path β Mutation Oracle 실행. 기본은 skip — nightly workflow 또는 수동 실행.",
     )
+    # Sprint 19 BL-085 (codex G.0 P1 #3): integration marker 별도 flag.
+    # mutation 과 분리 처리 — `--run-mutations` 가 integration 도 활성화하지 않도록 보장.
+    parser.addoption(
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="Real-DB prefork integration test 실행. 기본은 skip — 격리 docker stack 필요 + nightly.",
+    )
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """기본 실행에서 @pytest.mark.mutation 테스트를 자동 skip (ADR-013 §10.1 Q2)."""
-    if config.getoption("--run-mutations"):
-        return
+    """기본 실행에서 marker 별 자동 skip.
+
+    Sprint 19 BL-085 (codex G.0 P1 #3): 기존 early return 패턴은 `--run-mutations`
+    1개 flag 만으로 모든 marker skip 해제 — integration test 가 의도와 다르게 활성화될 risk.
+    각 marker 를 독립적으로 처리하도록 분리.
+    """
     skip_mutation = pytest.mark.skip(
         reason="Mutation Oracle — `pytest --run-mutations` 또는 nightly workflow 에서 실행"
     )
+    skip_integration = pytest.mark.skip(
+        reason="Real-DB integration — `pytest --run-integration` 필요 (격리 docker stack)"
+    )
+    run_mutations = config.getoption("--run-mutations")
+    run_integration = config.getoption("--run-integration")
     for item in items:
-        if "mutation" in item.keywords:
+        if "mutation" in item.keywords and not run_mutations:
             item.add_marker(skip_mutation)
+        if "integration" in item.keywords and not run_integration:
+            item.add_marker(skip_integration)
 
 
-DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test",
+# Sprint 18 BL-080 (codex G.0 P1 #7): 격리 docker stack 은 db host port 5433
+# (docker-compose.isolated.yml `db: 5433:5432`). 격리 stack 안에서 pytest 실행 시
+# `TEST_DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge_test`
+# env 를 export 후 실행. 우선순위: TEST_DATABASE_URL > DATABASE_URL > default.
+DB_URL = (
+    os.environ.get("TEST_DATABASE_URL")
+    or os.environ.get("DATABASE_URL")
+    or "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test"
 )
+
+
+def _to_psycopg2_url(asyncpg_url: str) -> str:
+    """Sprint 19 BL-083 — asyncpg DSN → psycopg2 sync DSN 변환.
+
+    Alembic / SQLAlchemy sync engine 은 psycopg2 (또는 다른 sync driver) 필요.
+    `sqlalchemy.engine.make_url()` 로 안전하게 파싱 + drivername 변경. 단순
+    `.replace("+asyncpg", "")` 는 query string 의 asyncpg-specific 옵션 보존
+    문제 회피 위해 사용 안 함.
+
+    asyncpg-specific query params (e.g., `server_settings`, `command_timeout`)
+    가 있으면 psycopg2 가 unknown param 으로 reject 가능 → 제거.
+
+    codex G.0 P2 권장: `URL.set(drivername="postgresql+psycopg2")`.
+    """
+    from sqlalchemy.engine import make_url
+
+    url = make_url(asyncpg_url)
+    # asyncpg-only 옵션 제거 (psycopg2 가 reject 하는 키)
+    asyncpg_only_keys = {"server_settings", "command_timeout", "ssl_negotiation"}
+    sanitized_query = {
+        k: v for k, v in url.query.items() if k not in asyncpg_only_keys
+    }
+    sync_url = url.set(drivername="postgresql+psycopg2", query=sanitized_query)
+    return sync_url.render_as_string(hide_password=False)
 
 
 @pytest_asyncio.fixture(scope="session")

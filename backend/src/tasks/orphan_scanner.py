@@ -12,7 +12,6 @@ Alert dedupe: per-cycle Redis SET NX EX 30min — 동일 cycle 중복 발화 회
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -157,5 +156,12 @@ def scan_stuck_orders_task() -> dict[str, Any]:
     """Sprint 15 Phase A.3 — Celery beat 5분 schedule.
 
     Idempotency: state guard (각 enqueue 된 task 가 다시 state 확인) + Redis throttle.
+
+    Sprint 18 BL-080 (Option C): asyncio.run() → run_in_worker_loop. 영속
+    `_WORKER_LOOP` 재사용으로 asyncpg connection 의 transport waiter 가 stale
+    loop 참조 안 함. (라이브 evidence: same child 의 2nd+ task 가 fail 하던
+    회귀 차단)
     """
-    return asyncio.run(_async_scan_stuck_orders())
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_scan_stuck_orders())

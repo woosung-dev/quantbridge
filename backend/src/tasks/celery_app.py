@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 
 from celery import Celery
 from celery.schedules import crontab
-from celery.signals import worker_process_init, worker_ready, worker_shutdown
+from celery.signals import (
+    worker_process_init,
+    worker_process_shutdown,  # Sprint 18 BL-080 (codex G.0 P1 #4)
+    worker_ready,
+    worker_shutdown,
+)
 
 from src.core.config import settings
 
@@ -45,17 +50,19 @@ celery_app.conf.update(
 # - reject_on_worker_lost=True: worker_lost SIGKILL 시 동일.
 # - prefetch_multiplier=1: ws_stream worker 가 1 task 만 prefetch (concurrency=1 + 1 task).
 #
-# Sprint 17 Phase C+ (architectural fix for codex G.0 P1 #2): Celery prefork worker
-# 의 같은 child 가 여러 task 처리 시 SQLAlchemy/asyncpg dialect cache 가 stale loop
-# 의 Future 보유 → 두 번째 task 부터 RuntimeError("attached to a different loop")
-# 또는 InterfaceError. per-call create_worker_engine_and_sm + dispose 만으로 부족.
-# worker_max_tasks_per_child=1 로 매 task 마다 child rotate (memory bloat 방어 +
-# stale state 완전 정리). 5분 cycle task 빈도라 fork overhead acceptable.
+# Sprint 18 BL-080 — Option C persistent worker loop. Sprint 17 의
+# worker_max_tasks_per_child=1 (child rotate per task) 는 broker prefetch race 로
+# 같은 child 가 multi-task 처리 시 한계 있음 + 매 task 마다 fork overhead. Option C
+# 가 영속 _WORKER_LOOP 로 stale loop 문제 자체를 제거하므로 child rotate 불필요.
+#
+# **codex G.2 P2 #1 (Sprint 18) — soak 미검증 보수**: =1000 대신 =250 으로 제한.
+# 1h soak gate (RSS slope + asyncpg/Redis fd count) 미수행 상태이므로 conservative.
+# Sprint 19 의 soak 결과로 1000 으로 완화 검토.
 celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
-    worker_max_tasks_per_child=1,
+    worker_max_tasks_per_child=250,
 )
 
 # Sprint 12 Phase C — ws_stream queue routing
@@ -108,16 +115,40 @@ celery_app.conf.beat_schedule = {
 
 
 @worker_process_init.connect  # type: ignore[untyped-decorator]
-def _reset_redis_lock_pool_after_fork(**_kwargs: object) -> None:
-    """Celery prefork 자식 프로세스에서 부모의 Redis 연결 FD 폐기 후 재생성.
+def _init_worker_state_after_fork(**_kwargs: object) -> None:
+    """Celery prefork 자식 프로세스 fork 후 1회 호출.
 
-    Sprint 10 Phase A1 follow-up / Phase A2 wire-up — 분산 락 storage 가 fork 후
-    stale connection 을 공유하지 않도록 lazy 재생성 트리거.
+    Sprint 18 BL-080 (Option C): persistent `_WORKER_LOOP` 생성 — 모든 task 가
+    동일 loop 재사용하여 asyncpg connection / Redis pool / CCXT client 의 internal
+    transport waiter 가 stale loop 참조 안 함.
+
+    Sprint 10 Phase A1/A2 follow-up: 분산 락 Redis pool 도 fork 후 stale FD 공유
+    안 하도록 lazy 재생성 트리거.
+
     import 시점에 등록되므로 테스트 환경에서 실제 fork 없어도 no-op.
     """
     from src.common.redis_client import reset_redis_lock_pool
+    from src.tasks._worker_loop import init_worker_loop
 
+    init_worker_loop()
     reset_redis_lock_pool()
+
+
+@worker_process_shutdown.connect  # type: ignore[untyped-decorator]
+def _shutdown_worker_state_on_child_exit(**_kwargs: object) -> None:
+    """Celery prefork 자식 프로세스 shutdown 시 1회 호출 (codex G.0 P1 #4 반영).
+
+    `worker_shutdown` 은 master process / solo pool 만 시그널 — prefork child
+    cleanup 에는 부적합 (Sprint 12 의 backend-ws-stream `--pool=solo` 가 동일
+    이유로 worker_shutdown 사용). prefork child 의 `_WORKER_LOOP` 정리는 본
+    `worker_process_shutdown` hook 에서 처리.
+
+    pending task cancel + drain + loop close. drain 중 unhandled exception 이
+    발생해도 finally 에서 close 보장 (worker_loop 모듈 안에서 처리).
+    """
+    from src.tasks._worker_loop import shutdown_worker_loop
+
+    shutdown_worker_loop()
 
 
 @worker_ready.connect  # type: ignore[untyped-decorator]
@@ -158,9 +189,25 @@ def get_ccxt_provider_for_worker() -> CCXTProvider:
 
 @worker_shutdown.connect  # type: ignore[untyped-decorator]
 def _on_worker_shutdown(sender: object = None, **_kwargs: object) -> None:
-    """Worker 종료 시 CCXTProvider 리소스 해제 + WebSocket stream graceful close."""
-    # Sprint 12 Phase C — G4 fix #4: 모든 active ws_stream 의 stop_event set.
-    # _stream_main 의 await stop_event.wait() 가 즉시 깨어나 supervisor → ws.close.
+    """Master process / solo pool worker 종료 시 호출.
+
+    Sprint 12 Phase C — G4 fix #4: 모든 active ws_stream 의 stop_event set.
+    _stream_main 의 await stop_event.wait() 가 즉시 깨어나 supervisor → ws.close.
+
+    **Sprint 18 BL-080 (codex G.2 P1 #1 fix — race 회피)**:
+    solo pool (backend-ws-stream) 의 경우, ws_stream task 가 본 hook 호출 시점에
+    여전히 `_WORKER_LOOP.run_until_complete()` 안에서 실행 중일 수 있다 (`stop_event`
+    set 후 graceful unwind 가 진행 중). 그 상태에서 `run_in_worker_loop()` 호출 시
+    running-loop guard 가 RuntimeError raise + `shutdown_worker_loop()` 가 running
+    loop 에 `run_until_complete` 시도 → fail. 따라서:
+
+    1. signal_all_stop_events() 만 호출 (cross-thread call_soon_threadsafe — 안전).
+    2. `_WORKER_LOOP` 가 running 중이면 ccxt close / loop close 모두 SKIP — process
+       exit 시 OS 가 정리. stream coroutine 이 BybitPrivateStream.__aexit__ 통해
+       자체 cleanup.
+    3. running 중이 아니면 (master process / 이미 stream 종료) ccxt close + loop
+       shutdown 진행.
+    """
     try:
         from src.tasks.websocket_task import signal_all_stop_events
 
@@ -170,11 +217,32 @@ def _on_worker_shutdown(sender: object = None, **_kwargs: object) -> None:
     except Exception:
         logger.exception("ws_stream_shutdown_signal_failed")
 
+    # codex G.2 P1 #1: running loop 안에서는 cleanup 시도 금지 (race fail).
+    from src.tasks import _worker_loop as worker_loop_mod
+
+    worker_loop = worker_loop_mod._WORKER_LOOP
+    if worker_loop is not None and worker_loop.is_running():
+        logger.info(
+            "worker_shutdown_skipped_loop_cleanup_loop_running "
+            "(stream task in flight; OS reclaim on process exit)"
+        )
+        return
+
     global _ccxt_provider
     if _ccxt_provider is not None:
         try:
-            asyncio.run(_ccxt_provider.close())
+            from src.tasks._worker_loop import run_in_worker_loop
+
+            run_in_worker_loop(_ccxt_provider.close())
         except Exception:
             logger.exception("ccxt_close_failed_on_shutdown")
         finally:
             _ccxt_provider = None
+
+    # solo pool / master 모두 idempotent.
+    try:
+        from src.tasks._worker_loop import shutdown_worker_loop
+
+        shutdown_worker_loop()
+    except Exception:
+        logger.exception("shutdown_worker_loop_failed_on_master")
