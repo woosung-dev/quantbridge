@@ -1,3 +1,8 @@
+# === Playwright MCP ad-hoc evidence (root) ===
+# dogfood / smoke 스크린샷 — repo 안 두고 dev-log 본문 인용만
+sprint*-day*-*.png
+sprint*-day*-*.jpeg
+
 # === AI tooling ===
 .ai/
 # .claude/ 하위는 전체 무시하되 settings.json만 예외 (팀 공유 baseline)

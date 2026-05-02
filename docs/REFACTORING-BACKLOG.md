@@ -430,6 +430,62 @@
 | **BL-088 (신규)** | `drain_pending_alerts()` helper (codex G.2 P2 #3 Sprint 19) — production drain 사용처 추가 시 idempotent guard | P3       | S (1h)    |
 | **BL-089 (신규)** | `qb_pending_alerts` Grafana alert wire-up (>50 임계)                                                           | P2       | S (1-2h)  |
 | **BL-090 (신규)** | `tests/db_url.py` 분리 (codex G.2 P3 #1 Sprint 19) — test_migrations 의 conftest import 정리                   | P3       | S (30min) |
+| **BL-091 (신규)** | ExchangeAccount.mode 무시 + EXCHANGE_PROVIDER env 누락 시 silent fixture fallback (Sprint 20 dogfood Day 0)    | **P1**   | M (1-2일) |
+
+**BL-091 상세** (Sprint 20 dogfood Day 0 라이브 발견, 2026-05-02):
+
+- **증상**: 사용자가 `/trading` 의 TestOrderDialog 로 발송 → UI "filled" + DB `state=filled` 표시. 하지만 `exchange_order_id='fixture-1'` + `filled_price=50000.00` (round number) = mock 응답. **broker 까지 안 감**.
+- **Root cause**: `backend/src/tasks/trading.py:_build_exchange_provider()` (line 77-99) 가 `settings.exchange_provider` (Pydantic env) 기반 lazy singleton. **ExchangeAccount.mode (demo/live) 완전 무시**. + `docker-compose.yml` worker/beat env 에 `EXCHANGE_PROVIDER` 누락 (Sprint 20 hot-fix 로 추가) → Pydantic default `"fixture"` 적용 → `FixtureExchangeProvider()` 반환.
+- **사용자 신뢰 위반**: ExchangeAccount UI 에서 mode=demo 명시 + Bybit Demo API key 등록했는데도 worker 가 fixture 응답. **dogfood 의 본질 위반** (사용자가 broker 호출 의도 표시했는데 silent mock).
+- **Sprint 20 hot-fix** (Day 0 적용): `.env` 에 `EXCHANGE_PROVIDER=bybit_demo` + `docker-compose.yml` worker/beat 에 `EXCHANGE_PROVIDER: ${EXCHANGE_PROVIDER:-fixture}` 추가. **단 이건 mitigation — proper fix 아님**.
+- **Proper fix (Sprint 21+)**: `_get_exchange_provider(account: ExchangeAccount) -> ExchangeProvider` 으로 시그니처 변경. account 의 `(exchange, mode)` tuple 기반 dynamic dispatch. `settings.exchange_provider` 는 fallback 또는 deprecation.
+- **추가 검증 의무**: live broker dogfood 시나리오 자동화 — `tests/integration/test_dogfood_live_broker.py` 추가. `exchange_order_id` 가 `fixture-*` 패턴 안 시작하는지 assert.
+- **Sprint 17 Phase D dead env 와 별개**: Sprint 17 의 EXCHANGE_PROVIDER 이슈는 다른 맥락. 이번은 docker compose env 누락.
+
+| **BL-092 (신규)** | `qb_active_orders` filled/cancelled 후 dec 누락 (Sprint 20 dogfood Day 0) | P2 | S (분석 + 1-line fix) |
+| **BL-093 (신규)** | TestOrderDialog 성공 시 명시적 confirmation (toast/inline) 부재 — dialog 자동 닫힘만 | P3 | S (1h) |
+| **BL-094 (신규)** | webhook secret sessionStorage TTL 30분 vs dogfood UX 충돌 — 30분 흐르면 Rotate 강제 | P3 | S (정책 결정 후 1-2h) |
+| **BL-095 (신규)** | Backtest 422 inline detail 미흡 — `API 422 /api/v1/backtests` 만 표시, `unsupported builtins` 같은 detail 누락 | P3 | S (1h) |
+| **BL-096 (신규)** | **Coverage Analyzer supported list 너무 좁음** + Sprint 8c corpus 와 production supported list 이중 잣대 | **P1** | M (1주) |
+
+**BL-092 상세** (Sprint 20 Day 0 라이브 발견, 2026-05-02):
+
+- 현재 `qb_active_orders=2.0` — 1차 fixture (filled) + 2차 real broker (filled) 후에도 dec 누적 안 됨
+- 추정 #1: BL-027 winner-only dec 가 fixture 1차 때 inc 안 했지만 dec 시도 → underflow guard 가 dec block?
+- 추정 #2: state_handler 가 WS event 처리 시 winner-only rowcount 0 반환?
+- Sprint 21 분석. `qb_active_orders` invariant 검증 (pending/submitted inc, filled/cancelled dec). 현재 monotonically increasing 이라 운영 metric 신뢰도 낮음.
+
+**BL-093 상세** (Sprint 20 Day 0 라이브 발견):
+
+- TestOrderDialog Submit 성공 시 dialog 자동 닫힘만, 사용자 본인이 "주문창이 안 보여서.. 된거긴한것 같은데?" 표현
+- 권장: sonner toast (`주문 발송됨 / order_id ${id}`) 또는 dialog 안에 success state 표시
+
+**BL-094 상세** (Sprint 20 Day 0 라이브 발견):
+
+- Sprint 13 의 보안 정책 (1회 노출 + sessionStorage TTL 30분) 이 dogfood 시나리오와 충돌
+- Strategy create 11:51 → TestOrder 12:24 (33분 경과) → "Webhook secret 캐시 없음. Strategy 페이지에서 Rotate 후 다시 시도" 발생
+- 매번 30분 안에 dogfood 사이클 끝내야 한다는 가정 — 실용적이지 않음
+- 옵션: TTL 24h 늘림 / "secret 다시 보기" 버튼 / TestOrderDialog 가 sessionStorage 부재 시 자동 Rotate prompt / 또는 의도된 보안 정책 유지 + 가이드 명시
+
+**BL-095 상세** (Sprint 20 Day 0 라이브 발견):
+
+- Frontend `BacktestForm` 가 422 시 `API 422 /api/v1/backtests` 만 표시, backend 의 `detail.detail` (unsupported builtins 목록) 안 보임
+- 사용자가 어떤 builtin 이 미지원인지 알기 위해 강제로 network 탭 또는 console 확인 필요
+- Sprint 21+ FE fix: 422 detail.code === "strategy_not_runnable" 인 경우 unsupported builtin list 를 inline 카드로 표시
+
+**BL-096 상세** (Sprint 20 Day 0 backtest 6/6 매트릭스 발견 — **P1 critical**):
+
+- **결정적 모순 발견**: Sprint 8c 의 strict 검증 (i3_drfx, s3_rsid strict=True 통과, **252 pine_v2 tests green**) vs **production parse-preview reject**:
+  - DrFXGOD (= i3_drfx 동일): 39 unsupported builtins, `is_runnable: false`
+  - RsiD (= s3_rsid 동일): 8 unsupported (abs, barssince, currency.USD, max, pivothigh, pivotlow, strategy.fixed, valuewhen), `is_runnable: false`
+- 즉 **Sprint 8c 의 pine_v2 dispatcher 가 처리할 수 있는 builtin 집합** vs **production Sprint Y1 Coverage Analyzer 의 supported list** 가 분리됨
+- 흔한 미지원 다수: `abs`, `max`, `min`, `ta.barssince`, `ta.valuewhen`, `ta.pivothigh/low`, `currency.USD`, `strategy.fixed`, `barcolor`, `label.*`, `box.*`, `request.security`, `str.tostring`, `fixnan`, `barstate.*`
+- **dogfood 의 큰 friction**: 사용자 본인 6 indicator 중 4 reject (UtBot×2 + DrFX + RsiD), 2 통과 (PbR + LuxAlgo) = **33% 통과율**
+- Sprint 21+ 작업:
+  - SSOT supported list 단일화 — `pine_v2` corpus 통과 builtin = production supported
+  - `abs`, `max`, `min`, `ta.barssince`, `ta.valuewhen`, `ta.pivothigh/low` 등 흔한 builtin 우선 추가
+  - 또는 Coverage Analyzer 의 strict mode 옵션 (사용자가 "이건 backtest 거짓 양성 위험 알지만 진행" 토글)
+  - 통합 검증: 신규 supported builtin 추가 시 corpus 6/6 + production parse-preview 6/6 동시 통과 의무
 
 **현황:** Sprint 17 Phase A+B+C 가 module-level cached AsyncEngine 제거 + per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` 도입 (backtest.py:31 mirror). **1st task / child success**. 하지만 같은 child 의 2nd+ task 가 RuntimeError "attached to a different loop" / InterfaceError "another operation is in progress" 재발 — SQLAlchemy/asyncpg 의 process-level state (dialect cache 등) 가 stale loop Future 보유. `worker_max_tasks_per_child=1` 효과 약함.
 
