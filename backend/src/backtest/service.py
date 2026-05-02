@@ -132,12 +132,14 @@ class BacktestService:
         # (whack-a-mole 패턴 종식 — backtest 실행 전에 명확히 안내)
         coverage = analyze_coverage(strategy.pine_source)
         if not coverage.is_runnable:
-            unsupported = ", ".join(coverage.all_unsupported)
+            unsupported_list = list(coverage.all_unsupported)
+            unsupported_str = ", ".join(unsupported_list)
             raise StrategyNotRunnable(
                 detail=(
-                    f"Strategy contains unsupported Pine built-ins: {unsupported}. "
+                    f"Strategy contains unsupported Pine built-ins: {unsupported_str}. "
                     f"See docs/02_domain/supported-indicators.md for the supported list."
-                )
+                ),
+                unsupported_builtins=unsupported_list,
             )
 
         bt = Backtest(

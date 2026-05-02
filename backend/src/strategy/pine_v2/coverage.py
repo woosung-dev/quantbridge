@@ -43,6 +43,7 @@ _STRATEGY_FUNCTIONS: frozenset[str] = frozenset({
 # Indicator declarations (script header — NOP)
 _DECLARATION_FUNCTIONS: frozenset[str] = frozenset({
     "indicator", "strategy", "library",
+    "study",  # Sprint 21 — v2/v3 declaration alias (interpreter NOP via _NOP_NAMES)
 })
 
 # Pine plot/visual — backtest 영향 없음 (interpreter NOP)
@@ -94,6 +95,12 @@ _V4_ALIASES: frozenset[str] = frozenset({
     "rma", "sma", "ema", "rsi", "atr", "highest", "lowest",
     "crossover", "crossunder", "change", "stdev", "variance",
     "iff", "switch",
+    # Sprint 21 (codex G.0 P1 #1) — RsiD/UtBot 의 v4 no-namespace builtin.
+    # interpreter.py:597 의 `_V4_ALIASES` runtime map 과 동기 (3-파일 SSOT 의무).
+    "abs", "max", "min",
+    "pivothigh", "pivotlow",
+    "barssince", "valuewhen",
+    "timestamp",
 })
 
 SUPPORTED_FUNCTIONS: frozenset[str] = (
@@ -128,6 +135,38 @@ _SYMINFO_ATTRS: frozenset[str] = frozenset({
     "syminfo.mintick", "syminfo.tickerid",
 })
 
+# Sprint 21 (codex G.0 P1 #3) — explicit constant sets. _ENUM_PREFIXES 에
+# `currency.` / `strategy.` / `timeframe.` 를 prefix 추가하면 nonexistent constant
+# (e.g. `currency.USDXYZ123`) 까지 false-pass 됨. explicit set 만 허용.
+_CURRENCY_CONSTANTS: frozenset[str] = frozenset({
+    "currency.USD", "currency.EUR", "currency.JPY", "currency.GBP",
+    "currency.AUD", "currency.CAD", "currency.CHF", "currency.NZD",
+    "currency.HKD", "currency.SGD", "currency.KRW", "currency.NONE",
+})
+
+# strategy.fixed / cash / percent_of_equity 는 default_qty_type / commission_type
+# 인자에 사용되는 enum constant. _STRATEGY_ATTRS (long/short/position_size/...)
+# 와 분리해 운영 (둘 다 `strategy.` prefix 라 단일 set 도 가능하지만 의미 분리).
+_STRATEGY_CONSTANTS_EXTRA: frozenset[str] = frozenset({
+    "strategy.fixed",
+    "strategy.cash",
+    "strategy.percent_of_equity",
+    "strategy.commission_percent",
+    "strategy.commission_cash_per_contract",
+    "strategy.commission_cash_per_order",
+})
+
+_TIMEFRAME_CONSTANTS: frozenset[str] = frozenset({
+    "timeframe.period",
+    "timeframe.multiplier",
+    "timeframe.isintraday",
+    "timeframe.isdaily",
+    "timeframe.isweekly",
+    "timeframe.ismonthly",
+    "timeframe.isminutes",
+    "timeframe.isseconds",
+})
+
 # Pine enum constants (interpreter._ATTR_CONSTANTS — render scope A)
 _ENUM_PREFIXES: tuple[str, ...] = (
     "line.style_", "extend.", "shape.", "location.", "size.",
@@ -137,6 +176,8 @@ _ENUM_PREFIXES: tuple[str, ...] = (
 
 SUPPORTED_ATTRIBUTES: frozenset[str] = (
     _SERIES_ATTRS | _STRATEGY_ATTRS | _SYMINFO_ATTRS
+    # Sprint 21 (codex G.0 P1 #3) — explicit constant sets (prefix 미허용, false-pass 차단)
+    | _CURRENCY_CONSTANTS | _STRATEGY_CONSTANTS_EXTRA | _TIMEFRAME_CONSTANTS
 )
 
 

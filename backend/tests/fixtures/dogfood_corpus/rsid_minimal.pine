@@ -1,0 +1,33 @@
+//@version=4
+// Sprint 21 dogfood corpus — RsiD-style minimal (QB authored).
+// 본 fixture 의 목적은 Sprint 21 의 v4 alias + explicit constant set 확장 회귀 검증.
+// 사용자 보관 RsiD strategy hard 의 8 unsupported (Day 0) 가 모두 supported 로
+// 분류되는지 확인 — abs / barssince / currency.USD / max / min / pivothigh / pivotlow /
+// strategy.fixed / valuewhen.
+//
+// QB 자체 구성. 원문 indicator 미사용 (라이선스 회피, codex G.0 P1 #6).
+strategy(
+    "RsidMinimal",
+    overlay=true,
+    default_qty_type=strategy.fixed,
+    default_qty_value=1,
+    currency=currency.USD,
+    initial_capital=1000
+)
+
+// === v4 no-namespace alias 8개 활용 ===
+abs_diff = abs(close - open)
+hi = max(high, close)
+lo = min(low, close)
+ph = pivothigh(high, 5, 5)
+pl = pivotlow(low, 5, 5)
+bars_above = barssince(close > open)
+val_when_above = valuewhen(close > open, close, 0)
+
+// === simple entry / exit logic ===
+threshold = abs_diff > 0
+if threshold and bars_above < 10
+    strategy.entry("L", strategy.long)
+
+if not threshold
+    strategy.close("L")

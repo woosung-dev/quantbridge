@@ -8,8 +8,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from src.backtest.exceptions import StrategyNotRunnable
 from src.common.exceptions import AppException
 from src.core.config import settings
+
+
+async def app_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
+    """AppException → JSONResponse 직렬화 (spec §4.4).
+
+    code 속성이 설정된 예외는 `{"detail": {"code": ..., "detail": ...}}` 형식으로
+    Frontend 가 code 로 분기 가능. Sprint 21 (codex G.0 P1 #5): StrategyNotRunnable
+    은 추가로 `unsupported_builtins: list[str]` 노출 — FE 가 string split 하지 않고
+    구조화된 list 직접 사용. module-level 로 추출되어 test 에서도 import 가능.
+
+    signature 의 `exc: Exception` 은 Starlette `add_exception_handler` 호환을 위함.
+    runtime 에선 AppException subclass 만 dispatch 됨 (FastAPI 가 type narrowing).
+    """
+    if not isinstance(exc, AppException):
+        # 정상 흐름에선 발생 안 함 — Starlette 가 AppException subclass 만 라우팅.
+        # 안전 fallback (예외적 호출 시 500).
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
+    if exc.code is not None:
+        body: dict[str, object] = {
+            "detail": {"code": exc.code, "detail": exc.detail},
+        }
+        if isinstance(exc, StrategyNotRunnable):
+            detail_dict = body["detail"]
+            assert isinstance(detail_dict, dict)
+            detail_dict["unsupported_builtins"] = exc.unsupported_builtins
+    else:
+        body = {"detail": exc.detail}
+    return JSONResponse(status_code=exc.status_code, content=body)
 
 
 def _verify_prometheus_bearer(
@@ -89,17 +121,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.exception_handler(AppException)
-    async def _app_exc_handler(_req: Request, exc: AppException) -> JSONResponse:
-        # code 속성이 설정된 예외는 {"detail": {"code": ..., "detail": ...}} 형식으로
-        # 직렬화해 Frontend가 code로 분기 처리 가능 (spec §4.4).
-        if exc.code is not None:
-            body: dict[str, object] = {
-                "detail": {"code": exc.code, "detail": exc.detail},
-            }
-        else:
-            body = {"detail": exc.detail}
-        return JSONResponse(status_code=exc.status_code, content=body)
+    app.add_exception_handler(AppException, app_exc_handler)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict[str, str]:
