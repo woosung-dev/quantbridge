@@ -11,6 +11,7 @@ Sprint Y1 (B+D) — TradingView Trust Layer 철학 정합:
   `close`, `high`, etc.
 - enum constants: `line.style_dashed`, `shape.labelup` 등
 """
+
 from __future__ import annotations
 
 import re
@@ -21,80 +22,175 @@ from dataclasses import dataclass
 # ---------------------------------------------------------------------
 
 # stdlib functions (interpreter.py:684 _STDLIB_NAMES)
-_TA_FUNCTIONS: frozenset[str] = frozenset({
-    "ta.sma", "ta.ema", "ta.rma", "ta.atr", "ta.rsi",
-    "ta.crossover", "ta.crossunder",
-    "ta.highest", "ta.lowest",
-    "ta.change", "ta.pivothigh", "ta.pivotlow",
-    "ta.stdev", "ta.variance",
-    "ta.sar", "ta.barssince", "ta.valuewhen",
-})
+_TA_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "ta.sma",
+        "ta.ema",
+        "ta.rma",
+        "ta.atr",
+        "ta.rsi",
+        "ta.crossover",
+        "ta.crossunder",
+        "ta.highest",
+        "ta.lowest",
+        "ta.change",
+        "ta.pivothigh",
+        "ta.pivotlow",
+        "ta.stdev",
+        "ta.variance",
+        "ta.sar",
+        "ta.barssince",
+        "ta.valuewhen",
+    }
+)
 
 # Math / utility (na, nz + math.* 일부)
-_UTILITY_FUNCTIONS: frozenset[str] = frozenset({
-    "na", "nz",
-})
+_UTILITY_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "na",
+        "nz",
+    }
+)
 
 # strategy.* — interpreter._exec_strategy_call (entry/close/close_all/exit)
-_STRATEGY_FUNCTIONS: frozenset[str] = frozenset({
-    "strategy.entry", "strategy.close", "strategy.close_all", "strategy.exit",
-})
+_STRATEGY_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "strategy.entry",
+        "strategy.close",
+        "strategy.close_all",
+        "strategy.exit",
+    }
+)
 
 # Indicator declarations (script header — NOP)
-_DECLARATION_FUNCTIONS: frozenset[str] = frozenset({
-    "indicator", "strategy", "library",
-})
+_DECLARATION_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "indicator",
+        "strategy",
+        "library",
+        "study",  # Sprint 21 — v2/v3 declaration alias (interpreter NOP via _NOP_NAMES)
+    }
+)
 
 # Pine plot/visual — backtest 영향 없음 (interpreter NOP)
-_PLOT_FUNCTIONS: frozenset[str] = frozenset({
-    "plot", "plotshape", "plotchar", "plotarrow", "plotcandle", "plotbar",
-    "bgcolor", "fill", "hline", "vline",
-    "alertcondition", "alert",
-    "label.new", "line.new", "box.new", "table.new",
-    "color.new", "color.rgb",
-})
+_PLOT_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "plot",
+        "plotshape",
+        "plotchar",
+        "plotarrow",
+        "plotcandle",
+        "plotbar",
+        "bgcolor",
+        "fill",
+        "hline",
+        "vline",
+        "alertcondition",
+        "alert",
+        "label.new",
+        "line.new",
+        "box.new",
+        "table.new",
+        "color.new",
+        "color.rgb",
+    }
+)
 
 # Input / config (interpreter NOP — default value 만 사용)
-_INPUT_FUNCTIONS: frozenset[str] = frozenset({
-    "input", "input.int", "input.float", "input.bool", "input.string",
-    "input.color", "input.source", "input.timeframe", "input.symbol",
-    "input.session", "input.price", "input.time",
-})
+_INPUT_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "input",
+        "input.int",
+        "input.float",
+        "input.bool",
+        "input.string",
+        "input.color",
+        "input.source",
+        "input.timeframe",
+        "input.symbol",
+        "input.session",
+        "input.price",
+        "input.time",
+    }
+)
 
 # String / format (NOP — display only)
-_STRING_FUNCTIONS: frozenset[str] = frozenset({
-    "str.tostring", "str.tonumber", "str.format", "str.length",
-    "tostring", "tonumber",
-})
+_STRING_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "str.tostring",
+        "str.tonumber",
+        "str.format",
+        "str.length",
+        "tostring",
+        "tonumber",
+    }
+)
 
 # Known-unsupported functions — 정적 분석에서 명시적으로 unsupported_functions에 포함.
 # interpreter는 런타임 NOP/graceful degrade로 처리하지만,
 # coverage analyzer는 사용자에게 "지원되지 않는 함수" 로 명시해야 함.
 # (ADR-013 §4 Trust Layer 철학: partial silentfail → 명시적 unsupported 선언)
-_KNOWN_UNSUPPORTED_FUNCTIONS: frozenset[str] = frozenset({
-    "request.security",
-    "request.security_lower_tf",
-    "request.dividends",
-    "request.earnings",
-    "request.quandl",
-    "request.financial",
-    "ticker.new",
-})
+_KNOWN_UNSUPPORTED_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "request.security",
+        "request.security_lower_tf",
+        "request.dividends",
+        "request.earnings",
+        "request.quandl",
+        "request.financial",
+        "ticker.new",
+    }
+)
 
 # Math built-ins (사용자 호출)
-_MATH_FUNCTIONS: frozenset[str] = frozenset({
-    "math.max", "math.min", "math.abs", "math.sign",
-    "math.sqrt", "math.exp", "math.log", "math.log10",
-    "math.pow", "math.round", "math.floor", "math.ceil",
-    "math.sum", "math.avg",
-})
+_MATH_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "math.max",
+        "math.min",
+        "math.abs",
+        "math.sign",
+        "math.sqrt",
+        "math.exp",
+        "math.log",
+        "math.log10",
+        "math.pow",
+        "math.round",
+        "math.floor",
+        "math.ceil",
+        "math.sum",
+        "math.avg",
+    }
+)
 
 # Pine v4→v5 호환 별칭 (interpreter alias map)
-_V4_ALIASES: frozenset[str] = frozenset({
-    "rma", "sma", "ema", "rsi", "atr", "highest", "lowest",
-    "crossover", "crossunder", "change", "stdev", "variance",
-    "iff", "switch",
-})
+_V4_ALIASES: frozenset[str] = frozenset(
+    {
+        "rma",
+        "sma",
+        "ema",
+        "rsi",
+        "atr",
+        "highest",
+        "lowest",
+        "crossover",
+        "crossunder",
+        "change",
+        "stdev",
+        "variance",
+        "iff",
+        "switch",
+        # Sprint 21 (codex G.0 P1 #1) — RsiD/UtBot 의 v4 no-namespace builtin.
+        # interpreter.py:597 의 `_V4_ALIASES` runtime map 과 동기 (3-파일 SSOT 의무).
+        "abs",
+        "max",
+        "min",
+        "pivothigh",
+        "pivotlow",
+        "barssince",
+        "valuewhen",
+        "timestamp",
+    }
+)
 
 SUPPORTED_FUNCTIONS: frozenset[str] = (
     _TA_FUNCTIONS
@@ -109,34 +205,110 @@ SUPPORTED_FUNCTIONS: frozenset[str] = (
 )
 
 # Built-in series variables (close/high/low/open/volume + ta.tr 등)
-_SERIES_ATTRS: frozenset[str] = frozenset({
-    "open", "high", "low", "close", "volume",
-    "hl2", "hlc3", "ohlc4",
-    "time", "bar_index", "barstate.isfirst", "barstate.islast",
-    "barstate.ishistory", "barstate.isconfirmed",
-    "ta.tr",  # Sprint X1+X3 follow-up
-})
+_SERIES_ATTRS: frozenset[str] = frozenset(
+    {
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "hl2",
+        "hlc3",
+        "ohlc4",
+        "time",
+        "bar_index",
+        "barstate.isfirst",
+        "barstate.islast",
+        "barstate.ishistory",
+        "barstate.isconfirmed",
+        "ta.tr",  # Sprint X1+X3 follow-up
+    }
+)
 
 # Strategy state attrs
-_STRATEGY_ATTRS: frozenset[str] = frozenset({
-    "strategy.long", "strategy.short",
-    "strategy.position_size", "strategy.position_avg_price",
-})
+_STRATEGY_ATTRS: frozenset[str] = frozenset(
+    {
+        "strategy.long",
+        "strategy.short",
+        "strategy.position_size",
+        "strategy.position_avg_price",
+    }
+)
 
 # Symbol info attrs
-_SYMINFO_ATTRS: frozenset[str] = frozenset({
-    "syminfo.mintick", "syminfo.tickerid",
-})
+_SYMINFO_ATTRS: frozenset[str] = frozenset(
+    {
+        "syminfo.mintick",
+        "syminfo.tickerid",
+    }
+)
+
+# Sprint 21 (codex G.0 P1 #3) — explicit constant sets. _ENUM_PREFIXES 에
+# `currency.` / `strategy.` / `timeframe.` 를 prefix 추가하면 nonexistent constant
+# (e.g. `currency.USDXYZ123`) 까지 false-pass 됨. explicit set 만 허용.
+_CURRENCY_CONSTANTS: frozenset[str] = frozenset(
+    {
+        "currency.USD",
+        "currency.EUR",
+        "currency.JPY",
+        "currency.GBP",
+        "currency.AUD",
+        "currency.CAD",
+        "currency.CHF",
+        "currency.NZD",
+        "currency.HKD",
+        "currency.SGD",
+        "currency.KRW",
+        "currency.NONE",
+    }
+)
+
+# strategy.fixed / cash / percent_of_equity 는 default_qty_type / commission_type
+# 인자에 사용되는 enum constant. _STRATEGY_ATTRS (long/short/position_size/...)
+# 와 분리해 운영 (둘 다 `strategy.` prefix 라 단일 set 도 가능하지만 의미 분리).
+_STRATEGY_CONSTANTS_EXTRA: frozenset[str] = frozenset(
+    {
+        "strategy.fixed",
+        "strategy.cash",
+        "strategy.percent_of_equity",
+        "strategy.commission_percent",
+        "strategy.commission_cash_per_contract",
+        "strategy.commission_cash_per_order",
+    }
+)
+
+# Sprint 21 codex G.2 P1 #1 — _TIMEFRAME_CONSTANTS 제거.
+# 이유: coverage supported 였지만 interpreter._eval_attribute 가 `timeframe.*` 미구현
+# → preflight 통과 후 runtime fail (silent corruption). interpreter 추가는 scope 폭발
+# (사용자 비교 logic 정확성 trade-off) → Sprint 22+ BL 로 이관.
+# 본 set 제거 시 utbot_minimal 의 timeframe.period 는 unsupported 로 분류 (UtBot 통과 영향 없음 — heikinashi/security 잔존이라 어차피 reject).
+_TIMEFRAME_CONSTANTS: frozenset[str] = frozenset()
 
 # Pine enum constants (interpreter._ATTR_CONSTANTS — render scope A)
 _ENUM_PREFIXES: tuple[str, ...] = (
-    "line.style_", "extend.", "shape.", "location.", "size.",
-    "position.", "color.",  # color.* → nan (NOP)
-    "alert.freq_", "display.", "xloc.", "yloc.", "text.", "font.",
+    "line.style_",
+    "extend.",
+    "shape.",
+    "location.",
+    "size.",
+    "position.",
+    "color.",  # color.* → nan (NOP)
+    "alert.freq_",
+    "display.",
+    "xloc.",
+    "yloc.",
+    "text.",
+    "font.",
 )
 
 SUPPORTED_ATTRIBUTES: frozenset[str] = (
-    _SERIES_ATTRS | _STRATEGY_ATTRS | _SYMINFO_ATTRS
+    _SERIES_ATTRS
+    | _STRATEGY_ATTRS
+    | _SYMINFO_ATTRS
+    # Sprint 21 (codex G.0 P1 #3) — explicit constant sets (prefix 미허용, false-pass 차단)
+    | _CURRENCY_CONSTANTS
+    | _STRATEGY_CONSTANTS_EXTRA
+    | _TIMEFRAME_CONSTANTS
 )
 
 
@@ -149,15 +321,46 @@ def is_supported_attribute(chain: str) -> bool:
 
 # Pine v5 의 알려진 namespace prefix. 이 외의 prefix (예: 사용자 변수 dntl.set_xy1)는
 # coverage analyzer 의 검사 대상이 아님 — false positive 방지.
-_KNOWN_NAMESPACES: frozenset[str] = frozenset({
-    "ta", "math", "str", "strategy", "syminfo", "input", "request",
-    "color", "line", "box", "label", "table", "polyline", "linefill",
-    "shape", "location", "size", "position", "extend",
-    "alert", "display", "xloc", "yloc", "text", "font", "barstate",
-    "session", "currency", "dayofweek", "earnings", "splits",
-    "dividends", "chart", "timeframe", "time",
-    "ticker",  # ticker.new 등 (H2+ 미지원)
-})
+_KNOWN_NAMESPACES: frozenset[str] = frozenset(
+    {
+        "ta",
+        "math",
+        "str",
+        "strategy",
+        "syminfo",
+        "input",
+        "request",
+        "color",
+        "line",
+        "box",
+        "label",
+        "table",
+        "polyline",
+        "linefill",
+        "shape",
+        "location",
+        "size",
+        "position",
+        "extend",
+        "alert",
+        "display",
+        "xloc",
+        "yloc",
+        "text",
+        "font",
+        "barstate",
+        "session",
+        "currency",
+        "dayofweek",
+        "earnings",
+        "splits",
+        "dividends",
+        "chart",
+        "timeframe",
+        "time",
+        "ticker",  # ticker.new 등 (H2+ 미지원)
+    }
+)
 
 
 def _is_pine_namespace(chain: str) -> bool:
@@ -174,7 +377,9 @@ def _is_pine_namespace(chain: str) -> bool:
 _CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
 # attribute: `chain` 단독 (call 직전 X). Pine 식별자 chain.
 # 단순화: "xxx.yyy" 형태 모두 추출 후 함수 호출 위치 빼기.
-_DOTTED_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b")
+_DOTTED_RE = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\b"
+)
 _COMMENT_RE = re.compile(r"//[^\n]*")
 _STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
 
@@ -222,26 +427,32 @@ def analyze_coverage(source: str) -> CoverageReport:
 
     # 사용자 정의 함수: `myFunc(...) =>` 패턴
     user_defs = set()
-    for m in re.finditer(
-        r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*=>", clean
-    ):
+    for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*=>", clean):
         user_defs.add(m.group(1))
 
     skip_keywords = {
-        "if", "for", "while", "and", "or", "not", "in", "true", "false", "switch",
+        "if",
+        "for",
+        "while",
+        "and",
+        "or",
+        "not",
+        "in",
+        "true",
+        "false",
+        "switch",
     }
 
     # functions — namespace prefix 가 알려진 Pine namespace 일 때만 검사
     # (사용자 변수 method 호출 예: `dntl.set_xy1(...)` 는 false positive 방지로 skip)
-    used_funcs_all = sorted({
-        m.group(1)
-        for m in _CALL_RE.finditer(clean)
-        if m.group(1).lower() not in skip_keywords and m.group(1) not in user_defs
-    })
-    used_funcs = [
-        f for f in used_funcs_all
-        if "." not in f or _is_pine_namespace(f)
-    ]
+    used_funcs_all = sorted(
+        {
+            m.group(1)
+            for m in _CALL_RE.finditer(clean)
+            if m.group(1).lower() not in skip_keywords and m.group(1) not in user_defs
+        }
+    )
+    used_funcs = [f for f in used_funcs_all if "." not in f or _is_pine_namespace(f)]
     # known-unsupported를 먼저 분리: SUPPORTED_FUNCTIONS에서 제거 후 명시적 unsupported 처리
     # (interpreter는 NOP으로 graceful degrade하지만 coverage analyzer는 명시적 노출)
     unsupp_funcs_raw = [f for f in used_funcs if f not in SUPPORTED_FUNCTIONS]
@@ -258,7 +469,7 @@ def analyze_coverage(source: str) -> CoverageReport:
         # 호출 형태 ((직후 `(`) 인 경우 함수로 이미 잡힘 → skip
         end_idx = m.end()
         # check next non-space char is `(`
-        rest = clean[end_idx:end_idx + 4].lstrip()
+        rest = clean[end_idx : end_idx + 4].lstrip()
         if rest.startswith("("):
             continue
         used_attrs_set.add(chain)
@@ -266,8 +477,7 @@ def analyze_coverage(source: str) -> CoverageReport:
     used_attrs = sorted(used_attrs_set)
     # 알려진 Pine namespace prefix 만 검사 — 사용자 변수 attribute (예: `dntl.x1`) skip
     unsupp_attrs = tuple(
-        a for a in used_attrs
-        if _is_pine_namespace(a) and not is_supported_attribute(a)
+        a for a in used_attrs if _is_pine_namespace(a) and not is_supported_attribute(a)
     )
 
     return CoverageReport(

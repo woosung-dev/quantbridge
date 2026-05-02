@@ -1,0 +1,22 @@
+//@version=5
+// Sprint 21 dogfood corpus — DrFXGOD-style partial (QB authored).
+// 본 fixture 는 Sprint 22+ scope 의 baseline. box.* / label.* / barcolor / request.security
+// 같은 hard builtin 이 unsupported 로 분류되는지 정량 회귀 (Sprint 21 에서는 부분만 fix).
+//
+// 사용자 DrFXGOD indicator hard 의 39 unsupported 중 핵심 5-7 항목만 흉내. 자체 구성.
+indicator("DrfxPartialMinimal", overlay=true)
+
+// === Sprint 22+ scope — 모두 unsupported 분류 기대 ===
+htf = request.security("BINANCE:BTCUSDT", "60", close)
+b = box.new(left=bar_index, top=high, right=bar_index + 5, bottom=low)
+box.set_top(b, high + 1)
+l = label.new(x=bar_index, y=high, text="signal")
+label.set_xy(l, bar_index + 1, high + 2)
+barcolor(close > open ? color.green : color.red)
+
+// === Sprint 21 fix 된 항목 (control — supported) ===
+hi = max(close, open)
+tf = timeframe.period
+
+plot(htf)
+plot(hi)

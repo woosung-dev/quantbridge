@@ -1,0 +1,20 @@
+//@version=4
+// Sprint 21 dogfood corpus — UtBot-style minimal (QB authored).
+// 본 fixture 는 Trust Layer 회귀 — heikinashi / security 가 명시 unsupported 로
+// reject 되는지 검증. ADR-013 §4 (codex G.0 P1 #2) 준수.
+//
+// 동시에 Sprint 21 신규 추가된 max / min / timeframe.period / study NOP 처리도 검증.
+// 사용자 UtBot indicator easy/medium 와 동일한 builtin 사용 패턴, 자체 작성.
+study("UtBotMinimal", overlay=true)
+
+// === Trust Layer 회귀 — 다음 두 builtin 은 unsupported 유지 (silent corruption risk) ===
+ha = heikinashi(close)                              // 미지원 — 헤이켄아시 변환
+htf = security("BINANCE:BTCUSDT", "60", close)     // 미지원 — 다른 timeframe
+
+// === Sprint 21 신규 supported (study + max/min + timeframe.period) ===
+hi = max(close, open)
+lo = min(close, open)
+tf = timeframe.period
+
+plot(ha)
+plot(htf)

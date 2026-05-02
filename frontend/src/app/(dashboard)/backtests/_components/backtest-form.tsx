@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { useForm, useWatch, type SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -17,6 +19,10 @@ import { useCreateBacktest } from "@/features/backtest/hooks";
 import type { Timeframe } from "@/features/backtest/schemas";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
+import {
+  getUnsupportedBuiltinHints,
+  type UnsupportedBuiltinHint,
+} from "@/lib/unsupported-builtin-hints";
 
 const TIMEFRAMES: readonly Timeframe[] = [
   "1m",
@@ -68,16 +74,41 @@ export function BacktestForm() {
     },
   });
 
+  // Sprint 21 BL-095 — 422 응답의 unsupported_builtins (구조화 list) 가 있을 때
+  // form-level error message 가 아닌 inline 카드로 친절 표시. 빈 list 면 fallback.
+  const [unsupportedHints, setUnsupportedHints] = useState<
+    UnsupportedBuiltinHint[]
+  >([]);
+
   const create = useCreateBacktest({
     onSuccess: (data) => {
       toast.success("백테스트 요청됨");
       router.push(`/backtests/${data.backtest_id}`);
     },
     onError: (err) => {
+      // 매 호출 reset.
+      setUnsupportedHints([]);
       // Sprint 13 Phase C: 422 백엔드 응답은 form-level inline 에러로 표시.
       // ApiError 는 numeric `status` 를 보존하므로 안전하게 narrow 한다.
       const status = (err as { status?: number }).status;
       if (status === 422) {
+        // Sprint 21 BL-095: ApiError.detail = readErrorBody 결과 =
+        // {detail: {code, detail, unsupported_builtins}} (FastAPI HTTPException 표준).
+        // backend Phase A.0 가 list 추가. FE 는 string split 안 하고 list 직접 접근.
+        const apiErr = err as {
+          detail?: {
+            detail?: { unsupported_builtins?: unknown };
+          };
+        };
+        const list = apiErr.detail?.detail?.unsupported_builtins;
+        if (
+          Array.isArray(list) &&
+          list.every((x) => typeof x === "string") &&
+          list.length > 0
+        ) {
+          setUnsupportedHints(getUnsupportedBuiltinHints(list as string[]));
+          return;
+        }
         setError("root.serverError", {
           type: "manual",
           message: err.message || "입력값이 유효하지 않습니다",
@@ -89,8 +120,9 @@ export function BacktestForm() {
   });
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
-    // 재제출 시 직전 422 form-level 에러 메시지 클리어.
+    // 재제출 시 직전 422 form-level 에러 메시지 + unsupported list 클리어.
     clearErrors("root.serverError");
+    setUnsupportedHints([]);
     create.mutate({
       strategy_id: values.strategy_id,
       symbol: values.symbol,
@@ -253,7 +285,33 @@ export function BacktestForm() {
         ) : null}
       </div>
 
-      {errors.root?.serverError?.message ? (
+      {unsupportedHints.length > 0 ? (
+        <div
+          role="alert"
+          data-testid="backtest-form-unsupported-card"
+          className="rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 p-3 text-sm"
+        >
+          <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
+            ⚠️ 이 strategy 는 미지원 builtin 을 포함합니다
+          </p>
+          <ul className="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-300 text-xs">
+            {unsupportedHints.map((h) => (
+              <li key={h.name}>
+                <span className="font-mono">{h.name}</span> — {h.hint}
+              </li>
+            ))}
+          </ul>
+          {selectedStrategy ? (
+            <Link
+              href={`/strategies/${selectedStrategy}/edit?tab=parse`}
+              className="mt-2 inline-block text-xs underline text-amber-900 dark:text-amber-200"
+              data-testid="backtest-form-edit-strategy-link"
+            >
+              strategy 편집 →
+            </Link>
+          ) : null}
+        </div>
+      ) : errors.root?.serverError?.message ? (
         <p
           className="text-sm text-destructive"
           role="alert"

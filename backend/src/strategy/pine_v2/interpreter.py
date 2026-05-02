@@ -594,6 +594,15 @@ class Interpreter:
         """Call 해석: stdlib(ta.*/na/nz) → strategy.* → 선언/렌더링 NOP → 에러."""
         name = _call_chain_name(node.func)
 
+        # Sprint 21 (codex G.0 P1 #1 + #4) — user-defined function 우선 dispatch.
+        # plain identifier (no dot) 만 — dotted method/strategy/request call 은
+        # 후 단계 dispatch path 가 처리. 이 ordering 없으면 사용자가 `abs(x) =>`,
+        # `max(a,b) =>` 같은 함수 정의 시 v4 alias (`abs → math.abs`) 에 압도되어
+        # silent correctness bug 발생 (Sprint 8c corpus i3_drfx/s3_rsid 가 통과한 건
+        # 우연히 alias 와 충돌하는 함수명을 사용 안 했기 때문).
+        if name and "." not in name and name in self._user_functions:
+            return self._call_user_function(self._user_functions[name], node)
+
         # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* / math.* 로 재라우팅
         # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
         _V4_ALIASES: dict[str, str] = {
@@ -793,10 +802,9 @@ class Interpreter:
                 return None
             return None
 
-        # User-defined function (Sprint 8c) — Script top-level `foo(x) => ...`.
-        # Name 단일 식별자만 매칭 (chain name 아님). 네임스페이스 prefix 없음.
-        if name and name in self._user_functions:
-            return self._call_user_function(self._user_functions[name], node)
+        # NOTE (Sprint 21 P1 #1 + #4): user-defined function dispatch 는 _eval_call
+        # 시작 직후 (v4 alias 전) 처리됨 — 본 위치는 unreachable. 의도적으로 제거하여
+        # 단일 source of truth 유지 (plain identifier user_function 은 위 prior dispatch).
 
         raise PineRuntimeError(f"Call to {name!r} not supported in current scope")
 

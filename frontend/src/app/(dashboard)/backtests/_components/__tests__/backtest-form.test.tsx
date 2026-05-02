@@ -145,6 +145,204 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  // Sprint 21 BL-095 — backend 422 의 unsupported_builtins (구조화 list) 가 있을 때
+  // form-level error 가 아닌 친절 inline 카드 + edit link 노출.
+  // codex G.0 P1 #5: FE 가 string split 하지 않고 list 직접 접근.
+  it("422 + unsupported_builtins list → unsupported card + friendly hints + edit link", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+        target: { value: "10000" },
+      });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    // backend Phase A.0: ApiError.detail = readErrorBody 결과 =
+    // { detail: { code, detail, unsupported_builtins: [...] } }
+    const err = Object.assign(
+      new Error("Strategy contains unsupported Pine built-ins"),
+      {
+        status: 422,
+        detail: {
+          detail: {
+            code: "strategy_not_runnable",
+            detail:
+              "Strategy contains unsupported Pine built-ins: heikinashi, security, max",
+            unsupported_builtins: ["heikinashi", "security", "max"],
+          },
+        },
+      },
+    );
+
+    expect(capturedOpts.current.onError).toBeDefined();
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    const card = await screen.findByTestId("backtest-form-unsupported-card");
+    expect(card).toBeInTheDocument();
+    // 친절 hint 메시지 — heikinashi 는 corruption category 의 명확한 메시지
+    expect(card).toHaveTextContent(/heikinashi/);
+    expect(card).toHaveTextContent(/헤이켄아시 변환/);
+    expect(card).toHaveTextContent(/security/);
+    expect(card).toHaveTextContent(/max/);
+    // Sprint 21 G.2 P2 — max/min/abs 권장 hint 제거 (alias ordering fix 후 부정확).
+    // generic fallback 메시지에서 builtin 이름 자체만 노출.
+    expect(card).toHaveTextContent(/미지원 빌트인/);
+    // strategy 편집 링크 — 선택된 strategy_id 'abc' 의 edit?tab=parse
+    const editLink = screen.getByTestId("backtest-form-edit-strategy-link");
+    expect(editLink.getAttribute("href")).toBe("/strategies/abc/edit?tab=parse");
+    // 422 는 toast 가 아닌 inline 카드로만 처리.
+    expect(toastError).not.toHaveBeenCalled();
+    // Sprint 13 의 root.serverError fallback 미사용 (구조화 list 우선).
+    expect(
+      screen.queryByTestId("backtest-form-server-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("422 + empty unsupported_builtins → fallback root.serverError (no card)", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+        target: { value: "10000" },
+      });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    const err = Object.assign(new Error("date out of range"), {
+      status: 422,
+      detail: {
+        detail: {
+          code: "validation_error",
+          detail: "date out of range",
+          unsupported_builtins: [],
+        },
+      },
+    });
+
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    // 빈 list — fallback root.serverError 카드 미노출
+    expect(
+      screen.queryByTestId("backtest-form-unsupported-card"),
+    ).not.toBeInTheDocument();
+    const serverErr = await screen.findByTestId("backtest-form-server-error");
+    expect(serverErr).toHaveTextContent("date out of range");
+  });
+
+  it("422 + unsupported_builtins missing → fallback root.serverError", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+        target: { value: "10000" },
+      });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    // detail 자체가 없는 경우 (legacy backend 또는 다른 422 source)
+    const err = Object.assign(new Error("legacy 422"), { status: 422 });
+
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    expect(
+      screen.queryByTestId("backtest-form-unsupported-card"),
+    ).not.toBeInTheDocument();
+    const serverErr = await screen.findByTestId("backtest-form-server-error");
+    expect(serverErr).toHaveTextContent("legacy 422");
+  });
+
+  it("non-422 (500) → toast.error (no card, no inline)", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+        target: { value: "10000" },
+      });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    const err = Object.assign(new Error("Internal Server Error"), {
+      status: 500,
+    });
+
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Internal Server Error"),
+    );
+    expect(
+      screen.queryByTestId("backtest-form-unsupported-card"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("backtest-form-server-error"),
+    ).not.toBeInTheDocument();
+  });
+
   it("happy path — onSuccess → router.push(/backtests/{id})", async () => {
     mockSearchParams = new URLSearchParams("strategy_id=abc");
     render(<BacktestForm />);

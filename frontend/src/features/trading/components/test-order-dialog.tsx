@@ -223,7 +223,25 @@ function TestOrderDialogInner() {
     }
 
     if (res.status === 201) {
-      toast.success("테스트 주문 발송됨");
+      // Sprint 21 BL-093 — success confirmation 강화: order id 마지막 8자 또는
+      // client-side idempotency_key 마지막 8자 노출 → 사용자가 OrdersPanel /
+      // Bybit Demo UI 와 매칭 가능 (dogfood Day 0 7번 N 해소).
+      let orderHint: string | null = null;
+      try {
+        const body = (await res.json()) as Record<string, unknown> | null;
+        const id = body?.id ?? body?.order_id ?? body?.exchange_order_id;
+        if (typeof id === "string" && id.length > 0) {
+          orderHint = `#${id.slice(-8)}`;
+        }
+      } catch {
+        // body 가 JSON 이 아니거나 빈 응답 — fallback 으로 idempotency_key 사용
+      }
+      if (!orderHint && idempotencyKey) {
+        orderHint = `client #${idempotencyKey.slice(-8)}`;
+      }
+      toast.success("테스트 주문 발송됨", {
+        description: orderHint ?? undefined,
+      });
       // tradingKeys.orders 는 (userId, limit) 인자가 필요한 factory 라
       // 모든 user/limit variation 을 한 번에 무효화하기 위해 prefix ["trading"] 사용.
       qc.invalidateQueries({ queryKey: ["trading"] });

@@ -251,7 +251,10 @@ describe("TestOrderDialog", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       status: 201,
       text: async () => "",
-    } as Response);
+      json: async () => {
+        throw new SyntaxError("empty body");
+      },
+    } as unknown as Response);
     vi.stubGlobal("fetch", fetchMock);
 
     renderDialog();
@@ -260,8 +263,17 @@ describe("TestOrderDialog", () => {
     clickSubmit();
 
     await waitFor(() => {
-      expect(toastSuccessMock).toHaveBeenCalledWith("테스트 주문 발송됨");
+      expect(toastSuccessMock).toHaveBeenCalled();
     });
+    // Sprint 21 BL-093: 1번째 arg 는 "테스트 주문 발송됨" 유지 (regression).
+    // body json parsing 실패 시 idempotency_key fallback (FIXED_UUID slice -8).
+    const [arg0, arg1] = toastSuccessMock.mock.calls[0] as [
+      string,
+      { description?: string } | undefined,
+    ];
+    expect(arg0).toBe("테스트 주문 발송됨");
+    expect(arg1?.description).toContain("client #");
+    expect(arg1?.description).toContain(FIXED_UUID.slice(-8));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [
@@ -287,6 +299,39 @@ describe("TestOrderDialog", () => {
         screen.queryByText(/테스트 주문 \(dogfood-only\)/),
       ).not.toBeInTheDocument();
     });
+  });
+
+  // Sprint 21 BL-093 — broker order id 가 response body 에 있을 때 toast description
+  // 에 #${id.slice(-8)} 노출. dogfood Day 0 7번 N (사용자 "주문창이 안 보여서 된거긴한것
+  // 같은데?") 해소: order id 마지막 8자 → OrdersPanel BrokerBadge / Bybit Demo UI 매칭.
+  it("happy path with json body — toast description shows broker id last 8", async () => {
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const realOrderId = "bybit-real-order-1234567-x9y8z7w6v5u4";
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 201,
+      text: async () => "",
+      json: async () => ({
+        id: realOrderId,
+        symbol: "BTCUSDT",
+      }),
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderDialog();
+    openDialog();
+    await fillForm();
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalled();
+    });
+    const [, arg1] = toastSuccessMock.mock.calls[0] as [
+      string,
+      { description?: string } | undefined,
+    ];
+    // broker order id 마지막 8자 노출 (#prefix). client fallback 안 사용.
+    expect(arg1?.description).toBe(`#${realOrderId.slice(-8)}`);
+    expect(arg1?.description).not.toContain("client");
   });
 
   it("422 → setError root.serverError → form-level inline error", async () => {

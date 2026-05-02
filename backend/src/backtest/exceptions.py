@@ -55,9 +55,20 @@ class StrategyNotRunnable(BacktestError):
     """Pine 소스에 미지원 built-in 함수/변수가 있어 backtest 실행 불가.
 
     Sprint Y1 (B+D): pre-flight coverage analyzer 가 unsupported_builtins 발견 시 raise.
-    detail 에 미지원 항목 목록 포함 — UI 에서 사용자 안내.
+    Sprint 21 (codex G.0 P1 #5): `unsupported_builtins: list[str]` 필드 추가.
+    detail 의 string 을 split 하지 않고 FE 가 list 직접 접근 (`{detail: {..., unsupported_builtins: [...]}}`).
+    기존 string detail 도 backward compat 유지.
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     code = "strategy_not_runnable"
     detail = "Strategy contains unsupported Pine built-ins"
+
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        unsupported_builtins: list[str] | None = None,
+    ) -> None:
+        super().__init__(detail)
+        self.unsupported_builtins: list[str] = list(unsupported_builtins or [])

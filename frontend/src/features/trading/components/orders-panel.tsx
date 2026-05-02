@@ -5,6 +5,44 @@ import { useIsOrderDisabledByKs, useOrders } from "../hooks";
 import { TestOrderDialog } from "./test-order-dialog";
 import { TradingEmptyState } from "./trading-empty-state";
 
+/**
+ * Sprint 21 BL-093 superset — broker evidence column.
+ *
+ * exchange_order_id 의 첫 prefix 패턴으로 mock vs real broker 구분:
+ *   - null/undefined → "—" (pending, 아직 발송 안 됨)
+ *   - "fixture-" prefix → 오렌지 "mock" (Sprint 20 fixture provider hot-fix 산출물)
+ *   - 그 외 → 녹색 "broker" + slice(-8) (실제 거래소 ID)
+ *
+ * codex G.0 round 1 P2: UUID 형식 판정 X (거래소별 id 형식 다름). fixture-* 만
+ * 분기하고 나머지는 "broker id present" 로 표시.
+ */
+function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
+  if (!orderId) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  const isFixture = orderId.startsWith("fixture-");
+  if (isFixture) {
+    return (
+      <span
+        className="text-amber-600 dark:text-amber-400 font-mono text-xs"
+        title={`Mock fixture: ${orderId}`}
+        data-testid="broker-badge-mock"
+      >
+        {orderId.slice(-8)} (mock)
+      </span>
+    );
+  }
+  return (
+    <span
+      className="text-emerald-600 dark:text-emerald-400 font-mono text-xs"
+      title={`Broker order: ${orderId}`}
+      data-testid="broker-badge-real"
+    >
+      {orderId.slice(-8)} (broker)
+    </span>
+  );
+}
+
 export function OrdersPanel() {
   const { data, isLoading, isError } = useOrders(50);
   const ksDisabled = useIsOrderDisabledByKs();
@@ -43,7 +81,7 @@ export function OrdersPanel() {
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[600px]">
+          <table className="w-full text-sm min-w-[680px]">
             <thead>
               <tr className="text-left">
                 <th>Symbol</th>
@@ -51,6 +89,7 @@ export function OrdersPanel() {
                 <th>Qty</th>
                 <th>State</th>
                 <th>Price</th>
+                <th>Broker ID</th>
                 <th>Error</th>
               </tr>
             </thead>
@@ -62,6 +101,9 @@ export function OrdersPanel() {
                   <td>{o.quantity}</td>
                   <td>{o.state}</td>
                   <td>{o.filled_price ?? "—"}</td>
+                  <td>
+                    <BrokerBadge orderId={o.exchange_order_id} />
+                  </td>
                   <td className="text-red-600">{o.error_message ?? ""}</td>
                 </tr>
               ))}
