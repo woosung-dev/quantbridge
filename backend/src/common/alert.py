@@ -51,7 +51,41 @@ _SEND_TIMEOUT_S = 15.0
 
 # fire-and-forget task strong-ref. Service GC 후에도 task 보존 (asyncio loop 가
 # weak-ref 만 유지하는 함정 방어). best-effort — shutdown 시 drop 가능.
+#
+# Sprint 18 BL-080 채택 후 영속 `_WORKER_LOOP` 안에서 task 가 task 경계 (Celery)
+# 를 넘어 살아남을 수 있어 unbounded 누적 가능. Sprint 19 BL-081 가 `qb_pending_alerts`
+# gauge 로 모니터링 + idempotent track helper 로 set/gauge 동기화.
 _PENDING_ALERTS: set[asyncio.Task[Any]] = set()
+
+
+def track_pending_alert(task: asyncio.Task[Any]) -> None:
+    """Sprint 19 BL-081 — fire-and-forget alert task 등록 + gauge 동기화.
+
+    Sprint 12 Phase A 의 `_PENDING_ALERTS.add(task)` + `task.add_done_callback(
+    _PENDING_ALERTS.discard)` 패턴을 helper 로 캡슐화. 동일 호출이지만:
+
+    1. `_PENDING_ALERTS.add` 시 `qb_pending_alerts.inc()`.
+    2. done_callback 이 idempotent — task 가 set 에 있을 때만 discard + dec
+       (codex G.0 P1 #4: drain 이 외부 cancel 후 callback 이 두 번째로 발화 시
+       gauge 음수 회피).
+
+    호출자: `KillSwitchService` 등 fire-and-forget alert 발사 위치.
+    """
+    from src.common.metrics import qb_pending_alerts
+
+    if task in _PENDING_ALERTS:
+        # 동일 task double-track 방어 (재호출 방지).
+        return
+    _PENDING_ALERTS.add(task)
+    qb_pending_alerts.inc()
+
+    def _on_done(t: asyncio.Task[Any]) -> None:
+        # set membership 검사로 idempotent — drain 이 외부에서 discard 했다면 no-op.
+        if t in _PENDING_ALERTS:
+            _PENDING_ALERTS.discard(t)
+            qb_pending_alerts.dec()
+
+    task.add_done_callback(_on_done)
 
 
 def _cap_context(

@@ -330,6 +330,10 @@ graph TB
 - `qb_ws_duplicate_enqueue_total{exchange}` Counter
 - `qb_ws_reconnect_total{exchange, reason}` Counter
 
+**Alert (Sprint 19 BL-081):**
+
+- `qb_pending_alerts` Gauge — In-flight fire-and-forget alert tasks. Sprint 18 영속 `_WORKER_LOOP` 채택 후 alert task 가 cross-task 경계 살아남을 수 있어 unbounded 누적 risk 방어. **per-process** (Prometheus default registry 는 process-local) — 다중 worker 시 각 worker 별 in-flight count. >50 임계 시 Slack/Grafana alert 권장 (Sprint 20+ BL-089).
+
 ### 카디널리티 가드
 
 - 민감 정보 label 금지 (user_id, strategy_id, account_id, api_key)
