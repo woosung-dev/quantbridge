@@ -351,6 +351,64 @@ sequenceDiagram
 
 ---
 
+## 8.5 Worker Loop + Multi-Task Lifecycle (Sprint 18 BL-080 ✅)
+
+> 상세 패턴: [`system-architecture.md`](./system-architecture.md) §7.5. 회고: [`dev-log/2026-05-02-sprint18-bl080-architectural.md`](../dev-log/2026-05-02-sprint18-bl080-architectural.md).
+
+Sprint 18 의 Option C 영속 `_WORKER_LOOP` 채택으로, **동일 worker child 가 mixed task type 을 sequential 처리** 가능 (Sprint 17 까지의 task 별 process isolation 가정 폐기). asyncpg connection 의 transport waiter 가 1st task loop 에 stale binding 되는 문제를 영속 loop 통일로 해소.
+
+```mermaid
+sequenceDiagram
+    participant M as Celery Master
+    participant C as ForkPoolWorker-N (prefork child)
+    participant L as _WORKER_LOOP (asyncio.new_event_loop)
+    participant T1 as Task A: scan_stuck_orders
+    participant T2 as Task B: reconcile_ws_streams
+    participant T3 as Task C: reclaim_stale_running
+
+    M->>C: fork()
+    Note over C: worker_process_init signal
+    C->>L: init_worker_loop() — set_event_loop(loop)
+    C->>C: reset_redis_lock_pool() (parent fork stale FD 폐기)
+
+    Note over M,C: Beat schedule 5분 cycle 시작
+
+    M-->>C: Task A delivered
+    C->>L: run_in_worker_loop(_async_scan_stuck_orders())
+    L->>T1: run_until_complete
+    T1-->>L: {pending: 0, submitted: 0, interrupted: 0}
+    L-->>C: 반환
+
+    M-->>C: Task B delivered (mixed type, 같은 child)
+    C->>L: run_in_worker_loop(_reconcile_async())
+    L->>T2: run_until_complete
+    T2-->>L: {enqueued: [], skipped_active: [], total: 0}
+    L-->>C: 반환
+
+    M-->>C: Task C delivered
+    C->>L: run_in_worker_loop(reclaim_stale_running())
+    L->>T3: run_until_complete (asyncpg connection 재사용 — 같은 loop bind)
+    T3-->>L: 0
+    L-->>C: 반환
+
+    Note over C: worker_max_tasks_per_child=250 도달
+    Note over C: worker_process_shutdown signal
+    C->>L: shutdown_worker_loop()
+    Note over L: pending task cancel + asyncgens drain<br/>+ default executor shutdown + close()
+    C->>M: child 종료
+    M->>C: 새 child fork (반복)
+```
+
+### 핵심 invariant
+
+- **모든 prefork child task body 가 같은 `_WORKER_LOOP` 사용** — asyncpg/SQLAlchemy/Redis pool/CCXT client 의 internal loop reference 가 stale 되지 않음.
+- **`worker_max_tasks_per_child=250`** (Sprint 18 보수) — child rotation 으로 memory bloat 방어. Sprint 20+ BL-082 1h soak gate 후 1000 검토.
+- **per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` 그대로 유지** — connection pool 누수 방어 (loop binding 과 별개).
+- **`run_bybit_private_stream` (long-running)** 은 별도 `ws_stream` queue + `--pool=solo` worker 분리 (Sprint 12 패턴 유지). 같은 child 에 short task 안 옴.
+- **Sprint 19 BL-085** integration test 가 본 lifecycle 의 회귀 자동화: `init_worker_loop()` → 3 task type x 3 cycle = 9 호출 → 모두 succeeded.
+
+---
+
 ## 9. 에러 응답 패턴 (참조)
 
 상세는 [`system-architecture.md`](./system-architecture.md) §5. 모든 도메인 예외는 `code` 필드 포함 JSON.
@@ -360,3 +418,4 @@ sequenceDiagram
 ## 변경 이력
 
 - **2026-04-16** — 초안 작성 (Sprint 5 Stage A)
+- **2026-05-02** — §8.5 Worker Loop + Multi-Task Lifecycle (Sprint 18 BL-080) 추가. 영속 `_WORKER_LOOP` 패턴 시퀀스 다이어그램.
