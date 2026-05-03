@@ -139,12 +139,15 @@ class WsLease:
             await self._lock.__aexit__(exc_type, exc, tb)
 
     async def _heartbeat_loop(self) -> None:
-        """TTL 의 1/3 마다 RedisLock.extend(ttl_ms). extend 실패 시 loop 종료.
+        """TTL 의 1/3 마다 RedisLock.extend(ttl_ms). extend 실패/예외 시 lost_event set.
 
         다른 owner 가 lease key 를 가져갔거나 Redis 장애 시 loop 종료. caller
-        의 _stream_main 은 stop_event wait 중 — heartbeat 종료 시 별도 신호
-        필요 없음 (caller 가 task 결과 await 하지 않으므로). 단 logger.warning
-        은 운영 모니터링 신호.
+        의 _stream_main 은 stop_event + lost_event wait 중 — heartbeat 종료 시
+        lost_event 신호로 stream 종료 트리거.
+
+        Sprint 25 codex G.2 P1 #2 fix: Redis timeout / connection reset / 임의
+        Exception 발생 시도 lost_event.set() 보장. 이전 코드는 falsy return 만 set
+        → exception 시 heartbeat task 만 죽고 stream 계속 → split-brain 위험.
         """
         interval_seconds = self._ttl_ms / _HEARTBEAT_RATIO / 1000.0
         while True:
@@ -153,9 +156,24 @@ class WsLease:
             except asyncio.CancelledError:
                 # __aexit__ 에서 cancel — 정상 종료
                 raise
-            success = await self._lock.extend(self._ttl_ms)
+
+            try:
+                success = await self._lock.extend(self._ttl_ms)
+            except asyncio.CancelledError:
+                # CancelledError 는 정상 종료 path (caller cancel)
+                raise
+            except Exception as exc:
+                # Redis timeout / connection reset / 임의 예외 — split-brain 차단.
+                logger.warning(
+                    "ws_lease_extend_exception account=%s err=%r — lost_event set",
+                    self._account_id,
+                    exc,
+                )
+                self._lost_event.set()
+                return
+
             if not success:
-                # token mismatch (다른 owner 가 가져감) 또는 Redis 장애.
+                # token mismatch (다른 owner 가 가져감) 또는 Redis 장애 (no-exception).
                 # codex G.2 P1 #1 (Sprint 24a): lost_event.set() → caller 가 감지하여
                 # stream 종료. lease 만료 후 다른 worker 재획득 시 split-brain 차단.
                 logger.warning(

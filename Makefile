@@ -15,7 +15,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help dev up down logs be fe \
         dev-isolated up-isolated up-isolated-build down-isolated logs-isolated be-isolated fe-isolated \
-        test be-test fe-test lint typecheck
+        test be-test fe-test fe-e2e fe-e2e-authed lint typecheck
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
 
@@ -42,9 +42,11 @@ help:
 	@echo "    make fe-isolated  # frontend Next.js (port 3100)"
 	@echo ""
 	@echo "  품질"
-	@echo "    make test         # backend pytest + frontend vitest"
-	@echo "    make lint         # ruff + eslint"
-	@echo "    make typecheck    # mypy + tsc"
+	@echo "    make test           # backend pytest + frontend vitest"
+	@echo "    make fe-e2e         # frontend Playwright (smoke only, no Clerk)"
+	@echo "    make fe-e2e-authed  # frontend Playwright (Clerk authed, requires .env.local)"
+	@echo "    make lint           # ruff + eslint"
+	@echo "    make typecheck      # mypy + tsc"
 
 # === 기본 모드 (3000 / 8000 / 5432 / 6379) ===
 
@@ -126,6 +128,16 @@ be-test:
 
 fe-test:
 	cd frontend && pnpm test
+
+# Sprint 25 — Playwright E2E 분기:
+#   fe-e2e          smoke.spec.ts 만 (chromium project, public routes, Clerk 불요)
+#   fe-e2e-authed   chromium-authed (trading-ui + dogfood-flow). Clerk dev keys + storageState 필수.
+#                    NODE_ENV=production 차단. global.setup.ts 가 매 실행 시 storageState 갱신.
+fe-e2e:
+	cd frontend && pnpm e2e
+
+fe-e2e-authed:
+	cd frontend && pnpm e2e:authed
 
 lint:
 	cd backend && uv run ruff check .

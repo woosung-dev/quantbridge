@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test",
+    "e2e": "playwright test --project=chromium",
+    "e2e:authed": "node -e \"if(process.env.NODE_ENV==='production'){console.error('e2e:authed blocked in production'); process.exit(1)}\" && playwright test --project=chromium-authed --workers=1",
+    "e2e:all": "playwright test",
     "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
@@ -41,6 +43,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.0.24",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@tanstack/eslint-plugin-query": "^5.99.0",
