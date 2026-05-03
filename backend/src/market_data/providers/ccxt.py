@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import ccxt.async_support as ccxt_async
@@ -100,16 +100,48 @@ class CCXTProvider:
         self,
         symbol: str,
         timeframe: str,
-        since: datetime,
-        until: datetime,
+        since: datetime | None = None,
+        until: datetime | None = None,
         max_pages: int = 1000,
+        *,
+        limit_bars: int | None = None,
     ) -> list[list[Any]]:
         """전체 범위 fetch — pagination + 중복 제거 + closed bar 필터.
 
         반환: [[timestamp_ms, open, high, low, close, volume], ...]
         진행 중인 현재 bar는 제외 (last_closed_ts 기준).
+
+        모드:
+        - 범위 모드 (legacy): `since` + `until` 직접 지정. backtest gap 채우기 등.
+        - limit_bars 모드 (Sprint 26 B.3, codex P1 #6): 최근 N 개 closed bar.
+          ccxt `since=None` 동작이 exchange-specific 이고 현재 진행 bar 가
+          섞일 수 있어 `since = now - (limit_bars + 2) * tf` 로 자동 계산하고
+          마지막 `limit_bars` 개만 slice 반환. `since`/`until` 동시 지정 시
+          무시 + WARN log.
         """
         tf_sec = TIMEFRAME_SECONDS[timeframe]
+
+        # limit_bars 모드 — since/until 자동 계산 (codex P1 #6)
+        if limit_bars is not None:
+            if since is not None or until is not None:
+                logger.warning(
+                    "ccxt_fetch_limit_bars_overrides_since_until",
+                    extra={
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "limit_bars": limit_bars,
+                    },
+                )
+            now = datetime.now(UTC)
+            # +2 buffer: 진행 중 bar 1개 + exchange clock skew safety 1개
+            since = now - timedelta(seconds=(limit_bars + 2) * tf_sec)
+            until = now
+
+        if since is None or until is None:
+            raise ValueError(
+                "fetch_ohlcv: 'since'+'until' 또는 'limit_bars' 중 하나는 필수"
+            )
+
         now_ts = int(datetime.now(UTC).timestamp())
         last_closed_ts = (now_ts // tf_sec) * tf_sec - tf_sec
         actual_until_ms = min(int(until.timestamp() * 1000), last_closed_ts * 1000)
@@ -148,5 +180,9 @@ class CCXTProvider:
                     "pages": page_count,
                 },
             )
+
+        # limit_bars 모드 — 마지막 N 개만 slice (over-fetch 정상화)
+        if limit_bars is not None and len(all_bars) > limit_bars:
+            all_bars = all_bars[-limit_bars:]
 
         return all_bars

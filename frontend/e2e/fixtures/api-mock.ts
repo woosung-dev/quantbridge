@@ -23,6 +23,7 @@ export const API_ROUTES = {
   killSwitch: "**/api/v1/kill-switch/events**",
   backtests: "**/api/v1/backtests**",
   stressTests: "**/api/v1/stress-tests**",
+  liveSessions: "**/api/v1/live-sessions**",  // Sprint 26
 } as const;
 
 export const MOCK_DEMO_ACCOUNT = {

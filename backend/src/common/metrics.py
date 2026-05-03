@@ -11,6 +11,11 @@
 - qb_order_snapshot_fallback_total (Counter, labels: reason)  ← Sprint 23 BL-102
 - qb_redlock_acquire_total        (Counter, labels: outcome)  ← Sprint 10 Phase A2
 - qb_redis_lock_pool_healthy      (Gauge)  ← Sprint 10 Phase A2
+- qb_live_signal_evaluated_total  (Counter, labels: interval, outcome)  ← Sprint 26 B.4
+- qb_live_signal_dispatch_total   (Counter, labels: action, outcome)    ← Sprint 26 B.4
+- qb_live_signal_skipped_total    (Counter, labels: reason)             ← Sprint 26 B.4
+- qb_live_signal_eval_duration_seconds (Histogram, labels: interval)    ← Sprint 26 B.4
+- qb_live_signal_outbox_pending_gauge  (Gauge)                          ← Sprint 26 B.4
 
 원칙:
 - registry 는 기본 `REGISTRY` (single-process). Sprint 10+ 에서 multi-process 고려.
@@ -229,6 +234,37 @@ qb_ws_reconnect_total = Counter(
 qb_pending_alerts = Gauge(
     "qb_pending_alerts",
     "In-flight fire-and-forget alert tasks (kill switch / scan watchdog 등)",
+)
+
+# 17. (Sprint 26) Live Signal Auto-Trading — eval/dispatch task observability.
+# 1분 Beat 가 active session 별로 평가 → outbox INSERT → dispatch task 가 OrderService.execute.
+qb_live_signal_evaluated_total = Counter(
+    "qb_live_signal_evaluated_total",
+    "Live signal evaluate task outcome (per session per fire)",
+    labelnames=("interval", "outcome"),  # outcome: success | no_new_bar | claim_lost | error
+)
+qb_live_signal_dispatch_total = Counter(
+    "qb_live_signal_dispatch_total",
+    "Live signal event dispatch outcome",
+    labelnames=(
+        "action",
+        "outcome",
+    ),  # action: entry|close, outcome: dispatched|kill_switched|notional|other
+)
+qb_live_signal_skipped_total = Counter(
+    "qb_live_signal_skipped_total",
+    "Live signal evaluate skipped reason",
+    labelnames=("reason",),  # contention | non_demo_account | invalid_settings | session_inactive
+)
+qb_live_signal_eval_duration_seconds = Histogram(
+    "qb_live_signal_eval_duration_seconds",
+    "Live signal evaluate task end-to-end latency",
+    labelnames=("interval",),
+    buckets=(0.1, 0.25, 0.5, 1, 2, 5, 10, 30, float("inf")),
+)
+qb_live_signal_outbox_pending_gauge = Gauge(
+    "qb_live_signal_outbox_pending_gauge",
+    "Live signal outbox events with status=pending (snapshot at last eval cycle)",
 )
 
 
