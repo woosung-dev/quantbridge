@@ -720,7 +720,7 @@
 
 - **2026-05-03 (Sprint 25 Hybrid)** — `stage/h2-sprint25` 결과 반영. Frontend E2E Playwright + Backend test 강화 + codex G.0/G.2.
   - **Resolved (5건)**:
-    - **BL-110a** In-process lease integration test (heartbeat / lost_event / lease contention) — `tests/tasks/test_ws_lease_integration.py` 7 시나리오 (acquire / duplicate None / 격리 / extend True 정상 / extend False → lost_event.set / extend Exception → lost_event.set / __aexit__ Lua CAS DEL). codex G.0 iter 2 P1 #8 + G.2 P1 #2 모두 반영. autouse `_reset_pool_each_test` fixture 로 pytest-asyncio per-test event loop + redis-py asyncio connection bound 충돌 회피.
+    - **BL-110a** In-process lease integration test (heartbeat / lost_event / lease contention) — `tests/tasks/test_ws_lease_integration.py` 7 시나리오 (acquire / duplicate None / 격리 / extend True 정상 / extend False → lost_event.set / extend Exception → lost_event.set / **aexit** Lua CAS DEL). codex G.0 iter 2 P1 #8 + G.2 P1 #2 모두 반영. autouse `_reset_pool_each_test` fixture 로 pytest-asyncio per-test event loop + redis-py asyncio connection bound 충돌 회피.
     - **BL-112** scenario2 실 backtest 실행 — `make_trending_ohlcv` (8 segments × 25 bars = 200 bars, EMA 3/8 cross 3 회 발생 코드 실측 보장) + `EMA_CROSS_PINE_SOURCE` + precondition test (num_trades >= 3). scenario2 강한 assert (status=='ok' + result + equity > 0 + num_trades >= 1). codex G.0 iter 2 P1 #5+#6 반영 (plan v2 의 "기존 fixture 재사용" 가설 코드 실측으로 refuted).
     - **BL-113** scenario3 OrderService.execute 정확한 args — `OrderService(session=db_session, repo=OrderRepository(db_session), dispatcher=_FakeOrderDispatcher(), kill_switch=_NoopKillSwitch(), exchange_service=ExchangeAccountService(...))`. uuid4 idempotency_key per test. dispatch_snapshot 자동 채움 검증 + provider 정합성 검증. codex G.0 iter 2 P1 #7 (`repo=` param 이름) + iter 1 P2 #1 (uuid4) + iter 2 P1 #10 (FakeOrderDispatcher Celery 우회) 반영.
     - **BL-114** pytest-json-report 도입 — `importlib.util.find_spec('pytest_jsonreport')` plugin detect first. `_build_summary(rc, stdout, stderr, json_report=None)` backward compat (scenario6 호환). plugin 부재 시 graceful fallback. codex G.0 iter 2 P1 #9 (pytest CLI behavior 정확화) 반영.
@@ -732,7 +732,7 @@
     - **BL-118** baseURL 통합 (config + setup) — playwright.config.ts baseURL 단일 source. P3 S. codex G.2 P2 #2.
     - **BL-119** API_ROUTES URL predicate (orders-v2 false-match 차단) — route handler pathname predicate. P3 S. codex G.2 P2 #3.
     - **BL-120** leak guard fail-on-leak (현재 observability only, afterEach assert). P2 S (2h). codex G.2 P2 #4.
-    - **BL-121** production guard host allowlist (NODE_ENV 외 PLAYWRIGHT_BASE_URL host + pk_test_/sk_test_ prefix). P2 S. codex G.2 P2 #5.
+    - **BL-121** production guard host allowlist (NODE*ENV 외 PLAYWRIGHT_BASE_URL host + pk_test*/sk*test* prefix). P2 S. codex G.2 P2 #5.
     - **BL-122** pytest-json-report uv-aware detect (`uv run python -c` 기반). P3 S. codex G.2 P2 #6.
     - **BL-123** mkstemp fd leak fix (NamedTemporaryFile or os.close(fd)). P3 XS. codex G.2 P2 #7.
     - **BL-124** run_auto_dogfood subprocess timeout — DB/Redis hang cron 무한 대기 차단. P2 XS. codex G.2 P2 #8.
@@ -748,3 +748,28 @@
     - **누적**: ~3M tokens / 47 finding 모두 plan v3 또는 implementation 반영.
   - **사용자 명시 요구 반영**: (1) Edge Cases 19 영구 기록 (plan v3 §5.5 + dev-log §3) — 사용자 "엣지케이스가 없는지" 요구. (2) codex G.0 iter 2 재호출 — 사용자 "codex 잘 확인한거야?" 요구 (Sprint 22+24a 의 G.0 1 iter 만 패턴 보강).
   - **합계 변동**: 67 → 76 BL (5 Resolved + 14 신규 = 9 net 증가). P1 잔여 동일. P2 신규 7. P3 신규 7. dev-log: [`docs/dev-log/2026-05-03-sprint25-hybrid.md`](dev-log/2026-05-03-sprint25-hybrid.md). plan: `~/.claude/plans/claude-plans-h2-sprint-25-prompt-md-snappy-bee.md` (v3, ~770 lines + Edge Cases 19).
+
+- **2026-05-04 (Sprint 26 — Pine Signal Auto-Trading + dogfood Day 0)** — `stage/h2-sprint26-signal` PR #100. Live Session daily flow (Beat eval + dispatch outbox) + mcp playwright 라이브 검증.
+  - **신규 등록 (7건)** — Sprint 26 implementation + dogfood Day 0 발견:
+    - **BL-130** FE Live Session Strategy/Account combobox name mapping (base-ui Select.Value render prop). ✅ Resolved (commit `75c3676`). dogfood Day 0 발견.
+    - **BL-131** strategy_state_report JSONB NaN/Infinity sanitize (`_sanitize_for_jsonb` recursive helper). ✅ Resolved (commit `75c3676`). PG strict JSONB 가 NaN reject 회귀 차단. LESSON-028 등록.
+    - **BL-132** Bybit Linear contract symbol normalize (`BTC/USDT` → `BTC/USDT:USDT`). ✅ Resolved (commit `75c3676`). ccxt unified symbol 의 spot/linear/inverse 분류. LESSON-031 등록.
+    - **BL-133** Bybit v5 set_leverage/set_margin_mode idempotent — "not modified" silently ignore (retCode 110043/110026). ✅ Resolved (commit `75c3676`). LESSON-030 등록.
+    - **BL-134** partial unique index `is_active=true` real-DB integration test (deactivate → 재INSERT round-trip). codex G.2 P2 vector 8. P2 S (2-3h).
+    - **BL-135** `INSERT ... ON CONFLICT DO NOTHING RETURNING *` atomic new event 판별 — 현재 list_by_session pre/post diff 의 race window 차단. codex G.2 P2 vector 3. P2 S (2h).
+    - **BL-136** real-DB concurrent eval test / heartbeat extend false 시 누수 없음 / direct DB JSONB mutation integration test. codex G.2 P3. P3 M (4-6h).
+  - **dogfood Day 0 evidence**: Bybit Demo **5 orders filled** (실 체결, exchange_order_id 발급) — c4a3452f / 0ab77915 / 11fa7f32 / 86188fec / fa8bcb8f (78,655~78,667 USDT).
+  - **8 bug 모두 fix** (commit 분리: c7c98f4 / 64d2c8c / ffb3828 / 75c3676):
+    1. LiveSessionListResponse.total 필드 누락 (FE Zod parse 실패)
+    2. test_trading_schema_round_trip 5→8 테이블 회귀
+    3. PG enum type 미생성 + StrEnum cast (LESSON-029)
+    4. `.value` 호출 → AttributeError (enum String 컬럼화 후속)
+    5. JSONB NaN reject (BL-131)
+    6. Bybit Linear symbol mismatch (BL-132)
+    7. FE combobox UUID 표시 (BL-130)
+    8. Bybit leverage idempotent (BL-133)
+  - **codex 게이트**: G.0 iter 1 (medium, 125k tokens) — P1 6/P2 5/P3 4 모두 plan v2 반영. G.2 challenge (high, 11 vector) — P1 1건 즉시 fix (max_retries exhaustion + dispatch_pending Beat) → P1 0건. P2 2건 (BL-134/135) + P3 1건 (BL-136) 후속 등록.
+  - **신규 LESSON 7건** (`.ai/project/lessons.md` LESSON-026~032): sys.modules 우회 / `_async_xxx` 직접 await / JSONB NaN sanitize / Alembic String 컬럼 + sa_column 명시 / Bybit idempotent / Bybit Linear symbol / base-ui Select.Value render prop.
+  - **합계 변동**: 76 → 80 BL (4 Resolved BL-130~133 inline + 3 신규 BL-134~136). P2 +2. P3 +1.
+  - **dev-log**: [`docs/dev-log/2026-05-04-sprint26-pine-signal-auto-trading.md`](dev-log/2026-05-04-sprint26-pine-signal-auto-trading.md).
+  - **PR**: https://github.com/woosung-dev/quantbridge/pull/100 (7 commits).
