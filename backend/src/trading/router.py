@@ -347,9 +347,8 @@ async def list_live_sessions(
     service: LiveSignalSessionService = Depends(get_live_signal_session_service),
 ) -> LiveSessionListResponse:
     sessions = await service.list_active(current_user.id)
-    return LiveSessionListResponse(
-        items=[LiveSessionResponse.model_validate(s) for s in sessions]
-    )
+    items = [LiveSessionResponse.model_validate(s) for s in sessions]
+    return LiveSessionListResponse(items=items, total=len(items))
 
 
 @router.delete("/live-sessions/{session_id}", status_code=204)

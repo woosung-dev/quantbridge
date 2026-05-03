@@ -151,6 +151,7 @@ class LiveSessionResponse(BaseModel):
 
 class LiveSessionListResponse(BaseModel):
     items: list[LiveSessionResponse]
+    total: int
 
 
 class LiveSignalStateResponse(BaseModel):
