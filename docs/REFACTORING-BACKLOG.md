@@ -444,6 +444,10 @@
 | **BL-109 (신규)** | `test_first_connect_timeout_calls_record_network_failure` 가 account-not-found 조기 return, 실제 timeout path 미검증 (Sprint 24a G.2 P2 #2)                                                      | P3       | S (1h)    |
 | **BL-110 (신규)** | prefork SIGTERM + multi-process lease integration test 부재 (Sprint 24a G.2 P2 #3) — `mark.integration` 으로 라이브 검증                                                                         | P2       | S (1-2h)  |
 | **BL-111 (신규)** | WS circuit breaker `reset_circuit` admin/CLI path 부재 (Sprint 24a G.2 P2 #4) — 현재 `redis-cli DEL` 만                                                                                          | P3       | S (1-2h)  |
+| **BL-112 (신규)** | `test_auto_dogfood.py:scenario2 backtest_engine_smoke` 가 실제 backtest 실행 안 함 — `run_backtest_v2(...)` 호출 + status="ok" assert (Sprint 24b G.2 P1 #1)                                     | P2       | S (1-2h)  |
+| **BL-113 (신규)** | `test_auto_dogfood.py:scenario3 order_dispatch_snapshot` 가 Order 직접 INSERT — service auto-fill path 우회. OrderService.execute 통한 검증 (Sprint 24b G.2 P1 #2)                               | P2       | S (1-2h)  |
+| **BL-114 (신규)** | `run_auto_dogfood.py` stdout 텍스트 파싱 fragility (PASSED count + 200자 substring) → pytest-json-report 또는 JUnit XML (Sprint 24b G.2 P2 #2)                                                   | P3       | S (30m)   |
+| **BL-115 (신규)** | `run_auto_dogfood.py` HTML output 미escape (스크립트 인젝션 surface) — `html.escape()` 적용 (Sprint 24b G.2 P2 #4)                                                                               | P3       | S (15m)   |
 
 **BL-091 상세** (Sprint 20 dogfood Day 0 라이브 발견 → Sprint 22 ✅ Resolved 2026-05-03):
 
