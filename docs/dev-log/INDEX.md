@@ -63,4 +63,4 @@
 
 ## Sprint 26 — Pine Signal Auto-Trading (2026-05-04)
 
-- [2026-05-04-sprint26-pine-signal-auto-trading.md](2026-05-04-sprint26-pine-signal-auto-trading.md) — Live Session daily flow (eval Beat + dispatch outbox + FE 모듈). codex G.0 P1 #3/#4/#5/#6 fix + G.2 P1 #10 fix (max_retries exhaustion + dispatch_pending Beat). 28 BE tests + 6 FE tests 신규.
+- [2026-05-04-sprint26-pine-signal-auto-trading.md](2026-05-04-sprint26-pine-signal-auto-trading.md) — Live Session daily flow (eval Beat + dispatch outbox + FE 모듈). codex G.0 P1 #3/#4/#5/#6 fix + G.2 P1 #10 fix (max_retries exhaustion + dispatch_pending Beat). 30 BE tests + 6 FE tests 신규. dogfood Day 0 mcp playwright 검증 — Bybit Demo 5 orders filled. BL-122~125 4 추가 fix.
