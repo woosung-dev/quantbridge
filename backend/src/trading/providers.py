@@ -263,6 +263,26 @@ class BybitDemoProvider:
         )
 
 
+def _to_bybit_linear_symbol(symbol: str) -> str:
+    """BL-124 — Bybit Linear perpetual unified symbol normalize (USDT-margined).
+
+    ccxt 의 unified symbol convention:
+    - Spot:    `BTC/USDT`
+    - Linear:  `BTC/USDT:USDT` (USDT-settled perpetual)
+    - Inverse: `BTC/USD:BTC` (coin-settled)
+
+    `BybitFuturesProvider` 가 spot symbol 받으면 `set_leverage()` 호출 시
+    `NotSupported: bybit setLeverage() only support linear and inverse market`.
+    이미 ':' 가 포함되면 그대로 반환 (사용자가 명시 입력한 경우).
+    """
+    if ":" in symbol:
+        return symbol
+    if "/" not in symbol:
+        return symbol  # malformed — provider 가 처리
+    quote = symbol.split("/")[1].upper()
+    return f"{symbol}:{quote}"
+
+
 class BybitFuturesProvider:
     """Bybit futures (Linear Perpetual, USDT margined) demo/live provider.
 
@@ -275,6 +295,9 @@ class BybitFuturesProvider:
     2. set_leverage(order.leverage, symbol)
     3. create_order(...)
     모두 동일 ephemeral client에서 실행 후 finally close().
+
+    BL-124 — symbol normalize (`BTC/USDT` → `BTC/USDT:USDT`) 가 dispatch entry
+    point 에서 자동 적용. Strategy/UI 는 spot format 유지 (Pine 호환).
     """
 
     async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
@@ -285,6 +308,10 @@ class BybitFuturesProvider:
                 "BybitFuturesProvider requires leverage and margin_mode "
                 f"(got leverage={order.leverage}, margin_mode={order.margin_mode})"
             )
+
+        # BL-124 — Linear symbol normalize. 사용자 입력 `BTC/USDT` 가 ccxt spot
+        # 으로 분류되어 set_leverage() 가 NotSupported reject 되는 회귀 차단.
+        linear_symbol = _to_bybit_linear_symbol(order.symbol)
 
         exchange = ccxt_async.bybit(
             {
@@ -301,14 +328,27 @@ class BybitFuturesProvider:
         _apply_bybit_env(exchange, creds.environment)
         try:
             # 마진 모드 먼저 → 레버리지 → 주문 순서 (Bybit v5 UTA 요구사항)
+            # BL-125 — Bybit v5 의 set_margin_mode/set_leverage 는 이미 같은 값이면
+            # error 반환 (retCode 110026 "isolated margin mode not modified" /
+            # 110043 "leverage not modified"). 본질적으로 idempotent operation 이므로
+            # "not modified" 응답은 silently ignore — 후속 set_leverage / create_order
+            # 은 정상 진행.
             async with ccxt_timer("bybit_futures", "set_margin_mode"):
-                await exchange.set_margin_mode(order.margin_mode, order.symbol)
+                try:
+                    await exchange.set_margin_mode(order.margin_mode, linear_symbol)
+                except ccxt_async.BadRequest as e:
+                    if "not modified" not in str(e):
+                        raise
             async with ccxt_timer("bybit_futures", "set_leverage"):
-                await exchange.set_leverage(order.leverage, order.symbol)
+                try:
+                    await exchange.set_leverage(order.leverage, linear_symbol)
+                except ccxt_async.BadRequest as e:
+                    if "not modified" not in str(e):
+                        raise
             async with ccxt_timer("bybit_futures", "create_order"):
                 if order.client_order_id is not None:
                     result = await exchange.create_order(
-                        order.symbol,
+                        linear_symbol,
                         order.type.value,
                         order.side.value,
                         float(order.quantity),
@@ -317,7 +357,7 @@ class BybitFuturesProvider:
                     )
                 else:
                     result = await exchange.create_order(
-                        order.symbol,
+                        linear_symbol,
                         order.type.value,
                         order.side.value,
                         float(order.quantity),

@@ -114,7 +114,14 @@ export function LiveSessionForm({
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="전략 선택 (settings 필요)" />
+                      {/* BL-122 — base-ui Select.Value 가 raw value(UUID) 를 표시.
+                          render prop 으로 strategy name 매핑. */}
+                      <SelectValue placeholder="전략 선택 (settings 필요)">
+                        {(value: string) =>
+                          strategies.find((s) => s.id === value)?.name ??
+                          "전략 선택 (settings 필요)"
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -138,7 +145,14 @@ export function LiveSessionForm({
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Bybit Demo 계정 선택" />
+                      <SelectValue placeholder="Bybit Demo 계정 선택">
+                        {(value: string) => {
+                          const acc = allowedAccounts.find((a) => a.id === value);
+                          return acc
+                            ? (acc.label ?? `${acc.exchange} ${acc.mode}`)
+                            : "Bybit Demo 계정 선택";
+                        }}
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>

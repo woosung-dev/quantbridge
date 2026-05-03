@@ -91,6 +91,31 @@ def _build_idempotency_key(
     return f"live:{session_id}:{bar_time.isoformat()}:{sequence_no}:{action}:{trade_id}"
 
 
+def _sanitize_for_jsonb(value: Any) -> Any:
+    """BL-123 — PostgreSQL JSONB strict 호환 위해 NaN / Infinity → None.
+
+    `run_historical` 의 indicator (ATR/EMA 등) 가 warmup 중 NaN 반환 가능. dict.to_report()
+    가 이걸 dict 안에 그대로 두면 `INSERT ... json_value` 시 PG 가
+    `InvalidTextRepresentationError: invalid input syntax for type json: Token "NaN"`
+    raise. recursive sanitize 로 모든 NaN/Infinity 를 None 으로 정규화.
+
+    Decimal/datetime 등 다른 nonstandard 타입은 별도 처리 (이미 schema 가 str 또는 numeric).
+    """
+    import math
+
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return value
+    if isinstance(value, dict):
+        return {k: _sanitize_for_jsonb(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_for_jsonb(v) for v in value]
+    if isinstance(value, tuple):
+        return [_sanitize_for_jsonb(v) for v in value]
+    return value
+
+
 def _signal_to_order_side(action: str, direction: str) -> OrderSide:
     """Pine signal (action, direction) → CCXT OrderSide.
 
@@ -343,15 +368,19 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 if (e.bar_time, e.sequence_no, e.action, e.trade_id) not in existing_keys
             ]
 
-            # state upsert (last_open_trades_snapshot 은 strategy_state_report 의 open_trades 발췌)
+            # BL-123 — JSONB 호환 sanitize (NaN/Infinity → None). run_historical 의
+            # warmup 중 ATR/EMA 등이 NaN 반환 가능 → PG strict JSONB reject.
+            sanitized_report = _sanitize_for_jsonb(result.strategy_state_report)
             open_trades_snapshot = (
-                result.strategy_state_report.get("open_trades", {})
-                if isinstance(result.strategy_state_report, dict)
+                sanitized_report.get("open_trades", {})
+                if isinstance(sanitized_report, dict)
                 else {}
             )
             await sess_repo.upsert_state(
                 session_id=sess.id,
-                last_strategy_state_report=result.strategy_state_report,
+                last_strategy_state_report=sanitized_report
+                if isinstance(sanitized_report, dict)
+                else {},
                 last_open_trades_snapshot=open_trades_snapshot
                 if isinstance(open_trades_snapshot, dict)
                 else {},
