@@ -133,6 +133,10 @@ async def test_notional_reject_increments_metric(
 
     exchange_stub = MagicMock()
     exchange_stub.fetch_balance_usdt = AsyncMock(return_value=Decimal("100"))
+    # Sprint 23 BL-102: OrderService._execute_inner 가 dispatch snapshot 채움 위해
+    # account fetch. notional reject 검증만 하므로 None 반환 OK (snapshot=None → legacy fallback).
+    exchange_stub._repo = MagicMock()
+    exchange_stub._repo.get_by_id = AsyncMock(return_value=None)
 
     svc = OrderService(
         session=db_session,

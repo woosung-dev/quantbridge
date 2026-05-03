@@ -133,7 +133,11 @@ def run_backtest_v2(
     )
     return BacktestOutcome(
         status="ok",
-        parse=_stub_parse_outcome(source, status="ok"),
+        # Sprint 23 codex G.2 P1 #2 — strategy.exit NOP 등 state.warnings 전파.
+        # 사용자가 silent success 받지 않도록 BacktestOutcome.parse.warnings 노출.
+        parse=_stub_parse_outcome(
+            source, status="ok", warnings=list(state.warnings) if state else None
+        ),
         result=result,
         error=None,
     )
@@ -383,7 +387,10 @@ def _mean(values: list[Decimal]) -> Decimal:
 
 
 def _stub_parse_outcome(
-    source: str, *, status: Literal["ok", "unsupported", "error"] = "ok"
+    source: str,
+    *,
+    status: Literal["ok", "unsupported", "error"] = "ok",
+    warnings: list[str] | None = None,
 ) -> ParseOutcome:
     """pine_v2 경로는 ParseOutcome 을 생성하지 않음. legacy 필드 호환용 최소 stub.
 
@@ -391,6 +398,10 @@ def _stub_parse_outcome(
     경로에서는 status="error" 를 넘겨 소비자가 파싱 상태를 오해하지 않도록 한다.
     entries/exits 시리즈는 구 엔진 SignalResult 용이라 pine_v2 경로에선 빈 값.
     실제 파싱 판정은 strategy service `_parse` 가 pine_v2 기반으로 수행한다.
+
+    Sprint 23 codex G.2 P1 #2: warnings= 인자로 strategy_state.warnings (BL-098
+    strategy.exit NOP 등) 를 BacktestOutcome.parse.warnings 로 전파. 사용자가
+    silent success 받지 않도록.
     """
     version: Literal["v4", "v5"] = _detect_version(source)
     empty = SignalResult(
@@ -403,7 +414,7 @@ def _stub_parse_outcome(
         result=empty,
         error=None,
         supported_feature_report={"functions_used": []},
-        warnings=[],
+        warnings=list(warnings) if warnings else [],
     )
 
 

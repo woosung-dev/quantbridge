@@ -63,9 +63,14 @@ class _CapturingDispatcher:
 
 
 def _make_exchange_service_stub(usdt_available: Decimal | None):
-    """ExchangeAccountService 대체 stub — fetch_balance_usdt만 필요."""
+    """ExchangeAccountService 대체 stub — fetch_balance_usdt + Sprint 23 BL-102 _repo.get_by_id."""
     stub = MagicMock()
     stub.fetch_balance_usdt = AsyncMock(return_value=usdt_available)
+    # Sprint 23 BL-102: OrderService._execute_inner 가 dispatch snapshot 위해 account fetch.
+    # account 가 None 이면 snapshot=None 으로 graceful (legacy fallback path).
+    # notional check 만 검증하는 test 들이므로 None 반환 OK.
+    stub._repo = MagicMock()
+    stub._repo.get_by_id = AsyncMock(return_value=None)
     return stub
 
 

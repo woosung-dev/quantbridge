@@ -423,16 +423,22 @@
 
 ### Sprint 20+ 이관 BL (Sprint 19 codex G.2 P2 잔존 + Sprint 18 BL-082)
 
-| ID                | 제목                                                                                                           | Priority | Est       |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- | -------- | --------- | ----------------------- |
-| **BL-086 (신규)** | AST audit factory function detection (codex G.2 P2 #1 Sprint 19) — `_MODULE_LOCK = _make_lock()` 패턴 catch    | P3       | S (1-2h)  |
-| **BL-087 (신규)** | AST audit target glob `src/tasks/**/*.py` (codex G.2 P2 #2 Sprint 19) — manual list bypass 방어                | P3       | S (30min) |
-| **BL-088 (신규)** | `drain_pending_alerts()` helper (codex G.2 P2 #3 Sprint 19) — production drain 사용처 추가 시 idempotent guard | P3       | S (1h)    |
-| **BL-089 (신규)** | `qb_pending_alerts` Grafana alert wire-up (>50 임계)                                                           | P2       | S (1-2h)  |
-| **BL-090 (신규)** | `tests/db_url.py` 분리 (codex G.2 P3 #1 Sprint 19) — test_migrations 의 conftest import 정리                   | P3       | S (30min) |
-| **BL-091**        | ExchangeAccount.mode dynamic dispatch (3-tuple proper fix)                                                     | **P1**   | M (1-2일) | ✅ Resolved (Sprint 22) |
-| **BL-102 (신규)** | Order 에 dispatch 시점 (exchange, mode, has_leverage) snapshot 저장 (Sprint 22 G.2 P2 #3)                      | P2       | M (1-2일) |
-| **BL-103 (신규)** | EXCHANGE_PROVIDER non-default startup warning 또는 필드 제거 (Sprint 22 G.2 P2 #5)                             | P3       | S (1-2h)  |
+| ID                | 제목                                                                                                                                 | Priority | Est       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------- | --------- | ----------------------- |
+| **BL-086 (신규)** | AST audit factory function detection (codex G.2 P2 #1 Sprint 19) — `_MODULE_LOCK = _make_lock()` 패턴 catch                          | P3       | S (1-2h)  |
+| **BL-087 (신규)** | AST audit target glob `src/tasks/**/*.py` (codex G.2 P2 #2 Sprint 19) — manual list bypass 방어                                      | P3       | S (30min) |
+| **BL-088 (신규)** | `drain_pending_alerts()` helper (codex G.2 P2 #3 Sprint 19) — production drain 사용처 추가 시 idempotent guard                       | P3       | S (1h)    |
+| **BL-089 (신규)** | `qb_pending_alerts` Grafana alert wire-up (>50 임계)                                                                                 | P2       | S (1-2h)  |
+| **BL-090 (신규)** | `tests/db_url.py` 분리 (codex G.2 P3 #1 Sprint 19) — test_migrations 의 conftest import 정리                                         | P3       | S (30min) |
+| **BL-091**        | ExchangeAccount.mode dynamic dispatch (3-tuple proper fix)                                                                           | **P1**   | M (1-2일) | ✅ Resolved (Sprint 22) |
+| **BL-098**        | strategy.exit coverage/interpreter parity (NOP + warning)                                                                            | P1       | S (1.5h)  | ✅ Resolved (Sprint 23) |
+| **BL-099**        | vline coverage/interpreter parity (NOP)                                                                                              | P1       | S (10m)   | ✅ Resolved (Sprint 23) |
+| **BL-101**        | Makefile up-isolated-build 옵션                                                                                                      | P3       | S (10m)   | ✅ Resolved (Sprint 23) |
+| **BL-102**        | Order 에 dispatch (exchange, mode, has_leverage) snapshot 저장 (G.2 P2 #3)                                                           | P2       | M (~7-8h) | ✅ Resolved (Sprint 23) |
+| **BL-103**        | EXCHANGE_PROVIDER lifespan deprecation warning (G.2 P2 #5)                                                                           | P3       | S (1h)    | ✅ Resolved (Sprint 23) |
+| **BL-104 (신규)** | strategy.exit full PendingExitOrder 구현 (target price trigger + warnings dedupe) — Sprint 23 BL-098 후속 (G.0 P1 #1+#2 + G.2 P2 #4) | P2       | M (1-2일) |
+| **BL-105 (신규)** | OrderService.execute account fetch transaction 안 이동 + AccountNotFound (G.2 P2 #1) — DELETE race FK violation 회피                 | P2       | S (1-2h)  |
+| **BL-106 (신규)** | Alembic 20260503_0001 idempotency 강화 — `IF NOT EXISTS` / `IF EXISTS` (G.2 P2 #2+#3 TOCTOU)                                         | P3       | S (30m)   |
 
 **BL-091 상세** (Sprint 20 dogfood Day 0 라이브 발견 → Sprint 22 ✅ Resolved 2026-05-03):
 

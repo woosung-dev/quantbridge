@@ -154,6 +154,15 @@ class Order(SQLModel, table=True):
     # Sprint 7a: Bybit Futures 레버리지/마진 모드. Spot 경로는 NULL.
     leverage: int | None = Field(default=None, nullable=True)
     margin_mode: str | None = Field(default=None, max_length=16, nullable=True)
+    # Sprint 23 BL-102 — dispatch 시점 (exchange, mode, has_leverage) snapshot.
+    # _async_execute / _async_fetch_order_status 가 본 snapshot 우선 사용.
+    # nullable: legacy row (Sprint 23 이전 생성) 는 NULL → 기존 fallback 동작.
+    # schema: {"exchange": "bybit", "mode": "demo", "has_leverage": false}
+    # codex G.0 P1 #4: invalid JSON 시 _parse_order_dispatch_snapshot 가 graceful fallback.
+    dispatch_snapshot: dict[str, object] | None = Field(
+        default=None,
+        sa_column=Column(JSONB, nullable=True),
+    )
     submitted_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
     )

@@ -157,6 +157,89 @@ def _build_exchange_provider(
 
 
 # ---------------------------------------------------------------------------
+# Sprint 23 BL-102 — Order.dispatch_snapshot 우선 dispatch + legacy fallback
+# ---------------------------------------------------------------------------
+
+
+def _parse_order_dispatch_snapshot(
+    raw: dict[str, object] | None,
+) -> tuple[ExchangeName, ExchangeMode, bool] | None:
+    """JSONB snapshot → (exchange, mode, has_leverage) tuple. 엄격 검증.
+
+    invalid snapshot (missing key / unknown enum / non-bool / non-dict) → None
+    반환. 호출자는 None 받으면 `qb_order_snapshot_fallback_total{reason="invalid"}`
+    inc 후 legacy fallback. ValueError/KeyError task 밖 전파 차단.
+
+    codex G.0 P1 #4 fix (Sprint 23):
+    - `bool("false") == True` 위험 → `isinstance(bool)` 강제
+    - `ExchangeName("BAD")` ValueError → try/except 로 None
+    - JSONB manual mutation (`{"exchange": "BAD"}`) → graceful fallback
+    """
+    if not raw or not isinstance(raw, dict):
+        return None
+    try:
+        exch_str = raw["exchange"]
+        mode_str = raw["mode"]
+        has_lev = raw["has_leverage"]
+        if not isinstance(exch_str, str) or not isinstance(mode_str, str):
+            return None
+        if not isinstance(has_lev, bool):  # bool("false") == True 회피
+            return None
+        return (ExchangeName(exch_str), ExchangeMode(mode_str), has_lev)
+    except (KeyError, ValueError):
+        return None
+
+
+def _provider_from_order_snapshot_or_fallback(
+    order: Any,
+    account: ExchangeAccount,
+    submit: OrderSubmit | None = None,
+) -> ExchangeProvider:
+    """Order.dispatch_snapshot 우선 사용, 부재/invalid 시 legacy fallback.
+
+    Sprint 23 BL-102 (codex G.2 P2 #3 fix):
+    - DB manual mutation 으로 Order.leverage / account.mode 변경 시에도 snapshot
+      우선 → spot/futures 분기 일관성
+    - legacy row (Sprint 23 이전 생성, snapshot=NULL) → account 현재값 + leverage
+      fallback (graceful degrade)
+    - `qb_order_snapshot_fallback_total{reason}` 으로 Sprint 24+ legacy row tracking
+
+    Sprint 23 codex G.2 P1 #1 (critical security fix): snapshot 의 (exchange, mode)
+    가 현재 account 와 다르면 silent broker bypass 위험 (snapshot=demo + account=live
+    시 BybitDemoProvider 선택 + creds.environment=live → live endpoint 호출).
+    credentials 는 항상 account 현재값이므로 mismatch 시 UnsupportedExchangeError
+    raise → graceful rejected. mode drift 허용하려면 credentials 까지 immutable
+    snapshot 필요 — 본 sprint scope 초과. reject 가 안전한 정책.
+    """
+    from src.common.metrics import qb_order_snapshot_fallback_total
+
+    parsed = _parse_order_dispatch_snapshot(getattr(order, "dispatch_snapshot", None))
+    if parsed is not None:
+        exch, mode, has_lev = parsed
+        # codex G.2 P1 #1 — drift 검증. snapshot vs current account mismatch
+        # 시 reject (creds 가 account 현재값이라 silent broker bypass 위험).
+        if exch != account.exchange or mode != account.mode:
+            qb_order_snapshot_fallback_total.labels(reason="drift").inc()
+            raise UnsupportedExchangeError(
+                (
+                    "snapshot",
+                    f"{exch.value}/{mode.value}",
+                    "vs account",
+                    f"{account.exchange.value}/{account.mode.value}",
+                )
+            )
+        return _provider_for_account_and_leverage(exch, mode, has_lev)
+
+    # Legacy fallback (Sprint 23 이전 row 또는 invalid snapshot)
+    reason = "missing" if not getattr(order, "dispatch_snapshot", None) else "invalid"
+    qb_order_snapshot_fallback_total.labels(reason=reason).inc()
+    has_lev_fallback = _has_leverage(submit) if submit is not None else _has_leverage(order)
+    return _provider_for_account_and_leverage(
+        account.exchange, account.mode, has_lev_fallback
+    )
+
+
+# ---------------------------------------------------------------------------
 # Celery task
 # ---------------------------------------------------------------------------
 @shared_task(name="trading.execute_order", max_retries=0)  # type: ignore[untyped-decorator]
@@ -266,10 +349,13 @@ async def _execute_with_session(
                 # WebSocket order event 가 이 값으로 local DB row 매핑.
                 client_order_id=str(order.id),
             )
-            # Sprint 22 BL-091: account + submit 기반 3-tuple dispatch.
-            # UnsupportedExchangeError(ProviderError) 또는 BybitLiveProvider stub 의
-            # ProviderError 모두 아래 except 가 graceful 처리.
-            provider = _build_exchange_provider(account, order_submit)
+            # Sprint 22 BL-091 + Sprint 23 BL-102: snapshot 우선 dispatch.
+            # snapshot 부재 (legacy row) 또는 invalid (DB manual mutation) → account 현재값
+            # fallback. UnsupportedExchangeError(ProviderError) / BybitLiveProvider stub /
+            # OkxFuturesUnsupported 모두 아래 except ProviderError 가 graceful 처리.
+            provider = _provider_from_order_snapshot_or_fallback(
+                order, account, submit=order_submit
+            )
             receipt = await provider.create_order(creds, order_submit)
         except ProviderError as e:
             error_msg = f"provider_failure: {e}"
@@ -507,13 +593,12 @@ async def _fetch_order_status_with_session(
             )
             return {"order_id": str(order_id), "skipped": "decrypt_failed"}
 
-        # Sprint 22 BL-091: fetch 분기는 OrderSubmit 부재 → Order.leverage 직접 사용.
+        # Sprint 22 BL-091 + Sprint 23 BL-102: snapshot 우선 dispatch (fetch 분기).
+        # OrderSubmit 부재 → snapshot 부재 시 Order.leverage fallback.
         # UnsupportedExchangeError(ProviderError) 도 아래 except 가 자동 catch
         # → silent skip → watchdog retry → max attempts 후 alert.
         try:
-            provider = _provider_for_account_and_leverage(
-                account.exchange, account.mode, _has_leverage(order)
-            )
+            provider = _provider_from_order_snapshot_or_fallback(order, account, submit=None)
             status_fetch = await provider.fetch_order(creds, order.exchange_order_id, order.symbol)
         except ProviderError as e:
             # codex G.2 P1 #2 fix — provider 일시 장애 (rate limit / auth /

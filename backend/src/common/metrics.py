@@ -8,6 +8,7 @@
 - qb_active_orders                (Gauge)
 - qb_rate_limit_throttled_total   (Counter, labels: scope, endpoint)  ← Sprint 10 Phase B
 - qb_ccxt_request_errors_total    (Counter, labels: exchange, endpoint, error_class)  ← Sprint 10 Phase D
+- qb_order_snapshot_fallback_total (Counter, labels: reason)  ← Sprint 23 BL-102
 - qb_redlock_acquire_total        (Counter, labels: outcome)  ← Sprint 10 Phase A2
 - qb_redis_lock_pool_healthy      (Gauge)  ← Sprint 10 Phase A2
 
@@ -68,6 +69,17 @@ qb_rate_limit_throttled_total = Counter(
     "qb_rate_limit_throttled_total",
     "Rate limit 초과로 429 응답한 횟수",
     labelnames=("scope", "endpoint"),
+)
+
+# Sprint 23 BL-102 — Order.dispatch_snapshot fallback (codex G.0 P1 #4 + G.0 P2 #1).
+# snapshot 이 NULL (legacy row Sprint 23 이전 생성) 또는 invalid (DB manual mutation
+# 으로 unknown enum / non-bool / missing key) 일 때 inc. 정상 경로 (snapshot 정확)
+# 에서는 inc 안 됨. Sprint 24+ 잔존 legacy row tracking + invalid snapshot 발견.
+# Cardinality: reason ∈ {missing, invalid} = 2 series. 안전.
+qb_order_snapshot_fallback_total = Counter(
+    "qb_order_snapshot_fallback_total",
+    "Order.dispatch_snapshot 부재/invalid 시 legacy account+leverage fallback 호출",
+    labelnames=("reason",),
 )
 
 # 7. CCXT exchange API errors (Sprint 10 Phase D + Sprint 11 Phase G allowlist)
