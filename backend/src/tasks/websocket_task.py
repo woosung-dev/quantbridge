@@ -58,10 +58,9 @@ def create_worker_engine_and_sm() -> (
     return engine, sm
 
 
-# Process-local active streams. Single Celery worker (concurrency=1) 가정.
-# Sprint 13 multi-worker 시 Redis lease + heartbeat 로 교체.
-_PROCESS_ACTIVE_STREAMS: set[str] = set()
-_PROCESS_LOCK = threading.Lock()
+# Sprint 24 BL-011: process-local `_PROCESS_ACTIVE_STREAMS` + `_PROCESS_LOCK` 제거.
+# Redis distributed lease (`backend/src/tasks/_ws_lease.py:acquire_ws_lease`) 로 교체.
+# multi-account / prefork (BL-012) 환경 지원.
 
 # G4 fix #4: stop_event 글로벌 dict — worker_shutdown signal 이 모든 active stream
 # 의 stop_event 를 set 하여 graceful shutdown 보장. account_id → (loop, event).
@@ -122,26 +121,53 @@ def run_bybit_private_stream(account_id: str) -> dict[str, Any]:
 
 
 async def _run_async(account_id: str) -> dict[str, Any]:
-    # codex G3 #5/#6: process-level guard. 중복 진입 시 raise 대신 no-op return.
-    with _PROCESS_LOCK:
-        if account_id in _PROCESS_ACTIVE_STREAMS:
-            qb_ws_duplicate_enqueue_total.inc()
-            logger.info("ws_stream_duplicate_skip account=%s", account_id)
-            return {"status": "duplicate", "account_id": account_id}
-        _PROCESS_ACTIVE_STREAMS.add(account_id)
+    """Sprint 24 BL-011: Redis distributed lease 기반 중복 진입 차단.
 
-    try:
-        return await _stream_main(account_id)
-    finally:
-        with _PROCESS_LOCK:
-            _PROCESS_ACTIVE_STREAMS.discard(account_id)
+    이전 (Sprint 12): process-local `_PROCESS_ACTIVE_STREAMS` set + threading.Lock.
+    `--pool=solo --concurrency=1` dogfood 1-user 가정.
+    이후 (Sprint 24): Redis lease (`ws:lease:{account_id}` SET NX PX 60s) +
+    heartbeat (20s extend). multi-account / prefork (BL-012) 환경 지원.
+
+    codex G.0 P1 #1: `acquire_ws_lease()` 가 미획득 시 None 반환 — stream
+    절대 시작 안 함 (RedisLock 의 graceful degrade 와 격리).
+    """
+    from src.common.metrics import qb_ws_auth_circuit_total
+    from src.tasks._ws_circuit_breaker import is_circuit_open
+    from src.tasks._ws_lease import acquire_ws_lease
+
+    # Sprint 24 BL-013: circuit breaker open 시 stream 시작 안 함 (Slack alert 0).
+    # `BybitAuthError` 또는 network 3회 누적으로 set 됐을 가능성. TTL 3600s 만료
+    # 또는 수동 해제 (`redis-cli DEL`) 후 재개.
+    if await is_circuit_open(account_id):
+        qb_ws_auth_circuit_total.labels(outcome="skipped").inc()
+        logger.info("ws_stream_circuit_open_skip account=%s", account_id)
+        return {"status": "circuit_open", "account_id": account_id}
+
+    lease = await acquire_ws_lease(account_id)
+    if lease is None:
+        # Redis 장애 또는 contention (다른 worker 보유) — duplicate 처리
+        qb_ws_duplicate_enqueue_total.inc()
+        logger.info("ws_stream_duplicate_skip account=%s", account_id)
+        return {"status": "duplicate", "account_id": account_id}
+
+    # async CM `__aexit__` 가 heartbeat cancel + RedisLock release 자동 보장
+    # (codex G.0 P1 #2 — worker_process_shutdown hook 에 lease 객체 두지 않음)
+    # Sprint 24a codex G.2 P1 #1: lease.lost_event 를 _stream_main 에 전달 →
+    # heartbeat 실패 시 stream 종료, split-brain 차단.
+    async with lease:
+        return await _stream_main(account_id, lease_lost_event=lease.lost_event)
 
 
-async def _stream_main(account_id: str) -> dict[str, Any]:
+async def _stream_main(
+    account_id: str, *, lease_lost_event: asyncio.Event | None = None
+) -> dict[str, Any]:
     """실제 stream 실행 — account 조회 + decrypt + WebSocket 진입.
 
     Sprint 17 Phase B: per-stream engine 1개 + outer try/finally engine.dispose().
     BaseException (CancelledError / KeyboardInterrupt) 까지 dispose 보장.
+
+    Sprint 24a codex G.2 P1 #1: lease_lost_event 가 set 되면 stream 종료 + lease
+    release. heartbeat 실패 시 split-brain 차단.
     """
     from src.trading.encryption import EncryptionService
     from src.trading.models import ExchangeAccount, ExchangeName
@@ -214,8 +240,33 @@ async def _stream_main(account_id: str) -> dict[str, Any]:
                     endpoint,
                     stream.reconnect_count,
                 )
-                # stop_event 까지 무한 대기. SIGTERM 시 worker_shutdown 가 set.
-                await stop_event.wait()
+                # stop_event (SIGTERM) 또는 lease_lost_event (heartbeat 실패) 중
+                # 먼저 set 되는 것까지 대기. Sprint 24a codex G.2 P1 #1 — lease 만료
+                # 시 다른 worker 가 acquire 가능 → split-brain 방지 위해 stream 종료.
+                if lease_lost_event is None:
+                    await stop_event.wait()
+                else:
+                    waiters = [
+                        asyncio.create_task(stop_event.wait()),
+                        asyncio.create_task(lease_lost_event.wait()),
+                    ]
+                    try:
+                        await asyncio.wait(
+                            waiters, return_when=asyncio.FIRST_COMPLETED
+                        )
+                    finally:
+                        for p in waiters:
+                            if not p.done():
+                                p.cancel()
+                    if lease_lost_event.is_set() and not stop_event.is_set():
+                        logger.warning(
+                            "ws_stream_lease_lost_terminating account=%s", account_id
+                        )
+                        return {
+                            "status": "lease_lost",
+                            "account_id": account_id,
+                            "reconnect_count": stream.reconnect_count,
+                        }
             return {
                 "status": "completed",
                 "account_id": account_id,
@@ -225,16 +276,41 @@ async def _stream_main(account_id: str) -> dict[str, Any]:
             logger.error(
                 "ws_stream_auth_failed account=%s err=%s", account_id, exc
             )
-            # codex G3 #12: circuit breaker 미구현 — Slack alert + manual fix.
+            # Sprint 24 BL-013 (codex G.0 P1 #3): BybitAuthError 즉시 circuit breaker.
+            # `ws:auth:blocked:{account_id}` SET PX 3_600_000 — 1h Beat 재시도 noise 차단.
+            # 운영자 manual fix (API key 회전 / IP whitelist / clock) + `redis-cli DEL` 수동 해제.
+            from src.tasks._ws_circuit_breaker import record_auth_failure
+
+            await record_auth_failure(account_id)
             await send_critical_alert(
                 settings,
                 "Bybit WS Auth Failed",
                 f"WebSocket stream auth rejected for account {account_id}. "
                 "Check API key validity, IP whitelist, system clock. "
-                "Manual credentials update required.",
+                "Manual credentials update required. "
+                "Circuit breaker: 1h block — redis-cli DEL ws:auth:blocked:{account_id} 수동 해제.",
                 {"account_id": account_id, "error": str(exc)[:200]},
             )
             return {"status": "auth_failed", "account_id": account_id}
+        except TimeoutError as exc:
+            # Sprint 24 BL-016 (codex G.0 P1 #4): first-connect timeout (60s) 발생 횟수
+            # 만 task layer 에서 카운트 — supervisor 내부 reconnect (1→30s) 손대지 않음.
+            # 3회 누적 시 BL-013 circuit breaker 자동 trigger (record_network_failure 가
+            # threshold 도달 시 ws:auth:blocked SET).
+            from src.tasks._ws_circuit_breaker import record_network_failure
+
+            opened = await record_network_failure(account_id)
+            logger.warning(
+                "ws_stream_first_connect_timeout account=%s err=%s circuit_opened=%s",
+                account_id,
+                exc,
+                opened,
+            )
+            return {
+                "status": "first_connect_timeout",
+                "account_id": account_id,
+                "circuit_opened": opened,
+            }
         finally:
             # G4 fix #4: 글로벌 dict 에서 제거 — worker_shutdown signal 이후 stale 방지.
             with _STOP_EVENTS_LOCK:
@@ -276,12 +352,14 @@ async def _reconcile_async() -> dict[str, Any]:
             )
             accounts = (await session.execute(stmt)).scalars().all()
 
-        with _PROCESS_LOCK:
-            active_snapshot = set(_PROCESS_ACTIVE_STREAMS)
+        # Sprint 24 BL-012 (codex G.0 P2 #1): _PROCESS_ACTIVE_STREAMS snapshot 대신
+        # Redis lease key 존재 여부로 active 판단. prefork 환경에서 process-level
+        # snapshot 은 무의미 (각 child process 가 별도 set 보유).
+        from src.tasks._ws_lease import is_lease_active
 
         for acc in accounts:
             acc_id_str = str(acc.id)
-            if acc_id_str in active_snapshot:
+            if await is_lease_active(acc_id_str):
                 skipped.append(acc_id_str)
                 continue
             run_bybit_private_stream.delay(acc_id_str)

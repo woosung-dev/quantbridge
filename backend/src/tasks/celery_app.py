@@ -143,9 +143,24 @@ def _shutdown_worker_state_on_child_exit(**_kwargs: object) -> None:
     이유로 worker_shutdown 사용). prefork child 의 `_WORKER_LOOP` 정리는 본
     `worker_process_shutdown` hook 에서 처리.
 
+    Sprint 24 BL-012 (codex G.0 P1 #2): prefork 복귀 시 child process 도
+    `signal_all_stop_events()` 호출하여 active WS stream 의 stop_event set →
+    graceful close. lease release 는 `_run_async()` async CM `__aexit__` 가
+    자동 보장 (worker_process_shutdown 에 lease 객체 두지 않음).
+
     pending task cancel + drain + loop close. drain 중 unhandled exception 이
     발생해도 finally 에서 close 보장 (worker_loop 모듈 안에서 처리).
     """
+    # Sprint 24 BL-012: ws_stream graceful shutdown (prefork child 도)
+    try:
+        from src.tasks.websocket_task import signal_all_stop_events
+
+        signaled = signal_all_stop_events()
+        if signaled:
+            logger.info("ws_stream_stop_signaled_on_child_exit count=%d", signaled)
+    except Exception:
+        logger.exception("ws_stream_stop_signal_failed_on_child_exit")
+
     from src.tasks._worker_loop import shutdown_worker_loop
 
     shutdown_worker_loop()

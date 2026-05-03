@@ -71,6 +71,16 @@ qb_rate_limit_throttled_total = Counter(
     labelnames=("scope", "endpoint"),
 )
 
+# Sprint 24 BL-013 — WebSocket auth/network circuit breaker (codex G.0 P1 #3).
+# `BybitAuthError` 즉시 block (block_auth) / network 3회 누적 block (block_network) /
+# network 1-2회 발생 (network_failure) / 수동 해제 (restored) / Open 중 skip (skipped).
+# Cardinality: outcome ∈ {block_auth, block_network, network_failure, restored, skipped} = 5.
+qb_ws_auth_circuit_total = Counter(
+    "qb_ws_auth_circuit_total",
+    "WS auth/network circuit breaker 이벤트 (BL-013) — outcome 별 카운트",
+    labelnames=("outcome",),
+)
+
 # Sprint 23 BL-102 — Order.dispatch_snapshot fallback (codex G.0 P1 #4 + G.0 P2 #1).
 # snapshot 이 NULL (legacy row Sprint 23 이전 생성) 또는 invalid (DB manual mutation
 # 으로 unknown enum / non-bool / missing key) 일 때 inc. 정상 경로 (snapshot 정확)

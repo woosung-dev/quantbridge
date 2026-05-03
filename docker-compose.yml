@@ -79,14 +79,18 @@ services:
   # Sprint 12 Phase C — Bybit Private WebSocket stream worker
   # ws_stream queue 전용 (concurrency=1 — codex G3 #5/#7 dogfood 1-user 가정).
   # acks_late + reject_on_worker_lost 는 celery_app.conf 에서 설정.
+  # Sprint 24 BL-012: prefork 복귀 (Sprint 12 G4 revisit `--pool=solo` 한계 해소).
+  # Redis distributed lease (BL-011, src/tasks/_ws_lease.py) + worker_process_shutdown
+  # 이 signal_all_stop_events() 호출 (codex G.0 P1 #2). multi-account 사용자 지원.
   backend-ws-stream:
     build:
       context: ./backend
     container_name: quantbridge-ws-stream
-    # G4 revisit fix: --pool=solo (prefork 시 worker_shutdown 이 main 에서 실행되어
-    # task child process 의 _STOP_EVENTS 못 봄). solo pool 은 main process 가 직접
-    # task 실행 → worker_shutdown 가 같은 process 에서 stop_event set 가능.
-    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=solo --concurrency=1 --loglevel=info
+    # Sprint 24 BL-012 (codex G.0 P1 #2): --pool=prefork --concurrency=2 복귀.
+    # Sprint 12 G4 revisit `--pool=solo` 한계 해소 — prefork child 가 worker_process_shutdown
+    # 에서 signal_all_stop_events() 호출 (celery_app.py 참조). dogfood multi-account 지원.
+    # 사용자 ≥ 2 account 운영 시 concurrency 추가 상향 가능 (account 수 ≤ concurrency 권장).
+    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=prefork --concurrency=2 --loglevel=info
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
