@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>Auto Dogfood Report — 2026-05-03</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
+  th { background: #f5f5f5; }
+  .pass { color: #0a0; font-weight: bold; }
+  .fail { color: #c00; font-weight: bold; }
+  .unknown, .missing { color: #888; }
+  pre { background: #f8f8f8; padding: 1em; overflow-x: auto; font-size: 0.85em; }
+</style></head><body>
+<h1>Auto Dogfood Report — 2026-05-03</h1>
+<p><strong>Exit code</strong>: 0 | <strong>Passed</strong>: 6 | <strong>Failed</strong>: 0</p>
+<table>
+  <thead><tr><th>#</th><th>Scenario</th><th>Covers</th><th>Status</th></tr></thead>
+  <tbody><tr><td>1</td><td>strategy_with_webhook_secret_atomic</td><td>Sprint 13 broken bug 회귀</td><td class='pass'>PASS</td></tr>
+<tr><td>2</td><td>backtest_engine_smoke</td><td>v2_adapter import + Pine v5 detection</td><td class='pass'>PASS</td></tr>
+<tr><td>3</td><td>order_dispatch_snapshot</td><td>Sprint 22+23 BL-091/102</td><td class='pass'>PASS</td></tr>
+<tr><td>4</td><td>snapshot_drift_rejected</td><td>Sprint 23 G.2 P1 #1 split-brain</td><td class='pass'>PASS</td></tr>
+<tr><td>5</td><td>multi_account_dispatch</td><td>Sprint 24a BL-011/012 multi-account</td><td class='pass'>PASS</td></tr>
+<tr><td>6</td><td>summary_parse_smoke</td><td>본 스크립트 자체 검증</td><td class='pass'>PASS</td></tr></tbody>
+</table>
+<h2>pytest stdout (tail)</h2><pre>============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0 -- /Users/woosung/project/agy-project/quant-bridge/backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/woosung/project/agy-project/quant-bridge/backend
+configfile: pyproject.toml
+plugins: cov-7.1.0, timeout-2.4.0, celery-1.3.0, pytest_docker_tools-3.1.9, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 6 items
+
+tests/integration/test_auto_dogfood.py::test_scenario1_strategy_with_webhook_secret_atomic PASSED [ 16%]
+tests/integration/test_auto_dogfood.py::test_scenario2_backtest_engine_smoke PASSED [ 33%]
+tests/integration/test_auto_dogfood.py::test_scenario3_order_dispatch_snapshot PASSED [ 50%]
+tests/integration/test_auto_dogfood.py::test_scenario4_snapshot_drift_rejected PASSED [ 66%]
+tests/integration/test_auto_dogfood.py::test_scenario5_multi_account_dispatch PASSED [ 83%]
+tests/integration/test_auto_dogfood.py::test_scenario6_summary_parse_smoke PASSED [100%]
+
+=============================== warnings summary ===============================
+src/backtest/exceptions.py:54
+  /Users/woosung/project/agy-project/quant-bridge/backend/src/backtest/exceptions.py:54: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    class StrategyNotRunnable(BacktestError):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 6 passed, 1 warning in 0.47s =========================
+</pre>
+
+</body></html>
