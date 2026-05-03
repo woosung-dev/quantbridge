@@ -741,7 +741,7 @@ class Interpreter:
             )
 
         # strategy.* 실행 핸들러
-        if name in ("strategy.entry", "strategy.close", "strategy.close_all"):
+        if name in ("strategy.entry", "strategy.close", "strategy.close_all", "strategy.exit"):
             return self._exec_strategy_call(name, node)
 
         # 렌더링 scope A — line/box/label/table. 좌표 저장 + getter만, 렌더링 NOP.
@@ -771,6 +771,7 @@ class Interpreter:
             "barcolor",
             "fill",
             "hline",
+            "vline",  # Sprint 23 BL-099 — coverage.py:88 supported 와 parity
             "alert",
             "alertcondition",
             "input",
@@ -1078,6 +1079,33 @@ class Interpreter:
             if when_val is not None and not self._truthy(when_val):
                 return None
             self.strategy.close_all(bar=bar_idx, fill_price=current_close)
+            return None
+
+        if name == "strategy.exit":
+            # Sprint 23 BL-098 — 보수적 NOP (codex G.0 P1 #1+#2 회피).
+            # Pine `strategy.exit(id, from_entry, profit/limit/loss/stop/trail_*)`
+            # 는 exit order 예약 (target price 도달 시 trigger) — 즉시 close 아님.
+            # close-fallback 시 (a) 거짓 양성 (entry 직후 즉시 close) + (b) wrong-id
+            # close (Pine 첫 인자 id ≠ close target, from_entry 가 진짜 target).
+            # H2 동안 silent NOP + warnings 기록. 후속 BL-104 에서 PendingExitOrder
+            # 본격 구현으로 교체.
+            #
+            # when= kwarg: False면 skip (entry/close 패턴 일치).
+            when_val = kwargs.get("when")
+            if when_val is not None and not self._truthy(when_val):
+                return None
+            exit_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
+            from_entry = (
+                str(positional[1]) if len(positional) >= 2
+                else str(kwargs.get("from_entry", "")) if kwargs.get("from_entry") else None
+            )
+            # 모든 kwargs (when 제외) 를 unsupported 로 기록 — close 안 함을 사용자에게 알림
+            unsupported = sorted(k for k in kwargs if k not in ("id", "from_entry", "when"))
+            self.strategy.warnings.append(
+                f"strategy.exit({exit_id!r}, from_entry={from_entry!r}): "
+                f"NOP — H2 partial support (BL-098/BL-104). "
+                f"ignored kwargs={unsupported}"
+            )
             return None
 
         raise PineRuntimeError(f"Unexpected strategy call: {name}")

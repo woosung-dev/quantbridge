@@ -267,6 +267,21 @@ class OrderService:
         # 각 reject 카운터는 "unknown" exchange 로 집계 — dashboard 에서는 reason split 으로 충분.
         _metric_exchange = "unknown"
 
+        # Sprint 23 BL-102 — dispatch snapshot 채움 (codex G.0 P1 #3 fix).
+        # exchange_service 주입 시 account fetch 후 (exchange, mode, has_leverage) 저장.
+        # exchange_service None (test 환경) → snapshot=None → tasks/trading.py legacy fallback.
+        # OrderService.execute 의 inner transaction 시작 전에 미리 fetch 하여 양쪽 INSERT 분기
+        # (idempotent vs non-idempotent) 모두에서 동일 snapshot 사용.
+        dispatch_snapshot: dict[str, object] | None = None
+        if self._exchange_service is not None:
+            account = await self._exchange_service._repo.get_by_id(req.exchange_account_id)
+            if account is not None:
+                dispatch_snapshot = {
+                    "exchange": account.exchange.value,
+                    "mode": account.mode.value,
+                    "has_leverage": req.leverage is not None and req.leverage > 0,
+                }
+
         # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
         # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
         if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
@@ -361,6 +376,8 @@ class OrderService:
                             # Sprint 7a: Futures. Spot은 모두 None.
                             leverage=req.leverage,
                             margin_mode=req.margin_mode,
+                            # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
+                            dispatch_snapshot=dispatch_snapshot,
                         )
                     )
                     created_order_id = order.id
@@ -390,6 +407,8 @@ class OrderService:
                         # Sprint 7a: Futures. Spot은 모두 None.
                         leverage=req.leverage,
                         margin_mode=req.margin_mode,
+                        # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
+                        dispatch_snapshot=dispatch_snapshot,
                     )
                 )
                 created_order_id = order.id

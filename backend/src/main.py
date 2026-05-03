@@ -79,7 +79,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     - CCXTProvider singleton (ohlcv_provider=timescale 일 때만)
     - Redis lock pool healthcheck (Sprint 10 A1) — 실패 시 degraded 모드
+    - Sprint 23 BL-103: EXCHANGE_PROVIDER deprecation warning (staging/production)
     """
+    # Sprint 23 BL-103 — EXCHANGE_PROVIDER 가 dispatch path 미사용 (Sprint 22 BL-091).
+    # staging/production 에서 non-default 값 설정 시 운영자에게 명시 warning.
+    # development/test 는 silent (test_config.py 4건이 EXCHANGE_PROVIDER setenv).
+    if (
+        settings.exchange_provider != "fixture"
+        and settings.app_env in ("staging", "production")
+    ):
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "EXCHANGE_PROVIDER=%s is DEPRECATED (Sprint 22 BL-091). "
+            "dispatch 는 ExchangeAccount.exchange + mode + Order.leverage 기반. "
+            "본 env 는 Sprint 23+ 제거 예정.",
+            settings.exchange_provider,
+        )
+
     if settings.ohlcv_provider == "timescale":
         from src.market_data.providers.ccxt import CCXTProvider
 

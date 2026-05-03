@@ -16,7 +16,9 @@
 - [ ] **Testnet API Key 발급:** Read + Trade 권한 (IP whitelist 선택)
 - [ ] **환경 변수 설정:**
   ```bash
-  EXCHANGE_PROVIDER=bybit_futures
+  # [DEPRECATED Sprint 22 BL-091] EXCHANGE_PROVIDER 는 dispatch path 미사용.
+  # ExchangeAccount(exchange=bybit, mode=demo|live) + Order.leverage 자동 dispatch.
+  # EXCHANGE_PROVIDER=bybit_futures   # 유지 시 no-op
   BYBIT_TESTNET_KEY=<testnet_api_key>
   BYBIT_TESTNET_SECRET=<testnet_api_secret>
   KILL_SWITCH_CAPITAL_BASE_USD=10000   # testnet 가상 자본 기준
@@ -100,7 +102,8 @@
   KILL_SWITCH_CAPITAL_BASE_USD=100    # fallback. 동적 바인딩 실패 시 이 값
   KILL_SWITCH_DAILY_LOSS_USD=10       # 일일 $10 초과 시 자동 중지
   KILL_SWITCH_CUMULATIVE_LOSS_PERCENT=5  # 누적 5% 손실 시 전략 차단
-  EXCHANGE_PROVIDER=bybit_futures     # Futures 모드
+  # [DEPRECATED Sprint 22 BL-091] EXCHANGE_PROVIDER 미사용. ExchangeAccount+leverage 자동 dispatch.
+  # EXCHANGE_PROVIDER=bybit_futures   # 유지 시 no-op
   ```
 
 ### 🛠 코드 준비

@@ -41,19 +41,24 @@ def test_beat_schedule_includes_reconcile_ws_streams():
 
 @pytest.mark.asyncio
 async def test_duplicate_enqueue_returns_no_op():
-    """codex G3 #6 — process-level guard 가 두 번째 호출 시 raise 대신 no-op."""
+    """Sprint 24 BL-011 마이그레이션 (codex G.2 P1 #2 fix) —
+    process-level _PROCESS_ACTIVE_STREAMS 제거됨, Redis lease 가 None 반환 시 duplicate 처리.
+
+    이전 (Sprint 12): _PROCESS_LOCK + _PROCESS_ACTIVE_STREAMS set 직접 추가.
+    이후 (Sprint 24): acquire_ws_lease mock → None 반환 (contention 시뮬).
+    """
+    from unittest.mock import AsyncMock, patch
+
     from src.tasks import websocket_task
 
     account_id = "00000000-0000-0000-0000-000000000001"
-    # 첫 번째 진입처럼 보이도록 set 에 추가
-    with websocket_task._PROCESS_LOCK:
-        websocket_task._PROCESS_ACTIVE_STREAMS.add(account_id)
-    try:
+    # acquire_ws_lease mock — None 반환 (다른 worker 가 이미 보유 시뮬)
+    with (
+        patch("src.tasks._ws_circuit_breaker.is_circuit_open", new=AsyncMock(return_value=False)),
+        patch("src.tasks._ws_lease.acquire_ws_lease", new=AsyncMock(return_value=None)),
+    ):
         result = await websocket_task._run_async(account_id)
-        assert result == {"status": "duplicate", "account_id": account_id}
-    finally:
-        with websocket_task._PROCESS_LOCK:
-            websocket_task._PROCESS_ACTIVE_STREAMS.discard(account_id)
+    assert result == {"status": "duplicate", "account_id": account_id}
 
 
 @pytest.mark.asyncio

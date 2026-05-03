@@ -14,7 +14,7 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help dev up down logs be fe \
-        dev-isolated up-isolated down-isolated logs-isolated be-isolated fe-isolated \
+        dev-isolated up-isolated up-isolated-build down-isolated logs-isolated be-isolated fe-isolated \
         test be-test fe-test lint typecheck
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
@@ -35,6 +35,7 @@ help:
 	@echo "  격리 포트 (3100 / 8100 / 5433 / 6380) — 다른 웹앱과 병렬"
 	@echo "    make dev-isolated # up + be + fe 동시 (한 줄)"
 	@echo "    make up-isolated"
+	@echo "    make up-isolated-build  # up-isolated + --build (코드 변경 후 image 재빌드)"
 	@echo "    make down-isolated"
 	@echo "    make logs-isolated"
 	@echo "    make be-isolated  # backend uvicorn (port 8100)"
@@ -84,6 +85,11 @@ dev-isolated: up-isolated
 
 up-isolated:
 	docker compose $(ISOLATED_COMPOSE) up -d
+
+# Sprint 23 BL-101 — 코드 변경 후 image 재빌드 + 부팅. daily flow 영향 0.
+# 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
+up-isolated-build:
+	docker compose $(ISOLATED_COMPOSE) up -d --build
 
 down-isolated:
 	docker compose $(ISOLATED_COMPOSE) down

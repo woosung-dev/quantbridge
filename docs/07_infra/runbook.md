@@ -252,7 +252,11 @@ cd backend && uv run pytest tests/backtest/snapshot/ -v
 # .env.mainnet (프로덕션 전용, 절대 커밋 금지)
 BYBIT_API_KEY=...
 BYBIT_API_SECRET=...
-EXCHANGE_PROVIDER=bybit_futures
+# [DEPRECATED Sprint 22 BL-091] EXCHANGE_PROVIDER 는 dispatch path 에서 미사용.
+# Sprint 22 부터 ExchangeAccount.exchange + mode + Order.leverage 기반 자동 dispatch.
+# Bybit live 모드는 BybitLiveProvider stub 이 ProviderError raise — BL-003 mainnet
+# runbook 완료 후 본격 구현으로 교체 예정.
+# EXCHANGE_PROVIDER=bybit_futures   # 유지 시 no-op (test_config.py 호환용 dead config)
 BYBIT_FUTURES_MAX_LEVERAGE=1  # 초기 1:1. 검증 후 점진 상향
 KILL_SWITCH_CAPITAL_BASE_USD=100  # mainnet 첫 주는 fallback도 소액
 KILL_SWITCH_DAILY_LOSS_USD=10

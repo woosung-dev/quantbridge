@@ -696,3 +696,37 @@ def _map_ccxt_status_for_fetch(
             return "rejected"
         case _:
             return "submitted"
+
+
+class BybitLiveProvider:
+    """Bybit mainnet provider stub — Sprint 22 BL-091 dispatch tuple 호환.
+
+    Sprint 22: ExchangeAccount(mode=live) 의 dispatch 결과로 본 클래스 인스턴스 반환.
+    create_order / cancel_order / fetch_order 호출 시 ProviderError raise →
+    `tasks/trading.py:_execute_with_session` 의 `except ProviderError` 가 자동
+    catch → Order graceful `rejected` 전이 + qb_active_orders dec (winner-only).
+
+    BL-003 Bybit mainnet runbook 완료 후 BybitDemoProvider/BybitFuturesProvider
+    base URL mainnet 매핑 + 라이브 검증 시점에 본 stub 본격 구현으로 교체.
+    """
+
+    async def create_order(
+        self, creds: Credentials, order: OrderSubmit
+    ) -> OrderReceipt:
+        raise ProviderError(
+            "Bybit live (mainnet) 미지원 — BL-003 mainnet runbook 완료 후 활성화"
+        )
+
+    async def cancel_order(
+        self, creds: Credentials, exchange_order_id: str
+    ) -> None:
+        raise ProviderError(
+            "Bybit live cancel 미지원 — BL-003 mainnet runbook 대기"
+        )
+
+    async def fetch_order(
+        self, creds: Credentials, exchange_order_id: str, symbol: str
+    ) -> OrderStatusFetch:
+        raise ProviderError(
+            "Bybit live fetch 미지원 — BL-003 mainnet runbook 대기"
+        )

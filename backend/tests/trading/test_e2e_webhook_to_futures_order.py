@@ -162,10 +162,9 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
     db_session.add(account)
     await db_session.commit()
 
-    # ── 2. Exchange provider 설정: bybit_futures + lazy singleton 리셋 ──
-    monkeypatch.setattr(task_mod.settings, "exchange_provider", "bybit_futures")
-    monkeypatch.setattr(task_mod, "_exchange_provider", None)
-
+    # ── 2. Sprint 22 BL-091: dispatch 가 ExchangeAccount(bybit, demo) +
+    # OrderRequest(leverage=5) 로 자동 BybitFuturesProvider 라우트.
+    # Sprint 21 까지의 settings.exchange_provider="bybit_futures" 강제 불필요.
     # ── 3. Celery task가 보는 session을 테스트 session으로 대체 ──
     monkeypatch.setattr(
         task_mod,

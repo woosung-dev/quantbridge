@@ -1,7 +1,9 @@
 """Funding rate 수집 Celery 태스크.
 
 Beat schedule: celery_app.py에 등록 (매 1시간).
-지원 거래소: Bybit USDT Perpetual (설정 exchange_provider가 bybit_* 계열일 때).
+지원 거래소: Bybit USDT Perpetual (`ExchangeAccount.exchange == bybit` AND
+Order/Position 의 leverage IS NOT NULL — Sprint 22 BL-091 dispatch 기준).
+Sprint 22 이전: settings.exchange_provider == "bybit_*" 기반 (deprecated).
 """
 from __future__ import annotations
 
