@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select, text
@@ -41,6 +41,7 @@ from src.trading.models import (
     WebhookSecret,
 )
 from src.trading.providers import BybitDemoProvider, OkxDemoProvider
+from src.trading.schemas import OrderRequest
 
 pytestmark = pytest.mark.integration
 
@@ -163,17 +164,38 @@ async def test_scenario1_strategy_with_webhook_secret_atomic(
 
 
 def test_scenario2_backtest_engine_smoke(dogfood_strategy: Strategy) -> None:
-    """run_backtest_v2 import + version detection smoke.
+    """Sprint 25 BL-112 — run_backtest_v2 실 호출 + 강한 assert.
 
-    실제 backtest 실행은 service layer 가 BacktestConfig 시그니처 결정 → 별도
-    integration (test_backtest_with_timescale.py) 가 가드.
+    Sprint 24b 의 stub (`callable(run_backtest_v2)` + version smoke) 를 실 backtest
+    로 승격. codex G.0 iter 2 가 plan v2 의 fixture 가설 (기존 EMA fixture 재사용)
+    을 코드 실측으로 refute (num_trades=0) → 신규 `make_trending_ohlcv` 사용.
+
+    fixture 자체의 trade 발생 보장은 `tests/fixtures/test_backtest_ohlcv_precondition`
+    이 num_trades >= 3 으로 검증. 본 scenario 는 보수적으로 num_trades >= 1.
     """
+    from src.backtest.engine.types import BacktestConfig
     from src.backtest.engine.v2_adapter import _detect_version, run_backtest_v2
+    from tests.fixtures.backtest_ohlcv import (
+        EMA_CROSS_PINE_SOURCE,
+        make_trending_ohlcv,
+    )
 
-    # import smoke
-    assert callable(run_backtest_v2)
-    # detect_version smoke — Pine v5 인식
+    # version detect — dogfood_strategy 의 Pine v5 인식 (Sprint 24b 보존)
     assert _detect_version(dogfood_strategy.pine_source) == "v5"
+
+    # 실 backtest 실행 — fixture (8 segments × 25 bars = 200 bars) + EMA cross
+    outcome = run_backtest_v2(
+        EMA_CROSS_PINE_SOURCE,
+        make_trending_ohlcv(),
+        BacktestConfig(init_cash=Decimal("10000")),
+    )
+
+    assert outcome.status == "ok", (
+        f"backtest status={outcome.status}, error={outcome.error}"
+    )
+    assert outcome.result is not None
+    assert len(outcome.result.equity_curve) > 0
+    assert outcome.result.metrics.num_trades >= 1
 
 
 # ----------------------------------------------------------------------
@@ -186,39 +208,88 @@ async def test_scenario3_order_dispatch_snapshot(
     db_session: AsyncSession,
     dogfood_strategy: Strategy,
     bybit_demo_account: ExchangeAccount,
+    request: pytest.FixtureRequest,
 ) -> None:
-    """Order 직접 INSERT (snapshot 채움) → 정확한 dispatch (BybitDemoProvider).
+    """Sprint 25 BL-113 — OrderService.execute() 통한 dispatch_snapshot 자동 채움.
 
-    Service layer 의 자동 채움은 별도 unit test 에서 검증. 본 integration test 는
-    DB JSONB 컬럼 + dispatch helper 정합.
+    Sprint 24b 의 Order ORM 직접 INSERT 우회 → service layer 호출. codex G.0 iter 2
+    P1 #7 (`repo=` param 이름) + P1 #10 (fake dispatcher Celery 우회) + iter 1 P2 #1
+    (uuid4 idempotency_key per test) 모두 반영.
+
+    검증: OrderService 가 (1) exchange_service 통해 account fetch → snapshot 자동 채움
+    + (2) commit + (3) fake dispatcher 호출.
     """
-    order = Order(
+    import uuid as _uuid
+
+    from src.trading.repository import (
+        ExchangeAccountRepository,
+        OrderRepository,
+    )
+    from src.trading.service import ExchangeAccountService, OrderService
+
+    # DI — same db_session 공유 (트랜잭션 통일)
+    order_repo = OrderRepository(db_session)
+    exchange_repo = ExchangeAccountRepository(db_session)
+    exchange_svc = ExchangeAccountService(exchange_repo, _crypto)
+
+    # FakeOrderDispatcher — Celery enqueue 우회 (codex iter 2 P1 #10)
+    class _FakeOrderDispatcher:
+        def __init__(self) -> None:
+            self.dispatched_count = 0
+            self.dispatched_ids: list[UUID] = []
+
+        async def dispatch_order_execution(self, order_id: UUID) -> None:
+            self.dispatched_count += 1
+            self.dispatched_ids.append(order_id)
+
+    fake_dispatcher = _FakeOrderDispatcher()
+
+    # NoopKillSwitch — gate 통과 (KS 평가는 별도 시나리오에서 가드)
+    class _NoopKillSwitch:
+        async def ensure_not_gated(
+            self, strategy_id: UUID, account_id: UUID
+        ) -> None:
+            return
+
+    service = OrderService(
+        session=db_session,
+        repo=order_repo,
+        dispatcher=fake_dispatcher,
+        kill_switch=_NoopKillSwitch(),
+        exchange_service=exchange_svc,  # 핵심 — dispatch_snapshot 자동 채움 prereq
+    )
+
+    req = OrderRequest(
         strategy_id=dogfood_strategy.id,
         exchange_account_id=bybit_demo_account.id,
         symbol="BTCUSDT",
         side=OrderSide.buy,
         type=OrderType.market,
         quantity=Decimal("0.001"),
-        state=OrderState.pending,
-        dispatch_snapshot={
-            "exchange": "bybit",
-            "mode": "demo",
-            "has_leverage": False,
-        },
     )
-    db_session.add(order)
-    await db_session.flush()
 
-    order_row = await db_session.get(Order, order.id)
-    assert order_row is not None
-    assert order_row.dispatch_snapshot == {
-        "exchange": "bybit",
-        "mode": "demo",
-        "has_leverage": False,
-    }
+    # codex iter 1 P2 #1 — uuid4 per test (replay 방지)
+    idempotency_key = f"{request.node.name}:{_uuid.uuid4().hex}"
 
+    response, is_replayed = await service.execute(
+        req, idempotency_key=idempotency_key
+    )
+
+    assert is_replayed is False
+    assert fake_dispatcher.dispatched_count == 1
+    assert fake_dispatcher.dispatched_ids == [response.id]
+
+    # DB 에서 재조회 — dispatch_snapshot 자동 채움 검증
+    refreshed = await order_repo.get_by_id(response.id)
+    assert refreshed is not None
+    assert refreshed.dispatch_snapshot is not None
+    assert refreshed.dispatch_snapshot["exchange"] == "bybit"
+    assert refreshed.dispatch_snapshot["mode"] == "demo"
+    assert refreshed.dispatch_snapshot["has_leverage"] is False
+
+    # Sprint 22+23 dispatch helper 정합 — refreshed snapshot → BybitDemoProvider
     provider = _provider_from_order_snapshot_or_fallback(
-        order_row, bybit_demo_account, submit=None
+        refreshed, bybit_demo_account, submit=None
     )
     assert isinstance(provider, BybitDemoProvider)
 

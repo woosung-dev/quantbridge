@@ -55,6 +55,7 @@ dev = [
     "fakeredis[lua]>=2.20",
     "pytest-celery>=1.0",
     "pytest-timeout>=2.3",
+    "pytest-json-report>=1.5,<2",  # Sprint 25 BL-114 — run_auto_dogfood.py JSON parse
 ]
 
 [tool.uv]

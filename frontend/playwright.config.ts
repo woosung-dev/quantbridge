@@ -5,6 +5,14 @@ import { defineConfig, devices } from "@playwright/test";
 //
 // CI/로컬 모두 pnpm dev 사용 — prod build는 Clerk API 의존 페이지가 prerender 실패.
 // dev는 Clerk placeholder key로도 기동 가능. CI ubuntu는 초기 컴파일이 느리니 240s 대기.
+//
+// Sprint 25 — projects 분리 (codex G.0 iter 1 P1 #4 + iter 2 P2 #3):
+//   chromium         — public routes only (smoke.spec.ts)
+//   chromium-authed  — Clerk authed only (trading-ui, dogfood-flow). storageState 의존
+//   setup            — global.setup.ts 가 chromium-authed 시작 전 storageState 발급
+//
+// chromium-authed 는 fullyParallel:false + --workers=1 (script 명시) 이중 보장 —
+// 공유 storageState flake 차단.
 const isCI = !!process.env.CI;
 
 export default defineConfig({
@@ -19,11 +27,30 @@ export default defineConfig({
     trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
+    // Sprint 25 — Next.js 16 dev server 첫 page render JIT 컴파일 5-30초.
+    // setup pre-warm 후 cache hit 으로 빨라지지만 안전망으로 navigation 60s, action 30s.
+    navigationTimeout: 60_000,
+    actionTimeout: 30_000,
   },
   projects: [
     {
+      name: "setup",
+      testMatch: /global\.setup\.ts$/,
+    },
+    {
       name: "chromium",
+      testMatch: /smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "chromium-authed",
+      testMatch: /(trading-ui|dogfood-flow)\.spec\.ts$/,
+      fullyParallel: false,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/storageState.json",
+      },
+      dependencies: ["setup"],
     },
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL

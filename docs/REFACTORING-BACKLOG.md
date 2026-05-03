@@ -717,3 +717,34 @@
     - **BL-080** scan/reconcile/trading prefork-safe **architectural fix** (asyncpg/SQLAlchemy module-level state reset). Sprint 17 의 narrowest wedge 한계. Sprint 18 우선. trigger: self-assessment 5 → ≥7. est L (1-2일).
   - **self-assessment**: 2/10 → **5/10** (+3 진전). H1→H2 gate (≥7) 미통과 — Sprint 18 BL-080 root fix 후 재평가.
   - **합계 변동**: 54 BL. P0 잔여 3. P1 잔여 17 (BL-080 신규). P2 잔여 2. dev-log: [`docs/dev-log/2026-05-02-sprint17-prefork-fix.md`](dev-log/2026-05-02-sprint17-prefork-fix.md).
+
+- **2026-05-03 (Sprint 25 Hybrid)** — `stage/h2-sprint25` 결과 반영. Frontend E2E Playwright + Backend test 강화 + codex G.0/G.2.
+  - **Resolved (5건)**:
+    - **BL-110a** In-process lease integration test (heartbeat / lost_event / lease contention) — `tests/tasks/test_ws_lease_integration.py` 7 시나리오 (acquire / duplicate None / 격리 / extend True 정상 / extend False → lost_event.set / extend Exception → lost_event.set / __aexit__ Lua CAS DEL). codex G.0 iter 2 P1 #8 + G.2 P1 #2 모두 반영. autouse `_reset_pool_each_test` fixture 로 pytest-asyncio per-test event loop + redis-py asyncio connection bound 충돌 회피.
+    - **BL-112** scenario2 실 backtest 실행 — `make_trending_ohlcv` (8 segments × 25 bars = 200 bars, EMA 3/8 cross 3 회 발생 코드 실측 보장) + `EMA_CROSS_PINE_SOURCE` + precondition test (num_trades >= 3). scenario2 강한 assert (status=='ok' + result + equity > 0 + num_trades >= 1). codex G.0 iter 2 P1 #5+#6 반영 (plan v2 의 "기존 fixture 재사용" 가설 코드 실측으로 refuted).
+    - **BL-113** scenario3 OrderService.execute 정확한 args — `OrderService(session=db_session, repo=OrderRepository(db_session), dispatcher=_FakeOrderDispatcher(), kill_switch=_NoopKillSwitch(), exchange_service=ExchangeAccountService(...))`. uuid4 idempotency_key per test. dispatch_snapshot 자동 채움 검증 + provider 정합성 검증. codex G.0 iter 2 P1 #7 (`repo=` param 이름) + iter 1 P2 #1 (uuid4) + iter 2 P1 #10 (FakeOrderDispatcher Celery 우회) 반영.
+    - **BL-114** pytest-json-report 도입 — `importlib.util.find_spec('pytest_jsonreport')` plugin detect first. `_build_summary(rc, stdout, stderr, json_report=None)` backward compat (scenario6 호환). plugin 부재 시 graceful fallback. codex G.0 iter 2 P1 #9 (pytest CLI behavior 정확화) 반영.
+    - **BL-115** HTML escape full coverage — `html.escape` 전수 적용 (stdout_tail / stderr_tail / table cells / 헤더 date / counts). `tests/scripts/test_run_auto_dogfood_html_escape.py` 3 회귀 unit test (`<script>` 주입 / `<img onerror>` / safe content 정상 렌더).
+  - **신규 등록 (Sprint 26+ 이관, 14건)** — codex G.0 iter 2 + G.2 P2/P3 결과:
+    - **BL-110b** Real Celery prefork SIGTERM integration test — pytest-celery 또는 subprocess.Popen worker. P2 M (4-6h). plan v3 split.
+    - **BL-116** CI workflow_dispatch authed E2E — secret + storageState decode. P2 S (2-3h).
+    - **BL-117** Clerk emailAddress 방식 마이그레이션 (password → emailAddress, MFA/verification 우회 회피). P2 S (1-2h). codex G.2 P2 #1.
+    - **BL-118** baseURL 통합 (config + setup) — playwright.config.ts baseURL 단일 source. P3 S. codex G.2 P2 #2.
+    - **BL-119** API_ROUTES URL predicate (orders-v2 false-match 차단) — route handler pathname predicate. P3 S. codex G.2 P2 #3.
+    - **BL-120** leak guard fail-on-leak (현재 observability only, afterEach assert). P2 S (2h). codex G.2 P2 #4.
+    - **BL-121** production guard host allowlist (NODE_ENV 외 PLAYWRIGHT_BASE_URL host + pk_test_/sk_test_ prefix). P2 S. codex G.2 P2 #5.
+    - **BL-122** pytest-json-report uv-aware detect (`uv run python -c` 기반). P3 S. codex G.2 P2 #6.
+    - **BL-123** mkstemp fd leak fix (NamedTemporaryFile or os.close(fd)). P3 XS. codex G.2 P2 #7.
+    - **BL-124** run_auto_dogfood subprocess timeout — DB/Redis hang cron 무한 대기 차단. P2 XS. codex G.2 P2 #8.
+    - **BL-125** report 파일명 timestamp + symlink — 동시 실행 overwrite 차단. P3 S. codex G.2 P2 #9.
+    - **BL-126** FakeOrderDispatcher edge case (broker outage / dispatch exception / pending stuck). P2 M. codex G.2 P2 #10.
+    - **BL-127** BL-110a xdist 격리 (pool reset autouse fixture serial marker 또는 isolated Redis DB/key namespace). P3 S. codex G.2 P2 #11.
+    - **BL-128** trading-ui scenario 3 KS bypass disabled assert — OrdersPanel 주문 버튼 추가 후 활성화. P2 XS. codex G.2 P1 #4 (partial).
+    - **BL-129** ANSI/control seq HTML 처리 (XSS 아님, 가독성). P3 XS. codex G.2 P3 #2.
+  - **codex 게이트**:
+    - **G.0 iter 1** (medium, 617k tokens) — P1 14 + P2 10 + P3 4 → plan v2 surgery 28건 모두 반영.
+    - **G.0 iter 2** (medium, 1.28M tokens, resume) — plan v2 NOT READY 판정 (코드 실측 까지 진행). P1 9 + P2 8 + P3 4 → plan v3 surgery 21건 (Clerk auth wrong / BL-112 fixture 가설 refute / OrderService param 이름 / heartbeat exception path / pytest CLI behavior / mock URL prefix 등).
+    - **G.2 challenge** (high, 992k tokens) — P1 4 즉시 fix + P2 12 + P3 2 = BL-117~129 신규 등록. P1 critical 0 잔존.
+    - **누적**: ~3M tokens / 47 finding 모두 plan v3 또는 implementation 반영.
+  - **사용자 명시 요구 반영**: (1) Edge Cases 19 영구 기록 (plan v3 §5.5 + dev-log §3) — 사용자 "엣지케이스가 없는지" 요구. (2) codex G.0 iter 2 재호출 — 사용자 "codex 잘 확인한거야?" 요구 (Sprint 22+24a 의 G.0 1 iter 만 패턴 보강).
+  - **합계 변동**: 67 → 76 BL (5 Resolved + 14 신규 = 9 net 증가). P1 잔여 동일. P2 신규 7. P3 신규 7. dev-log: [`docs/dev-log/2026-05-03-sprint25-hybrid.md`](dev-log/2026-05-03-sprint25-hybrid.md). plan: `~/.claude/plans/claude-plans-h2-sprint-25-prompt-md-snappy-bee.md` (v3, ~770 lines + Edge Cases 19).

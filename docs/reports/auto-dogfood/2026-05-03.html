@@ -8,7 +8,7 @@
   th { background: #f5f5f5; }
   .pass { color: #0a0; font-weight: bold; }
   .fail { color: #c00; font-weight: bold; }
-  .unknown, .missing { color: #888; }
+  .unknown, .missing, .skip { color: #888; }
   pre { background: #f8f8f8; padding: 1em; overflow-x: auto; font-size: 0.85em; }
 </style></head><body>
 <h1>Auto Dogfood Report — 2026-05-03</h1>
@@ -16,18 +16,16 @@
 <table>
   <thead><tr><th>#</th><th>Scenario</th><th>Covers</th><th>Status</th></tr></thead>
   <tbody><tr><td>1</td><td>strategy_with_webhook_secret_atomic</td><td>Sprint 13 broken bug 회귀</td><td class='pass'>PASS</td></tr>
-<tr><td>2</td><td>backtest_engine_smoke</td><td>v2_adapter import + Pine v5 detection</td><td class='pass'>PASS</td></tr>
-<tr><td>3</td><td>order_dispatch_snapshot</td><td>Sprint 22+23 BL-091/102</td><td class='pass'>PASS</td></tr>
+<tr><td>2</td><td>backtest_engine_smoke</td><td>v2_adapter 실 호출 (Sprint 25 BL-112)</td><td class='pass'>PASS</td></tr>
+<tr><td>3</td><td>order_dispatch_snapshot</td><td>OrderService.execute (Sprint 25 BL-113)</td><td class='pass'>PASS</td></tr>
 <tr><td>4</td><td>snapshot_drift_rejected</td><td>Sprint 23 G.2 P1 #1 split-brain</td><td class='pass'>PASS</td></tr>
 <tr><td>5</td><td>multi_account_dispatch</td><td>Sprint 24a BL-011/012 multi-account</td><td class='pass'>PASS</td></tr>
 <tr><td>6</td><td>summary_parse_smoke</td><td>본 스크립트 자체 검증</td><td class='pass'>PASS</td></tr></tbody>
 </table>
-<h2>pytest stdout (tail)</h2><pre>============================= test session starts ==============================
-platform darwin -- Python 3.12.12, pytest-9.0.3, pluggy-1.6.0 -- /Users/woosung/project/agy-project/quant-bridge/backend/.venv/bin/python
-cachedir: .pytest_cache
+<h2>pytest stdout (tail)</h2><pre>&#x27;, &#x27;pluggy&#x27;: &#x27;1.6.0&#x27;}, &#x27;Plugins&#x27;: {&#x27;cov&#x27;: &#x27;7.1.0&#x27;, &#x27;json-report&#x27;: &#x27;1.5.0&#x27;, &#x27;timeout&#x27;: &#x27;2.4.0&#x27;, &#x27;celery&#x27;: &#x27;1.3.0&#x27;, &#x27;pytest_docker_tools&#x27;: &#x27;3.1.9&#x27;, &#x27;metadata&#x27;: &#x27;3.1.1&#x27;, &#x27;asyncio&#x27;: &#x27;1.3.0&#x27;, &#x27;anyio&#x27;: &#x27;4.13.0&#x27;}}
 rootdir: /Users/woosung/project/agy-project/quant-bridge/backend
 configfile: pyproject.toml
-plugins: cov-7.1.0, timeout-2.4.0, celery-1.3.0, pytest_docker_tools-3.1.9, asyncio-1.3.0, anyio-4.13.0
+plugins: cov-7.1.0, json-report-1.5.0, timeout-2.4.0, celery-1.3.0, pytest_docker_tools-3.1.9, metadata-3.1.1, asyncio-1.3.0, anyio-4.13.0
 asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
 collecting ... collected 6 items
 
@@ -40,11 +38,16 @@ tests/integration/test_auto_dogfood.py::test_scenario6_summary_parse_smoke PASSE
 
 =============================== warnings summary ===============================
 src/backtest/exceptions.py:54
-  /Users/woosung/project/agy-project/quant-bridge/backend/src/backtest/exceptions.py:54: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+  /Users/woosung/project/agy-project/quant-bridge/backend/src/backtest/exceptions.py:54: DeprecationWarning: &#x27;HTTP_422_UNPROCESSABLE_ENTITY&#x27; is deprecated. Use &#x27;HTTP_422_UNPROCESSABLE_CONTENT&#x27; instead.
     class StrategyNotRunnable(BacktestError):
 
+tests/integration/test_auto_dogfood.py::test_scenario3_order_dispatch_snapshot
+  sys:1: SAWarning: nested transaction already deassociated from connection
+
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-========================= 6 passed, 1 warning in 0.47s =========================
+--------------------------------- JSON report ----------------------------------
+report saved to: /var/folders/x7/jc0z1c0d16v0dqdz850zc3840000gn/T/pytest-report-i2roisnp.json
+======================== 6 passed, 2 warnings in 3.25s =========================
 </pre>
 
 </body></html>

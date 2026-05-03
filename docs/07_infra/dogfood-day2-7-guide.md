@@ -131,31 +131,80 @@ python3 backend/scripts/run_auto_dogfood.py
 
 ---
 
-## 3. 자동 회귀 가드 (Sprint 24b 자동 dogfood)
+## 3. 자동 회귀 가드 (Sprint 24b 자동 dogfood + Sprint 25 Frontend E2E)
+
+### 3.1 Backend 자동 dogfood (Sprint 24b + Sprint 25 BL-112/113/114/115)
 
 매일 1회 또는 commit 후 실행:
 
 ```bash
 TEST_DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge \
 TEST_REDIS_LOCK_URL=redis://localhost:6380/3 \
-python3 backend/scripts/run_auto_dogfood.py
+DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge \
+REDIS_LOCK_URL=redis://localhost:6380/3 \
+REDIS_URL=redis://localhost:6380/0 \
+CELERY_BROKER_URL=redis://localhost:6380/1 \
+CELERY_RESULT_BACKEND=redis://localhost:6380/2 \
+uv --directory backend run python scripts/run_auto_dogfood.py
 ```
 
 **산출물**:
 
-- `docs/reports/auto-dogfood/<YYYY-MM-DD>.json` — pytest 결과 + 시나리오 metadata
-- `docs/reports/auto-dogfood/<YYYY-MM-DD>.html` — 사람 친화적 요약
+- `docs/reports/auto-dogfood/<YYYY-MM-DD>.json` — pytest 결과 + 시나리오 metadata (Sprint 25 BL-114 — pytest-json-report 정확 parse)
+- `docs/reports/auto-dogfood/<YYYY-MM-DD>.html` — 사람 친화적 요약 (Sprint 25 BL-115 — html.escape full coverage + XSS 회귀 test)
 
 **검증 시나리오 6건**:
 
 1. Strategy + WebhookSecret atomic create (Sprint 13 broken bug 회귀)
-2. Backtest engine smoke (Pine v5 detection)
-3. Order dispatch_snapshot (Sprint 22+23 BL-091/102)
+2. **Backtest engine 실 호출** (Sprint 25 BL-112 — `run_backtest_v2(EMA_CROSS_PINE_SOURCE, make_trending_ohlcv())` + status=='ok' + num_trades >= 1, fixture precondition 별도)
+3. **Order dispatch_snapshot via OrderService.execute** (Sprint 25 BL-113 — `OrderService(session=, repo=, dispatcher=Fake, kill_switch=Noop, exchange_service=)` + uuid4 idempotency + dispatch_snapshot 자동 채움 검증)
 4. Snapshot drift detection (Sprint 23 G.2 P1 #1 split-brain)
 5. Multi-account dispatch (Sprint 24a BL-011/012)
-6. Summary parser smoke
+6. Summary parser smoke (`_build_summary` backward compat)
 
 **FAIL 발생 시**: 즉시 stop + AI 에 보고 → 회귀 분석 + fix.
+
+### 3.2 Frontend E2E Playwright (Sprint 25 BL-112~115 + Track 1)
+
+**최초 prereq (1회 5분)**:
+
+1. Clerk Dashboard (https://dashboard.clerk.com) → 본인 dev instance → API Keys → `pk_test_...` (Publishable) + `sk_test_...` (Secret) 복사
+2. Clerk Dashboard → Users → Create user → email/password 입력 (예: `test@dogfood.local`)
+3. `frontend/.env.local` 에 4 키 추가:
+   ```
+   CLERK_PUBLISHABLE_KEY=pk_test_...
+   CLERK_SECRET_KEY=sk_test_...
+   E2E_CLERK_USER_EMAIL=test@dogfood.local
+   E2E_CLERK_USER_PASSWORD=...
+   ```
+
+**매일 또는 commit 후 실행**:
+
+```bash
+# Smoke (Clerk 불요, public routes 만)
+make fe-e2e
+
+# Authed (trading-ui 5 + dogfood-flow 3 = 8 시나리오)
+make fe-e2e-authed
+```
+
+`pnpm e2e:authed` 가 매번 `global.setup.ts` 의 `clerkSetup() + clerk.signIn()` 호출 → `e2e/.auth/storageState.json` 새로 발급 → 만료 자동 처리. `--workers=1` + `fullyParallel:false` 이중 보장으로 storageState flake 차단.
+
+**검증 시나리오**:
+
+- **trading-ui.spec.ts (5)**: Demo 배지 / KS active 배너 / 주문 disabled / KS API 500 황색 / KS resolved 소멸 — mock route 모두 `/api/v1/...` (Sprint 25 codex iter 2 P2 #4 — 기존 `/api/v1/trading/...` wrong path 정정)
+- **dogfood-flow.spec.ts (3, serial mode)**:
+  1. Strategy create page 로드 (Sprint 13 atomic webhook_secret entry)
+  2. **Backtest form 422 inline error assert** (Sprint 13 Phase C 회귀 / Sprint 25 codex G.2 P1 #3 fix)
+  3. **TestOrderDialog KS active 시 submit disabled assert** (Sprint 13 Phase B 회귀 / Sprint 25 codex G.2 P1 #4 fix)
+
+**FAIL 발생 시**:
+
+- `frontend/playwright-report/` 또는 `frontend/test-results/` 의 trace.zip 확인 (`npx playwright show-trace ...`)
+- storageState 만료 가능성: `frontend/e2e/.auth/storageState.json` 삭제 후 재실행 → setup 자동 재발급
+- Clerk dev keys 회전 / 계정 비번 변경: `.env.local` 갱신
+
+**주의**: `e2e:authed` 는 `NODE_ENV=production` 차단됨 (production guard). dev 전용. CI 자동 실행은 Sprint 26+ BL-116 (workflow_dispatch + secret).
 
 ---
 

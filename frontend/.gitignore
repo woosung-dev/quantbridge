@@ -12,3 +12,11 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# Sprint 25: Playwright e2e auth state (dev credentials, never commit)
+e2e/.auth/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
