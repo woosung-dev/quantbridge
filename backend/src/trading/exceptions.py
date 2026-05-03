@@ -125,6 +125,76 @@ class LeverageCapExceeded(AppException):
         self.cap = cap
 
 
+class AccountModeNotAllowed(AppException):
+    """Sprint 26 — Live Session 은 Bybit Demo 한정 (BL-003 mainnet runbook 완료 전까지).
+
+    account.exchange != ExchangeName.bybit OR account.mode != ExchangeMode.demo 시 raise.
+    """
+
+    status_code = 422
+    code = "account_mode_not_allowed"
+
+    def __init__(self, *, exchange: object, mode: object) -> None:
+        super().__init__(
+            f"Live Session 은 Bybit Demo 한정 (BL-003 mainnet runbook 완료 전까지). "
+            f"received: exchange={exchange}, mode={mode}"
+        )
+        self.exchange = exchange
+        self.mode = mode
+
+
+class LiveSessionQuotaExceeded(AppException):
+    """Sprint 26 — 사용자별 active Live Session ≤ 5 (codex G.0 P3 #3 + plan §3 A.5)."""
+
+    status_code = 422
+    code = "live_session_quota_exceeded"
+
+    def __init__(self, *, current: int, cap: int) -> None:
+        super().__init__(
+            f"active Live Session count {current} >= cap {cap}. "
+            "기존 session deactivate 후 재시도."
+        )
+        self.current = current
+        self.cap = cap
+
+
+class SessionAlreadyActive(AppException):
+    """Sprint 26 — partial unique index 위반.
+
+    같은 (user_id, strategy_id, exchange_account_id, symbol) 조합의 active session 이
+    이미 존재. deactivate 후 재INSERT 가능 (partial unique 가 is_active=true 만 cover).
+    """
+
+    status_code = 409
+    code = "session_already_active"
+
+
+class StrategySettingsRequired(AppException):
+    """Sprint 26 — strategy.settings is None.
+
+    Live Session 시작 시 leverage / margin_mode / position_size_pct 가 사전 설정되어
+    있어야. PUT /api/v1/strategies/{id}/settings 로 설정 후 재시도.
+    """
+
+    status_code = 422
+    code = "strategy_settings_required"
+
+
+class InvalidStrategySettings(AppException):
+    """Sprint 26 — strategy.settings JSONB malformed (codex G.0 P2 #4).
+
+    StrategySettings.model_validate 실패 — DB 직접 수정 또는 schema migration 누락.
+    PUT /api/v1/strategies/{id}/settings 로 재설정.
+    """
+
+    status_code = 422
+    code = "invalid_strategy_settings"
+
+    def __init__(self, *, error: str) -> None:
+        super().__init__(f"invalid strategy.settings JSONB: {error}")
+        self.error = error
+
+
 class NotionalExceeded(AppException):
     """주문 notional(qty x price x leverage)이 계좌 자본 x max_leverage x safety 초과.
 

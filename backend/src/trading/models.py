@@ -11,7 +11,7 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Index, LargeBinary, SQLModel
 
@@ -52,6 +52,31 @@ class KillSwitchTriggerType(StrEnum):
     cumulative_loss = "cumulative_loss"
     daily_loss = "daily_loss"
     api_error = "api_error"
+
+
+class LiveSignalInterval(StrEnum):
+    """Sprint 26 — Live Signal Auto-Trading 의 평가 주기.
+
+    1m / 5m / 15m / 1h. evaluate_live_signals_task (1분 Beat) 가 list_active_due
+    로 interval 별 due 필터링. 5m session 은 5번째 fire 마다 evaluate.
+    """
+
+    m1 = "1m"
+    m5 = "5m"
+    m15 = "15m"
+    h1 = "1h"
+
+
+class LiveSignalEventStatus(StrEnum):
+    """Sprint 26 — Transactional outbox event status (codex G.0 P1 #3).
+
+    pending → dispatched (정상 broker 발주) / failed (KillSwitch / NotionalCap / 기타).
+    pending 으로 남으면 worker crash recovery 시 재dispatch.
+    """
+
+    pending = "pending"
+    dispatched = "dispatched"
+    failed = "failed"
 
 
 class ExchangeAccount(SQLModel, table=True):
@@ -288,5 +313,208 @@ class WebhookSecret(SQLModel, table=True):
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
     )
     revoked_at: datetime | None = Field(
+        default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
+
+
+# ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
+
+
+class LiveSignalSession(SQLModel, table=True):
+    """Sprint 26 — Pine strategy 의 자동 evaluate + broker 발주 session.
+
+    한 사용자 ≤ 5건 active. (user_id, strategy_id, exchange_account_id, symbol)
+    partial unique index — `is_active=true` 인 row 만 unique (deactivate 후 재INSERT 가능).
+
+    bar_claim_token: try_claim_bar 의 advisory token (codex G.0 P2 #3).
+    last_evaluated_bar_time: CAS 기반 race-safe 평가 (1분 Beat 가 같은 bar 두 번 평가 차단).
+    """
+
+    __tablename__ = "live_signal_sessions"
+    __table_args__ = (
+        Index("ix_live_sessions_user_active", "user_id", "is_active"),
+        Index(
+            "ix_live_sessions_active_due",
+            "is_active",
+            "last_evaluated_bar_time",
+            postgresql_where=text("is_active = true"),
+        ),
+        # codex G.0 P2 #2: partial unique index — is_active=true 인 row 만 unique
+        Index(
+            "uq_live_sessions_active_unique",
+            "user_id",
+            "strategy_id",
+            "exchange_account_id",
+            "symbol",
+            unique=True,
+            postgresql_where=text("is_active = true"),
+        ),
+        {"schema": "trading"},
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(
+        sa_column=Column(
+            "user_id",
+            ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+    )
+    strategy_id: UUID = Field(
+        sa_column=Column(
+            "strategy_id",
+            ForeignKey("strategies.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+    )
+    exchange_account_id: UUID = Field(
+        sa_column=Column(
+            "exchange_account_id",
+            ForeignKey("trading.exchange_accounts.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+    )
+    symbol: str = Field(max_length=32, nullable=False)
+    # Sprint 26 Phase D fix — Alembic 이 String(8) 로 컬럼 생성. SQLAlchemy 가 자동
+    # PG enum cast (`$N::livesignalinterval`) 시도해 UndefinedObjectError 발생하므로
+    # 명시적 String 컬럼 + Python-level StrEnum 으로 round-trip.
+    interval: LiveSignalInterval = Field(sa_column=Column("interval", String(8), nullable=False))
+    is_active: bool = Field(default=True)
+    last_evaluated_bar_time: datetime | None = Field(
+        default=None,
+        sa_column=Column(AwareDateTime(), nullable=True),
+    )
+    bar_claim_token: UUID | None = Field(default=None)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(
+            AwareDateTime(),
+            nullable=False,
+            server_default=text("NOW()"),
+            onupdate=lambda: datetime.now(UTC),
+        ),
+    )
+    deactivated_at: datetime | None = Field(
+        default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
+
+
+class LiveSignalState(SQLModel, table=True):
+    """Sprint 26 — Live Signal session 의 캐시/UI state.
+
+    Option B (warmup replay) 채택 — 매 evaluate 마다 run_historical 재실행이
+    source-of-truth. 이 테이블은 (a) 마지막 strategy_state_report 캐시 (UI 표시용)
+    + (b) 누적 통계 (total_closed_trades / total_realized_pnl). 1:1 with session.
+
+    schema_version: 향후 schema migration 안전성 (codex G.0 P3 #2).
+    """
+
+    __tablename__ = "live_signal_states"
+    __table_args__ = ({"schema": "trading"},)
+
+    session_id: UUID = Field(
+        sa_column=Column(
+            "session_id",
+            ForeignKey("trading.live_signal_sessions.id", ondelete="CASCADE"),
+            primary_key=True,
+            nullable=False,
+        ),
+    )
+    schema_version: int = Field(default=1)
+    last_strategy_state_report: dict[str, object] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    last_open_trades_snapshot: dict[str, object] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    total_closed_trades: int = Field(default=0)
+    total_realized_pnl: Decimal = Field(
+        default=Decimal("0"),
+        sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(
+            AwareDateTime(),
+            nullable=False,
+            server_default=text("NOW()"),
+            onupdate=lambda: datetime.now(UTC),
+        ),
+    )
+
+
+class LiveSignalEvent(SQLModel, table=True):
+    """Sprint 26 — Transactional outbox (codex G.0 P1 #3).
+
+    eval task 가 같은 트랜잭션에서 events INSERT + state upsert + session.last_evaluated
+    update + commit. dispatch_live_signal_event_task (별도 task) 가 status=pending event 를
+    OrderService.execute. broker 발주 후 mark_dispatched / mark_failed.
+
+    UNIQUE (session_id, bar_time, sequence_no, action, trade_id) — codex G.0 P2 #5
+    sequence_no idempotency. 같은 evaluate 가 두 번 fire 해도 INSERT 1번만.
+
+    partial pending index — list_pending 빠른 조회.
+    """
+
+    __tablename__ = "live_signal_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "bar_time",
+            "sequence_no",
+            "action",
+            "trade_id",
+            name="uq_live_signal_events_idempotency",
+        ),
+        Index("ix_live_signal_events_session_bar", "session_id", "bar_time"),
+        Index(
+            "ix_live_signal_events_pending",
+            "status",
+            postgresql_where=text("status = 'pending'"),
+        ),
+        {"schema": "trading"},
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    session_id: UUID = Field(
+        sa_column=Column(
+            "session_id",
+            ForeignKey("trading.live_signal_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+    )
+    bar_time: datetime = Field(sa_column=Column(AwareDateTime(), nullable=False))
+    sequence_no: int = Field(nullable=False)
+    action: str = Field(max_length=16, nullable=False)  # "entry" | "close"
+    direction: str = Field(max_length=8, nullable=False)  # "long" | "short"
+    trade_id: str = Field(max_length=64, nullable=False)
+    qty: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    comment: str = Field(default="", max_length=200)
+    # Sprint 26 Phase D fix — interval 과 동일 사유 (PG enum 미생성, String(16) 컬럼).
+    status: LiveSignalEventStatus = Field(
+        default=LiveSignalEventStatus.pending,
+        sa_column=Column("status", String(16), nullable=False, server_default="pending"),
+    )
+    order_id: UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            "order_id",
+            ForeignKey("trading.orders.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    error_message: str | None = Field(default=None, max_length=2000, nullable=True)
+    retry_count: int = Field(default=0)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
+    )
+    dispatched_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
     )

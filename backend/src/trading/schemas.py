@@ -115,3 +115,80 @@ def mask_api_key(plaintext: str) -> str:
 class PaginatedExchangeAccounts(BaseModel):
     items: list[ExchangeAccountResponse]
     total: int
+
+
+# ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
+
+
+class RegisterLiveSessionRequest(BaseModel):
+    """POST /api/v1/live-sessions request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_id: UUID
+    exchange_account_id: UUID
+    symbol: str = Field(min_length=1, max_length=32)
+    interval: Literal["1m", "5m", "15m", "1h"]
+
+
+class LiveSessionResponse(BaseModel):
+    """Sprint 26 — Live Session 단일 응답."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    user_id: UUID
+    strategy_id: UUID
+    exchange_account_id: UUID
+    symbol: str
+    interval: str
+    is_active: bool
+    last_evaluated_bar_time: AwareDatetime | None
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+    deactivated_at: AwareDatetime | None
+
+
+class LiveSessionListResponse(BaseModel):
+    items: list[LiveSessionResponse]
+    total: int
+
+
+class LiveSignalStateResponse(BaseModel):
+    """GET /api/v1/live-sessions/{id}/state — Detail UI 용."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    session_id: UUID
+    schema_version: int
+    last_strategy_state_report: dict[str, object]
+    last_open_trades_snapshot: dict[str, object]
+    total_closed_trades: int
+    total_realized_pnl: Decimal
+    updated_at: AwareDatetime
+
+
+class LiveSignalEventResponse(BaseModel):
+    """GET /api/v1/live-sessions/{id}/events — debug + UI 용."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    session_id: UUID
+    bar_time: AwareDatetime
+    sequence_no: int
+    action: str
+    direction: str
+    trade_id: str
+    qty: Decimal
+    comment: str
+    status: str
+    order_id: UUID | None
+    error_message: str | None
+    retry_count: int
+    created_at: AwareDatetime
+    dispatched_at: AwareDatetime | None
+
+
+class LiveSignalEventListResponse(BaseModel):
+    items: list[LiveSignalEventResponse]

@@ -60,3 +60,7 @@
 - 신규 dev-log 작성 시 본 INDEX 에도 한 줄 추가 (시간 역순 또는 번호순 위치 유지)
 - AGENTS.md 의 "현재 작업" 섹션은 **활성 sprint 1개 + 직전 완료 sprint 1개 + 다음 분기** 만 inline. 그 외 모든 회고는 본 INDEX 에서 발견
 - BL ID 가 부여된 follow-up 은 [`docs/REFACTORING-BACKLOG.md`](../REFACTORING-BACKLOG.md) 에서 추적
+
+## Sprint 26 — Pine Signal Auto-Trading (2026-05-04)
+
+- [2026-05-04-sprint26-pine-signal-auto-trading.md](2026-05-04-sprint26-pine-signal-auto-trading.md) — Live Session daily flow (eval Beat + dispatch outbox + FE 모듈). codex G.0 P1 #3/#4/#5/#6 fix + G.2 P1 #10 fix (max_retries exhaustion + dispatch_pending Beat). 30 BE tests + 6 FE tests 신규. dogfood Day 0 mcp playwright 검증 — Bybit Demo 5 orders filled. BL-122~125 4 추가 fix.

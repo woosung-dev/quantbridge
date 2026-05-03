@@ -1,4 +1,5 @@
 """Alembic migration upgrade/downgrade round-trip 검증 + metadata drift 검증."""
+
 from __future__ import annotations
 
 import os
@@ -113,8 +114,7 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
         alembic_cols = alembic_tables[(schema, table_name)]
         missing = metadata_cols - alembic_cols
         assert not missing, (
-            f"Table '{full_name}' missing columns in DB: {missing}. "
-            f"Migration 누락 또는 drift 발생."
+            f"Table '{full_name}' missing columns in DB: {missing}. Migration 누락 또는 drift 발생."
         )
 
 
@@ -131,7 +131,11 @@ def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
 
 
 def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """trading schema + 4 테이블이 upgrade head 후 존재하는지 검증."""
+    """trading schema + 8 테이블이 upgrade head 후 존재하는지 검증.
+
+    Sprint 26 Phase A 추가 — live_signal_sessions / live_signal_states /
+    live_signal_events (Pine Signal Auto-Trading outbox + state).
+    """
     engine, inspector = _upgrade_and_inspect(monkeypatch)
     try:
         schemas = inspector.get_schema_names()
@@ -144,7 +148,11 @@ def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
             "kill_switch_events",
             "webhook_secrets",
             "funding_rates",
-        }, f"예상 5 테이블과 불일치: {trading_tables}"
+            # Sprint 26 Phase A — Pine Signal Auto-Trading
+            "live_signal_sessions",
+            "live_signal_states",
+            "live_signal_events",
+        }, f"예상 8 테이블과 불일치: {trading_tables}"
     finally:
         engine.dispose()
 

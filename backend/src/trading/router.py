@@ -20,24 +20,37 @@ from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
 from src.trading.dependencies import (
     get_exchange_account_service,
+    get_live_signal_session_service,
     get_order_service,
     get_webhook_service,
 )
 from src.trading.repository import (
     ExchangeAccountRepository,
     KillSwitchEventRepository,
+    LiveSignalEventRepository,
+    LiveSignalSessionRepository,
     OrderRepository,
 )
 from src.trading.schemas import (
     ExchangeAccountResponse,
     KillSwitchEventResponse,
+    LiveSessionListResponse,
+    LiveSessionResponse,
+    LiveSignalEventListResponse,
+    LiveSignalEventResponse,
+    LiveSignalStateResponse,
     OrderRequest,
     OrderResponse,
     PaginatedExchangeAccounts,
     RegisterAccountRequest,
+    RegisterLiveSessionRequest,
     mask_api_key,
 )
-from src.trading.service import ExchangeAccountService, OrderService
+from src.trading.service import (
+    ExchangeAccountService,
+    LiveSignalSessionService,
+    OrderService,
+)
 from src.trading.webhook import WebhookService, parse_tv_payload
 
 router = APIRouter(tags=["trading"])
@@ -308,3 +321,85 @@ async def resolve_kill_switch(
     if not fetched:
         raise HTTPException(status_code=500, detail="event fetch failed after resolve")
     return KillSwitchEventResponse.model_validate(fetched)
+
+
+# ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
+
+
+@router.post("/live-sessions", status_code=201, response_model=LiveSessionResponse)
+async def create_live_session(
+    data: RegisterLiveSessionRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: LiveSignalSessionService = Depends(get_live_signal_session_service),
+) -> LiveSessionResponse:
+    """Sprint 26 — Live Session 등록.
+
+    Bybit Demo 한정 (BL-003 mainnet runbook 완료 전까지). 사용자별 ≤ 5 active.
+    Strategy.settings (leverage/margin_mode/position_size_pct) 사전 설정 의무.
+    """
+    sess = await service.register(current_user.id, data)
+    return LiveSessionResponse.model_validate(sess)
+
+
+@router.get("/live-sessions", response_model=LiveSessionListResponse)
+async def list_live_sessions(
+    current_user: CurrentUser = Depends(get_current_user),
+    service: LiveSignalSessionService = Depends(get_live_signal_session_service),
+) -> LiveSessionListResponse:
+    sessions = await service.list_active(current_user.id)
+    items = [LiveSessionResponse.model_validate(s) for s in sessions]
+    return LiveSessionListResponse(items=items, total=len(items))
+
+
+@router.delete("/live-sessions/{session_id}", status_code=204)
+async def delete_live_session(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: LiveSignalSessionService = Depends(get_live_signal_session_service),
+) -> None:
+    await service.deactivate(current_user.id, session_id)
+
+
+@router.get(
+    "/live-sessions/{session_id}/state",
+    response_model=LiveSignalStateResponse,
+)
+async def get_live_session_state(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> LiveSignalStateResponse:
+    """Sprint 26 — Live Session 의 last strategy_state_report + 누적 PnL.
+
+    UI Detail 페이지의 PnL chart + warnings + open trades 표시용.
+    """
+    repo = LiveSignalSessionRepository(session)
+    sess = await repo.get_by_id(session_id)
+    if sess is None or sess.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="live session not found")
+    state = await repo.get_state(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="live signal state not yet evaluated")
+    return LiveSignalStateResponse.model_validate(state)
+
+
+@router.get(
+    "/live-sessions/{session_id}/events",
+    response_model=LiveSignalEventListResponse,
+)
+async def list_live_session_events(
+    session_id: UUID = Path(...),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> LiveSignalEventListResponse:
+    """Sprint 26 — Live Session 의 outbox event log (debug + Detail UI 용)."""
+    sess_repo = LiveSignalSessionRepository(session)
+    sess = await sess_repo.get_by_id(session_id)
+    if sess is None or sess.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="live session not found")
+    event_repo = LiveSignalEventRepository(session)
+    events = await event_repo.list_by_session(session_id, limit=limit)
+    return LiveSignalEventListResponse(
+        items=[LiveSignalEventResponse.model_validate(e) for e in events]
+    )

@@ -34,6 +34,7 @@ celery_app = Celery(
         "src.tasks.stress_test_tasks",
         "src.tasks.websocket_task",
         "src.tasks.orphan_scanner",
+        "src.tasks.live_signal",  # Sprint 26 — Pine Signal Auto-Trading
     ],
 )
 
@@ -109,6 +110,20 @@ celery_app.conf.beat_schedule = {
     "scan-stuck-orders": {
         "task": "trading.scan_stuck_orders",
         "schedule": 300.0,  # 5분
+        "options": {"expires": 240},
+    },
+    # Sprint 26 — Pine Signal Auto-Trading. 1분 fire, list_active_due 가
+    # interval (1m/5m/15m/1h) 별 due session 만 평가.
+    "evaluate-live-signals": {
+        "task": "live_signal.evaluate_all",
+        "schedule": 60.0,
+        "options": {"expires": 50},
+    },
+    # Sprint 26 codex G.2 P1 #10 fix — outbox pending 회수 안전망 (5분 fire).
+    # eval task 의 apply_async 가 broker 일시 장애로 유실됐을 때 list_pending() 재enqueue.
+    "dispatch-pending-live-signal-events": {
+        "task": "live_signal.dispatch_pending",
+        "schedule": 300.0,
         "options": {"expires": 240},
     },
 }

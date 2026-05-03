@@ -1,6 +1,7 @@
 """strategy 도메인 Pydantic V2 스키마."""
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
@@ -68,6 +69,47 @@ class ParsePreviewResponse(BaseModel):
     is_runnable: bool = True
 
 
+class StrategySettings(BaseModel):
+    """Sprint 26 — Live Signal Auto-Trading 의 trading params.
+
+    schema_version: 향후 schema 변경 시 backward compat 식별 (P3 #2).
+    leverage / margin_mode: Bybit Futures dispatch 분기 의무 (Sprint 22 BL-091).
+    position_size_pct: 가용 잔고 대비 포지션 크기 (0-100, 100 = all-in).
+
+    extra="forbid" 로 잘못된 필드 422 reject — codex G.0 P2 #4 malformed JSONB 방어.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = 1
+    leverage: int = Field(ge=1, le=125)
+    margin_mode: Literal["cross", "isolated"]
+    position_size_pct: float = Field(gt=0, le=100)
+
+
+def validate_strategy_settings(
+    raw: dict[str, object] | None,
+) -> StrategySettings | None:
+    """JSONB → StrategySettings parse. None = unset (no-op). 실패 시 ValidationError.
+
+    Sprint 26 codex G.0 P2 #4 — read path 에서 모든 strategy.settings 사용 전 검증.
+    """
+    if raw is None:
+        return None
+    return StrategySettings.model_validate(raw)
+
+
+class UpdateStrategySettingsRequest(BaseModel):
+    """PUT /strategies/{id}/settings request body. StrategySettings 와 동일 schema."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = 1
+    leverage: int = Field(ge=1, le=125)
+    margin_mode: Literal["cross", "isolated"]
+    position_size_pct: float = Field(gt=0, le=100)
+
+
 class StrategyListItem(BaseModel):
     """목록 DTO — pine_source/description 제외."""
 
@@ -82,6 +124,7 @@ class StrategyListItem(BaseModel):
     symbol: str | None = None
     tags: list[str] = Field(default_factory=list)
     trading_sessions: list[str] = Field(default_factory=list)
+    settings: dict[str, object] | None = None  # Sprint 26 (P3 #1)
     is_archived: bool
     created_at: AwareDatetime
     updated_at: AwareDatetime
@@ -103,6 +146,7 @@ class StrategyResponse(BaseModel):
     symbol: str | None
     tags: list[str] = Field(default_factory=list)
     trading_sessions: list[str] = Field(default_factory=list)
+    settings: dict[str, object] | None = None  # Sprint 26 (P3 #1)
     is_archived: bool
     created_at: AwareDatetime
     updated_at: AwareDatetime

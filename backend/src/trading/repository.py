@@ -21,6 +21,10 @@ from src.trading.models import (
     ExchangeAccount,
     KillSwitchEvent,
     KillSwitchTriggerType,
+    LiveSignalEvent,
+    LiveSignalEventStatus,
+    LiveSignalSession,
+    LiveSignalState,
     Order,
     OrderState,
     WebhookSecret,
@@ -415,5 +419,289 @@ class WebhookSecretRepository:
             .where(WebhookSecret.strategy_id == strategy_id)  # type: ignore[arg-type]
             .where(WebhookSecret.revoked_at.is_(None))  # type: ignore[union-attr]
             .values(revoked_at=at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+
+# ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
+
+
+# interval → seconds CASE expression (list_active_due 에서 SQL-side 필터)
+_INTERVAL_SECONDS_CASE = (
+    "CASE interval "
+    "WHEN '1m'  THEN INTERVAL '60 seconds' "
+    "WHEN '5m'  THEN INTERVAL '300 seconds' "
+    "WHEN '15m' THEN INTERVAL '900 seconds' "
+    "WHEN '1h'  THEN INTERVAL '3600 seconds' "
+    "END"
+)
+
+
+class LiveSignalSessionRepository:
+    """Sprint 26 — Pine signal evaluate session CRUD + race-safe bar claim.
+
+    LESSON-019 commit-spy 의무 — Service mutation 메서드 마다 await commit().
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def save(self, sess: LiveSignalSession) -> LiveSignalSession:
+        self.session.add(sess)
+        await self.session.flush()
+        return sess
+
+    async def get_by_id(self, session_id: UUID) -> LiveSignalSession | None:
+        result = await self.session.execute(
+            select(LiveSignalSession).where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
+    async def list_active_by_user(self, user_id: UUID) -> Sequence[LiveSignalSession]:
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712  # type: ignore[arg-type]
+            .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
+    async def count_active_by_user(self, user_id: UUID) -> int:
+        """Sprint 26 quota check — 사용자별 active session ≤ 5."""
+        result = await self.session.execute(
+            select(func.count(LiveSignalSession.id))  # type: ignore[arg-type]
+            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712  # type: ignore[arg-type]
+        )
+        return int(result.scalar_one() or 0)
+
+    async def acquire_quota_lock(self, user_id: UUID) -> None:
+        """PG advisory xact lock — quota race 방어 (codex G.0 P3 #3 + plan §3 A.4).
+
+        partial unique index 와 함께 이중 방어 (Sprint 11 advisory pattern).
+        """
+        await self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+            {"k": f"live_session_quota:{user_id}"},
+        )
+
+    async def list_active_due(self, now: datetime) -> Sequence[LiveSignalSession]:
+        """interval 별 due session list — codex G.0 P2 #3 패턴 + plan §3 A.4.
+
+        is_active=true AND (last_evaluated_bar_time IS NULL
+                            OR last_evaluated_bar_time + interval_seconds <= now).
+        Beat task evaluate_live_signals 가 1분 fire 마다 호출.
+        """
+        # _INTERVAL_SECONDS_CASE 는 module-level constant (사용자 input X) — S608 false positive
+        stmt = text(
+            "SELECT * FROM trading.live_signal_sessions "  # noqa: S608
+            "WHERE is_active = true "
+            "AND (last_evaluated_bar_time IS NULL "
+            f"     OR last_evaluated_bar_time + ({_INTERVAL_SECONDS_CASE}) <= :now) "
+            "ORDER BY id"
+        )
+        result = await self.session.execute(stmt, {"now": now})
+        rows = result.mappings().all()
+        return [LiveSignalSession(**dict(row)) for row in rows]
+
+    async def try_claim_bar(
+        self, session_id: UUID, bar_time: datetime, claim_token: UUID
+    ) -> bool:
+        """codex G.0 P2 #3 — winner-only bar claim.
+
+        UPDATE WHERE id=session_id AND is_active=true AND
+        (last_evaluated_bar_time IS NULL OR last_evaluated_bar_time < bar_time).
+        rowcount==1 → True (claim 성공). 0 → False (다른 task 가 이미 claim 또는 같은 bar).
+
+        race-safe: 두 worker 가 같은 bar_time 으로 동시 호출해도 1번만 True 반환.
+        """
+        result = await self.session.execute(
+            update(LiveSignalSession)
+            .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .where(
+                or_(
+                    LiveSignalSession.last_evaluated_bar_time.is_(None),  # type: ignore[union-attr]
+                    LiveSignalSession.last_evaluated_bar_time < bar_time,  # type: ignore[operator,arg-type]
+                )
+            )
+            .values(
+                last_evaluated_bar_time=bar_time,
+                bar_claim_token=claim_token,
+                updated_at=datetime.now(UTC),
+            )
+        )
+        return (result.rowcount or 0) == 1  # type: ignore[attr-defined]
+
+    async def deactivate(self, session_id: UUID, *, at: datetime) -> int:
+        """is_active=False + deactivated_at. Service 가 commit 책임."""
+        result = await self.session.execute(
+            update(LiveSignalSession)
+            .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .values(is_active=False, deactivated_at=at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def get_state(self, session_id: UUID) -> LiveSignalState | None:
+        result = await self.session.execute(
+            select(LiveSignalState).where(LiveSignalState.session_id == session_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
+    async def upsert_state(
+        self,
+        *,
+        session_id: UUID,
+        last_strategy_state_report: dict[str, object],
+        last_open_trades_snapshot: dict[str, object],
+        total_closed_trades: int,
+        total_realized_pnl: Decimal,
+    ) -> LiveSignalState:
+        """INSERT ON CONFLICT DO UPDATE on session_id (1:1 with sessions).
+
+        Service 가 같은 트랜잭션에서 events INSERT + state upsert + commit (codex G.0 P1 #3).
+        """
+        existing = await self.get_state(session_id)
+        if existing is None:
+            state = LiveSignalState(
+                session_id=session_id,
+                last_strategy_state_report=last_strategy_state_report,
+                last_open_trades_snapshot=last_open_trades_snapshot,
+                total_closed_trades=total_closed_trades,
+                total_realized_pnl=total_realized_pnl,
+                updated_at=datetime.now(UTC),
+            )
+            self.session.add(state)
+            await self.session.flush()
+            return state
+        existing.last_strategy_state_report = last_strategy_state_report
+        existing.last_open_trades_snapshot = last_open_trades_snapshot
+        existing.total_closed_trades = total_closed_trades
+        existing.total_realized_pnl = total_realized_pnl
+        existing.updated_at = datetime.now(UTC)
+        await self.session.flush()
+        return existing
+
+
+class LiveSignalEventRepository:
+    """Sprint 26 — Transactional outbox repository (codex G.0 P1 #3).
+
+    insert_pending_events 가 같은 트랜잭션에서 events INSERT + state upsert + commit.
+    dispatch task 가 list_pending → OrderService.execute → mark_dispatched.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def get_by_id(self, event_id: UUID) -> LiveSignalEvent | None:
+        result = await self.session.execute(
+            select(LiveSignalEvent).where(LiveSignalEvent.id == event_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
+    async def insert_pending_events(
+        self,
+        *,
+        session_id: UUID,
+        bar_time: datetime,
+        signals: Sequence[dict[str, object]],
+    ) -> Sequence[LiveSignalEvent]:
+        """Pine signals → LiveSignalEvent INSERT (status=pending).
+
+        signals 각 dict: {action, direction, trade_id, qty, sequence_no, comment}.
+        UNIQUE (session_id, bar_time, sequence_no, action, trade_id) 가 idempotency 보장
+        — 같은 evaluate 가 두 번 fire 해도 INSERT 1번만 성공 (다른 INSERT 는 IntegrityError
+        대신 ON CONFLICT DO NOTHING 으로 silent skip).
+
+        codex G.0 P2 #5 sequence_no idempotency.
+        """
+        if not signals:
+            return []
+        # ON CONFLICT DO NOTHING — IntegrityError 회피하면서 idempotent INSERT
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        rows = [
+            {
+                "session_id": session_id,
+                "bar_time": bar_time,
+                "sequence_no": int(sig["sequence_no"]),  # type: ignore[call-overload]
+                "action": str(sig["action"]),
+                "direction": str(sig["direction"]),
+                "trade_id": str(sig["trade_id"]),
+                "qty": Decimal(str(sig["qty"])),
+                "comment": str(sig.get("comment", "")),
+            }
+            for sig in signals
+        ]
+        stmt = (
+            pg_insert(LiveSignalEvent)
+            .values(rows)
+            .on_conflict_do_nothing(constraint="uq_live_signal_events_idempotency")
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()
+        # 최종 상태 조회 (이미 존재하던 + 신규 모두 반환)
+        result = await self.session.execute(
+            select(LiveSignalEvent)
+            .where(LiveSignalEvent.session_id == session_id)  # type: ignore[arg-type]
+            .where(LiveSignalEvent.bar_time == bar_time)  # type: ignore[arg-type]
+            .order_by(LiveSignalEvent.sequence_no.asc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
+    async def list_pending(self, *, limit: int = 50) -> Sequence[LiveSignalEvent]:
+        """status=pending 만 — partial pending index 활용. dispatch worker 가 폴링용."""
+        result = await self.session.execute(
+            select(LiveSignalEvent)
+            .where(LiveSignalEvent.status == LiveSignalEventStatus.pending)  # type: ignore[arg-type]
+            .order_by(LiveSignalEvent.created_at.asc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        return result.scalars().all()
+
+    async def list_by_session(
+        self, session_id: UUID, *, limit: int = 100
+    ) -> Sequence[LiveSignalEvent]:
+        """UI 용 event log 조회 — 최신 순."""
+        result = await self.session.execute(
+            select(LiveSignalEvent)
+            .where(LiveSignalEvent.session_id == session_id)  # type: ignore[arg-type]
+            .order_by(LiveSignalEvent.created_at.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        return result.scalars().all()
+
+    async def mark_dispatched(self, event_id: UUID, *, order_id: UUID) -> int:
+        """dispatch_task 가 broker 발주 성공 시 호출. status=dispatched + order_id."""
+        result = await self.session.execute(
+            update(LiveSignalEvent)
+            .where(LiveSignalEvent.id == event_id)  # type: ignore[arg-type]
+            .where(LiveSignalEvent.status == LiveSignalEventStatus.pending)  # type: ignore[arg-type]
+            .values(
+                status=LiveSignalEventStatus.dispatched,
+                order_id=order_id,
+                dispatched_at=datetime.now(UTC),
+            )
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def mark_failed(self, event_id: UUID, *, error: str) -> int:
+        """KillSwitch / NotionalCap / 기타 실패 시 status=failed + retry_count+1."""
+        result = await self.session.execute(
+            update(LiveSignalEvent)
+            .where(LiveSignalEvent.id == event_id)  # type: ignore[arg-type]
+            .where(LiveSignalEvent.status == LiveSignalEventStatus.pending)  # type: ignore[arg-type]
+            .values(
+                status=LiveSignalEventStatus.failed,
+                error_message=error[:2000],
+                retry_count=LiveSignalEvent.retry_count + 1,
+            )
         )
         return result.rowcount or 0  # type: ignore[attr-defined]

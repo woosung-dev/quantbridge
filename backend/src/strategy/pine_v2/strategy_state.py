@@ -88,6 +88,28 @@ class Trade:
 
 
 @dataclass
+class TradeEvent:
+    """Sprint 26 codex G.0 P1 #2 — bar-level entry/close/fill event log.
+
+    `run_live` (Phase B) 가 마지막 bar 의 event 만 LiveSignalEvent outbox 로
+    변환. final-state diff 방식은 same-bar entry+close 를 entry 로 감지 못 함 →
+    명시적 event log 가 필요.
+
+    sequence_no: 같은 bar 안 event 순서 (0-based). same-bar entry+close 시
+    entry sequence_no=0 + close sequence_no=1.
+    """
+
+    bar_index: int
+    action: Literal["entry", "close", "fill"]
+    direction: Direction
+    trade_id: str
+    qty: float
+    price: float
+    sequence_no: int
+    comment: str = ""
+
+
+@dataclass
 class StrategyState:
     """포지션 상태 + 체결 기록.
 
@@ -100,6 +122,38 @@ class StrategyState:
     pending_orders: dict[str, PendingOrder] = field(default_factory=dict)
     # 경고/미지원 파라미터 추적 (`limit=`, `trail_points=` 등) — 사용자에게 알림용
     warnings: list[str] = field(default_factory=list)
+    # Sprint 26 codex G.0 P1 #2 — bar-level event log. `run_live` 가 마지막 bar 의
+    # entry/close 만 LiveSignalEvent outbox 로 변환. same-bar entry+close 회귀 방어.
+    events: list[TradeEvent] = field(default_factory=list)
+
+    def _next_sequence_no(self, bar: int) -> int:
+        """같은 bar 안 event 순서 (0-based)."""
+        return sum(1 for e in self.events if e.bar_index == bar)
+
+    def _record_event(
+        self,
+        *,
+        bar: int,
+        action: Literal["entry", "close", "fill"],
+        direction: Direction,
+        trade_id: str,
+        qty: float,
+        price: float,
+        comment: str = "",
+    ) -> None:
+        """TradeEvent 추가 — sequence_no 자동 할당."""
+        self.events.append(
+            TradeEvent(
+                bar_index=bar,
+                action=action,
+                direction=direction,
+                trade_id=trade_id,
+                qty=qty,
+                price=price,
+                sequence_no=self._next_sequence_no(bar),
+                comment=comment,
+            )
+        )
 
     # ---- 포지션 정보 (strategy.position_size 등 built-in 응답) -------
 
@@ -204,6 +258,16 @@ class StrategyState:
             comment=comment,
         )
         self.open_trades[trade_id] = trade
+        # Sprint 26 P1 #2 — 시장가 entry event log
+        self._record_event(
+            bar=bar,
+            action="entry",
+            direction=direction,
+            trade_id=trade_id,
+            qty=qty,
+            price=fill_price,
+            comment=comment,
+        )
         return trade
 
     def close(
@@ -226,6 +290,16 @@ class StrategyState:
         sign = 1.0 if trade.direction == "long" else -1.0
         trade.pnl = (fill_price - trade.entry_price) * trade.qty * sign
         self.closed_trades.append(trade)
+        # Sprint 26 P1 #2 — close event log (same-bar entry+close 모두 포착)
+        self._record_event(
+            bar=bar,
+            action="close",
+            direction=trade.direction,
+            trade_id=trade_id,
+            qty=trade.qty,
+            price=fill_price,
+            comment=comment,
+        )
         return trade
 
     def close_all(self, *, bar: int, fill_price: float) -> list[Trade]:
@@ -276,6 +350,16 @@ class StrategyState:
                 comment=order.comment,
             )
             self.open_trades[order_id] = trade
+            # Sprint 26 P1 #2 — pending fill event (action=fill 로 entry 와 구분)
+            self._record_event(
+                bar=bar,
+                action="fill",
+                direction=order.direction,
+                trade_id=order_id,
+                qty=order.qty,
+                price=fill_price,
+                comment=order.comment,
+            )
             filled.append(trade)
             to_remove.append(order_id)
         for oid in to_remove:

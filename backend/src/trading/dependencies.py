@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.common.database import get_async_session
 from src.core.config import settings
 from src.strategy.models import Strategy
+from src.strategy.repository import StrategyRepository
 from src.trading.encryption import EncryptionService
 from src.trading.kill_switch import (
     CumulativeLossEvaluator,
@@ -25,11 +26,13 @@ from src.trading.providers import BybitFuturesProvider
 from src.trading.repository import (
     ExchangeAccountRepository,
     KillSwitchEventRepository,
+    LiveSignalSessionRepository,
     OrderRepository,
     WebhookSecretRepository,
 )
 from src.trading.service import (
     ExchangeAccountService,
+    LiveSignalSessionService,
     OrderDispatcher,
     OrderService,
     WebhookSecretService,
@@ -159,4 +162,20 @@ async def get_order_service(
         sessions_port=_StrategySessionsAdapter(session),
         # Sprint 8+ notional check: qty x price x leverage ≤ available x max_leverage x 0.95
         exchange_service=exchange_service,
+    )
+
+
+# ── Sprint 26: LiveSignalSessionService ──────────────────────────────
+async def get_live_signal_session_service(
+    session: AsyncSession = Depends(get_async_session),
+) -> LiveSignalSessionService:
+    """Sprint 26 — Live Signal Auto-Trading session 등록/조회/종료.
+
+    동일 session 으로 LiveSignalSessionRepository + ExchangeAccountRepository +
+    StrategyRepository 주입 — 단일 트랜잭션 commit 보장 (LESSON-019 cross-repo 패턴).
+    """
+    return LiveSignalSessionService(
+        repo=LiveSignalSessionRepository(session),
+        account_repo=ExchangeAccountRepository(session),
+        strategy_repo=StrategyRepository(session),
     )

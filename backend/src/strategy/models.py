@@ -65,6 +65,14 @@ class Strategy(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSONB, nullable=True, server_default="[]"),
     )
+    # Sprint 26: Live Signal Auto-Trading 의 trading params (leverage / margin_mode /
+    # position_size_pct). StrategySettings Pydantic schema 가 read path 에서 validate.
+    # None = unset (Live Signal 시작 차단), dict = StrategySettings 통과 시만 active 허용.
+    # schema_version 컬럼 P3 #2 — 향후 schema migration 안전성.
+    settings: dict[str, object] | None = Field(
+        default=None,
+        sa_column=Column(JSONB, nullable=True),
+    )
     is_archived: bool = Field(default=False, index=True, nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

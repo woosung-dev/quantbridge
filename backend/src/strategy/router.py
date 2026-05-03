@@ -21,7 +21,9 @@ from src.strategy.schemas import (
     StrategyCreateResponse,
     StrategyListResponse,
     StrategyResponse,
+    StrategySettings,
     UpdateStrategyRequest,
+    UpdateStrategySettingsRequest,
 )
 from src.strategy.service import StrategyService
 from src.trading.dependencies import get_webhook_secret_service
@@ -111,6 +113,24 @@ async def delete_strategy(
     service: StrategyService = Depends(get_strategy_service),
 ) -> None:
     await service.delete(strategy_id=strategy_id, owner_id=current_user.id)
+
+
+@router.put("/{strategy_id}/settings", response_model=StrategyResponse)
+async def update_strategy_settings(
+    data: UpdateStrategySettingsRequest,
+    strategy_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: StrategyService = Depends(get_strategy_service),
+) -> StrategyResponse:
+    """Sprint 26 — Live Signal Auto-Trading prereq.
+
+    leverage / margin_mode / position_size_pct 저장. Live Session register 시
+    StrategySettings.model_validate 가 read path validation (codex G.0 P2 #4).
+    """
+    settings = StrategySettings(**data.model_dump())
+    return await service.update_settings(
+        strategy_id=strategy_id, owner_id=current_user.id, settings=settings
+    )
 
 
 # ── Webhook Secret Rotation (T19) ────────────────────────────────────
