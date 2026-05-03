@@ -26,6 +26,7 @@ from src.strategy.schemas import (
     StrategyListItem,
     StrategyListResponse,
     StrategyResponse,
+    StrategySettings,
     UpdateStrategyRequest,
 )
 
@@ -278,6 +279,28 @@ class StrategyService:
 
         updated = await self.repo.update(strategy)
         await self.repo.commit()
+        return StrategyResponse.model_validate(updated)
+
+    async def update_settings(
+        self,
+        *,
+        strategy_id: UUID,
+        owner_id: UUID,
+        settings: StrategySettings,
+    ) -> StrategyResponse:
+        """Sprint 26 — Live Signal Auto-Trading prereq.
+
+        leverage / margin_mode / position_size_pct 저장. None = unset (Live Signal 시작 차단).
+        StrategySettings.model_validate 가 router 단에서 통과 → service 는 dump 후 저장만.
+        LESSON-019 commit-spy 의무 — repo.commit() 호출.
+        """
+        strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
+        if strategy is None:
+            raise StrategyNotFoundError()
+
+        strategy.settings = settings.model_dump()
+        updated = await self.repo.update(strategy)
+        await self.repo.commit()  # LESSON-019 — broken bug 재발 방어 (Sprint 6/13/15-A 패턴)
         return StrategyResponse.model_validate(updated)
 
     async def delete(self, *, strategy_id: UUID, owner_id: UUID) -> None:

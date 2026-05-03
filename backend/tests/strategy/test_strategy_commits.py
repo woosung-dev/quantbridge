@@ -116,3 +116,47 @@ async def test_delete_calls_repo_commit() -> None:
 
     repo.delete.assert_awaited_once()
     repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_settings_calls_repo_commit() -> None:
+    """Sprint 26 LESSON-019 spy: update_settings() 가 repo.commit() 호출 강제."""
+    from src.strategy.schemas import StrategySettings
+    from src.strategy.service import StrategyService
+
+    repo = AsyncMock()
+    existing = _make_strategy()
+    repo.find_by_id_and_owner = AsyncMock(return_value=existing)
+    repo.update = AsyncMock(return_value=existing)
+
+    svc = StrategyService(repo=repo)
+
+    settings = StrategySettings(leverage=2, margin_mode="cross", position_size_pct=10)
+    await svc.update_settings(
+        strategy_id=existing.id, owner_id=existing.user_id, settings=settings
+    )
+
+    repo.update.assert_awaited_once()
+    repo.commit.assert_awaited_once()  # ← broken bug 재발 방어
+
+
+@pytest.mark.asyncio
+async def test_update_settings_404_does_not_commit() -> None:
+    """Sprint 26: 404 (ownership 위반 또는 미존재) 시 commit 호출 0 — 의도치 않은 변경 차단."""
+    from src.strategy.exceptions import StrategyNotFoundError
+    from src.strategy.schemas import StrategySettings
+    from src.strategy.service import StrategyService
+
+    repo = AsyncMock()
+    repo.find_by_id_and_owner = AsyncMock(return_value=None)
+
+    svc = StrategyService(repo=repo)
+
+    settings = StrategySettings(leverage=2, margin_mode="cross", position_size_pct=10)
+    with pytest.raises(StrategyNotFoundError):
+        await svc.update_settings(
+            strategy_id=uuid4(), owner_id=uuid4(), settings=settings
+        )
+
+    repo.update.assert_not_called()
+    repo.commit.assert_not_called()
