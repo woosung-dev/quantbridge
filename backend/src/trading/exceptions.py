@@ -69,6 +69,24 @@ class ProviderError(AppException):
     code = "provider_error"
 
 
+class UnsupportedExchangeError(ProviderError):
+    """dispatch 시점 (exchange, mode, has_leverage) tuple 미지원 — Sprint 22 BL-091.
+
+    ProviderError 상속 = `tasks/trading.py:_execute_with_session` 의 `except ProviderError`
+    가 자동 catch → Order graceful `rejected` 전이 + `qb_active_orders.dec()` (winner-only).
+    fetch 분기 (`_fetch_order_status_with_session`) 도 동일 패턴.
+    """
+
+    status_code = 502
+    code = "unsupported_exchange"
+
+    def __init__(self, key: tuple[object, ...]) -> None:
+        super().__init__(
+            f"Unsupported (exchange, mode, has_leverage): {key}"
+        )
+        self.key = key
+
+
 class TradingSessionClosed(AppException):
     """요청 시점이 전략의 허용 trading_sessions 밖. Sprint 7d.
 

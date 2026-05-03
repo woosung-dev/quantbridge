@@ -153,7 +153,7 @@ async def test_async_execute_uses_bybit_futures_provider_with_leverage(
     )
 
     fake_provider = _CapturingFuturesProvider()
-    monkeypatch.setattr(task_mod, "_exchange_provider", fake_provider)
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: fake_provider)
 
     result = await task_mod._async_execute(order.id)
 
@@ -165,15 +165,30 @@ async def test_async_execute_uses_bybit_futures_provider_with_leverage(
     assert fake_provider.captured["quantity"] == Decimal("0.001")
 
 
-def test_build_exchange_provider_dispatches_bybit_futures(monkeypatch: pytest.MonkeyPatch) -> None:
-    """settings.exchange_provider='bybit_futures' → BybitFuturesProvider 인스턴스 반환."""
+def test_build_exchange_provider_dispatches_bybit_futures() -> None:
+    """Sprint 22 BL-091: ExchangeAccount(bybit, demo) + OrderSubmit(leverage=5)
+    → BybitFuturesProvider. settings.exchange_provider 의존 제거."""
+    from uuid import uuid4
+
     import src.tasks.trading as task_mod
-    from src.trading.providers import BybitFuturesProvider
+    from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
+    from src.trading.providers import BybitFuturesProvider, OrderSubmit
 
-    # lru_cache된 settings 객체에 직접 속성 교체 (monkeypatch가 자동 복구)
-    monkeypatch.setattr(task_mod.settings, "exchange_provider", "bybit_futures")
-    # lazy singleton 초기화 우회
-    monkeypatch.setattr(task_mod, "_exchange_provider", None)
-
-    provider = task_mod._build_exchange_provider()
+    account = ExchangeAccount(
+        user_id=uuid4(),
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"x",
+        api_secret_encrypted=b"x",
+    )
+    submit = OrderSubmit(
+        symbol="BTCUSDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        leverage=5,
+        margin_mode="cross",
+    )
+    provider = task_mod._build_exchange_provider(account, submit)
     assert isinstance(provider, BybitFuturesProvider)

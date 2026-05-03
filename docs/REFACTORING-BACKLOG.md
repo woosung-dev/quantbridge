@@ -424,23 +424,27 @@
 ### Sprint 20+ 이관 BL (Sprint 19 codex G.2 P2 잔존 + Sprint 18 BL-082)
 
 | ID                | 제목                                                                                                           | Priority | Est       |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- | -------- | --------- |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- | -------- | --------- | ----------------------- |
 | **BL-086 (신규)** | AST audit factory function detection (codex G.2 P2 #1 Sprint 19) — `_MODULE_LOCK = _make_lock()` 패턴 catch    | P3       | S (1-2h)  |
 | **BL-087 (신규)** | AST audit target glob `src/tasks/**/*.py` (codex G.2 P2 #2 Sprint 19) — manual list bypass 방어                | P3       | S (30min) |
 | **BL-088 (신규)** | `drain_pending_alerts()` helper (codex G.2 P2 #3 Sprint 19) — production drain 사용처 추가 시 idempotent guard | P3       | S (1h)    |
 | **BL-089 (신규)** | `qb_pending_alerts` Grafana alert wire-up (>50 임계)                                                           | P2       | S (1-2h)  |
 | **BL-090 (신규)** | `tests/db_url.py` 분리 (codex G.2 P3 #1 Sprint 19) — test_migrations 의 conftest import 정리                   | P3       | S (30min) |
-| **BL-091 (신규)** | ExchangeAccount.mode 무시 + EXCHANGE_PROVIDER env 누락 시 silent fixture fallback (Sprint 20 dogfood Day 0)    | **P1**   | M (1-2일) |
+| **BL-091**        | ExchangeAccount.mode dynamic dispatch (3-tuple proper fix)                                                     | **P1**   | M (1-2일) | ✅ Resolved (Sprint 22) |
+| **BL-102 (신규)** | Order 에 dispatch 시점 (exchange, mode, has_leverage) snapshot 저장 (Sprint 22 G.2 P2 #3)                      | P2       | M (1-2일) |
+| **BL-103 (신규)** | EXCHANGE_PROVIDER non-default startup warning 또는 필드 제거 (Sprint 22 G.2 P2 #5)                             | P3       | S (1-2h)  |
 
-**BL-091 상세** (Sprint 20 dogfood Day 0 라이브 발견, 2026-05-02):
+**BL-091 상세** (Sprint 20 dogfood Day 0 라이브 발견 → Sprint 22 ✅ Resolved 2026-05-03):
 
 - **증상**: 사용자가 `/trading` 의 TestOrderDialog 로 발송 → UI "filled" + DB `state=filled` 표시. 하지만 `exchange_order_id='fixture-1'` + `filled_price=50000.00` (round number) = mock 응답. **broker 까지 안 감**.
-- **Root cause**: `backend/src/tasks/trading.py:_build_exchange_provider()` (line 77-99) 가 `settings.exchange_provider` (Pydantic env) 기반 lazy singleton. **ExchangeAccount.mode (demo/live) 완전 무시**. + `docker-compose.yml` worker/beat env 에 `EXCHANGE_PROVIDER` 누락 (Sprint 20 hot-fix 로 추가) → Pydantic default `"fixture"` 적용 → `FixtureExchangeProvider()` 반환.
-- **사용자 신뢰 위반**: ExchangeAccount UI 에서 mode=demo 명시 + Bybit Demo API key 등록했는데도 worker 가 fixture 응답. **dogfood 의 본질 위반** (사용자가 broker 호출 의도 표시했는데 silent mock).
-- **Sprint 20 hot-fix** (Day 0 적용): `.env` 에 `EXCHANGE_PROVIDER=bybit_demo` + `docker-compose.yml` worker/beat 에 `EXCHANGE_PROVIDER: ${EXCHANGE_PROVIDER:-fixture}` 추가. **단 이건 mitigation — proper fix 아님**.
-- **Proper fix (Sprint 21+)**: `_get_exchange_provider(account: ExchangeAccount) -> ExchangeProvider` 으로 시그니처 변경. account 의 `(exchange, mode)` tuple 기반 dynamic dispatch. `settings.exchange_provider` 는 fallback 또는 deprecation.
-- **추가 검증 의무**: live broker dogfood 시나리오 자동화 — `tests/integration/test_dogfood_live_broker.py` 추가. `exchange_order_id` 가 `fixture-*` 패턴 안 시작하는지 assert.
-- **Sprint 17 Phase D dead env 와 별개**: Sprint 17 의 EXCHANGE_PROVIDER 이슈는 다른 맥락. 이번은 docker compose env 누락.
+- **Root cause**: `backend/src/tasks/trading.py:_build_exchange_provider()` 가 `settings.exchange_provider` (Pydantic env) 기반 lazy singleton. **ExchangeAccount.mode (demo/live) 완전 무시**. + `docker-compose.yml` worker/beat env 에 `EXCHANGE_PROVIDER` 누락 (Sprint 20 hot-fix 로 추가) → Pydantic default `"fixture"` 적용 → `FixtureExchangeProvider()` 반환.
+- **사용자 신뢰 위반**: ExchangeAccount UI 에서 mode=demo 명시 + Bybit Demo API key 등록했는데도 worker 가 fixture 응답. **dogfood 의 본질 위반**.
+- **Sprint 20 hot-fix** (Day 0 적용): `.env` 에 `EXCHANGE_PROVIDER=bybit_demo` + `docker-compose.yml` 에 env 추가. **mitigation — proper fix 아님**.
+- **Sprint 22 proper fix ✅**: `_provider_for_account_and_leverage(exchange, mode, has_leverage)` 3-tuple dispatch + `_build_exchange_provider(account, submit)` public dispatcher. module-level `_exchange_provider` global + `_get_exchange_provider()` 제거. `UnsupportedExchangeError(ProviderError)` 로 graceful rejected. BybitLiveProvider stub (`create_order/cancel_order/fetch_order` 모두 ProviderError raise) — BL-003 까지 deferred. dispatch tuple 에 fixture 분기 부재로 silent fallback 자동 차단. ExchangeAccount.mode mutation endpoint 부재 (PUT/PATCH 없음) audit test 로 race-free 보장. docker-compose env 제거 + .env.example deprecation 주석.
+- **codex G.0 (medium) 결과**: P1 5건 (live/stub 충돌 / UnsupportedExchangeError graceful catch 누락 / Protocol cancel_order 누락 / EXCHANGE_PROVIDER 정책 모순 / account.mode race) + P2 5건 (leverage=0 / monkeypatch 카운트 / e2e 마이그레이션 / fixture guard scope / 헤더 주석) 모두 plan v2 반영 후 구현.
+- **검증**: 신규 28 tests (test_provider_dispatch.py 27 + test_account_mode_immutable.py 1) 100% pass + 21건 monkeypatch 마이그레이션 회귀 0 fail. 전체 1342 passed / 27 skipped / 0 failed (격리 stack). ruff 0 / mypy 0 (145 src files).
+- **Files**: `backend/src/tasks/trading.py` · `backend/src/trading/providers.py` (BybitLiveProvider) · `backend/src/trading/exceptions.py` (UnsupportedExchangeError) · `backend/src/core/config.py` · `docker-compose.yml` · `.env.example` · `backend/src/tasks/funding.py` (docstring) · 신규 `tests/tasks/test_provider_dispatch.py` + `tests/trading/test_account_mode_immutable.py`.
+- **Trigger Sprint 23+**: dogfood Day 2-7 broker 도달 evidence (BrokerBadge 녹색 broker) ✅ → Path A Beta 오픈 (BL-070~072). 🔴 → 회귀 분석.
 
 | **BL-092 (신규)** | `qb_active_orders` filled/cancelled 후 dec 누락 (Sprint 20 dogfood Day 0) | P2 | S (분석 + 1-line fix) |
 | **BL-093 (신규)** | TestOrderDialog 성공 시 명시적 confirmation (toast/inline) 부재 — dialog 자동 닫힘만 | P3 | S (1h) |

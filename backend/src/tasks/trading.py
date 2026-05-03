@@ -5,7 +5,14 @@ Task 16: pending → submitted → provider.create_order → filled/rejected.
 
 Sprint 17 Phase C (codex G.0 P1 #1 격상): module-level _worker_engine 제거.
 매 task 마다 fresh engine + finally dispose (backtest.py / funding.py mirror).
-- `_exchange_provider` 는 stateless lazy singleton 유지 (Connection 미보유).
+
+Sprint 22 BL-091: provider dispatch 가 (account.exchange, account.mode,
+has_leverage) 3-tuple 기반 dynamic. settings.exchange_provider 는 dispatch path
+에서 더 이상 참조 안 됨 (test_config.py 호환용 dead config).
+- `_provider_for_account_and_leverage(exchange, mode, has_leverage)` = 본체
+- `_build_exchange_provider(account, submit)` = create_order path public dispatcher
+- fetch 분기는 OrderSubmit 부재 → Order.leverage 직접 사용
+- UnsupportedExchangeError(ProviderError) → line 214 except 자동 catch (graceful rejected)
 """
 
 from __future__ import annotations
@@ -28,8 +35,12 @@ from src.common.metrics import qb_active_orders
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.trading.encryption import EncryptionService
-from src.trading.exceptions import OrderNotFound, ProviderError
-from src.trading.models import ExchangeAccount, OrderState
+from src.trading.exceptions import (
+    OrderNotFound,
+    ProviderError,
+    UnsupportedExchangeError,
+)
+from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName, OrderState
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
 from src.trading.repository import OrderRepository
 
@@ -61,42 +72,88 @@ def create_worker_engine_and_sm() -> (
 
 
 # ---------------------------------------------------------------------------
-# ExchangeProvider singleton (prefork-safe lazy init)
+# ExchangeProvider dynamic dispatch — Sprint 22 BL-091
 # ---------------------------------------------------------------------------
-_exchange_provider: ExchangeProvider | None = None
+# 기존 module-level `_exchange_provider: ExchangeProvider | None` lazy singleton 제거.
+# multi-account 사용자가 demo / live 동시 운용 시 process env 기반 라우팅이
+# silent broker bypass 일으킴 (Sprint 20 dogfood Day 0 발견).
+# 이제 (account.exchange, account.mode, has_leverage) 3-tuple 로 호출마다 dispatch.
 
 
-def _get_exchange_provider() -> ExchangeProvider:
-    """Lazy singleton — dispatches on settings.exchange_provider."""
-    global _exchange_provider
-    if _exchange_provider is None:
-        _exchange_provider = _build_exchange_provider()
-    return _exchange_provider
+def _has_leverage(submit_or_order: Any) -> bool:
+    """leverage 가 not null AND numeric > 0 일 때만 futures.
+
+    P2 #1 보정 (Sprint 22 G.0): OrderRequest schema 는 leverage Field(ge=1) 강제하지만,
+    DB 컬럼 자체에는 CHECK 제약 없음. legacy/zero row 또는 service 우회 직접 INSERT 방어.
+
+    P2 #2 보정 (Sprint 22 G.2): legacy/manual mutation 으로 leverage 가 string ("0")
+    Decimal 등 비-int 타입이면 `lev > 0` 이 TypeError → ProviderError catch 밖 전파
+    → task 실패. int/Decimal/float 만 허용, 그 외 type 은 spot (False) 로 분류.
+    """
+    from decimal import Decimal
+
+    lev = getattr(submit_or_order, "leverage", None)
+    if lev is None:
+        return False
+    if not isinstance(lev, (int, Decimal, float)):
+        return False
+    if isinstance(lev, bool):  # bool is subclass of int → 명시 제외
+        return False
+    return lev > 0
 
 
-def _build_exchange_provider() -> ExchangeProvider:
-    """Factory — settings.exchange_provider → concrete provider."""
-    provider_name = settings.exchange_provider
-    if provider_name == "fixture":
-        from src.trading.providers import FixtureExchangeProvider
+def _provider_for_account_and_leverage(
+    exchange: ExchangeName,
+    mode: ExchangeMode,
+    has_leverage: bool,
+) -> ExchangeProvider:
+    """Dispatch 본체. (exchange, mode, has_leverage) 3-tuple → concrete provider.
 
-        return FixtureExchangeProvider()
-    elif provider_name == "bybit_demo":
+    호출자는 OrderSubmit 또는 Order 어느 쪽이든 leverage 추출 후 호출.
+    fetch_order 분기는 OrderSubmit 부재 → Order.leverage 직접 사용.
+
+    실패 정책 (P1 #2):
+    - 미지원 조합 → UnsupportedExchangeError(ProviderError) raise
+    - 호출처 (`_execute_with_session` line 214 / `_fetch_order_status_with_session`)
+      의 `except ProviderError` 가 자동 catch → Order graceful `rejected` 전이.
+    """
+    key = (exchange, mode, has_leverage)
+
+    if key == (ExchangeName.bybit, ExchangeMode.demo, False):
         from src.trading.providers import BybitDemoProvider
 
         return BybitDemoProvider()
-    elif provider_name == "bybit_futures":
+    if key == (ExchangeName.bybit, ExchangeMode.demo, True):
         # Sprint 7a: Bybit Linear Perpetual (USDT margined) demo.
         from src.trading.providers import BybitFuturesProvider
 
         return BybitFuturesProvider()
-    elif provider_name == "okx_demo":
+    if key == (ExchangeName.okx, ExchangeMode.demo, False):
         # Sprint 7d: OKX Spot sandbox via CCXT (passphrase required).
         from src.trading.providers import OkxDemoProvider
 
         return OkxDemoProvider()
-    else:
-        raise ValueError(f"Unknown exchange_provider: {provider_name}")
+    if exchange == ExchangeName.bybit and mode == ExchangeMode.live:
+        # P1 #1: stub 이 dispatch 결과로 실제 사용. create_order/fetch_order/cancel
+        # 안에서 ProviderError raise → P1 #2 의 graceful rejected 전이.
+        # BL-003 mainnet runbook 완료 후 본격 구현으로 교체.
+        from src.trading.providers import BybitLiveProvider
+
+        return BybitLiveProvider()
+    raise UnsupportedExchangeError(key)
+
+
+def _build_exchange_provider(
+    account: ExchangeAccount, submit: OrderSubmit
+) -> ExchangeProvider:
+    """Public dispatcher for create_order path.
+
+    fetch 분기는 `_provider_for_account_and_leverage(account.exchange, account.mode,
+    _has_leverage(order))` 를 직접 호출 (OrderSubmit 부재).
+    """
+    return _provider_for_account_and_leverage(
+        account.exchange, account.mode, _has_leverage(submit)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -193,9 +250,8 @@ async def _execute_with_session(
                 "error_message": error_msg,
             }
 
-        # 4. Call exchange provider
+        # 4. Call exchange provider — Sprint 22 BL-091 dynamic dispatch.
         try:
-            provider = _get_exchange_provider()
             order_submit = OrderSubmit(
                 symbol=order.symbol,
                 side=order.side,
@@ -210,6 +266,10 @@ async def _execute_with_session(
                 # WebSocket order event 가 이 값으로 local DB row 매핑.
                 client_order_id=str(order.id),
             )
+            # Sprint 22 BL-091: account + submit 기반 3-tuple dispatch.
+            # UnsupportedExchangeError(ProviderError) 또는 BybitLiveProvider stub 의
+            # ProviderError 모두 아래 except 가 graceful 처리.
+            provider = _build_exchange_provider(account, order_submit)
             receipt = await provider.create_order(creds, order_submit)
         except ProviderError as e:
             error_msg = f"provider_failure: {e}"
@@ -447,8 +507,13 @@ async def _fetch_order_status_with_session(
             )
             return {"order_id": str(order_id), "skipped": "decrypt_failed"}
 
-        provider = _get_exchange_provider()
+        # Sprint 22 BL-091: fetch 분기는 OrderSubmit 부재 → Order.leverage 직접 사용.
+        # UnsupportedExchangeError(ProviderError) 도 아래 except 가 자동 catch
+        # → silent skip → watchdog retry → max attempts 후 alert.
         try:
+            provider = _provider_for_account_and_leverage(
+                account.exchange, account.mode, _has_leverage(order)
+            )
             status_fetch = await provider.fetch_order(creds, order.exchange_order_id, order.symbol)
         except ProviderError as e:
             # codex G.2 P1 #2 fix — provider 일시 장애 (rate limit / auth /

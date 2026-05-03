@@ -134,8 +134,8 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
-        "_exchange_provider",
-        FixtureExchangeProvider(fetch_status_override="filled"),
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="filled"),
     )
 
     # qb_active_orders 호출 spy
@@ -168,8 +168,8 @@ async def test_fetch_order_status_cancelled_transitions(
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
-        "_exchange_provider",
-        FixtureExchangeProvider(fetch_status_override="cancelled"),
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="cancelled"),
     )
     dec_calls = {"n": 0}
     monkeypatch.setattr(
@@ -197,8 +197,8 @@ async def test_fetch_order_status_rejected_transitions(
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
-        "_exchange_provider",
-        FixtureExchangeProvider(fetch_status_override="rejected"),
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="rejected"),
     )
     dec_calls = {"n": 0}
     monkeypatch.setattr(
@@ -232,8 +232,8 @@ async def test_fetch_order_status_still_submitted_returns_retry_signal(
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
-        "_exchange_provider",
-        FixtureExchangeProvider(fetch_status_override="submitted"),
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="submitted"),
     )
     monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_alert", lambda: _MockRedisPool())
 
@@ -265,8 +265,8 @@ async def test_fetch_order_status_max_attempts_alerts_and_giveup(
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
-        "_exchange_provider",
-        FixtureExchangeProvider(fetch_status_override="submitted"),
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="submitted"),
     )
 
     pool = _MockRedisPool()
@@ -302,8 +302,8 @@ async def test_fetch_order_status_alert_throttled_on_second_giveup(
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
-        "_exchange_provider",
-        FixtureExchangeProvider(fetch_status_override="submitted"),
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="submitted"),
     )
 
     pool = _MockRedisPool()
@@ -379,7 +379,7 @@ async def test_fetch_provider_error_returns_retry_signal_when_under_max(
         async def fetch_order(self, creds, eid, sym):  # type: ignore[no-untyped-def]
             raise ProviderError("rate limit exceeded")
 
-    monkeypatch.setattr(task_mod, "_exchange_provider", _FailingProvider())
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _FailingProvider())
     monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_alert", lambda: _MockRedisPool())
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
@@ -412,7 +412,7 @@ async def test_fetch_provider_error_alerts_at_max_attempts(
         async def fetch_order(self, creds, eid, sym):  # type: ignore[no-untyped-def]
             raise ProviderError("auth failed")
 
-    monkeypatch.setattr(task_mod, "_exchange_provider", _FailingProvider())
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _FailingProvider())
     monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_alert", lambda: _MockRedisPool())
 
     alert_calls: list[dict] = []
@@ -573,7 +573,7 @@ async def test_async_execute_submitted_enqueues_fetch_order_status_task(
         async def cancel_order(self, creds, eid):  # type: ignore[no-untyped-def]
             return None
 
-    monkeypatch.setattr(task_mod, "_exchange_provider", _Submitted())
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _Submitted())
 
     enqueued: list[tuple] = []
 

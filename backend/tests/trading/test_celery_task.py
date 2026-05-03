@@ -135,7 +135,7 @@ async def test_execute_order_task_transitions_pending_to_filled(
     # Session monkeypatch — Sprint 4 pattern
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
     # Provider monkeypatch — FixtureExchangeProvider 강제 (EXCHANGE_PROVIDER 환경변수 독립)
-    monkeypatch.setattr(task_mod, "_exchange_provider", FixtureExchangeProvider())
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: FixtureExchangeProvider())
 
     result = await task_mod._async_execute(order.id)
 
@@ -169,7 +169,7 @@ async def test_execute_order_task_transitions_to_rejected_on_provider_error(
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
 
     # Inject failing provider — bypass lazy singleton
-    monkeypatch.setattr(task_mod, "_exchange_provider", FixtureExchangeProvider(fail_next_n=1))
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: FixtureExchangeProvider(fail_next_n=1))
 
     result = await task_mod._async_execute(order.id)
 
@@ -237,7 +237,7 @@ async def test_execute_order_task_keeps_submitted_when_receipt_status_submitted(
 
     order, _acc = pending_order
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
-    monkeypatch.setattr(task_mod, "_exchange_provider", _SubmittedReceiptProvider())
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _SubmittedReceiptProvider())
     # Sprint 16 CI fix: Sprint 15 watchdog 가 _async_execute 의 submitted 분기에 추가한
     # fetch_order_status_task.apply_async 가 CI Celery result backend (Redis) 연결 retry
     # limit 초과 → RuntimeError. test 단위에서는 watchdog enqueue 를 no-op 으로 mock.
@@ -273,7 +273,7 @@ async def test_execute_order_task_transitions_to_rejected_when_receipt_status_re
 
     order, _acc = pending_order
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
-    monkeypatch.setattr(task_mod, "_exchange_provider", _RejectedReceiptProvider())
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _RejectedReceiptProvider())
 
     result = await task_mod._async_execute(order.id)
 
@@ -304,7 +304,7 @@ async def test_execute_order_task_calls_session_commit_on_submitted_path(
 
     order, _acc = pending_order
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
-    monkeypatch.setattr(task_mod, "_exchange_provider", _SubmittedReceiptProvider())
+    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _SubmittedReceiptProvider())
     # Sprint 16 CI fix — submitted 분기의 fetch_order_status_task.apply_async 우회 (Redis result backend retry limit).
     monkeypatch.setattr(
         task_mod.fetch_order_status_task,

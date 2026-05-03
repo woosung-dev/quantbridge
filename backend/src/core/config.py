@@ -82,9 +82,12 @@ class Settings(BaseSettings):
     exchange_provider: Literal["fixture", "bybit_demo", "bybit_futures", "okx_demo"] = Field(
         default="fixture",
         description=(
-            "ExchangeProvider 선택. "
-            "fixture=테스트, bybit_demo=Spot demo, bybit_futures=Linear Perp demo/live, "
-            "okx_demo=Sprint 7d OKX Spot sandbox."
+            "[DEPRECATED Sprint 22 BL-091 — dispatch path 에서 미사용] "
+            "Sprint 21 까지는 process-wide global 로 ExchangeProvider 결정. "
+            "Sprint 22 부터는 (account.exchange, account.mode, has_leverage) 3-tuple "
+            "기반 dynamic dispatch (`tasks/trading.py:_provider_for_account_and_leverage`). "
+            "본 필드는 H2 동안 test_config.py + funding.py 의 legacy 호환용 dead config. "
+            "Sprint 23+ 에서 제거 예정."
         ),
     )
     kill_switch_cumulative_loss_percent: Decimal = Field(
@@ -179,9 +182,7 @@ class Settings(BaseSettings):
         if not raw:
             return None
         if not raw.startswith("https://hooks.slack.com/"):
-            raise ValueError(
-                "SLACK_WEBHOOK_URL must start with https://hooks.slack.com/"
-            )
+            raise ValueError("SLACK_WEBHOOK_URL must start with https://hooks.slack.com/")
         return v
 
     # --- Sprint 11 Phase C: Waitlist ---
@@ -215,11 +216,7 @@ class Settings(BaseSettings):
     @property
     def waitlist_admin_emails(self) -> list[str]:
         """콤마 구분 문자열 → lowercase list[str]. 빈 값 → []."""
-        return [
-            s.strip().lower()
-            for s in self.waitlist_admin_emails_raw.split(",")
-            if s.strip()
-        ]
+        return [s.strip().lower() for s in self.waitlist_admin_emails_raw.split(",") if s.strip()]
 
     # CORS / URLs
     frontend_url: str = "http://localhost:3000"
