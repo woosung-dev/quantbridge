@@ -11,7 +11,7 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Index, LargeBinary, SQLModel
 
@@ -375,7 +375,10 @@ class LiveSignalSession(SQLModel, table=True):
         ),
     )
     symbol: str = Field(max_length=32, nullable=False)
-    interval: LiveSignalInterval = Field(nullable=False)
+    # Sprint 26 Phase D fix — Alembic 이 String(8) 로 컬럼 생성. SQLAlchemy 가 자동
+    # PG enum cast (`$N::livesignalinterval`) 시도해 UndefinedObjectError 발생하므로
+    # 명시적 String 컬럼 + Python-level StrEnum 으로 round-trip.
+    interval: LiveSignalInterval = Field(sa_column=Column("interval", String(8), nullable=False))
     is_active: bool = Field(default=True)
     last_evaluated_bar_time: datetime | None = Field(
         default=None,
@@ -493,7 +496,11 @@ class LiveSignalEvent(SQLModel, table=True):
     trade_id: str = Field(max_length=64, nullable=False)
     qty: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
     comment: str = Field(default="", max_length=200)
-    status: LiveSignalEventStatus = Field(default=LiveSignalEventStatus.pending)
+    # Sprint 26 Phase D fix — interval 과 동일 사유 (PG enum 미생성, String(16) 컬럼).
+    status: LiveSignalEventStatus = Field(
+        default=LiveSignalEventStatus.pending,
+        sa_column=Column("status", String(16), nullable=False, server_default="pending"),
+    )
     order_id: UUID | None = Field(
         default=None,
         sa_column=Column(

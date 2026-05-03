@@ -106,9 +106,7 @@ def _signal_to_order_side(action: str, direction: str) -> OrderSide:
     raise ValueError(f"Unsupported live-signal action: {action!r}")
 
 
-async def _heartbeat_extend(
-    lock: RedisLock, *, period_s: float, ttl_ms: int
-) -> None:
+async def _heartbeat_extend(lock: RedisLock, *, period_s: float, ttl_ms: int) -> None:
     """RedisLock heartbeat — TTL 만료 전 token CAS 로 PEXPIRE.
 
     codex G.0 P1 #4 fix: ttl_ms=60_000 + 20s 마다 heartbeat. evaluate task 가 60s
@@ -180,7 +178,9 @@ async def _async_evaluate_all() -> dict[str, Any]:
 
         results: list[dict[str, Any]] = []
         for sess in due_sessions:
-            res = await _async_evaluate_session(sess.id, sess.interval.value)
+            # Sprint 26 Phase D fix — interval/status 가 String 컬럼이라 SQLAlchemy 가
+            # raw str 반환. StrEnum cast 가 자동 안 되므로 str() 으로 정규화.
+            res = await _async_evaluate_session(sess.id, str(sess.interval))
             results.append({"session_id": str(sess.id), **res})
 
         return {"due_count": len(due_sessions), "evaluated": len(results), "results": results}
@@ -202,9 +202,7 @@ async def _async_evaluate_session(session_id: UUID, interval_value: str) -> dict
                 qb_live_signal_skipped_total.labels(reason="contention").inc()
                 return {"skipped": "contention"}
 
-            heartbeat = asyncio.create_task(
-                _heartbeat_extend(lock, period_s=20.0, ttl_ms=60_000)
-            )
+            heartbeat = asyncio.create_task(_heartbeat_extend(lock, period_s=20.0, ttl_ms=60_000))
             try:
                 outcome = await _evaluate_session_inner(session_id, interval_value)
             finally:
@@ -287,9 +285,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             # 4. CCXT fetch_ohlcv (P1 #6 closed-bar)
             provider = get_ccxt_provider_for_worker()
-            ohlcv_rows = await provider.fetch_ohlcv(
-                sess.symbol, sess.interval.value, limit_bars=300
-            )
+            ohlcv_rows = await provider.fetch_ohlcv(sess.symbol, str(sess.interval), limit_bars=300)
             if not ohlcv_rows:
                 qb_live_signal_evaluated_total.labels(
                     interval=interval_value, outcome="no_new_bar"
@@ -374,9 +370,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     expires=300,
                 )
 
-        qb_live_signal_evaluated_total.labels(
-            interval=interval_value, outcome="success"
-        ).inc()
+        qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()
         return {
             "evaluated": True,
             "events_inserted": len(new_events),
@@ -532,11 +526,13 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             event_repo = LiveSignalEventRepository(session)
             event = await event_repo.get_by_id(event_id)
             if event is None:
-                logger.warning("live_signal_dispatch_missing_event", extra={"event_id": str(event_id)})
+                logger.warning(
+                    "live_signal_dispatch_missing_event", extra={"event_id": str(event_id)}
+                )
                 return {"skipped": "missing"}
             if event.status != LiveSignalEventStatus.pending:
                 # 이미 dispatched / failed — duplicate apply_async 방어
-                return {"skipped": "already_terminal", "status": event.status.value}
+                return {"skipped": "already_terminal", "status": str(event.status)}
 
             sess_repo = LiveSignalSessionRepository(session)
             sess = await sess_repo.get_by_id(event.session_id)
@@ -643,9 +639,7 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             except (NotionalExceeded, LeverageCapExceeded, TradingSessionClosed) as exc:
                 await event_repo.mark_failed(event.id, error=str(exc))
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="rejected"
-                ).inc()
+                qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
                 raise
             except IdempotencyConflict as exc:
                 # 같은 idempotency_key 가 다른 payload — 복구 불가, mark_failed
@@ -659,9 +653,7 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             # OrderService.execute 가 self._session.commit() 내부 호출 — Order INSERT 영구화 완료.
             await event_repo.mark_dispatched(event.id, order_id=response.id)
             await event_repo.commit()
-            qb_live_signal_dispatch_total.labels(
-                action=event.action, outcome="dispatched"
-            ).inc()
+            qb_live_signal_dispatch_total.labels(action=event.action, outcome="dispatched").inc()
             return {"dispatched": str(response.id), "replayed": _replayed}
     finally:
         await engine.dispose()
