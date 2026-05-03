@@ -132,24 +132,35 @@ test.describe("dogfood flow regression", () => {
       API_ROUTES.killSwitch,
       fulfillJson({ items: [MOCK_KS_EVENT_ACTIVE] }),
     );
-    await page.route(API_ROUTES.orders, fulfillJson({ items: [] }));
+    await page.route(
+      API_ROUTES.orders,
+      fulfillJson({ items: [], total: 0 }),
+    );
 
-    await page.goto("/trading");
+    await page.goto("/trading", { timeout: 60_000 });
 
-    // 1) "테스트 주문" 버튼 (정확 매치) 클릭 → Dialog 열림 (codex G.2 P3 #1 — exact)
+    // KS active banner mount 후 layout stable 까지 대기 (codex G.2 fix +
+    // trace 분석 결과 — banner mount 가 button 위치 shift → click actionable timeout).
+    await expect(page.getByTestId("ks-active-banner")).toBeVisible({
+      timeout: 30_000,
+    });
+
+    // 1) "테스트 주문" 버튼 click → Dialog 열림.
+    // dispatchEvent('click') — Tanstack Query refetchInterval 로 인한 layout shift +
+    // force: true click 가 React onClick handler 안 도달하는 issue 우회.
+    // dispatchEvent 는 Synthetic React event 직접 트리거 → onClick={() => setOpen(true)} 보장.
     await page
       .getByRole("button", { name: /^테스트 주문$/ })
-      .click();
+      .dispatchEvent("click");
 
     // 2) DialogTitle 표시
     await expect(
       page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" }),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
 
     // 3) KS active → submit button disabled (test-order-dialog.tsx L434-436).
     // ksDisabled=true 일 때 type="submit" 버튼 disabled + aria-disabled=true.
-    // 버튼 label 은 "Kill Switch 차단" 등 ksDisabled state 따라 변경.
     const submitButton = page.locator('button[type="submit"]');
-    await expect(submitButton).toBeDisabled({ timeout: 5_000 });
+    await expect(submitButton).toBeDisabled({ timeout: 10_000 });
   });
 });

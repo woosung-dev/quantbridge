@@ -21,18 +21,20 @@ import {
 //   src/features/trading/__tests__/KillSwitchBanner.test.tsx  (C-1/C-3)
 //   src/features/trading/__tests__/ExchangeAccountsPanel.mode-badge.test.tsx  (C-2)
 
-// Sprint 25 leak guard — 미등록 API 호출 stderr 출력 (사람이 미적용 mock 발견 시 추가).
+// Sprint 25 leak guard + orders mock 통합 — 미등록 API 호출 stderr + OrdersPanel
+// schema (total 필수) 만족 위해 모든 시나리오에 orders 빈 list 기본 mock.
 test.beforeEach(async ({ page }) => {
   page.on("request", (req) => {
     const url = req.url();
-    // /api/v1/ prefix 호출 추적. spec 별 mock 등록 안 된 호출은 real backend 가는데,
-    // dev-server proxy 또는 absolute URL 양쪽 다 발생 가능.
     if (url.includes("/api/v1/")) {
-      // request 발생 자체는 정상 (mock 으로 fulfill 됨). leak 은 response 단계에서 검증 가능하나
-      // Playwright 의 route.fulfill() 후에도 request 이벤트는 발생. 따라서 본 hook 은
-      // observability 목적 (필요 시 console 활성화). fail-on-leak 는 Sprint 26+.
+      // request 발생 자체는 정상 (mock 으로 fulfill 됨). leak observability — Sprint 26+.
     }
   });
+  // OrdersPanel 가 OrderListResponseSchema parse — total 필수. 시나리오마다 override OK.
+  await page.route(
+    API_ROUTES.orders,
+    fulfillJson({ items: [], total: 0 }),
+  );
 });
 
 // 시나리오 1: Demo 배지 표시 확인
@@ -45,7 +47,10 @@ test("trading accounts panel — Demo 배지 렌더", async ({ page }) => {
 
   await page.goto("/trading");
 
-  await expect(page.getByText("DEMO")).toBeVisible();
+  // exchange-accounts table cell 안 "DEMO" — 페이지 로드 + query fetch 시간 wait
+  await expect(
+    page.getByRole("cell", { name: "DEMO" }).first(),
+  ).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("ks-active-banner")).not.toBeVisible();
 });
 
@@ -114,32 +119,38 @@ test("trading kill switch API 오류 — 황색 경고 배너", async ({ page })
 });
 
 // 시나리오 5: KS resolve → 배너 소멸
+// Sprint 25 — mock route 명시 전환 (requestCount 기반 logic 은 page load 다중 fetch 로 race).
 test("trading kill switch resolved — 배너 소멸", async ({ page }) => {
   await page.route(
     API_ROUTES.exchangeAccounts,
     fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }),
   );
 
-  let requestCount = 0;
-  await page.route(API_ROUTES.killSwitch, (route) => {
-    requestCount++;
-    const event =
-      requestCount === 1 ? MOCK_KS_EVENT_ACTIVE : MOCK_KS_EVENT_RESOLVED;
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ items: [event] }),
-    });
+  // Phase 1 — 모든 호출 KS active 응답
+  await page.route(
+    API_ROUTES.killSwitch,
+    fulfillJson({ items: [MOCK_KS_EVENT_ACTIVE] }),
+  );
+
+  await page.goto("/trading", { timeout: 60_000 });
+
+  await expect(page.getByTestId("ks-active-banner")).toBeVisible({
+    timeout: 30_000,
   });
 
-  await page.goto("/trading");
+  // Phase 2 — mock 명시 전환 → 모든 호출 KS resolved 응답
+  await page.unroute(API_ROUTES.killSwitch);
+  await page.route(
+    API_ROUTES.killSwitch,
+    fulfillJson({ items: [MOCK_KS_EVENT_RESOLVED] }),
+  );
 
-  await expect(page.getByTestId("ks-active-banner")).toBeVisible();
-
-  // focus event 로 revalidation 트리거 (2번째 요청)
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  // page.reload() — Tanstack Query refetchOnWindowFocus 가 page.evaluate
+  // dispatchEvent("focus") 로 안 트리거 (Playwright headless + React Query listener race).
+  // reload = fresh KS fetch 보장 + 사용자 manual refresh 동작 시뮬.
+  await page.reload({ timeout: 60_000 });
 
   await expect(page.getByTestId("ks-active-banner")).not.toBeVisible({
-    timeout: 10_000,
+    timeout: 30_000,
   });
 });

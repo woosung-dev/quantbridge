@@ -55,13 +55,26 @@ setup("authenticate", async ({ page }) => {
 
   // 4) Protected route 검증 — pathname + UI text 둘 다 (codex iter 2 P1 #3)
   // 단순 waitForURL(/strategies/) 은 query param 에 strategies 포함된 unauth redirect 통과.
-  await page.goto(`${baseUrl}/strategies`);
-  await expect(page).toHaveURL(({ pathname }) => pathname === "/strategies");
+  // Next.js 16 dev server 첫 page render 가 JIT 컴파일로 5-30초 → timeout 60s
+  await page.goto(`${baseUrl}/strategies`, { timeout: 60_000 });
+  await expect(page).toHaveURL(({ pathname }) => pathname === "/strategies", {
+    timeout: 30_000,
+  });
   // 페이지 로드 완료 + 인증된 사용자만 보이는 heading
   await expect(
     page.getByRole("heading", { name: "내 전략" }),
-  ).toBeVisible({ timeout: 10_000 });
+  ).toBeVisible({ timeout: 30_000 });
 
-  // 5) storageState 저장 — chromium-authed project 가 dependency 로 활용
+  // 5) Pre-warm — chromium-authed 프로젝트의 첫 spec 이 dev server JIT compile 안 만나도록
+  // 모든 protected page 미리 방문해서 컴파일 cache 채움. 각 페이지 첫 컴파일 5-30초.
+  // pre-warm 후 후속 spec 의 page.goto 는 cache hit → 즉시 렌더.
+  const preWarmPaths = ["/trading", "/backtests/new", "/strategies/new"];
+  for (const path of preWarmPaths) {
+    await page.goto(`${baseUrl}${path}`, { timeout: 60_000 });
+    // networkidle 까지 대기 — RSC + client query 완료 보장
+    await page.waitForLoadState("networkidle", { timeout: 60_000 });
+  }
+
+  // 6) storageState 저장 — chromium-authed project 가 dependency 로 활용
   await page.context().storageState({ path: STORAGE_PATH });
 });

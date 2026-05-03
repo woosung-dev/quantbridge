@@ -209,8 +209,8 @@ dogfood Day 1-2 의 broken bug 패턴 (Sprint 6 webhook commit / Sprint 13 Order
 | frontend tsc | `pnpm tsc --noEmit` | 0 | ✅ 0 |
 | frontend lint | `pnpm lint` | 0 | ✅ 0 |
 | frontend vitest | `pnpm test` | 219+ passed | ✅ **251 passed** (43 files) |
-| frontend e2e smoke | `pnpm e2e` | smoke 2 PASS | 🚧 사용자 .env.local 후 검증 |
-| frontend e2e authed | `pnpm e2e:authed` | trading-ui 5 + dogfood-flow 3 = 8 PASS, leak 0 | 🚧 사용자 .env.local + Clerk dev keys 후 검증 |
+| frontend e2e smoke | `pnpm e2e` | smoke 2 PASS | ✅ (사용자 .env.local 후) |
+| frontend e2e authed | `pnpm e2e:authed` | trading-ui 5 + dogfood-flow 3 = 8 PASS, leak 0 | ✅ **9/9 PASS** (setup + 5 + 3, 18.6초) — Sprint 25 추가 commit 후 |
 
 ---
 
@@ -236,6 +236,11 @@ dogfood Day 1-2 의 broken bug 패턴 (Sprint 6 webhook commit / Sprint 13 Order
 - **L-S25-5**: `_ws_lease.py:_heartbeat_loop` 같은 production async loop 의 lost_event 신호는 **falsy return + Exception 두 path 모두 set 보장** 의무 (codex G.2 P1 #2). 한 path 만 처리하면 silent split-brain.
 - **L-S25-6** (사용자 명시 요구): codex G.0 iter 1 후 plan v2 surgery 시 **iter 2 재호출 의무** (사용자 "잘 확인한거야?" 명시 요구 사례 2026-05-03) — Sprint 22+24a 의 G.0 1 iter 만 수행 패턴 보강. 누적 1.9M+ tokens 부담 있지만 critical bug 발견 시 가치 ↑. memory `feedback_codex_g0_pattern.md` 강화 후보.
 - **L-S25-7**: pytest-asyncio 의 per-test event loop 와 redis-py asyncio connection bound 충돌 → **autouse `_reset_pool_each_test` fixture 의무** (BL-110a integration test). Sprint 18 BL-080 의 module-level state 와 별도 issue (test 환경 한정).
+- **L-S25-8** (사용자 본인 dogfood 실 검증으로 발견): **Next.js 16 dev server 첫 page render JIT 컴파일 5-30초** stuck. screenshot 의 "Rendering ..." 인디케이터 + 사용자 manual 도 reload 필요. Playwright e2e 의 default 30s navigation timeout 부족 → `playwright.config.ts` 에 `navigationTimeout: 60_000` + `actionTimeout: 30_000` + setup project 가 모든 protected page pre-warm 필수.
+- **L-S25-9** (e2e:authed 9/9 PASS 도달 과정 발견): **Playwright Route handler 의 block body + return 누락 = Playwright 가 fulfill await 안 함** (race condition). `(route) => { route.fulfill(...) }` ❌ → `async (route) => { await route.fulfill(...) }` ✅ 또는 expression body `(route) => route.fulfill(...)`.
+- **L-S25-10**: **Tanstack Query `refetchOnWindowFocus`** 가 `page.evaluate(() => window.dispatchEvent(new Event("focus")))` 으로 trigger 안 됨 (Playwright headless + React Query listener race). Mock route 변경 후 KS 등 cache invalidation 위해 `page.reload()` 사용 (사용자 manual refresh 시뮬).
+- **L-S25-11**: **React component layout shift + `force: true` click** = onClick handler 안 도달. dispatch 한 click event 가 element actionable 시점 stable 안 됨. **`page.locator(...).dispatchEvent("click")`** 으로 React Synthetic event 직접 트리거 권장 — Tanstack Query refetchInterval 같은 미세 redraw 환경에서 robust.
+- **L-S25-12**: **OrderListResponseSchema 의 `total` 필수 필드** — mock 에서 `{ items: [] }` 만 보내면 schema parse fail → query error → "주문 목록을 불러오지 못했습니다." → 후속 element (테스트 주문 button 등) 안 보임. **모든 list response mock 의 schema 필수 필드 검증 의무** (Sprint 26+ BL fixture 헬퍼 후보).
 
 ---
 

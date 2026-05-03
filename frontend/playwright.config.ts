@@ -27,6 +27,10 @@ export default defineConfig({
     trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
+    // Sprint 25 — Next.js 16 dev server 첫 page render JIT 컴파일 5-30초.
+    // setup pre-warm 후 cache hit 으로 빨라지지만 안전망으로 navigation 60s, action 30s.
+    navigationTimeout: 60_000,
+    actionTimeout: 30_000,
   },
   projects: [
     {
