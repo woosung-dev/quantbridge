@@ -39,6 +39,13 @@ export type LiveSessionListResponse = z.infer<
   typeof LiveSessionListResponseSchema
 >;
 
+// Sprint 28 Slice 3 (BL-140b) — equity_curve datapoint (BE 정합)
+export const EquityCurvePointSchema = z.object({
+  timestamp_ms: z.number(),
+  cumulative_pnl: z.string(), // Decimal as string (precision 보존)
+});
+export type EquityCurvePoint = z.infer<typeof EquityCurvePointSchema>;
+
 export const LiveSignalStateSchema = z.object({
   session_id: z.uuid(),
   schema_version: z.number(),
@@ -46,6 +53,10 @@ export const LiveSignalStateSchema = z.object({
   last_open_trades_snapshot: z.record(z.string(), z.unknown()),
   total_closed_trades: z.number(),
   total_realized_pnl: z.string(),
+  // Sprint 28 Slice 3 (BL-140b) — cumulative realized PnL timeseries.
+  // 형식: [{"timestamp_ms": 1700000000000, "cumulative_pnl": "0.123"}, ...]
+  // 빈 array default (legacy session 호환).
+  equity_curve: z.array(EquityCurvePointSchema).default([]),
   updated_at: z.string(),
 });
 export type LiveSignalState = z.infer<typeof LiveSignalStateSchema>;

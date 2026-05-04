@@ -155,7 +155,12 @@ class LiveSessionListResponse(BaseModel):
 
 
 class LiveSignalStateResponse(BaseModel):
-    """GET /api/v1/live-sessions/{id}/state — Detail UI 용."""
+    """GET /api/v1/live-sessions/{id}/state — Detail UI 용.
+
+    Sprint 28 Slice 3 (BL-140b): equity_curve 신규 — cumulative realized PnL timeseries.
+    형식: [{"timestamp_ms": int, "cumulative_pnl": str}, ...] ASC sorted by timestamp_ms.
+    Frontend 가 dual-axis recharts (entries/closes + equity) 렌더 시 사용.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -165,6 +170,7 @@ class LiveSignalStateResponse(BaseModel):
     last_open_trades_snapshot: dict[str, object]
     total_closed_trades: int
     total_realized_pnl: Decimal
+    equity_curve: list[dict[str, object]] = []  # Sprint 28 Slice 3 BL-140b
     updated_at: AwareDatetime
 
 
