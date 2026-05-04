@@ -8,6 +8,7 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-04 — **Sprint 29 baseline snapshot** (6 fixture preflight 실측, 진입 3/6 50%, plan v2 stale 1건 추가 발견, LESSON-037 second validation) — [`2026-05-04-sprint29-baseline-snapshot.md`](2026-05-04-sprint29-baseline-snapshot.md)
 - 2026-05-04 — **Sprint 29 v1→v2 pivot** (Pine Architectural Fix → Coverage Layer Hardening, codex+Opus 2-검토 frame change, LESSON-037 후보 first validation) — [`2026-05-04-sprint29-v1-to-v2-pivot.md`](2026-05-04-sprint29-v1-to-v2-pivot.md)
 - 2026-05-04 — **Sprint 28 회고** (Beta prereq 종합, 5 PR cascade, dual metric 첫 측정) — [`2026-05-04-sprint28-retrospective.md`](2026-05-04-sprint28-retrospective.md)
 - 2026-05-04 — Sprint 28 kickoff plan (Vertical Slice 4 + Stage 1~6 + 메타-방법론 4종) — [`2026-05-04-sprint28-kickoff.md`](2026-05-04-sprint28-kickoff.md)
