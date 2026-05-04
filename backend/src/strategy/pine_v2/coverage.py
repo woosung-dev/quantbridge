@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Literal, TypedDict
 
 # ---------------------------------------------------------------------
 # SUPPORTED — interpreter._STDLIB_NAMES + stdlib._call() 분기 + _eval_attribute() 분기
@@ -82,6 +83,7 @@ _PLOT_FUNCTIONS: frozenset[str] = frozenset(
         "plotcandle",
         "plotbar",
         "bgcolor",
+        "barcolor",  # Sprint 29 Slice A: 시각 효과만, 백테스트 무관 (interpreter NOP)
         "fill",
         "hline",
         "vline",
@@ -150,8 +152,8 @@ _STRING_FUNCTIONS: frozenset[str] = frozenset(
 # (ADR-013 §4 Trust Layer 철학: partial silentfail → 명시적 unsupported 선언)
 _KNOWN_UNSUPPORTED_FUNCTIONS: frozenset[str] = frozenset(
     {
-        "request.security",
-        "request.security_lower_tf",
+        # "request.security",  # Sprint 29 Slice A: graceful (단일 timeframe 가정) → SUPPORTED
+        "request.security_lower_tf",  # 본 sprint 미처리
         "request.dividends",
         "request.earnings",
         "request.quandl",
@@ -159,6 +161,62 @@ _KNOWN_UNSUPPORTED_FUNCTIONS: frozenset[str] = frozenset(
         "ticker.new",
     }
 )
+
+# Sprint 29 Slice A: graceful security functions (단일 timeframe 가정으로 expression 인자 반환)
+_SECURITY_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "request.security",  # Sprint 29 Slice A: graceful (interpreter.py:766-774)
+        "security",  # Sprint 29 Slice A: v4 alias (no-namespace) — same graceful treatment
+    }
+)
+
+# Sprint 29 Slice A: heikinashi Trust Layer 위반 + dogfood-only (ADR)
+_HEIKINASHI_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "heikinashi",  # Sprint 29 Slice A (a): Trust Layer 위반 + dogfood-only flag
+    }
+)
+
+# Sprint 29 Slice B: unsupported 발견 시 사용자에게 우회 패턴 안내.
+# 80% coverage 임계 = DrFXGOD ~28 항목 중 23+ 등록.
+_UNSUPPORTED_WORKAROUNDS: dict[str, str] = {
+    # Data layer (request.* / syminfo.* / timeframe.*)
+    "request.security_lower_tf": "다른 timeframe lower 데이터 미지원. 단일 timeframe 으로 전략 재구성 필요.",
+    "request.dividends": "배당 데이터 미지원. 외부 source 연동 필요.",
+    "request.earnings": "실적 데이터 미지원. 외부 source 연동 필요.",
+    "ticker.new": "단일 ticker 사용 권장 (현재 backtest symbol).",
+    "syminfo.prefix": "exchange prefix 는 backtest 에서 의미 없음. 변수 추출 권장.",
+    "syminfo.ticker": "현재 backtest symbol 변수로 직접 사용.",
+    "syminfo.timezone": "단일 timezone 가정 (UTC). timezone 분기 로직 제거 권장.",
+    "timeframe.isdaily": "단일 timeframe 가정. 분기 로직 제거.",
+    "timeframe.isminutes": "단일 timeframe 가정. 분기 로직 제거.",
+    "timeframe.ismonthly": "단일 timeframe 가정. 분기 로직 제거.",
+    "timeframe.isseconds": "단일 timeframe 가정. 분기 로직 제거.",
+    "timeframe.isweekly": "단일 timeframe 가정. 분기 로직 제거.",
+    "timeframe.multiplier": "현재 timeframe 의 numeric multiplier 가 필요하면 변수 추출.",
+    "timeframe.period": "현재 timeframe string. backtest 는 단일 timeframe 가정 — 변수 추출 권장.",
+    "barstate.isrealtime": "backtest 는 항상 historical. 분기 로직 제거.",
+    # Math layer (ta.*/math.*)
+    "ta.alma": "Arnaud Legoux MA 미지원. ta.sma 또는 ta.ema 로 근사 (정확도 차이 < 1%).",
+    "ta.bb": "Bollinger Bands = ta.sma + ta.stdev 조합으로 직접 구현.",
+    "ta.cross": "ta.crossover + ta.crossunder 조합으로 대체.",
+    "ta.dmi": "Directional Movement Index = ta.atr + 직접 +DI/-DI 계산.",
+    "ta.mom": "Momentum = close - close[length] 단순 계산.",
+    "ta.wma": "Weighted MA = ta.sma 또는 ta.ema 로 근사.",
+    "ta.obv": "On-Balance Volume = volume 누적 sum 으로 직접 구현.",
+    # Drawing layer (시각 NOP — backtest 영향 없음)
+    "table.cell_set_bgcolor": "Drawing layer 는 시각 NOP. 시각 표시 외 로직에 의존하면 안전.",
+    "label.style_label_down": "label style 은 시각 NOP. 변수 추출 후 backtest 와 무관.",
+    "label.style_label_left": "label style 은 시각 NOP.",
+    "label.style_label_up": "label style 은 시각 NOP.",
+    "label.get_x": "label 좌표 읽기는 시각 NOP. backtest 로직에서 제거 가능.",
+    "label.set_x": "label 좌표 설정은 시각 NOP. backtest 로직에서 제거 가능.",
+    "label.set_y": "label 좌표 설정은 시각 NOP. backtest 로직에서 제거 가능.",
+    # Misc
+    "fixnan": "nz() + 직전 값 캐싱 조합으로 대체 가능.",
+    "time": "시간 기반 로직은 가격 기반 (close/open 변화) 권장. 필요 시 변수 추출.",
+    "request.security": "단일 timeframe 전략으로 재구성 권장. Slice A graceful 가정 시 current bar 값 반환.",
+}
 
 # Math built-ins (사용자 호출)
 _MATH_FUNCTIONS: frozenset[str] = frozenset(
@@ -221,6 +279,8 @@ SUPPORTED_FUNCTIONS: frozenset[str] = (
     | _STRING_FUNCTIONS
     | _MATH_FUNCTIONS
     | _V4_ALIASES
+    | _SECURITY_FUNCTIONS  # Sprint 29 Slice A: graceful request.security + v4 security
+    | _HEIKINASHI_FUNCTIONS  # Sprint 29 Slice A (a): dogfood-only flag
 )
 
 # Built-in series variables (close/high/low/open/volume + ta.tr 등)
@@ -300,8 +360,12 @@ _STRATEGY_CONSTANTS_EXTRA: frozenset[str] = frozenset(
 # 이유: coverage supported 였지만 interpreter._eval_attribute 가 `timeframe.*` 미구현
 # → preflight 통과 후 runtime fail (silent corruption). interpreter 추가는 scope 폭발
 # (사용자 비교 logic 정확성 trade-off) → Sprint 22+ BL 로 이관.
-# 본 set 제거 시 utbot_minimal 의 timeframe.period 는 unsupported 로 분류 (UtBot 통과 영향 없음 — heikinashi/security 잔존이라 어차피 reject).
-_TIMEFRAME_CONSTANTS: frozenset[str] = frozenset()
+# Sprint 29 Slice A: timeframe.period 를 명시적으로 추가 (interpreter._eval_attribute 구현 완료).
+_TIMEFRAME_CONSTANTS: frozenset[str] = frozenset(
+    {
+        "timeframe.period",  # Sprint 29 Slice A: BarContext.timeframe string return (interpreter)
+    }
+)
 
 # Pine enum constants (interpreter._ATTR_CONSTANTS — render scope A)
 _ENUM_PREFIXES: tuple[str, ...] = (
@@ -403,6 +467,54 @@ _COMMENT_RE = re.compile(r"//[^\n]*")
 _STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
 
 
+# Sprint 29 Slice B: TypedDict for each unsupported call with line/category/workaround.
+class UnsupportedCall(TypedDict):
+    """미지원 호출 정보 — line 번호 + workaround 안내 포함."""
+
+    name: str
+    line: int
+    col: int | None
+    workaround: str | None
+    category: Literal["drawing", "data", "syntax", "math", "other"]
+
+
+# Sprint 29 Slice B: category 분류 helper
+_CATEGORY_PREFIXES: dict[str, str] = {
+    "line.": "drawing",
+    "box.": "drawing",
+    "label.": "drawing",
+    "table.": "drawing",
+    "plot": "drawing",
+    "barcolor": "drawing",
+    "fill": "drawing",
+    "hline": "drawing",
+    "ta.": "math",
+    "math.": "math",
+    "request.": "data",
+    "syminfo.": "data",
+    "timeframe.": "data",
+    "ticker.": "data",
+    "barstate.": "data",
+}
+
+
+def _categorize(name: str) -> Literal["drawing", "data", "syntax", "math", "other"]:
+    """미지원 이름의 category 반환."""
+    for prefix, cat in _CATEGORY_PREFIXES.items():
+        if name.startswith(prefix) or name == prefix.rstrip("."):
+            return cat  # type: ignore[return-value]
+    return "other"
+
+
+def _find_line(source: str, pattern: str) -> int | None:
+    """source 에서 pattern 첫 등장 line 번호 (1-indexed). 미발견 시 None."""
+    escaped = re.escape(pattern)
+    for i, line in enumerate(source.splitlines(), start=1):
+        if re.search(rf"\b{escaped}\b", line):
+            return i
+    return None
+
+
 @dataclass(frozen=True)
 class CoverageReport:
     """Pine 소스의 함수/변수 사용 vs SUPPORTED 매트릭스.
@@ -410,12 +522,16 @@ class CoverageReport:
     - `unsupported_functions`: 호출 형태로 사용된 미지원 함수 (예: `fixnan()`)
     - `unsupported_attributes`: 변수 접근 형태로 사용된 미지원 chain (예: `ta.supertrend`)
     - `is_runnable`: 둘 다 비어있으면 True (backtest 실행 가능)
+    - `dogfood_only_warning`: heikinashi 등 Trust Layer 위반 함수 사용 시 경고 문자열
     """
 
     used_functions: tuple[str, ...]
     used_attributes: tuple[str, ...]
-    unsupported_functions: tuple[str, ...]
-    unsupported_attributes: tuple[str, ...]
+    unsupported_functions: tuple[str, ...]  # 기존, backward-compat
+    unsupported_attributes: tuple[str, ...]  # 기존, backward-compat
+    unsupported_calls: tuple[UnsupportedCall, ...] = ()  # Sprint 29 Slice B 신규
+    # Sprint 29 Slice A: heikinashi Trust Layer 위반 transparency
+    dogfood_only_warning: str | None = None
 
     @property
     def is_runnable(self) -> bool:
@@ -499,9 +615,46 @@ def analyze_coverage(source: str) -> CoverageReport:
         a for a in used_attrs if _is_pine_namespace(a) and not is_supported_attribute(a)
     )
 
+    # Sprint 29 Slice A: dogfood_only_warning — heikinashi Trust Layer 위반 감지
+    warning: str | None = None
+    if "heikinashi" in used_funcs_all:
+        warning = (
+            "heikinashi() 사용 — Trust Layer 위반 (Sprint 29 ADR). "
+            "Heikin-Ashi 캔들은 일반 OHLC 와 다른 변환이라 backtest 결과가 "
+            "Pine 원본과 다를 수 있음 (거짓 양성 risk). dogfood-only 사용 권장. "
+            "참고: docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md"
+        )
+
+    # Sprint 29 Slice B: unsupported_calls — line 번호 + workaround + category 포함
+    unsupported_calls_list: list[UnsupportedCall] = []
+    for fn in unsupp_funcs:
+        line_no = _find_line(source, fn) or 0
+        unsupported_calls_list.append(
+            UnsupportedCall(
+                name=fn,
+                line=line_no,
+                col=None,
+                workaround=_UNSUPPORTED_WORKAROUNDS.get(fn),
+                category=_categorize(fn),
+            )
+        )
+    for attr in unsupp_attrs:
+        line_no = _find_line(source, attr) or 0
+        unsupported_calls_list.append(
+            UnsupportedCall(
+                name=attr,
+                line=line_no,
+                col=None,
+                workaround=_UNSUPPORTED_WORKAROUNDS.get(attr),
+                category=_categorize(attr),
+            )
+        )
+
     return CoverageReport(
         used_functions=tuple(used_funcs),
         used_attributes=tuple(used_attrs),
         unsupported_functions=unsupp_funcs,
         unsupported_attributes=unsupp_attrs,
+        unsupported_calls=tuple(unsupported_calls_list),
+        dogfood_only_warning=warning,
     )
