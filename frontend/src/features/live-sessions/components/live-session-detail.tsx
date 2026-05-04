@@ -24,7 +24,11 @@ import {
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
 import type { LiveSession } from "../schemas";
 // Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
-import { buildActivityTimeline } from "../utils";
+// Sprint 28 Slice 3 (BL-140b) — buildActivityTimelineWithEquity 추가 (real cumulative PnL).
+import {
+  buildActivityTimeline,
+  buildActivityTimelineWithEquity,
+} from "../utils";
 
 type Props = {
   session: LiveSession;
@@ -84,14 +88,32 @@ export function LiveSessionDetail({ session }: Props) {
           <div className="h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={buildActivityTimeline(events.items)}
+                data={
+                  state?.equity_curve && state.equity_curve.length > 0
+                    ? buildActivityTimelineWithEquity(
+                        events.items,
+                        state.equity_curve,
+                      )
+                    : buildActivityTimeline(events.items)
+                }
                 margin={{ top: 5, right: 16, bottom: 5, left: -16 }}
               >
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 10 }}
+                  allowDecimals={false}
+                />
+                {/* Sprint 28 Slice 3 (BL-140b) — equity right axis (real PnL) */}
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 10 }}
+                />
                 <Tooltip />
                 <Line
+                  yAxisId="left"
                   type="monotone"
                   dataKey="entries_in_window"
                   name="Entries (window)"
@@ -100,6 +122,7 @@ export function LiveSessionDetail({ session }: Props) {
                   dot={false}
                 />
                 <Line
+                  yAxisId="left"
                   type="monotone"
                   dataKey="closes_in_window"
                   name="Closes (window)"
@@ -107,6 +130,17 @@ export function LiveSessionDetail({ session }: Props) {
                   strokeWidth={2}
                   dot={false}
                 />
+                {state?.equity_curve && state.equity_curve.length > 0 && (
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="cumulative_pnl"
+                    name="Equity (PnL)"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>

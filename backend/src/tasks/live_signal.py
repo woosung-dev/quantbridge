@@ -376,6 +376,37 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 if isinstance(sanitized_report, dict)
                 else {}
             )
+            # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
+            # 신규 closed trade 발생 시점 = total_realized_pnl 변동. delta 계산 후
+            # equity_calculator.append_equity_point 호출. 변동 없으면 curve 갱신 X.
+            from src.trading.equity_calculator import append_equity_point
+
+            existing_state = await sess_repo.get_state(sess.id)
+            prev_total_pnl: Decimal = (
+                Decimal(str(existing_state.total_realized_pnl))
+                if existing_state is not None
+                else Decimal("0")
+            )
+            curr_total_pnl: Decimal = Decimal(str(result.total_realized_pnl))
+            pnl_delta: Decimal = curr_total_pnl - prev_total_pnl
+
+            new_equity_curve: list[dict[str, object]] | None = None
+            if pnl_delta != Decimal("0"):
+                # 영구 규칙: Decimal-first 합산 (calculator 안에서 처리)
+                prev_curve = (
+                    existing_state.equity_curve
+                    if existing_state is not None
+                    and existing_state.equity_curve is not None
+                    else []
+                )
+                new_curve = append_equity_point(
+                    prev_curve,  # type: ignore[arg-type]
+                    timestamp_ms=int(last_bar_time.timestamp() * 1000),
+                    pnl_delta=pnl_delta,
+                )
+                # TypedDict → dict 호환 cast (runtime 동일 구조)
+                new_equity_curve = [dict(p) for p in new_curve]
+
             await sess_repo.upsert_state(
                 session_id=sess.id,
                 last_strategy_state_report=sanitized_report
@@ -386,6 +417,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 else {},
                 total_closed_trades=result.total_closed_trades,
                 total_realized_pnl=result.total_realized_pnl,
+                equity_curve=new_equity_curve,
             )
 
             # LESSON-019 — claim UPDATE + events INSERT + state upsert 단일 commit

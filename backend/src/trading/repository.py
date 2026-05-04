@@ -560,10 +560,14 @@ class LiveSignalSessionRepository:
         last_open_trades_snapshot: dict[str, object],
         total_closed_trades: int,
         total_realized_pnl: Decimal,
+        equity_curve: list[dict[str, object]] | None = None,
     ) -> LiveSignalState:
         """INSERT ON CONFLICT DO UPDATE on session_id (1:1 with sessions).
 
         Service 가 같은 트랜잭션에서 events INSERT + state upsert + commit (codex G.0 P1 #3).
+
+        Sprint 28 Slice 3 (BL-140b): equity_curve 신규 (optional, default None = 갱신 안함).
+        Task 가 calculator 로 새 datapoint append 후 전체 array 전달.
         """
         existing = await self.get_state(session_id)
         if existing is None:
@@ -573,6 +577,7 @@ class LiveSignalSessionRepository:
                 last_open_trades_snapshot=last_open_trades_snapshot,
                 total_closed_trades=total_closed_trades,
                 total_realized_pnl=total_realized_pnl,
+                equity_curve=equity_curve if equity_curve is not None else [],
                 updated_at=datetime.now(UTC),
             )
             self.session.add(state)
@@ -582,6 +587,8 @@ class LiveSignalSessionRepository:
         existing.last_open_trades_snapshot = last_open_trades_snapshot
         existing.total_closed_trades = total_closed_trades
         existing.total_realized_pnl = total_realized_pnl
+        if equity_curve is not None:
+            existing.equity_curve = equity_curve
         existing.updated_at = datetime.now(UTC)
         await self.session.flush()
         return existing

@@ -438,6 +438,14 @@ class LiveSignalState(SQLModel, table=True):
         default=Decimal("0"),
         sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
     )
+    # Sprint 28 Slice 3 (BL-140b) — cumulative realized PnL timeseries.
+    # 형식: [{"timestamp_ms": 1700000000000, "cumulative_pnl": "0.123"}, ...]
+    # ASC sorted by timestamp_ms. Decimal-first 합산 (Sprint 4 D8) 영구 규칙 적용.
+    # nullable=True (legacy row 호환), server_default '[]' (신규 row).
+    equity_curve: list[dict[str, object]] | None = Field(
+        default_factory=list,
+        sa_column=Column(JSONB, nullable=True, server_default=text("'[]'::jsonb")),
+    )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(
