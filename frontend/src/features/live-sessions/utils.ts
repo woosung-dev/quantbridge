@@ -99,3 +99,66 @@ export function buildActivityTimeline(
     };
   });
 }
+
+// Sprint 28 Slice 3 (BL-140b) — entry/close + real cumulative equity 통합.
+import type { EquityCurvePoint } from "./schemas";
+
+export type ActivityTimelineWithEquityPoint = ActivityTimelinePoint & {
+  cumulative_pnl: number; // BE 의 string Decimal → FE number (chart 렌더용, precision 충분)
+};
+
+/**
+ * Sprint 28 BL-140b — buildActivityTimeline + equity_curve 병합.
+ *
+ * BE 의 equity_curve (LiveSignalState.equity_curve) 를 entry/close timeline 과 정렬 병합.
+ * 같은 timestamp 의 event 가 있으면 equity 도 함께 표시. equity 만 있는 datapoint 는
+ * entry/close 직전 값 carry-forward (line chart 연속성).
+ *
+ * @param events  events.items (limit=100, BE created_at desc 응답).
+ * @param equityCurve  state.equity_curve (BE 누적 PnL timeseries, ASC sorted).
+ * @returns dual-axis chart 용 datapoint.
+ */
+export function buildActivityTimelineWithEquity(
+  events: ReadonlyArray<LiveSignalEvent>,
+  equityCurve: ReadonlyArray<EquityCurvePoint>,
+): ActivityTimelineWithEquityPoint[] {
+  const baseTimeline = buildActivityTimeline(events);
+
+  // equity_curve 의 timestamp_ms → cumulative_pnl 매핑
+  const sortedEquity = equityCurve
+    .slice()
+    .sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+
+  // 원본 event 의 bar_time 재계산 (label 은 toLocaleString 이라 원본 보존 필요).
+  // sortedEvents 는 baseTimeline 과 동일 순서 보장 (buildActivityTimeline 안 동일 sort 적용).
+  const sortedEvents = events.slice().sort((a, b) => {
+    const ta = Date.parse(a.bar_time);
+    const tb = Date.parse(b.bar_time);
+    if (ta !== tb) return ta - tb;
+    return a.sequence_no - b.sequence_no;
+  });
+
+  // 각 event 의 bar_time ms 와 가장 가까운 (≤) equity_curve point 찾기
+  return baseTimeline.map((point, idx) => {
+    const ev = sortedEvents[idx];
+    if (!ev) {
+      return { ...point, cumulative_pnl: 0 };
+    }
+    const eventTimestampMs = Date.parse(ev.bar_time);
+
+    // bar_time 이전의 마지막 equity (carry-forward)
+    let cumulativePnl = 0;
+    for (const eq of sortedEquity) {
+      if (eq.timestamp_ms <= eventTimestampMs) {
+        cumulativePnl = parseFloat(eq.cumulative_pnl);
+      } else {
+        break;
+      }
+    }
+
+    return {
+      ...point,
+      cumulative_pnl: cumulativePnl,
+    };
+  });
+}

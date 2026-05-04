@@ -1,9 +1,11 @@
 # ADR-013: Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계
 
+> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 결정 근거. **SSOT 는 [`docs/01_requirements/trust-layer-requirements.md`](../01_requirements/trust-layer-requirements.md)** (요구사항/SLO) + [`docs/04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (아키텍처). 본 파일은 ADR 보존용.
+>
 > **상태:** 초안 (Path β Stage 0 — 2026-04-23 작성, Stage 2 구현 완료 시 확정)
 > **일자:** 2026-04-23
 > **관련 ADR:** [ADR-003](./003-pine-runtime-safety-and-parser-scope.md) (exec 금지), [ADR-004](./004-pine-parser-approach-selection.md) (AST 인터프리터), [ADR-011](./011-pine-execution-strategy-v4.md) (Tier 0~5), [ADR-012](./012-sprint-8a-tier0-final-report.md) (Tier-0 Foundation)
-> **상위 문서:** [`docs/04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (Path β Stage 0 산출)
+> **상위 문서 (SSOT):** [`docs/04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (Path β Stage 0 산출)
 > **관련 Sprint:** Path β (Stage 0 문서 → Stage 1 설계 → Stage 2 구현) + Sprint Y1 Coverage Analyzer prerequisite
 > **참조 아키텍처 서베이:** [`docs/superpowers/reports/2026-04-23-architecture-survey.html`](../superpowers/reports/2026-04-23-architecture-survey.html)
 

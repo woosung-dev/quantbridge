@@ -1,12 +1,21 @@
 # QuantBridge — TODO
 
+> **Last Updated:** 2026-05-04 (Sprint 28 Step 0 + Step 1 완료 — PR #106 stage merge + office-hours Addendum commit `7911eba`)
+> **Active Sprint:** Sprint 28 Beta prereq 종합 (kickoff plan: [`dev-log/2026-05-04-sprint28-kickoff.md`](./dev-log/2026-05-04-sprint28-kickoff.md), 5 Slice plans: [`superpowers/specs/2026-05-04-sprint28-slice*.md`](./superpowers/specs/))
+> **Active Branch:** `stage/h2-sprint28-comprehensive` (cascade base) → 4 sub-branch (chore/sprint28-slice1a / feat/sprint28-slice1b / feat/sprint28-slice2 / feat/sprint28-slice3 / feat/sprint28-slice4)
+> **Sprint type:** B (risk-critical) — Slice 1a/1b/2/3/4 = D / B / A / A / B 차등 brainstorming
+> **office-hours 진행:** Y (Sprint 28 Step 1, 2026-05-04 — Q4/Q5 답 부분 무효화 → 새 답 도출, ADR-008 Addendum)
+> **Recent BLs:** Sprint 27 BL-137/140/144 ✅ Resolved · Sprint 28 active BL-141 (Slice 2) / BL-140b (Slice 3) / BL-004 (Slice 4) · 메타 정책 4종 도입
+> **Next Trigger:** Slice 1a/4 병렬 구현 → Slice 1b → Slice 2/3 → Step 4 검증 (codex G2 + qa-only) → Step 5 dual metric 측정 → Beta path A1 결정 (자연 시간 1-2주 + Day 7)
+
 > 사람과 AI가 공동 관리하는 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 → H2 transition. Sprint 1~19 + Path β + dogfood Day 1~3 완료. **Sprint 18 BL-080 ✅ + Sprint 19 BL-081/083/084/085 ✅ Resolved (2026-05-02)** — self-assessment 5/10 → **9/10**. **H1→H2 gate (≥7) 통과**. Sprint 20 = Path B 본인 1-2주 dogfood (BL-005, ★★★★★).
+> **📍 현재 Horizon:** H1 클로징 (Sprint 1~27 + Path β + dogfood Day 1~3 + Sprint 27 hotfix 완료) — **dogfood Day 1 (Sprint 27 launch, self-assessment 8/10) 진행 중**. H1→H2 gate (Prometheus alert + KillSwitch capital_base + dogfood 무사고) 정량화는 Sprint 28 Phase B (Roadmap H1 gate) 에서 마무리.
+> **📍 다음 분기:** **Sprint 28 = 옵션 5 (Beta prereq 종합)** — Phase B+C cleanup 마무리 + Vertical Slice 3 (BL-141 Backtest UI / BL-140b equity curve / BL-004 KillSwitch) + 워크프로세스 정식 적용 (Stage 1~6 풀 사이클). 18-28h 추정. 새 세션 진입.
 
-> **🚀 현재 세션 작업:** Sprint 18 + 19 코드 + atomic update backfill 완료. `stage/h2-sprint18` 브랜치 (3 commits) → main PR 생성 대기. 다음 prompt: `~/.claude/plans/h2-sprint-20-prompt.md`.
+> **🚀 현재 세션 작업:** Phase A docs cleanup 완료 (orphan archive + INDEX + SSOT 라벨). 33 파일 변경, 코드 변경 0. **commit + push + PR 사용자 승인 대기** (Git Safety Protocol). 새 세션에서 Sprint 28 진입 시 본 working tree 보존 + 첫 step.
 
 ### Completed (Sprint 18 + 19, 2026-05-02)
 

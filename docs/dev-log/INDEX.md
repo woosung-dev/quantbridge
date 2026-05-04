@@ -6,9 +6,13 @@
 
 ---
 
-## H2 Sprint (2026-04-24 ~ , 시간 역순)
+## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
+
+- 2026-05-04 — **Sprint 28 회고** (Beta prereq 종합, 5 PR cascade, dual metric 첫 측정) — [`2026-05-04-sprint28-retrospective.md`](2026-05-04-sprint28-retrospective.md)
+- 2026-05-04 — Sprint 28 kickoff plan (Vertical Slice 4 + Stage 1~6 + 메타-방법론 4종) — [`2026-05-04-sprint28-kickoff.md`](2026-05-04-sprint28-kickoff.md)
 
 - 2026-05-04 — Sprint 27 Beta prereq hotfix — BL-137 (settings UI) + BL-140 (Activity Timeline chart), self-assessment 8.5/10 — [`2026-05-04-sprint27-beta-prereq-hotfix.md`](2026-05-04-sprint27-beta-prereq-hotfix.md)
+- 2026-05-04 — Sprint 26 Pine Signal Auto-Trading — Live Session daily flow (Beat + dispatch outbox + FE), Bybit Demo 5 orders filled, codex G.0 P1 #3-6 + G.2 P1 #10 fix, BL-122~125 — [`2026-05-04-sprint26-pine-signal-auto-trading.md`](2026-05-04-sprint26-pine-signal-auto-trading.md)
 - 2026-05-04 — dogfood Day 1 — Sprint 27 launch (Auto-Loop §0.5 first run, self-assessment 8/10) — [`2026-05-04-dogfood-day1-sprint27-launch.md`](2026-05-04-dogfood-day1-sprint27-launch.md)
 - 2026-05-03 — Sprint 25 Hybrid (FE E2E Playwright + Backend 강화 + codex G.0/G.2) — [`2026-05-03-sprint25-hybrid.md`](2026-05-03-sprint25-hybrid.md)
 - 2026-05-03 — Sprint 24b Track 1 Backend E2E 자동 dogfood — [`2026-05-03-sprint24b-auto-dogfood.md`](2026-05-03-sprint24b-auto-dogfood.md)
@@ -28,7 +32,41 @@
 - 2026-04-25 — Dogfood Day 1 — Sprint 12 인프라 첫 가동 — [`2026-04-25-dogfood-day1.md`](2026-04-25-dogfood-day1.md)
 - 2026-04-24~ — Dogfood Week 1 — Path β 병행 운영 기록 — [`dogfood-week1-path-beta.md`](dogfood-week1-path-beta.md)
 
-> **Note:** AGENTS.md "현재 작업" 섹션의 H2 Sprint 1 ~ 14 한 줄 회고는 dev-log 파일이 별도로 작성되지 않은 sprint 가 다수. 향후 sprint 끝 sweep 시 missing dev-log 는 archive 보강 candidate.
+---
+
+## Sprint 1-14 매트릭스 (회고 위치 cross-link)
+
+> **정책 (2026-05-04 cleanup):** 별도 dev-log 가 없는 sprint 는 ADR 또는 `superpowers/plans/` 또는 `superpowers/specs/` 에서 회고/계획 추적. 모든 Sprint 1-27 은 본 매트릭스에서 발견 가능.
+
+| Sprint                                   | 회고 위치                                                                                                                                                                                                                                                                                                   | 상태                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 1 (Scaffold)                             | [`001-tech-stack.md`](./001-tech-stack.md) + [`002-parallel-scaffold-strategy.md`](./002-parallel-scaffold-strategy.md)                                                                                                                                                                                     | ADR 회고 (병렬 스캐폴딩)                   |
+| 2 (Pine MVP foundation)                  | [`superpowers/specs/2026-04-15-pine-parser-mvp-design.md`](../superpowers/specs/2026-04-15-pine-parser-mvp-design.md) + [`003-pine-runtime-safety-and-parser-scope.md`](./003-pine-runtime-safety-and-parser-scope.md) + [`004-pine-parser-approach-selection.md`](./004-pine-parser-approach-selection.md) | ADR + spec                                 |
+| 3 (Strategy API)                         | [`superpowers/specs/2026-04-15-sprint3-strategy-api-design.md`](../superpowers/specs/2026-04-15-sprint3-strategy-api-design.md) + [`superpowers/plans/2026-04-15-sprint3-strategy-api.md`](../superpowers/plans/2026-04-15-sprint3-strategy-api.md)                                                         | spec + plan                                |
+| 4 (Backtest API + vectorbt)              | [`superpowers/specs/2026-04-15-sprint4-backtest-api-design.md`](../superpowers/specs/2026-04-15-sprint4-backtest-api-design.md) + `superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md`                                                                                                             | spec                                       |
+| 5 Stage B (DateTime tz-aware)            | [`005-datetime-tz-aware.md`](./005-datetime-tz-aware.md) + [`superpowers/specs/2026-04-16-sprint5-stage-b-design.md`](../superpowers/specs/2026-04-16-sprint5-stage-b-design.md)                                                                                                                            | ADR + spec                                 |
+| 6 (Trading Demo, Bybit testnet)          | [`006-sprint6-design-review-summary.md`](./006-sprint6-design-review-summary.md) + [`superpowers/specs/2026-04-16-trading-demo-design.md`](../superpowers/specs/2026-04-16-trading-demo-design.md)                                                                                                          | ADR (design review)                        |
+| 7a (Bybit Futures + Cross Margin)        | [`007-sprint7a-futures-decisions.md`](./007-sprint7a-futures-decisions.md)                                                                                                                                                                                                                                  | ADR                                        |
+| 7b (Edit Parse UX)                       | `superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md`                                                                                                                                                                                                                                                    | plan only                                  |
+| 7c (Strategy UI + scope)                 | [`008-sprint7c-scope-decision.md`](./008-sprint7c-scope-decision.md) + `superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`                                                                                                                                                                               | ADR + plan                                 |
+| 7d (OKX + Trading Sessions)              | [`015-sprint-7d-okx-sessions.md`](./015-sprint-7d-okx-sessions.md)                                                                                                                                                                                                                                          | ADR                                        |
+| 8a (pine_v2 Tier-0 foundation)           | [`012-sprint-8a-tier0-final-report.md`](./012-sprint-8a-tier0-final-report.md)                                                                                                                                                                                                                              | ADR (final report)                         |
+| 8b (Tier-1 wrapper) + 8c (multi-return)  | [`014-sprint-8b-8c-pine-v2-expansion.md`](./014-sprint-8b-8c-pine-v2-expansion.md)                                                                                                                                                                                                                          | ADR (합본)                                 |
+| FE Polish Bundle 1/2 (FE-01~04 + FE-A~F) | [`017-fe-polish-bundle-1-2-retro.md`](./017-fe-polish-bundle-1-2-retro.md)                                                                                                                                                                                                                                  | ADR (묶음 회고)                            |
+| Sprint Y1 (Pine Coverage Analyzer)       | [`016-sprint-y1-coverage-analyzer.md`](./016-sprint-y1-coverage-analyzer.md)                                                                                                                                                                                                                                | ADR                                        |
+| 9 (Monte Carlo)                          | `superpowers/plans/2026-04-24-h2-sprint9-phase-{a,b,c,d}.md` (4 phase)                                                                                                                                                                                                                                      | **미실행** [P2 — `REFACTORING-BACKLOG.md`] |
+| 10 (Optimizer)                           | `superpowers/plans/2026-04-24-h2-sprint10-phase-{a1,a2,b,c,d}.md` (5 phase)                                                                                                                                                                                                                                 | **미실행** [P2]                            |
+| 11 (Path β / x1x3)                       | `superpowers/plans/2026-04-23-stage2c-2nd-plan.md` + 5 x1x3 워커 plan + 20 review                                                                                                                                                                                                                           | spec/plan/review (실제 stage 1/2/2c 머지)  |
+| 12 (WS Supervisor)                       | [`018-sprint12-ws-supervisor-and-exchange-stub-removal.md`](./018-sprint12-ws-supervisor-and-exchange-stub-removal.md)                                                                                                                                                                                      | ADR                                        |
+| 13 (Track UX)                            | `2026-04-26-dogfood-day2.md` (회고 일부 수렴)                                                                                                                                                                                                                                                               | dogfood log 안 압축 [archive 의도]         |
+| 14 (Track UX-2)                          | `2026-04-27-dogfood-day3.md` (회고 일부 수렴)                                                                                                                                                                                                                                                               | dogfood log 안 압축 [archive 의도]         |
+| 15-27 + dogfood Day 0/1                  | 각각 별도 dev-log 존재 (위 H2 Sprint 시간 역순 섹션 참조)                                                                                                                                                                                                                                                   | dev-log 직접 작성                          |
+
+> **누락 라벨:**
+>
+> - `[archive 의도]` — 별도 dev-log 작성하지 않은 의도적 결정 (dogfood log 또는 ADR 에 회고 수렴)
+> - `[P2 — REFACTORING-BACKLOG.md]` — H2 Sprint 9 (Monte Carlo) / 10 (Optimizer) 는 plan 만 작성, 실제 미실행 (Beta 오픈 후 우선순위 결정)
+> - 이 매트릭스 갱신: 신규 sprint 회고 추가 시 본 표 갱신 의무 (Sprint template C.1 trailer 와 연결)
 
 ---
 
@@ -62,7 +100,4 @@
 - 신규 dev-log 작성 시 본 INDEX 에도 한 줄 추가 (시간 역순 또는 번호순 위치 유지)
 - AGENTS.md 의 "현재 작업" 섹션은 **활성 sprint 1개 + 직전 완료 sprint 1개 + 다음 분기** 만 inline. 그 외 모든 회고는 본 INDEX 에서 발견
 - BL ID 가 부여된 follow-up 은 [`docs/REFACTORING-BACKLOG.md`](../REFACTORING-BACKLOG.md) 에서 추적
-
-## Sprint 26 — Pine Signal Auto-Trading (2026-05-04)
-
-- [2026-05-04-sprint26-pine-signal-auto-trading.md](2026-05-04-sprint26-pine-signal-auto-trading.md) — Live Session daily flow (eval Beat + dispatch outbox + FE 모듈). codex G.0 P1 #3/#4/#5/#6 fix + G.2 P1 #10 fix (max_retries exhaustion + dispatch_pending Beat). 30 BE tests + 6 FE tests 신규. dogfood Day 0 mcp playwright 검증 — Bybit Demo 5 orders filled. BL-122~125 4 추가 fix.
+- Sprint 1-14 의 별도 dev-log 가 없는 항목은 위 "Sprint 1-14 매트릭스" 에서 ADR/spec/plan/dogfood 위치 cross-link

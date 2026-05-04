@@ -1,8 +1,10 @@
 # ADR-010: Product Roadmap 프레임 & 입력 결정
 
+> **DEPRECATED (2026-05-04 cleanup):** 본 문서는 1차 초안. **재작성본은 [`010b-product-roadmap.md`](./010b-product-roadmap.md)**. SSOT 는 [`docs/00_project/roadmap.md`](../00_project/roadmap.md). 본 파일은 ADR 1차 시도 기록 보존용으로만 유지 — 신규 참조 시 010b 또는 roadmap.md 우선.
+>
 > **작성일:** 2026-04-17
 > **작성 세션:** Claude Code 플랜 모드 brainstorming 세션
-> **상태:** ✅ 채택
+> **상태:** ✅ 채택 (재작성본 010b 가 현재 활성)
 > **관련 산출물:** [`docs/00_project/roadmap.md`](../00_project/roadmap.md)
 > **연계 ADR:** [ADR-008](./008-sprint7c-scope-decision.md) (외부 demand red flag 해소 경로)
 

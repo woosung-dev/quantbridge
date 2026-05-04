@@ -1,1 +1,8 @@
 pnpm exec lint-staged
+
+# Sprint 28+ — dev-log 신규 추가 시 INDEX.md 갱신 reminder (reminder only, 차단 X)
+if git diff --cached --name-only | grep -qE "docs/dev-log/.*\.md"; then
+  if ! git diff --cached --name-only | grep -q "docs/dev-log/INDEX.md"; then
+    echo "[reminder] dev-log 신규 추가 — docs/dev-log/INDEX.md 갱신 권장 (sprint-template.md §8 trailer)"
+  fi
+fi

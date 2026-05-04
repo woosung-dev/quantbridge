@@ -1,5 +1,8 @@
 # QuantBridge — Product Roadmap
 
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Horizon × Pillar 로드맵의 단일 진실 원천**. 관련 ADR: [`../dev-log/010b-product-roadmap.md`](../dev-log/010b-product-roadmap.md) (재작성본, 활성). 1차 초안: [`../dev-log/010-product-roadmap.md`](../dev-log/010-product-roadmap.md) (DEPRECATED).
+> **PRD ↔ 본 로드맵 ↔ Phase 매핑 (Phase B 작업):** Phase 정의 = `00_project/phase-vs-sprint-mapping.md` (신규 예정), 도메인 진행도 = `01_requirements/domain-progress-matrix.md` (신규 예정).
+>
 > **작성일:** 2026-04-17 (초안) · **최종 수정:** 2026-04-21 (testnet dogfood 결정 반영)
 > **프레임:** Horizon 3 × Strategy Pillars 하이브리드
 > **철학:** Dogfood-first Indie SaaS — "내가 돈 내고 쓰고 싶은 것"이 quality bar
@@ -89,9 +92,22 @@
 
 ### H1 → H2 전환 조건 (모두 충족)
 
-- [ ] **Testnet dogfood 3~4주 무사고 운영** (선택: 극소액 mainnet 72h 추가 검증)
-- [ ] Kill Switch · leverage cap · AES-256 재검증 pass
+- [ ] **Testnet dogfood 3~4주 무사고 운영** (선택: 극소액 mainnet 72h 추가 검증) — Sprint 27 Day 0-4 evidence: Bybit Demo 26h+ 무중단 + dispatch rate 1.0/min ✅
+- [ ] Kill Switch · leverage cap · AES-256 재검증 pass — **Sprint 28 Slice 4 (BL-004 capital_base 동적 검증)** 으로 충족 예정
 - [ ] Prometheus alert 1개 이상 실전 동작 (예: 주문 실패율 > 5%)
+- [ ] **(Sprint 28 신규)** Beta prereq 3건 완료 — BL-141 (Backtest UI + ts.ohlcv backfill) / BL-140b (LiveSignal real equity curve BE schema) / BL-004 (KillSwitch capital_base) — 이 3건이 Sprint 28 narrowest wedge (office-hours 재진행 2026-05-04 ADR-008 Addendum 참조)
+- [ ] **(Sprint 28 신규)** dual metric 통과 — self-assess ≥7 + 신규 P0=0 + 기존 P0 잔여 ≥1 감소 (Sprint 27 의 8.0 + 4 P0 BL divergence case 회피)
+
+### Sprint 28 office-hours Addendum 핵심 (2026-05-04)
+
+**4 신규 도메인 부상** (dogfood 3개월 evidence — 처음 office-hours Sprint 7c 미존재):
+
+1. **WebSocket Stability** (BL-001 / BL-011-016) — Sprint 12 metrics 정의 + Sprint 27 26h+ 무결 검증
+2. **Auth Trust Layer** (15 ADR + commit-spy + LESSON-004) — production bug 가 1185 BE tests 통과인데도 발견 = dogfood 가 진정한 검증
+3. **Auto-Loop 자동화** (Sprint 27 §0.5) — Beat scheduler + Worker dispatch + ccxt + Bybit Demo end-to-end 무결. **"curl/psql 감내" → "자동화 필수성" 영구 규칙 승격** (외부 노출 가능 핵심 신뢰 지표)
+4. **Multi-account / symbol / timeframe Live Trading** (Sprint 26 PR #100) — 두 ExchangeAccount 동시 + BTC/SOL 동시 + 4 timeframe 혼합
+
+**Beta open path 결정:** Path A1 (자연 시간 1-2주 + Day 7 dual metric 통과 시 Beta open). Path B (mainnet 72h + 지인 5인) 는 BL-001/002/003 처리 시 검토. 상세: `docs/dev-log/008-sprint7c-scope-decision.md` "2026-05-04 Addendum" 섹션.
 
 ### H2 → H3 전환 조건 (모두 충족)
 

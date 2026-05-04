@@ -125,22 +125,26 @@
 
 ---
 
-### BL-004
+### BL-004 ✅ Resolved (Sprint 28 Slice 4 PR #108, 2026-05-04)
 
 **Title:** KillSwitch `capital_base` 동적 바인딩 + leverage cap 검증
 **Category:** 트랜잭션 / Risk
 **Priority:** P0 (H1 Stealth Step 3)
-**Trigger:** mainnet 진입 직전 (BL-003 의 prereq)
-**Est:** M (4-5h)
+**Trigger:** ~~mainnet 진입 직전~~ → **Sprint 28 Slice 4 으로 사전 처리**
+**Est:** M (4-5h) → **실제 4.5h (Slice 4 estimate 정합)**
 **출처:** [`docs/TODO.md`](TODO.md) L658
 
-**원인 / 영향:** 현재 `capital_base` 는 정적 설정. 잔고 변동 시 KS 임계값이 실제 위험 노출과 어긋남. mainnet 진입 시 silent over-exposure 위험.
+**원인 / 영향 (Sprint 8 시점):** `capital_base` 정적 설정. 잔고 변동 시 KS 임계값이 실제 위험 노출과 어긋남. mainnet 진입 시 silent over-exposure 위험.
 
-**권장 접근:**
+**해결 (Sprint 28 Slice 4 PR #108):**
 
-1. `KillSwitchService.refresh_capital_base()` — exchange API `fetch_balance` 호출 후 `capital_base` 갱신 (Beat 5분)
-2. leverage cap 검증 — 신규 주문 시 `(qty * leverage) / capital_base` 가 limit 초과 시 reject
-3. tests: capital 변동 시뮬레이션 + leverage cap 경계값
+1. ✅ Sprint 8+ 의 hybrid 구현 검증 — `CumulativeLossEvaluator(balance_provider)` 가 trigger 시 매번 fetch_balance 호출 (ADR-006 Resolved 2026-05-04)
+2. ✅ `kill_switch.py:107-121` — provider 예외 → swallow + log + config fallback (resilience)
+3. ✅ 9 unit tests PASS — 기존 7 + 신규 2 (provider exception + cache 0 검증)
+4. ✅ Bybit Demo integration test infra (`tests/real_broker/test_kill_switch_capital_base.py`, --run-real-broker opt-in)
+5. ⏸️ EffectiveLeverageEvaluator (Cross Margin position aggregation) → BL-145 deferred
+
+**관련 ADR:** `docs/dev-log/006-sprint6-design-review-summary.md` "Resolved 2026-05-04 (Sprint 28 Slice 4)" 섹션 (capital_base fetch timing = Option A 결의)
 
 ---
 
@@ -541,26 +545,33 @@
 
 ## P2 — Hardening / 건강도 작업
 
-| ID                 | 제목                                                                              | Trigger                                      | Est           | 출처                                                     |
-| ------------------ | --------------------------------------------------------------------------------- | -------------------------------------------- | ------------- | -------------------------------------------------------- |
-| BL-027 ✅ Resolved | WS state_handler / reconciliation / tasks/trading dec winner-only commit-then-dec | (Sprint 16, 2026-05-01)                      | M (3-4h)      | dev-log Sprint 15 watchdog G.2 P1 #3 분리, Sprint 16 fix |
-| [BL-030](#bl-030)  | CI lupa C ext 빌드 검증                                                           | on-demand                                    | S (1h)        | CLAUDE.md Sprint 11 follow-up                            |
-| [BL-031](#bl-031)  | Sentinel/Cluster 검토                                                             | Redis 단일 인스턴스 한계 도달 시             | L (다음 분기) | CLAUDE.md Sprint 11 follow-up                            |
-| [BL-032](#bl-032)  | cardinality allowlist 조정                                                        | 프로덕션 ccxt 예외 실측 후                   | S (1-2h)      | TODO.md L807 (H2 말 이관)                                |
-| [BL-033](#bl-033)  | issue 중복 방지 (auto-label workflow)                                             | dogfood 1주 운영 중 issue 중복 발견 시       | S (1h)        | CLAUDE.md Sprint 11 follow-up                            |
-| [BL-034](#bl-034)  | slowapi 0.2.x major upgrade 검토                                                  | H2 말 (~2026-06-30)                          | M (3-4h)      | TODO.md L806                                             |
-| [BL-035](#bl-035)  | Phase B Grafana Cloud (dogfood 통합 대시보드)                                     | dogfood 운영 중 본인 필요 metric 식별 후     | M (4-6h)      | TODO.md L715 (Sprint 12 이관)                            |
-| [BL-036](#bl-036)  | dogfood 통합 대시보드 `/dashboard/today`                                          | "화면 부족" 자각 시                          | M (3-4h)      | TODO.md L716                                             |
-| [BL-037](#bl-037)  | Coverage Analyzer AST 정밀화 (regex → pynescript visitor)                         | Sprint Y2 또는 사용자 false-positive 보고 시 | M (4h)        | CLAUDE.md Y1 follow-up                                   |
-| [BL-038](#bl-038)  | P-3 중복 실행 통합 (`run_backtest_v2` + `parse_and_run_v2`)                       | Sprint 16 정리 sprint 시                     | M (3-4h)      | CLAUDE.md codex Gate-2 W-3                               |
-| [BL-039](#bl-039)  | `qb_redis_lock_pool_healthy` startup race                                         | dogfood 운영 중 false alert 1건 이상 발견 시 | S (1-2h)      | dogfood-day1 §3 (관찰)                                   |
-| [BL-040](#bl-040)  | Path γ — PyneCore transformers 이식                                               | H2~H3 path 평가 시                           | XL (~3주)     | CLAUDE.md ADR-011 amendment                              |
-| [BL-041](#bl-041)  | Path δ — Bulk stdlib top-N                                                        | dogfood 피드백 기반 우선순위 결정 후         | L (1~2주)     | CLAUDE.md ADR-011 amendment                              |
-| [BL-042](#bl-042)  | Onboarding 성공률 지표 `qb_onboarding_completion_total{step}`                     | Beta 5명 onboarding 후                       | S (1-2h)      | TODO.md L808                                             |
-| [BL-043](#bl-043)  | waitlist email_service Resend 미설정 graceful fallback 검증                       | Beta 오픈 직전                               | S (1-2h)      | TODO.md L809                                             |
-| [BL-137](#bl-137)  | 신규 strategy trading settings UI (메타데이터 tab)                                | Sprint 27 hotfix / Beta prereq               | M (1-2h)      | dogfood Day 1 Finding #1                                 |
-| [BL-140](#bl-140)  | LiveSignalDetail equity curve chart (recharts)                                    | Sprint 27 hotfix / Beta prereq               | M (1-2h)      | dogfood Day 3 Finding #4                                 |
-| [BL-141](#bl-141)  | Backtest UI 활성화 + ts.ohlcv hypertable backfill                                 | Beta prereq                                  | L (4-8h)      | dogfood Day 4-7 D.1                                      |
+| ID                                              | 제목                                                                              | Trigger                                      | Est           | 출처                                                           |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------- | ------------- | -------------------------------------------------------------- |
+| BL-027 ✅ Resolved                              | WS state_handler / reconciliation / tasks/trading dec winner-only commit-then-dec | (Sprint 16, 2026-05-01)                      | M (3-4h)      | dev-log Sprint 15 watchdog G.2 P1 #3 분리, Sprint 16 fix       |
+| [BL-030](#bl-030)                               | CI lupa C ext 빌드 검증                                                           | on-demand                                    | S (1h)        | CLAUDE.md Sprint 11 follow-up                                  |
+| [BL-031](#bl-031)                               | Sentinel/Cluster 검토                                                             | Redis 단일 인스턴스 한계 도달 시             | L (다음 분기) | CLAUDE.md Sprint 11 follow-up                                  |
+| [BL-032](#bl-032)                               | cardinality allowlist 조정                                                        | 프로덕션 ccxt 예외 실측 후                   | S (1-2h)      | TODO.md L807 (H2 말 이관)                                      |
+| [BL-033](#bl-033)                               | issue 중복 방지 (auto-label workflow)                                             | dogfood 1주 운영 중 issue 중복 발견 시       | S (1h)        | CLAUDE.md Sprint 11 follow-up                                  |
+| [BL-034](#bl-034)                               | slowapi 0.2.x major upgrade 검토                                                  | H2 말 (~2026-06-30)                          | M (3-4h)      | TODO.md L806                                                   |
+| [BL-035](#bl-035)                               | Phase B Grafana Cloud (dogfood 통합 대시보드)                                     | dogfood 운영 중 본인 필요 metric 식별 후     | M (4-6h)      | TODO.md L715 (Sprint 12 이관)                                  |
+| [BL-036](#bl-036)                               | dogfood 통합 대시보드 `/dashboard/today`                                          | "화면 부족" 자각 시                          | M (3-4h)      | TODO.md L716                                                   |
+| [BL-037](#bl-037)                               | Coverage Analyzer AST 정밀화 (regex → pynescript visitor)                         | Sprint Y2 또는 사용자 false-positive 보고 시 | M (4h)        | CLAUDE.md Y1 follow-up                                         |
+| [BL-038](#bl-038)                               | P-3 중복 실행 통합 (`run_backtest_v2` + `parse_and_run_v2`)                       | Sprint 16 정리 sprint 시                     | M (3-4h)      | CLAUDE.md codex Gate-2 W-3                                     |
+| [BL-039](#bl-039)                               | `qb_redis_lock_pool_healthy` startup race                                         | dogfood 운영 중 false alert 1건 이상 발견 시 | S (1-2h)      | dogfood-day1 §3 (관찰)                                         |
+| [BL-040](#bl-040)                               | Path γ — PyneCore transformers 이식                                               | H2~H3 path 평가 시                           | XL (~3주)     | CLAUDE.md ADR-011 amendment                                    |
+| [BL-041](#bl-041)                               | Path δ — Bulk stdlib top-N                                                        | dogfood 피드백 기반 우선순위 결정 후         | L (1~2주)     | CLAUDE.md ADR-011 amendment                                    |
+| [BL-042](#bl-042)                               | Onboarding 성공률 지표 `qb_onboarding_completion_total{step}`                     | Beta 5명 onboarding 후                       | S (1-2h)      | TODO.md L808                                                   |
+| [BL-043](#bl-043)                               | waitlist email_service Resend 미설정 graceful fallback 검증                       | Beta 오픈 직전                               | S (1-2h)      | TODO.md L809                                                   |
+| [BL-137](#bl-137)                               | 신규 strategy trading settings UI (메타데이터 tab)                                | Sprint 27 hotfix / Beta prereq               | M (1-2h)      | dogfood Day 1 Finding #1                                       |
+| BL-140 ✅ Resolved (Sprint 27 PR #104)          | LiveSignalDetail equity curve chart UI (placeholder dual-line)                    |                                              |               | dogfood Day 3 Finding #4                                       |
+| BL-140b ✅ Resolved (Sprint 28 Slice 3 PR #111) | LiveSignalDetail equity curve real value (BE schema + FE chart)                   |                                              |               | dogfood Day 1 finding 후속                                     |
+| BL-141 ✅ Resolved (Sprint 28 Slice 2 PR #110)  | Backtest UI 활성화 + ts.ohlcv hypertable backfill                                 |                                              |               | dogfood Day 4-7 D.1                                            |
+| [BL-142](#bl-142)                               | ts.ohlcv daily refresh task (Slice 2 후속)                                        | Sprint 29+                                   | M (2-3h)      | Sprint 28 Slice 2 brainstorming 결정 1 deferred                |
+| [BL-143](#bl-143)                               | LiveSignal equity_curve JSONB compaction (long-running aggregation)               | Sprint 30+                                   | M (2-3h)      | Sprint 28 Slice 3 brainstorming 결정 1 deferred (1000+ entry)  |
+| BL-144 ✅ Resolved (Sprint 27 PR #105)          | input step="any" silent submit block fix                                          |                                              |               |
+| [BL-145](#bl-145)                               | EffectiveLeverageEvaluator (Cross Margin position aggregation)                    | Sprint 30+ Phase 2 prereq                    | M (3-4h)      | Sprint 28 Slice 4 T3 deferred                                  |
+| [BL-146](#bl-146)                               | 메타-방법론 정책 4종 영구 규칙 승격 (lessons.md → common/global.md)               | Sprint 29+ Stage 6                           | XS (15-30분)  | Sprint 28 Slice 1a Phase C.1 sprint-template prototype 검증 후 |
+| [BL-147](#bl-147)                               | Bybit Demo integration test CI 환경 wire-up (--run-real-broker workflow)          | Sprint 29+                                   | S (1-2h)      | Sprint 28 Slice 4 T4 CI 환경 의존                              |
 
 (상세 내용은 출처 인용 — 표 형태로 충분, 각 항목 1-3 줄로 충분히 self-contained)
 
