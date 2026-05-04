@@ -12,7 +12,12 @@ from src.backtest.models import BacktestStatus, TradeDirection, TradeStatus
 # --- Request ---
 
 class CreateBacktestRequest(BaseModel):
-    """POST /backtests body."""
+    """POST /backtests body.
+
+    Sprint 29 codex G2 P0 fix: `allow_degraded_pine` 명시 동의 — Trust Layer 의도적 위반
+    함수 (heikinashi / request.security / timeframe.period) 사용 strategy 의 backtest 는
+    본 flag 없이는 422 reject. dogfood-first 정합 (사용자가 거짓 양성 risk 명시 인지).
+    """
 
     strategy_id: UUID
     symbol: str = Field(min_length=3, max_length=32)
@@ -20,6 +25,8 @@ class CreateBacktestRequest(BaseModel):
     period_start: AwareDatetime
     period_end: AwareDatetime
     initial_capital: Decimal = Field(gt=Decimal("0"), max_digits=20, decimal_places=8)
+    # Sprint 29 codex G2 P0 — degraded Pine semantic 명시 동의. default False (안전 fallback).
+    allow_degraded_pine: bool = False
 
     @model_validator(mode="after")
     def _validate_period(self) -> Self:

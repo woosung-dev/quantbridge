@@ -18,6 +18,7 @@ from src.backtest.exceptions import (
     BacktestDuplicateIdempotencyKey,
     BacktestNotFound,
     BacktestStateConflict,
+    StrategyDegraded,
     StrategyNotRunnable,
     TaskDispatchError,
 )
@@ -140,6 +141,23 @@ class BacktestService:
                     f"See docs/02_domain/supported-indicators.md for the supported list."
                 ),
                 unsupported_builtins=unsupported_list,
+            )
+
+        # Sprint 29 codex G2 P0 fix: degraded Pine semantic gate.
+        # heikinashi / request.security / timeframe.period 는 supported 로 graceful 실행되지만
+        # Pine 원본과 결과 차이 가능 (Trust Layer 위반). dogfood-first — 사용자 명시 동의 없이
+        # 본 strategy backtest 차단.
+        if coverage.has_degraded and not data.allow_degraded_pine:
+            degraded_list = list(coverage.degraded_calls)
+            degraded_str = ", ".join(degraded_list)
+            raise StrategyDegraded(
+                detail=(
+                    f"Strategy uses degraded Pine functions: {degraded_str}. "
+                    f"Set `allow_degraded_pine=true` in request body to acknowledge "
+                    f"that backtest results may differ from Pine source. "
+                    f"See docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md."
+                ),
+                degraded_calls=degraded_list,
             )
 
         bt = Backtest(

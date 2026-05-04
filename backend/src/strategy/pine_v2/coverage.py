@@ -515,6 +515,23 @@ def _find_line(source: str, pattern: str) -> int | None:
     return None
 
 
+# Sprint 29 codex G2 P0 fix: Trust Layer 의도적 위반 함수.
+# coverage 가 supported 로 분류 (graceful execution) 하지만 backtest semantic 측면에서는
+# Pine 원본과 결과 차이 가능 — 사용자 명시 동의 (`allow_degraded_pine=true`) 없이 backtest
+# 실행 차단 의무. backtest/service.py 의 submit gate 가 본 set 검사.
+_DEGRADED_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "request.security",  # Slice A: 단일 timeframe 가정 graceful — 다른 TF 의도 시 거짓 양성
+        "heikinashi",  # Slice A (a) ADR: 일반 OHLC 그대로 반환 — Heikin-Ashi 결과 차이 가능
+    }
+)
+_DEGRADED_ATTRIBUTES: frozenset[str] = frozenset(
+    {
+        "timeframe.period",  # Slice A: BarContext.timeframe 미구현, "1D" 기본값 — 분기 잘못 실행
+    }
+)
+
+
 @dataclass(frozen=True)
 class CoverageReport:
     """Pine 소스의 함수/변수 사용 vs SUPPORTED 매트릭스.
@@ -523,6 +540,8 @@ class CoverageReport:
     - `unsupported_attributes`: 변수 접근 형태로 사용된 미지원 chain (예: `ta.supertrend`)
     - `is_runnable`: 둘 다 비어있으면 True (backtest 실행 가능)
     - `dogfood_only_warning`: heikinashi 등 Trust Layer 위반 함수 사용 시 경고 문자열
+    - `degraded_calls`: Sprint 29 codex G2 P0 — Trust Layer 의도적 위반 (graceful 이지만 결과 차이).
+      backtest submit 시 `allow_degraded_pine=true` 명시 동의 없으면 422 reject.
     """
 
     used_functions: tuple[str, ...]
@@ -532,10 +551,18 @@ class CoverageReport:
     unsupported_calls: tuple[UnsupportedCall, ...] = ()  # Sprint 29 Slice B 신규
     # Sprint 29 Slice A: heikinashi Trust Layer 위반 transparency
     dogfood_only_warning: str | None = None
+    # Sprint 29 codex G2 P0 fix: Trust Layer 의도적 위반 함수/속성 (degraded execution).
+    # supported 로 graceful 실행되지만 사용자 명시 동의 없이는 backtest 차단.
+    degraded_calls: tuple[str, ...] = ()
 
     @property
     def is_runnable(self) -> bool:
         return not self.unsupported_functions and not self.unsupported_attributes
+
+    @property
+    def has_degraded(self) -> bool:
+        """Trust Layer 의도적 위반 함수 사용 여부. backtest submit 시 명시 동의 검사."""
+        return bool(self.degraded_calls)
 
     @property
     def all_unsupported(self) -> tuple[str, ...]:
@@ -652,6 +679,17 @@ def analyze_coverage(source: str) -> CoverageReport:
             )
         )
 
+    # Sprint 29 codex G2 P0 fix: degraded_calls — Trust Layer 의도적 위반 함수/속성.
+    # supported 로 분류되어 is_runnable=True 이지만 production backtest 차단 의무.
+    degraded_set: set[str] = set()
+    for fn in used_funcs_all:
+        if fn in _DEGRADED_FUNCTIONS:
+            degraded_set.add(fn)
+    for attr in used_attrs:
+        if attr in _DEGRADED_ATTRIBUTES:
+            degraded_set.add(attr)
+    degraded_calls = tuple(sorted(degraded_set))
+
     return CoverageReport(
         used_functions=tuple(used_funcs),
         used_attributes=tuple(used_attrs),
@@ -659,4 +697,5 @@ def analyze_coverage(source: str) -> CoverageReport:
         unsupported_attributes=unsupp_attrs,
         unsupported_calls=tuple(unsupported_calls_list),
         dogfood_only_warning=warning,
+        degraded_calls=degraded_calls,
     )
