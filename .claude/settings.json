@@ -60,5 +60,31 @@
       "Bash(docker image prune*)",
       "Bash(sudo*)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f docs/guides/bl-audit-checklist.md && echo '[gstack hook] BL audit checklist available — docs/guides/bl-audit-checklist.md (Sprint 28+)' || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f docs/dev-log/INDEX.md && git diff --name-only HEAD~1 2>/dev/null | grep -q 'dev-log/.*\\.md' && echo '[gstack hook] dev-log 신규 — INDEX.md 갱신 권장 (sprint-template.md trailer 참조)' || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }
