@@ -8,6 +8,7 @@
 
 ## H2 Sprint (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-04 — Sprint 27 Beta prereq hotfix — BL-137 (settings UI) + BL-140 (Activity Timeline chart), self-assessment 8.5/10 — [`2026-05-04-sprint27-beta-prereq-hotfix.md`](2026-05-04-sprint27-beta-prereq-hotfix.md)
 - 2026-05-04 — dogfood Day 1 — Sprint 27 launch (Auto-Loop §0.5 first run, self-assessment 8/10) — [`2026-05-04-dogfood-day1-sprint27-launch.md`](2026-05-04-dogfood-day1-sprint27-launch.md)
 - 2026-05-03 — Sprint 25 Hybrid (FE E2E Playwright + Backend 강화 + codex G.0/G.2) — [`2026-05-03-sprint25-hybrid.md`](2026-05-03-sprint25-hybrid.md)
 - 2026-05-03 — Sprint 24b Track 1 Backend E2E 자동 dogfood — [`2026-05-03-sprint24b-auto-dogfood.md`](2026-05-03-sprint24b-auto-dogfood.md)

@@ -11,6 +11,7 @@ import {
   StrategyListResponseSchema,
   StrategyResponseSchema,
   UpdateStrategyRequestSchema,
+  UpdateStrategySettingsRequestSchema,
   WebhookRotateResponseSchema,
   type CreateStrategyRequest,
   type ParsePreviewResponse,
@@ -19,6 +20,7 @@ import {
   type StrategyListResponse,
   type StrategyResponse,
   type UpdateStrategyRequest,
+  type UpdateStrategySettingsRequest,
   type WebhookRotateResponse,
 } from "./schemas";
 
@@ -92,6 +94,21 @@ export async function updateStrategy(
 ): Promise<StrategyResponse> {
   const parsed = UpdateStrategyRequestSchema.parse(body);
   const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}`, {
+    method: "PUT",
+    token,
+    body: parsed,
+  });
+  return StrategyResponseSchema.parse(raw);
+}
+
+// Sprint 27 BL-137 — PUT /strategies/{id}/settings (trading params).
+export async function updateStrategySettings(
+  id: string,
+  body: UpdateStrategySettingsRequest,
+  token: string | null,
+): Promise<StrategyResponse> {
+  const parsed = UpdateStrategySettingsRequestSchema.parse(body);
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}/settings`, {
     method: "PUT",
     token,
     body: parsed,

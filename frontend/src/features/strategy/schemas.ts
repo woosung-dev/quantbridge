@@ -34,6 +34,23 @@ export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
 export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
 export type TradingSession = z.infer<typeof TradingSessionSchema>;
 
+// Sprint 27 BL-137 — trading settings (Live Signal Auto-Trading 의 leverage/margin/size).
+// Backend StrategySettings (backend/src/strategy/schemas.py:72-87) 와 동일 spec.
+export const MarginModeSchema = z.enum(["cross", "isolated"]);
+export type MarginMode = z.infer<typeof MarginModeSchema>;
+
+// codex G.2 P1 #1 — BE extra='forbid' 정합. FE 가 unknown key 통과시키면
+// 백엔드에서 422, 또는 FE schema 가 silent strip → BE 와 mismatch.
+export const StrategySettingsSchema = z
+  .object({
+    schema_version: z.number().int().default(1),
+    leverage: z.number().int().min(1).max(125),
+    margin_mode: MarginModeSchema,
+    position_size_pct: z.number().gt(0).max(100),
+  })
+  .strict();
+export type StrategySettings = z.infer<typeof StrategySettingsSchema>;
+
 export const StrategyResponseSchema = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -46,6 +63,8 @@ export const StrategyResponseSchema = z.object({
   symbol: z.string().nullable(),
   tags: z.array(z.string()).default([]),
   trading_sessions: z.array(z.string()).default([]),
+  // Sprint 27 BL-137 — settings JSONB. null = unset (Live Session 시작 차단).
+  settings: StrategySettingsSchema.nullable().optional(),
   is_archived: z.boolean(),
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
@@ -102,6 +121,13 @@ export const UpdateStrategyRequestSchema = z.object({
   is_archived: z.boolean().optional(),
 });
 export type UpdateStrategyRequest = z.infer<typeof UpdateStrategyRequestSchema>;
+
+// Sprint 27 BL-137 — PUT /strategies/{id}/settings request body. Backend
+// UpdateStrategySettingsRequest (extra="forbid") 와 동일 spec.
+export const UpdateStrategySettingsRequestSchema = StrategySettingsSchema;
+export type UpdateStrategySettingsRequest = z.infer<
+  typeof UpdateStrategySettingsRequestSchema
+>;
 
 export const StrategyListQuerySchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
