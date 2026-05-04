@@ -5,7 +5,7 @@
 
 ---
 
-```
+````
 Sprint 8b 완료 상태 (브랜치 `feat/sprint8b-tier1-rendering`, 15 commits, push/PR 아직).
   이번 세션은 **Sprint 8c — user-defined function(`=>`) + 3-Track 라우터(S/A/M) 묶음**.
 
@@ -79,83 +79,92 @@ Sprint 8b 완료 상태 (브랜치 `feat/sprint8b-tier1-rendering`, 15 commits, 
   from src.strategy.pine_v2 import classify_script, ScriptTrack
 
   track = classify_script(source)  # ScriptTrack.STRATEGY / ALERT / MANUAL
-  ```
+````
 
-  **성공 기준:**
-  - 6 corpus 각각 올바른 Track 반환 (s1/s2/s3 → STRATEGY, i1/i2/i3 → ALERT)
-  - Track M 스크립트 샘플 1개 작성해서 classifier 검증
-  - `parse_and_run_v2(source, ohlcv)` wrapper가 Track에 따라 `run_historical` vs
-    `run_virtual_strategy` 자동 dispatch
+**성공 기준:**
 
-  ## 진행 순서 (권장)
-  1. **user function 먼저** → s3/i3 실제 매매 검증 재활성화 (Sprint 8b strict=False
-     테스트를 strict=True + trade assertion으로 상향). 독립 완결.
-  2. **3-Track 라우터** → classify_script() + parse_and_run_v2 dispatcher.
-     6 corpus parametrized 검증.
-  3. 양쪽 완료 후 s3/i3 테스트에 "strict=True + trade count > 0" assertion 추가.
+- 6 corpus 각각 올바른 Track 반환 (s1/s2/s3 → STRATEGY, i1/i2/i3 → ALERT)
+- Track M 스크립트 샘플 1개 작성해서 classifier 검증
+- `parse_and_run_v2(source, ohlcv)` wrapper가 Track에 따라 `run_historical` vs
+  `run_virtual_strategy` 자동 dispatch
 
-  ## 엄수 제약
-  - **pine_v2/ 모듈만.** 기존 pine/ 모듈은 touch 0 (dogfood 복구 경로 보호)
-  - **H1 MVP scope 준수** — user function은 core만 (closure / 고차 H2+).
-    strategy.exit trail_points / qty_percent / pyramiding 여전히 H2+ 이연
-  - **pynescript LGPL 격리** — import 6 파일 경계 유지 (parser_adapter /
-    ast_metrics / ast_classifier / alert_hook / ast_extractor / interpreter)
-  - **ruff/mypy clean** + 기존 224 regression green 유지
+## 진행 순서 (권장)
 
-  ## 방법론 — superpowers + gstack eng-review 1 pass (★★★★☆ B안)
+1. **user function 먼저** → s3/i3 실제 매매 검증 재활성화 (Sprint 8b strict=False
+   테스트를 strict=True + trade assertion으로 상향). 독립 완결.
+2. **3-Track 라우터** → classify_script() + parse_and_run_v2 dispatcher.
+   6 corpus parametrized 검증.
+3. 양쪽 완료 후 s3/i3 테스트에 "strict=True + trade count > 0" assertion 추가.
 
-  Sprint 8b의 ★★★★★ 경로(writing-plans → executing-plans → hardening) 대비
-  **plan-eng-review 1 pass 추가**. 이유: user function은 interpreter 코어 수정
-  (FunctionDef 수집 + Call dispatch 재귀 평가 + multi-return destructuring)으로
-  구조 변경이 크므로 실행 전 설계 허점 1회 체크가 효율적.
+## 엄수 제약
 
-  1. **writing-plans 스킬로 plan 먼저 작성** (superpowers)
-     (`docs/superpowers/plans/YYYY-MM-DD-sprint-8c-user-function-3track.md`)
-     - user function AST 수집 + call dispatch 설계 (재귀, scope, multi-return)
-     - 3-Track classifier 기준 명시
-     - 병렬 가능 항목 표시
-  2. **plan-eng-review 스킬로 아키텍처 1-pass** (gstack)
-     - interpreter 코어 변경 설계 검토 (FunctionDef / Call / destructuring)
-     - recursion depth / scope resolution / Call context 엣지
-     - 기존 224 tests regression 리스크 파악
-     - eng-review 피드백을 plan에 반영 후 다음 단계 진행
-  3. **ExitPlanMode로 사용자 승인** 받기
-  4. **executing-plans 스킬로 task-by-task 진행** (superpowers) — TDD
-     (test 먼저 → 구현 → verification)
-  5. 각 task 완료마다 commit (체크포인트)
-  6. Sprint 8b 관례대로 **외부 독립 리뷰 (Opus/Sonnet) 교차 hardening** 단계 포함
-     — 완주 직후 공통 gap 추출 후 보강
+- **pine_v2/ 모듈만.** 기존 pine/ 모듈은 touch 0 (dogfood 복구 경로 보호)
+- **H1 MVP scope 준수** — user function은 core만 (closure / 고차 H2+).
+  strategy.exit trail_points / qty_percent / pyramiding 여전히 H2+ 이연
+- **pynescript LGPL 격리** — import 6 파일 경계 유지 (parser_adapter /
+  ast_metrics / ast_classifier / alert_hook / ast_extractor / interpreter)
+- **ruff/mypy clean** + 기존 224 regression green 유지
 
-  ### 대안 분기 (방법론 변경이 필요하면 첫 판단 시점에 재논의)
-  - **A. eng-review 생략 (Sprint 8b 복사, ★★★★★)** — 빠르게, 구현 중 발견 리스크 감수
-  - **C. brainstorming 먼저 (★★★☆☆)** — user function scope 경계가 흔들린다면
-    (closure / 고차함수 / nested func의 H2+ 이연 확정 여부 재검토 필요 시)
+## 방법론 — superpowers + gstack eng-review 1 pass (★★★★☆ B안)
 
-  ## 브랜치 전략
-  - **새 브랜치 권장:** `feat/sprint8c-user-function-3track` (main에서 분기)
-  - 이유: Sprint 8b(15 commits)는 이미 자연스러운 완결 단위. 새 작업을 별도 PR로
-    분리하면 리뷰 부하 감소 + 롤백 범위 명확.
-  - Sprint 8b PR은 차기 세션에서 별도로 생성 또는 그대로 보존.
+Sprint 8b의 ★★★★★ 경로(writing-plans → executing-plans → hardening) 대비
+**plan-eng-review 1 pass 추가**. 이유: user function은 interpreter 코어 수정
+(FunctionDef 수집 + Call dispatch 재귀 평가 + multi-return destructuring)으로
+구조 변경이 크므로 실행 전 설계 허점 1회 체크가 효율적.
 
-  ## 선택지 제시 시 **별점 추천도 필수** (메모리 규칙 참조)
-  `| 추천도 | 옵션 | 이유 |` 형식 테이블.
+1. **writing-plans 스킬로 plan 먼저 작성** (superpowers)
+   (`docs/superpowers/plans/YYYY-MM-DD-sprint-8c-user-function-3track.md`)
+   - user function AST 수집 + call dispatch 설계 (재귀, scope, multi-return)
+   - 3-Track classifier 기준 명시
+   - 병렬 가능 항목 표시
+2. **plan-eng-review 스킬로 아키텍처 1-pass** (gstack)
+   - interpreter 코어 변경 설계 검토 (FunctionDef / Call / destructuring)
+   - recursion depth / scope resolution / Call context 엣지
+   - 기존 224 tests regression 리스크 파악
+   - eng-review 피드백을 plan에 반영 후 다음 단계 진행
+3. **ExitPlanMode로 사용자 승인** 받기
+4. **executing-plans 스킬로 task-by-task 진행** (superpowers) — TDD
+   (test 먼저 → 구현 → verification)
+5. 각 task 완료마다 commit (체크포인트)
+6. Sprint 8b 관례대로 **외부 독립 리뷰 (Opus/Sonnet) 교차 hardening** 단계 포함
+   — 완주 직후 공통 gap 추출 후 보강
 
-  ## 참조
-  - 메모리: [Sprint 8b 완료](project_sprint8b_complete.md) — 구현 + hardening 상세
-  - 메모리: [스프린트를 너무 짧게 끊지 말 것](feedback_sprint_cadence.md) — 묶어 진행 선호
-  - Sprint 8b plan: `docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md`
-  - 아키텍처: `docs/04_architecture/pine-execution-architecture.md` (3-Track §336-363)
-  - ADR-011: `docs/dev-log/011-pine-execution-strategy-v4.md`
-    - §2.0 Tier-0 (user function, runtime 범위 A)
-    - §2.1 Tier-1 (Alert Hook + 가상 strategy)
-    - §13 Phase -1 amendment (H1 MVP scope)
+### 대안 분기 (방법론 변경이 필요하면 첫 판단 시점에 재논의)
 
-  ## 시작 액션
-  1. `git checkout main && git pull origin main` + `git log --oneline -5` 확인
-  2. `git checkout -b feat/sprint8c-user-function-3track`
-  3. writing-plans 스킬 invoke → plan file 작성
-  4. 사용자에게 plan 승인 요청 (ExitPlanMode)
-  5. 승인 후 executing-plans로 진입
+- **A. eng-review 생략 (Sprint 8b 복사, ★★★★★)** — 빠르게, 구현 중 발견 리스크 감수
+- **C. brainstorming 먼저 (★★★☆☆)** — user function scope 경계가 흔들린다면
+  (closure / 고차함수 / nested func의 H2+ 이연 확정 여부 재검토 필요 시)
+
+## 브랜치 전략
+
+- **새 브랜치 권장:** `feat/sprint8c-user-function-3track` (main에서 분기)
+- 이유: Sprint 8b(15 commits)는 이미 자연스러운 완결 단위. 새 작업을 별도 PR로
+  분리하면 리뷰 부하 감소 + 롤백 범위 명확.
+- Sprint 8b PR은 차기 세션에서 별도로 생성 또는 그대로 보존.
+
+## 선택지 제시 시 **별점 추천도 필수** (메모리 규칙 참조)
+
+`| 추천도 | 옵션 | 이유 |` 형식 테이블.
+
+## 참조
+
+- 메모리: [Sprint 8b 완료](project_sprint8b_complete.md) — 구현 + hardening 상세
+- 메모리: [스프린트를 너무 짧게 끊지 말 것](feedback_sprint_cadence.md) — 묶어 진행 선호
+- Sprint 8b plan: `docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md`
+- 아키텍처: `docs/04_architecture/pine-execution-architecture.md` (3-Track §336-363)
+- ADR-011: `docs/dev-log/011-pine-execution-strategy-v4.md`
+  - §2.0 Tier-0 (user function, runtime 범위 A)
+  - §2.1 Tier-1 (Alert Hook + 가상 strategy)
+  - §13 Phase -1 amendment (H1 MVP scope)
+
+## 시작 액션
+
+1. `git checkout main && git pull origin main` + `git log --oneline -5` 확인
+2. `git checkout -b feat/sprint8c-user-function-3track`
+3. writing-plans 스킬 invoke → plan file 작성
+4. 사용자에게 plan 승인 요청 (ExitPlanMode)
+5. 승인 후 executing-plans로 진입
+
 ```
 
 ---
@@ -172,3 +181,4 @@ Sprint 8b 완료 상태 (브랜치 `feat/sprint8b-tier1-rendering`, 15 commits, 
 
 새 세션에서 첫 메시지로 위 코드블록을 붙여넣고, `feat/sprint8c-user-function-3track`
 브랜치 분기부터 시작하면 됩니다.
+```

@@ -43,12 +43,14 @@ Sprint 9 회고: skill 이름을 문서에만 언급하고 실제 `Skill` 툴로
 1. `Skill(superpowers:requesting-code-review)` 호출
 2. Agent 가 push 한 diff 저장: `git diff origin/<base>..origin/<feat> > /tmp/<phase>-diff.patch`
 3. **Evaluator 1 — codex CLI (foreground)**:
+
    ```bash
    codex exec --sandbox read-only --skip-git-repo-check "$(cat /tmp/codex-review-prompt.md)" > /tmp/codex-out.txt 2>&1
    ```
 
    - Prompt 에 diff 파일 참조 (`@/tmp/<phase>-diff.patch`) + Golden Rules 체크리스트
    - **stdin hang 발생 시**: kill + 짧게 재작성 + foreground 재호출. 2 회 실패 시 codex 생략하고 Opus+Sonnet 2-way fallback
+
 4. **Evaluator 2 — Opus blind Agent**:
    ```
    Agent(subagent_type=general-purpose, model=opus, run_in_background=true,

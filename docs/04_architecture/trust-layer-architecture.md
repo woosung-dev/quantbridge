@@ -1,5 +1,7 @@
 # Trust Layer Architecture — 3-Layer Parity (P-1/2/3) + Future P-4
 
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 아키텍처/구현의 단일 진실 원천**. 요구사항: [`01_requirements/trust-layer-requirements.md`](../01_requirements/trust-layer-requirements.md), ADR: [`dev-log/013-trust-layer-ci-design.md`](../dev-log/013-trust-layer-ci-design.md).
+>
 > **상태:** Path β Stage 0 초안 (2026-04-23). Stage 2 구현 완료 시 확정
 > **ADR:** [`dev-log/013-trust-layer-ci-design.md`](../dev-log/013-trust-layer-ci-design.md)
 > **상위:** [`pine-execution-architecture.md` §2 Tier-2](./pine-execution-architecture.md#🏗️-tier-2-pynecore-골든-오라클--day-1-ci) (본 문서는 Tier-2 의 실용화 상세)

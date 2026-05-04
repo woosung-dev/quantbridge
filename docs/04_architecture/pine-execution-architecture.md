@@ -1,5 +1,7 @@
 # Pine Script Execution Architecture — v4 (Alert Hook + 3-Track)
 
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Pine 실행 엔진 아키텍처의 단일 진실 원천**. 관련 ADR: [`dev-log/011-pine-execution-strategy-v4.md`](../dev-log/011-pine-execution-strategy-v4.md) (결정 근거), 세션 archive: [`superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../superpowers/specs/2026-04-17-pine-execution-v4-design.md) (50+ 턴 학술 archive).
+>
 > **상태:** 설계 확정 (2026-04-17), Phase -1 실측 진행 중
 > **ADR:** [`dev-log/011-pine-execution-strategy-v4.md`](../dev-log/011-pine-execution-strategy-v4.md)
 > **세션 근거:** [`superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../superpowers/specs/2026-04-17-pine-execution-v4-design.md)
