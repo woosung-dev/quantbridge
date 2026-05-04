@@ -40,9 +40,21 @@
 - [ ] dark / light 테마 양쪽 확인 (해당 시)
 - [ ] 접근성 — keyboard 탐색, aria-label, touch target ≥ 44px
 
+## Codex Gates (Sprint 28+ 의무, sprint type 별 차등)
+
+> **Sprint type:** A (신규 기능 의무) / B (risk-critical 권고) / C (dogfood hotfix 압축) / D (docs 면제)
+> **codex hang 발생 시:** Claude self-review (G0 evaluator pattern adapted) 가 fallback — 기록에 명시.
+
+- [ ] **G.0 Plan eval** (sprint 시작 시 plan review) — link: <!-- artifact / commit / dev-log -->
+- [ ] **G.2 Implementation review** (각 PR adversarial review) — link: <!-- PR comment 또는 dev-log -->
+- [ ] **G.4 P2 issue 처리** (G.2 통과 후 P2 정리) — link: <!-- BL 등록 vs 즉시 fix -->
+- [ ] **Self-assessment 점수** N/10 + 근거 (≥3 줄):
+<!-- 정성 + 정량 dual metric. Sprint 27 의 8.0 + 4 P0 BL divergence case 회피. -->
+
 ## 관련 이슈 / 문서
 
 <!-- docs/dev-log/ 번호 / GitHub issue / Lesson 번호 (.ai/project/lessons.md) -->
+<!-- BL ID 명시 의무: 해결 시 Resolved 표시 + 신규 등록 시 P0/P1/P2/P3 분류 -->
 
 ## 스크린샷 / 터미널 로그
 
