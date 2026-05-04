@@ -186,7 +186,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 - BE 1455 / FE 257 tests · dogfood Day 0 evidence Bybit Demo 5 orders filled · self-assessment 9.5/10 ★★★
 - 상세: [`docs/dev-log/2026-05-04-sprint26-pine-signal-auto-trading.md`](docs/dev-log/2026-05-04-sprint26-pine-signal-auto-trading.md)
 
-**다음 분기:** Sprint 27 hotfix (dogfood Day 1 finding 3건 BL 별도 PR) → dogfood Day 2-7 자연 사용 (BL-005) → Beta 오픈 (Path A) 또는 G.2 hardening (Path B) 결정
+**다음 분기:** Sprint 27 hotfix — Beta prereq BL **BL-137** (settings UI) + **BL-140** (equity curve chart) + **BL-141** (backtest 인프라) 별도 PR → dogfood Day 4-7 자연 사용 (BL-005) → Beta 오픈 (Path A) 또는 G.2 hardening (Path B) 결정. P3 BL-138/139/142 도 정리 묶음 가능.
 
 **전체 sprint 이력:** [`docs/dev-log/INDEX.md`](docs/dev-log/INDEX.md) — 37개 회고·ADR·dogfood 기록 인덱스
 
