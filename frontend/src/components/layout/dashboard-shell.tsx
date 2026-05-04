@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 // 사이드바 네비게이션 — DESIGN.md §10.2 순서
 // Sprint 7c: /strategies, /trading만 활성화. 나머지는 disabled ("곧 출시")
+// Sprint 28 Slice 2 (BL-141): /backtests 활성화 — Backtest UI MVP 완성 + ts.ohlcv backfill task 추가
 type NavItem = {
   href: string;
   label: string;
@@ -29,7 +30,7 @@ const navItems: readonly NavItem[] = [
   { href: "/dashboard", label: "대시보드", icon: HomeIcon, disabled: true },
   { href: "/strategies", label: "전략", icon: CodeIcon, disabled: false },
   { href: "/templates", label: "템플릿", icon: LayersIcon, disabled: true },
-  { href: "/backtests", label: "백테스트", icon: BarChartIcon, disabled: true },
+  { href: "/backtests", label: "백테스트", icon: BarChartIcon, disabled: false },
   { href: "/trading", label: "트레이딩", icon: ZapIcon, disabled: false },
   { href: "/exchanges", label: "거래소", icon: GlobeIcon, disabled: true },
 ] as const;
