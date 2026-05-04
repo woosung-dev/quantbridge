@@ -1,12 +1,12 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-04 (Sprint 28 Step 0 + Step 1 완료 — PR #106 stage merge + office-hours Addendum commit `7911eba`)
-> **Active Sprint:** Sprint 28 Beta prereq 종합 (kickoff plan: [`dev-log/2026-05-04-sprint28-kickoff.md`](./dev-log/2026-05-04-sprint28-kickoff.md), 5 Slice plans: [`superpowers/specs/2026-05-04-sprint28-slice*.md`](./superpowers/specs/))
-> **Active Branch:** `stage/h2-sprint28-comprehensive` (cascade base) → 4 sub-branch (chore/sprint28-slice1a / feat/sprint28-slice1b / feat/sprint28-slice2 / feat/sprint28-slice3 / feat/sprint28-slice4)
-> **Sprint type:** B (risk-critical) — Slice 1a/1b/2/3/4 = D / B / A / A / B 차등 brainstorming
-> **office-hours 진행:** Y (Sprint 28 Step 1, 2026-05-04 — Q4/Q5 답 부분 무효화 → 새 답 도출, ADR-008 Addendum)
-> **Recent BLs:** Sprint 27 BL-137/140/144 ✅ Resolved · Sprint 28 active BL-141 (Slice 2) / BL-140b (Slice 3) / BL-004 (Slice 4) · 메타 정책 4종 도입
-> **Next Trigger:** Slice 1a/4 병렬 구현 → Slice 1b → Slice 2/3 → Step 4 검증 (codex G2 + qa-only) → Step 5 dual metric 측정 → Beta path A1 결정 (자연 시간 1-2주 + Day 7)
+> **Last Updated:** 2026-05-04 (Sprint 29 kickoff v2 — codex+Opus 2-검토 후 frame pivot, plan v2 승인)
+> **Active Sprint:** Sprint 29 Pine Coverage Layer Hardening + DrFXGOD Schema (plan: [`~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`](../../.claude/plans/quantbridge-sprint-29-sunny-origami.md))
+> **Active Branch (예정):** `stage/h2-sprint29-pine-coverage-hardening` (base `main @ 1badefd` — Sprint 28 squash merge 후)
+> **Sprint type:** A (신규 기능 — Coverage layer hardening + DrFXGOD structured schema, 16-22h, 3 Slice)
+> **office-hours 진행:** N (Sprint 28 1개월 미만 면제, Q4 narrowest wedge sub-decision: UtBot strategy stable PASS = Beta open prereq)
+> **Recent BLs:** Sprint 28 BL-141/140b/004 ✅ Resolved · Sprint 29 active BL-096 partial (Slice A heikinashi ADR) / BL-022 deferred / BL-037 deferred / BL-142 deferred · 메타-방법론 LESSON-037 후보 (baseline 재측정 preflight) first validation
+> **Next Trigger:** §13 docs update (CLAUDE.md / dev-log v1→v2 pivot 사료 / INDEX.md / REFACTORING-BACKLOG / lessons.md) → branch 생성 → baseline 재측정 preflight → brainstorming (60분) → Slice A‖C 병렬 → Slice B 단독 → codex challenge G2 → /review → PR squash merge → §14 종료 시점 docs update
 
 > 사람과 AI가 공동 관리하는 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.

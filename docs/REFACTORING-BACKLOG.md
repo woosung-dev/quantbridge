@@ -7,8 +7,19 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-04-30
-**총 항목:** 50 BL — P0 5 (BL-001~005) / P1 17 (BL-010~026) / P2 14 (BL-030~043) / P3 8 (BL-050~057) / Beta 오픈 milestone 6 (BL-070~075)
+**최종 갱신:** 2026-05-04 (Sprint 29 kickoff v2 — plan v1→v2 frame pivot 후 BL audit 재실행)
+**총 항목:** 50 BL — P0 5 (BL-001~005) / P1 17 (BL-010~026) / P2 14 (BL-030~043) / P3 8 (BL-050~057) / Beta 오픈 milestone 6 (BL-070~075) + Sprint 28+ 신규 BL (BL-141/140b/004 ✅ Resolved, BL-142~146 deferred / partial)
+
+**Sprint 29 BL 매핑** (plan v2 §2, [`~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`](../../.claude/plans/quantbridge-sprint-29-sunny-origami.md)):
+
+- **진입 시점 P0 잔여 = 2건**: BL-003 (Bybit mainnet runbook, deferred — Pine pain 우선) + BL-005 (실자본 1-2주 dogfood, deferred — Pine 통과율 5/6 우선). BL-001/002 ✅ Sprint 15 Resolved + BL-004 ✅ Sprint 28 Resolved.
+- **Pine 관련 BL Sprint 29 처리:**
+  - **BL-022** golden expectations 재생성 → Sprint 30+ deferred (본 sprint scope 외)
+  - **BL-037** Coverage Analyzer regex → AST visitor → 본 sprint deferred (Slice B 자연 연계, regex 정밀화 X)
+  - **BL-096 partial** UtBot×2 잔존 (heikinashi/security) → **Slice A 안 ADR 결정 의무**. Trust Layer 정합 문제라 단순 supported 추가 incorrect
+  - **BL-142** ts.ohlcv daily refresh → Sprint 30+ deferred 유지
+  - **BL-146** 메타-방법론 4종 영구 규칙 승격 → Sprint 29 second validation (LESSON-037 baseline 재측정 preflight first validation 도 본 sprint 안)
+- **Beta BL deferred 명시:** BL-070~075 (도메인+DNS / Backend prod / Resend / 캠페인 / 인터뷰 / H2 게이트) **전부 Sprint 30+ deferred**. UtBot strategy stable PASS + DrFXGOD 명확 응답 도달이 Beta open narrowest wedge prereq.
 
 ---
 
