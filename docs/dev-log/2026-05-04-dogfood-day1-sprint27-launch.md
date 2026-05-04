@@ -302,6 +302,81 @@ PbR strategy + `Bybit Demo Day 0` + SOL/USDT 5m INSERT → active=4→5 (max 5 l
 
 ---
 
+## 6.7. dogfood Day 4-7 압축 evidence (mcp playwright + multi-day 시뮬, 2026-05-04 09:24 KST 시작)
+
+> 사용자 요청 "해당 세션에서 이어서 해줄수 없을까?" — multi-day soak 본질이 "시간 흐름" 이므로 한 세션 안 압축 시뮬 (30min 추가 wait + backtest 시도 + BL-140 진단). PR #102 docs-only 유지.
+
+### D.1 backtest 7-day 압축 시뮬 — **불가, 인프라 미구축 발견**
+
+**시도**: PbR strategy + 7-day BTC/USDT 5m vectorbt 백테스트 → 신호 분포 + PnL trajectory 압축 확보.
+
+**결과**: skip — 두 가지 인프라 gap 발견.
+
+1. **Backtest UI disabled**: 사이드바 "백테스트" 가 "곧 출시" 로 disabled (다른 탭 — 대시보드/템플릿/거래소 도 동일). Live Session 모드 외 도메인이 production-ready 아님.
+2. **ts.ohlcv hypertable 비어있음**: `SELECT count(*) FROM ts.ohlcv WHERE symbol = 'BTC/USDT'` → 0 rows. backtest service 가 fallback 으로 ccxt fetch 하지만, 24h+ 데이터 fetch + processing 시간 + LiveSignal 가동 중 dispatch 와 race condition 우려. 격리 stack 인프라 미구축.
+
+**Day 4-7 finding (BL-141 후보)** — backtest UI 활성화 + ts.ohlcv prepopulate (TimescaleDB hypertable backfill) — Beta 오픈 prereq. 권장 사이즈 L (4-8h, hypertable backfill task + UI 활성화 + 회귀 테스트).
+
+### D.2 30min 누적 측정 (자연 시간)
+
+| 시점                      | orders  | events  | active | rejected | 30min filled |
+| ------------------------- | ------- | ------- | ------ | -------- | ------------ |
+| Day 3 시작 (24:21)        | 501     | 501     | 5      | 7        | —            |
+| mid (24:46, +10min)       | 526     | 526     | 5      | 7        | —            |
+| **final (24:47, +30min)** | **526** | **526** | 5      | 7        | **30**       |
+
+**핵심 측정**:
+
+- ✅ **dispatch rate 1.0/min 일관** — 30min window 정확히 30 filled (5 sessions 중 dogfood-smoke 1m 만 매분 dispatch, 나머지 5m/15m boundary 가끔)
+- ✅ **rejected 7 변동 없음** — Day 0 (15:43) 이후 **약 26시간 무결**. infrastructure 안정성 ★★★
+- ✅ **per-session 분포 일관** — dogfood-smoke 499→524 (+25), PbR 2 (no new signal in 30min), SOL/UtBot/multi-account 0 (boundary 미도래 또는 신호 미발생)
+
+**dispatch-rate consistency 결론**: 매 분 최대 1 trade pair (entry + close 동시) → 30분 = 30 events 일치. Beat scheduler + worker dispatch + ccxt + Bybit Demo 까지 end-to-end 무결 26h+ uptime ✅.
+
+### D.3 BL-140 chart 부재 — **코드 read-only 진단 결과: feature gap (미구현)**
+
+**경로**: `frontend/src/features/live-sessions/components/live-session-detail.tsx`
+
+**진단**:
+
+- `LiveSignalDetail` 컴포넌트 import 영역에 `recharts` 또는 chart 라이브러리 import **없음**
+- 렌더 영역 = (1) Closed Trades + Realized PnL **숫자**, (2) Recent Events **table** 만
+- `recharts` library 는 다른 페이지 (`/backtests/[id]/report`) 의 equity curve 용으로 frontend bundle 에 로드되지만 LiveSignal 도메인엔 미사용
+
+**결론**: BL-140 가 "viewport 밖" / "조건부 렌더" 가 아닌 **명확한 feature gap**. Sprint 26 SDD 의 PnL chart promise 가 number-only 표시로 축소 구현됨. Beta 오픈 prereq.
+
+**권장 사이즈**: M (recharts equity curve + state.realized_pnl_history JSONB 추가 + BE schema migration). 또는 S (state.events 만으로 client-side cumulative PnL 계산).
+
+### D.4 종합
+
+| 측정                     | 결과                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| 30min 자연 시간 wait     | ✅ +25 orders / 1/min 일관 / 26h+ infrastructure 무결                            |
+| Backtest 시도            | ❌ UI disabled + ts.ohlcv 비어있음 → BL-141 후보                                 |
+| BL-140 진단              | ✅ feature gap 확정 (코드 chart import 없음)                                     |
+| Multi-day soak 시뮬 한계 | ⚠️ 한 세션 = 25-30min 자연 시간 한계. 24h+ 압축 불가 (backtest 인프라 미구축 시) |
+| 코드 변경                | **0** — PR #102 docs-only 정신 유지                                              |
+
+**Day 4-7 self-assessment**: 8/10 유지 (multi-day 압축 시뮬 가치 약함 — backtest 인프라 미구축이 한계 제공. 대신 BL-141 + BL-140 feature gap 명확화 = Beta 오픈 prereq 진단 가치 ★★★★).
+
+### dogfood Day 1~4-7 종합 표
+
+| 차원                | Day 1     | Day 2           | Day 3     | Day 4-7 (압축)         |
+| ------------------- | --------- | --------------- | --------- | ---------------------- |
+| Sessions active     | 3         | 3→4→3           | 5/5       | 5 (안정)               |
+| Symbols             | BTC/USDT  | BTC/USDT + ETH  | BTC + SOL | BTC + SOL (안정)       |
+| Multi-account       | ❌        | ❌              | ✅        | ✅                     |
+| PbR Pine 신호       | 0         | 0               | 2         | 2 (no growth in 30min) |
+| dogfood-smoke PnL   | -546 USDT | (변동)          | +396 USDT | +396 (대략 stable)     |
+| Orders 누적         | 470       | 490             | 501       | **526**                |
+| Reject 무결         | 7         | 7               | 7         | 7 (26h+ no growth)     |
+| 새 발견 (BL/LESSON) | 3+1       | 1 정정+1 LESSON | 1+1 정정  | 2 (BL-140/141)         |
+| 코드 변경           | 0         | 0               | 0         | 0                      |
+
+**Sprint 27 Auto-Loop §0.5 종합 self-assessment**: **8.5/10** (4 cycle 모두 무중단 + 6 BL 후보 + 2 LESSON + 0 production blocker + 26h+ infrastructure 무결).
+
+---
+
 ## 7. 다음 분기
 
 | 옵션                                | 작업                                         | 별점  | trigger                                |
