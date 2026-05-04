@@ -117,6 +117,93 @@ Sprint 26 PR #100 머지 후 회귀 0건. LESSON-004 가 다룬 useEffect/Tansta
 
 - `sprint27-day1-live-session-detail.png` (project root) — LiveSessionDetail UI + 3 sessions
 - `sprint27-day1-live-sessions-list.png` (project root) — Live Sessions list
+- `sprint27-day2-orders-490.png` — Day 2 KS All clear + 490 orders
+- `sprint27-day2-killswitch-active.png` — KS 활성 시 빨간 배너 + Resolve 버튼
+- `sprint27-day2-stop-deactivated-3sessions.png` — Stop flow 후 4→3 sessions
+
+---
+
+## 6.5. dogfood Day 2 evidence (mcp playwright 자동 진행, 2026-05-04 09:11 KST 시작)
+
+> 사용자 요청 "dogfood 도 일부 mcpplaywright 로 진행, 사용자가 최소한으로 작업하도록" 에 따라 추가 자동 시뮬. PR #102 same branch 추가 commit.
+
+### B.1 Day 2 entry — DB diff (Day 1 종료 470 → Day 2 시작 490)
+
+| 시점                   | total_orders | filled         | events | active sessions |
+| ---------------------- | ------------ | -------------- | ------ | --------------- |
+| Day 1 종료 (23:53)     | 470          | ~454           | 470    | 3               |
+| Day 2 시작 (24:11)     | 490          | 483            | 490    | 3               |
+| **18분 누적 dispatch** | **+20**      | +29 (catch up) | +20    | 0               |
+
+dispatch rate ≈ 1.1/min (Beat schedule 매 분 evaluate + 5m boundary 시 entry signal). UI Recent Orders (490) 표기 일치, Kill Switch "All clear", 모든 fill broker ID 발급 + price 78,400~78,550 USDT.
+
+### B.2 KillSwitch 가짜 trigger 시뮬
+
+```sql
+INSERT INTO trading.kill_switch_events (id, trigger_type, strategy_id, trigger_value, threshold)
+VALUES (gen_random_uuid(), 'cumulative_loss', '947bc980...', -100.0, -50.0);
+```
+
+UI 즉시 변화:
+
+- ✅ 상단 빨간 배너 "Kill Switch 활성 — 자동 주문이 중지됩니다"
+- ✅ "누적 손실 한도 초과 (-100 / -50)" 명시
+- ✅ KS section "cumulative_loss: -100 / -50" + Resolve 버튼
+- ✅ "테스트 주문" 버튼 disabled (회색) — 차단 효과 시각 확인
+- ✅ Resolve 클릭 → DB `resolved_at` 발급 + `resolution_note=manual unlock from dashboard` + UI All clear 회복
+
+### B.3 timeframe 1h variation
+
+ETH/USDT 1h session 추가 INSERT — uniq 충돌 회피 위해 다른 symbol. Beat scheduler 즉시 인식:
+
+```
+2026-05-04 00:13:49 evaluate_all due_count=4 evaluated=4
+  - dogfood-smoke (BTC/USDT 1m): events_inserted=1 last_bar=00:12:00
+  - new ETH/USDT 1h (92fa223a): evaluated=True events_inserted=0 last_bar=23:00:00
+  - PbR (BTC/USDT 5m): skipped no_new_bar
+  - UtBot (BTC/USDT 15m): skipped no_new_bar
+```
+
+UI counter 3/5 → **4/5** 즉시 갱신, list 에 ETH/USDT 1h row 추가. multi-symbol + multi-timeframe 동시 운영 가능 ✅.
+
+### B.4 Stop dialog flow
+
+새 ETH/USDT 1h session Stop 버튼 클릭 → dialog "Live Session 중단" + "이 session 의 자동 trading 이 중단됩니다. 미체결 주문은 유지됩니다 (수동으로 cancel 또는 close 해주세요)" + 취소/중단 버튼.
+
+"중단" 클릭 → DB `is_active=false` + `deactivated_at` 발급 + UI counter 4 → 3 즉시 갱신.
+
+### B.5 Finding #2 (BL-138) false alarm 정정 — LESSON L-S27-2
+
+- **재현재검사**: Live Sessions list rendering 코드 (`live-session-list.tsx:90-92`):
+  ```tsx
+  <p className="font-medium">{s.symbol}</p>
+  <p className="text-xs text-muted-foreground">
+    {s.interval} · created {new Date(s.created_at).toLocaleString()}
+  </p>
+  ```
+- **결론**: `<p>` 두 줄 분리. 시각적으로 정상. screenshot (`sprint27-day2-stop-deactivated-3sessions.png`) 도 두 줄로 표시.
+- **원인**: Day 1 Finding #2 의 evidence 가 mcp playwright `innerText` aggregation 결과 — newline 제거되어 "BTC/USDT5m" 한 줄로 보임. 실제 시각적 표시는 멀쩡.
+- **fix 불필요**: BL-138 (1-line 공백 fix) 후보 **철회**.
+- **재정의 후속 BL**: list 두 줄 vs detail inline `·` layout inconsistency (UX 개선 가치) — 별도 BL 후보로 보류.
+
+### LESSON L-S27-2 — `innerText` 단독으로 UI bug 결정 금지
+
+- **상황**: mcp playwright `innerText` 결과로 "BTC/USDT5m" 보고 BL-138 (공백 누락) 등록. 실제 코드는 `<p>` 두 줄 분리, screenshot 도 정상.
+- **원인**: `innerText` 가 block element 의 newline 을 제거하지 않지만, mcp playwright 의 `body.innerText` 추출 시 child 의 정렬/wrapping 정보 손실 가능. visual 보다 약한 evidence.
+- **승격 후보**: `.ai/common/global.md` UI bug 검증 의무 — `innerText` + screenshot **둘 다** 확인 후 BL 등록. 단독 evidence 로 등록 시 false alarm 위험.
+- **L-S25-1 / L-S27-1 후속**: "코드 실측" 의무에 "screenshot 시각 cross-check" 추가.
+
+### Day 2 종합
+
+| 측정              | 결과                                                                  |
+| ----------------- | --------------------------------------------------------------------- |
+| Day 2 무결 진행   | ✅ entry / KS / 1h variation / Stop flow 모두 자동 시뮬               |
+| Beat schedule     | due_count 3 → 4 → 3 정상                                              |
+| KS UI integration | trigger / banner / button disabled / Resolve flow 모두 ✅             |
+| 새 발견           | BL-138 false alarm + LESSON L-S27-2 (innerText vs visual cross-check) |
+| 코드 변경         | **0** — PR #102 docs-only 정신 유지                                   |
+
+**Day 2 self-assessment 향상도**: 8/10 유지 (KS UI integration + Stop flow 검증으로 confidence 상승, but 새 hotfix 0 + Day 3-7 자연 시간 필요).
 
 ---
 
