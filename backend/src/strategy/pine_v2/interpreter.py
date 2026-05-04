@@ -76,6 +76,29 @@ STDLIB_NAMES: frozenset[str] = frozenset(
     }
 )
 
+# Pine v4 legacy alias — prefix 없는 stdlib (atr/ema/sma/rsi/crossover/...) 을
+# ta.* / math.* 로 재라우팅. (i1_utbot 및 일부 RTB 전략이 v4 문법 사용)
+# Sprint 29 Slice C: function-local dict 에서 module-level export.
+# parity invariant: `_V4_ALIASES.values() ⊆ STDLIB_NAMES` (test_ssot_invariants.py).
+_V4_ALIASES: dict[str, str] = {
+    "atr": "ta.atr",
+    "ema": "ta.ema",
+    "sma": "ta.sma",
+    "rsi": "ta.rsi",
+    "crossover": "ta.crossover",
+    "crossunder": "ta.crossunder",
+    "highest": "ta.highest",
+    "lowest": "ta.lowest",
+    "change": "ta.change",
+    "pivothigh": "ta.pivothigh",
+    "pivotlow": "ta.pivotlow",
+    "barssince": "ta.barssince",  # Sprint 8c
+    "valuewhen": "ta.valuewhen",  # Sprint 8c
+    "max": "math.max",
+    "min": "math.min",
+    "abs": "math.abs",
+}
+
 # Pine enum constants — value 매핑 (location.absolute, extend.right, shape.*, etc.)
 # Sprint 29 Slice C: function-local dict 에서 module-level dict 으로 export.
 # coverage._ENUM_PREFIXES 와 parity invariant 검증 대상 (test_ssot_invariants.py).
@@ -658,24 +681,7 @@ class Interpreter:
 
         # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* / math.* 로 재라우팅
         # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
-        _V4_ALIASES: dict[str, str] = {
-            "atr": "ta.atr",
-            "ema": "ta.ema",
-            "sma": "ta.sma",
-            "rsi": "ta.rsi",
-            "crossover": "ta.crossover",
-            "crossunder": "ta.crossunder",
-            "highest": "ta.highest",
-            "lowest": "ta.lowest",
-            "change": "ta.change",
-            "pivothigh": "ta.pivothigh",
-            "pivotlow": "ta.pivotlow",
-            "barssince": "ta.barssince",  # Sprint 8c
-            "valuewhen": "ta.valuewhen",  # Sprint 8c
-            "max": "math.max",
-            "min": "math.min",
-            "abs": "math.abs",
-        }
+        # Sprint 29 Slice C: function-local → module-level export. parity invariant 검증 대상.
         if name in _V4_ALIASES:
             name = _V4_ALIASES[name]
 
