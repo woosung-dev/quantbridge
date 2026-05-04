@@ -123,19 +123,19 @@ strategy("UnknownStrategy", overlay=true, default_qty_type=strategy.foobar_qty_t
 
 
 @pytest.mark.parametrize(
-    "constant",
+    "constant,expected_supported",
     [
-        "timeframe.period",
-        "timeframe.multiplier",
-        "timeframe.isintraday",
+        ("timeframe.period", True),   # Sprint 29 Slice A: interpreter._eval_attribute 구현 완료
+        ("timeframe.multiplier", False),  # 미처리 — unsupported 유지
+        ("timeframe.isintraday", False),  # 미처리 — unsupported 유지
     ],
 )
-def test_timeframe_constants_remain_unsupported(constant: str) -> None:
-    """timeframe.* 는 unsupported 유지 (codex G.2 P1 #1 — runtime 미구현).
+def test_timeframe_constants_remain_unsupported(constant: str, expected_supported: bool) -> None:
+    """timeframe.* 상수 지원 현황 (Sprint 21 G.2 + Sprint 29 Slice A 갱신).
 
-    Sprint 21 v2 plan 에선 `_TIMEFRAME_CONSTANTS` 추가했지만 interpreter._eval_attribute
-    의 `timeframe.*` runtime 평가가 없어 preflight pass 후 runtime fail = silent corruption.
-    Sprint 22+ 의 interpreter NOP 추가 또는 strict toggle 설계 후 supported 전환.
+    Sprint 21: runtime 미구현으로 전체 unsupported.
+    Sprint 29 Slice A: timeframe.period 는 interpreter._eval_attribute 구현 완료 → SUPPORTED.
+    나머지 timeframe.* 는 여전히 미구현 → unsupported 유지.
     """
     src = f"""
 //@version=5
@@ -143,10 +143,16 @@ strategy("TimeframeConstants", overlay=true)
 tf = {constant}
 """
     r = analyze_coverage(src)
-    assert constant in r.unsupported_attributes, (
-        f"{constant} should be unsupported (Sprint 21 G.2 fix — runtime 미구현). "
-        f"unsupported_attributes={r.unsupported_attributes}"
-    )
+    if expected_supported:
+        assert constant not in r.unsupported_attributes, (
+            f"{constant} should be supported (Sprint 29 Slice A). "
+            f"unsupported_attributes={r.unsupported_attributes}"
+        )
+    else:
+        assert constant in r.unsupported_attributes, (
+            f"{constant} should be unsupported (runtime 미구현). "
+            f"unsupported_attributes={r.unsupported_attributes}"
+        )
 
 
 def test_timeframe_unknown_constant_rejected() -> None:
@@ -180,58 +186,54 @@ plot(close)
 
 
 # --------------------------------------------------------------------
-# A.2.4 Trust Layer 유지 — heikinashi / security 는 unsupported (NOT NOP)
+# A.2.4 Trust Layer 갱신 — Sprint 29 Slice A (a) heikinashi + security 처리
 # --------------------------------------------------------------------
 
 
-def test_heikinashi_remains_unsupported() -> None:
-    """heikinashi 는 silent corruption risk 로 unsupported 유지 (Trust Layer P1 #2)."""
+def test_heikinashi_supported_with_dogfood_warning() -> None:
+    """Sprint 29 Slice A (a): heikinashi → SUPPORTED + dogfood_only_warning 채워짐.
+
+    Trust Layer 위반 인정 + dogfood-only flag.
+    참고: docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md
+    """
     src = """
 //@version=5
 indicator("HeikinashiTest", overlay=true)
 ha = heikinashi(close)
 """
     r = analyze_coverage(src)
-    # heikinashi 가 함수 또는 attribute 로 unsupported 분류
-    is_unsupported = (
-        "heikinashi" in r.unsupported_functions
-        or "heikinashi" in r.unsupported_attributes
-        or any("heikinashi" in u for u in r.all_unsupported)
+    assert "heikinashi" not in r.unsupported_functions, (
+        f"heikinashi should be supported (Sprint 29 Slice A dogfood flag). "
+        f"unsupported_functions={r.unsupported_functions}"
     )
-    assert is_unsupported, (
-        f"heikinashi should remain unsupported (ADR-013 §4 Trust Layer). "
-        f"unsupported_functions={r.unsupported_functions}, "
-        f"unsupported_attributes={r.unsupported_attributes}"
+    assert r.dogfood_only_warning is not None, (
+        "heikinashi 사용 시 dogfood_only_warning 채워야 함"
     )
 
 
-def test_security_no_namespace_remains_unsupported() -> None:
-    """security() (no-namespace, v4 form) 는 unsupported 유지 (Trust Layer P1 #2)."""
+def test_security_no_namespace_now_supported() -> None:
+    """Sprint 29 Slice A: security() (no-namespace, v4) → SUPPORTED (graceful)."""
     src = """
 //@version=4
 strategy("SecurityV4")
 htf_close = security("BINANCE:BTCUSDT", "60", close)
 """
     r = analyze_coverage(src)
-    is_unsupported = (
-        "security" in r.unsupported_functions
-        or any(u == "security" for u in r.all_unsupported)
-    )
-    assert is_unsupported, (
-        f"security (no-namespace) should remain unsupported. "
+    assert "security" not in r.unsupported_functions, (
+        f"security (no-namespace) should be supported (Sprint 29 Slice A). "
         f"unsupported_functions={r.unsupported_functions}"
     )
 
 
-def test_request_security_remains_unsupported() -> None:
-    """request.security 도 명시 unsupported 유지 (Trust Layer 기존 정책)."""
+def test_request_security_now_supported() -> None:
+    """Sprint 29 Slice A: request.security → SUPPORTED (graceful single-timeframe)."""
     src = """
 //@version=5
 indicator("RequestSecurityTest", overlay=true)
 htf_close = request.security("BINANCE:BTCUSDT", "60", close)
 """
     r = analyze_coverage(src)
-    assert "request.security" in r.unsupported_functions
+    assert "request.security" not in r.unsupported_functions
 
 
 # --------------------------------------------------------------------
