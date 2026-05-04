@@ -19,7 +19,6 @@ from src.strategy.pine_v2.interpreter import (
     STDLIB_NAMES,
 )
 
-
 # _ATTR_CONSTANTS 안 const value (enum 이 아니라 사용자-friendly alias) prefix.
 # 예: strategy.long="long" / line.style_dashed="dashed" — coverage._ENUM_PREFIXES
 # 가 prefix lookup 으로 enum 만 인식. const value prefix 는 별도 화이트리스트.
