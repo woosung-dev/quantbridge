@@ -8,6 +8,8 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-04 — **Sprint 29 회고** (Pine Coverage Layer Hardening + DrFXGOD Schema, dual metric ALL PASS, 5/6 통과율 + 100% workaround + 4 invariant + codex G2 P0 fix degraded gate, self-assess 9/10) — [`2026-05-04-sprint29-coverage-hardening.md`](2026-05-04-sprint29-coverage-hardening.md)
+- 2026-05-04 — Sprint 29 heikinashi Trust Layer 위반 ADR (D1=a, dogfood-only flag, Sprint 30+ ADR-009 trigger) — [`2026-05-04-sprint29-heikinashi-adr.md`](2026-05-04-sprint29-heikinashi-adr.md)
 - 2026-05-04 — **Sprint 29 baseline snapshot** (6 fixture preflight 실측, 진입 3/6 50%, plan v2 stale 1건 추가 발견, LESSON-037 second validation) — [`2026-05-04-sprint29-baseline-snapshot.md`](2026-05-04-sprint29-baseline-snapshot.md)
 - 2026-05-04 — **Sprint 29 v1→v2 pivot** (Pine Architectural Fix → Coverage Layer Hardening, codex+Opus 2-검토 frame change, LESSON-037 후보 first validation) — [`2026-05-04-sprint29-v1-to-v2-pivot.md`](2026-05-04-sprint29-v1-to-v2-pivot.md)
 - 2026-05-04 — **Sprint 28 회고** (Beta prereq 종합, 5 PR cascade, dual metric 첫 측정) — [`2026-05-04-sprint28-retrospective.md`](2026-05-04-sprint28-retrospective.md)

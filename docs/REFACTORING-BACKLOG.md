@@ -7,7 +7,16 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-05-04 (Sprint 29 kickoff v2 — plan v1→v2 frame pivot 후 BL audit 재실행)
+**최종 갱신:** 2026-05-04 (Sprint 29 종료 — dual metric ALL PASS + codex G2 P0 fix)
+
+**Sprint 29 종료 BL 변경:**
+
+- ✅ **BL-096 partial Resolved** — heikinashi (a) ADR + security graceful + timeframe.period degraded gate (commit `5a72283`)
+- 신규 0건 (P0=0, P1=0)
+- BL-003 / BL-005 P0 deferred 유지 (trigger 미도래)
+- BL-022 / BL-037 / BL-142 deferred 유지 (Sprint 30+)
+- codex G2 P1 4건 (occurrence-based unsupported_calls / 422 응답 schema / workaround 정확도 / e2e 실제 vectorbt) → Sprint 30+ Beta sprint 또는 hotfix 묶음
+
 **총 항목:** 50 BL — P0 5 (BL-001~005) / P1 17 (BL-010~026) / P2 14 (BL-030~043) / P3 8 (BL-050~057) / Beta 오픈 milestone 6 (BL-070~075) + Sprint 28+ 신규 BL (BL-141/140b/004 ✅ Resolved, BL-142~146 deferred / partial)
 
 **Sprint 29 BL 매핑** (plan v2 §2, [`~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`](../../.claude/plans/quantbridge-sprint-29-sunny-origami.md)):

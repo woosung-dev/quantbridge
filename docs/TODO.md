@@ -1,12 +1,12 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-04 (Sprint 29 kickoff v2 — codex+Opus 2-검토 후 frame pivot, plan v2 승인)
-> **Active Sprint:** Sprint 29 Pine Coverage Layer Hardening + DrFXGOD Schema (plan: [`~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`](../../.claude/plans/quantbridge-sprint-29-sunny-origami.md))
-> **Active Branch (예정):** `stage/h2-sprint29-pine-coverage-hardening` (base `main @ 1badefd` — Sprint 28 squash merge 후)
-> **Sprint type:** A (신규 기능 — Coverage layer hardening + DrFXGOD structured schema, 16-22h, 3 Slice)
-> **office-hours 진행:** N (Sprint 28 1개월 미만 면제, Q4 narrowest wedge sub-decision: UtBot strategy stable PASS = Beta open prereq)
-> **Recent BLs:** Sprint 28 BL-141/140b/004 ✅ Resolved · Sprint 29 active BL-096 partial (Slice A heikinashi ADR) / BL-022 deferred / BL-037 deferred / BL-142 deferred · 메타-방법론 LESSON-037 후보 (baseline 재측정 preflight) first validation
-> **Next Trigger:** §13 docs update (CLAUDE.md / dev-log v1→v2 pivot 사료 / INDEX.md / REFACTORING-BACKLOG / lessons.md) → branch 생성 → baseline 재측정 preflight → brainstorming (60분) → Slice A‖C 병렬 → Slice B 단독 → codex challenge G2 → /review → PR squash merge → §14 종료 시점 docs update
+> **Last Updated:** 2026-05-04 (Sprint 29 종료 — dual metric ALL PASS + codex G2 P0 fix → PR squash merge 사용자 승인 대기)
+> **Active Sprint:** (대기 — Sprint 30+ brainstorming 후 결정. 권장 = Beta open 인프라 BL-070~075)
+> **Active Branch:** `main @ 1badefd` (Sprint 29 stage `5a72283` PR squash merge 대기)
+> **Sprint type:** (Sprint 30+ 진입 시 결정)
+> **office-hours 진행:** N (Sprint 29 종료, Sprint 30 진입 시 재평가)
+> **Recent BLs:** Sprint 29 BL-096 partial ✅ Resolved (heikinashi ADR + security graceful + degraded gate) · 신규 0 · BL-003/005 P0 deferred · codex G2 P1 4건 (Sprint 30+ Beta sprint 묶음)
+> **Next Trigger:** Sprint 29 stage→main PR squash merge (사용자 별도 승인) → Sprint 30 brainstorming 후 다음 sprint 진입 (LESSON-037 영구 적용 — baseline 재측정 preflight 의무)
 
 > 사람과 AI가 공동 관리하는 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
