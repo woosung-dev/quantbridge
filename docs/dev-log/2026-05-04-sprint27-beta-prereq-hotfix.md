@@ -62,14 +62,15 @@ events.items 에 **realized_pnl 필드 없음** (`schemas.ts:53-69` 확인). 진
 
 ## 4. 검증
 
-| 명령                                         | 결과                                                                  |
-| -------------------------------------------- | --------------------------------------------------------------------- |
-| `pnpm tsc --noEmit`                          | ✅ 0 errors                                                           |
-| `pnpm lint`                                  | ✅ 0 errors                                                           |
-| `pnpm vitest run`                            | ✅ **264/264 passed** (44 files, 신규 +7 buildActivityTimeline tests) |
-| codex G.0 + G.2 (high reasoning)             | ✅ P1 5건 → 4 fix + 1 P2 격하, P2 #1+#3+#4 fix                        |
-| `pnpm e2e:authed` (PLAYWRIGHT_BASE_URL=3100) | (사용자 머지 후 본인 dogfood Day 5+ 라이브 검증)                      |
-| mcp playwright 라이브 검증                   | ⏸️ skip — 격리 stack 다운 (PR #102 머지 후 사용자 종료)               |
+| 명령                                         | 결과                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `pnpm tsc --noEmit`                          | ✅ 0 errors                                                                                |
+| `pnpm lint`                                  | ✅ 0 errors                                                                                |
+| `pnpm vitest run`                            | ✅ **264/264 passed** (44 files, 신규 +7 buildActivityTimeline tests)                      |
+| codex G.0 + G.2 (high reasoning)             | ✅ P1 5건 → 4 fix + 1 P2 격하, P2 #1+#3+#4 fix                                             |
+| `pnpm e2e:authed` (PLAYWRIGHT_BASE_URL=3100) | (사용자 머지 후 본인 dogfood Day 5+ 라이브 검증)                                           |
+| **mcp playwright BL-137 라이브**             | ✅ PASS — settings null → 빨간 미설정 → input 입력 → 저장 → DB 반영 (`leverage: 53` 확인)  |
+| **mcp playwright BL-140 라이브**             | ✅ PASS — Activity Timeline 헤더 + recharts dual-line 정상 렌더 (143 trades / +544.30 PnL) |
 
 ### codex G.2 P1 fix 매핑
 
@@ -110,7 +111,32 @@ events.items 에 **realized_pnl 필드 없음** (`schemas.ts:53-69` 확인). 진
 | codex G.2   | TBD        | challenge 결과 따로                               |
 | **종합**    | **8.5/10** | 실측 implementation, 코드 변경 0 PR 패턴 종료     |
 
-## 7. 후속 BL
+## 7. 라이브 검증 발견 — **BL-144** (silent submit block bug)
+
+### 재현
+
+PbR strategy settings null reset → /strategies/edit?tab=metadata → leverage 키보드 입력 → "Settings 등록" click → **PUT 미발송** (network log 0 + DB 변동 없음 + console error 없음).
+
+### 근본 원인
+
+`<Input type="number" min={0.01} max={100} step={0.1}>` (Position Size %) — HTML5 native validation 이 `step` 의 base 를 `min` 으로 사용 → valid 값 = 0.01 + 0.1\*n = `..., 9.91, 10.01, ...`. Default 값 **10 은 invalid**. native validation 이 form submit 차단 → React `onSubmit` 호출 안 됨 (silent).
+
+### Browser tooltip evidence
+
+> "유효한 값을 입력해 주세요. 가장 근접한 유효 값 2개는 9.91 및 10.01입니다."
+
+### Fix (본 commit)
+
+`step={0.1}` → `step="any"` — native validation 회피, RHF + Zod 검증으로 일원화.
+
+### LESSON L-S27-3 — `<input type="number">` step + min 조합 silent submit block
+
+- min ≠ 0 + step={N} 조합 시 valid 값이 step 의 배수가 아닌 (min + step\*k) 가 되어 사용자 입력 거부
+- HTML5 native validation 이 React `onSubmit` 보다 먼저 — JSON.dispatch 도 못 잡음 (browser 단계 차단)
+- 해결: step="any" 또는 (min, step) 곱셈 정합 (min=0.1 + step=0.1 처럼)
+- 영구 적용: `.ai/common/global.md` 또는 `.ai/stacks/nextjs-shared.md` 승격 후보
+
+## 8. 후속 BL
 
 - **BL-140b**: 진정한 equity curve — BE state.realized_pnl_history 추가 (M)
 - **BL-141**: Backtest UI 활성화 + ts.ohlcv hypertable backfill (L)
