@@ -104,9 +104,20 @@ class CumulativeLossEvaluator:
 
         # Sprint 8+ 동적 capital_base: balance_provider 주입 시 실제 잔고 우선.
         # None/0 이하는 config fallback (계좌 이관 중, API 실패 등 edge case 방어).
+        # Sprint 28 Slice 4 (BL-004) — ADR-006 결의: KillSwitch trigger 시점 매번 호출
+        # (Option A — accuracy 최대, latency +200ms 수용. Beta path A1 capital safety
+        # 우선). provider 예외는 swallow + log + config fallback (resilience).
         capital = self._capital
         if self._balance_provider is not None:
-            dynamic = await self._balance_provider.fetch_balance_usdt(ctx.account_id)
+            try:
+                dynamic = await self._balance_provider.fetch_balance_usdt(ctx.account_id)
+            except Exception as exc:
+                logger.warning(
+                    "balance_provider_failed account_id=%s err=%s — config fallback",
+                    ctx.account_id,
+                    exc,
+                )
+                dynamic = None
             if dynamic is not None and dynamic > Decimal("0"):
                 capital = dynamic
 

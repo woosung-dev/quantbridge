@@ -251,3 +251,91 @@ async def test_cumulative_loss_ignores_zero_or_negative_dynamic_capital(
     )
 
     assert result.gated is False  # fallback 20000 사용 → 10% 경계
+
+
+# ── Sprint 28 Slice 4 (BL-004) — provider exception resilience ────────────
+
+
+class _RaisingBalanceProvider:
+    """ccxt API 실패 / 타임아웃 / 네트워크 단절 시뮬레이션."""
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+        self.call_count = 0
+
+    async def fetch_balance_usdt(self, account_id):
+        self.call_count += 1
+        raise self._exc
+
+
+async def test_cumulative_loss_falls_back_when_provider_raises(
+    db_session, strat_account, caplog
+):
+    """BL-004 Slice 4 — balance_provider 예외 시 swallow + log + config fallback.
+
+    ccxt API 실패 / 네트워크 단절 / Bybit rate limit 등 edge case 방어.
+    KillSwitch evaluation 자체는 절대 fail 금지 (capital safety critical path).
+    """
+    import logging
+    from decimal import Decimal
+
+    from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
+    from src.trading.repository import OrderRepository
+
+    strategy, account = strat_account
+    await _make_filled_order(
+        db_session, strategy, account, pnl=Decimal("-1500"), filled_at=datetime.now(UTC)
+    )
+
+    # config $10000 → $1500 손실 = 15% > 10% 임계 → gated (fallback 동작 검증)
+    provider = _RaisingBalanceProvider(RuntimeError("ccxt timeout"))
+    ev = CumulativeLossEvaluator(
+        OrderRepository(db_session),
+        threshold_percent=Decimal("10"),
+        capital_base=Decimal("10000"),
+        balance_provider=provider,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="src.trading.kill_switch"):
+        result = await ev.evaluate(
+            EvaluationContext(strategy.id, account.id, datetime.now(UTC))
+        )
+
+    assert result.gated is True
+    assert result.trigger_value == Decimal("15.00")
+    assert provider.call_count == 1
+    # 예외 fallback 시 WARNING 로그 1건
+    assert any("balance_provider_failed" in rec.message for rec in caplog.records)
+
+
+async def test_cumulative_loss_provider_called_on_every_trigger(
+    db_session, strat_account
+):
+    """BL-004 ADR-006 결의: KillSwitch trigger 시점 *매번* fetch (Option A).
+
+    cache 0 — 동일 evaluator instance 가 N 회 evaluate 호출 시 N 회 provider 호출.
+    Beta path A1 capital safety 우선 (latency +200ms 수용).
+    """
+    from decimal import Decimal
+
+    from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
+    from src.trading.repository import OrderRepository
+
+    strategy, account = strat_account
+    await _make_filled_order(
+        db_session, strategy, account, pnl=Decimal("-100"), filled_at=datetime.now(UTC)
+    )
+
+    provider = _StubBalanceProvider(Decimal("10000"))
+    ev = CumulativeLossEvaluator(
+        OrderRepository(db_session),
+        threshold_percent=Decimal("10"),
+        capital_base=Decimal("5000"),  # config (used only on provider fail)
+        balance_provider=provider,
+    )
+
+    # 3회 평가 → provider 도 3회 호출 (cache 없음 검증)
+    for _ in range(3):
+        await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
+
+    assert provider.call_count == 3
