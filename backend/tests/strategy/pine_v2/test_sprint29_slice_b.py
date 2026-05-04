@@ -61,3 +61,35 @@ def test_pydantic_response_round_trip():
     restored = CoverageReportResponse.model_validate_json(json_str)
     assert restored.is_runnable == response.is_runnable
     assert len(restored.unsupported_calls) == len(response.unsupported_calls)
+    # 값 보존 equality 검증 (codex G0 P2 round-trip edge case)
+    for orig, rest in zip(response.unsupported_calls, restored.unsupported_calls):
+        assert orig.name == rest.name
+        assert orig.line == rest.line
+        assert orig.col == rest.col  # None 보존
+        assert orig.workaround == rest.workaround  # None 또는 Korean string 보존
+        assert orig.category == rest.category
+
+
+def test_line_ignores_comment_before_actual_call():
+    """codex G0 P1: 주석 안의 함수명이 실제 코드 line 보다 먼저 있어도 clean source 기준 line 반환."""
+    # line 1: 주석 (fixnan 포함)
+    # line 3: 실제 호출
+    src = """// fixnan(close)
+indicator("test")
+plot(fixnan(close))
+"""
+    rep = analyze_coverage(src)
+    fixnan_calls = [c for c in rep.unsupported_calls if c["name"] == "fixnan"]
+    assert fixnan_calls, "fixnan 이 unsupported_calls 에 없음"
+    # 주석이 제거된 clean source 에서 검색 → line 3이 맞음
+    assert fixnan_calls[0]["line"] == 3, (
+        f"주석 이후 실제 코드 line 이어야 함 (P1 fix 검증): {fixnan_calls[0]}"
+    )
+
+
+def test_unsupported_calls_line_is_int_not_none():
+    """line 필드는 항상 int (0 = 미발견 fallback). None 이 아님을 보장."""
+    src = "fixnan(close)\n"
+    rep = analyze_coverage(src)
+    for call in rep.unsupported_calls:
+        assert isinstance(call["line"], int), f"line 이 int 아님: {call}"

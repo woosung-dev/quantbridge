@@ -626,9 +626,11 @@ def analyze_coverage(source: str) -> CoverageReport:
         )
 
     # Sprint 29 Slice B: unsupported_calls — line 번호 + workaround + category 포함
+    # P1 fix (codex G0): comment/string noise 차단 위해 clean (stripped) source 에서 line 검색.
+    # _strip_noise 는 // 주석 + 문자열 리터럴을 제거하므로 첫 등장 line 이 실제 코드 위치.
     unsupported_calls_list: list[UnsupportedCall] = []
     for fn in unsupp_funcs:
-        line_no = _find_line(source, fn) or 0
+        line_no = _find_line(clean, fn) or 0
         unsupported_calls_list.append(
             UnsupportedCall(
                 name=fn,
@@ -639,7 +641,7 @@ def analyze_coverage(source: str) -> CoverageReport:
             )
         )
     for attr in unsupp_attrs:
-        line_no = _find_line(source, attr) or 0
+        line_no = _find_line(clean, attr) or 0
         unsupported_calls_list.append(
             UnsupportedCall(
                 name=attr,
