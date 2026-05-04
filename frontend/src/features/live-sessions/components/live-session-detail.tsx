@@ -22,40 +22,13 @@ import {
 } from "recharts";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
-import type { LiveSession, LiveSignalEvent } from "../schemas";
+import type { LiveSession } from "../schemas";
+// Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
+import { buildActivityTimeline } from "../utils";
 
 type Props = {
   session: LiveSession;
 };
-
-// Sprint 27 BL-140 — events 시간 순서로 windowed entry/close 카운트 추출.
-// codex G.2 P1 #4: BE repository 가 created_at.desc() 순 (bar_time desc 보장 X)
-//   → client-side 명시 정렬 (bar_time asc, sequence_no asc) 필수.
-// codex G.2 P1 #5: window=100 (events.items 응답 limit) → 진정한 cumulative
-//   아님. UI 라벨에 "최근 N events 누적" 명시.
-function buildActivityTimeline(
-  events: ReadonlyArray<LiveSignalEvent>,
-): Array<{ label: string; entries_in_window: number; closes_in_window: number }> {
-  // chronological 정렬 (bar_time asc → 같은 bar 면 sequence_no asc).
-  const sorted = events.slice().sort((a, b) => {
-    const ta = Date.parse(a.bar_time);
-    const tb = Date.parse(b.bar_time);
-    if (ta !== tb) return ta - tb;
-    return a.sequence_no - b.sequence_no;
-  });
-  let entries = 0;
-  let closes = 0;
-  return sorted.map((ev) => {
-    if (ev.action === "entry") entries += 1;
-    else if (ev.action === "close") closes += 1;
-    return {
-      // codex G.2 P2 #3 — toLocaleString() 으로 날짜 포함 (장시간 세션 X축 중복 방어).
-      label: new Date(ev.bar_time).toLocaleString(),
-      entries_in_window: entries,
-      closes_in_window: closes,
-    };
-  });
-}
 
 export function LiveSessionDetail({ session }: Props) {
   // LESSON-004 H-1: dep array 우회 위해 primitive (session.id, session.is_active) 직접 전달

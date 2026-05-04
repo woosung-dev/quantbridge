@@ -62,13 +62,14 @@ events.items 에 **realized_pnl 필드 없음** (`schemas.ts:53-69` 확인). 진
 
 ## 4. 검증
 
-| 명령                                         | 결과                                     |
-| -------------------------------------------- | ---------------------------------------- |
-| `pnpm tsc --noEmit`                          | ✅ 0 errors                              |
-| `pnpm lint`                                  | ✅ 0 errors                              |
-| `pnpm vitest run`                            | ✅ **257/257 passed** (44 files, 회귀 0) |
-| codex G.0 + G.2 (high reasoning)             | ✅ P1 5건 → 4 fix + 1 P2 격하            |
-| `pnpm e2e:authed` (PLAYWRIGHT_BASE_URL=3100) | (권장) — Sprint 25 패턴                  |
+| 명령                                         | 결과                                                                  |
+| -------------------------------------------- | --------------------------------------------------------------------- |
+| `pnpm tsc --noEmit`                          | ✅ 0 errors                                                           |
+| `pnpm lint`                                  | ✅ 0 errors                                                           |
+| `pnpm vitest run`                            | ✅ **264/264 passed** (44 files, 신규 +7 buildActivityTimeline tests) |
+| codex G.0 + G.2 (high reasoning)             | ✅ P1 5건 → 4 fix + 1 P2 격하, P2 #1+#3+#4 fix                        |
+| `pnpm e2e:authed` (PLAYWRIGHT_BASE_URL=3100) | (사용자 머지 후 본인 dogfood Day 5+ 라이브 검증)                      |
+| mcp playwright 라이브 검증                   | ⏸️ skip — 격리 stack 다운 (PR #102 머지 후 사용자 종료)               |
 
 ### codex G.2 P1 fix 매핑
 
@@ -85,7 +86,7 @@ events.items 에 **realized_pnl 필드 없음** (`schemas.ts:53-69` 확인). 진
 - **#1 ✅** "Position Size % (0-100)" → "(0 < v ≤ 100)" 라벨 정정
 - **#2** memoize 후속 (현재 events polling rate 60s 라 영향 적음)
 - **#3 ✅** `toLocaleTimeString()` → `toLocaleString()` (장시간 세션 X축 중복 방어)
-- **#4** `buildActivityTimeline()` unit test 후속 BL
+- **#4 ✅** `buildActivityTimeline()` 7 unit test 추가 (utils.ts 분리 + same-bar / out-of-order / non-entry-action / immutable / empty / single / pair)
 - **#5** chart 렌더 smoke test 후속 BL
 
 ## 5. critical files
