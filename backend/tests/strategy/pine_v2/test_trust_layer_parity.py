@@ -140,7 +140,7 @@ def test_p2_coverage_strategy_functions_match_spec() -> None:
 
 
 def test_p2_supported_functions_union_consistency() -> None:
-    """P-2: `SUPPORTED_FUNCTIONS` 가 9개 하위 그룹 합집합과 일치.
+    """P-2: `SUPPORTED_FUNCTIONS` 가 10개 하위 그룹 합집합과 일치.
 
     coverage.py 의 내부 그룹 frozenset 들을 `|` 한 결과가 SUPPORTED_FUNCTIONS.
     그룹 추가/삭제 시 합집합 재계산 누락 방지.
@@ -151,13 +151,14 @@ def test_p2_supported_functions_union_consistency() -> None:
         | cov._STRATEGY_FUNCTIONS
         | cov._DECLARATION_FUNCTIONS
         | cov._PLOT_FUNCTIONS
+        | cov._RENDERING_METHODS
         | cov._INPUT_FUNCTIONS
         | cov._STRING_FUNCTIONS
         | cov._MATH_FUNCTIONS
         | cov._V4_ALIASES
     )
     assert expected_union == cov.SUPPORTED_FUNCTIONS, (
-        "SUPPORTED_FUNCTIONS 가 9 하위 그룹 합집합과 불일치. "
+        "SUPPORTED_FUNCTIONS 가 10 하위 그룹 합집합과 불일치. "
         "coverage.py 의 그룹 정의와 최종 변수 선언 재확인 필요."
     )
 

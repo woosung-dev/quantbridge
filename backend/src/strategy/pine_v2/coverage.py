@@ -96,6 +96,24 @@ _PLOT_FUNCTIONS: frozenset[str] = frozenset(
     }
 )
 
+# Sprint 29 Slice C: Rendering object methods (box/line/label/table) — _RENDERING_FACTORIES parity
+_RENDERING_METHODS: frozenset[str] = frozenset(
+    {
+        "box.delete",
+        "box.get_bottom",
+        "box.get_top",
+        "box.set_right",
+        "label.delete",
+        "label.set_xy",
+        "line.delete",
+        "line.get_price",
+        "line.set_xy1",
+        "line.set_xy2",
+        "table.cell",
+        "table.delete",
+    }
+)
+
 # Input / config (interpreter NOP — default value 만 사용)
 _INPUT_FUNCTIONS: frozenset[str] = frozenset(
     {
@@ -198,6 +216,7 @@ SUPPORTED_FUNCTIONS: frozenset[str] = (
     | _STRATEGY_FUNCTIONS
     | _DECLARATION_FUNCTIONS
     | _PLOT_FUNCTIONS
+    | _RENDERING_METHODS
     | _INPUT_FUNCTIONS
     | _STRING_FUNCTIONS
     | _MATH_FUNCTIONS
