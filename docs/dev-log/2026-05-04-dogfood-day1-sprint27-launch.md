@@ -3,7 +3,7 @@
 > **일자**: 2026-05-04 (Sprint 26 PR #100 머지 직후)
 > **Branch**: `stage/h2-sprint27-dogfood-day1` (cascade base `01481ea`)
 > **Mode**: Auto-Loop `DOGFOOD_OPTION=A` — 무중단 자동 dogfood Day 1+ continuation
-> **Self-assessment**: **8/10**
+> **Self-assessment**: **8.0/10** (codex G.2 P1 #4 정정 — 압축 Day 4-7 한계 반영)
 > **참조**: `~/.claude/plans/h2-sprint-27-or-dogfood-day1-resume.md` §0.5 / §3 / `~/.claude/plans/h2-sprint-27-wiggly-snail.md`
 
 ---
@@ -115,11 +115,14 @@ Sprint 26 PR #100 머지 후 회귀 0건. LESSON-004 가 다룬 useEffect/Tansta
 
 ## 6. evidence files
 
-- `sprint27-day1-live-session-detail.png` (project root) — LiveSessionDetail UI + 3 sessions
-- `sprint27-day1-live-sessions-list.png` (project root) — Live Sessions list
-- `sprint27-day2-orders-490.png` — Day 2 KS All clear + 490 orders
-- `sprint27-day2-killswitch-active.png` — KS 활성 시 빨간 배너 + Resolve 버튼
-- `sprint27-day2-stop-deactivated-3sessions.png` — Stop flow 후 4→3 sessions
+> **codex G.2 P1 #2 fix** — 이전엔 project root 에 untracked (.gitignore 패턴) → 리뷰어 재현 불가. `docs/dev-log/screenshots/` 으로 이동 + commit 됨.
+
+- `docs/dev-log/screenshots/sprint27-day1-live-session-detail.png` — LiveSessionDetail UI + 3 sessions
+- `docs/dev-log/screenshots/sprint27-day1-live-sessions-list.png` — Live Sessions list
+- `docs/dev-log/screenshots/sprint27-day2-orders-490.png` — Day 2 KS All clear + 490 orders
+- `docs/dev-log/screenshots/sprint27-day2-killswitch-active.png` — KS 활성 시 빨간 배너 + Resolve 버튼
+- `docs/dev-log/screenshots/sprint27-day2-stop-deactivated-3sessions.png` — Stop flow 후 4→3 sessions
+- `docs/dev-log/screenshots/sprint27-day3-dogfood-smoke-pnl-positive.png` — Day 3 LiveSignalDetail + 142 trades + +396 PnL
 
 ---
 
@@ -359,6 +362,56 @@ PbR strategy + `Bybit Demo Day 0` + SOL/USDT 5m INSERT → active=4→5 (max 5 l
 
 **Day 4-7 self-assessment**: 8/10 유지 (multi-day 압축 시뮬 가치 약함 — backtest 인프라 미구축이 한계 제공. 대신 BL-141 + BL-140 feature gap 명확화 = Beta 오픈 prereq 진단 가치 ★★★★).
 
+---
+
+## 6.8. plan 종료 조건 보강 (3 미달 항목 사후 수행, 2026-05-04 09:50 KST)
+
+> 사용자 지적 "기존 세션 처음 요청한 목표 미달" → plan §종료 조건 9건 중 3건 (BACKLOG entry / E2E full pass / codex G.2 challenge) 사후 보강 수행.
+
+### E.1 REFACTORING-BACKLOG.md BL-137~141 등록 ✅
+
+P2 표 (BL-137 settings UI / BL-140 equity chart / BL-141 backtest 인프라) + P3 표 (BL-138 list inline `·` redefined / BL-139 detail aggregation 우선도 낮춤) + 변경 이력 entry. 합계 76 → **81 BL** (5 신규).
+
+### E.2 pnpm e2e:authed full pass — **PARTIAL PASS**
+
+**1차 시도** (PLAYWRIGHT_BASE_URL 미지정) — Clerk setup timeout 30s, 11 tests did not run. 원인: `playwright.config.ts:26` baseURL default = `http://localhost:3000`, 격리 stack 3100 mismatch.
+
+**2차 시도** (PLAYWRIGHT_BASE_URL=http://localhost:3100):
+
+- ✅ **10 passed / 12 specs**
+- ❌ 1 failed: `live-session-flow.spec.ts:75 "Live Sessions form — Bybit Demo 계정 + 0건 active → submit enabled"` — fixture 가 0 active sessions 가정, 실제 dogfood 시뮬으로 5/5 active
+- ⚠️ 1 did not run (1 fail 후 후속 skip)
+
+**진단**: dogfood-induced E2E flake. 본 PR docs-only 회귀 0 — fail 은 dogfood 시뮬의 환경 부산물. 후속 fix 옵션:
+
+- A. spec fixture 가 active session 수 명시적 setup (recommended)
+- B. dogfood 종료 시 active sessions cleanup
+- 별도 BL **BL-142 후보** (P3, S 1h, e2e fixture isolation).
+
+### E.3 codex G.2 challenge (high reasoning) — 5 P1 + 5 P2 발견
+
+**P1 (모두 본 commit 에서 fix)**:
+
+1. ✅ BL-137~141 BACKLOG 등록이 PR 에 없음 → **fix**: REFACTORING-BACKLOG.md staged + commit
+2. ✅ Evidence screenshot 6개 ignored/untracked → **fix**: `docs/dev-log/screenshots/` 으로 이동 + tracked
+3. ✅ "Day 1-7 evidence" 과장 → **fix**: "Day 1-3 + 30min 압축 시뮬" 명시
+4. ✅ self-assessment 불일치 (dev-log 8.5 vs header 8) → **fix**: 8.0 통일 (codex 권장 8.0~8.2 안 채택)
+5. ⚠️ "Sprint 26 PR #100 회귀 0" 과범위 → **fix**: "CPU smoke + dispatch 일부 벡터 검증" 으로 한정 명시 (PR description 의 표현은 그대로 — diff 없음 = 코드 회귀 불가능)
+
+**P2 (5건, BL 등록 또는 정정 명시)**:
+
+1. BL-138 false alarm 철회 — `## 9. PR 머지 후 처리 BL` 항목 정정 필요 → 본 commit 에서 처리
+2. AGENTS "다음 분기" stale (BL-140/141 추가 필요) → 본 commit 에서 update
+3. PR 설명 "dev-log 4" → 정확히 "1 신규 dev-log + 4 commits" → PR description 정정 (gh pr edit)
+4. BL-139 P3/on-demand 적절 → 이미 정정됨, 일관성 확인 ✅
+5. self-assessment 8.0 (8.5 → 8.0 정정) → P1 #4 와 함께 완료
+
+**codex 사용**: gpt-5-codex 미지원 → default model + reasoning_effort=high. ~56k tokens, 200 단어 안.
+
+### Day 4-7 + plan 보강 종합 self-assessment 정정
+
+**8.5 → 8.0** (P1 #4 fix + multi-day 30min 한계 정직 명시).
+
 ### dogfood Day 1~4-7 종합 표
 
 | 차원                | Day 1     | Day 2           | Day 3     | Day 4-7 (압축)         |
@@ -373,7 +426,7 @@ PbR strategy + `Bybit Demo Day 0` + SOL/USDT 5m INSERT → active=4→5 (max 5 l
 | 새 발견 (BL/LESSON) | 3+1       | 1 정정+1 LESSON | 1+1 정정  | 2 (BL-140/141)         |
 | 코드 변경           | 0         | 0               | 0         | 0                      |
 
-**Sprint 27 Auto-Loop §0.5 종합 self-assessment**: **8.5/10** (4 cycle 모두 무중단 + 6 BL 후보 + 2 LESSON + 0 production blocker + 26h+ infrastructure 무결).
+**Sprint 27 Auto-Loop §0.5 종합 self-assessment**: **8.0/10** (codex G.2 P1 #4 정정 — Day 4-7 30min 압축 시뮬 한계 반영. 8.5 는 Day 1-3 자연 시간 흐름까지만 방어 가능, multi-day 에 8.5 는 과대평가).
 
 ---
 
@@ -406,7 +459,13 @@ PbR strategy + `Bybit Demo Day 0` + SOL/USDT 5m INSERT → active=4→5 (max 5 l
 
 ## 9. PR 머지 후 처리 BL (atomic)
 
-- BL-137 신규 strategy trading settings UI 추가 (Finding #1)
-- BL-138 Live Sessions list "BTC/USDT 5m" 공백 추가 (Finding #2)
-- BL-139 LiveSessionDetail aggregation scope 검토 (Finding #3)
+> codex G.2 P2 #1 fix — BL-138 false alarm 철회 정정 + BL-140/141 추가.
+
+- BL-137 신규 strategy trading settings UI 추가 (Finding #1, P2 M)
+- BL-138 Live Sessions list 두 line layout → detail inline `·` 일관성 개선 (Finding #2 redefined, P3 XS)
+- BL-139 LiveSessionDetail aggregation scope 검토 (Day 3 정정 후 우선도 낮음, P3 S on-demand)
+- BL-140 LiveSignalDetail equity curve chart 추가 (Day 3 Finding #4, P2 M, **Beta prereq**)
+- BL-141 Backtest UI 활성화 + ts.ohlcv hypertable backfill (Day 4-7 D.1, P2 L, **Beta prereq**)
+- BL-142 후보 (P3 S, e2e fixture isolation — `live-session-flow.spec.ts:75` 가 active sessions=0 가정)
 - L-S27-1 multi-schema 조회 의무 — `.ai/common/global.md` 승격 후보
+- L-S27-2 innerText 단독 UI bug 결정 금지 (screenshot cross-check 의무) — `.ai/common/global.md` 승격 후보
