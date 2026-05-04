@@ -1,5 +1,7 @@
 # Trust Layer 요구사항 · SLO · 수용 기준
 
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 요구사항/SLO 의 단일 진실 원천**. 아키텍처: [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (3-Layer Parity 설계), ADR: [`dev-log/013-trust-layer-ci-design.md`](../dev-log/013-trust-layer-ci-design.md) (결정 근거).
+>
 > **상태:** Path β Stage 0 초안 (2026-04-23). Stage 2 구현 + Gate-2 통과 시 **확정**.
 > **상위 문서:** [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md), [`dev-log/013-trust-layer-ci-design.md`](../dev-log/013-trust-layer-ci-design.md), [`dev-log/016-sprint-y1-coverage-analyzer.md`](../dev-log/016-sprint-y1-coverage-analyzer.md)
 > **관련 Sprint:** Path β · 관련 PR: Stage 2 에서 작성 예정

@@ -1,5 +1,8 @@
 # QuantBridge — Product Roadmap
 
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Horizon × Pillar 로드맵의 단일 진실 원천**. 관련 ADR: [`../dev-log/010b-product-roadmap.md`](../dev-log/010b-product-roadmap.md) (재작성본, 활성). 1차 초안: [`../dev-log/010-product-roadmap.md`](../dev-log/010-product-roadmap.md) (DEPRECATED).
+> **PRD ↔ 본 로드맵 ↔ Phase 매핑 (Phase B 작업):** Phase 정의 = `00_project/phase-vs-sprint-mapping.md` (신규 예정), 도메인 진행도 = `01_requirements/domain-progress-matrix.md` (신규 예정).
+>
 > **작성일:** 2026-04-17 (초안) · **최종 수정:** 2026-04-21 (testnet dogfood 결정 반영)
 > **프레임:** Horizon 3 × Strategy Pillars 하이브리드
 > **철학:** Dogfood-first Indie SaaS — "내가 돈 내고 쓰고 싶은 것"이 quality bar

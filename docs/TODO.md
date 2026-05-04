@@ -1,12 +1,19 @@
 # QuantBridge — TODO
 
+> **Last Updated:** 2026-05-04 (Phase A docs cleanup 완료, Sprint 28 진입 대기)
+> **Active Sprint:** Sprint 28 Beta prereq 종합 (kickoff plan: [`dev-log/2026-05-04-sprint28-kickoff.md`](./dev-log/2026-05-04-sprint28-kickoff.md))
+> **Active Branch:** `chore/2026-05-04-docs-cleanup` — Phase A 33 파일 변경 working tree, Sprint 28 진입 시 rename 검토
+> **Recent BLs:** Sprint 27 BL-137/140 ✅ Resolved · Sprint 28 candidates BL-141 (Backtest UI + backfill) / BL-140b (equity curve BE) / BL-004 (KillSwitch capital_base)
+> **Next Trigger:** Phase A commit/push/PR → Sprint 28 Stage 3 (brainstorming + writing-plans + codex G0) → ExitPlanMode → 구현
+
 > 사람과 AI가 공동 관리하는 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.
 
 > **📍 제품 로드맵:** [`docs/00_project/roadmap.md`](./00_project/roadmap.md) (Horizon × Pillars)
-> **📍 현재 Horizon:** H1 → H2 transition. Sprint 1~19 + Path β + dogfood Day 1~3 완료. **Sprint 18 BL-080 ✅ + Sprint 19 BL-081/083/084/085 ✅ Resolved (2026-05-02)** — self-assessment 5/10 → **9/10**. **H1→H2 gate (≥7) 통과**. Sprint 20 = Path B 본인 1-2주 dogfood (BL-005, ★★★★★).
+> **📍 현재 Horizon:** H1 클로징 (Sprint 1~27 + Path β + dogfood Day 1~3 + Sprint 27 hotfix 완료) — **dogfood Day 1 (Sprint 27 launch, self-assessment 8/10) 진행 중**. H1→H2 gate (Prometheus alert + KillSwitch capital_base + dogfood 무사고) 정량화는 Sprint 28 Phase B (Roadmap H1 gate) 에서 마무리.
+> **📍 다음 분기:** **Sprint 28 = 옵션 5 (Beta prereq 종합)** — Phase B+C cleanup 마무리 + Vertical Slice 3 (BL-141 Backtest UI / BL-140b equity curve / BL-004 KillSwitch) + 워크프로세스 정식 적용 (Stage 1~6 풀 사이클). 18-28h 추정. 새 세션 진입.
 
-> **🚀 현재 세션 작업:** Sprint 18 + 19 코드 + atomic update backfill 완료. `stage/h2-sprint18` 브랜치 (3 commits) → main PR 생성 대기. 다음 prompt: `~/.claude/plans/h2-sprint-20-prompt.md`.
+> **🚀 현재 세션 작업:** Phase A docs cleanup 완료 (orphan archive + INDEX + SSOT 라벨). 33 파일 변경, 코드 변경 0. **commit + push + PR 사용자 승인 대기** (Git Safety Protocol). 새 세션에서 Sprint 28 진입 시 본 working tree 보존 + 첫 step.
 
 ### Completed (Sprint 18 + 19, 2026-05-02)
 
