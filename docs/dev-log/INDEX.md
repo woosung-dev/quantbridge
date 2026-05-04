@@ -8,6 +8,9 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-04 — **Sprint 28 회고** (Beta prereq 종합, 5 PR cascade, dual metric 첫 측정) — [`2026-05-04-sprint28-retrospective.md`](2026-05-04-sprint28-retrospective.md)
+- 2026-05-04 — Sprint 28 kickoff plan (Vertical Slice 4 + Stage 1~6 + 메타-방법론 4종) — [`2026-05-04-sprint28-kickoff.md`](2026-05-04-sprint28-kickoff.md)
+
 - 2026-05-04 — Sprint 27 Beta prereq hotfix — BL-137 (settings UI) + BL-140 (Activity Timeline chart), self-assessment 8.5/10 — [`2026-05-04-sprint27-beta-prereq-hotfix.md`](2026-05-04-sprint27-beta-prereq-hotfix.md)
 - 2026-05-04 — Sprint 26 Pine Signal Auto-Trading — Live Session daily flow (Beat + dispatch outbox + FE), Bybit Demo 5 orders filled, codex G.0 P1 #3-6 + G.2 P1 #10 fix, BL-122~125 — [`2026-05-04-sprint26-pine-signal-auto-trading.md`](2026-05-04-sprint26-pine-signal-auto-trading.md)
 - 2026-05-04 — dogfood Day 1 — Sprint 27 launch (Auto-Loop §0.5 first run, self-assessment 8/10) — [`2026-05-04-dogfood-day1-sprint27-launch.md`](2026-05-04-dogfood-day1-sprint27-launch.md)
