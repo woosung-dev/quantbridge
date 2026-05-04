@@ -5,6 +5,7 @@
 > **작성자:** QuantBridge 팀
 > **관련 PR:** [#8](https://github.com/woosung-dev/quantbridge/pull/8) (Sprint 6 설계/리뷰, commits `ebaa9b3` → `0842fa9`)
 > **관련 문서:**
+>
 > - Parent design doc: `docs/01_requirements/trading-demo.md`
 > - Brainstorming spec: `docs/superpowers/specs/2026-04-16-trading-demo-design.md`
 > - Implementation plan: `docs/superpowers/plans/2026-04-16-trading-demo.md`
@@ -170,11 +171,11 @@ return JSONResponse(201, content=...)
 
 ## 부가 결정 (상세는 참조 문서)
 
-| 결정 | 출처 | 영향 |
-|------|------|------|
-| `ensure_not_gated`를 `session.begin()` **안**, INSERT 직전으로 이동 | Eng E9 | Kill Switch race 제거 |
-| `Order.filled_quantity: Decimal` 컬럼 추가 | Eng E7 | CCXT 부분체결 지원 |
-| `trading.webhook_secrets.secret` → `secret_encrypted: bytes` (MultiFernet) | CSO-1 | DB leak 시 webhook 위조 방지 (spec §8 Open Item 1 해소) |
+| 결정                                                                       | 출처   | 영향                                                    |
+| -------------------------------------------------------------------------- | ------ | ------------------------------------------------------- |
+| `ensure_not_gated`를 `session.begin()` **안**, INSERT 직전으로 이동        | Eng E9 | Kill Switch race 제거                                   |
+| `Order.filled_quantity: Decimal` 컬럼 추가                                 | Eng E7 | CCXT 부분체결 지원                                      |
+| `trading.webhook_secrets.secret` → `secret_encrypted: bytes` (MultiFernet) | CSO-1  | DB leak 시 webhook 위조 방지 (spec §8 Open Item 1 해소) |
 
 ---
 
@@ -194,6 +195,46 @@ Sprint 6 plan의 T1/T3/T4/T13/T15는 이 ADR의 결정대로 업데이트 완료
 2. **Telegram 알림 채널** (CEO F5) — 운영 백업 채널. /plan-eng-review 재논의 필요.
 3. **Bybit testnet fallback → Binance testnet** (CEO F7) — Provider 1개 추가로 해결
 4. **Real Bybit testnet smoke test** (CEO F6) — T6 뒤 수동 checklist로 부가
+
+---
+
+## Resolved 2026-05-04 (Sprint 28 Slice 4 — BL-004)
+
+### capital_base fetch timing 결의
+
+> **배경:** Sprint 8+ 에서 `CumulativeLossEvaluator` + `BalanceProvider` Protocol 으로 hybrid 모드 구현 (kill_switch.py L67-121). 그러나 fetch_balance **호출 시점** (trigger 시 매번 vs 주기 cache vs hybrid) 결의 미완 — BL-004 P0 등록.
+
+**3 옵션 검토:**
+
+| Option                               | 장점                                              | 단점                                            |
+| ------------------------------------ | ------------------------------------------------- | ----------------------------------------------- |
+| **A** trigger 시 매번 호출           | Accuracy 최대 (실시간 자본) + Race condition 최소 | Latency +200ms (CCXT) + API 호출량 ↑            |
+| **B** 5초 TTL cache                  | Latency 0 + API 호출 ↓                            | 5초 stale (BTC/USDT 변동 시 $100-500 오차 가능) |
+| **C** Hybrid (cache + force refresh) | balance 추세 캐싱 + trigger 정확도                | 구현 복잡도 ↑ + 스케일링 불명확                 |
+
+**결의: Option A (trigger 시 매번 호출)**
+
+**사유 (Sprint 28 office-hours Beta path A1 정합):**
+
+- Beta path A1 = "**capital safety 우선**" (roadmap.md:131 "mainnet 진입 직전 silent over-exposure 위험")
+- Bybit Cross Margin 에서 effective_leverage = sum(position_value) / total_equity 변동 가능
+- fetch_balance 실패 시 **fallback config (10k USD) + try/except resilience** (Sprint 28 Slice 4 minor refactor) 으로 충분한 안전장치 보유
+- Latency +200ms = trade-off 수용 (KillSwitch evaluation 자체 fail 회피가 더 critical)
+
+**구현 위치 (Sprint 28 Slice 4 검증 완료):**
+
+- `backend/src/trading/kill_switch.py:107-121` `CumulativeLossEvaluator.evaluate()` 안 trigger 시점 매번 호출
+- `provider 예외 → swallow + log + config fallback` 추가 (Sprint 28 minor refactor)
+- 회귀 테스트: `backend/tests/trading/test_kill_switch_evaluators.py`
+  - `test_cumulative_loss_provider_called_on_every_trigger` — 3회 evaluate → 3회 provider call (cache 0 검증)
+  - `test_cumulative_loss_falls_back_when_provider_raises` — 예외 swallow + WARNING 로그 + fallback 동작
+- 기존 시나리오 (Sprint 8): dynamic value 우선 / None fallback / 0 fallback 모두 유지
+
+### 후속 ADR 후보 (Sprint 30+)
+
+- **Peak-based MaxDrawdownEvaluator** — Open Items #1 의 separate ADR (equity snapshot table 신규)
+- **EffectiveLeverageEvaluator (Cross Margin position aggregation)** — `OrderService._execute_inner()` notional cap 확대 (`fetch_positions()` + sum). Sprint 28 Slice 4 T3 deferred (시간 + scope 보존). 별도 BL 등록.
+- **balance_provider TTL cache** — Latency 우려 시 후속 검토 (Beta open 후 외부 user dogfood evidence 보고 결정)
 
 ## 참조
 
