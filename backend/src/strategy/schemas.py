@@ -1,4 +1,5 @@
 """strategy 도메인 Pydantic V2 스키마."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -52,6 +53,32 @@ class ParseError(BaseModel):
     line: int | None = None
 
 
+# Sprint 29 Slice B: 미지원 호출 상세 응답 schema (line + workaround + category 포함)
+class UnsupportedCallResponse(BaseModel):
+    """미지원 호출 상세 — DrFXGOD reject 응답에 line 번호 + 우회 안내 포함."""
+
+    name: str
+    line: int
+    col: int | None = None
+    workaround: str | None = None
+    category: Literal["drawing", "data", "syntax", "math", "other"]
+
+
+# Sprint 29 Slice B: CoverageReport 전체 응답 schema (parse-preview API 확장 대상)
+class CoverageReportResponse(BaseModel):
+    """coverage analyzer 결과 전체 응답 — backward-compat + Slice B 확장 필드."""
+
+    is_runnable: bool
+    used_functions: list[str]
+    used_attributes: list[str]
+    unsupported_functions: list[str]  # 기존 backward-compat
+    unsupported_attributes: list[str]  # 기존 backward-compat
+    unsupported_calls: list[UnsupportedCallResponse] = Field(
+        default_factory=list
+    )  # Sprint 29 Slice B
+    dogfood_only_warning: str | None = None  # Sprint 29 Slice A
+
+
 class ParsePreviewResponse(BaseModel):
     status: ParseStatus
     pine_version: PineVersion
@@ -65,6 +92,10 @@ class ParsePreviewResponse(BaseModel):
     # Sprint Y1 (B+D): pre-flight coverage analyzer — 미지원 built-in 명시.
     # `unsupported_builtins` 가 비어있을 때만 backtest 실행 가능 (CLAUDE.md Golden Rule).
     unsupported_builtins: list[str] = Field(default_factory=list)
+    # Sprint 29 Slice B: line 번호 + workaround 포함 상세 응답
+    unsupported_calls: list[UnsupportedCallResponse] = Field(default_factory=list)
+    # Sprint 29 Slice A: heikinashi Trust Layer 위반 경고
+    dogfood_only_warning: str | None = None
     # 실행 가능 여부 (FE 가 backtest 버튼 비활성화 + 안내 표시 결정에 사용)
     is_runnable: bool = True
 
