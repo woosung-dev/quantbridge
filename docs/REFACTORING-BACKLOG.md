@@ -558,6 +558,9 @@
 | [BL-041](#bl-041)  | Path δ — Bulk stdlib top-N                                                        | dogfood 피드백 기반 우선순위 결정 후         | L (1~2주)     | CLAUDE.md ADR-011 amendment                              |
 | [BL-042](#bl-042)  | Onboarding 성공률 지표 `qb_onboarding_completion_total{step}`                     | Beta 5명 onboarding 후                       | S (1-2h)      | TODO.md L808                                             |
 | [BL-043](#bl-043)  | waitlist email_service Resend 미설정 graceful fallback 검증                       | Beta 오픈 직전                               | S (1-2h)      | TODO.md L809                                             |
+| [BL-137](#bl-137)  | 신규 strategy trading settings UI (메타데이터 tab)                                | Sprint 27 hotfix / Beta prereq               | M (1-2h)      | dogfood Day 1 Finding #1                                 |
+| [BL-140](#bl-140)  | LiveSignalDetail equity curve chart (recharts)                                    | Sprint 27 hotfix / Beta prereq               | M (1-2h)      | dogfood Day 3 Finding #4                                 |
+| [BL-141](#bl-141)  | Backtest UI 활성화 + ts.ohlcv hypertable backfill                                 | Beta prereq                                  | L (4-8h)      | dogfood Day 4-7 D.1                                      |
 
 (상세 내용은 출처 인용 — 표 형태로 충분, 각 항목 1-3 줄로 충분히 self-contained)
 
@@ -565,16 +568,18 @@
 
 ## P3 — Nice-to-have / 컨벤션 정합
 
-| ID                | 제목                                                                       | Trigger                           | Est                       | 출처                         |
-| ----------------- | -------------------------------------------------------------------------- | --------------------------------- | ------------------------- | ---------------------------- |
-| [BL-050](#bl-050) | `PINE_ALERT_HEURISTIC_MODE` env 사용 ADR 신설 또는 주석 강화               | 신규 sprint 정리 시 on-demand     | S (30min)                 | architecture-conformance §B5 |
-| [BL-051](#bl-051) | zod@4 import 경로 정정 (`zod/v4` → `zod`)                                  | Sprint 16 cleanup 시              | S (1h)                    | TODO.md L813                 |
-| [BL-052](#bl-052) | `.uuid()` → `z.uuid()` 전수 migration                                      | BL-051 와 묶음                    | S (1h)                    | TODO.md L814                 |
-| [BL-053](#bl-053) | `/strategies/[id]/edit` / `/strategies/new` 라우트 loading.tsx + error.tsx | FE Polish 다음 bundle 시          | S (1-2h)                  | TODO.md L815                 |
-| [BL-054](#bl-054) | `strategy-list.tsx` useSuspenseQuery 최종 전환                             | FE Polish 다음 bundle 시          | S (2h)                    | TODO.md L816                 |
-| [BL-055](#bl-055) | `"use client"` 27개 중 presentational 서버 컴포넌트화                      | RSC 성능 측정 후 우선순위 결정 시 | M (4h)                    | TODO.md L817                 |
-| [BL-056](#bl-056) | D-5 A 안 — Termly → 한국 변호사 검토본 교체                                | H2 말 (~2026-06-30)               | M (외부 비용 $500~$1,500) | TODO.md L805                 |
-| [BL-057](#bl-057) | requirements.md §4.1 "Mutation 측정 불가 = scope-reducing" 명시화          | Sprint 16 docs sync 시            | S (30min)                 | CLAUDE.md ADR-013 follow-up  |
+| ID                | 제목                                                                       | Trigger                           | Est                       | 출처                                  |
+| ----------------- | -------------------------------------------------------------------------- | --------------------------------- | ------------------------- | ------------------------------------- |
+| [BL-050](#bl-050) | `PINE_ALERT_HEURISTIC_MODE` env 사용 ADR 신설 또는 주석 강화               | 신규 sprint 정리 시 on-demand     | S (30min)                 | architecture-conformance §B5          |
+| [BL-051](#bl-051) | zod@4 import 경로 정정 (`zod/v4` → `zod`)                                  | Sprint 16 cleanup 시              | S (1h)                    | TODO.md L813                          |
+| [BL-052](#bl-052) | `.uuid()` → `z.uuid()` 전수 migration                                      | BL-051 와 묶음                    | S (1h)                    | TODO.md L814                          |
+| [BL-053](#bl-053) | `/strategies/[id]/edit` / `/strategies/new` 라우트 loading.tsx + error.tsx | FE Polish 다음 bundle 시          | S (1-2h)                  | TODO.md L815                          |
+| [BL-054](#bl-054) | `strategy-list.tsx` useSuspenseQuery 최종 전환                             | FE Polish 다음 bundle 시          | S (2h)                    | TODO.md L816                          |
+| [BL-055](#bl-055) | `"use client"` 27개 중 presentational 서버 컴포넌트화                      | RSC 성능 측정 후 우선순위 결정 시 | M (4h)                    | TODO.md L817                          |
+| [BL-056](#bl-056) | D-5 A 안 — Termly → 한국 변호사 검토본 교체                                | H2 말 (~2026-06-30)               | M (외부 비용 $500~$1,500) | TODO.md L805                          |
+| [BL-057](#bl-057) | requirements.md §4.1 "Mutation 측정 불가 = scope-reducing" 명시화          | Sprint 16 docs sync 시            | S (30min)                 | CLAUDE.md ADR-013 follow-up           |
+| [BL-138](#bl-138) | Live Sessions list 두 line layout → detail inline `·` 일관성 개선          | Sprint 27 polish                  | XS (1 line)               | dogfood Day 1 Finding #2 (재정의)     |
+| [BL-139](#bl-139) | LiveSignalDetail aggregation scope 검토 (Day 3 정정 후 우선도 낮음)        | on-demand spec 명시               | S (1h)                    | dogfood Day 1 Finding #3 / Day 3 정정 |
 
 ---
 
@@ -664,6 +669,13 @@
 
 ## 변경 이력
 
+- **2026-05-04 (dogfood Day 1-7 / Sprint 27 launch)** — `stage/h2-sprint27-dogfood-day1` PR #102 (docs-only).
+  - **신규 등록 (5건)**: BL-137 (P2 신규 strategy trading settings UI), BL-138 (P3 list inline `·` 일관성), BL-139 (P3 detail aggregation scope), BL-140 (P2 LiveSignalDetail equity curve chart), BL-141 (P2 Backtest UI 활성화 + ts.ohlcv backfill).
+  - **출처**: `docs/dev-log/2026-05-04-dogfood-day1-sprint27-launch.md` (4 commits 누적 — Day 1 / Day 2 + L-S27-2 / Day 3 + multi-account / Day 4-7 압축).
+  - **합계**: 76 → 81 BL (5 신규, 0 Resolved).
+  - **LESSON 후보 2건** — L-S27-1 multi-schema 인지 (`pg_tables` schemaname IN), L-S27-2 innerText 단독 UI bug 결정 금지 (screenshot cross-check 의무). 둘 다 `.ai/common/global.md` 승격 후보.
+  - **Auto-Loop §0.5 첫 실측**: 4 cycle 무중단 + 사용자 prompt 5개 + 0 production blocker + 26h+ infrastructure 무결.
+
 - **2026-04-30** — 초기 작성. CLAUDE.md / TODO.md / dev-log/2026-04-\* / docs/superpowers/plans 4 곳에서 47 follow-up 통합 + Phase 1 architecture-conformance audit TBD 2 건 (BL-010, BL-050) 등록 = **총 50 BL (P0 5 + P1 17 + P2 14 + P3 8 + Beta 6)**. 중복 4 건 통합 (WebSocket 안정화 4 곳 → BL-001/011/012/013/014/015/016 분리, Bybit infra 3 곳 → BL-003 통합, Backtest UX 422 inline 은 Sprint 13 완료로 등록 X, OrderService broken bug 는 Sprint 13~14 hotfix 완료 — Day 2 stuck pending 잔여 BL-002 만).
 
 - **2026-05-01** — Sprint 15 (`stage/h2-sprint15`) 결과 반영.
@@ -720,7 +732,7 @@
 
 - **2026-05-03 (Sprint 25 Hybrid)** — `stage/h2-sprint25` 결과 반영. Frontend E2E Playwright + Backend test 강화 + codex G.0/G.2.
   - **Resolved (5건)**:
-    - **BL-110a** In-process lease integration test (heartbeat / lost_event / lease contention) — `tests/tasks/test_ws_lease_integration.py` 7 시나리오 (acquire / duplicate None / 격리 / extend True 정상 / extend False → lost_event.set / extend Exception → lost_event.set / __aexit__ Lua CAS DEL). codex G.0 iter 2 P1 #8 + G.2 P1 #2 모두 반영. autouse `_reset_pool_each_test` fixture 로 pytest-asyncio per-test event loop + redis-py asyncio connection bound 충돌 회피.
+    - **BL-110a** In-process lease integration test (heartbeat / lost_event / lease contention) — `tests/tasks/test_ws_lease_integration.py` 7 시나리오 (acquire / duplicate None / 격리 / extend True 정상 / extend False → lost_event.set / extend Exception → lost_event.set / **aexit** Lua CAS DEL). codex G.0 iter 2 P1 #8 + G.2 P1 #2 모두 반영. autouse `_reset_pool_each_test` fixture 로 pytest-asyncio per-test event loop + redis-py asyncio connection bound 충돌 회피.
     - **BL-112** scenario2 실 backtest 실행 — `make_trending_ohlcv` (8 segments × 25 bars = 200 bars, EMA 3/8 cross 3 회 발생 코드 실측 보장) + `EMA_CROSS_PINE_SOURCE` + precondition test (num_trades >= 3). scenario2 강한 assert (status=='ok' + result + equity > 0 + num_trades >= 1). codex G.0 iter 2 P1 #5+#6 반영 (plan v2 의 "기존 fixture 재사용" 가설 코드 실측으로 refuted).
     - **BL-113** scenario3 OrderService.execute 정확한 args — `OrderService(session=db_session, repo=OrderRepository(db_session), dispatcher=_FakeOrderDispatcher(), kill_switch=_NoopKillSwitch(), exchange_service=ExchangeAccountService(...))`. uuid4 idempotency_key per test. dispatch_snapshot 자동 채움 검증 + provider 정합성 검증. codex G.0 iter 2 P1 #7 (`repo=` param 이름) + iter 1 P2 #1 (uuid4) + iter 2 P1 #10 (FakeOrderDispatcher Celery 우회) 반영.
     - **BL-114** pytest-json-report 도입 — `importlib.util.find_spec('pytest_jsonreport')` plugin detect first. `_build_summary(rc, stdout, stderr, json_report=None)` backward compat (scenario6 호환). plugin 부재 시 graceful fallback. codex G.0 iter 2 P1 #9 (pytest CLI behavior 정확화) 반영.
@@ -732,7 +744,7 @@
     - **BL-118** baseURL 통합 (config + setup) — playwright.config.ts baseURL 단일 source. P3 S. codex G.2 P2 #2.
     - **BL-119** API_ROUTES URL predicate (orders-v2 false-match 차단) — route handler pathname predicate. P3 S. codex G.2 P2 #3.
     - **BL-120** leak guard fail-on-leak (현재 observability only, afterEach assert). P2 S (2h). codex G.2 P2 #4.
-    - **BL-121** production guard host allowlist (NODE_ENV 외 PLAYWRIGHT_BASE_URL host + pk_test_/sk_test_ prefix). P2 S. codex G.2 P2 #5.
+    - **BL-121** production guard host allowlist (NODE*ENV 외 PLAYWRIGHT_BASE_URL host + pk_test*/sk*test* prefix). P2 S. codex G.2 P2 #5.
     - **BL-122** pytest-json-report uv-aware detect (`uv run python -c` 기반). P3 S. codex G.2 P2 #6.
     - **BL-123** mkstemp fd leak fix (NamedTemporaryFile or os.close(fd)). P3 XS. codex G.2 P2 #7.
     - **BL-124** run_auto_dogfood subprocess timeout — DB/Redis hang cron 무한 대기 차단. P2 XS. codex G.2 P2 #8.
