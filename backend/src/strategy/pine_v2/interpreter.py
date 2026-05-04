@@ -52,27 +52,80 @@ from src.strategy.pine_v2.strategy_state import StrategyState
 # Path β P-2 Coverage SSOT Sync — `coverage._TA_FUNCTIONS | _UTILITY_FUNCTIONS` 와
 # 완전 일치해야 함 (ADR-013 §4.2). 새 stdlib 함수 추가 시 **3 파일 동시 갱신**
 # (stdlib.py + interpreter.STDLIB_NAMES + coverage.py).
-STDLIB_NAMES: frozenset[str] = frozenset({
-    "ta.sma",
-    "ta.ema",
-    "ta.atr",
-    "ta.rsi",
-    "ta.crossover",
-    "ta.crossunder",
-    "ta.highest",
-    "ta.lowest",
-    "ta.change",
-    "ta.pivothigh",
-    "ta.pivotlow",
-    "ta.stdev",
-    "ta.variance",
-    "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
-    "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
-    "ta.barssince",
-    "ta.valuewhen",  # Sprint 8c
-    "na",
-    "nz",
-})
+STDLIB_NAMES: frozenset[str] = frozenset(
+    {
+        "ta.sma",
+        "ta.ema",
+        "ta.atr",
+        "ta.rsi",
+        "ta.crossover",
+        "ta.crossunder",
+        "ta.highest",
+        "ta.lowest",
+        "ta.change",
+        "ta.pivothigh",
+        "ta.pivotlow",
+        "ta.stdev",
+        "ta.variance",
+        "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
+        "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
+        "ta.barssince",
+        "ta.valuewhen",  # Sprint 8c
+        "na",
+        "nz",
+    }
+)
+
+# Pine enum constants — value 매핑 (location.absolute, extend.right, shape.*, etc.)
+# Sprint 29 Slice C: function-local dict 에서 module-level dict 으로 export.
+# coverage._ENUM_PREFIXES 와 parity invariant 검증 대상 (test_ssot_invariants.py).
+_ATTR_CONSTANTS: dict[str, str] = {
+    "strategy.long": "long",
+    "strategy.short": "short",
+    # 렌더링 scope A — enum 상수 (string identity 유지)
+    "line.style_dashed": "dashed",
+    "line.style_dotted": "dotted",
+    "line.style_solid": "solid",
+    "line.style_arrow_left": "arrow_left",
+    "line.style_arrow_right": "arrow_right",
+    "line.style_arrow_both": "arrow_both",
+    "extend.none": "none",
+    "extend.left": "left",
+    "extend.right": "right",
+    "extend.both": "both",
+    "shape.labelup": "labelup",
+    "shape.labeldown": "labeldown",
+    "shape.triangleup": "triangleup",
+    "shape.triangledown": "triangledown",
+    "shape.arrowup": "arrowup",
+    "shape.arrowdown": "arrowdown",
+    "shape.circle": "circle",
+    "shape.cross": "cross",
+    "shape.xcross": "xcross",
+    "shape.flag": "flag",
+    "shape.square": "square",
+    "shape.diamond": "diamond",
+    "location.absolute": "absolute",
+    "location.abovebar": "abovebar",
+    "location.belowbar": "belowbar",
+    "location.top": "top",
+    "location.bottom": "bottom",
+    "size.auto": "auto",
+    "size.tiny": "tiny",
+    "size.small": "small",
+    "size.normal": "normal",
+    "size.large": "large",
+    "size.huge": "huge",
+    "position.top_left": "top_left",
+    "position.top_center": "top_center",
+    "position.top_right": "top_right",
+    "position.middle_left": "middle_left",
+    "position.middle_center": "middle_center",
+    "position.middle_right": "middle_right",
+    "position.bottom_left": "bottom_left",
+    "position.bottom_center": "bottom_center",
+    "position.bottom_right": "bottom_right",
+}
 
 # ------------------------------------------------------------
 # Bar Context — OHLCV 시계열 접근 계층
@@ -909,53 +962,6 @@ class Interpreter:
         실제 차트에 영향 없지만 call arg로 전달될 수 있어 평가는 필요.
         """
         chain = _attr_chain(node)
-        _ATTR_CONSTANTS = {
-            "strategy.long": "long",
-            "strategy.short": "short",
-            # 렌더링 scope A — enum 상수 (string identity 유지)
-            "line.style_dashed": "dashed",
-            "line.style_dotted": "dotted",
-            "line.style_solid": "solid",
-            "line.style_arrow_left": "arrow_left",
-            "line.style_arrow_right": "arrow_right",
-            "line.style_arrow_both": "arrow_both",
-            "extend.none": "none",
-            "extend.left": "left",
-            "extend.right": "right",
-            "extend.both": "both",
-            "shape.labelup": "labelup",
-            "shape.labeldown": "labeldown",
-            "shape.triangleup": "triangleup",
-            "shape.triangledown": "triangledown",
-            "shape.arrowup": "arrowup",
-            "shape.arrowdown": "arrowdown",
-            "shape.circle": "circle",
-            "shape.cross": "cross",
-            "shape.xcross": "xcross",
-            "shape.flag": "flag",
-            "shape.square": "square",
-            "shape.diamond": "diamond",
-            "location.absolute": "absolute",
-            "location.abovebar": "abovebar",
-            "location.belowbar": "belowbar",
-            "location.top": "top",
-            "location.bottom": "bottom",
-            "size.auto": "auto",
-            "size.tiny": "tiny",
-            "size.small": "small",
-            "size.normal": "normal",
-            "size.large": "large",
-            "size.huge": "huge",
-            "position.top_left": "top_left",
-            "position.top_center": "top_center",
-            "position.top_right": "top_right",
-            "position.middle_left": "middle_left",
-            "position.middle_center": "middle_center",
-            "position.middle_right": "middle_right",
-            "position.bottom_left": "bottom_left",
-            "position.bottom_center": "bottom_center",
-            "position.bottom_right": "bottom_right",
-        }
         if chain in _ATTR_CONSTANTS:
             return _ATTR_CONSTANTS[chain]
         # strategy.position_size / strategy.position_avg_price
@@ -1096,8 +1102,11 @@ class Interpreter:
                 return None
             exit_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
             from_entry = (
-                str(positional[1]) if len(positional) >= 2
-                else str(kwargs.get("from_entry", "")) if kwargs.get("from_entry") else None
+                str(positional[1])
+                if len(positional) >= 2
+                else str(kwargs.get("from_entry", ""))
+                if kwargs.get("from_entry")
+                else None
             )
             # 모든 kwargs (when 제외) 를 unsupported 로 기록 — close 안 함을 사용자에게 알림
             unsupported = sorted(k for k in kwargs if k not in ("id", "from_entry", "when"))
