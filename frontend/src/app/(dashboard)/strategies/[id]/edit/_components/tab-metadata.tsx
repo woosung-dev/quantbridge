@@ -259,11 +259,13 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
               <FormItem>
                 <FormLabel>Position Size % (0 &lt; v ≤ 100)</FormLabel>
                 <FormControl>
+                  {/* step="any" — HTML5 native validation 회피 (min=0.01 + step=0.1
+                      조합 시 10 등 정상값이 invalid 처리되어 submit 차단). */}
                   <Input
                     type="number"
                     min={0.01}
                     max={100}
-                    step={0.1}
+                    step="any"
                     {...field}
                     onChange={(e) =>
                       field.onChange(
