@@ -763,9 +763,20 @@ class Interpreter:
                 return "NaN"
             return str(val)
 
+        # Sprint 29 Slice A (a): heikinashi NOP — 일반 OHLC 그대로 반환 (Trust Layer 위반, dogfood-only).
+        # Heikin-Ashi 캔들 정확 변환은 Sprint 30+ ADR-009 Candle transformation layer.
+        if name == "heikinashi":
+            return (
+                self.bar.current("open"),
+                self.bar.current("high"),
+                self.bar.current("low"),
+                self.bar.current("close"),
+            )
+
         # request.security(sym, tf, expression, ...) — Sprint 8c MVP: expression 인자 그대로.
+        # Sprint 29 Slice A: `security` (v4 no-namespace alias) 도 동일 처리.
         # (실제 MTF fetch는 H2+; NOP으로 graceful degrade.)
-        if name in ("request.security", "request.security_lower_tf"):
+        if name in ("request.security", "request.security_lower_tf", "security"):
             if len(node.args) < 3:
                 return float("nan")
             expr_arg = node.args[2]
@@ -989,6 +1000,10 @@ class Interpreter:
             if math.isnan(prev_close):
                 return high - low
             return max(high - low, abs(high - prev_close), abs(low - prev_close))
+        # timeframe.period — Sprint 29 Slice A: BarContext 에 timeframe 미구현,
+        # 기본값 "1D" 반환 (backtest 단일 timeframe 가정).
+        if chain == "timeframe.period":
+            return "1D"
         # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):
             return float("nan")
