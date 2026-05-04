@@ -1,5 +1,7 @@
 // Sprint 26 — Live Sessions pure helpers (테스트 가능 단위).
+// Sprint 27 BL-140 — buildActivityTimeline (recent events cumulative).
 
+import type { LiveSignalEvent } from "./schemas";
 import type { EquityPoint } from "./types";
 
 // ── Refetch interval — active session 일 때만 빠르게 폴링 ────────────────
@@ -54,4 +56,46 @@ export function buildPnlSeries(
     });
   }
   return result;
+}
+
+// ── Activity Timeline — events windowed cumulative entry/close (Sprint 27 BL-140) ─
+
+export type ActivityTimelinePoint = {
+  label: string;
+  entries_in_window: number;
+  closes_in_window: number;
+};
+
+/**
+ * Sprint 27 BL-140 — events 윈도우 내 cumulative entry/close 카운트.
+ *
+ * codex G.2 P1 #4 — BE repository 가 created_at.desc() 응답이라 bar_time desc
+ *   보장 X. client-side 명시 정렬 (bar_time asc → 같은 bar 면 sequence_no asc) 의무.
+ * codex G.2 P1 #5 — 진정한 cumulative 아니라 "최근 N events 누적" (window=100,
+ *   events.items 응답 limit). label 명시 의무 (UI에서 처리).
+ *
+ * @param events  events.items (limit=100, BE created_at desc 응답).
+ * @returns chronological 순서로 정렬된 cumulative datapoint.
+ */
+export function buildActivityTimeline(
+  events: ReadonlyArray<LiveSignalEvent>,
+): ActivityTimelinePoint[] {
+  const sorted = events.slice().sort((a, b) => {
+    const ta = Date.parse(a.bar_time);
+    const tb = Date.parse(b.bar_time);
+    if (ta !== tb) return ta - tb;
+    return a.sequence_no - b.sequence_no;
+  });
+  let entries = 0;
+  let closes = 0;
+  return sorted.map((ev) => {
+    if (ev.action === "entry") entries += 1;
+    else if (ev.action === "close") closes += 1;
+    return {
+      // codex G.2 P2 #3 — toLocaleString() (장시간 세션 X축 중복 방어).
+      label: new Date(ev.bar_time).toLocaleString(),
+      entries_in_window: entries,
+      closes_in_window: closes,
+    };
+  });
 }

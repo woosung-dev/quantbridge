@@ -29,6 +29,7 @@ import {
   parseStrategy,
   rotateWebhookSecret,
   updateStrategy,
+  updateStrategySettings,
 } from "./api";
 import { strategyKeys } from "./query-keys";
 import type {
@@ -38,6 +39,7 @@ import type {
   StrategyListQuery,
   StrategyListResponse,
   StrategyResponse,
+  UpdateStrategySettingsRequest,
   UpdateStrategyRequest,
   WebhookRotateResponse,
 } from "./schemas";
@@ -181,6 +183,31 @@ export function useUpdateStrategy(
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
       qc.setQueryData(strategyKeys.detail(uid, updated.id), updated);
+      opts.onSuccess?.(updated);
+    },
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+// Sprint 27 BL-137 — PUT /strategies/{id}/settings (trading params).
+// codex G.2 P1 #3 — settings 와 메타데이터 mutation race 회피: setQueryData
+// 대신 detail invalidate (서버 truth fetch). 동시 저장 시 stale 덮어쓰기 차단.
+export function useUpdateStrategySettings(
+  id: string,
+  opts: MutationCallbacks<StrategyResponse> = {},
+): UseMutationResult<StrategyResponse, Error, UpdateStrategySettingsRequest> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: UpdateStrategySettingsRequest) => {
+      const token = await getToken();
+      return updateStrategySettings(id, body, token);
+    },
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
+      // codex G.2 P1 #3 — invalidate detail (setQueryData 금지: race window).
+      qc.invalidateQueries({ queryKey: strategyKeys.detail(uid, updated.id) });
       opts.onSuccess?.(updated);
     },
     onError: (err) => opts.onError?.(err),

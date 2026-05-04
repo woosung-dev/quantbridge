@@ -1,14 +1,30 @@
 "use client";
 
 // Sprint 26 — Live Session detail panel.
+// Sprint 27 BL-140 — Activity Timeline line chart (events 누적 시각화).
+//   진정한 equity curve (cumulative realized_pnl) 는 events 에 pnl 필드 없으므로
+//   BL-140b (BE state.realized_pnl_history JSONB 추가) 별도 sprint 로 분리.
 //
 // 표시:
 //  - Session 정보 (symbol/interval/last_evaluated_bar_time)
 //  - Open trades snapshot + 누적 통계 (closed_trades, realized_pnl)
+//  - Activity Timeline line chart (cumulative entry / close count)
 //  - Recent events log (action / direction / status / order_id)
+
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
 import type { LiveSession } from "../schemas";
+// Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
+import { buildActivityTimeline } from "../utils";
 
 type Props = {
   session: LiveSession;
@@ -48,6 +64,53 @@ export function LiveSessionDetail({ session }: Props) {
             </dd>
           </div>
         </dl>
+      </div>
+
+      {/* Sprint 27 BL-140 — Activity Timeline (recent N events cumulative chart) */}
+      <div className="rounded-md border p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-sm font-medium">Activity Timeline</h4>
+          <p className="text-xs text-muted-foreground">
+            최근 events 누적 entry / close (전체 누적 = BL-140b 후속)
+          </p>
+        </div>
+        {eventsLoading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : !events || events.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            아직 평가된 signal 이 없습니다. 다음 bar 평가를 기다려주세요.
+          </p>
+        ) : (
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={buildActivityTimeline(events.items)}
+                margin={{ top: 5, right: 16, bottom: 5, left: -16 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="entries_in_window"
+                  name="Entries (window)"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="closes_in_window"
+                  name="Closes (window)"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       <div className="rounded-md border p-4">
