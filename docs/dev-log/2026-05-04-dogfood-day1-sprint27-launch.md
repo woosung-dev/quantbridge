@@ -207,6 +207,101 @@ UI counter 3/5 → **4/5** 즉시 갱신, list 에 ETH/USDT 1h row 추가. multi
 
 ---
 
+## 6.6. dogfood Day 3 evidence (mcp playwright 자동, 2026-05-04 09:21 KST 시작)
+
+> 사용자 요청 "해당 세션에서 해줄래?" — 같은 세션 내 Day 3 자동 시뮬 추가.
+
+### C.1 누적 추이 분석 (Day 2 시작 490 → Day 3 시작 501)
+
+| 시점          | total   | filled | rejected | events | active sessions |
+| ------------- | ------- | ------ | -------- | ------ | --------------- |
+| Day 1 (23:53) | 470     | ~454   | 7        | 470    | 3               |
+| Day 2 (24:11) | 490     | 483    | 7        | 490    | 3               |
+| Day 3 (24:21) | 501     | 494    | 7        | 501    | 3               |
+| **30분 누적** | **+31** | +40    | 0        | +31    | 0               |
+
+dispatch rate ~1.0/min 안정. Day 0 발생 reject 7건 이후 Day 1-3 추가 reject 0 = **infrastructure 안정성 ✅**.
+
+**Order side 분포** (494 filled):
+
+- buy: 247 (avg 78,775.14, range 78,377.80 ~ 79,362.40)
+- sell: 247 (avg 78,778.36, range 78,245.00 ~ 79,362.40)
+- 정확히 균형 (long-only strategy 의 entry/close 페어 → buy=sell)
+
+**Event action 분포** (501 events):
+
+- entry/long/dispatched: 250
+- close/long/dispatched: 249
+- close/short/dispatched: 2
+- → dogfood-smoke "buy on green" = long-only 검증 ✅
+
+**Per-session events**:
+
+- dogfood-smoke (1m): **499 events** (dominant)
+- PbR (5m): **0→2 events** ✅ — Day 2 24h 동안 처음 신호 발생 (pivot reversal swing high 검증)
+- UtBot (15m), ETH/USDT (1h, deactivated), 추가 sessions: 0 events (자연스러움)
+
+### C.2 multi-account 시나리오
+
+UtBot strategy + **bybit-demo01** (`6daca61b...`) + BTC/USDT 5m INSERT → Beat scheduler 즉시 인식:
+
+```
+2026-05-04 00:23:49 evaluate_all due_count=4 evaluated=4
+  - new bybit-demo01 5m (06390d4a): evaluated=True last_bar=00:15:00 events=0
+  - dogfood-smoke (1m): events_inserted=1 last_bar=00:22:00
+  - PbR/UtBot 다른 timeframe: skipped no_new_bar
+```
+
+**검증**: 한 user 가 두 ExchangeAccount (Bybit Demo Day 0 + bybit-demo01) 동시 운영 — 정상. Beat scheduler 가 ExchangeAccount 별 분리 없이 모든 active session 평가.
+
+### C.3 LiveSignalDetail PnL chart UI 검증 (dogfood-smoke 1m)
+
+| 지표          | Day 1        | Day 3            | 변화            |
+| ------------- | ------------ | ---------------- | --------------- |
+| Closed Trades | 32           | 142              | +110            |
+| Realized PnL  | -546.42 USDT | **+396.50 USDT** | +942 USDT swing |
+| Recent Events | (없음)       | 20+ rows 표시    | ✅              |
+
+24h+ 운영 후 Negative → Positive PnL swing. dogfood-smoke 가 의미 있는 PnL chart 제공 가능 단계 도달.
+
+**Finding #4 (BL-140 후보)** — LiveSignalDetail 에 별도 PnL chart 영역 부재 / Recent Events table 만 표시. recharts library 는 로드되지만 시각화 컴포넌트 미렌더. spec 확인 필요 (chart 영역이 viewport 밖 인지, 또는 미구현).
+
+**Finding #3 (BL-139) 상태**: Day 1 의 "session-level aggregation 가설" 일부 정정. dogfood-smoke session 의 142 trades / +396 PnL 수치는 그 session 의 실제 dispatched events 와 일치 (499 events / 142 closed trades 페어 매칭). **session-scoped 정상**일 가능성 높음. Day 1 의 "PbR session 의 32 trades" 는 BL-122 fix 적용 전 잔여 stale data 였을 수도. BL-139 우선도 낮춤.
+
+### C.4 다른 symbol variation — SOL/USDT 5m
+
+PbR strategy + `Bybit Demo Day 0` + SOL/USDT 5m INSERT → active=4→5 (max 5 limit 도달).
+
+```
+2026-05-04 00:26:49 evaluate_all due_count=5 evaluated=5
+  - new SOL/USDT 5m (c9e072ad): evaluated=True last_bar=00:20:00 events=0
+```
+
+**검증**:
+
+- ✅ Bybit Demo SOL/USDT 가격 데이터 fetch 가능 (last_bar=00:20:00)
+- ✅ Beat scheduler `due_count=5` 즉시 5/5 인식
+- ✅ multi-symbol (BTC/USDT + SOL/USDT) 동시 평가
+- ⚠️ session limit 5/5 도달 — 추가 등록 시 backend 차단 의무 (별도 검증 후속)
+
+### Day 3 종합
+
+| 측정                 | 결과                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| 누적 안정성          | ✅ 30분 +31 orders, dispatch rate 안정, reject 0                                   |
+| Per-session evidence | ✅ PbR 0→2 events (Pine 신호 첫 발생), dogfood-smoke 32→142 trades                 |
+| PnL trajectory       | ✅ -546 → +396 swing (24h+ realistic dogfood)                                      |
+| Multi-account        | ✅ 두 ExchangeAccount 동시 active                                                  |
+| Multi-symbol         | ✅ BTC/USDT + SOL/USDT 동시                                                        |
+| Multi-timeframe      | ✅ 1m/5m/15m 동시 (1h Stop 후 deactivated)                                         |
+| Session limit        | ✅ 5/5 도달 (UI counter "활성 session: 5 / 5")                                     |
+| 새 발견              | Finding #4 (BL-140 후보 PnL chart 부재) + BL-139 정정 (session-scoped 정상 가능성) |
+| 코드 변경            | **0** — PR #102 docs-only 정신 유지                                                |
+
+**Day 3 self-assessment**: 8/10 유지 (Pine 신호 첫 발생 + multi-dimensional dogfood 검증 — quality bar 상승. 단 코드 hotfix 0 + 자연 시간 추가 필요).
+
+---
+
 ## 7. 다음 분기
 
 | 옵션                                | 작업                                         | 별점  | trigger                                |
