@@ -1,9 +1,23 @@
 from decimal import Decimal
+from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Environment(StrEnum):
+    """Sprint 30 ε B2 — `app_env` 동치 enum (production gating 명시화).
+
+    기존 `Literal[...]` 정의는 backward-compat 위해 그대로 유지. 본 enum 은
+    production guard / log level 결정 용 helper. 비교는 `settings.is_production`
+    property 권장 (직접 비교 시 `Environment.PRODUCTION.value` 사용).
+    """
+
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
 
 
 class Settings(BaseSettings):
@@ -17,6 +31,13 @@ class Settings(BaseSettings):
     app_name: str = "QuantBridge"
     app_env: Literal["development", "staging", "production"] = "development"
     debug: bool = True
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        description=(
+            "uvicorn / 모듈 logger root level. production 환경 시 INFO 이상 강제 "
+            "(model_validator). development 는 DEBUG 가능."
+        ),
+    )
     secret_key: SecretStr = SecretStr("change-me")
 
     # Clerk
@@ -230,6 +251,58 @@ class Settings(BaseSettings):
             "'timescale'=CCXT+TimescaleDB cache (Sprint 5 M3+)."
         ),
     )
+
+    # ----------------------------------------------------------------
+    # Sprint 30 ε B2 — production guard
+    # ----------------------------------------------------------------
+    @property
+    def is_production(self) -> bool:
+        """production 환경 판정 helper."""
+        return self.app_env == Environment.PRODUCTION.value
+
+    @property
+    def is_staging(self) -> bool:
+        """staging 환경 판정 helper."""
+        return self.app_env == Environment.STAGING.value
+
+    @model_validator(mode="after")
+    def _enforce_production_safety(self) -> "Settings":
+        """production 환경 진입 시 SecretStr 정합 + debug/log_level 강제.
+
+        - ``app_env=production``: ``debug=False`` 강제 + ``log_level`` 이 DEBUG 면 INFO 로 승격.
+        - ``secret_key`` 가 placeholder (``change-me`` / 빈 값) 이면 raise (운영 노출 사전 차단).
+        - ``clerk_secret_key`` / ``waitlist_token_secret`` 빈 값 raise.
+        - dev/test 환경은 모두 통과 (기존 동작 유지).
+
+        본 validator 는 backward-compat 위해 staging 은 강제하지 않음 (warning 만).
+        """
+        if self.app_env != Environment.PRODUCTION.value:
+            return self
+
+        # 1. debug 강제 OFF
+        if self.debug:
+            object.__setattr__(self, "debug", False)
+
+        # 2. log_level DEBUG → INFO 승격
+        if self.log_level == "DEBUG":
+            object.__setattr__(self, "log_level", "INFO")
+
+        # 3. SecretStr placeholder 감지
+        placeholders: list[str] = []
+        if self.secret_key.get_secret_value() in ("", "change-me"):
+            placeholders.append("SECRET_KEY")
+        if not self.clerk_secret_key.get_secret_value():
+            placeholders.append("CLERK_SECRET_KEY")
+        if not self.waitlist_token_secret.get_secret_value():
+            placeholders.append("WAITLIST_TOKEN_SECRET")
+
+        if placeholders:
+            raise ValueError(
+                "production app_env requires non-placeholder secrets: "
+                + ", ".join(placeholders)
+            )
+
+        return self
 
 
 @lru_cache(maxsize=1)
