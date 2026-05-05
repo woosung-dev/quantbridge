@@ -242,9 +242,79 @@ test.describe("Sprint 32 dogfood gate — Surface Trust Recovery", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
-  // §4 marker tooltip — placeholder, Worker C (BL-171+172) 머지 후 활성화
-  test.skip("backtest result — trade marker hover tooltip [BLOCKED: Worker C 머지 대기]", async () => {
-    // BL-171: filled (entry) / outline (exit) + hover tooltip
-    // 활성화 조건: stage/h2-sprint32-C-marker-axis 머지 후
+  // §4 axis labels + markers — Worker C (BL-171+172, PR #138) 통합 검증
+  //
+  // Worker C 결정 (PR #138 body): lightweight-charts 4.x native tooltip 미지원 +
+  // filled/outline 이중 shape 미지원 → marker text 의미화 (가격 + PnL) +
+  // arrow(entry)/circle(exit) shape + 색상 (long/short, win/loss).
+  // canvas pixel 검증은 out-of-scope (DOM 으로 검사 어려움) → axis-label-bar
+  // testid 검증으로 BL-172 surface 확인 + trades mount 시 chart 정상 렌더 검증.
+  test("backtest result — axis labels visible + chart render with trades", async ({
+    page,
+  }) => {
+    const tradesDetail = {
+      ...MOCK_BACKTEST_DETAIL,
+      // Sprint 32-C 거래 마커 시각화 — entry arrow + exit circle 렌더링 trigger
+      trades: [
+        {
+          id: "tr00000-0000-4000-tr00-000000000001",
+          side: "long",
+          entry_time: "2024-01-15T14:32:00Z",
+          entry_price: 12345.67,
+          exit_time: "2024-01-15T17:00:00Z",
+          exit_price: 12500.0,
+          quantity: 0.05,
+          pnl: 7.71,
+          pnl_pct: 0.0125,
+          status: "closed",
+        },
+      ],
+    };
+
+    await page.route(API_ROUTES.strategies, (route, request) => {
+      if (request.url().includes(MOCK_PBR_STRATEGY.id)) {
+        return fulfillJson(MOCK_PBR_STRATEGY)(route);
+      }
+      return fulfillJson({
+        items: [MOCK_PBR_STRATEGY],
+        total: 1,
+        page: 0,
+        page_size: 20,
+      })(route);
+    });
+
+    await page.route(API_ROUTES.backtests, (route, request) => {
+      if (request.url().includes(`${MOCK_BACKTEST_ID}/trades`)) {
+        return fulfillJson({
+          items: tradesDetail.trades,
+          total: 1,
+          page: 0,
+          page_size: 20,
+        })(route);
+      }
+      if (request.url().includes(MOCK_BACKTEST_ID)) {
+        return fulfillJson(tradesDetail)(route);
+      }
+      return fulfillJson({ items: [], total: 0, page: 0, page_size: 20 })(
+        route,
+      );
+    });
+
+    await page.goto(`/backtests/${MOCK_BACKTEST_ID}`);
+
+    // BL-172 axis labels — equity / drawdown 두 pane 각각의 axis-label-bar
+    await expect(page.getByTestId("axis-label-bar-equity")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("axis-label-bar-drawdown")).toBeVisible();
+
+    // y-axis-label + x-axis-label — 단위 / 시간 단위 inline 표시
+    await expect(page.getByTestId("y-axis-label").first()).toBeVisible();
+    await expect(page.getByTestId("x-axis-label").first()).toBeVisible();
+
+    // BL-171 trade marker integration — chart 자체가 mount 되어야 하므로
+    // equity-chart-v2 visible 재확인 (trades prop 전달 시 derive 함수 호출 후 setMarkers).
+    // canvas pixel 검증은 out-of-scope.
+    await expect(page.getByTestId("equity-chart-v2")).toBeVisible();
   });
 });
