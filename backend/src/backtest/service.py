@@ -344,7 +344,15 @@ class BacktestService:
 
     async def get(self, backtest_id: UUID, *, user_id: UUID) -> BacktestDetail:
         bt = await self._load_owned(backtest_id, user_id)
-        return self._to_detail(bt)
+        # Sprint 31-E (BL-155): direction count consistency.
+        # metrics.long_count/short_count 는 vectorbt `trades.long.count()` 기반으로
+        # closed only 만 집계 → FE `trades.length` (open + closed) 와 1건 mismatch.
+        # COMPLETED 상태일 때 trades 테이블에서 재집계해 사용자 시점 ("거래 목록"
+        # 탭과 동일 모수) 으로 일관성 유지. 다른 상태는 trades 0건 → fallback.
+        direction_counts: tuple[int, int, int] | None = None
+        if bt.status == BacktestStatus.COMPLETED:
+            direction_counts = await self.repo.count_trades_by_direction(bt.id)
+        return self._to_detail(bt, direction_counts=direction_counts)
 
     async def list(self, *, user_id: UUID, limit: int, offset: int) -> Page[BacktestSummary]:
         items, total = await self.repo.list_by_user(user_id, limit=limit, offset=offset)
@@ -446,25 +454,52 @@ class BacktestService:
             raise BacktestNotFound()
         return bt
 
-    def _to_detail(self, bt: Backtest) -> BacktestDetail:
+    def _to_detail(
+        self,
+        bt: Backtest,
+        *,
+        direction_counts: tuple[int, int, int] | None = None,
+    ) -> BacktestDetail:
+        """Backtest → BacktestDetail Pydantic 변환.
+
+        Args:
+            bt: ORM 인스턴스.
+            direction_counts: optional (total, long, short). 제공 시 metrics
+                num_trades/long_count/short_count 를 본 값으로 override
+                (Sprint 31-E BL-155 — FE trades 목록과 사용자 시점 일관성).
+                None 이면 JSONB 저장 값 (closed only) 그대로 사용 — 레거시
+                fallback. trades 0건 (legacy 또는 trades 미저장) 일 때도 None
+                전달해 JSONB 값 유지 권장.
+        """
         metrics_out: BacktestMetricsOut | None = None
         equity_out: list[EquityPoint] | None = None
         if bt.status == BacktestStatus.COMPLETED:
             if bt.metrics:
                 m = metrics_from_jsonb(bt.metrics)
+                # Sprint 31-E: direction count override.
+                # trades 테이블에 1건 이상 있을 때만 override (0건 = legacy 또는
+                # trades 비저장 케이스 → JSONB 값 유지로 backward-compat).
+                if direction_counts is not None and direction_counts[0] > 0:
+                    num_trades_out = direction_counts[0]
+                    long_count_out: int | None = direction_counts[1]
+                    short_count_out: int | None = direction_counts[2]
+                else:
+                    num_trades_out = m.num_trades
+                    long_count_out = m.long_count
+                    short_count_out = m.short_count
                 metrics_out = BacktestMetricsOut(
                     total_return=m.total_return,
                     sharpe_ratio=m.sharpe_ratio,
                     max_drawdown=m.max_drawdown,
                     win_rate=m.win_rate,
-                    num_trades=m.num_trades,
+                    num_trades=num_trades_out,
                     sortino_ratio=m.sortino_ratio,
                     calmar_ratio=m.calmar_ratio,
                     profit_factor=m.profit_factor,
                     avg_win=m.avg_win,
                     avg_loss=m.avg_loss,
-                    long_count=m.long_count,
-                    short_count=m.short_count,
+                    long_count=long_count_out,
+                    short_count=short_count_out,
                     # Sprint 30 gamma-BE: PRD 24 metric spec 정합 — 신규 12 필드 전달.
                     avg_holding_hours=m.avg_holding_hours,
                     consecutive_wins_max=m.consecutive_wins_max,
@@ -474,7 +509,13 @@ class BacktestService:
                     monthly_returns=m.monthly_returns,
                     drawdown_duration=m.drawdown_duration,
                     annual_return_pct=m.annual_return_pct,
-                    total_trades=m.total_trades,
+                    # total_trades 는 PRD parity alias — num_trades override 시
+                    # 함께 갱신 (legacy fallback 시 m.total_trades 그대로).
+                    total_trades=(
+                        num_trades_out
+                        if direction_counts is not None and direction_counts[0] > 0
+                        else m.total_trades
+                    ),
                     avg_trade_pct=m.avg_trade_pct,
                     best_trade_pct=m.best_trade_pct,
                     worst_trade_pct=m.worst_trade_pct,
