@@ -8,6 +8,7 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-06 — **dogfood Day 7 (Sprint 36)** (P-1~P-6 6/6 PASS, B시나리오 ⚠️ MC 요약 통계 FE 미노출, self-assess ≤6/10 = gate (a) FAIL, BL-183 신규 등록 → Sprint 37 = polish iter 5) — [`2026-05-06-dogfood-day7-sprint36.md`](2026-05-06-dogfood-day7-sprint36.md)
 - 2026-05-05 — **Sprint 35 회고** (polish iter 3, 4 PR + codex G.0 1.34M tokens surgery 18건, BL-178 root cause = Docker worker stale 확정 + BL-180 engine golden oracle 8 tests GREEN, Slice 4a mid-dogfood 6/6 PASS, Day 7 self-assess 6/10 = gate (a) FAIL → Sprint 36 = polish iter 4) — [`2026-05-05-sprint35-master-retrospective.md`](2026-05-05-sprint35-master-retrospective.md)
 - 2026-05-05 — **office-hours Sprint 35 분기 결정** (Wedge A backtest 단독 정밀화 + Approach C Gated 2-step + codex GO_WITH_FIXES surgery 5건 — P2 갱신 + NEW Slice 1.5 backtest golden oracle + Slice 2 축소 BL-176 만 + Slice 3 조건부 walk-forward 만 + Day 7 4중 AND gate. spec review 9.0/10 + codex VERDICT=HOLD/P1=1/Approach OK = GO_WITH_FIXES. BL-174 = Sprint 36+ defer. Sprint 28 design 1주 만에 Premise P1 무너짐 패턴 학습 결과 기록) — [`2026-05-05-office-hours-sprint-35-decision.md`](2026-05-05-office-hours-sprint-35-decision.md)
 - 2026-05-05 — **Sprint 34 회고** (polish iter 2, 3 PR + codex G.0 P1 surgery 6건 적용, BL-175 본격 fix + BL-177 dense text shorten + BL-166 kill K-2 cancel, mid-dogfood Day 6.5 PASS, dogfood Day 7 = TBD) — [`2026-05-05-sprint34-master-retrospective.md`](2026-05-05-sprint34-master-retrospective.md)
