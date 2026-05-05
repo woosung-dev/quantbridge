@@ -1,9 +1,35 @@
 # Sprint FE-01 LESSON-004: push 전에 FE 타입체크 + 테스트로 회귀 방어.
+# Sprint 33 (codex G.0 P1-1): main worktree push 차단 (worker isolation 영구).
 # 로컬에서 무한 루프 / 타입 에러 / 테스트 실패 코드가 원격에 올라가기 전에 차단.
 # 스킵하려면 --no-verify (단, PR이 올라가면 CI에서 다시 검사됨)
 
 # stash 없이 현재 staged/working tree 상태 그대로 검증
 set -e
+
+# Sprint 33 (codex P1-1): main worktree push 차단 (자율 병렬 worker isolation 영구)
+# main worktree = git_dir == git_common_dir. worker worktree = 별 .git dir (linked).
+# 메인 세션 의도적 push 시 QB_PRE_PUSH_BYPASS=1 명시 우회.
+QB_GIT_DIR="$(git rev-parse --git-dir)"
+QB_GIT_COMMON_DIR="$(git rev-parse --git-common-dir)"
+QB_REPO_ROOT="$(git rev-parse --show-toplevel)"
+if [ "$QB_GIT_DIR" = "$QB_GIT_COMMON_DIR" ]; then
+  if [ "$QB_PRE_PUSH_BYPASS" = "1" ]; then
+    echo "→ pre-push: BYPASS — main worktree push 허용 (QB_PRE_PUSH_BYPASS=1)"
+    echo "  path: $QB_REPO_ROOT"
+    echo "  git_dir: $QB_GIT_DIR"
+  else
+    echo "ERROR: main worktree push 차단 (Sprint 33 worker isolation)"
+    echo "  path: $QB_REPO_ROOT"
+    echo "  git_dir: $QB_GIT_DIR"
+    echo "  git_common_dir: $QB_GIT_COMMON_DIR"
+    echo ""
+    echo "  Worker 는 자체 worktree 에서만 push 하세요. 메인 세션 의도적 push 시:"
+    echo "    QB_PRE_PUSH_BYPASS=1 git push <args>"
+    exit 1
+  fi
+else
+  echo "→ pre-push: worker worktree (path: $QB_REPO_ROOT)"
+fi
 
 # FE 변경이 있을 때만 FE 검사 실행
 if git diff --name-only @{u}.. 2>/dev/null | grep -q '^frontend/'; then
