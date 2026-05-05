@@ -858,3 +858,10 @@
   - **Sprint 35 master plan footnote 추가** = wrong premise 3건 명시 + Slice 1b cancel + BL-181 active + valid 11건 surgery 유지 + Day 7 (b) 자동 PASS + 4중 AND gate 정합 유지. mandatory scope 재정의 = BL-181 (or 사용자 결정) + Slice 1.5a (BL-180) + Slice 4a + Slice 5
   - **신규 lesson 후보 3건** (Sprint 35 retro 시 `.ai/project/lessons.md` 영구 승격 검토): LESSON-038 (Docker worker auto-rebuild on PR merge 의무) / LESSON-039 (Surface Trust 차단 ≠ 실제 fix 작동, codex BL-180 hand oracle = 본 mechanism 사전 detection 정합) / LESSON-040 (codex G.0 wrong premise risk → rapid prereq verification spike 의무)
   - **합계 변동**: 87 → 89 BL (BL-181 / BL-182 신규 +2). BL-178 Resolved (-1 active). 87 + 2 - 1 = **88 active BL**.
+
+- **2026-05-05 (Sprint 35 종료 — polish iter 3 완료, Day 7 4중 AND gate 미통과)** — `main @ 8df5e58` (4 PR all merged: #152~#155). Day 7 self-assess = **6/10 → gate (a) FAIL**. 4중 AND gate: (a) FAIL / (b) PASS / (c) PASS / (d) 평가 불필요. Sprint 36 = **polish iter 4**.
+  - **Resolved (2건)**: BL-178 (Docker worker stale 확정 + `make up-isolated-build` 워크어라운드 완료 — 근본 fix는 BL-181로 분리) / BL-180 (engine golden oracle 8 tests GREEN, PR #155, backend pytest +8)
+  - **Slice 4a mid-dogfood 6/6 PASS**: BH curve 첫 정상 렌더링 확인 (isolated env, init_capital=10,000, `bh_curve[0][1] == "10000.00000000"`)
+  - **Stretch 전체 미착수**: Slice 1.5b / BL-176 SelectWithDisplayName / BL-150 walk-forward — Sprint 36 재검토
+  - **BL-181 status 갱신**: Sprint 35 active stretch → **Sprint 36 P2 (auto-rebuild trigger 우선 구현 권장)**
+  - **합계 변동**: 88 → 87 active BL (BL-178 + BL-180 Resolved -2). 총 **87 active BL**.
