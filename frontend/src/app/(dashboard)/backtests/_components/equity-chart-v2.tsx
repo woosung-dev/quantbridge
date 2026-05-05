@@ -134,8 +134,13 @@ export function EquityChartV2({
   }, [equityCurve]);
 
   // Sprint 32-C BL-171: deriveTradeMarkers 사용. 이전 inline 변환 코드 대체.
+  // Sprint 34 BL-177: trades 가 30개 초과면 compact mode (entry "L"/"S" 만,
+  // exit text "") 로 marker text 겹침 차단 (dogfood Day 6 BUG #3 해소).
   const tradeMarkers = useMemo<ChartMarker[]>(
-    () => deriveTradeMarkers(trades),
+    () =>
+      deriveTradeMarkers(trades, {
+        compact: (trades?.length ?? 0) > 30,
+      }),
     [trades],
   );
 
