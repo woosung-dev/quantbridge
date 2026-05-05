@@ -1,8 +1,10 @@
 "use client";
 
 // Sprint 26 — Live Sessions list + Stop confirm dialog.
+// Sprint 33 BL-174 list-only — Empty/Failed/Loading state 통일 (LiveSessionStateView).
 
 import { useState } from "react";
+import { AlertCircle, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +19,7 @@ import {
 
 import { useDeactivateLiveSession, useLiveSessions } from "../hooks";
 import type { LiveSession } from "../schemas";
+import { LiveSessionStateView } from "./live-session-state-view";
 
 type Props = {
   onSelect?: (session: LiveSession) => void;
@@ -30,16 +33,24 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
 
   if (isLoading) {
     return (
-      <p className="text-sm text-muted-foreground" role="status">
-        Loading…
-      </p>
+      <LiveSessionStateView
+        icon={Loader2}
+        iconClassName="animate-spin"
+        title="로드 중"
+        description="Live Session 목록을 불러오는 중..."
+        testId="live-session-loading"
+      />
     );
   }
   if (error) {
     return (
-      <p className="text-sm text-destructive" role="alert">
-        Live Session 목록 로드 실패: {error.message}
-      </p>
+      <LiveSessionStateView
+        icon={AlertCircle}
+        variant="destructive"
+        title="로드 실패"
+        description={`Live Session 목록 로드 실패: ${error.message}`}
+        testId="live-session-error"
+      />
     );
   }
 
@@ -48,12 +59,12 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
 
   if (active.length === 0) {
     return (
-      <div
-        className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground"
-        data-testid="live-session-empty"
-      >
-        활성 Live Session 이 없습니다. 위 form 으로 새 session 을 시작하세요.
-      </div>
+      <LiveSessionStateView
+        icon={Plus}
+        title="활성 Live Session 이 없습니다"
+        description="위 form 으로 새 session 을 시작하세요."
+        testId="live-session-empty"
+      />
     );
   }
 
