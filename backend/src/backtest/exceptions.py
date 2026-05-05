@@ -72,3 +72,27 @@ class StrategyNotRunnable(BacktestError):
     ) -> None:
         super().__init__(detail)
         self.unsupported_builtins: list[str] = list(unsupported_builtins or [])
+
+
+class StrategyDegraded(BacktestError):
+    """Sprint 29 codex G2 P0 fix: Trust Layer 의도적 위반 함수 사용.
+
+    `heikinashi` / `request.security` / `timeframe.period` 등 graceful 실행되지만
+    Pine 원본과 결과 차이 가능. backtest submit 시 `allow_degraded_pine=true` 명시
+    동의 없으면 본 exception raise. dogfood-first — 사용자가 거짓 양성 risk 명시 인지 후 진행.
+
+    `degraded_calls: list[str]` 필드 — FE 가 명세 list 직접 접근 가능.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "strategy_degraded"
+    detail = "Strategy uses degraded Pine functions (Trust Layer violation)"
+
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        degraded_calls: list[str] | None = None,
+    ) -> None:
+        super().__init__(detail)
+        self.degraded_calls: list[str] = list(degraded_calls or [])

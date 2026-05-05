@@ -1,12 +1,12 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-04 (Sprint 28 Step 0 + Step 1 완료 — PR #106 stage merge + office-hours Addendum commit `7911eba`)
-> **Active Sprint:** Sprint 28 Beta prereq 종합 (kickoff plan: [`dev-log/2026-05-04-sprint28-kickoff.md`](./dev-log/2026-05-04-sprint28-kickoff.md), 5 Slice plans: [`superpowers/specs/2026-05-04-sprint28-slice*.md`](./superpowers/specs/))
-> **Active Branch:** `stage/h2-sprint28-comprehensive` (cascade base) → 4 sub-branch (chore/sprint28-slice1a / feat/sprint28-slice1b / feat/sprint28-slice2 / feat/sprint28-slice3 / feat/sprint28-slice4)
-> **Sprint type:** B (risk-critical) — Slice 1a/1b/2/3/4 = D / B / A / A / B 차등 brainstorming
-> **office-hours 진행:** Y (Sprint 28 Step 1, 2026-05-04 — Q4/Q5 답 부분 무효화 → 새 답 도출, ADR-008 Addendum)
-> **Recent BLs:** Sprint 27 BL-137/140/144 ✅ Resolved · Sprint 28 active BL-141 (Slice 2) / BL-140b (Slice 3) / BL-004 (Slice 4) · 메타 정책 4종 도입
-> **Next Trigger:** Slice 1a/4 병렬 구현 → Slice 1b → Slice 2/3 → Step 4 검증 (codex G2 + qa-only) → Step 5 dual metric 측정 → Beta path A1 결정 (자연 시간 1-2주 + Day 7)
+> **Last Updated:** 2026-05-04 (Sprint 29 종료 — dual metric ALL PASS + codex G2 P0 fix → PR squash merge 사용자 승인 대기)
+> **Active Sprint:** (대기 — Sprint 30+ brainstorming 후 결정. 권장 = Beta open 인프라 BL-070~075)
+> **Active Branch:** `main @ 1badefd` (Sprint 29 stage `5a72283` PR squash merge 대기)
+> **Sprint type:** (Sprint 30+ 진입 시 결정)
+> **office-hours 진행:** N (Sprint 29 종료, Sprint 30 진입 시 재평가)
+> **Recent BLs:** Sprint 29 BL-096 partial ✅ Resolved (heikinashi ADR + security graceful + degraded gate) · 신규 0 · BL-003/005 P0 deferred · codex G2 P1 4건 (Sprint 30+ Beta sprint 묶음)
+> **Next Trigger:** Sprint 29 stage→main PR squash merge (사용자 별도 승인) → Sprint 30 brainstorming 후 다음 sprint 진입 (LESSON-037 영구 적용 — baseline 재측정 preflight 의무)
 
 > 사람과 AI가 공동 관리하는 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시, 질문은 Questions 섹션에 기록.

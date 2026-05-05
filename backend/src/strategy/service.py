@@ -27,6 +27,7 @@ from src.strategy.schemas import (
     StrategyListResponse,
     StrategyResponse,
     StrategySettings,
+    UnsupportedCallResponse,
     UpdateStrategyRequest,
 )
 
@@ -168,6 +169,10 @@ class StrategyService:
             exit_count=exit_count,
             functions_used=functions_used,
             unsupported_builtins=list(coverage.all_unsupported),
+            # Sprint 29 Slice B: line 번호 + workaround 포함 상세 응답
+            unsupported_calls=[UnsupportedCallResponse(**c) for c in coverage.unsupported_calls],
+            # Sprint 29 Slice A: heikinashi Trust Layer 위반 경고
+            dogfood_only_warning=coverage.dogfood_only_warning,
             is_runnable=(status == ParseStatus.ok and coverage.is_runnable),
         )
 

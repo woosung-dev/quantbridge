@@ -13,11 +13,14 @@ import pytest
 from src.stress_test.engine import run_walk_forward
 from tests.backtest.helpers import make_sine_ohlcv
 
-# `request.security` 는 `coverage._KNOWN_UNSUPPORTED_FUNCTIONS` 에 포함됨.
+# Sprint 29 Slice A: `request.security` 는 graceful SUPPORTED 로 이전 (degraded_calls).
+# 본 test 는 진짜 unsupported (`fixnan`) 사용 — _UNSUPPORTED_WORKAROUNDS 에만 등록되고
+# SUPPORTED_FUNCTIONS 에 미포함. walk_forward 가 BacktestService 를 거치지 않아
+# degraded_calls gate 미적용 (Sprint 30+ walk_forward gate 추가 예정).
 UNSUPPORTED_PINE = """//@version=5
 strategy("WF Unsupported", overlay=true)
-daily_close = request.security(syminfo.tickerid, "D", close)
-if close > daily_close
+val = fixnan(close)
+if val > close[1]
     strategy.entry("L", strategy.long)
 """
 
@@ -46,4 +49,4 @@ def test_walk_forward_unsupported_message_includes_builtin_name() -> None:
             test_bars=50,
             step_bars=50,
         )
-    assert "request.security" in str(exc_info.value)
+    assert "fixnan" in str(exc_info.value)

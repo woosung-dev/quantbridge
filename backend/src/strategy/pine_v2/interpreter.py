@@ -52,27 +52,103 @@ from src.strategy.pine_v2.strategy_state import StrategyState
 # Path β P-2 Coverage SSOT Sync — `coverage._TA_FUNCTIONS | _UTILITY_FUNCTIONS` 와
 # 완전 일치해야 함 (ADR-013 §4.2). 새 stdlib 함수 추가 시 **3 파일 동시 갱신**
 # (stdlib.py + interpreter.STDLIB_NAMES + coverage.py).
-STDLIB_NAMES: frozenset[str] = frozenset({
-    "ta.sma",
-    "ta.ema",
-    "ta.atr",
-    "ta.rsi",
-    "ta.crossover",
-    "ta.crossunder",
-    "ta.highest",
-    "ta.lowest",
-    "ta.change",
-    "ta.pivothigh",
-    "ta.pivotlow",
-    "ta.stdev",
-    "ta.variance",
-    "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
-    "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
-    "ta.barssince",
-    "ta.valuewhen",  # Sprint 8c
-    "na",
-    "nz",
-})
+STDLIB_NAMES: frozenset[str] = frozenset(
+    {
+        "ta.sma",
+        "ta.ema",
+        "ta.atr",
+        "ta.rsi",
+        "ta.crossover",
+        "ta.crossunder",
+        "ta.highest",
+        "ta.lowest",
+        "ta.change",
+        "ta.pivothigh",
+        "ta.pivotlow",
+        "ta.stdev",
+        "ta.variance",
+        "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
+        "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
+        "ta.barssince",
+        "ta.valuewhen",  # Sprint 8c
+        "na",
+        "nz",
+    }
+)
+
+# Pine v4 legacy alias — prefix 없는 stdlib (atr/ema/sma/rsi/crossover/...) 을
+# ta.* / math.* 로 재라우팅. (i1_utbot 및 일부 RTB 전략이 v4 문법 사용)
+# Sprint 29 Slice C: function-local dict 에서 module-level export.
+# parity invariant: `_V4_ALIASES.values() ⊆ STDLIB_NAMES` (test_ssot_invariants.py).
+_V4_ALIASES: dict[str, str] = {
+    "atr": "ta.atr",
+    "ema": "ta.ema",
+    "sma": "ta.sma",
+    "rsi": "ta.rsi",
+    "crossover": "ta.crossover",
+    "crossunder": "ta.crossunder",
+    "highest": "ta.highest",
+    "lowest": "ta.lowest",
+    "change": "ta.change",
+    "pivothigh": "ta.pivothigh",
+    "pivotlow": "ta.pivotlow",
+    "barssince": "ta.barssince",  # Sprint 8c
+    "valuewhen": "ta.valuewhen",  # Sprint 8c
+    "max": "math.max",
+    "min": "math.min",
+    "abs": "math.abs",
+}
+
+# Pine enum constants — value 매핑 (location.absolute, extend.right, shape.*, etc.)
+# Sprint 29 Slice C: function-local dict 에서 module-level dict 으로 export.
+# coverage._ENUM_PREFIXES 와 parity invariant 검증 대상 (test_ssot_invariants.py).
+_ATTR_CONSTANTS: dict[str, str] = {
+    "strategy.long": "long",
+    "strategy.short": "short",
+    # 렌더링 scope A — enum 상수 (string identity 유지)
+    "line.style_dashed": "dashed",
+    "line.style_dotted": "dotted",
+    "line.style_solid": "solid",
+    "line.style_arrow_left": "arrow_left",
+    "line.style_arrow_right": "arrow_right",
+    "line.style_arrow_both": "arrow_both",
+    "extend.none": "none",
+    "extend.left": "left",
+    "extend.right": "right",
+    "extend.both": "both",
+    "shape.labelup": "labelup",
+    "shape.labeldown": "labeldown",
+    "shape.triangleup": "triangleup",
+    "shape.triangledown": "triangledown",
+    "shape.arrowup": "arrowup",
+    "shape.arrowdown": "arrowdown",
+    "shape.circle": "circle",
+    "shape.cross": "cross",
+    "shape.xcross": "xcross",
+    "shape.flag": "flag",
+    "shape.square": "square",
+    "shape.diamond": "diamond",
+    "location.absolute": "absolute",
+    "location.abovebar": "abovebar",
+    "location.belowbar": "belowbar",
+    "location.top": "top",
+    "location.bottom": "bottom",
+    "size.auto": "auto",
+    "size.tiny": "tiny",
+    "size.small": "small",
+    "size.normal": "normal",
+    "size.large": "large",
+    "size.huge": "huge",
+    "position.top_left": "top_left",
+    "position.top_center": "top_center",
+    "position.top_right": "top_right",
+    "position.middle_left": "middle_left",
+    "position.middle_center": "middle_center",
+    "position.middle_right": "middle_right",
+    "position.bottom_left": "bottom_left",
+    "position.bottom_center": "bottom_center",
+    "position.bottom_right": "bottom_right",
+}
 
 # ------------------------------------------------------------
 # Bar Context — OHLCV 시계열 접근 계층
@@ -605,24 +681,7 @@ class Interpreter:
 
         # Pine v4 legacy alias — prefix 없는 stdlib을 ta.* / math.* 로 재라우팅
         # (i1_utbot / 일부 RTB 전략이 v4 문법 사용)
-        _V4_ALIASES: dict[str, str] = {
-            "atr": "ta.atr",
-            "ema": "ta.ema",
-            "sma": "ta.sma",
-            "rsi": "ta.rsi",
-            "crossover": "ta.crossover",
-            "crossunder": "ta.crossunder",
-            "highest": "ta.highest",
-            "lowest": "ta.lowest",
-            "change": "ta.change",
-            "pivothigh": "ta.pivothigh",
-            "pivotlow": "ta.pivotlow",
-            "barssince": "ta.barssince",  # Sprint 8c
-            "valuewhen": "ta.valuewhen",  # Sprint 8c
-            "max": "math.max",
-            "min": "math.min",
-            "abs": "math.abs",
-        }
+        # Sprint 29 Slice C: function-local → module-level export. parity invariant 검증 대상.
         if name in _V4_ALIASES:
             name = _V4_ALIASES[name]
 
@@ -704,9 +763,20 @@ class Interpreter:
                 return "NaN"
             return str(val)
 
+        # Sprint 29 Slice A (a): heikinashi NOP — 일반 OHLC 그대로 반환 (Trust Layer 위반, dogfood-only).
+        # Heikin-Ashi 캔들 정확 변환은 Sprint 30+ ADR-009 Candle transformation layer.
+        if name == "heikinashi":
+            return (
+                self.bar.current("open"),
+                self.bar.current("high"),
+                self.bar.current("low"),
+                self.bar.current("close"),
+            )
+
         # request.security(sym, tf, expression, ...) — Sprint 8c MVP: expression 인자 그대로.
+        # Sprint 29 Slice A: `security` (v4 no-namespace alias) 도 동일 처리.
         # (실제 MTF fetch는 H2+; NOP으로 graceful degrade.)
-        if name in ("request.security", "request.security_lower_tf"):
+        if name in ("request.security", "request.security_lower_tf", "security"):
             if len(node.args) < 3:
                 return float("nan")
             expr_arg = node.args[2]
@@ -909,53 +979,6 @@ class Interpreter:
         실제 차트에 영향 없지만 call arg로 전달될 수 있어 평가는 필요.
         """
         chain = _attr_chain(node)
-        _ATTR_CONSTANTS = {
-            "strategy.long": "long",
-            "strategy.short": "short",
-            # 렌더링 scope A — enum 상수 (string identity 유지)
-            "line.style_dashed": "dashed",
-            "line.style_dotted": "dotted",
-            "line.style_solid": "solid",
-            "line.style_arrow_left": "arrow_left",
-            "line.style_arrow_right": "arrow_right",
-            "line.style_arrow_both": "arrow_both",
-            "extend.none": "none",
-            "extend.left": "left",
-            "extend.right": "right",
-            "extend.both": "both",
-            "shape.labelup": "labelup",
-            "shape.labeldown": "labeldown",
-            "shape.triangleup": "triangleup",
-            "shape.triangledown": "triangledown",
-            "shape.arrowup": "arrowup",
-            "shape.arrowdown": "arrowdown",
-            "shape.circle": "circle",
-            "shape.cross": "cross",
-            "shape.xcross": "xcross",
-            "shape.flag": "flag",
-            "shape.square": "square",
-            "shape.diamond": "diamond",
-            "location.absolute": "absolute",
-            "location.abovebar": "abovebar",
-            "location.belowbar": "belowbar",
-            "location.top": "top",
-            "location.bottom": "bottom",
-            "size.auto": "auto",
-            "size.tiny": "tiny",
-            "size.small": "small",
-            "size.normal": "normal",
-            "size.large": "large",
-            "size.huge": "huge",
-            "position.top_left": "top_left",
-            "position.top_center": "top_center",
-            "position.top_right": "top_right",
-            "position.middle_left": "middle_left",
-            "position.middle_center": "middle_center",
-            "position.middle_right": "middle_right",
-            "position.bottom_left": "bottom_left",
-            "position.bottom_center": "bottom_center",
-            "position.bottom_right": "bottom_right",
-        }
         if chain in _ATTR_CONSTANTS:
             return _ATTR_CONSTANTS[chain]
         # strategy.position_size / strategy.position_avg_price
@@ -977,6 +1000,10 @@ class Interpreter:
             if math.isnan(prev_close):
                 return high - low
             return max(high - low, abs(high - prev_close), abs(low - prev_close))
+        # timeframe.period — Sprint 29 Slice A: BarContext 에 timeframe 미구현,
+        # 기본값 "1D" 반환 (backtest 단일 timeframe 가정).
+        if chain == "timeframe.period":
+            return "1D"
         # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):
             return float("nan")
@@ -1096,8 +1123,11 @@ class Interpreter:
                 return None
             exit_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
             from_entry = (
-                str(positional[1]) if len(positional) >= 2
-                else str(kwargs.get("from_entry", "")) if kwargs.get("from_entry") else None
+                str(positional[1])
+                if len(positional) >= 2
+                else str(kwargs.get("from_entry", ""))
+                if kwargs.get("from_entry")
+                else None
             )
             # 모든 kwargs (when 제외) 를 unsupported 로 기록 — close 안 함을 사용자에게 알림
             unsupported = sorted(k for k in kwargs if k not in ("id", "from_entry", "when"))
