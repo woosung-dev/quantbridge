@@ -161,6 +161,8 @@ export function BacktestDetailView({ id }: { id: string }) {
                   equityCurve={bt.equity_curve}
                   trades={trades.data?.items}
                   initialCapital={bt.initial_capital}
+                  timeframe={bt.timeframe}
+                  mddExceedsCapital={bt.metrics?.mdd_exceeds_capital ?? null}
                 />
               </section>
             )}
