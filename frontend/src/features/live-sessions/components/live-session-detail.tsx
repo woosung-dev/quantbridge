@@ -4,22 +4,14 @@
 // Sprint 27 BL-140 — Activity Timeline line chart (events 누적 시각화).
 //   진정한 equity curve (cumulative realized_pnl) 는 events 에 pnl 필드 없으므로
 //   BL-140b (BE state.realized_pnl_history JSONB 추가) 별도 sprint 로 분리.
+// Sprint 33-A (BL-150 partial) — recharts → lightweight-charts (ActivityTimelineChart).
+//   walk-forward / monte-carlo 차트는 Sprint 34 defer (lightweight-charts native 미지원).
 //
 // 표시:
 //  - Session 정보 (symbol/interval/last_evaluated_bar_time)
 //  - Open trades snapshot + 누적 통계 (closed_trades, realized_pnl)
-//  - Activity Timeline line chart (cumulative entry / close count)
+//  - Activity Timeline line chart (cumulative entry / close count + optional PnL)
 //  - Recent events log (action / direction / status / order_id)
-
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
 import type { LiveSession } from "../schemas";
@@ -29,6 +21,7 @@ import {
   buildActivityTimeline,
   buildActivityTimelineWithEquity,
 } from "../utils";
+import { ActivityTimelineChart } from "./activity-timeline-chart";
 
 type Props = {
   session: LiveSession;
@@ -43,6 +36,18 @@ export function LiveSessionDetail({ session }: Props) {
   const { data: events, isLoading: eventsLoading } = useLiveSessionEvents(
     session.id,
   );
+
+  // Sprint 33-A: chart data 사전 계산 (lightweight-charts 호환).
+  // React Compiler 가 자동 memoize — 수동 useMemo 사용 시 inferred-dep 충돌 발생.
+  const hasEquity = Boolean(
+    state?.equity_curve && state.equity_curve.length > 0,
+  );
+  const timelineData =
+    !events || events.items.length === 0
+      ? []
+      : hasEquity && state?.equity_curve
+        ? buildActivityTimelineWithEquity(events.items, state.equity_curve)
+        : buildActivityTimeline(events.items);
 
   return (
     <div className="space-y-4" data-testid={`live-session-detail-${session.id}`}>
@@ -85,65 +90,7 @@ export function LiveSessionDetail({ session }: Props) {
             아직 평가된 signal 이 없습니다. 다음 bar 평가를 기다려주세요.
           </p>
         ) : (
-          <div className="h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={
-                  state?.equity_curve && state.equity_curve.length > 0
-                    ? buildActivityTimelineWithEquity(
-                        events.items,
-                        state.equity_curve,
-                      )
-                    : buildActivityTimeline(events.items)
-                }
-                margin={{ top: 5, right: 16, bottom: 5, left: -16 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                <YAxis
-                  yAxisId="left"
-                  tick={{ fontSize: 10 }}
-                  allowDecimals={false}
-                />
-                {/* Sprint 28 Slice 3 (BL-140b) — equity right axis (real PnL) */}
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fontSize: 10 }}
-                />
-                <Tooltip />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="entries_in_window"
-                  name="Entries (window)"
-                  stroke="#22c55e"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="closes_in_window"
-                  name="Closes (window)"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                {state?.equity_curve && state.equity_curve.length > 0 && (
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="cumulative_pnl"
-                    name="Equity (PnL)"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <ActivityTimelineChart data={timelineData} showEquity={hasEquity} />
         )}
       </div>
 
