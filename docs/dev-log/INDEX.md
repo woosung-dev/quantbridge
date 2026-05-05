@@ -8,6 +8,8 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-05 — **Sprint 34 회고** (polish iter 2, 3 PR + codex G.0 P1 surgery 6건 적용, BL-175 본격 fix + BL-177 dense text shorten + BL-166 kill K-2 cancel, mid-dogfood Day 6.5 PASS, dogfood Day 7 = TBD) — [`2026-05-05-sprint34-master-retrospective.md`](2026-05-05-sprint34-master-retrospective.md)
+- 2026-05-05 — **dogfood Day 6.5** (Sprint 34 mid-dogfood, BL-175 머지 직후 numeric, Surface Trust 차단 PASS + R-2 silent BUG 차단 + P1-3 fail-closed 정상 작동 + BL-178 신규 등록) — [`2026-05-05-dogfood-day-6.5.md`](2026-05-05-dogfood-day-6.5.md)
 - 2026-05-05 — **Sprint 33 회고** (6.5 양다리 균형 패키지, 5 PR + codex G.0 P1 surgery 3건 적용, 자율 병렬 worker isolation 영구 차단 검증 — main worktree branch swap 0건, dogfood Day 6 = TBD) — [`2026-05-05-sprint33-master-retrospective.md`](2026-05-05-sprint33-master-retrospective.md)
 - 2026-05-05 — **Sprint 32 회고** (Surface Trust Recovery, 7 PR + codex G.0 P1 4건 surgery, dogfood Day 5 = 6~7 borderline = +1.5 점, 자율 병렬 worker isolation 위반 lesson Worker C/D) — [`2026-05-05-sprint32-master-retrospective.md`](2026-05-05-sprint32-master-retrospective.md)
 - 2026-05-05 — Sprint 31 Day 4 dogfood handoff (Sprint 31 6 PR 후 dogfood Day 4 = 5 점, +1 progress, Sprint 32 분기 Surface Trust Recovery 결정) — [`2026-05-05-sprint31-day4-handoff.md`](2026-05-05-sprint31-day4-handoff.md)
