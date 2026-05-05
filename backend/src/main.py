@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from src.backtest.exceptions import StrategyNotRunnable
+from src.backtest.exceptions import StrategyDegraded, StrategyNotRunnable
 from src.common.exceptions import AppException
 from src.core.config import settings
 
@@ -20,6 +20,9 @@ async def app_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
     Frontend 가 code 로 분기 가능. Sprint 21 (codex G.0 P1 #5): StrategyNotRunnable
     은 추가로 `unsupported_builtins: list[str]` 노출 — FE 가 string split 하지 않고
     구조화된 list 직접 사용. module-level 로 추출되어 test 에서도 import 가능.
+
+    Sprint 32 E (BL-163): StrategyNotRunnable / StrategyDegraded 둘 다 사용자 친화
+    `friendly_message: str` 필드 노출. FE 가 toast 또는 inline 카드 헤더로 활용.
 
     signature 의 `exc: Exception` 은 Starlette `add_exception_handler` 호환을 위함.
     runtime 에선 AppException subclass 만 dispatch 됨 (FastAPI 가 type narrowing).
@@ -39,9 +42,46 @@ async def app_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
             detail_dict = body["detail"]
             assert isinstance(detail_dict, dict)
             detail_dict["unsupported_builtins"] = exc.unsupported_builtins
+            detail_dict["friendly_message"] = exc.friendly_message
+        elif isinstance(exc, StrategyDegraded):
+            detail_dict = body["detail"]
+            assert isinstance(detail_dict, dict)
+            detail_dict["degraded_calls"] = exc.degraded_calls
+            detail_dict["friendly_message"] = exc.friendly_message
     else:
         body = {"detail": exc.detail}
     return JSONResponse(status_code=exc.status_code, content=body)
+
+
+async def unhandled_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
+    """Sprint 32 E (BL-163): 표준화된 5xx 응답.
+
+    AppException subclass 외 모든 unhandled exception 을 catch 하여
+    `{"detail": "..."}` 형태로 정규화. 빈 body / HTML 페이지 / stack trace
+    유출을 차단하고 FE 가 일관된 toast 메시지를 표시하도록 보장.
+
+    debug=True 일 때 (개발 환경) 만 exc.__class__.__name__ 노출 — production
+    에서는 generic message ("Internal server error. 잠시 후 다시 시도해 주세요.").
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.exception("unhandled exception in request handler", exc_info=exc)
+
+    # production: stack trace / class 이름 노출 차단 (정보 leak risk).
+    # dev/test (debug=True): exc class 노출 — FE/QA 가 빠르게 root cause 파악.
+    if settings.debug:
+        message = (
+            f"Internal server error: {exc.__class__.__name__}. "
+            f"잠시 후 다시 시도해 주세요."
+        )
+    else:
+        message = "Internal server error. 잠시 후 다시 시도해 주세요."
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": message},
+    )
 
 
 def _verify_prometheus_bearer(
@@ -140,6 +180,12 @@ def create_app() -> FastAPI:
     )
 
     app.add_exception_handler(AppException, app_exc_handler)
+
+    # Sprint 32 E (BL-163): unhandled Exception 표준 5xx 응답.
+    # FastAPI default 500 ("Internal Server Error" plain) 대신 JSON `{detail: ...}`
+    # 로 정규화 → FE 의 readErrorBody 가 일관 dict 반환 + toast 표시.
+    # AppException 은 위 handler 가 먼저 dispatch (priority).
+    app.add_exception_handler(Exception, unhandled_exc_handler)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict[str, str]:

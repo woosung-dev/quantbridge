@@ -324,23 +324,133 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       expect(mutate).toHaveBeenCalledTimes(1);
     });
 
-    const err = Object.assign(new Error("Internal Server Error"), {
+    const err = Object.assign(new Error("API 500 /backtests"), {
       status: 500,
+      detail: { detail: "Internal server error. 잠시 후 다시 시도해 주세요." },
     });
 
     act(() => {
       capturedOpts.current.onError?.(err);
     });
 
-    expect(toastError).toHaveBeenCalledWith(
-      expect.stringContaining("Internal Server Error"),
-    );
+    // Sprint 32 E (BL-163): 500+ 표준 toast — backend `{detail: <msg>}` 포맷에서
+    // 사용자 친화 메시지 + ADR-003 supported list 안내 포함.
+    expect(toastError).toHaveBeenCalledTimes(1);
+    const firstCall = toastError.mock.calls[0];
+    const callArg = (firstCall ? firstCall[0] : "") as string;
+    expect(callArg).toContain("백테스트 실행 중 오류 발생");
+    expect(callArg).toContain("Internal server error");
+    expect(callArg).toContain("ADR-003 supported list");
     expect(
       screen.queryByTestId("backtest-form-unsupported-card"),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("backtest-form-server-error"),
     ).not.toBeInTheDocument();
+  });
+
+  // Sprint 32 E (BL-163) — 422 응답에 friendly_message 가 함께 오면 카드 헤더 노출.
+  it("422 + friendly_message → 카드 헤더에 friendly_message + supported list 링크", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+        target: { value: "10000" },
+      });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    const err = Object.assign(
+      new Error("Strategy contains unsupported Pine built-ins"),
+      {
+        status: 422,
+        detail: {
+          detail: {
+            code: "strategy_not_runnable",
+            detail:
+              "Strategy contains unsupported Pine built-ins: array.new_float",
+            unsupported_builtins: ["array.new_float"],
+            friendly_message:
+              "이 strategy 는 미지원 Pine 빌트인을 포함합니다. array.new_float — Pine v6 collection types 미지원 (paradigm mismatch). ADR-003 supported list 참조.",
+          },
+        },
+      },
+    );
+
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    const card = await screen.findByTestId("backtest-form-unsupported-card");
+    expect(card).toBeInTheDocument();
+    const fmEl = await screen.findByTestId("backtest-form-friendly-message");
+    expect(fmEl).toHaveTextContent("array.new_float");
+    expect(fmEl).toHaveTextContent("Pine v6");
+    // edit link — ADR-003 안내 텍스트 포함
+    const editLink = screen.getByTestId("backtest-form-edit-strategy-link");
+    expect(editLink).toHaveTextContent(/ADR-003 supported list/);
+  });
+
+  // Sprint 32 E (BL-163) — 422 + degraded_calls (StrategyDegraded) 케이스도 동일 처리.
+  it("422 + degraded_calls (Trust Layer 위반) → unsupported card + friendly_message", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+        target: { value: "10000" },
+      });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    const err = Object.assign(new Error("Strategy uses degraded functions"), {
+      status: 422,
+      detail: {
+        detail: {
+          code: "strategy_degraded",
+          detail: "Strategy uses degraded Pine functions: heikinashi",
+          degraded_calls: ["heikinashi"],
+          friendly_message:
+            "이 strategy 는 미지원 Pine 빌트인을 포함합니다. heikinashi — Trust Layer 위반 (결과 부정확 risk). ADR-003 supported list 참조.",
+        },
+      },
+    });
+
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    const card = await screen.findByTestId("backtest-form-unsupported-card");
+    expect(card).toHaveTextContent(/heikinashi/);
+    const fmEl = await screen.findByTestId("backtest-form-friendly-message");
+    expect(fmEl).toHaveTextContent("Trust Layer");
   });
 
   it("happy path — onSuccess → router.push(/backtests/{id})", async () => {

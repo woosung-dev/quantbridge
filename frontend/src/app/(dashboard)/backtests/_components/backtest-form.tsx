@@ -115,6 +115,9 @@ export function BacktestForm() {
   const [unsupportedHints, setUnsupportedHints] = useState<
     UnsupportedBuiltinHint[]
   >([]);
+  // Sprint 32 E (BL-163) — backend 422 의 friendly_message (사용자 친화 단일 요약)
+  // 가 있으면 카드 헤더에 노출. backend 가 coverage workaround SSOT 기반으로 합성.
+  const [friendlyMessage, setFriendlyMessage] = useState<string | null>(null);
 
   const create = useCreateBacktest({
     onSuccess: (data) => {
@@ -124,6 +127,7 @@ export function BacktestForm() {
     onError: (err) => {
       // 매 호출 reset.
       setUnsupportedHints([]);
+      setFriendlyMessage(null);
       // Sprint 13 Phase C: 422 백엔드 응답은 form-level inline 에러로 표시.
       // ApiError 는 numeric `status` 를 보존하므로 안전하게 narrow 한다.
       const status = (err as { status?: number }).status;
@@ -131,12 +135,22 @@ export function BacktestForm() {
         // Sprint 21 BL-095: ApiError.detail = readErrorBody 결과 =
         // {detail: {code, detail, unsupported_builtins}} (FastAPI HTTPException 표준).
         // backend Phase A.0 가 list 추가. FE 는 string split 안 하고 list 직접 접근.
+        // Sprint 32 E (BL-163): friendly_message 도 함께 추출 — 카드 헤더 노출.
         const apiErr = err as {
           detail?: {
-            detail?: { unsupported_builtins?: unknown };
+            detail?: {
+              unsupported_builtins?: unknown;
+              degraded_calls?: unknown;
+              friendly_message?: unknown;
+            };
           };
         };
-        const list = apiErr.detail?.detail?.unsupported_builtins;
+        const inner = apiErr.detail?.detail;
+        const list = inner?.unsupported_builtins ?? inner?.degraded_calls;
+        const fm = inner?.friendly_message;
+        if (typeof fm === "string" && fm.length > 0) {
+          setFriendlyMessage(fm);
+        }
         if (
           Array.isArray(list) &&
           list.every((x) => typeof x === "string") &&
@@ -149,6 +163,22 @@ export function BacktestForm() {
           type: "manual",
           message: err.message || "입력값이 유효하지 않습니다",
         });
+      } else if ((status ?? 500) >= 500) {
+        // Sprint 32 E (BL-163): 500+ 표준화 toast — backend unhandled_exc_handler 가
+        // `{detail: <human-readable>}` 정규화 응답을 반환. ADR-003 supported list 안내.
+        const apiErr = err as { detail?: { detail?: unknown } | unknown };
+        let detailMsg = err.message;
+        if (
+          apiErr.detail &&
+          typeof apiErr.detail === "object" &&
+          "detail" in apiErr.detail &&
+          typeof apiErr.detail.detail === "string"
+        ) {
+          detailMsg = apiErr.detail.detail;
+        }
+        toast.error(
+          `백테스트 실행 중 오류 발생: ${detailMsg}. ADR-003 supported list 의 indicator 로 strategy 를 변경해 주세요.`,
+        );
       } else {
         toast.error(`요청 실패: ${err.message}`);
       }
@@ -159,6 +189,7 @@ export function BacktestForm() {
     // 재제출 시 직전 422 form-level 에러 메시지 + unsupported list 클리어.
     clearErrors("root.serverError");
     setUnsupportedHints([]);
+    setFriendlyMessage(null);
     create.mutate({
       strategy_id: values.strategy_id,
       symbol: values.symbol,
@@ -443,8 +474,18 @@ export function BacktestForm() {
           className="rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 p-3 text-sm"
         >
           <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
-            ⚠️ 이 strategy 는 미지원 builtin 을 포함합니다
+            이 strategy 는 미지원 builtin 을 포함합니다
           </p>
+          {/* Sprint 32 E (BL-163): backend friendly_message 가 있으면 카드 헤더 아래
+              한 줄 요약으로 우선 노출 (사용자가 list 를 읽기 전 결정 가능). */}
+          {friendlyMessage ? (
+            <p
+              className="text-xs text-amber-900 dark:text-amber-200 mb-2"
+              data-testid="backtest-form-friendly-message"
+            >
+              {friendlyMessage}
+            </p>
+          ) : null}
           <ul className="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-300 text-xs">
             {unsupportedHints.map((h) => (
               <li key={h.name}>
@@ -458,7 +499,7 @@ export function BacktestForm() {
               className="mt-2 inline-block text-xs underline text-amber-900 dark:text-amber-200"
               data-testid="backtest-form-edit-strategy-link"
             >
-              strategy 편집 →
+              ADR-003 supported list 참조 — strategy 편집 →
             </Link>
           ) : null}
         </div>

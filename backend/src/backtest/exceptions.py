@@ -6,6 +6,84 @@ from fastapi import status
 
 from src.common.exceptions import AppException
 
+# Sprint 32 E (BL-163) — actionable 422 error UX. coverage._UNSUPPORTED_WORKAROUNDS 가
+# 함수별 구체 워크어라운드 SSOT. 본 모듈은 list[str] → 사용자 친화 single message
+# (한국어 요약 + ADR-003 supported list 안내) 로 합성.
+#
+# 분류 우선순위 (corruption > syntax > data > drawing > math > other):
+# - corruption: heikinashi/security 등 silent data corruption risk (Trust Layer 위반)
+# - syntax: array/matrix/map (Pine v6 collection types — paradigm mismatch)
+# - data: request.security_lower_tf / request.dividends 등 외부 데이터 의존
+# - drawing: label/box/line 등 시각 NOP (대체 불필요)
+# - math/other: ta.alma / ta.bb 등 alternate indicator 권장
+_FRIENDLY_CATEGORY_LABEL: dict[str, str] = {
+    "corruption": "Trust Layer 위반 (결과 부정확 risk)",
+    "syntax": "Pine v6 collection types 미지원 (paradigm mismatch)",
+    "data": "외부 데이터 의존 — 단일 timeframe 으로 재구성 권장",
+    "drawing": "시각 효과 — backtest 무관 (제거 가능)",
+    "math": "alternate indicator 권장",
+    "other": "미지원 빌트인",
+}
+
+# Sprint 32 E (BL-163): degraded / Trust Layer 위반 함수 (graceful 실행되지만 결과 부정확).
+# coverage._DEGRADED_FUNCTIONS / _DEGRADED_ATTRIBUTES 와 동기. 본 set 에 등록된 항목은
+# friendly_message 합성 시 _categorize 가 반환하는 prefix-기반 category 보다 우선해
+# "corruption" 으로 라벨링 (사용자가 silent data corruption risk 를 명확히 인지하도록).
+_CORRUPTION_NAMES: frozenset[str] = frozenset(
+    {
+        "heikinashi",
+        "security",
+        "request.security",
+        "request.security_lower_tf",
+        "timeframe.period",
+    }
+)
+
+
+def format_friendly_message(unsupported_builtins: list[str]) -> str:
+    """422 응답의 unsupported_builtins list 를 사용자 친화 단일 메시지로 변환.
+
+    coverage._UNSUPPORTED_WORKAROUNDS SSOT 참조 + 카테고리 라벨링. FE 가 inline
+    카드로 표시. 빈 list 이면 빈 문자열 반환 (FE fallback root.serverError).
+
+    카테고리 우선순위: `_CORRUPTION_NAMES` 에 명시된 함수는 prefix-기반 분류보다
+    "corruption" 라벨로 우선 표시 (사용자에게 silent data corruption risk 명시).
+
+    Args:
+        unsupported_builtins: ["heikinashi", "array.new_float"] 등 builtin 이름 list
+
+    Returns:
+        "이 strategy 는 다음 미지원 빌트인을 포함합니다: heikinashi (Trust Layer 위반...). "
+        "ADR-003 supported list 의 indicator (ta.sma / ta.rsi / ta.atr / ta.crossover 등) "
+        "로 대체 가능합니다."
+    """
+    if not unsupported_builtins:
+        return ""
+
+    # 순환 import 회피: 본 함수 호출 시점에만 coverage 의 SSOT 참조.
+    from src.strategy.pine_v2.coverage import (
+        _UNSUPPORTED_WORKAROUNDS,
+        _categorize,
+    )
+
+    parts: list[str] = []
+    for name in unsupported_builtins:
+        # Trust Layer 위반 함수는 corruption 라벨 우선 (prefix 분류 override).
+        category = "corruption" if name in _CORRUPTION_NAMES else _categorize(name)
+        label = _FRIENDLY_CATEGORY_LABEL.get(category, "미지원 빌트인")
+        workaround = _UNSUPPORTED_WORKAROUNDS.get(name)
+        if workaround:
+            parts.append(f"{name} — {label}: {workaround}")
+        else:
+            parts.append(f"{name} — {label}.")
+
+    summary = " | ".join(parts)
+    return (
+        f"이 strategy 는 미지원 Pine 빌트인을 포함합니다. {summary} "
+        f"ADR-003 supported list 참조 (docs/02_domain/supported-indicators.md). "
+        f"strategy 편집 화면의 Coverage Analyzer pre-flight 에서 자세한 내역 확인 가능."
+    )
+
 
 class BacktestError(AppException):
     """backtest 도메인 베이스."""
@@ -58,6 +136,9 @@ class StrategyNotRunnable(BacktestError):
     Sprint 21 (codex G.0 P1 #5): `unsupported_builtins: list[str]` 필드 추가.
     detail 의 string 을 split 하지 않고 FE 가 list 직접 접근 (`{detail: {..., unsupported_builtins: [...]}}`).
     기존 string detail 도 backward compat 유지.
+
+    Sprint 32 E (BL-163): `friendly_message: str` 필드 추가. coverage workaround SSOT
+    기반 사용자 친화 단일 메시지. FE 가 toast 또는 inline 카드 헤더로 활용.
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -69,9 +150,15 @@ class StrategyNotRunnable(BacktestError):
         detail: str | None = None,
         *,
         unsupported_builtins: list[str] | None = None,
+        friendly_message: str | None = None,
     ) -> None:
         super().__init__(detail)
         self.unsupported_builtins: list[str] = list(unsupported_builtins or [])
+        # Sprint 32 E (BL-163): friendly_message 미명시 시 list 기반 자동 합성.
+        # 명시 시 (예: 호출부가 우선순위 높은 사용자 메시지 주입) 그대로 사용.
+        self.friendly_message: str = friendly_message or format_friendly_message(
+            self.unsupported_builtins
+        )
 
 
 class StrategyDegraded(BacktestError):
@@ -82,6 +169,8 @@ class StrategyDegraded(BacktestError):
     동의 없으면 본 exception raise. dogfood-first — 사용자가 거짓 양성 risk 명시 인지 후 진행.
 
     `degraded_calls: list[str]` 필드 — FE 가 명세 list 직접 접근 가능.
+
+    Sprint 32 E (BL-163): `friendly_message: str` 필드 추가 (StrategyNotRunnable parity).
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -93,6 +182,11 @@ class StrategyDegraded(BacktestError):
         detail: str | None = None,
         *,
         degraded_calls: list[str] | None = None,
+        friendly_message: str | None = None,
     ) -> None:
         super().__init__(detail)
         self.degraded_calls: list[str] = list(degraded_calls or [])
+        # Sprint 32 E (BL-163): degraded_calls 도 동일 SSOT 사용. corruption category 라벨.
+        self.friendly_message: str = friendly_message or format_friendly_message(
+            self.degraded_calls
+        )
