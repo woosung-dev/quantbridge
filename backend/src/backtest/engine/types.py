@@ -25,7 +25,12 @@ class BacktestConfig:
 
 @dataclass(frozen=True)
 class BacktestMetrics:
-    """표준 지표. 금융 수치는 Decimal. 신규 필드는 None=미추출 또는 NaN."""
+    """표준 지표. 금융 수치는 Decimal. 신규 필드는 None=미추출 또는 NaN.
+
+    Sprint 30 gamma-BE: 12 → 24 필드 확장 (PRD `backtests.results` JSONB 정합).
+    신규 12 필드는 모두 Optional default None → backward-compat
+    (Sprint 28 이전 backtest round-trip 안전).
+    """
 
     total_return: Decimal
     sharpe_ratio: Decimal
@@ -40,6 +45,20 @@ class BacktestMetrics:
     avg_loss: Decimal | None = None      # 평균 손실거래 수익률 (음수)
     long_count: int | None = None
     short_count: int | None = None
+    # Sprint 30 gamma-BE 신규 12 필드 (PRD spec 정합)
+    avg_holding_hours: Decimal | None = None      # 평균 보유 시간 (시간 단위)
+    consecutive_wins_max: int | None = None        # 최대 연속 승 횟수
+    consecutive_losses_max: int | None = None      # 최대 연속 패 횟수
+    long_win_rate_pct: Decimal | None = None       # 0.0 ~ 1.0
+    short_win_rate_pct: Decimal | None = None      # 0.0 ~ 1.0
+    monthly_returns: list[tuple[str, Decimal]] | None = None  # ("YYYY-MM", return ratio)
+    drawdown_duration: int | None = None           # 최대 DD bar 수
+    annual_return_pct: Decimal | None = None       # CAGR
+    total_trades: int | None = None                # PRD parity (num_trades alias)
+    avg_trade_pct: Decimal | None = None
+    best_trade_pct: Decimal | None = None
+    worst_trade_pct: Decimal | None = None
+    drawdown_curve: list[tuple[str, Decimal]] | None = None  # ("YYYY-MM-DDTHH:MM:SSZ", dd_pct)
 
 
 @dataclass(frozen=True)
