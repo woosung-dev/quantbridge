@@ -54,7 +54,6 @@ def test_production_forces_debug_false(monkeypatch: pytest.MonkeyPatch) -> None:
     _baseline_env(monkeypatch)
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("DEBUG", "true")
-    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     # placeholder 차단 회피용 envs
     monkeypatch.setenv("SECRET_KEY", "real-prod-secret-32bytes-min-xx")
     monkeypatch.setenv("CLERK_SECRET_KEY", "sk_live_test")
@@ -65,7 +64,6 @@ def test_production_forces_debug_false(monkeypatch: pytest.MonkeyPatch) -> None:
     s = Settings()
     assert s.is_production is True
     assert s.debug is False  # 강제 OFF
-    assert s.log_level == "INFO"  # DEBUG → INFO 승격
 
 
 def test_production_rejects_placeholder_secret_key(

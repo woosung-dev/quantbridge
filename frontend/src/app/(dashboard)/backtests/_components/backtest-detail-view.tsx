@@ -21,7 +21,7 @@ const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
 import { AssumptionsCard } from "./assumptions-card";
 import { BacktestStatusBadge } from "./status-badge";
-import { EquityChart } from "./equity-chart";
+import { EquityChartV2 } from "./equity-chart-v2";
 import { MetricsCards } from "./metrics-cards";
 import { MetricsDetail } from "./metrics-detail";
 import { RerunButton } from "./rerun-button";
@@ -154,8 +154,14 @@ export function BacktestDetailView({ id }: { id: string }) {
             <MetricsCards metrics={bt.metrics} />
             {bt.equity_curve && bt.equity_curve.length > 0 && (
               <section className="rounded-xl border bg-card p-4">
-                <h2 className="mb-2 text-sm font-medium">Equity Curve</h2>
-                <EquityChart points={bt.equity_curve} />
+                <h2 className="mb-2 text-sm font-medium">
+                  Equity Curve · Buy &amp; Hold · Drawdown
+                </h2>
+                <EquityChartV2
+                  equityCurve={bt.equity_curve}
+                  trades={trades.data?.items}
+                  initialCapital={bt.initial_capital}
+                />
               </section>
             )}
           </TabsContent>

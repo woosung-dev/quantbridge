@@ -31,13 +31,6 @@ class Settings(BaseSettings):
     app_name: str = "QuantBridge"
     app_env: Literal["development", "staging", "production"] = "development"
     debug: bool = True
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="INFO",
-        description=(
-            "uvicorn / 모듈 logger root level. production 환경 시 INFO 이상 강제 "
-            "(model_validator). development 는 DEBUG 가능."
-        ),
-    )
     secret_key: SecretStr = SecretStr("change-me")
 
     # Clerk
@@ -267,9 +260,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> "Settings":
-        """production 환경 진입 시 SecretStr 정합 + debug/log_level 강제.
+        """production 환경 진입 시 SecretStr 정합 + debug 강제.
 
-        - ``app_env=production``: ``debug=False`` 강제 + ``log_level`` 이 DEBUG 면 INFO 로 승격.
+        - ``app_env=production``: ``debug=False`` 강제.
         - ``secret_key`` 가 placeholder (``change-me`` / 빈 값) 이면 raise (운영 노출 사전 차단).
         - ``clerk_secret_key`` / ``waitlist_token_secret`` 빈 값 raise.
         - dev/test 환경은 모두 통과 (기존 동작 유지).
@@ -283,11 +276,7 @@ class Settings(BaseSettings):
         if self.debug:
             object.__setattr__(self, "debug", False)
 
-        # 2. log_level DEBUG → INFO 승격
-        if self.log_level == "DEBUG":
-            object.__setattr__(self, "log_level", "INFO")
-
-        # 3. SecretStr placeholder 감지
+        # 2. SecretStr placeholder 감지
         placeholders: list[str] = []
         if self.secret_key.get_secret_value() in ("", "change-me"):
             placeholders.append("SECRET_KEY")
@@ -298,8 +287,7 @@ class Settings(BaseSettings):
 
         if placeholders:
             raise ValueError(
-                "production app_env requires non-placeholder secrets: "
-                + ", ".join(placeholders)
+                "production app_env requires non-placeholder secrets: " + ", ".join(placeholders)
             )
 
         return self
