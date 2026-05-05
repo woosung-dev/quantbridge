@@ -269,16 +269,22 @@ class _RaisingBalanceProvider:
 
 
 async def test_cumulative_loss_falls_back_when_provider_raises(
-    db_session, strat_account, caplog
+    db_session, strat_account, monkeypatch
 ):
     """BL-004 Slice 4 — balance_provider 예외 시 swallow + log + config fallback.
 
     ccxt API 실패 / 네트워크 단절 / Bybit rate limit 등 edge case 방어.
     KillSwitch evaluation 자체는 절대 fail 금지 (capital safety critical path).
+
+    Sprint 30 ε CI fix: caplog 는 다른 test 의 logger 설정 (예: pytest 내부
+    LogCaptureHandler 가 prior test 를 거치며 ``logger.disabled=True`` 로 남기는
+    경우) 에 영향을 받아 전체 suite 실행 시 records 가 비는 flake. 동일 디렉토리
+    ``test_service_exchange_accounts.py::test_fetch_balance_usdt_returns_none_on_provider_error``
+    가 이미 동일 사유로 monkeypatch 패턴을 채택. 같은 패턴 적용.
     """
-    import logging
     from decimal import Decimal
 
+    from src.trading import kill_switch as kill_switch_module
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
     from src.trading.repository import OrderRepository
 
@@ -286,6 +292,15 @@ async def test_cumulative_loss_falls_back_when_provider_raises(
     await _make_filled_order(
         db_session, strategy, account, pnl=Decimal("-1500"), filled_at=datetime.now(UTC)
     )
+
+    # logger.warning 가로채기 — caplog flake 회피
+    captured_warnings: list[str] = []
+
+    def capture_warning(msg: str, *args, **kwargs) -> None:
+        # logging 표준 동작 재현: %s 포함 raw template 만 검증 → substring match 안전
+        captured_warnings.append(msg if not args else msg % args)
+
+    monkeypatch.setattr(kill_switch_module.logger, "warning", capture_warning)
 
     # config $10000 → $1500 손실 = 15% > 10% 임계 → gated (fallback 동작 검증)
     provider = _RaisingBalanceProvider(RuntimeError("ccxt timeout"))
@@ -296,16 +311,15 @@ async def test_cumulative_loss_falls_back_when_provider_raises(
         balance_provider=provider,
     )
 
-    with caplog.at_level(logging.WARNING, logger="src.trading.kill_switch"):
-        result = await ev.evaluate(
-            EvaluationContext(strategy.id, account.id, datetime.now(UTC))
-        )
+    result = await ev.evaluate(
+        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
+    )
 
     assert result.gated is True
     assert result.trigger_value == Decimal("15.00")
     assert provider.call_count == 1
     # 예외 fallback 시 WARNING 로그 1건
-    assert any("balance_provider_failed" in rec.message for rec in caplog.records)
+    assert any("balance_provider_failed" in m for m in captured_warnings)
 
 
 async def test_cumulative_loss_provider_called_on_every_trigger(
