@@ -106,13 +106,20 @@ export const BacktestSummarySchema = z.object({
 });
 export type BacktestSummary = z.infer<typeof BacktestSummarySchema>;
 
+// Sprint 30-γ-FE: BacktestMetrics PRD spec 24 필드 정합. 신규 12 필드는 모두
+// Optional — γ-BE 머지 전 BE 응답에 미포함 시 null/undefined → UI "—" fallback.
+// monthly_returns / drawdown_curve 는 list[tuple[str, Decimal]] BE 직렬화를
+// list[list[str]] 으로 받음 → 각 항목 [timestamp, decimalString] tuple.
+const monthlyReturnEntry = z.tuple([z.string(), decimalString]);
+const drawdownPoint = z.tuple([z.string(), decimalString]);
+
 export const BacktestMetricsOutSchema = z.object({
   total_return: decimalString,
   sharpe_ratio: decimalString,
   max_drawdown: decimalString,
   win_rate: decimalString,
   num_trades: z.number().int(),
-  // 확장 지표 — 구 완료 백테스트는 null; UI에서 "—" 표시
+  // Sprint 8b 확장 지표 (구 완료 백테스트 null)
   sortino_ratio: decimalString.nullable().optional(),
   calmar_ratio: decimalString.nullable().optional(),
   profit_factor: decimalString.nullable().optional(),
@@ -120,6 +127,20 @@ export const BacktestMetricsOutSchema = z.object({
   avg_loss: decimalString.nullable().optional(),
   long_count: z.number().int().nullable().optional(),
   short_count: z.number().int().nullable().optional(),
+  // Sprint 30-γ PRD JSONB 24 필드 정합 (12 신규 Optional)
+  avg_holding_hours: decimalString.nullable().optional(),
+  consecutive_wins_max: z.number().int().nullable().optional(),
+  consecutive_losses_max: z.number().int().nullable().optional(),
+  long_win_rate_pct: decimalString.nullable().optional(),
+  short_win_rate_pct: decimalString.nullable().optional(),
+  monthly_returns: z.array(monthlyReturnEntry).nullable().optional(),
+  drawdown_duration: z.number().int().nullable().optional(),
+  annual_return_pct: decimalString.nullable().optional(),
+  total_trades: z.number().int().nullable().optional(),
+  avg_trade_pct: decimalString.nullable().optional(),
+  best_trade_pct: decimalString.nullable().optional(),
+  worst_trade_pct: decimalString.nullable().optional(),
+  drawdown_curve: z.array(drawdownPoint).nullable().optional(),
 });
 export type BacktestMetricsOut = z.infer<typeof BacktestMetricsOutSchema>;
 
