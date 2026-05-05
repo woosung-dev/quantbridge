@@ -43,11 +43,19 @@ class BacktestMetrics:
     Sprint 30 gamma-BE: 12 → 24 필드 확장 (PRD `backtests.results` JSONB 정합).
     신규 12 필드는 모두 Optional default None → backward-compat
     (Sprint 28 이전 backtest round-trip 안전).
+
+    Sprint 32-D BL-156 — MDD 수학 정합 메타 추가:
+      - max_drawdown 의미: equity 시리즈 기준 ratio. 분모 = running peak equity,
+        분자 = (현재 equity - peak). leverage=1.0 (현물) 가정 하에서는 수학적으로
+        [-1.0, 0.0] 범위. 그러나 pine_v2 엔진은 leverage 를 PnL 에 직접 적용하지
+        않고 (qty 가 절대 수량), 사용자가 큰 size 거래 시 equity 가 음수 → MDD
+        < -1.0 (자본 100% 초과 손실) 시나리오 발생 가능. 이 경우 leverage 가정
+        없이는 수학 모순 → 응답에 명시적으로 표시 (mdd_exceeds_capital).
     """
 
     total_return: Decimal
     sharpe_ratio: Decimal
-    max_drawdown: Decimal      # 음수 (-0.25 = -25%)
+    max_drawdown: Decimal      # 음수 (-0.25 = -25%). leverage=1 시 [-1.0, 0.0].
     win_rate: Decimal          # 0.0 ~ 1.0
     num_trades: int
     # 확장 지표 (vectorbt에서 추출; 기존 완료 백테스트는 None)
@@ -72,6 +80,12 @@ class BacktestMetrics:
     best_trade_pct: Decimal | None = None
     worst_trade_pct: Decimal | None = None
     drawdown_curve: list[tuple[str, Decimal]] | None = None  # ("YYYY-MM-DDTHH:MM:SSZ", dd_pct)
+    # Sprint 32-D BL-156 — MDD 수학 정합 메타.
+    # max_drawdown 단위 ("equity 기준 %"). 향후 다른 단위 (USDT 등) 추가 시 변경.
+    mdd_unit: str | None = None
+    # MDD 가 -100% (= -1.0) 미만 = 자본 100% 초과 손실 시나리오. leverage > 1.0
+    # 가정 하에서만 수학적으로 가능. False = 정상 [-1.0, 0.0] 범위.
+    mdd_exceeds_capital: bool | None = None
 
 
 @dataclass(frozen=True)

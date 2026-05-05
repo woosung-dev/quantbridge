@@ -92,6 +92,12 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
         d["worst_trade_pct"] = str(m.worst_trade_pct)
     if m.drawdown_curve is not None:
         d["drawdown_curve"] = [[ts, str(v)] for ts, v in m.drawdown_curve]
+    # Sprint 32-D BL-156: MDD 수학 정합 메타. None 키 생략 → backward-compat
+    # (Sprint 31 이전 backtest round-trip 안전).
+    if m.mdd_unit is not None:
+        d["mdd_unit"] = m.mdd_unit
+    if m.mdd_exceeds_capital is not None:
+        d["mdd_exceeds_capital"] = m.mdd_exceeds_capital
     return d
 
 
@@ -142,6 +148,9 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
         best_trade_pct=_opt_decimal("best_trade_pct"),
         worst_trade_pct=_opt_decimal("worst_trade_pct"),
         drawdown_curve=drawdown_curve,
+        # Sprint 32-D BL-156 — Optional, .get() 으로 누락 시 None.
+        mdd_unit=data.get("mdd_unit"),
+        mdd_exceeds_capital=data.get("mdd_exceeds_capital"),
     )
 
 

@@ -581,6 +581,9 @@ class BacktestService:
                     best_trade_pct=m.best_trade_pct,
                     worst_trade_pct=m.worst_trade_pct,
                     drawdown_curve=m.drawdown_curve,
+                    # Sprint 32-D BL-156: MDD 수학 정합 메타.
+                    mdd_unit=m.mdd_unit,
+                    mdd_exceeds_capital=m.mdd_exceeds_capital,
                 )
             if bt.equity_curve:
                 equity_out = [

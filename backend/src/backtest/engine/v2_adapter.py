@@ -326,6 +326,13 @@ def _compute_metrics(
     equity_float = _as_float_series(equity)
     sharpe_ratio = _sharpe(equity_float)
     max_drawdown = _max_drawdown(equity_float)
+    # Sprint 32-D BL-156: MDD 수학 정합 메타.
+    # leverage=1 가정 하에서 MDD < -1.0 (= -100%) 는 수학적으로 자본 초과 손실
+    # → 사용자 신뢰 quality 측면에서 명시적 표시 의무. pine_v2 엔진은 leverage
+    # 를 PnL 에 직접 적용 안 함 (qty=절대 수량) → equity 음수 가능 → MDD 가
+    # 자유롭게 -1.0 미만으로 갈 수 있음. 응답에 명시적 boolean 으로 노출하면
+    # FE 가 "leverage Nx 가정" 라벨을 inline 으로 표시 가능.
+    mdd_exceeds_capital = max_drawdown < Decimal("-1")
 
     win_count = sum(1 for t in closed if t.pnl > 0)
     win_rate = Decimal(win_count) / Decimal(num_trades) if num_trades > 0 else Decimal("0")
@@ -389,6 +396,9 @@ def _compute_metrics(
         best_trade_pct=best_trade_pct,
         worst_trade_pct=worst_trade_pct,
         drawdown_curve=drawdown_curve,
+        # Sprint 32-D BL-156: MDD 수학 정합 메타 (FE 카드 inline 표시용).
+        mdd_unit="equity_ratio",
+        mdd_exceeds_capital=mdd_exceeds_capital,
     )
 
 
