@@ -114,6 +114,55 @@ class TestMetricsSerializationExtended:
         assert restored.avg_loss == Decimal("-0.01")
 
 
+class TestBuyAndHoldCurveSerialization:
+    """Sprint 34 BL-175 — buy_and_hold_curve JSONB round-trip.
+
+    drawdown_curve / monthly_returns 와 동일 패턴 (None 키 생략 → backward-compat).
+    """
+
+    def test_metrics_jsonb_roundtrip_with_buy_and_hold_curve(self) -> None:
+        """25 필드 round-trip identity (Sprint 34 BL-175 신규 필드 포함)."""
+        bh = [
+            ("2026-01-01T00:00:00Z", Decimal("10000")),
+            ("2026-01-02T00:00:00Z", Decimal("10500")),
+            ("2026-01-03T00:00:00Z", Decimal("11000")),
+        ]
+        m = BacktestMetrics(
+            total_return=Decimal("0.1"),
+            sharpe_ratio=Decimal("1.5"),
+            max_drawdown=Decimal("-0.05"),
+            win_rate=Decimal("0.6"),
+            num_trades=10,
+            buy_and_hold_curve=bh,
+        )
+        d = metrics_to_jsonb(m)
+        # JSONB 직렬화 형식 검증 — list[list[str]] (drawdown_curve 와 동일).
+        assert d["buy_and_hold_curve"] == [
+            ["2026-01-01T00:00:00Z", "10000"],
+            ["2026-01-02T00:00:00Z", "10500"],
+            ["2026-01-03T00:00:00Z", "11000"],
+        ]
+        # round-trip identity.
+        restored = metrics_from_jsonb(d)
+        assert restored.buy_and_hold_curve == bh
+
+    def test_metrics_jsonb_legacy_compat_no_buy_and_hold_curve(self) -> None:
+        """Sprint 33 이전 24 필드 dict (buy_and_hold_curve 없음) → None.
+
+        backward-compat 보장 — 기존 완료 backtest JSONB 가 그대로 read 가능해야 함.
+        """
+        legacy_data = {
+            "total_return": "0.1",
+            "sharpe_ratio": "1.5",
+            "max_drawdown": "-0.05",
+            "win_rate": "0.6",
+            "num_trades": 10,
+            # buy_and_hold_curve 키 없음 (Sprint 33 이전).
+        }
+        m = metrics_from_jsonb(legacy_data)
+        assert m.buy_and_hold_curve is None
+
+
 class TestEquityCurveSerialization:
     def test_to_jsonb_with_decimal(self) -> None:
         idx = pd.DatetimeIndex([datetime(2024, 1, 1), datetime(2024, 1, 2)])

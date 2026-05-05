@@ -25,7 +25,6 @@ import type {
   ChartPoint,
 } from "@/components/charts/trading-chart";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
-import { computeBuyAndHold } from "@/features/backtest/utils";
 
 import { AxisLabelBar } from "./axis-label-bar";
 import { ChartLegend } from "./chart-legend";
@@ -59,6 +58,14 @@ interface EquityChartV2Props {
    * true 면 DrawdownPane Y축 라벨에 leverage warning inline.
    */
   mddExceedsCapital?: boolean | null;
+  /**
+   * Sprint 34 BL-175: Buy & Hold benchmark curve (backend OHLCV 첫/끝 close 기반 정확 계산).
+   * `metrics.buy_and_hold_curve` 직접 pass-through. null 시 BH series 미렌더 +
+   * ChartLegend BH 항목 자동 hide (Sprint 33 hotfix 동작 보존, Surface Trust ADR-019).
+   *
+   * frontend 자체 계산은 폐기 — `computeBuyAndHold` 는 legacy no-op.
+   */
+  buyAndHoldCurve?: readonly EquityPoint[] | null;
 }
 
 interface DrawdownPoint {
@@ -93,11 +100,12 @@ function computeDrawdownArea(
 export function EquityChartV2({
   equityCurve,
   trades,
-  initialCapital,
+  initialCapital: _initialCapital,
   height = 360,
   extraMarkers,
   timeframe,
   mddExceedsCapital,
+  buyAndHoldCurve,
 }: EquityChartV2Props) {
   const equityData = useMemo<ChartPoint[]>(
     () =>
@@ -108,10 +116,15 @@ export function EquityChartV2({
     [equityCurve],
   );
 
+  // Sprint 34 BL-175: backend buy_and_hold_curve 직접 사용 (frontend 자체 계산 폐기).
+  // null/undefined/빈 배열 시 benchmark series 미추가 → ChartLegend 가 BH 항목 hide.
   const benchmarkData = useMemo<ChartPoint[]>(() => {
-    const bh = computeBuyAndHold(equityCurve, initialCapital);
-    return bh.map((p) => ({ time: p.timestamp, value: p.value }));
-  }, [equityCurve, initialCapital]);
+    if (!buyAndHoldCurve || buyAndHoldCurve.length === 0) return [];
+    return buyAndHoldCurve.map((p) => ({
+      time: p.timestamp,
+      value: p.value,
+    }));
+  }, [buyAndHoldCurve]);
 
   const drawdownData = useMemo<ChartPoint[]>(() => {
     return computeDrawdownArea(equityCurve).map((p) => ({

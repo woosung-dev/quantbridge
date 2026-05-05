@@ -163,6 +163,13 @@ export function BacktestDetailView({ id }: { id: string }) {
                   initialCapital={bt.initial_capital}
                   timeframe={bt.timeframe}
                   mddExceedsCapital={bt.metrics?.mdd_exceeds_capital ?? null}
+                  buyAndHoldCurve={
+                    bt.metrics?.buy_and_hold_curve
+                      ? bt.metrics.buy_and_hold_curve.map(
+                          ([timestamp, value]) => ({ timestamp, value }),
+                        )
+                      : null
+                  }
                 />
               </section>
             )}

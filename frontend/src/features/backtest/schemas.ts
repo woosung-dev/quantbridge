@@ -172,6 +172,11 @@ export const BacktestMetricsOutSchema = z.object({
   // FE 가 leverage 가정 inline 표시).
   mdd_unit: z.string().nullable().optional(),
   mdd_exceeds_capital: z.boolean().nullable().optional(),
+  // Sprint 34 BL-175 — Buy & Hold curve (BE OHLCV 첫/끝 close 기반 정확 계산).
+  // [(ISO ts, decimalString)] tuple. drawdown_curve 와 동일 직렬화 패턴.
+  // null 시 EquityChartV2 가 BH series 미렌더 + ChartLegend BH 항목 자동 hide
+  // (Sprint 33 BL-175 hotfix 동작 보존, Surface Trust ADR-019 정합).
+  buy_and_hold_curve: z.array(drawdownPoint).nullable().optional(),
 });
 export type BacktestMetricsOut = z.infer<typeof BacktestMetricsOutSchema>;
 

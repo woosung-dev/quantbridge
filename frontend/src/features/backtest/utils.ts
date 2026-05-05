@@ -269,45 +269,26 @@ export function computeDirectionBreakdown(
 // --- Buy & Hold benchmark (Sprint 30-β) ----------------------------------
 
 /**
- * equity_curve 기반 단순 Buy & Hold 벤치마크 추정.
+ * @deprecated Sprint 34 BL-175: 본 함수는 legacy no-op.
  *
- * 옵션 1 (P0): equity_curve 의 첫·마지막 시점만 사용한 linear interpolation.
- * - 첫 시점 = initial_capital
- * - 마지막 시점 = initial_capital * (last_equity / first_equity)
- *   * NOTE: B&H 는 자산 자체의 가격 변동을 따라야 정확. 본 구현은 equity_curve 가
- *     이미 자산 가격을 어느 정도 반영한다는 가정 하의 추정. 옵션 2 (실제 OHLCV
- *     첫·마지막 close 사용) 는 Sprint 31+ deferred (별도 endpoint 필요).
- * - 중간 시점 = (i / n-1) 비율로 시작/끝 사이 linear interpolation.
- *
- * 가드:
- * - equityCurve 빈 배열 → 빈 배열.
- * - initialCapital ≤ 0 → 빈 배열.
- * - first equity ≤ 0 또는 non-finite → 빈 배열.
- * - 단일 포인트 → [{ first.timestamp, initialCapital }].
- *
- * 반환: 입력 equity_curve 와 동일 timestamp 시퀀스 + linear-interpolated value.
- *
- * Sprint 33 BL-175 hotfix (2026-05-05, dogfood Day 6 발견):
- * 본 함수의 기존 구현 (initialCapital * last_equity / first_equity) 은 buy & hold
- * 의미가 아님 — strategy equity 의 first/last 비율로 BH 를 계산하면 BH line 이
- * strategy line 과 거의 동일해져 legend 와 chart 데이터 mismatch 발생. 자본
- * 초과 손실 시 BH 도 음수가 되어 trust 위반 (Sprint 30 ADR-019 위반).
+ * Sprint 33 BL-175 hotfix → Sprint 34 본격 fix 흐름:
+ * - Sprint 33 hotfix (PR #146): 거짓 trust 차단 위해 빈 배열 반환 mitigation.
+ * - Sprint 34 본격 fix: backend `metrics.buy_and_hold_curve` (OHLCV 첫/끝 close
+ *   기반 정확 계산) 추가 → frontend 는 metrics 응답 직접 사용 → 본 함수 불필요.
  *
  * **진짜 Buy & Hold 는 자산 (BTC) OHLCV 가격 데이터 의존** —
- * `initialCapital * (last_BTC_price / first_BTC_price)`. backend 에서 OHLCV 보유.
+ * `initialCapital * (last_BTC_price / first_BTC_price)`. equity_curve 만으로는
+ * 계산 불가능 (strategy equity 와 가격 곡선은 별개).
  *
- * 임시 mitigation (Sprint 33): 빈 배열 반환 → EquityPane benchmarkData 빈 배열 →
- * benchmark series 미추가 + EquityChartV2 의 showBenchmark=false → ChartLegend 도
- * BH 항목 미표시. 거짓 trust 즉시 차단.
- *
- * Sprint 34 BL-175 본격 fix: backend BacktestMetrics 에 buy_and_hold_curve
- * 신규 필드 + OHLCV 첫/끝 가격 기반 정확 계산 + frontend 가 그것 사용.
+ * 호출자 변경:
+ * - `equity-chart-v2.tsx`: `buyAndHoldCurve` prop 으로 metrics 데이터 직접 수신.
+ * - 신규 호출자 추가 금지 — 본 함수는 영구 no-op (backward import compat 만 유지).
  */
 export function computeBuyAndHold(
   _equityCurve: readonly EquityPoint[],
   _initialCapital: number,
 ): EquityPoint[] {
-  // BL-175 hotfix: backend buy_and_hold_curve 신규 구현 전까지 BH series 미표시.
+  // Sprint 34 BL-175: backend metrics.buy_and_hold_curve 사용. 본 함수는 영구 no-op.
   return [];
 }
 

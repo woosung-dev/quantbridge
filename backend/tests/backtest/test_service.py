@@ -295,3 +295,50 @@ class TestExtendedMetricsMapping:
         assert m.avg_loss == Decimal("-0.01")
         assert m.long_count == 12
         assert m.short_count == 8
+
+    def test_to_detail_passes_through_buy_and_hold_curve(
+        self, service: BacktestService,
+    ) -> None:
+        """Sprint 34 BL-175 (P1-2 R-2): bt.metrics JSONB 의 buy_and_hold_curve 가
+        BacktestMetricsOut spread 에 누락되면 silent BUG (FE 응답 0건 → 거짓
+        trust 회복 실패). 본 테스트가 회귀 차단.
+        """
+        from src.backtest.models import Backtest
+
+        bh_jsonb = [
+            ["2026-01-01T00:00:00Z", "10000"],
+            ["2026-01-02T00:00:00Z", "10500"],
+            ["2026-01-03T00:00:00Z", "11000"],
+        ]
+        bt = Backtest(
+            id=uuid4(),
+            user_id=uuid4(),
+            strategy_id=uuid4(),
+            symbol="BTCUSDT",
+            timeframe="1h",
+            period_start=datetime(2024, 1, 1, tzinfo=UTC),
+            period_end=datetime(2024, 2, 1, tzinfo=UTC),
+            initial_capital=Decimal("10000"),
+            status=BacktestStatus.COMPLETED,
+            metrics={
+                "total_return": "0.10",
+                "sharpe_ratio": "1.0",
+                "max_drawdown": "-0.05",
+                "win_rate": "0.6",
+                "num_trades": 5,
+                "buy_and_hold_curve": bh_jsonb,
+            },
+            equity_curve=None,
+            created_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+        )
+
+        detail = service._to_detail(bt)
+
+        assert detail.metrics is not None
+        # 1:1 round-trip — JSONB list[list[str]] → list[tuple[str, Decimal]].
+        assert detail.metrics.buy_and_hold_curve == [
+            ("2026-01-01T00:00:00Z", Decimal("10000")),
+            ("2026-01-02T00:00:00Z", Decimal("10500")),
+            ("2026-01-03T00:00:00Z", Decimal("11000")),
+        ]

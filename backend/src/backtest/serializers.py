@@ -98,6 +98,10 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
         d["mdd_unit"] = m.mdd_unit
     if m.mdd_exceeds_capital is not None:
         d["mdd_exceeds_capital"] = m.mdd_exceeds_capital
+    # Sprint 34 BL-175: Buy & Hold curve. None 키 생략 → backward-compat
+    # (Sprint 33 이전 backtest round-trip 안전).
+    if m.buy_and_hold_curve is not None:
+        d["buy_and_hold_curve"] = [[ts, str(v)] for ts, v in m.buy_and_hold_curve]
     return d
 
 
@@ -120,6 +124,12 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
     drawdown_curve: list[tuple[str, Decimal]] | None = None
     if dd_curve_raw is not None:
         drawdown_curve = [(str(ts), Decimal(str(v))) for ts, v in dd_curve_raw]
+
+    # Sprint 34 BL-175: Buy & Hold curve round-trip — drawdown_curve 와 동일 패턴.
+    bh_curve_raw = data.get("buy_and_hold_curve")
+    buy_and_hold_curve: list[tuple[str, Decimal]] | None = None
+    if bh_curve_raw is not None:
+        buy_and_hold_curve = [(str(ts), Decimal(str(v))) for ts, v in bh_curve_raw]
 
     return BacktestMetrics(
         total_return=Decimal(data["total_return"]),
@@ -151,6 +161,8 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
         # Sprint 32-D BL-156 — Optional, .get() 으로 누락 시 None.
         mdd_unit=data.get("mdd_unit"),
         mdd_exceeds_capital=data.get("mdd_exceeds_capital"),
+        # Sprint 34 BL-175 — Buy & Hold curve. 누락 시 None (backward-compat).
+        buy_and_hold_curve=buy_and_hold_curve,
     )
 
 
