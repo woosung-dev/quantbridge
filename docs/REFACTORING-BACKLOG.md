@@ -595,6 +595,9 @@
 | BL-150 ✅ Resolved (Sprint 36 PR #157, 2026-05-06) | Equity chart full migration recharts → lightweight-charts (점진 마이그레이션 완료) + MC bootstrap sign-flip fix |                                              |               | Sprint 30-β Option B ADR + MC 음수 equity return clip                                              |
 | BL-152 ✅ Resolved (Sprint 30-γ-BE 04f754d)        | `total_trades` PRD parity = `num_trades` alias 결정 (BacktestMetrics serializer 양 키 응답)                     |                                              |               | Sprint 30 γ-BE plan §2.γ-BE 후속 결정                                                              |
 | BL-176 ✅ Resolved (Sprint 36 PR #157, 2026-05-06) | SelectWithDisplayName `onClear` prop 추가 (의도적 clear 동선)                                                   |                                              |               | Sprint 33 hotfix BL-176 follow-up (clear button prop, sentinel/nullable 없이 schema required 유지) |
+| [BL-181](#bl-181)                                  | Docker worker auto-rebuild on PR merge (volume mount 또는 post-merge hook)                                      | Sprint 37 (P2)                               | M (3-4h)      | dogfood Day 6.5 BL-178 silent stale 재발 방지 (BL-181 = BL-178 근본 fix)                           |
+| [BL-182](#bl-182)                                  | Worker container code version 자동 monitoring + alert (sentinel function 또는 git hash 비교)                    | Sprint 37+                                   | S (2h)        | Sprint 35 Slice 1a BL-181 follow-up                                                                |
+| [BL-183](#bl-183)                                  | Monte Carlo 결과 요약 통계 FE 미노출 (CI 95% 하한/상한·median·MDD p95 숫자 테이블)                              | Sprint 37 (Day 7 재측정 prereq)              | S (1-2h)      | dogfood Day 7 발견 — BE 계산 완료, FE fan chart만 렌더, 숫자 표 없음                               |
 
 (상세 내용은 출처 인용 — 표 형태로 충분, 각 항목 1-3 줄로 충분히 self-contained)
 
@@ -871,3 +874,10 @@
   - **BL-150 ✅ Resolved**: Monte Carlo bootstrap 음수 equity return sign-flip 차단 (`eq_base = abs(eq)` + `clip(-0.9999, None)`). fan chart Y축 정상 렌더 확인 (Playwright smoke). Walk-Forward E2E (20/38 folds) 정상 확인. BE 테스트 +3 (test_monte_carlo_negative_equity.py).
   - **BL-176 ✅ Resolved**: `SelectWithDisplayName`에 `onClear?: () => void` prop 추가. value 있고 prop 제공 시 ✕ 버튼 렌더, 클릭 시 onClear 호출. sentinel/nullable 없이 schema required 유지. FE 테스트 +3 (clear 버튼 렌더 조건 / onClear 미전달 시 숨김 / 클릭 동작).
   - **합계 변동**: 87 → **85 active BL** (BL-150 + BL-176 Resolved -2).
+
+- **2026-05-06 (Sprint 36 종료 — dogfood Day 7 gate (a) FAIL, Sprint 37 진입)** — Day 7 4중 AND gate: (b)(c)(d) PASS / **(a) FAIL (≤6/10)**. Playwright dogfood 6/6 시나리오 확인.
+  - **PASS 확인**: BH curve 파란 점선 + crosshair 렌더 / MC fan chart Y축 0~140,000 USDT (천조 해소) / Walk-Forward 20/38 folds / 거래 분석 5섹션 / 가정 박스 5개 / 거래 목록 200건
+  - **신규 발견 BL-183**: MC fan chart 렌더 정상이나 CI 95% 하한/상한·median_final_equity·MDD p95 **요약 통계 테이블 FE 미노출** — BE 계산값 있으나 숫자 기반 의사결정 불가. Surface Trust 관점 UX 갭.
+  - **Day 7 gate (a) FAIL 근거**: MC 숫자 미노출(BL-183) + 기존 6/10이 후한 측정 = 실질 ≤6. 수치 기반 의사결정 불가 = "돈 내고 쓰고 싶다" 미달.
+  - **Sprint 37 = polish iter 5** + Day 7 재측정 목표. BL-183 fix 우선. 사용자 추가 피드백 기반 BL 조정 예정.
+  - **합계 변동**: 85 + BL-183 신규 +1 = **86 active BL**.
