@@ -1,6 +1,11 @@
 #!/bin/sh
 # QuantBridge Backend — docker entrypoint (Sprint 30 ε B6).
 #
+# **Scope: prod / container 전용** (Cloud Run, docker-compose 안 backend service).
+# host 개발 (`make be` / `make be-isolated`) 은 본 entrypoint 를 거치지 않음 —
+# uvicorn 직접 실행. 따라서 host 개발 환경의 alembic 자동 적용은
+# 루트 `Makefile` 의 `migrate` / `migrate-isolated` 타깃이 책임 (Sprint 32 BL-168).
+#
 # 역할:
 # 1. PostgreSQL advisory lock 으로 동시 migration 방어 (다중 인스턴스 cold start 시 race 차단).
 # 2. lock 획득 → `alembic upgrade head` → release.
@@ -9,12 +14,17 @@
 # advisory lock key: 0x71_62_67_30 = 'qbg0' (QuantBridge ε hash) — 임의의 큰 64-bit 정수.
 # 동일 DB 안 다른 service 와 충돌 회피 위해 32-bit 영역 안에 안전한 namespace 선정.
 #
-# 사용:
+# 사용 (container 안):
 #   docker run --rm quantbridge-backend            # default = api (alembic + uvicorn)
 #   docker run --rm quantbridge-backend api        # 명시적 api
 #   docker run --rm quantbridge-backend worker     # celery worker (alembic skip)
 #   docker run --rm quantbridge-backend beat       # celery beat (alembic skip)
 #   docker run --rm quantbridge-backend migrate    # alembic upgrade head 만 (지원 X — api 와 동일 lock 충돌 회피)
+#
+# host 개발 시:
+#   make migrate-isolated     # 격리 DB (5433) alembic upgrade head
+#   make migrate              # 기본 DB (5432) alembic upgrade head
+#   make dev-isolated         # up + migrate + be + fe (자동 통합)
 
 set -e
 

@@ -15,9 +15,14 @@
 .DEFAULT_GOAL := help
 .PHONY: help dev up down logs be fe \
         dev-isolated up-isolated up-isolated-build down-isolated logs-isolated be-isolated fe-isolated \
+        migrate migrate-isolated wait-db-isolated \
         test be-test fe-test fe-e2e fe-e2e-authed lint typecheck
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
+
+# 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
+# .env.local 변형 없이 inline override 패턴 (process env > pydantic-settings dotenv 우선순위).
+ISOLATED_DATABASE_URL := postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge
 
 # === Help ===
 
@@ -33,13 +38,14 @@ help:
 	@echo "    make fe           # frontend Next.js (port 3000)"
 	@echo ""
 	@echo "  격리 포트 (3100 / 8100 / 5433 / 6380) — 다른 웹앱과 병렬"
-	@echo "    make dev-isolated # up + be + fe 동시 (한 줄)"
-	@echo "    make up-isolated"
-	@echo "    make up-isolated-build  # up-isolated + --build (코드 변경 후 image 재빌드)"
+	@echo "    make dev-isolated      # up + migrate + be + fe 동시 (한 줄, alembic 자동 적용)"
+	@echo "    make up-isolated       # docker compose up (db + redis + workers, migrate 미포함)"
+	@echo "    make up-isolated-build # up-isolated + --build (코드 변경 후 image 재빌드)"
+	@echo "    make migrate-isolated  # alembic upgrade head (격리 DB 5433) — Sprint 32 BL-168"
 	@echo "    make down-isolated"
 	@echo "    make logs-isolated"
-	@echo "    make be-isolated  # backend uvicorn (port 8100)"
-	@echo "    make fe-isolated  # frontend Next.js (port 3100)"
+	@echo "    make be-isolated       # migrate-isolated 선행 + backend uvicorn (port 8100)"
+	@echo "    make fe-isolated       # frontend Next.js (port 3100)"
 	@echo ""
 	@echo "  품질"
 	@echo "    make test           # backend pytest + frontend vitest"
@@ -78,10 +84,14 @@ fe:
 
 # === 격리 모드 (3100 / 8100 / 5433 / 6380) ===
 
-dev-isolated: up-isolated
+# Sprint 32 BL-168 — dev-isolated 가 migrate-isolated 선행 의무.
+# host be-isolated 는 docker-entrypoint.sh 를 안 타기 때문에 (uvicorn 직접 실행)
+# alembic upgrade 를 root Makefile 에서 명시 통합. fresh `make dev-isolated` 첫 부팅
+# 시 backtests.config 같은 신규 컬럼이 schema drift 없이 반영됨.
+dev-isolated: up-isolated migrate-isolated
 	@echo "▶ make be-isolated + make fe-isolated 동시 실행 (Ctrl+C 로 양쪽 종료)"
 	@trap 'kill 0' INT TERM; \
-	  $(MAKE) -s be-isolated & \
+	  $(MAKE) -s be-isolated QB_MIGRATE_DONE=1 & \
 	  $(MAKE) -s fe-isolated & \
 	  wait
 
@@ -99,11 +109,46 @@ down-isolated:
 logs-isolated:
 	docker compose $(ISOLATED_COMPOSE) logs -f
 
+# Sprint 32 BL-168 — DB healthy 대기 (up-isolated 직후 migrate 가 race 안 타도록).
+# `quantbridge-db` container_name 고정 (docker-compose.yml 안 명시) → `docker exec` 로
+# 직접 pg_isready 호출. compose project 이름과 무관 (worktree 격리 시 robust).
+# 30s 까지 1s 간격 폴링. 미달성 시 exit 1.
+wait-db-isolated:
+	@echo "▶ wait db (5433) healthy …"
+	@for i in $$(seq 1 30); do \
+	  if docker exec quantbridge-db pg_isready -U quantbridge -d quantbridge >/dev/null 2>&1; then \
+	    echo "  db ready ($${i}s)"; exit 0; \
+	  fi; \
+	  sleep 1; \
+	done; \
+	echo "  db NOT ready after 30s" >&2; exit 1
+
+# Sprint 32 BL-168 — 격리 DB 5433 에 alembic upgrade head 적용.
+# host uvicorn 이 docker-entrypoint.sh 안 타는 점을 보강. process env override 로
+# .env.local 의 5432 default 를 5433 으로 변경. up-isolated 후 db healthy 대기.
+migrate-isolated: wait-db-isolated
+	@echo "▶ alembic upgrade head (격리 DB 5433)"
+	cd backend && \
+	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
+	  uv run alembic upgrade head
+
+# 기본 모드 마이그레이션 — host 5432.
+migrate:
+	cd backend && uv run alembic upgrade head
+
 # 환경변수는 process env > dotenv 우선순위 (pydantic-settings).
 # .env.local 의 기본값(5432/6379/3000/8000)을 inline 으로 override.
+#
+# Sprint 32 BL-168 — be-isolated 가 migrate-isolated 선행 의무.
+# `make be-isolated` 단독 실행 시도 fresh start 호환 (db healthy + alembic 자동).
+# QB_MIGRATE_DONE=1 sentinel — `dev-isolated` 가 이미 migrate-isolated 수행한 경우
+# sub-make 호출에서 중복 실행 회피 (GNU make 는 target 캐시를 sub-process 와 공유 안 함).
+ifndef QB_MIGRATE_DONE
+be-isolated: migrate-isolated
+endif
 be-isolated:
 	cd backend && \
-	  DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge \
+	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
 	  REDIS_URL=redis://localhost:6380/0 \
 	  CELERY_BROKER_URL=redis://localhost:6380/1 \
 	  CELERY_RESULT_BACKEND=redis://localhost:6380/2 \
