@@ -8,6 +8,13 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-05 — **Sprint 33 회고** (6.5 양다리 균형 패키지, 5 PR + codex G.0 P1 surgery 3건 적용, 자율 병렬 worker isolation 영구 차단 검증 — main worktree branch swap 0건, dogfood Day 6 = TBD) — [`2026-05-05-sprint33-master-retrospective.md`](2026-05-05-sprint33-master-retrospective.md)
+- 2026-05-05 — **Sprint 32 회고** (Surface Trust Recovery, 7 PR + codex G.0 P1 4건 surgery, dogfood Day 5 = 6~7 borderline = +1.5 점, 자율 병렬 worker isolation 위반 lesson Worker C/D) — [`2026-05-05-sprint32-master-retrospective.md`](2026-05-05-sprint32-master-retrospective.md)
+- 2026-05-05 — Sprint 31 Day 4 dogfood handoff (Sprint 31 6 PR 후 dogfood Day 4 = 5 점, +1 progress, Sprint 32 분기 Surface Trust Recovery 결정) — [`2026-05-05-sprint31-day4-handoff.md`](2026-05-05-sprint31-day4-handoff.md)
+- 2026-05-05 — Sprint 31 Pine v6 호환 ADR (Sprint 31 plan 분기 결정 ADR) — [`2026-05-05-sprint31-pine-v6-compat-adr.md`](2026-05-05-sprint31-pine-v6-compat-adr.md)
+- 2026-05-05 — **Sprint 30 회고** (Surface Trust Pillar 신규, 8 PR + dogfood Day 3 = 4 점 baseline, ADR-019) — [`2026-05-05-sprint30-master-retrospective.md`](2026-05-05-sprint30-master-retrospective.md)
+- 2026-05-05 — **ADR-019 Surface Trust Pillar** (Backend Reliability + Risk Management + Security + Surface Trust 4 sub-pillar, dogfood Day 3 측정 기준) — [`2026-05-05-sprint30-surface-trust-pillar-adr.md`](2026-05-05-sprint30-surface-trust-pillar-adr.md)
+- 2026-05-05 — Sprint 30 chart lib decision ADR (Sprint 30 β option B, 점진 마이그 결정, BL-150 trigger) — [`2026-05-05-sprint30-chart-lib-decision.md`](2026-05-05-sprint30-chart-lib-decision.md)
 - 2026-05-04 — **Sprint 29 회고** (Pine Coverage Layer Hardening + DrFXGOD Schema, dual metric ALL PASS, 5/6 통과율 + 100% workaround + 4 invariant + codex G2 P0 fix degraded gate, self-assess 9/10) — [`2026-05-04-sprint29-coverage-hardening.md`](2026-05-04-sprint29-coverage-hardening.md)
 - 2026-05-04 — Sprint 29 heikinashi Trust Layer 위반 ADR (D1=a, dogfood-only flag, Sprint 30+ ADR-009 trigger) — [`2026-05-04-sprint29-heikinashi-adr.md`](2026-05-04-sprint29-heikinashi-adr.md)
 - 2026-05-04 — **Sprint 29 baseline snapshot** (6 fixture preflight 실측, 진입 3/6 50%, plan v2 stale 1건 추가 발견, LESSON-037 second validation) — [`2026-05-04-sprint29-baseline-snapshot.md`](2026-05-04-sprint29-baseline-snapshot.md)
