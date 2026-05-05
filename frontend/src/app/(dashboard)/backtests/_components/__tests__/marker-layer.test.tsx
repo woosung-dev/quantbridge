@@ -155,6 +155,85 @@ describe("deriveTradeMarkers (Sprint 32-C BL-171)", () => {
   });
 });
 
+// --- Sprint 34 BL-177: dense text shorten (compact option) ---------------
+
+describe("deriveTradeMarkers compact option (Sprint 34 BL-177)", () => {
+  it("compact mode: returns short text 'L'/'S' for entry and '' for exit", () => {
+    const longTrade = makeTrade({
+      direction: "long",
+      status: "closed",
+      entry_price: 100,
+      pnl: 10,
+      return_pct: 0.1,
+    });
+    const shortTrade = makeTrade({
+      direction: "short",
+      status: "closed",
+      entry_price: 200,
+      pnl: 5,
+      return_pct: 0.025,
+    });
+
+    const longMarkers = deriveTradeMarkers([longTrade], { compact: true });
+    const shortMarkers = deriveTradeMarkers([shortTrade], { compact: true });
+
+    // entry text = "L" / "S" 만 (가격 생략).
+    expect(longMarkers[0]!.text).toBe("L");
+    expect(shortMarkers[0]!.text).toBe("S");
+
+    // exit text = "" (빈 문자열, 색상으로 win/loss 구분만 유지).
+    expect(longMarkers[1]!.text).toBe("");
+    expect(shortMarkers[1]!.text).toBe("");
+
+    // shape / color / position 은 default mode 와 동일 (정합성 보존).
+    expect(longMarkers[0]!.shape).toBe("arrowUp");
+    expect(longMarkers[0]!.color).toBe(COLORS.longEntry);
+    expect(longMarkers[1]!.shape).toBe("circle");
+    expect(longMarkers[1]!.color).toBe(COLORS.longExitWin);
+  });
+
+  it("default mode: returns detailed text (compact omitted or false)", () => {
+    const trade = makeTrade({
+      direction: "long",
+      status: "closed",
+      entry_price: 100,
+      pnl: 10,
+      return_pct: 0.1,
+    });
+
+    // compact 미지정 → 기존 동작.
+    const omitted = deriveTradeMarkers([trade]);
+    expect(omitted[0]!.text).toBe("L $100.00");
+    expect(omitted[1]!.text).toBe("+10.00%");
+
+    // compact=false 명시 → 동일.
+    const explicitFalse = deriveTradeMarkers([trade], { compact: false });
+    expect(explicitFalse[0]!.text).toBe("L $100.00");
+    expect(explicitFalse[1]!.text).toBe("+10.00%");
+  });
+
+  it("compact mode: MARKER_LIMIT still enforced at 200 (regression guard)", () => {
+    const trades: TradeItem[] = [];
+    for (let i = 0; i < 250; i += 1) {
+      trades.push(
+        makeTrade({
+          trade_index: i,
+          entry_time: new Date(2026, 0, 1, i % 24).toISOString(),
+          exit_time: new Date(2026, 0, 1, (i % 24) + 1).toISOString(),
+        }),
+      );
+    }
+    const markers = deriveTradeMarkers(trades, { compact: true });
+    // 200 trades * 2 markers (entry + exit) = 400.
+    expect(markers.length).toBe(MARKER_LIMIT * 2);
+  });
+
+  it("compact mode: empty / undefined inputs return [] (backward compat)", () => {
+    expect(deriveTradeMarkers(undefined, { compact: true })).toEqual([]);
+    expect(deriveTradeMarkers([], { compact: true })).toEqual([]);
+  });
+});
+
 // --- format helpers (sanity) ----------------------------------------------
 
 describe("formatPriceShort (Sprint 32-C BL-171)", () => {
