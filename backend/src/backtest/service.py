@@ -465,6 +465,20 @@ class BacktestService:
                     avg_loss=m.avg_loss,
                     long_count=m.long_count,
                     short_count=m.short_count,
+                    # Sprint 30 gamma-BE: PRD 24 metric spec 정합 — 신규 12 필드 전달.
+                    avg_holding_hours=m.avg_holding_hours,
+                    consecutive_wins_max=m.consecutive_wins_max,
+                    consecutive_losses_max=m.consecutive_losses_max,
+                    long_win_rate_pct=m.long_win_rate_pct,
+                    short_win_rate_pct=m.short_win_rate_pct,
+                    monthly_returns=m.monthly_returns,
+                    drawdown_duration=m.drawdown_duration,
+                    annual_return_pct=m.annual_return_pct,
+                    total_trades=m.total_trades,
+                    avg_trade_pct=m.avg_trade_pct,
+                    best_trade_pct=m.best_trade_pct,
+                    worst_trade_pct=m.worst_trade_pct,
+                    drawdown_curve=m.drawdown_curve,
                 )
             if bt.equity_curve:
                 equity_out = [

@@ -4,6 +4,9 @@ metrics/equity_curve는 PostgreSQL JSONB 컬럼에 저장.
 Decimal → str, datetime → ISO 8601 Z.
 tz-aware UTC datetime 전제 (AwareDateTime TypeDecorator, Sprint 5 Stage B).
 _utc_iso()는 방어적으로 naive 입력도 처리하지만, 신규 코드는 tz-aware 사용.
+
+Sprint 30 gamma-BE: BacktestMetrics 12 → 24 필드 확장.
+신규 12 필드는 모두 Optional default None → Sprint 28 이전 backtest backward-compat.
 """
 from __future__ import annotations
 
@@ -35,7 +38,10 @@ def _parse_utc_iso(s: str) -> datetime:
 # --- metrics ---
 
 def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
-    """BacktestMetrics → JSONB dict (Decimal → str, None 필드는 키 생략)."""
+    """BacktestMetrics → JSONB dict (Decimal → str, None 필드는 키 생략).
+
+    Sprint 30 gamma-BE: 24 필드 spec. 기존 12 필드는 변경 없음, 신규 12 필드 추가.
+    """
     d: dict[str, Any] = {
         "total_return": str(m.total_return),
         "sharpe_ratio": str(m.sharpe_ratio),
@@ -57,14 +63,57 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
         d["long_count"] = m.long_count
     if m.short_count is not None:
         d["short_count"] = m.short_count
+
+    # --- Sprint 30 gamma-BE 신규 12 필드 (None 키 생략 → backward-compat) ---
+    if m.avg_holding_hours is not None:
+        d["avg_holding_hours"] = str(m.avg_holding_hours)
+    if m.consecutive_wins_max is not None:
+        d["consecutive_wins_max"] = m.consecutive_wins_max
+    if m.consecutive_losses_max is not None:
+        d["consecutive_losses_max"] = m.consecutive_losses_max
+    if m.long_win_rate_pct is not None:
+        d["long_win_rate_pct"] = str(m.long_win_rate_pct)
+    if m.short_win_rate_pct is not None:
+        d["short_win_rate_pct"] = str(m.short_win_rate_pct)
+    if m.monthly_returns is not None:
+        # list[(str, Decimal)] → list[[str, str]]
+        d["monthly_returns"] = [[k, str(v)] for k, v in m.monthly_returns]
+    if m.drawdown_duration is not None:
+        d["drawdown_duration"] = m.drawdown_duration
+    if m.annual_return_pct is not None:
+        d["annual_return_pct"] = str(m.annual_return_pct)
+    if m.total_trades is not None:
+        d["total_trades"] = m.total_trades
+    if m.avg_trade_pct is not None:
+        d["avg_trade_pct"] = str(m.avg_trade_pct)
+    if m.best_trade_pct is not None:
+        d["best_trade_pct"] = str(m.best_trade_pct)
+    if m.worst_trade_pct is not None:
+        d["worst_trade_pct"] = str(m.worst_trade_pct)
+    if m.drawdown_curve is not None:
+        d["drawdown_curve"] = [[ts, str(v)] for ts, v in m.drawdown_curve]
     return d
 
 
 def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
-    """JSONB dict → BacktestMetrics (신규 Optional 필드는 .get()으로 하위 호환)."""
+    """JSONB dict → BacktestMetrics (신규 Optional 필드는 .get()으로 하위 호환).
+
+    Sprint 30 gamma-BE: 24 필드 round-trip identity. Sprint 28 이전 12 필드만 set 시
+    신규 12 필드는 모두 None.
+    """
     def _opt_decimal(key: str) -> Decimal | None:
         raw = data.get(key)
         return Decimal(raw) if raw is not None else None
+
+    monthly_raw = data.get("monthly_returns")
+    monthly_returns: list[tuple[str, Decimal]] | None = None
+    if monthly_raw is not None:
+        monthly_returns = [(str(k), Decimal(str(v))) for k, v in monthly_raw]
+
+    dd_curve_raw = data.get("drawdown_curve")
+    drawdown_curve: list[tuple[str, Decimal]] | None = None
+    if dd_curve_raw is not None:
+        drawdown_curve = [(str(ts), Decimal(str(v))) for ts, v in dd_curve_raw]
 
     return BacktestMetrics(
         total_return=Decimal(data["total_return"]),
@@ -79,6 +128,20 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
         avg_loss=_opt_decimal("avg_loss"),
         long_count=data.get("long_count"),
         short_count=data.get("short_count"),
+        # Sprint 30 gamma-BE 신규 12
+        avg_holding_hours=_opt_decimal("avg_holding_hours"),
+        consecutive_wins_max=data.get("consecutive_wins_max"),
+        consecutive_losses_max=data.get("consecutive_losses_max"),
+        long_win_rate_pct=_opt_decimal("long_win_rate_pct"),
+        short_win_rate_pct=_opt_decimal("short_win_rate_pct"),
+        monthly_returns=monthly_returns,
+        drawdown_duration=data.get("drawdown_duration"),
+        annual_return_pct=_opt_decimal("annual_return_pct"),
+        total_trades=data.get("total_trades"),
+        avg_trade_pct=_opt_decimal("avg_trade_pct"),
+        best_trade_pct=_opt_decimal("best_trade_pct"),
+        worst_trade_pct=_opt_decimal("worst_trade_pct"),
+        drawdown_curve=drawdown_curve,
     )
 
 

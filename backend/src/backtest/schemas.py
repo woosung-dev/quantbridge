@@ -93,7 +93,11 @@ class BacktestSummary(BaseModel):
 
 
 class BacktestMetricsOut(BaseModel):
-    """engine.types.BacktestMetrics → API 노출 (Decimal → str)."""
+    """engine.types.BacktestMetrics → API 노출 (Decimal → str).
+
+    Sprint 30 gamma-BE: PRD `backtests.results` JSONB 24 metric 정합. 기존 12 + 신규 12.
+    신규 필드는 모두 Optional default None (Sprint 28 이전 backtest 호환).
+    """
 
     total_return: Decimal
     sharpe_ratio: Decimal
@@ -108,13 +112,47 @@ class BacktestMetricsOut(BaseModel):
     avg_loss: Decimal | None = None
     long_count: int | None = None
     short_count: int | None = None
+    # Sprint 30 gamma-BE 신규 12 필드 (PRD spec)
+    avg_holding_hours: Decimal | None = None
+    consecutive_wins_max: int | None = None
+    consecutive_losses_max: int | None = None
+    long_win_rate_pct: Decimal | None = None
+    short_win_rate_pct: Decimal | None = None
+    monthly_returns: list[tuple[str, Decimal]] | None = None
+    drawdown_duration: int | None = None
+    annual_return_pct: Decimal | None = None
+    total_trades: int | None = None
+    avg_trade_pct: Decimal | None = None
+    best_trade_pct: Decimal | None = None
+    worst_trade_pct: Decimal | None = None
+    drawdown_curve: list[tuple[str, Decimal]] | None = None
 
     @field_serializer(
         "total_return", "sharpe_ratio", "max_drawdown", "win_rate",
         "sortino_ratio", "calmar_ratio", "profit_factor", "avg_win", "avg_loss",
+        "avg_holding_hours", "long_win_rate_pct", "short_win_rate_pct",
+        "annual_return_pct", "avg_trade_pct", "best_trade_pct", "worst_trade_pct",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
+
+    @field_serializer("monthly_returns")
+    def _monthly_returns_to_jsonable(
+        self, v: list[tuple[str, Decimal]] | None
+    ) -> list[list[str]] | None:
+        """list[(YYYY-MM, Decimal)] → list[[str, str]] (JSON tuple → list)."""
+        if v is None:
+            return None
+        return [[k, str(val)] for k, val in v]
+
+    @field_serializer("drawdown_curve")
+    def _drawdown_curve_to_jsonable(
+        self, v: list[tuple[str, Decimal]] | None
+    ) -> list[list[str]] | None:
+        """list[(ISO ts, Decimal)] → list[[str, str]]."""
+        if v is None:
+            return None
+        return [[ts, str(val)] for ts, val in v]
 
 
 class EquityPoint(BaseModel):
