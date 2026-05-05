@@ -161,12 +161,22 @@ export function TradingChart({
       return;
     }
 
+    // Sprint 30 hot-fix: lightweight-charts colorStringToRgba 가 "currentColor"
+    // CSS 키워드 파싱 못 함 → AttributionLogoWidget _themeToUse 가 throw →
+    // ErrorBoundary fallback 으로 결과 페이지 전체 깨짐. resolved hex 색상으로
+    // 명시. dark/light 모드 대응은 차후 BL (Sprint 31+ getComputedStyle resolve).
+    const resolvedTextColor =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-color-scheme: dark)").matches
+        ? "#9ca3af" // tailwind text-gray-400 (dark mode)
+        : "#4b5563"; // tailwind text-gray-600 (light mode)
+
     const chart = createChart(container, {
       height,
       width: container.clientWidth || 600,
       layout: {
         background: { color: "transparent" },
-        textColor: "currentColor",
+        textColor: resolvedTextColor,
       },
       grid: {
         vertLines: { color: "rgba(127,127,127,0.1)" },
