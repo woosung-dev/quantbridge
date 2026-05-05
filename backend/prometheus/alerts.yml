@@ -1,0 +1,59 @@
+# QuantBridge Backend — Prometheus alerting rules (Sprint 30 ε B8).
+#
+# 본 파일은 Prometheus / Alertmanager 가 읽는 표준 alerting rule.
+# Grafana Cloud Agent + 자체 host Prometheus 양쪽 호환.
+#
+# 적용:
+# 1. Grafana Cloud / 운영 Prometheus 의 ``rule_files`` 배열에 본 파일 path 추가.
+# 2. ``promtool check rules backend/prometheus/alerts.yml`` 로 syntax 검증.
+# 3. Alertmanager 라우팅 (Slack / PagerDuty) 는 별도 alertmanager.yml 에서 정의.
+#
+# Sprint 19 BL-081 wire 와 정합 — qb_pending_alerts gauge 가 src/common/alert.py 의
+# track_pending_alert helper 로 idempotent inc/dec.
+#
+# H1→H2 게이트 1건 진전: 운영 환경 alert 발화 evidence (docs/07_infra/prometheus-alert-evidence.md).
+
+groups:
+  - name: quantbridge_backend_critical
+    interval: 30s
+    rules:
+      # ──────────────────────────────────────────────────────────
+      # Sprint 30 ε B8 — qb_pending_alerts > 50 for 5m
+      # ──────────────────────────────────────────────────────────
+      # alert.py 의 fire-and-forget Slack POST task 가 drain 되지 못해
+      # 누적된 상태. lifespan/worker_shutdown 이 drain wire-up 안 된 채
+      # 50개 초과로 5분 지속 = drop 위험 + asyncio loop 백프레셔.
+      - alert: QbPendingAlertsHigh
+        expr: qb_pending_alerts > 50
+        for: 5m
+        labels:
+          severity: critical
+          surface: backend
+          domain: alert_dispatch
+        annotations:
+          summary: "qb_pending_alerts > 50 for 5m — Slack alert drain backpressure"
+          description: |
+            Slack alert fire-and-forget queue ({{ $value }} pending) 가 50개 초과로 5분 지속.
+            가능 원인: Slack outage / network slow / lifespan drain wire-up 누락.
+            대응:
+              1. ``GET /metrics`` 에서 ``qb_pending_alerts`` 추세 확인.
+              2. Backend 로그 ``slack_alert_timeout`` / ``slack_alert_failed_*`` 빈도 확인.
+              3. 필요 시 Slack webhook URL 검증 + 인스턴스 재시작 (drain 강제).
+            BL-081 Sprint 19 wire / Sprint 30 ε B8 alerting.
+
+      # ──────────────────────────────────────────────────────────
+      # 보조: Redis lock pool 비정상 (Sprint 10 Phase A2 wire)
+      # ──────────────────────────────────────────────────────────
+      - alert: QbRedisLockPoolUnhealthy
+        expr: qb_redis_lock_pool_healthy == 0
+        for: 2m
+        labels:
+          severity: critical
+          surface: backend
+          domain: distributed_lock
+        annotations:
+          summary: "Redis lock pool unhealthy for 2m"
+          description: |
+            redlock storage 가 PING/SET/GET round-trip 실패 상태.
+            영향: rate-limit + distributed lock 정상 동작 불가 → ohlcv 수집 중복 + race risk.
+            대응: Redis 인스턴스 상태 / network / OOM / noeviction 확인.

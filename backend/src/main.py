@@ -145,6 +145,11 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok", "env": settings.app_env}
 
+    # Sprint 30 ε B3 — /healthz readiness probe (Postgres / Redis / Celery)
+    from src.health.router import router as health_router
+
+    app.include_router(health_router)
+
     @app.get(
         "/metrics",
         include_in_schema=False,
@@ -164,8 +169,12 @@ def create_app() -> FastAPI:
 
     # Sprint 10 Phase B — /metrics, /health 는 rate limit 면제
     # (Prometheus 스크래퍼 + health-check 는 무제한 허용)
+    # Sprint 30 ε B3 — /healthz readiness probe 도 면제 (Cloud Run liveness scrape)
     app.state.limiter.exempt(metrics_endpoint)
     app.state.limiter.exempt(health)
+    for route in health_router.routes:
+        if hasattr(route, "endpoint"):
+            app.state.limiter.exempt(route.endpoint)
 
     # Sprint 10 Phase B — /api/v1/webhooks/* 는 TradingView alert 수신. HMAC 인증이
     # primary 보안 레이어이므로 default 100/min 제외. high-freq strategy 시
