@@ -174,6 +174,41 @@ class BacktestRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
 
+    async def count_trades_by_direction(self, backtest_id: UUID) -> tuple[int, int, int]:
+        """방향별 거래 수 집계 (open + closed 모두 포함).
+
+        Sprint 31-E (BL-155): metrics.long_count/short_count 가 vectorbt
+        `trades.long.count()` 기반으로 closed only 만 집계해 FE 거래 목록
+        (open + closed = trades.length) 과 1건 mismatch 발생. service layer
+        에서 본 helper 로 재계산해 사용자 시점 일관성 유지.
+
+        Returns:
+            (total, long, short) — 모두 open + closed 포함.
+        """
+        from src.backtest.models import TradeDirection
+
+        total_stmt = (
+            select(func.count())
+            .select_from(BacktestTrade)
+            .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
+        )
+        long_stmt = (
+            select(func.count())
+            .select_from(BacktestTrade)
+            .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
+            .where(BacktestTrade.direction == TradeDirection.LONG)  # type: ignore[arg-type]
+        )
+        short_stmt = (
+            select(func.count())
+            .select_from(BacktestTrade)
+            .where(BacktestTrade.backtest_id == backtest_id)  # type: ignore[arg-type]
+            .where(BacktestTrade.direction == TradeDirection.SHORT)  # type: ignore[arg-type]
+        )
+        total = (await self.session.execute(total_stmt)).scalar_one()
+        long_n = (await self.session.execute(long_stmt)).scalar_one()
+        short_n = (await self.session.execute(short_stmt)).scalar_one()
+        return int(total), int(long_n), int(short_n)
+
     # --- Idempotency (Sprint 9-6) ---
 
     async def get_by_idempotency_key(self, key: str) -> Backtest | None:
