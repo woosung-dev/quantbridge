@@ -865,3 +865,8 @@
   - **Stretch 전체 미착수**: Slice 1.5b / BL-176 SelectWithDisplayName / BL-150 walk-forward — Sprint 36 재검토
   - **BL-181 status 갱신**: Sprint 35 active stretch → **Sprint 36 P2 (auto-rebuild trigger 우선 구현 권장)**
   - **합계 변동**: 88 → 87 active BL (BL-178 + BL-180 Resolved -2). 총 **87 active BL**.
+
+- **2026-05-06 (Sprint 36 진입 — polish iter 4, BL-150 + BL-176 완료)** — PR #157 (`feat/sprint36-bl150-bl176`, 리뷰 대기). BL-150 MC bootstrap sign-flip 버그 fix + BL-176 SelectWithDisplayName onClear prop 추가.
+  - **BL-150**: Monte Carlo bootstrap 음수 equity return sign-flip 차단 (`eq_base = abs(eq)` + `clip(-0.9999, None)`). fan chart Y축 정상 렌더 확인 (Playwright smoke). Walk-Forward E2E (20/38 folds) 정상 확인. BE 테스트 +3 (test_monte_carlo_negative_equity.py). **PR #157 merge 후 Resolved**.
+  - **BL-176**: `SelectWithDisplayName`에 `onClear?: () => void` prop 추가. value 있고 prop 제공 시 ✕ 버튼 렌더, 클릭 시 onClear 호출. sentinel/nullable 없이 schema required 유지. FE 테스트 +3 (clear 버튼 렌더 조건 / onClear 미전달 시 숨김 / 클릭 동작). **PR #157 merge 후 Resolved**.
+  - **합계 변동**: PR #157 merge 후 87 → **85 active BL** (BL-150 + BL-176 Resolved -2).
