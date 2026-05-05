@@ -13,6 +13,8 @@ import type {
   TradeItem,
 } from "@/features/backtest/schemas";
 
+import { MonthlyReturnsHeatmap } from "./monthly-returns-heatmap";
+
 interface TradeAnalysisProps {
   metrics: BacktestMetricsOut;
   /**
@@ -99,6 +101,12 @@ export function TradeAnalysis({ metrics, trades }: TradeAnalysisProps) {
         <p className="mt-1 text-center text-xs text-[color:var(--text-muted)]">
           승률 {winPct.toFixed(1)}% · 패률 {(100 - winPct).toFixed(1)}%
         </p>
+      </section>
+
+      {/* 월별 수익률 히트맵 (Sprint 30-γ) */}
+      <section>
+        <SectionTitle>월별 수익률</SectionTitle>
+        <MonthlyReturnsHeatmap data={metrics.monthly_returns} />
       </section>
 
       {/* 평균 수익 vs 손실 */}
