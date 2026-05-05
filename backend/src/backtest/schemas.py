@@ -166,10 +166,33 @@ class EquityPoint(BaseModel):
         return str(v)
 
 
+class BacktestConfigOut(BaseModel):
+    """PRD `backtests.config` JSONB 5 가정 — FE AssumptionsCard 노출용.
+
+    Sprint 31 BL-156: leverage / fees / slippage / include_funding 응답 활성화.
+    `initial_capital` 은 BacktestDetail 최상위 필드라 본 모델에선 생략.
+
+    leverage 는 *명시적 가정* 으로 노출 — 현재 pine_v2 엔진은 leverage 를
+    PnL 계산에 적용하지 않으므로 (qty 가 절대 수량) 사용자가 자본 대비 손실
+    한계 (-100%) 를 초과하는 MDD 를 해석할 때 참고. >1.0 는 자연스럽게
+    설명 가능.
+    """
+
+    leverage: float
+    fees: float
+    slippage: float
+    include_funding: bool
+
+
 class BacktestDetail(BacktestSummary):
-    """GET /:id 상세 — metrics/equity_curve/error 포함."""
+    """GET /:id 상세 — metrics/equity_curve/error/config 포함.
+
+    Sprint 31 BL-156: `config` 필드 활성화 (PRD 5 가정). FE AssumptionsCard
+    가 default 표시 graceful degrade → 실제값 응답 으로 graceful upgrade.
+    """
 
     initial_capital: Decimal
+    config: BacktestConfigOut | None = None
     metrics: BacktestMetricsOut | None = None
     equity_curve: list[EquityPoint] | None = None
     error: str | None = None
