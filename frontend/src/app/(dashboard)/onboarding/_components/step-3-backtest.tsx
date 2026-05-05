@@ -73,6 +73,11 @@ export function Step3Backtest({
       period_start: window.period_start,
       period_end: window.period_end,
       initial_capital: INITIAL_CAPITAL,
+      // Sprint 31 BL-162a — Bybit Perpetual taker 표준 default (onboarding fixed).
+      leverage: 1,
+      fees_pct: 0.001,
+      slippage_pct: 0.0005,
+      include_funding: true,
     });
   }, [strategyId, create, backtestId]);
 

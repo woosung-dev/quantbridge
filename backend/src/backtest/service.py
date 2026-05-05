@@ -7,13 +7,14 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 import pandas as pd
 
 from src.backtest.dispatcher import TaskDispatcher
 from src.backtest.engine import run_backtest
-from src.backtest.engine.types import RawTrade
+from src.backtest.engine.types import BacktestConfig, RawTrade
 from src.backtest.exceptions import (
     BacktestDuplicateIdempotencyKey,
     BacktestNotFound,
@@ -161,6 +162,16 @@ class BacktestService:
                 degraded_calls=degraded_list,
             )
 
+        # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 5 가정 (TradingView 패턴).
+        # Backtest.config JSONB 컬럼에 저장 → BacktestDetail.config 응답이 default
+        # 가 아닌 사용자 입력값 → AssumptionsCard 가 (기본) 마크 자동 제거 (graceful upgrade).
+        config_payload: dict[str, Any] = {
+            "leverage": float(data.leverage),
+            "fees": float(data.fees_pct),
+            "slippage": float(data.slippage_pct),
+            "include_funding": bool(data.include_funding),
+        }
+
         bt = Backtest(
             user_id=user_id,
             strategy_id=data.strategy_id,
@@ -172,6 +183,7 @@ class BacktestService:
             status=BacktestStatus.QUEUED,
             idempotency_key=idempotency_key,
             idempotency_payload_hash=body_hash,
+            config=config_payload,
         )
         await self.repo.create(bt)
 
@@ -260,7 +272,10 @@ class BacktestService:
             return
 
         # Engine (sync CPU-bound — await 없이 직접 호출)
-        outcome = run_backtest(strategy.pine_source, ohlcv)
+        # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 적용 (TradingView 패턴).
+        # bt.config NULL (legacy) 시 engine default fallback.
+        config = self._build_engine_config(bt)
+        outcome = run_backtest(strategy.pine_source, ohlcv, config=config)
 
         # Guard #3: post-engine
         bt3 = await self.repo.get_by_id(backtest_id)
@@ -309,6 +324,27 @@ class BacktestService:
                 await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
 
         await self.repo.commit()
+
+    def _build_engine_config(self, bt: Backtest) -> BacktestConfig:
+        """Sprint 31 BL-162a — Backtest row 의 사용자 입력 config + initial_capital + timeframe →
+        engine BacktestConfig.
+
+        bt.config NULL (legacy / Sprint 30 이전) 시 engine default 사용 (init_cash /
+        freq 만 bt 값 적용). bt.config 채워진 경우 leverage/fees/slippage/include_funding
+        모두 사용자 입력값으로 override.
+        """
+        default = BacktestConfig()
+        cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
+        return BacktestConfig(
+            init_cash=bt.initial_capital,
+            fees=float(cfg_dict.get("fees", default.fees)),
+            slippage=float(cfg_dict.get("slippage", default.slippage)),
+            freq=_timeframe_to_freq(bt.timeframe),
+            leverage=float(cfg_dict.get("leverage", default.leverage)),
+            include_funding=bool(
+                cfg_dict.get("include_funding", default.include_funding)
+            ),
+        )
 
     def _raw_trades_to_models(
         self,
@@ -474,21 +510,30 @@ class BacktestService:
         """
         metrics_out: BacktestMetricsOut | None = None
         equity_out: list[EquityPoint] | None = None
-        # Sprint 31 BL-156: config 5 가정 응답 활성화. 현재 Backtest 모델에는
-        # config 컬럼이 없으므로 engine BacktestConfig default 를 그대로 노출
-        # (FE AssumptionsCard 가 default 표시하던 것을 BE 응답으로 graceful
-        # upgrade — Sprint 30 alpha 의 graceful degrade pattern 완성).
-        # 향후 (Sprint 32+) Backtest 모델에 config JSONB 컬럼 추가 시 본 메서드
-        # 가 bt.config 우선 사용, default 는 fallback 으로 유지.
-        from src.backtest.engine.types import BacktestConfig as _Cfg
-
-        _default = _Cfg()
-        config_out = BacktestConfigOut(
-            leverage=_default.leverage,
-            fees=_default.fees,
-            slippage=_default.slippage,
-            include_funding=_default.include_funding,
-        )
+        # Sprint 31 BL-156 + BL-162a: config 5 가정 응답.
+        # bt.config (사용자 입력 JSONB, BL-162a) 우선 사용 → 사용자가 BacktestForm
+        # 에 입력한 비용/마진 값이 그대로 응답 → AssumptionsCard 가 (기본) 마크
+        # 자동 제거 (graceful upgrade). bt.config NULL (legacy / Sprint 30 이전)
+        # 시 engine BacktestConfig default fallback (graceful degrade).
+        _default = BacktestConfig()
+        if bt.config is not None:
+            # 사용자 입력값 — float coerce + 누락 키는 default 로 fallback (방어).
+            cfg_dict = bt.config
+            config_out = BacktestConfigOut(
+                leverage=float(cfg_dict.get("leverage", _default.leverage)),
+                fees=float(cfg_dict.get("fees", _default.fees)),
+                slippage=float(cfg_dict.get("slippage", _default.slippage)),
+                include_funding=bool(
+                    cfg_dict.get("include_funding", _default.include_funding)
+                ),
+            )
+        else:
+            config_out = BacktestConfigOut(
+                leverage=_default.leverage,
+                fees=_default.fees,
+                slippage=_default.slippage,
+                include_funding=_default.include_funding,
+            )
         if bt.status == BacktestStatus.COMPLETED:
             if bt.metrics:
                 m = metrics_from_jsonb(bt.metrics)
@@ -561,6 +606,28 @@ class BacktestService:
             equity_curve=equity_out,
             error=bt.error,
         )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31 BL-162a — timeframe → pandas offset alias.
+# ---------------------------------------------------------------------------
+
+
+# CreateBacktestRequest 의 6 timeframe Literal 과 정합. v2_adapter 의
+# `_FREQ_HOURS_V2` 와 정합 (avg_holding_hours 변환 매핑 한 쌍).
+_TIMEFRAME_TO_FREQ: dict[str, str] = {
+    "1m": "1min",
+    "5m": "5min",
+    "15m": "15min",
+    "1h": "1h",
+    "4h": "4h",
+    "1d": "1D",
+}
+
+
+def _timeframe_to_freq(timeframe: str) -> str:
+    """timeframe Literal → pandas offset alias. 미매핑 시 '1D' fallback (안전)."""
+    return _TIMEFRAME_TO_FREQ.get(timeframe, "1D")
 
 
 # ---------------------------------------------------------------------------

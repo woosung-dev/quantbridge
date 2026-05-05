@@ -17,6 +17,12 @@ class CreateBacktestRequest(BaseModel):
     Sprint 29 codex G2 P0 fix: `allow_degraded_pine` 명시 동의 — Trust Layer 의도적 위반
     함수 (heikinashi / request.security / timeframe.period) 사용 strategy 의 backtest 는
     본 flag 없이는 422 reject. dogfood-first 정합 (사용자가 거짓 양성 risk 명시 인지).
+
+    Sprint 31 BL-162a — TradingView strategy 속성 패턴 대응. 비용 시뮬레이션
+    + 마진 사용자 입력 (leverage / fees_pct / slippage_pct / include_funding)
+    추가. AssumptionsCard 가 default 표시 → 사용자 입력 시 실제값 graceful upgrade.
+    default = Bybit Perpetual taker 표준 (1x 현물 + 0.1% 수수료 + 0.05%
+    슬리피지 + 펀딩 ON).
     """
 
     strategy_id: UUID
@@ -27,6 +33,33 @@ class CreateBacktestRequest(BaseModel):
     initial_capital: Decimal = Field(gt=Decimal("0"), max_digits=20, decimal_places=8)
     # Sprint 29 codex G2 P0 — degraded Pine semantic 명시 동의. default False (안전 fallback).
     allow_degraded_pine: bool = False
+    # Sprint 31 BL-162a — 비용 시뮬레이션 + 마진 사용자 입력 (TradingView 패턴).
+    # leverage 1.0 = 현물, >1.0 = 선물. Bybit 표준 max 125x.
+    leverage: Decimal = Field(
+        default=Decimal("1.0"),
+        ge=Decimal("1.0"),
+        le=Decimal("125.0"),
+        max_digits=6,
+        decimal_places=2,
+    )
+    # 수수료 0 ~ 1% (Bybit/OKX taker 표준 0.10%).
+    fees_pct: Decimal = Field(
+        default=Decimal("0.001"),
+        ge=Decimal("0"),
+        le=Decimal("0.01"),
+        max_digits=6,
+        decimal_places=5,
+    )
+    # 슬리피지 0 ~ 1% (호가창 평균 0.05%).
+    slippage_pct: Decimal = Field(
+        default=Decimal("0.0005"),
+        ge=Decimal("0"),
+        le=Decimal("0.01"),
+        max_digits=6,
+        decimal_places=5,
+    )
+    # 펀딩비 반영 ON/OFF (8h 무기한 선물).
+    include_funding: bool = True
 
     @model_validator(mode="after")
     def _validate_period(self) -> Self:

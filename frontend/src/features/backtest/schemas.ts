@@ -42,6 +42,13 @@ export type TradeStatus = z.infer<typeof TradeStatusSchema>;
 
 // --- Request --------------------------------------------------------------
 
+// Sprint 31 BL-162a — TradingView strategy 속성 패턴 비용/마진 사용자 입력.
+// BE Pydantic Field ge/le 정합:
+//   leverage    : 1 ~ 125 (Bybit 표준)
+//   fees_pct    : 0 ~ 0.01 (1%)
+//   slippage_pct: 0 ~ 0.01 (1%)
+// 기본값 (Bybit Perpetual taker 표준): 1x 현물 / 0.10% 수수료 / 0.05% 슬리피지 /
+// 펀딩 ON. 사용자가 BacktestForm 에서 자기 strategy 에 맞게 변경.
 export const CreateBacktestRequestSchema = z
   .object({
     strategy_id: z.uuid(),
@@ -52,6 +59,25 @@ export const CreateBacktestRequestSchema = z
     initial_capital: z.number().positive().refine(Number.isFinite, {
       message: "initial_capital must be finite",
     }),
+    leverage: z
+      .number()
+      .min(1)
+      .max(125)
+      .refine(Number.isFinite, { message: "leverage must be finite" })
+      .default(1),
+    fees_pct: z
+      .number()
+      .min(0)
+      .max(0.01)
+      .refine(Number.isFinite, { message: "fees_pct must be finite" })
+      .default(0.001),
+    slippage_pct: z
+      .number()
+      .min(0)
+      .max(0.01)
+      .refine(Number.isFinite, { message: "slippage_pct must be finite" })
+      .default(0.0005),
+    include_funding: z.boolean().default(true),
   })
   .refine((v) => new Date(v.period_end) > new Date(v.period_start), {
     message: "period_end must be after period_start",
