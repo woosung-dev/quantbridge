@@ -12,7 +12,14 @@ from src.strategy.pine import ParseOutcome, PineError
 
 @dataclass(frozen=True)
 class BacktestConfig:
-    """vectorbt Portfolio.from_signals() 호출 파라미터."""
+    """엔진 실행 설정 (pine_v2 path는 vectorbt 의존 없이 직접 PnL 계산).
+
+    Sprint 31 BL-156: leverage / include_funding 추가 — 응답 노출 (FE
+    AssumptionsCard) 와 PRD `backtests.config` JSONB 5 가정 정합. 현재
+    pine_v2 엔진은 leverage 를 PnL 에 적용하지 않음 (qty 가 절대 수량 →
+    notional / capital 비율로 자연 노출). leverage 는 *명시적 가정* 으로
+    응답에 노출하여 사용자가 MDD/total_return 을 해석할 때 참고하도록 함.
+    """
 
     init_cash: Decimal = Decimal("10000")
     fees: float = 0.001        # 0.1%
@@ -21,6 +28,12 @@ class BacktestConfig:
     # Sprint 7d: 빈 리스트면 24h. 값은 {"asia","london","ny"} 부분집합.
     # 엔진은 entries를 바 timestamp의 UTC hour로 필터링한다.
     trading_sessions: tuple[str, ...] = ()
+    # Sprint 31 BL-156: 응답 노출용 가정 — 현재 pine_v2 엔진 PnL 계산엔 미적용.
+    # leverage=1.0 default = 현물 가정. >1.0 시 사용자가 자본 대비 손실 한계
+    # 를 100% 초과로 해석할 수 있도록 응답에 노출.
+    leverage: float = 1.0
+    # 무기한 선물 funding 비용 — 현재 미반영 (future hook).
+    include_funding: bool = False
 
 
 @dataclass(frozen=True)

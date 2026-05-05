@@ -32,6 +32,7 @@ from src.backtest.models import (
 from src.backtest.repository import BacktestRepository
 from src.backtest.schemas import (
     BacktestCancelResponse,
+    BacktestConfigOut,
     BacktestCreatedResponse,
     BacktestDetail,
     BacktestMetricsOut,
@@ -449,6 +450,21 @@ class BacktestService:
     def _to_detail(self, bt: Backtest) -> BacktestDetail:
         metrics_out: BacktestMetricsOut | None = None
         equity_out: list[EquityPoint] | None = None
+        # Sprint 31 BL-156: config 5 가정 응답 활성화. 현재 Backtest 모델에는
+        # config 컬럼이 없으므로 engine BacktestConfig default 를 그대로 노출
+        # (FE AssumptionsCard 가 default 표시하던 것을 BE 응답으로 graceful
+        # upgrade — Sprint 30 alpha 의 graceful degrade pattern 완성).
+        # 향후 (Sprint 32+) Backtest 모델에 config JSONB 컬럼 추가 시 본 메서드
+        # 가 bt.config 우선 사용, default 는 fallback 으로 유지.
+        from src.backtest.engine.types import BacktestConfig as _Cfg
+
+        _default = _Cfg()
+        config_out = BacktestConfigOut(
+            leverage=_default.leverage,
+            fees=_default.fees,
+            slippage=_default.slippage,
+            include_funding=_default.include_funding,
+        )
         if bt.status == BacktestStatus.COMPLETED:
             if bt.metrics:
                 m = metrics_from_jsonb(bt.metrics)
@@ -499,6 +515,7 @@ class BacktestService:
             created_at=bt.created_at,
             completed_at=bt.completed_at,
             initial_capital=bt.initial_capital,
+            config=config_out,
             metrics=metrics_out,
             equity_curve=equity_out,
             error=bt.error,

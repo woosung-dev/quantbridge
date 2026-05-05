@@ -107,7 +107,7 @@ def run_backtest_v2(
     try:
         trades = _build_raw_trades(state, cfg)
         equity = _compute_equity_curve(trades, ohlcv, cfg)
-        metrics = _compute_metrics(trades, equity, cfg)
+        metrics = _compute_metrics(trades, equity, cfg, ohlcv)
     except Exception as exc:
         logger.exception("v2_adapter_build_failed")
         return BacktestOutcome(
@@ -283,8 +283,29 @@ def _compute_equity_curve(
 
 
 def _compute_metrics(
-    trades: list[RawTrade], equity: pd.Series, cfg: BacktestConfig
+    trades: list[RawTrade],
+    equity: pd.Series,
+    cfg: BacktestConfig,
+    ohlcv: pd.DataFrame | None = None,
 ) -> BacktestMetrics:
+    """RawTrade list + equity curve → BacktestMetrics 24 필드.
+
+    Sprint 31 BL-154: pine_v2 엔진 production path 에 신규 12 metric 직접
+    계산 (vectorbt 의존 없이 RawTrade + equity Series 만 사용). vectorbt
+    `extract_metrics` (engine/metrics.py) 와 알고리즘 정합:
+      - avg_holding_hours: (exit_bar - entry_bar) * freq_to_hours
+      - consecutive_*_max: closed PnL 부호 streak
+      - long/short_win_rate_pct: direction 별 win_rate
+      - monthly_returns: equity → daily returns → resample('ME') → cumprod
+      - drawdown_curve / drawdown_duration: running_max 대비 % + 연속 음수 bars
+      - annual_return_pct (CAGR): (1+total)^(1/years)-1
+      - avg/best/worst_trade_pct: closed return_pct mean/max/min
+      - total_trades: num_trades alias
+
+    `ohlcv` 는 monthly_returns / drawdown_curve 의 timestamp 매핑용. None
+    이면 monthly/drawdown_curve 는 None 반환 (graceful degrade — 기존
+    fixture 호환).
+    """
     closed = [t for t in trades if t.status == "closed"]
     num_trades = len(closed)
     init_cash = cfg.init_cash
@@ -327,6 +348,21 @@ def _compute_metrics(
         avg_loss = None
         profit_factor = None
 
+    # --- Sprint 31 BL-154: 신규 12 metric (RawTrade + equity 기반 직접 계산) ---
+    avg_holding_hours = _v2_avg_holding_hours(closed, cfg.freq) if num_trades > 0 else None
+    consecutive_wins_max, consecutive_losses_max = (
+        _v2_streaks(closed) if num_trades > 0 else (None, None)
+    )
+    long_win_rate_pct = _v2_side_win_rate(closed, "long") if num_trades > 0 else None
+    short_win_rate_pct = _v2_side_win_rate(closed, "short") if num_trades > 0 else None
+    monthly_returns = _v2_monthly_returns(equity_float, ohlcv)
+    drawdown_curve, drawdown_duration = _v2_drawdown_extract(equity_float, ohlcv)
+    annual_return_pct = _v2_annual_return(total_return, ohlcv)
+    avg_trade_pct, best_trade_pct, worst_trade_pct = (
+        _v2_trade_returns_stats(closed) if num_trades > 0 else (None, None, None)
+    )
+    total_trades_alias: int | None = num_trades  # PRD parity alias
+
     return BacktestMetrics(
         total_return=total_return,
         sharpe_ratio=sharpe_ratio,
@@ -340,7 +376,215 @@ def _compute_metrics(
         avg_loss=avg_loss,
         long_count=long_count,
         short_count=short_count,
+        avg_holding_hours=avg_holding_hours,
+        consecutive_wins_max=consecutive_wins_max,
+        consecutive_losses_max=consecutive_losses_max,
+        long_win_rate_pct=long_win_rate_pct,
+        short_win_rate_pct=short_win_rate_pct,
+        monthly_returns=monthly_returns,
+        drawdown_duration=drawdown_duration,
+        annual_return_pct=annual_return_pct,
+        total_trades=total_trades_alias,
+        avg_trade_pct=avg_trade_pct,
+        best_trade_pct=best_trade_pct,
+        worst_trade_pct=worst_trade_pct,
+        drawdown_curve=drawdown_curve,
     )
+
+
+# --- Sprint 31 BL-154: pine_v2 path 신규 12 metric helper ---
+
+# pandas offset alias → bar 1개 당 시간 (engine/metrics.py 와 정합).
+_FREQ_HOURS_V2: dict[str, float] = {
+    "1m": 1.0 / 60.0,
+    "5m": 5.0 / 60.0,
+    "15m": 15.0 / 60.0,
+    "30m": 30.0 / 60.0,
+    "1h": 1.0,
+    "2h": 2.0,
+    "4h": 4.0,
+    "8h": 8.0,
+    "12h": 12.0,
+    "1d": 24.0,
+    "1D": 24.0,
+    "D": 24.0,
+}
+
+
+def _freq_to_hours_v2(freq: str) -> float:
+    """매핑 없으면 24h fallback (engine/metrics.py 와 동일)."""
+    return _FREQ_HOURS_V2.get(freq, 24.0)
+
+
+def _v2_avg_holding_hours(closed: list[RawTrade], freq: str) -> Decimal | None:
+    """closed trade 의 (exit_bar - entry_bar) * freq_to_hours 평균."""
+    if not closed:
+        return None
+    bars: list[int] = []
+    for t in closed:
+        if t.exit_bar_index is None:
+            continue
+        bars.append(int(t.exit_bar_index) - int(t.entry_bar_index))
+    if not bars:
+        return None
+    avg_bars = sum(bars) / len(bars)
+    if not math.isfinite(avg_bars):
+        return None
+    return Decimal(str(avg_bars * _freq_to_hours_v2(freq)))
+
+
+def _v2_streaks(closed: list[RawTrade]) -> tuple[int | None, int | None]:
+    """closed trade PnL 부호 streak 최대값. 0 → 양쪽 reset."""
+    if not closed:
+        return (None, None)
+    max_win = 0
+    max_loss = 0
+    cur_win = 0
+    cur_loss = 0
+    for t in closed:
+        pnl = t.pnl
+        if pnl > 0:
+            cur_win += 1
+            cur_loss = 0
+            if cur_win > max_win:
+                max_win = cur_win
+        elif pnl < 0:
+            cur_loss += 1
+            cur_win = 0
+            if cur_loss > max_loss:
+                max_loss = cur_loss
+        else:
+            cur_win = 0
+            cur_loss = 0
+    return (int(max_win), int(max_loss))
+
+
+def _v2_side_win_rate(closed: list[RawTrade], side: str) -> Decimal | None:
+    """direction 별 win_rate. 해당 side 0건이면 None."""
+    sub = [t for t in closed if t.direction == side]
+    if not sub:
+        return None
+    win_count = sum(1 for t in sub if t.pnl > 0)
+    return Decimal(win_count) / Decimal(len(sub))
+
+
+def _v2_monthly_returns(
+    equity_float: pd.Series, ohlcv: pd.DataFrame | None
+) -> list[tuple[str, Decimal]] | None:
+    """equity → daily returns → resample('ME') → ("YYYY-MM", Decimal). 1개월 미만 None."""
+    if ohlcv is None or len(equity_float) < 2:
+        return None
+    try:
+        # equity index 가 DatetimeIndex 라야 resample 가능. ohlcv.index 사용.
+        if not isinstance(ohlcv.index, pd.DatetimeIndex):
+            return None
+        eq = pd.Series(equity_float.values, index=ohlcv.index, dtype=float)
+        returns = eq.pct_change().dropna()
+        if returns.empty:
+            return None
+        # 'ME' (Month End) — pandas 2.2+ deprecation 'M' → 'ME' 정합.
+        monthly = returns.resample("ME").apply(lambda r: float((1.0 + r).prod() - 1.0))
+        result: list[tuple[str, Decimal]] = []
+        for ts, val in monthly.items():
+            f = float(val)
+            if not math.isfinite(f):
+                continue
+            ts_obj = pd.Timestamp(str(ts)) if not isinstance(ts, pd.Timestamp) else ts
+            key = ts_obj.strftime("%Y-%m")
+            result.append((key, Decimal(str(f))))
+        return result if result else None
+    except Exception:
+        return None
+
+
+def _v2_drawdown_extract(
+    equity_float: pd.Series, ohlcv: pd.DataFrame | None
+) -> tuple[list[tuple[str, Decimal]] | None, int | None]:
+    """equity → (running_max - equity) / running_max → curve + 최대 연속 음수 bars.
+
+    drawdown_curve 는 timestamp 가 필요하므로 ohlcv 가 None 이면 (None, max_dur)
+    반환 (max_dur 는 무관계로 계산 가능).
+    """
+    if len(equity_float) == 0:
+        return (None, None)
+    try:
+        running_max = equity_float.cummax()
+        # ZeroDivisionError 방어 — running_max 0 시 NaN 후 0 으로 fallback (math.isfinite 체크).
+        dd = (equity_float - running_max) / running_max.replace(0, float("nan"))
+        max_dur = 0
+        cur_dur = 0
+        curve: list[tuple[str, Decimal]] | None = None
+        if ohlcv is not None and isinstance(ohlcv.index, pd.DatetimeIndex):
+            curve_list: list[tuple[str, Decimal]] = []
+            for ts, f in zip(ohlcv.index, dd.values, strict=True):
+                f_val = float(f) if math.isfinite(float(f)) else 0.0
+                ts_obj = pd.Timestamp(str(ts)) if not isinstance(ts, pd.Timestamp) else ts
+                iso = ts_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+                curve_list.append((iso, Decimal(str(f_val))))
+                if f_val < 0:
+                    cur_dur += 1
+                    if cur_dur > max_dur:
+                        max_dur = cur_dur
+                else:
+                    cur_dur = 0
+            curve = curve_list if curve_list else None
+        else:
+            for f in dd.values:
+                f_val = float(f) if math.isfinite(float(f)) else 0.0
+                if f_val < 0:
+                    cur_dur += 1
+                    if cur_dur > max_dur:
+                        max_dur = cur_dur
+                else:
+                    cur_dur = 0
+        return (curve, int(max_dur))
+    except Exception:
+        return (None, None)
+
+
+def _v2_annual_return(total_return: Decimal, ohlcv: pd.DataFrame | None) -> Decimal | None:
+    """CAGR = (1+total)^(1/years)-1. period < 1d 또는 base ≤ 0 시 None."""
+    if ohlcv is None or len(ohlcv.index) < 2:
+        return None
+    try:
+        idx = ohlcv.index
+        if not isinstance(idx, pd.DatetimeIndex):
+            return None
+        start = pd.Timestamp(str(idx[0]))
+        end = pd.Timestamp(str(idx[-1]))
+        days = (end - start).total_seconds() / 86400.0
+        if days <= 0:
+            return None
+        years = days / 365.25
+        if years <= 0:
+            return None
+        total_f = float(total_return)
+        if not math.isfinite(total_f):
+            return None
+        base = 1.0 + total_f
+        if base <= 0:
+            return None
+        cagr = base ** (1.0 / years) - 1.0
+        if not math.isfinite(cagr):
+            return None
+        return Decimal(str(cagr))
+    except Exception:
+        return None
+
+
+def _v2_trade_returns_stats(
+    closed: list[RawTrade],
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    """closed return_pct mean / max / min. 빈 list 시 (None, None, None)."""
+    if not closed:
+        return (None, None, None)
+    rets = [t.return_pct for t in closed]
+    if not rets:
+        return (None, None, None)
+    avg = sum(rets, start=Decimal("0")) / Decimal(len(rets))
+    best = max(rets)
+    worst = min(rets)
+    return (avg, best, worst)
 
 
 def _as_float_series(equity: pd.Series) -> pd.Series:
