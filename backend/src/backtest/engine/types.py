@@ -86,6 +86,18 @@ class BacktestMetrics:
     # MDD 가 -100% (= -1.0) 미만 = 자본 100% 초과 손실 시나리오. leverage > 1.0
     # 가정 하에서만 수학적으로 가능. False = 정상 [-1.0, 0.0] 범위.
     mdd_exceeds_capital: bool | None = None
+    # Sprint 34 BL-175 — Buy & Hold benchmark curve (정확 OHLCV 가격 기반).
+    #
+    # 정의: init_cash * (close[i] / close[0]) — Backtest 의 initial_capital 을
+    # 첫 bar close 가격에 매수 후 끝 bar close 가격까지 보유 시의 자본 곡선.
+    # equity_curve 와 timestamp 1:1 align. ("YYYY-MM-DDTHH:MM:SSZ", value).
+    #
+    # **fail-closed 정책 (P1-3):** OHLCV close 1건이라도 NaN/<=0 시 None 반환
+    # → frontend BH series 미렌더 + ChartLegend BH 항목 자동 hide. 거짓 trust
+    # 차단 (Surface Trust ADR-019). partial silent line 금지.
+    #
+    # vectorbt 경로 (extract_metrics) 는 ohlcv 미수신 → 항상 None.
+    buy_and_hold_curve: list[tuple[str, Decimal]] | None = None
 
 
 @dataclass(frozen=True)

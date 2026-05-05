@@ -584,6 +584,10 @@ class BacktestService:
                     # Sprint 32-D BL-156: MDD 수학 정합 메타.
                     mdd_unit=m.mdd_unit,
                     mdd_exceeds_capital=m.mdd_exceeds_capital,
+                    # Sprint 34 BL-175: Buy & Hold curve (OHLCV 첫/끝 close 기반).
+                    # 본 spread 누락 시 silent BUG = JSONB 에 저장된 BH curve 가
+                    # FE 응답에 0건 → 거짓 trust 회복 실패 (P1-2 R-2 회귀 hotspot).
+                    buy_and_hold_curve=m.buy_and_hold_curve,
                 )
             if bt.equity_curve:
                 equity_out = [

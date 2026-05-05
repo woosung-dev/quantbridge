@@ -164,6 +164,10 @@ class BacktestMetricsOut(BaseModel):
     # FE 카드가 leverage 가정과 inline 표시.
     mdd_unit: str | None = None
     mdd_exceeds_capital: bool | None = None
+    # Sprint 34 BL-175 — Buy & Hold 정확 계산 (OHLCV 첫/끝 close 기반).
+    # init_cash * (close[i] / close[0]) curve. equity_curve 와 timestamp 1:1.
+    # fail-closed: OHLCV close 1건이라도 NaN/<=0 시 None → FE BH series hide.
+    buy_and_hold_curve: list[tuple[str, Decimal]] | None = None
 
     @field_serializer(
         "total_return", "sharpe_ratio", "max_drawdown", "win_rate",
@@ -188,6 +192,15 @@ class BacktestMetricsOut(BaseModel):
         self, v: list[tuple[str, Decimal]] | None
     ) -> list[list[str]] | None:
         """list[(ISO ts, Decimal)] → list[[str, str]]."""
+        if v is None:
+            return None
+        return [[ts, str(val)] for ts, val in v]
+
+    @field_serializer("buy_and_hold_curve")
+    def _buy_and_hold_curve_to_jsonable(
+        self, v: list[tuple[str, Decimal]] | None
+    ) -> list[list[str]] | None:
+        """list[(ISO ts, Decimal)] → list[[str, str]]. drawdown_curve 와 동일 패턴."""
         if v is None:
             return None
         return [[ts, str(val)] for ts, val in v]

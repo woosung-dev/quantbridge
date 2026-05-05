@@ -149,17 +149,51 @@ describe("EquityChartV2 — 2-pane shell (Sprint 32-B BL-169+170)", () => {
     expect(chartInstances).toHaveLength(2);
   });
 
-  it("renders ChartLegend with 2 items (Equity / DD) — BH hidden after BL-175 hotfix", () => {
-    // Sprint 33 BL-175 hotfix: computeBuyAndHold 가 빈 배열 반환 →
-    // benchmarkData.length === 0 → showBenchmark=false → ChartLegend 가 BH 항목 hide.
-    // 거짓 trust 차단 (legend 와 chart 데이터 mismatch 0건). 본격 BH 는
-    // Sprint 34 backend buy_and_hold_curve 신규 후 재활성화.
+  it("renders ChartLegend without BH when buyAndHoldCurve is null/undefined", () => {
+    // Sprint 34 BL-175: backend metrics.buy_and_hold_curve 가 null 시 BH series
+    // 미렌더 + ChartLegend BH 항목 자동 hide. fail-closed 정책 정합 (OHLCV
+    // close 1건이라도 invalid → BE 가 None → FE BH series 0).
     render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} />);
 
     expect(screen.getByRole("list", { name: "차트 범례" })).toBeInTheDocument();
     expect(screen.getByText("Equity (자본 곡선)")).toBeInTheDocument();
     expect(screen.queryByText("Buy & Hold (단순보유)")).not.toBeInTheDocument();
     expect(screen.getByText("Drawdown (손실 폭)")).toBeInTheDocument();
+  });
+
+  it("renders ChartLegend with BH when buyAndHoldCurve has data (Sprint 34 BL-175)", () => {
+    // backend 가 정확 BH curve 제공 시 ChartLegend BH 항목 visible + BH series 렌더.
+    const BH_CURVE: EquityPoint[] = [
+      { timestamp: "2026-01-01T00:00:00Z", value: 10000 },
+      { timestamp: "2026-01-02T00:00:00Z", value: 10100 },
+      { timestamp: "2026-01-03T00:00:00Z", value: 10250 },
+    ];
+    render(
+      <EquityChartV2
+        equityCurve={EQUITY}
+        initialCapital={10000}
+        buyAndHoldCurve={BH_CURVE}
+      />,
+    );
+
+    expect(screen.getByRole("list", { name: "차트 범례" })).toBeInTheDocument();
+    expect(screen.getByText("Equity (자본 곡선)")).toBeInTheDocument();
+    expect(screen.getByText("Buy & Hold (단순보유)")).toBeInTheDocument();
+    expect(screen.getByText("Drawdown (손실 폭)")).toBeInTheDocument();
+  });
+
+  it("hides BH series when buyAndHoldCurve is empty array (fail-closed BE response)", () => {
+    // BE 가 OHLCV invalid close 발견 시 None → FE schema 가 null 로 받음.
+    // 빈 배열도 동일 처리 (defensive — schema 변경 시 보호).
+    render(
+      <EquityChartV2
+        equityCurve={EQUITY}
+        initialCapital={10000}
+        buyAndHoldCurve={[]}
+      />,
+    );
+
+    expect(screen.queryByText("Buy & Hold (단순보유)")).not.toBeInTheDocument();
   });
 
   it("computes trade markers automatically (entry + exit) for Equity pane", () => {

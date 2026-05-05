@@ -369,6 +369,8 @@ def _compute_metrics(
         _v2_trade_returns_stats(closed) if num_trades > 0 else (None, None, None)
     )
     total_trades_alias: int | None = num_trades  # PRD parity alias
+    # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV close 기반).
+    buy_and_hold_curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
 
     return BacktestMetrics(
         total_return=total_return,
@@ -399,6 +401,8 @@ def _compute_metrics(
         # Sprint 32-D BL-156: MDD 수학 정합 메타 (FE 카드 inline 표시용).
         mdd_unit="equity_ratio",
         mdd_exceeds_capital=mdd_exceeds_capital,
+        # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV 기반).
+        buy_and_hold_curve=buy_and_hold_curve,
     )
 
 
@@ -424,6 +428,64 @@ _FREQ_HOURS_V2: dict[str, float] = {
 def _freq_to_hours_v2(freq: str) -> float:
     """매핑 없으면 24h fallback (engine/metrics.py 와 동일)."""
     return _FREQ_HOURS_V2.get(freq, 24.0)
+
+
+def _v2_buy_and_hold_curve(
+    ohlcv: pd.DataFrame | None, init_cash: Decimal
+) -> list[tuple[str, Decimal]] | None:
+    """Buy & Hold benchmark curve — OHLCV 첫 close 가격에 init_cash 매수 후 보유.
+
+    공식: bh[i] = init_cash * close[i] / close[0]
+    timestamp 형식: equity_curve / drawdown_curve 와 동일 ISO ("YYYY-MM-DDTHH:MM:SSZ").
+
+    **fail-closed 정책 (P1-3, Sprint 34 BL-175):**
+    - ohlcv None 또는 "close" 컬럼 부재 → None
+    - len(ohlcv) < 2 (1 bar 이하 → BH 의미 없음) → None
+    - DatetimeIndex 가 아닌 경우 → None
+    - 첫 close NaN 또는 <=0 → None (zero division 차단)
+    - **임의 close NaN 또는 <=0 1건이라도 → None** (partial silent line = 거짓 trust 차단)
+
+    full curve 가 valid 한 경우만 반환 → frontend BH series 미렌더 + ChartLegend
+    BH 항목 자동 hide (Surface Trust ADR-019 정합).
+
+    Decimal-first 합산: close 는 OHLCV 원본 dtype 이 float 이지만 Decimal(str(...))
+    경유로 Decimal 공간에서 곱셈/나눗셈. equity_curve 와 동일 패턴.
+    """
+    if ohlcv is None or "close" not in ohlcv.columns:
+        return None
+    if len(ohlcv) < 2:
+        return None
+    if not isinstance(ohlcv.index, pd.DatetimeIndex):
+        return None
+
+    # 1차 fail-closed gate — 첫 close 검증.
+    try:
+        first_close = Decimal(str(ohlcv["close"].iloc[0]))
+    except Exception:
+        return None
+    if first_close.is_nan() or first_close <= 0:
+        return None
+
+    # 2차 fail-closed gate — 모든 close 검증 (1건이라도 invalid → None 반환).
+    closes_decimal: list[Decimal] = []
+    for raw in ohlcv["close"]:
+        try:
+            c = Decimal(str(raw))
+        except Exception:
+            return None
+        if c.is_nan() or c <= 0:
+            return None  # partial silent line 차단
+        closes_decimal.append(c)
+
+    # 검증 통과 후만 curve 생성.
+    curve: list[tuple[str, Decimal]] = []
+    for ts, close_dec in zip(ohlcv.index, closes_decimal, strict=True):
+        ts_obj = pd.Timestamp(str(ts)) if not isinstance(ts, pd.Timestamp) else ts
+        iso = ts_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+        bh_value = init_cash * close_dec / first_close
+        curve.append((iso, bh_value))
+
+    return curve
 
 
 def _v2_avg_holding_hours(closed: list[RawTrade], freq: str) -> Decimal | None:

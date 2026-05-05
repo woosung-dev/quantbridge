@@ -13,6 +13,7 @@ from src.backtest.engine.v2_adapter import (
     _compute_equity_curve,
     _compute_metrics,
     _detect_version,
+    _v2_buy_and_hold_curve,
 )
 from src.strategy.pine_v2.strategy_state import StrategyState, Trade
 
@@ -253,3 +254,97 @@ def test_metrics_win_rate_from_closed_trades() -> None:
     assert metrics.profit_factor is not None
     # gross profit = 15, gross loss = 10 → PF = 1.5
     assert metrics.profit_factor == Decimal("15") / Decimal("10")
+
+
+# --- _v2_buy_and_hold_curve (Sprint 34 BL-175) -------------------------------
+
+
+def _ohlcv_with_index(closes: list[float]) -> pd.DataFrame:
+    """DatetimeIndex + close 컬럼 OHLCV — BH curve timestamp 매핑용."""
+    idx = pd.date_range(start="2026-01-01", periods=len(closes), freq="1D")
+    return pd.DataFrame(
+        {
+            "open": closes,
+            "high": [c + 0.5 for c in closes],
+            "low": [c - 0.5 for c in closes],
+            "close": closes,
+            "volume": [100.0] * len(closes),
+        },
+        index=idx,
+    )
+
+
+def test_buy_and_hold_curve_uses_ohlcv_first_close_as_basis() -> None:
+    """close 100→200, init 10000 → curve[-1] == 20000 (init * last/first).
+
+    BH 의미: 첫 bar 에 init_cash 로 자산 매수 후 끝까지 보유 → 가격 비율로 자본 변화.
+    """
+    ohlcv = _ohlcv_with_index([100.0, 150.0, 200.0])
+    init_cash = Decimal("10000")
+    curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
+    assert curve is not None
+    assert len(curve) == 3
+    # 첫 시점 = init_cash (close[0]/close[0] * init = 1 * init).
+    assert curve[0][1] == Decimal("10000")
+    # 중간 시점 = init * 150/100 = 15000.
+    assert curve[1][1] == Decimal("15000")
+    # 마지막 시점 = init * 200/100 = 20000.
+    assert curve[2][1] == Decimal("20000")
+    # timestamp 형식 = ISO Z.
+    assert curve[0][0] == "2026-01-01T00:00:00Z"
+    assert curve[2][0] == "2026-01-03T00:00:00Z"
+
+
+def test_buy_and_hold_curve_returns_none_when_ohlcv_too_short() -> None:
+    """len < 2 → None (BH 의미 없음)."""
+    # 1 bar.
+    ohlcv = _ohlcv_with_index([100.0])
+    assert _v2_buy_and_hold_curve(ohlcv, Decimal("10000")) is None
+    # 0 bar (empty DataFrame).
+    empty = pd.DataFrame(
+        {"open": [], "high": [], "low": [], "close": [], "volume": []},
+        index=pd.DatetimeIndex([]),
+    )
+    assert _v2_buy_and_hold_curve(empty, Decimal("10000")) is None
+    # ohlcv None.
+    assert _v2_buy_and_hold_curve(None, Decimal("10000")) is None
+
+
+def test_buy_and_hold_curve_returns_none_when_first_close_is_zero_or_negative() -> None:
+    """첫 close <=0 → zero division 차단 → None (fail-closed)."""
+    ohlcv_zero = _ohlcv_with_index([0.0, 100.0, 200.0])
+    assert _v2_buy_and_hold_curve(ohlcv_zero, Decimal("10000")) is None
+    ohlcv_neg = _ohlcv_with_index([-50.0, 100.0, 200.0])
+    assert _v2_buy_and_hold_curve(ohlcv_neg, Decimal("10000")) is None
+
+
+def test_buy_and_hold_curve_returns_none_when_any_close_is_nan_or_nonpositive() -> None:
+    """P1-3 fail-closed: 임의 close 1건이라도 NaN/<=0 → None (partial silent line 차단).
+
+    핵심: curve 의 일부만 valid 한 부분 line 은 거짓 trust → Surface Trust ADR-019 위반.
+    """
+    # 중간 close 가 0.
+    ohlcv_mid_zero = _ohlcv_with_index([100.0, 0.0, 200.0])
+    assert _v2_buy_and_hold_curve(ohlcv_mid_zero, Decimal("10000")) is None
+    # 끝 close 가 음수.
+    ohlcv_end_neg = _ohlcv_with_index([100.0, 150.0, -10.0])
+    assert _v2_buy_and_hold_curve(ohlcv_end_neg, Decimal("10000")) is None
+    # NaN 포함.
+    ohlcv_nan = _ohlcv_with_index([100.0, float("nan"), 200.0])
+    assert _v2_buy_and_hold_curve(ohlcv_nan, Decimal("10000")) is None
+
+
+def test_buy_and_hold_curve_timestamp_alignment_with_equity_curve() -> None:
+    """BH curve 의 timestamp 가 OHLCV index 와 1:1 cardinality (mismatch 0 risk)."""
+    ohlcv = _ohlcv_with_index([100.0, 105.0, 110.0, 108.0, 115.0])
+    init_cash = Decimal("10000")
+    curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
+    assert curve is not None
+    # 1:1 cardinality.
+    assert len(curve) == len(ohlcv.index)
+    # timestamp 시퀀스 일치.
+    expected_iso = [
+        ts.strftime("%Y-%m-%dT%H:%M:%SZ") for ts in ohlcv.index
+    ]
+    actual_iso = [ts for ts, _ in curve]
+    assert actual_iso == expected_iso
