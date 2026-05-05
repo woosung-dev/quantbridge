@@ -33,6 +33,28 @@ const TIMEFRAMES: readonly Timeframe[] = [
   "1d",
 ] as const;
 
+// Sprint 31 BL-167 — date default helper. 6개월 default (180일) UX 마찰 제거.
+function toYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function defaultPeriodEnd(): string {
+  // 어제 (오늘 미완성 일봉 회피, ts.ohlcv backfill 정합)
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toYmd(d);
+}
+
+function defaultPeriodStart(): string {
+  // -180일 (6개월) — 충분한 trade 발생 + monthly_returns heatmap 의미 있음
+  const d = new Date();
+  d.setDate(d.getDate() - 181);
+  return toYmd(d);
+}
+
 interface FormValues {
   strategy_id: string;
   symbol: string;
@@ -74,8 +96,11 @@ export function BacktestForm() {
       strategy_id: initialStrategyId,
       symbol: "BTC/USDT",
       timeframe: "1h",
-      period_start: "",
-      period_end: "",
+      // Sprint 31 BL-167 — UX 개선: default 6개월 (180일). 사용자 의향 = 매번
+      // 입력 마찰 제거. period_end = 어제 (오늘 미완성 일봉 회피), period_start
+      // = -180일.
+      period_start: defaultPeriodStart(),
+      period_end: defaultPeriodEnd(),
       initial_capital: 10000,
       // Sprint 31 BL-162a — Bybit Perpetual taker 표준 default.
       leverage: 1,
