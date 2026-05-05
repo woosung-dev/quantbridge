@@ -3,21 +3,20 @@
 // Sprint 30-β (W2): EquityChartV2 — lightweight-charts 기반 equity curve.
 // Sprint 32-B (BL-169 + BL-170): 2-pane split (Equity top + Drawdown bottom)
 //   + ChartLegend + Worker C marker hook (extraMarkers prop).
+// Sprint 32-C (BL-171 + BL-172): MarkerLayer (의미 있는 trade markers) +
+//   AxisLabelBar (Y축/X축 라벨) — ui-ux-pro-max P0 #1 + #5 해소.
 // 기존 equity-chart.tsx (recharts) 는 보존 (rollback path). 신규 차트만 lightweight-charts.
 // ADR: docs/dev-log/2026-05-05-sprint30-chart-lib-decision.md
 //
 // ui-ux-pro-max 진단 (dogfood Day 4 = 5/10) 해소:
-// - P0 #1 Y축 단위 모호 (-9855.71 USDT vs %) → Equity pane = 통화 / Drawdown pane = % 명확 분리
+// - P0 #1 Y축 단위 모호 (-9855.71 USDT vs %) → AxisLabelBar 로 Y/X 축 단위 명시
+//   + DrawdownPane mddExceedsCapital 시 leverage warning inline
 // - P0 #2 3 series 시각 구분 불가 → Legend + LineStyle (solid/dashed/area) 명시
 // - P0 #3 Drawdown -30000 vs KPI -343.15% 매핑 모호 → Drawdown pane Y축 % only
 // - P0 #4 Legend 부재 → ChartLegend inline (top-right)
-// - P0 #5 거래 마커 약자 의미 0 → Worker C (BL-171/172) 후속, 본 PR 은 hook 만 노출
+// - P0 #5 거래 마커 약자 의미 0 → MarkerLayer 가 "L $price" / "+1.23%" 등
+//   의미 있는 text + shape (arrow=entry, circle=exit) + 색상 (PnL 부호) 표시
 // - P0 #6 Y축 dual scale 부재 → 2-pane 으로 자연스러운 dual scale (각 pane 독립 priceScale)
-//
-// Marker hook (Worker C 의존):
-// - `extraMarkers` prop 으로 외부에서 marker 주입 가능
-// - 자동 계산된 trade markers + extraMarkers 가 merge 됨
-// - Worker C 는 본 PR 머지 후 rebase 하여 MarkerLayer 만 추가 (충돌 X)
 
 import { useMemo } from "react";
 
@@ -28,12 +27,11 @@ import type {
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 import { computeBuyAndHold } from "@/features/backtest/utils";
 
+import { AxisLabelBar } from "./axis-label-bar";
 import { ChartLegend } from "./chart-legend";
 import { DrawdownPane } from "./drawdown-pane";
 import { EquityPane } from "./equity-pane";
-
-// 차트 마커 cap — TRADE_LIMIT 정합 (trade-table 의 200건 cap 과 동일 의미).
-const MARKER_LIMIT = 200;
+import { deriveTradeMarkers } from "./marker-layer";
 
 // 2-pane 비율 (ui-ux-pro-max 권장 60/40).
 const TOP_PANE_RATIO = 0.6;
@@ -51,6 +49,16 @@ interface EquityChartV2Props {
    * 본 PR 은 hook point 만 정의 — Worker C (BL-171/172) 가 의미 있는 마커 추가.
    */
   extraMarkers?: readonly ChartMarker[];
+  /**
+   * Sprint 32-C BL-172: candle 단위 (예: "1h", "1d", "15m"). X축 라벨에 표시.
+   * 미지정 시 X축 라벨에 단위 미표시 (그래도 X축 단위 = "시간" 만 안내).
+   */
+  timeframe?: string;
+  /**
+   * Sprint 32-C BL-172: BL-156 메타 (`metrics.mdd_exceeds_capital`) pass-through.
+   * true 면 DrawdownPane Y축 라벨에 leverage warning inline.
+   */
+  mddExceedsCapital?: boolean | null;
 }
 
 interface DrawdownPoint {
@@ -88,6 +96,8 @@ export function EquityChartV2({
   initialCapital,
   height = 360,
   extraMarkers,
+  timeframe,
+  mddExceedsCapital,
 }: EquityChartV2Props) {
   const equityData = useMemo<ChartPoint[]>(
     () =>
@@ -110,32 +120,11 @@ export function EquityChartV2({
     }));
   }, [equityCurve]);
 
-  const tradeMarkers = useMemo<ChartMarker[]>(() => {
-    if (trades === undefined || trades.length === 0) return [];
-    const capped = trades.slice(0, MARKER_LIMIT);
-    const out: ChartMarker[] = [];
-    for (const trade of capped) {
-      // entry marker.
-      out.push({
-        time: trade.entry_time,
-        position: trade.direction === "long" ? "belowBar" : "aboveBar",
-        color: trade.direction === "long" ? "#22c55e" : "#ef4444",
-        shape: trade.direction === "long" ? "arrowUp" : "arrowDown",
-        text: trade.direction === "long" ? "L" : "S",
-      });
-      // exit marker (closed only).
-      if (trade.status === "closed" && trade.exit_time !== null) {
-        out.push({
-          time: trade.exit_time,
-          position: "inBar",
-          color: "#94a3b8",
-          shape: "circle",
-          text: "X",
-        });
-      }
-    }
-    return out;
-  }, [trades]);
+  // Sprint 32-C BL-171: deriveTradeMarkers 사용. 이전 inline 변환 코드 대체.
+  const tradeMarkers = useMemo<ChartMarker[]>(
+    () => deriveTradeMarkers(trades),
+    [trades],
+  );
 
   // Worker C hook — extraMarkers 가 있으면 자동 계산된 마커와 merge.
   const mergedMarkers = useMemo<ChartMarker[]>(() => {
@@ -179,11 +168,33 @@ export function EquityChartV2({
           markers={mergedMarkers}
           height={topHeight}
         />
+        <AxisLabelBar
+          yAxisLabel="USDT (자본금)"
+          xAxisLabel={
+            timeframe !== undefined && timeframe !== ""
+              ? `시간 · ${timeframe} 단위 캔들`
+              : "시간"
+          }
+          variant="equity"
+        />
       </div>
 
       {showDrawdown && (
         <div data-testid="drawdown-pane-wrapper">
           <DrawdownPane drawdownData={drawdownData} height={bottomHeight} />
+          <AxisLabelBar
+            yAxisLabel={
+              mddExceedsCapital === true
+                ? "% (자본 대비 손실 · leverage 시 -100% 초과 가능)"
+                : "% (자본 대비 손실 · 0 ~ -100%)"
+            }
+            xAxisLabel={
+              timeframe !== undefined && timeframe !== ""
+                ? `시간 · ${timeframe} 단위 캔들`
+                : "시간"
+            }
+            variant="drawdown"
+          />
         </div>
       )}
     </div>
