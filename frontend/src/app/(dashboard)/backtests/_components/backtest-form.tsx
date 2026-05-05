@@ -40,6 +40,12 @@ interface FormValues {
   period_start: string; // local datetime-like "YYYY-MM-DD"
   period_end: string;
   initial_capital: number;
+  // Sprint 31 BL-162a — TradingView strategy 속성 패턴 (비용 시뮬레이션 + 마진).
+  // 기본값 = Bybit Perpetual taker 표준 (1x 현물 / 0.10% 수수료 / 0.05% 슬리피지 / 펀딩 ON).
+  leverage: number;
+  fees_pct: number;
+  slippage_pct: number;
+  include_funding: boolean;
 }
 
 function toIsoUtc(dateOnly: string): string {
@@ -71,6 +77,11 @@ export function BacktestForm() {
       period_start: "",
       period_end: "",
       initial_capital: 10000,
+      // Sprint 31 BL-162a — Bybit Perpetual taker 표준 default.
+      leverage: 1,
+      fees_pct: 0.001,
+      slippage_pct: 0.0005,
+      include_funding: true,
     },
   });
 
@@ -130,6 +141,11 @@ export function BacktestForm() {
       period_start: toIsoUtc(values.period_start),
       period_end: toIsoUtc(values.period_end),
       initial_capital: Number(values.initial_capital),
+      // Sprint 31 BL-162a — 사용자 입력 비용/마진 4 필드.
+      leverage: Number(values.leverage),
+      fees_pct: Number(values.fees_pct),
+      slippage_pct: Number(values.slippage_pct),
+      include_funding: Boolean(values.include_funding),
     });
   };
 
@@ -284,6 +300,116 @@ export function BacktestForm() {
           </p>
         ) : null}
       </div>
+
+      {/* Sprint 31 BL-162a — 비용 시뮬레이션 (TradingView strategy 속성 패턴).
+          기본값 = Bybit Perpetual taker 표준. 사용자가 자기 strategy 환경에 맞게 변경. */}
+      <section
+        className="border-t pt-4"
+        aria-label="비용 시뮬레이션"
+        data-testid="backtest-form-cost-section"
+      >
+        <h3 className="mb-3 text-sm font-medium">비용 시뮬레이션</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="fees_pct" className="text-sm">
+              수수료 (소수, 0.001 = 0.10%)
+            </label>
+            <Input
+              id="fees_pct"
+              type="number"
+              step="0.0001"
+              min={0}
+              max={0.01}
+              {...register("fees_pct", {
+                required: "수수료를 입력하세요",
+                valueAsNumber: true,
+                validate: (v) =>
+                  (Number.isFinite(v) && v >= 0 && v <= 0.01) ||
+                  "0 ~ 0.01 (1%) 범위여야 합니다",
+              })}
+            />
+            {errors.fees_pct ? (
+              <p className="text-xs text-destructive">
+                {errors.fees_pct.message}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="slippage_pct" className="text-sm">
+              슬리피지 (소수, 0.0005 = 0.05%)
+            </label>
+            <Input
+              id="slippage_pct"
+              type="number"
+              step="0.0001"
+              min={0}
+              max={0.01}
+              {...register("slippage_pct", {
+                required: "슬리피지를 입력하세요",
+                valueAsNumber: true,
+                validate: (v) =>
+                  (Number.isFinite(v) && v >= 0 && v <= 0.01) ||
+                  "0 ~ 0.01 (1%) 범위여야 합니다",
+              })}
+            />
+            {errors.slippage_pct ? (
+              <p className="text-xs text-destructive">
+                {errors.slippage_pct.message}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Sprint 31 BL-162a — 마진 / 레버리지 (TradingView strategy 속성 패턴).
+          leverage=1 = 현물, >1 = Perpetual 선물. Bybit max 125x. */}
+      <section
+        className="border-t pt-4"
+        aria-label="마진 / 레버리지"
+        data-testid="backtest-form-margin-section"
+      >
+        <h3 className="mb-3 text-sm font-medium">마진 / 레버리지</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="leverage" className="text-sm">
+              레버리지 (배, 1 = 현물)
+            </label>
+            <Input
+              id="leverage"
+              type="number"
+              step="0.5"
+              min={1}
+              max={125}
+              {...register("leverage", {
+                required: "레버리지를 입력하세요",
+                valueAsNumber: true,
+                validate: (v) =>
+                  (Number.isFinite(v) && v >= 1 && v <= 125) ||
+                  "1 ~ 125 범위여야 합니다",
+              })}
+            />
+            {errors.leverage ? (
+              <p className="text-xs text-destructive">
+                {errors.leverage.message}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="include_funding"
+              className="text-sm flex items-center gap-2"
+            >
+              <input
+                id="include_funding"
+                type="checkbox"
+                className="h-4 w-4"
+                {...register("include_funding")}
+              />
+              펀딩비 반영 (8h 무기한 선물)
+            </label>
+          </div>
+        </div>
+      </section>
 
       {unsupportedHints.length > 0 ? (
         <div

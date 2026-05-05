@@ -42,6 +42,9 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
       toast.error("재실행 실패: 유효하지 않은 초기 자본");
       return;
     }
+    // Sprint 31 BL-162a — 재실행 시 동일 cost/margin 가정 보존 (사용자가 직전
+    // backtest 와 동일 결과 기대). bt.config null (legacy) 시 Bybit 표준 default.
+    const cfg = backtest.config ?? null;
     create.mutate({
       strategy_id: backtest.strategy_id,
       symbol: backtest.symbol,
@@ -49,6 +52,10 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
       period_start: backtest.period_start,
       period_end: backtest.period_end,
       initial_capital: capital,
+      leverage: cfg?.leverage ?? 1,
+      fees_pct: cfg?.fees ?? 0.001,
+      slippage_pct: cfg?.slippage ?? 0.0005,
+      include_funding: cfg?.include_funding ?? true,
     });
   };
 

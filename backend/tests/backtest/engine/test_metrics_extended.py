@@ -3,6 +3,7 @@
 PRD `backtests.results` JSONB 24 metric spec 정합. vectorbt API drift 방어
 (try/except → None fallback) 검증 포함.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -151,7 +152,8 @@ def test_extract_metrics_zero_trades_extended_fields_none() -> None:
 
 def test_extract_metrics_vectorbt_drift_returns_none_fallback() -> None:
     """vectorbt 신규 호출이 raise 시, 신규 필드는 None fallback (drift 방어)."""
-    pf = _make_pf_with_trades()
+    # fixture 자체 호출 — drift 검증은 후속 _safe_* helper 직접 검증으로 수행.
+    _ = _make_pf_with_trades()
 
     # _safe_streaks 가 raise 하도록 mock — fallback 되어야 함
     with patch("src.backtest.engine.metrics._safe_streaks", side_effect=Exception("API drift")):

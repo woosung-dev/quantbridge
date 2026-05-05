@@ -6,6 +6,10 @@
 // 본 sprint 30-α scope: BE 응답에 `config` 필드 미포함 시 표준 가정값으로 graceful
 // degrade. Sprint 30-γ-BE 에서 BacktestDetail.config JSONB 노출 후 자동 upgrade.
 //
+// Sprint 31 BL-162a — 사용자 입력 활성화 (TradingView strategy 속성 패턴). 사용자가
+// BacktestForm 에서 leverage/fees/slippage/include_funding 입력 시 BE 가 그 값을
+// 그대로 응답 → AssumptionsCard 가 (기본) 마크 자동 제거 (graceful upgrade).
+//
 // LESSON-004: render body 에서 ref/state 변경 없음. props → 파생값만 계산.
 
 import type { BacktestConfig } from "@/features/backtest/schemas";

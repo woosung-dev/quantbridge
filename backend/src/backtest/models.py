@@ -83,6 +83,12 @@ class Backtest(SQLModel, table=True):
     equity_curve: list[Any] | None = Field(default=None, sa_column=Column(JSONB))
     error: str | None = Field(default=None, sa_column=Column(Text))
 
+    # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 5 가정 저장 (TradingView
+    # strategy 속성 패턴). nullable — pre-Sprint-31 row 는 NULL → service `_to_detail`
+    # 가 engine BacktestConfig default 로 fallback (graceful degrade).
+    # schema: {leverage, fees, slippage, include_funding}
+    config: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
+
     # 멱등성 키 (Sprint 9-6) — 클라이언트가 Idempotency-Key 헤더로 전달
     idempotency_key: str | None = Field(default=None, max_length=128, nullable=True)
     # Sprint 9-6 E2 — same-key + different-body 충돌 감지용 SHA-256 hash (32 bytes).
