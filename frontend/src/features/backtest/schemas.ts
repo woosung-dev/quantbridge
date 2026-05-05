@@ -150,8 +150,20 @@ export const EquityPointSchema = z.object({
 });
 export type EquityPoint = z.infer<typeof EquityPointSchema>;
 
+// PRD `backtests.config` JSONB 5 필드 (Sprint 30-α). BE 가 아직 응답에
+// 포함하지 않을 수 있어 모두 nullable + optional. Sprint 30-γ-BE 에서 BE
+// 응답 추가 후 graceful upgrade.
+export const BacktestConfigSchema = z.object({
+  leverage: z.number().nullable().optional(),
+  fees: z.number().nullable().optional(),
+  slippage: z.number().nullable().optional(),
+  include_funding: z.boolean().nullable().optional(),
+});
+export type BacktestConfig = z.infer<typeof BacktestConfigSchema>;
+
 export const BacktestDetailSchema = BacktestSummarySchema.extend({
   initial_capital: decimalString,
+  config: BacktestConfigSchema.nullable().optional(),
   metrics: BacktestMetricsOutSchema.nullable().optional(),
   equity_curve: z.array(EquityPointSchema).nullable().optional(),
   error: z.string().nullable().optional(),

@@ -19,6 +19,7 @@ import { formatDate } from "@/features/backtest/utils";
 
 const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
+import { AssumptionsCard } from "./assumptions-card";
 import { BacktestStatusBadge } from "./status-badge";
 import { EquityChart } from "./equity-chart";
 import { MetricsCards } from "./metrics-cards";
@@ -146,6 +147,10 @@ export function BacktestDetailView({ id }: { id: string }) {
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
+            <AssumptionsCard
+              initialCapital={bt.initial_capital}
+              config={bt.config}
+            />
             <MetricsCards metrics={bt.metrics} />
             {bt.equity_curve && bt.equity_curve.length > 0 && (
               <section className="rounded-xl border bg-card p-4">
@@ -173,7 +178,10 @@ export function BacktestDetailView({ id }: { id: string }) {
                 거래 기록 로드 실패: {trades.error?.message}
               </p>
             ) : (
-              <TradeTable trades={trades.data?.items ?? []} />
+              <TradeTable
+                trades={trades.data?.items ?? []}
+                filenamePrefix={`backtest-${id.slice(0, 8)}`}
+              />
             )}
           </TabsContent>
 
