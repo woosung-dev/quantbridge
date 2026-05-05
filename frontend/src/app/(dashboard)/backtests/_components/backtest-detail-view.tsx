@@ -151,7 +151,7 @@ export function BacktestDetailView({ id }: { id: string }) {
               initialCapital={bt.initial_capital}
               config={bt.config}
             />
-            <MetricsCards metrics={bt.metrics} />
+            <MetricsCards metrics={bt.metrics} config={bt.config} />
             {bt.equity_curve && bt.equity_curve.length > 0 && (
               <section className="rounded-xl border bg-card p-4">
                 <h2 className="mb-2 text-sm font-medium">

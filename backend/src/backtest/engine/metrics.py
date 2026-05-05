@@ -86,6 +86,10 @@ def extract_metrics(pf: Any, freq: str = "1D") -> BacktestMetrics:
     )
     total_trades_alias: int | None = num_trades  # PRD parity alias
 
+    # Sprint 32-D BL-156: vectorbt drawdown 도 equity_ratio 기준. -100% 초과
+    # 시 자본 초과 손실 시나리오로 명시 (응답 메타).
+    mdd_exceeds_capital = max_drawdown < Decimal("-1")
+
     return BacktestMetrics(
         total_return=total_return,
         sharpe_ratio=sharpe_ratio,
@@ -112,6 +116,9 @@ def extract_metrics(pf: Any, freq: str = "1D") -> BacktestMetrics:
         best_trade_pct=best_trade_pct,
         worst_trade_pct=worst_trade_pct,
         drawdown_curve=drawdown_curve,
+        # Sprint 32-D BL-156: MDD 수학 정합 메타.
+        mdd_unit="equity_ratio",
+        mdd_exceeds_capital=mdd_exceeds_capital,
     )
 
 

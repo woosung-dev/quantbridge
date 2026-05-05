@@ -159,6 +159,11 @@ class BacktestMetricsOut(BaseModel):
     best_trade_pct: Decimal | None = None
     worst_trade_pct: Decimal | None = None
     drawdown_curve: list[tuple[str, Decimal]] | None = None
+    # Sprint 32-D BL-156 — MDD 수학 정합 메타. mdd_unit = "equity_ratio" (현재
+    # 유일 단위), mdd_exceeds_capital = MDD < -100% 여부 (자본 초과 손실).
+    # FE 카드가 leverage 가정과 inline 표시.
+    mdd_unit: str | None = None
+    mdd_exceeds_capital: bool | None = None
 
     @field_serializer(
         "total_return", "sharpe_ratio", "max_drawdown", "win_rate",

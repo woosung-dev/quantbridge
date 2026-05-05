@@ -167,6 +167,11 @@ export const BacktestMetricsOutSchema = z.object({
   best_trade_pct: decimalString.nullable().optional(),
   worst_trade_pct: decimalString.nullable().optional(),
   drawdown_curve: z.array(drawdownPoint).nullable().optional(),
+  // Sprint 32-D BL-156 — MDD 수학 정합 메타. mdd_unit = "equity_ratio" (현재
+  // 유일 단위), mdd_exceeds_capital = MDD < -100% 여부 (자본 초과 손실 시
+  // FE 가 leverage 가정 inline 표시).
+  mdd_unit: z.string().nullable().optional(),
+  mdd_exceeds_capital: z.boolean().nullable().optional(),
 });
 export type BacktestMetricsOut = z.infer<typeof BacktestMetricsOutSchema>;
 

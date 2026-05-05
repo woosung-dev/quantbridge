@@ -59,7 +59,13 @@ export function AssumptionsCard({
     {
       label: "레버리지",
       value: leverage === 1 ? "1x · 현물" : `${leverage.toFixed(1)}x`,
-      title: "1x = 현물 매매 가정. >1x = Perpetual 선물 (Bybit/OKX) 가정.",
+      // Sprint 32-D BL-156: MDD 수학 정합 — leverage 는 *명시적 가정* 으로
+      // 노출. pine_v2 엔진은 leverage 를 PnL 에 직접 적용 안 함 (qty=절대
+      // 수량). 사용자가 자본 대비 손실 한계 (-100%) 를 초과하는 MDD 를
+      // 해석할 때 참고 (>1x 시 자연스럽게 설명 가능).
+      title:
+        "1x = 현물 매매 가정. >1x = Perpetual 선물 (Bybit/OKX) 가정. " +
+        "MDD 가 -100% 초과 시 leverage 가정으로 해석 가능.",
       isDefault: config?.leverage == null,
     },
     {
