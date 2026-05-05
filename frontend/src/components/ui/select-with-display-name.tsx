@@ -84,9 +84,15 @@ export function SelectWithDisplayName({
   );
 
   // base-ui onValueChange 시그니처: (v: string | null) → 외부에는 string 만 노출.
+  // Sprint 33 BL-176 hotfix (dogfood Day 6 발견): v=null 은 base-ui 의 transient
+  // clear/uncontrolled state. null → "" 변환 시 form 의 zod UUID schema 가
+  // invalid_format ZodError raise (`exchange_account_id` 등). null 시 callback
+  // skip 하여 form 의 prior valid value 보존. 사용자 의도적 unset 은 별도 clear
+  // 버튼 추가가 정합 (현재 form 은 unset 동선 X).
   const handleValueChange = React.useCallback(
     (v: string | null) => {
-      onValueChange(v ?? "");
+      if (v === null) return;
+      onValueChange(v);
     },
     [onValueChange],
   );
