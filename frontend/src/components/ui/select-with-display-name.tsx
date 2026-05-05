@@ -58,6 +58,14 @@ export type SelectWithDisplayNameProps = {
   ariaLabel?: string;
   /** 비활성화. */
   disabled?: boolean;
+  /**
+   * 제공 시 선택 값이 있을 때 ✕ 버튼을 렌더한다.
+   * 호출자가 nullable/optional 동선을 소유 — 이 컴포넌트는 전달만 한다.
+   * BL-176: sentinel/nullable 변환 없이 clear 동선 추가.
+   */
+  onClear?: () => void;
+  /** onClear 버튼의 접근성 라벨 (기본: "선택 해제"). */
+  clearAriaLabel?: string;
 };
 
 /**
@@ -76,6 +84,8 @@ export function SelectWithDisplayName({
   triggerTestId,
   ariaLabel,
   disabled,
+  onClear,
+  clearAriaLabel = "선택 해제",
 }: SelectWithDisplayNameProps) {
   // value → label 빠른 조회. options 길이가 짧으므로 매 render O(N) 도 무방.
   const selectedLabel = React.useMemo(
@@ -97,36 +107,54 @@ export function SelectWithDisplayName({
     [onValueChange],
   );
 
+  const showClearButton = Boolean(onClear) && Boolean(value);
+
   return (
-    <Select
-      value={value}
-      onValueChange={handleValueChange}
-      disabled={disabled}
-    >
-      <SelectTrigger
-        className={className}
-        data-testid={triggerTestId}
-        aria-label={ariaLabel}
+    <div className="relative flex items-center">
+      <Select
+        value={value}
+        onValueChange={handleValueChange}
+        disabled={disabled}
       >
-        {/* render prop 캡슐화 — UUID 노출 자동 차단.
-            value 가 비어있거나 options 에서 못 찾으면 placeholder 표시. */}
-        <SelectValue placeholder={placeholder}>
-          {() => selectedLabel ?? placeholder}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {options.length === 0 && emptyMessage ? (
-          <SelectItem value="__empty__" disabled>
-            {emptyMessage}
-          </SelectItem>
-        ) : (
-          options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
-              {opt.label}
+        <SelectTrigger
+          className={showClearButton ? `pr-8 ${className ?? ""}`.trim() : className}
+          data-testid={triggerTestId}
+          aria-label={ariaLabel}
+        >
+          {/* render prop 캡슐화 — UUID 노출 자동 차단.
+              value 가 비어있거나 options 에서 못 찾으면 placeholder 표시. */}
+          <SelectValue placeholder={placeholder}>
+            {() => selectedLabel ?? placeholder}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {options.length === 0 && emptyMessage ? (
+            <SelectItem value="__empty__" disabled>
+              {emptyMessage}
             </SelectItem>
-          ))
-        )}
-      </SelectContent>
-    </Select>
+          ) : (
+            options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
+                {opt.label}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
+      {showClearButton && (
+        <button
+          type="button"
+          aria-label={clearAriaLabel}
+          data-testid={triggerTestId ? `${triggerTestId}-clear` : undefined}
+          className="absolute right-8 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus:outline-none"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClear?.();
+          }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
   );
 }
