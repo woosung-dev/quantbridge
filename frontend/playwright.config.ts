@@ -54,7 +54,8 @@ export default defineConfig({
     },
     {
       name: "chromium-authed",
-      testMatch: /(trading-ui|dogfood-flow|live-session-flow)\.spec\.ts$/,
+      testMatch:
+        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate)\.spec\.ts$/,
       fullyParallel: false,
       use: {
         ...devices["Desktop Chrome"],
