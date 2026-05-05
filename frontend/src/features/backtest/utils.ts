@@ -1,5 +1,6 @@
 // Sprint FE-04: Backtest utilities — equity curve downsampling, formatters.
 // Sprint X1+X3 W4: 방향(long/short)별 승률·평균 PnL breakdown 추가.
+// Sprint 30-β (W2): computeBuyAndHold 추가 (lightweight-charts equity-chart-v2 보조).
 
 import type { EquityPoint, TradeItem } from "./schemas";
 
@@ -264,3 +265,64 @@ export function computeDirectionBreakdown(
 
   return { long, short };
 }
+
+// --- Buy & Hold benchmark (Sprint 30-β) ----------------------------------
+
+/**
+ * equity_curve 기반 단순 Buy & Hold 벤치마크 추정.
+ *
+ * 옵션 1 (P0): equity_curve 의 첫·마지막 시점만 사용한 linear interpolation.
+ * - 첫 시점 = initial_capital
+ * - 마지막 시점 = initial_capital * (last_equity / first_equity)
+ *   * NOTE: B&H 는 자산 자체의 가격 변동을 따라야 정확. 본 구현은 equity_curve 가
+ *     이미 자산 가격을 어느 정도 반영한다는 가정 하의 추정. 옵션 2 (실제 OHLCV
+ *     첫·마지막 close 사용) 는 Sprint 31+ deferred (별도 endpoint 필요).
+ * - 중간 시점 = (i / n-1) 비율로 시작/끝 사이 linear interpolation.
+ *
+ * 가드:
+ * - equityCurve 빈 배열 → 빈 배열.
+ * - initialCapital ≤ 0 → 빈 배열.
+ * - first equity ≤ 0 또는 non-finite → 빈 배열.
+ * - 단일 포인트 → [{ first.timestamp, initialCapital }].
+ *
+ * 반환: 입력 equity_curve 와 동일 timestamp 시퀀스 + linear-interpolated value.
+ */
+export function computeBuyAndHold(
+  equityCurve: readonly EquityPoint[],
+  initialCapital: number,
+): EquityPoint[] {
+  if (equityCurve.length === 0) return [];
+  if (!Number.isFinite(initialCapital) || initialCapital <= 0) return [];
+
+  const first = equityCurve[0]!;
+  if (!Number.isFinite(first.value) || first.value <= 0) return [];
+
+  if (equityCurve.length === 1) {
+    return [{ timestamp: first.timestamp, value: initialCapital }];
+  }
+
+  const last = equityCurve[equityCurve.length - 1]!;
+  if (!Number.isFinite(last.value) || last.value <= 0) {
+    // 끝값이 비정상 → 안전하게 단순 hold (수익률 0) 반환.
+    return equityCurve.map((p) => ({
+      timestamp: p.timestamp,
+      value: initialCapital,
+    }));
+  }
+
+  const startBh = initialCapital;
+  const endBh = initialCapital * (last.value / first.value);
+  const n = equityCurve.length;
+
+  const out: EquityPoint[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const ratio = i / (n - 1);
+    const value = startBh + (endBh - startBh) * ratio;
+    out.push({
+      timestamp: equityCurve[i]!.timestamp,
+      value,
+    });
+  }
+  return out;
+}
+
