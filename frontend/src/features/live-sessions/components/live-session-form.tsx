@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 
 import { useRegisterLiveSession } from "../hooks";
 import {
@@ -111,27 +112,21 @@ export function LiveSessionForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Strategy</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      {/* BL-122 — base-ui Select.Value 가 raw value(UUID) 를 표시.
-                          render prop 으로 strategy name 매핑. */}
-                      <SelectValue placeholder="전략 선택 (settings 필요)">
-                        {(value: string) =>
-                          strategies.find((s) => s.id === value)?.name ??
-                          "전략 선택 (settings 필요)"
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {strategies.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  {/* BL-164 — SelectWithDisplayName 헬퍼로 통일.
+                      render prop 캡슐화로 raw value(UUID) 노출 자동 차단. */}
+                  <SelectWithDisplayName
+                    options={strategies.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                    }))}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="전략 선택 (settings 필요)"
+                    triggerTestId="live-session-strategy-trigger"
+                    ariaLabel="전략 선택"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -142,33 +137,21 @@ export function LiveSessionForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>거래소 계정 (Bybit Demo)</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Bybit Demo 계정 선택">
-                        {(value: string) => {
-                          const acc = allowedAccounts.find((a) => a.id === value);
-                          return acc
-                            ? (acc.label ?? `${acc.exchange} ${acc.mode}`)
-                            : "Bybit Demo 계정 선택";
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {allowedAccounts.length === 0 ? (
-                      <SelectItem value="" disabled>
-                        Bybit Demo 계정 없음 — 먼저 등록해주세요
-                      </SelectItem>
-                    ) : (
-                      allowedAccounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.label ?? `${a.exchange} ${a.mode}`}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  {/* BL-164 — SelectWithDisplayName 헬퍼 통일. */}
+                  <SelectWithDisplayName
+                    options={allowedAccounts.map((a) => ({
+                      value: a.id,
+                      label: a.label ?? `${a.exchange} ${a.mode}`,
+                    }))}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Bybit Demo 계정 선택"
+                    emptyMessage="Bybit Demo 계정 없음 — 먼저 등록해주세요"
+                    triggerTestId="live-session-account-trigger"
+                    ariaLabel="거래소 계정 선택"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
