@@ -42,6 +42,16 @@ export default defineConfig({
       testMatch: /smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
     },
+    // Sprint 31-D BL-157 — live dev smoke gate (.github/workflows/live-smoke.yml 전용).
+    // public pages (Clerk 미의존) console.error / pageerror 0 검증 — chart lib
+    // SSR/CSR boundary throw 같은 dogfood Day 3 currentColor 회귀 차단.
+    // 별도 project 로 분리한 이유: 기본 `chromium` 은 smoke.spec.ts 만 매치하므로
+    // live-smoke 는 명시적 --project 호출 (e2e 워크플로우 영향 없음).
+    {
+      name: "chromium-live-smoke",
+      testMatch: /live-smoke\.spec\.ts$/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     {
       name: "chromium-authed",
       testMatch: /(trading-ui|dogfood-flow|live-session-flow)\.spec\.ts$/,

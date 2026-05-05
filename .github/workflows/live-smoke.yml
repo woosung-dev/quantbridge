@@ -1,0 +1,66 @@
+name: Live Dev Smoke (frontend hooks diff)
+
+# Sprint 31-D BL-157 — PR pre-merge live dev smoke gate.
+#
+# 배경: Sprint 30-β PR #120 (lightweight-charts 도입) 이 vitest mock 만 검증, dev
+# server 라이브 5분 smoke 누락 → main 머지 후 사용자 dogfood 즉시 발현
+# (`Cannot parse color: currentcolor` → AttributionLogoWidget throw → 결과 페이지
+# ErrorBoundary fallback). hot-fix `edcfaa0` PR #124 회복.
+#
+# LESSON-004 PR 규약 ("hooks diff 가 있는 PR 은 dev server live smoke 5분 이상 필수")
+# 자동화 — frontend hooks/chart/widget 변경 PR 은 본 워크플로우 PASS 의무.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/src/**/*.ts"
+      - "frontend/src/**/*.tsx"
+      - "frontend/package.json"
+      - "frontend/pnpm-lock.yaml"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # Clerk dev key — public/anon. dev server 가 sign-in 페이지 prerender 안 해도 됨
+      # (public pages 만 smoke). secret 미설정 시 placeholder 동작 확인용.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      # Backend 미실행 — React Query fetch fail 은 spec 안 expected pattern 으로 무시
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      # webServer (playwright.config.ts) 가 자동으로 `pnpm dev` 띄우고
+      # http://localhost:3000 ready 까지 240s 대기 — 별도 background 시작 불필요.
+      - name: Run live smoke (chromium-live-smoke project)
+        run: pnpm exec playwright test --project=chromium-live-smoke
+      - name: Upload Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke-playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
