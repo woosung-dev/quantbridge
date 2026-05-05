@@ -149,12 +149,16 @@ describe("EquityChartV2 — 2-pane shell (Sprint 32-B BL-169+170)", () => {
     expect(chartInstances).toHaveLength(2);
   });
 
-  it("renders ChartLegend with 3 items by default (Equity / B&H / DD)", () => {
+  it("renders ChartLegend with 2 items (Equity / DD) — BH hidden after BL-175 hotfix", () => {
+    // Sprint 33 BL-175 hotfix: computeBuyAndHold 가 빈 배열 반환 →
+    // benchmarkData.length === 0 → showBenchmark=false → ChartLegend 가 BH 항목 hide.
+    // 거짓 trust 차단 (legend 와 chart 데이터 mismatch 0건). 본격 BH 는
+    // Sprint 34 backend buy_and_hold_curve 신규 후 재활성화.
     render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} />);
 
     expect(screen.getByRole("list", { name: "차트 범례" })).toBeInTheDocument();
     expect(screen.getByText("Equity (자본 곡선)")).toBeInTheDocument();
-    expect(screen.getByText("Buy & Hold (단순보유)")).toBeInTheDocument();
+    expect(screen.queryByText("Buy & Hold (단순보유)")).not.toBeInTheDocument();
     expect(screen.getByText("Drawdown (손실 폭)")).toBeInTheDocument();
   });
 

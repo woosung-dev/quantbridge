@@ -286,43 +286,28 @@ export function computeDirectionBreakdown(
  * - 단일 포인트 → [{ first.timestamp, initialCapital }].
  *
  * 반환: 입력 equity_curve 와 동일 timestamp 시퀀스 + linear-interpolated value.
+ *
+ * Sprint 33 BL-175 hotfix (2026-05-05, dogfood Day 6 발견):
+ * 본 함수의 기존 구현 (initialCapital * last_equity / first_equity) 은 buy & hold
+ * 의미가 아님 — strategy equity 의 first/last 비율로 BH 를 계산하면 BH line 이
+ * strategy line 과 거의 동일해져 legend 와 chart 데이터 mismatch 발생. 자본
+ * 초과 손실 시 BH 도 음수가 되어 trust 위반 (Sprint 30 ADR-019 위반).
+ *
+ * **진짜 Buy & Hold 는 자산 (BTC) OHLCV 가격 데이터 의존** —
+ * `initialCapital * (last_BTC_price / first_BTC_price)`. backend 에서 OHLCV 보유.
+ *
+ * 임시 mitigation (Sprint 33): 빈 배열 반환 → EquityPane benchmarkData 빈 배열 →
+ * benchmark series 미추가 + EquityChartV2 의 showBenchmark=false → ChartLegend 도
+ * BH 항목 미표시. 거짓 trust 즉시 차단.
+ *
+ * Sprint 34 BL-175 본격 fix: backend BacktestMetrics 에 buy_and_hold_curve
+ * 신규 필드 + OHLCV 첫/끝 가격 기반 정확 계산 + frontend 가 그것 사용.
  */
 export function computeBuyAndHold(
-  equityCurve: readonly EquityPoint[],
-  initialCapital: number,
+  _equityCurve: readonly EquityPoint[],
+  _initialCapital: number,
 ): EquityPoint[] {
-  if (equityCurve.length === 0) return [];
-  if (!Number.isFinite(initialCapital) || initialCapital <= 0) return [];
-
-  const first = equityCurve[0]!;
-  if (!Number.isFinite(first.value) || first.value <= 0) return [];
-
-  if (equityCurve.length === 1) {
-    return [{ timestamp: first.timestamp, value: initialCapital }];
-  }
-
-  const last = equityCurve[equityCurve.length - 1]!;
-  if (!Number.isFinite(last.value) || last.value <= 0) {
-    // 끝값이 비정상 → 안전하게 단순 hold (수익률 0) 반환.
-    return equityCurve.map((p) => ({
-      timestamp: p.timestamp,
-      value: initialCapital,
-    }));
-  }
-
-  const startBh = initialCapital;
-  const endBh = initialCapital * (last.value / first.value);
-  const n = equityCurve.length;
-
-  const out: EquityPoint[] = [];
-  for (let i = 0; i < n; i += 1) {
-    const ratio = i / (n - 1);
-    const value = startBh + (endBh - startBh) * ratio;
-    out.push({
-      timestamp: equityCurve[i]!.timestamp,
-      value,
-    });
-  }
-  return out;
+  // BL-175 hotfix: backend buy_and_hold_curve 신규 구현 전까지 BH series 미표시.
+  return [];
 }
 
