@@ -125,6 +125,63 @@ class StrategyState:
     # Sprint 26 codex G.0 P1 #2 — bar-level event log. `run_live` 가 마지막 bar 의
     # entry/close 만 LiveSignalEvent outbox 로 변환. same-bar entry+close 회귀 방어.
     events: list[TradeEvent] = field(default_factory=list)
+    # Sprint 37 BL-185 — Pine strategy() 포지션 사이징 spot-equivalent.
+    # configure_sizing() 호출 시 초기화. 미호출 시 compute_qty()=1.0 fallback (기존 호환).
+    initial_capital: float | None = None
+    running_equity: float | None = None
+    default_qty_type: str | None = None  # "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None
+    default_qty_value: float | None = None
+
+    # ---- Sprint 37 BL-185: 포지션 사이징 (spot-equivalent) ------------
+
+    def configure_sizing(
+        self,
+        *,
+        initial_capital: float,
+        default_qty_type: str | None = None,
+        default_qty_value: float | None = None,
+    ) -> None:
+        """백테스트 시작 시 1회 호출. running_equity 초기화 + Pine default_qty_* 등록.
+
+        BL-185: leverage / funding / liquidation 미반영 (Sprint 38 BL-186 후속).
+        running_equity 갱신 = closed_trades PnL 누적 (fees=0 Sprint 37 가정).
+        """
+        self.initial_capital = float(initial_capital)
+        self.running_equity = float(initial_capital)
+        self.default_qty_type = default_qty_type
+        self.default_qty_value = (
+            float(default_qty_value) if default_qty_value is not None else None
+        )
+
+    def compute_qty(self, *, fill_price: float) -> float:
+        """default_qty_type/value 기반 entry qty 계산.
+
+        - configure_sizing 미호출 또는 default_qty_type=None → 1.0 (기존 qty=1 호환)
+        - percent_of_equity → running_equity * pct / 100 / fill_price
+        - cash → cash / fill_price
+        - fixed → value (fill_price 무관)
+        - fill_price <= 0 시 percent_of_equity / cash 는 0.0 (DivisionByZero 차단)
+        - 미지원 default_qty_type 문자열 → 1.0 (silent drift 방지 + warning 미발행 unit-level)
+        """
+        if (
+            self.default_qty_type is None
+            or self.default_qty_value is None
+            or self.running_equity is None
+        ):
+            return 1.0
+        qt = self.default_qty_type
+        qv = self.default_qty_value
+        if qt == "strategy.percent_of_equity":
+            if fill_price <= 0:
+                return 0.0
+            return self.running_equity * qv / 100.0 / fill_price
+        if qt == "strategy.cash":
+            if fill_price <= 0:
+                return 0.0
+            return qv / fill_price
+        if qt == "strategy.fixed":
+            return qv
+        return 1.0
 
     def _next_sequence_no(self, bar: int) -> int:
         """같은 bar 안 event 순서 (0-based)."""
@@ -289,6 +346,9 @@ class StrategyState:
         # PnL: long이면 (exit - entry) * qty, short면 반대
         sign = 1.0 if trade.direction == "long" else -1.0
         trade.pnl = (fill_price - trade.entry_price) * trade.qty * sign
+        # Sprint 37 BL-185: running_equity 갱신 (configure_sizing 호출된 경우만, fees=0 가정)
+        if self.running_equity is not None:
+            self.running_equity += trade.pnl
         self.closed_trades.append(trade)
         # Sprint 26 P1 #2 — close event log (same-bar entry+close 모두 포착)
         self._record_event(

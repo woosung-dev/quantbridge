@@ -105,6 +105,12 @@ _V4_ALIASES: dict[str, str] = {
 _ATTR_CONSTANTS: dict[str, str] = {
     "strategy.long": "long",
     "strategy.short": "short",
+    # Sprint 37 BL-185: Pine strategy(default_qty_type=...) 3종 — interpreter 가
+    # `t = strategy.percent_of_equity` 같은 attribute access 를 evaluate 가능하도록 등록.
+    # coverage._STRATEGY_CONSTANTS_EXTRA 와 SSOT invariant audit 자동 검증.
+    "strategy.fixed": "strategy.fixed",
+    "strategy.cash": "strategy.cash",
+    "strategy.percent_of_equity": "strategy.percent_of_equity",
     # 렌더링 scope A — enum 상수 (string identity 유지)
     "line.style_dashed": "dashed",
     "line.style_dotted": "dotted",
@@ -1056,12 +1062,14 @@ class Interpreter:
                 # 알 수 없는 값은 long 기본 (보수적)
                 direction = "long"
 
-            qty = float(
-                kwargs.get(
-                    "qty",
-                    positional[2] if len(positional) >= 3 else 1.0,
-                )
-            )
+            # BL-185 spot-equivalent: qty 미지정 시 default_qty_type/value 기반 계산.
+            # configure_sizing 미호출 또는 default_qty_type=None → compute_qty=1.0 (호환).
+            if "qty" in kwargs:
+                qty = float(kwargs["qty"])
+            elif len(positional) >= 3:
+                qty = float(positional[2])
+            else:
+                qty = self.strategy.compute_qty(fill_price=current_close)
             comment = str(kwargs.get("comment", ""))
             # stop= 는 지원 (Week 3 Day 1부터). limit/trail은 여전히 미지원.
             stop_raw = kwargs.get("stop")

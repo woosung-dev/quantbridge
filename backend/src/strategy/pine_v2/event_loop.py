@@ -62,6 +62,9 @@ def run_historical(
     *,
     capture_history: bool = True,
     strict: bool = True,
+    initial_capital: float | None = None,
+    default_qty_type: str | None = None,
+    default_qty_value: float | None = None,
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -70,6 +73,11 @@ def run_historical(
         ohlcv: columns must include open/high/low/close/volume.
         capture_history: 각 bar commit 후 state를 기록할지 (디버깅/테스트용).
         strict: True면 interpreter 오류를 즉시 raise, False면 errors에 기록 후 계속.
+        initial_capital: BL-185 spot-equivalent. 지정 시 StrategyState.configure_sizing
+            호출 → strategy.entry qty 미지정 시 default_qty_type/value 기반 계산.
+            None 이면 기존 qty=1.0 fallback (호환).
+        default_qty_type: "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None.
+        default_qty_value: percent / cash / fixed value. None 또는 default_qty_type=None 시 무시.
     """
     _validate_ohlcv(ohlcv)
     tree = parse_to_ast(source)
@@ -77,6 +85,12 @@ def run_historical(
     store = PersistentStore()
     bar = BarContext(ohlcv.reset_index(drop=True))
     interp = Interpreter(bar, store)
+    if initial_capital is not None:
+        interp.strategy.configure_sizing(
+            initial_capital=initial_capital,
+            default_qty_type=default_qty_type,
+            default_qty_value=default_qty_value,
+        )
     result = RunResult(bars_processed=0, final_state={})
 
     while bar.advance():
