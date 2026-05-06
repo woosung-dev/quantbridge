@@ -63,7 +63,7 @@ describe("EquityChartV2 — axis labels (Sprint 32-C BL-172)", () => {
       .ResizeObserver;
   });
 
-  it("renders axis label bar for equity pane (USDT)", () => {
+  it("renders axis label bar for equity pane — PnL (USDT, 시작=0) [Sprint 37 BL-184]", () => {
     render(
       <EquityChartV2
         equityCurve={EQUITY}
@@ -74,7 +74,8 @@ describe("EquityChartV2 — axis labels (Sprint 32-C BL-172)", () => {
 
     const equityAxis = screen.getByTestId("axis-label-bar-equity");
     expect(equityAxis).toBeInTheDocument();
-    expect(equityAxis).toHaveTextContent(/USDT \(자본금\)/);
+    // BL-184: equity / BH 가 PnL 기준 (시작=0) 으로 정규화 → Y축 라벨도 PnL 표기.
+    expect(equityAxis).toHaveTextContent(/PnL \(USDT, 시작=0\)/);
     expect(equityAxis).toHaveTextContent(/1h 단위 캔들/);
   });
 

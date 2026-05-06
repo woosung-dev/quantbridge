@@ -116,3 +116,68 @@ describe("SelectWithDisplayName.handleValueChange (BL-176 hotfix)", () => {
   // BL-164 base behavior (label 표시 + UUID 미노출) 회귀는 worker B 의
   // live-session-form.test.tsx 5 case 에서 이미 검증. 본 spec 은 hotfix 만 cover.
 });
+
+describe("SelectWithDisplayName clear button (BL-176)", () => {
+  const OPTIONS = [
+    { value: "019a1234-5678-7000-a000-0123456789ab", label: "Strategy A" },
+  ];
+
+  it("clear 버튼을 onClear+value 있을 때만 렌더한다", () => {
+    const spy = vi.fn();
+    const { rerender } = render(
+      <SelectWithDisplayName
+        options={OPTIONS}
+        value="019a1234-5678-7000-a000-0123456789ab"
+        onValueChange={vi.fn()}
+        placeholder="선택"
+        onClear={spy}
+        triggerTestId="t"
+      />,
+    );
+    expect(screen.getByTestId("t-clear")).toBeInTheDocument();
+
+    // value 없으면 clear 버튼 사라짐
+    rerender(
+      <SelectWithDisplayName
+        options={OPTIONS}
+        value=""
+        onValueChange={vi.fn()}
+        placeholder="선택"
+        onClear={spy}
+        triggerTestId="t"
+      />,
+    );
+    expect(screen.queryByTestId("t-clear")).not.toBeInTheDocument();
+  });
+
+  it("onClear 미전달 시 clear 버튼 렌더하지 않는다", () => {
+    render(
+      <SelectWithDisplayName
+        options={OPTIONS}
+        value="019a1234-5678-7000-a000-0123456789ab"
+        onValueChange={vi.fn()}
+        placeholder="선택"
+        triggerTestId="t2"
+      />,
+    );
+    expect(screen.queryByTestId("t2-clear")).not.toBeInTheDocument();
+  });
+
+  it("clear 버튼 클릭 시 onClear 호출, onValueChange 미호출", () => {
+    const onClear = vi.fn();
+    const onValueChange = vi.fn();
+    render(
+      <SelectWithDisplayName
+        options={OPTIONS}
+        value="019a1234-5678-7000-a000-0123456789ab"
+        onValueChange={onValueChange}
+        placeholder="선택"
+        onClear={onClear}
+        triggerTestId="t3"
+      />,
+    );
+    fireEvent.click(screen.getByTestId("t3-clear"));
+    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(onValueChange).not.toHaveBeenCalled();
+  });
+});

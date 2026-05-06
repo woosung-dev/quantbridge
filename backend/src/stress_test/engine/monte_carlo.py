@@ -63,8 +63,12 @@ def run_monte_carlo(
         raise ValueError("equity_curve must have at least 2 data points")
 
     eq = np.array([float(v) for v in equity_curve], dtype=np.float64)
-    # simple return (bar-to-bar)
-    returns = np.diff(eq) / np.where(eq[:-1] == 0, 1.0, eq[:-1])
+    # simple return (bar-to-bar); base는 음수 equity 부호 반전 방지를 위해 양수 floor 적용.
+    # equity가 음수가 되면 단순 return 부호가 반전되어 bootstrap path가 폭발함.
+    # floor를 initial의 0.01% 로 설정해 극단 return을 [-0.9999, ∞) 범위로 제한.
+    eq_base = np.where(eq[:-1] > 0, eq[:-1], np.maximum(np.abs(eq[:-1]), 1e-10))
+    returns = np.diff(eq) / eq_base
+    returns = np.clip(returns, -0.9999, None)  # 단일 bar 최대 손실 99.99% (sign-flip 차단)
 
     rng = np.random.default_rng(seed=seed)
     n_periods = len(returns)
