@@ -40,6 +40,22 @@ class BacktestConfig:
     # None 시 기존 동작 (qty=1.0 hardcode 호환).
     default_qty_type: str | None = None
     default_qty_value: float | None = None
+    # Sprint 38 BL-188 v3 — Live Settings mirror (1x equity-basis only) 결과 입력.
+    # codex G.0 iter 1+2 [P1] must-fix 1 (canonical 단일화) + #4 (D2 manual override).
+    # service.py:_resolve_sizing_canonical 이 결정한 4-tier chain 결과:
+    #   Pine 명시 > 폼 manual > Live mirror (1x only) > fallback (qty=1.0)
+    # live_position_size_pct 명시 시 compat.parse_and_run_v2 가
+    # `("strategy.percent_of_equity", live_pct)` 로 configure_sizing 호출.
+    # leverage_basis 는 항상 1.0 (Sprint 38 = Nx reject. BL-186 후 unlock).
+    live_position_size_pct: float | None = None
+    sizing_source: Literal["pine", "live", "form", "fallback"] = "fallback"
+    sizing_basis: Literal[
+        "pine_native",
+        "live_available_balance_approx_equity",
+        "form_equity",
+        "fallback_qty1",
+    ] = "fallback_qty1"
+    leverage_basis: float = 1.0
 
 
 @dataclass(frozen=True)

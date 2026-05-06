@@ -190,3 +190,76 @@ class StrategyDegraded(BacktestError):
         self.friendly_message: str = friendly_message or format_friendly_message(
             self.degraded_calls
         )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 38 BL-188 v3 — Live Settings mirror canonical 결정 시 422 reject 3종.
+# codex G.0 iter 1+2 [P1] must-fix 1 (sizing source 단일화) + must-fix 3 (leverage Nx
+# reject) 반영. _resolve_sizing_canonical helper 가 raise.
+# ---------------------------------------------------------------------------
+
+
+class MirrorNotAllowed(BacktestError):
+    """Live settings 가 1x equity-basis 외 (Nx leverage 등) 로 mirror 불가.
+
+    Sprint 38 BL-188 v3 (codex must-fix 3): `strategy.settings.leverage != 1` 시 raise.
+    Live (Bybit Futures Nx isolated/cross) 와 backtest (1x equity-basis) 비대칭 →
+    거짓 trust 신호 차단. BL-186 (풀 leverage/funding/liquidation 모델) 후 unlock.
+
+    `live_leverage` / `live_margin_mode` 필드 — FE 가 사용자 안내 라벨에 활용.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "mirror_not_allowed"
+    detail = "Live Settings mirror is not allowed for the current strategy"
+
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        live_leverage: int | None = None,
+        live_margin_mode: str | None = None,
+    ) -> None:
+        super().__init__(detail)
+        self.live_leverage: int | None = live_leverage
+        self.live_margin_mode: str | None = live_margin_mode
+
+
+class PinePartialDeclaration(BacktestError):
+    """Pine `strategy(default_qty_type=...)` / `default_qty_value=...` 일방만 명시.
+
+    Sprint 38 BL-188 v3 (codex iter 1 [P1] #5): 둘 다 명시 또는 둘 다 None 의무.
+    type-only 또는 value-only 시 silent fallback (Pine > Live > form chain) 로
+    내려가면 "Pine 우선" 의미 깨짐 → reject + 사용자에게 정정 요구.
+
+    `declared_type` / `declared_value` 필드 — FE 가 사용자에게 누락된 항목 명시.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "pine_partial_declaration"
+    detail = "Pine strategy(default_qty_type / default_qty_value) partial declaration"
+
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        declared_type: str | None = None,
+        declared_value: str | None = None,
+    ) -> None:
+        super().__init__(detail)
+        self.declared_type: str | None = declared_type
+        self.declared_value: str | None = declared_value
+
+
+class SizingSourceConflict(BacktestError):
+    """`position_size_pct` (Live mirror) + `default_qty_type/value` (manual) 동시 명시.
+
+    Sprint 38 BL-188 v3 (codex iter 1 [P1] #4): canonical 1개 강제. FE 폼 toggle UI
+    가 Live mirror / Manual 한 쪽만 fill 하도록 강제. BE 도 동일 정책으로 schema
+    validator 가 raise (Pydantic ValidationError → 422 자동 매핑) — 본 클래스는
+    service-level fallback (FE 우회 호출 또는 외부 client 방어).
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "sizing_source_conflict"
+    detail = "position_size_pct (Live mirror) and default_qty_type/value (manual) cannot coexist"

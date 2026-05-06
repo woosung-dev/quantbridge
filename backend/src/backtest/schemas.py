@@ -73,6 +73,23 @@ class CreateBacktestRequest(BaseModel):
         max_digits=12,
         decimal_places=8,
     )
+    # Sprint 38 BL-188 v3 — Live Settings mirror canonical 입력 (codex must-fix 1).
+    # `position_size_pct` 명시 시 백테스트가 Live `Strategy.settings.position_size_pct` 와
+    # 동일 % 로 sizing (1x equity-basis 한정 — Live Nx 시 service.py 가 422 reject).
+    # default_qty_type/value 와 동시 명시 시 422 reject (canonical 단일 강제).
+    # FE 폼 토글 UI 가 한쪽만 fill (D2 manual override 결정 정합).
+    position_size_pct: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        le=Decimal("100"),
+        max_digits=5,
+        decimal_places=2,
+    )
+    # Sprint 38 BL-188 v3 — Live Sessions mirror (codex must-fix 2 entry-time gate).
+    # 빈 list = 24h. 비어있지 않으면 v2_adapter 가 Pine entry placement + check_pending_fills
+    # 양쪽에 `_sessions_is_allowed` (Live policy parity) gate 적용. tz-naive ohlcv index 시
+    # `BacktestError` raise (Live 정책 일관성).
+    trading_sessions: list[Literal["asia", "london", "ny"]] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_period(self) -> Self:
@@ -86,6 +103,21 @@ class CreateBacktestRequest(BaseModel):
         if (self.default_qty_type is None) != (self.default_qty_value is None):
             raise ValueError(
                 "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _no_double_sizing(self) -> Self:
+        # Sprint 38 BL-188 v3 (codex must-fix 1): position_size_pct (Live mirror) +
+        # default_qty_type/value (manual) 동시 명시 = 422 reject. canonical 1개 강제.
+        # FE 폼 toggle UI 가 한쪽만 fill 하도록 강제. BE 는 schema validator → service
+        # `_resolve_sizing_canonical` 의 SizingSourceConflict raise 와 이중 방어.
+        if self.position_size_pct is not None and (
+            self.default_qty_type is not None or self.default_qty_value is not None
+        ):
+            raise ValueError(
+                "position_size_pct (Live mirror) 와 default_qty_type/value (manual) "
+                "동시 명시 불가. canonical 1개 선택 의무 (BL-188 v3 SizingSourceConflict)."
             )
         return self
 
