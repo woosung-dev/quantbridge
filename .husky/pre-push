@@ -8,25 +8,45 @@ set -e
 
 # Sprint 33 (codex P1-1): main worktree push 차단 (자율 병렬 worker isolation 영구)
 # main worktree = git_dir == git_common_dir. worker worktree = 별 .git dir (linked).
-# 메인 세션 의도적 push 시 QB_PRE_PUSH_BYPASS=1 명시 우회.
+#
+# Sprint 37 개선: branch-prefix 기반 화이트리스트.
+# - main/master 직접 push = 영구 금지 (PR-only 정책, bypass 도 차단)
+# - feat/* | fix/* | chore/* | docs/* | test/* | refactor/* | hotfix/* = 메인 세션 의도 추정 → 허용
+# - 그 외 임의 branch (worker 일 가능성) = 차단 + bypass 안내
 QB_GIT_DIR="$(git rev-parse --git-dir)"
 QB_GIT_COMMON_DIR="$(git rev-parse --git-common-dir)"
 QB_REPO_ROOT="$(git rev-parse --show-toplevel)"
+QB_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo unknown)"
 if [ "$QB_GIT_DIR" = "$QB_GIT_COMMON_DIR" ]; then
-  if [ "$QB_PRE_PUSH_BYPASS" = "1" ]; then
-    echo "→ pre-push: BYPASS — main worktree push 허용 (QB_PRE_PUSH_BYPASS=1)"
-    echo "  path: $QB_REPO_ROOT"
-    echo "  git_dir: $QB_GIT_DIR"
-  else
-    echo "ERROR: main worktree push 차단 (Sprint 33 worker isolation)"
-    echo "  path: $QB_REPO_ROOT"
-    echo "  git_dir: $QB_GIT_DIR"
-    echo "  git_common_dir: $QB_GIT_COMMON_DIR"
-    echo ""
-    echo "  Worker 는 자체 worktree 에서만 push 하세요. 메인 세션 의도적 push 시:"
-    echo "    QB_PRE_PUSH_BYPASS=1 git push <args>"
-    exit 1
-  fi
+  case "$QB_BRANCH" in
+    main|master)
+      # main 직접 push 영구 금지 (bypass 도 차단)
+      echo "ERROR: main 직접 push 영구 금지 — PR 경유 의무"
+      echo "  branch: $QB_BRANCH"
+      echo "  path: $QB_REPO_ROOT"
+      exit 1
+      ;;
+    feat/*|fix/*|chore/*|docs/*|test/*|refactor/*|hotfix/*)
+      # feature branch = 메인 세션 의도 추정 → 허용
+      echo "→ pre-push: main worktree, feature branch ($QB_BRANCH) — 허용"
+      ;;
+    *)
+      # 임의 branch (worker 일 가능성) → 차단 + bypass 안내
+      if [ "$QB_PRE_PUSH_BYPASS" = "1" ]; then
+        echo "→ pre-push: BYPASS — main worktree 임의 branch push 허용 (QB_PRE_PUSH_BYPASS=1)"
+        echo "  branch: $QB_BRANCH"
+        echo "  path: $QB_REPO_ROOT"
+      else
+        echo "ERROR: main worktree + 임의 branch push 차단 (Sprint 33 worker isolation)"
+        echo "  branch: $QB_BRANCH"
+        echo "  path: $QB_REPO_ROOT"
+        echo ""
+        echo "  표준 prefix (feat/fix/chore/docs/test/refactor/hotfix) 사용 권장."
+        echo "  의도적 임의 branch push 시: QB_PRE_PUSH_BYPASS=1 git push <args>"
+        exit 1
+      fi
+      ;;
+  esac
 else
   echo "→ pre-push: worker worktree (path: $QB_REPO_ROOT)"
 fi
