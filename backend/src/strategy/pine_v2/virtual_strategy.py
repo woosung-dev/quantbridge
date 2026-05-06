@@ -136,10 +136,12 @@ class VirtualStrategyWrapper:
                 if reverse_id in state.open_trades:
                     state.close(reverse_id, bar=bar_idx, fill_price=fill_price)
                 assert action.direction is not None
+                # BL-185 spot-equivalent: configure_sizing 호출 시 default_qty_type 기반 계산.
+                # 미호출 시 compute_qty()=1.0 (기존 호환).
                 state.entry(
                     action.trade_id,
                     action.direction,
-                    qty=1.0,
+                    qty=state.compute_qty(fill_price=fill_price),
                     bar=bar_idx,
                     fill_price=fill_price,
                 )
@@ -152,11 +154,17 @@ def run_virtual_strategy(
     ohlcv: pd.DataFrame,
     *,
     strict: bool = True,
+    initial_capital: float | None = None,
+    default_qty_type: str | None = None,
+    default_qty_value: float | None = None,
 ) -> VirtualRunResult:
     """indicator + alertcondition Pine 스크립트를 가상 strategy로 실행.
 
     - 매 bar interpreter.execute(tree) 실행 후 VirtualStrategyWrapper가
       alert condition을 재평가해 strategy.entry/close를 발행.
+
+    BL-185 spot-equivalent: initial_capital 지정 시 configure_sizing 호출.
+    process_bar 가 state.compute_qty(fill_price) 로 entry qty 계산.
     """
     _validate_ohlcv(ohlcv)
     tree = parse_to_ast(source)
@@ -165,6 +173,12 @@ def run_virtual_strategy(
     store = PersistentStore()
     bar = BarContext(ohlcv.reset_index(drop=True))
     interp = Interpreter(bar, store)
+    if initial_capital is not None:
+        interp.strategy.configure_sizing(
+            initial_capital=initial_capital,
+            default_qty_type=default_qty_type,
+            default_qty_value=default_qty_value,
+        )
     wrapper = VirtualStrategyWrapper(alerts, interp, strict=strict)
 
     errors: list[tuple[int, str]] = []

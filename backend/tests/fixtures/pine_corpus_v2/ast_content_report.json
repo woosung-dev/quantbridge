@@ -12,7 +12,9 @@
           "name": "overlay",
           "value": "True"
         }
-      ]
+      ],
+      "default_qty_type": null,
+      "default_qty_value": null
     },
     "inputs": [
       {
@@ -84,7 +86,9 @@
           "name": "overlay",
           "value": "True"
         }
-      ]
+      ],
+      "default_qty_type": null,
+      "default_qty_value": null
     },
     "inputs": [
       {
@@ -282,7 +286,9 @@
           "name": "overlay",
           "value": "True"
         }
-      ]
+      ],
+      "default_qty_type": null,
+      "default_qty_value": null
     },
     "inputs": [
       {
@@ -947,7 +953,9 @@
           "name": "overlay",
           "value": "True"
         }
-      ]
+      ],
+      "default_qty_type": null,
+      "default_qty_value": null
     },
     "inputs": [
       {
@@ -1042,7 +1050,9 @@
           "name": "overlay",
           "value": "True"
         }
-      ]
+      ],
+      "default_qty_type": null,
+      "default_qty_value": null
     },
     "inputs": [
       {
@@ -1301,7 +1311,9 @@
           "name": "currency",
           "value": "currency.USD"
         }
-      ]
+      ],
+      "default_qty_type": "strategy.fixed",
+      "default_qty_value": "2"
     },
     "inputs": [
       {
