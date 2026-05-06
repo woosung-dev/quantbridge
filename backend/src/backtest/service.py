@@ -165,12 +165,16 @@ class BacktestService:
         # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 5 가정 (TradingView 패턴).
         # Backtest.config JSONB 컬럼에 저장 → BacktestDetail.config 응답이 default
         # 가 아닌 사용자 입력값 → AssumptionsCard 가 (기본) 마크 자동 제거 (graceful upgrade).
+        # Sprint 37 BL-188a — default_qty_type/value 폼 입력도 JSONB 에 저장.
         config_payload: dict[str, Any] = {
             "leverage": float(data.leverage),
             "fees": float(data.fees_pct),
             "slippage": float(data.slippage_pct),
             "include_funding": bool(data.include_funding),
         }
+        if data.default_qty_type is not None and data.default_qty_value is not None:
+            config_payload["default_qty_type"] = data.default_qty_type
+            config_payload["default_qty_value"] = float(data.default_qty_value)
 
         bt = Backtest(
             user_id=user_id,
@@ -335,6 +339,16 @@ class BacktestService:
         """
         default = BacktestConfig()
         cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
+        # BL-188a: 폼 입력 default_qty_type / default_qty_value 도 engine 으로 전달.
+        # priority chain (Pine > 폼 > None) 은 compat.parse_and_run_v2 에서 결정.
+        form_qty_type_raw = cfg_dict.get("default_qty_type")
+        form_qty_value_raw = cfg_dict.get("default_qty_value")
+        form_qty_type: str | None = (
+            str(form_qty_type_raw) if form_qty_type_raw is not None else None
+        )
+        form_qty_value: float | None = (
+            float(form_qty_value_raw) if form_qty_value_raw is not None else None
+        )
         return BacktestConfig(
             init_cash=bt.initial_capital,
             fees=float(cfg_dict.get("fees", default.fees)),
@@ -344,6 +358,8 @@ class BacktestService:
             include_funding=bool(
                 cfg_dict.get("include_funding", default.include_funding)
             ),
+            default_qty_type=form_qty_type,
+            default_qty_value=form_qty_value,
         )
 
     def _raw_trades_to_models(
