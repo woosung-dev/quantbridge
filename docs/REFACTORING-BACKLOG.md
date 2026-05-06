@@ -604,6 +604,7 @@
 | [BL-187](#bl-187)                                  | 백테스트 폼 simplify (leverage/include_funding input 제거 + "모델: Spot-equivalent" visible info row 추가)        | Sprint 37 follow-up                          | S (2-3h)      | dogfood Day 7 발견 — Image 5 (Live Settings) vs Image 6 (백테스트) UI 혼란 (사용자 명시) + ui-ux-pro-max 옵션 2 채택. payload 는 default 자동 채움 (graceful upgrade 보존) |
 | [BL-187a](#bl-187a)                                | 라벨 simplify ("Spot-equivalent" → "1x · 롱/숏") + assumptions-card 의 레버리지/펀딩비 row 제거 (사용자 명시)     | Sprint 37 follow-up (PR #164 추가 commit)    | S (1h)        | dogfood Day 7 follow-up — "Spot" 단어 오해 (현물=롱만) + 사용자 명시 "레버리지 부분 일단 빼"                                                                               |
 | [BL-188](#bl-188)                                  | 백테스트 폼 ↔ Live Session Trading Settings mirror (옵션 C — Position Size / Sessions auto-fetch + Pine override) | Sprint 38 narrowest wedge 후보               | M (8-12h)     | dogfood Day 7 발견 (사용자 명시) — Live 의 Trading Settings 가 백테스트에 적용되어야 한다는 직관. 현재 분리 = trust 갭                                                     |
+| [BL-188a](#bl-188a)                                | 백테스트 폼 default_qty 입력 + Pine override priority chain (Pine > 폼 > None)                                    | Sprint 37 follow-up (PR #164 추가 commit)    | S (4-6h)      | dogfood Day 7 발견 — image 12 의 -249% MDD = Pine 미명시 + qty=1.0 silent fallback. 폼 입력 default percent_of_equity 10% 로 silent fallback 차단                          |
 
 (상세 내용은 출처 인용 — 표 형태로 충분, 각 항목 1-3 줄로 충분히 self-contained)
 

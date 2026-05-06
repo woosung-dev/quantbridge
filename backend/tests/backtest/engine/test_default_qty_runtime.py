@@ -163,3 +163,66 @@ if bar_index == 3
     assert trades[0].size == pytest.approx(Decimal("1")), (
         f"default 미지정 fallback 실패: qty={trades[0].size}"
     )
+
+
+# Sprint 37 BL-188a — priority chain (Pine > 폼 > None) 회귀.
+
+
+def test_bl188a_form_default_qty_used_when_pine_unspecified() -> None:
+    """BL-188a: Pine 미명시 + 폼 입력 (cfg.default_qty_type/value) → 폼 값 사용."""
+    source_no_qty = '''//@version=5
+strategy("NoQty", overlay=true)
+
+if bar_index == 1
+    strategy.entry("L", strategy.long)
+if bar_index == 3
+    strategy.close("L")
+'''
+    ohlcv = _ramp_ohlcv([50.0, 50.0, 50.0, 50.0, 50.0])
+    cfg = BacktestConfig(
+        init_cash=Decimal("10000"),
+        fees=0.0,
+        slippage=0.0,
+        default_qty_type="strategy.cash",
+        default_qty_value=100.0,  # 100 USDT
+    )
+    outcome = run_backtest_v2(source_no_qty, ohlcv, cfg)
+    assert outcome.status == "ok"
+    assert outcome.result is not None
+    trades = outcome.result.trades
+    assert len(trades) == 1
+    # cash 100 / fill_price 50 = qty 2 (BL-188a 폼 입력 적용)
+    assert trades[0].size == pytest.approx(Decimal("2")), (
+        f"BL-188a 폼 default_qty 적용 실패: qty={trades[0].size}"
+    )
+
+
+def test_bl188a_pine_overrides_form_default_qty() -> None:
+    """BL-188a: Pine 명시 + 폼 입력 동시 → Pine 우선 (override)."""
+    pine_with_default = '''//@version=5
+strategy("Pine30", overlay=true,
+  default_qty_type=strategy.percent_of_equity, default_qty_value=30)
+
+if bar_index == 1
+    strategy.entry("L", strategy.long)
+if bar_index == 3
+    strategy.close("L")
+'''
+    ohlcv = _ramp_ohlcv([100.0, 100.0, 100.0, 100.0, 100.0])
+    cfg = BacktestConfig(
+        init_cash=Decimal("10000"),
+        fees=0.0,
+        slippage=0.0,
+        # 폼 입력 cash 100 — Pine 명시값 (percent 30) 가 우선이라 무시되어야 함
+        default_qty_type="strategy.cash",
+        default_qty_value=100.0,
+    )
+    outcome = run_backtest_v2(pine_with_default, ohlcv, cfg)
+    assert outcome.status == "ok"
+    assert outcome.result is not None
+    trades = outcome.result.trades
+    assert len(trades) == 1
+    # Pine percent_of_equity 30%: 10000 * 0.3 / 100 = qty 30
+    assert trades[0].size == pytest.approx(Decimal("30")), (
+        f"BL-188a Pine override 실패 (폼 우선됨): qty={trades[0].size}"
+    )

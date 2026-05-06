@@ -68,6 +68,12 @@ interface FormValues {
   fees_pct: number;
   slippage_pct: number;
   include_funding: boolean;
+  // Sprint 37 BL-188a — 폼 default_qty_type/value (Pine 미명시 시 사용).
+  default_qty_type:
+    | "strategy.percent_of_equity"
+    | "strategy.cash"
+    | "strategy.fixed";
+  default_qty_value: number;
 }
 
 function toIsoUtc(dateOnly: string): string {
@@ -107,6 +113,10 @@ export function BacktestForm() {
       fees_pct: 0.001,
       slippage_pct: 0.0005,
       include_funding: true,
+      // Sprint 37 BL-188a — default 주문 크기 percent_of_equity 10%.
+      // Pine 명시 시 그게 우선 (override). 사용자가 dropdown 변경 가능.
+      default_qty_type: "strategy.percent_of_equity",
+      default_qty_value: 10,
     },
   });
 
@@ -202,6 +212,9 @@ export function BacktestForm() {
       fees_pct: Number(values.fees_pct),
       slippage_pct: Number(values.slippage_pct),
       include_funding: Boolean(values.include_funding),
+      // Sprint 37 BL-188a — 폼 default_qty (Pine 미명시 시 사용).
+      default_qty_type: values.default_qty_type,
+      default_qty_value: Number(values.default_qty_value),
     });
   };
 
@@ -411,6 +424,68 @@ export function BacktestForm() {
             {errors.slippage_pct ? (
               <p className="text-xs text-destructive">
                 {errors.slippage_pct.message}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Sprint 37 BL-188a: 기본 주문 크기 (default_qty_type/value).
+          Pine strategy(default_qty_type=...) 명시 시 그게 우선 (override).
+          미명시 시 폼 입력 사용 → silent qty=1.0 fallback 차단 (image 12 의 -249% 회귀 방지). */}
+      <section
+        className="border-t pt-4"
+        aria-label="기본 주문 크기"
+        data-testid="backtest-form-default-qty-section"
+      >
+        <h3 className="mb-3 text-sm font-medium">기본 주문 크기</h3>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Pine code 의 <code>strategy(default_qty_type=...)</code> 명시 시 그게
+          우선. 미명시 시 아래 입력값 사용.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="default_qty_type" className="text-sm">
+              type
+            </label>
+            <select
+              id="default_qty_type"
+              className="h-10 rounded-md border bg-background px-3 text-sm"
+              {...register("default_qty_type", {
+                required: "주문 크기 type 을 선택하세요",
+              })}
+            >
+              <option value="strategy.percent_of_equity">
+                자기자본 % (percent_of_equity)
+              </option>
+              <option value="strategy.cash">고정 USDT (cash)</option>
+              <option value="strategy.fixed">고정 수량 (fixed)</option>
+            </select>
+            {errors.default_qty_type ? (
+              <p className="text-xs text-destructive">
+                {errors.default_qty_type.message}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="default_qty_value" className="text-sm">
+              value
+            </label>
+            <Input
+              id="default_qty_value"
+              type="number"
+              step="0.01"
+              min={0.0001}
+              {...register("default_qty_value", {
+                required: "주문 크기 값을 입력하세요",
+                valueAsNumber: true,
+                validate: (v) =>
+                  (Number.isFinite(v) && v > 0) || "양수여야 합니다",
+              })}
+            />
+            {errors.default_qty_value ? (
+              <p className="text-xs text-destructive">
+                {errors.default_qty_value.message}
               </p>
             ) : null}
           </div>

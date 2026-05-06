@@ -60,21 +60,40 @@ def parse_and_run_v2(
     *,
     strict: bool = True,
     initial_capital: float | None = None,
+    form_default_qty_type: str | None = None,
+    form_default_qty_value: float | None = None,
 ) -> V2RunResult:
     """Pine 스크립트를 classify → 적절한 runner로 dispatch.
 
     BL-185: initial_capital 지정 시 ScriptContent 에서 default_qty_type/value 추출 후
     runner 에 전달 → StrategyState.configure_sizing 호출 → in-loop sizing 활성화.
-    None 시 기존 qty=1.0 fallback (회귀 호환).
+
+    BL-188a: priority chain — Pine strategy(default_qty_type=...) 명시 > 폼 입력
+    (form_default_qty_type/value) > None (qty=1.0 fallback). Pine 미명시 + 폼 명시 시
+    폼 값 사용 → 사용자가 폼에서 percent_of_equity 10% 등 입력 → 정확 시뮬레이션.
     """
     profile = classify_script(source)
     track = profile.track
 
-    # BL-185: strategy() 만 default_qty 보유 (indicator/library/Track A indicator 는 None).
+    # BL-185 + BL-188a: priority chain — Pine 명시 > 폼 입력 > None.
+    # 1. Pine strategy(default_qty_type=..., default_qty_value=...) 명시 → override
+    # 2. Pine 미명시 + 폼 입력 (form_default_qty_*) 명시 → 폼 값 사용
+    # 3. 둘 다 None → qty=1.0 fallback (회귀 호환)
     default_qty_type: str | None = None
     default_qty_value: float | None = None
     if initial_capital is not None:
-        default_qty_type, default_qty_value = _extract_default_qty(source)
+        pine_qty_type, pine_qty_value = _extract_default_qty(source)
+        if pine_qty_type is not None and pine_qty_value is not None:
+            # Pine 명시 = override (BL-185 표준)
+            default_qty_type = pine_qty_type
+            default_qty_value = pine_qty_value
+        elif (
+            form_default_qty_type is not None
+            and form_default_qty_value is not None
+        ):
+            # Pine 미명시 + 폼 입력 = 폼 우선 (BL-188a)
+            default_qty_type = form_default_qty_type
+            default_qty_value = form_default_qty_value
 
     if track == "S":
         hist = run_historical(
