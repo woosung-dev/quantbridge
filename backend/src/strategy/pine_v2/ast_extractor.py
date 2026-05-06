@@ -12,6 +12,7 @@ Week 2 Pine AST interpreter가 필요로 할 구조화된 전략 메타데이터
 공개 API:
 - `extract_content(source: str) -> ScriptContent`
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -40,12 +41,18 @@ class DeclarationInfo:
     kind: DeclarationKind
     title: str | None
     args: list[ArgValue] = field(default_factory=list)
+    # strategy() 의 default_qty_type / default_qty_value (kwarg) — BL-185.
+    # stringified (e.g. "strategy.percent_of_equity", "30"). strategy 가 아니거나 미지정 시 None.
+    default_qty_type: str | None = None
+    default_qty_value: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "title": self.title,
             "args": [a.to_dict() for a in self.args],
+            "default_qty_type": self.default_qty_type,
+            "default_qty_value": self.default_qty_value,
         }
 
 
@@ -131,8 +138,7 @@ def _stringify(node: Any) -> str:
     if isinstance(node, pyne_ast.Call):
         func = _stringify(node.func)
         args = ", ".join(
-            _stringify(a.value if isinstance(a, pyne_ast.Arg) else a)
-            for a in node.args[:3]
+            _stringify(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args[:3]
         )
         if len(node.args) > 3:
             args += ", ..."
@@ -187,6 +193,14 @@ def _get_arg(args: list[ArgValue], position: int, name: str | None = None) -> st
     return None
 
 
+def _get_kwarg(args: list[ArgValue], name: str) -> str | None:
+    """name 으로만 kwarg 조회 (positional 무시) — strategy() default_qty_* 등 BL-185 용."""
+    for a in args:
+        if a.name == name:
+            return a.value
+    return None
+
+
 def _strip_string_quotes(s: str | None) -> str | None:
     """`'hello'` → `hello` (repr 껍질 제거)."""
     if s is None:
@@ -238,7 +252,20 @@ def _extract_declaration(tree: Any) -> DeclarationInfo:
         # title은 positional 0 (첫 positional) 또는 name='title'
         title_raw = _get_arg(args, 0, name="title")
         title = _strip_string_quotes(title_raw)
-        return DeclarationInfo(kind=kind, title=title, args=args)
+        # strategy() 한정 default_qty_type/value 추출 (BL-185). kwarg 만 — Pine 표준.
+        if kind == "strategy":
+            default_qty_type = _get_kwarg(args, "default_qty_type")
+            default_qty_value = _get_kwarg(args, "default_qty_value")
+        else:
+            default_qty_type = None
+            default_qty_value = None
+        return DeclarationInfo(
+            kind=kind,
+            title=title,
+            args=args,
+            default_qty_type=default_qty_type,
+            default_qty_value=default_qty_value,
+        )
     return DeclarationInfo(kind="unknown", title=None, args=[])
 
 
@@ -279,13 +306,15 @@ def _extract_inputs(tree: Any) -> list[InputDecl]:
         defval = _get_arg(args, 0, name="defval")
         title = _strip_string_quotes(_get_arg(args, 1, name="title"))
 
-        inputs.append(InputDecl(
-            input_type=input_type,
-            var_name=var_name,
-            defval=defval,
-            title=title,
-            args=args,
-        ))
+        inputs.append(
+            InputDecl(
+                input_type=input_type,
+                var_name=var_name,
+                defval=defval,
+                title=title,
+                args=args,
+            )
+        )
     return inputs
 
 
