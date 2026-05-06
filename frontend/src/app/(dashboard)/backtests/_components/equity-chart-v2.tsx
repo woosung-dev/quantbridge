@@ -193,7 +193,9 @@ export function EquityChartV2({
           height={topHeight}
         />
         <AxisLabelBar
-          yAxisLabel="USDT (자본금)"
+          // Sprint 37 BL-184: equity/BH curve 가 PnL 기준 (시작=0) 으로
+          // 정규화되었으므로 Y축 라벨도 PnL 표기로 갱신.
+          yAxisLabel="PnL (USDT, 시작=0)"
           xAxisLabel={
             timeframe !== undefined && timeframe !== ""
               ? `시간 · ${timeframe} 단위 캔들`
