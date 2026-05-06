@@ -474,8 +474,8 @@ export function BacktestForm() {
             <Input
               id="default_qty_value"
               type="number"
-              step="0.01"
-              min={0.0001}
+              step="any"
+              min={0}
               {...register("default_qty_value", {
                 required: "주문 크기 값을 입력하세요",
                 valueAsNumber: true,
