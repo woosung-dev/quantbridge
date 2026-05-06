@@ -417,11 +417,9 @@ export function BacktestForm() {
         </div>
       </section>
 
-      {/* Sprint 37 BL-187 — 백테스트 폼 simplify (TradingView 표준 정합).
-          이전 Sprint 31 BL-162a 의 leverage / include_funding 입력은 BL-185
-          spot-equivalent 결정 후 PnL 미반영 = misleading 입력. 두 필드 form
-          payload 에서 default (1, true) 자동 채움 — assumptions-card graceful
-          upgrade 패턴 보존. visible info row 로 모델 가정 명시. */}
+      {/* Sprint 37 BL-187 → BL-187a: 라벨 simplify (사용자 오해 회피).
+          "Spot-equivalent" 단어가 "현물 = 롱만" 오해 유발 — 실제는 롱/숏 모두 가능.
+          레버리지 멘션 자체 minimize (사용자 명시). BL-186 후속 도래 시 재노출 검토. */}
       <section
         className="border-t pt-4"
         aria-label="시뮬레이션 모델"
@@ -429,13 +427,12 @@ export function BacktestForm() {
       >
         <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
           <p className="mb-1 font-medium text-foreground">
-            모델: Spot-equivalent
+            모델: 1x · 롱/숏
           </p>
           <p>
-            레버리지 / 펀딩 / 강제 청산 미반영. 레버리지 효과 시뮬레이션은
-            초기 자본 배수로 우회 가능 (예: 5x ≈ initial_capital × 5).{" "}
+            1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내).{" "}
             <span className="text-muted-foreground/80">
-              풀 모델 (funding rate / 유지 증거금 / liquidation) = BL-186 후속.
+              funding rate / 강제 청산 / 유지 증거금 미반영 (BL-186 후속).
             </span>
           </p>
         </div>
