@@ -16,6 +16,7 @@ import {
 } from "@/features/backtest/hooks";
 
 import { MonteCarloFanChart } from "./monte-carlo-fan-chart";
+import { MonteCarloSummaryTable } from "./monte-carlo-summary-table";
 import { WalkForwardBarChart } from "./walk-forward-bar-chart";
 
 interface Props {
@@ -114,7 +115,14 @@ export function StressTestPanel({ backtestId }: Props) {
           {stressData?.status === "completed" &&
           stressData.kind === "monte_carlo" &&
           stressData.monte_carlo_result ? (
-            <MonteCarloFanChart result={stressData.monte_carlo_result} />
+            // Sprint 37 BL-183: 숫자 요약표 (위) + fan chart (아래) 조합.
+            // 사용자가 수치 기반 의사결정과 분포 시각 둘 다 확보 가능.
+            <div className="space-y-4">
+              <MonteCarloSummaryTable
+                mcResult={stressData.monte_carlo_result}
+              />
+              <MonteCarloFanChart result={stressData.monte_carlo_result} />
+            </div>
           ) : null}
 
           {stressData?.status === "completed" &&
