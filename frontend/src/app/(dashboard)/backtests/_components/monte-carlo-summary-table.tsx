@@ -64,6 +64,7 @@ export function MonteCarloSummaryTable({
   return (
     <section
       aria-label="Monte Carlo 요약 통계"
+      data-testid="monte-carlo-summary-table"
       className="rounded-xl border bg-muted/30 px-4 py-3"
     >
       <header className="mb-2 flex items-center justify-between gap-2">
