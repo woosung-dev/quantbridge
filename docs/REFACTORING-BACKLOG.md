@@ -598,6 +598,9 @@
 | [BL-181](#bl-181)                                  | Docker worker auto-rebuild on PR merge (volume mount 또는 post-merge hook)                                      | Sprint 37 (P2)                               | M (3-4h)      | dogfood Day 6.5 BL-178 silent stale 재발 방지 (BL-181 = BL-178 근본 fix)                           |
 | [BL-182](#bl-182)                                  | Worker container code version 자동 monitoring + alert (sentinel function 또는 git hash 비교)                    | Sprint 37+                                   | S (2h)        | Sprint 35 Slice 1a BL-181 follow-up                                                                |
 | [BL-183](#bl-183)                                  | Monte Carlo 결과 요약 통계 FE 미노출 (CI 95% 하한/상한·median·MDD p95 숫자 테이블)                              | Sprint 37 (Day 7 재측정 prereq)              | S (1-2h)      | dogfood Day 7 발견 — BE 계산 완료, FE fan chart만 렌더, 숫자 표 없음                               |
+| [BL-184](#bl-184)                                  | Equity / Buy&Hold curve 시작점 PnL 정렬 (현재 절대값 10000 USDT, TradingView 표준 = 0 시작)                     | Sprint 37 (PR #161)                          | S (3-4h)      | dogfood Day 7 발견 — 첫눈 비교 불가 + Surface Trust 갭 (codex FE-only 권장)                        |
+| [BL-185](#bl-185)                                  | Pine 포지션 사이징 spot-equivalent (default_qty_type 3종 + leverage/funding UI cleanup)                         | Sprint 37 (PR #159)                          | M (10-14h)    | dogfood Day 7 발견 root cause — qty=1 hardcode → BTC 1 BTC = 수천만원 포지션 → TV 결과 완전 다름   |
+| [BL-186](#bl-186)                                  | Full leverage + funding rate + maintenance margin + cross/isolated margin + liquidation 풀 모델                 | Sprint 38+ (deferred, BL-185 foundation 위)  | M-L (16-24h)  | Sprint 37 BL-185 spot-equivalent 채택 후 풀 모델은 BL-186 후속 — funding/mm/liquidation 정확 시뮬  |
 
 (상세 내용은 출처 인용 — 표 형태로 충분, 각 항목 1-3 줄로 충분히 self-contained)
 
