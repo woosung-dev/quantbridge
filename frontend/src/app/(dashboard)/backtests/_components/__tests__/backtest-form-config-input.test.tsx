@@ -1,9 +1,13 @@
 /**
- * Sprint 31 BL-162a — BacktestForm 비용 시뮬레이션 + 마진 사용자 입력 검증.
+ * Sprint 37 BL-187 — BacktestForm 폼 simplify (BL-185 spot-equivalent 정합).
  *
- * TradingView strategy 속성 패턴 대응. 4 신규 input field (수수료/슬리피지/
- * 레버리지/펀딩) + Bybit Perpetual taker 표준 default + validation + form 제출
- * payload 정합 + 모바일 320px 레이아웃.
+ * 이전 (Sprint 31 BL-162a): leverage / include_funding input 검증.
+ * 현재: BL-185 spot-equivalent 결정 후 두 필드 misleading → form 에서 제거 +
+ * "모델: Spot-equivalent" visible info row 노출 + payload 는 default
+ * (leverage=1, include_funding=true) 자동 채움 (assumptions-card graceful
+ * upgrade 패턴 보존).
+ *
+ * 검증: 비용 (수수료/슬리피지) 입력 + 모델 info row + payload default 자동.
  */
 import {
   afterEach,
@@ -64,8 +68,8 @@ afterEach(() => {
   cleanup();
 });
 
-describe("BacktestForm — Sprint 31 BL-162a 비용/마진 입력", () => {
-  it("4 신규 input field 기본값 = Bybit Perpetual taker 표준", () => {
+describe("BacktestForm — Sprint 37 BL-187 spot-equivalent 정합", () => {
+  it("비용 시뮬레이션 input 기본값 = Bybit Perpetual taker 표준 (fees/slippage 만)", () => {
     render(<BacktestForm />);
 
     const fees = screen.getByLabelText(
@@ -74,35 +78,35 @@ describe("BacktestForm — Sprint 31 BL-162a 비용/마진 입력", () => {
     const slippage = screen.getByLabelText(
       /슬리피지 \(소수, 0.0005 = 0.05%\)/,
     ) as HTMLInputElement;
-    const leverage = screen.getByLabelText(
-      /레버리지 \(배, 1 = 현물\)/,
-    ) as HTMLInputElement;
-    const funding = screen.getByLabelText(
-      /펀딩비 반영/,
-    ) as HTMLInputElement;
 
     // Bybit/OKX taker 표준 default
     expect(fees.value).toBe("0.001");
     expect(slippage.value).toBe("0.0005");
-    expect(leverage.value).toBe("1");
-    expect(funding.checked).toBe(true);
+
+    // BL-187: leverage / 펀딩비 input row 제거 → label 미존재
+    expect(screen.queryByLabelText(/레버리지 \(배, 1 = 현물\)/)).toBeNull();
+    expect(screen.queryByLabelText(/펀딩비 반영/)).toBeNull();
   });
 
-  it("section 헤더 — 비용 시뮬레이션 + 마진 / 레버리지 (TradingView 패턴)", () => {
+  it("section 헤더 — 비용 시뮬레이션 + 시뮬레이션 모델 (Spot-equivalent visible info)", () => {
     render(<BacktestForm />);
 
-    // 섹션 aria-label 정합 (TradingView strategy 속성 패턴)
+    // 비용 시뮬레이션 섹션 존재
     expect(screen.getByLabelText("비용 시뮬레이션")).toBeInTheDocument();
-    expect(screen.getByLabelText("마진 / 레버리지")).toBeInTheDocument();
-    // 헤더 텍스트 노출
     expect(screen.getByText("비용 시뮬레이션")).toBeInTheDocument();
-    expect(screen.getByText("마진 / 레버리지")).toBeInTheDocument();
+
+    // BL-187: 마진/레버리지 섹션 → 시뮬레이션 모델 (Spot-equivalent info row)
+    expect(screen.getByLabelText("시뮬레이션 모델")).toBeInTheDocument();
+    expect(screen.getByText("모델: Spot-equivalent")).toBeInTheDocument();
+    // BL-186 후속 명시 (사용자 trust)
+    expect(screen.getByText(/BL-186 후속/)).toBeInTheDocument();
+    // 우회 패턴 안내 (사용자 통찰)
+    expect(screen.getByText(/초기 자본 배수로 우회 가능/)).toBeInTheDocument();
   });
 
-  it("사용자 입력 후 form 제출 → mutate 가 4 신규 필드 포함 payload 로 호출", async () => {
+  it("form 제출 → mutate payload 의 leverage / include_funding default 자동 채움", async () => {
     render(<BacktestForm />);
 
-    // 기본 필수 + 신규 4 필드 입력
     await act(async () => {
       fireEvent.change(screen.getByLabelText("심볼"), {
         target: { value: "BTC/USDT" },
@@ -124,10 +128,6 @@ describe("BacktestForm — Sprint 31 BL-162a 비용/마진 입력", () => {
         screen.getByLabelText(/슬리피지 \(소수, 0.0005 = 0.05%\)/),
         { target: { value: "0.0001" } },
       );
-      fireEvent.change(screen.getByLabelText(/레버리지 \(배, 1 = 현물\)/), {
-        target: { value: "10" },
-      });
-      fireEvent.click(screen.getByLabelText(/펀딩비 반영/));
 
       fireEvent.submit(screen.getByLabelText("backtest-form"));
     });
@@ -141,40 +141,13 @@ describe("BacktestForm — Sprint 31 BL-162a 비용/마진 입력", () => {
     const payload = firstCall![0] as Record<string, unknown>;
     expect(payload.fees_pct).toBe(0.0006);
     expect(payload.slippage_pct).toBe(0.0001);
-    expect(payload.leverage).toBe(10);
-    expect(payload.include_funding).toBe(false); // toggled OFF
-    // 기존 필드 보존 정합
+    // BL-187: 두 필드 form 입력 X → default 값 자동 (graceful upgrade 호환)
+    expect(payload.leverage).toBe(1);
+    expect(payload.include_funding).toBe(true);
+    // 기존 필드 정합
     expect(payload.strategy_id).toBe("abc");
     expect(payload.symbol).toBe("BTC/USDT");
     expect(payload.initial_capital).toBe(10000);
-  });
-
-  it("validation — leverage 200 (>125) 입력 시 inline error 표시 + mutate 미호출", async () => {
-    render(<BacktestForm />);
-
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText("심볼"), {
-        target: { value: "BTC/USDT" },
-      });
-      fireEvent.change(screen.getByLabelText("시작일"), {
-        target: { value: "2026-01-01" },
-      });
-      fireEvent.change(screen.getByLabelText("종료일"), {
-        target: { value: "2026-01-31" },
-      });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
-        target: { value: "10000" },
-      });
-      fireEvent.change(screen.getByLabelText(/레버리지 \(배, 1 = 현물\)/), {
-        target: { value: "200" },
-      });
-      fireEvent.submit(screen.getByLabelText("backtest-form"));
-    });
-
-    expect(
-      await screen.findByText(/1 ~ 125 범위여야 합니다/),
-    ).toBeInTheDocument();
-    expect(mutate).not.toHaveBeenCalled();
   });
 
   it("validation — fees_pct -0.1 (음수) 입력 시 inline error", async () => {
@@ -206,22 +179,19 @@ describe("BacktestForm — Sprint 31 BL-162a 비용/마진 입력", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("section data-testid + 모바일 1열 grid (반응형 sm:grid-cols-2)", () => {
+  it("section data-testid + 모바일 1열 grid (반응형)", () => {
     render(<BacktestForm />);
 
     const costSection = screen.getByTestId("backtest-form-cost-section");
-    const marginSection = screen.getByTestId("backtest-form-margin-section");
+    // BL-187: margin section → model section (Spot-equivalent info row)
+    const modelSection = screen.getByTestId("backtest-form-model-section");
 
     expect(costSection).toBeInTheDocument();
-    expect(marginSection).toBeInTheDocument();
+    expect(modelSection).toBeInTheDocument();
 
-    // grid 컨테이너 — 모바일 1열, sm 2열 (Tailwind responsive 패턴)
-    // .ai/stacks/nextjs-shared.md §4 — 320px 가로 스크롤 회피.
+    // 비용 grid 1열 (모바일) / 2열 (sm+)
     const costGrid = costSection.querySelector(".grid");
-    const marginGrid = marginSection.querySelector(".grid");
     expect(costGrid?.className).toMatch(/grid-cols-1/);
     expect(costGrid?.className).toMatch(/sm:grid-cols-2/);
-    expect(marginGrid?.className).toMatch(/grid-cols-1/);
-    expect(marginGrid?.className).toMatch(/sm:grid-cols-2/);
   });
 });

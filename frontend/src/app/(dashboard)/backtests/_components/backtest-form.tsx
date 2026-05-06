@@ -417,53 +417,27 @@ export function BacktestForm() {
         </div>
       </section>
 
-      {/* Sprint 31 BL-162a — 마진 / 레버리지 (TradingView strategy 속성 패턴).
-          leverage=1 = 현물, >1 = Perpetual 선물. Bybit max 125x. */}
+      {/* Sprint 37 BL-187 — 백테스트 폼 simplify (TradingView 표준 정합).
+          이전 Sprint 31 BL-162a 의 leverage / include_funding 입력은 BL-185
+          spot-equivalent 결정 후 PnL 미반영 = misleading 입력. 두 필드 form
+          payload 에서 default (1, true) 자동 채움 — assumptions-card graceful
+          upgrade 패턴 보존. visible info row 로 모델 가정 명시. */}
       <section
         className="border-t pt-4"
-        aria-label="마진 / 레버리지"
-        data-testid="backtest-form-margin-section"
+        aria-label="시뮬레이션 모델"
+        data-testid="backtest-form-model-section"
       >
-        <h3 className="mb-3 text-sm font-medium">마진 / 레버리지</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="leverage" className="text-sm">
-              레버리지 (배, 1 = 현물)
-            </label>
-            <Input
-              id="leverage"
-              type="number"
-              step="0.5"
-              min={1}
-              max={125}
-              {...register("leverage", {
-                required: "레버리지를 입력하세요",
-                valueAsNumber: true,
-                validate: (v) =>
-                  (Number.isFinite(v) && v >= 1 && v <= 125) ||
-                  "1 ~ 125 범위여야 합니다",
-              })}
-            />
-            {errors.leverage ? (
-              <p className="text-xs text-destructive">
-                {errors.leverage.message}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="include_funding"
-              className="text-sm flex items-center gap-2"
-            >
-              <input
-                id="include_funding"
-                type="checkbox"
-                className="h-4 w-4"
-                {...register("include_funding")}
-              />
-              펀딩비 반영 (8h 무기한 선물)
-            </label>
-          </div>
+        <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+          <p className="mb-1 font-medium text-foreground">
+            모델: Spot-equivalent
+          </p>
+          <p>
+            레버리지 / 펀딩 / 강제 청산 미반영. 레버리지 효과 시뮬레이션은
+            초기 자본 배수로 우회 가능 (예: 5x ≈ initial_capital × 5).{" "}
+            <span className="text-muted-foreground/80">
+              풀 모델 (funding rate / 유지 증거금 / liquidation) = BL-186 후속.
+            </span>
+          </p>
         </div>
       </section>
 
