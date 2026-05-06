@@ -20,6 +20,7 @@
 
 import { useMemo } from "react";
 
+import { normalizeToPnlCurve } from "@/components/charts/normalize-to-pnl-curve";
 import type {
   ChartMarker,
   ChartPoint,
@@ -107,20 +108,25 @@ export function EquityChartV2({
   mddExceedsCapital,
   buyAndHoldCurve,
 }: EquityChartV2Props) {
+  // Sprint 37 BL-184: equity / Buy&Hold curve 모두 PnL 기준 (시작=0) 으로 정규화.
+  // BE 는 absolute capital (initial_capital 시작) 그대로 유지 — metrics/MC/stress
+  // 입력 안전성 우선. FE 표시 단계에서만 첫 값을 baseline 0 으로 정렬해
+  // TradingView 표준 + equity vs BH 동일 baseline 비교 가능 (Surface Trust).
   const equityData = useMemo<ChartPoint[]>(
     () =>
-      equityCurve.map((p) => ({
+      normalizeToPnlCurve(equityCurve).map((p) => ({
         time: p.timestamp,
         value: p.value,
       })),
     [equityCurve],
   );
 
-  // Sprint 34 BL-175: backend buy_and_hold_curve 직접 사용 (frontend 자체 계산 폐기).
-  // null/undefined/빈 배열 시 benchmark series 미추가 → ChartLegend 가 BH 항목 hide.
+  // Sprint 34 BL-175 + Sprint 37 BL-184: backend buy_and_hold_curve 직접 사용
+  // (frontend 자체 계산 폐기) + PnL 정규화. null/undefined/빈 배열 시 benchmark
+  // series 미추가 → ChartLegend 가 BH 항목 hide.
   const benchmarkData = useMemo<ChartPoint[]>(() => {
     if (!buyAndHoldCurve || buyAndHoldCurve.length === 0) return [];
-    return buyAndHoldCurve.map((p) => ({
+    return normalizeToPnlCurve(buyAndHoldCurve).map((p) => ({
       time: p.timestamp,
       value: p.value,
     }));
