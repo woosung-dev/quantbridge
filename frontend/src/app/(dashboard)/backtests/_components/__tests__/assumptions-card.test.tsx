@@ -65,4 +65,30 @@ describe("AssumptionsCard (Sprint 30-α)", () => {
     render(<AssumptionsCard initialCapital={10000} />);
     expect(screen.getByLabelText("백테스트 가정")).toBeInTheDocument();
   });
+
+  // Sprint 37 BL-185 — Spot-equivalent visible row.
+  // codex 권장: tooltip 만으론 사용자가 못 봄 → visible row 로 명시.
+  it("BL-185: '포지션 모델' Spot-equivalent visible row 표시", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    expect(screen.getByText("포지션 모델")).toBeInTheDocument();
+    expect(screen.getByText("Spot-equivalent")).toBeInTheDocument();
+  });
+
+  it("BL-185: '레버리지' tooltip 에 Spot-equivalent 가정 명시 (PnL 미반영)", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    const leverageDt = screen.getByText("레버리지").parentElement;
+    // tooltip 은 title attribute. Spot-equivalent / PnL 미반영 / BL-186 키워드 포함.
+    expect(leverageDt?.title ?? "").toMatch(
+      /Spot-equivalent|PnL\s*(엔진\s*)?미반영|BL-186/i,
+    );
+  });
+
+  it("BL-185: '펀딩비 반영' tooltip 에 미반영 가정 명시", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    const fundingDt = screen.getByText("펀딩비 반영").parentElement;
+    // tooltip 에 BL-186 후속 / 미반영 키워드 포함.
+    expect(fundingDt?.title ?? "").toMatch(
+      /BL-186|미반영|향후|후속/i,
+    );
+  });
 });

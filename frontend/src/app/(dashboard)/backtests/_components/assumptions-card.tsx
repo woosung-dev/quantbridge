@@ -56,16 +56,28 @@ export function AssumptionsCard({
       title: "백테스트 시작 시점의 가용 자본",
       isDefault: false,
     },
+    // Sprint 37 BL-185: Spot-equivalent visible row. tooltip 만으론 사용자가
+    // 못 봄 → 결과 해석 시 가장 먼저 인지하도록 visible row 로 노출 (codex 권장).
+    {
+      label: "포지션 모델",
+      value: "Spot-equivalent",
+      title:
+        "Sprint 37 BL-185: Pine strategy(default_qty_type=...) 3종 (percent_of_equity / cash / fixed) " +
+        "사용. 레버리지 효과는 초기 자본 배수로 우회 가능 (예: 5x ≈ initial_capital × 5). " +
+        "funding rate / 강제 청산 / 유지 증거금 미반영 (BL-186 후속).",
+      isDefault: false,
+    },
     {
       label: "레버리지",
       value: leverage === 1 ? "1x · 현물" : `${leverage.toFixed(1)}x`,
-      // Sprint 32-D BL-156: MDD 수학 정합 — leverage 는 *명시적 가정* 으로
-      // 노출. pine_v2 엔진은 leverage 를 PnL 에 직접 적용 안 함 (qty=절대
-      // 수량). 사용자가 자본 대비 손실 한계 (-100%) 를 초과하는 MDD 를
-      // 해석할 때 참고 (>1x 시 자연스럽게 설명 가능).
+      // Sprint 32-D BL-156: MDD 수학 정합 — leverage 는 *명시적 가정* 으로 노출.
+      // Sprint 37 BL-185: Spot-equivalent 모델 채택 — leverage 는 PnL 엔진 계산에
+      // 미반영 (응답 노출만). 사용자가 5x 효과를 보려면 initial_capital × 5 우회.
+      // BL-186 후속 풀 모델에서 funding/mm rate/liquidation 정확 시뮬레이션 예정.
       title:
-        "1x = 현물 매매 가정. >1x = Perpetual 선물 (Bybit/OKX) 가정. " +
-        "MDD 가 -100% 초과 시 leverage 가정으로 해석 가능.",
+        "Spot-equivalent 가정. 현재 PnL 엔진 미반영 (응답 노출만). " +
+        "레버리지 효과 시뮬레이션은 initial_capital 배수로 우회 가능. " +
+        "BL-186 후속 풀 모델에서 funding/유지 증거금/강제 청산 정확 반영 예정.",
       isDefault: config?.leverage == null,
     },
     {
@@ -83,14 +95,19 @@ export function AssumptionsCard({
     {
       label: "펀딩비 반영",
       value: includeFunding ? "ON" : "OFF",
-      title: "8시간마다 발생하는 무기한 선물 펀딩비 반영 여부",
+      // Sprint 37 BL-185: 현재 미반영 (Spot-equivalent). BL-186 후속 풀 모델에서
+      // 8h 주기 funding rate 정확 시뮬레이션 예정.
+      title:
+        "현재 미반영 (Spot-equivalent 가정). BL-186 후속 풀 모델에서 8h 주기 " +
+        "funding rate 정확 시뮬레이션 예정.",
       isDefault: config?.include_funding == null,
     },
   ];
 
-  // 초기 자본 외 4개 가정 모두 default = BE config 미응답 상태.
+  // BE config 응답 여부 판단: 초기 자본 (사용자 입력) + 포지션 모델 (Sprint 37 고정)
+  // 외 4개 가정 (레버리지/수수료/슬리피지/펀딩) 모두 default = BE config 미응답.
   const allAssumptionsDefaulted = items
-    .slice(1)
+    .slice(2)
     .every((it) => it.isDefault);
 
   return (
