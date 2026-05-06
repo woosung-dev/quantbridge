@@ -88,20 +88,24 @@ describe("BacktestForm — Sprint 37 BL-187 spot-equivalent 정합", () => {
     expect(screen.queryByLabelText(/펀딩비 반영/)).toBeNull();
   });
 
-  it("section 헤더 — 비용 시뮬레이션 + 시뮬레이션 모델 (Spot-equivalent visible info)", () => {
+  it("section 헤더 — 비용 시뮬레이션 + 시뮬레이션 모델 (BL-187a 라벨 simplify)", () => {
     render(<BacktestForm />);
 
     // 비용 시뮬레이션 섹션 존재
     expect(screen.getByLabelText("비용 시뮬레이션")).toBeInTheDocument();
     expect(screen.getByText("비용 시뮬레이션")).toBeInTheDocument();
 
-    // BL-187: 마진/레버리지 섹션 → 시뮬레이션 모델 (Spot-equivalent info row)
+    // BL-187: 마진/레버리지 섹션 → 시뮬레이션 모델
     expect(screen.getByLabelText("시뮬레이션 모델")).toBeInTheDocument();
-    expect(screen.getByText("모델: Spot-equivalent")).toBeInTheDocument();
+    // BL-187a: 라벨 "Spot-equivalent" → "1x · 롱/숏" (사용자 오해 회피)
+    expect(screen.getByText("모델: 1x · 롱/숏")).toBeInTheDocument();
+    expect(screen.queryByText("모델: Spot-equivalent")).toBeNull();
+    // 롱/숏 둘 다 가능 명시
+    expect(
+      screen.getByText(/롱\/숏 모두 가능|자기자본 한도/i),
+    ).toBeInTheDocument();
     // BL-186 후속 명시 (사용자 trust)
     expect(screen.getByText(/BL-186 후속/)).toBeInTheDocument();
-    // 우회 패턴 안내 (사용자 통찰)
-    expect(screen.getByText(/초기 자본 배수로 우회 가능/)).toBeInTheDocument();
   });
 
   it("form 제출 → mutate payload 의 leverage / include_funding default 자동 채움", async () => {
