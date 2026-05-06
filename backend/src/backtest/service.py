@@ -7,7 +7,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal, cast
 from uuid import UUID
 
 import pandas as pd
@@ -19,6 +19,9 @@ from src.backtest.exceptions import (
     BacktestDuplicateIdempotencyKey,
     BacktestNotFound,
     BacktestStateConflict,
+    MirrorNotAllowed,
+    PinePartialDeclaration,
+    SizingSourceConflict,
     StrategyDegraded,
     StrategyNotRunnable,
     TaskDispatchError,
@@ -53,8 +56,11 @@ from src.common.pagination import Page
 from src.core.config import settings
 from src.market_data.providers import OHLCVProvider
 from src.strategy.exceptions import StrategyNotFoundError
+from src.strategy.models import Strategy
+from src.strategy.pine_v2.compat import _extract_default_qty
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.repository import StrategyRepository
+from src.strategy.schemas import StrategySettings
 
 logger = logging.getLogger(__name__)
 
@@ -165,16 +171,35 @@ class BacktestService:
         # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 5 가정 (TradingView 패턴).
         # Backtest.config JSONB 컬럼에 저장 → BacktestDetail.config 응답이 default
         # 가 아닌 사용자 입력값 → AssumptionsCard 가 (기본) 마크 자동 제거 (graceful upgrade).
-        # Sprint 37 BL-188a — default_qty_type/value 폼 입력도 JSONB 에 저장.
+        # Sprint 38 BL-188 v3 — sizing canonical helper 결정 + Live mirror metadata.
+        # codex G.0 iter 1+2 must-fix 1 (sizing source 단일화) + must-fix 3 (leverage Nx
+        # reject) + D2 (manual override) 반영. helper 가 Pine partial / Live Nx / double
+        # sizing 모두 422 reject 책임.
+        sizing_canonical = _resolve_sizing_canonical(data, strategy)
+
         config_payload: dict[str, Any] = {
             "leverage": float(data.leverage),
             "fees": float(data.fees_pct),
             "slippage": float(data.slippage_pct),
             "include_funding": bool(data.include_funding),
+            # BL-188 v3 — sizing canonical metadata (BacktestConfig 5 신규 필드 → JSONB).
+            "sizing_source": sizing_canonical["sizing_source"],
+            "sizing_basis": sizing_canonical["sizing_basis"],
+            "leverage_basis": sizing_canonical["leverage_basis"],
         }
-        if data.default_qty_type is not None and data.default_qty_value is not None:
-            config_payload["default_qty_type"] = data.default_qty_type
-            config_payload["default_qty_value"] = float(data.default_qty_value)
+        if sizing_canonical["default_qty_type"] is not None:
+            config_payload["default_qty_type"] = sizing_canonical["default_qty_type"]
+            config_payload["default_qty_value"] = sizing_canonical["default_qty_value"]
+        if sizing_canonical["live_position_size_pct"] is not None:
+            config_payload["live_position_size_pct"] = sizing_canonical[
+                "live_position_size_pct"
+            ]
+        # BL-188 v3 — trading_sessions canonical (request 우선, strategy 다음, 빈값 = 24h).
+        trading_sessions_canonical: list[str] = list(data.trading_sessions) or list(
+            strategy.trading_sessions or []
+        )
+        if trading_sessions_canonical:
+            config_payload["trading_sessions"] = trading_sessions_canonical
 
         bt = Backtest(
             user_id=user_id,
@@ -336,11 +361,17 @@ class BacktestService:
         bt.config NULL (legacy / Sprint 30 이전) 시 engine default 사용 (init_cash /
         freq 만 bt 값 적용). bt.config 채워진 경우 leverage/fees/slippage/include_funding
         모두 사용자 입력값으로 override.
+
+        Sprint 38 BL-188 v3 (codex iter 2 [P1] #3) — submit() 시점 helper 가 결정한
+        sizing canonical 5 필드 + trading_sessions 를 BacktestConfig 로 propagate.
+        본 매핑 누락 시 worker 가 Live mirror 결정 silent ignore = 거짓 trust 회복 실패.
         """
         default = BacktestConfig()
         cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
         # BL-188a: 폼 입력 default_qty_type / default_qty_value 도 engine 으로 전달.
-        # priority chain (Pine > 폼 > None) 은 compat.parse_and_run_v2 에서 결정.
+        # BL-188 v3 의 service helper 가 결정한 결과는 동일 키에 저장 (Pine 명시 시 Pine
+        # 값, 폼 manual 시 사용자 입력값, Live mirror 시 None — live_position_size_pct
+        # 만 채움). priority chain 최종 적용은 compat.parse_and_run_v2 에서.
         form_qty_type_raw = cfg_dict.get("default_qty_type")
         form_qty_value_raw = cfg_dict.get("default_qty_value")
         form_qty_type: str | None = (
@@ -349,17 +380,51 @@ class BacktestService:
         form_qty_value: float | None = (
             float(form_qty_value_raw) if form_qty_value_raw is not None else None
         )
+        # BL-188 v3 — Live mirror canonical 5 필드 (codex iter 2 [P1] #3 매핑).
+        live_pct_raw = cfg_dict.get("live_position_size_pct")
+        live_pct: float | None = (
+            float(live_pct_raw) if live_pct_raw is not None else None
+        )
+        sessions_raw = cfg_dict.get("trading_sessions") or []
+        trading_sessions_tuple: tuple[str, ...] = tuple(sessions_raw)
+        # sizing_source / sizing_basis Literal validation (legacy NULL → fallback).
+        sizing_source_raw = cfg_dict.get("sizing_source") or "fallback"
+        if sizing_source_raw not in {"pine", "live", "form", "fallback"}:
+            sizing_source_raw = "fallback"
+        sizing_source = cast(
+            Literal["pine", "live", "form", "fallback"], sizing_source_raw
+        )
+        sizing_basis_raw = cfg_dict.get("sizing_basis") or "fallback_qty1"
+        if sizing_basis_raw not in _VALID_SIZING_BASIS:
+            sizing_basis_raw = "fallback_qty1"
+        sizing_basis = cast(
+            Literal[
+                "pine_native",
+                "live_available_balance_approx_equity",
+                "form_equity",
+                "fallback_qty1",
+            ],
+            sizing_basis_raw,
+        )
+        leverage_basis: float = float(
+            cfg_dict.get("leverage_basis", default.leverage_basis)
+        )
         return BacktestConfig(
             init_cash=bt.initial_capital,
             fees=float(cfg_dict.get("fees", default.fees)),
             slippage=float(cfg_dict.get("slippage", default.slippage)),
             freq=_timeframe_to_freq(bt.timeframe),
+            trading_sessions=trading_sessions_tuple,
             leverage=float(cfg_dict.get("leverage", default.leverage)),
             include_funding=bool(
                 cfg_dict.get("include_funding", default.include_funding)
             ),
             default_qty_type=form_qty_type,
             default_qty_value=form_qty_value,
+            live_position_size_pct=live_pct,
+            sizing_source=sizing_source,
+            sizing_basis=sizing_basis,
+            leverage_basis=leverage_basis,
         )
 
     def _raw_trades_to_models(
@@ -651,6 +716,167 @@ _TIMEFRAME_TO_FREQ: dict[str, str] = {
 def _timeframe_to_freq(timeframe: str) -> str:
     """timeframe Literal → pandas offset alias. 미매핑 시 '1D' fallback (안전)."""
     return _TIMEFRAME_TO_FREQ.get(timeframe, "1D")
+
+
+# ---------------------------------------------------------------------------
+# Sprint 38 BL-188 v3 — sizing canonical 결정 helper (codex G.0 iter 1+2 fix 반영).
+# must-fix 1 (sizing source 단일화) + must-fix 3 (leverage Nx reject) + D2 (manual override).
+# ---------------------------------------------------------------------------
+
+
+_VALID_SIZING_BASIS: frozenset[str] = frozenset(
+    {
+        "pine_native",
+        "live_available_balance_approx_equity",
+        "form_equity",
+        "fallback_qty1",
+    }
+)
+
+
+def _resolve_sizing_canonical(
+    request: CreateBacktestRequest,
+    strategy: Strategy,
+) -> dict[str, Any]:
+    """submit 시점 sizing canonical 결정 (Pine > 폼 manual > Live > fallback).
+
+    codex G.0 iter 1 must-fix 1+3 + iter 2 [P1] #1 (D2 결정) 반영. helper 가
+    `Backtest.config` JSONB 에 저장될 5 필드 (sizing_source / sizing_basis /
+    leverage_basis / live_position_size_pct / default_qty_*) 를 결정.
+
+    Priority chain (D2 manual override 가능):
+      1. Pine `strategy(default_qty_type=..., default_qty_value=...)` 명시 → tier 1
+      2. request.default_qty_type/value 명시 (사용자 manual override) → tier 2
+      3. request.position_size_pct OR strategy.settings.position_size_pct (Live, 1x only) → tier 3
+      4. None → fallback (qty=1.0)
+
+    422 reject:
+      - Pine partial declaration (type-only / value-only) → PinePartialDeclaration
+      - position_size_pct + default_qty_* 동시 명시 → SizingSourceConflict
+        (schema validator 가 1차 차단, 본 helper 는 외부 client / 우회 호출 방어)
+      - Live mirror 의도 + leverage != 1 → MirrorNotAllowed (BL-186 후 unlock)
+    """
+    # 1. Pine declaration 추출 + partial reject (codex iter 1 [P1] #5)
+    pine_qty_type, pine_qty_value = _extract_default_qty(strategy.pine_source)
+    if (pine_qty_type is None) != (pine_qty_value is None):
+        raise PinePartialDeclaration(
+            detail=(
+                f"Pine strategy declaration partial: "
+                f"default_qty_type={pine_qty_type!r}, default_qty_value={pine_qty_value!r}. "
+                f"둘 다 명시 또는 둘 다 생략 의무 (BL-188 v3)."
+            ),
+            declared_type=pine_qty_type,
+            declared_value=str(pine_qty_value) if pine_qty_value is not None else None,
+        )
+
+    # 2. Pine tier 1 (override 0순위)
+    if pine_qty_type is not None and pine_qty_value is not None:
+        return _canonical_dict(
+            source="pine",
+            qty_type=pine_qty_type,
+            qty_value=pine_qty_value,
+            live_pct=None,
+            basis="pine_native",
+        )
+
+    # 3. Service-level 2차 방어 (codex must-fix 1) — 외부 client / FE 우회 호출 시.
+    #    schema validator `_no_double_sizing` 이 1차 차단하지만 helper 도 동일 판정.
+    request_form_explicit = (
+        request.default_qty_type is not None and request.default_qty_value is not None
+    )
+    request_live_explicit = request.position_size_pct is not None
+    if request_live_explicit and request_form_explicit:
+        raise SizingSourceConflict(
+            detail=(
+                "position_size_pct (Live mirror) 와 default_qty_type/value (manual) "
+                "동시 명시 불가. canonical 1개 선택 의무 (BL-188 v3)."
+            )
+        )
+
+    # 4. Manual override tier 2 (D2 결정 — form > Live)
+    if request_form_explicit:
+        # mypy 위해 None 안전 cast — 위 조건에서 둘 다 not None 보장.
+        assert request.default_qty_type is not None
+        assert request.default_qty_value is not None
+        return _canonical_dict(
+            source="form",
+            qty_type=request.default_qty_type,
+            qty_value=float(request.default_qty_value),
+            live_pct=None,
+            basis="form_equity",
+        )
+
+    # 5. Live mirror tier 3 (1x equity-basis only)
+    live_settings: StrategySettings | None = None
+    if strategy.settings is not None:
+        live_settings = StrategySettings.model_validate(strategy.settings)
+
+    live_implicit = live_settings is not None and not request_live_explicit
+    if request_live_explicit or live_implicit:
+        if live_settings is None:
+            # request.position_size_pct 명시했으나 strategy.settings 비어있음.
+            raise MirrorNotAllowed(
+                detail=(
+                    "position_size_pct 명시했으나 strategy.settings 가 비어있음. "
+                    "Live settings 등록 후 mirror 가능."
+                ),
+                live_leverage=None,
+                live_margin_mode=None,
+            )
+        if live_settings.leverage != 1:
+            # codex must-fix 3 — leverage Nx 시 거짓 mirror 차단 (BL-186 후 unlock).
+            raise MirrorNotAllowed(
+                detail=(
+                    f"Live leverage {live_settings.leverage}x ({live_settings.margin_mode}) "
+                    f"와 backtest 1x equity-basis 비대칭 → mirror 불가. "
+                    f"BL-186 (풀 leverage/funding/liquidation 모델) 후 unlock."
+                ),
+                live_leverage=live_settings.leverage,
+                live_margin_mode=live_settings.margin_mode,
+            )
+        # live mirror 1x — request 우선, 없으면 strategy.settings 값 사용.
+        if request.position_size_pct is not None:
+            live_pct_resolved = float(request.position_size_pct)
+        else:
+            live_pct_resolved = float(live_settings.position_size_pct)
+        return _canonical_dict(
+            source="live",
+            qty_type=None,
+            qty_value=None,
+            live_pct=live_pct_resolved,
+            basis="live_available_balance_approx_equity",
+        )
+
+    # 6. Fallback (qty=1.0 — pre-BL-185 호환)
+    return _canonical_dict(
+        source="fallback",
+        qty_type=None,
+        qty_value=None,
+        live_pct=None,
+        basis="fallback_qty1",
+    )
+
+
+def _canonical_dict(
+    *,
+    source: str,
+    qty_type: str | None,
+    qty_value: float | None,
+    live_pct: float | None,
+    basis: str,
+) -> dict[str, Any]:
+    """sizing canonical 결과 dict 빌더 (BacktestConfig 5 필드 + default_qty_* 호환).
+
+    Sprint 38 = leverage_basis 항상 1.0 (Nx mirror reject. BL-186 후 unlock).
+    """
+    return {
+        "default_qty_type": qty_type,
+        "default_qty_value": qty_value,
+        "live_position_size_pct": live_pct,
+        "sizing_source": source,
+        "sizing_basis": basis,
+        "leverage_basis": 1.0,
+    }
 
 
 # ---------------------------------------------------------------------------
