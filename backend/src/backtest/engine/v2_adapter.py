@@ -61,11 +61,15 @@ def run_backtest_v2(
     try:
         # strict=True — bar-level PineRuntimeError 를 raise 시켜 상위에서 status=error 로 변환.
         # Sprint 37 BL-185: cfg.init_cash 를 initial_capital 로 전달 → configure_sizing 호출.
+        # Sprint 37 BL-188a: cfg.default_qty_type/value (폼 입력) 도 전달.
+        # priority chain은 compat.parse_and_run_v2 안에서 결정 (Pine > 폼 > None).
         v2 = parse_and_run_v2(
             source,
             ohlcv,
             strict=True,
             initial_capital=float(cfg.init_cash),
+            form_default_qty_type=cfg.default_qty_type,
+            form_default_qty_value=cfg.default_qty_value,
         )
     except PineRuntimeError as exc:
         logger.info("v2_adapter_runtime_error: %s", exc)

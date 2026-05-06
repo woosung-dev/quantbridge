@@ -88,20 +88,24 @@ describe("BacktestForm — Sprint 37 BL-187 spot-equivalent 정합", () => {
     expect(screen.queryByLabelText(/펀딩비 반영/)).toBeNull();
   });
 
-  it("section 헤더 — 비용 시뮬레이션 + 시뮬레이션 모델 (Spot-equivalent visible info)", () => {
+  it("section 헤더 — 비용 시뮬레이션 + 시뮬레이션 모델 (BL-187a 라벨 simplify)", () => {
     render(<BacktestForm />);
 
     // 비용 시뮬레이션 섹션 존재
     expect(screen.getByLabelText("비용 시뮬레이션")).toBeInTheDocument();
     expect(screen.getByText("비용 시뮬레이션")).toBeInTheDocument();
 
-    // BL-187: 마진/레버리지 섹션 → 시뮬레이션 모델 (Spot-equivalent info row)
+    // BL-187: 마진/레버리지 섹션 → 시뮬레이션 모델
     expect(screen.getByLabelText("시뮬레이션 모델")).toBeInTheDocument();
-    expect(screen.getByText("모델: Spot-equivalent")).toBeInTheDocument();
+    // BL-187a: 라벨 "Spot-equivalent" → "1x · 롱/숏" (사용자 오해 회피)
+    expect(screen.getByText("모델: 1x · 롱/숏")).toBeInTheDocument();
+    expect(screen.queryByText("모델: Spot-equivalent")).toBeNull();
+    // 롱/숏 둘 다 가능 명시
+    expect(
+      screen.getByText(/롱\/숏 모두 가능|자기자본 한도/i),
+    ).toBeInTheDocument();
     // BL-186 후속 명시 (사용자 trust)
     expect(screen.getByText(/BL-186 후속/)).toBeInTheDocument();
-    // 우회 패턴 안내 (사용자 통찰)
-    expect(screen.getByText(/초기 자본 배수로 우회 가능/)).toBeInTheDocument();
   });
 
   it("form 제출 → mutate payload 의 leverage / include_funding default 자동 채움", async () => {
@@ -177,6 +181,63 @@ describe("BacktestForm — Sprint 37 BL-187 spot-equivalent 정합", () => {
       await screen.findByText(/0 ~ 0.01 \(1%\) 범위여야 합니다/),
     ).toBeInTheDocument();
     expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("BL-188a: 기본 주문 크기 input (default_qty_type dropdown + value)", () => {
+    render(<BacktestForm />);
+    // dropdown 3 options 노출
+    expect(screen.getByLabelText("type")).toBeInTheDocument();
+    expect(
+      screen.getByText("자기자본 % (percent_of_equity)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("고정 USDT (cash)")).toBeInTheDocument();
+    expect(screen.getByText("고정 수량 (fixed)")).toBeInTheDocument();
+    // value input 노출
+    const valueInput = screen.getByLabelText("value") as HTMLInputElement;
+    expect(valueInput).toBeInTheDocument();
+    expect(valueInput.value).toBe("10");
+    // section testid
+    expect(
+      screen.getByTestId("backtest-form-default-qty-section"),
+    ).toBeInTheDocument();
+    // Pine override 안내
+    expect(
+      screen.getByText(/Pine\s+code\s+의|미명시 시 아래 입력값/i),
+    ).toBeInTheDocument();
+  });
+
+  it("BL-188a: form 제출 → payload 에 default_qty_type/value 포함", async () => {
+    render(<BacktestForm />);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+        target: { value: "10000" },
+      });
+      // dropdown 변경: percent_of_equity → cash
+      fireEvent.change(screen.getByLabelText("type"), {
+        target: { value: "strategy.cash" },
+      });
+      fireEvent.change(screen.getByLabelText("value"), {
+        target: { value: "100" },
+      });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    const payload = mutate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(payload.default_qty_type).toBe("strategy.cash");
+    expect(payload.default_qty_value).toBe(100);
   });
 
   it("section data-testid + 모바일 1열 grid (반응형)", () => {

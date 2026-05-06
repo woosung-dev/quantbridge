@@ -60,11 +60,33 @@ class CreateBacktestRequest(BaseModel):
     )
     # 펀딩비 반영 ON/OFF (8h 무기한 선물).
     include_funding: bool = True
+    # Sprint 37 BL-188a — 폼 입력 default_qty (Pine 미명시 시 사용).
+    # priority chain: Pine strategy(default_qty_type=...) > 폼 입력 > 시스템 default (1.0)
+    # default_qty_type=None 시 system fallback (qty=1.0). 사용자 명시 시 backtest engine
+    # configure_sizing(default_qty_type, default_qty_value) 호출.
+    default_qty_type: Literal[
+        "strategy.percent_of_equity", "strategy.cash", "strategy.fixed"
+    ] | None = None
+    default_qty_value: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        max_digits=12,
+        decimal_places=8,
+    )
 
     @model_validator(mode="after")
     def _validate_period(self) -> Self:
         if self.period_end <= self.period_start:
             raise ValueError("period_end must be after period_start")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_default_qty(self) -> Self:
+        # 둘 다 명시되거나 둘 다 None — 일관성.
+        if (self.default_qty_type is None) != (self.default_qty_value is None):
+            raise ValueError(
+                "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None"
+            )
         return self
 
 

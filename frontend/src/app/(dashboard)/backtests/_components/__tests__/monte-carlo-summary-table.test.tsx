@@ -31,6 +31,18 @@ describe("MonteCarloSummaryTable (BL-183)", () => {
     expect(screen.getByText(/MDD p95/)).toBeInTheDocument();
   });
 
+  // Sprint 37 Day 7 manual smoke (Playwright 자동 검증) 발견 — testid 누락으로
+  // playwright `[data-testid="monte-carlo-summary-table"]` 셀렉터가 안 잡힘.
+  // BL-187 의 일부로 testid 추가 → e2e 자동 검증 가능.
+  it("BL-187 보강: section 에 data-testid 노출 (e2e 셀렉터)", () => {
+    const { container } = render(<MonteCarloSummaryTable mcResult={RESULT} />);
+    const section = container.querySelector(
+      '[data-testid="monte-carlo-summary-table"]',
+    );
+    expect(section).not.toBeNull();
+    expect(section?.getAttribute("aria-label")).toBe("Monte Carlo 요약 통계");
+  });
+
   it("CI 하한/상한/median 은 천단위 콤마 + USDT 포맷 (소수점 2자리)", () => {
     render(<MonteCarloSummaryTable mcResult={RESULT} />);
     // formatCurrency: 9,500.50 / 11,000.25 / 10,500.00

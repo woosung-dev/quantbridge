@@ -68,6 +68,12 @@ interface FormValues {
   fees_pct: number;
   slippage_pct: number;
   include_funding: boolean;
+  // Sprint 37 BL-188a — 폼 default_qty_type/value (Pine 미명시 시 사용).
+  default_qty_type:
+    | "strategy.percent_of_equity"
+    | "strategy.cash"
+    | "strategy.fixed";
+  default_qty_value: number;
 }
 
 function toIsoUtc(dateOnly: string): string {
@@ -107,6 +113,10 @@ export function BacktestForm() {
       fees_pct: 0.001,
       slippage_pct: 0.0005,
       include_funding: true,
+      // Sprint 37 BL-188a — default 주문 크기 percent_of_equity 10%.
+      // Pine 명시 시 그게 우선 (override). 사용자가 dropdown 변경 가능.
+      default_qty_type: "strategy.percent_of_equity",
+      default_qty_value: 10,
     },
   });
 
@@ -202,6 +212,9 @@ export function BacktestForm() {
       fees_pct: Number(values.fees_pct),
       slippage_pct: Number(values.slippage_pct),
       include_funding: Boolean(values.include_funding),
+      // Sprint 37 BL-188a — 폼 default_qty (Pine 미명시 시 사용).
+      default_qty_type: values.default_qty_type,
+      default_qty_value: Number(values.default_qty_value),
     });
   };
 
@@ -417,11 +430,71 @@ export function BacktestForm() {
         </div>
       </section>
 
-      {/* Sprint 37 BL-187 — 백테스트 폼 simplify (TradingView 표준 정합).
-          이전 Sprint 31 BL-162a 의 leverage / include_funding 입력은 BL-185
-          spot-equivalent 결정 후 PnL 미반영 = misleading 입력. 두 필드 form
-          payload 에서 default (1, true) 자동 채움 — assumptions-card graceful
-          upgrade 패턴 보존. visible info row 로 모델 가정 명시. */}
+      {/* Sprint 37 BL-188a: 기본 주문 크기 (default_qty_type/value).
+          Pine strategy(default_qty_type=...) 명시 시 그게 우선 (override).
+          미명시 시 폼 입력 사용 → silent qty=1.0 fallback 차단 (image 12 의 -249% 회귀 방지). */}
+      <section
+        className="border-t pt-4"
+        aria-label="기본 주문 크기"
+        data-testid="backtest-form-default-qty-section"
+      >
+        <h3 className="mb-3 text-sm font-medium">기본 주문 크기</h3>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Pine code 의 <code>strategy(default_qty_type=...)</code> 명시 시 그게
+          우선. 미명시 시 아래 입력값 사용.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="default_qty_type" className="text-sm">
+              type
+            </label>
+            <select
+              id="default_qty_type"
+              className="h-10 rounded-md border bg-background px-3 text-sm"
+              {...register("default_qty_type", {
+                required: "주문 크기 type 을 선택하세요",
+              })}
+            >
+              <option value="strategy.percent_of_equity">
+                자기자본 % (percent_of_equity)
+              </option>
+              <option value="strategy.cash">고정 USDT (cash)</option>
+              <option value="strategy.fixed">고정 수량 (fixed)</option>
+            </select>
+            {errors.default_qty_type ? (
+              <p className="text-xs text-destructive">
+                {errors.default_qty_type.message}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="default_qty_value" className="text-sm">
+              value
+            </label>
+            <Input
+              id="default_qty_value"
+              type="number"
+              step="any"
+              min={0}
+              {...register("default_qty_value", {
+                required: "주문 크기 값을 입력하세요",
+                valueAsNumber: true,
+                validate: (v) =>
+                  (Number.isFinite(v) && v > 0) || "양수여야 합니다",
+              })}
+            />
+            {errors.default_qty_value ? (
+              <p className="text-xs text-destructive">
+                {errors.default_qty_value.message}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Sprint 37 BL-187 → BL-187a: 라벨 simplify (사용자 오해 회피).
+          "Spot-equivalent" 단어가 "현물 = 롱만" 오해 유발 — 실제는 롱/숏 모두 가능.
+          레버리지 멘션 자체 minimize (사용자 명시). BL-186 후속 도래 시 재노출 검토. */}
       <section
         className="border-t pt-4"
         aria-label="시뮬레이션 모델"
@@ -429,13 +502,12 @@ export function BacktestForm() {
       >
         <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
           <p className="mb-1 font-medium text-foreground">
-            모델: Spot-equivalent
+            모델: 1x · 롱/숏
           </p>
           <p>
-            레버리지 / 펀딩 / 강제 청산 미반영. 레버리지 효과 시뮬레이션은
-            초기 자본 배수로 우회 가능 (예: 5x ≈ initial_capital × 5).{" "}
+            1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내).{" "}
             <span className="text-muted-foreground/80">
-              풀 모델 (funding rate / 유지 증거금 / liquidation) = BL-186 후속.
+              funding rate / 강제 청산 / 유지 증거금 미반영 (BL-186 후속).
             </span>
           </p>
         </div>

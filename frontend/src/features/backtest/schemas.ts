@@ -78,11 +78,29 @@ export const CreateBacktestRequestSchema = z
       .refine(Number.isFinite, { message: "slippage_pct must be finite" })
       .default(0.0005),
     include_funding: z.boolean().default(true),
+    // Sprint 37 BL-188a — 폼 default_qty_type/value (Pine 미명시 시 사용).
+    // priority chain: Pine strategy(default_qty_type=...) > 폼 입력 > None.
+    default_qty_type: z
+      .enum([
+        "strategy.percent_of_equity",
+        "strategy.cash",
+        "strategy.fixed",
+      ])
+      .optional(),
+    default_qty_value: z.number().positive().refine(Number.isFinite).optional(),
   })
   .refine((v) => new Date(v.period_end) > new Date(v.period_start), {
     message: "period_end must be after period_start",
     path: ["period_end"],
-  });
+  })
+  .refine(
+    (v) =>
+      (v.default_qty_type == null) === (v.default_qty_value == null),
+    {
+      message: "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None",
+      path: ["default_qty_value"],
+    },
+  );
 export type CreateBacktestRequest = z.infer<typeof CreateBacktestRequestSchema>;
 
 // --- Response: base -------------------------------------------------------
