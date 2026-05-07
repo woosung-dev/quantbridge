@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestSummary } from "@/features/backtest/schemas";
@@ -40,23 +41,14 @@ export function BacktestList() {
           </Button>
         </div>
       ) : !data || data.items.length === 0 ? (
-        <EmptyState />
+        <EmptyState
+          headline="첫 백테스트를 시작하세요"
+          description="전략을 선택하고 기간을 설정하면 결과를 받을 수 있습니다."
+          cta={{ label: "첫 백테스트 실행", href: "/backtests/new" }}
+        />
       ) : (
         <BacktestSummaryTable items={data.items} />
       )}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center gap-4 rounded-xl border border-dashed p-12 text-center">
-      <p className="text-sm text-muted-foreground">
-        아직 실행한 백테스트가 없습니다
-      </p>
-      <Link href="/backtests/new">
-        <Button>첫 백테스트 실행</Button>
-      </Link>
     </div>
   );
 }
