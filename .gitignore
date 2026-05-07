@@ -79,3 +79,4 @@ frontend/playwright/.cache/
 
 # === Git Worktrees ===
 .worktrees/
+.gstack/

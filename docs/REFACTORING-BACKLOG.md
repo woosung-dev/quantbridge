@@ -888,3 +888,18 @@
   - **Day 7 gate (a) FAIL 근거**: MC 숫자 미노출(BL-183) + 기존 6/10이 후한 측정 = 실질 ≤6. 수치 기반 의사결정 불가 = "돈 내고 쓰고 싶다" 미달.
   - **Sprint 37 = polish iter 5** + Day 7 재측정 목표. BL-183 fix 우선. 사용자 추가 피드백 기반 BL 조정 예정.
   - **합계 변동**: 85 + BL-183 신규 +1 = **86 active BL**.
+
+- **2026-05-06 (Sprint 37 종료 — polish iter 5 완료, Day 7 = 6/10 gate (a) FAIL, Sprint 38 진입)** — `main @ 96ad8ab` (7 PR all merged: #159/#160/#161/#162/#163/#164/#166) + 사용자 hotfix `6434a1d` 안착. Day 7 self-assess = **6/10 → gate (a) FAIL** (Sprint 36 동일 점수, +1 미달성).
+  - **Resolved (6건)**: BL-183 (MC summary 4 통계 노출) / BL-184 (Equity/BH curve PnL 시작점 정렬) / BL-185 (Pine spot-equivalent sizing) / BL-187 (백테스트 폼 simplify — leverage/funding 제거) / BL-187a (rebase fix) / BL-188a (compat.py 3-tier chain)
+  - **신규 deferred (2건)**: BL-186 (P1 — 풀 leverage/funding/mm/liquidation 모델, BL-188 mirror Nx unlock condition) / BL-188 (P0 candidate — 백테스트 폼 ↔ Live Settings mirror, Sprint 38 narrowest wedge)
+  - **Sprint 38 = polish iter 6** + Day 7 재측정 목표. BL-188 v3 (mirror) + BL-181 (worker auto-rebuild) 묶음.
+  - **합계 변동**: 86 + BL-186/BL-188 신규 +2 = **88 active BL** (Resolved 는 status 변경, count 변경 X).
+
+- **2026-05-07 (Sprint 38 종료 — polish iter 6 완료, Day 7 = 5/10 gate (a)+(d) FAIL, Sprint 39 = polish iter 7)** — `main @ b61b16c` (변경 X) + `stage/sprint38-bl-188-bl-181 @ 8a23f29` (4 PR squash merged: #170/#171/#172/#173 — **stage 보존, main 미반영**, Sprint 39 베이스). Day 7 4중 AND gate: (a) FAIL (5/10) / (b) PASS / (c) PASS / **(d) FAIL** (BL-189 신규 P0).
+  - **Resolved (1건)**: BL-181 (Docker worker auto-rebuild on PR merge — isolated mode bind-mount + watchfiles + sentinel script + ADR, PR #170 → stage)
+  - **신규 P0 (1건)**: BL-189 [Sprint 39 mandatory] — **CPU loop on stage @ 8a23f29 통합 후** (FE next-server idle 113% sustained vs main 0%). dogfood Day 7.5 mid-check falsification signal detection (LESSON-046). Worker B 의 단독 CPU smoke max 4.7% PASS 였으나 통합 환경 회귀. 진단 spike 의무: (i) Worker D revert → CPU 측정 (D isolation) → (ii) 아니면 A2 + B 통합 effect → (iii) Turbopack file watcher 검증. hotfix 후 Day 7 재측정.
+  - **BL-188 status 갱신**: deferred (Sprint 37) → **stage 머지 완료, main 미반영. BL-189 hotfix 통과 후 stage→main merge 가능** (Sprint 39 후속)
+  - **신규 LESSON 6건 (1/3 후보) + 영구 승격 3건** (LESSON-038/039/040 = 3/3 통과 → 영구). LESSON-041 (Pine partial reject) / LESSON-042 (Sizing source 단일 입력 강제) / LESSON-043 (Live mirror leverage parity) / LESSON-044 (메인 세션 = 표준 prefix) / LESSON-045 (env override mismatch) / LESSON-046 (통합 dogfood 가치 = G-E 못 잡는 회귀 detection). 상세: [`docs/dev-log/2026-05-07-sprint38-master.md`](dev-log/2026-05-07-sprint38-master.md).
+  - **자율 병렬 cmux 4번째 실측**: Bundle 1/2/3 + Sprint 38 패턴 stable. 사용자 interaction 3회 ("ok" + dogfood 결정 + close-out 결정).
+  - **Sprint 39 = polish iter 7** = BL-189 진단 + hotfix + Day 7 재측정. PASS 시 stage→main merge + Sprint 40 = BL-003 + BL-005 본격. FAIL 시 polish iter 8 (continuing).
+  - **합계 변동**: 88 (Sprint 37 종료) → BL-181 Resolved -1 / BL-189 신규 +1 = **88 active BL** (사실상 ±0). 단 lessons.md = 6건 신규 + 3건 영구 승격 = 9건 갱신.
