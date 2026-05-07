@@ -65,6 +65,7 @@ def run_historical(
     initial_capital: float | None = None,
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
+    sessions_allowed: tuple[str, ...] = (),
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -78,12 +79,21 @@ def run_historical(
             None 이면 기존 qty=1.0 fallback (호환).
         default_qty_type: "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None.
         default_qty_value: percent / cash / fixed value. None 또는 default_qty_type=None 시 무시.
+        sessions_allowed: BL-188 v3 — entry placement + pending fill 양쪽에 적용되는
+            session gate. 비어있으면 24h. 비어있지 않으면 ohlcv.index 가 tz-aware
+            DatetimeIndex 여야 함 (v2_adapter 가 422 reject 책임).
     """
     _validate_ohlcv(ohlcv)
     tree = parse_to_ast(source)
 
+    # BL-188 v3 — entry/fill gate 용 tz-aware timestamps. ohlcv.reset_index(drop=True)
+    # 이전에 원본 index 를 보존하여 BarContext 에 주입.
+    timestamps: pd.DatetimeIndex | None = (
+        ohlcv.index if isinstance(ohlcv.index, pd.DatetimeIndex) else None
+    )
+
     store = PersistentStore()
-    bar = BarContext(ohlcv.reset_index(drop=True))
+    bar = BarContext(ohlcv.reset_index(drop=True), timestamps=timestamps)
     interp = Interpreter(bar, store)
     if initial_capital is not None:
         interp.strategy.configure_sizing(
@@ -91,18 +101,23 @@ def run_historical(
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
         )
+    interp.strategy.sessions_allowed = tuple(sessions_allowed)
     result = RunResult(bars_processed=0, final_state={})
 
     while bar.advance():
         store.begin_bar()
         interp.reset_transient()
         interp.begin_bar_snapshot()  # prev_close 갱신 (ta.atr 등에 사용)
-        # pending stop 주문 체결 검사 — 이번 bar의 OHLC로 trigger 확인
+        # pending stop 주문 체결 검사 — 이번 bar의 OHLC로 trigger 확인.
+        # BL-188 v3 — fill gate (E3 Live parity): bar_ts 전달 → check_pending_fills 가
+        # disallowed session 시 fill skip + carry-over.
+        bar_ts = bar.current_timestamp()
         interp.strategy.check_pending_fills(
             bar=bar.bar_index,
             open_=bar.current("open"),
             high=bar.current("high"),
             low=bar.current("low"),
+            bar_ts=bar_ts.to_pydatetime() if bar_ts is not None else None,
         )
         try:
             interp.execute(tree)

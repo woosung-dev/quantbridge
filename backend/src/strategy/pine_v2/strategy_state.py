@@ -17,6 +17,7 @@ Day 4 단순화:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal
 
 Direction = Literal["long", "short"]
@@ -131,6 +132,10 @@ class StrategyState:
     running_equity: float | None = None
     default_qty_type: str | None = None  # "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None
     default_qty_value: float | None = None
+    # Sprint 38 BL-188 v3 — entry placement + pending fill 양쪽에 적용되는 trading session gate.
+    # event_loop / virtual_strategy 가 cfg.trading_sessions 로 주입. 비어있으면 24h (회귀 0).
+    # 단일 reference: src.strategy.trading_sessions.is_allowed (Live `is_allowed` 와 동일 함수).
+    sessions_allowed: tuple[str, ...] = ()
 
     # ---- Sprint 37 BL-185: 포지션 사이징 (spot-equivalent) ------------
 
@@ -375,12 +380,29 @@ class StrategyState:
         return closed
 
     def check_pending_fills(
-        self, *, bar: int, open_: float, high: float, low: float,
+        self,
+        *,
+        bar: int,
+        open_: float,
+        high: float,
+        low: float,
+        bar_ts: datetime | None = None,
     ) -> list[Trade]:
         """현재 bar OHLC로 pending 주문 체결 검사. 체결된 주문은 Trade로 전환.
 
         Event loop가 매 bar 시작 시 호출 (execute 전).
+
+        BL-188 v3 fill gate (E3 — Live parity): `sessions_allowed` 가 비어있지 않고
+        `bar_ts` 가 disallowed session 이면 fill 자체를 skip → pending_orders 는
+        carry-over 되어 다음 allowed bar 에서 재시도. 단일 reference =
+        `src.strategy.trading_sessions.is_allowed`.
         """
+        if self.sessions_allowed and bar_ts is not None:
+            from src.strategy.trading_sessions import is_allowed
+            if not is_allowed(list(self.sessions_allowed), bar_ts):
+                # disallowed session — fill skip, order 는 다음 bar 로 carry-over.
+                return []
+
         # Same-bar 에 long stop + short stop 둘 다 trigger 되는 경우 결정성 확보:
         # dict 순회 대신 먼저 체결 후보를 전부 수집한 뒤 "open 가격과의 거리 오름차순"
         # 으로 정렬 → bar open 에서 가장 빨리 닿는 주문부터 순차 체결.
