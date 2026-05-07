@@ -159,7 +159,7 @@ export function BacktestDetailView({ id }: { id: string }) {
             {bt.equity_curve && bt.equity_curve.length > 0 && (
               <section className="rounded-xl border bg-card p-4">
                 <h2 className="mb-2 text-sm font-medium">
-                  Equity Curve · Buy &amp; Hold · Drawdown
+                  수익률 · 단순보유 · 낙폭
                 </h2>
                 <EquityChartV2
                   equityCurve={bt.equity_curve}

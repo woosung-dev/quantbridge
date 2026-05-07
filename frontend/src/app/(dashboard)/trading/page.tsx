@@ -12,12 +12,12 @@ import { TradingDashHero } from "./_components/trading-dash-hero";
 import { TradingTabs } from "./_components/trading-tabs";
 
 export const metadata: Metadata = {
-  title: "Trading | QuantBridge",
+  title: "트레이딩 | QuantBridge",
 };
 
 export default function TradingPage() {
   return (
-    <main className="mx-auto max-w-[1200px] space-y-6 px-6 py-8">
+    <div className="mx-auto max-w-[1200px] space-y-6 px-6 py-8">
       {/* C-1: Kill Switch 활성 배너 (Sprint 12 Phase A 그대로) */}
       <KillSwitchBanner />
 
@@ -28,6 +28,6 @@ export default function TradingPage() {
       <Suspense fallback={<TableSkeleton rows={6} columns={5} />}>
         <TradingTabs />
       </Suspense>
-    </main>
+    </div>
   );
 }

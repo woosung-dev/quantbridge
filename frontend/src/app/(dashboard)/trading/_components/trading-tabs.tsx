@@ -56,9 +56,9 @@ export function TradingTabs() {
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange}>
       <TabsList>
-        <TabsTrigger value="orders">Orders</TabsTrigger>
+        <TabsTrigger value="orders">주문</TabsTrigger>
         <TabsTrigger value="live-sessions" data-testid="tab-live-sessions">
-          Live Sessions
+          라이브 세션
         </TabsTrigger>
       </TabsList>
 

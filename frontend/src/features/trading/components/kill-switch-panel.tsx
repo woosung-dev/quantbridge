@@ -23,7 +23,7 @@ export function KillSwitchPanel() {
     <section className="p-4 border rounded">
       <h2 className="font-semibold mb-3">Kill Switch</h2>
       {active.length === 0 ? (
-        <p className="text-green-600">All clear</p>
+        <p className="text-green-600">이상 없음</p>
       ) : (
         <ul>
           {active.map((e) => (
@@ -40,7 +40,7 @@ export function KillSwitchPanel() {
                 disabled={resolve.isPending}
                 className="px-2 py-1 bg-red-500 text-white text-xs rounded disabled:opacity-50"
               >
-                {resolve.isPending ? "..." : "Resolve"}
+                {resolve.isPending ? "처리 중…" : "해결"}
               </button>
             </li>
           ))}
