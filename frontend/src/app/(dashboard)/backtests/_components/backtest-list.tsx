@@ -18,7 +18,8 @@ export function BacktestList() {
     <div className="mx-auto max-w-[1080px] px-6 py-8">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold">백테스트</h1>
+          {/* DESIGN.md §3.2 H2 — font-display 자동 적용 (globals.css base style) */}
+          <h1 className="text-2xl font-bold">백테스트</h1>
           <p className="text-sm text-muted-foreground">최근 실행한 백테스트 {LIST_QUERY.limit}건</p>
         </div>
         <Link href="/backtests/new">
