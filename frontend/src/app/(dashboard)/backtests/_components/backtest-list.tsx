@@ -53,6 +53,12 @@ export function BacktestList() {
     () => data?.items ?? [],
     [data?.items],
   );
+  // Sprint 41-B2 (codex review P2): client-side status 필터는 현재 페이지(limit 20)에만 적용 가능.
+  // total > items.length 면 후속 페이지의 매칭이 누락 → "해당 상태 없음" 오표시. Beta 에 BE
+  // status param 추가까지 chip(전체 제외)을 비활성 + 안내 문구 표시. 이미 활성 상태였다면
+  // 현재 페이지에 한정 적용됨을 명시.
+  const total = data?.total ?? 0;
+  const hasMorePages = total > items.length;
   const filtered = activeStatus === "all" ? items : items.filter((b) => b.status === activeStatus);
   const counts = useMemo(() => buildStatusCounts(items), [items]);
 
@@ -106,21 +112,35 @@ export function BacktestList() {
         />
       </div>
 
-      {/* 필터 chip — Strategy list 와 동일 패턴 (Sprint FE-A). */}
-      <div className="mb-6 flex flex-wrap gap-2">
+      {/* 필터 chip — Strategy list 와 동일 패턴 (Sprint FE-A).
+          Sprint 41-B2 (codex review P2): hasMorePages 시 '전체' 제외 chip 비활성 + 안내. */}
+      <div className="mb-2 flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => {
           const active = f.id === activeStatus;
+          const isDisabled = hasMorePages && f.id !== "all";
+          const title = isDisabled
+            ? "현재 페이지(20건) 만 필터되므로 비활성화 — Beta 에 서버 필터 추가 예정"
+            : undefined;
           return (
             <button
               key={f.id}
               type="button"
-              onClick={() => pushStatus(f.id)}
+              onClick={() => {
+                if (isDisabled) return;
+                pushStatus(f.id);
+              }}
               aria-pressed={active}
+              aria-disabled={isDisabled || undefined}
+              disabled={isDisabled}
+              title={title}
+              data-testid={`backtest-filter-${f.id}`}
               className={
                 "rounded-full border px-3 py-1 text-xs font-medium transition " +
-                (active
-                  ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)]"
-                  : "border-[color:var(--border)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-alt)]")
+                (isDisabled
+                  ? "cursor-not-allowed border-[color:var(--border)] text-[color:var(--text-muted)] opacity-50"
+                  : active
+                    ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)]"
+                    : "border-[color:var(--border)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-alt)]")
               }
             >
               {f.label}
@@ -128,6 +148,15 @@ export function BacktestList() {
           );
         })}
       </div>
+      {hasMorePages && (
+        <p
+          data-testid="backtest-filter-notice"
+          className="mb-6 text-xs text-[color:var(--text-muted)]"
+        >
+          현재 페이지(20건)만 필터됩니다 — Beta 에 서버 필터가 추가될 예정입니다.
+        </p>
+      )}
+      {!hasMorePages && <div className="mb-6" />}
 
       {isLoading ? (
         <ListSkeleton />
