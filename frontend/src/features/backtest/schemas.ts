@@ -40,6 +40,11 @@ export type TradeDirection = z.infer<typeof TradeDirectionSchema>;
 export const TradeStatusSchema = z.enum(["open", "closed"]);
 export type TradeStatus = z.infer<typeof TradeStatusSchema>;
 
+// Sprint 38 BL-188 v3 — trading_sessions FE enum (Live `is_allowed` parity).
+// 빈 list = 24h. 비어있지 않으면 BE v2_adapter 가 placement+fill gate 적용.
+export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
+export type TradingSession = z.infer<typeof TradingSessionSchema>;
+
 // --- Request --------------------------------------------------------------
 
 // Sprint 31 BL-162a — TradingView strategy 속성 패턴 비용/마진 사용자 입력.
@@ -88,6 +93,21 @@ export const CreateBacktestRequestSchema = z
       ])
       .optional(),
     default_qty_value: z.number().positive().refine(Number.isFinite).optional(),
+    // Sprint 38 BL-188 v3 — Live mirror canonical 입력 (1x equity-basis 한정).
+    // BE `CreateBacktestRequest.position_size_pct` 와 동일 spec (gt 0 / le 100).
+    // default_qty_type/value 와 동시 명시 시 422 reject — 본 schema `.refine()`
+    // 가 client-side 1차 차단 (BE `_no_double_sizing` parity).
+    position_size_pct: z
+      .number()
+      .gt(0)
+      .lte(100)
+      .refine(Number.isFinite, { message: "position_size_pct must be finite" })
+      .nullish(),
+    // Sprint 38 BL-188 v3 — Live Sessions mirror (asia/london/ny). 빈 list = 24h.
+    // BE v2_adapter 가 entry placement + fill 양쪽 gate 적용. optional —
+    // 기존 caller (rerun-button / onboarding step-3) 호환 + BE Pydantic
+    // `Field(default_factory=list)` 가 누락 시 [] 로 처리.
+    trading_sessions: z.array(TradingSessionSchema).optional(),
   })
   .refine((v) => new Date(v.period_end) > new Date(v.period_start), {
     message: "period_end must be after period_start",
@@ -99,6 +119,21 @@ export const CreateBacktestRequestSchema = z
     {
       message: "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None",
       path: ["default_qty_value"],
+    },
+  )
+  // Sprint 38 BL-188 v3 — double-sizing reject (BE `_no_double_sizing` parity).
+  // position_size_pct (Live mirror) 와 default_qty_type/value (manual) 동시
+  // 명시 = client-side 422 회피. canonical 1개 강제 — D2 toggle UI 가 한쪽만 fill.
+  .refine(
+    (v) =>
+      !(
+        v.position_size_pct != null &&
+        (v.default_qty_type != null || v.default_qty_value != null)
+      ),
+    {
+      message:
+        "position_size_pct (Live mirror) 와 default_qty_type/value (manual) 동시 명시 불가",
+      path: ["position_size_pct"],
     },
   );
 export type CreateBacktestRequest = z.infer<typeof CreateBacktestRequestSchema>;
