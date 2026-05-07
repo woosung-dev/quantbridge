@@ -20,7 +20,8 @@ export function BacktestList() {
         <div>
           {/* DESIGN.md §3.2 H2 — font-display 자동 적용 (globals.css base style) */}
           <h1 className="text-2xl font-bold">백테스트</h1>
-          <p className="text-sm text-muted-foreground">최근 실행한 백테스트 {LIST_QUERY.limit}건</p>
+          {/* DESIGN.md §9 본문 secondary copy = #475569 (WCAG AA 7.1:1). muted (#94A3B8) 는 힌트/비활성 전용. */}
+          <p className="text-sm text-text-secondary">최근 실행한 백테스트 {LIST_QUERY.limit}건</p>
         </div>
         <Link href="/backtests/new">
           <Button>새 백테스트</Button>
