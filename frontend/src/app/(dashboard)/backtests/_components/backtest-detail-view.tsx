@@ -25,6 +25,7 @@ import { EquityChartV2 } from "./equity-chart-v2";
 import { MetricsCards } from "./metrics-cards";
 import { MetricsDetail } from "./metrics-detail";
 import { RerunButton } from "./rerun-button";
+import { ShareButton } from "./share-button";
 import { StressTestPanel } from "./stress-test-panel";
 import { TradeAnalysis } from "./trade-analysis";
 import { TradeTable } from "./trade-table";
@@ -93,6 +94,9 @@ export function BacktestDetailView({ id }: { id: string }) {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {effectiveStatus === "completed" ? (
+            <ShareButton backtestId={bt.id} isEnabled />
+          ) : null}
           <RerunButton
             backtest={bt}
             isEnabled={(TERMINAL_STATUSES as readonly string[]).includes(

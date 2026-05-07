@@ -209,6 +209,19 @@ class BacktestRepository:
         short_n = (await self.session.execute(short_stmt)).scalar_one()
         return int(total), int(long_n), int(short_n)
 
+    # --- Sprint 41 Worker H — share token lookup (public read-only) ---
+
+    async def get_by_share_token(self, token: str) -> Backtest | None:
+        """share_token 으로 Backtest 조회. owner check 없음 (토큰이 capability).
+
+        본 endpoint 만 user_id filter 없는 SELECT — public read-only share view 용.
+        revoke 판정은 service layer 에서 share_revoked_at 검사.
+        """
+        result = await self.session.execute(
+            select(Backtest).where(Backtest.share_token == token)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
     # --- Idempotency (Sprint 9-6) ---
 
     async def get_by_idempotency_key(self, key: str) -> Backtest | None:

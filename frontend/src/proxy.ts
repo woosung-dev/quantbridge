@@ -16,6 +16,8 @@ const isPublicRoute = createRouteMatcher([
   "/privacy",
   // Sprint 11 Phase C — Waitlist signup 은 로그인 이전 단계
   "/waitlist",
+  // Sprint 41 Worker H — public read-only backtest share link
+  "/share/backtests/(.*)",
 ]);
 
 // Sprint 11 Phase A/B — geo-block 제외 라우트 (landing, 법무, webhook 은 모든 지역 표시).
@@ -28,6 +30,8 @@ const isGeoExemptRoute = createRouteMatcher([
   "/api/webhooks/(.*)",
   // Sprint 11 Phase C — Waitlist 는 restricted country 도 열람 가능 (BE 가 최종 차단).
   "/waitlist",
+  // Sprint 41 Worker H — share link 는 모든 지역 view 가능 (외부 viral 흐름).
+  "/share/backtests/(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
