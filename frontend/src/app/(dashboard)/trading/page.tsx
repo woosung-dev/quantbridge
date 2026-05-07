@@ -2,6 +2,8 @@ import { Suspense } from "react";
 
 import type { Metadata } from "next";
 
+import { TableSkeleton } from "@/components/skeleton";
+
 import { KillSwitchBanner } from "./_components/kill-switch-banner";
 import { TradingTabs } from "./_components/trading-tabs";
 
@@ -16,7 +18,7 @@ export default function TradingPage() {
       {/* C-1: Kill Switch 활성 배너 — Client Component */}
       <KillSwitchBanner />
       {/* Sprint 26: Tabs (Orders / Live Sessions). Suspense 는 useSearchParams 요구사항. */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<TableSkeleton rows={6} columns={5} />}>
         <TradingTabs />
       </Suspense>
     </main>
