@@ -80,7 +80,7 @@ export function ExchangeAccountsPanel() {
   return (
     <section className="p-4 border rounded">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold">Exchange Accounts</h2>
+        <h2 className="font-semibold">거래소 계정</h2>
         <RegisterExchangeAccountDialog />
       </div>
       {data.length === 0 ? (

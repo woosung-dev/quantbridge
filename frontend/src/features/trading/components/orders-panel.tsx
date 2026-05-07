@@ -58,13 +58,13 @@ export function OrdersPanel() {
       </section>
     );
   }
-  if (isLoading) return <div className="p-4 border rounded">Loading...</div>;
+  if (isLoading) return <div className="p-4 border rounded">불러오는 중…</div>;
   if (!data) return null;
 
   return (
     <section className="p-4 border rounded">
       <div className="flex items-center justify-between mb-3 gap-2">
-        <h2 className="font-semibold">Recent Orders ({data.total})</h2>
+        <h2 className="font-semibold">최근 주문 ({data.total})</h2>
         {isTestOrderEnabled ? (
           <div className={ksDisabled ? "pointer-events-none opacity-50" : ""}>
             <TestOrderDialog />
