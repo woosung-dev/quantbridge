@@ -18,8 +18,10 @@ if ! docker ps --format '{{.Names}}' | grep -qx "${CONTAINER}"; then
   exit 1
 fi
 
-# capture log baseline timestamp (이전 reload 흔적과 구분)
-BASELINE_TS="$(date -u +%Y-%m-%dT%H:%M:%S)"
+# capture log baseline timestamp (이전 reload 흔적과 구분).
+# RFC3339 UTC with explicit `Z` — docker 가 timezone 누락 시 local time 으로 해석하는
+# 함정 회피 (codex G.4 P2 #2: KST 환경에서 9 시간 전 로그가 grep 되어 false positive).
+BASELINE_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # 1. marker 생성 (변경 감지 trigger)
 echo "# BL-181 sentinel marker $(date +%s)" > "${MARKER_FILE}"

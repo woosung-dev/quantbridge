@@ -46,6 +46,12 @@ base mode (`make up`) + isolated mode (`make up-isolated`) 동시 운영 시 `qu
 
 `docker ps` 로 base 컨테이너 잔존 확인 후 `make down` 으로 정리한 다음 `make up-isolated-watch` 진입할 것.
 
+## isolated.yml 자체가 watch 모드 — 의도된 디자인
+
+`docker-compose.isolated.yml` 안에 watchfiles override 와 bind-mount 를 직접 넣었으므로 `make up-isolated` / `make dev-isolated` 도 watchfiles 동작. 이는 의도. 본 sprint 의 디자인 결정은 "**isolated mode 전체가 auto-rebuild 한다**" — base mode 는 production 정합 그대로. `make up-isolated-watch` 는 단지 3 서비스만 build/up 하는 alias (DB/Redis 변경 X 시 빠른 부팅).
+
+만약 향후 "watch opt-in" 을 위해 모드 분리가 필요하면 별도 override file (`docker-compose.watch.yml`) 로 빼고 `up-isolated-watch` 만 그것을 merge 하도록 변경 가능 (별도 ADR).
+
 ## OUT of scope (별도 ADR 필요)
 
 - `docker-compose.yml` (production) 변경 — production 배포 환경에서는 git post-merge hook 또는 CI/CD 가 자동 image rebuild 수행하는 게 맞음. compose file 직접 변경 X.
