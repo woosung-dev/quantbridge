@@ -22,6 +22,9 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategies: () => strategies,
+  // Sprint 38 BL-188 v3 — BacktestForm 가 useStrategy fetch (settings prefill).
+  // 본 테스트 묶음은 sizing UI 와 무관 — null 반환으로 manual 기본 동작 유지.
+  useStrategy: () => ({ data: null, isLoading: false, isError: false }),
 }));
 
 // `useCreateBacktest` 는 호출 직전에 전달된 onSuccess/onError 콜백을 캡처해
