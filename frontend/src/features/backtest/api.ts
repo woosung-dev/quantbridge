@@ -12,6 +12,7 @@ import {
   CreateBacktestRequestSchema,
   CreateMonteCarloRequestSchema,
   CreateWalkForwardRequestSchema,
+  ShareTokenResponseSchema,
   StressTestCreatedResponseSchema,
   StressTestDetailSchema,
   TradeListResponseSchema,
@@ -23,6 +24,7 @@ import {
   type CreateBacktestRequest,
   type CreateMonteCarloRequest,
   type CreateWalkForwardRequest,
+  type ShareTokenResponse,
   type StressTestCreatedResponse,
   type StressTestDetail,
   type TradeListResponse,
@@ -110,6 +112,43 @@ export async function deleteBacktest(
     method: "DELETE",
     token,
   });
+}
+
+// --- Sprint 41 Worker H — share link (public read-only + revoke) ----------
+
+export async function createBacktestShare(
+  id: string,
+  token: string | null,
+): Promise<ShareTokenResponse> {
+  const raw = await apiFetch<unknown>(`${BACKTESTS_PATH}/${id}/share`, {
+    method: "POST",
+    token,
+  });
+  return ShareTokenResponseSchema.parse(raw);
+}
+
+export async function revokeBacktestShare(
+  id: string,
+  token: string | null,
+): Promise<void> {
+  await apiFetch<void>(`${BACKTESTS_PATH}/${id}/share`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function viewBacktestShare(
+  shareToken: string,
+): Promise<BacktestDetail> {
+  // public — Clerk JWT 미사용. apiFetch 가 token=null 시 Authorization header 미부착.
+  const raw = await apiFetch<unknown>(
+    `${BACKTESTS_PATH}/share/${shareToken}`,
+    {
+      method: "GET",
+      token: null,
+    },
+  );
+  return BacktestDetailSchema.parse(raw);
 }
 
 // --- Stress Test (Phase C) -----------------------------------------------

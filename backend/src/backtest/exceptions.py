@@ -265,6 +265,19 @@ class SizingSourceConflict(BacktestError):
     detail = "position_size_pct (Live mirror) and default_qty_type/value (manual) cannot coexist"
 
 
+class BacktestShareRevoked(BacktestError):
+    """share_token 은 존재하지만 revoke 된 backtest. HTTP 410 Gone.
+
+    Sprint 41 Worker H — public share endpoint 응답. 토큰 자체는 유지 (재활성화
+    불가; 새 share 생성 시 새 토큰 발급). revoke 후 link 를 가진 외부 viewer 는
+    "이 링크는 해제됨" 안내를 받음.
+    """
+
+    status_code = status.HTTP_410_GONE
+    code = "backtest_share_revoked"
+    detail = "Backtest share link has been revoked"
+
+
 class TradingSessionTzNaiveReject(BacktestError):
     """trading_sessions 활성 + OHLCV index 가 tz-naive 또는 non-DatetimeIndex.
 

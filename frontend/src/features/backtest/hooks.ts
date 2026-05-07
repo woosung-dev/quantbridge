@@ -18,6 +18,7 @@ import {
 import {
   cancelBacktest,
   createBacktest,
+  createBacktestShare,
   deleteBacktest,
   getBacktest,
   getBacktestProgress,
@@ -26,6 +27,7 @@ import {
   listBacktestTrades,
   postMonteCarlo,
   postWalkForward,
+  revokeBacktestShare,
 } from "./api";
 import {
   backtestKeys,
@@ -42,6 +44,7 @@ import type {
   CreateBacktestRequest,
   CreateMonteCarloRequest,
   CreateWalkForwardRequest,
+  ShareTokenResponse,
   StressTestCreatedResponse,
   StressTestDetail,
   TradeListResponse,
@@ -230,6 +233,36 @@ export function useDeleteBacktest(
       qc.removeQueries({ queryKey: backtestKeys.progress(uid, id) });
       opts.onSuccess?.();
     },
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+// --- Sprint 41 Worker H — share link (LESSON-004/005/006 정합) -------------
+
+export function useCreateBacktestShare(
+  opts: MutationCallbacks<ShareTokenResponse> = {},
+): UseMutationResult<ShareTokenResponse, Error, string> {
+  const { getToken } = useAuth();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = await getToken();
+      return createBacktestShare(id, token);
+    },
+    onSuccess: (res) => opts.onSuccess?.(res),
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+export function useRevokeBacktestShare(
+  opts: MutationCallbacks<void> = {},
+): UseMutationResult<void, Error, string> {
+  const { getToken } = useAuth();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = await getToken();
+      return revokeBacktestShare(id, token);
+    },
+    onSuccess: () => opts.onSuccess?.(),
     onError: (err) => opts.onError?.(err),
   });
 }

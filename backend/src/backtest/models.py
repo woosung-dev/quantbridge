@@ -113,6 +113,19 @@ class Backtest(SQLModel, table=True):
         sa_column=Column(AwareDateTime(), nullable=True),
     )
 
+    # Sprint 41 Worker H — public read-only share link (revoke 가능).
+    # secrets.token_urlsafe(32) → 43-char URL-safe (256-bit entropy). 미생성 = NULL.
+    # share_revoked_at IS NULL = active. NOT NULL = revoke (재활성화 불가; 새 share 시 새 토큰).
+    # unique + index : 토큰 lookup O(1) + 우연 충돌 차단. 인덱스 이름은 SQLAlchemy
+    # 자동 (`ix_backtests_share_token`) — alembic migration 의 명시 이름과 일치.
+    share_token: str | None = Field(
+        default=None, max_length=64, nullable=True, unique=True, index=True
+    )
+    share_revoked_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(AwareDateTime(), nullable=True),
+    )
+
     # Relations — Backtest가 BacktestTrade보다 먼저 정의되므로 문자열 forward ref 필수
     trades: list["BacktestTrade"] = Relationship(
         back_populates="backtest",
