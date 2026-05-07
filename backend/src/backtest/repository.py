@@ -222,6 +222,24 @@ class BacktestRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_update(
+        self, backtest_id: UUID, *, user_id: UUID
+    ) -> Backtest | None:
+        """SELECT ... FOR UPDATE — codex P2 race condition fix.
+
+        share_token 발급 시 동시 POST 2개가 둘 다 NULL 읽고 다른 토큰 commit 하는
+        last-writer-wins race 차단. 첫 요청이 row lock 잡으면 두번째 요청은 commit
+        대기 → 다시 read 시 첫 토큰 보임 → 멱등 반환.
+        """
+        stmt = (
+            select(Backtest)
+            .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
+            .where(Backtest.user_id == user_id)  # type: ignore[arg-type]
+            .with_for_update()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     # --- Idempotency (Sprint 9-6) ---
 
     async def get_by_idempotency_key(self, key: str) -> Backtest | None:

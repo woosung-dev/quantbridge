@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
@@ -134,6 +135,32 @@ async def test_view_share_unknown_token_raises_404(db_session: AsyncSession) -> 
 
     with pytest.raises(BacktestNotFound):
         await service.view_share("not-a-real-token-xxxxxxxxxxxxxxxxxxxxxx")
+
+
+@pytest.mark.asyncio
+async def test_create_share_concurrent_returns_same_token(
+    db_session: AsyncSession,
+) -> None:
+    """codex P2 race fix — 동시 POST 2개 → 같은 토큰 반환 (last-writer-wins X).
+
+    SELECT ... FOR UPDATE row lock 으로 직렬화. 두번째 요청이 첫 commit 후
+    이미 active 토큰 보고 그대로 반환. 검증: r1.token == r2.token + DB 에 단일 row.
+    """
+    user, bt = await _seed(db_session)
+    service = _make_service(db_session)
+
+    r1, r2 = await asyncio.gather(
+        service.create_share(bt.id, user_id=user.id),
+        service.create_share(bt.id, user_id=user.id),
+    )
+
+    # 두 응답이 동일 토큰. last-writer-wins 라면 다른 토큰 반환했을 것.
+    assert r1.share_token == r2.share_token, (
+        f"race detected: r1={r1.share_token!r} r2={r2.share_token!r}"
+    )
+    # DB 에 저장된 토큰도 응답 토큰과 일치 (signal mirror).
+    await db_session.refresh(bt)
+    assert bt.share_token == r1.share_token
 
 
 @pytest.mark.asyncio

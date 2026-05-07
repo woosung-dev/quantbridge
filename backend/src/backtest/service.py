@@ -574,10 +574,18 @@ class BacktestService:
     ) -> ShareTokenResponse:
         """Owner 가 share_token 생성. 멱등 — 이미 active token 있으면 그대로 반환.
 
+        codex P2 race condition fix: 동시 POST 2개가 둘 다 share_token=NULL 읽고
+        다른 토큰 commit 하는 last-writer-wins race 차단. SELECT ... FOR UPDATE 로
+        row lock → 직렬화. 두번째 요청은 첫 commit 대기 후 active 토큰 그대로 반환.
+
         revoke 후 재생성 시 새 토큰 발급 (기존 토큰은 영구 dead).
         """
-        bt = await self._load_owned(backtest_id, user_id)
-        # 이미 active (revoke 안된) token 존재 시 reuse — idempotent.
+        # 404 owner check 는 lock 없이 fast path 검증 (불필요한 lock 회피).
+        await self._load_owned(backtest_id, user_id)
+        # SELECT ... FOR UPDATE — race 직렬화. fresh state 로 active token 재확인.
+        bt = await self.repo.get_by_id_for_update(backtest_id, user_id=user_id)
+        if bt is None:
+            raise BacktestNotFound()
         if bt.share_token is not None and bt.share_revoked_at is None:
             return ShareTokenResponse(
                 backtest_id=bt.id,
