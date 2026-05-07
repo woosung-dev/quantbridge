@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { FormSkeleton } from "@/components/skeleton";
+
 import { BacktestForm } from "../_components/backtest-form";
 
 export const metadata: Metadata = {
@@ -18,7 +20,7 @@ export default function NewBacktestPage() {
       </header>
 
       <section className="rounded-xl border bg-card p-6">
-        <Suspense fallback={null}>
+        <Suspense fallback={<FormSkeleton fields={6} />}>
           <BacktestForm />
         </Suspense>
       </section>

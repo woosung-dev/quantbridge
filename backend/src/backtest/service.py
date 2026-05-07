@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
@@ -18,6 +19,7 @@ from src.backtest.engine.types import BacktestConfig, RawTrade
 from src.backtest.exceptions import (
     BacktestDuplicateIdempotencyKey,
     BacktestNotFound,
+    BacktestShareRevoked,
     BacktestStateConflict,
     MirrorNotAllowed,
     PinePartialDeclaration,
@@ -44,6 +46,7 @@ from src.backtest.schemas import (
     BacktestSummary,
     CreateBacktestRequest,
     EquityPoint,
+    ShareTokenResponse,
     TradeItem,
 )
 from src.backtest.serializers import (
@@ -563,6 +566,81 @@ class BacktestService:
             )
         await self.repo.delete(backtest_id)
         await self.repo.commit()
+
+    # --- Sprint 41 Worker H — share link (public read-only + revoke) ---
+
+    async def create_share(
+        self, backtest_id: UUID, *, user_id: UUID
+    ) -> ShareTokenResponse:
+        """Owner 가 share_token 생성. 멱등 — 이미 active token 있으면 그대로 반환.
+
+        codex P2 race condition fix: 동시 POST 2개가 둘 다 share_token=NULL 읽고
+        다른 토큰 commit 하는 last-writer-wins race 차단. SELECT ... FOR UPDATE 로
+        row lock → 직렬화. 두번째 요청은 첫 commit 대기 후 active 토큰 그대로 반환.
+
+        revoke 후 재생성 시 새 토큰 발급 (기존 토큰은 영구 dead).
+        """
+        # 404 owner check 는 lock 없이 fast path 검증 (불필요한 lock 회피).
+        await self._load_owned(backtest_id, user_id)
+        # SELECT ... FOR UPDATE — race 직렬화. fresh state 로 active token 재확인.
+        bt = await self.repo.get_by_id_for_update(backtest_id, user_id=user_id)
+        if bt is None:
+            raise BacktestNotFound()
+        if bt.share_token is not None and bt.share_revoked_at is None:
+            return ShareTokenResponse(
+                backtest_id=bt.id,
+                share_token=bt.share_token,
+                share_url_path=f"/share/backtests/{bt.share_token}",
+                revoked=False,
+            )
+        # 신규 또는 revoke 후 재생성 — 새 토큰. token_urlsafe(32) = 256-bit entropy.
+        token = secrets.token_urlsafe(32)
+        bt.share_token = token
+        bt.share_revoked_at = None
+        await self.repo.commit()
+        return ShareTokenResponse(
+            backtest_id=bt.id,
+            share_token=token,
+            share_url_path=f"/share/backtests/{token}",
+            revoked=False,
+        )
+
+    async def revoke_share(self, backtest_id: UUID, *, user_id: UUID) -> None:
+        """Owner 가 share_token 비활성화. 토큰 자체는 유지 (재활성화 불가).
+
+        share_revoked_at = now(). 이후 view_share 가 410 Gone.
+        """
+        bt = await self._load_owned(backtest_id, user_id)
+        if bt.share_token is None:
+            # 토큰 없는데 revoke 호출 — no-op (idempotent).
+            return
+        bt.share_revoked_at = datetime.now(UTC)
+        await self.repo.commit()
+
+    async def view_share(self, token: str) -> BacktestDetail:
+        """Public read-only — 인증 없음. owner check 안함 (토큰이 capability).
+
+        Returns:
+            BacktestDetail with `error=None` (민감 필드 strip).
+
+        Raises:
+            BacktestNotFound (404): token 매칭 row 없음.
+            BacktestShareRevoked (410): row 있으나 revoke.
+        """
+        bt = await self.repo.get_by_share_token(token)
+        if bt is None:
+            raise BacktestNotFound()
+        if bt.share_revoked_at is not None:
+            raise BacktestShareRevoked()
+        # 보안 — error stack trace 등 민감 정보 strip. status 만 노출.
+        # Sprint 31-E direction count override 도 적용 (FE detail 페이지와 parity).
+        direction_counts: tuple[int, int, int] | None = None
+        if bt.status == BacktestStatus.COMPLETED:
+            direction_counts = await self.repo.count_trades_by_direction(bt.id)
+        detail = self._to_detail(bt, direction_counts=direction_counts)
+        # 민감 필드 strip — public viewer 에 error 상세 노출 X.
+        detail.error = None
+        return detail
 
     # --- helpers ---
 

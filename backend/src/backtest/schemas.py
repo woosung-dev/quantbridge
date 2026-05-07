@@ -161,6 +161,19 @@ class BacktestCancelResponse(BaseModel):
     message: str
 
 
+class ShareTokenResponse(BaseModel):
+    """POST /:id/share — share link 생성 응답.
+
+    Sprint 41 Worker H — 외부 viewer 에게 노출할 정보만 expose. token / share_url 만
+    제공. revoke 가능 (DELETE /:id/share). 멱등 — 이미 active token 있으면 그대로 반환.
+    """
+
+    backtest_id: UUID
+    share_token: str
+    share_url_path: str  # "/share/backtests/{token}" — FE 가 origin prepend
+    revoked: bool = False
+
+
 # --- Detail / List ---
 
 class BacktestSummary(BaseModel):

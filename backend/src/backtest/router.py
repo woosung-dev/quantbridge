@@ -1,4 +1,4 @@
-"""Backtest REST API — 7 endpoints."""
+"""Backtest REST API — 10 endpoints (7 owned + 3 share Sprint 41)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from src.backtest.schemas import (
     BacktestProgressResponse,
     BacktestSummary,
     CreateBacktestRequest,
+    ShareTokenResponse,
     TradeItem,
 )
 from src.backtest.service import BacktestService
@@ -106,3 +107,46 @@ async def delete_backtest(
     service: BacktestService = Depends(get_backtest_service),
 ) -> None:
     await service.delete(backtest_id, user_id=user.id)
+
+
+# Sprint 41 Worker H — share read-only public link (revoke 가능). PDF P1 deferral.
+
+@router.post("/{backtest_id}/share", response_model=ShareTokenResponse)
+async def create_share(
+    backtest_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+    service: BacktestService = Depends(get_backtest_service),
+) -> ShareTokenResponse:
+    """Owner 가 share_token 생성. 멱등 — active token 있으면 그대로 반환.
+
+    secrets.token_urlsafe(32) = 256-bit entropy. revoke 후 재생성 시 새 토큰 발급.
+    """
+    return await service.create_share(backtest_id, user_id=user.id)
+
+
+@router.delete("/{backtest_id}/share", status_code=204)
+async def revoke_share(
+    backtest_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+    service: BacktestService = Depends(get_backtest_service),
+) -> None:
+    """Owner 가 share_token 비활성화. 토큰 자체는 유지 — 재활성화 불가.
+
+    이후 view_share 가 410 Gone. 새 share 생성 시 새 토큰 발급.
+    """
+    await service.revoke_share(backtest_id, user_id=user.id)
+
+
+@router.get("/share/{token}", response_model=BacktestDetail)
+async def view_share(
+    token: str,
+    service: BacktestService = Depends(get_backtest_service),
+) -> BacktestDetail:
+    """Public read-only — 인증 미사용 (`get_current_user` 의존성 X).
+
+    422 risk 없음 (path param str). 응답:
+    - 200: token active → BacktestDetail (error 필드 strip)
+    - 404: token 매칭 row 없음
+    - 410: row 있으나 share_revoked_at NOT NULL
+    """
+    return await service.view_share(token)

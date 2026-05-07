@@ -79,12 +79,10 @@ export function StrategyList() {
       {/* 헤더 */}
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-[color:var(--text-primary)]">
-            내 전략
-          </h1>
-          <p className="text-sm text-[color:var(--text-secondary)]">
-            Pine Script 전략 관리
-          </p>
+          {/* DESIGN.md §3.2 H2 — font-display + letter-spacing -0.02em + line-height 1.2 는 globals.css base style 에서 자동 적용 */}
+          <h1 className="text-2xl font-bold">내 전략</h1>
+          {/* DESIGN.md §9 본문 secondary copy = #475569 (WCAG AA 7.1:1). muted (#94A3B8) 는 힌트/비활성 전용. */}
+          <p className="text-sm text-text-secondary">Pine Script 전략 관리</p>
         </div>
         <Button render={<Link href="/strategies/new" />} nativeButton={false}>
           <PlusIcon className="size-4" />새 전략

@@ -1,5 +1,9 @@
 "use client";
 
+// 인증된 앱 페이지 공통 App Shell — 사이드바(220px) + 헤더(64px) + 콘텐츠.
+// Sprint 41-B2: 프로토타입 06/09/02/03 visual layout 정합 (sidebar w-[220px], 페이지 타이틀 slot,
+// /trading 진입 시 data-theme="dash" 자동 토글로 Full Dark 모드).
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -16,9 +20,6 @@ import {
 import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
 
-// 사이드바 네비게이션 — DESIGN.md §10.2 순서
-// Sprint 7c: /strategies, /trading만 활성화. 나머지는 disabled ("곧 출시")
-// Sprint 28 Slice 2 (BL-141): /backtests 활성화 — Backtest UI MVP 완성 + ts.ohlcv backfill task 추가
 type NavItem = {
   href: string;
   label: string;
@@ -35,19 +36,46 @@ const navItems: readonly NavItem[] = [
   { href: "/exchanges", label: "거래소", icon: GlobeIcon, disabled: true },
 ] as const;
 
-// 대시보드 쉘 — 사이드바 + 헤더 + 콘텐츠.
-// shadcn 시맨틱 토큰 사용(--sidebar, --border, --foreground 등) → Light/Dark 자동 대응.
-// DESIGN.md §10.4 App Shell 테마별 색상 준수. dash 테마는 [data-theme="dash"] 스코프에서 자동 재매핑.
+// 페이지 타이틀 매핑 (헤더 slot). 없는 경로는 빈 문자열 — 헤더 좌측이 비어 보이지 않도록
+// fallback="QuantBridge" 적용은 prefer X (시각적 노이즈). 미매핑 경로는 그냥 빈 슬롯.
+const PAGE_TITLE_MAP: Record<string, string> = {
+  "/strategies": "전략",
+  "/strategies/new": "새 전략",
+  "/backtests": "백테스트",
+  "/backtests/new": "새 백테스트",
+  "/trading": "트레이딩",
+  "/onboarding": "온보딩",
+};
+
+function derivePageTitle(pathname: string | null): string {
+  if (!pathname) return "";
+  // exact match 우선
+  if (PAGE_TITLE_MAP[pathname]) return PAGE_TITLE_MAP[pathname];
+  // /backtests/[id], /strategies/[id]/edit 등 prefix
+  if (pathname.startsWith("/backtests/")) return "백테스트";
+  if (pathname.startsWith("/strategies/")) return "전략";
+  if (pathname.startsWith("/trading")) return "트레이딩";
+  return "";
+}
+
 export function DashboardShell({ children }: { children: ReactNode }) {
   const { sidebarOpen, toggleSidebar } = useUiStore();
   const pathname = usePathname();
 
+  // 프로토타입 03 Full Dark — /trading 라우트만 dash 테마 적용 (App Shell 전체).
+  const isDashTheme = pathname?.startsWith("/trading") ?? false;
+  const pageTitle = derivePageTitle(pathname);
+
   return (
-    <div className="flex min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)]">
+    <div
+      data-theme={isDashTheme ? "dash" : undefined}
+      className="flex min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)]"
+    >
       <aside
         className={cn(
           "hidden flex-col border-r border-[color:var(--sidebar-border)] bg-[color:var(--sidebar)] text-[color:var(--sidebar-foreground)] md:flex",
-          sidebarOpen ? "w-60" : "w-16",
+          // 프로토타입 06/09/02/03 fixed sidebar 220px (collapsed 64px, 모바일 hidden)
+          sidebarOpen ? "w-[220px]" : "w-16",
         )}
       >
         {/* 로고 — Plus Jakarta Sans 볼드 + primary-gradient 마크 */}
@@ -83,7 +111,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
         <nav
           aria-label="메인 내비게이션"
-          className="flex flex-1 flex-col gap-1 px-2"
+          className="flex flex-1 flex-col gap-1 px-2 py-2"
         >
           {navItems.map((item) => {
             const isActive = pathname?.startsWith(item.href) ?? false;
@@ -128,10 +156,25 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+
+        {/* 사이드바 footer — 프로필 dock (UserButton). 프로토타입 06/03 sidebar-bottom 패턴. */}
+        <div className="mt-auto border-t border-[color:var(--sidebar-border)] px-3 py-3">
+          <div
+            className={cn(
+              "flex items-center gap-2",
+              sidebarOpen ? "justify-start" : "justify-center",
+            )}
+          >
+            <UserButton appearance={{ elements: { rootBox: "shrink-0" } }} />
+            {sidebarOpen && (
+              <span className="text-xs text-[color:var(--muted-foreground)] truncate">계정</span>
+            )}
+          </div>
+        </div>
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-[100] flex h-16 items-center justify-between border-b border-[color:var(--border)] bg-[color:var(--card)] px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-[100] flex h-16 items-center gap-3 border-b border-[color:var(--border)] bg-[color:var(--card)] px-4 backdrop-blur md:px-6">
           <button
             type="button"
             onClick={toggleSidebar}
@@ -139,8 +182,18 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           >
             메뉴
           </button>
+          {/* 페이지 타이틀 slot — 프로토타입 06/09/02/03 헤더 좌측 패턴.
+              usePathname() 기반 (effect 없음). */}
+          {pageTitle && (
+            <h2 className="font-display text-base font-semibold tracking-tight text-[color:var(--foreground)]">
+              {pageTitle}
+            </h2>
+          )}
           <div className="ml-auto flex items-center gap-3">
-            <UserButton />
+            {/* 데스크톱에서는 사이드바 footer 의 UserButton 으로 대체. 모바일은 sidebar 가 hidden 이므로 헤더 우측에도 노출. */}
+            <div className="md:hidden">
+              <UserButton />
+            </div>
           </div>
         </header>
         <main id="main-content" className="flex-1">

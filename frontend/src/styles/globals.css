@@ -141,7 +141,12 @@
   --color-destructive: var(--destructive);
   --color-destructive-light: var(--destructive-light);
   --color-border-default: var(--border);
+  --color-border-dark: var(--border-dark);
+  --color-primary-100: var(--primary-100);
+  --color-primary-hover: var(--primary-hover);
   --color-dash-bg: var(--dash-bg);
+  --color-dash-surface: var(--dash-surface);
+  --color-dash-surface-elevated: var(--dash-surface-elevated);
   --color-dash-text: var(--dash-text);
   --color-dash-text-muted: var(--dash-text-muted);
   --color-dash-accent: var(--dash-accent);
@@ -157,6 +162,13 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 18px;
+  --radius-pill: 20px;
+
+  /* Elevation utility — DESIGN.md §6 (shadow-card / shadow-card-hover / shadow-btn-primary) */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.08), 0 16px 40px rgba(0, 0, 0, 0.06);
+  --shadow-btn-primary: 0 4px 14px rgba(37, 99, 235, 0.25);
+  --shadow-btn-primary-hover: 0 6px 20px rgba(37, 99, 235, 0.35);
 }
 
 /* ───────────────────────────────────────────────
@@ -186,6 +198,13 @@
   --muted: var(--dash-surface-elevated);
   --muted-foreground: var(--dash-text-muted);
   --ring: var(--dash-accent);
+  /* Sprint 41-B2 (프로토타입 03 Full Dark App Shell) — sidebar 토큰 dash 재매핑.
+     Worker B 의 @theme inline 블록은 미수정, 본 스코프 내에서만 효력. */
+  --sidebar: var(--dash-bg);
+  --sidebar-foreground: var(--dash-text);
+  --sidebar-accent: var(--dash-surface-elevated);
+  --sidebar-accent-foreground: var(--dash-text);
+  --sidebar-border: var(--dash-border);
   color-scheme: dark;
 }
 

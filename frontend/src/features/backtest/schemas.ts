@@ -293,6 +293,16 @@ export type BacktestListResponse = z.infer<typeof BacktestListResponseSchema>;
 export const TradeListResponseSchema = pageSchema(TradeItemSchema);
 export type TradeListResponse = z.infer<typeof TradeListResponseSchema>;
 
+// --- Sprint 41 Worker H — share link --------------------------------------
+
+export const ShareTokenResponseSchema = z.object({
+  backtest_id: z.uuid(),
+  share_token: z.string().min(1),
+  share_url_path: z.string(),
+  revoked: z.boolean(),
+});
+export type ShareTokenResponse = z.infer<typeof ShareTokenResponseSchema>;
+
 // ---------------------------------------------------------------------------
 // Stress Test (Phase C)
 // ---------------------------------------------------------------------------

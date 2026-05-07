@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm, useWatch, type SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";
 
+import { FormErrorInline } from "@/components/form-error-inline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,10 +19,6 @@ import { useCreateBacktest } from "@/features/backtest/hooks";
 import type { Timeframe, TradingSession } from "@/features/backtest/schemas";
 import { useStrategies, useStrategy } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
-import {
-  getUnsupportedBuiltinHints,
-  type UnsupportedBuiltinHint,
-} from "@/lib/unsupported-builtin-hints";
 
 import {
   LiveSettingsBadge,
@@ -121,8 +117,6 @@ export function BacktestForm() {
     register,
     handleSubmit,
     setValue,
-    setError,
-    clearErrors,
     control,
     reset,
     getValues,
@@ -157,14 +151,9 @@ export function BacktestForm() {
     },
   });
 
-  // Sprint 21 BL-095 — 422 응답의 unsupported_builtins (구조화 list) 가 있을 때
-  // form-level error message 가 아닌 inline 카드로 친절 표시. 빈 list 면 fallback.
-  const [unsupportedHints, setUnsupportedHints] = useState<
-    UnsupportedBuiltinHint[]
-  >([]);
-  // Sprint 32 E (BL-163) — backend 422 의 friendly_message (사용자 친화 단일 요약)
-  // 가 있으면 카드 헤더에 노출. backend 가 coverage workaround SSOT 기반으로 합성.
-  const [friendlyMessage, setFriendlyMessage] = useState<string | null>(null);
+  // Sprint 41 E — 단일 submitError state. FormErrorInline 가 422 unsupported_builtins
+  // / friendly_message / general fallback 분기 처리. (이전: 3개 분리 state + RHF root.serverError)
+  const [submitError, setSubmitError] = useState<unknown>(null);
 
   const create = useCreateBacktest({
     onSuccess: (data) => {
@@ -172,47 +161,15 @@ export function BacktestForm() {
       router.push(`/backtests/${data.backtest_id}`);
     },
     onError: (err) => {
-      // 매 호출 reset.
-      setUnsupportedHints([]);
-      setFriendlyMessage(null);
-      // Sprint 13 Phase C: 422 백엔드 응답은 form-level inline 에러로 표시.
-      // ApiError 는 numeric `status` 를 보존하므로 안전하게 narrow 한다.
       const status = (err as { status?: number }).status;
+      // 422 만 inline 카드. 5xx / 기타는 toast 단독 (이전 동작 보존).
       if (status === 422) {
-        // Sprint 21 BL-095: ApiError.detail = readErrorBody 결과 =
-        // {detail: {code, detail, unsupported_builtins}} (FastAPI HTTPException 표준).
-        // backend Phase A.0 가 list 추가. FE 는 string split 안 하고 list 직접 접근.
-        // Sprint 32 E (BL-163): friendly_message 도 함께 추출 — 카드 헤더 노출.
-        const apiErr = err as {
-          detail?: {
-            detail?: {
-              unsupported_builtins?: unknown;
-              degraded_calls?: unknown;
-              friendly_message?: unknown;
-            };
-          };
-        };
-        const inner = apiErr.detail?.detail;
-        const list = inner?.unsupported_builtins ?? inner?.degraded_calls;
-        const fm = inner?.friendly_message;
-        if (typeof fm === "string" && fm.length > 0) {
-          setFriendlyMessage(fm);
-        }
-        if (
-          Array.isArray(list) &&
-          list.every((x) => typeof x === "string") &&
-          list.length > 0
-        ) {
-          setUnsupportedHints(getUnsupportedBuiltinHints(list as string[]));
-          return;
-        }
-        setError("root.serverError", {
-          type: "manual",
-          message: err.message || "입력값이 유효하지 않습니다",
-        });
-      } else if ((status ?? 500) >= 500) {
-        // Sprint 32 E (BL-163): 500+ 표준화 toast — backend unhandled_exc_handler 가
-        // `{detail: <human-readable>}` 정규화 응답을 반환. ADR-003 supported list 안내.
+        setSubmitError(err);
+        return;
+      }
+      setSubmitError(null);
+      if (status != null && status >= 500) {
+        // Sprint 32 E (BL-163): 500+ 표준화 toast — backend `{detail: <msg>}` 정규화.
         const apiErr = err as { detail?: { detail?: unknown } | unknown };
         let detailMsg = err.message;
         if (
@@ -234,9 +191,7 @@ export function BacktestForm() {
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
     // 재제출 시 직전 422 form-level 에러 메시지 + unsupported list 클리어.
-    clearErrors("root.serverError");
-    setUnsupportedHints([]);
-    setFriendlyMessage(null);
+    setSubmitError(null);
     // Sprint 38 BL-188 v3 — D2 canonical 1개 강제. sizing_source 에 따라 BE 로
     // 한쪽만 보냄. BE `_no_double_sizing` 422 회피 + Zod `.refine()` parity.
     const isLive = values.sizing_source === "live";
@@ -747,51 +702,16 @@ export function BacktestForm() {
         </div>
       </section>
 
-      {unsupportedHints.length > 0 ? (
-        <div
-          role="alert"
-          data-testid="backtest-form-unsupported-card"
-          className="rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 p-3 text-sm"
-        >
-          <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
-            이 strategy 는 미지원 builtin 을 포함합니다
-          </p>
-          {/* Sprint 32 E (BL-163): backend friendly_message 가 있으면 카드 헤더 아래
-              한 줄 요약으로 우선 노출 (사용자가 list 를 읽기 전 결정 가능). */}
-          {friendlyMessage ? (
-            <p
-              className="text-xs text-amber-900 dark:text-amber-200 mb-2"
-              data-testid="backtest-form-friendly-message"
-            >
-              {friendlyMessage}
-            </p>
-          ) : null}
-          <ul className="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-300 text-xs">
-            {unsupportedHints.map((h) => (
-              <li key={h.name}>
-                <span className="font-mono">{h.name}</span> — {h.hint}
-              </li>
-            ))}
-          </ul>
-          {selectedStrategy ? (
-            <Link
-              href={`/strategies/${selectedStrategy}/edit?tab=parse`}
-              className="mt-2 inline-block text-xs underline text-amber-900 dark:text-amber-200"
-              data-testid="backtest-form-edit-strategy-link"
-            >
-              ADR-003 supported list 참조 — strategy 편집 →
-            </Link>
-          ) : null}
-        </div>
-      ) : errors.root?.serverError?.message ? (
-        <p
-          className="text-sm text-destructive"
-          role="alert"
-          data-testid="backtest-form-server-error"
-        >
-          {errors.root.serverError.message}
-        </p>
-      ) : null}
+      <FormErrorInline
+        error={submitError}
+        editStrategyHref={
+          selectedStrategy
+            ? `/strategies/${selectedStrategy}/edit?tab=parse`
+            : null
+        }
+        testIdPrefix="backtest-form"
+      />
+
 
       <div className="flex justify-end gap-2">
         <Button

@@ -42,6 +42,9 @@ vi.mock("@/features/backtest/hooks", () => ({
     error: null,
   }),
   useCreateBacktest: () => ({ mutate: vi.fn(), isPending: false }),
+  // Sprint 41 Worker H — ShareButton 이 detail-view 헤더에 추가됨. share hook 도 mock.
+  useCreateBacktestShare: () => ({ mutate: vi.fn(), isPending: false }),
+  useRevokeBacktestShare: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("next/navigation", () => ({
