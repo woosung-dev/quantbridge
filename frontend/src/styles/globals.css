@@ -198,6 +198,13 @@
   --muted: var(--dash-surface-elevated);
   --muted-foreground: var(--dash-text-muted);
   --ring: var(--dash-accent);
+  /* Sprint 41-B2 (프로토타입 03 Full Dark App Shell) — sidebar 토큰 dash 재매핑.
+     Worker B 의 @theme inline 블록은 미수정, 본 스코프 내에서만 효력. */
+  --sidebar: var(--dash-bg);
+  --sidebar-foreground: var(--dash-text);
+  --sidebar-accent: var(--dash-surface-elevated);
+  --sidebar-accent-foreground: var(--dash-text);
+  --sidebar-border: var(--dash-border);
   color-scheme: dark;
 }
 
