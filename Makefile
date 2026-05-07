@@ -14,7 +14,7 @@
 
 .DEFAULT_GOAL := help
 .PHONY: help dev up down logs be fe \
-        dev-isolated up-isolated up-isolated-build down-isolated logs-isolated be-isolated fe-isolated \
+        dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
         migrate migrate-isolated wait-db-isolated \
         test be-test fe-test fe-e2e fe-e2e-authed lint typecheck
 
@@ -102,6 +102,14 @@ up-isolated:
 # 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
 up-isolated-build:
 	docker compose $(ISOLATED_COMPOSE) up -d --build
+
+# Sprint 38 BL-181 — 격리 모드 + worker auto-rebuild on src 변경.
+# backend-worker / backend-ws-stream / backend-beat 3 서비스 한정으로
+# `./backend/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
+# host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
+# 패키지 변경은 image rebuild 의무 (ADR docs/07_infra/2026-05-06-bl-181-*).
+up-isolated-watch:
+	docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 
 down-isolated:
 	docker compose $(ISOLATED_COMPOSE) down

@@ -1,12 +1,19 @@
-# 로컬 포트 격리 — 다른 웹앱과 병렬 실행 시 host port 만 변경
-# 컨테이너 내부 포트(5432/6379)는 그대로 유지 → 워커/beat 등 내부 통신 영향 0
+# 로컬 포트 격리 + isolated 한정 worker auto-rebuild (BL-181, Sprint 38)
+# 다른 웹앱과 병렬 실행 시 host port 만 변경. 컨테이너 내부 포트(5432/6379)는 그대로 유지.
 #
-# 사용법: `make up-isolated`
-#   == `docker compose -f docker-compose.yml -f docker-compose.isolated.yml up -d`
-# 기본 모드는 본 파일을 사용하지 않음 (docker-compose.yml 단독). 격리 시에만 -f 로 명시 merge.
+# 사용법:
+#   make up-isolated         (port 격리만)
+#   make up-isolated-watch   (port 격리 + worker/ws-stream/beat 가 src 변경 시 자동 reload)
 #
-# `!override` tag (Compose Spec, docker compose v2.24+) — list 키를 append 가 아니라 완전 대체.
-# 미사용 시 ports 가 base 의 5432:5432 와 append 되어 host 5432 충돌 발생.
+# `!override` tag (Compose Spec, docker compose v2.24+) — list 키 (ports/command/volumes) 를
+# append 가 아니라 완전 대체. base 의 command/ports 와 충돌하지 않도록 명시.
+#
+# BL-181 — backend-worker / backend-ws-stream / backend-beat 3 서비스에 한해
+# `./backend/src` host 디렉터리를 `:ro` bind-mount 하고 watchfiles wrapper 로 celery 를 감싼다.
+# host src 가 SoT 이므로 `:ro` 안전. 패키지 추가는 image rebuild 가 의무 (별도 ADR).
+#
+# WARNING: base mode (`make up`) 와 isolated mode 동시 운영 시 `quantbridge-*` container_name
+# 충돌 발생. base 와 isolated 는 mutually exclusive (ADR docs/07_infra/2026-05-06-bl-181-*.md).
 
 services:
   db:
@@ -16,3 +23,40 @@ services:
   redis:
     ports: !override
       - "6380:6379"
+
+  backend-worker:
+    volumes: !override
+      - ./backend/src:/app/src:ro
+    command: !override
+      - "uv"
+      - "run"
+      - "watchfiles"
+      - "--filter"
+      - "python"
+      - "celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2"
+      - "/app/src"
+
+  backend-ws-stream:
+    volumes: !override
+      - ./backend/src:/app/src:ro
+    command: !override
+      - "uv"
+      - "run"
+      - "watchfiles"
+      - "--filter"
+      - "python"
+      - "celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2 --queues=ws_stream"
+      - "/app/src"
+
+  backend-beat:
+    volumes: !override
+      - ./backend/src:/app/src:ro
+      - beat-data:/data
+    command: !override
+      - "uv"
+      - "run"
+      - "watchfiles"
+      - "--filter"
+      - "python"
+      - "celery -A src.tasks.celery_app beat --loglevel=info --schedule=/data/celerybeat-schedule"
+      - "/app/src"
