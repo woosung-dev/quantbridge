@@ -8,6 +8,7 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-07 — **Sprint 41 회고** (외부 demo 첫인상 패키지, 4 PR / 40 files / +2615 / -166 — Worker B 디자인 token + E UX 통일 + H share link + B-2 프로토타입 App Shell + 4 페이지 layout, 자율 병렬 cmux 5번째 실측 wall-clock ≈50분, Day 7 = 8/10 gate (a)+(b)+(c)+(d) 모두 PASS, codex P2 2건 즉시 fix (Worker H share race row lock + Worker B-2 status filter chip 비활성), Playwright 자동 검증 10/10 PASS, BL-190~192 신규 3건, LESSON-048~050 신규 후보 3건 → Sprint 42 = 지인 N=5 demo 오픈 + feedback loop) — [`2026-05-07-sprint41-master.md`](2026-05-07-sprint41-master.md)
 - 2026-05-07 — **Sprint 39 회고** (polish iter 7, **코드 변경 0** — BL-189 measurement artifact 결론 + wrong fix detection layer 작동, Day 7 = 7/10 gate (a)+(d) PASS → Sprint 40 = stage→main + BL-003 + BL-005 본격, LESSON-047 신규 후보 1건 (Turbopack root wrong path = file watcher storm), single worker single day ~3h) — [`2026-05-07-sprint39-master.md`](2026-05-07-sprint39-master.md)
 - 2026-05-07 — **Sprint 38 회고** (polish iter 6, 4 PR stage 머지 — main 미반영 / BL-188 v3 mirror + BL-181 Resolved, Day 7.5 mid-dogfood CPU loop 113% delta 검출 → BL-189 신규 P0, Day 7 = 5/10 gate (a)+(d) FAIL → Sprint 39 = polish iter 7. LESSON-038/039/040 영구 승격 + LESSON-041~046 신규 6건. 자율 병렬 cmux 4번째 실측) — [`2026-05-07-sprint38-master.md`](2026-05-07-sprint38-master.md)
 - 2026-05-06 — **Sprint 37 회고** (polish iter 5, 7 PR 머지 + 사용자 hotfix `6434a1d` 안착, BL-183/184/185/187/187a/188a Resolved + BL-186/188 신규 deferred, Day 7 = 6/10 gate (a) FAIL → Sprint 38 = polish iter 6) — [`2026-05-06-sprint37-master.md`](2026-05-06-sprint37-master.md)
