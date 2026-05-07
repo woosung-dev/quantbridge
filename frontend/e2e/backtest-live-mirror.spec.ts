@@ -268,10 +268,13 @@ test.describe("backtest live mirror — BL-188 v3 D", () => {
       timeout: 10_000,
     });
     // sessions section 가 prefill 도착할 때까지 대기 — useStrategy data 로드 후
-    // useEffect reset() 가 trading_sessions 채움.
-    const asiaCheckbox = page.getByTestId("session-checkbox-asia");
-    await expect(asiaCheckbox).toBeChecked({ timeout: 10_000 });
-    await expect(page.getByTestId("session-checkbox-london")).not.toBeChecked();
-    await expect(page.getByTestId("session-checkbox-ny")).not.toBeChecked();
+    // useEffect reset() 가 trading_sessions 채움. data-testid 가 wrapping <label>
+    // 에 부착되어 있으므로 toBeChecked() 는 inner <input type="checkbox"> 매칭 필요.
+    const asiaInput = page.locator('[data-testid="session-checkbox-asia"] input');
+    const londonInput = page.locator('[data-testid="session-checkbox-london"] input');
+    const nyInput = page.locator('[data-testid="session-checkbox-ny"] input');
+    await expect(asiaInput).toBeChecked({ timeout: 10_000 });
+    await expect(londonInput).not.toBeChecked();
+    await expect(nyInput).not.toBeChecked();
   });
 });
