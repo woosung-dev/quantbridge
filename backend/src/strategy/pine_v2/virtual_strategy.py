@@ -131,6 +131,18 @@ class VirtualStrategyWrapper:
             fill_price = self.interp.bar.current("close")
             state = self.interp.strategy
             if action.kind == "entry":
+                # BL-188 v3 entry placement gate (Track A) — disallowed session 이면
+                # silent skip → equity/state 영향 0. interpreter `_exec_strategy_call`
+                # 의 entry hook 과 동일 정책.
+                if state.sessions_allowed:
+                    bar_ts = self.interp.bar.current_timestamp()
+                    if bar_ts is not None:
+                        from src.strategy.trading_sessions import is_allowed
+                        if not is_allowed(
+                            list(state.sessions_allowed), bar_ts.to_pydatetime()
+                        ):
+                            continue
+
                 # 반대 포지션 자동 reverse
                 reverse_id = "S" if action.direction == "long" else "L"
                 if reverse_id in state.open_trades:
@@ -157,6 +169,7 @@ def run_virtual_strategy(
     initial_capital: float | None = None,
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
+    sessions_allowed: tuple[str, ...] = (),
 ) -> VirtualRunResult:
     """indicator + alertcondition Pine 스크립트를 가상 strategy로 실행.
 
@@ -165,13 +178,20 @@ def run_virtual_strategy(
 
     BL-185 spot-equivalent: initial_capital 지정 시 configure_sizing 호출.
     process_bar 가 state.compute_qty(fill_price) 로 entry qty 계산.
+
+    BL-188 v3: sessions_allowed → state.sessions_allowed 주입. 비어있으면 24h.
+    비어있지 않으면 ohlcv.index 가 tz-aware DatetimeIndex 여야 함 (v2_adapter 보증).
     """
     _validate_ohlcv(ohlcv)
     tree = parse_to_ast(source)
     alerts = collect_alerts(source)
 
+    timestamps: pd.DatetimeIndex | None = (
+        ohlcv.index if isinstance(ohlcv.index, pd.DatetimeIndex) else None
+    )
+
     store = PersistentStore()
-    bar = BarContext(ohlcv.reset_index(drop=True))
+    bar = BarContext(ohlcv.reset_index(drop=True), timestamps=timestamps)
     interp = Interpreter(bar, store)
     if initial_capital is not None:
         interp.strategy.configure_sizing(
@@ -179,6 +199,7 @@ def run_virtual_strategy(
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
         )
+    interp.strategy.sessions_allowed = tuple(sessions_allowed)
     wrapper = VirtualStrategyWrapper(alerts, interp, strict=strict)
 
     errors: list[tuple[int, str]] = []
@@ -187,11 +208,15 @@ def run_virtual_strategy(
         store.begin_bar()
         interp.reset_transient()
         interp.begin_bar_snapshot()
+        # BL-188 v3 — fill gate: bar_ts 전달 → check_pending_fills 가 disallowed
+        # session 시 fill skip + carry-over.
+        bar_ts = bar.current_timestamp()
         interp.strategy.check_pending_fills(
             bar=bar.bar_index,
             open_=bar.current("open"),
             high=bar.current("high"),
             low=bar.current("low"),
+            bar_ts=bar_ts.to_pydatetime() if bar_ts is not None else None,
         )
         try:
             interp.execute(tree)

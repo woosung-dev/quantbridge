@@ -27,6 +27,7 @@ from src.backtest.engine.types import (
     BacktestResult,
     RawTrade,
 )
+from src.backtest.exceptions import TradingSessionTzNaiveReject
 from src.strategy.pine.types import ParseOutcome, SignalResult
 from src.strategy.pine_v2.compat import V2RunResult, parse_and_run_v2
 from src.strategy.pine_v2.interpreter import PineRuntimeError
@@ -54,22 +55,42 @@ def run_backtest_v2(
     """
     cfg = config if config is not None else BacktestConfig()
 
+    # Sprint 38 BL-188 v3 A2 — tz-naive sessions-only fail-closed (422).
+    # sessions 비어있으면 reject 안 함 (회귀 0). DatetimeIndex 아님 또는 tz=None 시 reject.
+    # Live `is_allowed` 가 tz-aware 강제하므로 backtest 도 동일 invariant 유지.
     if cfg.trading_sessions:
-        # Sprint 7d 의 bar-hour 마스킹은 pine_v2 경로에서 아직 미구현. corpus/기본 경로엔 무관.
-        logger.warning("v2_adapter: trading_sessions filter not yet implemented for pine_v2 path")
+        if not isinstance(ohlcv.index, pd.DatetimeIndex):
+            raise TradingSessionTzNaiveReject(
+                detail=(
+                    "trading_sessions 활성 시 OHLCV index 가 DatetimeIndex 필수 — "
+                    "현재 type: " + type(ohlcv.index).__name__
+                )
+            )
+        if ohlcv.index.tz is None:
+            raise TradingSessionTzNaiveReject(
+                detail=(
+                    "trading_sessions 활성 시 OHLCV index 가 tz-aware 필수 — "
+                    "naive index 를 silent UTC 가정으로 처리 시 Live `is_allowed` 와 "
+                    "결과 불일치 risk."
+                )
+            )
 
     try:
         # strict=True — bar-level PineRuntimeError 를 raise 시켜 상위에서 status=error 로 변환.
         # Sprint 37 BL-185: cfg.init_cash 를 initial_capital 로 전달 → configure_sizing 호출.
         # Sprint 37 BL-188a: cfg.default_qty_type/value (폼 입력) 도 전달.
-        # priority chain은 compat.parse_and_run_v2 안에서 결정 (Pine > 폼 > None).
+        # Sprint 38 BL-188 v3 A2: cfg.live_position_size_pct + cfg.trading_sessions 를
+        # compat 으로 propagate. priority chain (Pine > form > Live > None) 은
+        # compat.parse_and_run_v2 안에서 결정.
         v2 = parse_and_run_v2(
             source,
             ohlcv,
             strict=True,
             initial_capital=float(cfg.init_cash),
+            live_position_size_pct=cfg.live_position_size_pct,
             form_default_qty_type=cfg.default_qty_type,
             form_default_qty_value=cfg.default_qty_value,
+            sessions_allowed=cfg.trading_sessions,
         )
     except PineRuntimeError as exc:
         logger.info("v2_adapter_runtime_error: %s", exc)

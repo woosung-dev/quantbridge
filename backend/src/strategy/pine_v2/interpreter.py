@@ -167,10 +167,15 @@ class BarContext:
 
     Pine의 `close`는 현재 bar의 종가. `close[n]`은 n bar 전 종가.
     na(not available): 히스토리가 없는 구간 → float('nan') 반환.
+
+    BL-188 v3: timestamps (Optional DatetimeIndex) — entry placement gate 가
+    `current_timestamp()` 로 tz-aware bar timestamp 를 얻어 `is_allowed` 평가.
+    None 이면 session gate skip (회귀 호환 — 기존 BarContext(ohlcv) 호출).
     """
 
     ohlcv: pd.DataFrame  # columns: open/high/low/close/volume (float)
     bar_index: int = -1
+    timestamps: pd.DatetimeIndex | None = None
 
     def advance(self) -> bool:
         """다음 bar로 이동. 데이터가 남아있으면 True, 끝났으면 False."""
@@ -188,6 +193,18 @@ class BarContext:
         if idx < 0:
             return float("nan")
         return float(self.ohlcv.iloc[idx][field])
+
+    def current_timestamp(self) -> pd.Timestamp | None:
+        """현재 bar 의 tz-aware timestamp. timestamps 미주입 시 None.
+
+        v2_adapter 가 tz-naive sessions-only 활성 시 422 reject 하므로, 본 메서드가
+        is_allowed 에 전달하는 ts 는 tz-aware 만 도달.
+        """
+        if self.timestamps is None:
+            return None
+        if self.bar_index < 0 or self.bar_index >= len(self.timestamps):
+            return None
+        return self.timestamps[self.bar_index]
 
 
 # ------------------------------------------------------------
@@ -1037,6 +1054,17 @@ class Interpreter:
                 positional.append(val)
 
         if name == "strategy.entry":
+            # BL-188 v3 entry placement gate (Track S) — disallowed session 이면
+            # silent skip → equity/state 영향 0. 단일 reference =
+            # `src.strategy.trading_sessions.is_allowed`. timestamps 미주입 시 skip 하지 않음
+            # (회귀 0). v2_adapter 가 tz-naive sessions-only 활성 시 422 reject.
+            if self.strategy.sessions_allowed:
+                bar_ts = self.bar.current_timestamp()
+                if bar_ts is not None:
+                    from src.strategy.trading_sessions import is_allowed
+                    if not is_allowed(list(self.strategy.sessions_allowed), bar_ts.to_pydatetime()):
+                        return None
+
             trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
             # when= kwarg: False면 entry skip (Pine v4 backtest range 필터)
             when_val = kwargs.get("when")
