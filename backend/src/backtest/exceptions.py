@@ -263,3 +263,17 @@ class SizingSourceConflict(BacktestError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     code = "sizing_source_conflict"
     detail = "position_size_pct (Live mirror) and default_qty_type/value (manual) cannot coexist"
+
+
+class TradingSessionTzNaiveReject(BacktestError):
+    """trading_sessions 활성 + OHLCV index 가 tz-naive 또는 non-DatetimeIndex.
+
+    Sprint 38 BL-188 v3 A2 — entry placement gate / fill gate 모두 tz-aware bar
+    timestamp 가 필수 (UTC hour 변환). naive index 를 silent UTC 가정으로 처리하면
+    Live `is_allowed` (tz-aware 강제) 와 backtest 결과 불일치 risk → fail-closed
+    422 reject. sessions 비어있으면 본 reject 미적용 (회귀 0).
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "trading_session_tz_naive_reject"
+    detail = "trading_sessions 활성 시 OHLCV index 가 tz-aware DatetimeIndex 필수"

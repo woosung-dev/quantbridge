@@ -37,6 +37,8 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategies: () => strategies,
+  // Sprint 38 BL-188 v3 — BacktestForm 가 useStrategy fetch.
+  useStrategy: () => ({ data: null, isLoading: false, isError: false }),
 }));
 
 type CapturedOpts = {
@@ -196,13 +198,9 @@ describe("BacktestForm — Sprint 37 BL-187 spot-equivalent 정합", () => {
     const valueInput = screen.getByLabelText("value") as HTMLInputElement;
     expect(valueInput).toBeInTheDocument();
     expect(valueInput.value).toBe("10");
-    // section testid
+    // Sprint 38 BL-188 v3 — section 가 sizing-source 으로 통합됨.
     expect(
-      screen.getByTestId("backtest-form-default-qty-section"),
-    ).toBeInTheDocument();
-    // Pine override 안내
-    expect(
-      screen.getByText(/Pine\s+code\s+의|미명시 시 아래 입력값/i),
+      screen.getByTestId("backtest-form-sizing-source-section"),
     ).toBeInTheDocument();
   });
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch, type SubmitHandler } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -16,13 +16,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateBacktest } from "@/features/backtest/hooks";
-import type { Timeframe } from "@/features/backtest/schemas";
-import { useStrategies } from "@/features/strategy/hooks";
+import type { Timeframe, TradingSession } from "@/features/backtest/schemas";
+import { useStrategies, useStrategy } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 import {
   getUnsupportedBuiltinHints,
   type UnsupportedBuiltinHint,
 } from "@/lib/unsupported-builtin-hints";
+
+import {
+  LiveSettingsBadge,
+  type SizingSource,
+} from "./live-settings-badge";
 
 const TIMEFRAMES: readonly Timeframe[] = [
   "1m",
@@ -74,6 +79,31 @@ interface FormValues {
     | "strategy.cash"
     | "strategy.fixed";
   default_qty_value: number;
+  // Sprint 38 BL-188 v3 — D2 manual override toggle + Live mirror canonical.
+  // sizing_source 가 "live" 일 때 position_size_pct 만 submit, "manual" 일 때
+  // default_qty_type/value 만 submit (canonical 1개 강제). pine / live_blocked_leverage
+  // 는 read-only 상태 — toggle UI disabled.
+  sizing_source: SizingSource;
+  position_size_pct: number | null;
+  trading_sessions: TradingSession[];
+}
+
+// Sprint 38 BL-188 v3 — strategy detail 의 Pine declaration optional. BE A2 가
+// `pine_declared_qty` 추가 예정. 그 전까지는 undefined → manual fallback (4-state
+// 배지의 "pine" 상태는 future-ready, 본 sprint 에선 stub 으로 테스트만 검증).
+type StrategyWithPine = {
+  pine_declared_qty?: { type?: string | null; value?: number | null } | null;
+};
+
+function detectSizingSource(
+  pineDeclared: boolean,
+  liveLeverage: number | null,
+  livePct: number | null,
+): SizingSource {
+  if (pineDeclared) return "pine";
+  if (liveLeverage != null && liveLeverage !== 1) return "live_blocked_leverage";
+  if (livePct != null) return "live";
+  return "manual";
 }
 
 function toIsoUtc(dateOnly: string): string {
@@ -94,6 +124,8 @@ export function BacktestForm() {
     setError,
     clearErrors,
     control,
+    reset,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     // Sprint 13 Phase C: 첫 제출 전에도 필드 단위 에러 노출 (시작일/종료일 누락 등)
@@ -117,6 +149,11 @@ export function BacktestForm() {
       // Pine 명시 시 그게 우선 (override). 사용자가 dropdown 변경 가능.
       default_qty_type: "strategy.percent_of_equity",
       default_qty_value: 10,
+      // Sprint 38 BL-188 v3 — D2 sizing source canonical 기본 manual (strategy
+      // detail fetch 전). useStrategy 데이터 도착 시 reset() 으로 prefill.
+      sizing_source: "manual",
+      position_size_pct: null,
+      trading_sessions: [],
     },
   });
 
@@ -200,6 +237,9 @@ export function BacktestForm() {
     clearErrors("root.serverError");
     setUnsupportedHints([]);
     setFriendlyMessage(null);
+    // Sprint 38 BL-188 v3 — D2 canonical 1개 강제. sizing_source 에 따라 BE 로
+    // 한쪽만 보냄. BE `_no_double_sizing` 422 회피 + Zod `.refine()` parity.
+    const isLive = values.sizing_source === "live";
     create.mutate({
       strategy_id: values.strategy_id,
       symbol: values.symbol,
@@ -212,15 +252,77 @@ export function BacktestForm() {
       fees_pct: Number(values.fees_pct),
       slippage_pct: Number(values.slippage_pct),
       include_funding: Boolean(values.include_funding),
-      // Sprint 37 BL-188a — 폼 default_qty (Pine 미명시 시 사용).
-      default_qty_type: values.default_qty_type,
-      default_qty_value: Number(values.default_qty_value),
+      // Sprint 38 BL-188 v3 — sizing canonical: live → position_size_pct,
+      // manual/pine/blocked → default_qty_type/value (manual fallback).
+      ...(isLive
+        ? {
+            position_size_pct:
+              values.position_size_pct != null
+                ? Number(values.position_size_pct)
+                : undefined,
+          }
+        : {
+            default_qty_type: values.default_qty_type,
+            default_qty_value: Number(values.default_qty_value),
+          }),
+      trading_sessions: values.trading_sessions ?? [],
     });
   };
 
   const strategyItems: StrategyListItem[] = strategies.data?.items ?? [];
   const selectedStrategy = useWatch({ control, name: "strategy_id" });
   const selectedTimeframe = useWatch({ control, name: "timeframe" });
+  const sizingSource = useWatch({ control, name: "sizing_source" });
+  const watchedSessions = useWatch({ control, name: "trading_sessions" });
+
+  // Sprint 38 BL-188 v3 — strategy detail fetch (settings + trading_sessions
+  // prefill 용). 기존 useStrategy 훅 재사용 (queryKey factory + userId scoping).
+  const { data: strategy } = useStrategy(selectedStrategy || undefined);
+
+  // Sprint 38 BL-188 v3 — Pine declaration optional probe (BE A2 후 활성).
+  const pineDeclared = Boolean(
+    (strategy as StrategyWithPine | undefined)?.pine_declared_qty?.type,
+  );
+  const liveLeverage = strategy?.settings?.leverage ?? null;
+  const livePct = strategy?.settings?.position_size_pct ?? null;
+
+  // Sprint 38 BL-188 v3 — strategy detail 도착 시 reset() 으로 prefill.
+  // LESSON-004: dep 는 5 scalar primitive (strategyId / livePct / liveLeverage /
+  // sessionsKey / pineDeclared) + react-hook-form stable callback (reset, getValues).
+  // closure 내부에서 strategy object 자체를 직접 참조하지 않음 — 모든 read 는
+  // 위 scalar 추출값 기준. react-hooks/exhaustive-deps 자연 정합 (disable X).
+  const strategyId = strategy?.id ?? null;
+  const sessionsKey = strategy?.trading_sessions?.join("|") ?? "";
+  useEffect(() => {
+    if (!strategyId) return;
+    const computedSource = detectSizingSource(pineDeclared, liveLeverage, livePct);
+    const allowedSessions: TradingSession[] = sessionsKey
+      ? sessionsKey
+          .split("|")
+          .filter((s): s is TradingSession =>
+            s === "asia" || s === "london" || s === "ny",
+          )
+      : [];
+    const current = getValues();
+    reset(
+      {
+        ...current,
+        sizing_source: computedSource,
+        position_size_pct:
+          computedSource === "live" && livePct != null ? livePct : null,
+        trading_sessions: allowedSessions,
+      },
+      { keepDirtyValues: false },
+    );
+  }, [
+    strategyId,
+    livePct,
+    liveLeverage,
+    sessionsKey,
+    pineDeclared,
+    reset,
+    getValues,
+  ]);
 
   return (
     <form
@@ -430,65 +532,197 @@ export function BacktestForm() {
         </div>
       </section>
 
-      {/* Sprint 37 BL-188a: 기본 주문 크기 (default_qty_type/value).
-          Pine strategy(default_qty_type=...) 명시 시 그게 우선 (override).
-          미명시 시 폼 입력 사용 → silent qty=1.0 fallback 차단 (image 12 의 -249% 회귀 방지). */}
+      {/* Sprint 38 BL-188 v3 — D2 sizing source canonical 1개 (Live mirror /
+          Manual). Pine 명시 시 read-only badge + 폼 disabled. Live Nx 시 mirror
+          차단 + manual 입력만 가능. 사용자 토글 가능 시 select 활성화. */}
       <section
         className="border-t pt-4"
-        aria-label="기본 주문 크기"
-        data-testid="backtest-form-default-qty-section"
+        aria-label="주문 크기 source"
+        data-testid="backtest-form-sizing-source-section"
       >
-        <h3 className="mb-3 text-sm font-medium">기본 주문 크기</h3>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Pine code 의 <code>strategy(default_qty_type=...)</code> 명시 시 그게
-          우선. 미명시 시 아래 입력값 사용.
-        </p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="default_qty_type" className="text-sm">
-              type
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-medium">주문 크기 source</h3>
+          <LiveSettingsBadge
+            source={sizingSource}
+            liveLeverage={liveLeverage}
+            livePct={livePct}
+          />
+        </div>
+
+        {sizingSource === "pine" ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Pine code <code>strategy(default_qty_type=...)</code> 명시 — Pine
+            override 가 우선 적용됩니다. 폼 입력 비활성화.
+          </p>
+        ) : sizingSource === "live_blocked_leverage" ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Live leverage {liveLeverage ?? 0}x — backtest 1x equity-basis 와
+            비대칭으로 mirror 차단. Manual 입력만 가능 (BL-186 후 unlock).
+          </p>
+        ) : (
+          <div className="mb-3 flex flex-col gap-1.5">
+            <label htmlFor="sizing_source" className="text-xs">
+              source 선택
             </label>
             <select
-              id="default_qty_type"
+              id="sizing_source"
+              data-testid="sizing-source-select"
               className="h-10 rounded-md border bg-background px-3 text-sm"
-              {...register("default_qty_type", {
-                required: "주문 크기 type 을 선택하세요",
-              })}
+              value={sizingSource}
+              onChange={(e) => {
+                const next = e.target.value as SizingSource;
+                if (next === "live") {
+                  setValue("sizing_source", "live", { shouldDirty: true });
+                  setValue(
+                    "position_size_pct",
+                    livePct ?? null,
+                    { shouldDirty: true },
+                  );
+                } else {
+                  setValue("sizing_source", "manual", { shouldDirty: true });
+                  setValue("position_size_pct", null, { shouldDirty: true });
+                }
+              }}
             >
-              <option value="strategy.percent_of_equity">
-                자기자본 % (percent_of_equity)
-              </option>
-              <option value="strategy.cash">고정 USDT (cash)</option>
-              <option value="strategy.fixed">고정 수량 (fixed)</option>
+              <option value="manual">Manual 입력 (form 우선)</option>
+              {livePct != null && liveLeverage === 1 ? (
+                <option value="live">Live mirror (Strategy.settings)</option>
+              ) : null}
             </select>
-            {errors.default_qty_type ? (
-              <p className="text-xs text-destructive">
-                {errors.default_qty_type.message}
-              </p>
-            ) : null}
           </div>
+        )}
+
+        {sizingSource === "live" ? (
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="default_qty_value" className="text-sm">
-              value
+            <label htmlFor="position_size_pct" className="text-sm">
+              Live position_size_pct (%, Live mirror)
             </label>
             <Input
-              id="default_qty_value"
+              id="position_size_pct"
               type="number"
               step="any"
               min={0}
-              {...register("default_qty_value", {
-                required: "주문 크기 값을 입력하세요",
+              max={100}
+              readOnly
+              data-testid="position-size-pct-input"
+              {...register("position_size_pct", {
                 valueAsNumber: true,
-                validate: (v) =>
-                  (Number.isFinite(v) && v > 0) || "양수여야 합니다",
               })}
             />
-            {errors.default_qty_value ? (
+            <p className="text-xs text-muted-foreground">
+              Strategy.settings.position_size_pct 와 동일. 변경하려면 Manual 로
+              전환 또는 Strategy 편집.
+            </p>
+            {errors.position_size_pct ? (
               <p className="text-xs text-destructive">
-                {errors.default_qty_value.message}
+                {errors.position_size_pct.message}
               </p>
             ) : null}
           </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="default_qty_type" className="text-sm">
+                type
+              </label>
+              <select
+                id="default_qty_type"
+                className="h-10 rounded-md border bg-background px-3 text-sm disabled:opacity-50"
+                disabled={sizingSource === "pine"}
+                data-testid="default-qty-type-select"
+                {...register("default_qty_type", {
+                  required:
+                    sizingSource === "pine"
+                      ? false
+                      : "주문 크기 type 을 선택하세요",
+                })}
+              >
+                <option value="strategy.percent_of_equity">
+                  자기자본 % (percent_of_equity)
+                </option>
+                <option value="strategy.cash">고정 USDT (cash)</option>
+                <option value="strategy.fixed">고정 수량 (fixed)</option>
+              </select>
+              {errors.default_qty_type ? (
+                <p className="text-xs text-destructive">
+                  {errors.default_qty_type.message}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="default_qty_value" className="text-sm">
+                value
+              </label>
+              <Input
+                id="default_qty_value"
+                type="number"
+                step="any"
+                min={0}
+                disabled={sizingSource === "pine"}
+                data-testid="default-qty-value-input"
+                {...register("default_qty_value", {
+                  required:
+                    sizingSource === "pine"
+                      ? false
+                      : "주문 크기 값을 입력하세요",
+                  valueAsNumber: true,
+                  validate: (v) =>
+                    sizingSource === "pine" ||
+                    (Number.isFinite(v) && v > 0) ||
+                    "양수여야 합니다",
+                })}
+              />
+              {errors.default_qty_value ? (
+                <p className="text-xs text-destructive">
+                  {errors.default_qty_value.message}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Sprint 38 BL-188 v3 — Live Sessions mirror (asia/london/ny). 빈 list
+          = 24h. Strategy.trading_sessions 자동 prefill. 사용자가 checkbox
+          토글로 override 가능. */}
+      <section
+        className="border-t pt-4"
+        aria-label="trading sessions"
+        data-testid="backtest-form-trading-sessions-section"
+      >
+        <h3 className="mb-3 text-sm font-medium">Trading Sessions</h3>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Live Strategy.trading_sessions mirror. 빈 선택 = 24시간 거래.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {(["asia", "london", "ny"] as const).map((s) => {
+            const checked = (watchedSessions ?? []).includes(s);
+            return (
+              <label
+                key={s}
+                className="flex items-center gap-1.5 text-sm"
+                data-testid={`session-checkbox-${s}`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={checked}
+                  onChange={(e) => {
+                    const current = (watchedSessions ?? []).filter(
+                      (x): x is TradingSession => x !== s,
+                    );
+                    const next: TradingSession[] = e.target.checked
+                      ? [...current, s]
+                      : current;
+                    setValue("trading_sessions", next, {
+                      shouldDirty: true,
+                    });
+                  }}
+                />
+                <span className="capitalize">{s}</span>
+              </label>
+            );
+          })}
         </div>
       </section>
 

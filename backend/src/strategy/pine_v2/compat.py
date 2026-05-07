@@ -60,40 +60,51 @@ def parse_and_run_v2(
     *,
     strict: bool = True,
     initial_capital: float | None = None,
+    live_position_size_pct: float | None = None,
     form_default_qty_type: str | None = None,
     form_default_qty_value: float | None = None,
+    sessions_allowed: tuple[str, ...] = (),
 ) -> V2RunResult:
     """Pine 스크립트를 classify → 적절한 runner로 dispatch.
 
     BL-185: initial_capital 지정 시 ScriptContent 에서 default_qty_type/value 추출 후
     runner 에 전달 → StrategyState.configure_sizing 호출 → in-loop sizing 활성화.
 
-    BL-188a: priority chain — Pine strategy(default_qty_type=...) 명시 > 폼 입력
-    (form_default_qty_type/value) > None (qty=1.0 fallback). Pine 미명시 + 폼 명시 시
-    폼 값 사용 → 사용자가 폼에서 percent_of_equity 10% 등 입력 → 정확 시뮬레이션.
+    BL-188 v3 D2 priority chain (Pine > form > Live > None):
+      1. Pine `strategy(default_qty_type=..., default_qty_value=...)` 명시 → override
+      2. Pine 미명시 + form_default_qty_type/value 명시 → 폼 값 사용
+      3. Pine·form 미명시 + live_position_size_pct 명시 → ("strategy.percent_of_equity", live_pct)
+      4. 모두 None → qty=1.0 fallback (회귀 호환)
+
+    sessions_allowed: tuple of session names ("asia"/"london"/"ny"). 비어있으면 24h.
+    runner 가 StrategyState.sessions_allowed 에 주입 → entry placement + pending fill 양쪽
+    에서 silent skip / carry-over 적용 (Live `is_allowed` 와 단일 reference 정합).
     """
+    if live_position_size_pct is not None:
+        assert initial_capital is not None, (
+            "live_position_size_pct 명시 시 initial_capital 도 필수 — Live mirror tier "
+            "는 capital baseline 없이 silent skip 금지 (BL-188 v3)."
+        )
+
     profile = classify_script(source)
     track = profile.track
 
-    # BL-185 + BL-188a: priority chain — Pine 명시 > 폼 입력 > None.
-    # 1. Pine strategy(default_qty_type=..., default_qty_value=...) 명시 → override
-    # 2. Pine 미명시 + 폼 입력 (form_default_qty_*) 명시 → 폼 값 사용
-    # 3. 둘 다 None → qty=1.0 fallback (회귀 호환)
     default_qty_type: str | None = None
     default_qty_value: float | None = None
     if initial_capital is not None:
         pine_qty_type, pine_qty_value = _extract_default_qty(source)
         if pine_qty_type is not None and pine_qty_value is not None:
-            # Pine 명시 = override (BL-185 표준)
             default_qty_type = pine_qty_type
             default_qty_value = pine_qty_value
         elif (
             form_default_qty_type is not None
             and form_default_qty_value is not None
         ):
-            # Pine 미명시 + 폼 입력 = 폼 우선 (BL-188a)
             default_qty_type = form_default_qty_type
             default_qty_value = form_default_qty_value
+        elif live_position_size_pct is not None:
+            default_qty_type = "strategy.percent_of_equity"
+            default_qty_value = float(live_position_size_pct)
 
     if track == "S":
         hist = run_historical(
@@ -101,6 +112,7 @@ def parse_and_run_v2(
             initial_capital=initial_capital,
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
+            sessions_allowed=sessions_allowed,
         )
         return V2RunResult(track=track, historical=hist)
     if track == "A":
@@ -109,6 +121,7 @@ def parse_and_run_v2(
             initial_capital=initial_capital,
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
+            sessions_allowed=sessions_allowed,
         )
         return V2RunResult(track=track, virtual=virt)
     if track == "M":
@@ -117,6 +130,7 @@ def parse_and_run_v2(
             initial_capital=initial_capital,
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
+            sessions_allowed=sessions_allowed,
         )
         return V2RunResult(track=track, historical=hist)
     raise ValueError(
