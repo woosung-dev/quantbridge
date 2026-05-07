@@ -1,5 +1,5 @@
 // BL-188 v3 백테스트 폼 ↔ Live Settings mirror E2E (D2 toggle / Nx reject / Pine override / sessions parity)
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 import { API_ROUTES, fulfillJson } from "./fixtures/api-mock";
 
@@ -93,7 +93,7 @@ const STRATEGIES_LIST = {
 // 시나리오별 strategy detail 을 라우터 핸들러에 주입. /api/v1/strategies/<id>
 // (단건) 와 list (`/api/v1/strategies?...`) 를 trailing wildcard 로 분기.
 function routeStrategies(detail: StrategyDetail) {
-  return async (page: import("@playwright/test").Page) => {
+  return async (page: Page) => {
     await page.route(API_ROUTES.strategies, (route: Route) => {
       const url = route.request().url();
       // 단건 detail 패턴: `/api/v1/strategies/<uuid>` (다음 segment 가 query 또는 끝)
