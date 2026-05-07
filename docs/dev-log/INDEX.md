@@ -8,6 +8,7 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-07 — **Sprint 39 회고** (polish iter 7, **코드 변경 0** — BL-189 measurement artifact 결론 + wrong fix detection layer 작동, Day 7 = 7/10 gate (a)+(d) PASS → Sprint 40 = stage→main + BL-003 + BL-005 본격, LESSON-047 신규 후보 1건 (Turbopack root wrong path = file watcher storm), single worker single day ~3h) — [`2026-05-07-sprint39-master.md`](2026-05-07-sprint39-master.md)
 - 2026-05-07 — **Sprint 38 회고** (polish iter 6, 4 PR stage 머지 — main 미반영 / BL-188 v3 mirror + BL-181 Resolved, Day 7.5 mid-dogfood CPU loop 113% delta 검출 → BL-189 신규 P0, Day 7 = 5/10 gate (a)+(d) FAIL → Sprint 39 = polish iter 7. LESSON-038/039/040 영구 승격 + LESSON-041~046 신규 6건. 자율 병렬 cmux 4번째 실측) — [`2026-05-07-sprint38-master.md`](2026-05-07-sprint38-master.md)
 - 2026-05-06 — **Sprint 37 회고** (polish iter 5, 7 PR 머지 + 사용자 hotfix `6434a1d` 안착, BL-183/184/185/187/187a/188a Resolved + BL-186/188 신규 deferred, Day 7 = 6/10 gate (a) FAIL → Sprint 38 = polish iter 6) — [`2026-05-06-sprint37-master.md`](2026-05-06-sprint37-master.md)
 - 2026-05-06 — **dogfood Day 7 (Sprint 36)** (P-1~P-6 6/6 PASS, B시나리오 ⚠️ MC 요약 통계 FE 미노출, self-assess ≤6/10 = gate (a) FAIL, BL-183 신규 등록 → Sprint 37 = polish iter 5) — [`2026-05-06-dogfood-day7-sprint36.md`](2026-05-06-dogfood-day7-sprint36.md)

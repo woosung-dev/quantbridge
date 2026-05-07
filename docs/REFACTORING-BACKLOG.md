@@ -903,3 +903,12 @@
   - **자율 병렬 cmux 4번째 실측**: Bundle 1/2/3 + Sprint 38 패턴 stable. 사용자 interaction 3회 ("ok" + dogfood 결정 + close-out 결정).
   - **Sprint 39 = polish iter 7** = BL-189 진단 + hotfix + Day 7 재측정. PASS 시 stage→main merge + Sprint 40 = BL-003 + BL-005 본격. FAIL 시 polish iter 8 (continuing).
   - **합계 변동**: 88 (Sprint 37 종료) → BL-181 Resolved -1 / BL-189 신규 +1 = **88 active BL** (사실상 ±0). 단 lessons.md = 6건 신규 + 3건 영구 승격 = 9건 갱신.
+
+- **2026-05-07 (Sprint 39 종료 — polish iter 7 완료, Day 7 = 7/10 gate 4중 AND PASS, Sprint 40 = stage→main + BL-003 + BL-005 본격 진입)** — `main @ 6bc6732` (변경 X 단 close-out PR 후 새 sha) + `stage/sprint38-bl-188-bl-181 @ 8a23f29` (보존 — Sprint 40 stage→main 머지 베이스). Day 7 4중 AND gate: **모두 PASS** ((a) 7/10 / (b) PASS / (c) PASS / (d) PASS).
+  - **Resolved (1건, 보존적)**: BL-189 — **measurement artifact 결론**. stage `8a23f29` 코드 자체 정상 (idle 0% 60s sustained + 1h monitor 7 transient spike sustained 0건 + 사용자 dogfood "괜찮음"). Sprint 38 Day 7.5 의 113% sustained = unique 환경 (browser session, Clerk auth, ws-stream polling 등) second-order effect 가능성. 코드 회귀 X → stage→main merge 안전.
+  - **Wrong fix detection (Sprint 39 핵심 evidence)**: `next.config.ts` 안 `turbopack.root: process.cwd()` 잘못된 명시 시 idle CPU **400% sustained spike** 즉시 감지 (top 9/10 + ps 6/6 + lifetime 388.9%) → revert → 0% 복원. measurement-driven hotfix discipline 작동. **fix 가 회귀를 트리거** 하는 패턴 → LESSON-047 신규 후보.
+  - **BL-188 status 갱신**: stage 머지 완료, main 미반영 → **Sprint 40 stage→main merge 시 main 반영 가능** (BL-189 보존적 Resolved 통과).
+  - **신규 LESSON (1건, 1/3 후보)**: LESSON-047 — Turbopack `turbopack.root` 명시 시 wrong path = file watcher storm (`process.cwd()` 또는 `frontend/` 디렉토리 명시 시 `.next/`, `node_modules/` 무한 watch → 400%+ sustained CPU spike). monorepo 환경 시 자동 inferred root (lockfile 있는 monorepo root) 가 정답. multi-lockfile warning silence 시도 자체가 risk. 상세: [`docs/dev-log/2026-05-07-sprint39-master.md`](dev-log/2026-05-07-sprint39-master.md).
+  - **single worker single day**: 자율 병렬 cmux 불필요. ~3h wall-clock (진단 1.5h + wrong fix detection 0.5h + close-out 1h). 사용자 interaction 5회 (스코프 결정 + dogfood 진행 + URL fix + hotfix 처리 + Day 8 점수).
+  - **Sprint 40 = stage→main + BL-003 + BL-005 본격** = (1) stage `8a23f29` 33 files / +2426 / -74 / +38 tests main 머지 + (2) Bybit mainnet runbook + smoke 스크립트 + (3) 본인 1-2주 소액 mainnet dogfood (BL-005 본격 진입). Beta 본격 진입 (BL-070~075) trigger 는 BL-005 본격 통과 후 별도.
+  - **합계 변동**: 88 (Sprint 38 종료) → BL-189 Resolved -1 = **87 active BL**. lessons.md = 1건 신규 후보 (LESSON-047).
