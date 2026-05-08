@@ -1,4 +1,5 @@
 // Clerk 로그인 페이지 — split-screen shell + Clerk appearance 토큰 정합
+// design source: docs/prototypes/04-login.html (input radius=8 / button radius=10 / h=48)
 import { SignIn } from "@clerk/nextjs";
 import { SplitScreenShell } from "../../_components/split-screen-shell";
 
@@ -14,13 +15,13 @@ export default function SignInPage() {
               "font-[var(--font-heading)] text-[color:var(--text-primary)]",
             headerSubtitle: "text-[color:var(--text-muted)]",
             formButtonPrimary:
-              "bg-[color:var(--primary)] hover:bg-[color:var(--primary-hover)] rounded-[var(--radius-md)] shadow-[var(--btn-primary-shadow)] hover:shadow-[var(--btn-primary-shadow-hover)] normal-case text-sm font-semibold",
+              "bg-[color:var(--primary)] hover:bg-[color:var(--primary-hover)] rounded-[var(--radius-md)] shadow-[var(--btn-primary-shadow)] hover:shadow-[var(--btn-primary-shadow-hover)] normal-case text-sm font-semibold h-12",
             formFieldInput:
-              "rounded-[var(--radius-sm)] border-[color:var(--border)] focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary)]/15",
+              "rounded-[8px] border-[1.5px] border-[color:var(--border)] h-12 focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary)]/15",
             formFieldLabel:
               "text-[color:var(--text-secondary)] text-sm font-medium",
             socialButtonsBlockButton:
-              "rounded-[var(--radius-md)] border-[color:var(--border)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]",
+              "rounded-[var(--radius-md)] border-[1.5px] border-[color:var(--border)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)] h-12",
             footerActionLink:
               "text-[color:var(--primary)] hover:text-[color:var(--primary-hover)] font-semibold",
             dividerLine: "bg-[color:var(--border)]",
