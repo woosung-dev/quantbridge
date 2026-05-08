@@ -1,10 +1,11 @@
-// 온보딩 일러스트 SVG 프레임 — Sprint 42-polish W2-fidelity
+// 온보딩 일러스트 SVG 프레임 — Sprint 42-polish W2-fidelity + Sprint 44 W F2
 // docs/prototypes/05-onboarding.html 의 풍부한 inline SVG 를 4 variant 로 1:1 모방.
 // - code: Pine Script 코드 카드 + dashed 화살표 + bridge target + spark
 // - chart: 백테스트 equity curve + chart bars + 축 + active dot
 // - trade: BTC/USDT 가격 + uptrend line + BUY 라벨 + arrow
 // - complete: 큰 체크 원 + sparkle stars
 // prefers-reduced-motion 시 globals.css 가 일괄 disable. 추가 motion-safe wrapper 불필요.
+// Sprint 44 W F2: variant 변경 시 fadeInUp 200ms (key 로 re-mount 트리거).
 "use client";
 
 export type IllustrationVariant = "code" | "chart" | "trade" | "complete";
@@ -16,8 +17,10 @@ export interface IllustrationFrameProps {
 export function IllustrationFrame({ variant }: IllustrationFrameProps) {
   return (
     <div
+      key={variant}
       data-testid={`illustration-${variant}`}
-      className="relative grid min-h-[220px] place-items-center overflow-hidden rounded-[var(--radius-lg)] bg-gradient-to-br from-[#EFF6FF] to-[#F1F5F9] p-5 md:min-h-[340px] md:p-8"
+      // Sprint 44 W F2: variant 변경 시 fadeInUp 200ms 진입 (key 로 re-mount).
+      className="motion-safe:animate-[fadeInUp_220ms_ease-out_both] relative grid min-h-[220px] place-items-center overflow-hidden rounded-[var(--radius-lg)] bg-gradient-to-br from-[#EFF6FF] to-[#F1F5F9] p-5 md:min-h-[340px] md:p-8"
       aria-hidden="true"
     >
       <svg

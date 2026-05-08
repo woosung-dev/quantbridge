@@ -92,11 +92,18 @@ export function StepCode(props: {
         <ParseResultPanel result={parse.data ?? null} loading={parse.isPending} />
       </div>
 
-      <div className="mt-8 flex items-center justify-between">
+      <div className="mt-8 flex items-center justify-between gap-3">
         <Button variant="ghost" onClick={props.onBack}>← 이전</Button>
-        <Button onClick={props.onNext} disabled={!canProceed}>
-          다음 단계 →
-        </Button>
+        <div className="flex items-center gap-3">
+          {!canProceed && props.pineSource.length > 0 && !parse.isPending && (
+            <p className="text-[0.7rem] text-[color:var(--text-muted)] motion-safe:animate-[parseResultIn_200ms_ease-out_both]">
+              파싱 완료 후 다음 단계로 진행할 수 있어요
+            </p>
+          )}
+          <Button onClick={props.onNext} disabled={!canProceed}>
+            다음 단계 →
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -1,10 +1,12 @@
-// 온보딩 옵션 선택형 라디오 카드 — Sprint 42-polish W2-fidelity
+// 온보딩 옵션 선택형 라디오 카드 — Sprint 42-polish W2-fidelity + Sprint 44 W F2
 // docs/prototypes/05-onboarding.html `.option` (lines 304-385) 1:1 정합:
 //  - 16px padding, 1.5px border (selected=primary 1.5px), radius var(--radius-md)
 //  - hover: border-primary + bg-primary-light
 //  - selected: border-primary + bg-primary-light + ring 0 0 0 3px rgba(37,99,235,.08)
 //  - icon 40x40 circle, primary-light → primary on selected
 //  - checkmark 22x22 circle, transparent → primary on selected
+// Sprint 44 W F2: selected 시에도 미세 -translate-y 0.5px + ring-2 강화 (state 명확화)
+// + active:translate-y-0 (press feedback)
 "use client";
 
 import { CheckIcon } from "lucide-react";
@@ -49,9 +51,11 @@ export function OptionCardRadio({
       className={[
         "flex w-full items-center gap-3 rounded-[var(--radius-md)] p-4 text-left",
         "transition-[border-color,background-color,box-shadow,transform] duration-200 ease-out",
-        "border-[1.5px]",
+        "border-[1.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]/35",
+        "motion-safe:active:translate-y-0",
         selected
-          ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]"
+          // Sprint 44 W F2: selected 시 미세 -translate-y 0.5px + ring 두께 미세 강화
+          ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] shadow-[0_0_0_3px_rgba(37,99,235,0.08)] motion-safe:-translate-y-[0.5px]"
           : "border-[color:var(--border)] bg-[color:var(--card)] hover:border-[color:var(--primary)] hover:bg-[color:var(--primary-light)] motion-safe:hover:-translate-y-px motion-safe:hover:shadow-[0_4px_14px_rgba(15,23,42,0.06)]",
       ].join(" ")}
     >

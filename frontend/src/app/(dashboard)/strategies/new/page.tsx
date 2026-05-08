@@ -114,7 +114,15 @@ export default function NewStrategyPage() {
 
       <WizardStepper current={step} />
 
-      <section className="mt-6 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-white p-8 shadow-[var(--card-shadow)]">
+      {/*
+        Sprint 44 W F2: step key 별 motion-safe slide-left + fade entrance.
+        prefers-reduced-motion 시 globals.css 가 일괄 disable.
+      */}
+      <section
+        key={`step-${step}`}
+        data-testid="wizard-step-section"
+        className="motion-safe:animate-[wizardSlideIn_250ms_cubic-bezier(0.4,0,0.2,1)_both] mt-6 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-white p-8 shadow-[var(--card-shadow)]"
+      >
         {step === 1 && (
           <StepMethod
             method={method}
