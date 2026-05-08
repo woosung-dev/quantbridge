@@ -1,11 +1,14 @@
-// 전략 입력 방식 탭 — 직접 / 파일 / URL (Sprint 42-polish W3)
-// shadcn `<Tabs>` line variant wrapper. 직접만 활성, 나머지는 disabled chip 으로 표시.
-// prototype 07: bottom-border underline 활성 표시 + disabled 탭은 흐리게.
+// 전략 입력 방식 탭 — 직접 / 파일 / URL (Sprint 42-polish W3-fidelity)
+// shadcn `<Tabs>` 의 `line` variant 가 `flex-1` + `after:bottom-[-5px]` 강제로 prototype 의
+// content-width 탭 + `border-bottom: 2px solid primary` underline 과 비주얼 mismatch 발생.
+// fidelity 우선 → raw <button role="tab"> + Tailwind 직접 underline 으로 교체 (shadcn fallback).
+// prototype 07: `.method-tabs` 컨테이너 `border-bottom: 1px solid border` + 각 탭 hover/active
+// `border-bottom: 2px solid primary`. disabled 탭은 opacity 0.55 + cursor-not-allowed.
 
 "use client";
 
 import { CodeIcon, UploadIcon, LinkIcon } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 export type StrategyInputMethod = "direct" | "upload" | "url";
 
@@ -27,36 +30,41 @@ const TAB_OPTIONS: ReadonlyArray<{
 
 export function MethodTabs({ value, onChange }: MethodTabsProps) {
   return (
-    <Tabs
-      value={value}
-      onValueChange={(next) => {
-        if (typeof next === "string" && (next === "direct" || next === "upload" || next === "url")) {
-          onChange(next);
-        }
-      }}
-      className="w-full"
+    <div
+      role="tablist"
+      aria-label="입력 방식 선택"
+      className="flex gap-1 border-b border-[color:var(--border)]"
     >
-      <TabsList
-        variant="line"
-        aria-label="입력 방식 선택"
-        className="w-full justify-start gap-1 border-b border-[color:var(--border)] bg-transparent p-0"
-      >
-        {TAB_OPTIONS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              disabled={!tab.enabled}
-              aria-disabled={!tab.enabled}
-              className="h-auto flex-none px-4 py-3 text-sm data-active:font-semibold data-active:text-[color:var(--primary)] data-active:after:bg-[color:var(--primary)] data-active:after:opacity-100"
-            >
-              <Icon className="size-3.5" aria-hidden />
-              <span>{tab.label}</span>
-            </TabsTrigger>
-          );
-        })}
-      </TabsList>
-    </Tabs>
+      {TAB_OPTIONS.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = value === tab.value;
+        const isDisabled = !tab.enabled;
+        return (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            aria-disabled={isDisabled}
+            disabled={isDisabled}
+            onClick={() => {
+              if (!isDisabled) onChange(tab.value);
+            }}
+            className={cn(
+              // prototype 07 method-tab base
+              "-mb-px inline-flex items-center gap-2 px-[18px] py-3 text-sm transition-[color,border-color] duration-200",
+              "border-b-2 border-transparent",
+              isActive
+                ? "cursor-pointer border-[color:var(--primary)] font-semibold text-[color:var(--primary)] hover:text-[color:var(--primary-hover)]"
+                : "font-medium text-[color:var(--text-muted)]",
+              isDisabled && "cursor-not-allowed opacity-55",
+            )}
+          >
+            <Icon className="size-3.5 shrink-0" aria-hidden />
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
