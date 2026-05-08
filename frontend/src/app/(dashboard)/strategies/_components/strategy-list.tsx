@@ -1,36 +1,38 @@
+// 전략 목록 컨테이너 — 검색/필터/정렬/페이지네이션 + 그리드/리스트 뷰 토글 (06 prototype 매핑)
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { PlusIcon, LayoutGridIcon, ListIcon } from "lucide-react";
+import { LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useStrategies } from "@/features/strategy/hooks";
-import type { ParseStatus, StrategyListQuery } from "@/features/strategy/schemas";
+import type { ParseStatus, StrategyListItem, StrategyListQuery } from "@/features/strategy/schemas";
 import { StrategyCard } from "./strategy-card";
-import { StrategyTable } from "./strategy-table";
 import { StrategyEmptyState } from "./strategy-empty-state";
+import {
+  StrategyListFilterBar,
+  type SortKey,
+  type StatusFilter,
+} from "./strategy-list-filter-bar";
+import { StrategyTable } from "./strategy-table";
 
 const PAGE_SIZE = 20;
 type ViewMode = "grid" | "list";
-type StatusFilter = "all" | ParseStatus | "archived";
 
 export function StrategyList() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  // 뷰 토글은 세션 한정 (URL 노출 가치 낮음), 필터·페이지는 URL 단일 source.
+  // 뷰 토글 / 정렬 / 검색은 세션 한정 (URL 노출 가치 낮음).
+  // 필터·페이지는 URL 단일 source — Next 16 routing convention.
   const [view, setView] = useState<ViewMode>("grid");
+  const [sort, setSort] = useState<SortKey>("updated_desc");
+  const [search, setSearch] = useState("");
 
   const status: StatusFilter = (() => {
+    if (searchParams.get("favorite") === "true") return "favorite";
     if (searchParams.get("archived") === "true") return "archived";
     const ps = searchParams.get("parse_status");
     if (ps === "ok" || ps === "unsupported" || ps === "error") return ps;
@@ -42,8 +44,10 @@ export function StrategyList() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("parse_status");
     params.delete("archived");
+    params.delete("favorite");
     params.delete("page");
     if (v === "archived") params.set("archived", "true");
+    else if (v === "favorite") params.set("favorite", "true");
     else if (v !== "all") params.set("parse_status", v);
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -57,6 +61,8 @@ export function StrategyList() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   };
 
+  // BE 호출 query — favorite 필터는 BE 미지원이므로 'all' 로 fallback,
+  // 클라이언트에서 다시 favorite 만 추려낸다 (placeholder 동작, 활성화는 후속 BL).
   const query = useMemo<StrategyListQuery>(() => {
     const q: StrategyListQuery = {
       limit: PAGE_SIZE,
@@ -64,67 +70,109 @@ export function StrategyList() {
       is_archived: status === "archived",
     };
     if (status === "ok" || status === "unsupported" || status === "error") {
-      q.parse_status = status;
+      q.parse_status = status as ParseStatus;
     }
     return q;
   }, [page, status]);
 
   const { data, isLoading, isError, refetch } = useStrategies(query);
 
+  // 클라이언트-side 검색·정렬·즐겨찾기 필터.
+  // 즐겨찾기는 BE 미지원이므로 현재 페이지 응답에서만 매치 (UI placeholder).
+  const filteredItems = useMemo<StrategyListItem[]>(() => {
+    let arr: StrategyListItem[] = data?.items ?? [];
+    if (status === "favorite") {
+      // BE 필드 부재 — 현재는 모두 비-즐겨찾기로 취급. 후속 BL 에서 sync.
+      arr = [];
+    }
+    const q = search.trim().toLowerCase();
+    if (q.length > 0) {
+      arr = arr.filter((s) => {
+        return (
+          s.name.toLowerCase().includes(q) ||
+          (s.symbol ?? "").toLowerCase().includes(q)
+        );
+      });
+    }
+    const sorted = arr.slice();
+    if (sort === "name_asc") {
+      sorted.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    } else if (sort === "created_desc") {
+      sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    } else {
+      sorted.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    }
+    return sorted;
+  }, [data?.items, search, sort, status]);
+
   const totalPages = data?.total_pages ?? 0;
-  const isEmpty = !isLoading && !isError && (data?.items.length ?? 0) === 0 && page === 0 && status === "all";
+  const isEmpty =
+    !isLoading &&
+    !isError &&
+    filteredItems.length === 0 &&
+    page === 0 &&
+    status === "all" &&
+    search.length === 0;
 
   return (
     <div className="mx-auto max-w-[1200px] px-6 py-8">
-      {/* 헤더 */}
+      {/* 헤더 — DESIGN.md §3.2 H2 토큰은 globals.css base 에서 자동 적용 */}
       <header className="mb-6 flex items-center justify-between">
         <div>
-          {/* DESIGN.md §3.2 H2 — font-display + letter-spacing -0.02em + line-height 1.2 는 globals.css base style 에서 자동 적용 */}
           <h1 className="text-2xl font-bold">내 전략</h1>
-          {/* DESIGN.md §9 본문 secondary copy = #475569 (WCAG AA 7.1:1). muted (#94A3B8) 는 힌트/비활성 전용. */}
-          <p className="text-sm text-text-secondary">Pine Script 전략 관리</p>
+          <p className="text-sm text-text-secondary">
+            Pine Script 전략 관리 · 백테스트 · 데모 트레이딩
+          </p>
         </div>
         <Button render={<Link href="/strategies/new" />} nativeButton={false}>
           <PlusIcon className="size-4" />새 전략
         </Button>
       </header>
 
-      {/* 필터 / 뷰 토글 */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <FilterChips value={status} onChange={pushStatus} />
-        <div className="ml-auto flex items-center gap-2">
-          <Select defaultValue="updated_desc">
-            <SelectTrigger className="h-9 w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="updated_desc">최근 수정순</SelectItem>
-              <SelectItem value="updated_asc">오래된 순</SelectItem>
-              <SelectItem value="name_asc">이름순</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="hidden lg:flex rounded-md border border-[color:var(--border)]">
-            <Button
-              size="icon"
-              variant={view === "grid" ? "default" : "ghost"}
-              className="rounded-r-none"
-              aria-label="그리드 뷰"
-              onClick={() => setView("grid")}
-            >
-              <LayoutGridIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant={view === "list" ? "default" : "ghost"}
-              className="rounded-l-none"
-              aria-label="목록 뷰"
-              onClick={() => setView("list")}
-            >
-              <ListIcon className="size-4" />
-            </Button>
-          </div>
+      {/* 필터바 (검색 + chip + 정렬) + 뷰 토글 */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-start">
+        <div className="flex-1 min-w-0">
+          <StrategyListFilterBar
+            status={status}
+            sort={sort}
+            search={search}
+            onStatusChange={pushStatus}
+            onSortChange={setSort}
+            onSearchChange={setSearch}
+          />
+        </div>
+        <div className="hidden lg:flex h-10 rounded-[var(--radius-md)] border border-[color:var(--border)]">
+          <Button
+            size="icon"
+            variant={view === "grid" ? "default" : "ghost"}
+            className="rounded-r-none"
+            aria-label="그리드 뷰"
+            onClick={() => setView("grid")}
+          >
+            <LayoutGridIcon className="size-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant={view === "list" ? "default" : "ghost"}
+            className="rounded-l-none"
+            aria-label="목록 뷰"
+            onClick={() => setView("list")}
+          >
+            <ListIcon className="size-4" />
+          </Button>
         </div>
       </div>
+
+      {/* aria-live: 검색 결과 갱신 알림 */}
+      <p
+        role="status"
+        aria-live="polite"
+        className="sr-only"
+      >
+        {isLoading
+          ? "전략 목록을 불러오는 중"
+          : `전략 ${filteredItems.length}개 표시`}
+      </p>
 
       {/* 로딩 / 에러 / 빈 상태 / 콘텐츠 */}
       {isError ? (
@@ -143,15 +191,19 @@ export function StrategyList() {
         <ListSkeleton view={view} />
       ) : isEmpty ? (
         <StrategyEmptyState />
+      ) : filteredItems.length === 0 ? (
+        <NoResultsHint search={search} status={status} />
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {data!.items.map((s) => <StrategyCard key={s.id} strategy={s} />)}
+          {filteredItems.map((s) => (
+            <StrategyCard key={s.id} strategy={s} />
+          ))}
         </div>
       ) : (
-        <StrategyTable items={data!.items} />
+        <StrategyTable items={filteredItems} />
       )}
 
-      {/* 페이지네이션 */}
+      {/* 페이지네이션 — BE 페이지 기준 (클라 필터 적용 전) */}
       {totalPages > 1 && (
         <Pagination
           page={page}
@@ -165,40 +217,19 @@ export function StrategyList() {
   );
 }
 
-// ---- local sub-components (same file) ----
+// ---- local sub-components ----
 
-function FilterChips(props: {
-  value: StatusFilter;
-  onChange: (v: StatusFilter) => void;
-}) {
-  const items: Array<{ id: StatusFilter; label: string }> = [
-    { id: "all", label: "모두" },
-    { id: "ok", label: "파싱 성공" },
-    { id: "unsupported", label: "미지원" },
-    { id: "error", label: "파싱 실패" },
-    { id: "archived", label: "보관됨" },
-  ];
+function NoResultsHint({ search, status }: { search: string; status: StatusFilter }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((it) => {
-        const active = it.id === props.value;
-        return (
-          <button
-            key={it.id}
-            type="button"
-            onClick={() => props.onChange(it.id)}
-            aria-pressed={active}
-            className={
-              "rounded-full border px-3 py-1 text-xs font-medium transition " +
-              (active
-                ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)]"
-                : "border-[color:var(--border)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-alt)]")
-            }
-          >
-            {it.label}
-          </button>
-        );
-      })}
+    <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-dark)] bg-white p-10 text-center text-sm">
+      <p className="font-medium text-[color:var(--text-primary)]">
+        {status === "favorite"
+          ? "즐겨찾기 한 전략이 없습니다."
+          : `'${search}' 검색 결과가 없습니다.`}
+      </p>
+      <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
+        다른 키워드로 검색하거나 필터를 해제해 보세요.
+      </p>
     </div>
   );
 }
