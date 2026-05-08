@@ -1,7 +1,8 @@
-// 전략 생성 3단계 stepper — Sprint 42-polish W3 (prototype 07 매칭)
-// completed (체크 아이콘 + success 색) / active (primary + pulseRing) / pending (dashed) 3-state
+// 전략 생성 3단계 stepper — Sprint 42-polish W3-fidelity (prototype 07 1:1 매칭)
+// completed (체크 아이콘 + success 색) / active (primary + pulseRing 잔물결) / pending (dashed) 3-state
 // completed↔active 사이 실선 (success), active↔pending 사이 dashed
 // prefers-reduced-motion: pulseRing animation disable (motion-safe:)
+// W3-fidelity 정합: font-display 숫자, label 0.8125rem, status 0.7rem, line mt-[19px]
 
 import { CheckIcon } from "lucide-react";
 
@@ -57,7 +58,8 @@ function StepNode({
         aria-current={active ? "step" : undefined}
         aria-label={`${n}단계 ${status}`}
         className={
-          "grid size-10 place-items-center rounded-full font-mono text-sm font-bold transition-all " +
+          // prototype 07: 40x40 circle, font-display, 0.95rem, weight 700.
+          "grid size-10 place-items-center rounded-full font-display text-[0.95rem] font-bold transition-all " +
           (completed
             ? "border-2 border-[color:var(--success)] bg-[color:var(--success)] text-white"
             : active
@@ -65,11 +67,12 @@ function StepNode({
               : "border-2 border-dashed border-[color:var(--border-dark,#cbd5e1)] bg-white text-[color:var(--text-muted)]")
         }
       >
-        {completed ? <CheckIcon className="size-4" strokeWidth={3} /> : n}
+        {completed ? <CheckIcon className="size-[18px]" strokeWidth={3} /> : n}
       </div>
       <p
         className={
-          "break-keep text-xs font-semibold " +
+          // prototype 07: step-label 0.8125rem (13px), weight 600.
+          "break-keep text-[0.8125rem] font-semibold " +
           (active
             ? "text-[color:var(--primary)]"
             : completed
@@ -81,12 +84,13 @@ function StepNode({
       </p>
       <p
         className={
-          "text-[0.65rem] font-medium " +
+          // prototype 07: step-status 0.7rem, active/completed 일 때 weight 600.
+          "text-[0.7rem] " +
           (active
-            ? "text-[color:var(--primary)]"
+            ? "font-semibold text-[color:var(--primary)]"
             : completed
-              ? "text-[color:var(--success)]"
-              : "text-[color:var(--text-muted)]")
+              ? "font-semibold text-[color:var(--success)]"
+              : "font-medium text-[color:var(--text-muted)]")
         }
       >
         {status}
@@ -96,11 +100,12 @@ function StepNode({
 }
 
 function StepLine({ completed }: { completed: boolean }) {
+  // prototype 07: step-line `margin-top: 19px` (40px circle 의 절반 - 1px = 19).
   return (
     <div
       aria-hidden
       className={
-        "mt-5 h-0.5 flex-1 " +
+        "mt-[19px] h-0.5 flex-1 " +
         (completed
           ? "bg-[color:var(--success)]"
           : "border-t-2 border-dashed border-[color:var(--border-dark,#cbd5e1)] bg-transparent")

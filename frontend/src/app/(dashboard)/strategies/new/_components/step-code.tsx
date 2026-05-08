@@ -66,8 +66,14 @@ export function StepCode(props: {
 
       {/* Sprint 42-polish W3: 2열 grid (md+) — 좌 Monaco / 우 파싱 결과 패널, mobile 에서 stack */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
-        {/* Pass 6 Responsive: Monaco wrapper adaptive height */}
-        <div className="h-[300px] md:h-[400px] lg:h-[520px]">
+        {/*
+          Pass 6 Responsive: Monaco wrapper adaptive height.
+          W3-fidelity: prototype 07 `.code-editor` 의 inset 1px ring(#334155) +
+          rounded-md + overflow-hidden + dark editor-bg(#1E293B) 매칭.
+        */}
+        <div
+          className="h-[300px] overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-[#1E293B] shadow-[inset_0_0_0_1px_#334155] md:h-[400px] lg:h-[520px]"
+        >
           <PineEditor
             value={props.pineSource}
             onChange={props.onPineSourceChange}
