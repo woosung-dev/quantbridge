@@ -1,174 +1,103 @@
 "use client";
 
-// Sprint 11 Phase C — Admin waitlist dashboard.
-// Clerk JWT + BE WAITLIST_ADMIN_EMAILS 화이트리스트 기반 인증 (FE 는 403 수신 시 안내).
-// 상태 필터 + approve 버튼 + 발송 상태 뱃지.
+// Sprint 43 W15 — Admin waitlist 내부 dashboard polish (KPI strip + filter bar + sortable table).
+// Sprint 11 Phase C 의 단일 page 를 _components/ 3 모듈로 분리. App Shell 은 (dashboard)/layout.tsx 에서 wrap.
+// Clerk JWT + BE WAITLIST_ADMIN_EMAILS 화이트리스트 유지. 403 안내 보존.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { useAdminWaitlistList, useApproveWaitlist } from "@/features/waitlist/hooks";
-import type {
-  WaitlistApplicationResponse,
-  WaitlistStatus,
-} from "@/features/waitlist/schemas";
+import type { WaitlistStatus } from "@/features/waitlist/schemas";
 import { ApiError } from "@/lib/api-client";
 
-const STATUS_FILTERS: { value: WaitlistStatus | "all"; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "invited", label: "Invited" },
-  { value: "joined", label: "Joined" },
-  { value: "rejected", label: "Rejected" },
-];
-
-function StatusBadge({ status }: { status: WaitlistStatus }) {
-  const styles: Record<WaitlistStatus, string> = {
-    pending: "bg-amber-100 text-amber-900",
-    invited: "bg-blue-100 text-blue-900",
-    joined: "bg-green-100 text-green-900",
-    rejected: "bg-gray-200 text-gray-800",
-  };
-  return (
-    <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${styles[status]}`}
-    >
-      {status}
-    </span>
-  );
-}
+import { WaitlistFilterBar, type WaitlistFilter } from "./_components/waitlist-filter-bar";
+import { WaitlistStatsStrip } from "./_components/waitlist-stats-strip";
+import { WaitlistTable } from "./_components/waitlist-table";
 
 export default function AdminWaitlistPage() {
-  const [filter, setFilter] = useState<WaitlistStatus | "all">("pending");
+  const [filter, setFilter] = useState<WaitlistFilter>("pending");
+  const [search, setSearch] = useState("");
 
-  const query = filter === "all" ? {} : { status: filter };
+  // BE 는 status 단일 필터만 지원 — 검색은 클라이언트 측에서 email 부분일치.
+  const query = filter === "all" ? {} : { status: filter as WaitlistStatus };
   const { data, isPending, error } = useAdminWaitlistList(query);
   const approve = useApproveWaitlist({
     onSuccess: (approved) => {
-      toast.success(`Invite sent to ${approved.email}`);
+      toast.success(`초대 발송: ${approved.email}`);
     },
     onError: (err) => {
-      const msg = err instanceof Error ? err.message : "Approval failed";
+      const msg = err instanceof Error ? err.message : "승인 실패";
       toast.error(msg);
     },
   });
 
-  // 403 렌더 (admin 권한 부족)
-  const errStatus =
-    error instanceof ApiError ? error.status : undefined;
+  const errStatus = error instanceof ApiError ? error.status : undefined;
+
+  const filteredItems = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return data.items;
+    return data.items.filter((i) => i.email.toLowerCase().includes(q));
+  }, [data, search]);
 
   return (
-    <div className="mx-auto max-w-[1100px] space-y-6 px-6 py-8">
-      <header className="space-y-2">
-        <h1 className="font-display text-2xl font-bold">Waitlist Admin</h1>
+    <div className="mx-auto max-w-[1200px] space-y-6 px-6 py-8">
+      <header className="space-y-1">
+        <h1 className="font-display text-2xl font-bold">Waitlist 관리</h1>
         <p className="text-sm text-[color:var(--text-secondary)]">
-          Review pending applications and send Beta invites via Resend.
+          신청자를 검토하고 Resend 로 Beta 초대를 발송합니다.
         </p>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => setFilter(f.value)}
-            className={`rounded-full border px-3 py-1 text-xs transition ${
-              filter === f.value
-                ? "border-[color:var(--accent)] bg-[color:var(--accent)] text-white"
-                : "border-[color:var(--border)] bg-transparent text-[color:var(--text-secondary)]"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {data ? (
+        <WaitlistStatsStrip items={data.items} total={data.total} />
+      ) : null}
+
+      <WaitlistFilterBar
+        status={filter}
+        search={search}
+        onStatusChange={setFilter}
+        onSearchChange={setSearch}
+      />
 
       {errStatus === 403 ? (
-        <div className="rounded-md border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-900">
-          <strong>Admin access required.</strong> Your email is not on the admin
-          allowlist. Contact the QuantBridge operator.
+        <div className="rounded-[var(--radius-md)] border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-900">
+          <strong>관리자 권한이 필요합니다.</strong> 이메일이 admin allowlist 에
+          없습니다. QuantBridge 운영자에게 문의하세요.
         </div>
       ) : null}
 
       {isPending && !error ? (
-        <p className="text-sm text-[color:var(--text-tertiary)]">Loading…</p>
+        <p className="text-sm text-[color:var(--text-tertiary)]">불러오는 중…</p>
       ) : null}
 
       {error && errStatus !== 403 ? (
-        <div className="rounded-md border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-900">
-          Failed to load waitlist: {error.message}
+        <div className="rounded-[var(--radius-md)] border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-900">
+          Waitlist 불러오기 실패: {error.message}
         </div>
       ) : null}
 
-      {data && data.items.length === 0 ? (
+      {data && filteredItems.length === 0 ? (
         <p className="text-sm text-[color:var(--text-tertiary)]">
-          No applications match this filter.
+          {search
+            ? `"${search}" 와 일치하는 신청이 없습니다.`
+            : "이 필터에 해당하는 신청이 없습니다."}
         </p>
       ) : null}
 
-      {data && data.items.length > 0 ? (
-        <div className="overflow-x-auto rounded-md border border-[color:var(--border)]">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[color:var(--bg-muted)] text-xs uppercase text-[color:var(--text-tertiary)]">
-              <tr>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">TV</th>
-                <th className="px-4 py-3">Capital</th>
-                <th className="px-4 py-3">Pine</th>
-                <th className="px-4 py-3">Pain Point</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((item: WaitlistApplicationResponse) => (
-                <tr
-                  key={item.id}
-                  className="border-t border-[color:var(--border)] align-top"
-                >
-                  <td className="px-4 py-3 font-medium">{item.email}</td>
-                  <td className="px-4 py-3">{item.tv_subscription}</td>
-                  <td className="px-4 py-3">{item.exchange_capital}</td>
-                  <td className="px-4 py-3">{item.pine_experience}</td>
-                  <td className="px-4 py-3">
-                    <span className="line-clamp-3 block max-w-[320px] text-xs text-[color:var(--text-secondary)]">
-                      {item.pain_point}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={item.status} />
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[color:var(--text-tertiary)]">
-                    {new Date(item.created_at).toLocaleDateString("ko-KR")}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {item.status === "pending" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={approve.isPending}
-                        onClick={() => approve.mutate(item.id)}
-                      >
-                        {approve.isPending ? "Sending…" : "Approve + Invite"}
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-[color:var(--text-tertiary)]">
-                        —
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {data && filteredItems.length > 0 ? (
+        <WaitlistTable
+          items={filteredItems}
+          onApprove={(id) => approve.mutate(id)}
+          isApproving={approve.isPending}
+        />
       ) : null}
 
       {data ? (
         <p className="text-xs text-[color:var(--text-tertiary)]">
-          Total: {data.total}
+          전체: {data.total}
+          {search ? ` · 검색 결과: ${filteredItems.length}` : null}
         </p>
       ) : null}
     </div>
