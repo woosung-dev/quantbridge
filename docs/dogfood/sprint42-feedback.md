@@ -52,6 +52,14 @@
   - 다음 step = Phase 1.3 (share link sample 본인 backtest 1-2건 + share token) → 1-2명 micro-cohort 카톡 DM 발송 prereq → Phase 2 dogfood 본격 (1-2주 wall-clock)
   - LESSON-051~053 후보 등재 (`.ai/project/lessons.md`, gitignored): baseline 정리 의무 / Worker prompt pwd 검증 / N=4+ cmux 우선
 
+- **2026-05-08 Sprint 43 완료 — 모든 활성 페이지 prototype-grade**:
+  - Sprint 43 = 12 페이지 prototype-grade visual fidelity 일괄 적용 (Wave 1+2+3, 자율 병렬 Agent isolation=worktree 4 × 3 wave). main @ `fa20798` (PR #214)
+  - 추가 적용 페이지: landing / strategies-list / backtests-list / strategy-editor / backtest-report / **trades-detail 신규 page** / trading polish / error pages + maintenance / waitlist / 법무 4 / admin/waitlist / share
+  - 13 PR / 83 files / +96 신규 tests (501 → 597 PASS, 회귀 0)
+  - **isolation 위반 0건** (Sprint 42-polish-2 매 sprint 1건+ → Sprint 43 = 0, **LESSON-055 결정적 검증**)
+  - 사전 worktree 12 + branch 12 + node_modules symlink 일괄 생성 + Worker prompt 첫 step `cd <absolute worktree path>` 명시 = 4 조건 충족 시 isolation 위반 0 보장
+  - 다음 step = Phase 2 dogfood 본격 (16+ 페이지 모두 visual fidelity 통과) → 1-2명 micro-cohort 카톡 DM 발송 → 1-2주 dogfood → Sprint 44 분기 결정
+
 #### Day 2~3:
 
 - 사용 빈도:
