@@ -1,6 +1,10 @@
-// 온보딩 옵션 선택형 라디오 카드 — Sprint 42-polish W2
-// Prototype 05-onboarding.html `.option` 패턴 승계: icon + 텍스트 + checkmark.
-// selected 시 border-primary + 그림자 ring + checkmark 표시. !selected hover 시 border-primary.
+// 온보딩 옵션 선택형 라디오 카드 — Sprint 42-polish W2-fidelity
+// docs/prototypes/05-onboarding.html `.option` (lines 304-385) 1:1 정합:
+//  - 16px padding, 1.5px border (selected=primary 1.5px), radius var(--radius-md)
+//  - hover: border-primary + bg-primary-light
+//  - selected: border-primary + bg-primary-light + ring 0 0 0 3px rgba(37,99,235,.08)
+//  - icon 40x40 circle, primary-light → primary on selected
+//  - checkmark 22x22 circle, transparent → primary on selected
 "use client";
 
 import { CheckIcon } from "lucide-react";
@@ -43,16 +47,18 @@ export function OptionCardRadio({
       onClick={() => onSelect(value)}
       onKeyDown={handleKeyDown}
       className={[
-        "flex w-full items-center gap-3 rounded-[var(--radius-md)] border p-4 text-left transition-all duration-200 motion-safe:hover:translate-y-[-1px]",
+        "flex w-full items-center gap-3 rounded-[var(--radius-md)] p-4 text-left",
+        "transition-[border-color,background-color,box-shadow,transform] duration-200 ease-out",
+        "border-[1.5px]",
         selected
-          ? "border-2 border-[color:var(--primary)] bg-[color:var(--primary-light)] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]"
-          : "border border-[color:var(--border)] bg-[color:var(--card)] hover:border-[color:var(--primary)] hover:bg-[color:var(--primary-light)]",
+          ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] shadow-[0_0_0_3px_rgba(37,99,235,0.08)]"
+          : "border-[color:var(--border)] bg-[color:var(--card)] hover:border-[color:var(--primary)] hover:bg-[color:var(--primary-light)] motion-safe:hover:-translate-y-px motion-safe:hover:shadow-[0_4px_14px_rgba(15,23,42,0.06)]",
       ].join(" ")}
     >
       <span
         aria-hidden="true"
         className={[
-          "grid size-10 shrink-0 place-items-center rounded-full",
+          "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-colors duration-200",
           selected
             ? "bg-[color:var(--primary)] text-white"
             : "bg-[color:var(--primary-light)] text-[color:var(--primary)]",
@@ -61,29 +67,29 @@ export function OptionCardRadio({
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2 text-sm font-semibold text-[color:var(--text-primary)]">
+        <span className="flex items-center gap-2 text-[0.95rem] font-semibold text-[color:var(--text-primary)]">
           {label}
           {badge ? (
-            <span className="rounded-[10px] bg-[color:var(--success-light)] px-2 py-[2px] text-[0.68rem] font-semibold tracking-wide text-[color:var(--success)]">
+            <span className="rounded-[10px] bg-[color:var(--success-light)] px-2 py-[2px] text-[0.68rem] font-semibold tracking-[0.02em] text-[color:var(--success)]">
               {badge}
             </span>
           ) : null}
         </span>
-        <span className="mt-[2px] block text-xs text-[color:var(--text-muted)]">
+        <span className="mt-[2px] block text-[0.8rem] text-[color:var(--text-muted)]">
           {description}
         </span>
       </span>
       <span
         aria-hidden="true"
         className={[
-          "grid size-[22px] shrink-0 place-items-center rounded-full border-2 transition-all duration-200",
+          "grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 transition-all duration-200",
           selected
             ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-white"
             : "border-[color:var(--border)] bg-transparent text-transparent",
         ].join(" ")}
         data-testid={`option-card-check-${value}`}
       >
-        <CheckIcon className="size-3" strokeWidth={3.5} />
+        <CheckIcon className="h-3 w-3" strokeWidth={3.5} />
       </span>
     </button>
   );

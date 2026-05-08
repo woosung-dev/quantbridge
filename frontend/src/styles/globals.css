@@ -395,3 +395,34 @@ h6 {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ───────────────────────────────────────────────
+ * Sprint 42-polish W2-fidelity — 05 onboarding illustration / stepper
+ * onb-caret-blink: 코드 카드 caret 깜빡임 (prototype animate values="1;0;1" dur 1.1s)
+ * onb-arrow-march: 화살표 dashed line 진행 (prototype dur 1.4s linear)
+ * onb-spark-pulse: target 옆 spark r=3 ↔ 5 (prototype dur 1.6s)
+ * onb-step-pulse: active step circle ring 잔물결 (prototype 6px ↔ 10px)
+ * ───────────────────────────────────────────── */
+@keyframes onb-caret-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+@keyframes onb-arrow-march {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes onb-spark-pulse {
+  0%, 100% { r: 3; }
+  50%      { r: 5; }
+}
+@keyframes onb-step-pulse {
+  0%, 100% { box-shadow: 0 0 0 6px var(--primary-light); }
+  50%      { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0.08); }
+}
+@keyframes onb-chart-bar-rise {
+  from { transform: scaleY(0.05); }
+  to   { transform: scaleY(1); }
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
