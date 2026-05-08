@@ -281,7 +281,8 @@ function TestOrderDialogInner() {
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+          {/* Sprint 44 W C4 — header / desc / form / footer stagger entrance (50/100/150/200ms) */}
+          <DialogHeader className="qb-dialog-stagger-1">
             <DialogTitle>테스트 주문 (dogfood-only)</DialogTitle>
             <DialogDescription>
               브라우저에서 webhook secret 으로 HMAC 서명 후 발송합니다.
@@ -291,7 +292,7 @@ function TestOrderDialogInner() {
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-4"
+              className="space-y-4 qb-dialog-stagger-3"
               noValidate
             >
               <FormField
@@ -417,15 +418,15 @@ function TestOrderDialogInner() {
               {rootError ? (
                 <p
                   role="alert"
-                  className="text-sm text-[color:var(--destructive)]"
+                  className="qb-form-slide-down rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive-light)] px-3 py-2 text-sm text-[color:var(--destructive)]"
                 >
                   {rootError}
                 </p>
               ) : null}
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="qb-dialog-stagger-4 flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => setOpen(false)}
                 >
                   취소

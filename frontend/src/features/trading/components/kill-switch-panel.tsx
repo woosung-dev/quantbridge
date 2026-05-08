@@ -1,5 +1,8 @@
 "use client";
 
+// Kill Switch panel — active 시 destructive ring pulse / 해결 버튼 destructive variant.
+// Sprint 44 W C4 — 해결 버튼 visual 통일 (ring focus + hover lift + transition 명시).
+
 import { useKillSwitchEvents, useResolveKillSwitchEvent } from "../hooks";
 
 export function KillSwitchPanel() {
@@ -59,7 +62,7 @@ export function KillSwitchPanel() {
                 type="button"
                 onClick={() => resolve.mutate(e.id)}
                 disabled={resolve.isPending}
-                className="px-2 py-1 bg-red-500 text-white text-xs rounded transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="rounded-md bg-[color:var(--destructive)] px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--destructive)]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 {resolve.isPending ? "처리 중…" : "해결"}
               </button>
