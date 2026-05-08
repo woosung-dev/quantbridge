@@ -8,6 +8,10 @@ import {
   type BacktestDetail,
 } from "@/features/backtest/schemas";
 
+import { ShareNotFoundState } from "./_components/share-not-found-state";
+import { SharePublicBanner } from "./_components/share-public-banner";
+import { ShareRevokedState } from "./_components/share-revoked-state";
+
 export const dynamic = "force-dynamic"; // 토큰 lookup → revoke 즉시 반영
 
 interface PageProps {
@@ -62,20 +66,10 @@ export default async function SharedBacktestPage({ params }: PageProps) {
   const result = await fetchShare(token);
 
   if (result.kind === "revoked") {
-    return (
-      <CenteredCard
-        title="공유 링크가 해제되었습니다"
-        body="백테스트 소유자가 공유를 해제했습니다. 새 링크를 요청해 주세요."
-      />
-    );
+    return <ShareRevokedState />;
   }
   if (result.kind === "not-found") {
-    return (
-      <CenteredCard
-        title="공유 링크를 찾을 수 없습니다"
-        body="잘못된 링크이거나 이미 삭제된 백테스트입니다."
-      />
-    );
+    return <ShareNotFoundState />;
   }
   if (result.kind === "error") {
     return (
@@ -89,7 +83,9 @@ export default async function SharedBacktestPage({ params }: PageProps) {
   const bt = result.data;
   const m = bt.metrics ?? null;
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <>
+      <SharePublicBanner />
+      <main className="mx-auto max-w-3xl px-6 py-10">
       <header className="mb-6 flex flex-col gap-2">
         <h1 className="font-display text-3xl font-bold">
           {bt.symbol} · {bt.timeframe}
@@ -133,7 +129,8 @@ export default async function SharedBacktestPage({ params }: PageProps) {
           QuantBridge 시작하기
         </Link>
       </footer>
-    </main>
+      </main>
+    </>
   );
 }
 
