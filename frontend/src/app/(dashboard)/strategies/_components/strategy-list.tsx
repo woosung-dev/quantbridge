@@ -194,13 +194,15 @@ export function StrategyList() {
       ) : filteredItems.length === 0 ? (
         <NoResultsHint search={search} status={status} />
       ) : view === "grid" ? (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 motion-safe:animate-[fadeInUp_200ms_ease-out_both] md:grid-cols-2 xl:grid-cols-3">
           {filteredItems.map((s) => (
             <StrategyCard key={s.id} strategy={s} />
           ))}
         </div>
       ) : (
-        <StrategyTable items={filteredItems} />
+        <div className="motion-safe:animate-[fadeInUp_200ms_ease-out_both]">
+          <StrategyTable items={filteredItems} />
+        </div>
       )}
 
       {/* 페이지네이션 — BE 페이지 기준 (클라 필터 적용 전) */}

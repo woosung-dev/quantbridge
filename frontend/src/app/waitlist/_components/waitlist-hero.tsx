@@ -81,8 +81,12 @@ export function WaitlistHero() {
       </header>
 
       <ul className="relative z-10 space-y-5">
-        {VALUE_PROPS.map((prop) => (
-          <li key={prop.title} className="flex items-start gap-3">
+        {VALUE_PROPS.map((prop, i) => (
+          <li
+            key={prop.title}
+            className="flex items-start gap-3 motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
+            style={{ animationDelay: `${100 + i * 100}ms` }}
+          >
             <span
               aria-hidden="true"
               className="mt-1 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber)] text-xs font-bold text-white"

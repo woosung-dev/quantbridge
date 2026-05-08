@@ -510,3 +510,28 @@ h6 {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-8px); }
 }
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W F1 — fidelity iter 2 group A micro-interaction
+ * fadeInUp     : value prop / feature card stagger entrance (motion-safe 전용)
+ * heroEntrance : landing hero accent SVG underline scale + opacity
+ * accordionSlide: waitlist FAQ details panel slide-down
+ * subtleHover  : strategies-list empty CTA 2s loop pulse (border + shadow)
+ * 모두 globals.css L247 prefers-reduced-motion 글로벌 차단으로 자동 무력화.
+ * ───────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes heroEntrance {
+  from { opacity: 0; transform: scaleX(0.6); transform-origin: left; }
+  to   { opacity: 0.4; transform: scaleX(1); transform-origin: left; }
+}
+@keyframes accordionSlide {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes subtleHover {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  50%      { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.08); }
+}

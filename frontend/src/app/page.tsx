@@ -56,7 +56,7 @@ export default async function LandingPage() {
           </p>
           <Link
             href="/sign-up"
-            className="mt-8 inline-flex h-12 items-center gap-2 rounded-md bg-[color:var(--primary)] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)]"
+            className="mt-8 inline-flex h-12 items-center gap-2 rounded-md bg-[color:var(--primary)] px-8 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all duration-200 hover:-translate-y-px hover:scale-[1.02] hover:bg-[color:var(--primary-hover)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)]"
           >
             무료로 가입하기
           </Link>
