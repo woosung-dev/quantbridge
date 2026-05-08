@@ -714,3 +714,15 @@ h6 {
 }
 .legal-fade-in-2 { animation: legalFadeIn 280ms ease-out 60ms both; }
 .legal-fade-in-3 { animation: legalFadeIn 280ms ease-out 120ms both; }
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W C4 — dialog stagger entrance (TestOrder / KillSwitchModal / DeleteDialog 공통)
+ *
+ * Radix Dialog 의 backdrop fade 위에 content 내부 영역을 50ms 간격으로 stagger 등장.
+ * 기존 fadeInUp keyframe 재사용 — 200~280ms 길이 + 50/100/150/200ms delay.
+ * prefers-reduced-motion 시 universal selector 가 0.01ms 강제 무력화.
+ * ───────────────────────────────────────────── */
+.qb-dialog-stagger-1 { animation: fadeInUp 220ms ease-out  50ms both; }
+.qb-dialog-stagger-2 { animation: fadeInUp 220ms ease-out 100ms both; }
+.qb-dialog-stagger-3 { animation: fadeInUp 240ms ease-out 150ms both; }
+.qb-dialog-stagger-4 { animation: fadeInUp 240ms ease-out 200ms both; }

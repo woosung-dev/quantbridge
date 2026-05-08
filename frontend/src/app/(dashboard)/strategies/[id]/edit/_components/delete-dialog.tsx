@@ -3,8 +3,10 @@
 // Sprint 7c T5: 2-phase 삭제 다이얼로그 — confirm → archive-fallback.
 // DELETE 409 (`strategy_has_backtests`) 감지 시 archive 제안으로 phase 전환.
 // Sprint FE-E: <768px 에서 bottom sheet 로 자동 전환 (thumb-reach 최적화).
+// Sprint 44 W C4 — inline polish: warning icon + stagger entrance + destructive accent.
 
 import { useState } from "react";
+import { AlertTriangle, Archive } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -69,13 +71,23 @@ function Body({
   if (phase === "confirm") {
     return (
       <>
-        <HeaderEl>
-          <TitleEl>&ldquo;{strategyName}&rdquo;를 삭제할까요?</TitleEl>
-          <DescriptionEl>
-            되돌릴 수 없습니다. 이 전략과 연관된 백테스트가 있으면 삭제 대신 보관을 제안합니다.
-          </DescriptionEl>
+        <HeaderEl className="qb-dialog-stagger-1">
+          <div className="flex items-start gap-3">
+            <span
+              className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[color:var(--destructive-light)] text-[color:var(--destructive)]"
+              aria-hidden="true"
+            >
+              <AlertTriangle className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <TitleEl>&ldquo;{strategyName}&rdquo;를 삭제할까요?</TitleEl>
+              <DescriptionEl className="pt-1">
+                되돌릴 수 없습니다. 이 전략과 연관된 백테스트가 있으면 삭제 대신 보관을 제안합니다.
+              </DescriptionEl>
+            </div>
+          </div>
         </HeaderEl>
-        <FooterEl>
+        <FooterEl className="qb-dialog-stagger-4">
           <Button variant="ghost" onClick={onCancel}>
             취소
           </Button>
@@ -89,14 +101,24 @@ function Body({
 
   return (
     <>
-      <HeaderEl>
-        <TitleEl>삭제할 수 없습니다</TitleEl>
-        <DescriptionEl>
-          이 전략에 연관된 백테스트가 있습니다. 대신 <strong>보관</strong>하면 목록에서
-          숨기지만 백테스트 기록은 유지됩니다.
-        </DescriptionEl>
+      <HeaderEl className="qb-dialog-stagger-1">
+        <div className="flex items-start gap-3">
+          <span
+            className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[color:var(--primary-light,#EFF6FF)] text-[color:var(--primary)]"
+            aria-hidden="true"
+          >
+            <Archive className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <TitleEl>삭제할 수 없습니다</TitleEl>
+            <DescriptionEl className="pt-1">
+              이 전략에 연관된 백테스트가 있습니다. 대신 <strong>보관</strong>하면 목록에서
+              숨기지만 백테스트 기록은 유지됩니다.
+            </DescriptionEl>
+          </div>
+        </div>
       </HeaderEl>
-      <FooterEl>
+      <FooterEl className="qb-dialog-stagger-4">
         <Button variant="ghost" onClick={onCancel}>
           취소
         </Button>
