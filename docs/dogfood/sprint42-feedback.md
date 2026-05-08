@@ -45,6 +45,13 @@
   - polish 완료 후 본인 dogfood Day 2 재시작 (5분 시나리오 측정 → ≤300초 + 마찰 0건 = 1-2명 발송 trigger)
   - 02 Backtest Report (이미 양호) + 10 Trades Detail (architecture) + 01 Editor + 11 Error pages = Sprint 43 polish 이관
 
+- **2026-05-08 Day 1 polish-2 완료 후 재시작**:
+  - Sprint 42-polish (Wave 1) + polish-2 fidelity (Wave 2) 통합 stage→main 머지 완료 (PR #199, main `9fec5fa`)
+  - 4 페이지 prototype 1:1 visual fidelity 적용 (4 페이지 × 2 wave = 8 PR / +2700 lines / 회귀 0)
+  - **사용자 manual dogfood 5분 시나리오 funnel OK 회신** (2026-05-08)
+  - 다음 step = Phase 1.3 (share link sample 본인 backtest 1-2건 + share token) → 1-2명 micro-cohort 카톡 DM 발송 prereq → Phase 2 dogfood 본격 (1-2주 wall-clock)
+  - LESSON-051~053 후보 등재 (`.ai/project/lessons.md`, gitignored): baseline 정리 의무 / Worker prompt pwd 검증 / N=4+ cmux 우선
+
 #### Day 2~3:
 
 - 사용 빈도:
