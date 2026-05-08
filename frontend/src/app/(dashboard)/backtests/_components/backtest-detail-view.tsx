@@ -187,7 +187,16 @@ export function BacktestDetailView({ id }: { id: string }) {
             <TradeAnalysis metrics={bt.metrics} trades={trades.data?.items} />
           </TabsContent>
 
-          <TabsContent value="trades" className="mt-4">
+          <TabsContent value="trades" className="mt-4 space-y-3">
+            <div className="flex justify-end">
+              <Link
+                href={`/backtests/${id}/trades`}
+                className="text-sm font-semibold text-primary hover:underline"
+                data-testid="trade-detail-link"
+              >
+                상세 보기 →
+              </Link>
+            </div>
             {trades.isLoading ? (
               <p className="text-sm text-muted-foreground">
                 거래 불러오는 중…
