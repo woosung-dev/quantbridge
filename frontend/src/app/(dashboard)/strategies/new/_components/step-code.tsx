@@ -2,6 +2,7 @@
 
 // Sprint 7c T4 Step 2 — Monaco Pine editor + 300ms debounce 실시간 파싱.
 // Pass 6 Responsive: Monaco 높이 adaptive 300/400/520. Pass 3: empty state Lightbulb helper.
+// Sprint 42-polish W3: prototype 07 매칭 — 2열 grid (md+) Monaco 좌 + ParseResultPanel 우.
 
 import { useEffect, useRef } from "react";
 import { LightbulbIcon } from "lucide-react";
@@ -10,7 +11,7 @@ import { PineEditor } from "@/components/monaco/pine-editor";
 import { useParseStrategy } from "@/features/strategy/hooks";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 import { useDebouncedValue } from "@/features/strategy/utils";
-import { ParsePreviewPanel } from "./parse-preview-panel";
+import { ParseResultPanel } from "./parse-result-panel";
 
 export function StepCode(props: {
   pineSource: string;
@@ -63,25 +64,32 @@ export function StepCode(props: {
         </p>
       )}
 
-      {/* Pass 6 Responsive: Monaco wrapper adaptive height */}
-      <div className="h-[300px] md:h-[400px] lg:h-[520px]">
-        <PineEditor
-          value={props.pineSource}
-          onChange={props.onPineSourceChange}
-          onTriggerParse={() => {
-            if (debounced.trim()) {
-              parseMutate(debounced, {
-                onSuccess: (data) => onParsedRef.current(data),
-                onError: () => onParsedRef.current(null),
-              });
-            }
-          }}
-          height="100%"
-        />
-      </div>
+      {/* Sprint 42-polish W3: 2열 grid (md+) — 좌 Monaco / 우 파싱 결과 패널, mobile 에서 stack */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
+        {/*
+          Pass 6 Responsive: Monaco wrapper adaptive height.
+          W3-fidelity: prototype 07 `.code-editor` 의 inset 1px ring(#334155) +
+          rounded-md + overflow-hidden + dark editor-bg(#1E293B) 매칭.
+        */}
+        <div
+          className="h-[300px] overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-[#1E293B] shadow-[inset_0_0_0_1px_#334155] md:h-[400px] lg:h-[520px]"
+        >
+          <PineEditor
+            value={props.pineSource}
+            onChange={props.onPineSourceChange}
+            onTriggerParse={() => {
+              if (debounced.trim()) {
+                parseMutate(debounced, {
+                  onSuccess: (data) => onParsedRef.current(data),
+                  onError: () => onParsedRef.current(null),
+                });
+              }
+            }}
+            height="100%"
+          />
+        </div>
 
-      <div className="mt-5">
-        <ParsePreviewPanel result={parse.data ?? null} loading={parse.isPending} />
+        <ParseResultPanel result={parse.data ?? null} loading={parse.isPending} />
       </div>
 
       <div className="mt-8 flex items-center justify-between">

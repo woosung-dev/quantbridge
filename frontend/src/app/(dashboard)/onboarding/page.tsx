@@ -17,12 +17,29 @@ import {
   selectStrategyId,
   useOnboardingStore,
 } from "@/features/onboarding/store";
+import { ONBOARDING_STEPS } from "@/features/onboarding/types";
 
-import { OnboardingStepper } from "./_components/onboarding-stepper";
+import { IllustrationFrame } from "./_components/illustration-frame";
+import { ProgressStepper } from "./_components/progress-stepper";
 import { Step1Welcome } from "./_components/step-1-welcome";
 import { Step2Strategy } from "./_components/step-2-strategy";
 import { Step3Backtest } from "./_components/step-3-backtest";
 import { Step4Result } from "./_components/step-4-result";
+
+// 4단계 상수 — prototype 05-onboarding 의 라벨 승계.
+const STEPPER_STEPS = [
+  { id: 1, label: "환영" },
+  { id: 2, label: "샘플 전략" },
+  { id: 3, label: "백테스트" },
+  { id: 4, label: "결과" },
+] as const;
+
+const STEP_ILLUSTRATION = {
+  welcome: "code",
+  strategy: "code",
+  backtest: "chart",
+  result: "complete",
+} as const;
 
 export default function OnboardingPage() {
   // scalar selectors — 객체 selector 금지 (LESSON-004).
@@ -63,39 +80,50 @@ export default function OnboardingPage() {
     reset();
   };
 
+  // store enum (welcome/strategy/backtest/result) → 1-based numeric step.
+  const currentStepNum = ONBOARDING_STEPS.indexOf(step) + 1;
+  const illustrationVariant = STEP_ILLUSTRATION[step];
+
   return (
-    <div className="mx-auto max-w-[820px] px-6 py-8">
-      <header className="mb-6">
-        <h1 className="font-display text-2xl font-bold">온보딩</h1>
-        <p className="text-sm text-[color:var(--text-secondary)]">
+    <div className="mx-auto flex max-w-[720px] flex-col items-center px-4 py-10 md:py-12">
+      <header className="mb-6 w-full text-center md:mb-8">
+        <h1 className="font-display text-2xl font-bold tracking-tight md:text-[1.75rem]">
+          온보딩
+        </h1>
+        <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
           5분 안에 첫 Pine Script 백테스트를 완주해보세요.
         </p>
       </header>
 
-      <OnboardingStepper current={step} />
+      <ProgressStepper currentStep={currentStepNum} steps={STEPPER_STEPS} />
 
       <section
         data-testid="onboarding-step-panel"
         data-step={step}
-        className="mt-6 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-white p-8 shadow-[var(--card-shadow)]"
+        className="mt-10 grid w-full animate-[cardIn_350ms_ease-out_both] gap-6 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--card)] p-6 shadow-[var(--card-shadow)] md:grid-cols-2 md:gap-10 md:p-14"
       >
-        {step === "welcome" && <Step1Welcome onNext={handleNext} />}
-        {step === "strategy" && (
-          <Step2Strategy
-            onStrategyReady={handleStrategyReady}
-            onBack={handleBack}
-          />
-        )}
-        {step === "backtest" && (
-          <Step3Backtest
-            strategyId={strategyId}
-            onBacktestReady={handleBacktestReady}
-            onBack={handleBack}
-          />
-        )}
-        {step === "result" && (
-          <Step4Result backtestId={backtestId} onFinish={handleFinish} />
-        )}
+        <div className="hidden md:block">
+          <IllustrationFrame variant={illustrationVariant} />
+        </div>
+        <div className="flex min-w-0 flex-col">
+          {step === "welcome" && <Step1Welcome onNext={handleNext} />}
+          {step === "strategy" && (
+            <Step2Strategy
+              onStrategyReady={handleStrategyReady}
+              onBack={handleBack}
+            />
+          )}
+          {step === "backtest" && (
+            <Step3Backtest
+              strategyId={strategyId}
+              onBacktestReady={handleBacktestReady}
+              onBack={handleBack}
+            />
+          )}
+          {step === "result" && (
+            <Step4Result backtestId={backtestId} onFinish={handleFinish} />
+          )}
+        </div>
       </section>
     </div>
   );

@@ -32,6 +32,8 @@
   --success-light: #d1fae5;
   --destructive: #dc2626;
   --destructive-light: #fee2e2;
+  --accent-amber: #d97706;
+  --accent-amber-light: #fef3c7;
 
   /* 보더 */
   --border: #e2e8f0;
@@ -140,6 +142,8 @@
   --color-success-light: var(--success-light);
   --color-destructive: var(--destructive);
   --color-destructive-light: var(--destructive-light);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-light: var(--accent-amber-light);
   --color-border-default: var(--border);
   --color-border-dark: var(--border-dark);
   --color-primary-100: var(--primary-100);
@@ -369,4 +373,119 @@ h6 {
 @keyframes scale-in {
   from { transform: scale(0.4); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
+}
+
+/* ───────────────────────────────────────────────
+ * Sprint 42-polish W3 — 전략 생성 wizard + parse panel
+ * pulseRing: 활성 step circle 잔물결
+ * pulseDot: 파싱 성공 시 초록 점 호흡
+ * staggerIn: parse 결과 row 30~50ms 순차 등장
+ * ───────────────────────────────────────────── */
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35); }
+  70%  { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+@keyframes pulseDot {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  70%  { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ───────────────────────────────────────────────
+ * Sprint 42-polish-2 W4-fidelity — backtest setup slider thumb cross-browser
+ * prototype 08-backtest-setup.html .range-slider 1:1 정합:
+ *   - track 6px (radius 3px) + linear-gradient progress (--qb-slider-progress)
+ *   - thumb 18×18 + 3px white border + 그림자 + hover scale
+ *   - focus-visible ring
+ * 사용법: <input type="range" class="qb-range-slider" style={{['--qb-slider-progress' as any]: `${pct}%`}} />
+ * ───────────────────────────────────────────── */
+.qb-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  background-image: linear-gradient(to right, var(--primary), var(--primary));
+  background-size: var(--qb-slider-progress, 0%) 100%;
+  background-repeat: no-repeat;
+  outline: none;
+  cursor: pointer;
+  transition: background-size 200ms ease;
+}
+.qb-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  cursor: grab;
+  transition: transform 200ms ease;
+}
+.qb-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.qb-range-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+.qb-range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  cursor: grab;
+}
+.qb-range-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+.qb-range-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: transparent;
+}
+.qb-range-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+/* ───────────────────────────────────────────────
+ * Sprint 42-polish-2 W1-fidelity — 04 login fadeInUp / livePulse class
+ * ───────────────────────────────────────────── */
+.auth-fade-in-1 { animation: fadeInUp 0.6s ease-out both; }
+.auth-fade-in-2 { animation: fadeInUp 0.7s ease-out 0.1s both; }
+.auth-fade-in-3 { animation: fadeInUp 0.8s ease-out 0.2s both; }
+
+/* ───────────────────────────────────────────────
+ * Sprint 42-polish-2 W2-fidelity — 05 onboarding illustration / stepper
+ * ───────────────────────────────────────────── */
+@keyframes onb-caret-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+@keyframes onb-arrow-march {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes onb-spark-pulse {
+  0%, 100% { r: 3; }
+  50%      { r: 5; }
+}
+@keyframes onb-step-pulse {
+  0%, 100% { box-shadow: 0 0 0 6px var(--primary-light); }
+  50%      { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0.08); }
+}
+@keyframes onb-chart-bar-rise {
+  from { transform: scaleY(0.05); }
+  to   { transform: scaleY(1); }
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

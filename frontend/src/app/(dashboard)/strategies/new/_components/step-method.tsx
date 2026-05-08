@@ -1,9 +1,11 @@
 // Sprint 7c T4 Step 1 — 입력 방식 선택.
 // Pass 4 AI Slop #2: symmetric 3-card grid → asymmetric 1 primary full-card + 2 chip row.
+// Sprint 42-polish W3: prototype 07 매칭 — MethodTabs (직접/파일/URL) 상단 탭 추가.
 
 import { CodeIcon, UploadIcon, LinkIcon, ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { MethodTabs } from "./method-tabs";
 
 export function StepMethod(props: {
   method: "direct" | "upload" | "url";
@@ -13,9 +15,14 @@ export function StepMethod(props: {
   return (
     <div>
       <h2 className="mb-1 font-display text-lg font-semibold">어떻게 전략을 등록할까요?</h2>
-      <p className="mb-5 text-xs text-[color:var(--text-muted)]">
+      <p className="mb-4 text-xs text-[color:var(--text-muted)]">
         현재는 직접 입력만 지원합니다.
       </p>
+
+      {/* prototype 07: 입력 방식 탭 (직접만 활성) */}
+      <div className="mb-5">
+        <MethodTabs value={props.method} onChange={props.onMethodChange} />
+      </div>
 
       {/* Active 옵션: full-width primary card */}
       <button

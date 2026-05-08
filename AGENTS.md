@@ -177,9 +177,11 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 
 - Phase 1.1 ✅ 본인 자가 dogfood polish 9건 (PR #183, `4d226dc`)
 - Phase 1.2 ✅ onboarding 가이드 (PR #184, [`docs/guides/demo-onboarding.md`](docs/guides/demo-onboarding.md))
-- Phase 1.3 ⏳ share link sample 1-2건 (사용자 manual, 본인 backtest + share token)
-- Phase 2 ⏳ 1-2주 dogfood + feedback ([`docs/dogfood/sprint42-feedback.md`](docs/dogfood/sprint42-feedback.md) live 누적)
-- Phase 3 ⏳ Day 7 mid-check ([`docs/dev-log/2026-05-08-sprint42-day7-midcheck.md`](docs/dev-log/2026-05-08-sprint42-day7-midcheck.md), Day 7 도래 시 rename)
+- Phase 2 setup ✅ feedback tracker + Day 7/14 골격 + AGENTS.md drift 정리 (PR #187, `9fc9912`)
+- Phase 2 dogfood ⏸ **일시 중단** (2026-05-08) — 본인 dogfood Day 1 발견 (visual fidelity 갭) 으로 polish 우선
+- **Phase 2.5 polish iter ⏳ 진입** (`stage/sprint42-polish`, 자율 병렬 cmux 4 worker) — prototypes 0{4,5,7,8} fidelity. prompt = `<repo>/.claude/plans/sprint42-polish-prompt.md` (gitignored)
+- Phase 1.3 ⏳ share link sample (polish 후 사용자 manual)
+- Phase 3 ⏳ Day 7 mid-check ([`docs/dev-log/2026-05-08-sprint42-day7-midcheck.md`](docs/dev-log/2026-05-08-sprint42-day7-midcheck.md), polish 완료 + dogfood 재개 7일 후 rename)
 - Phase 4 ⏳ Day 14 close-out ([`docs/dev-log/2026-05-08-sprint42-master.md`](docs/dev-log/2026-05-08-sprint42-master.md), Day 14 도래 시 rename)
 
 **Sprint 42 mandatory:**
