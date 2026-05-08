@@ -21,7 +21,7 @@ describe("SplitScreenShell", () => {
     expect(aside.className).toContain("md:flex");
   });
 
-  it("children 이 우측 main wrapper 안에 렌더된다", () => {
+  it("children 이 우측 main wrapper 안에 렌더된다 + 흰색 배경 (prototype 04 정합)", () => {
     render(
       <SplitScreenShell mode="sign-up">
         <div data-testid="form-child">Clerk form</div>
@@ -34,6 +34,19 @@ describe("SplitScreenShell", () => {
     const main = child.closest("main");
     expect(main).not.toBeNull();
     expect(main?.className).toContain("min-h-dvh");
+    // prototype 04 의 .form-panel { background: #fff } — bg-white class
+    expect(main?.className).toContain("bg-white");
+  });
+
+  it("form wrapper — prototype max-w 400px 정합", () => {
+    render(
+      <SplitScreenShell mode="sign-in">
+        <div data-testid="form-child">x</div>
+      </SplitScreenShell>,
+    );
+    const child = screen.getByTestId("form-child");
+    const wrapper = child.parentElement;
+    expect(wrapper?.className).toContain("max-w-[400px]");
   });
 
   it("desktop grid 50/50 = grid-cols-1 md:grid-cols-2", () => {

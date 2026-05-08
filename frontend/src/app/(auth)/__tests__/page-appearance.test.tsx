@@ -49,15 +49,16 @@ describe("(auth) Clerk appearance prop", () => {
     expect(appearance?.variables?.borderRadius).toBe("10px");
   });
 
-  it("SignUp 페이지 — formFieldInput 에 --border 토큰 매핑", () => {
+  it("SignUp 페이지 — formFieldInput 에 --border 토큰 + radius=8px (prototype 정합)", () => {
     render(<SignUpPage />);
     const appearance = captured.signUpProps?.appearance as
       | AppearanceShape
       | undefined;
     expect(appearance).toBeDefined();
     expect(appearance?.elements?.formFieldInput).toContain("var(--border)");
-    expect(appearance?.elements?.formFieldInput).toContain(
-      "var(--radius-sm)",
-    );
+    // prototype 04 의 .input border-radius=8px (Tailwind arbitrary `rounded-[8px]`)
+    expect(appearance?.elements?.formFieldInput).toContain("rounded-[8px]");
+    // input height=48px (prototype `.input { height: 48px }`)
+    expect(appearance?.elements?.formFieldInput).toContain("h-12");
   });
 });

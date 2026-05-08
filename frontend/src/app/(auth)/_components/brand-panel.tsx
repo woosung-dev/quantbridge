@@ -1,5 +1,5 @@
-// 인증 페이지 좌측 다크 브랜드 패널 — Sprint 42-polish W1
-// design source: docs/prototypes/04-login.html
+// 인증 페이지 좌측 다크 브랜드 패널 — Sprint 42-polish-2 W1-fidelity
+// design source: docs/prototypes/04-login.html (1:1 visual delta fix)
 
 import Link from "next/link";
 
@@ -46,6 +46,20 @@ const STATS: StatRow[] = [
   { value: "2.4B", label: "거래량" },
 ];
 
+// prototype 04 의 5 사용자 avatar (initials + 그라디언트). hidden md+ 데스크톱 환경에서만 노출.
+interface Avatar {
+  initials: string;
+  gradient: string;
+}
+
+const AVATARS: Avatar[] = [
+  { initials: "JK", gradient: "linear-gradient(135deg, #2563EB, #1E40AF)" },
+  { initials: "MH", gradient: "linear-gradient(135deg, #059669, #047857)" },
+  { initials: "YS", gradient: "linear-gradient(135deg, #DC2626, #991B1B)" },
+  { initials: "DW", gradient: "linear-gradient(135deg, #7C3AED, #5B21B6)" },
+  { initials: "SJ", gradient: "linear-gradient(135deg, #EA580C, #9A3412)" },
+];
+
 export function BrandPanel({ mode }: BrandPanelProps) {
   const copy = MODE_COPY[mode];
 
@@ -58,7 +72,7 @@ export function BrandPanel({ mode }: BrandPanelProps) {
           "linear-gradient(135deg, #1E293B 0%, #0F172A 50%, #1E40AF 100%)",
       }}
     >
-      {/* 배경 장식 (radial gradient blobs) */}
+      {/* 배경 장식 (radial gradient blobs) — prototype ::before / ::after */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -top-[200px] -right-[200px] h-[600px] w-[600px]"
@@ -76,11 +90,11 @@ export function BrandPanel({ mode }: BrandPanelProps) {
         }}
       />
 
-      {/* 로고 */}
+      {/* 로고 — fadeInUp 0.6s */}
       <Link
         href="/"
         aria-label="QuantBridge 홈으로 이동"
-        className="relative inline-flex items-center gap-3"
+        className="auth-fade-in-1 relative inline-flex items-center gap-3 self-start"
       >
         <span
           aria-hidden="true"
@@ -116,8 +130,8 @@ export function BrandPanel({ mode }: BrandPanelProps) {
         </span>
       </Link>
 
-      {/* 미들: 가치 제안 + 소셜 프루프 */}
-      <div className="relative flex flex-col gap-10">
+      {/* 미들: 가치 제안 + 소셜 프루프 — fadeInUp 0.7s delay 0.1s */}
+      <div className="auth-fade-in-2 relative flex flex-col gap-10">
         <div>
           <h1
             className="m-0 whitespace-pre-line text-[2.5rem] leading-[1.2] font-bold tracking-[-0.03em] text-white"
@@ -125,40 +139,62 @@ export function BrandPanel({ mode }: BrandPanelProps) {
           >
             {copy.heading}
           </h1>
-          <p className="mt-4 text-base leading-relaxed text-white/70">
+          <p className="mt-4 text-[1.05rem] leading-[1.6] text-white/70">
             {copy.sub}
           </p>
         </div>
 
-        {/* 소셜 프루프 카드 */}
+        {/* 소셜 프루프 카드 — backdrop-blur + 14px radius + 24px padding */}
         <div
           role="group"
           aria-label="사용자 현황"
           className="rounded-[14px] border border-white/10 bg-white/[0.08] p-6 backdrop-blur"
         >
-          {/* live indicator */}
-          <div className="flex items-center gap-2.5 text-sm font-medium text-white/[0.88]">
+          {/* avatars row — prototype 5 colored circles, -8px overlap, mb=14px */}
+          <div
+            aria-hidden="true"
+            data-testid="brand-avatars"
+            className="mb-[14px] flex items-center"
+          >
+            {AVATARS.map((av, idx) => (
+              <span
+                key={av.initials}
+                className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#1E293B] text-[0.82rem] font-bold text-white shadow-[0_2px_4px_rgba(0,0,0,0.2)]"
+                style={{
+                  background: av.gradient,
+                  marginLeft: idx === 0 ? 0 : "-8px",
+                  fontFamily: "var(--font-display)",
+                }}
+              >
+                {av.initials}
+              </span>
+            ))}
+          </div>
+
+          {/* live indicator — prototype 의 정확한 pulse keyframe (livePulse) */}
+          <div className="flex items-center gap-2.5 text-[0.92rem] font-medium text-white/[0.88]">
             <span
               aria-hidden="true"
               className="relative inline-block h-2 w-2 flex-shrink-0 rounded-full bg-[#22c55e]"
             >
               <span
-                className="absolute -inset-1 rounded-full bg-[#22c55e]/50 motion-safe:animate-ping"
                 aria-hidden="true"
+                className="absolute -inset-1 rounded-full bg-[#22c55e]/50 motion-safe:animate-[livePulse_2s_infinite]"
               />
             </span>
             <span>
-              지금 <strong className="font-semibold text-white">7,234명</strong>
-              이 실전 매매 중입니다
+              지금{" "}
+              <strong className="font-semibold text-white">7,234명</strong>이
+              실전 매매 중입니다
             </span>
           </div>
 
-          {/* stats grid */}
-          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 border-t border-white/5 pt-4">
+          {/* stats grid — prototype mt/pt = 18px (Tailwind arbitrary) + border-t white/8 */}
+          <div className="mt-[18px] grid grid-cols-2 gap-x-5 gap-y-3 border-t border-white/[0.08] pt-[18px]">
             {STATS.map((stat) => (
               <div
                 key={stat.label}
-                className="flex items-baseline gap-2 text-sm text-white/85"
+                className="flex items-baseline gap-2 text-[0.82rem] text-white/85"
               >
                 <span
                   className="font-semibold text-white"
@@ -167,15 +203,20 @@ export function BrandPanel({ mode }: BrandPanelProps) {
                 >
                   {stat.value}
                 </span>
-                <span className="text-xs text-white/60">{stat.label}</span>
+                <span
+                  className="text-[0.75rem] text-white/60"
+                  style={{ fontFamily: "var(--font-sans)" }}
+                >
+                  {stat.label}
+                </span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* 인용문 */}
-      <blockquote className="relative pl-7">
+      {/* 인용문 — fadeInUp 0.8s delay 0.2s */}
+      <blockquote className="auth-fade-in-3 relative pl-7">
         <svg
           aria-hidden="true"
           className="absolute -top-2.5 -left-1 opacity-20"
@@ -191,12 +232,12 @@ export function BrandPanel({ mode }: BrandPanelProps) {
           />
         </svg>
         <p
-          className="m-0 mb-2.5 text-base leading-snug font-medium text-white/[0.92]"
+          className="m-0 mb-2.5 text-[1.05rem] leading-[1.55] font-medium text-white/[0.92]"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {copy.testimonialText}
         </p>
-        <p className="text-sm text-white/60">
+        <p className="text-[0.85rem] text-white/60">
           <strong className="font-semibold text-white/[0.88]">
             {copy.testimonialAuthor}
           </strong>{" "}
