@@ -1,7 +1,7 @@
 "use client";
 // 루트 에러 바운더리 — prototype 11 의 500 layout (요청ID + clipboard + 시스템 상태) 1:1 visual fidelity
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { ErrorIllustration } from "@/app/_components/error-illustration";
@@ -22,6 +22,18 @@ export default function GlobalError({
   const requestId = error.digest ?? "";
   // 발생 시각 — render 시점 1회 고정 (hydration 일치)
   const occurredAt = useMemo(() => formatNowKst(), []);
+  // "다시 시도" 버튼 inline loading state — Next.js reset() 은 즉시 컴포넌트를 unmount 할 수도 있고
+  // 외부 fetch 가 다시 실패할 수도 있어 1.2s timeout 으로 spinner 자동 해제 (UX 안전판).
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = () => {
+    if (isRetrying) return;
+    setIsRetrying(true);
+    try {
+      reset();
+    } finally {
+      window.setTimeout(() => setIsRetrying(false), 1200);
+    }
+  };
 
   return (
     <section
@@ -50,15 +62,33 @@ export default function GlobalError({
         <div role="group" aria-label="복구 동작" className="relative z-[2] flex flex-wrap justify-center gap-3">
           <button
             type="button"
-            onClick={reset}
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)] transition-all hover:-translate-y-px hover:bg-[color:var(--primary-hover)]"
+            onClick={handleRetry}
+            disabled={isRetrying}
+            data-testid="error-retry-button"
+            data-loading={isRetrying || undefined}
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)] transition-all duration-200 hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.36)] disabled:cursor-not-allowed disabled:opacity-80"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <polyline points="23 4 23 10 17 10" />
-              <polyline points="1 20 1 14 7 14" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
-            다시 시도
+            {isRetrying ? (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                aria-hidden="true"
+                className="motion-safe:animate-spin"
+              >
+                <path d="M21 12a9 9 0 1 1-6.22-8.55" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            )}
+            {isRetrying ? "다시 시도 중…" : "다시 시도"}
           </button>
           <Link
             href="/"

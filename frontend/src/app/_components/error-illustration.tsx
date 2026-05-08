@@ -122,22 +122,24 @@ export function ErrorIllustration({ variant }: ErrorIllustrationProps) {
         data-variant={variant}
         className={`pointer-events-none absolute inset-0 z-0 ${styles.sectionBg}`}
       />
-      {/* 큰 코드 backdrop — 200pt clamp(6rem, 15vw, 9rem) */}
+      {/* 큰 코드 backdrop — 200pt clamp(6rem, 15vw, 9rem). 등장 시 700ms fade-in (entrance only). */}
       <div
         aria-hidden="true"
         data-testid="error-illustration-backdrop"
-        className={`pointer-events-none absolute left-1/2 top-1/2 z-0 select-none font-display text-[clamp(6rem,15vw,9rem)] font-extrabold leading-[0.9] tracking-tight ${styles.backdropColor}`}
+        className={`pointer-events-none absolute left-1/2 top-1/2 z-0 select-none font-display text-[clamp(6rem,15vw,9rem)] font-extrabold leading-[0.9] tracking-tight motion-safe:animate-[errBackdropEnter_700ms_ease-out_both] ${styles.backdropColor}`}
         style={{ transform: "translate(-50%, -58%)" }}
       >
         {variant}
       </div>
-      {/* 96px 원형 아이콘 wrap */}
+      {/* 96px 원형 아이콘 wrap — entrance spring + 기존 motion (float / pulse / spin). */}
       <div
         data-testid="error-illustration-icon"
-        className={`relative z-[2] mx-auto mb-6 grid h-24 w-24 place-items-center rounded-3xl shadow-lg ${styles.iconBg} ${styles.motion}`}
+        className={`relative z-[2] mx-auto mb-6 grid h-24 w-24 place-items-center rounded-3xl shadow-lg motion-safe:animate-[errIllustEnter_360ms_cubic-bezier(0.34,1.56,0.64,1)_both] ${styles.iconBg}`}
         aria-hidden="true"
       >
-        {VARIANT_ICONS[variant]}
+        <span className={`grid h-full w-full place-items-center ${styles.motion}`}>
+          {VARIANT_ICONS[variant]}
+        </span>
       </div>
     </>
   );

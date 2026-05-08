@@ -85,11 +85,12 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
               role="radio"
               aria-checked={active}
               onClick={() => onStatusChange(chip.id)}
+              data-active={active || undefined}
               className={
-                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition " +
+                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 ease-out data-[active]:motion-safe:animate-[chipPop_220ms_cubic-bezier(0.34,1.56,0.64,1)] " +
                 (active
                   ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)] shadow-sm"
-                  : "border-[color:var(--border)] bg-white text-[color:var(--text-secondary)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]")
+                  : "border-[color:var(--border)] bg-white text-[color:var(--text-secondary)] hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)] hover:shadow-sm")
               }
             >
               {chip.id !== "all" && (

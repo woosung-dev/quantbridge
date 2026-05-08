@@ -125,7 +125,7 @@ export function WaitlistTable({
           {sorted.map((item) => (
             <tr
               key={item.id}
-              className="border-t border-[color:var(--border)] align-top hover:bg-[color:var(--bg-alt)]"
+              className="border-t border-[color:var(--border)] align-top transition-colors duration-200 ease-out hover:bg-[color:var(--primary-light)]/40 hover:cursor-default"
             >
               <td className="px-4 py-3 font-medium">{item.email}</td>
               <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
@@ -159,8 +159,27 @@ export function WaitlistTable({
                     size="sm"
                     disabled={isApproving}
                     onClick={() => onApprove(item.id)}
+                    className="transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md disabled:opacity-70"
                   >
-                    {isApproving ? "전송 중…" : "승인 + 초대"}
+                    {isApproving ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          aria-hidden="true"
+                          className="motion-safe:animate-spin"
+                        >
+                          <path d="M21 12a9 9 0 1 1-6.22-8.55" />
+                        </svg>
+                        전송 중…
+                      </span>
+                    ) : (
+                      "승인 + 초대"
+                    )}
                   </Button>
                 ) : (
                   <span className="text-xs text-[color:var(--text-tertiary)]">
