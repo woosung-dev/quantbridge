@@ -1,3 +1,4 @@
+// shadcn Card — DESIGN.md §7.2 + §6 + §8.1 토큰 정합 (shadow-card / 200ms ease-out / data-hoverable opt-in lift)
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -13,7 +14,8 @@ function Card({
       data-size={size}
       className={cn(
         // DESIGN.md §7.2 카드 radius-lg 14px (Tailwind v4 globals.css @theme `--radius-lg: 14px`)
-        "group/card flex flex-col gap-4 overflow-hidden rounded-lg bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
+        // DESIGN.md §6 shadow-card 기본 elevation + §8.1 transition 200ms (data-hoverable opt-in 시 hover lift)
+        "group/card flex flex-col gap-4 overflow-hidden rounded-lg bg-card py-4 text-sm text-card-foreground shadow-card ring-1 ring-foreground/10 transition-[box-shadow,transform] duration-200 ease-out has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 data-[hoverable=true]:hover:-translate-y-[3px] data-[hoverable=true]:hover:shadow-card-hover motion-reduce:transition-none motion-reduce:hover:transform-none *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
         className
       )}
       {...props}
