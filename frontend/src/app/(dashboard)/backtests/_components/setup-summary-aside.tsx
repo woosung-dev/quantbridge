@@ -136,7 +136,7 @@ export function SetupSummaryAside({
 
   return (
     <aside
-      className="sticky top-24 flex flex-col gap-3 rounded-[14px] border bg-card p-6 shadow-[var(--card-shadow)]"
+      className="qb-card-fade-in sticky top-24 flex flex-col gap-3 rounded-[14px] border bg-card p-6 shadow-[var(--card-shadow)]"
       aria-label="백테스트 설정 요약"
       data-testid="setup-summary-aside"
     >

@@ -78,7 +78,7 @@ export function ExchangeAccountsPanel() {
   }
 
   return (
-    <section className="p-4 border rounded">
+    <section className="qb-account-card p-4 border rounded">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold">거래소 계정</h2>
         <RegisterExchangeAccountDialog />
@@ -103,7 +103,10 @@ export function ExchangeAccountsPanel() {
             </thead>
             <tbody>
               {data.map((a) => (
-                <tr key={a.id} className="border-t">
+                <tr
+                  key={a.id}
+                  className="border-t transition-colors hover:bg-[color:var(--bg-alt)]/60"
+                >
                   <td className="py-1.5">{a.exchange}</td>
                   <td className="py-1.5">
                     <ModeBadge mode={a.mode} />

@@ -50,6 +50,19 @@ describe("DatePresetPills", () => {
     expect(onSelect).toHaveBeenCalledWith("custom", null);
   });
 
+  // Sprint 44 W F3 — active pill 에 qb-pill-pop entrance class 적용 (inactive 는 미적용)
+  it("active pill 만 qb-pill-pop class 추가 (inactive 는 미적용)", () => {
+    const onSelect = vi.fn();
+    render(<DatePresetPills value="6m" onSelect={onSelect} />);
+
+    expect(screen.getByTestId("date-preset-6m").className).toContain(
+      "qb-pill-pop",
+    );
+    expect(screen.getByTestId("date-preset-1m").className).not.toContain(
+      "qb-pill-pop",
+    );
+  });
+
   it("calcDateRange — 1m 은 약 30일 range", () => {
     const range = calcDateRange("1m");
     expect(range).not.toBeNull();

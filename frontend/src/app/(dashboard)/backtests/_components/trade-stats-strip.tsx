@@ -39,11 +39,13 @@ export function TradeStatsStrip({ trades }: TradeStatsStripProps) {
       data-testid="trade-stats-strip"
     >
       <StatCard
+        riseIndex={1}
         label="총 거래"
         value={stats.totalCount.toString()}
         sub={`${stats.winCount}승 ${stats.lossCount}패`}
       />
       <StatCard
+        riseIndex={2}
         label="평균 수익"
         value={
           stats.winCount > 0 ? formatPercent(stats.avgWinPct) : "—"
@@ -54,6 +56,7 @@ export function TradeStatsStrip({ trades }: TradeStatsStripProps) {
         tone="pos"
       />
       <StatCard
+        riseIndex={3}
         label="평균 손실"
         value={
           stats.lossCount > 0 ? formatPercent(stats.avgLossPct) : "—"
@@ -66,6 +69,7 @@ export function TradeStatsStrip({ trades }: TradeStatsStripProps) {
         tone="neg"
       />
       <StatCard
+        riseIndex={4}
         label="평균 보유 시간"
         value={
           stats.avgHoldMinutes > 0 ? formatHold(stats.avgHoldMinutes) : "—"
@@ -85,17 +89,30 @@ interface StatCardProps {
   value: string;
   sub?: string;
   tone?: "pos" | "neg" | "neutral";
+  /** Sprint 44 W F3 — entrance stagger 1~4 (250ms 내 순차 등장). */
+  riseIndex?: 1 | 2 | 3 | 4;
 }
 
-function StatCard({ label, value, sub, tone = "neutral" }: StatCardProps) {
+function StatCard({ label, value, sub, tone = "neutral", riseIndex }: StatCardProps) {
   const toneClass =
     tone === "pos"
       ? "text-emerald-600"
       : tone === "neg"
         ? "text-rose-600"
         : "text-foreground";
+  // Sprint 44 W F3 — 4 카드 fade-up entrance (60ms 간격). prefers-reduced-motion 시 무력화.
+  const riseClass =
+    riseIndex === 1
+      ? "qb-stat-rise-1"
+      : riseIndex === 2
+        ? "qb-stat-rise-2"
+        : riseIndex === 3
+          ? "qb-stat-rise-3"
+          : riseIndex === 4
+            ? "qb-stat-rise-4"
+            : "";
   return (
-    <div className="rounded-lg border bg-card px-4 py-3">
+    <div className={`rounded-lg border bg-card px-4 py-3 ${riseClass}`}>
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </div>

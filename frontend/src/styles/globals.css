@@ -510,3 +510,109 @@ h6 {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-8px); }
 }
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W F3 — fidelity iter 2 group C micro-interactions
+ * (backtests/new + backtests/[id] + trades-detail + trading)
+ * 모든 keyframe / class 는 prefers-reduced-motion: reduce 시 0.01ms 로 자동
+ * 무력화됨 (위 base reset). 추가 수동 disable 불필요.
+ * ───────────────────────────────────────────── */
+
+/* 카드 / aside / 결과 panel 에 entrance fade — backtest report skeleton → content */
+@keyframes qb-card-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.qb-card-fade-in { animation: qb-card-fade-in 220ms ease-out both; }
+
+/* 폼 422 inline 카드 slide-down (FormErrorInline). 4 → 0px / opacity 0 → 1 */
+@keyframes qb-form-slide-down {
+  from { opacity: 0; transform: translateY(-6px); max-height: 0; }
+  to   { opacity: 1; transform: translateY(0); max-height: 600px; }
+}
+.qb-form-slide-down { animation: qb-form-slide-down 200ms ease-out both; }
+
+/* trades-detail stats strip count-up entrance — 진입 시 fade + slide */
+@keyframes qb-stat-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.qb-stat-rise-1 { animation: qb-stat-rise 280ms ease-out 0ms   both; }
+.qb-stat-rise-2 { animation: qb-stat-rise 280ms ease-out 60ms  both; }
+.qb-stat-rise-3 { animation: qb-stat-rise 280ms ease-out 120ms both; }
+.qb-stat-rise-4 { animation: qb-stat-rise 280ms ease-out 180ms both; }
+
+/* trading kill-switch active 시 red ring pulse 2s (위험 강조) */
+@keyframes qb-danger-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+.qb-danger-pulse { animation: qb-danger-pulse 2s ease-in-out infinite; }
+
+/* trading orders panel polling indicator subtle pulse */
+@keyframes qb-soft-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.qb-soft-pulse { animation: qb-soft-pulse 1.8s ease-in-out infinite; }
+
+/* metrics-cards hover lift — translate-y -1px + shadow 강화 */
+.qb-metric-card {
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.qb-metric-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--card-shadow-hover);
+  border-color: var(--border-dark);
+}
+
+/* exchange account / position card hover lift (trading) — prototype 03 .position-card */
+.qb-account-card {
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.qb-account-card:hover {
+  transform: translateY(-0.5px);
+  box-shadow: var(--card-shadow-hover);
+  border-color: var(--border-dark);
+}
+
+/* trades-detail row hover — cursor-pointer + 아주 미묘한 배경 전환 */
+.qb-trade-row {
+  transition: background-color 150ms ease;
+}
+
+/* date-preset-pill active 시 진입 bounce — 활성화 직후 short scale impulse */
+@keyframes qb-pill-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.qb-pill-pop { animation: qb-pill-pop 200ms ease-out; }
+
+/* skeleton → content 전환 부드럽게 (backtest report 결과 도착 시 fade) */
+@keyframes qb-skeleton-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* tab indicator underline slide — shadcn Tabs trigger 활성 underline */
+.qb-tab-trigger {
+  position: relative;
+  transition: color 200ms ease;
+}
+.qb-tab-trigger::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  width: 0;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px;
+  transform: translateX(-50%);
+  transition: width 200ms ease;
+}
+.qb-tab-trigger[data-state="active"]::after,
+.qb-tab-trigger[aria-selected="true"]::after {
+  width: 100%;
+}

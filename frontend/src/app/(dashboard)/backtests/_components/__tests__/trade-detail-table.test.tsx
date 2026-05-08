@@ -113,4 +113,23 @@ describe("TradeDetailTable", () => {
     const btn = screen.getByLabelText("CSV 내보내기");
     expect(btn).toBeDisabled();
   });
+
+  // Sprint 44 W F3 — row click toggles expand (button click 외 row 자체도 클릭 가능)
+  it("row click → expand 토글 (button stopPropagation 으로 button 단독 클릭도 정상)", () => {
+    render(
+      <TradeDetailTable
+        trades={[mkTrade(1, 100)]}
+        isLoading={false}
+        isError={false}
+        filenamePrefix="bt-test"
+      />,
+    );
+    expect(screen.queryByTestId("trade-detail-expanded")).not.toBeInTheDocument();
+
+    // row 의 첫 셀 (#) 클릭 → row click 으로 expand
+    const cells = screen.getAllByRole("cell");
+    fireEvent.click(cells[0]!); // 첫 행 첫 셀
+
+    expect(screen.getByTestId("trade-detail-expanded")).toBeInTheDocument();
+  });
 });

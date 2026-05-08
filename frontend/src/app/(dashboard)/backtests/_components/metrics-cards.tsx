@@ -91,7 +91,7 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
           <Card
             key={it.label}
             size="sm"
-            className={`relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-[3px] ${accentClass}`}
+            className={`qb-metric-card relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-[3px] ${accentClass}`}
             data-accent={it.tone}
           >
             <CardHeader>
