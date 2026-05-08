@@ -18,7 +18,7 @@
 //   의미 있는 text + shape (arrow=entry, circle=exit) + 색상 (PnL 부호) 표시
 // - P0 #6 Y축 dual scale 부재 → 2-pane 으로 자연스러운 dual scale (각 pane 독립 priceScale)
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { normalizeToPnlCurve } from "@/components/charts/normalize-to-pnl-curve";
 import type {
@@ -36,6 +36,42 @@ import { deriveTradeMarkers } from "./marker-layer";
 // 2-pane 비율 (ui-ux-pro-max 권장 60/40).
 const TOP_PANE_RATIO = 0.6;
 const BOTTOM_PANE_RATIO = 0.4;
+
+// Sprint 43 W10 — prototype 02 타임프레임 탭. ALL = 전체 기간 표시.
+type Timeframe = "1M" | "3M" | "6M" | "ALL";
+
+const TIMEFRAME_OPTIONS: ReadonlyArray<{ value: Timeframe; label: string }> = [
+  { value: "1M", label: "1M" },
+  { value: "3M", label: "3M" },
+  { value: "6M", label: "6M" },
+  { value: "ALL", label: "전체" },
+];
+
+const TIMEFRAME_DAYS: Record<Exclude<Timeframe, "ALL">, number> = {
+  "1M": 30,
+  "3M": 90,
+  "6M": 180,
+};
+
+/**
+ * 선택된 timeframe 에 맞춰 curve 끝에서 N일 윈도우 슬라이싱.
+ * ALL 또는 데이터 부족 시 원본 그대로 반환.
+ */
+function sliceByTimeframe(
+  curve: readonly EquityPoint[],
+  tf: Timeframe,
+): readonly EquityPoint[] {
+  if (tf === "ALL" || curve.length === 0) return curve;
+  const days = TIMEFRAME_DAYS[tf];
+  const lastTs = curve[curve.length - 1]?.timestamp;
+  if (lastTs === undefined) return curve;
+  const lastDate = Date.parse(lastTs);
+  if (!Number.isFinite(lastDate)) return curve;
+  const cutoff = lastDate - days * 24 * 60 * 60 * 1000;
+  const filtered = curve.filter((p) => Date.parse(p.timestamp) >= cutoff);
+  // 윈도우 내 포인트가 너무 적으면 fallback (시각화 의미 있을 정도까지).
+  return filtered.length >= 2 ? filtered : curve;
+}
 
 interface EquityChartV2Props {
   equityCurve: readonly EquityPoint[];
@@ -108,36 +144,54 @@ export function EquityChartV2({
   mddExceedsCapital,
   buyAndHoldCurve,
 }: EquityChartV2Props) {
+  // Sprint 43 W10 — prototype 02 정합. 타임프레임 탭 (1M/3M/6M/전체) +
+  // Buy&Hold checkbox + 드로다운 overlay checkbox. 기본값은 ALL + 둘 다 ON.
+  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>("ALL");
+  const [showBuyAndHold, setShowBuyAndHold] = useState(true);
+  const [showDrawdownOverlay, setShowDrawdownOverlay] = useState(true);
+
+  // 사용자 선택 timeframe 으로 curve 슬라이싱. equity / BH / drawdown 모두 동일 기간 적용.
+  const slicedEquity = useMemo(
+    () => sliceByTimeframe(equityCurve, activeTimeframe),
+    [equityCurve, activeTimeframe],
+  );
+  const slicedBuyAndHold = useMemo<readonly EquityPoint[] | null>(() => {
+    if (!buyAndHoldCurve || buyAndHoldCurve.length === 0) return null;
+    return sliceByTimeframe(buyAndHoldCurve, activeTimeframe);
+  }, [buyAndHoldCurve, activeTimeframe]);
+
   // Sprint 37 BL-184: equity / Buy&Hold curve 모두 PnL 기준 (시작=0) 으로 정규화.
   // BE 는 absolute capital (initial_capital 시작) 그대로 유지 — metrics/MC/stress
   // 입력 안전성 우선. FE 표시 단계에서만 첫 값을 baseline 0 으로 정렬해
   // TradingView 표준 + equity vs BH 동일 baseline 비교 가능 (Surface Trust).
   const equityData = useMemo<ChartPoint[]>(
     () =>
-      normalizeToPnlCurve(equityCurve).map((p) => ({
+      normalizeToPnlCurve(slicedEquity).map((p) => ({
         time: p.timestamp,
         value: p.value,
       })),
-    [equityCurve],
+    [slicedEquity],
   );
 
   // Sprint 34 BL-175 + Sprint 37 BL-184: backend buy_and_hold_curve 직접 사용
   // (frontend 자체 계산 폐기) + PnL 정규화. null/undefined/빈 배열 시 benchmark
-  // series 미추가 → ChartLegend 가 BH 항목 hide.
+  // series 미추가 → ChartLegend 가 BH 항목 hide. Sprint 43 W10: showBuyAndHold=false 시도 동일하게 hide.
   const benchmarkData = useMemo<ChartPoint[]>(() => {
-    if (!buyAndHoldCurve || buyAndHoldCurve.length === 0) return [];
-    return normalizeToPnlCurve(buyAndHoldCurve).map((p) => ({
+    if (!showBuyAndHold) return [];
+    if (!slicedBuyAndHold || slicedBuyAndHold.length === 0) return [];
+    return normalizeToPnlCurve(slicedBuyAndHold).map((p) => ({
       time: p.timestamp,
       value: p.value,
     }));
-  }, [buyAndHoldCurve]);
+  }, [slicedBuyAndHold, showBuyAndHold]);
 
   const drawdownData = useMemo<ChartPoint[]>(() => {
-    return computeDrawdownArea(equityCurve).map((p) => ({
+    if (!showDrawdownOverlay) return [];
+    return computeDrawdownArea(slicedEquity).map((p) => ({
       time: p.timestamp,
       value: p.value,
     }));
-  }, [equityCurve]);
+  }, [slicedEquity, showDrawdownOverlay]);
 
   // Sprint 32-C BL-171: deriveTradeMarkers 사용. 이전 inline 변환 코드 대체.
   // Sprint 34 BL-177: trades 가 30개 초과면 compact mode (entry "L"/"S" 만,
@@ -173,6 +227,9 @@ export function EquityChartV2({
   const showBenchmark = benchmarkData.length > 0;
   const showDrawdown = drawdownData.length > 0;
 
+  // 사용자가 BH 를 toggle off 했어도 BH curve 가 존재하면 checkbox 는 표시.
+  const hasBuyAndHoldData = (buyAndHoldCurve?.length ?? 0) > 0;
+
   return (
     <div
       className="space-y-2"
@@ -180,6 +237,69 @@ export function EquityChartV2({
       role="group"
       aria-label="백테스트 자본 곡선 + Buy and Hold 비교 + Drawdown 차트"
     >
+      {/* Sprint 43 W10 — prototype 02 정합. 타임프레임 탭 + checkbox 컨트롤 바. */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-3"
+        data-testid="equity-chart-controls"
+      >
+        <div
+          role="tablist"
+          aria-label="차트 기간 선택"
+          className="inline-flex items-center gap-1 rounded-md bg-[color:var(--bg-alt)] p-1"
+        >
+          {TIMEFRAME_OPTIONS.map((opt) => {
+            const isActive = activeTimeframe === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveTimeframe(opt.value)}
+                className={
+                  "min-h-[32px] rounded px-3 py-1 font-mono text-xs font-medium transition-colors " +
+                  (isActive
+                    ? "bg-[color:var(--primary)] text-white"
+                    : "text-[color:var(--text-secondary)] hover:bg-black/5 hover:text-[color:var(--text-primary)]")
+                }
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          {hasBuyAndHoldData && (
+            <label className="inline-flex items-center gap-2 text-xs text-[color:var(--text-secondary)] select-none">
+              <input
+                type="checkbox"
+                checked={showBuyAndHold}
+                onChange={(e) => setShowBuyAndHold(e.target.checked)}
+                className="h-4 w-4 cursor-pointer accent-[color:var(--primary)]"
+                aria-label="Buy and Hold 비교 표시"
+              />
+              Buy &amp; Hold 비교
+            </label>
+          )}
+          <label className="inline-flex items-center gap-2 text-xs text-[color:var(--text-secondary)] select-none">
+            <input
+              type="checkbox"
+              checked={showDrawdownOverlay}
+              onChange={(e) => setShowDrawdownOverlay(e.target.checked)}
+              className="h-4 w-4 cursor-pointer accent-[color:var(--primary)]"
+              aria-label="드로다운 영역 표시"
+            />
+            드로다운 영역 표시
+          </label>
+        </div>
+      </div>
+
+      <div className="sr-only" role="status" aria-live="polite">
+        {`기간 ${activeTimeframe === "ALL" ? "전체" : activeTimeframe} · ` +
+          `Buy & Hold ${showBuyAndHold && hasBuyAndHoldData ? "표시" : "숨김"} · ` +
+          `드로다운 ${showDrawdownOverlay ? "표시" : "숨김"}`}
+      </div>
+
       <ChartLegend
         showBenchmark={showBenchmark}
         showDrawdown={showDrawdown}
