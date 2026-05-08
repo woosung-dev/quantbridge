@@ -1,5 +1,7 @@
-// 포지션 사이즈 슬라이더 — 실시간 값 표시 (native range, mobile touch 친화)
+// 포지션 사이즈 슬라이더 — prototype 1:1 thumb/track + 자기자본 환산 표시 (Sprint 42-polish W4-fidelity)
 "use client";
+
+import type { CSSProperties } from "react";
 
 export interface PositionSizeSliderProps {
   value: number;
@@ -32,22 +34,26 @@ export function PositionSizeSlider({
       ? Math.round((capitalUsd * value) / 100)
       : null;
 
+  // prototype track 진행도 (linear-gradient background-size). min~max 범위를 0~100% 로 정규화.
+  const span = max - min === 0 ? 1 : max - min;
+  const progressPct = Math.max(0, Math.min(100, ((value - min) / span) * 100));
+
   return (
     <div
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2.5"
       data-testid="position-size-slider-root"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-baseline justify-between">
         <span className="text-sm font-medium">{label}</span>
         <span
-          className="font-mono text-base font-medium text-[var(--primary)]"
+          className="font-mono text-[0.95rem] font-semibold text-[var(--primary)]"
           aria-live="polite"
           data-testid="position-size-slider-value"
         >
           {value}
           {unit}
           {equiv != null ? (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
+            <span className="ml-1.5 text-[0.8rem] font-normal text-muted-foreground">
               ≈ ${formatUsd(equiv)}
             </span>
           ) : null}
@@ -65,7 +71,8 @@ export function PositionSizeSlider({
         aria-valuemax={max}
         aria-valuenow={value}
         data-testid="position-size-slider-input"
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-[var(--primary)]"
+        className="qb-range-slider"
+        style={{ ["--qb-slider-progress" as string]: `${progressPct}%` } as CSSProperties}
       />
       <div className="flex justify-between text-xs text-muted-foreground">
         <span>
