@@ -141,13 +141,13 @@ export function BacktestDetailView({ id }: { id: string }) {
       ) : null}
 
       {effectiveStatus === "completed" && bt.metrics ? (
-        <Tabs defaultValue="overview">
+        <Tabs defaultValue="overview" className="qb-card-fade-in">
           <TabsList>
-            <TabsTrigger value="overview">개요</TabsTrigger>
-            <TabsTrigger value="metrics">성과 지표</TabsTrigger>
-            <TabsTrigger value="analysis">거래 분석</TabsTrigger>
-            <TabsTrigger value="trades">거래 목록</TabsTrigger>
-            <TabsTrigger value="stress-test">스트레스 테스트</TabsTrigger>
+            <TabsTrigger value="overview" className="data-active:text-[var(--primary)]">개요</TabsTrigger>
+            <TabsTrigger value="metrics" className="data-active:text-[var(--primary)]">성과 지표</TabsTrigger>
+            <TabsTrigger value="analysis" className="data-active:text-[var(--primary)]">거래 분석</TabsTrigger>
+            <TabsTrigger value="trades" className="data-active:text-[var(--primary)]">거래 목록</TabsTrigger>
+            <TabsTrigger value="stress-test" className="data-active:text-[var(--primary)]">스트레스 테스트</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
@@ -234,7 +234,7 @@ function InProgressCard({
         ? "실행 중"
         : "취소 중";
   return (
-    <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
+    <div className="qb-card-fade-in flex items-center gap-3 rounded-xl border bg-card p-4">
       <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-primary" />
       <p className="text-sm">
         {label}입니다. 결과가 준비되면 자동으로 화면이 전환됩니다. (30초 간격

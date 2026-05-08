@@ -44,7 +44,7 @@ function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
 }
 
 export function OrdersPanel() {
-  const { data, isLoading, isError } = useOrders(50);
+  const { data, isLoading, isError, isFetching } = useOrders(50);
   const ksDisabled = useIsOrderDisabledByKs();
   const isTestOrderEnabled =
     process.env.NEXT_PUBLIC_ENABLE_TEST_ORDER === "true";
@@ -62,9 +62,19 @@ export function OrdersPanel() {
   if (!data) return null;
 
   return (
-    <section className="p-4 border rounded">
+    <section className="qb-account-card p-4 border rounded">
       <div className="flex items-center justify-between mb-3 gap-2">
-        <h2 className="font-semibold">최근 주문 ({data.total})</h2>
+        <h2 className="font-semibold flex items-center gap-2">
+          최근 주문 ({data.total})
+          {/* Sprint 44 W F3 — refetch / polling 진행 중 subtle dot pulse. 정지 상태는 정적. */}
+          {isFetching ? (
+            <span
+              aria-label="주문 목록 polling 중"
+              data-testid="orders-polling-dot"
+              className="qb-soft-pulse inline-block size-1.5 rounded-full bg-[color:var(--primary)]"
+            />
+          ) : null}
+        </h2>
         {isTestOrderEnabled ? (
           <div className={ksDisabled ? "pointer-events-none opacity-50" : ""}>
             <TestOrderDialog />

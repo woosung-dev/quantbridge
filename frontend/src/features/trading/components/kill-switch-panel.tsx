@@ -18,11 +18,32 @@ export function KillSwitchPanel() {
   if (!data) return null;
 
   const active = data.items.filter((e) => !e.resolved_at);
+  const hasActiveDanger = active.length > 0;
 
+  // Sprint 44 W F3 — active 시 red ring pulse + border destructive 강조. inactive 는 평온한 정적 스타일.
   return (
-    <section className="p-4 border rounded">
-      <h2 className="font-semibold mb-3">Kill Switch</h2>
-      {active.length === 0 ? (
+    <section
+      data-testid="kill-switch-panel"
+      data-state={hasActiveDanger ? "active" : "ok"}
+      className={
+        hasActiveDanger
+          ? "qb-danger-pulse rounded border border-[color:var(--destructive)] bg-[color:var(--destructive-light)]/30 p-4 transition-colors"
+          : "rounded border bg-card p-4 transition-colors"
+      }
+    >
+      <h2 className="font-semibold mb-3 flex items-center gap-2">
+        Kill Switch
+        {hasActiveDanger ? (
+          <span
+            aria-label="Kill Switch 활성"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--destructive)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
+          >
+            <span className="size-1.5 rounded-full bg-white" />
+            활성
+          </span>
+        ) : null}
+      </h2>
+      {!hasActiveDanger ? (
         <p className="text-green-600">이상 없음</p>
       ) : (
         <ul>
@@ -38,7 +59,7 @@ export function KillSwitchPanel() {
                 type="button"
                 onClick={() => resolve.mutate(e.id)}
                 disabled={resolve.isPending}
-                className="px-2 py-1 bg-red-500 text-white text-xs rounded disabled:opacity-50"
+                className="px-2 py-1 bg-red-500 text-white text-xs rounded transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {resolve.isPending ? "처리 중…" : "해결"}
               </button>

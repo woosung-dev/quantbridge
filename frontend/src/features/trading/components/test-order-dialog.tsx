@@ -435,11 +435,20 @@ function TestOrderDialogInner() {
                   disabled={form.formState.isSubmitting || ksDisabled}
                   aria-disabled={ksDisabled || undefined}
                 >
-                  {ksDisabled
-                    ? "Kill Switch 활성화"
-                    : form.formState.isSubmitting
-                      ? "발송 중..."
-                      : "발송"}
+                  {ksDisabled ? (
+                    "Kill Switch 활성화"
+                  ) : form.formState.isSubmitting ? (
+                    <span className="inline-flex items-center gap-2">
+                      {/* spinner inline — 150ms 전 click 직후부터 동작 시인성 */}
+                      <span
+                        aria-hidden
+                        className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+                      />
+                      발송 중...
+                    </span>
+                  ) : (
+                    "발송"
+                  )}
                 </Button>
               </div>
             </form>

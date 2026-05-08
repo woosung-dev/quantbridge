@@ -114,7 +114,7 @@ export function FormErrorInline({
         role="alert"
         data-testid={`${testIdPrefix}-unsupported-card`}
         className={cn(
-          "rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 p-3 text-sm",
+          "qb-form-slide-down overflow-hidden rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 p-3 text-sm",
           className,
         )}
       >
@@ -151,7 +151,7 @@ export function FormErrorInline({
 
   return (
     <p
-      className={cn("text-sm text-destructive", className)}
+      className={cn("qb-form-slide-down text-sm text-destructive", className)}
       role="alert"
       data-testid={`${testIdPrefix}-server-error`}
     >
