@@ -21,9 +21,16 @@ import { useStrategies, useStrategy } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 
 import {
+  DatePresetPills,
+  calcDateRange,
+  type DatePreset,
+} from "./date-preset-pills";
+import {
   LiveSettingsBadge,
   type SizingSource,
 } from "./live-settings-badge";
+import { PositionSizeSlider } from "./position-size-slider";
+import { SetupSummaryAside } from "./setup-summary-aside";
 
 const TIMEFRAMES: readonly Timeframe[] = [
   "1m",
@@ -230,6 +237,37 @@ export function BacktestForm() {
   const sizingSource = useWatch({ control, name: "sizing_source" });
   const watchedSessions = useWatch({ control, name: "trading_sessions" });
 
+  // Sprint 42-polish W4 — date preset pill 활성 상태 (custom = 직접 입력 또는
+  // preset 매칭 안 됨). preset 클릭 시 startDate / endDate 자동 update.
+  const [datePreset, setDatePreset] = useState<DatePreset>("6m");
+
+  // Sprint 42-polish W4 — sizing source 가 live / pine 이 아닐 때 슬라이더로
+  // default_qty_value 조작. percent_of_equity 가 아니면 슬라이더 hide (수량/USDT
+  // 는 input 에 그대로 위임).
+  const watchedQtyType = useWatch({ control, name: "default_qty_type" });
+  const watchedQtyValue = useWatch({ control, name: "default_qty_value" });
+  const watchedSymbol = useWatch({ control, name: "symbol" });
+  const watchedTfReady = useWatch({ control, name: "timeframe" });
+  const watchedPeriodStart = useWatch({ control, name: "period_start" });
+  const watchedPeriodEnd = useWatch({ control, name: "period_end" });
+  const watchedCapital = useWatch({ control, name: "initial_capital" });
+  const watchedPositionPct = useWatch({ control, name: "position_size_pct" });
+  const watchedLeverage = useWatch({ control, name: "leverage" });
+  const watchedFees = useWatch({ control, name: "fees_pct" });
+  const watchedSlippage = useWatch({ control, name: "slippage_pct" });
+  const selectedStrategyName = strategyItems.find(
+    (s) => s.id === selectedStrategy,
+  )?.name;
+
+  const handleDatePreset = (preset: DatePreset) => {
+    setDatePreset(preset);
+    const range = calcDateRange(preset);
+    if (range) {
+      setValue("period_start", range.startDate, { shouldDirty: true });
+      setValue("period_end", range.endDate, { shouldDirty: true });
+    }
+  };
+
   // Sprint 38 BL-188 v3 — strategy detail fetch (settings + trading_sessions
   // prefill 용). 기존 useStrategy 훅 재사용 (queryKey factory + userId scoping).
   const { data: strategy } = useStrategy(selectedStrategy || undefined);
@@ -280,9 +318,13 @@ export function BacktestForm() {
   ]);
 
   return (
+    <div
+      className="grid grid-cols-1 gap-6 md:grid-cols-[2fr_1fr]"
+      data-testid="backtest-form-layout"
+    >
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-5 rounded-xl border bg-card p-6"
       aria-label="backtest-form"
     >
       <div className="flex flex-col gap-1.5">
@@ -366,6 +408,12 @@ export function BacktestForm() {
         </div>
       </div>
 
+      {/* Sprint 42-polish W4 — date preset pills (1M/3M/6M/1Y/3Y/5Y + 커스텀). */}
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">기간 프리셋</span>
+        <DatePresetPills value={datePreset} onSelect={handleDatePreset} />
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="period_start" className="text-sm font-medium">
@@ -374,7 +422,10 @@ export function BacktestForm() {
           <Input
             id="period_start"
             type="date"
-            {...register("period_start", { required: "시작일을 입력하세요" })}
+            {...register("period_start", {
+              required: "시작일을 입력하세요",
+              onChange: () => setDatePreset("custom"),
+            })}
           />
           {errors.period_start ? (
             <p className="text-xs text-destructive">
@@ -395,6 +446,7 @@ export function BacktestForm() {
               validate: (v, all) =>
                 !all.period_start || new Date(v) > new Date(all.period_start) ||
                 "종료일은 시작일 이후여야 합니다",
+              onChange: () => setDatePreset("custom"),
             })}
           />
           {errors.period_end ? (
@@ -635,6 +687,33 @@ export function BacktestForm() {
             </div>
           </div>
         )}
+
+        {/* Sprint 42-polish W4 — percent_of_equity 일 때 슬라이더로 직접 조작.
+            sizing_source = pine / live 일 때는 hide (read-only / live mirror). */}
+        {sizingSource !== "pine" &&
+        sizingSource !== "live" &&
+        watchedQtyType === "strategy.percent_of_equity" ? (
+          <div className="mt-4">
+            <PositionSizeSlider
+              value={
+                Number.isFinite(watchedQtyValue) && watchedQtyValue > 0
+                  ? Math.min(100, Math.max(1, Number(watchedQtyValue)))
+                  : 10
+              }
+              onChange={(v) =>
+                setValue("default_qty_value", v, { shouldDirty: true })
+              }
+              capitalUsd={
+                Number.isFinite(watchedCapital) ? Number(watchedCapital) : null
+              }
+              label="포지션 사이즈"
+              unit="%"
+              min={1}
+              max={100}
+              step={1}
+            />
+          </div>
+        ) : null}
       </section>
 
       {/* Sprint 38 BL-188 v3 — Live Sessions mirror (asia/london/ny). 빈 list
@@ -723,5 +802,25 @@ export function BacktestForm() {
         </Button>
       </div>
     </form>
+
+    {/* Sprint 42-polish W4 — 우측 1fr summary aside (mobile 시 stack 아래로). */}
+    <SetupSummaryAside
+      strategyName={selectedStrategyName}
+      formValues={{
+        symbol: watchedSymbol,
+        timeframe: watchedTfReady,
+        period_start: watchedPeriodStart,
+        period_end: watchedPeriodEnd,
+        initial_capital: watchedCapital,
+        position_size_pct: watchedPositionPct,
+        default_qty_type: watchedQtyType,
+        default_qty_value: watchedQtyValue,
+        sizing_source: sizingSource,
+        leverage: watchedLeverage,
+        fees_pct: watchedFees,
+        slippage_pct: watchedSlippage,
+      }}
+    />
+    </div>
   );
 }

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function NewBacktestPage() {
   return (
-    <div className="mx-auto max-w-[720px] px-6 py-8">
+    <div className="mx-auto max-w-[1100px] px-6 py-8">
       <header className="mb-6">
         <h1 className="font-display text-2xl font-bold">새 백테스트</h1>
         <p className="text-sm text-muted-foreground">
@@ -19,11 +19,9 @@ export default function NewBacktestPage() {
         </p>
       </header>
 
-      <section className="rounded-xl border bg-card p-6">
-        <Suspense fallback={<FormSkeleton fields={6} />}>
-          <BacktestForm />
-        </Suspense>
-      </section>
+      <Suspense fallback={<FormSkeleton fields={6} />}>
+        <BacktestForm />
+      </Suspense>
     </div>
   );
 }
