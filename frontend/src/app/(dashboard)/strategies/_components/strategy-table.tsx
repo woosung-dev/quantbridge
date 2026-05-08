@@ -22,7 +22,10 @@ export function StrategyTable({ items }: { items: StrategyListItem[] }) {
           {items.map((s) => {
             const meta = PARSE_STATUS_META[s.parse_status];
             return (
-              <tr key={s.id} className="border-t border-[color:var(--border)] hover:bg-[color:var(--bg-alt)]">
+              <tr
+                key={s.id}
+                className="cursor-pointer border-t border-[color:var(--border)] transition-colors duration-150 hover:bg-slate-50/60"
+              >
                 <td className="px-4 py-3">
                   <Link href={`/strategies/${s.id}/edit`} className="font-medium hover:text-[color:var(--primary)]">
                     {s.name}

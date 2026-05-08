@@ -1,5 +1,6 @@
 "use client"
 
+// shadcn Sheet (Base UI Dialog wrap, mobile bottom-sheet) — DESIGN.md §8.1 토큰 정합 (slide 200ms ease-out)
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
@@ -29,7 +30,8 @@ function SheetOverlay({
     <DialogPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/20 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // DESIGN.md §8.1 backdrop fade 200ms ease-out
+        "fixed inset-0 isolate z-50 bg-black/20 duration-200 ease-out supports-backdrop-filter:backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none motion-reduce:duration-0",
         className
       )}
       {...props}
@@ -51,7 +53,8 @@ function SheetContent({
       <DialogPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 flex flex-col gap-4 rounded-t-xl border-t bg-popover p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-150 outline-none data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom",
+          // DESIGN.md §6 + §8.1 — shadow-card-hover + slide 200ms ease-out
+          "fixed inset-x-0 bottom-0 z-50 flex flex-col gap-4 rounded-t-xl border-t bg-popover p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-sm text-popover-foreground shadow-card-hover ring-1 ring-foreground/10 duration-200 ease-out outline-none data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom motion-reduce:animate-none motion-reduce:duration-0",
           className
         )}
         {...props}

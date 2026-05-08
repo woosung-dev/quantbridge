@@ -27,7 +27,7 @@ export function LandingHero() {
               자동 트레이딩으로
               <svg
                 aria-hidden
-                className="absolute -bottom-1.5 left-0 w-full"
+                className="absolute -bottom-1.5 left-0 w-full motion-safe:animate-[heroEntrance_700ms_cubic-bezier(0.34,1.56,0.64,1)_300ms_both]"
                 viewBox="0 0 280 12"
                 fill="none"
               >
@@ -41,15 +41,15 @@ export function LandingHero() {
               </svg>
             </span>
           </h1>
-          <p className="mt-5 max-w-[480px] text-lg leading-[1.7] text-[color:var(--text-secondary)]">
+          <p className="mt-5 max-w-[480px] text-lg leading-[1.7] text-[color:var(--text-secondary)] motion-safe:animate-[fadeInUp_500ms_ease-out_100ms_both]">
             TradingView 전략을 업로드하면 백테스트, 최적화, 스트레스 테스트를 거쳐 데모 또는 라이브 자동 매매까지 한 번에 연결됩니다.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap gap-3 motion-safe:animate-[fadeInUp_500ms_ease-out_200ms_both]">
             <Button
               size="lg"
               render={<Link href="/sign-in" />}
               nativeButton={false}
-              className="shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all hover:-translate-y-px hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)]"
+              className="shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all duration-200 hover:-translate-y-px hover:scale-[1.02] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)]"
             >
               무료로 시작하기
               <svg
@@ -90,7 +90,7 @@ export function LandingHero() {
               라이브 데모
             </Button>
           </div>
-          <div className="mt-8 flex items-center gap-4">
+          <div className="mt-8 flex items-center gap-4 motion-safe:animate-[fadeInUp_500ms_ease-out_300ms_both]">
             <div className="flex">
               {TRUST_AVATARS.map((a) => (
                 <span

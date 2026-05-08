@@ -14,7 +14,7 @@ const headingClass =
   "text-[22px] font-semibold leading-snug tracking-[-0.01em] text-[color:var(--text-primary)]";
 const bodyListClass = "list-disc space-y-1.5 pl-6 text-[16px] leading-[1.7]";
 const linkClass =
-  "underline decoration-[color:var(--border-dark)] underline-offset-4 transition-colors hover:text-[color:var(--text-primary)] hover:decoration-[color:var(--text-primary)]";
+  "underline decoration-[color:var(--border-dark)] underline-offset-4 transition-colors duration-200 ease-out hover:text-[color:var(--text-primary)] hover:decoration-[color:var(--text-primary)]";
 
 export default function PrivacyPage() {
   return (

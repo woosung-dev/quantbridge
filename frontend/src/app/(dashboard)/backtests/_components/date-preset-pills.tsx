@@ -69,9 +69,9 @@ export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
             data-testid={`date-preset-${p.key}`}
             onClick={() => onSelect(p.key, calcDateRange(p.key))}
             className={cn(
-              "h-8 rounded-full border px-3.5 text-[13px] font-semibold transition-all duration-200",
+              "h-8 rounded-full border px-3.5 text-[13px] font-semibold transition-all duration-200 hover:-translate-y-px motion-reduce:hover:translate-y-0",
               isActive
-                ? "border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)]"
+                ? "qb-pill-pop border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)]"
                 : "border-transparent bg-[var(--bg-alt)] text-[var(--text-secondary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]",
             )}
           >
@@ -86,9 +86,9 @@ export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
         data-testid="date-preset-custom"
         onClick={() => onSelect("custom", null)}
         className={cn(
-          "h-8 rounded-full border px-3.5 text-[13px] font-semibold transition-all duration-200",
+          "h-8 rounded-full border px-3.5 text-[13px] font-semibold transition-all duration-200 hover:-translate-y-px motion-reduce:hover:translate-y-0",
           value === "custom"
-            ? "border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)]"
+            ? "qb-pill-pop border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)]"
             : "border-transparent bg-[var(--bg-alt)] text-[var(--text-secondary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]",
         )}
       >

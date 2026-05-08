@@ -207,7 +207,19 @@ export function TradeDetailTable({
                   colSpan={11}
                   className="px-3 py-12 text-center text-sm text-muted-foreground"
                 >
-                  필터 조건에 일치하는 거래가 없습니다
+                  <div className="flex flex-col items-center gap-2">
+                    <span>필터 조건에 일치하는 거래가 없습니다</span>
+                    {activeCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="text-xs font-semibold text-primary underline underline-offset-2 hover:text-primary/80"
+                        data-testid="trade-empty-reset"
+                      >
+                        모든 필터 초기화
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -217,8 +229,9 @@ export function TradeDetailTable({
                 return [
                   <tr
                     key={`row-${t.trade_index}`}
+                    onClick={() => handleToggleExpand(t.trade_index)}
                     className={cn(
-                      "border-t transition-colors hover:bg-muted/30",
+                      "qb-trade-row cursor-pointer border-t hover:bg-muted/40",
                       isExpanded && "bg-primary/5",
                     )}
                     data-direction={t.direction}
@@ -275,7 +288,12 @@ export function TradeDetailTable({
                     <td className="px-3 py-2 text-center">
                       <button
                         type="button"
-                        onClick={() => handleToggleExpand(t.trade_index)}
+                        onClick={(e) => {
+                          // row click 과 동일 동작이지만 propagation 방지로 button 단독
+                          // 키보드 활성화 (Enter/Space) 시에도 toggle 1회만 발생.
+                          e.stopPropagation();
+                          handleToggleExpand(t.trade_index);
+                        }}
                         aria-expanded={isExpanded}
                         aria-label={
                           isExpanded

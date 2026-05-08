@@ -90,10 +90,11 @@ function ModalBody({
 
   return (
     <>
-      <DialogHeader>
+      {/* Sprint 44 W C4 — header / body / footer stagger entrance */}
+      <DialogHeader className="qb-dialog-stagger-1">
         <div className="flex items-center gap-3">
           <span
-            className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[color:var(--destructive-light)] text-[color:var(--destructive)]"
+            className="qb-soft-pulse grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[color:var(--destructive-light)] text-[color:var(--destructive)]"
             aria-hidden="true"
           >
             <ShieldAlert className="size-5" />
@@ -110,7 +111,7 @@ function ModalBody({
       </DialogHeader>
 
       {step === 2 ? (
-        <div className="space-y-2 pt-1">
+        <div className="qb-dialog-stagger-3 space-y-2 pt-1">
           <label
             htmlFor={inputId}
             className="text-sm font-medium text-[color:var(--foreground)]"
@@ -139,7 +140,7 @@ function ModalBody({
         </div>
       ) : null}
 
-      <DialogFooter className="gap-2">
+      <DialogFooter className="qb-dialog-stagger-4 gap-2">
         <Button
           type="button"
           variant="outline"

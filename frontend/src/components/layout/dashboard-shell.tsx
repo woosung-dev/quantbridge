@@ -4,6 +4,9 @@
 // Sprint 41-B2: 프로토타입 06/09/02/03 visual layout 정합 (sidebar w-[220px], 페이지 타이틀 slot).
 // Sprint 42-polish-3 (2026-05-08): 화이트 모드 통일 — /trading 의 Full Dark scope 제거 (사용자 결정,
 // 다크/화이트 toggle 은 Sprint 43+ 별도 도입 예정).
+// Sprint 44-WC1 (2026-05-08): App Shell sidebar/header inline polish — DESIGN.md §10.2 active 스타일
+// (primary-light + primary + 3px border-left + padding-left 9px) 정합, hover transition 200ms,
+// mobile hamburger icon (Menu lucide) + 햄버거 hover transition.
 
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -16,6 +19,7 @@ import {
   BarChart as BarChartIcon,
   Zap as ZapIcon,
   Globe as GlobeIcon,
+  Menu as MenuIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useUiStore } from "@/store/ui-store";
@@ -69,7 +73,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const pageTitle = derivePageTitle(pathname);
 
   return (
-    <div className="flex min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)]">
+    <div className="flex min-h-dvh bg-[color:var(--background)] text-[color:var(--foreground)]">
       <aside
         className={cn(
           "hidden flex-col border-r border-[color:var(--sidebar-border)] bg-[color:var(--sidebar)] text-[color:var(--sidebar-foreground)] md:flex",
@@ -77,10 +81,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           sidebarOpen ? "w-[220px]" : "w-16",
         )}
       >
-        {/* 로고 — Plus Jakarta Sans 볼드 + primary-gradient 마크 */}
+        {/* 로고 — Plus Jakarta Sans 볼드 + primary-gradient 마크.
+            Sprint 44-WC1 polish: opacity transition 150ms + motion-reduce. */}
         <Link
           href="/strategies"
-          className="flex h-16 items-center gap-2.5 px-4 hover:opacity-90"
+          className={cn(
+            "flex h-16 items-center gap-2.5 px-4 hover:opacity-90",
+            "transition-opacity duration-150 motion-reduce:transition-none",
+          )}
           aria-label="QuantBridge 홈"
         >
           <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[color:var(--primary)] to-[color:var(--primary-hover)] text-white shadow-sm">
@@ -115,8 +123,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           {navItems.map((item) => {
             const isActive = pathname?.startsWith(item.href) ?? false;
             const Icon = item.icon;
+            // Sprint 44-WC1 polish: motion-safe transition 200ms (DESIGN.md §10.2 prototype 06).
+            // motion-reduce:transition-none → prefers-reduced-motion 보호.
             const baseClass = cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+              "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm",
+              "transition-[background-color,color,padding-left] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
+              "motion-reduce:transition-none",
               sidebarOpen ? "justify-start" : "justify-center",
             );
 
@@ -137,6 +149,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               );
             }
 
+            // Sprint 44-WC1 polish: active 상태 = primary-light bg + primary text + 3px border-left
+            // + padding-left 9px (DESIGN.md §10.2 / prototype 06 .nav-item.active 정합).
+            // hover 는 bg-alt (sidebar-accent 와 동일 토큰) — active 와 명확히 구분.
             return (
               <Link
                 key={item.href}
@@ -145,11 +160,17 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 className={cn(
                   baseClass,
                   isActive
-                    ? "bg-[color:var(--sidebar-accent)] text-[color:var(--sidebar-accent-foreground)] font-medium"
+                    ? "bg-[color:var(--primary-light)] text-[color:var(--primary)] font-medium border-l-[3px] border-[color:var(--primary)] pl-[9px]"
                     : "text-[color:var(--muted-foreground)] hover:bg-[color:var(--sidebar-accent)] hover:text-[color:var(--sidebar-accent-foreground)]",
                 )}
               >
-                <Icon className="size-4 shrink-0" aria-hidden="true" />
+                <Icon
+                  className={cn(
+                    "size-4 shrink-0",
+                    isActive && "stroke-[color:var(--primary)]",
+                  )}
+                  aria-hidden="true"
+                />
                 {sidebarOpen && <span className="truncate">{item.label}</span>}
               </Link>
             );
@@ -174,12 +195,22 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
       <div className="flex flex-1 flex-col">
         <header className="sticky top-0 z-[100] flex h-16 items-center gap-3 border-b border-[color:var(--border)] bg-[color:var(--card)] px-4 backdrop-blur md:px-6">
+          {/* Sprint 44-WC1 polish: mobile hamburger — Menu lucide icon + 44×44 hit area
+              + bg-alt hover transition 150ms (DESIGN.md §10.3 Left 1 정합). */}
           <button
             type="button"
             onClick={toggleSidebar}
-            className="rounded-md px-3 py-2 text-sm text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)] md:hidden"
+            aria-label="메뉴 열기"
+            aria-expanded={sidebarOpen}
+            className={cn(
+              "grid size-11 place-items-center rounded-md text-[color:var(--muted-foreground)]",
+              "transition-[background-color,color] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)]",
+              "motion-reduce:transition-none",
+              "hover:bg-[color:var(--sidebar-accent)] hover:text-[color:var(--foreground)]",
+              "md:hidden",
+            )}
           >
-            메뉴
+            <MenuIcon className="size-5" aria-hidden="true" />
           </button>
           {/* 페이지 타이틀 slot — 프로토타입 06/09/02/03 헤더 좌측 패턴.
               usePathname() 기반 (effect 없음). */}

@@ -103,13 +103,14 @@ export function ErrorRecoveryBox(props: ErrorRecoveryBoxProps) {
             찾으시는 페이지가 있으신가요?
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {items.map((item) => (
+            {items.map((item, idx) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col gap-2 rounded-[10px] border border-[color:var(--border)] bg-white p-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-[color:var(--primary)] hover:shadow-md"
+                style={{ animationDelay: `${idx * 60}ms` }}
+                className="group flex flex-col gap-2 rounded-[10px] border border-[color:var(--border)] bg-white p-3.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[color:var(--primary)] hover:shadow-md motion-safe:animate-[staggerIn_280ms_ease-out_both]"
               >
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[color:var(--primary-light)] text-[color:var(--primary)]">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[color:var(--primary-light)] text-[color:var(--primary)] transition-colors duration-200 group-hover:bg-[color:var(--primary)] group-hover:text-white">
                   {item.icon}
                 </span>
                 <span className="text-[13px] font-semibold text-[color:var(--text-primary)]">{item.title}</span>
@@ -175,6 +176,8 @@ function ServerErrorCard({ requestId, errorCode, occurredAt }: ServerErrorProps)
   const code = errorCode ?? "500 Internal Server Error";
   const reqId = requestId ?? "";
   const when = occurredAt ?? "";
+  // 복사 후 1.6초 동안 check icon stagger 노출 (sonner toast 와 함께 시각적 피드백 강화).
+  const [hasCopied, setHasCopied] = useState(false);
 
   const handleCopy = async () => {
     if (!reqId) return;
@@ -182,6 +185,8 @@ function ServerErrorCard({ requestId, errorCode, occurredAt }: ServerErrorProps)
       if (typeof navigator !== "undefined" && navigator.clipboard) {
         await navigator.clipboard.writeText(reqId);
         toast.success("요청 ID가 복사되었습니다", { description: reqId });
+        setHasCopied(true);
+        window.setTimeout(() => setHasCopied(false), 1600);
         return;
       }
       throw new Error("clipboard unavailable");
@@ -216,14 +221,31 @@ function ServerErrorCard({ requestId, errorCode, occurredAt }: ServerErrorProps)
             <span data-testid="error-recovery-request-id">{reqId}</span>
             <button
               type="button"
-              aria-label="요청 ID 복사"
+              aria-label={hasCopied ? "요청 ID 복사 완료" : "요청 ID 복사"}
               onClick={handleCopy}
-              className="grid h-[26px] w-[26px] place-items-center rounded-md bg-[color:var(--destructive)]/10 text-[color:var(--destructive)] transition-colors hover:bg-[color:var(--destructive)]/20"
+              data-copied={hasCopied || undefined}
+              className="grid h-[26px] w-[26px] place-items-center rounded-md bg-[color:var(--destructive)]/10 text-[color:var(--destructive)] transition-all duration-200 hover:bg-[color:var(--destructive)]/20 data-[copied]:bg-[color:var(--success-light)] data-[copied]:text-[color:var(--success)]"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
+              {hasCopied ? (
+                <svg
+                  key="copied"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  aria-hidden="true"
+                  className="motion-safe:animate-[copySuccess_280ms_cubic-bezier(0.34,1.56,0.64,1)_both]"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
             </button>
           </span>
         </div>
@@ -289,11 +311,15 @@ function MaintenanceCard({ etaLabel, startedAt, finishesAt, progressPercent, upd
         </h2>
         <ul className="flex flex-col gap-2.5" data-testid="error-recovery-updates">
           {updates.map((u, idx) => (
-            <li key={idx} className="flex items-center gap-2.5 text-[13px] text-[color:var(--text-secondary)]">
+            <li
+              key={idx}
+              style={{ animationDelay: `${idx * 70}ms` }}
+              className="flex items-center gap-2.5 text-[13px] text-[color:var(--text-secondary)] motion-safe:animate-[staggerIn_280ms_ease-out_both]"
+            >
               <span
                 aria-label={u.status === "done" ? "완료" : "진행 중"}
                 className={
-                  "grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[11px] font-bold " +
+                  "grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[11px] font-bold transition-colors duration-200 " +
                   (u.status === "done"
                     ? "bg-[color:var(--success-light)] text-[color:var(--success)]"
                     : "bg-[color:var(--primary-light)] text-[color:var(--primary)] motion-safe:animate-pulse")

@@ -510,3 +510,288 @@ h6 {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-8px); }
 }
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W F1 + F2 통합 — fidelity iter 2 group A + B keyframes
+ * fadeInUp: brand panel / value prop / feature card / onboarding illustration stagger entrance
+ *   (prototype 04-login.html 536-545 + 00-landing.html 1:1, translateY 12px)
+ * heroEntrance: landing hero accent SVG underline scale + opacity (F1)
+ * accordionSlide: waitlist FAQ details panel slide-down (F1)
+ * subtleHover: strategies-list empty CTA 2s loop pulse (F1)
+ * livePulse: 04 login brand panel "지금 N명 매매 중" green dot ripple (F2)
+ * wizardSlideIn: strategies/new wizard step 전환 250ms slide-left + fade (F2)
+ * parseResultIn: parse-result-panel success/error 진입 slide-down + fade (F2)
+ * dirtyPulse: strategies/[id]/edit isDirty badge subtle pulse (F2)
+ * optionCardPress: onboarding option-card-radio selected translate-y 미세 swipe (F2)
+ * 모두 globals.css L247 prefers-reduced-motion 글로벌 차단으로 자동 무력화.
+ * ───────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes heroEntrance {
+  from { opacity: 0; transform: scaleX(0.6); transform-origin: left; }
+  to   { opacity: 0.4; transform: scaleX(1); transform-origin: left; }
+}
+@keyframes accordionSlide {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes subtleHover {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  50%      { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.08); }
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(1.2); }
+}
+@keyframes wizardSlideIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes parseResultIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dirtyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.0); }
+  50%      { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18); }
+}
+@keyframes optionCardPress {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-1px); }
+}
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W F3 — fidelity iter 2 group C micro-interactions
+ * (backtests/new + backtests/[id] + trades-detail + trading)
+ * 모든 keyframe / class 는 prefers-reduced-motion: reduce 시 0.01ms 로 자동
+ * 무력화됨 (위 base reset). 추가 수동 disable 불필요.
+ * ───────────────────────────────────────────── */
+
+/* 카드 / aside / 결과 panel 에 entrance fade — backtest report skeleton → content */
+@keyframes qb-card-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.qb-card-fade-in { animation: qb-card-fade-in 220ms ease-out both; }
+
+/* 폼 422 inline 카드 slide-down (FormErrorInline). 4 → 0px / opacity 0 → 1 */
+@keyframes qb-form-slide-down {
+  from { opacity: 0; transform: translateY(-6px); max-height: 0; }
+  to   { opacity: 1; transform: translateY(0); max-height: 600px; }
+}
+.qb-form-slide-down { animation: qb-form-slide-down 200ms ease-out both; }
+
+/* trades-detail stats strip count-up entrance — 진입 시 fade + slide */
+@keyframes qb-stat-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.qb-stat-rise-1 { animation: qb-stat-rise 280ms ease-out 0ms   both; }
+.qb-stat-rise-2 { animation: qb-stat-rise 280ms ease-out 60ms  both; }
+.qb-stat-rise-3 { animation: qb-stat-rise 280ms ease-out 120ms both; }
+.qb-stat-rise-4 { animation: qb-stat-rise 280ms ease-out 180ms both; }
+
+/* trading kill-switch active 시 red ring pulse 2s (위험 강조) */
+@keyframes qb-danger-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}
+.qb-danger-pulse { animation: qb-danger-pulse 2s ease-in-out infinite; }
+
+/* trading orders panel polling indicator subtle pulse */
+@keyframes qb-soft-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.qb-soft-pulse { animation: qb-soft-pulse 1.8s ease-in-out infinite; }
+
+/* metrics-cards hover lift — translate-y -1px + shadow 강화 */
+.qb-metric-card {
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.qb-metric-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--card-shadow-hover);
+  border-color: var(--border-dark);
+}
+
+/* exchange account / position card hover lift (trading) — prototype 03 .position-card */
+.qb-account-card {
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.qb-account-card:hover {
+  transform: translateY(-0.5px);
+  box-shadow: var(--card-shadow-hover);
+  border-color: var(--border-dark);
+}
+
+/* trades-detail row hover — cursor-pointer + 아주 미묘한 배경 전환 */
+.qb-trade-row {
+  transition: background-color 150ms ease;
+}
+
+/* date-preset-pill active 시 진입 bounce — 활성화 직후 short scale impulse */
+@keyframes qb-pill-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.qb-pill-pop { animation: qb-pill-pop 200ms ease-out; }
+
+/* skeleton → content 전환 부드럽게 (backtest report 결과 도착 시 fade) */
+@keyframes qb-skeleton-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* tab indicator underline slide — shadcn Tabs trigger 활성 underline */
+.qb-tab-trigger {
+  position: relative;
+  transition: color 200ms ease;
+}
+.qb-tab-trigger::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  width: 0;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px;
+  transform: translateX(-50%);
+  transition: width 200ms ease;
+}
+.qb-tab-trigger[data-state="active"]::after,
+.qb-tab-trigger[aria-selected="true"]::after {
+  width: 100%;
+}
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W F4 fidelity iter 2 — error/legal/admin/share micro-interaction
+ *
+ * - errIllustEnter: 에러 아이콘 spring scale + fade (icon-wrap entrance, 1회 only)
+ * - errBackdropEnter: 큰 코드 backdrop 페이드 인 (slow, 700ms)
+ * - legalFadeIn: 법무 페이지 헤더 / 섹션 등장 시 fade-in (160-280ms span)
+ * - chipPop: filter chip 활성화 시 스프링 효과
+ * - rowHoverLift: admin 테이블 row hover 살짝 떠오름 (사용 X — transition 으로 충분)
+ * - sharePopIn: share viewer chart entrance fade
+ * - copySuccess: copy 버튼 체크 마크 스태거 인
+ * ───────────────────────────────────────────── */
+@keyframes errIllustEnter {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes errBackdropEnter {
+  from { opacity: 0; transform: translate(-50%, -52%); }
+  to   { opacity: 1; transform: translate(-50%, -58%); }
+}
+@keyframes legalFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes chipPop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes sharePopIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes copySuccess {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* legal page section helper — 등장 시 한번만 fade-in.
+   prefers-reduced-motion 시 상단의 universal selector 가 0.01ms 로 강제 덮어씀. */
+.legal-fade-in {
+  animation: legalFadeIn 240ms ease-out both;
+}
+.legal-fade-in-2 { animation: legalFadeIn 280ms ease-out 60ms both; }
+.legal-fade-in-3 { animation: legalFadeIn 280ms ease-out 120ms both; }
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W C3 — shared component (empty-state / skeleton / form-error-inline / sonner) micro-interactions
+ *
+ * - qb-empty-card-in: 빈상태 카드 컨테이너 entrance fade + slide
+ * - qb-empty-icon-in: 아이콘 spring scale + fade (delay 60ms)
+ * - qb-empty-heading-in / qb-empty-body-in / qb-empty-cta-in: stagger 텍스트/CTA 등장
+ * - qb-skeleton-shimmer: 1.5s shimmer overlay (animate-pulse 보다 명료한 표준)
+ * - qb-toast-in / qb-toast-out: sonner toast slide + fade entrance/exit
+ * 모든 keyframe 은 prefers-reduced-motion: reduce 시 0.01ms 로 자동 무력화 (위 base reset).
+ * ───────────────────────────────────────────── */
+@keyframes qb-empty-card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.qb-empty-card-in { animation: qb-empty-card-in 280ms ease-out both; }
+
+@keyframes qb-empty-icon-in {
+  0%   { opacity: 0; transform: scale(0.7); }
+  60%  { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.qb-empty-icon-in { animation: qb-empty-icon-in 300ms ease-out 60ms both; }
+
+@keyframes qb-empty-text-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.qb-empty-heading-in { animation: qb-empty-text-rise 240ms ease-out 120ms both; }
+.qb-empty-body-in    { animation: qb-empty-text-rise 240ms ease-out 180ms both; }
+.qb-empty-cta-in     { animation: qb-empty-text-rise 240ms ease-out 240ms both; }
+
+/* Skeleton shimmer — 1.5s 표준. animate-pulse(2s) 와 함께 사용 시 overlay 로 명료감 강화.
+   ::after 로 그라데이션 슬라이드 → reduced-motion 시 자동 무력화. */
+@keyframes qb-skeleton-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.qb-skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.qb-skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: qb-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Sonner toast entrance — sonner 자체 transform 위에 opacity 보강.
+   Toaster richColors + theme=light 와 결합. */
+.cn-toast[data-sonner-toast] {
+  border-radius: var(--radius-md);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+.cn-toast[data-sonner-toast] [data-close-button="true"] {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.cn-toast[data-sonner-toast] [data-close-button="true"]:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W C4 — dialog stagger entrance (TestOrder / KillSwitchModal / DeleteDialog 공통)
+ *
+ * Radix Dialog 의 backdrop fade 위에 content 내부 영역을 50ms 간격으로 stagger 등장.
+ * 기존 fadeInUp keyframe 재사용 — 200~280ms 길이 + 50/100/150/200ms delay.
+ * prefers-reduced-motion 시 universal selector 가 0.01ms 강제 무력화.
+ * ───────────────────────────────────────────── */
+.qb-dialog-stagger-1 { animation: fadeInUp 220ms ease-out  50ms both; }
+.qb-dialog-stagger-2 { animation: fadeInUp 220ms ease-out 100ms both; }
+.qb-dialog-stagger-3 { animation: fadeInUp 240ms ease-out 150ms both; }
+.qb-dialog-stagger-4 { animation: fadeInUp 240ms ease-out 200ms both; }

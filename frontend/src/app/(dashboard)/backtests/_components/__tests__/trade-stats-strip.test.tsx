@@ -69,6 +69,19 @@ describe("TradeStatsStrip", () => {
     );
   });
 
+  // Sprint 44 W F3 — entrance stagger class 4 카드 모두 적용
+  it("4 카드 모두 qb-stat-rise-{1..4} entrance class 적용", () => {
+    render(<TradeStatsStrip trades={[]} />);
+    const card1 = screen.getByTestId("trade-stat-총 거래").parentElement;
+    const card2 = screen.getByTestId("trade-stat-평균 수익").parentElement;
+    const card3 = screen.getByTestId("trade-stat-평균 손실").parentElement;
+    const card4 = screen.getByTestId("trade-stat-평균 보유 시간").parentElement;
+    expect(card1?.className).toContain("qb-stat-rise-1");
+    expect(card2?.className).toContain("qb-stat-rise-2");
+    expect(card3?.className).toContain("qb-stat-rise-3");
+    expect(card4?.className).toContain("qb-stat-rise-4");
+  });
+
   it("평균 보유 시간 — 1h 단위 표시", () => {
     const trades: TradeItem[] = [
       mkTrade({

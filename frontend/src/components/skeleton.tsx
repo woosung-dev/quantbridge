@@ -1,20 +1,32 @@
 // 로딩 Skeleton 공통 — Suspense fallback / async 데이터 로드 표준 placeholder.
 // shadcn 패턴 (animate-pulse + bg-muted) + qb-specific 변형 (Table / Card / Form).
+// Sprint 44 W C3: shimmer 1.5s overlay 옵션 + radius 토큰 정합 (--radius-sm = 6px = rounded-md).
 
 import type { HTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
+export type SkeletonProps = HTMLAttributes<HTMLDivElement> & {
+  "data-testid"?: string;
+  /** shimmer overlay (1.5s) 활성화. 카드/리포트 등 명시적 강조가 필요한 곳에 사용. 기본 false (animate-pulse 만). */
+  shimmer?: boolean;
+};
+
 export function Skeleton({
   className,
   "data-testid": dataTestId = "skeleton",
+  shimmer = false,
   ...props
-}: HTMLAttributes<HTMLDivElement> & { "data-testid"?: string }) {
+}: SkeletonProps) {
   return (
     <div
       data-slot="skeleton"
       data-testid={dataTestId}
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      className={cn(
+        "animate-pulse rounded-md bg-muted",
+        shimmer && "qb-skeleton-shimmer",
+        className,
+      )}
       {...props}
     />
   );

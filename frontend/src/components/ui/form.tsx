@@ -1,5 +1,6 @@
 "use client"
 
+// shadcn Form (RHF wrap) — DESIGN.md 토큰 정합 (Label / Description / Message text-sm 일관)
 import * as React from "react"
 import type { Label as LabelPrimitive } from "radix-ui"
 import { Slot } from "radix-ui"

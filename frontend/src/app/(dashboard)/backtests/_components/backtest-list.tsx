@@ -145,7 +145,7 @@ export function BacktestList() {
               title={title}
               data-testid={`backtest-filter-${f.id}`}
               className={
-                "rounded-full border px-3 py-1 text-xs font-medium transition " +
+                "rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-150 ease-out " +
                 (isDisabled
                   ? "cursor-not-allowed border-[color:var(--border)] text-[color:var(--text-muted)] opacity-50"
                   : active
@@ -314,7 +314,7 @@ function BacktestSummaryTable({ items }: { items: readonly BacktestSummary[] }) 
             return (
               <tr
                 key={b.id}
-                className="border-t border-[color:var(--border-light)] transition hover:bg-[color:var(--bg-soft)]"
+                className="cursor-pointer border-t border-[color:var(--border-light)] border-l-2 border-l-transparent transition-colors duration-150 ease-out hover:border-l-[color:var(--primary)] hover:bg-[color:var(--bg-soft)]"
                 data-testid={`backtest-row-${b.id}`}
                 data-status={b.status}
               >

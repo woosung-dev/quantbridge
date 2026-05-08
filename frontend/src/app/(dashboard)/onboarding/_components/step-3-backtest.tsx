@@ -3,6 +3,7 @@
 // H2 Sprint 11 Phase D Step 3: 샘플 전략 백테스트 실행.
 // 기본 파라미터: BTCUSDT 1H, 최근 30일, initial_capital 10000.
 // useBacktestProgress 로 polling (LESSON-004 준수 — refetchInterval 순수 함수).
+// Sprint 44 W F2: status 변경 시 inline fadeInUp + spinner 강조.
 
 import { useEffect, useRef, useState } from "react";
 import { AlertCircleIcon, LoaderIcon } from "lucide-react";
@@ -131,7 +132,8 @@ export function Step3Backtest({
         )}
         {progressStatus === "completed" && (
           <p
-            className="text-sm font-medium text-[color:var(--success)]"
+            // Sprint 44 W F2: 완료 메시지 fade-in 진입.
+            className="motion-safe:animate-[fadeInUp_220ms_ease-out_both] text-sm font-medium text-[color:var(--success)]"
             aria-live="polite"
           >
             백테스트가 완료되었습니다. 결과로 이동합니다…
