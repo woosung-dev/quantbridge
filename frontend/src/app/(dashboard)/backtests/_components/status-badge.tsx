@@ -18,7 +18,11 @@ const STATUS_META: Record<BacktestStatus, StatusMeta> = {
 export function BacktestStatusBadge({ status }: { status: BacktestStatus }) {
   const meta = STATUS_META[status];
   return (
-    <Badge variant={meta.variant} data-status={status}>
+    <Badge
+      variant={meta.variant}
+      data-status={status}
+      className="transition-colors duration-200 ease-out"
+    >
       {meta.label}
     </Badge>
   );

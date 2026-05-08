@@ -50,18 +50,18 @@ export function WaitlistFaq() {
         {FAQ_ITEMS.map((item) => (
           <details
             key={item.question}
-            className="group rounded-md border border-[color:var(--border)] bg-white px-4 py-3 transition-colors hover:border-[color:var(--accent-amber)]/40"
+            className="group rounded-md border border-[color:var(--border)] bg-white px-4 py-3 transition-colors duration-200 ease-out hover:border-[color:var(--accent-amber)]/40"
           >
             <summary className="flex cursor-pointer items-center justify-between gap-4 text-sm font-semibold text-[color:var(--text-primary)] [&::-webkit-details-marker]:hidden">
               <span>{item.question}</span>
               <span
                 aria-hidden="true"
-                className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-xs font-bold text-[color:var(--accent-amber)] transition-transform group-open:rotate-45"
+                className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-xs font-bold text-[color:var(--accent-amber)] transition-transform duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-open:rotate-45"
               >
                 +
               </span>
             </summary>
-            <p className="mt-3 text-sm leading-relaxed text-[color:var(--text-secondary)]">
+            <p className="mt-3 text-sm leading-relaxed text-[color:var(--text-secondary)] motion-safe:group-open:animate-[accordionSlide_250ms_ease-out_both]">
               {item.answer}
             </p>
           </details>

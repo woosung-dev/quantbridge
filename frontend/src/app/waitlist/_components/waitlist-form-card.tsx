@@ -62,7 +62,7 @@ const EXPERIENCE_OPTIONS: ExperienceOpt[] = [
 ];
 
 const SELECT_BASE_CLASS =
-  "h-10 w-full rounded-md border border-[color:var(--border)] bg-white px-3 text-sm text-[color:var(--text-primary)] transition-colors hover:border-[color:var(--border-dark)] focus:border-[color:var(--accent-amber)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-amber)]/20";
+  "h-10 w-full rounded-md border border-[color:var(--border)] bg-white px-3 text-sm text-[color:var(--text-primary)] transition-all duration-200 ease-out hover:border-[color:var(--border-dark)] focus:border-[color:var(--accent-amber)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-amber)]/20";
 
 export function WaitlistFormCard() {
   const [submitted, setSubmitted] = useState(false);
@@ -106,19 +106,19 @@ export function WaitlistFormCard() {
     return (
       <section
         aria-live="polite"
-        className="rounded-2xl border border-[color:var(--border)] bg-white p-10 shadow-sm"
+        className="rounded-2xl border border-[color:var(--border)] bg-white p-10 shadow-sm motion-safe:animate-[fadeInUp_400ms_ease-out_both]"
       >
         <div className="space-y-5 text-center">
           <span
             aria-hidden="true"
-            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-2xl"
+            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-2xl motion-safe:animate-[scale-in_300ms_cubic-bezier(0.34,1.56,0.64,1)_100ms_both]"
           >
             ✓
           </span>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-[color:var(--text-primary)]">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-[color:var(--text-primary)] motion-safe:animate-[fadeInUp_400ms_ease-out_200ms_both]">
             신청 완료
           </h2>
-          <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
+          <p className="text-sm leading-relaxed text-[color:var(--text-secondary)] motion-safe:animate-[fadeInUp_400ms_ease-out_300ms_both]">
             QuantBridge Beta 신청이 정상 접수됐습니다. Beta 그룹을 작게 유지하기 위해 신청서를 직접 검토합니다.
             <br />
             평균 회신 기간은 <strong>1-2 주</strong> 입니다. 받은편지함 (스팸 폴더 포함) 에서{" "}
@@ -127,10 +127,10 @@ export function WaitlistFormCard() {
             </code>{" "}
             메일을 기다려주세요.
           </p>
-          <div className="pt-2">
+          <div className="pt-2 motion-safe:animate-[fadeInUp_400ms_ease-out_400ms_both]">
             <Link
               href="/"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-[color:var(--border)] bg-white px-5 text-sm font-medium text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--accent)]"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-[color:var(--border)] bg-white px-5 text-sm font-medium text-[color:var(--text-primary)] transition-colors duration-150 hover:bg-[color:var(--accent)]"
             >
               ← 홈으로
             </Link>
@@ -309,13 +309,40 @@ export function WaitlistFormCard() {
         <Button
           type="submit"
           disabled={create.isPending}
-          className="h-11 w-full text-sm font-semibold"
+          className="h-11 w-full gap-2 text-sm font-semibold transition-all duration-200 ease-out hover:brightness-110 disabled:opacity-70"
           style={{
             backgroundColor: "var(--accent-amber)",
             color: "#fff",
           }}
         >
-          {create.isPending ? "전송 중…" : "Beta 신청서 제출"}
+          {create.isPending ? (
+            <>
+              <svg
+                aria-hidden="true"
+                className="size-4 motion-safe:animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeOpacity="0.3"
+                />
+                <path
+                  d="M22 12a10 10 0 0 0-10-10"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span>전송 중…</span>
+            </>
+          ) : (
+            "Beta 신청서 제출"
+          )}
         </Button>
         <p className="text-center text-xs text-[color:var(--text-muted)]">
           제출 후 평균 1-2 주 안에 회신 메일을 보내드립니다.

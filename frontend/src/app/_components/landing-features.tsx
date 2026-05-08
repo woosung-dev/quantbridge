@@ -100,10 +100,11 @@ export function LandingFeatures() {
           </p>
         </div>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f) => (
+          {FEATURES.map((f, i) => (
             <article
               key={f.title}
-              className="rounded-[14px] bg-white p-7 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08),0_16px_40px_rgba(0,0,0,0.06)]"
+              className="rounded-[14px] bg-white p-7 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_8px_rgba(0,0,0,0.08),0_16px_40px_rgba(0,0,0,0.06)] motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
+              style={{ animationDelay: `${i * 80}ms` }}
             >
               <div className="flex size-11 items-center justify-center rounded-full bg-[color:var(--primary-light)]">
                 <svg
