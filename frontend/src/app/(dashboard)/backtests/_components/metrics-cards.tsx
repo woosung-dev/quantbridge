@@ -71,33 +71,42 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-      {items.map((it) => (
-        <Card key={it.label} size="sm">
-          <CardHeader>
-            <CardTitle className="text-xs font-normal text-muted-foreground">
-              {it.label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className="text-2xl font-semibold tabular-nums"
-              data-tone={it.tone}
-            >
-              {it.value}
-            </div>
-            {it.caption ? (
+      {items.map((it) => {
+        // Sprint 43 W7 — prototype 09 KPI tone 색 적용. positive=success / negative=destructive / neutral=text-primary.
+        const valueClass =
+          it.tone === "positive"
+            ? "text-[color:var(--success)]"
+            : it.tone === "negative"
+              ? "text-[color:var(--destructive)]"
+              : "text-[color:var(--text-primary)]";
+        return (
+          <Card key={it.label} size="sm">
+            <CardHeader>
+              <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
+                {it.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div
-                className="mt-1 text-[10px] text-muted-foreground"
-                data-testid={
-                  it.label === "Max Drawdown" ? "mdd-leverage-caption" : undefined
-                }
+                className={`font-mono text-2xl font-semibold tabular-nums ${valueClass}`}
+                data-tone={it.tone}
               >
-                {it.caption}
+                {it.value}
               </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ))}
+              {it.caption ? (
+                <div
+                  className="mt-1 text-[10px] text-muted-foreground"
+                  data-testid={
+                    it.label === "Max Drawdown" ? "mdd-leverage-caption" : undefined
+                  }
+                >
+                  {it.caption}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

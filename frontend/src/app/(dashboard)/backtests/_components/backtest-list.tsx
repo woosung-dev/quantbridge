@@ -20,6 +20,7 @@ import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
 import { formatDateTime } from "@/features/backtest/utils";
 
+import { RunningProgressBar } from "./running-progress-bar";
 import { BacktestStatusBadge } from "./status-badge";
 
 const PAGE_SIZE = 20;
@@ -91,24 +92,33 @@ export function BacktestList() {
           label="총 건수"
           value={data?.total ?? 0}
           tone="primary"
+          sub="전체 백테스트"
         />
         <KpiCard
           icon={<CheckIcon className="size-4" />}
           label="완료"
           value={counts.completed}
           tone="success"
+          sub={
+            counts.completed > 0 && items.length > 0
+              ? `${Math.round((counts.completed / items.length) * 100)}% 완료율`
+              : undefined
+          }
         />
         <KpiCard
           icon={<ClockIcon className="size-4" />}
-          label="실행중"
+          label="실행 중"
           value={counts.running + counts.queued}
           tone="primary"
+          pulse={counts.running + counts.queued > 0}
+          sub={counts.queued > 0 ? `대기 ${counts.queued}건 포함` : undefined}
         />
         <KpiCard
           icon={<FailIcon className="size-4" />}
           label="실패"
           value={counts.failed}
           tone="destructive"
+          sub={counts.failed > 0 ? "재실행 권장" : undefined}
         />
       </div>
 
@@ -220,11 +230,17 @@ function KpiCard({
   label,
   value,
   tone,
+  sub,
+  pulse = false,
 }: {
   icon: ReactNode;
   label: string;
   value: number;
   tone: "primary" | "success" | "destructive";
+  /** prototype 09 .kpi-sub — 한 줄 보조 정보 (delta / 가정 / 강조 라벨). */
+  sub?: string;
+  /** 실시간 상태 보강 — value > 0 시 icon ring pulse (WebSocket 재연결 시 시각 단서). */
+  pulse?: boolean;
 }) {
   const accent =
     tone === "success"
@@ -232,17 +248,33 @@ function KpiCard({
       : tone === "destructive"
         ? "text-[color:var(--destructive)] bg-[color:var(--destructive-light)]"
         : "text-[color:var(--primary)] bg-[color:var(--primary-light)]";
+  const valueTone =
+    tone === "success"
+      ? "text-[color:var(--success)]"
+      : tone === "destructive"
+        ? "text-[color:var(--destructive)]"
+        : "text-[color:var(--text-primary)]";
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card p-5 shadow-[var(--card-shadow)]">
+    <div
+      className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card p-5 shadow-[var(--card-shadow)] transition hover:shadow-[var(--card-shadow-hover)]"
+      data-testid={`kpi-card-${label.replace(/\s+/g, "-")}`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[0.75rem] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
           {label}
         </span>
-        <span className={"grid size-8 place-items-center rounded-md " + accent} aria-hidden="true">
+        <span
+          className={"grid size-8 place-items-center rounded-md " + accent}
+          style={pulse ? { animation: "qb-pulse-dot 2s infinite" } : undefined}
+          aria-hidden="true"
+        >
           {icon}
         </span>
       </div>
-      <p className="mt-3 font-mono text-2xl font-bold tabular-nums">{value}</p>
+      <p className={`mt-3 font-mono text-2xl font-bold tabular-nums ${valueTone}`}>{value}</p>
+      {sub ? (
+        <p className="mt-1 text-[0.75rem] text-[color:var(--text-muted)]">{sub}</p>
+      ) : null}
     </div>
   );
 }
@@ -266,44 +298,55 @@ function BacktestSummaryTable({ items }: { items: readonly BacktestSummary[] }) 
   return (
     <div className="overflow-x-auto rounded-xl border bg-card shadow-[var(--card-shadow)]">
       <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+        <thead className="bg-[color:var(--bg-soft)] text-xs uppercase tracking-wide text-[color:var(--text-muted)]">
           <tr>
             <th scope="col" className="px-4 py-3 text-left">심볼</th>
             <th scope="col" className="px-4 py-3 text-left">TF</th>
-            <th scope="col" className="px-4 py-3 text-left">기간</th>
+            <th scope="col" className="px-4 py-3 text-left">기간 / 진행률</th>
             <th scope="col" className="px-4 py-3 text-left">상태</th>
             <th scope="col" className="px-4 py-3 text-left">실행일</th>
             <th scope="col" className="sr-only">상세</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((b) => (
-            <tr
-              key={b.id}
-              className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--bg-alt)]"
-            >
-              <td className="px-4 py-3 font-medium">
-                <Link href={`/backtests/${b.id}`} className="hover:text-primary">
-                  {b.symbol}
-                </Link>
-              </td>
-              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{b.timeframe}</td>
-              <td className="px-4 py-3 text-xs text-muted-foreground">
-                {formatDateTime(b.period_start)} → {formatDateTime(b.period_end)}
-              </td>
-              <td className="px-4 py-3">
-                <BacktestStatusBadge status={b.status} />
-              </td>
-              <td className="px-4 py-3 text-xs text-muted-foreground">
-                {formatDateTime(b.created_at)}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <Link href={`/backtests/${b.id}`} className="text-primary hover:underline">
-                  상세 →
-                </Link>
-              </td>
-            </tr>
-          ))}
+          {items.map((b) => {
+            const isInFlight = b.status === "running" || b.status === "queued" || b.status === "cancelling";
+            return (
+              <tr
+                key={b.id}
+                className="border-t border-[color:var(--border-light)] transition hover:bg-[color:var(--bg-soft)]"
+                data-testid={`backtest-row-${b.id}`}
+                data-status={b.status}
+              >
+                <td className="px-4 py-3 font-medium">
+                  <Link href={`/backtests/${b.id}`} className="hover:text-primary">
+                    {b.symbol}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{b.timeframe}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  {isInFlight ? (
+                    <RunningProgressBar status={b.status} />
+                  ) : (
+                    <span className="font-mono">
+                      {formatDateTime(b.period_start)} → {formatDateTime(b.period_end)}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <BacktestStatusBadge status={b.status} />
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                  {formatDateTime(b.created_at)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Link href={`/backtests/${b.id}`} className="text-primary hover:underline">
+                    상세 →
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
