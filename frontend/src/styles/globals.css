@@ -512,15 +512,21 @@ h6 {
 }
 
 /* ───────────────────────────────────────────────
- * Sprint 44 W F1 — fidelity iter 2 group A micro-interaction
- * fadeInUp     : value prop / feature card stagger entrance (motion-safe 전용)
- * heroEntrance : landing hero accent SVG underline scale + opacity
- * accordionSlide: waitlist FAQ details panel slide-down
- * subtleHover  : strategies-list empty CTA 2s loop pulse (border + shadow)
+ * Sprint 44 W F1 + F2 통합 — fidelity iter 2 group A + B keyframes
+ * fadeInUp: brand panel / value prop / feature card / onboarding illustration stagger entrance
+ *   (prototype 04-login.html 536-545 + 00-landing.html 1:1, translateY 12px)
+ * heroEntrance: landing hero accent SVG underline scale + opacity (F1)
+ * accordionSlide: waitlist FAQ details panel slide-down (F1)
+ * subtleHover: strategies-list empty CTA 2s loop pulse (F1)
+ * livePulse: 04 login brand panel "지금 N명 매매 중" green dot ripple (F2)
+ * wizardSlideIn: strategies/new wizard step 전환 250ms slide-left + fade (F2)
+ * parseResultIn: parse-result-panel success/error 진입 slide-down + fade (F2)
+ * dirtyPulse: strategies/[id]/edit isDirty badge subtle pulse (F2)
+ * optionCardPress: onboarding option-card-radio selected translate-y 미세 swipe (F2)
  * 모두 globals.css L247 prefers-reduced-motion 글로벌 차단으로 자동 무력화.
  * ───────────────────────────────────────────── */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes heroEntrance {
@@ -534,4 +540,24 @@ h6 {
 @keyframes subtleHover {
   0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
   50%      { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.08); }
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(1.2); }
+}
+@keyframes wizardSlideIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes parseResultIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dirtyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.0); }
+  50%      { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18); }
+}
+@keyframes optionCardPress {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-1px); }
 }

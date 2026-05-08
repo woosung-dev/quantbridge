@@ -1,8 +1,9 @@
-// 전략 파싱 결과 패널 — stagger entrance + 초록 점 pulse (Sprint 42-polish W3-fidelity)
+// 전략 파싱 결과 패널 — stagger entrance + 초록 점 pulse (Sprint 42-polish W3-fidelity + Sprint 44 W F2)
 // loading: skeleton / error: 빨강 / null: empty hint / present: kv-list 2-col + feature pills
 // prefers-reduced-motion: stagger animation은 motion-safe class 로 자동 disable
 // aria-live="polite": result 변경 시 screen reader 알림
 // W3-fidelity 정합: padding 22/20, h4 0.72rem, kv text 0.82rem, animationDelay 100/200/300/400ms
+// Sprint 44 W F2: error / result body slide-down 200ms ease-out + fade (parseResultIn keyframe)
 
 import { CheckIcon, XIcon } from "lucide-react";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
@@ -64,7 +65,8 @@ function ErrorBlock({ message }: { message: string }) {
   return (
     <p
       role="alert"
-      className="rounded-[var(--radius-sm,0.375rem)] border border-[color:var(--destructive)]/30 bg-[color:var(--destructive-light)] px-3 py-2 text-xs text-[color:var(--destructive)]"
+      // Sprint 44 W F2: 에러 발생 시 slide-down 진입.
+      className="motion-safe:animate-[parseResultIn_200ms_ease-out_both] rounded-[var(--radius-sm,0.375rem)] border border-[color:var(--destructive)]/30 bg-[color:var(--destructive-light)] px-3 py-2 text-xs text-[color:var(--destructive)]"
     >
       {message}
     </p>
@@ -93,7 +95,10 @@ function ResultBody({ result }: { result: ParsePreviewResponse }) {
   const topFunctions = result.functions_used.slice(0, 4);
 
   return (
-    <>
+    <div
+      // Sprint 44 W F2: result body 진입 시 fade + slide-down 200ms (stagger child 와 합산 320ms 미만 유지).
+      className="motion-safe:animate-[parseResultIn_200ms_ease-out_both]"
+    >
       {/* prototype 07: preview-grid `gap: 20px` ≈ gap-5 */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
@@ -167,7 +172,7 @@ function ResultBody({ result }: { result: ParsePreviewResponse }) {
           미지원 함수 {result.unsupported_builtins.length}개 — 백테스트 실행 불가
         </p>
       )}
-    </>
+    </div>
   );
 }
 

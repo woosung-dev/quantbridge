@@ -6,7 +6,7 @@
 // 3) store.setStrategy(id) 후 다음 step 으로 이동
 
 import { useState } from "react";
-import { AlertCircleIcon, SparklesIcon } from "lucide-react";
+import { AlertCircleIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -117,9 +117,15 @@ export function Step2Strategy({
             void handleStart();
           }}
           disabled={isBusy}
+          aria-busy={isBusy || undefined}
           aria-label="샘플 전략 등록 및 다음 단계"
         >
-          {isBusy ? "등록 중…" : "샘플로 시작하기 →"}
+          {isBusy && (
+            <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden />
+          )}
+          <span className={isBusy ? "opacity-80" : undefined}>
+            {isBusy ? "등록 중…" : "샘플로 시작하기 →"}
+          </span>
         </Button>
       </div>
     </div>

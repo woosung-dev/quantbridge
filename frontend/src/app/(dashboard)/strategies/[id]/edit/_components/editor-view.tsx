@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ArrowLeftIcon,
+  Loader2Icon,
   PlayIcon,
   SaveIcon,
   Trash2Icon,
@@ -158,7 +159,12 @@ export function EditorView({ id }: { id: string }) {
             </span>
             {strategy.is_archived && <Badge variant="secondary">보관됨</Badge>}
             {isDirty && (
-              <Badge variant="outline" data-tone="warn">
+              // Sprint 44 W F2: dirty pulse — 저장 잊지 않도록 0.18 amber ring 호흡 (2.4s).
+              <Badge
+                variant="outline"
+                data-tone="warn"
+                className="motion-safe:animate-[dirtyPulse_2.4s_ease-out_infinite]"
+              >
                 저장되지 않은 변경
               </Badge>
             )}
@@ -169,9 +175,17 @@ export function EditorView({ id }: { id: string }) {
             onClick={handleSave}
             disabled={!isDirty || update.isPending}
             aria-label="변경사항 저장"
+            aria-busy={update.isPending || undefined}
           >
-            <SaveIcon className="size-4" />
-            {update.isPending ? "저장 중..." : "저장"}
+            {update.isPending ? (
+              // Sprint 44 W F2: loading 시 spinner + 텍스트 미세 dim.
+              <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden />
+            ) : (
+              <SaveIcon className="size-4" />
+            )}
+            <span className={update.isPending ? "opacity-80" : undefined}>
+              {update.isPending ? "저장 중..." : "저장"}
+            </span>
           </Button>
           <Button
             variant="outline"
