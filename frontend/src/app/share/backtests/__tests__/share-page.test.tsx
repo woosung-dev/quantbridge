@@ -62,10 +62,29 @@ describe("SharedBacktestPage (server component)", () => {
     render(ui);
     expect(screen.getByText(/BTCUSDT/)).toBeInTheDocument();
     expect(screen.getByText(/총 수익률/)).toBeInTheDocument();
-    expect(screen.getByText(/QuantBridge 시작하기/)).toBeInTheDocument();
+    // CTA 가 banner + footer 양쪽에 노출되므로 최소 1개 이상
+    expect(screen.getAllByText(/QuantBridge 시작하기/).length).toBeGreaterThan(
+      0,
+    );
   });
 
-  it("410 — 해제 안내 문구", async () => {
+  it("200 — 상단 SharePublicBanner 가 렌더되고 read-only 안내가 노출된다", async () => {
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockOk(SAMPLE_DETAIL),
+    );
+    const ui = await SharedBacktestPage({
+      params: Promise.resolve({ token: "tkn-ok" }),
+    });
+    render(ui);
+    const banner = screen.getByTestId("share-public-banner");
+    expect(banner).toBeInTheDocument();
+    // aria-live + role=region — 외부 viewer SR 인지 가능
+    expect(banner).toHaveAttribute("aria-live", "polite");
+    expect(banner).toHaveAttribute("role", "region");
+    expect(screen.getByText(/읽기 전용 백테스트 결과입니다/)).toBeInTheDocument();
+  });
+
+  it("410 — 시각 안내 (illustration + signup CTA)", async () => {
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockStatus(410),
     );
@@ -76,9 +95,13 @@ describe("SharedBacktestPage (server component)", () => {
     expect(
       screen.getByText(/공유 링크가 해제되었습니다/),
     ).toBeInTheDocument();
+    // ErrorIllustration 패턴 차용 검증
+    expect(screen.getByTestId("share-revoked-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("share-revoked-backdrop")).toBeInTheDocument();
+    expect(screen.getByText(/QuantBridge 시작하기/)).toBeInTheDocument();
   });
 
-  it("404 — 찾을 수 없음 안내", async () => {
+  it("404 — 시각 안내 (illustration + signup CTA)", async () => {
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockStatus(404),
     );
@@ -89,6 +112,9 @@ describe("SharedBacktestPage (server component)", () => {
     expect(
       screen.getByText(/공유 링크를 찾을 수 없습니다/),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("share-not-found-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("share-not-found-backdrop")).toBeInTheDocument();
+    expect(screen.getByText(/QuantBridge 시작하기/)).toBeInTheDocument();
   });
 
   it("네트워크 에러 — 일반 에러 안내", async () => {
