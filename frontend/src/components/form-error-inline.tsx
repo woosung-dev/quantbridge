@@ -1,8 +1,10 @@
 // 폼 422/4xx/5xx 에러를 inline 카드로 표준 표시하는 공통 컴포넌트.
 // backtest-form 의 unsupported_builtins + friendly_message 카드 패턴을 추출 (Sprint 41 E).
 // 다른 폼 (test-order, exchange-account 등) 에서도 ApiError 를 그대로 넘겨 재사용.
+// Sprint 44 W C3: icon (warning/error) + 간격 정합 + slide-down entrance (qb-form-slide-down 200ms).
 
 import Link from "next/link";
+import { TriangleAlertIcon, OctagonXIcon } from "lucide-react";
 
 import {
   getUnsupportedBuiltinHints,
@@ -114,22 +116,28 @@ export function FormErrorInline({
         role="alert"
         data-testid={`${testIdPrefix}-unsupported-card`}
         className={cn(
-          "qb-form-slide-down overflow-hidden rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 p-3 text-sm",
+          "qb-form-slide-down overflow-hidden rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950",
           className,
         )}
       >
-        <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
-          이 strategy 는 미지원 builtin 을 포함합니다
-        </p>
+        <div className="mb-1 flex items-start gap-2">
+          <TriangleAlertIcon
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
+          />
+          <p className="font-semibold leading-snug text-amber-900 dark:text-amber-200">
+            이 strategy 는 미지원 builtin 을 포함합니다
+          </p>
+        </div>
         {parsed.friendlyMessage ? (
           <p
-            className="text-xs text-amber-900 dark:text-amber-200 mb-2"
+            className="mb-2 pl-6 text-xs leading-relaxed text-amber-900 dark:text-amber-200"
             data-testid={`${testIdPrefix}-friendly-message`}
           >
             {parsed.friendlyMessage}
           </p>
         ) : null}
-        <ul className="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-300 text-xs">
+        <ul className="list-inside list-disc space-y-1 pl-6 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
           {parsed.hints.map((h) => (
             <li key={h.name}>
               <span className="font-mono">{h.name}</span> — {h.hint}
@@ -139,7 +147,7 @@ export function FormErrorInline({
         {editStrategyHref ? (
           <Link
             href={editStrategyHref}
-            className="mt-2 inline-block text-xs underline text-amber-900 dark:text-amber-200"
+            className="mt-2 ml-6 inline-block text-xs text-amber-900 underline transition-opacity duration-150 hover:opacity-80 dark:text-amber-200"
             data-testid={`${testIdPrefix}-edit-strategy-link`}
           >
             ADR-003 supported list 참조 — strategy 편집 →
@@ -151,11 +159,15 @@ export function FormErrorInline({
 
   return (
     <p
-      className={cn("qb-form-slide-down text-sm text-destructive", className)}
+      className={cn(
+        "qb-form-slide-down flex items-start gap-1.5 text-sm leading-snug text-destructive",
+        className,
+      )}
       role="alert"
       data-testid={`${testIdPrefix}-server-error`}
     >
-      {parsed.fallbackMessage}
+      <OctagonXIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <span>{parsed.fallbackMessage}</span>
     </p>
   );
 }

@@ -1,15 +1,16 @@
+// Sonner Toaster 래퍼 — Sprint 44 W C3: theme="light" 고정 (LESSON-054 mental model 일관성).
+// duration 표준 (success 3000 / error 5000), entrance/close hover 는 globals.css .cn-toast 에서 처리.
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      // light theme 고정 — 단일 페이지 다크 절대 금지 (LESSON-054).
+      // useTheme 의존 제거 (system → dark 변환 시 mental model drift).
+      theme="light"
       className="toaster group"
       icons={{
         success: (
@@ -33,12 +34,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          "--border-radius": "var(--radius-md)",
         } as React.CSSProperties
       }
       toastOptions={{
+        // duration 표준: success/info/loading 은 sonner 기본(4000) 보다 짧게, error/warning 은 길게.
+        // type 별 기본 = props 로 override 가능. close button hover 는 globals.css .cn-toast 처리.
+        duration: 3000,
         classNames: {
           toast: "cn-toast",
+          error: "cn-toast",
+          success: "cn-toast",
+          warning: "cn-toast",
+          info: "cn-toast",
         },
       }}
       {...props}
