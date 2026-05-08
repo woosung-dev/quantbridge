@@ -51,19 +51,17 @@ describe("DashboardShell — Sprint 41-B2 prototype layout", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("/trading 에서는 data-theme=\"dash\" 가 shell wrapper 에 적용된다 (Full Dark)", () => {
+  it("/trading 에서도 data-theme=\"dash\" 가 적용되지 않는다 (Sprint 42-polish-3 화이트 통일)", () => {
     mockPathname = "/trading";
     const { container } = render(
       <DashboardShell>
         <p>content</p>
       </DashboardShell>,
     );
-    const root = container.querySelector("[data-theme]");
-    expect(root).not.toBeNull();
-    expect(root?.getAttribute("data-theme")).toBe("dash");
+    expect(container.querySelector("[data-theme=\"dash\"]")).toBeNull();
   });
 
-  it("/strategies 에서는 dash 테마가 적용되지 않는다 (Light)", () => {
+  it("/strategies 에서도 dash 테마가 적용되지 않는다 (Light 통일)", () => {
     mockPathname = "/strategies";
     const { container } = render(
       <DashboardShell>

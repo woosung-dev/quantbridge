@@ -1,8 +1,9 @@
 "use client";
 
 // 인증된 앱 페이지 공통 App Shell — 사이드바(220px) + 헤더(64px) + 콘텐츠.
-// Sprint 41-B2: 프로토타입 06/09/02/03 visual layout 정합 (sidebar w-[220px], 페이지 타이틀 slot,
-// /trading 진입 시 data-theme="dash" 자동 토글로 Full Dark 모드).
+// Sprint 41-B2: 프로토타입 06/09/02/03 visual layout 정합 (sidebar w-[220px], 페이지 타이틀 slot).
+// Sprint 42-polish-3 (2026-05-08): 화이트 모드 통일 — /trading 의 Full Dark scope 제거 (사용자 결정,
+// 다크/화이트 toggle 은 Sprint 43+ 별도 도입 예정).
 
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -62,15 +63,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const { sidebarOpen, toggleSidebar } = useUiStore();
   const pathname = usePathname();
 
-  // 프로토타입 03 Full Dark — /trading 라우트만 dash 테마 적용 (App Shell 전체).
-  const isDashTheme = pathname?.startsWith("/trading") ?? false;
+  // Sprint 42-polish-3 (2026-05-08): 화이트 모드 통일 — /trading 의 dash scope 제거.
+  // 사용자 결정 = "왔다갔다 어색하니 white 통일". globals.css [data-theme="dash"] scope 는
+  // dead code 유지 (Sprint 43+ 다크/화이트 toggle 도입 시 재활용 가능).
   const pageTitle = derivePageTitle(pathname);
 
   return (
-    <div
-      data-theme={isDashTheme ? "dash" : undefined}
-      className="flex min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)]"
-    >
+    <div className="flex min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)]">
       <aside
         className={cn(
           "hidden flex-col border-r border-[color:var(--sidebar-border)] bg-[color:var(--sidebar)] text-[color:var(--sidebar-foreground)] md:flex",
