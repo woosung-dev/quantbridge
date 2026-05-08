@@ -397,23 +397,62 @@ h6 {
 }
 
 /* ───────────────────────────────────────────────
- * Sprint 42-polish-2 W1-fidelity — 04 login prototype 정합
- * fadeInUp: brand-panel 좌측 logo / middle / testimonial 등장
- * livePulse: live-dot 잔물결 (prototype 정확한 timing: scale 0.85→1.6, opacity 0.75→0)
- *   — Tailwind 기본 animate-ping 보다 prototype 에 가까움
+ * Sprint 42-polish-2 W4-fidelity — backtest setup slider thumb cross-browser
+ * prototype 08-backtest-setup.html .range-slider 1:1 정합:
+ *   - track 6px (radius 3px) + linear-gradient progress (--qb-slider-progress)
+ *   - thumb 18×18 + 3px white border + 그림자 + hover scale
+ *   - focus-visible ring
+ * 사용법: <input type="range" class="qb-range-slider" style={{['--qb-slider-progress' as any]: `${pct}%`}} />
  * ───────────────────────────────────────────── */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+.qb-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  background-image: linear-gradient(to right, var(--primary), var(--primary));
+  background-size: var(--qb-slider-progress, 0%) 100%;
+  background-repeat: no-repeat;
+  outline: none;
+  cursor: pointer;
+  transition: background-size 200ms ease;
 }
-@keyframes livePulse {
-  0%   { transform: scale(0.85); opacity: 0.75; }
-  70%  { transform: scale(1.6);  opacity: 0; }
-  100% { transform: scale(1.6);  opacity: 0; }
+.qb-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  cursor: grab;
+  transition: transform 200ms ease;
 }
-
-/* `(auth)` brand-panel 의 logo / middle / testimonial 진입 — prototype 04 와 동일 timing.
-   prefers-reduced-motion 대응은 상단 공통 규칙(@media reduce)이 처리. */
-.auth-fade-in-1 { animation: fadeInUp 0.6s ease-out both; }
-.auth-fade-in-2 { animation: fadeInUp 0.7s ease-out 0.1s both; }
-.auth-fade-in-3 { animation: fadeInUp 0.8s ease-out 0.2s both; }
+.qb-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.qb-range-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+.qb-range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  cursor: grab;
+}
+.qb-range-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+.qb-range-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: transparent;
+}
+.qb-range-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
