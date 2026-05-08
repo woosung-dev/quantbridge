@@ -85,10 +85,12 @@ export default function OnboardingPage() {
   const illustrationVariant = STEP_ILLUSTRATION[step];
 
   return (
-    <div className="mx-auto max-w-[820px] px-6 py-8">
-      <header className="mb-6">
-        <h1 className="font-display text-2xl font-bold">온보딩</h1>
-        <p className="text-sm text-[color:var(--text-secondary)]">
+    <div className="mx-auto flex max-w-[720px] flex-col items-center px-4 py-10 md:py-12">
+      <header className="mb-6 w-full text-center md:mb-8">
+        <h1 className="font-display text-2xl font-bold tracking-tight md:text-[1.75rem]">
+          온보딩
+        </h1>
+        <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
           5분 안에 첫 Pine Script 백테스트를 완주해보세요.
         </p>
       </header>
@@ -98,12 +100,12 @@ export default function OnboardingPage() {
       <section
         data-testid="onboarding-step-panel"
         data-step={step}
-        className="mt-6 grid gap-6 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-white p-6 shadow-[var(--card-shadow)] md:grid-cols-2 md:p-10"
+        className="mt-10 grid w-full animate-[cardIn_350ms_ease-out_both] gap-6 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--card)] p-6 shadow-[var(--card-shadow)] md:grid-cols-2 md:gap-10 md:p-14"
       >
         <div className="hidden md:block">
           <IllustrationFrame variant={illustrationVariant} />
         </div>
-        <div className="flex flex-col">
+        <div className="flex min-w-0 flex-col">
           {step === "welcome" && <Step1Welcome onNext={handleNext} />}
           {step === "strategy" && (
             <Step2Strategy
