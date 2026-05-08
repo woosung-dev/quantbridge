@@ -19,6 +19,8 @@ export const tokens = {
       successLight: "#D1FAE5",
       destructive: "#DC2626",
       destructiveLight: "#FEE2E2",
+      accentAmber: "#D97706",
+      accentAmberLight: "#FEF3C7",
       border: "#E2E8F0",
       borderDark: "#CBD5E1",
     },

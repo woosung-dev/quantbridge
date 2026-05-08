@@ -32,6 +32,8 @@
   --success-light: #d1fae5;
   --destructive: #dc2626;
   --destructive-light: #fee2e2;
+  --accent-amber: #d97706;
+  --accent-amber-light: #fef3c7;
 
   /* 보더 */
   --border: #e2e8f0;
@@ -140,6 +142,8 @@
   --color-success-light: var(--success-light);
   --color-destructive: var(--destructive);
   --color-destructive-light: var(--destructive-light);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-light: var(--accent-amber-light);
   --color-border-default: var(--border);
   --color-border-dark: var(--border-dark);
   --color-primary-100: var(--primary-100);

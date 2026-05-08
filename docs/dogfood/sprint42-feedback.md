@@ -26,13 +26,24 @@
 
 ### Day-by-Day 사용 기록
 
-#### Day 1 (2026-05-\_\_): 첫 인상
+#### Day 1 (2026-05-08): 첫 인상 — Sprint 42 Phase 2 setup PR #187 머지 직후
 
-- **시간**: \_\_\_분
+- **시간**: ~10분 (localhost:3100 띄우고 둘러봄)
 - **마찰**:
-  - (해당 없음 또는 채움)
+  - **체계적 visual fidelity 갭**: prototypes 12 HTML 디자인 소스 vs 실제 구현 사이 큰 갭 발견. Sprint 41 Worker B-2 가 4 페이지 (strategies / backtests 리스트 / dashboard / trading) 만 App Shell + KPI strip + filter chip 적용. 나머지 핵심 페이지 8개 (`/sign-in` `/sign-up` `/onboarding` `/strategies/new` `/strategies/[id]/edit` `/backtests/new` `/backtests/[id]` `error/not-found`) 가 prototype visual 미반영
+  - 사용자 피드백 (verbatim): "프로토타입처럼 안 되어있고.. 너무 사용자들이 쓰기에는 좀 그런것 같은데... 체계적인 개편이 필요할것 같은데"
+  - **1-2명 micro-cohort 발송 prereq blocker** — 외부 첫인상 손상 risk
 - **의외였던 점**:
+  - 디자인 token (`design-tokens.ts` + globals.css `@theme inline`) 자체는 잘 깔려 있음 (Sprint 41 Worker B). 갭의 95% = 페이지별 visual polish 미적용 (component spec 부재)
+  - ui-ux-pro-max 스킬 진단 결과 fintech/quant 권장 디자인 시스템 (Inter / `#1E40AF` primary / amber accent / Real-Time Operations Pattern) 과 현재 token 거의 정합
 - **이게 부족함**:
+  - 5분 시나리오 funnel 4 페이지 (04 Login / 05 Onboarding / 07 Strategy Create / 08 Backtest Setup) 의 prototype-grade visual fidelity. 4 페이지 모두 1-2명 발송 시 첫인상 결정
+- **다음 step**:
+  - Sprint 42 dogfood phase **일시 중단** (사용자 ★★★★★ 결정)
+  - **Sprint 42-polish 분기** = 자율 병렬 cmux 4 worker (W1 Login / W2 Onboarding / W3 Strategy Create / W4 Backtest Setup) — `<repo>/.claude/plans/sprint42-polish-prompt.md`
+  - `stage/sprint42-polish` 분기 + push 완료 (bypass 1회 사용자 명시 승인)
+  - polish 완료 후 본인 dogfood Day 2 재시작 (5분 시나리오 측정 → ≤300초 + 마찰 0건 = 1-2명 발송 trigger)
+  - 02 Backtest Report (이미 양호) + 10 Trades Detail (architecture) + 01 Editor + 11 Error pages = Sprint 43 polish 이관
 
 #### Day 2~3:
 
