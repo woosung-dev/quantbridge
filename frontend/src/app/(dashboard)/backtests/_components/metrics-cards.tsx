@@ -73,29 +73,42 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
       {items.map((it) => {
         // Sprint 43 W7 — prototype 09 KPI tone 색 적용. positive=success / negative=destructive / neutral=text-primary.
+        // Sprint 43 W10 — prototype 02 visual delta. left accent stripe (success/primary/destructive)
+        // 로 KPI tone 시각 강화 + value 폰트 hierarchy 보강.
         const valueClass =
           it.tone === "positive"
             ? "text-[color:var(--success)]"
             : it.tone === "negative"
               ? "text-[color:var(--destructive)]"
               : "text-[color:var(--text-primary)]";
+        const accentClass =
+          it.tone === "positive"
+            ? "before:bg-[color:var(--success)]"
+            : it.tone === "negative"
+              ? "before:bg-[color:var(--destructive)]"
+              : "before:bg-[color:var(--primary)]";
         return (
-          <Card key={it.label} size="sm">
+          <Card
+            key={it.label}
+            size="sm"
+            className={`relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-[3px] ${accentClass}`}
+            data-accent={it.tone}
+          >
             <CardHeader>
-              <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
+              <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {it.label}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div
-                className={`font-mono text-2xl font-semibold tabular-nums ${valueClass}`}
+                className={`font-mono text-3xl font-bold tabular-nums leading-tight tracking-tight ${valueClass}`}
                 data-tone={it.tone}
               >
                 {it.value}
               </div>
               {it.caption ? (
                 <div
-                  className="mt-1 text-[10px] text-muted-foreground"
+                  className="mt-2 text-[10px] text-muted-foreground"
                   data-testid={
                     it.label === "Max Drawdown" ? "mdd-leverage-caption" : undefined
                   }
