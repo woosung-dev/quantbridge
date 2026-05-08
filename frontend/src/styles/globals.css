@@ -395,3 +395,64 @@ h6 {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ───────────────────────────────────────────────
+ * Sprint 42-polish W4-fidelity — backtest setup slider thumb cross-browser
+ * prototype 08-backtest-setup.html .range-slider 1:1 정합:
+ *   - track 6px (radius 3px) + linear-gradient progress (--qb-slider-progress)
+ *   - thumb 18×18 + 3px white border + 그림자 + hover scale
+ *   - focus-visible ring
+ * 사용법: <input type="range" class="qb-range-slider" style={{['--qb-slider-progress' as any]: `${pct}%`}} />
+ * ───────────────────────────────────────────── */
+.qb-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  background-image: linear-gradient(to right, var(--primary), var(--primary));
+  background-size: var(--qb-slider-progress, 0%) 100%;
+  background-repeat: no-repeat;
+  outline: none;
+  cursor: pointer;
+  transition: background-size 200ms ease;
+}
+.qb-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  cursor: grab;
+  transition: transform 200ms ease;
+}
+.qb-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.qb-range-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+.qb-range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  cursor: grab;
+}
+.qb-range-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+.qb-range-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: transparent;
+}
+.qb-range-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}

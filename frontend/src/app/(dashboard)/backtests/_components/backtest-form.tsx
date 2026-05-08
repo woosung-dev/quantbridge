@@ -324,7 +324,7 @@ export function BacktestForm() {
     >
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="flex flex-col gap-5 rounded-xl border bg-card p-6"
+      className="flex flex-col gap-5 rounded-[14px] border bg-card p-7 shadow-[var(--card-shadow)]"
       aria-label="backtest-form"
     >
       <div className="flex flex-col gap-1.5">
