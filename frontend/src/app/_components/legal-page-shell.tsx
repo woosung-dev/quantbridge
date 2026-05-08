@@ -48,11 +48,11 @@ export function LegalPageShell({
         <nav
           aria-label="breadcrumb"
           data-testid="legal-page-breadcrumb"
-          className="text-[13px] text-[color:var(--text-muted)]"
+          className="text-[13px] text-[color:var(--text-muted)] legal-fade-in"
         >
           <Link
             href="/"
-            className="hover:text-[color:var(--text-secondary)] hover:underline"
+            className="transition-colors duration-200 hover:text-[color:var(--text-secondary)] hover:underline"
           >
             Home
           </Link>
@@ -63,9 +63,10 @@ export function LegalPageShell({
 
       <header
         className={
-          centered
+          (centered
             ? "flex flex-col items-center gap-3"
-            : "flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--border)] pb-5"
+            : "flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--border)] pb-5") +
+          " legal-fade-in-2"
         }
       >
         <h1
@@ -81,19 +82,19 @@ export function LegalPageShell({
         {badgeLabel ? (
           <span
             data-testid="legal-page-badge"
-            className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-50 px-2.5 py-1 text-[12px] font-medium text-amber-900"
+            className="inline-flex items-center rounded-full border border-amber-500/40 bg-gradient-to-r from-amber-50 to-amber-100 px-2.5 py-1 text-[12px] font-medium text-amber-900 shadow-sm"
           >
             {badgeLabel}
           </span>
         ) : null}
       </header>
 
-      <div className="flex flex-col gap-6 text-[16px] leading-[1.7] text-[color:var(--text-secondary)]">
+      <div className="flex flex-col gap-6 text-[16px] leading-[1.7] text-[color:var(--text-secondary)] legal-fade-in-3">
         {children}
       </div>
 
       {footnote ? (
-        <p className="border-t border-[color:var(--border)] pt-4 text-[13px] text-[color:var(--text-muted)]">
+        <p className="border-t border-[color:var(--border)] pt-4 text-[13px] text-[color:var(--text-muted)] legal-fade-in-3">
           {footnote}
         </p>
       ) : null}

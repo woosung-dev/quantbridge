@@ -3,7 +3,7 @@
 import { LegalPageShell } from "../_components/legal-page-shell";
 
 const linkClass =
-  "underline decoration-[color:var(--border-dark)] underline-offset-4 transition-colors hover:text-[color:var(--text-primary)] hover:decoration-[color:var(--text-primary)]";
+  "underline decoration-[color:var(--border-dark)] underline-offset-4 transition-colors duration-200 ease-out hover:text-[color:var(--text-primary)] hover:decoration-[color:var(--text-primary)]";
 
 export default function NotAvailablePage() {
   return (

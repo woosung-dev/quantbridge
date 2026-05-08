@@ -26,7 +26,7 @@ export function ShareNotFoundState() {
       </div>
       <div
         data-testid="share-not-found-icon"
-        className="relative z-[2] mb-6 grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-[color:var(--primary-light)] to-[color:var(--primary-100)] shadow-lg motion-safe:animate-[float_3.6s_ease-in-out_infinite]"
+        className="relative z-[2] mb-6 grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-[color:var(--primary-light)] to-[color:var(--primary-100)] shadow-lg motion-safe:animate-[errIllustEnter_360ms_cubic-bezier(0.34,1.56,0.64,1)_both]"
         aria-hidden="true"
       >
         <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
@@ -79,13 +79,13 @@ export function ShareNotFoundState() {
       <div className="relative z-[2] mt-6 flex flex-col items-center gap-2 sm:flex-row">
         <Link
           href="/sign-up"
-          className="inline-flex h-9 items-center rounded-md bg-[color:var(--primary)] px-4 text-sm font-medium text-[color:var(--primary-foreground)] shadow-sm hover:bg-[color:var(--primary-hover)]"
+          className="inline-flex h-9 items-center rounded-md bg-[color:var(--primary)] px-4 text-sm font-medium text-[color:var(--primary-foreground)] shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-md"
         >
           QuantBridge 시작하기
         </Link>
         <Link
           href="/"
-          className="text-sm text-[color:var(--muted-foreground)] underline-offset-4 hover:text-[color:var(--card-foreground)] hover:underline"
+          className="text-sm text-[color:var(--muted-foreground)] underline-offset-4 transition-colors duration-200 ease-out hover:text-[color:var(--card-foreground)] hover:underline"
         >
           홈으로 돌아가기
         </Link>

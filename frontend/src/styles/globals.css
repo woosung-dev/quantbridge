@@ -510,3 +510,50 @@ h6 {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-8px); }
 }
+
+/* ───────────────────────────────────────────────
+ * Sprint 44 W F4 fidelity iter 2 — error/legal/admin/share micro-interaction
+ *
+ * - errIllustEnter: 에러 아이콘 spring scale + fade (icon-wrap entrance, 1회 only)
+ * - errBackdropEnter: 큰 코드 backdrop 페이드 인 (slow, 700ms)
+ * - legalFadeIn: 법무 페이지 헤더 / 섹션 등장 시 fade-in (160-280ms span)
+ * - chipPop: filter chip 활성화 시 스프링 효과
+ * - rowHoverLift: admin 테이블 row hover 살짝 떠오름 (사용 X — transition 으로 충분)
+ * - sharePopIn: share viewer chart entrance fade
+ * - copySuccess: copy 버튼 체크 마크 스태거 인
+ * ───────────────────────────────────────────── */
+@keyframes errIllustEnter {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes errBackdropEnter {
+  from { opacity: 0; transform: translate(-50%, -52%); }
+  to   { opacity: 1; transform: translate(-50%, -58%); }
+}
+@keyframes legalFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes chipPop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes sharePopIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes copySuccess {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* legal page section helper — 등장 시 한번만 fade-in.
+   prefers-reduced-motion 시 상단의 universal selector 가 0.01ms 로 강제 덮어씀. */
+.legal-fade-in {
+  animation: legalFadeIn 240ms ease-out both;
+}
+.legal-fade-in-2 { animation: legalFadeIn 280ms ease-out 60ms both; }
+.legal-fade-in-3 { animation: legalFadeIn 280ms ease-out 120ms both; }

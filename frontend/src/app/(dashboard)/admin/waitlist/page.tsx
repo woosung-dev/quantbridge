@@ -79,11 +79,37 @@ export default function AdminWaitlistPage() {
       ) : null}
 
       {data && filteredItems.length === 0 ? (
-        <p className="text-sm text-[color:var(--text-tertiary)]">
-          {search
-            ? `"${search}" 와 일치하는 신청이 없습니다.`
-            : "이 필터에 해당하는 신청이 없습니다."}
-        </p>
+        <div
+          data-testid="waitlist-empty-state"
+          className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] bg-[color:var(--bg-alt)]/60 px-6 py-12 text-center"
+        >
+          <span
+            aria-hidden="true"
+            className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--primary-light)] text-[color:var(--primary)]"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
+          <p className="text-sm font-medium text-[color:var(--text-primary)]">
+            {search
+              ? `"${search}" 와 일치하는 신청이 없습니다`
+              : "이 필터에 해당하는 신청이 없습니다"}
+          </p>
+          <p className="text-xs text-[color:var(--text-tertiary)]">
+            {search
+              ? "검색어를 비우거나 다른 상태 필터를 선택해 보세요."
+              : "다른 상태 필터를 선택하면 더 많은 신청을 볼 수 있습니다."}
+          </p>
+        </div>
       ) : null}
 
       {data && filteredItems.length > 0 ? (
