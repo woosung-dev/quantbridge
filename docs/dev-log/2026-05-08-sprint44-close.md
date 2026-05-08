@@ -80,7 +80,10 @@ GitHub squash 머지가 globals.css 충돌로 실패 시:
 
 ## 주의 / 미해결 (Sprint 45+ 이관)
 
-- **delete-dialog.tsx 71007 warnings** (Next.js 16 strict rule on use-client function props) — pre-existing issue, 본 sprint 변경 범위 외. BL 신규 후보 또는 Sprint 45+ inline fix
+- ~~**delete-dialog.tsx 71007 warnings** (Next.js 16 strict rule on use-client function props) — pre-existing issue, 본 sprint 변경 범위 외. BL 신규 후보 또는 Sprint 45+ inline fix~~
+
+  **Sprint 45 baseline 검증 결과 (2026-05-09)**: 71007 = `INVALID_CLIENT_ENTRY_PROP` (Next.js TypeScript plugin **IDE-only 진단**, `node_modules/next/dist/server/typescript/constant.js`). `pnpm build` / `pnpm tsc --noEmit` / `pnpm lint` / `pnpm dev` 모두 clean (warning 0건). production / CI 영향 0. **fix 불필요** (사용자 ★★★★★, Sprint 45 scope 에서 제거). 향후 IDE 환경에서 재현 시 별도 BL 등재.
+
 - **dashboard-shell.tsx 추출 vs inline** (사용자 결정으로 inline polish only) — 본 sprint 결정. 추출은 Sprint 45+ 별도 결정
 - **Playwright 16 시나리오** — 사용자 결정으로 본 sprint 생략. dogfood 결과 critical bug 발견 시 Sprint 45+ 추가
 - **codex G.4 review** — 사용자 결정으로 본 sprint 생략. risk 낮은 visual polish only
