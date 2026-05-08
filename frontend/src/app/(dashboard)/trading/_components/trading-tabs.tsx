@@ -53,11 +53,25 @@ export function TradingTabs() {
     router.replace(`?${params.toString()}`, { scroll: false });
   };
 
+  // prototype 03 의 dark `border-bottom: 2px solid primary` underline 패턴을
+  // shadcn `line` variant 로 차용 (W3 method-tabs 와 동일 시각 어휘).
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange}>
-      <TabsList>
-        <TabsTrigger value="orders">주문</TabsTrigger>
-        <TabsTrigger value="live-sessions" data-testid="tab-live-sessions">
+      <TabsList
+        variant="line"
+        className="w-full justify-start gap-6 border-b border-[color:var(--border)] px-0"
+      >
+        <TabsTrigger
+          value="orders"
+          className="px-1 text-sm font-medium text-[color:var(--text-muted)] data-active:font-semibold data-active:text-[color:var(--primary)] data-active:after:!bg-[color:var(--primary)]"
+        >
+          주문
+        </TabsTrigger>
+        <TabsTrigger
+          value="live-sessions"
+          data-testid="tab-live-sessions"
+          className="px-1 text-sm font-medium text-[color:var(--text-muted)] data-active:font-semibold data-active:text-[color:var(--primary)] data-active:after:!bg-[color:var(--primary)]"
+        >
           라이브 세션
         </TabsTrigger>
       </TabsList>
