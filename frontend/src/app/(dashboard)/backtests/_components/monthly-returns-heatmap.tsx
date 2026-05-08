@@ -79,22 +79,26 @@ export function MonthlyReturnsHeatmap({ data }: MonthlyReturnsHeatmapProps) {
                 {MONTH_LABELS.map((_label, idx) => {
                   const month = idx + 1;
                   const value = grid.cells[`${year}-${String(month).padStart(2, "0")}`];
+                  // Sprint 43 W10 — prototype 02 정합. native title hover tooltip 강화 + cell focusable.
+                  const tooltipText =
+                    value != null
+                      ? `${year}년 ${month}월: ${(value * 100).toFixed(2)}%`
+                      : `${year}년 ${month}월: 데이터 없음`;
                   return (
                     <td
                       key={month}
+                      tabIndex={value != null ? 0 : -1}
+                      aria-label={tooltipText}
                       className={cn(
-                        "h-9 w-12 border border-[color:var(--border)]/50 text-center font-mono tabular-nums",
+                        "h-9 w-12 cursor-default border border-[color:var(--border)]/50 text-center font-mono tabular-nums transition-colors",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]",
                       )}
                       style={
                         value != null
                           ? toneStyle(value, grid.maxAbs)
                           : { color: "var(--text-muted)" }
                       }
-                      title={
-                        value != null
-                          ? `${year}년 ${month}월: ${(value * 100).toFixed(2)}%`
-                          : `${year}년 ${month}월: 데이터 없음`
-                      }
+                      title={tooltipText}
                     >
                       {value != null
                         ? `${(value * 100).toFixed(1)}%`
@@ -160,16 +164,17 @@ function toneStyle(value: number, maxAbs: number): React.CSSProperties {
   if (value === 0 || !Number.isFinite(value)) {
     return { color: "var(--text-muted)" };
   }
-  // 0..1 비율로 opacity 조절. 최소 0.15 (시인성).
+  // Sprint 43 W10 — prototype 02 정합. CSS var (success/destructive) + alpha intensity 로
+  // 라이트 테마 통일. 0..1 비율로 opacity 조절. 최소 0.15 (시인성).
   const intensity = Math.min(0.85, Math.max(0.15, Math.abs(value) / maxAbs));
   if (value > 0) {
     return {
-      backgroundColor: `rgba(34, 197, 94, ${intensity})`,
-      color: intensity > 0.5 ? "white" : "rgb(22, 101, 52)",
+      backgroundColor: `color-mix(in srgb, var(--success) ${Math.round(intensity * 100)}%, transparent)`,
+      color: intensity > 0.5 ? "white" : "var(--success)",
     };
   }
   return {
-    backgroundColor: `rgba(239, 68, 68, ${intensity})`,
-    color: intensity > 0.5 ? "white" : "rgb(127, 29, 29)",
+    backgroundColor: `color-mix(in srgb, var(--destructive) ${Math.round(intensity * 100)}%, transparent)`,
+    color: intensity > 0.5 ? "white" : "var(--destructive)",
   };
 }

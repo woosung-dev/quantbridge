@@ -1,86 +1,101 @@
-// Sprint 11 Phase B — Terms of Service (이용약관). 법무 임시.
+// Terms of Service (이용약관) — 법무 임시본. Sprint 43 W14: legal-page-shell + callout 통일.
 
 import type { Metadata } from "next";
+
+import { LegalCallout } from "../_components/legal-callout";
+import { LegalPageShell } from "../_components/legal-page-shell";
 
 export const metadata: Metadata = {
   title: "Terms of Service · QuantBridge",
   description: "QuantBridge Beta 이용약관 (법무 임시본)",
 };
 
+const headingClass =
+  "text-[22px] font-semibold leading-snug tracking-[-0.01em] text-[color:var(--text-primary)]";
+const bodyListClass = "list-disc space-y-1.5 pl-6 text-[16px] leading-[1.7]";
+
 export default function TermsPage() {
   return (
-    <main
-      id="main-content"
-      className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[760px] flex-col gap-6 px-6 py-14"
+    <LegalPageShell
+      title="Terms of Service / 이용약관"
+      breadcrumbLabel="Terms"
+      badgeLabel="Beta 임시본"
+      footnote="최종 개정: 2026-04-25 (Beta 임시본). 정식 개정본은 H2 말 공지."
     >
-      <div className="rounded-md border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-900">
-        <strong>[법무 임시 — 법적 효력 제한적]</strong> 본 약관은 H2 Beta 단계 임시 템플릿입니다.
-        H2 말 (~2026-06-30) 한국 변호사 검토본으로 교체 예정.
-      </div>
+      <LegalCallout label="[법무 임시 — 법적 효력 제한적]">
+        본 약관은 H2 Beta 단계 임시 템플릿입니다. H2 말 (~2026-06-30) 한국 변호사 검토본으로
+        교체 예정.
+      </LegalCallout>
 
-      <h1 className="font-display text-3xl font-extrabold tracking-tight">
-        Terms of Service / 이용약관
-      </h1>
-
-      <section className="space-y-3 text-sm leading-relaxed text-[color:var(--text-secondary)]">
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">1. Acceptance of Terms</h2>
+      <section className="space-y-3">
+        <h2 className={headingClass}>1. Acceptance of Terms</h2>
         <p>
           QuantBridge (이하 &ldquo;서비스&rdquo;) 에 가입하거나 이용함으로써 사용자는 본 약관과
           Disclaimer / Privacy Policy 에 동의한 것으로 간주됩니다.
         </p>
+      </section>
 
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">2. Eligibility</h2>
-        <ul className="list-disc space-y-1 pl-6">
+      <section className="space-y-3">
+        <h2 className={headingClass}>2. Eligibility</h2>
+        <ul className={bodyListClass}>
           <li>만 19세 이상 자연인 또는 적법 설립된 법인.</li>
           <li>미국, 영국, EU 27개국 거주자는 가입 제한.</li>
           <li>해당 거래소 (Bybit, OKX 등) 의 KYC 를 직접 통과한 계정 소유자.</li>
           <li>제재 대상자 (OFAC, EU 제재 리스트) 는 이용 불가.</li>
         </ul>
+      </section>
 
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">3. Account Security / 계정 보안</h2>
+      <section className="space-y-3">
+        <h2 className={headingClass}>3. Account Security / 계정 보안</h2>
         <p>
           사용자는 거래소 API Key, Clerk 계정 비밀번호, MFA 토큰의 기밀성을 유지할 책임이
           있습니다. 서비스는 API Key 를 AES-256 으로 암호화하여 저장하되, 사용자의 부주의로
           인한 유출·도용에 대한 책임을 지지 않습니다.
         </p>
+      </section>
 
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">4. Prohibited Conduct / 금지 행위</h2>
-        <ul className="list-disc space-y-1 pl-6">
+      <section className="space-y-3">
+        <h2 className={headingClass}>4. Prohibited Conduct / 금지 행위</h2>
+        <ul className={bodyListClass}>
           <li>서비스 역공학 (reverse engineering), 자동화된 대량 요청 (DDoS, scraping)</li>
           <li>타인의 계정 사용, 계정 판매·양도</li>
           <li>자금세탁, 시세 조작, 기타 법 위반 목적 이용</li>
           <li>서비스 API 키·전략 코드를 무단 재배포</li>
         </ul>
+      </section>
 
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">5. Fees / 수수료</h2>
+      <section className="space-y-3">
+        <h2 className={headingClass}>5. Fees / 수수료</h2>
         <p>
           Beta 단계 (H1~H2) 는 무료. H3 이후 유료 티어 도입 예정이며, 별도 공지 후 신규 사용자부터
           적용. 기존 Beta 사용자에게는 합리적 유예 기간 제공.
         </p>
+      </section>
 
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">6. Termination / 이용 정지</h2>
+      <section className="space-y-3">
+        <h2 className={headingClass}>6. Termination / 이용 정지</h2>
         <p>
           본 약관 위반, 기술적 장애 방지, 법적 요구에 응하기 위해 사전 통지 없이 계정을 정지하거나
           서비스를 종료할 수 있습니다. 사용자는 언제든지 계정 삭제를 요청할 수 있으며, 30일 내
           관련 데이터가 제거됩니다 (법적 보존 의무 제외).
         </p>
+      </section>
 
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">7. Governing Law / 준거법</h2>
+      <section className="space-y-3">
+        <h2 className={headingClass}>7. Governing Law / 준거법</h2>
         <p>
           본 약관은 대한민국 법을 준거법으로 하며, 분쟁 발생 시 서울중앙지방법원을 제1심 전속
           관할 법원으로 합니다.
         </p>
+      </section>
 
-        <h2 className="text-lg font-semibold text-[color:var(--text-primary)]">8. Changes to Terms</h2>
+      <section className="space-y-3">
+        <h2 className={headingClass}>8. Changes to Terms</h2>
         <p>
           본 약관은 서비스 개선·법령 변경 시 수정될 수 있으며, 중요한 변경은 가입 이메일 또는
           대시보드 공지로 최소 7일 전 통지합니다.
         </p>
       </section>
-
-      <p className="pt-4 text-xs text-[color:var(--text-tertiary)]">
-        최종 개정: 2026-04-25 (Beta 임시본). 정식 개정본은 H2 말 공지.
-      </p>
-    </main>
+    </LegalPageShell>
   );
 }

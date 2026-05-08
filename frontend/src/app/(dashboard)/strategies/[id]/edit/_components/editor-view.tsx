@@ -197,7 +197,13 @@ export function EditorView({ id }: { id: string }) {
           router.replace(`?tab=${next}`);
         }}
       >
-        <TabsList>
+        {/* Sprint 43 W9: prototype 01 의 .tab-bar underline + active primary 색상 정합.
+            shadcn variant="line" 가 native underline (after pseudo-element 200ms transition).
+            data-active:text-primary 로 prototype primary color 매칭. */}
+        <TabsList
+          variant="line"
+          className="h-11 w-full justify-start gap-0 border-b border-[color:var(--border)] bg-transparent px-4 [&_[data-state=active]]:font-semibold [&_[data-state=active]]:text-[color:var(--primary)] [&_[data-state=active]]:after:bg-[color:var(--primary)]"
+        >
           <TabsTrigger value="code">코드</TabsTrigger>
           <TabsTrigger value="parse">파싱 결과</TabsTrigger>
           <TabsTrigger value="metadata">메타데이터</TabsTrigger>

@@ -102,8 +102,64 @@ export function MonteCarloFanChart({ result }: Props) {
     );
   }
 
+  // Sprint 43 W10 — prototype 02 정합. fan chart 위 요약 통계 카드 (CI 95% / median / MDD p95).
+  const summaryItems: ReadonlyArray<{
+    label: string;
+    value: string;
+    tone: "neutral" | "negative";
+    helper: string;
+  }> = [
+    {
+      label: "신뢰구간 95%",
+      value: `${result.ci_lower_95.toLocaleString()} ~ ${result.ci_upper_95.toLocaleString()}`,
+      tone: "neutral",
+      helper: `${result.samples.toLocaleString()} 회 시뮬레이션`,
+    },
+    {
+      label: "중앙값 최종 자산",
+      value: result.median_final_equity.toLocaleString(),
+      tone: "neutral",
+      helper: "전체 시뮬레이션 median",
+    },
+    {
+      label: "최대 낙폭 (p95)",
+      value: result.max_drawdown_p95.toLocaleString(),
+      tone: "negative",
+      helper: `평균 ${result.max_drawdown_mean.toLocaleString()}`,
+    },
+  ];
+
   return (
-    <div ref={wrapperRef} className="h-80 w-full" style={{ minWidth: 0 }}>
+    <div className="space-y-3">
+      <div
+        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+        data-testid="mc-summary-cards"
+      >
+        {summaryItems.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-md border border-[color:var(--border)] bg-[color:var(--card)] p-3"
+          >
+            <div className="text-[11px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]">
+              {item.label}
+            </div>
+            <div
+              className={
+                "mt-1 font-mono text-lg font-semibold tabular-nums " +
+                (item.tone === "negative"
+                  ? "text-[color:var(--destructive)]"
+                  : "text-[color:var(--text-primary)]")
+              }
+            >
+              {item.value}
+            </div>
+            <div className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">
+              {item.helper}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div ref={wrapperRef} className="h-80 w-full" style={{ minWidth: 0 }}>
       {hasWidth ? (
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <ComposedChart
@@ -181,6 +237,7 @@ export function MonteCarloFanChart({ result }: Props) {
       ) : (
         <div className="h-full w-full" aria-busy="true" />
       )}
+      </div>
     </div>
   );
 }

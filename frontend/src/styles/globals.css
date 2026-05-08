@@ -397,6 +397,21 @@ h6 {
 }
 
 /* ───────────────────────────────────────────────
+ * Sprint 43 W7 — backtests-list prototype 09 정합
+ * qb-pulse-dot: 실행 중 / 대기 중 status dot ring (primary 색)
+ * qb-progress-indeterminate: 종료 시점 미상 진행률 bar (좌→우 슬라이드)
+ * ───────────────────────────────────────────── */
+@keyframes qb-pulse-dot {
+  0%   { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.55); }
+  70%  { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+@keyframes qb-progress-indeterminate {
+  0%   { left: -33%; }
+  100% { left: 100%; }
+}
+
+/* ───────────────────────────────────────────────
  * Sprint 42-polish-2 W4-fidelity — backtest setup slider thumb cross-browser
  * prototype 08-backtest-setup.html .range-slider 1:1 정합:
  *   - track 6px (radius 3px) + linear-gradient progress (--qb-slider-progress)
@@ -488,4 +503,10 @@ h6 {
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* W5 — landing hero browser mockup 부드러운 floating */
+@keyframes heroFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
 }
