@@ -42,6 +42,7 @@ from src.trading.exceptions import (
 )
 from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName, OrderState
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
+from src.trading.registry import dispatch as _dispatch_provider
 from src.trading.repository import OrderRepository
 
 # Sprint 15 Phase A.2 — submitted watchdog (BL-001) 상수.
@@ -109,38 +110,20 @@ def _provider_for_account_and_leverage(
 ) -> ExchangeProvider:
     """Dispatch 본체. (exchange, mode, has_leverage) 3-tuple → concrete provider.
 
+    Sprint 47 BL-202: 본체는 `src.trading.registry.dispatch` 로 이관됐다. 본 함수는
+    backwards-compat wrapper — `monkeypatch.setattr(task_mod,
+    "_provider_for_account_and_leverage", ...)` 패턴을 사용하는 기존 테스트가
+    그대로 작동하도록 symbol 을 유지한다.
+
     호출자는 OrderSubmit 또는 Order 어느 쪽이든 leverage 추출 후 호출.
     fetch_order 분기는 OrderSubmit 부재 → Order.leverage 직접 사용.
 
     실패 정책 (P1 #2):
-    - 미지원 조합 → UnsupportedExchangeError(ProviderError) raise
+    - 미지원 조합 → UnsupportedExchangeError(ProviderError) raise (registry 책임)
     - 호출처 (`_execute_with_session` line 214 / `_fetch_order_status_with_session`)
       의 `except ProviderError` 가 자동 catch → Order graceful `rejected` 전이.
     """
-    key = (exchange, mode, has_leverage)
-
-    if key == (ExchangeName.bybit, ExchangeMode.demo, False):
-        from src.trading.providers import BybitDemoProvider
-
-        return BybitDemoProvider()
-    if key == (ExchangeName.bybit, ExchangeMode.demo, True):
-        # Sprint 7a: Bybit Linear Perpetual (USDT margined) demo.
-        from src.trading.providers import BybitFuturesProvider
-
-        return BybitFuturesProvider()
-    if key == (ExchangeName.okx, ExchangeMode.demo, False):
-        # Sprint 7d: OKX Spot sandbox via CCXT (passphrase required).
-        from src.trading.providers import OkxDemoProvider
-
-        return OkxDemoProvider()
-    if exchange == ExchangeName.bybit and mode == ExchangeMode.live:
-        # P1 #1: stub 이 dispatch 결과로 실제 사용. create_order/fetch_order/cancel
-        # 안에서 ProviderError raise → P1 #2 의 graceful rejected 전이.
-        # BL-003 mainnet runbook 완료 후 본격 구현으로 교체.
-        from src.trading.providers import BybitLiveProvider
-
-        return BybitLiveProvider()
-    raise UnsupportedExchangeError(key)
+    return _dispatch_provider(exchange, mode, has_leverage)
 
 
 def _build_exchange_provider(
