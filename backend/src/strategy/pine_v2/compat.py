@@ -9,6 +9,7 @@ Sprint 37 BL-185: initial_capital + Pine strategy() default_qty_type/value 를
 ScriptContent 에서 추출하여 두 runner 에 전달. configure_sizing() 호출 → spot-equivalent
 포지션 사이징 (3종: percent_of_equity / cash / fixed).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,8 +18,8 @@ import pandas as pd
 
 from src.strategy.pine_v2.ast_classifier import Track, classify_script
 from src.strategy.pine_v2.ast_extractor import extract_content
-from src.strategy.pine_v2.event_loop import RunResult, run_historical
-from src.strategy.pine_v2.virtual_strategy import VirtualRunResult, run_virtual_strategy
+from src.strategy.pine_v2.event_loop import RunResult
+from src.strategy.pine_v2.virtual_strategy import VirtualRunResult
 
 
 @dataclass(frozen=True)
@@ -96,43 +97,30 @@ def parse_and_run_v2(
         if pine_qty_type is not None and pine_qty_value is not None:
             default_qty_type = pine_qty_type
             default_qty_value = pine_qty_value
-        elif (
-            form_default_qty_type is not None
-            and form_default_qty_value is not None
-        ):
+        elif form_default_qty_type is not None and form_default_qty_value is not None:
             default_qty_type = form_default_qty_type
             default_qty_value = form_default_qty_value
         elif live_position_size_pct is not None:
             default_qty_type = "strategy.percent_of_equity"
             default_qty_value = float(live_position_size_pct)
 
-    if track == "S":
-        hist = run_historical(
-            source, ohlcv, strict=strict,
-            initial_capital=initial_capital,
-            default_qty_type=default_qty_type,
-            default_qty_value=default_qty_value,
-            sessions_allowed=sessions_allowed,
+    # BL-201: Track S/A/M dispatch → TrackRunner registry. unknown track 은
+    # TrackRunner.invoke 가 ValueError raise (compat.py:137 형식 보존).
+    # classify_script() 결과 (track) 만 dispatch 단계에서 사용 — Fix #2 의무.
+    from src.strategy.pine_v2.track_runner import TrackRunner
+
+    if track not in {"S", "A", "M"}:
+        # ast_classifier 가 unknown 분류 시 declaration 컨텍스트 포함 메시지 유지.
+        raise ValueError(
+            f"parse_and_run_v2: unknown script track (declaration={profile.declaration!r})"
         )
-        return V2RunResult(track=track, historical=hist)
-    if track == "A":
-        virt = run_virtual_strategy(
-            source, ohlcv, strict=strict,
-            initial_capital=initial_capital,
-            default_qty_type=default_qty_type,
-            default_qty_value=default_qty_value,
-            sessions_allowed=sessions_allowed,
-        )
-        return V2RunResult(track=track, virtual=virt)
-    if track == "M":
-        hist = run_historical(
-            source, ohlcv, strict=strict,
-            initial_capital=initial_capital,
-            default_qty_type=default_qty_type,
-            default_qty_value=default_qty_value,
-            sessions_allowed=sessions_allowed,
-        )
-        return V2RunResult(track=track, historical=hist)
-    raise ValueError(
-        f"parse_and_run_v2: unknown script track (declaration={profile.declaration!r})"
+    return TrackRunner.invoke(
+        track,
+        source=source,
+        ohlcv=ohlcv,
+        strict=strict,
+        initial_capital=initial_capital,
+        default_qty_type=default_qty_type,
+        default_qty_value=default_qty_value,
+        sessions_allowed=sessions_allowed,
     )
