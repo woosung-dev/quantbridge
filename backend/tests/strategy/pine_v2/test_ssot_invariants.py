@@ -13,6 +13,9 @@ import inspect
 from dataclasses import fields as dataclass_fields
 from pathlib import Path
 
+from src.strategy.pine_v2 import _names as pine_names
+from src.strategy.pine_v2 import coverage as pine_coverage
+from src.strategy.pine_v2 import interpreter as pine_interpreter
 from src.strategy.pine_v2.coverage import (
     _ENUM_PREFIXES,
     _STRATEGY_CONSTANTS_EXTRA,
@@ -35,6 +38,50 @@ def test_stdlib_names_subset_of_supported_functions():
     """interpreter.STDLIB_NAMES (ta.* + na/nz) 가 모두 coverage.SUPPORTED_FUNCTIONS 에 등록."""
     diff = STDLIB_NAMES - SUPPORTED_FUNCTIONS
     assert not diff, f"STDLIB_NAMES not in SUPPORTED_FUNCTIONS: {sorted(diff)}"
+
+
+# ---------------------------------------------------------------------------
+# BL-200 (Sprint 47): pine_v2 STDLIB Triple SSOT 통합 invariants.
+# `_names.py` 가 단일 소스 — interpreter / coverage 는 re-export 만 (object
+# identity 동일). 이전 Triple SSOT (interpreter inline frozenset + coverage
+# inline _TA_FUNCTIONS / _UTILITY_FUNCTIONS) drift 차단 자동 감지.
+# ---------------------------------------------------------------------------
+def test_bl200_names_module_union_invariant():
+    """`_names.STDLIB_NAMES == TA_FUNCTIONS | UTILITY_FUNCTIONS` 정합."""
+    assert pine_names.STDLIB_NAMES == (
+        pine_names.TA_FUNCTIONS | pine_names.UTILITY_FUNCTIONS
+    ), (
+        "BL-200: _names.STDLIB_NAMES 가 TA_FUNCTIONS ∪ UTILITY_FUNCTIONS 와 불일치. "
+        "_names.py 갱신 시 union 식 누락 — frozenset 정의 직후 한 줄 검증."
+    )
+
+
+def test_bl200_interpreter_stdlib_names_is_names_export():
+    """interpreter.STDLIB_NAMES is _names.STDLIB_NAMES — object identity 동일.
+
+    BL-200 통합 후 interpreter 가 inline frozenset 로 회귀하면 `is` 비교 깨짐.
+    `==` 가 아니라 `is` 로 검증해야 frozenset 재정의를 잡음 (frozenset 동등은
+    내용만 같으면 True 라 inline 복사본도 통과해 SSOT drift 미감지).
+    """
+    assert pine_interpreter.STDLIB_NAMES is pine_names.STDLIB_NAMES, (
+        "BL-200: interpreter.STDLIB_NAMES 가 _names.STDLIB_NAMES 와 다른 object. "
+        "interpreter.py 가 inline frozenset 으로 회귀했거나 별도 alias 정의 — "
+        "Triple SSOT 재발생 risk."
+    )
+
+
+def test_bl200_coverage_ta_functions_is_names_export():
+    """coverage._TA_FUNCTIONS is _names.TA_FUNCTIONS, 그리고 _UTILITY_FUNCTIONS 도 동일.
+
+    BL-200 통합 후 coverage 가 inline frozenset 로 회귀하면 `is` 비교 깨짐.
+    """
+    assert pine_coverage._TA_FUNCTIONS is pine_names.TA_FUNCTIONS, (
+        "BL-200: coverage._TA_FUNCTIONS 가 _names.TA_FUNCTIONS 와 다른 object. "
+        "coverage.py 가 inline frozenset 으로 회귀 — Triple SSOT 재발생."
+    )
+    assert pine_coverage._UTILITY_FUNCTIONS is pine_names.UTILITY_FUNCTIONS, (
+        "BL-200: coverage._UTILITY_FUNCTIONS 가 _names.UTILITY_FUNCTIONS 와 다른 object."
+    )
 
 
 def test_rendering_factories_subset_of_supported_functions():

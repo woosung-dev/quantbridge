@@ -37,6 +37,7 @@ from typing import Any
 import pandas as pd
 from pynescript import ast as pyne_ast
 
+from src.strategy.pine_v2._names import STDLIB_NAMES
 from src.strategy.pine_v2.rendering import (
     BoxObject,
     LabelObject,
@@ -48,33 +49,12 @@ from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.stdlib import StdlibDispatcher
 from src.strategy.pine_v2.strategy_state import StrategyState
 
-# ta.* / na / nz — stdlib 디스패치 대상 이름
-# Path β P-2 Coverage SSOT Sync — `coverage._TA_FUNCTIONS | _UTILITY_FUNCTIONS` 와
-# 완전 일치해야 함 (ADR-013 §4.2). 새 stdlib 함수 추가 시 **3 파일 동시 갱신**
-# (stdlib.py + interpreter.STDLIB_NAMES + coverage.py).
-STDLIB_NAMES: frozenset[str] = frozenset(
-    {
-        "ta.sma",
-        "ta.ema",
-        "ta.atr",
-        "ta.rsi",
-        "ta.crossover",
-        "ta.crossunder",
-        "ta.highest",
-        "ta.lowest",
-        "ta.change",
-        "ta.pivothigh",
-        "ta.pivotlow",
-        "ta.stdev",
-        "ta.variance",
-        "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
-        "ta.rma",  # Sprint X1+X3 follow-up (i3_drfx Wilder Running MA)
-        "ta.barssince",
-        "ta.valuewhen",  # Sprint 8c
-        "na",
-        "nz",
-    }
-)
+# BL-200 (Sprint 47): STDLIB_NAMES 는 `_names.py` 에서 re-export.
+# 이전 inline frozenset 정의는 coverage.py 와 Triple SSOT 였음 (interpreter /
+# coverage / stdlib dispatch). 본 import 로 단일 소스 + object identity 동일
+# (`STDLIB_NAMES is _names.STDLIB_NAMES` True). 새 stdlib 추가 시 `_names.py`
+# 한 곳만 갱신 + stdlib.py dispatch 분기 추가 + tests/strategy/pine_v2/
+# test_ssot_invariants.py 가 자동 검증.
 
 # Pine v4 legacy alias — prefix 없는 stdlib (atr/ema/sma/rsi/crossover/...) 을
 # ta.* / math.* 로 재라우팅. (i1_utbot 및 일부 RTB 전략이 v4 문법 사용)

@@ -18,40 +18,20 @@ import re
 from dataclasses import dataclass
 from typing import Literal, TypedDict
 
+from src.strategy.pine_v2._names import (
+    TA_FUNCTIONS as _TA_FUNCTIONS,
+    UTILITY_FUNCTIONS as _UTILITY_FUNCTIONS,
+)
+
 # ---------------------------------------------------------------------
 # SUPPORTED — interpreter._STDLIB_NAMES + stdlib._call() 분기 + _eval_attribute() 분기
 # ---------------------------------------------------------------------
-
-# stdlib functions (interpreter.py:684 _STDLIB_NAMES)
-_TA_FUNCTIONS: frozenset[str] = frozenset(
-    {
-        "ta.sma",
-        "ta.ema",
-        "ta.rma",
-        "ta.atr",
-        "ta.rsi",
-        "ta.crossover",
-        "ta.crossunder",
-        "ta.highest",
-        "ta.lowest",
-        "ta.change",
-        "ta.pivothigh",
-        "ta.pivotlow",
-        "ta.stdev",
-        "ta.variance",
-        "ta.sar",
-        "ta.barssince",
-        "ta.valuewhen",
-    }
-)
-
-# Math / utility (na, nz + math.* 일부)
-_UTILITY_FUNCTIONS: frozenset[str] = frozenset(
-    {
-        "na",
-        "nz",
-    }
-)
+#
+# BL-200 (Sprint 47): `_TA_FUNCTIONS` / `_UTILITY_FUNCTIONS` 는 `_names.py` SSOT
+# 에서 re-export. interpreter.STDLIB_NAMES 와 object identity 동일
+# (`_TA_FUNCTIONS is _names.TA_FUNCTIONS` True). 이전 inline frozenset 동시
+# 갱신 의무는 본 SSOT 통합으로 폐지 — `_names.py` 한 곳만 갱신 + invariant
+# 자동 검증 (test_ssot_invariants.py).
 
 # strategy.* — interpreter._exec_strategy_call (entry/close/close_all/exit)
 _STRATEGY_FUNCTIONS: frozenset[str] = frozenset(
