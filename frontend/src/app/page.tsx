@@ -5,8 +5,16 @@ import { auth } from "@clerk/nextjs/server";
 
 import { GeoBlockBanner } from "@/components/geo-block-banner";
 
+import { LandingBento } from "./_components/landing-bento";
+import { LandingDashboardShowcase } from "./_components/landing-dashboard-showcase";
+import { LandingFaq } from "./_components/landing-faq";
 import { LandingFeatures } from "./_components/landing-features";
+import { LandingFooter } from "./_components/landing-footer";
 import { LandingHero } from "./_components/landing-hero";
+import { LandingHowItWorks } from "./_components/landing-how-it-works";
+import { LandingNav } from "./_components/landing-nav";
+import { LandingPricing } from "./_components/landing-pricing";
+import { LandingStatsStrip } from "./_components/landing-stats-strip";
 
 const TRUST_BRANDS = [
   "Binance",
@@ -26,6 +34,7 @@ export default async function LandingPage() {
   return (
     <>
       <GeoBlockBanner />
+      <LandingNav />
       <main id="main-content" className="bg-[color:var(--bg)]">
         <LandingHero />
         <section
@@ -47,6 +56,12 @@ export default async function LandingPage() {
           </div>
         </section>
         <LandingFeatures />
+        <LandingHowItWorks />
+        <LandingBento />
+        <LandingDashboardShowcase />
+        <LandingStatsStrip />
+        <LandingPricing />
+        <LandingFaq />
         <section className="bg-white px-6 py-20 text-center">
           <h2 className="font-display text-3xl font-bold text-[color:var(--text-primary)] md:text-4xl">
             지금 바로 시작하세요
@@ -62,6 +77,7 @@ export default async function LandingPage() {
           </Link>
         </section>
       </main>
+      <LandingFooter />
     </>
   );
 }
