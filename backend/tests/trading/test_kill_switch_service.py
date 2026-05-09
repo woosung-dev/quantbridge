@@ -8,7 +8,7 @@ import pytest
 
 from src.trading.exceptions import KillSwitchActive
 from src.trading.kill_switch import EvaluationResult, KillSwitchService
-from src.trading.repository import KillSwitchEventRepository
+from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
 
 class _StaticEvaluator:

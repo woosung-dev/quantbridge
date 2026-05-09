@@ -34,7 +34,7 @@ async def account(db_session: AsyncSession, user) -> ExchangeAccount:
 
 
 async def _make_order(db_session, strategy, account, *, idem: str | None = None):
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     repo = OrderRepository(db_session)
     order = Order(
@@ -125,7 +125,7 @@ async def test_get_by_idempotency_key_returns_order(db_session, strategy, accoun
 
 
 async def test_get_by_idempotency_key_miss_returns_none(db_session, strategy, account):
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     repo = OrderRepository(db_session)
     assert await repo.get_by_idempotency_key("never-seen") is None
 
@@ -154,7 +154,7 @@ async def test_transition_to_filled_records_partial_quantity(db_session, strateg
 
 async def test_order_persists_leverage_and_margin_mode(db_session, strategy, account):
     """Sprint 7a T1 — leverage/margin_mode 컬럼 round-trip 저장/조회."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     repo = OrderRepository(db_session)
     order = await repo.save(
@@ -185,7 +185,7 @@ async def test_advisory_lock_acquire_and_release(db_session, strategy, account):
     savepoint 격리 fixture가 이미 outer tx를 보유하므로 `session.begin()` 재호출 불가.
     advisory lock은 해당 tx 범위 내에서 걸리고 tx 종료 시 자동 해제됨.
     """
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     repo = OrderRepository(db_session)
     await repo.acquire_idempotency_lock("test-key-abc")

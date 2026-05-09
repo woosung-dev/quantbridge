@@ -79,9 +79,9 @@ async def test_notional_within_limit_passes(
 ):
     """available=1000, leverage=5, qty=0.01, price=50000 → notional=2500.
     max = 1000 x 20 (bybit_futures_max_leverage) x 0.95 = 19000 → 통과."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     exchange_stub = _make_exchange_service_stub(Decimal("1000"))
     svc = OrderService(
@@ -114,9 +114,9 @@ async def test_notional_exceeding_max_raises(
 ):
     """available=100, leverage=20, qty=0.1, price=50000 → notional=100000.
     max = 100 x 20 x 0.95 = 1900 → 초과 → NotionalExceeded."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     exchange_stub = _make_exchange_service_stub(Decimal("100"))
     svc = OrderService(
@@ -151,9 +151,9 @@ async def test_notional_check_skipped_for_market_order(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ):
     """price=None (market) → notional 계산 불가 → 검증 skip (leverage cap만 1차 방어)."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     exchange_stub = _make_exchange_service_stub(Decimal("1"))  # 매우 작은 잔고
     svc = OrderService(
@@ -186,9 +186,9 @@ async def test_notional_check_skipped_when_balance_unavailable(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ):
     """fetch_balance_usdt가 None 반환 (API 실패) → 검증 skip (trading 중단 금지)."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     exchange_stub = _make_exchange_service_stub(None)  # API 실패
     svc = OrderService(

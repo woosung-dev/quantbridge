@@ -61,9 +61,9 @@ async def test_order_service_persists_and_dispatches_futures_fields(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ):
     """Sprint 7a: leverage/margin_mode가 Order 레코드에 persist + OrderResponse에 노출."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     disp = _CapturingDispatcher()
     svc = OrderService(
@@ -100,9 +100,9 @@ async def test_order_service_persists_futures_fields_with_idempotency_key(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ):
     """Sprint 7a: idempotent branch에서도 leverage/margin_mode 전파."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     disp = _CapturingDispatcher()
     svc = OrderService(
@@ -147,10 +147,10 @@ async def test_order_service_rejects_leverage_above_cap(
     settings 기반 동적 체크. Pydantic에서 통과한 값이 service에서 거부되어야 함.
     """
     from src.trading.exceptions import LeverageCapExceeded
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
     from src.trading.services import order_service as service_module
+    from src.trading.services.order_service import OrderService
 
     # 운영 cap을 20으로 강제 (default와 동일하지만 명시)
     monkeypatch.setattr(service_module.settings, "bybit_futures_max_leverage", 20)
@@ -189,10 +189,10 @@ async def test_order_service_accepts_leverage_at_cap_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """경계 조건: leverage == cap은 통과 (>만 차단)."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
     from src.trading.services import order_service as service_module
+    from src.trading.services.order_service import OrderService
 
     monkeypatch.setattr(service_module.settings, "bybit_futures_max_leverage", 20)
 

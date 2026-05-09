@@ -10,13 +10,13 @@ from src.trading.models import KillSwitchEvent, KillSwitchTriggerType
 
 
 async def test_get_active_returns_none_when_no_events(db_session, strategy):
-    from src.trading.repository import KillSwitchEventRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
     repo = KillSwitchEventRepository(db_session)
     assert await repo.get_active(strategy_id=strategy.id, account_id=uuid4()) is None
 
 
 async def test_get_active_matches_cumulative_loss_by_strategy(db_session, strategy):
-    from src.trading.repository import KillSwitchEventRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
     repo = KillSwitchEventRepository(db_session)
     event = KillSwitchEvent(
@@ -36,7 +36,7 @@ async def test_get_active_matches_cumulative_loss_by_strategy(db_session, strate
 
 async def test_get_active_matches_daily_loss_by_account(db_session, user):
     from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
-    from src.trading.repository import KillSwitchEventRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
     account = ExchangeAccount(
         user_id=user.id, exchange=ExchangeName.bybit, mode=ExchangeMode.demo,
@@ -61,7 +61,7 @@ async def test_get_active_matches_daily_loss_by_account(db_session, user):
 
 
 async def test_get_active_skips_resolved(db_session, strategy):
-    from src.trading.repository import KillSwitchEventRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
     repo = KillSwitchEventRepository(db_session)
     event = KillSwitchEvent(
@@ -78,7 +78,7 @@ async def test_get_active_skips_resolved(db_session, strategy):
 
 
 async def test_resolve_event_sets_resolved_at(db_session, strategy):
-    from src.trading.repository import KillSwitchEventRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
     repo = KillSwitchEventRepository(db_session)
     event = KillSwitchEvent(
@@ -100,7 +100,7 @@ async def test_resolve_event_sets_resolved_at(db_session, strategy):
 
 
 async def test_list_recent_returns_ordered(db_session, strategy):
-    from src.trading.repository import KillSwitchEventRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
     repo = KillSwitchEventRepository(db_session)
     for threshold in [Decimal("10"), Decimal("20"), Decimal("30")]:
@@ -120,7 +120,7 @@ async def test_list_recent_returns_ordered(db_session, strategy):
 
 async def test_resolve_truncates_long_note(db_session, strategy):
     """T9 review I2: resolution_note > 500 chars must be pre-truncated (matches T8 defensive pattern)."""
-    from src.trading.repository import KillSwitchEventRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
     repo = KillSwitchEventRepository(db_session)
     event = KillSwitchEvent(

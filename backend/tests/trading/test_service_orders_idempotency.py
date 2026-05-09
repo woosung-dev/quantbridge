@@ -73,8 +73,8 @@ async def test_execute_without_idempotency_creates_order(
     db_session: AsyncSession,
     order_request: OrderRequest,
 ):
-    from src.trading.repository import OrderRepository
-    from src.trading.service import OrderService
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.order_service import OrderService
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()
@@ -94,8 +94,8 @@ async def test_execute_with_idempotency_returns_cached_on_second_call(
     db_session: AsyncSession,
     order_request: OrderRequest,
 ):
-    from src.trading.repository import OrderRepository
-    from src.trading.service import OrderService
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.order_service import OrderService
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()
@@ -118,8 +118,8 @@ async def test_advisory_lock_prevents_concurrent_insert(
     order_request: OrderRequest,
 ):
     """Advisory lock smoke test: same-session re-entry does not deadlock."""
-    from src.trading.repository import OrderRepository
-    from src.trading.service import OrderService
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.order_service import OrderService
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()
@@ -158,8 +158,8 @@ class _FakeDispatcher:
 async def test_idempotency_conflict_on_different_body_hash(db_session, user, strategy, order_request):
     """Autoplan E2: 동일 key + 다른 body_hash → IdempotencyConflict (422, signal loss 방지)."""
     from src.trading.exceptions import IdempotencyConflict
-    from src.trading.repository import OrderRepository
-    from src.trading.service import OrderService
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.order_service import OrderService
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()
@@ -178,8 +178,8 @@ async def test_idempotency_conflict_on_different_body_hash(db_session, user, str
 
 async def test_idempotency_replay_with_matching_hash(db_session, user, strategy, order_request):
     """Autoplan E2: 동일 key + 동일 body_hash → cached response (200 replay)."""
-    from src.trading.repository import OrderRepository
-    from src.trading.service import OrderService
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.order_service import OrderService
 
     repo = OrderRepository(db_session)
     fake = _FakeDispatcher()

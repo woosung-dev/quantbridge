@@ -25,7 +25,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.schemas import OrderRequest
-from src.trading.service import OrderService
+from src.trading.services.order_service import OrderService
 
 
 @pytest.mark.asyncio

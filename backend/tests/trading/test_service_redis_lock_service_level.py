@@ -23,9 +23,9 @@ from src.trading.models import (
     OrderSide,
     OrderType,
 )
-from src.trading.repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import OrderRequest
-from src.trading.service import OrderService
+from src.trading.services.order_service import OrderService
 
 
 class _NoopKillSwitch:

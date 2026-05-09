@@ -10,7 +10,7 @@ from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
 
 
 async def test_save_and_get_by_id(db_session: AsyncSession, user: User):
-    from src.trading.repository import ExchangeAccountRepository
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 
     repo = ExchangeAccountRepository(db_session)
     account = ExchangeAccount(
@@ -31,7 +31,7 @@ async def test_save_and_get_by_id(db_session: AsyncSession, user: User):
 
 
 async def test_list_by_user_returns_only_owned(db_session: AsyncSession, user: User):
-    from src.trading.repository import ExchangeAccountRepository
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 
     repo = ExchangeAccountRepository(db_session)
     mine = ExchangeAccount(
@@ -62,7 +62,7 @@ async def test_list_by_user_returns_only_owned(db_session: AsyncSession, user: U
 
 
 async def test_delete_by_id(db_session: AsyncSession, user: User):
-    from src.trading.repository import ExchangeAccountRepository
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 
     repo = ExchangeAccountRepository(db_session)
     account = ExchangeAccount(

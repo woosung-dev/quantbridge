@@ -158,7 +158,7 @@ async def test_webhook_creates_pending_order(
     assert body["exchange_account_id"] == str(e2e_exchange_account.id)
 
     # Verify order exists in DB
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     repo = OrderRepository(db_session)
     order = await repo.get_by_id(UUID(body["id"]))
@@ -210,7 +210,7 @@ async def test_idempotent_webhook_same_order(
     assert order_id_1 == order_id_2
 
     # Only 1 order in DB for this idempotency_key
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     repo = OrderRepository(db_session)
     order = await repo.get_by_idempotency_key(idem_key)

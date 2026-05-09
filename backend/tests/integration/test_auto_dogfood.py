@@ -14,6 +14,7 @@ mark.integration + `--run-integration` flag (Sprint 19 BL-085 패턴).
 Service direct call 패턴 — Clerk auth 우회. HTTP route + Clerk JWT 는 별도 e2e
 (test_trading_e2e.py) 가 가드.
 """
+
 from __future__ import annotations
 
 import json
@@ -65,9 +66,7 @@ async def dogfood_user(db_session: AsyncSession) -> User:
 
 
 @pytest.fixture
-async def dogfood_strategy(
-    db_session: AsyncSession, dogfood_user: User
-) -> Strategy:
+async def dogfood_strategy(db_session: AsyncSession, dogfood_user: User) -> Strategy:
     s = Strategy(
         user_id=dogfood_user.id,
         name="Dogfood RsiD",
@@ -89,9 +88,7 @@ async def dogfood_strategy(
 
 
 @pytest.fixture
-async def bybit_demo_account(
-    db_session: AsyncSession, dogfood_user: User
-) -> ExchangeAccount:
+async def bybit_demo_account(db_session: AsyncSession, dogfood_user: User) -> ExchangeAccount:
     acct = ExchangeAccount(
         user_id=dogfood_user.id,
         exchange=ExchangeName.bybit,
@@ -106,9 +103,7 @@ async def bybit_demo_account(
 
 
 @pytest.fixture
-async def okx_demo_account(
-    db_session: AsyncSession, dogfood_user: User
-) -> ExchangeAccount:
+async def okx_demo_account(db_session: AsyncSession, dogfood_user: User) -> ExchangeAccount:
     acct = ExchangeAccount(
         user_id=dogfood_user.id,
         exchange=ExchangeName.okx,
@@ -148,9 +143,7 @@ async def test_scenario1_strategy_with_webhook_secret_atomic(
 
     # 두 row 모두 commit 가능 (FK 정합)
     strategy_row = await db_session.get(Strategy, dogfood_strategy.id)
-    secret_stmt = select(WebhookSecret).where(
-        WebhookSecret.strategy_id == dogfood_strategy.id
-    )
+    secret_stmt = select(WebhookSecret).where(WebhookSecret.strategy_id == dogfood_strategy.id)
     secret_result = await db_session.execute(secret_stmt)
     secret_row = secret_result.scalar_one_or_none()
 
@@ -190,9 +183,7 @@ def test_scenario2_backtest_engine_smoke(dogfood_strategy: Strategy) -> None:
         BacktestConfig(init_cash=Decimal("10000")),
     )
 
-    assert outcome.status == "ok", (
-        f"backtest status={outcome.status}, error={outcome.error}"
-    )
+    assert outcome.status == "ok", f"backtest status={outcome.status}, error={outcome.error}"
     assert outcome.result is not None
     assert len(outcome.result.equity_curve) > 0
     assert outcome.result.metrics.num_trades >= 1
@@ -221,11 +212,10 @@ async def test_scenario3_order_dispatch_snapshot(
     """
     import uuid as _uuid
 
-    from src.trading.repository import (
-        ExchangeAccountRepository,
-        OrderRepository,
-    )
-    from src.trading.service import ExchangeAccountService, OrderService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.account_service import ExchangeAccountService
+    from src.trading.services.order_service import OrderService
 
     # DI — same db_session 공유 (트랜잭션 통일)
     order_repo = OrderRepository(db_session)
@@ -246,9 +236,7 @@ async def test_scenario3_order_dispatch_snapshot(
 
     # NoopKillSwitch — gate 통과 (KS 평가는 별도 시나리오에서 가드)
     class _NoopKillSwitch:
-        async def ensure_not_gated(
-            self, strategy_id: UUID, account_id: UUID
-        ) -> None:
+        async def ensure_not_gated(self, strategy_id: UUID, account_id: UUID) -> None:
             return
 
     service = OrderService(
@@ -271,9 +259,7 @@ async def test_scenario3_order_dispatch_snapshot(
     # codex iter 1 P2 #1 — uuid4 per test (replay 방지)
     idempotency_key = f"{request.node.name}:{_uuid.uuid4().hex}"
 
-    response, is_replayed = await service.execute(
-        req, idempotency_key=idempotency_key
-    )
+    response, is_replayed = await service.execute(req, idempotency_key=idempotency_key)
 
     assert is_replayed is False
     assert fake_dispatcher.dispatched_count == 1
@@ -288,9 +274,7 @@ async def test_scenario3_order_dispatch_snapshot(
     assert refreshed.dispatch_snapshot["has_leverage"] is False
 
     # Sprint 22+23 dispatch helper 정합 — refreshed snapshot → BybitDemoProvider
-    provider = _provider_from_order_snapshot_or_fallback(
-        refreshed, bybit_demo_account, submit=None
-    )
+    provider = _provider_from_order_snapshot_or_fallback(refreshed, bybit_demo_account, submit=None)
     assert isinstance(provider, BybitDemoProvider)
 
 
@@ -329,18 +313,14 @@ async def test_scenario4_snapshot_drift_rejected(
 
     # account.mode mutation (DB level 만 가능, 실 endpoint 부재)
     await db_session.execute(
-        text(
-            "UPDATE trading.exchange_accounts SET mode='live' WHERE id = :acc_id"
-        ),
+        text("UPDATE trading.exchange_accounts SET mode='live' WHERE id = :acc_id"),
         {"acc_id": bybit_demo_account.id},
     )
     await db_session.flush()
     await db_session.refresh(bybit_demo_account)
 
     with pytest.raises(UnsupportedExchangeError) as exc_info:
-        _provider_from_order_snapshot_or_fallback(
-            order, bybit_demo_account, submit=None
-        )
+        _provider_from_order_snapshot_or_fallback(order, bybit_demo_account, submit=None)
     assert "snapshot" in str(exc_info.value)
 
 
@@ -401,9 +381,7 @@ async def test_scenario5_multi_account_dispatch(
     # 두 lease key 충돌 없음 (Sprint 24a BL-011)
     from src.tasks._ws_lease import _lease_key
 
-    assert _lease_key(str(bybit_demo_account.id)) != _lease_key(
-        str(okx_demo_account.id)
-    )
+    assert _lease_key(str(bybit_demo_account.id)) != _lease_key(str(okx_demo_account.id))
 
 
 # ----------------------------------------------------------------------

@@ -86,8 +86,8 @@ async def test_kill_switch_blocks_order_creation(
     from sqlalchemy import func, select
 
     from src.trading.models import Order
-    from src.trading.repository import OrderRepository
-    from src.trading.service import OrderService
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.order_service import OrderService
 
     repo = OrderRepository(db_session)
     _Dispatcher.dispatched = 0

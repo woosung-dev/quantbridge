@@ -16,8 +16,8 @@ def crypto():
 
 
 async def test_issue_initial_secret(db_session, strategy, crypto):
-    from src.trading.repository import WebhookSecretRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = WebhookSecretRepository(db_session)
     svc = WebhookSecretService(repo=repo, crypto=crypto)
@@ -35,8 +35,8 @@ async def test_issue_initial_secret(db_session, strategy, crypto):
 
 
 async def test_rotate_revokes_old_and_issues_new(db_session, strategy, crypto):
-    from src.trading.repository import WebhookSecretRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = WebhookSecretRepository(db_session)
     svc = WebhookSecretService(repo=repo, crypto=crypto)
@@ -59,8 +59,8 @@ async def test_rotate_revokes_old_and_issues_new(db_session, strategy, crypto):
 
 async def test_rotate_with_zero_grace_excludes_old(db_session, strategy, crypto):
     """grace_period=0 -> 즉시 무효."""
-    from src.trading.repository import WebhookSecretRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = WebhookSecretRepository(db_session)
     svc = WebhookSecretService(repo=repo, crypto=crypto)
