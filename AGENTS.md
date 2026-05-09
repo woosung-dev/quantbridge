@@ -124,8 +124,8 @@
 
 ### 핵심 도메인
 
-- **Strategy** — Pine Script 파싱, 전략 CRUD, Python 트랜스파일
-- **Backtest** — vectorbt 기반 벡터화 백테스트, 지표 계산, 리포트
+- **Strategy** — Pine Script 파싱, 전략 CRUD, **pine_v2 인터프리터 (Track S/A/M)**
+- **Backtest** — **pine_v2 자체 인터프리터 SSOT** (AST + bar-by-bar 이벤트 루프). vectorbt 는 _지표 계산 전용_ 으로 강등 (ADR-011 §6/§8, Sprint 8a PR #20). 리포트 24 metric.
 - **Stress Test** — Monte Carlo, Walk-Forward, 파라미터 안정성 분석
 - **Optimizer** — Grid/Bayesian/Genetic 파라미터 최적화
 - **Trading** — CCXT 기반 데모/라이브 주문 실행, 리스크 관리, Kill Switch
