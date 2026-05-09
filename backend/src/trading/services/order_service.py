@@ -23,7 +23,7 @@ from src.trading.exceptions import (
 )
 from src.trading.kill_switch import KillSwitchService
 from src.trading.models import Order, OrderState
-from src.trading.repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import OrderRequest, OrderResponse
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.protocols import OrderDispatcher, StrategySessionsPort

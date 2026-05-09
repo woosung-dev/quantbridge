@@ -9,7 +9,7 @@ from uuid import UUID
 
 from src.trading.encryption import EncryptionService
 from src.trading.models import WebhookSecret
-from src.trading.repository import WebhookSecretRepository
+from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
 logger = logging.getLogger(__name__)
 

@@ -89,7 +89,8 @@ def dogfood_daily_report_task(report_date_iso: str | None = None) -> dict[str, A
 
 
 async def _async_generate(report_date: date) -> dict[str, Any]:
-    from src.trading.repository import KillSwitchEventRepository, OrderRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     engine, sm = create_worker_engine_and_sm()
     try:

@@ -30,7 +30,8 @@ from src.trading.models import (
     Order,
     OrderState,
 )
-from src.trading.repository import KillSwitchEventRepository, OrderRepository
+from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+from src.trading.repositories.order_repository import OrderRepository
 
 logger = logging.getLogger(__name__)
 

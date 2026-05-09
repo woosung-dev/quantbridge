@@ -28,7 +28,7 @@ from src.strategy.schemas import (
 from src.strategy.service import StrategyService
 from src.trading.dependencies import get_webhook_secret_service
 from src.trading.schemas import WebhookRotateResponse
-from src.trading.service import WebhookSecretService
+from src.trading.services.webhook_secret_service import WebhookSecretService
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
 

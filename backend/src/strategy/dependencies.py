@@ -27,8 +27,8 @@ async def get_strategy_service(
     # 지연 import — circular 방지
     from src.backtest.repository import BacktestRepository
     from src.trading.dependencies import get_encryption_service
-    from src.trading.repository import WebhookSecretRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     crypto = get_encryption_service()
     secret_svc = WebhookSecretService(

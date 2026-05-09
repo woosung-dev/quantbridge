@@ -24,13 +24,11 @@ from src.trading.dependencies import (
     get_order_service,
     get_webhook_service,
 )
-from src.trading.repository import (
-    ExchangeAccountRepository,
-    KillSwitchEventRepository,
-    LiveSignalEventRepository,
-    LiveSignalSessionRepository,
-    OrderRepository,
-)
+from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
+from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
+from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import (
     ExchangeAccountResponse,
     KillSwitchEventResponse,
@@ -46,11 +44,9 @@ from src.trading.schemas import (
     RegisterLiveSessionRequest,
     mask_api_key,
 )
-from src.trading.service import (
-    ExchangeAccountService,
-    LiveSignalSessionService,
-    OrderService,
-)
+from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.live_session_service import LiveSignalSessionService
+from src.trading.services.order_service import OrderService
 from src.trading.webhook import WebhookService, parse_tv_payload
 
 router = APIRouter(tags=["trading"])

@@ -187,7 +187,8 @@ async def _async_evaluate_all() -> dict[str, Any]:
     sequential 처리: 5건 quota cap 안에서 충분 — 동시성 늘리려면 asyncio.gather
     가능하나 asyncpg pool / Redis lock pool 소모 증가하여 보수적 채택.
     """
-    from src.trading.repository import LiveSignalEventRepository, LiveSignalSessionRepository
+    from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
+    from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 
     engine, sm = create_worker_engine_and_sm()
     try:
@@ -258,11 +259,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
     from src.strategy.pine_v2.event_loop import run_live
     from src.strategy.repository import StrategyRepository
     from src.tasks.celery_app import get_ccxt_provider_for_worker
-    from src.trading.repository import (
-        ExchangeAccountRepository,
-        LiveSignalEventRepository,
-        LiveSignalSessionRepository,
-    )
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
+    from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 
     engine, sm = create_worker_engine_and_sm()
     try:
@@ -503,7 +502,7 @@ def dispatch_live_signal_event_task(self: Any, event_id: str) -> dict[str, Any]:
 
 async def _async_mark_event_failed(event_id: UUID, *, error: str) -> None:
     """codex G.2 P1 #10 helper — retry 소진 시 mark_failed + commit (per-call engine)."""
-    from src.trading.repository import LiveSignalEventRepository
+    from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 
     engine, sm = create_worker_engine_and_sm()
     try:
@@ -540,7 +539,7 @@ def dispatch_pending_live_signal_events_task() -> dict[str, Any]:
 
 
 async def _async_dispatch_pending() -> dict[str, Any]:
-    from src.trading.repository import LiveSignalEventRepository
+    from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 
     engine, sm = create_worker_engine_and_sm()
     try:
@@ -576,15 +575,14 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
         KillSwitchService,
     )
     from src.trading.providers import BybitFuturesProvider
-    from src.trading.repository import (
-        ExchangeAccountRepository,
-        KillSwitchEventRepository,
-        LiveSignalEventRepository,
-        LiveSignalSessionRepository,
-        OrderRepository,
-    )
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+    from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
+    from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import ExchangeAccountService, OrderService
+    from src.trading.services.account_service import ExchangeAccountService
+    from src.trading.services.order_service import OrderService
 
     engine, sm = create_worker_engine_and_sm()
     try:

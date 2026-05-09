@@ -28,7 +28,7 @@ from src.common.alert import send_critical_alert
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.tasks.trading import execute_order_task, fetch_order_status_task
-from src.trading.repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository
 
 logger = logging.getLogger(__name__)
 

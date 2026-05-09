@@ -10,7 +10,7 @@ from src.trading.encryption import EncryptionService
 from src.trading.exceptions import AccountNotFound, ProviderError
 from src.trading.models import ExchangeAccount
 from src.trading.providers import BybitFuturesProvider, Credentials
-from src.trading.repository import ExchangeAccountRepository
+from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.schemas import RegisterAccountRequest
 
 logger = logging.getLogger(__name__)

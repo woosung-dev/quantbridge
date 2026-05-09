@@ -26,8 +26,10 @@ from src.trading.models import (
     LiveSignalInterval,
     LiveSignalSession,
 )
-from src.trading.repository import (
+from src.trading.repositories.exchange_account_repository import (
     ExchangeAccountRepository,
+)
+from src.trading.repositories.live_signal_session_repository import (
     LiveSignalSessionRepository,
 )
 from src.trading.schemas import RegisterLiveSessionRequest
