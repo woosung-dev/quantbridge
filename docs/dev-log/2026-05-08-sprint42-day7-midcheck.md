@@ -1,15 +1,16 @@
-<!-- Sprint 42 Day 7 mid-check 골격 — Day 7 도래 시점 (2026-05-15 전후) 사용자가 채움 -->
+<!-- Sprint 42 Day 7 mid-check 골격 — Day 0 카톡 발송일 + 6일 시점 사용자가 채움 -->
 
-# Sprint 42 Day 7 mid-check (≈2026-05-15 도래)
+# Sprint 42 Day 7 mid-check (= Day 0 발송일 + 6일)
 
-> **상태**: 빈 골격 (Sprint 42 Phase 2 setup 시점 미리 작성, 2026-05-08).
-> Day 7 도래 시 사용자가 본 파일 채움 + 파일명 `2026-05-15-sprint42-day7-midcheck.md` 로 rename (실 일자 반영).
+> **상태**: 빈 골격 (Sprint 42 Phase 2 setup 시점 미리 작성, 2026-05-08. Sprint 48 Track 2 Worker D 갱신 2026-05-09).
+> **codex Fix #7 (Sprint 48 G.0):** **Day 7 schedule = Day 0 발송일 + 6일**. Day 0 미기록 시 Day 7 고정 금지. 절대 날짜 (예: 2026-05-15, 2026-05-16, 2026-05-17, 2026-05-18, 2026-05-19) 사용 금지. Day 0 = 사용자 manual 카톡 발송 timestamp ([`../dogfood/sprint42-feedback.md`](../dogfood/sprint42-feedback.md) 의 "1-2명 micro-cohort log" 발송일 칸 기록).
+> Day 7 도래 시 사용자가 본 파일 채움 + 파일명 `<Day 0 + 6일 실 일자>-sprint42-day7-midcheck.md` 로 rename (실 일자 반영).
 > 4중 AND gate 결과 + N=1-2 행동 metric + 분기 결정.
 
-**날짜:** 2026-05-** (Phase 1.1 완료 PR #183 머지 후 D+**일)
-**환경:** **_ (isolated docker `make up-isolated` 또는 사용자 manual)
-**점수:** _**/10 (gate (a) **_)
-**Day 추적:** Sprint 42 Day 1=_** → Day 4=**_ → Day 7=_**
+**날짜:** Day 0 발송일 + 6일 (TBD — Day 0 timestamp 기록 후 채움)
+**환경:** **\_ (isolated docker `make up-isolated` 또는 사용자 manual)
+**점수:** \_**/10 (gate (a) **\_)
+**Day 추적:\*\* Sprint 42 dogfood Day 1=Day 0 + 0 → Day 4=Day 0 + 3 → Day 7=Day 0 + 6 (모두 Day 0 발송일 기준 상대 일자)
 
 ---
 
@@ -41,10 +42,10 @@
 
 ### 1-2명 micro-cohort
 
-| 대상     | 발송일       | 가입      | 첫 backtest | Test Order         | 인터뷰 일정  | NPS     |
-| -------- | ------------ | --------- | ----------- | ------------------ | ------------ | ------- |
-| Friend 1 | 2026-05-\_\_ | ☐ Y / ☐ N | ☐ Y / ☐ N   | ☐ Y / ☐ N / ☐ Skip | 2026-05-\_\_ | \_\_/10 |
-| Friend 2 | 2026-05-\_\_ | ☐ Y / ☐ N | ☐ Y / ☐ N   | ☐ Y / ☐ N / ☐ Skip | 2026-05-\_\_ | \_\_/10 |
+| 대상     | 발송일 (= Day 0) | 가입      | 첫 backtest | Test Order         | 인터뷰 일정 (= Day 0 + 6일) | NPS     |
+| -------- | ---------------- | --------- | ----------- | ------------------ | --------------------------- | ------- |
+| Friend 1 | TBD (Day 0)      | ☐ Y / ☐ N | ☐ Y / ☐ N   | ☐ Y / ☐ N / ☐ Skip | TBD (Day 0 + 6일)           | \_\_/10 |
+| Friend 2 | TBD (Day 0)      | ☐ Y / ☐ N | ☐ Y / ☐ N   | ☐ Y / ☐ N / ☐ Skip | TBD (Day 0 + 6일)           | \_\_/10 |
 
 - sign-up 비율: \_\_\_/2 (목표 = N=1-2 중 ≥1 sign-up)
 - 첫 backtest 완료 비율: \_\_\_/2

@@ -3,9 +3,9 @@
 # Sprint 42 Dogfood Phase 2 — Cohort Outreach + 인터뷰 골격
 
 > **위치:** `docs/dogfood/` Track 2 — 본인 + 1-2명 micro-cohort 발송·인터뷰 raw text.
-> **작성일:** 2026-05-09 (Sprint 47 kickoff)
+> **작성일:** 2026-05-09 (Sprint 47 close-out → Sprint 48 kickoff 시점 갱신)
 > **상위:** [`sprint42-feedback.md`](sprint42-feedback.md) (live 누적 기록), [`../dev-log/2026-05-08-sprint42-day7-midcheck.md`](../dev-log/2026-05-08-sprint42-day7-midcheck.md), [`../dev-log/2026-05-08-sprint42-master.md`](../dev-log/2026-05-08-sprint42-master.md)
-> **발송 prereq:** Sprint 41~46 visual fidelity 16+ 페이지 prototype-grade 통과 ✅, 본인 5분 시나리오 OK ✅, share token + 본인 backtest sample 1-2건 (사용자 manual)
+> **발송 prereq:** Sprint 41~46 visual fidelity 16+ 페이지 prototype-grade 통과 ✅, Sprint 47 architectural deepening 1차 통과 (pine_v2 STDLIB SSOT 통합 / trading provider registry / Skeleton·EmptyState variant API) ✅, 본인 5분 시나리오 OK ✅, share token + 본인 backtest sample 1-2건 (사용자 manual)
 
 ---
 
@@ -17,7 +17,8 @@
 - [ ] share link 클립보드 복사 가능 + og:image 정상 (Sprint 32 Surface Trust 검증된 영역)
 - [ ] Bybit Demo Trading 가입 link 정상 (`https://www.bybit.com/en/help-center/article/Demo-Trading`)
 - [ ] QuantBridge 가입 페이지 (Clerk) → 거래소 계정 등록 → DEMO 모드 배지 정상
-- [ ] 인터뷰 일정 카톡 약속 (Day 0 / Day 7 / Day 14 — 3 시점)
+- [ ] 인터뷰 일정 카톡 약속 (Day 0 / Day 0+6 / Day 0+13 — 3 시점, **절대 날짜 금지**, Day 7/14 = Day 0 발송일 기준 상대 일자)
+- [ ] Day 0 발송 timestamp 기록 (카톡 발송 직후 `sprint42-feedback.md` "1-2명 micro-cohort log" 섹션 발송일 칸에 기입)
 
 ---
 
@@ -38,6 +39,9 @@
 → 진짜 수수료/슬리피지 포함 백테스트 (TV 가 못 함)
 → Bybit *데모* 거래 자동 실행 (실자본 X, 가짜 USDT)
 → 24 metric + 가정박스 + share link 까지
+
+최근 16+ 페이지 디자인 1:1 폴리시 + 내부 구조 정합성 다지기까지 끝내고
+이제 가까운 분들께 처음 열어보는 단계입니다.
 
 부담 없이 1-2주만 써보고 솔직한 피드백 부탁드려요.
 - 가입 link: [QuantBridge URL — Beta 진입 시 도메인 적용]
