@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
@@ -284,10 +285,7 @@ function ListSkeleton() {
     <div className="overflow-x-auto rounded-xl border bg-card">
       <div className="flex flex-col gap-2 p-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-12 animate-pulse rounded-md bg-[color:var(--bg-alt)]"
-          />
+          <Skeleton key={i} variant="list-row" />
         ))}
       </div>
     </div>

@@ -45,4 +45,20 @@ describe("EmptyState", () => {
     fireEvent.click(screen.getByTestId("empty-state-cta"));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  // Sprint 47 BL-206: variant API 동작 검증.
+  it("variant 미지정 시 default variant 가 적용된다", () => {
+    render(<EmptyState headline="기본" />);
+    const el = screen.getByTestId("empty-state");
+    expect(el.dataset.variant).toBe("default");
+  });
+
+  it.each(["default", "search", "error", "first-run"] as const)(
+    "variant=%s 가 data-variant 속성으로 노출된다",
+    (variant) => {
+      render(<EmptyState headline="테스트" variant={variant} />);
+      const el = screen.getByTestId("empty-state");
+      expect(el.dataset.variant).toBe(variant);
+    },
+  );
 });

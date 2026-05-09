@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   selectIsDirty,
@@ -107,7 +108,7 @@ export function EditorView({ id }: { id: string }) {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="h-96 animate-pulse rounded-md bg-[color:var(--bg-alt)]" />
+        <Skeleton className="h-96 w-full" />
       </div>
     );
   }

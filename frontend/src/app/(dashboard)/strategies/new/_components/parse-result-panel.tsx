@@ -6,6 +6,7 @@
 // Sprint 44 W F2: error / result body slide-down 200ms ease-out + fade (parseResultIn keyframe)
 
 import { CheckIcon, XIcon } from "lucide-react";
+import { Skeleton } from "@/components/skeleton";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 
 interface ParseResultPanelProps {
@@ -51,9 +52,9 @@ function LoadingSkeleton() {
   return (
     <div role="status" aria-label="파싱 중" className="space-y-2">
       {[0, 1, 2, 3].map((i) => (
-        <div
+        <Skeleton
           key={i}
-          className="h-3 rounded bg-[color:var(--primary-100)]/60 animate-pulse"
+          className="h-3 rounded bg-[color:var(--primary-100)]/60"
           style={{ width: `${100 - i * 12}%` }}
         />
       ))}

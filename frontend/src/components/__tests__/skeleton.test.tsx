@@ -31,4 +31,29 @@ describe("Skeleton", () => {
     const fields = screen.getAllByTestId("form-skeleton-field");
     expect(fields).toHaveLength(3);
   });
+
+  // Sprint 47 BL-206: variant API 동작 검증.
+  it.each([
+    ["text", "h-4"],
+    ["card", "h-36"],
+    ["list-row", "h-12"],
+    ["chart", "h-64"],
+    ["table-cell", "h-6"],
+  ] as const)(
+    "variant=%s 는 %s 클래스를 적용한다",
+    (variant, expectedClass) => {
+      render(<Skeleton variant={variant} />);
+      const el = screen.getByTestId("skeleton");
+      expect(el.className).toContain(expectedClass);
+      expect(el.dataset.variant).toBe(variant);
+    },
+  );
+
+  it("variant 와 className 가 충돌하면 className 이 우선한다 (twMerge)", () => {
+    render(<Skeleton variant="text" className="h-20" />);
+    const el = screen.getByTestId("skeleton");
+    // twMerge 결과: h-4 → h-20 으로 override.
+    expect(el.className).toContain("h-20");
+    expect(el.className).not.toContain("h-4");
+  });
 });
