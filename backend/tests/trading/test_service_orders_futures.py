@@ -189,10 +189,10 @@ async def test_order_service_accepts_leverage_at_cap_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """경계 조건: leverage == cap은 통과 (>만 차단)."""
-    from src.trading import service as service_module
     from src.trading.repository import OrderRepository
     from src.trading.schemas import OrderRequest
     from src.trading.service import OrderService
+    from src.trading.services import order_service as service_module
 
     monkeypatch.setattr(service_module.settings, "bybit_futures_max_leverage", 20)
 
