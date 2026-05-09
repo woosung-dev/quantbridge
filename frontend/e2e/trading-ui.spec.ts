@@ -21,6 +21,10 @@ import {
 //   src/features/trading/__tests__/KillSwitchBanner.test.tsx  (C-1/C-3)
 //   src/features/trading/__tests__/ExchangeAccountsPanel.mode-badge.test.tsx  (C-2)
 
+// Sprint 46 W2 — chromium-authed peers (dogfood-flow / live-session-flow / sprint32-dogfood-gate
+// / backtest-live-mirror) 와 동일하게 serial mode 일괄 적용. 공유 storageState flake 방지.
+test.describe.configure({ mode: "serial" });
+
 // Sprint 25 leak guard + orders mock 통합 — 미등록 API 호출 stderr + OrdersPanel
 // schema (total 필수) 만족 위해 모든 시나리오에 orders 빈 list 기본 mock.
 test.beforeEach(async ({ page }) => {

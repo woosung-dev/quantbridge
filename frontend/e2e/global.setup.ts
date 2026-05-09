@@ -25,6 +25,10 @@ const REQUIRED_ENV = [
 const STORAGE_PATH = "e2e/.auth/storageState.json";
 
 setup("authenticate", async ({ page }) => {
+  // Sprint 46 W3: pre-warm 4 paths × Next.js cold JIT compile (5-30s each) →
+  // 합산 1-2 분 소요. default 30s test timeout 으론 부족. 180s 로 확장.
+  setup.setTimeout(240_000);
+
   // Sprint 25 codex G.2 P1 #1 fix — clerkSetup() 이 .env.local 을 로드하므로 env 검증을
   // 그 호출 후 실시. 호출 전 검증 시 dotenv 로딩 전 fail 하여 .env.local 사용자 깨짐.
   // Clerk Testing Token 발급 (CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY 사용)
@@ -43,7 +47,8 @@ setup("authenticate", async ({ page }) => {
     process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 
   // 1) sign-in 페이지 방문 → 2) Testing Token 자동 첨부 → 3) clerk.signIn()
-  await page.goto(`${baseUrl}/sign-in`);
+  // Sprint 46 W3: Next.js 16 dev cold compile 으로 첫 sign-in load 가 느릴 수 있어 timeout 120s.
+  await page.goto(`${baseUrl}/sign-in`, { timeout: 120_000 });
   await clerk.signIn({
     page,
     signInParams: {
