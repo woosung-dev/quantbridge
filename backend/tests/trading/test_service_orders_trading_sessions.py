@@ -89,9 +89,9 @@ async def test_trading_sessions_outside_rejects_order(
     """세션 리스트가 채워져 있고 현재 hour가 밖이면 TradingSessionClosed."""
     from datetime import UTC, datetime
 
-    import src.trading.service as service_mod
     from src.trading.repository import OrderRepository
     from src.trading.service import OrderService
+    from src.trading.services import order_service as service_mod
 
     # 현재 시각을 14 UTC로 고정. asia=[0,7), 14 UTC는 asia 밖.
     class _FrozenDatetime(datetime):
@@ -126,9 +126,9 @@ async def test_trading_sessions_inside_allows_order(
     """런던 세션 내부 시각이면 주문 통과."""
     from datetime import UTC, datetime
 
-    import src.trading.service as service_mod
     from src.trading.repository import OrderRepository
     from src.trading.service import OrderService
+    from src.trading.services import order_service as service_mod
 
     class _FrozenDatetime(datetime):
         @classmethod

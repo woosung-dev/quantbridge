@@ -146,11 +146,11 @@ async def test_order_service_rejects_leverage_above_cap(
     OrderRequest.leverage Field(le=125)는 Bybit 이론 상한. 운영 리스크 cap(기본 20)은
     settings 기반 동적 체크. Pydantic에서 통과한 값이 service에서 거부되어야 함.
     """
-    from src.trading import service as service_module
     from src.trading.exceptions import LeverageCapExceeded
     from src.trading.repository import OrderRepository
     from src.trading.schemas import OrderRequest
     from src.trading.service import OrderService
+    from src.trading.services import order_service as service_module
 
     # 운영 cap을 20으로 강제 (default와 동일하지만 명시)
     monkeypatch.setattr(service_module.settings, "bybit_futures_max_leverage", 20)
@@ -189,10 +189,10 @@ async def test_order_service_accepts_leverage_at_cap_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """경계 조건: leverage == cap은 통과 (>만 차단)."""
-    from src.trading import service as service_module
     from src.trading.repository import OrderRepository
     from src.trading.schemas import OrderRequest
     from src.trading.service import OrderService
+    from src.trading.services import order_service as service_module
 
     monkeypatch.setattr(service_module.settings, "bybit_futures_max_leverage", 20)
 
