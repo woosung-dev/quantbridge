@@ -3,6 +3,7 @@
 import { Trash2, WalletIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/skeleton";
 import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
 import { TradingEmptyState } from "./trading-empty-state";
@@ -69,9 +70,9 @@ export function ExchangeAccountsPanel() {
   if (isLoading || !data) {
     return (
       <section className="p-4 border rounded">
-        <div
+        <Skeleton
           aria-label="거래소 계정 불러오는 중"
-          className="h-20 animate-pulse rounded-md bg-[color:var(--bg-alt)]"
+          className="h-20 w-full"
         />
       </section>
     );

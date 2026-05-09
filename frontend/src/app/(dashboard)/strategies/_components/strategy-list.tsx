@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/skeleton";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { ParseStatus, StrategyListItem, StrategyListQuery } from "@/features/strategy/schemas";
 import { StrategyCard } from "./strategy-card";
@@ -285,10 +286,7 @@ function ListSkeleton({ view }: { view: ViewMode }) {
       }
     >
       {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-36 animate-pulse rounded-[var(--radius-lg)] bg-[color:var(--bg-alt)]"
-        />
+        <Skeleton key={i} variant="card" />
       ))}
     </div>
   );
