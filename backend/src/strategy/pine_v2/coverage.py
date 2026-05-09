@@ -20,6 +20,8 @@ from typing import Literal, TypedDict
 
 from src.strategy.pine_v2._names import (
     TA_FUNCTIONS as _TA_FUNCTIONS,
+)
+from src.strategy.pine_v2._names import (
     UTILITY_FUNCTIONS as _UTILITY_FUNCTIONS,
 )
 

@@ -64,7 +64,7 @@ UTILITY_FUNCTIONS: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# STDLIB_NAMES — TA_FUNCTIONS ∪ UTILITY_FUNCTIONS (총 19종).
+# STDLIB_NAMES — TA_FUNCTIONS | UTILITY_FUNCTIONS (총 19종, set union).
 # interpreter._eval_call 이 Call 노드 디스패치 대상으로 사용.
 # ---------------------------------------------------------------------------
 STDLIB_NAMES: frozenset[str] = TA_FUNCTIONS | UTILITY_FUNCTIONS
