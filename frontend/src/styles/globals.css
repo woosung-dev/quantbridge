@@ -579,7 +579,7 @@ h6 {
 /* 폼 422 inline 카드 slide-down (FormErrorInline). 4 → 0px / opacity 0 → 1 */
 @keyframes qb-form-slide-down {
   from { opacity: 0; transform: translateY(-6px); max-height: 0; }
-  to   { opacity: 1; transform: translateY(0); max-height: 600px; }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .qb-form-slide-down { animation: qb-form-slide-down 200ms ease-out both; }
 
