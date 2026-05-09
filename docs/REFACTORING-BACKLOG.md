@@ -19,6 +19,21 @@
 
 **총 항목:** 50 BL — P0 5 (BL-001~005) / P1 17 (BL-010~026) / P2 14 (BL-030~043) / P3 8 (BL-050~057) / Beta 오픈 milestone 6 (BL-070~075) + Sprint 28+ 신규 BL (BL-141/140b/004 ✅ Resolved, BL-142~146 deferred / partial)
 
+**Sprint 46 BL 변경 (2026-05-09):**
+
+- ✅ **BL-195 Resolved** — `qb-form-slide-down` keyframe `to { max-height: 600px }` 1줄 제거 (W1, PR #229)
+- ✅ **BL-194 Resolved** — `frontend/src/app/favicon.ico` (32×32 ICO 670B) + `icon.svg` 추가 (W1, PR #229)
+- ✅ **BL-138 Resolved** — Live Sessions list `<p>→<h3>` + `created:` colon 일관성 (W1, PR #229)
+- ✅ **BL-050 Resolved** — `PINE_ALERT_HEURISTIC_MODE` env ADR (architecture-conformance §B5-ADR, W1, PR #229)
+- ✅ **BL-057 Resolved** — Mutation scope-reducing 명시화 (trust-layer-requirements §4.1.1, W1, PR #229)
+- ✅ **BL-146 Resolved** — 메타-방법론 4종 영구 규칙 승격 (`.ai/common/global.md` §7 신설, W1, ⚠ `.ai/` gitignored canonical path)
+- 신규 **BL-196** (P2) — e2e baseline 3 pre-existing failure (Sprint 32/38 fixture drift): `MOCK_BACKTEST_DETAIL.metrics.total_return: 0.1234` (number) vs Zod `decimalString` (string) → `sprint32-dogfood-gate.spec.ts:88` + `live-session-flow.spec.ts:75` + `backtest-live-mirror.spec.ts:121` cascade fail. W2/W3 보고. 신규 W2/W3/W4 Tier 1/2/3 spec 은 mock 정합 통과. Trigger = on-demand 또는 Sprint 47+ surgical
+- 신규 **BL-197** (P3) — Tier 3 #11 KS resolve UI button `test.skip` (banner resolve CTA 미구현). Sprint 47+ implement 시 unskip
+- 신규 **BL-198** (P3) — Tier 3 #10 beforeunload 가짜 검증 (codex G.4 P3): `sprint46-tier3-nth.spec.ts:115-122` 가 본인 listener 등록/해제만 검증, product hook 검증 미실시. dirty form submit + actual unload event 시뮬 필요. Sprint 47+
+- 신규 **BL-199** (P3) — Tier 3 #12 FormErrorInline a11y 가짜 검증 (codex G.4 P3): `sprint46-tier3-nth.spec.ts:189-190` 가 422 mock 후 form submit 누락, SVG 존재만 검증. submit + role="alert" + card content 검증 필요. Sprint 47+
+- codex G.4 review (Wave 2) **GATE PASS** (P0=0 / P1=0). P2 2건 = **즉시 fix 적용** (W4 sprint46-tier3-nth.spec.ts mock route order swap + BL-138 h3-in-button → span). P3 2건 = BL-198/199 등재
+- Sprint 46 = 4 worker autonomous parallel (cmux) 5번째 실측. 16 신규 e2e 시나리오 (Tier 1 5 + Tier 2 4 + Tier 3 7, #11 skip). PR #229/231 정상 머지 + 직접 squash merge #230(W4)/#232(W2) — playwright.config.ts testMatch conflict 해결 (LESSON-056 force-push deny 우회 패턴)
+
 **Sprint 29 BL 매핑** (plan v2 §2, [`~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`](../../.claude/plans/quantbridge-sprint-29-sunny-origami.md)):
 
 - **진입 시점 P0 잔여 = 2건**: BL-003 (Bybit mainnet runbook, deferred — Pine pain 우선) + BL-005 (실자본 1-2주 dogfood, deferred — Pine 통과율 5/6 우선). BL-001/002 ✅ Sprint 15 Resolved + BL-004 ✅ Sprint 28 Resolved.

@@ -98,7 +98,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
               onClick={() => onSelect?.(s)}
               className="text-left"
             >
-              <h3 className="font-medium">{s.symbol}</h3>
+              <span className="block font-medium">{s.symbol}</span>
               <p className="text-xs text-muted-foreground">
                 {s.interval} · created: {new Date(s.created_at).toLocaleString()}
               </p>

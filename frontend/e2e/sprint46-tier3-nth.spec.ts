@@ -87,10 +87,8 @@ const MOCK_BACKTEST_DETAIL = {
 test("#10 strategy edit — dirty 상태에서 unload 경고 listener 등록", async ({
   page,
 }) => {
-  await page.route(
-    `**/api/v1/strategies/${MOCK_STRATEGY.id}`,
-    fulfillJson(MOCK_STRATEGY),
-  );
+  // Sprint 46 codex G.4 [P2] fix — broad list route 먼저 등록 후 exact detail route 등록
+  // (Playwright page.route LIFO: 나중 등록된 핸들러가 우선순위 높음 → broad 가 먼저면 detail 이 위에 우선)
   await page.route(
     API_ROUTES.strategies,
     fulfillJson({
@@ -100,6 +98,10 @@ test("#10 strategy edit — dirty 상태에서 unload 경고 listener 등록", a
       limit: 20,
       total_pages: 1,
     }),
+  );
+  await page.route(
+    `**/api/v1/strategies/${MOCK_STRATEGY.id}`,
+    fulfillJson(MOCK_STRATEGY),
   );
 
   await page.goto(`/strategies/${MOCK_STRATEGY.id}/edit`, { timeout: 60_000 });
