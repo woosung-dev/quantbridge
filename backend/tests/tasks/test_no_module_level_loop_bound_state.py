@@ -5,14 +5,19 @@ Sprint 18 Option C 의 영속 `_WORKER_LOOP` 채택으로 module-level `asyncio.
 PR 이 이런 패턴 추가 시 영속 loop 가정 위반 회귀 방어** 가 필요하다.
 
 본 audit 은 `src/tasks/*.py` + `src/common/alert.py` + `src/common/redis_client.py`
-의 module-level (top-level) Assign / AnnAssign 노드에서 `asyncio.<class>()` 호출
-검출. allowlist 외 신규 발견 시 fail.
++ `src/trading/services/*.py` (BL-203 Sprint 48 codex Fix #4) 의 module-level
+(top-level) Assign / AnnAssign 노드에서 `asyncio.<class>()` 호출 검출. allowlist 외
+신규 발견 시 fail.
 
 `async def` 함수 안의 local `asyncio.Event()` 등은 매치 안 함 (loop-bound 안전).
 호출자: PR 리뷰 + nightly CI.
 
 codex G.0 P2 (Sprint 19): `ast.AnnAssign` + import alias (`from asyncio import
 Semaphore as S`) 까지 detect.
+
+BL-203 Sprint 48 (codex Fix #4): `src/trading/services/*.py` audit scope 확장.
+`LiveSignalSessionService` 가 module-level engine / asyncio.Lock / RedisLock /
+create_async_engine() 캐시 하지 않도록 영구 audit (Celery prefork-safe).
 """
 
 from __future__ import annotations
@@ -55,6 +60,15 @@ def _populate_targets() -> list[tuple[str, Path]]:
         if path.exists():
             module = f"src.common.{path.stem}"
             targets.append((module, path))
+    # BL-203 Sprint 48 (codex Fix #4) — src/trading/services/*.py audit scope.
+    # LiveSignalSessionService Celery prefork-safe 영구 audit.
+    services_dir = root / "src" / "trading" / "services"
+    if services_dir.exists():
+        for path in sorted(services_dir.glob("*.py")):
+            if path.name == "__init__.py":
+                continue
+            module = f"src.trading.services.{path.stem}"
+            targets.append((module, path))
     _TARGET_FILES.extend(targets)
     return _TARGET_FILES
 
@@ -93,9 +107,7 @@ def _collect_asyncio_aliases(tree: ast.Module) -> dict[str, str]:
     return aliases
 
 
-def _resolve_call_to_asyncio_class(
-    call: ast.Call, aliases: dict[str, str]
-) -> str | None:
+def _resolve_call_to_asyncio_class(call: ast.Call, aliases: dict[str, str]) -> str | None:
     """`Call` 노드가 asyncio.<forbidden> 호출인지 판단. 아니면 None.
 
     예시:
@@ -120,9 +132,7 @@ def _resolve_call_to_asyncio_class(
     return None
 
 
-def _scan_module_level_violations(
-    module_name: str, source: str
-) -> list[tuple[str, int, str]]:
+def _scan_module_level_violations(module_name: str, source: str) -> list[tuple[str, int, str]]:
     """Top-level Assign / AnnAssign 의 `value` 가 asyncio.<forbidden>(...) 인 경우 수집.
 
     반환: [(module, lineno, target_name), ...]
@@ -173,8 +183,7 @@ def test_no_unallowed_module_level_asyncio_primitives() -> None:
     assert not findings, (
         "Module-level asyncio primitive 신규 발견 — Option C 영속 _WORKER_LOOP 가정 "
         "위반 가능. allowlist 추가 또는 lazy factory 변환 권장.\n"
-        "위반 목록:\n"
-        + "\n".join(f"  {m}:{ln} `{name}`" for m, ln, name in findings)
+        "위반 목록:\n" + "\n".join(f"  {m}:{ln} `{name}`" for m, ln, name in findings)
     )
 
 
@@ -193,6 +202,11 @@ def test_audit_targets_cover_known_modules() -> None:
         "src.tasks.celery_app",
         "src.common.alert",
         "src.common.redis_client",
+        # BL-203 Sprint 48 (codex Fix #4) — services Celery prefork-safe audit
+        "src.trading.services.live_session_service",
+        "src.trading.services.order_service",
+        "src.trading.services.account_service",
+        "src.trading.services.webhook_secret_service",
     }
     missing = expected_subset - targets
     assert not missing, f"audit 대상 누락: {missing}"
@@ -240,14 +254,11 @@ def test_allowlisted_modules_have_documented_violations(module_name: str) -> Non
     if not allowlisted:
         pytest.skip(f"{module_name} 에 allowlist entry 없음")
 
-    target_path = next(
-        path for mod, path in _populate_targets() if mod == module_name
-    )
+    target_path = next(path for mod, path in _populate_targets() if mod == module_name)
     source = target_path.read_text(encoding="utf-8")
     actual = {name for _, _, name in _scan_module_level_violations(module_name, source)}
 
     stale = allowlisted - actual
     assert not stale, (
-        f"allowlist 의 {module_name} 항목 {stale} 가 source 에 더 이상 없음. "
-        "allowlist 정리 필요."
+        f"allowlist 의 {module_name} 항목 {stale} 가 source 에 더 이상 없음. allowlist 정리 필요."
     )
