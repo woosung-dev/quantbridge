@@ -1,4 +1,5 @@
 """ExchangeAccountService — register + get_credentials + missing account + fetch_balance_usdt."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -76,6 +77,7 @@ async def test_get_credentials_for_missing_account_raises(db_session, user: User
 
 # ── Sprint 8+ fetch_balance_usdt ──────────────────────────────────────
 
+
 async def _register_futures_account(
     db_session, user: User, crypto, *, mode: ExchangeMode = ExchangeMode.demo
 ):
@@ -117,9 +119,7 @@ async def test_fetch_balance_usdt_returns_none_for_non_bybit_account(
     repo = ExchangeAccountRepository(db_session)
     mock_provider = MagicMock()
     mock_provider.fetch_balance = AsyncMock()  # 호출 안 되어야 함
-    svc = ExchangeAccountService(
-        repo=repo, crypto=crypto, bybit_futures_provider=mock_provider
-    )
+    svc = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=mock_provider)
     req = RegisterAccountRequest(
         exchange=ExchangeName.okx,
         mode=ExchangeMode.demo,
@@ -136,9 +136,7 @@ async def test_fetch_balance_usdt_returns_none_for_non_bybit_account(
     mock_provider.fetch_balance.assert_not_awaited()
 
 
-async def test_fetch_balance_usdt_returns_provider_value_for_bybit(
-    db_session, user: User, crypto
-):
+async def test_fetch_balance_usdt_returns_provider_value_for_bybit(db_session, user: User, crypto):
     """Bybit + provider 주입 → USDT free balance Decimal 반환."""
     from src.trading.repository import ExchangeAccountRepository
     from src.trading.service import ExchangeAccountService
@@ -148,9 +146,7 @@ async def test_fetch_balance_usdt_returns_provider_value_for_bybit(
     mock_provider.fetch_balance = AsyncMock(
         return_value={"USDT": Decimal("8500.5"), "BTC": Decimal("0.1")}
     )
-    svc = ExchangeAccountService(
-        repo=repo, crypto=crypto, bybit_futures_provider=mock_provider
-    )
+    svc = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=mock_provider)
     req = RegisterAccountRequest(
         exchange=ExchangeName.bybit,
         mode=ExchangeMode.demo,
@@ -174,9 +170,9 @@ async def test_fetch_balance_usdt_returns_none_on_provider_error(
     caplog는 다른 test의 logger 설정에 영향을 받아 전체 실행에서 불안정.
     logger.warning을 직접 monkeypatch로 가로채어 message만 검증.
     """
-    from src.trading import service as service_module
     from src.trading.repository import ExchangeAccountRepository
     from src.trading.service import ExchangeAccountService
+    from src.trading.services import account_service as service_module
 
     captured_warnings: list[str] = []
 
@@ -188,9 +184,7 @@ async def test_fetch_balance_usdt_returns_none_on_provider_error(
     repo = ExchangeAccountRepository(db_session)
     mock_provider = MagicMock()
     mock_provider.fetch_balance = AsyncMock(side_effect=ProviderError("network timeout"))
-    svc = ExchangeAccountService(
-        repo=repo, crypto=crypto, bybit_futures_provider=mock_provider
-    )
+    svc = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=mock_provider)
     req = RegisterAccountRequest(
         exchange=ExchangeName.bybit,
         mode=ExchangeMode.demo,
