@@ -80,6 +80,28 @@ def within_tolerance(actual, expected):
 
 모든 TL-E-1 ~ TL-E-9 을 **동시 만족**. 어느 하나라도 실패 시 **main merge 금지**.
 
+#### 4.1.1 Mutation 측정 불가 = scope-reducing 정책 (BL-057, Sprint 46, ADR-013 follow-up)
+
+**규칙:** Mutation Oracle (TL-E-5) 가 새 P-1/2/3 layer 또는 신규 mutation 케이스에서 **측정 불가** (instrumentation 실패 / sandbox eval 미가용 / coverage 도구 mismatch) 로 판정될 경우, **해당 layer 또는 케이스를 scope-reducing** 한다 — Gate-2 hard-block 으로 승격하지 않는다.
+
+**근거 (3):**
+
+1. **불확실성 회피**: 측정 불가 ≠ mutation 미감지. Hard-block 승격 시 false-positive 차단으로 PR throughput 손상.
+2. **CLAUDE.md ADR-013 정합**: "측정 불가능한 SLO 는 PR 차단 사유가 될 수 없다" 원칙의 mutation domain 적용.
+3. **선례**: Sprint Path β Stage 2c 1차 (2026-04-23, 4/8 감지) → 2차 (2026-04-23, 8/8 감지) — "측정 가능 영역만 측정" 으로 점진 확장하여 false-fail 0 달성.
+
+**적용 절차:**
+
+1. Mutation 측정 실패 layer / 케이스 식별 → `docs/01_requirements/trust-layer-requirements.md` §4.2 표에 1 row 추가 (SLO + 실패 사유 + scope-reducing 결정).
+2. `pytest.mark.skip(reason="mutation instrumentation unavailable — see TL §4.1.1")` 으로 명시적 skip.
+3. nightly Mutation Oracle 보고서에서 **분모 차감** (4/8 → 4/7 처럼 측정 가능 mutation 기준 비율 산정).
+4. 분기별 review 시 instrumentation 복구 가능성 재평가 (skip 해제 시도).
+
+**Anti-pattern:** Mutation 미감지 = Gate-2 fail 자동 적용 (false-fail 양산 → developer trust 손상).
+
+**Related:** ADR-013 (CLAUDE.md), [B5-ADR](../04_architecture/architecture-conformance.md#b5-adr), [BL-057](../REFACTORING-BACKLOG.md#bl-057)
+
+
 ### 4.2 Degrade 허용 (SLO 초과 시)
 
 | SLO                      | 실패 시 조치                                                                          |

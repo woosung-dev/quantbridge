@@ -139,6 +139,31 @@ rg -n 'os\.(environ|getenv)' backend/src/ \
 
 **처리:** [BL-050](../REFACTORING-BACKLOG.md#bl-050) 등록 — ADR 신설 또는 주석 강화로 정당성 명시.
 
+#### B5-ADR — `PINE_ALERT_HEURISTIC_MODE` env 직접 read 정당성 (Sprint 46, 2026-05-09)
+
+**상태:** ✅ Accepted — Sprint 46 W1 (BL-050 resolved)
+
+**결정:** `pine_v2/alert_hook.py` 의 `os.environ.get("PINE_ALERT_HEURISTIC_MODE", ...)` 1 건은 `pydantic_settings.BaseSettings` 마이그레이션 **대상 외**로 유지한다.
+
+**근거 (3):**
+
+1. **Test isolation 요구**: alert heuristic 은 단일 strategy 실행 내에서 mode flip 시나리오 (`strict` ↔ `lenient`) 를 monkeypatch 로 검증한다. `BaseSettings` 는 import time 에 1회 freeze 되므로 `pytest.MonkeyPatch.setenv` 가 무효화된다.
+2. **Sandbox 격리**: Pine v2 runtime 은 의도적으로 `Settings()` 의존성을 갖지 않는다 (Tier-0 layer 8 의 격리 원칙, [Sprint 8a Tier-0 후속](../../.ai/project/lessons.md)). settings 주입은 sandbox boundary 위반.
+3. **범위 제약**: 1 변수 / 1 호출처 / fallback `"strict"` (안전한 default). 정책 범위 외 확산 위험 없음.
+
+**제약:**
+
+- 추가 env 직접 read 발생 시 **ADR 갱신 의무** (이 ADR 가 1 건 한정).
+- Pine v2 외 모듈에서 `os.environ` 직접 호출 발견 시 B5 검증 명령어가 alert.
+
+**대안 검토:**
+
+- `Settings` 주입: test isolation 깨짐 (위 1).
+- `functools.lru_cache(maxsize=1)` 래퍼: monkeypatch 후 cache invalidate 추가 step 필요 → 가독성 저하.
+- env injection via fixture parameter: alert_hook signature 변경 → caller 4+ 곳 수정 → blast radius 증가.
+
+**Related:** ADR-013 (Mutation policy), [BL-050](../REFACTORING-BACKLOG.md#bl-050)
+
 ---
 
 ### B6 — AES-256 (Fernet) 암호화 적용
