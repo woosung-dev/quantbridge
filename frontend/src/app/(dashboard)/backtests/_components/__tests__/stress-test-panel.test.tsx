@@ -15,8 +15,10 @@ type Opts = { onSuccess?: (r: { stress_test_id: string }) => void } | null;
 
 let mcMutation: MutationMock;
 let wfMutation: MutationMock;
+let caMutation: MutationMock;
 let lastMcOpts: Opts;
 let _lastWfOpts: Opts;
+let _lastCaOpts: Opts;
 let stressData: StressTestDetail | undefined;
 
 vi.mock("@/features/backtest/hooks", () => ({
@@ -27,6 +29,10 @@ vi.mock("@/features/backtest/hooks", () => ({
   useCreateWalkForward: (opts: Opts) => {
     _lastWfOpts = opts;
     return wfMutation;
+  },
+  useCreateCostAssumption: (opts: Opts) => {
+    _lastCaOpts = opts;
+    return caMutation;
   },
   useStressTest: () => ({
     data: stressData,
@@ -46,8 +52,10 @@ import { StressTestPanel } from "../stress-test-panel";
 beforeEach(() => {
   mcMutation = { mutate: vi.fn(), isPending: false };
   wfMutation = { mutate: vi.fn(), isPending: false };
+  caMutation = { mutate: vi.fn(), isPending: false };
   lastMcOpts = null;
   _lastWfOpts = null;
+  _lastCaOpts = null;
   stressData = undefined;
 });
 
@@ -88,6 +96,24 @@ describe("StressTestPanel", () => {
         test_bars: 100,
         step_bars: 100,
         max_folds: 20,
+      },
+    });
+  });
+
+  it("Sprint 50: Cost Assumption Sensitivity 버튼 클릭 시 9-cell preset 호출", () => {
+    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Cost Assumption/ }),
+    );
+    expect(caMutation.mutate).toHaveBeenCalledTimes(1);
+    const arg = caMutation.mutate.mock.calls[0]?.[0];
+    expect(arg).toMatchObject({
+      backtest_id: "abc12345-1111-4111-8111-111111111111",
+      params: {
+        param_grid: {
+          fees: ["0.0005", "0.001", "0.002"],
+          slippage: ["0.0001", "0.0005", "0.001"],
+        },
       },
     });
   });

@@ -307,7 +307,11 @@ export type ShareTokenResponse = z.infer<typeof ShareTokenResponseSchema>;
 // Stress Test (Phase C)
 // ---------------------------------------------------------------------------
 
-export const StressTestKindSchema = z.enum(["monte_carlo", "walk_forward"]);
+export const StressTestKindSchema = z.enum([
+  "monte_carlo",
+  "walk_forward",
+  "cost_assumption_sensitivity", // Sprint 50 신규
+]);
 export type StressTestKind = z.infer<typeof StressTestKindSchema>;
 
 export const StressTestStatusSchema = z.enum([
@@ -357,6 +361,28 @@ export const WalkForwardResultSchema = z.object({
 });
 export type WalkForwardResult = z.infer<typeof WalkForwardResultSchema>;
 
+// Cost Assumption Sensitivity (Sprint 50) — fees x slippage 9-cell heatmap.
+// 진짜 Param Stability (pine input override) = BL-220 / Sprint 51.
+export const CostAssumptionCellSchema = z.object({
+  param1_value: z.string(),
+  param2_value: z.string(),
+  sharpe: z.string().nullable(),
+  total_return: z.string(),
+  max_drawdown: z.string(),
+  num_trades: z.number().int(),
+  is_degenerate: z.boolean(),
+});
+export type CostAssumptionCell = z.infer<typeof CostAssumptionCellSchema>;
+
+export const CostAssumptionResultSchema = z.object({
+  param1_name: z.string(),
+  param2_name: z.string(),
+  param1_values: z.array(z.string()),
+  param2_values: z.array(z.string()),
+  cells: z.array(CostAssumptionCellSchema),
+});
+export type CostAssumptionResult = z.infer<typeof CostAssumptionResultSchema>;
+
 // Detail — BE StressTestDetail 을 그대로 미러. `result` 단일 union 대신 kind 별 개별 필드.
 export const StressTestDetailSchema = z.object({
   id: z.uuid(),
@@ -366,6 +392,7 @@ export const StressTestDetailSchema = z.object({
   params: z.record(z.string(), z.unknown()),
   monte_carlo_result: MonteCarloResultSchema.nullable().optional(),
   walk_forward_result: WalkForwardResultSchema.nullable().optional(),
+  cost_assumption_result: CostAssumptionResultSchema.nullable().optional(),
   error: z.string().nullable().optional(),
   created_at: z.iso.datetime({ offset: true }),
   started_at: z.iso.datetime({ offset: true }).nullable().optional(),
@@ -412,4 +439,19 @@ export const CreateWalkForwardRequestSchema = z.object({
 });
 export type CreateWalkForwardRequest = z.infer<
   typeof CreateWalkForwardRequestSchema
+>;
+
+// Sprint 50 — Cost Assumption Sensitivity request. param_grid 는 string[] (Decimal serialized).
+// 서버 9 cell 강제 (codex P1#5). Client-side validate 동일.
+export const CostAssumptionParamsSchema = z.object({
+  param_grid: z.record(z.string(), z.array(z.string())),
+});
+export type CostAssumptionParams = z.infer<typeof CostAssumptionParamsSchema>;
+
+export const CreateCostAssumptionRequestSchema = z.object({
+  backtest_id: z.uuid(),
+  params: CostAssumptionParamsSchema,
+});
+export type CreateCostAssumptionRequest = z.infer<
+  typeof CreateCostAssumptionRequestSchema
 >;

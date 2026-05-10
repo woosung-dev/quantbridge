@@ -25,6 +25,7 @@ import {
   getStressTest,
   listBacktests,
   listBacktestTrades,
+  postCostAssumption,
   postMonteCarlo,
   postWalkForward,
   revokeBacktestShare,
@@ -42,6 +43,7 @@ import type {
   BacktestListResponse,
   BacktestProgressResponse,
   CreateBacktestRequest,
+  CreateCostAssumptionRequest,
   CreateMonteCarloRequest,
   CreateWalkForwardRequest,
   ShareTokenResponse,
@@ -322,6 +324,30 @@ export function useCreateWalkForward(
     mutationFn: async (body: CreateWalkForwardRequest) => {
       const token = await getToken();
       return postWalkForward(body, token);
+    },
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
+      opts.onSuccess?.(created);
+    },
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+// Sprint 50 — Cost Assumption Sensitivity (fees x slippage 9-cell grid).
+export function useCreateCostAssumption(
+  opts: MutationCallbacks<StressTestCreatedResponse> = {},
+): UseMutationResult<
+  StressTestCreatedResponse,
+  Error,
+  CreateCostAssumptionRequest
+> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateCostAssumptionRequest) => {
+      const token = await getToken();
+      return postCostAssumption(body, token);
     },
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });

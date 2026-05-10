@@ -10,6 +10,7 @@ import {
   BacktestListResponseSchema,
   BacktestProgressResponseSchema,
   CreateBacktestRequestSchema,
+  CreateCostAssumptionRequestSchema,
   CreateMonteCarloRequestSchema,
   CreateWalkForwardRequestSchema,
   ShareTokenResponseSchema,
@@ -22,6 +23,7 @@ import {
   type BacktestListResponse,
   type BacktestProgressResponse,
   type CreateBacktestRequest,
+  type CreateCostAssumptionRequest,
   type CreateMonteCarloRequest,
   type CreateWalkForwardRequest,
   type ShareTokenResponse,
@@ -176,6 +178,23 @@ export async function postWalkForward(
     token,
     body: parsed,
   });
+  return StressTestCreatedResponseSchema.parse(raw);
+}
+
+// Sprint 50 — Cost Assumption Sensitivity (fees x slippage 9-cell grid).
+export async function postCostAssumption(
+  body: CreateCostAssumptionRequest,
+  token: string | null,
+): Promise<StressTestCreatedResponse> {
+  const parsed = CreateCostAssumptionRequestSchema.parse(body);
+  const raw = await apiFetch<unknown>(
+    `${STRESS_TESTS_PATH}/cost-assumption-sensitivity`,
+    {
+      method: "POST",
+      token,
+      body: parsed,
+    },
+  );
   return StressTestCreatedResponseSchema.parse(raw);
 }
 
