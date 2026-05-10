@@ -28,7 +28,12 @@ depends_on = None
 
 def upgrade() -> None:
     # PG 12+ ALTER TYPE ... ADD VALUE IF NOT EXISTS — idempotent.
-    op.execute("ALTER TYPE stress_test_kind ADD VALUE IF NOT EXISTS 'cost_assumption_sensitivity'")
+    # Init migration `20260424_0001` 이 SAEnum default mapping 으로 enum value 를
+    # member name (uppercase 'MONTE_CARLO' / 'WALK_FORWARD') 으로 생성 → 일관성을
+    # 위해 신규 value 도 uppercase 사용 의무. Playwright e2e 시 발견:
+    # lowercase 추가 시 SQLAlchemy INSERT 가 member name 보내
+    # InvalidTextRepresentationError → 500 error (BL-221 회고).
+    op.execute("ALTER TYPE stress_test_kind ADD VALUE IF NOT EXISTS 'COST_ASSUMPTION_SENSITIVITY'")
 
 
 def downgrade() -> None:
@@ -36,20 +41,23 @@ def downgrade() -> None:
 
     PostgreSQL 은 ALTER TYPE ... DROP VALUE 미지원 → enum 재생성 swap.
 
-    Pre-condition: stress_tests 테이블 안 kind='cost_assumption_sensitivity' row 가
+    Pre-condition: stress_tests 테이블 안 kind='COST_ASSUMPTION_SENSITIVITY' row 가
     없어야 함. 잔존 시 마지막 USING cast 가 fail → 운영 downgrade 시 사용자가
     먼저 해당 row 정리 의무 (DELETE FROM stress_tests WHERE kind =
-    'cost_assumption_sensitivity'). round-trip test 환경 (빈 DB) 에서는 안전.
+    'COST_ASSUMPTION_SENSITIVITY'). round-trip test 환경 (빈 DB) 에서는 안전.
+
+    Init migration `20260424_0001` 의 enum value 는 SAEnum member name
+    (uppercase) — 'MONTE_CARLO' / 'WALK_FORWARD' 그대로 재생성.
 
     Swap chain:
       1. column 을 TEXT 로 임시 detach (enum 의존성 끊기)
       2. 기존 enum DROP
-      3. cost_assumption_sensitivity 제외한 enum 재생성
+      3. COST_ASSUMPTION_SENSITIVITY 제외한 enum 재생성
       4. column 을 새 enum 으로 cast 복원
     """
     op.execute("ALTER TABLE stress_tests ALTER COLUMN kind TYPE TEXT")
     op.execute("DROP TYPE stress_test_kind")
-    op.execute("CREATE TYPE stress_test_kind AS ENUM ('monte_carlo', 'walk_forward')")
+    op.execute("CREATE TYPE stress_test_kind AS ENUM ('MONTE_CARLO', 'WALK_FORWARD')")
     op.execute(
         "ALTER TABLE stress_tests ALTER COLUMN kind TYPE stress_test_kind "
         "USING kind::text::stress_test_kind"
