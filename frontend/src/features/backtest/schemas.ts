@@ -311,6 +311,7 @@ export const StressTestKindSchema = z.enum([
   "monte_carlo",
   "walk_forward",
   "cost_assumption_sensitivity", // Sprint 50 신규
+  "param_stability", // Sprint 51 BL-220 신규 (pine_v2 input override 9-cell grid sweep)
 ]);
 export type StressTestKind = z.infer<typeof StressTestKindSchema>;
 
@@ -383,6 +384,28 @@ export const CostAssumptionResultSchema = z.object({
 });
 export type CostAssumptionResult = z.infer<typeof CostAssumptionResultSchema>;
 
+// Param Stability (Sprint 51 BL-220) — pine_v2 input override 9-cell heatmap.
+// EMA period × stop loss % 등 strategy parameter sweep. Cost Assumption 패턴 1:1 재사용.
+export const ParamStabilityCellSchema = z.object({
+  param1_value: z.string(),
+  param2_value: z.string(),
+  sharpe: z.string().nullable(),
+  total_return: z.string(),
+  max_drawdown: z.string(),
+  num_trades: z.number().int(),
+  is_degenerate: z.boolean(),
+});
+export type ParamStabilityCell = z.infer<typeof ParamStabilityCellSchema>;
+
+export const ParamStabilityResultSchema = z.object({
+  param1_name: z.string(),
+  param2_name: z.string(),
+  param1_values: z.array(z.string()),
+  param2_values: z.array(z.string()),
+  cells: z.array(ParamStabilityCellSchema),
+});
+export type ParamStabilityResult = z.infer<typeof ParamStabilityResultSchema>;
+
 // Detail — BE StressTestDetail 을 그대로 미러. `result` 단일 union 대신 kind 별 개별 필드.
 export const StressTestDetailSchema = z.object({
   id: z.uuid(),
@@ -393,6 +416,7 @@ export const StressTestDetailSchema = z.object({
   monte_carlo_result: MonteCarloResultSchema.nullable().optional(),
   walk_forward_result: WalkForwardResultSchema.nullable().optional(),
   cost_assumption_result: CostAssumptionResultSchema.nullable().optional(),
+  param_stability_result: ParamStabilityResultSchema.nullable().optional(),
   error: z.string().nullable().optional(),
   created_at: z.iso.datetime({ offset: true }),
   started_at: z.iso.datetime({ offset: true }).nullable().optional(),
@@ -454,4 +478,19 @@ export const CreateCostAssumptionRequestSchema = z.object({
 });
 export type CreateCostAssumptionRequest = z.infer<
   typeof CreateCostAssumptionRequestSchema
+>;
+
+// Sprint 51 BL-220 — Param Stability request. param_grid 는 pine InputDecl.var_name → string[]
+// (Decimal serialized). 서버 9 cell 강제 (Sprint 50 codex P1#5 패턴). Client-side validate 동일.
+export const ParamStabilityParamsSchema = z.object({
+  param_grid: z.record(z.string(), z.array(z.string())),
+});
+export type ParamStabilityParams = z.infer<typeof ParamStabilityParamsSchema>;
+
+export const CreateParamStabilityRequestSchema = z.object({
+  backtest_id: z.uuid(),
+  params: ParamStabilityParamsSchema,
+});
+export type CreateParamStabilityRequest = z.infer<
+  typeof CreateParamStabilityRequestSchema
 >;
