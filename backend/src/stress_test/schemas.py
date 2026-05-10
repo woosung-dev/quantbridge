@@ -194,6 +194,69 @@ class CostAssumptionResultOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Param Stability (Sprint 51 BL-220 — pine_v2 input override grid sweep)
+# ---------------------------------------------------------------------------
+
+
+class ParamStabilityParams(BaseModel):
+    """Param Stability 입력 — pine_v2 input override grid sweep.
+
+    Sprint 51 MVP — Decimal value 만 지원 (input.int / input.float). bool/string
+    override 는 Sprint 52+ 확장 BL. param_grid key = pine InputDecl.var_name
+    (ast_extractor.py:60-65). 서비스 단에서 strategy 의 InputDecl 과 cross-check.
+
+    9-cell 강제 (Sprint 50 Cost Assumption 동일 codex P1#5 패턴 재사용).
+    100 cell 확장 = dedicated Celery queue + soft_time_limit 설계 후 별도 BL.
+    """
+
+    param_grid: dict[str, list[Decimal]] = Field(min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def _validate_grid(self) -> ParamStabilityParams:
+        n_cells = 1
+        for key, vals in self.param_grid.items():
+            if not vals:
+                raise ValueError(
+                    f"param_grid[{key!r}] values must not be empty"
+                )
+            n_cells *= len(vals)
+        if n_cells > 9:
+            raise ValueError(
+                f"grid size {n_cells} exceeds 9 cells (Sprint 51 MVP 강제 제한)"
+            )
+        return self
+
+
+class ParamStabilitySubmitRequest(BaseModel):
+    """POST /stress-tests/param-stability body."""
+
+    backtest_id: UUID
+    params: ParamStabilityParams
+
+
+class ParamStabilityCellOut(BaseModel):
+    """단일 (param1, param2) cell out — Decimal → str (FE 정합)."""
+
+    param1_value: str
+    param2_value: str
+    sharpe: str | None
+    total_return: str
+    max_drawdown: str
+    num_trades: int
+    is_degenerate: bool
+
+
+class ParamStabilityResultOut(BaseModel):
+    """Param Stability result JSONB → API. cells = row-major flatten."""
+
+    param1_name: str
+    param2_name: str
+    param1_values: list[str]
+    param2_values: list[str]
+    cells: list[ParamStabilityCellOut]
+
+
+# ---------------------------------------------------------------------------
 # Common Response
 # ---------------------------------------------------------------------------
 
@@ -231,6 +294,7 @@ class StressTestDetail(BaseModel):
     monte_carlo_result: MonteCarloResultOut | None = None
     walk_forward_result: WalkForwardResultOut | None = None
     cost_assumption_result: CostAssumptionResultOut | None = None
+    param_stability_result: ParamStabilityResultOut | None = None
     error: str | None = None
     created_at: AwareDatetime
     started_at: AwareDatetime | None = None
@@ -239,5 +303,8 @@ class StressTestDetail(BaseModel):
 
 # Literal for router path kind (just for type narrowing).
 StressKindLiteral = Literal[
-    "monte_carlo", "walk_forward", "cost_assumption_sensitivity"
+    "monte_carlo",
+    "walk_forward",
+    "cost_assumption_sensitivity",
+    "param_stability",
 ]

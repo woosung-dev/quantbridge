@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
+from types import MappingProxyType
 from typing import Literal
 
 import pandas as pd
@@ -56,6 +58,33 @@ class BacktestConfig:
         "fallback_qty1",
     ] = "fallback_qty1"
     leverage_basis: float = 1.0
+    # Sprint 51 BL-220 — pine_v2 strategy input override (Param Stability grid sweep).
+    # key = pine input declaration var_name (InputDecl.var_name, ast_extractor.py:60-65).
+    # value = override value. type union = Decimal/int/bool/str (input.float/int/bool/string 4종).
+    # None default = 회귀 0 (기존 backtest path 변경 X).
+    # codex G.0 P1#4: frozen dataclass 만으론 runtime type reject 불가 → __post_init__ 검증.
+    # codex Slice 1 review P1: frozen dataclass + mutable dict 는 caller mutation
+    # 으로 stale validation bypass 가능 → __post_init__ 에서 방어 복사 + MappingProxyType lock.
+    # Mapping (read-only interface) 으로 typed → 외부 mutation 차단.
+    input_overrides: Mapping[str, Decimal | int | bool | str] | None = None
+
+    def __post_init__(self) -> None:
+        # Sprint 51 BL-220 codex G.0 P1#4 — input_overrides value type runtime reject.
+        # codex Slice 1 review P1 — 검증 후 dict 방어 복사 + MappingProxyType lock.
+        if self.input_overrides is not None:
+            for key, value in self.input_overrides.items():
+                # bool 은 int 의 subclass 라 isinstance(True, int) == True. 명시적 union 으로 가독성 확보.
+                if not isinstance(value, (Decimal, bool, int, str)):
+                    raise ValueError(
+                        f"input_overrides[{key!r}] must be Decimal/int/bool/str, "
+                        f"got {type(value).__name__}"
+                    )
+            # 방어 복사 + MappingProxyType lock (frozen dataclass 라 object.__setattr__ 우회).
+            object.__setattr__(
+                self,
+                "input_overrides",
+                MappingProxyType(dict(self.input_overrides)),
+            )
 
 
 @dataclass(frozen=True)

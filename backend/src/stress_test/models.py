@@ -21,16 +21,21 @@ from src.common.datetime_types import AwareDateTime
 
 
 class StressTestKind(StrEnum):
-    """Stress test 종류 — Monte Carlo / Walk-Forward / Cost Assumption Sensitivity.
+    """Stress test 종류 — Monte Carlo / Walk-Forward / Cost Assumption / Param Stability.
 
-    Sprint 50: COST_ASSUMPTION_SENSITIVITY 추가 (BacktestConfig fees x slippage
-    9-cell grid sweep MVP). 진짜 Param Stability (pine input override) 는
-    BL-220 / Sprint 51.
+    Sprint 50: COST_ASSUMPTION_SENSITIVITY (BacktestConfig fees x slippage 9-cell grid).
+    Sprint 51 BL-220: PARAM_STABILITY (pine_v2 input override 9-cell grid sweep —
+    EMA period × stop loss % 등 strategy parameter sweep).
+
+    LESSON-066 의무: SAEnum + StrEnum 조합에서 SAEnum 은 member NAME (uppercase) 을
+    DB enum value 로 사용. alembic migration 의 enum value 도 uppercase 일관성 유지
+    (Sprint 50 BL-221 P0 hotfix `da7e52e` 참조).
     """
 
     MONTE_CARLO = "monte_carlo"
     WALK_FORWARD = "walk_forward"
     COST_ASSUMPTION_SENSITIVITY = "cost_assumption_sensitivity"
+    PARAM_STABILITY = "param_stability"
 
 
 class StressTestStatus(StrEnum):
