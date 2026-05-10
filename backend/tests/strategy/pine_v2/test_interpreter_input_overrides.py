@@ -11,7 +11,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pandas as pd
-import pytest
 
 from src.strategy.pine_v2.interpreter import BarContext, Interpreter
 from src.strategy.pine_v2.parser_adapter import parse_to_ast

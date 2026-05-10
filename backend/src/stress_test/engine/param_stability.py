@@ -1,7 +1,7 @@
 # Param Stability — pine_v2 strategy input override 2D grid sweep (BL-220 Sprint 51)
 """Sprint 51 Param Stability engine.
 
-명명: pine_v2 input override (EMA period × stop loss % 등 strategy parameter sweep).
+명명: pine_v2 input override (EMA period x stop loss % 등 strategy parameter sweep).
 Sprint 50 Cost Assumption Sensitivity (BacktestConfig fees x slippage = PnL 단계 cost
 가정 sensitivity) 와 본질이 다름 — 이쪽이 BL-220 = "진짜" Param Stability.
 
@@ -32,7 +32,7 @@ from src.backtest.engine.types import BacktestConfig
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 
-_MAX_GRID_CELLS: Final[int] = 9   # 서버 강제 제한 (Sprint 50 codex P1#5 패턴 재사용)
+_MAX_GRID_CELLS: Final[int] = 9  # 서버 강제 제한 (Sprint 50 codex P1#5 패턴 재사용)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +45,7 @@ class ParamStabilityCell:
     total_return: Decimal
     max_drawdown: Decimal
     num_trades: int
-    is_degenerate: bool   # num_trades=0 또는 NaN sharpe → "—" 표시
+    is_degenerate: bool  # num_trades=0 또는 NaN sharpe → "—" 표시
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,9 +100,7 @@ def run_param_stability(
         ValueError: grid 미준수, 9 cell 초과, 미지원 pine, var_name InputDecl 부재, cell backtest 실패.
     """
     if len(param_grid) != 2:
-        raise ValueError(
-            f"param_grid must have exactly 2 keys (got {len(param_grid)})"
-        )
+        raise ValueError(f"param_grid must have exactly 2 keys (got {len(param_grid)})")
     keys = tuple(param_grid.keys())
     param1_name, param2_name = keys
     param1_values = list(param_grid[param1_name])

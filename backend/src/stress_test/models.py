@@ -25,7 +25,7 @@ class StressTestKind(StrEnum):
 
     Sprint 50: COST_ASSUMPTION_SENSITIVITY (BacktestConfig fees x slippage 9-cell grid).
     Sprint 51 BL-220: PARAM_STABILITY (pine_v2 input override 9-cell grid sweep —
-    EMA period × stop loss % 등 strategy parameter sweep).
+    EMA period x stop loss % 등 strategy parameter sweep).
 
     LESSON-066 의무: SAEnum + StrEnum 조합에서 SAEnum 은 member NAME (uppercase) 을
     DB enum value 로 사용. alembic migration 의 enum value 도 uppercase 일관성 유지

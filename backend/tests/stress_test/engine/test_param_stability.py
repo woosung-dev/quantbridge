@@ -18,7 +18,6 @@ from src.stress_test.engine import (
     run_param_stability,
 )
 
-
 PINE_WITH_INPUTS = """
 //@version=5
 strategy("BL-220 test")
