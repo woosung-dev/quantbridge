@@ -894,16 +894,24 @@ class Interpreter:
                 # _exec_assign 이 RHS eval 전에 target var_name 을 stack 에 push.
                 # input_overrides[target] 가 있으면 defval 대신 override 값 반환.
                 target = (
-                    self._assignment_target_stack[-1]
-                    if self._assignment_target_stack
-                    else None
+                    self._assignment_target_stack[-1] if self._assignment_target_stack else None
                 )
                 if (
                     target is not None
                     and self.input_overrides is not None
                     and target in self.input_overrides
                 ):
-                    return self.input_overrides[target]
+                    override_value = self.input_overrides[target]
+                    # input.int / input.float / input.bool 은 stdlib 이 numeric
+                    # 타입 가정 (Decimal 입력 시 'float / Decimal' TypeError). Pine v5
+                    # 도 input.int 는 정수 보장 → engine 단 Decimal 을 명시적 cast.
+                    if name == "input.int":
+                        return int(override_value)  # type: ignore[arg-type]
+                    if name == "input.float":
+                        return float(override_value)  # type: ignore[arg-type]
+                    if name == "input.bool":
+                        return bool(override_value)
+                    return override_value
                 # Pine input 시그니처: v4는 input(title=, type=, defval=, ...) keyword 사용 빈번.
                 # defval= kwarg 우선, 없으면 첫 positional arg를 defval로 간주.
                 pos_args, kw_args = self._collect_args(node)
@@ -1080,6 +1088,7 @@ class Interpreter:
                 bar_ts = self.bar.current_timestamp()
                 if bar_ts is not None:
                     from src.strategy.trading_sessions import is_allowed
+
                     if not is_allowed(list(self.strategy.sessions_allowed), bar_ts.to_pydatetime()):
                         return None
 
