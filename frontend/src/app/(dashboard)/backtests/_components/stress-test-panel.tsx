@@ -1,20 +1,23 @@
 "use client";
 
 // Phase C: Stress Test 탭 컨테이너.
-// - 실행 버튼 2개 (Monte Carlo / Walk-Forward) 로 mutation → activeStressTestId 설정.
+// - 실행 버튼 3개 (Monte Carlo / Walk-Forward / Cost Assumption Sensitivity) 로 mutation → activeStressTestId.
 // - useStressTest 가 refetchInterval 함수 기반 polling (terminal status 에서 자동 stop — LESSON-004).
-// - BE 응답은 kind 별 필드 (monte_carlo_result / walk_forward_result) 이므로 discriminator 로 분기.
+// - BE 응답은 kind 별 필드 (monte_carlo_result / walk_forward_result / cost_assumption_result) 이므로 discriminator 로 분기.
+// - Sprint 50: Cost Assumption Sensitivity = fees x slippage 9-cell preset 즉시 submit (MVP, customization 은 Sprint 51 BL-220).
 
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
+  useCreateCostAssumption,
   useCreateMonteCarlo,
   useCreateWalkForward,
   useStressTest,
 } from "@/features/backtest/hooks";
 
+import { CostAssumptionHeatmap } from "./cost-assumption-heatmap";
 import { MonteCarloFanChart } from "./monte-carlo-fan-chart";
 import { MonteCarloSummaryTable } from "./monte-carlo-summary-table";
 import { WalkForwardBarChart } from "./walk-forward-bar-chart";
@@ -35,6 +38,11 @@ export function StressTestPanel({ backtestId }: Props) {
   const wfMutation = useCreateWalkForward({
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
     onError: (err) => toast.error(`Walk-Forward 실행 실패: ${err.message}`),
+  });
+  const caMutation = useCreateCostAssumption({
+    onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
+    onError: (err) =>
+      toast.error(`Cost Assumption Sensitivity 실행 실패: ${err.message}`),
   });
   const stress = useStressTest(activeStressTestId);
 
@@ -57,32 +65,51 @@ export function StressTestPanel({ backtestId }: Props) {
     });
   };
 
+  const handleRunCostAssumption = () => {
+    // Sprint 50 MVP — 9-cell preset (fees [0.05%, 0.10%, 0.20%] x slippage [0.01%, 0.05%, 0.10%]).
+    // customization 은 Sprint 51 BL-220 와 함께 (pine input override 도입 시 form 추가).
+    caMutation.mutate({
+      backtest_id: backtestId,
+      params: {
+        param_grid: {
+          fees: ["0.0005", "0.001", "0.002"],
+          slippage: ["0.0001", "0.0005", "0.001"],
+        },
+      },
+    });
+  };
+
   const stressData = stress.data;
 
   // polling 중 (queued/running) 버튼 재클릭 시 activeStressTestId 가 교체되어
   // 첫 stress test 가 UI 에서 고아가 되는 것을 방지 (Celery 에서는 계속 실행).
   const isStressTestActive =
     stressData?.status === "queued" || stressData?.status === "running";
+  const isAnyMutationPending =
+    mcMutation.isPending || wfMutation.isPending || caMutation.isPending;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={handleRunMonteCarlo}
-          disabled={
-            mcMutation.isPending || wfMutation.isPending || isStressTestActive
-          }
+          disabled={isAnyMutationPending || isStressTestActive}
         >
           Monte Carlo 실행
         </Button>
         <Button
           variant="outline"
           onClick={handleRunWalkForward}
-          disabled={
-            mcMutation.isPending || wfMutation.isPending || isStressTestActive
-          }
+          disabled={isAnyMutationPending || isStressTestActive}
         >
           Walk-Forward 실행
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleRunCostAssumption}
+          disabled={isAnyMutationPending || isStressTestActive}
+        >
+          Cost Assumption Sensitivity 실행
         </Button>
       </div>
 
@@ -129,6 +156,12 @@ export function StressTestPanel({ backtestId }: Props) {
           stressData.kind === "walk_forward" &&
           stressData.walk_forward_result ? (
             <WalkForwardBarChart result={stressData.walk_forward_result} />
+          ) : null}
+
+          {stressData?.status === "completed" &&
+          stressData.kind === "cost_assumption_sensitivity" &&
+          stressData.cost_assumption_result ? (
+            <CostAssumptionHeatmap result={stressData.cost_assumption_result} />
           ) : null}
 
           {stress.isError ? (

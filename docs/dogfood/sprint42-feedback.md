@@ -87,12 +87,12 @@
 
 ### Friend 1: \_\_\_ (이니셜 또는 별칭)
 
-- **발송일**: 2026-05-\_\_
+- **발송일**: 2026-05-10 (Day 0 = Sprint 49 close-out 머지일과 동일, codex Fix #7)
 - **가입 성공**: ☐ Yes / ☐ No (사유: \_\_\_)
 - **첫 backtest 완료**: ☐ Yes / ☐ No
 - **Test Order 시도**: ☐ Yes / ☐ No / ☐ Skip
 - **share link viral**: 그 지인의 지인 view 발생? ☐ Yes / ☐ No / ☐ Unknown
-- **인터뷰 일정**: 2026-05-\_\_ (30분)
+- **인터뷰 일정**: 2026-05-16 (Day 7 = Day 0 + 6일, 30분)
 - **NPS (1주 후 0-10)**: \_\_\_
 - **NPS reason 1-2줄**:
 
@@ -112,12 +112,12 @@
 
 ### Friend 2: \_\_\_ (이니셜 또는 별칭, 발송 시 채움)
 
-- **발송일**: 2026-05-\_\_
+- **발송일**: 2026-05-10 (Day 0 = Sprint 49 close-out 머지일과 동일, codex Fix #7)
 - **가입 성공**: ☐ Yes / ☐ No
 - **첫 backtest 완료**: ☐ Yes / ☐ No
 - **Test Order 시도**: ☐ Yes / ☐ No / ☐ Skip
 - **share link viral**: ☐ Yes / ☐ No / ☐ Unknown
-- **인터뷰 일정**: 2026-05-\_\_ (30분)
+- **인터뷰 일정**: 2026-05-16 (Day 7 = Day 0 + 6일, 30분)
 - **NPS (1주 후 0-10)**: \_\_\_
 - **NPS reason 1-2줄**:
 

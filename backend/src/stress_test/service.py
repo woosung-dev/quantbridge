@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from src.backtest.models import Backtest, BacktestStatus
@@ -20,7 +21,11 @@ from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.strategy.repository import StrategyRepository
 from src.stress_test.dispatcher import StressTaskDispatcher
-from src.stress_test.engine import run_monte_carlo, run_walk_forward
+from src.stress_test.engine import (
+    run_cost_assumption_sensitivity,
+    run_monte_carlo,
+    run_walk_forward,
+)
 from src.stress_test.exceptions import (
     BacktestNotCompletedForStressTest,
     StressTestNotFound,
@@ -33,6 +38,8 @@ from src.stress_test.models import (
 )
 from src.stress_test.repository import StressTestRepository
 from src.stress_test.schemas import (
+    CostAssumptionResultOut,
+    CostAssumptionSubmitRequest,
     MonteCarloResultOut,
     MonteCarloSubmitRequest,
     StressTestCreatedResponse,
@@ -42,6 +49,8 @@ from src.stress_test.schemas import (
     WalkForwardSubmitRequest,
 )
 from src.stress_test.serializers import (
+    ca_result_from_jsonb,
+    ca_result_to_jsonb,
     equity_curve_values,
     mc_result_from_jsonb,
     mc_result_to_jsonb,
@@ -105,6 +114,28 @@ class StressTestService:
                 "test_bars": data.params.test_bars,
                 "step_bars": data.params.step_bars,
                 "max_folds": data.params.max_folds,
+            },
+        )
+
+    async def submit_cost_assumption_sensitivity(
+        self,
+        data: CostAssumptionSubmitRequest,
+        *,
+        user_id: UUID,
+    ) -> StressTestCreatedResponse:
+        """Sprint 50 — fees x slippage 9-cell grid sweep submit."""
+        bt = await self._load_owned_backtest(data.backtest_id, user_id)
+        self._ensure_completed(bt)
+        return await self._submit(
+            user_id=user_id,
+            backtest_id=bt.id,
+            kind=StressTestKind.COST_ASSUMPTION_SENSITIVITY,
+            params={
+                # JSONB 직렬화 — Decimal → str.
+                "param_grid": {
+                    k: [str(v) for v in vs]
+                    for k, vs in data.params.param_grid.items()
+                },
             },
         )
 
@@ -189,6 +220,10 @@ class StressTestService:
                 result_jsonb = await self._execute_monte_carlo(st, bt)
             elif st.kind == StressTestKind.WALK_FORWARD:
                 result_jsonb = await self._execute_walk_forward(st, bt)
+            elif st.kind == StressTestKind.COST_ASSUMPTION_SENSITIVITY:
+                result_jsonb = await self._execute_cost_assumption_sensitivity(
+                    st, bt
+                )
             else:  # pragma: no cover — exhaustiveness guard
                 raise ValueError(f"unknown stress_test kind: {st.kind}")
         except Exception as exc:
@@ -256,6 +291,32 @@ class StressTestService:
         )
         return wf_result_to_jsonb(wf)
 
+    async def _execute_cost_assumption_sensitivity(
+        self, st: StressTest, bt: Backtest
+    ) -> dict[str, object]:
+        """Sprint 50 — Cost Assumption Sensitivity worker entry."""
+        strategy = await self.strategy_repo.find_by_id_and_owner(
+            bt.strategy_id, bt.user_id
+        )
+        if strategy is None:
+            raise ValueError(
+                "Strategy no longer available for cost assumption sensitivity"
+            )
+
+        ohlcv = await self.provider.get_ohlcv(
+            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+        )
+        raw_grid = st.params["param_grid"]
+        param_grid: dict[str, list[Decimal]] = {
+            k: [Decimal(v) for v in vs] for k, vs in raw_grid.items()
+        }
+        ca = run_cost_assumption_sensitivity(
+            strategy.pine_source,
+            ohlcv,
+            param_grid=param_grid,
+        )
+        return ca_result_to_jsonb(ca)
+
     # ---------- HTTP read ----------
 
     async def get(self, stress_test_id: UUID, *, user_id: UUID) -> StressTestDetail:
@@ -311,6 +372,7 @@ class StressTestService:
     def _to_detail(self, st: StressTest) -> StressTestDetail:
         mc_out: MonteCarloResultOut | None = None
         wf_out: WalkForwardResultOut | None = None
+        ca_out: CostAssumptionResultOut | None = None
         if (
             st.status == StressTestStatus.COMPLETED
             and st.result is not None
@@ -323,6 +385,10 @@ class StressTestService:
                 wf_out = WalkForwardResultOut.model_validate(
                     wf_result_from_jsonb(st.result)
                 )
+            elif st.kind == StressTestKind.COST_ASSUMPTION_SENSITIVITY:
+                ca_out = CostAssumptionResultOut.model_validate(
+                    ca_result_from_jsonb(st.result)
+                )
         return StressTestDetail(
             id=st.id,
             backtest_id=st.backtest_id,
@@ -331,6 +397,7 @@ class StressTestService:
             params=dict(st.params) if st.params else {},
             monte_carlo_result=mc_out,
             walk_forward_result=wf_out,
+            cost_assumption_result=ca_out,
             error=st.error,
             created_at=st.created_at,
             started_at=st.started_at,

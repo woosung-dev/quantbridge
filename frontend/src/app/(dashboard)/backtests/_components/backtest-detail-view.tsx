@@ -140,6 +140,14 @@ export function BacktestDetailView({ id }: { id: string }) {
         </p>
       ) : null}
 
+      {/* Sprint 50: AssumptionsCard 공통 lift-up — 모든 tab 안에서 가정박스 표시 (Surface Trust 보존, codex P1#3) */}
+      {effectiveStatus === "completed" && bt.metrics ? (
+        <AssumptionsCard
+          initialCapital={bt.initial_capital}
+          config={bt.config}
+        />
+      ) : null}
+
       {effectiveStatus === "completed" && bt.metrics ? (
         <Tabs defaultValue="overview" className="qb-card-fade-in">
           <TabsList>
@@ -151,10 +159,6 @@ export function BacktestDetailView({ id }: { id: string }) {
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
-            <AssumptionsCard
-              initialCapital={bt.initial_capital}
-              config={bt.config}
-            />
             <MetricsCards metrics={bt.metrics} config={bt.config} />
             {bt.equity_curve && bt.equity_curve.length > 0 && (
               <section className="rounded-xl border bg-card p-4">

@@ -21,10 +21,16 @@ from src.common.datetime_types import AwareDateTime
 
 
 class StressTestKind(StrEnum):
-    """Stress test 종류 — Monte Carlo / Walk-Forward Analysis."""
+    """Stress test 종류 — Monte Carlo / Walk-Forward / Cost Assumption Sensitivity.
+
+    Sprint 50: COST_ASSUMPTION_SENSITIVITY 추가 (BacktestConfig fees x slippage
+    9-cell grid sweep MVP). 진짜 Param Stability (pine input override) 는
+    BL-220 / Sprint 51.
+    """
 
     MONTE_CARLO = "monte_carlo"
     WALK_FORWARD = "walk_forward"
+    COST_ASSUMPTION_SENSITIVITY = "cost_assumption_sensitivity"
 
 
 class StressTestStatus(StrEnum):
