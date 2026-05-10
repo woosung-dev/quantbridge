@@ -9,16 +9,28 @@
 
 ---
 
-## 발송 prereq 체크리스트 (사용자 manual)
+## 발송 prereq 체크리스트 (사용자 manual, Sprint 49 Track B = 9 항목 확장)
+
+> Sprint 49 Track B (codex Fix #5/#7 보강) — 기존 6 항목 + 신규 3 항목 (Bybit Demo walkthrough / share token 만료 정책 / 외부 시크릿 브라우저 검증). 각 항목 명령 1줄 inline.
 
 발송 _전_ 모두 확인:
 
-- [ ] 본인 backtest 샘플 1-2건 실행 + share token 발급 (Pine Script v5 BTC/USDT 1년)
-- [ ] share link 클립보드 복사 가능 + og:image 정상 (Sprint 32 Surface Trust 검증된 영역)
-- [ ] Bybit Demo Trading 가입 link 정상 (`https://www.bybit.com/en/help-center/article/Demo-Trading`)
-- [ ] QuantBridge 가입 페이지 (Clerk) → 거래소 계정 등록 → DEMO 모드 배지 정상
-- [ ] 인터뷰 일정 카톡 약속 (Day 0 / Day 0+6 / Day 0+13 — 3 시점, **절대 날짜 금지**, Day 7/14 = Day 0 발송일 기준 상대 일자)
-- [ ] Day 0 발송 timestamp 기록 (카톡 발송 직후 `sprint42-feedback.md` "1-2명 micro-cohort log" 섹션 발송일 칸에 기입)
+1. [ ] **본인 backtest 샘플 1-2건 실행 + share token 발급** (Pine Script v5 BTC/USDT 1년)
+   - 명령: backtest 페이지 "공유" 버튼 → `POST /api/backtests/{id}/share` → `/share/backtests/{token}` URL 받기
+2. [ ] **share link 클립보드 복사 가능 + og:image 정상** (Sprint 32 Surface Trust 검증된 영역)
+   - 명령: 시크릿 브라우저 1회 + Twitter Card validator (`https://cards-dev.twitter.com/validator`) 1200×630 검증
+3. [ ] **Bybit Demo Trading 가입 link 정상**
+   - 명령: `https://www.bybit.com/en/help-center/article/Bybit-Demo-Trading` 직접 접속 + 404 검증
+4. [ ] **QuantBridge 가입 페이지 (Clerk) → 거래소 계정 등록 → DEMO 모드 배지 정상**
+   - 명령: `/dashboard` 헤더 DEMO 배지 노출 + `/trading` 거래소 계정 list 정상 표시
+5. [ ] **인터뷰 일정 카톡 약속** (Day 0 / Day 0+6 / Day 0+13 — 3 시점, **절대 날짜 금지**, Day 7/14 = Day 0 발송일 기준 상대 일자)
+6. [ ] **Day 0 발송 timestamp 기록** (카톡 발송 직후 `sprint42-feedback.md` "1-2명 micro-cohort log" 섹션 발송일 칸에 기입. **본 step 미완료 시 Day 7/14 row 채움 금지** = codex Fix #7 의무.)
+7. [ ] **Bybit Demo 가입/API key flow walkthrough** _(Sprint 49 Track B 신규 — codex Fix #5)_
+   - 명령: `docs/guides/demo-onboarding.md` 6 단계 본인 1회 actually walk-through + 막힘 지점 발견 시 onboarding doc 갱신 필요 여부 메모 1줄 (sprint42-feedback.md 첨부)
+8. [ ] **share token 만료/삭제 정책 확인** _(Sprint 49 Track B 신규 — Beta 진입 시 BL-191 rate-limit 의존)_
+   - 명령: `grep -n 'share_token\|expires_at' backend/src/backtest/` → 정책 1줄 발췌 (만료 있으면 dogfood 기간 보장 / 없으면 영구 — Beta 시점 정책 결정 input)
+9. [ ] **외부 수신자 시크릿 브라우저 검증** _(Sprint 49 Track B 신규 — codex Fix #7 외부 fidelity 차단)_
+   - 명령: 로그인 X 상태 Chrome incognito + `/share/backtests/{token}` 페이지 노출 + og:image 1200×630 정상 + screenshot 1장 sprint42-feedback.md 첨부
 
 ---
 
