@@ -13,6 +13,7 @@ from typing import Any
 from src.stress_test.engine import (
     CostAssumptionResult,
     MonteCarloResult,
+    ParamStabilityResult,
     WalkForwardFold,
     WalkForwardResult,
 )
@@ -173,6 +174,55 @@ def ca_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
 
     str 그대로 유지 (Out schema = str, FE 정합).
     """
+    return {
+        "param1_name": data["param1_name"],
+        "param2_name": data["param2_name"],
+        "param1_values": list(data["param1_values"]),
+        "param2_values": list(data["param2_values"]),
+        "cells": [
+            {
+                "param1_value": c["param1_value"],
+                "param2_value": c["param2_value"],
+                "sharpe": c.get("sharpe"),
+                "total_return": c["total_return"],
+                "max_drawdown": c["max_drawdown"],
+                "num_trades": int(c["num_trades"]),
+                "is_degenerate": bool(c["is_degenerate"]),
+            }
+            for c in data["cells"]
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Param Stability ↔ JSONB (Sprint 51 BL-220)
+# ---------------------------------------------------------------------------
+
+
+def ps_result_to_jsonb(r: ParamStabilityResult) -> dict[str, Any]:
+    """ParamStabilityResult → JSONB dict. Decimal → str, cells row-major."""
+    return {
+        "param1_name": r.param1_name,
+        "param2_name": r.param2_name,
+        "param1_values": [str(v) for v in r.param1_values],
+        "param2_values": [str(v) for v in r.param2_values],
+        "cells": [
+            {
+                "param1_value": str(c.param1_value),
+                "param2_value": str(c.param2_value),
+                "sharpe": None if c.sharpe is None else str(c.sharpe),
+                "total_return": str(c.total_return),
+                "max_drawdown": str(c.max_drawdown),
+                "num_trades": c.num_trades,
+                "is_degenerate": c.is_degenerate,
+            }
+            for c in r.cells
+        ],
+    }
+
+
+def ps_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
+    """JSONB dict → ParamStabilityResultOut.model_validate 입력 dict."""
     return {
         "param1_name": data["param1_name"],
         "param2_name": data["param2_name"],

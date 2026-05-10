@@ -21,6 +21,7 @@ from src.stress_test.dependencies import get_stress_test_service
 from src.stress_test.schemas import (
     CostAssumptionSubmitRequest,
     MonteCarloSubmitRequest,
+    ParamStabilitySubmitRequest,
     StressTestCreatedResponse,
     StressTestDetail,
     StressTestSummary,
@@ -77,9 +78,24 @@ async def submit_cost_assumption_sensitivity(
     service: StressTestService = Depends(get_stress_test_service),
 ) -> StressTestCreatedResponse:
     """Sprint 50 — Cost Assumption Sensitivity (fees x slippage 9-cell grid)."""
-    return await service.submit_cost_assumption_sensitivity(
-        data, user_id=user.id
-    )
+    return await service.submit_cost_assumption_sensitivity(data, user_id=user.id)
+
+
+@router.post(
+    "/param-stability",
+    response_model=StressTestCreatedResponse,
+    status_code=202,
+)
+@limiter.limit("5/minute")
+async def submit_param_stability(
+    request: Request,  # slowapi 가 IP/key 추출에 사용
+    data: ParamStabilitySubmitRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    service: StressTestService = Depends(get_stress_test_service),
+) -> StressTestCreatedResponse:
+    """Sprint 51 BL-220 — Param Stability (pine_v2 input override 9-cell grid)."""
+    return await service.submit_param_stability(data, user_id=user.id)
 
 
 @router.get("", response_model=Page[StressTestSummary])

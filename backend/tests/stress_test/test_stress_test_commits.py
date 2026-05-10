@@ -18,6 +18,8 @@ from src.stress_test.schemas import (
     CostAssumptionSubmitRequest,
     MonteCarloParams,
     MonteCarloSubmitRequest,
+    ParamStabilityParams,
+    ParamStabilitySubmitRequest,
     WalkForwardParams,
     WalkForwardSubmitRequest,
 )
@@ -122,6 +124,34 @@ async def test_submit_cost_assumption_sensitivity_calls_repo_commit() -> None:
         ),
     )
     await svc.submit_cost_assumption_sensitivity(req, user_id=bt.user_id)
+
+    repo.create.assert_awaited_once()
+    repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_submit_param_stability_calls_repo_commit() -> None:
+    """LESSON-019 spy: submit_param_stability() 가 repo.commit() 호출 강제 (Sprint 51 BL-220)."""
+    bt = _completed_backtest()
+
+    backtest_repo = AsyncMock()
+    backtest_repo.get_by_id = AsyncMock(return_value=bt)
+
+    repo = AsyncMock()
+    repo.create = AsyncMock(return_value=None)
+
+    svc = _make_service(repo, backtest_repo=backtest_repo)
+
+    req = ParamStabilitySubmitRequest(
+        backtest_id=bt.id,
+        params=ParamStabilityParams(
+            param_grid={
+                "emaPeriod": [Decimal("10"), Decimal("20"), Decimal("30")],
+                "stopLossPct": [Decimal("1.0"), Decimal("2.0"), Decimal("3.0")],
+            },
+        ),
+    )
+    await svc.submit_param_stability(req, user_id=bt.user_id)
 
     repo.create.assert_awaited_once()
     repo.commit.assert_awaited_once()
