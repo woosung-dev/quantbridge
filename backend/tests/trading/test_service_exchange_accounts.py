@@ -23,8 +23,8 @@ def crypto():
 
 
 async def test_register_stores_encrypted_credentials(db_session, user: User, crypto):
-    from src.trading.repository import ExchangeAccountRepository
-    from src.trading.service import ExchangeAccountService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
 
     repo = ExchangeAccountRepository(db_session)
     svc = ExchangeAccountService(repo=repo, crypto=crypto)
@@ -45,8 +45,8 @@ async def test_register_stores_encrypted_credentials(db_session, user: User, cry
 
 
 async def test_get_credentials_for_order_returns_plaintext(db_session, user: User, crypto):
-    from src.trading.repository import ExchangeAccountRepository
-    from src.trading.service import ExchangeAccountService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
 
     repo = ExchangeAccountRepository(db_session)
     svc = ExchangeAccountService(repo=repo, crypto=crypto)
@@ -65,8 +65,8 @@ async def test_get_credentials_for_order_returns_plaintext(db_session, user: Use
 
 
 async def test_get_credentials_for_missing_account_raises(db_session, user: User, crypto):
-    from src.trading.repository import ExchangeAccountRepository
-    from src.trading.service import ExchangeAccountService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
 
     repo = ExchangeAccountRepository(db_session)
     svc = ExchangeAccountService(repo=repo, crypto=crypto)
@@ -82,8 +82,8 @@ async def _register_futures_account(
     db_session, user: User, crypto, *, mode: ExchangeMode = ExchangeMode.demo
 ):
     """test fixture: Bybit Futures 모드 계정 1개 저장."""
-    from src.trading.repository import ExchangeAccountRepository
-    from src.trading.service import ExchangeAccountService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
 
     repo = ExchangeAccountRepository(db_session)
     svc = ExchangeAccountService(repo=repo, crypto=crypto)
@@ -113,8 +113,8 @@ async def test_fetch_balance_usdt_returns_none_for_non_bybit_account(
     db_session, user: User, crypto
 ):
     """OKX/Binance 등 비-Bybit 계정은 현재 지원 X — None 반환. H2+ 확장 예정."""
-    from src.trading.repository import ExchangeAccountRepository
-    from src.trading.service import ExchangeAccountService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
 
     repo = ExchangeAccountRepository(db_session)
     mock_provider = MagicMock()
@@ -138,8 +138,8 @@ async def test_fetch_balance_usdt_returns_none_for_non_bybit_account(
 
 async def test_fetch_balance_usdt_returns_provider_value_for_bybit(db_session, user: User, crypto):
     """Bybit + provider 주입 → USDT free balance Decimal 반환."""
-    from src.trading.repository import ExchangeAccountRepository
-    from src.trading.service import ExchangeAccountService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
 
     repo = ExchangeAccountRepository(db_session)
     mock_provider = MagicMock()
@@ -170,9 +170,9 @@ async def test_fetch_balance_usdt_returns_none_on_provider_error(
     caplog는 다른 test의 logger 설정에 영향을 받아 전체 실행에서 불안정.
     logger.warning을 직접 monkeypatch로 가로채어 message만 검증.
     """
-    from src.trading.repository import ExchangeAccountRepository
-    from src.trading.service import ExchangeAccountService
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.services import account_service as service_module
+    from src.trading.services.account_service import ExchangeAccountService
 
     captured_warnings: list[str] = []
 

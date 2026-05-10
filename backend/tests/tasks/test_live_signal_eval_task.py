@@ -180,16 +180,18 @@ def _patch_inner_dependencies(
     # repository import 위치는 _evaluate_session_inner 함수 내부 (lazy).
     # 따라서 import 된 module 의 attribute 를 patch.
     import src.strategy.repository as strategy_repo_mod
-    import src.trading.repository as trading_repo_mod
+    import src.trading.repositories.exchange_account_repository as account_repo_mod
+    import src.trading.repositories.live_signal_event_repository as event_repo_mod
+    import src.trading.repositories.live_signal_session_repository as sess_repo_mod
 
     monkeypatch.setattr(
-        trading_repo_mod, "LiveSignalSessionRepository", _repo_class_factory(sess_repo)
+        sess_repo_mod, "LiveSignalSessionRepository", _repo_class_factory(sess_repo)
     )
     monkeypatch.setattr(
-        trading_repo_mod, "LiveSignalEventRepository", _repo_class_factory(event_repo)
+        event_repo_mod, "LiveSignalEventRepository", _repo_class_factory(event_repo)
     )
     monkeypatch.setattr(
-        trading_repo_mod, "ExchangeAccountRepository", _repo_class_factory(account_repo)
+        account_repo_mod, "ExchangeAccountRepository", _repo_class_factory(account_repo)
     )
     monkeypatch.setattr(
         strategy_repo_mod, "StrategyRepository", _repo_class_factory(strategy_repo)
@@ -457,12 +459,13 @@ async def test_empty_due_list_no_error(monkeypatch: pytest.MonkeyPatch) -> None:
         live_signal_module, "create_worker_engine_and_sm", lambda: (engine, sm_factory)
     )
 
-    import src.trading.repository as trading_repo_mod
+    import src.trading.repositories.live_signal_event_repository as event_repo_mod
+    import src.trading.repositories.live_signal_session_repository as sess_repo_mod
     monkeypatch.setattr(
-        trading_repo_mod, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
+        sess_repo_mod, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
     )
     monkeypatch.setattr(
-        trading_repo_mod, "LiveSignalEventRepository", MagicMock(return_value=event_repo)
+        event_repo_mod, "LiveSignalEventRepository", MagicMock(return_value=event_repo)
     )
 
     res = await live_signal_module._async_evaluate_all()

@@ -90,9 +90,9 @@ class _ClosedSessionsPort:
 async def test_leverage_cap_reject_increments_metric(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ) -> None:
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     counter = qb_order_rejected_total.labels(exchange="unknown", reason="leverage_cap")
     before = counter._value.get()
@@ -124,9 +124,9 @@ async def test_leverage_cap_reject_increments_metric(
 async def test_notional_reject_increments_metric(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ) -> None:
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     counter = qb_order_rejected_total.labels(exchange="unknown", reason="notional")
     before = counter._value.get()
@@ -166,9 +166,9 @@ async def test_notional_reject_increments_metric(
 async def test_session_closed_reject_increments_metric(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ) -> None:
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     counter = qb_order_rejected_total.labels(exchange="unknown", reason="session_closed")
     before = counter._value.get()
@@ -199,9 +199,9 @@ async def test_session_closed_reject_increments_metric(
 async def test_kill_switch_reject_increments_metric(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ) -> None:
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     counter = qb_order_rejected_total.labels(exchange="unknown", reason="kill_switch")
     before = counter._value.get()
@@ -232,9 +232,9 @@ async def test_idempotency_conflict_reject_increments_metric(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ) -> None:
     """동일 idempotency_key + 다른 body_hash → IdempotencyConflict + metric +1."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     # 기존 order 를 직접 INSERT 해 둔다 (idempotency row 선점).
     idem_key = f"test-idem-{uuid4()}"

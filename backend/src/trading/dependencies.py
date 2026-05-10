@@ -23,20 +23,16 @@ from src.trading.kill_switch import (
     KillSwitchService,
 )
 from src.trading.providers import BybitFuturesProvider
-from src.trading.repository import (
-    ExchangeAccountRepository,
-    KillSwitchEventRepository,
-    LiveSignalSessionRepository,
-    OrderRepository,
-    WebhookSecretRepository,
-)
-from src.trading.service import (
-    ExchangeAccountService,
-    LiveSignalSessionService,
-    OrderDispatcher,
-    OrderService,
-    WebhookSecretService,
-)
+from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
+from src.trading.repositories.order_repository import OrderRepository
+from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.live_session_service import LiveSignalSessionService
+from src.trading.services.order_service import OrderService
+from src.trading.services.protocols import OrderDispatcher
+from src.trading.services.webhook_secret_service import WebhookSecretService
 from src.trading.webhook import WebhookService
 
 

@@ -16,7 +16,7 @@ from uuid import UUID
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import WebhookUnauthorized
 from src.trading.models import OrderSide, OrderType
-from src.trading.repository import WebhookSecretRepository
+from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
 
 @dataclass(frozen=True, slots=True)

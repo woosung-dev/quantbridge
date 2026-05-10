@@ -27,7 +27,7 @@ from src.common.metrics import (
 )
 from src.core.config import Settings
 from src.trading.models import OrderState
-from src.trading.repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository
 
 logger = logging.getLogger(__name__)
 

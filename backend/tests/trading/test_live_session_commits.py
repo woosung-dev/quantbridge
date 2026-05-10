@@ -87,7 +87,7 @@ async def test_register_calls_repo_commit() -> None:
 
     Sprint 6 (webhook_secret) / 13 (OrderService) / 15-A (ExchangeAccount) 4번째 재발 방어.
     """
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     strategy = _make_strategy(user_id)
@@ -120,7 +120,7 @@ async def test_register_calls_repo_commit() -> None:
 @pytest.mark.asyncio
 async def test_register_strategy_not_found_does_not_commit() -> None:
     """ownership 위반 / 미존재 → StrategyNotFoundError + commit 0 (의도치 않은 변경 차단)."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     repo = AsyncMock()
@@ -143,7 +143,7 @@ async def test_register_strategy_not_found_does_not_commit() -> None:
 @pytest.mark.asyncio
 async def test_register_settings_required_does_not_commit() -> None:
     """codex G.0 P2 #4: strategy.settings is None → StrategySettingsRequired + commit 0."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     strategy = _make_strategy(user_id, settings=None)
@@ -167,7 +167,7 @@ async def test_register_settings_required_does_not_commit() -> None:
 @pytest.mark.asyncio
 async def test_register_invalid_settings_does_not_commit() -> None:
     """codex G.0 P2 #4: malformed JSONB → InvalidStrategySettings + commit 0."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     # leverage 가 string — Pydantic ValidationError
@@ -192,7 +192,7 @@ async def test_register_invalid_settings_does_not_commit() -> None:
 @pytest.mark.asyncio
 async def test_register_account_mode_live_rejected() -> None:
     """codex G.0 P2 #1: mode=live → AccountModeNotAllowed (Bybit Demo 한정)."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     strategy = _make_strategy(user_id)
@@ -219,7 +219,7 @@ async def test_register_account_mode_live_rejected() -> None:
 @pytest.mark.asyncio
 async def test_register_exchange_okx_rejected() -> None:
     """codex G.0 P2 #1: exchange=okx → AccountModeNotAllowed (Bybit only)."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     strategy = _make_strategy(user_id)
@@ -245,7 +245,7 @@ async def test_register_exchange_okx_rejected() -> None:
 @pytest.mark.asyncio
 async def test_register_quota_exceeded_does_not_commit() -> None:
     """codex G.0 P3 #3: 사용자별 active session ≥ 5 → LiveSessionQuotaExceeded."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     strategy = _make_strategy(user_id)
@@ -275,7 +275,7 @@ async def test_register_quota_exceeded_does_not_commit() -> None:
 @pytest.mark.asyncio
 async def test_deactivate_calls_repo_commit() -> None:
     """LESSON-019 spy: deactivate() 가 repo.commit() 호출 강제 (rowcount > 0 시)."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     sess = _make_session(user_id, uuid4(), uuid4())
@@ -300,7 +300,7 @@ async def test_deactivate_calls_repo_commit() -> None:
 @pytest.mark.asyncio
 async def test_deactivate_already_inactive_no_commit() -> None:
     """idempotent: rowcount=0 (이미 deactivated) → commit 0. error 도 안 함."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     sess = _make_session(user_id, uuid4(), uuid4())
@@ -326,7 +326,7 @@ async def test_deactivate_already_inactive_no_commit() -> None:
 @pytest.mark.asyncio
 async def test_deactivate_ownership_violation_404() -> None:
     """다른 user 의 session deactivate 시도 → StrategyNotFoundError (정보 누설 방어)."""
-    from src.trading.service import LiveSignalSessionService
+    from src.trading.services.live_session_service import LiveSignalSessionService
 
     user_id = uuid4()
     other_user = uuid4()

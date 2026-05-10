@@ -35,8 +35,8 @@ def crypto() -> EncryptionService:
 @pytest.mark.asyncio
 async def test_issue_default_commits_to_db(db_session, strategy, crypto):
     """A.1.1: issue() default commit=True 가 영구 저장 (Sprint 6 broken bug 회귀)."""
-    from src.trading.repository import WebhookSecretRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = WebhookSecretRepository(db_session)
     svc = WebhookSecretService(repo=repo, crypto=crypto)
@@ -54,8 +54,8 @@ async def test_issue_default_commits_to_db(db_session, strategy, crypto):
 @pytest.mark.asyncio
 async def test_issue_commit_false_lets_caller_control(db_session, strategy, crypto):
     """A.1.1: issue(commit=False) — atomic create 흐름. caller 가 마지막 commit."""
-    from src.trading.repository import WebhookSecretRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = WebhookSecretRepository(db_session)
     svc = WebhookSecretService(repo=repo, crypto=crypto)
@@ -76,8 +76,8 @@ async def test_issue_commit_false_lets_caller_control(db_session, strategy, cryp
 @pytest.mark.asyncio
 async def test_rotate_commits_to_db(db_session, strategy, crypto):
     """A.1.1: rotate() 자체 commit (Sprint 6 broken bug 회귀)."""
-    from src.trading.repository import WebhookSecretRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = WebhookSecretRepository(db_session)
     svc = WebhookSecretService(repo=repo, crypto=crypto)
@@ -105,7 +105,7 @@ async def test_rotate_commits_to_db(db_session, strategy, crypto):
 @pytest.mark.asyncio
 async def test_issue_default_calls_repo_commit():
     """A.1.1 spy: issue() default commit=True 가 repo.commit() 호출 강제."""
-    from src.trading.service import WebhookSecretService
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = AsyncMock()
     crypto_mock = MagicMock()
@@ -122,7 +122,7 @@ async def test_issue_default_calls_repo_commit():
 @pytest.mark.asyncio
 async def test_issue_commit_false_does_not_call_commit():
     """A.1.1 spy: issue(commit=False) — atomic create 흐름. repo.commit() 호출 X."""
-    from src.trading.service import WebhookSecretService
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = AsyncMock()
     crypto_mock = MagicMock()
@@ -139,7 +139,7 @@ async def test_issue_commit_false_does_not_call_commit():
 @pytest.mark.asyncio
 async def test_rotate_calls_repo_commit():
     """A.1.1 spy: rotate() 가 repo.commit() 호출 강제 (Sprint 6 broken bug 핵심)."""
-    from src.trading.service import WebhookSecretService
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
     repo = AsyncMock()
     crypto_mock = MagicMock()
@@ -170,7 +170,7 @@ async def test_order_service_execute_calls_outer_commit():
 
     from src.trading.models import Order, OrderSide, OrderState, OrderType
     from src.trading.schemas import OrderRequest
-    from src.trading.service import OrderService
+    from src.trading.services.order_service import OrderService
 
     session = AsyncMock(spec=AsyncSession)
     # begin_nested 가 async context manager 지원 — __aenter__/__aexit__ 자체 동작
@@ -238,7 +238,7 @@ async def test_register_calls_repo_commit():
     """Sprint 15-A: register() 가 repo.commit() 호출 강제 (broken bug 3rd 재발 방어)."""
     from src.trading.models import ExchangeMode, ExchangeName
     from src.trading.schemas import RegisterAccountRequest
-    from src.trading.service import ExchangeAccountService
+    from src.trading.services.account_service import ExchangeAccountService
 
     repo = AsyncMock()
     crypto_mock = MagicMock()

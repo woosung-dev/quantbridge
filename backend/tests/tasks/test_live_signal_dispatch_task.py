@@ -80,15 +80,19 @@ def _patch_repos(
 ) -> None:
     """import 위치는 _async_dispatch_event 함수 내부 (lazy)."""
     import src.strategy.repository as strategy_repo_mod
-    import src.trading.repository as trading_repo_mod
+    import src.trading.repositories.exchange_account_repository as account_repo_mod
+    import src.trading.repositories.kill_switch_event_repository as kse_repo_mod
+    import src.trading.repositories.live_signal_event_repository as event_repo_mod
+    import src.trading.repositories.live_signal_session_repository as sess_repo_mod
+    import src.trading.repositories.order_repository as order_repo_mod
 
     if event_repo is not None:
         monkeypatch.setattr(
-            trading_repo_mod, "LiveSignalEventRepository", MagicMock(return_value=event_repo)
+            event_repo_mod, "LiveSignalEventRepository", MagicMock(return_value=event_repo)
         )
     if sess_repo is not None:
         monkeypatch.setattr(
-            trading_repo_mod, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
+            sess_repo_mod, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
         )
     if strategy_repo is not None:
         monkeypatch.setattr(
@@ -96,15 +100,15 @@ def _patch_repos(
         )
     if order_repo is not None:
         monkeypatch.setattr(
-            trading_repo_mod, "OrderRepository", MagicMock(return_value=order_repo)
+            order_repo_mod, "OrderRepository", MagicMock(return_value=order_repo)
         )
     if account_repo is not None:
         monkeypatch.setattr(
-            trading_repo_mod, "ExchangeAccountRepository", MagicMock(return_value=account_repo)
+            account_repo_mod, "ExchangeAccountRepository", MagicMock(return_value=account_repo)
         )
     if kse_repo is not None:
         monkeypatch.setattr(
-            trading_repo_mod, "KillSwitchEventRepository", MagicMock(return_value=kse_repo)
+            kse_repo_mod, "KillSwitchEventRepository", MagicMock(return_value=kse_repo)
         )
 
 
@@ -243,7 +247,7 @@ async def test_dispatch_success_marks_dispatched(monkeypatch: pytest.MonkeyPatch
                 False,
             )
 
-    import src.trading.service as trading_service_mod
+    import src.trading.services.order_service as trading_service_mod
     monkeypatch.setattr(trading_service_mod, "OrderService", _OrderServiceSpy)
 
     # Other deps (KillSwitchService etc) → no-op stubs (OrderService spy 가 직접 reject 안 함)
@@ -312,7 +316,7 @@ async def test_kill_switch_active_marks_failed_and_raises(
         async def execute(self, *_a: Any, **_kw: Any) -> tuple[Any, bool]:
             raise KillSwitchActive("Kill Switch active for cumulative_loss")
 
-    import src.trading.service as trading_service_mod
+    import src.trading.services.order_service as trading_service_mod
     monkeypatch.setattr(trading_service_mod, "OrderService", _OrderServiceKS)
 
     import src.trading.kill_switch as kill_switch_mod

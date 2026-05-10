@@ -23,7 +23,7 @@ def _hmac_sign(secret: str, payload_bytes: bytes) -> str:
 
 async def test_verify_hmac_accepts_active_secret(db_session, strategy, crypto):
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
     from src.trading.webhook import WebhookService
 
     repo = WebhookSecretRepository(db_session)
@@ -41,7 +41,7 @@ async def test_verify_hmac_accepts_active_secret(db_session, strategy, crypto):
 
 async def test_verify_hmac_rejects_wrong_signature(db_session, strategy, crypto):
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
     from src.trading.webhook import WebhookService
 
     repo = WebhookSecretRepository(db_session)
@@ -60,7 +60,7 @@ async def test_verify_hmac_accepts_recently_revoked_secret_within_grace(
 ):
     """rotate 직후 grace window 내에 구 secret도 통과."""
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
     from src.trading.webhook import WebhookService
 
     repo = WebhookSecretRepository(db_session)
@@ -99,7 +99,7 @@ async def test_verify_hmac_rejects_old_secret_outside_grace(
     db_session, strategy, crypto
 ):
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
     from src.trading.webhook import WebhookService
 
     repo = WebhookSecretRepository(db_session)

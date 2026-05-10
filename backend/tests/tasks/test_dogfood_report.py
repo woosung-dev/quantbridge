@@ -113,12 +113,13 @@ async def test_async_generate_success(tmp_path):
     mock_sm_instance.__aexit__ = AsyncMock(return_value=None)
     mock_sm = MagicMock(return_value=mock_sm_instance)
 
-    import src.trading.repository as repo_mod
+    import src.trading.repositories.kill_switch_event_repository as ks_repo_mod
+    import src.trading.repositories.order_repository as order_repo_mod
 
-    orig_order = repo_mod.OrderRepository
-    orig_ks = repo_mod.KillSwitchEventRepository
-    repo_mod.OrderRepository = lambda s: mock_order_repo  # type: ignore[assignment]
-    repo_mod.KillSwitchEventRepository = lambda s: mock_ks_repo  # type: ignore[assignment]
+    orig_order = order_repo_mod.OrderRepository
+    orig_ks = ks_repo_mod.KillSwitchEventRepository
+    order_repo_mod.OrderRepository = lambda s: mock_order_repo  # type: ignore[assignment]
+    ks_repo_mod.KillSwitchEventRepository = lambda s: mock_ks_repo  # type: ignore[assignment]
 
     class _FakeEngine:
         async def dispose(self) -> None:
@@ -132,8 +133,8 @@ async def test_async_generate_success(tmp_path):
         try:
             result = await _async_generate(date(2026, 4, 21))
         finally:
-            repo_mod.OrderRepository = orig_order
-            repo_mod.KillSwitchEventRepository = orig_ks
+            order_repo_mod.OrderRepository = orig_order
+            ks_repo_mod.KillSwitchEventRepository = orig_ks
 
     assert result["filled_orders"] == 10
     assert result["rejected_orders"] == 2

@@ -131,7 +131,7 @@ async def test_list_stuck_pending_excludes_recent(
     db_session: AsyncSession, stuck_orders_factory
 ) -> None:
     """list_stuck_pending — pending + created_at < cutoff 만."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     now = datetime.now(UTC)
     cutoff = now - timedelta(minutes=30)
@@ -157,7 +157,7 @@ async def test_list_stuck_submitted_requires_exchange_order_id(
     db_session: AsyncSession, stuck_orders_factory
 ) -> None:
     """G.0 P1 #3 — submitted + null exchange_order_id 는 list_stuck_submitted 에 포함 X."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     now = datetime.now(UTC)
     cutoff = now - timedelta(minutes=30)
@@ -186,7 +186,7 @@ async def test_list_stuck_submission_interrupted_only_null_exchange_order_id(
     db_session: AsyncSession, stuck_orders_factory
 ) -> None:
     """G.0 P1 #3 — submitted + null exchange_order_id 만 별도 list."""
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     now = datetime.now(UTC)
     cutoff = now - timedelta(minutes=30)

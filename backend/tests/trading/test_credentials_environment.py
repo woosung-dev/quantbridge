@@ -152,7 +152,7 @@ async def test_demo_mode_calls_enable_demo_trading(
 async def test_get_credentials_live_mode_returns_live_environment():
     """ExchangeMode.live → environment=live."""
     from src.trading.models import ExchangeMode
-    from src.trading.service import ExchangeAccountService
+    from src.trading.services.account_service import ExchangeAccountService
 
     account = MagicMock()
     account.mode = ExchangeMode.live
@@ -176,7 +176,7 @@ async def test_get_credentials_live_mode_returns_live_environment():
 async def test_get_credentials_demo_mode_returns_demo_environment():
     """ExchangeMode.demo → environment=demo (api-demo.bybit.com으로 라우팅됨)."""
     from src.trading.models import ExchangeMode
-    from src.trading.service import ExchangeAccountService
+    from src.trading.services.account_service import ExchangeAccountService
 
     account = MagicMock()
     account.mode = ExchangeMode.demo
@@ -200,7 +200,7 @@ async def test_get_credentials_demo_mode_returns_demo_environment():
 async def test_get_credentials_includes_passphrase():
     """passphrase_encrypted 존재 시 복호화된 값이 Credentials에 포함되는지."""
     from src.trading.models import ExchangeMode
-    from src.trading.service import ExchangeAccountService
+    from src.trading.services.account_service import ExchangeAccountService
 
     account = MagicMock()
     account.mode = ExchangeMode.demo

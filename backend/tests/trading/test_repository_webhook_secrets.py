@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 async def test_save_and_list_active(db_session, strategy):
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
     repo = WebhookSecretRepository(db_session)
     ws = WebhookSecret(strategy_id=strategy.id, secret_encrypted=b"cipher-v1")
@@ -26,7 +26,7 @@ async def test_save_and_list_active(db_session, strategy):
 async def test_rotate_revokes_old_keeps_in_grace(db_session, strategy):
     """기존 secret revoke + grace 내면 list_valid_secrets가 여전히 반환."""
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
     repo = WebhookSecretRepository(db_session)
 
@@ -54,7 +54,7 @@ async def test_rotate_revokes_old_keeps_in_grace(db_session, strategy):
 
 async def test_revoked_outside_grace_is_excluded(db_session, strategy):
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
     repo = WebhookSecretRepository(db_session)
 
@@ -74,7 +74,7 @@ async def test_revoked_outside_grace_is_excluded(db_session, strategy):
 async def test_get_by_id_returns_secret(db_session, strategy):
     """T10 review I1: get_by_id primitive for T11 Service layer."""
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
     repo = WebhookSecretRepository(db_session)
     ws = WebhookSecret(strategy_id=strategy.id, secret_encrypted=b"cipher-x")
@@ -90,7 +90,7 @@ async def test_get_by_id_returns_secret(db_session, strategy):
 async def test_get_by_id_miss_returns_none(db_session, strategy):
     from uuid import uuid4
 
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
     repo = WebhookSecretRepository(db_session)
     assert await repo.get_by_id(uuid4()) is None
@@ -99,7 +99,7 @@ async def test_get_by_id_miss_returns_none(db_session, strategy):
 async def test_list_valid_secrets_orders_newest_first(db_session, strategy):
     """T10 review S3: newer secrets first (common path optimization for HMAC verify)."""
     from src.trading.models import WebhookSecret
-    from src.trading.repository import WebhookSecretRepository
+    from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 
     repo = WebhookSecretRepository(db_session)
 

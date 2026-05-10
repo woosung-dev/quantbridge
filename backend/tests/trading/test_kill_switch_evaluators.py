@@ -54,7 +54,7 @@ async def test_cumulative_loss_evaluator_not_gated_when_below_threshold(
     db_session, strat_account
 ):
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     await _make_filled_order(
@@ -75,7 +75,7 @@ async def test_cumulative_loss_evaluator_not_gated_when_below_threshold(
 
 async def test_cumulative_loss_evaluator_gated_when_exceeds(db_session, strat_account):
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     # 누적 손실 -$1,500 / capital $10,000 = 15% > threshold 10%
@@ -105,7 +105,7 @@ async def test_cumulative_loss_evaluator_gated_when_exceeds(db_session, strat_ac
 async def test_daily_loss_evaluator_sums_today_only(db_session, strat_account):
     """UTC 당일 realized PnL 합만 집계 — 어제 주문은 포함 안 됨."""
     from src.trading.kill_switch import DailyLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     now = datetime.now(UTC)
@@ -128,7 +128,7 @@ async def test_daily_loss_evaluator_sums_today_only(db_session, strat_account):
 
 async def test_daily_loss_evaluator_gated_when_today_exceeds(db_session, strat_account):
     from src.trading.kill_switch import DailyLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     now = datetime.now(UTC)
@@ -171,7 +171,7 @@ async def test_cumulative_loss_uses_dynamic_capital_when_provider_returns_value(
     from decimal import Decimal
 
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     await _make_filled_order(
@@ -202,7 +202,7 @@ async def test_cumulative_loss_falls_back_to_config_when_provider_returns_none(
     from decimal import Decimal
 
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     await _make_filled_order(
@@ -231,7 +231,7 @@ async def test_cumulative_loss_ignores_zero_or_negative_dynamic_capital(
     from decimal import Decimal
 
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     await _make_filled_order(
@@ -286,7 +286,7 @@ async def test_cumulative_loss_falls_back_when_provider_raises(
 
     from src.trading import kill_switch as kill_switch_module
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     await _make_filled_order(
@@ -333,7 +333,7 @@ async def test_cumulative_loss_provider_called_on_every_trigger(
     from decimal import Decimal
 
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
-    from src.trading.repository import OrderRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     strategy, account = strat_account
     await _make_filled_order(

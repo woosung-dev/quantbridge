@@ -33,7 +33,7 @@ from src.strategy.schemas import (
 
 if TYPE_CHECKING:
     from src.backtest.repository import BacktestRepository
-    from src.trading.service import WebhookSecretService
+    from src.trading.services.webhook_secret_service import WebhookSecretService
 
 
 _VERSION_RE = re.compile(r"//\s*@version\s*=\s*(\d+)", re.MULTILINE)

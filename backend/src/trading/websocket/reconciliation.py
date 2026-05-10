@@ -28,7 +28,7 @@ from src.common.alert import send_critical_alert
 from src.common.metrics import qb_active_orders, qb_ws_reconcile_unknown_total
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
-from src.trading.repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository
 
 logger = logging.getLogger(__name__)
 

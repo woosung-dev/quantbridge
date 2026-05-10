@@ -25,7 +25,7 @@ from src.trading.models import (
     KillSwitchEvent,
     KillSwitchTriggerType,
 )
-from src.trading.repository import KillSwitchEventRepository
+from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 
 
 class _StaticEvaluator:

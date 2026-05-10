@@ -43,7 +43,7 @@ from src.trading.exceptions import (
 from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName, OrderState
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
 from src.trading.registry import dispatch as _dispatch_provider
-from src.trading.repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository
 
 # Sprint 15 Phase A.2 — submitted watchdog (BL-001) 상수.
 _WATCHDOG_ALERT_TTL_SECONDS = 3600  # 1h Redis throttle (G.0 P1 #2)
