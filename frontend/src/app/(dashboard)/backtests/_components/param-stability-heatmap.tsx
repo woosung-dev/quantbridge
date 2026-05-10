@@ -21,8 +21,11 @@ export function ParamStabilityHeatmap({ result }: Props) {
   const sharpeNumbers = cells
     .map((c) => (c.is_degenerate || c.sharpe === null ? null : Number(c.sharpe)))
     .filter((v): v is number => v !== null);
-  const maxAbs =
+  // codex G.4 P3 fix: 모든 non-degenerate cell sharpe=0 시 maxAbs=0 → bgFor() 의
+  // (Math.abs(sharpe) / maxAbs) * 100 가 0/0 NaN% CSS. || 1 fallback 으로 차단.
+  const maxAbsRaw =
     sharpeNumbers.length > 0 ? Math.max(...sharpeNumbers.map(Math.abs)) : 1;
+  const maxAbs = maxAbsRaw || 1;
 
   function bgFor(cell: (typeof cells)[number]): string | undefined {
     if (cell.is_degenerate || cell.sharpe === null) return undefined;
