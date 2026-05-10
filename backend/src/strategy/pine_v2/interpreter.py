@@ -30,7 +30,7 @@ from __future__ import annotations
 import math
 import operator
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -259,6 +259,7 @@ class Interpreter:
         store: PersistentStore,
         *,
         rendering: RenderingRegistry | None = None,
+        input_overrides: Mapping[str, Any] | None = None,
     ) -> None:
         self.bar = bar_context
         self.store = store
@@ -282,6 +283,12 @@ class Interpreter:
         self._prev_close: float = float("nan")
         # 렌더링 scope A — line/box/label/table 객체 handle 관리
         self.rendering = rendering or RenderingRegistry()
+        # Sprint 51 BL-220 — pine_v2 input override (Param Stability grid sweep).
+        # key = pine InputDecl.var_name, value = Decimal/int/bool/str.
+        # _eval_call() input.* handler 가 _assignment_target_stack[-1] 으로 lookup.
+        # codex G.0 P1#2: _exec_assign 에서 RHS eval 전 push, 후 pop (try/finally).
+        self.input_overrides: Mapping[str, Any] | None = input_overrides
+        self._assignment_target_stack: list[str] = []
 
     def reset_transient(self) -> None:
         self._transient = {}
@@ -392,7 +399,15 @@ class Interpreter:
             value_expr = node.value
 
             def factory() -> Any:
-                return self._eval_expr(value_expr)
+                # Sprint 51 BL-220 (codex Slice 2 review P1) — `var x = input.int(...)`
+                # 또는 `varip` 패턴에서 deferred factory 평가 시점에도 input override
+                # hook 활성. push/pop 누락 시 stack empty → _eval_call() 가 override
+                # 무시 → silent failure (Param Stability grid 가 default 만 사용).
+                self._assignment_target_stack.append(target_name)
+                try:
+                    return self._eval_expr(value_expr)
+                finally:
+                    self._assignment_target_stack.pop()
 
             self.store.declare_if_new(
                 key,
@@ -401,9 +416,18 @@ class Interpreter:
             )
         else:
             # 비영속: 매 bar 평가. 함수 호출 중이면 로컬 frame에 기록.
-            value = (
-                self._eval_expr(node.value) if getattr(node, "value", None) is not None else None
-            )
+            # Sprint 51 BL-220 (codex G.0 P1#2): input.* override 를 위해 RHS eval
+            # 전에 assignment target name 을 stack 에 push. eval 후 try/finally 로 pop.
+            # _eval_call() input.* handler 가 stack[-1] 로 var_name lookup.
+            self._assignment_target_stack.append(target_name)
+            try:
+                value = (
+                    self._eval_expr(node.value)
+                    if getattr(node, "value", None) is not None
+                    else None
+                )
+            finally:
+                self._assignment_target_stack.pop()
             if self._scope_stack:
                 self._scope_stack[-1][target_name] = value
             else:
@@ -866,6 +890,20 @@ class Interpreter:
         }
         if name in _NOP_NAMES:
             if name and name.startswith("input"):
+                # Sprint 51 BL-220 (codex G.0 P1#2): input override hook.
+                # _exec_assign 이 RHS eval 전에 target var_name 을 stack 에 push.
+                # input_overrides[target] 가 있으면 defval 대신 override 값 반환.
+                target = (
+                    self._assignment_target_stack[-1]
+                    if self._assignment_target_stack
+                    else None
+                )
+                if (
+                    target is not None
+                    and self.input_overrides is not None
+                    and target in self.input_overrides
+                ):
+                    return self.input_overrides[target]
                 # Pine input 시그니처: v4는 input(title=, type=, defval=, ...) keyword 사용 빈번.
                 # defval= kwarg 우선, 없으면 첫 positional arg를 defval로 간주.
                 pos_args, kw_args = self._collect_args(node)

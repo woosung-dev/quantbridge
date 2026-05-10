@@ -91,6 +91,9 @@ def run_backtest_v2(
             form_default_qty_type=cfg.default_qty_type,
             form_default_qty_value=cfg.default_qty_value,
             sessions_allowed=cfg.trading_sessions,
+            # Sprint 51 BL-220 — pine_v2 input override (Param Stability grid sweep).
+            # cfg.input_overrides=None 일 때 = 회귀 0 (기존 backtest path 변경 X).
+            input_overrides=cfg.input_overrides,
         )
     except PineRuntimeError as exc:
         logger.info("v2_adapter_runtime_error: %s", exc)
