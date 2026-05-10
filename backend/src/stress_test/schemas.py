@@ -5,7 +5,14 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializer
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 from src.stress_test.models import StressTestKind, StressTestStatus
 
@@ -121,6 +128,72 @@ class WalkForwardResultOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Cost Assumption Sensitivity (Sprint 50)
+# ---------------------------------------------------------------------------
+
+
+class CostAssumptionParams(BaseModel):
+    """Cost Assumption Sensitivity 입력 — BacktestConfig fees x slippage grid.
+
+    Sprint 50 MVP — 서버 9 cell 강제 (codex P1#5). 100 cell 확장은 dedicated
+    Celery queue + soft_time_limit 설계 후 BL 등재.
+
+    진짜 Param Stability (pine input override) = BL-220 / Sprint 51.
+    """
+
+    param_grid: dict[str, list[Decimal]] = Field(min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def _validate_grid(self) -> CostAssumptionParams:
+        ALLOWED = {"fees", "slippage"}
+        keys = set(self.param_grid.keys())
+        if not keys.issubset(ALLOWED):
+            raise ValueError(
+                f"param_grid keys must be subset of {sorted(ALLOWED)}. "
+                f"진짜 Param Stability (pine input override) = BL-220 / Sprint 51."
+            )
+        n_cells = 1
+        for vals in self.param_grid.values():
+            if not vals:
+                raise ValueError("param_grid values must not be empty")
+            n_cells *= len(vals)
+        if n_cells > 9:
+            raise ValueError(
+                f"grid size {n_cells} exceeds 9 cells (Sprint 50 MVP 강제 제한)"
+            )
+        return self
+
+
+class CostAssumptionSubmitRequest(BaseModel):
+    """POST /stress-tests/cost-assumption-sensitivity body."""
+
+    backtest_id: UUID
+    params: CostAssumptionParams
+
+
+class CostAssumptionCellOut(BaseModel):
+    """단일 (param1, param2) cell out — Decimal → str (FE 정합)."""
+
+    param1_value: str
+    param2_value: str
+    sharpe: str | None
+    total_return: str
+    max_drawdown: str
+    num_trades: int
+    is_degenerate: bool
+
+
+class CostAssumptionResultOut(BaseModel):
+    """CA result JSONB → API. cells = row-major flatten."""
+
+    param1_name: str
+    param2_name: str
+    param1_values: list[str]
+    param2_values: list[str]
+    cells: list[CostAssumptionCellOut]
+
+
+# ---------------------------------------------------------------------------
 # Common Response
 # ---------------------------------------------------------------------------
 
@@ -157,6 +230,7 @@ class StressTestDetail(BaseModel):
     params: dict[str, object]
     monte_carlo_result: MonteCarloResultOut | None = None
     walk_forward_result: WalkForwardResultOut | None = None
+    cost_assumption_result: CostAssumptionResultOut | None = None
     error: str | None = None
     created_at: AwareDatetime
     started_at: AwareDatetime | None = None
@@ -164,4 +238,6 @@ class StressTestDetail(BaseModel):
 
 
 # Literal for router path kind (just for type narrowing).
-StressKindLiteral = Literal["monte_carlo", "walk_forward"]
+StressKindLiteral = Literal[
+    "monte_carlo", "walk_forward", "cost_assumption_sensitivity"
+]

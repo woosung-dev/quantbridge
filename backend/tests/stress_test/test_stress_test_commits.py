@@ -14,6 +14,8 @@ import pytest
 
 from src.backtest.models import Backtest, BacktestStatus
 from src.stress_test.schemas import (
+    CostAssumptionParams,
+    CostAssumptionSubmitRequest,
     MonteCarloParams,
     MonteCarloSubmitRequest,
     WalkForwardParams,
@@ -92,6 +94,34 @@ async def test_submit_walk_forward_calls_repo_commit() -> None:
         ),
     )
     await svc.submit_walk_forward(req, user_id=bt.user_id)
+
+    repo.create.assert_awaited_once()
+    repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_submit_cost_assumption_sensitivity_calls_repo_commit() -> None:
+    """LESSON-019 spy: submit_cost_assumption_sensitivity() 가 repo.commit() 호출 강제 (Sprint 50)."""
+    bt = _completed_backtest()
+
+    backtest_repo = AsyncMock()
+    backtest_repo.get_by_id = AsyncMock(return_value=bt)
+
+    repo = AsyncMock()
+    repo.create = AsyncMock(return_value=None)
+
+    svc = _make_service(repo, backtest_repo=backtest_repo)
+
+    req = CostAssumptionSubmitRequest(
+        backtest_id=bt.id,
+        params=CostAssumptionParams(
+            param_grid={
+                "fees": [Decimal("0.001")],
+                "slippage": [Decimal("0.0005")],
+            },
+        ),
+    )
+    await svc.submit_cost_assumption_sensitivity(req, user_id=bt.user_id)
 
     repo.create.assert_awaited_once()
     repo.commit.assert_awaited_once()

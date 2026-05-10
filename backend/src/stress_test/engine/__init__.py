@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from src.stress_test.engine.cost_assumption_sensitivity import (
+    CostAssumptionCell,
+    CostAssumptionResult,
+    run_cost_assumption_sensitivity,
+)
 from src.stress_test.engine.monte_carlo import MonteCarloResult, run_monte_carlo
 from src.stress_test.engine.walk_forward import (
     WalkForwardFold,
@@ -10,9 +15,12 @@ from src.stress_test.engine.walk_forward import (
 )
 
 __all__ = [
+    "CostAssumptionCell",
+    "CostAssumptionResult",
     "MonteCarloResult",
     "WalkForwardFold",
     "WalkForwardResult",
+    "run_cost_assumption_sensitivity",
     "run_monte_carlo",
     "run_walk_forward",
 ]

@@ -1,9 +1,10 @@
 """Stress Test REST API.
 
-POST /stress-tests/monte-carlo        — submit MC (202)
-POST /stress-tests/walk-forward       — submit WFA (202)
-GET  /stress-tests                    — list (page)
-GET  /stress-tests/{id}               — detail
+POST /stress-tests/monte-carlo                — submit MC (202)
+POST /stress-tests/walk-forward               — submit WFA (202)
+POST /stress-tests/cost-assumption-sensitivity — submit CA (202, Sprint 50)
+GET  /stress-tests                            — list (page)
+GET  /stress-tests/{id}                       — detail
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from src.common.pagination import Page
 from src.common.rate_limit import limiter
 from src.stress_test.dependencies import get_stress_test_service
 from src.stress_test.schemas import (
+    CostAssumptionSubmitRequest,
     MonteCarloSubmitRequest,
     StressTestCreatedResponse,
     StressTestDetail,
@@ -59,6 +61,25 @@ async def submit_walk_forward(
     service: StressTestService = Depends(get_stress_test_service),
 ) -> StressTestCreatedResponse:
     return await service.submit_walk_forward(data, user_id=user.id)
+
+
+@router.post(
+    "/cost-assumption-sensitivity",
+    response_model=StressTestCreatedResponse,
+    status_code=202,
+)
+@limiter.limit("5/minute")
+async def submit_cost_assumption_sensitivity(
+    request: Request,  # slowapi 가 IP/key 추출에 사용
+    data: CostAssumptionSubmitRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    service: StressTestService = Depends(get_stress_test_service),
+) -> StressTestCreatedResponse:
+    """Sprint 50 — Cost Assumption Sensitivity (fees x slippage 9-cell grid)."""
+    return await service.submit_cost_assumption_sensitivity(
+        data, user_id=user.id
+    )
 
 
 @router.get("", response_model=Page[StressTestSummary])
