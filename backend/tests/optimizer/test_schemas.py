@@ -256,7 +256,7 @@ def test_bayesian_field_min_max_invariant() -> None:
 
 
 def test_param_space_schema_v1_rejects_bayesian_optional_fields() -> None:
-    """schema_version=1 시 5 v2-only 필드 (bayesian_*/population_*/n_generations/mutation_rate) 모두 reject."""
+    """schema_version=1 시 6 v2-only 필드 (bayesian_*/population_size/n_generations/mutation_rate/crossover_rate) 모두 reject."""
     with pytest.raises(ValidationError, match="schema_version=1 forbids v2-only fields"):
         ParamSpace.model_validate(
             {
@@ -291,7 +291,7 @@ def test_param_space_schema_v1_rejects_bayesian_optional_fields() -> None:
 
 
 def test_param_space_v1_round_trip_unchanged_grid_search() -> None:
-    """회귀 차단 — schema_version=1 + IntegerField + 5 v2-only 필드 모두 None 으로 round-trip."""
+    """회귀 차단 — schema_version=1 + IntegerField + 6 v2-only 필드 모두 None 으로 round-trip."""
     original = {
         "schema_version": 1,
         "objective_metric": "sharpe_ratio",
@@ -309,13 +309,142 @@ def test_param_space_v1_round_trip_unchanged_grid_search() -> None:
     assert space.population_size is None
     assert space.n_generations is None
     assert space.mutation_rate is None
-    # round-trip dump → 원본 5 v2-only 필드는 default None 유지.
+    assert space.crossover_rate is None
+    # round-trip dump → 원본 6 v2-only 필드는 default None 유지.
     dumped = space.model_dump(mode="json", exclude_none=True)
     assert "bayesian_acquisition" not in dumped
     assert "bayesian_n_initial_random" not in dumped
     assert "population_size" not in dumped
     assert "n_generations" not in dumped
     assert "mutation_rate" not in dumped
+    assert "crossover_rate" not in dumped
     # parameters 보존.
     assert dumped["parameters"]["emaPeriod"]["kind"] == "integer"
     assert dumped["parameters"]["stopLossPct"]["kind"] == "decimal"
+
+
+# === Sprint 56 — Genetic schema_version=2 + 4 hyperparam grammar ===
+
+
+def test_param_space_schema_v2_accepts_genetic_hyperparams() -> None:
+    """Sprint 56 BL-233 — schema_version=2 + 4 Genetic hyperparam 활성."""
+    space = ParamSpace.model_validate(
+        {
+            "schema_version": 2,
+            "objective_metric": "sharpe_ratio",
+            "direction": "maximize",
+            "max_evaluations": 25,
+            "parameters": {
+                "emaPeriod": {"kind": "integer", "min": 10, "max": 30, "step": 5},
+            },
+            "population_size": 5,
+            "n_generations": 4,
+            "mutation_rate": "0.1",
+            "crossover_rate": "0.8",
+        }
+    )
+    assert space.schema_version == 2
+    assert space.population_size == 5
+    assert space.n_generations == 4
+    assert space.mutation_rate == Decimal("0.1")
+    assert space.crossover_rate == Decimal("0.8")
+
+
+def test_param_space_v1_rejects_crossover_rate() -> None:
+    """schema_version=1 + crossover_rate → ValidationError (6 v2-only 필드)."""
+    with pytest.raises(ValidationError, match="schema_version=1 forbids v2-only fields"):
+        ParamSpace.model_validate(
+            {
+                "schema_version": 1,
+                "objective_metric": "sharpe_ratio",
+                "direction": "maximize",
+                "max_evaluations": 9,
+                "parameters": {
+                    "emaPeriod": {"kind": "integer", "min": 10, "max": 30, "step": 5},
+                },
+                "crossover_rate": "0.8",
+            }
+        )
+
+
+def test_param_space_mutation_rate_zero_rejected() -> None:
+    """mutation_rate=0 → reject. ADR-013 §7 amendment (0 < x <= 1)."""
+    with pytest.raises(ValidationError, match="mutation_rate must be in"):
+        ParamSpace.model_validate(
+            {
+                "schema_version": 2,
+                "objective_metric": "sharpe_ratio",
+                "direction": "maximize",
+                "max_evaluations": 9,
+                "parameters": {
+                    "x": {"kind": "integer", "min": 10, "max": 30, "step": 5},
+                },
+                "mutation_rate": "0",
+            }
+        )
+
+
+def test_param_space_mutation_rate_above_one_rejected() -> None:
+    """mutation_rate=1.01 → reject. 상한 inclusive 1.0 까지만 허용."""
+    with pytest.raises(ValidationError, match="mutation_rate must be in"):
+        ParamSpace.model_validate(
+            {
+                "schema_version": 2,
+                "objective_metric": "sharpe_ratio",
+                "direction": "maximize",
+                "max_evaluations": 9,
+                "parameters": {
+                    "x": {"kind": "integer", "min": 10, "max": 30, "step": 5},
+                },
+                "mutation_rate": "1.01",
+            }
+        )
+
+
+def test_param_space_crossover_rate_zero_rejected() -> None:
+    """crossover_rate=0 → reject."""
+    with pytest.raises(ValidationError, match="crossover_rate must be in"):
+        ParamSpace.model_validate(
+            {
+                "schema_version": 2,
+                "objective_metric": "sharpe_ratio",
+                "direction": "maximize",
+                "max_evaluations": 9,
+                "parameters": {
+                    "x": {"kind": "integer", "min": 10, "max": 30, "step": 5},
+                },
+                "crossover_rate": "0",
+            }
+        )
+
+
+def test_param_space_genetic_population_size_range_locked() -> None:
+    """population_size = [2, 200] / n_generations = [1, 100] Pydantic Field constraint."""
+    with pytest.raises(ValidationError):
+        ParamSpace.model_validate(
+            {
+                "schema_version": 2,
+                "objective_metric": "sharpe_ratio",
+                "direction": "maximize",
+                "max_evaluations": 9,
+                "parameters": {"x": {"kind": "integer", "min": 10, "max": 30, "step": 5}},
+                "population_size": 1,  # < 2
+            }
+        )
+    with pytest.raises(ValidationError):
+        ParamSpace.model_validate(
+            {
+                "schema_version": 2,
+                "objective_metric": "sharpe_ratio",
+                "direction": "maximize",
+                "max_evaluations": 9,
+                "parameters": {"x": {"kind": "integer", "min": 10, "max": 30, "step": 5}},
+                "n_generations": 101,  # > 100
+            }
+        )
+
+
+def test_optimization_kind_out_includes_genetic() -> None:
+    """Sprint 56 — OptimizationKindOut 에 GENETIC 활성."""
+    assert OptimizationKindOut("genetic") == OptimizationKindOut.GENETIC
+    assert OptimizationKindOut.GENETIC.value == "genetic"
