@@ -39,12 +39,18 @@ export function ParamStabilityForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // codex G.4 P3 fix: payload 도 trim 적용 — UI 는 trim 으로 invalid 판정,
+    // submit 도 raw 값 전송 시 BE Zod/422 silent fail 회피.
+    const trimmedVar1Name = var1Name.trim();
+    const trimmedVar2Name = var2Name.trim();
+    const trimmedVar1Values: string[] = var1Values.map((v) => v.trim());
+    const trimmedVar2Values: string[] = var2Values.map((v) => v.trim());
     onSubmit({
       backtest_id: backtestId,
       params: {
         param_grid: {
-          [var1Name]: [...var1Values],
-          [var2Name]: [...var2Values],
+          [trimmedVar1Name]: trimmedVar1Values,
+          [trimmedVar2Name]: trimmedVar2Values,
         },
       },
     });
