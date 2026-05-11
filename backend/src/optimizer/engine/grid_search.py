@@ -44,7 +44,7 @@ from src.optimizer.schemas import (
 )
 from src.strategy.pine_v2.coverage import analyze_coverage
 
-_MAX_GRID_CELLS: Final[int] = 9   # Sprint 50/51/52 pattern mirror — soft_time_limit 부재 시 보호.
+_MAX_GRID_CELLS: Final[int] = 9  # Sprint 50/51/52 pattern mirror — soft_time_limit 부재 시 보호.
 
 # Sprint 54 MVP — BacktestMetrics 화이트리스트 (Sprint 55+ 확장).
 _SUPPORTED_OBJECTIVE_METRICS: Final[frozenset[str]] = frozenset(
@@ -117,9 +117,7 @@ def _expand_param_space(param_space: ParamSpace) -> dict[str, list[Decimal]]:
         elif isinstance(field, DecimalField):
             grid[var_name] = _expand_decimal_field(field)
         elif isinstance(field, CategoricalField):
-            raise OptimizationParameterUnsupportedError(
-                var_name=var_name, kind="categorical"
-            )
+            raise OptimizationParameterUnsupportedError(var_name=var_name, kind="categorical")
         else:  # pragma: no cover — discriminated union exhaustive
             raise OptimizationParameterUnsupportedError(
                 var_name=var_name, kind=type(field).__name__
@@ -195,9 +193,7 @@ def _build_cell_config(
     return dc_replace(base, input_overrides=merged)
 
 
-def _cell_objective_value(
-    cell: GridSearchCell, *, objective_metric: str
-) -> Decimal | None:
+def _cell_objective_value(cell: GridSearchCell, *, objective_metric: str) -> Decimal | None:
     """cell raw metric → objective_value. degenerate cell or None metric → None."""
     if cell.is_degenerate:
         return None
@@ -211,14 +207,10 @@ def _cell_objective_value(
     raise OptimizationObjectiveUnsupportedError(objective_metric)
 
 
-def _pick_best_cell_index(
-    cells: tuple[GridSearchCell, ...], *, direction: str
-) -> int | None:
+def _pick_best_cell_index(cells: tuple[GridSearchCell, ...], *, direction: str) -> int | None:
     """direction 적용 후 best cell idx 반환. 모든 cell degenerate → None."""
     candidates: list[tuple[int, Decimal]] = [
-        (idx, c.objective_value)  # type: ignore[misc]
-        for idx, c in enumerate(cells)
-        if c.objective_value is not None
+        (idx, c.objective_value) for idx, c in enumerate(cells) if c.objective_value is not None
     ]
     if not candidates:
         return None
@@ -266,9 +258,7 @@ def run_grid_search(
         if outcome.status != "ok" or outcome.result is None:
             raise OptimizationExecutionError(
                 message_public="Backtest execution failed for one of the cells.",
-                message_internal=(
-                    f"backtest failed at cell ({values}): status={outcome.status}"
-                ),
+                message_internal=(f"backtest failed at cell ({values}): status={outcome.status}"),
             )
         metrics = outcome.result.metrics
         num_trades = metrics.num_trades
@@ -282,9 +272,7 @@ def run_grid_search(
             is_degenerate=is_degenerate,
             objective_value=None,  # 채워서 다시 dataclass 생성 (immutable).
         )
-        obj_value = _cell_objective_value(
-            partial, objective_metric=param_space.objective_metric
-        )
+        obj_value = _cell_objective_value(partial, objective_metric=param_space.objective_metric)
         return dc_replace(partial, objective_value=obj_value)
 
     try:
