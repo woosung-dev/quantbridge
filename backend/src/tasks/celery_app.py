@@ -32,6 +32,7 @@ celery_app = Celery(
         "src.tasks.funding",
         "src.tasks.dogfood_report",
         "src.tasks.stress_test_tasks",
+        "src.tasks.optimizer_tasks",  # Sprint 54 — Phase 3 Optimizer Grid Search
         "src.tasks.websocket_task",
         "src.tasks.orphan_scanner",
         "src.tasks.live_signal",  # Sprint 26 — Pine Signal Auto-Trading

@@ -94,22 +94,28 @@ def test_grid_sweep_empty_values_reject() -> None:
         )
 
 
-def test_grid_sweep_non_2key_reject() -> None:
-    """Sprint 53 MVP = 정확히 2 key 강제."""
-    with pytest.raises(ValueError, match="2"):
+def test_grid_sweep_rejects_empty_grid() -> None:
+    """Sprint 54 BL-228 N-dim 확장 — 0 key (빈 grid) 만 reject. 1+ key 모두 허용."""
+    with pytest.raises(ValueError, match="at least 1 key"):
         run_grid_sweep(
-            param_grid={"a": [Decimal("1")]},
+            param_grid={},
             cell_runner=_identity_runner,
         )
-    with pytest.raises(ValueError, match="2"):
-        run_grid_sweep(
-            param_grid={
-                "a": [Decimal("1")],
-                "b": [Decimal("2")],
-                "c": [Decimal("3")],
-            },
-            cell_runner=_identity_runner,
-        )
+
+
+def test_grid_sweep_1d_single_key_allowed() -> None:
+    """Sprint 54 BL-228 — 1 key sweep 허용 (single-parameter optimization edge)."""
+    result = run_grid_sweep(
+        param_grid={"a": [Decimal("1"), Decimal("2"), Decimal("3")]},
+        cell_runner=_identity_runner,
+    )
+    assert result.param_names == ("a",)
+    assert len(result.cells) == 3
+    assert [c.param_values["a"] for c in result.cells] == [
+        Decimal("1"),
+        Decimal("2"),
+        Decimal("3"),
+    ]
 
 
 def test_grid_sweep_per_cell_runner_callback() -> None:
