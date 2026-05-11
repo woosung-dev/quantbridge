@@ -258,4 +258,49 @@ Sprint 55 close-out 시 `docs/REFACTORING-BACKLOG.md` 5건 신규:
 
 ---
 
-**End of ADR-013** (Sprint 55 + Sprint 56 amendment 적용).
+---
+
+## §9 Amendment — Sprint 57 (BL-234 + BL-237, 2026-05-11)
+
+### 9.1 BL-234 변경사항
+
+#### 9.1.1 CategoricalField.encoding
+
+- `CategoricalField` 에 `encoding: Literal["label", "one_hot"] = "label"` 추가 (JSONB backward-compat).
+- Bayesian engine: `encoding="one_hot"` → skopt `Categorical(transform="onehot")`.
+- FE `CategoricalFieldSchema`: `encoding: z.enum(["label", "one_hot"]).default("label")` 추가.
+
+#### 9.1.2 ParamSpace.genetic_selection_method
+
+- `genetic_selection_method: Literal["tournament", "roulette"] | None = None` (schema_version=2 only).
+- `None` → engine default `"tournament"` (backward-compat). v1 schema에서 명시 금지.
+- `_roulette_select()` 신규 — rank-based: best=N, worst=1, P(i)∝rank(i). degenerate fallback=uniform.
+- `_create_next_generation()` 에 `selection_method` 파라미터 추가.
+- FE `genetic-search-form.tsx`: selection_method select 드롭다운 추가.
+
+#### 9.1.3 E1 guard
+
+- `prior="normal" and log_scale=True` → `ValueError` (로그공간 N 샘플링 Sprint 58+).
+
+#### 9.1.4 prior=normal self-sampler 활성
+
+- `_inject_normal_prior_values()`: `ask()` 이후 normal-prior 차원만 `N(loc=(min+max)/2, scale=(max-min)/4)` + clip 교체.
+- `np.random.RandomState(seed=42)` 결정성. skopt 차원 등록: `_PRIOR_MAP["normal"]="uniform"`.
+
+### 9.2 BL-237 변경사항
+
+- `_MAX_BAYESIAN_EVALUATIONS` / `_MAX_GENETIC_EVALUATIONS`: 50 → **100** (dedicated queue 전제).
+- `celery_app.conf.task_routes`: `"optimizer.run"` → `"optimizer_heavy"` queue.
+- `optimizer_tasks`: `soft_time_limit=600, time_limit=660`.
+- `docker-compose.yml`: `backend-optimizer-heavy` worker 신규 (prefork, concurrency=1).
+- FE form `max_evaluations` + `bayesian_n_initial_random` 상한: 50 → **100**.
+
+### 9.3 Sprint 57 검증
+
+- BE optimizer 139 PASS (+24 신규, 회귀 0). FE 680 PASS. ruff+mypy+tsc clean.
+- alembic migration 없음 (JSONB SSOT field, DB column 변경 없음).
+- Docker `backend-optimizer-heavy` 서비스 포함 확인.
+
+---
+
+**End of ADR-013** (Sprint 55 + Sprint 56 + Sprint 57 amendment 적용).

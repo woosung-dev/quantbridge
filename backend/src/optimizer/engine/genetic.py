@@ -45,7 +45,7 @@ import random
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
 from decimal import Decimal
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, cast
 
 import pandas as pd
 
@@ -243,7 +243,10 @@ def _roulette_select(
         return evaluated_pop[rng.randrange(len(evaluated_pop))]
 
     # direction-aware 정렬: maximize → 높은 값 앞 (best = index 0)
-    viable.sort(key=lambda ind: ind.objective_value, reverse=(direction == "maximize"))  # type: ignore[arg-type]
+    viable.sort(
+        key=lambda ind: cast(Decimal, ind.objective_value),  # non-None guaranteed above
+        reverse=(direction == "maximize"),
+    )
 
     n = len(viable)
     total_rank = n * (n + 1) // 2

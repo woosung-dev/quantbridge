@@ -6,11 +6,10 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import pytest
 from skopt.space import Categorical, Integer, Real
-
-import numpy as np
 
 from src.optimizer.engine.bayesian import (
     _BAYESIAN_RANDOM_STATE,
@@ -26,7 +25,7 @@ from src.optimizer.engine.bayesian import (
     _y_from_objective,
     run_bayesian_search,
 )
-from src.optimizer.schemas import BayesianHyperparamsField, CategoricalField, ParamSpace
+from src.optimizer.schemas import BayesianHyperparamsField, ParamSpace
 from src.optimizer.serializers import (
     bayesian_search_result_from_jsonb,
     bayesian_search_result_to_jsonb,
