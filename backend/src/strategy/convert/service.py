@@ -57,7 +57,8 @@ class ConvertService:
             messages=[{"role": "user", "content": USER_TEMPLATE.format(code=code_to_send)}],
         )
 
-        converted = response.content[0].text if response.content else ""
+        first_block = response.content[0] if response.content else None
+        converted = first_block.text if first_block and hasattr(first_block, "text") else ""
 
         return ConvertIndicatorResponse(
             converted_code=converted,

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from src.strategy.pine_v2.coverage import analyze_coverage
 
@@ -309,20 +309,21 @@ def _find_signal_vars_ast(tree: object, user_vars: frozenset[str]) -> list[str]:
         if func is None:
             return None
         if hasattr(func, "id"):
-            return func.id  # 단순 함수 이름 (예: plotshape)
+            return str(func.id)  # 단순 함수 이름 (예: plotshape)
         # Attribute 노드 (예: strategy.entry, label.new)
         if hasattr(func, "attr") and hasattr(func, "value") and hasattr(func.value, "id"):
             return f"{func.value.id}.{func.attr}"
         return None
 
-    def _collect_names_from_node(node: object) -> None:
+    def _collect_names_from_node(node: pyne_ast.AST) -> None:
         """노드 서브트리에서 user_vars 에 속하는 Name.id 수집."""
         for sub in pyne_ast.walk(node):
             sub_type = type(sub).__name__
             if sub_type == "Name" and hasattr(sub, "id") and sub.id in user_vars:
                 candidates.add(sub.id)
 
-    for node in pyne_ast.walk(tree):
+    ast_tree = cast("pyne_ast.AST", tree)
+    for node in pyne_ast.walk(ast_tree):
         if type(node).__name__ != "Call":
             continue
 
@@ -330,7 +331,7 @@ def _find_signal_vars_ast(tree: object, user_vars: frozenset[str]) -> list[str]:
         if func_name is None:
             continue
 
-        args: list = getattr(node, "args", []) or []
+        args: list[pyne_ast.AST] = getattr(node, "args", []) or []
 
         if func_name == "plotshape":
             # 첫 번째 인자에서 사용자 변수 수집
