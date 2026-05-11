@@ -71,10 +71,7 @@ async def unhandled_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
     # production: stack trace / class 이름 노출 차단 (정보 leak risk).
     # dev/test (debug=True): exc class 노출 — FE/QA 가 빠르게 root cause 파악.
     if settings.debug:
-        message = (
-            f"Internal server error: {exc.__class__.__name__}. "
-            f"잠시 후 다시 시도해 주세요."
-        )
+        message = f"Internal server error: {exc.__class__.__name__}. 잠시 후 다시 시도해 주세요."
     else:
         message = "Internal server error. 잠시 후 다시 시도해 주세요."
 
@@ -124,10 +121,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Sprint 23 BL-103 — EXCHANGE_PROVIDER 가 dispatch path 미사용 (Sprint 22 BL-091).
     # staging/production 에서 non-default 값 설정 시 운영자에게 명시 warning.
     # development/test 는 silent (test_config.py 4건이 EXCHANGE_PROVIDER setenv).
-    if (
-        settings.exchange_provider != "fixture"
-        and settings.app_env in ("staging", "production")
-    ):
+    if settings.exchange_provider != "fixture" and settings.app_env in ("staging", "production"):
         import logging
 
         logger = logging.getLogger(__name__)
@@ -260,6 +254,11 @@ def create_app() -> FastAPI:
     from src.optimizer.router import router as optimizer_router
 
     app.include_router(optimizer_router, prefix="/api/v1")
+
+    # pine-compat-experiment — indicator → strategy 변환
+    from src.strategy.convert.router import router as convert_router
+
+    app.include_router(convert_router, prefix="/api/v1")
 
     # Sprint 11 Phase C — Waitlist domain
     from src.waitlist.router import router as waitlist_router
