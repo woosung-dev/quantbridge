@@ -1,4 +1,4 @@
-// Optimizer 도메인 Zod schemas (Sprint 54 Phase 3 BE schemas.py 1:1 mirror).
+// Optimizer 도메인 Zod schemas (Sprint 55 schema_version=2 + Bayesian discriminated union).
 // BE Decimal → str 직렬화 (json_encoders={Decimal: str}) → FE decimalString helper 변환.
 
 import { z } from "zod/v4";
@@ -34,8 +34,14 @@ const strictDecimalInput = z
 
 // --- Enums ------------------------------------------------------------------
 
-export const OptimizationKindSchema = z.enum(["grid_search"]);
+export const OptimizationKindSchema = z.enum(["grid_search", "bayesian"]);
 export type OptimizationKind = z.infer<typeof OptimizationKindSchema>;
+
+export const BayesianAcquisitionSchema = z.enum(["EI", "UCB", "PI"]);
+export type BayesianAcquisition = z.infer<typeof BayesianAcquisitionSchema>;
+
+export const BayesianPriorSchema = z.enum(["uniform", "log_uniform", "normal"]);
+export type BayesianPrior = z.infer<typeof BayesianPriorSchema>;
 
 export const OptimizationStatusSchema = z.enum([
   "queued",
@@ -79,22 +85,97 @@ export const CategoricalFieldSchema = z.object({
   values: z.array(z.string()).min(1),
 });
 
+// Sprint 55 ADR-013 §2.1 — Bayesian executor 의 sample space field.
+export const BayesianHyperparamsFieldSchema = z
+  .object({
+    kind: z.literal("bayesian"),
+    min: strictDecimalInput,
+    max: strictDecimalInput,
+    prior: BayesianPriorSchema.default("uniform"),
+    log_scale: z.boolean().default(false),
+  })
+  .superRefine((field, ctx) => {
+    const minN = Number(field.min);
+    const maxN = Number(field.max);
+    if (minN >= maxN) {
+      ctx.addIssue({
+        code: "custom",
+        message: `BayesianHyperparamsField.min must be < max (got ${field.min} / ${field.max})`,
+      });
+    }
+    if ((field.log_scale || field.prior === "log_uniform") && minN <= 0) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "log_scale=true / prior='log_uniform' requires min > 0 (ADR-013 §2.5)",
+      });
+    }
+  });
+
 export const ParamSpaceFieldSchema = z.discriminatedUnion("kind", [
   IntegerFieldSchema,
   DecimalFieldSchema,
   CategoricalFieldSchema,
+  BayesianHyperparamsFieldSchema,
 ]);
 export type ParamSpaceField = z.infer<typeof ParamSpaceFieldSchema>;
 
 // --- ParamSpace -------------------------------------------------------------
 
-export const ParamSpaceSchema = z.object({
-  schema_version: z.literal(1).default(1),
-  objective_metric: OptimizationObjectiveMetricSchema,
-  direction: OptimizationDirectionSchema,
-  max_evaluations: z.number().int().positive(),
-  parameters: z.record(z.string().min(1), ParamSpaceFieldSchema),
-});
+export const ParamSpaceSchema = z
+  .object({
+    // Sprint 55 = schema_version Literal[1, 2]. v1 = Grid Search MVP, v2 = Bayesian + Genetic reservation.
+    schema_version: z.union([z.literal(1), z.literal(2)]).default(1),
+    objective_metric: OptimizationObjectiveMetricSchema,
+    direction: OptimizationDirectionSchema,
+    max_evaluations: z.number().int().positive(),
+    parameters: z.record(z.string().min(1), ParamSpaceFieldSchema),
+    // Sprint 55 = Bayesian 활성 2 필드 (schema_version=2 only).
+    bayesian_n_initial_random: z.number().int().min(1).max(50).optional(),
+    bayesian_acquisition: BayesianAcquisitionSchema.optional(),
+    // Sprint 56+ = Genetic 3 필드 reservation (schema_version=2 only).
+    population_size: z.number().int().min(2).max(200).optional(),
+    n_generations: z.number().int().min(1).max(100).optional(),
+    mutation_rate: strictDecimalInput.optional(),
+  })
+  .superRefine((space, ctx) => {
+    const v2OnlyEntries: Array<[string, unknown]> = [
+      ["bayesian_n_initial_random", space.bayesian_n_initial_random],
+      ["bayesian_acquisition", space.bayesian_acquisition],
+      ["population_size", space.population_size],
+      ["n_generations", space.n_generations],
+      ["mutation_rate", space.mutation_rate],
+    ];
+    const populated = v2OnlyEntries
+      .filter(([, v]) => v !== undefined)
+      .map(([k]) => k);
+    const hasBayesian = Object.values(space.parameters).some(
+      (p) => p.kind === "bayesian",
+    );
+
+    if (space.schema_version === 1) {
+      if (populated.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: `schema_version=1 forbids v2-only fields: ${populated.sort().join(", ")}`,
+        });
+      }
+      if (hasBayesian) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "schema_version=1 forbids BayesianHyperparamsField; set schema_version=2",
+        });
+      }
+    }
+    if (hasBayesian && space.schema_version !== 2) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2)",
+      });
+    }
+  });
 export type ParamSpace = z.infer<typeof ParamSpaceSchema>;
 
 // --- Request ----------------------------------------------------------------
@@ -121,7 +202,10 @@ export const GridSearchCellSchema = z.object({
 });
 export type GridSearchCell = z.infer<typeof GridSearchCellSchema>;
 
+// Sprint 55 = top-level kind/schema_version echo (FE z.discriminatedUnion 의무).
 export const GridSearchResultSchema = z.object({
+  schema_version: z.literal(1),
+  kind: z.literal("grid_search"),
   param_names: z.array(z.string()),
   param_values: z.record(z.string(), z.array(decimalString)),
   cells: z.array(GridSearchCellSchema),
@@ -131,6 +215,44 @@ export const GridSearchResultSchema = z.object({
 });
 export type GridSearchResult = z.infer<typeof GridSearchResultSchema>;
 
+// --- Response — Bayesian result_jsonb shape (Sprint 55 신규) ----------------
+
+export const BayesianIterationSchema = z.object({
+  idx: z.number().int().nonnegative(),
+  params: z.record(z.string(), decimalString),
+  objective_value: decimalString.nullable(),
+  best_so_far: decimalString.nullable(),
+  is_degenerate: z.boolean(),
+  phase: z.enum(["random", "acquisition"]),
+});
+export type BayesianIteration = z.infer<typeof BayesianIterationSchema>;
+
+export const BayesianSearchResultSchema = z.object({
+  schema_version: z.literal(2),
+  kind: z.literal("bayesian"),
+  param_names: z.array(z.string()),
+  iterations: z.array(BayesianIterationSchema),
+  best_params: z.record(z.string(), decimalString).nullable(),
+  best_objective_value: decimalString.nullable(),
+  best_iteration_idx: z.number().int().nullable(),
+  objective_metric: OptimizationObjectiveMetricSchema,
+  direction: OptimizationDirectionSchema,
+  bayesian_acquisition: BayesianAcquisitionSchema,
+  bayesian_n_initial_random: z.number().int(),
+  max_evaluations: z.number().int(),
+  degenerate_count: z.number().int(),
+  total_iterations: z.number().int(),
+});
+export type BayesianSearchResult = z.infer<typeof BayesianSearchResultSchema>;
+
+// --- OptimizationRun detail — discriminated union by result.kind ------------
+
+export const OptimizationResultSchema = z.discriminatedUnion("kind", [
+  GridSearchResultSchema,
+  BayesianSearchResultSchema,
+]);
+export type OptimizationResult = z.infer<typeof OptimizationResultSchema>;
+
 // OptimizationRun detail — BE OptimizationRunResponse mirror.
 export const OptimizationRunResponseSchema = z.object({
   id: z.uuid(),
@@ -139,8 +261,8 @@ export const OptimizationRunResponseSchema = z.object({
   kind: OptimizationKindSchema,
   status: OptimizationStatusSchema,
   param_space: ParamSpaceSchema,
-  // result 는 BE 가 dict | None. COMPLETED 시 GridSearchResult shape.
-  result: GridSearchResultSchema.nullable().optional(),
+  // result 는 BE 가 dict | None. COMPLETED 시 GridSearch | Bayesian shape (kind discriminator).
+  result: OptimizationResultSchema.nullable().optional(),
   error_message: z.string().nullable().optional(),
   created_at: z.iso.datetime({ offset: true }),
   started_at: z.iso.datetime({ offset: true }).nullable().optional(),

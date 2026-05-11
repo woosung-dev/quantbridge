@@ -1,8 +1,10 @@
-// Sprint 54 — Optimizer 실행 detail (param_space + status + heatmap + best cell + cells table).
+// Sprint 55 — Optimizer 실행 detail (param_space + status + result kind 분기).
 "use client";
 
 import { useOptimizationRun } from "@/features/optimizer/hooks";
 
+import { BayesianBestParamsTable } from "./bayesian-best-params-table";
+import { BayesianIterationChart } from "./bayesian-iteration-chart";
 import { GridSearchPairSelector } from "./grid-search-pair-selector";
 
 export function OptimizerRunDetail({ runId }: { runId: string }) {
@@ -44,15 +46,29 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
           {Object.entries(data.param_space.parameters).map(([name, field]) => (
             <li key={name}>
               <strong className="font-mono">{name}</strong>:{" "}
-              {field.kind === "integer" || field.kind === "decimal"
-                ? `${field.kind} [${field.min} .. ${field.max} step ${field.step}]`
-                : `categorical [${field.values.join(", ")}]`}
+              {field.kind === "integer" || field.kind === "decimal" ? (
+                `${field.kind} [${field.min} .. ${field.max} step ${field.step}]`
+              ) : field.kind === "bayesian" ? (
+                <>
+                  bayesian [{field.min} .. {field.max}] prior={field.prior}
+                  {field.log_scale ? " log_scale=true" : ""}
+                </>
+              ) : (
+                `categorical [${field.values.join(", ")}]`
+              )}
             </li>
           ))}
         </ul>
+        {data.kind === "bayesian" && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            acquisition: {data.param_space.bayesian_acquisition ?? "—"} · random
+            warm-up: {data.param_space.bayesian_n_initial_random ?? "—"} · max
+            evaluations: {data.param_space.max_evaluations}
+          </p>
+        )}
       </section>
 
-      {data.status === "completed" && data.result && (
+      {data.status === "completed" && data.result?.kind === "grid_search" && (
         <section className="space-y-3">
           <h3 className="text-sm font-medium">Result heatmap</h3>
           <GridSearchPairSelector result={data.result} />
@@ -116,6 +132,68 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
           </details>
         </section>
       )}
+
+      {data.status === "completed" &&
+        data.result?.kind === "bayesian" &&
+        (() => {
+          const bayesian = data.result;
+          return (
+            <section className="space-y-3">
+              <h3 className="text-sm font-medium">Bayesian iteration history</h3>
+              <BayesianIterationChart result={bayesian} />
+              <BayesianBestParamsTable result={bayesian} />
+
+              <details className="text-xs">
+                <summary className="cursor-pointer text-muted-foreground">
+                  전체 iterations ({bayesian.iterations.length})
+                </summary>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-[600px] text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="p-1">idx</th>
+                        <th className="p-1">phase</th>
+                        <th className="p-1">params</th>
+                        <th className="p-1">objective</th>
+                        <th className="p-1">best_so_far</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bayesian.iterations.map((it) => (
+                        <tr
+                          key={it.idx}
+                          className={
+                            it.idx === bayesian.best_iteration_idx
+                              ? "border-b bg-primary/10"
+                              : "border-b"
+                          }
+                        >
+                          <td className="p-1 font-mono">{it.idx}</td>
+                          <td className="p-1">{it.phase}</td>
+                          <td className="p-1 font-mono">
+                            {Object.entries(it.params)
+                              .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
+                              .join(", ")}
+                          </td>
+                          <td className="p-1">
+                            {it.objective_value === null
+                              ? "—"
+                              : it.objective_value.toFixed(4)}
+                          </td>
+                          <td className="p-1">
+                            {it.best_so_far === null
+                              ? "—"
+                              : it.best_so_far.toFixed(4)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </section>
+          );
+        })()}
     </div>
   );
 }
