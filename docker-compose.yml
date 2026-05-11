@@ -108,6 +108,31 @@ services:
     networks:
       - quantbridge
 
+  # Sprint 57 BL-237 — Optimizer heavy queue dedicated worker.
+  # optimizer_heavy queue 전용 (concurrency=1 — 단일 optimizer run = CPU/메모리 집중 작업).
+  # soft_time_limit=600 / time_limit=660 은 optimizer_tasks.py 데코레이터 에서 설정.
+  backend-optimizer-heavy:
+    build:
+      context: ./backend
+    container_name: quantbridge-optimizer-heavy
+    command: uv run celery -A src.tasks.celery_app worker -Q optimizer_heavy --pool=prefork --concurrency=1 --loglevel=info
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    restart: unless-stopped
+    networks:
+      - quantbridge
+
   # Beat scheduler — reclaim_stale_running 5분 주기 (M3 T29) + ws_reconcile 5분 (Sprint 12)
   # Settings() 가 src.core.config import 시 trading_encryption_keys 등 require →
   # backend-worker 와 동일 env 셋업.
