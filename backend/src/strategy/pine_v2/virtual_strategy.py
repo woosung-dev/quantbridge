@@ -16,8 +16,9 @@ H2+ 이연: trail_points / qty_percent / pyramiding / stop/limit 쌍 복합 exit
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -170,6 +171,7 @@ def run_virtual_strategy(
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
     sessions_allowed: tuple[str, ...] = (),
+    input_overrides: Mapping[str, Any] | None = None,
 ) -> VirtualRunResult:
     """indicator + alertcondition Pine 스크립트를 가상 strategy로 실행.
 
@@ -192,7 +194,8 @@ def run_virtual_strategy(
 
     store = PersistentStore()
     bar = BarContext(ohlcv.reset_index(drop=True), timestamps=timestamps)
-    interp = Interpreter(bar, store)
+    # Sprint 51 BL-220 — input_overrides 주입 (Param Stability grid sweep cell 단위).
+    interp = Interpreter(bar, store, input_overrides=input_overrides)
     if initial_capital is not None:
         interp.strategy.configure_sizing(
             initial_capital=initial_capital,

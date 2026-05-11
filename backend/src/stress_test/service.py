@@ -24,6 +24,7 @@ from src.stress_test.dispatcher import StressTaskDispatcher
 from src.stress_test.engine import (
     run_cost_assumption_sensitivity,
     run_monte_carlo,
+    run_param_stability,
     run_walk_forward,
 )
 from src.stress_test.exceptions import (
@@ -42,6 +43,8 @@ from src.stress_test.schemas import (
     CostAssumptionSubmitRequest,
     MonteCarloResultOut,
     MonteCarloSubmitRequest,
+    ParamStabilityResultOut,
+    ParamStabilitySubmitRequest,
     StressTestCreatedResponse,
     StressTestDetail,
     StressTestSummary,
@@ -54,6 +57,8 @@ from src.stress_test.serializers import (
     equity_curve_values,
     mc_result_from_jsonb,
     mc_result_to_jsonb,
+    ps_result_from_jsonb,
+    ps_result_to_jsonb,
     wf_result_from_jsonb,
     wf_result_to_jsonb,
 )
@@ -130,6 +135,28 @@ class StressTestService:
             user_id=user_id,
             backtest_id=bt.id,
             kind=StressTestKind.COST_ASSUMPTION_SENSITIVITY,
+            params={
+                # JSONB 직렬화 — Decimal → str.
+                "param_grid": {
+                    k: [str(v) for v in vs]
+                    for k, vs in data.params.param_grid.items()
+                },
+            },
+        )
+
+    async def submit_param_stability(
+        self,
+        data: ParamStabilitySubmitRequest,
+        *,
+        user_id: UUID,
+    ) -> StressTestCreatedResponse:
+        """Sprint 51 BL-220 — pine_v2 input override 9-cell grid sweep submit."""
+        bt = await self._load_owned_backtest(data.backtest_id, user_id)
+        self._ensure_completed(bt)
+        return await self._submit(
+            user_id=user_id,
+            backtest_id=bt.id,
+            kind=StressTestKind.PARAM_STABILITY,
             params={
                 # JSONB 직렬화 — Decimal → str.
                 "param_grid": {
@@ -224,6 +251,8 @@ class StressTestService:
                 result_jsonb = await self._execute_cost_assumption_sensitivity(
                     st, bt
                 )
+            elif st.kind == StressTestKind.PARAM_STABILITY:
+                result_jsonb = await self._execute_param_stability(st, bt)
             else:  # pragma: no cover — exhaustiveness guard
                 raise ValueError(f"unknown stress_test kind: {st.kind}")
         except Exception as exc:
@@ -317,6 +346,30 @@ class StressTestService:
         )
         return ca_result_to_jsonb(ca)
 
+    async def _execute_param_stability(
+        self, st: StressTest, bt: Backtest
+    ) -> dict[str, object]:
+        """Sprint 51 BL-220 — Param Stability worker entry."""
+        strategy = await self.strategy_repo.find_by_id_and_owner(
+            bt.strategy_id, bt.user_id
+        )
+        if strategy is None:
+            raise ValueError("Strategy no longer available for param stability")
+
+        ohlcv = await self.provider.get_ohlcv(
+            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+        )
+        raw_grid = st.params["param_grid"]
+        param_grid: dict[str, list[Decimal]] = {
+            k: [Decimal(v) for v in vs] for k, vs in raw_grid.items()
+        }
+        ps = run_param_stability(
+            strategy.pine_source,
+            ohlcv,
+            param_grid=param_grid,
+        )
+        return ps_result_to_jsonb(ps)
+
     # ---------- HTTP read ----------
 
     async def get(self, stress_test_id: UUID, *, user_id: UUID) -> StressTestDetail:
@@ -373,6 +426,7 @@ class StressTestService:
         mc_out: MonteCarloResultOut | None = None
         wf_out: WalkForwardResultOut | None = None
         ca_out: CostAssumptionResultOut | None = None
+        ps_out: ParamStabilityResultOut | None = None
         if (
             st.status == StressTestStatus.COMPLETED
             and st.result is not None
@@ -389,6 +443,10 @@ class StressTestService:
                 ca_out = CostAssumptionResultOut.model_validate(
                     ca_result_from_jsonb(st.result)
                 )
+            elif st.kind == StressTestKind.PARAM_STABILITY:
+                ps_out = ParamStabilityResultOut.model_validate(
+                    ps_result_from_jsonb(st.result)
+                )
         return StressTestDetail(
             id=st.id,
             backtest_id=st.backtest_id,
@@ -398,6 +456,7 @@ class StressTestService:
             monte_carlo_result=mc_out,
             walk_forward_result=wf_out,
             cost_assumption_result=ca_out,
+            param_stability_result=ps_out,
             error=st.error,
             created_at=st.created_at,
             started_at=st.started_at,

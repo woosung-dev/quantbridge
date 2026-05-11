@@ -15,6 +15,7 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -66,6 +67,7 @@ def run_historical(
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
     sessions_allowed: tuple[str, ...] = (),
+    input_overrides: Mapping[str, Any] | None = None,
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -94,7 +96,8 @@ def run_historical(
 
     store = PersistentStore()
     bar = BarContext(ohlcv.reset_index(drop=True), timestamps=timestamps)
-    interp = Interpreter(bar, store)
+    # Sprint 51 BL-220 — input_overrides 주입 (Param Stability grid sweep cell 단위).
+    interp = Interpreter(bar, store, input_overrides=input_overrides)
     if initial_capital is not None:
         interp.strategy.configure_sizing(
             initial_capital=initial_capital,

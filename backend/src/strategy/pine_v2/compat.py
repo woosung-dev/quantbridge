@@ -12,7 +12,9 @@ ScriptContent 에서 추출하여 두 runner 에 전달. configure_sizing() 호�
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
@@ -65,6 +67,7 @@ def parse_and_run_v2(
     form_default_qty_type: str | None = None,
     form_default_qty_value: float | None = None,
     sessions_allowed: tuple[str, ...] = (),
+    input_overrides: Mapping[str, Any] | None = None,
 ) -> V2RunResult:
     """Pine 스크립트를 classify → 적절한 runner로 dispatch.
 
@@ -123,4 +126,5 @@ def parse_and_run_v2(
         default_qty_type=default_qty_type,
         default_qty_value=default_qty_value,
         sessions_allowed=sessions_allowed,
+        input_overrides=input_overrides,
     )
