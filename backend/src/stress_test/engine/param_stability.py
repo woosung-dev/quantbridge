@@ -34,6 +34,13 @@ from src.strategy.pine_v2.coverage import analyze_coverage
 
 _MAX_GRID_CELLS: Final[int] = 9  # 서버 강제 제한 (Sprint 50 codex P1#5 패턴 재사용)
 
+# Sprint 52 BL-225 — Param Stability MVP 지원 input_type. 그 외는 reject (확장 = BL 등재).
+# input.int = 정수 Decimal 만 (Decimal("20.5") → int() = 20 잘림 방지 — heatmap mismatch 차단).
+# input.float = numeric Decimal 모두 허용.
+# input.bool / input.string / input.source / input.price / input.session / input.symbol /
+# input.timeframe / input.color / input.time / generic = MVP unsupported, reject.
+_SUPPORTED_INPUT_TYPES: Final[frozenset[str]] = frozenset({"int", "float"})
+
 
 @dataclass(frozen=True, slots=True)
 class ParamStabilityCell:
@@ -133,6 +140,28 @@ def run_param_stability(
             f"param_grid keys {sorted(unknown)} are not declared as pine input variables. "
             f"Declared inputs: {sorted(declared_var_names)}."
         )
+
+    # Sprint 52 BL-225 — InputDecl.input_type 별 grid value validation.
+    # Sprint 51 cross-check 는 var_name 존재만 검증 → MVP unsupported input_type 도 통과
+    # + input.int 에 Decimal("20.5") 통과 후 int() = 20 잘림 → heatmap mismatch.
+    decl_by_name: dict[str, object] = {d.var_name: d for d in content.inputs}
+    for var_name in keys:
+        decl = decl_by_name[var_name]  # cross-check 통과했으므로 안전
+        input_type = decl.input_type  # type: ignore[attr-defined]
+        if input_type not in _SUPPORTED_INPUT_TYPES:
+            raise ValueError(
+                f"Param Stability MVP (Sprint 52) does not support input.{input_type} sweep "
+                f"(var_name={var_name!r}). Supported MVP: input.int, input.float. "
+                f"Extension tracked under BL-225+."
+            )
+        if input_type == "int":
+            # 정수 Decimal 만 허용. fractional → int() cast 잘림 방지 (heatmap mismatch).
+            for v in param_grid[var_name]:
+                if v != Decimal(int(v)):
+                    raise ValueError(
+                        f"input.int variable {var_name!r} requires integer Decimal values "
+                        f"(got {v!r}). int() cast 시 잘림 → heatmap mismatch (BL-225)."
+                    )
 
     cells: list[ParamStabilityCell] = []
     for v1 in param1_values:
