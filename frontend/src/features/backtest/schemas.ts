@@ -465,11 +465,94 @@ export type CreateWalkForwardRequest = z.infer<
   typeof CreateWalkForwardRequestSchema
 >;
 
+// Sprint 52 BL-224 P2 — param_grid superRefine 공통 helper (codex G.0 P1 권고).
+// BE `backend/src/stress_test/schemas.py:144-164,212-227` 의 grid validator 와 정합:
+// - 정확히 2 key
+// - 각 key 의 value list non-empty
+// - 전체 cell ≤ 9 (∏len(values))
+// - 각 value 는 finite Decimal string (NaN/Infinity/empty reject)
+const MAX_GRID_CELLS = 9 as const;
+
+// Decimal string 검증: numeric parse 가능 + finite (NaN/Infinity reject) + non-empty.
+function isFiniteDecimalString(s: string): boolean {
+  if (s.length === 0) return false;
+  // strict decimal grammar — optional sign + digits + optional fraction
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return false;
+  const n = Number(s);
+  return Number.isFinite(n);
+}
+
+function refineParamGrid(
+  paramGrid: Record<string, string[]>,
+  ctx: z.RefinementCtx,
+  options: { exactKeyCount?: number; allowedKeys?: readonly string[] },
+): void {
+  const keys = Object.keys(paramGrid);
+  if (options.exactKeyCount !== undefined && keys.length !== options.exactKeyCount) {
+    ctx.addIssue({
+      code: "custom",
+      message: `param_grid must have exactly ${options.exactKeyCount} keys (got ${keys.length})`,
+      path: ["param_grid"],
+    });
+  }
+  if (options.allowedKeys !== undefined) {
+    const allowed = new Set(options.allowedKeys);
+    const invalidKeys = keys.filter((k) => !allowed.has(k));
+    if (invalidKeys.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: `param_grid keys must be subset of ${JSON.stringify(options.allowedKeys)} (got ${JSON.stringify(invalidKeys)})`,
+        path: ["param_grid"],
+      });
+    }
+  }
+  // non-empty value list 검증
+  for (const key of keys) {
+    const values = paramGrid[key] ?? [];
+    if (values.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: `param_grid[${JSON.stringify(key)}] values must not be empty`,
+        path: ["param_grid", key],
+      });
+    }
+    // finite Decimal string 검증
+    values.forEach((v, i) => {
+      if (!isFiniteDecimalString(v)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `param_grid[${JSON.stringify(key)}][${i}] must be a finite Decimal string (NaN/Infinity/empty reject) (got ${JSON.stringify(v)})`,
+          path: ["param_grid", key, i],
+        });
+      }
+    });
+  }
+  // ≤9 cell 검증 (∏len(values))
+  const cellCount = keys.reduce(
+    (acc, k) => acc * Math.max((paramGrid[k] ?? []).length, 1),
+    1,
+  );
+  if (cellCount > MAX_GRID_CELLS) {
+    ctx.addIssue({
+      code: "custom",
+      message: `param_grid cell count ${cellCount} exceeds ${MAX_GRID_CELLS} (Sprint 50 MVP 제한)`,
+      path: ["param_grid"],
+    });
+  }
+}
+
 // Sprint 50 — Cost Assumption Sensitivity request. param_grid 는 string[] (Decimal serialized).
-// 서버 9 cell 강제 (codex P1#5). Client-side validate 동일.
-export const CostAssumptionParamsSchema = z.object({
-  param_grid: z.record(z.string(), z.array(z.string())),
-});
+// 서버 9 cell 강제 (codex P1#5) + Sprint 52 BL-224 (FE superRefine) — fees/slippage subset 강제.
+export const CostAssumptionParamsSchema = z
+  .object({
+    param_grid: z.record(z.string(), z.array(z.string())),
+  })
+  .superRefine((data, ctx) => {
+    refineParamGrid(data.param_grid, ctx, {
+      exactKeyCount: 2,
+      allowedKeys: ["fees", "slippage"],
+    });
+  });
 export type CostAssumptionParams = z.infer<typeof CostAssumptionParamsSchema>;
 
 export const CreateCostAssumptionRequestSchema = z.object({
@@ -481,10 +564,16 @@ export type CreateCostAssumptionRequest = z.infer<
 >;
 
 // Sprint 51 BL-220 — Param Stability request. param_grid 는 pine InputDecl.var_name → string[]
-// (Decimal serialized). 서버 9 cell 강제 (Sprint 50 codex P1#5 패턴). Client-side validate 동일.
-export const ParamStabilityParamsSchema = z.object({
-  param_grid: z.record(z.string(), z.array(z.string())),
-});
+// (Decimal serialized). 서버 9 cell 강제 (Sprint 50 codex P1#5 패턴) + Sprint 52 BL-224
+// (FE superRefine) — exactly 2 var_name + non-empty + ≤9 cell + finite Decimal string.
+// var_name 자체는 pine 의존 (FE 에서 미리 알 수 없음) — key whitelist 없음.
+export const ParamStabilityParamsSchema = z
+  .object({
+    param_grid: z.record(z.string(), z.array(z.string())),
+  })
+  .superRefine((data, ctx) => {
+    refineParamGrid(data.param_grid, ctx, { exactKeyCount: 2 });
+  });
 export type ParamStabilityParams = z.infer<typeof ParamStabilityParamsSchema>;
 
 export const CreateParamStabilityRequestSchema = z.object({
