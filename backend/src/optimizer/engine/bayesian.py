@@ -35,11 +35,15 @@ from decimal import Decimal
 from typing import Any, Final, Literal
 
 import pandas as pd
-from skopt import Optimizer as SkoptOptimizer
-from skopt.space import Categorical, Integer, Real
+from skopt import Optimizer as SkoptOptimizer  # type: ignore[import-untyped]
+from skopt.space import (  # type: ignore[import-untyped]
+    Categorical,
+    Integer,
+    Real,
+)
 
 from src.backtest.engine import run_backtest
-from src.backtest.engine.types import BacktestConfig
+from src.backtest.engine.types import BacktestConfig, BacktestMetrics
 from src.optimizer.exceptions import (
     OptimizationExecutionError,
     OptimizationObjectiveUnsupportedError,
@@ -237,7 +241,7 @@ def _build_cell_config(
     return dc_replace(base, input_overrides=merged)
 
 
-def _objective_from_metrics(metrics: Any, *, objective_metric: str) -> Decimal | None:
+def _objective_from_metrics(metrics: BacktestMetrics, *, objective_metric: str) -> Decimal | None:
     """metrics → raw objective_value. degenerate (sharpe=None / num_trades=0) → None."""
     if metrics.num_trades == 0:
         return None
