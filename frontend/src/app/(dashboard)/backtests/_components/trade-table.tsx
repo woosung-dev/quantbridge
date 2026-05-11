@@ -27,8 +27,8 @@ import { cn } from "@/lib/utils";
 const TRADE_LIMIT = 200;
 
 const SORT_LABEL: Record<TradeSortField, string> = {
-  entry_time: "진입",
-  exit_time: "청산",
+  entry_time: "진입 (UTC)",
+  exit_time: "청산 (UTC)",
   pnl: "PnL",
   return_pct: "Return",
   size: "Size",

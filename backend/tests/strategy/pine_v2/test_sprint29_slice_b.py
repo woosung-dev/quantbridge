@@ -14,14 +14,15 @@ def test_unsupported_calls_field_exists():
 
 def test_unsupported_calls_has_line_info():
     """unsupported_calls 안 항목이 name + line 포함."""
+    # Sprint 58: fixnan 은 지원됨 → ta.alma (여전히 미지원) 로 대체
     src = """//@version=5
 indicator("test")
-plot(fixnan(close))
+plot(ta.alma(close, 9, 0.85, 6))
 """
     rep = analyze_coverage(src)
-    fixnan_calls = [c for c in rep.unsupported_calls if c["name"] == "fixnan"]
-    assert fixnan_calls, "fixnan 이 unsupported_calls 에 없음"
-    assert fixnan_calls[0]["line"] == 3, f"fixnan line 정보 부정확: {fixnan_calls[0]}"
+    alma_calls = [c for c in rep.unsupported_calls if c["name"] == "ta.alma"]
+    assert alma_calls, "ta.alma 이 unsupported_calls 에 없음"
+    assert alma_calls[0]["line"] == 3, f"ta.alma line 정보 부정확: {alma_calls[0]}"
 
 
 def test_drfx_unsupported_workaround_coverage():
@@ -72,18 +73,19 @@ def test_pydantic_response_round_trip():
 
 def test_line_ignores_comment_before_actual_call():
     """codex G0 P1: 주석 안의 함수명이 실제 코드 line 보다 먼저 있어도 clean source 기준 line 반환."""
-    # line 1: 주석 (fixnan 포함)
+    # Sprint 58: fixnan 은 지원됨 → ta.alma (여전히 미지원) 로 대체
+    # line 1: 주석 (ta.alma 포함)
     # line 3: 실제 호출
-    src = """// fixnan(close)
+    src = """// ta.alma(close, 9, 0.85, 6)
 indicator("test")
-plot(fixnan(close))
+plot(ta.alma(close, 9, 0.85, 6))
 """
     rep = analyze_coverage(src)
-    fixnan_calls = [c for c in rep.unsupported_calls if c["name"] == "fixnan"]
-    assert fixnan_calls, "fixnan 이 unsupported_calls 에 없음"
+    alma_calls = [c for c in rep.unsupported_calls if c["name"] == "ta.alma"]
+    assert alma_calls, "ta.alma 이 unsupported_calls 에 없음"
     # 주석이 제거된 clean source 에서 검색 → line 3이 맞음
-    assert fixnan_calls[0]["line"] == 3, (
-        f"주석 이후 실제 코드 line 이어야 함 (P1 fix 검증): {fixnan_calls[0]}"
+    assert alma_calls[0]["line"] == 3, (
+        f"주석 이후 실제 코드 line 이어야 함 (P1 fix 검증): {alma_calls[0]}"
     )
 
 
