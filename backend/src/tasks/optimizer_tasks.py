@@ -35,7 +35,13 @@ def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[Async
     return engine, sm
 
 
-@celery_app.task(bind=True, name="optimizer.run", max_retries=0)  # type: ignore[untyped-decorator]
+@celery_app.task(  # type: ignore[untyped-decorator]
+    bind=True,
+    name="optimizer.run",
+    max_retries=0,
+    soft_time_limit=600,  # BL-237: 10분 소프트 상한 (SoftTimeLimitExceeded raise)
+    time_limit=660,  # BL-237: 11분 하드 상한 (SIGKILL)
+)
 def run_optimization_task(self: object, run_id: str) -> None:
     """Sync Celery task — Sprint 18 BL-080 Option C run_in_worker_loop.
 

@@ -385,12 +385,12 @@ class TestRunGeneticSearchValidation:
             run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
 
     def test_budget_above_max_raises(self) -> None:
-        # 10 * 6 = 60 > _MAX_GENETIC_EVALUATIONS (50)
+        # Sprint 57 BL-237: cap = 100. 101 > 100 → "exceeds server cap"
         space = _build_param_space(
-            {"x": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
+            {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
             population_size=10,
-            n_generations=5,
-            max_evaluations=60,
+            n_generations=10,
+            max_evaluations=101,
         )
         with pytest.raises(ValueError, match="exceeds server cap"):
             run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
@@ -585,9 +585,26 @@ class TestSerializerRoundTrip:
         assert restored.crossover_rate == result.crossover_rate
 
 
-def test_max_evaluations_constant_is_50() -> None:
-    """plan §11 + ADR-013 §7 lock — Sprint 56 = 50 evaluation 상한."""
-    assert _MAX_GENETIC_EVALUATIONS == 50
+def test_max_evaluations_constant_is_100() -> None:
+    """Sprint 57 BL-237 — dedicated queue 도입 후 100 evaluation 상한."""
+    assert _MAX_GENETIC_EVALUATIONS == 100
+
+
+def test_run_genetic_search_rejects_over_100_evaluations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "src.optimizer.engine.genetic.run_backtest",
+        lambda *a, **kw: _fake_outcome(),
+    )
+    ps = _build_param_space(
+        {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
+        population_size=10,
+        n_generations=10,
+        max_evaluations=101,
+    )
+    with pytest.raises(Exception, match="100"):
+        run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=ps)
 
 
 def test_tournament_size_default_is_3() -> None:

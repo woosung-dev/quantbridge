@@ -64,9 +64,9 @@ from src.optimizer.schemas import (
 )
 from src.strategy.pine_v2.coverage import analyze_coverage
 
-# Sprint 56 — Genetic evaluation 상한. population_size * (n_generations + 1) ≤ 상한.
-# Sprint 55 Bayesian 와 동일 수치 (default queue 보호). dedicated queue Sprint 57+ BL-237.
-_MAX_GENETIC_EVALUATIONS: Final[int] = 50
+# Sprint 57 BL-237 — optimizer_heavy queue 도입으로 50 → 100 relax.
+# Sprint 56 이전: default queue 보호 목적 50 상한.
+_MAX_GENETIC_EVALUATIONS: Final[int] = 100
 
 # Sprint 56 — reproducibility 강제 random_state. 사용자 reseed 옵션 X (Sprint 57+ 확장 여지).
 # Bayesian `_DEGENERATE_PENALTY` (skopt tell 전달용) 는 self-impl 에서 불필요 —

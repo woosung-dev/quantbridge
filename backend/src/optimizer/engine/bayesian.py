@@ -59,10 +59,9 @@ from src.optimizer.schemas import (
 )
 from src.strategy.pine_v2.coverage import analyze_coverage
 
-# Sprint 55 — Bayesian evaluation 상한. Grid Search _MAX_GRID_CELLS=9 보다 큰 상한
-# (n_initial_random + acquisition iteration 수용). soft_time_limit 부재 시 worker
-# block 보호. dedicated queue 는 Sprint 56+ BL-237.
-_MAX_BAYESIAN_EVALUATIONS: Final[int] = 50
+# Sprint 57 BL-237 — optimizer_heavy queue 도입으로 50 → 100 relax.
+# Sprint 55/56: default queue 보호 목적 50 상한.
+_MAX_BAYESIAN_EVALUATIONS: Final[int] = 100
 
 # Sprint 55 — degenerate cell penalty (large finite). +inf 사용 시 skopt GP Cholesky
 # decomposition NaN propagation → fit fail. dynamic penalty (best+1e6) 도 가능하나
