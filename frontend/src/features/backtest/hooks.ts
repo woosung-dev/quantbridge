@@ -27,6 +27,7 @@ import {
   listBacktestTrades,
   postCostAssumption,
   postMonteCarlo,
+  postParamStability,
   postWalkForward,
   revokeBacktestShare,
 } from "./api";
@@ -45,6 +46,7 @@ import type {
   CreateBacktestRequest,
   CreateCostAssumptionRequest,
   CreateMonteCarloRequest,
+  CreateParamStabilityRequest,
   CreateWalkForwardRequest,
   ShareTokenResponse,
   StressTestCreatedResponse,
@@ -348,6 +350,30 @@ export function useCreateCostAssumption(
     mutationFn: async (body: CreateCostAssumptionRequest) => {
       const token = await getToken();
       return postCostAssumption(body, token);
+    },
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
+      opts.onSuccess?.(created);
+    },
+    onError: (err) => opts.onError?.(err),
+  });
+}
+
+// Sprint 52 BL-223 — Param Stability (pine input_overrides 9-cell grid).
+export function useCreateParamStability(
+  opts: MutationCallbacks<StressTestCreatedResponse> = {},
+): UseMutationResult<
+  StressTestCreatedResponse,
+  Error,
+  CreateParamStabilityRequest
+> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateParamStabilityRequest) => {
+      const token = await getToken();
+      return postParamStability(body, token);
     },
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
