@@ -2,9 +2,13 @@
 // backtest-form 의 unsupported_builtins + friendly_message 카드 패턴을 추출 (Sprint 41 E).
 // 다른 폼 (test-order, exchange-account 등) 에서도 ApiError 를 그대로 넘겨 재사용.
 // Sprint 44 W C3: icon (warning/error) + 간격 정합 + slide-down entrance (qb-form-slide-down 200ms).
+// pine-compat-experiment: indicatorCode prop 추가 — unsupported 케이스에 AI 변환 CTA 노출.
 
 import Link from "next/link";
 import { TriangleAlertIcon, OctagonXIcon } from "lucide-react";
+
+import { ConvertWithAIButton } from "@/features/backtest/components/ConvertWithAIButton";
+import type { ConvertIndicatorResponse } from "@/features/backtest/schemas";
 
 import {
   getUnsupportedBuiltinHints,
@@ -20,6 +24,10 @@ export type FormErrorInlineProps = {
   /** data-testid 접두어 (default = "form-error"). 기존 testid 보존용. */
   testIdPrefix?: string;
   className?: string;
+  /** Pine Script 소스 코드. 지정 시 unsupported 카드에 AI 변환 CTA 노출. */
+  indicatorCode?: string | null;
+  /** AI 변환 성공 콜백. indicatorCode 지정 시 필수. */
+  onConverted?: (result: ConvertIndicatorResponse) => void;
 };
 
 type Parsed = {
@@ -106,6 +114,8 @@ export function FormErrorInline({
   editStrategyHref,
   testIdPrefix = "form-error",
   className,
+  indicatorCode,
+  onConverted,
 }: FormErrorInlineProps) {
   const parsed = parseError(error);
   if (!parsed) return null;
@@ -144,15 +154,23 @@ export function FormErrorInline({
             </li>
           ))}
         </ul>
-        {editStrategyHref ? (
-          <Link
-            href={editStrategyHref}
-            className="mt-2 ml-6 inline-block text-xs text-amber-900 underline transition-opacity duration-150 hover:opacity-80 dark:text-amber-200"
-            data-testid={`${testIdPrefix}-edit-strategy-link`}
-          >
-            ADR-003 supported list 참조 — strategy 편집 →
-          </Link>
-        ) : null}
+        <div className="mt-2 ml-6 flex flex-wrap items-center gap-2">
+          {editStrategyHref ? (
+            <Link
+              href={editStrategyHref}
+              className="inline-block text-xs text-amber-900 underline transition-opacity duration-150 hover:opacity-80 dark:text-amber-200"
+              data-testid={`${testIdPrefix}-edit-strategy-link`}
+            >
+              ADR-003 supported list 참조 — strategy 편집 →
+            </Link>
+          ) : null}
+          {indicatorCode && onConverted ? (
+            <ConvertWithAIButton
+              indicatorCode={indicatorCode}
+              onConverted={onConverted}
+            />
+          ) : null}
+        </div>
       </div>
     );
   }

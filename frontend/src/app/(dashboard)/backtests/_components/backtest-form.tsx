@@ -16,7 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateBacktest } from "@/features/backtest/hooks";
-import type { Timeframe, TradingSession } from "@/features/backtest/schemas";
+import type {
+  ConvertIndicatorResponse,
+  Timeframe,
+  TradingSession,
+} from "@/features/backtest/schemas";
 import { useStrategies, useStrategy } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 
@@ -161,6 +165,9 @@ export function BacktestForm() {
   // Sprint 41 E — 단일 submitError state. FormErrorInline 가 422 unsupported_builtins
   // / friendly_message / general fallback 분기 처리. (이전: 3개 분리 state + RHF root.serverError)
   const [submitError, setSubmitError] = useState<unknown>(null);
+  // pine-compat-experiment — AI 변환 결과 state. unsupported 케이스에서 CTA 클릭 시 채워짐.
+  const [convertResult, setConvertResult] =
+    useState<ConvertIndicatorResponse | null>(null);
 
   const create = useCreateBacktest({
     onSuccess: (data) => {
@@ -789,8 +796,41 @@ export function BacktestForm() {
             : null
         }
         testIdPrefix="backtest-form"
+        indicatorCode={strategy?.pine_source ?? null}
+        onConverted={setConvertResult}
       />
 
+      {/* pine-compat-experiment — AI 변환 결과 표시 (code textarea + 경고). */}
+      {convertResult ? (
+        <div className="rounded-md border border-violet-300 bg-violet-50 p-3 text-sm dark:border-violet-700 dark:bg-violet-950">
+          <p className="mb-1 font-semibold text-violet-900 dark:text-violet-200">
+            AI 변환 결과 — 검토 후 새 strategy 로 저장하세요.
+          </p>
+          {convertResult.warnings.length > 0 ? (
+            <ul className="mb-2 list-inside list-disc space-y-0.5 text-xs text-violet-800 dark:text-violet-300">
+              {convertResult.warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          ) : null}
+          <textarea
+            readOnly
+            value={convertResult.converted_code}
+            rows={12}
+            className="w-full rounded border border-violet-200 bg-white p-2 font-mono text-xs leading-relaxed text-gray-900 dark:border-violet-700 dark:bg-gray-900 dark:text-gray-100"
+          />
+          <button
+            type="button"
+            className="mt-2 text-xs text-violet-700 underline hover:opacity-80 dark:text-violet-300"
+            onClick={() => {
+              void navigator.clipboard.writeText(convertResult.converted_code);
+              toast.success("클립보드에 복사됨");
+            }}
+          >
+            클립보드에 복사
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex justify-end gap-2">
         <Button

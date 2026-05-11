@@ -9,6 +9,7 @@ import {
   BacktestDetailSchema,
   BacktestListResponseSchema,
   BacktestProgressResponseSchema,
+  ConvertIndicatorResponseSchema,
   CreateBacktestRequestSchema,
   CreateCostAssumptionRequestSchema,
   CreateMonteCarloRequestSchema,
@@ -23,6 +24,8 @@ import {
   type BacktestDetail,
   type BacktestListResponse,
   type BacktestProgressResponse,
+  type ConvertIndicatorRequest,
+  type ConvertIndicatorResponse,
   type CreateBacktestRequest,
   type CreateCostAssumptionRequest,
   type CreateMonteCarloRequest,
@@ -226,4 +229,18 @@ export async function getStressTest(
     token,
   });
   return StressTestDetailSchema.parse(raw);
+}
+
+// --- Indicator Convert -------------------------------------------------------
+
+export async function convertIndicator(
+  req: ConvertIndicatorRequest,
+  token: string | null,
+): Promise<ConvertIndicatorResponse> {
+  const raw = await apiFetch<unknown>("/api/v1/strategies/convert-indicator", {
+    method: "POST",
+    token,
+    body: req,
+  });
+  return ConvertIndicatorResponseSchema.parse(raw);
 }
