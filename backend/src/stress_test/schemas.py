@@ -14,6 +14,7 @@ from pydantic import (
     model_validator,
 )
 
+from src.common.strict_decimal_input import StrictDecimalInput
 from src.stress_test.models import StressTestKind, StressTestStatus
 
 # ---------------------------------------------------------------------------
@@ -141,7 +142,9 @@ class CostAssumptionParams(BaseModel):
     진짜 Param Stability (pine input override) = BL-220 / Sprint 51.
     """
 
-    param_grid: dict[str, list[Decimal]] = Field(min_length=2, max_length=2)
+    # Sprint 53 BL-226 — StrictDecimalInput Request-boundary validator.
+    # `1e-3`, `.5`, `+1` reject + `Decimal("NaN")` / `Decimal("1E+5")` canonicalization reject.
+    param_grid: dict[str, list[StrictDecimalInput]] = Field(min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _validate_grid(self) -> CostAssumptionParams:
@@ -209,7 +212,9 @@ class ParamStabilityParams(BaseModel):
     100 cell 확장 = dedicated Celery queue + soft_time_limit 설계 후 별도 BL.
     """
 
-    param_grid: dict[str, list[Decimal]] = Field(min_length=2, max_length=2)
+    # Sprint 53 BL-226 — StrictDecimalInput Request-boundary validator.
+    # `1e-3`, `.5`, `+1` reject + `Decimal("NaN")` / `Decimal("1E+5")` canonicalization reject.
+    param_grid: dict[str, list[StrictDecimalInput]] = Field(min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _validate_grid(self) -> ParamStabilityParams:

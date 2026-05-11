@@ -14,8 +14,10 @@ BL-084 보존: 매 cell run_backtest() 새 호출 → 새 PersistentStore + Inte
 
 ADR-011 §6/§8 정합: vectorbt 직접 사용 X. run_backtest = pine_v2 v2_adapter alias.
 
-LESSON-066 path: alembic migration `20260511_0001` 의 'PARAM_STABILITY' uppercase 가
-SAEnum + StrEnum 일관성 유지 (Slice 6 Playwright e2e 풀 chain 2차 검증).
+Sprint 53 BL-220 lift-up: 2D nested loop 을 `src.common.grid_sweep.run_grid_sweep`
+generic engine 으로 위임. BL-225 input_type validation + var_name cross-check +
+analyze_coverage pre-flight 는 wrapper 안 `pre_validate` lambda 로 유지 (도메인 책임).
+_build_config (BL-222 보존) 도 wrapper 안 cell_runner lambda 안에서 호출.
 """
 
 from __future__ import annotations
@@ -29,6 +31,10 @@ import pandas as pd
 
 from src.backtest.engine import run_backtest
 from src.backtest.engine.types import BacktestConfig
+from src.common.grid_sweep import (
+    GridSweepCellError,
+    run_grid_sweep,
+)
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 
@@ -85,6 +91,56 @@ def _build_config(
     return dc_replace(base, input_overrides=merged)
 
 
+def _validate_param_grid_for_pine(
+    pine_source: str,
+    param_grid: dict[str, list[Decimal]],
+) -> None:
+    """pre_validate hook — pine 도메인 검증 (analyze_coverage + var_name + BL-225).
+
+    Sprint 53 lift-up: grid_sweep generic engine 이 책임지지 않는 도메인 검증을
+    여기에 통합. Optimizer (Sprint 54) 는 별도 hook 작성.
+    """
+    # pre-flight (전체 grid 공통). 미지원 pine 1개라도 → reject.
+    coverage = analyze_coverage(pine_source)
+    if not coverage.is_runnable:
+        unsupported = ", ".join(coverage.all_unsupported)
+        raise ValueError(
+            f"Strategy contains unsupported Pine built-ins: {unsupported}. "
+            f"See docs/02_domain/supported-indicators.md for the supported list."
+        )
+
+    # var_name InputDecl cross-check (codex G.0 edge case 1 — 부재 var_name 422 reject).
+    content = extract_content(pine_source)
+    declared_var_names = {decl.var_name for decl in content.inputs}
+    grid_var_names = set(param_grid.keys())
+    unknown = grid_var_names - declared_var_names
+    if unknown:
+        raise ValueError(
+            f"param_grid keys {sorted(unknown)} are not declared as pine input variables. "
+            f"Declared inputs: {sorted(declared_var_names)}."
+        )
+
+    # Sprint 52 BL-225 — InputDecl.input_type 별 grid value validation.
+    decl_by_name: dict[str, object] = {d.var_name: d for d in content.inputs}
+    for var_name in param_grid:
+        decl = decl_by_name[var_name]
+        input_type = decl.input_type  # type: ignore[attr-defined]
+        if input_type not in _SUPPORTED_INPUT_TYPES:
+            raise ValueError(
+                f"Param Stability MVP (Sprint 52) does not support input.{input_type} sweep "
+                f"(var_name={var_name!r}). Supported MVP: input.int, input.float. "
+                f"Extension tracked under BL-225+."
+            )
+        if input_type == "int":
+            # 정수 Decimal 만 허용. fractional → int() cast 잘림 방지 (heatmap mismatch).
+            for v in param_grid[var_name]:
+                if v != Decimal(int(v)):
+                    raise ValueError(
+                        f"input.int variable {var_name!r} requires integer Decimal values "
+                        f"(got {v!r}). int() cast 시 잘림 → heatmap mismatch (BL-225)."
+                    )
+
+
 def run_param_stability(
     pine_source: str,
     ohlcv: pd.DataFrame,
@@ -104,97 +160,54 @@ def run_param_stability(
         ParamStabilityResult — cells row-major flatten (param1 x param2).
 
     Raises:
-        ValueError: grid 미준수, 9 cell 초과, 미지원 pine, var_name InputDecl 부재, cell backtest 실패.
+        ValueError: grid 미준수, 9 cell 초과, 미지원 pine, var_name InputDecl 부재.
+        ValueError: cell backtest 실패 (GridSweepCellError → ValueError chain).
     """
-    if len(param_grid) != 2:
-        raise ValueError(f"param_grid must have exactly 2 keys (got {len(param_grid)})")
-    keys = tuple(param_grid.keys())
-    param1_name, param2_name = keys
-    param1_values = list(param_grid[param1_name])
-    param2_values = list(param_grid[param2_name])
-    if not param1_values or not param2_values:
-        raise ValueError("param_grid values must not be empty")
-    n_cells = len(param1_values) * len(param2_values)
-    if n_cells > _MAX_GRID_CELLS:
-        raise ValueError(
-            f"grid size {n_cells} exceeds {_MAX_GRID_CELLS} cells "
-            f"(Sprint 51 MVP 강제 제한; 확장 = dedicated Celery queue + time limit BL 등재 후)"
-        )
+    keys = tuple(param_grid.keys()) if len(param_grid) == 2 else ()
 
-    # pre-flight (전체 grid 공통). 미지원 pine 1개라도 → reject.
-    coverage = analyze_coverage(pine_source)
-    if not coverage.is_runnable:
-        unsupported = ", ".join(coverage.all_unsupported)
-        raise ValueError(
-            f"Strategy contains unsupported Pine built-ins: {unsupported}. "
-            f"See docs/02_domain/supported-indicators.md for the supported list."
-        )
-
-    # var_name InputDecl cross-check (codex G.0 edge case 1 — 부재 var_name 422 reject).
-    content = extract_content(pine_source)
-    declared_var_names = {decl.var_name for decl in content.inputs}
-    grid_var_names = set(keys)
-    unknown = grid_var_names - declared_var_names
-    if unknown:
-        raise ValueError(
-            f"param_grid keys {sorted(unknown)} are not declared as pine input variables. "
-            f"Declared inputs: {sorted(declared_var_names)}."
-        )
-
-    # Sprint 52 BL-225 — InputDecl.input_type 별 grid value validation.
-    # Sprint 51 cross-check 는 var_name 존재만 검증 → MVP unsupported input_type 도 통과
-    # + input.int 에 Decimal("20.5") 통과 후 int() = 20 잘림 → heatmap mismatch.
-    decl_by_name: dict[str, object] = {d.var_name: d for d in content.inputs}
-    for var_name in keys:
-        decl = decl_by_name[var_name]  # cross-check 통과했으므로 안전
-        input_type = decl.input_type  # type: ignore[attr-defined]
-        if input_type not in _SUPPORTED_INPUT_TYPES:
+    def _cell_runner(values: dict[str, Decimal]) -> ParamStabilityCell:
+        cfg = _build_config(backtest_config, overrides=dict(values))
+        outcome = run_backtest(pine_source, ohlcv, cfg)
+        if outcome.status != "ok" or outcome.result is None:
             raise ValueError(
-                f"Param Stability MVP (Sprint 52) does not support input.{input_type} sweep "
-                f"(var_name={var_name!r}). Supported MVP: input.int, input.float. "
-                f"Extension tracked under BL-225+."
+                f"backtest failed at cell ({values}): status={outcome.status}"
             )
-        if input_type == "int":
-            # 정수 Decimal 만 허용. fractional → int() cast 잘림 방지 (heatmap mismatch).
-            for v in param_grid[var_name]:
-                if v != Decimal(int(v)):
-                    raise ValueError(
-                        f"input.int variable {var_name!r} requires integer Decimal values "
-                        f"(got {v!r}). int() cast 시 잘림 → heatmap mismatch (BL-225)."
-                    )
+        metrics = outcome.result.metrics
+        num_trades = metrics.num_trades
+        is_degenerate = num_trades == 0 or metrics.sharpe_ratio is None
+        # ParamStabilityCell API 보존 — param_values dict 에서 row-major 순서 추출
+        # (grid_sweep 가 invariant 보장: dict insertion = param_grid key 순서)
+        param1_name, param2_name = keys  # cell_runner 호출 시점에 keys 이미 확정
+        return ParamStabilityCell(
+            param1_value=values[param1_name],
+            param2_value=values[param2_name],
+            sharpe=metrics.sharpe_ratio,
+            total_return=metrics.total_return,
+            max_drawdown=metrics.max_drawdown,
+            num_trades=num_trades,
+            is_degenerate=is_degenerate,
+        )
 
-    cells: list[ParamStabilityCell] = []
-    for v1 in param1_values:
-        for v2 in param2_values:
-            cfg = _build_config(
-                backtest_config,
-                overrides={param1_name: v1, param2_name: v2},
-            )
-            outcome = run_backtest(pine_source, ohlcv, cfg)
-            if outcome.status != "ok" or outcome.result is None:
-                raise ValueError(
-                    f"backtest failed at cell ({param1_name}={v1}, {param2_name}={v2}): "
-                    f"status={outcome.status}"
-                )
-            metrics = outcome.result.metrics
-            num_trades = metrics.num_trades
-            is_degenerate = num_trades == 0 or metrics.sharpe_ratio is None
-            cells.append(
-                ParamStabilityCell(
-                    param1_value=v1,
-                    param2_value=v2,
-                    sharpe=metrics.sharpe_ratio,
-                    total_return=metrics.total_return,
-                    max_drawdown=metrics.max_drawdown,
-                    num_trades=num_trades,
-                    is_degenerate=is_degenerate,
-                )
-            )
+    try:
+        sweep = run_grid_sweep(
+            param_grid=param_grid,
+            cell_runner=_cell_runner,  # type: ignore[arg-type]
+            max_cells=_MAX_GRID_CELLS,
+            pre_validate=lambda g: _validate_param_grid_for_pine(pine_source, g),
+        )
+    except GridSweepCellError as exc:
+        # cell_runner 안 ValueError → GridSweepCellError(ValueError). 기존 API 호환:
+        # ValueError 그대로 raise (caller 가 GridSweepCellError 인식 안 함).
+        # __cause__ 보존은 chain 으로 유지.
+        raise ValueError(str(exc)) from exc.__cause__
 
+    # GridSweepResult → ParamStabilityResult adapter
+    assert len(sweep.param_names) == 2  # invariant (engine 2-key 강제)
+    param1_name, param2_name = sweep.param_names
     return ParamStabilityResult(
         param1_name=param1_name,
         param2_name=param2_name,
-        param1_values=param1_values,
-        param2_values=param2_values,
-        cells=cells,
+        param1_values=list(sweep.param_values[param1_name]),
+        param2_values=list(sweep.param_values[param2_name]),
+        cells=[c.result for c in sweep.cells],
     )
