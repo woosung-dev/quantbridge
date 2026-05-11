@@ -1,13 +1,20 @@
-// Sprint 55 — Optimizer 진입 페이지 (실행 list + Grid Search / Bayesian 알고리즘 선택).
+// Sprint 56 — Optimizer 진입 페이지 (실행 list + Grid Search / Bayesian / Genetic 선택).
 "use client";
 
 import { useState } from "react";
 
 import { BayesianSearchForm } from "./_components/bayesian-search-form";
+import { GeneticSearchForm } from "./_components/genetic-search-form";
 import { GridSearchForm } from "./_components/grid-search-form";
 import { OptimizerRunList } from "./_components/optimizer-run-list";
 
-type Algorithm = "grid_search" | "bayesian";
+type Algorithm = "grid_search" | "bayesian" | "genetic";
+
+const ALGORITHM_LABEL: Record<Algorithm, string> = {
+  grid_search: "Grid Search 신규 제출",
+  bayesian: "Bayesian 신규 제출",
+  genetic: "Genetic 신규 제출",
+};
 
 export default function OptimizerPage() {
   const [backtestId, setBacktestId] = useState("");
@@ -17,10 +24,11 @@ export default function OptimizerPage() {
   return (
     <main className="container mx-auto space-y-6 px-4 py-6">
       <header className="space-y-2">
-        <h1 className="text-xl font-semibold">Optimizer (Sprint 55)</h1>
+        <h1 className="text-xl font-semibold">Optimizer (Sprint 56)</h1>
         <p className="text-sm text-muted-foreground">
-          Grid Search (서버 9 cell) 또는 Bayesian (≤ 50 evaluation, ADR-013 §6) 으로
-          strategy 의 pine input 변수 조합을 평가. Genetic 은 Sprint 56+ 이연 (BL-233).
+          Grid Search (서버 9 cell) / Bayesian (≤ 50 evaluation, ADR-013 §6) /
+          Genetic (≤ 50 evaluation, BL-233 self-impl GA) 로 strategy 의 pine input
+          변수 조합을 평가.
         </p>
       </header>
 
@@ -44,6 +52,7 @@ export default function OptimizerPage() {
           >
             <option value="grid_search">Grid Search (≤ 9 cell)</option>
             <option value="bayesian">Bayesian (skopt, ≤ 50 eval)</option>
+            <option value="genetic">Genetic (self-impl GA, ≤ 50 eval)</option>
           </select>
           <button
             type="button"
@@ -51,11 +60,7 @@ export default function OptimizerPage() {
             disabled={backtestId.length === 0}
             className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {showForm
-              ? "폼 닫기"
-              : algorithm === "grid_search"
-                ? "Grid Search 신규 제출"
-                : "Bayesian 신규 제출"}
+            {showForm ? "폼 닫기" : ALGORITHM_LABEL[algorithm]}
           </button>
         </div>
         {showForm && backtestId && algorithm === "grid_search" && (
@@ -66,6 +71,12 @@ export default function OptimizerPage() {
         )}
         {showForm && backtestId && algorithm === "bayesian" && (
           <BayesianSearchForm
+            backtestId={backtestId}
+            onSuccess={() => setShowForm(false)}
+          />
+        )}
+        {showForm && backtestId && algorithm === "genetic" && (
+          <GeneticSearchForm
             backtestId={backtestId}
             onSuccess={() => setShowForm(false)}
           />

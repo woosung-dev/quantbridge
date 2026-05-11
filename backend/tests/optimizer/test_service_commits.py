@@ -22,6 +22,8 @@ from src.optimizer.dispatcher import FakeOptimizationTaskDispatcher
 from src.optimizer.engine import (
     BayesianIteration,
     BayesianSearchResult,
+    GeneticIndividual,
+    GeneticSearchResult,
     GridSearchCell,
     GridSearchResult,
 )
@@ -519,6 +521,219 @@ async def test_run_bayesian_fail_calls_repo_commit(
 
     monkeypatch.setattr(
         "src.optimizer.service.run_bayesian_search", _failing_executor
+    )
+    monkeypatch.setattr(
+        "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
+    )
+
+    svc = _build_service(
+        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
+        ohlcv_provider=provider, dispatcher=FakeOptimizationTaskDispatcher(),
+    )
+    await svc.run(run.id)
+
+    repo.fail.assert_awaited_once()
+    assert repo.commit.await_count == 2
+    repo.complete.assert_not_called()
+
+    call_kwargs = repo.fail.await_args.kwargs
+    assert "error_message" in call_kwargs
+    from src.optimizer.exceptions import MAX_ERROR_MESSAGE_LEN
+    assert len(call_kwargs["error_message"]) <= MAX_ERROR_MESSAGE_LEN
+
+
+# ===========================================================================
+# Sprint 56 — Genetic commit-spy (4건 신규, BL-233 + LESSON-019 7차)
+# ===========================================================================
+
+
+def _make_genetic_param_space() -> ParamSpace:
+    return ParamSpace.model_validate(
+        {
+            "schema_version": 2,
+            "objective_metric": "sharpe_ratio",
+            "direction": "maximize",
+            "max_evaluations": 12,
+            "parameters": {
+                "ema": {"kind": "integer", "min": 5, "max": 30, "step": 1},
+            },
+            "population_size": 4,
+            "n_generations": 2,
+            "mutation_rate": "0.2",
+            "crossover_rate": "0.8",
+        }
+    )
+
+
+def _make_optimization_run_genetic(
+    *,
+    user_id: UUID,
+    backtest_id: UUID,
+    status: OptimizationStatus = OptimizationStatus.QUEUED,
+) -> OptimizationRun:
+    return OptimizationRun(
+        id=uuid4(),
+        user_id=user_id,
+        backtest_id=backtest_id,
+        kind=OptimizationKind.GENETIC,
+        status=status,
+        param_space=_make_genetic_param_space().model_dump(mode="json"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_submit_genetic_calls_repo_commit() -> None:
+    """LESSON-019 (Sprint 56 BL-233): submit_genetic → repo.create + repo.commit 강제."""
+    user_id = uuid4()
+    bt = _make_backtest_row(user_id=user_id)
+
+    repo = AsyncMock()
+    backtest_repo = AsyncMock()
+    backtest_repo.get_by_id.return_value = bt
+    strategy_repo = AsyncMock()
+    provider = AsyncMock()
+    dispatcher = FakeOptimizationTaskDispatcher()
+
+    svc = _build_service(
+        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
+        ohlcv_provider=provider, dispatcher=dispatcher,
+    )
+    req = CreateOptimizationRunRequest(
+        backtest_id=bt.id,
+        kind=OptimizationKindOut.GENETIC,
+        param_space=_make_genetic_param_space(),
+    )
+    await svc.submit_genetic(req, user_id=user_id)
+
+    repo.create.assert_awaited_once()
+    repo.commit.assert_awaited_once()
+    assert len(dispatcher.dispatched) == 1
+
+
+@pytest.mark.asyncio
+async def test_submit_genetic_dispatcher_raise_rolls_back() -> None:
+    """LESSON-019: genetic dispatch 실패 → repo.rollback + commit X."""
+    user_id = uuid4()
+    bt = _make_backtest_row(user_id=user_id)
+
+    repo = AsyncMock()
+    backtest_repo = AsyncMock()
+    backtest_repo.get_by_id.return_value = bt
+    strategy_repo = AsyncMock()
+    provider = AsyncMock()
+    raising = MagicMock()
+    raising.dispatch_optimization.side_effect = RuntimeError("broker fail")
+
+    svc = _build_service(
+        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
+        ohlcv_provider=provider, dispatcher=raising,
+    )
+    req = CreateOptimizationRunRequest(
+        backtest_id=bt.id,
+        kind=OptimizationKindOut.GENETIC,
+        param_space=_make_genetic_param_space(),
+    )
+    with pytest.raises(OptimizationTaskDispatchError):
+        await svc.submit_genetic(req, user_id=user_id)
+
+    repo.create.assert_awaited_once()
+    repo.rollback.assert_awaited_once()
+    repo.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_genetic_complete_calls_repo_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LESSON-019: kind=GENETIC run() complete → repo.complete + commit×2 + JSONB shape."""
+    user_id = uuid4()
+    bt = _make_backtest_row(user_id=user_id)
+    run = _make_optimization_run_genetic(user_id=user_id, backtest_id=bt.id)
+
+    repo = AsyncMock()
+    repo.get_by_id.return_value = run
+    repo.transition_to_running.return_value = 1
+    repo.complete.return_value = 1
+
+    backtest_repo = AsyncMock()
+    backtest_repo.get_by_id.return_value = bt
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner.return_value = MagicMock(pine_source="// fake")
+    provider = AsyncMock()
+    provider.get_ohlcv.return_value = pd.DataFrame()
+
+    fake_result = GeneticSearchResult(
+        param_names=("ema",),
+        iterations=(
+            GeneticIndividual(
+                idx=0, params={"ema": Decimal("14")},
+                objective_value=Decimal("1.5"), best_so_far=Decimal("1.5"),
+                is_degenerate=False, generation=0,
+            ),
+        ),
+        best_params={"ema": Decimal("14")},
+        best_objective_value=Decimal("1.5"),
+        best_iteration_idx=0,
+        objective_metric="sharpe_ratio", direction="maximize",
+        population_size=4, n_generations=2,
+        mutation_rate=Decimal("0.2"), crossover_rate=Decimal("0.8"),
+        max_evaluations=12, degenerate_count=0, total_iterations=1,
+    )
+    monkeypatch.setattr(
+        "src.optimizer.service.run_genetic_search",
+        lambda *a, **kw: fake_result,
+    )
+    monkeypatch.setattr(
+        "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
+    )
+
+    svc = _build_service(
+        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
+        ohlcv_provider=provider, dispatcher=FakeOptimizationTaskDispatcher(),
+    )
+    await svc.run(run.id)
+
+    assert repo.commit.await_count == 2
+    repo.transition_to_running.assert_awaited_once()
+    repo.complete.assert_awaited_once()
+    repo.fail.assert_not_called()
+    # _execute_genetic 가 result_jsonb 에 kind="genetic" + schema_version=2 echo.
+    complete_kwargs = repo.complete.await_args.kwargs
+    assert complete_kwargs["result"]["kind"] == "genetic"
+    assert complete_kwargs["result"]["schema_version"] == 2
+    assert complete_kwargs["result"]["best_iteration_idx"] == 0
+    assert complete_kwargs["result"]["population_size"] == 4
+
+
+@pytest.mark.asyncio
+async def test_run_genetic_fail_calls_repo_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LESSON-019: kind=GENETIC run() 실패 → repo.fail + error_message truncate."""
+    user_id = uuid4()
+    bt = _make_backtest_row(user_id=user_id)
+    run = _make_optimization_run_genetic(user_id=user_id, backtest_id=bt.id)
+
+    repo = AsyncMock()
+    repo.get_by_id.return_value = run
+    repo.transition_to_running.return_value = 1
+    repo.fail.return_value = 1
+
+    backtest_repo = AsyncMock()
+    backtest_repo.get_by_id.return_value = bt
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner.return_value = MagicMock(pine_source="// fake")
+    provider = AsyncMock()
+    provider.get_ohlcv.return_value = pd.DataFrame()
+
+    def _failing_executor(*args: Any, **kwargs: Any) -> GeneticSearchResult:
+        raise OptimizationExecutionError(
+            message_public="genetic generation failed",
+            message_internal="long genetic internal stack" * 100,
+        )
+
+    monkeypatch.setattr(
+        "src.optimizer.service.run_genetic_search", _failing_executor
     )
     monkeypatch.setattr(
         "src.optimizer.service.build_engine_config_from_db", lambda _bt: None

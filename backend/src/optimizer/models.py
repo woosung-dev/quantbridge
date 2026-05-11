@@ -27,13 +27,16 @@ from src.common.datetime_types import AwareDateTime
 
 
 class OptimizationKind(StrEnum):
-    """Optimizer 알고리즘 종류 — Sprint 55 = Grid Search + Bayesian.
+    """Optimizer 알고리즘 종류 — Sprint 56 = Grid Search + Bayesian + Genetic.
 
-    Sprint 56+ GENETIC 추가 시 본 enum + alembic enum 동시 갱신 의무 (LESSON-066 6차 검증 path).
+    Sprint 56 BL-233 (Genetic executor 본격) 따라 GENETIC 활성. LESSON-066 7차 path =
+    SAEnum + StrEnum member name (uppercase) 일관성 유지. alembic 마이그레이션 안
+    `ALTER TYPE ... ADD VALUE 'GENETIC'` (uppercase) 동시 진행 의무.
     """
 
     GRID_SEARCH = "grid_search"
     BAYESIAN = "bayesian"
+    GENETIC = "genetic"
 
 
 class OptimizationStatus(StrEnum):

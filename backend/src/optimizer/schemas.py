@@ -14,10 +14,11 @@ from src.common.strict_decimal_input import StrictDecimalInput
 
 
 class OptimizationKindOut(StrEnum):
-    """FE mirror — Sprint 55 = BAYESIAN 활성. Sprint 56+ = GENETIC 추가 예정."""
+    """FE mirror — Sprint 56 = GENETIC 추가 (Sprint 55 Bayesian 패턴 mirror, BL-233)."""
 
     GRID_SEARCH = "grid_search"
     BAYESIAN = "bayesian"
+    GENETIC = "genetic"
 
 
 class OptimizationStatusOut(StrEnum):
@@ -127,8 +128,8 @@ ParamSpaceField = Annotated[
 class ParamSpace(BaseModel):
     """탐색 공간 grammar — Sprint 55 schema_version=2 확장 (Bayesian executor 본격).
 
-    schema_version=1 = Grid Search MVP (BayesianHyperparamsField + 5 optional 필드 reject).
-    schema_version=2 = Bayesian 활성 + Genetic 3종 reservation (Sprint 56+ executor).
+    schema_version=1 = Grid Search MVP (BayesianHyperparamsField + 6 optional 필드 reject).
+    schema_version=2 = Bayesian + Genetic 동시 활성 (Sprint 56 ADR-013 §7 amendment).
     cross-field validator 가 양쪽 path invariant 강제 (ADR-013 §2.2).
     """
 
@@ -144,10 +145,13 @@ class ParamSpace(BaseModel):
     bayesian_n_initial_random: int | None = Field(default=None, ge=1, le=50)
     bayesian_acquisition: Literal["EI", "UCB", "PI"] | None = None
 
-    # Sprint 56+ = Genetic 3 필드 reservation (ADR-013 §2.1, schema_version=2 only).
+    # Sprint 56 = Genetic 4 필드 활성 (ADR-013 §2.1 + §7 amendment, schema_version=2 only).
+    # population_size / n_generations / mutation_rate 는 Sprint 55 prereq reservation,
+    # crossover_rate 는 Sprint 56 신규 (Bayesian 와 달리 ParamSpace level hyperparam).
     population_size: int | None = Field(default=None, ge=2, le=200)
     n_generations: int | None = Field(default=None, ge=1, le=100)
     mutation_rate: StrictDecimalInput | None = None
+    crossover_rate: StrictDecimalInput | None = None
 
     @model_validator(mode="after")
     def _validate_cross_field(self) -> ParamSpace:
@@ -158,6 +162,7 @@ class ParamSpace(BaseModel):
             "population_size": self.population_size,
             "n_generations": self.n_generations,
             "mutation_rate": self.mutation_rate,
+            "crossover_rate": self.crossover_rate,
         }
         has_bayesian_field = any(
             isinstance(p, BayesianHyperparamsField) for p in self.parameters.values()
@@ -179,6 +184,25 @@ class ParamSpace(BaseModel):
         if has_bayesian_field and self.schema_version != 2:
             raise ValueError(
                 "BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2)."
+            )
+
+        # Sprint 56 — Genetic rate 필드 범위 검증 (0 < x <= 1). ADR-013 §7 amendment.
+        # population_size / n_generations 은 Field(ge=2, le=200) / Field(ge=1, le=100) 으로
+        # Pydantic 이 1차 강제. mutation_rate / crossover_rate 는 StrictDecimalInput 이라
+        # 범위 강제 책임을 cross-field validator 가 가진다.
+        if self.mutation_rate is not None and not (
+            Decimal("0") < self.mutation_rate <= Decimal("1")
+        ):
+            raise ValueError(
+                f"ParamSpace.mutation_rate must be in (0, 1] "
+                f"(got {self.mutation_rate}). ADR-013 §7 amendment."
+            )
+        if self.crossover_rate is not None and not (
+            Decimal("0") < self.crossover_rate <= Decimal("1")
+        ):
+            raise ValueError(
+                f"ParamSpace.crossover_rate must be in (0, 1] "
+                f"(got {self.crossover_rate}). ADR-013 §7 amendment."
             )
 
         return self
