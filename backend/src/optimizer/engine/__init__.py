@@ -1,5 +1,10 @@
-# Optimizer 엔진 모듈 — Sprint 54 = Grid Search 만. Bayesian / Genetic = Sprint 55+ (ADR-013).
+# Optimizer 엔진 모듈 — Sprint 55 = Grid Search + Bayesian. Genetic = Sprint 56+ (ADR-013 BL-233).
 
+from src.optimizer.engine.bayesian import (
+    BayesianIteration,
+    BayesianSearchResult,
+    run_bayesian_search,
+)
 from src.optimizer.engine.grid_search import (
     GridSearchCell,
     GridSearchResult,
@@ -7,7 +12,10 @@ from src.optimizer.engine.grid_search import (
 )
 
 __all__ = [
+    "BayesianIteration",
+    "BayesianSearchResult",
     "GridSearchCell",
     "GridSearchResult",
+    "run_bayesian_search",
     "run_grid_search",
 ]
