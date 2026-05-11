@@ -3,6 +3,7 @@
 POST /stress-tests/monte-carlo                — submit MC (202)
 POST /stress-tests/walk-forward               — submit WFA (202)
 POST /stress-tests/cost-assumption-sensitivity — submit CA (202, Sprint 50)
+POST /stress-tests/param-stability            — submit PS (202, Sprint 51 BL-220)
 GET  /stress-tests                            — list (page)
 GET  /stress-tests/{id}                       — detail
 """

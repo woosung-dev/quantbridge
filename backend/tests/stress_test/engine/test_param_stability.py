@@ -143,3 +143,95 @@ class TestParamStabilityCellMetrics:
 # NOTE: analyze_coverage pre-flight (미지원 builtin reject) path 는 Sprint 50
 # cost_assumption_sensitivity 에서 동일 wrapper 로 이미 검증됨. Sprint 51 별도
 # test 중복 회피 (Sprint Y1 trust layer 공통 path).
+
+
+# Sprint 52 BL-225 — InputDecl.input_type 별 grid value validation
+PINE_WITH_BOOL_INPUT = """
+//@version=5
+strategy("BL-225 bool")
+useLongs = input.bool(true, "Use Longs")
+emaPeriod = input.int(14, "EMA Period")
+ema = ta.ema(close, emaPeriod)
+if ta.crossover(close, ema) and useLongs
+    strategy.entry("L", strategy.long)
+"""
+
+
+PINE_WITH_STRING_INPUT = """
+//@version=5
+strategy("BL-225 string")
+mode = input.string("default", "Mode")
+emaPeriod = input.int(14, "EMA Period")
+ema = ta.ema(close, emaPeriod)
+if ta.crossover(close, ema)
+    strategy.entry("L", strategy.long)
+"""
+
+
+class TestParamStabilityInputTypeValidation:
+    """Sprint 52 BL-225 — InputDecl.input_type 별 grid value validation.
+
+    var_name 존재 검증 (Sprint 51) 후 input_type 호환성 검증. MVP = int + float
+    sweep 만 지원. bool/string/source/price/session 등 MVP unsupported reject.
+    """
+
+    def test_input_int_rejects_non_integer_decimal(self) -> None:
+        """input.int 변수에 Decimal('20.5') 같은 fractional 값 → reject (int() cast 잘림 방지)."""
+        with pytest.raises(ValueError, match=r"input\.int"):
+            run_param_stability(
+                PINE_WITH_INPUTS,
+                _make_ohlcv(),
+                param_grid={
+                    "emaPeriod": [Decimal("10"), Decimal("20.5")],
+                    "stopLossPct": [Decimal("1.0"), Decimal("2.0")],
+                },
+            )
+
+    def test_input_int_accepts_integer_decimal(self) -> None:
+        """input.int 변수에 Decimal('20') 같은 정수 값 → accept."""
+        # 실행 통과 = ValueError 미발생. cell metric 자체 검증은 다른 test.
+        result = run_param_stability(
+            PINE_WITH_INPUTS,
+            _make_ohlcv(),
+            param_grid={
+                "emaPeriod": [Decimal("10"), Decimal("20")],
+                "stopLossPct": [Decimal("1.0"), Decimal("2.0")],
+            },
+        )
+        assert len(result.cells) == 4
+
+    def test_input_float_accepts_fractional_decimal(self) -> None:
+        """input.float 변수에 Decimal('1.0'), Decimal('2.5') → accept (정밀도 손실 없음)."""
+        result = run_param_stability(
+            PINE_WITH_INPUTS,
+            _make_ohlcv(),
+            param_grid={
+                "emaPeriod": [Decimal("10"), Decimal("20")],
+                "stopLossPct": [Decimal("1.0"), Decimal("2.5")],
+            },
+        )
+        assert len(result.cells) == 4
+
+    def test_input_bool_rejected_mvp_unsupported(self) -> None:
+        """input.bool sweep 은 MVP unsupported → reject."""
+        with pytest.raises(ValueError, match=r"input\.bool"):
+            run_param_stability(
+                PINE_WITH_BOOL_INPUT,
+                _make_ohlcv(),
+                param_grid={
+                    "useLongs": [Decimal("0"), Decimal("1")],
+                    "emaPeriod": [Decimal("10"), Decimal("20")],
+                },
+            )
+
+    def test_input_string_rejected_mvp_unsupported(self) -> None:
+        """input.string sweep 은 MVP unsupported → reject."""
+        with pytest.raises(ValueError, match=r"input\.string"):
+            run_param_stability(
+                PINE_WITH_STRING_INPUT,
+                _make_ohlcv(),
+                param_grid={
+                    "mode": [Decimal("0"), Decimal("1")],
+                    "emaPeriod": [Decimal("10"), Decimal("20")],
+                },
+            )

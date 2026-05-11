@@ -12,6 +12,7 @@ import {
   CreateBacktestRequestSchema,
   CreateCostAssumptionRequestSchema,
   CreateMonteCarloRequestSchema,
+  CreateParamStabilityRequestSchema,
   CreateWalkForwardRequestSchema,
   ShareTokenResponseSchema,
   StressTestCreatedResponseSchema,
@@ -25,6 +26,7 @@ import {
   type CreateBacktestRequest,
   type CreateCostAssumptionRequest,
   type CreateMonteCarloRequest,
+  type CreateParamStabilityRequest,
   type CreateWalkForwardRequest,
   type ShareTokenResponse,
   type StressTestCreatedResponse,
@@ -189,6 +191,23 @@ export async function postCostAssumption(
   const parsed = CreateCostAssumptionRequestSchema.parse(body);
   const raw = await apiFetch<unknown>(
     `${STRESS_TESTS_PATH}/cost-assumption-sensitivity`,
+    {
+      method: "POST",
+      token,
+      body: parsed,
+    },
+  );
+  return StressTestCreatedResponseSchema.parse(raw);
+}
+
+// Sprint 52 BL-223 — Param Stability (pine input_overrides 9-cell grid).
+export async function postParamStability(
+  body: CreateParamStabilityRequest,
+  token: string | null,
+): Promise<StressTestCreatedResponse> {
+  const parsed = CreateParamStabilityRequestSchema.parse(body);
+  const raw = await apiFetch<unknown>(
+    `${STRESS_TESTS_PATH}/param-stability`,
     {
       method: "POST",
       token,

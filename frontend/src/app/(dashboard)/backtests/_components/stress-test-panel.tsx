@@ -1,10 +1,11 @@
 "use client";
 
 // Phase C: Stress Test 탭 컨테이너.
-// - 실행 버튼 3개 (Monte Carlo / Walk-Forward / Cost Assumption Sensitivity) 로 mutation → activeStressTestId.
+// - 실행 버튼 4개 (Monte Carlo / Walk-Forward / Cost Assumption / Param Stability) 로 mutation → activeStressTestId.
 // - useStressTest 가 refetchInterval 함수 기반 polling (terminal status 에서 자동 stop — LESSON-004).
-// - BE 응답은 kind 별 필드 (monte_carlo_result / walk_forward_result / cost_assumption_result) 이므로 discriminator 로 분기.
-// - Sprint 50: Cost Assumption Sensitivity = fees x slippage 9-cell preset 즉시 submit (MVP, customization 은 Sprint 51 BL-220).
+// - BE 응답은 kind 별 필드 (monte_carlo_result / walk_forward_result / cost_assumption_result / param_stability_result) 이므로 discriminator 로 분기.
+// - Sprint 50: Cost Assumption Sensitivity = fees x slippage 9-cell preset 즉시 submit (MVP).
+// - Sprint 52 BL-223: Param Stability = 2 var_name x 3 value preset form (사용자 strategy InputDecl 변수명 입력).
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   useCreateCostAssumption,
   useCreateMonteCarlo,
+  useCreateParamStability,
   useCreateWalkForward,
   useStressTest,
 } from "@/features/backtest/hooks";
@@ -20,6 +22,8 @@ import {
 import { CostAssumptionHeatmap } from "./cost-assumption-heatmap";
 import { MonteCarloFanChart } from "./monte-carlo-fan-chart";
 import { MonteCarloSummaryTable } from "./monte-carlo-summary-table";
+import { ParamStabilityForm } from "./param-stability-form";
+import { ParamStabilityHeatmap } from "./param-stability-heatmap";
 import { WalkForwardBarChart } from "./walk-forward-bar-chart";
 
 interface Props {
@@ -30,6 +34,7 @@ export function StressTestPanel({ backtestId }: Props) {
   const [activeStressTestId, setActiveStressTestId] = useState<string | null>(
     null,
   );
+  const [showParamStabilityForm, setShowParamStabilityForm] = useState(false);
 
   const mcMutation = useCreateMonteCarlo({
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
@@ -43,6 +48,14 @@ export function StressTestPanel({ backtestId }: Props) {
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
     onError: (err) =>
       toast.error(`Cost Assumption Sensitivity 실행 실패: ${err.message}`),
+  });
+  const psMutation = useCreateParamStability({
+    onSuccess: (created) => {
+      setActiveStressTestId(created.stress_test_id);
+      setShowParamStabilityForm(false);
+    },
+    onError: (err) =>
+      toast.error(`Param Stability 실행 실패: ${err.message}`),
   });
   const stress = useStressTest(activeStressTestId);
 
@@ -86,7 +99,10 @@ export function StressTestPanel({ backtestId }: Props) {
   const isStressTestActive =
     stressData?.status === "queued" || stressData?.status === "running";
   const isAnyMutationPending =
-    mcMutation.isPending || wfMutation.isPending || caMutation.isPending;
+    mcMutation.isPending ||
+    wfMutation.isPending ||
+    caMutation.isPending ||
+    psMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -111,7 +127,25 @@ export function StressTestPanel({ backtestId }: Props) {
         >
           Cost Assumption Sensitivity 실행
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => setShowParamStabilityForm((v) => !v)}
+          disabled={isAnyMutationPending || isStressTestActive}
+        >
+          {showParamStabilityForm
+            ? "Param Stability 닫기"
+            : "Param Stability 실행"}
+        </Button>
       </div>
+
+      {showParamStabilityForm ? (
+        <ParamStabilityForm
+          backtestId={backtestId}
+          onSubmit={(payload) => psMutation.mutate(payload)}
+          isSubmitting={psMutation.isPending}
+          onCancel={() => setShowParamStabilityForm(false)}
+        />
+      ) : null}
 
       {activeStressTestId === null ? (
         <p className="text-sm text-muted-foreground">
@@ -162,6 +196,14 @@ export function StressTestPanel({ backtestId }: Props) {
           stressData.kind === "cost_assumption_sensitivity" &&
           stressData.cost_assumption_result ? (
             <CostAssumptionHeatmap result={stressData.cost_assumption_result} />
+          ) : null}
+
+          {stressData?.status === "completed" &&
+          stressData.kind === "param_stability" &&
+          stressData.param_stability_result ? (
+            <ParamStabilityHeatmap
+              result={stressData.param_stability_result}
+            />
           ) : null}
 
           {stress.isError ? (
