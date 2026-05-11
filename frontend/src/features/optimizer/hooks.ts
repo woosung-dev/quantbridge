@@ -17,6 +17,7 @@ import {
   getOptimizationRun,
   listOptimizationRuns,
   postBayesianSearch,
+  postGeneticSearch,
   postGridSearch,
 } from "./api";
 import {
@@ -98,6 +99,23 @@ export function useSubmitBayesianSearch(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body) => postBayesianSearch(body, await getToken()),
+    onSuccess: () => {
+      const uid = userId ?? ANON_USER_ID;
+      void queryClient.invalidateQueries({ queryKey: optimizerKeys.all(uid) });
+    },
+  });
+}
+
+// Sprint 56 — Genetic executor submit mutation (BL-233, Bayesian 패턴 mirror).
+export function useSubmitGeneticSearch(): UseMutationResult<
+  OptimizationRunResponse,
+  Error,
+  CreateOptimizationRunRequest
+> {
+  const { userId, getToken } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => postGeneticSearch(body, await getToken()),
     onSuccess: () => {
       const uid = userId ?? ANON_USER_ID;
       void queryClient.invalidateQueries({ queryKey: optimizerKeys.all(uid) });
