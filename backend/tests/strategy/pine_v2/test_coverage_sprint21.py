@@ -125,8 +125,8 @@ strategy("UnknownStrategy", overlay=true, default_qty_type=strategy.foobar_qty_t
 @pytest.mark.parametrize(
     "constant,expected_supported",
     [
-        ("timeframe.period", True),   # Sprint 29 Slice A: interpreter._eval_attribute 구현 완료
-        ("timeframe.multiplier", False),  # 미처리 — unsupported 유지
+        ("timeframe.period", True),      # Sprint 29 Slice A: interpreter._eval_attribute 구현 완료
+        ("timeframe.multiplier", True),  # Sprint 58 BL-242b: 0 반환 (단일 타임프레임 가정)
         ("timeframe.isintraday", False),  # 미처리 — unsupported 유지
     ],
 )

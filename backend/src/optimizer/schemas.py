@@ -86,6 +86,7 @@ class CategoricalField(BaseModel):
 
     kind: Literal["categorical"] = "categorical"
     values: list[str] = Field(min_length=1)
+    encoding: Literal["label", "one_hot"] = "label"
 
 
 class BayesianHyperparamsField(BaseModel):
@@ -114,6 +115,12 @@ class BayesianHyperparamsField(BaseModel):
             raise ValueError(
                 "BayesianHyperparamsField log_scale=True or prior='log_uniform' requires min > 0 "
                 f"(ADR-013 §2.5; got min={self.min})"
+            )
+        # E1: prior="normal" + log_scale=True 조합 미지원 (로그공간 N 샘플링 Sprint 58+)
+        if self.prior == "normal" and self.log_scale:
+            raise ValueError(
+                "prior='normal' with log_scale=True is not supported; "
+                "use prior='log_uniform' for log-scale parameters"
             )
         return self
 
@@ -152,6 +159,8 @@ class ParamSpace(BaseModel):
     n_generations: int | None = Field(default=None, ge=1, le=100)
     mutation_rate: StrictDecimalInput | None = None
     crossover_rate: StrictDecimalInput | None = None
+    # Sprint 57 BL-234 = selection algorithm enum (None → engine default "tournament").
+    genetic_selection_method: Literal["tournament", "roulette"] | None = None
 
     @model_validator(mode="after")
     def _validate_cross_field(self) -> ParamSpace:
@@ -163,6 +172,7 @@ class ParamSpace(BaseModel):
             "n_generations": self.n_generations,
             "mutation_rate": self.mutation_rate,
             "crossover_rate": self.crossover_rate,
+            "genetic_selection_method": self.genetic_selection_method,
         }
         has_bayesian_field = any(
             isinstance(p, BayesianHyperparamsField) for p in self.parameters.values()
@@ -182,9 +192,7 @@ class ParamSpace(BaseModel):
                 )
 
         if has_bayesian_field and self.schema_version != 2:
-            raise ValueError(
-                "BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2)."
-            )
+            raise ValueError("BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2).")
 
         # Sprint 56 — Genetic rate 필드 범위 검증 (0 < x <= 1). ADR-013 §7 amendment.
         # population_size / n_generations 은 Field(ge=2, le=200) / Field(ge=1, le=100) 으로

@@ -27,7 +27,7 @@ Import 방향 (cycle 방지):
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
-# TA_FUNCTIONS — Pine `ta.*` 17 종 (interpreter.stdlib._call dispatch 와 1:1).
+# TA_FUNCTIONS — Pine `ta.*` 종 (interpreter.stdlib._call dispatch 와 1:1).
 # 추가 시 stdlib.py 의 `_call` 분기와 본 frozenset 동시 갱신 의무.
 # ---------------------------------------------------------------------------
 TA_FUNCTIONS: frozenset[str] = frozenset(
@@ -49,17 +49,25 @@ TA_FUNCTIONS: frozenset[str] = frozenset(
         "ta.sar",  # Sprint X1+X3 W2 (i3_drfx Parabolic SAR)
         "ta.barssince",
         "ta.valuewhen",  # Sprint 8c
+        # Sprint 58 BL-241 — real-world indicator 호환성 확장
+        "ta.wma",  # Weighted MA (ta.hma 전제)
+        "ta.hma",  # Hull MA = WMA(2*WMA(n/2) - WMA(n), sqrt(n))
+        "ta.bb",  # Bollinger Bands → [upper, basis, lower]
+        "ta.cross",  # crossover or crossunder
+        "ta.mom",  # Momentum = src - src[length]
+        "ta.obv",  # On Balance Volume (attribute 접근 — interpreter 처리)
     }
 )
 
 # ---------------------------------------------------------------------------
-# UTILITY_FUNCTIONS — Pine `na` / `nz` 2 종.
+# UTILITY_FUNCTIONS — Pine `na` / `nz` + Sprint 58 fixnan.
 # math.* 는 별도 dispatch (본 set 에 포함 X).
 # ---------------------------------------------------------------------------
 UTILITY_FUNCTIONS: frozenset[str] = frozenset(
     {
         "na",
         "nz",
+        "fixnan",  # Sprint 58 BL-241: 최근 non-nan 값 반환
     }
 )
 

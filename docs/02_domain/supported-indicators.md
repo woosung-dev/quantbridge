@@ -31,14 +31,30 @@ dogfood 환경에서 backtest 통과 확인된 항목. `backend/tests/fixtures/p
 
 `ta.sma`, `ta.ema`, `ta.rma`, `ta.atr`, `ta.rsi`, `ta.crossover`, `ta.crossunder`, `ta.highest`, `ta.lowest`, `ta.change`, `ta.pivothigh`, `ta.pivotlow`, `ta.stdev`, `ta.variance`, `ta.sar`, `ta.barssince`, `ta.valuewhen`
 
+**Sprint 58 BL-241 신규:**
+`ta.wma` (Weighted MA), `ta.hma` (Hull MA), `ta.bb` (Bollinger Bands → [upper, basis, lower]), `ta.cross` (crossover or crossunder), `ta.mom` (Momentum)
+
 ### 2.2 `ta.*` built-in series (attribute access)
 
-`ta.tr` (True Range — Sprint X1+X3 hotfix)
+`ta.tr` (True Range — Sprint X1+X3 hotfix), `ta.obv` (On Balance Volume — Sprint 58 BL-241)
 
 ### 2.3 `strategy.*`
 
 - 함수: `strategy.entry`, `strategy.close`, `strategy.close_all`, `strategy.exit`
 - 변수: `strategy.long`, `strategy.short`, `strategy.position_size`, `strategy.position_avg_price`
+- **Sprint 58 BL-242a 신규:** `strategy.equity` (running equity 반환)
+
+### 2.4 유틸 함수
+
+`na`, `nz`, **`fixnan` (Sprint 58 BL-241 신규 — 최근 non-na 값 반환)**
+
+### 2.5 Sprint 58 BL-242b — display 함수 ignore (NOP + 상수 반환)
+
+- `barstate.isrealtime` → `False` (backtest 는 항상 historical)
+- `syminfo.prefix`, `syminfo.ticker` → `""`, `syminfo.timezone` → `"UTC"`
+- `timeframe.isdaily`, `timeframe.isminutes`, `timeframe.ismonthly`, `timeframe.isseconds`, `timeframe.isweekly` → `False`
+- `timeframe.multiplier` → `0`
+- `label.get_x`, `label.set_x`, `label.set_y`, `table.cell_set_bgcolor` → NOP (rendering methods)
 
 ### 2.4 `math.*`
 

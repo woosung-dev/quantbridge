@@ -87,6 +87,8 @@ export const DecimalFieldSchema = z.object({
 export const CategoricalFieldSchema = z.object({
   kind: z.literal("categorical"),
   values: z.array(z.string()).min(1),
+  // Sprint 57 BL-234: one_hot encoding 활성 (Bayesian skopt transform="onehot").
+  encoding: z.enum(["label", "one_hot"]).default("label"),
 });
 
 // Sprint 55 ADR-013 §2.1 — Bayesian executor 의 sample space field.
@@ -114,6 +116,14 @@ export const BayesianHyperparamsFieldSchema = z
           "log_scale=true / prior='log_uniform' requires min > 0 (ADR-013 §2.5)",
       });
     }
+    // Sprint 57 BL-234 E1: prior=normal + log_scale=true 조합 미지원.
+    if (field.prior === "normal" && field.log_scale) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "prior='normal' with log_scale=true is not supported; use prior='log_uniform' for log-scale parameters",
+      });
+    }
   });
 
 export const ParamSpaceFieldSchema = z.discriminatedUnion("kind", [
@@ -135,13 +145,18 @@ export const ParamSpaceSchema = z
     max_evaluations: z.number().int().positive(),
     parameters: z.record(z.string().min(1), ParamSpaceFieldSchema),
     // Sprint 55 = Bayesian 활성 2 필드 (schema_version=2 only).
-    bayesian_n_initial_random: z.number().int().min(1).max(50).optional(),
+    bayesian_n_initial_random: z.number().int().min(1).max(100).optional(), // BL-237: 50→100
     bayesian_acquisition: BayesianAcquisitionSchema.optional(),
     // Sprint 56 = Genetic 4 hyperparam 활성 (ADR-013 §7 amendment, schema_version=2 only).
     population_size: z.number().int().min(2).max(200).optional(),
     n_generations: z.number().int().min(1).max(100).optional(),
     mutation_rate: strictDecimalInput.optional(),
     crossover_rate: strictDecimalInput.optional(),
+    // Sprint 57 BL-234 = selection algorithm enum (null → engine default "tournament").
+    genetic_selection_method: z
+      .enum(["tournament", "roulette"])
+      .nullable()
+      .default(null),
   })
   .superRefine((space, ctx) => {
     const v2OnlyEntries: Array<[string, unknown]> = [
@@ -151,6 +166,7 @@ export const ParamSpaceSchema = z
       ["n_generations", space.n_generations],
       ["mutation_rate", space.mutation_rate],
       ["crossover_rate", space.crossover_rate],
+      ["genetic_selection_method", space.genetic_selection_method],
     ];
     const populated = v2OnlyEntries
       .filter(([, v]) => v !== undefined)

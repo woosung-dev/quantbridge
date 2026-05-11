@@ -67,9 +67,10 @@ celery_app.conf.update(
     worker_max_tasks_per_child=250,
 )
 
-# Sprint 12 Phase C — ws_stream queue routing
+# Sprint 12 Phase C — ws_stream queue routing. Sprint 57 BL-237 — optimizer_heavy.
 celery_app.conf.task_routes = {
     "trading.run_bybit_private_stream": {"queue": "ws_stream"},
+    "optimizer.run": {"queue": "optimizer_heavy"},  # BL-237: dedicated queue
 }
 
 # Beat schedule — worker 상주 시 주기 task 실행.

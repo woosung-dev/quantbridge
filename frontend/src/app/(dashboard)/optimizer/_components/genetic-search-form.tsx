@@ -40,11 +40,15 @@ const FormSchema = z
     backtest_id: z.uuid(),
     objective_metric: OptimizationObjectiveMetricSchema,
     direction: OptimizationDirectionSchema,
-    max_evaluations: z.coerce.number().int().min(1).max(50),
+    max_evaluations: z.coerce.number().int().min(1).max(100), // BL-237: 50→100
     population_size: z.coerce.number().int().min(2).max(200),
     n_generations: z.coerce.number().int().min(1).max(100),
     mutation_rate: z.string().min(1, "mutation_rate required"),
     crossover_rate: z.string().min(1, "crossover_rate required"),
+    // Sprint 57 BL-234: roulette selection method enum.
+    genetic_selection_method: z
+      .enum(["tournament", "roulette"])
+      .default("tournament"),
     parameters: z.array(GeneticRowSchema).min(1).max(4),
   })
   .superRefine((values, ctx) => {
@@ -64,7 +68,7 @@ const FormSchema = z
         message: "crossover_rate must be in (0, 1]",
       });
     }
-    // budget = pop * (gen + 1) <= max_evaluations <= 50.
+    // budget = pop * (gen + 1) <= max_evaluations <= 100 (BL-237).
     const budget = values.population_size * (values.n_generations + 1);
     if (budget > values.max_evaluations) {
       ctx.addIssue({
@@ -73,11 +77,11 @@ const FormSchema = z
         message: `evaluation budget ${budget} > max_evaluations ${values.max_evaluations} (population_size × (n_generations + 1)).`,
       });
     }
-    if (budget > 50) {
+    if (budget > 100) {
       ctx.addIssue({
         code: "custom",
         path: ["population_size"],
-        message: `evaluation budget ${budget} > 50 server cap (BL-237 Sprint 57+).`,
+        message: `evaluation budget ${budget} > 100 server cap (BL-237).`,
       });
     }
   });
@@ -104,6 +108,7 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
       n_generations: 4,
       mutation_rate: "0.2",
       crossover_rate: "0.8",
+      genetic_selection_method: "tournament" as const,
       parameters: [
         {
           var_name: "",
@@ -154,6 +159,7 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
         n_generations: values.n_generations,
         mutation_rate: values.mutation_rate,
         crossover_rate: values.crossover_rate,
+        genetic_selection_method: values.genetic_selection_method,
       } as CreateOptimizationRunRequest["param_space"],
     };
 
@@ -190,11 +196,11 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
           </select>
         </label>
         <label className="space-y-1 text-sm">
-          <span className="font-medium">max_evaluations (≤ 50)</span>
+          <span className="font-medium">max_evaluations (≤ 100)</span>
           <input
             type="number"
             min={1}
-            max={50}
+            max={100}
             className="w-full rounded border border-input bg-background px-2 py-1.5"
             {...form.register("max_evaluations", { valueAsNumber: true })}
           />
@@ -239,6 +245,20 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
             className="w-full rounded border border-input bg-background px-2 py-1.5"
             {...form.register("crossover_rate")}
           />
+        </label>
+      </div>
+
+      {/* Sprint 57 BL-234: selection method */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label className="space-y-1 text-sm">
+          <span className="font-medium">selection_method</span>
+          <select
+            className="w-full rounded border border-input bg-background px-2 py-1.5"
+            {...form.register("genetic_selection_method")}
+          >
+            <option value="tournament">Tournament (k=3)</option>
+            <option value="roulette">Roulette (rank-based)</option>
+          </select>
         </label>
       </div>
 
@@ -326,9 +346,8 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
           {submit.isPending ? "제출 중…" : "Genetic 제출"}
         </button>
         <p className="text-xs text-muted-foreground">
-          서버 50 evaluation budget = population_size * (n_generations + 1) 상한.
-          tournament size=3 + single-point crossover + gaussian mutation. selection_method
-          확장은 Sprint 57+ BL-234.
+          서버 100 evaluation budget = population_size × (n_generations + 1) 상한 (BL-237).
+          tournament size=3 + single-point crossover + gaussian mutation.
         </p>
       </div>
     </form>
