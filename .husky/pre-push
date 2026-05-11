@@ -63,10 +63,32 @@ else
 fi
 
 # BE 변경이 있을 때만 BE 검사 실행
+# BL-239 (Sprint 56): pre-push hook 안 mypy 추가 — CI parity gap 해소.
+# BL-240 (Sprint 56): backend/.env.local 의 TEST_* 변수만 자동 source — LESSON-061 영구 fix.
+#   운영 secret (DATABASE_URL, SECRET_KEY 등) 은 export 안 함. test 전용 prefix 만 hook scope 안 활성.
 if git diff --name-only @{u}.. 2>/dev/null | grep -q '^backend/'; then
-  echo "→ pre-push: backend ruff + pytest"
+  echo "→ pre-push: backend ruff + mypy + pytest"
+
+  # BL-240: backend/.env.local 의 TEST_* 변수만 auto-source (LESSON-061 영구 fix).
+  # husky pre-push = sh (bash X). process substitution `<()` 사용 불가 → 임시 파일 경유.
+  # `^TEST_<KEY>=value` 패턴만 추출 → set -a + . source → 운영 secret (DATABASE_URL,
+  # SECRET_KEY 등 non-TEST prefix) 차단. hook 종료 시 shell context 소멸 = scope 격리.
+  QB_ENV_FILE="$QB_REPO_ROOT/backend/.env.local"
+  if [ -f "$QB_ENV_FILE" ]; then
+    QB_TMP_ENV=$(mktemp)
+    grep -E "^TEST_[A-Z_]+=" "$QB_ENV_FILE" > "$QB_TMP_ENV" 2>/dev/null || true
+    if [ -s "$QB_TMP_ENV" ]; then
+      set -a
+      . "$QB_TMP_ENV"
+      set +a
+      echo "  → BL-240 auto-source: backend/.env.local 의 TEST_* 변수 export 완료"
+    fi
+    rm -f "$QB_TMP_ENV"
+  fi
+
   cd backend
   uv run ruff check .
+  uv run mypy src/
   uv run pytest -q
   cd -
 else
