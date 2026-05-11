@@ -1012,6 +1012,12 @@ class Interpreter:
             return self.strategy.position_size
         if name == "strategy.position_avg_price":
             return self.strategy.position_avg_price
+        if name == "strategy.equity":
+            return (
+                self.strategy.running_equity
+                if self.strategy.running_equity is not None
+                else float("nan")
+            )
         key = f"main::{name}"
         if self.store.is_declared(key):
             return self.store.get(key)
@@ -1035,6 +1041,12 @@ class Interpreter:
             return self.strategy.position_size
         if chain == "strategy.position_avg_price":
             return self.strategy.position_avg_price
+        if chain == "strategy.equity":
+            return (
+                self.strategy.running_equity
+                if self.strategy.running_equity is not None
+                else float("nan")
+            )
         # syminfo 상수 — 심볼 메타데이터. Day 7: s1_pbr 호환을 위해 mintick 실제 값 반환
         if chain == "syminfo.mintick":
             return 0.01  # 기본값 — 심볼별 설정 기능은 향후 추가

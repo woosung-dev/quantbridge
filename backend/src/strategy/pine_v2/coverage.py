@@ -330,6 +330,7 @@ _STRATEGY_ATTRS: frozenset[str] = frozenset(
         "strategy.short",
         "strategy.position_size",
         "strategy.position_avg_price",
+        "strategy.equity",  # Sprint 58 BL-242a: running_equity 노출
     }
 )
 
