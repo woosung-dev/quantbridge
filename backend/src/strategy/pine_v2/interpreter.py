@@ -906,9 +906,9 @@ class Interpreter:
                     # 타입 가정 (Decimal 입력 시 'float / Decimal' TypeError). Pine v5
                     # 도 input.int 는 정수 보장 → engine 단 Decimal 을 명시적 cast.
                     if name == "input.int":
-                        return int(override_value)  # type: ignore[arg-type]
+                        return int(override_value)
                     if name == "input.float":
-                        return float(override_value)  # type: ignore[arg-type]
+                        return float(override_value)
                     if name == "input.bool":
                         return bool(override_value)
                     return override_value
