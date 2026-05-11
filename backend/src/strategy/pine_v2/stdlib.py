@@ -24,6 +24,7 @@ bar-by-bar 이벤트 루프와 호환되는 stateful 지표.
 - ta.valuewhen, ta.barssince 등 상태 의존 검색
 - request.security (MTF, H2+)
 """
+
 from __future__ import annotations
 
 import math
@@ -135,19 +136,20 @@ def ta_atr(
 # -------- RSI ----------------------------------------------------------
 
 
-def ta_rsi(
-    state: IndicatorState, node_id: int, source: float, length: int
-) -> float:
+def ta_rsi(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """Relative Strength Index (Wilder's smoothing 근사)."""
     if length <= 0:
         return float("nan")
-    slot = state.buffers.setdefault(node_id, {
-        "prev_src": float("nan"),
-        "avg_gain": float("nan"),
-        "avg_loss": float("nan"),
-        "warmup_gain": [],
-        "warmup_loss": [],
-    })
+    slot = state.buffers.setdefault(
+        node_id,
+        {
+            "prev_src": float("nan"),
+            "avg_gain": float("nan"),
+            "avg_loss": float("nan"),
+            "warmup_gain": [],
+            "warmup_loss": [],
+        },
+    )
     prev = slot["prev_src"]
     slot["prev_src"] = source
     if _is_na(prev):
@@ -204,9 +206,7 @@ def ta_crossunder(state: IndicatorState, node_id: int, a: float, b: float) -> bo
 # -------- highest / lowest ---------------------------------------------
 
 
-def ta_highest(
-    state: IndicatorState, node_id: int, source: float, length: int
-) -> float:
+def ta_highest(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     buf.append(source)
     if len(buf) < length:
@@ -214,9 +214,7 @@ def ta_highest(
     return max(buf)
 
 
-def ta_lowest(
-    state: IndicatorState, node_id: int, source: float, length: int
-) -> float:
+def ta_lowest(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     buf.append(source)
     if len(buf) < length:
@@ -307,7 +305,7 @@ def ta_pivothigh(
     if len(highs) < window:
         return float("nan")
     if len(highs) > 2 * window:
-        highs[:] = highs[-2 * window:]
+        highs[:] = highs[-2 * window :]
 
     pivot_idx = len(highs) - right - 1
     pivot_val = highs[pivot_idx]
@@ -337,7 +335,7 @@ def ta_pivotlow(
     if len(lows) < window:
         return float("nan")
     if len(lows) > 2 * window:
-        lows[:] = lows[-2 * window:]
+        lows[:] = lows[-2 * window :]
 
     pivot_idx = len(lows) - right - 1
     pivot_val = lows[pivot_idx]
@@ -354,9 +352,7 @@ def ta_pivotlow(
 # -------- change -------------------------------------------------------
 
 
-def ta_change(
-    state: IndicatorState, node_id: int, source: float, length: int = 1
-) -> float:
+def ta_change(state: IndicatorState, node_id: int, source: float, length: int = 1) -> float:
     """source - source[length]."""
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length + 1))
     buf.append(source)
@@ -365,9 +361,7 @@ def ta_change(
     return source - buf[0]
 
 
-def ta_stdev(
-    state: IndicatorState, node_id: int, source: float, length: int
-) -> float:
+def ta_stdev(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """슬라이딩 윈도우 표준편차 (모집단). warmup < length → nan."""
     if length <= 0:
         return float("nan")
@@ -383,9 +377,7 @@ def ta_stdev(
     return math.sqrt(var)
 
 
-def ta_variance(
-    state: IndicatorState, node_id: int, source: float, length: int
-) -> float:
+def ta_variance(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """슬라이딩 윈도우 분산 (모집단). warmup < length → nan."""
     if length <= 0:
         return float("nan")
@@ -549,7 +541,7 @@ def ta_wma(state: IndicatorState, node_id: int, source: float, length: int) -> f
     length = int(length)  # Pine may pass float (e.g. tclength/2)
     if length <= 0:
         return float("nan")
-    buf: deque = state.buffers.setdefault(node_id, deque(maxlen=length))
+    buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     if _is_na(source):
         return float("nan")
     buf.append(source)
@@ -561,9 +553,7 @@ def ta_wma(state: IndicatorState, node_id: int, source: float, length: int) -> f
 
 def ta_cross(state: IndicatorState, node_id: int, a: float, b: float) -> bool:
     """True when a crosses b in either direction (crossover or crossunder)."""
-    slot = state.buffers.setdefault(
-        node_id, {"prev_a": float("nan"), "prev_b": float("nan")}
-    )
+    slot = state.buffers.setdefault(node_id, {"prev_a": float("nan"), "prev_b": float("nan")})
     prev_a, prev_b = slot["prev_a"], slot["prev_b"]
     slot["prev_a"], slot["prev_b"] = a, b
     if _is_na(prev_a) or _is_na(prev_b) or _is_na(a) or _is_na(b):
@@ -571,14 +561,12 @@ def ta_cross(state: IndicatorState, node_id: int, a: float, b: float) -> bool:
     return (prev_a <= prev_b and a > b) or (prev_a >= prev_b and a < b)
 
 
-def ta_mom(
-    state: IndicatorState, node_id: int, source: float, length: int = 1
-) -> float:
+def ta_mom(state: IndicatorState, node_id: int, source: float, length: int = 1) -> float:
     """Momentum = source - source[length]."""
     length = int(length)  # Pine may pass float
     if length <= 0:
         return float("nan")
-    buf: deque = state.buffers.setdefault(node_id, deque(maxlen=length + 1))
+    buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length + 1))
     if _is_na(source):
         return float("nan")
     buf.append(source)
@@ -595,7 +583,7 @@ def fn_fixnan(state: IndicatorState, node_id: int, source: float) -> float:
     return float(slot["last_valid"])
 
 
-def _wma_from_deque(buf: deque, source: float, length: int) -> float:
+def _wma_from_deque(buf: deque[float], source: float, length: int) -> float:
     """ta_hma 내부용 WMA helper — 독립 deque 사용."""
     if _is_na(source):
         return float("nan")
@@ -603,16 +591,16 @@ def _wma_from_deque(buf: deque, source: float, length: int) -> float:
     if len(buf) < length:
         return float("nan")
     denom = length * (length + 1) / 2
-    return sum((i + 1) * v for i, v in enumerate(buf)) / denom
+    return float(sum((i + 1) * v for i, v in enumerate(buf)) / denom)
 
 
 def ta_hma(state: IndicatorState, node_id: int, source: float, length: int) -> float:
-    """Hull Moving Average = WMA(2*WMA(src, n/2) − WMA(src, n), floor(sqrt(n)))."""
+    """Hull Moving Average = WMA(2*WMA(src, n/2) - WMA(src, n), floor(sqrt(n)))."""
     length = int(length)  # Pine may pass float
     if length <= 0:
         return float("nan")
     half_len = max(1, length // 2)
-    sqrt_len = max(1, int(math.floor(math.sqrt(length))))
+    sqrt_len = max(1, math.floor(math.sqrt(length)))
     slot = state.buffers.setdefault(
         node_id,
         {
@@ -623,11 +611,7 @@ def ta_hma(state: IndicatorState, node_id: int, source: float, length: int) -> f
     )
     wma_half = _wma_from_deque(slot["h"], source, half_len)
     wma_full = _wma_from_deque(slot["f"], source, length)
-    diff = (
-        float("nan")
-        if (_is_na(wma_half) or _is_na(wma_full))
-        else 2.0 * wma_half - wma_full
-    )
+    diff = float("nan") if (_is_na(wma_half) or _is_na(wma_full)) else 2.0 * wma_half - wma_full
     return _wma_from_deque(slot["s"], diff, sqrt_len)
 
 
@@ -643,7 +627,7 @@ def ta_bb(
     nan = float("nan")
     if length <= 0:
         return [nan, nan, nan]
-    buf: deque = state.buffers.setdefault(node_id, deque(maxlen=length))
+    buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     if _is_na(source):
         return [nan, nan, nan]
     buf.append(source)
