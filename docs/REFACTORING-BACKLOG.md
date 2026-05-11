@@ -1023,6 +1023,15 @@
   - **PR 머지 완료** (2026-05-11, main @`38dca8b`, CI 6/6 PASS = backend 9m54s + frontend 1m53s + e2e 1m8s + live-smoke 2m10s + changes 4s + ci 2s). 2 hotfix 통과: `6142ecd` (ruff RUF002 × → \*, LESSON-068 후보 2/3) + `39ecc01` (mypy skopt import-untyped + Any return narrow).
   - **신규 등재 (chore PR follow-up, 2026-05-11)**: BL-238 (lint-staged backend ruff `--fix` exit 0 silent skip 차단, XS) / BL-239 (pre-push hook 안 mypy 추가 = CI parity, XS) / BL-240 (pre-push hook 안 env vars 자동 source `.env.local`, S, LESSON-061 영구 fix). **Sprint 56 prereq 의무**.
 
+- **Sprint 58** (2026-05-11, `feat/sprint-58-pine-coverage`, PR #264 main @`aa435a7`) — **BL-241/242/243 Pine Coverage 확장**:
+  - **목표**: dogfood에서 발견된 real-world indicator 호환성 문제 3종 해결 (DrFX/RSI Divergence 테스트 시 TA 함수 미지원 + strategy.equity 미지원 + UTC 라벨 혼동).
+  - **6 Slice 산출**: Slice 0 baseline → Slice 1 BL-243 FE UTC 라벨 → Slice 2 ta.wma/cross/mom/fixnan → Slice 3 ta.hma/bb/obv → Slice 4 strategy.equity → Slice 5 barstate.isrealtime/syminfo._/timeframe._/label.\* NOP → Slice 6 close-out.
+  - **Resolved (3건)**: BL-241 (ta.wma/hma/bb/cross/mom/obv+fixnan, S ~2h 실측) / BL-242 (strategy.equity + display ignore, S ~1h 실측) / BL-243 (UTC 라벨, XS ~15min 실측).
+  - **CI hotfix**: fixnan이 BL-241로 supported됨 → `test_walk_forward_unsupported_pine.py` + 2개 파일 fixnan→ta.alma 교체.
+  - **버그 발견**: Pine division 결과 float으로 전달 → `deque(maxlen=float)` TypeError. `int(length)` 변환으로 해결.
+  - **검증**: BE pine_v2 507 PASS (+9 신규, 회귀 0) / FE 680 PASS / ruff+mypy+tsc clean. DrFX unsupported attrs 14 → 0.
+  - **합계 변동**: 92 (Sprint 57 종료) → BL-241/242/243 Resolved -3 = **89 active BL**.
+
 - **Sprint 57** (2026-05-11, `feat/sprint-57-optimizer-polish`, main @`38016bf` + close-out `0f2cbae`) — **BL-234 Optimizer Polish + BL-237 optimizer_heavy queue**:
   - **목표**: Sprint 55/56에서 의도적으로 남긴 누락 기능 3종 활성화 + cap 50→100 relax 인프라 구축.
   - **7 Slice 산출**: Slice 0 baseline → Slice 1 schemas (encoding + selection_method + E1 guard) → Slice 2 Bayesian (prior=normal inject + one_hot) → Slice 3 Genetic (roulette selection) → Slice 4 Celery routing + cap 100 → Slice 5 Docker worker → Slice 6 FE → Slice 7 ADR-013 §9 + close-out.
