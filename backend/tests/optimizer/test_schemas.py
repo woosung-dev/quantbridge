@@ -447,4 +447,90 @@ def test_param_space_genetic_population_size_range_locked() -> None:
 def test_optimization_kind_out_includes_genetic() -> None:
     """Sprint 56 — OptimizationKindOut 에 GENETIC 활성."""
     assert OptimizationKindOut("genetic") == OptimizationKindOut.GENETIC
+
+
+# ── Sprint 57 BL-234 — CategoricalField.encoding ──────────────────────────
+
+
+def test_categorical_field_default_encoding_is_label() -> None:
+    f = CategoricalField(values=["A", "B"])
+    assert f.encoding == "label"
+
+
+def test_categorical_field_onehot_encoding() -> None:
+    f = CategoricalField(values=["SMA", "EMA"], encoding="one_hot")
+    assert f.encoding == "one_hot"
+
+
+def test_categorical_field_invalid_encoding_rejected() -> None:
+    with pytest.raises(ValidationError):
+        CategoricalField(values=["A"], encoding="ordinal")  # type: ignore[call-overload]
+
+
+def test_categorical_field_missing_encoding_defaults_to_label() -> None:
+    """backward-compat: old JSONB without encoding key → default 'label'."""
+    f = CategoricalField.model_validate({"kind": "categorical", "values": ["X"]})
+    assert f.encoding == "label"
+
+
+# ── Sprint 57 BL-234 — E1 guard: prior=normal + log_scale=True ────────────
+
+
+def test_bayesian_hyperparams_normal_prior_with_log_scale_rejected() -> None:
+    """E1: prior=normal + log_scale=True 조합 차단 (로그공간 N 샘플링 미지원)."""
+    with pytest.raises(ValidationError):
+        BayesianHyperparamsField(
+            min=Decimal("0.001"),
+            max=Decimal("0.1"),
+            prior="normal",
+            log_scale=True,
+        )
+
+
+# ── Sprint 57 BL-234 — ParamSpace.genetic_selection_method ───────────────
+
+
+def test_param_space_v2_genetic_default_selection_method_is_none() -> None:
+    """genetic_selection_method 기본값 = None (→ engine default tournament)."""
+    ps = ParamSpace(
+        schema_version=2,
+        objective_metric="sharpe_ratio",
+        direction="maximize",
+        max_evaluations=9,
+        parameters={"p": IntegerField(min=1, max=5)},
+        population_size=2,
+        n_generations=3,
+        mutation_rate=Decimal("0.1"),
+        crossover_rate=Decimal("0.8"),
+    )
+    assert ps.genetic_selection_method is None
+
+
+def test_param_space_v2_roulette_selection_method() -> None:
+    ps = ParamSpace(
+        schema_version=2,
+        objective_metric="sharpe_ratio",
+        direction="maximize",
+        max_evaluations=9,
+        parameters={"p": IntegerField(min=1, max=5)},
+        population_size=2,
+        n_generations=3,
+        mutation_rate=Decimal("0.1"),
+        crossover_rate=Decimal("0.8"),
+        genetic_selection_method="roulette",
+    )
+    assert ps.genetic_selection_method == "roulette"
+
+
+def test_param_space_v1_explicit_selection_method_rejected() -> None:
+    """v1에서 genetic_selection_method 명시 금지."""
+    with pytest.raises(ValidationError):
+        ParamSpace(
+            schema_version=1,
+            objective_metric="sharpe_ratio",
+            direction="maximize",
+            max_evaluations=9,
+            parameters={"p": IntegerField(min=1, max=5)},
+            genetic_selection_method="tournament",  # type: ignore[call-overload]
+        )
     assert OptimizationKindOut.GENETIC.value == "genetic"

@@ -34,6 +34,7 @@ from dataclasses import replace as dc_replace
 from decimal import Decimal
 from typing import Any, Final, Literal
 
+import numpy as np
 import pandas as pd
 from skopt import Optimizer as SkoptOptimizer  # type: ignore[import-untyped]
 from skopt.space import (  # type: ignore[import-untyped]
@@ -58,10 +59,9 @@ from src.optimizer.schemas import (
 )
 from src.strategy.pine_v2.coverage import analyze_coverage
 
-# Sprint 55 — Bayesian evaluation 상한. Grid Search _MAX_GRID_CELLS=9 보다 큰 상한
-# (n_initial_random + acquisition iteration 수용). soft_time_limit 부재 시 worker
-# block 보호. dedicated queue 는 Sprint 56+ BL-237.
-_MAX_BAYESIAN_EVALUATIONS: Final[int] = 50
+# Sprint 57 BL-237 — optimizer_heavy queue 도입으로 50 → 100 relax.
+# Sprint 55/56: default queue 보호 목적 50 상한.
+_MAX_BAYESIAN_EVALUATIONS: Final[int] = 100
 
 # Sprint 55 — degenerate cell penalty (large finite). +inf 사용 시 skopt GP Cholesky
 # decomposition NaN propagation → fit fail. dynamic penalty (best+1e6) 도 가능하나
@@ -79,10 +79,43 @@ _SUPPORTED_OBJECTIVE_METRICS: Final[frozenset[str]] = frozenset(
 
 _PRIOR_MAP: Final[dict[str, str]] = {
     # ADR-013 underscore → skopt hyphen 변환.
+    # "normal" 은 skopt 미지원 — Sprint 57 BL-234: _inject_normal_prior_values()로 처리.
+    # skopt 에는 "uniform" 으로 등록 (GP가 inject된 normal 점도 수신 가능하도록).
     "uniform": "uniform",
     "log_uniform": "log-uniform",
-    # "normal" 은 skopt 미지원 — 본 모듈 안 NotImplementedError raise.
+    "normal": "uniform",  # actual sampling handled by _inject_normal_prior_values
 }
+
+
+def _has_normal_prior(param_space: ParamSpace) -> bool:
+    """BayesianHyperparamsField 중 prior='normal'이 하나라도 있는지 확인."""
+    return any(
+        isinstance(f, BayesianHyperparamsField) and f.prior == "normal"
+        for f in param_space.parameters.values()
+    )
+
+
+def _inject_normal_prior_values(
+    x: list[Any],
+    param_names: tuple[str, ...] | list[str],
+    param_space: ParamSpace,
+    rng: np.random.RandomState,
+) -> list[Any]:
+    """skopt ask() 결과 x에서 prior='normal' 차원만 N(loc, scale) clip 값으로 교체.
+
+    non-normal 차원은 skopt random 샘플 그대로 유지.
+    loc = (min + max) / 2, scale = (max - min) / 4 — ADR-013 §9 (BL-234 Sprint 57).
+    """
+    result = list(x)
+    for idx, name in enumerate(param_names):
+        field = param_space.parameters[name]
+        if isinstance(field, BayesianHyperparamsField) and field.prior == "normal":
+            lo, hi = float(field.min), float(field.max)
+            loc = (lo + hi) / 2.0
+            scale = (hi - lo) / 4.0
+            sampled = float(rng.normal(loc, scale))
+            result[idx] = max(lo, min(hi, sampled))  # clip to [lo, hi]
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,13 +164,7 @@ def _param_space_to_skopt_dimensions(
     names: list[str] = []
     for var_name, field in param_space.parameters.items():
         if isinstance(field, BayesianHyperparamsField):
-            if field.prior == "normal":
-                # Sprint 55 = 자체 sampler wrapper 미구현. Sprint 56+ ADR-013 §7 amendment.
-                raise NotImplementedError(
-                    f"BayesianHyperparamsField.prior='normal' 은 Sprint 55 미지원. "
-                    f"prior='uniform' 또는 'log_uniform' 사용. (var_name={var_name!r}). "
-                    f"Sprint 56+ BL-234 묶음 검토."
-                )
+            # prior="normal": _PRIOR_MAP → "uniform" for skopt; actual sampling via inject.
             skopt_prior = _PRIOR_MAP[field.prior]
             dims.append(
                 Real(
@@ -150,8 +177,10 @@ def _param_space_to_skopt_dimensions(
         elif isinstance(field, IntegerField):
             dims.append(Integer(low=field.min, high=field.max, name=var_name))
         elif isinstance(field, CategoricalField):
+            # Sprint 57 BL-234: encoding="one_hot" → skopt onehot transform.
+            transform = "onehot" if field.encoding == "one_hot" else "label"
             dims.append(
-                Categorical(categories=tuple(field.values), transform="label", name=var_name)
+                Categorical(categories=tuple(field.values), transform=transform, name=var_name)
             )
         elif isinstance(field, DecimalField):
             # 호환성 — DecimalField 도 받기 (grid step 무시).
@@ -355,11 +384,20 @@ def run_bayesian_search(
         random_state=_BAYESIAN_RANDOM_STATE,
     )
 
+    # Sprint 57 BL-234: normal prior inject 준비.
+    use_normal_sampler = _has_normal_prior(param_space)
+    normal_rng: np.random.RandomState | None = (
+        np.random.RandomState(seed=_BAYESIAN_RANDOM_STATE) if use_normal_sampler else None
+    )
+
     iterations: list[BayesianIteration] = []
     best_so_far: Decimal | None = None
 
     for i in range(param_space.max_evaluations):
-        x = optimizer.ask()
+        x = optimizer.ask()  # always call to decrement internal _n_initial_points
+        if use_normal_sampler and i < param_space.bayesian_n_initial_random:
+            assert normal_rng is not None
+            x = _inject_normal_prior_values(x, param_names, param_space, normal_rng)
         params_dict = _coerce_skopt_to_decimal(x, param_names)
 
         cfg = _build_cell_config(backtest_config, overrides=params_dict)

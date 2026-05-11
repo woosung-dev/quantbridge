@@ -19,6 +19,7 @@ from src.optimizer.engine.genetic import (
     _gaussian_mutation,
     _objective_from_metrics,
     _pick_best_iteration_idx,
+    _roulette_select,
     _sample_individual,
     _single_point_crossover,
     _tournament_select,
@@ -65,6 +66,7 @@ def _build_param_space(
     mutation_rate: str | None = "0.2",
     crossover_rate: str | None = "0.8",
     schema_version: int = 2,
+    genetic_selection_method: str | None = None,
 ) -> ParamSpace:
     payload: dict[str, Any] = {
         "schema_version": schema_version,
@@ -81,6 +83,8 @@ def _build_param_space(
         payload["mutation_rate"] = mutation_rate
     if crossover_rate is not None:
         payload["crossover_rate"] = crossover_rate
+    if genetic_selection_method is not None:
+        payload["genetic_selection_method"] = genetic_selection_method
     return ParamSpace.model_validate(payload)
 
 
@@ -381,12 +385,12 @@ class TestRunGeneticSearchValidation:
             run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
 
     def test_budget_above_max_raises(self) -> None:
-        # 10 * 6 = 60 > _MAX_GENETIC_EVALUATIONS (50)
+        # Sprint 57 BL-237: cap = 100. 101 > 100 → "exceeds server cap"
         space = _build_param_space(
-            {"x": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
+            {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
             population_size=10,
-            n_generations=5,
-            max_evaluations=60,
+            n_generations=10,
+            max_evaluations=101,
         )
         with pytest.raises(ValueError, match="exceeds server cap"):
             run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
@@ -581,11 +585,126 @@ class TestSerializerRoundTrip:
         assert restored.crossover_rate == result.crossover_rate
 
 
-def test_max_evaluations_constant_is_50() -> None:
-    """plan §11 + ADR-013 §7 lock — Sprint 56 = 50 evaluation 상한."""
-    assert _MAX_GENETIC_EVALUATIONS == 50
+def test_max_evaluations_constant_is_100() -> None:
+    """Sprint 57 BL-237 — dedicated queue 도입 후 100 evaluation 상한."""
+    assert _MAX_GENETIC_EVALUATIONS == 100
+
+
+def test_run_genetic_search_rejects_over_100_evaluations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "src.optimizer.engine.genetic.run_backtest",
+        lambda *a, **kw: _fake_outcome(),
+    )
+    ps = _build_param_space(
+        {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
+        population_size=10,
+        n_generations=10,
+        max_evaluations=101,
+    )
+    with pytest.raises(Exception, match="100"):
+        run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=ps)
 
 
 def test_tournament_size_default_is_3() -> None:
     """ADR-013 §7 amendment — tournament size=3 hard-coded default (Sprint 57+ enum 확장)."""
     assert _TOURNAMENT_SIZE == 3
+
+
+# === Sprint 57 BL-234 — Genetic roulette selection ===
+
+
+def _make_ind(
+    idx: int,
+    val: str | None,
+    *,
+    gen: int = 0,
+    x_key: str = "x",
+) -> GeneticIndividual:
+    obj = Decimal(val) if val is not None else None
+    return GeneticIndividual(
+        idx=idx,
+        params={x_key: obj or Decimal("0")},
+        objective_value=obj,
+        best_so_far=obj,
+        is_degenerate=(val is None),
+        generation=gen,
+    )
+
+
+class TestRoulettSelect:
+    def test_returns_individual_from_population(self) -> None:
+        rng = random.Random(42)
+        pop = [_make_ind(0, "1.0"), _make_ind(1, "5.0"), _make_ind(2, "3.0")]
+        result = _roulette_select(rng, pop, direction="maximize")
+        assert result.params["x"] in [Decimal("1"), Decimal("5"), Decimal("3")]
+
+    def test_all_degenerate_falls_back_to_random(self) -> None:
+        rng = random.Random(42)
+        pop = [_make_ind(0, None), _make_ind(1, None)]
+        result = _roulette_select(rng, pop, direction="maximize")
+        assert result in pop
+
+    def test_single_non_degenerate_always_selected(self) -> None:
+        rng = random.Random(99)
+        pop = [
+            _make_ind(0, "7.0"),
+            _make_ind(1, None),
+            _make_ind(2, None),
+        ]
+        for _ in range(10):
+            result = _roulette_select(rng, pop, direction="maximize")
+            assert result.params["x"] == Decimal("7")
+
+    def test_minimize_direction_selects_lower_more_often(self) -> None:
+        """minimize: 낮은 값 rank 높음 → 더 자주 선택됨."""
+        rng = random.Random(0)
+        low_ind = _make_ind(0, "1.0")
+        high_ind = _make_ind(1, "100.0")
+        pop = [low_ind, high_ind]
+        counts: dict[str, int] = {"low": 0, "high": 0}
+        for _ in range(200):
+            result = _roulette_select(rng, pop, direction="minimize")
+            if result.params["x"] == Decimal("1"):
+                counts["low"] += 1
+            else:
+                counts["high"] += 1
+        assert counts["low"] > counts["high"]
+
+
+class TestRunGeneticSearchWithRoulette:
+    def test_roulette_selection_method_completes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "src.optimizer.engine.genetic.run_backtest",
+            lambda *a, **kw: _fake_outcome(),
+        )
+        ps = _build_param_space(
+            {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
+            population_size=3,
+            n_generations=2,
+            max_evaluations=9,
+            genetic_selection_method="roulette",
+        )
+        result = run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=ps)
+        assert len(result.iterations) == 9
+
+    def test_none_selection_method_defaults_to_tournament(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """genetic_selection_method=None → engine default tournament."""
+        monkeypatch.setattr(
+            "src.optimizer.engine.genetic.run_backtest",
+            lambda *a, **kw: _fake_outcome(),
+        )
+        ps = _build_param_space(
+            {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
+            population_size=3,
+            n_generations=2,
+            max_evaluations=9,
+        )
+        assert ps.genetic_selection_method is None
+        result = run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=ps)
+        assert len(result.iterations) == 9
