@@ -1,6 +1,7 @@
-"""optimizer HTTP 라우터 — Sprint 54 Phase 3 Grid Search MVP.
+"""optimizer HTTP 라우터 — Sprint 55 Phase 3 Grid Search MVP + Bayesian.
 
 POST /optimizer/runs/grid-search — submit Grid Search (202)
+POST /optimizer/runs/bayesian    — submit Bayesian (202, Sprint 55 ADR-013 §6 #5)
 GET  /optimizer/runs              — list (page)
 GET  /optimizer/runs/{id}         — detail
 """
@@ -40,6 +41,23 @@ async def submit_grid_search(
     """Grid Search submit — 202 + OptimizationRun row."""
     _ = request
     return await service.submit_grid_search(data, user_id=user.id)
+
+
+@router.post(
+    "/runs/bayesian",
+    response_model=OptimizationRunResponse,
+    status_code=202,
+)
+@limiter.limit("5/minute")
+async def submit_bayesian(
+    request: Request,  # slowapi key 추출에 사용
+    data: CreateOptimizationRunRequest,
+    user: CurrentUser = Depends(get_current_user),
+    service: OptimizerService = Depends(get_optimizer_service),
+) -> OptimizationRunResponse:
+    """Bayesian submit — 202 + OptimizationRun row (Sprint 55 ADR-013 §6 #5)."""
+    _ = request
+    return await service.submit_bayesian(data, user_id=user.id)
 
 
 @router.get("/runs/{run_id}", response_model=OptimizationRunResponse)

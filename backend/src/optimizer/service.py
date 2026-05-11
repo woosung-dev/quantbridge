@@ -23,7 +23,7 @@ from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.dispatcher import OptimizationTaskDispatcher
-from src.optimizer.engine import run_grid_search
+from src.optimizer.engine import run_bayesian_search, run_grid_search
 from src.optimizer.exceptions import (
     BacktestNotCompletedForOptimization,
     OptimizationExecutionError,
@@ -44,7 +44,10 @@ from src.optimizer.schemas import (
     OptimizationRunResponse,
     ParamSpace,
 )
-from src.optimizer.serializers import grid_search_result_to_jsonb
+from src.optimizer.serializers import (
+    bayesian_search_result_to_jsonb,
+    grid_search_result_to_jsonb,
+)
 from src.strategy.repository import StrategyRepository
 
 logger = logging.getLogger(__name__)
@@ -77,16 +80,48 @@ class OptimizerService:
         """Sprint 54 Phase 3 — Grid Search MVP submit."""
         if data.kind != OptimizationKindOut.GRID_SEARCH:
             raise OptimizationKindUnsupportedError(data.kind.value)
+        return await self._submit_optimization(
+            data,
+            user_id=user_id,
+            kind=OptimizationKind.GRID_SEARCH,
+        )
 
+    async def submit_bayesian(
+        self,
+        data: CreateOptimizationRunRequest,
+        *,
+        user_id: UUID,
+    ) -> OptimizationRunResponse:
+        """Sprint 55 Phase 3 — Bayesian executor submit (ADR-013 §6 #5)."""
+        if data.kind != OptimizationKindOut.BAYESIAN:
+            raise OptimizationKindUnsupportedError(data.kind.value)
+        # cross-field validator (schemas) 가 1차 강제. defensive 재확인.
+        if data.param_space.schema_version != 2:
+            raise OptimizationKindUnsupportedError(
+                f"bayesian:schema_version={data.param_space.schema_version}"
+            )
+        return await self._submit_optimization(
+            data,
+            user_id=user_id,
+            kind=OptimizationKind.BAYESIAN,
+        )
+
+    async def _submit_optimization(
+        self,
+        data: CreateOptimizationRunRequest,
+        *,
+        user_id: UUID,
+        kind: OptimizationKind,
+    ) -> OptimizationRunResponse:
+        """공통 submit path — Backtest ownership + COMPLETED + dispatch."""
         bt = await self._load_owned_backtest(data.backtest_id, user_id)
         self._ensure_completed(bt)
 
         run = OptimizationRun(
             user_id=user_id,
             backtest_id=bt.id,
-            kind=OptimizationKind.GRID_SEARCH,
+            kind=kind,
             status=OptimizationStatus.QUEUED,
-            # ParamSpace pydantic → JSONB dict (model_dump = pydantic 표준).
             param_space=data.param_space.model_dump(mode="json"),
         )
         await self.repo.create(run)
@@ -145,6 +180,8 @@ class OptimizerService:
         try:
             if run.kind == OptimizationKind.GRID_SEARCH:
                 result_jsonb = await self._execute_grid_search(run, bt)
+            elif run.kind == OptimizationKind.BAYESIAN:
+                result_jsonb = await self._execute_bayesian(run, bt)
             else:  # pragma: no cover — exhaustiveness guard
                 raise OptimizationKindUnsupportedError(run.kind.value)
         except OptimizationExecutionError as exc:
@@ -203,6 +240,35 @@ class OptimizerService:
             backtest_config=backtest_config,
         )
         return grid_search_result_to_jsonb(gs_result)
+
+    async def _execute_bayesian(
+        self, run: OptimizationRun, bt: Backtest
+    ) -> dict[str, object]:
+        """Bayesian 실행 entry — _execute_grid_search mirror, run_bayesian_search 호출."""
+        strategy = await self.strategy_repo.find_by_id_and_owner(
+            bt.strategy_id, bt.user_id
+        )
+        if strategy is None:
+            raise OptimizationExecutionError(
+                message_public="Strategy no longer available for optimization.",
+                message_internal=(
+                    f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"
+                ),
+            )
+
+        ohlcv = await self.provider.get_ohlcv(
+            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+        )
+        param_space = ParamSpace.model_validate(run.param_space)
+        backtest_config = build_engine_config_from_db(bt)
+
+        bs_result = run_bayesian_search(
+            strategy.pine_source,
+            ohlcv,
+            param_space=param_space,
+            backtest_config=backtest_config,
+        )
+        return bayesian_search_result_to_jsonb(bs_result)
 
     # ---------- HTTP read ----------
 
