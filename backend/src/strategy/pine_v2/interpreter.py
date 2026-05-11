@@ -1052,6 +1052,31 @@ class Interpreter:
             return 0.01  # 기본값 — 심볼별 설정 기능은 향후 추가
         if chain == "syminfo.tickerid":
             return "UNKNOWN"
+        # Sprint 58 BL-242b: syminfo 추가 상수
+        if chain == "syminfo.prefix":
+            return ""
+        if chain == "syminfo.ticker":
+            return ""
+        if chain == "syminfo.timezone":
+            return "UTC"
+        # Sprint 58 BL-242b: barstate.isrealtime — backtest 는 항상 historical
+        if chain == "barstate.isrealtime":
+            return False
+        # Sprint 58 BL-242b: timeframe 속성 — 단일 타임프레임 백테스트 가정
+        if chain in ("timeframe.isdaily", "timeframe.isminutes", "timeframe.ismonthly",
+                     "timeframe.isseconds", "timeframe.isweekly"):
+            return False
+        if chain == "timeframe.multiplier":
+            return 0
+        # Sprint 58 BL-241: ta.obv — 누적 OBV series attribute
+        if chain == "ta.obv":
+            close_val = self.bar.current("close")
+            vol_val = self.bar.current("volume")
+            return self.stdlib.call(
+                "ta.obv",
+                id(node),
+                [close_val, vol_val, self._prev_close],
+            )
         # ta.tr — built-in series: True Range = max(high-low, |high-prev_close|, |low-prev_close|)
         # 첫 bar 는 prev_close 가 nan → high-low 만 (Pine 동작과 동일)
         if chain == "ta.tr":

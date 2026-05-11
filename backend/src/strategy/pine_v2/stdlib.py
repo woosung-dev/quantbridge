@@ -546,6 +546,7 @@ def fn_nz(x: Any, replacement: Any = 0.0) -> Any:
 
 def ta_wma(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """Weighted Moving Average — weights 1,2,...,length (최신 = length)."""
+    length = int(length)  # Pine may pass float (e.g. tclength/2)
     if length <= 0:
         return float("nan")
     buf: deque = state.buffers.setdefault(node_id, deque(maxlen=length))
@@ -574,6 +575,7 @@ def ta_mom(
     state: IndicatorState, node_id: int, source: float, length: int = 1
 ) -> float:
     """Momentum = source - source[length]."""
+    length = int(length)  # Pine may pass float
     if length <= 0:
         return float("nan")
     buf: deque = state.buffers.setdefault(node_id, deque(maxlen=length + 1))
@@ -606,6 +608,7 @@ def _wma_from_deque(buf: deque, source: float, length: int) -> float:
 
 def ta_hma(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """Hull Moving Average = WMA(2*WMA(src, n/2) − WMA(src, n), floor(sqrt(n)))."""
+    length = int(length)  # Pine may pass float
     if length <= 0:
         return float("nan")
     half_len = max(1, length // 2)
@@ -636,6 +639,7 @@ def ta_bb(
     mult: float = 2.0,
 ) -> list[float]:
     """Bollinger Bands. Returns [upper, basis, lower]."""
+    length = int(length)  # Pine may pass float
     nan = float("nan")
     if length <= 0:
         return [nan, nan, nan]

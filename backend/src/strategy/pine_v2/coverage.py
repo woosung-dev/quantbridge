@@ -89,11 +89,15 @@ _RENDERING_METHODS: frozenset[str] = frozenset(
         "box.set_right",
         "label.delete",
         "label.set_xy",
+        "label.get_x",  # Sprint 58 BL-242b: DrFX dogfood 누락
+        "label.set_x",  # Sprint 58 BL-242b
+        "label.set_y",  # Sprint 58 BL-242b
         "line.delete",
         "line.get_price",
         "line.set_xy1",
         "line.set_xy2",
         "table.cell",
+        "table.cell_set_bgcolor",  # Sprint 58 BL-242b
         "table.delete",
     }
 )
@@ -319,7 +323,9 @@ _SERIES_ATTRS: frozenset[str] = frozenset(
         "barstate.islast",
         "barstate.ishistory",
         "barstate.isconfirmed",
+        "barstate.isrealtime",  # Sprint 58 BL-242b: backtest → always False
         "ta.tr",  # Sprint X1+X3 follow-up
+        "ta.obv",  # Sprint 58 BL-241: On Balance Volume series
     }
 )
 
@@ -339,6 +345,9 @@ _SYMINFO_ATTRS: frozenset[str] = frozenset(
     {
         "syminfo.mintick",
         "syminfo.tickerid",
+        "syminfo.prefix",  # Sprint 58 BL-242b: "" 반환
+        "syminfo.ticker",  # Sprint 58 BL-242b: "" 반환
+        "syminfo.timezone",  # Sprint 58 BL-242b: "UTC" 반환
     }
 )
 
@@ -384,12 +393,20 @@ _STRATEGY_CONSTANTS_EXTRA: frozenset[str] = frozenset(
 _TIMEFRAME_CONSTANTS: frozenset[str] = frozenset(
     {
         "timeframe.period",  # Sprint 29 Slice A: BarContext.timeframe string return (interpreter)
+        # Sprint 58 BL-242b: backtest 는 단일 타임프레임 → boolean False / multiplier 0 반환
+        "timeframe.isdaily",
+        "timeframe.isminutes",
+        "timeframe.ismonthly",
+        "timeframe.isseconds",
+        "timeframe.isweekly",
+        "timeframe.multiplier",
     }
 )
 
 # Pine enum constants (interpreter._ATTR_CONSTANTS — render scope A)
 _ENUM_PREFIXES: tuple[str, ...] = (
     "line.style_",
+    "label.style_",  # Sprint 58 BL-242b: label.style_label_down 등 시각 상수
     "extend.",
     "shape.",
     "location.",
