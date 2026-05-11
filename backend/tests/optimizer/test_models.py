@@ -41,7 +41,11 @@ def test_optimization_run_kind_enum_uppercase_db_value() -> None:
     assert sa_enum.enum_class is OptimizationKind
 
     # member name = uppercase (postgres enum value 로 저장됨)
-    assert "GRID_SEARCH" in [m.name for m in OptimizationKind]
+    member_names = [m.name for m in OptimizationKind]
+    assert "GRID_SEARCH" in member_names
+    assert "BAYESIAN" in member_names
+    # Sprint 56 BL-233 — Genetic 추가 (LESSON-066 7차 검증).
+    assert "GENETIC" in member_names
 
 
 def test_optimization_run_status_enum_name() -> None:

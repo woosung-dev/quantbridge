@@ -42,6 +42,20 @@ export async function postBayesianSearch(
   return OptimizationRunResponseSchema.parse(raw);
 }
 
+// Sprint 56 — Genetic executor submit (BL-233, Bayesian 패턴 mirror).
+export async function postGeneticSearch(
+  body: CreateOptimizationRunRequest,
+  token: string | null,
+): Promise<OptimizationRunResponse> {
+  const parsed = CreateOptimizationRunRequestSchema.parse(body);
+  const raw = await apiFetch<unknown>(`${OPTIMIZER_PATH}/runs/genetic`, {
+    method: "POST",
+    token,
+    body: parsed,
+  });
+  return OptimizationRunResponseSchema.parse(raw);
+}
+
 export async function getOptimizationRun(
   id: string,
   token: string | null,

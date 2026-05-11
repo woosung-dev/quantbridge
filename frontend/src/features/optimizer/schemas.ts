@@ -34,7 +34,11 @@ const strictDecimalInput = z
 
 // --- Enums ------------------------------------------------------------------
 
-export const OptimizationKindSchema = z.enum(["grid_search", "bayesian"]);
+export const OptimizationKindSchema = z.enum([
+  "grid_search",
+  "bayesian",
+  "genetic",
+]);
 export type OptimizationKind = z.infer<typeof OptimizationKindSchema>;
 
 export const BayesianAcquisitionSchema = z.enum(["EI", "UCB", "PI"]);
@@ -133,10 +137,11 @@ export const ParamSpaceSchema = z
     // Sprint 55 = Bayesian 활성 2 필드 (schema_version=2 only).
     bayesian_n_initial_random: z.number().int().min(1).max(50).optional(),
     bayesian_acquisition: BayesianAcquisitionSchema.optional(),
-    // Sprint 56+ = Genetic 3 필드 reservation (schema_version=2 only).
+    // Sprint 56 = Genetic 4 hyperparam 활성 (ADR-013 §7 amendment, schema_version=2 only).
     population_size: z.number().int().min(2).max(200).optional(),
     n_generations: z.number().int().min(1).max(100).optional(),
     mutation_rate: strictDecimalInput.optional(),
+    crossover_rate: strictDecimalInput.optional(),
   })
   .superRefine((space, ctx) => {
     const v2OnlyEntries: Array<[string, unknown]> = [
@@ -145,6 +150,7 @@ export const ParamSpaceSchema = z
       ["population_size", space.population_size],
       ["n_generations", space.n_generations],
       ["mutation_rate", space.mutation_rate],
+      ["crossover_rate", space.crossover_rate],
     ];
     const populated = v2OnlyEntries
       .filter(([, v]) => v !== undefined)
@@ -173,6 +179,24 @@ export const ParamSpaceSchema = z
         code: "custom",
         message:
           "BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2)",
+      });
+    }
+
+    // Sprint 56 ADR-013 §7 amendment — mutation_rate / crossover_rate ∈ (0, 1].
+    const mutN =
+      space.mutation_rate !== undefined ? Number(space.mutation_rate) : null;
+    if (mutN !== null && !(mutN > 0 && mutN <= 1)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `mutation_rate must be in (0, 1] (got ${space.mutation_rate})`,
+      });
+    }
+    const crossN =
+      space.crossover_rate !== undefined ? Number(space.crossover_rate) : null;
+    if (crossN !== null && !(crossN > 0 && crossN <= 1)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `crossover_rate must be in (0, 1] (got ${space.crossover_rate})`,
       });
     }
   });
@@ -245,11 +269,44 @@ export const BayesianSearchResultSchema = z.object({
 });
 export type BayesianSearchResult = z.infer<typeof BayesianSearchResultSchema>;
 
+// --- Response — Genetic result_jsonb shape (Sprint 56 BL-233) ---------------
+
+export const GeneticIterationSchema = z.object({
+  idx: z.number().int().nonnegative(),
+  params: z.record(z.string(), decimalString),
+  objective_value: decimalString.nullable(),
+  best_so_far: decimalString.nullable(),
+  is_degenerate: z.boolean(),
+  generation: z.number().int().nonnegative(),
+});
+export type GeneticIteration = z.infer<typeof GeneticIterationSchema>;
+
+export const GeneticSearchResultSchema = z.object({
+  schema_version: z.literal(2),
+  kind: z.literal("genetic"),
+  param_names: z.array(z.string()),
+  iterations: z.array(GeneticIterationSchema),
+  best_params: z.record(z.string(), decimalString).nullable(),
+  best_objective_value: decimalString.nullable(),
+  best_iteration_idx: z.number().int().nullable(),
+  objective_metric: OptimizationObjectiveMetricSchema,
+  direction: OptimizationDirectionSchema,
+  population_size: z.number().int(),
+  n_generations: z.number().int(),
+  mutation_rate: decimalString,
+  crossover_rate: decimalString,
+  max_evaluations: z.number().int(),
+  degenerate_count: z.number().int(),
+  total_iterations: z.number().int(),
+});
+export type GeneticSearchResult = z.infer<typeof GeneticSearchResultSchema>;
+
 // --- OptimizationRun detail — discriminated union by result.kind ------------
 
 export const OptimizationResultSchema = z.discriminatedUnion("kind", [
   GridSearchResultSchema,
   BayesianSearchResultSchema,
+  GeneticSearchResultSchema,
 ]);
 export type OptimizationResult = z.infer<typeof OptimizationResultSchema>;
 

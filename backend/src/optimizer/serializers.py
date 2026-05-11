@@ -15,6 +15,8 @@ from typing import Any
 from src.optimizer.engine import (
     BayesianIteration,
     BayesianSearchResult,
+    GeneticIndividual,
+    GeneticSearchResult,
     GridSearchCell,
     GridSearchResult,
 )
@@ -169,6 +171,99 @@ def bayesian_search_result_from_jsonb(data: dict[str, Any]) -> BayesianSearchRes
         direction=data["direction"],
         bayesian_acquisition=data["bayesian_acquisition"],
         bayesian_n_initial_random=int(data["bayesian_n_initial_random"]),
+        max_evaluations=int(data["max_evaluations"]),
+        degenerate_count=int(data["degenerate_count"]),
+        total_iterations=int(data["total_iterations"]),
+    )
+
+
+def genetic_search_result_to_jsonb(r: GeneticSearchResult) -> dict[str, Any]:
+    """Sprint 56 BL-233 — GeneticSearchResult → JSONB dict (schema_version=2).
+
+    의무 (Sprint 56 ADR-013 §7 amendment = Sprint 50/51/52 retro-incorrect 차단 4종 mirror):
+        1. Decimal → str (FE Number.parseFloat 가능 표기 ``^-?\\d+(\\.\\d+)?$``).
+        2. None 보존 (degenerate ``objective_value=null`` 명시 필드).
+        3. iteration row insertion order 보존 (Python list = idx 순서 + generation 단조 증가).
+        4. ``best_iteration_idx`` 명시 필드 (FE highlight 용, 재검색 X).
+    """
+    return {
+        "schema_version": 2,
+        "kind": "genetic",
+        "param_names": list(r.param_names),
+        "iterations": [
+            {
+                "idx": it.idx,
+                "params": {k: str(v) for k, v in it.params.items()},
+                "objective_value": (
+                    None if it.objective_value is None else str(it.objective_value)
+                ),
+                "best_so_far": (
+                    None if it.best_so_far is None else str(it.best_so_far)
+                ),
+                "is_degenerate": it.is_degenerate,
+                "generation": it.generation,
+            }
+            for it in r.iterations
+        ],
+        "best_params": (
+            None
+            if r.best_params is None
+            else {k: str(v) for k, v in r.best_params.items()}
+        ),
+        "best_objective_value": (
+            None if r.best_objective_value is None else str(r.best_objective_value)
+        ),
+        "best_iteration_idx": r.best_iteration_idx,
+        "objective_metric": r.objective_metric,
+        "direction": r.direction,
+        "population_size": r.population_size,
+        "n_generations": r.n_generations,
+        "mutation_rate": str(r.mutation_rate),
+        "crossover_rate": str(r.crossover_rate),
+        "max_evaluations": r.max_evaluations,
+        "degenerate_count": r.degenerate_count,
+        "total_iterations": r.total_iterations,
+    }
+
+
+def genetic_search_result_from_jsonb(data: dict[str, Any]) -> GeneticSearchResult:
+    """JSONB dict → GeneticSearchResult (test / detail rendering 용)."""
+    param_names = tuple(data["param_names"])
+    iterations_t = tuple(
+        GeneticIndividual(
+            idx=int(it["idx"]),
+            params={k: Decimal(v) for k, v in it["params"].items()},
+            objective_value=(
+                None if it.get("objective_value") is None else Decimal(it["objective_value"])
+            ),
+            best_so_far=(
+                None if it.get("best_so_far") is None else Decimal(it["best_so_far"])
+            ),
+            is_degenerate=bool(it["is_degenerate"]),
+            generation=int(it["generation"]),
+        )
+        for it in data["iterations"]
+    )
+    return GeneticSearchResult(
+        param_names=param_names,
+        iterations=iterations_t,
+        best_params=(
+            None
+            if data.get("best_params") is None
+            else {k: Decimal(v) for k, v in data["best_params"].items()}
+        ),
+        best_objective_value=(
+            None
+            if data.get("best_objective_value") is None
+            else Decimal(data["best_objective_value"])
+        ),
+        best_iteration_idx=data.get("best_iteration_idx"),
+        objective_metric=data["objective_metric"],
+        direction=data["direction"],
+        population_size=int(data["population_size"]),
+        n_generations=int(data["n_generations"]),
+        mutation_rate=Decimal(data["mutation_rate"]),
+        crossover_rate=Decimal(data["crossover_rate"]),
         max_evaluations=int(data["max_evaluations"]),
         degenerate_count=int(data["degenerate_count"]),
         total_iterations=int(data["total_iterations"]),

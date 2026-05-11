@@ -23,7 +23,11 @@ from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.dispatcher import OptimizationTaskDispatcher
-from src.optimizer.engine import run_bayesian_search, run_grid_search
+from src.optimizer.engine import (
+    run_bayesian_search,
+    run_genetic_search,
+    run_grid_search,
+)
 from src.optimizer.exceptions import (
     BacktestNotCompletedForOptimization,
     OptimizationExecutionError,
@@ -46,6 +50,7 @@ from src.optimizer.schemas import (
 )
 from src.optimizer.serializers import (
     bayesian_search_result_to_jsonb,
+    genetic_search_result_to_jsonb,
     grid_search_result_to_jsonb,
 )
 from src.strategy.repository import StrategyRepository
@@ -104,6 +109,26 @@ class OptimizerService:
             data,
             user_id=user_id,
             kind=OptimizationKind.BAYESIAN,
+        )
+
+    async def submit_genetic(
+        self,
+        data: CreateOptimizationRunRequest,
+        *,
+        user_id: UUID,
+    ) -> OptimizationRunResponse:
+        """Sprint 56 Phase 3 — Genetic executor submit (BL-233, Bayesian 1:1 mirror)."""
+        if data.kind != OptimizationKindOut.GENETIC:
+            raise OptimizationKindUnsupportedError(data.kind.value)
+        # cross-field validator (schemas) 가 1차 강제. defensive 재확인.
+        if data.param_space.schema_version != 2:
+            raise OptimizationKindUnsupportedError(
+                f"genetic:schema_version={data.param_space.schema_version}"
+            )
+        return await self._submit_optimization(
+            data,
+            user_id=user_id,
+            kind=OptimizationKind.GENETIC,
         )
 
     async def _submit_optimization(
@@ -182,6 +207,8 @@ class OptimizerService:
                 result_jsonb = await self._execute_grid_search(run, bt)
             elif run.kind == OptimizationKind.BAYESIAN:
                 result_jsonb = await self._execute_bayesian(run, bt)
+            elif run.kind == OptimizationKind.GENETIC:
+                result_jsonb = await self._execute_genetic(run, bt)
             else:  # pragma: no cover — exhaustiveness guard
                 raise OptimizationKindUnsupportedError(run.kind.value)
         except OptimizationExecutionError as exc:
@@ -269,6 +296,35 @@ class OptimizerService:
             backtest_config=backtest_config,
         )
         return bayesian_search_result_to_jsonb(bs_result)
+
+    async def _execute_genetic(
+        self, run: OptimizationRun, bt: Backtest
+    ) -> dict[str, object]:
+        """Sprint 56 BL-233 — Genetic 실행 entry. _execute_bayesian 1:1 mirror."""
+        strategy = await self.strategy_repo.find_by_id_and_owner(
+            bt.strategy_id, bt.user_id
+        )
+        if strategy is None:
+            raise OptimizationExecutionError(
+                message_public="Strategy no longer available for optimization.",
+                message_internal=(
+                    f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"
+                ),
+            )
+
+        ohlcv = await self.provider.get_ohlcv(
+            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+        )
+        param_space = ParamSpace.model_validate(run.param_space)
+        backtest_config = build_engine_config_from_db(bt)
+
+        gs_result = run_genetic_search(
+            strategy.pine_source,
+            ohlcv,
+            param_space=param_space,
+            backtest_config=backtest_config,
+        )
+        return genetic_search_result_to_jsonb(gs_result)
 
     # ---------- HTTP read ----------
 

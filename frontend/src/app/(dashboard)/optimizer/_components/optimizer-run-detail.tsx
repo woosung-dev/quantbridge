@@ -5,6 +5,8 @@ import { useOptimizationRun } from "@/features/optimizer/hooks";
 
 import { BayesianBestParamsTable } from "./bayesian-best-params-table";
 import { BayesianIterationChart } from "./bayesian-iteration-chart";
+import { GeneticBestParamsTable } from "./genetic-best-params-table";
+import { GeneticGenerationChart } from "./genetic-generation-chart";
 import { GridSearchPairSelector } from "./grid-search-pair-selector";
 
 export function OptimizerRunDetail({ runId }: { runId: string }) {
@@ -63,6 +65,15 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
           <p className="mt-2 text-xs text-muted-foreground">
             acquisition: {data.param_space.bayesian_acquisition ?? "—"} · random
             warm-up: {data.param_space.bayesian_n_initial_random ?? "—"} · max
+            evaluations: {data.param_space.max_evaluations}
+          </p>
+        )}
+        {data.kind === "genetic" && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            population_size: {data.param_space.population_size ?? "—"} ·
+            n_generations: {data.param_space.n_generations ?? "—"} ·
+            mutation_rate: {data.param_space.mutation_rate ?? "—"} ·
+            crossover_rate: {data.param_space.crossover_rate ?? "—"} · max
             evaluations: {data.param_space.max_evaluations}
           </p>
         )}
@@ -170,6 +181,68 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                         >
                           <td className="p-1 font-mono">{it.idx}</td>
                           <td className="p-1">{it.phase}</td>
+                          <td className="p-1 font-mono">
+                            {Object.entries(it.params)
+                              .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
+                              .join(", ")}
+                          </td>
+                          <td className="p-1">
+                            {it.objective_value === null
+                              ? "—"
+                              : it.objective_value.toFixed(4)}
+                          </td>
+                          <td className="p-1">
+                            {it.best_so_far === null
+                              ? "—"
+                              : it.best_so_far.toFixed(4)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </section>
+          );
+        })()}
+
+      {data.status === "completed" &&
+        data.result?.kind === "genetic" &&
+        (() => {
+          const genetic = data.result;
+          return (
+            <section className="space-y-3">
+              <h3 className="text-sm font-medium">Genetic generation history</h3>
+              <GeneticGenerationChart result={genetic} />
+              <GeneticBestParamsTable result={genetic} />
+
+              <details className="text-xs">
+                <summary className="cursor-pointer text-muted-foreground">
+                  전체 iterations ({genetic.iterations.length})
+                </summary>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-[600px] text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="p-1">idx</th>
+                        <th className="p-1">gen</th>
+                        <th className="p-1">params</th>
+                        <th className="p-1">objective</th>
+                        <th className="p-1">best_so_far</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {genetic.iterations.map((it) => (
+                        <tr
+                          key={it.idx}
+                          className={
+                            it.idx === genetic.best_iteration_idx
+                              ? "border-b bg-primary/10"
+                              : "border-b"
+                          }
+                        >
+                          <td className="p-1 font-mono">{it.idx}</td>
+                          <td className="p-1">{it.generation}</td>
                           <td className="p-1 font-mono">
                             {Object.entries(it.params)
                               .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
