@@ -85,11 +85,40 @@ class SignalExtractor:
             token_reduction_pct=round(reduction, 1),
         )
 
-    # ─── C-ast (Task 4에서 구현) ───────────────────────────────────────────────
+    # ─── C-ast ────────────────────────────────────────────────────────────────
 
     def _extract_ast(self, source: str) -> ExtractionResult:
-        # Task 4에서 구현. 지금은 C-text 폴백.
-        return self._extract_text(source)
+        try:
+            import pynescript.ast as pyne_ast
+
+            tree = pyne_ast.parse(source)
+        except Exception:
+            return self._extract_text(source)  # 파싱 실패 → C-text 폴백
+
+        user_vars = _find_user_defined(source)
+        signal_vars = _find_signal_vars_ast(tree, user_vars)
+
+        if not signal_vars:
+            return self._extract_text(source)  # 신호 변수 미탐지 → C-text 폴백
+
+        needed = _collect_deps(source, set(signal_vars), user_vars)
+        kept_lines, removed_funcs = _extract_needed_lines(source, needed)
+        header = _strategy_header(source)
+        footer = _strategy_entry_footer(signal_vars)
+        sliced = "\n".join([header, *kept_lines, footer])
+
+        orig_lines = len(source.splitlines())
+        removed_count = orig_lines - len(kept_lines)
+        reduction = max(0.0, (1 - len(kept_lines) / max(orig_lines, 1)) * 100)
+
+        return ExtractionResult(
+            sliced_code=sliced,
+            signal_vars=signal_vars,
+            removed_lines=removed_count,
+            removed_functions=removed_funcs,
+            is_runnable=analyze_coverage(sliced).is_runnable,
+            token_reduction_pct=round(reduction, 1),
+        )
 
 
 # ─── 헬퍼 함수 ────────────────────────────────────────────────────────────────
@@ -267,6 +296,64 @@ def _strategy_header(source: str) -> str:
         f'strategy("{title}", overlay=true, '
         "default_qty_type=strategy.percent_of_equity, default_qty_value=10)"
     )
+
+
+def _find_signal_vars_ast(tree: object, user_vars: frozenset[str]) -> list[str]:
+    """AST walk 기반 신호 변수 탐지 (plotshape / strategy.entry / label.new)."""
+    import pynescript.ast as pyne_ast
+
+    candidates: set[str] = set()
+
+    def _get_func_name(call_node: object) -> str | None:
+        func = getattr(call_node, "func", None)
+        if func is None:
+            return None
+        if hasattr(func, "id"):
+            return func.id  # 단순 함수 이름 (예: plotshape)
+        # Attribute 노드 (예: strategy.entry, label.new)
+        if hasattr(func, "attr") and hasattr(func, "value") and hasattr(func.value, "id"):
+            return f"{func.value.id}.{func.attr}"
+        return None
+
+    def _collect_names_from_node(node: object) -> None:
+        """노드 서브트리에서 user_vars 에 속하는 Name.id 수집."""
+        for sub in pyne_ast.walk(node):
+            sub_type = type(sub).__name__
+            if sub_type == "Name" and hasattr(sub, "id") and sub.id in user_vars:
+                candidates.add(sub.id)
+
+    for node in pyne_ast.walk(tree):
+        if type(node).__name__ != "Call":
+            continue
+
+        func_name = _get_func_name(node)
+        if func_name is None:
+            continue
+
+        args: list = getattr(node, "args", []) or []
+
+        if func_name == "plotshape":
+            # 첫 번째 인자에서 사용자 변수 수집
+            if args:
+                _collect_names_from_node(args[0])
+
+        elif func_name == "strategy.entry":
+            # when= 키워드 인자 탐색 (Arg.name == "when")
+            for arg in args:
+                if getattr(arg, "name", None) == "when":
+                    val = getattr(arg, "value", None)
+                    if val is not None and hasattr(val, "id") and val.id in user_vars:
+                        candidates.add(val.id)
+
+        elif func_name == "label.new":
+            # 첫 번째 인자의 삼항 test 에서 사용자 변수 수집
+            arg0_val = getattr(args[0], "value", None) if args else None
+            if arg0_val is not None and type(arg0_val).__name__ == "Conditional":
+                test_node = getattr(arg0_val, "test", None)
+                if test_node is not None:
+                    _collect_names_from_node(test_node)
+
+    return sorted(candidates & user_vars)
 
 
 def _strategy_entry_footer(signal_vars: list[str]) -> str:
