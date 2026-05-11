@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
+from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
@@ -323,7 +324,12 @@ class StressTestService:
     async def _execute_cost_assumption_sensitivity(
         self, st: StressTest, bt: Backtest
     ) -> dict[str, object]:
-        """Sprint 50 — Cost Assumption Sensitivity worker entry."""
+        """Sprint 50 — Cost Assumption Sensitivity worker entry.
+
+        Sprint 52 BL-222 P1 (2026-05-11): parent backtest config 전달. fees/slippage
+        grid 가 override 하지만 init_cash / freq / trading_sessions / BL-188 v3 sizing
+        5필드 등 cell 마다 보존 의무.
+        """
         strategy = await self.strategy_repo.find_by_id_and_owner(
             bt.strategy_id, bt.user_id
         )
@@ -339,17 +345,24 @@ class StressTestService:
         param_grid: dict[str, list[Decimal]] = {
             k: [Decimal(v) for v in vs] for k, vs in raw_grid.items()
         }
+        backtest_config = build_engine_config_from_db(bt)
         ca = run_cost_assumption_sensitivity(
             strategy.pine_source,
             ohlcv,
             param_grid=param_grid,
+            backtest_config=backtest_config,
         )
         return ca_result_to_jsonb(ca)
 
     async def _execute_param_stability(
         self, st: StressTest, bt: Backtest
     ) -> dict[str, object]:
-        """Sprint 51 BL-220 — Param Stability worker entry."""
+        """Sprint 51 BL-220 — Param Stability worker entry.
+
+        Sprint 52 BL-222 P1 (2026-05-11): parent backtest config 전달. input_overrides
+        grid 가 cell 마다 sweep key 갱신하지만, init_cash / freq / fees / slippage /
+        trading_sessions / BL-188 v3 sizing 5필드 등 그 외는 보존 의무.
+        """
         strategy = await self.strategy_repo.find_by_id_and_owner(
             bt.strategy_id, bt.user_id
         )
@@ -363,10 +376,12 @@ class StressTestService:
         param_grid: dict[str, list[Decimal]] = {
             k: [Decimal(v) for v in vs] for k, vs in raw_grid.items()
         }
+        backtest_config = build_engine_config_from_db(bt)
         ps = run_param_stability(
             strategy.pine_source,
             ohlcv,
             param_grid=param_grid,
+            backtest_config=backtest_config,
         )
         return ps_result_to_jsonb(ps)
 

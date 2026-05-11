@@ -8,11 +8,12 @@ import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any
 from uuid import UUID
 
 import pandas as pd
 
+from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.dispatcher import TaskDispatcher
 from src.backtest.engine import run_backtest
 from src.backtest.engine.types import BacktestConfig, RawTrade
@@ -361,74 +362,11 @@ class BacktestService:
         """Sprint 31 BL-162a — Backtest row 의 사용자 입력 config + initial_capital + timeframe →
         engine BacktestConfig.
 
-        bt.config NULL (legacy / Sprint 30 이전) 시 engine default 사용 (init_cash /
-        freq 만 bt 값 적용). bt.config 채워진 경우 leverage/fees/slippage/include_funding
-        모두 사용자 입력값으로 override.
-
-        Sprint 38 BL-188 v3 (codex iter 2 [P1] #3) — submit() 시점 helper 가 결정한
-        sizing canonical 5 필드 + trading_sessions 를 BacktestConfig 로 propagate.
-        본 매핑 누락 시 worker 가 Live mirror 결정 silent ignore = 거짓 trust 회복 실패.
+        Sprint 52 BL-222 P1 (2026-05-11): 본 매핑이 StressTestService 의 worker entry
+        (`_execute_cost_assumption_sensitivity` + `_execute_param_stability`) 에서도
+        필요. layering 보존 위해 `src/backtest/config_mapper.py` 로 추출 후 delegating.
         """
-        default = BacktestConfig()
-        cfg_dict: dict[str, Any] = bt.config if bt.config is not None else {}
-        # BL-188a: 폼 입력 default_qty_type / default_qty_value 도 engine 으로 전달.
-        # BL-188 v3 의 service helper 가 결정한 결과는 동일 키에 저장 (Pine 명시 시 Pine
-        # 값, 폼 manual 시 사용자 입력값, Live mirror 시 None — live_position_size_pct
-        # 만 채움). priority chain 최종 적용은 compat.parse_and_run_v2 에서.
-        form_qty_type_raw = cfg_dict.get("default_qty_type")
-        form_qty_value_raw = cfg_dict.get("default_qty_value")
-        form_qty_type: str | None = (
-            str(form_qty_type_raw) if form_qty_type_raw is not None else None
-        )
-        form_qty_value: float | None = (
-            float(form_qty_value_raw) if form_qty_value_raw is not None else None
-        )
-        # BL-188 v3 — Live mirror canonical 5 필드 (codex iter 2 [P1] #3 매핑).
-        live_pct_raw = cfg_dict.get("live_position_size_pct")
-        live_pct: float | None = (
-            float(live_pct_raw) if live_pct_raw is not None else None
-        )
-        sessions_raw = cfg_dict.get("trading_sessions") or []
-        trading_sessions_tuple: tuple[str, ...] = tuple(sessions_raw)
-        # sizing_source / sizing_basis Literal validation (legacy NULL → fallback).
-        sizing_source_raw = cfg_dict.get("sizing_source") or "fallback"
-        if sizing_source_raw not in {"pine", "live", "form", "fallback"}:
-            sizing_source_raw = "fallback"
-        sizing_source = cast(
-            Literal["pine", "live", "form", "fallback"], sizing_source_raw
-        )
-        sizing_basis_raw = cfg_dict.get("sizing_basis") or "fallback_qty1"
-        if sizing_basis_raw not in _VALID_SIZING_BASIS:
-            sizing_basis_raw = "fallback_qty1"
-        sizing_basis = cast(
-            Literal[
-                "pine_native",
-                "live_available_balance_approx_equity",
-                "form_equity",
-                "fallback_qty1",
-            ],
-            sizing_basis_raw,
-        )
-        leverage_basis: float = float(
-            cfg_dict.get("leverage_basis", default.leverage_basis)
-        )
-        return BacktestConfig(
-            init_cash=bt.initial_capital,
-            fees=float(cfg_dict.get("fees", default.fees)),
-            slippage=float(cfg_dict.get("slippage", default.slippage)),
-            freq=_timeframe_to_freq(bt.timeframe),
-            trading_sessions=trading_sessions_tuple,
-            leverage=float(cfg_dict.get("leverage", default.leverage)),
-            include_funding=bool(
-                cfg_dict.get("include_funding", default.include_funding)
-            ),
-            default_qty_type=form_qty_type,
-            default_qty_value=form_qty_value,
-            live_position_size_pct=live_pct,
-            sizing_source=sizing_source,
-            sizing_basis=sizing_basis,
-            leverage_basis=leverage_basis,
-        )
+        return build_engine_config_from_db(bt)
 
     def _raw_trades_to_models(
         self,
@@ -775,41 +713,17 @@ class BacktestService:
 
 
 # ---------------------------------------------------------------------------
-# Sprint 31 BL-162a — timeframe → pandas offset alias.
+# Sprint 31 BL-162a — timeframe / sizing canonical helpers.
+# Sprint 52 BL-222 P1 (2026-05-11): `_TIMEFRAME_TO_FREQ` / `_timeframe_to_freq` /
+# `_VALID_SIZING_BASIS` 는 `src/backtest/config_mapper.py` 로 이동. StressTestService
+# 의 worker entry 도 같은 매핑 필요 → module-level helper 분리.
 # ---------------------------------------------------------------------------
-
-
-# CreateBacktestRequest 의 6 timeframe Literal 과 정합. v2_adapter 의
-# `_FREQ_HOURS_V2` 와 정합 (avg_holding_hours 변환 매핑 한 쌍).
-_TIMEFRAME_TO_FREQ: dict[str, str] = {
-    "1m": "1min",
-    "5m": "5min",
-    "15m": "15min",
-    "1h": "1h",
-    "4h": "4h",
-    "1d": "1D",
-}
-
-
-def _timeframe_to_freq(timeframe: str) -> str:
-    """timeframe Literal → pandas offset alias. 미매핑 시 '1D' fallback (안전)."""
-    return _TIMEFRAME_TO_FREQ.get(timeframe, "1D")
 
 
 # ---------------------------------------------------------------------------
 # Sprint 38 BL-188 v3 — sizing canonical 결정 helper (codex G.0 iter 1+2 fix 반영).
 # must-fix 1 (sizing source 단일화) + must-fix 3 (leverage Nx reject) + D2 (manual override).
 # ---------------------------------------------------------------------------
-
-
-_VALID_SIZING_BASIS: frozenset[str] = frozenset(
-    {
-        "pine_native",
-        "live_available_balance_approx_equity",
-        "form_equity",
-        "fallback_qty1",
-    }
-)
 
 
 def _resolve_sizing_canonical(

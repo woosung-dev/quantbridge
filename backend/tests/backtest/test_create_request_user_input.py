@@ -19,7 +19,8 @@ from pydantic import ValidationError
 from src.backtest.engine.types import BacktestConfig as EngineBacktestConfig
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.schemas import BacktestConfigOut, CreateBacktestRequest
-from src.backtest.service import BacktestService, _timeframe_to_freq
+from src.backtest.config_mapper import timeframe_to_freq
+from src.backtest.service import BacktestService
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 
 
@@ -276,12 +277,16 @@ def test_to_detail_returns_user_config_when_set() -> None:
 
 
 def test_timeframe_to_freq_maps_all_supported_literals() -> None:
-    """CreateBacktestRequest 의 6 timeframe Literal 모두 pandas offset alias 매핑."""
-    assert _timeframe_to_freq("1m") == "1min"
-    assert _timeframe_to_freq("5m") == "5min"
-    assert _timeframe_to_freq("15m") == "15min"
-    assert _timeframe_to_freq("1h") == "1h"
-    assert _timeframe_to_freq("4h") == "4h"
-    assert _timeframe_to_freq("1d") == "1D"
+    """CreateBacktestRequest 의 6 timeframe Literal 모두 pandas offset alias 매핑.
+
+    Sprint 52 BL-222 P1 (2026-05-11): `_timeframe_to_freq` 가 `src/backtest/config_mapper.py`
+    로 이동. 본 테스트는 신규 module-level helper `timeframe_to_freq` 를 검증.
+    """
+    assert timeframe_to_freq("1m") == "1min"
+    assert timeframe_to_freq("5m") == "5min"
+    assert timeframe_to_freq("15m") == "15min"
+    assert timeframe_to_freq("1h") == "1h"
+    assert timeframe_to_freq("4h") == "4h"
+    assert timeframe_to_freq("1d") == "1D"
     # 미매핑 fallback
-    assert _timeframe_to_freq("30m") == "1D"
+    assert timeframe_to_freq("30m") == "1D"
