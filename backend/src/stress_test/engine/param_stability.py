@@ -95,11 +95,18 @@ def _validate_param_grid_for_pine(
     pine_source: str,
     param_grid: dict[str, list[Decimal]],
 ) -> None:
-    """pre_validate hook — pine 도메인 검증 (analyze_coverage + var_name + BL-225).
+    """pre_validate hook — pine 도메인 검증 (2-key + analyze_coverage + var_name + BL-225).
 
     Sprint 53 lift-up: grid_sweep generic engine 이 책임지지 않는 도메인 검증을
-    여기에 통합. Optimizer (Sprint 54) 는 별도 hook 작성.
+    여기에 통합. Sprint 54 BL-228 generic engine N-dim 화 후, 2-key 강제는 param_stability
+    wrapper 책임 (heatmap result_jsonb param1_name/param2_name 컬럼 호환).
+    Optimizer (Sprint 54) 는 별도 hook 작성 (N-dim 본격 사용).
     """
+    if len(param_grid) != 2:
+        raise ValueError(
+            f"param_grid must have exactly 2 keys for param stability "
+            f"(got {len(param_grid)}). Optimizer (Sprint 54+) 가 N-dim 본격 지원."
+        )
     # pre-flight (전체 grid 공통). 미지원 pine 1개라도 → reject.
     coverage = analyze_coverage(pine_source)
     if not coverage.is_runnable:

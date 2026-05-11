@@ -256,6 +256,11 @@ def create_app() -> FastAPI:
 
     app.include_router(stress_test_router, prefix="/api/v1")
 
+    # Sprint 54 — Phase 3 Optimizer Grid Search MVP
+    from src.optimizer.router import router as optimizer_router
+
+    app.include_router(optimizer_router, prefix="/api/v1")
+
     # Sprint 11 Phase C — Waitlist domain
     from src.waitlist.router import router as waitlist_router
 
