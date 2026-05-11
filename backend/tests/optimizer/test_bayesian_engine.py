@@ -10,19 +10,23 @@ import pandas as pd
 import pytest
 from skopt.space import Categorical, Integer, Real
 
+import numpy as np
+
 from src.optimizer.engine.bayesian import (
     _BAYESIAN_RANDOM_STATE,
     _DEGENERATE_PENALTY,
     _MAX_BAYESIAN_EVALUATIONS,
     BayesianIteration,
     _coerce_skopt_to_decimal,
+    _has_normal_prior,
+    _inject_normal_prior_values,
     _objective_from_metrics,
     _param_space_to_skopt_dimensions,
     _pick_best_iteration_idx,
     _y_from_objective,
     run_bayesian_search,
 )
-from src.optimizer.schemas import BayesianHyperparamsField, ParamSpace
+from src.optimizer.schemas import BayesianHyperparamsField, CategoricalField, ParamSpace
 from src.optimizer.serializers import (
     bayesian_search_result_from_jsonb,
     bayesian_search_result_to_jsonb,
@@ -137,10 +141,9 @@ class TestParamSpaceToSkoptDimensions:
         assert isinstance(dims[0], Real)
         assert dims[0].prior == "log-uniform"
 
-    def test_bayesian_normal_prior_raises_not_implemented(self) -> None:
-        """ADR-013 §7 amendment — Sprint 55 prior=normal NotImplementedError."""
-        # schemas Literal["uniform","log_uniform","normal"] 은 accept (Sprint 56+ 활성).
-        # engine 안에서만 reject.
+    def test_bayesian_normal_prior_maps_to_real_uniform_for_skopt(self) -> None:
+        """Sprint 57 BL-234 — prior='normal' 은 skopt에 'uniform'으로 등록 (inject가 처리)."""
+        # Sprint 55: NotImplementedError → Sprint 57: skopt Real(uniform)으로 등록
         field = BayesianHyperparamsField(
             kind="bayesian",
             min=Decimal("1"),
@@ -157,8 +160,9 @@ class TestParamSpaceToSkoptDimensions:
             bayesian_n_initial_random=3,
             bayesian_acquisition="EI",
         )
-        with pytest.raises(NotImplementedError, match="prior='normal'"):
-            _param_space_to_skopt_dimensions(space)
+        dims, _ = _param_space_to_skopt_dimensions(space)
+        assert isinstance(dims[0], Real)
+        assert dims[0].prior == "uniform"  # skopt는 uniform; inject가 normal sampling
 
     def test_integer_field_maps_to_integer(self) -> None:
         space = _build_param_space(
@@ -471,3 +475,166 @@ class TestSerializerRoundTrip:
         assert restored.iterations[1].is_degenerate
         assert restored.degenerate_count == result.degenerate_count
         assert restored.bayesian_acquisition == "EI"
+
+
+# === Sprint 57 BL-234 — normal prior + one_hot transform ===
+
+
+class TestSlice57BayesianNormalPriorAndOneHot:
+    """BL-234: Bayesian prior=normal inject sampler + CategoricalField one_hot transform."""
+
+    # ── one_hot transform ──────────────────────────────────────────────────
+
+    def test_categorical_onehot_transformed_size(self) -> None:
+        """encoding=one_hot → skopt Categorical.transformed_size == n_categories."""
+        ps = _build_param_space(
+            {
+                "mode": {
+                    "kind": "categorical",
+                    "values": ["SMA", "EMA", "WMA"],
+                    "encoding": "one_hot",
+                }
+            },
+            bayesian_n_initial_random=2,
+        )
+        dims, _ = _param_space_to_skopt_dimensions(ps)
+        assert isinstance(dims[0], Categorical)
+        assert dims[0].transformed_size == 3  # one_hot: 3 categories → 3-dim
+
+    def test_categorical_label_transformed_size(self) -> None:
+        """encoding=label (default) → transformed_size == 1 (ordinal)."""
+        ps = _build_param_space(
+            {"mode": {"kind": "categorical", "values": ["A", "B", "C"]}},
+            bayesian_n_initial_random=2,
+        )
+        dims, _ = _param_space_to_skopt_dimensions(ps)
+        assert isinstance(dims[0], Categorical)
+        assert dims[0].transformed_size == 1
+
+    # ── _has_normal_prior ─────────────────────────────────────────────────
+
+    def test_has_normal_prior_true(self) -> None:
+        ps = _build_param_space(
+            {
+                "x": {
+                    "kind": "bayesian",
+                    "min": "0",
+                    "max": "1",
+                    "prior": "normal",
+                }
+            },
+        )
+        assert _has_normal_prior(ps) is True
+
+    def test_has_normal_prior_false_for_uniform(self) -> None:
+        ps = _build_param_space(
+            {
+                "x": {
+                    "kind": "bayesian",
+                    "min": "0",
+                    "max": "1",
+                    "prior": "uniform",
+                }
+            },
+        )
+        assert _has_normal_prior(ps) is False
+
+    def test_has_normal_prior_false_for_integer_field(self) -> None:
+        ps = _build_param_space({"p": {"kind": "integer", "min": 1, "max": 5}})
+        assert _has_normal_prior(ps) is False
+
+    # ── _inject_normal_prior_values ────────────────────────────────────────
+
+    def test_inject_clips_to_range(self) -> None:
+        """inject 함수는 [min, max] 범위 밖 값을 clip해야 함."""
+        ps = _build_param_space(
+            {
+                "x": {
+                    "kind": "bayesian",
+                    "min": "0.4",
+                    "max": "0.6",
+                    "prior": "normal",
+                }
+            },
+        )
+        rng = np.random.RandomState(seed=42)
+        result = _inject_normal_prior_values([999.0], ["x"], ps, rng)
+        assert 0.4 <= result[0] <= 0.6
+
+    def test_inject_only_replaces_normal_prior_dims(self) -> None:
+        """non-normal 차원은 skopt 값 그대로 유지."""
+        ps = _build_param_space(
+            {
+                "normal_x": {
+                    "kind": "bayesian",
+                    "min": "0",
+                    "max": "1",
+                    "prior": "normal",
+                },
+                "uniform_y": {
+                    "kind": "bayesian",
+                    "min": "5",
+                    "max": "10",
+                    "prior": "uniform",
+                },
+            },
+        )
+        rng = np.random.RandomState(seed=42)
+        original_uniform_val = 7.0
+        result = _inject_normal_prior_values(
+            [999.0, original_uniform_val], ["normal_x", "uniform_y"], ps, rng
+        )
+        # normal_x 는 inject → [0, 1] 범위 안
+        assert 0.0 <= result[0] <= 1.0
+        # uniform_y 는 원래 skopt 값 유지
+        assert result[1] == original_uniform_val
+
+    # ── run_bayesian_search with normal prior ─────────────────────────────
+
+    def test_normal_prior_no_longer_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """prior=normal → NotImplementedError 대신 정상 실행.
+
+        PINE_WITH_INPUTS 의 stopLossPct(float) 변수명 사용.
+        """
+        monkeypatch.setattr(
+            "src.optimizer.engine.bayesian.run_backtest",
+            lambda *a, **kw: _fake_outcome(),
+        )
+        ps = _build_param_space(
+            {
+                "stopLossPct": {
+                    "kind": "bayesian",
+                    "min": "0.5",
+                    "max": "3.0",
+                    "prior": "normal",
+                }
+            },
+            max_evaluations=3,
+            bayesian_n_initial_random=2,
+        )
+        result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=ps)
+        assert len(result.iterations) == 3
+
+    def test_normal_prior_initial_points_in_range(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """normal prior 초기 포인트는 [min, max] clip 후 범위 내에 있어야 함."""
+        monkeypatch.setattr(
+            "src.optimizer.engine.bayesian.run_backtest",
+            lambda *a, **kw: _fake_outcome(),
+        )
+        ps = _build_param_space(
+            {
+                "stopLossPct": {
+                    "kind": "bayesian",
+                    "min": "0.5",
+                    "max": "5.0",
+                    "prior": "normal",
+                }
+            },
+            max_evaluations=5,
+            bayesian_n_initial_random=4,
+        )
+        result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=ps)
+        for it in result.iterations[:4]:  # random phase only
+            assert Decimal("0.5") <= it.params["stopLossPct"] <= Decimal("5.0")
