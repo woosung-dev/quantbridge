@@ -18,8 +18,26 @@ def test_optimization_not_found_error_carries_id() -> None:
     assert str(run_id) in str(err)
 
 
-def test_optimization_kind_unsupported_error_message() -> None:
-    """unsupported kind 명시 메시지 (Sprint 54 = grid_search 만 구현)."""
-    err = OptimizationKindUnsupportedError("bayesian")
-    assert err.kind == "bayesian"
-    assert "bayesian" in str(err)
+def test_optimization_kind_unsupported_error_message_lists_supported() -> None:
+    """Sprint 55 = grid_search + bayesian. 메시지 안 supported list 노출 의무."""
+    err = OptimizationKindUnsupportedError("genetic")
+    assert err.kind == "genetic"
+    msg = str(err)
+    assert "grid_search" in msg
+    assert "bayesian" in msg
+
+
+def test_optimization_kind_unsupported_error_genetic_message() -> None:
+    """Sprint 56+ Genetic 활성 path 명시 (BL-233)."""
+    err = OptimizationKindUnsupportedError("genetic")
+    msg = str(err)
+    assert "Sprint 56+" in msg
+    assert "BL-233" in msg
+
+
+def test_optimization_kind_out_bayesian_active() -> None:
+    """OptimizationKindOut.BAYESIAN 가 enum 안 활성 (Sprint 55 schemas Slice 1)."""
+    from src.optimizer.schemas import OptimizationKindOut
+
+    assert OptimizationKindOut.BAYESIAN.value == "bayesian"
+    assert "bayesian" in [k.value for k in OptimizationKindOut]

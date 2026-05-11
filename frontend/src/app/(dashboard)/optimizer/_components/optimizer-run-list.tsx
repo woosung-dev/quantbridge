@@ -59,10 +59,18 @@ export function OptimizerRunList({
         </thead>
         <tbody>
           {data.items.map((r) => {
-            const best =
-              r.result != null && r.result.best_cell_index !== null
-                ? r.result.cells[r.result.best_cell_index]
-                : null;
+            // Sprint 55 — discriminated union by result.kind. Best 표시 = grid_search 면 cell objective,
+            // bayesian 이면 best_iteration objective_value.
+            let bestObjective: number | null = null;
+            if (r.result?.kind === "grid_search" && r.result.best_cell_index !== null) {
+              bestObjective =
+                r.result.cells[r.result.best_cell_index]?.objective_value ?? null;
+            } else if (
+              r.result?.kind === "bayesian" &&
+              r.result.best_iteration_idx !== null
+            ) {
+              bestObjective = r.result.best_objective_value;
+            }
             return (
               <tr key={r.id} className="border-b hover:bg-muted/30">
                 <td className="p-2 font-mono text-xs">
@@ -87,9 +95,7 @@ export function OptimizerRunList({
                   {r.param_space.objective_metric} ({r.param_space.direction})
                 </td>
                 <td className="p-2 text-xs">
-                  {best == null
-                    ? "—"
-                    : `${best.objective_value?.toFixed(2) ?? "—"}`}
+                  {bestObjective === null ? "—" : bestObjective.toFixed(2)}
                 </td>
                 <td className="p-2 text-xs text-muted-foreground">
                   {new Date(r.created_at).toLocaleString()}

@@ -16,6 +16,7 @@ import {
 import {
   getOptimizationRun,
   listOptimizationRuns,
+  postBayesianSearch,
   postGridSearch,
 } from "./api";
 import {
@@ -80,6 +81,23 @@ export function useSubmitGridSearch(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body) => postGridSearch(body, await getToken()),
+    onSuccess: () => {
+      const uid = userId ?? ANON_USER_ID;
+      void queryClient.invalidateQueries({ queryKey: optimizerKeys.all(uid) });
+    },
+  });
+}
+
+// Sprint 55 — Bayesian executor submit mutation (ADR-013 §6 #5).
+export function useSubmitBayesianSearch(): UseMutationResult<
+  OptimizationRunResponse,
+  Error,
+  CreateOptimizationRunRequest
+> {
+  const { userId, getToken } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body) => postBayesianSearch(body, await getToken()),
     onSuccess: () => {
       const uid = userId ?? ANON_USER_ID;
       void queryClient.invalidateQueries({ queryKey: optimizerKeys.all(uid) });

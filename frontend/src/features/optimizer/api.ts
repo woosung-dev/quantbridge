@@ -27,6 +27,21 @@ export async function postGridSearch(
   return OptimizationRunResponseSchema.parse(raw);
 }
 
+// Sprint 55 — Bayesian executor submit (ADR-013 §6 #5).
+// 별도 endpoint 결정 (단일 endpoint discriminated 분기 X) — Sprint 54 grid-search 패턴 mirror.
+export async function postBayesianSearch(
+  body: CreateOptimizationRunRequest,
+  token: string | null,
+): Promise<OptimizationRunResponse> {
+  const parsed = CreateOptimizationRunRequestSchema.parse(body);
+  const raw = await apiFetch<unknown>(`${OPTIMIZER_PATH}/runs/bayesian`, {
+    method: "POST",
+    token,
+    body: parsed,
+  });
+  return OptimizationRunResponseSchema.parse(raw);
+}
+
 export async function getOptimizationRun(
   id: string,
   token: string | null,

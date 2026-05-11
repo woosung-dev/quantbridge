@@ -41,7 +41,10 @@ class OptimizationNotFoundError(NotFoundError):
 
 
 class OptimizationKindUnsupportedError(ValidationError):
-    """미지원 Optimizer 알고리즘 (Sprint 54 = grid_search 만) — 422 + machine-readable code."""
+    """미지원 Optimizer 알고리즘 (Sprint 55 = grid_search + bayesian) — 422 + machine-readable code.
+
+    Sprint 56+ = GENETIC executor 활성 시 본 메시지 갱신 의무 (BL-233).
+    """
 
     code = "OPTIMIZATION_KIND_UNSUPPORTED"
 
@@ -49,7 +52,8 @@ class OptimizationKindUnsupportedError(ValidationError):
         self.kind = kind
         super().__init__(
             f"Optimization kind {kind!r} not supported. "
-            "Sprint 54 MVP = grid_search only."
+            "Sprint 55 supports: {grid_search, bayesian}. "
+            "genetic = Sprint 56+ (BL-233)."
         )
 
 

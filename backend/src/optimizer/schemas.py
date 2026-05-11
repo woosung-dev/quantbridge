@@ -1,4 +1,4 @@
-# Optimizer 도메인 Pydantic V2 schemas — Sprint 53 discriminated union grammar lock.
+# Optimizer 도메인 Pydantic V2 schemas — Sprint 55 schema_version=2 + Bayesian discriminated union 확장.
 
 from __future__ import annotations
 
@@ -14,9 +14,10 @@ from src.common.strict_decimal_input import StrictDecimalInput
 
 
 class OptimizationKindOut(StrEnum):
-    """FE mirror — Sprint 54 본격 구현 시 Bayesian / Genetic 추가."""
+    """FE mirror — Sprint 55 = BAYESIAN 활성. Sprint 56+ = GENETIC 추가 예정."""
 
     GRID_SEARCH = "grid_search"
+    BAYESIAN = "bayesian"
 
 
 class OptimizationStatusOut(StrEnum):
@@ -86,26 +87,101 @@ class CategoricalField(BaseModel):
     values: list[str] = Field(min_length=1)
 
 
-# Discriminated union — codex G.0 P1#4 fix. `dict[str, Any]` lock 미흡 해소.
+class BayesianHyperparamsField(BaseModel):
+    """Bayesian 탐색 field — Sprint 55 ADR-013 §2.1 등재.
+
+    skopt Optimizer.ask/tell loop 의 sampling space 1개 변수에 매핑된다.
+    `prior=normal` 은 skopt 미지원 — Sprint 55 = 자체 sampler wrapper (engine/bayesian.py).
+    `log_scale=True` 또는 `prior="log_uniform"` 시 min > 0 강제 (log10 정의역).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["bayesian"] = "bayesian"
+    min: StrictDecimalInput
+    max: StrictDecimalInput
+    prior: Literal["uniform", "log_uniform", "normal"] = "uniform"
+    log_scale: bool = False
+
+    @model_validator(mode="after")
+    def _validate_invariants(self) -> BayesianHyperparamsField:
+        if self.min >= self.max:
+            raise ValueError(
+                f"BayesianHyperparamsField.min must be < max (got min={self.min}, max={self.max})"
+            )
+        if (self.log_scale or self.prior == "log_uniform") and self.min <= Decimal("0"):
+            raise ValueError(
+                "BayesianHyperparamsField log_scale=True or prior='log_uniform' requires min > 0 "
+                f"(ADR-013 §2.5; got min={self.min})"
+            )
+        return self
+
+
+# Discriminated union — Sprint 55 BayesianHyperparamsField 추가 (4-variant).
 ParamSpaceField = Annotated[
-    IntegerField | DecimalField | CategoricalField,
+    IntegerField | DecimalField | CategoricalField | BayesianHyperparamsField,
     Field(discriminator="kind"),
 ]
 
 
 class ParamSpace(BaseModel):
-    """탐색 공간 grammar — Sprint 54 grid_search / 미래 bayesian/genetic 양쪽 수용 contract.
+    """탐색 공간 grammar — Sprint 55 schema_version=2 확장 (Bayesian executor 본격).
 
-    schema_version Literal[1] = grammar lock. Sprint 54+ 확장 시 명시 분기 의무.
+    schema_version=1 = Grid Search MVP (BayesianHyperparamsField + 5 optional 필드 reject).
+    schema_version=2 = Bayesian 활성 + Genetic 3종 reservation (Sprint 56+ executor).
+    cross-field validator 가 양쪽 path invariant 강제 (ADR-013 §2.2).
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     objective_metric: str  # e.g. "sharpe_ratio" / "total_return" / "max_drawdown"
     direction: Literal["maximize", "minimize"]
     max_evaluations: int = Field(gt=0)
     parameters: dict[str, ParamSpaceField]
+
+    # Sprint 55 = Bayesian 활성 2 필드 (schema_version=2 only).
+    bayesian_n_initial_random: int | None = Field(default=None, ge=1, le=50)
+    bayesian_acquisition: Literal["EI", "UCB", "PI"] | None = None
+
+    # Sprint 56+ = Genetic 3 필드 reservation (ADR-013 §2.1, schema_version=2 only).
+    population_size: int | None = Field(default=None, ge=2, le=200)
+    n_generations: int | None = Field(default=None, ge=1, le=100)
+    mutation_rate: StrictDecimalInput | None = None
+
+    @model_validator(mode="after")
+    def _validate_cross_field(self) -> ParamSpace:
+        """schema_version * parameter kind * optional 필드 invariant (ADR-013 §2.2)."""
+        v2_only_fields = {
+            "bayesian_n_initial_random": self.bayesian_n_initial_random,
+            "bayesian_acquisition": self.bayesian_acquisition,
+            "population_size": self.population_size,
+            "n_generations": self.n_generations,
+            "mutation_rate": self.mutation_rate,
+        }
+        has_bayesian_field = any(
+            isinstance(p, BayesianHyperparamsField) for p in self.parameters.values()
+        )
+
+        if self.schema_version == 1:
+            populated_v2 = [name for name, val in v2_only_fields.items() if val is not None]
+            if populated_v2:
+                raise ValueError(
+                    f"ParamSpace schema_version=1 forbids v2-only fields {sorted(populated_v2)}; "
+                    f"set schema_version=2 to enable Bayesian/Genetic."
+                )
+            if has_bayesian_field:
+                raise ValueError(
+                    "ParamSpace schema_version=1 forbids BayesianHyperparamsField; "
+                    "set schema_version=2 to enable Bayesian executor."
+                )
+
+        if has_bayesian_field and self.schema_version != 2:
+            raise ValueError(
+                "BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2)."
+            )
+
+        return self
 
 
 class CreateOptimizationRunRequest(BaseModel):
