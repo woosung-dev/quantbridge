@@ -6,6 +6,7 @@ TradingView strategy 속성 패턴 (수수료 / 슬리피지 / leverage / includ
 
 DB 의존 없는 pure unit test — Pydantic V2 validation + service helper 검증만.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -16,10 +17,10 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from src.backtest.config_mapper import timeframe_to_freq
 from src.backtest.engine.types import BacktestConfig as EngineBacktestConfig
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.schemas import BacktestConfigOut, CreateBacktestRequest
-from src.backtest.config_mapper import timeframe_to_freq
 from src.backtest.service import BacktestService
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 
