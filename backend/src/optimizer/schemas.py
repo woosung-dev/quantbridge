@@ -151,7 +151,7 @@ class ParamSpace(BaseModel):
 
     @model_validator(mode="after")
     def _validate_cross_field(self) -> ParamSpace:
-        """schema_version × parameter kind × optional 필드 invariant (ADR-013 §2.2)."""
+        """schema_version * parameter kind * optional 필드 invariant (ADR-013 §2.2)."""
         v2_only_fields = {
             "bayesian_n_initial_random": self.bayesian_n_initial_random,
             "bayesian_acquisition": self.bayesian_acquisition,

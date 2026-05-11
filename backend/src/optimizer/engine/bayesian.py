@@ -10,7 +10,7 @@ ask-tell 패턴 + BSD-3 + random_state 결정성. ADR-013 §5 reference 따라 �
 작성 불필요 (Sprint 55 close-out dev-log §7 amendment 1 paragraph 으로 충분).
 
 서버 50 evaluation 강제 상한 (Plan §11.7): default queue + soft_time_limit 부재
-시 cell × 50 = 250s+ Celery worker block 위험. dedicated queue + soft_time_limit
+시 cell * 50 = 250s+ Celery worker block 위험. dedicated queue + soft_time_limit
 은 Sprint 56+ BL-237.
 
 direction=maximize 처리 — skopt 는 minimization → ``-float(objective_value)`` tell
@@ -267,9 +267,7 @@ def _pick_best_iteration_idx(
 ) -> int | None:
     """direction 적용 best iteration idx 반환. 모든 iteration degenerate → None."""
     candidates = [
-        (it.idx, it.objective_value)
-        for it in iterations
-        if it.objective_value is not None
+        (it.idx, it.objective_value) for it in iterations if it.objective_value is not None
     ]
     if not candidates:
         return None
@@ -320,8 +318,7 @@ def run_bayesian_search(
         )
     if param_space.bayesian_acquisition is None:
         raise ValueError(
-            "Bayesian search requires param_space.bayesian_acquisition "
-            "∈ {'EI', 'UCB', 'PI'}."
+            "Bayesian search requires param_space.bayesian_acquisition ∈ {'EI', 'UCB', 'PI'}."
         )
     if param_space.max_evaluations > _MAX_BAYESIAN_EVALUATIONS:
         raise ValueError(
@@ -342,7 +339,9 @@ def run_bayesian_search(
         raise ValueError("param_space.parameters must declare at least 1 variable.")
 
     # UCB → LCB 부호 변환 (skopt 는 minimization 전제 = LCB).
-    skopt_acq = "LCB" if param_space.bayesian_acquisition == "UCB" else param_space.bayesian_acquisition
+    skopt_acq = (
+        "LCB" if param_space.bayesian_acquisition == "UCB" else param_space.bayesian_acquisition
+    )
 
     optimizer = SkoptOptimizer(
         dimensions=dimensions,
