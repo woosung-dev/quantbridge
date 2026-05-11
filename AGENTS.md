@@ -237,7 +237,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 
 **전체 sprint 이력:** [`docs/dev-log/INDEX.md`](docs/dev-log/INDEX.md) — 42+ 회고·ADR·dogfood 기록 인덱스
 
-**미해결 BL:** [`docs/REFACTORING-BACKLOG.md`](docs/REFACTORING-BACKLOG.md) — Sprint 57 종료 시점 **89 active BL** (Sprint 56 종료 91 → BL-234 Resolved -1 = 90 → BL-237 Resolved -1 = 89 net).
+**미해결 BL:** [`docs/REFACTORING-BACKLOG.md`](docs/REFACTORING-BACKLOG.md) — Sprint 57 종료 시점 **92 active BL** (Sprint 56 종료 91 → BL-234/237 Resolved -2 = 89 → BL-241/242/243 신규 +3 = 92 net).
 
 **상시 활성 컨텍스트 (영구 기록 외 발견 패턴):**
 
