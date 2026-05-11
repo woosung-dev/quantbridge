@@ -16,9 +16,11 @@ type Opts = { onSuccess?: (r: { stress_test_id: string }) => void } | null;
 let mcMutation: MutationMock;
 let wfMutation: MutationMock;
 let caMutation: MutationMock;
+let psMutation: MutationMock;
 let lastMcOpts: Opts;
 let _lastWfOpts: Opts;
 let _lastCaOpts: Opts;
+let lastPsOpts: Opts;
 let stressData: StressTestDetail | undefined;
 
 vi.mock("@/features/backtest/hooks", () => ({
@@ -33,6 +35,10 @@ vi.mock("@/features/backtest/hooks", () => ({
   useCreateCostAssumption: (opts: Opts) => {
     _lastCaOpts = opts;
     return caMutation;
+  },
+  useCreateParamStability: (opts: Opts) => {
+    lastPsOpts = opts;
+    return psMutation;
   },
   useStressTest: () => ({
     data: stressData,
@@ -53,9 +59,11 @@ beforeEach(() => {
   mcMutation = { mutate: vi.fn(), isPending: false };
   wfMutation = { mutate: vi.fn(), isPending: false };
   caMutation = { mutate: vi.fn(), isPending: false };
+  psMutation = { mutate: vi.fn(), isPending: false };
   lastMcOpts = null;
   _lastWfOpts = null;
   _lastCaOpts = null;
+  lastPsOpts = null;
   stressData = undefined;
 });
 
@@ -202,5 +210,97 @@ describe("StressTestPanel", () => {
 
     // running 상태 UI 텍스트 렌더 확인.
     expect(screen.getByText(/실행 중/)).toBeInTheDocument();
+  });
+
+  // Sprint 52 BL-223 — Param Stability wire-up
+  it("Param Stability 버튼 클릭 시 form toggle + 제출 시 psMutation.mutate 호출", () => {
+    render(
+      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
+    );
+    // 초기 form 미표시
+    expect(screen.queryByTestId("param-stability-form")).not.toBeInTheDocument();
+    // 버튼 클릭 → form 표시
+    fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
+    expect(screen.getByTestId("param-stability-form")).toBeInTheDocument();
+    // form 제출 → mutation 호출
+    fireEvent.click(
+      screen.getByRole("button", { name: "Param Stability 실행" }),
+    );
+    // 첫 번째는 panel 버튼이지만 form 내부 submit 버튼도 같은 라벨 → 같은 form 의 submit 버튼이 호출됨
+    // 정확한 검증: 4 개 button (panel 4 + form 2 = 6) 중 form submit 만 mutation 호출
+    expect(psMutation.mutate).toHaveBeenCalled();
+    const payload = psMutation.mutate.mock.calls[0]?.[0] as {
+      backtest_id: string;
+      params: { param_grid: Record<string, string[]> };
+    };
+    expect(payload.backtest_id).toBe(
+      "abc12345-1111-4111-8111-111111111111",
+    );
+    expect(Object.keys(payload.params.param_grid)).toEqual([
+      "emaPeriod",
+      "stopLossPct",
+    ]);
+  });
+
+  it("psMutation onSuccess → activeStressTestId 설정 + form 자동 닫힘", () => {
+    render(
+      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
+    expect(screen.getByTestId("param-stability-form")).toBeInTheDocument();
+
+    act(() => {
+      lastPsOpts?.onSuccess?.({
+        stress_test_id: "22222222-2222-4222-8222-222222222222",
+      });
+    });
+    // form 자동 닫힘 + 버튼 라벨 "실행" 으로 복귀
+    expect(screen.queryByTestId("param-stability-form")).not.toBeInTheDocument();
+  });
+
+  it("param_stability completed → ParamStabilityHeatmap 분기 렌더", () => {
+    stressData = {
+      id: "22222222-2222-4222-8222-222222222222",
+      backtest_id: "abc12345-1111-4111-8111-111111111111",
+      kind: "param_stability",
+      status: "completed",
+      params: {},
+      monte_carlo_result: null,
+      walk_forward_result: null,
+      cost_assumption_result: null,
+      param_stability_result: {
+        param1_name: "emaPeriod",
+        param2_name: "stopLossPct",
+        param1_values: ["10", "20", "30"],
+        param2_values: ["1.0", "2.0", "3.0"],
+        cells: Array.from({ length: 9 }, () => ({
+          param1_value: "10",
+          param2_value: "1.0",
+          sharpe: "0.5",
+          total_return: "0.05",
+          max_drawdown: "-0.02",
+          num_trades: 10,
+          is_degenerate: false,
+        })),
+      },
+      error: null,
+      created_at: "2026-05-11T00:00:00+00:00",
+      started_at: "2026-05-11T00:00:00+00:00",
+      completed_at: "2026-05-11T00:01:00+00:00",
+    };
+
+    render(
+      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
+    act(() => {
+      lastPsOpts?.onSuccess?.({
+        stress_test_id: "22222222-2222-4222-8222-222222222222",
+      });
+    });
+
+    // heatmap 의 axis 변수명 노출 검증
+    expect(screen.getAllByText(/emaPeriod/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/stopLossPct/).length).toBeGreaterThan(0);
   });
 });
