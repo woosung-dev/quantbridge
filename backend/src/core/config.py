@@ -199,6 +199,22 @@ class Settings(BaseSettings):
             raise ValueError("SLACK_WEBHOOK_URL must start with https://hooks.slack.com/")
         return v
 
+    # --- Experiment: Pine Script → Strategy 변환 (Claude API) ---
+    anthropic_api_key: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Claude API key for Pine Script → Strategy auto-conversion (indicator 분석용). "
+            "발급: https://console.anthropic.com/ → API Keys. 미설정 시 convert 엔드포인트 비활성."
+        ),
+    )
+    anthropic_model: str = Field(
+        default="claude-sonnet-4-6",
+        description=(
+            "Claude 모델 ID for convert endpoint. Sonnet (4-6) 권장 (속도+비용 최적). "
+            "Opus (3) 도 지원하나 비용 3배."
+        ),
+    )
+
     # --- Sprint 11 Phase C: Waitlist ---
     resend_api_key: SecretStr = Field(
         default=SecretStr(""),
