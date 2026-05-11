@@ -95,6 +95,64 @@ class TestParamStabilitySubmitRequest:
         assert len(req.params.param_grid) == 2
 
 
+class TestParamStabilityParamsStrictDecimalInput:
+    """Sprint 53 BL-226 — StrictDecimalInput Request-boundary canonicalization.
+
+    FE `isFiniteDecimalString` regex `^-?\\d+(\\.\\d+)?$` 와 BE Pydantic Decimal
+    grammar 정합. `1e-3`, `.5`, `+1`, `Decimal("NaN")`, `Decimal("1E+5")` reject.
+    """
+
+    def test_scientific_notation_string_rejected(self) -> None:
+        """param_grid value `"1e-3"` reject (FE regex 와 mirror)."""
+        with pytest.raises(ValueError):
+            ParamStabilityParams(
+                param_grid={
+                    "emaPeriod": ["1e-3"],  # type: ignore[list-item]
+                    "stopLossPct": [Decimal("1.0")],
+                }
+            )
+
+    def test_leading_dot_string_rejected(self) -> None:
+        """param_grid value `".5"` reject."""
+        with pytest.raises(ValueError):
+            ParamStabilityParams(
+                param_grid={
+                    "emaPeriod": [".5"],  # type: ignore[list-item]
+                    "stopLossPct": [Decimal("1.0")],
+                }
+            )
+
+    def test_plus_prefix_string_rejected(self) -> None:
+        """param_grid value `"+1"` reject."""
+        with pytest.raises(ValueError):
+            ParamStabilityParams(
+                param_grid={
+                    "emaPeriod": ["+1"],  # type: ignore[list-item]
+                    "stopLossPct": [Decimal("1.0")],
+                }
+            )
+
+    def test_nan_decimal_instance_rejected(self) -> None:
+        """param_grid value `Decimal("NaN")` reject (canonicalization)."""
+        with pytest.raises(ValueError):
+            ParamStabilityParams(
+                param_grid={
+                    "emaPeriod": [Decimal("NaN")],
+                    "stopLossPct": [Decimal("1.0")],
+                }
+            )
+
+    def test_large_exponent_decimal_instance_rejected(self) -> None:
+        """param_grid value `Decimal("1E+5")` reject (canonicalization)."""
+        with pytest.raises(ValueError):
+            ParamStabilityParams(
+                param_grid={
+                    "emaPeriod": [Decimal("1E+5")],
+                    "stopLossPct": [Decimal("1.0")],
+                }
+            )
+
+
 class TestParamStabilityResultOut:
     """Result serialization — Decimal → str (FE 정합)."""
 

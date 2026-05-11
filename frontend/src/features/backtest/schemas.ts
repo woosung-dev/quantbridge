@@ -474,6 +474,7 @@ export type CreateWalkForwardRequest = z.infer<
 const MAX_GRID_CELLS = 9 as const;
 
 // Decimal string 검증: numeric parse 가능 + finite (NaN/Infinity reject) + non-empty.
+// BE mirror: backend/src/common/strict_decimal_input.py StrictDecimalInput 와 정합 (BL-226).
 function isFiniteDecimalString(s: string): boolean {
   if (s.length === 0) return false;
   // strict decimal grammar — optional sign + digits + optional fraction
