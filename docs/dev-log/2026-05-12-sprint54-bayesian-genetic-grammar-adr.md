@@ -209,4 +209,53 @@ Sprint 55 close-out 시 `docs/REFACTORING-BACKLOG.md` 5건 신규:
 
 ---
 
-**End of ADR-013** (Sprint 55 amendment 적용).
+## 8. Sprint 56 amendment — Genetic executor 본격 구현 (BL-233 Resolved)
+
+> Sprint 56 (`feat/sprint56-genetic-optimizer`, 2026-05-11) close-out 시점 추가. §6 8-checklist 중 (1)~(7) 처리 + Genetic 활성. (8) FE N-dim viz Sprint 57+ BL-235 이연 (Bayesian 와 공용).
+
+### 8.1 GA 라이브러리 결정 — self-implementation (외부 dep 0)
+
+§5 References 의 "Sprint 56+ Genetic" 항목 따라 검토. DEAP / PyGAD 양쪽 모두 our domain 부적합 결론 → ~250L self-impl 채택:
+
+1. **DEAP** — LGPL-3 license (검토 필요) + Decimal/int discrete 지원 약함 (float lock + wrapper 비용 증가) + toolbox/creator boilerplate ~50L 오히려 noise.
+2. **PyGAD** — numpy float 고정 (Decimal/int 직접 지원 X) + 마지막 릴리스 2023 + 소규모 maintenance.
+3. **Self-implementation** (~250L) — `random.Random(_GENETIC_RANDOM_STATE)` 단일 인스턴스로 결정성 + Decimal/int param space 직접 처리 + 단일 objective + 소규모 (≤ 50 evaluations) 우리 dogfood scope 에 정확 fit. Sprint 57+ NSGA-II / multi-objective / island model 필요 시 DEAP 마이그레이션 검토 여지.
+
+### 8.2 보완 결정 (Sprint 56 lock)
+
+- **4 hyperparam — population_size / n_generations / mutation_rate / crossover_rate** — reserved 3 (population_size / n_generations / mutation_rate) + Sprint 56 신규 crossover_rate. `mutation_rate / crossover_rate ∈ (0, 1]` cross-field validator 강제. selection_method / elitism / island migration 은 hard-coded default (tournament size=3 / no elitism) — Sprint 57+ enum 확장 path (BL-234 묶음 후보).
+- **GeneticHyperparamsField 별도 신규 안 함** — Bayesian 와 달리 variable level distribution 차이 없음 = IntegerField / DecimalField / CategoricalField 재사용. 4 신규 hyperparam 은 모두 ParamSpace level (§2.1 reservation 영역). 결과: `ParamSpaceField` discriminated union 변경 없음 (4-variant 그대로 유지).
+- **Evaluation budget** — `population_size * (n_generations + 1) ≤ _MAX_GENETIC_EVALUATIONS=50` 강제. initial population + 각 generation 의 새 offspring 만 재평가 (부모 재평가 X, deterministic objective 가정). Sprint 57+ BL-237 = dedicated queue + relaxation.
+- **Tournament selection (k=3) + single-point crossover + gaussian mutation (sigma=(max-min)\*0.1)** — 표준 GA 알고리즘. IntegerField mutation 은 Python3 `round()` (banker's) + clip [min, max]. CategoricalField 은 ordinal-style uniform reselect (one_hot Sprint 57+ BL-234).
+- **`_GENETIC_RANDOM_STATE=42` 결정성** — `random.Random(seed)` 단일 인스턴스로 reproduce 보장 (사용자 reseed 옵션 Sprint 57+ 확장).
+- **degenerate 우선순위 `_compare_for_selection`** — tournament 안 non-degenerate 항상 우선. Bayesian 의 `_DEGENERATE_PENALTY=1e10` 패턴 불필요 (self-impl 은 외부 optimizer 에 `y` 값 전달 안 함).
+- **`best_iteration_idx` 명시 필드 + JSONB grammar** — Bayesian 와 동일 (Sprint 50/51/52 retro-incorrect 차단). `generation` field 추가 (phase 와 유사 역할).
+
+### 8.3 §6 checklist 처리 status (Genetic 영역)
+
+| 항목                                                                           | Sprint 56 status                                  | 산출물                                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| (1) ParamSpace.schema_version Literal[1,2] + crossover_rate 신규 + cross-field | ✅ Slice 1                                        | `optimizer/schemas.py` (4 hyperparam range validator 추가)                                                  |
+| (2) ParamSpaceField + GeneticHyperparamsField                                  | ✅ N/A (별도 신규 안 함, 변수 level 재사용)       | `optimizer/schemas.py` 4-variant 유지                                                                       |
+| (3) OptimizationKind.GENETIC + alembic uppercase                               | ✅ Slice 1                                        | `optimizer/models.py` + `alembic/.../20260514_0001_add_genetic_to_optimization_kind.py`                     |
+| (4) optimizer/engine/genetic.py 신규                                           | ✅ Slice 2                                        | `optimizer/engine/genetic.py` (self-impl ~430L 포함 docstring)                                              |
+| (5) service.submit_genetic + run() kind 분기 + LESSON-019 commit-spy 4건       | ✅ Slice 3+4                                      | `optimizer/service.py` + `optimizer/router.py` + `tests/optimizer/test_service_commits.py`                  |
+| (6) FE schemas discriminated union mirror                                      | ✅ Slice 5                                        | `frontend/src/features/optimizer/schemas.ts` (GeneticSearchResultSchema 추가, OptimizationResult 3-variant) |
+| (7) FE form + generation-chart + best-params-table                             | ✅ Slice 5                                        | 3 신규 component + `optimizer-run-detail.tsx` kind 분기 + `page.tsx` algorithm select                       |
+| (8) FE N-dim viz prototype                                                     | ⏳ deferred Sprint 57+ (BL-235, Bayesian 와 공용) | —                                                                                                           |
+
+### 8.4 신규 BL 등재 (Sprint 56 close-out)
+
+- Sprint 56 = **0건 신규 BL**. Sprint 55 에서 등재한 BL-234/235/236/237 그대로 유지.
+- BL-234 description 수정 (Genetic selection_method enum 묶음 검토 추가).
+
+### 8.5 Sprint 56 검증 통과 evidence
+
+- BE focused optimizer test 115 PASS (71 baseline → 115, 회귀 0). 신규 44 (schemas 7 + genetic_engine 23 + commit-spy 4 + 일부 갱신 포함).
+- FE vitest 680 PASS (회귀 0). FE tsc + lint clean.
+- alembic migration `20260514_0001` 신규 — uppercase GENETIC + downgrade swap. Slice 1 round-trip PASS (LESSON-066 **7차 영구 검증**).
+- BE ruff clean (LESSON-068 후보 lint-staged silent skip 재현 차단 = 모든 `×` 곱셈 기호 `*` 변환 + S311 noqa with justification).
+
+---
+
+**End of ADR-013** (Sprint 55 + Sprint 56 amendment 적용).
