@@ -152,4 +152,61 @@ Sprint 55+ 진입 시 사용자가 `CategoricalField` 에 `encoding: Literal["on
 
 ---
 
-**End of ADR-013.**
+## 7. Sprint 55 amendment — Bayesian executor 본격 구현 (BL-232 Resolved)
+
+> Sprint 55 (`feat/sprint-55-bayesian-optimizer`, 2026-05-11) close-out 시점 추가. §6 8-checklist 중 (1)~(7) 처리 + Bayesian-only 활성, Genetic 은 Sprint 56+ (BL-233) 로 이연.
+
+### 7.1 외부 라이브러리 채택 — scikit-optimize (skopt) 0.10.x
+
+§5 References 의 "scikit-optimize / Optuna API mirror" 항목 따라 skopt 채택. 근거 4종:
+
+1. `scikit-learn 1.8.0` 이미 `backend/uv.lock` transitive dep — 신규 wheel 1개 (`scikit-optimize 0.10.2`) + `pyaml 26.2.1` 만 추가.
+2. `Optimizer.ask() / tell()` ask-tell loop 가 §6 #4 의 "best_params + acquisition_history" 1:1 매핑.
+3. `Real(low, high, prior)` (`prior ∈ {"uniform", "log-uniform"}`) + `Integer(low, high)` + `Categorical(values, transform="label")` 가 §2.1 BayesianHyperparamsField + §2.4 ordinal encoding 와 정확 매칭.
+4. BSD-3 license + mature codebase + `random_state` 결정성 (dogfood Day 7 재현 가능).
+
+### 7.2 보완 결정 (Sprint 55 lock)
+
+- **`prior=normal` 미지원 (Sprint 56+ BL-234 묶음 검토)** — skopt 미지원. 자체 sampler wrapper 30분 시한 초과 시 deferred 결정. `optimizer/engine/bayesian.py:_param_space_to_skopt_dimensions` 안 `NotImplementedError` raise. schemas Literal 은 `{"uniform", "log_uniform", "normal"}` 그대로 유지 (Sprint 56+ activate 시 schema 변경 없이 engine 만 추가).
+- **UCB → LCB 부호 변환** — skopt 가 minimization 전제 (LCB). Sprint 55 = `bayesian_acquisition="UCB"` 입력 시 engine 안 `acq_func="LCB"` 로 변환 + direction=maximize 시 `-y` tell 부호 반전 (wrapper 격리).
+- **CategoricalField encoding** — Sprint 55 = `transform="label"` (ordinal) only. `one_hot` 은 Sprint 56+ Genetic 진입 시 활성 (BL-234).
+- **`_MAX_BAYESIAN_EVALUATIONS=50` 강제 상한** — default queue + soft_time_limit 부재 상태에서 worker block 보호 (cell × 50 = ~250s+ 위험). dedicated queue + soft_time_limit relaxation 은 Sprint 56+ BL-237.
+- **Degenerate cell penalty** — `objective_value=None` (num_trades=0 또는 sharpe_ratio is None) 시 `y=_DEGENERATE_PENALTY=1e10` 로 tell. `+inf` 사용 시 skopt GP Cholesky decomposition NaN propagation → fit fail. dynamic penalty (best+1e6) 도 가능하나 Sprint 55 = static 단순화.
+- **`best_iteration_idx` 명시 필드 (JSONB grammar)** — §2.2 의 "best_params + acquisition_history" 외에 `best_iteration_idx` 명시 추가. Sprint 50/51/52 의 `best_cell_index` 누락 retro-incorrect 패턴 차단 (FE 가 다시 search 안 함).
+
+### 7.3 acquisition Literal 확장
+
+§2.2 의 `bayesian_acquisition: Literal["EI", "UCB"]` 를 Sprint 55 = `Literal["EI", "UCB", "PI"]` 로 확장. PI (Probability of Improvement) skopt 지원 — 사용자 옵션 폭 + numerical edge case 추가 검증 의무.
+
+### 7.4 §6 checklist 처리 status
+
+| 항목                                                                      | Sprint 55 status                    | 산출물                                                                                     |
+| ------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| (1) ParamSpace.schema_version Literal[1,2] + 5 optional + cross-field     | ✅ Slice 1                          | `optimizer/schemas.py`                                                                     |
+| (2) ParamSpaceField BayesianHyperparamsField + GeneticHyperparamsField    | 🟡 Bayesian 만 (Genetic Sprint 56+) | `optimizer/schemas.py`                                                                     |
+| (3) OptimizationKind.BAYESIAN + alembic uppercase                         | ✅ Slice 1+2                        | `optimizer/models.py` + `alembic/.../20260513_0001_add_bayesian_to_optimization_kind.py`   |
+| (4) optimizer/engine/bayesian.py 신규                                     | ✅ Slice 2                          | `optimizer/engine/bayesian.py` (skopt ask-tell)                                            |
+| (5) service.submit_bayesian + run() kind 분기 + LESSON-019 commit-spy 4건 | ✅ Slice 3                          | `optimizer/service.py` + `optimizer/router.py` + `tests/optimizer/test_service_commits.py` |
+| (6) FE schemas discriminated union mirror                                 | ✅ Slice 4                          | `frontend/src/features/optimizer/schemas.ts` (z.discriminatedUnion("kind"))                |
+| (7) FE form + iteration-chart + best-params-table                         | ✅ Slice 4                          | 3 신규 component + `optimizer-run-detail.tsx` kind 분기 + `page.tsx` algorithm select      |
+| (8) FE N-dim viz prototype                                                | ⏳ deferred Sprint 57+ (BL-235)     | —                                                                                          |
+
+### 7.5 신규 BL 등재 (Sprint 56+ roadmap)
+
+Sprint 55 close-out 시 `docs/REFACTORING-BACKLOG.md` 5건 신규:
+
+- **BL-233** (P2, Sprint 56) — Genetic 본격 구현 (`GeneticHyperparamsField` + `optimizer/engine/genetic.py` + `service.submit_genetic`). Sprint 55 패턴 mirror, scope ≈ 0.8× (schema/alembic/router/FE 이미 활성).
+- **BL-234** (P3, Sprint 56+) — `BayesianHyperparamsField.prior="normal"` 자체 sampler 활성 + CategoricalField `encoding="one_hot"` Bayesian 활성.
+- **BL-235** (P3, Sprint 57+) — N-dim acquisition surface viz (3D+ surface 또는 parallel-coord, Bayesian 전용). §6 #8 deferred.
+- **BL-236** (P2, Sprint 56+) — `objective_metric` whitelist 자유화 (BacktestMetrics 24+ 지표 노출 — Sprint 55 = 3종만).
+- **BL-237** (P3, Sprint 56+) — Optimizer dedicated Celery queue + soft_time_limit relaxation (Bayesian 50 evaluation × 5s = 250s 시간 보호).
+
+### 7.6 Sprint 55 검증 통과 evidence
+
+- BE focused optimizer test 71 PASS (40 baseline → 71, 회귀 0). 신규 27 (schemas 6 + bayesian_engine 20 + commit-spy 4 + exception 3 — 일부 갱신 포함).
+- FE vitest 680 PASS (회귀 0). FE tsc + lint clean.
+- alembic migration `20260513_0001` 신규 — uppercase BAYESIAN + downgrade swap. Slice 6 round-trip 의무 (LESSON-066 6차 검증).
+
+---
+
+**End of ADR-013** (Sprint 55 amendment 적용).
