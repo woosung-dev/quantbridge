@@ -45,7 +45,7 @@ import random
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
 from decimal import Decimal
-from typing import Any, Final
+from typing import Any, Final, Literal
 
 import pandas as pd
 
@@ -183,9 +183,7 @@ def _sample_individual(rng: random.Random, param_space: ParamSpace) -> dict[str,
         if isinstance(field, IntegerField):
             out[var_name] = Decimal(rng.randint(field.min, field.max))
         elif isinstance(field, DecimalField):
-            out[var_name] = Decimal(
-                str(rng.uniform(float(field.min), float(field.max)))
-            )
+            out[var_name] = Decimal(str(rng.uniform(float(field.min), float(field.max))))
         elif isinstance(field, CategoricalField):
             out[var_name] = Decimal(str(rng.choice(field.values)))
         else:  # pragma: no cover — discriminated union exhaustive
@@ -224,6 +222,38 @@ def _tournament_select(
     for c in contestants[1:]:
         best = _compare_for_selection(best, c, direction=direction)
     return best
+
+
+def _roulette_select(
+    rng: random.Random,
+    evaluated_pop: list[GeneticIndividual],
+    *,
+    direction: str,
+) -> GeneticIndividual:
+    """Rank-based roulette wheel selection. 비-degenerate 우선.
+
+    순위 부여: best = N, worst = 1. P(i) ∝ rank(i).
+    전원 degenerate인 경우 uniform random fallback (tournament와 동일 안전망).
+    Sprint 57 BL-234 — ADR-013 §9.
+    """
+    viable = [
+        ind for ind in evaluated_pop if not ind.is_degenerate and ind.objective_value is not None
+    ]
+    if not viable:
+        return evaluated_pop[rng.randrange(len(evaluated_pop))]
+
+    # direction-aware 정렬: maximize → 높은 값 앞 (best = index 0)
+    viable.sort(key=lambda ind: ind.objective_value, reverse=(direction == "maximize"))  # type: ignore[arg-type]
+
+    n = len(viable)
+    total_rank = n * (n + 1) // 2
+    threshold = rng.random() * total_rank
+    cumulative: float = 0.0
+    for i, ind in enumerate(viable):
+        cumulative += n - i  # best(i=0) = N, worst(i=n-1) = 1
+        if cumulative >= threshold:
+            return ind
+    return viable[-1]  # 부동소수점 오차 fallback
 
 
 def _single_point_crossover(
@@ -293,9 +323,7 @@ def _gaussian_mutation(
 # === Objective + Best tracking (Bayesian _objective_from_metrics mirror, inline) ===
 
 
-def _objective_from_metrics(
-    metrics: BacktestMetrics, *, objective_metric: str
-) -> Decimal | None:
+def _objective_from_metrics(metrics: BacktestMetrics, *, objective_metric: str) -> Decimal | None:
     """metrics → raw objective_value. degenerate (num_trades=0 / sharpe=None) → None."""
     if metrics.num_trades == 0:
         return None
@@ -329,9 +357,7 @@ def _pick_best_iteration_idx(
 ) -> int | None:
     """direction 적용 best iteration idx 반환. 모든 iteration degenerate → None."""
     candidates = [
-        (it.idx, it.objective_value)
-        for it in iterations
-        if it.objective_value is not None
+        (it.idx, it.objective_value) for it in iterations if it.objective_value is not None
     ]
     if not candidates:
         return None
@@ -372,22 +398,23 @@ def _create_next_generation(
     direction: str,
     param_space: ParamSpace,
     param_names: tuple[str, ...],
+    selection_method: Literal["tournament", "roulette"] = "tournament",
 ) -> list[dict[str, Decimal]]:
-    """tournament select * population_size → crossover (prob) → mutation (prob)."""
+    """selection_method * population_size → crossover (prob) → mutation (prob).
+
+    Sprint 57 BL-234: selection_method 파라미터 추가 (tournament | roulette).
+    """
+    select_fn = _roulette_select if selection_method == "roulette" else _tournament_select
     cross_p = float(crossover_rate)
     next_gen: list[dict[str, Decimal]] = []
     for _ in range(len(prev_evaluated)):
         if rng.random() < cross_p:
-            p1 = _tournament_select(rng, prev_evaluated, direction=direction).params
-            p2 = _tournament_select(rng, prev_evaluated, direction=direction).params
+            p1 = select_fn(rng, prev_evaluated, direction=direction).params
+            p2 = select_fn(rng, prev_evaluated, direction=direction).params
             child = _single_point_crossover(rng, p1, p2, param_names)
         else:
-            child = dict(
-                _tournament_select(rng, prev_evaluated, direction=direction).params
-            )
-        child = _gaussian_mutation(
-            rng, child, mutation_rate=mutation_rate, param_space=param_space
-        )
+            child = dict(select_fn(rng, prev_evaluated, direction=direction).params)
+        child = _gaussian_mutation(rng, child, mutation_rate=mutation_rate, param_space=param_space)
         next_gen.append(child)
     return next_gen
 
@@ -434,13 +461,9 @@ def run_genetic_search(
     if param_space.n_generations is None:
         raise ValueError("Genetic search requires param_space.n_generations (>= 1).")
     if param_space.mutation_rate is None:
-        raise ValueError(
-            "Genetic search requires param_space.mutation_rate ∈ (0, 1]."
-        )
+        raise ValueError("Genetic search requires param_space.mutation_rate ∈ (0, 1].")
     if param_space.crossover_rate is None:
-        raise ValueError(
-            "Genetic search requires param_space.crossover_rate ∈ (0, 1]."
-        )
+        raise ValueError("Genetic search requires param_space.crossover_rate ∈ (0, 1].")
 
     population_size = param_space.population_size
     n_generations = param_space.n_generations
@@ -469,6 +492,10 @@ def run_genetic_search(
     # GA reproducibility — cryptographic strength 불필요 (search-space sampling 만).
     rng = random.Random(_GENETIC_RANDOM_STATE)  # noqa: S311
     param_names: tuple[str, ...] = tuple(param_space.parameters.keys())
+    # Sprint 57 BL-234: selection_method (None → "tournament" default).
+    selection_method: Literal["tournament", "roulette"] = (
+        param_space.genetic_selection_method or "tournament"
+    )
 
     iterations: list[GeneticIndividual] = []
     best_so_far: Decimal | None = None
@@ -477,9 +504,7 @@ def run_genetic_search(
 
     for gen in range(n_generations + 1):
         if gen == 0:
-            pop_params = [
-                _sample_individual(rng, param_space) for _ in range(population_size)
-            ]
+            pop_params = [_sample_individual(rng, param_space) for _ in range(population_size)]
         else:
             pop_params = _create_next_generation(
                 rng,
@@ -489,6 +514,7 @@ def run_genetic_search(
                 direction=param_space.direction,
                 param_space=param_space,
                 param_names=param_names,
+                selection_method=selection_method,
             )
 
         evaluated_pop: list[GeneticIndividual] = []
@@ -497,9 +523,7 @@ def run_genetic_search(
             outcome = run_backtest(pine_source, ohlcv, cfg)
             if outcome.status != "ok" or outcome.result is None:
                 raise OptimizationExecutionError(
-                    message_public=(
-                        "Backtest execution failed for one of the genetic iterations."
-                    ),
+                    message_public=("Backtest execution failed for one of the genetic iterations."),
                     message_internal=(
                         f"backtest failed at iteration {global_idx} "
                         f"(gen={gen}, params={params}): status={outcome.status}"
@@ -527,9 +551,7 @@ def run_genetic_search(
         prev_evaluated = evaluated_pop
 
     iterations_t = tuple(iterations)
-    best_idx = _pick_best_iteration_idx(
-        iterations_t, direction=param_space.direction
-    )
+    best_idx = _pick_best_iteration_idx(iterations_t, direction=param_space.direction)
     best_params: dict[str, Decimal] | None = None
     best_objective_value: Decimal | None = None
     if best_idx is not None:
