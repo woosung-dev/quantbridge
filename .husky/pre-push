@@ -51,8 +51,16 @@ else
   echo "→ pre-push: worker worktree (path: $QB_REPO_ROOT)"
 fi
 
+# @{u} 없으면(첫 push) origin/main 으로 폴백
+# LESSON: 첫 push 시 @{u} 미존재 → 2>/dev/null silently 실패 → diff 빈 출력 → 검사 스킵 버그
+if git rev-parse @{u} >/dev/null 2>&1; then
+  QB_DIFF_BASE="@{u}"
+else
+  QB_DIFF_BASE="origin/main"
+fi
+
 # FE 변경이 있을 때만 FE 검사 실행
-if git diff --name-only @{u}.. 2>/dev/null | grep -q '^frontend/'; then
+if git diff --name-only "$QB_DIFF_BASE".. 2>/dev/null | grep -q '^frontend/'; then
   echo "→ pre-push: frontend typecheck + test (hooks 안전 방어선)"
   cd frontend
   pnpm typecheck
@@ -66,7 +74,7 @@ fi
 # BL-239 (Sprint 56): pre-push hook 안 mypy 추가 — CI parity gap 해소.
 # BL-240 (Sprint 56): backend/.env.local 의 TEST_* 변수만 자동 source — LESSON-061 영구 fix.
 #   운영 secret (DATABASE_URL, SECRET_KEY 등) 은 export 안 함. test 전용 prefix 만 hook scope 안 활성.
-if git diff --name-only @{u}.. 2>/dev/null | grep -q '^backend/'; then
+if git diff --name-only "$QB_DIFF_BASE".. 2>/dev/null | grep -q '^backend/'; then
   echo "→ pre-push: backend ruff + mypy + pytest"
 
   # BL-240: backend/.env.local 의 TEST_* 변수만 auto-source (LESSON-061 영구 fix).
