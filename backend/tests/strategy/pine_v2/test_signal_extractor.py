@@ -1,9 +1,8 @@
 """Signal Extractor — C-text / C-ast 두 방식 TDD."""
+
 from __future__ import annotations
 
-import pytest
-
-from src.strategy.pine_v2.signal_extractor import ExtractionResult, SignalExtractor
+from src.strategy.pine_v2.signal_extractor import SignalExtractor
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +49,7 @@ strategy.entry("Short", strategy.short, when=sell_sig)
 
 # ─── C-text Tests ─────────────────────────────────────────────────────────────
 
+
 class TestCText:
     def test_finds_plotshape_signal_vars(self) -> None:
         r = SignalExtractor().extract(_SIMPLE_PLOTSHAPE, mode="text")
@@ -89,10 +89,11 @@ class TestCText:
 
 # ─── C-ast Tests ──────────────────────────────────────────────────────────────
 
+
 class TestCAst:
     def test_finds_same_vars_as_ctext(self) -> None:
         r_text = SignalExtractor().extract(_SIMPLE_PLOTSHAPE, mode="text")
-        r_ast  = SignalExtractor().extract(_SIMPLE_PLOTSHAPE, mode="ast")
+        r_ast = SignalExtractor().extract(_SIMPLE_PLOTSHAPE, mode="ast")
         assert set(r_text.signal_vars) == set(r_ast.signal_vars)
 
     def test_simple_is_runnable(self) -> None:
