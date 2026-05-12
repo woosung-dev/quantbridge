@@ -1,0 +1,45 @@
+// Supply & Demand Zones — 미지원 함수 포함 (medium-hard 난이도)
+//@version=5
+indicator("Supply & Demand Zones", overlay=true)
+
+// ─── Inputs ─────────────────────────────────────────────────────────────────
+pivot_len   = input.int(10, "Pivot Length", minval=2, maxval=50)
+zone_extend = input.int(20, "Zone Extend Bars", minval=1)
+
+// ─── 미지원: ta.highestbars / ta.lowestbars ──────────────────────────────────
+highest_idx = ta.highestbars(high, pivot_len)   // 미지원
+lowest_idx  = ta.lowestbars(low, pivot_len)     // 미지원
+
+// ─── 지원 가능한 보조 계산 ────────────────────────────────────────────────────
+ph = ta.pivothigh(high, pivot_len, pivot_len)
+pl = ta.pivotlow(low, pivot_len, pivot_len)
+
+demand_top = ta.highest(high, pivot_len * 2)
+supply_bot = ta.lowest(low, pivot_len * 2)
+
+// ─── 핵심 신호 (지원 함수만 사용) ────────────────────────────────────────────
+bull_signal = not na(pl) and close > nz(demand_top[1])
+bear_signal = not na(ph) and close < nz(supply_bot[1])
+
+// ─── 미지원 시각화 ────────────────────────────────────────────────────────────
+var demand_boxes = array.new_box(0)                                    // 미지원
+var supply_boxes = array.new_box(0)                                    // 미지원
+bg_color = color.from_gradient(                                         // 미지원
+    close, supply_bot, demand_top,
+    color.new(color.red, 85), color.new(color.green, 85)
+)
+fg_clr = chart.fg_color                                                // 미지원
+
+if not na(pl)
+    demand_box = box.new(                                              // 미지원
+        bar_index - pivot_len, pl + ta.atr(14) * 0.3,
+        bar_index + zone_extend, pl - ta.atr(14) * 0.3,
+        color.new(color.green, 70)
+    )
+    array.push(demand_boxes, demand_box)                               // 미지원
+
+// ─── 지원 가능한 신호 표시 ────────────────────────────────────────────────────
+plotshape(bull_signal, "Demand Bounce", shape.triangleup,
+          location.belowbar, color.green, size=size.small)
+plotshape(bear_signal, "Supply Rejection", shape.triangledown,
+          location.abovebar, color.red, size=size.small)

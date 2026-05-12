@@ -584,3 +584,23 @@ export const CreateParamStabilityRequestSchema = z.object({
 export type CreateParamStabilityRequest = z.infer<
   typeof CreateParamStabilityRequestSchema
 >;
+
+// ─── Indicator Convert ────────────────────────────────────────────────────────
+
+export const ConvertIndicatorRequestSchema = z.object({
+  code: z.string().min(10),
+  strategy_name: z.string().default("Converted Strategy"),
+  mode: z.enum(["full", "sliced"]).default("full"),
+});
+export type ConvertIndicatorRequest = z.infer<typeof ConvertIndicatorRequestSchema>;
+
+export const ConvertIndicatorResponseSchema = z.object({
+  converted_code: z.string(),
+  input_tokens: z.number().int(),
+  output_tokens: z.number().int(),
+  warnings: z.array(z.string()).default([]),
+  sliced_from: z.number().int().nullable(),
+  sliced_to: z.number().int().nullable(),
+  token_reduction_pct: z.number().nullable(),
+});
+export type ConvertIndicatorResponse = z.infer<typeof ConvertIndicatorResponseSchema>;
