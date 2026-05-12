@@ -164,6 +164,10 @@ def _find_signal_vars_text(source: str, user_vars: frozenset[str]) -> list[str]:
     for m in re.finditer(r"\blabel\.new\s*\(\s*([A-Za-z_]\w*)\s*\?", source):
         candidates.add(m.group(1))
 
+    # alertcondition(var, ...) — 첫 번째 인자가 신호 조건
+    for m in re.finditer(r"\balertcondition\s*\(\s*([A-Za-z_]\w*)\b", source):
+        candidates.add(m.group(1))
+
     # 사용자 정의 변수만 유지
     return sorted(candidates & user_vars)
 
@@ -353,6 +357,10 @@ def _find_signal_vars_ast(tree: object, user_vars: frozenset[str]) -> list[str]:
                 test_node = getattr(arg0_val, "test", None)
                 if test_node is not None:
                     _collect_names_from_node(test_node)
+
+        elif func_name == "alertcondition" and args:
+            # alertcondition(var, title=...) — 첫 번째 인자가 신호 조건
+            _collect_names_from_node(args[0])
 
     return sorted(candidates & user_vars)
 

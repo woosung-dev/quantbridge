@@ -6,6 +6,18 @@ from src.strategy.pine_v2.signal_extractor import SignalExtractor
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
+_ALERTCONDITION = """\
+//@version=5
+indicator("Alert Test", overlay=true)
+fast = input.int(9)
+slow = input.int(21)
+arr = array.new_float(0)
+bull = ta.crossover(ta.sma(close, fast), ta.sma(close, slow))
+bear = ta.crossunder(ta.sma(close, fast), ta.sma(close, slow))
+alertcondition(bull, title="Buy Alert", message="Buy")
+alertcondition(bear, title="Sell Alert", message="Sell")
+"""
+
 _SIMPLE_PLOTSHAPE = """\
 //@version=5
 indicator("Simple Test", overlay=true)
@@ -86,6 +98,16 @@ class TestCText:
         r = SignalExtractor().extract(_STRATEGY_ENTRY, mode="text")
         assert r.is_runnable
 
+    def test_alertcondition_signal_vars_detected(self) -> None:
+        r = SignalExtractor().extract(_ALERTCONDITION, mode="text")
+        assert "bull" in r.signal_vars
+        assert "bear" in r.signal_vars
+
+    def test_alertcondition_removes_drawing_api(self) -> None:
+        r = SignalExtractor().extract(_ALERTCONDITION, mode="text")
+        assert "array.new_float" not in r.sliced_code
+        assert r.is_runnable
+
 
 # ─── C-ast Tests ──────────────────────────────────────────────────────────────
 
@@ -103,3 +125,8 @@ class TestCAst:
     def test_udf_dependency_tracked(self) -> None:
         r = SignalExtractor().extract(_UDF_PLOTSHAPE, mode="ast")
         assert "supertrend" in r.sliced_code
+
+    def test_alertcondition_signal_vars_detected(self) -> None:
+        r = SignalExtractor().extract(_ALERTCONDITION, mode="ast")
+        assert "bull" in r.signal_vars
+        assert "bear" in r.signal_vars
