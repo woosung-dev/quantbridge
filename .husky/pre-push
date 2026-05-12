@@ -97,7 +97,14 @@ if git diff --name-only "$QB_DIFF_BASE".. 2>/dev/null | grep -q '^backend/'; the
   cd backend
   uv run ruff check .
   uv run mypy src/
-  uv run pytest -q
+  # pytest는 opt-in — QB_RUN_PYTEST=1 git push 로 명시적 실행
+  # CI가 항상 full pytest를 돌리므로 기본 push에서는 ruff+mypy만으로 충분
+  if [ "${QB_RUN_PYTEST:-0}" = "1" ]; then
+    echo "  → QB_RUN_PYTEST=1: backend pytest 실행"
+    uv run pytest -q
+  else
+    echo "  → pytest 스킵 (CI에서 실행됨). 명시 실행: QB_RUN_PYTEST=1 git push"
+  fi
   cd -
 else
   echo "→ pre-push: backend 변경 없음, 스킵"
