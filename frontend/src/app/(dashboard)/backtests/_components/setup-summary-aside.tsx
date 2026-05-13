@@ -191,7 +191,7 @@ export function SetupSummaryAside({
           {runtime}
         </p>
         <p className="text-[0.72rem] font-medium text-muted-foreground">
-          vectorbt 벡터화 엔진 사용
+          고성능 벡터화 엔진 사용
         </p>
       </div>
     </aside>

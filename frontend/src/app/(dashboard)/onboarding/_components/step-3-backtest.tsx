@@ -125,7 +125,7 @@ export function Step3Backtest({
                     : "시장 데이터 수집 및 계산 중…"}
               </p>
               <p className="text-xs text-[color:var(--text-muted)]">
-                Celery worker 가 vectorbt 로 계산 중입니다. 보통 5~30초 걸립니다.
+                백테스트 엔진이 계산 중입니다. 보통 5~30초 걸립니다.
               </p>
             </div>
           </div>

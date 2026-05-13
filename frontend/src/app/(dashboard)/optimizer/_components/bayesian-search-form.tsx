@@ -280,7 +280,7 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
           {submit.isPending ? "제출 중…" : "Bayesian 제출"}
         </button>
         <p className="text-xs text-muted-foreground">
-          서버 50 evaluation 강제 상한 (BL-237 Sprint 56+ = dedicated queue 활성).
+          서버 50 evaluation 강제 상한.
           random warm-up 후 acquisition phase 진입.
         </p>
       </div>

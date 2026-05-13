@@ -143,25 +143,30 @@ describe("BL-265/280/303 — no internal dev artifact IDs in user-facing UI (★
         if (!existsSync(file)) continue;
         const raw = readFileSync(file, "utf-8");
         const cleaned = stripComments(raw);
-        // line-by-line — string literal (quote-anchored) 또는 JSX text content 만 검사
+        // content-wide — codex G.2 재호출 P1-2 채택: multi-line JSX text 도 검출
+        // 휴리스틱: match 의 absolute position 기준 가장 가까운 `>` (before)/`<` (after) 또는 quote 검사
         const userFacingMatches: string[] = [];
-        for (const line of cleaned.split("\n")) {
-          const m = line.match(regex);
-          if (!m) continue;
-          for (const matched of m) {
-            const idx = line.indexOf(matched);
-            const before = line.slice(0, idx);
-            const after = line.slice(idx + matched.length);
-            // (a) string literal context — match 앞에 unmatched quote
-            const quotesBefore = (before.match(/["'`]/g) || []).length;
-            const inString = quotesBefore % 2 === 1;
-            // (b) JSX text context — match 가 > 와 < 사이 (단순 휴리스틱)
-            const gtBeforeIdx = before.lastIndexOf(">");
-            const ltBeforeIdx = before.lastIndexOf("<");
-            const isJsxText = gtBeforeIdx > ltBeforeIdx && after.includes("<");
-            if (inString || isJsxText) {
-              userFacingMatches.push(matched);
-            }
+        const globalRegex = new RegExp(regex.source, regex.flags);
+        let m: RegExpExecArray | null;
+        while ((m = globalRegex.exec(cleaned)) !== null) {
+          const matched = m[0];
+          const matchStart = m.index;
+          const before = cleaned.slice(Math.max(0, matchStart - 500), matchStart);
+          const after = cleaned.slice(
+            matchStart + matched.length,
+            matchStart + matched.length + 500,
+          );
+          // (a) string literal context — match 가 lin 안 unmatched quote 뒤
+          const lineStart = cleaned.lastIndexOf("\n", matchStart - 1) + 1;
+          const beforeOnLine = cleaned.slice(lineStart, matchStart);
+          const quotesBefore = (beforeOnLine.match(/["'`]/g) || []).length;
+          const inString = quotesBefore % 2 === 1;
+          // (b) JSX text context — match 의 nearest `>` (before) 다음 + nearest `<` (after) 앞
+          const gtBeforeIdx = before.lastIndexOf(">");
+          const ltBeforeIdx = before.lastIndexOf("<");
+          const isJsxText = gtBeforeIdx > ltBeforeIdx && after.indexOf("<") >= 0;
+          if (inString || isJsxText) {
+            userFacingMatches.push(matched);
           }
         }
         if (userFacingMatches.length > 0) {
