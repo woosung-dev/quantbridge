@@ -1,8 +1,0 @@
-//@version=4
-strategy("EMA Cross v4")
-fast = ema(close, 3)
-slow = ema(close, 8)
-if crossover(fast, slow)
-    strategy.entry("Long", strategy.long)
-if crossunder(fast, slow)
-    strategy.close("Long")
