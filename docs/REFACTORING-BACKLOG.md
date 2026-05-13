@@ -7,43 +7,28 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-05-04 (Sprint 29 종료 — dual metric ALL PASS + codex G2 P0 fix)
+**최종 갱신:** 2026-05-13 (Sprint 58 종료 + Tier 1 refactor audit 진행 중)
+**현재 상태:** **89 active BL** (Sprint 58 종료 기준). main @ `f8cae55`. dogfood Day 7 인터뷰 2026-05-16 대기.
 
-**Sprint 29 종료 BL 변경:**
+**최근 sprint BL 변경 (Sprint 55~58):**
 
-- ✅ **BL-096 partial Resolved** — heikinashi (a) ADR + security graceful + timeframe.period degraded gate (commit `5a72283`)
-- 신규 0건 (P0=0, P1=0)
-- BL-003 / BL-005 P0 deferred 유지 (trigger 미도래)
-- BL-022 / BL-037 / BL-142 deferred 유지 (Sprint 30+)
-- codex G2 P1 4건 (occurrence-based unsupported_calls / 422 응답 schema / workaround 정확도 / e2e 실제 vectorbt) → Sprint 30+ Beta sprint 또는 hotfix 묶음
+- **Sprint 58 (2026-05-11~12)**: ✅ BL-241/242/243 Resolved (Pine TA 확장 + strategy.equity + UTC 라벨). 신규 0. 92 → 89 net.
+- **Sprint 57 (2026-05-11)**: ✅ BL-234/237 Resolved (Optimizer Polish + optimizer_heavy queue). 신규 BL-241/242/243. 91 → 92 net.
+- **Sprint 56 (2026-05-11)**: ✅ BL-233 Resolved (Genetic executor). 신규 BL-238/239/240 chore. 91 net.
+- **Sprint 55 (2026-05-11)**: ✅ BL-232 Resolved (Bayesian executor). 신규 BL-233~237 (5건). 88 → 92 net.
 
-**총 항목:** 50 BL — P0 5 (BL-001~005) / P1 17 (BL-010~026) / P2 14 (BL-030~043) / P3 8 (BL-050~057) / Beta 오픈 milestone 6 (BL-070~075) + Sprint 28+ 신규 BL (BL-141/140b/004 ✅ Resolved, BL-142~146 deferred / partial)
+**상세 sprint 변경 이력:** §변경 이력 (본 파일 하단) + [`dev-log/INDEX.md`](./dev-log/INDEX.md).
 
-**Sprint 46 BL 변경 (2026-05-09):**
+**P0 / P1 active short list** (자세한 본문은 §P0 / §P1 섹션):
 
-- ✅ **BL-195 Resolved** — `qb-form-slide-down` keyframe `to { max-height: 600px }` 1줄 제거 (W1, PR #229)
-- ✅ **BL-194 Resolved** — `frontend/src/app/favicon.ico` (32×32 ICO 670B) + `icon.svg` 추가 (W1, PR #229)
-- ✅ **BL-138 Resolved** — Live Sessions list `<p>→<h3>` + `created:` colon 일관성 (W1, PR #229)
-- ✅ **BL-050 Resolved** — `PINE_ALERT_HEURISTIC_MODE` env ADR (architecture-conformance §B5-ADR, W1, PR #229)
-- ✅ **BL-057 Resolved** — Mutation scope-reducing 명시화 (trust-layer-requirements §4.1.1, W1, PR #229)
-- ✅ **BL-146 Resolved** — 메타-방법론 4종 영구 규칙 승격 (`.ai/common/global.md` §7 신설, W1, ⚠ `.ai/` gitignored canonical path)
-- 신규 **BL-196** (P2) — e2e baseline 3 pre-existing failure (Sprint 32/38 fixture drift): `MOCK_BACKTEST_DETAIL.metrics.total_return: 0.1234` (number) vs Zod `decimalString` (string) → `sprint32-dogfood-gate.spec.ts:88` + `live-session-flow.spec.ts:75` + `backtest-live-mirror.spec.ts:121` cascade fail. W2/W3 보고. 신규 W2/W3/W4 Tier 1/2/3 spec 은 mock 정합 통과. Trigger = on-demand 또는 Sprint 47+ surgical
-- 신규 **BL-197** (P3) — Tier 3 #11 KS resolve UI button `test.skip` (banner resolve CTA 미구현). Sprint 47+ implement 시 unskip
-- 신규 **BL-198** (P3) — Tier 3 #10 beforeunload 가짜 검증 (codex G.4 P3): `sprint46-tier3-nth.spec.ts:115-122` 가 본인 listener 등록/해제만 검증, product hook 검증 미실시. dirty form submit + actual unload event 시뮬 필요. Sprint 47+
-- 신규 **BL-199** (P3) — Tier 3 #12 FormErrorInline a11y 가짜 검증 (codex G.4 P3): `sprint46-tier3-nth.spec.ts:189-190` 가 422 mock 후 form submit 누락, SVG 존재만 검증. submit + role="alert" + card content 검증 필요. Sprint 47+
-- codex G.4 review (Wave 2) **GATE PASS** (P0=0 / P1=0). P2 2건 = **즉시 fix 적용** (W4 sprint46-tier3-nth.spec.ts mock route order swap + BL-138 h3-in-button → span). P3 2건 = BL-198/199 등재
-- Sprint 46 = 4 worker autonomous parallel (cmux) 5번째 실측. 16 신규 e2e 시나리오 (Tier 1 5 + Tier 2 4 + Tier 3 7, #11 skip). PR #229/231 정상 머지 + 직접 squash merge #230(W4)/#232(W2) — playwright.config.ts testMatch conflict 해결 (LESSON-056 force-push deny 우회 패턴)
+- **P0**: BL-001 (submitted watchdog) · BL-002 (Day 2 stuck pending) · BL-003 (Bybit mainnet runbook, deferred) · BL-005 (본인 1-2주 dogfood, deferred — BL-005 trigger 도래 후 H1→H2 gate)
+- **P1**: BL-010 (commit-spy 도메인 확장) · BL-011~016 (WebSocket 안정화 6 항목) · BL-017~021 (Sprint 14 G.4 P2 5건) · BL-022 (golden 재생성) · BL-026 (Trust Layer fixture 재활성화)
+- **Beta milestone**: BL-070~075 (도메인+DNS / BE 프로덕션 배포 / Resend / 캠페인 / 인터뷰 / H2 게이트) — **dogfood NPS ≥7 + 본인 의지 second gate** 통과 시만 trigger
 
-**Sprint 29 BL 매핑** (plan v2 §2, [`~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`](../../.claude/plans/quantbridge-sprint-29-sunny-origami.md)):
+**Sprint 47 deepening 결과 (LESSON-063 application):**
 
-- **진입 시점 P0 잔여 = 2건**: BL-003 (Bybit mainnet runbook, deferred — Pine pain 우선) + BL-005 (실자본 1-2주 dogfood, deferred — Pine 통과율 5/6 우선). BL-001/002 ✅ Sprint 15 Resolved + BL-004 ✅ Sprint 28 Resolved.
-- **Pine 관련 BL Sprint 29 처리:**
-  - **BL-022** golden expectations 재생성 → Sprint 30+ deferred (본 sprint scope 외)
-  - **BL-037** Coverage Analyzer regex → AST visitor → 본 sprint deferred (Slice B 자연 연계, regex 정밀화 X)
-  - **BL-096 partial** UtBot×2 잔존 (heikinashi/security) → **Slice A 안 ADR 결정 의무**. Trust Layer 정합 문제라 단순 supported 추가 incorrect
-  - **BL-142** ts.ohlcv daily refresh → Sprint 30+ deferred 유지
-  - **BL-146** 메타-방법론 4종 영구 규칙 승격 → Sprint 29 second validation (LESSON-037 baseline 재측정 preflight first validation 도 본 sprint 안)
-- **Beta BL deferred 명시 (2026-05-05 office-hours session 정정):** BL-070~075 (도메인+DNS / Backend prod / Resend / 캠페인 / 인터뷰 / H2 게이트) **전부 Sprint 36+ deferred (BL-005 본격 1-2주 mainnet 통과 후 별도 trigger)**. office-hours session 의 P3 fictitious gate detection = "Day 7 ≥7 → Beta 본격" 은 BL-005 자체 skip 하는 fake gate. 정정 후 trigger = "Sprint 35 Day 7 4중 AND gate 통과 → Sprint 36 BL-003 mainnet runbook + BL-005 본격 → 통과 → Beta 본격 (BL-070~075)".
+- ✅ BL-200 (pine_v2 STDLIB SSOT 통합 `_names.py` 단일) · BL-202 (trading provider registry 승격 3-tuple dict) · BL-206 (FE Skeleton/EmptyState variant API)
+- BL-205 = **intentional split** (OrderReceipt 3-state create flow + OrderStatusFetch 4-state fetch flow). doc only Resolved.
 
 ---
 
@@ -429,24 +414,11 @@
 
 ### BL-080 ✅ Resolved (Sprint 18, 2026-05-02)
 
-**Title:** scan/reconcile/trading prefork-safe **architectural fix**
-**Category:** Trading / WebSocket / Watchdog (Celery prefork + asyncio + SQLAlchemy)
-**Priority:** P1 → **Resolved**
-**출처:** [`docs/dev-log/2026-05-02-sprint17-prefork-fix.md`](dev-log/2026-05-02-sprint17-prefork-fix.md) §7 → [Sprint 18 dev-log](dev-log/2026-05-02-sprint18-bl080-architectural.md)
-
-**해소 (Option C — Persistent worker loop)**:
-
-- `backend/src/tasks/_worker_loop.py` 신규 — `init_worker_loop()` / `shutdown_worker_loop()` / `run_in_worker_loop(coro)` (running-loop guard + asyncgens drain).
-- `worker_process_init` hook 에 init / `worker_process_shutdown` 신규 hook 에 shutdown (codex G.0 P1 #4).
-- 9개 task entry point `asyncio.run()` → `run_in_worker_loop()` (`_on_worker_ready` master 만 예외, codex G.0 P1 #5).
-- `worker_max_tasks_per_child` 1 → 250 (codex G.2 P2 #1 보수).
-- conftest `TEST_DATABASE_URL` / `TEST_REDIS_LOCK_URL` env 우선순위 + 격리 stack 5433/6380 명시 (codex G.0 P1 #7) — Sprint 16/17 의 296 errors → 0.
-
-**라이브 evidence (post-Sprint 18 fix)**: 같은 ForkPoolWorker-2 가 mixed 30 tasks (scan + reconcile + backtest) **30/30 success / 0 raised**. Sprint 17 1/3 → Sprint 18 30/30. self-assessment 5 → 9.
-
-**root cause confirmed**: asyncpg connection 의 `BaseProtocol._on_waiter_completed` callback 이 1st task asyncio.run() loop 에 bound. `engine.dispose()` 후에도 internal transport waiter 가 stale loop 의 Future 보유. 2nd task 의 새 loop 에서 동일 connection (또는 새 connection 의 internal cache) 접근 시 fail. Option C 의 영속 `_WORKER_LOOP` 통일이 모든 binding 일관성 보장.
-
-**codex 검증**: G.0 (high, 824k tokens, iter 1) — REFUTED + 7 P1 + 5 P2 모두 plan v2 반영. G.2 (high, 487k tokens, iter 1) — HIGH risk + P1 #1 (race) + P2 #3 (asyncgens drain) 즉시 fix.
+**Title:** scan/reconcile/trading prefork-safe architectural fix (Option C persistent worker loop)
+**해소:** `backend/src/tasks/_worker_loop.py` 신규 (`init_worker_loop` / `shutdown_worker_loop` / `run_in_worker_loop`) + 9개 task entry point `asyncio.run()` → `run_in_worker_loop()`. Root cause = asyncpg `BaseProtocol._on_waiter_completed` stale loop binding. 영속 `_WORKER_LOOP` 통일이 모든 binding 일관성 보장.
+**evidence:** 같은 ForkPoolWorker-2 가 mixed 30 tasks 30/30 success (Sprint 17 1/3 → Sprint 18 30/30, self-assess 5→9).
+**규칙 승격:** `.ai/stacks/fastapi/backend.md` §9 (Celery prefork-safe 패턴).
+**상세:** [`dev-log/2026-05-02-sprint18-bl080-architectural.md`](dev-log/2026-05-02-sprint18-bl080-architectural.md).
 
 ---
 
