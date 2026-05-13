@@ -214,6 +214,17 @@ class Settings(BaseSettings):
             "Opus (3) 도 지원하나 비용 3배."
         ),
     )
+    gemini_api_key: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Google Gemini API key — Anthropic 호출 최종 실패 시 fallback. "
+            "발급: https://aistudio.google.com/apikey. 미설정 시 fallback 비활성."
+        ),
+    )
+    gemini_model: str = Field(
+        default="gemini-2.0-flash",
+        description=("Gemini 모델 ID for convert fallback. flash 권장 (속도+무료 tier)."),
+    )
 
     # --- Sprint 11 Phase C: Waitlist ---
     resend_api_key: SecretStr = Field(
