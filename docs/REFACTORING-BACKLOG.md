@@ -77,50 +77,15 @@
 | [BL-004](#bl-004) | KillSwitch `capital_base` 동적 바인딩 + leverage cap | H1 Stealth Step 3            | M (4-5h)               | TODO.md L658     |
 | [BL-005](#bl-005) | 본인 실자본 1~2주 dogfood 운영                       | H1 종료 확정 조건            | L (≥ 14d, 사용자 수동) | TODO.md L652     |
 
-### BL-001
+### BL-001 ✅ Resolved (Sprint 15, 2026-05-01)
 
-**Status:** ✅ Resolved (2026-05-01, Sprint 15 stage/h2-sprint15)
-**Title:** submitted 영구 고착 watchdog (silent data corruption 위험)
-**Category:** 트랜잭션 / Order
-**Priority:** P0 — silent data corruption 위험 (PnL / Kill Switch / dogfood report 가 거래소 현실과 다름)
-**Trigger:** Sprint 15 진입 즉시
-**Est:** M (3-4h)
-**출처:** [`docs/dev-log/2026-04-27-dogfood-day3.md`](dev-log/2026-04-27-dogfood-day3.md) §5 (codex G.2 P1 #1, session `019dca46-ff2b-7a63-bce5-b45f8ed45442`)
-**해결:** [`docs/dev-log/2026-05-01-sprint15-watchdog.md`](dev-log/2026-05-01-sprint15-watchdog.md) — Phase A.1 provider.fetch_order interface + Phase A.2 fetch_order_status_task Celery (retry 3회 backoff 15s→30s→60s + Redis throttle 1h alert) + Phase A.3 scan_stuck_orders beat 5min. codex G.0 P1 #1+#2+#3 + G.2 P1 #1+#2 모두 반영.
-
-**원인 / 영향:** Sprint 14 Phase C fix 후 `receipt.status="submitted"` 분기는 `attach_exchange_order_id` 만 호출. terminal 전이는 WS event / reconciler 책임. 그러나 `tasks/websocket_task.py:208-250 reconcile_ws_streams` 는 stream 재시작만 하고 orphan submitted Order 전이 안 함. WS event 유실 / OKX (private WS 미보유) / Bybit 응답 손상 시 DB 영원히 submitted 고착.
-
-**권장 접근:**
-
-1. `provider.fetch_order(creds, exchange_order_id)` interface (Bybit / OKX / Fixture) — CCXT `fetch_order(id, symbol)`
-2. `fetch_order_status_task` Celery — terminal 이면 transition. 미체결이면 backoff (15s → 30s → 60s) retry
-3. `_async_execute` submitted 분기에서 `fetch_order_status_task.apply_async(countdown=15)` enqueue
-4. `tasks/orphan_submitted_scanner` 별도 Celery beat (5분, 30분 이상 submitted → Slack alert + Sentry warn)
-
-**의존성:** ADR-018 WS supervisor (완료) · BL-002 (Day 2 stuck pending 분석은 별도 root cause 가능성)
+**submitted 영구 고착 watchdog** (silent data corruption 차단). Phase A.1 provider.fetch_order + Phase A.2 fetch_order_status_task Celery (3 retry backoff 15s→30s→60s) + Phase A.3 scan_stuck_orders beat 5min. 상세: [`sprint15-watchdog`](dev-log/2026-05-01-sprint15-watchdog.md).
 
 ---
 
-### BL-002
+### BL-002 ✅ Resolved (Sprint 15, 2026-05-01)
 
-**Status:** ✅ Resolved (2026-05-01, Sprint 15 stage/h2-sprint15)
-**Title:** Day 2 stuck pending order 분석 + cleanup
-**Category:** 트랜잭션 / Order
-**Priority:** P0
-**Trigger:** Sprint 15 진입 (BL-001 직후 또는 병렬)
-**Est:** S (2h)
-**출처:** [`docs/dev-log/2026-04-27-dogfood-day3.md`](dev-log/2026-04-27-dogfood-day3.md) §3
-**해결:** Sprint 15 Phase A.3 의 `scan_stuck_orders_task` 가 `list_stuck_pending` 으로 30분 이상 pending 자동 감지 + `execute_order_task.apply_async` 재dispatch + per-order throttled alert. Day 2 stuck order `13705a91` 는 dogfood Day 4 라이브 검증 시 자동 reconcile 예정. root cause 추정: Day 2 hotfix 직후 worker container 코드 outdated 또는 broker 메시지 만료. 본 watchdog 가 동일 패턴 재발 시 자동 복구.
-
-**원인 / 영향:** Day 2 stuck pending order (`13705a91-...`) 가 Day 2 §2.4 hotfix (OrderService outer commit) 후 INSERT + COMMIT 됐으나 14h+ state=pending 그대로. dispatch 또는 worker 처리 누락. **즉 OrderService outer commit fix 외 별도 broken bug 잔존 가능성**.
-
-**권장 접근:**
-
-1. `service.execute()` → `dispatcher.dispatch_order_execution()` → Celery enqueue → `_async_execute` 4단계 trace 로그 분석
-2. Celery prefetch / acks_late 설정 + DB row pickup 시점 검증
-3. fix 또는 BL-001 watchdog 으로 자동 reconcile 가능한지 결정
-
-**의존성:** BL-001 의 `provider.fetch_order` 가 cleanup 도구로 활용 가능
+**Day 2 stuck pending order 분석 + cleanup**. `scan_stuck_orders_task` 가 30분 이상 pending 자동 감지 + execute_order_task 재dispatch + per-order throttled alert. Day 2 stuck order `13705a91` 는 BL-001 watchdog 으로 자동 reconcile. 상세: [`sprint15-watchdog`](dev-log/2026-05-01-sprint15-watchdog.md).
 
 ---
 
@@ -147,24 +112,7 @@
 
 ### BL-004 ✅ Resolved (Sprint 28 Slice 4 PR #108, 2026-05-04)
 
-**Title:** KillSwitch `capital_base` 동적 바인딩 + leverage cap 검증
-**Category:** 트랜잭션 / Risk
-**Priority:** P0 (H1 Stealth Step 3)
-**Trigger:** ~~mainnet 진입 직전~~ → **Sprint 28 Slice 4 으로 사전 처리**
-**Est:** M (4-5h) → **실제 4.5h (Slice 4 estimate 정합)**
-**출처:** [`docs/TODO.md`](TODO.md) L658
-
-**원인 / 영향 (Sprint 8 시점):** `capital_base` 정적 설정. 잔고 변동 시 KS 임계값이 실제 위험 노출과 어긋남. mainnet 진입 시 silent over-exposure 위험.
-
-**해결 (Sprint 28 Slice 4 PR #108):**
-
-1. ✅ Sprint 8+ 의 hybrid 구현 검증 — `CumulativeLossEvaluator(balance_provider)` 가 trigger 시 매번 fetch_balance 호출 (ADR-006 Resolved 2026-05-04)
-2. ✅ `kill_switch.py:107-121` — provider 예외 → swallow + log + config fallback (resilience)
-3. ✅ 9 unit tests PASS — 기존 7 + 신규 2 (provider exception + cache 0 검증)
-4. ✅ Bybit Demo integration test infra (`tests/real_broker/test_kill_switch_capital_base.py`, --run-real-broker opt-in)
-5. ⏸️ EffectiveLeverageEvaluator (Cross Margin position aggregation) → BL-145 deferred
-
-**관련 ADR:** `docs/dev-log/006-sprint6-design-review-summary.md` "Resolved 2026-05-04 (Sprint 28 Slice 4)" 섹션 (capital_base fetch timing = Option A 결의)
+**KillSwitch capital_base 동적 바인딩 + leverage cap**. `CumulativeLossEvaluator(balance_provider)` trigger 시 fetch_balance + provider exception swallow + config fallback + 9 unit tests + Bybit Demo integration infra. EffectiveLeverageEvaluator → BL-145 deferred. ADR-006 Resolved 2026-05-04.
 
 ---
 
@@ -206,82 +154,27 @@
 | [BL-026](#bl-026)                                     | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                    | Stage 2c 2차 fixture 활성화 후              | S (1-2h)  | TODO.md L20-22                           |
 | [BL-080](#bl-080-✅-resolved-sprint-18-2026-05-02) ✅ | **scan/reconcile/trading prefork-safe architectural fix** (Option C — Persistent worker loop)      | (Sprint 18, 2026-05-02 Resolved)            | L (1-2일) | Sprint 17 dev-log §7 + Sprint 18 dev-log |
 
-### BL-010
+### BL-010 ✅ Resolved (Sprint 16, 2026-05-01)
 
-**Title:** commit-spy 도메인 확장 (LESSON-019 backfill)
-**Category:** 트랜잭션 / 도메인
-**Priority:** P1 — 4번째 broken bug 재발 예방 (Sprint 6 webhook_secret → Sprint 13 OrderService → Sprint 15 ExchangeAccount → ?)
-**Trigger:** 다음 mutation PR 직전 또는 Sprint 16 직후
-**Est:** S (2-3h)
-**Status:** ✅ **Resolved** (Sprint 16, 2026-05-01) — 4 도메인 (Strategy / Backtest / Waitlist / StressTest) commit-spy backfill 완료, 11 spy 추가. codex G.0 audit 결과 5 도메인 모두 commit 호출 OK = broken bug 0건 confirmed. Optimizer 는 H1 미구현 (스캐폴드만) → 별도 BL (Optimizer 구현 시점에 spy 추가).
-**출처:** [`docs/04_architecture/architecture-conformance.md`](04_architecture/architecture-conformance.md) §A2 / Phase 1 audit TBD
-
-**원인 / 영향:** LESSON-019 가 trading 도메인의 broken bug 3 회 재발에서 승격됐지만, **backtest / strategy / waitlist / stress_test / market_data / auth 도메인의 commit-spy 회귀 테스트 미발견**. 다음 service mutation 추가 시 동일 패턴 재발 가능.
-
-**권장 접근:**
-
-1. `tests/<domain>/test_*_commits.py` 표준 reference 는 `backend/tests/trading/test_webhook_secret_commits.py` (6 spy)
-2. AsyncMock spec 기반 spy + db_session fixture 와 분리 + false-positive 방어 (same-session read-your-writes)
-3. 6 도메인 × 평균 3 mutation 메서드 = ~18 spy 테스트 추가
-4. `.ai/stacks/fastapi/backend.md` §트랜잭션 commit 보장 섹션에 "모든 도메인 적용" 명시
-
-**의존성:** —
-
-**Sprint 16 산출물:**
-
-- `backend/tests/strategy/test_strategy_commits.py` (4 spy: create / atomic auto-issue / update / delete)
-- `backend/tests/backtest/test_backtest_commits.py` (3 spy: submit / cancel / delete)
-- `backend/tests/waitlist/test_waitlist_commits.py` (2 spy + autouse `_reset_rate_limiter` override)
-- `backend/tests/stress_test/test_stress_test_commits.py` (2 spy: monte_carlo / walk_forward)
-- 회고: [`docs/dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md`](dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md) §4
-- 커밋: `beacc89` (4 files / 460 insertions)
+**commit-spy 도메인 확장** (LESSON-019 backfill). 4 도메인 (Strategy 4 spy / Backtest 3 spy / Waitlist 2 spy / StressTest 2 spy = 11 spy 추가). codex G.0 audit 5 도메인 commit 호출 OK confirmed. 커밋 `beacc89`. 상세: [`sprint16-phase0`](dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md).
 
 ---
 
-### BL-011
+### BL-011 ✅ Resolved (Sprint 24a)
 
-**Title:** Redis lease + heartbeat (multi-account scaling)
-**Category:** WebSocket / Celery
-**Priority:** P1
-**Trigger:** 2 계정 이상 dogfood 진입 시
-**Est:** M (5-6h)
-**출처:** [`docs/TODO.md`](TODO.md) L706 (Sprint 13 이관)
-
-**원인 / 영향:** 현재 `--pool=solo` + process-level set 으로 dogfood 1-user 우회. 2 계정 이상은 lease 필요.
-
-**권장 접근:** Redis SET NX PX + heartbeat (TTL renew) + worker_process_init/shutdown hook + lease release on graceful shutdown. ADR-018 WS supervisor 와 통합.
-
-**의존성:** BL-012 (prefork 복귀 와 짝)
+**Redis lease + heartbeat** (multi-account scaling). Redis SET NX PX + heartbeat (TTL renew) + worker_process_init/shutdown hook. BL-012 와 짝.
 
 ---
 
-### BL-012
+### BL-012 ✅ Resolved (Sprint 24a)
 
-**Title:** prefork 복귀
-**Category:** WebSocket / Celery
-**Priority:** P1
-**Trigger:** BL-011 직후
-**Est:** M (4h)
-**출처:** TODO.md L707
-
-**원인 / 영향:** Sprint 12 G4 revisit fix #4 — `--pool=solo` 단일 process 한계. concurrency=1 = 1 account. prefork + Redis lease + `worker_process_init/shutdown` hook 으로 N account 지원.
-
-**권장 접근:** `docker-compose.yml` ws-stream worker `--pool=prefork --concurrency=N` 복귀 + worker_process_init 에서 lease acquire + worker_shutdown 에서 release. BL-011 lease pattern 전제.
+**prefork 복귀** — `--pool=solo` 단일 process 한계 해소. prefork + Redis lease + worker_process_init/shutdown hook. BL-011 lease pattern 전제.
 
 ---
 
-### BL-013
+### BL-013 ✅ Resolved (Sprint 24a)
 
-**Title:** Auth circuit breaker (`BybitAuthError` 1h TTL)
-**Category:** WebSocket / Auth
-**Priority:** P1
-**Trigger:** dogfood 1주 운영 중 alert flood 발견 시
-**Est:** S (2-3h)
-**출처:** TODO.md L708
-
-**원인 / 영향:** 현재 Beat 5분마다 재시도 → 동일 alert 반복 (사용자 수동 fix 신호 noise).
-
-**권장 접근:** `BybitAuthError` 시 Redis circuit breaker (1h TTL). 그 사이 supervisor 재연결 시도 0 + Slack alert 1회만 + 만료 후 자동 재개. 단위테스트: TTL 만료 전/후 시도 횟수 검증.
+**Auth circuit breaker** (`BybitAuthError` 1h TTL). Redis circuit breaker — supervisor 재연결 0 + Slack alert 1회 + 만료 후 자동 재개.
 
 ---
 
@@ -315,16 +208,9 @@
 
 ---
 
-### BL-016
+### BL-016 ✅ Resolved (Sprint 24a)
 
-**Title:** `__aenter__` first_connect race 강화
-**Category:** WebSocket
-**Priority:** P1
-**Trigger:** 60s timeout 실측 발견 시
-**Est:** S (2h)
-**출처:** TODO.md L711 (codex G4 revisit advisory B)
-
-**권장 접근:** 현재 `__aenter__` 60s startup timeout 만. retry + circuit breaker 추가.
+**`__aenter__` first_connect race 강화** — 60s startup timeout 만 → retry + circuit breaker 추가 (BL-013 짝).
 
 ---
 
@@ -460,93 +346,16 @@
 | **BL-114 (신규)** | `run_auto_dogfood.py` stdout 텍스트 파싱 fragility (PASSED count + 200자 substring) → pytest-json-report 또는 JUnit XML (Sprint 24b G.2 P2 #2)                                                       | P3       | S (30m)   |
 | **BL-115 (신규)** | `run_auto_dogfood.py` HTML output 미escape (스크립트 인젝션 surface) — `html.escape()` 적용 (Sprint 24b G.2 P2 #4)                                                                                   | P3       | S (15m)   |
 
-**BL-091 상세** (Sprint 20 dogfood Day 0 라이브 발견 → Sprint 22 ✅ Resolved 2026-05-03):
+> **BL-091/092/093/094/095/096 상세 압축** — 모두 Sprint 20 Day 0 dogfood 라이브 발견 후 Sprint 22/23/27/30 Resolved. 상세는 해당 sprint dev-log 또는 git history. 본 BACKLOG 의 P1/P2 main table 의 status row 만 참조.
 
-- **증상**: 사용자가 `/trading` 의 TestOrderDialog 로 발송 → UI "filled" + DB `state=filled` 표시. 하지만 `exchange_order_id='fixture-1'` + `filled_price=50000.00` (round number) = mock 응답. **broker 까지 안 감**.
-- **Root cause**: `backend/src/tasks/trading.py:_build_exchange_provider()` 가 `settings.exchange_provider` (Pydantic env) 기반 lazy singleton. **ExchangeAccount.mode (demo/live) 완전 무시**. + `docker-compose.yml` worker/beat env 에 `EXCHANGE_PROVIDER` 누락 (Sprint 20 hot-fix 로 추가) → Pydantic default `"fixture"` 적용 → `FixtureExchangeProvider()` 반환.
-- **사용자 신뢰 위반**: ExchangeAccount UI 에서 mode=demo 명시 + Bybit Demo API key 등록했는데도 worker 가 fixture 응답. **dogfood 의 본질 위반**.
-- **Sprint 20 hot-fix** (Day 0 적용): `.env` 에 `EXCHANGE_PROVIDER=bybit_demo` + `docker-compose.yml` 에 env 추가. **mitigation — proper fix 아님**.
-- **Sprint 22 proper fix ✅**: `_provider_for_account_and_leverage(exchange, mode, has_leverage)` 3-tuple dispatch + `_build_exchange_provider(account, submit)` public dispatcher. module-level `_exchange_provider` global + `_get_exchange_provider()` 제거. `UnsupportedExchangeError(ProviderError)` 로 graceful rejected. BybitLiveProvider stub (`create_order/cancel_order/fetch_order` 모두 ProviderError raise) — BL-003 까지 deferred. dispatch tuple 에 fixture 분기 부재로 silent fallback 자동 차단. ExchangeAccount.mode mutation endpoint 부재 (PUT/PATCH 없음) audit test 로 race-free 보장. docker-compose env 제거 + .env.example deprecation 주석.
-- **codex G.0 (medium) 결과**: P1 5건 (live/stub 충돌 / UnsupportedExchangeError graceful catch 누락 / Protocol cancel_order 누락 / EXCHANGE_PROVIDER 정책 모순 / account.mode race) + P2 5건 (leverage=0 / monkeypatch 카운트 / e2e 마이그레이션 / fixture guard scope / 헤더 주석) 모두 plan v2 반영 후 구현.
-- **검증**: 신규 28 tests (test_provider_dispatch.py 27 + test_account_mode_immutable.py 1) 100% pass + 21건 monkeypatch 마이그레이션 회귀 0 fail. 전체 1342 passed / 27 skipped / 0 failed (격리 stack). ruff 0 / mypy 0 (145 src files).
-- **Files**: `backend/src/tasks/trading.py` · `backend/src/trading/providers.py` (BybitLiveProvider) · `backend/src/trading/exceptions.py` (UnsupportedExchangeError) · `backend/src/core/config.py` · `docker-compose.yml` · `.env.example` · `backend/src/tasks/funding.py` (docstring) · 신규 `tests/tasks/test_provider_dispatch.py` + `tests/trading/test_account_mode_immutable.py`.
-- **Trigger Sprint 23+**: dogfood Day 2-7 broker 도달 evidence (BrokerBadge 녹색 broker) ✅ → Path A Beta 오픈 (BL-070~072). 🔴 → 회귀 분석.
+- **BL-091** ✅ Resolved (Sprint 22, 2026-05-03) — ExchangeAccount.mode dynamic dispatch 3-tuple proper fix. `_provider_for_account_and_leverage` + module-level singleton 제거 + UnsupportedExchangeError graceful + 28 신규 tests.
+- **BL-092** ✅ Resolved — `qb_active_orders` filled/cancelled 후 dec invariant 검증.
+- **BL-093** ✅ Resolved (Sprint 21) — TestOrderDialog success toast + idempotency_key + BrokerBadge.
+- **BL-094** — webhook secret sessionStorage TTL vs dogfood UX (정책 결정 후 evaluate).
+- **BL-095** ✅ Resolved (Sprint 21) — Backtest 422 inline detail (FE friendly hints).
+- **BL-096** ✅ Partial (Sprint 21) — coverage.py supported list 확장. RsiD 통과. UtBot×2 / DrFX 잔존 (Sprint 22+).
 
-| **BL-092 (신규)** | `qb_active_orders` filled/cancelled 후 dec 누락 (Sprint 20 dogfood Day 0) | P2 | S (분석 + 1-line fix) |
-| **BL-093 (신규)** | TestOrderDialog 성공 시 명시적 confirmation (toast/inline) 부재 — dialog 자동 닫힘만 | P3 | S (1h) |
-| **BL-094 (신규)** | webhook secret sessionStorage TTL 30분 vs dogfood UX 충돌 — 30분 흐르면 Rotate 강제 | P3 | S (정책 결정 후 1-2h) |
-| **BL-095 (신규)** | Backtest 422 inline detail 미흡 — `API 422 /api/v1/backtests` 만 표시, `unsupported builtins` 같은 detail 누락 | P3 | S (1h) |
-| **BL-096 (신규)** | **Coverage Analyzer supported list 너무 좁음** + Sprint 8c corpus 와 production supported list 이중 잣대 | **P1** | M (1주) |
-
-**BL-092 상세** (Sprint 20 Day 0 라이브 발견, 2026-05-02):
-
-- 현재 `qb_active_orders=2.0` — 1차 fixture (filled) + 2차 real broker (filled) 후에도 dec 누적 안 됨
-- 추정 #1: BL-027 winner-only dec 가 fixture 1차 때 inc 안 했지만 dec 시도 → underflow guard 가 dec block?
-- 추정 #2: state_handler 가 WS event 처리 시 winner-only rowcount 0 반환?
-- Sprint 21 분석. `qb_active_orders` invariant 검증 (pending/submitted inc, filled/cancelled dec). 현재 monotonically increasing 이라 운영 metric 신뢰도 낮음.
-
-**BL-093 상세** (Sprint 20 Day 0 라이브 발견):
-
-- TestOrderDialog Submit 성공 시 dialog 자동 닫힘만, 사용자 본인이 "주문창이 안 보여서.. 된거긴한것 같은데?" 표현
-- 권장: sonner toast (`주문 발송됨 / order_id ${id}`) 또는 dialog 안에 success state 표시
-
-**BL-094 상세** (Sprint 20 Day 0 라이브 발견):
-
-- Sprint 13 의 보안 정책 (1회 노출 + sessionStorage TTL 30분) 이 dogfood 시나리오와 충돌
-- Strategy create 11:51 → TestOrder 12:24 (33분 경과) → "Webhook secret 캐시 없음. Strategy 페이지에서 Rotate 후 다시 시도" 발생
-- 매번 30분 안에 dogfood 사이클 끝내야 한다는 가정 — 실용적이지 않음
-- 옵션: TTL 24h 늘림 / "secret 다시 보기" 버튼 / TestOrderDialog 가 sessionStorage 부재 시 자동 Rotate prompt / 또는 의도된 보안 정책 유지 + 가이드 명시
-
-**BL-095 상세** (Sprint 20 Day 0 라이브 발견):
-
-- Frontend `BacktestForm` 가 422 시 `API 422 /api/v1/backtests` 만 표시, backend 의 `detail.detail` (unsupported builtins 목록) 안 보임
-- 사용자가 어떤 builtin 이 미지원인지 알기 위해 강제로 network 탭 또는 console 확인 필요
-- Sprint 21+ FE fix: 422 detail.code === "strategy_not_runnable" 인 경우 unsupported builtin list 를 inline 카드로 표시
-
-**BL-096 상세** (Sprint 20 Day 0 backtest 6/6 매트릭스 발견 — **P1 critical**):
-
-- **결정적 모순 발견**: Sprint 8c 의 strict 검증 (i3_drfx, s3_rsid strict=True 통과, **252 pine_v2 tests green**) vs **production parse-preview reject**:
-  - DrFXGOD (= i3_drfx 동일): 39 unsupported builtins, `is_runnable: false`
-  - RsiD (= s3_rsid 동일): 8 unsupported (abs, barssince, currency.USD, max, pivothigh, pivotlow, strategy.fixed, valuewhen), `is_runnable: false`
-- 즉 **Sprint 8c 의 pine_v2 dispatcher 가 처리할 수 있는 builtin 집합** vs **production Sprint Y1 Coverage Analyzer 의 supported list** 가 분리됨
-- 흔한 미지원 다수: `abs`, `max`, `min`, `ta.barssince`, `ta.valuewhen`, `ta.pivothigh/low`, `currency.USD`, `strategy.fixed`, `barcolor`, `label.*`, `box.*`, `request.security`, `str.tostring`, `fixnan`, `barstate.*`
-- **dogfood 의 큰 friction**: 사용자 본인 6 indicator 중 4 reject (UtBot×2 + DrFX + RsiD), 2 통과 (PbR + LuxAlgo) = **33% 통과율**
-- Sprint 21+ 작업:
-  - SSOT supported list 단일화 — `pine_v2` corpus 통과 builtin = production supported
-  - `abs`, `max`, `min`, `ta.barssince`, `ta.valuewhen`, `ta.pivothigh/low` 등 흔한 builtin 우선 추가
-  - 또는 Coverage Analyzer 의 strict mode 옵션 (사용자가 "이건 backtest 거짓 양성 위험 알지만 진행" 토글)
-  - 통합 검증: 신규 supported builtin 추가 시 corpus 6/6 + production parse-preview 6/6 동시 통과 의무
-
-**현황:** Sprint 17 Phase A+B+C 가 module-level cached AsyncEngine 제거 + per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` 도입 (backtest.py:31 mirror). **1st task / child success**. 하지만 같은 child 의 2nd+ task 가 RuntimeError "attached to a different loop" / InterfaceError "another operation is in progress" 재발 — SQLAlchemy/asyncpg 의 process-level state (dialect cache 등) 가 stale loop Future 보유. `worker_max_tasks_per_child=1` 효과 약함.
-
-**라이브 evidence (격리 docker, 2026-05-02 post-Sprint 17 fix)**:
-
-```
-1st scan_stuck_orders: succeeded (0.11s) — Phase 0 의 100% silent fail 대비 진전
-2nd scan_stuck_orders: RuntimeError("attached to a different loop")
-3rd scan_stuck_orders: InterfaceError("another operation is in progress")
-```
-
-**Question (Sprint 18 G.0 의 핵심)**: backtest.reclaim_stale 이 동일 6h 동안 34/34 success 였는데 우리 task 만 fail — 무엇이 다른가? candidate diff:
-
-1. `_get_redis_lock_pool_for_alert` (alert path) — module-level Redis pool stale loop bind?
-2. `_exchange_provider` lazy singleton — CCXT internal state?
-3. `OrderRepository.list_stuck_pending` 의 specific SQLAlchemy statement caching?
-4. import 순서 (`from src.tasks.trading import execute_order_task`) 가 trading.py top-level state trigger?
-
-**권장 접근**:
-
-1. **diff 정밀 분석** (4-8h) — backtest.py vs orphan_scanner.py runtime state 비교 (profiling, debugging)
-2. 후보 fix:
-   - **A. Celery solo pool** — scan/reconcile/trading 각각 dedicated worker (`--pool=solo`). Sprint 12 ws-stream worker 패턴 mirror. **운영 복잡도 ↑** (4-6h)
-   - **B. asyncpg/SQLAlchemy module-level state reset** — `_get_redis_lock_pool_for_alert` + dialect cache 매 task reset. Hot path overhead. (1일)
-   - **C. fork-fresh interpreter** — `worker_pool=prefork` + `worker_init` hook 으로 module reset. Invasive. (1-2일)
-3. **G.2 challenge** 의무 — silent failure mode 가 또 있는가?
-4. 라이브 검증 — `asyncio.run() 즉시 3회 연속` + `5분 cycle 1시간` 둘 다 성공 확인.
-
-**의존성:** 없음. Sprint 17 의 Phase A+B+C foundation 위에 빌드.
-
-**Cross-link**: Sprint 17 dev-log §7. Sprint 18 master plan v1.
+> BL-080 사전 분석 본문 (Sprint 17 시점 — Question / 권장 접근 등) 은 압축됨. Sprint 18 의 Option C 해소 본문은 [`sprint18-bl080-architectural`](dev-log/2026-05-02-sprint18-bl080-architectural.md) SSOT 참조.
 
 ---
 
@@ -739,290 +548,40 @@
 
 ## 변경 이력
 
-- **2026-05-04 (dogfood Day 1-7 / Sprint 27 launch)** — `stage/h2-sprint27-dogfood-day1` PR #102 (docs-only).
-  - **신규 등록 (5건)**: BL-137 (P2 신규 strategy trading settings UI), BL-138 (P3 list inline `·` 일관성), BL-139 (P3 detail aggregation scope), BL-140 (P2 LiveSignalDetail equity curve chart), BL-141 (P2 Backtest UI 활성화 + ts.ohlcv backfill).
-  - **출처**: `docs/dev-log/2026-05-04-dogfood-day1-sprint27-launch.md` (4 commits 누적 — Day 1 / Day 2 + L-S27-2 / Day 3 + multi-account / Day 4-7 압축).
-  - **합계**: 76 → 81 BL (5 신규, 0 Resolved).
-  - **LESSON 후보 2건** — L-S27-1 multi-schema 인지 (`pg_tables` schemaname IN), L-S27-2 innerText 단독 UI bug 결정 금지 (screenshot cross-check 의무). 둘 다 `.ai/common/global.md` 승격 후보.
-  - **Auto-Loop §0.5 첫 실측**: 4 cycle 무중단 + 사용자 prompt 5개 + 0 production blocker + 26h+ infrastructure 무결.
+> Sprint 별 BL 변경 1-line 요약. 상세는 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 또는 해당 sprint dev-log.
 
-- **2026-04-30** — 초기 작성. CLAUDE.md / TODO.md / dev-log/2026-04-\* / docs/superpowers/plans 4 곳에서 47 follow-up 통합 + Phase 1 architecture-conformance audit TBD 2 건 (BL-010, BL-050) 등록 = **총 50 BL (P0 5 + P1 17 + P2 14 + P3 8 + Beta 6)**. 중복 4 건 통합 (WebSocket 안정화 4 곳 → BL-001/011/012/013/014/015/016 분리, Bybit infra 3 곳 → BL-003 통합, Backtest UX 422 inline 은 Sprint 13 완료로 등록 X, OrderService broken bug 는 Sprint 13~14 hotfix 완료 — Day 2 stuck pending 잔여 BL-002 만).
+### 최근 sprint (Sprint 53~58)
 
-- **2026-05-01** — Sprint 15 (`stage/h2-sprint15`) 결과 반영.
-  - **Resolved**: BL-001 (submitted watchdog), BL-002 (Day 2 stuck pending cleanup) — `docs/dev-log/2026-05-01-sprint15-watchdog.md`. 1216 BE tests / mypy 0 / ruff 0.
-  - **신규 등록 (Sprint 15 codex G.2 + scope minimization 결과)**:
-    - **BL-027** WS state_handler.py:176 unconditional `qb_active_orders.dec()` + reconciliation.py:182 dec 누락 — codex G.2 P1 #3 분리, Sprint 15 watchdog 가 worse 만들지 않음 확인. trigger: Sprint 16 직후 cleanup. est M (3-4h)
-    - **BL-028** `scripts/force-reject-stuck.py` — submitted+null exchange_order_id manual cleanup (codex G.0 P1 #3 잔존 surface). trigger: submission_interrupted alert 발화 시. est S (1-2h)
-    - **BL-029** provider.fetch_order CCXT rate limit Redis throttle middleware — Sprint 15 watchdog 가 retry 마다 fetch_order 호출. dogfood 1-user 영향 적지만 BL-005 (1-2주 dogfood) 완료 후 점검. trigger: rate limit alert 다발 시. est M (3-4h)
-  - **합계 변동**: 50 → 53 BL. P0 잔여 3 (BL-003/004/005). P1 잔여 17 (변동 없음, BL-010 trigger 도래 — Sprint 16 우선). P2 신규 3 (BL-027/028/029).
+- **Sprint 58** (2026-05-11) — BL-241/242/243 Pine TA 확장 Resolved (ta.wma/hma/bb/cross/mom/obv+fixnan + strategy.equity + UTC 라벨). 92 → 89. [`sprint58-close`](dev-log/2026-05-11-sprint58-close.md).
+- **Sprint 57** (2026-05-11) — BL-234 Optimizer Polish (prior=normal+one_hot+roulette) + BL-237 optimizer_heavy queue Resolved. 신규 BL-241~243. 91 → 92. [`sprint57-close`](dev-log/2026-05-11-sprint57-close.md).
+- **Sprint 56** (2026-05-11) — BL-233 Genetic executor 본격 Resolved + 신규 BL-238/239/240 chore. 91 net. [`sprint56`](dev-log/2026-05-11-sprint56-master.md).
+- **Sprint 55** (2026-05-11) — BL-232 Bayesian executor 본격 Resolved + 신규 BL-233~237 (5건). 88 → 92. [`sprint55-master`](dev-log/2026-05-11-sprint55-master.md).
+- **Sprint 54** (2026-05-12) — Phase 3 Optimizer 본격 진입 (Grid Search MVP). BL-226/227/228/229/230/231 Resolved. 93 → 88.
+- **Sprint 53** (2026-05-11) — Optimizer prereq spike. BL-226 Resolved + BL-227~231 신규.
 
-- **2026-05-01 (Sprint 16)** — `stage/h2-sprint16` 결과 반영.
-  - **Resolved**:
-    - **BL-027** WS state_handler / reconciliation / tasks/trading dec winner-only commit-then-dec — codex G.0 P1 #1 (silent corruption: dec 가 commit 전 발화) + P1 #2 (scope 누락: `tasks/trading.py:165/200/253` 의 \_async_execute rejected 분기) 모두 fix. Sprint 15 watchdog `tasks/trading.py:458` 표준 패턴 (rows==1 → commit → dec) 3 path 통일. 신규 15 tests. 커밋 `a3d4a20`.
-    - **BL-010** commit-spy 도메인 확장 — 4 도메인 (Strategy / Backtest / Waitlist / StressTest) backfill 11 spy. codex G.0 audit 결과 5 도메인 모두 commit 호출 OK = broken bug 0건 confirmed. Optimizer 는 H1 미구현 → 별도 BL. 커밋 `beacc89`.
-  - **codex 게이트**:
-    - **G.0** (medium, iter cap 2) — P1 #1 silent corruption + P1 #2 scope 누락 + Phase B broken bug 0건 confirm. 426k tokens. iter 1 만으로 종료.
-    - **G.2** (high, iter cap 2) — 6 break vector 검토 (silent rollback / SQLAlchemy lazy flush / 변수 shadowing / spy false negative / pytest fixture / OrderState fallthrough). **P1 critical 0건** confirm. 515k tokens. iter 1 만으로 종료.
-  - **신규 등록** (Optimizer 구현 시점에 추가): Optimizer commit-spy backfill (BL-010 의 5번째 도메인, H1 구현 후).
-  - **합계 변동**: 53 BL. P0 잔여 3 (BL-003/004/005). P1 잔여 16 (BL-010 ✅). P2 잔여 2 (BL-028/029, BL-027 ✅). dev-log: [`docs/dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md`](dev-log/2026-05-01-sprint16-phase0-live-and-backfill.md).
+### 이전 sprint (Sprint 15~52, 1-line 요약)
 
-- **2026-05-02 (Sprint 21 BE+FE)** — `stage/h2-sprint21` 결과 반영.
-  - **Resolved**:
-    - **BL-093** TestOrderDialog success confirmation — toast description 에 broker order id slice / idempotency_key fallback. + OrdersPanel 7번째 컬럼 `Broker ID` + `<BrokerBadge>` (fixture-\* 오렌지 mock vs broker 녹색 시각 분기).
-    - **BL-095** Backtest 422 inline detail — backend 422 shape `{detail:{code,detail,unsupported_builtins:list[str]}}` 표준화 (Phase A.0). FE friendly hints inline 카드 + edit link (Phase D). `unsupported-builtin-hints.ts` 신규 mapping table.
-    - **BL-097** (신규+Resolved) interpreter alias ordering correctness — `_eval_call` 시작 직후 user_functions 우선 dispatch + `"." not in name` guard. 사용자 `abs(x) =>` / `max(a,b) =>` 정의 시 v4 alias 압도 차단 (Sprint 8c 의 silent correctness bug 해소). codex G.0 P1 #1+#4.
-    - **BL-096 Partial** — coverage.py supported list 확장 (V4 alias 8 + 2 explicit constant frozenset (currency 12 / strategy_extra 6) + study NOP). RsiD 통과 (8 unsupported 모두 fix). UtBot×2 잔존 (heikinashi/security Trust Layer 정합 의도, codex G.0 P1 #2). DrFX scope (Sprint 22+).
+- **Sprint 52** (2026-05-11) — Stress Test follow-up. BL-222~225 Resolved + BL-226 신규.
+- **Sprint 51** (2026-05-11) — BL-220 Param Stability MVP Resolved + BL-222~225 신규.
+- **Sprint 50** (2026-05-10) — Cost Assumption Sensitivity 본격. BL-219 Resolved.
+- **Sprint 45** (2026-05-09) — Surgical Cleanup #4/#3. dashboard-shell 추출 + codex G.4. 신규 BL-195. 92 → 93.
+- **Sprint 42** (2026-05-08) — Phase 1.1/1.2 demo onboarding. 신규 BL-193/194. 90 → 92.
+- **Sprint 41** (2026-05-07) — 외부 demo 첫인상 패키지 (Worker B/E/H + B-2). 신규 BL-190/191/192. 87 → 90.
+- **Sprint 39** (2026-05-07) — BL-189 Resolved (measurement artifact 결론). 88 → 87.
+- **Sprint 38** (2026-05-07) — BL-181 Resolved (Docker worker auto-rebuild) + BL-189 신규 P0 (CPU loop on stage).
+- **Sprint 37** (2026-05-06) — polish iter 5 (BL-183/184/185/187/187a/188a Resolved, 6건) + 신규 BL-186/188. 86 → 88.
+- **Sprint 36** (2026-05-06) — polish iter 4. BL-150/176 Resolved + BL-183 신규.
+- **Sprint 35** (2026-05-05) — polish iter 3 + Day 7 4중 AND gate. BL-178/180 Resolved + BL-181/182 신규.
+- **Sprint 34** (2026-05-05) — BL-175 Resolved + BL-177 partial + BL-166 cancel + 신규 BL-177-A/B/C/178/179. 80 → 86.
+- **Sprint 33** (2026-05-05) — BL-164 Resolved + 신규 BL-175/176/177. 80 net.
+- **Sprint 32** (2026-05-05) — Surface Trust Recovery (7 Resolved). 87 → 80. [`sprint32-master-retro`](dev-log/2026-05-05-sprint32-master-retrospective.md).
+- **Sprint 27** (2026-05-04) — dogfood Day 1-7 launch. 신규 BL-137~141. 76 → 81.
+- **Sprint 25 Hybrid** (2026-05-03) — Frontend E2E Playwright. 5 Resolved + 14 신규 (BL-110a/112/113/114/115 + BL-110b/116~129). 67 → 76.
+- **Sprint 21** (2026-05-02) — BL-093/095/097 Resolved + BL-096 partial + 신규 BL-098/099/100. 67 net.
+- **Sprint 18** (2026-05-02) — BL-080 Option C persistent worker loop Resolved.
+- **Sprint 17** (2026-05-02) — prefork-safe Partial fix. 신규 BL-080. 54 net.
+- **Sprint 16** (2026-05-01) — BL-010 commit-spy 4 도메인 backfill + BL-027 Resolved. 53 net.
+- **Sprint 15** (2026-05-01) — BL-001 (submitted watchdog) + BL-002 (Day 2 stuck pending) Resolved + 신규 BL-027/028/029. 50 → 53.
+- **2026-04-30** — 초기 작성 50 BL (P0 5 + P1 17 + P2 14 + P3 8 + Beta 6).
 
-  - **신규 등록 (codex G.2 challenge P1 — Sprint 21 무관 pre-existing)**:
-    - **BL-098** `strategy.exit` coverage/interpreter parity — coverage.py:40 supported 인데 interpreter `_eval_call` dispatch 미구현. preflight pass 후 runtime fail risk. P1. est S (1h).
-    - **BL-099** `vline` coverage/interpreter parity — coverage.py:52 `_PLOT_FUNCTIONS` supported 인데 interpreter `_NOP_NAMES` 미포함. P1. est S (30m).
-    - **BL-100** `timeframe.*` runtime NOP — Sprint 21 v2 plan 에서 추가했으나 G.2 P1 #1 발견 (interpreter `_eval_attribute` 미구현 = silent corruption risk). 본 Sprint 에서 `_TIMEFRAME_CONSTANTS` 빈 frozenset 으로 회수. interpreter NOP 추가 또는 strict toggle 설계 후 supported 전환. P2. est M (2-4h).
-
-  - **codex 게이트**:
-    - **G.0 round 1** (medium, 397k tokens) RETHINK + P1 9건. round 2 (medium, 254k tokens) GO_WITH_FIXES + 신규 P1 0건.
-    - **G.2** (high, 808k tokens) GO_WITH_FIXES + 신규 P1 3건. #1 즉시 fix (timeframe 회수). #2/#3 BL 분리.
-    - **G.5 self-checklist**: 자동 검증 ✅. 라이브 RsiD 검증 + self-assessment 8 → 9 = Phase H 후속.
-
-  - **누적**: BE +38 신규 tests (385+/0/16 skip), FE +8 신규 tests (251/0). ruff/mypy/tsc/eslint 0/0/0/0. Sprint 8c 388 회귀 PASS. SLO: 본인 6 pine 통과율 33% → 50% (3/6, +1 RsiD).
-  - **Self-assessment 본질** (codex G.0 free-2): 통과율 절대값 < 신뢰. alias ordering correctness fix + backend shape 표준화 + Trust Layer 정합 = trust ↑ (Phase H 라이브 검증 후 8 → 9 측정).
-  - **합계 변동**: 67 BL (BL-093/095/097 ✅ Resolved, BL-096 Partial Resolved + BL-098/099/100 신규 3).
-  - **dev-log**: [`docs/dev-log/2026-05-02-sprint21-bl096-coverage-expansion.md`](dev-log/2026-05-02-sprint21-bl096-coverage-expansion.md).
-
-- **2026-05-02 (Sprint 17)** — `stage/h2-sprint17` 결과 반영.
-  - **Phase 0 라이브 검증 발견**: Sprint 15 watchdog (BL-001) 6h 동안 **141/141 silent fail** + Sprint 12 reconcile_ws_streams 6h **18/35 fail**. Root cause: module-level cached AsyncEngine + Celery prefork 의 asyncio.run() 새 loop 가 SQLAlchemy/asyncpg connection pool loop binding mismatch. self-assessment 2/10 = Path C emergency.
-  - **Partial fix (Phase A+B+C)**: orphan_scanner.py / websocket_task.py / tasks/trading.py 모두 module-level singleton 제거 + per-call `create_worker_engine_and_sm()` + finally `engine.dispose()` (backtest.py:31 mirror). 신규 19 tests + 회귀 fix (test_celery_task / test_fetch_order_status_task / test_orphan_scanner). ruff 0 / mypy 0. **1st task / child success** 검증.
-  - **잔존 P1 (라이브 검증으로 Phase 4.5 architectural problem 발견)**: 같은 child 의 2nd+ task 가 RuntimeError "attached to a different loop" / InterfaceError 재발. SQLAlchemy/asyncpg 의 process-level state (dialect cache 등) 가 stale loop Future 보유. `worker_max_tasks_per_child=1` 효과 약함 (broker prefetch + max 도달 전 multi-task).
-  - **codex 게이트**:
-    - **G.0** (medium, iter cap 2) — P1 #1 (trading.py wedge 확장) + P1 #2 (real DB integration test 필수) + P1 #3 (BaseException dispose) 모두 발견. wedge 확장 = 사용자 재결정 채택. 219k tokens. iter 2 codex resume empty 응답.
-    - **G.2 challenge** skip — 시간 제약 + master plan 자체가 narrowest wedge + 잔존 P1 codex G.0 가 예측 (asyncio.run 두 번 연속 fail).
-  - **신규 등록**:
-    - **BL-080** scan/reconcile/trading prefork-safe **architectural fix** (asyncpg/SQLAlchemy module-level state reset). Sprint 17 의 narrowest wedge 한계. Sprint 18 우선. trigger: self-assessment 5 → ≥7. est L (1-2일).
-  - **self-assessment**: 2/10 → **5/10** (+3 진전). H1→H2 gate (≥7) 미통과 — Sprint 18 BL-080 root fix 후 재평가.
-  - **합계 변동**: 54 BL. P0 잔여 3. P1 잔여 17 (BL-080 신규). P2 잔여 2. dev-log: [`docs/dev-log/2026-05-02-sprint17-prefork-fix.md`](dev-log/2026-05-02-sprint17-prefork-fix.md).
-
-- **2026-05-03 (Sprint 25 Hybrid)** — `stage/h2-sprint25` 결과 반영. Frontend E2E Playwright + Backend test 강화 + codex G.0/G.2.
-  - **Resolved (5건)**:
-    - **BL-110a** In-process lease integration test (heartbeat / lost_event / lease contention) — `tests/tasks/test_ws_lease_integration.py` 7 시나리오 (acquire / duplicate None / 격리 / extend True 정상 / extend False → lost_event.set / extend Exception → lost_event.set / **aexit** Lua CAS DEL). codex G.0 iter 2 P1 #8 + G.2 P1 #2 모두 반영. autouse `_reset_pool_each_test` fixture 로 pytest-asyncio per-test event loop + redis-py asyncio connection bound 충돌 회피.
-    - **BL-112** scenario2 실 backtest 실행 — `make_trending_ohlcv` (8 segments × 25 bars = 200 bars, EMA 3/8 cross 3 회 발생 코드 실측 보장) + `EMA_CROSS_PINE_SOURCE` + precondition test (num_trades >= 3). scenario2 강한 assert (status=='ok' + result + equity > 0 + num_trades >= 1). codex G.0 iter 2 P1 #5+#6 반영 (plan v2 의 "기존 fixture 재사용" 가설 코드 실측으로 refuted).
-    - **BL-113** scenario3 OrderService.execute 정확한 args — `OrderService(session=db_session, repo=OrderRepository(db_session), dispatcher=_FakeOrderDispatcher(), kill_switch=_NoopKillSwitch(), exchange_service=ExchangeAccountService(...))`. uuid4 idempotency_key per test. dispatch_snapshot 자동 채움 검증 + provider 정합성 검증. codex G.0 iter 2 P1 #7 (`repo=` param 이름) + iter 1 P2 #1 (uuid4) + iter 2 P1 #10 (FakeOrderDispatcher Celery 우회) 반영.
-    - **BL-114** pytest-json-report 도입 — `importlib.util.find_spec('pytest_jsonreport')` plugin detect first. `_build_summary(rc, stdout, stderr, json_report=None)` backward compat (scenario6 호환). plugin 부재 시 graceful fallback. codex G.0 iter 2 P1 #9 (pytest CLI behavior 정확화) 반영.
-    - **BL-115** HTML escape full coverage — `html.escape` 전수 적용 (stdout_tail / stderr_tail / table cells / 헤더 date / counts). `tests/scripts/test_run_auto_dogfood_html_escape.py` 3 회귀 unit test (`<script>` 주입 / `<img onerror>` / safe content 정상 렌더).
-  - **신규 등록 (Sprint 26+ 이관, 14건)** — codex G.0 iter 2 + G.2 P2/P3 결과:
-    - **BL-110b** Real Celery prefork SIGTERM integration test — pytest-celery 또는 subprocess.Popen worker. P2 M (4-6h). plan v3 split.
-    - **BL-116** CI workflow_dispatch authed E2E — secret + storageState decode. P2 S (2-3h).
-    - **BL-117** Clerk emailAddress 방식 마이그레이션 (password → emailAddress, MFA/verification 우회 회피). P2 S (1-2h). codex G.2 P2 #1.
-    - **BL-118** baseURL 통합 (config + setup) — playwright.config.ts baseURL 단일 source. P3 S. codex G.2 P2 #2.
-    - **BL-119** API_ROUTES URL predicate (orders-v2 false-match 차단) — route handler pathname predicate. P3 S. codex G.2 P2 #3.
-    - **BL-120** leak guard fail-on-leak (현재 observability only, afterEach assert). P2 S (2h). codex G.2 P2 #4.
-    - **BL-121** production guard host allowlist (NODE*ENV 외 PLAYWRIGHT_BASE_URL host + pk_test*/sk*test* prefix). P2 S. codex G.2 P2 #5.
-    - **BL-122** pytest-json-report uv-aware detect (`uv run python -c` 기반). P3 S. codex G.2 P2 #6.
-    - **BL-123** mkstemp fd leak fix (NamedTemporaryFile or os.close(fd)). P3 XS. codex G.2 P2 #7.
-    - **BL-124** run_auto_dogfood subprocess timeout — DB/Redis hang cron 무한 대기 차단. P2 XS. codex G.2 P2 #8.
-    - **BL-125** report 파일명 timestamp + symlink — 동시 실행 overwrite 차단. P3 S. codex G.2 P2 #9.
-    - **BL-126** FakeOrderDispatcher edge case (broker outage / dispatch exception / pending stuck). P2 M. codex G.2 P2 #10.
-    - **BL-127** BL-110a xdist 격리 (pool reset autouse fixture serial marker 또는 isolated Redis DB/key namespace). P3 S. codex G.2 P2 #11.
-    - **BL-128** trading-ui scenario 3 KS bypass disabled assert — OrdersPanel 주문 버튼 추가 후 활성화. P2 XS. codex G.2 P1 #4 (partial).
-    - **BL-129** ANSI/control seq HTML 처리 (XSS 아님, 가독성). P3 XS. codex G.2 P3 #2.
-  - **codex 게이트**:
-    - **G.0 iter 1** (medium, 617k tokens) — P1 14 + P2 10 + P3 4 → plan v2 surgery 28건 모두 반영.
-    - **G.0 iter 2** (medium, 1.28M tokens, resume) — plan v2 NOT READY 판정 (코드 실측 까지 진행). P1 9 + P2 8 + P3 4 → plan v3 surgery 21건 (Clerk auth wrong / BL-112 fixture 가설 refute / OrderService param 이름 / heartbeat exception path / pytest CLI behavior / mock URL prefix 등).
-    - **G.2 challenge** (high, 992k tokens) — P1 4 즉시 fix + P2 12 + P3 2 = BL-117~129 신규 등록. P1 critical 0 잔존.
-    - **누적**: ~3M tokens / 47 finding 모두 plan v3 또는 implementation 반영.
-  - **사용자 명시 요구 반영**: (1) Edge Cases 19 영구 기록 (plan v3 §5.5 + dev-log §3) — 사용자 "엣지케이스가 없는지" 요구. (2) codex G.0 iter 2 재호출 — 사용자 "codex 잘 확인한거야?" 요구 (Sprint 22+24a 의 G.0 1 iter 만 패턴 보강).
-  - **합계 변동**: 67 → 76 BL (5 Resolved + 14 신규 = 9 net 증가). P1 잔여 동일. P2 신규 7. P3 신규 7. dev-log: [`docs/dev-log/2026-05-03-sprint25-hybrid.md`](dev-log/2026-05-03-sprint25-hybrid.md). plan: `~/.claude/plans/claude-plans-h2-sprint-25-prompt-md-snappy-bee.md` (v3, ~770 lines + Edge Cases 19).
-
-- **2026-05-05 (Sprint 32 진입 — Surface Trust Recovery)** — `~/.claude/plans/giggly-exploring-marshmallow.md` plan 승인. dogfood Day 4 = 5/10. codex `019df68f` 풀 scope 분기. 신규 등록 11건 (BL-156/163/164/166/168~174). 합계 76 → 87. handoff [`docs/dev-log/2026-05-05-sprint31-day4-handoff.md`](dev-log/2026-05-05-sprint31-day4-handoff.md).
-
-- **2026-05-05 (Sprint 32 종료 — 7 PR all merged)** — `main @ f17421d`. dogfood Day 5 = **6~7/10 (borderline)** = +1.5~2 점 progress (Day 3=4 → Day 4=5 → Day 5=6~7). Sprint 33 분기 = **6.5 양다리 (polish 잔여 + Beta 인프라 BL-070 prep 병행)**.
-  - **Resolved (7건, 6 BL + 2 gate spec PR)**: BL-168 (PR #134) / BL-169+170 (PR #133) / BL-156 (PR #136) / BL-163 (PR #135) / BL-171+172 (PR #138). 추가 PR #137 (sprint32-dogfood-gate.spec.ts) / PR #139 (gate §4 axis labels unblock).
-  - **codex G.0 P1 4건 surgery 적용** (Verdict GO): BL-168 ownership (root Makefile + migrate-isolated 신규) / BL-157 live-smoke 과신 보완 (Sprint 32 dogfood gate 신규) / Worker B/C 충돌 해소 (B 선행 → C MarkerLayer rebase) / BL-172 P1 확정.
-  - **dogfood Day 5 = 6~7 borderline** — Surface fix 효과 / sprint = 1.5 점 (Sprint 31 = 1, Sprint 30 = 0). gate ≥7 잠정 통과 + 1주 안정 검증 의무.
-  - **Partial Resolved**: BL-005 (1주 안정 검증 후 final) / BL-150 (EquityChartV2 만, recharts 잔존).
-  - **자율 병렬 worker isolation 위반 lesson**: Worker C/D 가 메인 worktree branch swap (자체 worktree 에서 cd 로 메인 이동 + push). prompt 명시 만으론 부족 → tooling 강화 (pre-push hook worktree path 검사) Sprint 33+ 후보.
-  - **Sprint 33 BL 후보**: BL-164 / BL-166 / BL-174 / BL-150 / BL-070~072 점진 prep / 일별 dogfood self-assess Day 6+
-  - **합계 변동**: 87 → 80 BL (7 Resolved). 상세: [`docs/dev-log/2026-05-05-sprint32-master-retrospective.md`](dev-log/2026-05-05-sprint32-master-retrospective.md).
-
-- **2026-05-05 (Sprint 33 종료 — 7 PR all merged + dogfood Day 6 hotfix 2건)** — `main @ 06f5512`. dogfood Day 6 = **TBD (사용자 입력 대기, Day 5 = 6~7 borderline 후속, BL-175 + BL-176 hotfix 후 재측정)**. Sprint 34 분기 = dogfood Day 6 결과 따라 결정 (≥7 → Beta 본격 진입 / 6~7 유지 → polish iter 2).
-  - **Resolved (1건)**: BL-164 (PR #143, live-session-form SelectWithDisplayName helper). pre-push hook tooling 신규 (PR #141, **자율 병렬 worker isolation 영구 차단** — Sprint 32 lesson 즉시 적용).
-  - **Partial / Follow-up required**: BL-150 (PR #145, Activity Timeline 만 — walk-forward+monte-carlo Sprint 34 defer) / BL-071 audit (PR #142, runbook 393 lines + Sprint 34 unresolved gap 16건) / BL-174 (PR #144, list-only — detail 분기 Sprint 34 defer).
-  - **dogfood Day 6 발견 BUG hotfix (PR #146 BL-175)**: `computeBuyAndHold` 가 `initialCapital * (last_equity / first_equity)` 로 BH 계산 → strategy line 과 거의 동일 → legend 와 chart 데이터 mismatch (Sprint 30 ADR-019 Surface Trust 위반). 자본 초과 손실 시 BH 도 음수. 임시 mitigation: 빈 배열 반환 → BH series 미렌더 + ChartLegend BH 항목 자동 hide.
-  - **dogfood Day 6 발견 BUG hotfix (PR #147 BL-176)**: Worker B BL-164 PR #143 의 `SelectWithDisplayName.handleValueChange` 가 base-ui `null → ""` 변환 → form zod UUID schema reject → Runtime ZodError (`exchange_account_id: invalid_format`). hotfix: `v=null` 시 callback skip → form prior valid value 보존.
-  - **신규 등록 BL-175** (P1, Sprint 34 fix prereq): Buy & Hold 정확 계산 (backend `BacktestMetrics.buy_and_hold_curve` 신규 + OHLCV 첫/끝 가격 기반 `initialCapital * (last_BTC_price / first_BTC_price)` + frontend 자체 계산 폐기). est M (3-4h).
-  - **신규 등록 BL-176** (P2, Sprint 33 hotfix Resolved + Sprint 34 follow-up): SelectWithDisplayName clear 동선 정합화 (현재 v=null skip = silent. 의도적 unset 동선 추가 시 form 측 nullable schema 또는 별도 clear button 필요). est S (1-2h).
-  - **신규 등록 BL-177** (P2, Sprint 34 — dogfood Day 6 발견): `/backtests/[id]` chart marker readability — Sprint 32 BL-171 MarkerLayer 가 trade marker 너무 많을 때 (157+ trades 검증) text 겹쳐 읽을 수 없음. zoom 영역 따라 marker count limit / cluster / text shorten ("S"/"L" 만) 또는 hover tooltip 으로 detail 분리. est M (3-4h).
-  - **codex G.0 P1 surgery 3건 적용** (session `019df729`, 124k tokens, Verdict GO_WITH_FIXES): P1-1 hook 선행 (D 삭제 → 메인 step 0) / P1-2 BL-071 scope 재정의 (dry-run+runbook → topology gap audit + Sprint 34 unresolved gap 16건) / P1-3 scope 정직화 (필수 3 BL + stretch 3 BL, BL-150 kill criterion, Resolved → Partial).
-  - **codex G.0 운영 규칙 갱신**: P1 surgery ≤1건 한도 = 잘못된 운영 규칙 (codex challenge). 제거. iter cap 2 만 유지. memory feedback `feedback_codex_g0_pattern.md` 갱신 완료.
-  - **자율 병렬 worker isolation 영구 차단 검증**: main worktree branch swap **0건** (Sprint 32 = 2건 → Sprint 33 = 0건). pre-push hook hybrid (reject + bypass env) + 메인 세션 step 0 선행 패턴 효과 검증.
-  - **defer Sprint 34**: BL-166 (root cause = uvicorn watch list `.env*` 미포함, plan 가정 noop 검출) / BL-070~072 (도메인+DNS 사용자 manual prereq) / BL-150 잔여 (walk-forward+monte-carlo) / BL-174 detail / BL-175 본격 fix.
-  - **lesson 후보**: plan agent 가정 검증 필수 (BL-166 plan 가정 noop). codex 운영 규칙 challenge 가능 (P1 ≤1건 한도 잘못 판정). **dogfood = critical BUG 발견 mechanism** (BL-175 — production-quality 검증의 마지막 gate).
-  - **합계 변동**: 80 → 80 BL (BL-164 Resolved 1 + BL-175 신규 1 + Partial 3 + tooling 신규 1 BL ID 미부여). 상세: [`docs/dev-log/2026-05-05-sprint33-master-retrospective.md`](dev-log/2026-05-05-sprint33-master-retrospective.md).
-
-- **2026-05-05 (Sprint 34 종료 — 3 PR all merged + mid-dogfood Day 6.5 PASS)** — `main @ 27ff836`. dogfood Day 7 = **TBD (사용자 입력 대기)**. Sprint 35 분기 = Day 7 결과 따라 결정 (≥7 → Beta 본격 진입 BL-070~072 / <7 → polish iter 3 BL-178 + BL-179 + BL-176 follow-up + BL-174 detail + BL-177-A/B/C). **[Sprint 35 retroactive 정정 2026-05-05 office-hours]**: "≥7 → Beta 본격 진입" = **fictitious gate** detection (BL-005 자체 skip). 정정 후 = "Day 7 4중 AND gate 통과 → Sprint 36 BL-003 mainnet runbook + BL-005 본격 (1-2주 mainnet 소액). Beta 본격 진입 (BL-070~075) = BL-005 통과 후 별도 trigger". 상세 = Sprint 35 transition entry.
-  - **Resolved (2건)**: BL-175 (PR #150 본격 fix, codex P1-1+P1-2+P1-3 모두 적용 — backend `BacktestMetrics.buy_and_hold_curve` 신규 + 2-stage fail-closed gate + service spread + FE wiring + 8 backend test). BL-177 partial (PR #149 dense text shorten only — codex P1-4 scope 축소, visible-range/tooltip/cluster Sprint 35+ 분리).
-  - **Cancel (kill K-2)**: BL-166 (Sprint 33 lesson #7 본 sprint 직접 적용) — Makefile `--reload-include "*.env*"` 추가 후 사후 검증 FAIL (`Reloading` log 미발생). 추정 root cause = `*.env*` glob 이 `.env.local` (leading dot file) 미매치 또는 watchfiles default hidden file ignore. Makefile rollback + branch 폐기 (push 0) + retro 안 noop 발견 lesson 기록.
-  - **mid-dogfood Day 6.5 PASS** (Sprint 33 lesson #1 본 sprint 직접 적용 검증) — Playwright MCP 자동화 (Clerk JWT 발급 + backend 직접 fetch + 화면 snapshot) + 사용자 dogfood 분담. 3 backtest numeric 검증. 회귀 0건 + 검증 #6 legacy backward-compat PASS (BH null → 미렌더 + Legend hide 시각 검증) + 검증 #7 P1-3 fail-closed PASS.
-  - **codex G.0 P1 surgery 6건 모두 적용** (session `019df7cc`, medium tier, iter cap 2, 327k tokens, Verdict GO_WITH_FIXES) — Sprint 33 lesson #2 (codex P1 한도 제거) 정합. P1-1 FE wiring 누락 (R-0, plan 가장 큰 hole) / P1-2 service.py 회귀 테스트 (R-2 silent BUG 차단) / P1-3 fail-closed 정책 (invalid close 1건 → None) / P1-4 BL-177 scope 축소 / P1-5 K-4 fallback 변경 / P1-6 mid-dogfood numeric fixture 7항목.
-  - **신규 등록 BL-177-A** (P2, Sprint 35+): visible-range subscription + zoom-aware count (TradingChart wrapper API 의무 — `marker-layer.tsx` 권한 외). est M (3-4h).
-  - **신규 등록 BL-177-B** (P2, Sprint 35+): hover tooltip overlay (`MarkerTooltipOverlay` hook + ChartMarker payload 설계 + `subscribeCrosshairMove` 콜백). est M (3-4h).
-  - **신규 등록 BL-177-C** (P3, Sprint 35+): cluster (인접 markers → 1 cluster, click expand). lightweight-charts 4.x native 미지원 → 자체 구현 의무. est M (3-4h).
-  - **신규 등록 BL-178** (P2, Sprint 35+): production OHLCV invalid close root cause 분석 + fix. mid-dogfood Day 6.5 발견 — 3 backtest 모두 `metrics.buy_and_hold_curve = null` (P1-3 fail-closed gate trigger). 가능성: TimescaleDB BTC/USDT 일부 bar 누락 close NaN / dtype 변환 NaN 그대로. Surface Trust 차단 작동 (가짜 data 표시 risk 0), 단 정확한 BH 표시 미달성. est M (3-4h).
-  - **신규 등록 BL-179** (P3, Sprint 35+): uvicorn watchfiles `.env*` 감지 root cause + fix (Sprint 34 BL-166 kill K-2 발동 후속). 추정 = `--reload-include "*.env*"` glob 이 `.env.local` (leading dot file) 미매치. 다른 glob (`.env*` / `**/*.env*` / `--reload-dir backend`) 시도 + watchfiles version 검증. est S (1-2h).
-  - **자율 병렬 worker isolation 영구 차단 검증 (2 sprint 연속)**: main worktree branch swap **0건** (Sprint 32 = 2건 → Sprint 33 = 0건 → Sprint 34 = 0건). pre-push hook hybrid 효과 검증. Worker A 12분 (748s, 184k tokens) / Worker B 6분 (363s, 92k tokens).
-  - **lesson 후보**: kill K-2 (BL-166) plan 가정 사후 검증 FAIL → cancel + BL 분리 패턴 (Sprint 33 lesson #7 본 sprint 직접 적용 사례) / production OHLCV fail-closed gate (BL-178) production 환경 정상 발동 / Playwright MCP + 사용자 dogfood 분담 효율적 패턴 (Clerk JWT `window.Clerk.session.getToken()` → backend 직접 fetch + snapshot 시각 검증).
-  - **defer Sprint 35+**: BL-176 follow-up (silent — SelectWithDisplayName clear 동선 정합화) / BL-174 detail (silent — live-session-detail Empty/Failed/Loading) / BL-150 잔여 (walk-forward + monte-carlo lightweight-charts native 미지원) / BL-070~072 (도메인 + DNS + Resend, 사용자 manual prereq).
-  - **합계 변동**: 80 → 86 BL (BL-175 Resolved 1 + BL-177 partial Resolved 1 + BL-166 Cancel + 신규 5 = +5 net). 상세: [`docs/dev-log/2026-05-05-sprint34-master-retrospective.md`](dev-log/2026-05-05-sprint34-master-retrospective.md).
-
-- **2026-05-05 (Sprint 35 진입 — office-hours session 2026-05-05 결정 + codex G.0 iter cap 2 도달)** — `main @ 78fb39b` (PR #152 office-hours dev-log squash merge). Sprint 35 = **Wedge A backtest 단독 정밀화 (polish iter 3)** + Day 7 4중 AND gate. office-hours session 의 P3 fictitious gate detection 결과 영구 반영.
-  - **Active (Mandatory + Stretch 구조, codex P1-7 surgery)**:
-    - Mandatory: BL-178 root cause + fix (Path A reject/quarantine + observable reason 또는 Path B escape) / **BL-180 신규 = backtest engine golden oracle (hand-computed minimal 2 strategy + tiny OHLCV + checked-in JSON expected)** / mid-dogfood 4a 6항목 / retro
-    - Stretch: BL-180 dogfood snapshot integration oracle (1.5b) / BL-176 SelectWithDisplayName clear button prop (sentinel/nullable X, schema required 유지) / BL-150 잔여 walk-forward = 기존 `stress_test` API/UI wiring 만
-  - **신규 등록 BL-180** (P1, codex G.0 P1-3 finding): backtest engine golden oracle. circular oracle 함정 회피 = engine 외부 hand-computed minimal strategy + tiny OHLCV + checked-in JSON expected (entries/exits/equity/BH curve). `BacktestConfig(fees=0, slippage=0)` 명시 pin (codex iter2-P1-1 surgery). category = "Test infra / Golden / Fixture". Trigger = Sprint 35 Slice 1.5a 진입. Est = M (3-4h).
-  - **codex G.0 master plan validation 누적 1.34M tokens, surgery 18건** (session `019df85d-bcbf-7d63`, medium tier, model_reasoning_effort=high, iter cap 2 도달):
-    - iter 1 (862k tokens, P1=7/P2=7): vectorbt native premise 폐기 (P1-4) / BL-180 circular oracle 회피 = hand-computed (P1-3) / Slice 1.5 sequencing 독립 (P1-6) / mandatory + stretch 구조 (P1-7) / Path B escape → Day 7 (b) FAIL/UNKNOWN (P1-2) / Slice 2 schema required 유지 (P1-5) / 6항목 진단 query (P1-1) + reject/quarantine policy (P2-2) + Worker write-set (P2-4) + named assertion (P2-5) + Day 7 (d) 강화 (P2-7)
-    - iter 2 (482k tokens, P1=2/P2=5): hand oracle JSON checked-in + 0-based index + BacktestConfig pin (iter2-P1-1) / quarantine fail-closed propagate = invalid OHLCV typed error 또는 metadata propagate (iter2-P1-2) / resetField → "" assertion (iter2-P2-1) / canonical SQL predicate (iter2-P2-2) / production DB fallback path (iter2-P2-3) / Playwright 3-tier fallback (iter2-P2-4) / **각 PR 안 BACKLOG status 갱신 의무** (iter2-P2-5)
-  - **BL-070~075 Beta bundle trigger 정정 (P3 fictitious gate detection)**: 기존 = "BL-005 self-assessment ≥ 7/10 직후 → BL-070~075 Beta 본격". 정정 = "Sprint 35 Day 7 4중 AND gate 통과 → Sprint 36 BL-003 mainnet runbook + BL-005 본격 (1-2주 mainnet 소액). **BL-070~075 Beta 본격 진입 = BL-005 통과 후 별도 trigger**" (Day 7 통과 즉시 Beta 진입 X)
-  - **BL-174 status 갱신**: Sprint 35 active (defer Sprint 35+) → **Sprint 36+ defer confirmed** (codex P1-4 정합 — backtest trust root cause 가 아니므로 본 sprint 외)
-  - **defer Sprint 36+ confirmed**: BL-174 detail / BL-177-A/B/C / BL-179 (uvicorn watchfiles) / BL-070~075 Beta 본격 (BL-005 통과 후 별도 trigger) / vectorbt native walk-forward + monte-carlo (codex P1-4 발견 = repo 안 path 제거됨)
-  - **Day 7 4중 AND gate (codex P1-2 + P2-7 surgery)**: (a) self-assess ≥7 + (b) BL-178 production BH 정상 (Path B escape 시 FAIL/UNKNOWN, free pass X) + (c) BL-180 hand oracle 8 test all GREEN + (d) new P0=0 AND unresolved Sprint-35-caused P1=0 + 기존 deferred P1 명시
-  - **합계 변동**: 86 → 87 BL (BL-180 신규 +1). master plan: [`~/.claude/plans/quantbridge-sprint-35-anchored-oracle.md`](../../.claude/plans/quantbridge-sprint-35-anchored-oracle.md). dev-log: [`docs/dev-log/2026-05-05-office-hours-sprint-35-decision.md`](dev-log/2026-05-05-office-hours-sprint-35-decision.md).
-
-- **2026-05-05 (Sprint 35 Slice 1a — BL-178 root cause spike 결과: Docker worker stale 확정)** — `feat/sprint35-bl178-rootcause-spike` 브랜치. Slice 1a 진단 결과 BL-178 = **Docker worker container STALE** (NOT OHLCV NaN/<=0, NOT v2_adapter NaN 도입). codex G.0 surgery 18건 중 3건 wrong premise (P1-1 / P2-2 / iter2-P1-2 quarantine 가설). 11건 valid (BL-180 oracle / vectorbt 폐기 / BL-176 schema / Day 7 gate / Worker write-set / 등). 검증: `make up-isolated-build` 후 BL-175 회귀 test 8/8 GREEN. dev-log: [`docs/dev-log/2026-05-05-bl178-rootcause-spike.md`](dev-log/2026-05-05-bl178-rootcause-spike.md).
-  - **BL-178 status 갱신** = **Resolved (worker rebuild)**. Slice 1b "code fix path" / "escape hatch backfill" 모두 N/A. Day 7 (b) gate 자동 PASS prereq.
-  - **신규 등록 BL-181** (P1, Sprint 35 active stretch 후보) — Docker worker auto-rebuild on PR merge mechanism. ops gap = `docker-compose.yml` 안 backend-worker `volumes: mount` 부재 = code image 안 baked-in. PR 머지 후 `make up-isolated-build` 의무 = 운영 진행 안 자동화 안 됨 → silent failure (mid-dogfood Day 6.5 시점 stale worker 가 PR #150 BL-175 이전 코드로 task 실행 → BH 계산 함수 자체 부재 → BL-178 false detection). 가능한 fix: (i) docker-compose dev override volumes mount / (ii) GitHub Actions image push + 환경 자동 pull + restart / (iii) Makefile post-merge target 의무 명시 + post-merge git hook. Est M (3-4h).
-  - **신규 등록 BL-182** (P2, Sprint 35+ defer 후보) — worker container code version 자동 monitoring + alert. e.g. `_v2_buy_and_hold_curve` 같은 sentinel function 존재 검증 startup health check 또는 git commit hash 비교. Est S (2h).
-  - **Sprint 35 master plan footnote 추가** = wrong premise 3건 명시 + Slice 1b cancel + BL-181 active + valid 11건 surgery 유지 + Day 7 (b) 자동 PASS + 4중 AND gate 정합 유지. mandatory scope 재정의 = BL-181 (or 사용자 결정) + Slice 1.5a (BL-180) + Slice 4a + Slice 5
-  - **신규 lesson 후보 3건** (Sprint 35 retro 시 `.ai/project/lessons.md` 영구 승격 검토): LESSON-038 (Docker worker auto-rebuild on PR merge 의무) / LESSON-039 (Surface Trust 차단 ≠ 실제 fix 작동, codex BL-180 hand oracle = 본 mechanism 사전 detection 정합) / LESSON-040 (codex G.0 wrong premise risk → rapid prereq verification spike 의무)
-  - **합계 변동**: 87 → 89 BL (BL-181 / BL-182 신규 +2). BL-178 Resolved (-1 active). 87 + 2 - 1 = **88 active BL**.
-
-- **2026-05-05 (Sprint 35 종료 — polish iter 3 완료, Day 7 4중 AND gate 미통과)** — `main @ 8df5e58` (4 PR all merged: #152~#155). Day 7 self-assess = **6/10 → gate (a) FAIL**. 4중 AND gate: (a) FAIL / (b) PASS / (c) PASS / (d) 평가 불필요. Sprint 36 = **polish iter 4**.
-  - **Resolved (2건)**: BL-178 (Docker worker stale 확정 + `make up-isolated-build` 워크어라운드 완료 — 근본 fix는 BL-181로 분리) / BL-180 (engine golden oracle 8 tests GREEN, PR #155, backend pytest +8)
-  - **Slice 4a mid-dogfood 6/6 PASS**: BH curve 첫 정상 렌더링 확인 (isolated env, init_capital=10,000, `bh_curve[0][1] == "10000.00000000"`)
-  - **Stretch 전체 미착수**: Slice 1.5b / BL-176 SelectWithDisplayName / BL-150 walk-forward — Sprint 36 재검토
-  - **BL-181 status 갱신**: Sprint 35 active stretch → **Sprint 36 P2 (auto-rebuild trigger 우선 구현 권장)**
-  - **합계 변동**: 88 → 87 active BL (BL-178 + BL-180 Resolved -2). 총 **87 active BL**.
-
-- **2026-05-06 (Sprint 36 진입 — polish iter 4, BL-150 + BL-176 완료)** — PR #157 (`feat/sprint36-bl150-bl176`, **merged** `main`). BL-150 MC bootstrap sign-flip 버그 fix + BL-176 SelectWithDisplayName onClear prop 추가.
-  - **BL-150 ✅ Resolved**: Monte Carlo bootstrap 음수 equity return sign-flip 차단 (`eq_base = abs(eq)` + `clip(-0.9999, None)`). fan chart Y축 정상 렌더 확인 (Playwright smoke). Walk-Forward E2E (20/38 folds) 정상 확인. BE 테스트 +3 (test_monte_carlo_negative_equity.py).
-  - **BL-176 ✅ Resolved**: `SelectWithDisplayName`에 `onClear?: () => void` prop 추가. value 있고 prop 제공 시 ✕ 버튼 렌더, 클릭 시 onClear 호출. sentinel/nullable 없이 schema required 유지. FE 테스트 +3 (clear 버튼 렌더 조건 / onClear 미전달 시 숨김 / 클릭 동작).
-  - **합계 변동**: 87 → **85 active BL** (BL-150 + BL-176 Resolved -2).
-
-- **2026-05-06 (Sprint 36 종료 — dogfood Day 7 gate (a) FAIL, Sprint 37 진입)** — Day 7 4중 AND gate: (b)(c)(d) PASS / **(a) FAIL (≤6/10)**. Playwright dogfood 6/6 시나리오 확인.
-  - **PASS 확인**: BH curve 파란 점선 + crosshair 렌더 / MC fan chart Y축 0~140,000 USDT (천조 해소) / Walk-Forward 20/38 folds / 거래 분석 5섹션 / 가정 박스 5개 / 거래 목록 200건
-  - **신규 발견 BL-183**: MC fan chart 렌더 정상이나 CI 95% 하한/상한·median_final_equity·MDD p95 **요약 통계 테이블 FE 미노출** — BE 계산값 있으나 숫자 기반 의사결정 불가. Surface Trust 관점 UX 갭.
-  - **Day 7 gate (a) FAIL 근거**: MC 숫자 미노출(BL-183) + 기존 6/10이 후한 측정 = 실질 ≤6. 수치 기반 의사결정 불가 = "돈 내고 쓰고 싶다" 미달.
-  - **Sprint 37 = polish iter 5** + Day 7 재측정 목표. BL-183 fix 우선. 사용자 추가 피드백 기반 BL 조정 예정.
-  - **합계 변동**: 85 + BL-183 신규 +1 = **86 active BL**.
-
-- **2026-05-06 (Sprint 37 종료 — polish iter 5 완료, Day 7 = 6/10 gate (a) FAIL, Sprint 38 진입)** — `main @ 96ad8ab` (7 PR all merged: #159/#160/#161/#162/#163/#164/#166) + 사용자 hotfix `6434a1d` 안착. Day 7 self-assess = **6/10 → gate (a) FAIL** (Sprint 36 동일 점수, +1 미달성).
-  - **Resolved (6건)**: BL-183 (MC summary 4 통계 노출) / BL-184 (Equity/BH curve PnL 시작점 정렬) / BL-185 (Pine spot-equivalent sizing) / BL-187 (백테스트 폼 simplify — leverage/funding 제거) / BL-187a (rebase fix) / BL-188a (compat.py 3-tier chain)
-  - **신규 deferred (2건)**: BL-186 (P1 — 풀 leverage/funding/mm/liquidation 모델, BL-188 mirror Nx unlock condition) / BL-188 (P0 candidate — 백테스트 폼 ↔ Live Settings mirror, Sprint 38 narrowest wedge)
-  - **Sprint 38 = polish iter 6** + Day 7 재측정 목표. BL-188 v3 (mirror) + BL-181 (worker auto-rebuild) 묶음.
-  - **합계 변동**: 86 + BL-186/BL-188 신규 +2 = **88 active BL** (Resolved 는 status 변경, count 변경 X).
-
-- **2026-05-07 (Sprint 38 종료 — polish iter 6 완료, Day 7 = 5/10 gate (a)+(d) FAIL, Sprint 39 = polish iter 7)** — `main @ b61b16c` (변경 X) + `stage/sprint38-bl-188-bl-181 @ 8a23f29` (4 PR squash merged: #170/#171/#172/#173 — **stage 보존, main 미반영**, Sprint 39 베이스). Day 7 4중 AND gate: (a) FAIL (5/10) / (b) PASS / (c) PASS / **(d) FAIL** (BL-189 신규 P0).
-  - **Resolved (1건)**: BL-181 (Docker worker auto-rebuild on PR merge — isolated mode bind-mount + watchfiles + sentinel script + ADR, PR #170 → stage)
-  - **신규 P0 (1건)**: BL-189 [Sprint 39 mandatory] — **CPU loop on stage @ 8a23f29 통합 후** (FE next-server idle 113% sustained vs main 0%). dogfood Day 7.5 mid-check falsification signal detection (LESSON-046). Worker B 의 단독 CPU smoke max 4.7% PASS 였으나 통합 환경 회귀. 진단 spike 의무: (i) Worker D revert → CPU 측정 (D isolation) → (ii) 아니면 A2 + B 통합 effect → (iii) Turbopack file watcher 검증. hotfix 후 Day 7 재측정.
-  - **BL-188 status 갱신**: deferred (Sprint 37) → **stage 머지 완료, main 미반영. BL-189 hotfix 통과 후 stage→main merge 가능** (Sprint 39 후속)
-  - **신규 LESSON 6건 (1/3 후보) + 영구 승격 3건** (LESSON-038/039/040 = 3/3 통과 → 영구). LESSON-041 (Pine partial reject) / LESSON-042 (Sizing source 단일 입력 강제) / LESSON-043 (Live mirror leverage parity) / LESSON-044 (메인 세션 = 표준 prefix) / LESSON-045 (env override mismatch) / LESSON-046 (통합 dogfood 가치 = G-E 못 잡는 회귀 detection). 상세: [`docs/dev-log/2026-05-07-sprint38-master.md`](dev-log/2026-05-07-sprint38-master.md).
-  - **자율 병렬 cmux 4번째 실측**: Bundle 1/2/3 + Sprint 38 패턴 stable. 사용자 interaction 3회 ("ok" + dogfood 결정 + close-out 결정).
-  - **Sprint 39 = polish iter 7** = BL-189 진단 + hotfix + Day 7 재측정. PASS 시 stage→main merge + Sprint 40 = BL-003 + BL-005 본격. FAIL 시 polish iter 8 (continuing).
-  - **합계 변동**: 88 (Sprint 37 종료) → BL-181 Resolved -1 / BL-189 신규 +1 = **88 active BL** (사실상 ±0). 단 lessons.md = 6건 신규 + 3건 영구 승격 = 9건 갱신.
-
-- **2026-05-07 (Sprint 39 종료 — polish iter 7 완료, Day 7 = 7/10 gate 4중 AND PASS, Sprint 40 = stage→main + BL-003 + BL-005 본격 진입)** — `main @ 6bc6732` (변경 X 단 close-out PR 후 새 sha) + `stage/sprint38-bl-188-bl-181 @ 8a23f29` (보존 — Sprint 40 stage→main 머지 베이스). Day 7 4중 AND gate: **모두 PASS** ((a) 7/10 / (b) PASS / (c) PASS / (d) PASS).
-  - **Resolved (1건, 보존적)**: BL-189 — **measurement artifact 결론**. stage `8a23f29` 코드 자체 정상 (idle 0% 60s sustained + 1h monitor 7 transient spike sustained 0건 + 사용자 dogfood "괜찮음"). Sprint 38 Day 7.5 의 113% sustained = unique 환경 (browser session, Clerk auth, ws-stream polling 등) second-order effect 가능성. 코드 회귀 X → stage→main merge 안전.
-  - **Wrong fix detection (Sprint 39 핵심 evidence)**: `next.config.ts` 안 `turbopack.root: process.cwd()` 잘못된 명시 시 idle CPU **400% sustained spike** 즉시 감지 (top 9/10 + ps 6/6 + lifetime 388.9%) → revert → 0% 복원. measurement-driven hotfix discipline 작동. **fix 가 회귀를 트리거** 하는 패턴 → LESSON-047 신규 후보.
-  - **BL-188 status 갱신**: stage 머지 완료, main 미반영 → **Sprint 40 stage→main merge 시 main 반영 가능** (BL-189 보존적 Resolved 통과).
-  - **신규 LESSON (1건, 1/3 후보)**: LESSON-047 — Turbopack `turbopack.root` 명시 시 wrong path = file watcher storm (`process.cwd()` 또는 `frontend/` 디렉토리 명시 시 `.next/`, `node_modules/` 무한 watch → 400%+ sustained CPU spike). monorepo 환경 시 자동 inferred root (lockfile 있는 monorepo root) 가 정답. multi-lockfile warning silence 시도 자체가 risk. 상세: [`docs/dev-log/2026-05-07-sprint39-master.md`](dev-log/2026-05-07-sprint39-master.md).
-  - **single worker single day**: 자율 병렬 cmux 불필요. ~3h wall-clock (진단 1.5h + wrong fix detection 0.5h + close-out 1h). 사용자 interaction 5회 (스코프 결정 + dogfood 진행 + URL fix + hotfix 처리 + Day 8 점수).
-  - **Sprint 40 = stage→main + BL-003 + BL-005 본격** = (1) stage `8a23f29` 33 files / +2426 / -74 / +38 tests main 머지 + (2) Bybit mainnet runbook + smoke 스크립트 + (3) 본인 1-2주 소액 mainnet dogfood (BL-005 본격 진입). Beta 본격 진입 (BL-070~075) trigger 는 BL-005 본격 통과 후 별도.
-  - **합계 변동**: 88 (Sprint 38 종료) → BL-189 Resolved -1 = **87 active BL**. lessons.md = 1건 신규 후보 (LESSON-047).
-
-- **2026-05-07 (Sprint 41 종료 — 외부 demo 첫인상 패키지, Day 7 = 8/10 gate 4중 AND PASS, Sprint 42 = 지인 N=5 demo 오픈 + feedback loop)** — `main @ 6d6a836` (Sprint 41 stage→main merge close-out, PR #181 squash). Day 7 4중 AND gate: **모두 PASS** ((a) 8/10 / (b) PASS / (c) PASS / (d) PASS). 사용자 방향 전환 (mainnet 보류 → demo 첫인상) 따라 demo 본격 오픈 단계 진입.
-  - **머지 (4 PR squash to stage → 1 PR squash to main)**: PR #177 (Worker B 디자인 token + design-tokens.ts 신규 + globals.css @theme + shadcn 4개 radius) / PR #178 (Worker E EmptyState/Skeleton/FormErrorInline 신규 3 + 적용 4 페이지 + tests +10) / PR #179 (Worker H share endpoint 3 + alembic migration 20260507_0001 + share page + opengraph + share-button + proxy.ts publicRoute + tests +11 + **codex P2 share race row lock fix**) / PR #180 (Worker B-2 dashboard-shell App Shell + KPI strip + filter chip + Full Dark + tests +6 + **codex P2 status filter chip 비활성+안내 fix**). 통합: 40 files / +2615 / -166.
-  - **신규 BL (3건)**: BL-190 (P1 — PDF export deferrable, 외부 사용자 요청 trigger) / BL-191 (P2 — share view rate-limit, Beta 진입 시) / BL-192 (P2 — backtest status server filter, Beta 진입 시).
-  - **Resolved (0건)**: 본 sprint 는 신규 산출물 sprint, 기존 BL Resolved 0.
-  - **신규 LESSON (3건, 1/3 후보)**: LESSON-048 (Playwright MCP + 인증 cookie 자동 dogfood — 메인 세션 browser Clerk cookie 보유 시 인증 필요 페이지 자동 검증 가능, 본 sprint 10/10 PASS) / LESSON-049 (codex G.4 P1 P2 즉시 fix 패턴 — worker 자체 cmux send 또는 메인 세션 worktree 직접 push, LESSON-035 worker isolation 양립) / LESSON-050 (sprint kickoff design source 명시 의무 — 본 sprint 첫 prereq 답변에 prototypes 인지 X 로 Wave 2 추가 spawn 발생 → 다음 sprint 부터 4지선다 강제). 상세: [`docs/dev-log/2026-05-07-sprint41-master.md`](dev-log/2026-05-07-sprint41-master.md).
-  - **자율 병렬 cmux 5번째 실측**: 4 worker (B/E/H + B-2) → 4 PR pr_ready / 4 PR squash 머지. wall-clock ≈ 50분 (Wave 1 22분 + race fix 5분 + Wave 2 12분 + filter fix 3분 + 머지 8분). 사용자 interaction 4회 (race fix 결정 + filter fix 결정 + dogfood timing + main merge 승인).
-  - **Playwright 자동 검증 10/10 PASS**: App Shell 220px / Full Dark wrapper viewport cover / share full flow (POST → GET 200 → POST 멱등 same token → DELETE 204 → GET 410 backtest_share_revoked) / og:image 200 image/png 49.7KB / 404·401 분기 정확. manual dogfood 시간 ≈ 1/3 단축.
-  - **Sprint 42 = 지인 N=5 demo 오픈 + feedback loop** = (1) Bybit Demo Trading 으로 지인 N=5 ≈ 5명 오픈 + (2) feedback 채널 setup + (3) 1-2주 dogfood → Beta 본격 진입 (BL-070~075) trigger 결정. mainnet (BL-003 / BL-005) 은 demo dogfood 후 별도 trigger.
-  - **합계 변동**: 87 (Sprint 39 종료) → BL-190/191/192 신규 +3 = **90 active BL**. lessons.md = 3건 신규 후보 (LESSON-048~050).
-
-- **2026-05-08 (Sprint 42 Phase 1.1+1.2 + polish)** — 본인 dogfood + 1-2명 micro-cohort (사용자 prereq N=5→N=2-3 축소). PR #183 (polish 9건) + PR #184 (가이드) main 머지.
-  - **Phase 1.1 자동 검증** (Playwright + 인증 cookie ~3분 wall-clock, manual 1-2시간 → 1/3 단축, LESSON-048 5번째 실측 카운트 강화) — 외부 사용자 첫인상 마찰 6건 발견.
-  - **Polish hotfix (PR #183)**: /trading 페이지 (page title `Trading | QuantBridge` → `트레이딩 | QuantBridge` + `<main>` 중첩 해소 + tab `Orders` / `Live Sessions` → `주문` / `라이브 세션` + `Recent Orders` / `Loading...` → `최근 주문` / `불러오는 중…` + `Exchange Accounts` → `거래소 계정` + KillSwitchPanel `All clear` / `Resolve` / `...` → `이상 없음` / `해결` / `처리 중…`) + /backtests/{id} 차트 `Equity Curve · Buy & Hold · Drawdown` → `수익률 · 단순보유 · 낙폭`. 6 files / +11 / -11. `Kill Switch` 도메인 용어 유지.
-  - **Phase 1.2 onboarding 가이드 (PR #184)**: `docs/guides/demo-onboarding.md` 신규 86 lines — 5단계 5분 시나리오 (가입 / Bybit Demo + API key / 거래소 계정 연결 / 첫 backtest / share link) + Demo 트레이딩 안내 + 카톡 DM 메시지 템플릿. 1-2명 micro-cohort 직접 인터뷰 권장.
-  - **신규 BL (2건)**: BL-193 (`make be-test` env auto-inject — 4가지 env 수동 export Hidden tax) / BL-194 (favicon.ico 404 — dev only console error).
-  - **합계 변동**: 90 → BL-193/194 신규 +2 = **92 active BL**.
-
-- **2026-05-09 (Sprint 45 종료 — Surgical Cleanup #4 + #3, #1 skip)** — `main @ 8d23210` (PR #226 squash). 1 worker 단일 작업 (자율 병렬 cmux 불필요). 분량 추정 3-5h, 실 소요 ~2h.
-  - **머지 (1 PR squash)**: PR #226 = (1) `docs(sprint44-close)` 71007 IDE-only memo 갱신 + (2) `refactor(layout)` dashboard-shell 4 컴포넌트 분리 (235L → 60L slim Shell + Sidebar 79L + Header 51L + NavList 102L). 5 files / +250 / -190. 회귀 0.
-  - **#1 71007 skip 결정** (사용자 ★★★★★): baseline 검증 결과 Next.js TypeScript plugin IDE-only 진단 (`INVALID_CLIENT_ENTRY_PROP`). build/tsc/lint/dev 모두 clean = production / CI 영향 0. fix 적용 = unwarranted change (CLAUDE.md "Read Errors, Don't Guess" 위반).
-  - **#4 dashboard-shell 추출** (LESSON-054 deferred 해소): Sprint 44 wc1 inline polish (active state primary-light + 3px border-left + pl-9px + hover transition 200ms + 모바일 햄버거 44×44) 모두 보존. 기존 `dashboard-shell.test.tsx` 5 tests PASS (integration behavior 보존 검증).
-  - **#3 codex G.4 review** (timeboxed 4h, 실 소요 ~10m): `codex review --base 0ae3564 -c model_reasoning_effort=high --enable web_search_cached`. **GATE PASS** (P1 = 0). P2 = 1건 발견 → BL-195 등재 후 Sprint 46+ 큐.
-  - **신규 BL (1건)**: BL-195 (P2 — qb-form-slide-down animation 영구 truncation, codex review 발견).
-  - **신규 LESSON (2건, 1/3 후보)**: LESSON-057 후보 (Next.js 16 71007 IDE-only 진단 검증 패턴 — baseline 게이트 = build+tsc+lint+dev 모두 clean = IDE-only 결론) / LESSON-058 후보 (codex review CLI mutual exclusion — `[PROMPT]` 와 `--base <BRANCH>` 동시 불가, `--title "<focus>"` 옵션 사용).
-  - **합계 변동**: 92 → BL-195 신규 +1 = **93 active BL**. lessons.md = 2건 신규 후보 (LESSON-057~058).
-
-- **2026-05-12 (Sprint 54 종료 — Phase 3 Optimizer 본격 진입, Grid Search MVP + N-dim engine + ADR-013)** — `feat/sprint-54-optimizer-grid-search` 브랜치 (PR pending). 사용자 ★★★★★ scope = Grid Search MVP + BL-228 N-dim + BL-230 + BL-231 grammar ADR + BL-227/229 1 cycle 통합 + FE 2D-only viz + N-dim viz / Bayesian / Genetic Sprint 55+ 이연.
-  - **Resolved (5건)**: BL-226 (Sprint 53 PR #257 retro 마킹) + BL-227 (Cost Assumption `run_grid_sweep` 위임) + BL-228 (`grid_sweep` N-dim 확장) + BL-229 (FE optimizer StrictDecimalInput parity) + BL-230 (`OptimizationExecutionError` public/internal 분리 + truncate) + BL-231 (ADR-013 Bayesian/Genetic grammar 사전 lock, 코드 변경 0). **합계 5 Resolved**.
-  - **머지 (PR pending, 단일 worker single day)**: Slice 0 baseline preflight → Slice 1 BL-227+228 (BE engine) → Slice 2 Grid Search executor + Celery task + BL-230 exceptions → Slice 3 Service/Repository/Router/dispatcher/dependencies + LESSON-019 commit-spy 4건 → Slice 4 FE features/optimizer + (dashboard)/optimizer 페이지 + heatmap + pair-selector + form → Slice 5 ADR-013 → Slice 6 alembic round-trip + close-out. 신규 25+ files / Slice 1+2+3 BE test 신규 22건 (engine 15 + commits 4 + N-dim 7건) / FE 회귀 0 (680 PASS).
-  - **신규 LESSON 후보 (3건, 1/3)**: LESSON-067 (단일 worker single day 22-30h scope 자율 진행 가능 = cmux 자율 병렬 불필요 시 — Sprint 39 와 동일 패턴 검증) / LESSON-068 후보 (param_stability `_validate_param_grid_for_pine` pre_validate hook 안 2-key 강제 lift-up — generic engine N-dim 화 시 wrapper invariant 책임 분리) / LESSON-069 후보 (BL-228 generic engine 확장 시 2D 도메인 caller — param_stability + cost_assumption_sensitivity — 2D wrapper invariant `assert len(sweep.param_names) == 2` 보존 의무).
-  - **메타 step 의무 이행 점검**:
-    - LESSON-037 baseline 재측정 preflight ✅ (Slice 0, BE 1499 PASS + 4 alembic fail + 317 redis error = LESSON-061 env quirk pre-existing / FE 680 PASS / lint+tsc clean / focused 85 PASS).
-    - LESSON-040 codex G.0 prereq verification spike ✅ (Slice 0, 가설 query 7건 = optimizer/scaffolding 완비 + grid_sweep 2-key strict + dispatcher pattern 존재 + tasks/\_worker_loop 존재 등 confirm).
-    - LESSON-019 commit-spy 의무 ✅ (Slice 3, `tests/optimizer/test_service_commits.py` 4건: submit / dispatcher raise rollback / run complete / run fail truncate).
-    - LESSON-066 alembic SAEnum + StrEnum round-trip ✅ (Slice 6, `upgrade head → downgrade -1 → upgrade head` PASS = 5차 영구 검증).
-    - backend.md §11.1 `run_in_worker_loop` 강제 ✅ (Slice 2, `tasks/optimizer_tasks.py` mirror).
-    - backend.md §3 service AsyncSession import 금지 ✅ (Slice 3, `grep "AsyncSession" src/optimizer/service.py` empty).
-    - **deferred (사용자 manual 실행 의무)**: backend.md §11.5 라이브 worker 검증 (즉시 3회 + 5분 cycle 30분) — docker compose worker rebuild 필요. Playwright e2e `sprint54-optimizer.spec.ts` — 실 dev server + Pine strategy + COMPLETED backtest fixture 필요. 본 sprint 자동 환경 안 미실행. PR 머지 직후 사용자 manual 권장.
-  - **codex G.0 / G.4 외부 invocation 의무 (사용자 결정 영역)**: 본 sprint 자체 verification = prereq spike (Slice 0) + Slice 별 ruff + pytest focused + 회귀 brut. codex distributed evaluator G.0 master plan + G.4 GATE 는 PR 머지 전 사용자 manual invoke 권장 (Sprint 52 ~216k tokens 패턴 mirror).
-  - **합계 변동**: 93 (Sprint 45 종료) → BL-227/228/229/230/231 신규 +5 / Resolved -5 + BL-226 Resolved -1 = **88 active BL** (-5 net). Sprint 45 → Sprint 54 사이 Sprint 46-53 의 close-out timeline 갱신은 본 행 외 별도 entries (Sprint 46~53 close-out 은 `dev-log` 본문 + MEMORY 참조).
-
-- **2026-05-11 (Sprint 55 진행 — ADR-013 Bayesian 본격 구현, Phase 3 Optimizer 자연 연속)** — `feat/sprint-55-bayesian-optimizer` 브랜치 (PR pending). 사용자 ★★★★★ scope = Bayesian 본격 (Sprint 56 = Genetic split).
-  - **Resolved (1건)**: BL-232 (Bayesian executor 본격, scikit-optimize 0.10.x ask-tell loop). ADR-013 §6 의 8 항목 중 (1)~(7) 완료, (8) FE N-dim viz Sprint 57+ 이연 (BL-235).
-  - **신규 등재 (5건)**: BL-233 (Genetic 본격, P2 Sprint 56) / BL-234 (Bayesian prior=normal sampler + categorical one_hot, P3 Sprint 56+) / BL-235 (N-dim acquisition surface viz, P3 Sprint 57+) / BL-236 (`objective_metric` whitelist 자유화, P2 Sprint 56+) / BL-237 (dedicated Celery queue + soft_time_limit, P3 Sprint 56+).
-  - **Slice 산출 (Slice 0~5)**:
-    - Slice 0 = sprint55-master.md + BACKLOG/INDEX/AGENTS 갱신 + scikit-optimize 0.10.2 + pyaml 26.2.1 신규 dep + baseline (BE focused 40 / FE 680 PASS).
-    - Slice 1 = `optimizer/schemas.py` schema_version=Literal[1,2] + BayesianHyperparamsField + 5 v2-only 필드 + cross-field validator + 5 신규 test (schemas 19 PASS).
-    - Slice 2 = `optimizer/engine/bayesian.py` 신규 (skopt Optimizer.ask/tell + direction 부호 반전 + degenerate `y=1e10` penalty + `_MAX_BAYESIAN_EVALUATIONS=50` + `prior=normal` NotImplementedError + UCB→LCB 변환) + alembic uppercase BAYESIAN + downgrade swap (LESSON-066 6차 검증 path) + bayesian_search_result_to/from_jsonb (Sprint 50/51/52 retro-incorrect 차단 4종 = Decimal→str / None 보존 / iteration order 보존 / best_iteration_idx 명시) + 20 신규 test.
-    - Slice 3 = service.submit_bayesian + run() if-elif kind 분기 + POST /optimizer/runs/bayesian endpoint (slowapi 5/minute) + LESSON-019 commit-spy 4건 + 3 exception test.
-    - Slice 4 = FE z.discriminatedUnion("kind") + BayesianHyperparamsFieldSchema + BayesianSearchResultSchema + 3 신규 component (form / iteration-chart inline SVG / best-params-table) + optimizer-run-detail kind 분기 + page.tsx algorithm select.
-    - Slice 5 = ADR-013 §7 amendment + BL-232 Resolved + BL-233~237 신규.
-  - **검증**: BE optimizer test 71 PASS (40→71 +27 신규, 회귀 0) / FE vitest 680 PASS / FE tsc+lint clean. 단일 worker single day 실측 ≈6h (estimate 16-20h 대비 보수적).
-  - **Slice 6 deferred (close-out)**: Playwright e2e + alembic round-trip (LESSON-066 6차 검증) + 라이브 worker 30분 (사용자 manual) + codex G.4 외부 invocation (사용자 manual) + sprint55-close.md.
-  - **Plan**: [`~/.claude/plans/sprint-55-glistening-frog.md`](../../../woosung/.claude/plans/sprint-55-glistening-frog.md) (693줄) + [`docs/dev-log/2026-05-11-sprint55-master.md`](dev-log/2026-05-11-sprint55-master.md) (kickoff inline).
-  - **합계 변동**: 88 (Sprint 54 종료) → BL-232 Resolved -1 + BL-233~237 신규 +5 = **92 active BL** (close-out 후 BL-232 row 만 status 갱신).
-  - **PR 머지 완료** (2026-05-11, main @`38dca8b`, CI 6/6 PASS = backend 9m54s + frontend 1m53s + e2e 1m8s + live-smoke 2m10s + changes 4s + ci 2s). 2 hotfix 통과: `6142ecd` (ruff RUF002 × → \*, LESSON-068 후보 2/3) + `39ecc01` (mypy skopt import-untyped + Any return narrow).
-  - **신규 등재 (chore PR follow-up, 2026-05-11)**: BL-238 (lint-staged backend ruff `--fix` exit 0 silent skip 차단, XS) / BL-239 (pre-push hook 안 mypy 추가 = CI parity, XS) / BL-240 (pre-push hook 안 env vars 자동 source `.env.local`, S, LESSON-061 영구 fix). **Sprint 56 prereq 의무**.
-
-- **Sprint 58** (2026-05-11, `feat/sprint-58-pine-coverage`, PR #264 main @`aa435a7`) — **BL-241/242/243 Pine Coverage 확장**:
-  - **목표**: dogfood에서 발견된 real-world indicator 호환성 문제 3종 해결 (DrFX/RSI Divergence 테스트 시 TA 함수 미지원 + strategy.equity 미지원 + UTC 라벨 혼동).
-  - **6 Slice 산출**: Slice 0 baseline → Slice 1 BL-243 FE UTC 라벨 → Slice 2 ta.wma/cross/mom/fixnan → Slice 3 ta.hma/bb/obv → Slice 4 strategy.equity → Slice 5 barstate.isrealtime/syminfo._/timeframe._/label.\* NOP → Slice 6 close-out.
-  - **Resolved (3건)**: BL-241 (ta.wma/hma/bb/cross/mom/obv+fixnan, S ~2h 실측) / BL-242 (strategy.equity + display ignore, S ~1h 실측) / BL-243 (UTC 라벨, XS ~15min 실측).
-  - **CI hotfix**: fixnan이 BL-241로 supported됨 → `test_walk_forward_unsupported_pine.py` + 2개 파일 fixnan→ta.alma 교체.
-  - **버그 발견**: Pine division 결과 float으로 전달 → `deque(maxlen=float)` TypeError. `int(length)` 변환으로 해결.
-  - **검증**: BE pine_v2 507 PASS (+9 신규, 회귀 0) / FE 680 PASS / ruff+mypy+tsc clean. DrFX unsupported attrs 14 → 0.
-  - **합계 변동**: 92 (Sprint 57 종료) → BL-241/242/243 Resolved -3 = **89 active BL**.
-
-- **Sprint 57** (2026-05-11, `feat/sprint-57-optimizer-polish`, main @`38016bf` + close-out `0f2cbae`) — **BL-234 Optimizer Polish + BL-237 optimizer_heavy queue**:
-  - **목표**: Sprint 55/56에서 의도적으로 남긴 누락 기능 3종 활성화 + cap 50→100 relax 인프라 구축.
-  - **7 Slice 산출**: Slice 0 baseline → Slice 1 schemas (encoding + selection_method + E1 guard) → Slice 2 Bayesian (prior=normal inject + one_hot) → Slice 3 Genetic (roulette selection) → Slice 4 Celery routing + cap 100 → Slice 5 Docker worker → Slice 6 FE → Slice 7 ADR-013 §9 + close-out.
-  - **Resolved (2건)**: BL-234 (prior=normal sampler + one_hot + roulette, S ~3h 실측) / BL-237 (optimizer_heavy queue + cap 100 + Docker, S ~1h 실측).
-  - **신규 등재 (3건)**: BL-241 (TA 함수 8종 묶음) / BL-242 (strategy.equity + display ignore) / BL-243 (UTC 라벨).
-  - **검증**: BE optimizer 139 PASS (+24 신규, 회귀 0) / FE 680 PASS / ruff+mypy+tsc clean. alembic migration 없음.
-  - **합계 변동**: 91 (Sprint 56 종료) → BL-234/237 Resolved -2 = 89 → BL-241/242/243 신규 +3 = **92 active BL**.
-
-- **Sprint 56** (2026-05-11, `feat/sprint56-genetic-optimizer`, PR pending) — **Genetic executor 본격 구현 (BL-233 Resolved)** + Sprint 55 Bayesian 패턴 1:1 mirror + GA self-implementation (외부 dep 0):
-  - **목표**: ADR-013 §6 8-checklist 중 (1)~(7) Genetic 처리 + dogfood Day 7 (2026-05-16) 5일 갭 buffer 확보 + Sprint 55 prereq (cross-field validator / discriminated union / alembic uppercase) 활용 zero-friction mirror.
-  - **6 Slice 산출**:
-    - Slice 0 = preflight baseline 재측정 (BE focused 71 / FE 680).
-    - Slice 1 = `optimizer/schemas.py` crossover_rate + mutation_rate/crossover_rate range validator + `OptimizationKindOut.GENETIC` + `models.py` OptimizationKind.GENETIC + alembic `20260514_0001` uppercase + 7 신규 schema test.
-    - Slice 2 = `optimizer/engine/genetic.py` 신규 self-impl (~430L 포함 docstring, tournament size=3 + single-point crossover + gaussian mutation + `_GENETIC_RANDOM_STATE=42` + `_MAX_GENETIC_EVALUATIONS=50`) + 23 신규 engine test.
-    - Slice 3 = `service.submit_genetic` + `_execute_genetic` + run() if-elif kind 분기 GENETIC + POST /optimizer/runs/genetic.
-    - Slice 4 = `serializers.py` genetic_search_result_to/from_jsonb + 4 commit-spy 신규.
-    - Slice 5 = FE `schemas.ts` GeneticSearchResultSchema + crossover_rate + 3 신규 component (form / generation-chart / best-params-table) + optimizer-run-detail kind 분기 + page.tsx algorithm select 3-way.
-    - Slice 6 = ADR-013 §8 amendment + BL-233 Resolved + close-out.
-  - **검증**: BE optimizer test 115 PASS (71→115 +44 신규, 회귀 0) / FE vitest 680 PASS (회귀 0) / FE tsc+lint clean / BE ruff clean / mypy clean / alembic round-trip PASS (LESSON-066 **7차 영구 검증**). 단일 worker 실측 ≈3.4h (estimate 12-16h 대비 보수적, **LESSON-067 후보 4차 검증 통과** Sprint 39/54/55/56 = 4/4 누적).
-  - **Slice 6 deferred (사용자 manual)**: Playwright e2e Genetic spec (Bayesian sprint55 spec 있음, Genetic Sprint 57+) + 라이브 worker 30분 cycle + codex G.0/G.4 외부 invocation.
-  - **Plan**: [`~/.claude/plans/sprint-56-distributed-treasure.md`](../../../woosung/.claude/plans/sprint-56-distributed-treasure.md).
-  - **합계 변동**: 92 (Sprint 55 종료) + BL-238/239/240 신규 +3 = 95 → BL-233 Resolved -1 = **94 active BL** (close-out 시점 BACKLOG row 만 status 갱신).
+> 누락 sprint (19/20/22~24/26/28~31/40/43/44/46~49)은 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 본문 참조.
