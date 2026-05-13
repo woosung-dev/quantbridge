@@ -38,7 +38,7 @@ const BayesianRowSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["min"],
-        message: "log_scale / log_uniform requires min > 0 (ADR-013 §2.5)",
+        message: "log_scale / log_uniform 은 min > 0 필요",
       });
     }
   });
@@ -47,8 +47,8 @@ const FormSchema = z.object({
   backtest_id: z.uuid(),
   objective_metric: OptimizationObjectiveMetricSchema,
   direction: OptimizationDirectionSchema,
-  max_evaluations: z.coerce.number().int().min(1).max(100), // BL-237: 50→100
-  bayesian_n_initial_random: z.coerce.number().int().min(1).max(100), // BL-237: 50→100
+  max_evaluations: z.coerce.number().int().min(1).max(100),
+  bayesian_n_initial_random: z.coerce.number().int().min(1).max(100),
   bayesian_acquisition: BayesianAcquisitionSchema,
   parameters: z.array(BayesianRowSchema).min(1).max(4),
 });
@@ -193,7 +193,7 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
 
       <fieldset className="space-y-2 rounded border border-border p-3">
         <legend className="px-1 text-sm font-medium">
-          Parameters (1~4 변수, prior=normal Sprint 56+ BL-234 이연)
+          Parameters (1~4 변수, prior=normal 준비 중)
         </legend>
         {fields.fields.map((field, idx) => (
           <div
@@ -222,7 +222,7 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
               <option value="uniform">uniform</option>
               <option value="log_uniform">log_uniform (min &gt; 0)</option>
               <option value="normal" disabled>
-                normal (Sprint 56+)
+                normal (준비 중)
               </option>
             </select>
             <div className="flex items-center justify-between gap-1">

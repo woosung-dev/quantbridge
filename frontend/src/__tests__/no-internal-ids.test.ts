@@ -38,7 +38,7 @@ function walkPagesAndComponents(
         name === "page.tsx" ||
         name === "layout.tsx" ||
         full.includes("/_components/") ||
-        full.includes("/components/layout/") ||
+        (full.includes("/components/") && !full.includes("/components/ui/")) ||
         full.includes("/features/");
       if (isUserFacing) results.push(full);
     }
@@ -46,30 +46,28 @@ function walkPagesAndComponents(
   return results;
 }
 
-// 내부 dev artifact regex — JSX text content + string literal 만 매칭 (comment 는 OK)
-// pattern: 'Sprint N', "Sprint N", `Sprint N`, >Sprint N< (JSX text), 'BL-N', 'ADR-N', 'vectorbt', 'pine_v2'
+// 내부 dev artifact regex — JSX text content + string literal anywhere (comment 는 stripComments 로 제외)
+// codex G.2 P1-1 강화 — embedded `Optimizer (Sprint 56)` / `ADR-013 §6` / `BL-233 self-impl` / `vectorbt 벡터화` 모두 catch
 const INTERNAL_ID_PATTERNS: { name: string; regex: RegExp }[] = [
   {
-    name: "Sprint N (e.g. 'Sprint 56', 'Sprint 7d')",
-    // 'Sprint NN' inside string literal or JSX text — exclude '*/' or '//' lines
-    regex: /(['"`>])\s*Sprint\s+\d+[a-z]?\+?\s*[<'"`)]/gi,
+    name: "Sprint N (e.g. 'Sprint 56', 'Sprint 7d+')",
+    regex: /\bSprint\s+\d+[a-z]?\+?\b/gi,
   },
   {
     name: "BL-N (backlog id)",
-    regex: /(['"`>])\s*BL-\d+\s*[<'"`)]/gi,
+    regex: /\bBL-\d+\b/gi,
   },
   {
     name: "ADR-N (architecture decision record)",
-    regex: /(['"`>])\s*ADR-\d+\s*[<'"`)]/gi,
+    regex: /\bADR-\d+\b/gi,
   },
   {
     name: "vectorbt (internal lib name)",
-    // JSX text 또는 string literal
-    regex: /(['"`>])\s*vectorbt\s*[<'"`)]/gi,
+    regex: /\bvectorbt\b/gi,
   },
   {
     name: "pine_v2 (internal module name)",
-    regex: /(['"`>])\s*pine_v2\s*[<'"`)]/gi,
+    regex: /\bpine_v2\b/gi,
   },
 ];
 
@@ -86,20 +84,23 @@ function getUserFacingFiles(): string[] {
   return results;
 }
 
-// comment 라인 (// 또는 /* */) 제거 — JSX text/string 만 검사
+// comment 라인 (// 또는 /* */ 또는 JSX {/* */} 또는 JSDoc * line) 제거 — JSX text/string 만 검사
 function stripComments(content: string): string {
-  // /* ... */ block comment 제거 (multiline)
-  let cleaned = content.replace(/\/\*[\s\S]*?\*\//g, "");
-  // // line comment 제거 (line by line)
+  // /* ... */ block comment 제거 (multiline + JSX block comment {/* ... */})
+  let cleaned = content.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, "");
+  // line-by-line filter
   cleaned = cleaned
     .split("\n")
     .map((line) => {
+      const trimmed = line.trimStart();
+      // JSDoc `* line` (block comment 안 continuation) — block 제거 후 잔존 가능
+      if (trimmed.startsWith("*")) return "";
+      // line comment `// ...`
       const idx = line.indexOf("//");
       if (idx < 0) return line;
-      // 'http://' 같은 URL 안 '//' 보호 — string literal 안이면 보존
       const before = line.slice(0, idx);
       const quoteCount = (before.match(/["'`]/g) || []).length;
-      if (quoteCount % 2 === 1) return line; // 인용부호 안 '//' = string literal 의 일부
+      if (quoteCount % 2 === 1) return line; // string literal 안 '//' 보존
       return before;
     })
     .join("\n");
@@ -114,6 +115,27 @@ describe("BL-265/280/303 — no internal dev artifact IDs in user-facing UI (★
     expect(files.length).toBeLessThan(300); // features/ + _components 합 ~155
   });
 
+  // codex G.2 P2-3 채택 — critical route 명시 포함 의무
+  it("critical user-facing routes are scanned (codex G.2 P2-3)", () => {
+    const required = [
+      "/app/page.tsx",
+      "/brand-panel.tsx",
+      "/optimizer/page.tsx",
+      "/backtest-form.tsx",
+      "/strategies/new",
+      "/terms/page.tsx",
+      "/disclaimer/page.tsx",
+      "/legal-notice-banner.tsx",
+      "/features/live-sessions",
+    ];
+    for (const req of required) {
+      const matched = files.some((f) => f.includes(req));
+      expect(matched, `critical route missing from inventory: ${req}`).toBe(
+        true,
+      );
+    }
+  });
+
   for (const { name, regex } of INTERNAL_ID_PATTERNS) {
     it(`no JSX/string content matches ${name}`, () => {
       const violations: { file: string; samples: string[] }[] = [];
@@ -121,11 +143,31 @@ describe("BL-265/280/303 — no internal dev artifact IDs in user-facing UI (★
         if (!existsSync(file)) continue;
         const raw = readFileSync(file, "utf-8");
         const cleaned = stripComments(raw);
-        const matches = cleaned.match(regex);
-        if (matches && matches.length > 0) {
+        // line-by-line — string literal (quote-anchored) 또는 JSX text content 만 검사
+        const userFacingMatches: string[] = [];
+        for (const line of cleaned.split("\n")) {
+          const m = line.match(regex);
+          if (!m) continue;
+          for (const matched of m) {
+            const idx = line.indexOf(matched);
+            const before = line.slice(0, idx);
+            const after = line.slice(idx + matched.length);
+            // (a) string literal context — match 앞에 unmatched quote
+            const quotesBefore = (before.match(/["'`]/g) || []).length;
+            const inString = quotesBefore % 2 === 1;
+            // (b) JSX text context — match 가 > 와 < 사이 (단순 휴리스틱)
+            const gtBeforeIdx = before.lastIndexOf(">");
+            const ltBeforeIdx = before.lastIndexOf("<");
+            const isJsxText = gtBeforeIdx > ltBeforeIdx && after.includes("<");
+            if (inString || isJsxText) {
+              userFacingMatches.push(matched);
+            }
+          }
+        }
+        if (userFacingMatches.length > 0) {
           violations.push({
             file: file.replace(/.*\/quant-bridge\//, ""),
-            samples: matches.slice(0, 3),
+            samples: userFacingMatches.slice(0, 3),
           });
         }
       }

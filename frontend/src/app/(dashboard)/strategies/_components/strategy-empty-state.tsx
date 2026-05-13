@@ -22,7 +22,7 @@ export function StrategyEmptyState() {
         >
           <PlusIcon className="size-4" />새 전략 만들기
         </Button>
-        <Button variant="outline" disabled>템플릿 둘러보기 (Sprint 7d+)</Button>
+        <Button variant="outline" disabled>템플릿 둘러보기 (곧 지원)</Button>
       </div>
     </div>
   );

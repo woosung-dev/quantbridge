@@ -25,7 +25,7 @@ const FEATURES: FeatureItem[] = [
   {
     title: "벡터화 백테스트",
     description:
-      "vectorbt 기반 초고속 백테스트로 수년간의 데이터를 초 단위로 검증합니다.",
+      "고성능 벡터화 백테스트로 수년간의 데이터를 초 단위로 검증합니다.",
     icon: <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" />,
   },
   {
@@ -71,7 +71,7 @@ const FEATURES: FeatureItem[] = [
   {
     title: "라이브 트레이딩",
     description:
-      "CCXT 기반 100+ 거래소에서 자동 주문 실행. Kill Switch 내장으로 즉시 대응.",
+      "주요 거래소에서 자동 주문 실행. Kill Switch 내장으로 즉시 대응. (Beta: Bybit Demo)",
     icon: <polyline points="22,12 18,12 15,21 9,3 6,12 2,12" />,
   },
 ];

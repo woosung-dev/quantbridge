@@ -4,16 +4,16 @@ import type { ReactNode } from "react";
 const KPIS = [
   {
     label: "총 자산",
-    value: "$124,580.23",
-    sub: "+$2,340 (+1.92%)",
+    value: "—",
+    sub: "예시 데이터",
     subTone: "green" as const,
     showLiveDot: true,
   },
   {
     label: "일일 수익",
-    value: "+$2,340.15",
+    value: "—",
     valueTone: "green" as const,
-    sub: "7일 연속 수익",
+    sub: "예시 데이터",
   },
   { label: "활성 봇", value: "7 / 12", sub: "2 일시정지 · 3 정지" },
   { label: "오픈 포지션", value: "4", sub: "3 롱 · 1 숏" },
@@ -66,10 +66,10 @@ export function LandingDashboardShowcase() {
             id="dash-showcase-heading"
             className="font-display text-[clamp(1.75rem,3vw,2.25rem)] font-bold text-[color:var(--text-primary)]"
           >
-            실시간 트레이딩 대시보드
+            실시간 트레이딩 대시보드 (예시 화면)
           </h2>
           <p className="mx-auto mt-3 max-w-[560px] text-base text-[color:var(--text-secondary)]">
-            포지션, 봇, 체결을 한 화면에서 모니터링하세요 — 실제 제품 미리보기
+            포지션, 봇, 체결을 한 화면에서 모니터링하세요 — 제품 미리보기 (샘플 데이터)
           </p>
         </div>
 
@@ -124,8 +124,8 @@ export function LandingDashboardShowcase() {
                   <span className="text-[#34D399]">+1.24%</span>
                 </div>
                 <div className="ml-auto hidden gap-5 lg:flex">
-                  <BalanceItem label="잔고" value="$124,580" />
-                  <BalanceItem label="오늘 P&L" value="+$2,340" tone="green" />
+                  <BalanceItem label="잔고" value="—" />
+                  <BalanceItem label="오늘 P&L" value="—" tone="green" />
                 </div>
               </header>
 

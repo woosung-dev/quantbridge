@@ -42,7 +42,7 @@ export default async function LandingPage() {
           className="border-y border-[color:var(--bg-alt)] bg-[#F8FAFC] px-6 py-8 text-center"
         >
           <p className="text-sm text-[color:var(--text-muted)]">
-            100+ 거래소와 연동
+            Bybit Demo 연동 (Beta)
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             {TRUST_BRANDS.map((b) => (

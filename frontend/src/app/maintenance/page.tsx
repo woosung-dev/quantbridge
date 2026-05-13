@@ -31,7 +31,7 @@ export default function MaintenancePage() {
           finishesAt="14:40 KST"
           progressPercent={60}
           updates={[
-            { status: "done", label: "백테스트 엔진 성능 개선 (vectorbt v0.27)" },
+            { status: "done", label: "백테스트 엔진 성능 개선" },
             { status: "done", label: "실시간 차트 최적화" },
             { status: "progress", label: "데이터베이스 정리 중" },
           ]}

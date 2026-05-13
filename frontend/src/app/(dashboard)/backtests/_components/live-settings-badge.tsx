@@ -38,7 +38,7 @@ export function LiveSettingsBadge({
           variant="destructive"
           data-testid="live-settings-badge-blocked"
         >
-          {`Mirror 불가 (Live leverage ${lev}x — BL-186 후 unlock)`}
+          {`Mirror 불가 (Live leverage ${lev}x — 준비 중)`}
         </Badge>
       );
     }

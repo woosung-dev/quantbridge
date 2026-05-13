@@ -40,7 +40,7 @@ function walkSync(
   return results;
 }
 
-// known fake marketing strings — Multi-Agent QA 발견 + 추가 후보 (P1-6 확장)
+// known fake marketing strings — Multi-Agent QA 발견 + codex G.2 P1-2 확장
 const FAKE_MARKETING_STRINGS = [
   // 수치 (BL-270)
   "10,000+",
@@ -51,6 +51,7 @@ const FAKE_MARKETING_STRINGS = [
   "99.97",
   "156+ 거래소",
   "156 거래소",
+  "100+ 거래소", // codex G.2 P1-2
   "7,234",
   "7234",
   // testimonial (BL-271)
@@ -59,6 +60,12 @@ const FAKE_MARKETING_STRINGS = [
   // Disclaimer 자가 명시 (BL-273)
   "법적 효력 제한적",
   "법무 임시",
+  // codex G.2 P1-2 — hardcoded dashboard mock values (without "예시" / "샘플" label)
+  "$124,580",
+  "+$2,340",
+  "7일 연속 수익",
+  // Enterprise SLA 보증 (unsubstantiated claim)
+  "SLA 보장",
 ];
 
 // 스캔 대상 = user-facing page + landing components (test/storybook 제외)

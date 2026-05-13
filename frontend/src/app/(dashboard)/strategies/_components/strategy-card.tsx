@@ -156,8 +156,8 @@ function RowActions({ id }: { id: string }) {
         >
           백테스트
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>복제 (Sprint 7d+)</DropdownMenuItem>
-        <DropdownMenuItem disabled>공유 (Sprint 7d+)</DropdownMenuItem>
+        <DropdownMenuItem disabled>복제 (준비 중)</DropdownMenuItem>
+        <DropdownMenuItem disabled>공유 (준비 중)</DropdownMenuItem>
         <DropdownMenuItem
           render={<Link href={`/strategies/${id}/edit?action=archive`} />}
         >

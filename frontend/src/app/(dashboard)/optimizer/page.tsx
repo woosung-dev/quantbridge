@@ -1,4 +1,4 @@
-// Sprint 56 — Optimizer 진입 페이지 (실행 list + Grid Search / Bayesian / Genetic 선택).
+// Optimizer 진입 페이지 (실행 list + Grid Search / Bayesian / Genetic 선택).
 "use client";
 
 import { useState } from "react";
@@ -24,11 +24,10 @@ export default function OptimizerPage() {
   return (
     <main className="container mx-auto space-y-6 px-4 py-6">
       <header className="space-y-2">
-        <h1 className="text-xl font-semibold">Optimizer (Sprint 56)</h1>
+        <h1 className="text-xl font-semibold">Optimizer</h1>
         <p className="text-sm text-muted-foreground">
-          Grid Search (서버 9 cell) / Bayesian (≤ 50 evaluation, ADR-013 §6) /
-          Genetic (≤ 50 evaluation, BL-233 self-impl GA) 로 strategy 의 pine input
-          변수 조합을 평가.
+          Grid Search (서버 9 cell) / Bayesian (≤ 50 evaluation) / Genetic
+          (≤ 50 evaluation) 으로 strategy 의 pine input 변수 조합을 평가합니다.
         </p>
       </header>
 

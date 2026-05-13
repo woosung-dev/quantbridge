@@ -169,9 +169,9 @@ function HeroBrowserMockup() {
             />
           </svg>
           <div className="grid grid-cols-3 gap-2">
-            <MockStat label="Total" value="$124,580" />
-            <MockStat label="Today" value="+$2,340" tone="green" />
-            <MockStat label="Win Rate" value="68.4%" />
+            <MockStat label="Total" value="—" />
+            <MockStat label="Today" value="—" tone="green" />
+            <MockStat label="Win Rate" value="—" />
           </div>
         </div>
       </div>

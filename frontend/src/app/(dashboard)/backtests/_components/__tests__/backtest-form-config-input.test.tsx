@@ -106,8 +106,8 @@ describe("BacktestForm — Sprint 37 BL-187 spot-equivalent 정합", () => {
     expect(
       screen.getByText(/롱\/숏 모두 가능|자기자본 한도/i),
     ).toBeInTheDocument();
-    // BL-186 후속 명시 (사용자 trust)
-    expect(screen.getByText(/BL-186 후속/)).toBeInTheDocument();
+    // funding rate 미반영 명시 (사용자 trust, Sprint 60 S2 BL-186 라벨 제거)
+    expect(screen.getByText(/funding rate.*미반영/)).toBeInTheDocument();
   });
 
   it("form 제출 → mutate payload 의 leverage / include_funding default 자동 채움", async () => {
