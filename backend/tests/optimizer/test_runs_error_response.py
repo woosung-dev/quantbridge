@@ -111,13 +111,13 @@ async def test_forced_service_exception_returns_json_not_text_traceback(
     from src.optimizer.dependencies import get_optimizer_service
 
     class _BoomService:
-        async def submit_grid_search(self, *args, **kwargs):  # noqa: D401, ARG002
+        async def submit_grid_search(self, *args, **kwargs):
             raise RuntimeError("internal secret detail leak attempt 7f3a")
 
-        async def submit_bayesian(self, *args, **kwargs):  # noqa: D401, ARG002
+        async def submit_bayesian(self, *args, **kwargs):
             raise RuntimeError("internal secret detail leak attempt 7f3a")
 
-        async def submit_genetic(self, *args, **kwargs):  # noqa: D401, ARG002
+        async def submit_genetic(self, *args, **kwargs):
             raise RuntimeError("internal secret detail leak attempt 7f3a")
 
     app.dependency_overrides[get_optimizer_service] = lambda: _BoomService()
@@ -143,10 +143,8 @@ async def test_forced_service_exception_returns_json_not_text_traceback(
     # 2) body 가 valid JSON parse (raw traceback 이 아님)
     try:
         body = resp.json()
-    except Exception as exc:  # noqa: BLE001
-        pytest.fail(
-            f"BL-244 — error response not valid JSON (likely stack-trace leak): {exc}"
-        )
+    except Exception as exc:
+        pytest.fail(f"BL-244 — error response not valid JSON (likely stack-trace leak): {exc}")
 
     # 3) raw traceback 키워드 미노출 (Python traceback 의 시그니처)
     body_text = resp.text
@@ -186,10 +184,11 @@ async def test_submit_endpoints_return_202_json_not_500_stack_trace(
     Multi-Agent QA QA(Sentinel) 가 발견한 14KB stack-trace leak 재현.
     Fix 후 (response: Response 파라미터 추가) 정상 202 + JSON.
     """
-    from src.optimizer.dependencies import get_optimizer_service
-    from src.optimizer.schemas import OptimizationRunResponse
-    from src.optimizer.models import OptimizationKind, OptimizationStatus
     from datetime import UTC, datetime
+
+    from src.optimizer.dependencies import get_optimizer_service
+    from src.optimizer.models import OptimizationKind, OptimizationStatus
+    from src.optimizer.schemas import OptimizationRunResponse
 
     class _OkService:
         def _fake_response(self, kind: OptimizationKind) -> OptimizationRunResponse:
@@ -210,13 +209,13 @@ async def test_submit_endpoints_return_202_json_not_500_stack_trace(
                 task_id=None,
             )
 
-        async def submit_grid_search(self, *args, **kwargs):  # noqa: ARG002
+        async def submit_grid_search(self, *args, **kwargs):
             return self._fake_response(OptimizationKind.GRID_SEARCH)
 
-        async def submit_bayesian(self, *args, **kwargs):  # noqa: ARG002
+        async def submit_bayesian(self, *args, **kwargs):
             return self._fake_response(OptimizationKind.BAYESIAN)
 
-        async def submit_genetic(self, *args, **kwargs):  # noqa: ARG002
+        async def submit_genetic(self, *args, **kwargs):
             return self._fake_response(OptimizationKind.GENETIC)
 
     app.dependency_overrides[get_optimizer_service] = lambda: _OkService()
@@ -241,8 +240,7 @@ async def test_submit_endpoints_return_202_json_not_500_stack_trace(
                 f"BL-244 — {path} response Content-Type: {resp.headers.get('content-type')}"
             )
             assert resp.status_code == 202, (
-                f"BL-244 — {path} expected 202, got {resp.status_code}: "
-                f"{resp.text[:300]!r}"
+                f"BL-244 — {path} expected 202, got {resp.status_code}: {resp.text[:300]!r}"
             )
             data = resp.json()
             assert data["kind"] == kind, f"unexpected kind: {data}"
