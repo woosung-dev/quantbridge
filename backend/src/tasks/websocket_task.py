@@ -20,43 +20,19 @@ from typing import Any
 from uuid import UUID
 
 from celery import shared_task
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from src.common.alert import send_critical_alert
 from src.common.metrics import qb_ws_duplicate_enqueue_total
 from src.core.config import get_settings
-from src.core.config import settings as _module_settings
 from src.tasks.celery_app import celery_app  # noqa: F401 — Celery beat 가 모듈 import
 
 logger = logging.getLogger(__name__)
 
 
-# Sprint 17 Phase B — Celery prefork worker 의 매 task 마다 asyncio.run() 으로
-# 새 event loop 가 생기는데, asyncpg connection pool 은 생성 당시 loop 에 bind
-# 되므로 module-level (또는 다른 module 의 uvicorn-only) 캐시된 engine 은 두 번째
-# task 부터 RuntimeError("Future attached to a different loop") 또는 InterfaceError
-# 로 silent fail. 따라서 backtest.py / funding.py 와 동일하게 매 호출마다 fresh
-# engine + finally dispose.
-def create_worker_engine_and_sm() -> (
-    tuple[AsyncEngine, async_sessionmaker[AsyncSession]]
-):
-    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
-
-    호출자는 engine 을 finally 에서 dispose 해야 한다. 테스트는 monkeypatch 로
-    공유 세션 + no-op engine 주입 가능.
-
-    Long-running stream (`_stream_main`): engine 1개를 stream lifetime 동안 유지
-    + finally dispose. Short beat (`_reconcile_async`): per-call.
-    """
-    engine = create_async_engine(_module_settings.database_url, echo=False)
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    return engine, sm
-
+# Sprint 18 BL-080 prefork-safe engine factory — `_worker_engine.py` 단일 SSOT.
+# Long-running stream (`_stream_main`): engine 1개 stream lifetime 동안 유지 + finally dispose.
+# Short beat (`_reconcile_async`): per-call.
+from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 
 # Sprint 24 BL-011: process-local `_PROCESS_ACTIVE_STREAMS` + `_PROCESS_LOCK` 제거.
 # Redis distributed lease (`backend/src/tasks/_ws_lease.py:acquire_ws_lease`) 로 교체.

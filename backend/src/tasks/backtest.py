@@ -7,35 +7,13 @@ import time
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-
 from src.backtest.repository import BacktestRepository
 from src.common.metrics import qb_backtest_duration_seconds
 from src.core.config import settings
+from src.tasks._worker_engine import create_worker_engine_and_sm
 from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
-
-
-# Celery prefork 워커는 매 task마다 asyncio.run()으로 새 event loop를 만든다.
-# asyncpg connection pool은 생성 당시 loop에 bind되므로, 전역 engine을 캐시해 두면
-# 두 번째 task부터 "got Future attached to a different loop" → 이후 pool이 깨져
-# "another operation is in progress"가 연쇄된다. 따라서 engine/sessionmaker는
-# _execute/reclaim 내부에서 매 호출마다 새로 만들고 dispose한다.
-def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
-
-    _execute/reclaim_stale_running 은 반환된 engine을 finally에서 dispose해야 한다.
-    테스트에서는 이 함수를 monkeypatch로 대체하여 공유 세션/no-op engine을 주입 가능.
-    """
-    engine = create_async_engine(settings.database_url, echo=False)
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    return engine, sm
 
 
 @celery_app.task(bind=True, name="backtest.run", max_retries=0)  # type: ignore[untyped-decorator]

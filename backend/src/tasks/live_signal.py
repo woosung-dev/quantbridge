@@ -152,18 +152,8 @@ async def _heartbeat_extend(lock: RedisLock, *, period_s: float, ttl_ms: int) ->
         return
 
 
-def create_worker_engine_and_sm() -> tuple[Any, Any]:
-    """Sprint 18 BL-080 — per-call engine + sessionmaker (test 가 monkeypatch).
-
-    `funding.py` 와 동일 패턴 — 매 task 호출 시 새 engine 생성 + finally dispose.
-    `_WORKER_LOOP` 영속 loop 와 함께 사용 시 stale loop 문제 없음.
-    """
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-    engine = create_async_engine(settings.database_url, echo=False)
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    return engine, sm
-
+# Sprint 18 BL-080 prefork-safe engine factory — `_worker_engine.py` 단일 SSOT.
+from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Task #1: evaluate_live_signals_task (Beat 1분 fire)
