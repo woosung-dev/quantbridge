@@ -1,11 +1,11 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-13 (Sprint 59 PR-D 트리아주 완료)
-> **Active Sprint:** Sprint 59 진행 중 (PR-A/B/C merged + PR-D 진행) — main 최신
-> **Active Branch:** `refactor/sprint59-pr-d-bl-triage` (BL 트리아주, plan `~/.claude/plans/sprint-59-bright-platypus.md`)
-> **Sprint type:** Type D (docs / meta cleanup) + Type B (refactor)
-> **office-hours 진행:** N (Sprint 59 진행 중, 6-8주 재평가 cycle)
-> **Next Trigger:** dogfood Day 7 인터뷰 (2026-05-16) 결과 + 본인 의지 second gate → Sprint 60 분기 결정
+> **Last Updated:** 2026-05-13 (Sprint 59 close-out — 5 PR all merged)
+> **Active Sprint:** Sprint 59 완료 — Sprint 60 분기 결정 대기 (Day 7 인터뷰 2026-05-16)
+> **Active Branch:** main (close-out PR 머지 후 — PR-E #277 + 본 close-out PR)
+> **Sprint type:** Type B (refactor) + Type D (docs / meta cleanup)
+> **office-hours 진행:** N (Sprint 59 종료, 6-8주 재평가 cycle 의무)
+> **Next Trigger:** dogfood Day 7 인터뷰 (2026-05-16) 결과 + 본인 의지 second gate → Sprint 60 분기 결정 (4-AND gate)
 
 > 사람과 AI 가 공동 관리하는 활성 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시 / 질문은 §Questions / 활성 BL 상세는 [`REFACTORING-BACKLOG.md`](./REFACTORING-BACKLOG.md) / sprint 회고는 [`dev-log/INDEX.md`](./dev-log/INDEX.md).
@@ -14,33 +14,36 @@
 
 ## 활성 sprint 상태
 
-### Sprint 58 (완료, 2026-05-11~12)
+### Sprint 59 (완료, 2026-05-13)
 
-- **PR 묶음:** #264 (BL-241/242/243 Pine TA 확장 — `ta.wma/hma/bb/cross/mom/obv+fixnan` + `strategy.equity` + UTC 라벨) + #267 (SignalExtractor C-text/C-ast 호환성 실험) + #268 (`alertcondition()` DrFXGOD 패턴 지원)
-- **검증:** 회귀 0 / BE pine_v2 507 PASS / FE 680 PASS
-- **신규 BL:** 0 / Resolved: BL-241/242/243 (3 건)
-- **CI hotfix:** `fixnan → ta.alma` 교체 (코드 변경 미세)
-- **상세:** [`docs/dev-log/2026-05-11-sprint58-close.md`](./dev-log/2026-05-11-sprint58-close.md)
-- **13 active BL** (Sprint 59 PR-D 트리아주: 158 BL → 13 Active + 8 Deferred + 137 Archived). 상세 = [`refactoring-backlog/_archived.md`](./refactoring-backlog/_archived.md) + [`refactoring-backlog/_deferred.md`](./refactoring-backlog/_deferred.md).
+- **PR 묶음 (5 PR squash merge):** #273 (`_worker_engine` SSOT, -163L) + #274 (Pine v1 demolition, -4838L) + #275 (BACKLOG 압축 1028→587L) + #276 (158 BL → 13 Active 트리아주) + #277 (backtest-form 5-split, 866→232L)
+- **검증:** BE 회귀 0 (pine_v2 537 PASS / tasks 146 PASS / engine 138 PASS) + FE 회귀 0 (vitest 680 PASS) + ruff/mypy/tsc/lint clean
+- **신규 BL:** 0 / Resolved (PR-D 5-rule triage): 158 BL → **13 Active + 8 Deferred + 137 Archived**
+- **누적 net deletion:** ~6,000+ lines (메타 노이즈 + dead code + locality 정리)
+- **상세:** [`docs/dev-log/2026-05-13-sprint59-close.md`](./dev-log/2026-05-13-sprint59-close.md)
+- **13 active BL** (상세 = [`REFACTORING-BACKLOG.md`](./REFACTORING-BACKLOG.md) + [`refactoring-backlog/_archived.md`](./refactoring-backlog/_archived.md) + [`refactoring-backlog/_deferred.md`](./refactoring-backlog/_deferred.md))
 
-### 직전 sprint: Sprint 57 (BL-234 Optimizer Polish + BL-237 optimizer_heavy queue)
+### 직전 sprint: Sprint 58 (BL-241/242/243 Pine TA 확장)
 
-- 상세: [`docs/dev-log/2026-05-11-sprint57-close.md`](./dev-log/2026-05-11-sprint57-close.md)
+- 상세: [`docs/dev-log/2026-05-11-sprint58-close.md`](./dev-log/2026-05-11-sprint58-close.md)
 
 ---
 
-## 다음 분기 (Sprint 59)
+## 다음 분기 (Sprint 60)
 
-dogfood Day 7 인터뷰 결과 + 본인 의지 second gate 에 따라 3-way 분기:
+dogfood Day 7 인터뷰 (2026-05-16, 사용자 manual) 결과 + 본인 의지 second gate 에 따라 4-way 분기:
 
-- **(a)** NPS ≥7 + critical bug 0 + self-assess ≥7 + 본인 의지 → Sprint 59 = **Beta 본격 진입** (BL-070~075 도메인+DNS / BE 프로덕션 배포 / Resend / 캠페인 / 인터뷰 / H2 게이트)
-- **(b)** dogfood mixed / 추가 pine coverage or optimizer → Sprint 59 = `ta.dmi` 구현 / BL-235 N-dim viz / BL-236 objective whitelist 자유화
-- **(c)** mainnet trigger 도래 → Sprint 59 = BL-003 / BL-005 mainnet 본격
+- **(a)** NPS ≥7 + critical bug 0 + self-assess ≥7 + 본인 의지 → Sprint 60 = **Beta 본격 진입** (BL-070~075 도메인+DNS / BE 프로덕션 배포 / Resend / 캠페인 / 인터뷰 / H2 게이트)
+- **(b)** dogfood mixed / no urgent bug → Sprint 60 = 잔여 active BL (BL-003 mainnet runbook / BL-014 partial fill / BL-022 golden / BL-235 N-dim viz / BL-236 objective whitelist)
+- **(c)** mainnet trigger 도래 → Sprint 60 = BL-003 / BL-005 mainnet 본격
+- **(d)** trust-breaking bug 노출 → Sprint 60 = 그 fix 1 sprint 우선, 후속은 Sprint 61+ 이연
 
-### Sprint 59 첫 step 의무
+### Sprint 60 첫 step 의무
 
-- Day 7 카톡 인터뷰 결과 정리 (`sprint42-feedback.md` Day 7 row) + Sprint 58 evidence 검토 ([`dev-log/2026-05-11-sprint58-close.md`](./dev-log/2026-05-11-sprint58-close.md))
+- Day 7 카톡 인터뷰 결과 정리 (`sprint42-feedback.md` Day 7 row) + Sprint 59 evidence 검토 ([`dev-log/2026-05-13-sprint59-close.md`](./dev-log/2026-05-13-sprint59-close.md))
+- 4-AND gate 검증: (a) self-assess ≥7 / (b) BL-178 production BH 정상 / (c) BL-180 hand oracle 8 test GREEN / (d) new P0=0 AND unresolved Sprint-59-caused P1=0
 - **Sprint 50/51/52 `result_jsonb` retro-incorrect 안내 유지** — BL-222 fix 이전 CA / PS 결과는 사용자 manual 재실행 권고
+- PR-E (5-split) 의 **5분 dev smoke** (LESSON-004 PR 규약, 사용자 manual) — 누락 시 회귀 의무 검증
 
 ---
 
