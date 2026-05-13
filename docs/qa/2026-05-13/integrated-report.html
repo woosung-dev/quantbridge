@@ -1,0 +1,694 @@
+<!doctype html>
+<!-- QuantBridge Multi-Agent QA 2026-05-13 통합 보고서 (QA + Curious + Casual + Mobile) -->
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QuantBridge Multi-Agent QA — 2026-05-13 통합 보고서</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --c-critical: #b91c1c;
+      --c-high: #c2410c;
+      --c-medium: #a16207;
+      --c-low: #4b5563;
+    }
+    html, body {
+      font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Pretendard Variable", Pretendard, system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+    .sev-critical { background: #fee2e2; color: var(--c-critical); border: 1px solid #fca5a5; }
+    .sev-high     { background: #ffedd5; color: var(--c-high);     border: 1px solid #fdba74; }
+    .sev-medium   { background: #fef9c3; color: var(--c-medium);   border: 1px solid #fde68a; }
+    .sev-low      { background: #e5e7eb; color: var(--c-low);      border: 1px solid #d1d5db; }
+    .sev-pill { display:inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+    .pp-tag { display:inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #1f2937; color: #fff; }
+    .pp-p0 { background: var(--c-critical); }
+    .pp-p1 { background: var(--c-high); }
+    .pp-p2 { background: var(--c-medium); }
+    .pp-p3 { background: var(--c-low); }
+    .conf-h { color: #166534; font-weight: 600; }
+    .conf-m { color: #92400e; font-weight: 600; }
+    .conf-l { color: #6b7280; font-weight: 600; }
+    .stripe tbody tr:nth-child(odd)  { background: #f9fafb; }
+    .stripe tbody tr:nth-child(even) { background: #ffffff; }
+    .heatmap td { text-align:center; font-weight:600; }
+    details > summary { cursor: pointer; }
+    details[open] > summary { margin-bottom: 6px; }
+    .quad {
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+      gap: 8px; height: 320px;
+    }
+    .quad > div { border: 1px solid #e5e7eb; padding: 12px; border-radius: 8px; font-size: 12px; }
+    @media print {
+      body { background: #ffffff !important; color: #000 !important; font-family: "Apple SD Gothic Neo", "Noto Sans KR", serif; }
+      section { break-inside: avoid; }
+      h1, h2, h3 { color: #000 !important; }
+      .no-print { display: none !important; }
+      a { color: #000; text-decoration: underline; }
+      .sev-critical, .sev-high, .sev-medium, .sev-low,
+      .pp-tag, .pp-p0, .pp-p1, .pp-p2, .pp-p3 {
+        background: #fff !important; color: #000 !important; border: 1px solid #000 !important;
+      }
+      .heatmap td { background: #fff !important; color: #000 !important; border: 1px solid #888 !important; }
+      .stripe tbody tr { background: #fff !important; }
+      table { font-size: 11px; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+<div class="max-w-6xl mx-auto px-4 py-8">
+
+<header class="mb-8 border-b pb-4">
+  <p class="text-sm text-slate-500">QuantBridge Multi-Agent QA</p>
+  <h1 class="text-3xl font-bold">통합 보고서 — 2026-05-13</h1>
+  <p class="mt-2 text-sm text-slate-600">
+    4 페르소나 (QA Sentinel · Curious · Casual · Mobile) Exhaustive · 5h/persona ·
+    환경: FE <code>:3100</code> · BE <code>:8100</code> · Celery workers=0 ·
+    Branch <code>feat/convert-llm-fallback</code> @ <code>1a1dbda</code>
+  </p>
+</header>
+
+<!-- =================== 1. Executive Summary =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-red-600 pl-3">1. Executive Summary</h2>
+
+  <div class="grid md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white border rounded-lg p-4">
+      <p class="text-xs uppercase text-slate-500">Composite Health</p>
+      <p class="text-4xl font-bold text-red-700">4.18 <span class="text-base text-slate-500">/ 10</span></p>
+      <p class="text-xs text-slate-500 mt-1">QA × 0.4 + Curious × 0.2 + Casual × 0.2 + Mobile × 0.2</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4">
+      <p class="text-xs uppercase text-slate-500">결함 총계</p>
+      <p class="text-lg font-semibold">
+        <span class="sev-pill sev-critical">Critical 11</span>
+        <span class="sev-pill sev-high">High 14</span>
+      </p>
+      <p class="text-lg font-semibold mt-1">
+        <span class="sev-pill sev-medium">Medium 10</span>
+        <span class="sev-pill sev-low">Low 6</span>
+      </p>
+      <p class="text-xs text-slate-500 mt-1">총 41건 (BL-244 ~ BL-305)</p>
+    </div>
+    <div class="bg-white border rounded-lg p-4">
+      <p class="text-xs uppercase text-slate-500">도입 결정 (Curious)</p>
+      <p class="text-3xl font-bold text-red-700">NO</p>
+      <p class="text-xs text-slate-500 mt-1">NPS 2/10. 회사 명의 결제 / 추천 모두 불가</p>
+      <p class="mt-2 text-sm"><strong>종합 결정:</strong> <span class="sev-pill sev-critical">HOLD</span> — Sprint 60 = Beta 진입 차단 P0 fix sprint</p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold mb-2">페르소나별 점수</h3>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100"><tr><th class="text-left p-2">페르소나</th><th class="text-right p-2">점수</th><th class="text-right p-2">결정</th></tr></thead>
+        <tbody>
+          <tr><td class="p-2">QA Sentinel</td><td class="p-2 text-right font-semibold">6.2</td><td class="p-2 text-right">Hold</td></tr>
+          <tr class="bg-slate-50"><td class="p-2">Curious (도입 검토자)</td><td class="p-2 text-right font-semibold text-red-700">2.0</td><td class="p-2 text-right">NO</td></tr>
+          <tr><td class="p-2">Casual (일반 사용자)</td><td class="p-2 text-right font-semibold text-orange-700">4.0</td><td class="p-2 text-right">포기 의지 강</td></tr>
+          <tr class="bg-slate-50"><td class="p-2">Mobile</td><td class="p-2 text-right font-semibold text-red-700">2.0</td><td class="p-2 text-right">No (reach 0%)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold mb-2">Top 5 결함 (P0)</h3>
+      <ol class="text-sm list-decimal pl-5 space-y-1">
+        <li><strong>BL-244</strong> <span class="sev-pill sev-critical">Critical</span> Optimizer 3 endpoint 모두 HTTP 500 stack-trace 누설 (slowapi × Pydantic response) — Sprint 55/56 출시 코드 end-to-end 불능</li>
+        <li><strong>BL-270 / BL-271</strong> <span class="sev-pill sev-critical">Critical</span> 가짜 marketing 수치 (10,000+ 트레이더 / $2.4B / 99.97% / 가짜 testimonial) — 한국 표시광고법 위반 · 신뢰 영구 파괴</li>
+        <li><strong>BL-300 / BL-285</strong> <span class="sev-pill sev-critical">Critical</span> 모바일 햄버거 dead button + sidebar `hidden` 강제 — 모바일 페이지 간 이동 0 (★★★ 공통)</li>
+        <li><strong>BL-280</strong> <span class="sev-pill sev-critical">Critical</span> /optimizer 페이지에 raw Zod JSON 에러 + Sprint 56 / BL-233 / ADR-013 / vectorbt 내부 ID 노출</li>
+        <li><strong>BL-273</strong> <span class="sev-pill sev-critical">Critical</span> Disclaimer 본문 "법무 임시 — 법적 효력 제한적" 자가 명시 — 회사 명의 결제 영구 차단</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
+    <h3 class="font-semibold mb-2 text-emerald-800">강점 Top 3</h3>
+    <ol class="text-sm list-decimal pl-5 space-y-1">
+      <li><strong>Pine Script 실시간 파싱 UX</strong> — paste 직후 "감지된 함수 6개 / 진입·청산 신호 / 실행 가능" 즉시 표시. Wow moment 1.</li>
+      <li><strong>StrictDecimalInput + Decimal precision</strong> — NaN/Infinity/1e20/SQL injection/이모지 모두 422 정확 차단. 27자리 precision 보존. (Sprint 53 설계 의도대로).</li>
+      <li><strong>백테스트 결과 5탭 깊이</strong> — 개요/성과/거래분석/거래목록/스트레스테스트 + Buy-and-Hold 비교 + Drawdown chart = full-size 도구 수준.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- =================== 2. 페르소나 매트릭스 (heatmap) =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-slate-700 pl-3">2. 페르소나 매트릭스 (Heatmap)</h2>
+  <p class="text-sm text-slate-600 mb-3">차원 × 페르소나 점수 (1=red, 10=green). N/A = 미적용.</p>
+
+  <table class="w-full text-sm heatmap border-collapse">
+    <thead>
+      <tr class="bg-slate-100">
+        <th class="text-left p-2 border">차원</th>
+        <th class="p-2 border">QA</th>
+        <th class="p-2 border">Curious</th>
+        <th class="p-2 border">Casual</th>
+        <th class="p-2 border">Mobile</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 border text-left">인증 (Clerk JWT)</td>
+        <td class="border" style="background:hsl(140 60% 75%)">10</td>
+        <td class="border" style="background:hsl(40 70% 75%)">5</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border bg-slate-100">N/A</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">CORS / 헤더</td>
+        <td class="border" style="background:hsl(40 70% 75%)">5</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border bg-slate-100">N/A</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">권한 / 격리</td>
+        <td class="border" style="background:hsl(80 60% 75%)">7</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border bg-slate-100">N/A</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">Sprint 55-58 회귀</td>
+        <td class="border" style="background:hsl(0 70% 75%)">2</td>
+        <td class="border" style="background:hsl(0 70% 75%)">2</td>
+        <td class="border" style="background:hsl(0 70% 75%)">2</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">UX 라이팅 / 일관성</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">모바일 IA</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border" style="background:hsl(0 70% 75%)">2</td>
+        <td class="border" style="background:hsl(0 70% 75%)">1</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">a11y (axe)</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border bg-slate-100">N/A</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">신뢰 / Trust Layer</td>
+        <td class="border" style="background:hsl(40 70% 75%)">5</td>
+        <td class="border" style="background:hsl(0 70% 75%)">2</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+      </tr>
+      <tr>
+        <td class="p-2 border text-left">에러 응답 일관성</td>
+        <td class="border" style="background:hsl(0 70% 75%)">2</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+        <td class="border" style="background:hsl(20 70% 75%)">3</td>
+        <td class="border bg-slate-100">N/A</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================== 3. Critical / High 결함 상세 =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-red-600 pl-3">3. Critical / High 결함 상세 (25건)</h2>
+  <p class="text-sm text-slate-600 mb-3">★★★ = 2개 이상 페르소나 동시 발견 (P0 자동 격상).</p>
+
+  <table class="w-full text-xs stripe border-collapse">
+    <thead class="bg-slate-100">
+      <tr>
+        <th class="p-2 text-left">ID</th>
+        <th class="p-2 text-left">페르소나</th>
+        <th class="p-2 text-left">Sev</th>
+        <th class="p-2 text-left">Conf</th>
+        <th class="p-2 text-left">제목</th>
+        <th class="p-2 text-left">Root Cause</th>
+        <th class="p-2 text-left">Fix</th>
+        <th class="p-2 text-left">증거</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 align-top">BL-244</td>
+        <td class="p-2 align-top">QA</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Optimizer 3 endpoint 500 stack-trace 누설</td>
+        <td class="p-2 align-top">slowapi `_inject_headers` 가 Pydantic response 객체 거부 (starlette.Response 필요)</td>
+        <td class="p-2 align-top"><code>response_model=None</code> + `JSONResponse(model_dump())` 반환</td>
+        <td class="p-2 align-top"><a class="text-blue-700 underline" href="traces/qa-244-grid-500.txt">qa-244-grid-500.txt</a></td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-245 ★★</td>
+        <td class="p-2 align-top">QA + Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">BE/FE 보안 헤더 0개 (CSP/HSTS/X-Frame-Options/Referrer-Policy/Permissions-Policy 전무)</td>
+        <td class="p-2 align-top">FE next.config headers() 미설정 + BE SecurityHeadersMiddleware 미존재</td>
+        <td class="p-2 align-top">next.config headers() 6종 + BE Middleware 1 patch + poweredByHeader:false</td>
+        <td class="p-2 align-top">curl -I 응답</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-246</td>
+        <td class="p-2 align-top">QA</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">/metrics Prometheus unauth public</td>
+        <td class="p-2 align-top">endpoint inventory + worker stats 누설</td>
+        <td class="p-2 align-top">BasicAuth 또는 IP allowlist (Docker isolated network only)</td>
+        <td class="p-2 align-top">curl /metrics 200</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-249</td>
+        <td class="p-2 align-top">QA</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-m">M</td>
+        <td class="p-2 align-top">ta.alma Sprint 58 release note vs 실측 불일치</td>
+        <td class="p-2 align-top">MEMORY note 의미 모호 ("ta.alma 추가" vs "deny-list")</td>
+        <td class="p-2 align-top">MEMORY 정정 또는 ta.alma 본격 구현</td>
+        <td class="p-2 align-top">/parse 응답</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-250</td>
+        <td class="p-2 align-top">QA</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Pine request.security ADR-003 Iron Law 위반 (is_runnable=true 반환)</td>
+        <td class="p-2 align-top">parser unsupported builtin 목록에 request.* 누락</td>
+        <td class="p-2 align-top">pine_v2/stdlib unsupported 추가 + 회귀 test</td>
+        <td class="p-2 align-top">/parse 응답</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-260</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Hero CTA "무료로 시작하기" → /sign-in (intent mismatch)</td>
+        <td class="p-2 align-top">href 오타</td>
+        <td class="p-2 align-top">href → /sign-up</td>
+        <td class="p-2 align-top">curious-01-landing.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-261</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Sign-up 링크 외부 도메인 stunning-chipmunk-35.accounts.dev → 피싱 의심</td>
+        <td class="p-2 align-top">Clerk custom domain 미설정 (dev 도메인 그대로)</td>
+        <td class="p-2 align-top">Clerk dashboard accounts.quantbridge.io 설정 + 또는 내부 /sign-up 통일</td>
+        <td class="p-2 align-top">curious-04-signup-external.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-262</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">로그인 후 / 빈 화면 stuck 5초+ (Rendering... spinner)</td>
+        <td class="p-2 align-top">middleware 가 authed user 의 / 접근 시 redirect 미설정</td>
+        <td class="p-2 align-top">middleware 에서 / → /strategies redirect</td>
+        <td class="p-2 align-top">curious-07-stuck-rendering.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-263</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Dashboard "곧 출시" — landing page 가짜 약속</td>
+        <td class="p-2 align-top">landing visual 약속 vs 실제 미구현</td>
+        <td class="p-2 align-top">dashboard MVP 출시 OR landing 약속 제거</td>
+        <td class="p-2 align-top">curious-08</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-264</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">백테스트 60초+ "대기 중" — TTFV 약속 (0.5초/3분) 깨짐</td>
+        <td class="p-2 align-top">Celery worker pool 부재 + polling 30s + WS push 부재</td>
+        <td class="p-2 align-top">Celery ≥1 항시 + polling 5s + 카운트다운 + WS push</td>
+        <td class="p-2 align-top">curious-13/14-pending.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-265 ★★★</td>
+        <td class="p-2 align-top">Curious + Casual + Mobile</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">잠재 고객에게 내부 sprint/BL/ADR ID 노출 ("Sprint 7d+", "Sprint 56", "BL-233", "ADR-013 §6", "vectorbt")</td>
+        <td class="p-2 align-top">internal artifact 가 user-facing UI 에 그대로 누출</td>
+        <td class="p-2 align-top">전 페이지 sprint / BL / ADR / 라이브러리명 grep + 제거</td>
+        <td class="p-2 align-top">curious-19-optimizer.png · casual-09 · mobile-412-optimizer.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-268</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Webhook URL 에 http://localhost:8100 평문 노출</td>
+        <td class="p-2 align-top">NEXT_PUBLIC_API_URL 가 dev URL 그대로 사용자에게 노출</td>
+        <td class="p-2 align-top">production 환경에서 https://api.quantbridge.io 사용 + dev 배지</td>
+        <td class="p-2 align-top">curious-11-strategy-edit.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-270</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">가짜 marketing 수치 (10,000+ 트레이더 / 156+ 거래소 / 99.97% / 7,234명 / $2.4B)</td>
+        <td class="p-2 align-top">Beta 자가 명시와 모순 + 한국 표시광고법 위반</td>
+        <td class="p-2 align-top">Beta 기간 동안 모든 수치 제거 OR 정직 표시 ("Beta — 10명 미만 dogfooder")</td>
+        <td class="p-2 align-top">curious-01/03</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-271</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">가짜 testimonial (김지훈 Pro 트레이더 / 박민하 Beta 사용자)</td>
+        <td class="p-2 align-top">가짜 user voice = 표시광고법 위반</td>
+        <td class="p-2 align-top">즉시 제거. Day 7 dogfood 인터뷰 quote 으로 교체</td>
+        <td class="p-2 align-top">curious-03/05</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-273</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Disclaimer 본문 "법무 임시 — 법적 효력 제한적" 자가 명시</td>
+        <td class="p-2 align-top">H2 말 정식 변호사 검토 대기 중 임시 표기</td>
+        <td class="p-2 align-top">즉시 제거 또는 변호사 1줄 immediate validation</td>
+        <td class="p-2 align-top">/disclaimer 본문</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-274 ★★</td>
+        <td class="p-2 align-top">Curious + QA</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-m">M</td>
+        <td class="p-2 align-top">보안 헤더 0개 — Curious 시각 (BL-245 와 동일 사실, 다른 시각)</td>
+        <td class="p-2 align-top">BL-245 참조</td>
+        <td class="p-2 align-top">BL-245 fix 와 동시</td>
+        <td class="p-2 align-top">curl -I</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-275</td>
+        <td class="p-2 align-top">Curious</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">/optimizer 백엔드 500 JSON 그대로 사용자 UI 노출</td>
+        <td class="p-2 align-top">BL-244 가 root cause + error boundary 부재</td>
+        <td class="p-2 align-top">BL-244 fix + error.tsx fallback "일시적 오류" 메시지</td>
+        <td class="p-2 align-top">curious-19-optimizer.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-280</td>
+        <td class="p-2 align-top">Casual</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">/optimizer raw Zod JSON 에러 + Sprint 56 H1 노출 (Casual 시각)</td>
+        <td class="p-2 align-top">error boundary 부재 + H1 내부 ID</td>
+        <td class="p-2 align-top">H1 "최적화" 한국어 + error boundary + zod sentry</td>
+        <td class="p-2 align-top">casual-09-optimizer.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-281</td>
+        <td class="p-2 align-top">Casual</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Pine Script 입력 단계에 "TradingView 모르는 사용자" 가이드 부재</td>
+        <td class="p-2 align-top">step 2 빈 editor + 안내 1줄</td>
+        <td class="p-2 align-top">"Pine Script 가 뭔가요?" expand help + 예시 prefill</td>
+        <td class="p-2 align-top">casual-03-code-input.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-282</td>
+        <td class="p-2 align-top">Casual</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Pine 파싱 실패 시 "오류" 한 단어. 어떻게 고치라는 안내 0</td>
+        <td class="p-2 align-top">parser error 가 human-friendly text 로 변환 안 됨</td>
+        <td class="p-2 align-top">라인/열 + 한국어 설명 + FAQ 링크</td>
+        <td class="p-2 align-top">casual-04-invalid-pine.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-283</td>
+        <td class="p-2 align-top">Casual</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">백테스트 form 내부 식별자 + 영어 라벨 + sprint/BL 메타 노출 (Timeframe, slippage, percent_of_equity, BL-186)</td>
+        <td class="p-2 align-top">snake_case 코드 식별자가 라디오 라벨에 그대로</td>
+        <td class="p-2 align-top">한국어 라벨화 + snake_case 제거 + vectorbt/BL-186 제거</td>
+        <td class="p-2 align-top">casual-06-backtest-new.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-285 ★★</td>
+        <td class="p-2 align-top">Casual + Mobile</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">모바일 햄버거 메뉴 부재 / dead — 페이지 간 이동 0 (Casual 시각)</td>
+        <td class="p-2 align-top">BL-300 의 다른 시각 (시각 부재 ≠ 동작 부재)</td>
+        <td class="p-2 align-top">Sheet/Drawer pattern + BottomNav 추가</td>
+        <td class="p-2 align-top">casual-10-mobile-strategies.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-300 ★★</td>
+        <td class="p-2 align-top">Mobile + Casual</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">햄버거 dead button — aria-expanded 만 toggle, sidebar hidden 클래스 제거 안 됨</td>
+        <td class="p-2 align-top">&lt;aside class="hidden"&gt; Tailwind 강제 + 햄버거 click 핸들러가 sidebar 토글 안 함</td>
+        <td class="p-2 align-top">&lt;aside&gt; hidden md:flex 분리 + 모바일 전용 &lt;MobileNav&gt; Sheet/Drawer mount</td>
+        <td class="p-2 align-top">mobile-375-after-second-hamburger-click.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-301</td>
+        <td class="p-2 align-top">Mobile</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-high">High</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">/backtests + /trading 가로 스크롤 (min-width fixed)</td>
+        <td class="p-2 align-top">테이블/카드 min-width 강제 (456~602px)</td>
+        <td class="p-2 align-top">overflow-x-auto wrapper 또는 reflow 디자인</td>
+        <td class="p-2 align-top">mobile-375-backtests.png · mobile-412-trading.png</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top">BL-305</td>
+        <td class="p-2 align-top">Mobile</td>
+        <td class="p-2 align-top"><span class="sev-pill sev-critical">Critical</span></td>
+        <td class="p-2 align-top conf-h">H</td>
+        <td class="p-2 align-top">Clerk UserButton 0x0 렌더 — 모바일 로그아웃 / 계정 접근 불가</td>
+        <td class="p-2 align-top">Clerk widget container 자식 element 가 collapsed (CSS)</td>
+        <td class="p-2 align-top">Clerk appearance.elements.userButtonBox / avatarBox width/height 36px 강제</td>
+        <td class="p-2 align-top">mobile-375-clerk-usermenu-clicked.png</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <details class="mt-4 bg-slate-50 border rounded p-3">
+    <summary class="font-semibold">BL-244 상세 (재현 + Root Cause + Fix)</summary>
+    <div class="text-sm mt-2">
+      <p><strong>재현:</strong> Clerk 로그인 → <code>POST /api/v1/optimizer/runs/grid-search</code> (or /bayesian /genetic) → <strong>500 Internal Server Error, text/plain, 14250 bytes</strong></p>
+      <p><strong>Root cause:</strong> <code>slowapi/extension.py:382 _inject_headers</code> 가 starlette.Response 인스턴스를 요구하지만 router 가 Pydantic <code>OptimizationRunResponse</code> 객체를 반환. FastAPI 의 Pydantic→JSONResponse 변환은 slowapi inject 뒤에 일어남 → slowapi 가 raw Pydantic 받아서 폭발.</p>
+      <p><strong>Fix:</strong></p>
+      <pre class="bg-slate-900 text-slate-100 p-2 rounded text-xs">@router.post("/runs/grid-search", status_code=202, response_model=None)
+@limiter.limit("5/minute")
+async def submit_grid_search(request: Request, ...) -&gt; JSONResponse:
+    result = await service.submit_grid_search(...)
+    return JSONResponse(result.model_dump(mode='json'), status_code=202)</pre>
+      <p><strong>Secondary fix:</strong> <code>UnifiedErrorMiddleware</code> (BL-163) 가 모든 500 도 <code>{"detail": {"code": "internal_error", ...}}</code> 정규화하여 다른 500 path 도 stack trace 누설 차단.</p>
+    </div>
+  </details>
+</section>
+
+<!-- =================== 4. UX 인상 비교 — Curious vs Casual =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-purple-600 pl-3">4. UX 인상 비교 — Curious vs Casual</h2>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-purple-700">Curious (도입 검토자)</h3>
+      <p class="text-xs text-slate-500 mb-2">사전 지식 0. 30분 내 가입 / 유료 결정.</p>
+      <ul class="text-sm space-y-1 list-disc pl-5">
+        <li><strong>5초/30초/60초 룰: 모두 PASS</strong> — landing 디자인 8/10</li>
+        <li>TTFV: <strong>6분 15초</strong> (첫 시도 폴링 후 우회 navigate 필요)</li>
+        <li>가입 마찰 6/10 (OAuth O, 단 외부 도메인 + 영한 혼재)</li>
+        <li><strong>신뢰 신호 2/10</strong> — 가짜 수치 + 가짜 testimonial + 자가 명시 미검증 법무</li>
+        <li>가장 인상적 1건: <strong>Pine Script 실시간 파싱</strong> (감지된 함수 6개 즉시 표시)</li>
+        <li>가장 실망 1건: <strong>Optimizer "Sprint 56" + BL-233 본문 노출 + 500 JSON</strong> = "internal dev tool" 인상</li>
+        <li><strong>도입 결정: NO (NPS 2/10)</strong> — 본인 명의 무료 시도 OK / 회사 명의 결제 / 추천 모두 불가</li>
+      </ul>
+    </div>
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-orange-700">Casual (일반 사용자)</h3>
+      <p class="text-xs text-slate-500 mb-2">Non-technical. Pine Script / Sharpe / Drawdown 모름.</p>
+      <ul class="text-sm space-y-1 list-disc pl-5">
+        <li>메뉴 라벨 해독률: <strong>67%</strong> (6/9 메뉴 중 4-5 추측 가능, "백테스트" 도메인 용어)</li>
+        <li>모르는 단어: <strong>20+</strong> (Pine Script, USDT, Sharpe, Drawdown, slippage, percent_of_equity, Kill Switch, vectorbt)</li>
+        <li>막힘 지점: <strong>5건</strong> (백테스트 도달 전)</li>
+        <li>에러 메시지 친절도 <strong>3/10</strong> — Pine "오류" 한 단어 + Optimizer raw Zod</li>
+        <li>한국어/영어 일관성 <strong>3/10</strong> — 폼 라벨 영어 다수 + snake_case 노출</li>
+        <li>a11y violations <strong>22 (136 nodes)</strong> — color-contrast WCAG AA 전역 위반</li>
+        <li>키보드 nav <strong>7/10</strong> (skip link + focus visible OK)</li>
+        <li><strong>완수 여부:</strong> 백테스트 실행까지 ≈8분 + 강한 포기 의지</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="quad mt-6">
+    <div style="background: #fef3c7"><strong>잠재 도입 의사 高 / 사용성 高</strong><br/><span class="text-slate-500">(현재 0건)</span></div>
+    <div><strong>잠재 도입 의사 高 / 사용성 低</strong><br/>Casual 시각 — Pine Script 즉시 파싱 wow 는 도달 시 가치 있으나 거기까지 가는 길이 8분 + 포기 의지 강</div>
+    <div style="background: #fecaca"><strong>잠재 도입 의사 低 / 사용성 高</strong><br/>Curious 시각 — UI 자체는 잘 만들었으나 가짜 marketing + 미검증 법무 + Sprint 56 노출로 도입 NO</div>
+    <div style="background: #fee2e2"><strong>잠재 도입 의사 低 / 사용성 低</strong><br/>Mobile + 모바일 Casual — 햄버거 dead + UserButton 0x0 + 가로 overflow → 모바일 자체로 reach 0%</div>
+  </div>
+</section>
+
+<!-- =================== 5. Sprint 55-58 회귀 결과 표 =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-blue-600 pl-3">5. Sprint 55-58 회귀 결과</h2>
+  <p class="text-sm text-slate-600 mb-3">QA Sentinel 의 11h 시나리오 + 추가 Pine 회귀.</p>
+
+  <table class="w-full text-sm stripe border-collapse">
+    <thead class="bg-slate-100">
+      <tr>
+        <th class="p-2 text-left">시나리오</th>
+        <th class="p-2 text-left">대상 sprint</th>
+        <th class="p-2 text-center">결과</th>
+        <th class="p-2 text-left">결함</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="p-2">Bayesian optimizer submit</td><td class="p-2">Sprint 55</td><td class="p-2 text-center text-red-700 font-bold">FAIL</td><td class="p-2">BL-244</td></tr>
+      <tr><td class="p-2">BayesianHyperparamsField StrictDecimalInput</td><td class="p-2">Sprint 55</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">acquisition EI/UCB/PI enum lock</td><td class="p-2">Sprint 55</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">— (LCB rejected)</td></tr>
+      <tr><td class="p-2">Genetic optimizer submit</td><td class="p-2">Sprint 56</td><td class="p-2 text-center text-red-700 font-bold">FAIL</td><td class="p-2">BL-244</td></tr>
+      <tr><td class="p-2">n_generations schema</td><td class="p-2">Sprint 56</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">Pine ta.wma/hma/bb/cross/mom/obv/fixnan parse</td><td class="p-2">Sprint 58</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">Pine strategy.equity + barstate.isrealtime</td><td class="p-2">Sprint 58</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">Pine ta.alma 지원</td><td class="p-2">Sprint 58</td><td class="p-2 text-center text-red-700 font-bold">FAIL</td><td class="p-2">BL-249 (unsupported)</td></tr>
+      <tr><td class="p-2">SignalExtractor alertcondition (DrFXGOD)</td><td class="p-2">Sprint 58</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">ADR-003 mixed-unsupported Iron Law (request.security)</td><td class="p-2">Core</td><td class="p-2 text-center text-red-700 font-bold">FAIL</td><td class="p-2">BL-250</td></tr>
+      <tr><td class="p-2">_worker_engine SSOT (backtest detail UI)</td><td class="p-2">Sprint 59 PR-B</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">backtest-form 5-split UI render</td><td class="p-2">Sprint 59 PR-E</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">BL-163 UnifiedErrorMiddleware (404/405/422/500)</td><td class="p-2">Sprint 32 E</td><td class="p-2 text-center text-red-700 font-bold">FAIL</td><td class="p-2">BL-247 (3종 schema 혼재)</td></tr>
+      <tr><td class="p-2">StrictDecimalInput adversarial</td><td class="p-2">Sprint 53</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+      <tr><td class="p-2">convert resilient LLM chain (Gemini fallback)</td><td class="p-2">Current PR</td><td class="p-2 text-center text-yellow-700 font-bold">SKIP</td><td class="p-2">Celery worker 0 [확인 필요]</td></tr>
+      <tr><td class="p-2">Decimal/float 합산 (27자리 precision)</td><td class="p-2">Sprint 4 D8</td><td class="p-2 text-center text-green-700 font-bold">PASS</td><td class="p-2">—</td></tr>
+    </tbody>
+  </table>
+
+  <p class="text-sm text-slate-600 mt-3"><strong>Summary:</strong> 16 시나리오 중 PASS 11 · FAIL 4 · SKIP 1. FAIL 4 모두 사용자에게 직접 노출 (Optimizer 500 + ta.alma 명세 불일치 + ADR-003 Iron Law + 에러 schema 3종).</p>
+</section>
+
+<!-- =================== 6. 우선순위 매트릭스 =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-amber-600 pl-3">6. 우선순위 매트릭스 (Impact × Effort)</h2>
+
+  <table class="w-full text-sm stripe border-collapse">
+    <thead class="bg-slate-100">
+      <tr>
+        <th class="p-2 text-left">분류</th>
+        <th class="p-2 text-left">사유</th>
+        <th class="p-2 text-left">BL ID</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 align-top"><span class="pp-tag pp-p0">P0 — High Impact / Low Effort</span></td>
+        <td class="p-2 align-top">Sprint 60 우선 fix. 즉시 신뢰 회복 + Beta 진입 차단 결함.</td>
+        <td class="p-2 align-top">BL-244 (Optimizer 500), BL-260 (Hero CTA), BL-262 (post-signin /), BL-265/280/303 (내부 ID 노출), BL-270 (가짜 수치), BL-271 (가짜 testimonial), BL-273 (Disclaimer 임시 표기), BL-268 (localhost webhook), BL-269 (/pricing 404), BL-275 (Optimizer error UI)</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top"><span class="pp-tag pp-p1">P1 — High Impact / High Effort</span></td>
+        <td class="p-2 align-top">Sprint 60 main scope or split sprint.</td>
+        <td class="p-2 align-top">BL-245/274 (보안 헤더), BL-246 (/metrics auth), BL-247 (에러 schema 정규화), BL-250 (ADR-003 request.security), BL-261 (Clerk custom domain), BL-263 (Dashboard MVP), BL-264 (TTFV / Celery / WS), BL-285/300 (모바일 햄버거), BL-301 (모바일 가로 overflow), BL-305 (Clerk UserButton 0x0), BL-281/282/283 (Casual UX 라이팅), BL-286 (color-contrast)</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top"><span class="pp-tag pp-p2">P2 — Low Impact / Low Effort (quick wins)</span></td>
+        <td class="p-2 align-top">별도 polish sprint or 빈 시간에 일괄.</td>
+        <td class="p-2 align-top">BL-248 (mirror_not_allowed 422→409), BL-251 (kind redundancy), BL-252 (.env.local 통일), BL-266 (combobox UUID), BL-267 (draft dialog timing), BL-272 (Clerk localization), BL-302 (inputmode decimal), BL-304 (Pretendard 폰트), BL-284 (한국어 metric 헤딩)</td>
+      </tr>
+      <tr>
+        <td class="p-2 align-top"><span class="pp-tag pp-p3">P3 — Low Impact / High Effort (defer)</span></td>
+        <td class="p-2 align-top">Sprint 60 out of scope. Beta 본격 진입 후 재평가.</td>
+        <td class="p-2 align-top">BL-249 (ta.alma 본격 구현), BL-253 (source maps prod 검사), BL-287 (/trading h1), BL-288 ("곧 출시" 메뉴 정책)</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================== 7. Sprint 60 진입 결론 =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-rose-600 pl-3">7. Sprint 60 진입 결론</h2>
+
+  <div class="bg-rose-50 border-2 border-rose-300 rounded-lg p-4">
+    <p class="text-lg"><strong>결정: HOLD → Sprint 60 = Beta 진입 차단 P0 결함 fix sprint (Type B risk-critical)</strong></p>
+    <p class="text-sm text-slate-700 mt-2">Sprint 59 (refactor cleanup) 직후이며 Sprint 60 default = (b) Deepening 2차 였으나, 본 QA 가 (d) trust-breaking bug 노출 분기로 강제 전환.</p>
+  </div>
+
+  <h3 class="font-semibold mt-4 mb-2">결정 이유 (5건)</h3>
+  <ol class="text-sm list-decimal pl-5 space-y-2">
+    <li><strong>BL-244 = Sprint 55 + Sprint 56 출시 코드 end-to-end 불능.</strong> Bayesian / Genetic / Grid Search 3 endpoint 모두 HTTP 500 stack-trace 누설. 통합 테스트가 slowapi middleware 를 mock 한 false-positive PASS 가능성 매우 높음 → LESSON-039 (Surface Trust 차단 ≠ 기능 작동) 위반.</li>
+    <li><strong>가짜 marketing 수치 + 가짜 testimonial (BL-270/271) = 한국 표시광고법 위반 + 신뢰 영구 destruction.</strong> Beta 자가 명시와 모순. 한 번 잡히면 모든 claim 의심.</li>
+    <li><strong>모바일 reach 0% (BL-300/285/305).</strong> 햄버거 dead + UserButton 0x0 → 모바일 사용자는 페이지 간 이동 불가 + 로그아웃 불가. 모바일 시장 자체로 reach 0.</li>
+    <li><strong>내부 sprint/BL/ADR ID 사용자 UI 노출 (BL-265/280/283/303 = ★★★ 3개 페르소나 공통).</strong> "production product 가 아닌 internal tool" 인상 → Curious NPS 2/10 결정타.</li>
+    <li><strong>Disclaimer 본문 "법적 효력 제한적" 자가 명시 (BL-273).</strong> 회사 명의 결제 / 기관 도입 영구 차단. H2 말까지 대기 시 본격 출시 불가.</li>
+  </ol>
+
+  <h3 class="font-semibold mt-4 mb-2">Beta 진입 가능 여부 (4-AND gate 평가)</h3>
+  <table class="w-full text-sm stripe border-collapse mt-2">
+    <thead class="bg-slate-100"><tr><th class="p-2 text-left">조건</th><th class="p-2 text-left">현재 상태</th><th class="p-2 text-left">결과</th></tr></thead>
+    <tbody>
+      <tr><td class="p-2">(a) NPS ≥7</td><td class="p-2">Curious NPS = 2/10</td><td class="p-2 text-red-700 font-bold">FAIL</td></tr>
+      <tr><td class="p-2">(b) critical bug = 0</td><td class="p-2">Critical 11건</td><td class="p-2 text-red-700 font-bold">FAIL</td></tr>
+      <tr><td class="p-2">(c) self-assess ≥7</td><td class="p-2">Composite 4.18 / 10</td><td class="p-2 text-red-700 font-bold">FAIL</td></tr>
+      <tr><td class="p-2">(d) 본인 의지 second gate</td><td class="p-2">Sprint 47 close-out 시점 의지 X 명시</td><td class="p-2 text-red-700 font-bold">FAIL</td></tr>
+    </tbody>
+  </table>
+  <p class="text-sm text-slate-700 mt-2"><strong>4/4 FAIL — Beta 본격 진입 불가.</strong> Sprint 60 = trust 회복 sprint. Day 7 인터뷰 (2026-05-16) 결과 + Sprint 60 fix 완료 후 재평가.</p>
+</section>
+
+<!-- =================== 8. Appendix =================== -->
+<section class="mb-10">
+  <h2 class="text-2xl font-bold mb-3 border-l-4 border-slate-500 pl-3">8. Appendix</h2>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold mb-2">원본 4 보고서</h3>
+      <ul class="text-sm list-disc pl-5 space-y-1">
+        <li><a class="text-blue-700 underline" href="qa-report.md">qa-report.md</a> — QA Sentinel (26 KB, 11 시나리오)</li>
+        <li><a class="text-blue-700 underline" href="interested-user-report.md">interested-user-report.md</a> — Curious (잠재 고객)</li>
+        <li><a class="text-blue-700 underline" href="general-user-report.md">general-user-report.md</a> — Casual (일반 사용자)</li>
+        <li><a class="text-blue-700 underline" href="mobile-user-report.md">mobile-user-report.md</a> — Mobile (375/393/412)</li>
+        <li><a class="text-blue-700 underline" href="environment.txt">environment.txt</a> — 환경 진단</li>
+      </ul>
+    </div>
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold mb-2">traces/ 인덱스</h3>
+      <p class="text-xs text-slate-500 mb-2">총 47개 (스크린샷 45 + stack trace 2)</p>
+      <ul class="text-xs space-y-0.5 list-disc pl-5 max-h-60 overflow-auto">
+        <li>QA: <code>qa-01-strategies-page.png</code>, <code>qa-04-backtest-detail.png</code>, <code>qa-04-backtests-list.png</code>, <code>qa-05-optimizer-page.png</code>, <code>qa-244-grid-500.txt</code>, <code>qa-244-optimizer-500-trace.txt</code></li>
+        <li>Curious: <code>curious-01-landing</code> ~ <code>curious-19-optimizer</code> (19개)</li>
+        <li>Casual: <code>casual-01-landing</code> ~ <code>casual-10-mobile-strategies</code> (10개)</li>
+        <li>Mobile: <code>mobile-375-*</code> (7개), <code>mobile-393-*</code> (2개), <code>mobile-412-*</code> (3개)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bg-slate-100 rounded-lg p-4 mt-4 text-xs text-slate-700">
+    <p><strong>QA 환경 SSOT:</strong> FE <code>http://localhost:3100</code> · BE <code>http://localhost:8100</code> · DB :5433 · Redis :6380 (격리 모드). Celery worker pool = 0 (timeout 3.0s). 사용자 manual override: <code>NEXT_PUBLIC_API_URL=http://localhost:8100</code> inline export.</p>
+    <p class="mt-2"><strong>Branch:</strong> feat/convert-llm-fallback @ 1a1dbda (convert: resilient LLM chain + Gemini fallback) — Sprint 59 close-out 후 추가 작업 진행 중.</p>
+    <p class="mt-2"><strong>QA 생성:</strong> 2026-05-13 KST · Integrator: Claude Code Multi-Agent QA orchestrator</p>
+  </div>
+</section>
+
+<footer class="mt-12 pt-4 border-t text-xs text-slate-500">
+  <p>QuantBridge Multi-Agent QA — Integration Sub-agent · 2026-05-13</p>
+</footer>
+
+</div>
+</body>
+</html>

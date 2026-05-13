@@ -1,0 +1,1 @@
+{"detail":{"code":"auth_invalid_token","detail":"TOKEN_EXPIRED"}}
