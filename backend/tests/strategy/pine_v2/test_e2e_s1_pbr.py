@@ -135,28 +135,8 @@ def test_s1_pbr_places_or_fills_some_stop_orders() -> None:
     )
 
 
-def test_s1_pbr_reports_compared_to_legacy_pine_module() -> None:
-    """Phase -1에서 실패한 기존 pine/ 모듈과의 비교 기록 (docs에 인용할 수 있는 수치).
-
-    기존 `src.strategy.pine.parse_and_run()`은 s1_pbr에 대해 stdlib 단계 실패.
-    pine_v2는 완주 가능. 이 테스트는 그 upgrade 증거.
-    """
-    from src.strategy.pine import parse_and_run as legacy_parse_and_run
-
-    ohlcv = _synthetic_ohlcv_with_pivots()
-
-    # 기존 pine 모듈 실행 — stdlib 실패 예상
-    legacy_outcome = legacy_parse_and_run(_S1_PBR, ohlcv)
-    assert legacy_outcome.status in ("error", "unsupported"), (
-        f"기존 pine 모듈이 s1_pbr을 성공 처리 (예상과 다름). Phase -1 결과 재확인 필요. "
-        f"status={legacy_outcome.status}"
-    )
-
-    # pine_v2 실행 — 완주
-    v2_result = run_historical(_S1_PBR, ohlcv, strict=False)
-    assert v2_result.bars_processed == len(ohlcv)
-
-    # 요약 기록 (디버깅 편의)
-    print("\n=== s1_pbr 대조 ===")
-    print(f"  기존 pine/: status={legacy_outcome.status}, error={legacy_outcome.error}")
-    print(f"  pine_v2:    bars_processed={v2_result.bars_processed}, errors={len(v2_result.errors)}")
+# Tier 2 refactor audit (2026-05-13) — Pine v1 legacy 2407L 제거에 따라
+# `test_s1_pbr_reports_compared_to_legacy_pine_module` test 함수 삭제.
+# pine_v2 SSOT 단독 (ADR-011) 이라 legacy parity 비교 불필요. v2 정확성은
+# 본 파일 상단 5 test (parses_successfully / executes_end_to_end / strict_mode /
+# detects_pivots / places_or_fills_stop_orders) 가 보장.

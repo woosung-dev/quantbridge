@@ -1,11 +1,14 @@
-"""Pine Script parser and interpreter (AST-based, no exec/eval).
+# Pine Script v1 legacy module — pine_v2 SSOT 전환 후 types/errors 만 유지.
+"""Pine v1 legacy shim — production 은 `src.strategy.pine_v2` SSOT 사용.
 
-공개 API:
-- parse_and_run(source, ohlcv) -> ParseOutcome
+본 모듈은 ADR-011 §6/§8 + Sprint 8a PR #20 이후 *지표 계산 전용* 으로 강등됐다.
+lexer/parser/interpreter/stdlib/v4_to_v5/ast_nodes 6 module (2146L) 은 Tier 2
+refactor audit 시 제거됐다. 본 모듈은 backtest engine adapter (`src.backtest.engine.{types,adapter,v2_adapter,__init__}`)
+가 import 하는 `ParseOutcome / SignalResult / SourceSpan / PineError` 4 종 타입만
+재export 한다. 새 Pine 작업은 `src.strategy.pine_v2` 사용.
 """
-from __future__ import annotations
 
-import pandas as pd
+from __future__ import annotations
 
 from src.strategy.pine.errors import (
     PineError,
@@ -14,135 +17,7 @@ from src.strategy.pine.errors import (
     PineRuntimeError,
     PineUnsupportedError,
 )
-from src.strategy.pine.interpreter import execute_program
-from src.strategy.pine.lexer import tokenize
-from src.strategy.pine.parser import parse
-from src.strategy.pine.stdlib import validate_functions
 from src.strategy.pine.types import ParseOutcome, SignalResult, SourceSpan
-from src.strategy.pine.v4_to_v5 import detect_version, normalize
-
-# 구조적 호출 (stdlib 외) — 인터프리터가 직접 처리하는 함수들
-_ALLOWED_STRUCTURAL: set[str] = {
-    "strategy",
-    "strategy.entry",
-    "strategy.close",
-    "strategy.exit",
-    "indicator",
-    "input",
-    "input.int",
-    "input.float",
-    "input.bool",
-    "input.string",
-    "plot",
-    "plotshape",
-    "bgcolor",
-    "barcolor",
-    "fill",
-    "alert",
-    "alertcondition",
-    "timestamp",
-    "color.new",
-    "color.red",
-    "color.green",
-    "color.blue",
-    "color.white",
-    "color.black",
-}
-
-
-def parse_and_run(source: str, ohlcv: pd.DataFrame) -> ParseOutcome:
-    """Pine Script(v4 or v5)를 해석·실행. 미지원 감지 시 전체 중단.
-
-    ohlcv는 open/high/low/close/volume 컬럼을 가진 DataFrame.
-    """
-    original_version = detect_version(source)
-
-    try:
-        normalized = normalize(source)
-    except PineUnsupportedError as e:
-        return ParseOutcome(
-            status="unsupported",
-            result=None,
-            error=e,
-            supported_feature_report={},
-            source_version=original_version,
-        )
-
-    try:
-        tokens = tokenize(normalized)
-    except PineError as e:
-        return ParseOutcome(
-            status="error",
-            result=None,
-            error=e,
-            supported_feature_report={},
-            source_version=original_version,
-        )
-
-    try:
-        program = parse(tokens)
-    except PineUnsupportedError as e:
-        return ParseOutcome(
-            status="unsupported",
-            result=None,
-            error=e,
-            supported_feature_report={},
-            source_version=original_version,
-        )
-    except PineError as e:
-        return ParseOutcome(
-            status="error",
-            result=None,
-            error=e,
-            supported_feature_report={},
-            source_version=original_version,
-        )
-
-    try:
-        report = validate_functions(program, allowed_structural=_ALLOWED_STRUCTURAL)
-    except PineUnsupportedError as e:
-        return ParseOutcome(
-            status="unsupported",
-            result=None,
-            error=e,
-            supported_feature_report={},
-            source_version=original_version,
-        )
-
-    try:
-        result = execute_program(
-            program,
-            open_=ohlcv["open"],
-            high=ohlcv["high"],
-            low=ohlcv["low"],
-            close=ohlcv["close"],
-            volume=ohlcv["volume"],
-        )
-    except PineUnsupportedError as e:
-        return ParseOutcome(
-            status="unsupported",
-            result=None,
-            error=e,
-            supported_feature_report=report,
-            source_version=original_version,
-        )
-    except PineError as e:
-        return ParseOutcome(
-            status="error",
-            result=None,
-            error=e,
-            supported_feature_report=report,
-            source_version=original_version,
-        )
-
-    return ParseOutcome(
-        status="ok",
-        result=result,
-        error=None,
-        supported_feature_report=report,
-        source_version=original_version,
-    )
-
 
 __all__ = [
     "ParseOutcome",
@@ -153,5 +28,4 @@ __all__ = [
     "PineUnsupportedError",
     "SignalResult",
     "SourceSpan",
-    "parse_and_run",
 ]
