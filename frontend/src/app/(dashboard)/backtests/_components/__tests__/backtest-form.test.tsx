@@ -343,7 +343,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     const callArg = (firstCall ? firstCall[0] : "") as string;
     expect(callArg).toContain("백테스트 실행 중 오류 발생");
     expect(callArg).toContain("Internal server error");
-    expect(callArg).toContain("ADR-003 supported list");
+    expect(callArg).toContain("지원 함수 목록 참조");
     expect(
       screen.queryByTestId("backtest-form-unsupported-card"),
     ).not.toBeInTheDocument();
@@ -405,7 +405,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     expect(fmEl).toHaveTextContent("Pine v6");
     // edit link — ADR-003 안내 텍스트 포함
     const editLink = screen.getByTestId("backtest-form-edit-strategy-link");
-    expect(editLink).toHaveTextContent(/ADR-003 supported list/);
+    expect(editLink).toHaveTextContent(/지원 함수 목록 참조/);
   });
 
   // Sprint 32 E (BL-163) — 422 + degraded_calls (StrategyDegraded) 케이스도 동일 처리.
