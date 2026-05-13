@@ -24,10 +24,8 @@ from uuid import UUID
 
 from celery import shared_task
 from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    create_async_engine,
 )
 
 from src.common.alert import send_critical_alert
@@ -53,24 +51,9 @@ _WATCHDOG_MAX_ATTEMPTS = 3
 logger = logging.getLogger(__name__)
 
 
-# Sprint 17 Phase C — Celery prefork worker 의 매 task 마다 asyncio.run() 으로
-# 새 event loop 가 생기는데, asyncpg connection pool 은 생성 당시 loop 에 bind
-# 되므로 module-level cached engine 은 두 번째 task 부터 InterfaceError ("another
-# operation is in progress") 또는 RuntimeError ("attached to a different loop")
-# 로 silent fail. broker side effect (실제 거래소 주문) ↔ DB 상태 분기 위험.
-# 따라서 backtest.py / funding.py 와 동일하게 매 호출마다 fresh engine + finally dispose.
-def create_worker_engine_and_sm() -> (
-    tuple[AsyncEngine, async_sessionmaker[AsyncSession]]
-):
-    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
-
-    호출자는 engine 을 finally 에서 dispose 해야 한다. 테스트는 monkeypatch 로
-    공유 세션 + no-op engine 주입 가능.
-    """
-    engine = create_async_engine(settings.database_url, echo=False)
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    return engine, sm
-
+# Sprint 18 BL-080 prefork-safe engine factory — `_worker_engine.py` 단일 SSOT.
+# broker side effect (실제 거래소 주문) ↔ DB 상태 분기 위험 영역 — per-call engine 의무.
+from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # ExchangeProvider dynamic dispatch — Sprint 22 BL-091

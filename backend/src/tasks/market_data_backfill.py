@@ -69,7 +69,7 @@ async def _async_backfill(
 
     engine + sessionmaker 는 task 단위로 생성 + finally dispose (Sprint 17 패턴).
     """
-    from src.tasks.backtest import create_worker_engine_and_sm  # 재사용
+    from src.tasks._worker_engine import create_worker_engine_and_sm
 
     engine, sm = create_worker_engine_and_sm()
     try:

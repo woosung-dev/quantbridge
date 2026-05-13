@@ -9,28 +9,13 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-
-from src.core.config import settings
 from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    """매 호출마다 새 engine + async_sessionmaker 반환.
-
-    asyncpg connection pool은 생성 당시 loop에 bind되므로 전역 캐시 금지.
-    테스트에서 monkeypatch 로 공유 세션을 주입할 수 있도록 함수 형태 유지.
-    """
-    engine = create_async_engine(settings.database_url, echo=False)
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    return engine, sm
+# Sprint 18 BL-080 prefork-safe engine factory — `_worker_engine.py` 단일 SSOT.
+from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 
 
 @celery_app.task(bind=True, name="stress_test.run", max_retries=0)  # type: ignore[untyped-decorator]

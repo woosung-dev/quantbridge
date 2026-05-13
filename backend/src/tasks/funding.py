@@ -12,33 +12,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from celery import shared_task
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from src.core.config import settings
+from src.tasks._worker_engine import create_worker_engine_and_sm
 
 logger = logging.getLogger(__name__)
-
-
-# Celery prefork 워커는 매 task마다 asyncio.run() 으로 새 event loop 를 만든다.
-# asyncpg connection pool 은 생성 당시 loop 에 bind 되므로 전역 engine 을 캐시하면
-# 두 번째 task 부터 "got Future attached to a different loop" 가 발생하고 이후
-# "another operation is in progress" 가 연쇄 실패한다 (PR #51 참조).
-# 따라서 engine/sessionmaker 는 _async_fetch 내부에서 매 호출마다 새로 만들고
-# try/finally 로 engine.dispose() 한다.
-def create_worker_engine_and_sm() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
-    """매 호출마다 새 engine + async_sessionmaker 튜플 반환.
-
-    호출자는 engine 을 finally 에서 dispose 해야 한다. 테스트에서는 이 함수를
-    monkeypatch 로 대체하여 공유 세션/no-op engine 을 주입 가능.
-    """
-    engine = create_async_engine(settings.database_url, echo=False)
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    return engine, sm
 
 
 # ---------------------------------------------------------------------------
