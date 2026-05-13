@@ -27,11 +27,11 @@ describe("LandingHero", () => {
     ).toBeInTheDocument();
   });
 
-  it("CTA 2개 — 무료로 시작하기 → /sign-in / 라이브 데모 → /sign-up", () => {
+  it("CTA 2개 — 무료로 시작하기 → /sign-up (Sprint 60 S3 BL-260) / 라이브 데모 → /sign-in", () => {
     render(<LandingHero />);
     const primary = screen.getByText(/무료로 시작하기/).closest("a");
-    expect(primary).toHaveAttribute("href", "/sign-in");
+    expect(primary).toHaveAttribute("href", "/sign-up");
     const secondary = screen.getByText(/라이브 데모/).closest("a");
-    expect(secondary).toHaveAttribute("href", "/sign-up");
+    expect(secondary).toHaveAttribute("href", "/sign-in");
   });
 });

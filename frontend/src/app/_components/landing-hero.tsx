@@ -47,7 +47,7 @@ export function LandingHero() {
           <div className="mt-8 flex flex-wrap gap-3 motion-safe:animate-[fadeInUp_500ms_ease-out_200ms_both]">
             <Button
               size="lg"
-              render={<Link href="/sign-in" />}
+              render={<Link href="/sign-up" />}
               nativeButton={false}
               className="shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all duration-200 hover:-translate-y-px hover:scale-[1.02] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)]"
             >
@@ -70,7 +70,7 @@ export function LandingHero() {
             <Button
               size="lg"
               variant="outline"
-              render={<Link href="/sign-up" />}
+              render={<Link href="/sign-in" />}
               nativeButton={false}
               className="border-[1.5px] hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
             >

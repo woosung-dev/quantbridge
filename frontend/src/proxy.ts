@@ -18,6 +18,8 @@ const isPublicRoute = createRouteMatcher([
   "/waitlist",
   // Sprint 41 Worker H — public read-only backtest share link
   "/share/backtests/(.*)",
+  // Sprint 60 S3 BL-269 — /pricing 은 landing #pricing redirect (인증 불필요)
+  "/pricing",
 ]);
 
 // Sprint 11 Phase A/B — geo-block 제외 라우트 (landing, 법무, webhook 은 모든 지역 표시).
@@ -32,6 +34,8 @@ const isGeoExemptRoute = createRouteMatcher([
   "/waitlist",
   // Sprint 41 Worker H — share link 는 모든 지역 view 가능 (외부 viral 흐름).
   "/share/backtests/(.*)",
+  // Sprint 60 S3 BL-269 — /pricing 도 모든 지역 열람 가능
+  "/pricing",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -47,6 +51,14 @@ export default clerkMiddleware(async (auth, req) => {
 
   if (!isPublicRoute(req)) {
     await auth.protect();
+  }
+
+  // Sprint 60 S3 BL-262 — authed user "/" 접근 시 /strategies redirect (post-signin stuck 방지)
+  const { userId } = await auth();
+  if (userId && req.nextUrl.pathname === "/") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/strategies";
+    return NextResponse.redirect(url);
   }
 });
 
