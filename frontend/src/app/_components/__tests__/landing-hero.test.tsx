@@ -17,13 +17,13 @@ describe("LandingHero", () => {
     expect(heading.textContent).toContain("자동 트레이딩으로");
   });
 
-  it("v2.0 출시 pill + 신뢰 trust 카운트 노출", () => {
+  it("v2.0 출시 pill + Beta 정직 표시 노출 (Sprint 60 S2 BL-270)", () => {
     render(<LandingHero />);
     expect(
       screen.getByText(/v2\.0 출시 — Monte Carlo/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/10,000\+ 트레이더 · 156\+ 거래소 · 99\.97% 가동률/),
+      screen.getByText(/Beta · 초기 dogfooder · feedback 환영/),
     ).toBeInTheDocument();
   });
 

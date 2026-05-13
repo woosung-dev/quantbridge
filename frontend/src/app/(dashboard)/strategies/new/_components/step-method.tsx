@@ -56,7 +56,7 @@ export function StepMethod(props: {
         <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] px-2 py-1">
           <LinkIcon className="size-3" />TradingView URL
         </span>
-        <span className="text-[0.65rem] opacity-70">Sprint 7d+</span>
+        <span className="text-[0.65rem] opacity-70">준비 중</span>
       </div>
 
       <div className="mt-8 flex justify-end">

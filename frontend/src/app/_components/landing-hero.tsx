@@ -104,7 +104,7 @@ export function LandingHero() {
               ))}
             </div>
             <span className="text-sm text-[color:var(--text-muted)]">
-              10,000+ 트레이더 · 156+ 거래소 · 99.97% 가동률
+              Beta · 초기 dogfooder · feedback 환영
             </span>
           </div>
         </div>

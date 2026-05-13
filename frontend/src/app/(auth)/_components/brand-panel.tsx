@@ -17,20 +17,21 @@ interface ModeCopy {
   testimonialRole: string;
 }
 
+// Multi-Agent QA BL-271 fix (Sprint 60 S2) — 가짜 testimonial author 익명화 + sub 정직 표시
 const MODE_COPY: Record<BrandMode, ModeCopy> = {
   "sign-in": {
     heading: "Pine Script 전략을\n실전 수익으로",
-    sub: "10,000+ 트레이더가 선택한 퀀트 트레이딩 플랫폼",
+    sub: "Beta 단계 — 초기 사용자와 함께 만드는 퀀트 트레이딩 플랫폼",
     testimonialText: "backtest에서 최적화까지 3분이면 끝난다",
-    testimonialAuthor: "김지훈",
-    testimonialRole: "Pro 트레이더",
+    testimonialAuthor: "초기 사용자",
+    testimonialRole: "Beta dogfooder",
   },
   "sign-up": {
     heading: "지금 시작하세요\n무료 데모로 안전하게",
     sub: "가입 즉시 Bybit Demo 환경에서 전략을 검증할 수 있습니다",
     testimonialText: "회원가입 5분이면 첫 백테스트 결과를 본다",
-    testimonialAuthor: "박민하",
-    testimonialRole: "Beta 사용자",
+    testimonialAuthor: "초기 사용자",
+    testimonialRole: "Beta dogfooder",
   },
 };
 
@@ -40,10 +41,10 @@ interface StatRow {
 }
 
 const STATS: StatRow[] = [
-  { value: "99.97%", label: "업타임" },
-  { value: "<35ms", label: "체결" },
-  { value: "156", label: "거래소" },
-  { value: "2.4B", label: "거래량" },
+  { value: "Beta", label: "단계" },
+  { value: "Dev", label: "환경" },
+  { value: "Demo", label: "거래소" },
+  { value: "Open", label: "feedback" },
 ];
 
 // prototype 04 의 5 사용자 avatar (initials + 그라디언트). hidden md+ 데스크톱 환경에서만 노출.
@@ -183,9 +184,7 @@ export function BrandPanel({ mode }: BrandPanelProps) {
               />
             </span>
             <span>
-              지금{" "}
-              <strong className="font-semibold text-white">7,234명</strong>이
-              실전 매매 중입니다
+              Beta 단계 — 초기 사용자와 함께 검증 중
             </span>
           </div>
 

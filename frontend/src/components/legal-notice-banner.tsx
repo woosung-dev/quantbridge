@@ -1,4 +1,4 @@
-// Sprint 11 Phase B — 법무 임시 고지 배너. 모든 페이지 상단에 고정 (layout.tsx).
+// Sprint 11 Phase B — Beta 단계 고지 배너. 모든 페이지 상단에 고정 (layout.tsx).
 // 정식 변호사 검토본 (D-5 A안) 배포 전까지 표시. H2 말 (~2026-06-30) 교체 예정.
 
 import Link from "next/link";
@@ -23,7 +23,7 @@ export function LegalNoticeBanner() {
       <Link href={LEGAL_LINKS.privacy} className="underline hover:text-amber-950">
         Privacy
       </Link>
-      . <span className="opacity-75">(법무 임시 — H2 말 정식 변호사 교체 예정)</span>
+      . <span className="opacity-75">(Beta 단계 — H2 말 정식 변호사 검토본 교체 예정)</span>
     </div>
   );
 }

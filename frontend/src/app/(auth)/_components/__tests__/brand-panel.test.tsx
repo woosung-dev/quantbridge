@@ -8,13 +8,13 @@ describe("BrandPanel", () => {
     cleanup();
   });
 
-  it("sign-in 모드 — 환영 카피 + sub copy 노출", () => {
+  it("sign-in 모드 — 환영 카피 + Beta sub copy 노출 (Sprint 60 S2 BL-270)", () => {
     render(<BrandPanel mode="sign-in" />);
     expect(
       screen.getByRole("heading", { level: 1, name: /Pine Script 전략을/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/10,000\+ 트레이더가 선택한/),
+      screen.getByText(/만드는 퀀트 트레이딩 플랫폼/),
     ).toBeInTheDocument();
   });
 
@@ -28,13 +28,13 @@ describe("BrandPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("로고와 인용문 author 항상 표시", () => {
+  it("로고와 인용문 author 항상 표시 (Beta dogfooder, Sprint 60 S2 BL-271)", () => {
     render(<BrandPanel mode="sign-in" />);
     expect(screen.getByText("QuantBridge")).toBeInTheDocument();
     expect(
       screen.getByLabelText("QuantBridge 홈으로 이동"),
     ).toBeInTheDocument();
-    expect(screen.getByText("김지훈")).toBeInTheDocument();
+    expect(screen.getByText("초기 사용자")).toBeInTheDocument();
   });
 
   it("avatars row — prototype 04 의 5 사용자 (JK/MH/YS/DW/SJ) initials 노출", () => {
@@ -49,18 +49,17 @@ describe("BrandPanel", () => {
     expect(avatars.textContent).toContain("SJ");
   });
 
-  it("live indicator + 7,234명 dynamic count 노출", () => {
+  it("live indicator + Beta 정직 표시 노출 (Sprint 60 S2 BL-270)", () => {
     render(<BrandPanel mode="sign-in" />);
-    expect(screen.getByText(/7,234명/)).toBeInTheDocument();
-    expect(screen.getByText(/실전 매매 중/)).toBeInTheDocument();
+    expect(screen.getByText(/초기 사용자와 함께 검증 중/)).toBeInTheDocument();
   });
 
-  it("STATS grid — 4개 stat (업타임 / 체결 / 거래소 / 거래량) 노출", () => {
+  it("STATS grid — 4개 stat (Beta/Dev/Demo/Open 정직 표시, Sprint 60 S2 BL-270)", () => {
     render(<BrandPanel mode="sign-in" />);
-    expect(screen.getByText("99.97%")).toBeInTheDocument();
-    expect(screen.getByText("<35ms")).toBeInTheDocument();
-    expect(screen.getByText("거래소")).toBeInTheDocument();
-    expect(screen.getByText("2.4B")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(screen.getByText("Dev")).toBeInTheDocument();
+    expect(screen.getByText("Demo")).toBeInTheDocument();
+    expect(screen.getByText("Open")).toBeInTheDocument();
   });
 
   it("fadeInUp 애니메이션 class — 3 그룹 (logo / middle / testimonial)", () => {

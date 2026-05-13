@@ -49,7 +49,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           본문으로 바로가기
         </a>
-        {/* Sprint 11 Phase B — 법무 임시 고지 배너 (전 페이지 상단). H2 말 정식 변호사 교체 예정. */}
+        {/* Sprint 11 Phase B — Beta 단계 고지 배너 (전 페이지 상단). H2 말 정식 변호사 교체 예정. */}
         <LegalNoticeBanner />
         <AppProviders>{children}</AppProviders>
         {/* Sonner Toaster — provider 체인 최하단 (z-index: modal 위) */}
