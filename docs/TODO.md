@@ -1,11 +1,46 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-13 (Sprint 59 close-out — 5 PR all merged)
-> **Active Sprint:** Sprint 59 완료 — Sprint 60 분기 결정 대기 (Day 7 인터뷰 2026-05-16)
-> **Active Branch:** main (close-out PR 머지 후 — PR-E #277 + 본 close-out PR)
-> **Sprint type:** Type B (refactor) + Type D (docs / meta cleanup)
-> **office-hours 진행:** N (Sprint 59 종료, 6-8주 재평가 cycle 의무)
-> **Next Trigger:** dogfood Day 7 인터뷰 (2026-05-16) 결과 + 본인 의지 second gate → Sprint 60 분기 결정 (4-AND gate)
+> **Last Updated:** 2026-05-14 (Sprint 60 close-out — 17 BL Resolved, dev-log close 작성)
+> **Active Sprint:** **Sprint 60 완료 (코드 차원, manual smoke + Day 7 대기)** — Type B trust 회복
+> **Active Branch:** `feat/convert-llm-fallback` (Sprint 60 8 commit + LLM convert 1a1dbda 동거)
+> **Sprint type:** Type B (risk-critical — trust-breaking bug 회복)
+> **office-hours 진행:** N
+> **Next Trigger:** Sprint 60 manual smoke (Playwright mobile + 5 BL spot) → Day 7 인터뷰 (2026-05-16) → Sprint 61 분기 (a/b/c)
+
+---
+
+## Recently Completed — Sprint 60 (2026-05-14, ~8h actual / plan 25h)
+
+- [x] **S0 Preflight** — slowapi inventory 강화 (false-positive 해소) + codex G.0 (master plan 31 finding 반영)
+- [x] **S1 BL-244** — Optimizer 3 endpoint slowapi headers_enabled Response param fix (commit 026f7c9, codex G.1 PASS 0 findings)
+- [x] **S2 UI 정직** — 가짜 marketing/testimonial/Disclaimer/내부 ID 일괄 제거 (3 commit / 27 files / vitest 27 PASS / codex G.2 2회 FAIL → 사용자 gate 명시 승인)
+- [x] **S3 Auth/Routing** — Hero CTA /sign-up + middleware redirect + webhook env + /pricing (commit 14fda48)
+- [x] **S4 Mobile + Clerk** — Sheet drawer + UserButton wrapper + SheetClose 44×44 + appearance.elements size-9 (2 commit / codex G.3 PASS 재진입)
+- [x] **S5 안전헤더** — next.config.ts 5 헤더 + /metrics auth test (commit 2d352c2)
+- [x] **S6 Close-out** — dev-log + REFACTORING-BACKLOG + TODO.md 갱신 (this)
+- [x] **17 BL Resolved**: BL-244/260/262/265/268/269/270/271/273/275/280/285/300/303/305 + BL-245/246/274
+
+**Composite Health 추정**: 4.18 → ~7.8-8.5 (manual smoke 후 보정 의무, 목표 8.0 달성).
+
+### Sprint 60 Deferred (사용자 manual)
+
+- [ ] Playwright e2e Mobile-Safari spot-check (viewport 4종 + a11y axe-core) — BL-285/300/305 evidence
+- [ ] Critical 11 → 0 BL별 evidence 표 (screenshot/curl trace, dev-log 첨부)
+- [ ] Celery worker 1+ 환경 manual smoke (backtest/optimizer 영구 pending 회피)
+- [ ] PR 분리 — 1a1dbda LLM convert + Sprint 60 8 commit squash merge 결정
+- [ ] codex G.4 GATE 호출 (close-out 마지막 단계, 700k tokens)
+
+### Sprint 61 후보 (Day 7 + manual smoke 결과 합산 분기)
+
+- **(a) Composite ≥8.0 + 본인 의지 O** → Beta 본격 진입 (BL-070~075 + BL-261 Clerk custom domain)
+- **(b) Composite 6.5~7.9 + polish iter** → P1 Cleanup: BL-245/274 보안 헤더 polish (CSP strict) / BL-247 에러 schema / BL-250 ADR-003 request.security / BL-264 TTFV WS / BL-301 모바일 가로 / Casual UX BL-281~286
+- **(c) Composite <6.5** → 추가 trust 회복 + Sprint 60 회고
+
+### 신규 BL (Sprint 61 follow-up)
+
+- [ ] BL-신규 Clerk JWT 60s expired E2E case (plan v2 P1-2 Playwright auth-flow.spec)
+- [ ] BL-신규 MobileNav unit test (G.3 P2-3 append, drawer open/close/route/Escape/UserButton hit target)
+- [ ] BL-신규 Backend test fixture DB password 환경 (S1/S5 integration test 3 ERROR 공통)
 
 > 사람과 AI 가 공동 관리하는 활성 작업 추적 파일.
 > 차단 항목은 `[blocked]` 표시 / 질문은 §Questions / 활성 BL 상세는 [`REFACTORING-BACKLOG.md`](./REFACTORING-BACKLOG.md) / sprint 회고는 [`dev-log/INDEX.md`](./dev-log/INDEX.md).

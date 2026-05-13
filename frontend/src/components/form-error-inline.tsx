@@ -161,7 +161,7 @@ export function FormErrorInline({
               className="inline-block text-xs text-amber-900 underline transition-opacity duration-150 hover:opacity-80 dark:text-amber-200"
               data-testid={`${testIdPrefix}-edit-strategy-link`}
             >
-              ADR-003 supported list 참조 — strategy 편집 →
+              지원 함수 목록 참조 — strategy 편집 →
             </Link>
           ) : null}
           {indicatorCode && onConverted ? (

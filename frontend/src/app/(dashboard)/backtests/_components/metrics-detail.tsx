@@ -166,7 +166,7 @@ function MetricRow({
         {isNew ? (
           <span
             className="ml-1 align-text-top text-[9px] text-[color:var(--text-muted)]"
-            aria-label="Sprint 30 신규 metric"
+            aria-label="신규 metric"
           >
             ★
           </span>

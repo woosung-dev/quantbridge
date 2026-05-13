@@ -12,12 +12,12 @@ from src.strategy.convert.schemas import ConvertIndicatorRequest
 
 @pytest.fixture()
 def settings_with_key() -> Settings:
-    return Settings(anthropic_api_key="sk-ant-test-key")  # type: ignore[arg-type]
+    return Settings(anthropic_api_key="sk-ant-test-key", gemini_api_key=None)  # type: ignore[arg-type]
 
 
 @pytest.fixture()
 def settings_no_key() -> Settings:
-    return Settings(anthropic_api_key=None)
+    return Settings(anthropic_api_key=None, gemini_api_key=None)
 
 
 _SIMPLE_INDICATOR = """\

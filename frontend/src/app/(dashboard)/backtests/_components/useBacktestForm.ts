@@ -135,7 +135,7 @@ export function useBacktestForm() {
           detailMsg = apiErr.detail.detail;
         }
         toast.error(
-          `백테스트 실행 중 오류 발생: ${detailMsg}. ADR-003 supported list 의 indicator 로 strategy 를 변경해 주세요.`,
+          `백테스트 실행 중 오류 발생: ${detailMsg}. 지원 함수 목록 참조 후 strategy 를 변경해 주세요.`,
         );
       } else {
         toast.error(`요청 실패: ${err.message}`);

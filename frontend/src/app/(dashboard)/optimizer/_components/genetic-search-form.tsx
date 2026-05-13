@@ -81,7 +81,7 @@ const FormSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["population_size"],
-        message: `evaluation budget ${budget} > 100 server cap (BL-237).`,
+        message: `evaluation budget ${budget} > 100 server cap.`,
       });
     }
   });
@@ -346,7 +346,7 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
           {submit.isPending ? "제출 중…" : "Genetic 제출"}
         </button>
         <p className="text-xs text-muted-foreground">
-          서버 100 evaluation budget = population_size × (n_generations + 1) 상한 (BL-237).
+          서버 100 evaluation budget = population_size × (n_generations + 1) 상한.
           tournament size=3 + single-point crossover + gaussian mutation.
         </p>
       </div>

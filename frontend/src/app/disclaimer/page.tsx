@@ -1,4 +1,4 @@
-// Disclaimer (면책조항) — 법무 임시본. Sprint 43 W14: legal-page-shell + accent-amber risk callout.
+// Disclaimer (면책조항) — Beta 단계 초안. Sprint 43 W14: legal-page-shell + accent-amber risk callout.
 
 import type { Metadata } from "next";
 
@@ -7,7 +7,7 @@ import { LegalPageShell } from "../_components/legal-page-shell";
 
 export const metadata: Metadata = {
   title: "Disclaimer · QuantBridge",
-  description: "QuantBridge Beta 면책조항 (법무 임시본)",
+  description: "QuantBridge Beta 면책조항 (Beta 단계 초안)",
 };
 
 const headingClass =
@@ -18,10 +18,10 @@ export default function DisclaimerPage() {
     <LegalPageShell
       title="Disclaimer / 면책조항"
       breadcrumbLabel="Disclaimer"
-      badgeLabel="Beta 임시본"
-      footnote="최종 개정: 2026-04-25 (Beta 임시본). 정식 개정본은 H2 말 공지."
+      badgeLabel="Beta"
+      footnote="최종 개정: 2026-04-25. 정식 개정본은 H2 말 공지."
     >
-      <LegalCallout label="[법무 임시 — 법적 효력 제한적]">
+      <LegalCallout label="[Beta 단계 — 사용자와 함께 다듬는 중입니다]">
         본 문서는 H2 Beta 단계의 임시 템플릿입니다. H2 말 (~2026-06-30) 한국 변호사 검토본으로
         교체 예정.
       </LegalCallout>

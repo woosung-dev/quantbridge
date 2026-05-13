@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
@@ -36,11 +36,13 @@ router = APIRouter(prefix="/optimizer", tags=["optimizer"])
 async def submit_grid_search(
     request: Request,  # slowapi key 추출에 사용
     data: CreateOptimizationRunRequest,
+    response: Response,  # BL-244 (Sprint 60 S1) — slowapi headers_enabled=True 호환
     user: CurrentUser = Depends(get_current_user),
     service: OptimizerService = Depends(get_optimizer_service),
 ) -> OptimizationRunResponse:
     """Grid Search submit — 202 + OptimizationRun row."""
     _ = request
+    _ = response
     return await service.submit_grid_search(data, user_id=user.id)
 
 
@@ -53,11 +55,13 @@ async def submit_grid_search(
 async def submit_bayesian(
     request: Request,  # slowapi key 추출에 사용
     data: CreateOptimizationRunRequest,
+    response: Response,  # BL-244 (Sprint 60 S1) — slowapi headers_enabled=True 호환
     user: CurrentUser = Depends(get_current_user),
     service: OptimizerService = Depends(get_optimizer_service),
 ) -> OptimizationRunResponse:
     """Bayesian submit — 202 + OptimizationRun row (Sprint 55 ADR-013 §6 #5)."""
     _ = request
+    _ = response
     return await service.submit_bayesian(data, user_id=user.id)
 
 
@@ -70,11 +74,13 @@ async def submit_bayesian(
 async def submit_genetic(
     request: Request,  # slowapi key 추출에 사용
     data: CreateOptimizationRunRequest,
+    response: Response,  # BL-244 (Sprint 60 S1) — slowapi headers_enabled=True 호환
     user: CurrentUser = Depends(get_current_user),
     service: OptimizerService = Depends(get_optimizer_service),
 ) -> OptimizationRunResponse:
     """Genetic submit — 202 + OptimizationRun row (Sprint 56 BL-233 mirror Bayesian)."""
     _ = request
+    _ = response
     return await service.submit_genetic(data, user_id=user.id)
 
 
@@ -97,6 +103,4 @@ async def list_optimization_runs(
     backtest_id: UUID | None = Query(None),
 ) -> Page[OptimizationRunResponse]:
     """소유자 격리된 페이지네이션 list (생성 역순)."""
-    return await service.list(
-        user_id=user.id, limit=limit, offset=offset, backtest_id=backtest_id
-    )
+    return await service.list(user_id=user.id, limit=limit, offset=offset, backtest_id=backtest_id)

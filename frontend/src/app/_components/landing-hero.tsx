@@ -47,7 +47,7 @@ export function LandingHero() {
           <div className="mt-8 flex flex-wrap gap-3 motion-safe:animate-[fadeInUp_500ms_ease-out_200ms_both]">
             <Button
               size="lg"
-              render={<Link href="/sign-in" />}
+              render={<Link href="/sign-up" />}
               nativeButton={false}
               className="shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all duration-200 hover:-translate-y-px hover:scale-[1.02] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)]"
             >
@@ -70,7 +70,7 @@ export function LandingHero() {
             <Button
               size="lg"
               variant="outline"
-              render={<Link href="/sign-up" />}
+              render={<Link href="/sign-in" />}
               nativeButton={false}
               className="border-[1.5px] hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
             >
@@ -104,7 +104,7 @@ export function LandingHero() {
               ))}
             </div>
             <span className="text-sm text-[color:var(--text-muted)]">
-              10,000+ 트레이더 · 156+ 거래소 · 99.97% 가동률
+              Beta · 초기 dogfooder · feedback 환영
             </span>
           </div>
         </div>
@@ -169,9 +169,9 @@ function HeroBrowserMockup() {
             />
           </svg>
           <div className="grid grid-cols-3 gap-2">
-            <MockStat label="Total" value="$124,580" />
-            <MockStat label="Today" value="+$2,340" tone="green" />
-            <MockStat label="Win Rate" value="68.4%" />
+            <MockStat label="Total" value="—" />
+            <MockStat label="Today" value="—" tone="green" />
+            <MockStat label="Win Rate" value="—" />
           </div>
         </div>
       </div>

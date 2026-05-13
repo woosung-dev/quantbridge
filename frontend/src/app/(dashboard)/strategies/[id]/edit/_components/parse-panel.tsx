@@ -139,7 +139,7 @@ function ResultBody({
       ? `${result.functions_used.length}개 함수 사용: ${result.functions_used.slice(0, 3).join(", ")}`
       : "사용 함수 없음",
     result.is_runnable && result.unsupported_builtins.length === 0
-      ? "vectorbt 트랜스파일 준비 완료"
+      ? "백테스트 트랜스파일 준비 완료"
       : "미지원 함수가 있어 실행 불가",
   ];
 

@@ -74,7 +74,7 @@ export default function BacktestDetailError({
           className={cn(buttonVariants({ variant: "ghost" }))}
           data-testid="backtest-detail-error-supported-link"
         >
-          ADR-003 supported list 참조 (전략 목록)
+          지원 함수 목록 참조 (전략 목록)
         </Link>
       </div>
     </div>

@@ -70,7 +70,7 @@ export function AssumptionsCard({
       title:
         "1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내). " +
         "Pine strategy(default_qty_type=...) 3종 (percent_of_equity / cash / fixed) 사용. " +
-        "funding rate / 강제 청산 / 유지 증거금 미반영 (BL-186 후속).",
+        "funding rate / 강제 청산 / 유지 증거금 미반영.",
       isDefault: false,
     },
     {

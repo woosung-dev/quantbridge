@@ -184,7 +184,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
           기타 변수 고정: {Object.entries(fixOthers)
             .map(([k, v]) => `${k}=${v}`)
             .join(", ")}{" "}
-          (best cell 기준 slice). Sprint 55+ N-dim viz 확장 예정.
+          (best cell 기준 slice). N-dim viz 확장 예정.
         </p>
       )}
     </div>

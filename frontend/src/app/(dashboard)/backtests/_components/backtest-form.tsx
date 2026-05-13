@@ -149,7 +149,7 @@ export function BacktestForm() {
             <p>
               1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내).{" "}
               <span className="text-muted-foreground/80">
-                funding rate / 강제 청산 / 유지 증거금 미반영 (BL-186 후속).
+                funding rate / 강제 청산 / 유지 증거금 미반영.
               </span>
             </p>
           </div>

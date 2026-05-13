@@ -172,7 +172,8 @@ class Settings(BaseSettings):
         description=(
             "Bearer token for GET /metrics. 값이 설정되면 Grafana Cloud Agent 의 "
             "bearer_token 과 일치해야 허용. 비어 있으면 /metrics 는 인증 없이 접근 가능 "
-            "(로컬 개발용). Sprint 9 Phase D."
+            "(로컬 개발용). Sprint 9 Phase D. "
+            "Sprint 60 S5 BL-246: production env 시 의무 (validator 강제)."
         ),
     )
 
@@ -213,6 +214,17 @@ class Settings(BaseSettings):
             "Claude 모델 ID for convert endpoint. Sonnet (4-6) 권장 (속도+비용 최적). "
             "Opus (3) 도 지원하나 비용 3배."
         ),
+    )
+    gemini_api_key: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Google Gemini API key — Anthropic 호출 최종 실패 시 fallback. "
+            "발급: https://aistudio.google.com/apikey. 미설정 시 fallback 비활성."
+        ),
+    )
+    gemini_model: str = Field(
+        default="gemini-2.0-flash",
+        description=("Gemini 모델 ID for convert fallback. flash 권장 (속도+무료 tier)."),
     )
 
     # --- Sprint 11 Phase C: Waitlist ---
@@ -304,6 +316,17 @@ class Settings(BaseSettings):
         if placeholders:
             raise ValueError(
                 "production app_env requires non-placeholder secrets: " + ", ".join(placeholders)
+            )
+
+        # 3. Sprint 60 S5 BL-246 — production env 시 PROMETHEUS_BEARER_TOKEN 의무
+        # /metrics endpoint 가 public 노출 방지 (Beta 외부 노출 audit fail risk).
+        if (
+            self.prometheus_bearer_token is None
+            or not self.prometheus_bearer_token.get_secret_value()
+        ):
+            raise ValueError(
+                "production app_env requires PROMETHEUS_BEARER_TOKEN "
+                "(Sprint 60 S5 BL-246 — /metrics endpoint public 노출 차단)"
             )
 
         return self

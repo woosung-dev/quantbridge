@@ -95,13 +95,13 @@ export function LiveSessionForm({
 
   return (
     <div className="space-y-4">
-      {/* Bybit Demo 한정 안내 — Sprint 26 BL-003 mainnet runbook 완료 전까지 */}
+      {/* Bybit Demo 한정 안내 — mainnet 출시 전까지 */}
       <div
         className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
         data-testid="live-session-bybit-demo-notice"
       >
         <strong>Bybit Demo 한정</strong> — 가상 자금만 사용. 실제 자금 손실
-        없음. (Live mainnet 은 BL-003 runbook 완료 후 단계적 활성화 예정)
+        없음. (Live mainnet 은 안정성 검증 후 단계적 활성화 예정)
       </div>
 
       <Form {...form}>

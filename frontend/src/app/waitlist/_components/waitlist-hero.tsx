@@ -18,7 +18,7 @@ const VALUE_PROPS: ValueProp[] = [
   {
     title: "백테스트는 7초",
     description:
-      "vectorbt 벡터화 엔진. BTC 1년치 1m 봉 백테스트가 7초 안에 끝납니다.",
+      "고성능 벡터화 엔진. BTC 1년치 1m 봉 백테스트가 7초 안에 끝납니다.",
   },
   {
     title: "Beta 신청자에게만 공개",

@@ -36,7 +36,7 @@ export function GridSearchPairSelector({ result }: Props) {
       <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-100">
         <strong className="block font-medium">N-dim 결과 ({names.length} 변수)</strong>
         heatmap 표시할 변수쌍 2개 선택 (best cell 의 나머지 변수 값으로 slice).
-        Sprint 55+ N-dim viz (parallel-coord / surface) 확장 예정.
+        N-dim viz (parallel-coord / surface) 확장 예정.
       </div>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <label className="flex items-center gap-2">

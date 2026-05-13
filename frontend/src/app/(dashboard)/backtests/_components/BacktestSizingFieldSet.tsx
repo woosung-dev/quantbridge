@@ -54,7 +54,7 @@ export function BacktestSizingFieldSet({
       ) : sizingSource === "live_blocked_leverage" ? (
         <p className="mb-3 text-xs text-muted-foreground">
           Live leverage {liveLeverage ?? 0}x — backtest 1x equity-basis 와
-          비대칭으로 mirror 차단. Manual 입력만 가능 (BL-186 후 unlock).
+          비대칭으로 mirror 차단. Manual 입력만 가능.
         </p>
       ) : (
         <div className="mb-3 flex flex-col gap-1.5">

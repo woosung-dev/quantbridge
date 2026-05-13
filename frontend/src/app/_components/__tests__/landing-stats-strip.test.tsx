@@ -9,13 +9,13 @@ describe("LandingStatsStrip", () => {
     cleanup();
   });
 
-  it("4 KPI 모두 (값 + 라벨)", () => {
+  it("4 KPI 모두 (Beta 정직 표시 + 라벨, Sprint 60 S2 BL-270)", () => {
     render(<LandingStatsStrip />);
     const pairs = [
-      ["10,000+", "활성 전략"],
-      ["99.97%", "시스템 가동률"],
-      ["$2.4B+", "총 거래량"],
-      ["4.8", "사용자 평점"],
+      ["Beta", "현재 단계"],
+      ["Open", "feedback 환영"],
+      ["Dogfood", "초기 사용자"],
+      ["v2.0", "최신 버전"],
     ] as const;
     for (const [value, label] of pairs) {
       expect(screen.getByText(value)).toBeInTheDocument();

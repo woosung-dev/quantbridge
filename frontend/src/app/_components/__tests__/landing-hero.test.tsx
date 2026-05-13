@@ -17,21 +17,21 @@ describe("LandingHero", () => {
     expect(heading.textContent).toContain("자동 트레이딩으로");
   });
 
-  it("v2.0 출시 pill + 신뢰 trust 카운트 노출", () => {
+  it("v2.0 출시 pill + Beta 정직 표시 노출 (Sprint 60 S2 BL-270)", () => {
     render(<LandingHero />);
     expect(
       screen.getByText(/v2\.0 출시 — Monte Carlo/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/10,000\+ 트레이더 · 156\+ 거래소 · 99\.97% 가동률/),
+      screen.getByText(/Beta · 초기 dogfooder · feedback 환영/),
     ).toBeInTheDocument();
   });
 
-  it("CTA 2개 — 무료로 시작하기 → /sign-in / 라이브 데모 → /sign-up", () => {
+  it("CTA 2개 — 무료로 시작하기 → /sign-up (Sprint 60 S3 BL-260) / 라이브 데모 → /sign-in", () => {
     render(<LandingHero />);
     const primary = screen.getByText(/무료로 시작하기/).closest("a");
-    expect(primary).toHaveAttribute("href", "/sign-in");
+    expect(primary).toHaveAttribute("href", "/sign-up");
     const secondary = screen.getByText(/라이브 데모/).closest("a");
-    expect(secondary).toHaveAttribute("href", "/sign-up");
+    expect(secondary).toHaveAttribute("href", "/sign-in");
   });
 });

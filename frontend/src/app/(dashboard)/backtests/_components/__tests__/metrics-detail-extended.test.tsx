@@ -47,7 +47,7 @@ describe("MetricsDetail (Sprint 30-γ-FE)", () => {
     expect(screen.getByText(/연간수익률/)).toBeInTheDocument();
     expect(screen.getByText("32.00%")).toBeInTheDocument();
     // ★ 마크는 다수 (신규 row 마다)
-    const marks = screen.getAllByLabelText("Sprint 30 신규 metric");
+    const marks = screen.getAllByLabelText("신규 metric");
     expect(marks.length).toBeGreaterThanOrEqual(10);
   });
 

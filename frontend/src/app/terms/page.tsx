@@ -1,4 +1,4 @@
-// Terms of Service (이용약관) — 법무 임시본. Sprint 43 W14: legal-page-shell + callout 통일.
+// Terms of Service (이용약관) — Beta 단계 초안. Sprint 43 W14: legal-page-shell + callout 통일.
 
 import type { Metadata } from "next";
 
@@ -7,7 +7,7 @@ import { LegalPageShell } from "../_components/legal-page-shell";
 
 export const metadata: Metadata = {
   title: "Terms of Service · QuantBridge",
-  description: "QuantBridge Beta 이용약관 (법무 임시본)",
+  description: "QuantBridge Beta 이용약관",
 };
 
 const headingClass =
@@ -19,11 +19,11 @@ export default function TermsPage() {
     <LegalPageShell
       title="Terms of Service / 이용약관"
       breadcrumbLabel="Terms"
-      badgeLabel="Beta 임시본"
-      footnote="최종 개정: 2026-04-25 (Beta 임시본). 정식 개정본은 H2 말 공지."
+      badgeLabel="Beta"
+      footnote="최종 개정: 2026-04-25. 정식 개정본은 H2 말 공지."
     >
-      <LegalCallout label="[법무 임시 — 법적 효력 제한적]">
-        본 약관은 H2 Beta 단계 임시 템플릿입니다. H2 말 (~2026-06-30) 한국 변호사 검토본으로
+      <LegalCallout label="[Beta 단계 — 사용자와 함께 다듬는 중입니다]">
+        본 약관은 H2 Beta 단계 초안입니다. H2 말 (~2026-06-30) 한국 변호사 검토본으로
         교체 예정.
       </LegalCallout>
 

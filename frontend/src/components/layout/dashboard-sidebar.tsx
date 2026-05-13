@@ -60,7 +60,8 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
 
       <DashboardNavList sidebarOpen={sidebarOpen} pathname={pathname} />
 
-      {/* 사이드바 footer — 프로필 dock (UserButton). 프로토타입 06/03 sidebar-bottom 패턴. */}
+      {/* 사이드바 footer — 프로필 dock (UserButton). 프로토타입 06/03 sidebar-bottom 패턴.
+          Sprint 60 S4 BL-305: min 36×36 wrapper 로 Clerk inner span collapse 방지 (mobile header 와 동일 패턴). */}
       <div className="mt-auto border-t border-[color:var(--sidebar-border)] px-3 py-3">
         <div
           className={cn(
@@ -68,7 +69,18 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
             sidebarOpen ? "justify-start" : "justify-center",
           )}
         >
-          <UserButton appearance={{ elements: { rootBox: "shrink-0" } }} />
+          <div className="inline-flex min-h-9 min-w-9 items-center justify-center">
+            {/* G.3-2 (P1): wrapper 만으로는 hit target 0×0 가능, Clerk elements size-9 강제 */}
+            <UserButton
+              appearance={{
+                elements: {
+                  rootBox: "shrink-0 size-9",
+                  userButtonTrigger: "size-9",
+                  avatarBox: "size-9",
+                },
+              }}
+            />
+          </div>
           {sidebarOpen && (
             <span className="text-xs text-[color:var(--muted-foreground)] truncate">계정</span>
           )}

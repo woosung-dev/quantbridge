@@ -1,0 +1,36 @@
+# QuantBridge Multi-Agent QA — Environment Fingerprint
+Generated: 2026-05-13 19:41:27 KST
+
+## Git
+- Branch: feat/convert-llm-fallback
+- HEAD: 1a1dbda  fix(convert): resilient LLM chain (slowapi + retry + Gemini fallback)
+- Status (top 10):
+  ?? docs/qa/
+
+## Runtime
+- node: v24.12.0
+- python: Python 3.14.5
+- pnpm: 8.15.9
+- uv: uv 0.10.4 (079e3fd05 2026-02-17)
+
+## Endpoints
+- FE: http://localhost:3000  (HTTP 200)
+- BE (QuantBridge): http://localhost:8100
+  - /health: {"status":"ok","env":"development"}
+  - /healthz: {"db":"ok","redis":"ok","celery_workers":0,"errors":{"celery":"timeout after 3.0s"}}
+- :8000: kairos project (NOT QuantBridge) — FE NEXT_PUBLIC_API_URL was pointing here (사용자 manual re-export to :8100 in progress)
+
+## Docker (QuantBridge containers)
+- quantbridge-optimizer-heavy  Up 47 hours
+- quantbridge-beat  Up 4 days
+- quantbridge-ws-stream  Up 4 days
+- quantbridge-worker  Up 4 days
+- quantbridge-db  Up 4 days (healthy)
+- quantbridge-redis  Up 4 days (healthy)
+
+## QA Configuration
+- Personas: QA(Sentinel) + Curious + Casual + Mobile
+- Depth: Exhaustive (~5h/persona)
+- Competitors: skip
+- Domain scenarios: Sprint 55-58 회귀 풀세트
+- 결함 ID: BL-244+ (QA=244-, Curious=260-, Casual=280-, Mobile=300-)
