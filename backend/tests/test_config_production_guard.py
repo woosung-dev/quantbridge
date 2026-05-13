@@ -58,6 +58,8 @@ def test_production_forces_debug_false(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SECRET_KEY", "real-prod-secret-32bytes-min-xx")
     monkeypatch.setenv("CLERK_SECRET_KEY", "sk_live_test")
     monkeypatch.setenv("WAITLIST_TOKEN_SECRET", "x" * 32)
+    # Sprint 60 S5 BL-246 — production env validator 의무
+    monkeypatch.setenv("PROMETHEUS_BEARER_TOKEN", "test-prod-bearer-token")
 
     from src.core.config import Settings
 
