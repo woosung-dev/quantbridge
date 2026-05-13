@@ -135,16 +135,36 @@
 
 ---
 
-## Day 7 mid-check row (= Day 0 발송일 + 6일)
+## Day 7 mid-check row (= Day 0 발송일 + 6일 = 2026-05-16)
 
-> **codex Fix #7 (Sprint 48):** Day 7 schedule = Day 0 카톡 발송 timestamp + 6일. **절대 날짜 (예: 2026-05-15) 금지**. Day 0 미기록 시 본 row 채움 금지 — 발송 후 timestamp 먼저 위 "1-2명 micro-cohort log" 발송일 칸에 기입.
+> **codex Fix #7 (Sprint 48):** Day 7 schedule = Day 0 카톡 발송 timestamp + 6일. Day 0 = 2026-05-10 발송 → Day 7 도래 = **2026-05-16**.
 > 본 row schema = Day 1 본인 사용 기록 schema 와 일관 (NPS 0-10 / 사용 빈도 / 주요 막힘 / 개선 요청 4 column).
+> **카톡 questionnaire** = [`docs/guides/sprint60-interview-template.md`](../guides/sprint60-interview-template.md) 그대로 발송 + 응답 받아 아래 row 채움.
 
-| 대상     | Day 7 도래일 (= Day 0 + 6) | NPS 0-10 (Day 7 mid-check) | 7일 사용 빈도 (며칠/몇 번) | 주요 막힘 (1-2 줄) | 개선 요청 (1-2 줄) |
-| -------- | -------------------------- | -------------------------- | -------------------------- | ------------------ | ------------------ |
-| 본인     | TBD (Day 0 + 6일)          | \_\_/10                    | \_\_\_일/\_\_\_회          |                    |                    |
-| Friend 1 | TBD (Day 0 + 6일)          | \_\_/10                    | \_\_\_일/\_\_\_회          |                    |                    |
-| Friend 2 | TBD (Day 0 + 6일)          | \_\_/10                    | \_\_\_일/\_\_\_회          |                    |                    |
+| 대상     | Day 7 도래일 | NPS 0-10 (Q1) | 7일 사용 빈도 (Q3) | 주요 막힘 (Q4) | 개선 요청 (Q5) | 한 달 후 사용 의지 (Q6) |
+| -------- | ------------ | ------------- | ------------------ | -------------- | -------------- | ----------------------- |
+| 본인     | 2026-05-16   | \_\_/10       | \_\_\_일/\_\_\_회  |                |                | Yes / No / Maybe        |
+| Friend 1 | 2026-05-16   | \_\_/10       | \_\_\_일/\_\_\_회  |                |                | Yes / No / Maybe        |
+| Friend 2 | 2026-05-16   | \_\_/10       | \_\_\_일/\_\_\_회  |                |                | Yes / No / Maybe        |
+
+### 4-AND gate 적용 결과 (응답 수집 후 채움)
+
+> 채점 가이드 = [`docs/guides/sprint60-interview-template.md`](../guides/sprint60-interview-template.md) "채점 가이드" 섹션 참조.
+
+| Gate                                    | 결과 (PASS/FAIL)                   | 근거                                                            |
+| --------------------------------------- | ---------------------------------- | --------------------------------------------------------------- |
+| **(a)** NPS 평균 ≥ 7/10                 | TBD                                | 본인 \_\_ + Friend 1 \_\_ + Friend 2 \_\_ = 평균 \_\_/10        |
+| **(b)** BL-178 production BH 정상       | TBD                                | Friend 1/2 backtest 1건 실행 결과 화면 확인                     |
+| **(c)** BL-180 hand oracle 8 test GREEN | **PASS** (Sprint 35 baseline 유지) | 자동 검증                                                       |
+| **(d)** new P0=0 AND unresolved P1=0    | TBD                                | Q4 답변 중 "데이터 사라짐/로그인 안 됨/실거래" 등 P0 키워드 0건 |
+
+### Sprint 60 분기 결정 (4-AND gate 결과 후 채움)
+
+> 매트릭스 = [`docs/guides/sprint60-interview-template.md`](../guides/sprint60-interview-template.md) "Sprint 60 분기 매트릭스" 참조.
+
+- **분기 선택**: ☐ (a) Beta 본격 / ☐ (b) 잔여 active BL / ☐ (c) mainnet / ☐ (d) trust-breaking bug fix
+- **본인 의지**: ☐ 있음 (next sprint 진입 의지 분명) / ☐ 보류 (1-2주 더 dogfood 권장)
+- **결정 근거 1-2줄**:
 
 ---
 
