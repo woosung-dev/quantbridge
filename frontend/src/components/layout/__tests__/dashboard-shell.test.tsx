@@ -16,9 +16,19 @@ vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div data-testid="user-button" />,
 }));
 
-// useUiStore — sidebarOpen=true 기본 (proto 06/09 상태).
+// useUiStore — sidebarOpen=true 기본 (proto 06/09 상태). selector 호환 mock.
+// Sprint 60 S4: mobileNavOpen / setMobileNavOpen 추가 (MobileNav drawer state). 기본 false 라
+// drawer 미렌더 → desktop sidebar 와의 nav label 중복 방지.
+const mockUiState = {
+  sidebarOpen: true,
+  mobileNavOpen: false,
+  toggleSidebar: () => {},
+  setSidebarOpen: () => {},
+  setMobileNavOpen: () => {},
+};
 vi.mock("@/store/ui-store", () => ({
-  useUiStore: () => ({ sidebarOpen: true, toggleSidebar: () => {} }),
+  useUiStore: <T,>(selector?: (s: typeof mockUiState) => T) =>
+    selector ? selector(mockUiState) : mockUiState,
 }));
 
 afterEach(() => {

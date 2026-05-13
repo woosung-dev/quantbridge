@@ -14,6 +14,7 @@ import { useUiStore } from "@/store/ui-store";
 
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
+import { MobileNav } from "./mobile-nav";
 
 // 페이지 타이틀 매핑 (헤더 slot). 없는 경로는 빈 문자열 — 헤더 좌측이 비어 보이지 않도록
 // fallback="QuantBridge" 적용은 prefer X (시각적 노이즈). 미매핑 경로는 그냥 빈 슬롯.
@@ -45,6 +46,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh bg-[color:var(--background)] text-[color:var(--foreground)]">
       <DashboardSidebar sidebarOpen={sidebarOpen} pathname={pathname} />
+      {/* Sprint 60 S4 (BL-285/300): 모바일 drawer — Sheet 기반 left-side, mobile-only (md:hidden) */}
+      <MobileNav pathname={pathname} />
       <div className="flex flex-1 flex-col">
         <DashboardHeader
           sidebarOpen={sidebarOpen}
