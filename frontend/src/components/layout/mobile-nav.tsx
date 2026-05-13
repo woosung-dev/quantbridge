@@ -4,7 +4,9 @@
 
 import { useEffect, useRef } from "react";
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { X as CloseIcon } from "lucide-react";
+
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useUiStore } from "@/store/ui-store";
 
 import { DashboardNavList } from "./dashboard-nav-list";
@@ -41,8 +43,15 @@ export function MobileNav({ pathname }: MobileNavProps) {
         showHandle={false}
         className="inset-y-0 left-0 right-auto bottom-auto h-dvh w-[280px] max-w-[85vw] rounded-none border-r border-t-0 p-0 pb-0 data-open:slide-in-from-left data-closed:slide-out-to-left md:hidden"
       >
-        <SheetHeader className="border-b border-[color:var(--border)] px-4 py-3">
+        <SheetHeader className="flex flex-row items-center justify-between border-b border-[color:var(--border)] px-4 py-3">
           <SheetTitle className="font-display text-base">QuantBridge</SheetTitle>
+          {/* G.3-1 (P1, a11y) — touch screen reader 사용자 escape 의무. 44×44 visible close button */}
+          <SheetClose
+            aria-label="메뉴 닫기"
+            className="grid size-11 place-items-center rounded-md text-[color:var(--muted-foreground)] hover:bg-[color:var(--sidebar-accent)] hover:text-[color:var(--foreground)] transition-colors"
+          >
+            <CloseIcon className="size-5" aria-hidden="true" />
+          </SheetClose>
         </SheetHeader>
         <DashboardNavList sidebarOpen={true} pathname={pathname} />
       </SheetContent>

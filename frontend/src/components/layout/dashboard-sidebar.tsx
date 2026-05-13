@@ -70,7 +70,16 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
           )}
         >
           <div className="inline-flex min-h-9 min-w-9 items-center justify-center">
-            <UserButton appearance={{ elements: { rootBox: "shrink-0" } }} />
+            {/* G.3-2 (P1): wrapper 만으로는 hit target 0×0 가능, Clerk elements size-9 강제 */}
+            <UserButton
+              appearance={{
+                elements: {
+                  rootBox: "shrink-0 size-9",
+                  userButtonTrigger: "size-9",
+                  avatarBox: "size-9",
+                },
+              }}
+            />
           </div>
           {sidebarOpen && (
             <span className="text-xs text-[color:var(--muted-foreground)] truncate">계정</span>
