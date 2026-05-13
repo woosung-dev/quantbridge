@@ -6,6 +6,20 @@
 
 ---
 
+## Quick Summary — 최근 3 sprint (1-line)
+
+> 새 AI 세션 5 분 onboarding 용. 상세는 §H2 Sprint 섹션 또는 해당 dev-log 파일.
+
+| Sprint | 날짜          | 한 줄 요약                                                                                                                                         | 상태                      |
+| ------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| **58** | 2026-05-11~12 | BL-241/242/243 Pine TA 확장 (ta.wma/hma/bb/cross/mom/obv+fixnan + strategy.equity + UTC 라벨) + PR #267 SignalExtractor + PR #268 alertcondition() | ✅ 완료 (main @`f8cae55`) |
+| **57** | 2026-05-11    | BL-234 Optimizer Polish (prior=normal / one_hot / roulette) + BL-237 optimizer_heavy queue                                                         | ✅ 완료 (main @`38016bf`) |
+| **56** | 2026-05-11    | ADR-013 Genetic executor 본격 (GA self-implementation, 외부 dep 0) + chore BL-238/239/240 CI/CD prereq                                             | ✅ 완료 (main @`5cb2767`) |
+
+**다음 분기 (Sprint 59):** dogfood Day 7 인터뷰 (2026-05-16) 결과 + 본인 의지 second gate → 3-way 분기 (Beta 본격 / Pine ta.dmi+optimizer / mainnet). 상세는 [`../TODO.md`](../TODO.md).
+
+---
+
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
 - 2026-05-12 — **Sprint 58 post: alertcondition() 신호 탐지** (PR #268 main @f8cae55 — DrFXGOD 패턴 대응, alertcondition() block 탐지 + SignalExtractor 통합. 89 active BL.) — [PR #268 직접 참조, 별도 dev-log 없음]
