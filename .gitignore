@@ -80,3 +80,11 @@ frontend/playwright/.cache/
 # === Git Worktrees ===
 .worktrees/
 .gstack/
+
+# === Docs cleanup (2026-05-15 CLAUDE.md align audit) ===
+# 폐지된 sprint plan archive — git history 만 보존, 작업 폴더 신규 추가 차단
+docs/_archive/
+# 자동 생성 sprint retro HTML 보고서 — template + auto-dogfood/ 만 추적
+docs/reports/*.html
+!docs/reports/_template-*.html
+!docs/reports/auto-dogfood/
