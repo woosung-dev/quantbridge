@@ -1,12 +1,13 @@
 # ADR-010b: Product Roadmap 프레임 & 입력 결정 (재작성본)
 
-> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 ADR 재작성본. **SSOT 는 [`docs/00_project/roadmap.md`](../00_project/roadmap.md)**. 본 파일은 결정 근거 + 프레임 도출 과정 기록 보존용. 1차 초안: [`010-product-roadmap.md`](./010-product-roadmap.md) (DEPRECATED).
+> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 ADR 재작성본. **SSOT 는 [`docs/00_project/roadmap.md`](../00_project/roadmap.md)**. 본 파일은 결정 근거 + 프레임 도출 과정 기록 보존용.
+> **1차 초안 (010-product-roadmap.md)** = 2026-05-15 cleanup audit 으로 git rm 완료. 본문은 010b 와 동일 — 결정 근거 보존은 본 file 단독으로 충분. 1차 초안 자체는 git history 에서 조회 가능.
 >
 > **작성일:** 2026-04-17 (재작성)
 > **작성 세션:** Claude Code 플랜 모드 brainstorming 세션
 > **상태:** ✅ 채택 (현재 활성 ADR)
 > **관련 산출물:** [`docs/00_project/roadmap.md`](../00_project/roadmap.md) — 본 ADR 의 implementation
-> **연계 ADR:** [ADR-008](./008-sprint7c-scope-decision.md) (외부 demand red flag 해소 경로), [ADR-010](./010-product-roadmap.md) (1차 초안, DEPRECATED)
+> **연계 ADR:** [ADR-008](./008-sprint7c-scope-decision.md) (외부 demand red flag 해소 경로)
 
 ---
 
