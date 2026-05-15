@@ -5,8 +5,8 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-05-13 (Sprint 59 PR-D 트리아주 — 158 BL → 13 Active + 7 Deferred + 138 Archived)
-**현재 상태:** **13 active BL** (Sprint 59 종료 기준). main @ `c547ffb`. dogfood Day 7 인터뷰 2026-05-16 대기.
+**최종 갱신:** 2026-05-15 (CLAUDE.md align audit Track C — BL-306/307 신규 P3 등재)
+**현재 상태:** **15 active BL** (Sprint 59 13 + Track C 2). main @ `b9a51b6`. dogfood Day 7 인터뷰 2026-05-16 대기.
 
 **최근 sprint BL 변경 (Sprint 55~58):**
 
@@ -22,6 +22,7 @@
 - **P0**: BL-003 (Bybit mainnet runbook)
 - **P1**: BL-014 (partial fill) / BL-015 (OKX Private WS) / BL-022 (golden 재생성) / BL-023 (KIND-B/C 정밀도) / BL-024 (real_broker E2E) / BL-025 (autonomous-parallel-sprints patch) / BL-026 (Trust Layer fixture 재활성화)
 - **P2**: BL-186 (Full leverage model) / BL-190 (PDF export) / BL-195 (form animation) / BL-235 (N-dim viz) / BL-236 (objective whitelist)
+- **P3**: BL-306 (§5 한국어 콜론 종결 lint) / BL-307 (§6 한국어 file header lint + 누락 70 file backfill)
 - **Deferred milestone**: [BL-070~075](refactoring-backlog/_deferred.md) Beta 진입 — **dogfood NPS ≥7 + 본인 의지 second gate** 통과 시만 trigger
 
 ---
@@ -272,7 +273,55 @@
 
 ## P3 — Nice-to-have / 컨벤션 정합
 
-> 전부 archived. 12건 ([BL-050/051/052/053/054/055/056/057/138/139/151/153](refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). 활성 P3 = 0.
+> 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 2** (BL-306/307, 2026-05-15 CLAUDE.md align audit Track C 등재).
+
+### BL-306
+
+**Title:** `~/.claude/CLAUDE.md` §5 한국어 콜론 종결 lint mechanism 도입
+**Category:** Docs / Lint
+**Priority:** P3
+**Trigger:** 누적 위반 181 line 검출 (2026-05-15 audit) — auto-fix 가능
+**Est:** S (3-5h)
+**출처:** [`docs/dev-log/2026-05-15-claudemd-align-audit.md`](dev-log/2026-05-15-claudemd-align-audit.md) §6 Track C1, [LESSON-068](.ai/project/lessons.md)
+
+**현 상태:** docs/dev-log 161 + dogfood 12 + guides 8 = 181 line 한국어 sentence + `:` end-of-line 위반. false positive 0. lint mechanism 0 = LLM 매 generation 자연 위반.
+
+**권장 접근:**
+
+1. markdownlint custom rule 또는 ruff custom plugin 으로 한국어 콜론 종결 검출 (regex `[가-힣]+\s*:\s*$` minus 코드 fence + URL + table cell + frontmatter)
+2. auto-fix script — 검출 line `:` → `.` 일괄 sed (false positive 0 검증된 docs/\* scope 만)
+3. pre-commit hook 추가 + CI gate
+4. LESSON-068 2/3 누적 → 3차 시 `.ai/common/global.md` §5 mechanism 의무 영구 승격
+
+**영향 파일:** 새 lint config 1 + auto-fix script 1 + pre-commit hook 1 + 검출 181 line edit (auto-fix 1회).
+
+**Risk:** 🟢 (lint + docs only, code 영향 0).
+
+---
+
+### BL-307
+
+**Title:** `~/.claude/CLAUDE.md` §6 한국어 file header lint + 누락 70 file backfill
+**Category:** Lint / Source
+**Priority:** P3
+**Trigger:** 누적 누락 70 file 검출 (BE 14 + FE 56, 2026-05-15 audit). main.py / core/config.py / trading/registry.py / app/layout.tsx 등 핵심 file 포함
+**Est:** M (8-12h — lint rule 4-6h + 70 file 의미 있는 한국어 1줄 주석 작성 4-6h)
+**출처:** [`docs/dev-log/2026-05-15-claudemd-align-audit.md`](dev-log/2026-05-15-claudemd-align-audit.md) §6 Track C2, [LESSON-068](.ai/project/lessons.md)
+
+**현 상태:** BE 14/157 (8.9%) + FE 56/243 (23%) = 70 file 신규 source 첫 3줄 한국어 주석 누락. config / test / **init** / index.ts / \*.d.ts 제외. ESLint custom rule 부재 + ruff custom rule 부재.
+
+**권장 접근:**
+
+1. ESLint custom rule (`require-korean-file-header.js`) — 첫 3줄 안 한국어 char 검출 의무. exempt list = config / test / spec / d.ts / index / generated.
+2. ruff custom plugin 또는 pre-commit hook 으로 .py file 동일 검증.
+3. 누락 70 file 일괄 한국어 1줄 주석 추가 (의미 = file 역할 한 줄 — LLM 일괄 생성 가능).
+4. CI gate + pre-commit hook 추가. 신규 file 차단 mechanism.
+
+**영향 파일:** ESLint config 1 + ruff config 1 + pre-commit hook 1 + 70 file 첫 줄 주석 추가.
+
+**Risk:** 🟡 (lint config 변경 + 70 file touch — risk 낮으나 large diff).
+
+**의존성:** BL-306 과 묶음 sprint 가능 (양쪽 모두 lint mechanism + 누적 누락 backfill).
 
 ---
 
@@ -348,6 +397,10 @@
 ## 변경 이력
 
 > Sprint 별 BL 변경 1-line 요약. 상세는 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 또는 해당 sprint dev-log.
+
+### CLAUDE.md align audit Track C (2026-05-15)
+
+- BL-306 (§5 한국어 콜론 종결 lint) + BL-307 (§6 한국어 file header lint + 70 file backfill) 신규 P3. 13 → 15 active. [`2026-05-15-claudemd-align-audit.md`](dev-log/2026-05-15-claudemd-align-audit.md). LESSON-068 1/3 등재.
 
 ### Sprint 59 — PR-D 트리아주 (2026-05-13)
 
