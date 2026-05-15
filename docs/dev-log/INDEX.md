@@ -23,6 +23,7 @@
 
 ## H2 Sprint + dogfood (2026-04-24 ~ , 시간 역순)
 
+- 2026-05-15 — **CLAUDE.md align audit + docs/process cleanup** (`~/.claude/CLAUDE.md` §1~§10 vs 프로젝트 정합 audit. **8/10 ✅ + 2/10 ⚠️ (§5/§6 검증 skip)**. docs/process meta-violation cleanup 5 commit: (1) `_archive/` 524K + `reports/2026-04-*.html` 248K git rm + .gitignore drift 차단 (2) heikinashi-adr 46L → sprint29-coverage-hardening §3 inline (3) 010 1차 초안 (DEPRECATED) → 010b canonical 단일 (4) dogfood-week1-path-beta skeleton 165L→78L 압축 + dayN cross-ref + dogfood-checklist L171 정합 유지. **net deletion ~7,800+ line / ~770K**, code 0 touch. Track B (code-side over-engineering 후보 trading/backtest/optimizer = 별도 `/deepen-modules` 호출 권고) + Track C (§5/§6 수동 검증 권고) deferred. Iron Law 준수 = 1 도메인 1 audit.) — [`2026-05-15-claudemd-align-audit.md`](2026-05-15-claudemd-align-audit.md)
 - 2026-05-12 — **Sprint 58 post: alertcondition() 신호 탐지** (PR #268 main @f8cae55 — DrFXGOD 패턴 대응, alertcondition() block 탐지 + SignalExtractor 통합. 89 active BL.) — [PR #268 직접 참조, 별도 dev-log 없음]
 - 2026-05-12 — **Sprint 58 post: Pine Script 호환성 실험** (PR #267 main @8acaf7b — SignalExtractor C-text/C-ast + Convert API /pine/convert + FE CTA 버튼. 89 active BL.) — [PR #267 직접 참조, 별도 dev-log 없음]
 - 2026-05-16 ← — **Sprint 60** (Day 7 인터뷰 결과 대기 중 — 4-way 분기: Beta 본격 BL-070~075 / 잔여 active BL / BL-003+005 mainnet / trust-breaking bug fix.) — TBD (2026-05-16 이후)
@@ -56,8 +57,7 @@
 - 2026-05-05 — **Sprint 30 회고** (Surface Trust Pillar 신규, 8 PR + dogfood Day 3 = 4 점 baseline, ADR-019) — [`2026-05-05-sprint30-master-retrospective.md`](2026-05-05-sprint30-master-retrospective.md)
 - 2026-05-05 — **ADR-019 Surface Trust Pillar** (Backend Reliability + Risk Management + Security + Surface Trust 4 sub-pillar, dogfood Day 3 측정 기준) — [`2026-05-05-sprint30-surface-trust-pillar-adr.md`](2026-05-05-sprint30-surface-trust-pillar-adr.md)
 - 2026-05-05 — Sprint 30 chart lib decision ADR (Sprint 30 β option B, 점진 마이그 결정, BL-150 trigger) — [`2026-05-05-sprint30-chart-lib-decision.md`](2026-05-05-sprint30-chart-lib-decision.md)
-- 2026-05-04 — **Sprint 29 회고** (Pine Coverage Layer Hardening + DrFXGOD Schema, dual metric ALL PASS, 5/6 통과율 + 100% workaround + 4 invariant + codex G2 P0 fix degraded gate, self-assess 9/10) — [`2026-05-04-sprint29-coverage-hardening.md`](2026-05-04-sprint29-coverage-hardening.md)
-- 2026-05-04 — Sprint 29 heikinashi Trust Layer 위반 ADR (D1=a, dogfood-only flag, Sprint 30+ ADR-009 trigger) — [`2026-05-04-sprint29-heikinashi-adr.md`](2026-05-04-sprint29-heikinashi-adr.md)
+- 2026-05-04 — **Sprint 29 회고** (Pine Coverage Layer Hardening + DrFXGOD Schema, dual metric ALL PASS, 5/6 통과율 + 100% workaround + 4 invariant + codex G2 P0 fix degraded gate, self-assess 9/10. **§3 = heikinashi Trust Layer 위반 ADR inline (2026-05-15 cleanup 통합본)**) — [`2026-05-04-sprint29-coverage-hardening.md`](2026-05-04-sprint29-coverage-hardening.md)
 - 2026-05-04 — **Sprint 29 baseline snapshot** (6 fixture preflight 실측, 진입 3/6 50%, plan v2 stale 1건 추가 발견, LESSON-037 second validation) — [`2026-05-04-sprint29-baseline-snapshot.md`](2026-05-04-sprint29-baseline-snapshot.md)
 - 2026-05-04 — **Sprint 29 v1→v2 pivot** (Pine Architectural Fix → Coverage Layer Hardening, codex+Opus 2-검토 frame change, LESSON-037 후보 first validation) — [`2026-05-04-sprint29-v1-to-v2-pivot.md`](2026-05-04-sprint29-v1-to-v2-pivot.md)
 - 2026-05-04 — **Sprint 28 회고** (Beta prereq 종합, 5 PR cascade, dual metric 첫 측정) — [`2026-05-04-sprint28-retrospective.md`](2026-05-04-sprint28-retrospective.md)
@@ -132,9 +132,9 @@
 - 013 — Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계 — [`013-trust-layer-ci-design.md`](013-trust-layer-ci-design.md)
 - 012 — Sprint 8a Tier-0 Final Report (Week 1-3 완주, v3.0) — [`012-sprint-8a-tier0-final-report.md`](012-sprint-8a-tier0-final-report.md)
 - 011 — Pine Script 실행 전략 v4 (Alert Hook Parser + 3-Track Architecture) — [`011-pine-execution-strategy-v4.md`](011-pine-execution-strategy-v4.md)
-- 010b — Product Roadmap 프레임 & 입력 결정 (재작성본) — [`010b-product-roadmap.md`](010b-product-roadmap.md)
+- 010b — Product Roadmap 프레임 & 입력 결정 (재작성본, canonical) — [`010b-product-roadmap.md`](010b-product-roadmap.md)
 - 010a — Dev CPU Budget Policy + Next.js Anti-Pattern 15건 — [`010a-dev-cpu-budget.md`](010a-dev-cpu-budget.md)
-- 010 — Product Roadmap 프레임 & 입력 결정 — [`010-product-roadmap.md`](010-product-roadmap.md)
+- ~~010~~ — Product Roadmap 1차 초안 (DEPRECATED, 2026-05-15 cleanup git rm — git history 보존, 010b 가 canonical)
 - 009 — shadcn/ui v4 Nova Preset 규칙 예외 (form.tsx radix-ui + ui/ 직접 수정) — [`009-shadcn-v4-form-radix-exception.md`](009-shadcn-v4-form-radix-exception.md)
 - 008 — Sprint 7c FE 따라잡기 — 스코프 결정 기록 — [`008-sprint7c-scope-decision.md`](008-sprint7c-scope-decision.md)
 - 007 — Sprint 7a Bybit Futures + Cross Margin — 사전 결정 기록 — [`007-sprint7a-futures-decisions.md`](007-sprint7a-futures-decisions.md)

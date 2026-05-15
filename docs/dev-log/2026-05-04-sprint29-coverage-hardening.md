@@ -105,14 +105,46 @@ UtBot indicator + UtBot strategy 둘 다 coverage runnable 도달 (3/6 → 5/6, 
 
 ## 3. heikinashi (a) Trust Layer 위반 ADR 결정
 
-본 sprint D1 = (a) — Trust Layer 위반 인정 + dogfood-only flag.
+> 본 섹션 = 별도 ADR file (`2026-05-04-sprint29-heikinashi-adr.md`) 통합본 (2026-05-15 docs cleanup audit).
+> Status: Accepted (Sprint 29 D1 = (a)). BL-096 partial 의 핵심 결정.
 
-- heikinashi() = 일반 OHLC 그대로 반환 (NOP)
-- `CoverageReport.dogfood_only_warning: str | None` 필드 추가
-- 사용자 명시 동의 후 backtest (FE 적용 Sprint 30+ deferred — D3-FE)
-- Sprint 30+ ADR-009 trigger (Candle transformation layer 신설)
+### Context
 
-상세: [`docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md`](2026-05-04-sprint29-heikinashi-adr.md)
+UtBot indicator + UtBot strategy 가 `heikinashi()` 사용. Heikin-Ashi 캔들은 일반 OHLC 와 다른 변환 — `(open+close)/2`, `(open+high+low+close)/4` 등. backtest 가 일반 OHLC 로 실행되면 Pine 원본 의도와 다른 결과 산출 가능 (거짓 양성 risk).
+
+### Decision
+
+옵션 (a) 채택 — Trust Layer 위반 인정 + dogfood-only flag.
+
+- `heikinashi()` 를 일반 OHLC 그대로 반환 (NOP)
+- `CoverageReport.dogfood_only_warning` 필드 추가 — heikinashi 사용 감지 시 "결과가 Pine 원본과 다를 수 있음" warning
+- 사용자 명시 동의 후 backtest 실행 (FE 적용 Sprint 30+ deferred — D3-FE)
+- ADR-008 Addendum 후보 (Beta open prereq)
+
+### Consequences (긍정)
+
+- UtBot indicator + UtBot strategy 동시 PASS → Sprint 29 통과율 5/6 도달
+- dogfood-first indie SaaS 정합 (본인이 거짓 양성 가장 먼저 발견)
+- transparency — ADR 영구 기록으로 Trust Layer 위반 명시
+
+### Consequences (부정 / risk)
+
+- heikin-ashi 캔들 ↔ 일반 OHLC 차이로 backtest 결과 거짓 양성 가능
+- 사용자가 warning 무시 시 잘못된 전략 검증 risk
+- Trust Layer 정합 위반 (`docs/04_architecture/pine-execution-architecture.md:286-318`)
+
+### Alternatives Considered
+
+- (b) heikinashi reject 유지 — Sprint 29 dual metric (5/6) 미달성
+- (c) ohlcv 변환 layer 신설 — scope 6-10h, Sprint 29 over
+
+### Sprint 30+ trigger
+
+ADR-009 Candle transformation layer 신설 — Heikin-Ashi + Renko + Range bar 정확 변환 layer. 본인 dogfood 에서 거짓 양성 발견 시 trigger.
+
+### Post-decision update (codex G2 P0 fix)
+
+본 ADR 통과 후 codex G2 Verdict FAIL 로 P0-2 (warning UX/backtest gate 부재) 발견 → §5 P0 fix (commit `5a72283`) 으로 `degraded_calls` + `allow_degraded_pine` flag 명시 동의 gate 추가. heikinashi NOP 정책 유지 + production 강제 gate 추가.
 
 ---
 
@@ -230,8 +262,8 @@ A 권장 — Sprint 29 가 Beta path A1 narrowest wedge 도달 (UtBot 양방 + D
 
 - [`2026-05-04-sprint29-v1-to-v2-pivot.md`](2026-05-04-sprint29-v1-to-v2-pivot.md) — codex+Opus 2-검토 frame change 사료
 - [`2026-05-04-sprint29-baseline-snapshot.md`](2026-05-04-sprint29-baseline-snapshot.md) — preflight 결과 baseline anchor
-- [`2026-05-04-sprint29-heikinashi-adr.md`](2026-05-04-sprint29-heikinashi-adr.md) — Trust Layer 위반 ADR
-- [`2026-05-04-sprint29-coverage-hardening.md`](2026-05-04-sprint29-coverage-hardening.md) — 본 회고
+- (이전: `2026-05-04-sprint29-heikinashi-adr.md` — 본 회고 §3 으로 통합 완료, 2026-05-15 cleanup)
+- [`2026-05-04-sprint29-coverage-hardening.md`](2026-05-04-sprint29-coverage-hardening.md) — 본 회고 (heikinashi ADR §3 inline 통합)
 
 ### Plan + Spec
 
