@@ -5,8 +5,8 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-05-15 (CLAUDE.md align audit Track C — BL-306/307 신규 P3 등재)
-**현재 상태:** **15 active BL** (Sprint 59 13 + Track C 2). main @ `b9a51b6`. dogfood Day 7 인터뷰 2026-05-16 대기.
+**최종 갱신:** 2026-05-15 (Track B `/deepen-modules trading` audit-only — BL-308 P1 + BL-309 P2 신규)
+**현재 상태:** **17 active BL** (Sprint 59 13 + Track C 2 + Track B 2). main @ `6fc7b9a`. dogfood Day 7 인터뷰 2026-05-16 대기.
 
 **최근 sprint BL 변경 (Sprint 55~58):**
 
@@ -20,8 +20,8 @@
 **P0 / P1 active short list:**
 
 - **P0**: BL-003 (Bybit mainnet runbook)
-- **P1**: BL-014 (partial fill) / BL-015 (OKX Private WS) / BL-022 (golden 재생성) / BL-023 (KIND-B/C 정밀도) / BL-024 (real_broker E2E) / BL-025 (autonomous-parallel-sprints patch) / BL-026 (Trust Layer fixture 재활성화)
-- **P2**: BL-186 (Full leverage model) / BL-190 (PDF export) / BL-195 (form animation) / BL-235 (N-dim viz) / BL-236 (objective whitelist)
+- **P1**: BL-014 (partial fill) / BL-015 (OKX Private WS) / BL-022 (golden 재생성) / BL-023 (KIND-B/C 정밀도) / BL-024 (real_broker E2E) / BL-025 (autonomous-parallel-sprints patch) / BL-026 (Trust Layer fixture 재활성화) / BL-308 (websocket test coverage 4% boost)
+- **P2**: BL-186 (Full leverage model) / BL-190 (PDF export) / BL-195 (form animation) / BL-235 (N-dim viz) / BL-236 (objective whitelist) / BL-309 (registry/webhook/fees test 추가)
 - **P3**: BL-306 (§5 한국어 콜론 종결 lint) / BL-307 (§6 한국어 file header lint + 누락 70 file backfill)
 - **Deferred milestone**: [BL-070~075](refactoring-backlog/_deferred.md) Beta 진입 — **dogfood NPS ≥7 + 본인 의지 second gate** 통과 시만 trigger
 
@@ -245,6 +245,54 @@
 
 ---
 
+### BL-308
+
+**Title:** trading websocket subsystem test coverage boost (4% → ≥70%)
+**Category:** Test infra / Trading
+**Priority:** P1
+**Trigger:** dogfood 직후 (Day 7 인터뷰 2026-05-16 후) — websocket reconciliation 미검증 = 거래 silent failure risk
+**Est:** L (12-16h)
+**출처:** [`docs/dev-log/2026-05-15-trading-deepen.md`](dev-log/2026-05-15-trading-deepen.md) Phase 2
+
+**현 상태:** `backend/src/trading/websocket/` 904 LOC (도메인 19.4%) = 3 file (`bybit_private_stream.py` 319L + `reconciliation.py` 225L + `state_handler.py` 221L 등) 안 test 2/48 file 만 reference = **~4% 추정 coverage**. WS event reconciliation logic = order state cascade 핵심 = silent corruption risk.
+
+**권장 접근:**
+
+1. `tests/trading/websocket/` 폴더 신규 — bybit_private_stream / reconciliation / state_handler 각 file 1-2 test module
+2. fixture = `BybitPrivateStream` async context manager mock + WS message replay (json fixture)
+3. reconciliation engine end-to-end test (open order → WS event sequence → terminal state 검증)
+4. coverage `pytest --cov=src.trading.websocket --cov-fail-under=70` CI gate 추가
+
+**Risk:** 🔴 (현재 silent failure risk = order state mismatch 가능). dogfood 직후 = order 발송 후 reconciliation 깨짐 시 사용자 발견 어려움.
+
+**의존성:** BL-024 real_broker E2E 와 묶음 sprint 가능 (양쪽 모두 trading 안정화 sprint).
+
+---
+
+### BL-309
+
+**Title:** trading 핵심 dispatch 모듈 test 추가 (registry / webhook / fees, 0% → ≥80%)
+**Category:** Test infra / Trading
+**Priority:** P2
+**Trigger:** BL-308 묶음 또는 dogfood 직후
+**Est:** M (4-6h)
+**출처:** [`docs/dev-log/2026-05-15-trading-deepen.md`](dev-log/2026-05-15-trading-deepen.md) Phase 2
+
+**현 상태:** **0% test coverage** 3 file = `registry.py` 64L (provider dispatch 핵심, 5 entry tuple) + `webhook.py` 81L (TV payload 파싱) + `fees.py` 55L (fee calculation). 합계 200L 핵심 dispatch 로직 미검증.
+
+**권장 접근:**
+
+1. `tests/trading/test_registry.py` — 5 tuple (Bybit demo spot/futures + OKX demo + Bybit live) provider factory 검증 + UnsupportedExchangeError raise 검증
+2. `tests/trading/test_webhook.py` — TV payload parsing positive/negative + secret rotation
+3. `tests/trading/test_fees.py` — fee calculation per-exchange parity (Bybit vs OKX 수수료 형식 차이)
+4. coverage `pytest --cov=src.trading.registry --cov=src.trading.webhook --cov=src.trading.fees --cov-fail-under=80` CI gate
+
+**Risk:** 🟡 (dispatch 깨짐 = 신규 거래소 추가 시 silent failure).
+
+**의존성:** BL-308 와 묶음 권고 (양쪽 = trading test 보강 sprint).
+
+---
+
 ### BL-235
 
 **Title:** N-dim acquisition surface viz (3D+ surface 또는 parallel-coord, Bayesian 전용)
@@ -397,6 +445,10 @@
 ## 변경 이력
 
 > Sprint 별 BL 변경 1-line 요약. 상세는 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 또는 해당 sprint dev-log.
+
+### Track B `/deepen-modules trading` audit-only (2026-05-15)
+
+- BL-308 P1 (websocket test coverage 4% → ≥70%) + BL-309 P2 (registry/webhook/fees 0% test 추가) 신규. 15 → 17 active. [`2026-05-15-trading-deepen.md`](dev-log/2026-05-15-trading-deepen.md). **Architectural debt 적음** 결론 (Deep module + dispatch dict + 0 SSOT 중복). skill STOP condition (test coverage <70%) 매치 = test 우선 권고.
 
 ### CLAUDE.md align audit Track C (2026-05-15)
 
