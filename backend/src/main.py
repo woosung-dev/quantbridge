@@ -150,10 +150,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    # Sprint 61 T-4 (BL-312): production env 시 OpenAPI / Swagger UI / Redoc 익명 노출 차단.
+    # dev / staging 은 노출 유지 (DX), production 만 None 으로 비활성 → /docs /redoc /openapi.json 모두 404.
+    _hide_docs = settings.is_production
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
         lifespan=lifespan,
+        docs_url=None if _hide_docs else "/docs",
+        redoc_url=None if _hide_docs else "/redoc",
+        openapi_url=None if _hide_docs else "/openapi.json",
     )
 
     # Phase A2/B 가 본 플래그를 평가하기 전 lifespan 이 healthcheck 호출.
@@ -171,6 +177,16 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+    # Sprint 61 T-5 (BL-311) — baseline 보안 헤더 + server 헤더 info-leak strip.
+    # CORS 직후 등록 → 모든 응답 (preflight 포함) 에 X-Frame / nosniff / Referrer /
+    # Permissions 부착. HSTS 는 production 환경 (HTTPS 가정) 에서만 부착.
+    from src.common.security_headers import SecurityHeadersMiddleware
+
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        enable_hsts=settings.is_production,
     )
 
     app.add_exception_handler(AppException, app_exc_handler)
