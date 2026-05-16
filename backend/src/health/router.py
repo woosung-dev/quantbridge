@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any, TypedDict
 
 from fastapi import APIRouter, status
@@ -33,7 +34,19 @@ router = APIRouter(prefix="", tags=["meta"])
 # 각 dep 별 timeout (s)
 _PG_TIMEOUT_S = 5.0
 _REDIS_TIMEOUT_S = 5.0
-_CELERY_TIMEOUT_S = 3.0
+
+
+def _get_celery_timeout_s() -> float:
+    """Sprint 61 T-6 (BL-310) — celery inspect timeout env-driven (default 8.0).
+
+    Multi-Agent QA 2026-05-17 발견: 기존 3.0s 가 Docker isolated mode 의 broker
+    round-trip 대비 너무 짧음 → false-503 (worker 정상이지만 timeout). 8.0s 로
+    완화 + env override 허용 (K8s readiness probe 환경별 조정).
+    """
+    try:
+        return float(os.environ.get("HEALTHZ_CELERY_TIMEOUT_S", "8.0"))
+    except (TypeError, ValueError):
+        return 8.0
 
 
 class HealthCheckResult(TypedDict):
@@ -93,17 +106,18 @@ async def _check_celery_workers() -> tuple[int, str | None]:
         # import 자체 실패도 fail 로 카운트 — broad except 의도적.
         return (0, f"celery_app import failed: {exc}")
 
+    timeout_s = _get_celery_timeout_s()
     try:
-        async with asyncio.timeout(_CELERY_TIMEOUT_S):
+        async with asyncio.timeout(timeout_s):
             result = await asyncio.to_thread(
-                lambda: celery_app.control.inspect(timeout=_CELERY_TIMEOUT_S).ping()
+                lambda: celery_app.control.inspect(timeout=timeout_s).ping()
             )
         if not result:
             return (0, "no workers responded")
         # result = {worker_name: {ok: 'pong'}, ...}
         return (len(result), None)
     except TimeoutError:
-        return (0, f"timeout after {_CELERY_TIMEOUT_S}s")
+        return (0, f"timeout after {timeout_s}s")
     except Exception as exc:
         logger.warning("healthz_celery_fail err=%s", exc)
         return (0, str(exc))
@@ -143,3 +157,18 @@ async def healthz() -> JSONResponse:
     code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
     return JSONResponse(status_code=code, content=body)
+
+
+@router.get("/livez", include_in_schema=True)
+async def livez() -> JSONResponse:
+    """Sprint 61 T-6 (BL-310) — Liveness probe (broker-skip, process up 만 확인).
+
+    /healthz 는 Postgres + Redis + Celery 3-dep readiness 검증 (K8s readiness probe).
+    /livez 는 process up 만 검증 (K8s liveness probe) — dep 가 일시 fail 해도
+    process 자체는 살아있으면 200 → K8s 가 의미 없는 restart 안 함.
+
+    Multi-Agent QA 2026-05-17 (BL-310): /healthz 3s celery timeout false-503 가
+    K8s readiness probe → liveness probe 동시 적용 시 restart loop 위험. probe
+    역할 분리로 차단.
+    """
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "alive"})

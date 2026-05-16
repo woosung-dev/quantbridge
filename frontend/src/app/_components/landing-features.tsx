@@ -10,8 +10,10 @@ interface FeatureItem {
 const FEATURES: FeatureItem[] = [
   {
     title: "Pine Script 파싱",
+    // Sprint 61 T-8 (BL-322): 파일 업로드/TV URL 가져오기 "곧 지원" 상태이므로
+    // 카피에서 "업로드" 표현 정직화. 사용자가 직접 paste 가능함을 안내.
     description:
-      "TradingView 전략을 자동으로 분석하고 Python으로 변환합니다. 복잡한 코딩 없이 전략을 즉시 활용하세요.",
+      "TradingView 전략 코드를 붙여넣으면 자동 분석 후 Python 으로 변환됩니다. 복잡한 코딩 없이 전략을 즉시 활용하세요.",
     icon: (
       <>
         <polyline points="16,18 22,18 22,12" />

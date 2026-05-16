@@ -1,11 +1,36 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-14 (Sprint 60 close-out — 17 BL Resolved, dev-log close 작성)
-> **Active Sprint:** **Sprint 60 완료 (코드 차원, manual smoke + Day 7 대기)** — Type B trust 회복
-> **Active Branch:** `feat/convert-llm-fallback` (Sprint 60 8 commit + LLM convert 1a1dbda 동거)
-> **Sprint type:** Type B (risk-critical — trust-breaking bug 회복)
+> **Last Updated:** 2026-05-17 (Multi-Agent QA 재측정 — 4 페르소나 Exhaustive 완료, Sprint 61 plan 작성)
+> **Active Sprint:** **Sprint 61 fix-first 진입 대기** — Type B (Composite 6.08, Beta 4-AND gate 3/4 FAIL)
+> **Active Branch:** main (Sprint 60 머지 완료) → Sprint 61 시 `feat/sprint61-trust-recovery` 신규 브랜치 예정
+> **Sprint type:** Type B (risk-critical fix-first, Sprint 60 패턴 재사용)
 > **office-hours 진행:** N
-> **Next Trigger:** Sprint 60 manual smoke (Playwright mobile + 5 BL spot) → Day 7 인터뷰 (2026-05-16) → Sprint 61 분기 (a/b/c)
+> **Next Trigger:** Sprint 61 진입 — Mobile P0 2건 + Clerk production 4건 + QA 보안 3건 = 8 BL fix-first
+
+---
+
+## Recently Completed — Multi-Agent QA 2026-05-17 (Sprint 60 → 61 baseline 재측정)
+
+- [x] **사전 환경 검증** — FE :3100 + BE :8100 + worker 3종 (default/ws_stream/optimizer_heavy) 부팅 + environment fingerprint 기록
+- [x] **QA Sentinel** Exhaustive — 7.45/10, BL-310~316 (7건, Critical 0 / High 4 / Med 2 / Low 1), Sprint 60 P0 fix source-level PASS 10/0
+- [x] **Curious** Exhaustive — 6.5/10 Maybe, BL-317~326 (10건, Critical 0 / High 2 / Med 5 / Low 3)
+- [x] **Casual** Exhaustive — 5.2/10, BL-327~337 (11건, Critical 0 / High 2 / Med 4 / Low 5), 막힘 9건 + 용어 해독률 40% + axe-core 92 serious
+- [x] **Mobile** Exhaustive — 3.8/10, BL-338~346 (9건, **Critical 2** / High 3 / Med 2 / Low 1) — Casual PASS 보고 중 2건 false positive 검출
+- [x] **통합 HTML** `docs/qa/2026-05-17/integrated-report.html` — Composite 6.08/10 (베이스라인 4.18 → △ +1.90)
+- [x] **Sprint 61 plan** `docs/sprint-61-plan.md` — 8 BL fix-first, ≈ 23h scope
+
+**Composite 6.08 / 10** — Beta 4-AND gate (a) FAIL 6.08<7 / (b) FAIL Crit 2 / (c) FAIL High 11 / (d) Day 7 NPS 결과 보류.
+**분기 결론**: Sprint 61 fix-first 진입 → Sprint 62 Beta gate 재측정.
+
+### 신규 BL (Sprint 61 fix-first 진입)
+
+- **P0 (3)**: BL-339 터치 타겟 / BL-340 Trading overflow / BL-319+320+328+321 Clerk production (★★★ 3 페르소나 공통)
+- **P1 (5)**: BL-310 healthz /livez / BL-311 BE 보안 헤더 / BL-312 OpenAPI gate / BL-327 KPI tooltip / BL-322+323 Hero copy + Optimizer 메뉴
+
+### 신규 BL (Sprint 62+ 이연)
+
+- **P2 (8)**: BL-313/314/315/316/329/330/332/344/345
+- **P3 (13)**: BL-317/318/324/325/326/331/333/334/335/336/337/338/346
 
 ---
 

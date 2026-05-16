@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>QuantBridge Multi-Agent QA — 2026-05-17 (Sprint 60 → 61)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro KR","Noto Sans KR",system-ui,sans-serif}
+  .num{font-variant-numeric:tabular-nums}
+  .heatcell{width:60px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-weight:600}
+  @media print{
+    body{font-size:11pt}
+    .no-print{display:none!important}
+    .page-break{page-break-before:always}
+    section{break-inside:avoid}
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+<div class="max-w-6xl mx-auto px-6 py-8 space-y-10">
+
+<!-- HEADER -->
+<header class="border-b border-slate-300 pb-6">
+  <p class="text-sm text-slate-500">2026-05-17 · Day 8 of dogfood · Sprint 60 → 61 진입 베이스라인</p>
+  <h1 class="text-3xl font-bold mt-1">QuantBridge — Multi-Agent QA 통합 보고서</h1>
+  <p class="text-slate-600 mt-2">QA Sentinel + Curious + Casual + Mobile · 4 페르소나 Exhaustive · isolated mode (FE :3100 / BE :8100) · git HEAD <code class="bg-slate-200 px-1.5 py-0.5 rounded text-sm">60d8518</code></p>
+</header>
+
+<!-- §1 EXECUTIVE SUMMARY -->
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">1. Executive Summary</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">Composite Health</p>
+      <p class="text-4xl font-bold mt-2 num text-amber-600">6.08<span class="text-base text-slate-400">/10</span></p>
+      <p class="text-xs text-slate-500 mt-1">베이스라인 4.18 → △ <span class="text-emerald-700 font-semibold">+1.90</span></p>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">신규 결함</p>
+      <p class="text-4xl font-bold mt-2 num text-rose-700">37<span class="text-base text-slate-400">건</span></p>
+      <p class="text-xs text-slate-500 mt-1">BL-310 ~ BL-346</p>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">Critical / High</p>
+      <p class="text-4xl font-bold mt-2 num text-rose-700">2 / 11</p>
+      <p class="text-xs text-slate-500 mt-1">Critical 모두 Mobile 영역</p>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">Beta 4-AND Gate</p>
+      <p class="text-4xl font-bold mt-2 text-rose-700">FAIL</p>
+      <p class="text-xs text-slate-500 mt-1">(a) 6.08 < 7 · (b) Crit 2 > 0 · (c) High 11 > 3 · (d) 보류</p>
+    </div>
+  </div>
+
+  <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
+    <p class="font-semibold text-amber-900">분기 결론 (Sprint 61 default)</p>
+    <p class="text-sm text-amber-900 mt-1">
+      Beta 본격 진입 차단. <span class="font-semibold">fix-first sprint</span> 진행 권고 — Mobile P0 2건 + Clerk production 교체 (3 페르소나 공통 발견 ★★★) + 핵심 P1 묶음.
+      Composite 4.18 → 6.08 (△+1.90) 회복은 Sprint 60 P0 fix (BL-244/265/270/271/273/280/285/300/303/305 회귀 PASS) 의 효과 확인. 단 Mobile 깊이 검증에서 BL-300/303/305 PARTIAL 재발견 = 페르소나 깊이 차이의 가치 입증.
+    </p>
+  </div>
+
+  <h3 class="text-lg font-semibold mt-6 mb-2">Top 5 P0/P1 (Sprint 61 fix-first 후보)</h3>
+  <ol class="list-decimal pl-6 space-y-1 text-sm">
+    <li><span class="font-semibold text-rose-700">BL-340 [P0]</span> Trading 페이지 horizontal overflow +227px (한 손 revenue path 불가) — <span class="text-slate-500">Mobile</span></li>
+    <li><span class="font-semibold text-rose-700">BL-339 [P0]</span> 터치 타겟 19+ 위반 (UserButton 28x28, 필터 chips 30h) — <span class="text-slate-500">Mobile</span></li>
+    <li><span class="font-semibold text-amber-700">BL-319 + BL-321 + BL-328 [P0 ★★★ 공통, 로컬 dev fix 가능]</span> Clerk Hosted Pages → Embedded `&lt;SignIn/&gt; &lt;SignUp/&gt;` 전환 (자체 도메인 호스팅) + application name "QuantBridge" (dashboard 1분 변경) + `@clerk/localizations.koKR`. **dev key 그대로 사용**. BL-320 "Development mode" 배지 = dev instance 정상 표시, Sprint 62 production deploy 시점 자동 해소로 이연 (BL-261 영역) — <span class="text-slate-500">Curious + Casual</span></li>
+    <li><span class="font-semibold text-amber-700">BL-312 [P1]</span> OpenAPI `/docs` `/redoc` `/openapi.json` 익명 200 (attack surface enumeration) — <span class="text-slate-500">QA</span></li>
+    <li><span class="font-semibold text-amber-700">BL-311 [P1]</span> BE 보안 헤더 0건 (X-Frame / HSTS / nosniff 부재 + `server: uvicorn` info leak) — <span class="text-slate-500">QA</span></li>
+  </ol>
+
+  <h3 class="text-lg font-semibold mt-6 mb-2">강점 (회귀 0 확인)</h3>
+  <ul class="list-disc pl-6 space-y-1 text-sm">
+    <li>Sprint 60 P0 fix 11종 <span class="font-semibold text-emerald-700">source-level PASS 10 / FAIL 0</span> (QA Sentinel) + 4건 live PASS (Curious 회귀 검증)</li>
+    <li>가짜 testimonial / marketing 숫자 / disclaimer = <span class="font-semibold text-emerald-700">0건</span>. 정직한 Beta 안내 ("Asia-Pacific only" + Bybit Demo) 인상 ★★★★</li>
+    <li>CORS allowlist 정상 (evil.com 400) · JWT alg=none/forged 정상 거부 · Worker sentinel `_v2_buy_and_hold_curve` PASS</li>
+    <li>24-metric 백테스트 + TradingView Lightweight Charts 통합 = <span class="font-semibold">professional engine 인상</span></li>
+  </ul>
+</section>
+
+<!-- §2 페르소나 매트릭스 -->
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">2. 페르소나 매트릭스 (Heatmap)</h2>
+  <div class="overflow-x-auto">
+  <table class="text-sm w-full">
+    <thead class="bg-slate-100">
+      <tr>
+        <th class="text-left px-3 py-2 font-semibold">차원</th>
+        <th class="text-center px-3 py-2">QA Sentinel</th>
+        <th class="text-center px-3 py-2">Curious</th>
+        <th class="text-center px-3 py-2">Casual</th>
+        <th class="text-center px-3 py-2">Mobile</th>
+        <th class="text-left px-3 py-2 font-semibold">교차 결론</th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-slate-100">
+      <!-- helper inlined coloring -->
+      <tr>
+        <td class="px-3 py-2 font-medium">전체 점수</td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900 num">7.45</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">6.50</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-100 text-rose-900 num">5.20</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-200 text-rose-900 num">3.80</span></td>
+        <td class="px-3 py-2 text-slate-600">QA(보안/회귀) 견고 ≫ Mobile(터치/overflow) 취약. 페르소나 갭 3.65</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">결함 (Critical / High / Med / Low)</td>
+        <td class="text-center text-xs">0 / 4 / 2 / 1</td>
+        <td class="text-center text-xs">0 / 2 / 5 / 3</td>
+        <td class="text-center text-xs">0 / 2 / 4 / 5</td>
+        <td class="text-center text-xs"><span class="font-bold text-rose-700">2</span> / 3 / 3 / 1</td>
+        <td class="px-3 py-2 text-slate-600">Critical 2 = Mobile 전용 (BL-339/340)</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">회귀 (Sprint 60 P0 fix)</td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900">PASS</span></td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900">PASS</span></td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900">PASS</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900">PARTIAL</span></td>
+        <td class="px-3 py-2 text-slate-600">Mobile 깊이 검증 = BL-300/303/305 PARTIAL FAIL 재발견</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">보안</td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">5.5</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-100 text-rose-900 num">4.0</span></td>
+        <td class="text-center"><span class="heatcell bg-slate-100 text-slate-500">-</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-100 text-rose-900 num">4.5</span></td>
+        <td class="px-3 py-2 text-slate-600">Clerk dev leak (3 페르소나 공통 ★★★) + BE 헤더 부재 + OpenAPI 노출</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">UX 라이팅 / i18n</td>
+        <td class="text-center"><span class="heatcell bg-slate-100 text-slate-500">-</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-100 text-rose-900 num">5.0</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-200 text-rose-900 num">3.0</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-200 text-rose-900 num">3.5</span></td>
+        <td class="px-3 py-2 text-slate-600">한영 혼용 (Cost Assumption / Buy &amp; Hold / Clerk 영어) — 3 페르소나 공통</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">a11y</td>
+        <td class="text-center"><span class="heatcell bg-slate-100 text-slate-500">-</span></td>
+        <td class="text-center"><span class="heatcell bg-slate-100 text-slate-500">-</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-200 text-rose-900 num">3.0</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-200 text-rose-900 num">2.5</span></td>
+        <td class="px-3 py-2 text-slate-600">WCAG 2 AA 94 serious (92 color-contrast + 2 nested-interactive) + ARIA/시각 불일치</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">모바일 / 한 손 / PWA</td>
+        <td class="text-center"><span class="heatcell bg-slate-100 text-slate-500">-</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">5.5</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">7.0</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-200 text-rose-900 num">3.0</span></td>
+        <td class="px-3 py-2 text-slate-600">Mobile 깊이 검증 = trading +227px overflow / PWA 0 / 터치 19+</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">기능 / 핵심 가치</td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900 num">8.0</span></td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900 num">7.5</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">5.5</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">5.0</span></td>
+        <td class="px-3 py-2 text-slate-600">24-metric + 4 스트레스 테스트 = 차별점. 단 KPI tooltip 부재 = 일반인 0% 해독</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="text-lg font-semibold mt-6 mb-2">공통 발견 (★★★ = P0 자동 격상)</h3>
+  <ul class="list-disc pl-6 space-y-1 text-sm">
+    <li><span class="font-semibold">★★★ Clerk dev surface fix (로컬, dev key 그대로)</span>: BL-319 (accounts.dev redirect → Embedded 전환으로 자체 도메인 호스팅) + BL-321 (brand slug → dashboard application name 1분 변경) + BL-328 (영어 form → @clerk/localizations.koKR). <span class="text-slate-600">3 BL fix 외부 의존 0. BL-320 "Development mode" 배지 = dev instance 정상 표시 → Sprint 62 production deploy 시점 (production key + custom domain DNS) 자동 해소, 기존 deferred BL-261 영역 묶음 이연.</span></li>
+    <li><span class="font-semibold">★★★ Sprint 60 fix 깊이 부족</span>: Casual PASS vs Mobile PARTIAL (BL-300 ghost DOM, BL-303 `/backtests/new` 영문 토큰 leak, BL-305 시각/ARIA 불일치). <span class="text-slate-600">→ 회귀 fix 의 surface coverage 가 4 페르소나 다층 검증을 요구함을 입증</span></li>
+    <li><span class="font-semibold">★★ 한영 혼용</span>: Cost Assumption Sensitivity / Buy &amp; Hold / Clerk 영어 / "Open user menu" / "Live Strategy.trading_sessions". <span class="text-slate-600">Curious + Casual + Mobile 3 페르소나 공통</span></li>
+    <li><span class="font-semibold">★★ 응답 schema 비일관</span>: BL-313 (auth `{detail:{code,detail}}` vs default `{detail:str}`) + BL-316 (Pydantic 422 grammar). <span class="text-slate-600">FE 분기 파싱 누수 위험</span></li>
+  </ul>
+</section>
+
+<!-- §3 Critical/High 결함 상세 -->
+<section class="page-break">
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">3. Critical / High 결함 상세</h2>
+
+  <div class="grid grid-cols-1 gap-4">
+
+    <div class="border border-rose-300 bg-rose-50 p-4 rounded">
+      <p class="font-mono text-xs text-rose-700">BL-340 [P0 Critical] [Confidence H] · Mobile</p>
+      <p class="font-semibold text-lg mt-1">Trading 페이지 horizontal overflow +227px (375x667 viewport)</p>
+      <p class="text-sm mt-1"><span class="font-semibold">재현</span>: 모바일 viewport 에서 `/trading` 페이지가 viewport 602px → horizontal scroll 강제. 375 +227 / 393 +209 / 412 +190 모두 overflow.</p>
+      <p class="text-sm mt-1"><span class="font-semibold">기대</span>: 0 overflow.</p>
+      <p class="text-sm"><span class="font-semibold">Root cause</span>: <code>md:grid-cols-4</code> 가 mobile breakpoint 에서도 효과 추정 + 컨테이너 max-w 부재.</p>
+      <p class="text-sm"><span class="font-semibold">Impact</span>: 한 손 사용자가 trading (revenue path) 도달 불가. 가로 스와이프 + 세로 스크롤 = 양손 강제.</p>
+    </div>
+
+    <div class="border border-rose-300 bg-rose-50 p-4 rounded">
+      <p class="font-mono text-xs text-rose-700">BL-339 [P0 Critical] [Confidence H] · Mobile</p>
+      <p class="font-semibold text-lg mt-1">터치 타겟 19+ 위반 (Apple HIG / Material 44pt 미달)</p>
+      <p class="text-sm mt-1"><span class="font-semibold">증거</span>: <code>document.querySelectorAll('button,a').filter(r => r.width&gt;0 &amp;&amp; (r.width&lt;44||r.height&lt;44)).length === 19</code> 단 strategies 페이지 한 곳.</p>
+      <p class="text-sm"><span class="font-semibold">Top 위반</span>: UserButton 28x28 / Disclaimer 링크 32-54x<span class="font-bold">14</span> / 필터 chips 47-83x<span class="font-bold">30</span>.</p>
+      <p class="text-sm"><span class="font-semibold">Impact</span>: 출퇴근 흔들리는 지하철 환경에서 오탑 빈번. 큰 손가락/장갑 사용자 더 심각.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">★★★ 공통 발견 · BL-319 + BL-321 + BL-328 [P0, 로컬 dev fix] · Curious + Casual</p>
+      <p class="font-semibold text-lg mt-1">Clerk dev surface — `accounts.dev` redirect + slug 브랜드 + 영어 form (Embedded 전환 + dashboard 1분 변경 + koKR)</p>
+      <p class="text-sm mt-1"><span class="font-semibold">재현</span>: sign-in 클릭 → <code>https://stunning-chipmunk-35.accounts.dev/sign-in</code> redirect. 영어 form. "Sign in to quant-bridge" slug.</p>
+      <p class="text-sm"><span class="font-semibold">Impact</span>: 잠재 고객 결제 의사 50% 손실 (Curious 보고). Casual = 한국어 사이트 첫 단절.</p>
+      <p class="text-sm"><span class="font-semibold">Fix (로컬 dev key 그대로)</span>: (1) Clerk Hosted Pages → Embedded `&lt;SignIn /&gt; &lt;SignUp /&gt;` 컴포넌트 임베드 (자체 도메인 호스팅 = accounts.dev redirect 제거) (2) Clerk dashboard application name `quant-bridge` → "QuantBridge" 1분 변경 (3) `pnpm add @clerk/localizations` + `<ClerkProvider localization={koKR}>`.</p>
+      <p class="text-sm"><span class="font-semibold">분리 — BL-320 "Development mode" 배지</span>: dev instance 정상 표시 (Clerk SaaS feature). 로컬 fix 무의미. Sprint 62 Beta production deploy 시점 → production key (`pk_live_…`) + custom domain DNS 설정 시 자동 해소. 기존 deferred BL-261 영역 묶음.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-312 [P1 High] [Confidence H] · QA</p>
+      <p class="font-semibold text-lg mt-1">OpenAPI / Swagger UI / Redoc 익명 200 — attack surface enumeration</p>
+      <p class="text-sm mt-1"><span class="font-semibold">재현</span>: `curl http://localhost:8100/openapi.json` → 200 (97870 bytes 전체 스키마) · `/docs`, `/redoc` 모두 200.</p>
+      <p class="text-sm"><span class="font-semibold">Fix</span>: `FastAPI(docs_url=None if ENV=="production" else "/docs", openapi_url=None if ENV=="production" else ...)` 또는 admin auth gate.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-311 [P1 High] [Confidence H] · QA</p>
+      <p class="font-semibold text-lg mt-1">BE 응답 보안 헤더 0건 (FE 와 비대칭)</p>
+      <p class="text-sm mt-1"><span class="font-semibold">재현</span>: `curl -i http://localhost:8100/api/v1/strategies` → X-Frame / HSTS / nosniff / Referrer 모두 부재. `server: uvicorn` info leak.</p>
+      <p class="text-sm"><span class="font-semibold">Fix</span>: `SecureHeadersMiddleware` 추가 + `server` 헤더 strip.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-310 [P1 High] [Confidence H] · QA</p>
+      <p class="font-semibold text-lg mt-1">healthz 503 false-alarm — `_CELERY_TIMEOUT_S=3.0` 너무 짧음 (broker round-trip &gt; 3s)</p>
+      <p class="text-sm mt-1"><span class="font-semibold">증거</span>: `inspect(timeout=8.0).ping()` → worker 3개 모두 `{ok:pong}`. 3s 만 부족.</p>
+      <p class="text-sm"><span class="font-semibold">Impact</span>: production K8s readiness probe 시 restart loop 위험.</p>
+      <p class="text-sm"><span class="font-semibold">Fix</span>: env-driven `HEALTHZ_CELERY_TIMEOUT_S` (default 8.0) 또는 `/livez` (broker-skip) 분리.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-327 [P1 High] [Confidence H] · Casual</p>
+      <p class="font-semibold text-lg mt-1">핵심 KPI 라벨에 hover tooltip + 초보 설명 부재</p>
+      <p class="text-sm mt-1"><span class="font-semibold">재현</span>: backtest detail → Sharpe / Drawdown / Profit Factor / 승률 라벨 `title` / `aria-describedby` 모두 null.</p>
+      <p class="text-sm"><span class="font-semibold">Impact</span>: 일반인 결과 화면 0% 의미 해독. 도입 결정 차단.</p>
+      <p class="text-sm"><span class="font-semibold">Fix</span>: 각 KPI 라벨 옆 `?` 아이콘 + Radix Tooltip + 한국어 1줄 설명.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-341 + BL-342 + BL-343 [P1 High] · Mobile</p>
+      <p class="font-semibold text-lg mt-1">PWA 0/10 + number `inputmode` 누락 + sheet a11y 시각/ARIA 불일치</p>
+      <p class="text-sm mt-1">manifest / apple-touch-icon / theme-color 부재 → "홈 화면에 추가" 사용 불가.</p>
+      <p class="text-sm"><code>type="number"</code> 단독 = 소수점 `.` 키 없는 모바일 키보드 → 백테스트 폼 입력 좌절.</p>
+      <p class="text-sm">햄버거 sheet "데이터/템플릿/거래소" 시각 표시 vs ARIA 제외 (WCAG 2.1 SC 4.1.2 위반).</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-322 [P1 Medium] [Confidence H] · Curious</p>
+      <p class="font-semibold text-lg mt-1">Hero copy vs 실제 기능 GAP — "업로드" 광고 but 직접 입력만</p>
+      <p class="text-sm mt-1">Hero 카피 "TradingView 전략을 업로드하면" but `.pine` 파일 업로드 + TV URL 가져오기 모두 "곧 지원" disabled. 첫 신규 사용자 좌절.</p>
+      <p class="text-sm"><span class="font-semibold">Fix</span>: 카피를 현 상태에 맞춰 ("Pine Script 코드를 붙여넣으면") 또는 업로드 기능 구현.</p>
+    </div>
+
+  </div>
+
+  <p class="text-sm text-slate-500 mt-6">전체 BL-310~346 상세는 각 페르소나 보고서 참조 (Appendix §8).</p>
+</section>
+
+<!-- §4 UX 인상 비교 -->
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">4. UX 인상 비교 (Curious vs Casual vs Mobile)</h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-emerald-500">
+      <p class="font-semibold">Curious (의사결정자)</p>
+      <p class="text-sm text-slate-600 mt-1">5초/30초/1분 룰 8/8/7. 24-metric 결과 화면 → professional engine 인상. 도입 결정 = <span class="font-semibold">Maybe</span>. 친구 추천도 ★★★/5.</p>
+      <p class="text-sm text-slate-600 mt-2">차단: Clerk dev leak (-3) + Hero copy GAP + Optimizer 메뉴 부재.</p>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-amber-500">
+      <p class="font-semibold">Casual (일반인)</p>
+      <p class="text-sm text-slate-600 mt-1">용어 해독률 <span class="font-semibold">40%</span>. 막힘 9건. 포기 시점 <span class="font-semibold">3분</span>. KPI 4종 (Sharpe/Drawdown/PF/승률) 0% 해독.</p>
+      <p class="text-sm text-slate-600 mt-2">차단: KPI tooltip 부재 + Clerk 영어 + Pine Script 모름.</p>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-rose-500">
+      <p class="font-semibold">Mobile (한 손)</p>
+      <p class="text-sm text-slate-600 mt-1">Trading +227px overflow. 터치 19+ 위반. PWA 0/10. <span class="font-semibold">한 손 사용 불가</span>.</p>
+      <p class="text-sm text-slate-600 mt-2">차단: 출퇴근 revenue path 도달 불가. Sprint 60 BL-300/303/305 PARTIAL FAIL 재발견.</p>
+    </div>
+  </div>
+</section>
+
+<!-- §5 회귀 점검 -->
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">5. 회귀 점검 — Sprint 60 P0 fix</h2>
+  <div class="overflow-x-auto">
+  <table class="text-sm w-full">
+    <thead class="bg-slate-100">
+      <tr>
+        <th class="text-left px-3 py-2">Sprint 60 BL</th>
+        <th class="text-left px-3 py-2">제목</th>
+        <th class="text-center px-3 py-2">QA Source</th>
+        <th class="text-center px-3 py-2">Curious Live</th>
+        <th class="text-center px-3 py-2">Casual Live</th>
+        <th class="text-center px-3 py-2">Mobile 깊이</th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-slate-100">
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-244</td><td>Optimizer 500 (slowapi × Pydantic)</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-slate-400">-</td><td class="text-center text-slate-400">-</td><td class="text-center text-slate-400">-</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-265</td><td>★★★ 내부 sprint/BL/ADR/vectorbt UI 노출</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-270</td><td>가짜 marketing 숫자</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-271</td><td>가짜 testimonial</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-273</td><td>가짜 Disclaimer</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-280</td><td>vectorbt 잔존 UI</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-slate-400">-</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-285</td><td>모바일 햄버거 dead</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-300</td><td>UserButton 0x0</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-amber-700">PARTIAL (ghost DOM)</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-303</td><td>sprint/BL/ADR 모바일 노출</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-slate-400">-</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-amber-700">PARTIAL (/backtests/new)</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-305</td><td>모바일 nav</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-emerald-700">PASS</td><td class="text-center text-rose-700">PARTIAL FAIL (시각/ARIA)</td></tr>
+      <tr><td class="px-3 py-2 font-mono text-xs">BL-308/309</td><td>trading architectural audit</td><td class="text-center text-slate-400">Defer</td><td class="text-center text-slate-400">-</td><td class="text-center text-slate-400">-</td><td class="text-center text-slate-400">-</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="text-sm text-slate-500 mt-3">10/11 PASS source-level + Mobile 깊이 검증에서 3건 PARTIAL → Sprint 60 fix 자체의 surface coverage 한계 입증.</p>
+</section>
+
+<!-- §6 우선순위 매트릭스 -->
+<section class="page-break">
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">6. 우선순위 매트릭스 (Impact × Effort)</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-rose-50 border border-rose-200 p-4 rounded">
+      <p class="font-semibold text-rose-900">P0 — Sprint 61 즉시 (High Impact / Low-Med Effort)</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>BL-340 Trading horizontal overflow (4h)</li>
+        <li>BL-339 터치 타겟 ≥44pt (4h, UserButton + 필터 + disclaimer)</li>
+        <li>BL-319/321/328 ★★★ Clerk dev surface fix — Embedded 전환 + dashboard app name + koKR (3h, dev key 그대로). BL-320 = Sprint 62 production deploy 이연.</li>
+      </ul>
+      <p class="text-xs text-slate-600 mt-2">합 11h ≈ 1.5 day single worker</p>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 p-4 rounded">
+      <p class="font-semibold text-amber-900">P1 — Sprint 61 (High Impact / Med Effort)</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>BL-312 OpenAPI 익명 노출 차단 (1h)</li>
+        <li>BL-311 BE 보안 헤더 middleware (3h)</li>
+        <li>BL-310 healthz `/livez` 분리 (2h)</li>
+        <li>BL-327 KPI tooltip + 초보 설명 (4h)</li>
+        <li>BL-322 Hero copy ↔ 실제 기능 정합 (1h, 카피 수정)</li>
+        <li>BL-323 사이드바 Optimizer 메뉴 노출 (2h)</li>
+        <li>BL-341 PWA manifest + 아이콘 (3h)</li>
+        <li>BL-342 number `inputmode` + 심볼 autocapitalize (1h)</li>
+        <li>BL-343 모바일 sheet a11y 일관 (1h)</li>
+      </ul>
+      <p class="text-xs text-slate-600 mt-2">합 18h ≈ 2-3 day single worker</p>
+    </div>
+    <div class="bg-sky-50 border border-sky-200 p-4 rounded">
+      <p class="font-semibold text-sky-900">P2 — Sprint 62+ (Medium Impact)</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>BL-313 응답 grammar 표준화 (2h)</li>
+        <li>BL-314/315/316 rate-limit reset / body size / Pydantic 422 (3h)</li>
+        <li>BL-317/318 placeholder + Clerk 한국어 잔존</li>
+        <li>BL-326 Cost Assumption Sensitivity 한국어</li>
+        <li>BL-329/330 sidebar disabled UX + 거짓 라벨</li>
+        <li>BL-332 axe color-contrast 92 nodes (Tailwind theme tweak)</li>
+        <li>BL-344 API key mask 강화 / BL-345 backtests card layout</li>
+      </ul>
+    </div>
+    <div class="bg-slate-50 border border-slate-200 p-4 rounded">
+      <p class="font-semibold text-slate-900">P3 — Defer (Low Impact)</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>BL-324/325/331/333/334/335/336/337</li>
+        <li>BL-338 dev floating widgets dogfood 토글</li>
+        <li>BL-346 disclaimer compact</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- §7 Sprint 61 분기 결론 -->
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">7. Sprint 61 분기 결론</h2>
+
+  <div class="bg-slate-100 p-4 rounded mb-4">
+    <p class="font-semibold">4-AND Beta gate 평가</p>
+    <table class="text-sm w-full mt-2">
+      <tbody>
+        <tr><td class="py-1 w-1/3">(a) Composite ≥ 7</td><td class="text-rose-700 font-semibold">FAIL — 6.08</td></tr>
+        <tr><td class="py-1">(b) Critical = 0</td><td class="text-rose-700 font-semibold">FAIL — 2 (BL-339 + BL-340)</td></tr>
+        <tr><td class="py-1">(c) High ≤ 3</td><td class="text-rose-700 font-semibold">FAIL — 11</td></tr>
+        <tr><td class="py-1">(d) 본인 의지</td><td class="text-slate-600 font-semibold">보류 — Day 8 NPS 인터뷰 후 결정</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="font-semibold">분기 결정: <span class="text-amber-700">fix-first Sprint 61</span> (Beta 본격 진입 차단)</p>
+  <p class="text-sm text-slate-700 mt-2">P0 3 BL (11h) + P1 핵심 5 BL (12h) = <span class="font-semibold">≈ 23h ≈ 3-day single worker</span>. Sprint 60 패턴 (estimate vs 실측 64% 단축) 으로 추정 시 실측 ≈ 8-12h. Sprint 62 = Beta 4-AND gate 재측정.</p>
+
+  <p class="text-sm text-slate-700 mt-3">대안:</p>
+  <ul class="list-disc pl-6 text-sm text-slate-700">
+    <li><span class="font-semibold">A. fix-first Sprint 61</span> (권고 ★★★★★) — Composite 6.08 → ~7.5+ 예상 → Sprint 62 Beta 진입 가능</li>
+    <li>B. Deepening 2차 (Sprint 47 BL-201/203/204 묶음, 사용자 의지 X 시 default) ★★★ — 본 QA 가 Mobile/UX 갭 강조했으므로 우선순위 낮음</li>
+    <li>C. Beta 강제 진입 (gate 무시) ★ — 권고 X, dogfood 신뢰 손실 위험</li>
+    <li>D. NPS 인터뷰 결과 합산 후 결정 (Day 8) — 권고 ★★★★. 본 보고서 + NPS 결과 cross-reference 추천</li>
+  </ul>
+</section>
+
+<!-- §8 Appendix -->
+<section class="page-break">
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">8. Appendix</h2>
+  <h3 class="font-semibold mb-2">원본 보고서</h3>
+  <ul class="list-disc pl-6 text-sm space-y-1">
+    <li><a class="text-sky-700 underline" href="qa-report.md">qa-report.md</a> — QA Sentinel (7 BL, 207 lines)</li>
+    <li><a class="text-sky-700 underline" href="interested-user-report.md">interested-user-report.md</a> — Curious (10 BL, screenshots 12장)</li>
+    <li><a class="text-sky-700 underline" href="general-user-report.md">general-user-report.md</a> — Casual (11 BL, screenshots 16장)</li>
+    <li><a class="text-sky-700 underline" href="mobile-user-report.md">mobile-user-report.md</a> — Mobile (9 BL, screenshots 9장)</li>
+  </ul>
+
+  <h3 class="font-semibold mb-2 mt-4">자산 인덱스</h3>
+  <ul class="list-disc pl-6 text-sm space-y-1">
+    <li><code>screenshots/</code> = 37장 (curious-01~12 / casual-01~16 / mobile-01~09)</li>
+    <li><code>traces/</code> = 빈 폴더 (Playwright trace zip 미생성 — Critical 재현은 본문 inline 증거로 대체)</li>
+    <li><code>environment.txt</code> = git HEAD / node / pnpm / python / docker / docker compose 버전 + 부팅 컨테이너 fingerprint</li>
+  </ul>
+
+  <h3 class="font-semibold mb-2 mt-4">베이스라인</h3>
+  <ul class="list-disc pl-6 text-sm space-y-1">
+    <li><code>docs/qa/2026-05-13/integrated-report.html</code> — Composite 4.18 (Critical 11 + High 14)</li>
+    <li><code>docs/qa/2026-05-14-sprint60-smoke/smoke-report.md</code> — Sprint 60 P0 fix 6 BL Playwright PASS smoke</li>
+  </ul>
+
+  <h3 class="font-semibold mb-2 mt-4">방법론 메타 (LESSON 누적)</h3>
+  <ul class="list-disc pl-6 text-sm space-y-1">
+    <li><span class="font-semibold">LESSON-038 sentinel</span> PASS — <code>_v2_buy_and_hold_curve</code> worker callable 검증</li>
+    <li><span class="font-semibold">LESSON-040 prereq spike</span> — healthz 503 → 8s timeout 으로 wrong premise 즉시 falsify (BL-310)</li>
+    <li><span class="font-semibold">LESSON-068 후보 보강</span> — Mobile 페르소나가 Casual 의 4/4 PASS 보고 중 2건 false positive 검출 = 페르소나 깊이 차이의 가치 입증 (sub-agent driven QA pattern 추가 검증 1/3)</li>
+  </ul>
+</section>
+
+<footer class="text-xs text-slate-500 pt-6 border-t border-slate-200 mt-10">
+  Generated by Multi-Agent QA orchestrator · 2026-05-17 · QuantBridge Sprint 60 → 61 · 4 페르소나 Exhaustive
+</footer>
+
+</div>
+</body>
+</html>

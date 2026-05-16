@@ -5,11 +5,12 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-05-15 (Track B `/deepen-modules trading` audit-only — BL-308 P1 + BL-309 P2 신규)
-**현재 상태:** **17 active BL** (Sprint 59 13 + Track C 2 + Track B 2). main @ `6fc7b9a`. dogfood Day 7 인터뷰 2026-05-16 대기.
+**최종 갱신:** 2026-05-17 (Multi-Agent QA 4 페르소나 Exhaustive — 37 신규 BL 등재 BL-310~346)
+**현재 상태:** **54 active BL** (Sprint 59 13 + Track C 2 + Track B 2 + Multi-Agent QA 37). main @ `60d8518`. Sprint 61 fix-first 진입 대기.
 
-**최근 sprint BL 변경 (Sprint 55~58):**
+**최근 sprint BL 변경 (Sprint 55~Multi-Agent QA):**
 
+- **2026-05-17 Multi-Agent QA**: 신규 BL-310~346 (37건, Critical 2 / High 11 / Med 13 / Low 11). 상세 = [`docs/qa/2026-05-17/integrated-report.html`](qa/2026-05-17/integrated-report.html) + [`docs/sprint-61-plan.md`](sprint-61-plan.md). 17 → 54 net.
 - **Sprint 58** (2026-05-11~12): ✅ BL-241/242/243 Resolved (Pine TA 확장). 92 → 89 net.
 - **Sprint 57** (2026-05-11): ✅ BL-234/237 Resolved (Optimizer Polish + heavy queue). 신규 BL-241~243. 91 → 92 net.
 - **Sprint 56** (2026-05-11): ✅ BL-233 Resolved (Genetic). 신규 BL-238/239/240 chore. 91 net.
@@ -19,11 +20,18 @@
 
 **P0 / P1 active short list:**
 
-- **P0**: BL-003 (Bybit mainnet runbook)
-- **P1**: BL-014 (partial fill) / BL-015 (OKX Private WS) / BL-022 (golden 재생성) / BL-023 (KIND-B/C 정밀도) / BL-024 (real_broker E2E) / BL-025 (autonomous-parallel-sprints patch) / BL-026 (Trust Layer fixture 재활성화) / BL-308 (websocket test coverage 4% boost)
-- **P2**: BL-186 (Full leverage model) / BL-190 (PDF export) / BL-195 (form animation) / BL-235 (N-dim viz) / BL-236 (objective whitelist) / BL-309 (registry/webhook/fees test 추가)
-- **P3**: BL-306 (§5 한국어 콜론 종결 lint) / BL-307 (§6 한국어 file header lint + 누락 70 file backfill)
-- **Deferred milestone**: [BL-070~075](refactoring-backlog/_deferred.md) Beta 진입 — **dogfood NPS ≥7 + 본인 의지 second gate** 통과 시만 trigger
+- **P0 (3 신규 — Sprint 61 fix-first)**:
+  - BL-339 (Mobile 터치 타겟 19+ <44pt) / BL-340 (Trading +227px horizontal overflow) — Mobile 페르소나 발견
+  - BL-319+320+321+328 ★★★ Clerk dev instance leak (3 페르소나 공통) — production instance + custom domain + koKR
+  - BL-003 (Bybit mainnet runbook) — H1 종료 gate, 기존
+- **P1 (Sprint 61 fix-first 5 + 기존)**:
+  - 신규 (Sprint 61): BL-310 (healthz /livez) / BL-311 (BE 보안 헤더) / BL-312 (OpenAPI gate) / BL-327 (KPI tooltip) / BL-322+323 (Hero copy + Optimizer 메뉴)
+  - 기존: BL-014 / BL-015 / BL-022 / BL-023 / BL-024 / BL-025 / BL-026 / BL-308
+- **P2 (Sprint 62+ 이연 8 신규)**: BL-313 / BL-314 / BL-315 / BL-316 / BL-329 / BL-330 / BL-332 / BL-344 / BL-345 + 기존 (BL-186 / BL-190 / BL-195 / BL-235 / BL-236 / BL-309)
+- **P3 (13 신규)**: BL-317 / BL-318 / BL-324 / BL-325 / BL-326 / BL-331 / BL-333 / BL-334 / BL-335 / BL-336 / BL-337 / BL-338 / BL-346 + 기존 (BL-306 / BL-307)
+- **Deferred milestone**: [BL-070~075](refactoring-backlog/_deferred.md) Beta 진입 — **dogfood NPS ≥7 + 본인 의지 second gate + 4-AND gate (Composite≥7 + Crit=0 + High≤3) 통과** 시만 trigger (Sprint 61 fix-first 완료 후 Sprint 62 재측정)
+
+> **신규 BL-310~346 상세 등재 위치**: 본 문서에서는 short list 만 유지. 각 BL 의 재현 / impact / fix 권고는 `docs/qa/2026-05-17/integrated-report.html` §3 (Critical/High 상세) + §6 (우선순위 매트릭스) + 페르소나별 원본 보고서 4종. Sprint 61 진입 시 본 정보를 SSOT 로 참조.
 
 ---
 
