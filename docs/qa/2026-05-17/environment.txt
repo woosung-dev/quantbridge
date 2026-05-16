@@ -1,0 +1,47 @@
+QuantBridge Multi-Agent QA — Environment Fingerprint
+====================================================
+Timestamp: 2026-05-16T15:02:34Z UTC (2026-05-17 00:02:34 KST)
+Git HEAD : 60d8518a261950c809dbfbfa3753c00f484c6de1
+Git Branch: main
+Git Status: 1 unstaged files
+
+Runtime versions
+----------------
+node    : v24.12.0
+pnpm    : 8.15.9
+python  : Python 3.14.5
+docker  : Docker version 29.4.1, build 055a478
+compose : 5.1.3
+OS      : Darwin 25.5.0 arm64
+
+Mode    : Isolated (FE :3100 / BE :8100 / DB :5433 / Redis :6380)
+Output  : docs/qa/2026-05-17/
+
+Docker compose isolated stack
+-----------------------------
+quantbridge-optimizer-heavy	Up 7 hours
+quantbridge-beat	Up 7 hours
+quantbridge-ws-stream	Up 7 hours
+quantbridge-worker	Up 7 hours
+quantbridge-db	Up 7 hours (healthy)
+quantbridge-redis	Up 7 hours (healthy)
+backend-postgres-1	Up 7 hours (healthy)
+backend-qdrant-1	Up 7 hours
+
+Playwright cache
+----------------
+b
+chromium_headless_shell-1208
+chromium_headless_shell-1217
+chromium-1208
+chromium-1217
+ffmpeg-1011
+mcp-chrome-36c6887
+mcp-chrome-4ca6dfb
+mcp-chrome-5d12b9a
+mcp-chrome-6b4d1d6
+
+Baseline
+--------
+Comparison target: docs/qa/2026-05-13/integrated-report.html (Composite 4.18/10)
+Sprint 60 smoke  : docs/qa/2026-05-14-sprint60-smoke/smoke-report.md
