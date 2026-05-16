@@ -9,12 +9,30 @@
 // 형식으로 가정과 수치를 동시 표시. 사용자가 어떤 가정 하에서 어떤 수치인지
 // 한 눈에 파악.
 
+import { HelpCircle } from "lucide-react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
   BacktestConfig,
   BacktestMetricsOut,
 } from "@/features/backtest/schemas";
 import { formatPercent } from "@/features/backtest/utils";
+
+// Sprint 61 T-7 (BL-327) — KPI 라벨 한국어 초보 설명. Casual 페르소나 발견:
+// Sharpe / Drawdown / Profit Factor / 승률 4종 의미 0% 해독 → 결과 화면 좋고
+// 나쁨 판단 불가. 라벨 옆 ? 아이콘 + native title (hover/long-press) + sr-only
+// (screen reader) 로 a11y 호환 설명.
+const KPI_DESCRIPTIONS: Record<string, string> = {
+  "총 수익률": "백테스트 기간 동안의 누적 손익 비율. 양수면 이익, 음수면 손실.",
+  "Sharpe Ratio":
+    "샤프 비율 — 변동성 대비 초과수익. 1 이상 양호, 2 이상 우수, 음수면 위험 대비 수익 부족.",
+  "Max Drawdown":
+    "최대 낙폭 — 고점 대비 최대 손실 폭. -10% 이내가 안정적, -30% 이상은 고위험.",
+  "Profit Factor":
+    "이익 계수 — 총 이익 ÷ 총 손실. 1.5 이상 양호, 2.0 이상 우수, 1 미만은 손실.",
+  "승률 · 거래":
+    "이익 거래 비율 + 전체 거래 횟수. 승률만으론 부족, Profit Factor 와 함께 봐야.",
+};
 
 export interface MetricsCardsProps {
   metrics: BacktestMetricsOut;
@@ -33,12 +51,14 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
 
   const items = [
     {
+      key: "total-return",
       label: "총 수익률",
       value: formatPercent(metrics.total_return),
       caption: null as string | null,
       tone: metrics.total_return >= 0 ? "positive" : "negative",
     },
     {
+      key: "sharpe-ratio",
       label: "Sharpe Ratio",
       value: Number.isFinite(metrics.sharpe_ratio)
         ? metrics.sharpe_ratio.toFixed(2)
@@ -47,12 +67,14 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
       tone: "neutral",
     },
     {
+      key: "max-drawdown",
       label: "Max Drawdown",
       value: formatPercent(metrics.max_drawdown),
       caption: mddCaption,
       tone: "negative",
     },
     {
+      key: "profit-factor",
       label: "Profit Factor",
       value:
         metrics.profit_factor != null
@@ -62,6 +84,7 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
       tone: "neutral",
     },
     {
+      key: "win-rate",
       label: "승률 · 거래",
       value: `${formatPercent(metrics.win_rate)} · ${metrics.num_trades}`,
       caption: null,
@@ -95,8 +118,22 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
             data-accent={it.tone}
           >
             <CardHeader>
-              <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {it.label}
+              <CardTitle className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <span>{it.label}</span>
+                {/* Sprint 61 T-7 (BL-327): KPI 의미 설명. native title (hover/long-press) +
+                    sr-only (screen reader). 모든 페르소나 (mouse/touch/keyboard/SR) 호환. */}
+                {KPI_DESCRIPTIONS[it.label] ? (
+                  <button
+                    type="button"
+                    aria-label={`${it.label} 설명: ${KPI_DESCRIPTIONS[it.label]}`}
+                    title={KPI_DESCRIPTIONS[it.label]}
+                    className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]"
+                    data-testid={`kpi-info-${it.key}`}
+                  >
+                    <HelpCircle className="size-3.5" aria-hidden="true" />
+                    <span className="sr-only">{KPI_DESCRIPTIONS[it.label]}</span>
+                  </button>
+                ) : null}
               </CardTitle>
             </CardHeader>
             <CardContent>

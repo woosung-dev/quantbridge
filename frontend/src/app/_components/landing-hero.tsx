@@ -42,7 +42,9 @@ export function LandingHero() {
             </span>
           </h1>
           <p className="mt-5 max-w-[480px] text-lg leading-[1.7] text-[color:var(--text-secondary)] motion-safe:animate-[fadeInUp_500ms_ease-out_100ms_both]">
-            TradingView 전략을 업로드하면 백테스트, 최적화, 스트레스 테스트를 거쳐 데모 또는 라이브 자동 매매까지 한 번에 연결됩니다.
+            {/* Sprint 61 T-8 (BL-322): hero copy ↔ 실제 기능 정합. 파일 업로드 / TV URL
+                가져오기 "곧 지원" 상태이므로 "Pine Script 코드를 붙여넣으면" 으로 정직화. */}
+            Pine Script 코드를 붙여넣으면 백테스트, 최적화, 스트레스 테스트를 거쳐 데모 또는 라이브 자동 매매까지 한 번에 연결됩니다.
           </p>
           <div className="mt-8 flex flex-wrap gap-3 motion-safe:animate-[fadeInUp_500ms_ease-out_200ms_both]">
             <Button

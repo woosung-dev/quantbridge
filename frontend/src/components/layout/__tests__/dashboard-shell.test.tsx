@@ -81,6 +81,25 @@ describe("DashboardShell — Sprint 41-B2 prototype layout", () => {
     expect(container.querySelector("[data-theme=\"dash\"]")).toBeNull();
   });
 
+  // Sprint 61 T-1 (BL-340) — flex shell 의 자식이 min-w-0 으로 shrink 허용해야
+  // 자식 콘텐츠 (예: 한국어 long sublabel) 가 모바일 viewport 폭 초과 시 부모를
+  // 강제로 늘리지 않는다. min-w-0 missing → trading +227px overflow (Mobile QA 발견).
+  it("flex shell 와 main element 가 min-w-0 을 가져 자식 overflow 차단한다 (BL-340)", () => {
+    mockPathname = "/trading";
+    const { container } = render(
+      <DashboardShell>
+        <p>content</p>
+      </DashboardShell>,
+    );
+    // main 의 부모 (= flex flex-col 컨테이너) 는 min-w-0 필수.
+    const main = container.querySelector("#main-content");
+    expect(main).not.toBeNull();
+    expect(main!.className).toMatch(/\bmin-w-0\b/);
+    const flexCol = main!.parentElement;
+    expect(flexCol).not.toBeNull();
+    expect(flexCol!.className).toMatch(/\bmin-w-0\b/);
+  });
+
   it("sidebar nav 에 활성 항목 4개 (전략/백테스트/트레이딩) 와 disabled 3개 (대시보드/템플릿/거래소) 가 렌더된다", () => {
     render(
       <DashboardShell>

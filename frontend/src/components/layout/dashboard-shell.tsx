@@ -48,13 +48,16 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <DashboardSidebar sidebarOpen={sidebarOpen} pathname={pathname} />
       {/* Sprint 60 S4 (BL-285/300): 모바일 drawer — Sheet 기반 left-side, mobile-only (md:hidden) */}
       <MobileNav pathname={pathname} />
-      <div className="flex flex-1 flex-col">
+      {/* Sprint 61 T-1 (BL-340): flex 자식의 default min-width:auto 가 자식 min-content
+          폭 (KPI sublabel + 한국어 long string) 을 부모에 강제 → 모바일 viewport overflow.
+          min-w-0 로 flex shrink 허용 → 모든 dashboard 페이지 horizontal overflow 0. */}
+      <div className="flex min-w-0 flex-1 flex-col">
         <DashboardHeader
           sidebarOpen={sidebarOpen}
           onToggleSidebar={toggleSidebar}
           pageTitle={pageTitle}
         />
-        <main id="main-content" className="flex-1">
+        <main id="main-content" className="min-w-0 flex-1">
           {children}
         </main>
       </div>

@@ -55,14 +55,16 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar, pageTitle }: Das
       )}
       <div className="ml-auto flex items-center gap-3">
         {/* 데스크톱에서는 사이드바 footer 의 UserButton 으로 대체. 모바일은 sidebar 가 hidden 이므로 헤더 우측에도 노출.
-            BL-305: Clerk UserButton 모바일에서 0×0 collapse 방지 — 36×36 minimum wrapper 강제 (Clerk version-lock safe). */}
-        <div className="inline-flex min-h-9 min-w-9 items-center justify-center md:hidden">
-          {/* G.3-2 (P1, auth): wrapper 만으로는 hit target 0×0 가능 (Clerk 내부 root 도 강제 size-9) */}
+            BL-305 (Sprint 60): Clerk UserButton 모바일에서 0×0 collapse 방지 — wrapper 강제.
+            BL-339 (Sprint 61 T-2): 36×36 → 44×44 로 확장 (Apple HIG / Material 44pt 권고).
+            Mobile QA 페르소나 발견: avatar trigger 28×28 = HIG 미달 → 출퇴근 환경 오탑 빈번. */}
+        <div className="inline-flex min-h-11 min-w-11 items-center justify-center md:hidden">
+          {/* Sprint 60 G.3-2 (P1, auth): wrapper 만으로는 hit target 0×0 가능 (Clerk 내부 root 도 강제 size). */}
           <UserButton
             appearance={{
               elements: {
-                rootBox: "shrink-0 size-9",
-                userButtonTrigger: "size-9",
+                rootBox: "shrink-0 size-11",
+                userButtonTrigger: "size-11",
                 avatarBox: "size-9",
               },
             }}

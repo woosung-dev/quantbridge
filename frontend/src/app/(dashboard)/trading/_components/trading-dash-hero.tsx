@@ -111,11 +111,11 @@ function DashKpi({
 
   return (
     <div
-      className="group relative overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--card)] p-4 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+      className="group relative min-w-0 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--card)] p-4 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
       aria-live={pulse ? "polite" : undefined}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[0.7rem] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
+        <span className="truncate text-[0.7rem] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
           {label}
         </span>
         <span
