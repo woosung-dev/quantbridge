@@ -37,16 +37,17 @@ _REDIS_TIMEOUT_S = 5.0
 
 
 def _get_celery_timeout_s() -> float:
-    """Sprint 61 T-6 (BL-310) — celery inspect timeout env-driven (default 8.0).
+    """Sprint 61 T-6 (BL-310) — celery inspect timeout env-driven (default 12.0).
 
-    Multi-Agent QA 2026-05-17 발견: 기존 3.0s 가 Docker isolated mode 의 broker
-    round-trip 대비 너무 짧음 → false-503 (worker 정상이지만 timeout). 8.0s 로
-    완화 + env override 허용 (K8s readiness probe 환경별 조정).
+    Multi-Agent QA 2026-05-17 발견:
+    - 기존 3.0s 가 Docker isolated mode 의 broker round-trip 대비 너무 짧음 → false-503.
+    - Sprint 61 fix 의 8.0s 도 부족 (uvicorn local ↔ docker worker cold-start 환경, BL-349 발견).
+    - 12.0s 로 추가 완화 + env override 허용 (K8s readiness probe 환경별 조정).
     """
     try:
-        return float(os.environ.get("HEALTHZ_CELERY_TIMEOUT_S", "8.0"))
+        return float(os.environ.get("HEALTHZ_CELERY_TIMEOUT_S", "12.0"))
     except (TypeError, ValueError):
-        return 8.0
+        return 12.0
 
 
 class HealthCheckResult(TypedDict):

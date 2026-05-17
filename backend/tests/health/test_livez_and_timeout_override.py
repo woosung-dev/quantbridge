@@ -20,11 +20,11 @@ async def test_livez_returns_200_always(client: AsyncClient) -> None:
 
 
 def test_get_celery_timeout_s_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """HEALTHZ_CELERY_TIMEOUT_S 미설정 시 default 8.0."""
+    """HEALTHZ_CELERY_TIMEOUT_S 미설정 시 default 12.0 (Sprint 61 follow-up BL-349 완화)."""
     from src.health.router import _get_celery_timeout_s
 
     monkeypatch.delenv("HEALTHZ_CELERY_TIMEOUT_S", raising=False)
-    assert _get_celery_timeout_s() == 8.0
+    assert _get_celery_timeout_s() == 12.0
 
 
 def test_get_celery_timeout_s_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -38,8 +38,8 @@ def test_get_celery_timeout_s_env_override(monkeypatch: pytest.MonkeyPatch) -> N
 def test_get_celery_timeout_s_invalid_env_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """invalid env → fallback 8.0 (silent, raise 없음)."""
+    """invalid env → fallback 12.0 (silent, raise 없음)."""
     from src.health.router import _get_celery_timeout_s
 
     monkeypatch.setenv("HEALTHZ_CELERY_TIMEOUT_S", "not_a_number")
-    assert _get_celery_timeout_s() == 8.0
+    assert _get_celery_timeout_s() == 12.0
