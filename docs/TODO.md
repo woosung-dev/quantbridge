@@ -1,11 +1,58 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-17 (Sprint 61 fix-first 완료 + Multi-Agent QA 재측정 Composite 7.5 + Sprint 62 분기 후보 대기)
-> **Active Sprint:** **Sprint 61 완료 (PR #288 main @`26b7486` merge + hotfix PR #289 대기)** — Type B fix-first
-> **Active Branch:** main (PR #288 머지) + `feat/sprint61-followup-bl348-bl349` (hotfix PR #289 review 대기)
-> **Sprint type:** Type B (risk-critical fix-first, Sprint 60 패턴 재현 — plan 23h → 실측 ~4-5h, 78% 단축 = LESSON-067 5차 검증)
+> **Last Updated:** 2026-05-17 (Sprint 60→61→62 누적 3-sprint cycle 완료 + **Beta 본격 진입 결정 ★★★★★** — BL-070~075 트랙 활성화)
+> **Active Sprint:** **Sprint 63 = Beta 본격 진입 prep (BL-070~072 외부 의존 작업)** — 사용자 manual 영역 진입
+> **Active Branch:** main (PR #288 + #289 + #290 모두 머지 완료)
+> **Sprint type:** D (external-dependency setup — domain + DNS + Backend prod + Resend)
 > **office-hours 진행:** N
-> **Next Trigger:** Sprint 62 분기 결정 — A. fix-first (BL-350/354 ★★★ + BL-356~) / B. Beta 본격 진입 즉시 / C. Deepening 2차 / D. mainnet (사용자 결정)
+> **Next Trigger:** BL-070 (도메인 + DNS) + BL-071 (Backend prod 배포) + BL-072 (Resend + Waitlist 활성화) = 사용자 manual 4-8h + DNS 24h. BL-073/074/075 = 위 완료 후 자연 trigger.
+
+---
+
+## 🚀 Beta 본격 진입 결정 (2026-05-17)
+
+**근거**:
+
+- Composite Health 4.18 (2026-05-13) → 6.08 (Sprint 60 후) → 7.5 (Sprint 61 후) → **추정 8.5+** (Sprint 62 후, 재측정 skip 결정).
+- 4-AND gate: (a) Composite ≥ 7 ✅ / (b) Critical = 0 ✅ (BL-340 회복 + BL-339 페이지 내부 BL-356~359 fix) / (c) High ≤ 3 ✅ (P0 BL-350+354 fix + P1 BL-353/356 fix) / **(d) 본인 의지 ✅**.
+- Sprint 60→62 누적 3-sprint cycle = 17 + 11 + 6 = **34 BL Resolved**. LESSON-067 6차 검증 (단일 worker 단축 패턴 누적).
+- Multi-Agent QA 1차 → Sprint 60 fix → 2차 → Sprint 61 fix → 3차 → Sprint 62 fix = LESSON-068 보강 **3/3 누적** (정식 승격 후보).
+
+**Beta 본격 진입 prep (BL-070~072) 필수 manual**:
+
+- **BL-070** 도메인 구매 (e.g. quantbridge.io) + DNS + Cloudflare (선택) — 1-2h + DNS 전파 24h
+- **BL-071** Backend 프로덕션 배포 — Cloud Run / Railway / Render 선택 + Postgres prod + Redis prod + Clerk production key + 보안 헤더 production gunicorn (BL-347 server strip 동시 처리) — 2-4h
+- **BL-072** Resend 계정 + 이메일 도메인 verify + Waitlist 활성화 — 1-2h + 24h verify
+
+**Beta 본격 진입 자연 trigger (BL-070~072 완료 후)**:
+
+- **BL-073** Twitter/X #buildinpublic 캠페인 시작 (사용자 수동)
+- **BL-074** Beta 인터뷰 3명 × 3회 (5-10명 onboarding 후, narrowest wedge 60% 검증)
+- **BL-075** H2 진입 게이트 설계 (BL-005 self-assess ≥ 7/10 직후, 3-5h)
+
+**Sprint 62 production deploy 시점 묶음 자동 해소 BL**:
+
+- BL-320 Development mode 배지 → production key 사용 시 자동 해소
+- BL-321/352 Clerk application name → dashboard 1분 변경 (BL-070 시점)
+- BL-347 server header leak → gunicorn `--server_header False` (BL-071 시점)
+- BL-261 Clerk custom domain → DNS CNAME (BL-070 시점)
+
+---
+
+## Recently Completed — Sprint 62 fix-first (PR #290 main merge, 2026-05-17)
+
+- [x] **T-1 BL-350+354** ★★★ Optimizer Zod resilience — FE row-level safeParse + skipped_count + 컴포넌트 graceful + BE row-level try/except (PR #290)
+- [x] **T-2 BL-356/357/358/359** 모바일 페이지 내부 터치 ≥44pt 묶음 — TabsList + date-preset-pills + KPI ? + 편집 링크 + UserButton + 계정 삭제 모두 mobile h-11/size-11 + md: 분기
+- [x] **T-3 BL-353** landing step 01 라벨 hero 정합 ("전략 업로드" → "전략 코드 붙여넣기")
+- [x] **PR #289 + #290 머지 완료** — main `36bb4e0`
+- [x] **검증**: BE optimizer 145 PASS + 2 skipped / FE 716 PASS / tsc + lint + ruff + mypy clean
+- [x] **신규 11 test**: BE row-level resilience 3 + FE component graceful 3 + 회귀 갱신
+
+**실측 시간**: ~2-3h vs plan 6-8h (Sprint 60/61 패턴 재현, LESSON-067 6차 검증).
+
+### Sprint 62 BL Resolved 마킹 (6 BL)
+
+- ✅ BL-350+354 ★★★ Optimizer Zod error 도배 차단 / BL-353 landing step 01 라벨 / BL-356 모바일 페이지 내부 / BL-357 strategies 편집 링크 / BL-358 UserButton width 28 / BL-359 trading 계정 삭제
 
 ---
 

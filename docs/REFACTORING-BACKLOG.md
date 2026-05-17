@@ -5,11 +5,12 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-05-17 (Sprint 61 fix-first merge + Multi-Agent QA 재측정 Composite 7.5 + 신규 BL-347~360 11건)
-**현재 상태:** **54 active BL** (Sprint 61 11 Resolved [-11] + 신규 14 [+14, BL-347~360 중 2 hotfix merge 대기]). main @ `26b7486` (Sprint 61 PR #288 merge). hotfix PR #289 review 대기.
+**최종 갱신:** 2026-05-17 (**Beta 본격 진입 결정** — Sprint 60→61→62 누적 3-sprint cycle 완료, 34 BL Resolved + BL-070~075 트랙 활성화)
+**현재 상태:** **45 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적, 신규 14 = 17 → 54 → 48 → 45). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
-**최근 sprint BL 변경 (Sprint 55~Multi-Agent QA 재측정):**
+**최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
 
+- **2026-05-17 Sprint 62 PR #290 merge (Beta 본격 진입 결정 ★★★★★)**: 6 BL fix-first (BL-350+354 ★★★ Optimizer Zod resilience + BL-353 step 01 라벨 + BL-356/357/358/359 모바일 터치 ≥44pt 묶음). 실측 ~2-3h vs plan 6-8h (LESSON-067 6차 검증). main `36bb4e0`. **BL-070~072 milestone active 승격**. **재측정 skip + 본인 의지 (d) 통과**.
 - **2026-05-17 Multi-Agent QA 재측정 (post-Sprint 61)**: Composite 6.08 → **7.5/10** (+1.42 목표 도달). 신규 BL-347~360 (14건, Critical 0 / P0 2 ★★★ 공통 BL-350+354 / P1 4 / P2 5 / P3 3). Sprint 61 11 BL Resolved 마킹 (PASS 8 + PARTIAL 2 + manual 1). 상세 = [`docs/qa/2026-05-17-post-sprint61/integrated-report.html`](qa/2026-05-17-post-sprint61/integrated-report.html).
 - **2026-05-17 Sprint 61 PR #288 merge**: 11 BL fix (BL-310/311/312/319/322/323/327/328/339/340) source 적용 + hotfix PR #289 (BL-348/349). docs/qa/2026-05-17/ baseline 별도.
 - **2026-05-17 Multi-Agent QA 1차**: 신규 BL-310~346 (37건). 상세 = [`docs/qa/2026-05-17/integrated-report.html`](qa/2026-05-17/integrated-report.html) + [`docs/sprint-61-plan.md`](sprint-61-plan.md). 17 → 54 net.
@@ -20,27 +21,26 @@
 
 **Sprint 59 트리아주 결과 (PR-D, 2026-05-13):** 158 BL → **13 Active** (본 문서 본문) + **8 Deferred** ([`_deferred.md`](refactoring-backlog/_deferred.md) — Beta 6 + BL-005 + BL-145) + **137 Archived** ([`_archived.md`](refactoring-backlog/_archived.md) — Resolved + Sprint 16~30 stale).
 
-**P0 / P1 active short list (Sprint 62 분기 후보):**
+**P0 / P1 active short list (Beta 본격 진입 prep):**
 
-- **Sprint 61 Resolved (11 BL)** ✅:
-  - 완전 PASS (7): BL-312 / BL-319 (hotfix BL-348 묶음) / BL-322 / BL-323 / BL-327 / BL-328 / BL-340 / BL-349
-  - PARTIAL (2): BL-310 (/livez 분리 PASS / healthz timeout 12s 완화) / BL-311 (4/5 헤더 PASS / server strip → BL-347 follow-up) / BL-339 (navigation chrome ✅ / 페이지 내부 → BL-356~359 follow-up)
-  - Manual pending (1): BL-321 (Clerk dashboard application name 사용자 1분)
-  - Deferred (1): BL-320 (Development mode 배지 = Sprint 62 production deploy 시점 자동 해소)
-- **P0 신규 (★★★ 공통 — Sprint 62 fix-first 후보)**:
-  - **BL-350 (Curious) + BL-354 (Casual) [P0 공통]** = `/optimizer` Zod error 도배 (Sprint 50-52 retro row + 53-55 schema tightening). FE catch graceful + BE row-level resilience + DB cleanup 사용자 manual
-  - 기존 P0: BL-003 (Bybit mainnet runbook, H1 종료 gate)
-- **P1 신규**:
-  - BL-353 (landing step 01 "전략 업로드" vs hero "코드 붙여넣기" 통일 1줄)
-  - BL-356 (모바일 페이지 내부 터치 11 violations — Sprint 61 BL-339 fix 누락, mobile viewport global `min-h-11 min-w-11` enforce)
-  - 기존: BL-014 / BL-015 / BL-022 / BL-023 / BL-024 / BL-025 / BL-026 / BL-308
-- **P2 신규**: BL-347 (server header leak — uvicorn `--server-header=false`) / BL-351 (SSO aria-label 영어) / BL-357 (strategies 텍스트 링크 38x16) / BL-358 (UserButton width 28 + ghost DOM SSR/hydration) / BL-359 (trading "계정 삭제" 16x16 high risk)
-  - 기존 P2: BL-313 / BL-314 / BL-315 / BL-316 / BL-329 / BL-330 / BL-332 / BL-344 / BL-345 + (BL-186 / BL-190 / BL-195 / BL-235 / BL-236 / BL-309)
-- **P3 신규**: BL-352 (Clerk app name manual) / BL-355 ("Demo" → "데모") / BL-360 (backtests 9px overflow noise)
-  - 기존 P3: BL-317 / BL-318 / BL-324 / BL-325 / BL-326 / BL-331 / BL-333 / BL-334 / BL-335 / BL-336 / BL-337 / BL-338 / BL-346 + (BL-306 / BL-307)
-- **Deferred milestone**: [BL-070~075](refactoring-backlog/_deferred.md) Beta 진입 — **dogfood NPS ≥7 + 본인 의지 + 4-AND gate** 통과 시. Sprint 61 fix-first 결과 = **gate (a) 7.5 ≥ 7 PASS, (b) Crit 1 잔존, (c) High 2-3 borderline**. Sprint 62 fix-first 후 재측정 또는 사용자 의지 결정.
+- **🚀 Beta 진입 milestone (BL-070~072) — active P0** ([\_deferred.md](refactoring-backlog/_deferred.md) 에서 승격):
+  - **BL-070** 도메인 + DNS + Cloudflare (사용자 manual 1-2h + DNS 전파 24h)
+  - **BL-071** Backend 프로덕션 배포 (Cloud Run/Railway/Render + Postgres prod + Redis prod + Clerk production + 보안 헤더 gunicorn) — 2-4h. **BL-347 server strip 동시 처리** (gunicorn `--server_header False`).
+  - **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + 24h verify
+  - BL-073/074/075 = 위 완료 후 자연 trigger (Twitter/X 캠페인 + Beta 인터뷰 + H2 진입 gate)
+- **Sprint 62 Resolved (6 BL)** ✅:
+  - BL-350+354 ★★★ Optimizer Zod resilience / BL-353 step 01 라벨 / BL-356/357/358/359 모바일 터치 ≥44pt 묶음
+- **Sprint 61 Resolved (11 BL)** ✅ (요약): BL-310/311/312/319/322/323/327/328/339/340/348/349 (PASS 9 + PARTIAL 2 + manual 1)
+- **Production deploy 시점 자동 해소 묶음** (BL-070/071 시점):
+  - BL-320 Development mode 배지 / BL-321/352 Clerk application name / BL-347 server header / BL-261 Clerk custom domain
+- **기존 P0**: BL-003 (Bybit mainnet runbook, H1 종료 gate — BL-073 캠페인 후 trigger)
+- **잔존 P1/P2/P3** (Beta 본격 진입 후 polish 또는 dogfood 발견 시 trigger):
+  - P1: BL-014/015/022/023/024/025/026/308
+  - P2: BL-186/190/195/235/236/309/313/314/315/316/329/330/332/344/345/351
+  - P3: BL-306/307/317/318/324/325/326/331/333/334/335/336/337/338/346/355/360
 
-> **신규 BL-347~360 상세**: `docs/qa/2026-05-17-post-sprint61/integrated-report.html` §3 + 페르소나별 원본 보고서 4종. Sprint 62 진입 시 본 정보를 SSOT 로 참조.
+> **신규 BL-347~360 상세**: `docs/qa/2026-05-17-post-sprint61/integrated-report.html` §3 + 페르소나별 원본 보고서 4종.
+> **Beta 진입 milestone 상세**: [\_deferred.md](refactoring-backlog/_deferred.md) BL-070~075 섹션.
 
 ---
 
