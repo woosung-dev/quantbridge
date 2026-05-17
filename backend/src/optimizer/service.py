@@ -191,9 +191,7 @@ class OptimizerService:
             await self.repo.commit()
             return
 
-        rows = await self.repo.transition_to_running(
-            run_id, started_at=datetime.now(UTC)
-        )
+        rows = await self.repo.transition_to_running(run_id, started_at=datetime.now(UTC))
         if rows == 0:
             logger.info(
                 "optimization_state_changed_before_run",
@@ -238,19 +236,13 @@ class OptimizerService:
             )
         await self.repo.commit()
 
-    async def _execute_grid_search(
-        self, run: OptimizationRun, bt: Backtest
-    ) -> dict[str, object]:
+    async def _execute_grid_search(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
         """Grid Search 실행 entry — param_space JSONB → ParamSpace → executor."""
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            bt.strategy_id, bt.user_id
-        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             raise OptimizationExecutionError(
                 message_public="Strategy no longer available for optimization.",
-                message_internal=(
-                    f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"
-                ),
+                message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
             )
 
         ohlcv = await self.provider.get_ohlcv(
@@ -268,19 +260,13 @@ class OptimizerService:
         )
         return grid_search_result_to_jsonb(gs_result)
 
-    async def _execute_bayesian(
-        self, run: OptimizationRun, bt: Backtest
-    ) -> dict[str, object]:
+    async def _execute_bayesian(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
         """Bayesian 실행 entry — _execute_grid_search mirror, run_bayesian_search 호출."""
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            bt.strategy_id, bt.user_id
-        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             raise OptimizationExecutionError(
                 message_public="Strategy no longer available for optimization.",
-                message_internal=(
-                    f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"
-                ),
+                message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
             )
 
         ohlcv = await self.provider.get_ohlcv(
@@ -297,19 +283,13 @@ class OptimizerService:
         )
         return bayesian_search_result_to_jsonb(bs_result)
 
-    async def _execute_genetic(
-        self, run: OptimizationRun, bt: Backtest
-    ) -> dict[str, object]:
+    async def _execute_genetic(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
         """Sprint 56 BL-233 — Genetic 실행 entry. _execute_bayesian 1:1 mirror."""
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            bt.strategy_id, bt.user_id
-        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             raise OptimizationExecutionError(
                 message_public="Strategy no longer available for optimization.",
-                message_internal=(
-                    f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"
-                ),
+                message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
             )
 
         ohlcv = await self.provider.get_ohlcv(
@@ -328,9 +308,7 @@ class OptimizerService:
 
     # ---------- HTTP read ----------
 
-    async def get(
-        self, run_id: UUID, *, user_id: UUID
-    ) -> OptimizationRunResponse:
+    async def get(self, run_id: UUID, *, user_id: UUID) -> OptimizationRunResponse:
         run = await self._load_owned(run_id, user_id)
         return self._to_response(run)
 
@@ -342,11 +320,24 @@ class OptimizerService:
         offset: int,
         backtest_id: UUID | None = None,
     ) -> Page[OptimizationRunResponse]:
+        # Sprint 62 T-1 (BL-350/354): row-level resilience. Sprint 50-52 retro-incorrect row
+        # + 53-55 schema tightening 합집합으로 _to_response 가 Pydantic ValidationError raise 시
+        # 응답 전체 500 fail. 본 fix = row 별 try/except → invalid skip + WARN log + valid 만 반환.
         items, total = await self.repo.list_by_user(
             user_id, limit=limit, offset=offset, backtest_id=backtest_id
         )
+        valid_items: list[OptimizationRunResponse] = []
+        for run in items:
+            try:
+                valid_items.append(self._to_response(run))
+            except Exception as exc:
+                logger.warning(
+                    "optimizer_run_skip_invalid_schema run_id=%s err=%s",
+                    run.id,
+                    exc,
+                )
         return Page[OptimizationRunResponse](
-            items=[self._to_response(r) for r in items],
+            items=valid_items,
             total=total,
             limit=limit,
             offset=offset,

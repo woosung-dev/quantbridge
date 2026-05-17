@@ -83,5 +83,33 @@ export async function listOptimizationRuns(
     token,
     params,
   });
-  return OptimizationRunListResponseSchema.parse(raw);
+
+  // Sprint 62 T-1 (BL-350/354): outer shape 만 strict parse, items 는 row-level safeParse 으로
+  // schema-incompatible row (Sprint 50-52 retro-incorrect + 53-55 grammar tightening 합집합) 자동 skip.
+  // 차단 효과: 1차 Multi-Agent QA 에서 Curious + Casual 가 본 raw Zod error JSON 도배 (★★★ 공통 P0).
+  const outer = OptimizationRunListResponseSchema.parse(raw);
+  const items: OptimizationRunResponse[] = [];
+  let skippedCount = 0;
+  for (const rawItem of outer.items) {
+    const result = OptimizationRunResponseSchema.safeParse(rawItem);
+    if (result.success) {
+      items.push(result.data);
+    } else {
+      skippedCount += 1;
+      if (process.env.NODE_ENV !== "production") {
+        // dev 모드 진단 — production 무음. issues 첫 3개만 노출 (스택 도배 회피).
+        console.warn(
+          "[optimizer] listing row skipped (Zod parse fail):",
+          result.error.issues.slice(0, 3),
+        );
+      }
+    }
+  }
+  return {
+    items,
+    total: outer.total,
+    limit: outer.limit,
+    offset: outer.offset,
+    skipped_count: skippedCount,
+  };
 }

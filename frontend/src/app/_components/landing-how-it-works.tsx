@@ -11,8 +11,10 @@ interface StepItem {
 const STEPS: StepItem[] = [
   {
     number: "01",
-    title: "전략 업로드",
-    description: "Pine Script 파일을 업로드하면 자동으로 파싱 및 변환됩니다.",
+    // Sprint 62 T-3 (BL-353): hero copy "Pine Script 코드를 붙여넣으면" 과 정합화.
+    // 파일 업로드 / TV URL 가져오기 "곧 지원" 동안 사실 기반 카피로 통일.
+    title: "전략 코드 붙여넣기",
+    description: "Pine Script 코드를 붙여넣으면 자동으로 파싱 및 변환됩니다.",
     icon: (
       <>
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -72,7 +74,7 @@ export function LandingHowItWorks() {
             어떻게 작동하나요?
           </h2>
           <p className="mx-auto mt-3 max-w-[520px] text-base text-[color:var(--text-secondary)]">
-            전략 업로드부터 자동 매매까지 4단계로 끝납니다
+            전략 코드 붙여넣기부터 자동 매매까지 4단계로 끝납니다
           </p>
         </div>
 

@@ -21,8 +21,9 @@ describe("LandingHowItWorks", () => {
 
   it("4 step 카드 — h3 + step number 모두 렌더", () => {
     const { container } = render(<LandingHowItWorks />);
+    // Sprint 62 T-3 (BL-353): step 01 라벨 "전략 업로드" → "전략 코드 붙여넣기" hero 정합.
     const titles = [
-      "전략 업로드",
+      "전략 코드 붙여넣기",
       "백테스트 실행",
       "파라미터 최적화",
       "자동 매매 시작",

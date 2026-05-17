@@ -30,14 +30,25 @@ export function OptimizerRunList({
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">로드 중…</p>;
   }
+  // Sprint 62 T-1 (BL-350/354): error 시 raw error.message (Zod issues JSON) 노출 차단.
+  // user-friendly message 만 표시 — 잠재 고객/일반인 신뢰 손실 차단 (★★★ 공통 P0 발견).
   if (error) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        목록 로드 실패: {error.message}
+        Optimizer 목록을 불러오지 못했습니다. 잠시 후 새로고침 해주세요.
       </p>
     );
   }
-  if (data == null || data.items.length === 0) {
+  // Sprint 62 T-1 (BL-350/354): skipped_count > 0 + items 0 case = 데이터는 있지만 모두
+  // schema 불일치로 표시 X. empty state 대신 graceful warn 노출 의무.
+  if (data == null) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Optimizer 실행 이력 없음. 새 Grid Search 를 제출하세요.
+      </p>
+    );
+  }
+  if (data.items.length === 0 && data.skipped_count === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         Optimizer 실행 이력 없음. 새 Grid Search 를 제출하세요.
@@ -46,7 +57,16 @@ export function OptimizerRunList({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-2">
+      {/* Sprint 62 T-1 (BL-350/354): skipped_count > 0 시 graceful warn. 일반인 신뢰 손실 회피. */}
+      {data.skipped_count > 0 ? (
+        <p
+          role="status"
+          data-testid="optimizer-skipped-warn"
+          className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+        >{`이전 데이터 형식 불일치로 ${data.skipped_count}개 항목이 표시되지 않습니다.`}</p>
+      ) : null}
+      <div className="overflow-x-auto">
       <table className="min-w-[640px] w-full text-sm">
         <thead>
           <tr className="border-b text-left text-xs text-muted-foreground">
@@ -105,6 +125,7 @@ export function OptimizerRunList({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

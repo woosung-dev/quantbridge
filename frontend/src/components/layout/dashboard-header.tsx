@@ -63,8 +63,11 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar, pageTitle }: Das
           <UserButton
             appearance={{
               elements: {
-                rootBox: "shrink-0 size-11",
-                userButtonTrigger: "size-11",
+                // Sprint 62 T-2 (BL-358): Clerk UserButton width 28 잔존 fix.
+                // size-11 (44pt) 자체는 Sprint 61 적용 but rootBox 의 `flex` + `inline-flex` 가
+                // 컨테이너 폭 줄임 → w-11 + min-w-11 명시로 정확히 44pt 보장.
+                rootBox: "shrink-0 size-11 min-w-11",
+                userButtonTrigger: "size-11 min-w-11",
                 avatarBox: "size-9",
               },
             }}

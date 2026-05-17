@@ -25,7 +25,9 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground group-data-horizontal/tabs:h-8 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none",
+  // Sprint 62 T-2 (BL-356): 모바일 viewport 에서 TabsList height 44pt 강제 (Apple HIG / Material).
+  // 데스크톱 (md+) 은 원래 h-8 유지. backtest detail 탭 38x25 → 44pt 회복.
+  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground group-data-horizontal/tabs:h-11 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none md:group-data-horizontal/tabs:h-8",
   {
     variants: {
       variant: {

@@ -344,12 +344,22 @@ export const OptimizationRunResponseSchema = z.object({
 export type OptimizationRunResponse = z.infer<typeof OptimizationRunResponseSchema>;
 
 // Pagination — common Page<T> shape.
+// Sprint 62 T-1 (BL-350/354): items 는 BE listing 응답 그대로 unknown[] 으로 받고,
+// api.ts 에서 row-level safeParse + skipped 분리. 본 schema 는 outer shape 만 검증.
 export const OptimizationRunListResponseSchema = z.object({
-  items: z.array(OptimizationRunResponseSchema),
+  items: z.array(z.unknown()),
   total: z.number().int().nonnegative(),
   limit: z.number().int().positive(),
   offset: z.number().int().nonnegative(),
 });
-export type OptimizationRunListResponse = z.infer<
-  typeof OptimizationRunListResponseSchema
->;
+
+// Sprint 62 T-1 (BL-350/354): row-level safeParse 후 client 가 받는 정제된 shape.
+// `items` = valid row 만 / `skipped_count` = parse FAIL row 수 (graceful warn 표시).
+// Sprint 50-52 retro-incorrect row + 53-55 schema tightening 의 합집합 영향 차단.
+export interface OptimizationRunListResponse {
+  items: OptimizationRunResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+  skipped_count: number;
+}
