@@ -38,29 +38,40 @@ const isGeoExemptRoute = createRouteMatcher([
   "/pricing",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  // Sprint 11 Phase A L2 — Cloudflare CF-IPCountry / Vercel X-Vercel-IP-Country 기반 redirect.
-  // L1 (WAF) 이 이미 차단한 요청은 이 지점까지 오지 않음. L3 (Clerk webhook) 은 signup 시점 차단.
-  const country =
-    req.headers.get("CF-IPCountry") ?? req.headers.get("X-Vercel-IP-Country") ?? null;
-  if (isRestrictedCountry(country) && !isGeoExemptRoute(req)) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/not-available";
-    return NextResponse.redirect(url);
-  }
+export default clerkMiddleware(
+  async (auth, req) => {
+    // Sprint 11 Phase A L2 — Cloudflare CF-IPCountry / Vercel X-Vercel-IP-Country 기반 redirect.
+    // L1 (WAF) 이 이미 차단한 요청은 이 지점까지 오지 않음. L3 (Clerk webhook) 은 signup 시점 차단.
+    const country =
+      req.headers.get("CF-IPCountry") ?? req.headers.get("X-Vercel-IP-Country") ?? null;
+    if (isRestrictedCountry(country) && !isGeoExemptRoute(req)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/not-available";
+      return NextResponse.redirect(url);
+    }
 
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
+    if (!isPublicRoute(req)) {
+      await auth.protect();
+    }
 
-  // Sprint 60 S3 BL-262 — authed user "/" 접근 시 /strategies redirect (post-signin stuck 방지)
-  const { userId } = await auth();
-  if (userId && req.nextUrl.pathname === "/") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/strategies";
-    return NextResponse.redirect(url);
-  }
-});
+    // Sprint 60 S3 BL-262 — authed user "/" 접근 시 /strategies redirect (post-signin stuck 방지)
+    const { userId } = await auth();
+    if (userId && req.nextUrl.pathname === "/") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/strategies";
+      return NextResponse.redirect(url);
+    }
+  },
+  {
+    // Sprint 61 follow-up (BL-348): clerkMiddleware second arg 로 signInUrl/signUpUrl 명시.
+    // 본 옵션이 env (`NEXT_PUBLIC_CLERK_SIGN_IN_URL`) 보다 우선 → 모든 dev 환경에서 자체
+    // 도메인 redirect 보장 (Clerk dev instance `accounts.dev` fallback 차단).
+    // BL-319 의 client side (ClerkProvider props) 와 server side (clerkMiddleware) 양쪽
+    // 명시로 full coverage.
+    signInUrl: "/sign-in",
+    signUpUrl: "/sign-up",
+  },
+);
 
 export const config = {
   matcher: [

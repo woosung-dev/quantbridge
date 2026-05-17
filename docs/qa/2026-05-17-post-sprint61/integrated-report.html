@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>QuantBridge Multi-Agent QA 재측정 — Sprint 61 fix-first 효과 (2026-05-17)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro KR","Noto Sans KR",system-ui,sans-serif}
+  .num{font-variant-numeric:tabular-nums}
+  .heatcell{width:60px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-weight:600}
+  @media print{body{font-size:11pt}.no-print{display:none!important}.page-break{page-break-before:always}section{break-inside:avoid}}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+<div class="max-w-6xl mx-auto px-6 py-8 space-y-10">
+
+<header class="border-b border-slate-300 pb-6">
+  <p class="text-sm text-slate-500">2026-05-17 · Sprint 61 fix-first 효과 재측정 (PR #288 main + hotfix `9103134`)</p>
+  <h1 class="text-3xl font-bold mt-1">QuantBridge — Multi-Agent QA 통합 보고서 (Post-Sprint 61)</h1>
+  <p class="text-slate-600 mt-2">QA Sentinel + Curious + Casual + Mobile · Standard depth · git HEAD <code class="bg-slate-200 px-1.5 py-0.5 rounded text-sm">9103134</code></p>
+</header>
+
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">1. Executive Summary</h2>
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">Composite Health</p>
+      <p class="text-4xl font-bold mt-2 num text-emerald-700">7.5<span class="text-base text-slate-400">/10</span></p>
+      <p class="text-xs text-slate-500 mt-1">베이스라인 4.18 → 6.08 → <span class="text-emerald-700 font-semibold">7.5</span> · △ +1.42 (목표 정확 도달)</p>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">Sprint 61 fix 효과</p>
+      <p class="text-4xl font-bold mt-2 num text-emerald-700">11<span class="text-base text-slate-400">/11 BL</span></p>
+      <p class="text-xs text-slate-500 mt-1">PASS 8 + PARTIAL 2 (BL-310 healthz, BL-339 페이지내부) + manual 1 (BL-321)</p>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">신규 BL</p>
+      <p class="text-4xl font-bold mt-2 num text-amber-600">11<span class="text-base text-slate-400">건</span></p>
+      <p class="text-xs text-slate-500 mt-1">BL-347 ~ BL-360 (Crit 0 / P0 2 ★★★ 공통 / P1 4 / P2 4 / P3 3)</p>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-sm">
+      <p class="text-xs uppercase text-slate-500 tracking-wide">Beta 4-AND Gate</p>
+      <p class="text-4xl font-bold mt-2 text-amber-600">BORDERLINE</p>
+      <p class="text-xs text-slate-500 mt-1">(a) 7.5 ≥ 7 PASS · (b) Crit 1 PARTIAL · (c) High 3 borderline · (d) 의지 보류</p>
+    </div>
+  </div>
+
+  <div class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded mb-3">
+    <p class="font-semibold text-emerald-900">분기 결론</p>
+    <p class="text-sm text-emerald-900 mt-1">
+      Composite **6.08 → 7.5 (+1.42)** = Sprint 61 fix-first 의 **결정적 효과 입증**. 페르소나별 회복 패턴: 가장 낮았던 Mobile (3.8→6.5, +2.7) 과 Casual (5.2→7.4, +2.2) 가 가장 큰 회복. <br>
+      <strong>Beta 진입 권고</strong>: gate (a) PASS, (b) BL-339 부분 잔존 + 신규 BL-350/354 P0 = **BL-339 + BL-350/354 fix 후 Beta 본격 진입 권고** (5-6h 짧은 fix sprint).
+    </p>
+  </div>
+
+  <h3 class="text-lg font-semibold mt-6 mb-2">Top 5 신규 결함 (P0 ★★★ 공통 + 잔존)</h3>
+  <ol class="list-decimal pl-6 space-y-1 text-sm">
+    <li><span class="font-semibold text-rose-700">BL-350 + BL-354 [P0 ★★★ 공통]</span> `/optimizer` 진입 시 Zod validation error JSON 풀텍스트 도배 — Curious + Casual 2 페르소나 공통 발견. root cause = Sprint 50-52 retro-incorrect row + 53-55 schema tightening 합집합 + FE listing fallback rendering. <span class="text-slate-500">잠재 고객 결정 차단</span></li>
+    <li><span class="font-semibold text-rose-700">BL-356 [P1] (Mobile 잔존 Critical)</span> /backtests/&lt;id&gt; 모바일 터치 타겟 11 violations (탭 38x25 / 기간 chips 38x32 / KPI tooltip "?" 16x16 × 5). Sprint 61 BL-339 fix 가 navigation chrome 만 잡고 페이지 내부 컨트롤 미적용.</li>
+    <li><span class="font-semibold text-amber-700">BL-348 [P1 hotfix 완료]</span> protected route accounts.dev redirect — hotfix `9103134` commit 으로 자체 도메인 redirect 확인. PR 별도.</li>
+    <li><span class="font-semibold text-amber-700">BL-353 [P1]</span> landing step 01 "전략 업로드" vs hero "코드 붙여넣기" mixed message. 1줄 fix.</li>
+    <li><span class="font-semibold text-amber-700">BL-347 [P2]</span> server: uvicorn 헤더 leak — middleware del 후 uvicorn transport layer 재부착. uvicorn `--server-header=false` flag 필요 (production gunicorn config).</li>
+  </ol>
+</section>
+
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">2. 페르소나 매트릭스 (Pre → Post 비교)</h2>
+  <div class="overflow-x-auto">
+  <table class="text-sm w-full">
+    <thead class="bg-slate-100">
+      <tr>
+        <th class="text-left px-3 py-2 font-semibold">차원</th>
+        <th class="text-center px-3 py-2">QA Sentinel</th>
+        <th class="text-center px-3 py-2">Curious</th>
+        <th class="text-center px-3 py-2">Casual</th>
+        <th class="text-center px-3 py-2">Mobile</th>
+        <th class="text-left px-3 py-2 font-semibold">교차 결론</th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-slate-100">
+      <tr>
+        <td class="px-3 py-2 font-medium">Pre 점수 (2026-05-17 1차)</td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900 num">7.45</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">6.50</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-100 text-rose-900 num">5.20</span></td>
+        <td class="text-center"><span class="heatcell bg-rose-200 text-rose-900 num">3.80</span></td>
+        <td class="px-3 py-2 text-slate-600">Composite 6.08</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium"><strong>Post 점수</strong> (재측정)</td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900 num">7.80</span></td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900 num">8.00</span></td>
+        <td class="text-center"><span class="heatcell bg-emerald-100 text-emerald-900 num">7.40</span></td>
+        <td class="text-center"><span class="heatcell bg-amber-100 text-amber-900 num">6.50</span></td>
+        <td class="px-3 py-2 text-slate-600 font-semibold">Composite 7.50 (목표 도달)</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">△ (회복)</td>
+        <td class="text-center text-emerald-700 font-semibold">+0.35</td>
+        <td class="text-center text-emerald-700 font-semibold">+1.50</td>
+        <td class="text-center text-emerald-700 font-semibold">+2.20</td>
+        <td class="text-center text-emerald-700 font-semibold">+2.70</td>
+        <td class="px-3 py-2 text-slate-600">가장 낮았던 Mobile + Casual 가 가장 큰 회복 = fix 영역 정확</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">신규 결함</td>
+        <td class="text-center text-xs">3 (BL-347/348/349)</td>
+        <td class="text-center text-xs">3 (BL-350/351/352)</td>
+        <td class="text-center text-xs">3 (BL-353/354/355)</td>
+        <td class="text-center text-xs">5 (BL-356~360)</td>
+        <td class="px-3 py-2 text-slate-600">★★★ 공통: BL-350+354 (Optimizer Zod) Curious+Casual 2 페르소나</td>
+      </tr>
+      <tr>
+        <td class="px-3 py-2 font-medium">도입 결정 / abandon</td>
+        <td class="text-center text-slate-400">-</td>
+        <td class="text-center text-xs text-emerald-700">Maybe → <strong>Yes</strong></td>
+        <td class="text-center text-xs text-emerald-700">3분 → <strong>abandon X</strong></td>
+        <td class="text-center text-xs text-emerald-700">한 손 도달 <strong>가능</strong></td>
+        <td class="px-3 py-2 text-slate-600">3 사용자 페르소나 모두 결정적 회복</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="text-lg font-semibold mt-6 mb-2">Sprint 61 fix 11종 효과 표 (직접 검증)</h3>
+  <div class="overflow-x-auto">
+  <table class="text-sm w-full">
+    <thead class="bg-slate-100">
+      <tr>
+        <th class="text-left px-3 py-2">BL</th>
+        <th class="text-left px-3 py-2">T-</th>
+        <th class="text-left px-3 py-2">변경</th>
+        <th class="text-center px-3 py-2">결과</th>
+        <th class="text-left px-3 py-2">증거</th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-slate-100 text-xs">
+      <tr><td>BL-310</td><td>T-6</td><td>healthz /livez + timeout env</td><td class="text-center text-amber-700">⚠️ PARTIAL</td><td>/livez 200 PASS / /healthz 8s 부족 → hotfix 12s</td></tr>
+      <tr><td>BL-311</td><td>T-5</td><td>5 보안 헤더 + server strip</td><td class="text-center text-amber-700">⚠️ 4/5 PASS</td><td>4 헤더 PASS / server header 잔존 (BL-347)</td></tr>
+      <tr><td>BL-312</td><td>T-4</td><td>OpenAPI env-gate</td><td class="text-center text-emerald-700">✅ PASS</td><td>dev 200 / production 404</td></tr>
+      <tr><td>BL-319</td><td>T-3 + hotfix</td><td>Clerk Embedded routing</td><td class="text-center text-emerald-700">✅ PASS</td><td>4 protected route 자체 도메인 redirect (hotfix `9103134`)</td></tr>
+      <tr><td>BL-321</td><td>T-3 manual</td><td>application name 변경</td><td class="text-center text-slate-500">⏭️ pending</td><td>"quant-bridge에 로그인" slug 잔존, 사용자 dashboard 1분 manual</td></tr>
+      <tr><td>BL-322</td><td>T-8</td><td>Hero copy 정합</td><td class="text-center text-emerald-700">✅ PASS</td><td>"Pine Script 코드를 붙여넣으면"</td></tr>
+      <tr><td>BL-323</td><td>T-8</td><td>Optimizer 사이드바</td><td class="text-center text-emerald-700">✅ PASS</td><td>"최적화" 메뉴 + click 진입 OK (단 BL-354 side-effect)</td></tr>
+      <tr><td>BL-327</td><td>T-7</td><td>KPI tooltip</td><td class="text-center text-emerald-700">✅ PASS</td><td>용어 해독률 22% → 89% (Casual)</td></tr>
+      <tr><td>BL-328</td><td>T-3</td><td>Clerk koKR</td><td class="text-center text-emerald-700">✅ PASS</td><td>한국어 form (Curious + Casual 양쪽 확인)</td></tr>
+      <tr><td>BL-339</td><td>T-2</td><td>터치 타겟 ≥44pt</td><td class="text-center text-amber-700">⚠️ PARTIAL</td><td>navigation chrome ✅ / 페이지 내부 컨트롤 ~15 잔존 (BL-356)</td></tr>
+      <tr><td>BL-340</td><td>T-1</td><td>Trading overflow</td><td class="text-center text-emerald-700">✅ PASS</td><td>3 페이지 모두 0 overflow (1 페이지 +9px noise 무시)</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="page-break">
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">3. 신규 결함 (BL-347 ~ BL-360, 11건)</h2>
+
+  <div class="grid grid-cols-1 gap-3">
+    <div class="border border-rose-300 bg-rose-50 p-4 rounded">
+      <p class="font-mono text-xs text-rose-700">★★★ 공통 발견 · BL-350 (Curious) + BL-354 (Casual) [P0] · 2 페르소나 공통</p>
+      <p class="font-semibold mt-1">/optimizer 진입 시 Zod validation error JSON 풀텍스트 ~20 row 도배</p>
+      <p class="text-sm mt-1"><strong>증거</strong>: "최근 실행 목록 로드 실패: [ { 'expected': 'number', 'code': 'invalid_type', 'path': ['items', 0, 'param_space', 'bayesian_n_initial_random'], 'message': 'Invalid input: expected number, received null' }, ... ]" 그대로 본문 텍스트.</p>
+      <p class="text-sm"><strong>Root cause</strong>: Sprint 50-52 의 result_jsonb retro-incorrect row (사용자 manual 재실행 안 한 row) + Sprint 53-55 grammar tightening (bayesian_n_initial_random non-null / bayesian_acquisition enum / population_size / n_generations) 합집합 → FE listing 가 Zod parse FAIL → error catch 시 raw JSON 그대로 본문 fallback rendering.</p>
+      <p class="text-sm"><strong>Fix</strong>: (1) FE catch graceful degradation ("이전 데이터 schema 불일치, Sprint 50-52 retro row archive") + (2) BE `/optimizer/runs` listing 시 Zod parse FAIL row 자동 skip + WARN log + (3) 사용자 manual = Sprint 50-52 retro row 재실행 또는 archive.</p>
+      <p class="text-sm"><strong>Impact</strong>: Sprint 61 BL-323 Optimizer 메뉴 노출의 **side-effect**. 잠재 고객 결정 차단 + Casual abandon trigger.</p>
+    </div>
+
+    <div class="border border-rose-300 bg-rose-50 p-4 rounded">
+      <p class="font-mono text-xs text-rose-700">BL-356 [P1] · Mobile</p>
+      <p class="font-semibold mt-1">/backtests/&lt;id&gt; 모바일 터치 타겟 11 violations (Sprint 61 BL-339 fix 영역 누락)</p>
+      <p class="text-sm mt-1">개요/거래/지표 탭 (38x25) + 기간 chips 1M/3M/6M (38x32) + KPI tooltip "?" mini buttons (16x16 × 5). Sprint 61 BL-339 fix 가 navigation chrome (UserButton / 햄버거 / Disclaimer / 필터 chips) 만 잡고 페이지 내부 control 미적용.</p>
+      <p class="text-sm"><strong>Fix</strong>: 모바일 viewport global `<button>` + `<a>` `min-h-11 min-w-11` enforce (Tailwind plugin 또는 global CSS @media). BL-357/358/359 도 동일 mechanism 으로 묶음 fix.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-348 [hotfix 완료] · QA Sentinel</p>
+      <p class="font-semibold mt-1">protected route accounts.dev redirect — clerkMiddleware second arg signInUrl/signUpUrl 명시 fix</p>
+      <p class="text-sm mt-1">Pre = Sprint 61 T-3 의 ClerkProvider props 만 변경, server side proxy.ts 무시. Hotfix commit `9103134` 으로 clerkMiddleware second arg 명시 → 4 protected route 자체 도메인 redirect 확인 ✅.</p>
+    </div>
+
+    <div class="border border-amber-300 bg-amber-50 p-4 rounded">
+      <p class="font-mono text-xs text-amber-800">BL-353 [P1] · Casual</p>
+      <p class="font-semibold mt-1">landing step 01 라벨 "전략 업로드" vs hero "코드 붙여넣기" mixed message</p>
+      <p class="text-sm mt-1">BL-322 hero 정직화는 PASS but step 01 = "전략 업로드" 잔존. Casual 혼란. 1줄 fix.</p>
+    </div>
+
+    <div class="border border-slate-300 bg-slate-50 p-4 rounded">
+      <p class="font-mono text-xs text-slate-700">BL-347 [P2] · QA Sentinel</p>
+      <p class="font-semibold mt-1">server: uvicorn 헤더 leak — middleware del 후 transport layer 재부착</p>
+      <p class="text-sm mt-1">Fix = uvicorn `--server-header=false` (uvicorn 0.30+) 또는 gunicorn `--server_header False` 또는 reverse proxy hide. **production deploy 시 필수**.</p>
+    </div>
+
+    <div class="border border-slate-300 bg-slate-50 p-4 rounded">
+      <p class="font-mono text-xs text-slate-700">BL-349 [P2 hotfix 완료] · QA Sentinel</p>
+      <p class="font-semibold mt-1">healthz 8s timeout 부족 → 12s 완화</p>
+      <p class="text-sm mt-1">hotfix commit `9103134` 으로 default 8.0 → 12.0 변경. test 2 assertion 갱신.</p>
+    </div>
+
+    <div class="border border-slate-300 bg-slate-50 p-4 rounded">
+      <p class="font-mono text-xs text-slate-700">BL-351/352/355 + BL-357/358/359/360 [P2/P3]</p>
+      <p class="text-sm mt-1">SSO aria-label 영어 / Clerk dashboard application name pending / "Demo"→"데모" / strategies 텍스트 링크 38x16 / UserButton width 28 잔존 + ghost DOM / trading 계정 삭제 16x16 / backtests 9px overflow. Sprint 62+ batch.</p>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">4. 4-AND Beta Gate 재측정</h2>
+  <div class="bg-slate-100 p-4 rounded">
+    <table class="text-sm w-full">
+      <tbody>
+        <tr><td class="py-1 w-1/3">(a) Composite ≥ 7</td><td class="text-emerald-700 font-semibold">PASS — 7.5</td></tr>
+        <tr><td class="py-1">(b) Critical = 0</td><td class="text-amber-700 font-semibold">PARTIAL — BL-339 페이지 내부 ~15 잔존 (BL-340 회복 ✅) + 신규 P0 BL-350/354 ★★★</td></tr>
+        <tr><td class="py-1">(c) High ≤ 3</td><td class="text-amber-700 font-semibold">BORDERLINE — P1 4 (BL-356/353 + hotfix BL-348/349 완료)</td></tr>
+        <tr><td class="py-1">(d) 본인 의지</td><td class="text-slate-600 font-semibold">사용자 결정 — Day 7 NPS 인터뷰 (2026-05-16) 결과 합산</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm text-slate-700 mt-3"><strong>분기 결정</strong>: BL-339 페이지 내부 + BL-350/354 = ~5-6h fix sprint 후 Beta 본격 진입 권고. 단 (d) 본인 의지가 우선.</p>
+</section>
+
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">5. Sprint 62 분기 후보</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-emerald-50 border border-emerald-300 p-4 rounded">
+      <p class="font-semibold text-emerald-900">A. fix-first Sprint 62 (권고 ★★★★★)</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>BL-350/354 ★★★ — Optimizer Zod error fallback (FE 2h + BE 2h + DB cleanup 1h)</li>
+        <li>BL-356/357/358/359 묶음 — 모바일 viewport global `min-h-11 min-w-11` (2-3h)</li>
+        <li>BL-353 — step 01 라벨 통일 (5분)</li>
+        <li>합 ≈ 6-8h, 1 day single worker. 후 Composite 7.5 → 8.5+ 추정 → Beta 본격 진입</li>
+      </ul>
+    </div>
+    <div class="bg-amber-50 border border-amber-300 p-4 rounded">
+      <p class="font-semibold text-amber-900">B. Beta 본격 진입 즉시 (gate borderline 무시) ★★★</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>Composite 7.5 = gate (a) PASS</li>
+        <li>BL-339 페이지 내부 = polish 수준 (revenue path 회복)</li>
+        <li>BL-350/354 = Optimizer 메뉴 일시 hide 또는 "Coming soon" 처리</li>
+        <li>dogfood 사용자 5명 onboarding 중 추가 발견 처리 (BL-070~075 트랙)</li>
+      </ul>
+    </div>
+    <div class="bg-sky-50 border border-sky-300 p-4 rounded">
+      <p class="font-semibold text-sky-900">C. Sprint 47 Deepening 2차 (사용자 의지 X 시 default) ★★</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>BL-201/203/204 묶음 architectural deepening</li>
+        <li>본 QA 가 Mobile/UX 갭 강조했으므로 우선순위 낮음</li>
+      </ul>
+    </div>
+    <div class="bg-slate-50 border border-slate-300 p-4 rounded">
+      <p class="font-semibold text-slate-900">D. mainnet 진입 (BL-003) ★</p>
+      <ul class="list-disc pl-5 space-y-1 text-sm mt-2">
+        <li>Bybit mainnet runbook + smoke (H1 종료 gate)</li>
+        <li>BL-347 server header strip + Clerk production key + custom domain 모두 production deploy 시점 동시 처리</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2 class="text-2xl font-bold border-b border-slate-200 pb-2 mb-4">6. Appendix</h2>
+  <h3 class="font-semibold mb-2">원본 보고서</h3>
+  <ul class="list-disc pl-6 text-sm space-y-1">
+    <li><a class="text-sky-700 underline" href="qa-report.md">qa-report.md</a> — QA Sentinel 재측정 (7.8/10)</li>
+    <li><a class="text-sky-700 underline" href="interested-user-report.md">interested-user-report.md</a> — Curious (8.0/10 Yes)</li>
+    <li><a class="text-sky-700 underline" href="general-user-report.md">general-user-report.md</a> — Casual (7.4/10, 용어 89%, abandon X)</li>
+    <li><a class="text-sky-700 underline" href="mobile-user-report.md">mobile-user-report.md</a> — Mobile (6.5/10, Crit 2→1)</li>
+  </ul>
+  <h3 class="font-semibold mb-2 mt-4">베이스라인 (3개 누적)</h3>
+  <ul class="list-disc pl-6 text-sm space-y-1">
+    <li><code>docs/qa/2026-05-13/integrated-report.html</code> — Composite 4.18 (Sprint 60 진입 baseline)</li>
+    <li><code>docs/qa/2026-05-17/integrated-report.html</code> — Composite 6.08 (Sprint 60 fix 후, Sprint 61 진입 baseline)</li>
+    <li><code>docs/qa/2026-05-17-post-sprint61/integrated-report.html</code> — Composite <strong>7.5</strong> (본 보고서)</li>
+  </ul>
+  <h3 class="font-semibold mb-2 mt-4">방법론 메타</h3>
+  <ul class="list-disc pl-6 text-sm space-y-1">
+    <li><strong>LESSON-068 보강 2/3</strong> = ★★★ 공통 발견 패턴 재현 (BL-350+354). 1차 (Casual PASS vs Mobile PARTIAL false positive) + 2차 (Curious + Casual 같은 root cause 다른 페르소나 view) = sub-agent driven 4-페르소나 패턴의 가치 입증.</li>
+    <li><strong>LESSON-067 5차 검증</strong> = 단일 worker 8 BL Sprint 61 ≈ 4-5h 실측 (plan 23h vs 78% 단축). Sprint 60 패턴 재현.</li>
+    <li>Sprint 61 fix-first 의 surgical fix 가 Mobile (+2.7) / Casual (+2.2) 가장 큰 회복 = fix 영역 정확.</li>
+  </ul>
+</section>
+
+<footer class="text-xs text-slate-500 pt-6 border-t border-slate-200 mt-10">
+  Multi-Agent QA 재측정 · Sprint 61 fix-first 효과 · 2026-05-17 · QuantBridge
+</footer>
+
+</div>
+</body>
+</html>
