@@ -41,7 +41,12 @@ export function StrategyTable({ items }: { items: StrategyListItem[] }) {
                   {new Date(s.updated_at).toLocaleString("ko-KR")}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/strategies/${s.id}/edit`} className="text-[color:var(--primary)] hover:underline">
+                  {/* Sprint 62 T-2 (BL-357): 모바일 viewport 에서 touch hit area 44pt 강제.
+                      텍스트 링크 38x16 → min-h-11 px-3. 데스크톱은 md: 분기 복원. */}
+                  <Link
+                    href={`/strategies/${s.id}/edit`}
+                    className="inline-flex min-h-11 items-center px-3 py-2 text-[color:var(--primary)] hover:underline md:min-h-0 md:px-0 md:py-0"
+                  >
                     편집 →
                   </Link>
                 </td>

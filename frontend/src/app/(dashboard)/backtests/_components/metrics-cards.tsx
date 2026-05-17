@@ -123,11 +123,13 @@ export function MetricsCards({ metrics, config }: MetricsCardsProps) {
                 {/* Sprint 61 T-7 (BL-327): KPI 의미 설명. native title (hover/long-press) +
                     sr-only (screen reader). 모든 페르소나 (mouse/touch/keyboard/SR) 호환. */}
                 {KPI_DESCRIPTIONS[it.label] ? (
+                  // Sprint 62 T-2 (BL-356): 모바일 viewport 에서 touch hit area 44pt 강제.
+                  // 데스크톱 (md+) 은 size-4 (16px) 시각 동일. 모바일 한 손 사용자 미스탭 회피.
                   <button
                     type="button"
                     aria-label={`${it.label} 설명: ${KPI_DESCRIPTIONS[it.label]}`}
                     title={KPI_DESCRIPTIONS[it.label]}
-                    className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]"
+                    className="inline-flex size-11 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)] md:size-4"
                     data-testid={`kpi-info-${it.key}`}
                   >
                     <HelpCircle className="size-3.5" aria-hidden="true" />

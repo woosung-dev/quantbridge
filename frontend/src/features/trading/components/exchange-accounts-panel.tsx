@@ -115,12 +115,15 @@ export function ExchangeAccountsPanel() {
                   <td className="py-1.5">{a.label ?? "—"}</td>
                   <td className="py-1.5 font-mono text-xs">{a.api_key_masked}</td>
                   <td className="py-1.5">
+                    {/* Sprint 62 T-2 (BL-359): 모바일 viewport 에서 touch hit area 44pt 강제.
+                        16x16 → 44x44 (모바일) / 데스크톱 md: 분기 복원. high risk action (계정
+                        삭제) 이라 한 손 미스탭 차단 우선. */}
                     <button
                       type="button"
                       onClick={() => deleteAccount.mutate(a.id)}
                       disabled={deleteAccount.isPending}
                       aria-label="계정 삭제"
-                      className="text-[color:var(--destructive)] hover:opacity-70 disabled:opacity-40 transition-opacity"
+                      className="inline-flex size-11 items-center justify-center text-[color:var(--destructive)] hover:opacity-70 disabled:opacity-40 transition-opacity md:size-auto"
                     >
                       <Trash2 className="size-4" />
                     </button>
