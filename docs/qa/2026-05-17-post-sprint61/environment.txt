@@ -1,0 +1,25 @@
+QuantBridge Multi-Agent QA 재측정 — Sprint 61 fix-first 효과 검증
+===================================================================
+Timestamp: 2026-05-16T23:08:37Z UTC (2026-05-17 08:08:37 KST)
+Git HEAD : 26b7486a92ff8655360cdf33c2fc584f5c4b82fa
+Git Branch: main
+
+Pre-QA verification
+-------------------
+FE /        : 200
+BE /livez   : {"status":"alive"}
+BE /healthz : curl: (22) The requested URL returned error: 503
+
+Sprint 61 fix verification (curl 직접)
+-------------------------------------
+X-Frame-Options : x-frame-options: DENY
+X-Content-Type-Options : x-content-type-options: nosniff
+Referrer-Policy : referrer-policy: strict-origin-when-cross-origin
+Permissions-Policy : permissions-policy: geolocation=(), camera=(), microphone=()
+Server header (leak?) : server: uvicorn
+
+Baseline 비교
+------------
+Initial : docs/qa/2026-05-13/integrated-report.html (Composite 4.18)
+Pre-S61 : docs/qa/2026-05-17/integrated-report.html (Composite 6.08)
+Post-S61: docs/qa/2026-05-17-post-sprint61/integrated-report.html (목표 7.5+)

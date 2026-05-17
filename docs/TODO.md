@@ -1,15 +1,55 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-17 (Multi-Agent QA 재측정 — 4 페르소나 Exhaustive 완료, Sprint 61 plan 작성)
-> **Active Sprint:** **Sprint 61 fix-first 진입 대기** — Type B (Composite 6.08, Beta 4-AND gate 3/4 FAIL)
-> **Active Branch:** main (Sprint 60 머지 완료) → Sprint 61 시 `feat/sprint61-trust-recovery` 신규 브랜치 예정
-> **Sprint type:** Type B (risk-critical fix-first, Sprint 60 패턴 재사용)
+> **Last Updated:** 2026-05-17 (Sprint 61 fix-first 완료 + Multi-Agent QA 재측정 Composite 7.5 + Sprint 62 분기 후보 대기)
+> **Active Sprint:** **Sprint 61 완료 (PR #288 main @`26b7486` merge + hotfix PR #289 대기)** — Type B fix-first
+> **Active Branch:** main (PR #288 머지) + `feat/sprint61-followup-bl348-bl349` (hotfix PR #289 review 대기)
+> **Sprint type:** Type B (risk-critical fix-first, Sprint 60 패턴 재현 — plan 23h → 실측 ~4-5h, 78% 단축 = LESSON-067 5차 검증)
 > **office-hours 진행:** N
-> **Next Trigger:** Sprint 61 진입 — Mobile P0 2건 + Clerk production 4건 + QA 보안 3건 = 8 BL fix-first
+> **Next Trigger:** Sprint 62 분기 결정 — A. fix-first (BL-350/354 ★★★ + BL-356~) / B. Beta 본격 진입 즉시 / C. Deepening 2차 / D. mainnet (사용자 결정)
 
 ---
 
-## Recently Completed — Multi-Agent QA 2026-05-17 (Sprint 60 → 61 baseline 재측정)
+## Recently Completed — Sprint 61 fix-first + Multi-Agent QA 재측정 (2026-05-17)
+
+### Sprint 61 fix-first (PR #288 main @`26b7486` merge + hotfix `9103134` PR #289)
+
+- [x] **PR #288 merge** — 8 BL fix (T-4 BL-312 OpenAPI gate / T-5 BL-311 보안 헤더 / T-6 BL-310 healthz /livez / T-1 BL-340 overflow / T-2 BL-339 터치 / T-3 BL-319+321+328 Clerk dev surface / T-7 BL-327 KPI tooltip / T-8 BL-322+323 Hero copy + Optimizer 메뉴)
+- [x] **Hotfix PR #289** — BL-348 protected route accounts.dev redirect (clerkMiddleware second arg signInUrl/signUpUrl 명시) + BL-349 healthz timeout 8→12s
+
+### Multi-Agent QA 재측정 (Standard depth, `docs/qa/2026-05-17-post-sprint61/`)
+
+- [x] **QA Sentinel 재측정** — 7.45 → 7.8 (+0.35), Sprint 61 fix 11 BL 직접 검증 8 PASS / 2 PARTIAL / 1 manual pending
+- [x] **Curious 재측정** — 6.5 → 8.0 (+1.5), Maybe → **Yes (가벼운 조건부)**, 친구 추천도 ★★★ → ★★★★
+- [x] **Casual 재측정** — 5.2 → 7.4 (+2.2), 용어 해독률 22% → **89%**, 막힘 9 → 3, 포기 abandon 안 함
+- [x] **Mobile 재측정** — 3.8 → 6.5 (+2.7), Critical 2 → 1 (BL-340 회복 ✅, BL-339 페이지 내부 ~15 잔존)
+- [x] **통합 HTML** `docs/qa/2026-05-17-post-sprint61/integrated-report.html` — **Composite 7.5/10** (목표 정확 도달, Pre 6.08 → △ +1.42)
+
+### Sprint 61 BL Resolved 마킹 (11 BL)
+
+- ✅ BL-310 (PARTIAL — /livez 분리 PASS / healthz timeout 12s 완화) / BL-311 (4/5 헤더 PASS, server strip FAIL → BL-347 follow-up) / BL-312 / BL-319 (hotfix BL-348 와 묶음) / BL-322 / BL-323 / BL-327 / BL-328 / BL-339 (PARTIAL — navigation chrome ✅, 페이지 내부 ~15 잔존 → BL-356~359 follow-up) / BL-340 / BL-348 / BL-349
+- ⏭️ BL-320 (defer Sprint 62 production deploy) / BL-321 (사용자 manual pending)
+
+### 신규 BL (Multi-Agent QA 재측정, BL-347 ~ BL-360, 11건)
+
+- **P0 ★★★ 공통**: BL-350 (Curious) + BL-354 (Casual) = `/optimizer` Zod error 도배 (Sprint 50-52 retro row + 53-55 schema tightening 합집합, Sprint 61 BL-323 사이드바 노출의 side-effect)
+- **P1**: BL-353 (step 01 라벨 통일) / BL-356 (모바일 페이지 내부 터치 11 violations)
+- **P2**: BL-347 (server header leak — uvicorn flag) / BL-351 (Apple/Google SSO aria-label 영어) / BL-357 (strategies 텍스트 링크 38x16) / BL-358 (UserButton width 28 + ghost DOM) / BL-359 (trading "계정 삭제" 16x16)
+- **P3**: BL-352 (Clerk dashboard application name manual) / BL-355 ("Demo" → "데모") / BL-360 (backtests 375x667 +9px overflow noise)
+
+---
+
+## Sprint 62 분기 후보 (사용자 결정 대기)
+
+| 옵션                               | 권고                                                          | scope                               | 기대 효과                             |
+| ---------------------------------- | ------------------------------------------------------------- | ----------------------------------- | ------------------------------------- |
+| **A. fix-first Sprint 62 (★★★★★)** | BL-350/354 (4-5h) + BL-356~359 묶음 (2-3h) + BL-353 (5분)     | ~6-8h 1 day single worker           | Composite 7.5 → 8.5+ → Beta 본격 진입 |
+| B. Beta 본격 진입 즉시 (★★★)       | gate (a) PASS, BL-350/354 = Optimizer 메뉴 일시 hide          | dogfood 5명 onboarding 중 추가 처리 | BL-070~075 트랙                       |
+| C. Sprint 47 Deepening 2차 (★★)    | BL-201/203/204 architectural                                  | —                                   | Mobile/UX 갭 우선순위 낮음            |
+| D. mainnet 진입 (★)                | BL-003 Bybit runbook + BL-347 server strip + Clerk production | —                                   | H1 종료 gate                          |
+
+---
+
+## Recently Completed — Multi-Agent QA 2026-05-17 1차 (Sprint 60 → 61 baseline)
 
 - [x] **사전 환경 검증** — FE :3100 + BE :8100 + worker 3종 (default/ws_stream/optimizer_heavy) 부팅 + environment fingerprint 기록
 - [x] **QA Sentinel** Exhaustive — 7.45/10, BL-310~316 (7건, Critical 0 / High 4 / Med 2 / Low 1), Sprint 60 P0 fix source-level PASS 10/0
