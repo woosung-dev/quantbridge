@@ -135,7 +135,7 @@ _STRING_FUNCTIONS: frozenset[str] = frozenset(
 # Known-unsupported functions — 정적 분석에서 명시적으로 unsupported_functions에 포함.
 # interpreter는 런타임 NOP/graceful degrade로 처리하지만,
 # coverage analyzer는 사용자에게 "지원되지 않는 함수" 로 명시해야 함.
-# (ADR-013 §4 Trust Layer 철학: partial silentfail → 명시적 unsupported 선언)
+# (ADR-020 §4 Trust Layer 철학: partial silentfail → 명시적 unsupported 선언)
 _KNOWN_UNSUPPORTED_FUNCTIONS: frozenset[str] = frozenset(
     {
         # "request.security",  # Sprint 29 Slice A: graceful (단일 timeframe 가정) → SUPPORTED

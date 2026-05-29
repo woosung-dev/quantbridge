@@ -1,6 +1,6 @@
 """Decimal-first 허용 오차 유틸 (Path β Trust Layer CI 용).
 
-Stage 2 실 구현 (Path β, 2026-04-23). ADR-013 §4.3 + §10.2 규약 준수.
+Stage 2 실 구현 (Path β, 2026-04-23). ADR-020 §4.3 + §10.2 규약 준수.
 
 정책:
 - `max(절대 0.001, 상대 0.1%)` 통과 기준 (within_tolerance)
@@ -41,7 +41,7 @@ import math
 from decimal import Decimal, getcontext
 from typing import Any
 
-# Path β ADR-013 §4.3 + trust-layer-requirements.md §3.2 공식
+# Path β ADR-020 §4.3 + trust-layer-requirements.md §3.2 공식
 ABS_TOL: Decimal = Decimal("0.001")
 REL_TOL: Decimal = Decimal("0.001")  # 0.1%
 
@@ -61,7 +61,7 @@ def assert_decimal_precision() -> None:
     if actual != EXPECTED_PREC:
         raise RuntimeError(
             f"Decimal precision drift detected: expected {EXPECTED_PREC}, got {actual}. "
-            "Path β SLO (ADR-013 §4.3) 는 기본 prec=28 을 전제. "
+            "Path β SLO (ADR-020 §4.3) 는 기본 prec=28 을 전제. "
             "getcontext().prec 를 변경하는 외부 코드가 있는지 확인하세요."
         )
 
@@ -106,7 +106,7 @@ def to_decimal(value: Any) -> Decimal:
 def within_tolerance(actual: Any, expected: Any) -> bool:
     """`actual` 과 `expected` 가 허용 오차 내인지 판정.
 
-    정의 (ADR-013 §4.3 + requirements §3.2):
+    정의 (ADR-020 §4.3 + requirements §3.2):
         `max(절대 ABS_TOL, 상대 REL_TOL)` 내 → True
 
     입력은 Decimal/int/float/str 모두 허용 — 내부에서 `to_decimal` 로 통일.
@@ -155,7 +155,7 @@ def digest_sequence(values: Any, algo: str = "sha256") -> str:
 
     반환 예: `"sha256:abc123..."` (SLO TL-E-3 digest 필드 포맷 일치).
 
-    ADR-013 §4.3 — var_series / trades / warnings 의 bar-by-bar 기록을
+    ADR-020 §4.3 — var_series / trades / warnings 의 bar-by-bar 기록을
     baseline 에 저장하기 위한 길이 독립 fingerprint.
     """
     normalized = _normalize_for_json(values)

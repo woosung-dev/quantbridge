@@ -86,7 +86,7 @@ Sprint 8a (ADR-012, PR #20) 에서 pine_v2 Tier-0 이 완성됐다. s1_pbr 과 i
 
 ### L-1: Opus/Sonnet 교차 hardening 의 실효성
 
-Sprint 8b 말에 2개 모델로 independent adversarial review 를 돌린 결과, 단일 모델이 놓친 edge case (deleted box 참조, input kwarg 순서) 을 잡음. **Gate-1/2 의 2중 blind evaluator 패턴** 의 근거가 됨 → Path β ADR-013 Gate 에 승계.
+Sprint 8b 말에 2개 모델로 independent adversarial review 를 돌린 결과, 단일 모델이 놓친 edge case (deleted box 참조, input kwarg 순서) 을 잡음. **Gate-1/2 의 2중 blind evaluator 패턴** 의 근거가 됨 → Path β ADR-020 Gate 에 승계.
 
 ### L-2: Multi-return tuple unpack 은 간과되기 쉽다
 

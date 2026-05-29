@@ -68,7 +68,7 @@
 ## 참조
 
 - [ADR-011 Pine Execution Strategy v4](011-pine-execution-strategy-v4.md)
-- [Path β Trust Layer CI 설계](013-trust-layer-ci-design.md)
+- [Path β Trust Layer CI 설계](020-trust-layer-ci-design.md)
 - [Sprint Y1 Coverage Analyzer](016-sprint-y1-coverage-analyzer.md)
 - [Dogfood Checklist](../guides/dogfood-checklist.md)
 - [H2 Sprint 1 Phase A SDD](../superpowers/plans/2026-04-24-h2-sprint1-phase-a.md)

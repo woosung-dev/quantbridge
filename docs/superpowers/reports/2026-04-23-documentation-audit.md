@@ -28,7 +28,7 @@ Explore 에이전트로 `docs/` 전체를 스캔한 결과, **13 개 sprint (7d,
 
 | 파일                                                    |   분류    | 성격                     |
 | ------------------------------------------------------- | :-------: | ------------------------ |
-| `dev-log/013-trust-layer-ci-design.md`                  |    ADR    | Path β 핵심 설계         |
+| `dev-log/020-trust-layer-ci-design.md` (구 013)         |    ADR    | Path β 핵심 설계         |
 | `dev-log/014-sprint-8b-8c-pine-v2-expansion.md`         | 회고 ADR  | 합본 (중복 제거)         |
 | `dev-log/015-sprint-7d-okx-sessions.md`                 | 회고 ADR  | 단일 sprint              |
 | `dev-log/016-sprint-y1-coverage-analyzer.md`            | 회고 ADR  | Trust Layer prerequisite |
@@ -145,7 +145,7 @@ Explore 에이전트로 `docs/` 전체를 스캔한 결과, **13 개 sprint (7d,
 - [x] 14 항목 모두 완수
 - [x] 번호 충돌 0 건 확인
 - [x] 참조 링크 의도된 것만 갱신 (codex-eval 과거 artifact 는 역사 보존)
-- [x] ADR 템플릿 일관 (ADR-013~017 모두 상태/일자/관련 ADR/변경이력 섹션 포함)
+- [x] ADR 템플릿 일관 (ADR-014~017 + ADR-020[구 013] 모두 상태/일자/관련 ADR/변경이력 섹션 포함)
 - [ ] Gate-0 evaluator (codex 단일) 실행 → 다음 단계
 
 ---

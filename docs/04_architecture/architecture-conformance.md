@@ -165,7 +165,7 @@ rg -n 'os\.(environ|getenv)' backend/src/ \
 - `functools.lru_cache(maxsize=1)` 래퍼: monkeypatch 후 cache invalidate 추가 step 필요 → 가독성 저하.
 - env injection via fixture parameter: alert_hook signature 변경 → caller 4+ 곳 수정 → blast radius 증가.
 
-**Related:** ADR-013 (Mutation policy), [BL-050](../REFACTORING-BACKLOG.md#bl-050)
+**Related:** ADR-020 (Mutation policy), [BL-050](../REFACTORING-BACKLOG.md#bl-050)
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **상태:** Phase A (Docs) 작성 완료 · Phase B (구현) ExitPlanMode 승인 대기
 > **일자:** 2026-04-23
-> **상위 ADR:** [`dev-log/013-trust-layer-ci-design.md §10.4`](../../dev-log/013-trust-layer-ci-design.md#104-stage-2c-2차-구현-설계-2026-04-23-pre-entry)
+> **상위 ADR:** [`dev-log/020-trust-layer-ci-design.md §10.4`](../../dev-log/020-trust-layer-ci-design.md#104-stage-2c-2차-구현-설계-2026-04-23-pre-entry)
 > **아키텍처:** [`04_architecture/trust-layer-architecture.md §3.1.2`](../../04_architecture/trust-layer-architecture.md#312-mutation-oracle-커버리지-stage-2c-1차-실측--2차-설계-2026-04-23)
 > **Plan 세션 파일:** `~/.claude/plans/path-lucky-squid.md`
 
@@ -30,7 +30,7 @@ Path β Trust Layer CI 의 마지막 마일스톤. 현재 main(`115292a`) 상태
 
 | #   | 파일                                                    | 변경                                                             | 상태 |
 | --- | ------------------------------------------------------- | ---------------------------------------------------------------- | ---- |
-| 1   | `docs/dev-log/013-trust-layer-ci-design.md`             | §10.4 Stage 2c 2차 구현 설계 서브섹션 신설 + §11 pre-entry 행    | ✅   |
+| 1   | `docs/dev-log/020-trust-layer-ci-design.md`             | §10.4 Stage 2c 2차 구현 설계 서브섹션 신설 + §11 pre-entry 행    | ✅   |
 | 2   | `docs/04_architecture/trust-layer-architecture.md`      | §3.1.2 Mutation Oracle 커버리지 신설 (mutation × 레이어 매핑 표) | ✅   |
 | 3   | `docs/TODO.md`                                          | Stage 2c 1차 완료 체크 + 2차 In Progress (T1~T6) 추가            | ✅   |
 | 4   | `docs/superpowers/plans/2026-04-23-stage2c-2nd-plan.md` | 본 파일 신규 (SDD 실행 플랜 공식화)                              | ✅   |
@@ -81,7 +81,7 @@ T1~T5 는 모두 `backend/tests/strategy/pine_v2/test_mutation_oracle.py` 한 �
 
 #### T6 — 회고 / 문서 sync (직렬, T1-T5 수집 필수)
 
-- `docs/dev-log/013-trust-layer-ci-design.md` §11 Amendment 표:
+- `docs/dev-log/020-trust-layer-ci-design.md` §11 Amendment 표:
   `2026-04-XX | Stage 2c 2차 완료 | M3/M5/M6/M8 4 mutation 감지 + W-2/W-3 클로즈 | TL-E-5 GREEN`
 - `docs/TODO.md` Stage 2c 2차 행 → `✅ 완료`
 - memory `project_path_beta_stage2c_2nd_complete.md` 신규: monkeypatch scope, Track 분기, xfail vs skip, Decimal drift amplifier 패턴
@@ -113,7 +113,7 @@ c2 test(mutation): M5 fill_price ABS_TOL drift → trades digest
 c3 test(mutation): M6 PnL Decimal precision leak amplifier
 c4 test(mutation): M8 VirtualStrategyWrapper duplicate hook fire
 c5 test(mutation): W-2 M2 proxy rename + W-3 M4 xfail marker
-c6 docs(path-beta): stage 2c 2nd — ADR-013 §11 + TODO + memory
+c6 docs(path-beta): stage 2c 2nd — ADR-020 §11 + TODO + memory
 ```
 
 ### 3.4 회귀 가드
@@ -144,7 +144,7 @@ git diff .github/workflows/trust-layer-nightly.yml
 1. Mutation 감지 **≥ 7/8** (M4 xfail 허용)
 2. backend regression **0** (985 pass 유지, skip 17±)
 3. 양쪽 confidence **≥ 8/10**, blocker **0**, major **≤ 2**
-4. ADR-013 §11 / TODO.md / 본 plan 정합성
+4. ADR-020 §11 / TODO.md / 본 plan 정합성
 
 **FAIL 시:** 실패 task 단독 재iteration, warranty/docs 보존.
 
@@ -171,7 +171,7 @@ git diff .github/workflows/trust-layer-nightly.yml
 **2순위: Path γ — PyneCore transformers 이식 (H2 착수)**
 
 - Bybit dogfood 2주차 TL-E-6 green 확인 후
-- 후보: `persistent.py` / `series.py` / `security.py` / `nabool.py` 참조 이식 → ADR-013 amend "P-1/2/3/4 Full Tier-2"
+- 후보: `persistent.py` / `series.py` / `security.py` / `nabool.py` 참조 이식 → ADR-020 amend "P-1/2/3/4 Full Tier-2"
 
 ---
 

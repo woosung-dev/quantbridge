@@ -23,7 +23,7 @@ Sprint 20 Day 0 dogfood 에서 본인 6 pine 중 2/6 = 33% backtest 통과. 핵�
 P1 9건 발견:
 
 1. **alias ordering bug** (interpreter.py:597+796) — user_function dispatch 가 v4 alias 보다 뒤. `abs(x) =>` 정의 시 alias `abs → math.abs` 가 압도 → silent correctness bug
-2. **NOP-degrade Trust Layer 위반** — coverage.py:70 의 ADR-013 §4 주석이 이미 "partial silentfail → 명시적 unsupported" 로 박힘. heikinashi/security/study graceful degrade 정책은 정면 충돌
+2. **NOP-degrade Trust Layer 위반** — coverage.py:70 의 ADR-020 §4 주석이 이미 "partial silentfail → 명시적 unsupported" 로 박힘. heikinashi/security/study graceful degrade 정책은 정면 충돌
 3. **prefix scope 폭발** — `_ENUM_PREFIXES` 에 `currency.`/`strategy.`/`timeframe.` 추가 시 false-pass risk
 4. P1 #1 의 동일 fix
 5. **422 shape 문자열 only** — `{"detail": "Strategy contains unsupported Pine built-ins: ..."}`. FE split parsing 강요
@@ -66,7 +66,7 @@ P1 9건 발견:
 
 ### Trust Layer 정합
 
-- heikinashi / security (no-namespace) / request.security 모두 unsupported 유지 (ADR-013 §4)
+- heikinashi / security (no-namespace) / request.security 모두 unsupported 유지 (ADR-020 §4)
 - 본인 UtBot indicator easy/medium 통과 포기 — silent corruption risk 보다 explicit reject 우선
 - Sprint 22+ 의 strict toggle (degraded_builtins 별도 카테고리) 옵션 보전
 
@@ -163,7 +163,7 @@ make up-isolated
 - master plan v2.1: `~/.claude/plans/parsed-skipping-marshmallow.md` (codex G.0 round 1+2 반영)
 - codex G.0 round 1 transcript: 397k tokens, RETHINK + P1 9건
 - codex G.0 round 2 transcript: 254k tokens, GO_WITH_FIXES + neue P1 0건
-- ADR-013 (Trust Layer 정합): `docs/dev-log/013-*.md`
+- ADR-020 (Trust Layer 정합): `docs/dev-log/013-*.md`
 - Sprint 8c 회고: memory `project_sprint8c_complete.md`
 - Sprint 20 Day 0: `docs/dev-log/2026-05-02-sprint20-dogfood-day0-setup.md`
 
