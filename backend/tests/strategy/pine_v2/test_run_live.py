@@ -180,6 +180,30 @@ if (close < open)
     assert result.total_closed_trades >= 1
 
 
+def test_close_signal_carries_realized_pnl_mp1() -> None:
+    """MP-1: close LiveSignal 은 매칭 closed_trade 의 realized PnL 을 carry.
+
+    이 값이 Order.realized_pnl 로 전파되어 kill-switch CumulativeLoss/DailyLoss
+    평가기가 실제로 작동하게 된다 (이전엔 realized_pnl 미기록으로 SUM=0 → 영구 inert).
+    """
+    # bar1 green(open100→close150) entry long; bar4 big red(open152→close50) close → 손실
+    ohlcv = _ohlcv([100.0, 150.0, 151.0, 152.0, 50.0])
+    result = run_live(_BUY_AND_CLOSE, ohlcv)
+    closes = [s for s in result.signals if s.action == "close"]
+    assert len(closes) == 1, f"expected 1 close signal, got {[s.action for s in result.signals]}"
+    assert closes[0].realized_pnl is not None, "close signal 이 realized_pnl 을 carry 안 함 (MP-1)"
+    assert closes[0].realized_pnl < Decimal("0"), "losing close 의 realized_pnl 은 음수여야 함"
+
+
+def test_entry_signal_has_no_realized_pnl_mp1() -> None:
+    """entry signal 은 realized_pnl 없음 (None) — 청산 시점이 아니므로."""
+    ohlcv = _ohlcv([100.0, 99.0, 98.0, 97.0, 99.0])  # last bar green → entry only
+    result = run_live(_BUY_ON_GREEN, ohlcv)
+    entries = [s for s in result.signals if s.action == "entry"]
+    assert len(entries) == 1
+    assert entries[0].realized_pnl is None
+
+
 def test_strategy_state_report_present() -> None:
     """strategy_state_report dict 가 to_report() 결과 반영."""
     ohlcv = _ohlcv([100.0, 99.0, 98.0, 97.0, 99.0])

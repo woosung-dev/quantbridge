@@ -81,18 +81,24 @@ class OrderRepository:
         filled_at: datetime,
         realized_pnl: Decimal | None = None,
     ) -> int:
+        # MP-1: realized_pnl 은 주문 생성(close 이벤트) 시점에 이미 기록되어 있다.
+        # 명시 인자가 있을 때만 갱신 (exchange-reported closedPnl 등 follow-up A 경로).
+        # None 이면 생성 시점 값을 보존 — 이전엔 무조건 NULL 로 덮어써서 kill-switch
+        # CumulativeLoss/DailyLoss 평가기가 SUM=0 으로 영구 inert 였다.
+        values: dict[str, object] = {
+            "state": OrderState.filled,
+            "exchange_order_id": exchange_order_id,
+            "filled_price": filled_price,
+            "filled_quantity": filled_quantity,
+            "filled_at": filled_at,
+        }
+        if realized_pnl is not None:
+            values["realized_pnl"] = realized_pnl
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
-            .values(
-                state=OrderState.filled,
-                exchange_order_id=exchange_order_id,
-                filled_price=filled_price,
-                filled_quantity=filled_quantity,
-                filled_at=filled_at,
-                realized_pnl=realized_pnl,
-            )
+            .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
@@ -116,6 +122,21 @@ class OrderRepository:
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .values(state=OrderState.cancelled, filled_at=cancelled_at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def transition_pending_to_cancelled(self, order_id: UUID, *, cancelled_at: datetime) -> int:
+        """CF4 — pending(거래소 미발주) 주문만 DB-cancel. submitted(거래소 live) 는 제외.
+
+        router 의 cancel 경로에서 pending→submitted race 시에도 거래소에 live 한 주문을
+        DB-only cancel (orphan) 하지 않도록 state==pending 조건부 UPDATE. submitted 는
+        cancel_order_task 가 거래소 취소 성공 후 transition_to_cancelled 로 처리.
+        """
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
             .values(state=OrderState.cancelled, filled_at=cancelled_at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]

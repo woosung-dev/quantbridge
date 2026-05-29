@@ -1,9 +1,11 @@
-"""OrderService — Sprint 8+ notional check (qty x price x leverage vs balance).
+"""OrderService — notional check (CF5/MP-3 — Bybit/Binance initial-margin 모델).
 
 ExchangeAccountService.fetch_balance_usdt 주입 시, leverage 포함 limit order는
-`notional ≤ available x max_leverage x 0.95` 검증. 초과 시 NotionalExceeded 422.
+`position_notional(qty x price) ≤ available x leverage x 0.95` 검증 (필요증거금 =
+notional/leverage ≤ available x 0.95, 0.95 = open/close fee 버퍼). 초과 시 NotionalExceeded 422.
 
 price=None (market order)과 exchange_service 미주입은 검증 건너뜀 (기존 경로 유지).
+balance fetch 실패: demo 는 skip(fail-open), live 는 BalanceUnverified(fail-closed).
 """
 from __future__ import annotations
 
@@ -62,15 +64,16 @@ class _CapturingDispatcher:
         self.last_id = order_id
 
 
-def _make_exchange_service_stub(usdt_available: Decimal | None):
-    """ExchangeAccountService 대체 stub — fetch_balance_usdt + Sprint 23 BL-102 _repo.get_by_id."""
+def _make_exchange_service_stub(usdt_available: Decimal | None, *, snapshot_account=None):
+    """ExchangeAccountService 대체 stub — fetch_balance_usdt + Sprint 23 BL-102 _repo.get_by_id.
+
+    snapshot_account: dispatch_snapshot(+CF5 live fail-closed mode 판정)용 account.
+    기본 None → snapshot=None (legacy fallback, demo fail-open).
+    """
     stub = MagicMock()
     stub.fetch_balance_usdt = AsyncMock(return_value=usdt_available)
-    # Sprint 23 BL-102: OrderService._execute_inner 가 dispatch snapshot 위해 account fetch.
-    # account 가 None 이면 snapshot=None 으로 graceful (legacy fallback path).
-    # notional check 만 검증하는 test 들이므로 None 반환 OK.
     stub._repo = MagicMock()
-    stub._repo.get_by_id = AsyncMock(return_value=None)
+    stub._repo.get_by_id = AsyncMock(return_value=snapshot_account)
     return stub
 
 
@@ -112,8 +115,8 @@ async def test_notional_within_limit_passes(
 async def test_notional_exceeding_max_raises(
     db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
 ):
-    """available=100, leverage=20, qty=0.1, price=50000 → notional=100000.
-    max = 100 x 20 x 0.95 = 1900 → 초과 → NotionalExceeded."""
+    """available=100, leverage=20, qty=0.1, price=50000 → position notional=5000 (qty×price).
+    max = 100 x 20 x 0.95 = 1900 → 초과 → NotionalExceeded (필요증거금 250 > 95)."""
     from src.trading.repositories.order_repository import OrderRepository
     from src.trading.schemas import OrderRequest
     from src.trading.services.order_service import OrderService
@@ -142,7 +145,7 @@ async def test_notional_exceeding_max_raises(
         await svc.execute(req, idempotency_key=None)
 
     err = exc_info.value
-    assert err.notional == Decimal("100000.0")
+    assert err.notional == Decimal("5000.0")  # qty×price (no leverage) — initial-margin 모델
     assert err.available == Decimal("100")
     assert err.leverage == 20
 
@@ -210,8 +213,88 @@ async def test_notional_check_skipped_when_balance_unavailable(
         margin_mode="cross",
     )
 
-    # balance None → skip → 정상 주문 처리
+    # balance None → demo 계좌(exchange_account fixture) → skip(fail-open) → 정상 주문 처리
     resp, _ = await svc.execute(req, idempotency_key=None)
 
     assert resp.leverage == 5
     exchange_stub.fetch_balance_usdt.assert_awaited_once()
+
+
+async def test_notional_1x_position_over_balance_rejected(
+    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
+):
+    """MP-3 — 1x 주문도 position notional 이 잔고 초과면 거부.
+
+    이전 `max_leverage` ceiling 공식은 1x 에서 감당 불가 포지션을 잘못 통과시켰다.
+    available=1000, leverage=1, qty=0.05, price=50000 → notional=2500 (필요증거금 2500)
+    > 1000×1×0.95=950 → reject. (이전 공식: notional=2500×1, max=1000×20×0.95=19000 → 잘못 통과)
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.schemas import OrderRequest
+    from src.trading.services.order_service import OrderService
+
+    exchange_stub = _make_exchange_service_stub(Decimal("1000"))
+    svc = OrderService(
+        session=db_session,
+        repo=OrderRepository(db_session),
+        dispatcher=_CapturingDispatcher(),
+        kill_switch=_NoopKillSwitch(),
+        exchange_service=exchange_stub,
+    )
+    req = OrderRequest(
+        strategy_id=strategy.id,
+        exchange_account_id=exchange_account.id,
+        symbol="BTC/USDT:USDT",
+        side=OrderSide.buy,
+        type=OrderType.limit,
+        quantity=Decimal("0.05"),
+        price=Decimal("50000"),
+        leverage=1,
+        margin_mode="cross",
+    )
+    with pytest.raises(NotionalExceeded) as exc_info:
+        await svc.execute(req, idempotency_key=None)
+    assert exc_info.value.notional == Decimal("2500.0")
+    assert exc_info.value.leverage == 1
+
+
+async def test_notional_balance_unavailable_live_fail_closed(
+    db_session: AsyncSession, strategy, user: User, crypto: EncryptionService
+):
+    """CF5 — live 계좌 balance fetch 실패(None) → BalanceUnverified (fail-closed)."""
+    from uuid import uuid4
+
+    from src.trading.exceptions import BalanceUnverified
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.schemas import OrderRequest
+    from src.trading.services.order_service import OrderService
+
+    live_acct = ExchangeAccount(
+        id=uuid4(),
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.live,
+        api_key_encrypted=crypto.encrypt("k"),
+        api_secret_encrypted=crypto.encrypt("s"),
+    )
+    exchange_stub = _make_exchange_service_stub(None, snapshot_account=live_acct)
+    svc = OrderService(
+        session=db_session,
+        repo=OrderRepository(db_session),
+        dispatcher=_CapturingDispatcher(),
+        kill_switch=_NoopKillSwitch(),
+        exchange_service=exchange_stub,
+    )
+    req = OrderRequest(
+        strategy_id=strategy.id,
+        exchange_account_id=live_acct.id,
+        symbol="BTC/USDT:USDT",
+        side=OrderSide.buy,
+        type=OrderType.limit,
+        quantity=Decimal("0.01"),
+        price=Decimal("50000"),
+        leverage=5,
+        margin_mode="cross",
+    )
+    with pytest.raises(BalanceUnverified):
+        await svc.execute(req, idempotency_key=None)

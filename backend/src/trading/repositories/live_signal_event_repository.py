@@ -63,6 +63,12 @@ class LiveSignalEventRepository:
                 "trade_id": str(sig["trade_id"]),
                 "qty": Decimal(str(sig["qty"])),
                 "comment": str(sig.get("comment", "")),
+                # MP-1 — close signal 의 청산 realized PnL (entry 는 None).
+                "realized_pnl": (
+                    Decimal(str(sig["realized_pnl"]))
+                    if sig.get("realized_pnl") is not None
+                    else None
+                ),
             }
             for sig in signals
         ]

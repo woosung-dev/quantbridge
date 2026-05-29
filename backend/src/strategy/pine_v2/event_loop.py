@@ -13,6 +13,7 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 - `run_historical(source, ohlcv) -> RunResult`
 - `run_live(source, ohlcv) -> LiveSignalResult` (Sprint 26)
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -173,6 +174,9 @@ class LiveSignal:
     qty: float
     sequence_no: int
     comment: str = ""
+    # MP-1 — close signal 의 청산 realized PnL (매칭 closed_trade 기준). entry 는 None.
+    # Order.realized_pnl 로 전파되어 kill-switch 손실 평가기가 실제로 작동하게 한다.
+    realized_pnl: Decimal | None = None
 
 
 @dataclass
@@ -212,18 +216,21 @@ def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
     _validate_ohlcv(ohlcv)
 
     # run_historical 전체 재실행 (warmup replay)
-    result = run_historical(
-        source, ohlcv, capture_history=False, strict=False
-    )
+    result = run_historical(source, ohlcv, capture_history=False, strict=False)
     strategy_state = result.strategy_state
     if strategy_state is None:
         raise RuntimeError("run_historical returned no strategy_state")
 
+    # MP-1 — closed_trade 의 realized PnL 을 trade_id 로 인덱싱 (close signal 에 부착).
+    # 같은 trade_id 가 재사용되면 마지막 청산 PnL 이 우선 (dict overwrite) — 마지막 bar
+    # event 만 signal 로 나가므로 실무상 1:1.
+    pnl_by_trade: dict[str, Decimal] = {
+        t.id: Decimal(str(t.pnl)) for t in strategy_state.closed_trades if t.pnl is not None
+    }
+
     # 마지막 bar 의 TradeEvent → LiveSignal 변환
     last_bar_index = len(ohlcv) - 1
-    last_bar_events = [
-        e for e in strategy_state.events if e.bar_index == last_bar_index
-    ]
+    last_bar_events = [e for e in strategy_state.events if e.bar_index == last_bar_index]
     # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
     signals: list[LiveSignal] = [
         LiveSignal(
@@ -233,6 +240,8 @@ def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
             qty=e.qty,
             sequence_no=e.sequence_no,
             comment=e.comment,
+            # close signal 만 realized PnL carry (entry 는 None).
+            realized_pnl=(pnl_by_trade.get(e.trade_id) if e.action == "close" else None),
         )
         for e in last_bar_events
         if e.action in ("entry", "close")

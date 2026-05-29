@@ -504,6 +504,11 @@ class LiveSignalEvent(SQLModel, table=True):
     trade_id: str = Field(max_length=64, nullable=False)
     qty: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
     comment: str = Field(default="", max_length=200)
+    # MP-1 — close 이벤트의 청산 realized PnL (event-loop 계산). dispatch task 가
+    # Order.realized_pnl 로 전파 → kill-switch 손실 평가기가 SUM 하여 작동. entry 는 None.
+    realized_pnl: Decimal | None = Field(
+        default=None, sa_column=Column("realized_pnl", Numeric(18, 8), nullable=True)
+    )
     # Sprint 26 Phase D fix — interval 과 동일 사유 (PG enum 미생성, String(16) 컬럼).
     status: LiveSignalEventStatus = Field(
         default=LiveSignalEventStatus.pending,

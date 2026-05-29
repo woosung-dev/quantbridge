@@ -18,3 +18,7 @@ class StrategySessionsPort(Protocol):
     """
 
     async def get_sessions(self, strategy_id: UUID) -> list[str]: ...
+
+    async def get_owner(self, strategy_id: UUID) -> UUID | None:
+        """strategy 소유자(user_id) 반환. 없으면 None — TRD-4 ownership gate 용."""
+        ...

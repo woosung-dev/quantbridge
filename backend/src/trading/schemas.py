@@ -52,6 +52,9 @@ class OrderRequest(BaseModel):
     # Sprint 7a: Futures. Spot은 모두 None.
     leverage: int | None = Field(default=None, ge=1, le=125)
     margin_mode: Literal["cross", "isolated"] | None = Field(default=None)
+    # MP-1 — close 주문 청산 realized PnL (live-signal event-loop 계산). 손실은 음수이므로
+    # 부호 제약 없음. kill-switch 가 Order.realized_pnl 을 SUM 하여 손실 차단기 작동.
+    realized_pnl: Decimal | None = Field(default=None)
 
 
 class OrderResponse(BaseModel):

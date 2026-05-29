@@ -341,6 +341,8 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     "qty": s.qty,
                     "sequence_no": s.sequence_no,
                     "comment": s.comment,
+                    # MP-1 — close signal 의 청산 realized PnL (entry 는 None).
+                    "realized_pnl": s.realized_pnl,
                 }
                 for s in result.signals
             ]
@@ -670,6 +672,8 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 price=None,  # market order
                 leverage=parsed_settings.leverage,
                 margin_mode=parsed_settings.margin_mode,
+                # MP-1 — close 이벤트 청산 PnL → Order.realized_pnl (kill-switch SUM 대상).
+                realized_pnl=event.realized_pnl,
             )
             idempotency_key = _build_idempotency_key(
                 session_id=sess.id,

@@ -15,6 +15,8 @@ from src.common.metrics import qb_active_orders, qb_order_rejected_total
 from src.core.config import settings
 from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.exceptions import (
+    AccountOwnershipMismatch,
+    BalanceUnverified,
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
@@ -22,7 +24,7 @@ from src.trading.exceptions import (
     TradingSessionClosed,
 )
 from src.trading.kill_switch import KillSwitchService
-from src.trading.models import Order, OrderState
+from src.trading.models import ExchangeMode, Order, OrderState
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import OrderRequest, OrderResponse
 from src.trading.services.account_service import ExchangeAccountService
@@ -96,6 +98,31 @@ class OrderService:
         4. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
         5. commit 후 Celery dispatch (visibility race 방지)
         """
+        # ── TRD-4: cross-tenant ownership gate (모든 side-effect 이전) ──
+        # webhook 경로는 strategy HMAC 으로만 인증되고 exchange_account_id 를 caller
+        # payload 에서 받으므로, account 소유자 != strategy 소유자면 거부해야 한다
+        # (공격자가 타 tenant 계좌의 복호화된 credential 로 주문하는 IDOR 차단).
+        # sessions_port + exchange_service 가 모두 주입된 production 경로
+        # (get_order_service / live_signal) 에서 강제. 둘 다 없으면 검증 불가 →
+        # data-layer 강제는 Phase C(TI-5) 후속.
+        if self._sessions_port is not None and self._exchange_service is not None:
+            owner_account = await self._exchange_service._repo.get_by_id(
+                req.exchange_account_id
+            )
+            strategy_owner = await self._sessions_port.get_owner(req.strategy_id)
+            if (
+                owner_account is None
+                or strategy_owner is None
+                or owner_account.user_id != strategy_owner
+            ):
+                qb_order_rejected_total.labels(
+                    exchange="unknown", reason="ownership_mismatch"
+                ).inc()
+                raise AccountOwnershipMismatch(
+                    f"exchange_account {req.exchange_account_id} 소유자가 strategy "
+                    f"{req.strategy_id} 소유자와 일치하지 않음"
+                )
+
         # Sprint 9 Phase D: service 레이어에서 exchange 직접 조회 회피 (async fetch 불필요).
         # 각 reject 카운터는 "unknown" exchange 로 집계 — dashboard 에서는 reason split 으로 충분.
         _metric_exchange = "unknown"
@@ -135,10 +162,14 @@ class OrderService:
         ):
             available = await self._exchange_service.fetch_balance_usdt(req.exchange_account_id)
             if available is not None and available > Decimal("0"):
-                notional = req.quantity * req.price * Decimal(req.leverage)
-                max_notional = (
-                    available * Decimal(settings.bybit_futures_max_leverage) * Decimal("0.95")
-                )
+                # CF5/MP-3 — Bybit/Binance 표준 initial-margin 모델 (벤치마크: bybit
+                # Order-Cost help-center). position notional = qty * price (leverage 미포함).
+                # 필요 initial margin = notional / leverage 가 available * 0.95 (open/close
+                # fee 버퍼) 이내여야 한다. 즉 notional <= available * leverage * 0.95.
+                # 이전 공식 (qty*price*leverage + max_leverage ceiling) 은 비표준 -
+                # 저레버리지에서 감당 불가 포지션 허용 / 고레버리지에서 정상 포지션 거부.
+                notional = req.quantity * req.price
+                max_notional = available * Decimal(req.leverage) * Decimal("0.95")
                 if notional > max_notional:
                     qb_order_rejected_total.labels(
                         exchange=_metric_exchange, reason="notional"
@@ -149,6 +180,16 @@ class OrderService:
                         leverage=req.leverage,
                         max_notional=max_notional,
                     )
+            elif (
+                dispatch_snapshot is not None
+                and dispatch_snapshot.get("mode") == ExchangeMode.live.value
+            ):
+                # CF5 — live 는 balance 검증 불가(fetch 실패/0) 시 fail-closed (주문 거부).
+                # demo 는 fail-open(skip) 유지 (서비스 중단 금지 — 기존 정책).
+                qb_order_rejected_total.labels(
+                    exchange=_metric_exchange, reason="balance_unverified"
+                ).inc()
+                raise BalanceUnverified(account_id=req.exchange_account_id)
 
         # Sprint 7d: 전략의 trading_sessions 가드. 비어있으면 24h(통과). 채워진 값이면
         # 현재 UTC hour가 허용 세션 중 하나에 속해야 함. kill switch / advisory lock
@@ -164,6 +205,27 @@ class OrderService:
                     sessions=sessions,
                     current_hour_utc=now.hour,
                 )
+
+        # ── ASYNC-1: kill-switch gate — order INSERT savepoint *밖*에서 평가 ──
+        # 신규 breach 시 ensure_not_gated 가 이벤트 INSERT + commit 후 KillSwitchActive
+        # raise. begin_nested 안에서 호출하면 raise 가 savepoint 를 rollback 시켜 audit
+        # row 가 유실되고, 매 주문마다 재평가 → alert storm (ASYNC-1). idempotent replay
+        # (기존 order 존재) 는 gate skip → cached 반환.
+        if idempotency_key is not None:
+            pre_existing = await self._repo.get_by_idempotency_key(idempotency_key)
+        else:
+            pre_existing = None
+        if pre_existing is None:
+            try:
+                await self._kill_switch.ensure_not_gated(
+                    strategy_id=req.strategy_id,
+                    account_id=req.exchange_account_id,
+                )
+            except KillSwitchActive:
+                qb_order_rejected_total.labels(
+                    exchange=_metric_exchange, reason="kill_switch"
+                ).inc()
+                raise
 
         created_order_id: UUID | None = None
         cached_response: OrderResponse | None = None
@@ -184,16 +246,7 @@ class OrderService:
                         )
                     cached_response = OrderResponse.model_validate(existing)
                 else:
-                    try:
-                        await self._kill_switch.ensure_not_gated(
-                            strategy_id=req.strategy_id,
-                            account_id=req.exchange_account_id,
-                        )
-                    except KillSwitchActive:
-                        qb_order_rejected_total.labels(
-                            exchange=_metric_exchange, reason="kill_switch"
-                        ).inc()
-                        raise
+                    # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
                     order = await self._repo.save(
                         Order(
                             strategy_id=req.strategy_id,
@@ -209,22 +262,15 @@ class OrderService:
                             # Sprint 7a: Futures. Spot은 모두 None.
                             leverage=req.leverage,
                             margin_mode=req.margin_mode,
+                            # MP-1: close 주문의 청산 realized PnL → kill-switch SUM 대상.
+                            realized_pnl=req.realized_pnl,
                             # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                             dispatch_snapshot=dispatch_snapshot,
                         )
                     )
                     created_order_id = order.id
             else:
-                try:
-                    await self._kill_switch.ensure_not_gated(
-                        strategy_id=req.strategy_id,
-                        account_id=req.exchange_account_id,
-                    )
-                except KillSwitchActive:
-                    qb_order_rejected_total.labels(
-                        exchange=_metric_exchange, reason="kill_switch"
-                    ).inc()
-                    raise
+                # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
                 order = await self._repo.save(
                     Order(
                         strategy_id=req.strategy_id,
@@ -240,6 +286,8 @@ class OrderService:
                         # Sprint 7a: Futures. Spot은 모두 None.
                         leverage=req.leverage,
                         margin_mode=req.margin_mode,
+                        # MP-1: close 주문의 청산 realized PnL → kill-switch SUM 대상.
+                        realized_pnl=req.realized_pnl,
                         # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                         dispatch_snapshot=dispatch_snapshot,
                     )

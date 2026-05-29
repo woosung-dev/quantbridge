@@ -24,6 +24,7 @@ from src.trading.dependencies import (
     get_order_service,
     get_webhook_service,
 )
+from src.trading.models import OrderState
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
@@ -244,8 +245,9 @@ async def cancel_order(
     order_id: UUID = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
-) -> OrderResponse:
-    """Sprint 6은 DB 상태만 cancelled로 전이. exchange 취소는 Sprint 7+."""
+) -> OrderResponse | JSONResponse:
+    """CF4: pending(거래소 미발주)은 즉시 DB cancel. submitted(거래소 live)은 DB-only flip
+    금지 — cancel_order_task 가 거래소 취소 성공 시에만 cancelled 전이 (orphan position 방지)."""
     from datetime import UTC, datetime
 
     repo = OrderRepository(session)
@@ -259,13 +261,28 @@ async def cancel_order(
     if acc is None or acc.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="order not found")
 
-    rowcount = await repo.transition_to_cancelled(order_id, cancelled_at=datetime.now(UTC))
+    # CF4: submitted 주문은 거래소에 live 가능 → DB-only cancel 금지. 거래소 취소 task 위임.
+    if order.state == OrderState.submitted:
+        from src.tasks.trading import cancel_order_task
+
+        cancel_order_task.delay(str(order_id))
+        return JSONResponse(
+            status_code=202,
+            content={
+                "order_id": str(order_id),
+                "state": OrderState.submitted.value,
+                "detail": "exchange cancel requested",
+            },
+        )
+
+    # pending(거래소 미발주)만 즉시 DB cancel — state==pending 조건부 (pending→submitted
+    # race 시 거래소 live 주문을 cancel 하지 않도록). terminal/raced → rowcount 0 → 409.
+    rowcount = await repo.transition_pending_to_cancelled(order_id, cancelled_at=datetime.now(UTC))
     await repo.commit()
     if rowcount == 0:
         raise HTTPException(status_code=409, detail="cannot cancel in current state")
     # Sprint 9 Phase D FIX-D1: cancel path 에서 gauge decrement
     # (service.execute 에서 +1 한 것을 cancelled terminal state 로 전이 시 -1).
-    # filled/rejected 는 tasks/trading.py 가 처리하지만 user-initiated cancel 은 router 가 직접 처리.
     qb_active_orders.dec()
     fetched = await repo.get_by_id(order_id)
     if not fetched:
@@ -283,9 +300,11 @@ async def list_kill_switch_events(
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, object]:
-    """Sprint 6: all events (no user scope filter — read-only audit purpose)."""
+    """CF1: 호출자 소유(strategy/account) kill-switch 이벤트만 반환 (cross-tenant IDOR 차단)."""
     repo = KillSwitchEventRepository(session)
-    events = await repo.list_recent(limit=limit, offset=offset)
+    events = await repo.list_recent_by_user(
+        user_id=current_user.id, limit=limit, offset=offset
+    )
     return {
         "items": [
             KillSwitchEventResponse.model_validate(e).model_dump(mode="json") for e in events
@@ -307,6 +326,10 @@ async def resolve_kill_switch(
     session: AsyncSession = Depends(get_async_session),
 ) -> KillSwitchEventResponse:
     repo = KillSwitchEventRepository(session)
+    # CF1: ownership gate — 호출자 소유 이벤트가 아니면 404 (타 tenant safety gate 해제 차단).
+    owned = await repo.get_owned(event_id, user_id=current_user.id)
+    if owned is None:
+        raise HTTPException(status_code=404, detail="event not found")
     raw_note = body.get("note")
     note = str(raw_note) if raw_note is not None else None
     rowcount = await repo.resolve(event_id, note=note)
