@@ -3,6 +3,8 @@
 > **기준:** Sprint 4 완료 시점 SQLModel 실제 코드 기반 (2026-04-16).
 > **SSOT:** 각 도메인 `backend/src/<domain>/models.py`. 본 문서와 코드 충돌 시 코드 우선.
 > **DB:** PostgreSQL 15+ (메인) + TimescaleDB 확장 (시계열) + Redis (캐시/Celery)
+>
+> **⚠ 2026-05-29 reconcile:** 아래 다이어그램 + 스키마 본문의 **trading/optimizer/stress 영역은 Sprint 4 스냅샷이라 stale**. 실제 shipped 테이블은 `stress_tests`·`optimization_runs`·`exchange_accounts`·`orders`·`kill_switch_events`·`webhook_secrets`·`live_signal_sessions`·`live_signal_states`·`live_signal_events`·`funding_rates`·`ohlcv` 이며, 정확한 스키마는 **코드 `models.py` + `backend/alembic/versions/` SSOT**. `trading_sessions`·`live_trades` 는 **phantom** (미구현 — 실제는 `orders` + `live_signal_*`). 다이어그램의 trading 영역 + 본문 "(미구현)" PK 주석은 미갱신 (전체 ERD 재작성 = 후속 작업). `users`·`strategies`·`backtests` 코어는 정확. 구현 상태표(하단)는 갱신됨.
 
 ---
 
@@ -162,24 +164,24 @@ erDiagram
 
 ## Enum 정의 (구현됨)
 
-| Enum | 값 | 코드 위치 |
-|------|----|-----------|
+| Enum             | 값                                                                                     | 코드 위치            |
+| ---------------- | -------------------------------------------------------------------------------------- | -------------------- |
 | `BacktestStatus` | `queued` · `running` · `cancelling` (transient) · `completed` · `failed` · `cancelled` | `backtest/models.py` |
-| `ParseStatus` | `ok` · `unsupported` · `error` | `strategy/models.py` |
-| `PineVersion` | `v4` · `v5` | `strategy/models.py` |
-| `TradeDirection` | `long` · `short` | `backtest/models.py` |
-| `TradeStatus` | `open` · `closed` | `backtest/models.py` |
+| `ParseStatus`    | `ok` · `unsupported` · `error`                                                         | `strategy/models.py` |
+| `PineVersion`    | `v4` · `v5`                                                                            | `strategy/models.py` |
+| `TradeDirection` | `long` · `short`                                                                       | `backtest/models.py` |
+| `TradeStatus`    | `open` · `closed`                                                                      | `backtest/models.py` |
 
 ---
 
 ## FK 정책 (구현됨)
 
-| 부모 → 자식 | ondelete | 이유 |
-|-------------|----------|------|
-| `users` → `strategies` | CASCADE | 사용자 탈퇴 시 전략 일괄 삭제 |
-| `users` → `backtests` | CASCADE | 동일 |
-| `strategies` → `backtests` | **RESTRICT** | 백테스트가 참조 중이면 전략 삭제 금지 → 409 |
-| `backtests` → `backtest_trades` | CASCADE | 백테스트 삭제 시 trades 동시 삭제 + ORM cascade all,delete-orphan |
+| 부모 → 자식                     | ondelete     | 이유                                                              |
+| ------------------------------- | ------------ | ----------------------------------------------------------------- |
+| `users` → `strategies`          | CASCADE      | 사용자 탈퇴 시 전략 일괄 삭제                                     |
+| `users` → `backtests`           | CASCADE      | 동일                                                              |
+| `strategies` → `backtests`      | **RESTRICT** | 백테스트가 참조 중이면 전략 삭제 금지 → 409                       |
+| `backtests` → `backtest_trades` | CASCADE      | 백테스트 삭제 시 trades 동시 삭제 + ORM cascade all,delete-orphan |
 
 미구현 도메인의 FK 정책은 구현 sprint에서 확정 (PRD 기준 계획만 존재).
 
@@ -187,54 +189,58 @@ erDiagram
 
 ## 인덱스 (구현됨)
 
-| 테이블 | 인덱스 | 컬럼 |
-|--------|--------|------|
-| `users` | PK | `id` |
-| `users` | UNIQUE | `clerk_user_id` |
-| `users` | index | `is_active` |
-| `strategies` | PK | `id` |
-| `strategies` | index | `user_id` |
-| `strategies` | index | `parse_status` |
-| `strategies` | index | `is_archived` |
-| `strategies` | composite | `(user_id, is_archived, updated_at)` — `ix_strategies_owner_active_updated` |
-| `backtests` | PK | `id` |
-| `backtests` | index | `user_id` |
-| `backtests` | index | `strategy_id` |
-| `backtests` | index | `status` — `ix_backtests_status` |
-| `backtests` | composite | `(user_id, created_at)` — `ix_backtests_user_created` |
-| `backtest_trades` | PK | `id` |
-| `backtest_trades` | index | `backtest_id` |
-| `backtest_trades` | composite | `(backtest_id, trade_index)` — `ix_backtest_trades_backtest_idx` |
+| 테이블            | 인덱스    | 컬럼                                                                        |
+| ----------------- | --------- | --------------------------------------------------------------------------- |
+| `users`           | PK        | `id`                                                                        |
+| `users`           | UNIQUE    | `clerk_user_id`                                                             |
+| `users`           | index     | `is_active`                                                                 |
+| `strategies`      | PK        | `id`                                                                        |
+| `strategies`      | index     | `user_id`                                                                   |
+| `strategies`      | index     | `parse_status`                                                              |
+| `strategies`      | index     | `is_archived`                                                               |
+| `strategies`      | composite | `(user_id, is_archived, updated_at)` — `ix_strategies_owner_active_updated` |
+| `backtests`       | PK        | `id`                                                                        |
+| `backtests`       | index     | `user_id`                                                                   |
+| `backtests`       | index     | `strategy_id`                                                               |
+| `backtests`       | index     | `status` — `ix_backtests_status`                                            |
+| `backtests`       | composite | `(user_id, created_at)` — `ix_backtests_user_created`                       |
+| `backtest_trades` | PK        | `id`                                                                        |
+| `backtest_trades` | index     | `backtest_id`                                                               |
+| `backtest_trades` | composite | `(backtest_id, trade_index)` — `ix_backtest_trades_backtest_idx`            |
 
 ---
 
 ## 구현 상태
 
-| 테이블 | SQLModel | Alembic Migration | Sprint |
-|--------|----------|--------------------|----|
-| `users` | ✅ `auth/models.py` | ✅ | 3 |
-| `strategies` | ✅ `strategy/models.py` | ✅ | 3 |
-| `backtests` | ✅ `backtest/models.py` | ✅ | 4 |
-| `backtest_trades` | ✅ `backtest/models.py` | ✅ | 4 |
-| `stress_tests` | ❌ 빈 파일 | ❌ | Sprint 6+ |
-| `exchange_accounts` | ❌ 빈 파일 | ❌ | Sprint 7+ |
-| `trading_sessions` | ❌ 빈 파일 | ❌ | Sprint 7+ |
-| `live_trades` | ❌ 빈 파일 | ❌ | Sprint 7+ |
-| `ts.ohlcv` (hypertable) | ✅ `market_data/models.py` | ✅ M2 | 5 |
-| `funding_rates` (hypertable) | ❌ 빈 파일 | ❌ | Sprint 6+ |
+| 테이블                                                               | SQLModel                   | Alembic Migration | Sprint                            |
+| -------------------------------------------------------------------- | -------------------------- | ----------------- | --------------------------------- |
+| `users`                                                              | ✅ `auth/models.py`        | ✅                | 3                                 |
+| `strategies`                                                         | ✅ `strategy/models.py`    | ✅                | 3                                 |
+| `backtests`                                                          | ✅ `backtest/models.py`    | ✅                | 4                                 |
+| `backtest_trades`                                                    | ✅ `backtest/models.py`    | ✅                | 4                                 |
+| `stress_tests`                                                       | ✅ `stress_test/models.py` | ✅                | 50-52                             |
+| `optimization_runs`                                                  | ✅ `optimizer/models.py`   | ✅                | 54-57                             |
+| `exchange_accounts`                                                  | ✅ `trading/models.py`     | ✅                | 6                                 |
+| `orders`                                                             | ✅ `trading/models.py`     | ✅                | 6                                 |
+| `kill_switch_events`                                                 | ✅ `trading/models.py`     | ✅                | 6+                                |
+| `webhook_secrets`                                                    | ✅ `trading/models.py`     | ✅                | 6                                 |
+| `live_signal_sessions` / `live_signal_states` / `live_signal_events` | ✅ `trading/models.py`     | ✅                | 26                                |
+| `funding_rates` (hypertable)                                         | ✅ `trading/models.py`     | ✅                | 6+                                |
+| `ts.ohlcv` (hypertable)                                              | ✅ `market_data/models.py` | ✅ M2             | 5                                 |
+| `trading_sessions` / `live_trades`                                   | ❌ **phantom (미구현)**    | ❌                | 실제는 `orders` + `live_signal_*` |
 
-> 미구현 도메인의 스키마는 PRD 설계 기준. 구현 sprint에서 SQLModel과 재정합 필수.
+> shipped 테이블의 정확한 컬럼/FK 는 코드 `models.py` + alembic SSOT. 위 다이어그램의 trading 영역(`trading_sessions`/`live_trades`)은 phantom 으로 전체 ERD 재작성 시 `orders`/`live_signal_*`/`kill_switch_events`/`optimization_runs` 로 교체 예정.
 
 ---
 
 ## JSONB 데이터 구조 (구현됨)
 
-| 테이블 | 필드 | 내용 | 직렬화 규칙 |
-|--------|------|------|-------------|
-| `strategies` | `parse_errors` | 미지원 함수 목록 `[{"call": "request.security", ...}]` | — |
-| `strategies` | `tags` | 분류 태그 `["trend", "momentum"]` | — |
-| `backtests` | `metrics` | `{total_return: "0.12", sharpe: "1.5", max_drawdown: "0.08", num_trades: 42, ...}` | Decimal → str, `num_trades`는 int (cardinality 필드) |
-| `backtests` | `equity_curve` | `[{"t": "2024-01-01T00:00:00Z", "v": "10120.50"}, ...]` | Decimal → str, datetime → ISO 8601 Z |
+| 테이블       | 필드           | 내용                                                                               | 직렬화 규칙                                          |
+| ------------ | -------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `strategies` | `parse_errors` | 미지원 함수 목록 `[{"call": "request.security", ...}]`                             | —                                                    |
+| `strategies` | `tags`         | 분류 태그 `["trend", "momentum"]`                                                  | —                                                    |
+| `backtests`  | `metrics`      | `{total_return: "0.12", sharpe: "1.5", max_drawdown: "0.08", num_trades: 42, ...}` | Decimal → str, `num_trades`는 int (cardinality 필드) |
+| `backtests`  | `equity_curve` | `[{"t": "2024-01-01T00:00:00Z", "v": "10120.50"}, ...]`                            | Decimal → str, datetime → ISO 8601 Z                 |
 
 > 직렬화: `backtest/serializers.py` (`metrics_to_jsonb`, `equity_curve_to_jsonb`).
 
@@ -242,30 +248,31 @@ erDiagram
 
 ## PRD 대비 실제 변경사항
 
-| 항목 | PRD/Phase 0 ERD | 실제 구현 (Sprint 4) | 이유 |
-|------|-----------------|---------------------|------|
-| `users.id` | `VARCHAR(255)` Clerk user_id를 PK로 | `UUID` PK + `clerk_user_id` 별도 컬럼 | 내부 PK와 외부 ID 분리 (더 나은 설계) |
-| `users.hashed_password` | 존재 | **삭제** | Clerk가 인증 담당 |
-| `users.is_premium` | 존재 | **삭제** | Sprint 3 미구현, 추후 추가 가능 |
-| `users.email/username` | UNIQUE | nullable, UNIQUE 미설정 | Clerk 동기화 시 없을 수 있음 |
-| 모든 엔티티 ID | `VARCHAR` (cuid2) | **`UUID`** (uuid4) | 구현 시 UUID로 통일 |
-| `strategies.pine_script` | 존재 | `pine_source` | 컬럼명 변경 |
-| `strategies.parsed_result` (JSONB) | 존재 | **삭제** (parse_errors + parse_status로 대체) | 파서 결과 구조 변경 |
-| `strategies.version` (int) | 존재 | **삭제** | 불필요 판단 |
-| `strategies.status` | `varchar` | `parse_status` enum (ok/unsupported/error) | 명확한 enum + 이름 변경 |
-| `backtests.config` (JSONB) | 단일 JSONB | 개별 컬럼 5개로 정규화 | 타입 안전성 + 쿼리 가능 |
-| `backtests.results` (JSONB) | 단일 JSONB | `metrics` + `equity_curve` 2개 JSONB로 분리 | 용도 분리 |
-| `backtests.progress` | float | **삭제** | 불필요 판단 (status로 충분) |
-| `backtests.updated_at` | 존재 | **삭제** | created_at + started_at + completed_at로 충분 |
-| `backtest_trades` | **없음** | Sprint 4에서 추가 (12 컬럼) | 개별 거래 기록 필요 |
-| 금융 수치 | `FLOAT` 혼용 | `DECIMAL(20, 8)` 통일 | 정밀도 보장 (float 금지) |
-| 수익률/비율 | 미정 | `DECIMAL(12, 6)` | 10,000% 여유 |
+| 항목                               | PRD/Phase 0 ERD                     | 실제 구현 (Sprint 4)                          | 이유                                          |
+| ---------------------------------- | ----------------------------------- | --------------------------------------------- | --------------------------------------------- |
+| `users.id`                         | `VARCHAR(255)` Clerk user_id를 PK로 | `UUID` PK + `clerk_user_id` 별도 컬럼         | 내부 PK와 외부 ID 분리 (더 나은 설계)         |
+| `users.hashed_password`            | 존재                                | **삭제**                                      | Clerk가 인증 담당                             |
+| `users.is_premium`                 | 존재                                | **삭제**                                      | Sprint 3 미구현, 추후 추가 가능               |
+| `users.email/username`             | UNIQUE                              | nullable, UNIQUE 미설정                       | Clerk 동기화 시 없을 수 있음                  |
+| 모든 엔티티 ID                     | `VARCHAR` (cuid2)                   | **`UUID`** (uuid4)                            | 구현 시 UUID로 통일                           |
+| `strategies.pine_script`           | 존재                                | `pine_source`                                 | 컬럼명 변경                                   |
+| `strategies.parsed_result` (JSONB) | 존재                                | **삭제** (parse_errors + parse_status로 대체) | 파서 결과 구조 변경                           |
+| `strategies.version` (int)         | 존재                                | **삭제**                                      | 불필요 판단                                   |
+| `strategies.status`                | `varchar`                           | `parse_status` enum (ok/unsupported/error)    | 명확한 enum + 이름 변경                       |
+| `backtests.config` (JSONB)         | 단일 JSONB                          | 개별 컬럼 5개로 정규화                        | 타입 안전성 + 쿼리 가능                       |
+| `backtests.results` (JSONB)        | 단일 JSONB                          | `metrics` + `equity_curve` 2개 JSONB로 분리   | 용도 분리                                     |
+| `backtests.progress`               | float                               | **삭제**                                      | 불필요 판단 (status로 충분)                   |
+| `backtests.updated_at`             | 존재                                | **삭제**                                      | created_at + started_at + completed_at로 충분 |
+| `backtest_trades`                  | **없음**                            | Sprint 4에서 추가 (12 컬럼)                   | 개별 거래 기록 필요                           |
+| 금융 수치                          | `FLOAT` 혼용                        | `DECIMAL(20, 8)` 통일                         | 정밀도 보장 (float 금지)                      |
+| 수익률/비율                        | 미정                                | `DECIMAL(12, 6)`                              | 10,000% 여유                                  |
 
 ---
 
 ## TimescaleDB 테이블 (시계열)
 
 ### ts.ohlcv (hypertable, ✅ Sprint 5 M2 활성)
+
 ```sql
 -- 마이그레이션 파일: backend/alembic/versions/20260416_1458_create_ohlcv_hypertable.py
 CREATE EXTENSION IF NOT EXISTS timescaledb;
@@ -293,6 +300,7 @@ CREATE INDEX ix_ohlcv_symbol_tf_time_desc ON ts.ohlcv (symbol, timeframe, time);
 ```
 
 **운영 정책:**
+
 - Repository: `OHLCVRepository` (`backend/src/market_data/repository.py`)
   - `insert_bulk` — `ON CONFLICT (time, symbol, timeframe) DO NOTHING` (idempotent)
   - `find_gaps` — `generate_series` + `EXCEPT` + ROW_NUMBER island grouping
@@ -300,6 +308,7 @@ CREATE INDEX ix_ohlcv_symbol_tf_time_desc ON ts.ohlcv (symbol, timeframe, time);
 - Provider: `TimescaleProvider` cache → CCXT fallback fetch + advisory lock + insert (자세한 flow는 [`data-flow.md`](./data-flow.md) §OHLCV cache)
 
 ### funding_rates (hypertable, ⏳ Sprint 6+ 계획)
+
 ```sql
 CREATE TABLE ts.funding_rates (
     time TIMESTAMPTZ NOT NULL,

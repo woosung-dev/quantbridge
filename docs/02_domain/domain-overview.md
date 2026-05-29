@@ -16,7 +16,7 @@ flowchart TB
     end
 
     subgraph Verify["Verification Context"]
-        BT[backtest\nvectorbt 실행·결과]
+        BT[backtest\npine_v2 인터프리터 실행]
         ST[stress_test\nMonte Carlo·Walk-Forward]
         Opt[optimizer\nGrid·Bayesian·Genetic]
     end
@@ -56,16 +56,16 @@ flowchart TB
 
 ## 2. 도메인 책임 매트릭스
 
-| 도메인 | 한 줄 책임 | 코드 위치 | 주요 엔티티 | 주요 API 섹션 | 구현 sprint |
-|--------|-------------|-----------|-------------|----------------|--------------|
-| `auth` | Clerk 세션 검증 + User 동기화 | `backend/src/auth/` | User | §인증 | 3 ✅ |
-| `strategy` | Pine 파싱·CRUD·Python 트랜스파일 | `backend/src/strategy/` | Strategy | §전략 | 1, 3 ✅ |
-| `backtest` | vectorbt 비동기 실행 + 결과 저장 | `backend/src/backtest/` | Backtest, BacktestTrade | §백테스트 | 2, 4 ✅ |
-| `market_data` | OHLCV 수집 + TimescaleDB 적재 | `backend/src/market_data/` | OHLCV, FundingRate | §시장 데이터 | 5 (예정) |
-| `stress_test` | Monte Carlo / Walk-Forward 분석 | `backend/src/stress_test/` | StressTest | §스트레스 테스트 | 6+ |
-| `optimizer` | 파라미터 탐색 (Grid/Bayes/Genetic) | `backend/src/optimizer/` | Optimization | §최적화 | 6+ |
-| `trading` | 데모/라이브 세션 + Risk Mgmt + Kill Switch | `backend/src/trading/` | TradingSession, LiveTrade | §트레이딩 | 7+ |
-| `exchange` | 거래소 계정 + AES-256 API Key | `backend/src/exchange/` | ExchangeAccount | §거래소 계정 | 7+ |
+| 도메인        | 한 줄 책임                                                                 | 코드 위치                  | 주요 엔티티                                                | 주요 API 섹션    | 구현 sprint |
+| ------------- | -------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------- | ---------------- | ----------- |
+| `auth`        | Clerk 세션 검증 + User 동기화                                              | `backend/src/auth/`        | User                                                       | §인증            | 3 ✅        |
+| `strategy`    | Pine 파싱·CRUD·pine_v2 인터프리터 (트랜스파일 아님, ADR-003)               | `backend/src/strategy/`    | Strategy                                                   | §전략            | 1, 3 ✅     |
+| `backtest`    | pine_v2 인터프리터(SSOT) 비동기 백테스트 (vectorbt 지표계산 보조, ADR-011) | `backend/src/backtest/`    | Backtest, BacktestTrade                                    | §백테스트        | 2, 4 ✅     |
+| `market_data` | OHLCV 수집 + TimescaleDB 적재 (**내부 전용 — 공개 REST 없음**)             | `backend/src/market_data/` | OHLCV, FundingRate                                         | (내부)           | 5-6 ✅      |
+| `stress_test` | Monte Carlo / Walk-Forward / Cost-Assumption / Param-Stability             | `backend/src/stress_test/` | StressTest                                                 | §스트레스 테스트 | 50-52 ✅    |
+| `optimizer`   | 파라미터 탐색 (Grid/Bayesian/Genetic, ADR-013)                             | `backend/src/optimizer/`   | OptimizationRun                                            | §최적화          | 54-57 ✅    |
+| `trading`     | 데모/라이브 주문 + Risk Mgmt + Kill Switch + 자동매매                      | `backend/src/trading/`     | Order, ExchangeAccount, KillSwitchEvent, LiveSignalSession | §트레이딩        | 6/26 ✅     |
+| `exchange`    | **제거됨** — `trading/` 로 통합 (ADR-018, Sprint 15-B)                     | (없음)                     | —                                                          | —                | —           |
 
 ## 3. 3-Layer 구조 (모든 도메인 공통)
 
@@ -83,6 +83,7 @@ flowchart TB
 ```
 
 **불변 규칙:**
+
 - Router → Service → Repository 단방향
 - 트랜잭션 경계는 Service에 (`repo.commit()` 호출은 service만)
 - 크로스 도메인 트랜잭션은 동일 session 주입 (예: Sprint 4 §4.8 `StrategyService.delete()` IntegrityError → `StrategyHasBacktests` 변환)
@@ -91,13 +92,13 @@ flowchart TB
 
 ### 4.1 FK 정책
 
-| 부모 | 자식 | ON DELETE | 이유 |
-|------|------|-----------|------|
-| `users` | `strategies`, `backtests`, `exchange_accounts`, `trading_sessions`, `stress_tests`, `live_trades` | CASCADE | 사용자 탈퇴 시 연관 데이터 일괄 삭제 |
-| `strategies` | `backtests`, `trading_sessions` | RESTRICT | 백테스트/세션이 참조 중이면 전략 삭제 금지 → 409 응답 |
-| `backtests` | `backtest_trades`, `stress_tests` | CASCADE | 백테스트 삭제 시 trades 동시 정리 |
-| `exchange_accounts` | `trading_sessions` | RESTRICT | 활성 세션이 참조 중이면 계정 삭제 금지 |
-| `trading_sessions` | `live_trades` | CASCADE | 세션 종료 시 거래 기록 유지 (별도 정책) ⚠️ 향후 재검토 |
+| 부모                | 자식                                                                                              | ON DELETE | 이유                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------ |
+| `users`             | `strategies`, `backtests`, `exchange_accounts`, `trading_sessions`, `stress_tests`, `live_trades` | CASCADE   | 사용자 탈퇴 시 연관 데이터 일괄 삭제                   |
+| `strategies`        | `backtests`, `trading_sessions`                                                                   | RESTRICT  | 백테스트/세션이 참조 중이면 전략 삭제 금지 → 409 응답  |
+| `backtests`         | `backtest_trades`, `stress_tests`                                                                 | CASCADE   | 백테스트 삭제 시 trades 동시 정리                      |
+| `exchange_accounts` | `trading_sessions`                                                                                | RESTRICT  | 활성 세션이 참조 중이면 계정 삭제 금지                 |
+| `trading_sessions`  | `live_trades`                                                                                     | CASCADE   | 세션 종료 시 거래 기록 유지 (별도 정책) ⚠️ 향후 재검토 |
 
 ### 4.2 인증 경계
 
@@ -122,7 +123,7 @@ flowchart TB
 ### 4.5 데이터 경계 — Decimal vs float
 
 - DB 컬럼: `DECIMAL(20, 8)` 통일 (PRD §데이터베이스 스키마 준수)
-- 엔진 내부: vectorbt가 float64로 처리. 외부 경계 (DTO/저장) 진입 시 `Decimal(str(...))` 변환
+- 엔진 내부: pine_v2 인터프리터가 float 로 처리. 외부 경계 (DTO/저장) 진입 시 `Decimal(str(...))` 변환
 - 합산: **Decimal-first** (Sprint 4 D8 교훈: `Decimal(str(a)) + Decimal(str(b))`, 절대 `Decimal(str(a + b))` 금지)
 
 ### 4.6 시간 경계 — UTC
@@ -136,20 +137,24 @@ flowchart TB
 > 상세 시퀀스는 [`04_architecture/data-flow.md`](../04_architecture/data-flow.md) 참조.
 
 ### Strategy → Backtest
+
 1. 사용자가 `Strategy` 생성 (Pine 코드 등록 + 파싱 결과 저장)
 2. `POST /backtests` 시 `strategy_id` 참조 → engine이 transpile된 Python 코드 실행
 3. Backtest 결과 저장, Strategy는 불변
 
 ### Backtest → Stress Test (Sprint 6+)
+
 1. 완료된 Backtest의 trades를 입력으로 Monte Carlo / Walk-Forward
 2. 결과는 `StressTest.results` JSONB 저장
 
 ### Strategy → Trading Session (Sprint 7+)
+
 1. 검증 통과한 Strategy로 `TradingSession` 시작
 2. Engine이 실시간 데이터 수신 → entry/exit 신호 → CCXT 주문
 3. Risk Manager가 한도 체크 (Kill Switch / 일일 손실 / 포지션 사이즈)
 
 ### Market Data → Backtest/Trading
+
 1. CCXT가 OHLCV/Funding 수집 → TimescaleDB hypertable
 2. Backtest는 `OHLCVProvider` Protocol로 추상화 (FixtureProvider → TimescaleProvider 전환, Sprint 5)
 3. Trading은 실시간 WebSocket + Zustand 캐시 (별도 경로)
@@ -165,17 +170,17 @@ flowchart TB
 5. ERD에 엔티티 추가 + Alembic migration
 6. 의존 도메인 화살표를 §1 다이어그램에 반영
 
-## 7. 미완 도메인 (스캐폴딩만 존재)
+## 7. 도메인 구현 현황 (2026-05-29 reconcile)
 
-코드 디렉토리는 있으나 router/service 미구현 (스캐폴딩 후 sprint 대기):
+초기 병렬 스캐폴딩(ADR-002) 후 대부분 구현 완료:
 
-- `market_data/` — Sprint 5
-- `stress_test/` — Sprint 6+
-- `optimizer/` — Sprint 6+
-- `trading/` — Sprint 7+
-- `exchange/` — Sprint 7+
+- `market_data/` — OHLCV provider(CCXT) + TimescaleDB ingestion 구현. **공개 REST endpoint 없음** (router 0 route — backtest 엔진이 `TimescaleProvider` 로 내부 호출). 사실상 internal 지원 subdomain.
+- `stress_test/` — **구현됨** (Sprint 50-52: Monte Carlo / Walk-Forward / Cost-Assumption / Param-Stability).
+- `optimizer/` — **구현됨** (Sprint 54-57: Grid / Bayesian(scikit-optimize) / Genetic, ADR-013).
+- `trading/` — **구현됨** (Sprint 6/7d/26: Order / ExchangeAccount / KillSwitch / WebhookSecret / LiveSignalSession + 자동매매).
+- `exchange/` — **제거됨** (ADR-018, Sprint 15-B — `trading/` 로 통합. `backend/src/exchange/` 디렉토리 부재, conformance A3).
 
-`models.py`는 일부 정의되어 있을 수 있음 — 실제 활성 시점에 ERD와 정합성 재검증.
+엔티티 정확 스키마는 코드 `models.py` + `erd.md` SSOT.
 
 ## 8. 참고
 

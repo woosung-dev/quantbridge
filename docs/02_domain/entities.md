@@ -2,7 +2,7 @@
 
 > **목적:** 도메인 엔티티의 책임·핵심 필드·상태·코드 위치 인덱스.
 > **SSOT:** 컬럼 정의는 [`04_architecture/erd.md`](../04_architecture/erd.md), 실 SQLModel은 `backend/src/<domain>/models.py`.
-> **Note:** 미구현 도메인의 엔티티는 PRD/ERD 기준 **계획 명세** — 실제 활성 sprint에서 ERD와 재정합.
+> **Note (2026-05-29 reconcile):** 이전 "계획 명세"였던 StressTest(ENT-005)·Optimization(ENT-006)·ExchangeAccount(ENT-009)·OHLCV(ENT-010)·FundingRate(ENT-011) 는 **모두 구현됨** — 정확한 컬럼은 코드 `models.py` + `erd.md` SSOT. `trading_sessions`(ENT-007)·`live_trades`(ENT-008) 테이블은 **미구현(phantom)** — 실제 trading lifecycle 은 `live_signal_sessions` + `orders` + `live_signal_events` (state-machines.md §3).
 
 ---
 
@@ -12,12 +12,12 @@
 - **코드:** `backend/src/auth/models.py` (`class User`)
 - **테이블:** `users`
 - **책임:** Clerk 동기화된 사용자 계정. 모든 도메인의 권한 단위.
-- **PK:** Clerk `user_id` (VARCHAR) — auto-increment 금지
+- **PK:** `id: UUID` (`uuid4`). Clerk user_id 는 별도 `clerk_user_id` (UK, VARCHAR max 64) — 내부 PK ↔ 외부 ID 분리.
 - **주요 필드:**
-  - `id: str` (Clerk user_id)
-  - `email: str` (unique)
-  - `username: str | None` (Clerk 동기화 누락 가능)
-  - `is_active: bool`, `is_premium: bool`
+  - `id: UUID` (PK), `clerk_user_id: str` (UK)
+  - `email: str | None` (nullable, max 320 — Clerk 동기화 누락 가능)
+  - `username: str | None` (nullable, max 64)
+  - `is_active: bool` (Clerk webhook `user.deleted` → soft delete). (`is_premium` 삭제됨)
   - `created_at`, `updated_at`
 - **불변량:** id 변경 불가. Clerk Webhook으로 lifecycle 동기화.
 - **API:** `GET /auth/me`, Webhook `POST /webhooks/clerk`
@@ -29,20 +29,21 @@
 - **도메인:** strategy
 - **코드:** `backend/src/strategy/models.py` (`class Strategy`)
 - **테이블:** `strategies`
-- **책임:** Pine Script 코드 + 파싱 결과 + 트랜스파일된 Python 코드의 진실.
+- **책임:** Pine Script 원본 + 파싱 결과 + Live Signal 설정의 진실. (트랜스파일 아님 — `pine_v2` AST 인터프리터, ADR-003)
 - **PK:** UUID
 - **주요 필드:**
-  - `id: UUID`, `user_id: str FK`
+  - `id: UUID`, `user_id: UUID FK` (→ users.id CASCADE)
   - `name: str`, `description: str | None`
-  - `pine_version: PineVersion` (V4 / V5)
-  - `raw_source: str` (Pine 코드 원본)
-  - `parsed_result: JSONB` (인디케이터·진입/청산 조건·트랜스파일된 Python)
-  - `parse_status: ParseStatus` (PENDING / SUPPORTED / UNSUPPORTED)
-  - `version: int`, `is_archived: bool`
+  - `pine_source: str` (Pine 코드 원본), `pine_version: PineVersion` (`v4` / `v5`)
+  - `parse_status: ParseStatus` (`ok` / `unsupported` / `error` — 파서는 `ok`/`error` 만 set, `unsupported` 는 예약값)
+  - `parse_errors: JSONB | None`
+  - `timeframe / symbol: str | None`, `tags: JSONB`, `trading_sessions: JSONB` (Sprint 7d session gate)
+  - `settings: JSONB | None` (Sprint 26 Live Signal params — leverage/margin_mode/position_size_pct)
+  - `is_archived: bool`
   - `created_at`, `updated_at`
-- **상태 머신:** `parse_status` (단순), `is_archived` (soft delete) — [`state-machines.md`](./state-machines.md)
+- **상태 머신:** `parse_status` + `is_archived` — [`state-machines.md`](./state-machines.md)
 - **불변량:**
-  - `parse_status=UNSUPPORTED`이면 백테스트 불가
+  - 미지원 함수 포함 시 백테스트 제출 거부 — `parse_status` 가 아니라 **backtest 시점 coverage analyzer** 가 판정 (ADR-003 all-or-nothing)
   - 백테스트가 참조 중이면 hard delete 금지 (FK RESTRICT → 409)
 - **API:** §전략 (CRUD 6 + parse preview 1)
 
@@ -53,7 +54,7 @@
 - **도메인:** backtest
 - **코드:** `backend/src/backtest/models.py` (`class Backtest`)
 - **테이블:** `backtests`
-- **책임:** vectorbt 실행 결과. 입력 파라미터(불변) + 진행 상태 + 결과(JSONB).
+- **책임:** `pine_v2` 인터프리터(SSOT) 백테스트 실행 결과. 입력 파라미터(불변) + 상태 + 결과(JSONB). (vectorbt 는 지표계산 보조로 강등, ADR-011)
 - **PK:** UUID
 - **주요 필드:**
   - `id: UUID`, `user_id FK`, `strategy_id FK` (RESTRICT)
@@ -96,7 +97,7 @@
 
 ---
 
-## ENT-005 — StressTest *(미구현, Sprint 6+)*
+## ENT-005 — StressTest _(구현됨 Sprint 50-52 — 실제 스키마는 코드/erd.md SSOT)_
 
 - **도메인:** stress_test
 - **코드:** `backend/src/stress_test/models.py` (스캐폴딩)
@@ -107,7 +108,7 @@
 
 ---
 
-## ENT-006 — Optimization *(미구현, Sprint 6+)*
+## ENT-006 — Optimization _(구현됨 Sprint 54-57 — 테이블 optimization_runs, kind grid_search/bayesian/genetic; 코드/erd.md SSOT)_
 
 - **도메인:** optimizer
 - **코드:** `backend/src/optimizer/models.py` (스캐폴딩)
@@ -117,7 +118,7 @@
 
 ---
 
-## ENT-007 — TradingSession *(미구현, Sprint 7+)*
+## ENT-007 — TradingSession _(미구현 phantom — 실제는 LiveSignalSession `live_signal_sessions` + Order, state-machines.md §3)_
 
 - **도메인:** trading
 - **코드:** `backend/src/trading/models.py` (스캐폴딩)
@@ -135,7 +136,7 @@
 
 ---
 
-## ENT-008 — LiveTrade *(미구현, Sprint 7+)*
+## ENT-008 — LiveTrade _(미구현 phantom — 실제는 `orders` + `live_signal_events`)_
 
 - **도메인:** trading
 - **코드:** `backend/src/trading/models.py` (스캐폴딩)
@@ -150,7 +151,7 @@
 
 ---
 
-## ENT-009 — ExchangeAccount *(미구현, Sprint 7+)*
+## ENT-009 — ExchangeAccount _(구현됨 Sprint 6 — `exchange_accounts`, AES-256 암호화; 코드/erd.md SSOT)_
 
 - **도메인:** exchange
 - **코드:** `backend/src/exchange/models.py` (스캐폴딩)
@@ -167,7 +168,7 @@
 
 ---
 
-## ENT-010 — OHLCV *(Sprint 5 M2 ✅ 활성)*
+## ENT-010 — OHLCV _(Sprint 5 M2 ✅ 활성)_
 
 - **도메인:** market_data
 - **코드:** `backend/src/market_data/models.py`, `repository.py`, `providers/timescale.py`
@@ -186,7 +187,7 @@
 
 ---
 
-## ENT-011 — FundingRate *(미구현, Sprint 6+)*
+## ENT-011 — FundingRate _(구현됨 — `funding_rates`; 코드/erd.md SSOT)_
 
 - **도메인:** market_data
 - **테이블:** `funding_rates` (TimescaleDB hypertable, 계획)
@@ -198,18 +199,22 @@
 ## 공통 패턴
 
 ### ID 정책
-- 사용자(`User.id`)는 Clerk user_id (VARCHAR)
-- 그 외 모든 엔티티는 UUID (또는 cuid2 — ERD 참조). auto-increment 금지.
+
+- 사용자(`User.id`)는 UUID PK (`uuid4`); Clerk user_id 는 별도 `clerk_user_id` 컬럼(UK, VARCHAR max 64). 내부 PK ↔ 외부 ID 분리 (erd.md §변경사항, Sprint 4).
+- 그 외 모든 엔티티도 UUID (`uuid4`). auto-increment 금지.
 
 ### Timestamp 정책
+
 - 모든 테이블에 `created_at`, `updated_at` 필수 (.ai/ spec)
 - Sprint 5 S3-05까지 naive UTC (Z 접미사 수동), 이후 tz-aware
 
 ### Decimal 정책
+
 - 금융 수치 컬럼: `DECIMAL(20, 8)`
 - 코드에서는 `Decimal` 타입. 합산은 Decimal-first.
 
 ### JSONB 직렬화 정책
+
 - Decimal → str (`metrics_to_jsonb`, `equity_curve_to_jsonb` — `backend/src/backtest/serializers.py`)
 - naive UTC datetime → ISO 8601 Z 수동 포맷
 
