@@ -195,6 +195,18 @@ class InvalidStrategySettings(AppException):
         self.error = error
 
 
+class AccountOwnershipMismatch(AppException):
+    """주문의 exchange_account 가 strategy 소유자와 다른 사용자 소유 — TRD-4 IDOR 차단.
+
+    webhook 경로는 strategy HMAC 으로만 인증되므로 current_user 가 없다. 따라서
+    `ExchangeAccount.user_id == Strategy.user_id` 불변식을 서비스 계층에서 강제하여
+    공격자가 타 tenant 계좌로 주문하는 것을 막는다.
+    """
+
+    status_code = 403
+    code = "account_ownership_mismatch"
+
+
 class NotionalExceeded(AppException):
     """주문 notional(qty x price x leverage)이 계좌 자본 x max_leverage x safety 초과.
 

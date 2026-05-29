@@ -3,6 +3,7 @@
 T18: 전체 DI factory 등록 — ExchangeAccount / Webhook / Order / KillSwitch.
 CSO-1: WebhookSecretService, WebhookService에 crypto 주입 (감사 보정).
 """
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -140,6 +141,13 @@ class _StrategySessionsAdapter:
         if strategy is None or strategy.trading_sessions is None:
             return []
         return list(strategy.trading_sessions)
+
+    async def get_owner(self, strategy_id: UUID) -> UUID | None:
+        """TRD-4 — strategy 소유자(user_id) 반환. 없으면 None."""
+        stmt = select(Strategy).where(Strategy.id == strategy_id)  # type: ignore[arg-type]
+        result = await self._session.execute(stmt)
+        strategy = result.scalar_one_or_none()
+        return strategy.user_id if strategy is not None else None
 
 
 # ── OrderService ─────────────────────────────────────────────────────

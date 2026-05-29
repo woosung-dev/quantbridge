@@ -15,6 +15,7 @@ from src.common.metrics import qb_active_orders, qb_order_rejected_total
 from src.core.config import settings
 from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.exceptions import (
+    AccountOwnershipMismatch,
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
@@ -96,6 +97,31 @@ class OrderService:
         4. idempotency 경로: lock → existing 확인 → hash 비교 → gate → INSERT
         5. commit 후 Celery dispatch (visibility race 방지)
         """
+        # ── TRD-4: cross-tenant ownership gate (모든 side-effect 이전) ──
+        # webhook 경로는 strategy HMAC 으로만 인증되고 exchange_account_id 를 caller
+        # payload 에서 받으므로, account 소유자 != strategy 소유자면 거부해야 한다
+        # (공격자가 타 tenant 계좌의 복호화된 credential 로 주문하는 IDOR 차단).
+        # sessions_port + exchange_service 가 모두 주입된 production 경로
+        # (get_order_service / live_signal) 에서 강제. 둘 다 없으면 검증 불가 →
+        # data-layer 강제는 Phase C(TI-5) 후속.
+        if self._sessions_port is not None and self._exchange_service is not None:
+            owner_account = await self._exchange_service._repo.get_by_id(
+                req.exchange_account_id
+            )
+            strategy_owner = await self._sessions_port.get_owner(req.strategy_id)
+            if (
+                owner_account is None
+                or strategy_owner is None
+                or owner_account.user_id != strategy_owner
+            ):
+                qb_order_rejected_total.labels(
+                    exchange="unknown", reason="ownership_mismatch"
+                ).inc()
+                raise AccountOwnershipMismatch(
+                    f"exchange_account {req.exchange_account_id} 소유자가 strategy "
+                    f"{req.strategy_id} 소유자와 일치하지 않음"
+                )
+
         # Sprint 9 Phase D: service 레이어에서 exchange 직접 조회 회피 (async fetch 불필요).
         # 각 reject 카운터는 "unknown" exchange 로 집계 — dashboard 에서는 reason split 으로 충분.
         _metric_exchange = "unknown"
