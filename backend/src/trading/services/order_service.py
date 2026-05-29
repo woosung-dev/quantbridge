@@ -191,6 +191,27 @@ class OrderService:
                     current_hour_utc=now.hour,
                 )
 
+        # ── ASYNC-1: kill-switch gate — order INSERT savepoint *밖*에서 평가 ──
+        # 신규 breach 시 ensure_not_gated 가 이벤트 INSERT + commit 후 KillSwitchActive
+        # raise. begin_nested 안에서 호출하면 raise 가 savepoint 를 rollback 시켜 audit
+        # row 가 유실되고, 매 주문마다 재평가 → alert storm (ASYNC-1). idempotent replay
+        # (기존 order 존재) 는 gate skip → cached 반환.
+        if idempotency_key is not None:
+            pre_existing = await self._repo.get_by_idempotency_key(idempotency_key)
+        else:
+            pre_existing = None
+        if pre_existing is None:
+            try:
+                await self._kill_switch.ensure_not_gated(
+                    strategy_id=req.strategy_id,
+                    account_id=req.exchange_account_id,
+                )
+            except KillSwitchActive:
+                qb_order_rejected_total.labels(
+                    exchange=_metric_exchange, reason="kill_switch"
+                ).inc()
+                raise
+
         created_order_id: UUID | None = None
         cached_response: OrderResponse | None = None
 
@@ -210,16 +231,7 @@ class OrderService:
                         )
                     cached_response = OrderResponse.model_validate(existing)
                 else:
-                    try:
-                        await self._kill_switch.ensure_not_gated(
-                            strategy_id=req.strategy_id,
-                            account_id=req.exchange_account_id,
-                        )
-                    except KillSwitchActive:
-                        qb_order_rejected_total.labels(
-                            exchange=_metric_exchange, reason="kill_switch"
-                        ).inc()
-                        raise
+                    # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
                     order = await self._repo.save(
                         Order(
                             strategy_id=req.strategy_id,
@@ -235,22 +247,15 @@ class OrderService:
                             # Sprint 7a: Futures. Spot은 모두 None.
                             leverage=req.leverage,
                             margin_mode=req.margin_mode,
+                            # MP-1: close 주문의 청산 realized PnL → kill-switch SUM 대상.
+                            realized_pnl=req.realized_pnl,
                             # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                             dispatch_snapshot=dispatch_snapshot,
                         )
                     )
                     created_order_id = order.id
             else:
-                try:
-                    await self._kill_switch.ensure_not_gated(
-                        strategy_id=req.strategy_id,
-                        account_id=req.exchange_account_id,
-                    )
-                except KillSwitchActive:
-                    qb_order_rejected_total.labels(
-                        exchange=_metric_exchange, reason="kill_switch"
-                    ).inc()
-                    raise
+                # ASYNC-1: kill-switch gate 는 begin_nested 밖에서 이미 평가됨.
                 order = await self._repo.save(
                     Order(
                         strategy_id=req.strategy_id,
@@ -266,6 +271,8 @@ class OrderService:
                         # Sprint 7a: Futures. Spot은 모두 None.
                         leverage=req.leverage,
                         margin_mode=req.margin_mode,
+                        # MP-1: close 주문의 청산 realized PnL → kill-switch SUM 대상.
+                        realized_pnl=req.realized_pnl,
                         # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                         dispatch_snapshot=dispatch_snapshot,
                     )

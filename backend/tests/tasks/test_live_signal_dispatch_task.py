@@ -124,6 +124,7 @@ def _build_pending_event() -> SimpleNamespace:
         qty=Decimal("1.0"),
         comment="",
         status=LiveSignalEventStatus.pending,
+        realized_pnl=None,  # MP-1 — entry 이벤트는 청산 PnL 없음
     )
 
 

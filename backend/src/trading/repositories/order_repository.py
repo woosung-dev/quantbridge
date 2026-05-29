@@ -81,18 +81,24 @@ class OrderRepository:
         filled_at: datetime,
         realized_pnl: Decimal | None = None,
     ) -> int:
+        # MP-1: realized_pnl 은 주문 생성(close 이벤트) 시점에 이미 기록되어 있다.
+        # 명시 인자가 있을 때만 갱신 (exchange-reported closedPnl 등 follow-up A 경로).
+        # None 이면 생성 시점 값을 보존 — 이전엔 무조건 NULL 로 덮어써서 kill-switch
+        # CumulativeLoss/DailyLoss 평가기가 SUM=0 으로 영구 inert 였다.
+        values: dict[str, object] = {
+            "state": OrderState.filled,
+            "exchange_order_id": exchange_order_id,
+            "filled_price": filled_price,
+            "filled_quantity": filled_quantity,
+            "filled_at": filled_at,
+        }
+        if realized_pnl is not None:
+            values["realized_pnl"] = realized_pnl
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
-            .values(
-                state=OrderState.filled,
-                exchange_order_id=exchange_order_id,
-                filled_price=filled_price,
-                filled_quantity=filled_quantity,
-                filled_at=filled_at,
-                realized_pnl=realized_pnl,
-            )
+            .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 

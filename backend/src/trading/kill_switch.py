@@ -227,6 +227,12 @@ class KillSwitchService:
             )
             # Correction 1: create() → save() (Sprint 6 convention)
             created = await self._events_repo.save(event)
+            # ASYNC-1: 신규 breach 이벤트를 즉시 commit — 이후 KillSwitchActive raise 가
+            # 호출자(OrderService)의 begin_nested SAVEPOINT 를 rollback 시켜도 audit row
+            # 가 유실되지 않는다. ensure_not_gated 는 OrderService 의 order INSERT
+            # savepoint *밖*에서 호출되므로 (order_service E9 restructure) 여기 commit 은
+            # pending event 만 영속화 + alert/dedup 계약 보존 (alert storm 방지).
+            await self._events_repo.commit()
 
             # Sprint 9 Phase D: 신규 발동만 카운트 (기존 unresolved 재히트는 제외).
             qb_kill_switch_triggered_total.labels(trigger_type=result.trigger_type).inc()
