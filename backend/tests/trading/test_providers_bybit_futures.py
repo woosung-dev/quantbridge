@@ -46,6 +46,11 @@ def ccxt_mock(monkeypatch):
     mock_exchange.set_leverage = AsyncMock(return_value=None)
     mock_exchange.set_margin_mode = AsyncMock(return_value=None)
     mock_exchange.close = AsyncMock()
+    # MP-4: precision 변환 stub (str passthrough). parent.attach_mock 에 미등록 →
+    # 호출 순서 불변식(margin_mode→leverage→create_order)에 영향 없음.
+    mock_exchange.load_markets = AsyncMock(return_value={})
+    mock_exchange.amount_to_precision = MagicMock(side_effect=lambda symbol, amount: str(amount))
+    mock_exchange.price_to_precision = MagicMock(side_effect=lambda symbol, price: str(price))
 
     mock_bybit_cls = MagicMock(return_value=mock_exchange)
     import ccxt.async_support as ccxt_async
@@ -82,7 +87,7 @@ async def test_bybit_futures_create_order_sets_leverage_and_margin_mode(
     mock_exchange.set_margin_mode.assert_awaited_once_with("cross", "BTC/USDT:USDT")
     mock_exchange.set_leverage.assert_awaited_once_with(5, "BTC/USDT:USDT")
     mock_exchange.create_order.assert_awaited_once_with(
-        "BTC/USDT:USDT", "market", "buy", 0.001, None
+        "BTC/USDT:USDT", "market", "buy", "0.001", None
     )
 
     # 2-a. 호출 순서 불변식 — Bybit v5 UTA 요구사항 (margin_mode → leverage → order).

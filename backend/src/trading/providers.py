@@ -92,6 +92,28 @@ class OrderStatusFetch:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+async def _to_exchange_precision(
+    exchange: Any, symbol: str, order: OrderSubmit
+) -> tuple[str, str | None]:
+    """MP-4: Decimal 수량/가격을 거래소 instrument precision 문자열로 변환한다.
+
+    float() 중간 변환을 제거해 정밀도 손실을 차단한다(Decimal-first 정책 연장).
+    amount_to_precision / price_to_precision 는 markets 메타데이터(amount step /
+    price tick)를 요구하므로 load_markets() 를 먼저 호출한다. ephemeral 인스턴스라도
+    markets 는 per-instance 캐시되어 뒤따르는 create_order 의 내부 load_markets 는
+    no-op → 추가 네트워크 round-trip 없음. amount 가 거래소 최소 단위 미만이면
+    ccxt 가 InvalidOrder(BaseError) 를 던져 provider 의 BaseError 핸들러가 wrap.
+    """
+    await exchange.load_markets()
+    amount = exchange.amount_to_precision(symbol, order.quantity)
+    price = (
+        exchange.price_to_precision(symbol, order.price)
+        if order.price is not None
+        else None
+    )
+    return amount, price
+
+
 class ExchangeProvider(Protocol):
     async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt: ...
 
@@ -177,6 +199,8 @@ class BybitDemoProvider:
         _apply_bybit_env(exchange, creds.environment)
         try:
             async with ccxt_timer("bybit", "create_order"):
+                # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
+                amount, price = await _to_exchange_precision(exchange, order.symbol, order)
                 # Sprint 12 Phase C — orderLinkId 가 있을 때만 params 전달
                 # (기존 caller 호환성 + WS order event 매핑용).
                 if order.client_order_id is not None:
@@ -184,8 +208,8 @@ class BybitDemoProvider:
                         order.symbol,
                         order.type.value,
                         order.side.value,
-                        float(order.quantity),
-                        float(order.price) if order.price is not None else None,
+                        amount,
+                        price,
                         {"orderLinkId": order.client_order_id},
                     )
                 else:
@@ -193,8 +217,8 @@ class BybitDemoProvider:
                         order.symbol,
                         order.type.value,
                         order.side.value,
-                        float(order.quantity),
-                        float(order.price) if order.price is not None else None,
+                        amount,
+                        price,
                     )
             if "id" not in result:
                 # 응답 손상 — 주문 추적 불가, 빠르게 실패. 일부 키만 노출 (PII 회피).
@@ -346,13 +370,15 @@ class BybitFuturesProvider:
                     if "not modified" not in str(e):
                         raise
             async with ccxt_timer("bybit_futures", "create_order"):
+                # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
+                amount, price = await _to_exchange_precision(exchange, linear_symbol, order)
                 if order.client_order_id is not None:
                     result = await exchange.create_order(
                         linear_symbol,
                         order.type.value,
                         order.side.value,
-                        float(order.quantity),
-                        float(order.price) if order.price is not None else None,
+                        amount,
+                        price,
                         {"orderLinkId": order.client_order_id},
                     )
                 else:
@@ -360,8 +386,8 @@ class BybitFuturesProvider:
                         linear_symbol,
                         order.type.value,
                         order.side.value,
-                        float(order.quantity),
-                        float(order.price) if order.price is not None else None,
+                        amount,
+                        price,
                     )
             if "id" not in result:
                 raise ProviderError(
@@ -511,14 +537,16 @@ class OkxDemoProvider:
         exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
             async with ccxt_timer("okx", "create_order"):
+                # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
+                amount, price = await _to_exchange_precision(exchange, order.symbol, order)
                 if order.client_order_id is not None:
                     # Sprint 12 Phase C — OKX clOrdId. WS order event 매핑용.
                     result = await exchange.create_order(
                         order.symbol,
                         order.type.value,
                         order.side.value,
-                        float(order.quantity),
-                        float(order.price) if order.price is not None else None,
+                        amount,
+                        price,
                         {"clOrdId": order.client_order_id},
                     )
                 else:
@@ -526,8 +554,8 @@ class OkxDemoProvider:
                         order.symbol,
                         order.type.value,
                         order.side.value,
-                        float(order.quantity),
-                        float(order.price) if order.price is not None else None,
+                        amount,
+                        price,
                     )
             if "id" not in result:
                 raise ProviderError(

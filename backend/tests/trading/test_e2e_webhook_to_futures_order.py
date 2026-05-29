@@ -100,6 +100,10 @@ def ccxt_futures_mock(monkeypatch: pytest.MonkeyPatch):
     )
     mock_exchange.cancel_order = AsyncMock(return_value={})
     mock_exchange.close = AsyncMock()
+    # MP-4: precision 변환 stub (str passthrough).
+    mock_exchange.load_markets = AsyncMock(return_value={})
+    mock_exchange.amount_to_precision = MagicMock(side_effect=lambda symbol, amount: str(amount))
+    mock_exchange.price_to_precision = MagicMock(side_effect=lambda symbol, price: str(price))
 
     mock_bybit_cls = MagicMock(return_value=mock_exchange)
 
@@ -235,7 +239,7 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
     # Sprint 12 Phase C: Celery task 가 OrderSubmit.client_order_id=str(order.id) 채움
     # → 6번째 positional 인자로 {"orderLinkId": <UUID-str>} 전달.
     create_call = mock_exchange.create_order.await_args
-    assert create_call.args[:5] == ("BTC/USDT:USDT", "market", "buy", 0.001, None)
+    assert create_call.args[:5] == ("BTC/USDT:USDT", "market", "buy", "0.001", None)
     assert "orderLinkId" in create_call.args[5]
     assert len(create_call.args[5]["orderLinkId"]) == 36  # UUID4 string
     mock_exchange.close.assert_awaited_once()

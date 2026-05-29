@@ -66,6 +66,11 @@ def ccxt_mock(monkeypatch):
     )
     mock_exchange.cancel_order = AsyncMock(return_value={})
     mock_exchange.close = AsyncMock()
+    # MP-4: precision 변환 stub (str passthrough) — provider 가 load_markets +
+    # amount/price_to_precision 으로 거래소 precision 문자열을 제출한다.
+    mock_exchange.load_markets = AsyncMock(return_value={})
+    mock_exchange.amount_to_precision = MagicMock(side_effect=lambda symbol, amount: str(amount))
+    mock_exchange.price_to_precision = MagicMock(side_effect=lambda symbol, price: str(price))
 
     mock_bybit_cls = MagicMock(return_value=mock_exchange)
     import ccxt.async_support as ccxt_async
@@ -93,7 +98,7 @@ async def test_bybit_demo_create_order_uses_credentials(credentials, order_submi
 
     # 2. create_order 호출 인자 — client_order_id 미설정 시 기존 signature 유지
     mock_exchange.create_order.assert_awaited_once_with(
-        "BTC/USDT", "market", "buy", 0.001, None
+        "BTC/USDT", "market", "buy", "0.001", None
     )
 
     # 3. 주문 후 close() 호출 — credentials 메모리 잔존 최소화
@@ -127,7 +132,7 @@ async def test_bybit_demo_create_order_passes_orderLinkId_when_client_order_id_s
     await provider.create_order(credentials, submit)
 
     mock_exchange.create_order.assert_awaited_once_with(
-        "BTC/USDT", "market", "buy", 0.001, None,
+        "BTC/USDT", "market", "buy", "0.001", None,
         {"orderLinkId": "550e8400-e29b-41d4-a716-446655440000"},
     )
 
