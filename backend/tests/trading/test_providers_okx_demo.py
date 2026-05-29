@@ -53,6 +53,10 @@ def ccxt_okx_mock(monkeypatch):
     mock_exchange.cancel_order = AsyncMock(return_value={})
     mock_exchange.close = AsyncMock()
     mock_exchange.set_sandbox_mode = MagicMock()
+    # MP-4: precision 변환 stub (str passthrough) — provider 가 거래소 precision 문자열 제출.
+    mock_exchange.load_markets = AsyncMock(return_value={})
+    mock_exchange.amount_to_precision = MagicMock(side_effect=lambda symbol, amount: str(amount))
+    mock_exchange.price_to_precision = MagicMock(side_effect=lambda symbol, price: str(price))
 
     mock_okx_cls = MagicMock(return_value=mock_exchange)
     import ccxt.async_support as ccxt_async
@@ -85,7 +89,7 @@ async def test_okx_demo_uses_credentials_with_passphrase(
 
     # 3. create_order 인자
     mock_exchange.create_order.assert_awaited_once_with(
-        "BTC/USDT", "market", "buy", 0.01, None
+        "BTC/USDT", "market", "buy", "0.01", None
     )
 
     # 4. finally close

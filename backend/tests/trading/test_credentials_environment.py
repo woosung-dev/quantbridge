@@ -48,6 +48,10 @@ def ccxt_bybit_mock(monkeypatch):
     mock_exchange.set_leverage = AsyncMock(return_value=None)
     mock_exchange.set_margin_mode = AsyncMock(return_value=None)
     mock_exchange.close = AsyncMock()
+    # MP-4: precision 변환 stub (str passthrough).
+    mock_exchange.load_markets = AsyncMock(return_value={})
+    mock_exchange.amount_to_precision = MagicMock(side_effect=lambda symbol, amount: str(amount))
+    mock_exchange.price_to_precision = MagicMock(side_effect=lambda symbol, price: str(price))
     mock_exchange.urls = {
         "api": {
             "public": "https://api.bybit.com",
