@@ -12,7 +12,7 @@ flowchart TB
     end
 
     subgraph Strategy["Strategy Context"]
-        Str[strategy\nPine 파싱·CRUD·Transpile]
+        Str[strategy\nPine 파싱·CRUD·pine_v2]
     end
 
     subgraph Verify["Verification Context"]
@@ -111,7 +111,7 @@ flowchart TB
 > CLAUDE.md 핵심 규칙: 백테스트/최적화는 반드시 Celery 비동기.
 
 - Backtest: `BacktestService.submit()` → `TaskDispatcher` (Celery) → worker에서 `_execute()` → engine
-- (예정) Stress Test, Optimizer도 동일 dispatcher 재사용
+- Stress Test / Optimizer 도 동일 dispatcher 패턴 사용 (구현됨, Sprint 50-57)
 - API 핸들러 직접 실행 금지
 
 ### 4.4 상태 머신 책임
@@ -139,7 +139,7 @@ flowchart TB
 ### Strategy → Backtest
 
 1. 사용자가 `Strategy` 생성 (Pine 코드 등록 + 파싱 결과 저장)
-2. `POST /backtests` 시 `strategy_id` 참조 → engine이 transpile된 Python 코드 실행
+2. `POST /backtests` 시 `strategy_id` 참조 → pine_v2 인터프리터가 AST bar-by-bar 실행 (transpile 아님)
 3. Backtest 결과 저장, Strategy는 불변
 
 ### Backtest → Stress Test (Sprint 6+)
