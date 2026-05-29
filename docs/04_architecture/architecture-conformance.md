@@ -4,8 +4,11 @@
 >
 > 매 sprint 회고 또는 Beta 오픈 전 1회 본 문서 전체를 1 hop 으로 재실행 → 정합성 점수 추적.
 >
-> **마지막 audit:** 2026-05-02 (Sprint 19 종료 후) — 위반 0 / OK 16 / TBD 0 = **100% 정합성** (15 → 16 항목, F17 신규 + A2 ✅ 승격).
-> **다음 audit 권장:** Sprint 20+ Beta 오픈 진입 직전.
+> **마지막 audit:** **2026-05-29 (audit Phase B 재실행 — Beta 진입 시점, Sprint 19 이후 첫 재실행)**. core Golden-Rule 체크 현행 코드 재검증: Repository-only DB 접근(`service.py` 중 OrderService 단일 documented 예외 — advisory lock), Pine `exec`/`eval` **0** (ADR-003), commit-spy **8 도메인**(backtest/optimizer/strategy/stress_test/trading×2/waitlist — Sprint 19 대비 optimizer·stress 신규 추가 = **개선**), module-level loop-bound async-state audit gate(F18) PASS, 회귀 0 (PR #305 money-path fix 포함 trading 288 / tasks 160 통과). **위반 0**.
+> **이전 audit:** 2026-05-02 (Sprint 19) — 16 OK / 1 TBD(B5) = 94%.
+> **다음 audit 권장:** mainnet 전환(BL-003) 직전 + 신규 도메인 추가 시.
+>
+> ⚠ 본 문서 §A2 등 일부 본문은 Sprint 19 스냅샷 기준 (optimizer "스캐폴드만" 표기 등 stale) — 위 재실행 요약이 현행 SSOT.
 
 ---
 
