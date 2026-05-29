@@ -80,7 +80,7 @@ from src.waitlist.models import WaitlistApplication  # noqa: F401 — metadata �
 # Path β Stage 2c C-1 — Mutation Oracle marker 기반 실행 제어 (Gate-3 codex
 # W-2c1 / opus W-1 해소). 기본 pytest 실행에서는 `mutation` marker test 를
 # 자동 skip (CI 시간 예산 ≤3분 보호). `--run-mutations` 명시 시 실행.
-# ADR-013 §10.1 Q2 "nightly only" 결정의 실 구현.
+# ADR-020 §10.1 Q2 "nightly only" 결정의 실 구현.
 # -------------------------------------------------------------------------
 
 

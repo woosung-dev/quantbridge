@@ -8,7 +8,7 @@ E2 실측과 동일한 AST 노드 타입/총수/edge shape 를 생산하는지 �
 
 Path β Stage 2 확장 (2026-04-23):
 - 기존 types/nodes 수치 외에 **edge_digest** (부모-자식 edge shape sha256) 추가
-- Path β Trust Layer CI 의 **P-1 AST Shape Parity** 레이어 (ADR-013 §4.1)
+- Path β Trust Layer CI 의 **P-1 AST Shape Parity** 레이어 (ADR-020 §4.1)
 """
 from __future__ import annotations
 

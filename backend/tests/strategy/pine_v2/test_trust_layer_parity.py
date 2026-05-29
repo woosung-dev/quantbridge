@@ -5,11 +5,11 @@ Path β Stage 2 실 구현 (2026-04-23). P-1 은 기존
 P-3 / Mutation / regen 은 fixture 생성 후 green (현재는 skipif).
 
 **참조:**
-- ADR-013: `docs/dev-log/013-trust-layer-ci-design.md`
+- ADR-020: `docs/dev-log/020-trust-layer-ci-design.md`
 - 아키텍처: `docs/04_architecture/trust-layer-architecture.md`
 - 요구사항/SLO: `docs/01_requirements/trust-layer-requirements.md`
 
-**구조 (ADR-013 §4):**
+**구조 (ADR-020 §4):**
 
 - **P-1** AST Shape Parity — `test_pynescript_baseline_parity.py` (types/nodes/edge_digest)
 - **P-2** Coverage SSOT Sync — `coverage._TA_FUNCTIONS ∪ _UTILITY_FUNCTIONS == interpreter.STDLIB_NAMES`
@@ -61,7 +61,7 @@ RUNNABLE_CORPUS: tuple[str, ...] = (
     "i2_luxalgo",
 )
 
-# Mutation Oracle 8개 (ADR-013 §4.4). M3 는 Stage 2 실측 후 layer 재분류 (opus W2).
+# Mutation Oracle 8개 (ADR-020 §4.4). M3 는 Stage 2 실측 후 layer 재분류 (opus W2).
 MUTATION_IDS: tuple[str, ...] = (
     "M1_sma_off_by_one",
     "M2_rsi_divzero_guard_removed",
@@ -228,7 +228,7 @@ def _extract_trades_and_runtime(
         for t in outcome.result.trades
     ]
 
-    # var_series + warnings 는 parse_and_run_v2 재호출 (ADR-013 §4.3)
+    # var_series + warnings 는 parse_and_run_v2 재호출 (ADR-020 §4.3)
     v2 = parse_and_run_v2(source, ohlcv_df, strict=False)
     var_series: dict[str, Any] = {}
     warnings: list[str] = []
@@ -270,7 +270,7 @@ def test_p3_execution_metrics_match_golden(corpus_id: str) -> None:
     """P-3: 6 corpus × corpus_ohlcv_frozen.parquet → metrics + digests baseline 일치.
 
     stdlib/interpreter/strategy_state 의 숫자 편차를 CI 에서 감지.
-    허용 오차 = max(절대 0.001, 상대 0.1%) per ADR-013 §4.3.
+    허용 오차 = max(절대 0.001, 상대 0.1%) per ADR-020 §4.3.
     """
     from src.backtest.engine.v2_adapter import run_backtest_v2
 

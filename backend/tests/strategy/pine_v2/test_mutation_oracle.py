@@ -1,6 +1,6 @@
 """Mutation Oracle (Path β Stage 2c) — P-1/2/3 의 감지력 메타 검증.
 
-ADR-013 §4.4 + §10.1 Q2 (nightly only) + §10.1 등가 가중. 각 mutation 을
+ADR-020 §4.4 + §10.1 Q2 (nightly only) + §10.1 등가 가중. 각 mutation 을
 in-process monkeypatch 로 inject 한 뒤 P-3 Execution Golden 이 drift 를
 감지하는지 확인.
 
@@ -184,7 +184,7 @@ def test_m2_rsi_noise_drift_is_detected() -> None:
     는 구현과 어긋남. divzero guard 를 직접 제거하면 `inf`/NaN 전파로 결과 digest
     자체가 invalid 해질 수 있어 **proxy 시뮬** 로 대체. `ta.rsi` 결과에 0.5%
     노이즈를 주입하여 "guard 누락 시 소규모 누적 drift" 의 효과를 재현.
-    ADR-013 §10.4.2 W-2 정책에 의거 함수명/docstring/구현 3단 정합.
+    ADR-020 §10.4.2 W-2 정책에 의거 함수명/docstring/구현 3단 정합.
     """
     from src.strategy.pine_v2 import stdlib as sl
 
@@ -222,7 +222,7 @@ def test_m4_crossover_boundary_is_detected() -> None:
       - drift 포착 시 XPASS (예상 외 성공, 경고지만 green)
       - drift 없으면 XFAIL (예상된 N/A, green)
     어느 쪽이든 green 이지만 "감지 실패 regression" 은 더 이상 기대 동작으로
-    위장되지 않음. ADR-013 §10.4.2 W-3 정책.
+    위장되지 않음. ADR-020 §10.4.2 W-3 정책.
     """
     from src.strategy.pine_v2 import stdlib as sl
 
@@ -254,7 +254,7 @@ def test_m4_crossover_boundary_is_detected() -> None:
 def test_m5_entry_price_drift_is_detected() -> None:
     """M5 Stage 2c 2차: StrategyState.entry 의 fill_price 에 ABS_TOL 초과 drift 주입.
 
-    ADR-013 §10.4 설계 — `fill_price + 0.005` 는 ABS_TOL(0.001) × 5 로 확실한 drift.
+    ADR-020 §10.4 설계 — `fill_price + 0.005` 는 ABS_TOL(0.001) × 5 로 확실한 drift.
     Track S/A 양쪽에서 entry 시 Trade.entry_price 가 baseline 대비 이격 →
     `_extract_trades_and_warnings` 가 `str(t.entry_price)` 로 직렬화 →
     `digest_sequence(trades) != expected["trades_digest"]` 로 감지.
@@ -329,12 +329,12 @@ def test_m7_stdlib_global_drift_is_detected() -> None:
 def test_m6_pnl_decimal_float_leak_is_detected() -> None:
     """M6 Stage 2c 2차: close() 반환 Trade.pnl 에 Decimal amplifier 주입.
 
-    ADR-013 §10.4 설계 — `Decimal(str(pnl)) * Decimal("1.0001")` 0.01% drift.
+    ADR-020 §10.4 설계 — `Decimal(str(pnl)) * Decimal("1.0001")` 0.01% drift.
     대형 corpus (i1/s2: 461 trades) 에서 누적 PnL 합산 drift 가 ABS_TOL(0.001) 또는
     REL_TOL(0.1%) 초과 → metrics.total_return digest mismatch 감지.
     trades_digest 의 pnl 필드도 함께 drift (보조 감지 경로).
 
-    원안 (ADR-013 §4.4) "Decimal → float 암묵적 leak — `Decimal(str(a+b))` vs
+    원안 (ADR-020 §4.4) "Decimal → float 암묵적 leak — `Decimal(str(a+b))` vs
     `Decimal(str(a)) + Decimal(str(b))`" 의 실측 drift 는 극소 (ABS_TOL 0.001 내)
     로 확인됨 (Stage 2b). 따라서 amplifier 배율을 명시 주입하여 동등한 감지 기회
     확보. 감지 의도 (precision leak 이 누적되어 PnL 편차 유발) 는 보존.
@@ -377,7 +377,7 @@ def test_m6_pnl_decimal_float_leak_is_detected() -> None:
 def test_m3_strategy_entry_return_is_detected() -> None:
     """M3 Stage 2c 2차: StrategyState.entry 를 no-op 으로 강제 → trade 미등록.
 
-    ADR-013 §4.4 원안 (반환 None → False) 은 호출자가 반환값을 직접 참조하지 않기
+    ADR-020 §4.4 원안 (반환 None → False) 은 호출자가 반환값을 직접 참조하지 않기
     때문에 단순 return 변경 만으로는 감지 불가. 본 테스트는 그 의도를 보존하면서
     **entry 자체를 no-op (원본 미호출 + return None)** 으로 시뮬레이션:
 
@@ -415,7 +415,7 @@ def test_m3_strategy_entry_return_is_detected() -> None:
 def test_m8_alert_hook_duplicate_is_detected() -> None:
     """M8 Stage 2c 2차: 같은 bar 에서 alert hook 이 2회 fire 되도록 강제.
 
-    ADR-013 §10.4 설계 — VirtualStrategyWrapper.process_bar 를 wrap:
+    ADR-020 §10.4 설계 — VirtualStrategyWrapper.process_bar 를 wrap:
       1) 원본 1회 호출 (정상 edge-trigger False→True fire)
       2) `self._prev[hook.index] = False` 로 모든 hook 의 edge 상태 리셋
       3) 원본 재호출 → 같은 bar 에서 edge transition 이 재발생 → 중복 fire

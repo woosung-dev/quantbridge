@@ -408,7 +408,7 @@
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | [ADR-005](dev-log/005-datetime-tz-aware.md) DateTime tz-aware                            | (Sprint 5 backfill 완료, 잔여 없음)                 |
 | [ADR-011](dev-log/011-pine-execution-strategy-v4.md) Pine Execution v4                   | (Path γ/δ archived — BL-040/041)                    |
-| [ADR-013](dev-log/013-trust-layer-ci-design.md) Trust Layer CI                           | BL-026 (skip 활성화 회귀), BL-023 (KIND-B/C 정밀도) |
+| [ADR-020](dev-log/020-trust-layer-ci-design.md) Trust Layer CI (구 ADR-013)              | BL-026 (skip 활성화 회귀), BL-023 (KIND-B/C 정밀도) |
 | [ADR-016](dev-log/016-sprint-y1-coverage-analyzer.md) Coverage Analyzer                  | (BL-037 archived)                                   |
 | [ADR-018](dev-log/018-sprint12-ws-supervisor-and-exchange-stub-removal.md) WS Supervisor | BL-014 (partial fill), BL-015 (OKX WS)              |
 

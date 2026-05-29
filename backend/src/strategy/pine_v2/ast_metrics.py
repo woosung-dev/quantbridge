@@ -41,7 +41,7 @@ def count_node_types(ast_root: Any) -> int:
 def compute_edge_digest(ast_root: Any) -> str:
     """AST 의 부모-자식 edge shape 를 sha256 hex 로 압축.
 
-    Path β P-1 AST Shape Parity (ADR-013 §4.1). edge 다중집합을 정렬한 뒤
+    Path β P-1 AST Shape Parity (ADR-020 §4.1). edge 다중집합을 정렬한 뒤
     `parent_type|child_type` 형식으로 직렬화하여 sha256 hash.
 
     - count_nodes / count_node_types 는 scalar 가 같으면 통과 — 구조 변경을 못 잡음

@@ -3,7 +3,7 @@
 > **상태:** 회고 (사후 기록, 2026-04-23 작성) · **Trust Layer 엔지니어 축 (Path β) 의 prerequisite**
 > **일자:** 2026-04-23 (PR #61 merge)
 > **브랜치:** `feat/sprint-y1-pine-coverage-analyzer`
-> **관련 ADR:** [ADR-011 Pine v4](./011-pine-execution-strategy-v4.md), [ADR-013 Trust Layer CI](./013-trust-layer-ci-design.md) (후속)
+> **관련 ADR:** [ADR-011 Pine v4](./011-pine-execution-strategy-v4.md), [ADR-020 Trust Layer CI](./020-trust-layer-ci-design.md) (후속)
 > **상위 문서:** [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md)
 
 ---
@@ -126,7 +126,7 @@ stdlib 에 새 함수 추가 시:
 2. `interpreter.py` 의 `_STDLIB_NAMES` 또는 dispatch 에 등록
 3. `coverage.py` 의 해당 group frozenset 에 추가
 
-**이 규약의 위반** 이 whack-a-mole 원인이었고, **Path β P-2 (Coverage SSOT Sync)** 가 이를 CI 에서 자동 포착한다 — ADR-013 §4.2 참조.
+**이 규약의 위반** 이 whack-a-mole 원인이었고, **Path β P-2 (Coverage SSOT Sync)** 가 이를 CI 에서 자동 포착한다 — ADR-020 §4.2 참조.
 
 ---
 
@@ -165,7 +165,7 @@ stdlib 에 새 함수 추가 시:
 
 ### Trust Layer 의 관점
 
-- Path β ADR-013 의 P-2 가 coverage.py SSOT 를 양방향 검증 (coverage ↔ stdlib/interpreter 리플렉션)
+- Path β ADR-020 의 P-2 가 coverage.py SSOT 를 양방향 검증 (coverage ↔ stdlib/interpreter 리플렉션)
 - P-1 의 pynescript baseline 확장 대상에 coverage 영향 없음 (coverage 는 QB 자체 자산, pynescript 는 외부 파서)
 
 ### 문서
@@ -177,7 +177,7 @@ stdlib 에 새 함수 추가 시:
 
 ## 8. 다음 단계
 
-- [x] Path β ADR-013 에 Y1 prerequisite 로 명시
+- [x] Path β ADR-020 에 Y1 prerequisite 로 명시
 - [ ] Path β P-2 Coverage SSOT Sync 구현 (Stage 2)
 - [ ] Coverage AST 정밀화 (Path γ 후보, 2~3일)
 - [ ] `supported-indicators.md` 의 list 자동 생성 (coverage.py 파싱) — H2 검토

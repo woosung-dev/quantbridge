@@ -1,9 +1,9 @@
 # Trust Layer 요구사항 · SLO · 수용 기준
 
-> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 요구사항/SLO 의 단일 진실 원천**. 아키텍처: [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (3-Layer Parity 설계), ADR: [`dev-log/013-trust-layer-ci-design.md`](../dev-log/013-trust-layer-ci-design.md) (결정 근거).
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 요구사항/SLO 의 단일 진실 원천**. 아키텍처: [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (3-Layer Parity 설계), ADR: [`dev-log/020-trust-layer-ci-design.md`](../dev-log/020-trust-layer-ci-design.md) (결정 근거).
 >
 > **상태:** Path β Stage 0 초안 (2026-04-23). Stage 2 구현 + Gate-2 통과 시 **확정**.
-> **상위 문서:** [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md), [`dev-log/013-trust-layer-ci-design.md`](../dev-log/013-trust-layer-ci-design.md), [`dev-log/016-sprint-y1-coverage-analyzer.md`](../dev-log/016-sprint-y1-coverage-analyzer.md)
+> **상위 문서:** [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md), [`dev-log/020-trust-layer-ci-design.md`](../dev-log/020-trust-layer-ci-design.md), [`dev-log/016-sprint-y1-coverage-analyzer.md`](../dev-log/016-sprint-y1-coverage-analyzer.md)
 > **관련 Sprint:** Path β · 관련 PR: Stage 2 에서 작성 예정
 > **상호 참조:** [`trading-demo-baseline.md`](./trading-demo-baseline.md) (dogfood 체결 baseline), [`pine-coverage-assignment.md`](./pine-coverage-assignment.md) (coverage SSOT)
 
@@ -49,7 +49,7 @@ Trust Layer 요구사항은 **두 축** 을 포괄한다:
 | **TL-E-6** | Baseline regen 스크립트는 `--confirm` 없이 실패                 | subprocess 테스트                           |              exit code ≠ 0              | G2-D | 오남용 방지                |
 | **TL-E-7** | 기존 trading/backtest suite regression 0건                      | `pytest -v backend/tests/` 전체             |               0 failures                | G2-F |                            |
 | **TL-E-8** | `coverage.SUPPORTED_FUNCTIONS` 와 `stdlib` 실제 바인딩 delta 0  | P-2 자동                                    |                delta = 0                | G2-A | Y1 prerequisite 정합       |
-| **TL-E-9** | Trust Layer 관련 문서 (ADR-013, 아키텍처, 요구사항) 갱신 동기화 | G2-G 수동                                   | reviewer 가 문서만 읽고 regen 실행 가능 | G2-G |                            |
+| **TL-E-9** | Trust Layer 관련 문서 (ADR-020, 아키텍처, 요구사항) 갱신 동기화 | G2-G 수동                                   | reviewer 가 문서만 읽고 regen 실행 가능 | G2-G |                            |
 
 ### 3.2 허용 오차 공식 (Decimal-first)
 
@@ -80,14 +80,14 @@ def within_tolerance(actual, expected):
 
 모든 TL-E-1 ~ TL-E-9 을 **동시 만족**. 어느 하나라도 실패 시 **main merge 금지**.
 
-#### 4.1.1 Mutation 측정 불가 = scope-reducing 정책 (BL-057, Sprint 46, ADR-013 follow-up)
+#### 4.1.1 Mutation 측정 불가 = scope-reducing 정책 (BL-057, Sprint 46, ADR-020 follow-up)
 
 **규칙:** Mutation Oracle (TL-E-5) 가 새 P-1/2/3 layer 또는 신규 mutation 케이스에서 **측정 불가** (instrumentation 실패 / sandbox eval 미가용 / coverage 도구 mismatch) 로 판정될 경우, **해당 layer 또는 케이스를 scope-reducing** 한다 — Gate-2 hard-block 으로 승격하지 않는다.
 
 **근거 (3):**
 
 1. **불확실성 회피**: 측정 불가 ≠ mutation 미감지. Hard-block 승격 시 false-positive 차단으로 PR throughput 손상.
-2. **CLAUDE.md ADR-013 정합**: "측정 불가능한 SLO 는 PR 차단 사유가 될 수 없다" 원칙의 mutation domain 적용.
+2. **CLAUDE.md ADR-020 정합**: "측정 불가능한 SLO 는 PR 차단 사유가 될 수 없다" 원칙의 mutation domain 적용.
 3. **선례**: Sprint Path β Stage 2c 1차 (2026-04-23, 4/8 감지) → 2차 (2026-04-23, 8/8 감지) — "측정 가능 영역만 측정" 으로 점진 확장하여 false-fail 0 달성.
 
 **적용 절차:**
@@ -99,8 +99,7 @@ def within_tolerance(actual, expected):
 
 **Anti-pattern:** Mutation 미감지 = Gate-2 fail 자동 적용 (false-fail 양산 → developer trust 손상).
 
-**Related:** ADR-013 (CLAUDE.md), [B5-ADR](../04_architecture/architecture-conformance.md#b5-adr), [BL-057](../REFACTORING-BACKLOG.md#bl-057)
-
+**Related:** ADR-020 (CLAUDE.md), [B5-ADR](../04_architecture/architecture-conformance.md#b5-adr), [BL-057](../REFACTORING-BACKLOG.md#bl-057)
 
 ### 4.2 Degrade 허용 (SLO 초과 시)
 

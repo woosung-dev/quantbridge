@@ -125,12 +125,13 @@
 
 ## ADR + 사후 회고 (번호순, 신뢰도 높은 결정 기록)
 
+- 020 — Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계 (구 ADR-013, 2026-05-29 renumber — Optimizer ADR-013 과 ID 충돌 해소) — [`020-trust-layer-ci-design.md`](020-trust-layer-ci-design.md)
 - 018 — Sprint 12 WebSocket Supervisor + Sprint 15-A/B Architecture Cleanup — [`018-sprint12-ws-supervisor-and-exchange-stub-removal.md`](018-sprint12-ws-supervisor-and-exchange-stub-removal.md)
 - 017 — FE Polish Bundle 1/2 묶음 회고 (FE-01~04 + FE-A~F) — [`017-fe-polish-bundle-1-2-retro.md`](017-fe-polish-bundle-1-2-retro.md)
 - 016 — Sprint Y1 Pre-flight Pine Coverage Analyzer (Trust Layer 사용자 축) — [`016-sprint-y1-coverage-analyzer.md`](016-sprint-y1-coverage-analyzer.md)
 - 015 — Sprint 7d 회고 (OKX Adapter + Trading Sessions + Passphrase 암호화) — [`015-sprint-7d-okx-sessions.md`](015-sprint-7d-okx-sessions.md)
 - 014 — Sprint 8b + 8c 합본 회고 (pine_v2 Tier-1 래퍼 + 3-Track Dispatcher) — [`014-sprint-8b-8c-pine-v2-expansion.md`](014-sprint-8b-8c-pine-v2-expansion.md)
-- 013 — Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계 — [`013-trust-layer-ci-design.md`](013-trust-layer-ci-design.md)
+- ~~013~~ — Trust Layer CI → **ADR-020 으로 renumber** (2026-05-29, Optimizer ADR-013 과 충돌 해소). 위 020 항목 참조
 - 012 — Sprint 8a Tier-0 Final Report (Week 1-3 완주, v3.0) — [`012-sprint-8a-tier0-final-report.md`](012-sprint-8a-tier0-final-report.md)
 - 011 — Pine Script 실행 전략 v4 (Alert Hook Parser + 3-Track Architecture) — [`011-pine-execution-strategy-v4.md`](011-pine-execution-strategy-v4.md)
 - 010b — Product Roadmap 프레임 & 입력 결정 (재작성본, canonical) — [`010b-product-roadmap.md`](010b-product-roadmap.md)

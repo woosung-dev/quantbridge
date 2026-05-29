@@ -11,7 +11,7 @@
 4. `var_series` / `trades` / `warnings` → sha256 digest
 5. i3_drfx 는 Y1 Coverage 에서 reject 대상 → `{"note": "Skipped ..."}` 로 기록만
 
-**ADR-013 §10.1 / §10.2 / SLO TL-E-6 준수**:
+**ADR-020 §10.1 / §10.2 / SLO TL-E-6 준수**:
 - `--confirm` 없이는 실패 (exit 1)
 - 출력 JSON 은 plain JSON (msgpack 금지)
 - Decimal 값은 `f"{val:.8f}"` 8자리 zero-pad
@@ -241,7 +241,7 @@ def main() -> int:
     parser.add_argument(
         "--confirm",
         action="store_true",
-        help="필수. 의도된 baseline 갱신임을 명시 (SLO TL-E-6, ADR-013 §10.1).",
+        help="필수. 의도된 baseline 갱신임을 명시 (SLO TL-E-6, ADR-020 §10.1).",
     )
     parser.add_argument(
         "--corpus",

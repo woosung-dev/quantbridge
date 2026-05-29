@@ -1,7 +1,7 @@
 //@version=4
 // Sprint 21 dogfood corpus — UtBot-style minimal (QB authored).
 // 본 fixture 는 Trust Layer 회귀 — heikinashi / security 가 명시 unsupported 로
-// reject 되는지 검증. ADR-013 §4 (codex G.0 P1 #2) 준수.
+// reject 되는지 검증. ADR-020 §4 (codex G.0 P1 #2) 준수.
 //
 // 동시에 Sprint 21 신규 추가된 max / min / timeframe.period / study NOP 처리도 검증.
 // 사용자 UtBot indicator easy/medium 와 동일한 builtin 사용 패턴, 자체 작성.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Path β Trust Layer CI — P-3 Execution Golden 을 위한 고정 OHLCV 데이터 생성.
 
-ADR-013 §4.3 명세:
+ADR-020 §4.3 명세:
 - BTCUSDT 1h, 2024-01-01 00:00:00 UTC ~ 2024-06-30 23:00:00 UTC (~4,320 bars)
 - Bybit public klines API (무인증)
 - 출력: `backend/tests/fixtures/pine_corpus_v2/corpus_ohlcv_frozen.parquet`
@@ -32,7 +32,7 @@ from typing import Any
 
 import pandas as pd
 
-# Symbol / timeframe / date range (ADR-013 §4.3 고정)
+# Symbol / timeframe / date range (ADR-020 §4.3 고정)
 SYMBOL = "BTC/USDT:USDT"  # Bybit USDT-Perpetual
 TIMEFRAME = "1h"
 SINCE_UTC = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)

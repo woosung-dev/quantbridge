@@ -10,7 +10,7 @@
 >
 > 1. `07_infra/h1-testnet-dogfood-guide.md` §2 (환경 준비) 완료 — Demo Trading API 키 발급 포함
 > 2. `scripts/bybit_demo_smoke.py` PASS 확인
-> 3. Path β Stage 0 문서 완료 (ADR-013, trust-layer-architecture.md, trust-layer-requirements.md)
+> 3. Path β Stage 0 문서 완료 (ADR-020, trust-layer-architecture.md, trust-layer-requirements.md)
 
 ---
 
