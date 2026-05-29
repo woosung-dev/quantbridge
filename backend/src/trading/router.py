@@ -283,9 +283,11 @@ async def list_kill_switch_events(
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, object]:
-    """Sprint 6: all events (no user scope filter — read-only audit purpose)."""
+    """CF1: 호출자 소유(strategy/account) kill-switch 이벤트만 반환 (cross-tenant IDOR 차단)."""
     repo = KillSwitchEventRepository(session)
-    events = await repo.list_recent(limit=limit, offset=offset)
+    events = await repo.list_recent_by_user(
+        user_id=current_user.id, limit=limit, offset=offset
+    )
     return {
         "items": [
             KillSwitchEventResponse.model_validate(e).model_dump(mode="json") for e in events
@@ -307,6 +309,10 @@ async def resolve_kill_switch(
     session: AsyncSession = Depends(get_async_session),
 ) -> KillSwitchEventResponse:
     repo = KillSwitchEventRepository(session)
+    # CF1: ownership gate — 호출자 소유 이벤트가 아니면 404 (타 tenant safety gate 해제 차단).
+    owned = await repo.get_owned(event_id, user_id=current_user.id)
+    if owned is None:
+        raise HTTPException(status_code=404, detail="event not found")
     raw_note = body.get("note")
     note = str(raw_note) if raw_note is not None else None
     rowcount = await repo.resolve(event_id, note=note)
