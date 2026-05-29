@@ -49,3 +49,32 @@ async def _execute(run_id: UUID) -> None:
             await service.run(run_id)
     finally:
         await engine.dispose()
+
+
+@celery_app.task(name="optimizer.reclaim_stale", max_retries=0)  # type: ignore[untyped-decorator]
+def reclaim_stale_running_task() -> int:
+    """CF3 (Phase C-1) — Celery Beat 주기 호출용 sync wrapper. backtest.reclaim_stale mirror."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(reclaim_stale_running())
+
+
+async def reclaim_stale_running() -> int:
+    """CF3 — stale RUNNING optimizer run → FAILED. Engine lifecycle 을 task 에 고정."""
+    from datetime import UTC, datetime
+
+    from src.core.config import settings
+    from src.optimizer.repository import OptimizationRepository
+
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            repo = OptimizationRepository(session)
+            reclaimed = await repo.reclaim_stale(
+                threshold_seconds=settings.optimizer_stale_threshold_seconds,
+                now=datetime.now(UTC),
+            )
+            await repo.commit()
+            return reclaimed
+    finally:
+        await engine.dispose()

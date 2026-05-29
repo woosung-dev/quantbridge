@@ -79,6 +79,15 @@ class Settings(BaseSettings):
             "(worker startup reclaim + GET /:id/progress의 stale 플래그). 기본 30분."
         ),
     )
+    # CF3 (Phase C-1) — optimizer/stress_test 도 동일 stale-RUNNING reclaim.
+    optimizer_stale_threshold_seconds: int = Field(
+        default=1800,
+        description="RUNNING optimizer run 이 몇 초 초과 시 stale → FAILED reclaim. 기본 30분.",
+    )
+    stress_test_stale_threshold_seconds: int = Field(
+        default=1800,
+        description="RUNNING stress test 가 몇 초 초과 시 stale → FAILED reclaim. 기본 30분.",
+    )
     ohlcv_fixture_root: str = Field(
         default="backend/data/fixtures/ohlcv",
         description="FixtureProvider가 OHLCV CSV를 읽는 루트 경로. 프로세스 CWD 기준.",
