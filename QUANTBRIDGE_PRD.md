@@ -1,5 +1,15 @@
 # QuantBridge — 퀀트 트레이딩 백테스트 & 실행 플랫폼
 
+> **⚠ LEGACY 문서 (2026-04-14 작성, 미개정) — 2026-05-29 audit reconcile note**
+>
+> 본 PRD 는 초기 설계 스냅샷으로 **백테스트 엔진·라이브러리·Phase 타임라인이 현재 구현과 다르다.** 현행 SSOT:
+>
+> - 백테스트 = **`pine_v2` 자체 AST 인터프리터** (vectorbt/backtrader 아님; vectorbt 는 지표계산 보조로 강등 — ADR-011)
+> - Optimizer = **scikit-optimize + 자체구현 GA** (Optuna 아님 — ADR-013)
+> - Phase 1-4 16주 선형 타임라인 → dogfood-first Sprint 모델 (`docs/00_project/phase-vs-sprint-mapping.md`)
+>
+> 목표·전략·현황 SSOT = `docs/00_project/vision.md` · `roadmap.md` · `AGENTS.md` · `docs/TODO.md`. 본 문서는 **historical reference**.
+
 ## 프로젝트 정의
 
 QuantBridge는 TradingView Pine Script 전략을 가져와서, 과거 데이터 기반 백테스팅 → 스트레스 테스트 → 거래소 데모 트레이딩 → 실거래 전환까지 하나의 파이프라인으로 연결하는 웹 기반 퀀트 트레이딩 플랫폼이다.
@@ -22,6 +32,7 @@ QuantBridge는 TradingView Pine Script 전략을 가져와서, 과거 데이터 
 ## 기술 스택
 
 ### 프론트엔드
+
 - **프레임워크**: Next.js 16+ (App Router, TypeScript Strict)
 - **차트**: TradingView Lightweight Charts v4 (`lightweight-charts` npm)
 - **코드 에디터**: Monaco Editor (`@monaco-editor/react`)
@@ -35,6 +46,7 @@ QuantBridge는 TradingView Pine Script 전략을 가져와서, 과거 데이터 
 - **패키지 매니저**: pnpm
 
 ### 백엔드
+
 - **프레임워크**: FastAPI (Python 3.11+, 100% async)
 - **ORM**: SQLModel + SQLAlchemy 2.0 (asyncpg) + Alembic (마이그레이션)
 - **검증**: Pydantic V2 + pydantic-settings (`.model_dump()`, `ConfigDict`)
@@ -46,6 +58,7 @@ QuantBridge는 TradingView Pine Script 전략을 가져와서, 과거 데이터 
 - **패키지 매니저**: uv
 
 ### 백테스트 엔진
+
 - **핵심**: vectorbt (벡터화 백테스팅, numpy 기반 초고속)
 - **보조**: backtrader (복잡한 전략 로직용)
 - **최적화**: Optuna (베이지안 최적화)
@@ -53,16 +66,19 @@ QuantBridge는 TradingView Pine Script 전략을 가져와서, 과거 데이터 
 - **인디케이터**: pandas-ta, TA-Lib
 
 ### 거래소 연동
+
 - **통합 라이브러리**: CCXT (107개 거래소 지원)
 - **주요 타겟**: Bybit (Demo + Live), Binance (Testnet + Live), OKX
 - **실시간 데이터**: CCXT Pro (WebSocket)
 
 ### 데이터베이스
+
 - **메인 DB**: PostgreSQL 15+ (사용자, 전략, 설정)
 - **시계열 DB**: TimescaleDB (OHLCV, 체결 데이터)
 - **캐시**: Redis (세션, 작업 큐, 실시간 데이터)
 
 ### 인프라
+
 - **컨테이너**: Docker + Docker Compose (개발), Kubernetes (프로덕션)
 - **리버스 프록시**: Nginx
 - **모니터링**: Prometheus + Grafana
@@ -193,6 +209,7 @@ quantbridge/
 ## 데이터베이스 스키마
 
 ### users 테이블
+
 ```sql
 -- Clerk 인증 연동: id는 Clerk user_id, 비밀번호 필드 없음
 CREATE TABLE users (
@@ -207,6 +224,7 @@ CREATE TABLE users (
 ```
 
 ### strategies 테이블
+
 ```sql
 CREATE TABLE strategies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -229,12 +247,13 @@ CREATE TABLE strategies (
 ```
 
 ### backtests 테이블
+
 ```sql
 CREATE TABLE backtests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     strategy_id UUID REFERENCES strategies(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    
+
     -- 백테스트 설정
     config JSONB NOT NULL,
     /*
@@ -253,12 +272,12 @@ CREATE TABLE backtests (
         "params_override": {"rsi_period": 14, "rsi_overbought": 70}
     }
     */
-    
+
     -- 실행 상태
     status VARCHAR(50) DEFAULT 'pending',  -- pending, running, completed, failed
     progress FLOAT DEFAULT 0,              -- 0.0 ~ 1.0
     error_message TEXT,
-    
+
     -- 결과 (completed 시 채워짐)
     results JSONB,
     /*
@@ -304,7 +323,7 @@ CREATE TABLE backtests (
         ]
     }
     */
-    
+
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -312,12 +331,13 @@ CREATE TABLE backtests (
 ```
 
 ### stress_tests 테이블
+
 ```sql
 CREATE TABLE stress_tests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     backtest_id UUID REFERENCES backtests(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    
+
     test_type VARCHAR(50) NOT NULL,   -- monte_carlo, walk_forward, parameter_stability
     config JSONB NOT NULL,
     /*
@@ -329,7 +349,7 @@ CREATE TABLE stress_tests (
         "slippage_range": [0.0001, 0.001],
         "confidence_level": 0.95
     }
-    
+
     Walk-Forward config 예시:
     {
         "in_sample_months": 6,
@@ -337,7 +357,7 @@ CREATE TABLE stress_tests (
         "step_months": 2,
         "min_oos_ratio": 0.5
     }
-    
+
     Parameter Stability config 예시:
     {
         "param_ranges": {
@@ -346,7 +366,7 @@ CREATE TABLE stress_tests (
         }
     }
     */
-    
+
     status VARCHAR(50) DEFAULT 'pending',
     progress FLOAT DEFAULT 0,
     results JSONB,
@@ -368,7 +388,7 @@ CREATE TABLE stress_tests (
             "p95": [[ts, val], ...]
         }
     }
-    
+
     Walk-Forward results 예시:
     {
         "periods": [
@@ -390,13 +410,14 @@ CREATE TABLE stress_tests (
         "combined_oos_sharpe": 1.52
     }
     */
-    
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
 ```
 
 ### exchange_accounts 테이블
+
 ```sql
 CREATE TABLE exchange_accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -410,22 +431,23 @@ CREATE TABLE exchange_accounts (
     permissions JSONB DEFAULT '[]',      -- ["read", "trade"] 등
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    
+
     UNIQUE(user_id, exchange, label)
 );
 ```
 
 ### trading_sessions 테이블
+
 ```sql
 CREATE TABLE trading_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     strategy_id UUID REFERENCES strategies(id) ON DELETE CASCADE,
     exchange_account_id UUID REFERENCES exchange_accounts(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    
+
     mode VARCHAR(20) NOT NULL,           -- demo, live
     status VARCHAR(50) DEFAULT 'stopped', -- stopped, running, paused, error
-    
+
     -- 트레이딩 설정
     config JSONB NOT NULL,
     /*
@@ -444,16 +466,16 @@ CREATE TABLE trading_sessions (
         }
     }
     */
-    
+
     -- 실시간 성과
     current_pnl DECIMAL(20, 8) DEFAULT 0,
     current_pnl_pct FLOAT DEFAULT 0,
     total_trades INTEGER DEFAULT 0,
     win_trades INTEGER DEFAULT 0,
-    
+
     -- 백테스트와의 비교용
     reference_backtest_id UUID REFERENCES backtests(id),
-    
+
     started_at TIMESTAMPTZ,
     stopped_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -461,41 +483,43 @@ CREATE TABLE trading_sessions (
 ```
 
 ### live_trades 테이블
+
 ```sql
 CREATE TABLE live_trades (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES trading_sessions(id) ON DELETE CASCADE,
-    
+
     symbol VARCHAR(50) NOT NULL,
     side VARCHAR(10) NOT NULL,           -- long, short
-    
+
     entry_time TIMESTAMPTZ NOT NULL,
     exit_time TIMESTAMPTZ,
-    
+
     entry_price DECIMAL(20, 8) NOT NULL,
     exit_price DECIMAL(20, 8),
-    
+
     quantity DECIMAL(20, 8) NOT NULL,
     leverage INTEGER DEFAULT 1,
-    
+
     -- 실제 체결 정보
     entry_order_id VARCHAR(100),         -- 거래소 주문 ID
     exit_order_id VARCHAR(100),
     actual_slippage DECIMAL(20, 8),      -- 실측 슬리피지
     commission DECIMAL(20, 8),
     funding_fee DECIMAL(20, 8),
-    
+
     pnl DECIMAL(20, 8),
     pnl_pct FLOAT,
-    
+
     status VARCHAR(20) DEFAULT 'open',   -- open, closed, cancelled
     close_reason VARCHAR(50),            -- signal, stop_loss, take_profit, kill_switch
-    
+
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 ### OHLCV 시계열 테이블 (TimescaleDB)
+
 ```sql
 CREATE TABLE ohlcv (
     time TIMESTAMPTZ NOT NULL,
@@ -507,7 +531,7 @@ CREATE TABLE ohlcv (
     low DECIMAL(20, 8) NOT NULL,
     close DECIMAL(20, 8) NOT NULL,
     volume DECIMAL(20, 8) NOT NULL,
-    
+
     PRIMARY KEY (time, exchange, symbol, timeframe)
 );
 
@@ -519,13 +543,14 @@ CREATE INDEX idx_ohlcv_lookup ON ohlcv (exchange, symbol, timeframe, time DESC);
 ```
 
 ### funding_rates 테이블
+
 ```sql
 CREATE TABLE funding_rates (
     time TIMESTAMPTZ NOT NULL,
     exchange VARCHAR(50) NOT NULL,
     symbol VARCHAR(50) NOT NULL,
     funding_rate DECIMAL(20, 10) NOT NULL,
-    
+
     PRIMARY KEY (time, exchange, symbol)
 );
 
@@ -537,6 +562,7 @@ SELECT create_hypertable('funding_rates', 'time');
 ## API 엔드포인트
 
 ### 인증 (Auth) — Clerk 기반
+
 ```
 # 회원가입/로그인/토큰 갱신은 Clerk가 처리 (별도 엔드포인트 불필요)
 GET    /api/v1/auth/me                # Clerk 토큰 검증 → 현재 사용자 정보
@@ -544,6 +570,7 @@ POST   /api/v1/auth/webhook           # Clerk Webhook → 사용자 생성/업�
 ```
 
 ### 전략 (Strategies)
+
 ```
 GET    /api/v1/strategies              # 내 전략 목록
 POST   /api/v1/strategies              # 새 전략 생성 (Pine Script 업로드)
@@ -556,6 +583,7 @@ POST   /api/v1/strategies/import-url   # TV 커뮤니티 URL로 가져오기
 ```
 
 ### 전략 템플릿 (Templates)
+
 ```
 GET    /api/v1/templates               # 템플릿 목록
 GET    /api/v1/templates/:id           # 템플릿 상세
@@ -563,6 +591,7 @@ POST   /api/v1/templates/:id/use       # 템플릿으로 내 전략 생성
 ```
 
 ### 백테스트 (Backtests)
+
 ```
 POST   /api/v1/backtests               # 백테스트 실행 요청
 GET    /api/v1/backtests               # 내 백테스트 목록
@@ -574,6 +603,7 @@ GET    /api/v1/backtests/:id/progress  # 백테스트 진행률 (polling용, WS 
 ```
 
 ### 스트레스 테스트 (Stress Tests)
+
 ```
 POST   /api/v1/stress-tests/monte-carlo        # Monte Carlo 시뮬레이션 실행
 POST   /api/v1/stress-tests/walk-forward       # Walk-Forward 분석 실행
@@ -583,6 +613,7 @@ GET    /api/v1/stress-tests/:id                # 결과 조회
 ```
 
 ### 최적화 (Optimization)
+
 ```
 POST   /api/v1/optimize/grid           # 그리드 서치 실행
 POST   /api/v1/optimize/bayesian       # 베이지안 최적화 실행
@@ -590,6 +621,7 @@ GET    /api/v1/optimize/:id            # 최적화 결과 조회
 ```
 
 ### 거래소 계정 (Exchange Accounts)
+
 ```
 GET    /api/v1/exchanges/accounts      # 등록된 거래소 계정 목록
 POST   /api/v1/exchanges/accounts      # 거래소 API Key 등록
@@ -600,6 +632,7 @@ GET    /api/v1/exchanges/accounts/:id/balance  # 잔고 조회 (데모/라이브
 ```
 
 ### 트레이딩 (Trading Sessions)
+
 ```
 POST   /api/v1/trading/sessions               # 트레이딩 세션 생성
 GET    /api/v1/trading/sessions               # 내 세션 목록
@@ -615,6 +648,7 @@ GET    /api/v1/trading/sessions/:id/comparison   # 백테스트 vs 실제 비교
 ```
 
 ### 시장 데이터 (Market Data)
+
 ```
 GET    /api/v1/market/symbols          # 지원 심볼 목록 (거래소별)
 GET    /api/v1/market/ohlcv            # OHLCV 데이터 조회
@@ -622,6 +656,7 @@ GET    /api/v1/market/funding-rates    # 펀딩비 데이터 조회
 ```
 
 ### WebSocket 이벤트
+
 ```
 # 클라이언트 → 서버
 ws://api/ws
@@ -648,6 +683,7 @@ ws://api/ws
 ### 기능 1: Pine Script 파서 + Python 변환
 
 #### 개요
+
 사용자가 입력한 Pine Script 코드를 파싱하여 메타데이터를 추출하고, 백테스트 가능한 Python 코드로 변환한다.
 
 #### Pine Script 인디케이터 → Python 매핑 (MVP 지원 목록)
@@ -660,29 +696,29 @@ INDICATOR_MAP = {
     "ta.ema": "pandas_ta.ema",
     "ta.wma": "pandas_ta.wma",
     "ta.vwma": "pandas_ta.vwma",
-    
+
     # 오실레이터
     "ta.rsi": "pandas_ta.rsi",
     "ta.stoch": "pandas_ta.stoch",
     "ta.cci": "pandas_ta.cci",
     "ta.mfi": "pandas_ta.mfi",
     "ta.willr": "pandas_ta.willr",
-    
+
     # 트렌드
     "ta.macd": "pandas_ta.macd",
     "ta.adx": "pandas_ta.adx",
     "ta.supertrend": "pandas_ta.supertrend",
-    
+
     # 변동성
     "ta.bb": "pandas_ta.bbands",
     "ta.atr": "pandas_ta.atr",
     "ta.kc": "pandas_ta.kc",
-    
+
     # 시그널 함수
     "ta.crossover": "custom_crossover",     # a > b and a[-1] <= b[-1]
     "ta.crossunder": "custom_crossunder",   # a < b and a[-1] >= b[-1]
     "ta.cross": "custom_cross",             # crossover or crossunder
-    
+
     # 가격 데이터
     "close": "df['close']",
     "open": "df['open']",
@@ -698,6 +734,7 @@ INDICATOR_MAP = {
 #### 파싱 결과 예시
 
 입력 Pine Script:
+
 ```pine
 //@version=5
 strategy("RSI Strategy", overlay=true)
@@ -714,29 +751,41 @@ if (ta.crossunder(rsiValue, overbought))
 ```
 
 파싱 결과:
+
 ```json
 {
-    "name": "RSI Strategy",
-    "version": 5,
-    "overlay": true,
-    "parameters": [
-        {"name": "rsiLength", "type": "int", "default": 14, "label": "RSI Length"},
-        {"name": "overbought", "type": "int", "default": 70, "label": "Overbought"},
-        {"name": "oversold", "type": "int", "default": 30, "label": "Oversold"}
-    ],
-    "indicators": ["ta.rsi"],
-    "entry_conditions": {
-        "long": "ta.crossover(rsiValue, oversold)",
-        "short": null
+  "name": "RSI Strategy",
+  "version": 5,
+  "overlay": true,
+  "parameters": [
+    {
+      "name": "rsiLength",
+      "type": "int",
+      "default": 14,
+      "label": "RSI Length"
     },
-    "exit_conditions": {
-        "long": "ta.crossunder(rsiValue, overbought)",
-        "short": null
-    }
+    {
+      "name": "overbought",
+      "type": "int",
+      "default": 70,
+      "label": "Overbought"
+    },
+    { "name": "oversold", "type": "int", "default": 30, "label": "Oversold" }
+  ],
+  "indicators": ["ta.rsi"],
+  "entry_conditions": {
+    "long": "ta.crossover(rsiValue, oversold)",
+    "short": null
+  },
+  "exit_conditions": {
+    "long": "ta.crossunder(rsiValue, overbought)",
+    "short": null
+  }
 }
 ```
 
 변환된 Python 코드:
+
 ```python
 import pandas as pd
 import pandas_ta as ta
@@ -749,23 +798,24 @@ def run_strategy(df: pd.DataFrame, params: dict) -> pd.DataFrame:
     rsi_length = params.get("rsiLength", 14)
     overbought = params.get("overbought", 70)
     oversold = params.get("oversold", 30)
-    
+
     # 인디케이터 계산
     df["rsi"] = ta.rsi(df["close"], length=rsi_length)
-    
+
     # 시그널 생성
     df["long_entry"] = (df["rsi"] > oversold) & (df["rsi"].shift(1) <= oversold)
     df["long_exit"] = (df["rsi"] < overbought) & (df["rsi"].shift(1) >= overbought)
-    
+
     # 포지션 계산
     df["signal"] = 0
     df.loc[df["long_entry"], "signal"] = 1
     df.loc[df["long_exit"], "signal"] = -1
-    
+
     return df
 ```
 
 #### 구현 우선순위
+
 1단계(MVP): 정규식 기반 간이 파서 — input 파라미터, 기본 인디케이터, strategy.entry/close 추출
 2단계: AST 기반 정식 파서 — 조건문, 변수, 함수 호출 등 전체 구문 분석
 3단계: 복잡한 Pine Script 지원 — 멀티 타임프레임, 커스텀 함수, security() 등
@@ -788,17 +838,17 @@ class BacktestEngine:
         self.initial_capital = config["initial_capital"]
         self.commission = config["commission_rate"]
         self.slippage = config["slippage_pct"]
-        
+
     def run(self, df: pd.DataFrame, strategy_func, params: dict) -> dict:
         """단일 심볼 백테스트 실행"""
-        
+
         # 1. 전략 실행 → 시그널 생성
         signals_df = strategy_func(df.copy(), params)
-        
+
         # 2. 진입/청산 시그널 추출
         entries = signals_df["long_entry"].values
         exits = signals_df["long_exit"].values
-        
+
         # 3. vectorbt 포트폴리오 시뮬레이션
         portfolio = vbt.Portfolio.from_signals(
             close=df["close"],
@@ -809,20 +859,20 @@ class BacktestEngine:
             slippage=self.slippage,
             freq="1h"  # config["timeframe"]에서 변환
         )
-        
+
         # 4. 성과 지표 계산
         metrics = self._calculate_metrics(portfolio)
-        
+
         # 5. 거래 내역 추출
         trades = self._extract_trades(portfolio)
-        
+
         return {
             "metrics": metrics,
             "trades": trades,
             "equity_curve": portfolio.value().tolist(),
             "drawdown_curve": portfolio.drawdown().tolist()
         }
-    
+
     def run_multi_symbol(self, symbols: list, strategy_func, params: dict) -> dict:
         """멀티 심볼 병렬 백테스트"""
         results = {}
@@ -830,12 +880,12 @@ class BacktestEngine:
             df = self._load_data(symbol)
             results[symbol] = self.run(df, strategy_func, params)
         return results
-    
+
     def _calculate_metrics(self, portfolio) -> dict:
         """종합 성과 지표 계산"""
         stats = portfolio.stats()
         returns = portfolio.returns()
-        
+
         return {
             "total_return_pct": float(stats["Total Return [%]"]),
             "annual_return_pct": float(stats.get("Annualized Return [%]", 0)),
@@ -859,17 +909,17 @@ class BacktestEngine:
 
 class RealisticSimulator:
     """TV 백테스터가 반영하지 않는 현실적 조건들"""
-    
+
     def apply_dynamic_slippage(self, order_size: float, orderbook_depth: dict) -> float:
         """주문량 대비 호가창 깊이를 고려한 동적 슬리피지"""
         # 큰 주문일수록 불리한 가격에 체결됨
         pass
-    
+
     def apply_funding_fee(self, position: dict, funding_rates: pd.Series) -> float:
         """무기한 선물 8시간 펀딩비 반영"""
         # 포지션 보유 중 발생하는 펀딩비 차감/지급
         pass
-    
+
     def apply_exchange_fees(self, trade: dict, fee_tier: str = "default") -> dict:
         """거래소별 실제 수수료 체계 반영"""
         FEE_TABLE = {
@@ -878,7 +928,7 @@ class RealisticSimulator:
             "okx": {"maker": 0.0002, "taker": 0.0005},
         }
         pass
-    
+
     def apply_market_hours(self, df: pd.DataFrame) -> pd.DataFrame:
         """크립토는 24/7이지만, 주식의 경우 장중/장외 구분"""
         pass
@@ -897,11 +947,11 @@ class MonteCarloSimulator:
     def __init__(self, num_simulations: int = 1000, confidence: float = 0.95):
         self.num_simulations = num_simulations
         self.confidence = confidence
-    
+
     def run(self, trade_returns: np.ndarray) -> dict:
         """
         거래 수익률 배열을 입력받아 Monte Carlo 시뮬레이션 실행
-        
+
         시뮬레이션 방법:
         1. trade_returns의 순서를 무작위로 섞어 새로운 equity curve 생성
         2. 이를 num_simulations번 반복
@@ -911,19 +961,19 @@ class MonteCarloSimulator:
         all_final_returns = []
         all_max_drawdowns = []
         all_equity_curves = []
-        
+
         for _ in range(self.num_simulations):
             shuffled = np.random.permutation(trade_returns)
-            equity = np.cumprod(1 + shuffled) 
-            
+            equity = np.cumprod(1 + shuffled)
+
             # MDD 계산
             peak = np.maximum.accumulate(equity)
             drawdown = (equity - peak) / peak
-            
+
             all_final_returns.append(equity[-1] - 1)
             all_max_drawdowns.append(drawdown.min())
             all_equity_curves.append(equity.tolist())
-        
+
         return {
             "simulations": self.num_simulations,
             "median_return_pct": float(np.median(all_final_returns) * 100),
@@ -946,7 +996,7 @@ class WalkForwardAnalyzer:
         self.is_months = is_months
         self.oos_months = oos_months
         self.step_months = step_months
-    
+
     def run(self, df: pd.DataFrame, strategy_func, param_ranges: dict) -> dict:
         """
         1. 데이터를 IS(학습)/OOS(검증) 구간으로 롤링 분할
@@ -956,20 +1006,20 @@ class WalkForwardAnalyzer:
         """
         periods = self._generate_periods(df)
         results = []
-        
+
         for period in periods:
             # IS 구간에서 최적화
             is_data = df[period["is_start"]:period["is_end"]]
             best_params, is_metrics = self._optimize_in_sample(
                 is_data, strategy_func, param_ranges
             )
-            
+
             # OOS 구간에서 검증
             oos_data = df[period["oos_start"]:period["oos_end"]]
             oos_metrics = self._evaluate_out_of_sample(
                 oos_data, strategy_func, best_params
             )
-            
+
             results.append({
                 **period,
                 "best_params": best_params,
@@ -979,9 +1029,9 @@ class WalkForwardAnalyzer:
                 "is_sharpe": is_metrics["sharpe"],
                 "oos_sharpe": oos_metrics["sharpe"],
             })
-        
+
         avg_ratio = np.mean([r["oos_is_ratio"] for r in results])
-        
+
         return {
             "periods": results,
             "avg_oos_is_ratio": float(avg_ratio),
@@ -1003,7 +1053,7 @@ from typing import Literal
 
 class ExchangeExecutor:
     """CCXT 기반 거래소 주문 실행기. 데모/라이브 동일 인터페이스."""
-    
+
     DEMO_URLS = {
         "bybit": {
             "rest": "https://api-demo.bybit.com",
@@ -1013,10 +1063,10 @@ class ExchangeExecutor:
             "rest": "https://testnet.binancefuture.com",
         }
     }
-    
-    def __init__(self, exchange_name: str, api_key: str, api_secret: str, 
+
+    def __init__(self, exchange_name: str, api_key: str, api_secret: str,
                  mode: Literal["demo", "live"] = "demo"):
-        
+
         exchange_class = getattr(ccxt, exchange_name)
         config = {
             "apiKey": api_key,
@@ -1024,40 +1074,40 @@ class ExchangeExecutor:
             "enableRateLimit": True,
             "options": {"defaultType": "swap"},  # USDT 무기한 선물
         }
-        
+
         # 데모 모드면 URL 오버라이드
         if mode == "demo" and exchange_name in self.DEMO_URLS:
             config["urls"] = {"api": self.DEMO_URLS[exchange_name]}
-        
+
         self.exchange = exchange_class(config)
         self.mode = mode
-    
+
     async def get_balance(self) -> dict:
         """잔고 조회"""
         return await self.exchange.fetch_balance()
-    
+
     async def place_market_order(self, symbol: str, side: str, amount: float) -> dict:
         """시장가 주문"""
         order = await self.exchange.create_order(
             symbol=symbol, type="market", side=side, amount=amount
         )
         return order
-    
+
     async def place_limit_order(self, symbol: str, side: str, amount: float, price: float) -> dict:
         """지정가 주문"""
         order = await self.exchange.create_order(
             symbol=symbol, type="limit", side=side, amount=amount, price=price
         )
         return order
-    
+
     async def set_leverage(self, symbol: str, leverage: int):
         """레버리지 설정"""
         await self.exchange.set_leverage(leverage, symbol)
-    
+
     async def get_positions(self) -> list:
         """현재 포지션 조회"""
         return await self.exchange.fetch_positions()
-    
+
     async def close_all_positions(self, symbol: str = None):
         """전체 포지션 청산 (Kill Switch)"""
         positions = await self.get_positions()
@@ -1076,7 +1126,7 @@ class ExchangeExecutor:
 
 class StrategyRunner:
     """실시간으로 전략을 실행하고 시그널에 따라 주문을 전송하는 메인 루프"""
-    
+
     def __init__(self, executor: ExchangeExecutor, strategy_func, params: dict,
                  risk_manager: RiskManager, config: dict):
         self.executor = executor
@@ -1086,15 +1136,15 @@ class StrategyRunner:
         self.config = config
         self.running = False
         self.current_position = None
-    
+
     async def start(self):
         """전략 실행 시작"""
         self.running = True
         symbol = self.config["symbol"]
         timeframe = self.config["timeframe"]
-        
+
         await self.executor.set_leverage(symbol, self.config["leverage"])
-        
+
         while self.running:
             try:
                 # 1. 최신 OHLCV 데이터 가져오기
@@ -1102,15 +1152,15 @@ class StrategyRunner:
                     symbol, timeframe, limit=500
                 )
                 df = self._ohlcv_to_dataframe(ohlcv)
-                
+
                 # 2. 전략 실행 → 현재 시그널 판단
                 signals_df = self.strategy_func(df, self.params)
                 current_signal = self._get_current_signal(signals_df)
-                
+
                 # 3. 리스크 체크
                 if not self.risk_manager.check(current_signal, self.current_position):
                     continue
-                
+
                 # 4. 시그널에 따라 주문 실행
                 if current_signal == "long_entry" and self.current_position is None:
                     await self._open_position("buy", symbol)
@@ -1120,18 +1170,18 @@ class StrategyRunner:
                     await self._open_position("sell", symbol)
                 elif current_signal == "short_exit" and self.current_position == "short":
                     await self._close_position(symbol)
-                
+
                 # 5. 다음 봉까지 대기
                 await self._wait_for_next_bar(timeframe)
-                
+
             except Exception as e:
                 # 에러 로깅 + 알림
                 await self._handle_error(e)
-    
+
     async def stop(self):
         """전략 실행 중지 (포지션 유지)"""
         self.running = False
-    
+
     async def kill(self):
         """긴급 중지 + 모든 포지션 청산"""
         self.running = False
@@ -1145,36 +1195,36 @@ class StrategyRunner:
 
 class RiskManager:
     """트레이딩 리스크 관리"""
-    
+
     def __init__(self, config: dict):
         self.daily_loss_limit_pct = config["daily_loss_limit_pct"]
         self.max_drawdown_pct = config["max_drawdown_pct"]
         self.stop_loss_pct = config.get("stop_loss_pct")
         self.take_profit_pct = config.get("take_profit_pct")
         self.kill_switch_enabled = config.get("kill_switch_enabled", True)
-        
+
         self.daily_pnl = 0
         self.peak_equity = 0
         self.current_equity = 0
-    
+
     def check(self, signal: str, current_position: str) -> bool:
         """주문 전 리스크 체크. False 반환 시 주문 차단"""
-        
+
         # 일일 손실 한도 체크
         if self.daily_pnl <= -(self.daily_loss_limit_pct):
-            self._trigger_alert("DAILY_LOSS_LIMIT", 
+            self._trigger_alert("DAILY_LOSS_LIMIT",
                 f"일일 손실 한도 {self.daily_loss_limit_pct}% 도달. 금일 트레이딩 중단.")
             return False
-        
+
         # 최대 낙폭 체크
         current_dd = (self.current_equity - self.peak_equity) / self.peak_equity * 100
         if current_dd <= -(self.max_drawdown_pct):
             self._trigger_alert("MAX_DRAWDOWN",
                 f"최대 낙폭 {self.max_drawdown_pct}% 도달. Kill Switch 발동.")
             return False
-        
+
         return True
-    
+
     def calculate_position_size(self, equity: float, risk_per_trade_pct: float,
                                  stop_loss_distance_pct: float) -> float:
         """포지션 사이즈 계산 (리스크 기반)"""
@@ -1188,34 +1238,36 @@ class RiskManager:
 ### 기능 5: 백테스트 vs 데모 괴리 분석
 
 #### 개요
+
 이 기능은 히스토리컬 백테스트의 예상 성과와 데모 트레이딩의 실제 성과를 실시간으로 비교하여, 전략의 실전 적합성을 평가한다. 다른 서비스에 없는 핵심 차별점이다.
 
 #### 비교 항목
+
 ```python
 # performance.py
 
 class PerformanceComparator:
     """백테스트 예상 vs 실제 데모 성과 비교"""
-    
+
     def compare(self, backtest_trades: list, live_trades: list) -> dict:
         return {
             # 슬리피지 분석
             "avg_slippage_expected": self._avg_slippage(backtest_trades),
             "avg_slippage_actual": self._avg_slippage(live_trades),
             "slippage_deviation": ...,  # 예상 대비 실제 편차
-            
+
             # 체결 분석
             "avg_fill_time_ms": ...,    # 평균 체결 시간
             "partial_fill_rate": ...,   # 부분 체결 비율
-            
+
             # 수익률 비교
             "backtest_return_pct": ...,
             "demo_return_pct": ...,
             "tracking_error": ...,       # 추적 오차
-            
+
             # 시그널 일치율
             "signal_match_rate": ...,    # 백테스트 시그널과 실제 진입 시점 일치율
-            
+
             # 경고
             "alerts": [
                 {"type": "SLIPPAGE_HIGH", "message": "실측 슬리피지가 예상의 3.2배입니다."},
@@ -1231,6 +1283,7 @@ class PerformanceComparator:
 MVP에 포함할 사전 구축 전략 템플릿:
 
 ### 1. RSI 역추세 전략
+
 ```pine
 //@version=5
 strategy("RSI Mean Reversion", overlay=true)
@@ -1247,6 +1300,7 @@ if ta.crossunder(rsi, overbought)
 ```
 
 ### 2. 이동평균 크로스오버
+
 ```pine
 //@version=5
 strategy("MA Crossover", overlay=true)
@@ -1263,6 +1317,7 @@ if ta.crossunder(fast, slow)
 ```
 
 ### 3. 볼린저 밴드 브레이크아웃
+
 ```pine
 //@version=5
 strategy("BB Breakout", overlay=true)
@@ -1278,6 +1333,7 @@ if ta.crossunder(close, lower)
 ```
 
 ### 4. MACD 시그널 전략
+
 ```pine
 //@version=5
 strategy("MACD Signal", overlay=false)
@@ -1294,6 +1350,7 @@ if ta.crossunder(macdLine, signalLine)
 ```
 
 ### 5. 슈퍼트렌드 전략
+
 ```pine
 //@version=5
 strategy("Supertrend Strategy", overlay=true)
@@ -1435,6 +1492,7 @@ volumes:
 ### Phase 1: 프로젝트 초기화 + 기본 백테스트 (주 1~4)
 
 **주 1: 프로젝트 셋업**
+
 - [ ] Next.js 16 + TypeScript Strict + Tailwind v4 + shadcn/ui v4 프론트엔드 초기화 (pnpm)
 - [ ] FastAPI + SQLModel + Alembic 백엔드 초기화 (uv, 100% async)
 - [ ] Docker Compose 개발 환경 구성 (healthcheck 포함)
@@ -1443,6 +1501,7 @@ volumes:
 - [ ] Clerk 인증 연동 (Frontend proxy.ts + Backend JWT 검증 + Webhook 동기화)
 
 **주 2: Pine Script 파서 + 데이터 파이프라인**
+
 - [ ] Pine Script 간이 파서 구현 (정규식 기반)
   - input 파라미터 추출
   - 인디케이터 사용 감지
@@ -1453,6 +1512,7 @@ volumes:
 - [ ] 전략 CRUD API (생성, 조회, 수정, 삭제)
 
 **주 3: 백테스트 엔진 코어**
+
 - [ ] vectorbt 기반 백테스트 엔진 구현
 - [ ] 단일 심볼 백테스트 실행
 - [ ] 성과 지표 계산 모듈 (샤프, MDD, 승률, PF 등)
@@ -1461,6 +1521,7 @@ volumes:
 - [ ] 백테스트 진행률 WebSocket 전송
 
 **주 4: 프론트엔드 기본 UI**
+
 - [ ] 대시보드 레이아웃 (사이드바, 헤더)
 - [ ] Pine Script 에디터 페이지 (Monaco Editor)
 - [ ] 파싱 결과 미리보기 패널
@@ -1474,6 +1535,7 @@ volumes:
 ### Phase 2: 고급 백테스트 + 최적화 (주 5~8)
 
 **주 5: 멀티심볼 + 리얼리스틱 시뮬레이션**
+
 - [ ] 멀티심볼 병렬 백테스트 (Celery 워커 활용)
 - [ ] 심볼별 결과 비교 히트맵 UI
 - [ ] 리얼리스틱 슬리피지 모델
@@ -1482,6 +1544,7 @@ volumes:
 - [ ] 멀티 타임프레임 비교 테스트
 
 **주 6: 스트레스 테스트**
+
 - [ ] Monte Carlo 시뮬레이션 구현 (거래 순서 셔플, 슬리피지 랜덤)
 - [ ] Monte Carlo 결과 시각화 (Equity Curve 밴드, 분위수)
 - [ ] Walk-Forward Analysis 구현
@@ -1490,12 +1553,14 @@ volumes:
 - [ ] 스트레스 테스트 리포트 종합 페이지
 
 **주 7: 파라미터 최적화**
+
 - [ ] 그리드 서치 최적화 구현
 - [ ] Optuna 기반 베이지안 최적화 구현
 - [ ] 최적화 결과 시각화 (파라미터 히트맵, 수렴 그래프)
 - [ ] 과적합 경고 시스템 (파라미터 절벽 감지)
 
 **주 8: 전략 템플릿 + 폴리시**
+
 - [ ] 사전 구축 전략 템플릿 5개 등록
 - [ ] 템플릿 목록/상세 페이지 UI
 - [ ] 템플릿에서 내 전략으로 복사 기능
@@ -1506,6 +1571,7 @@ volumes:
 ### Phase 3: 데모 트레이딩 (주 9~12)
 
 **주 9: 거래소 연동 기반**
+
 - [ ] 거래소 API Key 등록/관리 API + UI
 - [ ] API Key AES-256 암호화 저장
 - [ ] CCXT 기반 ExchangeExecutor 구현
@@ -1514,6 +1580,7 @@ volumes:
 - [ ] API Key 유효성 테스트 엔드포인트
 
 **주 10: 실시간 전략 실행 엔진**
+
 - [ ] StrategyRunner 실시간 루프 구현
 - [ ] 실시간 시장 데이터 수신 (CCXT WebSocket)
 - [ ] 시그널 판단 → 주문 전송 파이프라인
@@ -1522,6 +1589,7 @@ volumes:
 - [ ] 트레이딩 세션 상태 관리 (start/stop/kill)
 
 **주 11: 데모 트레이딩 UI**
+
 - [ ] 데모 트레이딩 모니터링 페이지
 - [ ] 실시간 차트 + 진입/청산 마커
 - [ ] 현재 포지션 / 미체결 주문 테이블
@@ -1530,6 +1598,7 @@ volumes:
 - [ ] Kill Switch 버튼 (확인 다이얼로그 포함)
 
 **주 12: 백테스트 vs 데모 비교**
+
 - [ ] PerformanceComparator 구현
 - [ ] 백테스트 예상 vs 데모 실제 비교 차트
 - [ ] 슬리피지 실측 분석
@@ -1540,24 +1609,28 @@ volumes:
 ### Phase 4: 라이브 트레이딩 + 확장 (주 13~16)
 
 **주 13: 라이브 전환**
+
 - [ ] 라이브 모드 ExchangeExecutor (URL 전환)
 - [ ] 라이브 전환 확인 프로세스 (체크리스트 + 경고)
 - [ ] 라이브 트레이딩 콘솔 UI
 - [ ] 점진적 스케일업 설정 (1주차 최소 → 점진 증가)
 
 **주 14: 리스크 관리 강화**
+
 - [ ] 고급 포지션 사이징 (리스크 기반, Kelly Criterion)
 - [ ] 이상 감지 (백테스트 대비 2σ 이상 괴리 시 알림)
 - [ ] 일일/주간 리포트 자동 생성
 - [ ] 텔레그램/디스코드 알림 연동
 
 **주 15: 추가 거래소 + 데이터**
+
 - [ ] OKX Demo Trading 연동
 - [ ] Bitget Demo 연동
 - [ ] 데이터 자동 수집 스케줄러 (Celery Beat)
 - [ ] 더 많은 심볼 데이터 수집
 
 **주 16: 최종 폴리시**
+
 - [ ] 전체 UI/UX 리뷰 + 개선
 - [ ] 에러 핸들링 + 로깅 강화
 - [ ] 성능 최적화 (쿼리, 캐싱)
@@ -1569,6 +1642,7 @@ volumes:
 ## UI 디자인 가이드라인
 
 ### 색상 팔레트
+
 - **배경**: 다크 테마 기본 (`#0f1117` 메인, `#1a1d29` 카드/패널)
 - **텍스트**: `#e1e4e8` (기본), `#8b949e` (보조)
 - **수익/상승**: `#26a69a` (초록)
@@ -1578,16 +1652,19 @@ volumes:
 - **보더**: `#30363d`
 
 ### 레이아웃
+
 - 좌측 사이드바 (접을 수 있음): 네비게이션
 - 상단 헤더: 사용자 정보, 알림, 설정
 - 메인 콘텐츠: 풀 너비 활용, 카드 기반 레이아웃
 - TradingView 차트는 가능한 넓게 (최소 높이 400px)
 
 ### 폰트
+
 - 코드: JetBrains Mono 또는 Fira Code
 - UI: Inter
 
 ### 차트 스타일
+
 - TradingView Lightweight Charts 다크 테마
 - 캔들: 상승 `#26a69a`, 하락 `#ef5350`
 - 그리드: `#1e222d`
@@ -1598,28 +1675,33 @@ volumes:
 ## 주의사항 및 제약
 
 ### 보안
+
 - 거래소 API Key는 반드시 AES-256으로 암호화 저장. 평문 저장 절대 금지.
 - JWT 토큰 만료 시간 적절히 설정 (기본 24시간)
 - API Rate Limiting 적용 (백테스트 요청 등)
 - CORS 설정 프론트엔드 도메인만 허용
 
 ### 성능
+
 - 백테스트는 반드시 Celery 비동기 태스크로 실행. 절대 API 요청 내에서 동기 실행하지 않음.
 - OHLCV 데이터는 TimescaleDB에서 직접 조회. 매번 거래소 API 호출하지 않음.
 - 멀티심볼 백테스트 시 Celery 워커 풀 활용한 병렬 처리.
 - 대용량 백테스트 결과(거래 내역 등)는 페이지네이션 필수.
 
 ### 데이터
+
 - 거래소 API Rate Limit 준수 (CCXT enableRateLimit: true)
 - OHLCV 데이터 수집 시 누락 구간 감지 + 재수집 로직 필요
 - 데이터 품질 검증 (이상치, 갭 등) 백테스트 전 수행
 
 ### Pine Script 파서 한계
+
 - MVP에서는 모든 Pine Script를 100% 변환할 수 없음을 사용자에게 안내
 - 지원하지 않는 함수/구문 발견 시 명확한 에러 메시지 제공
 - security() (멀티 타임프레임), request.financial() 등은 Phase 2 이후 지원
 
 ### 거래소 관련
+
 - Bybit Demo Trading과 Testnet은 다른 환경. Demo는 메인넷 기반 시뮬레이션, Testnet은 별도 플랫폼.
 - Demo API의 WebSocket은 private stream만 지원. public data는 메인넷 WebSocket 사용.
 - 한국 사용자의 경우 특정 거래소 접근 제한 가능성 있음 (IP 기반)
@@ -1629,12 +1711,14 @@ volumes:
 ## 성공 기준 (KPI)
 
 ### MVP 런칭 시점 기준
+
 - Pine Script 파싱 성공률: 주요 전략 패턴 80% 이상
 - 백테스트 실행 시간: 단일 심볼 1년 1시간봉 기준 10초 이내
 - 데모 트레이딩 주문 체결 지연: 2초 이내
 - 백테스트 결과 정확성: vectorbt 직접 실행 결과와 99% 이상 일치
 
 ### 사용자 관점
+
 - 전략 임포트부터 첫 백테스트 결과까지 5분 이내
 - 백테스트에서 데모 트레이딩 전환까지 3클릭 이내
 - 데모에서 라이브 전환까지 2클릭 이내 (확인 포함)

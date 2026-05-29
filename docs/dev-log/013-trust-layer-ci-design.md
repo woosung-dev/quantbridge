@@ -1,5 +1,7 @@
 # ADR-013: Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계
 
+> **⚠ ADR ID 충돌 (2026-05-29 audit):** 본 문서(Trust Layer CI) = **ADR-013a**. Sprint 54 의 [`2026-05-12-sprint54-bayesian-genetic-grammar-adr.md`](2026-05-12-sprint54-bayesian-genetic-grammar-adr.md) (Optimizer grammar) 도 "ADR-013" 표기 = **ADR-013b** ("ID 재사용 금지" global §3 위반). 정식 renumber 는 후속.
+
 > **ADR ONLY (2026-05-04 cleanup):** 본 문서는 결정 근거. **SSOT 는 [`docs/01_requirements/trust-layer-requirements.md`](../01_requirements/trust-layer-requirements.md)** (요구사항/SLO) + [`docs/04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (아키텍처). 본 파일은 ADR 보존용.
 >
 > **상태:** 초안 (Path β Stage 0 — 2026-04-23 작성, Stage 2 구현 완료 시 확정)

@@ -1,5 +1,7 @@
 # ADR-013 — Bayesian / Genetic Optimizer 알고리즘 ParamSpace grammar 확장 사전 lock
 
+> **⚠ ADR ID 충돌 (2026-05-29 audit):** 본 문서와 [`013-trust-layer-ci-design.md`](013-trust-layer-ci-design.md) 가 둘 다 Sprint 54 BL-231 에서 "ADR-013" 으로 표기됨 ("ID 재사용 금지" global §3 위반). 디스앰비규에이션: 본 문서(Optimizer grammar) = **ADR-013b**, Trust Layer CI = **ADR-013a**. 정식 renumber 는 후속 (코드+docs 106 ref 영향 — 광범위). 그때까지 문맥으로 구분.
+
 > **Status:** Accepted (BL-231 — Sprint 54 Slice 5, 코드 변경 X, 문서 lock 만)
 > **Sprint:** Sprint 54 (Phase 3 Optimizer 본격 진입)
 > **Date:** 2026-05-12
