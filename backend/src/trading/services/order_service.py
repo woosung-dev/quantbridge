@@ -16,6 +16,7 @@ from src.core.config import settings
 from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.exceptions import (
     AccountOwnershipMismatch,
+    BalanceUnverified,
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
@@ -23,7 +24,7 @@ from src.trading.exceptions import (
     TradingSessionClosed,
 )
 from src.trading.kill_switch import KillSwitchService
-from src.trading.models import Order, OrderState
+from src.trading.models import ExchangeMode, Order, OrderState
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import OrderRequest, OrderResponse
 from src.trading.services.account_service import ExchangeAccountService
@@ -161,10 +162,14 @@ class OrderService:
         ):
             available = await self._exchange_service.fetch_balance_usdt(req.exchange_account_id)
             if available is not None and available > Decimal("0"):
-                notional = req.quantity * req.price * Decimal(req.leverage)
-                max_notional = (
-                    available * Decimal(settings.bybit_futures_max_leverage) * Decimal("0.95")
-                )
+                # CF5/MP-3 — Bybit/Binance 표준 initial-margin 모델 (벤치마크: bybit
+                # Order-Cost help-center). position notional = qty * price (leverage 미포함).
+                # 필요 initial margin = notional / leverage 가 available * 0.95 (open/close
+                # fee 버퍼) 이내여야 한다. 즉 notional <= available * leverage * 0.95.
+                # 이전 공식 (qty*price*leverage + max_leverage ceiling) 은 비표준 -
+                # 저레버리지에서 감당 불가 포지션 허용 / 고레버리지에서 정상 포지션 거부.
+                notional = req.quantity * req.price
+                max_notional = available * Decimal(req.leverage) * Decimal("0.95")
                 if notional > max_notional:
                     qb_order_rejected_total.labels(
                         exchange=_metric_exchange, reason="notional"
@@ -175,6 +180,16 @@ class OrderService:
                         leverage=req.leverage,
                         max_notional=max_notional,
                     )
+            elif (
+                dispatch_snapshot is not None
+                and dispatch_snapshot.get("mode") == ExchangeMode.live.value
+            ):
+                # CF5 — live 는 balance 검증 불가(fetch 실패/0) 시 fail-closed (주문 거부).
+                # demo 는 fail-open(skip) 유지 (서비스 중단 금지 — 기존 정책).
+                qb_order_rejected_total.labels(
+                    exchange=_metric_exchange, reason="balance_unverified"
+                ).inc()
+                raise BalanceUnverified(account_id=req.exchange_account_id)
 
         # Sprint 7d: 전략의 trading_sessions 가드. 비어있으면 24h(통과). 채워진 값이면
         # 현재 UTC hour가 허용 세션 중 하나에 속해야 함. kill switch / advisory lock

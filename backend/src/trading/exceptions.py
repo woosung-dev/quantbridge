@@ -1,4 +1,5 @@
 """trading 도메인 예외. src.common.exceptions.AppException 상속."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -81,9 +82,7 @@ class UnsupportedExchangeError(ProviderError):
     code = "unsupported_exchange"
 
     def __init__(self, key: tuple[object, ...]) -> None:
-        super().__init__(
-            f"Unsupported (exchange, mode, has_leverage): {key}"
-        )
+        super().__init__(f"Unsupported (exchange, mode, has_leverage): {key}")
         self.key = key
 
 
@@ -99,8 +98,7 @@ class TradingSessionClosed(AppException):
 
     def __init__(self, *, sessions: list[str], current_hour_utc: int) -> None:
         super().__init__(
-            f"current UTC hour {current_hour_utc} is outside allowed "
-            f"trading_sessions={sessions}"
+            f"current UTC hour {current_hour_utc} is outside allowed trading_sessions={sessions}"
         )
         self.sessions = sessions
         self.current_hour_utc = current_hour_utc
@@ -118,8 +116,7 @@ class LeverageCapExceeded(AppException):
 
     def __init__(self, requested: int, cap: int) -> None:
         super().__init__(
-            f"leverage={requested} exceeds configured cap "
-            f"bybit_futures_max_leverage={cap}"
+            f"leverage={requested} exceeds configured cap bybit_futures_max_leverage={cap}"
         )
         self.requested = requested
         self.cap = cap
@@ -151,8 +148,7 @@ class LiveSessionQuotaExceeded(AppException):
 
     def __init__(self, *, current: int, cap: int) -> None:
         super().__init__(
-            f"active Live Session count {current} >= cap {cap}. "
-            "기존 session deactivate 후 재시도."
+            f"active Live Session count {current} >= cap {cap}. 기존 session deactivate 후 재시도."
         )
         self.current = current
         self.cap = cap
@@ -193,6 +189,24 @@ class InvalidStrategySettings(AppException):
     def __init__(self, *, error: str) -> None:
         super().__init__(f"invalid strategy.settings JSONB: {error}")
         self.error = error
+
+
+class BalanceUnverified(AppException):
+    """CF5 — live 모드에서 잔고 검증 불가 (fetch 실패/0) → 주문 거부 (fail-closed).
+
+    demo 는 서비스 중단 방지 위해 fail-open(skip) 유지. live 는 잔고 미확인 상태로
+    주문을 통과시키면 notional 리스크 가드가 무력화되므로 보수적으로 거부.
+    """
+
+    status_code = 422
+    code = "balance_unverified"
+
+    def __init__(self, *, account_id: UUID) -> None:
+        super().__init__(
+            f"live 주문 잔고 검증 불가 (balance fetch 실패/0): account={account_id}. "
+            "잠시 후 재시도."
+        )
+        self.account_id = account_id
 
 
 class AccountOwnershipMismatch(AppException):
