@@ -304,9 +304,15 @@ class Settings(BaseSettings):
         if self.debug:
             object.__setattr__(self, "debug", False)
 
-        # 2. SecretStr placeholder 감지
+        # 2. SecretStr placeholder 감지 — 빈 값 + 알려진 dev default 전부 차단.
+        # 'dev-secret-change-in-prod' 는 .env.example 의 SECRET_KEY default →
+        # prod 로 그대로 복사하는 footgun 을 validator 에서 fail-fast.
         placeholders: list[str] = []
-        if self.secret_key.get_secret_value() in ("", "change-me"):
+        if self.secret_key.get_secret_value() in (
+            "",
+            "change-me",
+            "dev-secret-change-in-prod",
+        ):
             placeholders.append("SECRET_KEY")
         if not self.clerk_secret_key.get_secret_value():
             placeholders.append("CLERK_SECRET_KEY")

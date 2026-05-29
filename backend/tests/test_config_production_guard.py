@@ -84,6 +84,27 @@ def test_production_rejects_placeholder_secret_key(
         Settings()
 
 
+def test_production_rejects_known_dev_secret_key_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """production + secret_key='dev-secret-change-in-prod' (.env.example default) → ValueError.
+
+    .env.example 의 SECRET_KEY default 를 그대로 prod 로 복사하는 footgun 차단.
+    'change-me' 만 막으면 공개된 dev default 가 prod validator 를 통과한다.
+    """
+    _baseline_env(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "dev-secret-change-in-prod")
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_live_test")
+    monkeypatch.setenv("WAITLIST_TOKEN_SECRET", "x" * 32)
+    monkeypatch.setenv("PROMETHEUS_BEARER_TOKEN", "test-prod-bearer-token")
+
+    from src.core.config import Settings
+
+    with pytest.raises(ValueError, match="SECRET_KEY"):
+        Settings()
+
+
 def test_production_rejects_empty_clerk_secret(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
