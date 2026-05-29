@@ -5,7 +5,7 @@ stress_test/repository.py pattern 1:1 mirror. Sprint 18 BL-080 + LESSON-019 comm
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -130,3 +130,24 @@ class OptimizationRepository:
             )
         update_result = await self.session.execute(stmt)
         return update_result.rowcount or 0  # type: ignore[attr-defined]
+
+    # --- Stale reclaim (CF3, Phase C-1) ---
+
+    async def reclaim_stale(self, *, threshold_seconds: int, now: datetime) -> int:
+        """RUNNING 중 started_at + threshold < now 인 run → FAILED (worker crash 회수).
+
+        optimizer 는 cancel 기능이 없어 CANCELLING 상태 없음 — RUNNING 만 대상.
+        backtest.reclaim_stale 패턴 mirror. Returns reclaimed count.
+        """
+        cutoff = now - timedelta(seconds=threshold_seconds)
+        result = await self.session.execute(
+            update(OptimizationRun)
+            .where(OptimizationRun.status == OptimizationStatus.RUNNING)  # type: ignore[arg-type]
+            .where(OptimizationRun.started_at < cutoff)  # type: ignore[arg-type,operator]
+            .values(
+                status=OptimizationStatus.FAILED,
+                error_message="Stale running — reclaimed by watchdog",
+                completed_at=now,
+            )
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]

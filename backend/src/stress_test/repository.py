@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -125,3 +125,24 @@ class StressTestRepository:
             )
         update_result = await self.session.execute(stmt)
         return update_result.rowcount or 0  # type: ignore[attr-defined]
+
+    # --- Stale reclaim (CF3, Phase C-1) ---
+
+    async def reclaim_stale(self, *, threshold_seconds: int, now: datetime) -> int:
+        """RUNNING 중 started_at + threshold < now 인 stress test → FAILED (worker crash 회수).
+
+        stress_test 는 cancel 기능이 없어 CANCELLING 상태 없음 — RUNNING 만 대상.
+        backtest.reclaim_stale 패턴 mirror. Returns reclaimed count.
+        """
+        cutoff = now - timedelta(seconds=threshold_seconds)
+        result = await self.session.execute(
+            update(StressTest)
+            .where(StressTest.status == StressTestStatus.RUNNING)  # type: ignore[arg-type]
+            .where(StressTest.started_at < cutoff)  # type: ignore[arg-type,operator]
+            .values(
+                status=StressTestStatus.FAILED,
+                error="Stale running — reclaimed by watchdog",
+                completed_at=now,
+            )
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]

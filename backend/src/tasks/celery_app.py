@@ -83,6 +83,17 @@ celery_app.conf.beat_schedule = {
             "expires": 240,
         },
     },
+    # CF3 (Phase C-1) — optimizer/stress_test 도 동일 stale-RUNNING reclaim watchdog.
+    "reclaim-stale-optimizations": {
+        "task": "optimizer.reclaim_stale",
+        "schedule": 300.0,
+        "options": {"expires": 240},
+    },
+    "reclaim-stale-stress-tests": {
+        "task": "stress_test.reclaim_stale",
+        "schedule": 300.0,
+        "options": {"expires": 240},
+    },
     # Sprint 12 Phase C — ws_stream worker crash 시 자동 re-enqueue (codex G3 #3).
     # 5분 주기로 active ExchangeAccount 중 stream 미동작인 것 enqueue.
     "reconcile-ws-streams": {
@@ -189,14 +200,26 @@ def _on_worker_ready(sender: object = None, **_kwargs: object) -> None:
 
     @worker_ready는 Celery master 프로세스에서 1회 실행 — prefork 자식마다 아님.
     """
-    from src.tasks.backtest import reclaim_stale_running  # 지연 import
+    # CF3 (Phase C-1) — backtest + optimizer + stress_test 3 도메인 stale reclaim.
+    # 도메인별 isolation: 한 도메인 실패가 나머지를 막지 않도록 개별 try.
+    from src.tasks.backtest import reclaim_stale_running as _reclaim_backtests  # 지연 import
+    from src.tasks.optimizer_tasks import reclaim_stale_running as _reclaim_optimizations
+    from src.tasks.stress_test_tasks import reclaim_stale_running as _reclaim_stress_tests
 
-    try:
-        reclaimed = asyncio.run(reclaim_stale_running())
-        if reclaimed:
-            logger.info("stale_reclaim_on_startup", extra={"reclaimed_count": reclaimed})
-    except Exception:
-        logger.exception("stale_reclaim_failed_on_startup")
+    for _domain, _reclaim in (
+        ("backtest", _reclaim_backtests),
+        ("optimizer", _reclaim_optimizations),
+        ("stress_test", _reclaim_stress_tests),
+    ):
+        try:
+            reclaimed = asyncio.run(_reclaim())
+            if reclaimed:
+                logger.info(
+                    "stale_reclaim_on_startup",
+                    extra={"domain": _domain, "reclaimed_count": reclaimed},
+                )
+        except Exception:
+            logger.exception("stale_reclaim_failed_on_startup domain=%s", _domain)
 
 
 # -----------------------------------------------------------------------------
