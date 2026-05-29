@@ -126,6 +126,21 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    async def transition_pending_to_cancelled(self, order_id: UUID, *, cancelled_at: datetime) -> int:
+        """CF4 — pending(거래소 미발주) 주문만 DB-cancel. submitted(거래소 live) 는 제외.
+
+        router 의 cancel 경로에서 pending→submitted race 시에도 거래소에 live 한 주문을
+        DB-only cancel (orphan) 하지 않도록 state==pending 조건부 UPDATE. submitted 는
+        cancel_order_task 가 거래소 취소 성공 후 transition_to_cancelled 로 처리.
+        """
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.pending)  # type: ignore[arg-type]
+            .values(state=OrderState.cancelled, filled_at=cancelled_at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
     async def attach_exchange_order_id(
         self, order_id: UUID, exchange_order_id: str
     ) -> int:

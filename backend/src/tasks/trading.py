@@ -109,17 +109,13 @@ def _provider_for_account_and_leverage(
     return _dispatch_provider(exchange, mode, has_leverage)
 
 
-def _build_exchange_provider(
-    account: ExchangeAccount, submit: OrderSubmit
-) -> ExchangeProvider:
+def _build_exchange_provider(account: ExchangeAccount, submit: OrderSubmit) -> ExchangeProvider:
     """Public dispatcher for create_order path.
 
     fetch 분기는 `_provider_for_account_and_leverage(account.exchange, account.mode,
     _has_leverage(order))` 를 직접 호출 (OrderSubmit 부재).
     """
-    return _provider_for_account_and_leverage(
-        account.exchange, account.mode, _has_leverage(submit)
-    )
+    return _provider_for_account_and_leverage(account.exchange, account.mode, _has_leverage(submit))
 
 
 # ---------------------------------------------------------------------------
@@ -200,9 +196,7 @@ def _provider_from_order_snapshot_or_fallback(
     reason = "missing" if not getattr(order, "dispatch_snapshot", None) else "invalid"
     qb_order_snapshot_fallback_total.labels(reason=reason).inc()
     has_lev_fallback = _has_leverage(submit) if submit is not None else _has_leverage(order)
-    return _provider_for_account_and_leverage(
-        account.exchange, account.mode, has_lev_fallback
-    )
+    return _provider_for_account_and_leverage(account.exchange, account.mode, has_lev_fallback)
 
 
 # ---------------------------------------------------------------------------
@@ -719,3 +713,91 @@ def fetch_order_status_task(self: Any, order_id: str, attempt: int = 1) -> dict[
     if retry_kwargs is not None:
         raise self.retry(**retry_kwargs)
     return result
+
+
+# ---------------------------------------------------------------------------
+# CF4 — cancel_order_task (submitted 주문 거래소 취소; DB-only orphan 방지)
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="trading.cancel_order", max_retries=0)  # type: ignore[untyped-decorator]
+def cancel_order_task(order_id: str) -> dict[str, Any]:
+    """Sync Celery entry — submitted 주문을 거래소에서 취소 후 DB cancelled 전이.
+
+    Sprint 18 BL-080: run_in_worker_loop (Option C). CF4 — provider.cancel_order
+    성공 시에만 DB flip (실패 시 submitted 유지 → false cancel / orphan position 방지).
+    """
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_cancel_order(UUID(order_id)))
+
+
+async def _async_cancel_order(order_id: UUID) -> dict[str, Any]:
+    """Sprint 17 Phase C 패턴 — per-call engine + finally dispose."""
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _cancel_order_with_session(order_id, sm)
+    finally:
+        await engine.dispose()
+
+
+async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
+    async with sm() as session:
+        repo = OrderRepository(session)
+        order = await repo.get_by_id(order_id)
+        if order is None:
+            return {"order_id": str(order_id), "skipped": "not_found"}
+        if order.state != OrderState.submitted:
+            return {
+                "order_id": str(order_id),
+                "state": order.state.value,
+                "skipped": "not_submitted",
+            }
+        if order.exchange_order_id is None:
+            # 거래소 미발주 (pre-ack window). 취소 호출 불가 — orphan_scanner 가 처리.
+            return {"order_id": str(order_id), "skipped": "no_exchange_order_id"}
+
+        try:
+            crypto = EncryptionService(settings.trading_encryption_keys)
+            account = await session.get(ExchangeAccount, order.exchange_account_id)
+            if account is None:
+                return {"order_id": str(order_id), "skipped": "account_missing"}
+            passphrase_pt = (
+                crypto.decrypt(account.passphrase_encrypted)
+                if account.passphrase_encrypted is not None
+                else None
+            )
+            creds = Credentials(
+                api_key=crypto.decrypt(account.api_key_encrypted),
+                api_secret=crypto.decrypt(account.api_secret_encrypted),
+                passphrase=passphrase_pt,
+                environment=account.mode,
+            )
+        except Exception as e:
+            logger.error(
+                "cancel_credential_decrypt_failed",
+                extra={"order_id": str(order_id), "error": str(e)},
+            )
+            return {"order_id": str(order_id), "skipped": "decrypt_failed"}
+
+        try:
+            provider = _provider_from_order_snapshot_or_fallback(order, account, submit=None)
+            await provider.cancel_order(creds, order.exchange_order_id)
+        except ProviderError as e:
+            # CF4 fail-closed: 거래소 취소 실패 시 DB flip 금지. 주문 submitted 유지
+            # (reconciler / watchdog 가 terminal evidence 확보 시 전이).
+            logger.error(
+                "cancel_order_provider_failed",
+                extra={"order_id": str(order_id), "error": str(e)},
+            )
+            return {"order_id": str(order_id), "skipped": "provider_error", "error": str(e)}
+
+        rows = await repo.transition_to_cancelled(order_id, cancelled_at=datetime.now(UTC))
+        if rows == 1:
+            await session.commit()
+            qb_active_orders.dec()  # terminal 전이 — active gauge dec
+            logger.info("order_cancelled_on_exchange", extra={"order_id": str(order_id)})
+            return {"order_id": str(order_id), "state": "cancelled"}
+        # race: 취소 호출과 fill/reject reconcile 겹침 — 이중 전이 금지.
+        logger.info("cancel_race_skip", extra={"order_id": str(order_id)})
+        return {"order_id": str(order_id), "skipped": "race"}
