@@ -222,11 +222,11 @@ class AccountOwnershipMismatch(AppException):
 
 
 class NotionalExceeded(AppException):
-    """주문 notional(qty x price x leverage)이 계좌 자본 x max_leverage x safety 초과.
+    """position notional(qty x price)이 available x leverage x 0.95 초과 (CF5/MP-3).
 
-    Sprint 8+ Kill Switch capital_base 동적 바인딩과 함께 도입. leverage cap이 비율
-    상한만 보는 반면, 본 가드는 실제 포지션 규모가 잔고 대비 과도한지 금액 단위로 검증.
-    safety factor 0.95로 청산 여유 확보.
+    Bybit/Binance initial-margin 모델: 필요 증거금 = notional/leverage 가 가용 잔고의
+    95%(open/close fee 버퍼) 이내여야 한다. leverage cap이 비율 상한만 보는 반면, 본
+    가드는 포지션 규모가 잔고로 감당 가능한지 금액 단위로 검증한다.
     """
 
     status_code = 422
