@@ -1,11 +1,113 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-17 (Sprint 60→61→62 누적 3-sprint cycle 완료 + **Beta 본격 진입 결정 ★★★★★** — BL-070~075 트랙 활성화)
-> **Active Sprint:** **Sprint 63 = Beta 본격 진입 prep (BL-070~072 외부 의존 작업)** — 사용자 manual 영역 진입
-> **Active Branch:** main (PR #288 + #289 + #290 모두 머지 완료)
-> **Sprint type:** D (external-dependency setup — domain + DNS + Backend prod + Resend)
+> **Last Updated:** 2026-05-30 (Full-inspection audit + S1~S4 머지 + S5/S6 stage 진행 + Phase B/C 배포 prep)
+> **Active Sprint:** **Sprint 63 = Beta 본격 진입 prep + Phase F P1 fix (audit 2026-05-30)** — 사용자 manual gate (G1/G7/G8 + BL-070/072) 대기
+> **Active Branch:** main @ `e32062c` (PR #305~#314 모두 머지) + `stage/fix-trading-kill-switch` (S5) + `stage/fix-trading-coverage` (S6) push 승인 대기
+> **Sprint type:** F (audit Phase F fix-and-merge — TDD + 로컬 CI green + 배치 사용자 승인) + D (external-dependency setup)
 > **office-hours 진행:** N
-> **Next Trigger:** BL-070 (도메인 + DNS) + BL-071 (Backend prod 배포) + BL-072 (Resend + Waitlist 활성화) = 사용자 manual 4-8h + DNS 24h. BL-073/074/075 = 위 완료 후 자연 trigger.
+> **Next Trigger:** S5/S6 push & merge 승인 → S7 (frontend UX) → BL-070~072 manual gate → 의사결정 매트릭스 G1/G7/G8 해소 → 실 prod 배포 → BL-073~075 자연 trigger.
+
+---
+
+## 🔬 Full-Inspection Audit (2026-05-30, `docs/audit/2026-05-30-full-inspection.md`)
+
+**스코프**: main @ `4aa5c2a` (PR #305~#310 머지 후). 8 차원 멀티에이전트 평가자 패널 (198 에이전트 / ~32M 토큰, stall → 트랜스크립트 복구). Decision Log DEC-1~14.
+
+**발견 요약 (148건 검증 생존, P0 0 / P1 14 / P2 58 / P3 76)**:
+
+- **✅ P0 = 0** — #305~#310 money-path hardening 유효, kill-switch revival / IDOR / precision / notional / stale-RUNNING reclaim 모두 살아있음 (CONFIRM 모드 재공격 통과).
+- ⚠️ **P1 14건 — Beta 차단급** — Trust Layer 누출 (P1-10/13) + avg_holding_hours 288x 회귀 (P1-5) + WF backtest_config 미전달 (P1-7) + Genetic Categorical 크래시 (P1-9) + 4 trading 방어심층 갭 (P1-2/3/11/12/13/14) + frontend UX 3건.
+
+**Fix-and-Merge Ledger (Phase F, 사용자 배치 승인 = DEC-12)**:
+
+| 테마   | 핵심                                                                       | PR      | 상태                                                             |
+| ------ | -------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------- |
+| S1     | P1-5 avg_holding_hours 288x                                                | #311    | ✅ Merged (2026-05-30)                                           |
+| S2     | P1-10/13 Trust Layer 누출 (28 symbols 망라 parity)                         | #312    | ✅ Merged                                                        |
+| S3     | P1-7 WF backtest_config 미전달 (BL-222 follow-up)                          | #313    | ✅ Merged                                                        |
+| S4     | P1-9 Genetic+Bayesian CategoricalField 비숫자/non-finite reject            | #314    | ✅ Merged                                                        |
+| **S5** | **P1-2/12/14 trading kill-switch/notional/reconcile (money path)**         | **TBD** | **LOCAL-GREEN — `stage/fix-trading-kill-switch` push 승인 대기** |
+| **S6** | **P1-12 parse_tv_payload InvalidOperation + error path coverage (BL-309)** | **TBD** | **LOCAL-GREEN — `stage/fix-trading-coverage` push 승인 대기**    |
+| S7     | P1-1/11 frontend 계정등록 UX + P1-8 optimizer picker                       | TBD     | TODO (라이브 QA 병행)                                            |
+| S8+    | P2 58 + P3 76 도메인별 배치                                                | TBD     | TODO (BL 등재 후 배치)                                           |
+
+**의사결정 매트릭스 (USER-DECIDE, 코드 불가)**:
+
+- **G1 ★ Sprint 63 최대 blocker**: TimescaleDB 는 Cloud SQL 미지원 → DB 호스팅 재결정 필요 (self-host CE / TimescaleDB Cloud / Fly Postgres).
+- G7/G8: 배포옵션 + 도메인 + healthz + worker hosting 8 P0 결정.
+- BL-070 (도메인+DNS) + BL-072 (Resend) = 사용자 manual.
+
+---
+
+## Recently Completed — S5/S6 (audit Phase F, 2026-05-30)
+
+> 사용자 옵션 G (S5+S6+D) 진행. 각 stage 브랜치 LOCAL-GREEN, push/merge 사용자 승인 대기.
+
+### S5 — money path defense in depth (`stage/fix-trading-kill-switch`, P1-2/12/14)
+
+- [x] **P1-2 / P1-12 (S5-A)**: `ParsedTradeSignal.realized_pnl` + `parse_tv_payload` 추출 + `receive_webhook` → OrderRequest 매핑. webhook close-alert 가 #305 CumulativeLoss/DailyLoss SUM 대상 포함. legacy backward-compat (None default).
+- [x] **P1-13 (S5-B)**: market order (price=None) notional 가드 — `BybitFuturesProvider.fetch_mark_price` + `ExchangeAccountService.fetch_mark_price` + OrderService 가 2% 보수 buffer 후 기존 initial-margin 모델 재사용. live + mark 실패 = BalanceUnverified / demo = skip 기존 정책 유지.
+- [x] **P1-14 (S5-C, BL-308 후속)**: `BybitReconcileFetcher.fetch_recent_orders` 가 `fetch_canceled_orders` union 반환. CCXT `has['fetchCanceledOrders']` 가드 + 미지원/실패 graceful degrade.
+- [x] **검증**: trading 도메인 309 PASS (+12 신규 test = S5-A 3 + S5-B 4 + S5-C 3 + 기존 1 update) / ruff clean / mypy clean.
+- [x] **commit**: `2f504dc` on `stage/fix-trading-kill-switch`.
+
+### S6 — parse_tv_payload error path coverage (`stage/fix-trading-coverage`, BL-309)
+
+- [x] **InvalidOperation catch**: `parse_tv_payload` except 절에 `decimal.InvalidOperation` 추가 → 비숫자 quantity/price 가 500 silent 전파 대신 WebhookUnauthorized 로 통일. main 의 실제 bug.
+- [x] **신규 `tests/trading/test_parse_tv_payload.py`**: parametrized error case 30 건 (필수필드 3 + invalid side 5 + invalid type 5 + 비숫자 quantity 5 + 비숫자 price 4 + happy 분기 6 + edge case 2).
+- [x] **검증**: test_parse_tv_payload 30 PASS / test_webhook_hmac + test_router_webhook 회귀 10 PASS / ruff clean / mypy clean.
+- [x] **commit**: `45d582b` on `stage/fix-trading-coverage`.
+
+### D — TODO.md governance 갱신 (`docs/audit-todo-governance`)
+
+- [x] PR #305~#314 + audit 2026-05-30 + Sprint 63 매트릭스 반영 (본 commit). docs-only.
+
+---
+
+## Recently Completed — Phase B/C 배포 prep + audit S1~S4 (PR #305~#314, 2026-05-29 ~ 2026-05-30)
+
+- **PR #305**: Beta money-path hardening — dead kill-switch (CRITICAL realized_pnl 미기록 → 평가기 inert) + ASYNC-1 + TRD-4/CF1 IDOR 2건 + CF4 cancel orphan + CF5/MP-3 notional Bybit 모델.
+- **PR #306**: docs Phase B reconciliation — 도메인 spec / API / 거버넌스 / conformance gate / ERD 16-table 재작성 + ADR-013 충돌 해소 (trust-layer → ADR-020, optimizer 013 유지).
+- **PR #307**: MP-4 — CCXT 경계 float() 제거, `_to_exchange_precision` helper (load_markets + amount/price_to_precision).
+- **PR #308**: deploy-prep — entrypoint ws-stream/optimizer-heavy role + DATABASE_URL fail-fast guard + prod SECRET_KEY validator + `.env.prod.example`.
+- **PR #309**: Phase C-1 CF3 — optimizer/stress stale-RUNNING reclaim watchdog mirror.
+- **PR #310**: BL-308 — BybitReconcileFetcher coverage 0% → 100% (WS reconcile gap).
+- **PR #311**: S1 P1-5 avg_holding_hours 288x + audit report.
+- **PR #312**: S2 P1-10/13 Trust Layer 28 symbols 망라 parity (BL-361 Resolved + BL-362 follow-up).
+- **PR #313**: S3 P1-7 WF backtest_config (BL-222 follow-up, BL-363 deepening 등재).
+- **PR #314**: S4 P1-9 Genetic+Bayesian CategoricalField 비숫자/non-finite reject (BL-364 follow-up).
+
+**baseline**: BE 1850 PASS / FE 716 PASS @ `4aa5c2a` → BE 1852 후 S1 → S4. green.
+
+---
+
+## 🚀 Beta 본격 진입 결정 (2026-05-17)
+
+**근거**:
+
+- Composite Health 4.18 (2026-05-13) → 6.08 (Sprint 60 후) → 7.5 (Sprint 61 후) → **추정 8.5+** (Sprint 62 후, 재측정 skip 결정).
+- 4-AND gate: (a) Composite ≥ 7 ✅ / (b) Critical = 0 ✅ (BL-340 회복 + BL-339 페이지 내부 BL-356~359 fix) / (c) High ≤ 3 ✅ (P0 BL-350+354 fix + P1 BL-353/356 fix) / **(d) 본인 의지 ✅**.
+- Sprint 60→62 누적 3-sprint cycle = 17 + 11 + 6 = **34 BL Resolved**. LESSON-067 6차 검증 (단일 worker 단축 패턴 누적).
+- Multi-Agent QA 1차 → Sprint 60 fix → 2차 → Sprint 61 fix → 3차 → Sprint 62 fix = LESSON-068 보강 **3/3 누적** (정식 승격 후보).
+
+**Beta 본격 진입 prep (BL-070~072) 필수 manual**:
+
+- **BL-070** 도메인 구매 (e.g. quantbridge.io) + DNS + Cloudflare (선택) — 1-2h + DNS 전파 24h
+- **BL-071** Backend 프로덕션 배포 — Cloud Run / Railway / Render 선택 + Postgres prod + Redis prod + Clerk production key + 보안 헤더 production gunicorn (BL-347 server strip 동시 처리) — 2-4h
+- **BL-072** Resend 계정 + 이메일 도메인 verify + Waitlist 활성화 — 1-2h + 24h verify
+
+**Beta 본격 진입 자연 trigger (BL-070~072 완료 후)**:
+
+- **BL-073** Twitter/X #buildinpublic 캠페인 시작 (사용자 수동)
+- **BL-074** Beta 인터뷰 3명 × 3회 (5-10명 onboarding 후, narrowest wedge 60% 검증)
+- **BL-075** H2 진입 게이트 설계 (BL-005 self-assess ≥ 7/10 직후, 3-5h)
+
+**Sprint 62 production deploy 시점 묶음 자동 해소 BL**:
+
+- BL-320 Development mode 배지 → production key 사용 시 자동 해소
+- BL-321/352 Clerk application name → dashboard 1분 변경 (BL-070 시점)
+- BL-347 server header leak → gunicorn `--server_header False` (BL-071 시점) — **PR #308 에서 이미 코드 해소 (uvicorn `--server_header False` + security_headers middleware)**
+- BL-261 Clerk custom domain → DNS CNAME (BL-070 시점)
 
 ---
 
