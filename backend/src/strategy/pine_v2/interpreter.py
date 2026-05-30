@@ -199,6 +199,10 @@ class BarContext:
 
 _BUILTIN_SERIES = frozenset({"open", "high", "low", "close", "volume"})
 
+# S2 (전체 정검 P1-10/13): 합성 source — OHLC 로부터 계산되는 built-in series.
+# _BUILTIN_SERIES 와 달리 DataFrame 컬럼이 없어 _synthetic_source 로 계산.
+_SYNTHETIC_SERIES = frozenset({"hl2", "hlc3", "ohlc4"})
+
 # 렌더링 scope A (ADR-011 §2.0.4) — factory/getter는 name 기반 직접 dispatch.
 # handle.method() 형식은 _exec_rendering_method에서 타입별 접두어로 라우팅.
 _RENDERING_FACTORIES: dict[str, str] = {
@@ -637,6 +641,11 @@ class Interpreter:
         if isinstance(value_node, pyne_ast.Name) and value_node.id in _BUILTIN_SERIES:
             return self.bar.history(value_node.id, offset)
 
+        # S2 (전체 정검 P1-10/13): 합성 series (hl2/hlc3/ohlc4) history.
+        # _var_series 에 없어 na 를 반환하던 silent 오값 차단 — OHLC history 로 직접 계산.
+        if isinstance(value_node, pyne_ast.Name) and value_node.id in _SYNTHETIC_SERIES:
+            return self._synthetic_source(value_node.id, offset)
+
         # 사용자 변수 series
         if isinstance(value_node, pyne_ast.Name):
             name = value_node.id
@@ -651,6 +660,23 @@ class Interpreter:
         raise PineRuntimeError(
             f"Subscript on non-Name expression not supported: {_describe(value_node)}"
         )
+
+    def _synthetic_source(self, name: str, offset: int) -> float:
+        """hl2/hlc3/ohlc4 합성 source 를 offset bar 의 OHLC 로 계산 (offset=0 → 현재 bar).
+
+        S2: current (`hl2`) 와 history (`hl2[1]`) 가 동일 helper 사용 — Pine 정의 1:1.
+        bar.history 가 범위 밖에서 nan 반환 → 합성식도 nan 전파 (Pine na 동작).
+        """
+
+        def get(field: str) -> float:
+            return self.bar.current(field) if offset == 0 else self.bar.history(field, offset)
+
+        if name == "hl2":
+            return (get("high") + get("low")) / 2
+        if name == "hlc3":
+            return (get("high") + get("low") + get("close")) / 3
+        # ohlc4
+        return (get("open") + get("high") + get("low") + get("close")) / 4
 
     def _resolve_name_if_declared(self, name: str) -> Any:
         """_resolve_name의 안전 버전 — 미정의면 None 반환 (렌더링 handle 검사용)."""
@@ -1027,19 +1053,8 @@ class Interpreter:
             return self.bar.current(name)
         # S2 (전체 정검 P1-10/13): 합성 series source — Pine 정의와 1:1 (근사 없음).
         # coverage._SERIES_ATTRS 가 SUPPORTED 표기하나 interpreter 미구현이던 누출.
-        if name == "hl2":
-            return (self.bar.current("high") + self.bar.current("low")) / 2
-        if name == "hlc3":
-            return (
-                self.bar.current("high") + self.bar.current("low") + self.bar.current("close")
-            ) / 3
-        if name == "ohlc4":
-            return (
-                self.bar.current("open")
-                + self.bar.current("high")
-                + self.bar.current("low")
-                + self.bar.current("close")
-            ) / 4
+        if name in _SYNTHETIC_SERIES:
+            return self._synthetic_source(name, 0)
         if name == "bar_index":
             return self.bar.bar_index
         if name == "time":

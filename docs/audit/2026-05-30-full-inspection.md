@@ -68,7 +68,7 @@ QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안
 ### 4.3 ⚠️ Trust Layer 누출 — 부분실행 금지 invariant 위반 (P1, strategy/D4)
 
 - **P1-10 / P1-13 (`coverage.py` vs `interpreter.py`):** coverage 가 `str.tostring/tonumber/format/length`, `hl2/hlc3/ohlc4`, `barstate.is*` 를 **SUPPORTED 로 표기하지만 interpreter 가 미구현** → `is_runnable=True` 인데 런타임은 `PineRuntimeError` raise(backtest=strict True→FAILED / live=strict False→**silent swallow 후 실행 계속 = 오신호**). ADR-003 "미지원 1개라도 → 전체 Unsupported(부분실행 금지)" 위반. 구현 또는 coverage 에서 제거 둘 중 하나 필수.
-- **✅ S2 해소 (DEC-15=A 전부 구현):** 망라 parity 테스트(`test_coverage_interpreter_parity.py` 의 `SUPPORTED_ATTRIBUTES`/`_STRING_FUNCTIONS`/`_MATH_FUNCTIONS` 전수 순회)가 audit 의 hand-found ~10건 + **미발견 18건**(currency._ 12 / strategy.commission\__ 3 / barstate 4중 일부 / **math.log10**)까지 총 **28 누출** 검출. interpreter.py 에 전부 구현(hl2/hlc3/ohlc4 = Pine 정의 1:1, barstate._ = bar_index/len 정확, str._ = NOP-safe/정확 parse, currency._ = code suffix, commission\__ = `_ATTR_CONSTANTS`). TDD RED 28→GREEN. 향후 SUPPORTED 추가분 누출은 본 망라 테스트가 CI 에서 자동 차단(영구 tripwire). live-path silent swallow observability 는 **BL-362(S5 이관, DEC-16=A)**.
+- **✅ S2 해소 (DEC-15=A 전부 구현):** 망라 parity 테스트(`test_coverage_interpreter_parity.py` 의 `SUPPORTED_ATTRIBUTES`/`_STRING_FUNCTIONS`/`_MATH_FUNCTIONS` 전수 순회)가 audit 의 hand-found ~10건 + **미발견 18건**(currency.\_ 12 / strategy.commission\__ 3 / barstate 4중 일부 / **math.log10**)까지 총 **28 누출** 검출. interpreter.py 에 전부 구현(hl2/hlc3/ohlc4 = Pine 정의 1:1, barstate._ = bar*index/len 정확, str.* = NOP-safe/정확 parse, currency.\_ = code suffix, commission\_\_ = `_ATTR_CONSTANTS`). TDD RED 28→GREEN. 향후 SUPPORTED 추가분 누출은 본 망라 테스트가 CI 에서 자동 차단(영구 tripwire). live-path silent swallow observability 는 **BL-362(S5 이관, DEC-16=A)**.
 
 ### 4.4 ⚠️ 백테스트 지표 정확성 회귀 (P1, backtest/D4)
 
@@ -94,6 +94,21 @@ QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안
 ## 7. codex 교차검증 (DEC-4)
 
 > P1 발견 대상 codex challenge(A) + 전체 synthesis gate(B). 결과는 §8 fix PR 단위로 `codex review` G.4 게이트에 연결. (codex 호출 결과는 실행 로그에 누적.)
+
+### S2 codex challenge (adversarial, 769k tokens) — 6 findings, 재검증 후 처리
+
+`stage/fix-trust-layer-leak` diff 를 codex 에 "값 자체가 틀릴 수 있는 지점" 으로 challenge. 6 finding 을 코드 직접 재확인(default-to-refuted) 후:
+
+| #   | codex finding                                             | 재검증                                                                                                     | 처리                                                                                             |
+| --- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 1   | `hl2[1]`/`hlc3[1]`/`ohlc4[1]` history 가 na (silent 오값) | ✅ REAL — `_eval_subscript` 가 built-in series 만 history 처리, 합성 source 는 `_var_series` 미존재로 na   | **S2 에서 fix** — `_synthetic_source(name, offset)` helper (current+history 공용). TDD RED→GREEN |
+| 2   | strategy.commission\_\* 선언이 PnL 에 미적용              | ⚠️ PRE-EXISTING — `strategy()` NOP 라 kwargs 미평가, 본 변경 이전부터 무시. coverage↔interpreter leak 아님 | out-of-scope — commission 모델링은 BL-186 계열 fidelity                                          |
+| 3   | str.format `{0,number,#.##}` 미지원                       | ⚠️ TRUE — display-only NOP 설계, numeric feedback 희귀                                                     | known limitation (note)                                                                          |
+| 4   | str.tostring(x, format) 의 format 무시                    | ⚠️ 동상 (display-only)                                                                                     | known limitation (note)                                                                          |
+| 5   | barstate.islast = WF slice 마다 endpoint True             | ⚠️ single backtest = 정확(run 의 last bar). WF fold 도 각자 run = 합리적                                   | acceptable (note)                                                                                |
+| 6   | barstate.ishistory/isconfirmed hardcoded True             | ⚠️ 기존 `barstate.isrealtime=False`(BL-242b) precedent 와 일관(backtest=전 bar historical)                 | consistent (note)                                                                                |
+
+> codex ROI: 망라 테스트(28 누출)가 못 잡는 **value-correctness 갭(Finding 1, lagged 합성 source)** 추가 검출 → S2 같이 fix. Findings 2~6 은 adversarial 재검증으로 out-of-scope/pre-existing/consistent 판정(scope creep 차단).
 
 ## 8. 의사결정 매트릭스 — code-fixable 아닌 항목 (사용자 결정)
 
