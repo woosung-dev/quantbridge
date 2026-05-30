@@ -232,16 +232,32 @@
 
 ---
 
+### BL-361
+
+**Title:** Pine Trust Layer 누출 — coverage SUPPORTED ↔ interpreter dispatch SSOT drift (28 symbols)
+**Category:** Strategy / pine_v2 SSOT / Trust Layer
+**Priority:** P1
+**Trigger:** 전체 정검 2026-05-30 (P1-10/13) — ✅ **Resolved S2** (`stage/fix-trust-layer-leak`)
+**Est:** S (2-3h) — 실측 ~1.5h
+**출처:** [`docs/audit/2026-05-30-full-inspection.md`](audit/2026-05-30-full-inspection.md) §4.3
+
+**원인 / 영향:** `coverage.py` 가 SUPPORTED 표기하나 interpreter 미구현 → `is_runnable=True` preflight 통과 후 runtime `PineRuntimeError`. backtest=FAILED(strict=True), live=silent swallow 후 오신호(strict=False, event_loop.py:128). ADR-003 부분실행 금지 위반.
+
+**해소:** 망라 parity 테스트(`tests/strategy/pine_v2/test_coverage_interpreter_parity.py` 의 `SUPPORTED_ATTRIBUTES`/`_STRING_FUNCTIONS`/`_MATH_FUNCTIONS` 전수 순회)로 audit hand-found ~10 + **미발견 18** = 총 **28 누출** 검출 → `interpreter.py` 전부 구현: hl2/hlc3/ohlc4(`_resolve_name`, Pine 정의 1:1), barstate.isfirst/islast/ishistory/isconfirmed(`_eval_attribute`, bar*index/len), str.tostring/tonumber/format/length + bare tonumber(`_eval_call`, NOP-safe/정확 parse), currency.\* 12(`_eval_attribute` prefix), strategy.commission*\* 3(`_ATTR_CONSTANTS`), math.log10. TDD RED 28→GREEN, pine_v2 611 pass 회귀 0. 향후 SUPPORTED 추가 누출 = 망라 테스트가 CI 자동 차단(영구 tripwire).
+
+---
+
 ## P2 — Hardening / 건강도 작업
 
-| ID                | 제목                                                      | Trigger                           | Est          | 출처                            |
-| ----------------- | --------------------------------------------------------- | --------------------------------- | ------------ | ------------------------------- |
-| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델        | Sprint 38+ (BL-185 foundation 위) | M-L (16-24h) | Sprint 37 BL-185 후속           |
-| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                           | 외부 사용자 요청 시               | M (3-5h)     | Sprint 41 Worker H 결정         |
-| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation              | Sprint 45 codex G.4               | XS (30m)     | Sprint 45 codex G.4 발견        |
-| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)             | Sprint 57+                        | M (8-12h)    | ADR-013 §6 #8 deferred          |
-| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+) | Sprint 56+                        | S (3-5h)     | Sprint 55 deferred              |
-| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%              | BL-308 묶음 또는 dogfood 직후     | M (4-6h)     | 2026-05-15 trading-deepen audit |
+| ID                | 제목                                                                   | Trigger                           | Est          | 출처                            |
+| ----------------- | ---------------------------------------------------------------------- | --------------------------------- | ------------ | ------------------------------- |
+| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                     | Sprint 38+ (BL-185 foundation 위) | M-L (16-24h) | Sprint 37 BL-185 후속           |
+| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                        | 외부 사용자 요청 시               | M (3-5h)     | Sprint 41 Worker H 결정         |
+| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                           | Sprint 45 codex G.4               | XS (30m)     | Sprint 45 codex G.4 발견        |
+| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                          | Sprint 57+                        | M (8-12h)    | ADR-013 §6 #8 deferred          |
+| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)              | Sprint 56+                        | S (3-5h)     | Sprint 55 deferred              |
+| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                           | BL-308 묶음 또는 dogfood 직후     | M (4-6h)     | 2026-05-15 trading-deepen audit |
+| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability | S5 (trading kill-switch 묶음)     | S (2-4h)     | 2026-05-30 full-inspection §4.3 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -335,6 +351,21 @@
 **출처:** Sprint 55 = `_SUPPORTED_OBJECTIVE_METRICS = {sharpe_ratio, total_return, max_drawdown}` 3종만 노출
 
 **권장 접근:** BacktestMetrics 24 metric (sortino_ratio / calmar_ratio / win_rate / profit_factor 등) 노출 검토. `_objective_from_metrics` switch + FE select option 확장.
+
+---
+
+### BL-362
+
+**Title:** live 경로 coverage↔interpreter divergence silent swallow observability
+**Category:** Strategy / pine_v2 / Trading (money path)
+**Priority:** P2
+**Trigger:** S5 (trading kill-switch/notional/reconcile 묶음) — money path 변경이라 trading 테마와 함께
+**Est:** S (2-4h)
+**출처:** [`docs/audit/2026-05-30-full-inspection.md`](audit/2026-05-30-full-inspection.md) §4.3 (strategy/D 관찰 — observability gap)
+
+**원인 / 영향:** `run_live` 가 `run_historical(..., strict=False)`(event_loop.py:219) 호출 → `PineRuntimeError` 를 `result.errors` 에 기록만 하고 **그 bar statement 만 건너뛴 채 실행 계속**(event_loop.py:128-133). live 경로엔 coverage preflight 게이트도 없음. BL-361 이 현재 28 누출을 닫았으나, **향후 임의의 coverage↔interpreter divergence 가 라이브에서 조용히 오신호 생성**할 latent risk 상존. (S2 는 DEC-16=A 로 본 갭을 S5 이관.)
+
+**권장 접근:** (a) live 진입 전 `analyze_coverage` preflight reject 적용, 또는 (b) `run_live` 의 swallowed `result.errors` 를 Slack/Prometheus alert + (선택) 세션 abort 로 표면화. money path 변경이므로 S5 에서 commit-spy + kill-switch 회귀와 함께 신중 검토.
 
 ---
 

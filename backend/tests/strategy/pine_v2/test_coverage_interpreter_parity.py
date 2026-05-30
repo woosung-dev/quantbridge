@@ -12,8 +12,14 @@ coverage.py 가 supported 라고 약속하는 함수가 interpreter runtime 에�
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from src.strategy.pine_v2.compat import parse_and_run_v2
+from src.strategy.pine_v2.coverage import (
+    _MATH_FUNCTIONS,
+    _STRING_FUNCTIONS,
+    SUPPORTED_ATTRIBUTES,
+)
 
 
 def _ohlcv(n: int = 30) -> pd.DataFrame:
@@ -125,3 +131,61 @@ strategy.exit("TP", "L", when=false)
     # when=false 면 warning 기록도 안 됨
     warnings = result.historical.strategy_state.warnings
     assert not any("strategy.exit" in w for w in warnings)
+
+
+# ----------------------------------------------------------------------
+# S2 (전체 정검 P1-10/13) — 망라 parity: coverage SUPPORTED set 전체 순회.
+#
+# 기존 예시 기반 parity 테스트(vline/strategy.exit)는 hand-written 1건씩이라
+# 신규 추가 심볼이 무방비로 누출됐다 (coverage SUPPORTED 인데 interpreter 미구현
+# → preflight pass 후 runtime PineRuntimeError). 아래 3 망라 테스트가
+# SUPPORTED set 전체를 순회해 누출 *클래스* 를 구조적으로 차단한다 (ADR-003
+# 부분실행 금지 invariant). 향후 SUPPORTED 추가 시 interpreter 미구현이면
+# 본 테스트가 CI 에서 자동 RED.
+# ----------------------------------------------------------------------
+
+
+def _run_indicator_snippet(body: str) -> None:
+    """`x = <body>` 를 strict=True 로 실행 — PineRuntimeError 발생 시 테스트 실패."""
+    source = f'//@version=5\nindicator("parity")\nx = {body}\nplot(close)\n'
+    result = parse_and_run_v2(source, _ohlcv(), strict=True)
+    assert result.historical is not None
+
+
+@pytest.mark.parametrize("attr", sorted(SUPPORTED_ATTRIBUTES))
+def test_all_supported_attributes_runnable(attr: str) -> None:
+    """coverage.SUPPORTED_ATTRIBUTES 전 심볼이 interpreter 에서 PineRuntimeError 없이 평가.
+
+    coverage 가 is_runnable=True 로 약속한 attribute 는 런타임에서 반드시 평가 가능해야
+    한다. 누출 시 backtest=runtime fail(strict=True) / live=silent 오신호(strict=False).
+    """
+    _run_indicator_snippet(attr)
+
+
+# 심볼별 대표 인자 템플릿. 신규 string 함수 추가 시 여기 보강 안 하면 KeyError 로
+# 테스트가 강제 실패 → parity 유지 의무 (silent skip 차단).
+_STRING_FUNCTION_CALLS: dict[str, str] = {
+    "str.tostring": "str.tostring(close)",
+    "tostring": "tostring(close)",
+    "str.tonumber": 'str.tonumber("3.14")',
+    "tonumber": 'tonumber("3.14")',
+    "str.format": 'str.format("{0}", close)',
+    "str.length": 'str.length("abc")',
+}
+
+
+@pytest.mark.parametrize("fn", sorted(_STRING_FUNCTIONS))
+def test_all_string_functions_runnable(fn: str) -> None:
+    """coverage._STRING_FUNCTIONS 전 심볼이 interpreter 에서 평가 가능 (str.* dotted 누출 검출)."""
+    _run_indicator_snippet(_STRING_FUNCTION_CALLS[fn])
+
+
+# math.pow/max/min 은 2 인자, 그 외는 1 인자.
+_MATH_TWO_ARG: frozenset[str] = frozenset({"math.pow", "math.max", "math.min"})
+
+
+@pytest.mark.parametrize("fn", sorted(_MATH_FUNCTIONS))
+def test_all_math_functions_runnable(fn: str) -> None:
+    """coverage._MATH_FUNCTIONS 전 심볼이 interpreter math dispatch 에서 평가 가능 (math.log10 누출 검출)."""
+    args = "2.0, 3.0" if fn in _MATH_TWO_ARG else "2.0"
+    _run_indicator_snippet(f"{fn}({args})")

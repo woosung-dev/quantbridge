@@ -32,22 +32,24 @@ QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안
 
 > "어떤 선택지 A~C 가 있었고 무엇을 골랐나" 를 보고서에서 함께 보기 위함. 계획 단계 확정 12건 + 실행 중 결정.
 
-| ID     | 결정                 | 선택지                                                                   | 채택        | 결정자      | 이유                                                                                    |
-| ------ | -------------------- | ------------------------------------------------------------------------ | ----------- | ----------- | --------------------------------------------------------------------------------------- |
-| DEC-1  | 실행 모드            | A)리포트+BL만 ★★★★★ / B)P0만 inline ★★★★ / **C)전부 fix-and-merge ★★**   | **C**       | 사용자      | 모든 code-fixable 수정 희망 (범위는 code-fixable+safe 로 bounding)                      |
-| DEC-2  | 라이브 Playwright    | **A)포함(계정 준비) ★★★★** / B)계정TBD / C)스킵                          | **A**       | 사용자      | 계정 2개 제공                                                                           |
-| DEC-3  | 깊이 배분            | **A)리스크 가중 ★★★★★** / B)균등                                         | **A**       | 사용자      | trading/배포/미검증 영역 집중                                                           |
-| DEC-4  | codex 주입           | A)셀별 / **B)P0·P1 adversarial+최종 synthesis** / C)최종만               | **B**       | AI추천      | 고-blast 지점 cross-model                                                               |
-| DEC-5  | codex 예산 cap       | **A)P0/P1 상위 15** / B)무제한 / C)10                                    | **A**       | AI추천      | 0 P0 + 14 P1 → 전량 가능                                                                |
-| DEC-6  | CONTESTED            | **A)플래그(차단X)** / B)차단 / C)drop                                    | **A**       | AI추천      | contested = signal                                                                      |
-| DEC-7  | money vs security PR | **A)분리** / B)번들                                                      | **A**       | AI추천      | 리뷰·롤백 독립                                                                          |
-| DEC-8  | 동시성               | **A)직렬(CI mutex)** / B)병렬                                            | **A**       | AI추천      | 단일 isolated 스택 5433/6380 충돌                                                       |
-| DEC-9  | stage push           | **A)QB_PRE_PUSH_BYPASS=1** / B)fix/\* 개명                               | **A**       | AI추천      | Option C 컨벤션 보존                                                                    |
-| DEC-10 | 감사 차원            | 7축 / **8축(D7 resilience)**                                             | **8축**     | AI추천      | 라이브 트레이딩 실패모드                                                                |
-| DEC-11 | trading×보안 깊이    | DEEP / **CONFIRM**                                                       | **CONFIRM** | AI추천      | #305~310 방금 감사                                                                      |
-| DEC-12 | 최종 머지            | **A)배치 사용자승인(수동 stage→main)** / B)자동                          | **A**       | AI추천+헌법 | Git Safety Protocol                                                                     |
-| DEC-13 | 워크플로우 실패 복구 | A)재-resume(또 stall) / **B)트랜스크립트 구조화 추출** / C)소규모 재실행 | **B**       | AI추천      | resume 2회 stall → 캐시된 분석 198 에이전트 보존, 추출로 복구                           |
-| DEC-14 | P1-12 severity       | P0(즉시손실) / **P1(방어심층 갭)**                                       | **P1**      | AI+코드확인 | market order notional skip 은 거래소 margin 체크가 backstop, 의도된 tradeoff(주석 명시) |
+| ID     | 결정                 | 선택지                                                                   | 채택        | 결정자      | 이유                                                                                                                                                                        |
+| ------ | -------------------- | ------------------------------------------------------------------------ | ----------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DEC-1  | 실행 모드            | A)리포트+BL만 ★★★★★ / B)P0만 inline ★★★★ / **C)전부 fix-and-merge ★★**   | **C**       | 사용자      | 모든 code-fixable 수정 희망 (범위는 code-fixable+safe 로 bounding)                                                                                                          |
+| DEC-2  | 라이브 Playwright    | **A)포함(계정 준비) ★★★★** / B)계정TBD / C)스킵                          | **A**       | 사용자      | 계정 2개 제공                                                                                                                                                               |
+| DEC-3  | 깊이 배분            | **A)리스크 가중 ★★★★★** / B)균등                                         | **A**       | 사용자      | trading/배포/미검증 영역 집중                                                                                                                                               |
+| DEC-4  | codex 주입           | A)셀별 / **B)P0·P1 adversarial+최종 synthesis** / C)최종만               | **B**       | AI추천      | 고-blast 지점 cross-model                                                                                                                                                   |
+| DEC-5  | codex 예산 cap       | **A)P0/P1 상위 15** / B)무제한 / C)10                                    | **A**       | AI추천      | 0 P0 + 14 P1 → 전량 가능                                                                                                                                                    |
+| DEC-6  | CONTESTED            | **A)플래그(차단X)** / B)차단 / C)drop                                    | **A**       | AI추천      | contested = signal                                                                                                                                                          |
+| DEC-7  | money vs security PR | **A)분리** / B)번들                                                      | **A**       | AI추천      | 리뷰·롤백 독립                                                                                                                                                              |
+| DEC-8  | 동시성               | **A)직렬(CI mutex)** / B)병렬                                            | **A**       | AI추천      | 단일 isolated 스택 5433/6380 충돌                                                                                                                                           |
+| DEC-9  | stage push           | **A)QB_PRE_PUSH_BYPASS=1** / B)fix/\* 개명                               | **A**       | AI추천      | Option C 컨벤션 보존                                                                                                                                                        |
+| DEC-10 | 감사 차원            | 7축 / **8축(D7 resilience)**                                             | **8축**     | AI추천      | 라이브 트레이딩 실패모드                                                                                                                                                    |
+| DEC-11 | trading×보안 깊이    | DEEP / **CONFIRM**                                                       | **CONFIRM** | AI추천      | #305~310 방금 감사                                                                                                                                                          |
+| DEC-12 | 최종 머지            | **A)배치 사용자승인(수동 stage→main)** / B)자동                          | **A**       | AI추천+헌법 | Git Safety Protocol                                                                                                                                                         |
+| DEC-13 | 워크플로우 실패 복구 | A)재-resume(또 stall) / **B)트랜스크립트 구조화 추출** / C)소규모 재실행 | **B**       | AI추천      | resume 2회 stall → 캐시된 분석 198 에이전트 보존, 추출로 복구                                                                                                               |
+| DEC-14 | P1-12 severity       | P0(즉시손실) / **P1(방어심층 갭)**                                       | **P1**      | AI+코드확인 | market order notional skip 은 거래소 margin 체크가 backstop, 의도된 tradeoff(주석 명시)                                                                                     |
+| DEC-15 | S2 Trust 정합 방식   | **A)전부 구현 ★★★★★** / B)coverage 제거 ★★ / C)하이브리드(숫자만) ★★★    | **A**       | 사용자      | hl2/hlc3/ohlc4·barstate._ = 자명 정확, str._ = display NOP-safe. 제거(B)는 label/alert 의 str.tostring(backtest 0 영향) 과대차단 + hl2 류 순수 기능손실 = whack-a-mole 재발 |
+| DEC-16 | live observability   | **A)S5 이관 ★★★★★** / B)S2 포함 ★★★                                      | **A**       | 사용자      | run_live strict=False silent swallow 는 money path 변경 → DEC-7 분리 + "money path 신중". S2 는 pine_v2 순수(mutation 0) 유지. → BL-362                                     |
 
 ---
 
@@ -65,7 +67,8 @@ QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안
 
 ### 4.3 ⚠️ Trust Layer 누출 — 부분실행 금지 invariant 위반 (P1, strategy/D4)
 
-- **P1-10 / P1-13 (`coverage.py` vs `interpreter.py`):** coverage 가 `str.tostring/tonumber/format/length`, `hl2/hlc3/ohlc4`, `barstate.is*` 를 **SUPPORTED 로 표기하지만 interpreter 가 미구현** → `is_runnable=True` 인데 런타임은 stub/오값 산출. ADR-003 "미지원 1개라도 → 전체 Unsupported(부분실행 금지)" 위반. 잘못된 백테스트 결과를 사용자에게 정답처럼 노출하는 Trust 결함. 구현 또는 coverage 에서 제거 둘 중 하나 필수.
+- **P1-10 / P1-13 (`coverage.py` vs `interpreter.py`):** coverage 가 `str.tostring/tonumber/format/length`, `hl2/hlc3/ohlc4`, `barstate.is*` 를 **SUPPORTED 로 표기하지만 interpreter 가 미구현** → `is_runnable=True` 인데 런타임은 `PineRuntimeError` raise(backtest=strict True→FAILED / live=strict False→**silent swallow 후 실행 계속 = 오신호**). ADR-003 "미지원 1개라도 → 전체 Unsupported(부분실행 금지)" 위반. 구현 또는 coverage 에서 제거 둘 중 하나 필수.
+- **✅ S2 해소 (DEC-15=A 전부 구현):** 망라 parity 테스트(`test_coverage_interpreter_parity.py` 의 `SUPPORTED_ATTRIBUTES`/`_STRING_FUNCTIONS`/`_MATH_FUNCTIONS` 전수 순회)가 audit 의 hand-found ~10건 + **미발견 18건**(currency._ 12 / strategy.commission\__ 3 / barstate 4중 일부 / **math.log10**)까지 총 **28 누출** 검출. interpreter.py 에 전부 구현(hl2/hlc3/ohlc4 = Pine 정의 1:1, barstate._ = bar_index/len 정확, str._ = NOP-safe/정확 parse, currency._ = code suffix, commission\__ = `_ATTR_CONSTANTS`). TDD RED 28→GREEN. 향후 SUPPORTED 추가분 누출은 본 망라 테스트가 CI 에서 자동 차단(영구 tripwire). live-path silent swallow observability 는 **BL-362(S5 이관, DEC-16=A)**.
 
 ### 4.4 ⚠️ 백테스트 지표 정확성 회귀 (P1, backtest/D4)
 
@@ -128,17 +131,17 @@ QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안
 
 > 베이스라인: BE 1850 PASS / FE 716 PASS @ main `4aa5c2a`. 상태: TODO→BRANCHED→RED→GREEN→LOCAL-GREEN→PUSH-APPROVED→MERGED | USER-DECIDE.
 
-| 테마     | 핵심 발견                                         | 상태                             | 브랜치                      | 비고                                                                |
-| -------- | ------------------------------------------------- | -------------------------------- | --------------------------- | ------------------------------------------------------------------- |
-| S1       | P1-5 avg_holding_hours 1440x/288x/96x             | **LOCAL-GREEN** (push 승인 대기) | `stage/fix-backtest-metric` | v2_adapter + metrics 'min' alias 추가, TDD RED→GREEN 확인 (+3 test) |
-| S2       | P1-10/13 Trust Layer 누출                         | TODO                             | —                           | coverage↔interpreter — 구현 vs coverage 제거 결정 필요              |
-| S3       | P1-7 WF backtest_config 미전달 + P1-4             | TODO                             | —                           | BL-222 follow-up                                                    |
-| S4       | P1-9 Genetic CategoricalField 크래시              | TODO                             | —                           | BL-234                                                              |
-| S5       | P1-2/12/14 trading kill-switch/notional/reconcile | TODO                             | —                           | money path — 신중                                                   |
-| S6       | P1-3 parse_tv_payload error 테스트                | TODO                             | —                           | BL-309                                                              |
-| S7       | P1-1/11/8 frontend 계정등록 UX + optimizer picker | TODO                             | —                           | 라이브 QA 병행                                                      |
-| S8+      | P2 58 + P3 76                                     | TODO                             | —                           | 도메인별 배치                                                       |
-| 매트릭스 | G1/G7/G8 + BL-070/072                             | USER-DECIDE                      | —                           | 코드 불가                                                           |
+| 테마     | 핵심 발견                                         | 상태                             | 브랜치                       | 비고                                                                                                                                                                                                    |
+| -------- | ------------------------------------------------- | -------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1       | P1-5 avg_holding_hours 1440x/288x/96x             | **LOCAL-GREEN** (push 승인 대기) | `stage/fix-backtest-metric`  | v2_adapter + metrics 'min' alias 추가, TDD RED→GREEN 확인 (+3 test)                                                                                                                                     |
+| S2       | P1-10/13 Trust Layer 누출 (28 symbols)            | **LOCAL-GREEN** (push 승인 대기) | `stage/fix-trust-layer-leak` | DEC-15=A 전부 구현. 망라 parity 테스트가 audit 10 + 미발견 18(currency 12/commission 3/math.log10/barstate) = 28 검출. TDD RED 28→GREEN, pine_v2 611 pass 회귀 0. BL-361 Resolved + live-obs BL-362(S5) |
+| S3       | P1-7 WF backtest_config 미전달 + P1-4             | TODO                             | —                            | BL-222 follow-up                                                                                                                                                                                        |
+| S4       | P1-9 Genetic CategoricalField 크래시              | TODO                             | —                            | BL-234                                                                                                                                                                                                  |
+| S5       | P1-2/12/14 trading kill-switch/notional/reconcile | TODO                             | —                            | money path — 신중                                                                                                                                                                                       |
+| S6       | P1-3 parse_tv_payload error 테스트                | TODO                             | —                            | BL-309                                                                                                                                                                                                  |
+| S7       | P1-1/11/8 frontend 계정등록 UX + optimizer picker | TODO                             | —                            | 라이브 QA 병행                                                                                                                                                                                          |
+| S8+      | P2 58 + P3 76                                     | TODO                             | —                            | 도메인별 배치                                                                                                                                                                                           |
+| 매트릭스 | G1/G7/G8 + BL-070/072                             | USER-DECIDE                      | —                            | 코드 불가                                                                                                                                                                                               |
 
 ## 10. 결론
 
@@ -177,7 +180,7 @@ _(아래는 평가자 패널 원시 발견 — refuter 검증 생존분 전량.)
 
 **P1-1 · backtest/D4** — `backend/src/backtest/config_mapper.py:24-31 (_TIMEFRAME_TO_FREQ) vs backend/src/backtest/engine/v2_adapter.py:446-459 (_FREQ_HOURS_V2)`
 
-- 주장: 24-metric 정확성 회귀 (avg_holding_hours): production v2 경로에서 1m/5m/15m timeframe 의 avg_holding_hours 가 1440x/288x/96x 과대 계산. timeframe_to_freq() 가 '1m'->'1min', '5m'->'5min', '15m'->'15min' 로 매핑하는데, \_v2_avg_holding_hours() 가 호출하는 \_freq_to_hours_v2() 의 dict \_FREQ_HOURS_V2 는 키가 '1m'/'5m'/'15m' (NOT '1min'/'5min'/'15min') 라서 매핑 미스 → 24.0h fallback 사용. 즉 1m 에서 보유 bar 수 _ (1/60)h 가 되어야 하는데 bar 수 _ 24h 로 계산
+- 주장: 24-metric 정확성 회귀 (avg*holding_hours): production v2 경로에서 1m/5m/15m timeframe 의 avg_holding_hours 가 1440x/288x/96x 과대 계산. timeframe_to_freq() 가 '1m'->'1min', '5m'->'5min', '15m'->'15min' 로 매핑하는데, \_v2_avg_holding_hours() 가 호출하는 \_freq_to_hours_v2() 의 dict \_FREQ_HOURS_V2 는 키가 '1m'/'5m'/'15m' (NOT '1min'/'5min'/'15min') 라서 매핑 미스 → 24.0h fallback 사용. 즉 1m 에서 보유 bar 수 * (1/60)h 가 되어야 하는데 bar 수 \_ 24h 로 계산
 - 수정: \_FREQ_HOURS_V2 에 '1min'/'5min'/'15min'(+'30min') 키 추가하거나, \_TIMEFRAME_TO_FREQ 가 \_FREQ_HOURS_V2 키 체계('1m'/'5m'/'15m')와 동일 alias 를 쓰도록 통일. 단 pandas resample('ME')/pct_change 등은 '1min' 같은 pandas offset alias 가 필요할 수 있으므로 두 매핑(pandas offset vs h
 - 검증: votes=2 / ['real'] · BL: 신규
 
@@ -310,7 +313,7 @@ _(아래는 평가자 패널 원시 발견 — refuter 검증 생존분 전량.)
 | # | 위치 | 주장 (요약) | BL |
 |---|------|-------------|----|
 | 1 | `backend/src/optimizer/service.py:239-307`[:60] | _execute_grid_search / \_execute_bayesian / \_execute_genetic 3개 메서드가 strategy 로드(find_by_id_and_owner+None시 Opt | 신규 BL (arch-3 동반) |
-| 2 | `backend/src/optimizer/service.py:204-211, 86-132`[:60] | Dispatcher kind 분기가 if-elif 체인으로 2곳에 분산 — (1) service.run() 204-209 의 worker-side kind→_execute__ 분기, (2) subm | 신규 BL |
+| 2 | `backend/src/optimizer/service.py:204-211, 86-132`[:60] | Dispatcher kind 분기가 if-elif 체인으로 2곳에 분산 — (1) service.run() 204-209 의 worker-side kind→_execute\_\_ 분기, (2) subm | 신규 BL |
 | 3 | `backend/tests/optimizer/test_grid_search_engine.py:165-183`[:60] | Grid Search engine 의 run*grid_search() end-to-end success path 가 전혀 테스트되지 않음. 유일한 run_grid_search 호출은 line 179 | BL-309 (test coverage gap) |
 | 4 | `backend/tests/optimizer/test_bayesian_engine.py:348-366 (대상 src/optimizer/engine/bayesian.py)`[:60] | Bayesian executor 의 입력 검증 분기 5개 중 4개가 미테스트. bayesian.py:341 schema_version!=2 reject, :348 bayesian_n_initial* | BL-309 |
 | 5 | `backend/src/optimizer/engine/bayesian.py:241-255`[:60] | *coerce_skopt_to_decimal 가 CategoricalField string 값에 Decimal(str(v)) 적용(253-254) — CategoricalField.values 는 | 신규 BL |

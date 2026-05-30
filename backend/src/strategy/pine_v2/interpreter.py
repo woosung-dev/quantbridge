@@ -91,6 +91,11 @@ _ATTR_CONSTANTS: dict[str, str] = {
     "strategy.fixed": "strategy.fixed",
     "strategy.cash": "strategy.cash",
     "strategy.percent_of_equity": "strategy.percent_of_equity",
+    # S2 (전체 정검 P1-10/13): commission_type 3종 — coverage._STRATEGY_CONSTANTS_EXTRA
+    # 가 SUPPORTED 표기하나 _ATTR_CONSTANTS 누락이던 누출 (strategy.fixed 패턴 동일).
+    "strategy.commission_percent": "strategy.commission_percent",
+    "strategy.commission_cash_per_contract": "strategy.commission_cash_per_contract",
+    "strategy.commission_cash_per_order": "strategy.commission_cash_per_order",
     # 렌더링 scope A — enum 상수 (string identity 유지)
     "line.style_dashed": "dashed",
     "line.style_dotted": "dotted",
@@ -735,6 +740,8 @@ class Interpreter:
                 return math.sqrt(args[0])
             if name == "math.log":
                 return math.log(args[0]) if len(args) == 1 else math.log(args[0], args[1])
+            if name == "math.log10":  # S2 (전체 정검 P1-10/13): coverage SUPPORTED 누락분
+                return math.log10(args[0])
             if name == "math.pow":
                 return args[0] ** args[1]
             if name == "math.avg":
@@ -779,16 +786,45 @@ class Interpreter:
             days = (year - 1970) * 365 + (month - 1) * 30 + (day - 1)
             return days * 86_400 * 1000 + hour * 3_600_000 + minute * 60_000
 
-        # tostring(x[, format]) — Pine v4/v5 numeric→str 변환. format은 무시(H2+).
-        if name == "tostring":
-            if not node.args:
-                return ""
-            val = self._eval_expr(
+        # str.* / bare tostring·tonumber — display NOP-safe (tostring/format) 또는
+        # 정확 변환 (tonumber=parse|na, length=len). backtest math 에 무관하거나 정확.
+        # S2 (전체 정검 P1-10/13): coverage._STRING_FUNCTIONS 가 SUPPORTED 표기하나
+        # bare tostring 만 구현돼 있던 누출 — dotted str.* 는 handle.method 통과 후 raise.
+        def _first_arg() -> Any:
+            return self._eval_expr(
                 node.args[0].value if isinstance(node.args[0], pyne_ast.Arg) else node.args[0]
             )
+
+        # tostring(x[, format]) — Pine v4/v5 numeric→str 변환. format은 무시(H2+).
+        if name in ("tostring", "str.tostring"):
+            if not node.args:
+                return ""
+            val = _first_arg()
             if isinstance(val, float) and math.isnan(val):
                 return "NaN"
             return str(val)
+        # tonumber(s) — string→number parse, 실패 시 na (Pine 의미).
+        if name in ("tonumber", "str.tonumber"):
+            if not node.args:
+                return float("nan")
+            try:
+                return float(_first_arg())
+            except (TypeError, ValueError):
+                return float("nan")
+        # str.length(s) — 문자열 길이 (정확).
+        if name == "str.length":
+            return len(str(_first_arg())) if node.args else 0
+        # str.format(fmt, ...) — display-only. {i} 위치 치환 best-effort (backtest math 무관).
+        if name == "str.format":
+            fmt_args = [
+                self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
+            ]
+            if not fmt_args:
+                return ""
+            out = str(fmt_args[0])
+            for i, a in enumerate(fmt_args[1:]):
+                out = out.replace("{" + str(i) + "}", str(a))
+            return out
 
         # Sprint 29 Slice A (a): heikinashi NOP — 일반 OHLC 그대로 반환 (Trust Layer 위반, dogfood-only).
         # Heikin-Ashi 캔들 정확 변환은 Sprint 30+ ADR-009 Candle transformation layer.
@@ -989,6 +1025,21 @@ class Interpreter:
             return self._scope_stack[-1][name]
         if name in _BUILTIN_SERIES:
             return self.bar.current(name)
+        # S2 (전체 정검 P1-10/13): 합성 series source — Pine 정의와 1:1 (근사 없음).
+        # coverage._SERIES_ATTRS 가 SUPPORTED 표기하나 interpreter 미구현이던 누출.
+        if name == "hl2":
+            return (self.bar.current("high") + self.bar.current("low")) / 2
+        if name == "hlc3":
+            return (
+                self.bar.current("high") + self.bar.current("low") + self.bar.current("close")
+            ) / 3
+        if name == "ohlc4":
+            return (
+                self.bar.current("open")
+                + self.bar.current("high")
+                + self.bar.current("low")
+                + self.bar.current("close")
+            ) / 4
         if name == "bar_index":
             return self.bar.bar_index
         if name == "time":
@@ -1062,9 +1113,24 @@ class Interpreter:
         # Sprint 58 BL-242b: barstate.isrealtime — backtest 는 항상 historical
         if chain == "barstate.isrealtime":
             return False
+        # S2 (전체 정검 P1-10/13): 나머지 barstate.* — backtest 의미상 정확.
+        # coverage._SERIES_ATTRS 가 SUPPORTED 표기하나 isrealtime 만 구현돼 있던 누출.
+        if chain == "barstate.isfirst":
+            return self.bar.bar_index == 0
+        if chain == "barstate.islast":
+            return self.bar.bar_index == len(self.bar.ohlcv) - 1
+        if chain == "barstate.ishistory":
+            return True  # backtest 는 전 bar historical (isrealtime=False 의 보완)
+        if chain == "barstate.isconfirmed":
+            return True  # backtest bar 는 전부 closed/confirmed
         # Sprint 58 BL-242b: timeframe 속성 — 단일 타임프레임 백테스트 가정
-        if chain in ("timeframe.isdaily", "timeframe.isminutes", "timeframe.ismonthly",
-                     "timeframe.isseconds", "timeframe.isweekly"):
+        if chain in (
+            "timeframe.isdaily",
+            "timeframe.isminutes",
+            "timeframe.ismonthly",
+            "timeframe.isseconds",
+            "timeframe.isweekly",
+        ):
             return False
         if chain == "timeframe.multiplier":
             return 0
@@ -1095,6 +1161,10 @@ class Interpreter:
             return float("nan")
         # alert.freq_* / display.* 등 추가 Pine enum은 문자열 stub 반환
         if chain.startswith(("alert.freq_", "display.", "xloc.", "yloc.", "text.", "font.")):
+            return chain.split(".", 1)[1]
+        # S2 (전체 정검 P1-10/13): currency.* enum — coverage._CURRENCY_CONSTANTS explicit
+        # set 이 preflight 에서 invalid 차단. runtime 은 통화 코드 suffix 반환 (currency.USD == "USD").
+        if chain.startswith("currency."):
             return chain.split(".", 1)[1]
         raise PineRuntimeError(f"Attribute access not supported: {chain}")
 
