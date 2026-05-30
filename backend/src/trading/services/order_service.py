@@ -151,41 +151,64 @@ class OrderService:
                 cap=settings.bybit_futures_max_leverage,
             )
 
-        # Sprint 8+ (2026-04-20): notional check. exchange_service 주입 + leverage + price
-        # 모두 존재할 때만 enforce. market order(price=None)는 이 게이트 건너뜀 — 진입가
-        # 불확실성 때문에 leverage cap으로만 1차 방어. fetch_balance 실패 시 None 반환
-        # 하므로 fallback (서비스 중단 금지).
-        if (
-            self._exchange_service is not None
-            and req.leverage is not None
-            and req.price is not None
-        ):
-            available = await self._exchange_service.fetch_balance_usdt(req.exchange_account_id)
-            if available is not None and available > Decimal("0"):
-                # CF5/MP-3 — Bybit/Binance 표준 initial-margin 모델 (벤치마크: bybit
-                # Order-Cost help-center). position notional = qty * price (leverage 미포함).
-                # 필요 initial margin = notional / leverage 가 available * 0.95 (open/close
-                # fee 버퍼) 이내여야 한다. 즉 notional <= available * leverage * 0.95.
-                # 이전 공식 (qty*price*leverage + max_leverage ceiling) 은 비표준 -
-                # 저레버리지에서 감당 불가 포지션 허용 / 고레버리지에서 정상 포지션 거부.
-                notional = req.quantity * req.price
-                max_notional = available * Decimal(req.leverage) * Decimal("0.95")
-                if notional > max_notional:
+        # Sprint 8+ (2026-04-20): notional check. exchange_service 주입 + leverage 존재 시 enforce.
+        # P1-13 (S5-B, 2026-05-30): market order(price=None) 도 mark price 근사로 가드 적용.
+        # live_signal 경로의 전 주문이 market 이라 기존 'price is not None' 게이트만으로는
+        # notional 보호가 항상 우회 = #305 CF5 보호가 라이브 시그널에서 실효성 없음.
+        # 보수적 버퍼(MARKET_NOTIONAL_BUFFER) 추가로 slippage 헷지. mark price fetch 실패
+        # 시 live = fail-closed (BalanceUnverified), demo = fail-open (기존 정책 유지).
+        if self._exchange_service is not None and req.leverage is not None:
+            effective_price: Decimal | None = req.price
+            if effective_price is None:
+                # P1-13 (S5-B) — market order: mark price 근사 (네트워크 1회 추가)
+                mark = await self._exchange_service.fetch_mark_price(
+                    req.exchange_account_id, req.symbol
+                )
+                if mark is not None:
+                    # slippage 버퍼 — 보수적 추정 (실제 체결가가 mark 보다 worst 일 수 있음)
+                    effective_price = mark * Decimal("1.02")
+
+            if effective_price is not None:
+                available = await self._exchange_service.fetch_balance_usdt(
+                    req.exchange_account_id
+                )
+                if available is not None and available > Decimal("0"):
+                    # CF5/MP-3 — Bybit/Binance 표준 initial-margin 모델 (벤치마크: bybit
+                    # Order-Cost help-center). position notional = qty * price (leverage 미포함).
+                    # 필요 initial margin = notional / leverage 가 available * 0.95 (open/close
+                    # fee 버퍼) 이내여야 한다. 즉 notional <= available * leverage * 0.95.
+                    # 이전 공식 (qty*price*leverage + max_leverage ceiling) 은 비표준 -
+                    # 저레버리지에서 감당 불가 포지션 허용 / 고레버리지에서 정상 포지션 거부.
+                    notional = req.quantity * effective_price
+                    max_notional = available * Decimal(req.leverage) * Decimal("0.95")
+                    if notional > max_notional:
+                        qb_order_rejected_total.labels(
+                            exchange=_metric_exchange, reason="notional"
+                        ).inc()
+                        raise NotionalExceeded(
+                            notional=notional,
+                            available=available,
+                            leverage=req.leverage,
+                            max_notional=max_notional,
+                        )
+                elif (
+                    dispatch_snapshot is not None
+                    and dispatch_snapshot.get("mode") == ExchangeMode.live.value
+                ):
+                    # CF5 — live 는 balance 검증 불가(fetch 실패/0) 시 fail-closed (주문 거부).
+                    # demo 는 fail-open(skip) 유지 (서비스 중단 금지 — 기존 정책).
                     qb_order_rejected_total.labels(
-                        exchange=_metric_exchange, reason="notional"
+                        exchange=_metric_exchange, reason="balance_unverified"
                     ).inc()
-                    raise NotionalExceeded(
-                        notional=notional,
-                        available=available,
-                        leverage=req.leverage,
-                        max_notional=max_notional,
-                    )
+                    raise BalanceUnverified(account_id=req.exchange_account_id)
             elif (
-                dispatch_snapshot is not None
+                req.price is None
+                and dispatch_snapshot is not None
                 and dispatch_snapshot.get("mode") == ExchangeMode.live.value
             ):
-                # CF5 — live 는 balance 검증 불가(fetch 실패/0) 시 fail-closed (주문 거부).
-                # demo 는 fail-open(skip) 유지 (서비스 중단 금지 — 기존 정책).
+                # P1-13 (S5-B) — market order + live + mark price 추정 실패 = fail-closed.
+                # demo 는 기존 정책대로 fail-open(skip — effective_price=None 이므로
+                # notional/available 분기 자체를 건너뜀).
                 qb_order_rejected_total.labels(
                     exchange=_metric_exchange, reason="balance_unverified"
                 ).inc()

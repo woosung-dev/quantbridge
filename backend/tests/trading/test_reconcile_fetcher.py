@@ -29,10 +29,16 @@ def _make_account() -> models.ExchangeAccount:
 
 
 def _patch_ccxt(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """reconcile_fetcher 의 ccxt_async.bybit 를 mock exchange 로 교체."""
+    """reconcile_fetcher 의 ccxt_async.bybit 를 mock exchange 로 교체.
+
+    P1-14 (S5-C): has['fetchCanceledOrders']=False 가 default — 기존 closed-only 테스트
+    호환. 신규 union 테스트는 explicit 으로 has 와 fetch_canceled_orders 를 설정.
+    """
     mock_exchange = MagicMock()
     mock_exchange.fetch_open_orders = AsyncMock(return_value=[{"id": "o1", "status": "open"}])
     mock_exchange.fetch_closed_orders = AsyncMock(return_value=[{"id": "c1", "status": "closed"}])
+    mock_exchange.fetch_canceled_orders = AsyncMock(return_value=[])  # 기본은 빈 list
+    mock_exchange.has = {"fetchCanceledOrders": False}  # default off
     mock_exchange.close = AsyncMock()
     mock_exchange.enable_demo_trading = MagicMock()  # _apply_bybit_env(demo) 호출
     monkeypatch.setattr(
@@ -171,6 +177,78 @@ async def test_recent_orders_close_failure_swallowed(
 
     result = await fetcher.fetch_recent_orders(account.id)
     assert result == [{"id": "c1", "status": "closed"}]
+
+
+# ── P1-14 (S5-C, BL-308 후속) — fetch_canceled_orders union ──
+
+
+@pytest.mark.asyncio
+async def test_fetch_recent_orders_unions_closed_and_canceled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P1-14 (S5-C): has['fetchCanceledOrders']=True → closed + canceled union 반환.
+
+    Reconciler._find_match 가 canceled local active order 를 찾을 수 있도록 보장.
+    Bybit V5/CCXT 표준 경로 — canceled 는 fetch_closed_orders 가 반환 안 함.
+    """
+    account = _make_account()
+    mock_exchange = _patch_ccxt(monkeypatch)
+    mock_exchange.has = {"fetchCanceledOrders": True}
+    mock_exchange.fetch_canceled_orders = AsyncMock(
+        return_value=[{"id": "x1", "status": "canceled"}]
+    )
+    fetcher = BybitReconcileFetcher(account=account, crypto=_make_crypto())
+
+    result = await fetcher.fetch_recent_orders(account.id, limit=25)
+
+    assert result == [
+        {"id": "c1", "status": "closed"},
+        {"id": "x1", "status": "canceled"},
+    ]
+    mock_exchange.fetch_closed_orders.assert_awaited_once_with(
+        None, limit=25, params={"category": "linear"}
+    )
+    mock_exchange.fetch_canceled_orders.assert_awaited_once_with(
+        None, limit=25, params={"category": "linear"}
+    )
+    mock_exchange.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_recent_orders_skips_canceled_when_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P1-14 (S5-C): has['fetchCanceledOrders']=False → fetch_canceled_orders 호출 X."""
+    account = _make_account()
+    mock_exchange = _patch_ccxt(monkeypatch)
+    # 기본값이 False, 명시적으로 확인
+    assert mock_exchange.has == {"fetchCanceledOrders": False}
+    fetcher = BybitReconcileFetcher(account=account, crypto=_make_crypto())
+
+    result = await fetcher.fetch_recent_orders(account.id)
+
+    assert result == [{"id": "c1", "status": "closed"}]
+    mock_exchange.fetch_canceled_orders.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fetch_recent_orders_canceled_failure_returns_closed_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P1-14 (S5-C): fetch_canceled_orders 실패 시 closed-only graceful (silent X)."""
+    account = _make_account()
+    mock_exchange = _patch_ccxt(monkeypatch)
+    mock_exchange.has = {"fetchCanceledOrders": True}
+    mock_exchange.fetch_canceled_orders = AsyncMock(
+        side_effect=RuntimeError("rate limit")
+    )
+    fetcher = BybitReconcileFetcher(account=account, crypto=_make_crypto())
+
+    # closed 결과만 반환되어야 함 (RuntimeError 가 caller 까지 전파되지 않음)
+    result = await fetcher.fetch_recent_orders(account.id)
+    assert result == [{"id": "c1", "status": "closed"}]
+    mock_exchange.fetch_canceled_orders.assert_awaited_once()
+    mock_exchange.close.assert_awaited_once()
 
 
 def _patch_exchange() -> MagicMock:
