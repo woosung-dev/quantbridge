@@ -82,7 +82,7 @@ QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안
 ### 4.6 ⚠️ optimizer Genetic 크래시 (P1, optimizer/D4, BL-234)
 
 - **P1-9 (`genetic.py:187-188,318`):** CategoricalField 가 비숫자 문자열 카테고리일 때 `InvalidOperation` 크래시. 검증 거부 또는 str|Decimal 표현 분리 필요.
-- **✅ S4 해소 (Option A = 비숫자 reject):** `_validate_genetic_search_pre`(genetic) + `_validate_bayesian_search_pre`(bayesian) 에 `CategoricalField.values` Decimal-parse 검사 추가 → 비숫자면 `InvalidOperation` 크래시(sampling/coerce) 대신 validation 단계에서 **명확한 422**(`values must be numeric (ordinal)`). 두 엔진 동일 정책(bayesian 은 skopt `_coerce_skopt_to_decimal` 크래시도 동일 차단). TDD RED 2→GREEN(`test_categorical_non_numeric_values_rejected` ×2), optimizer 149 pass. 진짜 string-label sweep(`['ema','sma']`)은 **BL-364(P2 feature)**. grid_search 는 CategoricalField 전체 거부(무관).
+- **✅ S4 해소 (Option A = 비숫자 reject):** `_validate_genetic_search_pre`(genetic) + `_validate_bayesian_search_pre`(bayesian) 에 `CategoricalField.values` Decimal-parse 검사 추가 → 비숫자면 `InvalidOperation` 크래시(sampling/coerce) 대신 validation 단계에서 **명확한 422**(`values must be numeric (ordinal)`). 두 엔진 동일 정책(bayesian 은 skopt `_coerce_skopt_to_decimal` 크래시도 동일 차단). TDD RED 2→GREEN(`test_categorical_non_numeric_values_rejected` ×2), optimizer 149 pass. **codex review → P2 추가**: `Decimal('NaN'/'Infinity')` 은 parse 통과하나 후속 `int(...)` 런타임 크래시(500) → `is_finite()` 검사 추가(genetic+bayesian) + non-finite reject 테스트 2건(optimizer 151 pass). 진짜 string-label sweep(`['ema','sma']`)은 **BL-364(P2 feature)**. grid_search 는 CategoricalField 전체 거부(무관).
 
 ### 4.7 ⚠️ 프론트 거래소 계정 등록 에러 UX (P1, frontend/D8)
 

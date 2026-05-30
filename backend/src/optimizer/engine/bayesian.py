@@ -242,13 +242,20 @@ def _validate_bayesian_search_pre(pine_source: str, param_space: ParamSpace) -> 
         if isinstance(field, CategoricalField):
             for value in field.values:
                 try:
-                    Decimal(value)
+                    parsed_value = Decimal(value)
                 except (InvalidOperation, TypeError, ValueError):
                     raise ValueError(
                         f"Bayesian CategoricalField (var_name={var_name!r}) values must be "
                         f"numeric (ordinal). Got non-numeric {value!r}. "
                         f"String-label sweep 미지원 (BL-364)."
                     ) from None
+                # codex P2: Decimal('NaN'/'Infinity') 은 parse 통과하나 후속 int(...) 런타임
+                # 크래시(500). finite 검사로 validation 단계에서 명확히 거부 (genetic 와 동일).
+                if not parsed_value.is_finite():
+                    raise ValueError(
+                        f"Bayesian CategoricalField (var_name={var_name!r}) values must be "
+                        f"finite numeric (ordinal). Got {value!r}."
+                    )
 
 
 def _coerce_skopt_to_decimal(values: list[Any], param_names: tuple[str, ...]) -> dict[str, Decimal]:

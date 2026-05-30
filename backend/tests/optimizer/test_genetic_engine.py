@@ -404,6 +404,24 @@ class TestRunGeneticSearchValidation:
         with pytest.raises(ValueError, match="numeric"):
             _validate_genetic_search_pre(pine, space)
 
+    def test_categorical_non_finite_values_rejected(self) -> None:
+        """전체 정검 S4 (codex P2): 'NaN'/'Infinity' 은 Decimal parse 성공하나 ordinal 부적합 → reject.
+
+        `Decimal('NaN')` 는 parse 통과하지만 후속 `int(Decimal('NaN'))` 가 런타임 크래시(500).
+        validation 에서 `is_finite()` 검사로 명확한 422.
+        """
+        pine = (
+            "//@version=5\n"
+            'strategy("genetic categorical")\n'
+            'maType = input.string("ema", "MA Type")\n'
+            "plot(close)\n"
+        )
+        space = _build_param_space(
+            {"maType": {"kind": "categorical", "values": ["NaN", "5"]}}
+        )
+        with pytest.raises(ValueError, match="finite"):
+            _validate_genetic_search_pre(pine, space)
+
     def test_budget_above_max_raises(self) -> None:
         # Sprint 57 BL-237: cap = 100. 101 > 100 → "exceeds server cap"
         space = _build_param_space(
