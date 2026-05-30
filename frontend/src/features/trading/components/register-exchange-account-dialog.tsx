@@ -51,13 +51,23 @@ export function RegisterExchangeAccountDialog() {
   const selectedExchange = useWatch({ control: form.control, name: "exchange" });
 
   const onSubmit = async (values: RegisterAccountRequest) => {
-    await register.mutateAsync({
-      ...values,
-      passphrase: selectedExchange === "okx" ? values.passphrase : null,
-    });
-    setOpen(false);
-    form.reset();
+    // P1-1/11 (S7-A): test-order-dialog 패턴 — clear → try → setError on catch.
+    // 이전엔 try/catch 없이 mutateAsync 가 throw 시 unhandled rejection → 사용자 무피드백.
+    form.clearErrors("root.serverError");
+    try {
+      await register.mutateAsync({
+        ...values,
+        passphrase: selectedExchange === "okx" ? values.passphrase : null,
+      });
+      setOpen(false);
+      form.reset();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "계정 등록 실패";
+      form.setError("root.serverError", { type: "manual", message });
+    }
   };
+
+  const rootError = form.formState.errors.root?.serverError?.message;
 
   return (
     <>
@@ -178,6 +188,14 @@ export function RegisterExchangeAccountDialog() {
                 )}
               />
             )}
+            {rootError ? (
+              <p
+                role="alert"
+                className="rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive-light)] px-3 py-2 text-sm text-[color:var(--destructive)]"
+              >
+                {rootError}
+              </p>
+            ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"

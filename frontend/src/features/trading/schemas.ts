@@ -52,12 +52,27 @@ export const ExchangeAccountListResponseSchema = z.object({
 });
 export type ExchangeAccountListResponse = z.infer<typeof ExchangeAccountListResponseSchema>;
 
-export const RegisterAccountRequestSchema = z.object({
-  exchange: z.enum(["bybit", "okx"]),
-  mode: z.enum(["demo", "live"]),
-  label: z.string().nullable(),
-  api_key: z.string().min(1, "API Key를 입력해주세요"),
-  api_secret: z.string().min(1, "API Secret을 입력해주세요"),
-  passphrase: z.string().nullable(),
-});
+// P1-1/11 (S7-A): OKX 계정은 passphrase 필수. superRefine 으로 cross-field 검증.
+// 이전엔 클라 검증 부재 → 서버 422 만 신뢰 → S7-A 의 onError 표시 도달 전까지 무피드백.
+export const RegisterAccountRequestSchema = z
+  .object({
+    exchange: z.enum(["bybit", "okx"]),
+    mode: z.enum(["demo", "live"]),
+    label: z.string().nullable(),
+    api_key: z.string().min(1, "API Key를 입력해주세요"),
+    api_secret: z.string().min(1, "API Secret을 입력해주세요"),
+    passphrase: z.string().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.exchange === "okx" &&
+      (data.passphrase === null || data.passphrase.length === 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["passphrase"],
+        message: "OKX 계정은 Passphrase 가 필수입니다",
+      });
+    }
+  });
 export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequestSchema>;
