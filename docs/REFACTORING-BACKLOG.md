@@ -249,15 +249,16 @@
 
 ## P2 — Hardening / 건강도 작업
 
-| ID                | 제목                                                                   | Trigger                           | Est          | 출처                            |
-| ----------------- | ---------------------------------------------------------------------- | --------------------------------- | ------------ | ------------------------------- |
-| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                     | Sprint 38+ (BL-185 foundation 위) | M-L (16-24h) | Sprint 37 BL-185 후속           |
-| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                        | 외부 사용자 요청 시               | M (3-5h)     | Sprint 41 Worker H 결정         |
-| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                           | Sprint 45 codex G.4               | XS (30m)     | Sprint 45 codex G.4 발견        |
-| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                          | Sprint 57+                        | M (8-12h)    | ADR-013 §6 #8 deferred          |
-| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)              | Sprint 56+                        | S (3-5h)     | Sprint 55 deferred              |
-| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                           | BL-308 묶음 또는 dogfood 직후     | M (4-6h)     | 2026-05-15 trading-deepen audit |
-| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability | S5 (trading kill-switch 묶음)     | S (2-4h)     | 2026-05-30 full-inspection §4.3 |
+| ID                | 제목                                                                         | Trigger                                    | Est          | 출처                                      |
+| ----------------- | ---------------------------------------------------------------------------- | ------------------------------------------ | ------------ | ----------------------------------------- |
+| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                           | Sprint 38+ (BL-185 foundation 위)          | M-L (16-24h) | Sprint 37 BL-185 후속                     |
+| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                              | 외부 사용자 요청 시                        | M (3-5h)     | Sprint 41 Worker H 결정                   |
+| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                                 | Sprint 45 codex G.4                        | XS (30m)     | Sprint 45 codex G.4 발견                  |
+| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                                | Sprint 57+                                 | M (8-12h)    | ADR-013 §6 #8 deferred                    |
+| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)                    | Sprint 56+                                 | S (3-5h)     | Sprint 55 deferred                        |
+| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                                 | BL-308 묶음 또는 dogfood 직후              | M (4-6h)     | 2026-05-15 trading-deepen audit           |
+| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability       | S5 (trading kill-switch 묶음)              | S (2-4h)     | 2026-05-30 full-inspection §4.3           |
+| [BL-363](#bl-363) | stress*test `\_execute*\*` 4-method boilerplate 추출 (config drift 근본원인) | deepening sprint 또는 5번째 engine 추가 시 | S (2-3h)     | 2026-05-30 full-inspection §appendix P1-9 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -366,6 +367,21 @@
 **원인 / 영향:** `run_live` 가 `run_historical(..., strict=False)`(event_loop.py:219) 호출 → `PineRuntimeError` 를 `result.errors` 에 기록만 하고 **그 bar statement 만 건너뛴 채 실행 계속**(event_loop.py:128-133). live 경로엔 coverage preflight 게이트도 없음. BL-361 이 현재 28 누출을 닫았으나, **향후 임의의 coverage↔interpreter divergence 가 라이브에서 조용히 오신호 생성**할 latent risk 상존. (S2 는 DEC-16=A 로 본 갭을 S5 이관.)
 
 **권장 접근:** (a) live 진입 전 `analyze_coverage` preflight reject 적용, 또는 (b) `run_live` 의 swallowed `result.errors` 를 Slack/Prometheus alert + (선택) 세션 abort 로 표면화. money path 변경이므로 S5 에서 commit-spy + kill-switch 회귀와 함께 신중 검토.
+
+---
+
+### BL-363
+
+**Title:** stress*test `StressTestService.\_execute*\*` 4-method boilerplate 추출
+**Category:** Stress / Architecture (deep module)
+**Priority:** P2
+**Trigger:** deepening sprint 또는 5번째 stress engine 추가 시
+**Est:** S (2-3h)
+**출처:** [`docs/audit/2026-05-30-full-inspection.md`](audit/2026-05-30-full-inspection.md) appendix P1-9
+
+**원인 / 영향:** `_execute_walk_forward`/`_execute_cost_assumption_sensitivity`/`_execute_param_stability` 가 동일 전처리(strategy.find_by_id_and_owner → provider.get_ohlcv → param 파싱 → `build_engine_config_from_db`)를 복붙. 이 중복이 전체 정검 S3(WF config 누락)의 **직접 원인** — Sprint 52 가 CA/PS 에만 config 추가하고 WF 를 누락. 향후 5번째 engine 도 동일 누락 위험.
+
+**권장 접근:** 공통 전처리 `_load_strategy_ohlcv_config(bt) → (pine_source, ohlcv, backtest_config)` helper 추출 → 각 `_execute_*` 는 엔진 호출 + 직렬화만. config 빌드를 helper 에 넣으면 누락이 구조적으로 불가능. (MC 는 equity_curve 기반이라 helper 비대상.) 현재는 per-engine propagation 테스트(WF+CA+PS 각 1건)가 drift 가드 — extraction 은 가드 + 중복 제거.
 
 ---
 

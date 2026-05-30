@@ -298,3 +298,99 @@ async def test_execute_param_stability_propagates_default_when_bt_config_null(
     default = BacktestConfig()
     assert cfg.sizing_source == "fallback"
     assert cfg.input_overrides is None or cfg.input_overrides == default.input_overrides
+
+
+# ---------------------------------------------------------------------
+# 전체 정검 S3 (P1-7) — Sprint 52 BL-222 fix 가 CA/PS 에만 적용되고 WF 를 누락.
+# `_execute_walk_forward` 가 run_walk_forward 에 backtest_config 미전달 →
+# WF 의 IS/OOS 백테스트가 parent 의 fees/slippage/init_cash/sizing 대신 기본값으로
+# 실행되던 silent corruption. CA/PS 와 동일 spy 로 5+ 필드 보존 회귀 차단.
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_execute_walk_forward_propagates_backtest_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """전체 정검 S3 (BL-222 follow-up): `_execute_walk_forward` 가 engine 에 backtest_config 전달."""
+    bt = _make_backtest_with_bl188_v3_config()
+    strategy = _make_strategy()
+    ohlcv = _make_ohlcv()
+    service = _make_service_with_mocks(strategy, ohlcv)
+    st = StressTest(
+        id=uuid4(),
+        user_id=bt.user_id,
+        backtest_id=bt.id,
+        kind=StressTestKind.WALK_FORWARD,
+        status=StressTestStatus.RUNNING,
+        params={"train_bars": 5, "test_bars": 2, "max_folds": 3},
+    )
+
+    received_kwargs: dict[str, Any] = {}
+
+    def spy_run(*_args: Any, **kwargs: Any) -> Any:
+        received_kwargs.update(kwargs)
+        return MagicMock(folds=[], aggregate_oos_return=0.0)
+
+    monkeypatch.setattr("src.stress_test.service.run_walk_forward", spy_run)
+    monkeypatch.setattr("src.stress_test.service.wf_result_to_jsonb", lambda _r: {})
+
+    await service._execute_walk_forward(st, bt)
+
+    cfg = received_kwargs.get("backtest_config")
+    assert cfg is not None, (
+        "WF engine 가 backtest_config 받지 못함 (S3 silent corruption — "
+        "WF IS/OOS 백테스트가 parent fees/slippage/sizing 대신 기본값으로 실행)"
+    )
+    assert isinstance(cfg, BacktestConfig)
+    assert cfg.init_cash == Decimal("50000")
+    assert cfg.freq == "4h"
+    assert cfg.fees == 0.002
+    assert cfg.slippage == 0.0007
+    assert cfg.leverage == 2.0
+    assert cfg.include_funding is True
+    assert cfg.trading_sessions == ("America/New_York",)
+    assert cfg.sizing_source == "form"
+    assert cfg.sizing_basis == "form_equity"
+    assert cfg.default_qty_type == "percent_of_equity"
+    assert cfg.default_qty_value == 50.0
+    assert cfg.live_position_size_pct == 25.0
+
+
+@pytest.mark.asyncio
+async def test_execute_walk_forward_propagates_default_when_bt_config_null(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """전체 정검 S3: WF legacy NULL config 처리도 CA/PS 와 동일 (init_cash + freq 만 bt 값)."""
+    bt = _make_backtest_with_bl188_v3_config()
+    bt.config = None
+    strategy = _make_strategy()
+    ohlcv = _make_ohlcv()
+    service = _make_service_with_mocks(strategy, ohlcv)
+    st = StressTest(
+        id=uuid4(),
+        user_id=bt.user_id,
+        backtest_id=bt.id,
+        kind=StressTestKind.WALK_FORWARD,
+        status=StressTestStatus.RUNNING,
+        params={"train_bars": 5, "test_bars": 2, "max_folds": 3},
+    )
+
+    received_kwargs: dict[str, Any] = {}
+
+    def spy_run(*_args: Any, **kwargs: Any) -> Any:
+        received_kwargs.update(kwargs)
+        return MagicMock(folds=[], aggregate_oos_return=0.0)
+
+    monkeypatch.setattr("src.stress_test.service.run_walk_forward", spy_run)
+    monkeypatch.setattr("src.stress_test.service.wf_result_to_jsonb", lambda _r: {})
+
+    await service._execute_walk_forward(st, bt)
+
+    cfg = received_kwargs["backtest_config"]
+    assert cfg.init_cash == Decimal("50000")
+    assert cfg.freq == "4h"
+    default = BacktestConfig()
+    assert cfg.fees == default.fees
+    assert cfg.slippage == default.slippage
+    assert cfg.sizing_source == "fallback"

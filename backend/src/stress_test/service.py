@@ -8,6 +8,7 @@ Router → Service → Repository 3-Layer. AsyncSession 직접 import 금지.
   순수 엔진 호출 → result JSONB 저장.
 - get / list: ownership 격리된 조회.
 """
+
 from __future__ import annotations
 
 import logging
@@ -138,10 +139,7 @@ class StressTestService:
             kind=StressTestKind.COST_ASSUMPTION_SENSITIVITY,
             params={
                 # JSONB 직렬화 — Decimal → str.
-                "param_grid": {
-                    k: [str(v) for v in vs]
-                    for k, vs in data.params.param_grid.items()
-                },
+                "param_grid": {k: [str(v) for v in vs] for k, vs in data.params.param_grid.items()},
             },
         )
 
@@ -160,10 +158,7 @@ class StressTestService:
             kind=StressTestKind.PARAM_STABILITY,
             params={
                 # JSONB 직렬화 — Decimal → str.
-                "param_grid": {
-                    k: [str(v) for v in vs]
-                    for k, vs in data.params.param_grid.items()
-                },
+                "param_grid": {k: [str(v) for v in vs] for k, vs in data.params.param_grid.items()},
             },
         )
 
@@ -223,17 +218,13 @@ class StressTestService:
         if bt is None or bt.status != BacktestStatus.COMPLETED:
             await self.repo.fail(
                 stress_test_id,
-                error=(
-                    "Referenced backtest unavailable or not COMPLETED at execute time"
-                ),
+                error=("Referenced backtest unavailable or not COMPLETED at execute time"),
             )
             await self.repo.commit()
             return
 
         # QUEUED → RUNNING
-        rows = await self.repo.transition_to_running(
-            stress_test_id, started_at=datetime.now(UTC)
-        )
+        rows = await self.repo.transition_to_running(stress_test_id, started_at=datetime.now(UTC))
         if rows == 0:
             logger.info(
                 "stress_test_state_changed_before_run",
@@ -249,9 +240,7 @@ class StressTestService:
             elif st.kind == StressTestKind.WALK_FORWARD:
                 result_jsonb = await self._execute_walk_forward(st, bt)
             elif st.kind == StressTestKind.COST_ASSUMPTION_SENSITIVITY:
-                result_jsonb = await self._execute_cost_assumption_sensitivity(
-                    st, bt
-                )
+                result_jsonb = await self._execute_cost_assumption_sensitivity(st, bt)
             elif st.kind == StressTestKind.PARAM_STABILITY:
                 result_jsonb = await self._execute_param_stability(st, bt)
             else:  # pragma: no cover — exhaustiveness guard
@@ -266,9 +255,7 @@ class StressTestService:
             await self.repo.commit()
             return
 
-        completed_rows = await self.repo.complete(
-            stress_test_id, result=result_jsonb
-        )
+        completed_rows = await self.repo.complete(stress_test_id, result=result_jsonb)
         if completed_rows == 0:
             logger.warning(
                 "stress_test_complete_no_rows",
@@ -276,14 +263,10 @@ class StressTestService:
             )
         await self.repo.commit()
 
-    async def _execute_monte_carlo(
-        self, st: StressTest, bt: Backtest
-    ) -> dict[str, object]:
+    async def _execute_monte_carlo(self, st: StressTest, bt: Backtest) -> dict[str, object]:
         curve = equity_curve_values(bt.equity_curve)
         if len(curve) < 2:
-            raise ValueError(
-                "Backtest equity_curve is empty or too short for Monte Carlo"
-            )
+            raise ValueError("Backtest equity_curve is empty or too short for Monte Carlo")
         n_samples_raw = st.params.get("n_samples", 1000)
         seed_raw = st.params.get("seed", 42)
         n_samples = int(n_samples_raw) if n_samples_raw is not None else 1000
@@ -292,12 +275,15 @@ class StressTestService:
         mc = run_monte_carlo(curve, n_samples=n_samples, seed=seed)
         return mc_result_to_jsonb(mc)
 
-    async def _execute_walk_forward(
-        self, st: StressTest, bt: Backtest
-    ) -> dict[str, object]:
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            bt.strategy_id, bt.user_id
-        )
+    async def _execute_walk_forward(self, st: StressTest, bt: Backtest) -> dict[str, object]:
+        """Sprint 49 — Walk-Forward worker entry.
+
+        전체 정검 S3 (BL-222 follow-up, 2026-05-30): Sprint 52 BL-222 P1 이 CA/PS 에만
+        build_engine_config_from_db 를 추가하고 WF 를 누락 → WF 의 IS/OOS 백테스트가
+        parent 의 fees/slippage/init_cash/leverage/sizing 대신 엔진 기본값으로 실행되던
+        silent corruption. CA/PS 와 동일 패턴으로 parent config 전달.
+        """
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             raise ValueError("Strategy no longer available for walk-forward")
 
@@ -311,6 +297,7 @@ class StressTestService:
         max_folds_raw = st.params.get("max_folds", 20)
         max_folds = int(max_folds_raw) if max_folds_raw is not None else 20
 
+        backtest_config = build_engine_config_from_db(bt)
         wf = run_walk_forward(
             strategy.pine_source,
             ohlcv,
@@ -318,6 +305,7 @@ class StressTestService:
             test_bars=test_bars,
             step_bars=step_bars,
             max_folds=max_folds,
+            backtest_config=backtest_config,
         )
         return wf_result_to_jsonb(wf)
 
@@ -330,13 +318,9 @@ class StressTestService:
         grid 가 override 하지만 init_cash / freq / trading_sessions / BL-188 v3 sizing
         5필드 등 cell 마다 보존 의무.
         """
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            bt.strategy_id, bt.user_id
-        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
-            raise ValueError(
-                "Strategy no longer available for cost assumption sensitivity"
-            )
+            raise ValueError("Strategy no longer available for cost assumption sensitivity")
 
         ohlcv = await self.provider.get_ohlcv(
             bt.symbol, bt.timeframe, bt.period_start, bt.period_end
@@ -354,18 +338,14 @@ class StressTestService:
         )
         return ca_result_to_jsonb(ca)
 
-    async def _execute_param_stability(
-        self, st: StressTest, bt: Backtest
-    ) -> dict[str, object]:
+    async def _execute_param_stability(self, st: StressTest, bt: Backtest) -> dict[str, object]:
         """Sprint 51 BL-220 — Param Stability worker entry.
 
         Sprint 52 BL-222 P1 (2026-05-11): parent backtest config 전달. input_overrides
         grid 가 cell 마다 sweep key 갱신하지만, init_cash / freq / fees / slippage /
         trading_sessions / BL-188 v3 sizing 5필드 등 그 외는 보존 의무.
         """
-        strategy = await self.strategy_repo.find_by_id_and_owner(
-            bt.strategy_id, bt.user_id
-        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             raise ValueError("Strategy no longer available for param stability")
 
@@ -432,8 +412,7 @@ class StressTestService:
         if bt.status != BacktestStatus.COMPLETED:
             raise BacktestNotCompletedForStressTest(
                 detail=(
-                    f"Backtest must be COMPLETED for stress test; "
-                    f"current status: {bt.status.value}"
+                    f"Backtest must be COMPLETED for stress test; current status: {bt.status.value}"
                 )
             )
 
@@ -442,26 +421,15 @@ class StressTestService:
         wf_out: WalkForwardResultOut | None = None
         ca_out: CostAssumptionResultOut | None = None
         ps_out: ParamStabilityResultOut | None = None
-        if (
-            st.status == StressTestStatus.COMPLETED
-            and st.result is not None
-        ):
+        if st.status == StressTestStatus.COMPLETED and st.result is not None:
             if st.kind == StressTestKind.MONTE_CARLO:
-                mc_out = MonteCarloResultOut.model_validate(
-                    mc_result_from_jsonb(st.result)
-                )
+                mc_out = MonteCarloResultOut.model_validate(mc_result_from_jsonb(st.result))
             elif st.kind == StressTestKind.WALK_FORWARD:
-                wf_out = WalkForwardResultOut.model_validate(
-                    wf_result_from_jsonb(st.result)
-                )
+                wf_out = WalkForwardResultOut.model_validate(wf_result_from_jsonb(st.result))
             elif st.kind == StressTestKind.COST_ASSUMPTION_SENSITIVITY:
-                ca_out = CostAssumptionResultOut.model_validate(
-                    ca_result_from_jsonb(st.result)
-                )
+                ca_out = CostAssumptionResultOut.model_validate(ca_result_from_jsonb(st.result))
             elif st.kind == StressTestKind.PARAM_STABILITY:
-                ps_out = ParamStabilityResultOut.model_validate(
-                    ps_result_from_jsonb(st.result)
-                )
+                ps_out = ParamStabilityResultOut.model_validate(ps_result_from_jsonb(st.result))
         return StressTestDetail(
             id=st.id,
             backtest_id=st.backtest_id,
