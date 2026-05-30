@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+
+import { zodV4Resolver } from "@/lib/zod-v4-resolver";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,7 +39,9 @@ export function RegisterExchangeAccountDialog() {
   const register = useRegisterExchangeAccount();
 
   const form = useForm<RegisterAccountRequest>({
-    resolver: zodResolver(RegisterAccountRequestSchema),
+    // Phase C QA hotfix (2026-05-30) — Zod v4 superRefine custom issue 가
+    // @hookform/resolvers/zod 와 호환 안 됨 → 공유 zodV4Resolver 사용.
+    resolver: zodV4Resolver(RegisterAccountRequestSchema),
     defaultValues: {
       exchange: "bybit",
       mode: "demo",
