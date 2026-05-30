@@ -116,6 +116,12 @@ describe("RegisterExchangeAccountDialog — P1-1/11 (S7-A)", () => {
       expect(mutateAsyncMock).toHaveBeenCalledTimes(2);
     });
   });
+
+  // Phase C QA hotfix (2026-05-30) — OKX 선택 후 passphrase 누락 시 dialog UI
+  // 차단 시나리오는 Base UI Select 가 jsdom 에서 onValueChange 를 정상 호출하지
+  // 않아 unit test 로 cover 불가. schema-level test (아래 schema describe) 가
+  // superRefine 동작을 검증하고, dialog 통합은 Playwright E2E + Phase C 라이브
+  // QA evidence (qa-2026-05-30/11-s7a-okx-passphrase-missing.png) 로 입증.
 });
 
 describe("RegisterAccountRequestSchema — P1-1/11 (S7-A) OKX passphrase 강제", () => {
