@@ -72,6 +72,35 @@ class ExchangeAccountService:
             environment=account.mode,
         )
 
+    async def fetch_mark_price(
+        self, account_id: UUID, symbol: str
+    ) -> Decimal | None:
+        """P1-13 (S5-B): market order notional 근사 가드용 mark price 조회.
+
+        반환 None 조건 (fail-soft, caller fallback 결정):
+        - 계좌 미발견 / 비-Bybit / Provider 미주입 (테스트/CI)
+        - Provider 호출 실패 (네트워크/API 에러)
+        - ticker 에서 mark/last/close 추출 실패
+        """
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        if self._bybit_futures_provider is None or account.exchange.value != "bybit":
+            return None
+        creds = await self.get_credentials_for_order(account_id)
+        try:
+            return await self._bybit_futures_provider.fetch_mark_price(creds, symbol)
+        except ProviderError as exc:
+            logger.warning(
+                "fetch_mark_price_failed",
+                extra={
+                    "account_id": str(account_id),
+                    "symbol": symbol,
+                    "error": str(exc),
+                },
+            )
+            return None
+
     async def fetch_balance_usdt(self, account_id: UUID) -> Decimal | None:
         """계좌 USDT 자유잔고 조회. Sprint 8+ Kill Switch capital_base 동적 바인딩.
 

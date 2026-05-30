@@ -104,6 +104,9 @@ async def receive_webhook(
     exchange_account_id = UUID(str(exchange_account_id_raw))
 
     # ── Build OrderRequest ──
+    # P1-12 (S5-A) — TV close-alert 가 realized_pnl 포함하면 OrderRequest 로 전파 →
+    # OrderService 가 Order.realized_pnl 로 저장 → #305 kill-switch SUM(CumulativeLoss /
+    # DailyLoss evaluator) 대상이 됨. 없으면 None (legacy backward-compat).
     req = OrderRequest(
         strategy_id=strategy_id,
         exchange_account_id=exchange_account_id,
@@ -112,6 +115,7 @@ async def receive_webhook(
         type=signal.type,
         quantity=signal.quantity,
         price=signal.price,
+        realized_pnl=signal.realized_pnl,
     )
 
     # ── Execute order (tuple unpack: T15 correction) ──

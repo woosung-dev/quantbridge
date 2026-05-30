@@ -4,6 +4,7 @@ Per-account ephemeral CCXT client 패턴 (spec §2.1):
 - create_order 호출마다 credentials로 새 CCXT 인스턴스 생성 → 주문 → finally close()
 - Sprint 5 public CCXTProvider(OHLCV)와는 완전 분리
 """
+
 from __future__ import annotations
 
 import logging
@@ -106,11 +107,7 @@ async def _to_exchange_precision(
     """
     await exchange.load_markets()
     amount = exchange.amount_to_precision(symbol, order.quantity)
-    price = (
-        exchange.price_to_precision(symbol, order.price)
-        if order.price is not None
-        else None
-    )
+    price = exchange.price_to_precision(symbol, order.price) if order.price is not None else None
     return amount, price
 
 
@@ -222,7 +219,9 @@ class BybitDemoProvider:
                     )
             if "id" not in result:
                 # 응답 손상 — 주문 추적 불가, 빠르게 실패. 일부 키만 노출 (PII 회피).
-                raise ProviderError(f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})")
+                raise ProviderError(
+                    f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})"
+                )
             avg = result.get("average")
             return OrderReceipt(
                 exchange_order_id=str(result["id"]),
@@ -504,6 +503,55 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
+    async def fetch_mark_price(self, creds: Credentials, symbol: str) -> Decimal | None:
+        """심볼의 mark/last price 조회 (P1-13, S5-B: market order notional 근사 가드용).
+
+        ephemeral CCXT 클라이언트로 1회 fetch_ticker 후 즉시 close. mark price 우선,
+        fallback to last/close. 모든 실패는 None 반환 (fail-soft) — caller 가
+        fallback 결정 (live = fail-closed, demo = fail-open).
+        """
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_ticker"):
+                ticker = await exchange.fetch_ticker(symbol)
+            if not isinstance(ticker, dict):
+                return None
+            # CCXT ticker: {'mark': ..., 'last': ..., 'close': ..., 'bid': ..., 'ask': ...}.
+            # mark 우선 (perp 의 가장 보수적 reference), 없으면 last → close.
+            for key in ("mark", "last", "close"):
+                val = ticker.get(key)
+                if val is None:
+                    continue
+                try:
+                    price = Decimal(str(val))
+                except (ValueError, TypeError, InvalidOperation):
+                    continue
+                if price > 0:
+                    return price
+            return None
+        except (ccxt_async.BaseError, ProviderError):
+            return None
+        except Exception:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt 인스턴스 (apiKey 보유) 노출 위험.
+            return None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
 
 class OkxDemoProvider:
     """OKX demo (sandbox) ephemeral CCXT client — Sprint 7d.
@@ -690,9 +738,7 @@ async def _bybit_fetch_order_impl(
             logger.warning("%s_close_failed", timer_label, exc_info=True)
 
 
-def _build_order_status_fetch(
-    exchange_order_id: str, result: dict[str, Any]
-) -> OrderStatusFetch:
+def _build_order_status_fetch(exchange_order_id: str, result: dict[str, Any]) -> OrderStatusFetch:
     """CCXT fetch_order 응답 → OrderStatusFetch 정규화.
 
     average / filled 가 None 또는 미존재 시 graceful → None. 0.0 도 None 처리
@@ -778,23 +824,13 @@ class BybitLiveProvider:
     base URL mainnet 매핑 + 라이브 검증 시점에 본 stub 본격 구현으로 교체.
     """
 
-    async def create_order(
-        self, creds: Credentials, order: OrderSubmit
-    ) -> OrderReceipt:
-        raise ProviderError(
-            "Bybit live (mainnet) 미지원 — BL-003 mainnet runbook 완료 후 활성화"
-        )
+    async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
+        raise ProviderError("Bybit live (mainnet) 미지원 — BL-003 mainnet runbook 완료 후 활성화")
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str
-    ) -> None:
-        raise ProviderError(
-            "Bybit live cancel 미지원 — BL-003 mainnet runbook 대기"
-        )
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+        raise ProviderError("Bybit live cancel 미지원 — BL-003 mainnet runbook 대기")
 
     async def fetch_order(
         self, creds: Credentials, exchange_order_id: str, symbol: str
     ) -> OrderStatusFetch:
-        raise ProviderError(
-            "Bybit live fetch 미지원 — BL-003 mainnet runbook 대기"
-        )
+        raise ProviderError("Bybit live fetch 미지원 — BL-003 mainnet runbook 대기")

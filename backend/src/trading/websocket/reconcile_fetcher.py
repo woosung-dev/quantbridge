@@ -88,7 +88,13 @@ class BybitReconcileFetcher:
     async def fetch_recent_orders(
         self, account_id: UUID, *, limit: int = 50
     ) -> list[dict[str, Any]]:
-        """최근 closed/canceled orders. Reconciler 가 terminal status 추적용."""
+        """최근 closed + canceled orders union. Reconciler 가 terminal status 추적용.
+
+        P1-14 (S5-C, BL-308 후속) — Bybit V5/CCXT 에서 사용자/시스템이 취소한 주문은
+        fetch_closed_orders 가 반환하지 않으므로 fetch_canceled_orders 와 union 으로
+        가져와 _find_match 가 canceled local active order 를 찾을 수 있도록 보장.
+        has['fetchCanceledOrders']=False 인 거래소에선 closed-only fallback (debug log).
+        """
         if account_id != self._account.id:
             logger.warning(
                 "reconcile_fetcher_account_mismatch fetcher=%s requested=%s",
@@ -98,10 +104,28 @@ class BybitReconcileFetcher:
         exchange = self._build_exchange()
         try:
             async with ccxt_timer("bybit", "fetch_closed_orders"):
-                raw = await exchange.fetch_closed_orders(
+                closed_raw = await exchange.fetch_closed_orders(
                     None, limit=limit, params={"category": self._category}
                 )
-            return list(raw)
+            merged: list[dict[str, Any]] = list(closed_raw)
+
+            # P1-14 (S5-C, BL-308 후속) — 취소 주문은 별도 endpoint 필요.
+            has = getattr(exchange, "has", None) or {}
+            if has.get("fetchCanceledOrders"):
+                try:
+                    async with ccxt_timer("bybit", "fetch_canceled_orders"):
+                        canceled_raw = await exchange.fetch_canceled_orders(
+                            None, limit=limit, params={"category": self._category}
+                        )
+                    merged.extend(canceled_raw)
+                except Exception:
+                    # canceled fetch 실패는 closed-only 로 graceful degrade. cancel
+                    # 미탐지 한계 감수 (silent corruption 보다 부분 데이터 우선).
+                    logger.debug("fetch_canceled_orders_failed_continuing_with_closed_only")
+            else:
+                logger.debug("reconcile_fetcher_canceled_unsupported_exchange")
+
+            return merged
         finally:
             try:
                 await exchange.close()

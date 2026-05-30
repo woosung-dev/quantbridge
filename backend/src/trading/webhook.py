@@ -26,6 +26,10 @@ class ParsedTradeSignal:
     type: OrderType
     quantity: Decimal
     price: Decimal | None
+    # P1-12 (S5-A) — webhook close 주문이 #305 kill-switch SUM 대상이 되려면 TV alert
+    # template 이 realized_pnl 을 포함해야 한다. live_signal 경로처럼 OrderRequest
+    # 까지 전파되어 Order.realized_pnl 로 저장됨. 없으면 None (legacy backward-compat).
+    realized_pnl: Decimal | None = None
 
 
 class WebhookService:
@@ -68,14 +72,29 @@ class WebhookService:
 
 
 def parse_tv_payload(payload: dict[str, object]) -> ParsedTradeSignal:
-    """TradingView alert payload -> 표준 signal. 필수 필드: symbol, side, quantity, type."""
+    """TradingView alert payload -> 표준 signal. 필수 필드: symbol, side, quantity, type.
+
+    Optional realized_pnl (P1-12, S5-A) — close 주문의 청산 PnL. 누적손실
+    kill-switch (CumulativeLoss / DailyLoss evaluator) 가 SUM 대상으로 사용.
+    TV alert template 에 strategy 변수 ({{strategy.position_size}} 등) 로 계산해
+    포함시키도록 사용자에게 권장. None 이면 legacy backward-compat (이전 alert
+    template 호환).
+    """
+    from decimal import InvalidOperation
+
     try:
+        # InvalidOperation (Decimal 자체 예외) 는 try-except 에서 catch.
+        realized_pnl_raw = payload.get("realized_pnl")
+        realized_pnl: Decimal | None = (
+            None if realized_pnl_raw is None else Decimal(str(realized_pnl_raw))
+        )
         return ParsedTradeSignal(
             symbol=str(payload["symbol"]),
             side=OrderSide(str(payload["side"]).lower()),
             type=OrderType(str(payload.get("type", "market")).lower()),
             quantity=Decimal(str(payload["quantity"])),
             price=Decimal(str(payload["price"])) if payload.get("price") else None,
+            realized_pnl=realized_pnl,
         )
-    except (KeyError, ValueError, TypeError) as e:
+    except (KeyError, ValueError, TypeError, InvalidOperation) as e:
         raise WebhookUnauthorized(f"Invalid TV payload: {e}") from e
