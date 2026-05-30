@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Final, Literal
 
 import numpy as np
@@ -236,6 +236,26 @@ def _validate_bayesian_search_pre(pine_source: str, param_space: ParamSpace) -> 
                 f"Bayesian CategoricalField (var_name={var_name!r}) MVP requires "
                 f"input.int. input.string Sprint 56+ BL-234 (one_hot encoding)."
             )
+        # 전체 정검 S4 (BL-234): Bayesian 은 _coerce_skopt_to_decimal 의 Decimal(str(v)) 로
+        # 비숫자 라벨(['ema','sma'])에서 InvalidOperation 크래시. 숫자(ordinal) 값만 허용 —
+        # genetic 와 동일 정책. string-label sweep 은 BL-364 (feature).
+        if isinstance(field, CategoricalField):
+            for value in field.values:
+                try:
+                    parsed_value = Decimal(value)
+                except (InvalidOperation, TypeError, ValueError):
+                    raise ValueError(
+                        f"Bayesian CategoricalField (var_name={var_name!r}) values must be "
+                        f"numeric (ordinal). Got non-numeric {value!r}. "
+                        f"String-label sweep 미지원 (BL-364)."
+                    ) from None
+                # codex P2: Decimal('NaN'/'Infinity') 은 parse 통과하나 후속 int(...) 런타임
+                # 크래시(500). finite 검사로 validation 단계에서 명확히 거부 (genetic 와 동일).
+                if not parsed_value.is_finite():
+                    raise ValueError(
+                        f"Bayesian CategoricalField (var_name={var_name!r}) values must be "
+                        f"finite numeric (ordinal). Got {value!r}."
+                    )
 
 
 def _coerce_skopt_to_decimal(values: list[Any], param_names: tuple[str, ...]) -> dict[str, Decimal]:

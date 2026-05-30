@@ -44,7 +44,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Final, Literal, cast
 
 import pandas as pd
@@ -166,6 +166,26 @@ def _validate_genetic_search_pre(pine_source: str, param_space: ParamSpace) -> N
                 f"Genetic CategoricalField (var_name={var_name!r}) requires input.string. "
                 f"Got input.{input_type}."
             )
+        # 전체 정검 S4 (BL-234): GA 는 individual 을 Decimal(ordinal)로 표현 → 비숫자 라벨
+        # (['ema','sma'])은 _sample_individual/_gaussian_mutation 의 Decimal(str(...)) 에서
+        # InvalidOperation 크래시. 숫자(ordinal) 값만 허용 — string-label sweep 은 BL-364 (feature).
+        if isinstance(field, CategoricalField):
+            for value in field.values:
+                try:
+                    parsed_value = Decimal(value)
+                except (InvalidOperation, TypeError, ValueError):
+                    raise ValueError(
+                        f"Genetic CategoricalField (var_name={var_name!r}) values must be "
+                        f"numeric (ordinal). Got non-numeric {value!r}. "
+                        f"String-label sweep 미지원 (BL-364)."
+                    ) from None
+                # codex P2: Decimal('NaN'/'Infinity') 은 parse 통과하나 후속 int(...) 런타임
+                # 크래시(500). finite 검사로 validation 단계에서 명확히 거부.
+                if not parsed_value.is_finite():
+                    raise ValueError(
+                        f"Genetic CategoricalField (var_name={var_name!r}) values must be "
+                        f"finite numeric (ordinal). Got {value!r}."
+                    )
 
 
 # === Sampling + Selection + Crossover + Mutation ===

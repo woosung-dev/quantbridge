@@ -249,16 +249,17 @@
 
 ## P2 — Hardening / 건강도 작업
 
-| ID                | 제목                                                                         | Trigger                                    | Est          | 출처                                      |
-| ----------------- | ---------------------------------------------------------------------------- | ------------------------------------------ | ------------ | ----------------------------------------- |
-| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                           | Sprint 38+ (BL-185 foundation 위)          | M-L (16-24h) | Sprint 37 BL-185 후속                     |
-| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                              | 외부 사용자 요청 시                        | M (3-5h)     | Sprint 41 Worker H 결정                   |
-| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                                 | Sprint 45 codex G.4                        | XS (30m)     | Sprint 45 codex G.4 발견                  |
-| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                                | Sprint 57+                                 | M (8-12h)    | ADR-013 §6 #8 deferred                    |
-| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)                    | Sprint 56+                                 | S (3-5h)     | Sprint 55 deferred                        |
-| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                                 | BL-308 묶음 또는 dogfood 직후              | M (4-6h)     | 2026-05-15 trading-deepen audit           |
-| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability       | S5 (trading kill-switch 묶음)              | S (2-4h)     | 2026-05-30 full-inspection §4.3           |
-| [BL-363](#bl-363) | stress*test `\_execute*\*` 4-method boilerplate 추출 (config drift 근본원인) | deepening sprint 또는 5번째 engine 추가 시 | S (2-3h)     | 2026-05-30 full-inspection §appendix P1-9 |
+| ID                | 제목                                                                                 | Trigger                                    | Est          | 출처                                                |
+| ----------------- | ------------------------------------------------------------------------------------ | ------------------------------------------ | ------------ | --------------------------------------------------- |
+| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                                   | Sprint 38+ (BL-185 foundation 위)          | M-L (16-24h) | Sprint 37 BL-185 후속                               |
+| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                                      | 외부 사용자 요청 시                        | M (3-5h)     | Sprint 41 Worker H 결정                             |
+| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                                         | Sprint 45 codex G.4                        | XS (30m)     | Sprint 45 codex G.4 발견                            |
+| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                                        | Sprint 57+                                 | M (8-12h)    | ADR-013 §6 #8 deferred                              |
+| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)                            | Sprint 56+                                 | S (3-5h)     | Sprint 55 deferred                                  |
+| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                                         | BL-308 묶음 또는 dogfood 직후              | M (4-6h)     | 2026-05-15 trading-deepen audit                     |
+| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability               | S5 (trading kill-switch 묶음)              | S (2-4h)     | 2026-05-30 full-inspection §4.3                     |
+| [BL-363](#bl-363) | stress*test `\_execute*\*` 4-method boilerplate 추출 (config drift 근본원인)         | deepening sprint 또는 5번째 engine 추가 시 | S (2-3h)     | 2026-05-30 full-inspection §appendix P1-9           |
+| [BL-364](#bl-364) | Optimizer 진짜 string-label CategoricalField sweep (Genetic+Bayesian ordinal 인코딩) | string 카테고리 sweep 요청 시              | M (4-6h)     | 2026-05-30 full-inspection §appendix P1-9 (S4 후속) |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -382,6 +383,21 @@
 **원인 / 영향:** `_execute_walk_forward`/`_execute_cost_assumption_sensitivity`/`_execute_param_stability` 가 동일 전처리(strategy.find_by_id_and_owner → provider.get_ohlcv → param 파싱 → `build_engine_config_from_db`)를 복붙. 이 중복이 전체 정검 S3(WF config 누락)의 **직접 원인** — Sprint 52 가 CA/PS 에만 config 추가하고 WF 를 누락. 향후 5번째 engine 도 동일 누락 위험.
 
 **권장 접근:** 공통 전처리 `_load_strategy_ohlcv_config(bt) → (pine_source, ohlcv, backtest_config)` helper 추출 → 각 `_execute_*` 는 엔진 호출 + 직렬화만. config 빌드를 helper 에 넣으면 누락이 구조적으로 불가능. (MC 는 equity_curve 기반이라 helper 비대상.) 현재는 per-engine propagation 테스트(WF+CA+PS 각 1건)가 drift 가드 — extraction 은 가드 + 중복 제거.
+
+---
+
+### BL-364
+
+**Title:** Optimizer 진짜 string-label CategoricalField sweep (Genetic + Bayesian)
+**Category:** Optimizer / Feature
+**Priority:** P2
+**Trigger:** 사용자 string 카테고리 sweep 요청 시 (예: maType ∈ {ema,sma,wma})
+**Est:** M (4-6h)
+**출처:** [`docs/audit/2026-05-30-full-inspection.md`](audit/2026-05-30-full-inspection.md) appendix P1-9 (S4 Option A 후속)
+
+**원인 / 영향:** S4(Option A)는 비숫자 CategoricalField 를 명확히 거부(InvalidOperation 크래시 차단)했으나, 스키마 docstring 의 본래 의도(`pine input.string / 사용자 정의 선택지` = `['ema','sma']`)는 미지원 상태. GA/Bayesian 이 individual 을 Decimal(ordinal)로 표현하기 때문.
+
+**권장 접근:** ordinal 인코딩 — GA/Bayesian 이 categorical 차원을 index(Decimal 0..N-1)로 sample/mutate, backtest 호출 시 `field.values[int(idx)]` 로 string 디코드하여 input override 전달, best-params 에서 라벨 복원. Genetic `_sample_individual`/`_gaussian_mutation`/run-loop + Bayesian `_coerce_skopt_to_decimal`/skopt `Categorical(transform="label")` 양쪽 일관 처리. (S4 에서 사용자 결정 = Option A 우선, 본 feature 는 후속.)
 
 ---
 

@@ -22,6 +22,7 @@ from src.optimizer.engine.bayesian import (
     _objective_from_metrics,
     _param_space_to_skopt_dimensions,
     _pick_best_iteration_idx,
+    _validate_bayesian_search_pre,
     _y_from_objective,
     run_bayesian_search,
 )
@@ -417,6 +418,43 @@ class TestRunBayesianSearchEndToEnd:
         # smoke — 50 iteration 실행 (mocked = ms 수준).
         result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
         assert result.total_iterations == _MAX_BAYESIAN_EVALUATIONS
+
+    def test_categorical_non_numeric_values_rejected(self) -> None:
+        """전체 정검 S4 (BL-234): 비숫자 CategoricalField 는 명확한 ValueError (InvalidOperation 크래시 X).
+
+        Bayesian 은 `_coerce_skopt_to_decimal` 의 `Decimal(str(v))` 로 ['ema','sma'] 같은 string
+        label 에서 InvalidOperation 크래시. validation 단계에서 숫자(ordinal) 값만 허용하도록 명확히
+        거부 (genetic 와 동일 정책). 진짜 string-label sweep 은 BL-364 (feature).
+        """
+        pine = (
+            "//@version=5\n"
+            'strategy("bayesian categorical")\n'
+            'maType = input.int(0, "MA Type")\n'
+            "plot(close)\n"
+        )
+        space = _build_param_space(
+            {"maType": {"kind": "categorical", "values": ["ema", "sma"]}}
+        )
+        with pytest.raises(ValueError, match="numeric"):
+            _validate_bayesian_search_pre(pine, space)
+
+    def test_categorical_non_finite_values_rejected(self) -> None:
+        """전체 정검 S4 (codex P2): 'NaN'/'Infinity' 은 Decimal parse 성공하나 ordinal 부적합 → reject.
+
+        `Decimal('Infinity')` 는 parse 통과하지만 후속 `int(...)` 가 런타임 크래시(500).
+        validation 에서 `is_finite()` 검사로 명확한 422 (genetic 와 동일).
+        """
+        pine = (
+            "//@version=5\n"
+            'strategy("bayesian categorical")\n'
+            'maType = input.int(0, "MA Type")\n'
+            "plot(close)\n"
+        )
+        space = _build_param_space(
+            {"maType": {"kind": "categorical", "values": ["Infinity", "5"]}}
+        )
+        with pytest.raises(ValueError, match="finite"):
+            _validate_bayesian_search_pre(pine, space)
 
 
 # === Section 4 — bayesian_search_result_to_jsonb / from_jsonb round-trip ===
