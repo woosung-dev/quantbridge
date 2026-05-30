@@ -1,7 +1,16 @@
 // Optimizer 진입 페이지 (실행 list + Grid Search / Bayesian / Genetic 선택).
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useBacktests } from "@/features/backtest/hooks";
 
 import { BayesianSearchForm } from "./_components/bayesian-search-form";
 import { GeneticSearchForm } from "./_components/genetic-search-form";
@@ -16,10 +25,27 @@ const ALGORITHM_LABEL: Record<Algorithm, string> = {
   genetic: "Genetic 신규 제출",
 };
 
+const PICKER_LIMIT = 100;
+
 export default function OptimizerPage() {
   const [backtestId, setBacktestId] = useState("");
   const [algorithm, setAlgorithm] = useState<Algorithm>("grid_search");
   const [showForm, setShowForm] = useState(false);
+
+  // P1-8 (S7-B): raw UUID paste 대신 useBacktests Select picker.
+  // BacktestListQuery 는 status filter 미지원 → 클라 측에서 completed 만 필터.
+  // useEffect dep 폭주 회피 위해 useMemo 로 stable 변환.
+  const backtestsQuery = useBacktests({ limit: PICKER_LIMIT, offset: 0 });
+  const completedOptions = useMemo(
+    () =>
+      (backtestsQuery.data?.items ?? [])
+        .filter((b) => b.status === "completed")
+        .map((b) => ({
+          id: b.id,
+          label: `${b.symbol} · ${b.timeframe} · ${b.id.slice(0, 8)}`,
+        })),
+    [backtestsQuery.data?.items],
+  );
 
   return (
     <main className="container mx-auto space-y-6 px-4 py-6">
@@ -33,13 +59,34 @@ export default function OptimizerPage() {
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <input
-            placeholder="backtest_id (COMPLETED)"
-            className="rounded border border-input bg-background px-3 py-2 text-sm font-mono"
-            value={backtestId}
-            onChange={(e) => setBacktestId(e.target.value.trim())}
-            aria-label="backtest_id"
-          />
+          <div className="min-w-[240px]">
+            <Select
+              value={backtestId || undefined}
+              onValueChange={(v) => {
+                setBacktestId(v ?? "");
+                setShowForm(false);
+              }}
+            >
+              <SelectTrigger aria-label="backtest_id">
+                <SelectValue
+                  placeholder={
+                    backtestsQuery.isLoading
+                      ? "백테스트 로딩 중..."
+                      : completedOptions.length === 0
+                        ? "완료된 백테스트 없음"
+                        : "백테스트 선택 (COMPLETED)"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {completedOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <select
             value={algorithm}
             onChange={(e) => {
