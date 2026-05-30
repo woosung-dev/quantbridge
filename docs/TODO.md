@@ -1,11 +1,37 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-30 (Full-inspection audit + S1~S4 머지 + S5/S6 stage 진행 + Phase B/C 배포 prep)
-> **Active Sprint:** **Sprint 63 = Beta 본격 진입 prep + Phase F P1 fix (audit 2026-05-30)** — 사용자 manual gate (G1/G7/G8 + BL-070/072) 대기
-> **Active Branch:** main @ `e32062c` (PR #305~#314 모두 머지) + `stage/fix-trading-kill-switch` (S5) + `stage/fix-trading-coverage` (S6) push 승인 대기
-> **Sprint type:** F (audit Phase F fix-and-merge — TDD + 로컬 CI green + 배치 사용자 승인) + D (external-dependency setup)
+> **Last Updated:** 2026-05-30 (audit Phase F P1 7/7 close-out + Phase C 라이브 QA 1 regression hotfix)
+> **Active Sprint:** **Sprint 63 = Beta 본격 진입 prep — Phase F P1 7/7 완료 + Phase C QA 검증** — 사용자 manual gate (G1/G7/G8 + BL-070/072) 대기
+> **Active Branch:** main @ `7c07cbe` (PR #305~#319 모두 머지)
+> **Sprint type:** F (audit Phase F fix-and-merge 완료) + C (라이브 QA hotfix 완료) + D (external-dependency setup 대기)
 > **office-hours 진행:** N
-> **Next Trigger:** S5/S6 push & merge 승인 → S7 (frontend UX) → BL-070~072 manual gate → 의사결정 매트릭스 G1/G7/G8 해소 → 실 prod 배포 → BL-073~075 자연 trigger.
+> **Next Trigger:** 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS 1-2h+24h) + BL-071 (Backend prod 배포) + BL-072 (Resend 1-2h+24h) → 실 prod 배포 → BL-073~075 자연 trigger.
+
+---
+
+## 🧪 Phase C 라이브 QA (2026-05-30, `docs/qa/2026-05-30-phase-c/report.md`)
+
+**스코프**: audit Phase C deferred 실행 + S5/S6/S7 (#315/#316/#318) 머지 후 라이브 재검증. MCP Playwright `:8100/:3100` 격리 stack + Clerk test 계정.
+
+**결과**: ✅ 8 페이지 coverage 통과 + 🚨 **1 신규 P1 발견·hotfix·머지 close-out** = audit Phase F P1 7/7 + Phase C QA 정합.
+
+**★ S7-A regression (PR #318 머지 직후 발견 → #319 hotfix)**:
+
+- 증상: `/trading` 계정 추가 → OKX 선택 + passphrase 비운 채 등록 → console `ZodError unhandled` + FormMessage 미표시 = silent bypass.
+- 원인: `register-exchange-account-dialog` 가 평범한 `zodResolver` 사용 → Zod v4 superRefine custom issue 매핑 안 됨. `test-order-dialog` 의 custom `zodV4Resolver` 패턴 미적용.
+- Fix: `frontend/src/lib/zod-v4-resolver.ts` 공유 helper 추출 + register-exchange-account-dialog 적용. 라이브 재검증 (`qa-2026-05-30/12-s7a-hotfix-validated.png`) 통과.
+- Why unit test 가 못 잡았는가: schema-level test (4건 PASS) 는 superRefine 동작 검증. 그러나 dialog → resolver → RHF errors → FormMessage 통합 wiring 은 Base UI Select onValueChange 가 jsdom 에서 안 됨 → unit test 로 cover 불가.
+
+**LESSON-068 (★★★ 공통 발견 패턴) 4번째 누적**:
+
+- Sprint 60→61 / Sprint 61→62 / Sprint 62→Beta 진입 / **Sprint 63 S7 #318 → Phase C QA**
+- 정식 승격 의무 조건 = 3/3 → 4/4 충족. 다음 sprint cycle 진입 시 `.ai/common/global.md` 정식 등재 권고.
+- 핵심: **머지된 fix 의 _라이브 환경 재검증_** 이 unit test green 만으로는 잡지 못하는 통합 wiring 결함을 발견.
+
+**P3 follow-up (별도 PR)**:
+
+- `test-order-dialog.tsx` inline `zodV4Resolver` 공유 helper 마이그레이션 (refactor only).
+- Base UI Select "uncontrolled after initialized" console warning (controlled 마이그레이션).
 
 ---
 
@@ -20,16 +46,17 @@
 
 **Fix-and-Merge Ledger (Phase F, 사용자 배치 승인 = DEC-12)**:
 
-| 테마   | 핵심                                                                       | PR      | 상태                                                             |
-| ------ | -------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------- |
-| S1     | P1-5 avg_holding_hours 288x                                                | #311    | ✅ Merged (2026-05-30)                                           |
-| S2     | P1-10/13 Trust Layer 누출 (28 symbols 망라 parity)                         | #312    | ✅ Merged                                                        |
-| S3     | P1-7 WF backtest_config 미전달 (BL-222 follow-up)                          | #313    | ✅ Merged                                                        |
-| S4     | P1-9 Genetic+Bayesian CategoricalField 비숫자/non-finite reject            | #314    | ✅ Merged                                                        |
-| **S5** | **P1-2/12/14 trading kill-switch/notional/reconcile (money path)**         | **TBD** | **LOCAL-GREEN — `stage/fix-trading-kill-switch` push 승인 대기** |
-| **S6** | **P1-12 parse_tv_payload InvalidOperation + error path coverage (BL-309)** | **TBD** | **LOCAL-GREEN — `stage/fix-trading-coverage` push 승인 대기**    |
-| S7     | P1-1/11 frontend 계정등록 UX + P1-8 optimizer picker                       | TBD     | TODO (라이브 QA 병행)                                            |
-| S8+    | P2 58 + P3 76 도메인별 배치                                                | TBD     | TODO (BL 등재 후 배치)                                           |
+| 테마            | 핵심                                                                   | PR       | 상태                   |
+| --------------- | ---------------------------------------------------------------------- | -------- | ---------------------- |
+| S1              | P1-5 avg_holding_hours 288x                                            | #311     | ✅ Merged (2026-05-30) |
+| S2              | P1-10/13 Trust Layer 누출 (28 symbols 망라 parity)                     | #312     | ✅ Merged              |
+| S3              | P1-7 WF backtest_config 미전달 (BL-222 follow-up)                      | #313     | ✅ Merged              |
+| S4              | P1-9 Genetic+Bayesian CategoricalField 비숫자/non-finite reject        | #314     | ✅ Merged              |
+| S5              | P1-2/12/14 trading kill-switch/notional/reconcile (money path)         | #315     | ✅ Merged (2026-05-30) |
+| S6              | P1-12 parse_tv_payload InvalidOperation + error path coverage (BL-309) | #316     | ✅ Merged              |
+| S7              | P1-1/11 frontend 계정등록 UX + P1-8 optimizer picker                   | #318     | ✅ Merged              |
+| **S7-A hotfix** | **zodV4Resolver 채택 (Phase C QA 발견 regression)**                    | **#319** | **✅ Merged**          |
+| S8+             | P2 58 + P3 76 도메인별 배치                                            | TBD      | TODO (BL 등재 후 배치) |
 
 **의사결정 매트릭스 (USER-DECIDE, 코드 불가)**:
 
@@ -39,9 +66,9 @@
 
 ---
 
-## Recently Completed — S5/S6 (audit Phase F, 2026-05-30)
+## Recently Completed — S5/S6/S7 + S7-A hotfix (audit Phase F + Phase C, 2026-05-30)
 
-> 사용자 옵션 G (S5+S6+D) 진행. 각 stage 브랜치 LOCAL-GREEN, push/merge 사용자 승인 대기.
+> 사용자 옵션 G (S5+S6+D) → A (S7) → A (Phase C QA + S7-A hotfix + D2 governance) 순차 진행. 모두 main merged.
 
 ### S5 — money path defense in depth (`stage/fix-trading-kill-switch`, P1-2/12/14)
 
@@ -58,9 +85,27 @@
 - [x] **검증**: test_parse_tv_payload 30 PASS / test_webhook_hmac + test_router_webhook 회귀 10 PASS / ruff clean / mypy clean.
 - [x] **commit**: `45d582b` on `stage/fix-trading-coverage`.
 
-### D — TODO.md governance 갱신 (`docs/audit-todo-governance`)
+### D — TODO.md governance 갱신 (PR #317 `docs/audit-todo-governance`)
 
-- [x] PR #305~#314 + audit 2026-05-30 + Sprint 63 매트릭스 반영 (본 commit). docs-only.
+- [x] PR #305~#314 + audit 2026-05-30 + Sprint 63 매트릭스 반영. docs-only.
+
+### S7 — frontend trading UX (PR #318 `stage/fix-frontend-trading-ux`)
+
+- [x] **P1-1/11 (S7-A)** `register-exchange-account-dialog.tsx` + `schemas.ts`: test-order-dialog 의 `root.serverError` 패턴 재사용. onSubmit try/catch + 실패 시 inline alert + 재submit clearErrors. Zod schema superRefine — OKX + passphrase null/empty 클라 검증.
+- [x] **P1-8 (S7-B)** `app/(dashboard)/optimizer/page.tsx`: raw UUID input → shadcn `<Select>` picker. `useBacktests({limit:100,offset:0})` + 클라측 `status='completed'` 필터 (useMemo dep 안정화).
+- [x] **검증**: frontend 신규 7 PASS + vitest 716→723 / lint clean / tsc clean / build success.
+
+### Phase C 라이브 QA + S7-A hotfix (PR #319 `stage/fix-s7a-zodv4-resolver-hotfix`)
+
+- [x] **🚨 신규 P1 발견**: S7-A 의 OKX passphrase superRefine 이 `zodResolver` 와 호환 안 됨 → console `ZodError unhandled` + FormMessage 미표시 = silent bypass.
+- [x] **Hotfix**: `frontend/src/lib/zod-v4-resolver.ts` 공유 helper 추출 (test-order-dialog 의 inline 버전) + register-exchange-account-dialog 적용.
+- [x] **라이브 재검증**: OKX 선택 + passphrase 비운 채 등록 → "OKX 계정은 Passphrase 가 필수입니다" inline FormMessage 정상 표시 (`docs/qa/2026-05-30-phase-c/12-s7a-hotfix-validated.png`).
+- [x] **상세 report**: `docs/qa/2026-05-30-phase-c/report.md` (Coverage 매트릭스 + Evidence + 근본 원인 + LESSON-068 4번째 누적 + P3 follow-up).
+
+### D2 — Phase C QA report + TODO.md governance 갱신 (본 commit, `docs/phase-c-qa-report`)
+
+- [x] `docs/qa/2026-05-30-phase-c/report.md` + screenshot 12개 commit.
+- [x] TODO.md last-updated 2026-05-30 갱신 + Phase C 발견·hotfix 반영. docs-only.
 
 ---
 
