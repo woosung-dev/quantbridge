@@ -232,6 +232,34 @@ def test_v2_avg_holding_hours_freq_mapping() -> None:
     assert hours_1d == Decimal("288.0")
 
 
+def test_v2_avg_holding_hours_min_alias_freq() -> None:
+    """P1-5 회귀: config_mapper.timeframe_to_freq 는 1m/5m/15m → '1min'/'5min'/'15min'
+    pandas alias 를 산출하는데, _FREQ_HOURS_V2 가 'min' alias 키를 갖지 않으면 24h
+    fallback 으로 avg_holding_hours 가 1440x/288x/96x 과대 계산된다.
+
+    평균 12 bars 기준 기대값:
+      '1min' → 12 * (1/60) = 0.2h   (버그 시 12*24 = 288h)
+      '5min' → 12 * (5/60) = 1.0h   (버그 시 288h)
+      '15min'→ 12 * (15/60)= 3.0h   (버그 시 288h)
+    """
+    trades = _make_raw_trades_30d()
+    assert _v2_avg_holding_hours(trades, "1min") == Decimal("0.2")
+    assert _v2_avg_holding_hours(trades, "5min") == Decimal("1.0")
+    assert _v2_avg_holding_hours(trades, "15min") == Decimal("3.0")
+    # 'm' alias 도 회귀 보존 (양 키 체계 동시 지원).
+    assert _v2_avg_holding_hours(trades, "5m") == Decimal("1.0")
+
+
+def test_timeframe_freq_keys_all_in_v2_hours_map() -> None:
+    """P1-5 근본원인 invariant: timeframe_to_freq 가 산출 가능한 모든 freq 는
+    반드시 _FREQ_HOURS_V2 의 키여야 한다 (24h fallback 차단)."""
+    from src.backtest.config_mapper import _TIMEFRAME_TO_FREQ
+    from src.backtest.engine.v2_adapter import _FREQ_HOURS_V2
+
+    missing = [f for f in _TIMEFRAME_TO_FREQ.values() if f not in _FREQ_HOURS_V2]
+    assert missing == [], f"_FREQ_HOURS_V2 누락 freq 키: {missing}"
+
+
 def test_v2_trade_returns_stats_avg_best_worst() -> None:
     """5 trades: returns mean / max / min 정합."""
     trades = _make_raw_trades_30d()

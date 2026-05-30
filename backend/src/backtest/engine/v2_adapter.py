@@ -443,11 +443,18 @@ def _compute_metrics(
 # --- Sprint 31 BL-154: pine_v2 path 신규 12 metric helper ---
 
 # pandas offset alias → bar 1개 당 시간 (engine/metrics.py 와 정합).
+# P1-5 (2026-05-30 정검): config_mapper.timeframe_to_freq 는 1m/5m/15m 을
+# pandas 표준 alias '1min'/'5min'/'15min' 로 산출하므로 'min' alias 키도 필수.
+# 누락 시 24h fallback 으로 avg_holding_hours 가 1440x/288x/96x 과대 계산.
 _FREQ_HOURS_V2: dict[str, float] = {
     "1m": 1.0 / 60.0,
+    "1min": 1.0 / 60.0,
     "5m": 5.0 / 60.0,
+    "5min": 5.0 / 60.0,
     "15m": 15.0 / 60.0,
+    "15min": 15.0 / 60.0,
     "30m": 30.0 / 60.0,
+    "30min": 30.0 / 60.0,
     "1h": 1.0,
     "2h": 2.0,
     "4h": 4.0,
