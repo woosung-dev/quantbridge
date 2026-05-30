@@ -13,11 +13,17 @@ from src.backtest.engine.types import BacktestMetrics
 # Sprint 30 gamma-BE: pandas freq alias → 시간 단위
 # duration.mean()이 bar 수를 반환하므로, bar 1개 당 시간으로 변환.
 # 정의되지 않은 freq 는 default 24h (안전 fallback, "1d"와 동치).
+# P1-5 (2026-05-30 정검): timeframe_to_freq 의 'min' alias ('1min'/'5min'/'15min')
+# 도 키로 포함 — _FREQ_HOURS_V2 와 정합 (누락 시 24h fallback 과대 계산).
 _FREQ_HOURS: dict[str, float] = {
     "1m": 1.0 / 60.0,
+    "1min": 1.0 / 60.0,
     "5m": 5.0 / 60.0,
+    "5min": 5.0 / 60.0,
     "15m": 15.0 / 60.0,
+    "15min": 15.0 / 60.0,
     "30m": 30.0 / 60.0,
+    "30min": 30.0 / 60.0,
     "1h": 1.0,
     "2h": 2.0,
     "4h": 4.0,
