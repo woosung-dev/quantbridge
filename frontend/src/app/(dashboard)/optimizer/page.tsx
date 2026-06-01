@@ -50,7 +50,7 @@ export default function OptimizerPage() {
   return (
     <main className="container mx-auto space-y-6 px-4 py-6">
       <header className="space-y-2">
-        <h1 className="text-xl font-semibold">Optimizer</h1>
+        <h1 className="text-xl font-semibold">최적화</h1>
         <p className="text-sm text-muted-foreground">
           Grid Search (서버 9 cell) / Bayesian (≤ 50 evaluation) / Genetic
           (≤ 50 evaluation) 으로 strategy 의 pine input 변수 조합을 평가합니다.
