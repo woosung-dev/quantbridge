@@ -6,10 +6,11 @@
 
 **작성일:** 2026-04-30
 **최종 갱신:** 2026-05-17 (**Beta 본격 진입 결정** — Sprint 60→61→62 누적 3-sprint cycle 완료, 34 BL Resolved + BL-070~075 트랙 활성화)
-**현재 상태:** **45 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적, 신규 14 = 17 → 54 → 48 → 45). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **49 active BL** (Sprint 62 6 + Sprint 61 11 Resolved 누적 + **2026-06-01 전체 검사 신규 4** = … → 45 → 49). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
-**최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
+**최근 sprint BL 변경 (Sprint 55~Sprint 62 + 2026-06-01 전체 검사):**
 
+- **2026-06-01 전체 심층 검사** ([`audit/2026-06-01-full-inspection.md`](audit/2026-06-01-full-inspection.md)): Playwright MCP 라이브 + 코드(vercel/context7) + ui-ux-pro-max. **P0:0 / P1:10 / P2:49 / P3:88**. 신규 **BL-365~368** — BL-365(P1) optimizer 3폼 zodResolver+에러UI / BL-366(P1) landing 실시간모니터링 "예시" 라벨 / BL-367(P1) 푸터·법무 본문 대비 4.5:1 / BL-368(P1) privacy 모바일 리플로우. **안전수정 3건 적용**(optimizer 제목 "최적화" + live-session-form `zodV4Resolver`[P1 해소] + trading `zod/v4` import). 회귀 0(FE 723). 핵심 P1 = #319 zodResolver 버그의 형제 폼 미적용 잔여. 45 → 49 active.
 - **2026-05-17 Sprint 62 PR #290 merge (Beta 본격 진입 결정 ★★★★★)**: 6 BL fix-first (BL-350+354 ★★★ Optimizer Zod resilience + BL-353 step 01 라벨 + BL-356/357/358/359 모바일 터치 ≥44pt 묶음). 실측 ~2-3h vs plan 6-8h (LESSON-067 6차 검증). main `36bb4e0`. **BL-070~072 milestone active 승격**. **재측정 skip + 본인 의지 (d) 통과**.
 - **2026-05-17 Multi-Agent QA 재측정 (post-Sprint 61)**: Composite 6.08 → **7.5/10** (+1.42 목표 도달). 신규 BL-347~360 (14건, Critical 0 / P0 2 ★★★ 공통 BL-350+354 / P1 4 / P2 5 / P3 3). Sprint 61 11 BL Resolved 마킹 (PASS 8 + PARTIAL 2 + manual 1). 상세 = [`docs/qa/2026-05-17-post-sprint61/integrated-report.html`](qa/2026-05-17-post-sprint61/integrated-report.html).
 - **2026-05-17 Sprint 61 PR #288 merge**: 11 BL fix (BL-310/311/312/319/322/323/327/328/339/340) source 적용 + hotfix PR #289 (BL-348/349). docs/qa/2026-05-17/ baseline 별도.
@@ -35,8 +36,8 @@
   - BL-320 Development mode 배지 / BL-321/352 Clerk application name / BL-347 server header / BL-261 Clerk custom domain
 - **기존 P0**: BL-003 (Bybit mainnet runbook, H1 종료 gate — BL-073 캠페인 후 trigger)
 - **잔존 P1/P2/P3** (Beta 본격 진입 후 polish 또는 dogfood 발견 시 trigger):
-  - P1: BL-014/015/022/023/024/025/026/308
-  - P2: BL-186/190/195/235/236/309/313/314/315/316/329/330/332/344/345/351
+  - P1: BL-014/015/022/023/024/025/026/308 + **BL-365/366/367/368** (2026-06-01 전체 검사 — 상세 [`audit/2026-06-01-full-inspection.md`](audit/2026-06-01-full-inspection.md) §3/§10)
+  - P2: BL-186/190/195/235/236/309/313/314/315/316/329/330/332/344/345/351 (+ 2026-06-01 검사 하드닝 49건: be-ratelimit-1/be-asyncdb-1/be-mw/fe-approuter/fe-perf 등 — 리포트 §4)
   - P3: BL-306/307/317/318/324/325/326/331/333/334/335/336/337/338/346/355/360
 
 > **신규 BL-347~360 상세**: `docs/qa/2026-05-17-post-sprint61/integrated-report.html` §3 + 페르소나별 원본 보고서 4종.
