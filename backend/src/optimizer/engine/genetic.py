@@ -35,15 +35,14 @@ hyperparam (population_size / n_generations / mutation_rate / crossover_rate).
 LESSON-019 (commit-spy): 본 executor 자체는 DB 미접근. Service 가 호출 결과를 result_jsonb
 로 저장 + commit. spy 회귀는 Service test 책임.
 
-LESSON-063 (deep-modules): `_build_cell_config` 같은 generic helper 는 Sprint 57+ 3-engine
-도달 시 common 으로 추출 검토. 현재는 inline mirror 유지 (locality > DRY).
+LESSON-063 (deep-modules): `_build_cell_config` 는 3-engine 도달로 `_common.build_cell_config`
+공유 helper 추출 완료 (grid/bayesian/genetic 1:1 통합).
 """
 
 from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from dataclasses import replace as dc_replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Final, Literal, cast
 
@@ -51,6 +50,7 @@ import pandas as pd
 
 from src.backtest.engine import run_backtest
 from src.backtest.engine.types import BacktestConfig, BacktestMetrics
+from src.optimizer.engine._common import build_cell_config
 from src.optimizer.exceptions import (
     OptimizationExecutionError,
     OptimizationObjectiveUnsupportedError,
@@ -391,24 +391,6 @@ def _pick_best_iteration_idx(
     return candidates[0][0]
 
 
-# === Cell config builder (Bayesian _build_cell_config 1:1 mirror) ===
-
-
-def _build_cell_config(
-    base: BacktestConfig | None,
-    *,
-    overrides: dict[str, Decimal],
-) -> BacktestConfig:
-    """input_overrides merge (Bayesian _build_cell_config 1:1)."""
-    merged: dict[str, Any] = {}
-    if base is not None and base.input_overrides is not None:
-        merged.update(base.input_overrides)
-    merged.update(overrides)
-    if base is None:
-        return BacktestConfig(input_overrides=merged)
-    return dc_replace(base, input_overrides=merged)
-
-
 # === Next-generation builder ===
 
 
@@ -542,7 +524,7 @@ def run_genetic_search(
 
         evaluated_pop: list[GeneticIndividual] = []
         for params in pop_params:
-            cfg = _build_cell_config(backtest_config, overrides=params)
+            cfg = build_cell_config(backtest_config, overrides=params)
             outcome = run_backtest(pine_source, ohlcv, cfg)
             if outcome.status != "ok" or outcome.result is None:
                 raise OptimizationExecutionError(
