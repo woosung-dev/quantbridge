@@ -35,22 +35,26 @@ hyperparam (population_size / n_generations / mutation_rate / crossover_rate).
 LESSON-019 (commit-spy): 본 executor 자체는 DB 미접근. Service 가 호출 결과를 result_jsonb
 로 저장 + commit. spy 회귀는 Service test 책임.
 
-LESSON-063 (deep-modules): `_build_cell_config` 같은 generic helper 는 Sprint 57+ 3-engine
-도달 시 common 으로 추출 검토. 현재는 inline mirror 유지 (locality > DRY).
+LESSON-063 (deep-modules): `_build_cell_config` 는 3-engine 도달로 `_common.build_cell_config`
+공유 helper 추출 완료 (grid/bayesian/genetic 1:1 통합).
 """
 
 from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from dataclasses import replace as dc_replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Final, Literal, cast
 
 import pandas as pd
 
 from src.backtest.engine import run_backtest
-from src.backtest.engine.types import BacktestConfig, BacktestMetrics
+from src.backtest.engine.types import BacktestConfig
+from src.optimizer.engine._common import (
+    _objective_from_metrics,
+    _pick_best_iteration_idx,
+    build_cell_config,
+)
 from src.optimizer.exceptions import (
     OptimizationExecutionError,
     OptimizationObjectiveUnsupportedError,
@@ -343,20 +347,7 @@ def _gaussian_mutation(
     return out
 
 
-# === Objective + Best tracking (Bayesian _objective_from_metrics mirror, inline) ===
-
-
-def _objective_from_metrics(metrics: BacktestMetrics, *, objective_metric: str) -> Decimal | None:
-    """metrics → raw objective_value. degenerate (num_trades=0 / sharpe=None) → None."""
-    if metrics.num_trades == 0:
-        return None
-    if objective_metric == "sharpe_ratio":
-        return metrics.sharpe_ratio
-    if objective_metric == "total_return":
-        return metrics.total_return
-    if objective_metric == "max_drawdown":
-        return metrics.max_drawdown
-    raise OptimizationObjectiveUnsupportedError(objective_metric)
+# === Best tracking (genetic-specific cumulative) ===
 
 
 def _update_best_so_far(
@@ -373,40 +364,6 @@ def _update_best_so_far(
     if direction == "maximize":
         return max(current_best, new_value)
     return min(current_best, new_value)
-
-
-def _pick_best_iteration_idx(
-    iterations: tuple[GeneticIndividual, ...], *, direction: str
-) -> int | None:
-    """direction 적용 best iteration idx 반환. 모든 iteration degenerate → None."""
-    candidates = [
-        (it.idx, it.objective_value) for it in iterations if it.objective_value is not None
-    ]
-    if not candidates:
-        return None
-    if direction == "maximize":
-        candidates.sort(key=lambda t: t[1], reverse=True)
-    else:
-        candidates.sort(key=lambda t: t[1])
-    return candidates[0][0]
-
-
-# === Cell config builder (Bayesian _build_cell_config 1:1 mirror) ===
-
-
-def _build_cell_config(
-    base: BacktestConfig | None,
-    *,
-    overrides: dict[str, Decimal],
-) -> BacktestConfig:
-    """input_overrides merge (Bayesian _build_cell_config 1:1)."""
-    merged: dict[str, Any] = {}
-    if base is not None and base.input_overrides is not None:
-        merged.update(base.input_overrides)
-    merged.update(overrides)
-    if base is None:
-        return BacktestConfig(input_overrides=merged)
-    return dc_replace(base, input_overrides=merged)
 
 
 # === Next-generation builder ===
@@ -542,7 +499,7 @@ def run_genetic_search(
 
         evaluated_pop: list[GeneticIndividual] = []
         for params in pop_params:
-            cfg = _build_cell_config(backtest_config, overrides=params)
+            cfg = build_cell_config(backtest_config, overrides=params)
             outcome = run_backtest(pine_source, ohlcv, cfg)
             if outcome.status != "ok" or outcome.result is None:
                 raise OptimizationExecutionError(

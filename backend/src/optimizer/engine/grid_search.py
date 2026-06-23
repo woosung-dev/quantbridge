@@ -31,6 +31,7 @@ import pandas as pd
 from src.backtest.engine import run_backtest
 from src.backtest.engine.types import BacktestConfig
 from src.common.grid_sweep import GridSweepCellError, run_grid_sweep
+from src.optimizer.engine._common import build_cell_config
 from src.optimizer.exceptions import (
     OptimizationExecutionError,
     OptimizationObjectiveUnsupportedError,
@@ -173,26 +174,6 @@ def _validate_grid_search_pre(
                     )
 
 
-def _build_cell_config(
-    base: BacktestConfig | None,
-    *,
-    overrides: dict[str, Decimal],
-) -> BacktestConfig:
-    """BacktestConfig override — base 의 기존 input_overrides 보존 + grid key 갱신.
-
-    Sprint 51 BL-222 fix pattern mirror: base 의 sizing 5필드 / init_cash / freq /
-    fees / slippage / trading_sessions 모두 cell 마다 보존. dict(...) merge → grid
-    key 덮어쓰기.
-    """
-    merged: dict[str, Decimal | int | bool | str] = {}
-    if base is not None and base.input_overrides is not None:
-        merged.update(base.input_overrides)
-    merged.update(overrides)
-    if base is None:
-        return BacktestConfig(input_overrides=merged)
-    return dc_replace(base, input_overrides=merged)
-
-
 def _cell_objective_value(cell: GridSearchCell, *, objective_metric: str) -> Decimal | None:
     """cell raw metric → objective_value. degenerate cell or None metric → None."""
     if cell.is_degenerate:
@@ -253,7 +234,7 @@ def run_grid_search(
         raise ValueError("param_space.parameters must declare at least 1 variable.")
 
     def _cell_runner(values: dict[str, Decimal]) -> GridSearchCell:
-        cfg = _build_cell_config(backtest_config, overrides=dict(values))
+        cfg = build_cell_config(backtest_config, overrides=dict(values))
         outcome = run_backtest(pine_source, ohlcv, cfg)
         if outcome.status != "ok" or outcome.result is None:
             raise OptimizationExecutionError(

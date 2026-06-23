@@ -30,7 +30,6 @@ result_jsonb 로 저장 + commit. spy 회귀는 Service test 책임.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from dataclasses import replace as dc_replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Final, Literal
 
@@ -44,7 +43,12 @@ from skopt.space import (  # type: ignore[import-untyped]
 )
 
 from src.backtest.engine import run_backtest
-from src.backtest.engine.types import BacktestConfig, BacktestMetrics
+from src.backtest.engine.types import BacktestConfig
+from src.optimizer.engine._common import (
+    _objective_from_metrics,
+    _pick_best_iteration_idx,
+    build_cell_config,
+)
 from src.optimizer.exceptions import (
     OptimizationExecutionError,
     OptimizationObjectiveUnsupportedError,
@@ -275,34 +279,6 @@ def _coerce_skopt_to_decimal(values: list[Any], param_names: tuple[str, ...]) ->
     return out
 
 
-def _build_cell_config(
-    base: BacktestConfig | None,
-    *,
-    overrides: dict[str, Decimal],
-) -> BacktestConfig:
-    """grid_search.py:_build_cell_config 1:1 mirror — input_overrides merge."""
-    merged: dict[str, Any] = {}
-    if base is not None and base.input_overrides is not None:
-        merged.update(base.input_overrides)
-    merged.update(overrides)
-    if base is None:
-        return BacktestConfig(input_overrides=merged)
-    return dc_replace(base, input_overrides=merged)
-
-
-def _objective_from_metrics(metrics: BacktestMetrics, *, objective_metric: str) -> Decimal | None:
-    """metrics → raw objective_value. degenerate (sharpe=None / num_trades=0) → None."""
-    if metrics.num_trades == 0:
-        return None
-    if objective_metric == "sharpe_ratio":
-        return metrics.sharpe_ratio  # may be None even with trades
-    if objective_metric == "total_return":
-        return metrics.total_return
-    if objective_metric == "max_drawdown":
-        return metrics.max_drawdown
-    raise OptimizationObjectiveUnsupportedError(objective_metric)
-
-
 def _y_from_objective(
     objective_value: Decimal | None,
     *,
@@ -313,22 +289,6 @@ def _y_from_objective(
         return _DEGENERATE_PENALTY
     raw = float(objective_value)
     return -raw if direction == "maximize" else raw
-
-
-def _pick_best_iteration_idx(
-    iterations: tuple[BayesianIteration, ...], *, direction: str
-) -> int | None:
-    """direction 적용 best iteration idx 반환. 모든 iteration degenerate → None."""
-    candidates = [
-        (it.idx, it.objective_value) for it in iterations if it.objective_value is not None
-    ]
-    if not candidates:
-        return None
-    if direction == "maximize":
-        candidates.sort(key=lambda t: t[1], reverse=True)
-    else:
-        candidates.sort(key=lambda t: t[1])
-    return candidates[0][0]
 
 
 def run_bayesian_search(
@@ -420,7 +380,7 @@ def run_bayesian_search(
             x = _inject_normal_prior_values(x, param_names, param_space, normal_rng)
         params_dict = _coerce_skopt_to_decimal(x, param_names)
 
-        cfg = _build_cell_config(backtest_config, overrides=params_dict)
+        cfg = build_cell_config(backtest_config, overrides=params_dict)
         outcome = run_backtest(pine_source, ohlcv, cfg)
         if outcome.status != "ok" or outcome.result is None:
             raise OptimizationExecutionError(

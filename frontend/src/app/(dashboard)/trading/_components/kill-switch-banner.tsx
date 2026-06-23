@@ -81,12 +81,3 @@ export function KillSwitchBanner() {
     </div>
   );
 }
-
-// KS 상태 기반 주문 버튼 비활성화 여부 hook.
-// OrdersPanel / 주문 폼 등에서 임포트해서 사용.
-export function useIsOrderDisabledByKs(): boolean {
-  const { data, isError } = useKillSwitchEvents();
-  if (isError) return true;
-  if (!data) return false;
-  return data.items.some((e) => !e.resolved_at);
-}

@@ -5,5 +5,3 @@ export const LEGAL_LINKS = {
   terms: "/terms",
   privacy: "/privacy",
 } as const;
-
-export type LegalLinkKey = keyof typeof LEGAL_LINKS;

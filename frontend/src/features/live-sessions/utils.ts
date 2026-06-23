@@ -2,7 +2,6 @@
 // Sprint 27 BL-140 — buildActivityTimeline (recent events cumulative).
 
 import type { LiveSignalEvent } from "./schemas";
-import type { EquityPoint } from "./types";
 
 // ── Refetch interval — active session 일 때만 빠르게 폴링 ────────────────
 //
@@ -25,38 +24,6 @@ export function computeLiveSessionStateRefetchInterval(isActive: boolean): numbe
     : LIVE_SESSION_STATE_REFETCH_IDLE_MS;
 }
 
-// ── PnL series — closed_trades 누적 → equity curve ────────────────────────
-
-type ClosedTrade = {
-  exit_time: string; // ISO 8601 UTC
-  pnl: number | string;
-};
-
-/**
- * 누적 PnL series 생성 — chart datapoint.
- *
- * @param closedTrades  exit_time ASC 정렬된 closed trades.
- *                       pnl 은 number 또는 string (Decimal 직렬화).
- * @returns timestamp 별 cumulative_pnl. 빈 배열 → 빈 결과.
- */
-export function buildPnlSeries(
-  closedTrades: ReadonlyArray<ClosedTrade>,
-): EquityPoint[] {
-  let cumulative = 0;
-  const result: EquityPoint[] = [];
-  for (const trade of closedTrades) {
-    const pnlNum =
-      typeof trade.pnl === "string" ? Number.parseFloat(trade.pnl) : trade.pnl;
-    if (Number.isFinite(pnlNum)) {
-      cumulative += pnlNum;
-    }
-    result.push({
-      timestamp: trade.exit_time,
-      cumulative_pnl: cumulative,
-    });
-  }
-  return result;
-}
 
 // ── Activity Timeline — events windowed cumulative entry/close (Sprint 27 BL-140) ─
 
