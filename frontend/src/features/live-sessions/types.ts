@@ -12,9 +12,3 @@ export type {
   LiveSignalState,
   RegisterLiveSessionRequest,
 } from "./schemas";
-
-// PnL chart datapoint — utils.ts 에서 buildPnlSeries 가 생성.
-export type EquityPoint = {
-  timestamp: string; // ISO 8601 UTC
-  cumulative_pnl: number;
-};
