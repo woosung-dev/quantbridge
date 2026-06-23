@@ -37,8 +37,6 @@ describe("Skeleton", () => {
     ["text", "h-4"],
     ["card", "h-36"],
     ["list-row", "h-12"],
-    ["chart", "h-64"],
-    ["table-cell", "h-6"],
   ] as const)(
     "variant=%s 는 %s 클래스를 적용한다",
     (variant, expectedClass) => {

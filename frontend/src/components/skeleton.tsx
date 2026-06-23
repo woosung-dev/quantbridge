@@ -1,7 +1,7 @@
 // 로딩 Skeleton 공통 — Suspense fallback / async 데이터 로드 표준 placeholder.
 // shadcn 패턴 (animate-pulse + bg-muted) + qb-specific 변형 (Table / Card / Form).
 // Sprint 44 W C3: shimmer 1.5s overlay 옵션 + radius 토큰 정합 (--radius-sm = 6px = rounded-md).
-// Sprint 47 BL-206: variant API (text / card / list-row / chart / table-cell) — animate-pulse SSOT 일원화.
+// Sprint 47 BL-206: variant API (text / card / list-row) — animate-pulse SSOT 일원화.
 
 import type { HTMLAttributes } from "react";
 
@@ -12,24 +12,15 @@ import { cn } from "@/lib/utils";
  * - text: 작은 텍스트 라인 (h-4)
  * - card: 카드/그리드 placeholder (h-36 + radius-lg)
  * - list-row: 테이블/리스트 행 (h-12)
- * - chart: 차트/대형 영역 (h-64)
- * - table-cell: 좁은 셀 (h-6 w-24)
  *
  * 모든 variant 는 `className` 으로 height/width 를 override 가능 (twMerge 충돌 해결).
  */
-export type SkeletonVariant =
-  | "text"
-  | "card"
-  | "list-row"
-  | "chart"
-  | "table-cell";
+export type SkeletonVariant = "text" | "card" | "list-row";
 
 const VARIANT_CLASSES: Record<SkeletonVariant, string> = {
   text: "h-4 w-full",
   card: "h-36 w-full rounded-[var(--radius-lg)]",
   "list-row": "h-12 w-full",
-  chart: "h-64 w-full",
-  "table-cell": "h-6 w-24",
 };
 
 export type SkeletonProps = HTMLAttributes<HTMLDivElement> & {
