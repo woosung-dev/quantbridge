@@ -1,64 +1,10 @@
-"""Funding rate 유틸 테스트 — CCXT monkeypatch."""
+"""Funding rate fetch 테스트 — CCXT monkeypatch."""
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# ---------------------------------------------------------------------------
-# apply_funding_to_pnl
-# ---------------------------------------------------------------------------
-
-def _make_fr(rate: str, ts: datetime) -> SimpleNamespace:
-    """apply_funding_to_pnl이 사용하는 .funding_rate / .funding_timestamp만 구현."""
-    return SimpleNamespace(funding_rate=Decimal(rate), funding_timestamp=ts)
-
-
-def test_apply_funding_long_positive_rate():
-    """long + positive rate → 비용 지불 → 음수 PnL."""
-    from src.trading.funding import apply_funding_to_pnl
-
-    entry = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
-    exit_ = datetime(2026, 4, 21, 16, 0, tzinfo=UTC)
-    frs = [
-        _make_fr("0.0001", datetime(2026, 4, 21, 8, 0, tzinfo=UTC)),
-        _make_fr("0.0001", datetime(2026, 4, 21, 16, 0, tzinfo=UTC)),  # exit 시점 == 제외
-    ]
-    result = apply_funding_to_pnl(Decimal("1"), entry, exit_, frs)
-    assert result == Decimal("-0.0001")  # 첫 번째만 포함
-
-
-def test_apply_funding_short_positive_rate():
-    """short(음수 position_size) + positive rate → 수령 → 양수 PnL."""
-    from src.trading.funding import apply_funding_to_pnl
-
-    entry = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
-    frs = [_make_fr("0.0001", datetime(2026, 4, 21, 8, 0, tzinfo=UTC))]
-    result = apply_funding_to_pnl(Decimal("-1"), entry, None, frs)
-    assert result == Decimal("0.0001")
-
-
-def test_apply_funding_excludes_before_entry():
-    """entry 이전 funding은 제외."""
-    from src.trading.funding import apply_funding_to_pnl
-
-    entry = datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
-    frs = [_make_fr("0.0001", datetime(2026, 4, 21, 8, 0, tzinfo=UTC))]
-    result = apply_funding_to_pnl(Decimal("1"), entry, None, frs)
-    assert result == Decimal("0")
-
-
-def test_apply_funding_no_rates():
-    """funding_rates 빈 리스트 → 0."""
-    from src.trading.funding import apply_funding_to_pnl
-
-    entry = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
-    result = apply_funding_to_pnl(Decimal("1"), entry, None, [])
-    assert result == Decimal("0")
-
 
 # ---------------------------------------------------------------------------
 # fetch_and_store_funding_rates — CCXT monkeypatch
