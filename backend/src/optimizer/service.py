@@ -201,14 +201,7 @@ class OptimizerService:
         await self.repo.commit()
 
         try:
-            if run.kind == OptimizationKind.GRID_SEARCH:
-                result_jsonb = await self._execute_grid_search(run, bt)
-            elif run.kind == OptimizationKind.BAYESIAN:
-                result_jsonb = await self._execute_bayesian(run, bt)
-            elif run.kind == OptimizationKind.GENETIC:
-                result_jsonb = await self._execute_genetic(run, bt)
-            else:  # pragma: no cover — exhaustiveness guard
-                raise OptimizationKindUnsupportedError(run.kind.value)
+            result_jsonb = await self._execute(run, bt)
         except OptimizationExecutionError as exc:
             logger.exception("optimizer_execution_failed")
             await self.repo.fail(
@@ -236,8 +229,13 @@ class OptimizerService:
             )
         await self.repo.commit()
 
-    async def _execute_grid_search(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
-        """Grid Search 실행 entry — param_space JSONB → ParamSpace → executor."""
+    async def _execute(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
+        """공통 executor 경로 — strategy/ohlcv/config load (kind 무관 동일) 후
+        kind 별 engine runner + result→jsonb 직렬화만 분기.
+
+        Sprint 54/55/56 의 _execute_grid/bayesian/genetic 통합. runner 함수명을
+        직접 참조해 테스트 monkeypatch(setattr) seam 을 보존한다.
+        """
         strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
             raise OptimizationExecutionError(
@@ -248,63 +246,32 @@ class OptimizerService:
         ohlcv = await self.provider.get_ohlcv(
             bt.symbol, bt.timeframe, bt.period_start, bt.period_end
         )
-        # JSONB → ParamSpace pydantic (schema_version=1 lock 안전성 보장).
+        # JSONB → ParamSpace pydantic (schema_version lock 안전성 보장).
         param_space = ParamSpace.model_validate(run.param_space)
         backtest_config = build_engine_config_from_db(bt)
+        pine = strategy.pine_source
 
-        gs_result = run_grid_search(
-            strategy.pine_source,
-            ohlcv,
-            param_space=param_space,
-            backtest_config=backtest_config,
-        )
-        return grid_search_result_to_jsonb(gs_result)
-
-    async def _execute_bayesian(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
-        """Bayesian 실행 entry — _execute_grid_search mirror, run_bayesian_search 호출."""
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
-            raise OptimizationExecutionError(
-                message_public="Strategy no longer available for optimization.",
-                message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
-            )
-
-        ohlcv = await self.provider.get_ohlcv(
-            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
-        )
-        param_space = ParamSpace.model_validate(run.param_space)
-        backtest_config = build_engine_config_from_db(bt)
-
-        bs_result = run_bayesian_search(
-            strategy.pine_source,
-            ohlcv,
-            param_space=param_space,
-            backtest_config=backtest_config,
-        )
-        return bayesian_search_result_to_jsonb(bs_result)
-
-    async def _execute_genetic(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
-        """Sprint 56 BL-233 — Genetic 실행 entry. _execute_bayesian 1:1 mirror."""
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
-            raise OptimizationExecutionError(
-                message_public="Strategy no longer available for optimization.",
-                message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
-            )
-
-        ohlcv = await self.provider.get_ohlcv(
-            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
-        )
-        param_space = ParamSpace.model_validate(run.param_space)
-        backtest_config = build_engine_config_from_db(bt)
-
-        gs_result = run_genetic_search(
-            strategy.pine_source,
-            ohlcv,
-            param_space=param_space,
-            backtest_config=backtest_config,
-        )
-        return genetic_search_result_to_jsonb(gs_result)
+        match run.kind:
+            case OptimizationKind.GRID_SEARCH:
+                return grid_search_result_to_jsonb(
+                    run_grid_search(
+                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
+                    )
+                )
+            case OptimizationKind.BAYESIAN:
+                return bayesian_search_result_to_jsonb(
+                    run_bayesian_search(
+                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
+                    )
+                )
+            case OptimizationKind.GENETIC:
+                return genetic_search_result_to_jsonb(
+                    run_genetic_search(
+                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
+                    )
+                )
+            case _:  # pragma: no cover — exhaustiveness guard
+                raise OptimizationKindUnsupportedError(run.kind.value)
 
     # ---------- HTTP read ----------
 
