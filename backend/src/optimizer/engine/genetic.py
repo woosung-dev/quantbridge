@@ -49,8 +49,12 @@ from typing import Any, Final, Literal, cast
 import pandas as pd
 
 from src.backtest.engine import run_backtest
-from src.backtest.engine.types import BacktestConfig, BacktestMetrics
-from src.optimizer.engine._common import build_cell_config
+from src.backtest.engine.types import BacktestConfig
+from src.optimizer.engine._common import (
+    _objective_from_metrics,
+    _pick_best_iteration_idx,
+    build_cell_config,
+)
 from src.optimizer.exceptions import (
     OptimizationExecutionError,
     OptimizationObjectiveUnsupportedError,
@@ -343,20 +347,7 @@ def _gaussian_mutation(
     return out
 
 
-# === Objective + Best tracking (Bayesian _objective_from_metrics mirror, inline) ===
-
-
-def _objective_from_metrics(metrics: BacktestMetrics, *, objective_metric: str) -> Decimal | None:
-    """metrics → raw objective_value. degenerate (num_trades=0 / sharpe=None) → None."""
-    if metrics.num_trades == 0:
-        return None
-    if objective_metric == "sharpe_ratio":
-        return metrics.sharpe_ratio
-    if objective_metric == "total_return":
-        return metrics.total_return
-    if objective_metric == "max_drawdown":
-        return metrics.max_drawdown
-    raise OptimizationObjectiveUnsupportedError(objective_metric)
+# === Best tracking (genetic-specific cumulative) ===
 
 
 def _update_best_so_far(
@@ -373,22 +364,6 @@ def _update_best_so_far(
     if direction == "maximize":
         return max(current_best, new_value)
     return min(current_best, new_value)
-
-
-def _pick_best_iteration_idx(
-    iterations: tuple[GeneticIndividual, ...], *, direction: str
-) -> int | None:
-    """direction 적용 best iteration idx 반환. 모든 iteration degenerate → None."""
-    candidates = [
-        (it.idx, it.objective_value) for it in iterations if it.objective_value is not None
-    ]
-    if not candidates:
-        return None
-    if direction == "maximize":
-        candidates.sort(key=lambda t: t[1], reverse=True)
-    else:
-        candidates.sort(key=lambda t: t[1])
-    return candidates[0][0]
 
 
 # === Next-generation builder ===
