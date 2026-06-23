@@ -1,4 +1,4 @@
-from fastapi import HTTPException, status
+from fastapi import status
 
 
 class AppException(Exception):
@@ -39,7 +39,3 @@ class UnsupportedPineScriptError(AppException):
 
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Pine script contains unsupported features"
-
-
-def to_http_exception(exc: AppException) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail=exc.detail)

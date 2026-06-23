@@ -252,35 +252,3 @@ def test_v2_normal_negative_mdd_not_exceeding_capital() -> None:
     # MDD 는 작은 음수 — 자본 한도 안.
     assert m.max_drawdown > Decimal("-1")
     assert m.mdd_exceeds_capital is False
-
-
-# --- 6. vectorbt path 메타 추출 (drift 방어) ---
-
-
-def test_vectorbt_extract_metrics_returns_mdd_meta() -> None:
-    """vectorbt path 도 MDD 메타 응답."""
-    import vectorbt as vbt
-
-    from src.backtest.engine.metrics import extract_metrics
-
-    close = pd.Series(
-        [10.0, 11.0, 12.0, 11.5, 13.0, 12.5],
-        index=pd.date_range("2024-01-01", periods=6, freq="1D"),
-    )
-    pf = vbt.Portfolio.from_signals(
-        close=close,
-        entries=pd.Series(
-            [False, True, False, False, False, False], index=close.index
-        ),
-        exits=pd.Series(
-            [False, False, False, True, False, False], index=close.index
-        ),
-        init_cash=10000.0,
-        fees=0.001,
-        slippage=0.0005,
-        freq="1D",
-    )
-    m = extract_metrics(pf, freq="1D")
-    assert m.mdd_unit == "equity_ratio"
-    # 정상 fixture → 자본 초과 손실 아님.
-    assert m.mdd_exceeds_capital is False

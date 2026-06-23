@@ -1,7 +1,7 @@
-"""Funding rate 수집 + PnL 적용 유틸.
+"""Funding rate 수집 유틸.
 
 FundingRate 모델은 trading/models.py에 정의.
-이 모듈은 CCXT fetch + DB 저장, PnL 계산 두 함수만 담당.
+이 모듈은 CCXT fetch + DB 저장 한 함수를 담당.
 """
 
 from __future__ import annotations
@@ -96,32 +96,3 @@ async def fetch_and_store_funding_rates(
         extra={"exchange": exchange_name, "symbol": symbol, "inserted": inserted},
     )
     return inserted
-
-
-def apply_funding_to_pnl(
-    position_size: Decimal,
-    entry_time: datetime,
-    exit_time: datetime | None,
-    funding_rates: list[FundingRate],
-) -> Decimal:
-    """포지션 보유 기간 동안 발생한 funding cost 합산.
-
-    funding_rates는 entry_time ~ exit_time 범위의 레코드만 전달할 것.
-    position_size > 0: long (funding_rate > 0 → 비용 지불).
-    position_size < 0: short (funding_rate > 0 → 비용 수령).
-
-    Returns:
-        PnL에 가산할 funding 금액 (음수 = 손실).
-        long + positive rate = 손실 → 음수 반환.
-    """
-    cutoff = exit_time
-    total = Decimal("0")
-    for fr in funding_rates:
-        ts = fr.funding_timestamp
-        if ts < entry_time:
-            continue
-        if cutoff is not None and ts >= cutoff:
-            continue
-        # long position: 양수 rate → 비용 지불(음수 PnL)
-        total -= position_size * fr.funding_rate
-    return total
