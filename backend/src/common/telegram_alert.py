@@ -49,6 +49,22 @@ _SEND_SEMAPHORE = asyncio.Semaphore(8)
 _SEND_TIMEOUT_S = 15.0
 
 
+def _safe_err(exc: BaseException) -> str:
+    """예외를 로그 안전한 문자열로 — URL(토큰 포함) 노출 차단.
+
+    httpx 의 ``HTTPStatusError`` str 은 ``... for url 'https://api.telegram.org/
+    bot<TOKEN>/sendMessage'`` 형태로 bot token 을 평문 노출한다. ``RetryError`` 도
+    last_attempt 의 예외를 감싸 동일 누출. 따라서 raw str 대신 예외 클래스명 +
+    (가능 시) status code 만 기록한다.
+    """
+    if isinstance(exc, RetryError):
+        inner = exc.last_attempt.exception() if exc.last_attempt else None
+        return f"RetryError({_safe_err(inner)})" if inner else "RetryError"
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"HTTPStatusError(status={exc.response.status_code})"
+    return type(exc).__name__
+
+
 def _format_text(
     severity: Severity,
     title: str,
@@ -115,11 +131,17 @@ class TelegramAlertService:
             logger.warning("telegram_alert_timeout severity=%s title=%s", severity, title)
             return False
         except RetryError as exc:
-            logger.warning("telegram_alert_failed_retry severity=%s err=%s", severity, exc)
+            # _safe_err: bot token 이 박힌 URL 노출 차단 (raw str 금지).
+            logger.warning(
+                "telegram_alert_failed_retry severity=%s err=%s", severity, _safe_err(exc)
+            )
             return False
         except httpx.HTTPError as exc:
             # tenacity reraise=True 시 마지막 HTTPError 전파 → "False 반환" 계약 유지.
-            logger.warning("telegram_alert_failed_http severity=%s err=%s", severity, exc)
+            # _safe_err: bot token 이 박힌 URL 노출 차단.
+            logger.warning(
+                "telegram_alert_failed_http severity=%s err=%s", severity, _safe_err(exc)
+            )
             return False
 
     async def _send_with_semaphore(self, url: str, payload: dict[str, Any]) -> bool:

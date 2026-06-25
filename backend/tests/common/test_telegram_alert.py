@@ -217,6 +217,44 @@ async def test_send_telegram_critical_alert_convenience(
 
 
 @pytest.mark.asyncio
+async def test_bot_token_never_leaks_into_logs_on_failure(
+    settings_with_telegram: Settings,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """보안 회귀 — 실패 로그에 bot token 평문 노출 금지.
+
+    httpx HTTPStatusError str 은 URL(=`/bot<TOKEN>/sendMessage`)을 포함하므로
+    raw 예외를 로깅하면 토큰이 누출된다. _safe_err 로 차단됨을 검증.
+    """
+    token = settings_with_telegram.telegram_bot_token
+    assert token is not None
+    secret = token.get_secret_value()
+
+    def handler_4xx(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"error": "chat not found"})
+
+    def handler_503(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "throttled"})
+
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        async with _make_mock_client(handler_4xx) as client:
+            await TelegramAlertService(settings_with_telegram, client=client).send(
+                "critical", "t", "m", None
+            )
+        async with _make_mock_client(handler_503) as client:
+            await TelegramAlertService(settings_with_telegram, client=client).send(
+                "critical", "t", "m", None
+            )
+
+    all_log_text = caplog.text
+    assert "telegram_alert_failed" in all_log_text  # 로깅 자체는 발생
+    assert secret not in all_log_text, "bot token 이 로그에 노출됨"
+    assert "/bot" not in all_log_text, "token 이 박힌 URL 이 로그에 노출됨"
+
+
+@pytest.mark.asyncio
 async def test_severity_emoji_mapping(settings_with_telegram: Settings) -> None:
     """severity → emoji prefix 매핑 (critical/warning/info)."""
     captured: list[str] = []
