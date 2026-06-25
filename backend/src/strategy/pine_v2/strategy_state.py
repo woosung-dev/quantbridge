@@ -543,11 +543,17 @@ class StrategyState:
         bar: int,
         stop: float | None = None,
         limit: float | None = None,
+        profit_offset: float | None = None,
+        loss_offset: float | None = None,
         trail_offset: float | None = None,
         comment: str = "",
     ) -> None:
         """strategy.exit 브래킷 placement. from_entry="" → 모든 open 포지션.
 
+        - 절대가: stop(SL price) / limit(TP price). 우선.
+        - 상대오프셋: profit(TP)/loss(SL) → target entry 가 기준 price-distance 로 환산.
+          long: TP=entry+profit, SL=entry-loss. short: TP=entry-profit, SL=entry+loss.
+          (pine_v2 는 mintick 모델 부재 → 1:1 price-distance 근사.)
         Pine re-issue 의미론: 같은 from_entry 의 기존 브래킷을 교체(가격 갱신).
         교체 시 동일 (exit_id, TRAILING_STOP) leg 의 trail_anchor 는 보존 (ratchet 유지).
         """
@@ -557,7 +563,17 @@ class StrategyState:
             targets = list(self.open_trades.keys())
 
         for tid in targets:
-            pos_dir = self.open_trades[tid].direction
+            trade = self.open_trades[tid]
+            pos_dir = trade.direction
+            entry = trade.entry_price
+            # 절대가 우선, 없으면 오프셋으로 환산.
+            eff_stop = stop
+            if eff_stop is None and loss_offset is not None:
+                eff_stop = entry - loss_offset if pos_dir == "long" else entry + loss_offset
+            eff_limit = limit
+            if eff_limit is None and profit_offset is not None:
+                eff_limit = entry + profit_offset if pos_dir == "long" else entry - profit_offset
+
             prev_legs = self.pending_exits.get(tid, [])
             prev_trail_anchor: float | None = None
             for pl in prev_legs:
@@ -565,7 +581,7 @@ class StrategyState:
                     prev_trail_anchor = pl.trail_anchor
 
             legs: list[ExitOrder] = []
-            if stop is not None:
+            if eff_stop is not None:
                 legs.append(
                     ExitOrder(
                         from_entry=tid,
@@ -573,11 +589,11 @@ class StrategyState:
                         position_direction=pos_dir,
                         kind=ExitOrderKind.STOP_LOSS,
                         placed_bar=bar,
-                        stop_price=stop,
+                        stop_price=eff_stop,
                         comment=comment,
                     )
                 )
-            if limit is not None:
+            if eff_limit is not None:
                 legs.append(
                     ExitOrder(
                         from_entry=tid,
@@ -585,7 +601,7 @@ class StrategyState:
                         position_direction=pos_dir,
                         kind=ExitOrderKind.TAKE_PROFIT,
                         placed_bar=bar,
-                        limit_price=limit,
+                        limit_price=eff_limit,
                         comment=comment,
                     )
                 )
