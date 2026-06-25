@@ -17,6 +17,7 @@ from src.stress_test.engine.walk_forward import (
     WalkForwardFold,
     WalkForwardResult,
     run_walk_forward,
+    run_walk_forward_optimization,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "run_monte_carlo",
     "run_param_stability",
     "run_walk_forward",
+    "run_walk_forward_optimization",
 ]

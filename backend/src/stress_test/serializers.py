@@ -89,6 +89,7 @@ def _fold_to_jsonb(f: WalkForwardFold) -> dict[str, Any]:
         "out_of_sample_return": str(f.out_of_sample_return),
         "oos_sharpe": None if f.oos_sharpe is None else str(f.oos_sharpe),
         "num_trades_oos": f.num_trades_oos,
+        "selected_params": f.selected_params,
     }
 
 
@@ -107,6 +108,8 @@ def wf_result_to_jsonb(r: WalkForwardResult) -> dict[str, Any]:
         "valid_positive_regime": r.valid_positive_regime,
         "total_possible_folds": r.total_possible_folds,
         "was_truncated": r.was_truncated,
+        "reoptimized_per_fold": r.reoptimized_per_fold,
+        "degenerate_folds_skipped": r.degenerate_folds_skipped,
     }
 
 
@@ -129,6 +132,8 @@ def wf_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
                 None if f.get("oos_sharpe") is None else Decimal(f["oos_sharpe"])
             ),
             "num_trades_oos": int(f["num_trades_oos"]),
+            # 구버전 row 하위호환 — selected_params 키 없으면 None.
+            "selected_params": f.get("selected_params"),
         }
         for f in folds_raw
     ]
@@ -139,6 +144,9 @@ def wf_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
         "valid_positive_regime": bool(data["valid_positive_regime"]),
         "total_possible_folds": int(data["total_possible_folds"]),
         "was_truncated": bool(data["was_truncated"]),
+        # 구버전 row 하위호환 — 키 없으면 기본값.
+        "reoptimized_per_fold": bool(data.get("reoptimized_per_fold", False)),
+        "degenerate_folds_skipped": int(data.get("degenerate_folds_skipped", 0)),
     }
 
 

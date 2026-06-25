@@ -5,6 +5,9 @@
 
 import { z } from "zod/v4";
 
+import { OptimizationKindSchema } from "@/features/optimizer/schemas";
+import type { ParamSpace } from "@/features/optimizer/schemas";
+
 // --- Decimal 문자열 → finite number 변환 ----------------------------------
 
 const decimalString = z.string().transform((s, ctx) => {
@@ -350,6 +353,8 @@ export const WalkForwardFoldSchema = z.object({
   out_of_sample_return: decimalString,
   oos_sharpe: decimalString.nullable(),
   num_trades_oos: z.number().int(),
+  // 진짜 WFO 에서만 채움 — 해당 fold train 재최적화 파라미터 (str 값). 그 외 None/없음.
+  selected_params: z.record(z.string(), z.string()).nullable().optional(),
 });
 export type WalkForwardFold = z.infer<typeof WalkForwardFoldSchema>;
 
@@ -362,6 +367,9 @@ export const WalkForwardResultSchema = z.object({
   valid_positive_regime: z.boolean(),
   total_possible_folds: z.number().int(),
   was_truncated: z.boolean(),
+  // C13 진짜 OOS — 구버전 row 하위호환 위해 optional + default.
+  reoptimized_per_fold: z.boolean().optional().default(false),
+  degenerate_folds_skipped: z.number().int().optional().default(0),
 });
 export type WalkForwardResult = z.infer<typeof WalkForwardResultSchema>;
 
@@ -465,6 +473,11 @@ export const WalkForwardParamsSchema = z.object({
       message: "best_params value must be finite",
     }))
     .optional(),
+  // C13 진짜 OOS — fold별 재최적화(true WFO). param_space + kind 는 옵티마이저 run 에서
+  // 온 검증완료 spec → FE passthrough, BE 가 ParamSpace.model_validate 로 재검증.
+  // (ParamSpaceSchema 재파싱은 schema_version=1 genetic_selection_method 기본값 충돌 회피.)
+  optimizer_param_space: z.custom<ParamSpace>().optional(),
+  optimizer_kind: OptimizationKindSchema.optional(),
 });
 export type WalkForwardParams = z.infer<typeof WalkForwardParamsSchema>;
 

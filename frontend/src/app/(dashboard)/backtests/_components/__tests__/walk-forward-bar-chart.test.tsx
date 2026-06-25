@@ -32,6 +32,8 @@ describe("WalkForwardBarChart", () => {
       valid_positive_regime: false,
       total_possible_folds: 2,
       was_truncated: false,
+      reoptimized_per_fold: false,
+      degenerate_folds_skipped: 0,
     };
     render(<WalkForwardBarChart result={result} />);
     expect(screen.getByText(/N\/A/)).toBeInTheDocument();
@@ -45,6 +47,8 @@ describe("WalkForwardBarChart", () => {
       valid_positive_regime: true,
       total_possible_folds: 1,
       was_truncated: false,
+      reoptimized_per_fold: false,
+      degenerate_folds_skipped: 0,
     };
     render(<WalkForwardBarChart result={result} />);
     expect(screen.getByText(/Degradation ratio \(IS\/OOS\): 1\.5/)).toBeInTheDocument();
@@ -58,6 +62,8 @@ describe("WalkForwardBarChart", () => {
       valid_positive_regime: true,
       total_possible_folds: 10,
       was_truncated: true,
+      reoptimized_per_fold: false,
+      degenerate_folds_skipped: 0,
     };
     render(<WalkForwardBarChart result={result} />);
     expect(screen.getByText(/3\/10 folds/)).toBeInTheDocument();
@@ -71,6 +77,8 @@ describe("WalkForwardBarChart", () => {
       valid_positive_regime: false,
       total_possible_folds: 0,
       was_truncated: false,
+      reoptimized_per_fold: false,
+      degenerate_folds_skipped: 0,
     };
     render(<WalkForwardBarChart result={result} />);
     expect(

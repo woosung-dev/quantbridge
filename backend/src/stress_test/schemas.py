@@ -16,6 +16,7 @@ from pydantic import (
 )
 
 from src.common.strict_decimal_input import StrictDecimalInput
+from src.optimizer.schemas import OptimizationKindOut, ParamSpace
 from src.stress_test.models import StressTestKind, StressTestStatus
 
 # ---------------------------------------------------------------------------
@@ -78,11 +79,41 @@ class WalkForwardParams(BaseModel):
     test_bars: int = Field(ge=1)
     step_bars: int | None = Field(default=None, ge=1)
     max_folds: int = Field(default=20, ge=1, le=100)
-    # C13 — 옵티마이저 best_params 를 OOS 검증에 input_overrides 로 주입 (선택).
+    # C13 (fixed-param fallback) — 옵티마이저 best_params 를 전 fold 고정 적용 (선택).
     # key = pine input var_name, value = 최적값. input.int/float 모두 Decimal 로 적용 OK
     # (interpreter 가 input 타입별 캐스팅). categorical string(BL-364) + bool 입력
     # sweep 은 optimizer 가 미생성 → numeric(Decimal) 만 허용. 필요 시 union 확장.
     best_params: dict[str, Decimal] | None = Field(default=None)
+    # C13 진짜 OOS — fold별 train 구간 재최적화(true WFO). param_space + kind 동봉 시
+    # 각 fold 가 자기 train 에서 재최적화 → OOS 에 적용. best_params 와 상호배타.
+    optimizer_param_space: ParamSpace | None = Field(default=None)
+    optimizer_kind: OptimizationKindOut | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def _validate_oos_mode(self) -> WalkForwardParams:
+        has_space = self.optimizer_param_space is not None
+        has_kind = self.optimizer_kind is not None
+        if has_space != has_kind:
+            raise ValueError(
+                "optimizer_param_space and optimizer_kind must be provided together"
+            )
+        if has_space and self.best_params is not None:
+            raise ValueError(
+                "best_params (fixed) and optimizer_param_space (re-optimization) "
+                "are mutually exclusive"
+            )
+        # bayesian/genetic 엔진은 schema_version=2 필수 (ADR-013 §2.2). schema_version=1
+        # param_space 와 결합 시 worker-time FAILED 대신 submit-time fail-fast.
+        if (
+            self.optimizer_param_space is not None
+            and self.optimizer_kind in (OptimizationKindOut.BAYESIAN, OptimizationKindOut.GENETIC)
+            and self.optimizer_param_space.schema_version != 2
+        ):
+            raise ValueError(
+                f"optimizer_kind={self.optimizer_kind.value} requires "
+                f"optimizer_param_space.schema_version=2 (ADR-013 §2.2)"
+            )
+        return self
 
 
 class WalkForwardSubmitRequest(BaseModel):
@@ -104,6 +135,8 @@ class WalkForwardFoldOut(BaseModel):
     out_of_sample_return: Decimal
     oos_sharpe: Decimal | None
     num_trades_oos: int
+    # 진짜 WFO 에서만 채움 — 해당 fold train 재최적화 파라미터 (str 값). 그 외 None.
+    selected_params: dict[str, str] | None = None
 
     @field_serializer(
         "in_sample_return",
@@ -128,6 +161,10 @@ class WalkForwardResultOut(BaseModel):
     valid_positive_regime: bool
     total_possible_folds: int
     was_truncated: bool
+    # True = fold별 재최적화(진짜 OOS) / False = 고정 파라미터. FE disclaimer 분기.
+    reoptimized_per_fold: bool = False
+    # WFO 에서 train 무거래로 제외된 fold 수 (strategy fragility 신호). FE 노출 권장.
+    degenerate_folds_skipped: int = 0
 
     @field_serializer("aggregate_oos_return")
     def _decimal_to_str(self, v: Decimal) -> str:

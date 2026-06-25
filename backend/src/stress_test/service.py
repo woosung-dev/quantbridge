@@ -22,6 +22,8 @@ from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
+from src.optimizer.models import OptimizationKind
+from src.optimizer.schemas import ParamSpace
 from src.strategy.repository import StrategyRepository
 from src.stress_test.dispatcher import StressTaskDispatcher
 from src.stress_test.engine import (
@@ -29,6 +31,7 @@ from src.stress_test.engine import (
     run_monte_carlo,
     run_param_stability,
     run_walk_forward,
+    run_walk_forward_optimization,
 )
 from src.stress_test.exceptions import (
     BacktestNotCompletedForStressTest,
@@ -122,11 +125,20 @@ class StressTestService:
                 "test_bars": data.params.test_bars,
                 "step_bars": data.params.step_bars,
                 "max_folds": data.params.max_folds,
-                # C13 — best_params 를 JSONB 저장 (Decimal → str). 없으면 None.
+                # C13 fixed-param fallback — best_params 를 JSONB 저장 (Decimal → str). 없으면 None.
                 "best_params": (
                     {k: str(v) for k, v in data.params.best_params.items()}
                     if data.params.best_params
                     else None
+                ),
+                # C13 진짜 OOS — fold별 재최적화 spec (param_space JSONB + kind str). 없으면 None.
+                "optimizer_param_space": (
+                    data.params.optimizer_param_space.model_dump(mode="json")
+                    if data.params.optimizer_param_space
+                    else None
+                ),
+                "optimizer_kind": (
+                    data.params.optimizer_kind.value if data.params.optimizer_kind else None
                 ),
             },
         )
@@ -305,9 +317,28 @@ class StressTestService:
         max_folds = int(max_folds_raw) if max_folds_raw is not None else 20
 
         backtest_config = build_engine_config_from_db(bt)
-        # C13 — 옵티마이저 best_params (있으면) 를 input_overrides 로 병합 → 각 fold
-        # IS/OOS 백테스트가 최적 파라미터로 실행. JSONB 저장값(str) → Decimal 복원.
-        # build_engine_config_from_db 는 input_overrides=None 이므로 단순 replace.
+
+        # C13 진짜 OOS — optimizer spec 동봉 시 fold별 train 재최적화(true WFO).
+        # param_space/kind 는 스키마 validator 로 항상 함께 저장 (한쪽만 = reject).
+        opt_param_space_raw = st.params.get("optimizer_param_space")
+        opt_kind_raw = st.params.get("optimizer_kind")
+        if opt_param_space_raw and opt_kind_raw:
+            wf = run_walk_forward_optimization(
+                strategy.pine_source,
+                ohlcv,
+                train_bars=train_bars,
+                test_bars=test_bars,
+                step_bars=step_bars,
+                max_folds=max_folds,
+                param_space=ParamSpace.model_validate(opt_param_space_raw),
+                kind=OptimizationKind(opt_kind_raw),
+                backtest_config=backtest_config,
+            )
+            return wf_result_to_jsonb(wf)
+
+        # C13 fixed-param fallback — best_params (있으면) 를 전 fold 고정 적용.
+        # JSONB 저장값(str) → Decimal 복원. build_engine_config_from_db 는
+        # input_overrides=None 이므로 단순 replace.
         best_params_raw = st.params.get("best_params")
         if best_params_raw:
             overrides = {k: Decimal(str(v)) for k, v in best_params_raw.items()}

@@ -145,13 +145,15 @@ export const ParamSpaceSchema = z
     max_evaluations: z.number().int().positive(),
     parameters: z.record(z.string().min(1), ParamSpaceFieldSchema),
     // Sprint 55 = Bayesian 활성 2 필드 (schema_version=2 only).
-    bayesian_n_initial_random: z.number().int().min(1).max(100).optional(), // BL-237: 50→100
-    bayesian_acquisition: BayesianAcquisitionSchema.optional(),
+    // .nullable(): BE ParamSpace.model_dump(mode="json") 가 grid(v1) run 에서 v2 필드를
+    // null 로 직렬화 → run-detail 재파싱 시 수용해야 함 (HIGH-1, BL-350/354 family).
+    bayesian_n_initial_random: z.number().int().min(1).max(100).nullable().optional(), // BL-237: 50→100
+    bayesian_acquisition: BayesianAcquisitionSchema.nullable().optional(),
     // Sprint 56 = Genetic 4 hyperparam 활성 (ADR-013 §7 amendment, schema_version=2 only).
-    population_size: z.number().int().min(2).max(200).optional(),
-    n_generations: z.number().int().min(1).max(100).optional(),
-    mutation_rate: strictDecimalInput.optional(),
-    crossover_rate: strictDecimalInput.optional(),
+    population_size: z.number().int().min(2).max(200).nullable().optional(),
+    n_generations: z.number().int().min(1).max(100).nullable().optional(),
+    mutation_rate: strictDecimalInput.nullable().optional(),
+    crossover_rate: strictDecimalInput.nullable().optional(),
     // Sprint 57 BL-234 = selection algorithm enum (null → engine default "tournament").
     genetic_selection_method: z
       .enum(["tournament", "roulette"])
@@ -169,7 +171,8 @@ export const ParamSpaceSchema = z
       ["genetic_selection_method", space.genetic_selection_method],
     ];
     const populated = v2OnlyEntries
-      .filter(([, v]) => v !== undefined)
+      // null = BE 가 grid(v1) 직렬화 시 내보내는 "미설정" → undefined 와 동일 취급.
+      .filter(([, v]) => v != null)
       .map(([k]) => k);
     const hasBayesian = Object.values(space.parameters).some(
       (p) => p.kind === "bayesian",
@@ -200,7 +203,7 @@ export const ParamSpaceSchema = z
 
     // Sprint 56 ADR-013 §7 amendment — mutation_rate / crossover_rate ∈ (0, 1].
     const mutN =
-      space.mutation_rate !== undefined ? Number(space.mutation_rate) : null;
+      space.mutation_rate != null ? Number(space.mutation_rate) : null;
     if (mutN !== null && !(mutN > 0 && mutN <= 1)) {
       ctx.addIssue({
         code: "custom",
@@ -208,7 +211,7 @@ export const ParamSpaceSchema = z
       });
     }
     const crossN =
-      space.crossover_rate !== undefined ? Number(space.crossover_rate) : null;
+      space.crossover_rate != null ? Number(space.crossover_rate) : null;
     if (crossN !== null && !(crossN > 0 && crossN <= 1)) {
       ctx.addIssue({
         code: "custom",

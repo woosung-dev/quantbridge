@@ -1,8 +1,8 @@
 "use client";
 
-// C13 — 옵티마이저 최적 파라미터를 walk-forward OOS 로 검증하는 CTA + 결과 임베드.
-// 신규 파이프라인 없이 기존 stress-test walk-forward submit/poll + WalkForwardBarChart 재사용
-// (best_params 만 주입). 과최적화(IS≫OOS) 정직 경고가 목적.
+// C13 진짜 OOS — 옵티마이저 spec(param_space+kind)로 fold별 재최적화 walk-forward CTA.
+// 각 fold 가 자기 in-sample 구간에서만 재최적화 → out-of-sample 에 적용 = 진짜 OOS.
+// 신규 파이프라인 없이 기존 stress-test walk-forward submit/poll + WalkForwardBarChart 재사용.
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { WalkForwardBarChart } from "@/app/(dashboard)/backtests/_components/walk-forward-bar-chart";
 import { Button } from "@/components/ui/button";
 import { useCreateWalkForward, useStressTest } from "@/features/backtest/hooks";
+import type { OptimizationKind, ParamSpace } from "@/features/optimizer/schemas";
 
 // stress-test-panel 의 walk-forward 기본값과 동일 (재사용 일관성).
 const WF_DEFAULTS = {
@@ -21,10 +22,11 @@ const WF_DEFAULTS = {
 
 interface Props {
   backtestId: string;
-  bestParams: Record<string, number>;
+  paramSpace: ParamSpace;
+  kind: OptimizationKind;
 }
 
-export function OptimizerOosEvaluation({ backtestId, bestParams }: Props) {
+export function OptimizerOosEvaluation({ backtestId, paramSpace, kind }: Props) {
   const [activeStressTestId, setActiveStressTestId] = useState<string | null>(
     null,
   );
@@ -43,29 +45,40 @@ export function OptimizerOosEvaluation({ backtestId, bestParams }: Props) {
   const handleRun = () => {
     wfMutation.mutate({
       backtest_id: backtestId,
-      params: { ...WF_DEFAULTS, best_params: bestParams },
+      params: {
+        ...WF_DEFAULTS,
+        optimizer_param_space: paramSpace,
+        optimizer_kind: kind,
+      },
     });
   };
+
+  const wfResult =
+    stressData?.status === "completed" &&
+    stressData.kind === "walk_forward" &&
+    stressData.walk_forward_result
+      ? stressData.walk_forward_result
+      : null;
 
   return (
     <section className="space-y-3 rounded border border-border bg-muted/10 p-3">
       <div className="space-y-1">
         <h3 className="text-sm font-medium">
-          최적 파라미터 OOS 검증 (과최적 경고)
+          최적화 OOS 검증 (진짜 walk-forward)
         </h3>
         <p className="text-xs text-muted-foreground">
-          최적 파라미터를 롤링 윈도우로 검증 — IS/OOS 일관성(degradation). IS≫OOS =
+          각 fold 는 자신의 in-sample(학습) 구간에서만 파라미터를 재최적화하고
+          out-of-sample(검증) 구간에 적용합니다 — 진짜 out-of-sample. IS≫OOS =
           과최적 경고.
         </p>
         <p className="text-xs text-muted-foreground">
-          단, 이 최적 파라미터는 전체 기간(OOS 구간 포함)에서 선택돼 모든 fold 에
-          고정 적용됩니다(fold별 재최적화 아님). 따라서 OOS 는 파라미터 선택 기간과
-          겹쳐, 진짜 out-of-sample 보다 낙관적일 수 있습니다.
+          단 (1) 탐색공간·목적함수는 사람이 고정, (2) fold 수가 적으면 표본이 작고,
+          (3) 거래비용·슬리피지는 백테스트 가정값입니다.
         </p>
       </div>
 
       <Button onClick={handleRun} disabled={wfMutation.isPending || isActive}>
-        최적 파라미터로 Walk-Forward OOS 검증
+        최적화 Walk-Forward OOS 검증 (fold별 재최적화)
       </Button>
 
       {activeStressTestId === null ? null : (
@@ -76,7 +89,8 @@ export function OptimizerOosEvaluation({ backtestId, bestParams }: Props) {
 
           {stressData?.status === "running" ? (
             <p className="text-sm text-muted-foreground">
-              실행 중… (2초 간격 자동 새로고침)
+              실행 중… (2초 간격 자동 새로고침 · fold별 재최적화는 시간이 더
+              걸립니다)
             </p>
           ) : null}
 
@@ -86,10 +100,40 @@ export function OptimizerOosEvaluation({ backtestId, bestParams }: Props) {
             </p>
           ) : null}
 
-          {stressData?.status === "completed" &&
-          stressData.kind === "walk_forward" &&
-          stressData.walk_forward_result ? (
-            <WalkForwardBarChart result={stressData.walk_forward_result} />
+          {wfResult ? (
+            <div className="space-y-2">
+              {wfResult.reoptimized_per_fold ? (
+                <span className="inline-block rounded bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  각 fold 재최적화됨 (진짜 OOS)
+                </span>
+              ) : null}
+              {wfResult.degenerate_folds_skipped > 0 ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ⚠️ {wfResult.degenerate_folds_skipped}개 fold 제외 — 해당 학습
+                  구간에서 전략이 거래를 내지 못했습니다 (취약성 신호).
+                </p>
+              ) : null}
+              {wfResult.reoptimized_per_fold ? (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">
+                    fold별 재최적화 파라미터 (drift 클수록 불안정)
+                  </summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {wfResult.folds.map((f) => (
+                      <li key={f.fold_index} className="text-muted-foreground">
+                        fold {f.fold_index + 1}:{" "}
+                        {f.selected_params
+                          ? Object.entries(f.selected_params)
+                              .map(([k, v]) => `${k}=${v}`)
+                              .join(", ")
+                          : "—"}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+              <WalkForwardBarChart result={wfResult} />
+            </div>
           ) : null}
 
           {stress.isError ? (
