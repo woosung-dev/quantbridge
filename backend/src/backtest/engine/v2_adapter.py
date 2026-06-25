@@ -12,6 +12,7 @@ Decimal-first 합산 규칙 (CLAUDE.md LESSON) 준수 — 금융 수치는 float
 
 from __future__ import annotations
 
+import bisect
 import logging
 import math
 import re
@@ -291,8 +292,73 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
 # --- equity curve --------------------------------------------------------
 
 
+def _funding_coverage_incomplete(
+    trades: list[RawTrade], ohlcv: pd.DataFrame, funding_rates: pd.Series
+) -> bool:
+    """funding 데이터가 보유 구간을 완전히 포괄하는지 — 결측 시 True (0 묵살 금지).
+
+    보유 구간 = [최초 entry bar, 최종 exit bar(또는 마지막 bar)]. funding_rates 의
+    커버 범위가 이 구간을 못 덮으면(앞/뒤 결측) True → C14 배너에 "funding 데이터
+    일부 결측" 고지 (C6 정직성). 포지션이 없으면 funding 무관 → False.
+    """
+    if not trades:
+        return False
+    if len(funding_rates) == 0:
+        return True
+    bar_ns = [t.value for t in pd.DatetimeIndex(ohlcv.index)]
+    fund_ns = [t.value for t in pd.DatetimeIndex(funding_rates.index)]
+    last_bar = len(ohlcv) - 1
+    held_start_bar = min(t.entry_bar_index for t in trades)
+    held_end_bar = max(
+        (t.exit_bar_index if t.exit_bar_index is not None else last_bar) for t in trades
+    )
+    held_start = bar_ns[held_start_bar]
+    held_end = bar_ns[min(held_end_bar, last_bar)]
+    return min(fund_ns) > held_start or max(fund_ns) < held_end
+
+
+def _funding_cost_by_bar(
+    trades: list[RawTrade], ohlcv: pd.DataFrame, funding_rates: pd.Series
+) -> tuple[list[Decimal], bool]:
+    """각 bar 의 funding 비용(차감액 리스트) + 데이터 결측 여부 — C6 SSOT.
+
+    funding 은 정산 경계(보통 8h)마다 보유 perp 포지션에 부과. settlement ts 는
+    이를 포함하는 bar 에 귀속(searchsorted). cost = notional(close*qty) * rate *
+    direction_sign (long=+1 → rate>0 시 지불 equity↓ / short=-1 → 수취).
+    funding_rates index = tz-aware 정산 시각, value = Decimal rate.
+    """
+    n = len(ohlcv)
+    costs = [Decimal("0")] * n
+    # int64 ns 로 변환해 bisect — pandas searchsorted overload/Hashable 타입 마찰 회피.
+    bar_ns: list[int] = [t.value for t in pd.DatetimeIndex(ohlcv.index)]
+    funding_ns: list[int] = [t.value for t in pd.DatetimeIndex(funding_rates.index)]
+    funding_vals = list(funding_rates)
+    for ts_ns, rate_raw in zip(funding_ns, funding_vals, strict=True):
+        rate = rate_raw if isinstance(rate_raw, Decimal) else Decimal(str(rate_raw))
+        # ts 를 포함하는 bar (가장 가까운 이전/동일 bar). 첫 bar 이전 ts → skip.
+        # 마지막 bar 시각 초과(백테스트 window 밖) 정산은 마지막 bar 오귀속 방지 위해 skip.
+        if not bar_ns or ts_ns > bar_ns[-1]:
+            continue
+        pos = bisect.bisect_right(bar_ns, ts_ns) - 1
+        if pos < 0:
+            continue
+        close_px = Decimal(str(ohlcv["close"].iloc[pos]))
+        for t in trades:
+            if t.entry_bar_index > pos:
+                continue
+            if t.exit_bar_index is not None and t.exit_bar_index <= pos:
+                continue
+            direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
+            costs[pos] += close_px * t.size * rate * direction_sign
+    incomplete = _funding_coverage_incomplete(trades, ohlcv, funding_rates)
+    return costs, incomplete
+
+
 def _compute_equity_curve(
-    trades: list[RawTrade], ohlcv: pd.DataFrame, cfg: BacktestConfig
+    trades: list[RawTrade],
+    ohlcv: pd.DataFrame,
+    cfg: BacktestConfig,
+    funding_rates: pd.Series | None = None,
 ) -> pd.Series:
     """bar-by-bar equity 재구성.
 
@@ -317,6 +383,12 @@ def _compute_equity_curve(
 
     values: list[Decimal] = []
 
+    # C6 funding accrual — funding_rates 제공 시 정산 경계마다 보유 포지션 funding
+    # 누적 차감 (None = 회귀 0, 기존 동작 byte-identical).
+    funding_by_bar = (
+        _funding_cost_by_bar(trades, ohlcv, funding_rates)[0] if funding_rates is not None else None
+    )
+
     # exit bar 별 realized pnl 누적
     exits_by_bar: dict[int, list[RawTrade]] = {}
     for t in trades:
@@ -324,10 +396,13 @@ def _compute_equity_curve(
             exits_by_bar.setdefault(t.exit_bar_index, []).append(t)
 
     realized_cum = Decimal("0")
+    funding_cum = Decimal("0")
     for bar_idx in range(n):
         # 이 bar 에 exit 된 trade pnl 을 실현 누적에 추가 (bar 종료 시점 관점)
         for t in exits_by_bar.get(bar_idx, []):
             realized_cum += t.pnl
+        if funding_by_bar is not None:
+            funding_cum += funding_by_bar[bar_idx]
 
         # close price — numpy/float 소스라도 str() 경유로 Decimal 진입
         close_raw = ohlcv["close"].iloc[bar_idx]
@@ -353,7 +428,7 @@ def _compute_equity_curve(
             )
             unrealized += price_pnl - (entry_fee + entry_slip)
 
-        values.append(init_cash + realized_cum + unrealized)
+        values.append(init_cash + realized_cum + unrealized - funding_cum)
 
     # object dtype 으로 Decimal 을 보관 — float drift 방지.
     return pd.Series(values, index=ohlcv.index, dtype=object)
