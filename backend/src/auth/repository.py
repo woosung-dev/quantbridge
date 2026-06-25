@@ -1,6 +1,8 @@
 """auth 도메인 Repository. AsyncSession 유일 보유자."""
+
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -24,6 +26,11 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.id == user_id))  # type: ignore[arg-type]
         return result.scalar_one_or_none()
 
+    async def get_created_at(self, user_id: UUID) -> datetime | None:
+        """readiness gate 용 — user.created_at 조회 (없으면 None)."""
+        user = await self.find_by_id(user_id)
+        return user.created_at if user is not None else None
+
     async def insert_if_absent(
         self,
         clerk_user_id: str,
@@ -34,11 +41,15 @@ class UserRepository:
 
         동일 clerk_user_id로 병렬 요청이 와도 race 없이 1개만 존재하도록 보장.
         """
-        stmt = pg_insert(User).values(
-            clerk_user_id=clerk_user_id,
-            email=email,
-            username=username,
-        ).on_conflict_do_nothing(index_elements=["clerk_user_id"])
+        stmt = (
+            pg_insert(User)
+            .values(
+                clerk_user_id=clerk_user_id,
+                email=email,
+                username=username,
+            )
+            .on_conflict_do_nothing(index_elements=["clerk_user_id"])
+        )
         await self.session.execute(stmt)
         # 삽입됐든 아니든 최종 row 반환
         user = await self.find_by_clerk_id(clerk_user_id)

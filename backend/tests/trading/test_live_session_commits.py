@@ -8,6 +8,7 @@ Sprint 6 (webhook_secret) → Sprint 13 (OrderService) → Sprint 15-A (Exchange
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -204,9 +205,18 @@ async def test_register_account_mode_live_rejected() -> None:
     account_repo.get_by_id = AsyncMock(return_value=account)
     strategy_repo = AsyncMock()
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
+    # W4 게이트가 AccountModeNotAllowed 보다 앞서므로, stub-block 을 검증하려면
+    # stable user_repo 를 주입해 demo-stability 게이트를 통과시킨다.
+    user_repo = AsyncMock()
+    user_repo.get_created_at = AsyncMock(
+        return_value=datetime.now(UTC) - timedelta(days=3650)
+    )
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
+        user_repo=user_repo,
     )
 
     req = _make_req(strategy.id, account.id)
