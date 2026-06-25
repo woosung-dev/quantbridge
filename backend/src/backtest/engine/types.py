@@ -25,8 +25,13 @@ class BacktestConfig:
     """
 
     init_cash: Decimal = Decimal("10000")
-    fees: float = 0.001  # 0.1%
-    slippage: float = 0.0005  # 0.05%
+    # C8 (선물형 비용모델): `fees` = taker 수수료. pine_v2 엔진의 모든 체결은
+    # 시장가·트리거(taker)이므로 `fees` 가 전 체결에 적용된다(slippage 동일).
+    # maker(resting post-only limit) 체결은 limit/strategy.exit H2 NOP(BL-098/BL-104)
+    # 라 producer 가 없어 비용모델상 미존재 → `maker_fee` config 는 실 producer
+    # (BL-104) 도입 시 추가. 비용 공식 SSOT 는 v2_adapter._leg_cost.
+    fees: float = 0.001  # 0.1% (taker)
+    slippage: float = 0.0005  # 0.05% (taker market/stop 에만 적용; limit 제외)
     freq: str = "1D"  # pandas offset alias
     # Sprint 7d: 빈 리스트면 24h. 값은 {"asia","london","ny"} 부분집합.
     # 엔진은 entries를 바 timestamp의 UTC hour로 필터링한다.

@@ -190,6 +190,35 @@ def _extract_state_and_errors(
     return None, []
 
 
+# --- cost model ----------------------------------------------------------
+
+
+def _leg_cost(
+    notional: Decimal,
+    *,
+    fill_type: Literal["taker", "maker"],
+    taker_fee: Decimal,
+    slippage: Decimal,
+    maker_fee: Decimal = Decimal("0"),
+) -> tuple[Decimal, Decimal]:
+    """단일 체결(leg)의 (수수료, 슬리피지) 비용 — C8 선물형 비용모델 SSOT.
+
+    - taker(시장가·트리거 체결): taker_fee 적용 + slippage 적용.
+    - maker(resting post-only limit 체결): maker_fee 적용 + slippage 면제(limit 제외).
+
+    grounding: pine_v2 엔진의 모든 실제 체결은 taker 이다(strategy.entry/close/
+    close_all = 시장가 current_close, stop= = 트리거; limit/strategy.exit 은 H2
+    NOP, BL-098/BL-104). 따라서 엔진 caller 는 항상 fill_type="taker" 이며 maker_fee
+    인자를 전달하지 않는다. maker 분기 + 비용모델은 resting-limit fill producer
+    (BL-104) 도입 시 활성될 forward 모델로, 본 helper 단위 테스트가 정확성을 고정.
+    본 helper 가 _build_raw_trades / _compute_metrics / _compute_equity_curve 3 경로의
+    비용 공식 단일 출처(Slice 1 ponytail 중복 제거).
+    """
+    if fill_type == "maker":
+        return notional * maker_fee, Decimal("0")
+    return notional * taker_fee, notional * slippage
+
+
 # --- trades --------------------------------------------------------------
 
 
@@ -199,7 +228,7 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
     all_trades.sort(key=lambda t: (t.entry_bar, 0 if t.is_open else 1))
 
     raw: list[RawTrade] = []
-    fee_rate = Decimal(str(cfg.fees))
+    taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
     for idx, t in enumerate(all_trades):
         entry_price = Decimal(str(t.entry_price))
@@ -208,11 +237,23 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
             Decimal(str(t.exit_price)) if t.exit_price is not None else None
         )
 
-        # 수수료 = (entry + exit) * qty * fee_rate. slippage 는 entry/exit 두 번 모두 적용.
-        entry_fee = entry_price * qty * fee_rate
-        entry_slip = entry_price * qty * slip_rate
-        exit_fee = exit_price * qty * fee_rate if exit_price is not None else Decimal("0")
-        exit_slip = exit_price * qty * slip_rate if exit_price is not None else Decimal("0")
+        # 수수료/슬리피지 = _leg_cost SSOT 위임. 현재 모든 체결 taker (grounding
+        # _leg_cost docstring). entry leg 항상 + exit leg 는 closed 만.
+        entry_fee, entry_slip = _leg_cost(
+            entry_price * qty,
+            fill_type="taker",
+            taker_fee=taker_fee,
+            slippage=slip_rate,
+        )
+        if exit_price is not None:
+            exit_fee, exit_slip = _leg_cost(
+                exit_price * qty,
+                fill_type="taker",
+                taker_fee=taker_fee,
+                slippage=slip_rate,
+            )
+        else:
+            exit_fee = exit_slip = Decimal("0")
         fees_total = entry_fee + exit_fee + entry_slip + exit_slip
 
         # PnL (수수료 차감 전 원시값 → 수수료 차감)
@@ -271,9 +312,8 @@ def _compute_equity_curve(
     """
     n = len(ohlcv)
     init_cash = cfg.init_cash
-    fee_rate = Decimal(str(cfg.fees))
+    taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
-    entry_cost_rate = fee_rate + slip_rate
 
     values: list[Decimal] = []
 
@@ -304,8 +344,14 @@ def _compute_equity_curve(
                     continue
             direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
             price_pnl = (close_px - t.entry_price) * t.size * direction_sign
-            entry_cost = t.entry_price * t.size * entry_cost_rate
-            unrealized += price_pnl - entry_cost
+            # entry leg 비용 (taker fee + slippage) — _leg_cost SSOT 위임.
+            entry_fee, entry_slip = _leg_cost(
+                t.entry_price * t.size,
+                fill_type="taker",
+                taker_fee=taker_fee,
+                slippage=slip_rate,
+            )
+            unrealized += price_pnl - (entry_fee + entry_slip)
 
         values.append(init_cash + realized_cum + unrealized)
 
@@ -406,21 +452,31 @@ def _compute_metrics(
     # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV close 기반).
     buy_and_hold_curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
 
-    # C14 (정직성) — 총 수수료/슬리피지 분해 집계. _build_raw_trades 의 per-leg
-    # 공식 미러링 (entry leg 항상 + exit leg 는 closed 만). 불변식:
+    # C14 (정직성) — 총 수수료/슬리피지 분해 집계. C8 Slice 3: _leg_cost SSOT
+    # 위임으로 _build_raw_trades 와의 cost 공식 중복 제거. 불변식 보존:
     #   total_fees + total_slippage == Σ RawTrade.fees.
-    # ponytail: _build_raw_trades 와 cost 공식 중복 — Slice 3 (C8) 비용모델
-    # 개편 시 단일 helper 로 통합 예정.
-    fee_rate = Decimal(str(cfg.fees))
+    taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
     total_fees = Decimal("0")
     total_slippage = Decimal("0")
     for t in trades:
-        legs = t.entry_price * t.size
+        entry_fee, entry_slip = _leg_cost(
+            t.entry_price * t.size,
+            fill_type="taker",
+            taker_fee=taker_fee,
+            slippage=slip_rate,
+        )
+        total_fees += entry_fee
+        total_slippage += entry_slip
         if t.exit_price is not None:
-            legs += t.exit_price * t.size
-        total_fees += legs * fee_rate
-        total_slippage += legs * slip_rate
+            exit_fee, exit_slip = _leg_cost(
+                t.exit_price * t.size,
+                fill_type="taker",
+                taker_fee=taker_fee,
+                slippage=slip_rate,
+            )
+            total_fees += exit_fee
+            total_slippage += exit_slip
 
     return BacktestMetrics(
         total_return=total_return,
