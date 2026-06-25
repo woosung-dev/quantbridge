@@ -276,7 +276,8 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
       {bestParams && Object.keys(bestParams).length > 0 && (
         <OptimizerOosEvaluation
           backtestId={data.backtest_id}
-          bestParams={bestParams}
+          paramSpace={data.param_space}
+          kind={data.kind}
         />
       )}
     </div>

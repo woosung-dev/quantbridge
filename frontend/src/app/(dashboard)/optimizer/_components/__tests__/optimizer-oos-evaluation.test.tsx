@@ -1,9 +1,10 @@
-// C13 — OptimizerOosEvaluation: CTA 클릭 → best_params 주입 walk-forward submit → 결과 임베드.
+// C13 진짜 OOS — OptimizerOosEvaluation: CTA → optimizer spec(param_space+kind) WFO submit.
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StressTestDetail } from "@/features/backtest/schemas";
+import type { ParamSpace } from "@/features/optimizer/schemas";
 
 interface MutationMock {
   mutate: ReturnType<typeof vi.fn>;
@@ -36,7 +37,18 @@ import { OptimizerOosEvaluation } from "../optimizer-oos-evaluation";
 const BACKTEST_ID = "abc12345-1111-4111-8111-111111111111";
 const STRESS_ID = "11111111-1111-4111-8111-111111111111";
 
-function walkForwardDetail(status: StressTestDetail["status"]): StressTestDetail {
+const PARAM_SPACE = {
+  schema_version: 1,
+  objective_metric: "sharpe_ratio",
+  direction: "maximize",
+  max_evaluations: 9,
+  parameters: { emaPeriod: { kind: "integer", min: 5, max: 10, step: 5 } },
+} as unknown as ParamSpace;
+
+function walkForwardDetail(
+  status: StressTestDetail["status"],
+  { skipped = 0 }: { skipped?: number } = {},
+): StressTestDetail {
   return {
     id: STRESS_ID,
     backtest_id: BACKTEST_ID,
@@ -58,6 +70,7 @@ function walkForwardDetail(status: StressTestDetail["status"]): StressTestDetail
                 out_of_sample_return: 0.05,
                 oos_sharpe: 0.4,
                 num_trades_oos: 5,
+                selected_params: { emaPeriod: "7" },
               },
             ],
             aggregate_oos_return: 0.05,
@@ -65,6 +78,8 @@ function walkForwardDetail(status: StressTestDetail["status"]): StressTestDetail
             valid_positive_regime: true,
             total_possible_folds: 1,
             was_truncated: false,
+            reoptimized_per_fold: true,
+            degenerate_folds_skipped: skipped,
           }
         : null,
     cost_assumption_result: null,
@@ -76,40 +91,37 @@ function walkForwardDetail(status: StressTestDetail["status"]): StressTestDetail
   };
 }
 
+function renderOos() {
+  return render(
+    <OptimizerOosEvaluation
+      backtestId={BACKTEST_ID}
+      paramSpace={PARAM_SPACE}
+      kind="grid_search"
+    />,
+  );
+}
+
 beforeEach(() => {
   wfMutation = { mutate: vi.fn(), isPending: false };
   lastWfOpts = null;
   stressData = undefined;
 });
 
-describe("OptimizerOosEvaluation", () => {
-  it("CTA + 정직 라벨(과최적 경고) 렌더", () => {
-    render(
-      <OptimizerOosEvaluation backtestId={BACKTEST_ID} bestParams={{ ema: 20 }} />,
-    );
+describe("OptimizerOosEvaluation (true WFO)", () => {
+  it("CTA + 진짜 WFO 정직 고지 렌더", () => {
+    renderOos();
     expect(
       screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/IS≫OOS/)).toBeInTheDocument();
+    // 진짜 out-of-sample 고지 (낙관 경고 X).
+    expect(screen.getByText(/진짜 out-of-sample/)).toBeInTheDocument();
+    expect(screen.getByText(/in-sample.*재최적화/)).toBeInTheDocument();
+    // 구 fixed-param 낙관 고지는 제거됨.
+    expect(screen.queryByText(/fold별 재최적화 아님/)).not.toBeInTheDocument();
   });
 
-  it("정직 고지: fold별 재최적화 아님 + OOS 가 파라미터 선택 기간과 겹쳐 낙관 가능 경고", () => {
-    render(
-      <OptimizerOosEvaluation backtestId={BACKTEST_ID} bestParams={{ ema: 20 }} />,
-    );
-    expect(screen.getByText(/fold별 재최적화 아님/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/진짜 out-of-sample 보다 낙관적/),
-    ).toBeInTheDocument();
-  });
-
-  it("CTA 클릭 시 best_params + backtest_id 로 walk-forward submit", () => {
-    render(
-      <OptimizerOosEvaluation
-        backtestId={BACKTEST_ID}
-        bestParams={{ ema: 20, sl: 2.5 }}
-      />,
-    );
+  it("CTA 클릭 시 optimizer_param_space + optimizer_kind 로 WFO submit", () => {
+    renderOos();
     fireEvent.click(
       screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
     );
@@ -122,30 +134,41 @@ describe("OptimizerOosEvaluation", () => {
         test_bars: 100,
         step_bars: 100,
         max_folds: 20,
-        best_params: { ema: 20, sl: 2.5 },
+        optimizer_kind: "grid_search",
       },
     });
+    expect(arg.params.optimizer_param_space).toEqual(PARAM_SPACE);
+    expect(arg.params.best_params).toBeUndefined();
   });
 
-  it("completed → WalkForwardBarChart(degradation 텍스트) 임베드", () => {
+  it("completed → 재최적화 뱃지 + WalkForwardBarChart 임베드", () => {
     stressData = walkForwardDetail("completed");
-    render(
-      <OptimizerOosEvaluation backtestId={BACKTEST_ID} bestParams={{ ema: 20 }} />,
-    );
+    renderOos();
     fireEvent.click(
       screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
     );
     act(() => {
       lastWfOpts?.onSuccess?.({ stress_test_id: STRESS_ID });
     });
+    expect(screen.getByText(/각 fold 재최적화됨/)).toBeInTheDocument();
     expect(screen.getByText(/Degradation ratio/)).toBeInTheDocument();
+  });
+
+  it("degenerate_folds_skipped > 0 → fragility 경고 노출", () => {
+    stressData = walkForwardDetail("completed", { skipped: 2 });
+    renderOos();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
+    );
+    act(() => {
+      lastWfOpts?.onSuccess?.({ stress_test_id: STRESS_ID });
+    });
+    expect(screen.getByText(/2.*fold.*제외/)).toBeInTheDocument();
   });
 
   it("running 상태에서 CTA disabled", () => {
     stressData = walkForwardDetail("running");
-    render(
-      <OptimizerOosEvaluation backtestId={BACKTEST_ID} bestParams={{ ema: 20 }} />,
-    );
+    renderOos();
     fireEvent.click(
       screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
     );
