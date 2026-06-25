@@ -1,6 +1,7 @@
 """auth 도메인 Repository. AsyncSession 유일 보유자."""
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -22,6 +23,13 @@ class UserRepository:
 
     async def find_by_id(self, user_id: UUID) -> User | None:
         result = await self.session.execute(select(User).where(User.id == user_id))  # type: ignore[arg-type]
+        return result.scalar_one_or_none()
+
+    async def get_created_at(self, user_id: UUID) -> datetime | None:
+        """readiness gate 용 — user.created_at 만 조회 (없으면 None)."""
+        result = await self.session.execute(
+            select(User.created_at).where(User.id == user_id)  # type: ignore[arg-type]
+        )
         return result.scalar_one_or_none()
 
     async def insert_if_absent(
