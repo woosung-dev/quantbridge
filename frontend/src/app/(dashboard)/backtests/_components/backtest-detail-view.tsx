@@ -147,6 +147,7 @@ export function BacktestDetailView({ id }: { id: string }) {
           config={bt.config}
           totalFees={bt.metrics.total_fees}
           totalSlippage={bt.metrics.total_slippage}
+          fundingDataIncomplete={bt.metrics.funding_data_incomplete}
         />
       ) : null}
 
