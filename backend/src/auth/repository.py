@@ -26,11 +26,9 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     async def get_created_at(self, user_id: UUID) -> datetime | None:
-        """readiness gate 용 — user.created_at 만 조회 (없으면 None)."""
-        result = await self.session.execute(
-            select(User.created_at).where(User.id == user_id)  # type: ignore[arg-type]
-        )
-        return result.scalar_one_or_none()
+        """readiness gate 용 — user.created_at 조회 (없으면 None)."""
+        user = await self.find_by_id(user_id)
+        return user.created_at if user is not None else None
 
     async def insert_if_absent(
         self,

@@ -140,10 +140,9 @@ class LiveSignalSessionService:
         created_at = (
             await self._user_repo.get_created_at(user_id) if self._user_repo else None
         )
-        if created_at is None:
-            days_elapsed = 0
-        else:
-            days_elapsed = (datetime.now(UTC) - created_at).days
+        days_elapsed = (
+            0 if created_at is None else (datetime.now(UTC) - created_at).days
+        )
         if days_elapsed < _MIN_DEMO_STABLE_DAYS:
             raise DemoAccountNotYetStable(
                 days_elapsed=days_elapsed, min_required=_MIN_DEMO_STABLE_DAYS
