@@ -102,6 +102,17 @@ class WalkForwardParams(BaseModel):
                 "best_params (fixed) and optimizer_param_space (re-optimization) "
                 "are mutually exclusive"
             )
+        # bayesian/genetic 엔진은 schema_version=2 필수 (ADR-013 §2.2). schema_version=1
+        # param_space 와 결합 시 worker-time FAILED 대신 submit-time fail-fast.
+        if (
+            self.optimizer_param_space is not None
+            and self.optimizer_kind in (OptimizationKindOut.BAYESIAN, OptimizationKindOut.GENETIC)
+            and self.optimizer_param_space.schema_version != 2
+        ):
+            raise ValueError(
+                f"optimizer_kind={self.optimizer_kind.value} requires "
+                f"optimizer_param_space.schema_version=2 (ADR-013 §2.2)"
+            )
         return self
 
 
@@ -152,6 +163,8 @@ class WalkForwardResultOut(BaseModel):
     was_truncated: bool
     # True = fold별 재최적화(진짜 OOS) / False = 고정 파라미터. FE disclaimer 분기.
     reoptimized_per_fold: bool = False
+    # WFO 에서 train 무거래로 제외된 fold 수 (strategy fragility 신호). FE 노출 권장.
+    degenerate_folds_skipped: int = 0
 
     @field_serializer("aggregate_oos_return")
     def _decimal_to_str(self, v: Decimal) -> str:

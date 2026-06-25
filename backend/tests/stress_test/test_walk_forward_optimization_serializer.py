@@ -33,20 +33,24 @@ def test_wfo_result_roundtrip_preserves_selected_params_and_flag() -> None:
         degradation_ratio=Decimal("2"),
         valid_positive_regime=True,
         total_possible_folds=3,
-        was_truncated=True,
+        was_truncated=False,
         reoptimized_per_fold=True,
+        degenerate_folds_skipped=2,
     )
     jsonb = wf_result_to_jsonb(result)
     assert jsonb["reoptimized_per_fold"] is True
+    assert jsonb["degenerate_folds_skipped"] == 2
     assert jsonb["folds"][0]["selected_params"] == {"emaPeriod": "7"}
 
     restored = wf_result_from_jsonb(jsonb)
     assert restored["reoptimized_per_fold"] is True
+    assert restored["degenerate_folds_skipped"] == 2
     assert restored["folds"][0]["selected_params"] == {"emaPeriod": "7"}
 
     # Out 스키마 검증 통과 (FE 노출 경로).
     out = WalkForwardResultOut.model_validate(restored)
     assert out.reoptimized_per_fold is True
+    assert out.degenerate_folds_skipped == 2
     assert out.folds[0].selected_params == {"emaPeriod": "7"}
 
 
@@ -74,7 +78,9 @@ def test_from_jsonb_backcompat_old_rows_default() -> None:
     }
     restored = wf_result_from_jsonb(old)
     assert restored["reoptimized_per_fold"] is False
+    assert restored["degenerate_folds_skipped"] == 0
     assert restored["folds"][0]["selected_params"] is None
     out = WalkForwardResultOut.model_validate(restored)
     assert out.reoptimized_per_fold is False
+    assert out.degenerate_folds_skipped == 0
     assert out.folds[0].selected_params is None

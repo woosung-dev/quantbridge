@@ -203,21 +203,61 @@ class TestOrchestration:
             param_space=_grid_space(),
             kind=OptimizationKind.GRID_SEARCH,
         )
-        # 4 시도 - 1 skip = 3 fold. truncation 플래그로 누락 신호.
+        # 4 시도 - 1 skip = 3 fold. skip 은 degenerate_folds_skipped 로 신호 (was_truncated 와 분리).
         assert len(result.folds) == 3
-        assert result.was_truncated is True
+        assert result.degenerate_folds_skipped == 1
+        assert result.was_truncated is False  # max_folds 미도달 (4 attempted == total_possible 4).
+
+    def test_truncation_and_skip_are_independent_signals(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ohlcv = _ohlcv(300)  # total_possible=4, but max_folds=2 → 2 attempted.
+        calls = {"n": 0}
+
+        def fake_optimize(pine, train_slice, *, param_space, kind, backtest_config):  # type: ignore[no-untyped-def]
+            calls["n"] += 1
+            if calls["n"] == 2:  # 2nd attempted fold degenerate.
+                return None
+            return {"emaPeriod": Decimal(int(train_slice.index[0].value))}
+
+        monkeypatch.setattr(wf_mod, "_optimize_fold", fake_optimize)
+        monkeypatch.setattr(wf_mod, "run_backtest", lambda *a, **k: _ok_outcome())
+
+        result = run_walk_forward_optimization(
+            SIMPLE_PINE,
+            ohlcv,
+            train_bars=100,
+            test_bars=50,
+            step_bars=50,
+            max_folds=2,
+            param_space=_grid_space(),
+            kind=OptimizationKind.GRID_SEARCH,
+        )
+        assert len(result.folds) == 1
+        assert result.degenerate_folds_skipped == 1  # skip 신호.
+        assert result.was_truncated is True  # total_possible 4 > attempted 2 = max_folds 절단 신호.
 
 
 def test_real_grid_wfo_end_to_end() -> None:
-    """실 grid 옵티마이저 + 실 pine_v2 backtest — 실배선/회귀 확인(구조 검증, 비-brittle)."""
+    """실 grid 옵티마이저 + 실 pine_v2 backtest — 실배선 + 독립 오라클 검증.
+
+    LOW-1(Evaluator gate 1): 실 경로에서도 fold별 재최적화를 독립 오라클로 증명.
+    fold-0 의 selected_params == 동일 train slice(iloc[0:100])만으로 독립 실행한
+    옵티마이저 best_params (no-lookahead + 올바른 윈도잉을 실 경로에서 입증).
+    """
+    from src.backtest.engine.types import BacktestConfig
+    from src.optimizer.engine.dispatch import best_params_of
+    from src.optimizer.engine.grid_search import run_grid_search
+
     ohlcv = make_sine_ohlcv(n_bars=300)
+    ps = _grid_space()
     result = run_walk_forward_optimization(
         PINE_WITH_INPUTS,
         ohlcv,
         train_bars=100,
         test_bars=50,
         step_bars=50,
-        param_space=_grid_space(),
+        param_space=ps,
         kind=OptimizationKind.GRID_SEARCH,
     )
     assert result.folds, "최소 1 fold 생성"
@@ -227,6 +267,19 @@ def test_real_grid_wfo_end_to_end() -> None:
         assert "emaPeriod" in fold.selected_params
         assert fold.test_start > fold.train_end
     assert isinstance(result.degradation_ratio, Decimal)
+
+    # 독립 오라클 — fold-0(fold_index=0) train slice 만으로 옵티마이저 재실행.
+    fold0 = next(f for f in result.folds if f.fold_index == 0)
+    oracle_best = best_params_of(
+        run_grid_search(
+            PINE_WITH_INPUTS,
+            ohlcv.iloc[0:100],
+            param_space=ps,
+            backtest_config=BacktestConfig(),
+        )
+    )
+    assert oracle_best is not None
+    assert fold0.selected_params == {k: str(v) for k, v in oracle_best.items()}
 
 
 def test_plain_run_walk_forward_not_reoptimized() -> None:

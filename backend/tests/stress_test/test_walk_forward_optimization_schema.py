@@ -66,3 +66,26 @@ def test_best_params_and_optimizer_spec_mutually_exclusive() -> None:
             optimizer_param_space=_ps(),  # type: ignore[arg-type]
             optimizer_kind="grid_search",  # type: ignore[arg-type]
         )
+
+
+def test_bayesian_kind_requires_schema_version_2() -> None:
+    """LOW-2(Evaluator gate 1) — bayesian/genetic 은 schema_version=2 필수.
+    schema_version=1 param_space 와 결합 시 worker-time FAILED 대신 submit-time reject (fail-fast).
+    """
+    with pytest.raises(ValidationError):
+        WalkForwardParams(
+            train_bars=100,
+            test_bars=50,
+            optimizer_param_space=_ps(),  # schema_version=1
+            optimizer_kind="bayesian",  # type: ignore[arg-type]
+        )
+
+
+def test_grid_search_allows_schema_version_1() -> None:
+    p = WalkForwardParams(
+        train_bars=100,
+        test_bars=50,
+        optimizer_param_space=_ps(),  # schema_version=1
+        optimizer_kind="grid_search",  # type: ignore[arg-type]
+    )
+    assert p.optimizer_param_space is not None

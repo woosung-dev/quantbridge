@@ -55,10 +55,12 @@ class WalkForwardResult:
             는 해석 불가 (부호 반전/0 근처 불안정). UI/API 는 이 flag 로 "N/A" 표시.
         total_possible_folds: ohlcv/train/test/step 조합으로 계산 가능한 fold 총 개수
             (max_folds 적용 이전). truncation 여부 판단에 사용.
-        was_truncated: 기하학적으로 가능한 fold 보다 실제 fold 가 적은 경우 True
-            (max_folds 상한 또는 WFO degenerate-train fold skip). `aggregate_oos_return`
-            이 전체 구간 대비 편향됐는지 소비자가 감지.
+        was_truncated: max_folds 상한으로 fold 가 절단됐는가 (config 신호). degenerate
+            skip 과는 분리 — `degenerate_folds_skipped` 참조. `aggregate_oos_return` 이
+            전체 구간 대비 편향됐는지 소비자가 감지.
         reoptimized_per_fold: True = fold별 train 재최적화(진짜 OOS). False = 고정 파라미터.
+        degenerate_folds_skipped: WFO 에서 train 구간 무거래로 재최적화 불가해 제외된 fold 수
+            (strategy fragility 신호 — 전략이 해당 구간에서 거래를 못 냄). plain/fixed = 0.
     """
 
     folds: list[WalkForwardFold]
@@ -68,6 +70,7 @@ class WalkForwardResult:
     total_possible_folds: int
     was_truncated: bool
     reoptimized_per_fold: bool = False
+    degenerate_folds_skipped: int = 0
 
 
 def _compute_aggregates(
@@ -120,8 +123,7 @@ def _prepare_walk_forward(
         raise ValueError("train_bars and test_bars must be positive")
     if train_bars + test_bars > len(ohlcv):
         raise ValueError(
-            f"train_bars + test_bars ({train_bars + test_bars}) "
-            f"exceeds ohlcv length ({len(ohlcv)})"
+            f"train_bars + test_bars ({train_bars + test_bars}) exceeds ohlcv length ({len(ohlcv)})"
         )
     step = step_bars if step_bars is not None else test_bars
     if step <= 0:
@@ -174,13 +176,9 @@ def _build_fold(
 ) -> WalkForwardFold:
     """IS/OOS outcome status 검증 + WalkForwardFold 생성 (run_walk_forward / WFO 공유)."""
     if is_outcome.status != "ok" or is_outcome.result is None:
-        raise ValueError(
-            f"IS backtest failed at fold {fold_index}: status={is_outcome.status}"
-        )
+        raise ValueError(f"IS backtest failed at fold {fold_index}: status={is_outcome.status}")
     if oos_outcome.status != "ok" or oos_outcome.result is None:
-        raise ValueError(
-            f"OOS backtest failed at fold {fold_index}: status={oos_outcome.status}"
-        )
+        raise ValueError(f"OOS backtest failed at fold {fold_index}: status={oos_outcome.status}")
     return WalkForwardFold(
         fold_index=fold_index,
         train_start=train_slice.index[0].to_pydatetime(),
@@ -303,6 +301,7 @@ def run_walk_forward_optimization(
     cfg = backtest_config or BacktestConfig()
 
     folds: list[WalkForwardFold] = []
+    degenerate_skipped = 0
     for fold_index, train_slice, test_slice in _iter_folds(
         ohlcv, train_bars=train_bars, test_bars=test_bars, step=step, max_folds=max_folds
     ):
@@ -310,7 +309,8 @@ def run_walk_forward_optimization(
             pine_source, train_slice, param_space=param_space, kind=kind, backtest_config=cfg
         )
         if best is None:
-            continue  # train 구간 유효 파라미터 없음 → skip.
+            degenerate_skipped += 1  # train 구간 유효 파라미터 없음 → skip (fragility 신호).
+            continue
         fold_cfg = build_cell_config(cfg, overrides=best)
         is_outcome = run_backtest(pine_source, train_slice, fold_cfg)
         oos_outcome = run_backtest(pine_source, test_slice, fold_cfg)
@@ -331,7 +331,10 @@ def run_walk_forward_optimization(
         )
 
     oos_avg, degradation, valid_positive_regime = _compute_aggregates(folds)
-    was_truncated = total_possible_folds > len(folds)
+    # attempted = 실행 fold + skip fold = min(total_possible, max_folds). was_truncated 는
+    # max_folds 절단만 의미 (skip 은 degenerate_folds_skipped 로 분리).
+    attempted = len(folds) + degenerate_skipped
+    was_truncated = total_possible_folds > attempted
 
     return WalkForwardResult(
         folds=folds,
@@ -341,4 +344,5 @@ def run_walk_forward_optimization(
         total_possible_folds=total_possible_folds,
         was_truncated=was_truncated,
         reoptimized_per_fold=True,
+        degenerate_folds_skipped=degenerate_skipped,
     )
