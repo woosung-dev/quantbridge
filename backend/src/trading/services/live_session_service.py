@@ -9,12 +9,14 @@ from uuid import UUID
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
+from src.auth.repository import UserRepository
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.exceptions import (
     AccountModeNotAllowed,
     AccountNotFound,
+    DemoAccountNotYetStable,
     InvalidStrategySettings,
     LiveSessionQuotaExceeded,
     SessionAlreadyActive,
@@ -36,6 +38,9 @@ from src.trading.schemas import RegisterLiveSessionRequest
 
 logger = logging.getLogger(__name__)
 
+# Wave 0 W4 — 라이브 전환 전 요구 데모 안정화 기간(일). ponytail: 상수, 튜닝 필요 시 config 승격.
+_MIN_DEMO_STABLE_DAYS = 7
+
 
 class LiveSignalSessionService:
     """Sprint 26 — Pine signal evaluate session 등록/조회/종료.
@@ -54,11 +59,13 @@ class LiveSignalSessionService:
         account_repo: ExchangeAccountRepository,
         strategy_repo: StrategyRepository,
         *,
+        user_repo: UserRepository | None = None,
         max_active_per_user: int = 5,
     ) -> None:
         self._repo = repo
         self._account_repo = account_repo
         self._strategy_repo = strategy_repo
+        self._user_repo = user_repo
         self._max_active_per_user = max_active_per_user
 
     async def register(self, user_id: UUID, req: RegisterLiveSessionRequest) -> LiveSignalSession:
@@ -83,6 +90,12 @@ class LiveSignalSessionService:
         account = await self._account_repo.get_by_id(req.exchange_account_id)
         if account is None or account.user_id != user_id:
             raise AccountNotFound(req.exchange_account_id)
+
+        # Wave 0 W4 — 라이브 경로 한정 demo-stability readiness 게이트.
+        # 라이브는 어차피 AccountModeNotAllowed(stub)로 막히지만, 게이트를 앞에 둬
+        # cutover(Wave 3) 시 데모 안정화 강제가 그대로 동작하도록 prep. demo 무영향.
+        if account.mode == ExchangeMode.live:
+            await self._enforce_demo_stability(user_id)
 
         # codex G.0 P2 #1 — ExchangeName.bybit (not 'bybit_futures' string).
         # Futures 여부는 settings.leverage is not None 으로 dispatch 분기 (Sprint 22 BL-091).
@@ -118,6 +131,23 @@ class LiveSignalSessionService:
         # (ExchangeAccount) 와 동일 broken bug 4번째 재발 방어.
         await self._repo.commit()
         return saved
+
+    async def _enforce_demo_stability(self, user_id: UUID) -> None:
+        """라이브 전환 readiness — user.created_at 경과일 >= _MIN_DEMO_STABLE_DAYS 강제.
+
+        조회 실패(None)는 검증 불가 → fail-closed(days_elapsed=0)로 거부.
+        """
+        created_at = (
+            await self._user_repo.get_created_at(user_id) if self._user_repo else None
+        )
+        if created_at is None:
+            days_elapsed = 0
+        else:
+            days_elapsed = (datetime.now(UTC) - created_at).days
+        if days_elapsed < _MIN_DEMO_STABLE_DAYS:
+            raise DemoAccountNotYetStable(
+                days_elapsed=days_elapsed, min_required=_MIN_DEMO_STABLE_DAYS
+            )
 
     async def list_active(self, user_id: UUID) -> list[LiveSignalSession]:
         return list(await self._repo.list_active_by_user(user_id))

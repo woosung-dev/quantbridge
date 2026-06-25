@@ -12,6 +12,7 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth.repository import UserRepository
 from src.common.database import get_async_session
 from src.core.config import settings
 from src.strategy.models import Strategy
@@ -182,4 +183,5 @@ async def get_live_signal_session_service(
         repo=LiveSignalSessionRepository(session),
         account_repo=ExchangeAccountRepository(session),
         strategy_repo=StrategyRepository(session),
+        user_repo=UserRepository(session),
     )
