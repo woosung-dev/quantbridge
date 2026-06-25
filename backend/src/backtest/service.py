@@ -58,6 +58,7 @@ from src.backtest.serializers import (
 )
 from src.common.pagination import Page
 from src.core.config import settings
+from src.market_data.constants import to_ccxt_perpetual_symbol
 from src.market_data.providers import OHLCVProvider
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import Strategy
@@ -65,6 +66,7 @@ from src.strategy.pine_v2.compat import _extract_default_qty
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings
+from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +79,15 @@ class BacktestService:
         strategy_repo: StrategyRepository,
         ohlcv_provider: OHLCVProvider,
         dispatcher: TaskDispatcher,
+        funding_repo: FundingRateRepository | None = None,
     ) -> None:
         self.repo = repo
         self.strategy_repo = strategy_repo
         self.provider = ohlcv_provider
         self.dispatcher = dispatcher
+        # C6 (Slice 4) — perp funding 차감용 read-only repo. run() 의 worker 경로에서만
+        # 사용. HTTP submit/detail 경로는 None 으로 충분(run() 미실행).
+        self.funding_repo = funding_repo
 
     # --- HTTP submit path ---
 
@@ -308,7 +314,21 @@ class BacktestService:
         # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 적용 (TradingView 패턴).
         # bt.config NULL (legacy) 시 engine default fallback.
         config = self._build_engine_config(bt)
-        outcome = run_backtest(strategy.pine_source, ohlcv, config=config)
+        # C6 (Slice 4) — include_funding 활성 + funding_repo 주입 시 perp funding 시계열을
+        # [period_start, period_end] window 로 읽어 엔진에 전달. 거래소 bybit 고정(MVP).
+        # 심볼 브릿지: backtest "BTC/USDT" → CCXT perp "BTC/USDT:USDT". funding_repo None
+        # (HTTP/legacy 경로) 또는 include_funding=false → funding=None = 회귀 0.
+        funding_rates: pd.Series | None = None
+        if config.include_funding and self.funding_repo is not None:
+            funding_rates = await self.funding_repo.get_funding_series(
+                exchange="bybit",
+                symbol=to_ccxt_perpetual_symbol(bt.symbol),
+                start=bt.period_start,
+                end=bt.period_end,
+            )
+        outcome = run_backtest(
+            strategy.pine_source, ohlcv, config=config, funding_rates=funding_rates
+        )
 
         # Guard #3: post-engine
         bt3 = await self.repo.get_by_id(backtest_id)
@@ -688,6 +708,8 @@ class BacktestService:
                     # C14 (정직성): total_fees / total_slippage 헤드라인 net 표시.
                     total_fees=m.total_fees,
                     total_slippage=m.total_slippage,
+                    # C6 (정직성 Slice 4): funding 결측 flag (FE 정직 고지용).
+                    funding_data_incomplete=m.funding_data_incomplete,
                 )
             if bt.equity_curve:
                 equity_out = [

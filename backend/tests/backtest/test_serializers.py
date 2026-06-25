@@ -201,6 +201,49 @@ class TestCostTotalsSerialization:
         assert m.total_slippage is None
 
 
+class TestFundingIncompleteSerialization:
+    """C6 (정직성 번들 Slice 4) — funding_data_incomplete JSONB round-trip.
+
+    bool flag — None 키 생략 → backward-compat (구 완료 backtest 는 키 없음 → None).
+    True/False 둘 다 명시 직렬화(False 도 "결측 아님" 정직 신호이므로 보존).
+    """
+
+    def _base(self, **extra: object) -> BacktestMetrics:
+        return BacktestMetrics(
+            total_return=Decimal("0.1"),
+            sharpe_ratio=Decimal("1.5"),
+            max_drawdown=Decimal("-0.05"),
+            win_rate=Decimal("0.6"),
+            num_trades=10,
+            **extra,  # type: ignore[arg-type]
+        )
+
+    def test_roundtrip_true(self) -> None:
+        d = metrics_to_jsonb(self._base(funding_data_incomplete=True))
+        assert d["funding_data_incomplete"] is True
+        assert metrics_from_jsonb(d).funding_data_incomplete is True
+
+    def test_roundtrip_false(self) -> None:
+        d = metrics_to_jsonb(self._base(funding_data_incomplete=False))
+        assert d["funding_data_incomplete"] is False
+        assert metrics_from_jsonb(d).funding_data_incomplete is False
+
+    def test_none_omitted_from_jsonb(self) -> None:
+        d = metrics_to_jsonb(self._base(funding_data_incomplete=None))
+        assert "funding_data_incomplete" not in d
+
+    def test_legacy_compat_missing_key(self) -> None:
+        legacy_data = {
+            "total_return": "0.1",
+            "sharpe_ratio": "1.5",
+            "max_drawdown": "-0.05",
+            "win_rate": "0.6",
+            "num_trades": 10,
+            # funding_data_incomplete 키 없음 (Slice 4 이전).
+        }
+        assert metrics_from_jsonb(legacy_data).funding_data_incomplete is None
+
+
 class TestEquityCurveSerialization:
     def test_to_jsonb_with_decimal(self) -> None:
         idx = pd.DatetimeIndex([datetime(2024, 1, 1), datetime(2024, 1, 2)])
