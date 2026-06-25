@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import StrEnum
+from typing import Literal
 
 
 class ExitOrderKind(StrEnum):
@@ -38,7 +39,7 @@ _PRIORITY_RANK: dict[ExitOrderKind, int] = {
 }
 
 
-def fill_type_for(kind: ExitOrderKind) -> str:
+def fill_type_for(kind: ExitOrderKind) -> Literal["taker", "maker"]:
     """cost SSOT 브릿지 — TP=maker(resting limit), SL·Trail=taker(trigger 시장체결)."""
     if kind == ExitOrderKind.TAKE_PROFIT:
         return "maker"

@@ -31,6 +31,7 @@ from src.backtest.engine.types import (
 from src.backtest.exceptions import TradingSessionTzNaiveReject
 from src.strategy.pine.types import ParseOutcome, SignalResult
 from src.strategy.pine_v2.compat import V2RunResult, parse_and_run_v2
+from src.strategy.pine_v2.exit_orders import fill_type_for
 from src.strategy.pine_v2.interpreter import PineRuntimeError
 from src.strategy.pine_v2.strategy_state import StrategyState, Trade
 
@@ -242,6 +243,7 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
     raw: list[RawTrade] = []
     taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
+    maker_fee = Decimal(str(cfg.maker_fee))
     for idx, t in enumerate(all_trades):
         entry_price = Decimal(str(t.entry_price))
         qty = Decimal(str(t.qty))
@@ -258,11 +260,15 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
             slippage=slip_rate,
         )
         if exit_price is not None:
+            # BL-104 — exit leg fill_type 라우팅: TP=maker(slippage 면제), SL/Trail=taker.
+            # exit_kind 미태그(market close/flip) → taker (byte-identical).
+            exit_fill = fill_type_for(t.exit_kind) if t.exit_kind is not None else "taker"
             exit_fee, exit_slip = _leg_cost(
                 exit_price * qty,
-                fill_type="taker",
+                fill_type=exit_fill,
                 taker_fee=taker_fee,
                 slippage=slip_rate,
+                maker_fee=maker_fee,
             )
         else:
             exit_fee = exit_slip = Decimal("0")
@@ -295,6 +301,7 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
                 pnl=net_pnl,
                 return_pct=return_pct,
                 fees=fees_total,
+                exit_kind=t.exit_kind,
             )
         )
     return raw
@@ -544,6 +551,7 @@ def _compute_metrics(
     #   total_fees + total_slippage == Σ RawTrade.fees.
     taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
+    maker_fee = Decimal(str(cfg.maker_fee))
     total_fees = Decimal("0")
     total_slippage = Decimal("0")
     for t in trades:
@@ -556,11 +564,14 @@ def _compute_metrics(
         total_fees += entry_fee
         total_slippage += entry_slip
         if t.exit_price is not None:
+            # BL-104 — exit leg fill_type 라우팅 (_build_raw_trades 와 동일 SSOT).
+            exit_fill = fill_type_for(t.exit_kind) if t.exit_kind is not None else "taker"
             exit_fee, exit_slip = _leg_cost(
                 t.exit_price * t.size,
-                fill_type="taker",
+                fill_type=exit_fill,
                 taker_fee=taker_fee,
                 slippage=slip_rate,
+                maker_fee=maker_fee,
             )
             total_fees += exit_fee
             total_slippage += exit_slip
