@@ -17,8 +17,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import { useDeactivateLiveSession, useLiveSessions } from "../hooks";
+import {
+  useDeactivateLiveSession,
+  useLiveSessionState,
+  useLiveSessions,
+} from "../hooks";
 import type { LiveSession } from "../schemas";
+import { formatRealizedPnl } from "../utils";
 import { LiveSessionStateView } from "./live-session-state-view";
 
 type Props = {
@@ -102,6 +107,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
               <p className="text-xs text-muted-foreground">
                 {s.interval} · created: {new Date(s.created_at).toLocaleString()}
               </p>
+              <SessionPnlBadge sessionId={s.id} isActive={s.is_active} />
             </button>
             <Button
               size="sm"
@@ -145,5 +151,36 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// 세션별 실현손익 배지 — useLiveSessionState 재사용(queryKey 공유 → 추가 네트워크 0).
+// 리스트는 is_active 세션만 표시하므로 항상 enabled. LESSON-004: primitive dep 전달.
+function SessionPnlBadge({
+  sessionId,
+  isActive,
+}: {
+  sessionId: string;
+  isActive: boolean;
+}) {
+  const { data: state, isLoading } = useLiveSessionState(sessionId, isActive);
+  if (isLoading || !state) {
+    return null;
+  }
+  const { text, tone } = formatRealizedPnl(state.total_realized_pnl);
+  const toneClass =
+    tone === "profit"
+      ? "text-[color:var(--success)]"
+      : tone === "loss"
+        ? "text-[color:var(--destructive)]"
+        : "text-muted-foreground";
+  return (
+    <p className="mt-1 flex items-center gap-2 font-mono text-xs">
+      <span className="text-muted-foreground">PnL</span>
+      <span className={toneClass}>{text}</span>
+      <span className="text-muted-foreground">
+        · {state.total_closed_trades} 청산
+      </span>
+    </p>
   );
 }
