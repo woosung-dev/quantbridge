@@ -30,3 +30,17 @@ def normalize_symbol(symbol: str) -> str:
             if base:
                 return f"{base}/{quote}"
     raise ValueError(f"Cannot normalize symbol: {symbol}")
+
+
+def to_ccxt_perpetual_symbol(symbol: str) -> str:
+    """unified/concat 심볼 → CCXT USDT-margined perpetual ('BTC/USDT:USDT').
+
+    backtest 심볼('BTC/USDT')과 funding 인제스션 심볼('BTC/USDT:USDT', CCXT perp
+    colon 포맷) 사이의 브릿지. settle 통화 = quote 통화(USDT-margined). 이미 colon
+    perp 면 대문자만 적용(idempotent). normalize 불가 심볼은 ValueError 전파.
+    """
+    if ":" in symbol:
+        return symbol.upper()
+    unified = normalize_symbol(symbol)
+    quote = unified.split("/")[1]
+    return f"{unified}:{quote}"

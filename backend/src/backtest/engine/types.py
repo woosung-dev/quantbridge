@@ -160,6 +160,10 @@ class BacktestMetrics:
     # 기존 완료 backtest round-trip 호환 위해 None default.
     total_fees: Decimal | None = None
     total_slippage: Decimal | None = None
+    # C6 (정직성 번들 Slice 4) — perp funding 차감 시 보유 구간 일부가 funding 데이터
+    # 가용 범위(인제스션 forward-only) 밖이면 True. include_funding=false 또는 funding
+    # 미전달 시 None(미반영) → 기존 완료 backtest round-trip 호환.
+    funding_data_incomplete: bool | None = None
 
 
 @dataclass(frozen=True)

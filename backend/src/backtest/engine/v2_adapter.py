@@ -43,6 +43,7 @@ def run_backtest_v2(
     source: str,
     ohlcv: pd.DataFrame,
     config: BacktestConfig | None = None,
+    funding_rates: pd.Series | None = None,
 ) -> BacktestOutcome:
     """pine_v2 엔진으로 Pine 을 실행한 뒤 `BacktestOutcome` 으로 변환.
 
@@ -141,8 +142,18 @@ def run_backtest_v2(
 
     try:
         trades = _build_raw_trades(state, cfg)
-        equity = _compute_equity_curve(trades, ohlcv, cfg)
-        metrics = _compute_metrics(trades, equity, cfg, ohlcv)
+        # C6 funding accrual 배선 — funding_rates 제공 시 8h 정산 경계 차감 + 결측 flag.
+        # flag 는 경량 헬퍼로 1회만 계산(cost 재계산 회피, _compute_equity_curve 시그니처
+        # 불변). None = 회귀 0 (기존 동작 byte-identical).
+        funding_incomplete = (
+            _funding_coverage_incomplete(trades, ohlcv, funding_rates)
+            if funding_rates is not None
+            else None
+        )
+        equity = _compute_equity_curve(trades, ohlcv, cfg, funding_rates=funding_rates)
+        metrics = _compute_metrics(
+            trades, equity, cfg, ohlcv, funding_data_incomplete=funding_incomplete
+        )
     except Exception as exc:
         logger.exception("v2_adapter_build_failed")
         return BacktestOutcome(
@@ -442,6 +453,7 @@ def _compute_metrics(
     equity: pd.Series,
     cfg: BacktestConfig,
     ohlcv: pd.DataFrame | None = None,
+    funding_data_incomplete: bool | None = None,
 ) -> BacktestMetrics:
     """RawTrade list + equity curve → BacktestMetrics 24 필드.
 
@@ -587,6 +599,8 @@ def _compute_metrics(
         # C14 (정직성) — 총 수수료/슬리피지 분해 (헤드라인 net 표시용).
         total_fees=total_fees,
         total_slippage=total_slippage,
+        # C6 (정직성) — funding 차감 시 보유 구간 일부가 funding 데이터 범위 밖이면 True.
+        funding_data_incomplete=funding_data_incomplete,
     )
 
 

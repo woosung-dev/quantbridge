@@ -43,6 +43,13 @@ export interface AssumptionsCardProps {
    */
   readonly totalFees?: number | null;
   readonly totalSlippage?: number | null;
+  /**
+   * C6 (정직성) — metrics.funding_data_incomplete. perp funding 차감 시 보유 구간
+   * 일부가 funding 데이터 가용 범위(인제스션 forward-only — 최근 Bybit BTC/ETH) 밖이면
+   * true → "펀딩 비용 미반영 구간 있음" 정직 고지. false=전 구간 반영, null/undefined=
+   * funding 미반영(include_funding=false / 구 백테스트) → 둘 다 미렌더.
+   */
+  readonly fundingDataIncomplete?: boolean | null;
 }
 
 function formatUsdt(v: number): string {
@@ -54,6 +61,7 @@ export function AssumptionsCard({
   config,
   totalFees,
   totalSlippage,
+  fundingDataIncomplete,
 }: AssumptionsCardProps) {
   const leverage = config?.leverage ?? DEFAULT_LEVERAGE;
   const fees = config?.fees ?? DEFAULT_FEES;
@@ -171,6 +179,18 @@ export function AssumptionsCard({
         수치입니다. 체결 가정 — 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후
         트리거가에 체결됩니다.
       </p>
+      {/* C6 (정직성) — funding 데이터가 보유 구간 일부를 못 덮을 때만 표시. "결측"
+          (혼란) 대신 *왜* 미반영인지 설명. include_funding=false / 미반영 시 미렌더. */}
+      {fundingDataIncomplete === true ? (
+        <p
+          data-testid="backtest-funding-incomplete-note"
+          className="mt-2 text-[11px] leading-relaxed text-amber-600 dark:text-amber-500"
+        >
+          ⚠ 펀딩 비용 미반영 구간 있음 — funding 데이터 가용 범위(최근 Bybit
+          BTC/ETH) 밖의 보유 구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은
+          펀딩 비용만큼 낙관 편향일 수 있습니다.
+        </p>
+      ) : null}
     </section>
   );
 }

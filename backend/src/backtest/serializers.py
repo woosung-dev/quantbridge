@@ -107,6 +107,9 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
         d["total_fees"] = str(m.total_fees)
     if m.total_slippage is not None:
         d["total_slippage"] = str(m.total_slippage)
+    # C6 (정직성 Slice 4): funding_data_incomplete (bool). None 키 생략 → backward-compat.
+    if m.funding_data_incomplete is not None:
+        d["funding_data_incomplete"] = m.funding_data_incomplete
     return d
 
 
@@ -171,6 +174,8 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
         # C14 (정직성): total_fees / total_slippage. 누락 시 None (backward-compat).
         total_fees=_opt_decimal("total_fees"),
         total_slippage=_opt_decimal("total_slippage"),
+        # C6 (정직성 Slice 4): funding_data_incomplete (bool). 누락 시 None.
+        funding_data_incomplete=data.get("funding_data_incomplete"),
     )
 
 

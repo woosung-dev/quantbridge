@@ -45,6 +45,24 @@ describe("BacktestMetricsOutSchema", () => {
     expect(parsed.win_rate).toBeCloseTo(0.55, 6);
     expect(parsed.num_trades).toBe(42);
   });
+
+  // C6 (정직성 Slice 4) — funding 결측 flag (bool nullable optional).
+  it.each([
+    [{ funding_data_incomplete: true }, true],
+    [{ funding_data_incomplete: false }, false],
+    [{ funding_data_incomplete: null }, null],
+    [{}, undefined],
+  ])("parses funding_data_incomplete %o", (extra, expected) => {
+    const parsed = BacktestMetricsOutSchema.parse({
+      total_return: "0.1",
+      sharpe_ratio: "1.0",
+      max_drawdown: "-0.05",
+      win_rate: "0.5",
+      num_trades: 10,
+      ...extra,
+    });
+    expect(parsed.funding_data_incomplete).toBe(expected);
+  });
 });
 
 describe("TradeItemSchema", () => {

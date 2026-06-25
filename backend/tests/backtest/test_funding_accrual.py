@@ -15,8 +15,74 @@ from decimal import Decimal
 
 import pandas as pd
 
+from src.backtest.engine import run_backtest
 from src.backtest.engine.types import BacktestConfig, RawTrade
 from src.backtest.engine.v2_adapter import _compute_equity_curve, _funding_cost_by_bar
+
+
+def _ohlcv_full_8h(closes: list[float]) -> pd.DataFrame:
+    """엔진 end-to-end 용 — OHLCV 5컬럼 + tz-aware 8h DatetimeIndex."""
+    idx = pd.date_range("2024-01-01T00:00:00Z", periods=len(closes), freq="8h")
+    return pd.DataFrame(
+        {
+            "open": closes,
+            "high": [c + 1.0 for c in closes],
+            "low": [c - 1.0 for c in closes],
+            "close": closes,
+            "volume": [100.0] * len(closes),
+        },
+        index=idx,
+    )
+
+
+_HODL_SRC = """//@version=5
+strategy("HODL")
+if bar_index == 1
+    strategy.entry("Long", strategy.long)
+"""
+
+
+def test_run_backtest_v2_threads_funding_and_sets_flag() -> None:
+    # bar_index==1 진입 후 미청산 → 6 bars(8h) 동안 long 보유. funding 정산 1회(bar2).
+    ohlcv = _ohlcv_full_8h([100, 100, 100, 100, 100, 100])
+    funding = pd.Series(
+        [Decimal("0.001")],
+        index=pd.to_datetime(["2024-01-01T16:00:00Z"]),  # bar2
+    )
+    cfg = BacktestConfig(init_cash=Decimal("1000"), fees=0.0, slippage=0.0, freq="8h")
+
+    out_none = run_backtest(_HODL_SRC, ohlcv, cfg)
+    out_funded = run_backtest(_HODL_SRC, ohlcv, cfg, funding_rates=funding)
+
+    assert out_none.status == "ok" and out_funded.status == "ok"
+    assert out_none.result is not None and out_funded.result is not None
+    # 회귀: funding_rates 미전달 → flag None.
+    assert out_none.result.metrics.funding_data_incomplete is None
+    # 보유 구간[bar1,bar5] 인데 funding 커버 [bar2] 뿐 → 결측 True.
+    assert out_funded.result.metrics.funding_data_incomplete is True
+    # funding 적용 → long 이 양(+) funding 지불 → 최종 equity 가 None 경로보다 낮음.
+    assert out_funded.result.equity_curve.iloc[-1] < out_none.result.equity_curve.iloc[-1]
+
+
+def test_run_backtest_v2_funding_full_coverage_flag_false() -> None:
+    # funding 이 보유 구간 전체(bar1~bar5)를 포괄하면 결측 아님(False).
+    ohlcv = _ohlcv_full_8h([100, 100, 100, 100, 100, 100])
+    funding = pd.Series(
+        [Decimal("0.0001")] * 5,
+        index=pd.to_datetime(
+            [
+                "2024-01-01T08:00:00Z",  # bar1 (entry)
+                "2024-01-01T16:00:00Z",  # bar2
+                "2024-01-02T00:00:00Z",  # bar3
+                "2024-01-02T08:00:00Z",  # bar4
+                "2024-01-02T16:00:00Z",  # bar5 (last)
+            ]
+        ),
+    )
+    cfg = BacktestConfig(init_cash=Decimal("1000"), fees=0.0, slippage=0.0, freq="8h")
+    out = run_backtest(_HODL_SRC, ohlcv, cfg, funding_rates=funding)
+    assert out.status == "ok" and out.result is not None
+    assert out.result.metrics.funding_data_incomplete is False
 
 
 def _ohlcv_8h(closes: list[float]) -> pd.DataFrame:

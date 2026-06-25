@@ -342,3 +342,99 @@ class TestExtendedMetricsMapping:
             ("2026-01-02T00:00:00Z", Decimal("10500")),
             ("2026-01-03T00:00:00Z", Decimal("11000")),
         ]
+
+
+# ---------------------------------------------------------------------------
+# TestRunFundingWiring (C6 Slice 4 — perp funding 배선 라우팅)
+# ---------------------------------------------------------------------------
+
+def _service_with_funding(
+    db_session: AsyncSession, tmp_path: Path, funding_repo: object
+) -> BacktestService:
+    return BacktestService(
+        repo=BacktestRepository(db_session),
+        strategy_repo=StrategyRepository(db_session),
+        ohlcv_provider=FixtureProvider(root=_mini_fixture_root(tmp_path)),
+        dispatcher=FakeTaskDispatcher(),
+        funding_repo=funding_repo,  # type: ignore[arg-type]
+    )
+
+
+class TestRunFundingWiring:
+    @pytest.mark.asyncio
+    async def test_run_fetches_funding_and_passes_to_engine(
+        self, db_session: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """include_funding=True → funding_repo 조회 + run_backtest 에 funding_rates 전달."""
+        from unittest.mock import AsyncMock
+
+        import pandas as pd
+
+        from src.backtest import service as service_mod
+
+        captured: dict[str, object] = {}
+        real_run = service_mod.run_backtest
+
+        def _spy(*args: object, **kwargs: object) -> object:
+            captured["funding_rates"] = kwargs.get("funding_rates")
+            return real_run(*args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(service_mod, "run_backtest", _spy)
+
+        funding_repo = AsyncMock()
+        funding_repo.get_funding_series.return_value = pd.Series(
+            [Decimal("0.001")], index=pd.to_datetime(["2024-01-01T08:00:00Z"])
+        )
+        svc = _service_with_funding(db_session, tmp_path, funding_repo)
+
+        user, strat = await _seed_user_and_strategy(db_session)
+        created = await svc.submit(_request(strat.id), user_id=user.id)  # include_funding 기본 True
+        await db_session.commit()
+        await svc.run(created.backtest_id)
+
+        funding_repo.get_funding_series.assert_awaited_once()
+        ckwargs = funding_repo.get_funding_series.await_args.kwargs
+        # 심볼 브릿지: "BTCUSDT" → CCXT perp "BTC/USDT:USDT", 거래소 bybit 고정.
+        assert ckwargs["symbol"] == "BTC/USDT:USDT"
+        assert str(ckwargs["exchange"]) == "bybit"
+        # 엔진에 funding_rates 가 전달됨(None 아님).
+        assert captured.get("funding_rates") is not None
+
+    @pytest.mark.asyncio
+    async def test_run_skips_funding_when_include_funding_false(
+        self, db_session: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """include_funding=False → funding 조회 미발생 + run_backtest funding_rates=None (회귀)."""
+        from unittest.mock import AsyncMock
+
+        from src.backtest import service as service_mod
+
+        captured: dict[str, object] = {}
+        real_run = service_mod.run_backtest
+
+        def _spy(*args: object, **kwargs: object) -> object:
+            captured["funding_rates"] = kwargs.get("funding_rates")
+            return real_run(*args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(service_mod, "run_backtest", _spy)
+
+        funding_repo = AsyncMock()
+        svc = _service_with_funding(db_session, tmp_path, funding_repo)
+
+        user, strat = await _seed_user_and_strategy(db_session)
+        req = CreateBacktestRequest(
+            strategy_id=strat.id,  # type: ignore[arg-type]
+            symbol="BTCUSDT",
+            timeframe="1h",
+            period_start=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+            period_end=datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC),
+            initial_capital=Decimal("10000"),
+            include_funding=False,
+        )
+        created = await svc.submit(req, user_id=user.id)
+        await db_session.commit()
+        await svc.run(created.backtest_id)
+
+        funding_repo.get_funding_series.assert_not_awaited()
+        assert "funding_rates" in captured  # 엔진은 호출됨
+        assert captured["funding_rates"] is None  # 단 funding 미전달

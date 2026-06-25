@@ -1,4 +1,5 @@
 """Backtest DI 조립. Depends는 여기서만."""
+
 from __future__ import annotations
 
 from fastapi import Depends
@@ -12,6 +13,7 @@ from src.core.config import settings
 from src.market_data.dependencies import get_ohlcv_provider
 from src.market_data.providers import OHLCVProvider
 from src.strategy.repository import StrategyRepository
+from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
 
 async def get_backtest_service(
@@ -24,6 +26,7 @@ async def get_backtest_service(
         strategy_repo=StrategyRepository(session),
         ohlcv_provider=ohlcv_provider,
         dispatcher=CeleryTaskDispatcher(),
+        funding_repo=FundingRateRepository(session),
     )
 
 
@@ -56,4 +59,5 @@ def build_backtest_service_for_worker(session: AsyncSession) -> BacktestService:
         strategy_repo=StrategyRepository(session),
         ohlcv_provider=ohlcv_provider,
         dispatcher=NoopTaskDispatcher(),
+        funding_repo=FundingRateRepository(session),
     )

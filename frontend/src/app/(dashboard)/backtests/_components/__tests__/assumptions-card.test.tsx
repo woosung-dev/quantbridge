@@ -111,3 +111,24 @@ describe("AssumptionsCard — C14 정직성 (총비용 + 가설적 고지 + 체�
     expect(screen.queryByText("총 수수료")).toBeNull();
   });
 });
+
+describe("AssumptionsCard — C6 정직성 (펀딩 비용 미반영 구간 고지)", () => {
+  it("fundingDataIncomplete=true 시 펀딩 미반영 경고 렌더 (왜를 설명)", () => {
+    render(<AssumptionsCard initialCapital={10000} fundingDataIncomplete />);
+    const note = screen.getByTestId("backtest-funding-incomplete-note");
+    expect(note).toBeInTheDocument();
+    expect(note).toHaveTextContent("펀딩");
+  });
+
+  it("fundingDataIncomplete=false 시 경고 미렌더 (결측 없음)", () => {
+    render(
+      <AssumptionsCard initialCapital={10000} fundingDataIncomplete={false} />,
+    );
+    expect(screen.queryByTestId("backtest-funding-incomplete-note")).toBeNull();
+  });
+
+  it("fundingDataIncomplete 미제공(구 백테스트/펀딩 미반영) 시 경고 미렌더", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    expect(screen.queryByTestId("backtest-funding-incomplete-note")).toBeNull();
+  });
+});

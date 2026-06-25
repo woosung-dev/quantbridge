@@ -5,6 +5,7 @@ from __future__ import annotations
 from src.trading.repositories.exchange_account_repository import (
     ExchangeAccountRepository,
 )
+from src.trading.repositories.funding_rate_repository import FundingRateRepository
 from src.trading.repositories.kill_switch_event_repository import (
     KillSwitchEventRepository,
 )
@@ -19,6 +20,7 @@ from src.trading.repositories.webhook_secret_repository import WebhookSecretRepo
 
 __all__ = [
     "ExchangeAccountRepository",
+    "FundingRateRepository",
     "KillSwitchEventRepository",
     "LiveSignalEventRepository",
     "LiveSignalSessionRepository",
