@@ -5,12 +5,13 @@ raw-SQL 인제스션(`trading/funding.py`)만 있던 trading.funding_rates 에 r
 추가한다. backtest 엔진이 [period_start, period_end] window 의 funding 시계열을 8h
 정산 경계 차감에 사용한다. read-only — commit/mutation 없음(cross-domain read).
 """
+
 from __future__ import annotations
 
 from datetime import datetime
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import String, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.models import FundingRate
@@ -30,7 +31,11 @@ class FundingRateRepository:
         """
         result = await self.session.execute(
             select(FundingRate)
-            .where(FundingRate.exchange == exchange)  # type: ignore[arg-type]
+            # exchange 컬럼은 마이그레이션 상 VARCHAR(32) 이지만 모델은 ExchangeName
+            # enum 으로 매핑돼 ORM 비교가 param 을 `::exchangename` 으로 캐스팅한다.
+            # alembic(VARCHAR) vs create_all(native enum) 스키마 분기에서 VARCHAR 컬럼이면
+            # `varchar = exchangename` 연산자 부재 에러 → 컬럼을 text 로 캐스팅해 양쪽 호환.
+            .where(cast(FundingRate.exchange, String) == exchange)
             .where(FundingRate.symbol == symbol)  # type: ignore[arg-type]
             .where(FundingRate.funding_timestamp >= start)  # type: ignore[arg-type]
             .where(FundingRate.funding_timestamp <= end)  # type: ignore[arg-type]
