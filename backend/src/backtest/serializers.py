@@ -102,6 +102,11 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
     # (Sprint 33 이전 backtest round-trip 안전).
     if m.buy_and_hold_curve is not None:
         d["buy_and_hold_curve"] = [[ts, str(v)] for ts, v in m.buy_and_hold_curve]
+    # C14 (정직성): total_fees / total_slippage. None 키 생략 → backward-compat.
+    if m.total_fees is not None:
+        d["total_fees"] = str(m.total_fees)
+    if m.total_slippage is not None:
+        d["total_slippage"] = str(m.total_slippage)
     return d
 
 
@@ -163,6 +168,9 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
         mdd_exceeds_capital=data.get("mdd_exceeds_capital"),
         # Sprint 34 BL-175 — Buy & Hold curve. 누락 시 None (backward-compat).
         buy_and_hold_curve=buy_and_hold_curve,
+        # C14 (정직성): total_fees / total_slippage. 누락 시 None (backward-compat).
+        total_fees=_opt_decimal("total_fees"),
+        total_slippage=_opt_decimal("total_slippage"),
     )
 
 

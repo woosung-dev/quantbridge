@@ -406,6 +406,22 @@ def _compute_metrics(
     # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV close 기반).
     buy_and_hold_curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
 
+    # C14 (정직성) — 총 수수료/슬리피지 분해 집계. _build_raw_trades 의 per-leg
+    # 공식 미러링 (entry leg 항상 + exit leg 는 closed 만). 불변식:
+    #   total_fees + total_slippage == Σ RawTrade.fees.
+    # ponytail: _build_raw_trades 와 cost 공식 중복 — Slice 3 (C8) 비용모델
+    # 개편 시 단일 helper 로 통합 예정.
+    fee_rate = Decimal(str(cfg.fees))
+    slip_rate = Decimal(str(cfg.slippage))
+    total_fees = Decimal("0")
+    total_slippage = Decimal("0")
+    for t in trades:
+        legs = t.entry_price * t.size
+        if t.exit_price is not None:
+            legs += t.exit_price * t.size
+        total_fees += legs * fee_rate
+        total_slippage += legs * slip_rate
+
     return BacktestMetrics(
         total_return=total_return,
         sharpe_ratio=sharpe_ratio,
@@ -437,6 +453,9 @@ def _compute_metrics(
         mdd_exceeds_capital=mdd_exceeds_capital,
         # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV 기반).
         buy_and_hold_curve=buy_and_hold_curve,
+        # C14 (정직성) — 총 수수료/슬리피지 분해 (헤드라인 net 표시용).
+        total_fees=total_fees,
+        total_slippage=total_slippage,
     )
 
 

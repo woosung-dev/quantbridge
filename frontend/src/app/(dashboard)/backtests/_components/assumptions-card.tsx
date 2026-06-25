@@ -36,11 +36,24 @@ export interface AssumptionsCardProps {
    * Sprint 30-γ-BE 에서 BE 가 응답에 포함하면 graceful upgrade.
    */
   readonly config?: BacktestConfig | null;
+  /**
+   * C14 (정직성) — metrics.total_fees / total_slippage 절대 총비용 (USDT).
+   * 헤드라인 수치가 net 임을 숨길 수 없는 line item 으로 노출. 구 백테스트
+   * (totals 미저장) 는 null/undefined → 행 미렌더 (backward-compat).
+   */
+  readonly totalFees?: number | null;
+  readonly totalSlippage?: number | null;
+}
+
+function formatUsdt(v: number): string {
+  return `${v.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDT`;
 }
 
 export function AssumptionsCard({
   initialCapital,
   config,
+  totalFees,
+  totalSlippage,
 }: AssumptionsCardProps) {
   const leverage = config?.leverage ?? DEFAULT_LEVERAGE;
   const fees = config?.fees ?? DEFAULT_FEES;
@@ -93,6 +106,15 @@ export function AssumptionsCard({
     .slice(2)
     .every((it) => it.isDefault);
 
+  // C14 (정직성) — 절대 총비용 행. metrics totals 가 있을 때만 노출 (구 백테스트 호환).
+  const costItems: { label: string; value: string }[] = [];
+  if (totalFees != null) {
+    costItems.push({ label: "총 수수료", value: formatUsdt(totalFees) });
+  }
+  if (totalSlippage != null) {
+    costItems.push({ label: "총 슬리피지", value: formatUsdt(totalSlippage) });
+  }
+
   return (
     <section
       aria-label="백테스트 가정"
@@ -131,7 +153,24 @@ export function AssumptionsCard({
             </dd>
           </div>
         ))}
+        {costItems.map((it) => (
+          <div key={it.label} className="flex flex-col gap-0.5">
+            <dt className="text-muted-foreground">{it.label}</dt>
+            <dd className="font-mono text-sm font-medium tabular-nums">
+              {it.value}
+            </dd>
+          </div>
+        ))}
       </dl>
+      {/* C14 (정직성) — 가설적 결과 + 순(net) + 체결 가정 상시 고지. */}
+      <p
+        data-testid="backtest-honesty-note"
+        className="mt-2 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground"
+      >
+        ⚠ 가설적 결과입니다. 후행 데이터로 계산되며 위 수수료·슬리피지가 차감된 순(net)
+        수치입니다. 체결 가정 — 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후
+        트리거가에 체결됩니다.
+      </p>
     </section>
   );
 }

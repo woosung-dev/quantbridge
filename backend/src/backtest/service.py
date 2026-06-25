@@ -685,6 +685,9 @@ class BacktestService:
                     # 본 spread 누락 시 silent BUG = JSONB 에 저장된 BH curve 가
                     # FE 응답에 0건 → 거짓 trust 회복 실패 (P1-2 R-2 회귀 hotspot).
                     buy_and_hold_curve=m.buy_and_hold_curve,
+                    # C14 (정직성): total_fees / total_slippage 헤드라인 net 표시.
+                    total_fees=m.total_fees,
+                    total_slippage=m.total_slippage,
                 )
             if bt.equity_curve:
                 equity_out = [

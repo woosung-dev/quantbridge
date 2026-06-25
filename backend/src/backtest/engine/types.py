@@ -149,6 +149,12 @@ class BacktestMetrics:
     #
     # vectorbt 경로 (extract_metrics) 는 ohlcv 미수신 → 항상 None.
     buy_and_hold_curve: list[tuple[str, Decimal]] | None = None
+    # C14 (정직성 번들) — 헤드라인 net 표시용 총비용 분해. total_fees=순수 수수료,
+    # total_slippage=순수 슬리피지. RawTrade.fees(결합) 와의 불변식:
+    #   total_fees + total_slippage == Σ RawTrade.fees.
+    # 기존 완료 backtest round-trip 호환 위해 None default.
+    total_fees: Decimal | None = None
+    total_slippage: Decimal | None = None
 
 
 @dataclass(frozen=True)

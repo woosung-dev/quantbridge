@@ -163,6 +163,44 @@ class TestBuyAndHoldCurveSerialization:
         assert m.buy_and_hold_curve is None
 
 
+class TestCostTotalsSerialization:
+    """C14 (정직성) — total_fees / total_slippage JSONB round-trip.
+
+    buy_and_hold_curve 와 동일 패턴 (None 키 생략 → backward-compat). 누락 시
+    FE 헤드라인에 총비용이 0건 → 거짓 trust (buy_and_hold P1-2 회귀 동형).
+    """
+
+    def test_metrics_jsonb_roundtrip_with_cost_totals(self) -> None:
+        m = BacktestMetrics(
+            total_return=Decimal("0.1"),
+            sharpe_ratio=Decimal("1.5"),
+            max_drawdown=Decimal("-0.05"),
+            win_rate=Decimal("0.6"),
+            num_trades=10,
+            total_fees=Decimal("0.39"),
+            total_slippage=Decimal("0.195"),
+        )
+        d = metrics_to_jsonb(m)
+        assert d["total_fees"] == "0.39"
+        assert d["total_slippage"] == "0.195"
+        restored = metrics_from_jsonb(d)
+        assert restored.total_fees == Decimal("0.39")
+        assert restored.total_slippage == Decimal("0.195")
+
+    def test_metrics_jsonb_legacy_compat_no_cost_totals(self) -> None:
+        legacy_data = {
+            "total_return": "0.1",
+            "sharpe_ratio": "1.5",
+            "max_drawdown": "-0.05",
+            "win_rate": "0.6",
+            "num_trades": 10,
+            # total_fees / total_slippage 키 없음 (Slice 1 이전).
+        }
+        m = metrics_from_jsonb(legacy_data)
+        assert m.total_fees is None
+        assert m.total_slippage is None
+
+
 class TestEquityCurveSerialization:
     def test_to_jsonb_with_decimal(self) -> None:
         idx = pd.DatetimeIndex([datetime(2024, 1, 1), datetime(2024, 1, 2)])

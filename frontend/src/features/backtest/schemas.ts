@@ -230,6 +230,9 @@ export const BacktestMetricsOutSchema = z.object({
   // null 시 EquityChartV2 가 BH series 미렌더 + ChartLegend BH 항목 자동 hide
   // (Sprint 33 BL-175 hotfix 동작 보존, Surface Trust ADR-019 정합).
   buy_and_hold_curve: z.array(drawdownPoint).nullable().optional(),
+  // C14 (정직성) — 총 수수료/슬리피지 (헤드라인 net 표시). 구 완료 백테스트 null.
+  total_fees: decimalString.nullable().optional(),
+  total_slippage: decimalString.nullable().optional(),
 });
 export type BacktestMetricsOut = z.infer<typeof BacktestMetricsOutSchema>;
 

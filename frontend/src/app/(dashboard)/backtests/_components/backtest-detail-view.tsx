@@ -145,6 +145,8 @@ export function BacktestDetailView({ id }: { id: string }) {
         <AssumptionsCard
           initialCapital={bt.initial_capital}
           config={bt.config}
+          totalFees={bt.metrics.total_fees}
+          totalSlippage={bt.metrics.total_slippage}
         />
       ) : null}
 

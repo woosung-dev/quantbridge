@@ -235,12 +235,16 @@ class BacktestMetricsOut(BaseModel):
     # init_cash * (close[i] / close[0]) curve. equity_curve 와 timestamp 1:1.
     # fail-closed: OHLCV close 1건이라도 NaN/<=0 시 None → FE BH series hide.
     buy_and_hold_curve: list[tuple[str, Decimal]] | None = None
+    # C14 (정직성) — 총 수수료/슬리피지 (헤드라인 net 표시). 기존 backtest 호환 None.
+    total_fees: Decimal | None = None
+    total_slippage: Decimal | None = None
 
     @field_serializer(
         "total_return", "sharpe_ratio", "max_drawdown", "win_rate",
         "sortino_ratio", "calmar_ratio", "profit_factor", "avg_win", "avg_loss",
         "avg_holding_hours", "long_win_rate_pct", "short_win_rate_pct",
         "annual_return_pct", "avg_trade_pct", "best_trade_pct", "worst_trade_pct",
+        "total_fees", "total_slippage",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
