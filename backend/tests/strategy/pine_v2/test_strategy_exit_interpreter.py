@@ -94,6 +94,61 @@ strategy.exit("X", limit=105.0)
     assert state.closed_trades[0].exit_kind == ExitOrderKind.TAKE_PROFIT
 
 
+def test_pyramiding_cap_skips_overflow_same_direction_entry() -> None:
+    # pyramiding=1 → 2번째 같은 방향 entry skip (open 1개 유지).
+    source = """//@version=5
+strategy("pyr cap", pyramiding=1)
+if bar_index == 1
+    strategy.entry("A", strategy.long)
+if bar_index == 2
+    strategy.entry("B", strategy.long)
+"""
+    rows = [
+        (100.0, 101.0, 99.0, 100.0),
+        (100.0, 101.0, 99.0, 100.0),  # A entry
+        (100.0, 101.0, 99.0, 100.0),  # B entry → skip (cap)
+    ]
+    state = _run(source, rows)
+    assert len(state.open_trades) == 1
+    assert "A" in state.open_trades
+    assert "B" not in state.open_trades
+
+
+def test_pyramiding_two_allows_two_same_direction_entries() -> None:
+    source = """//@version=5
+strategy("pyr two", pyramiding=2)
+if bar_index == 1
+    strategy.entry("A", strategy.long)
+if bar_index == 2
+    strategy.entry("B", strategy.long)
+"""
+    rows = [
+        (100.0, 101.0, 99.0, 100.0),
+        (100.0, 101.0, 99.0, 100.0),
+        (100.0, 101.0, 99.0, 100.0),
+    ]
+    state = _run(source, rows)
+    assert len(state.open_trades) == 2
+
+
+def test_no_pyramiding_declared_allows_stacking_regression() -> None:
+    # pyramiding 미선언 → cap 무효 → 기존 동작(중첩 허용) byte-identical.
+    source = """//@version=5
+strategy("no pyr")
+if bar_index == 1
+    strategy.entry("A", strategy.long)
+if bar_index == 2
+    strategy.entry("B", strategy.long)
+"""
+    rows = [
+        (100.0, 101.0, 99.0, 100.0),
+        (100.0, 101.0, 99.0, 100.0),
+        (100.0, 101.0, 99.0, 100.0),
+    ]
+    state = _run(source, rows)
+    assert len(state.open_trades) == 2
+
+
 def test_strategy_exit_when_false_places_nothing() -> None:
     source = """//@version=5
 strategy("exit when false")

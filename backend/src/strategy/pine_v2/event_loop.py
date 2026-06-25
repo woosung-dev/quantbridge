@@ -69,6 +69,7 @@ def run_historical(
     default_qty_value: float | None = None,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
+    pyramiding: int | None = None,
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -106,6 +107,7 @@ def run_historical(
             default_qty_value=default_qty_value,
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
+    interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
     result = RunResult(bars_processed=0, final_state={})
 
     while bar.advance():

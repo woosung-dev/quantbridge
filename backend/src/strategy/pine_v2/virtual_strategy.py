@@ -172,6 +172,7 @@ def run_virtual_strategy(
     default_qty_value: float | None = None,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
+    pyramiding: int | None = None,
 ) -> VirtualRunResult:
     """indicator + alertcondition Pine 스크립트를 가상 strategy로 실행.
 
@@ -203,6 +204,7 @@ def run_virtual_strategy(
             default_qty_value=default_qty_value,
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
+    interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
     wrapper = VirtualStrategyWrapper(alerts, interp, strict=strict)
 
     errors: list[tuple[int, str]] = []

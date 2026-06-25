@@ -221,6 +221,9 @@ class StrategyState:
     # event_loop / virtual_strategy 가 cfg.trading_sessions 로 주입. 비어있으면 24h (회귀 0).
     # 단일 reference: src.strategy.trading_sessions.is_allowed (Live `is_allowed` 와 동일 함수).
     sessions_allowed: tuple[str, ...] = ()
+    # BL-104 — pyramiding cap. 같은 방향 최대 동시 open entry 수. None 이면 cap 무효
+    # (기존 무제한 중첩 동작 byte-identical). strategy(pyramiding=N) 선언 시 주입.
+    pyramiding: int | None = None
 
     # ---- Sprint 37 BL-185: 포지션 사이징 (spot-equivalent) ------------
 
@@ -395,6 +398,15 @@ class StrategyState:
         self._flip_opposite_positions(direction, bar=bar, fill_price=fill_price)
         if trade_id in self.open_trades:
             self.close(trade_id, bar=bar, fill_price=fill_price)
+
+        # BL-104 — pyramiding cap (gated). 같은 방향 open 수가 한도 도달 시 skip.
+        # None 이면 무효 → 기존 무제한 중첩 byte-identical.
+        if self.pyramiding is not None:
+            same_dir = sum(
+                1 for t in self.open_trades.values() if t.direction == direction
+            )
+            if same_dir >= self.pyramiding:
+                return None
 
         trade = Trade(
             id=trade_id,
