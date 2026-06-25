@@ -14,10 +14,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from enum import Enum
+from enum import StrEnum
 
 
-class ExitOrderKind(str, Enum):
+class ExitOrderKind(StrEnum):
     """exit-order 종류. value = 라이브 주문 wire 문자열 (변경 시 정합 깨짐)."""
 
     TAKE_PROFIT = "take_profit"  # resting limit → maker

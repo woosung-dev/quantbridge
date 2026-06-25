@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+from src.strategy.pine_v2.exit_orders import ExitOrderKind
+
 Direction = Literal["long", "short"]
 
 
@@ -59,6 +61,83 @@ class PendingOrder:
 
 
 @dataclass
+class ExitOrder:
+    """OCO TP/SL/Trailing exit-order 단일 leg (BL-104).
+
+    하나의 open 포지션을 청산하는 exit. `position_direction` = 청산 대상 포지션의
+    방향이고, 실제 체결은 그 반대편(long → SELL, short → BUY). 한 entry 에 대해
+    SL+TP 두 leg(또는 trailing) 가 같은 `from_entry` 로 묶여 OCO 형제를 이룬다.
+
+    - TAKE_PROFIT: limit. long → high>=limit, short → low<=limit. gap-through → open.
+    - STOP_LOSS: stop. long → low<=stop, short → high>=stop. gap-through → open.
+    - TRAILING_STOP: trail_offset 만큼 떨어진 stop. anchor 가 유리방향으로만 ratchet.
+    float 유지 — pine_v2 가격 관례 (Decimal 경계는 cost SSOT).
+    """
+
+    from_entry: str
+    exit_id: str
+    position_direction: Direction
+    kind: ExitOrderKind
+    placed_bar: int
+    stop_price: float | None = None
+    limit_price: float | None = None
+    trail_offset: float | None = None
+    trail_anchor: float | None = None  # trailing 최적가 추적 (runtime)
+    comment: str = ""
+
+    def update_trailing(self, high: float, low: float) -> None:
+        """trailing anchor 를 유리방향으로만 갱신 (ratchet). 비-trailing 은 no-op."""
+        if self.kind != ExitOrderKind.TRAILING_STOP or self.trail_offset is None:
+            return
+        if self.position_direction == "long":
+            self.trail_anchor = (
+                high if self.trail_anchor is None else max(self.trail_anchor, high)
+            )
+        else:
+            self.trail_anchor = (
+                low if self.trail_anchor is None else min(self.trail_anchor, low)
+            )
+
+    def _trail_stop_level(self) -> float | None:
+        if self.trail_anchor is None or self.trail_offset is None:
+            return None
+        if self.position_direction == "long":
+            return self.trail_anchor - self.trail_offset
+        return self.trail_anchor + self.trail_offset
+
+    def try_fill_exit(
+        self, *, bar: int, open_: float, high: float, low: float
+    ) -> float | None:
+        """이 bar OHLC 로 exit 체결 가능한지 판단. 체결가 반환, 아니면 None.
+
+        placed_bar >= bar 면 같은 bar 즉시 체결 금지 (entry 관례 일치).
+        """
+        if self.placed_bar >= bar:
+            return None
+        if self.kind == ExitOrderKind.TAKE_PROFIT:
+            lp = self.limit_price
+            if lp is None:
+                return None
+            if self.position_direction == "long":
+                return max(open_, lp) if high >= lp else None
+            return min(open_, lp) if low <= lp else None
+        if self.kind == ExitOrderKind.STOP_LOSS:
+            sp = self.stop_price
+            if sp is None:
+                return None
+            if self.position_direction == "long":
+                return min(open_, sp) if low <= sp else None
+            return max(open_, sp) if high >= sp else None
+        # TRAILING_STOP
+        level = self._trail_stop_level()
+        if level is None:
+            return None
+        if self.position_direction == "long":
+            return min(open_, level) if low <= level else None
+        return max(open_, level) if high >= level else None
+
+
+@dataclass
 class Trade:
     id: str
     direction: Direction
@@ -69,6 +148,9 @@ class Trade:
     exit_price: float | None = None
     pnl: float | None = None
     comment: str = ""
+    # BL-104 — 청산 leg 종류 (TP/SL/Trailing). market close/flip 등 일반 청산은 None.
+    # C6 비용 split(maker/taker) 의 입력. exit_kind=None → taker (byte-identical).
+    exit_kind: ExitOrderKind | None = None
 
     @property
     def is_open(self) -> bool:
@@ -121,6 +203,9 @@ class StrategyState:
     closed_trades: list[Trade] = field(default_factory=list)
     # pending 주문: id → PendingOrder (stop/limit 아직 미체결)
     pending_orders: dict[str, PendingOrder] = field(default_factory=dict)
+    # BL-104 — pending exit 브래킷: from_entry(trade id) → OCO leg 리스트.
+    # 비어있으면 check_exit_fills no-op → strategy.exit 미사용 시 byte-identical.
+    pending_exits: dict[str, list[ExitOrder]] = field(default_factory=dict)
     # 경고/미지원 파라미터 추적 (`limit=`, `trail_points=` 등) — 사용자에게 알림용
     warnings: list[str] = field(default_factory=list)
     # Sprint 26 codex G.0 P1 #2 — bar-level event log. `run_live` 가 마지막 bar 의
@@ -446,6 +531,128 @@ class StrategyState:
             to_remove.append(order_id)
         for oid in to_remove:
             self.pending_orders.pop(oid, None)
+        return filled
+
+    # ---- BL-104: OCO TP/SL exit orders ------------------------------
+
+    def place_exit(
+        self,
+        *,
+        from_entry: str,
+        exit_id: str,
+        bar: int,
+        stop: float | None = None,
+        limit: float | None = None,
+        trail_offset: float | None = None,
+        comment: str = "",
+    ) -> None:
+        """strategy.exit 브래킷 placement. from_entry="" → 모든 open 포지션.
+
+        Pine re-issue 의미론: 같은 from_entry 의 기존 브래킷을 교체(가격 갱신).
+        교체 시 동일 (exit_id, TRAILING_STOP) leg 의 trail_anchor 는 보존 (ratchet 유지).
+        """
+        if from_entry:
+            targets = [from_entry] if from_entry in self.open_trades else []
+        else:
+            targets = list(self.open_trades.keys())
+
+        for tid in targets:
+            pos_dir = self.open_trades[tid].direction
+            prev_legs = self.pending_exits.get(tid, [])
+            prev_trail_anchor: float | None = None
+            for pl in prev_legs:
+                if pl.exit_id == exit_id and pl.kind == ExitOrderKind.TRAILING_STOP:
+                    prev_trail_anchor = pl.trail_anchor
+
+            legs: list[ExitOrder] = []
+            if stop is not None:
+                legs.append(
+                    ExitOrder(
+                        from_entry=tid,
+                        exit_id=exit_id,
+                        position_direction=pos_dir,
+                        kind=ExitOrderKind.STOP_LOSS,
+                        placed_bar=bar,
+                        stop_price=stop,
+                        comment=comment,
+                    )
+                )
+            if limit is not None:
+                legs.append(
+                    ExitOrder(
+                        from_entry=tid,
+                        exit_id=exit_id,
+                        position_direction=pos_dir,
+                        kind=ExitOrderKind.TAKE_PROFIT,
+                        placed_bar=bar,
+                        limit_price=limit,
+                        comment=comment,
+                    )
+                )
+            if trail_offset is not None:
+                legs.append(
+                    ExitOrder(
+                        from_entry=tid,
+                        exit_id=exit_id,
+                        position_direction=pos_dir,
+                        kind=ExitOrderKind.TRAILING_STOP,
+                        placed_bar=bar,
+                        trail_offset=trail_offset,
+                        trail_anchor=prev_trail_anchor,
+                        comment=comment,
+                    )
+                )
+            if legs:
+                self.pending_exits[tid] = legs
+
+    def check_exit_fills(
+        self,
+        *,
+        bar: int,
+        open_: float,
+        high: float,
+        low: float,
+        bar_ts: datetime | None = None,
+    ) -> list[Trade]:
+        """현재 bar OHLC 로 pending exit 브래킷 체결 검사. 체결 leg 는 포지션 청산.
+
+        - pending_exits 비어있으면 즉시 [] → strategy.exit 미사용 시 no-op (회귀 0).
+        - BL-188 v3 session gate 재사용: disallowed bar 면 fill skip → carry-over.
+        - 한 entry 의 leg 가 체결되면 포지션 청산 + OCO 형제 전부 purge.
+        - 같은 bar 에 여러 leg trigger 시 체결 우선순위 = 거리순 (C4 에서 pessimistic 으로 교체).
+        """
+        if not self.pending_exits:
+            return []
+        if self.sessions_allowed and bar_ts is not None:
+            from src.strategy.trading_sessions import is_allowed
+
+            if not is_allowed(list(self.sessions_allowed), bar_ts):
+                return []
+
+        filled: list[Trade] = []
+        for entry_id in list(self.pending_exits.keys()):
+            legs = self.pending_exits.get(entry_id)
+            if not legs or entry_id not in self.open_trades:
+                continue
+            for leg in legs:
+                leg.update_trailing(high, low)
+            candidates: list[tuple[ExitOrder, float]] = []
+            for leg in legs:
+                fp = leg.try_fill_exit(bar=bar, open_=open_, high=high, low=low)
+                if fp is not None:
+                    candidates.append((leg, fp))
+            if not candidates:
+                continue
+            candidates.sort(key=lambda c: abs(c[1] - open_))
+            leg, fill_price = candidates[0]
+            trade = self.close(
+                entry_id, bar=bar, fill_price=fill_price, comment=leg.comment
+            )
+            if trade is not None:
+                trade.exit_kind = leg.kind
+                filled.append(trade)
+            # 포지션 청산 → OCO 형제 전부 purge.
+            self.pending_exits.pop(entry_id, None)
         return filled
 
     def to_report(self) -> dict[str, Any]:
