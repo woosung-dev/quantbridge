@@ -6,6 +6,8 @@ C4: pending_exits OCO 형제취소 + 동시-bar TP+SL → SL 우선(pessimistic)
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from src.strategy.pine_v2.exit_orders import ExitOrderKind
 from src.strategy.pine_v2.strategy_state import ExitOrder, StrategyState
 
@@ -146,3 +148,54 @@ def test_no_exit_orders_regression() -> None:
     assert st.pending_exits == {}
     assert st.check_exit_fills(bar=1, open_=100, high=200, low=50) == []
     assert "L" in st.open_trades  # 포지션 그대로
+
+
+# ---- C4: OCO sibling-cancel + pessimistic + reverse purge + session ----
+
+
+def test_same_bar_tp_and_sl_sl_wins_pessimistic() -> None:
+    # 거리상 TP(102) 가 open(100) 에 더 가깝지만, 동시 trigger 시 SL 우선(pessimistic).
+    st = StrategyState()
+    st.entry("L", "long", qty=1.0, bar=0, fill_price=100.0)
+    st.place_exit(from_entry="L", exit_id="X", stop=90.0, limit=102.0, bar=0)
+    # bar1: high=103(TP 102 trigger) + low=89(SL 90 trigger) 동시.
+    filled = st.check_exit_fills(bar=1, open_=100, high=103, low=89)
+    assert len(filled) == 1
+    assert filled[0].exit_kind == ExitOrderKind.STOP_LOSS
+    assert filled[0].exit_price == 90.0
+
+
+def test_one_leg_fill_cancels_oco_sibling() -> None:
+    st = StrategyState()
+    st.entry("L", "long", qty=1.0, bar=0, fill_price=100.0)
+    st.place_exit(from_entry="L", exit_id="X", stop=90.0, limit=110.0, bar=0)
+    filled = st.check_exit_fills(bar=1, open_=105, high=111, low=104)
+    assert len(filled) == 1
+    assert "L" not in st.pending_exits  # 형제(SL) 까지 전부 purge
+
+
+def test_reverse_signal_purges_pending_exits() -> None:
+    # 반대신호 entry → flip 으로 long 청산 → 그 entry 의 pending_exits 도 purge.
+    st = StrategyState()
+    st.entry("L", "long", qty=1.0, bar=0, fill_price=100.0)
+    st.place_exit(from_entry="L", exit_id="X", stop=90.0, limit=110.0, bar=0)
+    assert "L" in st.pending_exits
+    # 반대방향 entry → _flip 이 "L" close.
+    st.entry("S", "short", qty=1.0, bar=1, fill_price=100.0)
+    assert "L" not in st.open_trades
+    assert "L" not in st.pending_exits  # stale exit leg 잔존 금지
+
+
+def test_session_disallowed_bar_carries_over_exit() -> None:
+    st = StrategyState()
+    st.sessions_allowed = ("0900-1700",)  # 제한 세션
+    st.entry("L", "long", qty=1.0, bar=0, fill_price=100.0)
+    st.place_exit(from_entry="L", exit_id="X", stop=90.0, limit=110.0, bar=0)
+    # 03:00 UTC = disallowed → fill skip + carry-over.
+    disallowed = datetime(2026, 1, 1, 3, 0, tzinfo=UTC)
+    filled = st.check_exit_fills(
+        bar=1, open_=105, high=111, low=104, bar_ts=disallowed
+    )
+    assert filled == []
+    assert "L" in st.open_trades  # 청산 안 됨
+    assert "L" in st.pending_exits  # carry-over

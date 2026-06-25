@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-from src.strategy.pine_v2.exit_orders import ExitOrderKind
+from src.strategy.pine_v2.exit_orders import SAME_BAR_FILL_PRIORITY, ExitOrderKind
 
 Direction = Literal["long", "short"]
 
@@ -429,6 +429,9 @@ class StrategyState:
         trade = self.open_trades.pop(trade_id, None)
         if trade is None:
             return None
+        # BL-104 — 포지션 청산 시 그 entry 의 OCO exit 브래킷도 purge (반대신호/flip
+        # 시 stale exit leg 잔존 방지). pending_exits 비어있으면 무영향 (회귀 0).
+        self.pending_exits.pop(trade_id, None)
         trade.exit_bar = bar
         trade.exit_price = fill_price
         if comment:
@@ -462,6 +465,8 @@ class StrategyState:
                 closed.append(t)
         # pending 주문도 취소
         self.pending_orders.clear()
+        # BL-104 — pending exit 브래킷도 전부 취소 (close_all = 전량 청산).
+        self.pending_exits.clear()
         return closed
 
     def check_pending_fills(
@@ -659,7 +664,9 @@ class StrategyState:
                     candidates.append((leg, fp))
             if not candidates:
                 continue
-            candidates.sort(key=lambda c: abs(c[1] - open_))
+            # 동시-bar trigger 시 SAME_BAR_FILL_PRIORITY(SL→Trail→TP) 순 = pessimistic.
+            # intrabar path 미상 → SL 우선 = 실거래 최악가정 일치.
+            candidates.sort(key=lambda c: SAME_BAR_FILL_PRIORITY.index(c[0].kind))
             leg, fill_price = candidates[0]
             trade = self.close(
                 entry_id, bar=bar, fill_price=fill_price, comment=leg.comment
