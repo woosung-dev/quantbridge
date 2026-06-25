@@ -1,6 +1,7 @@
 // Sprint 55 — Optimizer 실행 detail (param_space + status + result kind 분기).
 "use client";
 
+import { extractBestParams } from "@/features/optimizer/best-params";
 import { useOptimizationRun } from "@/features/optimizer/hooks";
 
 import { BayesianBestParamsTable } from "./bayesian-best-params-table";
@@ -8,6 +9,7 @@ import { BayesianIterationChart } from "./bayesian-iteration-chart";
 import { GeneticBestParamsTable } from "./genetic-best-params-table";
 import { GeneticGenerationChart } from "./genetic-generation-chart";
 import { GridSearchPairSelector } from "./grid-search-pair-selector";
+import { OptimizerOosEvaluation } from "./optimizer-oos-evaluation";
 
 export function OptimizerRunDetail({ runId }: { runId: string }) {
   const { data, isLoading, error } = useOptimizationRun(runId);
@@ -21,6 +23,9 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
     );
   }
   if (data == null) return null;
+
+  const bestParams =
+    data.status === "completed" ? extractBestParams(data.result) : null;
 
   return (
     <div className="space-y-6">
@@ -267,6 +272,13 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
             </section>
           );
         })()}
+
+      {bestParams && Object.keys(bestParams).length > 0 && (
+        <OptimizerOosEvaluation
+          backtestId={data.backtest_id}
+          bestParams={bestParams}
+        />
+      )}
     </div>
   );
 }

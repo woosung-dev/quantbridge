@@ -457,6 +457,14 @@ export const WalkForwardParamsSchema = z.object({
   test_bars: z.number().int().min(1),
   step_bars: z.number().int().min(1).nullable().optional(),
   max_folds: z.number().int().min(1).max(100).default(20),
+  // C13 — 옵티마이저 best_params 를 OOS 검증에 input_overrides 로 주입 (선택).
+  // BE WalkForwardParams.best_params: dict[str, Decimal] parity. key = pine input
+  // var_name, value = 최적값. Pydantic v2 가 JSON number→Decimal 무손실 변환.
+  best_params: z
+    .record(z.string(), z.number().refine(Number.isFinite, {
+      message: "best_params value must be finite",
+    }))
+    .optional(),
 });
 export type WalkForwardParams = z.infer<typeof WalkForwardParamsSchema>;
 
