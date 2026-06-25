@@ -2,7 +2,6 @@
   "status": "ok",
   "source_version": "v5",
   "entries_indices": [
-    3,
     13,
     22,
     26,
@@ -19,15 +18,30 @@
     166,
     179
   ],
-  "exits_indices": [],
-  "description": "EMA cross with ATR-based stop and limit bracket order",
+  "exits_indices": [
+    22,
+    26,
+    40,
+    59,
+    64,
+    78,
+    90,
+    94,
+    123,
+    138,
+    157,
+    164,
+    166,
+    179
+  ],
+  "description": "EMA cross with ATR-based stop and limit bracket order (pine_v2 strategy.exit, BL-104)",
   "backtest": {
     "metrics": {
-      "total_return": "-0.1737458137737016",
-      "sharpe_ratio": "-2.5757467634966096",
-      "max_drawdown": "-0.2127561611026919",
-      "win_rate": "0.2",
-      "num_trades": 10
+      "total_return": "-0.0003771138174282226845",
+      "sharpe_ratio": "-0.34227508263480416",
+      "max_drawdown": "-0.0014634176774924912",
+      "win_rate": "0.2142857142857142857142857143",
+      "num_trades": 14
     }
   }
 }
