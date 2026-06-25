@@ -113,6 +113,25 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind }: Props) 
                   구간에서 전략이 거래를 내지 못했습니다 (취약성 신호).
                 </p>
               ) : null}
+              {wfResult.reoptimized_per_fold ? (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">
+                    fold별 재최적화 파라미터 (drift 클수록 불안정)
+                  </summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {wfResult.folds.map((f) => (
+                      <li key={f.fold_index} className="text-muted-foreground">
+                        fold {f.fold_index + 1}:{" "}
+                        {f.selected_params
+                          ? Object.entries(f.selected_params)
+                              .map(([k, v]) => `${k}=${v}`)
+                              .join(", ")
+                          : "—"}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
               <WalkForwardBarChart result={wfResult} />
             </div>
           ) : null}

@@ -273,6 +273,9 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
           );
         })()}
 
+      {/* WFO 는 best_params 를 쓰지 않고 fold별 재최적화하지만, "옵티마이저가 유효한
+          winner 를 찾음" 휴리스틱 게이트로 best_params 존재를 사용 (전 cell degenerate 시
+          OOS 검증 무의미). param_space/kind 는 run 의 필수 필드라 렌더 시 항상 존재. */}
       {bestParams && Object.keys(bestParams).length > 0 && (
         <OptimizerOosEvaluation
           backtestId={data.backtest_id}

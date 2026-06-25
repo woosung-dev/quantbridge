@@ -152,6 +152,8 @@ describe("OptimizerOosEvaluation (true WFO)", () => {
     });
     expect(screen.getByText(/각 fold 재최적화됨/)).toBeInTheDocument();
     expect(screen.getByText(/Degradation ratio/)).toBeInTheDocument();
+    // fold별 재최적화 파라미터 노출 (drift = fragility 정직 신호).
+    expect(screen.getByText(/emaPeriod=7/)).toBeInTheDocument();
   });
 
   it("degenerate_folds_skipped > 0 → fragility 경고 노출", () => {
