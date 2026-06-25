@@ -20,6 +20,7 @@ import type { LiveSession } from "../schemas";
 import {
   buildActivityTimeline,
   buildActivityTimelineWithEquity,
+  formatRealizedPnl,
 } from "../utils";
 import { ActivityTimelineChart } from "./activity-timeline-chart";
 
@@ -69,7 +70,11 @@ export function LiveSessionDetail({ session }: Props) {
           <div>
             <dt className="text-muted-foreground">Realized PnL</dt>
             <dd className="font-mono">
-              {stateLoading ? "…" : (state?.total_realized_pnl ?? "0")}
+              {stateLoading ? (
+                "…"
+              ) : (
+                <PnlValue raw={state?.total_realized_pnl ?? "0"} />
+              )}
             </dd>
           </div>
         </dl>
@@ -145,4 +150,16 @@ export function LiveSessionDetail({ session }: Props) {
       </div>
     </div>
   );
+}
+
+// 실현손익 값 — 부호 + tone 색조 (profit=success / loss=destructive / flat=muted).
+function PnlValue({ raw }: { raw: string }) {
+  const { text, tone } = formatRealizedPnl(raw);
+  const toneClass =
+    tone === "profit"
+      ? "text-[color:var(--success)]"
+      : tone === "loss"
+        ? "text-[color:var(--destructive)]"
+        : "text-[color:var(--foreground)]";
+  return <span className={toneClass}>{text}</span>;
 }

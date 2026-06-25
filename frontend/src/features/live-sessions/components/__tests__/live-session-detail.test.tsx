@@ -303,6 +303,7 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     // closed_trades / realized_pnl 셀은 dl 안에서 unique value.
     const closedCell = await screen.findByText("42");
     expect(closedCell).toBeInTheDocument();
-    expect(screen.getByText("98.76")).toBeInTheDocument();
+    // Wave0 cockpit: 양수 PnL 은 + prefix + success tone 으로 표시.
+    expect(screen.getByText("+98.76")).toBeInTheDocument();
   });
 });
