@@ -45,6 +45,9 @@ class DeclarationInfo:
     # stringified (e.g. "strategy.percent_of_equity", "30"). strategy 가 아니거나 미지정 시 None.
     default_qty_type: str | None = None
     default_qty_value: str | None = None
+    # strategy() 의 pyramiding (kwarg) — BL-104. 같은 방향 최대 동시 entry 수.
+    # 미지정/비-strategy 시 None → cap 무효 (회귀 0).
+    pyramiding: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +56,7 @@ class DeclarationInfo:
             "args": [a.to_dict() for a in self.args],
             "default_qty_type": self.default_qty_type,
             "default_qty_value": self.default_qty_value,
+            "pyramiding": self.pyramiding,
         }
 
 
@@ -252,10 +256,17 @@ def _extract_declaration(tree: Any) -> DeclarationInfo:
         # title은 positional 0 (첫 positional) 또는 name='title'
         title_raw = _get_arg(args, 0, name="title")
         title = _strip_string_quotes(title_raw)
-        # strategy() 한정 default_qty_type/value 추출 (BL-185). kwarg 만 — Pine 표준.
+        # strategy() 한정 default_qty_type/value/pyramiding 추출 (BL-185/BL-104). kwarg 만 — Pine 표준.
+        pyramiding: int | None = None
         if kind == "strategy":
             default_qty_type = _get_kwarg(args, "default_qty_type")
             default_qty_value = _get_kwarg(args, "default_qty_value")
+            pyr_raw = _get_kwarg(args, "pyramiding")
+            if pyr_raw is not None:
+                try:
+                    pyramiding = int(float(pyr_raw))
+                except (TypeError, ValueError):
+                    pyramiding = None
         else:
             default_qty_type = None
             default_qty_value = None
@@ -265,6 +276,7 @@ def _extract_declaration(tree: Any) -> DeclarationInfo:
             args=args,
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
+            pyramiding=pyramiding,
         )
     return DeclarationInfo(kind="unknown", title=None, args=[])
 

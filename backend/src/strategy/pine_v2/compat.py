@@ -117,6 +117,9 @@ def parse_and_run_v2(
         raise ValueError(
             f"parse_and_run_v2: unknown script track (declaration={profile.declaration!r})"
         )
+    # BL-104 — pyramiding cap (initial_capital 과 무관하게 추출). 미선언 시 None → cap 무효.
+    pyramiding = extract_content(source).declaration.pyramiding
+
     return TrackRunner.invoke(
         track,
         source=source,
@@ -127,4 +130,5 @@ def parse_and_run_v2(
         default_qty_value=default_qty_value,
         sessions_allowed=sessions_allowed,
         input_overrides=input_overrides,
+        pyramiding=pyramiding,
     )

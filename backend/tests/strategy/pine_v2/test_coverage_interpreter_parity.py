@@ -20,6 +20,7 @@ from src.strategy.pine_v2.coverage import (
     _STRING_FUNCTIONS,
     SUPPORTED_ATTRIBUTES,
 )
+from src.strategy.pine_v2.exit_orders import ExitOrderKind
 
 
 def _ohlcv(n: int = 30) -> pd.DataFrame:
@@ -59,63 +60,52 @@ vline(bar_index, color=color.red, linewidth=1)
 
 
 # ----------------------------------------------------------------------
-# BL-098 — strategy.exit (codex G.0 P1 #1+#2 — 보수적 NOP)
+# BL-104 — strategy.exit 본격 구현 (NOP 교체). 과거 NOP-warning assert 테스트를
+# real-exit assert 로 전환 (T0-pine-oco C3).
 # ----------------------------------------------------------------------
 
 
-def test_strategy_exit_nop_does_not_close_open_trade() -> None:
-    """strategy.exit 호출이 open trade 를 close 하지 않음.
+def test_strategy_exit_limit_triggers_close_when_price_reached() -> None:
+    """strategy.exit 의 limit(TP) 가 도달하면 포지션이 청산된다 (NOP 교체).
 
-    codex G.0 P1 #1: Pine strategy.exit 는 exit order 예약 (target price trigger),
-    즉시 close 아님. close-fallback 시 entry 직후 거짓 close (양성).
-    Sprint 23 fix: silent NOP — open trade 그대로 유지. backtest 결과 = entry-only.
+    과거: codex G.0 P1 #1 보수적 NOP (open trade 유지). BL-104 본격 구현 후 =
+    target 도달 시 exit order 체결. _ohlcv 는 close=100.5+i 단조 상승이라 limit=105
+    는 bar4 즈음 high(101+i) 가 도달 → TP 체결.
     """
     source = """//@version=5
-strategy("exit nop test", overlay=true)
+strategy("exit limit test", overlay=true)
 if bar_index == 1
     strategy.entry("L", strategy.long)
-if bar_index == 5
-    strategy.exit("TP", "L", limit=200.0)
+strategy.exit("X", "L", limit=105.0)
 """
     result = parse_and_run_v2(source, _ohlcv(), strict=True)
     assert result.historical is not None
     state = result.historical.strategy_state
     assert state is not None
-    # strategy.exit 가 close 안 했으므로 open trade 그대로 유지
-    assert len(state.open_trades) >= 1, "exit NOP 인데 open trade 가 닫힘 (codex G.0 P1 #1 회귀)"
-    # exit 가 NOP 라서 _eval_call 실패 안 함 + warnings 에 기록됨
-    warnings = state.warnings
-    assert any("strategy.exit" in w and "NOP" in w for w in warnings), (
-        f"expected NOP warning, got: {warnings}"
-    )
+    # limit 도달 → 포지션 청산 (entry-only 아님).
+    assert len(state.closed_trades) == 1
+    assert state.closed_trades[0].exit_kind == ExitOrderKind.TAKE_PROFIT
+    assert "L" not in state.open_trades
 
 
-def test_strategy_exit_records_from_entry_and_unsupported_kwargs() -> None:
-    """codex G.0 P1 #2 verifier — from_entry / limit / stop / profit 모두 기록.
+def test_strategy_exit_no_longer_emits_nop_warning() -> None:
+    """본격 구현 후 strategy.exit 는 더 이상 NOP warning 을 남기지 않는다.
 
-    Pine 첫 인자 id 는 exit order id, 청산 대상은 from_entry. close-fallback 시
-    `close("TP")` 가 nonexistent → silent skip. NOP 패턴은 from_entry 를 명시
-    warning 에 기록하여 사용자가 "어떤 entry 를 close 하려 했는지" 확인 가능.
+    과거 codex G.0 P1 #2 = from_entry/limit/stop/profit 를 NOP warning 에 기록.
+    BL-104 후 = 실제 exit order 배치 → NOP warning 제거.
     """
     source = """//@version=5
 strategy("exit kwargs test", overlay=true)
 if bar_index == 1
     strategy.entry("L", strategy.long)
-if bar_index == 5
-    strategy.exit("TP", from_entry="L", limit=200.0, stop=80.0, profit=10.0)
+strategy.exit("X", from_entry="L", limit=200.0, stop=80.0)
 """
     result = parse_and_run_v2(source, _ohlcv(), strict=True)
     assert result.historical is not None
-    warnings = result.historical.strategy_state.warnings
-    nop_warnings = [w for w in warnings if "strategy.exit" in w]
-    assert len(nop_warnings) >= 1
-    msg = nop_warnings[0]
-    # from_entry 명시
-    assert "'L'" in msg or "from_entry='L'" in msg
-    # unsupported kwargs (limit / stop / profit) 모두 표시
-    assert "limit" in msg
-    assert "stop" in msg
-    assert "profit" in msg
+    state = result.historical.strategy_state
+    assert state is not None
+    # NOP warning 부재 (실제 exit order 배치됨).
+    assert not any("strategy.exit" in w and "NOP" in w for w in state.warnings)
 
 
 def test_strategy_exit_when_false_skips() -> None:

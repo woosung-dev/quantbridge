@@ -14,7 +14,8 @@
         }
       ],
       "default_qty_type": null,
-      "default_qty_value": null
+      "default_qty_value": null,
+      "pyramiding": null
     },
     "inputs": [
       {
@@ -88,7 +89,8 @@
         }
       ],
       "default_qty_type": null,
-      "default_qty_value": null
+      "default_qty_value": null,
+      "pyramiding": null
     },
     "inputs": [
       {
@@ -288,7 +290,8 @@
         }
       ],
       "default_qty_type": null,
-      "default_qty_value": null
+      "default_qty_value": null,
+      "pyramiding": null
     },
     "inputs": [
       {
@@ -955,7 +958,8 @@
         }
       ],
       "default_qty_type": null,
-      "default_qty_value": null
+      "default_qty_value": null,
+      "pyramiding": null
     },
     "inputs": [
       {
@@ -1052,7 +1056,8 @@
         }
       ],
       "default_qty_type": null,
-      "default_qty_value": null
+      "default_qty_value": null,
+      "pyramiding": null
     },
     "inputs": [
       {
@@ -1313,7 +1318,8 @@
         }
       ],
       "default_qty_type": "strategy.fixed",
-      "default_qty_value": "2"
+      "default_qty_value": "2",
+      "pyramiding": 2
     },
     "inputs": [
       {
