@@ -394,3 +394,87 @@ async def test_execute_walk_forward_propagates_default_when_bt_config_null(
     assert cfg.fees == default.fees
     assert cfg.slippage == default.slippage
     assert cfg.sizing_source == "fallback"
+
+
+# ---------------------------------------------------------------------
+# Slice 2 (C13) — 옵티마이저 best_params → Walk-Forward OOS 주입.
+# st.params["best_params"] 존재 시 _execute_walk_forward 가 parent config 에
+# input_overrides 로 병합해 run_walk_forward 에 전달. 없으면 회귀 0 (None 유지).
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_execute_walk_forward_merges_best_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """C13: st.params['best_params'] 가 backtest_config.input_overrides 로 병합."""
+    bt = _make_backtest_with_bl188_v3_config()
+    strategy = _make_strategy()
+    ohlcv = _make_ohlcv()
+    service = _make_service_with_mocks(strategy, ohlcv)
+    st = StressTest(
+        id=uuid4(),
+        user_id=bt.user_id,
+        backtest_id=bt.id,
+        kind=StressTestKind.WALK_FORWARD,
+        status=StressTestStatus.RUNNING,
+        # best_params 는 JSONB 저장 형태 (Decimal → str).
+        params={
+            "train_bars": 5,
+            "test_bars": 2,
+            "max_folds": 3,
+            "best_params": {"fastLen": "10", "slowLen": "40"},
+        },
+    )
+
+    received_kwargs: dict[str, Any] = {}
+
+    def spy_run(*_args: Any, **kwargs: Any) -> Any:
+        received_kwargs.update(kwargs)
+        return MagicMock(folds=[], aggregate_oos_return=0.0)
+
+    monkeypatch.setattr("src.stress_test.service.run_walk_forward", spy_run)
+    monkeypatch.setattr("src.stress_test.service.wf_result_to_jsonb", lambda _r: {})
+
+    await service._execute_walk_forward(st, bt)
+
+    cfg = received_kwargs["backtest_config"]
+    # best_params → input_overrides (Decimal-first).
+    assert cfg.input_overrides == {"fastLen": Decimal("10"), "slowLen": Decimal("40")}
+    # parent config 필드 보존 (best_params 병합이 clobber 하지 않음).
+    assert cfg.init_cash == Decimal("50000")
+    assert cfg.fees == 0.002
+    assert cfg.sizing_source == "form"
+
+
+@pytest.mark.asyncio
+async def test_execute_walk_forward_without_best_params_keeps_overrides_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """C13 회귀 0: best_params 없으면 input_overrides None (기존 WF 동작 불변)."""
+    bt = _make_backtest_with_bl188_v3_config()
+    strategy = _make_strategy()
+    ohlcv = _make_ohlcv()
+    service = _make_service_with_mocks(strategy, ohlcv)
+    st = StressTest(
+        id=uuid4(),
+        user_id=bt.user_id,
+        backtest_id=bt.id,
+        kind=StressTestKind.WALK_FORWARD,
+        status=StressTestStatus.RUNNING,
+        params={"train_bars": 5, "test_bars": 2, "max_folds": 3},
+    )
+
+    received_kwargs: dict[str, Any] = {}
+
+    def spy_run(*_args: Any, **kwargs: Any) -> Any:
+        received_kwargs.update(kwargs)
+        return MagicMock(folds=[], aggregate_oos_return=0.0)
+
+    monkeypatch.setattr("src.stress_test.service.run_walk_forward", spy_run)
+    monkeypatch.setattr("src.stress_test.service.wf_result_to_jsonb", lambda _r: {})
+
+    await service._execute_walk_forward(st, bt)
+
+    cfg = received_kwargs["backtest_config"]
+    assert cfg.input_overrides is None

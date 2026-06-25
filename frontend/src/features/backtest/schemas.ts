@@ -230,6 +230,9 @@ export const BacktestMetricsOutSchema = z.object({
   // null 시 EquityChartV2 가 BH series 미렌더 + ChartLegend BH 항목 자동 hide
   // (Sprint 33 BL-175 hotfix 동작 보존, Surface Trust ADR-019 정합).
   buy_and_hold_curve: z.array(drawdownPoint).nullable().optional(),
+  // C14 (정직성) — 총 수수료/슬리피지 (헤드라인 net 표시). 구 완료 백테스트 null.
+  total_fees: decimalString.nullable().optional(),
+  total_slippage: decimalString.nullable().optional(),
 });
 export type BacktestMetricsOut = z.infer<typeof BacktestMetricsOutSchema>;
 
@@ -454,6 +457,14 @@ export const WalkForwardParamsSchema = z.object({
   test_bars: z.number().int().min(1),
   step_bars: z.number().int().min(1).nullable().optional(),
   max_folds: z.number().int().min(1).max(100).default(20),
+  // C13 — 옵티마이저 best_params 를 OOS 검증에 input_overrides 로 주입 (선택).
+  // BE WalkForwardParams.best_params: dict[str, Decimal] parity. key = pine input
+  // var_name, value = 최적값. Pydantic v2 가 JSON number→Decimal 무손실 변환.
+  best_params: z
+    .record(z.string(), z.number().refine(Number.isFinite, {
+      message: "best_params value must be finite",
+    }))
+    .optional(),
 });
 export type WalkForwardParams = z.infer<typeof WalkForwardParamsSchema>;
 

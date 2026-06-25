@@ -12,6 +12,7 @@ Router → Service → Repository 3-Layer. AsyncSession 직접 import 금지.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -121,6 +122,12 @@ class StressTestService:
                 "test_bars": data.params.test_bars,
                 "step_bars": data.params.step_bars,
                 "max_folds": data.params.max_folds,
+                # C13 — best_params 를 JSONB 저장 (Decimal → str). 없으면 None.
+                "best_params": (
+                    {k: str(v) for k, v in data.params.best_params.items()}
+                    if data.params.best_params
+                    else None
+                ),
             },
         )
 
@@ -298,6 +305,13 @@ class StressTestService:
         max_folds = int(max_folds_raw) if max_folds_raw is not None else 20
 
         backtest_config = build_engine_config_from_db(bt)
+        # C13 — 옵티마이저 best_params (있으면) 를 input_overrides 로 병합 → 각 fold
+        # IS/OOS 백테스트가 최적 파라미터로 실행. JSONB 저장값(str) → Decimal 복원.
+        # build_engine_config_from_db 는 input_overrides=None 이므로 단순 replace.
+        best_params_raw = st.params.get("best_params")
+        if best_params_raw:
+            overrides = {k: Decimal(str(v)) for k, v in best_params_raw.items()}
+            backtest_config = replace(backtest_config, input_overrides=overrides)
         wf = run_walk_forward(
             strategy.pine_source,
             ohlcv,

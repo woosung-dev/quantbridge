@@ -81,3 +81,33 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
     expect(screen.queryByText("OFF")).toBeNull();
   });
 });
+
+describe("AssumptionsCard — C14 정직성 (총비용 + 가설적 고지 + 체결 가정)", () => {
+  it("총 수수료 / 총 슬리피지 절대값 표시", () => {
+    render(
+      <AssumptionsCard
+        initialCapital={10000}
+        config={{ fees: 0.001, slippage: 0.0005 }}
+        totalFees={12.5}
+        totalSlippage={6.25}
+      />,
+    );
+    expect(screen.getByText("총 수수료")).toBeInTheDocument();
+    expect(screen.getByText("12.5 USDT")).toBeInTheDocument();
+    expect(screen.getByText("총 슬리피지")).toBeInTheDocument();
+    expect(screen.getByText("6.25 USDT")).toBeInTheDocument();
+  });
+
+  it("가설적 결과 고지 + 순(net) + 체결 가정 문구 상시 표시", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    const note = screen.getByTestId("backtest-honesty-note");
+    expect(note).toHaveTextContent("가설적");
+    expect(note).toHaveTextContent("net");
+    expect(note).toHaveTextContent("종가");
+  });
+
+  it("totalFees 미제공 시 총비용 row 미렌더 (구 백테스트 호환)", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    expect(screen.queryByText("총 수수료")).toBeNull();
+  });
+});

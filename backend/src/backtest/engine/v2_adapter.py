@@ -12,6 +12,7 @@ Decimal-first 합산 규칙 (CLAUDE.md LESSON) 준수 — 금융 수치는 float
 
 from __future__ import annotations
 
+import bisect
 import logging
 import math
 import re
@@ -190,6 +191,35 @@ def _extract_state_and_errors(
     return None, []
 
 
+# --- cost model ----------------------------------------------------------
+
+
+def _leg_cost(
+    notional: Decimal,
+    *,
+    fill_type: Literal["taker", "maker"],
+    taker_fee: Decimal,
+    slippage: Decimal,
+    maker_fee: Decimal = Decimal("0"),
+) -> tuple[Decimal, Decimal]:
+    """단일 체결(leg)의 (수수료, 슬리피지) 비용 — C8 선물형 비용모델 SSOT.
+
+    - taker(시장가·트리거 체결): taker_fee 적용 + slippage 적용.
+    - maker(resting post-only limit 체결): maker_fee 적용 + slippage 면제(limit 제외).
+
+    grounding: pine_v2 엔진의 모든 실제 체결은 taker 이다(strategy.entry/close/
+    close_all = 시장가 current_close, stop= = 트리거; limit/strategy.exit 은 H2
+    NOP, BL-098/BL-104). 따라서 엔진 caller 는 항상 fill_type="taker" 이며 maker_fee
+    인자를 전달하지 않는다. maker 분기 + 비용모델은 resting-limit fill producer
+    (BL-104) 도입 시 활성될 forward 모델로, 본 helper 단위 테스트가 정확성을 고정.
+    본 helper 가 _build_raw_trades / _compute_metrics / _compute_equity_curve 3 경로의
+    비용 공식 단일 출처(Slice 1 ponytail 중복 제거).
+    """
+    if fill_type == "maker":
+        return notional * maker_fee, Decimal("0")
+    return notional * taker_fee, notional * slippage
+
+
 # --- trades --------------------------------------------------------------
 
 
@@ -199,7 +229,7 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
     all_trades.sort(key=lambda t: (t.entry_bar, 0 if t.is_open else 1))
 
     raw: list[RawTrade] = []
-    fee_rate = Decimal(str(cfg.fees))
+    taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
     for idx, t in enumerate(all_trades):
         entry_price = Decimal(str(t.entry_price))
@@ -208,11 +238,23 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
             Decimal(str(t.exit_price)) if t.exit_price is not None else None
         )
 
-        # 수수료 = (entry + exit) * qty * fee_rate. slippage 는 entry/exit 두 번 모두 적용.
-        entry_fee = entry_price * qty * fee_rate
-        entry_slip = entry_price * qty * slip_rate
-        exit_fee = exit_price * qty * fee_rate if exit_price is not None else Decimal("0")
-        exit_slip = exit_price * qty * slip_rate if exit_price is not None else Decimal("0")
+        # 수수료/슬리피지 = _leg_cost SSOT 위임. 현재 모든 체결 taker (grounding
+        # _leg_cost docstring). entry leg 항상 + exit leg 는 closed 만.
+        entry_fee, entry_slip = _leg_cost(
+            entry_price * qty,
+            fill_type="taker",
+            taker_fee=taker_fee,
+            slippage=slip_rate,
+        )
+        if exit_price is not None:
+            exit_fee, exit_slip = _leg_cost(
+                exit_price * qty,
+                fill_type="taker",
+                taker_fee=taker_fee,
+                slippage=slip_rate,
+            )
+        else:
+            exit_fee = exit_slip = Decimal("0")
         fees_total = entry_fee + exit_fee + entry_slip + exit_slip
 
         # PnL (수수료 차감 전 원시값 → 수수료 차감)
@@ -250,8 +292,73 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
 # --- equity curve --------------------------------------------------------
 
 
+def _funding_coverage_incomplete(
+    trades: list[RawTrade], ohlcv: pd.DataFrame, funding_rates: pd.Series
+) -> bool:
+    """funding 데이터가 보유 구간을 완전히 포괄하는지 — 결측 시 True (0 묵살 금지).
+
+    보유 구간 = [최초 entry bar, 최종 exit bar(또는 마지막 bar)]. funding_rates 의
+    커버 범위가 이 구간을 못 덮으면(앞/뒤 결측) True → C14 배너에 "funding 데이터
+    일부 결측" 고지 (C6 정직성). 포지션이 없으면 funding 무관 → False.
+    """
+    if not trades:
+        return False
+    if len(funding_rates) == 0:
+        return True
+    bar_ns = [t.value for t in pd.DatetimeIndex(ohlcv.index)]
+    fund_ns = [t.value for t in pd.DatetimeIndex(funding_rates.index)]
+    last_bar = len(ohlcv) - 1
+    held_start_bar = min(t.entry_bar_index for t in trades)
+    held_end_bar = max(
+        (t.exit_bar_index if t.exit_bar_index is not None else last_bar) for t in trades
+    )
+    held_start = bar_ns[held_start_bar]
+    held_end = bar_ns[min(held_end_bar, last_bar)]
+    return min(fund_ns) > held_start or max(fund_ns) < held_end
+
+
+def _funding_cost_by_bar(
+    trades: list[RawTrade], ohlcv: pd.DataFrame, funding_rates: pd.Series
+) -> tuple[list[Decimal], bool]:
+    """각 bar 의 funding 비용(차감액 리스트) + 데이터 결측 여부 — C6 SSOT.
+
+    funding 은 정산 경계(보통 8h)마다 보유 perp 포지션에 부과. settlement ts 는
+    이를 포함하는 bar 에 귀속(searchsorted). cost = notional(close*qty) * rate *
+    direction_sign (long=+1 → rate>0 시 지불 equity↓ / short=-1 → 수취).
+    funding_rates index = tz-aware 정산 시각, value = Decimal rate.
+    """
+    n = len(ohlcv)
+    costs = [Decimal("0")] * n
+    # int64 ns 로 변환해 bisect — pandas searchsorted overload/Hashable 타입 마찰 회피.
+    bar_ns: list[int] = [t.value for t in pd.DatetimeIndex(ohlcv.index)]
+    funding_ns: list[int] = [t.value for t in pd.DatetimeIndex(funding_rates.index)]
+    funding_vals = list(funding_rates)
+    for ts_ns, rate_raw in zip(funding_ns, funding_vals, strict=True):
+        rate = rate_raw if isinstance(rate_raw, Decimal) else Decimal(str(rate_raw))
+        # ts 를 포함하는 bar (가장 가까운 이전/동일 bar). 첫 bar 이전 ts → skip.
+        # 마지막 bar 시각 초과(백테스트 window 밖) 정산은 마지막 bar 오귀속 방지 위해 skip.
+        if not bar_ns or ts_ns > bar_ns[-1]:
+            continue
+        pos = bisect.bisect_right(bar_ns, ts_ns) - 1
+        if pos < 0:
+            continue
+        close_px = Decimal(str(ohlcv["close"].iloc[pos]))
+        for t in trades:
+            if t.entry_bar_index > pos:
+                continue
+            if t.exit_bar_index is not None and t.exit_bar_index <= pos:
+                continue
+            direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
+            costs[pos] += close_px * t.size * rate * direction_sign
+    incomplete = _funding_coverage_incomplete(trades, ohlcv, funding_rates)
+    return costs, incomplete
+
+
 def _compute_equity_curve(
-    trades: list[RawTrade], ohlcv: pd.DataFrame, cfg: BacktestConfig
+    trades: list[RawTrade],
+    ohlcv: pd.DataFrame,
+    cfg: BacktestConfig,
+    funding_rates: pd.Series | None = None,
 ) -> pd.Series:
     """bar-by-bar equity 재구성.
 
@@ -271,11 +378,16 @@ def _compute_equity_curve(
     """
     n = len(ohlcv)
     init_cash = cfg.init_cash
-    fee_rate = Decimal(str(cfg.fees))
+    taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
-    entry_cost_rate = fee_rate + slip_rate
 
     values: list[Decimal] = []
+
+    # C6 funding accrual — funding_rates 제공 시 정산 경계마다 보유 포지션 funding
+    # 누적 차감 (None = 회귀 0, 기존 동작 byte-identical).
+    funding_by_bar = (
+        _funding_cost_by_bar(trades, ohlcv, funding_rates)[0] if funding_rates is not None else None
+    )
 
     # exit bar 별 realized pnl 누적
     exits_by_bar: dict[int, list[RawTrade]] = {}
@@ -284,10 +396,13 @@ def _compute_equity_curve(
             exits_by_bar.setdefault(t.exit_bar_index, []).append(t)
 
     realized_cum = Decimal("0")
+    funding_cum = Decimal("0")
     for bar_idx in range(n):
         # 이 bar 에 exit 된 trade pnl 을 실현 누적에 추가 (bar 종료 시점 관점)
         for t in exits_by_bar.get(bar_idx, []):
             realized_cum += t.pnl
+        if funding_by_bar is not None:
+            funding_cum += funding_by_bar[bar_idx]
 
         # close price — numpy/float 소스라도 str() 경유로 Decimal 진입
         close_raw = ohlcv["close"].iloc[bar_idx]
@@ -304,10 +419,16 @@ def _compute_equity_curve(
                     continue
             direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
             price_pnl = (close_px - t.entry_price) * t.size * direction_sign
-            entry_cost = t.entry_price * t.size * entry_cost_rate
-            unrealized += price_pnl - entry_cost
+            # entry leg 비용 (taker fee + slippage) — _leg_cost SSOT 위임.
+            entry_fee, entry_slip = _leg_cost(
+                t.entry_price * t.size,
+                fill_type="taker",
+                taker_fee=taker_fee,
+                slippage=slip_rate,
+            )
+            unrealized += price_pnl - (entry_fee + entry_slip)
 
-        values.append(init_cash + realized_cum + unrealized)
+        values.append(init_cash + realized_cum + unrealized - funding_cum)
 
     # object dtype 으로 Decimal 을 보관 — float drift 방지.
     return pd.Series(values, index=ohlcv.index, dtype=object)
@@ -406,6 +527,32 @@ def _compute_metrics(
     # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV close 기반).
     buy_and_hold_curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
 
+    # C14 (정직성) — 총 수수료/슬리피지 분해 집계. C8 Slice 3: _leg_cost SSOT
+    # 위임으로 _build_raw_trades 와의 cost 공식 중복 제거. 불변식 보존:
+    #   total_fees + total_slippage == Σ RawTrade.fees.
+    taker_fee = Decimal(str(cfg.fees))
+    slip_rate = Decimal(str(cfg.slippage))
+    total_fees = Decimal("0")
+    total_slippage = Decimal("0")
+    for t in trades:
+        entry_fee, entry_slip = _leg_cost(
+            t.entry_price * t.size,
+            fill_type="taker",
+            taker_fee=taker_fee,
+            slippage=slip_rate,
+        )
+        total_fees += entry_fee
+        total_slippage += entry_slip
+        if t.exit_price is not None:
+            exit_fee, exit_slip = _leg_cost(
+                t.exit_price * t.size,
+                fill_type="taker",
+                taker_fee=taker_fee,
+                slippage=slip_rate,
+            )
+            total_fees += exit_fee
+            total_slippage += exit_slip
+
     return BacktestMetrics(
         total_return=total_return,
         sharpe_ratio=sharpe_ratio,
@@ -437,6 +584,9 @@ def _compute_metrics(
         mdd_exceeds_capital=mdd_exceeds_capital,
         # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV 기반).
         buy_and_hold_curve=buy_and_hold_curve,
+        # C14 (정직성) — 총 수수료/슬리피지 분해 (헤드라인 net 표시용).
+        total_fees=total_fees,
+        total_slippage=total_slippage,
     )
 
 

@@ -1,4 +1,5 @@
 """stress_test 도메인 Pydantic V2 스키마 — Request/Response DTOs."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -77,6 +78,11 @@ class WalkForwardParams(BaseModel):
     test_bars: int = Field(ge=1)
     step_bars: int | None = Field(default=None, ge=1)
     max_folds: int = Field(default=20, ge=1, le=100)
+    # C13 — 옵티마이저 best_params 를 OOS 검증에 input_overrides 로 주입 (선택).
+    # key = pine input var_name, value = 최적값. input.int/float 모두 Decimal 로 적용 OK
+    # (interpreter 가 input 타입별 캐스팅). categorical string(BL-364) + bool 입력
+    # sweep 은 optimizer 가 미생성 → numeric(Decimal) 만 허용. 필요 시 union 확장.
+    best_params: dict[str, Decimal] | None = Field(default=None)
 
 
 class WalkForwardSubmitRequest(BaseModel):
@@ -161,9 +167,7 @@ class CostAssumptionParams(BaseModel):
                 raise ValueError("param_grid values must not be empty")
             n_cells *= len(vals)
         if n_cells > 9:
-            raise ValueError(
-                f"grid size {n_cells} exceeds 9 cells (Sprint 50 MVP 강제 제한)"
-            )
+            raise ValueError(f"grid size {n_cells} exceeds 9 cells (Sprint 50 MVP 강제 제한)")
         return self
 
 
@@ -221,14 +225,10 @@ class ParamStabilityParams(BaseModel):
         n_cells = 1
         for key, vals in self.param_grid.items():
             if not vals:
-                raise ValueError(
-                    f"param_grid[{key!r}] values must not be empty"
-                )
+                raise ValueError(f"param_grid[{key!r}] values must not be empty")
             n_cells *= len(vals)
         if n_cells > 9:
-            raise ValueError(
-                f"grid size {n_cells} exceeds 9 cells (Sprint 51 MVP 강제 제한)"
-            )
+            raise ValueError(f"grid size {n_cells} exceeds 9 cells (Sprint 51 MVP 강제 제한)")
         return self
 
 
