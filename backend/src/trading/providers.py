@@ -60,6 +60,18 @@ class OrderSubmit:
     # Bybit V5 orderLinkId / OKX clOrdId 로 전달되어 WebSocket order event 와
     # local DB row 매핑. None = 외부 등록 또는 legacy 주문.
     client_order_id: str | None = None
+    # Wave 1 (TP/SL order primitives) — 라이브 손익보호 프리미티브.
+    # 전부 default None/False = 기존 entry 주문 경로 byte-identical 회귀.
+    # ccxt unified params 로 조건부 병합 (providers `_merge_exit_params`).
+    # reduce_only: True 시 reduceOnly=True (over-fill 방지, close 전용).
+    reduce_only: bool = False
+    # trigger_price: standalone 트리거(조건부) 주문 트리거가 (SL/Trail trigger market).
+    trigger_price: Decimal | None = None
+    # trigger_by: 트리거 가격 기준 (Bybit triggerBy: MarkPrice/IndexPrice/LastPrice).
+    trigger_by: str | None = None
+    # take_profit / stop_loss: entry 에 attach 하는 bracket TP/SL 트리거가.
+    take_profit: Decimal | None = None
+    stop_loss: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)

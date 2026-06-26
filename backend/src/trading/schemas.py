@@ -55,6 +55,13 @@ class OrderRequest(BaseModel):
     # MP-1 — close 주문 청산 realized PnL (live-signal event-loop 계산). 손실은 음수이므로
     # 부호 제약 없음. kill-switch 가 Order.realized_pnl 을 SUM 하여 손실 차단기 작동.
     realized_pnl: Decimal | None = Field(default=None)
+    # Wave 1 (TP/SL order primitives) — 라이브 손익보호 프리미티브 (전부 optional).
+    # default None/False = 기존 entry 주문 경로 회귀.
+    reduce_only: bool = Field(default=False)
+    trigger_price: Decimal | None = Field(default=None, gt=0, decimal_places=8)
+    trigger_by: str | None = Field(default=None, max_length=16)
+    take_profit: Decimal | None = Field(default=None, gt=0, decimal_places=8)
+    stop_loss: Decimal | None = Field(default=None, gt=0, decimal_places=8)
 
 
 class OrderResponse(BaseModel):
@@ -79,6 +86,12 @@ class OrderResponse(BaseModel):
     # Sprint 7a 추가 — Spot 경로는 None.
     leverage: int | None = None
     margin_mode: Literal["cross", "isolated"] | None = None
+    # Wave 1 (TP/SL order primitives) — 라이브 손익보호 프리미티브.
+    reduce_only: bool = False
+    trigger_price: Decimal | None = None
+    trigger_by: str | None = None
+    take_profit: Decimal | None = None
+    stop_loss: Decimal | None = None
 
 
 class KillSwitchEventResponse(BaseModel):

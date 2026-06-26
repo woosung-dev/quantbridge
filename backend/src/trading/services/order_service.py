@@ -287,6 +287,12 @@ class OrderService:
                             margin_mode=req.margin_mode,
                             # MP-1: close 주문의 청산 realized PnL → kill-switch SUM 대상.
                             realized_pnl=req.realized_pnl,
+                            # Wave 1 (TP/SL order primitives) — 라이브 손익보호 프리미티브.
+                            reduce_only=req.reduce_only,
+                            trigger_price=req.trigger_price,
+                            trigger_by=req.trigger_by,
+                            take_profit=req.take_profit,
+                            stop_loss=req.stop_loss,
                             # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                             dispatch_snapshot=dispatch_snapshot,
                         )
@@ -311,6 +317,12 @@ class OrderService:
                         margin_mode=req.margin_mode,
                         # MP-1: close 주문의 청산 realized PnL → kill-switch SUM 대상.
                         realized_pnl=req.realized_pnl,
+                        # Wave 1 (TP/SL order primitives) — 라이브 손익보호 프리미티브.
+                        reduce_only=req.reduce_only,
+                        trigger_price=req.trigger_price,
+                        trigger_by=req.trigger_by,
+                        take_profit=req.take_profit,
+                        stop_loss=req.stop_loss,
                         # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                         dispatch_snapshot=dispatch_snapshot,
                     )
