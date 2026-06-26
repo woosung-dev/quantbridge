@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from src.strategy.pine_v2.exit_orders import SAME_BAR_FILL_PRIORITY, ExitOrderKind
 
@@ -190,6 +190,18 @@ class TradeEvent:
     price: float
     sequence_no: int
     comment: str = ""
+
+
+class ExitLevels(NamedTuple):
+    """Phase 3 — 현재 포지션의 라이브 placement 용 exit 레벨 (pine_v2 float 관례).
+
+    take_profit = TP leg limit_price / stop_loss = SL leg stop_price /
+    trailing_stop = Trail leg trail_offset (quote 거리). 레그 부재 시 None.
+    """
+
+    take_profit: float | None
+    stop_loss: float | None
+    trailing_stop: float | None
 
 
 @dataclass
@@ -689,6 +701,25 @@ class StrategyState:
             # 포지션 청산 → OCO 형제 전부 purge.
             self.pending_exits.pop(entry_id, None)
         return filled
+
+    def exit_levels_for(self, trade_id: str) -> ExitLevels:
+        """Phase 3 — trade_id 의 pending exit 레그에서 TP/SL/trail 레벨 추출 (라이브 surfacing).
+
+        백테스트 sim 의 exit 계약(`pending_exits`)을 라이브 주문 경로로 노출하는
+        read-only accessor — 상태 변경 없음. pending_exits 미존재/빈 레그 → 전부 None
+        (exit 미사용 전략 회귀 0).
+        """
+        take_profit: float | None = None
+        stop_loss: float | None = None
+        trailing_stop: float | None = None
+        for leg in self.pending_exits.get(trade_id, []):
+            if leg.kind == ExitOrderKind.TAKE_PROFIT:
+                take_profit = leg.limit_price
+            elif leg.kind == ExitOrderKind.STOP_LOSS:
+                stop_loss = leg.stop_price
+            elif leg.kind == ExitOrderKind.TRAILING_STOP:
+                trailing_stop = leg.trail_offset
+        return ExitLevels(take_profit, stop_loss, trailing_stop)
 
     def to_report(self) -> dict[str, Any]:
         """실행 결과 리포트 딕셔너리."""

@@ -353,6 +353,10 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     "comment": s.comment,
                     # MP-1 — close signal 의 청산 realized PnL (entry 는 None).
                     "realized_pnl": s.realized_pnl,
+                    # Phase 3 — entry signal 의 exit 레벨 (bracket placement + trailing). close 는 None.
+                    "take_profit": s.take_profit,
+                    "stop_loss": s.stop_loss,
+                    "trailing_stop": s.trailing_stop,
                 }
                 for s in result.signals
             ]
@@ -692,6 +696,13 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 realized_pnl=event.realized_pnl,
                 # Wave 1 C3 — close 주문 reduce-only (over-fill/반전 방지). entry=False.
                 reduce_only=_action_is_reduce_only(event.action),
+                # Phase 3 — entry 주문에 TP/SL bracket 부착 → Bybit 포지션 bracket(거래소-네이티브 OCO).
+                # close 이벤트는 None (fold 안 됨). _merge_exit_params 가 takeProfit/stopLoss params 주입.
+                # ★ trailing_stop 은 entry 주문에 싣지 않는다 — ccxt 가 trailingStop 주문을
+                #   set-trading-stop 엔드포인트로 라우팅해 entry 자체가 깨짐. 트레일링은 포지션
+                #   open 후 별도 주문 (fill 후 follow-on, A4 trailing).
+                take_profit=event.take_profit,
+                stop_loss=event.stop_loss,
             )
             idempotency_key = _build_idempotency_key(
                 session_id=sess.id,

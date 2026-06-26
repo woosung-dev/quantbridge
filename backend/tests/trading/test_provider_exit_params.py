@@ -113,7 +113,7 @@ async def test_bybit_demo_full_bracket_trigger_with_client_order_id(credentials,
             "reduceOnly": True,
             "triggerPrice": "48000.5",
             "triggerBy": "MarkPrice",
-            "takeProfit": {"triggerPrice": "52000"},
+            "takeProfit": {"triggerPrice": "52000", "price": "52000"},
             "stopLoss": {"triggerPrice": "47000"},
         },
     )
@@ -206,7 +206,7 @@ async def test_okx_demo_bracket_trigger_no_trigger_by(okx_credentials, okx_mock)
             "clOrdId": "cid-3",
             "reduceOnly": True,
             "triggerPrice": "48000",
-            "takeProfit": {"triggerPrice": "52000"},
+            "takeProfit": {"triggerPrice": "52000", "price": "52000"},
             "stopLoss": {"triggerPrice": "47000"},
         },
     )

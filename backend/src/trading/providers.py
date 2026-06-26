@@ -149,7 +149,8 @@ def _merge_exit_params(
     create_order_request 실측)에 맞춘 shape:
     - reduceOnly: bool (Bybit safe_bool / OKX safe_value)
     - triggerPrice: scalar str (standalone 트리거 주문, SL/Trail trigger market)
-    - takeProfit/stopLoss: object {"triggerPrice": str} (entry attach bracket)
+    - takeProfit: object {"triggerPrice": str, "price": str} (entry attach bracket, maker limit TP)
+    - stopLoss: object {"triggerPrice": str} (entry attach bracket, taker market SL)
     - trigger_by: Bybit 전용 triggerBy(MarkPrice/IndexPrice/LastPrice). OKX 는 None 키로 미주입.
     - triggerDirection: Bybit 전용. linear standalone 트리거 주문 필수(bybit.py:4113-4116).
       str("1"|"2") — ccxt 가 '1'→ascending(rise)/그외→2(fall) 매핑. OKX 는 None 키로 미주입
@@ -176,8 +177,18 @@ def _merge_exit_params(
     if order.trailing_stop is not None and trailing_stop_key is not None:
         params[trailing_stop_key] = str(order.trailing_stop)
     if order.take_profit is not None:
-        params["takeProfit"] = {"triggerPrice": str(order.take_profit)}
+        # Phase 3 — maker TP: triggerPrice + price 동시 주입 → ccxt hasTakeProfit branch
+        # (bybit.py:4142-4147) 가 tpOrderType=Limit + tpLimitPrice + tpslMode=Partial 설정
+        # → resting limit 체결(maker). 백테스트 cost SSOT(TP=maker) 정합. price 생략 시
+        # ccxt 기본 tpOrderType=Market(taker) 라 백테스트와 fee 괴리.
+        # ponytail: tpslMode=Partial 이 tpSize 를 요구하면 contingency =
+        #   params["tpSize"]=str(order.quantity) 1줄 추가 (실 demo round-trip 으로 확정, D 단계).
+        params["takeProfit"] = {
+            "triggerPrice": str(order.take_profit),
+            "price": str(order.take_profit),
+        }
     if order.stop_loss is not None:
+        # SL 은 trigger market(taker) 유지 — 백테스트 SL=taker 와 정합. price 미주입.
         params["stopLoss"] = {"triggerPrice": str(order.stop_loss)}
     return params
 

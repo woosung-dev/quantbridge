@@ -548,6 +548,18 @@ class LiveSignalEvent(SQLModel, table=True):
     realized_pnl: Decimal | None = Field(
         default=None, sa_column=Column("realized_pnl", Numeric(18, 8), nullable=True)
     )
+    # Phase 3 — entry signal 의 exit 레벨 (event-loop fold). dispatch task 가
+    # OrderRequest bracket(take_profit/stop_loss) + trailing follow-on 으로 전파.
+    # ADD COLUMN(alembic 20260627_0001). entry 만 set, close/회귀 전략은 None.
+    take_profit: Decimal | None = Field(
+        default=None, sa_column=Column("take_profit", Numeric(18, 8), nullable=True)
+    )
+    stop_loss: Decimal | None = Field(
+        default=None, sa_column=Column("stop_loss", Numeric(18, 8), nullable=True)
+    )
+    trailing_stop: Decimal | None = Field(
+        default=None, sa_column=Column("trailing_stop", Numeric(18, 8), nullable=True)
+    )
     # Sprint 26 Phase D fix — interval 과 동일 사유 (PG enum 미생성, String(16) 컬럼).
     status: LiveSignalEventStatus = Field(
         default=LiveSignalEventStatus.pending,

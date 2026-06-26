@@ -112,7 +112,12 @@ def _patch_repos(
         )
 
 
-def _build_pending_event() -> SimpleNamespace:
+def _build_pending_event(
+    *,
+    take_profit: Decimal | None = None,
+    stop_loss: Decimal | None = None,
+    trailing_stop: Decimal | None = None,
+) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
         session_id=uuid4(),
@@ -125,6 +130,10 @@ def _build_pending_event() -> SimpleNamespace:
         comment="",
         status=LiveSignalEventStatus.pending,
         realized_pnl=None,  # MP-1 — entry 이벤트는 청산 PnL 없음
+        # Phase 3 — entry signal 의 exit 레벨 (bracket placement). 기본 None (exit 미사용).
+        take_profit=take_profit,
+        stop_loss=stop_loss,
+        trailing_stop=trailing_stop,
     )
 
 
@@ -272,6 +281,90 @@ async def test_dispatch_success_marks_dispatched(monkeypatch: pytest.MonkeyPatch
     assert f":{event.sequence_no}:" in key, f"sequence_no 가 idempotency_key 에 누락: {key}"
     assert f":{event.action}:" in key
     assert event.trade_id in key
+
+
+async def _dispatch_and_capture_req(
+    monkeypatch: pytest.MonkeyPatch, event: SimpleNamespace
+) -> Any:
+    """Phase 3 — dispatch 를 돌려 OrderService.execute 가 받은 OrderRequest 를 capture."""
+    _patch_engine(monkeypatch)
+    sess = _build_active_session(uuid4())
+    sess.id = event.session_id
+
+    event_repo = AsyncMock()
+    event_repo.get_by_id = AsyncMock(return_value=event)
+    event_repo.mark_dispatched = AsyncMock(return_value=1)
+    event_repo.commit = AsyncMock()
+
+    sess_repo = AsyncMock()
+    sess_repo.get_by_id = AsyncMock(return_value=sess)
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner = AsyncMock(
+        return_value=SimpleNamespace(
+            id=sess.strategy_id,
+            settings={"leverage": 5, "margin_mode": "cross", "position_size_pct": 10.0},
+            pine_source="//@version=5\nstrategy('x')",
+        )
+    )
+    _patch_repos(
+        monkeypatch,
+        event_repo=event_repo,
+        sess_repo=sess_repo,
+        strategy_repo=strategy_repo,
+        order_repo=AsyncMock(),
+        account_repo=AsyncMock(),
+        kse_repo=AsyncMock(),
+    )
+
+    captured_req: list[Any] = []
+
+    class _OrderServiceCapture:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        async def execute(
+            self, req: Any, *, idempotency_key: str | None, body_hash: bytes | None = None
+        ) -> tuple[Any, bool]:
+            captured_req.append(req)
+            return (SimpleNamespace(id=uuid4(), state="pending", side=req.side), False)
+
+    import src.trading.services.order_service as trading_service_mod
+    monkeypatch.setattr(trading_service_mod, "OrderService", _OrderServiceCapture)
+    import src.trading.kill_switch as kill_switch_mod
+    monkeypatch.setattr(kill_switch_mod, "KillSwitchService", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "CumulativeLossEvaluator", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "DailyLossEvaluator", MagicMock())
+
+    await live_signal_module._async_dispatch_event(event.id)
+    assert len(captured_req) == 1
+    return captured_req[0]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_entry_attaches_tp_sl_bracket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 3 — exit 레벨 있는 entry → OrderRequest 에 take_profit/stop_loss bracket 부착."""
+    event = _build_pending_event(take_profit=Decimal("105.0"), stop_loss=Decimal("95.0"))
+    req = await _dispatch_and_capture_req(monkeypatch, event)
+    assert req.take_profit == Decimal("105.0")
+    assert req.stop_loss == Decimal("95.0")
+    # ★ trailing_stop 은 entry 주문에 싣지 않는다 (set-trading-stop 라우팅 → entry 깨짐 방지).
+    assert req.trailing_stop is None
+    # entry 는 reduce_only=False (포지션 open).
+    assert req.reduce_only is False
+
+
+@pytest.mark.asyncio
+async def test_dispatch_entry_without_exit_has_no_bracket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """회귀 0 — exit 미사용 entry → bracket 필드 전부 None (기존 entry byte-identical)."""
+    event = _build_pending_event()
+    req = await _dispatch_and_capture_req(monkeypatch, event)
+    assert req.take_profit is None
+    assert req.stop_loss is None
+    assert req.trailing_stop is None
 
 
 @pytest.mark.asyncio
