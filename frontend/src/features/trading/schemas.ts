@@ -13,6 +13,13 @@ export const OrderSchema = z.object({
   exchange_order_id: z.string().nullable(),
   error_message: z.string().nullable(),
   created_at: z.string(),
+  // Wave 1 (TP/SL order primitives) — BE OrderResponse 와 1:1. Decimal→string 직렬화.
+  // `.default()` = 구(舊) 응답/fixture 회귀 방지 (BE 는 항상 전송, default False/None).
+  reduce_only: z.boolean().default(false),
+  trigger_price: z.string().nullable().default(null),
+  trigger_by: z.string().nullable().default(null),
+  take_profit: z.string().nullable().default(null),
+  stop_loss: z.string().nullable().default(null),
 });
 export type Order = z.infer<typeof OrderSchema>;
 
@@ -76,3 +83,16 @@ export const RegisterAccountRequestSchema = z
     }
   });
 export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequestSchema>;
+
+// Wave 2 크로스도메인 계약 (W-B liquidation, 미머지) — 청산가 on-the-fly 계산 응답.
+// Decimal 필드는 string 직렬화. BE LiquidationInfoResponse 와 1:1. 최종 wire-up = Phase 3.
+export const LiquidationInfoResponseSchema = z.object({
+  symbol: z.string(),
+  entry_price: z.string(),
+  side: z.enum(["buy", "sell"]),
+  leverage: z.number(),
+  liquidation_price: z.string(),
+  maintenance_margin_rate: z.string(),
+  distance_pct: z.string(),
+});
+export type LiquidationInfoResponse = z.infer<typeof LiquidationInfoResponseSchema>;

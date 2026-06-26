@@ -7,9 +7,11 @@ import {
   ExchangeAccountListResponseSchema,
   ExchangeAccountSchema,
   KillSwitchListResponseSchema,
+  LiquidationInfoResponseSchema,
   OrderListResponseSchema,
   type ExchangeAccount,
   type KillSwitchEvent,
+  type LiquidationInfoResponse,
   type Order,
   type RegisterAccountRequest,
 } from "./schemas";
@@ -17,6 +19,15 @@ import {
 const ORDERS_PATH = "/api/v1/orders";
 const KILL_SWITCH_PATH = "/api/v1/kill-switch/events";
 const EXCHANGE_ACCOUNTS_PATH = "/api/v1/exchange-accounts";
+// Wave 2 크로스도메인 계약 (W-B liquidation, 미머지). 최종 wire-up = Phase 3.
+const LIQUIDATION_PATH = "/api/v1/liquidation";
+
+export type LiquidationParams = {
+  symbol: string;
+  side: "buy" | "sell";
+  entry_price: string;
+  leverage: number;
+};
 
 export async function listOrders(
   limit: number,
@@ -84,4 +95,23 @@ export async function deleteExchangeAccount(
     method: "DELETE",
     token,
   });
+}
+
+// Wave 2 — 청산가 on-the-fly 조회 (W-B 계약). 엔드포인트 미머지 상태 → 404/연결거부 시
+// apiFetch 가 throw → 호출부(useLiquidationInfo)는 graceful-empty 로 렌더. wire-up = Phase 3.
+export async function getLiquidationInfo(
+  params: LiquidationParams,
+  token: string | null,
+): Promise<LiquidationInfoResponse> {
+  const raw = await apiFetch<unknown>(LIQUIDATION_PATH, {
+    method: "GET",
+    token,
+    params: {
+      symbol: params.symbol,
+      side: params.side,
+      entry_price: params.entry_price,
+      leverage: params.leverage,
+    },
+  });
+  return LiquidationInfoResponseSchema.parse(raw);
 }

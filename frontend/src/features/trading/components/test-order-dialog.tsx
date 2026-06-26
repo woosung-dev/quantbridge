@@ -9,7 +9,7 @@
 // - 422/400 등 error 시 setError("root.serverError") 로 form 안에 inline 표시.
 
 import { useState } from "react";
-import { useForm, type FieldValues, type Resolver } from "react-hook-form";
+import { useForm, useWatch, type FieldValues, type Resolver } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z, type core } from "zod/v4";
@@ -43,22 +43,77 @@ import { readWebhookSecret } from "@/features/strategy/webhook-secret-storage";
 import { getApiBase, readErrorBody } from "@/lib/api-base";
 import { useExchangeAccounts, useIsOrderDisabledByKs } from "../hooks";
 
-const TEST_ORDER_FORM_SCHEMA = z.object({
-  strategy_id: z.string().min(1, "전략을 선택하세요."),
-  exchange_account_id: z.string().min(1, "거래소 계정을 선택하세요."),
-  symbol: z.string().min(1, "심볼을 입력하세요."),
-  side: z.enum(["buy", "sell"]),
-  quantity: z
-    .string()
-    .min(1, "수량을 입력하세요.")
-    .refine(
-      (v) => {
-        if (!/^\d*\.?\d+$/.test(v)) return false;
-        return Number(v) > 0;
-      },
-      { message: "수량은 0보다 큰 숫자여야 합니다." },
-    ),
-});
+// 양수 Decimal 문자열 판정 — 수량/TP/SL/risk% 공용.
+function isPositiveDecimalString(v: string): boolean {
+  if (!/^\d*\.?\d+$/.test(v)) return false;
+  return Number(v) > 0;
+}
+
+// Wave 2 — sizing 택일(수량 직접 ↔ risk% 서버 권위) + bracket TP/SL + reduce-only.
+// risk_percent 는 W-A `OrderRequest.risk_percent`(Decimal,%) 계약 (미머지 → 서버 사이징은 Phase 3).
+const TEST_ORDER_FORM_SCHEMA = z
+  .object({
+    strategy_id: z.string().min(1, "전략을 선택하세요."),
+    exchange_account_id: z.string().min(1, "거래소 계정을 선택하세요."),
+    symbol: z.string().min(1, "심볼을 입력하세요."),
+    side: z.enum(["buy", "sell"]),
+    sizing_mode: z.enum(["quantity", "risk_percent"]),
+    // sizing 택일로 quantity/risk_percent 가 조건부 unmount → RHF 가 값을 제거할 수 있어
+    // `.default("")` 로 undefined 를 "" 로 흡수 (없으면 z.string() 이 silent "Required" 발생).
+    quantity: z.string().default(""),
+    risk_percent: z.string().default(""),
+    take_profit: z.string().default(""),
+    stop_loss: z.string().default(""),
+    reduce_only: z.boolean().default(false),
+  })
+  .superRefine((data, ctx) => {
+    if (data.sizing_mode === "quantity") {
+      if (data.quantity.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["quantity"],
+          message: "수량을 입력하세요.",
+        });
+      } else if (!isPositiveDecimalString(data.quantity)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["quantity"],
+          message: "수량은 0보다 큰 숫자여야 합니다.",
+        });
+      }
+    } else {
+      if (data.risk_percent.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["risk_percent"],
+          message: "리스크 %를 입력하세요.",
+        });
+      } else if (
+        !isPositiveDecimalString(data.risk_percent) ||
+        Number(data.risk_percent) > 100
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["risk_percent"],
+          message: "리스크 %는 0 초과 100 이하 숫자여야 합니다.",
+        });
+      }
+    }
+    if (data.take_profit.length > 0 && !isPositiveDecimalString(data.take_profit)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["take_profit"],
+        message: "익절가는 0보다 큰 숫자여야 합니다.",
+      });
+    }
+    if (data.stop_loss.length > 0 && !isPositiveDecimalString(data.stop_loss)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["stop_loss"],
+        message: "손절가는 0보다 큰 숫자여야 합니다.",
+      });
+    }
+  });
 
 type TestOrderFormValues = z.infer<typeof TEST_ORDER_FORM_SCHEMA>;
 
@@ -148,9 +203,16 @@ function TestOrderDialogInner() {
       exchange_account_id: "",
       symbol: "BTCUSDT",
       side: "buy",
+      sizing_mode: "quantity",
       quantity: "",
+      risk_percent: "",
+      take_profit: "",
+      stop_loss: "",
+      reduce_only: false,
     },
   });
+  // useWatch — React Compiler 호환(form.watch 는 memoize 불가 경고). 변경 시 re-render.
+  const sizingMode = useWatch({ control: form.control, name: "sizing_mode" });
 
   const onSubmit = async (values: TestOrderFormValues): Promise<void> => {
     // G.4 P1 #5 fix: KS active 시 submit 차단 (CSS pointer-events 만으로는
@@ -175,13 +237,29 @@ function TestOrderDialogInner() {
       return;
     }
 
-    const payload = {
+    // 기본 5필드 순서 보존(symbol/side/type/quantity/exchange_account_id) — 기존 HMAC
+    // golden vector + body 정확매칭 테스트 유지. risk% 모드면 quantity 대신 risk_percent
+    // (서버 권위 사이징). optional Wave1 필드는 값이 있을 때만 append.
+    const payload: Record<string, unknown> = {
       symbol: values.symbol,
       side: values.side,
       type: "market",
-      quantity: values.quantity,
-      exchange_account_id: values.exchange_account_id,
     };
+    if (values.sizing_mode === "quantity") {
+      payload.quantity = values.quantity;
+    } else {
+      payload.risk_percent = values.risk_percent;
+    }
+    payload.exchange_account_id = values.exchange_account_id;
+    if (values.take_profit.length > 0) {
+      payload.take_profit = values.take_profit;
+    }
+    if (values.stop_loss.length > 0) {
+      payload.stop_loss = values.stop_loss;
+    }
+    if (values.reduce_only) {
+      payload.reduce_only = true;
+    }
     // ── 핵심: bodyStr 은 단 1회만 직렬화. HMAC 입력과 fetch body 가 동일 byte. ──
     const bodyStr = JSON.stringify(payload);
 
@@ -398,18 +476,134 @@ function TestOrderDialogInner() {
                   </FormItem>
                 )}
               />
+              {/* Wave 2 — 사이징 방식 택일. 수량 직접 ↔ 리스크 %(서버 권위). */}
               <FormField
                 control={form.control}
-                name="quantity"
+                name="sizing_mode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>수량 (Decimal)</FormLabel>
+                    <FormLabel>사이징 방식</FormLabel>
                     <FormControl>
-                      <Input
-                        inputMode="decimal"
-                        placeholder="0.001"
-                        {...field}
-                      />
+                      <fieldset
+                        className="flex flex-wrap gap-4"
+                        aria-label="사이징 방식"
+                      >
+                        <label className="flex min-h-11 items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            value="quantity"
+                            checked={field.value === "quantity"}
+                            onChange={() => field.onChange("quantity")}
+                          />
+                          직접 입력
+                        </label>
+                        <label className="flex min-h-11 items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            value="risk_percent"
+                            checked={field.value === "risk_percent"}
+                            onChange={() => field.onChange("risk_percent")}
+                          />
+                          리스크 %
+                        </label>
+                      </fieldset>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {sizingMode === "quantity" ? (
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>수량 (Decimal)</FormLabel>
+                      <FormControl>
+                        <Input
+                          inputMode="decimal"
+                          placeholder="0.001"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="risk_percent"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>리스크 % (자동 사이징)</FormLabel>
+                      <FormControl>
+                        <Input
+                          inputMode="decimal"
+                          placeholder="1.0"
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        수량은 서버가 잔고·리스크 기준으로 계산합니다 (서버 권위 사이징).
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {/* Wave 2 — bracket TP/SL (둘 다 optional). */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="take_profit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>익절가 TP (선택)</FormLabel>
+                      <FormControl>
+                        <Input
+                          inputMode="decimal"
+                          placeholder="예: 55000"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="stop_loss"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>손절가 SL (선택)</FormLabel>
+                      <FormControl>
+                        <Input
+                          inputMode="decimal"
+                          placeholder="예: 48000"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              {/* Wave 2 — reduce-only (청산 전용 주문). */}
+              <FormField
+                control={form.control}
+                name="reduce_only"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                        />
+                        reduce-only (청산 전용 — 포지션만 줄임)
+                      </label>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

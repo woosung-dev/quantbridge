@@ -32,16 +32,19 @@ import { toast } from "sonner";
 
 import {
   deleteExchangeAccount,
+  getLiquidationInfo,
   listExchangeAccounts,
   listKillSwitchEvents,
   listOrders,
   registerExchangeAccount,
   resolveKillSwitchEvent,
+  type LiquidationParams,
 } from "./api";
 import { tradingKeys } from "./query-keys";
 import type {
   ExchangeAccount,
   KillSwitchEvent,
+  LiquidationInfoResponse,
   Order,
   RegisterAccountRequest,
 } from "./schemas";
@@ -117,6 +120,19 @@ function makeExchangeAccountsFetcher(getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return listExchangeAccounts(token);
+  };
+}
+
+function makeLiquidationFetcher(
+  params: LiquidationParams | null,
+  getToken: TokenGetter,
+) {
+  return async () => {
+    if (params === null) {
+      throw new Error("liquidation params required");
+    }
+    const token = await getToken();
+    return getLiquidationInfo(params, token);
   };
 }
 
@@ -260,6 +276,31 @@ export function useDeleteExchangeAccount(): UseMutationResult<void, Error, strin
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: tradingKeys.exchangeAccounts(uid) });
     },
+  });
+}
+
+// Wave 2 — 청산가 조회 hook (W-B 계약 소비). LESSON-005: queryKey userId 첫 인자.
+// graceful: params 완비(symbol/entry_price 존재 + leverage>0) 시에만 enabled →
+// W-B 미머지 상태에선 호출부가 params 를 비워두면 미발사 → 콘솔에러 0. 발사되더라도
+// 404/연결거부는 error 상태로 흡수되어 호출부가 graceful-empty 렌더. retry 0 (premature noise 회피).
+export function useLiquidationInfo(
+  params: LiquidationParams | null,
+): UseQueryResult<LiquidationInfoResponse, Error> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const enabled =
+    params !== null &&
+    params.symbol.length > 0 &&
+    params.entry_price.length > 0 &&
+    params.leverage > 0;
+  return useQuery({
+    queryKey: tradingKeys.liquidation(
+      uid,
+      params ?? { symbol: "", side: "buy", entry_price: "", leverage: 0 },
+    ),
+    queryFn: makeLiquidationFetcher(params, getToken),
+    enabled,
+    retry: false,
   });
 }
 

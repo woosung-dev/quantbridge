@@ -315,6 +315,10 @@ async def _execute_with_session(
                 trigger_by=order.trigger_by,
                 take_profit=order.take_profit,
                 stop_loss=order.stop_loss,
+                # Wave 2 (TP/SL placement) — triggerDirection/OCO/trailing.
+                trigger_direction=order.trigger_direction,
+                oco_group_id=order.oco_group_id,
+                trailing_stop=order.trailing_stop,
             )
             # Sprint 22 BL-091 + Sprint 23 BL-102: snapshot 우선 dispatch.
             # snapshot 부재 (legacy row) 또는 invalid (DB manual mutation) → account 현재값

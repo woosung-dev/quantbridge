@@ -90,3 +90,38 @@ test("OrdersPanel: real broker UUID 시 broker 배지 + 마지막 8자 + (broker
     "1234567890abcdef-bybit-real-trading-id-x9y8z7",
   );
 });
+
+// Wave 2 — TP/SL 컬럼 + 청산가 컬럼(graceful-empty).
+
+test("OrdersPanel: TP/SL 값이 있으면 렌더, 청산가는 graceful '—'", async () => {
+  _mountOrders([
+    {
+      ..._baseOrder,
+      exchange_order_id: "broker-1",
+      take_profit: "55000",
+      stop_loss: "48000",
+    },
+  ]);
+  await screen.findByText("BTC/USDT");
+  expect(screen.getByText("TP/SL")).toBeInTheDocument();
+  expect(screen.getByText("청산가")).toBeInTheDocument();
+  const tpslCell = screen.getByTestId("tpsl-cell");
+  expect(tpslCell).toHaveTextContent("55000");
+  expect(tpslCell).toHaveTextContent("48000");
+  // 청산가는 W-B 미머지 → graceful-empty 셀
+  expect(screen.getByTestId("liquidation-cell")).toHaveTextContent("—");
+});
+
+test("OrdersPanel: TP/SL 없으면 dash 표시", async () => {
+  _mountOrders([
+    {
+      ..._baseOrder,
+      exchange_order_id: "broker-1",
+      take_profit: null,
+      stop_loss: null,
+    },
+  ]);
+  await screen.findByText("BTC/USDT");
+  const tpslCell = screen.getByTestId("tpsl-cell");
+  expect(tpslCell).toHaveTextContent("—");
+});
