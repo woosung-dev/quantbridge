@@ -11,6 +11,7 @@ from typing import Literal
 import pandas as pd
 
 from src.strategy.pine import ParseOutcome, PineError
+from src.strategy.pine_v2.exit_orders import ExitOrderKind
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,10 @@ class BacktestConfig:
     # (BL-104) 도입 시 추가. 비용 공식 SSOT 는 v2_adapter._leg_cost.
     fees: float = 0.001  # 0.1% (taker)
     slippage: float = 0.0005  # 0.05% (taker market/stop 에만 적용; limit 제외)
+    # BL-104 — strategy.exit TP(resting limit) producer 도입 → maker 체결 활성.
+    # maker_fee 는 TP exit leg 에만 적용 + slippage 면제(limit). taker(SL/Trail/
+    # entry/market) 는 fees 사용. exit_kind 미태그 trade 는 전부 taker → 회귀 0.
+    maker_fee: float = 0.0002  # 0.02% (maker; TP limit 체결)
     freq: str = "1D"  # pandas offset alias
     # Sprint 7d: 빈 리스트면 24h. 값은 {"asia","london","ny"} 부분집합.
     # 엔진은 entries를 바 timestamp의 UTC hour로 필터링한다.
@@ -184,6 +189,9 @@ class RawTrade:
     pnl: Decimal
     return_pct: Decimal
     fees: Decimal
+    # BL-104 — exit leg 종류 (TP/SL/Trailing). maker/taker 비용 라우팅 입력.
+    # None = market close/flip/open → taker (byte-identical).
+    exit_kind: ExitOrderKind | None = None
 
 
 @dataclass(frozen=True)

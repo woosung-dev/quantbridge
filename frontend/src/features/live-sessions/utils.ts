@@ -25,6 +25,29 @@ export function computeLiveSessionStateRefetchInterval(isActive: boolean): numbe
 }
 
 
+// ── 실현손익 표시 포맷 (Wave0 cockpit — 부호·tone SSOT) ──────────────────
+// BE Decimal-as-string 입력. precision 보존 위해 원본 string 유지(재포맷 X),
+// 부호 판정만 Number 로. detail 패널 + list 배지가 공유.
+
+export type PnlTone = "profit" | "loss" | "flat";
+
+export interface RealizedPnlDisplay {
+  text: string;
+  tone: PnlTone;
+}
+
+export function formatRealizedPnl(raw: string): RealizedPnlDisplay {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n === 0) {
+    return { text: raw, tone: "flat" };
+  }
+  if (n > 0) {
+    return { text: `+${raw}`, tone: "profit" };
+  }
+  return { text: raw, tone: "loss" };
+}
+
+
 // ── Activity Timeline — events windowed cumulative entry/close (Sprint 27 BL-140) ─
 
 export type ActivityTimelinePoint = {

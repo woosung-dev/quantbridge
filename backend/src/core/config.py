@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
@@ -208,6 +209,47 @@ class Settings(BaseSettings):
         if not raw.startswith("https://hooks.slack.com/"):
             raise ValueError("SLACK_WEBHOOK_URL must start with https://hooks.slack.com/")
         return v
+
+    # --- Wave 0 W2: Telegram alerts (critical 이벤트 미러) ---
+    telegram_bot_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Telegram Bot API token for critical alerts (Kill Switch / 주문 stuck 등). "
+            "None or empty = silent skip (telegram_alert.py best-effort policy). "
+            "발급: @BotFather → /newbot → token. 형식: <digits>:<alphanumeric>."
+        ),
+    )
+    telegram_chat_id: str | None = Field(
+        default=None,
+        description=(
+            "Telegram chat id (또는 @channelusername) — alert 수신 대상. "
+            "None or empty = silent skip. 숫자 id / @channel 양식 모두 허용."
+        ),
+    )
+
+    @field_validator("telegram_bot_token")
+    @classmethod
+    def _validate_telegram_token(cls, v: SecretStr | None) -> SecretStr | None:
+        """@BotFather token 형식(<digits>:<rest>) 검증. 빈 값은 None 으로."""
+        if v is None:
+            return None
+        raw = v.get_secret_value()
+        if not raw:
+            return None
+        if not re.match(r"^\d+:[\w-]+$", raw):
+            raise ValueError(
+                "TELEGRAM_BOT_TOKEN must match @BotFather format <digits>:<alphanumeric>"
+            )
+        return v
+
+    @field_validator("telegram_chat_id")
+    @classmethod
+    def _normalize_telegram_chat_id(cls, v: str | None) -> str | None:
+        """빈 문자열 → None (silent skip 일관성)."""
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped or None
 
     # --- Experiment: Pine Script → Strategy 변환 (Claude API) ---
     anthropic_api_key: SecretStr | None = Field(

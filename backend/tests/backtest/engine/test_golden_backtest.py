@@ -1,9 +1,9 @@
 """백테스트 엔진 골든 러너 — .pine + ohlcv.csv + expected.json 스냅샷 비교.
 
-pine_v2 마이그레이션 후 expected.json 은 구 엔진(vectorbt) 기준이라 비교 불가.
-또한 현 golden case (ema_cross_atr_sltp_v5) 는 `strategy.exit` 를 사용하는데
-pine_v2 는 아직 미지원 (Week 3+ MVP). 재생성은 `strategy.exit` 지원 추가 후
-가능하므로 이 파일 전체는 skip 유지.
+BL-104 (T0-pine-oco C7): pine_v2 가 `strategy.exit` 를 본격 지원하게 되어 golden case
+(ema_cross_atr_sltp_v5) 가 status=ok 로 실행된다. expected.json 은 손계산 오라클
+(test_golden_oracle_ema_sltp.py) 통과로 신뢰된 엔진으로 재생성됨 (anti-circular,
+LESSON-039). skip 해제.
 """
 
 from __future__ import annotations
@@ -15,10 +15,6 @@ import pandas as pd
 import pytest
 
 from src.backtest.engine import run_backtest
-
-pytestmark = pytest.mark.skip(
-    reason="legacy golden expectations — pine_v2 strategy.exit 지원 + expected 재생성 필요"
-)
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
 

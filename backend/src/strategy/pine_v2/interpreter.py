@@ -1294,32 +1294,49 @@ class Interpreter:
             return None
 
         if name == "strategy.exit":
-            # Sprint 23 BL-098 — 보수적 NOP (codex G.0 P1 #1+#2 회피).
-            # Pine `strategy.exit(id, from_entry, profit/limit/loss/stop/trail_*)`
-            # 는 exit order 예약 (target price 도달 시 trigger) — 즉시 close 아님.
-            # close-fallback 시 (a) 거짓 양성 (entry 직후 즉시 close) + (b) wrong-id
-            # close (Pine 첫 인자 id ≠ close target, from_entry 가 진짜 target).
-            # H2 동안 silent NOP + warnings 기록. 후속 BL-104 에서 PendingExitOrder
-            # 본격 구현으로 교체.
+            # BL-104 — strategy.exit 본격 구현 (NOP 교체). Pine
+            # `strategy.exit(id, from_entry, profit/limit/loss/stop/trail_*)` =
+            # exit order 예약 (target price 도달 시 trigger). 매 bar 재호출 시 같은
+            # (from_entry, id) 브래킷을 갱신 (Pine re-issue). from_entry="" → 전체 open.
             #
             # when= kwarg: False면 skip (entry/close 패턴 일치).
             when_val = kwargs.get("when")
             if when_val is not None and not self._truthy(when_val):
                 return None
             exit_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
-            from_entry = (
-                str(positional[1])
-                if len(positional) >= 2
-                else str(kwargs.get("from_entry", ""))
-                if kwargs.get("from_entry")
-                else None
-            )
-            # 모든 kwargs (when 제외) 를 unsupported 로 기록 — close 안 함을 사용자에게 알림
-            unsupported = sorted(k for k in kwargs if k not in ("id", "from_entry", "when"))
-            self.strategy.warnings.append(
-                f"strategy.exit({exit_id!r}, from_entry={from_entry!r}): "
-                f"NOP — H2 partial support (BL-098/BL-104). "
-                f"ignored kwargs={unsupported}"
+            if len(positional) >= 2:
+                from_entry = str(positional[1])
+            elif kwargs.get("from_entry"):
+                from_entry = str(kwargs.get("from_entry", ""))
+            else:
+                from_entry = ""  # 전체 open 포지션
+
+            def _num(key: str) -> float | None:
+                raw = kwargs.get(key)
+                if raw is None or _is_na(raw):
+                    return None
+                return float(raw)
+
+            # 절대가: limit(TP)/stop(SL). 상대오프셋: profit/loss/trail_*.
+            # pine_v2 는 mintick 모델이 없어 profit/loss/trail 을 price-distance 로
+            # 근사 (mintick=1). entry 가 기준 → place_exit 가 target 별로 환산.
+            limit_price = _num("limit")
+            stop_price = _num("stop")
+            profit_offset = _num("profit")
+            loss_offset = _num("loss")
+            trail_offset = _num("trail_offset")
+            trail_points = _num("trail_points")
+            trail = trail_offset if trail_offset is not None else trail_points
+            self.strategy.place_exit(
+                from_entry=from_entry,
+                exit_id=exit_id,
+                bar=bar_idx,
+                limit=limit_price,
+                stop=stop_price,
+                profit_offset=profit_offset,
+                loss_offset=loss_offset,
+                trail_offset=trail,
+                comment=str(kwargs.get("comment", "")),
             )
             return None
 

@@ -69,6 +69,7 @@ def run_historical(
     default_qty_value: float | None = None,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
+    pyramiding: int | None = None,
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -106,6 +107,7 @@ def run_historical(
             default_qty_value=default_qty_value,
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
+    interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
     result = RunResult(bars_processed=0, final_state={})
 
     while bar.advance():
@@ -116,12 +118,22 @@ def run_historical(
         # BL-188 v3 — fill gate (E3 Live parity): bar_ts 전달 → check_pending_fills 가
         # disallowed session 시 fill skip + carry-over.
         bar_ts = bar.current_timestamp()
+        bar_ts_py = bar_ts.to_pydatetime() if bar_ts is not None else None
         interp.strategy.check_pending_fills(
             bar=bar.bar_index,
             open_=bar.current("open"),
             high=bar.current("high"),
             low=bar.current("low"),
-            bar_ts=bar_ts.to_pydatetime() if bar_ts is not None else None,
+            bar_ts=bar_ts_py,
+        )
+        # BL-104 — pending exit 브래킷 체결 검사 (entry fill 직후, execute 전).
+        # pending_exits 비어있으면 즉시 no-op → strategy.exit 미사용 시 회귀 0.
+        interp.strategy.check_exit_fills(
+            bar=bar.bar_index,
+            open_=bar.current("open"),
+            high=bar.current("high"),
+            low=bar.current("low"),
+            bar_ts=bar_ts_py,
         )
         try:
             interp.execute(tree)

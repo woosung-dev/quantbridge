@@ -191,6 +191,25 @@ class InvalidStrategySettings(AppException):
         self.error = error
 
 
+class DemoAccountNotYetStable(AppException):
+    """Wave 0 W4 — 라이브 전환 전 데모 안정화 기간 미충족.
+
+    user.created_at 기준 경과일이 _MIN_DEMO_STABLE_DAYS 미만일 때 라이브 경로에서 raise.
+    기존 error toast 가 표면화 — FE 무수정. demo 세션 생성에는 영향 없음.
+    """
+
+    status_code = 422
+    code = "demo_account_not_yet_stable"
+
+    def __init__(self, *, days_elapsed: int, min_required: int) -> None:
+        super().__init__(
+            f"데모 안정화 기간 미충족: {days_elapsed}일 경과 < 필요 {min_required}일. "
+            "라이브 전환은 데모 안정화 후 가능."
+        )
+        self.days_elapsed = days_elapsed
+        self.min_required = min_required
+
+
 class BalanceUnverified(AppException):
     """CF5 — live 모드에서 잔고 검증 불가 (fetch 실패/0) → 주문 거부 (fail-closed).
 
