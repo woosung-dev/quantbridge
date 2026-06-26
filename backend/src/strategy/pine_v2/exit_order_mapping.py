@@ -24,7 +24,7 @@ from decimal import Decimal
 from typing import Literal
 
 from src.strategy.pine_v2.exit_orders import ExitOrderKind, fill_type_for
-from src.trading.models import OrderType
+from src.trading.models import OrderSide, OrderType
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,3 +71,21 @@ def map_exit_kind(kind: ExitOrderKind, *, exit_price: Decimal) -> ExitOrderPrimi
         trigger_price=exit_price,
         fill_type=fill_type,
     )
+
+
+def trigger_direction_for(exit_side: OrderSide, kind: ExitOrderKind) -> int:
+    """exit 주문의 Bybit v5 triggerDirection (1=가격 RISE 시 트리거, 2=FALL 시 트리거).
+
+    Wave 2 — standalone 트리거 주문(SL/Trail trigger market)이 올바른 방향으로
+    트리거되도록 ccxt 4.5.49 bybit create_order_request(line 4115-4122)와 정합한다.
+    exit 주문 side 기준:
+    - SL / Trail: long 청산(sell) → 가격 하락 시 발동 = 2. short 청산(buy) → 상승 = 1.
+    - TP: long 청산(sell) → 가격 상승 시 발동 = 1. short 청산(buy) → 하락 = 2.
+
+    TRAILING_STOP 은 STOP_LOSS 와 동일 방향 규칙(ratchet stop 도 stop 방향 발동).
+    """
+    if kind == ExitOrderKind.TAKE_PROFIT:
+        # TP: sell(long 청산) → rise(1), buy(short 청산) → fall(2).
+        return 1 if exit_side == OrderSide.sell else 2
+    # SL / TRAILING_STOP: sell(long 청산) → fall(2), buy(short 청산) → rise(1).
+    return 2 if exit_side == OrderSide.sell else 1
