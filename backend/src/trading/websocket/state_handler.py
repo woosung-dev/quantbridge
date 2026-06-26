@@ -118,6 +118,16 @@ class StateHandler:
                 ):
                     qb_active_orders.dec()
 
+                if new_state == OrderState.filled and order.trailing_stop is not None:
+                    # STEP B — WS fill winner: trailing 의도 entry 면 place_trailing_stop enqueue.
+                    #   동기/WS/watchdog winner-only 전이라 정확히 1회만 발화(구조적 dedup).
+                    #   lazy import 로 tasks↔trading.websocket 순환 의존 회피.
+                    from src.tasks.trading import place_trailing_stop_task
+
+                    place_trailing_stop_task.apply_async(
+                        args=[str(order.id)], countdown=2
+                    )
+
                 if new_state == OrderState.rejected:
                     await self._alert_sender(
                         self._settings,

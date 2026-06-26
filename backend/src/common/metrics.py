@@ -251,6 +251,13 @@ qb_live_signal_dispatch_total = Counter(
         "outcome",
     ),  # action: entry|close, outcome: dispatched|kill_switched|notional|other
 )
+qb_trailing_placement_total = Counter(
+    "qb_trailing_placement_total",
+    "STEP B — fill 후 native trailing-stop placement 결과",
+    # outcome: placed | skipped_no_intent | skipped_position_flat | skipped_position_mismatch
+    #          | skipped_position_zero | failed (network/exchange → 무방비 → critical alert)
+    labelnames=("outcome",),
+)
 qb_live_signal_skipped_total = Counter(
     "qb_live_signal_skipped_total",
     "Live signal evaluate skipped reason",

@@ -124,6 +124,36 @@ async def test_bybit_futures_native_trailing_stop(credentials, bybit_mock):
     )
 
 
+async def test_bybit_futures_entry_trailing_not_injected_without_reduce_only(
+    credentials, bybit_mock
+):
+    """STEP B — entry(reduce_only=False) 에 trailing_stop 이 있어도 trailingStop 미주입.
+
+    트레일링은 포지션 open 후 set_trading_stop 으로만 placement. entry create_order 에
+    trailingStop 이 실리면 ccxt 가 trading-stop 엔드포인트로 라우팅해 entry 가 깨짐
+    (+SL 동반 시 bybit.py:3987-3989 InvalidOrder). _merge_exit_params 는 reduce_only 일
+    때만 trailingStop emit (defense-in-depth).
+    """
+    from src.trading.models import OrderSide, OrderType
+    from src.trading.providers import BybitFuturesProvider, OrderSubmit
+
+    submit = OrderSubmit(
+        symbol="BTC/USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        leverage=5,
+        margin_mode="cross",
+        reduce_only=False,  # entry
+        trailing_stop=Decimal("150.5"),
+    )
+    await BybitFuturesProvider().create_order(credentials, submit)
+    call = bybit_mock.create_order.call_args
+    params = call.args[5] if len(call.args) == 6 else {}
+    assert "trailingStop" not in params
+
+
 async def test_bybit_futures_oco_group_id_not_injected(credentials, bybit_mock):
     """oco_group_id 는 app-side 추적 전용 → ccxt params 미포함."""
     from src.trading.models import OrderSide, OrderType

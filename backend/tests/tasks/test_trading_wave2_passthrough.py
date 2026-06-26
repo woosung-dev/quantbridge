@@ -63,11 +63,39 @@ def test_build_order_submit_carries_wave2_fields() -> None:
         stop_loss=order.stop_loss,
         trigger_direction=order.trigger_direction,
         oco_group_id=order.oco_group_id,
-        trailing_stop=order.trailing_stop,
+        trailing_stop=order.trailing_stop if order.reduce_only else None,
     )
     assert submit.trigger_direction == 2
     assert submit.oco_group_id == "oco-xyz"
+    # reduce_only=True (보호 주문) → trailing 전달.
     assert submit.trailing_stop == Decimal("150.5")
+
+
+def test_build_order_submit_entry_nulls_trailing() -> None:
+    """STEP B — entry(reduce_only=False)는 trailing_stop 의도가 Order 에 있어도 OrderSubmit
+    에서 None (entry create_order 에 trailingStop 미주입). place_trailing_stop 가 후속 발주."""
+    from src.trading.providers import OrderSubmit
+
+    order = _make_order(reduce_only=False, trailing_stop=Decimal("150.5"))
+    submit = OrderSubmit(
+        symbol=order.symbol,
+        side=order.side,
+        type=order.type,
+        quantity=order.quantity,
+        price=order.price,
+        leverage=order.leverage,
+        margin_mode=order.margin_mode,
+        client_order_id=str(order.id),
+        reduce_only=order.reduce_only,
+        trigger_price=order.trigger_price,
+        trigger_by=order.trigger_by,
+        take_profit=order.take_profit,
+        stop_loss=order.stop_loss,
+        trigger_direction=order.trigger_direction,
+        oco_group_id=order.oco_group_id,
+        trailing_stop=order.trailing_stop if order.reduce_only else None,
+    )
+    assert submit.trailing_stop is None
 
 
 @pytest.mark.asyncio

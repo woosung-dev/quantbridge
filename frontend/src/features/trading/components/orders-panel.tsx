@@ -115,8 +115,12 @@ export function OrdersPanel() {
                   <td>{o.state}</td>
                   <td>{o.filled_price ?? "—"}</td>
                   <td data-testid="tpsl-cell" className="font-mono text-xs">
-                    {o.take_profit || o.stop_loss
-                      ? `${o.take_profit ?? "—"} / ${o.stop_loss ?? "—"}`
+                    {/* STEP B — 트레일링 의도(Order.trailing_stop)도 표출. 체결 후
+                        place_trailing_stop 가 거래소에 부착(별도 주문 아님). */}
+                    {o.take_profit || o.stop_loss || o.trailing_stop
+                      ? `${o.take_profit ?? "—"} / ${o.stop_loss ?? "—"}${
+                          o.trailing_stop ? ` / trail ${o.trailing_stop}` : ""
+                        }`
                       : "—"}
                   </td>
                   {/* 청산가 graceful-empty (의도적). 주문 목록은 "열린 포지션" 상태를

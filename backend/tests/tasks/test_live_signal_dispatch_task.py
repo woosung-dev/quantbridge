@@ -432,11 +432,14 @@ async def test_dispatch_trailing_only_entry_rejected_no_naked_position(
 async def test_dispatch_sl_plus_trailing_proceeds_with_sl_bracket(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """SL + trailing → SL bracket 이 보호 → entry 진행. trailing 은 entry 에 미부착(drop)."""
+    """STEP B — SL + trailing → SL bracket 보호 + entry 진행. trailing_stop 은 Order 에
+    영속(드롭 아님) — 체결 후 place_trailing_stop 가 set_trading_stop 으로 발주. entry
+    create_order 에는 미주입(reduce_only=False → tasks/trading 게이트가 차단)."""
     event = _build_pending_event(stop_loss=Decimal("95.0"), trailing_stop=Decimal("3.0"))
     req = await _dispatch_and_capture_req(monkeypatch, event)
     assert req.stop_loss == Decimal("95.0")
-    assert req.trailing_stop is None
+    assert req.trailing_stop == Decimal("3.0")  # 영속(체결 후 follow-on placement)
+    assert req.reduce_only is False  # entry — tasks/trading 이 create_order 에 trailing 미주입
 
 
 @pytest.mark.asyncio

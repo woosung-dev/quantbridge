@@ -112,6 +112,22 @@ test("OrdersPanel: TP/SL 값이 있으면 렌더, 청산가는 graceful '—'", 
   expect(screen.getByTestId("liquidation-cell")).toHaveTextContent("—");
 });
 
+// STEP B — 트레일링 의도(Order.trailing_stop) 표출 (Playwright UI 검증 대상).
+test("OrdersPanel: trailing_stop 있으면 trail 거리 렌더", async () => {
+  _mountOrders([
+    {
+      ..._baseOrder,
+      exchange_order_id: "broker-1",
+      stop_loss: "48000",
+      trailing_stop: "150.5",
+    },
+  ]);
+  await screen.findByText("BTC/USDT");
+  const tpslCell = screen.getByTestId("tpsl-cell");
+  expect(tpslCell).toHaveTextContent("48000");
+  expect(tpslCell).toHaveTextContent("trail 150.5");
+});
+
 test("OrdersPanel: TP/SL 없으면 dash 표시", async () => {
   _mountOrders([
     {

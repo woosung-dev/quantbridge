@@ -718,11 +718,14 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                     reduce_only=_action_is_reduce_only(event.action),
                     # Phase 3 — entry 주문에 TP/SL bracket 부착 → Bybit 포지션 bracket(거래소-네이티브 OCO).
                     # close 이벤트는 None (fold 안 됨). _merge_exit_params 가 takeProfit/stopLoss params 주입.
-                    # ★ trailing_stop 은 entry 주문에 싣지 않는다 — ccxt 가 trailingStop 주문을
-                    #   set-trading-stop 엔드포인트로 라우팅해 entry 자체가 깨짐. 트레일링은 포지션
-                    #   open 후 별도 주문 (fill 후 follow-on, A4 trailing).
                     take_profit=event.take_profit,
                     stop_loss=event.stop_loss,
+                    # ★ STEP B — trailing_stop 을 Order 에 영속(의도 보존). entry 는 reduce_only=False
+                    #   라 tasks/trading 이 create_order 에 미주입(trailingStop 실으면 ccxt 가
+                    #   trading-stop 엔드포인트로 라우팅 → entry 깨짐). 체결 후 place_trailing_stop 가
+                    #   Order.trailing_stop 을 읽어 set_trading_stop 으로 발주(포지션 open 뒤).
+                    #   trailing-only(SL 부재)는 위 가드가 여전히 거부(stage 2 — 무방비 윈도 회피).
+                    trailing_stop=event.trailing_stop,
                 )
             except ValidationError as exc:
                 await event_repo.mark_failed(event.id, error=f"invalid_order_request: {exc}")
