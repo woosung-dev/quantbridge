@@ -725,7 +725,10 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                     #   trading-stop 엔드포인트로 라우팅 → entry 깨짐). 체결 후 place_trailing_stop 가
                     #   Order.trailing_stop 을 읽어 set_trading_stop 으로 발주(포지션 open 뒤).
                     #   trailing-only(SL 부재)는 위 가드가 여전히 거부(stage 2 — 무방비 윈도 회피).
-                    trailing_stop=event.trailing_stop,
+                    #   ★ entry 만 영속(Opus A P3 defensive) — close 신호는 trailing=None 계약이나,
+                    #   future extractor 가 reduce-only close 에 non-null trailing 을 실으면 ccxt 가
+                    #   close 시장가를 trading-stop 으로 재라우팅(flatten 대신 trailing set) → 명시 차단.
+                    trailing_stop=event.trailing_stop if event.action == "entry" else None,
                 )
             except ValidationError as exc:
                 await event_repo.mark_failed(event.id, error=f"invalid_order_request: {exc}")

@@ -124,14 +124,14 @@ def _patch_session_wrapper(monkeypatch, *, order, account):
 def _order(**kw):
     from types import SimpleNamespace
 
-    base = dict(
-        id=uuid4(),
-        exchange_account_id=uuid4(),
-        symbol="BTC/USDT",
-        side=OrderSide.buy,
-        leverage=5,
-        trailing_stop=Decimal("3.0"),
-    )
+    base = {
+        "id": uuid4(),
+        "exchange_account_id": uuid4(),
+        "symbol": "BTC/USDT",
+        "side": OrderSide.buy,
+        "leverage": 5,
+        "trailing_stop": Decimal("3.0"),
+    }
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -207,9 +207,16 @@ def test_enqueue_gates_on_trailing_intent(monkeypatch):
         t.place_trailing_stop_task, "apply_async", lambda **kw: calls.append(kw)
     )
     t._enqueue_trailing_if_intended(
-        SimpleNamespace(id=uuid4(), trailing_stop=Decimal("3.0"))
+        SimpleNamespace(id=uuid4(), trailing_stop=Decimal("3.0"), reduce_only=False)
     )
     assert len(calls) == 1 and calls[0]["countdown"] == 2
-    # trailing 의도 없으면(close/reduce-only 등) enqueue 안 함.
-    t._enqueue_trailing_if_intended(SimpleNamespace(id=uuid4(), trailing_stop=None))
+    # trailing 의도 없으면 enqueue 안 함.
+    t._enqueue_trailing_if_intended(
+        SimpleNamespace(id=uuid4(), trailing_stop=None, reduce_only=False)
+    )
+    assert len(calls) == 1
+    # P2(codex/Opus B) — reduce_only(close/manual) 주문은 trailing 있어도 skip.
+    t._enqueue_trailing_if_intended(
+        SimpleNamespace(id=uuid4(), trailing_stop=Decimal("3.0"), reduce_only=True)
+    )
     assert len(calls) == 1

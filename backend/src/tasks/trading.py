@@ -849,10 +849,13 @@ def _is_position_zero_error(exc: ProviderError) -> bool:
 def _enqueue_trailing_if_intended(order: Any) -> None:
     """fill-transition winner 가 trailing 의도 entry 면 place_trailing_stop enqueue.
 
-    winner-only 전이(동기/WS/watchdog 중 rowcount==1 한 곳)라 정확히 1회만 발화 =
-    구조적 dedup(idempotency 컬럼 불요). countdown 으로 포지션 거래소 정착 시간 확보.
+    winner-only 전이(동기/WS/watchdog/reconciler 중 rowcount==1 한 곳)라 정확히 1회만
+    발화 = 구조적 dedup(idempotency 컬럼 불요). countdown 으로 포지션 거래소 정착 시간 확보.
+
+    entry(reduce_only=False)만 대상 — reduce-only close/manual 주문(P2 codex/Opus B)은
+    체결 시 포지션이 닫히는 중이라 trailing 부착 불필요(불필요 task 차단).
     """
-    if getattr(order, "trailing_stop", None) is None:
+    if getattr(order, "trailing_stop", None) is None or getattr(order, "reduce_only", False):
         return
     place_trailing_stop_task.apply_async(args=[str(order.id)], countdown=2)
 
