@@ -48,6 +48,7 @@ from src.trading.exceptions import (
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
+    MinNotionalNotMet,
     NotionalExceeded,
     TradingSessionClosed,
 )
@@ -472,7 +473,13 @@ def dispatch_live_signal_event_task(self: Any, event_id: str) -> dict[str, Any]:
 
     try:
         return run_in_worker_loop(_async_dispatch_event(UUID(event_id)))
-    except (KillSwitchActive, NotionalExceeded, LeverageCapExceeded, TradingSessionClosed):
+    except (
+        KillSwitchActive,
+        NotionalExceeded,
+        LeverageCapExceeded,
+        MinNotionalNotMet,
+        TradingSessionClosed,
+    ):
         # 재시도해도 풀리지 않는 deterministic reject — _async_dispatch_event 가 이미
         # mark_failed + commit 처리 후 raise 했으므로 retry 안 함.
         return {"failed": "deterministic_reject"}
@@ -705,7 +712,12 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                     action=event.action, outcome="kill_switched"
                 ).inc()
                 raise
-            except (NotionalExceeded, LeverageCapExceeded, TradingSessionClosed) as exc:
+            except (
+                NotionalExceeded,
+                LeverageCapExceeded,
+                MinNotionalNotMet,
+                TradingSessionClosed,
+            ) as exc:
                 await event_repo.mark_failed(event.id, error=str(exc))
                 await event_repo.commit()
                 qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
