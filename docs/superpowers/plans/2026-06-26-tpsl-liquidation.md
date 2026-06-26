@@ -24,7 +24,7 @@
 2. `feat(trading): live liquidation price endpoint + response schema (new file)`
    - NEW `src/trading/liquidation_schemas.py` — `LiquidationPreviewRequest` + `LiquidationInfoResponse`(symbol, entry_price, side, leverage, liquidation_price, maintenance_margin_rate, distance_pct). Pydantic V2.
    - NEW `src/trading/services/liquidation_service.py` — thin, **AsyncSession import 0**(pure calc), repository 0. commit-spy 불필요(순수 read).
-   - `router.py` 인증 엔드포인트 `POST /trading/liquidation/preview` ≤10줄 → service 위임. 입력은 명시 파라미터만 → 소유 리소스 fetch 없음 = IDOR 표면 0(get_current_user 인증은 유지).
+   - `router.py` 인증 엔드포인트 `POST /liquidation/preview`(main.py 가 `/api/v1` prefix 추가 → 실제 `/api/v1/liquidation/preview`) ≤10줄 → service 위임. 입력은 명시 파라미터만 → 소유 리소스 fetch 없음 = IDOR 표면 0(get_current_user 인증은 유지).
    - `dependencies.py` `get_liquidation_service`.
 3. (stretch, defer 가능) backtest liq sim — capacity 없으면 BL 등재 후 defer. P0 = 1+2.
 
