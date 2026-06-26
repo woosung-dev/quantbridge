@@ -240,6 +240,25 @@ class AccountOwnershipMismatch(AppException):
     code = "account_ownership_mismatch"
 
 
+class MinNotionalNotMet(AppException):
+    """position notional(qty x price)이 거래소 최소 주문 cost 미달 (C5).
+
+    Wave 1 — markets[symbol]['limits']['cost']['min'] (load_markets 메타) 기준.
+    미달 주문은 거래소가 거부하므로 사전 차단해 불필요한 round-trip / 실패 주문을 막는다.
+    min cost 미가용(None) 시 가드 skip (fail-open) — 서비스 중단 금지(demo 정책 일관).
+    """
+
+    status_code = 422
+    code = "min_notional_not_met"
+
+    def __init__(self, *, notional: Decimal, min_notional: Decimal) -> None:
+        super().__init__(
+            f"position notional {notional} is below exchange minimum {min_notional}"
+        )
+        self.notional = notional
+        self.min_notional = min_notional
+
+
 class NotionalExceeded(AppException):
     """position notional(qty x price)이 available x leverage x 0.95 초과 (CF5/MP-3).
 

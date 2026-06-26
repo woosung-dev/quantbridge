@@ -11,7 +11,15 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Numeric,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Index, LargeBinary, SQLModel
 
@@ -179,6 +187,26 @@ class Order(SQLModel, table=True):
     # Sprint 7a: Bybit Futures 레버리지/마진 모드. Spot 경로는 NULL.
     leverage: int | None = Field(default=None, nullable=True)
     margin_mode: str | None = Field(default=None, max_length=16, nullable=True)
+    # Wave 1 (TP/SL order primitives) — 라이브 손익보호 프리미티브.
+    # ADD COLUMN(alembic 20260626_0001). 전부 default None/False = 기존 entry 회귀.
+    # reduce_only: close 주문 over-fill 방지 (반대편 시장청산이 reduceOnly 없으면 over-fill/반전 위험).
+    reduce_only: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    # trigger_price: standalone 트리거(조건부) 주문 트리거가 (SL/Trail trigger market).
+    trigger_price: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
+    # trigger_by: 트리거 가격 기준 (Bybit MarkPrice/IndexPrice/LastPrice).
+    trigger_by: str | None = Field(default=None, max_length=16, nullable=True)
+    # take_profit / stop_loss: entry attach bracket TP/SL 트리거가.
+    take_profit: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
+    stop_loss: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
     # Sprint 23 BL-102 — dispatch 시점 (exchange, mode, has_leverage) snapshot.
     # _async_execute / _async_fetch_order_status 가 본 snapshot 우선 사용.
     # nullable: legacy row (Sprint 23 이전 생성) 는 NULL → 기존 fallback 동작.

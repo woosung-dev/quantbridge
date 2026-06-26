@@ -140,6 +140,8 @@ async def test_execute_fills_snapshot_with_futures_leverage() -> None:
     exchange_service._repo.get_by_id = AsyncMock(return_value=account)
     # notional check 우회 — fetch_balance_usdt None
     exchange_service.fetch_balance_usdt = AsyncMock(return_value=None)
+    # Wave 1 C5 — min-notional 가드 기본 skip(None=fail-open).
+    exchange_service.fetch_min_notional = AsyncMock(return_value=None)
 
     kill_switch = AsyncMock()
     dispatcher = AsyncMock()
