@@ -91,7 +91,7 @@ export function OrdersPanel() {
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[680px]">
+          <table className="w-full text-sm min-w-[820px]">
             <thead>
               <tr className="text-left">
                 <th>Symbol</th>
@@ -99,6 +99,9 @@ export function OrdersPanel() {
                 <th>Qty</th>
                 <th>State</th>
                 <th>Price</th>
+                {/* Wave 2 — bracket TP/SL + 청산가(graceful) */}
+                <th>TP/SL</th>
+                <th>청산가</th>
                 <th>Broker ID</th>
                 <th>Error</th>
               </tr>
@@ -111,6 +114,18 @@ export function OrdersPanel() {
                   <td>{o.quantity}</td>
                   <td>{o.state}</td>
                   <td>{o.filled_price ?? "—"}</td>
+                  <td data-testid="tpsl-cell" className="font-mono text-xs">
+                    {o.take_profit || o.stop_loss
+                      ? `${o.take_profit ?? "—"} / ${o.stop_loss ?? "—"}`
+                      : "—"}
+                  </td>
+                  {/* W-B liquidation 엔드포인트 미머지 → graceful-empty. wire-up = Phase 3. */}
+                  <td
+                    data-testid="liquidation-cell"
+                    className="text-muted-foreground"
+                  >
+                    —
+                  </td>
                   <td>
                     <BrokerBadge orderId={o.exchange_order_id} />
                   </td>
