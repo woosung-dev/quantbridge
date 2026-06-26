@@ -260,6 +260,10 @@
 | [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability               | S5 (trading kill-switch 묶음)              | S (2-4h)     | 2026-05-30 full-inspection §4.3                     |
 | [BL-363](#bl-363) | stress*test `\_execute*\*` 4-method boilerplate 추출 (config drift 근본원인)         | deepening sprint 또는 5번째 engine 추가 시 | S (2-3h)     | 2026-05-30 full-inspection §appendix P1-9           |
 | [BL-364](#bl-364) | Optimizer 진짜 string-label CategoricalField sweep (Genetic+Bayesian ordinal 인코딩) | string 카테고리 sweep 요청 시              | M (4-6h)     | 2026-05-30 full-inspection §appendix P1-9 (S4 후속) |
+| [BL-365](#bl-365) | `trigger_direction_for`/`map_exit_kind` dead + 서버 미배선 (standalone-trigger 방향) | 서버 standalone 트리거 발주 시             | S (2-4h)     | 2026-06-26 trading-deepen-2                         |
+| [BL-366](#bl-366) | live-signal dispatch OrderService DI 인라인 조립 중복 (HTTP 와 drift)                | trading deepening sprint                   | S-M (3-5h)   | 2026-06-26 trading-deepen-2                         |
+| [BL-368](#bl-368) | `_merge_exit_params` ccxt 키명 3 call site 누설 (shallow interface)                  | trading deepening / 4번째 provider         | S-M (3-5h)   | 2026-06-26 trading-deepen-2                         |
+| [BL-369](#bl-369) | 3 provider `create_order` try/except/finally ~40 LOC 복붙                            | trading deepening sprint                   | S (2-4h)     | 2026-06-26 trading-deepen-2                         |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -401,9 +405,85 @@
 
 ---
 
+### BL-365
+
+**Title:** `trigger_direction_for` / `map_exit_kind` dead-code + 서버 미배선 (standalone-trigger 방향 latent gap)
+**Category:** Trading / pine_v2 (money path, latent correctness)
+**Priority:** P2
+**Trigger:** standalone 조건부 트리거 주문(SL/Trail) 을 서버가 발주하게 되는 시점 (manual API trigger_price 노출 강화 또는 Wave 4+ standalone exit)
+**Est:** S (2-4h)
+**출처:** [`docs/dev-log/2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md) (deepen-modules trading 2차 audit)
+
+**원인 / 영향:** `exit_order_mapping.py:48/76` 의 `map_exit_kind`/`trigger_direction_for` 는 production caller 0 (doc-comment 만 `models.py:212` / `providers.py:77`). 현재 라이브 자율 exit 는 entry-attached bracket 으로 Bybit 가 방향을 포지션에서 추론 → 영향 없음 (Phase 3 PASS). **단 manual order API 는 `trigger_direction` 을 client 가 공급**(`schemas.py:67` `int|None ge=1 le=2`) — 서버가 SSOT (`trigger_direction_for`)로 계산하지 않아, 향후 서버 발주 standalone 트리거가 방향 미산정 시 역방향 트리거 / 거부 위험. 트레일링 live-placement(STEP B)는 trading-stop 엔드포인트(position-inferred)라 본 BL 미소비 — deferred 확정.
+
+**권장 접근:** 서버가 standalone 트리거 exit 를 발주하는 첫 경로에서 `trigger_direction_for(exit_side, kind)` 호출로 SSOT 산정 + manual API 의 client-supplied 값 검증/override. 그 전까진 dead-code 유지 (제거 시 SSOT 의도 상실). 진리표 테스트(LONG-SL→2 / LONG-TP→1 / SHORT-SL→1 / SHORT-TP→2) 의무.
+
+**영향 파일:** `tasks/live_signal.py` 또는 신규 standalone-trigger 경로 + `exit_order_mapping.py` (배선만).
+
+**Risk:** 🟢 (현재 미소비 — 배선 시점에만 검증 필요).
+
+---
+
+### BL-366
+
+**Title:** live-signal dispatch 의 OrderService DI 인라인 조립 중복 (HTTP `get_order_service` 와 drift)
+**Category:** Trading / Architecture (locality / DI-dup)
+**Priority:** P2
+**Trigger:** trading deepening sprint 또는 OrderService 의존성 추가 시
+**Est:** S-M (3-5h)
+**출처:** [`docs/dev-log/2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md)
+
+**원인 / 영향:** `tasks/live_signal.py:650-682` 가 OrderService + 9 deps(order/account/kse repo, crypto, `BybitFuturesProvider()`, exchange_svc, 2 evaluator, ks_svc) 를 **인라인 조립** — `dependencies.py get_order_service`(HTTP 경로) 와 별도. 신규 인스턴스 vs singleton provider, threshold 값 등 **config drift** + 한쪽만 테스트되는 blind spot. money-path 조립이라 drift 시 dispatch 와 HTTP 가 다른 동작.
+
+**권장 접근:** 공유 factory `create_order_service_for_dispatch(session, crypto=None)` 추출 → HTTP `get_order_service` 와 Celery dispatch 양쪽이 호출. (트레일링 안정화 후 — money-path churn 회피.)
+
+**영향 파일:** `tasks/live_signal.py` + `trading/dependencies.py` + (선택) 신규 factory module.
+
+**Risk:** 🟡 (money-path 조립 — CCXT 호출 전 조립 경로라 신중).
+
+---
+
+### BL-368
+
+**Title:** `_merge_exit_params` 가 ccxt 키명 문자열을 3 call site 로 누설 (shallow interface)
+**Category:** Trading / Architecture (shallow interface / information hiding)
+**Priority:** P2
+**Trigger:** trading deepening sprint 또는 4번째 provider / exchange 추가 시
+**Est:** S-M (3-5h)
+**출처:** [`docs/dev-log/2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md)
+
+**원인 / 영향:** `providers.py:135-207` 의 `_merge_exit_params` 가 `client_order_id_key`/`trigger_by_key`/`trigger_direction_key`/`trailing_stop_key` 등 **ccxt 필드명을 caller 가 알아야 하는 param** 으로 받음 → 3 call site(`:299/:480/:752`)가 `"orderLinkId"`/`"triggerBy"` 등 문자열을 분산 보유. exchange-specific 지식이 함수 안에 은닉되지 못함 → 새 exchange 추가 시 call site 마다 키 지식 복제.
+
+**권장 접근:** `build_ccxt_params_for_order(exchange_name: ExchangeName, order: OrderSubmit) -> dict` 로 exchange→키명 dispatch 를 함수 내부로 은닉 (call site 는 ExchangeName 만 전달). lateral move + money-path 라 ccxt 전수 검증 필요.
+
+**영향 파일:** `providers.py` (`_merge_exit_params` + 3 call site).
+
+**Risk:** 🟡 (money-path ccxt 전수 검증).
+
+---
+
+### BL-369
+
+**Title:** 3 provider `create_order` 의 try/except/finally + receipt 정규화 ~40 LOC 복붙
+**Category:** Trading / Architecture (DRY / locality)
+**Priority:** P2
+**Trigger:** trading deepening sprint 또는 provider 예외 처리 변경 시
+**Est:** S (2-4h)
+**출처:** [`docs/dev-log/2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md)
+
+**원인 / 영향:** `providers.py:279-349`(BybitDemo) / `:431-529`(BybitFutures) / `:728-795`(OkxDemo) 의 `create_order` 가 동일한 `try / except ProviderError / except ccxt BaseError / except Exception / finally close` + receipt 정규화 ~40 LOC 를 character-identical 복붙. 예외 처리 1곳 변경 시 3곳 동기화 누락 위험.
+
+**권장 접근:** `_execute_create_order_with_ccxt(exchange, symbol, type, side, amount, price, params, timer_label) -> OrderReceipt` helper 추출 → 각 provider 는 client 구성 + helper 호출. money-path 라 거래소별 미세 차이 보존 검증 필요.
+
+**영향 파일:** `providers.py` (3 provider create_order).
+
+**Risk:** 🟡 (money-path — 거래소별 분기 보존 검증).
+
+---
+
 ## P3 — Nice-to-have / 컨벤션 정합
 
-> 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 2** (BL-306/307, 2026-05-15 CLAUDE.md align audit Track C 등재).
+> 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 5** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2).
 
 ### BL-306
 
@@ -452,6 +532,63 @@
 **Risk:** 🟡 (lint config 변경 + 70 file touch — risk 낮으나 large diff).
 
 **의존성:** BL-306 과 묶음 sprint 가능 (양쪽 모두 lint mechanism + 누적 누락 backfill).
+
+---
+
+### BL-367
+
+**Title:** `_async_dispatch_event` 205 LOC + 8× `mark_failed+commit+metric` 반복 블록 추출
+**Category:** Trading / Architecture (shallow-by-size)
+**Priority:** P3
+**Trigger:** trading deepening sprint (clean win, 단독 가치 낮음)
+**Est:** XS-S (1-2h)
+**출처:** [`docs/dev-log/2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md)
+
+**현 상태:** `tasks/live_signal.py` `_async_dispatch_event`(:572-776, 205 LOC, nesting 4-5) 안에 `await event_repo.mark_failed(...) + commit() + qb_live_signal_dispatch_total.labels(...).inc() + return/raise` 패턴이 8회 반복(session_inactive / strategy_missing / invalid_settings / settings_unset / rejected / kill_switched / NotionalExceeded계열 / idempotency_conflict).
+
+**권장 접근:** `_mark_failed_and_return(event_id, error, action, outcome, repo) -> dict` + `_mark_failed_and_raise(...)` 추출 → 함수 길이/중첩 감소. 단일 파일, 저위험 clean win.
+
+**영향 파일:** `tasks/live_signal.py`.
+
+**Risk:** 🟢 (단일 파일, 동작 불변).
+
+---
+
+### BL-370
+
+**Title:** exit-field multi-SSOT — 8 필드 × OrderSubmit/Order/OrderRequest 평행 재정의
+**Category:** Trading / Architecture (locality / distributed schema)
+**Priority:** P3
+**Trigger:** exit-field 추가 시 3곳 동시 수정이 부담될 때 (현재는 견딜 만함)
+**Est:** S-M (3-5h)
+**출처:** [`docs/dev-log/2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md)
+
+**현 상태:** `reduce_only`/`trigger_price`/`trigger_by`/`take_profit`/`stop_loss`/`trigger_direction`/`oco_group_id`/`trailing_stop` 8 필드가 `OrderSubmit`(dataclass, providers.py:67-83) / `Order`(SQLModel, models.py:193-218) / `OrderRequest`(pydantic, schemas.py:60-71) 3 boundary type 에 동일 타입·주석으로 재정의 (+ LiveSignalEvent subset). 필드 추가 시 3곳 동시 수정.
+
+**권장 접근:** `ExitFields` mixin/base 추출 검토 — **단 3 base(dataclass/SQLModel/pydantic)를 가로지르는 mixin 은 awkward → over-abstraction 함정 주의.** ROI 낮으면 보류. 등재 = 가시성 확보용.
+
+**영향 파일:** `providers.py` / `models.py` / `schemas.py`.
+
+**Risk:** 🟡 (3 base 가로지르는 추상화 — 잘못하면 복잡도 증가).
+
+---
+
+### BL-371
+
+**Title:** ws-stream 고빈도 fill 스트레스 — orphan buffer cap 1000 + concurrent 순서 미검증
+**Category:** Trading / Hardening (observability)
+**Priority:** P3
+**Trigger:** post-Beta 실거래 빈도 상승 시 (monitor)
+**Est:** S (2-4h)
+**출처:** [`docs/dev-log/2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md)
+
+**현 상태:** `state_handler.py` orphan buffer FIFO cap 1000(`_ORPHAN_MAX`) + out-of-order WS fill message / supervisor crash-restart cycle 가 고빈도(>100 fills/s) 스트레스 테스트 미검증. 현재 데모 빈도엔 충분.
+
+**권장 접근:** post-Beta 모니터링(`qb_ws_orphan_buffer_size` gauge alert >800) + 필요 시 concurrent ordering 테스트 추가. 현재는 등재만.
+
+**영향 파일:** `trading/websocket/state_handler.py` + 테스트.
+
+**Risk:** 🟢 (현재 미발현, monitor).
 
 ---
 
@@ -527,6 +664,10 @@
 ## 변경 이력
 
 > Sprint 별 BL 변경 1-line 요약. 상세는 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 또는 해당 sprint dev-log.
+
+### `/deepen-modules trading` 2차 audit-only (2026-06-26, 트레일링 live-placement 직전)
+
+- Wave 1/2/3(라이브 TP/SL) 누적 부채 7건 신규: P2 BL-365(trigger_direction dead+미배선) / BL-366(dispatch DI 중복) / BL-368(`_merge_exit_params` ccxt-key 누설) / BL-369(create_order 3×복붙), P3 BL-367(dispatch boilerplate) / BL-370(exit-field multi-SSOT) / BL-371(ws-stream fill 스트레스). 3 병렬 Explore + adversarial 검증(Agent 2건 과대평가 교정: trigger_direction=현재 버그 아님 latent / risk-sizing test 7건 존재→STOP 미발동). [`2026-06-26-trading-deepen-2.md`](dev-log/2026-06-26-trading-deepen-2.md). BL-202/205 와 무중복. money-path churn 회피로 **리팩터는 트레일링 안정화 후** — C1(BL-365)도 trading-stop 엔드포인트(position-inferred)라 트레일링 미소비, deferred 확정.
 
 ### Track B `/deepen-modules trading` audit-only (2026-05-15)
 
