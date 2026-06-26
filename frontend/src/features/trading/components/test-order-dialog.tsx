@@ -9,7 +9,7 @@
 // - 422/400 등 error 시 setError("root.serverError") 로 form 안에 inline 표시.
 
 import { useState } from "react";
-import { useForm, type FieldValues, type Resolver } from "react-hook-form";
+import { useForm, useWatch, type FieldValues, type Resolver } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z, type core } from "zod/v4";
@@ -211,7 +211,8 @@ function TestOrderDialogInner() {
       reduce_only: false,
     },
   });
-  const sizingMode = form.watch("sizing_mode");
+  // useWatch — React Compiler 호환(form.watch 는 memoize 불가 경고). 변경 시 re-render.
+  const sizingMode = useWatch({ control: form.control, name: "sizing_mode" });
 
   const onSubmit = async (values: TestOrderFormValues): Promise<void> => {
     // G.4 P1 #5 fix: KS active 시 submit 차단 (CSS pointer-events 만으로는
