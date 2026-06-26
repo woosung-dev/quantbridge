@@ -31,4 +31,32 @@ describe("KillSwitchPanel — Sprint 44 W F3 danger state polish", () => {
     // qb-danger-pulse class 미적용
     expect(panel.className).not.toContain("qb-danger-pulse");
   });
+
+  // Wave 2 — active KS 의 '해결' 버튼은 모바일 터치타겟 ≥44pt (min-h-11).
+  test("active KS '해결' 버튼 터치타겟 ≥44pt", async () => {
+    const { apiFetch } = await import("@/lib/api-client");
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      items: [
+        {
+          id: "11111111-1111-4111-a111-111111111111",
+          trigger_type: "daily_loss",
+          trigger_value: "120",
+          threshold: "100",
+          triggered_at: "2026-06-26T00:00:00Z",
+          resolved_at: null,
+        },
+      ],
+    });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <KillSwitchPanel />
+      </QueryClientProvider>,
+    );
+
+    const resolveBtn = await screen.findByRole("button", { name: /해결/ });
+    expect(resolveBtn.className).toContain("min-h-11");
+  });
 });

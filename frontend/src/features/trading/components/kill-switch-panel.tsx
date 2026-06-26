@@ -53,16 +53,17 @@ export function KillSwitchPanel() {
           {active.map((e) => (
             <li
               key={e.id}
-              className="flex justify-between items-center border-b py-1"
+              className="flex flex-wrap items-center justify-between gap-2 border-b py-2"
             >
-              <span>
+              <span className="min-w-0 break-words">
                 {e.trigger_type}: {e.trigger_value} / {e.threshold}
               </span>
+              {/* Wave 2 — 모바일 터치타겟 ≥44pt (min-h-11 + min-w-11). */}
               <button
                 type="button"
                 onClick={() => resolve.mutate(e.id)}
                 disabled={resolve.isPending}
-                className="rounded-md bg-[color:var(--destructive)] px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--destructive)]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md bg-[color:var(--destructive)] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--destructive)]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 {resolve.isPending ? "처리 중…" : "해결"}
               </button>
