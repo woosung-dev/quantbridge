@@ -13,7 +13,7 @@ from decimal import Decimal
 
 import pandas as pd
 
-from src.strategy.pine_v2.event_loop import run_live
+from src.strategy.pine_v2.event_loop import _to_decimal, run_live
 from src.strategy.pine_v2.strategy_state import StrategyState, Trade
 
 # ── A1: StrategyState.exit_levels_for ─────────────────────────────────────
@@ -114,6 +114,34 @@ def test_run_live_entry_carries_trailing() -> None:
     assert len(entries) == 1
     assert entries[0].trailing_stop == Decimal("3.0")
     assert entries[0].take_profit is None
+    assert entries[0].stop_loss is None
+
+
+# ── poison-pill 방어: 비정상 exit 레벨 → None (E3 CONCERN-1) ────────────────
+
+
+def test_to_decimal_drops_non_finite_and_non_positive() -> None:
+    # NaN/Inf/음수/0 → None (OrderRequest gt=0 ValidationError poison pill 방어).
+    assert _to_decimal(float("nan")) is None
+    assert _to_decimal(float("inf")) is None
+    assert _to_decimal(-4.9) is None
+    assert _to_decimal(0.0) is None
+    # 정상 양수는 보존.
+    assert _to_decimal(105.0) == Decimal("105.0")
+
+
+def test_run_live_negative_stop_surfaces_none_not_validation_bomb() -> None:
+    # loss(10) > entry(~5) → eff_stop 음수. dispatch OrderRequest(gt=0) 폭탄 방지 →
+    # stop_loss=None 으로 surface (no-bracket, 백테스트 미체결 정합).
+    source = """//@version=5
+strategy("loss exceeds price")
+if close > open
+    strategy.entry("L", strategy.long, qty=1.0)
+strategy.exit("X", "L", loss=10.0)
+"""
+    result = run_live(source, _ohlcv([5.0, 5.0, 5.1]))
+    entries = [s for s in result.signals if s.action == "entry"]
+    assert len(entries) == 1
     assert entries[0].stop_loss is None
 
 

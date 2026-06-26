@@ -368,6 +368,78 @@ async def test_dispatch_entry_without_exit_has_no_bracket(
 
 
 @pytest.mark.asyncio
+async def test_dispatch_trailing_only_entry_rejected_no_naked_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 3 가드 (codex BLOCKER) — trailing 만(고정 SL 없음) entry → mark_failed.
+
+    트레일링은 라이브 placement 미지원(fill 후 follow-on) + 폴백 SL 부재 → 무방비
+    포지션 방지를 위해 진입 거부. OrderService.execute 미호출.
+    """
+    _patch_engine(monkeypatch)
+    event = _build_pending_event(trailing_stop=Decimal("3.0"))  # stop_loss=None
+    sess = _build_active_session(uuid4())
+    sess.id = event.session_id
+
+    event_repo = AsyncMock()
+    event_repo.get_by_id = AsyncMock(return_value=event)
+    event_repo.mark_failed = AsyncMock(return_value=1)
+    event_repo.commit = AsyncMock()
+    sess_repo = AsyncMock()
+    sess_repo.get_by_id = AsyncMock(return_value=sess)
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner = AsyncMock(
+        return_value=SimpleNamespace(
+            id=sess.strategy_id,
+            settings={"leverage": 5, "margin_mode": "cross", "position_size_pct": 10.0},
+            pine_source="//@version=5\nstrategy('x')",
+        )
+    )
+    _patch_repos(
+        monkeypatch,
+        event_repo=event_repo,
+        sess_repo=sess_repo,
+        strategy_repo=strategy_repo,
+        order_repo=AsyncMock(),
+        account_repo=AsyncMock(),
+        kse_repo=AsyncMock(),
+    )
+    executed: list[int] = []
+
+    class _OrderServiceSpy:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        async def execute(self, *_a: Any, **_k: Any) -> tuple[Any, bool]:
+            executed.append(1)
+            return (SimpleNamespace(id=uuid4(), state="pending", side=None), False)
+
+    import src.trading.services.order_service as trading_service_mod
+    monkeypatch.setattr(trading_service_mod, "OrderService", _OrderServiceSpy)
+    import src.trading.kill_switch as kill_switch_mod
+    monkeypatch.setattr(kill_switch_mod, "KillSwitchService", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "CumulativeLossEvaluator", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "DailyLossEvaluator", MagicMock())
+
+    res = await live_signal_module._async_dispatch_event(event.id)
+    assert res == {"failed": "trailing_unsupported"}
+    event_repo.mark_failed.assert_awaited_once()
+    event_repo.commit.assert_awaited_once()
+    assert executed == []  # 주문 실행 안 됨 (무방비 방지)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_sl_plus_trailing_proceeds_with_sl_bracket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SL + trailing → SL bracket 이 보호 → entry 진행. trailing 은 entry 에 미부착(drop)."""
+    event = _build_pending_event(stop_loss=Decimal("95.0"), trailing_stop=Decimal("3.0"))
+    req = await _dispatch_and_capture_req(monkeypatch, event)
+    assert req.stop_loss == Decimal("95.0")
+    assert req.trailing_stop is None
+
+
+@pytest.mark.asyncio
 async def test_kill_switch_active_marks_failed_and_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

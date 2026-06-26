@@ -681,6 +681,25 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 exchange_service=exchange_svc,
             )
 
+            # Phase 3 — 트레일링 가드 (codex gate BLOCKER): 트레일링이 의도된 stop 인데
+            #   라이브 placement 미지원(set-trading-stop 엔드포인트라 fill 후 follow-on 필요)
+            #   + 폴백 SL 부재 → 무방비 포지션. 안전 우선으로 진입 거부 (정직 defer).
+            #   SL 이 있으면 bracket SL 이 보호 → 진입 허용 (트레일링은 drop, SL-only 동작).
+            #   실제 트레일링 placement 는 fast-follow (데모 round-trip 검증 후).
+            if (
+                event.action == "entry"
+                and event.trailing_stop is not None
+                and event.stop_loss is None
+            ):
+                await event_repo.mark_failed(
+                    event.id, error="trailing_stop_live_placement_unsupported"
+                )
+                await event_repo.commit()
+                qb_live_signal_dispatch_total.labels(
+                    action=event.action, outcome="rejected"
+                ).inc()
+                return {"failed": "trailing_unsupported"}
+
             # OrderRequest 조립
             req = OrderRequest(
                 strategy_id=sess.strategy_id,

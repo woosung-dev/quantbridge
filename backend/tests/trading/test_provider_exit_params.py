@@ -114,7 +114,9 @@ async def test_bybit_demo_full_bracket_trigger_with_client_order_id(credentials,
             "triggerPrice": "48000.5",
             "triggerBy": "MarkPrice",
             "takeProfit": {"triggerPrice": "52000", "price": "52000"},
+            "tpSize": "0.001",
             "stopLoss": {"triggerPrice": "47000"},
+            "slSize": "0.001",
         },
     )
 

@@ -16,6 +16,7 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -209,8 +210,16 @@ class LiveSignalResult:
 
 
 def _to_decimal(value: float | None) -> Decimal | None:
-    """pine float exit 레벨 → Decimal 경계 변환 (None 보존). float 공간 합산 금지 원칙."""
-    return Decimal(str(value)) if value is not None else None
+    """pine float exit 레벨 → Decimal 경계 변환. None/비정상(NaN·Inf·<=0) → None.
+
+    OrderRequest 의 exit 필드는 Field(gt=0) — NaN/Inf/음수/0 은 ValidationError.
+    dispatch 의 OrderRequest 조립은 try/except 밖이라 uncaught → 이벤트가 pending 으로
+    남아 outbox 가 영구 재dispatch (poison pill). 백테스트에서 비정상 레그(예: loss>entry
+    → 음수 stop)는 어차피 미체결(harmless)이라 None 으로 drop = no-bracket = sim 정합 + 안전.
+    """
+    if value is None or not math.isfinite(value) or value <= 0:
+        return None
+    return Decimal(str(value))
 
 
 def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
