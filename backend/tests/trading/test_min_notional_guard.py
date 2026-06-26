@@ -4,6 +4,7 @@
 미달 시 MinNotionalNotMet. min cost 미가용(None) → skip (fail-open, fetch_mark_price 패턴).
 notional-MAX 가드(NotionalExceeded) 직후, 동일 effective_price/notional 재사용.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -106,9 +107,7 @@ async def test_below_min_notional_rejected(
         await svc.execute(req, idempotency_key=None)
     assert exc_info.value.notional == Decimal("5.0000")
     assert exc_info.value.min_notional == Decimal("10")
-    stub.fetch_min_notional.assert_awaited_once_with(
-        exchange_account.id, "BTC/USDT:USDT"
-    )
+    stub.fetch_min_notional.assert_awaited_once_with(exchange_account.id, "BTC/USDT:USDT")
 
 
 async def test_at_or_above_min_notional_passes(
@@ -173,17 +172,13 @@ async def test_min_notional_unavailable_skips_fail_open(
     assert resp.leverage == 5
 
 
-def test_provider_fetch_min_notional_reads_limits_cost_min(monkeypatch):
+async def test_provider_fetch_min_notional_reads_limits_cost_min(monkeypatch):
     """BybitFuturesProvider.fetch_min_notional = load_markets → limits.cost.min."""
-    import asyncio
-
     mock_exchange = MagicMock()
     mock_exchange.load_markets = AsyncMock(
         return_value={"BTC/USDT:USDT": {"limits": {"cost": {"min": 5.0}}}}
     )
-    mock_exchange.market = MagicMock(
-        return_value={"limits": {"cost": {"min": 5.0}}}
-    )
+    mock_exchange.market = MagicMock(return_value={"limits": {"cost": {"min": 5.0}}})
     mock_exchange.close = AsyncMock()
     mock_cls = MagicMock(return_value=mock_exchange)
     import ccxt.async_support as ccxt_async
@@ -193,8 +188,6 @@ def test_provider_fetch_min_notional_reads_limits_cost_min(monkeypatch):
     from src.trading.providers import BybitFuturesProvider, Credentials
 
     creds = Credentials(api_key="k", api_secret="s")
-    result = asyncio.get_event_loop().run_until_complete(
-        BybitFuturesProvider().fetch_min_notional(creds, "BTC/USDT:USDT")
-    )
+    result = await BybitFuturesProvider().fetch_min_notional(creds, "BTC/USDT:USDT")
     assert result == Decimal("5.0")
     mock_exchange.close.assert_awaited_once()
