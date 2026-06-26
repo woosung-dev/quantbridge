@@ -2,8 +2,8 @@
 
 공식 (단일 tier 단순화):
 - IMR(initial margin rate) = 1 / leverage
-- Long(buy)  liq = entry × (1 − IMR + MMR)
-- Short(sell) liq = entry × (1 + IMR − MMR)
+- Long(buy)  liq = entry * (1 - IMR + MMR)
+- Short(sell) liq = entry * (1 + IMR - MMR)
 
 MMR(maintenance margin rate) 출처 = ccxt market leverage tier `maintenanceMarginRate`
 (Bybit raw `maintenanceMargin`, ccxt 4.5.49 bybit.py:8217). **fraction 표기 강제**
@@ -66,7 +66,7 @@ def liquidation_distance_pct(
     entry_price: Decimal,
     liquidation_price: Decimal,
 ) -> Decimal:
-    """진입가 대비 청산가까지의 거리 퍼센트 = |liq − entry| / entry × 100.
+    """진입가 대비 청산가까지의 거리 퍼센트 = |liq - entry| / entry * 100.
 
     Raises:
         ValueError: entry_price <= 0.

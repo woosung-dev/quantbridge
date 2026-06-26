@@ -56,7 +56,7 @@ class TestLiquidationOracle:
 
     def test_default_mmr_is_fraction(self) -> None:
         # BTCUSDT 최저위험 tier = 0.5% = fraction 0.005
-        assert DEFAULT_MAINTENANCE_MARGIN_RATE == Decimal("0.005")
+        assert Decimal("0.005") == DEFAULT_MAINTENANCE_MARGIN_RATE
 
 
 class TestLiquidationDistancePct:

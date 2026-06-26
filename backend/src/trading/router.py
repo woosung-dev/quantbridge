@@ -20,9 +20,14 @@ from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
 from src.trading.dependencies import (
     get_exchange_account_service,
+    get_liquidation_service,
     get_live_signal_session_service,
     get_order_service,
     get_webhook_service,
+)
+from src.trading.liquidation_schemas import (
+    LiquidationInfoResponse,
+    LiquidationPreviewRequest,
 )
 from src.trading.models import OrderState
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
@@ -46,6 +51,7 @@ from src.trading.schemas import (
     mask_api_key,
 )
 from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
 from src.trading.webhook import WebhookService, parse_tv_payload
@@ -292,6 +298,17 @@ async def cancel_order(
     if not fetched:
         raise HTTPException(status_code=500, detail="order fetch failed after cancel")
     return OrderResponse.model_validate(fetched)
+
+
+# ── Liquidation preview (demo-only calc+display, 주문 차단 없음) ───────
+@router.post("/liquidation/preview", response_model=LiquidationInfoResponse)
+async def preview_liquidation(
+    data: LiquidationPreviewRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    service: LiquidationService = Depends(get_liquidation_service),
+) -> LiquidationInfoResponse:
+    """청산가 미리보기 — on-the-fly 순수 계산. 소유 리소스 fetch 없음(인증만 게이트)."""
+    return service.preview(data)
 
 
 # ── KillSwitch REST ──────────────────────────────────────────────────
