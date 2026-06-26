@@ -69,6 +69,9 @@ class OrderRequest(BaseModel):
     oco_group_id: str | None = Field(default=None, max_length=64)
     # trailing_stop: Bybit native trailing 거리(quote). contract 전용.
     trailing_stop: Decimal | None = Field(default=None, gt=0, decimal_places=8)
+    # Wave 2 P2 — risk-based position sizing. 자본 x risk_percent% / |entry-stop| 로 서버가
+    # max_qty 재계산해 client qty 초과 시 거부. None=가드 skip(회귀 0). 0<x<=100.
+    risk_percent: Decimal | None = Field(default=None, gt=0, le=100, decimal_places=4)
 
 
 class OrderResponse(BaseModel):

@@ -22,6 +22,7 @@ from src.trading.exceptions import (
     LeverageCapExceeded,
     MinNotionalNotMet,
     NotionalExceeded,
+    RiskSizingExceeded,
     TradingSessionClosed,
 )
 from src.trading.kill_switch import KillSwitchService
@@ -81,6 +82,50 @@ class OrderService:
         async with RedisLock(f"idem:trading:{idempotency_key}", ttl_ms=30_000):
             return await self._execute_inner(
                 req, idempotency_key=idempotency_key, body_hash=body_hash
+            )
+
+    async def _validate_position_size(self, req: OrderRequest) -> None:
+        """Wave 2 P2 — 서버 권위 risk-기반 사이징. client qty 를 신뢰하지 않는다.
+
+        max_qty = 자본(USDT 잔고) x risk_percent% / |entry - stop|. req.quantity 가
+        max_qty 를 초과하면 RiskSizingExceeded. 한 트레이드 손실이 자본의 risk_percent%
+        를 넘지 않도록 강제한다(자본 보존).
+
+        skip(회귀 0, fail-open) 조건:
+        - req.risk_percent 미설정 (가드 비활성)
+        - exchange_service 미주입 (잔고 조회 불가 — notional 가드와 동일 게이트)
+        - stop 미가용: stop = req.stop_loss(bracket) 우선, 없으면 req.trigger_price(standalone SL)
+        - entry 미가용: entry = req.price 우선, market(None) 이면 mark price fetch
+        - 잔고 None/0 또는 stop_distance 0 (DivisionByZero 차단)
+        """
+        if req.risk_percent is None or self._exchange_service is None:
+            return
+        stop = req.stop_loss if req.stop_loss is not None else req.trigger_price
+        if stop is None:
+            logger.info("risk_sizing_skip_no_stop", extra={"strategy_id": str(req.strategy_id)})
+            return
+        entry = req.price
+        if entry is None:
+            entry = await self._exchange_service.fetch_mark_price(
+                req.exchange_account_id, req.symbol
+            )
+        if entry is None or entry <= Decimal("0"):
+            return
+        stop_distance = abs(entry - stop)
+        if stop_distance <= Decimal("0"):
+            return
+        balance = await self._exchange_service.fetch_balance_usdt(req.exchange_account_id)
+        if balance is None or balance <= Decimal("0"):
+            return
+        risk_budget = balance * req.risk_percent / Decimal("100")
+        max_qty = risk_budget / stop_distance
+        if req.quantity > max_qty:
+            qb_order_rejected_total.labels(exchange="unknown", reason="risk_sizing").inc()
+            raise RiskSizingExceeded(
+                quantity=req.quantity,
+                max_quantity=max_qty,
+                risk_percent=req.risk_percent,
+                stop_distance=stop_distance,
             )
 
     async def _execute_inner(
@@ -151,6 +196,11 @@ class OrderService:
                 requested=req.leverage,
                 cap=settings.bybit_futures_max_leverage,
             )
+
+        # Wave 2 P2 — 서버 권위 risk-기반 position sizing. notional 가드 전에 평가하여
+        # client qty 가 risk budget 을 넘으면 거래소 round-trip 전에 빠르게 거부.
+        # risk_percent 미설정 시 no-op (회귀 0).
+        await self._validate_position_size(req)
 
         # Sprint 8+ (2026-04-20): notional check. exchange_service 주입 + leverage 존재 시 enforce.
         # P1-13 (S5-B, 2026-05-30): market order(price=None) 도 mark price 근사로 가드 적용.
