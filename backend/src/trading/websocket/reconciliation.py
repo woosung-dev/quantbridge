@@ -94,7 +94,7 @@ class Reconciler:
 
             # Sprint 16 BL-027 (codex G.0 P1 #1): commit-then-dec winner-only.
             # _apply_transition 가 rowcount return → 누적 후 commit 성공 시점에 dec 발화.
-            winners: list[OrderState] = []
+            winners: list[tuple[Order, OrderState]] = []
             for local in local_active:
                 exch = self._find_match(all_exch, str(local.id))
                 if exch is None:
@@ -111,19 +111,28 @@ class Reconciler:
                             session, local, new_state, exch
                         )
                         if rowcount == 1:
-                            winners.append(new_state)
+                            winners.append((local, new_state))
                 # else: 명시 status 없으면 state 유지
 
             await session.commit()
 
             # Sprint 16 BL-027: commit 성공 후 winner-only dec — 이전엔 dec 누락 (drift).
-            for new_state in winners:
+            for local, new_state in winners:
                 if new_state in (
                     OrderState.filled,
                     OrderState.rejected,
                     OrderState.cancelled,
                 ):
                     qb_active_orders.dec()
+                if new_state == OrderState.filled:
+                    # STEP B (Opus A P1) — reconciler 는 4번째 fill-transition winner.
+                    #   WS 이벤트 유실 시 reconciler 가 winner → 다른 enqueue 분기는
+                    #   rowcount==0 으로 skip → trailing 이 silent 미발주됐다(blocker).
+                    #   동기/WS/watchdog 와 동일 winner-only 경로로 enqueue. lazy import 로
+                    #   순환 의존 회피. expire_on_commit=False 라 post-commit attr 접근 안전.
+                    from src.tasks.trading import _enqueue_trailing_if_intended
+
+                    _enqueue_trailing_if_intended(local)
 
     async def _list_local_active(
         self, session: AsyncSession, account_id: UUID

@@ -98,6 +98,77 @@ async def test_orderLinkId_lookup_transitions_to_filled(
     assert refreshed.filled_price == Decimal("50000.00")
 
 
+async def test_filled_trailing_order_enqueues_place_trailing_stop(
+    db_session, strategy, user, session_factory, monkeypatch
+):
+    """STEP B (Opus B HIGH) — WS Filled winner + trailing 의도 → place_trailing_stop enqueue.
+
+    WS fill 경로는 async 체결의 1차 placement 트리거(EC-1). winner-only(rowcount==1)
+    분기 안에서 동기/watchdog/reconciler 와 동일 helper 로 enqueue.
+    """
+    import src.tasks.trading as trading_mod
+
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        trading_mod.place_trailing_stop_task, "apply_async", lambda **kw: calls.append(kw)
+    )
+    acc = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"k",
+        api_secret_encrypted=b"s",
+    )
+    db_session.add(acc)
+    await db_session.flush()
+    order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=acc.id,
+        symbol="BTC/USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        state=OrderState.submitted,
+        leverage=5,
+        trailing_stop=Decimal("3.0"),
+    )
+    db_session.add(order)
+    await db_session.flush()
+
+    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    await handler.handle_order_event(
+        acc.id,
+        {
+            "orderLinkId": str(order.id),
+            "orderId": "EX-TR",
+            "orderStatus": "Filled",
+            "avgPrice": "50000.00",
+        },
+    )
+    assert len(calls) == 1
+    assert calls[0]["args"] == [str(order.id)]
+
+
+async def test_filled_non_trailing_order_does_not_enqueue(
+    sample_order, session_factory, monkeypatch
+):
+    """trailing 의도 없는 fill → enqueue 안 함(회귀 0)."""
+    import src.tasks.trading as trading_mod
+
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        trading_mod.place_trailing_stop_task, "apply_async", lambda **kw: calls.append(kw)
+    )
+    order, acc = sample_order  # trailing_stop=None
+    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    await handler.handle_order_event(
+        acc.id,
+        {"orderLinkId": str(order.id), "orderId": "EX-1", "orderStatus": "Filled", "avgPrice": "5"},
+    )
+    assert calls == []
+
+
 async def test_invalid_orderLinkId_falls_back_to_exchange_order_id(
     sample_order, session_factory, db_session
 ):

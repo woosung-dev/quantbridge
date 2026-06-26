@@ -923,6 +923,15 @@ async def _place_trailing_stop_with_session(
         account = await session.get(ExchangeAccount, order.exchange_account_id)
         if account is None:
             return {"skipped": "account_missing"}
+        # P2(codex) — 트레일링은 Bybit linear(futures) 전용. 비-Bybit/spot 주문에 trailing_stop
+        #   이 붙어도(manual API 경로) BybitFuturesProvider 발주 차단(doomed task / wrong creds).
+        if account.exchange != ExchangeName.bybit or order.leverage is None:
+            logger.info(
+                "trailing_skip_unsupported_exchange",
+                extra={"order_id": str(order_id), "exchange": str(account.exchange)},
+            )
+            qb_trailing_placement_total.labels(outcome="skipped_unsupported").inc()
+            return {"skipped": "unsupported_exchange"}
         passphrase_pt = (
             crypto.decrypt(account.passphrase_encrypted)
             if account.passphrase_encrypted is not None
@@ -964,12 +973,15 @@ async def _async_place_trailing_stop(order_id: UUID) -> dict[str, Any]:
 
 
 async def _alert_trailing_unprotected(order_id: UUID, reason: str) -> None:
+    # Opus A P3 — 트레일링 entry 는 항상 고정 bracket SL 동반(live_signal 가드)이라
+    # SL 바닥은 유효 = 완전 무방비 아님. trailing "업그레이드"만 미부착(profit-lock 손실).
     await send_critical_alert(
         settings,
-        title="Trailing stop placement failed — position UNPROTECTED",
+        title="Trailing stop placement failed — TRAILING 미부착 (고정 bracket SL 은 유효)",
         message=(
             f"place_trailing_stop gave up after {_TRAILING_MAX_RETRIES} retries. "
-            f"Live position has NO trailing stop attached. Reason: {reason}"
+            f"포지션에 TRAILING stop 미부착(고정 bracket SL 바닥은 active — 완전 무방비 아님). "
+            f"Reason: {reason}"
         ),
         context={"order_id": str(order_id)[:8], "reason": reason},
     )
@@ -989,7 +1001,11 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
 
     try:
         return run_in_worker_loop(_async_place_trailing_stop(UUID(order_id)))
-    except ProviderError as exc:
+    except Exception as exc:
+        # Opus A P2 — ProviderError(network/exchange) 뿐 아니라 DB outage / decrypt 실패 /
+        #   engine 생성 실패 등 모든 예외를 bounded retry + 최종 critical alert 로 라우팅.
+        #   미포착 시 Celery FAILED silent → trailing 미부착 무신호(money-path hole).
+        #   benign skip(110017/flat/flip)은 dict 반환이라 여기 미도달.
         if self.request.retries >= _TRAILING_MAX_RETRIES:
             run_in_worker_loop(_alert_trailing_unprotected(UUID(order_id), str(exc)))
             return {"failed": "trailing_unprotected", "order_id": order_id}

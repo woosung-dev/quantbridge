@@ -100,6 +100,27 @@ async def test_set_trading_stop_active_price(credentials, bybit_mock):
     assert params == {"trailingStop": "150.5", "trailingTriggerPrice": "52000"}
 
 
+async def test_set_trading_stop_accepts_empty_result_no_id(credentials, bybit_mock):
+    """codex P1 — Bybit trading-stop 엔드포인트 성공 = 빈 result(orderId 없음, V5 docs).
+
+    id 부재를 malformed 로 오판하면 성공 placement 를 retry → false UNPROTECTED alert
+    (money-path bug). 빈 dict 수용 = 예외 없음.
+    """
+    from src.trading.models import OrderSide
+    from src.trading.providers import BybitFuturesProvider
+
+    bybit_mock.create_order = AsyncMock(return_value={})  # 실제 Bybit trading-stop 응답
+    res = await BybitFuturesProvider().set_trading_stop(
+        credentials,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        qty=Decimal("0.001"),
+        distance=Decimal("150.5"),
+    )
+    assert res == {}  # 예외 없이 수용
+    bybit_mock.close.assert_awaited()
+
+
 async def test_set_trading_stop_wraps_ccxt_error(credentials, bybit_mock):
     """ccxt BaseError → ProviderError 래핑(money-path 분류용)."""
     import ccxt.async_support as ccxt_async

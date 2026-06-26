@@ -552,7 +552,7 @@ class BybitFuturesProvider:
         qty: Decimal,
         distance: Decimal,
         trigger_price: Decimal | None = None,
-    ) -> OrderReceipt:
+    ) -> dict[str, Any]:
         """STEP B — 포지션에 Bybit native trailing-stop 부착 (포지션 open 후 호출).
 
         트레일링은 별도 주문이 아니라 포지션 속성. ccxt 4.5.49 가 trailingStop param 이
@@ -592,17 +592,11 @@ class BybitFuturesProvider:
                 result = await exchange.create_order(
                     linear_symbol, "market", side.value, amount, None, params
                 )
-            if "id" not in result:
-                raise ProviderError(
-                    f"malformed Bybit response: missing 'id' (keys={list(result)[:5]})"
-                )
-            avg = result.get("average")
-            return OrderReceipt(
-                exchange_order_id=str(result["id"]),
-                filled_price=Decimal(str(avg)) if avg is not None else None,
-                status=_map_ccxt_status(result.get("status")),
-                raw=dict(result),
-            )
+            # ★ codex P1 — Bybit trading-stop 엔드포인트는 성공 시 빈 result(orderId 없음 —
+            #   포지션 수정이라 주문 아님, V5 docs result:{}). create_order 가 예외 없이 반환
+            #   = 수용. id 부재를 malformed 로 오판하면 성공을 retry → false UNPROTECTED
+            #   alert(money-path bug). 호출자는 반환값 미사용(독립 fetch_position 으로 검증).
+            return dict(result) if isinstance(result, dict) else {}
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:
