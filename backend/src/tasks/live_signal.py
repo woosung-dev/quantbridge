@@ -131,6 +131,15 @@ def _signal_to_order_side(action: str, direction: str) -> OrderSide:
     raise ValueError(f"Unsupported live-signal action: {action!r}")
 
 
+def _action_is_reduce_only(action: str) -> bool:
+    """Wave 1 C3 — close 주문만 reduce-only.
+
+    close 의 반대편 시장청산 주문이 reduceOnly 없으면 잔여 포지션을 넘겨 over-fill /
+    포지션 반전 위험. entry 는 신규 포지션 오픈이므로 reduce_only=False.
+    """
+    return action == "close"
+
+
 async def _heartbeat_extend(lock: RedisLock, *, period_s: float, ttl_ms: int) -> None:
     """RedisLock heartbeat — TTL 만료 전 token CAS 로 PEXPIRE.
 
@@ -674,6 +683,8 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 margin_mode=parsed_settings.margin_mode,
                 # MP-1 — close 이벤트 청산 PnL → Order.realized_pnl (kill-switch SUM 대상).
                 realized_pnl=event.realized_pnl,
+                # Wave 1 C3 — close 주문 reduce-only (over-fill/반전 방지). entry=False.
+                reduce_only=_action_is_reduce_only(event.action),
             )
             idempotency_key = _build_idempotency_key(
                 session_id=sess.id,
