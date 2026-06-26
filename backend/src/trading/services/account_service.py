@@ -101,6 +101,28 @@ class ExchangeAccountService:
             )
             return None
 
+    async def fetch_min_notional(self, account_id: UUID, symbol: str) -> Decimal | None:
+        """Wave 1 C5 — 심볼의 거래소 최소 주문 cost 조회 (min-notional 가드용).
+
+        반환 None 조건 (fail-soft, caller fail-open skip):
+        - 계좌 미발견 / 비-Bybit / Provider 미주입 (테스트/CI)
+        - Provider 호출 실패 또는 limits.cost.min 메타 미가용
+        """
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        if self._bybit_futures_provider is None or account.exchange.value != "bybit":
+            return None
+        creds = await self.get_credentials_for_order(account_id)
+        try:
+            return await self._bybit_futures_provider.fetch_min_notional(creds, symbol)
+        except ProviderError as exc:
+            logger.warning(
+                "fetch_min_notional_failed",
+                extra={"account_id": str(account_id), "symbol": symbol, "error": str(exc)},
+            )
+            return None
+
     async def fetch_balance_usdt(self, account_id: UUID) -> Decimal | None:
         """계좌 USDT 자유잔고 조회. Sprint 8+ Kill Switch capital_base 동적 바인딩.
 

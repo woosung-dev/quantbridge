@@ -48,6 +48,7 @@ from src.trading.exceptions import (
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
+    MinNotionalNotMet,
     NotionalExceeded,
     TradingSessionClosed,
 )
@@ -129,6 +130,15 @@ def _signal_to_order_side(action: str, direction: str) -> OrderSide:
     if action == "close":
         return OrderSide.sell if direction == "long" else OrderSide.buy
     raise ValueError(f"Unsupported live-signal action: {action!r}")
+
+
+def _action_is_reduce_only(action: str) -> bool:
+    """Wave 1 C3 — close 주문만 reduce-only.
+
+    close 의 반대편 시장청산 주문이 reduceOnly 없으면 잔여 포지션을 넘겨 over-fill /
+    포지션 반전 위험. entry 는 신규 포지션 오픈이므로 reduce_only=False.
+    """
+    return action == "close"
 
 
 async def _heartbeat_extend(lock: RedisLock, *, period_s: float, ttl_ms: int) -> None:
@@ -463,7 +473,13 @@ def dispatch_live_signal_event_task(self: Any, event_id: str) -> dict[str, Any]:
 
     try:
         return run_in_worker_loop(_async_dispatch_event(UUID(event_id)))
-    except (KillSwitchActive, NotionalExceeded, LeverageCapExceeded, TradingSessionClosed):
+    except (
+        KillSwitchActive,
+        NotionalExceeded,
+        LeverageCapExceeded,
+        MinNotionalNotMet,
+        TradingSessionClosed,
+    ):
         # 재시도해도 풀리지 않는 deterministic reject — _async_dispatch_event 가 이미
         # mark_failed + commit 처리 후 raise 했으므로 retry 안 함.
         return {"failed": "deterministic_reject"}
@@ -674,6 +690,8 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 margin_mode=parsed_settings.margin_mode,
                 # MP-1 — close 이벤트 청산 PnL → Order.realized_pnl (kill-switch SUM 대상).
                 realized_pnl=event.realized_pnl,
+                # Wave 1 C3 — close 주문 reduce-only (over-fill/반전 방지). entry=False.
+                reduce_only=_action_is_reduce_only(event.action),
             )
             idempotency_key = _build_idempotency_key(
                 session_id=sess.id,
@@ -694,7 +712,12 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                     action=event.action, outcome="kill_switched"
                 ).inc()
                 raise
-            except (NotionalExceeded, LeverageCapExceeded, TradingSessionClosed) as exc:
+            except (
+                NotionalExceeded,
+                LeverageCapExceeded,
+                MinNotionalNotMet,
+                TradingSessionClosed,
+            ) as exc:
                 await event_repo.mark_failed(event.id, error=str(exc))
                 await event_repo.commit()
                 qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
