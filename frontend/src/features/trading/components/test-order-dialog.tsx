@@ -41,7 +41,12 @@ import {
 import { useStrategies } from "@/features/strategy/hooks";
 import { readWebhookSecret } from "@/features/strategy/webhook-secret-storage";
 import { getApiBase, readErrorBody } from "@/lib/api-base";
-import { useExchangeAccounts, useIsOrderDisabledByKs } from "../hooks";
+import type { LiquidationParams } from "../api";
+import {
+  useExchangeAccounts,
+  useIsOrderDisabledByKs,
+  useLiquidationInfo,
+} from "../hooks";
 
 // 양수 Decimal 문자열 판정 — 수량/TP/SL/risk% 공용.
 function isPositiveDecimalString(v: string): boolean {
@@ -213,6 +218,27 @@ function TestOrderDialogInner() {
   });
   // useWatch — React Compiler 호환(form.watch 는 memoize 불가 경고). 변경 시 re-render.
   const sizingMode = useWatch({ control: form.control, name: "sizing_mode" });
+  const symbolWatch = useWatch({ control: form.control, name: "symbol" });
+  const sideWatch = useWatch({ control: form.control, name: "side" });
+
+  // Wave 2 청산가 미리보기 — 주문 payload 와 무관한 참고용 로컬 입력(예상 진입가 · 레버리지).
+  // form schema/HMAC 서명에 포함되지 않는다(택배 발송 body 불변). 두 값이 유효할 때만
+  // useLiquidationInfo 가 발사 → BE 순수 계산. 비거나 무효면 미발사(콘솔에러 0).
+  const [previewEntryPrice, setPreviewEntryPrice] = useState("");
+  const [previewLeverage, setPreviewLeverage] = useState("");
+  const liqEntryValid = isPositiveDecimalString(previewEntryPrice);
+  const liqLeverageValid =
+    /^\d+$/.test(previewLeverage) && Number(previewLeverage) > 0;
+  const liqParams: LiquidationParams | null =
+    symbolWatch.length > 0 && liqEntryValid && liqLeverageValid
+      ? {
+          symbol: symbolWatch,
+          side: sideWatch,
+          entry_price: previewEntryPrice,
+          leverage: Number(previewLeverage),
+        }
+      : null;
+  const { data: liquidation } = useLiquidationInfo(liqParams);
 
   const onSubmit = async (values: TestOrderFormValues): Promise<void> => {
     // G.4 P1 #5 fix: KS active 시 submit 차단 (CSS pointer-events 만으로는
@@ -609,6 +635,61 @@ function TestOrderDialogInner() {
                   </FormItem>
                 )}
               />
+              {/* Wave 2 — 청산가 미리보기(참고용). 주문 body 와 무관한 로컬 입력. */}
+              <div className="space-y-3 rounded-md border border-dashed p-3">
+                <p className="text-sm font-medium">청산가 미리보기 (참고용)</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="liq-preview-entry"
+                      className="text-sm font-medium"
+                    >
+                      예상 진입가
+                    </label>
+                    <Input
+                      id="liq-preview-entry"
+                      inputMode="decimal"
+                      placeholder="예: 50000"
+                      value={previewEntryPrice}
+                      onChange={(e) => setPreviewEntryPrice(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="liq-preview-leverage"
+                      className="text-sm font-medium"
+                    >
+                      레버리지 (배)
+                    </label>
+                    <Input
+                      id="liq-preview-leverage"
+                      inputMode="numeric"
+                      placeholder="예: 10"
+                      value={previewLeverage}
+                      onChange={(e) => setPreviewLeverage(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {liquidation ? (
+                  <p
+                    data-testid="liquidation-preview"
+                    className="text-sm text-[color:var(--foreground)]"
+                  >
+                    예상 청산가{" "}
+                    <span className="font-mono font-semibold">
+                      {liquidation.liquidation_price}
+                    </span>{" "}
+                    <span className="text-muted-foreground">
+                      (진입가 대비 {liquidation.distance_pct}%)
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    심볼·방향 선택 후 예상 진입가와 레버리지를 입력하면 청산가를
+                    표시합니다.
+                  </p>
+                )}
+              </div>
               {rootError ? (
                 <p
                   role="alert"

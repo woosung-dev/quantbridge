@@ -139,6 +139,8 @@ def _merge_exit_params(
     trigger_by_key: str | None,
     trigger_direction_key: str | None = None,
     trailing_stop_key: str | None = None,
+    partial_size: bool = False,
+    size_str: str | None = None,
 ) -> dict[str, Any]:
     """Wave 1/2 — client_order_id + exit-primitive 필드를 ccxt unified params 로 조건부 병합.
 
@@ -149,7 +151,8 @@ def _merge_exit_params(
     create_order_request 실측)에 맞춘 shape:
     - reduceOnly: bool (Bybit safe_bool / OKX safe_value)
     - triggerPrice: scalar str (standalone 트리거 주문, SL/Trail trigger market)
-    - takeProfit/stopLoss: object {"triggerPrice": str} (entry attach bracket)
+    - takeProfit: object {"triggerPrice": str, "price": str} (entry attach bracket, maker limit TP)
+    - stopLoss: object {"triggerPrice": str} (entry attach bracket, taker market SL)
     - trigger_by: Bybit 전용 triggerBy(MarkPrice/IndexPrice/LastPrice). OKX 는 None 키로 미주입.
     - triggerDirection: Bybit 전용. linear standalone 트리거 주문 필수(bybit.py:4113-4116).
       str("1"|"2") — ccxt 가 '1'→ascending(rise)/그외→2(fall) 매핑. OKX 는 None 키로 미주입
@@ -176,8 +179,30 @@ def _merge_exit_params(
     if order.trailing_stop is not None and trailing_stop_key is not None:
         params[trailing_stop_key] = str(order.trailing_stop)
     if order.take_profit is not None:
-        params["takeProfit"] = {"triggerPrice": str(order.take_profit)}
-    if order.stop_loss is not None:
+        # Phase 3 — limit TP: triggerPrice + price → ccxt hasTakeProfit branch
+        # (bybit.py:4142-4149) 가 tpOrderType=Limit + tpLimitPrice + tpslMode=Partial 설정
+        # → resting limit 체결(maker 지향, 백테스트 cost SSOT 정합). 단 post-only 가 아니라
+        # gap-through 시 taker 체결 가능 — "limit TP, maker not guaranteed"(codex 게이트).
+        # ★ tpslMode=Partial 은 tpSize 필수 (Bybit V5 — 평가자 게이트 E2/E3). 누락 시 엔트리
+        #   통째 거부. tpSize = 포지션 전체 수량(full-position). 실 수용은 demo round-trip(D)로 확정.
+        params["takeProfit"] = {
+            "triggerPrice": str(order.take_profit),
+            "price": str(order.take_profit),
+        }
+        # Bybit V5 전용 — tpslMode=Partial 은 tpSize/slSize 필수. 주문 qty 와 동일한
+        # precision-normalized 문자열(size_str) 사용 — raw 수량과 lot-size 불일치 시
+        # Bybit 엔트리 거부 방지(평가자 게이트 3/3 NIT). OKX 는 partial_size=False →
+        # 미주입(attachAlgoOrds 자체 sizing).
+        partial_qty = size_str if size_str is not None else str(order.quantity)
+        if partial_size:
+            params["tpSize"] = partial_qty
+        if order.stop_loss is not None:
+            # limit TP 가 Partial 을 켜면 SL 레그도 Partial → slSize 필수(Bybit).
+            params["stopLoss"] = {"triggerPrice": str(order.stop_loss)}
+            if partial_size:
+                params["slSize"] = partial_qty
+    elif order.stop_loss is not None:
+        # SL 단독 = Full 모드(limit TP 없음) → size 불필요. trigger market(taker, 백테스트 정합).
         params["stopLoss"] = {"triggerPrice": str(order.stop_loss)}
     return params
 
@@ -277,6 +302,8 @@ class BybitDemoProvider:
                     trigger_by_key="triggerBy",
                     trigger_direction_key="triggerDirection",
                     trailing_stop_key="trailingStop",
+                    partial_size=True,  # Bybit V5 — limit TP 의 tpslMode=Partial tpSize/slSize
+                    size_str=amount,  # 주문 qty 와 동일한 precision 문자열로 size 정합
                 )
                 if params:
                     result = await exchange.create_order(
@@ -456,6 +483,8 @@ class BybitFuturesProvider:
                     trigger_by_key="triggerBy",
                     trigger_direction_key="triggerDirection",
                     trailing_stop_key="trailingStop",
+                    partial_size=True,  # Bybit V5 — limit TP 의 tpslMode=Partial tpSize/slSize
+                    size_str=amount,  # 주문 qty 와 동일한 precision 문자열로 size 정합
                 )
                 if params:
                     result = await exchange.create_order(

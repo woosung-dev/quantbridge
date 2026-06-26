@@ -16,6 +16,7 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -189,6 +190,12 @@ class LiveSignal:
     # MP-1 — close signal 의 청산 realized PnL (매칭 closed_trade 기준). entry 는 None.
     # Order.realized_pnl 로 전파되어 kill-switch 손실 평가기가 실제로 작동하게 한다.
     realized_pnl: Decimal | None = None
+    # Phase 3 — entry signal 의 exit 레벨 (pending_exits 레그에서 fold). close 는 None.
+    # bracket placement: take_profit/stop_loss 는 entry 주문에 부착(거래소-네이티브 OCO),
+    # trailing_stop(quote 거리) 은 포지션 open 후 별도 trailing 주문. exit 미사용 시 None.
+    take_profit: Decimal | None = None
+    stop_loss: Decimal | None = None
+    trailing_stop: Decimal | None = None
 
 
 @dataclass
@@ -200,6 +207,19 @@ class LiveSignalResult:
     strategy_state_report: dict[str, Any]
     total_closed_trades: int
     total_realized_pnl: Decimal
+
+
+def _to_decimal(value: float | None) -> Decimal | None:
+    """pine float exit 레벨 → Decimal 경계 변환. None/비정상(NaN·Inf·<=0) → None.
+
+    OrderRequest 의 exit 필드는 Field(gt=0) — NaN/Inf/음수/0 은 ValidationError.
+    dispatch 의 OrderRequest 조립은 try/except 밖이라 uncaught → 이벤트가 pending 으로
+    남아 outbox 가 영구 재dispatch (poison pill). 백테스트에서 비정상 레그(예: loss>entry
+    → 음수 stop)는 어차피 미체결(harmless)이라 None 으로 drop = no-bracket = sim 정합 + 안전.
+    """
+    if value is None or not math.isfinite(value) or value <= 0:
+        return None
+    return Decimal(str(value))
 
 
 def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
@@ -244,20 +264,34 @@ def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
     last_bar_index = len(ohlcv) - 1
     last_bar_events = [e for e in strategy_state.events if e.bar_index == last_bar_index]
     # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
-    signals: list[LiveSignal] = [
-        LiveSignal(
-            action=e.action,
-            direction=e.direction,
-            trade_id=e.trade_id,
-            qty=e.qty,
-            sequence_no=e.sequence_no,
-            comment=e.comment,
-            # close signal 만 realized PnL carry (entry 는 None).
-            realized_pnl=(pnl_by_trade.get(e.trade_id) if e.action == "close" else None),
+    signals: list[LiveSignal] = []
+    for e in last_bar_events:
+        if e.action not in ("entry", "close"):
+            continue
+        # Phase 3 — entry signal 은 pending_exits 의 TP/SL/trail 레벨을 fold
+        # (float pine 관례 → Decimal 경계 변환). close 는 exit 레벨 없음.
+        if e.action == "entry":
+            levels = strategy_state.exit_levels_for(e.trade_id)
+            take_profit = _to_decimal(levels.take_profit)
+            stop_loss = _to_decimal(levels.stop_loss)
+            trailing_stop = _to_decimal(levels.trailing_stop)
+        else:
+            take_profit = stop_loss = trailing_stop = None
+        signals.append(
+            LiveSignal(
+                action=e.action,
+                direction=e.direction,
+                trade_id=e.trade_id,
+                qty=e.qty,
+                sequence_no=e.sequence_no,
+                comment=e.comment,
+                # close signal 만 realized PnL carry (entry 는 None).
+                realized_pnl=(pnl_by_trade.get(e.trade_id) if e.action == "close" else None),
+                take_profit=take_profit,
+                stop_loss=stop_loss,
+                trailing_stop=trailing_stop,
+            )
         )
-        for e in last_bar_events
-        if e.action in ("entry", "close")
-    ]
 
     # last_bar_time 추출
     last_bar_time = _extract_last_bar_time(ohlcv)

@@ -54,3 +54,24 @@ describe("OrderSchema Wave1 fields", () => {
     expect(parsed.take_profit).toBeNull();
   });
 });
+
+describe("OrderSchema Wave2 fields", () => {
+  it("Wave2 필드(trigger_direction/oco_group_id/trailing_stop) 를 parse 한다", () => {
+    const parsed = OrderSchema.parse({
+      ...BASE,
+      trigger_direction: 2,
+      oco_group_id: "oco-abc",
+      trailing_stop: "120.5",
+    });
+    expect(parsed.trigger_direction).toBe(2);
+    expect(parsed.oco_group_id).toBe("oco-abc");
+    expect(parsed.trailing_stop).toBe("120.5");
+  });
+
+  it("Wave2 필드 누락 fixture 도 graceful 하게 parse 한다 (default null)", () => {
+    const parsed = OrderSchema.parse(BASE);
+    expect(parsed.trigger_direction).toBeNull();
+    expect(parsed.oco_group_id).toBeNull();
+    expect(parsed.trailing_stop).toBeNull();
+  });
+});

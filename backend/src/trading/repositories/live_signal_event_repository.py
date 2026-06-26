@@ -41,7 +41,8 @@ class LiveSignalEventRepository:
     ) -> Sequence[LiveSignalEvent]:
         """Pine signals → LiveSignalEvent INSERT (status=pending).
 
-        signals 각 dict: {action, direction, trade_id, qty, sequence_no, comment}.
+        signals 각 dict: {action, direction, trade_id, qty, sequence_no, comment,
+        realized_pnl, take_profit, stop_loss, trailing_stop}. exit 레벨은 entry 만 set.
         UNIQUE (session_id, bar_time, sequence_no, action, trade_id) 가 idempotency 보장
         — 같은 evaluate 가 두 번 fire 해도 INSERT 1번만 성공 (다른 INSERT 는 IntegrityError
         대신 ON CONFLICT DO NOTHING 으로 silent skip).
@@ -67,6 +68,22 @@ class LiveSignalEventRepository:
                 "realized_pnl": (
                     Decimal(str(sig["realized_pnl"]))
                     if sig.get("realized_pnl") is not None
+                    else None
+                ),
+                # Phase 3 — entry signal 의 exit 레벨 (bracket placement + trailing).
+                "take_profit": (
+                    Decimal(str(sig["take_profit"]))
+                    if sig.get("take_profit") is not None
+                    else None
+                ),
+                "stop_loss": (
+                    Decimal(str(sig["stop_loss"]))
+                    if sig.get("stop_loss") is not None
+                    else None
+                ),
+                "trailing_stop": (
+                    Decimal(str(sig["trailing_stop"]))
+                    if sig.get("trailing_stop") is not None
                     else None
                 ),
             }

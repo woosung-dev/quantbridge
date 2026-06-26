@@ -119,7 +119,11 @@ export function OrdersPanel() {
                       ? `${o.take_profit ?? "—"} / ${o.stop_loss ?? "—"}`
                       : "—"}
                   </td>
-                  {/* W-B liquidation 엔드포인트 미머지 → graceful-empty. wire-up = Phase 3. */}
+                  {/* 청산가 graceful-empty (의도적). 주문 목록은 "열린 포지션" 상태를
+                      노출하지 않는다 — filled 주문이 곧 열린 포지션을 의미하지 않으며(이미
+                      청산/반대매매됐을 수 있음), positions API 도 부재. 과거 주문에 라이브
+                      위험 수준처럼 보이는 청산가를 찍으면 오해 유발(Surface Trust 위반).
+                      실제 forward-looking 청산가 미리보기는 TestOrderDialog 에서 제공. */}
                   <td
                     data-testid="liquidation-cell"
                     className="text-muted-foreground"
