@@ -384,6 +384,112 @@ describe("TestOrderDialog", () => {
     ).toBeInTheDocument();
   });
 
+  // Wave 2 — TP/SL 입력 시 payload 에 값 있을 때만 append (기본 5필드 순서 보존).
+  it("TP/SL + reduce_only 입력 시 payload append", async () => {
+    isKsDisabledMock.mockReturnValue(false);
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 201,
+      text: async () => "",
+      json: async () => {
+        throw new SyntaxError("empty body");
+      },
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderDialog();
+    openDialog();
+    await fillForm();
+    fireEvent.change(screen.getByLabelText(/익절가/), {
+      target: { value: "55000" },
+    });
+    fireEvent.change(screen.getByLabelText(/손절가/), {
+      target: { value: "48000" },
+    });
+    fireEvent.click(screen.getByLabelText(/reduce-only/));
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    const [, calledInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(calledInit.body).toBe(
+      JSON.stringify({
+        symbol: "BTCUSDT",
+        side: "buy",
+        type: "market",
+        quantity: "0.001",
+        exchange_account_id: ACCOUNT_ID,
+        take_profit: "55000",
+        stop_loss: "48000",
+        reduce_only: true,
+      }),
+    );
+  });
+
+  // Wave 2 — risk% 모드는 quantity 대신 risk_percent 전송 (서버 권위 사이징).
+  it("risk% 모드 → payload 에 risk_percent (quantity 미전송)", async () => {
+    isKsDisabledMock.mockReturnValue(false);
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 201,
+      text: async () => "",
+      json: async () => {
+        throw new SyntaxError("empty body");
+      },
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderDialog();
+    openDialog();
+    // strategy + account 선택
+    const items = await screen.findAllByText(
+      (_, el) => el?.getAttribute("data-mock-select-item") !== null,
+    );
+    fireEvent.click(items[0]!);
+    fireEvent.click(items[1]!);
+    // 사이징 방식 = 리스크 %
+    fireEvent.click(screen.getByLabelText(/리스크 %$/));
+    fireEvent.change(screen.getByLabelText(/리스크 % \(자동 사이징\)/), {
+      target: { value: "1.5" },
+    });
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    const [, calledInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(calledInit.body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(body.risk_percent).toBe("1.5");
+    expect(body.quantity).toBeUndefined();
+  });
+
+  // Wave 2 — risk% 모드에서 risk_percent 비면 inline error + fetch 미호출.
+  it("risk% 모드 빈 값 → inline error + fetch 미호출", async () => {
+    isKsDisabledMock.mockReturnValue(false);
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderDialog();
+    openDialog();
+    const items = await screen.findAllByText(
+      (_, el) => el?.getAttribute("data-mock-select-item") !== null,
+    );
+    fireEvent.click(items[0]!);
+    fireEvent.click(items[1]!);
+    fireEvent.click(screen.getByLabelText(/리스크 %$/));
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(screen.getByText(/리스크 %를 입력하세요/)).toBeInTheDocument();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   // G.4 P1 #5 — KS active 시 submit 차단 (CSS pointer-events 만으론 키보드/직접 호출 우회 가능).
   it("KS active → submit button disabled + onSubmit 차단 + inline error", async () => {
     isKsDisabledMock.mockReturnValue(true);

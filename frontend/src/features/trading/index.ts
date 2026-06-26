@@ -13,12 +13,14 @@ export {
   useRegisterExchangeAccount,
   useDeleteExchangeAccount,
   useIsOrderDisabledByKs,
+  useLiquidationInfo,
   tradingKeys,
 } from "./hooks";
 export type {
   Order,
   KillSwitchEvent,
   ExchangeAccount,
+  LiquidationInfoResponse,
   OrderListResponse,
   KillSwitchListResponse,
   ExchangeAccountListResponse,
