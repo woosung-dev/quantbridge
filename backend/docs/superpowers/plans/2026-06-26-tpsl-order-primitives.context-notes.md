@@ -22,3 +22,8 @@ order_service 의 기존 notional-MAX 가드(160-215) 직후, 동일 `effective_
 
 ## D7 — 정직 고지 (PR 본문 의무)
 standalone linear triggerPrice 는 `triggerDirection` 도 필요(bybit.py:4113) — Wave 2 책임. 프리미티브는 param shape 단위검증까지, 실거래소 round-trip 은 demo 키 필요 → follow-up.
+
+## 최종 상태 (6 commit 완료)
+- 4360f3c Task1 fields+migration / 38fd0a5 Task2 provider params / 581ed09 Task3 close reduce-only / 7ac40e3 Task4 min-notional / 6b5d834 Task5 exit mapping / 2e020d3 Task6 idempotency.
+- self-verify: ruff check . PASS / mypy src/ 181 files PASS / pytest tests/trading 350 pass / tasks+mapping 22 pass / alembic up→down(0)→up(5) round-trip PASS.
+- 실DB = qb-fund-pg(5436) throwaway `qb_w1_test` + redis 6382. roundtrip DB drop 완료.
