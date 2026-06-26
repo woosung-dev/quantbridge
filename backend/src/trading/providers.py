@@ -72,6 +72,15 @@ class OrderSubmit:
     # take_profit / stop_loss: entry 에 attach 하는 bracket TP/SL 트리거가.
     take_profit: Decimal | None = None
     stop_loss: Decimal | None = None
+    # Wave 2 (TP/SL placement) — standalone 트리거/트레일링 라이브 param.
+    # trigger_direction: Bybit v5 triggerDirection (1=가격 RISE 시 트리거, 2=FALL 시).
+    #   linear standalone 트리거 주문 필수(ccxt 4.5.49). exit_order_mapping.trigger_direction_for 계산.
+    trigger_direction: int | None = None
+    # trailing_stop: Bybit native trailingStop (quote 거리). contract 전용.
+    trailing_stop: Decimal | None = None
+    # oco_group_id: OCO 형제 추적용 app-side 식별자. ccxt params 미주입(거래소 네이티브
+    #   OCO group param 부재) — sibling-cancel 오케스트레이션이 DB 에서 조회(Wave 2 deferred).
+    oco_group_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,18 +137,28 @@ def _merge_exit_params(
     *,
     client_order_id_key: str | None,
     trigger_by_key: str | None,
+    trigger_direction_key: str | None = None,
+    trailing_stop_key: str | None = None,
 ) -> dict[str, Any]:
-    """Wave 1 — client_order_id + exit-primitive 필드를 ccxt unified params 로 조건부 병합.
+    """Wave 1/2 — client_order_id + exit-primitive 필드를 ccxt unified params 로 조건부 병합.
 
     값 None/False 면 키 미포함 → 기존 entry 주문 경로 byte-identical 회귀. params 가 비면
     caller 가 create_order 를 5-arg 로 호출(기존 동작).
 
-    ccxt 4.5.x unified param 계약(.venv/.../ccxt/async_support/{bybit,okx}.py
+    ccxt 4.5.49 unified param 계약(.venv/.../ccxt/async_support/{bybit,okx}.py
     create_order_request 실측)에 맞춘 shape:
     - reduceOnly: bool (Bybit safe_bool / OKX safe_value)
     - triggerPrice: scalar str (standalone 트리거 주문, SL/Trail trigger market)
     - takeProfit/stopLoss: object {"triggerPrice": str} (entry attach bracket)
     - trigger_by: Bybit 전용 triggerBy(MarkPrice/IndexPrice/LastPrice). OKX 는 None 키로 미주입.
+    - triggerDirection: Bybit 전용. linear standalone 트리거 주문 필수(bybit.py:4113-4116).
+      str("1"|"2") — ccxt 가 '1'→ascending(rise)/그외→2(fall) 매핑. OKX 는 None 키로 미주입
+      (OKX 는 slTriggerPx/tpTriggerPx 가 방향을 자동 추론 → triggerDirection 개념 부재).
+    - trailingStop: Bybit 전용 native trailing(bybit.py:3960-3962, 4102-4105). str(quote 거리).
+      OKX 는 별 endpoint → None 키로 미주입.
+
+    oco_group_id 는 ccxt params 로 주입하지 않는다 — 거래소 네이티브 OCO group param 부재.
+    app-side sibling-cancel 추적용 DB 컬럼으로만 보존(Wave 2 오케스트레이션 deferred).
 
     금융 숫자는 str(Decimal) 로 주입(float 금지). ccxt get_price/price_to_precision 가 str 수용.
     """
@@ -152,6 +171,10 @@ def _merge_exit_params(
         params["triggerPrice"] = str(order.trigger_price)
     if order.trigger_by is not None and trigger_by_key is not None:
         params[trigger_by_key] = order.trigger_by
+    if order.trigger_direction is not None and trigger_direction_key is not None:
+        params[trigger_direction_key] = str(order.trigger_direction)
+    if order.trailing_stop is not None and trailing_stop_key is not None:
+        params[trailing_stop_key] = str(order.trailing_stop)
     if order.take_profit is not None:
         params["takeProfit"] = {"triggerPrice": str(order.take_profit)}
     if order.stop_loss is not None:
@@ -246,10 +269,14 @@ class BybitDemoProvider:
             async with ccxt_timer("bybit", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, order.symbol, order)
-                # Sprint 12 Phase C — orderLinkId + Wave 1 exit-primitive params.
+                # Sprint 12 Phase C — orderLinkId + Wave 1/2 exit-primitive params.
                 # 필드 미설정 시 params 빈 dict → 기존 5-arg 호출(byte-identical 회귀).
                 params = _merge_exit_params(
-                    order, client_order_id_key="orderLinkId", trigger_by_key="triggerBy"
+                    order,
+                    client_order_id_key="orderLinkId",
+                    trigger_by_key="triggerBy",
+                    trigger_direction_key="triggerDirection",
+                    trailing_stop_key="trailingStop",
                 )
                 if params:
                     result = await exchange.create_order(
@@ -422,9 +449,13 @@ class BybitFuturesProvider:
             async with ccxt_timer("bybit_futures", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, linear_symbol, order)
-                # Sprint 12 Phase C orderLinkId + Wave 1 exit-primitive params 조건부 병합.
+                # Sprint 12 Phase C orderLinkId + Wave 1/2 exit-primitive params 조건부 병합.
                 params = _merge_exit_params(
-                    order, client_order_id_key="orderLinkId", trigger_by_key="triggerBy"
+                    order,
+                    client_order_id_key="orderLinkId",
+                    trigger_by_key="triggerBy",
+                    trigger_direction_key="triggerDirection",
+                    trailing_stop_key="trailingStop",
                 )
                 if params:
                     result = await exchange.create_order(

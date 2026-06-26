@@ -259,6 +259,36 @@ class MinNotionalNotMet(AppException):
         self.min_notional = min_notional
 
 
+class RiskSizingExceeded(AppException):
+    """client 제출 qty 가 서버 권위 risk-기반 max_qty 를 초과 (Wave 2 P2).
+
+    서버 권위 사이징: max_qty = 자본(USDT 잔고) x risk_percent% / |entry - stop|.
+    client qty 를 신뢰하지 않고 거래소 잔고 + 전략 stop 거리로 재계산해, 한 트레이드의
+    손실이 자본의 risk_percent% 를 넘지 않도록 강제한다. risk_percent 미설정 시 가드 skip
+    (회귀 0). stop / 잔고 / entry 미가용 시 skip(fail-open, demo 정책 일관).
+    """
+
+    status_code = 422
+    code = "risk_sizing_exceeded"
+
+    def __init__(
+        self,
+        *,
+        quantity: Decimal,
+        max_quantity: Decimal,
+        risk_percent: Decimal,
+        stop_distance: Decimal,
+    ) -> None:
+        super().__init__(
+            f"quantity {quantity} exceeds risk-based max {max_quantity} "
+            f"(risk={risk_percent}%, stop_distance={stop_distance})"
+        )
+        self.quantity = quantity
+        self.max_quantity = max_quantity
+        self.risk_percent = risk_percent
+        self.stop_distance = stop_distance
+
+
 class NotionalExceeded(AppException):
     """position notional(qty x price)이 available x leverage x 0.95 초과 (CF5/MP-3).
 
