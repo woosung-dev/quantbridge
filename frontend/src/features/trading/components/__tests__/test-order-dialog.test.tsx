@@ -44,6 +44,10 @@ vi.mock("@/features/strategy/hooks", () => ({
 
 // G.4 P1 #5 — KS active 시 submit 차단을 위해 useIsOrderDisabledByKs mock 도 노출.
 const isKsDisabledMock = vi.fn(() => false);
+// Wave 2 — 청산가 미리보기 hook 반환값 제어용 mock.
+const liquidationMock = vi.fn<() => { data: unknown }>(() => ({
+  data: undefined,
+}));
 vi.mock("../../hooks", () => ({
   useExchangeAccounts: () => ({
     data: [
@@ -60,6 +64,8 @@ vi.mock("../../hooks", () => ({
     isError: false,
   }),
   useIsOrderDisabledByKs: () => isKsDisabledMock(),
+  // Wave 2 — 청산가 미리보기 hook. 기본은 미발사(data undefined)로 mock.
+  useLiquidationInfo: () => liquidationMock(),
 }));
 
 // ── webhook-secret-storage mock ──
@@ -518,5 +524,30 @@ describe("TestOrderDialog", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/Kill Switch/);
     });
+  });
+
+  // Wave 2 — 청산가 미리보기: useLiquidationInfo 가 data 를 반환하면 예상 청산가 렌더.
+  it("청산가 미리보기 — data 있으면 예상 청산가 + 거리 표시", async () => {
+    liquidationMock.mockReturnValue({
+      data: {
+        symbol: "BTCUSDT",
+        entry_price: "50000",
+        side: "buy",
+        leverage: 10,
+        liquidation_price: "45500",
+        maintenance_margin_rate: "0.005",
+        distance_pct: "9.0",
+      },
+    });
+
+    renderDialog();
+    openDialog();
+
+    const preview = await screen.findByTestId("liquidation-preview");
+    expect(preview).toHaveTextContent("45500");
+    expect(preview).toHaveTextContent("9.0");
+
+    // 다른 테스트에 누수 방지 — 기본 미발사 상태로 복구.
+    liquidationMock.mockReturnValue({ data: undefined });
   });
 });

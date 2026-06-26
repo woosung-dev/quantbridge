@@ -20,6 +20,11 @@ export const OrderSchema = z.object({
   trigger_by: z.string().nullable().default(null),
   take_profit: z.string().nullable().default(null),
   stop_loss: z.string().nullable().default(null),
+  // Wave 2 (TP/SL placement) — BE OrderResponse 와 1:1. trigger_direction 은 정수(1/2),
+  // trailing_stop 은 Decimal→string. 동일 default(null) 로 구 fixture 회귀 방지.
+  trigger_direction: z.number().int().nullable().default(null),
+  oco_group_id: z.string().nullable().default(null),
+  trailing_stop: z.string().nullable().default(null),
 });
 export type Order = z.infer<typeof OrderSchema>;
 

@@ -19,8 +19,8 @@ import {
 const ORDERS_PATH = "/api/v1/orders";
 const KILL_SWITCH_PATH = "/api/v1/kill-switch/events";
 const EXCHANGE_ACCOUNTS_PATH = "/api/v1/exchange-accounts";
-// Wave 2 크로스도메인 계약 (W-B liquidation, 미머지). 최종 wire-up = Phase 3.
-const LIQUIDATION_PATH = "/api/v1/liquidation";
+// Wave 2 청산가 미리보기 — BE `POST /api/v1/liquidation/preview` (Wave 2 머지 완료).
+const LIQUIDATION_PATH = "/api/v1/liquidation/preview";
 
 export type LiquidationParams = {
   symbol: string;
@@ -97,16 +97,17 @@ export async function deleteExchangeAccount(
   });
 }
 
-// Wave 2 — 청산가 on-the-fly 조회 (W-B 계약). 엔드포인트 미머지 상태 → 404/연결거부 시
-// apiFetch 가 throw → 호출부(useLiquidationInfo)는 graceful-empty 로 렌더. wire-up = Phase 3.
+// Wave 2 — 청산가 on-the-fly 조회. BE 는 POST + JSON body (LiquidationPreviewRequest).
+// 인증만 게이트하는 순수 계산 → 네트워크/권한 실패 시 apiFetch 가 throw → 호출부
+// (useLiquidationInfo, retry:false)는 graceful-empty 로 렌더.
 export async function getLiquidationInfo(
   params: LiquidationParams,
   token: string | null,
 ): Promise<LiquidationInfoResponse> {
   const raw = await apiFetch<unknown>(LIQUIDATION_PATH, {
-    method: "GET",
+    method: "POST",
     token,
-    params: {
+    body: {
       symbol: params.symbol,
       side: params.side,
       entry_price: params.entry_price,
