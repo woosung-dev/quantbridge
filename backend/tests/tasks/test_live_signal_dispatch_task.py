@@ -440,6 +440,63 @@ async def test_dispatch_sl_plus_trailing_proceeds_with_sl_bracket(
 
 
 @pytest.mark.asyncio
+async def test_dispatch_invalid_order_request_marks_failed_no_execute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """belt-and-suspenders — DB NUMERIC(18,8) round-trip 으로 0 이 된 exit 레벨(gt=0
+    ValidationError) → graceful mark_failed, execute 미호출 (poison pill 완전 차단)."""
+    _patch_engine(monkeypatch)
+    event = _build_pending_event(take_profit=Decimal("0"))  # gt=0 위반 시뮬
+    sess = _build_active_session(uuid4())
+    sess.id = event.session_id
+
+    event_repo = AsyncMock()
+    event_repo.get_by_id = AsyncMock(return_value=event)
+    event_repo.mark_failed = AsyncMock(return_value=1)
+    event_repo.commit = AsyncMock()
+    sess_repo = AsyncMock()
+    sess_repo.get_by_id = AsyncMock(return_value=sess)
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner = AsyncMock(
+        return_value=SimpleNamespace(
+            id=sess.strategy_id,
+            settings={"leverage": 5, "margin_mode": "cross", "position_size_pct": 10.0},
+            pine_source="//@version=5\nstrategy('x')",
+        )
+    )
+    _patch_repos(
+        monkeypatch,
+        event_repo=event_repo,
+        sess_repo=sess_repo,
+        strategy_repo=strategy_repo,
+        order_repo=AsyncMock(),
+        account_repo=AsyncMock(),
+        kse_repo=AsyncMock(),
+    )
+    executed: list[int] = []
+
+    class _OrderServiceSpy:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        async def execute(self, *_a: Any, **_k: Any) -> tuple[Any, bool]:
+            executed.append(1)
+            return (SimpleNamespace(id=uuid4(), state="pending", side=None), False)
+
+    import src.trading.services.order_service as trading_service_mod
+    monkeypatch.setattr(trading_service_mod, "OrderService", _OrderServiceSpy)
+    import src.trading.kill_switch as kill_switch_mod
+    monkeypatch.setattr(kill_switch_mod, "KillSwitchService", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "CumulativeLossEvaluator", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "DailyLossEvaluator", MagicMock())
+
+    res = await live_signal_module._async_dispatch_event(event.id)
+    assert res == {"failed": "invalid_order_request"}
+    event_repo.mark_failed.assert_awaited_once()
+    assert executed == []  # ValidationError → execute 도달 안 함 (poison pill 차단)
+
+
+@pytest.mark.asyncio
 async def test_kill_switch_active_marks_failed_and_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

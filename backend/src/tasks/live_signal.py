@@ -695,34 +695,40 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                     event.id, error="trailing_stop_live_placement_unsupported"
                 )
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="rejected"
-                ).inc()
+                qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
                 return {"failed": "trailing_unsupported"}
 
-            # OrderRequest 조립
-            req = OrderRequest(
-                strategy_id=sess.strategy_id,
-                exchange_account_id=sess.exchange_account_id,
-                symbol=sess.symbol,
-                side=_signal_to_order_side(event.action, event.direction),
-                type=OrderType.market,
-                quantity=Decimal(str(event.qty)),
-                price=None,  # market order
-                leverage=parsed_settings.leverage,
-                margin_mode=parsed_settings.margin_mode,
-                # MP-1 — close 이벤트 청산 PnL → Order.realized_pnl (kill-switch SUM 대상).
-                realized_pnl=event.realized_pnl,
-                # Wave 1 C3 — close 주문 reduce-only (over-fill/반전 방지). entry=False.
-                reduce_only=_action_is_reduce_only(event.action),
-                # Phase 3 — entry 주문에 TP/SL bracket 부착 → Bybit 포지션 bracket(거래소-네이티브 OCO).
-                # close 이벤트는 None (fold 안 됨). _merge_exit_params 가 takeProfit/stopLoss params 주입.
-                # ★ trailing_stop 은 entry 주문에 싣지 않는다 — ccxt 가 trailingStop 주문을
-                #   set-trading-stop 엔드포인트로 라우팅해 entry 자체가 깨짐. 트레일링은 포지션
-                #   open 후 별도 주문 (fill 후 follow-on, A4 trailing).
-                take_profit=event.take_profit,
-                stop_loss=event.stop_loss,
-            )
+            # OrderRequest 조립 — DB NUMERIC(18,8) round-trip 후 0/비정상으로 반올림된 exit
+            # 레벨 등 모든 ValidationError 를 graceful mark_failed (poison pill 완전 차단,
+            # 평가자 게이트 belt-and-suspenders). _to_decimal 의 float-boundary 가드 보완.
+            try:
+                req = OrderRequest(
+                    strategy_id=sess.strategy_id,
+                    exchange_account_id=sess.exchange_account_id,
+                    symbol=sess.symbol,
+                    side=_signal_to_order_side(event.action, event.direction),
+                    type=OrderType.market,
+                    quantity=Decimal(str(event.qty)),
+                    price=None,  # market order
+                    leverage=parsed_settings.leverage,
+                    margin_mode=parsed_settings.margin_mode,
+                    # MP-1 — close 이벤트 청산 PnL → Order.realized_pnl (kill-switch SUM 대상).
+                    realized_pnl=event.realized_pnl,
+                    # Wave 1 C3 — close 주문 reduce-only (over-fill/반전 방지). entry=False.
+                    reduce_only=_action_is_reduce_only(event.action),
+                    # Phase 3 — entry 주문에 TP/SL bracket 부착 → Bybit 포지션 bracket(거래소-네이티브 OCO).
+                    # close 이벤트는 None (fold 안 됨). _merge_exit_params 가 takeProfit/stopLoss params 주입.
+                    # ★ trailing_stop 은 entry 주문에 싣지 않는다 — ccxt 가 trailingStop 주문을
+                    #   set-trading-stop 엔드포인트로 라우팅해 entry 자체가 깨짐. 트레일링은 포지션
+                    #   open 후 별도 주문 (fill 후 follow-on, A4 trailing).
+                    take_profit=event.take_profit,
+                    stop_loss=event.stop_loss,
+                )
+            except ValidationError as exc:
+                await event_repo.mark_failed(event.id, error=f"invalid_order_request: {exc}")
+                await event_repo.commit()
+                qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
+                return {"failed": "invalid_order_request"}
             idempotency_key = _build_idempotency_key(
                 session_id=sess.id,
                 bar_time=event.bar_time,

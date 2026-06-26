@@ -140,6 +140,7 @@ def _merge_exit_params(
     trigger_direction_key: str | None = None,
     trailing_stop_key: str | None = None,
     partial_size: bool = False,
+    size_str: str | None = None,
 ) -> dict[str, Any]:
     """Wave 1/2 — client_order_id + exit-primitive 필드를 ccxt unified params 로 조건부 병합.
 
@@ -188,15 +189,18 @@ def _merge_exit_params(
             "triggerPrice": str(order.take_profit),
             "price": str(order.take_profit),
         }
+        # Bybit V5 전용 — tpslMode=Partial 은 tpSize/slSize 필수. 주문 qty 와 동일한
+        # precision-normalized 문자열(size_str) 사용 — raw 수량과 lot-size 불일치 시
+        # Bybit 엔트리 거부 방지(평가자 게이트 3/3 NIT). OKX 는 partial_size=False →
+        # 미주입(attachAlgoOrds 자체 sizing).
+        partial_qty = size_str if size_str is not None else str(order.quantity)
         if partial_size:
-            # Bybit V5 전용 — tpslMode=Partial 은 tpSize 필수. OKX 는 attachAlgoOrds 가
-            # 자체 sizing → tpSize/slSize 미주입(partial_size=False).
-            params["tpSize"] = str(order.quantity)
+            params["tpSize"] = partial_qty
         if order.stop_loss is not None:
             # limit TP 가 Partial 을 켜면 SL 레그도 Partial → slSize 필수(Bybit).
             params["stopLoss"] = {"triggerPrice": str(order.stop_loss)}
             if partial_size:
-                params["slSize"] = str(order.quantity)
+                params["slSize"] = partial_qty
     elif order.stop_loss is not None:
         # SL 단독 = Full 모드(limit TP 없음) → size 불필요. trigger market(taker, 백테스트 정합).
         params["stopLoss"] = {"triggerPrice": str(order.stop_loss)}
@@ -299,6 +303,7 @@ class BybitDemoProvider:
                     trigger_direction_key="triggerDirection",
                     trailing_stop_key="trailingStop",
                     partial_size=True,  # Bybit V5 — limit TP 의 tpslMode=Partial tpSize/slSize
+                    size_str=amount,  # 주문 qty 와 동일한 precision 문자열로 size 정합
                 )
                 if params:
                     result = await exchange.create_order(
@@ -479,6 +484,7 @@ class BybitFuturesProvider:
                     trigger_direction_key="triggerDirection",
                     trailing_stop_key="trailingStop",
                     partial_size=True,  # Bybit V5 — limit TP 의 tpslMode=Partial tpSize/slSize
+                    size_str=amount,  # 주문 qty 와 동일한 precision 문자열로 size 정합
                 )
                 if params:
                     result = await exchange.create_order(
