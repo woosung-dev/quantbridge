@@ -207,6 +207,17 @@ class Order(SQLModel, table=True):
     stop_loss: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 8), nullable=True)
     )
+    # Wave 2 (TP/SL placement) — ADD COLUMN(alembic 20260626_0002). 전부 default None 회귀.
+    # trigger_direction: Bybit v5 triggerDirection(1=가격 RISE 시 트리거, 2=FALL 시).
+    #   standalone 트리거 주문(SL/Trail) 방향. exit_order_mapping.trigger_direction_for 계산.
+    trigger_direction: int | None = Field(default=None, nullable=True)
+    # oco_group_id: OCO 형제 추적용 app-side 식별자(거래소 미주입). sibling-cancel 오케스트레이션이
+    #   DB 조회용으로 사용(Wave 2 deferred). 같은 entry 의 TP/SL leg 가 동일 값 공유.
+    oco_group_id: str | None = Field(default=None, max_length=64, nullable=True)
+    # trailing_stop: Bybit native trailingStop(quote 거리). contract 전용 라이브 param.
+    trailing_stop: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
     # Sprint 23 BL-102 — dispatch 시점 (exchange, mode, has_leverage) snapshot.
     # _async_execute / _async_fetch_order_status 가 본 snapshot 우선 사용.
     # nullable: legacy row (Sprint 23 이전 생성) 는 NULL → 기존 fallback 동작.

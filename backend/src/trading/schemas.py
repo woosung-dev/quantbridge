@@ -62,6 +62,13 @@ class OrderRequest(BaseModel):
     trigger_by: str | None = Field(default=None, max_length=16)
     take_profit: Decimal | None = Field(default=None, gt=0, decimal_places=8)
     stop_loss: Decimal | None = Field(default=None, gt=0, decimal_places=8)
+    # Wave 2 (TP/SL placement) — standalone 트리거/트레일링 라이브 param (전부 optional).
+    # trigger_direction: Bybit v5 1=가격 RISE 시 트리거 / 2=FALL 시. SL/Trail standalone 방향.
+    trigger_direction: int | None = Field(default=None, ge=1, le=2)
+    # oco_group_id: OCO 형제 추적 app-side 식별자(거래소 미주입). sibling-cancel DB 조회용.
+    oco_group_id: str | None = Field(default=None, max_length=64)
+    # trailing_stop: Bybit native trailing 거리(quote). contract 전용.
+    trailing_stop: Decimal | None = Field(default=None, gt=0, decimal_places=8)
 
 
 class OrderResponse(BaseModel):
@@ -92,6 +99,10 @@ class OrderResponse(BaseModel):
     trigger_by: str | None = None
     take_profit: Decimal | None = None
     stop_loss: Decimal | None = None
+    # Wave 2 (TP/SL placement).
+    trigger_direction: int | None = None
+    oco_group_id: str | None = None
+    trailing_stop: Decimal | None = None
 
 
 class KillSwitchEventResponse(BaseModel):

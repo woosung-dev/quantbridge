@@ -309,6 +309,10 @@ class OrderService:
                             trigger_by=req.trigger_by,
                             take_profit=req.take_profit,
                             stop_loss=req.stop_loss,
+                            # Wave 2 (TP/SL placement) — triggerDirection/OCO/trailing.
+                            trigger_direction=req.trigger_direction,
+                            oco_group_id=req.oco_group_id,
+                            trailing_stop=req.trailing_stop,
                             # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                             dispatch_snapshot=dispatch_snapshot,
                         )
@@ -339,6 +343,10 @@ class OrderService:
                         trigger_by=req.trigger_by,
                         take_profit=req.take_profit,
                         stop_loss=req.stop_loss,
+                        # Wave 2 (TP/SL placement) — triggerDirection/OCO/trailing.
+                        trigger_direction=req.trigger_direction,
+                        oco_group_id=req.oco_group_id,
+                        trailing_stop=req.trailing_stop,
                         # Sprint 23 BL-102: dispatch snapshot (codex G.0 P1 #3 fix).
                         dispatch_snapshot=dispatch_snapshot,
                     )

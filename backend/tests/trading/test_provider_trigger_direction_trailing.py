@@ -143,7 +143,6 @@ async def test_bybit_futures_oco_group_id_not_injected(credentials, bybit_mock):
         oco_group_id="oco-trade-abc",
     )
     await BybitFuturesProvider().create_order(credentials, submit)
-    _, kwargs = bybit_mock.create_order.call_args
     params = bybit_mock.create_order.call_args.args[5]
     assert "oco_group_id" not in params
     assert "ocoGroupId" not in params
