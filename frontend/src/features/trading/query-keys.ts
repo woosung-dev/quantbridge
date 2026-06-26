@@ -11,4 +11,17 @@ export const tradingKeys = {
     [...tradingKeys.all(userId), "kill-switch"] as const,
   exchangeAccounts: (userId: string) =>
     [...tradingKeys.all(userId), "exchange-accounts"] as const,
+  // Wave 2 — 청산가 계약(W-B). LESSON-005: userId 첫 인자. 파라미터는 계산 입력으로 식별.
+  liquidation: (
+    userId: string,
+    params: { symbol: string; side: string; entry_price: string; leverage: number },
+  ) =>
+    [
+      ...tradingKeys.all(userId),
+      "liquidation",
+      params.symbol,
+      params.side,
+      params.entry_price,
+      params.leverage,
+    ] as const,
 };

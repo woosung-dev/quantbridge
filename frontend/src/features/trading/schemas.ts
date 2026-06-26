@@ -83,3 +83,16 @@ export const RegisterAccountRequestSchema = z
     }
   });
 export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequestSchema>;
+
+// Wave 2 크로스도메인 계약 (W-B liquidation, 미머지) — 청산가 on-the-fly 계산 응답.
+// Decimal 필드는 string 직렬화. BE LiquidationInfoResponse 와 1:1. 최종 wire-up = Phase 3.
+export const LiquidationInfoResponseSchema = z.object({
+  symbol: z.string(),
+  entry_price: z.string(),
+  side: z.enum(["buy", "sell"]),
+  leverage: z.number(),
+  liquidation_price: z.string(),
+  maintenance_margin_rate: z.string(),
+  distance_pct: z.string(),
+});
+export type LiquidationInfoResponse = z.infer<typeof LiquidationInfoResponseSchema>;
