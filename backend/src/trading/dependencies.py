@@ -31,6 +31,7 @@ from src.trading.repositories.live_signal_session_repository import LiveSignalSe
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
 from src.trading.services.protocols import OrderDispatcher
@@ -51,6 +52,11 @@ _bybit_futures_provider = BybitFuturesProvider()
 
 def get_bybit_futures_provider() -> BybitFuturesProvider:
     return _bybit_futures_provider
+
+
+# ── Liquidation (순수 calc, DB 미접근) ────────────────────────────────
+def get_liquidation_service() -> LiquidationService:
+    return LiquidationService()
 
 
 # ── ExchangeAccount ──────────────────────────────────────────────────
