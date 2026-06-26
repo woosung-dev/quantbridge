@@ -123,6 +123,42 @@ async def _to_exchange_precision(
     return amount, price
 
 
+def _merge_exit_params(
+    order: OrderSubmit,
+    *,
+    client_order_id_key: str | None,
+    trigger_by_key: str | None,
+) -> dict[str, Any]:
+    """Wave 1 — client_order_id + exit-primitive 필드를 ccxt unified params 로 조건부 병합.
+
+    값 None/False 면 키 미포함 → 기존 entry 주문 경로 byte-identical 회귀. params 가 비면
+    caller 가 create_order 를 5-arg 로 호출(기존 동작).
+
+    ccxt 4.5.x unified param 계약(.venv/.../ccxt/async_support/{bybit,okx}.py
+    create_order_request 실측)에 맞춘 shape:
+    - reduceOnly: bool (Bybit safe_bool / OKX safe_value)
+    - triggerPrice: scalar str (standalone 트리거 주문, SL/Trail trigger market)
+    - takeProfit/stopLoss: object {"triggerPrice": str} (entry attach bracket)
+    - trigger_by: Bybit 전용 triggerBy(MarkPrice/IndexPrice/LastPrice). OKX 는 None 키로 미주입.
+
+    금융 숫자는 str(Decimal) 로 주입(float 금지). ccxt get_price/price_to_precision 가 str 수용.
+    """
+    params: dict[str, Any] = {}
+    if order.client_order_id is not None and client_order_id_key is not None:
+        params[client_order_id_key] = order.client_order_id
+    if order.reduce_only:
+        params["reduceOnly"] = True
+    if order.trigger_price is not None:
+        params["triggerPrice"] = str(order.trigger_price)
+    if order.trigger_by is not None and trigger_by_key is not None:
+        params[trigger_by_key] = order.trigger_by
+    if order.take_profit is not None:
+        params["takeProfit"] = {"triggerPrice": str(order.take_profit)}
+    if order.stop_loss is not None:
+        params["stopLoss"] = {"triggerPrice": str(order.stop_loss)}
+    return params
+
+
 class ExchangeProvider(Protocol):
     async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt: ...
 
@@ -210,16 +246,19 @@ class BybitDemoProvider:
             async with ccxt_timer("bybit", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, order.symbol, order)
-                # Sprint 12 Phase C — orderLinkId 가 있을 때만 params 전달
-                # (기존 caller 호환성 + WS order event 매핑용).
-                if order.client_order_id is not None:
+                # Sprint 12 Phase C — orderLinkId + Wave 1 exit-primitive params.
+                # 필드 미설정 시 params 빈 dict → 기존 5-arg 호출(byte-identical 회귀).
+                params = _merge_exit_params(
+                    order, client_order_id_key="orderLinkId", trigger_by_key="triggerBy"
+                )
+                if params:
                     result = await exchange.create_order(
                         order.symbol,
                         order.type.value,
                         order.side.value,
                         amount,
                         price,
-                        {"orderLinkId": order.client_order_id},
+                        params,
                     )
                 else:
                     result = await exchange.create_order(
@@ -383,14 +422,18 @@ class BybitFuturesProvider:
             async with ccxt_timer("bybit_futures", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, linear_symbol, order)
-                if order.client_order_id is not None:
+                # Sprint 12 Phase C orderLinkId + Wave 1 exit-primitive params 조건부 병합.
+                params = _merge_exit_params(
+                    order, client_order_id_key="orderLinkId", trigger_by_key="triggerBy"
+                )
+                if params:
                     result = await exchange.create_order(
                         linear_symbol,
                         order.type.value,
                         order.side.value,
                         amount,
                         price,
-                        {"orderLinkId": order.client_order_id},
+                        params,
                     )
                 else:
                     result = await exchange.create_order(
@@ -599,15 +642,19 @@ class OkxDemoProvider:
             async with ccxt_timer("okx", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, order.symbol, order)
-                if order.client_order_id is not None:
-                    # Sprint 12 Phase C — OKX clOrdId. WS order event 매핑용.
+                # Sprint 12 Phase C clOrdId + Wave 1 exit-primitive params 조건부 병합.
+                # OKX 는 triggerBy 미지원(trigger px type 기본 'last') → trigger_by_key=None.
+                params = _merge_exit_params(
+                    order, client_order_id_key="clOrdId", trigger_by_key=None
+                )
+                if params:
                     result = await exchange.create_order(
                         order.symbol,
                         order.type.value,
                         order.side.value,
                         amount,
                         price,
-                        {"clOrdId": order.client_order_id},
+                        params,
                     )
                 else:
                     result = await exchange.create_order(

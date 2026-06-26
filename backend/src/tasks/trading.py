@@ -308,6 +308,13 @@ async def _execute_with_session(
                 # Sprint 12 Phase C-pre: Order.id (UUID4) → exchange orderLinkId/clOrdId.
                 # WebSocket order event 가 이 값으로 local DB row 매핑.
                 client_order_id=str(order.id),
+                # Wave 1 (TP/SL order primitives) — DB 에 저장된 라이브 손익보호 프리미티브를
+                # provider params 로 전달. 기존 entry row 는 전부 default(None/False) 회귀.
+                reduce_only=order.reduce_only,
+                trigger_price=order.trigger_price,
+                trigger_by=order.trigger_by,
+                take_profit=order.take_profit,
+                stop_loss=order.stop_loss,
             )
             # Sprint 22 BL-091 + Sprint 23 BL-102: snapshot 우선 dispatch.
             # snapshot 부재 (legacy row) 또는 invalid (DB manual mutation) → account 현재값
