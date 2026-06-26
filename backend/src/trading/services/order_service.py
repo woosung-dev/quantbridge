@@ -20,6 +20,7 @@ from src.trading.exceptions import (
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
+    MinNotionalNotMet,
     NotionalExceeded,
     TradingSessionClosed,
 )
@@ -169,6 +170,21 @@ class OrderService:
                     effective_price = mark * Decimal("1.02")
 
             if effective_price is not None:
+                # Wave 1 C5 — min-notional 가드. 거래소 최소 주문 cost(limits.cost.min) 미달
+                # 주문은 거래소가 거부하므로 사전 차단. balance 와 독립적으로 평가하며,
+                # min cost 미가용(None) 시 skip(fail-open, demo 정책 일관). max-notional 가드보다 먼저.
+                min_notional = await self._exchange_service.fetch_min_notional(
+                    req.exchange_account_id, req.symbol
+                )
+                if min_notional is not None:
+                    position_notional = req.quantity * effective_price
+                    if position_notional < min_notional:
+                        qb_order_rejected_total.labels(
+                            exchange=_metric_exchange, reason="min_notional"
+                        ).inc()
+                        raise MinNotionalNotMet(
+                            notional=position_notional, min_notional=min_notional
+                        )
                 available = await self._exchange_service.fetch_balance_usdt(
                     req.exchange_account_id
                 )

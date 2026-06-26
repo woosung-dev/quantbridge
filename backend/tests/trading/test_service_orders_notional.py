@@ -79,6 +79,8 @@ def _make_exchange_service_stub(
     stub = MagicMock()
     stub.fetch_balance_usdt = AsyncMock(return_value=usdt_available)
     stub.fetch_mark_price = AsyncMock(return_value=mark_price)
+    # Wave 1 C5 — min-notional 가드 기본 skip(None=fail-open). max-notional 거동 회귀 0.
+    stub.fetch_min_notional = AsyncMock(return_value=None)
     stub._repo = MagicMock()
     stub._repo.get_by_id = AsyncMock(return_value=snapshot_account)
     return stub

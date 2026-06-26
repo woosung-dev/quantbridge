@@ -607,6 +607,51 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
+    async def fetch_min_notional(self, creds: Credentials, symbol: str) -> Decimal | None:
+        """Wave 1 C5 — 심볼의 거래소 최소 주문 cost(limits.cost.min) 조회.
+
+        load_markets() 메타에서 `markets[symbol]['limits']['cost']['min']` 추출.
+        ephemeral CCXT 클라이언트로 1회 조회 후 즉시 close. 모든 실패/미가용은 None
+        반환(fail-soft) — caller(OrderService)가 None 이면 가드 skip(fail-open).
+        """
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "load_markets"):
+                await exchange.load_markets()
+            market = exchange.market(symbol)
+            if not isinstance(market, dict):
+                return None
+            min_cost = market.get("limits", {}).get("cost", {}).get("min")
+            if min_cost is None:
+                return None
+            try:
+                value = Decimal(str(min_cost))
+            except (ValueError, TypeError, InvalidOperation):
+                return None
+            return value if value > 0 else None
+        except (ccxt_async.BaseError, ProviderError):
+            return None
+        except Exception:
+            # SECURITY: non-CCXT 예외는 traceback에 ccxt 인스턴스 (apiKey 보유) 노출 위험.
+            return None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
 
 class OkxDemoProvider:
     """OKX demo (sandbox) ephemeral CCXT client — Sprint 7d.

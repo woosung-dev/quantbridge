@@ -133,6 +133,8 @@ async def test_notional_reject_increments_metric(
 
     exchange_stub = MagicMock()
     exchange_stub.fetch_balance_usdt = AsyncMock(return_value=Decimal("100"))
+    # Wave 1 C5 — min-notional 가드 기본 skip(None=fail-open). max-notional reject 검증 회귀 0.
+    exchange_stub.fetch_min_notional = AsyncMock(return_value=None)
     # Sprint 23 BL-102: OrderService._execute_inner 가 dispatch snapshot 채움 위해
     # account fetch. notional reject 검증만 하므로 None 반환 OK (snapshot=None → legacy fallback).
     exchange_stub._repo = MagicMock()
