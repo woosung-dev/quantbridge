@@ -149,6 +149,8 @@
   - `actual_slippage`, `commission`, `funding_fee`, `pnl`
   - `status` (OPEN/CLOSED), `close_reason`
 
+> **Order exit 필드 (Wave 1/2/3 + STEP B, 코드/erd.md SSOT):** `orders` 테이블이 라이브 손익보호 프리미티브 보유 — `reduce_only` / `trigger_price` / `trigger_by` / `take_profit` / `stop_loss` / `trigger_direction` / `oco_group_id` / `trailing_stop`. ★ **불변식: `Order.trailing_stop` = 영속된 트레일링 _의도_ 일 뿐, entry `create_order` 에 절대 주입 안 함** (ccxt 가 trailingStop 을 trading-stop 엔드포인트로 라우팅 → entry 깨짐). 체결 후 `place_trailing_stop` task 가 읽어 `set_trading_stop` 으로 포지션에 부착. 상세 = [`dev-log/2026-06-26-trailing-live-placement.md`](../dev-log/2026-06-26-trailing-live-placement.md).
+
 ---
 
 ## ENT-009 — ExchangeAccount _(구현됨 Sprint 6 — `exchange_accounts`, AES-256 암호화; 코드/erd.md SSOT)_
