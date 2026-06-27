@@ -76,3 +76,19 @@ def test_bybit_taker_sl_only_is_full_mode_no_size() -> None:
     assert req.get("stopLoss") is not None
     assert req.get("tpslMode") != "Partial"
     assert "slSize" not in req
+
+
+def test_bybit_trailing_routes_to_trading_stop_drops_qty() -> None:
+    """STEP B (qa-P2) — set_trading_stop 의 라우팅 전제를 ccxt 4.5.49 소스로 직접 핀.
+
+    {trailingStop} 가 붙은 market create_order 는 별도 주문이 아니라 포지션 trading-stop 으로
+    변환된다 — side/qty 드롭(엔드포인트가 포지션에서 추론), trailingStop 만 전송. ccxt 업그레이드가
+    이 라우팅을 깨면(=실 market order 로 포지션 flatten/double = money-losing) 이 테스트가 CI 에서
+    잡는다. set_trading_stop 의 mock 테스트는 "우리가 넘기는 params"만 잠그고 이 seam 은 못 본다.
+    """
+    ex = _bybit_with_linear_market()
+    req = ex.create_order_request(
+        "BTC/USDT", "market", "sell", 0.001, None, {"trailingStop": "150.5"}
+    )
+    # trading-stop 형태: trailingStop 만 + side/qty/orderType 미전송(일반 주문 아님).
+    assert req == {"category": "linear", "symbol": "BTCUSDT", "trailingStop": "150.5"}

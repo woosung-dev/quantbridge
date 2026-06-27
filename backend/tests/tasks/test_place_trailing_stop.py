@@ -4,8 +4,9 @@ money-path: 무방비 방지 — 성공/skip 분류 + network 실패는 raise(�
 """
 from __future__ import annotations
 
+import contextlib
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -57,11 +58,12 @@ async def test_place_happy_short():
     assert p.set_trading_stop.await_args.kwargs["side"] == OrderSide.buy
 
 
-async def test_skip_position_flat():
-    """EC-2 — 체결→placement 사이 포지션 닫힘(flat) → skip, set_trading_stop 미호출."""
+async def test_position_not_visible_returns_transient():
+    """STEP B — fetch_position None 은 "2s 내 청산"과 "fill REST 미전파"가 구분 불가 →
+    즉시 flat 단정 금지, transient 분류 반환(상위 task 가 bounded 재시도 후 concede)."""
     p = _provider(pos=None)
     res = await _run(p)
-    assert res == {"skipped": "position_flat"}
+    assert res == {"transient": "position_not_visible"}
     p.set_trading_stop.assert_not_awaited()
 
 
@@ -220,3 +222,88 @@ def test_enqueue_gates_on_trailing_intent(monkeypatch):
         SimpleNamespace(id=uuid4(), trailing_stop=Decimal("3.0"), reduce_only=True)
     )
     assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# place_trailing_stop_task 본문 — retry / backoff / exhaustion→alert / flat-retry concede.
+# (qa-P2: 실패-표면화 코어가 무테스트였음 + STEP B fast-fill flat-retry fix 커버)
+# ---------------------------------------------------------------------------
+def _fake_worker_loop(behaviors):
+    """run_in_worker_loop 대체 — 전달된 coroutine 을 닫고 사전 정의 동작을 순서대로 수행."""
+    seq = iter(behaviors)
+
+    def _run(coro):
+        with contextlib.suppress(Exception):
+            coro.close()
+        b = next(seq)
+        if isinstance(b, BaseException):
+            raise b
+        return b
+
+    return _run
+
+
+def _drive_task(monkeypatch, *, retries, behaviors):
+    """place_trailing_stop_task 본문을 fake self(request.retries) + fake worker-loop 로 구동.
+
+    반환 = (result_or_None, retry_spy, raised_Retry_or_None).
+    """
+    from celery.exceptions import Retry
+
+    from src.tasks import _worker_loop as wl
+    from src.tasks.trading import place_trailing_stop_task as task
+
+    monkeypatch.setattr(wl, "run_in_worker_loop", _fake_worker_loop(behaviors))
+    monkeypatch.setattr(task, "retry", Mock(side_effect=lambda **kw: Retry()))
+    task.push_request(retries=retries)
+    try:
+        try:
+            return task.run(str(uuid4())), task.retry, None
+        except Retry as r:
+            return None, task.retry, r
+    finally:
+        task.pop_request()
+
+
+def test_task_premature_flat_retries_within_limit(monkeypatch):
+    """STEP B — transient(position_not_visible) + retries<limit → bounded 재시도(backoff 10s)."""
+    _res, retry, raised = _drive_task(
+        monkeypatch, retries=0, behaviors=[{"transient": "position_not_visible"}]
+    )
+    assert raised is not None  # Retry 발생(재시도)
+    retry.assert_called_once()
+    assert retry.call_args.kwargs["countdown"] == 10  # base * 2**0
+
+
+def test_task_premature_flat_concedes_after_limit(monkeypatch):
+    """STEP B — retries>=limit 면 진짜 flat 으로 concede(benign skip, 재시도/alert 없음)."""
+    res, retry, raised = _drive_task(
+        monkeypatch, retries=2, behaviors=[{"transient": "position_not_visible"}]
+    )
+    assert raised is None
+    assert res["skipped"] == "position_flat"
+    retry.assert_not_called()
+
+
+def test_task_network_failure_retries_with_backoff(monkeypatch):
+    """qa-P2 — network 실패 + retries<MAX → self.retry(exc, backoff). retries 1 → countdown 20s."""
+    _res, retry, raised = _drive_task(
+        monkeypatch, retries=1, behaviors=[ProviderError("RequestTimeout: lost")]
+    )
+    assert raised is not None
+    assert retry.call_args.kwargs["countdown"] == 20  # base * 2**1
+    assert retry.call_args.kwargs["exc"] is not None
+
+
+def test_task_exhaustion_fires_alert_no_retry(monkeypatch):
+    """qa-P2 — retries>=MAX → critical alert + {"failed":...} 반환, 재시도 안 함(무신호 차단)."""
+    from src.tasks.trading import _TRAILING_MAX_RETRIES
+
+    res, retry, raised = _drive_task(
+        monkeypatch,
+        retries=_TRAILING_MAX_RETRIES,  # >= MAX
+        behaviors=[ProviderError("RequestTimeout: lost"), None],  # place raise, alert 반환
+    )
+    assert raised is None
+    assert res["failed"] == "trailing_unprotected"
+    retry.assert_not_called()

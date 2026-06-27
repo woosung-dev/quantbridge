@@ -834,10 +834,15 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 트레일링은 포지션 속성(별도 주문 아님) — entry create_order 에 실으면 ccxt 가
 # trading-stop 엔드포인트로 라우팅해 entry 가 깨짐. 그래서 fill-transition 후 별도
-# 발주. enqueue 는 winner-only fill 전이(동기/WS/watchdog) 3곳 → 구조적으로 1회만.
+# 발주. enqueue 는 winner-only fill 전이(동기/WS/watchdog/reconciler) 4곳 → 구조적으로 1회만.
 # kill-switch/risk 우회(보호 주문 — 엔드포인트가 포지션을 늘릴 수 없음, 본질 reduce-only).
 _TRAILING_MAX_RETRIES = 3
 _TRAILING_RETRY_BASE_SECONDS = 10
+# STEP B — fast-fill REST-lag 가드. 체결 직후 Bybit 포지션 엔드포인트가 fill 보다 늦게
+#   materialize 될 수 있어, fetch_position None 을 즉시 진짜 flat 으로 단정하지 않고 이 횟수만큼
+#   transient 재시도 후에야 concede(trailing silent 미부착 차단). MAX_RETRIES 미만으로 둬
+#   network 재시도 예산을 남긴다.
+_TRAILING_FLAT_RETRY_LIMIT = 2
 
 
 def _is_position_zero_error(exc: ProviderError) -> bool:
@@ -881,9 +886,13 @@ async def _do_place_trailing_stop(
 
     pos = await provider.fetch_position(creds, symbol)
     if pos is None:
-        logger.info("trailing_skip_position_flat", extra={"order_id": str(order_id)})
-        qb_trailing_placement_total.labels(outcome="skipped_position_flat").inc()
-        return {"skipped": "position_flat"}
+        # STEP B — fetch_position None 은 "2s 내 실제 청산"과 "fill REST 미전파"가 구분 불가.
+        #   즉시 benign flat 단정 = fast-fill 케이스에서 trailing silent 미부착(money-path hole).
+        #   transient 분류 반환 → place_trailing_stop_task 가 bounded 재시도 후에야 concede.
+        #   side-mismatch 가드가 flip 오부착을 막으므로 재시도는 안전.
+        logger.info("trailing_position_not_visible", extra={"order_id": str(order_id)})
+        qb_trailing_placement_total.labels(outcome="skipped_position_flat_premature").inc()
+        return {"transient": "position_not_visible"}
     if pos.side != expected_side:
         # close + reopen flip → stale task. 신규 포지션에 잘못된 trailing 부착 차단.
         logger.warning(
@@ -1003,12 +1012,12 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
     from src.tasks._worker_loop import run_in_worker_loop
 
     try:
-        return run_in_worker_loop(_async_place_trailing_stop(UUID(order_id)))
+        result = run_in_worker_loop(_async_place_trailing_stop(UUID(order_id)))
     except Exception as exc:
         # Opus A P2 — ProviderError(network/exchange) 뿐 아니라 DB outage / decrypt 실패 /
         #   engine 생성 실패 등 모든 예외를 bounded retry + 최종 critical alert 로 라우팅.
         #   미포착 시 Celery FAILED silent → trailing 미부착 무신호(money-path hole).
-        #   benign skip(110017/flat/flip)은 dict 반환이라 여기 미도달.
+        #   benign skip(110017/flip)은 dict 반환이라 여기 미도달.
         if self.request.retries >= _TRAILING_MAX_RETRIES:
             run_in_worker_loop(_alert_trailing_unprotected(UUID(order_id), str(exc)))
             return {"failed": "trailing_unprotected", "order_id": order_id}
@@ -1016,3 +1025,16 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
             exc=exc,
             countdown=_TRAILING_RETRY_BASE_SECONDS * (2**self.request.retries),
         ) from exc
+
+    # STEP B — fast-fill REST-lag false-flat: 포지션이 아직 REST 에 안 보임(transient). bounded
+    #   재시도로 "fill 미전파"와 "진짜 청산"을 구분 — 한도 내엔 재시도, 초과 시 benign concede
+    #   (완전 무방비 아님 — 고정 bracket SL floor 유효라 critical alert 불요). silent 미부착 차단.
+    if result.get("transient") == "position_not_visible":
+        if self.request.retries < _TRAILING_FLAT_RETRY_LIMIT:
+            raise self.retry(
+                countdown=_TRAILING_RETRY_BASE_SECONDS * (2**self.request.retries)
+            )
+        logger.warning("trailing_concede_position_flat", extra={"order_id": order_id})
+        qb_trailing_placement_total.labels(outcome="skipped_position_flat_confirmed").inc()
+        return {"skipped": "position_flat", "order_id": order_id}
+    return result

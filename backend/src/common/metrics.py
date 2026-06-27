@@ -254,8 +254,11 @@ qb_live_signal_dispatch_total = Counter(
 qb_trailing_placement_total = Counter(
     "qb_trailing_placement_total",
     "STEP B — fill 후 native trailing-stop placement 결과",
-    # outcome: placed | skipped_no_intent | skipped_position_flat | skipped_position_mismatch
-    #          | skipped_position_zero | failed (network/exchange → 무방비 → critical alert)
+    # outcome: placed | skipped_no_intent | skipped_unsupported
+    #          | skipped_position_flat_premature (transient — fast-fill REST-lag, 재시도 중)
+    #          | skipped_position_flat_confirmed (재시도 후 진짜 flat 으로 concede)
+    #          | skipped_position_mismatch | skipped_position_zero
+    #          | failed (network/exchange → 무방비 → critical alert)
     labelnames=("outcome",),
 )
 qb_live_signal_skipped_total = Counter(

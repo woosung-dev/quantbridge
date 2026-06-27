@@ -128,6 +128,25 @@ test("OrdersPanel: trailing_stop 있으면 trail 거리 렌더", async () => {
   expect(tpslCell).toHaveTextContent("trail 150.5");
 });
 
+// STEP B (qa-P2) — trail-only: TP·SL 모두 null, trailing_stop 만 → '— / — / trail X'.
+// `|| o.trailing_stop` 항이 유일 결정 인자인 케이스. 이 항 삭제 시 '—' 로 protection 은닉
+// (Surface Trust 위반) — 기존 fixture 는 모두 SL 보유라 이 항이 결정 인자였던 적 없음(mutation gap).
+test("OrdersPanel: TP·SL 없고 trailing_stop 만 있으면 trail 렌더 ('—' 아님)", async () => {
+  _mountOrders([
+    {
+      ..._baseOrder,
+      exchange_order_id: "broker-trail-only",
+      take_profit: null,
+      stop_loss: null,
+      trailing_stop: "150.5",
+    },
+  ]);
+  await screen.findByText("BTC/USDT");
+  const tpslCell = screen.getByTestId("tpsl-cell");
+  expect(tpslCell).toHaveTextContent("— / — / trail 150.5");
+  expect(tpslCell).not.toHaveTextContent(/^—$/);
+});
+
 test("OrdersPanel: TP/SL 없으면 dash 표시", async () => {
   _mountOrders([
     {
