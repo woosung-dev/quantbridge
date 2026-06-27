@@ -104,6 +104,58 @@ async def test_terminal_status_transitions_to_filled(
     assert refreshed.filled_price == Decimal("50000.00")
 
 
+async def test_reconciler_filled_trailing_order_enqueues_place_trailing_stop(
+    db_session, strategy, user, session_factory, monkeypatch
+):
+    """STEP B (Opus A P1) — reconciler 는 4번째 fill-transition winner. WS 이벤트 유실 시
+    reconciler 가 winner → 다른 enqueue 분기는 rowcount==0 skip → trailing 이 silent
+    미발주됐다(blocker). reconciler 도 trailing enqueue 해야 한다."""
+    import src.tasks.trading as trading_mod
+
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        trading_mod.place_trailing_stop_task, "apply_async", lambda **kw: calls.append(kw)
+    )
+    monkeypatch.setattr(
+        "src.trading.websocket.reconciliation.send_critical_alert",
+        AsyncMock(return_value=False),
+    )
+    acc = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"k",
+        api_secret_encrypted=b"s",
+    )
+    db_session.add(acc)
+    await db_session.flush()
+    order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=acc.id,
+        symbol="BTC/USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        price=None,
+        state=OrderState.submitted,
+        leverage=5,
+        trailing_stop=Decimal("3.0"),
+    )
+    db_session.add(order)
+    await db_session.flush()
+    fetcher = _make_fetcher(
+        recent_orders=[
+            {"clientOrderId": str(order.id), "status": "Filled", "average": "50000.00", "id": "EX-R"}
+        ]
+    )
+    reconciler = Reconciler(
+        session_factory=session_factory, fetcher=fetcher, settings=Settings()
+    )
+    await reconciler.run(account_id=acc.id)
+    assert len(calls) == 1
+    assert calls[0]["args"] == [str(order.id)]
+
+
 async def test_unknown_order_state_unchanged_with_alert(
     submitted_order, session_factory, db_session, monkeypatch
 ):

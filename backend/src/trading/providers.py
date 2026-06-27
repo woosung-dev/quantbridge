@@ -114,6 +114,17 @@ class OrderStatusFetch:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class PositionInfo:
+    """STEP B — set_trading_stop 전 stale-position 가드용 현재 포지션 스냅샷.
+
+    size = 절대 수량(contracts, > 0). side = "long" | "short". 무포지션이면 None 반환.
+    """
+
+    size: Decimal
+    side: Literal["long", "short"]
+
+
 async def _to_exchange_precision(
     exchange: Any, symbol: str, order: OrderSubmit
 ) -> tuple[str, str | None]:
@@ -176,7 +187,11 @@ def _merge_exit_params(
         params[trigger_by_key] = order.trigger_by
     if order.trigger_direction is not None and trigger_direction_key is not None:
         params[trigger_direction_key] = str(order.trigger_direction)
-    if order.trailing_stop is not None and trailing_stop_key is not None:
+    if order.trailing_stop is not None and trailing_stop_key is not None and order.reduce_only:
+        # ★ STEP B — trailingStop 은 reduce_only(보호/청산) 주문에서만 주입. entry
+        #   (reduce_only=False)에 실으면 ccxt 가 trading-stop 엔드포인트로 라우팅해 entry
+        #   가 깨짐(+SL 동반 시 bybit.py:3987-3989 InvalidOrder). 라이브 트레일링은 포지션
+        #   open 후 set_trading_stop 으로만 placement (entry-injection defense-in-depth).
         params[trailing_stop_key] = str(order.trailing_stop)
     if order.take_profit is not None:
         # Phase 3 — limit TP: triggerPrice + price → ccxt hasTakeProfit branch
@@ -521,6 +536,118 @@ class BybitFuturesProvider:
         except Exception as e:
             # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
             # from None으로 chain 제거. 디버깅을 위해 type만 보존, message 은닉.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def set_trading_stop(
+        self,
+        creds: Credentials,
+        *,
+        symbol: str,
+        side: OrderSide,
+        qty: Decimal,
+        distance: Decimal,
+        trigger_price: Decimal | None = None,
+    ) -> dict[str, Any]:
+        """STEP B — 포지션에 Bybit native trailing-stop 부착 (포지션 open 후 호출).
+
+        트레일링은 별도 주문이 아니라 포지션 속성. ccxt 4.5.49 가 trailingStop param 이
+        붙은 create_order 를 Bybit trading-stop 엔드포인트(privatePostV5PositionTradingStop)
+        로 라우팅한다(bybit.py:3892/3898). 그 분기는 side/qty 를 드롭(bybit.py:4100)하고
+        trailingStop(+옵션 activePrice)만 전송 — whole-position, 방향은 Bybit 가 포지션에서
+        추론(triggerDirection 불필요, bybit.py:4106-4116 미도달). side/qty 는 ccxt.create_order
+        시그니처 충족용(Bybit 미전송). reduceOnly/triggerBy 는 이 엔드포인트 no-op → 미전송.
+        entry 와 달리 포지션이 이미 열린 뒤라 안전(reduce-only 는 엔드포인트 본질).
+
+        OKX/spot 은 native trailing 미지원(별 endpoint / `bybit.py:3988` spot 거부)이라
+        본 메서드는 BybitFuturesProvider 전용 — 일반 ExchangeProvider Protocol 미포함.
+        """
+        linear_symbol = _to_bybit_linear_symbol(symbol)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "set_trading_stop"):
+                # qty 는 ccxt 가 트레일링 경로에서 드롭하지만 시그니처/precision 충족용.
+                await exchange.load_markets()
+                amount = exchange.amount_to_precision(linear_symbol, qty)
+                params: dict[str, Any] = {"trailingStop": str(distance)}
+                if trigger_price is not None:
+                    # ccxt: trailingTriggerPrice → request['activePrice'] (트레일 활성가).
+                    params["trailingTriggerPrice"] = str(trigger_price)
+                result = await exchange.create_order(
+                    linear_symbol, "market", side.value, amount, None, params
+                )
+            # ★ codex P1 — Bybit trading-stop 엔드포인트는 성공 시 빈 result(orderId 없음 —
+            #   포지션 수정이라 주문 아님, V5 docs result:{}). create_order 가 예외 없이 반환
+            #   = 수용. id 부재를 malformed 로 오판하면 성공을 retry → false UNPROTECTED
+            #   alert(money-path bug). 호출자는 반환값 미사용(독립 fetch_position 으로 검증).
+            return dict(result) if isinstance(result, dict) else {}
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_position(
+        self, creds: Credentials, symbol: str
+    ) -> PositionInfo | None:
+        """STEP B — 현재 linear 포지션 스냅샷(stale-position 가드). 무포지션이면 None.
+
+        place_trailing_stop 가 체결→placement 사이 포지션이 닫히거나(flat) 반대로
+        뒤집힌(flip) 경우 stale task 가 신규/없는 포지션에 trailing 오부착하는 것을
+        차단한다. ccxt fetch_positions([symbol]) → size>0 인 첫 포지션 정규화.
+        """
+        linear_symbol = _to_bybit_linear_symbol(symbol)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_position"):
+                positions = await exchange.fetch_positions([linear_symbol])
+            for p in positions:
+                contracts = p.get("contracts")
+                if contracts is None:
+                    continue
+                size = Decimal(str(contracts))
+                side = p.get("side")
+                if size > 0 and side in ("long", "short"):
+                    return PositionInfo(size=size, side=side)
+            return None
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
             raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
         finally:
             try:

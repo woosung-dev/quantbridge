@@ -158,3 +158,44 @@ test("trading kill switch resolved — 배너 소멸", async ({ page }) => {
     timeout: 30_000,
   });
 });
+
+// STEP B — 트레일링 의도(Order.trailing_stop) 가 tpsl-cell 에 표출되는지 실 브라우저 검증
+// (실 Clerk storageState 인증 + 실 FE 렌더). 체결 후 place_trailing_stop 가 거래소에 부착하는
+// 그 의도를 사용자가 주문 테이블에서 볼 수 있어야 한다(Surface Trust §7.3 — UI 표출 mechanism).
+test("trading orders — trailing_stop tpsl-cell 에 trail 거리 렌더", async ({
+  page,
+}) => {
+  await page.route(
+    API_ROUTES.orders,
+    fulfillJson({
+      items: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          symbol: "BTC/USDT",
+          side: "buy",
+          state: "filled",
+          quantity: "0.001",
+          filled_price: "50000",
+          exchange_order_id: "EX-TR-1",
+          error_message: null,
+          created_at: "2026-06-26T00:00:00Z",
+          stop_loss: "48000",
+          trailing_stop: "150.5",
+        },
+      ],
+      total: 1,
+    }),
+  );
+  await page.route(
+    API_ROUTES.exchangeAccounts,
+    fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }),
+  );
+  await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
+
+  await page.goto("/trading");
+
+  const cell = page.getByTestId("tpsl-cell").first();
+  await expect(cell).toBeVisible({ timeout: 10_000 });
+  await expect(cell).toContainText("trail 150.5");
+  await expect(cell).toContainText("48000");
+});

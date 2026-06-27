@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -29,7 +30,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.common.alert import send_critical_alert
-from src.common.metrics import qb_active_orders
+from src.common.metrics import qb_active_orders, qb_trailing_placement_total
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.trading.encryption import EncryptionService
@@ -38,7 +39,13 @@ from src.trading.exceptions import (
     ProviderError,
     UnsupportedExchangeError,
 )
-from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName, OrderState
+from src.trading.models import (
+    ExchangeAccount,
+    ExchangeMode,
+    ExchangeName,
+    OrderSide,
+    OrderState,
+)
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
 from src.trading.registry import dispatch as _dispatch_provider
 from src.trading.repositories.order_repository import OrderRepository
@@ -318,7 +325,11 @@ async def _execute_with_session(
                 # Wave 2 (TP/SL placement) — triggerDirection/OCO/trailing.
                 trigger_direction=order.trigger_direction,
                 oco_group_id=order.oco_group_id,
-                trailing_stop=order.trailing_stop,
+                # ★ STEP B — trailing 은 reduce_only(보호) 주문에서만 create_order 에 전달.
+                #   entry(reduce_only=False)는 None → trailingStop 미주입(entry 깨짐 차단).
+                #   entry 의 trailing 의도는 Order.trailing_stop 에 영속되어 체결 후
+                #   place_trailing_stop 가 set_trading_stop 으로 발주(create_order 미경유).
+                trailing_stop=order.trailing_stop if order.reduce_only else None,
             )
             # Sprint 22 BL-091 + Sprint 23 BL-102: snapshot 우선 dispatch.
             # snapshot 부재 (legacy row) 또는 invalid (DB manual mutation) → account 현재값
@@ -374,6 +385,8 @@ async def _execute_with_session(
                 return {"order_id": str(order_id), "state": "conflict", "skipped": True}
             await session.commit()
             qb_active_orders.dec()  # Sprint 9 Phase D: terminal state (filled)
+            # STEP B — 동기 fill winner: trailing 의도 entry 면 place_trailing_stop enqueue.
+            _enqueue_trailing_if_intended(order)
             logger.info(
                 "order_executed",
                 extra={
@@ -621,6 +634,8 @@ async def _fetch_order_status_with_session(
             if rows == 1:
                 await session.commit()
                 qb_active_orders.dec()
+                # STEP B — watchdog fill winner (WS 유실 fallback): trailing enqueue.
+                _enqueue_trailing_if_intended(order)
                 logger.info(
                     "watchdog_filled",
                     extra={
@@ -812,3 +827,214 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
         # race: 취소 호출과 fill/reject reconcile 겹침 — 이중 전이 금지.
         logger.info("cancel_race_skip", extra={"order_id": str(order_id)})
         return {"order_id": str(order_id), "skipped": "race"}
+
+
+# ---------------------------------------------------------------------------
+# STEP B — place_trailing_stop (체결된 포지션에 native trailing-stop 부착)
+# ---------------------------------------------------------------------------
+# 트레일링은 포지션 속성(별도 주문 아님) — entry create_order 에 실으면 ccxt 가
+# trading-stop 엔드포인트로 라우팅해 entry 가 깨짐. 그래서 fill-transition 후 별도
+# 발주. enqueue 는 winner-only fill 전이(동기/WS/watchdog/reconciler) 4곳 → 구조적으로 1회만.
+# kill-switch/risk 우회(보호 주문 — 엔드포인트가 포지션을 늘릴 수 없음, 본질 reduce-only).
+_TRAILING_MAX_RETRIES = 3
+_TRAILING_RETRY_BASE_SECONDS = 10
+# STEP B — fast-fill REST-lag 가드. 체결 직후 Bybit 포지션 엔드포인트가 fill 보다 늦게
+#   materialize 될 수 있어, fetch_position None 을 즉시 진짜 flat 으로 단정하지 않고 이 횟수만큼
+#   transient 재시도 후에야 concede(trailing silent 미부착 차단). MAX_RETRIES 미만으로 둬
+#   network 재시도 예산을 남긴다.
+_TRAILING_FLAT_RETRY_LIMIT = 2
+
+
+def _is_position_zero_error(exc: ProviderError) -> bool:
+    """retCode 110017 / position-zero = benign (체결→placement 사이 포지션 닫힘 race)."""
+    msg = str(exc).lower()
+    return "110017" in msg or "position is zero" in msg or "position not exist" in msg
+
+
+def _enqueue_trailing_if_intended(order: Any) -> None:
+    """fill-transition winner 가 trailing 의도 entry 면 place_trailing_stop enqueue.
+
+    winner-only 전이(동기/WS/watchdog/reconciler 중 rowcount==1 한 곳)라 정확히 1회만
+    발화 = 구조적 dedup(idempotency 컬럼 불요). countdown 으로 포지션 거래소 정착 시간 확보.
+
+    entry(reduce_only=False)만 대상 — reduce-only close/manual 주문(P2 codex/Opus B)은
+    체결 시 포지션이 닫히는 중이라 trailing 부착 불필요(불필요 task 차단).
+    """
+    if getattr(order, "trailing_stop", None) is None or getattr(order, "reduce_only", False):
+        return
+    place_trailing_stop_task.apply_async(args=[str(order.id)], countdown=2)
+
+
+async def _do_place_trailing_stop(
+    *,
+    order_id: UUID,
+    symbol: str,
+    entry_side: OrderSide,
+    distance: Decimal,
+    creds: Credentials,
+    provider: Any,
+) -> dict[str, Any]:
+    """순수 오케스트레이션 — stale-position 가드 → set_trading_stop → 결과 분류.
+
+    money-path: 무방비 방지가 목표. position flat/flip 은 benign skip(stale task 가
+    신규/없는 포지션에 오부착 차단). network/exchange 실패는 raise → 상위 task 가
+    bounded retry + 최종 실패 시 critical alert(포지션 무방비 표면화).
+    """
+    # entry 포지션 방향 ↔ 청산(exit) side. ccxt 가 side/qty 는 드롭하지만 시그니처용.
+    expected_side = "long" if entry_side == OrderSide.buy else "short"
+    exit_side = OrderSide.sell if entry_side == OrderSide.buy else OrderSide.buy
+
+    pos = await provider.fetch_position(creds, symbol)
+    if pos is None:
+        # STEP B — fetch_position None 은 "2s 내 실제 청산"과 "fill REST 미전파"가 구분 불가.
+        #   즉시 benign flat 단정 = fast-fill 케이스에서 trailing silent 미부착(money-path hole).
+        #   transient 분류 반환 → place_trailing_stop_task 가 bounded 재시도 후에야 concede.
+        #   side-mismatch 가드가 flip 오부착을 막으므로 재시도는 안전.
+        logger.info("trailing_position_not_visible", extra={"order_id": str(order_id)})
+        qb_trailing_placement_total.labels(outcome="skipped_position_flat_premature").inc()
+        return {"transient": "position_not_visible"}
+    if pos.side != expected_side:
+        # close + reopen flip → stale task. 신규 포지션에 잘못된 trailing 부착 차단.
+        logger.warning(
+            "trailing_skip_position_mismatch",
+            extra={"order_id": str(order_id), "expected": expected_side, "actual": pos.side},
+        )
+        qb_trailing_placement_total.labels(outcome="skipped_position_mismatch").inc()
+        return {"skipped": "position_mismatch"}
+
+    try:
+        await provider.set_trading_stop(
+            creds, symbol=symbol, side=exit_side, qty=pos.size, distance=distance
+        )
+    except ProviderError as exc:
+        if _is_position_zero_error(exc):
+            logger.info("trailing_skip_position_zero", extra={"order_id": str(order_id)})
+            qb_trailing_placement_total.labels(outcome="skipped_position_zero").inc()
+            return {"skipped": "position_zero"}
+        # network/exchange 실패 = 포지션 무방비 → raise(상위 retry + alert).
+        qb_trailing_placement_total.labels(outcome="failed").inc()
+        raise
+
+    logger.info("trailing_placed", extra={"order_id": str(order_id)})
+    qb_trailing_placement_total.labels(outcome="placed").inc()
+    return {"placed": True}
+
+
+async def _place_trailing_stop_with_session(
+    order_id: UUID, sm: async_sessionmaker[AsyncSession], *, provider: Any = None
+) -> dict[str, Any]:
+    async with sm() as session:
+        repo = OrderRepository(session)
+        order = await repo.get_by_id(order_id)
+        if order is None:
+            return {"skipped": "order_missing"}
+        if order.trailing_stop is None:
+            qb_trailing_placement_total.labels(outcome="skipped_no_intent").inc()
+            return {"skipped": "no_trailing_intent"}
+        crypto = EncryptionService(settings.trading_encryption_keys)
+        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        if account is None:
+            return {"skipped": "account_missing"}
+        # P2(codex) — 트레일링은 Bybit linear(futures) 전용. 비-Bybit/spot 주문에 trailing_stop
+        #   이 붙어도(manual API 경로) BybitFuturesProvider 발주 차단(doomed task / wrong creds).
+        if account.exchange != ExchangeName.bybit or order.leverage is None:
+            logger.info(
+                "trailing_skip_unsupported_exchange",
+                extra={"order_id": str(order_id), "exchange": str(account.exchange)},
+            )
+            qb_trailing_placement_total.labels(outcome="skipped_unsupported").inc()
+            return {"skipped": "unsupported_exchange"}
+        passphrase_pt = (
+            crypto.decrypt(account.passphrase_encrypted)
+            if account.passphrase_encrypted is not None
+            else None
+        )
+        creds = Credentials(
+            api_key=crypto.decrypt(account.api_key_encrypted),
+            api_secret=crypto.decrypt(account.api_secret_encrypted),
+            passphrase=passphrase_pt,
+            environment=account.mode,
+        )
+        # exchange IO 전에 필요한 필드만 추출 (detached instance 회피).
+        symbol = order.symbol
+        entry_side = order.side
+        distance = order.trailing_stop
+
+    if provider is None:
+        # 트레일링은 Bybit linear 전용(set_trading_stop). dispatch 와 동일 직접 생성.
+        from src.trading.providers import BybitFuturesProvider
+
+        provider = BybitFuturesProvider()
+    return await _do_place_trailing_stop(
+        order_id=order_id,
+        symbol=symbol,
+        entry_side=entry_side,
+        distance=distance,
+        creds=creds,
+        provider=provider,
+    )
+
+
+async def _async_place_trailing_stop(order_id: UUID) -> dict[str, Any]:
+    """Sprint 17 Phase C 패턴 — per-call engine + finally dispose."""
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _place_trailing_stop_with_session(order_id, sm)
+    finally:
+        await engine.dispose()
+
+
+async def _alert_trailing_unprotected(order_id: UUID, reason: str) -> None:
+    # Opus A P3 — 트레일링 entry 는 항상 고정 bracket SL 동반(live_signal 가드)이라
+    # SL 바닥은 유효 = 완전 무방비 아님. trailing "업그레이드"만 미부착(profit-lock 손실).
+    await send_critical_alert(
+        settings,
+        title="Trailing stop placement failed — TRAILING 미부착 (고정 bracket SL 은 유효)",
+        message=(
+            f"place_trailing_stop gave up after {_TRAILING_MAX_RETRIES} retries. "
+            f"포지션에 TRAILING stop 미부착(고정 bracket SL 바닥은 active — 완전 무방비 아님). "
+            f"Reason: {reason}"
+        ),
+        context={"order_id": str(order_id)[:8], "reason": reason},
+    )
+
+
+@shared_task(  # type: ignore[untyped-decorator]
+    name="trading.place_trailing_stop", bind=True, max_retries=_TRAILING_MAX_RETRIES
+)
+def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
+    """STEP B — 체결된 entry 포지션에 native trailing-stop 부착 (fill-transition 후 enqueue).
+
+    Sprint 18 BL-080: run_in_worker_loop (Option C). network/exchange 실패는
+    bounded retry; 최종 실패 시 critical alert(포지션 무방비 표면화). benign skip
+    (position flat/flip/zero)은 retry/alert 없음.
+    """
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    try:
+        result = run_in_worker_loop(_async_place_trailing_stop(UUID(order_id)))
+    except Exception as exc:
+        # Opus A P2 — ProviderError(network/exchange) 뿐 아니라 DB outage / decrypt 실패 /
+        #   engine 생성 실패 등 모든 예외를 bounded retry + 최종 critical alert 로 라우팅.
+        #   미포착 시 Celery FAILED silent → trailing 미부착 무신호(money-path hole).
+        #   benign skip(110017/flip)은 dict 반환이라 여기 미도달.
+        if self.request.retries >= _TRAILING_MAX_RETRIES:
+            run_in_worker_loop(_alert_trailing_unprotected(UUID(order_id), str(exc)))
+            return {"failed": "trailing_unprotected", "order_id": order_id}
+        raise self.retry(
+            exc=exc,
+            countdown=_TRAILING_RETRY_BASE_SECONDS * (2**self.request.retries),
+        ) from exc
+
+    # STEP B — fast-fill REST-lag false-flat: 포지션이 아직 REST 에 안 보임(transient). bounded
+    #   재시도로 "fill 미전파"와 "진짜 청산"을 구분 — 한도 내엔 재시도, 초과 시 benign concede
+    #   (완전 무방비 아님 — 고정 bracket SL floor 유효라 critical alert 불요). silent 미부착 차단.
+    if result.get("transient") == "position_not_visible":
+        if self.request.retries < _TRAILING_FLAT_RETRY_LIMIT:
+            raise self.retry(
+                countdown=_TRAILING_RETRY_BASE_SECONDS * (2**self.request.retries)
+            )
+        logger.warning("trailing_concede_position_flat", extra={"order_id": order_id})
+        qb_trailing_placement_total.labels(outcome="skipped_position_flat_confirmed").inc()
+        return {"skipped": "position_flat", "order_id": order_id}
+    return result

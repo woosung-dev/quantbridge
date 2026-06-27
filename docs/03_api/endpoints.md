@@ -105,6 +105,8 @@
 
 > Sprint 6 Trading 데모 MVP. Exchange Account + Webhook + Order + Kill Switch.
 > API Key는 AES-256-GCM 암호화 저장 (EncryptionService). 평문 반환 금지.
+>
+> **라이브 손익보호 (Wave 1/2/3 + STEP B):** `/orders` 응답이 exit 프리미티브(`take_profit`/`stop_loss`/`trailing_stop` 등) 운반. **TP/SL bracket** 은 entry 주문에 거래소-네이티브로 부착(maker-TP Partial). **트레일링** 은 신규 public 엔드포인트 없음 — 체결 후 내부 Celery follow-on(`trading.place_trailing_stop`)이 `set_trading_stop`(Bybit trading-stop 엔드포인트)으로 포지션에 부착(상세 [`dev-log/2026-06-26-trailing-live-placement.md`](../dev-log/2026-06-26-trailing-live-placement.md)).
 
 | Method   | Path                                            | 설명                                                                                                                                                 | 인증        |
 | -------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
