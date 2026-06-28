@@ -265,6 +265,7 @@
 | [BL-368](#bl-368) | `_merge_exit_params` ccxt 키명 3 call site 누설 (shallow interface)                  | trading deepening / 4번째 provider         | S-M (3-5h)   | 2026-06-26 trading-deepen-2                         |
 | [BL-369](#bl-369) | 3 provider `create_order` try/except/finally ~40 LOC 복붙                            | trading deepening sprint                   | S (2-4h)     | 2026-06-26 trading-deepen-2                         |
 | [BL-372](#bl-372) | STEP B 트레일링 live-placement 3-리뷰어 검증 follow-up 번들 (9 항목, P2/P3)          | Wave 3 실자금 cutover 전                   | M (6-10h)    | 2026-06-26 trailing 3-reviewer (codex+Opus 6-lens)  |
+| [BL-373](#bl-373) | OCO 형제취소 (sibling-cancel) — standalone exit order 시점 구현                       | BL-365 standalone-trigger 발주 시         | S-M (3-5h)   | 2026-06-28 grilling (트레일링 후속 scope)            |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -494,6 +495,7 @@
 **원인 / 영향:** STEP B 머지 전 Tier-1(false-flat 재시도 + 3 P2 테스트)은 본 PR 에서 해소. 아래는 adversarial 검증 통과한 잔여 follow-up. 전부 degraded-protection / 방어심화 / 문서 수준 (현재 무버그 또는 narrow). 라이브 실자금 진입 전 처리 권장.
 
 - **(P2, money-path) same-side stale 오부착** — `_do_place_trailing_stop` 가드는 flat/flip 만 차단. 원포지션 close→동일방향 reopen 이 countdown/retry 창 안에 발생 시 무관 same-side 포지션에 trailing 오부착(여전히 protective reduce-only). 근본 fix = position `createdTime` ↔ order fill-time invariant. Tier-1 flat-retry 가 이 창을 넓히지 않음은 검증됨. `tasks/trading.py:_do_place_trailing_stop`.
+  > ⚠️ codex Evaluator(2026-06-28) [P1] — defer-as-🟢 는 부정확. close→동일방향 reopen 시 무관 trade 에 trailing 오부착(reduce-only 보호이나 다른 trade 의 exit policy 변경 = money-path). 격상 = **known unsafe residual — 실자금 cutover 전 필수.** 근본 fix = position createdTime ↔ order fill-time 불변식(PositionInfo.created_at). W1(2026-06-28) 에선 scope 분리로 defer 유지.
 - **(P2) tick-normalization** — `set_trading_stop` 가 `trailingStop` distance 를 price precision 정규화 없이 raw `str(Decimal)` 전송 → coarse-tick 심볼 Bybit 거부 가능(fail-safe: 거부→retry→critical alert). `providers.py:586-591`.
 - **(P3, architect) 하드코딩 provider** — `_place_trailing_stop_with_session` 가 `BybitFuturesProvider()` 직접 생성, dispatch registry 우회(LESSON-063). Protocol 미노출 강제 + live=BL-003 stub 라 현재 무버그. 2nd native-trailing 거래소 추가 시 SSOT 라우팅. `tasks/trading.py:954-958`.
 - **(P3, architect) hedge-mode 가정** — `fetch_position` first-size>0 = one-way mode 암묵 가정. hedge-mode 면 wrong-leg 가능(expected_side 가드가 benign skip 으로 중화). 문서화 또는 side/positionIdx 필터. `providers.py:637-644`.
@@ -504,6 +506,21 @@
 - **(P3, ponytail) dead param cut** — `set_trading_stop` 의 `trigger_price`/`trailingTriggerPrice`(activePrice) 라이브 caller 0 + 그 테스트(~17L) 제거 (activation-price 스토리 실현 시 재추가).
 
 **Risk:** 🟢 (전부 degraded-protection / 방어심화 / 문서 — 데모 기간 bracket SL floor 보호).
+
+---
+
+### BL-373
+
+**Title:** OCO 형제취소 (sibling-cancel) — standalone exit order 시점에 구현
+**Category:** Trading / money-path
+**Priority:** P2 (defer)
+**Trigger:** BL-365 standalone-trigger 발주 도입 시 (= app-side OCO 가 실제 필요해지는 시점)
+**Est:** S-M (3-5h)
+**출처:** 2026-06-28 grilling (트레일링 후속 scope 결정)
+
+**원인 / 영향:** `oco_group_id` DB 컬럼 + OrderSubmit 전달은 이미 존재하나 sibling-cancel 오케스트레이션은 미구현. 현재는 entry-attached bracket 이라 거래소가 네이티브 OCO(한 다리 체결 시 형제 자동취소)를 처리 → app-side sibling-cancel 은 YAGNI. standalone exit order(BL-365) 발주 시점에 두 다리가 독립 주문이 되면 그때 app-side 형제취소가 필요.
+
+**Risk:** 🟢 (현재 네이티브 OCO 로 커버 — defer 안전).
 
 ---
 

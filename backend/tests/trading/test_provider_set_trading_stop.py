@@ -5,8 +5,8 @@ create_order 를 Bybit trading-stop 엔드포인트(privatePostV5PositionTrading
 검증 사실(bybit.py 4100-4116):
 - isTrailingOrder → request['qty'] 미설정(side/qty 는 ccxt 시그니처용, Bybit 미전송).
 - request['trailingStop'] = trailingAmount. triggerDirection 분기 미도달(불필요).
-- trailingTriggerPrice → activePrice (옵션).
 - reduceOnly/triggerBy/triggerDirection 는 이 엔드포인트 no-op → 미전송(speculative 금지).
+- distance 는 price tick 으로 ceil(올림) — 보호 거리가 요청보다 타이트하면 안 됨(BL-372).
 """
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ def bybit_mock(monkeypatch):
     mock_exchange.load_markets = AsyncMock(return_value={})
     mock_exchange.amount_to_precision = MagicMock(side_effect=lambda s, a: str(a))
     mock_exchange.price_to_precision = MagicMock(side_effect=lambda s, p: str(p))
+    mock_exchange.market = MagicMock(return_value={"precision": {"price": 0.5}})  # tick=0.5
     mock_exchange.set_margin_mode = AsyncMock()
     mock_exchange.set_leverage = AsyncMock()
     mock_cls = MagicMock(return_value=mock_exchange)
@@ -83,23 +84,6 @@ async def test_set_trading_stop_no_speculative_params(credentials, bybit_mock):
     assert params == {"trailingStop": "80"}
 
 
-async def test_set_trading_stop_active_price(credentials, bybit_mock):
-    """trigger_price → params trailingTriggerPrice (ccxt activePrice 라우팅)."""
-    from src.trading.models import OrderSide
-    from src.trading.providers import BybitFuturesProvider
-
-    await BybitFuturesProvider().set_trading_stop(
-        credentials,
-        symbol="BTC/USDT",
-        side=OrderSide.sell,
-        qty=Decimal("0.001"),
-        distance=Decimal("150.5"),
-        trigger_price=Decimal("52000"),
-    )
-    params = bybit_mock.create_order.call_args.args[5]
-    assert params == {"trailingStop": "150.5", "trailingTriggerPrice": "52000"}
-
-
 async def test_set_trading_stop_accepts_empty_result_no_id(credentials, bybit_mock):
     """codex P1 — Bybit trading-stop 엔드포인트 성공 = 빈 result(orderId 없음, V5 docs).
 
@@ -142,3 +126,91 @@ async def test_set_trading_stop_wraps_ccxt_error(credentials, bybit_mock):
         )
     assert "110017" in str(exc.value)
     bybit_mock.close.assert_awaited()
+
+
+async def test_set_trading_stop_rejects_unvalidated_ccxt(credentials, bybit_mock, monkeypatch):
+    """kill-switch 2차방어 — 미검증 ccxt 버전이면 발주 전 TrailingContractError raise(non-retry)."""
+    import ccxt.async_support as ccxt_async
+
+    from src.trading.exceptions import TrailingContractError
+    from src.trading.models import OrderSide
+    from src.trading.providers import BybitFuturesProvider
+
+    monkeypatch.setattr(ccxt_async, "__version__", "9.9.9", raising=False)
+    with pytest.raises(TrailingContractError) as ei:
+        await BybitFuturesProvider().set_trading_stop(
+            credentials,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            qty=Decimal("0.001"),
+            distance=Decimal("150.5"),
+        )
+    assert ei.value.reason == "ccxt_unvalidated"
+    bybit_mock.create_order.assert_not_awaited()  # 잘못될 수 있는 주문 미발주
+
+
+async def test_set_trading_stop_ceils_distance_to_tick_never_tighter(credentials, bybit_mock):
+    """보호 거리는 tick 으로 올림(ceil) — round-nearest 가 줄여 premature exit 되는 것 방지."""
+    from src.trading.models import OrderSide
+    from src.trading.providers import BybitFuturesProvider
+
+    # market tick=0.5 (fixture). 150.567 → ceil → 151 (round-nearest 150.5 보다 looser).
+    await BybitFuturesProvider().set_trading_stop(
+        credentials,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        qty=Decimal("0.001"),
+        distance=Decimal("150.567"),
+    )
+    params = bybit_mock.create_order.call_args.args[5]
+    assert params["trailingStop"] == "151"  # ceil — raw "150.567"/round-nearest "150.5" 아님
+    assert Decimal(params["trailingStop"]) >= Decimal("150.567")  # 절대 요청보다 타이트하지 않음
+
+
+async def test_set_trading_stop_rejects_subtick_distance(credentials, bybit_mock):
+    """sub-tick distance (< price tick) = config 오류(Bybit 최소 미만) → 즉시 degenerate(non-retry)."""
+    from src.trading.exceptions import TrailingContractError
+    from src.trading.models import OrderSide
+    from src.trading.providers import BybitFuturesProvider
+
+    # market tick=0.5 (fixture). distance 0.0001 < tick → 거부, 발주 안 함.
+    with pytest.raises(TrailingContractError) as ei:
+        await BybitFuturesProvider().set_trading_stop(
+            credentials,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            qty=Decimal("0.001"),
+            distance=Decimal("0.0001"),
+        )
+    assert ei.value.reason == "degenerate_distance"
+    bybit_mock.create_order.assert_not_awaited()
+
+
+async def test_fetch_position_rejects_hedge_mode(credentials, bybit_mock):
+    """hedge(long+short 동시 open) → wrong-leg 추측 대신 TrailingContractError(non-retry)."""
+    from src.trading.exceptions import TrailingContractError
+    from src.trading.providers import BybitFuturesProvider
+
+    bybit_mock.fetch_positions = AsyncMock(
+        return_value=[
+            {"contracts": 0.001, "side": "long"},
+            {"contracts": 0.002, "side": "short"},
+        ]
+    )
+    with pytest.raises(TrailingContractError) as ei:
+        await BybitFuturesProvider().fetch_position(credentials, "BTC/USDT")
+    assert ei.value.reason == "hedge_mode_unsupported"
+
+
+async def test_fetch_position_one_way_returns_single_leg(credentials, bybit_mock):
+    """one-way: size>0 단일 leg 반환, flat(0) leg 무시 (회귀)."""
+    from src.trading.providers import BybitFuturesProvider, PositionInfo
+
+    bybit_mock.fetch_positions = AsyncMock(
+        return_value=[
+            {"contracts": 0.001, "side": "long"},
+            {"contracts": 0, "side": "short"},
+        ]
+    )
+    res = await BybitFuturesProvider().fetch_position(credentials, "BTC/USDT")
+    assert res == PositionInfo(size=Decimal("0.001"), side="long")

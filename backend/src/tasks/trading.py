@@ -37,6 +37,7 @@ from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
     OrderNotFound,
     ProviderError,
+    TrailingContractError,
     UnsupportedExchangeError,
 )
 from src.trading.models import (
@@ -851,6 +852,21 @@ def _is_position_zero_error(exc: ProviderError) -> bool:
     return "110017" in msg or "position is zero" in msg or "position not exist" in msg
 
 
+def _classify_trailing_failure(exc: Exception) -> str:
+    """원본 예외 텍스트(거래소 응답/내부 경로 누설) 대신 alert 에 실을 안전한 분류 문자열.
+
+    substring 검사로 category 만 결정 — 원본은 절대 echo 안 함(호출부 logger.exception 으로 기록).
+    """
+    if isinstance(exc, TrailingContractError):
+        return exc.reason
+    if isinstance(exc, ProviderError):
+        low = str(exc).lower()
+        if any(k in low for k in ("timeout", "network", "connection", "temporarily")):
+            return "network_error"
+        return "exchange_rejected"
+    return "unexpected"
+
+
 def _enqueue_trailing_if_intended(order: Any) -> None:
     """fill-transition winner 가 trailing 의도 entry 면 place_trailing_stop enqueue.
 
@@ -911,6 +927,9 @@ async def _do_place_trailing_stop(
             logger.info("trailing_skip_position_zero", extra={"order_id": str(order_id)})
             qb_trailing_placement_total.labels(outcome="skipped_position_zero").inc()
             return {"skipped": "position_zero"}
+        if isinstance(exc, TrailingContractError):
+            # contract 위반은 task 가 failed_contract 로 단일 집계 → 여기서 이중카운트 회피.
+            raise
         # network/exchange 실패 = 포지션 무방비 → raise(상위 retry + alert).
         qb_trailing_placement_total.labels(outcome="failed").inc()
         raise
@@ -991,8 +1010,8 @@ async def _alert_trailing_unprotected(order_id: UUID, reason: str) -> None:
         settings,
         title="Trailing stop placement failed — TRAILING 미부착 (고정 bracket SL 은 유효)",
         message=(
-            f"place_trailing_stop gave up after {_TRAILING_MAX_RETRIES} retries. "
-            f"포지션에 TRAILING stop 미부착(고정 bracket SL 바닥은 active — 완전 무방비 아님). "
+            "place_trailing_stop gave up — 포지션에 TRAILING stop 미부착"
+            "(고정 bracket SL 바닥은 active — 완전 무방비 아님). "
             f"Reason: {reason}"
         ),
         context={"order_id": str(order_id)[:8], "reason": reason},
@@ -1014,12 +1033,20 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
     try:
         result = run_in_worker_loop(_async_place_trailing_stop(UUID(order_id)))
     except Exception as exc:
-        # Opus A P2 — ProviderError(network/exchange) 뿐 아니라 DB outage / decrypt 실패 /
-        #   engine 생성 실패 등 모든 예외를 bounded retry + 최종 critical alert 로 라우팅.
-        #   미포착 시 Celery FAILED silent → trailing 미부착 무신호(money-path hole).
+        # Opus A P2 — 모든 예외를 bounded retry + 최종 critical alert 로 라우팅(silent FAILED 차단).
         #   benign skip(110017/flip)은 dict 반환이라 여기 미도달.
+        # BL-372 — TrailingContractError(버전/degenerate/hedge)는 결정적 = 재시도 무의미 → 즉시 give up.
+        if isinstance(exc, TrailingContractError):
+            logger.exception("trailing_contract_violation", extra={"order_id": order_id})
+            run_in_worker_loop(_alert_trailing_unprotected(UUID(order_id), reason=exc.reason))
+            qb_trailing_placement_total.labels(outcome="failed_contract").inc()
+            return {"failed": exc.reason, "order_id": order_id}
         if self.request.retries >= _TRAILING_MAX_RETRIES:
-            run_in_worker_loop(_alert_trailing_unprotected(UUID(order_id), str(exc)))
+            # BL-372 #7 — 원본 str(exc) 는 logger.exception 으로만, Slack 엔 분류 문자열.
+            logger.exception("trailing_unprotected_giveup", extra={"order_id": order_id})
+            run_in_worker_loop(
+                _alert_trailing_unprotected(UUID(order_id), reason=_classify_trailing_failure(exc))
+            )
             return {"failed": "trailing_unprotected", "order_id": order_id}
         raise self.retry(
             exc=exc,

@@ -70,6 +70,20 @@ class ProviderError(AppException):
     code = "provider_error"
 
 
+class TrailingContractError(ProviderError):
+    """재시도해도 안 고쳐지는 money-path 계약 위반 — 즉시 alert + give up(non-retryable).
+
+    예: 미검증 ccxt 버전(라우팅 계약 불확실) / tick 정규화 후 distance<=0 / hedge-mode.
+    reason = alert 에 실을 안전한 분류 문자열(원본 예외 텍스트 누설 금지).
+    """
+
+    code = "trailing_contract_error"
+
+    def __init__(self, reason: str, detail: str) -> None:
+        self.reason = reason
+        super().__init__(detail)
+
+
 class UnsupportedExchangeError(ProviderError):
     """dispatch 시점 (exchange, mode, has_leverage) tuple 미지원 — Sprint 22 BL-091.
 

@@ -9,16 +9,21 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from typing import Any, Literal, Protocol
 
 import ccxt.async_support as ccxt_async
 
 from src.common.metrics import ccxt_timer
-from src.trading.exceptions import ProviderError
+from src.trading.exceptions import ProviderError, TrailingContractError
 from src.trading.models import ExchangeMode, OrderSide, OrderType
 
 logger = logging.getLogger(__name__)
+
+# kill-switch 2차방어 — 트레일링은 ccxt 가 trailingStop param 을 trading-stop 엔드포인트
+#   (본질 reduce-only)로 라우팅한다는 계약에 의존. pyproject 는 ccxt>=4.0.0 이라 lock bump
+#   시 라우팅이 silent 변경될 수 있어, 검증된 버전 밖이면 발주 전 하드실패(non-retry).
+_VALIDATED_CCXT_VERSIONS = frozenset({"4.5.49"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -551,14 +556,13 @@ class BybitFuturesProvider:
         side: OrderSide,
         qty: Decimal,
         distance: Decimal,
-        trigger_price: Decimal | None = None,
     ) -> dict[str, Any]:
         """STEP B — 포지션에 Bybit native trailing-stop 부착 (포지션 open 후 호출).
 
         트레일링은 별도 주문이 아니라 포지션 속성. ccxt 4.5.49 가 trailingStop param 이
         붙은 create_order 를 Bybit trading-stop 엔드포인트(privatePostV5PositionTradingStop)
         로 라우팅한다(bybit.py:3892/3898). 그 분기는 side/qty 를 드롭(bybit.py:4100)하고
-        trailingStop(+옵션 activePrice)만 전송 — whole-position, 방향은 Bybit 가 포지션에서
+        trailingStop 만 전송 — whole-position, 방향은 Bybit 가 포지션에서
         추론(triggerDirection 불필요, bybit.py:4106-4116 미도달). side/qty 는 ccxt.create_order
         시그니처 충족용(Bybit 미전송). reduceOnly/triggerBy 는 이 엔드포인트 no-op → 미전송.
         entry 와 달리 포지션이 이미 열린 뒤라 안전(reduce-only 는 엔드포인트 본질).
@@ -566,6 +570,15 @@ class BybitFuturesProvider:
         OKX/spot 은 native trailing 미지원(별 endpoint / `bybit.py:3988` spot 거부)이라
         본 메서드는 BybitFuturesProvider 전용 — 일반 ExchangeProvider Protocol 미포함.
         """
+        if ccxt_async.__version__ not in _VALIDATED_CCXT_VERSIONS:
+            # kill-switch 2차방어 — 라우팅 계약 미검증 시 잘못될 수 있는 주문을 내지 않는다.
+            raise TrailingContractError(
+                reason="ccxt_unvalidated",
+                detail=(
+                    f"ccxt {ccxt_async.__version__} not in validated set "
+                    f"{sorted(_VALIDATED_CCXT_VERSIONS)} — trailing routing contract unverified"
+                ),
+            )
         linear_symbol = _to_bybit_linear_symbol(symbol)
         exchange = ccxt_async.bybit(
             {
@@ -585,17 +598,44 @@ class BybitFuturesProvider:
                 # qty 는 ccxt 가 트레일링 경로에서 드롭하지만 시그니처/precision 충족용.
                 await exchange.load_markets()
                 amount = exchange.amount_to_precision(linear_symbol, qty)
-                params: dict[str, Any] = {"trailingStop": str(distance)}
-                if trigger_price is not None:
-                    # ccxt: trailingTriggerPrice → request['activePrice'] (트레일 활성가).
-                    params["trailingTriggerPrice"] = str(trigger_price)
+                # 보호 거리 tick 정규화 — Bybit 는 TICK_SIZE 모드라 precision.price 가 곧 tick.
+                #   price_to_precision 은 round-nearest 라 distance 를 줄일 수 있고(tighter =
+                #   premature exit) sub-tick 에선 InvalidOrder 를 던진다 → 직접 tick 으로 올림(ceil)
+                #   해 "절대 요청보다 타이트하지 않다"를 보장하고, sub-tick 은 명시 거부한다.
+                market = exchange.market(linear_symbol)
+                raw_tick = (market.get("precision") or {}).get("price")
+                if raw_tick is None:
+                    # precision.price 부재 = tick 가정 불성립 → 잘못된 정규화 위험 → 결정적 거부
+                    #   (broad except 로 새어 retryable 오분류되는 것 차단).
+                    raise TrailingContractError(
+                        reason="degenerate_distance",
+                        detail=f"price tick unavailable for {linear_symbol} "
+                        f"(precision={market.get('precision')})",
+                    )
+                tick = Decimal(str(raw_tick))
+                if tick <= 0:
+                    raise TrailingContractError(
+                        reason="degenerate_distance",
+                        detail=f"non-positive price tick for {linear_symbol} (tick={tick})",
+                    )
+                if distance < tick:
+                    # sub-tick = config 오류(Bybit 최소가 미만, 재시도 무의미) → 명시 거부.
+                    raise TrailingContractError(
+                        reason="degenerate_distance",
+                        detail=f"trailing distance {distance} < price tick {tick}",
+                    )
+                distance_q = (distance / tick).to_integral_value(rounding=ROUND_CEILING) * tick
+                distance_str = format(distance_q.normalize(), "f")
+                params: dict[str, Any] = {"trailingStop": distance_str}
                 result = await exchange.create_order(
                     linear_symbol, "market", side.value, amount, None, params
                 )
             # ★ codex P1 — Bybit trading-stop 엔드포인트는 성공 시 빈 result(orderId 없음 —
             #   포지션 수정이라 주문 아님, V5 docs result:{}). create_order 가 예외 없이 반환
             #   = 수용. id 부재를 malformed 로 오판하면 성공을 retry → false UNPROTECTED
-            #   alert(money-path bug). 호출자는 반환값 미사용(독립 fetch_position 으로 검증).
+            #   alert(money-path bug). 호출자(_do_place_trailing_stop)는 반환값 미사용 —
+            #   발주 *전* fetch_position stale 가드만 수행(flat/flip/hedge 차단). 발주 *후*
+            #   독립 재조회 검증은 없음.
             return dict(result) if isinstance(result, dict) else {}
         except ProviderError:
             raise
@@ -634,6 +674,7 @@ class BybitFuturesProvider:
         try:
             async with ccxt_timer("bybit_futures", "fetch_position"):
                 positions = await exchange.fetch_positions([linear_symbol])
+            legs: list[PositionInfo] = []
             for p in positions:
                 contracts = p.get("contracts")
                 if contracts is None:
@@ -641,8 +682,15 @@ class BybitFuturesProvider:
                 size = Decimal(str(contracts))
                 side = p.get("side")
                 if size > 0 and side in ("long", "short"):
-                    return PositionInfo(size=size, side=side)
-            return None
+                    legs.append(PositionInfo(size=size, side=side))
+            if len(legs) > 1:
+                # hedge(long+short 동시 open) — 어느 leg 에 trailing 을 붙일지 추론 불가.
+                #   첫 leg 추측 = wrong-leg 오부착(money-path). 발주 차단(non-retry + alert).
+                raise TrailingContractError(
+                    reason="hedge_mode_unsupported",
+                    detail=f"{len(legs)} open legs for {symbol} — one-way mode required",
+                )
+            return legs[0] if legs else None
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:
