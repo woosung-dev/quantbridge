@@ -602,11 +602,21 @@ class BybitFuturesProvider:
                 #   price_to_precision 은 round-nearest 라 distance 를 줄일 수 있고(tighter =
                 #   premature exit) sub-tick 에선 InvalidOrder 를 던진다 → 직접 tick 으로 올림(ceil)
                 #   해 "절대 요청보다 타이트하지 않다"를 보장하고, sub-tick 은 명시 거부한다.
-                tick = Decimal(str(exchange.market(linear_symbol)["precision"]["price"]))
+                market = exchange.market(linear_symbol)
+                raw_tick = (market.get("precision") or {}).get("price")
+                if raw_tick is None:
+                    # precision.price 부재 = tick 가정 불성립 → 잘못된 정규화 위험 → 결정적 거부
+                    #   (broad except 로 새어 retryable 오분류되는 것 차단).
+                    raise TrailingContractError(
+                        reason="degenerate_distance",
+                        detail=f"price tick unavailable for {linear_symbol} "
+                        f"(precision={market.get('precision')})",
+                    )
+                tick = Decimal(str(raw_tick))
                 if tick <= 0:
                     raise TrailingContractError(
                         reason="degenerate_distance",
-                        detail=f"no positive price tick for {linear_symbol} (tick={tick})",
+                        detail=f"non-positive price tick for {linear_symbol} (tick={tick})",
                     )
                 if distance < tick:
                     # sub-tick = config 오류(Bybit 최소가 미만, 재시도 무의미) → 명시 거부.

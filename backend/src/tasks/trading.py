@@ -1010,8 +1010,8 @@ async def _alert_trailing_unprotected(order_id: UUID, reason: str) -> None:
         settings,
         title="Trailing stop placement failed — TRAILING 미부착 (고정 bracket SL 은 유효)",
         message=(
-            f"place_trailing_stop gave up after {_TRAILING_MAX_RETRIES} retries. "
-            f"포지션에 TRAILING stop 미부착(고정 bracket SL 바닥은 active — 완전 무방비 아님). "
+            "place_trailing_stop gave up — 포지션에 TRAILING stop 미부착"
+            "(고정 bracket SL 바닥은 active — 완전 무방비 아님). "
             f"Reason: {reason}"
         ),
         context={"order_id": str(order_id)[:8], "reason": reason},
