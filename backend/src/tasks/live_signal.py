@@ -34,8 +34,10 @@ from uuid import UUID, uuid4
 from celery import shared_task
 from pydantic import ValidationError
 
+from src.common.alert import send_critical_alert, track_pending_alert
 from src.common.metrics import (
     qb_live_signal_dispatch_total,
+    qb_live_signal_divergence_total,
     qb_live_signal_eval_duration_seconds,
     qb_live_signal_evaluated_total,
     qb_live_signal_outbox_pending_gauge,
@@ -43,6 +45,7 @@ from src.common.metrics import (
 )
 from src.common.redlock import RedisLock
 from src.core.config import settings
+from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.exceptions import (
     IdempotencyConflict,
@@ -139,6 +142,91 @@ def _action_is_reduce_only(action: str) -> bool:
     포지션 반전 위험. entry 는 신규 포지션 오픈이므로 reduce_only=False.
     """
     return action == "close"
+
+
+def _classify_live_divergence(msg: str) -> str:
+    """BL-362 — interpreter PineRuntimeError 메시지 → bounded category (≤5 runtime 값).
+
+    W1 `_classify_trailing_failure`(trading.py) 미러: raw 는 절대 metric label 에 안 싣고
+    category enum 만. case-insensitive substring ladder — interpreter.py 의 모든 raise-site
+    메시지 prefix 대조. 미분류는 unexpected.
+    """
+    low = msg.lower()
+    if "undefined name" in low:
+        return "undefined_name"
+    if "attribute access not supported" in low:
+        return "unsupported_attr"
+    if (
+        "not supported in current scope" in low
+        or "function not supported" in low
+        or "method not supported" in low
+    ):
+        return "unsupported_call"
+    if low.startswith("unsupported "):
+        return "unsupported_node"
+    if "not supported" in low:
+        # 일반 구조적 미지원 (Subscript on non-Name / var·varip tuple destructuring 등).
+        return "unsupported_node"
+    return "unexpected"
+
+
+async def _alert_live_divergence(
+    *,
+    session_id: UUID,
+    stage: str,
+    category: str,
+    raw_msg: str,
+    error_count: int,
+    last_error_bar: int,
+) -> None:
+    """BL-362 — 발산 감지 → 세션 자동 비활성화 critical alert (무신호 차단 고지).
+
+    raw_msg 는 사용자 본인 Pine 심볼/구조 메시지(거래소 시크릿 아님 — interpreter raise-site
+    전수조사로 시장데이터·문자열 리터럴 미포함 검증) → actionable 차원에서 포함하되 [:200]
+    truncate(defense-in-depth). 원본 전체·stack 은 호출부 logger.error 가 기록.
+    """
+    await send_critical_alert(
+        settings,
+        title="Live signal divergence — 세션 자동 비활성화 (무신호 차단)",
+        message=(
+            f"pine_v2 coverage↔interpreter 발산({stage}/{category}) 감지 — 세션을 "
+            "비활성화했습니다(오신호 dispatch 차단, 고정 SL/포지션은 거래소측 유지). "
+            f"전략 수정 후 재활성화 필요. detail: {raw_msg[:200]}"
+        ),
+        context={
+            "session_id": str(session_id)[:8],
+            "stage": stage,
+            "category": category,
+            "error_count": str(error_count),
+            "last_error_bar": str(last_error_bar),
+        },
+    )
+
+
+def _fire_divergence_alert(
+    *,
+    session_id: UUID,
+    stage: str,
+    category: str,
+    raw_msg: str,
+    error_count: int,
+    last_error_bar: int,
+) -> None:
+    """fire-and-forget alert. `_evaluate_session_inner` 는 이미 persistent `_WORKER_LOOP`
+    안이므로 `create_task` + `track_pending_alert` (kill_switch.py 패턴).
+    `run_in_worker_loop` 금지 (nested ban §9.4).
+    """
+    task = asyncio.create_task(
+        _alert_live_divergence(
+            session_id=session_id,
+            stage=stage,
+            category=category,
+            raw_msg=raw_msg,
+            error_count=error_count,
+            last_error_bar=last_error_bar,
+        )
+    )
+    track_pending_alert(task)
 
 
 async def _heartbeat_extend(lock: RedisLock, *, period_s: float, ttl_ms: int) -> None:
@@ -307,6 +395,44 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 qb_live_signal_skipped_total.labels(reason="non_demo_account").inc()
                 return {"skipped": "non_demo_account"}
 
+            # 3.5 BL-362 — coverage preflight (money-path fail-closed). backtest/service.py 와
+            # 동일 게이트: 미지원 builtin(is_runnable=False) 또는 degraded(heikinashi/
+            # request.security/timeframe.period — graceful 실행이나 결과 divergence) 감지 시
+            # 세션 자동 비활성화. live 엔 allow_degraded_pine 동의 플래그 없음 → 하드 차단.
+            # account/demo check 뒤에 배치 — non-demo 세션은 비활성화 아닌 skip 유지 (G1 P1#2).
+            cov = analyze_coverage(strategy.pine_source)
+            preflight_cat: str | None = None
+            preflight_symbols: tuple[str, ...] = ()
+            if not cov.is_runnable:
+                preflight_cat, preflight_symbols = "coverage_unrunnable", cov.all_unsupported
+            elif cov.has_degraded:
+                preflight_cat, preflight_symbols = "degraded_unconsented", cov.degraded_calls
+            if preflight_cat is not None:
+                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                await sess_repo.commit()
+                if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                    qb_live_signal_divergence_total.labels(
+                        stage="preflight", category=preflight_cat
+                    ).inc()
+                    qb_live_signal_skipped_total.labels(reason=preflight_cat).inc()
+                    _fire_divergence_alert(
+                        session_id=sess.id,
+                        stage="preflight",
+                        category=preflight_cat,
+                        raw_msg=", ".join(preflight_symbols)[:200],
+                        error_count=0,
+                        last_error_bar=-1,
+                    )
+                    logger.error(
+                        "live_signal_preflight_blocked",
+                        extra={
+                            "session_id": str(sess.id),
+                            "category": preflight_cat,
+                            "symbols": list(preflight_symbols),
+                        },
+                    )
+                return {"deactivated": preflight_cat}
+
             # 4. CCXT fetch_ohlcv (P1 #6 closed-bar)
             provider = get_ccxt_provider_for_worker()
             ohlcv_rows = await provider.fetch_ohlcv(sess.symbol, str(sess.interval), limit_bars=300)
@@ -341,6 +467,40 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
             result = run_live(strategy.pine_source, df)
+
+            # 7.5 BL-362 — runtime divergence safety net (money-path fail-closed).
+            # run_historical(strict=False) 가 PineRuntimeError 를 삼키고 계속 → state corruption
+            # 가능 → 오신호. errors 비어있지 않으면(어느 bar든) 세션 비활성화 + events INSERT/
+            # dispatch 차단. claim(UPDATE) + deactivate(UPDATE) 단일 commit (events 안 넣음).
+            if result.errors:
+                # errors[-1] = 가장 최근(최고 bar) runtime error. block-on-any 라 warmup
+                # corruption 도 포착(마지막 bar 만 필터링하지 않음).
+                category = _classify_live_divergence(result.errors[-1][1])
+                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                await sess_repo.commit()
+                if rows == 1:  # winner-only dedupe
+                    qb_live_signal_divergence_total.labels(stage="runtime", category=category).inc()
+                    qb_live_signal_evaluated_total.labels(
+                        interval=interval_value, outcome="divergence_blocked"
+                    ).inc()
+                    _fire_divergence_alert(
+                        session_id=sess.id,
+                        stage="runtime",
+                        category=category,
+                        raw_msg=result.errors[-1][1],
+                        error_count=len(result.errors),
+                        last_error_bar=result.errors[-1][0],
+                    )
+                    logger.error(
+                        "live_signal_runtime_divergence",
+                        extra={
+                            "session_id": str(sess.id),
+                            "category": category,
+                            "error_count": len(result.errors),
+                            "errors": result.errors[:10],
+                        },
+                    )
+                return {"deactivated": "runtime_divergence", "category": category}
 
             # 8. transactional outbox — events INSERT + state upsert + commit (P1 #3)
             signals_payload: list[dict[str, object]] = [

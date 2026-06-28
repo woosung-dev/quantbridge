@@ -30,14 +30,16 @@ def _ohlcv(closes: list[float], *, start: datetime | None = None) -> pd.DataFram
     if start is None:
         start = datetime(2026, 5, 1, 0, 0, tzinfo=UTC)
     opens = [closes[0], *closes[:-1]]
-    return pd.DataFrame({
-        "timestamp": [start + timedelta(hours=i) for i in range(len(closes))],
-        "open": opens,
-        "high": [c * 1.02 for c in closes],
-        "low": [c * 0.98 for c in closes],
-        "close": closes,
-        "volume": [100.0] * len(closes),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": [start + timedelta(hours=i) for i in range(len(closes))],
+            "open": opens,
+            "high": [c * 1.02 for c in closes],
+            "low": [c * 0.98 for c in closes],
+            "close": closes,
+            "volume": [100.0] * len(closes),
+        }
+    )
 
 
 _BUY_ON_GREEN = """//@version=5
@@ -61,26 +63,41 @@ strategy("never enters")
 """
 
 
+# BL-362 — coverage↔interpreter divergence fixture. ta.ewma 는 미구현 ta 함수라
+# strict=False 실행 시 매 bar PineRuntimeError("...not supported...") 를 수집.
+_TA_EWMA_DIVERGENCE = """//@version=5
+strategy("ewma divergence")
+x = ta.ewma(close, 10)
+if (close > open)
+    strategy.entry("L", strategy.long, qty=1.0)
+"""
+
+
 # ── Test cases ───────────────────────────────────────────────────────────
 
 
 def test_empty_ohlcv_raises_value_error() -> None:
     """codex G.0 plan §4 B.2 case 1 — 빈 ohlcv → ValueError."""
     with pytest.raises(ValueError, match="empty"):
-        run_live(_BUY_ON_GREEN, pd.DataFrame({"open": [], "high": [], "low": [], "close": [], "volume": []}))
+        run_live(
+            _BUY_ON_GREEN,
+            pd.DataFrame({"open": [], "high": [], "low": [], "close": [], "volume": []}),
+        )
 
 
 def test_warmup_only_no_signals() -> None:
     """case 2 — entry trigger 미발생 strategy → signals=[] (빈 리스트)."""
     # 5 bars, 모두 close==open → never green
-    ohlcv = pd.DataFrame({
-        "timestamp": [datetime(2026, 5, 1, h, tzinfo=UTC) for h in range(5)],
-        "open": [100.0] * 5,
-        "high": [101.0] * 5,
-        "low": [99.0] * 5,
-        "close": [100.0] * 5,
-        "volume": [100.0] * 5,
-    })
+    ohlcv = pd.DataFrame(
+        {
+            "timestamp": [datetime(2026, 5, 1, h, tzinfo=UTC) for h in range(5)],
+            "open": [100.0] * 5,
+            "high": [101.0] * 5,
+            "low": [99.0] * 5,
+            "close": [100.0] * 5,
+            "volume": [100.0] * 5,
+        }
+    )
     result = run_live(_NEVER_TRIGGER, ohlcv)
     assert result.signals == []
     assert result.total_closed_trades == 0
@@ -103,14 +120,16 @@ def test_entry_signal_at_last_bar() -> None:
 def test_no_signals_when_entry_in_earlier_bar() -> None:
     """case 6 — 마지막 bar 가 아닌 곳에서 entry → signals=[] (last bar 의 event 만 dispatch)."""
     # 5 bars, 첫 bar 만 green (4 bars 가 모두 동일 close=open=100)
-    ohlcv = pd.DataFrame({
-        "timestamp": [datetime(2026, 5, 1, h, tzinfo=UTC) for h in range(5)],
-        "open": [99.0, 100.0, 100.0, 100.0, 100.0],
-        "high": [101.0] * 5,
-        "low": [98.0] * 5,
-        "close": [100.0, 100.0, 100.0, 100.0, 100.0],  # 첫 bar 만 close > open
-        "volume": [100.0] * 5,
-    })
+    ohlcv = pd.DataFrame(
+        {
+            "timestamp": [datetime(2026, 5, 1, h, tzinfo=UTC) for h in range(5)],
+            "open": [99.0, 100.0, 100.0, 100.0, 100.0],
+            "high": [101.0] * 5,
+            "low": [98.0] * 5,
+            "close": [100.0, 100.0, 100.0, 100.0, 100.0],  # 첫 bar 만 close > open
+            "volume": [100.0] * 5,
+        }
+    )
     result = run_live(_BUY_AND_CLOSE, ohlcv)
     # 첫 bar 에 entry 발생했으나 last bar 의 event 가 아니라 dispatch 안 함
     assert result.signals == []
@@ -167,14 +186,16 @@ if (close < open)
     strategy.close("L")
 """
     # 4 bars: green → green → red → red. close at red, pnl 추적
-    ohlcv = pd.DataFrame({
-        "timestamp": [datetime(2026, 5, 1, h, tzinfo=UTC) for h in range(4)],
-        "open": [100.0, 100.0, 110.0, 105.0],
-        "high": [102.0, 112.0, 112.0, 105.0],
-        "low": [99.0, 99.0, 100.0, 100.0],
-        "close": [101.0, 110.0, 105.0, 100.0],  # green green red red
-        "volume": [100.0] * 4,
-    })
+    ohlcv = pd.DataFrame(
+        {
+            "timestamp": [datetime(2026, 5, 1, h, tzinfo=UTC) for h in range(4)],
+            "open": [100.0, 100.0, 110.0, 105.0],
+            "high": [102.0, 112.0, 112.0, 105.0],
+            "low": [99.0, 99.0, 100.0, 100.0],
+            "close": [101.0, 110.0, 105.0, 100.0],  # green green red red
+            "volume": [100.0] * 4,
+        }
+    )
     result = run_live(src, ohlcv)
     assert isinstance(result.total_realized_pnl, Decimal)
     assert result.total_closed_trades >= 1
@@ -238,9 +259,7 @@ def test_run_live_idempotent_same_input() -> None:
 
 def test_live_signal_dataclass_fields() -> None:
     """LiveSignal 필드 sanity — frozen 아님, dict 변환 지원."""
-    sig = LiveSignal(
-        action="entry", direction="long", trade_id="L", qty=1.5, sequence_no=0
-    )
+    sig = LiveSignal(action="entry", direction="long", trade_id="L", qty=1.5, sequence_no=0)
     assert sig.action == "entry"
     assert sig.qty == 1.5
 
@@ -256,3 +275,22 @@ def test_live_signal_result_dataclass_fields() -> None:
     )
     assert result.signals == []
     assert result.total_realized_pnl == Decimal("0")
+    # BL-362 — errors 필드는 default 빈 리스트 (기존 생성자 호환).
+    assert result.errors == []
+
+
+def test_run_live_propagates_runtime_errors() -> None:
+    """BL-362 — run_live 가 strict=False 로 삼켜진 errors 를 LiveSignalResult.errors 로 표면화.
+
+    이전엔 run_historical 의 errors 가 run_live boundary 에서 소멸 → 라이브가 오신호를
+    조용히 dispatch. 이제 표면화하여 호출자(live_signal task)가 fail-closed 가능.
+    """
+    result = run_live(_TA_EWMA_DIVERGENCE, _ohlcv([100.0, 101.0, 102.0]))
+    assert result.errors  # non-empty — 발산 표면화
+    assert "not supported" in result.errors[-1][1]
+
+
+def test_run_live_clean_source_empty_errors() -> None:
+    """regression — clean source 는 errors 빈 리스트 (정상 dispatch 경로 불변)."""
+    result = run_live(_BUY_ON_GREEN, _ohlcv([100.0, 99.0, 98.0, 97.0, 99.0]))
+    assert result.errors == []

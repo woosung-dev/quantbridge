@@ -207,6 +207,9 @@ class LiveSignalResult:
     strategy_state_report: dict[str, Any]
     total_closed_trades: int
     total_realized_pnl: Decimal
+    # BL-362 — run_historical(strict=False) 가 삼킨 PineRuntimeError (bar_index, msg).
+    # 호출자(live_signal task)가 coverage↔interpreter 발산을 fail-closed 처리하도록 표면화.
+    errors: list[tuple[int, str]] = field(default_factory=list)
 
 
 def _to_decimal(value: float | None) -> Decimal | None:
@@ -309,6 +312,7 @@ def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
         strategy_state_report=strategy_state.to_report(),
         total_closed_trades=len(closed),
         total_realized_pnl=total_pnl,
+        errors=result.errors,  # BL-362 — 삼켜진 발산 표면화
     )
 
 
