@@ -92,3 +92,20 @@ def test_bybit_trailing_routes_to_trading_stop_drops_qty() -> None:
     )
     # trading-stop 형태: trailingStop 만 + side/qty/orderType 미전송(일반 주문 아님).
     assert req == {"category": "linear", "symbol": "BTCUSDT", "trailingStop": "150.5"}
+
+
+def test_bybit_trailing_distance_tick_normalized_survives_routing() -> None:
+    """BL-372 — 실 ccxt price_to_precision(coarse distance) → tick 정렬 → trailingStop 으로 보존.
+
+    set_trading_stop 이 price_to_precision 결과를 그대로 넘기므로, 정규화+라우팅 end-to-end 핀
+    (mock 테스트는 정규화만, 기존 routing 핀은 이미-정렬 값만 — 이 테스트가 양자화 step 을 실 ccxt 로).
+    """
+    from decimal import Decimal
+
+    ex = _bybit_with_linear_market()  # precision price tick = 0.5
+    normalized = ex.price_to_precision("BTC/USDT", 150.567)  # 150.567 → 150.5
+    assert Decimal(normalized) == Decimal("150.5")
+    req = ex.create_order_request(
+        "BTC/USDT", "market", "sell", 0.001, None, {"trailingStop": normalized}
+    )
+    assert req == {"category": "linear", "symbol": "BTCUSDT", "trailingStop": normalized}

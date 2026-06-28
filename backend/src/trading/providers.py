@@ -598,7 +598,15 @@ class BybitFuturesProvider:
                 # qty 는 ccxt 가 트레일링 경로에서 드롭하지만 시그니처/precision 충족용.
                 await exchange.load_markets()
                 amount = exchange.amount_to_precision(linear_symbol, qty)
-                params: dict[str, Any] = {"trailingStop": str(distance)}
+                # tick 정규화 — distance 는 가격 거리라 price tick 으로 양자화(coarse-tick 거부 방어).
+                distance_str = exchange.price_to_precision(linear_symbol, distance)
+                if not distance_str or Decimal(distance_str) <= 0:
+                    # 정규화 후 0/음수 = distance<tick → Bybit 거부할 무효 trailing distance.
+                    raise TrailingContractError(
+                        reason="degenerate_distance",
+                        detail=f"trailing distance {distance!r} normalized to {distance_str!r} (<=0)",
+                    )
+                params: dict[str, Any] = {"trailingStop": distance_str}
                 result = await exchange.create_order(
                     linear_symbol, "market", side.value, amount, None, params
                 )

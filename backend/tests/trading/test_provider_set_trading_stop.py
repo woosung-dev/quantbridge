@@ -146,3 +146,40 @@ async def test_set_trading_stop_rejects_unvalidated_ccxt(credentials, bybit_mock
         )
     assert ei.value.reason == "ccxt_unvalidated"
     bybit_mock.create_order.assert_not_awaited()  # 잘못될 수 있는 주문 미발주
+
+
+async def test_set_trading_stop_normalizes_distance_to_tick(credentials, bybit_mock):
+    """distance 가 raw 가 아니라 price_to_precision(tick 정규화)을 거쳐 전송."""
+    from src.trading.models import OrderSide
+    from src.trading.providers import BybitFuturesProvider
+
+    bybit_mock.price_to_precision = MagicMock(side_effect=lambda s, p: "150.5")  # coarse→tick
+    await BybitFuturesProvider().set_trading_stop(
+        credentials,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        qty=Decimal("0.001"),
+        distance=Decimal("150.567"),
+    )
+    params = bybit_mock.create_order.call_args.args[5]
+    assert params["trailingStop"] == "150.5"  # raw "150.567" 아님
+    bybit_mock.price_to_precision.assert_called_once()
+
+
+async def test_set_trading_stop_rejects_degenerate_distance(credentials, bybit_mock):
+    """tick 정규화 후 distance<=0 (distance<tick) → Bybit 가 거부할 무효 distance → 발주 차단."""
+    from src.trading.exceptions import TrailingContractError
+    from src.trading.models import OrderSide
+    from src.trading.providers import BybitFuturesProvider
+
+    bybit_mock.price_to_precision = MagicMock(side_effect=lambda s, p: "0")
+    with pytest.raises(TrailingContractError) as ei:
+        await BybitFuturesProvider().set_trading_stop(
+            credentials,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            qty=Decimal("0.001"),
+            distance=Decimal("0.0001"),
+        )
+    assert ei.value.reason == "degenerate_distance"
+    bybit_mock.create_order.assert_not_awaited()
