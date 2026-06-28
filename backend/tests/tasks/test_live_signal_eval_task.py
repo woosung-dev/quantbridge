@@ -40,6 +40,7 @@ live_signal_module = sys.modules["src.tasks.live_signal"]
 from src.common.metrics import (  # noqa: E402
     qb_live_signal_divergence_total,
     qb_live_signal_evaluated_total,
+    qb_live_signal_skipped_total,
 )
 from src.strategy.pine_v2.event_loop import LiveSignal, LiveSignalResult  # noqa: E402
 from src.trading.models import (  # noqa: E402
@@ -1025,3 +1026,52 @@ async def test_preflight_unrunnable_precedence_over_degraded(
 
     assert res == {"deactivated": "coverage_unrunnable"}  # is_runnable=False 우선
     assert _divergence_count("preflight", "coverage_unrunnable") == before + 1
+
+
+@pytest.mark.asyncio
+async def test_async_evaluate_all_isolates_session_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G3 — 한 세션의 uncaught 오류가 batch 전체를 abort 하지 않고 격리 (이후 세션 지속)."""
+    s1 = _build_session_obj()
+    s2 = _build_session_obj()
+    sess_repo = AsyncMock()
+    sess_repo.list_active_due = AsyncMock(return_value=[s1, s2])
+    event_repo = AsyncMock()
+    event_repo.list_pending = AsyncMock(return_value=[])
+
+    session = AsyncMock()
+    engine, sm_factory = _make_engine_sm_mocks(session)
+    monkeypatch.setattr(
+        live_signal_module, "create_worker_engine_and_sm", lambda: (engine, sm_factory)
+    )
+    import src.trading.repositories.live_signal_event_repository as event_repo_mod
+    import src.trading.repositories.live_signal_session_repository as sess_repo_mod
+
+    monkeypatch.setattr(
+        sess_repo_mod, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
+    )
+    monkeypatch.setattr(
+        event_repo_mod, "LiveSignalEventRepository", MagicMock(return_value=event_repo)
+    )
+
+    calls: list[Any] = []
+
+    async def fake_eval(session_id: Any, interval_value: str) -> dict[str, Any]:
+        calls.append(session_id)
+        if session_id == s1.id:
+            raise RuntimeError("boom")
+        return {"evaluated": True}
+
+    monkeypatch.setattr(live_signal_module, "_async_evaluate_session", fake_eval)
+    before = qb_live_signal_skipped_total.labels(reason="eval_error")._value.get()
+
+    res = await live_signal_module._async_evaluate_all()
+
+    # batch abort 안 됨 — 두 세션 모두 시도
+    assert calls == [s1.id, s2.id]
+    assert res["due_count"] == 2
+    assert res["evaluated"] == 2
+    assert res["results"][0].get("error") == "eval_error"  # 첫 세션 격리
+    assert res["results"][1].get("evaluated") is True  # 둘째 정상
+    assert qb_live_signal_skipped_total.labels(reason="eval_error")._value.get() == before + 1

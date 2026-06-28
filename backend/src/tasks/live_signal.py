@@ -303,7 +303,16 @@ async def _async_evaluate_all() -> dict[str, Any]:
         for sess in due_sessions:
             # Sprint 26 Phase D fix — interval/status 가 String 컬럼이라 SQLAlchemy 가
             # raw str 반환. StrEnum cast 가 자동 안 되므로 str() 으로 정규화.
-            res = await _async_evaluate_session(sess.id, str(sess.interval))
+            # G3 — per-session 격리: 한 세션의 uncaught 오류(예: analyze_coverage 같은
+            # pre-claim 호출)가 batch 전체를 abort 하여 이후 세션을 starve 시키지 않도록 방어.
+            try:
+                res = await _async_evaluate_session(sess.id, str(sess.interval))
+            except Exception:
+                logger.exception(
+                    "live_signal_eval_session_error", extra={"session_id": str(sess.id)}
+                )
+                qb_live_signal_skipped_total.labels(reason="eval_error").inc()
+                res = {"error": "eval_error"}
             results.append({"session_id": str(sess.id), **res})
 
         return {"due_count": len(due_sessions), "evaluated": len(results), "results": results}
@@ -493,6 +502,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     qb_live_signal_evaluated_total.labels(
                         interval=interval_value, outcome="divergence_blocked"
                     ).inc()
+                    # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). 거래소
+                    # 시크릿은 아니나 SyntaxError snippet / 공개 OHLC 숫자 포함 가능 → Slack-only
+                    # + [:200] truncate 로 bound (PineRuntimeError 경로와 달리 미감사 path).
                     _fire_divergence_alert(
                         session_id=sess.id,
                         stage="runtime",
