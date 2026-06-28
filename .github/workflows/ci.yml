@@ -121,7 +121,15 @@ jobs:
       # - test_pynescript_baseline_parity.py (P-1 AST Shape + edge_digest)
       # - test_trust_layer_parity.py (P-2 Coverage SSOT Sync + P-3/Mutation stub)
       # `--durations=10` 은 SLO TL-E-4 (Trust Layer step ≤3분) 모니터링 용도.
-      - run: uv run pytest -v --durations=10
+      # BL-308/309 (W3) — trading money-path coverage ratchet. full suite 로 측정해
+      # transitive 커버(registry 는 tasks 경유)까지 포착. floor=90 은 실측 96% 아래
+      # 안전 ratchet (타이트 tripwire flake 방지). 신규 미커버 분기 추가 시 CI 가 차단.
+      # NOTE: 3 모듈 *합산* package gate (per-module 아님). 현재 모듈별 ≥94%라 masking
+      # 위험 낮음 — 개별 모듈 strict ratchet 필요 시 별도 run/coverage config 로 분리.
+      - run: >
+          uv run pytest -v --durations=10
+          --cov=src.trading.registry --cov=src.trading.webhook --cov=src.trading.websocket
+          --cov-report=term-missing --cov-fail-under=90
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           REDIS_URL: redis://localhost:6379/0
