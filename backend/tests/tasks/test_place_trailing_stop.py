@@ -353,3 +353,30 @@ def test_task_exhaustion_alert_classified_taxonomy(monkeypatch):
     )
     r2 = alert_spy.call_args.kwargs.get("reason") or alert_spy.call_args.args[1]
     assert r2 == "network_error"
+
+
+async def test_session_wrapper_skips_bybit_spot_no_leverage(monkeypatch):
+    """BL-372 #8 회귀가드 — Bybit 계정이라도 leverage None(spot)이면 trailing 발주 차단."""
+    from src.tasks.trading import _place_trailing_stop_with_session
+    from src.trading.models import ExchangeName
+
+    order = _order(leverage=None)  # spot — futures 아님
+    sm = _patch_session_wrapper(monkeypatch, order=order, account=_account(ExchangeName.bybit))
+    provider = _provider(pos=PositionInfo(size=Decimal("0.001"), side="long"))
+    res = await _place_trailing_stop_with_session(order.id, sm, provider=provider)
+    assert res == {"skipped": "unsupported_exchange"}
+    provider.fetch_position.assert_not_awaited()
+    provider.set_trading_stop.assert_not_awaited()
+
+
+async def test_worker_sessionmaker_expire_on_commit_false():
+    """BL-372 #8 회귀가드 — 4 enqueue 사이트가 commit 후 order attr 를 읽으므로 worker
+    sessionmaker 는 expire_on_commit=False 여야(아니면 DetachedInstanceError/추가쿼리).
+    worker-global 불변식이지만 trailing enqueue 정확성의 직접 전제라 본 가드에 동봉."""
+    from src.tasks._worker_engine import create_worker_engine_and_sm
+
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        assert sm.kw.get("expire_on_commit") is False
+    finally:
+        await engine.dispose()
