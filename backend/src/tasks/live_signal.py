@@ -184,23 +184,32 @@ async def _alert_live_divergence(
     raw_msg 는 사용자 본인 Pine 심볼/구조 메시지(거래소 시크릿 아님 — interpreter raise-site
     전수조사로 시장데이터·문자열 리터럴 미포함 검증) → actionable 차원에서 포함하되 [:200]
     truncate(defense-in-depth). 원본 전체·stack 은 호출부 logger.error 가 기록.
+
+    G2 P2#3 — kill_switch `_send_alert_safely` 미러: send 예외는 swallow + log (alert 실패가
+    fire-and-forget task 를 unretrieved-exception 으로 남기거나 흐름 깨면 안 됨).
     """
-    await send_critical_alert(
-        settings,
-        title="Live signal divergence — 세션 자동 비활성화 (무신호 차단)",
-        message=(
-            f"pine_v2 coverage↔interpreter 발산({stage}/{category}) 감지 — 세션을 "
-            "비활성화했습니다(오신호 dispatch 차단, 고정 SL/포지션은 거래소측 유지). "
-            f"전략 수정 후 재활성화 필요. detail: {raw_msg[:200]}"
-        ),
-        context={
-            "session_id": str(session_id)[:8],
-            "stage": stage,
-            "category": category,
-            "error_count": str(error_count),
-            "last_error_bar": str(last_error_bar),
-        },
-    )
+    try:
+        await send_critical_alert(
+            settings,
+            title="Live signal divergence — 세션 자동 비활성화 (무신호 차단)",
+            message=(
+                f"pine_v2 coverage↔interpreter 발산({stage}/{category}) 감지 — 세션을 "
+                "비활성화했습니다(오신호 dispatch 차단, 고정 SL/포지션은 거래소측 유지). "
+                f"전략 수정 후 재활성화 필요. detail: {raw_msg[:200]}"
+            ),
+            context={
+                "session_id": str(session_id)[:8],
+                "stage": stage,
+                "category": category,
+                "error_count": str(error_count),
+                "last_error_bar": str(last_error_bar),
+            },
+        )
+    except Exception as exc:
+        logger.warning(
+            "live_signal_divergence_alert_failed",
+            extra={"session_id": str(session_id)[:8], "error": str(exc)},
+        )
 
 
 def _fire_divergence_alert(
@@ -466,7 +475,37 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
-            result = run_live(strategy.pine_source, df)
+            try:
+                result = run_live(strategy.pine_source, df)
+            except Exception as exc:
+                # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
+                # parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /
+                # math domain ValueError(`math.sqrt(-1)`) 등 (strict=False 의 except PineRuntimeError
+                # 가 안 잡음). 미처리 시 claim rollback + 세션 active 유지 → 매 tick crash-loop.
+                # → 동일 fail-closed: 세션 비활성화 + metric + alert. (interpreter na-semantics
+                # 자체 수정은 BL-374 로 분리.)
+                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                await sess_repo.commit()
+                if rows == 1:
+                    qb_live_signal_divergence_total.labels(
+                        stage="runtime", category="run_live_error"
+                    ).inc()
+                    qb_live_signal_evaluated_total.labels(
+                        interval=interval_value, outcome="divergence_blocked"
+                    ).inc()
+                    _fire_divergence_alert(
+                        session_id=sess.id,
+                        stage="runtime",
+                        category="run_live_error",
+                        raw_msg=f"{type(exc).__name__}: {exc}",
+                        error_count=1,
+                        last_error_bar=-1,
+                    )
+                    logger.exception(
+                        "live_signal_run_live_crash",
+                        extra={"session_id": str(sess.id), "error_type": type(exc).__name__},
+                    )
+                return {"deactivated": "run_live_error"}
 
             # 7.5 BL-362 — runtime divergence safety net (money-path fail-closed).
             # run_historical(strict=False) 가 PineRuntimeError 를 삼키고 계속 → state corruption

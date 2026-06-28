@@ -284,7 +284,8 @@ qb_live_signal_divergence_total = Counter(
     # stage: preflight | runtime
     # category(preflight): coverage_unrunnable | degraded_unconsented
     # category(runtime): undefined_name | unsupported_attr | unsupported_call
-    #                    | unsupported_node | unexpected
+    #                    | unsupported_node | unexpected | run_live_error
+    #   run_live_error = run_live 가 result.errors 밖으로 raise (parse/raw arithmetic 등)
     labelnames=("stage", "category"),
 )
 

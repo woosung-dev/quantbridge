@@ -894,3 +894,134 @@ async def test_clean_strategy_no_divergence(monkeypatch: pytest.MonkeyPatch) -> 
     assert mock_alert.call_count == 0
     apply_async_spy.assert_called_once()  # 정상 dispatch 경로 보존
     assert _divergence_count("runtime", "unsupported_call") == before  # divergence 불변
+
+
+# G2 — run_live 가 result.errors 밖 예외를 raise 하는 경로 (parse/raw arithmetic) ----
+
+
+@pytest.mark.asyncio
+async def test_run_live_crash_deactivates(monkeypatch: pytest.MonkeyPatch) -> None:
+    """G2 P1 — run_live 가 result.errors 로 안 잡히는 예외(ZeroDivisionError 등) raise →
+    crash-loop 대신 fail-closed 비활성화 (category=run_live_error)."""
+    sess, sess_repo, event_repo, apply_async_spy, mock_alert = _divergence_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')",
+        run_live_result=LiveSignalResult(
+            last_bar_time=datetime(2026, 5, 1, 12, 0, tzinfo=UTC),
+            signals=[],
+            strategy_state_report={},
+            total_closed_trades=0,
+            total_realized_pnl=Decimal("0"),
+        ),
+        deactivate_rows=1,
+    )
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    def _boom(*_a: object, **_kw: object) -> Any:
+        raise ZeroDivisionError("float division by zero")
+
+    monkeypatch.setattr(event_loop_mod, "run_live", _boom)
+    before = _divergence_count("runtime", "run_live_error")
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    await _flush_pending_alerts()
+
+    assert res == {"deactivated": "run_live_error"}
+    sess_repo.deactivate.assert_awaited_once()
+    sess_repo.commit.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_called()
+    apply_async_spy.assert_not_called()
+    assert mock_alert.call_count == 1
+    assert _divergence_count("runtime", "run_live_error") == before + 1
+
+
+@pytest.mark.asyncio
+async def test_runtime_divergence_real_run_live(monkeypatch: pytest.MonkeyPatch) -> None:
+    """G2 P2#4 — 실제 run_live 통합: undefined_var 는 coverage-runnable 이나 runtime
+    PineRuntimeError → result.errors → 비활성화 (mock 이 가리지 않는 end-to-end)."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    real_run_live = event_loop_mod.run_live  # scaffold 패치 전 캡처
+    sess, sess_repo, event_repo, apply_async_spy, mock_alert = _divergence_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')\ny = undefined_var + 1\n",
+        run_live_result=LiveSignalResult(
+            last_bar_time=datetime(2026, 5, 1, 12, 0, tzinfo=UTC),
+            signals=[],
+            strategy_state_report={},
+            total_closed_trades=0,
+            total_realized_pnl=Decimal("0"),
+        ),
+        deactivate_rows=1,
+    )
+    monkeypatch.setattr(event_loop_mod, "run_live", real_run_live)  # 실제 run_live 복원
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    await _flush_pending_alerts()
+
+    assert res["deactivated"] == "runtime_divergence"
+    assert res["category"] == "undefined_name"
+    sess_repo.deactivate.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_called()
+    apply_async_spy.assert_not_called()
+    assert mock_alert.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_alert_live_divergence_send_failure_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G2 P2#3 — send_critical_alert raise 시 swallow + log (예외 전파 X)."""
+
+    async def boom_alert(settings: Any, *, title: str, message: str, context: Any) -> bool:
+        raise RuntimeError("slack down")
+
+    monkeypatch.setattr(live_signal_module, "send_critical_alert", boom_alert)
+    # 예외가 전파되면 이 await 가 raise → 테스트 실패. swallow 되면 정상 반환.
+    await live_signal_module._alert_live_divergence(
+        session_id=uuid4(),
+        stage="runtime",
+        category="unexpected",
+        raw_msg="x",
+        error_count=1,
+        last_error_bar=-1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_preflight_unrunnable_precedence_over_degraded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """is_runnable=False AND has_degraded=True 동시 → coverage_unrunnable 우선 (precedence)."""
+    sess = _build_session_obj()
+    sess_repo = AsyncMock()
+    sess_repo.get_by_id = AsyncMock(return_value=sess)
+    sess_repo.deactivate = AsyncMock(return_value=1)
+    sess_repo.commit = AsyncMock()
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner = AsyncMock(
+        return_value=_build_strategy(
+            sess.strategy_id,
+            pine_source=(
+                "//@version=5\nstrategy('t')\n"
+                "x = ta.ewma(close, 10)\n"  # unsupported → is_runnable=False
+                "z = request.security(syminfo.tickerid, '60', close)\n"  # degraded
+            ),
+        )
+    )
+    _patch_inner_dependencies(
+        monkeypatch,
+        sess_repo=sess_repo,
+        event_repo=AsyncMock(),
+        account_repo=_demo_account_repo(),
+        strategy_repo=strategy_repo,
+        ohlcv_rows=[[1, 1, 2, 0, 1, 100]],
+    )
+    monkeypatch.setattr(live_signal_module, "send_critical_alert", AsyncMock(return_value=True))
+    before = _divergence_count("preflight", "coverage_unrunnable")
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    await _flush_pending_alerts()
+
+    assert res == {"deactivated": "coverage_unrunnable"}  # is_runnable=False 우선
+    assert _divergence_count("preflight", "coverage_unrunnable") == before + 1
