@@ -307,3 +307,49 @@ def test_task_exhaustion_fires_alert_no_retry(monkeypatch):
     assert raised is None
     assert res["failed"] == "trailing_unprotected"
     retry.assert_not_called()
+
+
+def test_task_contract_error_no_retry_immediate_alert(monkeypatch):
+    """BL-372 — TrailingContractError(버전/degenerate/hedge)는 재시도 없이 즉시 alert + give up."""
+    from src.tasks import trading as t
+    from src.trading.exceptions import TrailingContractError
+
+    alert_spy = Mock(return_value=None)
+    monkeypatch.setattr(t, "_alert_trailing_unprotected", alert_spy)
+    res, retry, raised = _drive_task(
+        monkeypatch,
+        retries=0,  # 아직 소진 전이지만 contract 에러라 재시도 안 함
+        behaviors=[TrailingContractError("ccxt_unvalidated", "ccxt 9.9.9 ..."), None],
+    )
+    assert raised is None
+    assert res["failed"] == "ccxt_unvalidated"
+    retry.assert_not_called()
+    called_reason = alert_spy.call_args.kwargs.get("reason") or alert_spy.call_args.args[1]
+    assert called_reason == "ccxt_unvalidated"
+
+
+def test_task_exhaustion_alert_classified_taxonomy(monkeypatch):
+    """BL-372 #7 — 소진 alert reason 은 정확한 분류 문자열, 원본(누설) 미포함."""
+    from src.tasks import trading as t
+    from src.tasks.trading import _TRAILING_MAX_RETRIES
+    from src.trading.exceptions import ProviderError
+
+    alert_spy = Mock(return_value=None)
+    monkeypatch.setattr(t, "_alert_trailing_unprotected", alert_spy)
+    # reject 류 — 원본에 secret-ish payload 가 있어도 분류 문자열만 전송.
+    _drive_task(
+        monkeypatch,
+        retries=_TRAILING_MAX_RETRIES,
+        behaviors=[ProviderError("InvalidOrder: bybit {secret-ish payload} retCode=10001"), None],
+    )
+    r1 = alert_spy.call_args.kwargs.get("reason") or alert_spy.call_args.args[1]
+    assert r1 == "exchange_rejected"
+    assert "secret-ish" not in r1
+    # network 류
+    _drive_task(
+        monkeypatch,
+        retries=_TRAILING_MAX_RETRIES,
+        behaviors=[ProviderError("RequestTimeout: connection lost"), None],
+    )
+    r2 = alert_spy.call_args.kwargs.get("reason") or alert_spy.call_args.args[1]
+    assert r2 == "network_error"
