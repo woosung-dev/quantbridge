@@ -125,3 +125,24 @@ async def test_set_trading_stop_wraps_ccxt_error(credentials, bybit_mock):
         )
     assert "110017" in str(exc.value)
     bybit_mock.close.assert_awaited()
+
+
+async def test_set_trading_stop_rejects_unvalidated_ccxt(credentials, bybit_mock, monkeypatch):
+    """kill-switch 2차방어 — 미검증 ccxt 버전이면 발주 전 TrailingContractError raise(non-retry)."""
+    import ccxt.async_support as ccxt_async
+
+    from src.trading.exceptions import TrailingContractError
+    from src.trading.models import OrderSide
+    from src.trading.providers import BybitFuturesProvider
+
+    monkeypatch.setattr(ccxt_async, "__version__", "9.9.9", raising=False)
+    with pytest.raises(TrailingContractError) as ei:
+        await BybitFuturesProvider().set_trading_stop(
+            credentials,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            qty=Decimal("0.001"),
+            distance=Decimal("150.5"),
+        )
+    assert ei.value.reason == "ccxt_unvalidated"
+    bybit_mock.create_order.assert_not_awaited()  # 잘못될 수 있는 주문 미발주

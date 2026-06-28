@@ -15,10 +15,15 @@ from typing import Any, Literal, Protocol
 import ccxt.async_support as ccxt_async
 
 from src.common.metrics import ccxt_timer
-from src.trading.exceptions import ProviderError
+from src.trading.exceptions import ProviderError, TrailingContractError
 from src.trading.models import ExchangeMode, OrderSide, OrderType
 
 logger = logging.getLogger(__name__)
+
+# kill-switch 2차방어 — 트레일링은 ccxt 가 trailingStop param 을 trading-stop 엔드포인트
+#   (본질 reduce-only)로 라우팅한다는 계약에 의존. pyproject 는 ccxt>=4.0.0 이라 lock bump
+#   시 라우팅이 silent 변경될 수 있어, 검증된 버전 밖이면 발주 전 하드실패(non-retry).
+_VALIDATED_CCXT_VERSIONS = frozenset({"4.5.49"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -565,6 +570,15 @@ class BybitFuturesProvider:
         OKX/spot 은 native trailing 미지원(별 endpoint / `bybit.py:3988` spot 거부)이라
         본 메서드는 BybitFuturesProvider 전용 — 일반 ExchangeProvider Protocol 미포함.
         """
+        if ccxt_async.__version__ not in _VALIDATED_CCXT_VERSIONS:
+            # kill-switch 2차방어 — 라우팅 계약 미검증 시 잘못될 수 있는 주문을 내지 않는다.
+            raise TrailingContractError(
+                reason="ccxt_unvalidated",
+                detail=(
+                    f"ccxt {ccxt_async.__version__} not in validated set "
+                    f"{sorted(_VALIDATED_CCXT_VERSIONS)} — trailing routing contract unverified"
+                ),
+            )
         linear_symbol = _to_bybit_linear_symbol(symbol)
         exchange = ccxt_async.bybit(
             {
