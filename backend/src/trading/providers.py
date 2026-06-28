@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from typing import Any, Literal, Protocol
 
 import ccxt.async_support as ccxt_async
@@ -598,14 +598,24 @@ class BybitFuturesProvider:
                 # qty 는 ccxt 가 트레일링 경로에서 드롭하지만 시그니처/precision 충족용.
                 await exchange.load_markets()
                 amount = exchange.amount_to_precision(linear_symbol, qty)
-                # tick 정규화 — distance 는 가격 거리라 price tick 으로 양자화(coarse-tick 거부 방어).
-                distance_str = exchange.price_to_precision(linear_symbol, distance)
-                if not distance_str or Decimal(distance_str) <= 0:
-                    # 정규화 후 0/음수 = distance<tick → Bybit 거부할 무효 trailing distance.
+                # 보호 거리 tick 정규화 — Bybit 는 TICK_SIZE 모드라 precision.price 가 곧 tick.
+                #   price_to_precision 은 round-nearest 라 distance 를 줄일 수 있고(tighter =
+                #   premature exit) sub-tick 에선 InvalidOrder 를 던진다 → 직접 tick 으로 올림(ceil)
+                #   해 "절대 요청보다 타이트하지 않다"를 보장하고, sub-tick 은 명시 거부한다.
+                tick = Decimal(str(exchange.market(linear_symbol)["precision"]["price"]))
+                if tick <= 0:
                     raise TrailingContractError(
                         reason="degenerate_distance",
-                        detail=f"trailing distance {distance!r} normalized to {distance_str!r} (<=0)",
+                        detail=f"no positive price tick for {linear_symbol} (tick={tick})",
                     )
+                if distance < tick:
+                    # sub-tick = config 오류(Bybit 최소가 미만, 재시도 무의미) → 명시 거부.
+                    raise TrailingContractError(
+                        reason="degenerate_distance",
+                        detail=f"trailing distance {distance} < price tick {tick}",
+                    )
+                distance_q = (distance / tick).to_integral_value(rounding=ROUND_CEILING) * tick
+                distance_str = format(distance_q.normalize(), "f")
                 params: dict[str, Any] = {"trailingStop": distance_str}
                 result = await exchange.create_order(
                     linear_symbol, "market", side.value, amount, None, params

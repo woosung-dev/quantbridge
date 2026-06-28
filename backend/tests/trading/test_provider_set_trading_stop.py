@@ -5,8 +5,8 @@ create_order 를 Bybit trading-stop 엔드포인트(privatePostV5PositionTrading
 검증 사실(bybit.py 4100-4116):
 - isTrailingOrder → request['qty'] 미설정(side/qty 는 ccxt 시그니처용, Bybit 미전송).
 - request['trailingStop'] = trailingAmount. triggerDirection 분기 미도달(불필요).
-- trailingTriggerPrice → activePrice (옵션).
 - reduceOnly/triggerBy/triggerDirection 는 이 엔드포인트 no-op → 미전송(speculative 금지).
+- distance 는 price tick 으로 ceil(올림) — 보호 거리가 요청보다 타이트하면 안 됨(BL-372).
 """
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ def bybit_mock(monkeypatch):
     mock_exchange.load_markets = AsyncMock(return_value={})
     mock_exchange.amount_to_precision = MagicMock(side_effect=lambda s, a: str(a))
     mock_exchange.price_to_precision = MagicMock(side_effect=lambda s, p: str(p))
+    mock_exchange.market = MagicMock(return_value={"precision": {"price": 0.5}})  # tick=0.5
     mock_exchange.set_margin_mode = AsyncMock()
     mock_exchange.set_leverage = AsyncMock()
     mock_cls = MagicMock(return_value=mock_exchange)
@@ -148,12 +149,12 @@ async def test_set_trading_stop_rejects_unvalidated_ccxt(credentials, bybit_mock
     bybit_mock.create_order.assert_not_awaited()  # 잘못될 수 있는 주문 미발주
 
 
-async def test_set_trading_stop_normalizes_distance_to_tick(credentials, bybit_mock):
-    """distance 가 raw 가 아니라 price_to_precision(tick 정규화)을 거쳐 전송."""
+async def test_set_trading_stop_ceils_distance_to_tick_never_tighter(credentials, bybit_mock):
+    """보호 거리는 tick 으로 올림(ceil) — round-nearest 가 줄여 premature exit 되는 것 방지."""
     from src.trading.models import OrderSide
     from src.trading.providers import BybitFuturesProvider
 
-    bybit_mock.price_to_precision = MagicMock(side_effect=lambda s, p: "150.5")  # coarse→tick
+    # market tick=0.5 (fixture). 150.567 → ceil → 151 (round-nearest 150.5 보다 looser).
     await BybitFuturesProvider().set_trading_stop(
         credentials,
         symbol="BTC/USDT",
@@ -162,17 +163,17 @@ async def test_set_trading_stop_normalizes_distance_to_tick(credentials, bybit_m
         distance=Decimal("150.567"),
     )
     params = bybit_mock.create_order.call_args.args[5]
-    assert params["trailingStop"] == "150.5"  # raw "150.567" 아님
-    bybit_mock.price_to_precision.assert_called_once()
+    assert params["trailingStop"] == "151"  # ceil — raw "150.567"/round-nearest "150.5" 아님
+    assert Decimal(params["trailingStop"]) >= Decimal("150.567")  # 절대 요청보다 타이트하지 않음
 
 
-async def test_set_trading_stop_rejects_degenerate_distance(credentials, bybit_mock):
-    """tick 정규화 후 distance<=0 (distance<tick) → Bybit 가 거부할 무효 distance → 발주 차단."""
+async def test_set_trading_stop_rejects_subtick_distance(credentials, bybit_mock):
+    """sub-tick distance (< price tick) = config 오류(Bybit 최소 미만) → 즉시 degenerate(non-retry)."""
     from src.trading.exceptions import TrailingContractError
     from src.trading.models import OrderSide
     from src.trading.providers import BybitFuturesProvider
 
-    bybit_mock.price_to_precision = MagicMock(side_effect=lambda s, p: "0")
+    # market tick=0.5 (fixture). distance 0.0001 < tick → 거부, 발주 안 함.
     with pytest.raises(TrailingContractError) as ei:
         await BybitFuturesProvider().set_trading_stop(
             credentials,
