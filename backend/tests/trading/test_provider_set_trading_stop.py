@@ -183,3 +183,33 @@ async def test_set_trading_stop_rejects_degenerate_distance(credentials, bybit_m
         )
     assert ei.value.reason == "degenerate_distance"
     bybit_mock.create_order.assert_not_awaited()
+
+
+async def test_fetch_position_rejects_hedge_mode(credentials, bybit_mock):
+    """hedge(long+short 동시 open) → wrong-leg 추측 대신 TrailingContractError(non-retry)."""
+    from src.trading.exceptions import TrailingContractError
+    from src.trading.providers import BybitFuturesProvider
+
+    bybit_mock.fetch_positions = AsyncMock(
+        return_value=[
+            {"contracts": 0.001, "side": "long"},
+            {"contracts": 0.002, "side": "short"},
+        ]
+    )
+    with pytest.raises(TrailingContractError) as ei:
+        await BybitFuturesProvider().fetch_position(credentials, "BTC/USDT")
+    assert ei.value.reason == "hedge_mode_unsupported"
+
+
+async def test_fetch_position_one_way_returns_single_leg(credentials, bybit_mock):
+    """one-way: size>0 단일 leg 반환, flat(0) leg 무시 (회귀)."""
+    from src.trading.providers import BybitFuturesProvider, PositionInfo
+
+    bybit_mock.fetch_positions = AsyncMock(
+        return_value=[
+            {"contracts": 0.001, "side": "long"},
+            {"contracts": 0, "side": "short"},
+        ]
+    )
+    res = await BybitFuturesProvider().fetch_position(credentials, "BTC/USDT")
+    assert res == PositionInfo(size=Decimal("0.001"), side="long")

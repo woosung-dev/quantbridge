@@ -613,7 +613,9 @@ class BybitFuturesProvider:
             # ★ codex P1 — Bybit trading-stop 엔드포인트는 성공 시 빈 result(orderId 없음 —
             #   포지션 수정이라 주문 아님, V5 docs result:{}). create_order 가 예외 없이 반환
             #   = 수용. id 부재를 malformed 로 오판하면 성공을 retry → false UNPROTECTED
-            #   alert(money-path bug). 호출자는 반환값 미사용(독립 fetch_position 으로 검증).
+            #   alert(money-path bug). 호출자(_do_place_trailing_stop)는 반환값 미사용 —
+            #   발주 *전* fetch_position stale 가드만 수행(flat/flip/hedge 차단). 발주 *후*
+            #   독립 재조회 검증은 없음.
             return dict(result) if isinstance(result, dict) else {}
         except ProviderError:
             raise
@@ -652,6 +654,7 @@ class BybitFuturesProvider:
         try:
             async with ccxt_timer("bybit_futures", "fetch_position"):
                 positions = await exchange.fetch_positions([linear_symbol])
+            legs: list[PositionInfo] = []
             for p in positions:
                 contracts = p.get("contracts")
                 if contracts is None:
@@ -659,8 +662,15 @@ class BybitFuturesProvider:
                 size = Decimal(str(contracts))
                 side = p.get("side")
                 if size > 0 and side in ("long", "short"):
-                    return PositionInfo(size=size, side=side)
-            return None
+                    legs.append(PositionInfo(size=size, side=side))
+            if len(legs) > 1:
+                # hedge(long+short 동시 open) — 어느 leg 에 trailing 을 붙일지 추론 불가.
+                #   첫 leg 추측 = wrong-leg 오부착(money-path). 발주 차단(non-retry + alert).
+                raise TrailingContractError(
+                    reason="hedge_mode_unsupported",
+                    detail=f"{len(legs)} open legs for {symbol} — one-way mode required",
+                )
+            return legs[0] if legs else None
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:
