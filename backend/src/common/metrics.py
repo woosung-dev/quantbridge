@@ -276,6 +276,18 @@ qb_live_signal_outbox_pending_gauge = Gauge(
     "qb_live_signal_outbox_pending_gauge",
     "Live signal outbox events with status=pending (snapshot at last eval cycle)",
 )
+# BL-362 — live 경로 coverage↔interpreter 발산(silent swallow) fail-closed 집계.
+# 발산 감지 시 세션 자동 비활성화 + 본 metric inc + critical alert. 0 초과 = 즉시 운영 page.
+qb_live_signal_divergence_total = Counter(
+    "qb_live_signal_divergence_total",
+    "Live signal money-path divergence blocked (auto-deactivate session)",
+    # stage: preflight | runtime
+    # category(preflight): coverage_unrunnable | degraded_unconsented
+    # category(runtime): undefined_name | unsupported_attr | unsupported_call
+    #                    | unsupported_node | unexpected | run_live_error
+    #   run_live_error = run_live 가 result.errors 밖으로 raise (parse/raw arithmetic 등)
+    labelnames=("stage", "category"),
+)
 
 
 @asynccontextmanager
