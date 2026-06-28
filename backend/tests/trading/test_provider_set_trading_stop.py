@@ -83,23 +83,6 @@ async def test_set_trading_stop_no_speculative_params(credentials, bybit_mock):
     assert params == {"trailingStop": "80"}
 
 
-async def test_set_trading_stop_active_price(credentials, bybit_mock):
-    """trigger_price → params trailingTriggerPrice (ccxt activePrice 라우팅)."""
-    from src.trading.models import OrderSide
-    from src.trading.providers import BybitFuturesProvider
-
-    await BybitFuturesProvider().set_trading_stop(
-        credentials,
-        symbol="BTC/USDT",
-        side=OrderSide.sell,
-        qty=Decimal("0.001"),
-        distance=Decimal("150.5"),
-        trigger_price=Decimal("52000"),
-    )
-    params = bybit_mock.create_order.call_args.args[5]
-    assert params == {"trailingStop": "150.5", "trailingTriggerPrice": "52000"}
-
-
 async def test_set_trading_stop_accepts_empty_result_no_id(credentials, bybit_mock):
     """codex P1 — Bybit trading-stop 엔드포인트 성공 = 빈 result(orderId 없음, V5 docs).
 

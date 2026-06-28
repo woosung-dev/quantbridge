@@ -551,14 +551,13 @@ class BybitFuturesProvider:
         side: OrderSide,
         qty: Decimal,
         distance: Decimal,
-        trigger_price: Decimal | None = None,
     ) -> dict[str, Any]:
         """STEP B — 포지션에 Bybit native trailing-stop 부착 (포지션 open 후 호출).
 
         트레일링은 별도 주문이 아니라 포지션 속성. ccxt 4.5.49 가 trailingStop param 이
         붙은 create_order 를 Bybit trading-stop 엔드포인트(privatePostV5PositionTradingStop)
         로 라우팅한다(bybit.py:3892/3898). 그 분기는 side/qty 를 드롭(bybit.py:4100)하고
-        trailingStop(+옵션 activePrice)만 전송 — whole-position, 방향은 Bybit 가 포지션에서
+        trailingStop 만 전송 — whole-position, 방향은 Bybit 가 포지션에서
         추론(triggerDirection 불필요, bybit.py:4106-4116 미도달). side/qty 는 ccxt.create_order
         시그니처 충족용(Bybit 미전송). reduceOnly/triggerBy 는 이 엔드포인트 no-op → 미전송.
         entry 와 달리 포지션이 이미 열린 뒤라 안전(reduce-only 는 엔드포인트 본질).
@@ -586,9 +585,6 @@ class BybitFuturesProvider:
                 await exchange.load_markets()
                 amount = exchange.amount_to_precision(linear_symbol, qty)
                 params: dict[str, Any] = {"trailingStop": str(distance)}
-                if trigger_price is not None:
-                    # ccxt: trailingTriggerPrice → request['activePrice'] (트레일 활성가).
-                    params["trailingTriggerPrice"] = str(trigger_price)
                 result = await exchange.create_order(
                     linear_symbol, "market", side.value, amount, None, params
                 )
