@@ -635,8 +635,8 @@ class Interpreter:
         value_node = node.value
         slice_node = node.slice
         offset = self._eval_expr(slice_node)
-        # 음수 offset → Pine na (잘못된 인덱스 silently degrade)
-        if isinstance(offset, float) and not math.isnan(offset):
+        # 음수/비유한 offset → Pine na (잘못된 인덱스 degrade). BL-376: inf 도 int() 안 함 → na.
+        if isinstance(offset, float) and math.isfinite(offset):
             offset = int(offset)
         if not isinstance(offset, int) or offset < 0:
             return float("nan")
@@ -761,11 +761,13 @@ class Interpreter:
             if name == "math.min":
                 return min(args)
             if name == "math.floor":
-                return math.floor(args[0])
+                # BL-376 (G1 P1#1): floor/ceil/round 만 inf → na (int 변환 OverflowError 차단).
+                # 공유 na 가드(위 any(_is_na))를 inf 로 확장 금지 — abs/sign/max/min 은 inf 통과 유지.
+                return float("nan") if not math.isfinite(args[0]) else math.floor(args[0])
             if name == "math.ceil":
-                return math.ceil(args[0])
+                return float("nan") if not math.isfinite(args[0]) else math.ceil(args[0])
             if name == "math.round":
-                return round(args[0])
+                return float("nan") if not math.isfinite(args[0]) else round(args[0])
             if name == "math.sqrt":
                 # BL-374: math.sqrt(-1) → ValueError(domain) → na (TradingView 의미).
                 return _na_safe(lambda: math.sqrt(args[0]))
@@ -811,7 +813,7 @@ class Interpreter:
                 val = self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a)
                 try:
                     parts.append(int(val))
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, OverflowError):  # BL-376: int(inf) → 0 (degrade)
                     parts.append(0)
             while len(parts) < 5:
                 parts.append(0)

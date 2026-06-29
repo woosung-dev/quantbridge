@@ -13,7 +13,7 @@ TradingView Pine 의미상 0 나눗셈 / 음수 sqrt / log 도메인 / overflow 
 - (c) 정상 산술은 그대로 동작 (회귀 0).
 - (d) 중간 bar 0 나눗셈에도 full 백테스트 완주 (BL-362 회귀 오라클).
 - (e) 진짜 logic 오류(미지원 함수)·TypeError 는 여전히 전파 (fail-closed 유지).
-- (f) scope 밖 na 사이징은 무음 오염 0 — "깨끗한 실패" (BL-376 이연 안전성 근거).
+- (f) na qty 사이징은 주문 skip 으로 통일 — 무음 오염 0 (BL-376 해소, 상세는 test_na_inf_consumption).
 - (g) na 정규화는 숫자 산술에만 — 문자열 % 등 타입 오용은 fail-closed 유지 (G2 over-catch 차단).
 """
 
@@ -234,15 +234,14 @@ def test_type_errors_still_propagate() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_na_qty_fails_cleanly_no_silent_corruption() -> None:
-    """strategy.entry(qty=na) 가 실제 체결되면 백테스트는 깨끗이 실패 — 절대 status=='ok' 아님.
+def test_na_qty_entry_skipped_completes() -> None:
+    """BL-376: strategy.entry(qty=na) 는 주문 skip (라이브 nan→reject 미러) → 정상 완주.
 
-    BL-376 으로 이연한 qty=na 시나리오의 안전성 근거. 무음으로 잘못된 결과
-    (status=='ok' + nan PnL)를 내지 않고, _compute_metrics 의 Decimal 비교에서
-    decimal.InvalidOperation 으로 깨끗이 실패(status='error')한다.
-
-    주의: 진입이 *실제로 체결*돼야 이 안전성이 발현된다. 매 bar `close > open` 이
-    참인 시계열(ohlcv 의 단조 증가 open)을 써 bar 1+ 에서 진입을 체결시킨다.
+    BL-374 시점엔 이연했다 (당시 closed 진입은 _compute_metrics 의 Decimal 비교에서
+    decimal.InvalidOperation 으로 깨끗이 실패했으나, *미청산* 진입은 status=='ok' 인데
+    equity 가 NaN 으로 무음 오염되는 잔여가 있었다). BL-376 이 na/non-finite qty 를
+    StrategyState.entry 에서 skip 하도록 통일 → closed/open 모두 status='ok' + 거래 0.
+    상세 회귀는 test_na_inf_consumption.py (Site #2).
     """
     source = (
         "//@version=5\n"
@@ -252,10 +251,8 @@ def test_na_qty_fails_cleanly_no_silent_corruption() -> None:
         '    strategy.entry("L", strategy.long, qty=q)\n'
     )
     outcome = run_backtest_v2(source, ohlcv(20), BacktestConfig())
-    # 무음 오염 0 잠금: 절대 status=="ok" 가 아니어야 한다 (깨끗한 실패).
-    assert outcome.status != "ok", f"na qty silently produced ok outcome: {outcome.status}"
-    assert outcome.status == "error"
-    assert "InvalidOperation" in str(outcome.error or "")
+    assert outcome.status == "ok", f"status={outcome.status} error={outcome.error}"
+    assert outcome.result is not None and len(outcome.result.trades) == 0
 
 
 # ---------------------------------------------------------------------------
