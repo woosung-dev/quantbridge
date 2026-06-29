@@ -10,6 +10,7 @@
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
 
+- **2026-06-29 BL-374 Resolved (`fix/pine-374-na-semantics`)**: pine_v2 인터프리터 산술/math 도메인 오류 → Pine `na` 정규화 (`_na_safe`, 숫자 산술 한정, `math.pow` `**`→`math.pow()`). G1-G4 게이트(codex plan eval + 3-candidate generator panel + codex challenge[F1 dead stdlib-clamp 제거 + F2 문자열 `%` fail-closed] + fresh review GO + mutation 5/5) + full suite 2226 pass(cov 95.6%) + Playwright E2E(div-by-zero 백테스트 FAILED→COMPLETED, console.error 0). 신규 [BL-376] (deferred: na→length/qty, inf→floor·ceil·round).
 - **2026-05-17 Sprint 62 PR #290 merge (Beta 본격 진입 결정 ★★★★★)**: 6 BL fix-first (BL-350+354 ★★★ Optimizer Zod resilience + BL-353 step 01 라벨 + BL-356/357/358/359 모바일 터치 ≥44pt 묶음). 실측 ~2-3h vs plan 6-8h (LESSON-067 6차 검증). main `36bb4e0`. **BL-070~072 milestone active 승격**. **재측정 skip + 본인 의지 (d) 통과**.
 - **2026-05-17 Multi-Agent QA 재측정 (post-Sprint 61)**: Composite 6.08 → **7.5/10** (+1.42 목표 도달). 신규 BL-347~360 (14건, Critical 0 / P0 2 ★★★ 공통 BL-350+354 / P1 4 / P2 5 / P3 3). Sprint 61 11 BL Resolved 마킹 (PASS 8 + PARTIAL 2 + manual 1). 상세 = [`docs/qa/2026-05-17-post-sprint61/integrated-report.html`](qa/2026-05-17-post-sprint61/integrated-report.html).
 - **2026-05-17 Sprint 61 PR #288 merge**: 11 BL fix (BL-310/311/312/319/322/323/327/328/339/340) source 적용 + hotfix PR #289 (BL-348/349). docs/qa/2026-05-17/ baseline 별도.
@@ -268,8 +269,9 @@
 | [BL-369](#bl-369) | 3 provider `create_order` try/except/finally ~40 LOC 복붙                            | trading deepening sprint                   | S (2-4h)     | 2026-06-26 trading-deepen-2                         |
 | [BL-372](#bl-372) | STEP B 트레일링 live-placement 3-리뷰어 검증 follow-up 번들 (9 항목, P2/P3)          | Wave 3 실자금 cutover 전                   | M (6-10h)    | 2026-06-26 trailing 3-reviewer (codex+Opus 6-lens)  |
 | [BL-373](#bl-373) | OCO 형제취소 (sibling-cancel) — standalone exit order 시점 구현                       | BL-365 standalone-trigger 발주 시         | S-M (3-5h)   | 2026-06-28 grilling (트레일링 후속 scope)            |
-| [BL-374](#bl-374) | pine_v2 interpreter na-semantics — `x/0`·`math.sqrt(-1)` 등 raw 예외 → Pine `na`     | pine_v2 robustness sprint                  | M (4-6h)     | 2026-06-28 BL-362 G2 codex challenge                 |
+| [BL-374](#bl-374) | ✅ Resolved (2026-06-29) — pine_v2 interpreter na-semantics — `x/0`·`math.sqrt(-1)` 등 raw 예외 → Pine `na` | ✅ `fix/pine-374-na-semantics`              | M (4-6h)     | 2026-06-28 BL-362 G2 codex challenge                 |
 | [BL-375](#bl-375) | trailing same-side stale 잔여 — reconcile-lag late filled_at 시 reopen 미탐 (거래소 fill-time 소싱) | Wave 3 실자금 cutover 전                   | S-M (3-5h)   | 2026-06-29 BL-372 same-side stale G1 codex           |
+| [BL-376](#bl-376) | pine_v2 na/inf 소비 사이트 robustness — na→ta.* length / na→entry qty / inf→math.floor·ceil·round | pine_v2 robustness 후속 또는 실자금 cutover 전 | M (4-6h)     | 2026-06-29 BL-374 G1/G2/G3 + generator panel 합의      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -548,6 +550,29 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **권장 접근:** `BinOp` Div/Mod 0-분모 → `na`(float nan), `math.sqrt/log/...` 도메인 밖 입력 → `na` 로 정규화(Pine 의미 일치). stdlib/interpreter 산술 경로에 na-guard 추가 + 골든 테스트(`1/0 == na`, `sqrt(-1) == na`). 완료 시 BL-362 의 `run_live_error` 비활성화는 진짜 구조적 crash(parse error 등)에만 발생.
 
 **Risk:** 🟢 (BL-362 fail-closed 로 라이브 money-path 는 이미 안전 — 본 BL 은 false-positive 정밀도 개선).
+
+**상태:** ✅ **Resolved (2026-06-29, `fix/pine-374-na-semantics`, commit `2cd1313`).** `_na_safe(compute)` 헬퍼(`(ArithmeticError, ValueError)` catch + complex 결과 → nan)를 `_eval_binop`(숫자 피연산자 한정 — 문자열 `%` 등 타입 오용은 fail-closed) + `math.sqrt/log/log10/exp` 에 적용, `math.pow` 는 `args[0] ** args[1]` → `math.pow()` 전환(bigint/complex 무음오염 차단). `PineRuntimeError`/`TypeError` 전파 유지(BL-362 fail-closed 유지). stdlib `ta_stdev/ta_bb` sqrt-clamp 는 G2 challenge 에서 2-pass variance ≥0 항상이라 dead-code 로 판명 → 제거(diff = `interpreter.py` + 신규 테스트만). 검증 = G1 codex plan eval + 3-candidate generator panel(core 6 edit byte-identical 수렴) + G2 codex challenge(F1 dead-clamp 제거 + F2 문자열 `%` over-catch → 숫자 한정 가드) + G3 fresh review(GO) + mutation 5/5 catch + full suite 2226 pass(cov 95.6%) + **Playwright E2E**(div-by-zero 백테스트 FAILED→COMPLETED, console.error 0). **잔여 deferred → [BL-376](#bl-376).**
+
+---
+
+### BL-376
+
+**Title:** pine_v2 na/inf 소비 사이트 robustness — na→ta.* length / na→strategy.entry qty / inf→math.floor·ceil·round
+**Category:** Strategy / pine_v2 (interpreter robustness)
+**Priority:** P3
+**Trigger:** pine_v2 robustness 후속 또는 실자금 cutover 전 (BL-374 후속)
+**Est:** M (4-6h)
+**출처:** 2026-06-29 BL-374 G1 codex / G2 codex challenge / G3 fresh review + 3-candidate generator panel 합의
+
+**원인 / 영향:** BL-374 가 산술/math _생성_ 사이트의 raw 예외를 na 로 정규화했으나, 그 na/inf 가 _소비_ 되는 다음 사이트는 여전히 raw 예외 escape 가능(전부 실측 검증, 동일 harm class = `run_historical` 밖 escape → 백테스트 FAILED / 라이브 세션 비활성):
+
+- **na → ta.\* length:** `ta.sma(close, na)` 등이 `int(nan)`(ValueError) / `deque(maxlen=nan)`(TypeError). 단 실 TradingView 는 length=simple int 강제라 비-TV-valid 시나리오(우리 인터프리터 leniency). pre-existing.
+- **na → strategy.entry qty:** `qty=close/0` → na qty → `_compute_metrics` 의 `Decimal('NaN')` 비교에서 `decimal.InvalidOperation` → status=error(**깨끗한 실패, 무음 오염 아님**). 라이브는 이미 nan qty 거부(`test_live_exit_surfacing`). 사이징을 div-by-zero 로 하는 전략은 본질적으로 broken.
+- **non-raising inf → math.floor/ceil/round/subscript-int:** `1e308 * 10.0`(operator.mul, raise 안 함) → inf → `math.floor(inf)` 등 `OverflowError` escape. 3-candidate generator panel 전원 + G3 fresh review 독립 발견.
+
+**권장 접근:** (a) ta.\* length 진입 시 na/non-finite → na 결과 정규화(또는 length 타입 강제). (b) strategy.entry/order qty 가 na/non-finite → 주문 skip(라이브 path 의 기존 nan→reject 미러). (c) inf 생성부 clamp 또는 floor/ceil/round/subscript int 변환 na-safe. 골든 테스트 동반.
+
+**Risk:** 🟢 (전부 현재 깨끗한 실패 또는 비-TV-valid — BL-374 가 핵심 false-positive 해소, 본 BL 은 잔여 robustness).
 
 ---
 

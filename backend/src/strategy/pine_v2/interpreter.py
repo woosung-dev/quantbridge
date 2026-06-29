@@ -30,7 +30,7 @@ from __future__ import annotations
 import math
 import operator
 from collections import deque
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -563,6 +563,10 @@ class Interpreter:
         # Pine na 전파: 피연산자가 nan이면 결과도 nan
         if _is_na(left) or _is_na(right):
             return float("nan")
+        # BL-374: na 정규화(ZeroDivision/overflow → na)는 숫자 산술에만. 문자열 등
+        # 타입 오용(예: 잘못된 포맷 "%" % x → ValueError)은 fail-closed 로 전파 유지.
+        if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+            return _na_safe(lambda: fn(left, right))
         return fn(left, right)
 
     def _eval_unaryop(self, node: Any) -> Any:
@@ -763,13 +767,19 @@ class Interpreter:
             if name == "math.round":
                 return round(args[0])
             if name == "math.sqrt":
-                return math.sqrt(args[0])
+                # BL-374: math.sqrt(-1) → ValueError(domain) → na (TradingView 의미).
+                return _na_safe(lambda: math.sqrt(args[0]))
             if name == "math.log":
-                return math.log(args[0]) if len(args) == 1 else math.log(args[0], args[1])
+                # BL-374: log(0)/log(음수)/base=1 도메인·0나눗셈 → na.
+                return _na_safe(
+                    lambda: math.log(args[0]) if len(args) == 1 else math.log(args[0], args[1])
+                )
             if name == "math.log10":  # S2 (전체 정검 P1-10/13): coverage SUPPORTED 누락분
-                return math.log10(args[0])
+                # BL-374: math.log10(0)/log10(음수) domain error → na.
+                return _na_safe(lambda: math.log10(args[0]))
             if name == "math.pow":
-                return args[0] ** args[1]
+                # BL-374: math.pow 로 통일 — bigint(10**1000)/complex(음수^분수) 무음오염 차단.
+                return _na_safe(lambda: math.pow(args[0], args[1]))
             if name == "math.avg":
                 # Pine math.avg(x1, x2, ...) — 여러 값의 산술 평균. na 는 무시.
                 clean = [a for a in args if not _is_na(a)]
@@ -782,7 +792,8 @@ class Interpreter:
                     return float("nan")
                 return 1 if v > 0 else (-1 if v < 0 else 0)
             if name == "math.exp":
-                return math.exp(args[0])
+                # BL-374: math.exp(1000) → OverflowError → na (inf 무음오염 차단).
+                return _na_safe(lambda: math.exp(args[0]))
             if name == "math.sum":
                 # Pine math.sum(source, length) — 단순 cumulative sum stub
                 # 정밀 구현은 ta.sum (stdlib); math.sum 은 거의 쓰이지 않으므로 단순 합산.
@@ -1369,6 +1380,18 @@ class Interpreter:
 
 def _is_na(value: Any) -> bool:
     return isinstance(value, float) and math.isnan(value)
+
+
+def _na_safe(compute: Callable[[], Any]) -> Any:
+    # Pine 산술/math: ZeroDivision / domain error / overflow → na. 음수밑 분수승 complex → na.
+    # PineRuntimeError(RuntimeError)·TypeError 는 안 잡음 (BL-362 fail-closed 유지).
+    try:
+        result = compute()
+    except (ArithmeticError, ValueError):
+        return float("nan")
+    if isinstance(result, complex):
+        return float("nan")
+    return result
 
 
 def _attr_chain(node: Any) -> str:
