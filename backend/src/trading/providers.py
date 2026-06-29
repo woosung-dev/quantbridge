@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from typing import Any, Literal, Protocol
 
@@ -124,10 +125,35 @@ class PositionInfo:
     """STEP B — set_trading_stop 전 stale-position 가드용 현재 포지션 스냅샷.
 
     size = 절대 수량(contracts, > 0). side = "long" | "short". 무포지션이면 None 반환.
+    created_at = 거래소 포지션 생성 시각(aware UTC) — BL-372 same-side stale 가드용.
+      우리 fill 후 생성된(reopened) 포지션 식별에 사용. 거래소 미제공 시 None(가드 degrade).
     """
 
     size: Decimal
     side: Literal["long", "short"]
+    created_at: datetime | None = None
+
+
+def _parse_position_created_at(position: dict[str, Any]) -> datetime | None:
+    """Bybit raw ``info.createdTime``(ms epoch str) → aware UTC. BL-372 same-side stale 가드 입력.
+
+    ccxt normalized ``timestamp`` 대신 raw ``createdTime`` 사용 — ccxt 버전에 따라
+    ``timestamp`` 가 ``updatedTime`` 에서 채워질 수 있고, 그러면 same-side ADD(updatedTime
+    갱신)를 reopen 으로 오탐한다(G1 codex). Bybit ``createdTime`` = 최초 포지션 생성 시각
+    (ADD 시 불변). ``createdAt`` fallback = ccxt 가 둘 다 참조(USDC 샘플)하므로 정합(G2).
+    결측/빈값/0/비정상 → None(상위 가드가 side-only 로 degrade).
+    """
+    info = position.get("info") or {}
+    raw = info.get("createdTime") or info.get("createdAt")
+    if not raw:
+        return None
+    try:
+        ms = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if ms <= 0:
+        return None
+    return datetime.fromtimestamp(ms / 1000, tz=UTC)
 
 
 async def _to_exchange_precision(
@@ -682,7 +708,13 @@ class BybitFuturesProvider:
                 size = Decimal(str(contracts))
                 side = p.get("side")
                 if size > 0 and side in ("long", "short"):
-                    legs.append(PositionInfo(size=size, side=side))
+                    legs.append(
+                        PositionInfo(
+                            size=size,
+                            side=side,
+                            created_at=_parse_position_created_at(p),
+                        )
+                    )
             if len(legs) > 1:
                 # hedge(long+short 동시 open) — 어느 leg 에 trailing 을 붙일지 추론 불가.
                 #   첫 leg 추측 = wrong-leg 오부착(money-path). 발주 차단(non-retry + alert).

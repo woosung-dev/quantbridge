@@ -5,6 +5,7 @@ money-path: 무방비 방지 — 성공/skip 분류 + network 실패는 raise(�
 from __future__ import annotations
 
 import contextlib
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
@@ -23,7 +24,7 @@ def _provider(*, pos, set_side_effect=None):
     return p
 
 
-async def _run(provider, *, entry_side=OrderSide.buy, distance=Decimal("3.0")):
+async def _run(provider, *, entry_side=OrderSide.buy, distance=Decimal("3.0"), order_filled_at=None):
     from src.tasks.trading import _do_place_trailing_stop
 
     return await _do_place_trailing_stop(
@@ -33,6 +34,7 @@ async def _run(provider, *, entry_side=OrderSide.buy, distance=Decimal("3.0")):
         distance=distance,
         creds=object(),
         provider=provider,
+        order_filled_at=order_filled_at,
     )
 
 
@@ -95,6 +97,73 @@ async def test_network_failure_raises_for_retry():
         await _run(p)
 
 
+# ---------------------------------------------------------------------------
+# BL-372 same-side stale — createdTime ↔ filled_at 불변식 가드.
+#   side 일치하지만 우리 fill *후* 생성된(reopened) 포지션에 trailing 오부착 차단.
+# ---------------------------------------------------------------------------
+_FILLED = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+
+async def test_skip_position_reopened():
+    """createdTime > filled_at + 2s tol → close→동일방향 reopen 된 무관 포지션 → benign skip."""
+    pos = PositionInfo(
+        size=Decimal("0.001"), side="long", created_at=_FILLED + timedelta(seconds=3)
+    )
+    p = _provider(pos=pos)
+    res = await _run(p, entry_side=OrderSide.buy, order_filled_at=_FILLED)
+    assert res == {"skipped": "position_reopened"}
+    p.set_trading_stop.assert_not_awaited()
+
+
+async def test_place_when_created_before_fill():
+    """createdTime ≤ filled_at (정상 open/add) → trailing 부착."""
+    pos = PositionInfo(
+        size=Decimal("0.001"), side="long", created_at=_FILLED - timedelta(seconds=5)
+    )
+    p = _provider(pos=pos)
+    res = await _run(p, order_filled_at=_FILLED)
+    assert res == {"placed": True}
+    p.set_trading_stop.assert_awaited_once()
+
+
+async def test_place_when_created_within_tolerance():
+    """createdTime - filled_at = 1s (< 2s tol) → clock skew 흡수 → 부착(false-skip 방지)."""
+    pos = PositionInfo(
+        size=Decimal("0.001"), side="long", created_at=_FILLED + timedelta(seconds=1)
+    )
+    p = _provider(pos=pos)
+    res = await _run(p, order_filled_at=_FILLED)
+    assert res == {"placed": True}
+
+
+async def test_place_when_created_exactly_at_tolerance_boundary():
+    """G1 P2 — createdTime = filled_at + 정확히 2s → `>` strict 라 부착(경계는 skip 아님)."""
+    pos = PositionInfo(
+        size=Decimal("0.001"), side="long", created_at=_FILLED + timedelta(seconds=2)
+    )
+    p = _provider(pos=pos)
+    res = await _run(p, order_filled_at=_FILLED)
+    assert res == {"placed": True}
+
+
+async def test_degrade_when_created_at_none():
+    """pos.created_at None(거래소 미제공) → side-only degrade(부착). bracket SL floor 가 보호."""
+    pos = PositionInfo(size=Decimal("0.001"), side="long")  # created_at 기본 None
+    p = _provider(pos=pos)
+    res = await _run(p, order_filled_at=_FILLED)
+    assert res == {"placed": True}
+
+
+async def test_degrade_when_filled_at_none():
+    """order_filled_at None → 비교 불가 → side-only degrade(부착). created_at 이 미래여도 부착."""
+    pos = PositionInfo(
+        size=Decimal("0.001"), side="long", created_at=datetime(2030, 1, 1, tzinfo=UTC)
+    )
+    p = _provider(pos=pos)
+    res = await _run(p, order_filled_at=None)
+    assert res == {"placed": True}
+
+
 class _FakeSession:
     def __init__(self, account):
         self._account = account
@@ -133,6 +202,7 @@ def _order(**kw):
         "side": OrderSide.buy,
         "leverage": 5,
         "trailing_stop": Decimal("3.0"),
+        "filled_at": None,
     }
     base.update(kw)
     return SimpleNamespace(**base)
@@ -177,6 +247,27 @@ async def test_session_wrapper_bybit_futures_proceeds(monkeypatch):
     res = await _place_trailing_stop_with_session(order.id, sm, provider=provider)
     assert res == {"placed": True}
     provider.set_trading_stop.assert_awaited_once()
+
+
+async def test_session_wrapper_passes_filled_at_to_guard(monkeypatch):
+    """BL-372 — _place_trailing_stop_with_session 가 order.filled_at 을 가드까지 전달.
+
+    전달 안 하면 order_filled_at=None → degrade → place 가 되어 통과한다(false-green).
+    reopened 포지션(createdTime > filled_at+tol)을 줘서, filled_at 이 실제로 흘러야만
+    'position_reopened' skip 이 나옴을 단언(= 전달 검증).
+    """
+    from src.tasks.trading import _place_trailing_stop_with_session
+    from src.trading.models import ExchangeName
+
+    order = _order(filled_at=_FILLED)
+    sm = _patch_session_wrapper(monkeypatch, order=order, account=_account(ExchangeName.bybit))
+    pos = PositionInfo(
+        size=Decimal("0.001"), side="long", created_at=_FILLED + timedelta(seconds=5)
+    )
+    provider = _provider(pos=pos)
+    res = await _place_trailing_stop_with_session(order.id, sm, provider=provider)
+    assert res == {"skipped": "position_reopened"}
+    provider.set_trading_stop.assert_not_awaited()
 
 
 async def test_alert_trailing_unprotected_fires_critical(monkeypatch):

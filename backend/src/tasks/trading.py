@@ -18,7 +18,7 @@ has_leverage) 3-tuple 기반 dynamic. settings.exchange_provider 는 dispatch pa
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -844,6 +844,12 @@ _TRAILING_RETRY_BASE_SECONDS = 10
 #   transient 재시도 후에야 concede(trailing silent 미부착 차단). MAX_RETRIES 미만으로 둬
 #   network 재시도 예산을 남긴다.
 _TRAILING_FLAT_RETRY_LIMIT = 2
+# BL-372 same-side stale — close→동일방향 reopen 이 placement 창(countdown+retry) 안에
+#   일어나면 fetch_position 이 side 일치 포지션을 반환해 flip 가드를 통과한다. 옛 order 의
+#   trailing 이 무관한 새 trade 에 오부착(다른 trade exit policy 변경 = money-path). position
+#   createdTime > our fill_at + 이 tolerance 면 reopened 로 보고 skip. tolerance 는 거래소-서버
+#   clock skew 흡수용(정상 open 은 createdTime ≤ filled_at 이 자연 성립). `>` strict (경계=부착).
+_TRAILING_REOPEN_TOLERANCE = timedelta(seconds=2)
 
 
 def _is_position_zero_error(exc: ProviderError) -> bool:
@@ -889,12 +895,16 @@ async def _do_place_trailing_stop(
     distance: Decimal,
     creds: Credentials,
     provider: Any,
+    order_filled_at: datetime | None = None,
 ) -> dict[str, Any]:
     """순수 오케스트레이션 — stale-position 가드 → set_trading_stop → 결과 분류.
 
-    money-path: 무방비 방지가 목표. position flat/flip 은 benign skip(stale task 가
-    신규/없는 포지션에 오부착 차단). network/exchange 실패는 raise → 상위 task 가
+    money-path: 무방비 방지가 목표. position flat/flip/reopened 는 benign skip(stale task 가
+    신규/없는/무관 포지션에 오부착 차단). network/exchange 실패는 raise → 상위 task 가
     bounded retry + 최종 실패 시 critical alert(포지션 무방비 표면화).
+
+    ``order_filled_at`` = 이 order 의 fill 처리 시각(BL-372 same-side stale 가드). None 이면
+    (또는 pos.created_at None 이면) 비교 불가 → side-only 로 degrade(현행 동작).
     """
     # entry 포지션 방향 ↔ 청산(exit) side. ccxt 가 side/qty 는 드롭하지만 시그니처용.
     expected_side = "long" if entry_side == OrderSide.buy else "short"
@@ -917,6 +927,36 @@ async def _do_place_trailing_stop(
         )
         qb_trailing_placement_total.labels(outcome="skipped_position_mismatch").inc()
         return {"skipped": "position_mismatch"}
+
+    # BL-372 same-side stale — side 는 같지만 우리 fill *후* 생성된(close→동일방향 reopen)
+    #   포지션이면 무관한 trade 에 trailing 오부착이 된다. createdTime > filled_at + tol →
+    #   reopened 로 판정해 benign skip. 타임스탬프 결측 시 비교 불가 → side-only degrade.
+    #   이 가드는 placement 창의 *common*(>tol) 구간을 닫는 mitigation. 잔여(전부 BL-375):
+    #     (a) sub-tolerance reopen: fill 후 2s 내 close+reopen 은 미탐(2s 는 clock-skew 흡수용).
+    #     (b) TOCTOU: 이 createdTime read 와 set_trading_stop 사이 ms 윈도의 reopen(inherent).
+    #     (c) reconcile-lag: filled_at 이 실제 거래소 fill 보다 늦게 기록되면 createdTime<filled_at.
+    #     (d) clock-skew: worker clock 이 거래소보다 >tol 느리면 정상 open 도 false-skip.
+    #   근본 fix(BL-375) = 거래소 fill-time 소싱. 데모 기간엔 고정 bracket SL floor 가 보호.
+    if (
+        pos.created_at is not None
+        and order_filled_at is not None
+        and pos.created_at > order_filled_at + _TRAILING_REOPEN_TOLERANCE
+    ):
+        logger.warning(
+            "trailing_skip_position_reopened",
+            extra={
+                "order_id": str(order_id),
+                "pos_created_at": pos.created_at.isoformat(),
+                "order_filled_at": order_filled_at.isoformat(),
+            },
+        )
+        qb_trailing_placement_total.labels(outcome="skipped_position_reopened").inc()
+        return {"skipped": "position_reopened"}
+    if pos.created_at is None or order_filled_at is None:
+        logger.debug(
+            "trailing_reopen_guard_skipped_no_timestamp",
+            extra={"order_id": str(order_id)},
+        )
 
     try:
         await provider.set_trading_stop(
@@ -978,6 +1018,7 @@ async def _place_trailing_stop_with_session(
         symbol = order.symbol
         entry_side = order.side
         distance = order.trailing_stop
+        order_filled_at = order.filled_at  # BL-372 same-side stale 가드 입력
 
     if provider is None:
         # 트레일링은 Bybit linear 전용(set_trading_stop). dispatch 와 동일 직접 생성.
@@ -991,6 +1032,7 @@ async def _place_trailing_stop_with_session(
         distance=distance,
         creds=creds,
         provider=provider,
+        order_filled_at=order_filled_at,
     )
 
 
