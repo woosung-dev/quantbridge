@@ -258,7 +258,9 @@ qb_trailing_placement_total = Counter(
     #          | skipped_position_flat_premature (transient — fast-fill REST-lag, 재시도 중)
     #          | skipped_position_flat_confirmed (재시도 후 진짜 flat 으로 concede)
     #          | skipped_position_mismatch | skipped_position_zero
+    #          | skipped_position_reopened (BL-372 — close→동일방향 reopen 된 무관 포지션)
     #          | failed (network/exchange → 무방비 → critical alert)
+    #          | failed_contract (TrailingContractError — 버전/degenerate/hedge)
     labelnames=("outcome",),
 )
 qb_live_signal_skipped_total = Counter(
