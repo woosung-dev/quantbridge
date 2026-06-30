@@ -10,7 +10,8 @@
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
 
-- **2026-06-30 BL-376 Resolved (`fix/pine-376-na-inf`)**: pine_v2 na/inf _소비_ 사이트 robustness (BL-374 후속). 3 사이트 — (1) na/inf/<1 → ta.* length: `_coerce_length` 헬퍼를 14 ta 함수 + dispatcher(change/stdev/variance int() 제거) + pivothigh/pivotlow 양 window + valuewhen occurrence(별도 non-finite 가드, occ=0 보존) 에 적용 → na 반환. (2) na/inf qty → `StrategyState.entry` skip + warning (라이브 reject 미러, 유한 0.0 보존). (3) inf → `math.floor/ceil/round`(per-branch, 공유 가드 미변경 — abs/sign/max 통과 유지) / subscript offset isfinite / timestamp +OverflowError. G1-G4(codex plan eval GO_WITH_FIXES + 4-candidate generator panel byte-수렴 + codex challenge[P1 valuewhen Decimal NaN 갭 → `(float, Decimal)` 가드] + fresh review SHIP + mutation 6/6 CAUGHT) + full suite 2305 pass(cov ≥90) + Playwright E2E(na/inf 백테스트 FAILED→COMPLETED, console.error 0). migration 0. 신규 [BL-377] (deferred: non-finite 주문/청산 가격 + 초대형 유한 length OverflowError).
+- **2026-06-30 BL-378 Resolved (`fix/pine-378-atr-wilder`)**: pine_v2 `ta.atr` 가 Wilder RMA (TV `ta.atr = ta.rma(ta.tr, len)`) 아닌 rolling SMA 사용 → 비-상수 TR(=모든 실데이터)에서 TradingView 와 silent divergence (헤드라인 harm-class). 실세계 8 전략 티어드 백테스트 QA (`docs/qa/2026-06-30-pine-tiered-backtest/report.md`) 의 大-tier anti-circular hand-oracle 에서 발견 (5중 교차검증: codex G1 + 직접 oracle 9/9 bar + generator panel discriminator + panel 실행 15.0 vs 14.818 + codex G2). 수정 = `ta_atr` 가 기존 Wilder `ta_rma` 재사용 (~2줄, seed 동일·이후 TV 정합). G1-G4 (codex G1 plan eval + Workflow 12-agent generator panel + codex G2 challenge[B1 CONFIRMED] + codex diff-challenge[no P1] + G3 fresh review + mutation 2/2 CAUGHT) + full **2301 pass** (+6 pre-existing env, stash 대조 확인) + ruff/mypy clean + trust-layer golden 재생성(s2_utbot/i1_utbot num_trades 461→433, ATR→trailing 신호 변화). migration 0. 신규 **BL-379~386** (QA 부수 발견 9건: fn-local subscript / Track A alert warning / valuewhen na 등).
+- **2026-06-30 BL-376 Resolved (`fix/pine-376-na-inf`)**: pine*v2 na/inf *소비\_ 사이트 robustness (BL-374 후속). 3 사이트 — (1) na/inf/<1 → ta.\* length: `_coerce_length` 헬퍼를 14 ta 함수 + dispatcher(change/stdev/variance int() 제거) + pivothigh/pivotlow 양 window + valuewhen occurrence(별도 non-finite 가드, occ=0 보존) 에 적용 → na 반환. (2) na/inf qty → `StrategyState.entry` skip + warning (라이브 reject 미러, 유한 0.0 보존). (3) inf → `math.floor/ceil/round`(per-branch, 공유 가드 미변경 — abs/sign/max 통과 유지) / subscript offset isfinite / timestamp +OverflowError. G1-G4(codex plan eval GO_WITH_FIXES + 4-candidate generator panel byte-수렴 + codex challenge[P1 valuewhen Decimal NaN 갭 → `(float, Decimal)` 가드] + fresh review SHIP + mutation 6/6 CAUGHT) + full suite 2305 pass(cov ≥90) + Playwright E2E(na/inf 백테스트 FAILED→COMPLETED, console.error 0). migration 0. 신규 [BL-377] (deferred: non-finite 주문/청산 가격 + 초대형 유한 length OverflowError).
 - **2026-06-29 BL-374 Resolved (`fix/pine-374-na-semantics`)**: pine_v2 인터프리터 산술/math 도메인 오류 → Pine `na` 정규화 (`_na_safe`, 숫자 산술 한정, `math.pow` `**`→`math.pow()`). G1-G4 게이트(codex plan eval + 3-candidate generator panel + codex challenge[F1 dead stdlib-clamp 제거 + F2 문자열 `%` fail-closed] + fresh review GO + mutation 5/5) + full suite 2226 pass(cov 95.6%) + Playwright E2E(div-by-zero 백테스트 FAILED→COMPLETED, console.error 0). 신규 [BL-376] (deferred: na→length/qty, inf→floor·ceil·round).
 - **2026-05-17 Sprint 62 PR #290 merge (Beta 본격 진입 결정 ★★★★★)**: 6 BL fix-first (BL-350+354 ★★★ Optimizer Zod resilience + BL-353 step 01 라벨 + BL-356/357/358/359 모바일 터치 ≥44pt 묶음). 실측 ~2-3h vs plan 6-8h (LESSON-067 6차 검증). main `36bb4e0`. **BL-070~072 milestone active 승격**. **재측정 skip + 본인 의지 (d) 통과**.
 - **2026-05-17 Multi-Agent QA 재측정 (post-Sprint 61)**: Composite 6.08 → **7.5/10** (+1.42 목표 도달). 신규 BL-347~360 (14건, Critical 0 / P0 2 ★★★ 공통 BL-350+354 / P1 4 / P2 5 / P3 3). Sprint 61 11 BL Resolved 마킹 (PASS 8 + PARTIAL 2 + manual 1). 상세 = [`docs/qa/2026-05-17-post-sprint61/integrated-report.html`](qa/2026-05-17-post-sprint61/integrated-report.html).
@@ -219,7 +220,7 @@
 **Est:** L (12-16h)
 **출처:** [`docs/dev-log/2026-05-15-trading-deepen.md`](dev-log/2026-05-15-trading-deepen.md) Phase 2
 
-**✅ Resolved (W3, 2026-06-29):** baseline 재측정 결과 "4%" 는 stale (2026-05-15, PR #305 money-path 감사 + TP/SL·트레일링 wave 이전). 실측 baseline = `websocket/` **85% combined branch cov** (bybit_private_stream 75% / reconciliation 90% / reconcile_fetcher 100% / state_handler 86%). W3 가 진짜 미커버 머니패스 분기만 보강 (replay_orphan / orphan TTL eviction / _receive_loop json·topic·handler-None·exception-swallow / _heartbeat_loop / _maybe_reconcile 예외 / auth timeout / _find_match orderLinkId·clOrdId fallback / Rejected 전이 / _handle_unknown alert 예외) → **96% combined** (bybit 93% / reconciliation 97% / state_handler 96%). 잔여 미커버 = supervisor reconnect/timeout 타이밍 분기 + trivial getter (deterministic 테스트 불가 → vacuous 회피로 의도적 제외). CI `--cov-fail-under=90` ratchet 게이트 추가. 게이트: G1 codex plan + G2 codex challenge(4 P1 false-green 수정) + G3 fresh review(mutation 검증) PASS.
+**✅ Resolved (W3, 2026-06-29):** baseline 재측정 결과 "4%" 는 stale (2026-05-15, PR #305 money-path 감사 + TP/SL·트레일링 wave 이전). 실측 baseline = `websocket/` **85% combined branch cov** (bybit_private_stream 75% / reconciliation 90% / reconcile_fetcher 100% / state_handler 86%). W3 가 진짜 미커버 머니패스 분기만 보강 (replay_orphan / orphan TTL eviction / \_receive_loop json·topic·handler-None·exception-swallow / \_heartbeat_loop / \_maybe_reconcile 예외 / auth timeout / \_find_match orderLinkId·clOrdId fallback / Rejected 전이 / \_handle_unknown alert 예외) → **96% combined** (bybit 93% / reconciliation 97% / state_handler 96%). 잔여 미커버 = supervisor reconnect/timeout 타이밍 분기 + trivial getter (deterministic 테스트 불가 → vacuous 회피로 의도적 제외). CI `--cov-fail-under=90` ratchet 게이트 추가. 게이트: G1 codex plan + G2 codex challenge(4 P1 false-green 수정) + G3 fresh review(mutation 검증) PASS.
 
 **현 상태 (2026-05-15 당시):** `backend/src/trading/websocket/` 904 LOC (도메인 19.4%) = 3 file (`bybit_private_stream.py` 319L + `reconciliation.py` 225L + `state_handler.py` 221L 등) 안 test 2/48 file 만 reference = **~4% 추정 coverage**. WS event reconciliation logic = order state cascade 핵심 = silent corruption risk.
 
@@ -253,27 +254,36 @@
 
 ## P2 — Hardening / 건강도 작업
 
-| ID                | 제목                                                                                 | Trigger                                    | Est          | 출처                                                |
-| ----------------- | ------------------------------------------------------------------------------------ | ------------------------------------------ | ------------ | --------------------------------------------------- |
-| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                                   | Sprint 38+ (BL-185 foundation 위)          | M-L (16-24h) | Sprint 37 BL-185 후속                               |
-| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                                      | 외부 사용자 요청 시                        | M (3-5h)     | Sprint 41 Worker H 결정                             |
-| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                                         | Sprint 45 codex G.4                        | XS (30m)     | Sprint 45 codex G.4 발견                            |
-| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                                        | Sprint 57+                                 | M (8-12h)    | ADR-013 §6 #8 deferred                              |
-| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)                            | Sprint 56+                                 | S (3-5h)     | Sprint 55 deferred                                  |
-| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                                         | BL-308 묶음 또는 dogfood 직후              | M (4-6h)     | 2026-05-15 trading-deepen audit                     |
-| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability               | S5 (trading kill-switch 묶음)              | S (2-4h)     | 2026-05-30 full-inspection §4.3                     |
-| [BL-363](#bl-363) | stress*test `\_execute*\*` 4-method boilerplate 추출 (config drift 근본원인)         | deepening sprint 또는 5번째 engine 추가 시 | S (2-3h)     | 2026-05-30 full-inspection §appendix P1-9           |
-| [BL-364](#bl-364) | Optimizer 진짜 string-label CategoricalField sweep (Genetic+Bayesian ordinal 인코딩) | string 카테고리 sweep 요청 시              | M (4-6h)     | 2026-05-30 full-inspection §appendix P1-9 (S4 후속) |
-| [BL-365](#bl-365) | `trigger_direction_for`/`map_exit_kind` dead + 서버 미배선 (standalone-trigger 방향) | 서버 standalone 트리거 발주 시             | S (2-4h)     | 2026-06-26 trading-deepen-2                         |
-| [BL-366](#bl-366) | live-signal dispatch OrderService DI 인라인 조립 중복 (HTTP 와 drift)                | trading deepening sprint                   | S-M (3-5h)   | 2026-06-26 trading-deepen-2                         |
-| [BL-368](#bl-368) | `_merge_exit_params` ccxt 키명 3 call site 누설 (shallow interface)                  | trading deepening / 4번째 provider         | S-M (3-5h)   | 2026-06-26 trading-deepen-2                         |
-| [BL-369](#bl-369) | 3 provider `create_order` try/except/finally ~40 LOC 복붙                            | trading deepening sprint                   | S (2-4h)     | 2026-06-26 trading-deepen-2                         |
-| [BL-372](#bl-372) | STEP B 트레일링 live-placement 3-리뷰어 검증 follow-up 번들 (9 항목, P2/P3)          | Wave 3 실자금 cutover 전                   | M (6-10h)    | 2026-06-26 trailing 3-reviewer (codex+Opus 6-lens)  |
-| [BL-373](#bl-373) | OCO 형제취소 (sibling-cancel) — standalone exit order 시점 구현                       | BL-365 standalone-trigger 발주 시         | S-M (3-5h)   | 2026-06-28 grilling (트레일링 후속 scope)            |
-| [BL-374](#bl-374) | ✅ Resolved (2026-06-29) — pine_v2 interpreter na-semantics — `x/0`·`math.sqrt(-1)` 등 raw 예외 → Pine `na` | ✅ `fix/pine-374-na-semantics`              | M (4-6h)     | 2026-06-28 BL-362 G2 codex challenge                 |
-| [BL-375](#bl-375) | trailing same-side stale 잔여 — reconcile-lag late filled_at 시 reopen 미탐 (거래소 fill-time 소싱) | Wave 3 실자금 cutover 전                   | S-M (3-5h)   | 2026-06-29 BL-372 same-side stale G1 codex           |
-| [BL-376](#bl-376) | ✅ Resolved (2026-06-30) — pine_v2 na/inf 소비 사이트 robustness — na/inf→ta.* length / na/inf→entry qty skip / inf→math.floor·ceil·round·subscript·timestamp | ✅ `fix/pine-376-na-inf`              | M (4-6h)     | 2026-06-29 BL-374 G1/G2/G3 + generator panel 합의      |
-| [BL-377](#bl-377) | pine_v2 non-finite 주문/청산 가격 + 초대형 유한 length OverflowError (BL-376 후속 잔여) | pine_v2 robustness 후속 또는 실자금 cutover 전 | S (2-4h)     | 2026-06-30 BL-376 G2 codex challenge + G3 fresh review |
+| ID                | 제목                                                                                                                                                           | Trigger                                        | Est          | 출처                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------ | ------------------------------------------------------ |
+| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                                                                                                             | Sprint 38+ (BL-185 foundation 위)              | M-L (16-24h) | Sprint 37 BL-185 후속                                  |
+| [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                                                                                                                | 외부 사용자 요청 시                            | M (3-5h)     | Sprint 41 Worker H 결정                                |
+| [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                                                                                                                   | Sprint 45 codex G.4                            | XS (30m)     | Sprint 45 codex G.4 발견                               |
+| [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                                                                                                                  | Sprint 57+                                     | M (8-12h)    | ADR-013 §6 #8 deferred                                 |
+| [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)                                                                                                      | Sprint 56+                                     | S (3-5h)     | Sprint 55 deferred                                     |
+| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                                                                                                                   | BL-308 묶음 또는 dogfood 직후                  | M (4-6h)     | 2026-05-15 trading-deepen audit                        |
+| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability                                                                                         | S5 (trading kill-switch 묶음)                  | S (2-4h)     | 2026-05-30 full-inspection §4.3                        |
+| [BL-363](#bl-363) | stress*test `\_execute*\*` 4-method boilerplate 추출 (config drift 근본원인)                                                                                   | deepening sprint 또는 5번째 engine 추가 시     | S (2-3h)     | 2026-05-30 full-inspection §appendix P1-9              |
+| [BL-364](#bl-364) | Optimizer 진짜 string-label CategoricalField sweep (Genetic+Bayesian ordinal 인코딩)                                                                           | string 카테고리 sweep 요청 시                  | M (4-6h)     | 2026-05-30 full-inspection §appendix P1-9 (S4 후속)    |
+| [BL-365](#bl-365) | `trigger_direction_for`/`map_exit_kind` dead + 서버 미배선 (standalone-trigger 방향)                                                                           | 서버 standalone 트리거 발주 시                 | S (2-4h)     | 2026-06-26 trading-deepen-2                            |
+| [BL-366](#bl-366) | live-signal dispatch OrderService DI 인라인 조립 중복 (HTTP 와 drift)                                                                                          | trading deepening sprint                       | S-M (3-5h)   | 2026-06-26 trading-deepen-2                            |
+| [BL-368](#bl-368) | `_merge_exit_params` ccxt 키명 3 call site 누설 (shallow interface)                                                                                            | trading deepening / 4번째 provider             | S-M (3-5h)   | 2026-06-26 trading-deepen-2                            |
+| [BL-369](#bl-369) | 3 provider `create_order` try/except/finally ~40 LOC 복붙                                                                                                      | trading deepening sprint                       | S (2-4h)     | 2026-06-26 trading-deepen-2                            |
+| [BL-372](#bl-372) | STEP B 트레일링 live-placement 3-리뷰어 검증 follow-up 번들 (9 항목, P2/P3)                                                                                    | Wave 3 실자금 cutover 전                       | M (6-10h)    | 2026-06-26 trailing 3-reviewer (codex+Opus 6-lens)     |
+| [BL-373](#bl-373) | OCO 형제취소 (sibling-cancel) — standalone exit order 시점 구현                                                                                                | BL-365 standalone-trigger 발주 시              | S-M (3-5h)   | 2026-06-28 grilling (트레일링 후속 scope)              |
+| [BL-374](#bl-374) | ✅ Resolved (2026-06-29) — pine_v2 interpreter na-semantics — `x/0`·`math.sqrt(-1)` 등 raw 예외 → Pine `na`                                                    | ✅ `fix/pine-374-na-semantics`                 | M (4-6h)     | 2026-06-28 BL-362 G2 codex challenge                   |
+| [BL-375](#bl-375) | trailing same-side stale 잔여 — reconcile-lag late filled_at 시 reopen 미탐 (거래소 fill-time 소싱)                                                            | Wave 3 실자금 cutover 전                       | S-M (3-5h)   | 2026-06-29 BL-372 same-side stale G1 codex             |
+| [BL-376](#bl-376) | ✅ Resolved (2026-06-30) — pine_v2 na/inf 소비 사이트 robustness — na/inf→ta.\* length / na/inf→entry qty skip / inf→math.floor·ceil·round·subscript·timestamp | ✅ `fix/pine-376-na-inf`                       | M (4-6h)     | 2026-06-29 BL-374 G1/G2/G3 + generator panel 합의      |
+| [BL-377](#bl-377) | pine_v2 non-finite 주문/청산 가격 + 초대형 유한 length OverflowError (BL-376 후속 잔여)                                                                        | pine_v2 robustness 후속 또는 실자금 cutover 전 | S (2-4h)     | 2026-06-30 BL-376 G2 codex challenge + G3 fresh review |
+| [BL-378](#bl-378) | ✅ Resolved (2026-06-30) — pine_v2 `ta.atr` rolling SMA → Wilder RMA (TV parity, headline harm-class)                                                          | ✅ `fix/pine-378-atr-wilder`                   | S (2-4h)     | 2026-06-30 티어드 백테스트 QA 大-tier oracle           |
+| [BL-379](#bl-379) | pine_v2 user-function 지역변수 `x[1]` history = na (subscript in `=>` 깨짐, latent harm-class)                                                                 | pine_v2 robustness 후속                        | M (4-6h)     | 2026-06-30 QA codex G2 + 직접 재현                     |
+| [BL-380](#bl-380) | Track A INFORMATION/UNKNOWN alert 무경고 drop (docstring 계약 위반) + VirtualRunResult.warnings 미전파                                                         | Track A 신뢰 표면 sprint                       | S-M (3-5h)   | 2026-06-30 QA LuxAlgo 0-trade                          |
+| [BL-381](#bl-381) | Track A `VirtualRunResult` var_series/warnings 미반환 → trust-parity digest 공허 (i2_luxalgo 검증 vacuous)                                                     | Trust Layer CI 강화                            | S (2-4h)     | 2026-06-30 QA codex G2/diff                            |
+| [BL-382](#bl-382) | qty=1.0 fallback sizing-source FE 미표면화 (자본초과 백테스트 투명성, mdd_exceeds_capital 은 표시됨)                                                           | sizing 투명성 sprint                           | S (2-4h)     | 2026-06-30 QA F1 (codex G2)                            |
+| [BL-383](#bl-383) | v2_adapter catch-all 이 런타임 예외를 parse_failed 로 오분류 (관측성)                                                                                          | pine_v2 관측성 후속                            | S (2-3h)     | 2026-06-30 QA codex G2                                 |
+| [BL-384](#bl-384) | ta.valuewhen 이 na-source occurrence skip (TV 는 na 기록)                                                                                                      | pine_v2 parity 후속                            | S (2-3h)     | 2026-06-30 QA codex G2 + 직접 재현                     |
+| [BL-385](#bl-385) | PineVersion enum v6 부재 → `//@version=6` 가 v5 로 collapse (메타데이터 부정확)                                                                                | pine_v2 coverage 후속                          | XS (1-2h)    | 2026-06-30 QA F3                                       |
+| [BL-386](#bl-386) | v4 bare math builtin `floor`/`ceil`/`round`/`sqrt` 미별칭 (preflight reject, over-strict)                                                                      | pine_v2 coverage 후속                          | XS (1-2h)    | 2026-06-30 QA F4                                       |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -330,6 +340,7 @@
 **출처:** [`docs/dev-log/2026-05-15-trading-deepen.md`](dev-log/2026-05-15-trading-deepen.md) Phase 2
 
 **✅ Resolved (W3, 2026-06-29) — baseline stale + fees obsolete:** "0%" 는 2026-05-15 수치. 실측 결과:
+
 - **`fees.py` 는 파일 자체 삭제됨** (PR #344 dead vectorbt-era cleanup). fee 로직은 `providers.py`/backtest 로 이전 — fees 항목 **무효** (복원/테스트 안 함).
 - **`registry.py` = 이미 100% cov** (`tests/tasks/test_provider_dispatch.py` 가 5-tuple + unsupported + `.key` + ProviderError 서브클래스 전수 검증, `_provider_for_account_and_leverage` wrapper 경유). W3 = 미검증 잔여 불변식만 추가 (per-call factory identity = prefork-safe iron law + 미지원 매트릭스 빈칸 `(okx,live,True)`). 풀 dispatch-parity 스위트는 vacuous 중복이라 의도적 미작성 (G1 codex 검증).
 - **`webhook.py` = ~94% cov** (HMAC verify grace 안/밖 + parse_tv_payload happy/error 광범위). 잔여 1 line(`ensure_authorized` raise)은 router 401 테스트로 행동 커버 → pure unit 은 cosmetics 라 미작성 (G1/G2 합의).
@@ -559,7 +570,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-376
 
-**Title:** pine_v2 na/inf 소비 사이트 robustness — na→ta.* length / na→strategy.entry qty / inf→math.floor·ceil·round
+**Title:** pine_v2 na/inf 소비 사이트 robustness — na→ta.\* length / na→strategy.entry qty / inf→math.floor·ceil·round
 **Category:** Strategy / pine_v2 (interpreter robustness)
 **Priority:** P3
 **Trigger:** pine_v2 robustness 후속 또는 실자금 cutover 전 (BL-374 후속)
@@ -577,11 +588,129 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **Risk:** 🟢 (전부 현재 깨끗한 실패 또는 비-TV-valid — BL-374 가 핵심 false-positive 해소, 본 BL 은 잔여 robustness).
 
 **상태:** ✅ **Resolved (2026-06-30, `fix/pine-376-na-inf`).** 3 사이트 전부 닫음:
+
 - **Site #1** `_coerce_length(value) -> int | None`(`not math.isfinite(value) or value < 1 → None`) 헬퍼를 14 ta 함수(sma/ema/rma/atr/rsi/highest/lowest/change/stdev/variance/wma/mom/hma/bb) + dispatcher(change/stdev/variance 의 `int()` 제거) + pivothigh/pivotlow 양 window 에 적용 → na 반환. `ta.valuewhen` occurrence 는 length 아님(0/음수 유효) → **별도 non-finite 가드**(`isinstance(occ_raw, (float, Decimal)) and not math.isfinite`). 실측 갱신: na 뿐 아니라 inf-length(`deque(maxlen=inf)` TypeError) + 초기 가드 없던 highest/lowest 의 length 0/-N(`max(empty)`/negative maxlen ValueError) 도 함께 해소.
-- **Site #2** `StrategyState.entry` 에서 `not math.isfinite(qty)` → 주문 skip + warning(라이브 nan→reject 미러). 실측 갱신: **closed na-qty 는 깨끗한 실패였으나 *open* na-qty 는 status='ok' 인데 equity NaN 무음 오염** = 실제 버그 → skip 으로 양쪽 통일. `qty<=0` 미skip(compute_qty 의 유한 0.0 보존).
+- **Site #2** `StrategyState.entry` 에서 `not math.isfinite(qty)` → 주문 skip + warning(라이브 nan→reject 미러). 실측 갱신: **closed na-qty 는 깨끗한 실패였으나 _open_ na-qty 는 status='ok' 인데 equity NaN 무음 오염** = 실제 버그 → skip 으로 양쪽 통일. `qty<=0` 미skip(compute_qty 의 유한 0.0 보존).
 - **Site #3 (소비부 가드, 사용자 결정)** `math.floor/ceil/round` per-branch `not math.isfinite → na`(공유 `any(_is_na)` 가드 미변경 → `math.abs/sign/max/min/sqrt/log` 의 inf 통과 유지) + subscript offset `not math.isnan` → `math.isfinite` + timestamp `int()` except 에 `OverflowError` 추가.
 
 검증 = G1 codex plan eval(GO_WITH_FIXES) + 4-candidate generator panel(아키텍처 byte-수렴, judge 가 C4 isinstance pre-check=BL-362 위반 기각) + G2 codex challenge(P1 = valuewhen `Decimal('NaN')` occurrence 가 `isinstance(float)` 갭으로 escape, 실측 재현 → `(float, Decimal)` 확장 + 테스트; P2 ema/rma/rsi fractional truncation = 되돌리면 `Decimal('NaN')<=0` 재escape 라 유지) + G3 fresh review(SHIP) + **mutation harness 6/6 CAUGHT(false-green 0)** + full suite 2305 pass(cov ≥90, ruff+mypy clean, alembic head, **migration 0**) + **Playwright E2E**(na/inf 전략 백테스트 before=실패 "an integer is required" → after=완료, console.error 0). **잔여 deferred → [BL-377](#bl-377).**
+
+---
+
+### BL-378
+
+**Title:** pine_v2 `ta.atr` rolling SMA → Wilder RMA (TradingView parity) ✅ **Resolved (2026-06-30, `fix/pine-378-atr-wilder`)**
+**Category:** Strategy / pine_v2 (indicator 정확성)
+**Priority:** P1 (harm-class, 트리거됨)
+**출처:** 2026-06-30 실세계 8 전략 티어드 백테스트 QA (`docs/qa/2026-06-30-pine-tiered-backtest/report.md` finding B1)
+
+**원인 / 영향:** `ta_atr`(stdlib.py) 가 True Range 의 단순 rolling SMA(`deque(maxlen=len)` → `sum/len`)를 계산. TradingView `ta.atr(len) = ta.rma(ta.tr, len)` = Wilder smoothing(alpha=1/len). 비-상수 TR 에서 발산(len=3, bar 3: 엔진 3.50000=SMA vs TV 3.05556=RMA, 14% 누적). 같은 파일 `ta_rma`(Wilder)는 정확하고 `rsi`가 이를 사용 → atr 만 고립 버그. ATR 사용 전 전략(DrFX supertrend / UtBot·RsiD 트레일링 / LuxAlgo slope) 백테스트가 TV 와 silent divergence. 상수 TR 슬라이스는 SMA=RMA 라 기존 테스트가 못 잡음.
+
+**수정:** `ta_atr` 가 TR 계산 후 기존 Wilder `ta_rma(state, node_id, tr, _len)` 재사용(~2줄). seed=SMA(first len TRs) 로 현재와 동일, 이후 bar 부터 TV 정합. 비-상수 TR anti-circular 골든 테스트 2건(`test_ta_atr_matches_tradingview_wilder_rma` / `test_ta_atr_not_rolling_sma`) + trust-layer golden 재생성(s2_utbot/i1_utbot). **검증:** G1-G4(codex G1/G2/diff-challenge no-P1 + Workflow 12-agent panel + G3 fresh review + mutation 2/2 CAUGHT) + full 2301 pass + ruff/mypy clean. migration 0.
+
+---
+
+### BL-379
+
+**Title:** pine_v2 user-function 지역변수 `x[1]` history = na (subscript in `=>` 깨짐)
+**Category:** Strategy / pine_v2 (interpreter)
+**Priority:** P2 (latent harm-class — 코퍼스 8종 미트리거, 흔한 패턴)
+**Trigger:** pine_v2 robustness 후속
+**Est:** M (4-6h)
+**출처:** 2026-06-30 QA codex G2 challenge + 직접 재현
+
+**원인 / 영향:** `_eval_subscript`(interpreter.py:653)가 `x[1]`을 `_var_series`에서만 조회하는데, user function(`f(s) => ...`) 지역변수는 `_var_series`에 append 되지 않음. 재현: `f(s) => prev = s[1]` → `[nan]*N`(항상 na) vs top-level `close[1]` 정상. 코퍼스 8종은 미트리거(전부 인라인/builtin) 이나 `f(x)=>...x[1]...` (지표 함수 내 history 참조) 는 흔한 패턴 → 해당 전략 silent divergence. **권장:** user-function 스코프 변수 history 추적 또는 명시적 unsupported reject.
+
+---
+
+### BL-380
+
+**Title:** Track A INFORMATION/UNKNOWN alert 무경고 drop (docstring 계약 위반)
+**Category:** Strategy / pine_v2 (Trust Layer / Track A)
+**Priority:** P2 (신뢰 표면)
+**Trigger:** Track A 신뢰 표면 sprint
+**Est:** S-M (3-5h)
+**출처:** 2026-06-30 QA LuxAlgo 0-trade 추적 + codex G2
+
+**원인 / 영향:** `virtual_strategy.py:128-130` 가 INFORMATION/UNKNOWN alert 를 경고 없이 `continue` (docstring `:12` 은 "무시 + warning" 약속 — 계약 위반). LuxAlgo `alertcondition(.., 'Price broke the down-trendline upward')` → strict 기본 INFORMATION 키워드 `\btrendline\b` → 무경고 무시 → **0 trades, status=ok** (지표 수치는 정확). loose 모드(opt-in)면 directional. **추가:** 경고를 추가해도 `run_backtest_v2`(v2_adapter.py:181)가 `state.warnings`만 내보내 `VirtualRunResult.warnings` 유실. **권장:** (a) ignored actionable alert 시 wrapper.warnings 기록 + (b) VirtualRunResult.warnings → backtest parse warnings 전파. (strict 기본 정책 자체는 유지.)
+
+---
+
+### BL-381
+
+**Title:** Track A `VirtualRunResult` var_series/warnings 미반환 → trust-parity digest 공허
+**Category:** Strategy / pine_v2 (Trust Layer CI)
+**Priority:** P2 (meta / 검증 인프라)
+**Trigger:** Trust Layer CI 강화
+**Est:** S (2-4h)
+**출처:** 2026-06-30 QA codex G2 + diff-challenge
+
+**원인 / 영향:** `VirtualRunResult`(virtual_strategy.py:61) 에 var_series 필드 부재 + 미반환. `test_trust_layer_parity.py:239` 의 golden 추출기가 `getattr(.., 'var_series', {})` → 빈 dict digest. 결과: Track A 전략(i2_luxalgo 등)의 지표 변화(예: ta.atr→slope)가 var_series_digest 에 반영 안 됨 → documented P-3 parity 검증이 부분 공허(BL-378 fix 시 i2_luxalgo baseline 불변이 이를 노출). **권장:** VirtualRunResult 에 var_series/warnings 노출 + 추출기 배선.
+
+---
+
+### BL-382
+
+**Title:** qty=1.0 fallback sizing-source FE 미표면화 (자본초과 백테스트 투명성)
+**Category:** Backtest / 투명성
+**Priority:** P2 (투명성)
+**Trigger:** sizing 투명성 sprint
+**Est:** S (2-4h)
+**출처:** 2026-06-30 QA F1 (codex G2 = harm-class 아닌 transparency)
+
+**원인 / 영향:** `default_qty_type` 미지정 전략(PbR/UtBot)은 qty=1.0 (1 BTC/trade ≈ $42k notional vs $10k capital) → mdd=-16.95/-41.47, fees $156k. 엔진은 `mdd_exceeds_capital=True` 정직 flag + FE KPI 가 자본초과 손실 표시. **그러나** sizing_source 가 FE 결과 schema 부재(schemas.ts:254), AssumptionsCard 가 "1 BTC 고정수량 fallback" 미표면화(assumptions-card.tsx:88). **권장:** config 응답에 sizing_source/default_qty 포함 + fallback 시 경고 표시.
+
+---
+
+### BL-383
+
+**Title:** v2_adapter catch-all 이 런타임 예외를 parse_failed 로 오분류 (관측성)
+**Category:** Backtest / engine (관측성)
+**Priority:** P3
+**Trigger:** pine_v2 관측성 후속
+**Est:** S (2-3h)
+**출처:** 2026-06-30 QA codex G2 (G1 에서도 지적)
+
+**원인 / 영향:** `v2_adapter.py:126-133` generic `except Exception` → `status="parse_failed"`. parse 성공 후 실행 중 예외(TypeError 등)도 "parse failed"로 표시 → 사용자 원인 분류 오도. BL-376 이 na/inf escape 는 닫았으나 catch-all 잔존. **권장:** 실행-단계 예외를 `status="error"` 로 분기(parse 단계와 구분).
+
+---
+
+### BL-384
+
+**Title:** ta.valuewhen 이 na-source occurrence skip (TV 는 na 기록)
+**Category:** Strategy / pine_v2 (indicator parity)
+**Priority:** P3 (좁은 edge)
+**Trigger:** pine_v2 parity 후속
+**Est:** S (2-3h)
+**출처:** 2026-06-30 QA codex G2 + 직접 재현
+
+**원인 / 영향:** `stdlib.py:305-307` 가 `cond_bool and source not na` 일 때만 occurrence 기록. cond=true + source=na 인 occurrence 를 TV 는 기록(na 반환), QB 는 skip → 이전 non-na 반환. 재현: src=[10,na] → `valuewhen(cond,src,0)` QB=10, TV=na. RsiD `valuewhen(plFound, osc[lbR], 1)` (osc warmup 시 na) 후보. 좁은 edge. **권장:** cond=true occurrence 는 source 가 na 여도 기록.
+
+---
+
+### BL-385
+
+**Title:** PineVersion enum v6 부재 → `//@version=6` 가 v5 로 collapse
+**Category:** Strategy / pine_v2 (coverage / 메타데이터)
+**Priority:** P3 (경미)
+**Trigger:** pine_v2 coverage 후속
+**Est:** XS (1-2h)
+**출처:** 2026-06-30 QA F3
+
+**원인 / 영향:** `PineVersion` enum(strategy/models.py)이 v4/v5 뿐 → `_detect_version`(strategy/service.py)이 `//@version=6`(PbR, bs)를 v5 로 보고. 메타데이터 부정확(실행엔 무영향). **권장:** v6 enum 값 추가(alembic enum-add 패턴, LESSON-066).
+
+---
+
+### BL-386
+
+**Title:** v4 bare math builtin `floor`/`ceil`/`round`/`sqrt` 미별칭 (preflight reject)
+**Category:** Strategy / pine_v2 (coverage)
+**Priority:** P3 (경미, 안전 측 — silent 아님)
+**Trigger:** pine_v2 coverage 후속
+**Est:** XS (1-2h)
+**출처:** 2026-06-30 QA F4
+
+**원인 / 영향:** `SUPPORTED_FUNCTIONS` 의 `_V4_ALIASES` 가 abs/max/min 만 포함, `floor`/`ceil`/`round`/`sqrt`(유효 Pine builtin) 부재 → v4 스크립트의 `floor()` 가 unsupported flag(preflight 차단). over-strict 이나 silent 아님(안전). **권장:** v4 bare math builtin 을 `math.*` 로 재라우팅하는 alias 추가.
 
 ---
 
@@ -616,9 +745,10 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **출처:** 2026-06-29 BL-372 same-side stale fix 의 G1/G2 codex Evaluator (BL-372 가 common path 만 닫음)
 
 **원인 / 영향:** BL-372 가드(`position.createdTime > order.filled_at + 2s`)는 placement 창의 common(>2s) 구간만 닫는다. 4 narrow 잔여:
+
 - **(a) sub-tolerance reopen** — fill 후 2s 내 close+reopen 은 미탐(2s 는 clock-skew 흡수용 tolerance). codex G2 [P1].
 - **(b) fetch↔set TOCTOU** — `_do_place_trailing_stop` 가 createdTime 을 read 한 뒤 `set_trading_stop` 보내는 ms 윈도에 reopen 되면 거래소가 현재 포지션에 부착(check-then-act inherent race). codex G2 [P1].
-- **(c) reconcile-lag late filled_at** — `filled_at` 은 fill *처리* 시각(`datetime.now(UTC)`)이지 거래소 체결 시각이 아님. reconcile 경로(watchdog/reconciler)에선 실제 체결보다 늦게 기록 → reopened `createdTime < filled_at` 이면 가드 통과. codex G1 [P1-3].
+- **(c) reconcile-lag late filled_at** — `filled_at` 은 fill _처리_ 시각(`datetime.now(UTC)`)이지 거래소 체결 시각이 아님. reconcile 경로(watchdog/reconciler)에선 실제 체결보다 늦게 기록 → reopened `createdTime < filled_at` 이면 가드 통과. codex G1 [P1-3].
 - **(d) worker clock-skew** — worker clock 이 거래소보다 >2s 느리면 정상 open 도 `createdTime > filled_at + 2s` 로 false-skip(저위험: trailing 미부착, bracket SL floor 유효). codex G2 [P2].
 
 **권장 접근:** 근본 = **거래소 보고 체결 시각 소싱**. 4 fill-recording 경로(sync receipt / WS event / watchdog / reconciler)에서 exchange order/exec timestamp 추출 → 비교 기준으로 사용(전용 컬럼 또는 전달) → (c)(d) 해소. (a)(b) inherent race 는 거래소-side conditional(예 createdTime 조건부 trading-stop) 또는 placement 전 재확인(refetch-after-set verify)으로 좁힘. clock-skew 는 NTP 전제 문서화.
