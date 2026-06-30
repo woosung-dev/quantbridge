@@ -7,7 +7,7 @@ bar-by-bar 이벤트 루프와 호환되는 stateful 지표.
 구현 9개:
 - ta.sma(source, length)         — 단순 이동평균
 - ta.ema(source, length)         — 지수 이동평균 (alpha = 2/(length+1))
-- ta.atr(length)                 — Average True Range (high-low + gap)
+- ta.atr(length)                 — Average True Range (TR 의 Wilder RMA, TV `ta.rma(ta.tr, len)`)
 - ta.rsi(source, length)         — Relative Strength Index
 - ta.crossover(a, b)             — a가 b를 상향 돌파 이번 bar
 - ta.crossunder(a, b)            — a가 b를 하향 돌파
@@ -138,20 +138,20 @@ def ta_atr(
     low: float,
     close_prev: float,
 ) -> float:
-    """Average True Range. True Range = max(high-low, |high-prev_close|, |low-prev_close|)."""
-    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=) crash 차단)
+    """Average True Range. True Range = max(high-low, |high-prev_close|, |low-prev_close|).
+
+    BL-378: TradingView `ta.atr(len) = ta.rma(ta.tr, len)` = Wilder smoothing
+    (alpha=1/len), 단순 rolling SMA 아님. 기존 Wilder `ta_rma` 를 재사용한다
+    (seed = SMA(first len TRs) 로 현재와 동일, 이후 bar 부터 TV 정합). 비-상수 TR
+    에서 SMA 와 발산하던 silent divergence 수정.
+    """
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na
     if _len is None:
         return float("nan")
-    length = _len
     tr = high - low
     if not _is_na(close_prev):
         tr = max(tr, abs(high - close_prev), abs(low - close_prev))
-    # Rolling mean
-    buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
-    buf.append(tr)
-    if len(buf) < length:
-        return float("nan")
-    return sum(buf) / length
+    return ta_rma(state, node_id, tr, _len)
 
 
 # -------- RSI ----------------------------------------------------------
@@ -385,7 +385,9 @@ def ta_pivotlow(
 
 def ta_change(state: IndicatorState, node_id: int, source: float, length: int = 1) -> float:
     """source - source[length]."""
-    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=length+1) crash 차단)
+    _len = _coerce_length(
+        length
+    )  # BL-376: na/inf/<1 length → na (deque(maxlen=length+1) crash 차단)
     if _len is None:
         return float("nan")
     length = _len
@@ -666,7 +668,9 @@ def ta_bb(
 ) -> list[float]:
     """Bollinger Bands. Returns [upper, basis, lower]."""
     nan = float("nan")
-    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → [na,na,na] (int(na)/deque crash 차단)
+    _len = _coerce_length(
+        length
+    )  # BL-376: na/inf/<1 length → [na,na,na] (int(na)/deque crash 차단)
     if _len is None:
         return [nan, nan, nan]
     length = _len
@@ -776,11 +780,17 @@ class StdlibDispatcher:
             return ta_lowest(self.state, scoped_id, *args)
         if func_name == "ta.change":
             length = args[1] if len(args) >= 2 else 1
-            return ta_change(self.state, scoped_id, args[0], length)  # BL-376: int() 제거 → 함수가 coerce
+            return ta_change(
+                self.state, scoped_id, args[0], length
+            )  # BL-376: int() 제거 → 함수가 coerce
         if func_name == "ta.stdev":
-            return ta_stdev(self.state, scoped_id, args[0], args[1])  # BL-376: int() 제거 → 함수가 coerce
+            return ta_stdev(
+                self.state, scoped_id, args[0], args[1]
+            )  # BL-376: int() 제거 → 함수가 coerce
         if func_name == "ta.variance":
-            return ta_variance(self.state, scoped_id, args[0], args[1])  # BL-376: int() 제거 → 함수가 coerce
+            return ta_variance(
+                self.state, scoped_id, args[0], args[1]
+            )  # BL-376: int() 제거 → 함수가 coerce
         if func_name == "ta.pivothigh":
             # Pine: pivothigh(left, right) OR pivothigh(source, left, right)
             if len(args) == 2:

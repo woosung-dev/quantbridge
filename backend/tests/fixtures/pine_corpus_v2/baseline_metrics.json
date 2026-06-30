@@ -30,23 +30,23 @@
     },
     "s2_utbot": {
       "metrics": {
-        "total_return": "-7.83505350",
-        "sharpe_ratio": "-0.60442624",
-        "max_drawdown": "-7.75020220",
-        "win_rate": "0.26247289",
-        "num_trades": 461,
-        "profit_factor": "0.60778419",
+        "total_return": "-7.19132278",
+        "sharpe_ratio": "-0.42120514",
+        "max_drawdown": "-7.07893439",
+        "win_rate": "0.27944573",
+        "num_trades": 433,
+        "profit_factor": "0.63219920",
         "sortino_ratio": null,
         "calmar_ratio": null,
-        "avg_win": "0.01715965",
-        "avg_loss": "-0.01011996",
-        "long_count": 230,
-        "short_count": 231
+        "avg_win": "0.01765886",
+        "avg_loss": "-0.01067292",
+        "long_count": 216,
+        "short_count": 217
       },
-      "var_series_digest": "sha256:241e9c1e85e3cafa4003342423cc2fc908028f84a98ddda8de67e08df7717ce8",
-      "trades_digest": "sha256:a0066e3854952f210a68ed22aaf8134440e0b691be67dcb67ccd87feb7e84be4",
+      "var_series_digest": "sha256:e60b37b755aa304734e3d166443be51c9b276661424ecda2e18639e865559387",
+      "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-05-06T00:20:41Z"
+      "updated_at": "2026-06-30T01:41:42Z"
     },
     "s3_rsid": {
       "metrics": {
@@ -70,23 +70,23 @@
     },
     "i1_utbot": {
       "metrics": {
-        "total_return": "-7.83505350",
-        "sharpe_ratio": "-0.60442624",
-        "max_drawdown": "-7.75020220",
-        "win_rate": "0.26247289",
-        "num_trades": 461,
-        "profit_factor": "0.60778419",
+        "total_return": "-7.19132278",
+        "sharpe_ratio": "-0.42120514",
+        "max_drawdown": "-7.07893439",
+        "win_rate": "0.27944573",
+        "num_trades": 433,
+        "profit_factor": "0.63219920",
         "sortino_ratio": null,
         "calmar_ratio": null,
-        "avg_win": "0.01715965",
-        "avg_loss": "-0.01011996",
-        "long_count": 230,
-        "short_count": 231
+        "avg_win": "0.01765886",
+        "avg_loss": "-0.01067292",
+        "long_count": 216,
+        "short_count": 217
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-      "trades_digest": "sha256:a0066e3854952f210a68ed22aaf8134440e0b691be67dcb67ccd87feb7e84be4",
+      "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-05-06T00:21:02Z"
+      "updated_at": "2026-06-30T01:41:57Z"
     },
     "i2_luxalgo": {
       "metrics": {
