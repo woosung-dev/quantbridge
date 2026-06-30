@@ -16,6 +16,7 @@ Day 4 단순화:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, NamedTuple
@@ -392,6 +393,15 @@ class StrategyState:
             self.warnings.append(
                 f"strategy.entry({trade_id!r}): ignored unsupported kwargs: {unsupported_kwargs}"
             )
+
+        # BL-376: na/inf qty → 주문 skip + warning (라이브 nan→reject 미러, money-path 무음오염 차단).
+        # 시장가·pending-stop / 백테스트 RawTrade·라이브 LiveSignal 단일 chokepoint.
+        # qty<=0 은 skip 안 함 — compute_qty 가 fill_price<=0 시 유한 0.0 정상 반환 (over-skip 방지).
+        if not math.isfinite(qty):
+            self.warnings.append(
+                f"strategy.entry({trade_id!r}): non-finite qty ({qty}) → 주문 skip"
+            )
+            return None
 
         if stop is not None:
             # Pending stop 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론).

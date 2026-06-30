@@ -30,11 +30,24 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 
 def _is_na(x: Any) -> bool:
     return isinstance(x, float) and math.isnan(x)
+
+
+def _coerce_length(value: Any) -> int | None:
+    """BL-376: ta.* length 정규화. na/inf/<1 → None (호출부 na 반환), 유한·>=1 → int(value).
+
+    `int(nan)`(ValueError) / `deque(maxlen=nan|inf)`(TypeError) / `int(inf)`(OverflowError)
+    이 run_historical 밖으로 escape 하던 소비 사이트를 닫는다. math.isfinite 는 int/float 모두 안전.
+    기존 `if length <= 0` 의미(정수 <1 == na)를 보존 — int(1.5)=1 유효, int(0.5)=0 → na (동일).
+    """
+    if not math.isfinite(value) or value < 1:
+        return None
+    return int(value)
 
 
 @dataclass
@@ -50,8 +63,10 @@ class IndicatorState:
 
 def ta_sma(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """단순 이동평균. length 이하 샘플이면 na."""
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na
+    if _len is None:
         return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     if _is_na(source):
         # Pine: SMA는 na 포함 시 na 반환 (엄격)
@@ -65,8 +80,10 @@ def ta_sma(state: IndicatorState, node_id: int, source: float, length: int) -> f
 
 def ta_ema(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """지수 이동평균. 첫 값 = SMA(length), 이후 = alpha*src + (1-alpha)*prev."""
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (uniformity)
+    if _len is None:
         return float("nan")
+    length = _len
     slot = state.buffers.setdefault(node_id, {"prev": float("nan"), "warmup": []})
     if _is_na(source):
         return float(slot["prev"])
@@ -90,8 +107,10 @@ def ta_rma(state: IndicatorState, node_id: int, source: float, length: int) -> f
     첫 값 = SMA(length) seed, 이후 = (prev * (length-1) + source) / length.
     Pine v5 ta.rma 호환. Sprint X1+X3 dogfood follow-up (i3_drfx ta.rma 의존).
     """
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (uniformity)
+    if _len is None:
         return float("nan")
+    length = _len
     slot = state.buffers.setdefault(node_id, {"prev": float("nan"), "warmup": []})
     if _is_na(source):
         return float(slot["prev"])
@@ -120,8 +139,10 @@ def ta_atr(
     close_prev: float,
 ) -> float:
     """Average True Range. True Range = max(high-low, |high-prev_close|, |low-prev_close|)."""
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=) crash 차단)
+    if _len is None:
         return float("nan")
+    length = _len
     tr = high - low
     if not _is_na(close_prev):
         tr = max(tr, abs(high - close_prev), abs(low - close_prev))
@@ -138,8 +159,10 @@ def ta_atr(
 
 def ta_rsi(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """Relative Strength Index (Wilder's smoothing 근사)."""
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (uniformity)
+    if _len is None:
         return float("nan")
+    length = _len
     slot = state.buffers.setdefault(
         node_id,
         {
@@ -207,6 +230,10 @@ def ta_crossunder(state: IndicatorState, node_id: int, a: float, b: float) -> bo
 
 
 def ta_highest(state: IndicatorState, node_id: int, source: float, length: int) -> float:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=0) max(empty) 차단)
+    if _len is None:
+        return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     buf.append(source)
     if len(buf) < length:
@@ -215,6 +242,10 @@ def ta_highest(state: IndicatorState, node_id: int, source: float, length: int) 
 
 
 def ta_lowest(state: IndicatorState, node_id: int, source: float, length: int) -> float:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=0) min(empty) 차단)
+    if _len is None:
+        return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     buf.append(source)
     if len(buf) < length:
@@ -354,6 +385,10 @@ def ta_pivotlow(
 
 def ta_change(state: IndicatorState, node_id: int, source: float, length: int = 1) -> float:
     """source - source[length]."""
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=length+1) crash 차단)
+    if _len is None:
+        return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length + 1))
     buf.append(source)
     if len(buf) <= length:
@@ -363,8 +398,10 @@ def ta_change(state: IndicatorState, node_id: int, source: float, length: int = 
 
 def ta_stdev(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """슬라이딩 윈도우 표준편차 (모집단). warmup < length → nan."""
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=) crash 차단)
+    if _len is None:
         return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     if _is_na(source):
         buf.append(source)
@@ -379,8 +416,10 @@ def ta_stdev(state: IndicatorState, node_id: int, source: float, length: int) ->
 
 def ta_variance(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """슬라이딩 윈도우 분산 (모집단). warmup < length → nan."""
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (deque(maxlen=) crash 차단)
+    if _len is None:
         return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     if _is_na(source):
         buf.append(source)
@@ -538,9 +577,10 @@ def fn_nz(x: Any, replacement: Any = 0.0) -> Any:
 
 def ta_wma(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """Weighted Moving Average — weights 1,2,...,length (최신 = length)."""
-    length = int(length)  # Pine may pass float (e.g. tclength/2)
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (int(na)/int(inf) crash 차단)
+    if _len is None:
         return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     if _is_na(source):
         return float("nan")
@@ -563,9 +603,10 @@ def ta_cross(state: IndicatorState, node_id: int, a: float, b: float) -> bool:
 
 def ta_mom(state: IndicatorState, node_id: int, source: float, length: int = 1) -> float:
     """Momentum = source - source[length]."""
-    length = int(length)  # Pine may pass float
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (int(na)/int(inf) crash 차단)
+    if _len is None:
         return float("nan")
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length + 1))
     if _is_na(source):
         return float("nan")
@@ -596,9 +637,10 @@ def _wma_from_deque(buf: deque[float], source: float, length: int) -> float:
 
 def ta_hma(state: IndicatorState, node_id: int, source: float, length: int) -> float:
     """Hull Moving Average = WMA(2*WMA(src, n/2) - WMA(src, n), floor(sqrt(n)))."""
-    length = int(length)  # Pine may pass float
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → na (int(na)/int(inf) crash 차단)
+    if _len is None:
         return float("nan")
+    length = _len
     half_len = max(1, length // 2)
     sqrt_len = max(1, math.floor(math.sqrt(length)))
     slot = state.buffers.setdefault(
@@ -623,10 +665,11 @@ def ta_bb(
     mult: float = 2.0,
 ) -> list[float]:
     """Bollinger Bands. Returns [upper, basis, lower]."""
-    length = int(length)  # Pine may pass float
     nan = float("nan")
-    if length <= 0:
+    _len = _coerce_length(length)  # BL-376: na/inf/<1 length → [na,na,na] (int(na)/deque crash 차단)
+    if _len is None:
         return [nan, nan, nan]
+    length = _len
     buf: deque[float] = state.buffers.setdefault(node_id, deque(maxlen=length))
     if _is_na(source):
         return [nan, nan, nan]
@@ -733,27 +776,33 @@ class StdlibDispatcher:
             return ta_lowest(self.state, scoped_id, *args)
         if func_name == "ta.change":
             length = args[1] if len(args) >= 2 else 1
-            return ta_change(self.state, scoped_id, args[0], int(length))
+            return ta_change(self.state, scoped_id, args[0], length)  # BL-376: int() 제거 → 함수가 coerce
         if func_name == "ta.stdev":
-            return ta_stdev(self.state, scoped_id, args[0], int(args[1]))
+            return ta_stdev(self.state, scoped_id, args[0], args[1])  # BL-376: int() 제거 → 함수가 coerce
         if func_name == "ta.variance":
-            return ta_variance(self.state, scoped_id, args[0], int(args[1]))
+            return ta_variance(self.state, scoped_id, args[0], args[1])  # BL-376: int() 제거 → 함수가 coerce
         if func_name == "ta.pivothigh":
             # Pine: pivothigh(left, right) OR pivothigh(source, left, right)
             if len(args) == 2:
-                left, right = int(args[0]), int(args[1])
+                left, right = _coerce_length(args[0]), _coerce_length(args[1])
                 src_val = high
             else:
                 src_val = args[0] if not _is_na(args[0]) else high
-                left, right = int(args[1]), int(args[2])
+                left, right = _coerce_length(args[1]), _coerce_length(args[2])
+            # BL-376: na/inf/<1 window → na (int(nan/inf) 예외 escape 차단)
+            if left is None or right is None:
+                return float("nan")
             return ta_pivothigh(self.state, scoped_id, left, right, src_val)
         if func_name == "ta.pivotlow":
             if len(args) == 2:
-                left, right = int(args[0]), int(args[1])
+                left, right = _coerce_length(args[0]), _coerce_length(args[1])
                 src_val = low
             else:
                 src_val = args[0] if not _is_na(args[0]) else low
-                left, right = int(args[1]), int(args[2])
+                left, right = _coerce_length(args[1]), _coerce_length(args[2])
+            # BL-376: na/inf/<1 window → na (int(nan/inf) 예외 escape 차단)
+            if left is None or right is None:
+                return float("nan")
             return ta_pivotlow(self.state, scoped_id, left, right, src_val)
         if func_name == "ta.sar":
             # Pine: ta.sar(start, increment, maximum) — high/low 는 dispatcher 가 주입
@@ -766,7 +815,12 @@ class StdlibDispatcher:
             return ta_barssince(self.state, scoped_id, args[0])
         if func_name == "ta.valuewhen":
             # args: (cond, source, occurrence)
-            occ = int(args[2])
+            # BL-376 (G1 P1#2 + G2): occurrence 는 length 아님 — 0(가장 최근)/음수 유효. na/inf 만 na.
+            # float(numpy 포함)·Decimal 의 NaN/Inf 모두 차단 (Decimal('NaN') 은 int() 에서 escape).
+            occ_raw = args[2]
+            if isinstance(occ_raw, (float, Decimal)) and not math.isfinite(occ_raw):
+                return float("nan")
+            occ = int(occ_raw)
             return ta_valuewhen(self.state, scoped_id, args[0], args[1], occ)
         if func_name == "na":
             return fn_na(args[0] if args else float("nan"))
