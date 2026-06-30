@@ -9,9 +9,9 @@ from uuid import uuid4
 import pytest
 
 from src.stress_test.schemas import (
-    ParamStabilityCellOut,
+    GridSweepMetricsCellOut,
+    GridSweepMetricsResultOut,
     ParamStabilityParams,
-    ParamStabilityResultOut,
     ParamStabilitySubmitRequest,
 )
 
@@ -159,7 +159,7 @@ class TestParamStabilityResultOut:
     def test_result_round_trip(self) -> None:
         """9-cell result 정상 serialization."""
         cells = [
-            ParamStabilityCellOut(
+            GridSweepMetricsCellOut(
                 param1_value=str(p1),
                 param2_value=str(p2),
                 sharpe="1.23",
@@ -171,7 +171,7 @@ class TestParamStabilityResultOut:
             for p1 in [10, 20, 30]
             for p2 in [Decimal("1.0"), Decimal("2.0"), Decimal("3.0")]
         ]
-        result = ParamStabilityResultOut(
+        result = GridSweepMetricsResultOut(
             param1_name="emaPeriod",
             param2_name="stopLossPct",
             param1_values=["10", "20", "30"],

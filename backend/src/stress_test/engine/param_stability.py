@@ -22,10 +22,9 @@ _build_config (BL-222 보존) 도 wrapper 안 cell_runner lambda 안에서 호�
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from dataclasses import replace as dc_replace
 from decimal import Decimal
-from typing import Final
+from typing import Final, cast
 
 import pandas as pd
 
@@ -37,8 +36,14 @@ from src.common.grid_sweep import (
 )
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
-
-_MAX_GRID_CELLS: Final[int] = 9  # 서버 강제 제한 (Sprint 50 codex P1#5 패턴 재사용)
+from src.stress_test.engine.grid_result import (
+    GRID_PARAM_COUNT,
+    MAX_GRID_CELLS,
+    GridSweepMetricsCell,
+    GridSweepMetricsResult,
+    metrics_cell,
+    to_metrics_result,
+)
 
 # Sprint 52 BL-225 — Param Stability MVP 지원 input_type. 그 외는 reject (확장 = BL 등재).
 # input.int = 정수 Decimal 만 (Decimal("20.5") → int() = 20 잘림 방지 — heatmap mismatch 차단).
@@ -46,30 +51,6 @@ _MAX_GRID_CELLS: Final[int] = 9  # 서버 강제 제한 (Sprint 50 codex P1#5 �
 # input.bool / input.string / input.source / input.price / input.session / input.symbol /
 # input.timeframe / input.color / input.time / generic = MVP unsupported, reject.
 _SUPPORTED_INPUT_TYPES: Final[frozenset[str]] = frozenset({"int", "float"})
-
-
-@dataclass(frozen=True, slots=True)
-class ParamStabilityCell:
-    """단일 (param1, param2) 조합의 backtest 결과."""
-
-    param1_value: Decimal
-    param2_value: Decimal
-    sharpe: Decimal | None
-    total_return: Decimal
-    max_drawdown: Decimal
-    num_trades: int
-    is_degenerate: bool  # num_trades=0 또는 NaN sharpe → "—" 표시
-
-
-@dataclass(frozen=True, slots=True)
-class ParamStabilityResult:
-    """2D grid sweep 결과. cells = row-major flatten (i*N2 + j)."""
-
-    param1_name: str
-    param2_name: str
-    param1_values: list[Decimal] = field(default_factory=list)
-    param2_values: list[Decimal] = field(default_factory=list)
-    cells: list[ParamStabilityCell] = field(default_factory=list)
 
 
 def _build_config(
@@ -102,9 +83,9 @@ def _validate_param_grid_for_pine(
     wrapper 책임 (heatmap result_jsonb param1_name/param2_name 컬럼 호환).
     Optimizer (Sprint 54) 는 별도 hook 작성 (N-dim 본격 사용).
     """
-    if len(param_grid) != 2:
+    if len(param_grid) != GRID_PARAM_COUNT:
         raise ValueError(
-            f"param_grid must have exactly 2 keys for param stability "
+            f"param_grid must have exactly {GRID_PARAM_COUNT} keys for param stability "
             f"(got {len(param_grid)}). Optimizer (Sprint 54+) 가 N-dim 본격 지원."
         )
     # pre-flight (전체 grid 공통). 미지원 pine 1개라도 → reject.
@@ -154,7 +135,7 @@ def run_param_stability(
     *,
     param_grid: dict[str, list[Decimal]],
     backtest_config: BacktestConfig | None = None,
-) -> ParamStabilityResult:
+) -> GridSweepMetricsResult:
     """pine_v2 strategy input override 2D grid sweep (서버 9 cell 제한).
 
     Args:
@@ -164,15 +145,18 @@ def run_param_stability(
         backtest_config: None → BacktestConfig() 기본. cell override 시 input_overrides 만 변경.
 
     Returns:
-        ParamStabilityResult — cells row-major flatten (param1 x param2).
+        GridSweepMetricsResult — cells row-major flatten (param1 x param2).
 
     Raises:
         ValueError: grid 미준수, 9 cell 초과, 미지원 pine, var_name InputDecl 부재.
         ValueError: cell backtest 실패 (GridSweepCellError → ValueError chain).
     """
-    keys = tuple(param_grid.keys()) if len(param_grid) == 2 else ()
+    keys: tuple[str, str] = cast(
+        "tuple[str, str]",
+        tuple(param_grid.keys()) if len(param_grid) == GRID_PARAM_COUNT else ("", ""),
+    )
 
-    def _cell_runner(values: dict[str, Decimal]) -> ParamStabilityCell:
+    def _cell_runner(values: dict[str, Decimal]) -> GridSweepMetricsCell:
         cfg = _build_config(backtest_config, overrides=dict(values))
         outcome = run_backtest(pine_source, ohlcv, cfg)
         if outcome.status != "ok" or outcome.result is None:
@@ -180,26 +164,23 @@ def run_param_stability(
                 f"backtest failed at cell ({values}): status={outcome.status}"
             )
         metrics = outcome.result.metrics
-        num_trades = metrics.num_trades
-        is_degenerate = num_trades == 0 or metrics.sharpe_ratio is None
-        # ParamStabilityCell API 보존 — param_values dict 에서 row-major 순서 추출
+        # param_values dict 에서 row-major 순서 추출
         # (grid_sweep 가 invariant 보장: dict insertion = param_grid key 순서)
         param1_name, param2_name = keys  # cell_runner 호출 시점에 keys 이미 확정
-        return ParamStabilityCell(
+        return metrics_cell(
             param1_value=values[param1_name],
             param2_value=values[param2_name],
             sharpe=metrics.sharpe_ratio,
             total_return=metrics.total_return,
             max_drawdown=metrics.max_drawdown,
-            num_trades=num_trades,
-            is_degenerate=is_degenerate,
+            num_trades=metrics.num_trades,
         )
 
     try:
         sweep = run_grid_sweep(
             param_grid=param_grid,
             cell_runner=_cell_runner,  # type: ignore[arg-type]
-            max_cells=_MAX_GRID_CELLS,
+            max_cells=MAX_GRID_CELLS,
             pre_validate=lambda g: _validate_param_grid_for_pine(pine_source, g),
         )
     except GridSweepCellError as exc:
@@ -208,13 +189,5 @@ def run_param_stability(
         # __cause__ 보존은 chain 으로 유지.
         raise ValueError(str(exc)) from exc.__cause__
 
-    # GridSweepResult → ParamStabilityResult adapter
-    assert len(sweep.param_names) == 2  # invariant (engine 2-key 강제)
-    param1_name, param2_name = sweep.param_names
-    return ParamStabilityResult(
-        param1_name=param1_name,
-        param2_name=param2_name,
-        param1_values=list(sweep.param_values[param1_name]),
-        param2_values=list(sweep.param_values[param2_name]),
-        cells=[c.result for c in sweep.cells],
-    )
+    # GridSweepResult → GridSweepMetricsResult adapter
+    return to_metrics_result(sweep)
