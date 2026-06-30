@@ -11,7 +11,7 @@
 
 ## 🔁 Verification Loop — 문서검증 + 아키텍처 감사 (2026-06-30, `docs/audit/2026-06-30-verification-loop.md`)
 
-**스코프**: methodology-tooled Stage 0/4 를 quant-bridge 에 실제 적용. 코드 로직 변경 0. 브랜치 `docs/verification-loop-2026-06-30` (3 commit, **푸시/PR 사용자 승인 대기**).
+**스코프**: methodology-tooled Stage 0/4 를 quant-bridge 에 실제 적용. 코드 로직 변경 0. 브랜치 `docs/verification-loop-2026-06-30` (docs-only commits, **푸시/PR 사용자 승인 대기**).
 
 **산출**:
 

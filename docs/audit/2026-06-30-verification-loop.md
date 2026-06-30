@@ -1,6 +1,6 @@
 # 2026-06-30 — Verification Loop (문서 레벨 검증 + 아키텍처 감사)
 
-> `ai-rules/.ai/process/methodology-tooled.md` 6-Stage 도구 매핑을 quant-bridge 에 실제 적용한 검증 루프. **코드 로직 변경 0** (문서/설정/스킬 심볼릭만). codex 4-gate 교차검증. 브랜치 `docs/verification-loop-2026-06-30` (3 commit, 푸시/PR 사용자 승인 대기).
+> `ai-rules/.ai/process/methodology-tooled.md` 6-Stage 도구 매핑을 quant-bridge 에 실제 적용한 검증 루프. **코드 로직 변경 0** (문서/설정/스킬 심볼릭만). codex 4-gate 교차검증. 브랜치 `docs/verification-loop-2026-06-30` (docs-only commits, 푸시/PR 사용자 승인 대기).
 
 ## 범위 & 사용자 결정
 
@@ -52,7 +52,7 @@ ultracode Workflow 4-agent fan-out + 합성 → 후보 6 → **codex challenge**
 ## 검증 증거
 
 - **codex 4-gate:** Phase1 consult(CONTEXT.md 7보정) + Phase3 challenge(6후보 처분) + (Phase2/4 = 본 번들 일관성, 아래 G-gate) — 전 finding 직접 코드 검증.
-- **코드 로직 0:** `git diff main --name-only` 에 `backend/src`·`frontend/src` 0건 (3 commit 전부 docs/설정/스킬).
+- **코드 로직 0:** `git diff main --name-only` 에 `backend/src`·`frontend/src` 0건 (전 commit 이 docs/설정/스킬).
 - **드리프트 grep:** `docs/04_architecture/` 잔여 vectorbt-as-engine 표기 0 (지표전용/conformance/migration-history 맥락만 보존).
 
 ## Decision Log

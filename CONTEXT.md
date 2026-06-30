@@ -128,10 +128,10 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 
 ## Flagged ambiguities
 
-- **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/02_domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 대상.
-- **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**, vectorbt 는 지표계산 전용(ADR-011). _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 대상.
-- **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `backend/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `backend/src/exchange/models.py` 표기 → Phase 2 정정 대상.
-- **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. **ExchangeMode** = `demo | live` 뿐이고 demo 는 실 매칭엔진.
+- **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/02_domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
+- **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**, vectorbt 는 지표계산 전용(ADR-011). _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료(본 브랜치).
+- **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `backend/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `backend/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
+- **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. **ExchangeMode** = `demo | live` 뿐이고 demo 의미는 거래소별 상이(Bybit demo = 실 매칭엔진 / OKX demo = CCXT sandbox).
 - **"unsupported"**(parse_status) → 해소: 파서는 `ok`/`error` 만 set. 미지원 함수 판정은 백테스트 제출 시 **Coverage Analyzer**(ADR-003 all-or-nothing).
 - **"transpile"** → 해소: pine_v2 는 AST 를 해석(interpret)하며 Python 으로 트랜스파일하지 않음(`exec`/`eval` 금지, ADR-003).
 
