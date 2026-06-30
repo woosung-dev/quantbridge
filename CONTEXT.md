@@ -109,6 +109,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 - 한 **Strategy** 는 0..N **Backtest** 를 생성(삭제 RESTRICT, 참조 중이면 409).
 - 한 **Backtest** 는 0..N **Stress Test** 의 입력(삭제 CASCADE).
 - 한 **Optimizer** 실행은 한 **Strategy** 의 파라미터 공간을 탐색.
+- **Optimizer**·**Stress Test** 는 backtest 의 `run_backtest`(= pine_v2 `v2_adapter.run_backtest_v2`) 엔진을 **재실행**한다 — Optimizer = param combo 마다, Stress Test = WFO/Param-Stability/Cost-Assumption cell 마다(단 Monte Carlo 는 완료 **Backtest** trades 재표집이라 엔진 미재실행). v2_adapter 변경은 이 3 소비자에 동시 영향(BL-388/389/391).
 - 한 **LiveSignalSession** 은 한 **Strategy** + 한 **ExchangeAccount** 를 참조(선택적 reference Backtest).
 - 한 **LiveSignalEvent** 는 0..1 **Order** 로 dispatch.
 - **Kill Switch** 는 모든 **Order** 발주 전 게이트.

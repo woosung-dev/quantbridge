@@ -22,8 +22,7 @@ flowchart TB
     end
 
     subgraph Execute["Execution Context"]
-        Trd[trading\n데모/라이브 세션]
-        Ex[exchange\nAPI Key·계정 관리]
+        Trd[trading\n데모/라이브 세션·ExchangeAccount]
     end
 
     subgraph Data["Data Context"]
@@ -33,7 +32,6 @@ flowchart TB
     Auth --> Str
     Auth --> BT
     Auth --> Trd
-    Auth --> Ex
 
     Str --> BT
     Str --> Trd
@@ -44,7 +42,6 @@ flowchart TB
 
     Opt --> Str
 
-    Trd --> Ex
     Trd -. uses .-> MD
 ```
 
