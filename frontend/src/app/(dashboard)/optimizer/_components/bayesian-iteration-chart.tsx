@@ -75,7 +75,7 @@ export function BayesianIterationChart({ result }: Props) {
           {result.degenerate_count > 0 && (
             <>
               {" · "}degenerate:{" "}
-              <span className="text-amber-600 dark:text-amber-400">
+              <span className="text-warning">
                 {result.degenerate_count} / {result.total_iterations}
               </span>
             </>

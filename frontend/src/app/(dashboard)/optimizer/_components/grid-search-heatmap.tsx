@@ -1,6 +1,8 @@
 // Sprint 54 — Grid Search 2D heatmap (cost-assumption-heatmap.tsx 1:1 fork, best cell highlight 추가)
 "use client";
 
+import { ArrowDown, ArrowUp, Star } from "lucide-react";
+
 import type { GridSearchResult } from "@/features/optimizer/schemas";
 import { cn } from "@/lib/utils";
 
@@ -10,9 +12,14 @@ interface Props {
   pair: readonly [string, string];
 }
 
-function signMarker(value: number | null): string {
-  if (value === null) return "";
-  return value >= 0 ? "▲" : "▼";
+// 부호 화살표 — 색 강도와 별개로 색맹 대비용 sign fallback.
+function SignArrow({ value }: { value: number | null }) {
+  if (value === null) return null;
+  return value >= 0 ? (
+    <ArrowUp className="inline h-3 w-3" aria-hidden="true" />
+  ) : (
+    <ArrowDown className="inline h-3 w-3" aria-hidden="true" />
+  );
 }
 
 export function GridSearchHeatmap({ result, pair }: Props) {
@@ -76,16 +83,18 @@ export function GridSearchHeatmap({ result, pair }: Props) {
     <div className="space-y-3 overflow-x-auto">
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
-          <span className="text-success">▲</span> {result.direction === "maximize" ? "유리" : "음수 우대"}
+          <ArrowUp className="h-3 w-3 text-success" aria-hidden="true" />{" "}
+          {result.direction === "maximize" ? "유리" : "음수 우대"}
         </span>
         <span className="flex items-center gap-1">
-          <span className="text-destructive">▼</span> {result.direction === "maximize" ? "불리" : "양수 음수전환"}
+          <ArrowDown className="h-3 w-3 text-destructive" aria-hidden="true" />{" "}
+          {result.direction === "maximize" ? "불리" : "양수 음수전환"}
         </span>
         <span>— 거래 0건 또는 NaN (degenerate)</span>
-        <span className="rounded border border-primary px-1.5 py-0.5 text-primary">
-          ★ Best cell
+        <span className="inline-flex items-center gap-1 rounded border border-primary px-1.5 py-0.5 text-primary">
+          <Star className="h-3 w-3 fill-current" aria-hidden="true" /> 최적 셀
         </span>
-        <span>· objective = {result.objective_metric} ({result.direction})</span>
+        <span>· 목표 지표 = {result.objective_metric} ({result.direction})</span>
       </div>
       <table
         className="border-collapse"
@@ -142,7 +151,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                   <td
                     key={`${x}-${y}`}
                     className={cn(
-                      "p-2 text-xs text-center min-w-[72px] border border-border",
+                      "p-2 text-xs text-center min-w-[72px] border border-border tabular-nums",
                       "focus:outline-2 focus:outline-primary focus:outline-offset-1",
                       cell.is_degenerate && "text-muted-foreground",
                       isBest && "outline outline-2 outline-primary outline-offset-[-2px]",
@@ -151,8 +160,8 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                       cell.is_degenerate ? undefined : { background: bgFor(objVal) }
                     }
                     tabIndex={0}
-                    aria-label={tooltip.replace(/\n/g, ", ") + (isBest ? " ★ Best cell" : "")}
-                    title={tooltip + (isBest ? "\n★ Best cell" : "")}
+                    aria-label={tooltip.replace(/\n/g, ", ") + (isBest ? " 최적 셀" : "")}
+                    title={tooltip + (isBest ? "\n최적 셀" : "")}
                   >
                     <span className="block leading-tight">
                       {cell.is_degenerate || objVal === null ? (
@@ -160,11 +169,12 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                       ) : (
                         <>
                           {isBest && (
-                            <span aria-hidden="true" className="mr-0.5 text-primary">
-                              ★
-                            </span>
+                            <Star
+                              className="mr-0.5 inline h-3 w-3 fill-current text-primary"
+                              aria-hidden="true"
+                            />
                           )}
-                          <span aria-hidden="true">{signMarker(objVal)}</span>{" "}
+                          <SignArrow value={objVal} />{" "}
                           {objVal.toFixed(2)}
                         </>
                       )}
@@ -177,7 +187,8 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         </tbody>
       </table>
       <p className="text-xs text-muted-foreground">
-        objective_metric = {result.objective_metric}. 색 강도 = |value|. 부호는 ▲/▼ (색맹 fallback). ★ = best cell.
+        목표 지표 = {result.objective_metric}. 색 강도는 |값| 기준이며, 위·아래
+        화살표는 색맹 대비 부호, 별 아이콘은 최적 셀을 나타냅니다.
       </p>
       {result.param_names.length > 2 && Object.keys(fixOthers).length > 0 && (
         <p className="text-xs text-muted-foreground">

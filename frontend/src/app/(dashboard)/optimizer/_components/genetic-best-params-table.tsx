@@ -1,5 +1,7 @@
-// Sprint 56 BL-233 — Genetic best params table (Bayesian table 1:1 mirror + generation 표시).
+// 유전 알고리즘 최적화의 최적 파라미터 테이블 (세대 표시 포함)
 "use client";
+
+import { AlertTriangle, Star } from "lucide-react";
 
 import type { GeneticSearchResult } from "@/features/optimizer/schemas";
 
@@ -23,58 +25,66 @@ export function GeneticBestParamsTable({ result }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline gap-2 text-sm">
-        <h4 className="font-medium">Best parameters</h4>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <h4 className="font-display font-semibold text-foreground">
+          최적 파라미터
+        </h4>
         {result.degenerate_count > 0 && (
           <span
-            className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+            data-tone="warning"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
             aria-label={`${result.degenerate_count} of ${result.total_iterations} iterations were degenerate`}
           >
-            ⚠ degenerate {result.degenerate_count} / {result.total_iterations} (
+            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+            비정상 {result.degenerate_count} / {result.total_iterations} (
             {degenerateRatio.toFixed(0)}%)
           </span>
         )}
       </div>
 
       {!hasBest ? (
-        <p className="rounded border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-          모든 iteration 이 degenerate (num_trades=0 또는 sharpe=null) — best_params 미선정.
-          파라미터 범위 또는 strategy 검토 권장.
+        <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          모든 반복이 비정상(거래 0건 또는 지표 산출 불가)이라 최적 파라미터를 선정하지
+          못했습니다. 파라미터 범위나 전략을 다시 확인해 주세요.
         </p>
       ) : (
-        <div className="rounded border border-primary/30 bg-primary/5 p-3">
-          <div className="mb-2 flex flex-wrap items-baseline gap-2 text-sm">
-            <strong>★ Best iteration</strong>
+        <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-primary">
+              <Star className="h-4 w-4 fill-current" aria-hidden="true" />
+              최적 반복
+            </span>
             <span className="text-xs text-muted-foreground">
-              idx = <span className="font-mono">{result.best_iteration_idx}</span>
+              #<span className="font-mono tabular-nums">{result.best_iteration_idx}</span>
             </span>
             {bestGeneration !== undefined && (
               <span className="text-xs text-muted-foreground">
-                · gen = <span className="font-mono">{bestGeneration}</span>
+                · 세대 <span className="font-mono tabular-nums">{bestGeneration}</span>
               </span>
             )}
-            <span className="text-xs text-muted-foreground">·</span>
-            <span className="text-xs">
-              {result.objective_metric} ={" "}
-              <span className="font-mono">
+            <span className="text-xs text-muted-foreground">
+              · {result.objective_metric}{" "}
+              <span className="font-mono tabular-nums text-foreground">
                 {result.best_objective_value === null
                   ? "—"
                   : result.best_objective_value.toFixed(4)}
               </span>
             </span>
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="p-1">var_name</th>
-                <th className="p-1">value</th>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="py-1.5 pr-3 font-medium">파라미터</th>
+                <th className="py-1.5 text-right font-medium">값</th>
               </tr>
             </thead>
             <tbody>
               {Object.entries(result.best_params ?? {}).map(([name, value]) => (
-                <tr key={name} className="border-b last:border-b-0">
-                  <td className="p-1 font-mono">{name}</td>
-                  <td className="p-1 font-mono">{value.toFixed(6)}</td>
+                <tr key={name} className="border-b border-border/60 last:border-b-0">
+                  <td className="py-1.5 pr-3 font-mono">{name}</td>
+                  <td className="py-1.5 text-right font-mono tabular-nums">
+                    {value.toFixed(6)}
+                  </td>
                 </tr>
               ))}
             </tbody>

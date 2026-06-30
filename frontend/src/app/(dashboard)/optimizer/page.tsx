@@ -20,9 +20,9 @@ import { OptimizerRunList } from "./_components/optimizer-run-list";
 type Algorithm = "grid_search" | "bayesian" | "genetic";
 
 const ALGORITHM_LABEL: Record<Algorithm, string> = {
-  grid_search: "Grid Search 신규 제출",
-  bayesian: "Bayesian 신규 제출",
-  genetic: "Genetic 신규 제출",
+  grid_search: "그리드 탐색 새 실행",
+  bayesian: "베이지안 탐색 새 실행",
+  genetic: "유전 알고리즘 새 실행",
 };
 
 const PICKER_LIMIT = 100;
@@ -50,10 +50,10 @@ export default function OptimizerPage() {
   return (
     <main className="container mx-auto space-y-6 px-4 py-6">
       <header className="space-y-2">
-        <h1 className="text-xl font-semibold">Optimizer</h1>
+        <h1 className="text-xl font-semibold text-foreground">파라미터 최적화</h1>
         <p className="text-sm text-muted-foreground">
-          Grid Search (서버 9 cell) / Bayesian (≤ 50 evaluation) / Genetic
-          (≤ 50 evaluation) 으로 strategy 의 pine input 변수 조합을 평가합니다.
+          그리드 탐색·베이지안 탐색·유전 알고리즘으로 전략의 입력 변수 조합을
+          평가합니다. 방식별로 평가 횟수 상한이 적용됩니다.
         </p>
       </header>
 
@@ -67,14 +67,14 @@ export default function OptimizerPage() {
                 setShowForm(false);
               }}
             >
-              <SelectTrigger aria-label="backtest_id">
+              <SelectTrigger aria-label="백테스트 선택">
                 <SelectValue
                   placeholder={
                     backtestsQuery.isLoading
-                      ? "백테스트 로딩 중..."
+                      ? "백테스트 로딩 중…"
                       : completedOptions.length === 0
                         ? "완료된 백테스트 없음"
-                        : "백테스트 선택 (COMPLETED)"
+                        : "백테스트 선택 (완료됨)"
                   }
                 />
               </SelectTrigger>
@@ -93,18 +93,18 @@ export default function OptimizerPage() {
               setAlgorithm(e.target.value as Algorithm);
               setShowForm(false);
             }}
-            className="rounded border border-input bg-background px-3 py-2 text-sm"
-            aria-label="optimizer algorithm"
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            aria-label="최적화 알고리즘"
           >
-            <option value="grid_search">Grid Search (≤ 9 cell)</option>
-            <option value="bayesian">Bayesian (skopt, ≤ 50 eval)</option>
-            <option value="genetic">Genetic (self-impl GA, ≤ 50 eval)</option>
+            <option value="grid_search">그리드 탐색 (최대 9개 조합)</option>
+            <option value="bayesian">베이지안 탐색 (≤ 50회 평가)</option>
+            <option value="genetic">유전 알고리즘 (≤ 50회 평가)</option>
           </select>
           <button
             type="button"
             onClick={() => setShowForm((v) => !v)}
             disabled={backtestId.length === 0}
-            className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all hover:bg-primary-hover disabled:opacity-50"
           >
             {showForm ? "폼 닫기" : ALGORITHM_LABEL[algorithm]}
           </button>

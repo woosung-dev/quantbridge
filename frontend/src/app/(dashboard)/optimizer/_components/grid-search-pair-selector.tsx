@@ -33,7 +33,7 @@ export function GridSearchPairSelector({ result }: Props) {
   // N>2 — 변수쌍 선택 prompt.
   return (
     <div className="space-y-4">
-      <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-100">
+      <div data-tone="warning" className="rounded border p-3 text-xs">
         <strong className="block font-medium">N-dim 결과 ({names.length} 변수)</strong>
         heatmap 표시할 변수쌍 2개 선택 (best cell 의 나머지 변수 값으로 slice).
         N-dim viz (parallel-coord / surface) 확장 예정.
