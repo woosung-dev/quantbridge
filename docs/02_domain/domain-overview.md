@@ -92,6 +92,8 @@ flowchart TB
 
 ### 4.1 FK 정책
 
+> **⚠️ 2026-06-30 reconcile 노트:** 아래 표는 초기 계획기 명세로, `trading_sessions`·`live_trades` 는 **미구현 phantom** 테이블이다(entities.md ENT-007/008). 실제 trading lifecycle 은 `live_signal_sessions` + `orders` + `live_signal_events` (state-machines.md §3). **FK 실제 구조 SSOT = [`04_architecture/erd.md`](../04_architecture/erd.md)** (16-table). 본 표의 trading 관련 행은 historical reference.
+
 | 부모                | 자식                                                                                              | ON DELETE | 이유                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------ |
 | `users`             | `strategies`, `backtests`, `exchange_accounts`, `trading_sessions`, `stress_tests`, `live_trades` | CASCADE   | 사용자 탈퇴 시 연관 데이터 일괄 삭제                   |

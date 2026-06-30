@@ -56,7 +56,7 @@ sequenceDiagram
     participant Disp as TaskDispatcher
     participant Redis
     participant W as Celery Worker
-    participant Engine as vectorbt engine
+    participant Engine as pine_v2 인터프리터
     participant OHLCV as OHLCVProvider
 
     User->>FE: 백테스트 설정 + 제출
@@ -80,7 +80,7 @@ sequenceDiagram
     W->>Repo: get(backtest_id) [Guard #2]
     alt cancellation_requested → finalize_cancelled
     end
-    W->>Engine: run_backtest(strategy_python, ohlcv, params)
+    W->>Engine: run_backtest_v2(strategy/AST, ohlcv, params)
     Engine-->>W: BacktestResult (metrics, equity_curve, trades)
     W->>Repo: get(backtest_id) [Guard #3]
     alt cancellation_requested → discard + finalize_cancelled
