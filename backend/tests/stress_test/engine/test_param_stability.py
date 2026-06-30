@@ -13,8 +13,8 @@ import pandas as pd
 import pytest
 
 from src.stress_test.engine import (
-    ParamStabilityCell,
-    ParamStabilityResult,
+    GridSweepMetricsCell,
+    GridSweepMetricsResult,
     run_param_stability,
 )
 
@@ -57,7 +57,7 @@ class TestParamStability9CellGrid:
                 "stopLossPct": [Decimal("1.0"), Decimal("2.0"), Decimal("3.0")],
             },
         )
-        assert isinstance(result, ParamStabilityResult)
+        assert isinstance(result, GridSweepMetricsResult)
         assert len(result.cells) == 9
         assert result.param1_name == "emaPeriod"
         assert result.param2_name == "stopLossPct"
@@ -129,7 +129,7 @@ class TestParamStabilityCellMetrics:
         )
         assert len(result.cells) == 4
         for cell in result.cells:
-            assert isinstance(cell, ParamStabilityCell)
+            assert isinstance(cell, GridSweepMetricsCell)
             assert cell.param1_value in (Decimal("10"), Decimal("20"))
             assert cell.param2_value in (Decimal("1.0"), Decimal("2.0"))
             # sharpe = None or Decimal (degenerate cell 시 None)

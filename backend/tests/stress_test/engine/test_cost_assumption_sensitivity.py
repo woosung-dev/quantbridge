@@ -11,9 +11,8 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
+from src.stress_test.engine import GridSweepMetricsCell, GridSweepMetricsResult
 from src.stress_test.engine.cost_assumption_sensitivity import (
-    CostAssumptionCell,
-    CostAssumptionResult,
     run_cost_assumption_sensitivity,
 )
 
@@ -59,11 +58,11 @@ def test_run_cost_assumption_3x3_grid_returns_9_cells(
             "slippage": [Decimal("0.0001"), Decimal("0.0005"), Decimal("0.001")],
         },
     )
-    assert isinstance(result, CostAssumptionResult)
+    assert isinstance(result, GridSweepMetricsResult)
     assert result.param1_name == "fees"
     assert result.param2_name == "slippage"
     assert len(result.cells) == 9
-    assert all(isinstance(c, CostAssumptionCell) for c in result.cells)
+    assert all(isinstance(c, GridSweepMetricsCell) for c in result.cells)
 
 
 def test_run_cost_assumption_grid_size_bounded_at_9(

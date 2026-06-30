@@ -11,9 +11,8 @@ from decimal import Decimal
 from typing import Any
 
 from src.stress_test.engine import (
-    CostAssumptionResult,
+    GridSweepMetricsResult,
     MonteCarloResult,
-    ParamStabilityResult,
     WalkForwardFold,
     WalkForwardResult,
 )
@@ -151,12 +150,14 @@ def wf_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Cost Assumption Sensitivity ↔ JSONB (Sprint 50)
+# 2D Grid Sweep (Cost Assumption + Param Stability 공유) ↔ JSONB (BL-392 통합)
 # ---------------------------------------------------------------------------
+# CA(Sprint 50) 와 PS(Sprint 51 BL-220) 는 동일 7-field cell shape 를 공유 → 단일
+# serializer 쌍. JSONB shape 는 통합 전과 byte-identical (구버전 저장 row 하위호환).
 
 
-def ca_result_to_jsonb(r: CostAssumptionResult) -> dict[str, Any]:
-    """CostAssumptionResult → JSONB dict. Decimal → str, cells row-major."""
+def grid_metrics_result_to_jsonb(r: GridSweepMetricsResult) -> dict[str, Any]:
+    """GridSweepMetricsResult → JSONB dict. Decimal → str, cells row-major."""
     return {
         "param1_name": r.param1_name,
         "param2_name": r.param2_name,
@@ -177,60 +178,11 @@ def ca_result_to_jsonb(r: CostAssumptionResult) -> dict[str, Any]:
     }
 
 
-def ca_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
-    """JSONB dict → CostAssumptionResultOut.model_validate 입력 dict.
+def grid_metrics_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
+    """JSONB dict → GridSweepMetricsResultOut.model_validate 입력 dict.
 
     str 그대로 유지 (Out schema = str, FE 정합).
     """
-    return {
-        "param1_name": data["param1_name"],
-        "param2_name": data["param2_name"],
-        "param1_values": list(data["param1_values"]),
-        "param2_values": list(data["param2_values"]),
-        "cells": [
-            {
-                "param1_value": c["param1_value"],
-                "param2_value": c["param2_value"],
-                "sharpe": c.get("sharpe"),
-                "total_return": c["total_return"],
-                "max_drawdown": c["max_drawdown"],
-                "num_trades": int(c["num_trades"]),
-                "is_degenerate": bool(c["is_degenerate"]),
-            }
-            for c in data["cells"]
-        ],
-    }
-
-
-# ---------------------------------------------------------------------------
-# Param Stability ↔ JSONB (Sprint 51 BL-220)
-# ---------------------------------------------------------------------------
-
-
-def ps_result_to_jsonb(r: ParamStabilityResult) -> dict[str, Any]:
-    """ParamStabilityResult → JSONB dict. Decimal → str, cells row-major."""
-    return {
-        "param1_name": r.param1_name,
-        "param2_name": r.param2_name,
-        "param1_values": [str(v) for v in r.param1_values],
-        "param2_values": [str(v) for v in r.param2_values],
-        "cells": [
-            {
-                "param1_value": str(c.param1_value),
-                "param2_value": str(c.param2_value),
-                "sharpe": None if c.sharpe is None else str(c.sharpe),
-                "total_return": str(c.total_return),
-                "max_drawdown": str(c.max_drawdown),
-                "num_trades": c.num_trades,
-                "is_degenerate": c.is_degenerate,
-            }
-            for c in r.cells
-        ],
-    }
-
-
-def ps_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
-    """JSONB dict → ParamStabilityResultOut.model_validate 입력 dict."""
     return {
         "param1_name": data["param1_name"],
         "param2_name": data["param2_name"],

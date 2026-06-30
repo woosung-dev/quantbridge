@@ -135,7 +135,7 @@ async def test_execute_cost_assumption_propagates_backtest_config(
         "src.stress_test.service.run_cost_assumption_sensitivity", spy_run
     )
     monkeypatch.setattr(
-        "src.stress_test.service.ca_result_to_jsonb", lambda _r: {}
+        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
     )
 
     await service._execute_cost_assumption_sensitivity(st, bt)
@@ -186,7 +186,7 @@ async def test_execute_param_stability_propagates_backtest_config(
         "src.stress_test.service.run_param_stability", spy_run
     )
     monkeypatch.setattr(
-        "src.stress_test.service.ps_result_to_jsonb", lambda _r: {}
+        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
     )
 
     await service._execute_param_stability(st, bt)
@@ -239,7 +239,7 @@ async def test_execute_cost_assumption_propagates_default_when_bt_config_null(
         "src.stress_test.service.run_cost_assumption_sensitivity", spy_run
     )
     monkeypatch.setattr(
-        "src.stress_test.service.ca_result_to_jsonb", lambda _r: {}
+        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
     )
 
     await service._execute_cost_assumption_sensitivity(st, bt)
@@ -287,7 +287,7 @@ async def test_execute_param_stability_propagates_default_when_bt_config_null(
         "src.stress_test.service.run_param_stability", spy_run
     )
     monkeypatch.setattr(
-        "src.stress_test.service.ps_result_to_jsonb", lambda _r: {}
+        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
     )
 
     await service._execute_param_stability(st, bt)

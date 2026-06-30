@@ -12,9 +12,11 @@ Router → Service → Repository 3-Layer. AsyncSession 직접 import 금지.
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from src.backtest.config_mapper import build_engine_config_from_db
@@ -45,11 +47,10 @@ from src.stress_test.models import (
 )
 from src.stress_test.repository import StressTestRepository
 from src.stress_test.schemas import (
-    CostAssumptionResultOut,
     CostAssumptionSubmitRequest,
+    GridSweepMetricsResultOut,
     MonteCarloResultOut,
     MonteCarloSubmitRequest,
-    ParamStabilityResultOut,
     ParamStabilitySubmitRequest,
     StressTestCreatedResponse,
     StressTestDetail,
@@ -58,18 +59,38 @@ from src.stress_test.schemas import (
     WalkForwardSubmitRequest,
 )
 from src.stress_test.serializers import (
-    ca_result_from_jsonb,
-    ca_result_to_jsonb,
     equity_curve_values,
+    grid_metrics_result_from_jsonb,
+    grid_metrics_result_to_jsonb,
     mc_result_from_jsonb,
     mc_result_to_jsonb,
-    ps_result_from_jsonb,
-    ps_result_to_jsonb,
     wf_result_from_jsonb,
     wf_result_to_jsonb,
 )
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from src.backtest.engine.types import BacktestConfig
+    from src.strategy.models import Strategy
+    from src.stress_test.engine import GridSweepMetricsResult
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class _RunContext:
+    """WF/CA/PS 공통 실행 컨텍스트 — strategy + ohlcv + parent backtest_config.
+
+    BL-363 — 이전엔 3 execute 메서드가 strategy 로드 / ohlcv fetch /
+    `build_engine_config_from_db(bt)` prefix 를 복붙했고, BL-222 가 CA/PS 에만
+    config 를 추가하고 WF 를 누락 → silent money-path corruption. 단일 helper 로
+    config 전달을 single-site 화해 drift class 를 구조적으로 제거한다.
+    """
+
+    strategy: Strategy
+    ohlcv: pd.DataFrame
+    backtest_config: BacktestConfig
 
 
 class StressTestService:
@@ -294,21 +315,33 @@ class StressTestService:
         mc = run_monte_carlo(curve, n_samples=n_samples, seed=seed)
         return mc_result_to_jsonb(mc)
 
-    async def _execute_walk_forward(self, st: StressTest, bt: Backtest) -> dict[str, object]:
-        """Sprint 49 — Walk-Forward worker entry.
+    async def _load_run_context(self, bt: Backtest, *, kind_label: str) -> _RunContext:
+        """WF/CA/PS 공통 prefix — strategy + ohlcv + parent backtest_config 로드 (BL-363).
 
-        전체 정검 S3 (BL-222 follow-up, 2026-05-30): Sprint 52 BL-222 P1 이 CA/PS 에만
-        build_engine_config_from_db 를 추가하고 WF 를 누락 → WF 의 IS/OOS 백테스트가
-        parent 의 fees/slippage/init_cash/leverage/sizing 대신 엔진 기본값으로 실행되던
-        silent corruption. CA/PS 와 동일 패턴으로 parent config 전달.
+        `build_engine_config_from_db(bt)` single-site 화 → BL-222 config-drift class
+        구조적 제거 (이전엔 3 execute 메서드가 복붙 → CA/PS 에만 추가하고 WF 누락하던
+        silent money-path corruption 전적). MC 는 equity_curve 기반이라 비대상.
+        `kind_label` 은 strategy-missing 에러 메시지의 kind-specific 표면 보존용.
         """
         strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
-            raise ValueError("Strategy no longer available for walk-forward")
-
+            raise ValueError(f"Strategy no longer available for {kind_label}")
         ohlcv = await self.provider.get_ohlcv(
             bt.symbol, bt.timeframe, bt.period_start, bt.period_end
         )
+        return _RunContext(
+            strategy=strategy,
+            ohlcv=ohlcv,
+            backtest_config=build_engine_config_from_db(bt),
+        )
+
+    async def _execute_walk_forward(self, st: StressTest, bt: Backtest) -> dict[str, object]:
+        """Sprint 49 — Walk-Forward worker entry.
+
+        전체 정검 S3 (BL-222 follow-up): parent backtest_config 를 IS/OOS 백테스트에
+        전달 (`_load_run_context` 가 strategy/ohlcv/config prefix 를 single-site 로 제공).
+        """
+        ctx = await self._load_run_context(bt, kind_label="walk-forward")
         train_bars = int(st.params["train_bars"])
         test_bars = int(st.params["test_bars"])
         step_raw = st.params.get("step_bars")
@@ -316,7 +349,7 @@ class StressTestService:
         max_folds_raw = st.params.get("max_folds", 20)
         max_folds = int(max_folds_raw) if max_folds_raw is not None else 20
 
-        backtest_config = build_engine_config_from_db(bt)
+        backtest_config = ctx.backtest_config
 
         # C13 진짜 OOS — optimizer spec 동봉 시 fold별 train 재최적화(true WFO).
         # param_space/kind 는 스키마 validator 로 항상 함께 저장 (한쪽만 = reject).
@@ -324,8 +357,8 @@ class StressTestService:
         opt_kind_raw = st.params.get("optimizer_kind")
         if opt_param_space_raw and opt_kind_raw:
             wf = run_walk_forward_optimization(
-                strategy.pine_source,
-                ohlcv,
+                ctx.strategy.pine_source,
+                ctx.ohlcv,
                 train_bars=train_bars,
                 test_bars=test_bars,
                 step_bars=step_bars,
@@ -344,8 +377,8 @@ class StressTestService:
             overrides = {k: Decimal(str(v)) for k, v in best_params_raw.items()}
             backtest_config = replace(backtest_config, input_overrides=overrides)
         wf = run_walk_forward(
-            strategy.pine_source,
-            ohlcv,
+            ctx.strategy.pine_source,
+            ctx.ohlcv,
             train_bars=train_bars,
             test_bars=test_bars,
             step_bars=step_bars,
@@ -357,58 +390,46 @@ class StressTestService:
     async def _execute_cost_assumption_sensitivity(
         self, st: StressTest, bt: Backtest
     ) -> dict[str, object]:
-        """Sprint 50 — Cost Assumption Sensitivity worker entry.
-
-        Sprint 52 BL-222 P1 (2026-05-11): parent backtest config 전달. fees/slippage
-        grid 가 override 하지만 init_cash / freq / trading_sessions / BL-188 v3 sizing
-        5필드 등 cell 마다 보존 의무.
-        """
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
-            raise ValueError("Strategy no longer available for cost assumption sensitivity")
-
-        ohlcv = await self.provider.get_ohlcv(
-            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+        """Sprint 50 — Cost Assumption Sensitivity worker entry (thin delegator → _execute_grid_sweep)."""
+        return await self._execute_grid_sweep(
+            st,
+            bt,
+            engine_fn=run_cost_assumption_sensitivity,
+            kind_label="cost assumption sensitivity",
         )
-        raw_grid = st.params["param_grid"]
-        param_grid: dict[str, list[Decimal]] = {
-            k: [Decimal(v) for v in vs] for k, vs in raw_grid.items()
-        }
-        backtest_config = build_engine_config_from_db(bt)
-        ca = run_cost_assumption_sensitivity(
-            strategy.pine_source,
-            ohlcv,
-            param_grid=param_grid,
-            backtest_config=backtest_config,
-        )
-        return ca_result_to_jsonb(ca)
 
     async def _execute_param_stability(self, st: StressTest, bt: Backtest) -> dict[str, object]:
-        """Sprint 51 BL-220 — Param Stability worker entry.
-
-        Sprint 52 BL-222 P1 (2026-05-11): parent backtest config 전달. input_overrides
-        grid 가 cell 마다 sweep key 갱신하지만, init_cash / freq / fees / slippage /
-        trading_sessions / BL-188 v3 sizing 5필드 등 그 외는 보존 의무.
-        """
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
-            raise ValueError("Strategy no longer available for param stability")
-
-        ohlcv = await self.provider.get_ohlcv(
-            bt.symbol, bt.timeframe, bt.period_start, bt.period_end
+        """Sprint 51 BL-220 — Param Stability worker entry (thin delegator → _execute_grid_sweep)."""
+        return await self._execute_grid_sweep(
+            st, bt, engine_fn=run_param_stability, kind_label="param stability"
         )
+
+    async def _execute_grid_sweep(
+        self,
+        st: StressTest,
+        bt: Backtest,
+        *,
+        engine_fn: Callable[..., GridSweepMetricsResult],
+        kind_label: str,
+    ) -> dict[str, object]:
+        """CA/PS 공통 2D grid sweep worker (BL-363/BL-392).
+
+        parent backtest_config 전달 + param_grid 파싱 + 통합 serializer 를 single-site 화.
+        `engine_fn` 만 주입 — 엔진 _의미_(CA=fees x slippage cost / PS=pine input override)는
+        엔진 함수 내부에 분리 유지 (over-abstraction 가드).
+        """
+        ctx = await self._load_run_context(bt, kind_label=kind_label)
         raw_grid = st.params["param_grid"]
         param_grid: dict[str, list[Decimal]] = {
             k: [Decimal(v) for v in vs] for k, vs in raw_grid.items()
         }
-        backtest_config = build_engine_config_from_db(bt)
-        ps = run_param_stability(
-            strategy.pine_source,
-            ohlcv,
+        result = engine_fn(
+            ctx.strategy.pine_source,
+            ctx.ohlcv,
             param_grid=param_grid,
-            backtest_config=backtest_config,
+            backtest_config=ctx.backtest_config,
         )
-        return ps_result_to_jsonb(ps)
+        return grid_metrics_result_to_jsonb(result)
 
     # ---------- HTTP read ----------
 
@@ -464,17 +485,21 @@ class StressTestService:
     def _to_detail(self, st: StressTest) -> StressTestDetail:
         mc_out: MonteCarloResultOut | None = None
         wf_out: WalkForwardResultOut | None = None
-        ca_out: CostAssumptionResultOut | None = None
-        ps_out: ParamStabilityResultOut | None = None
+        ca_out: GridSweepMetricsResultOut | None = None
+        ps_out: GridSweepMetricsResultOut | None = None
         if st.status == StressTestStatus.COMPLETED and st.result is not None:
             if st.kind == StressTestKind.MONTE_CARLO:
                 mc_out = MonteCarloResultOut.model_validate(mc_result_from_jsonb(st.result))
             elif st.kind == StressTestKind.WALK_FORWARD:
                 wf_out = WalkForwardResultOut.model_validate(wf_result_from_jsonb(st.result))
             elif st.kind == StressTestKind.COST_ASSUMPTION_SENSITIVITY:
-                ca_out = CostAssumptionResultOut.model_validate(ca_result_from_jsonb(st.result))
+                ca_out = GridSweepMetricsResultOut.model_validate(
+                    grid_metrics_result_from_jsonb(st.result)
+                )
             elif st.kind == StressTestKind.PARAM_STABILITY:
-                ps_out = ParamStabilityResultOut.model_validate(ps_result_from_jsonb(st.result))
+                ps_out = GridSweepMetricsResultOut.model_validate(
+                    grid_metrics_result_from_jsonb(st.result)
+                )
         return StressTestDetail(
             id=st.id,
             backtest_id=st.backtest_id,

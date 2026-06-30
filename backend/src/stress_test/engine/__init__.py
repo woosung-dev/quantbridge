@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 from src.stress_test.engine.cost_assumption_sensitivity import (
-    CostAssumptionCell,
-    CostAssumptionResult,
     run_cost_assumption_sensitivity,
 )
-from src.stress_test.engine.monte_carlo import MonteCarloResult, run_monte_carlo
-from src.stress_test.engine.param_stability import (
-    ParamStabilityCell,
-    ParamStabilityResult,
-    run_param_stability,
+from src.stress_test.engine.grid_result import (
+    GridSweepMetricsCell,
+    GridSweepMetricsResult,
 )
+from src.stress_test.engine.monte_carlo import MonteCarloResult, run_monte_carlo
+from src.stress_test.engine.param_stability import run_param_stability
 from src.stress_test.engine.walk_forward import (
     WalkForwardFold,
     WalkForwardResult,
@@ -21,11 +19,9 @@ from src.stress_test.engine.walk_forward import (
 )
 
 __all__ = [
-    "CostAssumptionCell",
-    "CostAssumptionResult",
+    "GridSweepMetricsCell",
+    "GridSweepMetricsResult",
     "MonteCarloResult",
-    "ParamStabilityCell",
-    "ParamStabilityResult",
     "WalkForwardFold",
     "WalkForwardResult",
     "run_cost_assumption_sensitivity",

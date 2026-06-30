@@ -17,6 +17,11 @@ from pydantic import (
 
 from src.common.strict_decimal_input import StrictDecimalInput
 from src.optimizer.schemas import OptimizationKindOut, ParamSpace
+from src.stress_test.engine.grid_result import (
+    COST_ASSUMPTION_PARAM_KEYS,
+    GRID_PARAM_COUNT,
+    MAX_GRID_CELLS,
+)
 from src.stress_test.models import StressTestKind, StressTestStatus
 
 # ---------------------------------------------------------------------------
@@ -187,15 +192,17 @@ class CostAssumptionParams(BaseModel):
 
     # Sprint 53 BL-226 — StrictDecimalInput Request-boundary validator.
     # `1e-3`, `.5`, `+1` reject + `Decimal("NaN")` / `Decimal("1E+5")` canonicalization reject.
-    param_grid: dict[str, list[StrictDecimalInput]] = Field(min_length=2, max_length=2)
+    # C4 — cell/key 상수는 engine.grid_result SSOT (engine validator 와 동일 값, drift 차단).
+    param_grid: dict[str, list[StrictDecimalInput]] = Field(
+        min_length=GRID_PARAM_COUNT, max_length=GRID_PARAM_COUNT
+    )
 
     @model_validator(mode="after")
     def _validate_grid(self) -> CostAssumptionParams:
-        ALLOWED = {"fees", "slippage"}
         keys = set(self.param_grid.keys())
-        if not keys.issubset(ALLOWED):
+        if not keys.issubset(COST_ASSUMPTION_PARAM_KEYS):
             raise ValueError(
-                f"param_grid keys must be subset of {sorted(ALLOWED)}. "
+                f"param_grid keys must be subset of {sorted(COST_ASSUMPTION_PARAM_KEYS)}. "
                 f"진짜 Param Stability (pine input override) = BL-220 / Sprint 51."
             )
         n_cells = 1
@@ -203,8 +210,10 @@ class CostAssumptionParams(BaseModel):
             if not vals:
                 raise ValueError("param_grid values must not be empty")
             n_cells *= len(vals)
-        if n_cells > 9:
-            raise ValueError(f"grid size {n_cells} exceeds 9 cells (Sprint 50 MVP 강제 제한)")
+        if n_cells > MAX_GRID_CELLS:
+            raise ValueError(
+                f"grid size {n_cells} exceeds {MAX_GRID_CELLS} cells (Sprint 50 MVP 강제 제한)"
+            )
         return self
 
 
@@ -215,7 +224,15 @@ class CostAssumptionSubmitRequest(BaseModel):
     params: CostAssumptionParams
 
 
-class CostAssumptionCellOut(BaseModel):
+# ---------------------------------------------------------------------------
+# 2D Grid Sweep result (Cost Assumption + Param Stability 공유 — BL-392 통합)
+# ---------------------------------------------------------------------------
+# CA/PS 는 동일 result shape → 단일 Out 스키마. StressTestDetail 의 두 응답 필드
+# (cost_assumption_result / param_stability_result) 가 이 클래스를 공유 (JSON shape
+# 동일 → FE 무영향, API 비파괴). cells = row-major flatten (param1 x param2).
+
+
+class GridSweepMetricsCellOut(BaseModel):
     """단일 (param1, param2) cell out — Decimal → str (FE 정합)."""
 
     param1_value: str
@@ -227,14 +244,14 @@ class CostAssumptionCellOut(BaseModel):
     is_degenerate: bool
 
 
-class CostAssumptionResultOut(BaseModel):
-    """CA result JSONB → API. cells = row-major flatten."""
+class GridSweepMetricsResultOut(BaseModel):
+    """2D grid sweep result JSONB → API. cells = row-major flatten."""
 
     param1_name: str
     param2_name: str
     param1_values: list[str]
     param2_values: list[str]
-    cells: list[CostAssumptionCellOut]
+    cells: list[GridSweepMetricsCellOut]
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +272,10 @@ class ParamStabilityParams(BaseModel):
 
     # Sprint 53 BL-226 — StrictDecimalInput Request-boundary validator.
     # `1e-3`, `.5`, `+1` reject + `Decimal("NaN")` / `Decimal("1E+5")` canonicalization reject.
-    param_grid: dict[str, list[StrictDecimalInput]] = Field(min_length=2, max_length=2)
+    # C4 — cell 상수는 engine.grid_result SSOT (engine validator 와 동일 값, drift 차단).
+    param_grid: dict[str, list[StrictDecimalInput]] = Field(
+        min_length=GRID_PARAM_COUNT, max_length=GRID_PARAM_COUNT
+    )
 
     @model_validator(mode="after")
     def _validate_grid(self) -> ParamStabilityParams:
@@ -264,8 +284,10 @@ class ParamStabilityParams(BaseModel):
             if not vals:
                 raise ValueError(f"param_grid[{key!r}] values must not be empty")
             n_cells *= len(vals)
-        if n_cells > 9:
-            raise ValueError(f"grid size {n_cells} exceeds 9 cells (Sprint 51 MVP 강제 제한)")
+        if n_cells > MAX_GRID_CELLS:
+            raise ValueError(
+                f"grid size {n_cells} exceeds {MAX_GRID_CELLS} cells (Sprint 51 MVP 강제 제한)"
+            )
         return self
 
 
@@ -274,28 +296,6 @@ class ParamStabilitySubmitRequest(BaseModel):
 
     backtest_id: UUID
     params: ParamStabilityParams
-
-
-class ParamStabilityCellOut(BaseModel):
-    """단일 (param1, param2) cell out — Decimal → str (FE 정합)."""
-
-    param1_value: str
-    param2_value: str
-    sharpe: str | None
-    total_return: str
-    max_drawdown: str
-    num_trades: int
-    is_degenerate: bool
-
-
-class ParamStabilityResultOut(BaseModel):
-    """Param Stability result JSONB → API. cells = row-major flatten."""
-
-    param1_name: str
-    param2_name: str
-    param1_values: list[str]
-    param2_values: list[str]
-    cells: list[ParamStabilityCellOut]
 
 
 # ---------------------------------------------------------------------------
@@ -335,8 +335,9 @@ class StressTestDetail(BaseModel):
     params: dict[str, object]
     monte_carlo_result: MonteCarloResultOut | None = None
     walk_forward_result: WalkForwardResultOut | None = None
-    cost_assumption_result: CostAssumptionResultOut | None = None
-    param_stability_result: ParamStabilityResultOut | None = None
+    # BL-392 — CA/PS 동일 result shape → 공유 GridSweepMetricsResultOut (필드명 유지, API 비파괴).
+    cost_assumption_result: GridSweepMetricsResultOut | None = None
+    param_stability_result: GridSweepMetricsResultOut | None = None
     error: str | None = None
     created_at: AwareDatetime
     started_at: AwareDatetime | None = None
