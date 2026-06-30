@@ -75,14 +75,14 @@ flowchart TB
 
 ### 컨테이너 책임
 
-| 컨테이너 | 책임                                                     | 이미지/런타임                       | 포트 |
-| -------- | -------------------------------------------------------- | ----------------------------------- | ---- |
-| Frontend | Next.js 16 SSR/CSR, Clerk SDK, React Query, Zustand      | `node:22`                           | 3000 |
-| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch | `python:3.11-slim` + `uv`           | 8000 |
-| Worker   | Celery prefork, vectorbt 실행, OHLCV 수집                | API와 동일 이미지                   | —    |
-| Beat     | Celery beat scheduler (stale reclaim, market_data sync)  | API와 동일 이미지                   | —    |
-| DB       | PostgreSQL 15 + TimescaleDB 확장                         | `timescale/timescaledb:latest-pg15` | 5432 |
-| Redis    | Celery 브로커 + 결과 백엔드 + 캐시                       | `redis:7-alpine`                    | 6379 |
+| 컨테이너 | 책임                                                                                                  | 이미지/런타임                       | 포트 |
+| -------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------- | ---- |
+| Frontend | Next.js 16 SSR/CSR, Clerk SDK, React Query, Zustand                                                   | `node:22`                           | 3000 |
+| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                              | `python:3.11-slim` + `uv`           | 8000 |
+| Worker   | Celery prefork, pine_v2 AST 인터프리터 백테스트 실행, OHLCV 수집 (지표 계산은 vectorbt 보조, ADR-011) | API와 동일 이미지                   | —    |
+| Beat     | Celery beat scheduler (stale reclaim, market_data sync)                                               | API와 동일 이미지                   | —    |
+| DB       | PostgreSQL 15 + TimescaleDB 확장                                                                      | `timescale/timescaledb:latest-pg15` | 5432 |
+| Redis    | Celery 브로커 + 결과 백엔드 + 캐시                                                                    | `redis:7-alpine`                    | 6379 |
 
 > Frontend는 현재 dev 환경에서 `pnpm dev` 직접 실행 (compose 미포함). Worker/Beat는 Sprint 5에서 compose 통합 예정.
 
@@ -140,7 +140,7 @@ flowchart LR
     Disp[TaskDispatcher]
     Redis[(Redis Queue)]
     Worker[Celery Worker]
-    Engine[vectorbt engine]
+    Engine[pine_v2 event-loop 엔진]
     Repo[BacktestRepository]
     DB[(PostgreSQL)]
 

@@ -155,9 +155,9 @@
 
 ## ENT-009 — ExchangeAccount _(구현됨 Sprint 6 — `exchange_accounts`, AES-256 암호화; 코드/erd.md SSOT)_
 
-- **도메인:** exchange
-- **코드:** `backend/src/exchange/models.py` (스캐폴딩)
-- **테이블:** `exchange_accounts` (계획)
+- **도메인:** trading (구 `exchange` 도메인 통합 — ADR-018, `backend/src/exchange/` 부재)
+- **코드:** `backend/src/trading/models.py` (`class ExchangeAccount`)
+- **테이블:** `exchange_accounts`
 - **책임:** 사용자별 거래소 API Key 보관 + 권한 메타.
 - **계획 필드:**
   - `user_id FK`, `exchange` (BYBIT/BINANCE/OKX), `label`

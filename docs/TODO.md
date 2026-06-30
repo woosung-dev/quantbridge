@@ -9,6 +9,25 @@
 
 ---
 
+## 🔁 Verification Loop — 문서검증 + 아키텍처 감사 (2026-06-30, `docs/audit/2026-06-30-verification-loop.md`)
+
+**스코프**: methodology-tooled Stage 0/4 를 quant-bridge 에 실제 적용. 코드 로직 변경 0. 브랜치 `docs/verification-loop-2026-06-30` (docs-only commits, **푸시/PR 사용자 승인 대기**).
+
+**산출**:
+
+- **Stage 0**: 루트 `CONTEXT.md` 도메인 헌법 신설 (codex consult 7 보정) + AGENTS.md 온보딩 4종으로 갱신.
+- **문서 드리프트 수정 5 파일**: system-architecture/data-flow vectorbt→pine_v2 / ADR-020 초안→확정 / domain-overview FK 노트 / entities ENT-009 exchange→trading.
+- **backtest 1차 deepen** (improve-codebase-architecture, Workflow 4-agent + codex challenge): **신규 BL-387~391** (P2 2 + P3 3) + **ADR-021** (C3 idempotency 통합 거부). 45 → **50 active BL**.
+- **cadence 배선**: `.ai/common/global.md §7.5` methodology 스킬 invocable 화.
+
+**Next Actions**:
+
+- [ ] 브랜치 `docs/verification-loop-2026-06-30` 푸시 + PR (사용자 승인)
+- [ ] (선택) 다음 deepen = optimizer/stress_test (Iron Law = 새 session, optimizer coverage <70% STOP 선확인)
+- [ ] `.ai/` 마스터 ai-rules repo 미러 (LESSON-068 manual sync)
+
+---
+
 ## 🧪 Phase C 라이브 QA (2026-05-30, `docs/qa/2026-05-30-phase-c/report.md`)
 
 **스코프**: audit Phase C deferred 실행 + S5/S6/S7 (#315/#316/#318) 머지 후 라이브 재검증. MCP Playwright `:8100/:3100` 격리 stack + Clerk test 계정.

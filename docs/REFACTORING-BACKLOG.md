@@ -6,10 +6,11 @@
 
 **작성일:** 2026-04-30
 **최종 갱신:** 2026-05-17 (**Beta 본격 진입 결정** — Sprint 60→61→62 누적 3-sprint cycle 완료, 34 BL Resolved + BL-070~075 트랙 활성화)
-**현재 상태:** **45 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적, 신규 14 = 17 → 54 → 48 → 45). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **50 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적; 2026-06-30 backtest-deepen +5 BL-387~391 → 45 → 50). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
 
+- **2026-06-30 backtest-deepen (verification loop)**: backtest 도메인 1차 deepen (improve-codebase-architecture + codex challenge, 코드 변경 0). 신규 **BL-387~391** (5건) — BL-387 sizing-canonical typed seam(P2 money-path) / BL-388 BacktestMetrics 4-site multi-SSOT(P2) / BL-389 finance-math `engine/metrics.py` 추출(P3) / BL-390 exit `fill_type` 중복 위임(P3) / BL-391 equity↔PnL reconciliation oracle(P3 test-first). codex KILL C3(idempotency dual-lock 통합 = 의도적 layered + 잘 테스트됨) → [ADR-021](dev-log/021-backtest-idempotency-dual-lock.md). **codex C1 DOWNGRADE 는 phantom `metrics.py` 오인 → 직접 검증 후 KEEP 정정**(§7.3 circular-trust 차단). dev-log [`2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md).
 - **2026-06-30 BL-378 Resolved (`fix/pine-378-atr-wilder`)**: pine_v2 `ta.atr` 가 Wilder RMA (TV `ta.atr = ta.rma(ta.tr, len)`) 아닌 rolling SMA 사용 → 비-상수 TR(=모든 실데이터)에서 TradingView 와 silent divergence (헤드라인 harm-class). 실세계 8 전략 티어드 백테스트 QA (`docs/qa/2026-06-30-pine-tiered-backtest/report.md`) 의 大-tier anti-circular hand-oracle 에서 발견 (5중 교차검증: codex G1 + 직접 oracle 9/9 bar + generator panel discriminator + panel 실행 15.0 vs 14.818 + codex G2). 수정 = `ta_atr` 가 기존 Wilder `ta_rma` 재사용 (~2줄, seed 동일·이후 TV 정합). G1-G4 (codex G1 plan eval + Workflow 12-agent generator panel + codex G2 challenge[B1 CONFIRMED] + codex diff-challenge[no P1] + G3 fresh review + mutation 2/2 CAUGHT) + full **2301 pass** (+6 pre-existing env, stash 대조 확인) + ruff/mypy clean + trust-layer golden 재생성(s2_utbot/i1_utbot num_trades 461→433, ATR→trailing 신호 변화). migration 0. 신규 **BL-379~386** (QA 부수 발견 9건: fn-local subscript / Track A alert warning / valuewhen na 등).
 - **2026-06-30 BL-376 Resolved (`fix/pine-376-na-inf`)**: pine*v2 na/inf *소비\_ 사이트 robustness (BL-374 후속). 3 사이트 — (1) na/inf/<1 → ta.\* length: `_coerce_length` 헬퍼를 14 ta 함수 + dispatcher(change/stdev/variance int() 제거) + pivothigh/pivotlow 양 window + valuewhen occurrence(별도 non-finite 가드, occ=0 보존) 에 적용 → na 반환. (2) na/inf qty → `StrategyState.entry` skip + warning (라이브 reject 미러, 유한 0.0 보존). (3) inf → `math.floor/ceil/round`(per-branch, 공유 가드 미변경 — abs/sign/max 통과 유지) / subscript offset isfinite / timestamp +OverflowError. G1-G4(codex plan eval GO_WITH_FIXES + 4-candidate generator panel byte-수렴 + codex challenge[P1 valuewhen Decimal NaN 갭 → `(float, Decimal)` 가드] + fresh review SHIP + mutation 6/6 CAUGHT) + full suite 2305 pass(cov ≥90) + Playwright E2E(na/inf 백테스트 FAILED→COMPLETED, console.error 0). migration 0. 신규 [BL-377] (deferred: non-finite 주문/청산 가격 + 초대형 유한 length OverflowError).
 - **2026-06-29 BL-374 Resolved (`fix/pine-374-na-semantics`)**: pine_v2 인터프리터 산술/math 도메인 오류 → Pine `na` 정규화 (`_na_safe`, 숫자 산술 한정, `math.pow` `**`→`math.pow()`). G1-G4 게이트(codex plan eval + 3-candidate generator panel + codex challenge[F1 dead stdlib-clamp 제거 + F2 문자열 `%` fail-closed] + fresh review GO + mutation 5/5) + full suite 2226 pass(cov 95.6%) + Playwright E2E(div-by-zero 백테스트 FAILED→COMPLETED, console.error 0). 신규 [BL-376] (deferred: na→length/qty, inf→floor·ceil·round).
@@ -284,6 +285,8 @@
 | [BL-384](#bl-384) | ta.valuewhen 이 na-source occurrence skip (TV 는 na 기록)                                                                                                      | pine_v2 parity 후속                            | S (2-3h)     | 2026-06-30 QA codex G2 + 직접 재현                     |
 | [BL-385](#bl-385) | PineVersion enum v6 부재 → `//@version=6` 가 v5 로 collapse (메타데이터 부정확)                                                                                | pine_v2 coverage 후속                          | XS (1-2h)    | 2026-06-30 QA F3                                       |
 | [BL-386](#bl-386) | v4 bare math builtin `floor`/`ceil`/`round`/`sqrt` 미별칭 (preflight reject, over-strict)                                                                      | pine_v2 coverage 후속                          | XS (1-2h)    | 2026-06-30 QA F4                                       |
+| [BL-387](#bl-387) | backtest sizing-canonical → config_payload 가 untyped `dict[str,Any]` seam 횡단 (key drift 시 silent 잘못된 sizing, money-path)                                | backtest deepening 또는 sizing 로직 변경 시    | S-M (3-5h)   | 2026-06-30 backtest-deepen (codex 최강 후보)           |
+| [BL-388](#bl-388) | BacktestMetrics 24-field 가 4곳 평행 정의 (dataclass↔schema↔serializer↔_to_detail), field-parity 무검증 (leaky seam)                                           | backtest deepening 또는 BL-236 진행 시         | S-M (3-5h)   | 2026-06-30 backtest-deepen (codex 가 4번째 site 발견)  |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -714,6 +717,44 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-387
+
+**Title:** backtest sizing-canonical → config_payload 가 untyped `dict[str,Any]` seam 으로 영속 경계 횡단 (key drift 시 silent 잘못된 sizing)
+**Category:** Backtest / Architecture (shallow seam / money-path)
+**Priority:** P2
+**Trigger:** backtest deepening sprint 또는 sizing 로직 변경 시
+**Est:** S-M (3-5h)
+**출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex challenge 최강 후보)
+
+**원인 / 영향:** `service.py:754-876` `_resolve_sizing_canonical` 이 6-key `dict[str, Any]` 를 반환하고 `service.py:188-212` 가 `.get('leverage', default)` 식으로 config_payload 를 손-조립한다. 두 dict 의 key 일치가 타입으로 보장되지 않아, resolve 쪽 key 가 rename 되면 조용히 default 로 떨어져 `sizing_source`/`leverage_basis` 가 잘못 영속될 수 있다(money-affecting). `dict[str, Any]` = Interface 가 거의 없는 shallow seam 이 백테스트 입력의 진실을 DB 경계로 흘려보낸다.
+
+**권장 접근:** sizing 결정을 typed value object(`SizingCanonical`)로 만들어 `_resolve` 출력과 config 영속 사이 Seam 에 타입 부여 → key 불일치가 검증/타입 시점에 잡히게. `test_resolve_sizing_canonical` 8-case 존재하나 resolve 출력↔config_payload key-match 단언 부재 = 부분 gap.
+
+**영향 파일:** `backtest/service.py` (`_resolve_sizing_canonical` + config_payload 조립), `config_mapper.py`.
+
+**Risk:** 🟡 (money-path sizing — 영속 값 parity 검증 필요).
+
+---
+
+### BL-388
+
+**Title:** BacktestMetrics 24-field 가 4곳 평행 정의 (engine dataclass ↔ schema ↔ serializer ↔ `_to_detail`) — field-parity 무검증 leaky seam
+**Category:** Backtest / Architecture (locality / multi-SSOT)
+**Priority:** P2
+**Trigger:** backtest deepening sprint 또는 BL-236(objective_metric 노출) 진행 시
+**Est:** S-M (3-5h)
+**출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex challenge 가 4번째 site `_to_detail` 추가 발견)
+
+**원인 / 영향:** 동일 지표 shape 가 `engine/types.py:101 BacktestMetrics`(dataclass) + `schemas.py:195 BacktestMetricsOut` + `serializers.py metrics_to/from_jsonb` + `service.py:668 _to_detail`(BacktestMetricsOut 손-매핑) **4곳**에 평행 정의된다. 지표 1개 추가 = 4 edit site 동시 수정 — Locality 가 도메인 전체로 퍼진 leaky Seam. round-trip serializer 테스트(`test_serializers`/`test_serializers_extended`)는 있으나 dataclass↔schema field-set parity 단언이 없어 두 정의가 silent drift 가능. BL-236 이 지표 노출 확대 시 추가 비용 증폭.
+
+**권장 접근:** 지표 field 의 단일 정의를 SSOT 로 고정하고 나머지 표현(API/JSONB/detail)을 파생, 또는 최소 'dataclass field 집합 == schema field 집합' CI parity 가드(tripwire) 선추가로 drift 를 구조 차단.
+
+**영향 파일:** `engine/types.py`, `schemas.py`, `serializers.py`, `service.py` (`_to_detail`).
+
+**Risk:** 🟡 (직렬화는 round-trip 보호됨, parity 가드는 test-first 성격 약함).
+
+---
+
 ### BL-377
 
 **Title:** pine_v2 non-finite 주문/청산 가격 + 초대형 유한 length OverflowError (BL-376 후속 잔여)
@@ -759,7 +800,64 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ## P3 — Nice-to-have / 컨벤션 정합
 
-> 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 5** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2).
+> 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 8** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen).
+
+### BL-389
+
+**Title:** backtest finance math 10 함수 (~250 LOC) 가 v2_adapter god-file 에 혼재 — `engine/metrics.py` Deep Module 추출 (locality)
+**Category:** Backtest / Architecture (shallow-by-size / locality)
+**Priority:** P3
+**Trigger:** backtest deepening sprint
+**Est:** M (4-6h)
+**출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex DOWNGRADE → `metrics.py` 부재 직접 검증 후 KEEP 정정)
+
+**원인 / 영향:** `v2_adapter.py`(964L)의 본 책임은 V2RunResult → BacktestOutcome 변환(orchestration)인데, Sharpe/MaxDD/CAGR/win-rate/streak/monthly 등 도메인-비종속 finance math 10 함수(`_v2_avg_holding_hours`~`_mean`, L707-912 ~250 LOC)가 같은 모듈에 혼재 = shallow-by-size, Locality 깨짐. (codex 가 `engine/metrics.py` 존재로 오판 DOWNGRADE → 실제 부재 확인, 모든 math 가 v2_adapter 내부 → KEEP 정정.) stress_test 재사용은 speculative(현재 `result.metrics` 만 소비)라 추출 정당화는 locality 중심.
+
+**권장 접근:** finance 계산을 `engine/metrics.py` Deep Module 로 이동 — '(equity_curve, trades, config) → 지표 묶음' 작은 Interface 뒤에 큰 behavior 은닉. v2_adapter 는 호출만 남김. 이동(move)이라 golden oracle parity 로 회귀 0 보장.
+
+**영향 파일:** `engine/v2_adapter.py`(L707-912 추출), 신규 `engine/metrics.py`.
+
+**Risk:** 🟢 (move refactor — `test_golden_oracle_minimal` + `test_metrics_real_extract` parity 가드, 이동 전후 동일 oracle 재실행).
+
+---
+
+### BL-390
+
+**Title:** backtest exit-leg maker/taker `fill_type` 라우팅이 v2_adapter 2곳 char-identical 복제 (주석은 SSOT 주장)
+**Category:** Backtest / Architecture (DRY / locality, money-path)
+**Priority:** P3
+**Trigger:** backtest deepening 또는 `exit_kind` 의미 변경 시
+**Est:** XS-S (1-3h)
+**출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md)
+
+**원인 / 영향:** exit leg maker/taker 분기 `fill_type_for(t.exit_kind) if t.exit_kind is not None else "taker"` 가 `v2_adapter.py:265`(\_build_raw_trades)와 `:568`(\_compute_metrics)에 character-identical 복제. L549 주석은 'SSOT 위임으로 중복 제거' 라 주장하나 실제 SSOT 는 `_leg_cost` 뿐이고 routing 분기는 미위임 → `exit_kind` 의미 변경 시 2곳 동시 수정(money-path 수수료/슬리피지). 작지만 확정된 Locality 결함.
+
+**권장 접근:** `fill_type` 라우팅을 단일 헬퍼(또는 RawTrade 메서드)로 위임 → 두 소비 사이트가 같은 한 곳을 호출. 주석의 SSOT 주장과 코드 일치.
+
+**영향 파일:** `engine/v2_adapter.py` (:265, :568).
+
+**Risk:** 🟢 (refactor-safe — `test_exit_leg_cost_split` C14 불변식이 발산 가드).
+
+---
+
+### BL-391
+
+**Title:** backtest trades→equity→metrics 3단 reconciliation 불변식 암묵 + cross-stage oracle 부재 (test-first)
+**Category:** Backtest / Test surface (locality / pure-fn-extracted anti-pattern)
+**Priority:** P3
+**Trigger:** BL-389 metrics 추출과 묶음 또는 backtest test 강화 시
+**Est:** S (2-4h)
+**출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex DOWNGRADE → 좁은 oracle 범위로 축소)
+
+**원인 / 영향:** `_build_raw_trades`(:145) → `_compute_equity_curve`(:154) → `_compute_metrics` 가 상호 의존(equity ← trade pnl, metrics ← 양쪽)하나 각각 isolation 으로만 테스트되고 단계 간 계약(`sum(trade.pnl)` ↔ equity 종가 delta)이 문서화/검증 안 됨 = 'testability 위해 추출된 순수함수' 안티패턴 → off-by-one 등 cross-stage 버그가 단위 테스트를 통과할 수 있다. (codex: golden/cost invariant 일부 존재 → 좁은 closed-trade·no-funding equity↔PnL oracle 만 추가, broad pipeline 재구성 아님.)
+
+**권장 접근:** reconciliation 불변식 명시(docstring) + closed-trade·no-funding 케이스의 equity↔PnL cross-stage oracle 테스트 1건 선작성. BL-389 와 묶으면 자연스러움.
+
+**영향 파일:** `tests/backtest/`(cross-stage oracle 신규), `engine/v2_adapter.py`(불변식 docstring).
+
+**Risk:** 🟢 (test-first — 코드 변경은 docstring 수준).
+
+---
 
 ### BL-306
 

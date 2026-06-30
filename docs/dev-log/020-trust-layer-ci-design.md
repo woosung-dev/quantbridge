@@ -4,7 +4,7 @@
 
 > **ADR ONLY (2026-05-04 cleanup):** 본 문서는 결정 근거. **SSOT 는 [`docs/01_requirements/trust-layer-requirements.md`](../01_requirements/trust-layer-requirements.md)** (요구사항/SLO) + [`docs/04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (아키텍처). 본 파일은 ADR 보존용.
 >
-> **상태:** 초안 (Path β Stage 0 — 2026-04-23 작성, Stage 2 구현 완료 시 확정)
+> **상태:** 확정 (Accepted) — Stage 2 구현 완료. P-1/P-2 parity 는 CI 상시(`ci.yml` → `test_pynescript_baseline_parity.py` / `test_trust_layer_parity.py`), P-3 Mutation Oracle 은 nightly(`trust-layer-nightly.yml` Stage 2c). 2026-06-30 verification loop 에서 구현 증거 확인 후 초안→확정 (작성 2026-04-23).
 > **일자:** 2026-04-23
 > **관련 ADR:** [ADR-003](./003-pine-runtime-safety-and-parser-scope.md) (exec 금지), [ADR-004](./004-pine-parser-approach-selection.md) (AST 인터프리터), [ADR-011](./011-pine-execution-strategy-v4.md) (Tier 0~5), [ADR-012](./012-sprint-8a-tier0-final-report.md) (Tier-0 Foundation)
 > **상위 문서 (SSOT):** [`docs/04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (Path β Stage 0 산출)
