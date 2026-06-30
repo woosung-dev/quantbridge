@@ -146,6 +146,95 @@ atr = ta.atr(3)
     assert not math.isnan(atrs[2])
 
 
+def _true_range_series(
+    highs: list[float], lows: list[float], closes: list[float]
+) -> list[float]:
+    """TR = max(high-low, |high-prevClose|, |low-prevClose|). 첫 bar = high-low."""
+    trs: list[float] = []
+    for i in range(len(closes)):
+        hl = highs[i] - lows[i]
+        if i == 0:
+            trs.append(hl)
+        else:
+            pc = closes[i - 1]
+            trs.append(max(hl, abs(highs[i] - pc), abs(lows[i] - pc)))
+    return trs
+
+
+def _wilder_rma(values: list[float], n: int) -> list[float]:
+    """TV ta.atr = ta.rma(tr, n): seed=SMA(first n), 이후 (prev*(n-1)+v)/n."""
+    out = [float("nan")] * len(values)
+    prev = float("nan")
+    for i in range(len(values)):
+        if i + 1 < n:
+            continue
+        prev = sum(values[:n]) / n if i + 1 == n else (prev * (n - 1) + values[i]) / n
+        out[i] = prev
+    return out
+
+
+def _rolling_sma(values: list[float], n: int) -> list[float]:
+    return [
+        (sum(values[i - n + 1 : i + 1]) / n if i + 1 >= n else float("nan"))
+        for i in range(len(values))
+    ]
+
+
+# 비-상수 TR 슬라이스 — Wilder RMA != rolling SMA 가 성립 (discriminator).
+_ATR_HIGHS = [10.0, 12.0, 11.0, 13.0, 12.0, 16.0, 15.0, 18.0]
+_ATR_LOWS = [9.0, 9.5, 8.0, 8.5, 10.0, 10.2, 11.0, 11.3]
+_ATR_CLOSES = [9.5, 11.5, 8.5, 12.5, 10.2, 15.0, 11.3, 17.0]
+
+
+def _atr_df() -> pd.DataFrame:
+    opens = [_ATR_CLOSES[0], *_ATR_CLOSES[:-1]]
+    return pd.DataFrame({
+        "open": opens,
+        "high": _ATR_HIGHS,
+        "low": _ATR_LOWS,
+        "close": _ATR_CLOSES,
+        "volume": [100.0] * len(_ATR_CLOSES),
+    })
+
+
+def test_ta_atr_matches_tradingview_wilder_rma() -> None:
+    """BL-378: ta.atr 은 TR 의 Wilder RMA (TV `ta.atr = ta.rma(ta.tr, len)`),
+    단순 rolling SMA 가 아니다. anti-circular: 기대값은 TV 정의에서 손유도.
+    """
+    n = 3
+    r = run_historical(
+        f'//@version=5\nindicator("t")\natr = ta.atr({n})\n', _atr_df(), strict=False
+    )
+    engine = [s.get("atr") for s in r.state_history]
+    trs = _true_range_series(_ATR_HIGHS, _ATR_LOWS, _ATR_CLOSES)
+    wilder = _wilder_rma(trs, n)
+    sma = _rolling_sma(trs, n)
+
+    diverged = False
+    for i in range(n, len(_ATR_CLOSES)):  # seed bar 이후만 Wilder != SMA
+        assert engine[i] == pytest.approx(wilder[i], abs=1e-9), (
+            f"bar {i}: engine ta.atr={engine[i]} != TV Wilder RMA={wilder[i]} (SMA={sma[i]})"
+        )
+        if abs(wilder[i] - sma[i]) > 1e-9:
+            diverged = True
+    assert diverged, "슬라이스에 Wilder != SMA 인 bar 가 있어야 (discriminator 무효 방지)"
+
+
+def test_ta_atr_not_rolling_sma() -> None:
+    """BL-378 회귀 가드 (mutation harness): 비-상수 TR 에서 ta.atr 이 rolling SMA 와
+    불일치해야 한다. SMA 회귀 시 즉시 FAIL.
+    """
+    r = run_historical(
+        '//@version=5\nindicator("t")\natr = ta.atr(3)\n', _atr_df(), strict=False
+    )
+    engine = [s.get("atr") for s in r.state_history]
+    trs = _true_range_series(_ATR_HIGHS, _ATR_LOWS, _ATR_CLOSES)
+    sma_last = sum(trs[-3:]) / 3
+    assert engine[-1] != pytest.approx(sma_last, abs=1e-6), (
+        "ta.atr 이 rolling SMA 로 회귀 (TV Wilder RMA 와 불일치해야)"
+    )
+
+
 # -------- user 변수 series subscript ----------------------------------
 
 
