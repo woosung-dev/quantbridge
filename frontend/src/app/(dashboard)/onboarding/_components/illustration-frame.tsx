@@ -20,7 +20,7 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
       key={variant}
       data-testid={`illustration-${variant}`}
       // Sprint 44 W F2: variant 변경 시 fadeInUp 200ms 진입 (key 로 re-mount).
-      className="motion-safe:animate-[fadeInUp_220ms_ease-out_both] relative grid min-h-[220px] place-items-center overflow-hidden rounded-[var(--radius-lg)] bg-gradient-to-br from-[#EFF6FF] to-[#F1F5F9] p-5 md:min-h-[340px] md:p-8"
+      className="motion-safe:animate-[fadeInUp_220ms_ease-out_both] relative grid min-h-[220px] place-items-center overflow-hidden rounded-[var(--radius-lg)] bg-gradient-to-br from-[color:var(--primary-light)] to-[color:var(--primary-100)] p-5 md:min-h-[340px] md:p-8"
       aria-hidden="true"
     >
       <svg
@@ -35,12 +35,12 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
             <stop offset="1" stopColor="#F8FAFC" />
           </linearGradient>
           <linearGradient id="onb-targetGrad" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0" stopColor="#2563EB" />
-            <stop offset="1" stopColor="#1D4ED8" />
+            <stop offset="0" stopColor="var(--primary)" />
+            <stop offset="1" stopColor="var(--primary-hover)" />
           </linearGradient>
           <linearGradient id="onb-chartLine" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0" stopColor="#2563EB" />
-            <stop offset="1" stopColor="#3B82F6" />
+            <stop offset="0" stopColor="var(--primary)" />
+            <stop offset="1" stopColor="var(--primary)" />
           </linearGradient>
           <linearGradient id="onb-successGrad" x1="0" x2="1" y1="0" y2="1">
             <stop offset="0" stopColor="#10B981" />
@@ -53,11 +53,11 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
 
         {/* 배경 sparkles — 4 variant 공통 */}
         <g opacity="0.8">
-          <path d="M30 40 l3 7 l7 3 l-7 3 l-3 7 l-3-7 l-7-3 l7-3 z" fill="#DBEAFE" />
-          <path d="M250 70 l2 5 l5 2 l-5 2 l-2 5 l-2-5 l-5-2 l5-2 z" fill="#DBEAFE" />
+          <path d="M30 40 l3 7 l7 3 l-7 3 l-3 7 l-3-7 l-7-3 l7-3 z" fill="var(--primary-light)" />
+          <path d="M250 70 l2 5 l5 2 l-5 2 l-2 5 l-2-5 l-5-2 l5-2 z" fill="var(--primary-light)" />
           <path
             d="M245 250 l2.5 6 l6 2.5 l-6 2.5 l-2.5 6 l-2.5-6 l-6-2.5 l6-2.5 z"
-            fill="#BFDBFE"
+            fill="var(--primary-100)"
           />
         </g>
 
@@ -115,7 +115,7 @@ function CodeArt() {
           <text x="30" y="114" fill="#94A3B8">
             2
           </text>
-          <text x="46" y="114" fill="#2563EB">
+          <text x="46" y="114" fill="var(--primary)">
             strategy
           </text>
           <text x="92" y="114" fill="#475569">
@@ -128,7 +128,7 @@ function CodeArt() {
           <text x="30" y="130" fill="#94A3B8">
             3
           </text>
-          <text x="46" y="130" fill="#2563EB">
+          <text x="46" y="130" fill="var(--primary)">
             fast
           </text>
           <text x="68" y="130" fill="#475569">
@@ -150,7 +150,7 @@ function CodeArt() {
           <text x="30" y="146" fill="#94A3B8">
             4
           </text>
-          <text x="46" y="146" fill="#2563EB">
+          <text x="46" y="146" fill="var(--primary)">
             slow
           </text>
           <text x="68" y="146" fill="#475569">
@@ -194,7 +194,7 @@ function CodeArt() {
           <text x="135" y="178" fill="#475569">
             ,
           </text>
-          <text x="145" y="178" fill="#2563EB">
+          <text x="145" y="178" fill="var(--primary)">
             long
           </text>
           <text x="168" y="178" fill="#475569">
@@ -210,20 +210,20 @@ function CodeArt() {
             y="186"
             width="6"
             height="10"
-            fill="#2563EB"
+            fill="var(--primary)"
             style={{ animation: "onb-caret-blink 1.1s infinite" }}
           />
         </g>
       </g>
 
       {/* Arrow — dashed marching line + arrowhead */}
-      <g stroke="#2563EB" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <g stroke="var(--primary)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round">
         <path
           d="M210 130 C 230 130, 230 180, 210 200"
           strokeDasharray="4 5"
           style={{ animation: "onb-arrow-march 1.4s linear infinite" }}
         />
-        <path d="M205 195 l8 8 l-2 -11 z" fill="#2563EB" />
+        <path d="M205 195 l8 8 l-2 -11 z" fill="var(--primary)" />
       </g>
 
       {/* Bridge target — QuantBridge mark */}
@@ -234,7 +234,7 @@ function CodeArt() {
           cy="40"
           r="46"
           fill="none"
-          stroke="#2563EB"
+          stroke="var(--primary)"
           strokeOpacity="0.15"
           strokeWidth="6"
         />
@@ -272,13 +272,13 @@ function CodeArt() {
 function ChartArt() {
   // 막대 7개 — 좌→우 점층 상승
   const bars = [
-    { x: 40, h: 30, fill: "#DBEAFE" },
-    { x: 60, h: 50, fill: "#DBEAFE" },
-    { x: 80, h: 42, fill: "#DBEAFE" },
-    { x: 100, h: 70, fill: "#BFDBFE" },
-    { x: 120, h: 60, fill: "#BFDBFE" },
-    { x: 140, h: 90, fill: "#93C5FD" },
-    { x: 160, h: 78, fill: "#93C5FD" },
+    { x: 40, h: 30, fill: "var(--primary-light)" },
+    { x: 60, h: 50, fill: "var(--primary-light)" },
+    { x: 80, h: 42, fill: "var(--primary-light)" },
+    { x: 100, h: 70, fill: "var(--primary-100)" },
+    { x: 120, h: 60, fill: "var(--primary-100)" },
+    { x: 140, h: 90, fill: "var(--primary-100)" },
+    { x: 160, h: 78, fill: "var(--primary-100)" },
   ];
   return (
     <>
@@ -363,10 +363,10 @@ function ChartArt() {
         />
 
         {/* active dot at the rightmost point */}
-        <circle cx="224" cy="98" r="5" fill="#2563EB">
+        <circle cx="224" cy="98" r="5" fill="var(--primary)">
           <animate attributeName="r" values="4;6;4" dur="1.6s" repeatCount="indefinite" />
         </circle>
-        <circle cx="224" cy="98" r="9" fill="#2563EB" opacity="0.18">
+        <circle cx="224" cy="98" r="9" fill="var(--primary)" opacity="0.18">
           <animate attributeName="r" values="7;13;7" dur="1.6s" repeatCount="indefinite" />
         </circle>
       </g>
@@ -438,7 +438,7 @@ function TradeArt() {
 
         {/* BUY signal pill at last point */}
         <g transform="translate(196 220)">
-          <rect width="56" height="28" rx="14" fill="#2563EB" />
+          <rect width="56" height="28" rx="14" fill="var(--primary)" />
           <g
             transform="translate(10 14)"
             stroke="#fff"
@@ -464,10 +464,10 @@ function TradeArt() {
         </g>
 
         {/* heartbeat dot */}
-        <circle cx="236" cy="124" r="4" fill="#2563EB">
+        <circle cx="236" cy="124" r="4" fill="var(--primary)">
           <animate attributeName="r" values="3;5;3" dur="1.4s" repeatCount="indefinite" />
         </circle>
-        <circle cx="236" cy="124" r="9" fill="#2563EB" opacity="0.18">
+        <circle cx="236" cy="124" r="9" fill="var(--primary)" opacity="0.18">
           <animate attributeName="r" values="6;12;6" dur="1.4s" repeatCount="indefinite" />
         </circle>
       </g>
@@ -510,7 +510,7 @@ function CompleteArt() {
 
       {/* small confetti bits */}
       <g>
-        <circle cx="80" cy="240" r="3" fill="#3B82F6" opacity="0.7" />
+        <circle cx="80" cy="240" r="3" fill="var(--primary)" opacity="0.7" />
         <circle cx="220" cy="260" r="3" fill="#A78BFA" opacity="0.7" />
         <rect x="60" y="120" width="6" height="6" rx="1" fill="#F472B6" opacity="0.7" />
         <rect x="216" y="170" width="6" height="6" rx="1" fill="#34D399" opacity="0.7" />

@@ -88,7 +88,7 @@ export function GeneticGenerationChart({ result }: Props) {
           {result.degenerate_count > 0 && (
             <>
               {" · "}degenerate:{" "}
-              <span className="text-amber-600 dark:text-amber-400">
+              <span className="text-warning">
                 {result.degenerate_count} / {result.total_iterations}
               </span>
             </>
@@ -150,7 +150,7 @@ export function GeneticGenerationChart({ result }: Props) {
           <path
             d={linePath}
             fill="none"
-            stroke="hsl(var(--primary))"
+            stroke="var(--primary)"
             strokeWidth={2}
           />
           {/* points */}
@@ -162,7 +162,7 @@ export function GeneticGenerationChart({ result }: Props) {
               r={3}
               fill={
                 result.best_iteration_idx === d.idx
-                  ? "hsl(var(--primary))"
+                  ? "var(--primary)"
                   : "currentColor"
               }
               opacity={result.best_iteration_idx === d.idx ? 1 : 0.6}

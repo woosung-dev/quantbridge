@@ -45,7 +45,7 @@ export function WaitlistHero() {
       className="relative hidden flex-col justify-between gap-10 overflow-hidden rounded-2xl p-12 text-[color:var(--text-primary)] lg:flex"
       style={{
         background:
-          "linear-gradient(135deg, var(--accent-amber-light) 0%, #fef9c3 60%, #fde68a 100%)",
+          "linear-gradient(135deg, var(--accent-amber-light) 0%, var(--primary-light) 100%)",
       }}
     >
       {/* 배경 장식 — accent-amber 그라디언트 blob */}
@@ -61,12 +61,12 @@ export function WaitlistHero() {
         aria-hidden="true"
         className="pointer-events-none absolute -bottom-24 -left-24 h-[360px] w-[360px] rounded-full opacity-30"
         style={{
-          background: "radial-gradient(circle, #fbbf24 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--accent-amber) 0%, transparent 70%)",
         }}
       />
 
       <header className="relative z-10 space-y-4">
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[color:var(--accent-amber)] backdrop-blur-sm">
+        <span className="inline-flex items-center gap-2 rounded-full bg-card/70 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[color:var(--accent-amber)] backdrop-blur-sm">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--accent-amber)]" />
           Beta · Invite Only
         </span>
@@ -89,7 +89,7 @@ export function WaitlistHero() {
           >
             <span
               aria-hidden="true"
-              className="mt-1 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber)] text-xs font-bold text-white"
+              className="mt-1 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber)] text-xs font-bold text-[color:var(--warning-foreground)]"
             >
               ✓
             </span>

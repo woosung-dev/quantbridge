@@ -81,12 +81,12 @@ interface StatCardProps {
 function StatCard({ label, value, sub, tone = "neutral" }: StatCardProps) {
   const toneClass =
     tone === "pos"
-      ? "text-emerald-600"
+      ? "text-[color:var(--success)]"
       : tone === "warn"
-        ? "text-amber-600"
+        ? "text-[color:var(--warning)]"
         : "text-[color:var(--text-primary)]";
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-white px-4 py-3">
+    <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card px-4 py-3">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-tertiary)]">
         {label}
       </div>

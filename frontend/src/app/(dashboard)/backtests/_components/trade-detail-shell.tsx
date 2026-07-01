@@ -167,9 +167,9 @@ function SummaryMetric({
 }: SummaryMetricProps) {
   const toneClass =
     tone === "pos"
-      ? "text-emerald-600"
+      ? "text-bullish"
       : tone === "neg"
-        ? "text-rose-600"
+        ? "text-bearish"
         : "text-foreground";
   return (
     <div role="listitem" className="min-w-0">

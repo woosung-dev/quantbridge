@@ -97,7 +97,7 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
           HMAC-SHA256 hex 토큰 (secret + body) 을 채워야 합니다.
         </p>
         <div className="mt-3 flex items-center gap-2">
-          <code className="flex-1 break-all rounded-md bg-[color:var(--bg-primary)] px-3 py-2 font-mono text-xs">
+          <code className="flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
             {webhookUrl}
           </code>
           <Button
@@ -126,16 +126,16 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
         {displayedSecret ? (
           <div
             data-testid="webhook-secret-amber-card"
-            className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/40"
+            className="mt-3 rounded-md border border-[color:var(--warning)]/40 bg-[color:var(--warning-subtle)] p-4"
           >
-            <p className="flex items-start gap-1.5 text-xs font-medium text-amber-900 dark:text-amber-200">
+            <p className="flex items-start gap-1.5 text-xs font-medium text-[color:var(--warning)]">
               <TriangleAlertIcon className="mt-0.5 size-4 flex-shrink-0" />
               이 secret 은 한 번만 표시됩니다. 닫으면 다시 조회할 수 없습니다.
             </p>
             <div className="mt-3 flex items-center gap-2">
               <code
                 data-testid="webhook-secret-plaintext"
-                className="flex-1 break-all rounded-md bg-white px-3 py-2 font-mono text-xs dark:bg-amber-900/20"
+                className="flex-1 break-all rounded-md bg-card px-3 py-2 font-mono text-xs"
               >
                 {displayedSecret}
               </code>

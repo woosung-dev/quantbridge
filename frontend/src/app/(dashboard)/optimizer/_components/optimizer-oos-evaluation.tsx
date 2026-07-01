@@ -4,6 +4,7 @@
 // 각 fold 가 자기 in-sample 구간에서만 재최적화 → out-of-sample 에 적용 = 진짜 OOS.
 // 신규 파이프라인 없이 기존 stress-test walk-forward submit/poll + WalkForwardBarChart 재사용.
 
+import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -103,13 +104,20 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind }: Props) 
           {wfResult ? (
             <div className="space-y-2">
               {wfResult.reoptimized_per_fold ? (
-                <span className="inline-block rounded bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                <span
+                  data-tone="success"
+                  className="inline-block rounded px-2 py-0.5 text-xs font-medium"
+                >
                   각 fold 재최적화됨 (진짜 OOS)
                 </span>
               ) : null}
               {wfResult.degenerate_folds_skipped > 0 ? (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  ⚠️ {wfResult.degenerate_folds_skipped}개 fold 제외 — 해당 학습
+                <p className="flex items-start gap-1 text-xs text-warning">
+                  <AlertTriangle
+                    className="mt-0.5 h-3 w-3 shrink-0"
+                    aria-hidden="true"
+                  />
+                  {wfResult.degenerate_folds_skipped}개 fold 제외 — 해당 학습
                   구간에서 전략이 거래를 내지 못했습니다 (취약성 신호).
                 </p>
               ) : null}

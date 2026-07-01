@@ -673,7 +673,7 @@ function TestOrderDialogInner() {
                 {liquidation ? (
                   <p
                     data-testid="liquidation-preview"
-                    className="text-sm text-[color:var(--foreground)]"
+                    className="text-sm text-foreground"
                   >
                     예상 청산가{" "}
                     <span className="font-mono font-semibold">
@@ -693,7 +693,7 @@ function TestOrderDialogInner() {
               {rootError ? (
                 <p
                   role="alert"
-                  className="qb-form-slide-down rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive-light)] px-3 py-2 text-sm text-[color:var(--destructive)]"
+                  className="qb-form-slide-down rounded-md border border-destructive/30 bg-destructive-light px-3 py-2 text-sm text-destructive"
                 >
                   {rootError}
                 </p>

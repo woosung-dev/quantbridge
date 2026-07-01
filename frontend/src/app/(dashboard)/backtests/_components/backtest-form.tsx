@@ -184,7 +184,7 @@ export function BacktestForm() {
               readOnly
               value={convertResult.converted_code}
               rows={12}
-              className="w-full rounded border border-violet-200 bg-white p-2 font-mono text-xs leading-relaxed text-gray-900 dark:border-violet-700 dark:bg-gray-900 dark:text-gray-100"
+              className="w-full rounded border border-violet-200 bg-card p-2 font-mono text-xs leading-relaxed text-foreground dark:border-violet-700"
             />
             <button
               type="button"

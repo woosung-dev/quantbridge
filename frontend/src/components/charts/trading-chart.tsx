@@ -10,6 +10,7 @@
 // - chart instance 보관은 useEffect 안 (init effect 1회 + cleanup) 에서만.
 // - Strict Mode 더블 invoke 방어: cleanup 에서 chart.remove() + observer.disconnect() 모두 실행.
 
+import { useTheme } from "next-themes";
 import { useEffect, useRef } from "react";
 import {
   createChart,
@@ -154,6 +155,10 @@ export function TradingChart({
   const benchmarkSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const areaSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
 
+  // 앱 테마(next-themes) — 문자열 themeKey 만 effect dep 로 사용 (H-1: object dep 금지).
+  const { resolvedTheme } = useTheme();
+  const themeKey = resolvedTheme === "dark" ? "dark" : "light";
+
   // --- init effect: chart 생성 + ResizeObserver. height 변경 시만 재생성. ---
   useEffect(() => {
     const container = containerRef.current;
@@ -161,26 +166,25 @@ export function TradingChart({
       return;
     }
 
-    // Sprint 30 hot-fix: lightweight-charts colorStringToRgba 가 "currentColor"
-    // CSS 키워드 파싱 못 함 → AttributionLogoWidget _themeToUse 가 throw →
-    // ErrorBoundary fallback 으로 결과 페이지 전체 깨짐. resolved hex 색상으로
-    // 명시. dark/light 모드 대응은 차후 BL (Sprint 31+ getComputedStyle resolve).
-    const resolvedTextColor =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-color-scheme: dark)").matches
-        ? "#9ca3af" // tailwind text-gray-400 (dark mode)
-        : "#4b5563"; // tailwind text-gray-600 (light mode)
+    // DESIGN.md §0: 앱 테마(.dark) 토큰을 resolved hex/rgba 로 읽어 적용.
+    // lightweight-charts 는 var()/currentColor 파싱 불가(colorStringToRgba throw) →
+    // getComputedStyle 로 --text-muted/--border 를 해석해 전달. themeKey 변경 시 init
+    // effect 가 재실행되어 chart 재생성(아래 deps) → 토글 즉시 반영.
+    const rootStyle = getComputedStyle(document.documentElement);
+    const axisColor = rootStyle.getPropertyValue("--text-muted").trim() || "#767b85";
+    const gridColor =
+      rootStyle.getPropertyValue("--border").trim() || "rgba(127,127,127,0.12)";
 
     const chart = createChart(container, {
       height,
       width: container.clientWidth || 600,
       layout: {
         background: { color: "transparent" },
-        textColor: resolvedTextColor,
+        textColor: axisColor,
       },
       grid: {
-        vertLines: { color: "rgba(127,127,127,0.1)" },
-        horzLines: { color: "rgba(127,127,127,0.1)" },
+        vertLines: { color: gridColor },
+        horzLines: { color: gridColor },
       },
       timeScale: {
         timeVisible: true,
@@ -217,7 +221,7 @@ export function TradingChart({
       benchmarkSeriesRef.current = null;
       areaSeriesRef.current = null;
     };
-  }, [height]);
+  }, [height, themeKey]);
 
   // --- data effect: series 추가/갱신. ---
   // dep 는 primitive 또는 stable refs 만 — LESSON-004 H-1 준수.
@@ -290,7 +294,9 @@ export function TradingChart({
     }
 
     chart.timeScale().fitContent();
-  }, [data, markers, benchmark, area, options]);
+    // themeKey: init effect 가 테마 토글 시 chart 를 재생성(series ref null) → 본 effect 가
+    // 재실행되어 재생성된 chart 에 series 를 다시 채워야 함 (빈 차트 방지).
+  }, [data, markers, benchmark, area, options, themeKey]);
 
   return (
     <div

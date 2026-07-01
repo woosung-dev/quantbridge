@@ -3,7 +3,7 @@
 // Sprint 42-polish W3: prototype 07 매칭 — MethodTabs (직접/파일/URL) 상단 탭 추가.
 // Sprint 44 W F2: primary card hover translate-y / chip subtle hover / "다음 단계" press feedback.
 
-import { CodeIcon, UploadIcon, LinkIcon, ChevronRightIcon } from "lucide-react";
+import { ArrowRightIcon, CodeIcon, UploadIcon, LinkIcon, ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MethodTabs } from "./method-tabs";
@@ -30,7 +30,7 @@ export function StepMethod(props: {
         type="button"
         onClick={() => props.onMethodChange("direct")}
         aria-pressed={props.method === "direct"}
-        className="group flex w-full items-center gap-4 rounded-[var(--radius-md)] border-2 border-[color:var(--primary)] bg-[color:var(--primary-light)] p-5 text-left transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-[color:var(--primary-hover)] motion-safe:hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(37,99,235,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]/25"
+        className="group flex w-full items-center gap-4 rounded-[var(--radius-md)] border-2 border-[color:var(--primary)] bg-[color:var(--primary-light)] p-5 text-left transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-[color:var(--primary-hover)] motion-safe:hover:-translate-y-px hover:shadow-btn-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]/25"
       >
         <CodeIcon className="size-8 text-[color:var(--primary)]" strokeWidth={1.5} />
         <div className="flex-1 min-w-0">
@@ -60,7 +60,10 @@ export function StepMethod(props: {
       </div>
 
       <div className="mt-8 flex justify-end">
-        <Button onClick={props.onNext}>다음 단계 →</Button>
+        <Button onClick={props.onNext}>
+          다음 단계
+          <ArrowRightIcon className="size-4" aria-hidden />
+        </Button>
       </div>
     </div>
   );

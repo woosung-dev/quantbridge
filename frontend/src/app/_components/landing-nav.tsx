@@ -3,6 +3,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Menu, X } from "lucide-react";
+
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const NAV_ANCHORS = [
   { href: "#features", label: "기능" },
@@ -33,9 +36,9 @@ export function LandingNav() {
     <>
       <nav
         aria-label="주요"
-        className={`sticky top-0 z-40 border-b bg-white/90 backdrop-blur transition-shadow duration-200 ${
+        className={`sticky top-0 z-40 border-b bg-card/90 backdrop-blur transition-shadow duration-200 ${
           scrolled
-            ? "border-[color:var(--border)] shadow-[0_2px_12px_rgba(15,23,42,0.06)]"
+            ? "border-[color:var(--border)] shadow-card"
             : "border-transparent"
         }`}
       >
@@ -61,6 +64,7 @@ export function LandingNav() {
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link
               href="/sign-in"
               className="hidden text-sm font-medium text-[color:var(--text-secondary)] transition-colors hover:text-[color:var(--text-primary)] md:inline"
@@ -69,7 +73,7 @@ export function LandingNav() {
             </Link>
             <Link
               href="/sign-up"
-              className="hidden h-9 items-center rounded-md bg-[color:var(--primary)] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all duration-200 hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)] md:inline-flex"
+              className="hidden h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all duration-200 hover:-translate-y-px hover:bg-primary-hover hover:shadow-btn-primary-hover md:inline-flex"
             >
               무료로 시작하기
             </Link>
@@ -78,14 +82,10 @@ export function LandingNav() {
               aria-label="메뉴 열기"
               aria-expanded={menuOpen}
               aria-controls="landing-mobile-menu"
-              className="inline-flex size-9 items-center justify-center rounded-md text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-alt)] md:hidden"
+              className="inline-flex size-11 items-center justify-center rounded-md text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-alt)] md:hidden"
               onClick={() => setMenuOpen(true)}
             >
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <line x1="3" y1="6" x2="19" y2="6" />
-                <line x1="3" y1="11" x2="19" y2="11" />
-                <line x1="3" y1="16" x2="19" y2="16" />
-              </svg>
+              <Menu className="size-5" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -102,18 +102,18 @@ export function LandingNav() {
             if (e.target === e.currentTarget) setMenuOpen(false);
           }}
         >
-          <div className="ml-auto flex h-full w-[80%] max-w-[320px] flex-col gap-1 bg-white p-6 shadow-2xl">
-            <button
-              type="button"
-              aria-label="메뉴 닫기"
-              className="mb-4 inline-flex size-9 items-center justify-center self-end rounded-md text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-alt)]"
-              onClick={() => setMenuOpen(false)}
-            >
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <line x1="5" y1="5" x2="17" y2="17" />
-                <line x1="17" y1="5" x2="5" y2="17" />
-              </svg>
-            </button>
+          <div className="ml-auto flex h-full w-[80%] max-w-[320px] flex-col gap-1 bg-card p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <ThemeToggle />
+              <button
+                type="button"
+                aria-label="메뉴 닫기"
+                className="inline-flex size-11 items-center justify-center rounded-md text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--bg-alt)]"
+                onClick={() => setMenuOpen(false)}
+              >
+                <X className="size-5" aria-hidden="true" />
+              </button>
+            </div>
             {NAV_ANCHORS.map((a) => (
               <a
                 key={a.href}
@@ -134,7 +134,7 @@ export function LandingNav() {
             <Link
               href="/sign-up"
               onClick={() => setMenuOpen(false)}
-              className="mt-2 rounded-md bg-[color:var(--primary)] px-4 py-3 text-center text-base font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.25)] hover:bg-[color:var(--primary-hover)]"
+              className="mt-2 rounded-md bg-primary px-4 py-3 text-center text-base font-semibold text-primary-foreground shadow-btn-primary hover:bg-primary-hover"
             >
               무료로 시작하기
             </Link>
@@ -148,8 +148,8 @@ export function LandingNav() {
 function BrandLogo() {
   return (
     <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden>
-      <path d="M4 20C4 20 8 8 14 8C20 8 24 20 24 20" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M2 18C2 18 7 10 14 10C21 10 26 18 26 18" stroke="#0F172A" strokeWidth="2" strokeLinecap="round" />
+      <path d="M4 20C4 20 8 8 14 8C20 8 24 20 24 20" stroke="var(--primary)" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M2 18C2 18 7 10 14 10C21 10 26 18 26 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }

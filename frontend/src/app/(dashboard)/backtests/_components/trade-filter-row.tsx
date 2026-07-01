@@ -57,8 +57,8 @@ const SORT_OPTIONS: Array<{
   { value: "entry_time:asc", label: "오래된순 (진입)" },
   { value: "pnl:desc", label: "수익 큰 순" },
   { value: "pnl:asc", label: "손실 큰 순" },
-  { value: "return_pct:desc", label: "수익률 ↓" },
-  { value: "size:desc", label: "수량 ↓" },
+  { value: "return_pct:desc", label: "수익률 높은순" },
+  { value: "size:desc", label: "수량 많은순" },
 ];
 
 export function TradeFilterRow({

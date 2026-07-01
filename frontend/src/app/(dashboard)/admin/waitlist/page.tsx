@@ -62,7 +62,7 @@ export default function AdminWaitlistPage() {
       />
 
       {errStatus === 403 ? (
-        <div className="rounded-[var(--radius-md)] border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-900">
+        <div className="rounded-[var(--radius-md)] border-l-4 border-[color:var(--destructive)] bg-[color:var(--destructive-subtle)] p-4 text-sm text-[color:var(--destructive)]">
           <strong>관리자 권한이 필요합니다.</strong> 이메일이 admin allowlist 에
           없습니다. QuantBridge 운영자에게 문의하세요.
         </div>
@@ -73,7 +73,7 @@ export default function AdminWaitlistPage() {
       ) : null}
 
       {error && errStatus !== 403 ? (
-        <div className="rounded-[var(--radius-md)] border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-900">
+        <div className="rounded-[var(--radius-md)] border-l-4 border-[color:var(--destructive)] bg-[color:var(--destructive-subtle)] p-4 text-sm text-[color:var(--destructive)]">
           Waitlist 불러오기 실패: {error.message}
         </div>
       ) : null}

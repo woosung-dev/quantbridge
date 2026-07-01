@@ -27,7 +27,7 @@ export default function NotFound() {
         <div role="group" aria-label="복구 동작" className="relative z-[2] flex flex-wrap justify-center gap-3">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)] transition-all hover:-translate-y-px hover:bg-[color:var(--primary-hover)]"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all hover:-translate-y-px hover:bg-[color:var(--primary-hover)]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M3 12l9-9 9 9" />
@@ -37,7 +37,7 @@ export default function NotFound() {
           </Link>
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] border border-[color:var(--border-dark)] bg-white px-5 py-2.5 text-sm font-semibold text-[color:var(--text-primary)] transition-colors hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] border border-[color:var(--border-dark)] bg-card px-5 py-2.5 text-sm font-semibold text-[color:var(--text-primary)] transition-colors hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <rect x="3" y="3" width="7" height="7" />

@@ -1,7 +1,8 @@
-// Sprint 54 — Grid Search 제출 form (RHF + Zod, IntegerField/DecimalField row append/remove).
+// 그리드 탐색 제출 폼 (RHF + Zod, 파라미터 row append/remove)
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod/v4";
@@ -46,6 +47,9 @@ interface Props {
   backtestId: string;
   onSuccess?: (runId: string) => void;
 }
+
+const FIELD_CLS =
+  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function GridSearchForm({ backtestId, onSuccess }: Props) {
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -106,88 +110,88 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
       const created = await submit.mutateAsync(body);
       onSuccess?.(created.id);
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message : String(e));
+      // raw 백엔드 에러를 그대로 노출하지 않음 (내부 용어 유출 차단) — 콘솔에만 기술 상세.
+      console.error("grid search submit failed", e);
+      setErrMsg(
+        "최적화 실행에 실패했습니다. 입력값을 확인하거나 잠시 후 다시 시도해 주세요.",
+      );
     }
   });
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <label className="space-y-1 text-sm">
-          <span className="font-medium">objective_metric</span>
-          <select
-            className="w-full rounded border border-input bg-background px-2 py-1.5"
-            {...form.register("objective_metric")}
-          >
-            <option value="sharpe_ratio">sharpe_ratio</option>
-            <option value="total_return">total_return</option>
-            <option value="max_drawdown">max_drawdown</option>
+        <label className="space-y-1.5 text-sm">
+          <span className="font-medium text-foreground">목표 지표</span>
+          <select className={FIELD_CLS} {...form.register("objective_metric")}>
+            <option value="sharpe_ratio">샤프 비율</option>
+            <option value="total_return">총 수익률</option>
+            <option value="max_drawdown">최대 낙폭</option>
           </select>
         </label>
-        <label className="space-y-1 text-sm">
-          <span className="font-medium">direction</span>
-          <select
-            className="w-full rounded border border-input bg-background px-2 py-1.5"
-            {...form.register("direction")}
-          >
-            <option value="maximize">maximize</option>
-            <option value="minimize">minimize</option>
+        <label className="space-y-1.5 text-sm">
+          <span className="font-medium text-foreground">최적화 방향</span>
+          <select className={FIELD_CLS} {...form.register("direction")}>
+            <option value="maximize">최대화</option>
+            <option value="minimize">최소화</option>
           </select>
         </label>
-        <label className="space-y-1 text-sm">
-          <span className="font-medium">max_evaluations (≤ 9)</span>
+        <label className="space-y-1.5 text-sm">
+          <span className="font-medium text-foreground">최대 평가 횟수 (≤ 9)</span>
           <input
             type="number"
             min={1}
             max={9}
-            className="w-full rounded border border-input bg-background px-2 py-1.5"
+            className={FIELD_CLS}
             {...form.register("max_evaluations", { valueAsNumber: true })}
           />
         </label>
       </div>
 
-      <fieldset className="space-y-2 rounded border border-border p-3">
-        <legend className="px-1 text-sm font-medium">Parameters (1~4 변수)</legend>
+      <fieldset className="space-y-2 rounded-lg border border-border p-3">
+        <legend className="px-1 text-sm font-medium text-foreground">
+          파라미터 (1~4개)
+        </legend>
         {fields.fields.map((field, idx) => (
           <div
             key={field.id}
-            className="grid grid-cols-1 gap-2 rounded bg-muted/30 p-2 sm:grid-cols-6"
+            className="grid grid-cols-1 gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-6"
           >
             <input
-              placeholder="var_name (pine input)"
-              className="rounded border border-input bg-background px-2 py-1 text-sm sm:col-span-2"
+              placeholder="변수 이름 (예: length)"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm sm:col-span-2"
               {...form.register(`parameters.${idx}.var_name`)}
             />
             <select
-              className="rounded border border-input bg-background px-2 py-1 text-sm"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               {...form.register(`parameters.${idx}.kind`)}
             >
-              <option value="integer">integer</option>
-              <option value="decimal">decimal</option>
+              <option value="integer">정수</option>
+              <option value="decimal">실수</option>
             </select>
             <input
-              placeholder="min"
-              className="rounded border border-input bg-background px-2 py-1 text-sm"
+              placeholder="최소"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               {...form.register(`parameters.${idx}.min`)}
             />
             <input
-              placeholder="max"
-              className="rounded border border-input bg-background px-2 py-1 text-sm"
+              placeholder="최대"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               {...form.register(`parameters.${idx}.max`)}
             />
             <div className="flex items-center gap-1">
               <input
-                placeholder="step"
-                className="w-full rounded border border-input bg-background px-2 py-1 text-sm"
+                placeholder="간격"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 {...form.register(`parameters.${idx}.step`)}
               />
               <button
                 type="button"
                 onClick={() => fields.remove(idx)}
-                aria-label="remove parameter"
-                className="rounded border border-input bg-background px-2 py-1 text-xs hover:bg-muted"
+                aria-label="파라미터 삭제"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
-                ✕
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -204,28 +208,32 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
             })
           }
           disabled={fields.fields.length >= 4}
-          className="rounded border border-input bg-background px-3 py-1 text-sm hover:bg-muted disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
         >
-          + parameter 추가
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          파라미터 추가
         </button>
       </fieldset>
 
       {errMsg && (
-        <div role="alert" className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive-subtle p-3 text-sm text-destructive"
+        >
           {errMsg}
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={submit.isPending}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all hover:bg-primary-hover disabled:opacity-50"
         >
-          {submit.isPending ? "제출 중…" : "Grid Search 제출"}
+          {submit.isPending ? "실행 중…" : "그리드 탐색 실행"}
         </button>
         <p className="text-xs text-muted-foreground">
-          서버 9 cell 강제 제한 — 변수별 expansion 결과 cardinality 곱 ≤ 9.
+          전체 조합 수가 9개를 넘지 않도록 변수 범위를 조정해 주세요.
         </p>
       </div>
     </form>

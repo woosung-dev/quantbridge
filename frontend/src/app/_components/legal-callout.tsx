@@ -23,8 +23,8 @@ export function LegalCallout({ tone = "amber", label, children }: LegalCalloutPr
   // border-l-4 + 좌→우 gradient (top-left subtle highlight) 로 시각 강조 — Sprint 44 W F4 fidelity iter 2.
   const palette =
     tone === "amber"
-      ? "border-amber-500 bg-gradient-to-r from-amber-50 via-amber-50/60 to-amber-50/30 text-amber-900"
-      : "border-blue-500 bg-gradient-to-r from-blue-50 via-blue-50/60 to-blue-50/30 text-blue-900";
+      ? "border-warning bg-warning-subtle text-warning"
+      : "border-primary bg-primary-light text-primary";
 
   return (
     <div

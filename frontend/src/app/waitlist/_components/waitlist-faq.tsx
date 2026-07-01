@@ -50,7 +50,7 @@ export function WaitlistFaq() {
         {FAQ_ITEMS.map((item) => (
           <details
             key={item.question}
-            className="group rounded-md border border-[color:var(--border)] bg-white px-4 py-3 transition-colors duration-200 ease-out hover:border-[color:var(--accent-amber)]/40"
+            className="group rounded-md border border-[color:var(--border)] bg-card px-4 py-3 transition-colors duration-200 ease-out hover:border-[color:var(--accent-amber)]/40"
           >
             <summary className="flex cursor-pointer items-center justify-between gap-4 text-sm font-semibold text-[color:var(--text-primary)] [&::-webkit-details-marker]:hidden">
               <span>{item.question}</span>

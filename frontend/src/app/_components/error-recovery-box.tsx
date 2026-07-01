@@ -108,9 +108,9 @@ export function ErrorRecoveryBox(props: ErrorRecoveryBoxProps) {
                 key={item.href}
                 href={item.href}
                 style={{ animationDelay: `${idx * 60}ms` }}
-                className="group flex flex-col gap-2 rounded-[10px] border border-[color:var(--border)] bg-white p-3.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[color:var(--primary)] hover:shadow-md motion-safe:animate-[staggerIn_280ms_ease-out_both]"
+                className="group flex flex-col gap-2 rounded-[10px] border border-[color:var(--border)] bg-card p-3.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[color:var(--primary)] hover:shadow-md motion-safe:animate-[staggerIn_280ms_ease-out_both]"
               >
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[color:var(--primary-light)] text-[color:var(--primary)] transition-colors duration-200 group-hover:bg-[color:var(--primary)] group-hover:text-white">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[color:var(--primary-light)] text-[color:var(--primary)] transition-colors duration-200 group-hover:bg-[color:var(--primary)] group-hover:text-[color:var(--primary-foreground)]">
                   {item.icon}
                 </span>
                 <span className="text-[13px] font-semibold text-[color:var(--text-primary)]">{item.title}</span>
@@ -143,7 +143,7 @@ export function ErrorRecoveryBox(props: ErrorRecoveryBoxProps) {
               type="search"
               placeholder="예: 백테스트, Pine Script 변환, 최적화..."
               autoComplete="off"
-              className="h-12 w-full rounded-xl border border-[color:var(--border)] bg-white pl-11 pr-4 font-body text-sm shadow-sm transition-all focus:border-[color:var(--primary)] focus:outline-none focus:ring-[3px] focus:ring-[color:var(--primary)]/12"
+              className="h-12 w-full rounded-xl border border-[color:var(--border)] bg-card pl-11 pr-4 font-body text-sm shadow-sm transition-all focus:border-[color:var(--primary)] focus:outline-none focus:ring-[3px] focus:ring-[color:var(--primary)]/12"
             />
           </div>
           <p className="mt-3.5 text-center text-xs text-[color:var(--text-muted)]">
@@ -212,12 +212,12 @@ function ServerErrorCard({ requestId, errorCode, occurredAt }: ServerErrorProps)
           </svg>
           오류 코드
         </span>
-        <span className="font-mono text-xs text-[#7F1D1D]">{code}</span>
+        <span className="font-mono text-xs text-[color:var(--destructive)]">{code}</span>
       </div>
       {reqId ? (
         <div className="flex items-center justify-between gap-3 border-t border-[color:var(--destructive)]/15 py-1.5 text-[13px]">
           <span className="font-semibold text-[color:var(--destructive)]">요청 ID</span>
-          <span className="flex items-center gap-1.5 font-mono text-xs text-[#7F1D1D]">
+          <span className="flex items-center gap-1.5 font-mono text-xs text-[color:var(--destructive)]">
             <span data-testid="error-recovery-request-id">{reqId}</span>
             <button
               type="button"
@@ -253,10 +253,10 @@ function ServerErrorCard({ requestId, errorCode, occurredAt }: ServerErrorProps)
       {when ? (
         <div className="flex items-center justify-between gap-3 border-t border-[color:var(--destructive)]/15 py-1.5 text-[13px]">
           <span className="font-semibold text-[color:var(--destructive)]">발생 시각</span>
-          <span className="font-mono text-xs text-[#7F1D1D]">{when}</span>
+          <span className="font-mono text-xs text-[color:var(--destructive)]">{when}</span>
         </div>
       ) : null}
-      <p className="mt-2.5 border-t border-[color:var(--destructive)]/15 pt-2.5 text-center text-[11px] font-medium text-[#991B1B]">
+      <p className="mt-2.5 border-t border-[color:var(--destructive)]/15 pt-2.5 text-center text-[11px] font-medium text-[color:var(--destructive)]">
         이 정보를 고객센터에 알려주세요
       </p>
     </div>
@@ -275,7 +275,7 @@ function MaintenanceCard({ etaLabel, startedAt, finishesAt, progressPercent, upd
         <div className="mb-3.5 flex items-center gap-3">
           <span
             aria-hidden="true"
-            className="grid h-10 w-10 place-items-center rounded-[10px] bg-white text-[color:var(--primary)] shadow-sm"
+            className="grid h-10 w-10 place-items-center rounded-[10px] bg-card text-[color:var(--primary)] shadow-sm"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10" />
@@ -304,7 +304,7 @@ function MaintenanceCard({ etaLabel, startedAt, finishesAt, progressPercent, upd
 
       <section
         aria-labelledby="updates-title"
-        className="mx-auto my-7 max-w-[480px] rounded-xl border border-[color:var(--border)] bg-white p-5 text-left"
+        className="mx-auto my-7 max-w-[480px] rounded-xl border border-[color:var(--border)] bg-card p-5 text-left"
       >
         <h2 id="updates-title" className="mb-3 font-display text-[13px] font-semibold text-[color:var(--text-primary)]">
           이번 점검 내용:
@@ -341,7 +341,7 @@ function ProgressFill({ percent }: { percent: number }) {
   const [width] = useState(`${percent}%`);
   return (
     <div
-      className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-[color:var(--primary)] to-[#3B82F6]"
+      className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-[color:var(--primary)] to-[color:var(--primary-hover)]"
       style={{ width }}
     >
       <div

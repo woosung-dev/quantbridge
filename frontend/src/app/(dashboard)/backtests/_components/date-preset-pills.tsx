@@ -72,7 +72,7 @@ export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
               // Sprint 62 T-2 (BL-356): 모바일 viewport 에서 height 44pt 강제. 데스크톱 (md+) 은 h-8.
               "h-11 rounded-full border px-3.5 text-[13px] font-semibold transition-all duration-200 hover:-translate-y-px motion-reduce:hover:translate-y-0 md:h-8",
               isActive
-                ? "qb-pill-pop border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)]"
+                ? "qb-pill-pop border-primary bg-primary text-primary-foreground shadow-btn-primary"
                 : "border-transparent bg-[var(--bg-alt)] text-[var(--text-secondary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]",
             )}
           >
@@ -89,7 +89,7 @@ export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
         className={cn(
           "h-8 rounded-full border px-3.5 text-[13px] font-semibold transition-all duration-200 hover:-translate-y-px motion-reduce:hover:translate-y-0",
           value === "custom"
-            ? "qb-pill-pop border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)]"
+            ? "qb-pill-pop border-primary bg-primary text-primary-foreground shadow-btn-primary"
             : "border-transparent bg-[var(--bg-alt)] text-[var(--text-secondary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]",
         )}
       >

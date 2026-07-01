@@ -24,7 +24,7 @@ function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
   if (isFixture) {
     return (
       <span
-        className="text-amber-600 dark:text-amber-400 font-mono text-xs"
+        className="text-warning font-mono text-xs"
         title={`Mock fixture: ${orderId}`}
         data-testid="broker-badge-mock"
       >
@@ -34,7 +34,7 @@ function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
   }
   return (
     <span
-      className="text-emerald-600 dark:text-emerald-400 font-mono text-xs"
+      className="text-success font-mono text-xs"
       title={`Broker order: ${orderId}`}
       data-testid="broker-badge-real"
     >
@@ -52,7 +52,7 @@ export function OrdersPanel() {
   if (isError) {
     return (
       <section className="p-4 border rounded">
-        <p className="text-sm text-[color:var(--destructive)]">
+        <p className="text-sm text-destructive">
           주문 목록을 불러오지 못했습니다.
         </p>
       </section>
@@ -71,7 +71,7 @@ export function OrdersPanel() {
             <span
               aria-label="주문 목록 polling 중"
               data-testid="orders-polling-dot"
-              className="qb-soft-pulse inline-block size-1.5 rounded-full bg-[color:var(--primary)]"
+              className="qb-soft-pulse inline-block size-1.5 rounded-full bg-primary"
             />
           ) : null}
         </h2>
@@ -137,7 +137,7 @@ export function OrdersPanel() {
                   <td>
                     <BrokerBadge orderId={o.exchange_order_id} />
                   </td>
-                  <td className="text-red-600">{o.error_message ?? ""}</td>
+                  <td className="text-destructive">{o.error_message ?? ""}</td>
                 </tr>
               ))}
             </tbody>

@@ -33,7 +33,7 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
         )}
         aria-label="QuantBridge 홈"
       >
-        <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[color:var(--primary)] to-[color:var(--primary-hover)] text-white shadow-sm">
+        <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[color:var(--primary)] to-[color:var(--primary-hover)] text-[color:var(--primary-foreground)] shadow-sm">
           <svg
             width="15"
             height="15"

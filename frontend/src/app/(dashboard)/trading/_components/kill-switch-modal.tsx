@@ -94,16 +94,16 @@ function ModalBody({
       <DialogHeader className="qb-dialog-stagger-1">
         <div className="flex items-center gap-3">
           <span
-            className="qb-soft-pulse grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[color:var(--destructive-light)] text-[color:var(--destructive)]"
+            className="qb-soft-pulse grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-destructive-light text-destructive"
             aria-hidden="true"
           >
             <ShieldAlert className="size-5" />
           </span>
-          <DialogTitle className="text-[color:var(--destructive)]">
+          <DialogTitle className="text-destructive">
             긴급 정지 — 전체 청산
           </DialogTitle>
         </div>
-        <DialogDescription className="pt-2 text-[color:var(--text-muted)]">
+        <DialogDescription className="pt-2 text-muted-foreground">
           {step === 1
             ? `현재 활성 세션 ${activeSessionsCount}개의 모든 포지션을 시장가로 즉시 청산하고, 모든 봇을 강제 중지합니다. 이 작업은 되돌릴 수 없으며 감사 로그에 기록됩니다.`
             : "확인을 위해 아래 입력란에 정확히 'KILL' 을 타이핑하세요. 30초 쿨다운이 적용됩니다."}
@@ -114,7 +114,7 @@ function ModalBody({
         <div className="qb-dialog-stagger-3 space-y-2 pt-1">
           <label
             htmlFor={inputId}
-            className="text-sm font-medium text-[color:var(--foreground)]"
+            className="text-sm font-medium text-foreground"
           >
             확인 문구 입력
           </label>
@@ -130,7 +130,7 @@ function ModalBody({
             className="font-mono uppercase tracking-[0.3em]"
           />
           <p
-            className="font-mono text-xs text-[color:var(--text-muted)]"
+            className="font-mono text-xs text-muted-foreground"
             aria-live="polite"
           >
             {isPhraseMatch

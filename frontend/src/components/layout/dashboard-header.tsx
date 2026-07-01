@@ -6,6 +6,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { Menu as MenuIcon } from "lucide-react";
 
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/ui-store";
 
@@ -54,6 +55,8 @@ export function DashboardHeader({ sidebarOpen, onToggleSidebar, pageTitle }: Das
         </h2>
       )}
       <div className="ml-auto flex items-center gap-3">
+        {/* DESIGN.md §0: 라이트/다크 테마 토글 — 전 브레이크포인트 노출 */}
+        <ThemeToggle />
         {/* 데스크톱에서는 사이드바 footer 의 UserButton 으로 대체. 모바일은 sidebar 가 hidden 이므로 헤더 우측에도 노출.
             BL-305 (Sprint 60): Clerk UserButton 모바일에서 0×0 collapse 방지 — wrapper 강제.
             BL-339 (Sprint 61 T-2): 36×36 → 44×44 로 확장 (Apple HIG / Material 44pt 권고).

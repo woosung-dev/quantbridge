@@ -40,10 +40,10 @@ export function OnboardingStepper({ current }: { current: OnboardingStep }) {
                 className={
                   "mx-2 grid size-10 place-items-center rounded-full border-2 font-mono text-sm font-semibold " +
                   (completed
-                    ? "border-[color:var(--success)] bg-[color:var(--success)] text-white"
+                    ? "border-[color:var(--success)] bg-[color:var(--success)] text-[color:var(--success-foreground)]"
                     : active
-                      ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-white shadow-[0_0_0_4px_rgba(37,99,235,0.15)]"
-                      : "border-[color:var(--border)] bg-white text-[color:var(--text-muted)]")
+                      ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--primary-foreground)] shadow-[0_0_0_4px_var(--primary-light)]"
+                      : "border-[color:var(--border)] bg-card text-[color:var(--text-muted)]")
                 }
               >
                 {completed ? <CheckIcon className="size-4" /> : i + 1}

@@ -70,7 +70,7 @@ export function LandingPricing() {
   return (
     <section
       id="pricing"
-      className="bg-white px-6 py-20"
+      className="bg-card px-6 py-20"
       aria-labelledby="pricing-heading"
     >
       <div className="mx-auto max-w-[1200px]">
@@ -98,12 +98,12 @@ export function LandingPricing() {
                 key={plan.name}
                 className={`relative flex flex-col rounded-[14px] border p-7 transition-all duration-200 ${
                   isHi
-                    ? "border-[color:var(--primary)] bg-white shadow-[0_8px_30px_rgba(37,99,235,0.18)] md:scale-[1.03]"
-                    : "border-[color:var(--border)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
+                    ? "border-[color:var(--primary)] bg-card shadow-btn-primary md:scale-[1.03]"
+                    : "border-[color:var(--border)] bg-card shadow-card hover:-translate-y-0.5 hover:shadow-card-hover"
                 }`}
               >
                 {isHi && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[color:var(--primary)] px-3 py-1 text-xs font-semibold text-white shadow-[0_2px_8px_rgba(37,99,235,0.4)]">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-btn-primary">
                     인기
                   </span>
                 )}
@@ -160,8 +160,8 @@ export function LandingPricing() {
                     href={plan.cta.href}
                     className={`mt-7 inline-flex h-11 items-center justify-center rounded-md px-5 text-sm font-semibold transition-all duration-200 ${
                       isHi
-                        ? "bg-[color:var(--primary)] text-white shadow-[0_4px_14px_rgba(37,99,235,0.25)] hover:-translate-y-px hover:bg-[color:var(--primary-hover)]"
-                        : "border border-[color:var(--border)] bg-white text-[color:var(--text-primary)] hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
+                        ? "bg-primary text-primary-foreground shadow-btn-primary hover:-translate-y-px hover:bg-primary-hover"
+                        : "border border-[color:var(--border)] bg-card text-[color:var(--text-primary)] hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
                     }`}
                   >
                     {plan.cta.label}

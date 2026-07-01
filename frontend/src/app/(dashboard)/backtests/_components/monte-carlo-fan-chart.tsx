@@ -178,7 +178,15 @@ export function MonteCarloFanChart({ result }: Props) {
               }}
             />
             <YAxis tick={{ fontSize: 11 }} width={70} />
-            <Tooltip />
+            <Tooltip
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                color: "var(--foreground)",
+              }}
+              labelStyle={{ color: "var(--foreground)" }}
+              itemStyle={{ color: "var(--foreground)" }}
+            />
             <Legend verticalAlign="top" height={28} />
             {/* 외측 밴드 p5~p95: 투명 base + 색상 range (stacked) */}
             <Area
@@ -196,7 +204,7 @@ export function MonteCarloFanChart({ result }: Props) {
               dataKey="p5To95Range"
               stackId="outer"
               stroke="none"
-              fill="currentColor"
+              fill="var(--primary)"
               fillOpacity={0.15}
               name="5%~95%"
               isAnimationActive={false}
@@ -217,7 +225,7 @@ export function MonteCarloFanChart({ result }: Props) {
               dataKey="p25To75Range"
               stackId="inner"
               stroke="none"
-              fill="currentColor"
+              fill="var(--primary)"
               fillOpacity={0.35}
               name="25%~75%"
               isAnimationActive={false}
@@ -226,7 +234,7 @@ export function MonteCarloFanChart({ result }: Props) {
             <Line
               type="monotone"
               dataKey="median"
-              stroke="currentColor"
+              stroke="var(--primary)"
               strokeWidth={2}
               dot={false}
               name="중앙값"

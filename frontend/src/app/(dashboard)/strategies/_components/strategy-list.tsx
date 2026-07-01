@@ -224,7 +224,7 @@ export function StrategyList() {
 
 function NoResultsHint({ search, status }: { search: string; status: StatusFilter }) {
   return (
-    <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-dark)] bg-white p-10 text-center text-sm">
+    <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-dark)] bg-card p-10 text-center text-sm">
       <p className="font-medium text-[color:var(--text-primary)]">
         {status === "favorite"
           ? "즐겨찾기 한 전략이 없습니다."

@@ -96,7 +96,7 @@ export function Step4Result({
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[var(--radius-md)] border border-[color:var(--border)] bg-white p-4">
+    <div className="rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card p-4">
       <p className="text-[0.7rem] font-medium uppercase tracking-wide text-[color:var(--text-muted)]">
         {label}
       </p>

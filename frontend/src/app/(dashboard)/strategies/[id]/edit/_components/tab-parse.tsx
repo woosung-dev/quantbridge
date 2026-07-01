@@ -12,7 +12,7 @@
 // 그대로 사용해 useUpdateStrategy → markSaved 호출 (header 저장 버튼과 동일 로직).
 
 import { useEffect, useRef, useState } from "react";
-import { SparklesIcon } from "lucide-react";
+import { SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -122,21 +122,22 @@ export function TabParse({ strategy }: { strategy: StrategyResponse }) {
           </dl>
           {/* Sprint Y1 (B+D): pre-flight unsupported builtins — backtest 실행 차단 사유 */}
           {live && live.unsupported_builtins.length > 0 && (
-            <div className="rounded border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-700 dark:bg-amber-950/40">
-              <p className="font-bold text-amber-800 dark:text-amber-200">
-                ⚠️ 미지원 Pine 함수/변수 ({live.unsupported_builtins.length}건) — 백테스트 실행 불가
+            <div className="rounded border border-[color:var(--warning)]/40 bg-[color:var(--warning-subtle)] p-3 text-xs">
+              <p className="flex items-center gap-1 font-bold text-[color:var(--warning)]">
+                <TriangleAlertIcon className="size-3.5 shrink-0" aria-hidden />
+                미지원 Pine 함수/변수 ({live.unsupported_builtins.length}건) — 백테스트 실행 불가
               </p>
               <ul className="mt-2 flex flex-wrap gap-1.5 font-mono">
                 {live.unsupported_builtins.map((fn) => (
                   <li
                     key={fn}
-                    className="rounded bg-amber-200 px-1.5 py-0.5 text-amber-900 dark:bg-amber-800 dark:text-amber-100"
+                    className="rounded bg-[color:var(--warning)]/20 px-1.5 py-0.5 text-[color:var(--warning)]"
                   >
                     {fn}
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-[0.7rem] text-amber-700 dark:text-amber-300">
+              <p className="mt-2 text-[0.7rem] text-[color:var(--warning)]">
                 지원 목록은 <code>docs/02_domain/supported-indicators.md</code> 참조.
               </p>
             </div>
@@ -191,7 +192,7 @@ function Summary({
     tone === "destructive"
       ? "text-[color:var(--destructive)]"
       : tone === "warn"
-        ? "text-amber-600"
+        ? "text-[color:var(--warning)]"
         : "text-[color:var(--text-primary)]";
   return (
     <div>

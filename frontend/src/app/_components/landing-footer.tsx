@@ -64,13 +64,13 @@ export function LandingFooter() {
               >
                 <path
                   d="M4 20C4 20 8 8 14 8C20 8 24 20 24 20"
-                  stroke="#2563EB"
+                  stroke="var(--primary)"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                 />
                 <path
                   d="M2 18C2 18 7 10 14 10C21 10 26 18 26 18"
-                  stroke="#0F172A"
+                  stroke="currentColor"
                   strokeWidth="2"
                   strokeLinecap="round"
                 />

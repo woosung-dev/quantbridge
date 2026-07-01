@@ -75,7 +75,7 @@ export function BayesianIterationChart({ result }: Props) {
           {result.degenerate_count > 0 && (
             <>
               {" · "}degenerate:{" "}
-              <span className="text-amber-600 dark:text-amber-400">
+              <span className="text-warning">
                 {result.degenerate_count} / {result.total_iterations}
               </span>
             </>
@@ -135,7 +135,7 @@ export function BayesianIterationChart({ result }: Props) {
           <path
             d={linePath}
             fill="none"
-            stroke="hsl(var(--primary))"
+            stroke="var(--primary)"
             strokeWidth={2}
           />
           {/* points */}
@@ -147,10 +147,10 @@ export function BayesianIterationChart({ result }: Props) {
               r={3}
               fill={
                 result.best_iteration_idx === d.idx
-                  ? "hsl(var(--primary))"
+                  ? "var(--primary)"
                   : d.phase === "random"
                     ? "currentColor"
-                    : "hsl(var(--primary))"
+                    : "var(--primary)"
               }
               opacity={result.best_iteration_idx === d.idx ? 1 : 0.7}
             />

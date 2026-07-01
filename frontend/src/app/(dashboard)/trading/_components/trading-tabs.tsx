@@ -59,18 +59,18 @@ export function TradingTabs() {
     <Tabs value={activeTab} onValueChange={handleTabChange}>
       <TabsList
         variant="line"
-        className="w-full justify-start gap-6 border-b border-[color:var(--border)] px-0"
+        className="w-full justify-start gap-6 border-b border-border px-0"
       >
         <TabsTrigger
           value="orders"
-          className="px-1 text-sm font-medium text-[color:var(--text-muted)] data-active:font-semibold data-active:text-[color:var(--primary)] data-active:after:!bg-[color:var(--primary)]"
+          className="px-1 text-sm font-medium text-muted-foreground data-active:font-semibold data-active:text-primary data-active:after:!bg-primary"
         >
           주문
         </TabsTrigger>
         <TabsTrigger
           value="live-sessions"
           data-testid="tab-live-sessions"
-          className="px-1 text-sm font-medium text-[color:var(--text-muted)] data-active:font-semibold data-active:text-[color:var(--primary)] data-active:after:!bg-[color:var(--primary)]"
+          className="px-1 text-sm font-medium text-muted-foreground data-active:font-semibold data-active:text-primary data-active:after:!bg-primary"
         >
           라이브 세션
         </TabsTrigger>

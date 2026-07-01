@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, ChevronUp, Download } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -148,7 +149,8 @@ export function TradeTable({ trades, filenamePrefix = "trades" }: TradeTableProp
           disabled={filtered.length === 0}
           aria-label="CSV 내보내기"
         >
-          ⬇ CSV
+          <Download className="h-4 w-4" aria-hidden="true" />
+          CSV
         </Button>
       </div>
 
@@ -251,13 +253,13 @@ export function TradeTable({ trades, filenamePrefix = "trades" }: TradeTableProp
                       style={{
                         width: `${Math.min(Math.abs(t.return_pct) * 100, 100)}%`,
                         backgroundColor:
-                          t.pnl >= 0 ? "rgb(34,197,94)" : "rgb(239,68,68)",
+                          t.pnl >= 0 ? "var(--bullish)" : "var(--bearish)",
                       }}
                     />
                     <span
                       className={cn(
                         "relative",
-                        t.pnl >= 0 ? "text-green-500" : "text-red-500",
+                        t.pnl >= 0 ? "text-bullish" : "text-bearish",
                       )}
                       data-tone={t.pnl >= 0 ? "positive" : "negative"}
                     >
@@ -274,8 +276,8 @@ export function TradeTable({ trades, filenamePrefix = "trades" }: TradeTableProp
                     className={cn(
                       "px-3 py-2 text-right font-mono tabular-nums",
                       t.cumulativePnl >= 0
-                        ? "text-green-500"
-                        : "text-red-500",
+                        ? "text-bullish"
+                        : "text-bearish",
                     )}
                   >
                     {t.cumulativePnl >= 0 ? "+" : ""}
@@ -314,7 +316,11 @@ function SortableHeader({
   align,
 }: SortableHeaderProps) {
   const isActive = currentField === field;
-  const indicator = isActive ? (currentDir === "asc" ? "↑" : "↓") : "";
+  const SortIcon = isActive
+    ? currentDir === "asc"
+      ? ChevronUp
+      : ChevronDown
+    : null;
 
   return (
     <th
@@ -340,10 +346,8 @@ function SortableHeader({
         )}
       >
         {label}
-        {indicator ? (
-          <span className="text-[10px]" aria-hidden>
-            {indicator}
-          </span>
+        {SortIcon ? (
+          <SortIcon className="h-3 w-3" aria-hidden="true" />
         ) : null}
       </button>
     </th>

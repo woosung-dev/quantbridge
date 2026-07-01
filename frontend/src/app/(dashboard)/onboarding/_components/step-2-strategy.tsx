@@ -101,7 +101,7 @@ export function Step2Strategy({
       {fetchError !== null && (
         <div
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-[var(--radius-md)] border border-[color:var(--danger)] bg-[color:var(--danger-light,#fee2e2)] p-3 text-xs text-[color:var(--danger)]"
+          className="mb-4 flex items-start gap-2 rounded-[var(--radius-md)] border border-[color:var(--destructive)] bg-[color:var(--destructive-subtle)] p-3 text-xs text-[color:var(--destructive)]"
         >
           <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
           <span className="break-all">{fetchError}</span>

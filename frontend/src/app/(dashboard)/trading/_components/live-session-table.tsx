@@ -42,7 +42,7 @@ export function LiveSessionTable({
 
   if (sessions.length === 0) {
     return (
-      <p className="rounded-[var(--radius-md)] border border-dashed border-[color:var(--border)] bg-[color:var(--card)] px-4 py-6 text-center text-sm text-[color:var(--text-muted)]">
+      <p className="rounded-[var(--radius-md)] border border-dashed border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
         활성 세션이 없습니다.
       </p>
     );
@@ -50,11 +50,11 @@ export function LiveSessionTable({
 
   return (
     <div
-      className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--card)] shadow-[var(--card-shadow)]"
+      className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card shadow-card"
       data-testid="live-session-table"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-[color:var(--border)] px-4 py-3">
-        <h3 className="text-sm font-semibold text-[color:var(--foreground)]">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <h3 className="text-sm font-semibold text-foreground">
           라이브 세션 ({sessions.length})
         </h3>
         <button
@@ -62,7 +62,7 @@ export function LiveSessionTable({
           onClick={() =>
             setSortMode((m) => (m === "recent" ? "active" : "recent"))
           }
-          className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-1 text-xs font-medium text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+          className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           data-testid="live-session-sort-toggle"
         >
           <ArrowUpDown className="size-3" aria-hidden="true" />
@@ -72,34 +72,34 @@ export function LiveSessionTable({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[color:var(--border)] bg-[color:var(--muted)]/40 text-left">
+            <tr className="border-b border-border bg-muted/40 text-left">
               <th
                 scope="col"
-                className="w-8 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]"
+                className="w-8 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 <span className="sr-only">상태</span>
               </th>
               <th
                 scope="col"
-                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]"
+                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 심볼
               </th>
               <th
                 scope="col"
-                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]"
+                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 전략
               </th>
               <th
                 scope="col"
-                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]"
+                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 인터벌
               </th>
               <th
                 scope="col"
-                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]"
+                className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 상태
               </th>
@@ -109,31 +109,31 @@ export function LiveSessionTable({
             {sorted.map((s) => (
               <tr
                 key={s.id}
-                className="border-b border-[color:var(--border)] transition-colors hover:bg-[color:var(--muted)]/40 last:border-b-0"
+                className="border-b border-border transition-colors hover:bg-muted/40 last:border-b-0"
               >
                 <td className="px-4 py-2.5">
                   <span
                     className={
                       "inline-block size-2 rounded-full " +
                       (s.is_active
-                        ? "bg-[color:var(--success)] shadow-[0_0_6px_var(--success)]"
-                        : "bg-[color:var(--text-muted)]/50")
+                        ? "bg-success shadow-[0_0_6px_var(--success)]"
+                        : "bg-muted-foreground/50")
                     }
                     aria-label={s.is_active ? "활성" : "비활성"}
                   />
                 </td>
-                <td className="px-2 py-2.5 font-mono text-xs font-semibold text-[color:var(--foreground)]">
+                <td className="px-2 py-2.5 font-mono text-xs font-semibold text-foreground">
                   {s.symbol}
                 </td>
-                <td className="px-2 py-2.5 text-xs text-[color:var(--foreground)]">
+                <td className="px-2 py-2.5 text-xs text-foreground">
                   {resolveStrategyName?.(s.strategy_id) ?? s.strategy_id.slice(0, 8)}
                   {resolveExchangeLabel ? (
-                    <span className="ml-1 text-[color:var(--text-muted)]">
+                    <span className="ml-1 text-muted-foreground">
                       · {resolveExchangeLabel(s.exchange_account_id)}
                     </span>
                   ) : null}
                 </td>
-                <td className="px-2 py-2.5 font-mono text-xs uppercase text-[color:var(--text-muted)]">
+                <td className="px-2 py-2.5 font-mono text-xs uppercase text-muted-foreground">
                   {s.interval}
                 </td>
                 <td className="px-2 py-2.5">
@@ -141,8 +141,8 @@ export function LiveSessionTable({
                     className={
                       "inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-0.5 font-mono text-[0.68rem] font-bold uppercase tracking-wider " +
                       (s.is_active
-                        ? "bg-[color:var(--success-light)] text-[color:var(--success)]"
-                        : "bg-[color:var(--muted)] text-[color:var(--text-muted)]")
+                        ? "bg-success-light text-success"
+                        : "bg-muted text-muted-foreground")
                     }
                   >
                     {s.is_active ? (

@@ -61,10 +61,10 @@ function StepNode({
           // prototype 07: 40x40 circle, font-display, 0.95rem, weight 700.
           "grid size-10 place-items-center rounded-full font-display text-[0.95rem] font-bold transition-all " +
           (completed
-            ? "border-2 border-[color:var(--success)] bg-[color:var(--success)] text-white"
+            ? "border-2 border-[color:var(--success)] bg-[color:var(--success)] text-[color:var(--success-foreground)]"
             : active
-              ? "border-2 border-[color:var(--primary)] bg-[color:var(--primary)] text-white shadow-[0_0_0_4px_rgba(37,99,235,0.15)] motion-safe:animate-[pulseRing_2.4s_ease-out_infinite]"
-              : "border-2 border-dashed border-[color:var(--border-dark,#cbd5e1)] bg-white text-[color:var(--text-muted)]")
+              ? "border-2 border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--primary-foreground)] shadow-[0_0_0_4px_var(--primary-light)] motion-safe:animate-[pulseRing_2.4s_ease-out_infinite]"
+              : "border-2 border-dashed border-[color:var(--border-dark)] bg-card text-[color:var(--text-muted)]")
         }
       >
         {completed ? <CheckIcon className="size-[18px]" strokeWidth={3} /> : n}
@@ -108,7 +108,7 @@ function StepLine({ completed }: { completed: boolean }) {
         "mt-[19px] h-0.5 flex-1 " +
         (completed
           ? "bg-[color:var(--success)]"
-          : "border-t-2 border-dashed border-[color:var(--border-dark,#cbd5e1)] bg-transparent")
+          : "border-t-2 border-dashed border-[color:var(--border-dark)] bg-transparent")
       }
     />
   );

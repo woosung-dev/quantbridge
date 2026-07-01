@@ -4,6 +4,7 @@
 // Sprint FE-D: tags 필드를 chip-style TagInput 으로 교체. RHF Controller 로 배선.
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeftIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,8 @@ export function StepMetadata(props: {
 
         <div className="flex items-center justify-between pt-4">
           <Button type="button" variant="ghost" onClick={props.onBack}>
-            ← 이전
+            <ArrowLeftIcon className="size-4" aria-hidden />
+            이전
           </Button>
           <Button type="submit" disabled={props.submitting}>
             {props.submitting ? "생성 중..." : "전략 생성"}

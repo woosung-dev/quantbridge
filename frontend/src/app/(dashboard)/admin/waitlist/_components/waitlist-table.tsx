@@ -2,6 +2,7 @@
 // W6 strategy-table 패턴 차용. 정렬 키 = email/created/status, aria-sort 적용.
 "use client";
 
+import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,10 @@ type SortKey = "email" | "created" | "status";
 type SortDir = "asc" | "desc";
 
 const STATUS_BADGE: Record<WaitlistStatus, string> = {
-  pending: "bg-amber-100 text-amber-900",
-  invited: "bg-blue-100 text-blue-900",
-  joined: "bg-emerald-100 text-emerald-900",
-  rejected: "bg-gray-200 text-gray-800",
+  pending: "bg-[color:var(--warning-subtle)] text-[color:var(--warning)]",
+  invited: "bg-[color:var(--primary-light)] text-[color:var(--primary)]",
+  joined: "bg-[color:var(--success-subtle)] text-[color:var(--success)]",
+  rejected: "bg-[color:var(--muted)] text-[color:var(--text-secondary)]",
 };
 
 const STATUS_LABEL: Record<WaitlistStatus, string> = {
@@ -79,7 +80,7 @@ export function WaitlistTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-white">
+    <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card">
       <table className="w-full text-left text-sm" role="table">
         <thead className="bg-[color:var(--bg-alt)] text-xs uppercase tracking-wide text-[color:var(--text-secondary)]">
           <tr>
@@ -215,9 +216,18 @@ function SortHeader({ label, active, dir, ariaSort, onClick }: SortHeaderProps) 
         }
       >
         <span>{label}</span>
-        <span aria-hidden="true" className="text-[10px]">
-          {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
-        </span>
+        {active ? (
+          dir === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+          )
+        ) : (
+          <ChevronsUpDown
+            className="h-3.5 w-3.5 text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
       </button>
     </th>
   );

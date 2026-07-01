@@ -32,12 +32,8 @@ export default function SignInPage() {
             dividerText: "text-[color:var(--text-muted)]",
           },
           variables: {
-            colorPrimary: "#2563eb",
-            colorText: "#0f172a",
-            colorTextSecondary: "#475569",
-            colorBackground: "#ffffff",
-            colorInputBackground: "#ffffff",
-            colorInputText: "#0f172a",
+            // 코퍼 브랜드 컬러. text/background 는 ClerkThemeBridge(baseTheme)가 라이트/다크 처리.
+            colorPrimary: "#b45309",
             borderRadius: "10px",
           },
         }}

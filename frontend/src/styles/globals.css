@@ -11,33 +11,42 @@
  * DESIGN.md 2.1 (원본 hex 토큰 보존)
  * ───────────────────────────────────────────── */
 :root {
-  /* 배경 */
-  --bg: #fafbfc;
-  --bg-alt: #f1f5f9;
+  /* 배경 — Terminal Tape 웜 페이퍼 (DESIGN.md §0) */
+  --bg: #fafaf7;
+  --bg-alt: #f0efea;
   --card: #ffffff;
 
-  /* 텍스트 */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  /* 텍스트 — 웜 그래파이트 잉크 */
+  --text-primary: #1a1d23;
+  --text-secondary: #565a63;
+  --text-muted: #767b85;
 
-  /* 브랜드 */
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-light: #eff6ff;
-  --primary-100: #dbeafe;
+  /* 브랜드 — 시그널 코퍼 */
+  --primary: #b45309;
+  --primary-hover: #92400e;
+  --primary-light: #fcf3e9;
+  --primary-100: #f5e2cc;
+  --primary-foreground-token: #ffffff;
 
-  /* 시맨틱 */
-  --success: #059669;
-  --success-light: #d1fae5;
+  /* 금융 시맨틱 (테마 인지 — :root/.dark 양쪽 정의) */
+  --success: #047857;
+  --success-foreground: #ffffff;
+  --success-subtle: #e7f5ef;
+  --success-light: #e7f5ef;
+  --bullish: #0f9d6b;
   --destructive: #dc2626;
-  --destructive-light: #fee2e2;
-  --accent-amber: #d97706;
-  --accent-amber-light: #fef3c7;
+  --destructive-subtle: #fcebea;
+  --destructive-light: #fcebea;
+  --bearish: #e0413e;
+  --warning: #a16207;
+  --warning-foreground: #ffffff;
+  --warning-subtle: #faf0d7;
+  --accent-amber: #a16207;
+  --accent-amber-light: #faf0d7;
 
   /* 보더 */
-  --border: #e2e8f0;
-  --border-dark: #cbd5e1;
+  --border: #e7e5de;
+  --border-dark: #d4d1c8;
 
   /* Dark Theme 토큰 (테마 독립적으로 접근 가능) — DESIGN.md 2.2 */
   --dash-bg: #0b1120;
@@ -67,13 +76,13 @@
   --radius-xl: 18px;
   --radius-pill: 20px;
 
-  /* Elevation — DESIGN.md 6 */
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
-  --card-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.08), 0 16px 40px rgba(0, 0, 0, 0.06);
-  --nav-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --btn-primary-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
-  --btn-primary-shadow-hover: 0 6px 20px rgba(37, 99, 235, 0.35);
-  --dash-glow: 0 0 80px rgba(99, 102, 241, 0.06);
+  /* Elevation — DESIGN.md §0 (웜 그래파이트 잉크 섀도우) */
+  --card-shadow: 0 1px 2px rgba(26, 29, 35, 0.04), 0 4px 16px rgba(26, 29, 35, 0.04);
+  --card-shadow-hover: 0 2px 6px rgba(26, 29, 35, 0.06), 0 12px 32px rgba(26, 29, 35, 0.07);
+  --nav-shadow: 0 1px 2px rgba(26, 29, 35, 0.06);
+  --btn-primary-shadow: 0 4px 14px rgba(180, 83, 9, 0.22);
+  --btn-primary-shadow-hover: 0 6px 20px rgba(180, 83, 9, 0.32);
+  --dash-glow: 0 0 80px rgba(180, 83, 9, 0.06);
 
   /* Z-Index — DESIGN.md 4.4 */
   --z-base: 0;
@@ -87,35 +96,35 @@
    * shadcn/ui 시맨틱 토큰 — DESIGN.md 토큰으로 오버라이드
    * Sprint 7c Task 1 Step 1.3
    * ───────────────────────────────────────────── */
-  --background: #fafbfc;
-  --foreground: #0f172a;
-  --card-foreground: #0f172a;
+  --background: #fafaf7;
+  --foreground: #1a1d23;
+  --card-foreground: #1a1d23;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --popover-foreground: #1a1d23;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #94a3b8;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
+  --secondary: #f0efea;
+  --secondary-foreground: #1a1d23;
+  --muted: #f0efea;
+  --muted-foreground: #767b85;
+  --accent: #f0efea;
+  --accent-foreground: #1a1d23;
   --destructive-foreground: #ffffff;
-  --input: #e2e8f0;
-  --ring: #2563eb;
-  --chart-1: #2563eb;
-  --chart-2: #059669;
+  --input: #e7e5de;
+  --ring: #b45309;
+  --chart-1: #b45309;
+  --chart-2: #047857;
   --chart-3: #dc2626;
-  --chart-4: #f59e0b;
-  --chart-5: #7c3aed;
+  --chart-4: #a16207;
+  --chart-5: #2dd4a7;
   --radius: 10px;
   --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #2563eb;
+  --sidebar-foreground: #1a1d23;
+  --sidebar-primary: #b45309;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1f5f9;
-  --sidebar-accent-foreground: #0f172a;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #2563eb;
+  --sidebar-accent: #f0efea;
+  --sidebar-accent-foreground: #1a1d23;
+  --sidebar-border: #e7e5de;
+  --sidebar-ring: #b45309;
 }
 
 /* ───────────────────────────────────────────────
@@ -123,40 +132,13 @@
  * Sprint 7c Task 1 Step 1.4b: breakpoint 재정렬 (DESIGN.md §4.3)
  * ───────────────────────────────────────────── */
 @theme {
+  /* 테마 독립 토큰만 잔류 — DESIGN.md §0. 색상/섀도우 매핑은 @theme inline 으로 이동
+     (non-inline @theme 은 빌드 타임에 var() 값을 동결 → .dark flip 불가 트랩) */
   --breakpoint-sm: 375px;
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
   --breakpoint-xl: 1200px;
   --breakpoint-2xl: 1440px;
-
-  --color-bg: var(--bg);
-  --color-bg-alt: var(--bg-alt);
-  --color-card: var(--card);
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted: var(--text-muted);
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-light: var(--primary-light);
-  --color-success: var(--success);
-  --color-success-light: var(--success-light);
-  --color-destructive: var(--destructive);
-  --color-destructive-light: var(--destructive-light);
-  --color-accent-amber: var(--accent-amber);
-  --color-accent-amber-light: var(--accent-amber-light);
-  --color-border-default: var(--border);
-  --color-border-dark: var(--border-dark);
-  --color-primary-100: var(--primary-100);
-  --color-primary-hover: var(--primary-hover);
-  --color-dash-bg: var(--dash-bg);
-  --color-dash-surface: var(--dash-surface);
-  --color-dash-surface-elevated: var(--dash-surface-elevated);
-  --color-dash-text: var(--dash-text);
-  --color-dash-text-muted: var(--dash-text-muted);
-  --color-dash-accent: var(--dash-accent);
-  --color-dash-green: var(--dash-green);
-  --color-dash-red: var(--dash-red);
-  --color-dash-border: var(--dash-border);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: var(--font-jakarta), ui-sans-serif, sans-serif;
@@ -167,50 +149,10 @@
   --radius-lg: 14px;
   --radius-xl: 18px;
   --radius-pill: 20px;
-
-  /* Elevation utility — DESIGN.md §6 (shadow-card / shadow-card-hover / shadow-btn-primary) */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
-  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.08), 0 16px 40px rgba(0, 0, 0, 0.06);
-  --shadow-btn-primary: 0 4px 14px rgba(37, 99, 235, 0.25);
-  --shadow-btn-primary-hover: 0 6px 20px rgba(37, 99, 235, 0.35);
 }
 
-/* ───────────────────────────────────────────────
- * Dark Theme 활성화 — [data-theme="dash"] 범위 내 적용
- * 대시보드/트레이딩 화면에서 스코프 적용
- * ───────────────────────────────────────────── */
-[data-theme="dash"] {
-  /* DESIGN.md §11: 대시보드/트레이딩 다크 테마. Sprint 7c는 light only이므로
-     본 스코프는 /trading 페이지 전용(기존 Sprint 6 구현). shadcn 시맨틱 토큰
-     (--background/--foreground/--card/--primary 등)까지 dash 값으로 재매핑.
-     Sprint 7c strategy 라우트는 light 테마만 사용 → 본 스코프 미적용. */
-  --bg: var(--dash-bg);
-  --card: var(--dash-surface);
-  --text-primary: var(--dash-text);
-  --text-secondary: var(--dash-text-muted);
-  --text-muted: var(--dash-text-muted);
-  --border: var(--dash-border);
-  --primary: var(--dash-accent);
-  --primary-hover: #4f46e5;
-  /* shadcn 시맨틱 토큰 재매핑 — /trading 화면에서 shadcn 컴포넌트가 dash 테마 준수 */
-  --background: var(--dash-bg);
-  --foreground: var(--dash-text);
-  --card-foreground: var(--dash-text);
-  --popover: var(--dash-surface);
-  --popover-foreground: var(--dash-text);
-  --primary-foreground: #FFFFFF;
-  --muted: var(--dash-surface-elevated);
-  --muted-foreground: var(--dash-text-muted);
-  --ring: var(--dash-accent);
-  /* Sprint 41-B2 (프로토타입 03 Full Dark App Shell) — sidebar 토큰 dash 재매핑.
-     Worker B 의 @theme inline 블록은 미수정, 본 스코프 내에서만 효력. */
-  --sidebar: var(--dash-bg);
-  --sidebar-foreground: var(--dash-text);
-  --sidebar-accent: var(--dash-surface-elevated);
-  --sidebar-accent-foreground: var(--dash-text);
-  --sidebar-border: var(--dash-border);
-  color-scheme: dark;
-}
+/* DESIGN.md §0: 구 [data-theme="dash"] 스코프 삭제 (앱 전체 라이트/다크 토글로 대체).
+   다크 토큰은 아래 .dark 블록이 정규 SSOT. */
 
 /* ───────────────────────────────────────────────
  * Base styles
@@ -259,6 +201,49 @@ h6 {
  * ───────────────────────────────────────────── */
 @theme inline {
   --font-heading: var(--font-display);
+
+  /* 커스텀 + 금융 시맨틱 색상 (inline → :root/.dark cascade 라이브 참조, 테마 flip) */
+  --color-bg: var(--bg);
+  --color-bg-alt: var(--bg-alt);
+  --color-card: var(--card);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-primary-100: var(--primary-100);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-light: var(--success-light);
+  --color-bullish: var(--bullish);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-light: var(--destructive-light);
+  --color-bearish: var(--bearish);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-light: var(--accent-amber-light);
+  --color-border-default: var(--border);
+  --color-border-dark: var(--border-dark);
+  --color-dash-bg: var(--dash-bg);
+  --color-dash-surface: var(--dash-surface);
+  --color-dash-surface-elevated: var(--dash-surface-elevated);
+  --color-dash-text: var(--dash-text);
+  --color-dash-text-muted: var(--dash-text-muted);
+  --color-dash-accent: var(--dash-accent);
+  --color-dash-green: var(--dash-green);
+  --color-dash-red: var(--dash-red);
+  --color-dash-border: var(--dash-border);
+
+  /* Elevation utility — :root/.dark 의 --card-shadow 라이브 참조 (테마 flip) */
+  --shadow-card: var(--card-shadow);
+  --shadow-card-hover: var(--card-shadow-hover);
+  --shadow-btn-primary: var(--btn-primary-shadow);
+  --shadow-btn-primary-hover: var(--btn-primary-shadow-hover);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -295,41 +280,78 @@ h6 {
 }
 
 /* ───────────────────────────────────────────────
- * Dark mode (shadcn .dark 변형 — DESIGN.md dash 테마와는 별개)
- * 대시보드는 [data-theme="dash"]를 사용하고, shadcn .dark는 fallback용
+ * Dark mode — Terminal Tape 다크 (정규 SSOT, DESIGN.md §0)
+ * next-themes attribute="class" → <html class="dark">. 커스텀 + 금융 + shadcn
+ * 시맨틱 전체셋을 웜 니어블랙/코퍼로 재정의 → 모든 유틸리티 flip.
  * ───────────────────────────────────────────── */
 .dark {
-  --background: #0b1120;
-  --foreground: #ededef;
-  --card: #111827;
-  --card-foreground: #ededef;
-  --popover: #111827;
-  --popover-foreground: #ededef;
-  --primary: #6366f1;
-  --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #ededef;
-  --muted: #1e293b;
-  --muted-foreground: #8a8f98;
-  --accent: #1e293b;
-  --accent-foreground: #ededef;
+  color-scheme: dark;
+
+  /* 커스텀 (테마 인지) */
+  --bg: #0e0f11;
+  --bg-alt: #17181b;
+  --card: #16171a;
+  --text-primary: #eceae3;
+  --text-secondary: #a8a39a;
+  --text-muted: #8b867c;
+  --primary: #e0832b;
+  --primary-hover: #c9701e;
+  --primary-light: rgba(224, 131, 43, 0.12);
+  --primary-100: rgba(224, 131, 43, 0.22);
+  --border: rgba(236, 234, 227, 0.1);
+  --border-dark: rgba(236, 234, 227, 0.16);
+
+  /* 금융 시맨틱 (다크 등급) */
+  --success: #34d399;
+  --success-foreground: #08130d;
+  --success-subtle: rgba(52, 211, 153, 0.14);
+  --success-light: rgba(52, 211, 153, 0.14);
+  --bullish: #2dd4a7;
   --destructive: #f87171;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.08);
-  --ring: #6366f1;
-  --chart-1: #6366f1;
+  --destructive-subtle: rgba(248, 113, 113, 0.14);
+  --destructive-light: rgba(248, 113, 113, 0.14);
+  --bearish: #f6685e;
+  --warning: #e0a53c;
+  --warning-foreground: #1a1209;
+  --warning-subtle: rgba(224, 165, 60, 0.14);
+  --accent-amber: #e0a53c;
+  --accent-amber-light: rgba(224, 165, 60, 0.14);
+
+  /* Elevation (다크) */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.4);
+  --btn-primary-shadow: 0 4px 14px rgba(224, 131, 43, 0.28);
+  --btn-primary-shadow-hover: 0 6px 20px rgba(224, 131, 43, 0.4);
+
+  /* shadcn 시맨틱 (다크) — 코퍼 버튼은 ink 텍스트(white 대비 부족) */
+  --background: #0e0f11;
+  --foreground: #eceae3;
+  --card-foreground: #eceae3;
+  --popover: #16171a;
+  --popover-foreground: #eceae3;
+  --primary-foreground: #1a1209;
+  --secondary: #17181b;
+  --secondary-foreground: #eceae3;
+  --muted: #1c1d21;
+  --muted-foreground: #8b867c;
+  --accent: #1c1d21;
+  --accent-foreground: #eceae3;
+  --destructive-foreground: #1a1209;
+  --input: rgba(236, 234, 227, 0.1);
+  --ring: #e0832b;
+  --chart-1: #e0832b;
   --chart-2: #34d399;
   --chart-3: #f87171;
-  --chart-4: #fbbf24;
-  --chart-5: #c084fc;
-  --sidebar: #111827;
-  --sidebar-foreground: #ededef;
-  --sidebar-primary: #6366f1;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #ededef;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #6366f1;
+  --chart-4: #e0a53c;
+  --chart-5: #2dd4a7;
+  --sidebar: #121316;
+  --sidebar-foreground: #eceae3;
+  --sidebar-primary: #e0832b;
+  --sidebar-primary-foreground: #1a1209;
+  --sidebar-accent: #1c1d21;
+  --sidebar-accent-foreground: #eceae3;
+  --sidebar-border: rgba(236, 234, 227, 0.1);
+  --sidebar-ring: #e0832b;
 }
 
 @layer base {
@@ -349,18 +371,20 @@ h6 {
  * Sprint 7c Task 3 Step 3.6: PARSE_STATUS_META.tone과 매칭되는 규칙
  * <Badge variant="outline" data-tone="success|warning|destructive"> 형태로 소비
  * ───────────────────────────────────────────── */
-[data-tone="success"] {
-  background-color: var(--success-light);
+[data-tone="success"],
+[data-tone="positive"] {
+  background-color: var(--success-subtle);
   color: var(--success);
   border-color: transparent;
 }
 [data-tone="warning"] {
-  background-color: #FEF3C7;
-  color: #92400E;
+  background-color: var(--warning-subtle);
+  color: var(--warning);
   border-color: transparent;
 }
-[data-tone="destructive"] {
-  background-color: var(--destructive-light);
+[data-tone="destructive"],
+[data-tone="negative"] {
+  background-color: var(--destructive-subtle);
   color: var(--destructive);
   border-color: transparent;
 }
@@ -382,14 +406,14 @@ h6 {
  * staggerIn: parse 결과 row 30~50ms 순차 등장
  * ───────────────────────────────────────────── */
 @keyframes pulseRing {
-  0%   { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35); }
-  70%  { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 35%, transparent); }
+  70%  { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 @keyframes pulseDot {
-  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
-  70%  { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--bullish) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 @keyframes staggerIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -402,9 +426,9 @@ h6 {
  * qb-progress-indeterminate: 종료 시점 미상 진행률 bar (좌→우 슬라이드)
  * ───────────────────────────────────────────── */
 @keyframes qb-pulse-dot {
-  0%   { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.55); }
-  70%  { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 @keyframes qb-progress-indeterminate {
   0%   { left: -33%; }
@@ -441,7 +465,7 @@ h6 {
   border-radius: 50%;
   background: var(--primary);
   border: 3px solid #ffffff;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 40%, transparent);
   cursor: grab;
   transition: transform 200ms ease;
 }
@@ -457,7 +481,7 @@ h6 {
   border-radius: 50%;
   background: var(--primary);
   border: 3px solid #ffffff;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 40%, transparent);
   cursor: grab;
 }
 .qb-range-slider::-moz-range-thumb:hover {
@@ -469,7 +493,7 @@ h6 {
   background: transparent;
 }
 .qb-range-slider:focus-visible {
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 /* ───────────────────────────────────────────────
  * Sprint 42-polish-2 W1-fidelity — 04 login fadeInUp / livePulse class
@@ -494,7 +518,7 @@ h6 {
 }
 @keyframes onb-step-pulse {
   0%, 100% { box-shadow: 0 0 0 6px var(--primary-light); }
-  50%      { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0.08); }
+  50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--primary) 8%, transparent); }
 }
 @keyframes onb-chart-bar-rise {
   from { transform: scaleY(0.05); }
@@ -538,8 +562,8 @@ h6 {
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes subtleHover {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
-  50%      { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.08); }
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 8%, transparent); }
 }
 @keyframes livePulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -554,8 +578,8 @@ h6 {
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes dirtyPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.0); }
-  50%      { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18); }
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 18%, transparent); }
 }
 @keyframes optionCardPress {
   from { transform: translateY(0); }
@@ -595,8 +619,8 @@ h6 {
 
 /* trading kill-switch active 시 red ring pulse 2s (위험 강조) */
 @keyframes qb-danger-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
-  50%      { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--destructive) 45%, transparent); }
+  50%      { box-shadow: 0 0 0 6px transparent; }
 }
 .qb-danger-pulse { animation: qb-danger-pulse 2s ease-in-out infinite; }
 
@@ -763,7 +787,7 @@ h6 {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.45) 50%,
+    color-mix(in srgb, var(--foreground) 16%, transparent) 50%,
     transparent 100%
   );
   animation: qb-skeleton-shimmer 1.5s ease-in-out infinite;

@@ -31,7 +31,7 @@ export function ParseResultPanel({ result, loading, error = null }: ParseResultP
             (loading
               ? "animate-pulse bg-[color:var(--primary)]"
               : result
-                ? "bg-[#22C55E] motion-safe:animate-[pulseDot_1.6s_ease-out_infinite]"
+                ? "bg-[color:var(--success)] motion-safe:animate-[pulseDot_1.6s_ease-out_infinite]"
                 : "bg-[color:var(--text-muted)]")
           }
         />
@@ -184,7 +184,7 @@ function FeaturePill({ label, present }: { label: string; present: boolean }) {
       className={
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.72rem] font-semibold " +
         (present
-          ? "border-[color:var(--primary-100)] bg-white text-[color:var(--primary)]"
+          ? "border-[color:var(--primary-100)] bg-card text-[color:var(--primary)]"
           : "border-[color:var(--border)] bg-[color:var(--bg-alt)] text-[color:var(--text-muted)]")
       }
     >

@@ -58,7 +58,7 @@ export function LandingHowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="bg-white px-6 py-20"
+      className="bg-card px-6 py-20"
       aria-labelledby="how-it-works-heading"
     >
       <div className="mx-auto max-w-[1200px]">
@@ -82,7 +82,7 @@ export function LandingHowItWorks() {
           {STEPS.map((s, i) => (
             <article
               key={s.number}
-              className="relative rounded-[14px] border border-[color:var(--border)] bg-[color:var(--bg)] p-7 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
+              className="relative rounded-[14px] border border-[color:var(--border)] bg-[color:var(--bg)] p-7 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
               style={{ animationDelay: `${i * 80}ms` }}
             >
               <div className="font-mono text-xs font-semibold tracking-wider text-[color:var(--primary)]">

@@ -13,7 +13,7 @@ const TRUST_AVATARS = [
 
 export function LandingHero() {
   return (
-    <section className="bg-white px-6 pt-24 pb-20 md:pt-28 md:pb-24">
+    <section className="bg-card px-6 pt-24 pb-20 md:pt-28 md:pb-24">
       <div className="mx-auto grid max-w-[1200px] items-center gap-12 lg:grid-cols-[55%_45%]">
         <div className="flex flex-col">
           <div className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-[color:var(--primary-100)] bg-[color:var(--primary-light)] px-3.5 py-1.5 text-xs font-medium text-[color:var(--primary)]">
@@ -33,7 +33,7 @@ export function LandingHero() {
               >
                 <path
                   d="M2 8C40 2 80 10 140 5C200 0 240 9 278 4"
-                  stroke="#2563EB"
+                  stroke="var(--primary)"
                   strokeWidth="3"
                   strokeLinecap="round"
                   opacity="0.4"
@@ -51,7 +51,7 @@ export function LandingHero() {
               size="lg"
               render={<Link href="/sign-up" />}
               nativeButton={false}
-              className="shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all duration-200 hover:-translate-y-px hover:scale-[1.02] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)]"
+              className="shadow-btn-primary transition-all duration-200 hover:-translate-y-px hover:scale-[1.02] hover:shadow-btn-primary-hover"
             >
               무료로 시작하기
               <svg
@@ -97,7 +97,7 @@ export function LandingHero() {
               {TRUST_AVATARS.map((a) => (
                 <span
                   key={a.initials}
-                  className="-ml-2 flex size-8 items-center justify-center rounded-full border-2 border-white text-[0.65rem] font-bold text-white first:ml-0"
+                  className="-ml-2 flex size-8 items-center justify-center rounded-full border-2 border-card text-[0.65rem] font-bold text-white first:ml-0"
                   style={{ background: a.color }}
                   aria-hidden
                 >
@@ -119,8 +119,8 @@ export function LandingHero() {
 // 데스크톱 우측 브라우저 mockup — 차트 + KPI 3개 (다크 미니뷰)
 function HeroBrowserMockup() {
   return (
-    <div className="hidden overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.04)] motion-safe:animate-[heroFloat_6s_ease-in-out_infinite] lg:block">
-      <div className="flex h-9 items-center gap-2 border-b border-[color:var(--border)] bg-[#F8FAFC] px-3">
+    <div className="hidden overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-card shadow-card motion-safe:animate-[heroFloat_6s_ease-in-out_infinite] lg:block">
+      <div className="flex h-9 items-center gap-2 border-b border-[color:var(--border)] bg-muted px-3">
         <span className="size-2.5 rounded-full bg-[#F87171]" />
         <span className="size-2.5 rounded-full bg-[#FBBF24]" />
         <span className="size-2.5 rounded-full bg-[#34D399]" />

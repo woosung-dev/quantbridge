@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { MoreVerticalIcon } from "lucide-react";
+import { ArrowRightIcon, MoreVerticalIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -125,7 +125,7 @@ export function StrategyCard({ strategy }: { strategy: StrategyListItem }) {
           className="inline-flex items-center gap-1 font-medium text-[color:var(--primary)] transition hover:underline"
         >
           편집
-          <span aria-hidden="true">→</span>
+          <ArrowRightIcon aria-hidden="true" className="size-3.5" />
         </Link>
       </CardFooter>
     </Card>

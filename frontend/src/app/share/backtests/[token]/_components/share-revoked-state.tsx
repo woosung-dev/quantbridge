@@ -17,13 +17,13 @@ export function ShareRevokedState() {
       <div
         aria-hidden="true"
         data-testid="share-revoked-bg"
-        className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_#FEF2F2_0%,_var(--bg)_60%)]"
+        className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--destructive-light)_0%,_var(--bg)_60%)]"
       />
       {/* backdrop 큰 글자 */}
       <div
         aria-hidden="true"
         data-testid="share-revoked-backdrop"
-        className="pointer-events-none absolute left-1/2 top-1/2 z-0 select-none font-display text-[clamp(5rem,12vw,7.5rem)] font-extrabold leading-[0.9] tracking-tight text-[#FEE2E2]"
+        className="pointer-events-none absolute left-1/2 top-1/2 z-0 select-none font-display text-[clamp(5rem,12vw,7.5rem)] font-extrabold leading-[0.9] tracking-tight text-[color:var(--destructive-light)]"
         style={{ transform: "translate(-50%, -58%)" }}
       >
         LINK
@@ -31,20 +31,20 @@ export function ShareRevokedState() {
       {/* 96px 원형 아이콘 wrap */}
       <div
         data-testid="share-revoked-icon"
-        className="relative z-[2] mb-6 grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-[#FEF2F2] to-[color:var(--destructive-light)] shadow-lg motion-safe:animate-[errIllustEnter_360ms_cubic-bezier(0.34,1.56,0.64,1)_both]"
+        className="relative z-[2] mb-6 grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-[color:var(--destructive-subtle)] to-[color:var(--destructive-light)] shadow-lg motion-safe:animate-[errIllustEnter_360ms_cubic-bezier(0.34,1.56,0.64,1)_both]"
         aria-hidden="true"
       >
         <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
           {/* 끊어진 사슬 모티프 */}
           <path
             d="M22 18L14 26"
-            stroke="#DC2626"
+            stroke="var(--destructive)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
           <path
             d="M34 38L42 30"
-            stroke="#DC2626"
+            stroke="var(--destructive)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -54,9 +54,9 @@ export function ShareRevokedState() {
             width="16"
             height="12"
             rx="6"
-            stroke="#DC2626"
+            stroke="var(--destructive)"
             strokeWidth="2.5"
-            fill="#FEE2E2"
+            fill="var(--destructive-light)"
             transform="rotate(-30 14 28)"
           />
           <rect
@@ -65,9 +65,9 @@ export function ShareRevokedState() {
             width="16"
             height="12"
             rx="6"
-            stroke="#DC2626"
+            stroke="var(--destructive)"
             strokeWidth="2.5"
-            fill="#FEE2E2"
+            fill="var(--destructive-light)"
             transform="rotate(-30 42 28)"
           />
           {/* 끊김 표시 */}
@@ -76,7 +76,7 @@ export function ShareRevokedState() {
             y1="22"
             x2="30"
             y2="34"
-            stroke="#DC2626"
+            stroke="var(--destructive)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />

@@ -259,8 +259,8 @@ export function EquityChartV2({
                 className={
                   "min-h-[32px] rounded px-3 py-1 font-mono text-xs font-medium transition-colors " +
                   (isActive
-                    ? "bg-[color:var(--primary)] text-white"
-                    : "text-[color:var(--text-secondary)] hover:bg-black/5 hover:text-[color:var(--text-primary)]")
+                    ? "bg-primary text-primary-foreground"
+                    : "text-[color:var(--text-secondary)] hover:bg-foreground/5 hover:text-[color:var(--text-primary)]")
                 }
               >
                 {opt.label}

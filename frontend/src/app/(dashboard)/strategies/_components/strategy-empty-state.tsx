@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export function StrategyEmptyState() {
   return (
-    <div className="mx-auto max-w-md rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-dark)] bg-white p-10 text-center">
+    <div className="mx-auto max-w-md rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-dark)] bg-card p-10 text-center">
       <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-[color:var(--primary-light)] text-[color:var(--primary)]">
         <CodeIcon className="size-7" strokeWidth={1.5} />
       </div>

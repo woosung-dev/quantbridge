@@ -8,13 +8,13 @@ import Link from "next/link";
 import { LEGAL_LINKS } from "@/lib/legal-links";
 
 const LINK_CLASS =
-  "inline-block min-h-11 px-2 py-2.5 align-middle underline hover:text-amber-950 md:min-h-0 md:px-0 md:py-0";
+  "inline-block min-h-11 px-2 py-2.5 align-middle underline hover:opacity-80 md:min-h-0 md:px-0 md:py-0";
 
 export function LegalNoticeBanner() {
   return (
     <div
       role="note"
-      className="w-full border-b border-amber-300 bg-amber-100 px-4 py-1.5 text-center text-[11px] text-amber-900"
+      className="w-full border-b border-warning/30 bg-warning-subtle px-4 py-1.5 text-center text-[11px] text-warning"
     >
       <strong>Beta:</strong> QuantBridge is provided as-is. See{" "}
       <Link href={LEGAL_LINKS.disclaimer} className={LINK_CLASS}>

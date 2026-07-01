@@ -12,6 +12,8 @@
 //
 // LESSON-004: render body 에서 ref/state 변경 없음. props → 파생값만 계산.
 
+import { AlertTriangle, Info } from "lucide-react";
+
 import type { BacktestConfig } from "@/features/backtest/schemas";
 import { formatPercent } from "@/features/backtest/utils";
 
@@ -132,10 +134,11 @@ export function AssumptionsCard({
         <h2 className="text-sm font-medium">백테스트 가정</h2>
         {allAssumptionsDefaulted ? (
           <span
-            className="text-xs text-muted-foreground"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground"
             data-testid="assumptions-default-notice"
           >
-            ⓘ 표준 가정값 (BE config 미응답)
+            <Info className="h-3 w-3 shrink-0" aria-hidden="true" />
+            표준 가정값 (BE config 미응답)
           </span>
         ) : null}
       </header>
@@ -173,22 +176,28 @@ export function AssumptionsCard({
       {/* C14 (정직성) — 가설적 결과 + 순(net) + 체결 가정 상시 고지. */}
       <p
         data-testid="backtest-honesty-note"
-        className="mt-2 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground"
+        className="mt-2 flex gap-1.5 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground"
       >
-        ⚠ 가설적 결과입니다. 후행 데이터로 계산되며 위 수수료·슬리피지가 차감된 순(net)
-        수치입니다. 체결 가정 — 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후
-        트리거가에 체결됩니다.
+        <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          가설적 결과입니다. 후행 데이터로 계산되며 위 수수료·슬리피지가 차감된 순(net)
+          수치입니다. 체결 가정 — 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후
+          트리거가에 체결됩니다.
+        </span>
       </p>
       {/* C6 (정직성) — funding 데이터가 보유 구간 일부를 못 덮을 때만 표시. "결측"
           (혼란) 대신 *왜* 미반영인지 설명. include_funding=false / 미반영 시 미렌더. */}
       {fundingDataIncomplete === true ? (
         <p
           data-testid="backtest-funding-incomplete-note"
-          className="mt-2 text-[11px] leading-relaxed text-amber-600 dark:text-amber-500"
+          className="mt-2 flex gap-1.5 text-[11px] leading-relaxed text-warning"
         >
-          ⚠ 펀딩 비용 미반영 구간 있음 — funding 데이터 가용 범위(최근 Bybit
-          BTC/ETH) 밖의 보유 구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은
-          펀딩 비용만큼 낙관 편향일 수 있습니다.
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            펀딩 비용 미반영 구간 있음 — funding 데이터 가용 범위(최근 Bybit
+            BTC/ETH) 밖의 보유 구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은
+            펀딩 비용만큼 낙관 편향일 수 있습니다.
+          </span>
         </p>
       ) : null}
     </section>

@@ -34,8 +34,8 @@ describe("SplitScreenShell", () => {
     const main = child.closest("main");
     expect(main).not.toBeNull();
     expect(main?.className).toContain("min-h-dvh");
-    // prototype 04 의 .form-panel { background: #fff } — bg-white class
-    expect(main?.className).toContain("bg-white");
+    // prototype 04 의 .form-panel { background: #fff } — Terminal Tape bg-card 토큰 (라이트/다크 flip)
+    expect(main?.className).toContain("bg-card");
   });
 
   it("form wrapper — prototype max-w 400px 정합", () => {

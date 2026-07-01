@@ -87,16 +87,16 @@ export function TradeAnalysis({ metrics, trades }: TradeAnalysisProps) {
       <section>
         <SectionTitle>승/패 비율</SectionTitle>
         <div className="flex items-center gap-3 text-sm">
-          <span className="w-14 text-right font-medium text-green-500">
+          <span className="w-14 text-right font-medium text-bullish">
             {winCount}건
           </span>
-          <div className="h-4 flex-1 overflow-hidden rounded-full bg-[color:var(--muted)]">
+          <div className="h-4 flex-1 overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-green-500 transition-all duration-300"
+              className="h-full rounded-full bg-bullish transition-all duration-300"
               style={{ width: `${winPct}%` }}
             />
           </div>
-          <span className="w-14 font-medium text-red-500">{lossCount}건</span>
+          <span className="w-14 font-medium text-bearish">{lossCount}건</span>
         </div>
         <p className="mt-1 text-center text-xs text-[color:var(--text-muted)]">
           승률 {winPct.toFixed(1)}% · 패률 {(100 - winPct).toFixed(1)}%
@@ -118,13 +118,13 @@ export function TradeAnalysis({ metrics, trades }: TradeAnalysisProps) {
               label="평균 수익"
               value={avg_win}
               max={maxAbsAvg}
-              colorClass="bg-green-500"
+              colorClass="bg-bullish"
             />
             <RatioBar
               label="평균 손실"
               value={Math.abs(avg_loss)}
               max={maxAbsAvg}
-              colorClass="bg-red-500"
+              colorClass="bg-bearish"
             />
           </div>
         </section>
@@ -204,7 +204,7 @@ function DirectionStatsCard({
   stats: DirectionStats;
   color: "green" | "red";
 }) {
-  const colorClass = color === "green" ? "text-green-500" : "text-red-500";
+  const colorClass = color === "green" ? "text-bullish" : "text-bearish";
   if (stats.count === 0) {
     return (
       <div className="rounded-md border border-[color:var(--border)] px-4 py-3">

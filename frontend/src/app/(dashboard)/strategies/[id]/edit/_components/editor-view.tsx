@@ -128,7 +128,8 @@ export function EditorView({ id }: { id: string }) {
             render={<Link href="/strategies" />}
             nativeButton={false}
           >
-            ← 전략 목록으로
+            <ArrowLeftIcon className="size-4" aria-hidden />
+            전략 목록으로
           </Button>
         </div>
       </div>
@@ -139,7 +140,7 @@ export function EditorView({ id }: { id: string }) {
 
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-6">
-      <header className="sticky top-0 z-10 mb-5 flex flex-wrap items-center gap-3 bg-[color:var(--bg-primary)] py-2">
+      <header className="sticky top-0 z-10 mb-5 flex flex-wrap items-center gap-3 bg-background py-2">
         <Button
           variant="ghost"
           size="icon"
@@ -163,7 +164,7 @@ export function EditorView({ id }: { id: string }) {
               // Sprint 44 W F2: dirty pulse — 저장 잊지 않도록 0.18 amber ring 호흡 (2.4s).
               <Badge
                 variant="outline"
-                data-tone="warn"
+                data-tone="warning"
                 className="motion-safe:animate-[dirtyPulse_2.4s_ease-out_infinite]"
               >
                 저장되지 않은 변경

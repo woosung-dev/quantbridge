@@ -188,7 +188,7 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
         <p className="text-xs text-muted-foreground">
           Live Session 시작에 필요한 trading params.
           {strategy.settings == null ? (
-            <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">
+            <span className="ml-1 font-medium text-[color:var(--warning)]">
               · 미설정 (Live Session 차단됨)
             </span>
           ) : null}

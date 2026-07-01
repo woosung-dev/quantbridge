@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 const STATUS_BADGE: Record<OptimizationRunResponse["status"], string> = {
   queued: "bg-muted text-muted-foreground",
-  running: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  running: "bg-primary/15 text-primary",
   completed: "bg-success/15 text-success",
   failed: "bg-destructive/15 text-destructive",
 };
@@ -63,7 +63,8 @@ export function OptimizerRunList({
         <p
           role="status"
           data-testid="optimizer-skipped-warn"
-          className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          data-tone="warning"
+          className="rounded border px-3 py-2 text-xs"
         >{`이전 데이터 형식 불일치로 ${data.skipped_count}개 항목이 표시되지 않습니다.`}</p>
       ) : null}
       <div className="overflow-x-auto">

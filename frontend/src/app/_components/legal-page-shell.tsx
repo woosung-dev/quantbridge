@@ -82,7 +82,7 @@ export function LegalPageShell({
         {badgeLabel ? (
           <span
             data-testid="legal-page-badge"
-            className="inline-flex items-center rounded-full border border-amber-500/40 bg-gradient-to-r from-amber-50 to-amber-100 px-2.5 py-1 text-[12px] font-medium text-amber-900 shadow-sm"
+            className="inline-flex items-center rounded-full border border-warning/40 bg-warning-subtle px-2.5 py-1 text-[12px] font-medium text-warning shadow-sm"
           >
             {badgeLabel}
           </span>

@@ -104,7 +104,7 @@ function Body({
       <HeaderEl className="qb-dialog-stagger-1">
         <div className="flex items-start gap-3">
           <span
-            className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[color:var(--primary-light,#EFF6FF)] text-[color:var(--primary)]"
+            className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[color:var(--primary-light)] text-[color:var(--primary)]"
             aria-hidden="true"
           >
             <Archive className="size-5" />

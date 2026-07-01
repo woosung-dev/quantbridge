@@ -5,7 +5,7 @@
 // Sprint 42-polish W3: prototype 07 매칭 — 2열 grid (md+) Monaco 좌 + ParseResultPanel 우.
 
 import { useEffect, useRef } from "react";
-import { LightbulbIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, LightbulbIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PineEditor } from "@/components/monaco/pine-editor";
 import { useParseStrategy } from "@/features/strategy/hooks";
@@ -68,11 +68,12 @@ export function StepCode(props: {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
         {/*
           Pass 6 Responsive: Monaco wrapper adaptive height.
-          W3-fidelity: prototype 07 `.code-editor` 의 inset 1px ring(#334155) +
-          rounded-md + overflow-hidden + dark editor-bg(#1E293B) 매칭.
+          W3-fidelity: prototype 07 `.code-editor` 의 inset 1px ring + rounded-md + overflow-hidden.
+          Terminal Tape 롤아웃: 하드코딩 다크 editor-bg/ring → 테마 토큰(bg-muted / --border)으로 교체.
+          Monaco 자체는 앱 테마에 맞춰 pine-light/pine-dark 로 flip.
         */}
         <div
-          className="h-[300px] overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-[#1E293B] shadow-[inset_0_0_0_1px_#334155] md:h-[400px] lg:h-[520px]"
+          className="h-[300px] overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-muted shadow-[inset_0_0_0_1px_var(--border)] md:h-[400px] lg:h-[520px]"
         >
           <PineEditor
             value={props.pineSource}
@@ -93,7 +94,10 @@ export function StepCode(props: {
       </div>
 
       <div className="mt-8 flex items-center justify-between gap-3">
-        <Button variant="ghost" onClick={props.onBack}>← 이전</Button>
+        <Button variant="ghost" onClick={props.onBack}>
+          <ArrowLeftIcon className="size-4" aria-hidden />
+          이전
+        </Button>
         <div className="flex items-center gap-3">
           {!canProceed && props.pineSource.length > 0 && !parse.isPending && (
             <p className="text-[0.7rem] text-[color:var(--text-muted)] motion-safe:animate-[parseResultIn_200ms_ease-out_both]">
@@ -101,7 +105,8 @@ export function StepCode(props: {
             </p>
           )}
           <Button onClick={props.onNext} disabled={!canProceed}>
-            다음 단계 →
+            다음 단계
+            <ArrowRightIcon className="size-4" aria-hidden />
           </Button>
         </div>
       </div>

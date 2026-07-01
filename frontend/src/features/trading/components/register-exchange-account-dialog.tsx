@@ -119,8 +119,8 @@ export function RegisterExchangeAccountDialog() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="demo">Demo</SelectItem>
-                      <SelectItem value="live">Live</SelectItem>
+                      <SelectItem value="demo">데모</SelectItem>
+                      <SelectItem value="live">라이브</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -195,7 +195,7 @@ export function RegisterExchangeAccountDialog() {
             {rootError ? (
               <p
                 role="alert"
-                className="rounded-md border border-[color:var(--destructive)]/30 bg-[color:var(--destructive-light)] px-3 py-2 text-sm text-[color:var(--destructive)]"
+                className="rounded-md border border-destructive/30 bg-destructive-light px-3 py-2 text-sm text-destructive"
               >
                 {rootError}
               </p>

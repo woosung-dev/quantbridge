@@ -14,7 +14,7 @@ export function ShareNotFoundState() {
       <div
         aria-hidden="true"
         data-testid="share-not-found-bg"
-        className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_#EFF6FF_0%,_var(--bg)_60%)]"
+        className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--primary-light)_0%,_var(--bg)_60%)]"
       />
       <div
         aria-hidden="true"
@@ -35,16 +35,16 @@ export function ShareNotFoundState() {
             cx="24"
             cy="24"
             r="14"
-            stroke="#2563EB"
+            stroke="var(--primary)"
             strokeWidth="2.5"
-            fill="#EFF6FF"
+            fill="var(--primary-light)"
           />
           <line
             x1="35"
             y1="35"
             x2="48"
             y2="48"
-            stroke="#2563EB"
+            stroke="var(--primary)"
             strokeWidth="3"
             strokeLinecap="round"
           />
@@ -53,7 +53,7 @@ export function ShareNotFoundState() {
             y1="22"
             x2="30"
             y2="22"
-            stroke="#93C5FD"
+            stroke="var(--primary-100)"
             strokeWidth="2"
             strokeLinecap="round"
           />
@@ -62,7 +62,7 @@ export function ShareNotFoundState() {
             y1="26"
             x2="26"
             y2="26"
-            stroke="#93C5FD"
+            stroke="var(--primary-100)"
             strokeWidth="2"
             strokeLinecap="round"
           />
