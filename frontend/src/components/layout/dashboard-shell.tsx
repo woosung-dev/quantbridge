@@ -25,6 +25,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   "/backtests": "백테스트",
   "/backtests/new": "새 백테스트",
   "/trading": "트레이딩",
+  "/orders": "주문 내역",
   "/onboarding": "온보딩",
 };
 

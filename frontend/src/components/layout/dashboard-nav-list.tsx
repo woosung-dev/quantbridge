@@ -10,6 +10,7 @@ import {
   BarChart as BarChartIcon,
   SlidersHorizontal as SlidersIcon,
   Zap as ZapIcon,
+  Receipt as ReceiptIcon,
   Globe as GlobeIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +33,7 @@ export const navItems: readonly NavItem[] = [
   { href: "/backtests", label: "백테스트", icon: BarChartIcon, disabled: false },
   { href: "/optimizer", label: "최적화", icon: SlidersIcon, disabled: false },
   { href: "/trading", label: "트레이딩", icon: ZapIcon, disabled: false },
+  { href: "/orders", label: "주문 내역", icon: ReceiptIcon, disabled: false },
   { href: "/exchanges", label: "거래소", icon: GlobeIcon, disabled: true },
 ] as const;
 
