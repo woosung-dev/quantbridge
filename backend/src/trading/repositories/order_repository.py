@@ -59,6 +59,25 @@ class OrderRepository:
         )
         return (await self.session.execute(stmt)).scalars().all(), total
 
+    async def list_filled_realized_by_strategy_and_account(
+        self, strategy_id: UUID, exchange_account_id: UUID
+    ) -> Sequence[Order]:
+        """실제 체결(state=filled) + realized_pnl 보유 주문만 filled_at ASC.
+
+        live-session 대시보드의 "실현 손익" 이 Pine 시뮬레이션 재생이 아니라
+        실제 거래소 체결 결과를 반영하도록 하는 조회 (2026-07-01 dogfood 발견).
+        """
+        stmt = (
+            select(Order)
+            .where(Order.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(Order.exchange_account_id == exchange_account_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.realized_pnl.is_not(None))  # type: ignore[union-attr]
+            .where(Order.filled_at.is_not(None))  # type: ignore[union-attr]
+            .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
     # --- 3-guard 상태 전이 (Sprint 4 BacktestRepository 패턴 계승) ---
 
     async def transition_to_submitted(self, order_id: UUID, *, submitted_at: datetime) -> int:
@@ -126,7 +145,9 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
-    async def transition_pending_to_cancelled(self, order_id: UUID, *, cancelled_at: datetime) -> int:
+    async def transition_pending_to_cancelled(
+        self, order_id: UUID, *, cancelled_at: datetime
+    ) -> int:
         """CF4 — pending(거래소 미발주) 주문만 DB-cancel. submitted(거래소 live) 는 제외.
 
         router 의 cancel 경로에서 pending→submitted race 시에도 거래소에 live 한 주문을
@@ -141,9 +162,7 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
-    async def attach_exchange_order_id(
-        self, order_id: UUID, exchange_order_id: str
-    ) -> int:
+    async def attach_exchange_order_id(self, order_id: UUID, exchange_order_id: str) -> int:
         """Sprint 14 Phase C — submitted 상태 유지 + exchange_order_id 만 저장.
 
         Bybit Demo / Live 의 REST 주문 접수 후 receipt.status="submitted" 일 때
@@ -190,9 +209,7 @@ class OrderRepository:
         )
         return (await self.session.execute(stmt)).scalars().all()
 
-    async def list_stuck_submission_interrupted(
-        self, cutoff: datetime
-    ) -> Sequence[Order]:
+    async def list_stuck_submission_interrupted(self, cutoff: datetime) -> Sequence[Order]:
         """submitted + exchange_order_id IS NULL — transition_to_submitted commit 후
         attach_exchange_order_id 전 worker crash 또는 race 윈도우.
 
