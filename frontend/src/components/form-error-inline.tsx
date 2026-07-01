@@ -126,28 +126,28 @@ export function FormErrorInline({
         role="alert"
         data-testid={`${testIdPrefix}-unsupported-card`}
         className={cn(
-          "qb-form-slide-down overflow-hidden rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950",
+          "qb-form-slide-down overflow-hidden rounded-md border border-warning/30 bg-warning-subtle p-3 text-sm",
           className,
         )}
       >
         <div className="mb-1 flex items-start gap-2">
           <TriangleAlertIcon
             aria-hidden="true"
-            className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
+            className="mt-0.5 size-4 shrink-0 text-warning"
           />
-          <p className="font-semibold leading-snug text-amber-900 dark:text-amber-200">
+          <p className="font-semibold leading-snug text-warning">
             이 strategy 는 미지원 builtin 을 포함합니다
           </p>
         </div>
         {parsed.friendlyMessage ? (
           <p
-            className="mb-2 pl-6 text-xs leading-relaxed text-amber-900 dark:text-amber-200"
+            className="mb-2 pl-6 text-xs leading-relaxed text-warning"
             data-testid={`${testIdPrefix}-friendly-message`}
           >
             {parsed.friendlyMessage}
           </p>
         ) : null}
-        <ul className="list-inside list-disc space-y-1 pl-6 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+        <ul className="list-inside list-disc space-y-1 pl-6 text-xs leading-relaxed text-warning">
           {parsed.hints.map((h) => (
             <li key={h.name}>
               <span className="font-mono">{h.name}</span> — {h.hint}
@@ -158,7 +158,7 @@ export function FormErrorInline({
           {editStrategyHref ? (
             <Link
               href={editStrategyHref}
-              className="inline-block text-xs text-amber-900 underline transition-opacity duration-150 hover:opacity-80 dark:text-amber-200"
+              className="inline-block text-xs text-warning underline transition-opacity duration-150 hover:opacity-80"
               data-testid={`${testIdPrefix}-edit-strategy-link`}
             >
               지원 함수 목록 참조 — strategy 편집 →

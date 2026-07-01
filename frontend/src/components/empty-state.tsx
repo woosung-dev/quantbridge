@@ -72,7 +72,7 @@ export function EmptyState({
 function EmptyStateCtaButton({ cta }: { cta: EmptyStateCta }) {
   // mt-2 + stagger 등장 + Primary hover (shadow upgrade — DESIGN.md --btn-primary-shadow-hover).
   const ctaClassName =
-    "qb-empty-cta-in mt-2 shadow-[var(--btn-primary-shadow,_0_4px_14px_rgba(37,99,235,0.25))] transition-shadow duration-200 hover:shadow-[var(--btn-primary-shadow-hover,_0_6px_20px_rgba(37,99,235,0.35))]";
+    "qb-empty-cta-in mt-2 shadow-btn-primary transition-shadow duration-200 hover:shadow-btn-primary-hover";
 
   if (cta.href) {
     return (

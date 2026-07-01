@@ -25,7 +25,7 @@ export function SplitScreenShell({ mode, children }: SplitScreenShellProps) {
     <div className="grid min-h-dvh grid-cols-1 md:grid-cols-2">
       <BrandPanel mode={mode} />
       <main
-        className="flex min-h-dvh items-center justify-center bg-white px-6 py-12 md:px-10 md:py-20"
+        className="flex min-h-dvh items-center justify-center bg-card px-6 py-12 md:px-10 md:py-20"
       >
         <div className="w-full max-w-[400px]">{children}</div>
       </main>

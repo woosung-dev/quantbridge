@@ -62,7 +62,7 @@ export function LandingFaq() {
           {FAQ.map((item) => (
             <details
               key={item.question}
-              className="group rounded-[12px] border border-[color:var(--border)] bg-white open:shadow-[0_4px_14px_rgba(0,0,0,0.05)]"
+              className="group rounded-[12px] border border-[color:var(--border)] bg-card open:shadow-card"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-base font-semibold text-[color:var(--text-primary)]">
                 <span>{item.question}</span>

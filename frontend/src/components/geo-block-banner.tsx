@@ -5,7 +5,7 @@ export function GeoBlockBanner() {
   return (
     <div
       role="note"
-      className="w-full border-b border-amber-300 bg-amber-50 px-6 py-2 text-center text-xs text-amber-900"
+      className="w-full border-b border-warning/30 bg-warning-subtle px-6 py-2 text-center text-xs text-warning"
     >
       <strong>Beta:</strong> QuantBridge is currently available in{" "}
       <span className="font-semibold">Asia-Pacific only</span>. US and EU residents are not eligible

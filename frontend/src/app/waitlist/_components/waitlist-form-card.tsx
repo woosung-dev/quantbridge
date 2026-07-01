@@ -62,7 +62,7 @@ const EXPERIENCE_OPTIONS: ExperienceOpt[] = [
 ];
 
 const SELECT_BASE_CLASS =
-  "h-10 w-full rounded-md border border-[color:var(--border)] bg-white px-3 text-sm text-[color:var(--text-primary)] transition-all duration-200 ease-out hover:border-[color:var(--border-dark)] focus:border-[color:var(--accent-amber)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-amber)]/20";
+  "h-10 w-full rounded-md border border-[color:var(--border)] bg-card px-3 text-sm text-[color:var(--text-primary)] transition-all duration-200 ease-out hover:border-[color:var(--border-dark)] focus:border-[color:var(--accent-amber)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-amber)]/20";
 
 export function WaitlistFormCard() {
   const [submitted, setSubmitted] = useState(false);
@@ -106,7 +106,7 @@ export function WaitlistFormCard() {
     return (
       <section
         aria-live="polite"
-        className="rounded-2xl border border-[color:var(--border)] bg-white p-10 shadow-sm motion-safe:animate-[fadeInUp_400ms_ease-out_both]"
+        className="rounded-2xl border border-[color:var(--border)] bg-card p-10 shadow-sm motion-safe:animate-[fadeInUp_400ms_ease-out_both]"
       >
         <div className="space-y-5 text-center">
           <span
@@ -130,7 +130,7 @@ export function WaitlistFormCard() {
           <div className="pt-2 motion-safe:animate-[fadeInUp_400ms_ease-out_400ms_both]">
             <Link
               href="/"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-[color:var(--border)] bg-white px-5 text-sm font-medium text-[color:var(--text-primary)] transition-colors duration-150 hover:bg-[color:var(--accent)]"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-[color:var(--border)] bg-card px-5 text-sm font-medium text-[color:var(--text-primary)] transition-colors duration-150 hover:bg-[color:var(--accent)]"
             >
               ← 홈으로
             </Link>
@@ -143,7 +143,7 @@ export function WaitlistFormCard() {
   return (
     <section
       aria-label="Beta 신청 폼"
-      className="rounded-2xl border border-[color:var(--border)] bg-white p-8 shadow-sm sm:p-10"
+      className="rounded-2xl border border-[color:var(--border)] bg-card p-8 shadow-sm sm:p-10"
     >
       <header className="mb-8 space-y-2">
         <h2 className="font-display text-2xl font-bold tracking-tight text-[color:var(--text-primary)]">
@@ -168,7 +168,7 @@ export function WaitlistFormCard() {
             {...form.register("email")}
           />
           {form.formState.errors.email?.message ? (
-            <p role="alert" className="text-xs text-red-600">
+            <p role="alert" className="text-xs text-destructive">
               {form.formState.errors.email.message}
             </p>
           ) : null}
@@ -254,7 +254,7 @@ export function WaitlistFormCard() {
             {...form.register("pain_point")}
           />
           {form.formState.errors.pain_point?.message ? (
-            <p role="alert" className="text-xs text-red-600">
+            <p role="alert" className="text-xs text-destructive">
               {form.formState.errors.pain_point.message}
             </p>
           ) : null}
@@ -299,7 +299,7 @@ export function WaitlistFormCard() {
               에 동의합니다.
             </p>
             {form.formState.errors.legalConsent?.message ? (
-              <p role="alert" className="text-xs text-red-600">
+              <p role="alert" className="text-xs text-destructive">
                 {form.formState.errors.legalConsent.message}
               </p>
             ) : null}
@@ -312,7 +312,7 @@ export function WaitlistFormCard() {
           className="h-11 w-full gap-2 text-sm font-semibold transition-all duration-200 ease-out hover:brightness-110 disabled:opacity-70"
           style={{
             backgroundColor: "var(--accent-amber)",
-            color: "#fff",
+            color: "var(--warning-foreground)",
           }}
         >
           {create.isPending ? (

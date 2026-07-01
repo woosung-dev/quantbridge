@@ -23,23 +23,23 @@ const VARIANT_STYLES: Record<
     iconBg:
       "bg-gradient-to-br from-[color:var(--primary-light)] to-[color:var(--primary-100)]",
     sectionBg:
-      "bg-[radial-gradient(ellipse_at_top,_#EFF6FF_0%,_var(--bg)_60%)]",
+      "bg-[radial-gradient(ellipse_at_top,_var(--primary-light)_0%,_var(--bg)_60%)]",
     motion: "motion-safe:animate-[float_3.6s_ease-in-out_infinite]",
   },
   "500": {
-    backdropColor: "text-[#FEE2E2]",
+    backdropColor: "text-[color:var(--destructive-light)]",
     iconBg:
-      "bg-gradient-to-br from-[#FEF2F2] to-[color:var(--destructive-light)]",
+      "bg-gradient-to-br from-[color:var(--destructive-subtle)] to-[color:var(--destructive-light)]",
     sectionBg:
-      "bg-[radial-gradient(ellipse_at_top,_#FEF2F2_0%,_var(--bg)_60%)]",
+      "bg-[radial-gradient(ellipse_at_top,_var(--destructive-light)_0%,_var(--bg)_60%)]",
     motion: "motion-safe:animate-pulse",
   },
   "503": {
-    backdropColor: "text-[#FEF3C7]",
+    backdropColor: "text-[color:var(--accent-amber-light)]",
     iconBg:
       "bg-gradient-to-br from-[color:var(--primary-light)] to-[color:var(--primary-100)]",
     sectionBg:
-      "bg-[radial-gradient(ellipse_at_top,_#F5F9FF_0%,_var(--bg)_60%)]",
+      "bg-[radial-gradient(ellipse_at_top,_var(--primary-light)_0%,_var(--bg)_60%)]",
     motion: "",
   },
 };
@@ -50,14 +50,14 @@ const VARIANT_ICONS: Record<ErrorVariant, JSX.Element> = {
     // 기울어진 나침반 + 빨간 균열
     <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true">
       <g transform="rotate(-18 28 28)">
-        <circle cx="28" cy="28" r="22" stroke="#2563EB" strokeWidth="2.5" fill="#EFF6FF" />
-        <circle cx="28" cy="28" r="3" fill="#2563EB" />
-        <path d="M28 10L32 28L28 28Z" fill="#2563EB" />
-        <path d="M28 46L24 28L28 28Z" fill="#93C5FD" />
+        <circle cx="28" cy="28" r="22" stroke="var(--primary)" strokeWidth="2.5" fill="var(--primary-light)" />
+        <circle cx="28" cy="28" r="3" fill="var(--primary)" />
+        <path d="M28 10L32 28L28 28Z" fill="var(--primary)" />
+        <path d="M28 46L24 28L28 28Z" fill="var(--primary-100)" />
       </g>
       <path
         d="M14 12L24 26L20 32L34 46"
-        stroke="#DC2626"
+        stroke="var(--destructive)"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -69,13 +69,13 @@ const VARIANT_ICONS: Record<ErrorVariant, JSX.Element> = {
     <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true">
       <path
         d="M28 6L52 46H4L28 6Z"
-        fill="#FEE2E2"
-        stroke="#DC2626"
+        fill="var(--destructive-light)"
+        stroke="var(--destructive)"
         strokeWidth="2.5"
         strokeLinejoin="round"
       />
-      <line x1="28" y1="22" x2="28" y2="34" stroke="#DC2626" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="28" cy="40" r="2.5" fill="#DC2626" />
+      <line x1="28" y1="22" x2="28" y2="34" stroke="var(--destructive)" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="28" cy="40" r="2.5" fill="var(--destructive)" />
     </svg>
   ),
   "503": (
@@ -88,9 +88,9 @@ const VARIANT_ICONS: Record<ErrorVariant, JSX.Element> = {
       aria-hidden="true"
       className="motion-safe:animate-spin motion-safe:[animation-duration:4s]"
     >
-      <circle cx="28" cy="28" r="12" fill="#DBEAFE" stroke="#2563EB" strokeWidth="2" />
-      <circle cx="28" cy="28" r="4" fill="#2563EB" />
-      <g fill="#2563EB">
+      <circle cx="28" cy="28" r="12" fill="var(--primary-light)" stroke="var(--primary)" strokeWidth="2" />
+      <circle cx="28" cy="28" r="4" fill="var(--primary)" />
+      <g fill="var(--primary)">
         <rect x="26" y="10" width="4" height="5" rx="1" />
         <rect x="26" y="41" width="4" height="5" rx="1" />
         <rect x="10" y="26" width="5" height="4" rx="1" />
@@ -109,7 +109,7 @@ const VARIANT_ICONS: Record<ErrorVariant, JSX.Element> = {
  *
  * 사용처: error.tsx (500), not-found.tsx (404), maintenance/page.tsx (503).
  *
- * 토큰: globals.css 의 --primary-light / --primary-100 / --destructive-light / --bg 사용. light theme 만 정의.
+ * 토큰: globals.css 의 --primary-light / --primary-100 / --destructive-light / --bg 사용 (라이트/다크 flip).
  */
 export function ErrorIllustration({ variant }: ErrorIllustrationProps) {
   const styles = VARIANT_STYLES[variant];

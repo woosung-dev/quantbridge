@@ -39,7 +39,7 @@ export function LandingBento() {
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-[auto_auto]">
           {/* Cell A: 백테스트 성과 비교 (wide on lg) */}
-          <article className="rounded-[14px] border border-[color:var(--border)] bg-white p-7 shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:col-span-2">
+          <article className="rounded-[14px] border border-[color:var(--border)] bg-card p-7 shadow-card lg:col-span-2">
             <h3 className="font-display text-base font-semibold text-[color:var(--text-primary)]">
               백테스트 성과 비교
             </h3>
@@ -53,7 +53,7 @@ export function LandingBento() {
                   className="flex flex-1 flex-col items-center gap-1.5"
                 >
                   <span
-                    className={`font-mono text-xs font-semibold ${b.positive ? "text-[#059669]" : "text-[#DC2626]"}`}
+                    className={`font-mono text-xs font-semibold ${b.positive ? "text-success" : "text-destructive"}`}
                   >
                     {b.pct}
                   </span>
@@ -61,7 +61,7 @@ export function LandingBento() {
                     className="w-full rounded-t-md transition-all duration-500"
                     style={{
                       height: `${b.height * 1.8}px`,
-                      background: b.positive ? "#34D399" : "#F87171",
+                      background: b.positive ? "var(--bullish)" : "var(--bearish)",
                     }}
                   />
                   <span className="text-xs text-[color:var(--text-muted)]">
@@ -73,7 +73,7 @@ export function LandingBento() {
           </article>
 
           {/* Cell B: 리스크 지표 */}
-          <article className="rounded-[14px] border border-[color:var(--border)] bg-white p-7 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <article className="rounded-[14px] border border-[color:var(--border)] bg-card p-7 shadow-card">
             <h3 className="font-display text-base font-semibold text-[color:var(--text-primary)]">
               리스크 지표
             </h3>
@@ -123,7 +123,7 @@ export function LandingBento() {
           </article>
 
           {/* Cell D: 실시간 모니터링 (wide on lg) */}
-          <article className="rounded-[14px] border border-[color:var(--border)] bg-white p-7 shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:col-span-2">
+          <article className="rounded-[14px] border border-[color:var(--border)] bg-card p-7 shadow-card lg:col-span-2">
             <h3 className="font-display text-base font-semibold text-[color:var(--text-primary)]">
               실시간 모니터링
             </h3>
@@ -139,8 +139,8 @@ export function LandingBento() {
                   <span
                     className={`size-2.5 shrink-0 rounded-full ${
                       s.state === "active"
-                        ? "bg-[#34D399] motion-safe:animate-[livePulse_1.6s_ease-in-out_infinite]"
-                        : "bg-[#FBBF24]"
+                        ? "bg-bullish motion-safe:animate-[livePulse_1.6s_ease-in-out_infinite]"
+                        : "bg-warning"
                     }`}
                     aria-hidden
                   />
@@ -173,16 +173,16 @@ function RiskRow({
 }) {
   const valueColor =
     tone === "good"
-      ? "text-[#059669]"
+      ? "text-success"
       : tone === "warn"
-        ? "text-[#D97706]"
-        : "text-[#DC2626]";
+        ? "text-warning"
+        : "text-destructive";
   const barColor =
     tone === "good"
-      ? "bg-[#A7F3D0]"
+      ? "bg-success-subtle"
       : tone === "warn"
-        ? "bg-[#FEF3C7]"
-        : "bg-[#FECACA]";
+        ? "bg-warning-subtle"
+        : "bg-destructive-subtle";
   return (
     <div>
       <div className="flex items-center justify-between text-sm">
