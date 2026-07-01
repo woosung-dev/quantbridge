@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import { TradingChart } from "@/components/charts/trading-chart";
+import { Skeleton } from "@/components/skeleton";
 import { useBacktests } from "@/features/backtest/hooks";
 import { formatDate } from "@/features/backtest/utils";
 import {
@@ -123,7 +124,7 @@ export function DashboardCockpit() {
       ) : null}
 
       {/* HERO — data-as-hero 실현 손익 + P&L Tape 시그니처 + ops 리스트 (하이라인 분할) */}
-      <section className="overflow-hidden rounded-xl border border-border shadow-card">
+      <section className="qb-card-fade-in overflow-hidden rounded-xl border border-border shadow-card">
         <div className="grid gap-px bg-border md:grid-cols-[1.55fr_1fr]">
           {/* 실현 손익 hero */}
           <div className="bg-card p-5 sm:p-6">
@@ -186,7 +187,10 @@ export function DashboardCockpit() {
       </section>
 
       {/* 합산 실현-PnL 곡선 */}
-      <section className="rounded-xl border border-border bg-card p-5 shadow-card">
+      <section
+        className="qb-card-fade-in rounded-xl border border-border bg-card p-5 shadow-card"
+        style={{ animationDelay: "80ms" }}
+      >
         <div className="mb-3 flex items-center gap-2">
           <LineChart className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <span className={MICRO_LABEL}>합산 실현 손익 추이</span>
@@ -198,20 +202,23 @@ export function DashboardCockpit() {
             options={{ color: "#c2780f", lineWidth: 2 }}
             ariaLabel="활성 세션 합산 실현 손익 누적 곡선 (USDT)"
           />
+        ) : agg.isLoading ? (
+          <Skeleton shimmer className="h-[260px] w-full rounded-lg" />
         ) : (
           <div className="flex flex-col items-center justify-center gap-3 py-12">
             <PnlTape deltas={[]} className="h-10 w-40 opacity-50" />
             <p className="text-center text-sm text-muted-foreground">
-              {agg.isLoading
-                ? "불러오는 중…"
-                : "라이브 세션이 거래를 시작하면 합산 손익 곡선이 그려집니다."}
+              라이브 세션이 거래를 시작하면 합산 손익 곡선이 그려집니다.
             </p>
           </div>
         )}
       </section>
 
       {/* 활성 세션 + 최근 백테스트 */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div
+        className="qb-card-fade-in grid grid-cols-1 gap-6 lg:grid-cols-2"
+        style={{ animationDelay: "160ms" }}
+      >
         <WidgetSection title="활성 세션" href="/trading">
           {activeSessions.length > 0 ? (
             <LiveSessionTable

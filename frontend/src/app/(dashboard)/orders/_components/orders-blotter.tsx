@@ -1,9 +1,11 @@
 // 주문 원장(Blotter) — 라이브/데모 주문을 상태 필터·정렬·CSV·페이지네이션으로 통합 조회
 "use client";
 
-import { AlertCircle, Download, Loader2 } from "lucide-react";
+import { AlertCircle, Download, Receipt } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/empty-state";
+import { Skeleton } from "@/components/skeleton";
 import { downloadCsv } from "@/features/backtest/utils";
 import { useOrders } from "@/features/trading";
 import type { Order } from "@/features/trading/schemas";
@@ -157,9 +159,16 @@ export function OrdersBlotter() {
       </div>
 
       {ordersQ.isLoading ? (
-        <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          주문을 불러오는 중…
+        // 스켈레톤 로더 — 레이아웃 높이와 맞춘 행 shimmer (스피너 대신, design-taste Rule 5).
+        <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              variant="list-row"
+              shimmer
+              className="rounded-none border-0"
+            />
+          ))}
         </div>
       ) : ordersQ.isError ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-destructive/40 bg-destructive-subtle py-16 text-sm text-destructive">
@@ -167,12 +176,16 @@ export function OrdersBlotter() {
           주문 목록을 불러오지 못했습니다.
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
-          표시할 주문이 없습니다.
+        <div className="rounded-lg border border-dashed border-border bg-card">
+          <EmptyState
+            icon={<Receipt className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
+            headline="표시할 주문이 없습니다"
+            description="라이브·데모 세션이 주문을 실행하면 이곳 원장에 기록됩니다."
+          />
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <div className="qb-card-fade-in overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left font-mono text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
