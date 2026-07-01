@@ -20,7 +20,10 @@
 
 import { useMemo, useState } from "react";
 
-import { normalizeToPnlCurve } from "@/components/charts/normalize-to-pnl-curve";
+import {
+  normalizeToPercentCurve,
+  normalizeToPnlCurve,
+} from "@/components/charts/normalize-to-pnl-curve";
 import type {
   ChartMarker,
   ChartPoint,
@@ -103,6 +106,14 @@ interface EquityChartV2Props {
    * frontend 자체 계산은 폐기 — `computeBuyAndHold` 는 legacy no-op.
    */
   buyAndHoldCurve?: readonly EquityPoint[] | null;
+  /**
+   * Compare 오버레이 — 다른 백테스트의 equity_curve. 존재 시 equity/BH/compare 를
+   * 모두 % 수익률(시작=0%) 로 정규화해 자본금 상이한 두 백테스트를 동일 축에서 비교.
+   * null/미지정 시 기존 PnL(USDT) 표시 유지.
+   */
+  compareCurve?: readonly EquityPoint[] | null;
+  /** Compare 대상 라벨 (범례/a11y 표기). */
+  compareLabel?: string;
 }
 
 interface DrawdownPoint {
@@ -143,7 +154,11 @@ export function EquityChartV2({
   timeframe,
   mddExceedsCapital,
   buyAndHoldCurve,
+  compareCurve,
+  compareLabel,
 }: EquityChartV2Props) {
+  // Compare 활성 시 % 기준, 아니면 PnL(USDT) 기준으로 모든 series 정규화.
+  const comparing = (compareCurve?.length ?? 0) > 0;
   // Sprint 43 W10 — prototype 02 정합. 타임프레임 탭 (1M/3M/6M/전체) +
   // Buy&Hold checkbox + 드로다운 overlay checkbox. 기본값은 ALL + 둘 다 ON.
   const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>("ALL");
@@ -164,14 +179,23 @@ export function EquityChartV2({
   // BE 는 absolute capital (initial_capital 시작) 그대로 유지 — metrics/MC/stress
   // 입력 안전성 우선. FE 표시 단계에서만 첫 값을 baseline 0 으로 정렬해
   // TradingView 표준 + equity vs BH 동일 baseline 비교 가능 (Surface Trust).
-  const equityData = useMemo<ChartPoint[]>(
-    () =>
-      normalizeToPnlCurve(slicedEquity).map((p) => ({
-        time: p.timestamp,
-        value: p.value,
-      })),
-    [slicedEquity],
-  );
+  const equityData = useMemo<ChartPoint[]>(() => {
+    const norm = comparing ? normalizeToPercentCurve : normalizeToPnlCurve;
+    return norm(slicedEquity).map((p) => ({
+      time: p.timestamp,
+      value: p.value,
+    }));
+  }, [slicedEquity, comparing]);
+
+  // Compare 대상 백테스트 곡선 — 동일 timeframe 슬라이싱 + % 정규화 후 오버레이.
+  const compareData = useMemo<ChartPoint[]>(() => {
+    if (!comparing || !compareCurve) return [];
+    const sliced = sliceByTimeframe(compareCurve, activeTimeframe);
+    return normalizeToPercentCurve(sliced).map((p) => ({
+      time: p.timestamp,
+      value: p.value,
+    }));
+  }, [comparing, compareCurve, activeTimeframe]);
 
   // Sprint 34 BL-175 + Sprint 37 BL-184: backend buy_and_hold_curve 직접 사용
   // (frontend 자체 계산 폐기) + PnL 정규화. null/undefined/빈 배열 시 benchmark
@@ -179,11 +203,12 @@ export function EquityChartV2({
   const benchmarkData = useMemo<ChartPoint[]>(() => {
     if (!showBuyAndHold) return [];
     if (!slicedBuyAndHold || slicedBuyAndHold.length === 0) return [];
-    return normalizeToPnlCurve(slicedBuyAndHold).map((p) => ({
+    const norm = comparing ? normalizeToPercentCurve : normalizeToPnlCurve;
+    return norm(slicedBuyAndHold).map((p) => ({
       time: p.timestamp,
       value: p.value,
     }));
-  }, [slicedBuyAndHold, showBuyAndHold]);
+  }, [slicedBuyAndHold, showBuyAndHold, comparing]);
 
   const drawdownData = useMemo<ChartPoint[]>(() => {
     if (!showDrawdownOverlay) return [];
@@ -303,19 +328,27 @@ export function EquityChartV2({
       <ChartLegend
         showBenchmark={showBenchmark}
         showDrawdown={showDrawdown}
+        showCompare={comparing}
+        compareLabel={compareLabel}
       />
 
       <div data-testid="equity-pane-wrapper">
         <EquityPane
           equityData={equityData}
           benchmarkData={benchmarkData}
+          compareData={compareData}
           markers={mergedMarkers}
           height={topHeight}
+          ariaLabel={
+            comparing
+              ? `자본 곡선 (Equity) 및 비교 백테스트 ${compareLabel ?? ""} — % 수익률 (시작=0%)`
+              : undefined
+          }
         />
         <AxisLabelBar
-          // Sprint 37 BL-184: equity/BH curve 가 PnL 기준 (시작=0) 으로
-          // 정규화되었으므로 Y축 라벨도 PnL 표기로 갱신.
-          yAxisLabel="PnL (USDT, 시작=0)"
+          // Sprint 37 BL-184: equity/BH curve 가 PnL 기준 (시작=0) 으로 정규화.
+          // Compare 활성 시에는 % 수익률 기준으로 전환 (자본금 상이 대응).
+          yAxisLabel={comparing ? "% 수익률 (시작=0%)" : "PnL (USDT, 시작=0)"}
           xAxisLabel={
             timeframe !== undefined && timeframe !== ""
               ? `시간 · ${timeframe} 단위 캔들`

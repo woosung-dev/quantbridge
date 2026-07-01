@@ -35,6 +35,18 @@ function fmtBars(v: number | null | undefined): string {
 }
 
 export function MetricsDetail({ metrics }: MetricsDetailProps) {
+  // Calmar = 연간수익률(CAGR) / |Max Drawdown| — 둘 다 fraction 이라 unitless.
+  // 백엔드 calmar_ratio 가 아직 null(pine_v2 v1) 이면 이미 계산된 두 값으로 FE 산출.
+  const calmar =
+    metrics.calmar_ratio ??
+    (metrics.annual_return_pct != null &&
+    Number.isFinite(metrics.annual_return_pct) &&
+    metrics.max_drawdown != null &&
+    Number.isFinite(metrics.max_drawdown) &&
+    metrics.max_drawdown !== 0
+      ? metrics.annual_return_pct / Math.abs(metrics.max_drawdown)
+      : null);
+
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {/* 수익성 — 8 row */}
@@ -96,10 +108,7 @@ export function MetricsDetail({ metrics }: MetricsDetailProps) {
               label="Sortino Ratio"
               value={fmt(metrics.sortino_ratio)}
             />
-            <MetricRow
-              label="Calmar Ratio"
-              value={fmt(metrics.calmar_ratio)}
-            />
+            <MetricRow label="Calmar Ratio" value={fmt(calmar)} />
             <MetricRow
               label="Max Drawdown"
               value={fmt(metrics.max_drawdown, { pct: true })}

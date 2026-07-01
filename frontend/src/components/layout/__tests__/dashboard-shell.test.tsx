@@ -100,18 +100,19 @@ describe("DashboardShell — Sprint 41-B2 prototype layout", () => {
     expect(flexCol!.className).toMatch(/\bmin-w-0\b/);
   });
 
-  it("sidebar nav 에 활성 항목 4개 (전략/백테스트/트레이딩) 와 disabled 3개 (대시보드/템플릿/거래소) 가 렌더된다", () => {
+  it("sidebar nav 에 활성 항목 (대시보드/전략/백테스트/트레이딩) 와 disabled 2개 (템플릿/거래소) 가 렌더된다", () => {
     render(
       <DashboardShell>
         <p>content</p>
       </DashboardShell>,
     );
     // 활성 (link)
+    expect(screen.getByRole("link", { name: /대시보드/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /전략/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /백테스트/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /트레이딩/ })).toBeInTheDocument();
     // disabled (aria-disabled span)
-    const disabledLabels = ["대시보드", "템플릿", "거래소"];
+    const disabledLabels = ["템플릿", "거래소"];
     for (const label of disabledLabels) {
       const item = screen.getByText(label);
       const span = item.closest("[aria-disabled=\"true\"]");

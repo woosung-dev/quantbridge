@@ -19,11 +19,13 @@ import { MobileNav } from "./mobile-nav";
 // 페이지 타이틀 매핑 (헤더 slot). 없는 경로는 빈 문자열 — 헤더 좌측이 비어 보이지 않도록
 // fallback="QuantBridge" 적용은 prefer X (시각적 노이즈). 미매핑 경로는 그냥 빈 슬롯.
 const PAGE_TITLE_MAP: Record<string, string> = {
+  "/dashboard": "대시보드",
   "/strategies": "전략",
   "/strategies/new": "새 전략",
   "/backtests": "백테스트",
   "/backtests/new": "새 백테스트",
   "/trading": "트레이딩",
+  "/orders": "주문 내역",
   "/onboarding": "온보딩",
 };
 
