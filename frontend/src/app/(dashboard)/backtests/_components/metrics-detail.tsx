@@ -1,5 +1,7 @@
 "use client";
 
+import { Star } from "lucide-react";
+
 import type { BacktestMetricsOut } from "@/features/backtest/schemas";
 
 interface MetricsDetailProps {
@@ -164,12 +166,10 @@ function MetricRow({
       <td className="py-2.5 pr-4 text-[color:var(--text-secondary)]">
         {label}
         {isNew ? (
-          <span
-            className="ml-1 align-text-top text-[9px] text-[color:var(--text-muted)]"
+          <Star
+            className="ml-0.5 inline h-2.5 w-2.5 align-text-top fill-current text-[color:var(--text-muted)]"
             aria-label="신규 metric"
-          >
-            ★
-          </span>
+          />
         ) : null}
       </td>
       <td className="py-2.5 text-right font-mono font-medium">{value}</td>

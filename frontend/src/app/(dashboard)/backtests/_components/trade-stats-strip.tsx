@@ -96,9 +96,9 @@ interface StatCardProps {
 function StatCard({ label, value, sub, tone = "neutral", riseIndex }: StatCardProps) {
   const toneClass =
     tone === "pos"
-      ? "text-emerald-600"
+      ? "text-bullish"
       : tone === "neg"
-        ? "text-rose-600"
+        ? "text-bearish"
         : "text-foreground";
   // Sprint 44 W F3 — 4 카드 fade-up entrance (60ms 간격). prefers-reduced-motion 시 무력화.
   const riseClass =

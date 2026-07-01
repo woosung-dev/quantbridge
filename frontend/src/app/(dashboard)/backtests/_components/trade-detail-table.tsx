@@ -2,6 +2,7 @@
 // 기존 trade-table.tsx 의 sort/filter/CSV 패턴 재사용 + 6 필터 + 행 클릭 expand.
 "use client";
 
+import { ArrowLeft, ArrowRight, Download } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -154,7 +155,8 @@ export function TradeDetailTable({
           disabled={filtered.length === 0}
           aria-label="CSV 내보내기"
         >
-          ⬇ CSV
+          <Download className="h-4 w-4" aria-hidden="true" />
+          CSV
         </Button>
       </div>
 
@@ -247,12 +249,8 @@ export function TradeDetailTable({
                     </td>
                     <td className="px-3 py-2 text-center">
                       <span
-                        className={cn(
-                          "inline-flex rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider",
-                          t.direction === "long"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-rose-100 text-rose-700",
-                        )}
+                        className="inline-flex rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider"
+                        data-tone={t.direction === "long" ? "positive" : "negative"}
                       >
                         {t.direction}
                       </span>
@@ -269,7 +267,7 @@ export function TradeDetailTable({
                     <td
                       className={cn(
                         "px-3 py-2 text-right font-mono font-semibold tabular-nums",
-                        isProfit ? "text-emerald-600" : "text-rose-600",
+                        isProfit ? "text-bullish" : "text-bearish",
                       )}
                     >
                       {formatCurrency(t.pnl)}
@@ -277,12 +275,12 @@ export function TradeDetailTable({
                     <td
                       className={cn(
                         "px-3 py-2 text-right font-mono tabular-nums",
-                        isProfit ? "text-emerald-600" : "text-rose-600",
+                        isProfit ? "text-bullish" : "text-bearish",
                       )}
                     >
                       {formatPercent(t.return_pct)}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-rose-500/80">
+                    <td className="px-3 py-2 text-right font-mono text-xs text-bearish/80">
                       {formatCurrency(t.fees)}
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -344,7 +342,8 @@ export function TradeDetailTable({
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             aria-label="이전 페이지"
           >
-            ← 이전
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            이전
           </Button>
           <span className="text-muted-foreground">
             {safePage + 1} / {totalPages}
@@ -356,7 +355,8 @@ export function TradeDetailTable({
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             aria-label="다음 페이지"
           >
-            다음 →
+            다음
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       ) : null}
@@ -464,9 +464,9 @@ function DetailItem({
 }) {
   const toneClass =
     tone === "pos"
-      ? "text-emerald-600"
+      ? "text-bullish"
       : tone === "neg"
-        ? "text-rose-600"
+        ? "text-bearish"
         : "text-foreground";
   return (
     <li className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">

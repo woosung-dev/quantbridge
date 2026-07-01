@@ -133,6 +133,13 @@ export function WalkForwardBarChart({ result }: Props) {
                       ? `${value.toFixed(2)}%`
                       : String(value)
                   }
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                  labelStyle={{ color: "var(--foreground)" }}
+                  itemStyle={{ color: "var(--foreground)" }}
                 />
                 <Legend verticalAlign="top" height={28} />
                 {/* Sprint 43 W10 — prototype 02 정합. label 한국어 보강 + DESIGN.md var 색. */}

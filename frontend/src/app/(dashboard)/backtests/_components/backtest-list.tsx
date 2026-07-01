@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowRight,
   CheckCircle2 as CheckIcon,
   Clock as ClockIcon,
   ListIcon,
@@ -257,7 +258,7 @@ function KpiCard({
         : "text-[color:var(--text-primary)]";
   return (
     <div
-      className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card p-5 shadow-[var(--card-shadow)] transition hover:shadow-[var(--card-shadow-hover)]"
+      className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card p-5 shadow-[var(--card-shadow)] transition hover:shadow-[var(--card-shadow-hover)]"
       data-testid={`kpi-card-${label.replace(/\s+/g, "-")}`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -272,7 +273,7 @@ function KpiCard({
           {icon}
         </span>
       </div>
-      <p className={`mt-3 font-mono text-2xl font-bold tabular-nums ${valueTone}`}>{value}</p>
+      <p className={`mt-3 truncate font-mono text-2xl font-bold tabular-nums ${valueTone}`}>{value}</p>
       {sub ? (
         <p className="mt-1 text-[0.75rem] text-[color:var(--text-muted)]">{sub}</p>
       ) : null}
@@ -326,8 +327,10 @@ function BacktestSummaryTable({ items }: { items: readonly BacktestSummary[] }) 
                   {isInFlight ? (
                     <RunningProgressBar status={b.status} />
                   ) : (
-                    <span className="font-mono">
-                      {formatDateTime(b.period_start)} → {formatDateTime(b.period_end)}
+                    <span className="inline-flex items-center gap-1 font-mono">
+                      {formatDateTime(b.period_start)}
+                      <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                      {formatDateTime(b.period_end)}
                     </span>
                   )}
                 </td>
@@ -338,8 +341,12 @@ function BacktestSummaryTable({ items }: { items: readonly BacktestSummary[] }) 
                   {formatDateTime(b.created_at)}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/backtests/${b.id}`} className="text-primary hover:underline">
-                    상세 →
+                  <Link
+                    href={`/backtests/${b.id}`}
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
+                    상세
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
                 </td>
               </tr>

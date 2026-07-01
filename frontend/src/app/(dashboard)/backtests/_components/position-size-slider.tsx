@@ -91,7 +91,7 @@ export function PositionSizeSlider({
           aria-hidden
           data-testid="position-size-slider-tooltip"
           className={cn(
-            "pointer-events-none absolute -top-7 -translate-x-1/2 rounded-md bg-[var(--primary)] px-2 py-0.5 font-mono text-[11px] font-semibold text-white shadow-[0_2px_6px_rgba(37,99,235,0.35)] transition-opacity duration-150",
+            "pointer-events-none absolute -top-7 -translate-x-1/2 rounded-md bg-primary px-2 py-0.5 font-mono text-[11px] font-semibold text-primary-foreground shadow-btn-primary transition-opacity duration-150",
             isInteracting ? "opacity-100" : "opacity-0",
           )}
           style={{ left: `${progressPct}%` }}

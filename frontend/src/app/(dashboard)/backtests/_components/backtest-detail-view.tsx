@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 
@@ -89,8 +90,10 @@ export function BacktestDetailView({ id }: { id: string }) {
             </h1>
             <BacktestStatusBadge status={effectiveStatus} />
           </div>
-          <p className="text-sm text-muted-foreground">
-            {formatDate(bt.period_start)} → {formatDate(bt.period_end)}
+          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            {formatDate(bt.period_start)}
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            {formatDate(bt.period_end)}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -105,9 +108,10 @@ export function BacktestDetailView({ id }: { id: string }) {
           />
           <Link
             href="/backtests"
-            className="text-sm text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
-            ← 목록
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            목록
           </Link>
         </div>
       </header>
@@ -198,10 +202,11 @@ export function BacktestDetailView({ id }: { id: string }) {
             <div className="flex justify-end">
               <Link
                 href={`/backtests/${id}/trades`}
-                className="text-sm font-semibold text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
                 data-testid="trade-detail-link"
               >
-                상세 보기 →
+                상세 보기
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
             {trades.isLoading ? (
