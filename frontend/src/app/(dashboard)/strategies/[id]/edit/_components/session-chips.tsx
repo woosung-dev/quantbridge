@@ -38,7 +38,7 @@ export function SessionChips({ value, onChange }: SessionChipsProps) {
             className={cn(
               "flex flex-col items-center rounded-md border px-4 py-2 text-sm font-medium transition-colors",
               selected
-                ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-white"
+                ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--primary-foreground)]"
                 : "border-[color:var(--border)] text-[color:var(--text-secondary)] hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]",
             )}
           >

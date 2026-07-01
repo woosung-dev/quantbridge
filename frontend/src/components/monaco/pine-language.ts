@@ -1,5 +1,6 @@
-// Sprint 7c T4: Monaco Pine v5 언어 등록 (Monarch tokenizer + pine-dark 테마)
+// Sprint 7c T4: Monaco Pine v5 언어 등록 (Monarch tokenizer + pine-dark / pine-light 테마)
 // DESIGN.md 07-strategy-create.html `--syntax-*` 변수 5색 팔레트 매핑.
+// Terminal Tape 디자인 롤아웃: 앱 라이트/다크 토글에 맞춰 pine-light 변형도 함께 등록.
 // Sprint 7d+: autocomplete 등록 검토 (registerCompletionItemProvider)
 
 import type { Monaco } from "@monaco-editor/react";
@@ -100,6 +101,32 @@ export function registerPineLanguage(monaco: Monaco): void {
       "editor.lineHighlightBackground": "#0F172A",
       "editorLineNumber.foreground": "#475569",
       "editorGutter.background": "#0F172A",
+    },
+  });
+
+  // pine-light — 앱 라이트 테마용 변형. pine-dark 토큰 규칙을 미러링하되
+  // base "vs" (light) + 웜 페이퍼 배경 위에서 가독성 높은 색으로 재조정 (DESIGN.md §0 Terminal Tape).
+  monaco.editor.defineTheme("pine-light", {
+    base: "vs",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "767B85", fontStyle: "italic" },
+      { token: "keyword", foreground: "B45309" },
+      { token: "type.identifier", foreground: "1D4ED8" },
+      { token: "identifier", foreground: "1A1D23" },
+      { token: "string", foreground: "047857" },
+      { token: "string.quote", foreground: "047857" },
+      { token: "string.escape", foreground: "047857" },
+      { token: "number", foreground: "7C3AED" },
+      { token: "number.float", foreground: "7C3AED" },
+      { token: "operator", foreground: "565A63" },
+    ],
+    colors: {
+      "editor.background": "#ffffff",
+      "editor.foreground": "#1A1D23",
+      "editor.lineHighlightBackground": "#f0efea",
+      "editorLineNumber.foreground": "#a8a39a",
+      "editorGutter.background": "#fafaf7",
     },
   });
 

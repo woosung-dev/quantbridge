@@ -4,7 +4,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircleIcon, CheckCircle2Icon, TerminalIcon } from "lucide-react";
+import { AlertCircleIcon, CheckCircle2Icon, CheckIcon, TerminalIcon } from "lucide-react";
 
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 
@@ -25,14 +25,14 @@ export function ParsePanel({ result, loading = false }: ParsePanelProps) {
     <section
       aria-label="파싱 결과 패널"
       aria-live="polite"
-      className="flex flex-col rounded-[var(--radius-md,0.625rem)] border border-[color:var(--border)] bg-[#F8FAFC]"
+      className="flex flex-col rounded-[var(--radius-md,0.625rem)] border border-[color:var(--border)] bg-muted"
       data-testid="parse-panel"
     >
       {/* prototype: bottom-tabs 38px / underline */}
       <div
         role="tablist"
         aria-label="파싱 패널 탭"
-        className="flex h-[38px] shrink-0 items-stretch gap-0.5 border-b border-[color:var(--border)] bg-white px-4"
+        className="flex h-[38px] shrink-0 items-stretch gap-0.5 border-b border-[color:var(--border)] bg-card px-4"
       >
         <PanelTabButton
           id="result"
@@ -152,9 +152,11 @@ function ResultBody({
           className="motion-safe:animate-[staggerIn_400ms_cubic-bezier(0.4,0,0.2,1)_forwards] flex items-baseline gap-2 text-[0.8125rem] text-[color:var(--text-primary)] opacity-0"
           style={{ animationDelay: `${(idx + 1) * 80}ms` }}
         >
-          <span aria-hidden className="text-[color:var(--success)]">
-            ✓
-          </span>
+          <CheckIcon
+            aria-hidden
+            className="size-3.5 shrink-0 translate-y-0.5 text-[color:var(--success)]"
+            strokeWidth={3}
+          />
           <span>{text}</span>
         </li>
       ))}
@@ -192,13 +194,12 @@ function ProblemsBody({ result }: { result: ParsePreviewResponse | null }) {
           <span
             aria-hidden
             className={
-              p.kind === "error"
+              "mt-1.5 size-1.5 shrink-0 rounded-full bg-current " +
+              (p.kind === "error"
                 ? "text-[color:var(--destructive)]"
-                : "text-[color:var(--warning)]"
+                : "text-[color:var(--warning)]")
             }
-          >
-            ●
-          </span>
+          />
           <span className="text-[color:var(--text-primary)]">{p.msg}</span>
         </li>
       ))}

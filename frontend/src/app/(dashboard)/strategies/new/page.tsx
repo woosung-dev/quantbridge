@@ -121,7 +121,7 @@ export default function NewStrategyPage() {
       <section
         key={`step-${step}`}
         data-testid="wizard-step-section"
-        className="motion-safe:animate-[wizardSlideIn_250ms_cubic-bezier(0.4,0,0.2,1)_both] mt-6 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-white p-8 shadow-[var(--card-shadow)]"
+        className="motion-safe:animate-[wizardSlideIn_250ms_cubic-bezier(0.4,0,0.2,1)_both] mt-6 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card p-8 shadow-card"
       >
         {step === 1 && (
           <StepMethod

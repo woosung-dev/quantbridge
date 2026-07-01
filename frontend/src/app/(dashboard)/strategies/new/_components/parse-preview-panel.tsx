@@ -4,7 +4,7 @@
 // - Sprint 7c: aria-live + status badges + entry/exit count + warnings/errors.
 // - Sprint 7b: functions_used 섹션 (감지 지표 / 전략 콜 / 기타) + 빈 상태 copy 수정.
 
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 import { PARSE_STATUS_META } from "@/features/strategy/utils";
@@ -79,7 +79,7 @@ function ResultBody({ result }: { result: ParsePreviewResponse }) {
       {result.status === "ok" && (
         <div className="mb-3 flex items-center gap-2">
           <span
-            className="inline-grid size-5 place-items-center rounded-full bg-[color:var(--success)] text-white motion-safe:animate-[scale-in_200ms_ease-out]"
+            className="inline-grid size-5 place-items-center rounded-full bg-[color:var(--success)] text-[color:var(--success-foreground)] motion-safe:animate-[scale-in_200ms_ease-out]"
             aria-hidden
           >
             <CheckIcon className="size-3" strokeWidth={3} />
@@ -135,12 +135,13 @@ function ResultBody({ result }: { result: ParsePreviewResponse }) {
       {/* Sprint Y1 (B+D): pre-flight unsupported builtins */}
       {result.unsupported_builtins.length > 0 && (
         <section className="mt-3">
-          <h4 className="text-[0.65rem] font-bold uppercase tracking-wide text-amber-700">
-            ⚠️ 미지원 Pine 함수/변수 ({result.unsupported_builtins.length}) — 백테스트 실행 불가
+          <h4 className="flex items-center gap-1 text-[0.65rem] font-bold uppercase tracking-wide text-[color:var(--warning)]">
+            <TriangleAlertIcon className="size-3 shrink-0" aria-hidden />
+            미지원 Pine 함수/변수 ({result.unsupported_builtins.length}) — 백테스트 실행 불가
           </h4>
           <ul className="mt-1 flex flex-wrap gap-1 text-xs">
             {result.unsupported_builtins.map((fn) => (
-              <li key={fn} className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-amber-900">
+              <li key={fn} className="rounded bg-[color:var(--warning-subtle)] px-1.5 py-0.5 font-mono text-[color:var(--warning)]">
                 {fn}
               </li>
             ))}

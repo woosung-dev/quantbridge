@@ -86,7 +86,7 @@ export function StrategyListFilterBar(props: StrategyListFilterBarProps) {
     >
       {/* 검색 입력 */}
       <label
-        className="flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-white px-3 transition focus-within:border-[color:var(--primary)] focus-within:ring-2 focus-within:ring-[color:var(--primary-light)] md:w-[280px]"
+        className="flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card px-3 transition focus-within:border-[color:var(--primary)] focus-within:ring-2 focus-within:ring-[color:var(--primary-light)] md:w-[280px]"
         aria-label="전략 검색"
       >
         <SearchIcon className="size-4 text-[color:var(--text-muted)]" aria-hidden="true" />
@@ -121,7 +121,7 @@ export function StrategyListFilterBar(props: StrategyListFilterBarProps) {
                 "inline-flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:min-h-0 md:px-3 " +
                 (active
                   ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)] shadow-sm"
-                  : "border-[color:var(--border)] bg-white text-[color:var(--text-secondary)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]")
+                  : "border-[color:var(--border)] bg-card text-[color:var(--text-secondary)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]")
               }
             >
               {chip.id !== "all" && (
@@ -150,7 +150,7 @@ export function StrategyListFilterBar(props: StrategyListFilterBarProps) {
               <button
                 type="button"
                 aria-label="정렬 기준"
-                className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-white px-3 text-xs font-medium text-[color:var(--text-secondary)] transition hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]"
+                className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card px-3 text-xs font-medium text-[color:var(--text-secondary)] transition hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]"
               />
             }
           >

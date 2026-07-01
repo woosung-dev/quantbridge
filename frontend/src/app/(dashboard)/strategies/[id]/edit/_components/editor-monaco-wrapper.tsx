@@ -1,6 +1,6 @@
-// Monaco Pine 에디터를 prototype 1:1 다크 toolbar 로 감싸는 wrapper (Sprint 43 W9-fidelity)
-// prototype 01: file-tab orange top border + .editor-toolbar 다크 + JetBrains Mono.
-// PineEditor 자체는 이미 다크 theme 이지만, 외곽 toolbar 와 inset ring 으로 prototype 정합 완성.
+// Monaco Pine 에디터를 파일 탭 toolbar 로 감싸는 wrapper (Sprint 43 W9-fidelity)
+// prototype 01: file-tab primary(코퍼) top border + .editor-toolbar + JetBrains Mono.
+// Terminal Tape 롤아웃: 하드코딩 다크 hex/slate → 테마 토큰으로 교체해 앱 라이트/다크에 함께 flip.
 "use client";
 
 import { FileIcon, MaximizeIcon, SearchIcon } from "lucide-react";
@@ -21,22 +21,22 @@ export function EditorMonacoWrapper({
 }: EditorMonacoWrapperProps) {
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-[#1E1E1E] ring-1 ring-inset ring-white/5"
+      className="flex flex-col overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-card ring-1 ring-inset ring-border"
       data-testid="editor-monaco-wrapper"
     >
-      {/* prototype 01: .editor-toolbar 36px / #252526 / file-tab orange 보더 */}
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[#1a1a1a] bg-[#252526] px-3">
+      {/* prototype 01: .editor-toolbar 36px / muted / file-tab primary(코퍼) 보더 */}
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-muted px-3">
         <div
-          className="-mb-px inline-flex items-center gap-2 rounded-t-md border-t-2 border-[#FB923C] bg-[#1E1E1E] px-3 py-1.5 font-mono text-[0.75rem] text-slate-200"
+          className="-mb-px inline-flex items-center gap-2 rounded-t-md border-t-2 border-[color:var(--primary)] bg-card px-3 py-1.5 font-mono text-[0.75rem] text-foreground"
           data-testid="editor-monaco-wrapper-filetab"
         >
           <FileIcon
             aria-hidden
-            className="size-3 text-[#FB923C]"
+            className="size-3 text-[color:var(--primary)]"
             strokeWidth={2}
           />
           <span>{fileName}</span>
-          <span className="font-mono text-[0.7rem] text-slate-500">{versionLabel}</span>
+          <span className="font-mono text-[0.7rem] text-muted-foreground">{versionLabel}</span>
         </div>
 
         <div className="ml-auto flex items-center gap-1">
@@ -67,7 +67,7 @@ function ToolbarIconButton({ ariaLabel, children }: ToolbarIconButtonProps) {
     <button
       type="button"
       aria-label={ariaLabel}
-      className="grid size-7 place-items-center rounded text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40"
+      className="grid size-7 place-items-center rounded text-muted-foreground transition-colors hover:bg-[color:var(--border)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {children}
     </button>
