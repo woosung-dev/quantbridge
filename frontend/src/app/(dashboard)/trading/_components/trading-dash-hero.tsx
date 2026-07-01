@@ -102,20 +102,20 @@ function DashKpi({
   // - rgba(248,113,113,0.12) (dash red glow) → var(--destructive-light) #FEE2E2
   const accent =
     tone === "destructive"
-      ? "text-[color:var(--destructive)] bg-[color:var(--destructive-light)]"
+      ? "text-destructive bg-destructive-light"
       : tone === "success"
-        ? "text-[color:var(--success)] bg-[color:var(--success-light)]"
+        ? "text-success bg-success-light"
         : tone === "primary"
-          ? "text-[color:var(--primary)] bg-[color:var(--primary-light)]"
-          : "text-[color:var(--text-muted)] bg-[color:var(--muted)]";
+          ? "text-primary bg-primary-light"
+          : "text-muted-foreground bg-muted";
 
   return (
     <div
-      className="group relative min-w-0 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--card)] p-4 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+      className="group relative min-w-0 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-card-hover"
       aria-live={pulse ? "polite" : undefined}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[0.7rem] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
+        <span className="truncate text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
         <span
@@ -129,17 +129,17 @@ function DashKpi({
           {icon}
         </span>
       </div>
-      <p className="mt-3 font-mono text-[1.75rem] font-bold leading-none tabular-nums tracking-tight text-[color:var(--foreground)]">
+      <p className="mt-3 font-mono text-[1.75rem] font-bold leading-none tabular-nums tracking-tight text-foreground">
         {value}
         {valueLabel ? (
           <span
             className={
               "ml-2 align-middle text-xs font-semibold tracking-wide " +
               (tone === "destructive"
-                ? "text-[color:var(--destructive)]"
+                ? "text-destructive"
                 : tone === "success"
-                  ? "text-[color:var(--success)]"
-                  : "text-[color:var(--text-muted)]")
+                  ? "text-success"
+                  : "text-muted-foreground")
             }
           >
             {valueLabel}
@@ -147,10 +147,10 @@ function DashKpi({
         ) : null}
       </p>
       {sublabel ? (
-        <p className="mt-2 flex items-center gap-1.5 font-mono text-[0.72rem] text-[color:var(--text-muted)]">
+        <p className="mt-2 flex items-center gap-1.5 font-mono text-[0.72rem] text-muted-foreground">
           {live ? (
             <span
-              className="inline-block size-1.5 rounded-full bg-[color:var(--success)] shadow-[0_0_6px_var(--success)]"
+              className="inline-block size-1.5 rounded-full bg-success shadow-[0_0_6px_var(--success)]"
               aria-hidden="true"
             />
           ) : null}

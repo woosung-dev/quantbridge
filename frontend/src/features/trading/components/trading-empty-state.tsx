@@ -18,14 +18,14 @@ export function TradingEmptyState({
   ctaHref,
 }: TradingEmptyStateProps) {
   return (
-    <div className="mx-auto max-w-md rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-dark)] bg-white p-8 text-center">
-      <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-[color:var(--primary-light)] text-[color:var(--primary)]">
+    <div className="mx-auto max-w-md rounded-[var(--radius-lg)] border border-dashed border-border-dark bg-card p-8 text-center">
+      <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-primary-light text-primary">
         <Icon className="size-6" strokeWidth={1.5} />
       </div>
-      <h3 className="text-base font-semibold text-[color:var(--text-primary)]">
+      <h3 className="text-base font-semibold text-foreground">
         {title}
       </h3>
-      <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
+      <p className="mt-2 text-sm text-text-secondary">
         {description}
       </p>
       {ctaLabel && ctaHref && (

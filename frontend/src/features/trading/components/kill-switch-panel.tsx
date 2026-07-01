@@ -12,7 +12,7 @@ export function KillSwitchPanel() {
   if (isError) {
     return (
       <section className="p-4 border rounded">
-        <p className="text-sm text-[color:var(--destructive)]">
+        <p className="text-sm text-destructive">
           Kill Switch 상태를 불러오지 못했습니다.
         </p>
       </section>
@@ -30,7 +30,7 @@ export function KillSwitchPanel() {
       data-state={hasActiveDanger ? "active" : "ok"}
       className={
         hasActiveDanger
-          ? "qb-danger-pulse rounded border border-[color:var(--destructive)] bg-[color:var(--destructive-light)]/30 p-4 transition-colors"
+          ? "qb-danger-pulse rounded border border-destructive bg-destructive-light/30 p-4 transition-colors"
           : "rounded border bg-card p-4 transition-colors"
       }
     >
@@ -39,7 +39,7 @@ export function KillSwitchPanel() {
         {hasActiveDanger ? (
           <span
             aria-label="Kill Switch 활성"
-            className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--destructive)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
+            className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
           >
             <span className="size-1.5 rounded-full bg-white" />
             활성
@@ -47,7 +47,7 @@ export function KillSwitchPanel() {
         ) : null}
       </h2>
       {!hasActiveDanger ? (
-        <p className="text-green-600">이상 없음</p>
+        <p className="text-success">이상 없음</p>
       ) : (
         <ul>
           {active.map((e) => (
@@ -63,7 +63,7 @@ export function KillSwitchPanel() {
                 type="button"
                 onClick={() => resolve.mutate(e.id)}
                 disabled={resolve.isPending}
-                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md bg-[color:var(--destructive)] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--destructive)]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md bg-destructive px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 {resolve.isPending ? "처리 중…" : "해결"}
               </button>

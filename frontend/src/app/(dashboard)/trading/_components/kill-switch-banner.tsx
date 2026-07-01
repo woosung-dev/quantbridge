@@ -26,9 +26,9 @@ export function KillSwitchBanner() {
         role="alert"
         aria-live="assertive"
         data-testid="ks-error-banner"
-        className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[color:var(--warning,#f59e0b)] bg-[color:var(--warning-light,#FEF3C7)] px-4 py-3 text-sm text-[color:var(--warning-strong,#92400E)] shadow-[var(--card-shadow)]"
+        className="flex items-center gap-3 rounded-[var(--radius-md)] border border-warning bg-warning-subtle px-4 py-3 text-sm text-warning shadow-card"
       >
-        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-[color:var(--warning,#f59e0b)]/15 text-[color:var(--warning-strong,#92400E)]">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-warning/15 text-warning">
           <AlertTriangle className="size-4 animate-pulse" aria-hidden="true" />
         </span>
         <span className="font-medium">
@@ -49,15 +49,15 @@ export function KillSwitchBanner() {
       role="alert"
       aria-live="assertive"
       data-testid="ks-active-banner"
-      className="relative flex items-start gap-3 overflow-hidden rounded-[var(--radius-md)] border border-[color:var(--destructive)] bg-[color:var(--destructive-light)] px-4 py-3 text-sm text-[color:var(--destructive)] shadow-[var(--card-shadow)]"
+      className="relative flex items-start gap-3 overflow-hidden rounded-[var(--radius-md)] border border-destructive bg-destructive-light px-4 py-3 text-sm text-destructive shadow-card"
     >
       <span
-        className="absolute inset-y-0 left-0 w-1 bg-[color:var(--destructive)]"
+        className="absolute inset-y-0 left-0 w-1 bg-destructive"
         aria-hidden="true"
       />
-      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[color:var(--destructive)]/15">
+      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-destructive/15">
         <ShieldAlert
-          className="size-5 animate-pulse text-[color:var(--destructive)]"
+          className="size-5 animate-pulse text-destructive"
           aria-hidden="true"
         />
       </span>
@@ -71,7 +71,7 @@ export function KillSwitchBanner() {
               <span className="font-semibold">
                 {KS_TRIGGER_LABELS[e.trigger_type] ?? e.trigger_type}
               </span>
-              <span className="ml-1 text-[color:var(--destructive)]/80">
+              <span className="ml-1 text-destructive/80">
                 ({e.trigger_value} / {e.threshold})
               </span>
             </li>

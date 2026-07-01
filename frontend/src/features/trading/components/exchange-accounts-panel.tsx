@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2, WalletIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
@@ -34,7 +35,7 @@ function ModeBadge({ mode }: { mode: string | null | undefined }) {
   return (
     <Badge
       variant="outline"
-      className="border-gray-400 text-gray-500 uppercase text-xs"
+      className="border-border text-muted-foreground uppercase text-xs"
     >
       {mode ?? "UNKNOWN"}
     </Badge>
@@ -50,10 +51,10 @@ export function ExchangeAccountsPanel() {
   if (isError) {
     return (
       <section className="p-4 border rounded">
-        <p className="text-sm text-[color:var(--destructive)]">
+        <p className="text-sm text-destructive">
           거래소 계정 목록을 불러오지 못했습니다.
         </p>
-        <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
+        <p className="mt-1 text-xs text-text-secondary">
           네트워크 또는 인증 문제가 있을 수 있습니다.
         </p>
         <Button
@@ -94,7 +95,7 @@ export function ExchangeAccountsPanel() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[520px]">
             <thead>
-              <tr className="text-left text-[color:var(--text-secondary)]">
+              <tr className="text-left text-text-secondary">
                 <th className="py-1 font-medium">Exchange</th>
                 <th className="py-1 font-medium">Mode</th>
                 <th className="py-1 font-medium">Label</th>
@@ -106,7 +107,7 @@ export function ExchangeAccountsPanel() {
               {data.map((a) => (
                 <tr
                   key={a.id}
-                  className="border-t transition-colors hover:bg-[color:var(--bg-alt)]/60"
+                  className="border-t transition-colors hover:bg-muted/60"
                 >
                   <td className="py-1.5">{a.exchange}</td>
                   <td className="py-1.5">
@@ -120,10 +121,18 @@ export function ExchangeAccountsPanel() {
                         삭제) 이라 한 손 미스탭 차단 우선. */}
                     <button
                       type="button"
-                      onClick={() => deleteAccount.mutate(a.id)}
+                      onClick={() =>
+                        deleteAccount.mutate(a.id, {
+                          onError: () => {
+                            toast.error(
+                              "거래소 계정 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+                            );
+                          },
+                        })
+                      }
                       disabled={deleteAccount.isPending}
                       aria-label="계정 삭제"
-                      className="inline-flex size-11 items-center justify-center text-[color:var(--destructive)] hover:opacity-70 disabled:opacity-40 transition-opacity md:size-auto"
+                      className="inline-flex size-11 items-center justify-center text-destructive hover:opacity-70 disabled:opacity-40 transition-opacity md:size-auto"
                     >
                       <Trash2 className="size-4" />
                     </button>
