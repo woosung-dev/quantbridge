@@ -2,6 +2,7 @@
 // W6 strategy-table 패턴 차용. 정렬 키 = email/created/status, aria-sort 적용.
 "use client";
 
+import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -215,9 +216,18 @@ function SortHeader({ label, active, dir, ariaSort, onClick }: SortHeaderProps) 
         }
       >
         <span>{label}</span>
-        <span aria-hidden="true" className="text-[10px]">
-          {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
-        </span>
+        {active ? (
+          dir === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+          )
+        ) : (
+          <ChevronsUpDown
+            className="h-3.5 w-3.5 text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
       </button>
     </th>
   );
