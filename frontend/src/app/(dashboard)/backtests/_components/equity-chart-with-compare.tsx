@@ -3,13 +3,7 @@
 import { GitCompareArrows } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 import { useBacktest, useBacktests } from "@/features/backtest/hooks";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 import { formatDate } from "@/features/backtest/utils";
@@ -58,6 +52,18 @@ export function EquityChartWithCompare({
     ? `${selectedSummary.symbol} · ${selectedSummary.timeframe}`
     : undefined;
 
+  // SelectWithDisplayName 옵션 — raw UUID/sentinel 노출 차단 (BL-164 SSOT).
+  const options = useMemo(
+    () => [
+      { value: NONE, label: "비교 안 함" },
+      ...candidates.map((b) => ({
+        value: b.id,
+        label: `${b.symbol} · ${b.timeframe} · ${formatDate(b.completed_at ?? b.created_at)}`,
+      })),
+    ],
+    [candidates],
+  );
+
   return (
     <section className="rounded-xl border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -67,26 +73,14 @@ export function EquityChartWithCompare({
             className="h-4 w-4 text-muted-foreground"
             aria-hidden="true"
           />
-          <Select
+          <SelectWithDisplayName
+            options={options}
             value={compareId}
-            onValueChange={(v) => setCompareId(v ?? NONE)}
-          >
-            <SelectTrigger
-              className="h-9 w-[240px] text-sm"
-              aria-label="비교할 백테스트 선택"
-            >
-              <SelectValue placeholder="다른 백테스트와 비교" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>비교 안 함</SelectItem>
-              {candidates.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.symbol} · {b.timeframe} ·{" "}
-                  {formatDate(b.completed_at ?? b.created_at)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={(v) => setCompareId(v || NONE)}
+            placeholder="다른 백테스트와 비교"
+            ariaLabel="비교할 백테스트 선택"
+            className="h-9 w-[240px] text-sm"
+          />
         </div>
       </div>
 
