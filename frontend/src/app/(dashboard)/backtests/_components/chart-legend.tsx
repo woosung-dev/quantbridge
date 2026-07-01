@@ -19,6 +19,10 @@ interface ChartLegendProps {
   showBenchmark?: boolean;
   /** Drawdown 영역이 차트에 표시되는지. false 면 항목 hide. */
   showDrawdown?: boolean;
+  /** Compare 오버레이(다른 백테스트)가 표시되는지. false 면 항목 hide. */
+  showCompare?: boolean;
+  /** Compare 대상 라벨 (예: "ETH · 1h"). */
+  compareLabel?: string;
   /** 추가 클래스 (호출 측 위치/마진 조정용). */
   className?: string;
 }
@@ -26,6 +30,8 @@ interface ChartLegendProps {
 export function ChartLegend({
   showBenchmark = true,
   showDrawdown = true,
+  showCompare = false,
+  compareLabel,
   className,
 }: ChartLegendProps) {
   return (
@@ -75,6 +81,20 @@ export function ChartLegend({
             </span>
           }
           label="Buy & Hold (단순보유)"
+        />
+      )}
+
+      {showCompare && (
+        <LegendItem
+          ariaLabel={`비교 백테스트${compareLabel ? ` ${compareLabel}` : ""}: 실선 보라색`}
+          marker={
+            <span
+              aria-hidden="true"
+              className="inline-block h-[2px] w-5 rounded"
+              style={{ backgroundColor: "#8b5cf6" }}
+            />
+          }
+          label={`비교${compareLabel ? ` · ${compareLabel}` : ""}`}
         />
       )}
 

@@ -59,6 +59,8 @@ export interface TradingChartProps {
   markers?: ChartMarker[];
   /** 비교용 보조 line (예: B&H benchmark). */
   benchmark?: { data: ChartPoint[]; options?: LineSeriesPartialOptions };
+  /** 두 번째 비교 line (예: 다른 백테스트 Compare 오버레이). benchmark 와 독립. */
+  compare?: { data: ChartPoint[]; options?: LineSeriesPartialOptions };
   /** 영역 오버레이 (예: drawdown area). */
   area?: AreaOverlay;
   /** 차트 높이. */
@@ -145,6 +147,7 @@ export function TradingChart({
   options,
   markers,
   benchmark,
+  compare,
   area,
   height = 320,
   ariaLabel,
@@ -153,6 +156,7 @@ export function TradingChart({
   const chartRef = useRef<IChartApi | null>(null);
   const mainSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const benchmarkSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const compareSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const areaSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
 
   // 앱 테마(next-themes) — 문자열 themeKey 만 effect dep 로 사용 (H-1: object dep 금지).
@@ -219,6 +223,7 @@ export function TradingChart({
       }
       mainSeriesRef.current = null;
       benchmarkSeriesRef.current = null;
+      compareSeriesRef.current = null;
       areaSeriesRef.current = null;
     };
   }, [height, themeKey]);
@@ -272,6 +277,25 @@ export function TradingChart({
       benchmarkSeriesRef.current = null;
     }
 
+    // compare line series (다른 백테스트 오버레이) — benchmark 와 독립 solid 라인.
+    if (compare !== undefined) {
+      if (compareSeriesRef.current === null) {
+        compareSeriesRef.current = chart.addLineSeries({
+          color: "#8b5cf6",
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          ...compare.options,
+        });
+      } else {
+        compareSeriesRef.current.applyOptions({ ...compare.options });
+      }
+      compareSeriesRef.current.setData(toLineData(compare.data));
+    } else if (compareSeriesRef.current !== null) {
+      chart.removeSeries(compareSeriesRef.current);
+      compareSeriesRef.current = null;
+    }
+
     // area overlay (drawdown).
     if (area !== undefined) {
       if (areaSeriesRef.current === null) {
@@ -296,7 +320,7 @@ export function TradingChart({
     chart.timeScale().fitContent();
     // themeKey: init effect 가 테마 토글 시 chart 를 재생성(series ref null) → 본 effect 가
     // 재실행되어 재생성된 chart 에 series 를 다시 채워야 함 (빈 차트 방지).
-  }, [data, markers, benchmark, area, options, themeKey]);
+  }, [data, markers, benchmark, compare, area, options, themeKey]);
 
   return (
     <div
