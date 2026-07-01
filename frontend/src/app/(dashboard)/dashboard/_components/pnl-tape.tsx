@@ -23,11 +23,20 @@ export function PnlTape({ deltas, maxBars = 48, className }: PnlTapeProps) {
   }, [deltas, maxBars]);
 
   if (bars.length === 0) {
+    // 데이터 없음 — faint baseline 틱으로 시그니처 자리 유지.
     return (
       <div
-        className={`h-6 rounded bg-muted/50 ${className ?? ""}`}
+        className={`flex h-6 items-center gap-[2px] ${className ?? ""}`}
         aria-hidden="true"
-      />
+      >
+        {Array.from({ length: 40 }).map((_, i) => (
+          <span
+            key={i}
+            className="min-w-[2px] flex-1 rounded-[1px] bg-muted-foreground/25"
+            style={{ height: "18%" }}
+          />
+        ))}
+      </div>
     );
   }
 
