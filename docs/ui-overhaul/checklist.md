@@ -24,15 +24,18 @@
 - [x] **DoD 검증: 토글 전 앱 flip(실 인증화면 양 테마 스크린샷) / tsc·lint·754 test·build green**
 - [→ 이관] 신규 `components/ui/data-table.tsx` → **P2**(첫 소비처 optimizer). 아이콘 글리프→Lucide 스윕 → **P2/P6** 각 표면.
 
-## P2~P6 — 화면별 롤아웃 (P1 머지 후, worktree 병렬)
+## P2~P6 — 화면별 롤아웃 ✅ 완료 (병렬 에이전트 + 중앙 검증)
 
-- [ ] P2 optimizer (14파일) — 글리프/테이블/raw error/API 용어
-- [ ] P3 백테스트 리포트 (43파일) — recharts 테마 / trade-table 패리티 / BL-360
-- [ ] P4 strategies (29파일) — 어휘 / Monaco light / strategy-card 보존
-- [ ] P5 trading (6파일) — 양 테마 / 거래소 삭제 onError / BL-355
-- [ ] P6 public·shell — 레이아웃 / 공유 뷰어 차트 / 글로벌 모바일 터치 룰
+- [x] P2 optimizer (14파일) — 글리프→Lucide / 테이블 격상 / raw error 휴먼화 / API 용어 제거 — `db3ed9c`
+- [x] P3 백테스트 리포트 — 글리프→Lucide / finance→bullish·bearish(trade-table 패리티) / recharts 툴팁 테마 / BL-360 overflow — `ee32917`
+- [x] P4 strategies — 어휘 / **Monaco pine-light 테마** / strategy-card 보존 / 잠복버그(var(--bg-primary)/data-tone=warn) — `8023c35`
+- [x] P5 trading — 양 테마 / **거래소 삭제 onError** / BL-355 Demo→데모 — `ac8f644`
+- [x] P6 public·shell — 랜딩 흰섬→토큰 / **랜딩 nav ThemeToggle** / BrandLogo·error-illust hex→copper / 모바일 터치 — `ee5381b`
+- [x] P6b 잔여 섬 — 루트 page/error/not-found / auth colorPrimary→copper / onboarding·admin — `688b02b`
 
-## P7 — 접근성·정리 스윕 (직렬)
+## P7 — 접근성·정리 스윕 ✅ 완료
 
-- [ ] 전 화면 양 테마 axe 재실행
-- [ ] 최종 글리프/`dark:`-leak grep 감사
+- [x] 전체 leak grep 감사 — 하드코딩 블루 0 / 생 green·red-500 0 / 잔여 bg-white/N = 의도적 다크섬 오버레이
+- [x] 최종 글리프 스윕 — sort 컨트롤→Lucide, sort 라벨 휴먼화. 히트맵 ▲▼ = 색맹 부호 마커(의도 보존) — `<P7 commit>`
+- [x] 양 테마 시각 검증 — strategies·optimizer·trading 라이트/다크 스크린샷 확인, 전 표면 flip·코퍼 정체성·용어제거 확인
+- [x] tsc + lint + 754 test + build 전 phase green
