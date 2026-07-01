@@ -66,7 +66,7 @@ export default function GlobalError({
             disabled={isRetrying}
             data-testid="error-retry-button"
             data-loading={isRetrying || undefined}
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)] transition-all duration-200 hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.36)] disabled:cursor-not-allowed disabled:opacity-80"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all duration-200 hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-btn-primary-hover disabled:cursor-not-allowed disabled:opacity-80"
           >
             {isRetrying ? (
               <svg
@@ -92,7 +92,7 @@ export default function GlobalError({
           </button>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] border border-[color:var(--border-dark)] bg-white px-5 py-2.5 text-sm font-semibold text-[color:var(--text-primary)] transition-colors hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] border border-[color:var(--border-dark)] bg-card px-5 py-2.5 text-sm font-semibold text-[color:var(--text-primary)] transition-colors hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M3 12l9-9 9 9" />
@@ -106,13 +106,13 @@ export default function GlobalError({
         <div
           role="status"
           aria-live="polite"
-          className="relative z-[2] mt-8 inline-flex flex-wrap items-center justify-center gap-2.5 rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-[13px] shadow-sm"
+          className="relative z-[2] mt-8 inline-flex flex-wrap items-center justify-center gap-2.5 rounded-full border border-[color:var(--border)] bg-card px-4 py-2.5 text-[13px] shadow-sm"
         >
           <span aria-hidden="true" className="relative h-2 w-2 rounded-full bg-[color:var(--success)]">
             <span className="absolute -inset-1 rounded-full bg-[color:var(--success)] opacity-35 motion-safe:animate-ping" />
           </span>
           <span className="font-medium text-[color:var(--text-secondary)]">시스템 상태:</span>
-          <span className="inline-flex items-center rounded-full bg-[color:var(--success-light)] px-2.5 py-0.5 text-xs font-semibold text-[#166534]">
+          <span className="inline-flex items-center rounded-full bg-[color:var(--success-light)] px-2.5 py-0.5 text-xs font-semibold text-[color:var(--success)]">
             정상 운영 중
           </span>
         </div>

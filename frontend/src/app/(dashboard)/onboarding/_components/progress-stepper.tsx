@@ -58,10 +58,10 @@ export function ProgressStepper({ currentStep, steps }: ProgressStepperProps) {
                     // Sprint 44 W F2: transition duration 300ms (250→300, fill 부드럽게)
                     "relative z-[2] grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 font-mono text-[0.875rem] font-bold transition-all duration-300 ease-out",
                     completed
-                      ? "border-[color:var(--success)] bg-[color:var(--success)] text-white"
+                      ? "border-[color:var(--success)] bg-[color:var(--success)] text-[color:var(--success-foreground)]"
                       : active
-                        ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-white shadow-[0_0_0_6px_var(--primary-light)] motion-safe:[animation:onb-step-pulse_2s_ease-in-out_infinite]"
-                        : "border-[color:var(--border)] bg-white text-[color:var(--text-muted)]",
+                        ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--primary-foreground)] shadow-[0_0_0_6px_var(--primary-light)] motion-safe:[animation:onb-step-pulse_2s_ease-in-out_infinite]"
+                        : "border-[color:var(--border)] bg-card text-[color:var(--text-muted)]",
                   ].join(" ")}
                   aria-hidden="true"
                 >

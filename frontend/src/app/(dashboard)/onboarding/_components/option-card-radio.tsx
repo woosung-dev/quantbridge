@@ -55,8 +55,8 @@ export function OptionCardRadio({
         "motion-safe:active:translate-y-0",
         selected
           // Sprint 44 W F2: selected 시 미세 -translate-y 0.5px + ring 두께 미세 강화
-          ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] shadow-[0_0_0_3px_rgba(37,99,235,0.08)] motion-safe:-translate-y-[0.5px]"
-          : "border-[color:var(--border)] bg-[color:var(--card)] hover:border-[color:var(--primary)] hover:bg-[color:var(--primary-light)] motion-safe:hover:-translate-y-px motion-safe:hover:shadow-[0_4px_14px_rgba(15,23,42,0.06)]",
+          ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] shadow-[0_0_0_3px_var(--primary-light)] motion-safe:-translate-y-[0.5px]"
+          : "border-[color:var(--border)] bg-[color:var(--card)] hover:border-[color:var(--primary)] hover:bg-[color:var(--primary-light)] motion-safe:hover:-translate-y-px motion-safe:hover:shadow-card",
       ].join(" ")}
     >
       <span
@@ -64,7 +64,7 @@ export function OptionCardRadio({
         className={[
           "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-colors duration-200",
           selected
-            ? "bg-[color:var(--primary)] text-white"
+            ? "bg-[color:var(--primary)] text-[color:var(--primary-foreground)]"
             : "bg-[color:var(--primary-light)] text-[color:var(--primary)]",
         ].join(" ")}
       >
@@ -88,7 +88,7 @@ export function OptionCardRadio({
         className={[
           "grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 transition-all duration-200",
           selected
-            ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-white"
+            ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--primary-foreground)]"
             : "border-[color:var(--border)] bg-transparent text-transparent",
         ].join(" ")}
         data-testid={`option-card-check-${value}`}

@@ -54,7 +54,7 @@ interface Avatar {
 }
 
 const AVATARS: Avatar[] = [
-  { initials: "JK", gradient: "linear-gradient(135deg, #2563EB, #1E40AF)" },
+  { initials: "JK", gradient: "linear-gradient(135deg, #b45309, #92400e)" },
   { initials: "MH", gradient: "linear-gradient(135deg, #059669, #047857)" },
   { initials: "YS", gradient: "linear-gradient(135deg, #DC2626, #991B1B)" },
   { initials: "DW", gradient: "linear-gradient(135deg, #7C3AED, #5B21B6)" },
@@ -79,7 +79,7 @@ export function BrandPanel({ mode }: BrandPanelProps) {
         className="pointer-events-none absolute -top-[200px] -right-[200px] h-[600px] w-[600px]"
         style={{
           background:
-            "radial-gradient(circle, rgba(37,99,235,0.25), transparent 70%)",
+            "radial-gradient(circle, rgba(180,83,9,0.25), transparent 70%)",
         }}
       />
       <div
@@ -87,7 +87,7 @@ export function BrandPanel({ mode }: BrandPanelProps) {
         className="pointer-events-none absolute -bottom-[150px] -left-[150px] h-[500px] w-[500px]"
         style={{
           background:
-            "radial-gradient(circle, rgba(37,99,235,0.18), transparent 70%)",
+            "radial-gradient(circle, rgba(180,83,9,0.18), transparent 70%)",
         }}
       />
 
@@ -117,7 +117,7 @@ export function BrandPanel({ mode }: BrandPanelProps) {
             />
             <path
               d="M9 11h6"
-              stroke="#60A5FA"
+              stroke="#e0832b"
               strokeWidth="1.8"
               strokeLinecap="round"
             />

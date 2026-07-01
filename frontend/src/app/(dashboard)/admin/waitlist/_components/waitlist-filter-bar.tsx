@@ -54,7 +54,7 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
       className="mb-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center"
     >
       <label
-        className="flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-white px-3 transition focus-within:border-[color:var(--primary)] focus-within:ring-2 focus-within:ring-[color:var(--primary-light)] md:w-[280px]"
+        className="flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card px-3 transition focus-within:border-[color:var(--primary)] focus-within:ring-2 focus-within:ring-[color:var(--primary-light)] md:w-[280px]"
         aria-label="이메일 검색"
       >
         <SearchIcon
@@ -90,7 +90,7 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
                 "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 ease-out data-[active]:motion-safe:animate-[chipPop_220ms_cubic-bezier(0.34,1.56,0.64,1)] " +
                 (active
                   ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)] shadow-sm"
-                  : "border-[color:var(--border)] bg-white text-[color:var(--text-secondary)] hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)] hover:shadow-sm")
+                  : "border-[color:var(--border)] bg-card text-[color:var(--text-secondary)] hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)] hover:shadow-sm")
               }
             >
               {chip.id !== "all" && (
