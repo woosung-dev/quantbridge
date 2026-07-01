@@ -26,7 +26,7 @@ type NavItem = {
 // Sprint 61 T-8 (BL-323): Optimizer 페이지 노출. Sprint 54-56 으로 Grid/Bayesian/Genetic
 // 3 모드 구축됐으나 사이드바 미노출 → 잠재 고객 "기능 진짜 있나" 의문 발생 (Curious 페르소나).
 export const navItems: readonly NavItem[] = [
-  { href: "/dashboard", label: "대시보드", icon: HomeIcon, disabled: true },
+  { href: "/dashboard", label: "대시보드", icon: HomeIcon, disabled: false },
   { href: "/strategies", label: "전략", icon: CodeIcon, disabled: false },
   { href: "/templates", label: "템플릿", icon: LayersIcon, disabled: true },
   { href: "/backtests", label: "백테스트", icon: BarChartIcon, disabled: false },

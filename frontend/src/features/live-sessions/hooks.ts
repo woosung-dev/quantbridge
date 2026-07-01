@@ -11,12 +11,14 @@
 import { useAuth } from "@clerk/nextjs";
 import {
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
 
+import { mergeCumulativeCurves, type CurvePoint } from "./aggregate";
 import {
   deactivateLiveSession,
   getLiveSessionState,
@@ -94,6 +96,71 @@ export function useLiveSessionState(
       return computeLiveSessionStateRefetchInterval(isActive);
     },
   });
+}
+
+export interface LiveSessionsAggregate {
+  /** 활성 세션들의 합산 실현 손익 (point-in-time). */
+  totalRealizedPnl: number;
+  /** 합산 종료 거래 수. */
+  totalClosedTrades: number;
+  /** 세션별 누적 실현-PnL 곡선을 병합한 포트폴리오 곡선 (epoch seconds). */
+  mergedEquityCurve: CurvePoint[];
+  /** state 가 채워진(evaluate 된) 세션 수. */
+  populatedSessions: number;
+  /** 하나라도 로딩 중이면 true. */
+  isLoading: boolean;
+}
+
+/**
+ * 여러 라이브 세션의 state 를 useQueries 로 팬아웃 fetch 후 합산 집계.
+ * 세션당 useLiveSessionState 와 동일 queryKey → 캐시 공유(추가 네트워크 최소).
+ * MAX_LIVE_SESSIONS_PER_USER(=5) 상한이라 N+1 팬아웃 비용 제한적.
+ */
+export function useLiveSessionsAggregate(
+  sessions: readonly LiveSession[],
+): LiveSessionsAggregate {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  const results = useQueries({
+    queries: sessions.map((s) => ({
+      queryKey: liveSessionKeys.state(uid, s.id),
+      queryFn: makeStateFetcher(s.id, getToken),
+      enabled: Boolean(s.id),
+      refetchInterval: computeLiveSessionStateRefetchInterval(s.is_active),
+    })),
+  });
+
+  let totalRealizedPnl = 0;
+  let totalClosedTrades = 0;
+  let populatedSessions = 0;
+  const curves: CurvePoint[][] = [];
+
+  for (const r of results) {
+    const state = r.data;
+    if (!state) continue;
+    populatedSessions += 1;
+    const pnl = Number(state.total_realized_pnl);
+    if (Number.isFinite(pnl)) totalRealizedPnl += pnl;
+    totalClosedTrades += state.total_closed_trades ?? 0;
+    if (state.equity_curve && state.equity_curve.length > 0) {
+      curves.push(
+        state.equity_curve
+          .map((p) => ({
+            time: Math.floor(p.timestamp_ms / 1000),
+            value: Number(p.cumulative_pnl),
+          }))
+          .filter((p) => Number.isFinite(p.value)),
+      );
+    }
+  }
+
+  return {
+    totalRealizedPnl,
+    totalClosedTrades,
+    mergedEquityCurve: mergeCumulativeCurves(curves),
+    populatedSessions,
+    isLoading: results.some((r) => r.isLoading),
+  };
 }
 
 export function useLiveSessionEvents(

@@ -19,9 +19,11 @@ export {
 export {
   useLiveSessions,
   useLiveSessionState,
+  useLiveSessionsAggregate,
   useLiveSessionEvents,
   useRegisterLiveSession,
   useDeactivateLiveSession,
+  type LiveSessionsAggregate,
 } from "./hooks";
 export { LiveSessionForm } from "./components/live-session-form";
 export { LiveSessionList } from "./components/live-session-list";
