@@ -137,8 +137,10 @@ async def test_bybit_demo_fetch_order_uses_credentials(credentials, bybit_fetch_
     assert call_kwargs["options"]["defaultType"] == "spot"
     mock_exchange.enable_demo_trading.assert_called_once_with(True)
 
-    # fetch_order 호출 인자
-    mock_exchange.fetch_order.assert_awaited_once_with("bybit-order-99", "BTC/USDT")
+    # fetch_order 호출 인자 (BL-404: acknowledged 의무 — 아래 전용 테스트 참조)
+    mock_exchange.fetch_order.assert_awaited_once_with(
+        "bybit-order-99", "BTC/USDT", params={"acknowledged": True}
+    )
 
     # 응답 매핑
     assert result.exchange_order_id == "bybit-order-99"
@@ -207,10 +209,47 @@ async def test_bybit_futures_fetch_order_uses_linear(credentials, bybit_fetch_mo
     mock_bybit_cls.assert_called_once()
     call_kwargs = mock_bybit_cls.call_args.args[0]
     assert call_kwargs["options"]["defaultType"] == "linear"
-    mock_exchange.fetch_order.assert_awaited_once_with("bybit-fut-1", "BTC/USDT:USDT")
+    mock_exchange.fetch_order.assert_awaited_once_with(
+        "bybit-fut-1", "BTC/USDT:USDT", params={"acknowledged": True}
+    )
     assert result.exchange_order_id == "bybit-fut-1"
     assert result.status == "filled"
     mock_exchange.close.assert_awaited_once()
+
+
+async def test_bybit_fetch_order_passes_acknowledged_param(
+    credentials, bybit_fetch_mock
+):
+    """BL-404 — ccxt bybit fetchOrder 는 params["acknowledged"]=True 없이
+    ArgumentsRequired 를 raise (last-500-orders 제약 인지 게이트). 누락 시
+    watchdog fetch 전면 실패 → 라이브 주문 submitted 영구 고착 (2026-07-05
+    dogfood 실측). demo/futures 공유 impl 이 param 을 항상 전달해야 한다."""
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.providers import BybitDemoProvider, BybitFuturesProvider
+
+    await BybitDemoProvider().fetch_order(credentials, "ord-1", "BTC/USDT")
+    demo_call = mock_exchange.fetch_order.await_args
+    assert demo_call.kwargs.get("params", {}).get("acknowledged") is True
+
+    mock_exchange.fetch_order.reset_mock()
+    await BybitFuturesProvider().fetch_order(credentials, "ord-2", "BTC/USDT:USDT")
+    fut_call = mock_exchange.fetch_order.await_args
+    assert fut_call.kwargs.get("params", {}).get("acknowledged") is True
+
+
+async def test_bybit_futures_fetch_order_normalizes_spot_symbol(
+    credentials, bybit_fetch_mock
+):
+    """BL-404 — watchdog 이 DB order.symbol(spot 포맷 `BTC/USDT`)을 그대로 전달하면
+    ccxt 가 category=spot 으로 조회해 linear 주문이 OrderNotFound (2026-07-05
+    실 demo 대조: `BTC/USDT:USDT`=OK / `BTC/USDT`=NotFound). create_order 와
+    동일하게 `_to_bybit_linear_symbol` 정규화를 거쳐야 한다."""
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.providers import BybitFuturesProvider
+
+    await BybitFuturesProvider().fetch_order(credentials, "ord-3", "BTC/USDT")
+    call = mock_exchange.fetch_order.await_args
+    assert call.args[1] == "BTC/USDT:USDT"
 
 
 # -------------------------------------------------------------------------

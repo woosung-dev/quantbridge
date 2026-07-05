@@ -675,9 +675,7 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
-    async def fetch_position(
-        self, creds: Credentials, symbol: str
-    ) -> PositionInfo | None:
+    async def fetch_position(self, creds: Credentials, symbol: str) -> PositionInfo | None:
         """STEP B — 현재 linear 포지션 스냅샷(stale-position 가드). 무포지션이면 None.
 
         place_trailing_stop 가 체결→placement 사이 포지션이 닫히거나(flat) 반대로
@@ -769,10 +767,12 @@ class BybitFuturesProvider:
         self, creds: Credentials, exchange_order_id: str, symbol: str
     ) -> OrderStatusFetch:
         """Sprint 15 Phase A.1 — Bybit Linear Perp futures fetch_order."""
+        # BL-404 — spot 포맷 symbol 이면 ccxt 가 category=spot 으로 조회해
+        # linear 주문이 OrderNotFound (watchdog 이 DB order.symbol 그대로 전달).
         return await _bybit_fetch_order_impl(
             creds=creds,
             exchange_order_id=exchange_order_id,
-            symbol=symbol,
+            symbol=_to_bybit_linear_symbol(symbol),
             default_type="linear",
             timer_label="bybit_futures",
         )
@@ -1093,7 +1093,12 @@ async def _bybit_fetch_order_impl(
     _apply_bybit_env(exchange, creds.environment)
     try:
         async with ccxt_timer(timer_label, "fetch_order"):
-            result = await exchange.fetch_order(exchange_order_id, symbol)
+            # BL-404 — ccxt bybit fetchOrder 는 acknowledged=True 없이
+            # ArgumentsRequired raise (last-500-orders 제약 인지 게이트).
+            # watchdog 은 방금 제출한 주문만 조회하므로 제약 수용 가능.
+            result = await exchange.fetch_order(
+                exchange_order_id, symbol, params={"acknowledged": True}
+            )
         return _build_order_status_fetch(exchange_order_id, result)
     except ProviderError:
         raise
