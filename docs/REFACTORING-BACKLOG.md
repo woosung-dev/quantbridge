@@ -289,6 +289,8 @@
 | [BL-387](#bl-387) | backtest sizing-canonical → config_payload 가 untyped `dict[str,Any]` seam 횡단 (key drift 시 silent 잘못된 sizing, money-path)                                | backtest deepening 또는 sizing 로직 변경 시                                    | S-M (3-5h)   | 2026-06-30 backtest-deepen (codex 최강 후보)           |
 | [BL-388](#bl-388) | BacktestMetrics 24-field 가 4곳 평행 정의 (dataclass↔schema↔serializer↔_to_detail), field-parity 무검증 (leaky seam)                                           | backtest deepening 또는 BL-236 진행 시                                         | S-M (3-5h)   | 2026-06-30 backtest-deepen (codex 가 4번째 site 발견)  |
 | [BL-392](#bl-392) | stress_test CA/PS "2D grid sweep" DTO 8-site 평행 정의 통합 (engine dataclass↔serializer↔OutSchema, untyped JSONB seam)                                        | stress_test deepening 또는 grid-cell 필드 추가 / 3번째 grid-sweep 타입 등장 시 | M (4-6h)     | 2026-06-30 stress_test-deepen (deepen-modules 1차)     |
+| [BL-401](#bl-401) | optimizer 3폼(grid/bayesian/genetic) field-level zod 에러 미렌더 — 검증 실패 시 무피드백 제출 차단                                                             | optimizer 폼 polish 또는 사용자 "제출 안 됨" 문의 시                           | S-M (2-4h)   | 2026-07-05 PR #394 FE 리팩토링 번들 dogfood            |
+| [BL-402](#bl-402) | optimizer 백테스트 picker uncontrolled↔controlled 전환 + 트리거 raw UUID 노출 (BL-164 SSOT 미적용 회귀)                                                        | BL-401 과 묶음 권장                                                            | XS-S (1-2h)  | 2026-07-05 PR #394 FE 리팩토링 번들 dogfood            |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](refactoring-backlog/_archived.md)).
 
@@ -855,6 +857,44 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-401
+
+**Title:** optimizer 3폼(grid/bayesian/genetic) field-level zod 에러 미렌더 — 검증 실패 시 사용자 무피드백 제출 차단
+**Category:** Frontend / optimizer 폼 UX
+**Priority:** P2
+**Trigger:** optimizer 폼 polish 또는 사용자 "제출 안 됨" 문의 시
+**Est:** S-M (2-4h — 3폼 공통 필드 에러 표출 + 회귀 테스트)
+**출처:** 2026-07-05 PR #394 FE 리팩토링 번들 (optimizer 폼 통합 작업 중 발견, 2026-07-05 코드 재검증)
+
+**원인 / 영향:** `grid-search-form.tsx:47` / `bayesian-search-form.tsx:57` / `genetic-search-form.tsx:97` 은 `zodV4Resolver(FormSchema)` 를 쓰지만 `formState.errors` 를 어느 필드 컴포넌트(`optimizer-form-fields.tsx`/`param-rows-fieldset.tsx` — register/control 만 수신)에도 전달·렌더하지 않는다. 표출되는 에러는 mutation 실패 시 `FormErrorAlert`(GENERIC_ERROR_MSG) 뿐. `form-schemas.ts` 의 사용자향 검증 메시지("var_name required" :38 / superRefine "min < max 강제" :71 / "log_scale / log_uniform 은 min > 0 필요" :78 등)가 계산만 되고 화면에 도달하지 못해 `handleSubmit` 이 무피드백으로 제출만 차단한다. **스코프 노트:** backtest 폼은 zod resolver 미사용(RHF 네이티브 `useBacktestForm.ts:88`) + field 에러 정상 렌더(`backtest-form.tsx:111`, `BacktestCostFieldSet.tsx:36/69/93`) 확인 — 본 BL 스코프에서 제외. BL-350/354(✅ Resolved Sprint 62, `/optimizer` 리스트 row resilience)와 같은 도메인·같은 zod 지만 다른 표면(폼 입력)이다.
+
+**권장 접근:** `waitlist-form-card.tsx:71` 의 field 에러 렌더 패턴대로 3폼 공통 필드 조각에 `errors` prop 전달 + 필드 하단 `text-destructive` 메시지 렌더. superRefine(param row 교차 검증)은 해당 row 하단 표출 위치 설계 동반.
+
+**영향 파일:** `grid-search-form.tsx`, `bayesian-search-form.tsx`, `genetic-search-form.tsx`, `optimizer-form-fields.tsx`, `param-rows-fieldset.tsx`.
+
+**Risk:** 🟢 (표출 전용 — 제출 페이로드 무변경. PR #394 characterization 스모크가 body 고정).
+
+---
+
+### BL-402
+
+**Title:** optimizer 백테스트 picker `value={backtestId || undefined}` uncontrolled↔controlled 전환 콘솔 에러 + 트리거 raw UUID 노출 (BL-164 SSOT 미적용 회귀)
+**Category:** Frontend / optimizer UX
+**Priority:** P2
+**Trigger:** BL-401 과 묶음 권장 (동일 페이지)
+**Est:** XS-S (1-2h)
+**출처:** 2026-07-05 PR #394 FE 리팩토링 번들 dogfood (2026-07-05 코드 재검증)
+
+**원인 / 영향:** `optimizer-page-view.tsx:66` 이 `value={backtestId || undefined}` — 초기 `""` → `undefined`(uncontrolled) → 선택 후 UUID 문자열(controlled) 전환으로 콘솔 경고 유발. 또한 raw `Select`+`SelectValue`(render prop 無, :65-90) 라 선택 후 트리거에 full UUID 가 그대로 표시된다(옵션 label 은 `${symbol} · ${timeframe} · ${id.slice(0,8)}` 인데 트리거만 raw value). `SelectWithDisplayName`(BL-164 SSOT, `select-with-display-name.tsx`) 미적용 — Compare picker 동일 결함을 PR #383 에서 고친 것과 같은 계열의 회귀다(BL-164/176/206 은 전부 archived, 활성 추적 부재였음).
+
+**권장 접근:** `SelectWithDisplayName` 로 교체 — value 는 순수 string(빈 값 처리 내장), label 매핑 캡슐화. PR #383 의 `equity-chart-with-compare.tsx:76` 패턴 그대로.
+
+**영향 파일:** `app/(dashboard)/optimizer/_components/optimizer-page-view.tsx` (:33, :65-90).
+
+**Risk:** 🟢 (프리젠테이션 전용 — 선택 값 전달 로직 무변경).
+
+---
+
 ## P3 — Nice-to-have / 컨벤션 정합
 
 > 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 8** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen).
@@ -1080,6 +1120,42 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-400
+
+**Title:** optimizer 쿼리만 `enabled: userId != null` 가드 — 도메인 간 React Query enabled 정책 비일관 (통일 여부 결정 필요)
+**Category:** Frontend / React Query 컨벤션
+**Priority:** P3
+**Trigger:** FE 훅 팩토리 후속 정비 시 (`use-auth-ctx` 소비 도메인 전수)
+**Est:** S (2-3h — 정책 결정 + 일괄 적용)
+**출처:** 2026-07-05 PR #394 FE 리팩토링 번들 (훅 팩토리 SSOT 작업 중 발견, 2026-07-05 코드 재검증)
+
+**원인 / 영향:** `features/optimizer/hooks.ts:59,70` 만 `enabled: userId != null` 로 로그아웃 시 쿼리를 미발사한다. 나머지 도메인(backtest/strategy/trading/live-sessions/waitlist) list 훅은 가드 없이 `useAuthCtx` 의 `uid="anon"` sentinel + null token 으로 발사(401 → retry 1). PR #394 훅 팩토리(`use-auth-ctx`/`use-invalidating-mutation`/`query-poll`)는 폴링 가드만 SSOT 화했고 enabled 가드는 미흡수. 실버그는 아니나 로그아웃 시 도메인별 동작이 달라 디버깅·테스트 기대가 갈린다.
+
+**권장 접근:** 결정 사안 — (a) 전 도메인 `enabled: userId != null` 통일(무의미 401 제거, `use-auth-ctx` 에 헬퍼 추가) vs (b) optimizer 가드 제거로 "anon 발사" 일원화. Grilling 1문항으로 결정 후 일괄 적용.
+
+**Risk:** 🟢 (정책 결정 사안 — 어느 쪽도 회귀 표면 작음).
+
+---
+
+### BL-403
+
+**Title:** recharts↔lightweight-charts(+optimizer inline-SVG) 차트 3원화 해소 — 라이브러리 수렴 결정
+**Category:** Frontend / 차트 인프라
+**Priority:** P3
+**Trigger:** **BL-395(lwc v5 spike) 완료 후** — 멀티-pane/커스텀 시리즈 확보가 수렴 가능성 판정의 전제
+**Est:** L (8-16h — 대상 플롯별 이식 난도 상이, spike 선행)
+**출처:** 2026-07-05 PR #394 FE 리팩토링 번들 (차트 지연로딩 정리 중 3원화 실측)
+
+**원인 / 영향:** 시계열=lightweight-charts(`trading-chart.tsx` 싱글턴 dynamic import + backtest equity/drawdown pane + live-sessions), 통계 플롯=recharts 5종(`charts/recharts-plots.ts` 단일 seam, 414KB), optimizer 2종(`genetic-generation-chart.tsx`/`bayesian-iteration-chart.tsx`)=recharts 의존 회피 목적의 손수 inline SVG — 사실상 3원화. 번들 이중 부담 + 스타일 토큰(`lib/chart-tokens.ts` 로 완충 중) 3중 유지보수 + 신규 차트마다 라이브러리 선택 부채. Sprint 30-β 결정("recharts 보존, 신규만 lwc")이 3원화로 표류했다.
+
+**권장 접근:** BL-395 spike 결과로 lwc v5 가 histogram/donut/waterfall 급 통계 플롯을 감당하는지 판정 → (a) lwc 수렴 + recharts 제거 (b) recharts 유지 + inline-SVG 2종만 recharts 편입 (c) 현상 유지 재확인 중 택1. BL-235(N-dim viz — cross-page consistency 의무)와 라이브러리 결정 공유.
+
+**영향 파일:** `charts/recharts-plots.ts` 계열 5플롯, `components/charts/trading-chart.tsx`, optimizer inline-SVG 2종, `lib/chart-tokens.ts`.
+
+**Risk:** 🟡 (표면 넓음 — spike 선행 + 페이지별 스냅샷 회귀 필요).
+
+---
+
 ## Beta 오픈 번들 — 단일 milestone
 
 > **deferred** — Beta 본격 진입 trigger (BL-005 self-assessment ≥ 7/10 + 본인 의지 second gate) 도래 시 main 으로 row 이동.
@@ -1124,7 +1200,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 ### 신규 항목 추가
 
 1. 적절한 priority 결정 (P0~P3 정의 표 참조)
-2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~243)
+2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~403)
 3. 표준 8 필드 모두 채우기: ID / 제목 / 카테고리 / priority / trigger / est / 출처 / 권장 접근
 4. 출처 cross-link (파일:라인 또는 dev-log 파일명) 필수
 5. 의존성 있으면 명시 (다른 BL ID 또는 외부 자원)
@@ -1152,6 +1228,11 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 ## 변경 이력
 
 > Sprint 별 BL 변경 1-line 요약. 상세는 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 또는 해당 sprint dev-log.
+
+### PR #394 후속 FE 부채 등재 (2026-07-05)
+
+- **신규 4건**: BL-401(optimizer 3폼 field-level zod 에러 미렌더) / BL-402(백테스트 picker uncontrolled↔controlled + raw UUID, BL-164 SSOT 회귀) P2 + BL-400(`enabled: userId` 가드 도메인 비일관 — 통일 결정) / BL-403(recharts↔lwc↔inline-SVG 3원화 해소, BL-395 완료 후) P3.
+- **검증 노트**: backtest 폼은 field-level 에러 정상 렌더 확인(zod resolver 미사용) → BL-401 스코프에서 제외. 4건 모두 활성/archived/deferred 중복 grep 0건.
 
 ### TV-parity sprint (2026-07-05, 백테스팅 완성도 + 리포트 전문화)
 
