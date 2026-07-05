@@ -18,12 +18,13 @@ import { useAllBacktestTrades } from "@/features/backtest/hooks";
 import type { BacktestDetail } from "@/features/backtest/schemas";
 
 import { AssumptionsCard } from "../assumptions-card";
-import { MetricsDetail } from "../metrics-detail";
 import { StressTestPanel } from "../stress-test-panel";
 import { TradeAnalysis } from "../trade-analysis";
 import { TradeTable } from "../trade-table";
+import { DetailedResultsSection } from "./detailed-results-section";
 import { KeyStatsStrip } from "./key-stats-strip";
 import { PerformanceChart } from "./performance-chart";
+import { TradeAnalyticsSection } from "./trade-analytics-section";
 
 interface BacktestReportShellProps {
   backtest: BacktestDetail;
@@ -37,6 +38,12 @@ export function BacktestReportShell({
   const trades = useAllBacktestTrades(currentId);
   const tradeItems = trades.data?.items;
   const truncated = trades.data?.truncated ?? false;
+
+  const buyAndHoldPoints =
+    bt.metrics?.buy_and_hold_curve?.map(([timestamp, value]) => ({
+      timestamp,
+      value,
+    })) ?? null;
 
   if (!bt.metrics) {
     return null;
@@ -62,14 +69,7 @@ export function BacktestReportShell({
           initialCapital={bt.initial_capital}
           timeframe={bt.timeframe}
           mddExceedsCapital={bt.metrics.mdd_exceeds_capital ?? null}
-          buyAndHoldCurve={
-            bt.metrics.buy_and_hold_curve
-              ? bt.metrics.buy_and_hold_curve.map(([timestamp, value]) => ({
-                  timestamp,
-                  value,
-                }))
-              : null
-          }
+          buyAndHoldCurve={buyAndHoldPoints}
         />
       ) : null}
 
@@ -109,10 +109,20 @@ export function BacktestReportShell({
         </TabsList>
 
         <TabsContent value="detailed-results" className="mt-4">
-          <MetricsDetail metrics={bt.metrics} />
+          <DetailedResultsSection
+            metrics={bt.metrics}
+            equityCurve={bt.equity_curve ?? null}
+            buyAndHoldCurve={buyAndHoldPoints}
+            initialCapital={bt.initial_capital}
+          />
         </TabsContent>
 
-        <TabsContent value="trade-analysis" className="mt-4">
+        <TabsContent value="trade-analysis" className="mt-4 space-y-8">
+          <TradeAnalyticsSection
+            metrics={bt.metrics}
+            trades={tradeItems ?? []}
+            truncated={truncated}
+          />
           <TradeAnalysis metrics={bt.metrics} trades={tradeItems} />
         </TabsContent>
 
