@@ -17,11 +17,30 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import uuid4
 
-from src.backtest.engine.types import BacktestMetrics
+from pydantic import BaseModel
+
+from src.backtest.engine.types import (
+    BacktestMetrics,
+    ExcursionStats,
+    PerSideMetrics,
+    SideMetrics,
+)
 from src.backtest.models import Backtest, BacktestStatus
-from src.backtest.schemas import BacktestMetricsOut
+from src.backtest.schemas import (
+    BacktestMetricsOut,
+    ExcursionStatsOut,
+    PerSideMetricsOut,
+    SideMetricsOut,
+)
 from src.backtest.serializers import metrics_from_jsonb, metrics_to_jsonb
 from src.backtest.service import BacktestService
+
+# nested dataclass ↔ Pydantic sub-model parity 쌍 (tripwire ① 확장 대상).
+_NESTED_PAIRS: tuple[tuple[type, type], ...] = (
+    (SideMetrics, SideMetricsOut),
+    (PerSideMetrics, PerSideMetricsOut),
+    (ExcursionStats, ExcursionStatsOut),
+)
 
 
 def _strip_optional(tp: Any) -> Any:
@@ -46,6 +65,13 @@ def _synthetic_value(tp: Any, i: int) -> Any:
         return f"synthetic-{i}"
     if typing.get_origin(base) is list:  # list[tuple[str, Decimal]] 계열
         return [(f"2024-01-0{(i % 9) + 1}T00:00:00Z", Decimal(f"{i}.5"))]
+    if dataclasses.is_dataclass(base) and isinstance(base, type):
+        # nested dataclass — 재귀 완전-채움 (per_side/excursion_stats).
+        hints = typing.get_type_hints(base)
+        return base(**{
+            f.name: _synthetic_value(hints[f.name], i * 31 + j)
+            for j, f in enumerate(dataclasses.fields(base))
+        })
     raise AssertionError(
         f"tripwire 합성기 미지원 타입 {tp!r} — 신규 필드 타입이면 본 함수에 분기 추가"
     )
@@ -69,6 +95,18 @@ def test_dataclass_and_schema_field_sets_match() -> None:
         f"BL-388 drift: dataclass-only={dataclass_fields - schema_fields}, "
         f"schema-only={schema_fields - dataclass_fields} — 4-site 동시 수정 필요"
     )
+
+
+def test_nested_dataclass_and_schema_field_sets_match() -> None:
+    """tripwire ① 확장: nested 팩(dataclass ↔ Pydantic sub-model) parity."""
+    for dc, model in _NESTED_PAIRS:
+        dc_fields = {f.name for f in dataclasses.fields(dc)}
+        model_fields = set(model.model_fields)
+        assert dc_fields == model_fields, (
+            f"BL-388 nested drift ({dc.__name__} ↔ {model.__name__}): "
+            f"dataclass-only={dc_fields - model_fields}, "
+            f"schema-only={model_fields - dc_fields}"
+        )
 
 
 def test_full_metrics_generator_fills_every_field() -> None:
@@ -132,9 +170,27 @@ def test_to_detail_passes_through_every_metric_field() -> None:
     detail = _dbless_service()._to_detail(bt)
     assert detail.metrics is not None
     for name in BacktestMetricsOut.model_fields:
-        got = getattr(detail.metrics, name)
-        expected = getattr(m, name)
+        got = _plain(getattr(detail.metrics, name))
+        expected = _plain(getattr(m, name))
         assert got == expected, (
             f"BL-388 drift: _to_detail 이 {name} 을 전달하지 않음 "
             f"(got={got!r}, expected={expected!r})"
         )
+
+
+def _plain(v: Any) -> Any:
+    """Pydantic sub-model / nested dataclass → plain dict + Decimal → str 재귀 정규화.
+
+    model_dump 는 field_serializer(Decimal→str)를 적용하므로 양쪽 모두 str 로 통일.
+    """
+    if isinstance(v, BaseModel):
+        v = v.model_dump(mode="python")
+    elif dataclasses.is_dataclass(v) and not isinstance(v, type):
+        v = dataclasses.asdict(v)
+    if isinstance(v, dict):
+        return {k: _plain(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_plain(x) for x in v]
+    if isinstance(v, Decimal):
+        return str(v)
+    return v
