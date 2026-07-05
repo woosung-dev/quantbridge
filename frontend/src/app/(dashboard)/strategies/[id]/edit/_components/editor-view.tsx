@@ -70,16 +70,18 @@ export function EditorView({ id }: { id: string }) {
     }
   }, [serverStrategyId, serverPineSource, storeStrategyId, loadServerSnapshot]);
 
-  // URL 쿼리 ?action=archive/delete 초기 처리.
-  // useSearchParams는 Next.js router 외부 API라 effect 내 setState가 정당한 동기화 패턴.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    const action = params.get("action");
-    if (action === "delete" || action === "archive") {
+  // URL 쿼리 ?action=archive/delete — 초기값은 deleteOpen useState initializer 가 처리.
+  // 마운트 후 param 변경(같은 라우트 내 history 이동)은 render-time
+  // "reset state on prop change" 패턴으로 반영 (H-1: set-state-in-effect 금지).
+  const action = params.get("action");
+  const actionRequested = action === "delete" || action === "archive";
+  const [prevActionRequested, setPrevActionRequested] = useState(actionRequested);
+  if (actionRequested !== prevActionRequested) {
+    setPrevActionRequested(actionRequested);
+    if (actionRequested) {
       setDeleteOpen(true);
     }
-  }, [params]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }
 
   // Sprint FE-03: unload 경고 — isDirty 동안 browser tab close / refresh 시 확인.
   // 최신 브라우저는 preventDefault() 만으로 leave prompt 를 띄운다 (returnValue 는 legacy).

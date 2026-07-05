@@ -5,7 +5,7 @@
 // 2) POST /api/v1/strategies (useCreateStrategy)
 // 3) store.setStrategy(id) 후 다음 step 으로 이동
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircleIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,11 +28,24 @@ export function Step2Strategy({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const create = useCreateStrategy();
 
+  // 진행 중 샘플 fetch 를 unmount 시 중단 — stale 응답의 setState 방지.
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
   const handleStart = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setFetchError(null);
     setIsFetching(true);
     try {
-      const res = await fetch(SAMPLE_PINE_URL, { cache: "no-store" });
+      const res = await fetch(SAMPLE_PINE_URL, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       if (!res.ok) {
         throw new Error(`샘플 Pine 로드 실패 (status ${res.status})`);
       }
@@ -61,11 +74,14 @@ export function Step2Strategy({
         },
       );
     } catch (err) {
+      if (controller.signal.aborted) return; // unmount/재시도 abort — 상태 갱신 생략
       const message = err instanceof Error ? err.message : "알 수 없는 오류";
       setFetchError(message);
       toast.error(message);
     } finally {
-      setIsFetching(false);
+      if (!controller.signal.aborted) {
+        setIsFetching(false);
+      }
     }
   };
 

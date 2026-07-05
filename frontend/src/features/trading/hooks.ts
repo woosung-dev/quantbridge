@@ -147,6 +147,8 @@ export function useOrders(
   // 이전 주문 state 추적 — Map<orderId, state>
   // useRef 사용: 렌더 트리거 없이 mutable reference 유지
   const prevStatesRef = useRef<Map<string, Order["state"]>>(new Map());
+  // 마지막으로 전환 감지를 수행한 폴링 응답의 dataUpdatedAt — 커밋마다 재순회 방지 가드.
+  const processedAtRef = useRef(0);
 
   const query = useQuery({
     queryKey: tradingKeys.orders(uid, limit),
@@ -159,8 +161,12 @@ export function useOrders(
   });
 
   // C-3: 주문 상태 전환 감지 + toast.
-  // H-1 준수: dep array 없는 sync useEffect — 매 commit 후 실행. prevStatesRef 가 실질 변경만 토스트.
+  // H-1 준수: dep array 없는 sync useEffect — 매 commit 후 실행하되,
+  // dataUpdatedAt 스칼라 가드로 새 폴링 응답이 있을 때만 orders 를 순회한다.
   useEffect(() => {
+    if (query.dataUpdatedAt === processedAtRef.current) return;
+    processedAtRef.current = query.dataUpdatedAt;
+
     const items = query.data?.items;
     if (!items) return;
 
