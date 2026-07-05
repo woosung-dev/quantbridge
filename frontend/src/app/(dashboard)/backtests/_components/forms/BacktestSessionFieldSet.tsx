@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/select";
 import type { Timeframe } from "@/features/backtest/schemas";
 
-import { DatePresetPills, type DatePreset } from "./date-preset-pills";
-import type { BacktestFormValues } from "./useBacktestForm";
+import { DatePresetPills, type DatePreset } from "@/app/(dashboard)/backtests/_components/forms/date-preset-pills";
+import type { BacktestFormValues } from "@/app/(dashboard)/backtests/_components/forms/useBacktestForm";
 
 const TIMEFRAMES: readonly Timeframe[] = [
   "1m",

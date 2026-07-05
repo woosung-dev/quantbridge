@@ -24,7 +24,7 @@ vi.mock("@/components/charts/trading-chart", () => ({
   TradingChart: () => <div data-testid="mock-trading-chart" />,
 }));
 
-import { BacktestReportShell } from "../backtest-report-shell";
+import { BacktestReportShell } from "@/app/(dashboard)/backtests/_components/report/backtest-report-shell";
 
 const BT = {
   id: "11111111-2222-3333-4444-555555555555",

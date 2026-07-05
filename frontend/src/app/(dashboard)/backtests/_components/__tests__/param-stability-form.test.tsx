@@ -4,7 +4,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ParamStabilityForm } from "../param-stability-form";
+import { ParamStabilityForm } from "@/app/(dashboard)/backtests/_components/param-stability-form";
 
 describe("ParamStabilityForm (Sprint 52 BL-223)", () => {
   it("기본 preset 으로 렌더 + 제출 시 9-cell payload 생성", () => {

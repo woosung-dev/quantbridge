@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { FormSkeleton } from "@/components/skeleton";
 
-import { BacktestForm } from "../_components/backtest-form";
+import { BacktestForm } from "@/app/(dashboard)/backtests/_components/forms/backtest-form";
 
 export const metadata: Metadata = {
   title: "새 백테스트 | QuantBridge",

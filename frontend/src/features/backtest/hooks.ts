@@ -5,15 +5,19 @@
 //            queryFn은 모듈-level `makeXxxFetcher(...)` CallExpression 으로 @tanstack/query/exhaustive-deps 우회.
 // LESSON-004: polling refetchInterval은 error 시 false — 무한 루프/CPU 100% 방지.
 
-import { useAuth } from "@clerk/nextjs";
 import {
   useMutation,
   useQuery,
-  useQueryClient,
   type UseMutationResult,
   type UseQueryResult,
-  type Query,
 } from "@tanstack/react-query";
+
+import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
+import {
+  useInvalidatingMutation,
+  type MutationCallbacks,
+} from "@/hooks/use-invalidating-mutation";
+import { makeStatusPoll, type RefetchIntervalFn } from "@/lib/query-poll";
 
 import {
   cancelBacktest,
@@ -57,11 +61,7 @@ import type {
 
 export { backtestKeys, stressTestKeys };
 
-const ANON_USER_ID = "anon";
-
 const POLL_INTERVAL_MS = 30_000;
-
-type TokenGetter = () => Promise<string | null>;
 
 // --- queryFn factories (module-level, CallExpression at call site) ---------
 
@@ -132,36 +132,20 @@ function makeAllTradesFetcher(id: string, getToken: TokenGetter) {
 
 // --- polling interval — LESSON-004 guard ---------------------------------
 
-function progressRefetchInterval(
-  q: Query<BacktestProgressResponse, Error>,
-): number | false {
-  if (q.state.status === "error") return false;
-  const data = q.state.data;
-  if (data == null) return POLL_INTERVAL_MS;
-  if (
-    data.status === "completed" ||
-    data.status === "failed" ||
-    data.status === "cancelled"
-  ) {
-    return false;
-  }
-  return POLL_INTERVAL_MS;
-}
+const progressRefetchInterval = makeStatusPoll<BacktestProgressResponse>(
+  (d) => d.status,
+  new Set(["completed", "failed", "cancelled"]),
+  POLL_INTERVAL_MS,
+);
 
-// --- Mutation callback opts ----------------------------------------------
-
-export interface MutationCallbacks<TData, TError = Error> {
-  onSuccess?: (data: TData) => void;
-  onError?: (err: TError) => void;
-}
+export type { MutationCallbacks };
 
 // --- Hooks ---------------------------------------------------------------
 
 export function useBacktests(
   query: BacktestListQuery,
 ): UseQueryResult<BacktestListResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: backtestKeys.list(uid, query),
     queryFn: makeListFetcher(query, getToken),
@@ -171,8 +155,7 @@ export function useBacktests(
 export function useBacktest(
   id: string | undefined,
 ): UseQueryResult<BacktestDetail, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id ? backtestKeys.detail(uid, id) : backtestKeys.details(uid),
     queryFn: makeDetailFetcher(id ?? "", getToken),
@@ -183,8 +166,7 @@ export function useBacktest(
 export function useBacktestProgress(
   id: string | undefined,
 ): UseQueryResult<BacktestProgressResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id ? backtestKeys.progress(uid, id) : backtestKeys.all(uid),
     queryFn: makeProgressFetcher(id ?? "", getToken),
@@ -199,8 +181,7 @@ export function useBacktestTrades(
   query: BacktestTradesQuery,
   options: { enabled?: boolean } = {},
 ): UseQueryResult<TradeListResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id
       ? backtestKeys.trades(uid, id, query)
@@ -214,8 +195,7 @@ export function useAllBacktestTrades(
   id: string | undefined,
   options: { enabled?: boolean } = {},
 ): UseQueryResult<AllTradesResult, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id ? backtestKeys.tradesAll(uid, id) : backtestKeys.all(uid),
     queryFn: makeAllTradesFetcher(id ?? "", getToken),
@@ -228,66 +208,46 @@ export function useAllBacktestTrades(
 export function useCreateBacktest(
   opts: MutationCallbacks<BacktestCreatedResponse> = {},
 ): UseMutationResult<BacktestCreatedResponse, Error, CreateBacktestRequest> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: CreateBacktestRequest) => {
-      const token = await getToken();
-      return createBacktest(body, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (body: CreateBacktestRequest, token) =>
+        createBacktest(body, token),
+      invalidateKeys: (uid) => [backtestKeys.lists(uid)],
     },
-    onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: backtestKeys.lists(uid) });
-      opts.onSuccess?.(created);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 export function useCancelBacktest(
   opts: MutationCallbacks<BacktestCancelResponse> = {},
 ): UseMutationResult<BacktestCancelResponse, Error, string> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken();
-      return cancelBacktest(id, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (id: string, token) => cancelBacktest(id, token),
+      invalidateKeys: (uid, res) => [
+        backtestKeys.lists(uid),
+        backtestKeys.detail(uid, res.backtest_id),
+        backtestKeys.progress(uid, res.backtest_id),
+      ],
     },
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: backtestKeys.lists(uid) });
-      qc.invalidateQueries({
-        queryKey: backtestKeys.detail(uid, res.backtest_id),
-      });
-      qc.invalidateQueries({
-        queryKey: backtestKeys.progress(uid, res.backtest_id),
-      });
-      opts.onSuccess?.(res);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 export function useDeleteBacktest(
   opts: MutationCallbacks<void> = {},
 ): UseMutationResult<void, Error, string> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken();
-      return deleteBacktest(id, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (id: string, token) => deleteBacktest(id, token),
+      invalidateKeys: (uid) => [backtestKeys.lists(uid)],
+      removeKeys: (uid, _void, id) => [
+        backtestKeys.detail(uid, id),
+        backtestKeys.progress(uid, id),
+      ],
     },
-    onSuccess: (_void, id) => {
-      qc.invalidateQueries({ queryKey: backtestKeys.lists(uid) });
-      qc.removeQueries({ queryKey: backtestKeys.detail(uid, id) });
-      qc.removeQueries({ queryKey: backtestKeys.progress(uid, id) });
-      opts.onSuccess?.();
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 // --- Sprint 41 Worker H — share link (LESSON-004/005/006 정합) -------------
@@ -295,7 +255,7 @@ export function useDeleteBacktest(
 export function useCreateBacktestShare(
   opts: MutationCallbacks<ShareTokenResponse> = {},
 ): UseMutationResult<ShareTokenResponse, Error, string> {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthCtx();
   return useMutation({
     mutationFn: async (id: string) => {
       const token = await getToken();
@@ -309,7 +269,7 @@ export function useCreateBacktestShare(
 export function useRevokeBacktestShare(
   opts: MutationCallbacks<void> = {},
 ): UseMutationResult<void, Error, string> {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthCtx();
   return useMutation({
     mutationFn: async (id: string) => {
       const token = await getToken();
@@ -334,54 +294,31 @@ function makeStressTestFetcher(id: string, getToken: TokenGetter) {
 
 // LESSON-004 guard: refetchInterval 은 module-level 순수 함수로, terminal status 에서 false 반환.
 // React Query data 객체를 useEffect dep 로 쓰지 않아 CPU 100% 루프를 원천 차단.
-export function stressTestRefetchInterval(
-  q: Query<StressTestDetail, Error>,
-): number | false {
-  if (q.state.status === "error") return false;
-  const data = q.state.data;
-  if (data == null) return STRESS_TEST_POLL_MS;
-  if (data.status === "completed" || data.status === "failed") {
-    return false;
-  }
-  return STRESS_TEST_POLL_MS;
-}
+export const stressTestRefetchInterval: RefetchIntervalFn<StressTestDetail> =
+  makeStatusPoll((d) => d.status, new Set(["completed", "failed"]), STRESS_TEST_POLL_MS);
 
 export function useCreateMonteCarlo(
   opts: MutationCallbacks<StressTestCreatedResponse> = {},
 ): UseMutationResult<StressTestCreatedResponse, Error, CreateMonteCarloRequest> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: CreateMonteCarloRequest) => {
-      const token = await getToken();
-      return postMonteCarlo(body, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (body: CreateMonteCarloRequest, token) => postMonteCarlo(body, token),
+      invalidateKeys: (uid) => [stressTestKeys.all(uid)],
     },
-    onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
-      opts.onSuccess?.(created);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 export function useCreateWalkForward(
   opts: MutationCallbacks<StressTestCreatedResponse> = {},
 ): UseMutationResult<StressTestCreatedResponse, Error, CreateWalkForwardRequest> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: CreateWalkForwardRequest) => {
-      const token = await getToken();
-      return postWalkForward(body, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (body: CreateWalkForwardRequest, token) => postWalkForward(body, token),
+      invalidateKeys: (uid) => [stressTestKeys.all(uid)],
     },
-    onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
-      opts.onSuccess?.(created);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 // Sprint 50 — Cost Assumption Sensitivity (fees x slippage 9-cell grid).
@@ -392,20 +329,13 @@ export function useCreateCostAssumption(
   Error,
   CreateCostAssumptionRequest
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: CreateCostAssumptionRequest) => {
-      const token = await getToken();
-      return postCostAssumption(body, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (body: CreateCostAssumptionRequest, token) => postCostAssumption(body, token),
+      invalidateKeys: (uid) => [stressTestKeys.all(uid)],
     },
-    onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
-      opts.onSuccess?.(created);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 // Sprint 52 BL-223 — Param Stability (pine input_overrides 9-cell grid).
@@ -416,27 +346,19 @@ export function useCreateParamStability(
   Error,
   CreateParamStabilityRequest
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: CreateParamStabilityRequest) => {
-      const token = await getToken();
-      return postParamStability(body, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (body: CreateParamStabilityRequest, token) => postParamStability(body, token),
+      invalidateKeys: (uid) => [stressTestKeys.all(uid)],
     },
-    onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: stressTestKeys.all(uid) });
-      opts.onSuccess?.(created);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 export function useStressTest(
   id: string | null,
 ): UseQueryResult<StressTestDetail, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id
       ? stressTestKeys.detail(uid, id)

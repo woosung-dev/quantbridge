@@ -13,8 +13,8 @@ import type {
 } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
-import { PnlDistributionHistogram } from "./pnl-distribution-histogram";
-import { TradeOutcomeDonut } from "./trade-outcome-donut";
+import { PnlDistributionHistogram } from "@/app/(dashboard)/backtests/_components/report/pnl-distribution-histogram";
+import { TradeOutcomeDonut } from "@/app/(dashboard)/backtests/_components/report/trade-outcome-donut";
 
 interface TradeAnalyticsSectionProps {
   metrics: BacktestMetricsOut;

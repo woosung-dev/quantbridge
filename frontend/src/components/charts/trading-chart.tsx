@@ -9,22 +9,27 @@
 // - render body 에서 ref.current = value 대입 금지 (H-3 의무).
 // - chart instance 보관은 useEffect 안 (init effect 1회 + cleanup) 에서만.
 // - Strict Mode 더블 invoke 방어: cleanup 에서 chart.remove() + observer.disconnect() 모두 실행.
+//
+// 번들: lightweight-charts 는 init effect 안에서 dynamic import — route 초기 JS 제외.
+// 모듈 상단 import 는 전부 type-only (컴파일 시 제거).
 
 import { useTheme } from "next-themes";
 import { useEffect, useRef } from "react";
-import {
-  createChart,
-  type IChartApi,
-  type ISeriesApi,
-  type LineSeriesPartialOptions,
-  type LineData,
-  type AreaSeriesPartialOptions,
-  type AreaData,
-  type HistogramSeriesPartialOptions,
-  type HistogramData,
-  type SeriesMarker,
-  type Time,
-  type UTCTimestamp,
+import type { RefObject } from "react";
+import type {
+  ChartOptions,
+  DeepPartial,
+  IChartApi,
+  ISeriesApi,
+  LineSeriesPartialOptions,
+  LineData,
+  AreaSeriesPartialOptions,
+  AreaData,
+  HistogramSeriesPartialOptions,
+  HistogramData,
+  SeriesMarker,
+  Time,
+  UTCTimestamp,
 } from "lightweight-charts";
 
 import { resolveChartTokens } from "@/lib/chart-tokens";
@@ -83,7 +88,40 @@ export interface TradingChartProps {
   ariaLabel: string;
 }
 
+/** series 렌더에 필요한 props 부분집합 — 비동기 chart 생성 시점 스냅샷 전달용. */
+type SeriesSnapshot = Pick<
+  TradingChartProps,
+  "data" | "options" | "markers" | "benchmark" | "compare" | "area" | "histogram"
+>;
+
+/** 컴포넌트가 보유한 series 인스턴스 refs 번들 — syncSeries 가 읽고/쓴다. */
+interface SeriesRefs {
+  main: RefObject<ISeriesApi<"Line"> | null>;
+  benchmark: RefObject<ISeriesApi<"Line"> | null>;
+  compare: RefObject<ISeriesApi<"Line"> | null>;
+  area: RefObject<ISeriesApi<"Area"> | null>;
+  histogram: RefObject<ISeriesApi<"Histogram"> | null>;
+}
+
 // --- helpers --------------------------------------------------------------
+
+// lightweight-charts dynamic import 싱글턴 — 여러 chart 인스턴스가 동시에 마운트돼도
+// 모듈 로드는 1회만 발생 (vitest mock 레지스트리 동시 해석 경합 회피 겸용).
+interface LightweightChartsModule {
+  createChart: (
+    container: string | HTMLElement,
+    options?: DeepPartial<ChartOptions>,
+  ) => IChartApi;
+}
+
+let lwcModulePromise: Promise<LightweightChartsModule> | null = null;
+
+function loadLightweightCharts(): Promise<LightweightChartsModule> {
+  if (lwcModulePromise === null) {
+    lwcModulePromise = import("lightweight-charts");
+  }
+  return lwcModulePromise;
+}
 
 /**
  * lightweight-charts Time 직렬화 정규화.
@@ -151,22 +189,135 @@ function toMarkers(markers: readonly ChartMarker[]): SeriesMarker<Time>[] {
     .sort((a, b) => Number(a.time) - Number(b.time));
 }
 
+/**
+ * series 추가/갱신 — init(비동기 chart 생성 직후) + data effect(prop 변경) 공용.
+ * 모듈 레벨 함수: refs 번들을 인자로 받아 컴포넌트 스코프 클로저 dep 를 만들지 않는다.
+ */
+function syncSeries(chart: IChartApi, refs: SeriesRefs, snapshot: SeriesSnapshot) {
+  const { data, options, markers, benchmark, compare, area, histogram } = snapshot;
+
+  // 시리즈 기본색 — chart-tokens SSOT (호출측 options 로 override 가능).
+  const palette = resolveChartTokens();
+
+  // main line series — equity curve.
+  if (refs.main.current === null) {
+    refs.main.current = chart.addLineSeries({
+      color: palette.equity,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      ...options,
+    });
+  } else {
+    refs.main.current.applyOptions({ ...options });
+  }
+  refs.main.current.setData(toLineData(data));
+
+  if (markers !== undefined) {
+    refs.main.current.setMarkers(toMarkers(markers));
+  } else {
+    refs.main.current.setMarkers([]);
+  }
+
+  // benchmark line series.
+  if (benchmark !== undefined) {
+    if (refs.benchmark.current === null) {
+      refs.benchmark.current = chart.addLineSeries({
+        color: palette.benchmark,
+        lineWidth: 1,
+        lineStyle: 2, // dashed
+        priceLineVisible: false,
+        lastValueVisible: false,
+        ...benchmark.options,
+      });
+    } else {
+      refs.benchmark.current.applyOptions({ ...benchmark.options });
+    }
+    refs.benchmark.current.setData(toLineData(benchmark.data));
+  } else if (refs.benchmark.current !== null) {
+    chart.removeSeries(refs.benchmark.current);
+    refs.benchmark.current = null;
+  }
+
+  // compare line series (다른 백테스트 오버레이) — benchmark 와 독립 solid 라인.
+  if (compare !== undefined) {
+    if (refs.compare.current === null) {
+      refs.compare.current = chart.addLineSeries({
+        color: palette.compare,
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        ...compare.options,
+      });
+    } else {
+      refs.compare.current.applyOptions({ ...compare.options });
+    }
+    refs.compare.current.setData(toLineData(compare.data));
+  } else if (refs.compare.current !== null) {
+    chart.removeSeries(refs.compare.current);
+    refs.compare.current = null;
+  }
+
+  // area overlay (drawdown).
+  if (area !== undefined) {
+    if (refs.area.current === null) {
+      refs.area.current = chart.addAreaSeries({
+        topColor: palette.ddTop,
+        bottomColor: palette.ddBottom,
+        lineColor: palette.ddLine,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        ...area.options,
+      });
+    } else {
+      refs.area.current.applyOptions({ ...area.options });
+    }
+    refs.area.current.setData(toAreaData(area.data));
+  } else if (refs.area.current !== null) {
+    chart.removeSeries(refs.area.current);
+    refs.area.current = null;
+  }
+
+  // histogram overlay (per-trade PnL 바) — per-point color 는 데이터에 포함.
+  if (histogram !== undefined) {
+    if (refs.histogram.current === null) {
+      refs.histogram.current = chart.addHistogramSeries({
+        color: palette.equity,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        ...histogram.options,
+      });
+    } else {
+      refs.histogram.current.applyOptions({ ...histogram.options });
+    }
+    refs.histogram.current.setData(toHistogramData(histogram.data));
+  } else if (refs.histogram.current !== null) {
+    chart.removeSeries(refs.histogram.current);
+    refs.histogram.current = null;
+  }
+
+  chart.timeScale().fitContent();
+}
+
 // --- component ------------------------------------------------------------
 
 /**
  * TradingChart — lightweight-charts wrapper 단일 컴포넌트.
  *
  * 라이프사이클:
- * 1) init effect (deps `[height]`) — chart 생성 + ResizeObserver 부착. cleanup 에서 chart.remove() + observer.disconnect().
- * 2) data effect (deps `[data, options.color, ...]` — JSON.stringify 회피, primitive 만) — 데이터 갱신.
+ * 1) init effect (deps `[height, themeKey]`) — dynamic import 후 chart 생성 + ResizeObserver 부착
+ *    + 최신 props 스냅샷으로 초기 series sync. cleanup 에서 chart.remove() + observer.disconnect().
+ * 2) data effect (deps primitive/stable refs 만 — JSON.stringify 회피) — 데이터 갱신.
  *
  * Strict Mode 더블 invoke:
- * - effect 가 두 번 실행되어도 cleanup 이 먼저 호출 → chart.remove() 로 누수 방지.
+ * - effect 가 두 번 실행되어도 cleanup 이 먼저 호출 → disposed 가드 + chart.remove() 로 누수 방지.
  * - chartRef 는 cleanup 시 null 로 reset → 재invoke 시 새 chart 생성.
  *
  * jsdom 환경:
  * - lightweight-charts 는 jsdom 에서 createChart 호출 시 canvas 의존 → 실제 렌더 X (mock 의무).
  * - 본 컴포넌트의 vitest 테스트는 vi.mock('lightweight-charts') 로 createChart spy 검증.
+ * - chart 생성이 비동기(dynamic import)이므로 테스트는 microtask flush 후 단정 의무.
  */
 export function TradingChart({
   data,
@@ -191,55 +342,96 @@ export function TradingChart({
   const { resolvedTheme } = useTheme();
   const themeKey = resolvedTheme === "dark" ? "dark" : "light";
 
-  // --- init effect: chart 생성 + ResizeObserver. height 변경 시만 재생성. ---
+  // 최신 series props 스냅샷 — chart 가 dynamic import 후 비동기로 생성되므로,
+  // 생성 시점에 stale closure 가 아닌 최신 커밋 props 로 초기 시리즈를 채우기 위함.
+  // deps 없는 sync useEffect 로 매 commit 갱신 (H-3 표준 패턴).
+  const propsRef = useRef<SeriesSnapshot>({
+    data,
+    options,
+    markers,
+    benchmark,
+    compare,
+    area,
+    histogram,
+  });
+  useEffect(() => {
+    propsRef.current = { data, options, markers, benchmark, compare, area, histogram };
+  });
+
+  // --- init effect: chart 생성 + ResizeObserver. height/테마 변경 시만 재생성. ---
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) {
       return;
     }
 
-    // DESIGN.md §0: 앱 테마(.dark) 토큰을 resolved hex/rgba 로 읽어 적용.
-    // lightweight-charts 는 var()/currentColor 파싱 불가(colorStringToRgba throw) →
-    // chart-tokens.ts SSOT 로 해석해 전달. themeKey 변경 시 init effect 가
-    // 재실행되어 chart 재생성(아래 deps) → 토글 즉시 반영.
-    const palette = resolveChartTokens();
-    const axisColor = palette.axis;
-    const gridColor = palette.grid;
-
-    const chart = createChart(container, {
-      height,
-      width: container.clientWidth || 600,
-      layout: {
-        background: { color: "transparent" },
-        textColor: axisColor,
-      },
-      grid: {
-        vertLines: { color: gridColor },
-        horzLines: { color: gridColor },
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      autoSize: false,
-    });
-    chartRef.current = chart;
-
-    // ResizeObserver — 컨테이너 크기 변동 시 chart resize.
+    let disposed = false;
     let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const w = entry.contentRect.width;
-          if (w >= 1 && chartRef.current !== null) {
-            chartRef.current.applyOptions({ width: Math.floor(w) });
-          }
-        }
+
+    // 번들 절감: lightweight-charts 는 chart 생성 시점에만 필요 → effect 안 dynamic import
+    // (route 초기 JS 에서 제외). cleanup 이 먼저 실행된 경우 disposed 가드로 생성 skip.
+    void loadLightweightCharts().then(({ createChart }) => {
+      if (disposed || containerRef.current === null) {
+        return;
+      }
+
+      // DESIGN.md §0: 앱 테마(.dark) 토큰을 resolved hex/rgba 로 읽어 적용.
+      // lightweight-charts 는 var()/currentColor 파싱 불가(colorStringToRgba throw) →
+      // chart-tokens.ts SSOT 로 해석해 전달. themeKey 변경 시 init effect 가
+      // 재실행되어 chart 재생성(아래 deps) → 토글 즉시 반영.
+      const palette = resolveChartTokens();
+      const axisColor = palette.axis;
+      const gridColor = palette.grid;
+
+      const chart = createChart(container, {
+        height,
+        width: container.clientWidth || 600,
+        layout: {
+          background: { color: "transparent" },
+          textColor: axisColor,
+        },
+        grid: {
+          vertLines: { color: gridColor },
+          horzLines: { color: gridColor },
+        },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+        },
+        autoSize: false,
       });
-      observer.observe(container);
-    }
+      chartRef.current = chart;
+
+      // ResizeObserver — 컨테이너 크기 변동 시 chart resize.
+      if (typeof ResizeObserver !== "undefined") {
+        observer = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const w = entry.contentRect.width;
+            if (w >= 1 && chartRef.current !== null) {
+              chartRef.current.applyOptions({ width: Math.floor(w) });
+            }
+          }
+        });
+        observer.observe(container);
+      }
+
+      // 초기 시리즈 채움 — data effect 는 chart 생성 전(chartRef null)에 이미
+      // 지나갔을 수 있으므로 여기서 최신 스냅샷으로 직접 sync.
+      syncSeries(
+        chart,
+        {
+          main: mainSeriesRef,
+          benchmark: benchmarkSeriesRef,
+          compare: compareSeriesRef,
+          area: areaSeriesRef,
+          histogram: histogramSeriesRef,
+        },
+        propsRef.current,
+      );
+    });
 
     return () => {
+      disposed = true;
       if (observer !== null) {
         observer.disconnect();
       }
@@ -259,114 +451,23 @@ export function TradingChart({
   // --- data effect: series 추가/갱신. ---
   // dep 는 primitive 또는 stable refs 만 — LESSON-004 H-1 준수.
   // data/markers/benchmark/area 는 호출 측 책임으로 stable identity 유지 (useMemo 권장).
+  // chart 미생성(비동기 import 진행 중) 시 skip — 생성 직후 init effect 가 sync 담당.
   useEffect(() => {
     const chart = chartRef.current;
     if (chart === null) {
       return;
     }
-
-    // 시리즈 기본색 — chart-tokens SSOT (호출측 options 로 override 가능).
-    const palette = resolveChartTokens();
-
-    // main line series — equity curve.
-    if (mainSeriesRef.current === null) {
-      mainSeriesRef.current = chart.addLineSeries({
-        color: palette.equity,
-        lineWidth: 2,
-        priceLineVisible: false,
-        lastValueVisible: true,
-        ...options,
-      });
-    } else {
-      mainSeriesRef.current.applyOptions({ ...options });
-    }
-    mainSeriesRef.current.setData(toLineData(data));
-
-    if (markers !== undefined) {
-      mainSeriesRef.current.setMarkers(toMarkers(markers));
-    } else {
-      mainSeriesRef.current.setMarkers([]);
-    }
-
-    // benchmark line series.
-    if (benchmark !== undefined) {
-      if (benchmarkSeriesRef.current === null) {
-        benchmarkSeriesRef.current = chart.addLineSeries({
-          color: palette.benchmark,
-          lineWidth: 1,
-          lineStyle: 2, // dashed
-          priceLineVisible: false,
-          lastValueVisible: false,
-          ...benchmark.options,
-        });
-      } else {
-        benchmarkSeriesRef.current.applyOptions({ ...benchmark.options });
-      }
-      benchmarkSeriesRef.current.setData(toLineData(benchmark.data));
-    } else if (benchmarkSeriesRef.current !== null) {
-      chart.removeSeries(benchmarkSeriesRef.current);
-      benchmarkSeriesRef.current = null;
-    }
-
-    // compare line series (다른 백테스트 오버레이) — benchmark 와 독립 solid 라인.
-    if (compare !== undefined) {
-      if (compareSeriesRef.current === null) {
-        compareSeriesRef.current = chart.addLineSeries({
-          color: palette.compare,
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          ...compare.options,
-        });
-      } else {
-        compareSeriesRef.current.applyOptions({ ...compare.options });
-      }
-      compareSeriesRef.current.setData(toLineData(compare.data));
-    } else if (compareSeriesRef.current !== null) {
-      chart.removeSeries(compareSeriesRef.current);
-      compareSeriesRef.current = null;
-    }
-
-    // area overlay (drawdown).
-    if (area !== undefined) {
-      if (areaSeriesRef.current === null) {
-        areaSeriesRef.current = chart.addAreaSeries({
-          topColor: palette.ddTop,
-          bottomColor: palette.ddBottom,
-          lineColor: palette.ddLine,
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          ...area.options,
-        });
-      } else {
-        areaSeriesRef.current.applyOptions({ ...area.options });
-      }
-      areaSeriesRef.current.setData(toAreaData(area.data));
-    } else if (areaSeriesRef.current !== null) {
-      chart.removeSeries(areaSeriesRef.current);
-      areaSeriesRef.current = null;
-    }
-
-    // histogram overlay (per-trade PnL 바) — per-point color 는 데이터에 포함.
-    if (histogram !== undefined) {
-      if (histogramSeriesRef.current === null) {
-        histogramSeriesRef.current = chart.addHistogramSeries({
-          color: palette.equity,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          ...histogram.options,
-        });
-      } else {
-        histogramSeriesRef.current.applyOptions({ ...histogram.options });
-      }
-      histogramSeriesRef.current.setData(toHistogramData(histogram.data));
-    } else if (histogramSeriesRef.current !== null) {
-      chart.removeSeries(histogramSeriesRef.current);
-      histogramSeriesRef.current = null;
-    }
-
-    chart.timeScale().fitContent();
+    syncSeries(
+      chart,
+      {
+        main: mainSeriesRef,
+        benchmark: benchmarkSeriesRef,
+        compare: compareSeriesRef,
+        area: areaSeriesRef,
+        histogram: histogramSeriesRef,
+      },
+      { data, options, markers, benchmark, compare, area, histogram },
+    );
     // themeKey: init effect 가 테마 토글 시 chart 를 재생성(series ref null) → 본 effect 가
     // 재실행되어 재생성된 chart 에 series 를 다시 채워야 함 (빈 차트 방지).
   }, [data, markers, benchmark, compare, area, histogram, options, themeKey]);

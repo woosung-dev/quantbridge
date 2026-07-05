@@ -3,15 +3,15 @@
 // Optimizer React Query hooks — Clerk JWT + userId factory pattern (LESSON-005).
 // polling refetchInterval = RUNNING/QUEUED 시 2s, COMPLETED/FAILED 시 false (LESSON-004 CPU 보호).
 
-import { useAuth } from "@clerk/nextjs";
 import {
-  useMutation,
   useQuery,
-  useQueryClient,
-  type Query,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
+import { useInvalidatingMutation } from "@/hooks/use-invalidating-mutation";
+import { makeRefetchInterval } from "@/lib/query-poll";
 
 import {
   getOptimizationRun,
@@ -32,7 +32,14 @@ import type {
 
 export { optimizerKeys };
 
-const ANON_USER_ID = "anon";
+// LESSON-004: status QUEUED/RUNNING 시 2s polling, 종료 status/data 미도착 시 false.
+// (기존 `q.state.error` 가드는 다른 도메인과 동일한 status 기반 가드로 통일 — makeRefetchInterval.)
+const runDetailRefetchInterval = makeRefetchInterval<OptimizationRunResponse>(
+  (data) => {
+    const status = data?.status;
+    return status === "queued" || status === "running" ? 2_000 : false;
+  },
+);
 
 function makeRunListFetcher(query: OptimizationRunListQuery, getToken: () => Promise<string | null>) {
   return async () => listOptimizationRuns(query, await getToken());
@@ -45,8 +52,7 @@ function makeRunDetailFetcher(id: string, getToken: () => Promise<string | null>
 export function useOptimizationRuns(
   query: OptimizationRunListQuery,
 ): UseQueryResult<OptimizationRunListResponse> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, userId, getToken } = useAuthCtx();
   return useQuery({
     queryKey: optimizerKeys.list(uid, query),
     queryFn: makeRunListFetcher(query, getToken),
@@ -57,19 +63,12 @@ export function useOptimizationRuns(
 export function useOptimizationRun(
   id: string | null,
 ): UseQueryResult<OptimizationRunResponse> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, userId, getToken } = useAuthCtx();
   return useQuery({
     queryKey: optimizerKeys.detail(uid, id ?? "none"),
     queryFn: makeRunDetailFetcher(id ?? "", getToken),
     enabled: userId != null && id != null,
-    // LESSON-004: status QUEUED/RUNNING 시 2s polling, 종료 status 시 false.
-    refetchInterval: (q: Query<OptimizationRunResponse>) => {
-      if (q.state.error) return false;
-      const status = q.state.data?.status;
-      if (status === "queued" || status === "running") return 2000;
-      return false;
-    },
+    refetchInterval: runDetailRefetchInterval,
   });
 }
 
@@ -78,14 +77,10 @@ export function useSubmitGridSearch(): UseMutationResult<
   Error,
   CreateOptimizationRunRequest
 > {
-  const { userId, getToken } = useAuth();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (body) => postGridSearch(body, await getToken()),
-    onSuccess: () => {
-      const uid = userId ?? ANON_USER_ID;
-      void queryClient.invalidateQueries({ queryKey: optimizerKeys.all(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (body: CreateOptimizationRunRequest, token) =>
+      postGridSearch(body, token),
+    invalidateKeys: (uid) => [optimizerKeys.all(uid)],
   });
 }
 
@@ -95,14 +90,10 @@ export function useSubmitBayesianSearch(): UseMutationResult<
   Error,
   CreateOptimizationRunRequest
 > {
-  const { userId, getToken } = useAuth();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (body) => postBayesianSearch(body, await getToken()),
-    onSuccess: () => {
-      const uid = userId ?? ANON_USER_ID;
-      void queryClient.invalidateQueries({ queryKey: optimizerKeys.all(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (body: CreateOptimizationRunRequest, token) =>
+      postBayesianSearch(body, token),
+    invalidateKeys: (uid) => [optimizerKeys.all(uid)],
   });
 }
 
@@ -112,13 +103,9 @@ export function useSubmitGeneticSearch(): UseMutationResult<
   Error,
   CreateOptimizationRunRequest
 > {
-  const { userId, getToken } = useAuth();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (body) => postGeneticSearch(body, await getToken()),
-    onSuccess: () => {
-      const uid = userId ?? ANON_USER_ID;
-      void queryClient.invalidateQueries({ queryKey: optimizerKeys.all(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (body: CreateOptimizationRunRequest, token) =>
+      postGeneticSearch(body, token),
+    invalidateKeys: (uid) => [optimizerKeys.all(uid)],
   });
 }

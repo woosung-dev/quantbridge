@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MonthlyReturnsHeatmap } from "../monthly-returns-heatmap";
+import { MonthlyReturnsHeatmap } from "@/app/(dashboard)/backtests/_components/charts/monthly-returns-heatmap";
 
 describe("MonthlyReturnsHeatmap (Sprint 30-γ-FE)", () => {
   it("data null 시 안내 메시지", () => {

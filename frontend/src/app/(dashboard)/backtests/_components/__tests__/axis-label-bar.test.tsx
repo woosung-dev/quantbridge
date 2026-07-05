@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { AxisLabelBar } from "../axis-label-bar";
+import { AxisLabelBar } from "@/app/(dashboard)/backtests/_components/charts/axis-label-bar";
 
 describe("AxisLabelBar (Sprint 32-C BL-172)", () => {
   it("renders Y-axis and X-axis labels for equity variant", () => {

@@ -7,7 +7,7 @@ import type {
   EquityPoint,
 } from "@/features/backtest/schemas";
 
-import { DetailedResultsSection } from "../detailed-results-section";
+import { DetailedResultsSection } from "@/app/(dashboard)/backtests/_components/report/detailed-results-section";
 
 const METRICS = {
   total_return: 0.2,

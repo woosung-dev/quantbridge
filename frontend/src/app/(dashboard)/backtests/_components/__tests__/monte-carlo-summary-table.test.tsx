@@ -5,7 +5,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { MonteCarloResult } from "@/features/backtest/schemas";
-import { MonteCarloSummaryTable } from "../monte-carlo-summary-table";
+import { MonteCarloSummaryTable } from "@/app/(dashboard)/backtests/_components/monte-carlo-summary-table";
 
 // schema decimalString → number 변환 후 형태 (zod parse 결과 미러).
 const RESULT: MonteCarloResult = {

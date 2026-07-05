@@ -3,7 +3,7 @@
 // Sprint 7c T4 Step 3 — 메타데이터 입력 + 확인 제출.
 // Sprint FE-D: tags 필드를 chip-style TagInput 으로 교체. RHF Controller 로 배선.
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { ArrowLeftIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +35,7 @@ export function StepMetadata(props: {
   onSubmit: (meta: MetadataForm) => void;
 }) {
   const form = useForm<MetadataForm>({
-    resolver: zodResolver(CreateStrategyRequestSchema.omit({ pine_source: true })),
+    resolver: zodV4Resolver(CreateStrategyRequestSchema.omit({ pine_source: true })),
     defaultValues: {
       name: "",
       description: "",

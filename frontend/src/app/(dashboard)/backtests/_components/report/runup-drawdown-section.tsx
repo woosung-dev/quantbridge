@@ -16,7 +16,7 @@ import type {
 } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
-import { MetricTable, type MetricRowSpec } from "./metric-table";
+import { MetricTable, type MetricRowSpec } from "@/app/(dashboard)/backtests/_components/report/metric-table";
 
 interface RunupDrawdownSectionProps {
   metrics: BacktestMetricsOut;

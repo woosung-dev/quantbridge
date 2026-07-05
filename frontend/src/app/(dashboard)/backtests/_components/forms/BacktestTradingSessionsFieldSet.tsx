@@ -5,7 +5,7 @@ import { useWatch, type Control, type UseFormSetValue } from "react-hook-form";
 
 import type { TradingSession } from "@/features/backtest/schemas";
 
-import type { BacktestFormValues } from "./useBacktestForm";
+import type { BacktestFormValues } from "@/app/(dashboard)/backtests/_components/forms/useBacktestForm";
 
 interface BacktestTradingSessionsFieldSetProps {
   control: Control<BacktestFormValues>;

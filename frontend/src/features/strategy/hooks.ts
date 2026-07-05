@@ -12,7 +12,6 @@
 //     이 접근은 실제 런타임 의존성을 queryKey의 userId/query identity로 커버하고,
 //     `getToken`은 매 호출마다 최신 JWT를 받아오는 accessor이므로 queryKey 대상이 아니다.
 
-import { useAuth } from "@clerk/nextjs";
 import {
   useMutation,
   useQuery,
@@ -20,6 +19,12 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+
+import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
+import {
+  useInvalidatingMutation,
+  type MutationCallbacks,
+} from "@/hooks/use-invalidating-mutation";
 
 import {
   createStrategy,
@@ -48,12 +53,6 @@ import { cacheWebhookSecret } from "./webhook-secret-storage";
 // RSC에서도 참조할 수 있도록 key factory는 query-keys.ts에 분리. 호환성 re-export.
 export { strategyKeys };
 
-// 비로그인 상태에서도 useQuery가 활성화되는 것을 막기 위한 sentinel.
-// Clerk middleware가 보호된 라우트에서는 userId를 항상 제공하지만, 공개 페이지에서
-// hook이 호출될 여지를 고려하여 "anon" fallback을 factory에 넘긴다.
-const ANON_USER_ID = "anon";
-
-type TokenGetter = () => Promise<string | null>;
 
 // --- queryFn factories (module-level, no closure capture at call site) -------
 // Hook 내부에서 이 함수들을 호출해 그 반환값을 queryFn으로 넘긴다.
@@ -86,8 +85,7 @@ function makeParsePreviewFetcher(pineSource: string, getToken: TokenGetter) {
 export function useStrategies(
   query: StrategyListQuery,
 ): UseQueryResult<StrategyListResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: strategyKeys.list(uid, query),
     queryFn: makeListFetcher(query, getToken),
@@ -100,8 +98,7 @@ export function useStrategies(
 export function useStrategy(
   id: string | undefined,
 ): UseQueryResult<StrategyResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id ? strategyKeys.detail(uid, id) : strategyKeys.details(uid),
     queryFn: makeDetailFetcher(id ?? "", getToken),
@@ -109,18 +106,13 @@ export function useStrategy(
   });
 }
 
-// T5에서 추가된 hook-level callback 옵션. cache invalidation은 내부에서 유지하고,
-// 호출부의 UX 반응(toast, dialog phase 전환 등)만 선택적으로 주입.
-export interface MutationCallbacks<TData, TError = Error> {
-  onSuccess?: (data: TData) => void;
-  onError?: (err: TError) => void;
-}
+// T5에서 추가된 hook-level callback 옵션 — 공용 정의 re-export (호환성 유지).
+export type { MutationCallbacks };
 
 export function useCreateStrategy(
   opts: MutationCallbacks<StrategyCreateResponse> = {},
 ): UseMutationResult<StrategyCreateResponse, Error, CreateStrategyRequest> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: CreateStrategyRequest) => {
@@ -154,7 +146,7 @@ export function useRotateWebhookSecret(
   strategyId: string,
   opts: MutationCallbacks<WebhookRotateResponse> = {},
 ): UseMutationResult<WebhookRotateResponse, Error, void> {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthCtx();
   return useMutation({
     mutationFn: async () => {
       const token = await getToken();
@@ -172,8 +164,7 @@ export function useUpdateStrategy(
   id: string,
   opts: MutationCallbacks<StrategyResponse> = {},
 ): UseMutationResult<StrategyResponse, Error, UpdateStrategyRequest> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: UpdateStrategyRequest) => {
@@ -196,48 +187,37 @@ export function useUpdateStrategySettings(
   id: string,
   opts: MutationCallbacks<StrategyResponse> = {},
 ): UseMutationResult<StrategyResponse, Error, UpdateStrategySettingsRequest> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: UpdateStrategySettingsRequest) => {
-      const token = await getToken();
-      return updateStrategySettings(id, body, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (body: UpdateStrategySettingsRequest, token) =>
+        updateStrategySettings(id, body, token),
+      // codex G.2 P1 #3 — detail 은 invalidate (setQueryData 금지: race window).
+      invalidateKeys: (uid, updated) => [
+        strategyKeys.lists(uid),
+        strategyKeys.detail(uid, updated.id),
+      ],
     },
-    onSuccess: (updated) => {
-      qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
-      // codex G.2 P1 #3 — invalidate detail (setQueryData 금지: race window).
-      qc.invalidateQueries({ queryKey: strategyKeys.detail(uid, updated.id) });
-      opts.onSuccess?.(updated);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 export function useDeleteStrategy(
   opts: MutationCallbacks<void> = {},
 ): UseMutationResult<void, Error, string> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken();
-      return deleteStrategy(id, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (id: string, token) => deleteStrategy(id, token),
+      invalidateKeys: (uid) => [strategyKeys.lists(uid)],
+      removeKeys: (uid, _void, id) => [strategyKeys.detail(uid, id)],
     },
-    onSuccess: (_void, id) => {
-      qc.invalidateQueries({ queryKey: strategyKeys.lists(uid) });
-      qc.removeQueries({ queryKey: strategyKeys.detail(uid, id) });
-      opts.onSuccess?.();
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
 
 export function useParseStrategy(
   opts: MutationCallbacks<ParsePreviewResponse> = {},
 ): UseMutationResult<ParsePreviewResponse, Error, string> {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthCtx();
   return useMutation({
     mutationFn: async (pine_source: string) => {
       const token = await getToken();
@@ -256,8 +236,7 @@ export function useParseStrategy(
 export function usePreviewParse(
   pineSource: string,
 ): UseQueryResult<ParsePreviewResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   const trimmed = pineSource.trim();
   return useQuery({
     queryKey: strategyKeys.parsePreview(uid, trimmed),

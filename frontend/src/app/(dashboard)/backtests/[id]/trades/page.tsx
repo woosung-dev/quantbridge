@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { TradeDetailShell } from "../../_components/trade-detail-shell";
+import { TradeDetailShell } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-shell";
 
 export const metadata: Metadata = {
   title: "거래 내역 | QuantBridge",

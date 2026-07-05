@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EquityPoint } from "@/features/backtest/schemas";
 
-import { EquityChartV2 } from "../equity-chart-v2";
+import { EquityChartV2 } from "@/app/(dashboard)/backtests/_components/charts/equity-chart-v2";
 
 // lightweight-charts mock — 본 테스트는 chart 자체보다 컨트롤 동작 검증.
 vi.mock("lightweight-charts", () => ({

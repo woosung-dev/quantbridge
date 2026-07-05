@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { toast } from "sonner";
@@ -68,7 +68,7 @@ export function WaitlistFormCard() {
   const [submitted, setSubmitted] = useState(false);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(FormSchema),
+    resolver: zodV4Resolver(FormSchema),
     defaultValues: {
       email: "",
       tv_subscription: "pro_plus",

@@ -5,7 +5,7 @@ import type { UseFormRegister, FieldErrors } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
 
-import type { BacktestFormValues } from "./useBacktestForm";
+import type { BacktestFormValues } from "@/app/(dashboard)/backtests/_components/forms/useBacktestForm";
 
 interface BacktestCostFieldSetProps {
   register: UseFormRegister<BacktestFormValues>;

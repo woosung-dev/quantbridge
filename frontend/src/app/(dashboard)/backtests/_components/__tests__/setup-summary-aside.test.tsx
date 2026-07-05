@@ -2,7 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SetupSummaryAside } from "../setup-summary-aside";
+import { SetupSummaryAside } from "@/app/(dashboard)/backtests/_components/setup-summary-aside";
 
 describe("SetupSummaryAside", () => {
   it("formValues 변경 시 row 가 갱신됨", () => {

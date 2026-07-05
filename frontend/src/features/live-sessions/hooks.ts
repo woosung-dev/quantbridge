@@ -8,15 +8,16 @@
 //         queryKey factory userId 첫 인자.
 // 폴링: state 는 active 시 5s / idle 시 30s, list 는 30s.
 
-import { useAuth } from "@clerk/nextjs";
 import {
-  useMutation,
   useQueries,
   useQuery,
-  useQueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+
+import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
+import { useInvalidatingMutation } from "@/hooks/use-invalidating-mutation";
+import { makeRefetchInterval, type RefetchIntervalFn } from "@/lib/query-poll";
 
 import { mergeCumulativeCurves, type CurvePoint } from "./aggregate";
 import {
@@ -38,9 +39,30 @@ import {
   computeLiveSessionStateRefetchInterval,
 } from "./utils";
 
-const ANON_USER_ID = "anon";
 
-type TokenGetter = () => Promise<string | null>;
+// ── refetchInterval (module-level — LESSON-004 error→false 가드) ────────
+
+const listRefetchInterval = makeRefetchInterval<{
+  items: LiveSession[];
+  total: number;
+}>(() => LIVE_SESSION_LIST_REFETCH_MS);
+
+const eventsRefetchInterval = makeRefetchInterval<{
+  items: LiveSignalEvent[];
+}>(() => LIVE_SESSION_LIST_REFETCH_MS);
+
+/**
+ * 세션 state 폴링 간격 — active 여부에 따라 5s/30s, error 시 중단.
+ * useLiveSessionState(단건)와 useLiveSessionsAggregate(팬아웃) 공용.
+ * (기존 aggregate 는 상수 interval 을 그대로 넘겨 error 가드가 빠져 있었다 — LESSON-004 위반 수정.)
+ */
+export function liveStateRefetchInterval(
+  isActive: boolean,
+): RefetchIntervalFn<LiveSignalState | null> {
+  return makeRefetchInterval(() =>
+    computeLiveSessionStateRefetchInterval(isActive),
+  );
+}
 
 // ── queryFn factories (module-level — H-2 우회 패턴) ────────────────────
 
@@ -71,13 +93,11 @@ export function useLiveSessions(): UseQueryResult<
   { items: LiveSession[]; total: number },
   Error
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: liveSessionKeys.list(uid),
     queryFn: makeListFetcher(getToken),
-    refetchInterval: (q) =>
-      q.state.status === "error" ? false : LIVE_SESSION_LIST_REFETCH_MS,
+    refetchInterval: listRefetchInterval,
   });
 }
 
@@ -85,16 +105,12 @@ export function useLiveSessionState(
   sessionId: string | null,
   isActive: boolean,
 ): UseQueryResult<LiveSignalState | null, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: liveSessionKeys.state(uid, sessionId ?? ""),
     queryFn: makeStateFetcher(sessionId ?? "", getToken),
     enabled: Boolean(sessionId),
-    refetchInterval: (q) => {
-      if (q.state.status === "error") return false;
-      return computeLiveSessionStateRefetchInterval(isActive);
-    },
+    refetchInterval: liveStateRefetchInterval(isActive),
   });
 }
 
@@ -119,14 +135,13 @@ export interface LiveSessionsAggregate {
 export function useLiveSessionsAggregate(
   sessions: readonly LiveSession[],
 ): LiveSessionsAggregate {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   const results = useQueries({
     queries: sessions.map((s) => ({
       queryKey: liveSessionKeys.state(uid, s.id),
       queryFn: makeStateFetcher(s.id, getToken),
       enabled: Boolean(s.id),
-      refetchInterval: computeLiveSessionStateRefetchInterval(s.is_active),
+      refetchInterval: liveStateRefetchInterval(s.is_active),
     })),
   });
 
@@ -166,14 +181,12 @@ export function useLiveSessionsAggregate(
 export function useLiveSessionEvents(
   sessionId: string | null,
 ): UseQueryResult<{ items: LiveSignalEvent[] }, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: liveSessionKeys.events(uid, sessionId ?? ""),
     queryFn: makeEventsFetcher(sessionId ?? "", getToken),
     enabled: Boolean(sessionId),
-    refetchInterval: (q) =>
-      q.state.status === "error" ? false : LIVE_SESSION_LIST_REFETCH_MS,
+    refetchInterval: eventsRefetchInterval,
   });
 }
 
@@ -182,17 +195,10 @@ export function useRegisterLiveSession(): UseMutationResult<
   Error,
   RegisterLiveSessionRequest
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (req: RegisterLiveSessionRequest) => {
-      const token = await getToken();
-      return registerLiveSession(req, token);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: liveSessionKeys.list(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (req: RegisterLiveSessionRequest, token) =>
+      registerLiveSession(req, token),
+    invalidateKeys: (uid) => [liveSessionKeys.list(uid)],
   });
 }
 
@@ -201,16 +207,8 @@ export function useDeactivateLiveSession(): UseMutationResult<
   Error,
   string
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken();
-      return deactivateLiveSession(id, token);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: liveSessionKeys.list(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (id: string, token) => deactivateLiveSession(id, token),
+    invalidateKeys: (uid) => [liveSessionKeys.list(uid)],
   });
 }

@@ -4,12 +4,12 @@
 // 기존 equity-chart-v2.test.tsx 와 mock 분리 (setData 캡처 spy 재사용 어려워
 // 신규 파일). BE absolute curve → FE normalize → setData([0, +200, +500]) 흐름.
 
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EquityPoint } from "@/features/backtest/schemas";
 
-import { EquityChartV2 } from "../equity-chart-v2";
+import { EquityChartV2 } from "@/app/(dashboard)/backtests/_components/charts/equity-chart-v2";
 
 interface SeriesSpy {
   setData: ReturnType<typeof vi.fn>;
@@ -83,8 +83,9 @@ describe("EquityChartV2 — BL-184 PnL normalization (시작=0)", () => {
       .ResizeObserver;
   });
 
-  it("Equity curve 의 첫 point value 가 0 으로 정규화되어 setData 에 전달", () => {
+  it("Equity curve 의 첫 point value 가 0 으로 정규화되어 setData 에 전달", async () => {
     render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} />);
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // setData 호출 중 길이가 EQUITY 와 같은 것 = equity series.
     const equitySetData = lineSeriesSetDataCalls.find(
@@ -96,7 +97,7 @@ describe("EquityChartV2 — BL-184 PnL normalization (시작=0)", () => {
     expect(equitySetData![2]!.value).toBe(500);
   });
 
-  it("Buy & Hold curve 도 PnL 기준으로 정규화", () => {
+  it("Buy & Hold curve 도 PnL 기준으로 정규화", async () => {
     render(
       <EquityChartV2
         equityCurve={EQUITY}
@@ -104,6 +105,7 @@ describe("EquityChartV2 — BL-184 PnL normalization (시작=0)", () => {
         buyAndHoldCurve={BH_CURVE}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // 두 line series setData 호출 — equity (첫=0,200,500) + BH (첫=0,100,250).
     // 각 series 가 같은 길이라 둘 다 매칭. value 첫 element 가 0 인지 검증.
@@ -122,7 +124,7 @@ describe("EquityChartV2 — BL-184 PnL normalization (시작=0)", () => {
     expect(bhCall).toBeDefined();
   });
 
-  it("buyAndHoldCurve null fallback — 기존 회귀 안전", () => {
+  it("buyAndHoldCurve null fallback — 기존 회귀 안전", async () => {
     render(
       <EquityChartV2
         equityCurve={EQUITY}
@@ -130,6 +132,7 @@ describe("EquityChartV2 — BL-184 PnL normalization (시작=0)", () => {
         buyAndHoldCurve={null}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
     // BH series 는 추가되지 않아야 — BH normalize 도 호출 안 됨.
     // Equity series 만 정규화 setData 호출 (첫=0).
     const equityCall = lineSeriesSetDataCalls.find(
@@ -139,7 +142,7 @@ describe("EquityChartV2 — BL-184 PnL normalization (시작=0)", () => {
     expect(equityCall![0]!.value).toBe(0);
   });
 
-  it("buyAndHoldCurve empty array fallback", () => {
+  it("buyAndHoldCurve empty array fallback", async () => {
     render(
       <EquityChartV2
         equityCurve={EQUITY}
@@ -147,6 +150,7 @@ describe("EquityChartV2 — BL-184 PnL normalization (시작=0)", () => {
         buyAndHoldCurve={[]}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
     const equityCall = lineSeriesSetDataCalls.find(
       (call) => call.length === EQUITY.length,
     );

@@ -3,12 +3,18 @@
 // TV "거래 분포" donut — 승자/패자/손익분기 + 중앙 총 거래 수
 // recharts PieChart(innerRadius). 데이터는 analytics.computeOutcomeCounts 파생.
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import type { OutcomeCounts } from "@/features/backtest/analytics";
 import { useChartTheme } from "@/lib/chart-tokens";
 import { formatPercent } from "@/features/backtest/utils";
+
+// recharts plot 은 무거워서 지연 로딩 — hasWidth 대기 분기(null)와 동일하게 빈 상태 유지.
+const TradeOutcomeDonutPlot = dynamic(
+  () => import("@/app/(dashboard)/backtests/_components/charts/recharts-plots").then((m) => m.TradeOutcomeDonutPlot),
+  { ssr: false, loading: () => null },
+);
 
 interface TradeOutcomeDonutProps {
   counts: OutcomeCounts;
@@ -58,24 +64,7 @@ export function TradeOutcomeDonut({ counts }: TradeOutcomeDonutProps) {
       data-testid="trade-outcome-donut"
     >
       <div ref={wrapperRef} className="relative h-[180px] w-[180px] shrink-0">
-        {hasWidth ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={58}
-                outerRadius={82}
-                strokeWidth={0}
-                isAnimationActive={false}
-              />
-              <Tooltip
-                formatter={(value, name) => [`${String(value)}건`, String(name)]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        ) : null}
+        {hasWidth ? <TradeOutcomeDonutPlot data={data} /> : null}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="font-mono text-2xl font-bold tabular-nums">
             {counts.total}

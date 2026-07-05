@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,7 @@ export function LiveSessionForm({
   );
 
   const form = useForm<LiveSessionForm>({
-    resolver: zodResolver(LiveSessionFormSchema),
+    resolver: zodV4Resolver(LiveSessionFormSchema),
     defaultValues: {
       strategy_id: "",
       exchange_account_id: "",

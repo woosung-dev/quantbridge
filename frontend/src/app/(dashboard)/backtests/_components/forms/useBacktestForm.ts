@@ -14,8 +14,8 @@ import type {
 } from "@/features/backtest/schemas";
 import { useStrategy } from "@/features/strategy/hooks";
 
-import { calcDateRange, type DatePreset } from "./date-preset-pills";
-import { type SizingSource } from "./live-settings-badge";
+import { calcDateRange, type DatePreset } from "@/app/(dashboard)/backtests/_components/forms/date-preset-pills";
+import { type SizingSource } from "@/app/(dashboard)/backtests/_components/live-settings-badge";
 
 export interface BacktestFormValues {
   strategy_id: string;

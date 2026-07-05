@@ -9,8 +9,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
-import { EquityChartWithCompare } from "../equity-chart-with-compare";
-import { TradePnlPane } from "./trade-pnl-pane";
+import { EquityChartWithCompare } from "@/app/(dashboard)/backtests/_components/charts/equity-chart-with-compare";
+import { TradePnlPane } from "@/app/(dashboard)/backtests/_components/report/trade-pnl-pane";
 
 interface PerformanceChartProps {
   currentId: string;

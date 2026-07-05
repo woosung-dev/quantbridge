@@ -8,7 +8,7 @@ import { useBacktest, useBacktests } from "@/features/backtest/hooks";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 import { formatDate } from "@/features/backtest/utils";
 
-import { EquityChartV2 } from "./equity-chart-v2";
+import { EquityChartV2 } from "@/app/(dashboard)/backtests/_components/charts/equity-chart-v2";
 
 interface Props {
   /** 현재 보고 있는 백테스트 id — 비교 후보에서 제외. */

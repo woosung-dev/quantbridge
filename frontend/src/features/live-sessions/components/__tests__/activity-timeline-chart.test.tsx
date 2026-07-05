@@ -10,7 +10,7 @@
 //  6) ErrorBoundary 미발동 — render 가 throw 하지 않음.
 //  7) a11y — group role + aria-label 노출.
 
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import {
   afterEach,
   beforeEach,
@@ -152,16 +152,18 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
       .ResizeObserver;
   });
 
-  it("renders nothing when data is empty (defensive)", () => {
+  it("renders nothing when data is empty (defensive)", async () => {
     const { container } = render(
       <ActivityTimelineChart data={[]} showEquity={false} />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
     expect(container).toBeEmptyDOMElement();
     expect(createChartMock).not.toHaveBeenCalled();
   });
 
-  it("creates exactly 1 chart instance when showEquity=false (counts pane only)", () => {
+  it("creates exactly 1 chart instance when showEquity=false (counts pane only)", async () => {
     render(<ActivityTimelineChart data={POINTS} showEquity={false} />);
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(createChartMock).toHaveBeenCalledTimes(1);
     expect(chartInstances).toHaveLength(1);
@@ -171,10 +173,11 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     expect(chart.addLineSeries).toHaveBeenCalledTimes(2);
   });
 
-  it("creates 2 chart instances when showEquity=true (counts + equity pane)", () => {
+  it("creates 2 chart instances when showEquity=true (counts + equity pane)", async () => {
     render(
       <ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(createChartMock).toHaveBeenCalledTimes(2);
     expect(chartInstances).toHaveLength(2);
@@ -185,25 +188,27 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     expect(chartInstances[1]!.addLineSeries).toHaveBeenCalledTimes(1);
   });
 
-  it("legend shows Entries + Closes only when showEquity=false", () => {
+  it("legend shows Entries + Closes only when showEquity=false", async () => {
     render(<ActivityTimelineChart data={POINTS} showEquity={false} />);
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(screen.getByText("Entries (window)")).toBeInTheDocument();
     expect(screen.getByText("Closes (window)")).toBeInTheDocument();
     expect(screen.queryByText(/Equity/)).not.toBeInTheDocument();
   });
 
-  it("legend shows Equity (PnL) item when showEquity=true", () => {
+  it("legend shows Equity (PnL) item when showEquity=true", async () => {
     render(
       <ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(screen.getByText("Entries (window)")).toBeInTheDocument();
     expect(screen.getByText("Closes (window)")).toBeInTheDocument();
     expect(screen.getByText("Equity (PnL, USDT)")).toBeInTheDocument();
   });
 
-  it("respects 60/40 height ratio when showEquity=true (top=115, bottom=77 for height=192)", () => {
+  it("respects 60/40 height ratio when showEquity=true (top=115, bottom=77 for height=192)", async () => {
     render(
       <ActivityTimelineChart
         data={POINTS_WITH_EQUITY}
@@ -211,6 +216,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
         height={192}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const top = createChartMock.mock.calls[0]![1] as { height: number };
     const bottom = createChartMock.mock.calls[1]![1] as { height: number };
@@ -218,17 +224,19 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     expect(bottom.height).toBe(77); // round(192 * 0.4)
   });
 
-  it("uses full height for counts pane when showEquity=false", () => {
+  it("uses full height for counts pane when showEquity=false", async () => {
     render(
       <ActivityTimelineChart data={POINTS} showEquity={false} height={192} />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const top = createChartMock.mock.calls[0]![1] as { height: number };
     expect(top.height).toBe(192);
   });
 
-  it("setData receives ascending epoch-seconds time (lightweight-charts contract)", () => {
+  it("setData receives ascending epoch-seconds time (lightweight-charts contract)", async () => {
     render(<ActivityTimelineChart data={POINTS} showEquity={false} />);
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // 첫 setData = entries main line series.
     expect(lineSeriesSetDataCalls.length).toBeGreaterThanOrEqual(1);
@@ -240,8 +248,9 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     expect(first[0]!.time).toBeLessThan(first[1]!.time);
   });
 
-  it("group role + aria-label for a11y", () => {
+  it("group role + aria-label for a11y", async () => {
     render(<ActivityTimelineChart data={POINTS} showEquity={false} />);
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const group = screen.getByRole("group", {
       name: /Live session activity timeline/,
@@ -249,7 +258,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     expect(group).toBeInTheDocument();
   });
 
-  it("does not throw — render completes without ErrorBoundary trigger", () => {
+  it("does not throw — render completes without ErrorBoundary trigger", async () => {
     // currentColor regression (Sprint 30 BL-157) 재현 방어 — 렌더 자체가 throw X.
     // trading-chart wrapper 가 hex 색상으로 명시적 변환했으므로 안전.
     expect(() => {
@@ -257,12 +266,14 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
         <ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />,
       );
     }).not.toThrow();
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
   });
 
-  it("cleanup — chart.remove() on unmount (no leak)", () => {
+  it("cleanup — chart.remove() on unmount (no leak)", async () => {
     const { unmount } = render(
       <ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
     expect(chartInstances).toHaveLength(2);
     chartInstances.forEach((c) => expect(c.remove).not.toHaveBeenCalled());
 
@@ -271,7 +282,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
   });
 
   // 사용 안 하지만 marker 타입 import 가 깨지지 않는지 정적 확인.
-  it("ChartMarker type is importable (compile-only sanity)", () => {
+  it("ChartMarker type is importable (compile-only sanity)", async () => {
     const sample: ChartMarker = {
       time: 0,
       position: "aboveBar",

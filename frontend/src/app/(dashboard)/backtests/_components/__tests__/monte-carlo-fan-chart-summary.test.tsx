@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MonteCarloResult } from "@/features/backtest/schemas";
 
-import { MonteCarloFanChart } from "../monte-carlo-fan-chart";
+import { MonteCarloFanChart } from "@/app/(dashboard)/backtests/_components/charts/monte-carlo-fan-chart";
 
 const RESULT: MonteCarloResult = {
   samples: 1000,

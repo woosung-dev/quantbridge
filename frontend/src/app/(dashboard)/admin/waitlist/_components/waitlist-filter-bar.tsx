@@ -4,7 +4,6 @@
 import { useEffect, useRef, useState } from "react";
 import { SearchIcon } from "lucide-react";
 
-import { useDebouncedValue } from "@/features/strategy/utils";
 import type { WaitlistStatus } from "@/features/waitlist/schemas";
 
 export type WaitlistFilter = WaitlistStatus | "all";
@@ -35,17 +34,27 @@ export interface WaitlistFilterBarProps {
 
 export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
   const { status, search, onStatusChange, onSearchChange, counts } = props;
+  // draft 는 input 즉시 반응용. 부모 전파는 이벤트 핸들러 내 300ms debounce
+  // (상호작용 로직을 effect 로 두지 않는다 — you-might-not-need-an-effect).
   const [draft, setDraft] = useState(search);
-  const debounced = useDebouncedValue(draft, 300);
-  const lastEmittedRef = useRef(search);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // debounce 결과만 부모로 전파 (set-state-in-effect 회피용 ref 비교, LESSON H-1).
-  useEffect(() => {
-    if (debounced !== lastEmittedRef.current) {
-      lastEmittedRef.current = debounced;
-      onSearchChange(debounced);
+  const handleSearchInput = (value: string) => {
+    setDraft(value);
+    if (debounceTimerRef.current !== null) {
+      clearTimeout(debounceTimerRef.current);
     }
-  }, [debounced, onSearchChange]);
+    debounceTimerRef.current = setTimeout(() => onSearchChange(value), 300);
+  };
+
+  // unmount 시 대기 중 타이머 정리 (setState-after-unmount 계열 방지).
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current !== null) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div
@@ -64,7 +73,7 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
         <input
           type="text"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => handleSearchInput(e.target.value)}
           placeholder="이메일 검색..."
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-[color:var(--text-muted)]"
         />

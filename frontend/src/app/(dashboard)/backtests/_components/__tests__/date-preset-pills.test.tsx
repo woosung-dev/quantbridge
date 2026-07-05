@@ -2,7 +2,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DatePresetPills, calcDateRange } from "../date-preset-pills";
+import { DatePresetPills, calcDateRange } from "@/app/(dashboard)/backtests/_components/forms/date-preset-pills";
 
 describe("DatePresetPills", () => {
   it("1Y 클릭 시 onSelect 가 1y 와 12개월 range 와 함께 호출됨", () => {

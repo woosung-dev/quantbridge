@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { ChartLegend } from "../chart-legend";
+import { ChartLegend } from "@/app/(dashboard)/backtests/_components/charts/chart-legend";
 
 describe("ChartLegend (Sprint 32-B BL-169)", () => {
   it("renders all three legend items by default (Equity / Buy & Hold / Drawdown)", () => {

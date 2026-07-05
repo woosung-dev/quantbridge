@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { TradeItem } from "@/features/backtest/schemas";
 import { tradesToCsv } from "@/features/backtest/utils";
 
-import { TradeLedgerTable } from "../trade-ledger-table";
+import { TradeLedgerTable } from "@/app/(dashboard)/backtests/_components/report/trade-ledger-table";
 
 function trade(overrides: Partial<TradeItem>): TradeItem {
   return {

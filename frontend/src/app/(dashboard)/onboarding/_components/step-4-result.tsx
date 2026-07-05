@@ -14,6 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useBacktest } from "@/features/backtest/hooks";
 
+import { MetricTile } from "@/components/metric-tile";
+
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return "—";
@@ -95,14 +97,5 @@ export function Step4Result({
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card p-4">
-      <p className="text-[0.7rem] font-medium uppercase tracking-wide text-[color:var(--text-muted)]">
-        {label}
-      </p>
-      <p className="mt-1 font-mono text-lg font-semibold text-[color:var(--text-primary)]">
-        {value}
-      </p>
-    </div>
-  );
+  return <MetricTile label={label} value={value} size="sm" />;
 }

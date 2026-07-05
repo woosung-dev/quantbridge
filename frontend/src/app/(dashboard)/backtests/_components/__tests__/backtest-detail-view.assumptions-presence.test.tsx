@@ -67,7 +67,7 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-import { BacktestDetailView } from "../backtest-detail-view";
+import { BacktestDetailView } from "@/app/(dashboard)/backtests/_components/backtest-detail-view";
 
 const COMPLETED_DETAIL: BacktestDetail = {
   id: "abc12345-1111-1111-1111-111111111111",

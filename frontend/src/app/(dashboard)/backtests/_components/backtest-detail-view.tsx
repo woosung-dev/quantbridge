@@ -10,10 +10,10 @@ import { formatDate } from "@/features/backtest/utils";
 
 const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
-import { BacktestStatusBadge } from "./status-badge";
-import { BacktestReportShell } from "./report/backtest-report-shell";
-import { RerunButton } from "./rerun-button";
-import { ShareButton } from "./share-button";
+import { BacktestStatusBadge } from "@/app/(dashboard)/backtests/_components/status-badge";
+import { BacktestReportShell } from "@/app/(dashboard)/backtests/_components/report/backtest-report-shell";
+import { RerunButton } from "@/app/(dashboard)/backtests/_components/rerun-button";
+import { ShareButton } from "@/app/(dashboard)/backtests/_components/share-button";
 
 export function BacktestDetailView({ id }: { id: string }) {
   const detail = useBacktest(id);

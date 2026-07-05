@@ -5,7 +5,7 @@
 // Sprint 27 BL-137: trading settings (leverage / margin_mode / position_size_pct) UI 추가.
 //   별도 form (PUT /strategies/{id}/settings) 으로 분리 — 메타데이터(name 등) 와 트랜잭션 분리.
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -43,7 +43,7 @@ import { SessionChips } from "./session-chips";
 
 export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
   const form = useForm<UpdateStrategyRequest>({
-    resolver: zodResolver(UpdateStrategyRequestSchema),
+    resolver: zodV4Resolver(UpdateStrategyRequestSchema),
     defaultValues: {
       name: strategy.name,
       description: strategy.description ?? "",
@@ -60,7 +60,7 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
 
   // Sprint 27 BL-137 — trading settings 별도 form. settings null = unset (Live Session 차단).
   const settingsForm = useForm<UpdateStrategySettingsRequest>({
-    resolver: zodResolver(UpdateStrategySettingsRequestSchema),
+    resolver: zodV4Resolver(UpdateStrategySettingsRequestSchema),
     defaultValues: {
       schema_version: strategy.settings?.schema_version ?? 1,
       leverage: strategy.settings?.leverage ?? 2,
