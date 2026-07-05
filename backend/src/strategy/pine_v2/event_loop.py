@@ -71,6 +71,7 @@ def run_historical(
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
+    fill_timing: str = "bar_close",
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -109,6 +110,8 @@ def run_historical(
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
     interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
+    # TV parity — 시장가 체결 타이밍 ("bar_close" 기본 = 기존 byte-identical).
+    interp.strategy.fill_timing = fill_timing
     result = RunResult(bars_processed=0, final_state={})
 
     while bar.advance():
@@ -120,6 +123,13 @@ def run_historical(
         # disallowed session 시 fill skip + carry-over.
         bar_ts = bar.current_timestamp()
         bar_ts_py = bar_ts.to_pydatetime() if bar_ts is not None else None
+        # TV parity (next_bar_open) — 직전 bar 큐 인텐트를 이번 bar 시가로 체결.
+        # pending stop/exit 검사보다 먼저 (entry 체결 후 같은 bar 브래킷 부착 순서 유지).
+        interp.strategy.process_market_intents(
+            bar=bar.bar_index,
+            open_=bar.current("open"),
+            bar_ts=bar_ts_py,
+        )
         interp.strategy.check_pending_fills(
             bar=bar.bar_index,
             open_=bar.current("open"),

@@ -79,6 +79,7 @@ export function Step3Backtest({
       fees_pct: 0.001,
       slippage_pct: 0.0005,
       include_funding: true,
+        fill_timing: "bar_close",
     });
   }, [strategyId, create, backtestId]);
 

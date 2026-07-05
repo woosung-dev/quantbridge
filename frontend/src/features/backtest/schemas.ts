@@ -86,6 +86,8 @@ export const CreateBacktestRequestSchema = z
       .refine(Number.isFinite, { message: "slippage_pct must be finite" })
       .default(0.0005),
     include_funding: z.boolean().default(true),
+    // TV parity — 시장가 체결 타이밍. bar_close(기본, 신호 bar 종가) | next_bar_open(TV 정합).
+    fill_timing: z.enum(["bar_close", "next_bar_open"]).default("bar_close"),
     // Sprint 37 BL-188a — 폼 default_qty_type/value (Pine 미명시 시 사용).
     // priority chain: Pine strategy(default_qty_type=...) > 폼 입력 > None.
     default_qty_type: z
@@ -256,6 +258,8 @@ export const BacktestConfigSchema = z.object({
   fees: z.number().nullable().optional(),
   slippage: z.number().nullable().optional(),
   include_funding: z.boolean().nullable().optional(),
+  // TV parity — 체결 타이밍 (구 row = null → bar_close 취급).
+  fill_timing: z.string().nullable().optional(),
 });
 export type BacktestConfig = z.infer<typeof BacktestConfigSchema>;
 

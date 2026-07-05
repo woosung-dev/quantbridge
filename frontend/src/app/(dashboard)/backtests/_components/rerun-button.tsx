@@ -56,6 +56,9 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
       fees_pct: cfg?.fees ?? 0.001,
       slippage_pct: cfg?.slippage ?? 0.0005,
       include_funding: cfg?.include_funding ?? true,
+      // TV parity — 체결 타이밍 보존 (구 row = bar_close).
+      fill_timing:
+        cfg?.fill_timing === "next_bar_open" ? "next_bar_open" : "bar_close",
     });
   };
 

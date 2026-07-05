@@ -152,6 +152,31 @@ export function BacktestForm() {
                 funding rate / 강제 청산 / 유지 증거금 미반영.
               </span>
             </p>
+            {/* TV parity — 시장가 체결 타이밍 토글 (기본 = 신호 봉 종가). */}
+            <label
+              className="mt-2 flex items-center gap-1.5 text-xs"
+              data-testid="fill-timing-toggle"
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={form.watch("fill_timing") === "next_bar_open"}
+                onChange={(e) =>
+                  setValue(
+                    "fill_timing",
+                    e.target.checked ? "next_bar_open" : "bar_close",
+                    { shouldDirty: true },
+                  )
+                }
+                aria-label="TV 정합 체결 — 시장가를 다음 봉 시가에 체결"
+              />
+              <span className="text-foreground">
+                TV 정합 체결 (다음 봉 시가)
+              </span>
+              <span className="text-muted-foreground/80">
+                — 기본은 신호 봉 종가 체결
+              </span>
+            </label>
           </div>
         </section>
 

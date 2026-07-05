@@ -173,6 +173,7 @@ def run_virtual_strategy(
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
+    fill_timing: str = "bar_close",
 ) -> VirtualRunResult:
     """indicator + alertcondition Pine 스크립트를 가상 strategy로 실행.
 
@@ -205,6 +206,13 @@ def run_virtual_strategy(
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
     interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
+    # TV parity — Track A(가상 strategy) 는 wrapper 가 state.entry 직접 호출 경로라
+    # next_bar_open 미지원. 정직 고지 후 bar_close 로 실행 (Surface Trust).
+    if fill_timing == "next_bar_open":
+        interp.strategy.warnings.append(
+            "fill_timing=next_bar_open 은 Track A(indicator+alert 가상 strategy) 미지원 — "
+            "bar_close 로 실행됨"
+        )
     wrapper = VirtualStrategyWrapper(alerts, interp, strict=strict)
 
     errors: list[tuple[int, str]] = []

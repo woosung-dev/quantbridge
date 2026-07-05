@@ -96,6 +96,18 @@ export function AssumptionsCard({
         "funding rate / 강제 청산 / 유지 증거금 미반영.",
       isDefault: false,
     },
+    // TV parity — 시장가 체결 타이밍 (구 백테스트 = bar_close 취급).
+    {
+      label: "체결 타이밍",
+      value:
+        (config?.fill_timing ?? "bar_close") === "next_bar_open"
+          ? "다음 봉 시가 (TV 정합)"
+          : "신호 봉 종가",
+      title:
+        "시장가 주문 체결 시점. TradingView 기본은 다음 봉 시가 " +
+        "(process_orders_on_close=false), QuantBridge 기본은 신호 봉 종가.",
+      isDefault: config?.fill_timing == null,
+    },
     {
       label: "수수료",
       value: formatPercent(fees, 2),

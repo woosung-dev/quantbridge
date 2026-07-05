@@ -27,6 +27,23 @@ Direction = Literal["long", "short"]
 
 
 @dataclass
+class MarketIntent:
+    """fill_timing=next_bar_open 용 시장가 인텐트 (TV parity).
+
+    bar N 신호 → 큐 등록 → bar N+1 시가에 체결 (TV `process_orders_on_close=false`
+    기본 동작). qty=None 이면 체결 시가 기준 default sizing (compute_qty) — TV 의
+    percent_of_equity 가 체결가로 sizing 되는 것과 정합.
+    """
+
+    kind: Literal["entry", "close", "close_all"]
+    trade_id: str
+    direction: Direction = "long"  # entry 만 의미
+    qty: float | None = None  # None = 체결 시 default sizing
+    comment: str = ""
+    placed_bar: int = 0
+
+
+@dataclass
 class PendingOrder:
     """Stop/Limit 지연 체결 주문.
 
@@ -237,6 +254,12 @@ class StrategyState:
     # BL-104 — pyramiding cap. 같은 방향 최대 동시 open entry 수. None 이면 cap 무효
     # (기존 무제한 중첩 동작 byte-identical). strategy(pyramiding=N) 선언 시 주입.
     pyramiding: int | None = None
+    # TV parity — 시장가 체결 타이밍. "bar_close"(기본, 신호 bar 종가 즉시) |
+    # "next_bar_open"(다음 bar 시가 — TV process_orders_on_close=false 기본).
+    # run_historical/run_virtual_strategy 가 주입. 기본값 = 기존 동작 byte-identical.
+    fill_timing: str = "bar_close"
+    # next_bar_open 모드의 시장가 인텐트 큐 — process_market_intents 가 소비.
+    pending_market_intents: list[MarketIntent] = field(default_factory=list)
 
     # ---- Sprint 37 BL-185: 포지션 사이징 (spot-equivalent) ------------
 
@@ -341,6 +364,59 @@ class StrategyState:
             return float("nan")
         weighted = sum(t.entry_price * t.qty for t in opens)
         return weighted / total_qty
+
+    # ---- fill_timing=next_bar_open — 시장가 인텐트 큐 ----------------
+
+    def queue_market_intent(self, intent: MarketIntent) -> None:
+        """next_bar_open 모드에서 시장가 entry/close/close_all 인텐트 등록."""
+        self.pending_market_intents.append(intent)
+
+    def process_market_intents(
+        self,
+        *,
+        bar: int,
+        open_: float,
+        bar_ts: datetime | None = None,
+    ) -> None:
+        """큐된 시장가 인텐트를 이번 bar 시가로 체결.
+
+        event_loop 가 매 bar 시작(check_pending_fills 이전)에 호출. session gate
+        (BL-188 v3)는 pending stop fill 과 동일 정책 — disallowed bar 면 체결하지
+        않고 carry-over.
+        """
+        if not self.pending_market_intents:
+            return
+        if self.sessions_allowed and bar_ts is not None:
+            from src.strategy.trading_sessions import is_allowed
+
+            if not is_allowed(list(self.sessions_allowed), bar_ts):
+                return  # carry-over — 허용 세션 bar 에서 체결
+        intents = self.pending_market_intents
+        self.pending_market_intents = []
+        for intent in intents:
+            if intent.kind == "entry":
+                qty = (
+                    intent.qty
+                    if intent.qty is not None
+                    else self.compute_qty(fill_price=open_)
+                )
+                self.entry(
+                    intent.trade_id,
+                    intent.direction,
+                    qty=qty,
+                    bar=bar,
+                    fill_price=open_,
+                    comment=intent.comment,
+                )
+            elif intent.kind == "close":
+                self.close(
+                    intent.trade_id,
+                    bar=bar,
+                    fill_price=open_,
+                    comment=intent.comment,
+                )
+            else:
+                self.close_all(bar=bar, fill_price=open_)
 
     # ---- 주문 접수 --------------------------------------------------
 

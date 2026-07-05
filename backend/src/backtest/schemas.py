@@ -60,6 +60,9 @@ class CreateBacktestRequest(BaseModel):
     )
     # 펀딩비 반영 ON/OFF (8h 무기한 선물).
     include_funding: bool = True
+    # TV parity — 시장가 체결 타이밍. bar_close(기본, 신호 bar 종가 즉시) |
+    # next_bar_open(다음 bar 시가 — TV process_orders_on_close=false 기본).
+    fill_timing: Literal["bar_close", "next_bar_open"] = "bar_close"
     # Sprint 37 BL-188a — 폼 입력 default_qty (Pine 미명시 시 사용).
     # priority chain: Pine strategy(default_qty_type=...) > 폼 입력 > 시스템 default (1.0)
     # default_qty_type=None 시 system fallback (qty=1.0). 사용자 명시 시 backtest engine
@@ -307,6 +310,8 @@ class BacktestConfigOut(BaseModel):
     fees: float
     slippage: float
     include_funding: bool
+    # TV parity — 시장가 체결 타이밍 (구 row = bar_close fallback).
+    fill_timing: str = "bar_close"
 
 
 class BacktestDetail(BacktestSummary):

@@ -97,6 +97,8 @@ def run_backtest_v2(
             # Sprint 51 BL-220 — pine_v2 input override (Param Stability grid sweep).
             # cfg.input_overrides=None 일 때 = 회귀 0 (기존 backtest path 변경 X).
             input_overrides=cfg.input_overrides,
+            # TV parity — 시장가 체결 타이밍 (기본 bar_close = 회귀 0).
+            fill_timing=cfg.fill_timing,
         )
     except PineRuntimeError as exc:
         logger.info("v2_adapter_runtime_error: %s", exc)

@@ -68,6 +68,7 @@ def parse_and_run_v2(
     form_default_qty_value: float | None = None,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
+    fill_timing: str = "bar_close",
 ) -> V2RunResult:
     """Pine 스크립트를 classify → 적절한 runner로 dispatch.
 
@@ -131,4 +132,6 @@ def parse_and_run_v2(
         sessions_allowed=sessions_allowed,
         input_overrides=input_overrides,
         pyramiding=pyramiding,
+        # TV parity — 시장가 체결 타이밍 (기본 bar_close = 기존 byte-identical).
+        fill_timing=fill_timing,
     )
