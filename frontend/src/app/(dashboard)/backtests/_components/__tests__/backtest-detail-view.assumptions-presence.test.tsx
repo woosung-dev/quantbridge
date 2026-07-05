@@ -40,6 +40,12 @@ vi.mock("@/features/backtest/hooks", () => ({
     isError: false,
     error: null,
   }),
+  useAllBacktestTrades: () => ({
+    data: { items: [], total: 0, truncated: false },
+    isLoading: false,
+    isError: false,
+    error: null,
+  }),
   useCreateBacktest: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateBacktestShare: () => ({ mutate: vi.fn(), isPending: false }),
   useRevokeBacktestShare: () => ({ mutate: vi.fn(), isPending: false }),

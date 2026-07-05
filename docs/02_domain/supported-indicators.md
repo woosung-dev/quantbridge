@@ -34,6 +34,13 @@ dogfood 환경에서 backtest 통과 확인된 항목. `backend/tests/fixtures/p
 **Sprint 58 BL-241 신규:**
 `ta.wma` (Weighted MA), `ta.hma` (Hull MA), `ta.bb` (Bollinger Bands → [upper, basis, lower]), `ta.cross` (crossover or crossunder), `ta.mom` (Momentum)
 
+> **2026-07-05 TV-parity 정정:** `ta.hma` 마지막 WMA 길이가 `floor(sqrt(n))` 이던 것을 TV 빌트인 정의
+> `math.round(math.sqrt(n))` 로 수정 (예: n=15 → 4, n=34 → 6. 손유도 골든 = `test_stdlib.py`).
+> `ta.bb` 는 population stdev(TV `biased=true` 기본) 정합 확인. `ta.sar` 는 TV hand-oracle 미작성 (BL-399).
+> **주의 (BL-393):** `strategy.exit` 의 `trail_points`/`profit`/`loss` 를 TV 는 **틱 단위**(× mintick)로
+> 해석하지만 QB 는 price-distance 로 해석 — ATR 등 가격 값을 넣는 전략은 TV 쪽이 초미세 트레일링이
+> 되어 성적이 왜곡될 수 있다 (QB 가 저자 의도에 근접).
+
 ### 2.2 `ta.*` built-in series (attribute access)
 
 `ta.tr` (True Range — Sprint X1+X3 hotfix), `ta.obv` (On Balance Volume — Sprint 58 BL-241)

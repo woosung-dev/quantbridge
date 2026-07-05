@@ -96,6 +96,14 @@ export function tradesToCsv(trades: readonly TradeItem[]): string {
     "return_pct",
     "fees",
     "cumulative_pnl",
+    // TV Trades parity 확장 (구 백테스트 = 빈 값)
+    "runup_abs",
+    "drawdown_abs",
+    "bars_in_trade",
+    "fee_paid",
+    "slippage_paid",
+    "exit_kind",
+    "comment",
   ];
 
   const lines: string[] = [headers.join(",")];
@@ -117,7 +125,15 @@ export function tradesToCsv(trades: readonly TradeItem[]): string {
       String(pnl),
       String(t.return_pct),
       String(t.fees),
-      cumulative.toFixed(8),
+      // BE cumulative_pnl 우선 (trade_index 순 누적), 부재 시 기존 FE 계산 유지.
+      t.cumulative_pnl != null ? String(t.cumulative_pnl) : cumulative.toFixed(8),
+      t.runup_abs != null ? String(t.runup_abs) : "",
+      t.drawdown_abs != null ? String(t.drawdown_abs) : "",
+      t.bars_in_trade != null ? String(t.bars_in_trade) : "",
+      t.fee_paid != null ? String(t.fee_paid) : "",
+      t.slippage_paid != null ? String(t.slippage_paid) : "",
+      t.exit_kind ?? "",
+      escapeCsv(t.comment ?? ""),
     ];
     lines.push(row.join(","));
   }

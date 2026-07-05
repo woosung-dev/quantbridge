@@ -68,6 +68,13 @@
   --chart-line: #34d399;
   --chart-grid: rgba(255, 255, 255, 0.04);
   --chart-axis: #8a8f98;
+  /* 백테스트 리포트 시리즈 — lib/chart-tokens.ts 가 해석 (하드코딩 hex 이관, 값 동일) */
+  --chart-equity: #22c55e;
+  --chart-benchmark: #3b82f6;
+  --chart-compare: #8b5cf6;
+  --chart-dd-line: rgba(239, 68, 68, 0.55);
+  --chart-dd-top: rgba(239, 68, 68, 0.35);
+  --chart-dd-bottom: rgba(239, 68, 68, 0.02);
 
   /* Radius — DESIGN.md 5 */
   --radius-sm: 6px;

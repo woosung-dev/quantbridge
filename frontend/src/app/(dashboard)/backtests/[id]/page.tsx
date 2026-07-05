@@ -13,7 +13,7 @@ interface PageProps {
 export default async function BacktestDetailPage({ params }: PageProps) {
   const { id } = await params;
   return (
-    <div className="mx-auto max-w-[1080px] px-6 py-8">
+    <div className="mx-auto max-w-[1280px] px-6 py-8">
       <BacktestDetailView id={id} />
     </div>
   );

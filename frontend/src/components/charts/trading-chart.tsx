@@ -20,10 +20,14 @@ import {
   type LineData,
   type AreaSeriesPartialOptions,
   type AreaData,
+  type HistogramSeriesPartialOptions,
+  type HistogramData,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
+
+import { resolveChartTokens } from "@/lib/chart-tokens";
 
 /**
  * 단순화된 시계열 포인트.
@@ -46,23 +50,33 @@ export interface ChartMarker {
 
 /** equity 추가 영역 series 옵션 — drawdown 등 area 보조 서브시리즈. */
 export interface AreaOverlay {
-  data: ChartPoint[];
+  data: readonly ChartPoint[];
   options?: AreaSeriesPartialOptions;
+}
+
+/** per-trade PnL 바 등 히스토그램 포인트 — color 로 per-point 녹/적 구분. */
+export interface HistogramPoint extends ChartPoint {
+  color?: string;
 }
 
 export interface TradingChartProps {
   /** 메인 line series 데이터 (예: equity curve). */
-  data: ChartPoint[];
+  data: readonly ChartPoint[];
   /** 메인 series 옵션 (색상 등). */
   options?: LineSeriesPartialOptions;
   /** 거래 마커 (entry/exit 등). */
-  markers?: ChartMarker[];
+  markers?: readonly ChartMarker[];
   /** 비교용 보조 line (예: B&H benchmark). */
-  benchmark?: { data: ChartPoint[]; options?: LineSeriesPartialOptions };
+  benchmark?: { data: readonly ChartPoint[]; options?: LineSeriesPartialOptions };
   /** 두 번째 비교 line (예: 다른 백테스트 Compare 오버레이). benchmark 와 독립. */
-  compare?: { data: ChartPoint[]; options?: LineSeriesPartialOptions };
+  compare?: { data: readonly ChartPoint[]; options?: LineSeriesPartialOptions };
   /** 영역 오버레이 (예: drawdown area). */
   area?: AreaOverlay;
+  /** 히스토그램 오버레이 (예: per-trade PnL 바). */
+  histogram?: {
+    data: readonly HistogramPoint[];
+    options?: HistogramSeriesPartialOptions;
+  };
   /** 차트 높이. */
   height?: number;
   /** 접근성 라벨 (a11y 의무). */
@@ -113,6 +127,18 @@ function toAreaData(points: readonly ChartPoint[]): AreaData[] {
   return toLineData(points) as AreaData[];
 }
 
+function toHistogramData(points: readonly HistogramPoint[]): HistogramData[] {
+  // toLineData 와 동일한 정렬/중복 제거 + per-point color 보존.
+  const colorByTime = new Map<number, string | undefined>();
+  for (const p of points) {
+    colorByTime.set(Number(toTime(p.time)), p.color);
+  }
+  return toLineData(points).map((d) => {
+    const color = colorByTime.get(Number(d.time));
+    return color !== undefined ? { ...d, color } : d;
+  });
+}
+
 function toMarkers(markers: readonly ChartMarker[]): SeriesMarker<Time>[] {
   return [...markers]
     .map((m) => ({
@@ -149,6 +175,7 @@ export function TradingChart({
   benchmark,
   compare,
   area,
+  histogram,
   height = 320,
   ariaLabel,
 }: TradingChartProps) {
@@ -158,6 +185,7 @@ export function TradingChart({
   const benchmarkSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const compareSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const areaSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const histogramSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
 
   // 앱 테마(next-themes) — 문자열 themeKey 만 effect dep 로 사용 (H-1: object dep 금지).
   const { resolvedTheme } = useTheme();
@@ -172,12 +200,11 @@ export function TradingChart({
 
     // DESIGN.md §0: 앱 테마(.dark) 토큰을 resolved hex/rgba 로 읽어 적용.
     // lightweight-charts 는 var()/currentColor 파싱 불가(colorStringToRgba throw) →
-    // getComputedStyle 로 --text-muted/--border 를 해석해 전달. themeKey 변경 시 init
-    // effect 가 재실행되어 chart 재생성(아래 deps) → 토글 즉시 반영.
-    const rootStyle = getComputedStyle(document.documentElement);
-    const axisColor = rootStyle.getPropertyValue("--text-muted").trim() || "#767b85";
-    const gridColor =
-      rootStyle.getPropertyValue("--border").trim() || "rgba(127,127,127,0.12)";
+    // chart-tokens.ts SSOT 로 해석해 전달. themeKey 변경 시 init effect 가
+    // 재실행되어 chart 재생성(아래 deps) → 토글 즉시 반영.
+    const palette = resolveChartTokens();
+    const axisColor = palette.axis;
+    const gridColor = palette.grid;
 
     const chart = createChart(container, {
       height,
@@ -225,6 +252,7 @@ export function TradingChart({
       benchmarkSeriesRef.current = null;
       compareSeriesRef.current = null;
       areaSeriesRef.current = null;
+      histogramSeriesRef.current = null;
     };
   }, [height, themeKey]);
 
@@ -237,10 +265,13 @@ export function TradingChart({
       return;
     }
 
+    // 시리즈 기본색 — chart-tokens SSOT (호출측 options 로 override 가능).
+    const palette = resolveChartTokens();
+
     // main line series — equity curve.
     if (mainSeriesRef.current === null) {
       mainSeriesRef.current = chart.addLineSeries({
-        color: "#22c55e",
+        color: palette.equity,
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -261,7 +292,7 @@ export function TradingChart({
     if (benchmark !== undefined) {
       if (benchmarkSeriesRef.current === null) {
         benchmarkSeriesRef.current = chart.addLineSeries({
-          color: "#3b82f6",
+          color: palette.benchmark,
           lineWidth: 1,
           lineStyle: 2, // dashed
           priceLineVisible: false,
@@ -281,7 +312,7 @@ export function TradingChart({
     if (compare !== undefined) {
       if (compareSeriesRef.current === null) {
         compareSeriesRef.current = chart.addLineSeries({
-          color: "#8b5cf6",
+          color: palette.compare,
           lineWidth: 2,
           priceLineVisible: false,
           lastValueVisible: false,
@@ -300,9 +331,9 @@ export function TradingChart({
     if (area !== undefined) {
       if (areaSeriesRef.current === null) {
         areaSeriesRef.current = chart.addAreaSeries({
-          topColor: "rgba(239, 68, 68, 0.25)",
-          bottomColor: "rgba(239, 68, 68, 0.02)",
-          lineColor: "rgba(239, 68, 68, 0.55)",
+          topColor: palette.ddTop,
+          bottomColor: palette.ddBottom,
+          lineColor: palette.ddLine,
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
@@ -317,10 +348,28 @@ export function TradingChart({
       areaSeriesRef.current = null;
     }
 
+    // histogram overlay (per-trade PnL 바) — per-point color 는 데이터에 포함.
+    if (histogram !== undefined) {
+      if (histogramSeriesRef.current === null) {
+        histogramSeriesRef.current = chart.addHistogramSeries({
+          color: palette.equity,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          ...histogram.options,
+        });
+      } else {
+        histogramSeriesRef.current.applyOptions({ ...histogram.options });
+      }
+      histogramSeriesRef.current.setData(toHistogramData(histogram.data));
+    } else if (histogramSeriesRef.current !== null) {
+      chart.removeSeries(histogramSeriesRef.current);
+      histogramSeriesRef.current = null;
+    }
+
     chart.timeScale().fitContent();
     // themeKey: init effect 가 테마 토글 시 chart 를 재생성(series ref null) → 본 effect 가
     // 재실행되어 재생성된 chart 에 series 를 다시 채워야 함 (빈 차트 방지).
-  }, [data, markers, benchmark, compare, area, options, themeKey]);
+  }, [data, markers, benchmark, compare, area, histogram, options, themeKey]);
 
   return (
     <div
