@@ -17,11 +17,13 @@ import {
 import {
   computeCurveRange,
   computeExcessReturn,
+  computeProfitStructure,
   deriveBuyAndHoldMetrics,
 } from "@/features/backtest/analytics";
 import type {
   BacktestMetricsOut,
   EquityPoint,
+  TradeItem,
 } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
@@ -35,6 +37,10 @@ interface DetailedResultsSectionProps {
   equityCurve: readonly EquityPoint[] | null;
   buyAndHoldCurve: readonly EquityPoint[] | null;
   initialCapital: number;
+  /** waterfall 파생용 전체 trades (비용 전 gross 항등식 — analytics 참조). */
+  trades?: readonly TradeItem[];
+  /** trades 가 표본이면 waterfall 캡션 표시. */
+  tradesTruncated?: boolean;
 }
 
 function usd(value: number | null | undefined, signed = false): string | null {
@@ -88,6 +94,8 @@ export function DetailedResultsSection({
   equityCurve,
   buyAndHoldCurve,
   initialCapital,
+  trades,
+  tradesTruncated = false,
 }: DetailedResultsSectionProps) {
   const equityValues = useMemo(
     () => (equityCurve ?? []).map((p) => p.value),
@@ -98,6 +106,10 @@ export function DetailedResultsSection({
     [buyAndHoldCurve],
   );
 
+  const profitStructure = useMemo(
+    () => computeProfitStructure(trades ?? []),
+    [trades],
+  );
   const strategyRange = useMemo(() => computeCurveRange(equityValues), [equityValues]);
   const bhRange = useMemo(() => computeCurveRange(bhValues), [bhValues]);
   const bhMetrics = useMemo(() => deriveBuyAndHoldMetrics(bhValues), [bhValues]);
@@ -210,13 +222,20 @@ export function DetailedResultsSection({
               <h3 className="mb-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
                 수익 구조
               </h3>
+              {/* trades 기반 비용 전(gross) 항등식 — BE net-기준 gross 필드는
+                  수수료 별도 bar 와 이중 차감이라 waterfall 에 사용 금지. */}
               <ProfitWaterfall
-                grossProfit={m.gross_profit_abs}
-                grossLoss={m.gross_loss_abs}
-                fees={m.total_fees}
-                slippage={m.total_slippage}
-                netProfit={m.net_profit_abs}
+                grossProfit={profitStructure?.grossProfit ?? null}
+                grossLoss={profitStructure?.grossLoss ?? null}
+                fees={profitStructure?.fees ?? null}
+                slippage={profitStructure?.slippage ?? null}
+                netProfit={profitStructure?.net ?? null}
               />
+              {profitStructure !== null && tradesTruncated ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  * 표본 {trades?.length ?? 0}건 기준 근사 (전체 거래는 CSV 확인).
+                </p>
+              ) : null}
             </div>
             <div>
               <h3 className="mb-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">

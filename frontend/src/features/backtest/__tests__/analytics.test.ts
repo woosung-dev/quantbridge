@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   binReturnDistribution,
+  computeProfitStructure,
   computeCurveRange,
   computeExcessReturn,
   computeOutcomeCounts,
@@ -95,5 +96,41 @@ describe("computeExcessReturn", () => {
   it("초기자본 0 / non-finite → null", () => {
     expect(computeExcessReturn(12000, 11000, 0)).toBeNull();
     expect(computeExcessReturn(Number.NaN, 11000, 10000)).toBeNull();
+  });
+});
+
+describe("computeProfitStructure", () => {
+  const t = (pnl: number, fees: number, extra: object = {}) => ({
+    status: "closed",
+    pnl,
+    fees,
+    ...extra,
+  });
+
+  it("비용 전 gross 분해 + 항등식 (grossProfit - grossLoss - fees - slippage === net)", () => {
+    // T1: net +10, cost 2 → gross +12 / T2: net -5, cost 3 → gross -2
+    const s = computeProfitStructure([
+      t(10, 2, { fee_paid: 1.5, slippage_paid: 0.5 }),
+      t(-5, 3, { fee_paid: 2, slippage_paid: 1 }),
+    ]);
+    expect(s).not.toBeNull();
+    expect(s!.grossProfit).toBeCloseTo(12, 10);
+    expect(s!.grossLoss).toBeCloseTo(2, 10);
+    expect(s!.fees).toBeCloseTo(3.5, 10);
+    expect(s!.slippage).toBeCloseTo(1.5, 10);
+    expect(s!.net).toBeCloseTo(5, 10);
+    expect(s!.grossProfit - s!.grossLoss - s!.fees - s!.slippage).toBeCloseTo(s!.net, 10);
+  });
+
+  it("fee/slip 미분리 구 데이터 → 결합 비용을 수수료 축으로 (항등식 유지)", () => {
+    const s = computeProfitStructure([t(10, 2), t(-5, 3)]);
+    expect(s!.fees).toBeCloseTo(5, 10);
+    expect(s!.slippage).toBe(0);
+    expect(s!.grossProfit - s!.grossLoss - s!.fees - s!.slippage).toBeCloseTo(s!.net, 10);
+  });
+
+  it("closed 0건 → null (open 만 있으면 waterfall 잠금)", () => {
+    expect(computeProfitStructure([])).toBeNull();
+    expect(computeProfitStructure([{ status: "open", pnl: 0, fees: 1 }])).toBeNull();
   });
 });

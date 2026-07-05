@@ -121,6 +121,8 @@ export function BacktestReportShell({
             equityCurve={bt.equity_curve ?? null}
             buyAndHoldCurve={buyAndHoldPoints}
             initialCapital={bt.initial_capital}
+            trades={tradeItems}
+            tradesTruncated={truncated}
           />
         </TabsContent>
 
