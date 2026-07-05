@@ -235,6 +235,104 @@ def test_ta_atr_not_rolling_sma() -> None:
     )
 
 
+# -------- ta.hma TV parity (sqrt 라운딩) --------------------------------
+# TV 빌트인 정의 (공식 Hull Moving Average 인디케이터 소스):
+#   ta.wma(2 * ta.wma(src, length / 2) - ta.wma(src, length),
+#          math.round(math.sqrt(length)))
+# Pine int/int 나눗셈 = truncate → half = length // 2 (현 구현과 일치).
+# 마지막 WMA 길이 = round(sqrt(length)) — floor 아님 (예: 3→2, 15→4, 34→6).
+
+
+def _tv_wma(values: list[float], length: int) -> list[float]:
+    """TV ta.wma 손유도 (weights 1..n, 최신 = n). na 는 window 미충족."""
+    out: list[float] = []
+    buf: list[float] = []
+    denom = length * (length + 1) / 2
+    for v in values:
+        if not math.isnan(v):
+            buf.append(v)
+            buf = buf[-length:]
+        if math.isnan(v) or len(buf) < length:
+            out.append(float("nan"))
+        else:
+            out.append(sum((i + 1) * x for i, x in enumerate(buf)) / denom)
+    return out
+
+
+def _tv_hma(closes: list[float], length: int, *, sqrt_mode: str) -> list[float]:
+    """TV hma 손유도. sqrt_mode='round'(TV) / 'floor'(회귀 discriminator)."""
+    half = max(1, length // 2)
+    sqrt_len = max(
+        1,
+        math.floor(math.sqrt(length) + 0.5)  # Pine math.round = half-away-from-zero
+        if sqrt_mode == "round"
+        else math.floor(math.sqrt(length)),
+    )
+    wma_half = _tv_wma(closes, half)
+    wma_full = _tv_wma(closes, length)
+    raw = [
+        float("nan") if (math.isnan(h) or math.isnan(f)) else 2.0 * h - f
+        for h, f in zip(wma_half, wma_full, strict=True)
+    ]
+    return _tv_wma(raw, sqrt_len)
+
+
+_HMA_CLOSES = [10.0, 11.0, 13.0, 12.0, 15.0]
+
+
+def test_ta_hma_matches_tradingview_round_sqrt() -> None:
+    """ta.hma 마지막 WMA 길이는 TV `math.round(math.sqrt(length))`, floor 가 아니다.
+    anti-circular: length=3 기대값 손계산 —
+      wma3 = [na,na,71/6,73/6,82/6], raw = 2*close - wma3 = [na,na,85/6,71/6,98/6],
+      sqrt_len = round(√3) = 2 → hma = [na,na,na, (85/6+2*71/6)/3, (71/6+2*98/6)/3]
+                                     = [na,na,na, 227/18, 267/18]
+    """
+    r = run_historical(
+        '//@version=5\nindicator("t")\nh = ta.hma(close, 3)\n',
+        _ohlcv(_HMA_CLOSES),
+        strict=False,
+    )
+    engine = [s.get("h") for s in r.state_history]
+    assert math.isnan(engine[2]), (
+        f"bar 2 는 TV 기준 warmup na (sqrt_len=2 window 미충족), got {engine[2]}"
+    )
+    assert engine[3] == pytest.approx(227 / 18, abs=1e-9)
+    assert engine[4] == pytest.approx(267 / 18, abs=1e-9)
+
+
+def test_ta_hma_sqrt_rounds_not_floors() -> None:
+    """회귀 가드 (mutation harness): 사용자 전략 길이(15/34)에서 engine ta.hma 가
+    TV round-sqrt 손유도와 일치하고 floor-sqrt 변형과는 불일치해야 한다.
+    """
+    closes = [
+        100.0, 102.0, 101.0, 105.0, 107.0, 104.0, 108.0, 111.0, 109.0, 113.0,
+        112.0, 116.0, 114.0, 118.0, 121.0, 119.0, 123.0, 122.0, 126.0, 125.0,
+        129.0, 128.0, 132.0, 131.0, 135.0, 133.0, 137.0, 136.0, 140.0, 139.0,
+        143.0, 142.0, 146.0, 145.0, 149.0, 148.0, 152.0, 151.0, 155.0, 154.0,
+    ]
+    for length in (15, 34):
+        r = run_historical(
+            f'//@version=5\nindicator("t")\nh = ta.hma(close, {length})\n',
+            _ohlcv(closes),
+            strict=False,
+        )
+        engine = [s.get("h") for s in r.state_history]
+        tv = _tv_hma(closes, length, sqrt_mode="round")
+        floor_variant = _tv_hma(closes, length, sqrt_mode="floor")
+        diverged = False
+        for i, expected in enumerate(tv):
+            if math.isnan(expected):
+                continue
+            assert engine[i] == pytest.approx(expected, abs=1e-9), (
+                f"length={length} bar {i}: engine={engine[i]} != TV round-sqrt={expected}"
+            )
+            if not math.isnan(floor_variant[i]) and abs(expected - floor_variant[i]) > 1e-9:
+                diverged = True
+        assert diverged, (
+            f"length={length}: round-sqrt 와 floor-sqrt 가 전 구간 동일 (discriminator 무효)"
+        )
+
+
 # -------- user 변수 series subscript ----------------------------------
 
 
