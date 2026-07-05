@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ParamStabilityResult } from "@/features/backtest/schemas";
 
-import { ParamStabilityHeatmap } from "../param-stability-heatmap";
+import { ParamStabilityHeatmap } from "@/app/(dashboard)/backtests/_components/charts/param-stability-heatmap";
 
 function makeResult(
   overrides: Partial<ParamStabilityResult> = {},

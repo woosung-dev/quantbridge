@@ -5,9 +5,9 @@ import { useWatch, type Control, type UseFormRegister, type UseFormSetValue, typ
 
 import { Input } from "@/components/ui/input";
 
-import { LiveSettingsBadge, type SizingSource } from "./live-settings-badge";
-import { PositionSizeSlider } from "./position-size-slider";
-import type { BacktestFormValues } from "./useBacktestForm";
+import { LiveSettingsBadge, type SizingSource } from "@/app/(dashboard)/backtests/_components/live-settings-badge";
+import { PositionSizeSlider } from "@/app/(dashboard)/backtests/_components/forms/position-size-slider";
+import type { BacktestFormValues } from "@/app/(dashboard)/backtests/_components/forms/useBacktestForm";
 
 interface BacktestSizingFieldSetProps {
   control: Control<BacktestFormValues>;

@@ -9,7 +9,7 @@ import {
 import { listBacktests } from "@/features/backtest/api";
 import { backtestKeys } from "@/features/backtest/query-keys";
 
-import { BacktestList } from "./_components/backtest-list";
+import { BacktestList } from "@/app/(dashboard)/backtests/_components/backtest-list";
 
 export const metadata: Metadata = {
   title: "백테스트 | QuantBridge",

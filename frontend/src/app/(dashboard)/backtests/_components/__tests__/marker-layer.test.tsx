@@ -6,7 +6,7 @@ import {
   __test_only__,
   MARKER_LIMIT,
   deriveTradeMarkers,
-} from "../marker-layer";
+} from "@/app/(dashboard)/backtests/_components/charts/marker-layer";
 
 const { formatPriceShort, formatReturnPctShort, COLORS } = __test_only__;
 

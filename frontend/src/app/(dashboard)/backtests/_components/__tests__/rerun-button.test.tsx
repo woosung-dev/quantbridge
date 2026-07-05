@@ -43,7 +43,7 @@ vi.mock("@/features/backtest/hooks", () => ({
   }),
 }));
 
-import { RerunButton } from "../rerun-button";
+import { RerunButton } from "@/app/(dashboard)/backtests/_components/rerun-button";
 
 const BACKTEST: BacktestDetail = {
   id: "old-id-1234-1234-1234-123456789012",

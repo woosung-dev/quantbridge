@@ -7,7 +7,7 @@ import type {
   WalkForwardFold,
   WalkForwardResult,
 } from "@/features/backtest/schemas";
-import { WalkForwardBarChart } from "../walk-forward-bar-chart";
+import { WalkForwardBarChart } from "@/app/(dashboard)/backtests/_components/charts/walk-forward-bar-chart";
 
 function makeFold(index: number): WalkForwardFold {
   return {

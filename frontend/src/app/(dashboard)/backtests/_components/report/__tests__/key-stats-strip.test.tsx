@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BacktestMetricsOut } from "@/features/backtest/schemas";
 
-import { KeyStatsStrip } from "../key-stats-strip";
+import { KeyStatsStrip } from "@/app/(dashboard)/backtests/_components/report/key-stats-strip";
 
 const BASE_METRICS = {
   total_return: 0.1890,

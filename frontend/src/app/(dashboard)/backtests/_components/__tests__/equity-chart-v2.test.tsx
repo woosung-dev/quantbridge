@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChartMarker } from "@/components/charts/trading-chart";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
-import { EquityChartV2 } from "../equity-chart-v2";
+import { EquityChartV2 } from "@/app/(dashboard)/backtests/_components/charts/equity-chart-v2";
 
 // --- lightweight-charts mock ---------------------------------------------
 // 2-pane 구조 → createChart 가 두 번 호출 (top + bottom) 되어야 함.

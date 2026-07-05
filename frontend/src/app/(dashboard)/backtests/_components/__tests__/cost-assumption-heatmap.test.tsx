@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CostAssumptionResult } from "@/features/backtest/schemas";
 
-import { CostAssumptionHeatmap } from "../cost-assumption-heatmap";
+import { CostAssumptionHeatmap } from "@/app/(dashboard)/backtests/_components/charts/cost-assumption-heatmap";
 
 function makeResult(
   overrides: Partial<CostAssumptionResult> = {},

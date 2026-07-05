@@ -24,7 +24,7 @@ import {
   type ExtendedTradeFilters,
   TradeFilterRow,
   countActiveFilters,
-} from "./trade-filter-row";
+} from "@/app/(dashboard)/backtests/_components/trades/trade-filter-row";
 
 const PAGE_SIZE = 50;
 

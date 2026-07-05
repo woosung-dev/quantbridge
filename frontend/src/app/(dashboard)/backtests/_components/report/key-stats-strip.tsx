@@ -7,7 +7,7 @@
 import type { BacktestConfig, BacktestMetricsOut } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
-import { buildMddCaption } from "../mdd-caption";
+import { buildMddCaption } from "@/app/(dashboard)/backtests/_components/charts/mdd-caption";
 
 interface KeyStatsStripProps {
   metrics: BacktestMetricsOut;

@@ -2,7 +2,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PositionSizeSlider } from "../position-size-slider";
+import { PositionSizeSlider } from "@/app/(dashboard)/backtests/_components/forms/position-size-slider";
 
 describe("PositionSizeSlider", () => {
   it("slider 변경 시 onChange numeric 호출", () => {

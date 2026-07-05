@@ -9,11 +9,11 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MonteCarloResult } from "@/features/backtest/schemas";
-import type { FanDatum } from "./monte-carlo-fan-plot";
+import type { FanDatum } from "@/app/(dashboard)/backtests/_components/charts/monte-carlo-fan-plot";
 
 // recharts plot 은 무거워서 지연 로딩 — 로딩 중엔 hasWidth 대기 placeholder 와 동일 형태.
 const MonteCarloFanPlot = dynamic(
-  () => import("./recharts-plots").then((m) => m.MonteCarloFanPlot),
+  () => import("@/app/(dashboard)/backtests/_components/charts/recharts-plots").then((m) => m.MonteCarloFanPlot),
   { ssr: false, loading: () => <div className="h-full w-full" aria-busy="true" /> },
 );
 

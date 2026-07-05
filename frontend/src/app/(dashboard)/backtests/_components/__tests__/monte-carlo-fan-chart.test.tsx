@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MonteCarloResult } from "@/features/backtest/schemas";
-import { MonteCarloFanChart } from "../monte-carlo-fan-chart";
+import { MonteCarloFanChart } from "@/app/(dashboard)/backtests/_components/charts/monte-carlo-fan-chart";
 
 const RESULT_EMPTY: MonteCarloResult = {
   samples: 0,

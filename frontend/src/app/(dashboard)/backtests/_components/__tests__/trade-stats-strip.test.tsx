@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { TradeItem } from "@/features/backtest/schemas";
 
-import { TradeStatsStrip } from "../trade-stats-strip";
+import { TradeStatsStrip } from "@/app/(dashboard)/backtests/_components/trades/trade-stats-strip";
 
 function mkTrade(
   overrides: Partial<TradeItem> & Pick<TradeItem, "direction" | "pnl">,

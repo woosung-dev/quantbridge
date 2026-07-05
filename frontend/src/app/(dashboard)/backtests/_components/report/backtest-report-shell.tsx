@@ -17,15 +17,15 @@ import {
 import { useAllBacktestTrades } from "@/features/backtest/hooks";
 import type { BacktestDetail } from "@/features/backtest/schemas";
 
-import { AssumptionsCard } from "../assumptions-card";
-import { StressTestPanel } from "../stress-test-panel";
-import { TradeAnalysis } from "../trade-analysis";
-import { DetailedResultsSection } from "./detailed-results-section";
-import { KeyStatsStrip } from "./key-stats-strip";
-import { PerformanceChart } from "./performance-chart";
-import { RunupDrawdownSection } from "./runup-drawdown-section";
-import { TradeAnalyticsSection } from "./trade-analytics-section";
-import { TradeLedgerTable } from "./trade-ledger-table";
+import { AssumptionsCard } from "@/app/(dashboard)/backtests/_components/assumptions-card";
+import { StressTestPanel } from "@/app/(dashboard)/backtests/_components/stress-test-panel";
+import { TradeAnalysis } from "@/app/(dashboard)/backtests/_components/trades/trade-analysis";
+import { DetailedResultsSection } from "@/app/(dashboard)/backtests/_components/report/detailed-results-section";
+import { KeyStatsStrip } from "@/app/(dashboard)/backtests/_components/report/key-stats-strip";
+import { PerformanceChart } from "@/app/(dashboard)/backtests/_components/report/performance-chart";
+import { RunupDrawdownSection } from "@/app/(dashboard)/backtests/_components/report/runup-drawdown-section";
+import { TradeAnalyticsSection } from "@/app/(dashboard)/backtests/_components/report/trade-analytics-section";
+import { TradeLedgerTable } from "@/app/(dashboard)/backtests/_components/report/trade-ledger-table";
 
 interface BacktestReportShellProps {
   backtest: BacktestDetail;

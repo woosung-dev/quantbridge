@@ -8,7 +8,7 @@ import {
   screen,
 } from "@testing-library/react";
 
-import { BacktestForm } from "../backtest-form";
+import { BacktestForm } from "@/app/(dashboard)/backtests/_components/forms/backtest-form";
 import { CreateBacktestRequestSchema } from "@/features/backtest/schemas";
 
 // 전략 목록 (useStrategies stub) — 4 case 모두 동일.

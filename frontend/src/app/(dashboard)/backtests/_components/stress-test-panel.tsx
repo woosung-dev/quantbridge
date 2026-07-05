@@ -19,12 +19,12 @@ import {
   useStressTest,
 } from "@/features/backtest/hooks";
 
-import { CostAssumptionHeatmap } from "./cost-assumption-heatmap";
-import { MonteCarloFanChart } from "./monte-carlo-fan-chart";
-import { MonteCarloSummaryTable } from "./monte-carlo-summary-table";
-import { ParamStabilityForm } from "./param-stability-form";
-import { ParamStabilityHeatmap } from "./param-stability-heatmap";
-import { WalkForwardBarChart } from "./walk-forward-bar-chart";
+import { CostAssumptionHeatmap } from "@/app/(dashboard)/backtests/_components/charts/cost-assumption-heatmap";
+import { MonteCarloFanChart } from "@/app/(dashboard)/backtests/_components/charts/monte-carlo-fan-chart";
+import { MonteCarloSummaryTable } from "@/app/(dashboard)/backtests/_components/monte-carlo-summary-table";
+import { ParamStabilityForm } from "@/app/(dashboard)/backtests/_components/param-stability-form";
+import { ParamStabilityHeatmap } from "@/app/(dashboard)/backtests/_components/charts/param-stability-heatmap";
+import { WalkForwardBarChart } from "@/app/(dashboard)/backtests/_components/charts/walk-forward-bar-chart";
 
 interface Props {
   backtestId: string;

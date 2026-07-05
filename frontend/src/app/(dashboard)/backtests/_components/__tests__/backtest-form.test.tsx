@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import { BacktestForm } from "../backtest-form";
+import { BacktestForm } from "@/app/(dashboard)/backtests/_components/forms/backtest-form";
 
 const strategies = {
   data: {

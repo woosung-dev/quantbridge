@@ -53,7 +53,7 @@ vi.mock("sonner", () => ({
 }));
 
 // import AFTER mocks
-import { StressTestPanel } from "../stress-test-panel";
+import { StressTestPanel } from "@/app/(dashboard)/backtests/_components/stress-test-panel";
 
 beforeEach(() => {
   mcMutation = { mutate: vi.fn(), isPending: false };

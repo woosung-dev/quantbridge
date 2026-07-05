@@ -15,12 +15,12 @@ import {
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 
-import { BacktestCostFieldSet } from "./BacktestCostFieldSet";
-import { BacktestSessionFieldSet } from "./BacktestSessionFieldSet";
-import { BacktestSizingFieldSet } from "./BacktestSizingFieldSet";
-import { BacktestTradingSessionsFieldSet } from "./BacktestTradingSessionsFieldSet";
-import { SetupSummaryAside } from "./setup-summary-aside";
-import { useBacktestForm } from "./useBacktestForm";
+import { BacktestCostFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestCostFieldSet";
+import { BacktestSessionFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestSessionFieldSet";
+import { BacktestSizingFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestSizingFieldSet";
+import { BacktestTradingSessionsFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestTradingSessionsFieldSet";
+import { SetupSummaryAside } from "@/app/(dashboard)/backtests/_components/setup-summary-aside";
+import { useBacktestForm } from "@/app/(dashboard)/backtests/_components/forms/useBacktestForm";
 
 export function BacktestForm() {
   const strategies = useStrategies({ limit: 100, offset: 0, is_archived: false });

@@ -8,7 +8,7 @@ import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { WalkForwardBarChart } from "@/app/(dashboard)/backtests/_components/walk-forward-bar-chart";
+import { WalkForwardBarChart } from "@/app/(dashboard)/backtests/_components/charts/walk-forward-bar-chart";
 import { Button } from "@/components/ui/button";
 import { useCreateWalkForward, useStressTest } from "@/features/backtest/hooks";
 import type { OptimizationKind, ParamSpace } from "@/features/optimizer/schemas";

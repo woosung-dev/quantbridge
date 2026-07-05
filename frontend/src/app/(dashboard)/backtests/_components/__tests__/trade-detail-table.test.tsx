@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TradeItem } from "@/features/backtest/schemas";
 
-import { TradeDetailTable } from "../trade-detail-table";
+import { TradeDetailTable } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-table";
 
 function mkTrade(idx: number, pnl = 10): TradeItem {
   return {

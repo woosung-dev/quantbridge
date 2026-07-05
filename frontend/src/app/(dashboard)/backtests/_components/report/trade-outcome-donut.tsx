@@ -12,7 +12,7 @@ import { formatPercent } from "@/features/backtest/utils";
 
 // recharts plot 은 무거워서 지연 로딩 — hasWidth 대기 분기(null)와 동일하게 빈 상태 유지.
 const TradeOutcomeDonutPlot = dynamic(
-  () => import("../recharts-plots").then((m) => m.TradeOutcomeDonutPlot),
+  () => import("@/app/(dashboard)/backtests/_components/charts/recharts-plots").then((m) => m.TradeOutcomeDonutPlot),
   { ssr: false, loading: () => null },
 );
 

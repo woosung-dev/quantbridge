@@ -30,11 +30,11 @@ import type {
 } from "@/components/charts/trading-chart";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
-import { AxisLabelBar } from "./axis-label-bar";
-import { ChartLegend } from "./chart-legend";
-import { DrawdownPane } from "./drawdown-pane";
-import { EquityPane } from "./equity-pane";
-import { deriveTradeMarkers } from "./marker-layer";
+import { AxisLabelBar } from "@/app/(dashboard)/backtests/_components/charts/axis-label-bar";
+import { ChartLegend } from "@/app/(dashboard)/backtests/_components/charts/chart-legend";
+import { DrawdownPane } from "@/app/(dashboard)/backtests/_components/charts/drawdown-pane";
+import { EquityPane } from "@/app/(dashboard)/backtests/_components/charts/equity-pane";
+import { deriveTradeMarkers } from "@/app/(dashboard)/backtests/_components/charts/marker-layer";
 
 // 2-pane 비율 (ui-ux-pro-max 권장 60/40).
 const TOP_PANE_RATIO = 0.6;

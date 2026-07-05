@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BacktestMetricsOut } from "@/features/backtest/schemas";
 
-import { RunupDrawdownSection } from "../runup-drawdown-section";
+import { RunupDrawdownSection } from "@/app/(dashboard)/backtests/_components/report/runup-drawdown-section";
 
 const BASE = {
   total_return: 0.1,

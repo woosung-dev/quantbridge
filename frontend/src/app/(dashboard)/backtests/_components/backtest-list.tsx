@@ -22,8 +22,8 @@ import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
 import { formatDateTime } from "@/features/backtest/utils";
 
-import { RunningProgressBar } from "./running-progress-bar";
-import { BacktestStatusBadge } from "./status-badge";
+import { RunningProgressBar } from "@/app/(dashboard)/backtests/_components/running-progress-bar";
+import { BacktestStatusBadge } from "@/app/(dashboard)/backtests/_components/status-badge";
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS: ReadonlyArray<{ id: "all" | BacktestStatus; label: string }> = [

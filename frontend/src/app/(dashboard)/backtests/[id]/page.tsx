@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { BacktestDetailView } from "../_components/backtest-detail-view";
+import { BacktestDetailView } from "@/app/(dashboard)/backtests/_components/backtest-detail-view";
 
 export const metadata: Metadata = {
   title: "백테스트 상세 | QuantBridge",

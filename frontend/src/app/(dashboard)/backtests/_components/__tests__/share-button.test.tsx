@@ -57,7 +57,7 @@ vi.mock("@/features/backtest/hooks", () => ({
   }),
 }));
 
-import { ShareButton } from "../share-button";
+import { ShareButton } from "@/app/(dashboard)/backtests/_components/share-button";
 
 beforeEach(() => {
   mockCreateMutate.mockClear();

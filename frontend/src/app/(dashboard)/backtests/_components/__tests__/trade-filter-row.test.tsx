@@ -8,7 +8,7 @@ import {
   type ExtendedTradeFilters,
   TradeFilterRow,
   countActiveFilters,
-} from "../trade-filter-row";
+} from "@/app/(dashboard)/backtests/_components/trades/trade-filter-row";
 
 describe("countActiveFilters", () => {
   it("기본값 → 0", () => {

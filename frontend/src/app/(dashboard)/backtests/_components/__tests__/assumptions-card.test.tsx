@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { AssumptionsCard } from "../assumptions-card";
+import { AssumptionsCard } from "@/app/(dashboard)/backtests/_components/assumptions-card";
 
 describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/펀딩 row 제거)", () => {
   it("config 미제공 시 가정 default 표시 + 안내 문구 (수수료/슬리피지 만)", () => {

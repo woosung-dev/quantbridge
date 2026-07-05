@@ -8,7 +8,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { AssumptionsCard } from "../assumptions-card";
+import { AssumptionsCard } from "@/app/(dashboard)/backtests/_components/assumptions-card";
 
 describe("AssumptionsCard — Sprint 37 BL-187a graceful upgrade (fees/slippage)", () => {
   it("사용자 입력 fees+slippage set 시 (기본) 마크 제거 + 실제값 표시", () => {

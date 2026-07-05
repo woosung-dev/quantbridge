@@ -6,7 +6,7 @@ import type {
   ChartPoint,
 } from "@/components/charts/trading-chart";
 
-import { EquityPane } from "../equity-pane";
+import { EquityPane } from "@/app/(dashboard)/backtests/_components/charts/equity-pane";
 
 // --- lightweight-charts mock ---------------------------------------------
 // EquityPane → TradingChart → lightweight-charts.createChart 까지 호출 체인.

@@ -8,7 +8,7 @@ import type {
   TradeItem,
 } from "@/features/backtest/schemas";
 
-import { TradeAnalysis } from "../trade-analysis";
+import { TradeAnalysis } from "@/app/(dashboard)/backtests/_components/trades/trade-analysis";
 
 // schema 와 일치하는 metrics fixture (decimalString → number transform 후).
 const METRICS: BacktestMetricsOut = {

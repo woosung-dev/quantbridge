@@ -9,11 +9,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { binReturnDistribution } from "@/features/backtest/analytics";
 import type { TradeItem } from "@/features/backtest/schemas";
 import { formatPercent } from "@/features/backtest/utils";
-import type { HistogramDatum } from "./pnl-distribution-plot";
+import type { HistogramDatum } from "@/app/(dashboard)/backtests/_components/report/pnl-distribution-plot";
 
 // recharts plot 은 무거워서 지연 로딩 — hasWidth 대기 placeholder 와 동일 높이 유지.
 const PnlDistributionPlot = dynamic(
-  () => import("../recharts-plots").then((m) => m.PnlDistributionPlot),
+  () => import("@/app/(dashboard)/backtests/_components/charts/recharts-plots").then((m) => m.PnlDistributionPlot),
   { ssr: false, loading: () => <div style={{ height: 220 }} /> },
 );
 

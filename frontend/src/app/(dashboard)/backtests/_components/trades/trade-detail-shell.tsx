@@ -14,8 +14,8 @@ import {
   formatPercent,
 } from "@/features/backtest/utils";
 
-import { TradeDetailTable } from "./trade-detail-table";
-import { TradeStatsStrip } from "./trade-stats-strip";
+import { TradeDetailTable } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-table";
+import { TradeStatsStrip } from "@/app/(dashboard)/backtests/_components/trades/trade-stats-strip";
 
 import { MetricTile } from "@/components/metric-tile";
 

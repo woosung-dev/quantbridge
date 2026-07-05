@@ -9,11 +9,11 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { WalkForwardResult } from "@/features/backtest/schemas";
-import type { WalkForwardBarDatum as BarDatum } from "./walk-forward-bar-plot";
+import type { WalkForwardBarDatum as BarDatum } from "@/app/(dashboard)/backtests/_components/charts/walk-forward-bar-plot";
 
 // recharts plot 은 무거워서 지연 로딩 — 로딩 중엔 hasWidth 대기 placeholder 와 동일 형태.
 const WalkForwardBarPlot = dynamic(
-  () => import("./recharts-plots").then((m) => m.WalkForwardBarPlot),
+  () => import("@/app/(dashboard)/backtests/_components/charts/recharts-plots").then((m) => m.WalkForwardBarPlot),
   { ssr: false, loading: () => <div className="h-full w-full" aria-busy="true" /> },
 );
 

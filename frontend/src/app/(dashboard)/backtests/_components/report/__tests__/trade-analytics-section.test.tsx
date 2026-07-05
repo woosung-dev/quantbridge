@@ -7,7 +7,7 @@ import type {
   TradeItem,
 } from "@/features/backtest/schemas";
 
-import { TradeAnalyticsSection } from "../trade-analytics-section";
+import { TradeAnalyticsSection } from "@/app/(dashboard)/backtests/_components/report/trade-analytics-section";
 
 const METRICS = {
   total_return: 0.1,

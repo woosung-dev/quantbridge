@@ -1,7 +1,7 @@
 // buildMddCaption — leverage/자본초과 캡션 정책 (metrics-cards-mdd-leverage 에서 이관)
 import { describe, expect, it } from "vitest";
 
-import { buildMddCaption } from "../mdd-caption";
+import { buildMddCaption } from "@/app/(dashboard)/backtests/_components/charts/mdd-caption";
 
 describe("buildMddCaption — leverage 가정 표시 정책 (Sprint 32-D)", () => {
   it("leverage=1 + 정상 MDD → null (caption 표시 없음)", () => {

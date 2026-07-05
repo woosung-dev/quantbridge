@@ -27,10 +27,10 @@ import type {
 } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
-import { MonthlyReturnsHeatmap } from "../monthly-returns-heatmap";
-import { BenchmarkFloatingBars } from "./benchmark-floating-bars";
-import { MetricTable, type MetricRowSpec } from "./metric-table";
-import { ProfitWaterfall } from "./profit-waterfall";
+import { MonthlyReturnsHeatmap } from "@/app/(dashboard)/backtests/_components/charts/monthly-returns-heatmap";
+import { BenchmarkFloatingBars } from "@/app/(dashboard)/backtests/_components/report/benchmark-floating-bars";
+import { MetricTable, type MetricRowSpec } from "@/app/(dashboard)/backtests/_components/report/metric-table";
+import { ProfitWaterfall } from "@/app/(dashboard)/backtests/_components/report/profit-waterfall";
 
 interface DetailedResultsSectionProps {
   metrics: BacktestMetricsOut;
