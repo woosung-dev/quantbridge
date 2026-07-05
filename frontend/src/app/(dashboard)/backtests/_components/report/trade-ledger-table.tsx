@@ -44,9 +44,6 @@ export function TradeLedgerTable({
   trades,
   filenamePrefix = "trades",
 }: TradeLedgerTableProps) {
-  const visible = trades.slice(0, LEDGER_LIMIT);
-  const truncated = trades.length > LEDGER_LIMIT;
-
   // TV 기본 = 거래 번호 내림차순 (최신 거래 위).
   const [indexDesc, setIndexDesc] = useState(true);
   const [directionFilter, setDirectionFilter] =
@@ -54,15 +51,19 @@ export function TradeLedgerTable({
   const [resultFilter, setResultFilter] =
     useState<TradeFilters["result"]>("all");
 
-  const filtered = useMemo(() => {
-    const base = applyTradeFilterSort(
-      visible,
-      { direction: directionFilter, result: resultFilter },
-      "entry_time",
-      indexDesc ? "desc" : "asc",
-    );
-    return base;
-  }, [visible, directionFilter, resultFilter, indexDesc]);
+  // 정렬/필터 후 cap — desc 기본에서 최신 거래가 잘리지 않도록 slice 는 마지막.
+  const sorted = useMemo(
+    () =>
+      applyTradeFilterSort(
+        trades,
+        { direction: directionFilter, result: resultFilter },
+        "entry_time",
+        indexDesc ? "desc" : "asc",
+      ),
+    [trades, directionFilter, resultFilter, indexDesc],
+  );
+  const filtered = useMemo(() => sorted.slice(0, LEDGER_LIMIT), [sorted]);
+  const truncated = sorted.length > LEDGER_LIMIT;
 
   // 신규 컬럼 — 전 trade null 이면 컬럼 자체 hide.
   const hasExcursion = useMemo(
@@ -80,7 +81,7 @@ export function TradeLedgerTable({
     downloadCsv(`${filenamePrefix}-${ts}.csv`, csv);
   };
 
-  if (visible.length === 0) {
+  if (trades.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
         기록된 거래가 없습니다
@@ -123,7 +124,7 @@ export function TradeLedgerTable({
             </SelectContent>
           </Select>
           <span className="text-xs text-muted-foreground">
-            {filtered.length} / {visible.length} 건
+            {filtered.length} / {trades.length} 건
           </span>
         </div>
         <Button
