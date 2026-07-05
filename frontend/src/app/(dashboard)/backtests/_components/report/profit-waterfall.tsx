@@ -12,7 +12,7 @@ import type { WaterfallDatum } from "./profit-waterfall-plot";
 
 // recharts plot 은 무거워서 지연 로딩 — hasWidth 대기 placeholder 와 동일 높이 유지.
 const ProfitWaterfallPlot = dynamic(
-  () => import("./profit-waterfall-plot").then((m) => m.ProfitWaterfallPlot),
+  () => import("../recharts-plots").then((m) => m.ProfitWaterfallPlot),
   { ssr: false, loading: () => <div style={{ height: 220 }} /> },
 );
 

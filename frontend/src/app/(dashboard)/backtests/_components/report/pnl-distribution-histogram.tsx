@@ -13,7 +13,7 @@ import type { HistogramDatum } from "./pnl-distribution-plot";
 
 // recharts plot 은 무거워서 지연 로딩 — hasWidth 대기 placeholder 와 동일 높이 유지.
 const PnlDistributionPlot = dynamic(
-  () => import("./pnl-distribution-plot").then((m) => m.PnlDistributionPlot),
+  () => import("../recharts-plots").then((m) => m.PnlDistributionPlot),
   { ssr: false, loading: () => <div style={{ height: 220 }} /> },
 );
 

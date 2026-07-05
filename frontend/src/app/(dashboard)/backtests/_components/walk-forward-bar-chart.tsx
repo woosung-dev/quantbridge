@@ -13,7 +13,7 @@ import type { WalkForwardBarDatum as BarDatum } from "./walk-forward-bar-plot";
 
 // recharts plot 은 무거워서 지연 로딩 — 로딩 중엔 hasWidth 대기 placeholder 와 동일 형태.
 const WalkForwardBarPlot = dynamic(
-  () => import("./walk-forward-bar-plot").then((m) => m.WalkForwardBarPlot),
+  () => import("./recharts-plots").then((m) => m.WalkForwardBarPlot),
   { ssr: false, loading: () => <div className="h-full w-full" aria-busy="true" /> },
 );
 
