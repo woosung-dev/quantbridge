@@ -20,11 +20,12 @@ import type { BacktestDetail } from "@/features/backtest/schemas";
 import { AssumptionsCard } from "../assumptions-card";
 import { StressTestPanel } from "../stress-test-panel";
 import { TradeAnalysis } from "../trade-analysis";
-import { TradeTable } from "../trade-table";
 import { DetailedResultsSection } from "./detailed-results-section";
 import { KeyStatsStrip } from "./key-stats-strip";
 import { PerformanceChart } from "./performance-chart";
+import { RunupDrawdownSection } from "./runup-drawdown-section";
 import { TradeAnalyticsSection } from "./trade-analytics-section";
+import { TradeLedgerTable } from "./trade-ledger-table";
 
 interface BacktestReportShellProps {
   backtest: BacktestDetail;
@@ -95,6 +96,12 @@ export function BacktestReportShell({
             거래 분석
           </TabsTrigger>
           <TabsTrigger
+            value="runup-drawdown"
+            className="data-active:text-[var(--primary)]"
+          >
+            런업 &amp; 드로다운
+          </TabsTrigger>
+          <TabsTrigger
             value="trades"
             className="data-active:text-[var(--primary)]"
           >
@@ -126,6 +133,13 @@ export function BacktestReportShell({
           <TradeAnalysis metrics={bt.metrics} trades={tradeItems} />
         </TabsContent>
 
+        <TabsContent value="runup-drawdown" className="mt-4">
+          <RunupDrawdownSection
+            metrics={bt.metrics}
+            initialCapital={bt.initial_capital}
+          />
+        </TabsContent>
+
         <TabsContent value="trades" className="mt-4 space-y-3">
           <div className="flex justify-end">
             <Link
@@ -144,7 +158,7 @@ export function BacktestReportShell({
               거래 기록 로드 실패: {trades.error?.message}
             </p>
           ) : (
-            <TradeTable
+            <TradeLedgerTable
               trades={tradeItems ?? []}
               filenamePrefix={`backtest-${currentId.slice(0, 8)}`}
             />
