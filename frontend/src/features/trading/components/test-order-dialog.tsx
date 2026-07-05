@@ -1,18 +1,14 @@
 "use client";
 
-// Sprint 13 Phase B: dogfood-only Test Order Dialog.
-//
-// 보안 trade-off (dogfood-only):
-// - production env 에서는 NEXT_PUBLIC_ENABLE_TEST_ORDER=false (또는 미설정).
-// - sessionStorage 캐시된 webhook secret 으로 browser-side HMAC 서명 → 외부 노출 금지.
-// - apiFetch helper 우회 — body 직렬화 drift 방지 위해 raw fetch + 단일 bodyStr 사용.
-// - 422/400 등 error 시 setError("root.serverError") 로 form 안에 inline 표시.
+// Sprint 13 Phase B: dogfood-only Test Order Dialog (shell).
+// production env 에서는 NEXT_PUBLIC_ENABLE_TEST_ORDER=false (또는 미설정) → 미렌더.
+// 스키마 = test-order-schema.ts / HMAC 서명·발송 money-path = test-order-webhook.ts.
+// 422/400 등 error 시 setError("root.serverError") 로 form 안에 inline 표시.
 
 import { useState } from "react";
-import { useForm, useWatch, type FieldValues, type Resolver } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { z, type core } from "zod/v4";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -40,146 +36,19 @@ import {
 } from "@/components/ui/select";
 import { useStrategies } from "@/features/strategy/hooks";
 import { readWebhookSecret } from "@/features/strategy/webhook-secret-storage";
-import { getApiBase, readErrorBody } from "@/lib/api-base";
+import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import type { LiquidationParams } from "../api";
 import {
   useExchangeAccounts,
   useIsOrderDisabledByKs,
   useLiquidationInfo,
 } from "../hooks";
-
-// 양수 Decimal 문자열 판정 — 수량/TP/SL/risk% 공용.
-function isPositiveDecimalString(v: string): boolean {
-  if (!/^\d*\.?\d+$/.test(v)) return false;
-  return Number(v) > 0;
-}
-
-// Wave 2 — sizing 택일(수량 직접 ↔ risk% 서버 권위) + bracket TP/SL + reduce-only.
-// risk_percent 는 W-A `OrderRequest.risk_percent`(Decimal,%) 계약 (미머지 → 서버 사이징은 Phase 3).
-const TEST_ORDER_FORM_SCHEMA = z
-  .object({
-    strategy_id: z.string().min(1, "전략을 선택하세요."),
-    exchange_account_id: z.string().min(1, "거래소 계정을 선택하세요."),
-    symbol: z.string().min(1, "심볼을 입력하세요."),
-    side: z.enum(["buy", "sell"]),
-    sizing_mode: z.enum(["quantity", "risk_percent"]),
-    // sizing 택일로 quantity/risk_percent 가 조건부 unmount → RHF 가 값을 제거할 수 있어
-    // `.default("")` 로 undefined 를 "" 로 흡수 (없으면 z.string() 이 silent "Required" 발생).
-    quantity: z.string().default(""),
-    risk_percent: z.string().default(""),
-    take_profit: z.string().default(""),
-    stop_loss: z.string().default(""),
-    reduce_only: z.boolean().default(false),
-  })
-  .superRefine((data, ctx) => {
-    if (data.sizing_mode === "quantity") {
-      if (data.quantity.length === 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["quantity"],
-          message: "수량을 입력하세요.",
-        });
-      } else if (!isPositiveDecimalString(data.quantity)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["quantity"],
-          message: "수량은 0보다 큰 숫자여야 합니다.",
-        });
-      }
-    } else {
-      if (data.risk_percent.length === 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["risk_percent"],
-          message: "리스크 %를 입력하세요.",
-        });
-      } else if (
-        !isPositiveDecimalString(data.risk_percent) ||
-        Number(data.risk_percent) > 100
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["risk_percent"],
-          message: "리스크 %는 0 초과 100 이하 숫자여야 합니다.",
-        });
-      }
-    }
-    if (data.take_profit.length > 0 && !isPositiveDecimalString(data.take_profit)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["take_profit"],
-        message: "익절가는 0보다 큰 숫자여야 합니다.",
-      });
-    }
-    if (data.stop_loss.length > 0 && !isPositiveDecimalString(data.stop_loss)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["stop_loss"],
-        message: "손절가는 0보다 큰 숫자여야 합니다.",
-      });
-    }
-  });
-
-type TestOrderFormValues = z.infer<typeof TEST_ORDER_FORM_SCHEMA>;
-
-// Zod v4 + RHF 호환 custom resolver. `@hookform/resolvers/zod@3.10.0` 가
-// `error.errors` (Zod v3) 를 검사해서 v4 의 `error.issues` 를 throw 하는 호환성
-// 이슈를 우회하기 위함. issues → RHF errors 매핑.
-function zodV4Resolver<TValues extends FieldValues>(
-  schema: z.ZodType<TValues>,
-): Resolver<TValues> {
-  const resolver: Resolver<TValues> = async (values) => {
-    const parsed = await schema.safeParseAsync(values);
-    if (parsed.success) {
-      return { values: parsed.data as TValues, errors: {} };
-    }
-    const errors: Record<string, { type: string; message: string }> = {};
-    for (const issue of parsed.error.issues as core.$ZodIssue[]) {
-      const path = issue.path.join(".");
-      if (!errors[path]) {
-        errors[path] = { type: issue.code, message: issue.message };
-      }
-    }
-    return {
-      values: {},
-      // RHF nested errors path 는 flat key (예: "quantity") 이므로 cast 안전.
-      errors: errors as unknown as Awaited<
-        ReturnType<Resolver<TValues>>
-      >["errors"],
-    };
-  };
-  return resolver;
-}
-
-// Sprint 14 Phase B-3 — getApiBase helper 통합 (3 곳 일관성 + trailing slash strip).
-const API_BASE_URL = getApiBase();
-
-// ArrayBuffer → lowercase hex string. Python `.hexdigest()` 호환.
-function bufferToHex(buf: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function computeHmacSha256Hex(
-  secret: string,
-  bodyStr: string,
-): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sigBuf = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(bodyStr),
-  );
-  return bufferToHex(sigBuf);
-}
+import {
+  isPositiveDecimalString,
+  TEST_ORDER_FORM_SCHEMA,
+  type TestOrderFormValues,
+} from "./test-order-schema";
+import { sendTestOrder } from "./test-order-webhook";
 
 export function TestOrderDialog() {
   // Production guard — env flag 미설정 시 button 자체 미렌더.
@@ -263,117 +132,23 @@ function TestOrderDialogInner() {
       return;
     }
 
-    // 기본 5필드 순서 보존(symbol/side/type/quantity/exchange_account_id) — 기존 HMAC
-    // golden vector + body 정확매칭 테스트 유지. risk% 모드면 quantity 대신 risk_percent
-    // (서버 권위 사이징). optional Wave1 필드는 값이 있을 때만 append.
-    const payload: Record<string, unknown> = {
-      symbol: values.symbol,
-      side: values.side,
-      type: "market",
-    };
-    if (values.sizing_mode === "quantity") {
-      payload.quantity = values.quantity;
-    } else {
-      payload.risk_percent = values.risk_percent;
-    }
-    payload.exchange_account_id = values.exchange_account_id;
-    if (values.take_profit.length > 0) {
-      payload.take_profit = values.take_profit;
-    }
-    if (values.stop_loss.length > 0) {
-      payload.stop_loss = values.stop_loss;
-    }
-    if (values.reduce_only) {
-      payload.reduce_only = true;
-    }
-    // ── 핵심: bodyStr 은 단 1회만 직렬화. HMAC 입력과 fetch body 가 동일 byte. ──
-    const bodyStr = JSON.stringify(payload);
-
-    // Sprint 14 Phase B-1 — WebCrypto error 처리. 구식 브라우저 / non-HTTPS local /
-    // SubtleCrypto 미지원 환경에서 unhandled promise rejection 방지.
-    let hmacHex: string;
-    let idempotencyKey: string;
-    try {
-      hmacHex = await computeHmacSha256Hex(secret, bodyStr);
-      idempotencyKey = crypto.randomUUID();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "WebCrypto 처리 실패";
+    const result = await sendTestOrder(values, secret);
+    if (!result.ok) {
       form.setError("root.serverError", {
         type: "manual",
-        message:
-          `암호화 처리 실패: ${message}. ` +
-          "브라우저가 WebCrypto (SubtleCrypto) 를 지원하지 않거나 " +
-          "HTTPS / localhost 가 아닌 환경입니다.",
+        message: result.message,
       });
       return;
     }
 
-    const url = `${API_BASE_URL}/api/v1/webhooks/${values.strategy_id}?token=${hmacHex}&Idempotency-Key=${idempotencyKey}`;
-
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: bodyStr,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "네트워크 오류";
-      form.setError("root.serverError", {
-        type: "manual",
-        message: `네트워크 오류: ${message}`,
-      });
-      return;
-    }
-
-    if (res.status === 201) {
-      // Sprint 21 BL-093 — success confirmation 강화: order id 마지막 8자 또는
-      // client-side idempotency_key 마지막 8자 노출 → 사용자가 OrdersPanel /
-      // Bybit Demo UI 와 매칭 가능 (dogfood Day 0 7번 N 해소).
-      let orderHint: string | null = null;
-      try {
-        const body = (await res.json()) as Record<string, unknown> | null;
-        const id = body?.id ?? body?.order_id ?? body?.exchange_order_id;
-        if (typeof id === "string" && id.length > 0) {
-          orderHint = `#${id.slice(-8)}`;
-        }
-      } catch {
-        // body 가 JSON 이 아니거나 빈 응답 — fallback 으로 idempotency_key 사용
-      }
-      if (!orderHint && idempotencyKey) {
-        orderHint = `client #${idempotencyKey.slice(-8)}`;
-      }
-      toast.success("테스트 주문 발송됨", {
-        description: orderHint ?? undefined,
-      });
-      // tradingKeys.orders 는 (userId, limit) 인자가 필요한 factory 라
-      // 모든 user/limit variation 을 한 번에 무효화하기 위해 prefix ["trading"] 사용.
-      qc.invalidateQueries({ queryKey: ["trading"] });
-      form.reset();
-      setOpen(false);
-      return;
-    }
-
-    // Sprint 14 Phase B-4 — error body size cap + JSON detail 정규화.
-    // FastAPI HTTPException detail 우선, JSON 아니면 text 8KB cap.
-    const detail = await readErrorBody(res);
-    let bodyText: string;
-    if (detail && typeof detail === "object") {
-      const detailField = (detail as { detail?: unknown }).detail;
-      if (typeof detailField === "string" && detailField.length > 0) {
-        bodyText = detailField;
-      } else {
-        bodyText = JSON.stringify(detail);
-      }
-    } else if (typeof detail === "string" && detail.length > 0) {
-      bodyText = detail;
-    } else {
-      bodyText = "응답 본문 없음";
-    }
-    form.setError("root.serverError", {
-      type: "manual",
-      message: `요청 실패 (${res.status}): ${bodyText}`,
+    toast.success("테스트 주문 발송됨", {
+      description: result.orderHint ?? undefined,
     });
+    // tradingKeys.orders 는 (userId, limit) 인자가 필요한 factory 라
+    // 모든 user/limit variation 을 한 번에 무효화하기 위해 prefix ["trading"] 사용.
+    qc.invalidateQueries({ queryKey: ["trading"] });
+    form.reset();
+    setOpen(false);
   };
 
   const rootError = form.formState.errors.root?.serverError?.message;
