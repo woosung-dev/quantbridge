@@ -5,32 +5,20 @@
 // - MVP: median line + p5~p95 outer band + p25~p75 inner band (stacked Area 로 fan).
 // - jsdom + ResizeObserver 미정의 환경에서도 warning 없이 렌더 가능하게 EquityChart 패턴 차용.
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Area,
-  ComposedChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import type { MonteCarloResult } from "@/features/backtest/schemas";
+import type { FanDatum } from "./monte-carlo-fan-plot";
+
+// recharts plot 은 무거워서 지연 로딩 — 로딩 중엔 hasWidth 대기 placeholder 와 동일 형태.
+const MonteCarloFanPlot = dynamic(
+  () => import("./monte-carlo-fan-plot").then((m) => m.MonteCarloFanPlot),
+  { ssr: false, loading: () => <div className="h-full w-full" aria-busy="true" /> },
+);
 
 interface Props {
   result: MonteCarloResult;
-}
-
-interface FanDatum {
-  bar: number;
-  p5Base: number;
-  p5To95Range: number;
-  p25Base: number;
-  p25To75Range: number;
-  median: number;
 }
 
 function safeSeries(
@@ -161,87 +149,7 @@ export function MonteCarloFanChart({ result }: Props) {
       </div>
       <div ref={wrapperRef} className="h-80 w-full" style={{ minWidth: 0 }}>
       {hasWidth ? (
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <ComposedChart
-            data={data}
-            margin={{ top: 12, right: 16, bottom: 24, left: 8 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="bar"
-              tick={{ fontSize: 11 }}
-              label={{
-                value: "Bar",
-                position: "insideBottom",
-                offset: -8,
-                style: { fontSize: 11 },
-              }}
-            />
-            <YAxis tick={{ fontSize: 11 }} width={70} />
-            <Tooltip
-              contentStyle={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-              labelStyle={{ color: "var(--foreground)" }}
-              itemStyle={{ color: "var(--foreground)" }}
-            />
-            <Legend verticalAlign="top" height={28} />
-            {/* 외측 밴드 p5~p95: 투명 base + 색상 range (stacked) */}
-            <Area
-              type="monotone"
-              dataKey="p5Base"
-              stackId="outer"
-              stroke="none"
-              fill="transparent"
-              legendType="none"
-              name="p5_base"
-              isAnimationActive={false}
-            />
-            <Area
-              type="monotone"
-              dataKey="p5To95Range"
-              stackId="outer"
-              stroke="none"
-              fill="var(--primary)"
-              fillOpacity={0.15}
-              name="5%~95%"
-              isAnimationActive={false}
-            />
-            {/* 내측 밴드 p25~p75 */}
-            <Area
-              type="monotone"
-              dataKey="p25Base"
-              stackId="inner"
-              stroke="none"
-              fill="transparent"
-              legendType="none"
-              name="p25_base"
-              isAnimationActive={false}
-            />
-            <Area
-              type="monotone"
-              dataKey="p25To75Range"
-              stackId="inner"
-              stroke="none"
-              fill="var(--primary)"
-              fillOpacity={0.35}
-              name="25%~75%"
-              isAnimationActive={false}
-            />
-            {/* 중앙값 */}
-            <Line
-              type="monotone"
-              dataKey="median"
-              stroke="var(--primary)"
-              strokeWidth={2}
-              dot={false}
-              name="중앙값"
-              isAnimationActive={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <MonteCarloFanPlot data={data} />
       ) : (
         <div className="h-full w-full" aria-busy="true" />
       )}

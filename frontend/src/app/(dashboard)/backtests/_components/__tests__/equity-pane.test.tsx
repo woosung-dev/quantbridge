@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -115,7 +115,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
       .ResizeObserver;
   });
 
-  it("renders TradingChart with green color (Equity series)", () => {
+  it("renders TradingChart with green color (Equity series)", async () => {
     render(
       <EquityPane
         equityData={EQUITY}
@@ -124,6 +124,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
         height={216}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(createChartMock).toHaveBeenCalledTimes(1);
     expect(chartInstances).toHaveLength(1);
@@ -141,7 +142,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
     expect(mainOptions.lineWidth).toBe(2);
   });
 
-  it("does not render benchmark series when benchmarkData is empty", () => {
+  it("does not render benchmark series when benchmarkData is empty", async () => {
     render(
       <EquityPane
         equityData={EQUITY}
@@ -150,13 +151,14 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
         height={216}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const chart = chartInstances[0]!;
     // main only.
     expect(chart.addLineSeries).toHaveBeenCalledTimes(1);
   });
 
-  it("uses correct chart height (top pane)", () => {
+  it("uses correct chart height (top pane)", async () => {
     render(
       <EquityPane
         equityData={EQUITY}
@@ -165,6 +167,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
         height={216}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // createChart 첫 인자는 container, 두번째 인자는 options.
     const callArgs = createChartMock.mock.calls[0]!;
@@ -172,7 +175,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
     expect(opts.height).toBe(216);
   });
 
-  it("applies markers via series.setMarkers when provided", () => {
+  it("applies markers via series.setMarkers when provided", async () => {
     render(
       <EquityPane
         equityData={EQUITY}
@@ -181,6 +184,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
         height={216}
       />,
     );
+    await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const chart = chartInstances[0]!;
     const series = chart.addLineSeries.mock.results[0]!.value as SeriesSpy;

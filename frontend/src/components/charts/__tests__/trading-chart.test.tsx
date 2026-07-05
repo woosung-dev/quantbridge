@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import {
   afterEach,
   beforeEach,
@@ -7,6 +7,11 @@ import {
   it,
   vi,
 } from "vitest";
+
+// chart 생성이 effect 내 dynamic import 후 비동기로 일어나므로 렌더 뒤 microtask flush 필수.
+async function flushChartInit() {
+  await act(async () => {});
+}
 
 import {
   TradingChart,
@@ -120,7 +125,7 @@ describe("TradingChart", () => {
       .ResizeObserver;
   });
 
-  it("calls createChart exactly once on mount and sets main line series data", () => {
+  it("calls createChart exactly once on mount and sets main line series data", async () => {
     render(
       <TradingChart
         data={POINTS}
@@ -128,6 +133,7 @@ describe("TradingChart", () => {
         height={300}
       />,
     );
+    await flushChartInit();
 
     // createChart 호출 1회 (Strict Mode 가 아니어도 1회, Strict Mode 에서도 cleanup 후 재invoke 시 누수 없이 1회 유지).
     expect(createChartMock).toHaveBeenCalledTimes(1);
@@ -147,7 +153,7 @@ describe("TradingChart", () => {
     expect(dataArg[0]!.time).toBe(Math.floor(Date.parse(POINTS[0]!.time as string) / 1000));
   });
 
-  it("applies markers via series.setMarkers when markers prop is provided", () => {
+  it("applies markers via series.setMarkers when markers prop is provided", async () => {
     render(
       <TradingChart
         data={POINTS}
@@ -155,6 +161,7 @@ describe("TradingChart", () => {
         ariaLabel="Equity chart with markers"
       />,
     );
+    await flushChartInit();
 
     const chart = chartInstances[0]!;
     const series = chart.addLineSeries.mock.results[0]!.value as SeriesSpy;
@@ -169,7 +176,7 @@ describe("TradingChart", () => {
     expect(markerArg[0]!.text).toBe("ENTRY");
   });
 
-  it("creates benchmark line series and area overlay when props provided", () => {
+  it("creates benchmark line series and area overlay when props provided", async () => {
     render(
       <TradingChart
         data={POINTS}
@@ -178,6 +185,7 @@ describe("TradingChart", () => {
         ariaLabel="Equity chart with benchmark"
       />,
     );
+    await flushChartInit();
 
     const chart = chartInstances[0]!;
     // 메인 + benchmark = 2 line series.
@@ -186,7 +194,7 @@ describe("TradingChart", () => {
     expect(chart.addAreaSeries).toHaveBeenCalledTimes(1);
   });
 
-  it("creates histogram series with per-point colors when histogram prop provided", () => {
+  it("creates histogram series with per-point colors when histogram prop provided", async () => {
     const histogramPoints: HistogramPoint[] = [
       { time: "2026-01-01T00:00:00Z", value: 120, color: "#0f9d6b" },
       { time: "2026-01-02T00:00:00Z", value: -80, color: "#e0413e" },
@@ -199,6 +207,7 @@ describe("TradingChart", () => {
         ariaLabel="Trade PnL bars"
       />,
     );
+    await flushChartInit();
 
     const chart = chartInstances[0]!;
     expect(chart.addHistogramSeries).toHaveBeenCalledTimes(1);
@@ -214,7 +223,7 @@ describe("TradingChart", () => {
     expect(dataArg[2]!.color).toBeUndefined();
   });
 
-  it("removes histogram series when histogram prop is dropped", () => {
+  it("removes histogram series when histogram prop is dropped", async () => {
     const histogramPoints: HistogramPoint[] = [
       { time: "2026-01-01T00:00:00Z", value: 120 },
     ];
@@ -225,6 +234,7 @@ describe("TradingChart", () => {
         ariaLabel="Trade PnL bars"
       />,
     );
+    await flushChartInit();
     const chart = chartInstances[0]!;
     expect(chart.addHistogramSeries).toHaveBeenCalledTimes(1);
 
@@ -232,10 +242,11 @@ describe("TradingChart", () => {
     expect(chart.removeSeries).toHaveBeenCalledTimes(1);
   });
 
-  it("calls chart.remove() on unmount (cleanup)", () => {
+  it("calls chart.remove() on unmount (cleanup)", async () => {
     const { unmount } = render(
       <TradingChart data={POINTS} ariaLabel="Equity chart" />,
     );
+    await flushChartInit();
 
     const chart = chartInstances[0]!;
     expect(chart.remove).not.toHaveBeenCalled();
