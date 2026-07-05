@@ -192,6 +192,22 @@ class RawTrade:
     # BL-104 — exit leg 종류 (TP/SL/Trailing). maker/taker 비용 라우팅 입력.
     # None = market close/flip/open → taker (byte-identical).
     exit_kind: ExitOrderKind | None = None
+    # --- TV Trades parity 확장 (전부 optional 꼬리 추가 — frozen dataclass
+    # additive-safe + trust-layer trades digest(명시적 11-필드) 불변) ---
+    # run-up(MFE)/drawdown(MAE): 보유 구간 bar high/low 기반 gross(수수료 미차감)
+    # 가격 excursion. 스캔 윈도 = (entry_bar, exit_bar] — entry bar 는 종가 체결
+    # 이전 고저가 미보유 구간이라 제외, exit bar 는 full 포함(bar 근사, "TV 근사").
+    # pct 분모 = entry notional (return_pct 규약 동일). ohlcv 미전달 시 None.
+    runup_abs: Decimal | None = None
+    runup_pct: Decimal | None = None
+    drawdown_abs: Decimal | None = None
+    drawdown_pct: Decimal | None = None
+    bars_in_trade: int | None = None  # exit_bar - entry_bar (closed only)
+    # 비용 분해 — 불변식: fee_paid + slippage_paid == fees (결합 필드 유지).
+    fee_paid: Decimal | None = None
+    slippage_paid: Decimal | None = None
+    comment: str | None = None  # Pine strategy.entry comment ("" → None)
+    cumulative_pnl: Decimal | None = None  # trade_index(entry 순) net pnl 누적
 
 
 @dataclass(frozen=True)
