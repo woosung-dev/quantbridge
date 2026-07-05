@@ -153,13 +153,26 @@ def _init_worker_state_after_fork(**_kwargs: object) -> None:
     Sprint 10 Phase A1/A2 follow-up: 분산 락 Redis pool 도 fork 후 stale FD 공유
     안 하도록 lazy 재생성 트리거.
 
+    live-signal 데모 dogfood (2026-07-01) — ccxt 가 강제 의존하는 `aiodns`
+    (aiohttp 기본 resolver, c-ares 기반) 가 이 prefork worker 안에서 매 호출
+    `DNSError: Could not contact DNS servers` 로 100% 재현 실패 (동일 macOS
+    셸의 `dig`/`curl`/단독 `aiodns.DNSResolver` 는 정상 — worker 재기동으로도
+    재현 불변, 순수 fork+persistent-loop 격리 재현 실패). `aiohttp.connector`
+    가 참조하는 `DefaultResolver` 이름을 `ThreadedResolver`(stdlib
+    `getaddrinfo`, 항상 동작 확인됨) 로 교체해 이 c-ares 의존성 클래스를
+    worker 전체에서 원천 차단.
+
     import 시점에 등록되므로 테스트 환경에서 실제 fork 없어도 no-op.
     """
+    import aiohttp.connector
+    import aiohttp.resolver
+
     from src.common.redis_client import reset_redis_lock_pool
     from src.tasks._worker_loop import init_worker_loop
 
     init_worker_loop()
     reset_redis_lock_pool()
+    aiohttp.connector.DefaultResolver = aiohttp.resolver.ThreadedResolver  # type: ignore[attr-defined]
 
 
 @worker_process_shutdown.connect  # type: ignore[untyped-decorator]
