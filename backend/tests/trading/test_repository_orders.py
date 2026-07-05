@@ -196,3 +196,61 @@ async def test_advisory_lock_acquire_and_release(db_session, strategy, account):
     # 동일 트랜잭션에서는 재진입 가능이라 True — 실제 경쟁은 별도 connection 필요
     # 이 테스트는 쿼리 실행 자체가 에러 없이 완료됨을 확인
     assert result.scalar() is not None
+
+
+async def test_list_filled_realized_excludes_rejected_and_entry_only_orders(
+    db_session, strategy, account
+):
+    """2026-07-01 dogfood 발견 — live-session 대시보드 실현손익이 rejected 주문의
+    시뮬레이션 pnl까지 반영하던 문제. filled+realized_pnl 있는 주문만 조회한다."""
+    from src.trading.repositories.order_repository import OrderRepository
+
+    repo = OrderRepository(db_session)
+
+    rejected = await repo.save(
+        Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=Decimal("1"),
+            state=OrderState.rejected,
+            realized_pnl=Decimal("-111.70"),  # 시뮬레이션 pnl이 리젝트에도 남는 케이스
+            filled_at=datetime(2026, 7, 1, 8, 34, 27, tzinfo=UTC),
+        )
+    )
+    entry_filled_no_pnl = await repo.save(
+        Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT",
+            side=OrderSide.buy,
+            type=OrderType.market,
+            quantity=Decimal("1"),
+            state=OrderState.filled,
+            realized_pnl=None,  # entry 는 realized_pnl 없음
+            filled_at=datetime(2026, 7, 1, 8, 35, 0, tzinfo=UTC),
+        )
+    )
+    close_filled_with_pnl = await repo.save(
+        Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=Decimal("1"),
+            state=OrderState.filled,
+            realized_pnl=Decimal("42.50"),
+            filled_at=datetime(2026, 7, 1, 8, 36, 0, tzinfo=UTC),
+        )
+    )
+    await repo.commit()
+
+    result = await repo.list_filled_realized_by_strategy_and_account(strategy.id, account.id)
+
+    result_ids = [o.id for o in result]
+    assert rejected.id not in result_ids
+    assert entry_filled_no_pnl.id not in result_ids
+    assert result_ids == [close_filled_with_pnl.id]
