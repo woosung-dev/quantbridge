@@ -644,7 +644,9 @@ def ta_hma(state: IndicatorState, node_id: int, source: float, length: int) -> f
         return float("nan")
     length = _len
     half_len = max(1, length // 2)
-    sqrt_len = max(1, math.floor(math.sqrt(length)))
+    # TV 빌트인: 마지막 WMA 길이 = math.round(math.sqrt(length)) — floor 아님
+    # (Pine math.round = half-away-from-zero; floor(x+0.5) 로 동치, banker's rounding 회피)
+    sqrt_len = max(1, math.floor(math.sqrt(length) + 0.5))
     slot = state.buffers.setdefault(
         node_id,
         {
