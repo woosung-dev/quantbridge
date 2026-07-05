@@ -20,15 +20,16 @@
 //  prevStatesRef 로 실질 변경만 걸러내므로 중복 toast 위험 없음.
 
 import { useEffect, useRef } from "react";
-import { useAuth } from "@clerk/nextjs";
 import {
-  useMutation,
   useQuery,
-  useQueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+
+import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
+import { useInvalidatingMutation } from "@/hooks/use-invalidating-mutation";
+import { makeRefetchInterval } from "@/lib/query-poll";
 
 import {
   deleteExchangeAccount,
@@ -54,7 +55,6 @@ import type {
 export const ORDERS_REFETCH_INTERVAL_ACTIVE_MS = 5_000;
 export const ORDERS_REFETCH_INTERVAL_IDLE_MS = 30_000;
 const KILL_SWITCH_REFETCH_INTERVAL_MS = 30_000;
-const ANON_USER_ID = "anon";
 
 // "진행 중" 상태 — 이 상태가 존재할 때 빠른 폴링
 export const ACTIVE_ORDER_STATES: ReadonlySet<Order["state"]> = new Set([
@@ -74,6 +74,15 @@ export function computeOrdersRefetchInterval(
     ? ORDERS_REFETCH_INTERVAL_ACTIVE_MS
     : ORDERS_REFETCH_INTERVAL_IDLE_MS;
 }
+
+// LESSON-004 가드 내장 폴링 — 진행 중 주문이 있으면 빠른 폴링, 없으면 느린 폴링.
+const ordersRefetchInterval = makeRefetchInterval<{ items: Order[]; total: number }>(
+  (data) => computeOrdersRefetchInterval(data?.items ?? []),
+);
+
+const killSwitchRefetchInterval = makeRefetchInterval<{
+  items: KillSwitchEvent[];
+}>(() => KILL_SWITCH_REFETCH_INTERVAL_MS);
 
 // 이전 상태가 "진행 중"이었고 새 상태로 전환될 때 toast 알림
 type TransitionRule = {
@@ -95,8 +104,6 @@ const STATE_TRANSITION_RULES: TransitionRule[] = [
     toastFn: (symbol) => toast.error(`${symbol} 주문 거부됨`),
   },
 ];
-
-type TokenGetter = () => Promise<string | null>;
 
 export { tradingKeys };
 
@@ -141,8 +148,7 @@ function makeLiquidationFetcher(
 export function useOrders(
   limit = 50,
 ): UseQueryResult<{ items: Order[]; total: number }, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
 
   // 이전 주문 state 추적 — Map<orderId, state>
   // useRef 사용: 렌더 트리거 없이 mutable reference 유지
@@ -153,11 +159,7 @@ export function useOrders(
   const query = useQuery({
     queryKey: tradingKeys.orders(uid, limit),
     queryFn: makeOrdersFetcher(limit, getToken),
-    refetchInterval: (q) => {
-      if (q.state.status === "error") return false;
-      // 진행 중 주문이 있으면 빠른 폴링, 없으면 느린 폴링 (computeOrdersRefetchInterval).
-      return computeOrdersRefetchInterval(q.state.data?.items ?? []);
-    },
+    refetchInterval: ordersRefetchInterval,
   });
 
   // C-3: 주문 상태 전환 감지 + toast.
@@ -211,13 +213,11 @@ export function useKillSwitchEvents(): UseQueryResult<
   { items: KillSwitchEvent[] },
   Error
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: tradingKeys.killSwitch(uid),
     queryFn: makeKillSwitchFetcher(getToken),
-    refetchInterval: (q) =>
-      q.state.status === "error" ? false : KILL_SWITCH_REFETCH_INTERVAL_MS,
+    refetchInterval: killSwitchRefetchInterval,
   });
 }
 
@@ -226,23 +226,14 @@ export function useResolveKillSwitchEvent(): UseMutationResult<
   Error,
   string
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken();
-      return resolveKillSwitchEvent(id, token);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: tradingKeys.killSwitch(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (id: string, token) => resolveKillSwitchEvent(id, token),
+    invalidateKeys: (uid) => [tradingKeys.killSwitch(uid)],
   });
 }
 
 export function useExchangeAccounts(): UseQueryResult<ExchangeAccount[], Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: tradingKeys.exchangeAccounts(uid),
     queryFn: makeExchangeAccountsFetcher(getToken),
@@ -256,32 +247,17 @@ export function useRegisterExchangeAccount(): UseMutationResult<
   Error,
   RegisterAccountRequest
 > {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (req: RegisterAccountRequest) => {
-      const token = await getToken();
-      return registerExchangeAccount(req, token);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: tradingKeys.exchangeAccounts(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (req: RegisterAccountRequest, token) =>
+      registerExchangeAccount(req, token),
+    invalidateKeys: (uid) => [tradingKeys.exchangeAccounts(uid)],
   });
 }
 
 export function useDeleteExchangeAccount(): UseMutationResult<void, Error, string> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken();
-      return deleteExchangeAccount(id, token);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: tradingKeys.exchangeAccounts(uid) });
-    },
+  return useInvalidatingMutation({
+    mutationFn: (id: string, token) => deleteExchangeAccount(id, token),
+    invalidateKeys: (uid) => [tradingKeys.exchangeAccounts(uid)],
   });
 }
 
@@ -292,8 +268,7 @@ export function useDeleteExchangeAccount(): UseMutationResult<void, Error, strin
 export function useLiquidationInfo(
   params: LiquidationParams | null,
 ): UseQueryResult<LiquidationInfoResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   const enabled =
     params !== null &&
     params.symbol.length > 0 &&
