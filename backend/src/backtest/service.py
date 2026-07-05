@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import secrets
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -107,9 +108,7 @@ class BacktestService:
         from src.common.redlock import RedisLock
 
         async with RedisLock(f"idem:backtest:{idempotency_key}", ttl_ms=30_000):
-            return await self._submit_inner(
-                data, user_id=user_id, idempotency_key=idempotency_key
-            )
+            return await self._submit_inner(data, user_id=user_id, idempotency_key=idempotency_key)
 
     async def _submit_inner(
         self,
@@ -201,9 +200,7 @@ class BacktestService:
             config_payload["default_qty_type"] = sizing_canonical["default_qty_type"]
             config_payload["default_qty_value"] = sizing_canonical["default_qty_value"]
         if sizing_canonical["live_position_size_pct"] is not None:
-            config_payload["live_position_size_pct"] = sizing_canonical[
-                "live_position_size_pct"
-            ]
+            config_payload["live_position_size_pct"] = sizing_canonical["live_position_size_pct"]
         # BL-188 v3 — trading_sessions canonical (request 우선, strategy 다음, 빈값 = 24h).
         trading_sessions_canonical: list[str] = list(data.trading_sessions) or list(
             strategy.trading_sessions or []
@@ -527,9 +524,7 @@ class BacktestService:
 
     # --- Sprint 41 Worker H — share link (public read-only + revoke) ---
 
-    async def create_share(
-        self, backtest_id: UUID, *, user_id: UUID
-    ) -> ShareTokenResponse:
+    async def create_share(self, backtest_id: UUID, *, user_id: UUID) -> ShareTokenResponse:
         """Owner 가 share_token 생성. 멱등 — 이미 active token 있으면 그대로 반환.
 
         codex P2 race condition fix: 동시 POST 2개가 둘 다 share_token=NULL 읽고
@@ -640,9 +635,7 @@ class BacktestService:
                 leverage=float(cfg_dict.get("leverage", _default.leverage)),
                 fees=float(cfg_dict.get("fees", _default.fees)),
                 slippage=float(cfg_dict.get("slippage", _default.slippage)),
-                include_funding=bool(
-                    cfg_dict.get("include_funding", _default.include_funding)
-                ),
+                include_funding=bool(cfg_dict.get("include_funding", _default.include_funding)),
             )
         else:
             config_out = BacktestConfigOut(
@@ -665,52 +658,22 @@ class BacktestService:
                     num_trades_out = m.num_trades
                     long_count_out = m.long_count
                     short_count_out = m.short_count
-                metrics_out = BacktestMetricsOut(
-                    total_return=m.total_return,
-                    sharpe_ratio=m.sharpe_ratio,
-                    max_drawdown=m.max_drawdown,
-                    win_rate=m.win_rate,
-                    num_trades=num_trades_out,
-                    sortino_ratio=m.sortino_ratio,
-                    calmar_ratio=m.calmar_ratio,
-                    profit_factor=m.profit_factor,
-                    avg_win=m.avg_win,
-                    avg_loss=m.avg_loss,
-                    long_count=long_count_out,
-                    short_count=short_count_out,
-                    # Sprint 30 gamma-BE: PRD 24 metric spec 정합 — 신규 12 필드 전달.
-                    avg_holding_hours=m.avg_holding_hours,
-                    consecutive_wins_max=m.consecutive_wins_max,
-                    consecutive_losses_max=m.consecutive_losses_max,
-                    long_win_rate_pct=m.long_win_rate_pct,
-                    short_win_rate_pct=m.short_win_rate_pct,
-                    monthly_returns=m.monthly_returns,
-                    drawdown_duration=m.drawdown_duration,
-                    annual_return_pct=m.annual_return_pct,
-                    # total_trades 는 PRD parity alias — num_trades override 시
-                    # 함께 갱신 (legacy fallback 시 m.total_trades 그대로).
-                    total_trades=(
+                # BL-388: dataclass 전 필드 spread + override 4종만 명시.
+                # 필드별 손매핑 제거 — 신규 metric 은 asdict 로 자동 전달되고,
+                # 누락 drift 는 test_metrics_field_parity.py tripwire 가 차단.
+                # total_trades 는 PRD parity alias — num_trades override 시 함께 갱신
+                # (legacy fallback 시 m.total_trades 그대로).
+                overrides: dict[str, Any] = {
+                    "num_trades": num_trades_out,
+                    "long_count": long_count_out,
+                    "short_count": short_count_out,
+                    "total_trades": (
                         num_trades_out
                         if direction_counts is not None and direction_counts[0] > 0
                         else m.total_trades
                     ),
-                    avg_trade_pct=m.avg_trade_pct,
-                    best_trade_pct=m.best_trade_pct,
-                    worst_trade_pct=m.worst_trade_pct,
-                    drawdown_curve=m.drawdown_curve,
-                    # Sprint 32-D BL-156: MDD 수학 정합 메타.
-                    mdd_unit=m.mdd_unit,
-                    mdd_exceeds_capital=m.mdd_exceeds_capital,
-                    # Sprint 34 BL-175: Buy & Hold curve (OHLCV 첫/끝 close 기반).
-                    # 본 spread 누락 시 silent BUG = JSONB 에 저장된 BH curve 가
-                    # FE 응답에 0건 → 거짓 trust 회복 실패 (P1-2 R-2 회귀 hotspot).
-                    buy_and_hold_curve=m.buy_and_hold_curve,
-                    # C14 (정직성): total_fees / total_slippage 헤드라인 net 표시.
-                    total_fees=m.total_fees,
-                    total_slippage=m.total_slippage,
-                    # C6 (정직성 Slice 4): funding 결측 flag (FE 정직 고지용).
-                    funding_data_incomplete=m.funding_data_incomplete,
-                )
+                }
+                metrics_out = BacktestMetricsOut(**{**asdict(m), **overrides})
             if bt.equity_curve:
                 equity_out = [
                     EquityPoint(
