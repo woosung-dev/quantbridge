@@ -9,6 +9,8 @@ import type {
   WaitlistStatus,
 } from "@/features/waitlist/schemas";
 
+import { MetricTile } from "@/components/metric-tile";
+
 interface WaitlistStatsStripProps {
   items: readonly WaitlistApplicationResponse[];
   /** 현재 필터로 가린 인원 미반영 — total 은 BE 응답값 사용. */
@@ -79,28 +81,14 @@ interface StatCardProps {
 }
 
 function StatCard({ label, value, sub, tone = "neutral" }: StatCardProps) {
-  const toneClass =
-    tone === "pos"
-      ? "text-[color:var(--success)]"
-      : tone === "warn"
-        ? "text-[color:var(--warning)]"
-        : "text-[color:var(--text-primary)]";
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card px-4 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-tertiary)]">
-        {label}
-      </div>
-      <div
-        className={`font-mono text-2xl font-bold leading-tight ${toneClass}`}
-        data-testid={`waitlist-stat-${label}`}
-      >
-        {value}
-      </div>
-      {sub ? (
-        <div className="mt-1 text-xs text-[color:var(--text-secondary)]">
-          {sub}
-        </div>
-      ) : null}
-    </div>
+    <MetricTile
+      label={label}
+      value={value}
+      sub={sub}
+      tone={tone}
+      size="lg"
+      valueTestId={`waitlist-stat-${label}`}
+    />
   );
 }

@@ -7,6 +7,8 @@ import { useMemo } from "react";
 import type { TradeItem } from "@/features/backtest/schemas";
 import { formatPercent } from "@/features/backtest/utils";
 
+import { MetricTile } from "@/components/metric-tile";
+
 interface TradeStatsStripProps {
   trades: readonly TradeItem[];
 }
@@ -94,38 +96,16 @@ interface StatCardProps {
 }
 
 function StatCard({ label, value, sub, tone = "neutral", riseIndex }: StatCardProps) {
-  const toneClass =
-    tone === "pos"
-      ? "text-bullish"
-      : tone === "neg"
-        ? "text-bearish"
-        : "text-foreground";
-  // Sprint 44 W F3 — 4 카드 fade-up entrance (60ms 간격). prefers-reduced-motion 시 무력화.
-  const riseClass =
-    riseIndex === 1
-      ? "qb-stat-rise-1"
-      : riseIndex === 2
-        ? "qb-stat-rise-2"
-        : riseIndex === 3
-          ? "qb-stat-rise-3"
-          : riseIndex === 4
-            ? "qb-stat-rise-4"
-            : "";
   return (
-    <div className={`rounded-lg border bg-card px-4 py-3 ${riseClass}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div
-        className={`font-mono text-xl font-bold leading-tight ${toneClass}`}
-        data-testid={`trade-stat-${label}`}
-      >
-        {value}
-      </div>
-      {sub ? (
-        <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-      ) : null}
-    </div>
+    <MetricTile
+      label={label}
+      value={value}
+      sub={sub}
+      tone={tone}
+      valueTestId={`trade-stat-${label}`}
+      // Sprint 44 W F3 — 4 카드 fade-up entrance (60ms 간격). prefers-reduced-motion 시 무력화.
+      className={riseIndex ? `qb-stat-rise-${riseIndex}` : undefined}
+    />
   );
 }
 

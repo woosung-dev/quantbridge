@@ -17,6 +17,8 @@ import {
 import { TradeDetailTable } from "./trade-detail-table";
 import { TradeStatsStrip } from "./trade-stats-strip";
 
+import { MetricTile } from "@/components/metric-tile";
+
 const TRADE_QUERY = { limit: 200, offset: 0 };
 
 export function TradeDetailShell({ id }: { id: string }) {
@@ -165,23 +167,9 @@ function SummaryMetric({
   tone = "neutral",
   sub,
 }: SummaryMetricProps) {
-  const toneClass =
-    tone === "pos"
-      ? "text-bullish"
-      : tone === "neg"
-        ? "text-bearish"
-        : "text-foreground";
   return (
     <div role="listitem" className="min-w-0">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className={`font-mono text-base font-bold leading-tight ${toneClass}`}>
-        {value}
-      </div>
-      {sub ? (
-        <div className="text-[11px] text-muted-foreground">{sub}</div>
-      ) : null}
+      <MetricTile variant="bare" size="xs" label={label} value={value} tone={tone} sub={sub} />
     </div>
   );
 }
