@@ -51,6 +51,7 @@ import type {
   ShareTokenResponse,
   StressTestCreatedResponse,
   StressTestDetail,
+  TradeItem,
   TradeListResponse,
 } from "./schemas";
 
@@ -93,6 +94,39 @@ function makeTradesFetcher(
   return async () => {
     const token = await getToken();
     return listBacktestTrades(id, query, token);
+  };
+}
+
+// 전체 trades 페이지 루프 — 리포트 파생 계산(분포/원장/마커)용 200-cap 해소.
+// 상한 2000건 (BE 분포 집계 엔드포인트 도입 전 안전 cap — 초과 시 truncated 표기).
+const ALL_TRADES_PAGE_SIZE = 200;
+const MAX_ANALYTICS_TRADES = 2000;
+
+export interface AllTradesResult {
+  items: TradeItem[];
+  total: number;
+  /** cap 초과로 잘렸으면 true — 호출측 "표본 N건 기준" 캡션 의무 (Surface Trust). */
+  truncated: boolean;
+}
+
+function makeAllTradesFetcher(id: string, getToken: TokenGetter) {
+  return async (): Promise<AllTradesResult> => {
+    const token = await getToken();
+    const items: TradeItem[] = [];
+    let total = 0;
+    for (let offset = 0; offset < MAX_ANALYTICS_TRADES; offset += ALL_TRADES_PAGE_SIZE) {
+      const page = await listBacktestTrades(
+        id,
+        { limit: ALL_TRADES_PAGE_SIZE, offset },
+        token,
+      );
+      items.push(...page.items);
+      total = page.total;
+      if (items.length >= page.total || page.items.length === 0) {
+        break;
+      }
+    }
+    return { items, total, truncated: items.length < total };
   };
 }
 
@@ -173,6 +207,21 @@ export function useBacktestTrades(
       : backtestKeys.all(uid),
     queryFn: makeTradesFetcher(id ?? "", query, getToken),
     enabled: Boolean(id) && (options.enabled ?? true),
+  });
+}
+
+export function useAllBacktestTrades(
+  id: string | undefined,
+  options: { enabled?: boolean } = {},
+): UseQueryResult<AllTradesResult, Error> {
+  const { userId, getToken } = useAuth();
+  const uid = userId ?? ANON_USER_ID;
+  return useQuery({
+    queryKey: id ? backtestKeys.tradesAll(uid, id) : backtestKeys.all(uid),
+    queryFn: makeAllTradesFetcher(id ?? "", getToken),
+    enabled: Boolean(id) && (options.enabled ?? true),
+    // 완료 백테스트 trades 는 불변 — 재요청 불필요.
+    staleTime: Infinity,
   });
 }
 

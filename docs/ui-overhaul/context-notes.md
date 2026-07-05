@@ -80,3 +80,10 @@ design-shotgun 4종(Terminal Tape / Indigo Quant / Oscilloscope / Slate & Ember)
 3. 잠복 버그 동시 수정: optimizer 차트 `hsl(var(--primary))`(유효하지 않은 CSS)→`var(--primary)`; trade-table 무효 `data-tone="positive/negative"`+하드코딩 `green-500/red-500`(10파일)→`text-bullish/bearish`; trading-chart OS-preference→앱 테마 연동.
 4. `qb-*` keyframe ~30개 하드코딩 rgba → `color-mix(in srgb, currentColor …)`.
 5. 라이브러리: lightweight-charts는 resolved hex prop(+문자열 `themeKey` dep, H-1), recharts/inline-SVG는 `var()` flip, Monaco `pine-light` 등록, Clerk `appearance.baseTheme` via ClerkThemeBridge(내부 client).
+
+## 2026-07-05 — 백테스트 리포트 TV Strategy Tester IA 재편 (TV-parity sprint)
+
+- **IA**: 완료 상태 = `report/backtest-report-shell` — [상시] KeyStatsStrip(총 PnL abs+%/최대 손실폭 abs+%/수익성 거래/수익지수) + AssumptionsCard + PerformanceChart(equity·B&H·Compare / drawdown / 거래별 PnL 히스토그램 + 접기) + [섹션 탭] 상세 결과(서브탭 오버뷰·수익률·벤치마킹·위험조정)/거래 분석(분포 histogram+donut)/런업&드로다운/거래 목록(2행 원장)/스트레스 테스트. detail page max-w 1080→1280.
+- **차트 색 SSOT**: `lib/chart-tokens.ts` (`resolveChartTokens`/`useChartTheme` — useSyncExternalStore, setState-in-effect lint 금지). globals.css `--chart-equity/benchmark/compare/dd-*` 신설(기존 hex 값 그대로).
+- **Surface Trust 3단계 null 정책**: 개별 지표 "—"(metric-table `nullPolicy`) / abs 병기·컬럼 숨김 / 섹션 잠금 empty state(재실행 유도). 인트라바 값 전부 "(bar 근사)" 라벨. FE 파생 waterfall 은 비용 전(gross) 항등식(`computeProfitStructure`) — BE net-기준 gross 필드와 혼용 금지.
+- **제거**: metrics-cards → KeyStatsStrip / metrics-detail → DetailedResultsSection / trade-table → TradeLedgerTable. buildMddCaption 은 `_components/mdd-caption.ts` 로 이관.

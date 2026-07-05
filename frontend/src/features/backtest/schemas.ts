@@ -197,6 +197,43 @@ export type BacktestSummary = z.infer<typeof BacktestSummarySchema>;
 const monthlyReturnEntry = z.tuple([z.string(), decimalString]);
 const drawdownPoint = z.tuple([z.string(), decimalString]);
 
+// TV parity — long/short 분리 팩 (해당 방향 closed 0건 = null).
+const SideMetricsSchema = z.object({
+  net_profit_abs: decimalString,
+  gross_profit_abs: decimalString,
+  gross_loss_abs: decimalString,
+  profit_factor: decimalString.nullable().optional(),
+  avg_trade_abs: decimalString.nullable().optional(),
+});
+export type SideMetrics = z.infer<typeof SideMetricsSchema>;
+
+const PerSideMetricsSchema = z.object({
+  long: SideMetricsSchema.nullable().optional(),
+  short: SideMetricsSchema.nullable().optional(),
+});
+export type PerSideMetrics = z.infer<typeof PerSideMetricsSchema>;
+
+// TV parity — run-up/drawdown 통계 팩. `_intrabar` = bar high/low 근사
+// (렌더 시 "(bar 근사)" 라벨 의무 — Surface Trust).
+const ExcursionStatsSchema = z.object({
+  max_runup_abs: decimalString.nullable().optional(),
+  max_runup_pct: decimalString.nullable().optional(),
+  avg_runup_abs: decimalString.nullable().optional(),
+  avg_runup_duration_bars: decimalString.nullable().optional(),
+  avg_runup_duration_days: decimalString.nullable().optional(),
+  avg_drawdown_abs: decimalString.nullable().optional(),
+  avg_drawdown_duration_bars: decimalString.nullable().optional(),
+  avg_drawdown_duration_days: decimalString.nullable().optional(),
+  max_drawdown_abs: decimalString.nullable().optional(),
+  max_drawdown_recovery_bars: z.number().int().nullable().optional(),
+  max_drawdown_recovery_days: decimalString.nullable().optional(),
+  max_runup_intrabar_abs: decimalString.nullable().optional(),
+  max_runup_intrabar_pct: decimalString.nullable().optional(),
+  max_drawdown_intrabar_abs: decimalString.nullable().optional(),
+  max_drawdown_intrabar_pct: decimalString.nullable().optional(),
+});
+export type ExcursionStats = z.infer<typeof ExcursionStatsSchema>;
+
 export const BacktestMetricsOutSchema = z.object({
   total_return: decimalString,
   sharpe_ratio: decimalString,
@@ -241,6 +278,24 @@ export const BacktestMetricsOutSchema = z.object({
   // C6 (정직성 Slice 4) — funding 차감 시 보유 구간 일부가 funding 데이터 가용 범위
   // 밖이면 true. include_funding=false / 펀딩 미반영 / 구 완료 백테스트 → null/absent.
   funding_data_incomplete: z.boolean().nullable().optional(),
+  // --- TV Strategy Tester parity 팩 (구 완료 백테스트 = null/absent → graceful hide) ---
+  net_profit_abs: decimalString.nullable().optional(),
+  gross_profit_abs: decimalString.nullable().optional(),
+  gross_loss_abs: decimalString.nullable().optional(),
+  open_pnl: decimalString.nullable().optional(),
+  largest_win_abs: decimalString.nullable().optional(),
+  largest_loss_abs: decimalString.nullable().optional(),
+  // TV "기대 수익(expectancy)" 표기는 본 값에 FE 라벨만 부여 (BE 별도 키 없음).
+  avg_trade_abs: decimalString.nullable().optional(),
+  avg_win_abs: decimalString.nullable().optional(),
+  avg_loss_abs: decimalString.nullable().optional(),
+  ratio_avg_win_loss: decimalString.nullable().optional(),
+  total_open_trades: z.number().int().nullable().optional(),
+  avg_bars_in_trade: decimalString.nullable().optional(),
+  avg_bars_in_winning_trades: decimalString.nullable().optional(),
+  avg_bars_in_losing_trades: decimalString.nullable().optional(),
+  per_side: PerSideMetricsSchema.nullable().optional(),
+  excursion_stats: ExcursionStatsSchema.nullable().optional(),
 });
 export type BacktestMetricsOut = z.infer<typeof BacktestMetricsOutSchema>;
 
@@ -286,6 +341,17 @@ export const TradeItemSchema = z.object({
   pnl: decimalString,
   return_pct: decimalString,
   fees: decimalString,
+  // --- TV Trades parity (구 row = null → 컬럼 hide) ---
+  runup_abs: decimalString.nullable().optional(), // MFE, "(bar 근사)"
+  runup_pct: decimalString.nullable().optional(),
+  drawdown_abs: decimalString.nullable().optional(), // MAE
+  drawdown_pct: decimalString.nullable().optional(),
+  bars_in_trade: z.number().int().nullable().optional(),
+  fee_paid: decimalString.nullable().optional(),
+  slippage_paid: decimalString.nullable().optional(),
+  cumulative_pnl: decimalString.nullable().optional(),
+  exit_kind: z.string().nullable().optional(), // take_profit | stop_loss | trailing_stop
+  comment: z.string().nullable().optional(),
 });
 export type TradeItem = z.infer<typeof TradeItemSchema>;
 

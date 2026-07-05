@@ -5,42 +5,19 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  useBacktest,
-  useBacktestProgress,
-  useBacktestTrades,
-} from "@/features/backtest/hooks";
+import { useBacktest, useBacktestProgress } from "@/features/backtest/hooks";
 import { formatDate } from "@/features/backtest/utils";
 
 const TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
-import { AssumptionsCard } from "./assumptions-card";
 import { BacktestStatusBadge } from "./status-badge";
-import { EquityChartWithCompare } from "./equity-chart-with-compare";
-import { MetricsCards } from "./metrics-cards";
-import { MetricsDetail } from "./metrics-detail";
+import { BacktestReportShell } from "./report/backtest-report-shell";
 import { RerunButton } from "./rerun-button";
 import { ShareButton } from "./share-button";
-import { StressTestPanel } from "./stress-test-panel";
-import { TradeAnalysis } from "./trade-analysis";
-import { TradeTable } from "./trade-table";
-
-const TRADE_QUERY = { limit: 200, offset: 0 };
 
 export function BacktestDetailView({ id }: { id: string }) {
   const detail = useBacktest(id);
   const progress = useBacktestProgress(id);
-
-  const status = detail.data?.status ?? progress.data?.status;
-  const tradesEnabled = status === "completed";
-
-  const trades = useBacktestTrades(id, TRADE_QUERY, { enabled: tradesEnabled });
 
   // Terminal 전환 시 detail refetch — queued→completed 감지되면 initial cache (metrics=null)
   // 를 신선화. 안 하면 폴링이 멈춘 후 metrics 가 null 로 stuck.
@@ -144,87 +121,10 @@ export function BacktestDetailView({ id }: { id: string }) {
         </p>
       ) : null}
 
-      {/* Sprint 50: AssumptionsCard 공통 lift-up — 모든 tab 안에서 가정박스 표시 (Surface Trust 보존, codex P1#3) */}
+      {/* TV parity IA — 완료 상태는 report shell 이 전담 (KeyStatsStrip +
+          AssumptionsCard + PerformanceChart 상시 + 섹션 탭). */}
       {effectiveStatus === "completed" && bt.metrics ? (
-        <AssumptionsCard
-          initialCapital={bt.initial_capital}
-          config={bt.config}
-          totalFees={bt.metrics.total_fees}
-          totalSlippage={bt.metrics.total_slippage}
-          fundingDataIncomplete={bt.metrics.funding_data_incomplete}
-        />
-      ) : null}
-
-      {effectiveStatus === "completed" && bt.metrics ? (
-        <Tabs defaultValue="overview" className="qb-card-fade-in">
-          <TabsList>
-            <TabsTrigger value="overview" className="data-active:text-[var(--primary)]">개요</TabsTrigger>
-            <TabsTrigger value="metrics" className="data-active:text-[var(--primary)]">성과 지표</TabsTrigger>
-            <TabsTrigger value="analysis" className="data-active:text-[var(--primary)]">거래 분석</TabsTrigger>
-            <TabsTrigger value="trades" className="data-active:text-[var(--primary)]">거래 목록</TabsTrigger>
-            <TabsTrigger value="stress-test" className="data-active:text-[var(--primary)]">스트레스 테스트</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="mt-4 space-y-4">
-            <MetricsCards metrics={bt.metrics} config={bt.config} />
-            {bt.equity_curve && bt.equity_curve.length > 0 && (
-              <EquityChartWithCompare
-                currentId={id}
-                equityCurve={bt.equity_curve}
-                trades={trades.data?.items}
-                initialCapital={bt.initial_capital}
-                timeframe={bt.timeframe}
-                mddExceedsCapital={bt.metrics?.mdd_exceeds_capital ?? null}
-                buyAndHoldCurve={
-                  bt.metrics?.buy_and_hold_curve
-                    ? bt.metrics.buy_and_hold_curve.map(
-                        ([timestamp, value]) => ({ timestamp, value }),
-                      )
-                    : null
-                }
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="metrics" className="mt-4">
-            <MetricsDetail metrics={bt.metrics} />
-          </TabsContent>
-
-          <TabsContent value="analysis" className="mt-4">
-            <TradeAnalysis metrics={bt.metrics} trades={trades.data?.items} />
-          </TabsContent>
-
-          <TabsContent value="trades" className="mt-4 space-y-3">
-            <div className="flex justify-end">
-              <Link
-                href={`/backtests/${id}/trades`}
-                className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                data-testid="trade-detail-link"
-              >
-                상세 보기
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-            </div>
-            {trades.isLoading ? (
-              <p className="text-sm text-muted-foreground">
-                거래 불러오는 중…
-              </p>
-            ) : trades.isError ? (
-              <p className="text-sm text-destructive">
-                거래 기록 로드 실패: {trades.error?.message}
-              </p>
-            ) : (
-              <TradeTable
-                trades={trades.data?.items ?? []}
-                filenamePrefix={`backtest-${id.slice(0, 8)}`}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="stress-test" className="mt-4">
-            <StressTestPanel backtestId={bt.id} />
-          </TabsContent>
-        </Tabs>
+        <BacktestReportShell backtest={bt} currentId={id} />
       ) : null}
     </div>
   );

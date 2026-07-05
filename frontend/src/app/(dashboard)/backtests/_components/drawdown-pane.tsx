@@ -11,10 +11,38 @@
 // 데이터: drawdown 값은 0 ~ -1 (음수 비율). priceFormat=percent 는 1=100% 가정
 // 하므로 그대로 입력. 즉 -0.30 → "-30.00%" 라벨링.
 
+import { useMemo } from "react";
+
 import {
   TradingChart,
   type ChartPoint,
 } from "@/components/charts/trading-chart";
+import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
+import type { LineSeriesPartialOptions } from "lightweight-charts";
+
+// 정적 옵션 — 렌더 간 identity 고정 (성능: TradingChart data effect 재실행 차단).
+// 색상은 chart-tokens 폴백(= globals.css --chart-dd-* 동일값). area 색은
+// TradingChart 기본 palette 가 담당.
+const DD_LINE_OPTIONS: LineSeriesPartialOptions = {
+  color: CHART_PALETTE_FALLBACK.ddLine,
+  lineWidth: 1,
+  priceFormat: {
+    type: "percent",
+    precision: 2,
+    minMove: 0.01,
+  },
+  priceLineVisible: false,
+  lastValueVisible: true,
+};
+
+const DD_AREA_OPTIONS = {
+  lineWidth: 1 as const,
+  priceFormat: {
+    type: "percent" as const,
+    precision: 2,
+    minMove: 0.01,
+  },
+};
 
 interface DrawdownPaneProps {
   /** Drawdown 데이터 — 0 ~ -1 (음수 비율). 빈 배열이면 컴포넌트가 fallback 처리. */
@@ -35,36 +63,27 @@ export function DrawdownPane({ drawdownData, height }: DrawdownPaneProps) {
     );
   }
 
+  return <DrawdownChart drawdownData={drawdownData} height={height} />;
+}
+
+function DrawdownChart({
+  drawdownData,
+  height,
+}: {
+  drawdownData: readonly ChartPoint[];
+  height: number;
+}) {
+  // area 오버레이 — identity 를 drawdownData 에 고정 (spread 재생성 금지).
+  const area = useMemo(
+    () => ({ data: drawdownData, options: DD_AREA_OPTIONS }),
+    [drawdownData],
+  );
   return (
     <TradingChart
-      // main line series 는 invisible — drawdown 이 area 에 들어가므로
-      // line series 는 placeholder. lineWidth=0 + transparent 색상으로 hide.
-      data={[...drawdownData]}
-      options={{
-        color: "rgba(239, 68, 68, 0.55)",
-        lineWidth: 1,
-        priceFormat: {
-          type: "percent",
-          precision: 2,
-          minMove: 0.01,
-        },
-        priceLineVisible: false,
-        lastValueVisible: true,
-      }}
-      area={{
-        data: [...drawdownData],
-        options: {
-          topColor: "rgba(239, 68, 68, 0.35)",
-          bottomColor: "rgba(239, 68, 68, 0.02)",
-          lineColor: "rgba(239, 68, 68, 0.55)",
-          lineWidth: 1,
-          priceFormat: {
-            type: "percent",
-            precision: 2,
-            minMove: 0.01,
-          },
-        },
-      }}
+      // main line series 는 area 라인과 동일 색 placeholder (last value 라벨용).
+      data={drawdownData}
+      options={DD_LINE_OPTIONS}
+      area={area}
       height={height}
       ariaLabel="Drawdown (손실 폭) — 빨간 영역. 단위는 퍼센트 (음수). 0 은 신고가 회복, 음수가 클수록 깊은 낙폭"
     />

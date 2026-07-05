@@ -8,6 +8,7 @@ T20: Orders (list/get/cancel) + KillSwitch (events/resolve) REST endpoints.
 from __future__ import annotations
 
 import hashlib
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
@@ -25,6 +26,7 @@ from src.trading.dependencies import (
     get_order_service,
     get_webhook_service,
 )
+from src.trading.equity_calculator import recompute_equity_curve
 from src.trading.liquidation_schemas import (
     LiquidationInfoResponse,
     LiquidationPreviewRequest,
@@ -412,6 +414,14 @@ async def get_live_session_state(
     """Sprint 26 — Live Session 의 last strategy_state_report + 누적 PnL.
 
     UI Detail 페이지의 PnL chart + warnings + open trades 표시용.
+
+    2026-07-01 dogfood 발견 — `LiveSignalState.total_realized_pnl`/`equity_curve`
+    는 매 evaluate tick 마다 300-bar Pine 시뮬레이션을 처음부터 재생한 결과라
+    실제 거래소 체결 여부와 무관했다(리젝트된 주문도 시뮬레이션 손익을 그대로
+    노출). `total_realized_pnl`/`total_closed_trades`/`equity_curve` 는 실제
+    체결(state=filled) 주문만으로 재계산해 노출한다. `last_strategy_state_report`/
+    `last_open_trades_snapshot` 은 엔진이 파악하는 전략 내부 상태 표시 목적이라
+    그대로 유지.
     """
     repo = LiveSignalSessionRepository(session)
     sess = await repo.get_by_id(session_id)
@@ -420,7 +430,31 @@ async def get_live_session_state(
     state = await repo.get_state(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail="live signal state not yet evaluated")
-    return LiveSignalStateResponse.model_validate(state)
+
+    order_repo = OrderRepository(session)
+    filled_orders = await order_repo.list_filled_realized_by_strategy_and_account(
+        sess.strategy_id, sess.exchange_account_id
+    )
+    closed_pnls = [
+        (int(o.filled_at.timestamp() * 1000), Decimal(str(o.realized_pnl)))
+        for o in filled_orders
+        if o.filled_at is not None and o.realized_pnl is not None
+    ]
+    real_total_realized_pnl = sum(
+        (pnl for _, pnl in closed_pnls), Decimal("0")
+    )  # Decimal-first 합산 (Sprint 4 D8)
+    real_equity_curve = recompute_equity_curve(closed_pnls)
+
+    return LiveSignalStateResponse(
+        session_id=state.session_id,
+        schema_version=state.schema_version,
+        last_strategy_state_report=state.last_strategy_state_report,
+        last_open_trades_snapshot=state.last_open_trades_snapshot,
+        total_closed_trades=len(closed_pnls),
+        total_realized_pnl=real_total_realized_pnl,
+        equity_curve=[dict(p) for p in real_equity_curve],  # TypedDict → dict 호환 cast
+        updated_at=state.updated_at,
+    )
 
 
 @router.get(

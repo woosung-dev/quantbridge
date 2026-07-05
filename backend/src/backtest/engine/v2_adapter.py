@@ -21,6 +21,12 @@ from typing import Literal
 
 import pandas as pd
 
+from src.backtest.engine.metrics import (
+    calmar_ratio,
+    compute_excursion_stats,
+    compute_side_metrics,
+    sortino_ratio,
+)
 from src.backtest.engine.types import (
     BacktestConfig,
     BacktestMetrics,
@@ -144,7 +150,7 @@ def run_backtest_v2(
         )
 
     try:
-        trades = _build_raw_trades(state, cfg)
+        trades = _build_raw_trades(state, cfg, ohlcv=ohlcv)
         # C6 funding accrual 배선 — funding_rates 제공 시 8h 정산 경계 차감 + 결측 flag.
         # flag 는 경량 헬퍼로 1회만 계산(cost 재계산 회피, _compute_equity_curve 시그니처
         # 불변). None = 회귀 0 (기존 동작 byte-identical).
@@ -154,8 +160,19 @@ def run_backtest_v2(
             else None
         )
         equity = _compute_equity_curve(trades, ohlcv, cfg, funding_rates=funding_rates)
+        # TV parity — intrabar equity 극값 근사 (별도 pass, close 커브 무변경).
+        extremes = (
+            _compute_equity_extremes(trades, ohlcv, cfg, funding_rates=funding_rates)
+            if trades
+            else None
+        )
         metrics = _compute_metrics(
-            trades, equity, cfg, ohlcv, funding_data_incomplete=funding_incomplete
+            trades,
+            equity,
+            cfg,
+            ohlcv,
+            funding_data_incomplete=funding_incomplete,
+            equity_extremes=extremes,
         )
     except Exception as exc:
         logger.exception("v2_adapter_build_failed")
@@ -237,12 +254,59 @@ def _leg_cost(
 # --- trades --------------------------------------------------------------
 
 
-def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrade]:
+def _trade_excursion(
+    t: Trade,
+    highs: list[Decimal],
+    lows: list[Decimal],
+    entry_price: Decimal,
+    qty: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """보유 구간 (entry_bar, exit_bar](open 은 last bar 까지) 의 gross excursion.
+
+    returns (runup_abs=MFE, drawdown_abs=MAE) — 음수 clamp 0. 윈도 공집합
+    (same-bar close) 은 (0, 0). 규약 근거는 RawTrade 필드 docstring (types.py).
+    """
+    last_bar = len(highs) - 1
+    end_bar = t.exit_bar if t.exit_bar is not None else last_bar
+    start = t.entry_bar + 1
+    if start > end_bar:
+        return Decimal("0"), Decimal("0")
+    window_high = max(highs[start : end_bar + 1])
+    window_low = min(lows[start : end_bar + 1])
+    if t.direction == "long":
+        favorable = (window_high - entry_price) * qty
+        adverse = (entry_price - window_low) * qty
+    else:
+        favorable = (entry_price - window_low) * qty
+        adverse = (window_high - entry_price) * qty
+    zero = Decimal("0")
+    return max(zero, favorable), max(zero, adverse)
+
+
+def _build_raw_trades(
+    state: StrategyState,
+    cfg: BacktestConfig,
+    ohlcv: pd.DataFrame | None = None,
+) -> list[RawTrade]:
+    """StrategyState → RawTrade 목록.
+
+    ohlcv 전달 시 per-trade run-up/drawdown(MFE/MAE) 을 bar high/low 로 계산
+    (TV Trades parity). None 이면 excursion 필드만 None — 기존 직접 호출
+    테스트 호환 (keyword-optional, blast radius 0).
+    """
     all_trades: list[Trade] = list(state.closed_trades) + list(state.open_trades.values())
     # 체결 순서 = entry_bar 오름차순 (같은 bar 면 기존 리스트 순서 유지)
     all_trades.sort(key=lambda t: (t.entry_bar, 0 if t.is_open else 1))
 
+    # excursion 용 high/low Decimal 프리컴퓨트 (1회, per-trade 스캔 공유).
+    highs: list[Decimal] | None = None
+    lows: list[Decimal] | None = None
+    if ohlcv is not None and len(ohlcv) > 0:
+        highs = [Decimal(str(v)) for v in ohlcv["high"]]
+        lows = [Decimal(str(v)) for v in ohlcv["low"]]
+
     raw: list[RawTrade] = []
+    running_pnl = Decimal("0")  # cumulative_pnl — trade_index(entry 순) 누적
     taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
     maker_fee = Decimal(str(cfg.maker_fee))
@@ -290,6 +354,18 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
         notional = entry_price * qty
         return_pct = net_pnl / notional if notional != 0 else Decimal("0")
 
+        # --- TV Trades parity 확장 필드 ---
+        runup_abs: Decimal | None = None
+        runup_pct: Decimal | None = None
+        drawdown_abs: Decimal | None = None
+        drawdown_pct: Decimal | None = None
+        if highs is not None and lows is not None:
+            runup_abs, drawdown_abs = _trade_excursion(t, highs, lows, entry_price, qty)
+            runup_pct = runup_abs / notional if notional != 0 else Decimal("0")
+            drawdown_pct = drawdown_abs / notional if notional != 0 else Decimal("0")
+        bars_in_trade = int(t.exit_bar - t.entry_bar) if t.exit_bar is not None else None
+        running_pnl += net_pnl
+
         raw.append(
             RawTrade(
                 trade_index=idx,
@@ -304,6 +380,15 @@ def _build_raw_trades(state: StrategyState, cfg: BacktestConfig) -> list[RawTrad
                 return_pct=return_pct,
                 fees=fees_total,
                 exit_kind=t.exit_kind,
+                runup_abs=runup_abs,
+                runup_pct=runup_pct,
+                drawdown_abs=drawdown_abs,
+                drawdown_pct=drawdown_pct,
+                bars_in_trade=bars_in_trade,
+                fee_paid=entry_fee + exit_fee,
+                slippage_paid=entry_slip + exit_slip,
+                comment=t.comment or None,
+                cumulative_pnl=running_pnl,
             )
         )
     return raw
@@ -457,12 +542,79 @@ def _compute_equity_curve(
 # --- metrics -------------------------------------------------------------
 
 
+def _compute_equity_extremes(
+    trades: list[RawTrade],
+    ohlcv: pd.DataFrame,
+    cfg: BacktestConfig,
+    funding_rates: pd.Series | None = None,
+) -> tuple[list[Decimal], list[Decimal]]:
+    """bar-by-bar intrabar equity 극값 근사 (equity_high, equity_low).
+
+    `_compute_equity_curve` 와 동일 구조(실현 누적 + funding + MTM - entry 비용)
+    를 미러하되, 활성 포지션 MTM 가격만 favorable/adverse (long=high/low,
+    short=low/high) 로 치환. 복수 포지션의 동일 bar 극값 동시성은 미보장
+    (낙관 근사 — ExcursionStats docstring "TV 근사"). close 커브는 무변경
+    (별도 pass — golden equity byte-parity 리스크 0).
+    """
+    n = len(ohlcv)
+    init_cash = cfg.init_cash
+    taker_fee = Decimal(str(cfg.fees))
+    slip_rate = Decimal(str(cfg.slippage))
+
+    funding_by_bar = (
+        _funding_cost_by_bar(trades, ohlcv, funding_rates)[0]
+        if funding_rates is not None
+        else None
+    )
+    exits_by_bar: dict[int, list[RawTrade]] = {}
+    for t in trades:
+        if t.exit_bar_index is not None:
+            exits_by_bar.setdefault(t.exit_bar_index, []).append(t)
+
+    highs_out: list[Decimal] = []
+    lows_out: list[Decimal] = []
+    realized_cum = Decimal("0")
+    funding_cum = Decimal("0")
+    for bar_idx in range(n):
+        for t in exits_by_bar.get(bar_idx, []):
+            realized_cum += t.pnl
+        if funding_by_bar is not None:
+            funding_cum += funding_by_bar[bar_idx]
+        high_px = Decimal(str(ohlcv["high"].iloc[bar_idx]))
+        low_px = Decimal(str(ohlcv["low"].iloc[bar_idx]))
+
+        unrealized_high = Decimal("0")
+        unrealized_low = Decimal("0")
+        for t in trades:
+            if t.entry_bar_index > bar_idx:
+                continue
+            if t.status == "closed" and t.exit_bar_index is not None and t.exit_bar_index <= bar_idx:
+                continue
+            direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
+            fav_px = high_px if t.direction == "long" else low_px
+            adv_px = low_px if t.direction == "long" else high_px
+            entry_fee, entry_slip = _leg_cost(
+                t.entry_price * t.size,
+                fill_type="taker",
+                taker_fee=taker_fee,
+                slippage=slip_rate,
+            )
+            entry_cost = entry_fee + entry_slip
+            unrealized_high += (fav_px - t.entry_price) * t.size * direction_sign - entry_cost
+            unrealized_low += (adv_px - t.entry_price) * t.size * direction_sign - entry_cost
+        base = init_cash + realized_cum - funding_cum
+        highs_out.append(base + unrealized_high)
+        lows_out.append(base + unrealized_low)
+    return highs_out, lows_out
+
+
 def _compute_metrics(
     trades: list[RawTrade],
     equity: pd.Series,
     cfg: BacktestConfig,
     ohlcv: pd.DataFrame | None = None,
     funding_data_incomplete: bool | None = None,
+    equity_extremes: tuple[list[Decimal], list[Decimal]] | None = None,
 ) -> BacktestMetrics:
     """RawTrade list + equity curve → BacktestMetrics 24 필드.
 
@@ -548,15 +700,81 @@ def _compute_metrics(
     # Sprint 34 BL-175: Buy & Hold curve (정확 OHLCV close 기반).
     buy_and_hold_curve = _v2_buy_and_hold_curve(ohlcv, init_cash)
 
-    # C14 (정직성) — 총 수수료/슬리피지 분해 집계. C8 Slice 3: _leg_cost SSOT
-    # 위임으로 _build_raw_trades 와의 cost 공식 중복 제거. 불변식 보존:
-    #   total_fees + total_slippage == Σ RawTrade.fees.
+    # --- TV Strategy Tester parity 팩 ---
+    # 절대금액 계열 (closed net pnl, Decimal 정확 합산).
+    net_profit_abs = sum((t.pnl for t in closed), start=Decimal("0"))
+    gross_profit_abs = sum((t.pnl for t in closed if t.pnl > 0), start=Decimal("0"))
+    gross_loss_abs_v = sum((-t.pnl for t in closed if t.pnl < 0), start=Decimal("0"))
+    win_pnls = [t.pnl for t in closed if t.pnl > 0]
+    loss_pnls = [t.pnl for t in closed if t.pnl < 0]
+    largest_win_abs = max(win_pnls) if win_pnls else None
+    largest_loss_abs = min(loss_pnls) if loss_pnls else None
+    avg_trade_abs = net_profit_abs / num_trades if num_trades > 0 else None
+    avg_win_abs = _mean(win_pnls) if win_pnls else None
+    avg_loss_abs = _mean(loss_pnls) if loss_pnls else None
+    ratio_avg_win_loss = (
+        avg_win_abs / abs(avg_loss_abs)
+        if avg_win_abs is not None and avg_loss_abs is not None and avg_loss_abs != 0
+        else None
+    )
+    open_trades = [t for t in trades if t.status == "open"]
+    total_open_trades = len(open_trades)
+    # open_pnl = Σ open [(last_close - entry)*size*sign - 비용(fees=entry leg)].
+    # equity 커브의 미실현 정의와 동일. ohlcv 미전달 + open 존재 시 None (mark 불가).
+    open_pnl: Decimal | None
+    if not open_trades:
+        open_pnl = Decimal("0")
+    elif ohlcv is None or len(ohlcv) == 0:
+        open_pnl = None
+    else:
+        last_close = Decimal(str(ohlcv["close"].iloc[-1]))
+        open_pnl = Decimal("0")
+        for t in open_trades:
+            sign = Decimal("1") if t.direction == "long" else Decimal("-1")
+            open_pnl += (last_close - t.entry_price) * t.size * sign - t.fees
+    # 보유 bar 수 (closed, exit-entry — RawTrade.bars_in_trade 유무와 무관하게 산출).
+    bars_all = [
+        Decimal(t.exit_bar_index - t.entry_bar_index)
+        for t in closed
+        if t.exit_bar_index is not None
+    ]
+    bars_win = [
+        Decimal(t.exit_bar_index - t.entry_bar_index)
+        for t in closed
+        if t.exit_bar_index is not None and t.pnl > 0
+    ]
+    bars_loss = [
+        Decimal(t.exit_bar_index - t.entry_bar_index)
+        for t in closed
+        if t.exit_bar_index is not None and t.pnl < 0
+    ]
+    avg_bars_in_trade = _mean(bars_all) if bars_all else None
+    avg_bars_in_winning = _mean(bars_win) if bars_win else None
+    avg_bars_in_losing = _mean(bars_loss) if bars_loss else None
+    per_side = compute_side_metrics(closed)
+    extremes_high, extremes_low = equity_extremes if equity_extremes is not None else (None, None)
+    excursion_stats = compute_excursion_stats(equity, extremes_high, extremes_low)
+    # sortino/calmar 실구현 (TV convention — engine/metrics.py docstring ground).
+    # trades 0건 = flat equity → sortino 가 항상 -1 (전 기간 RFR 미달) 로 무의미
+    # → None 게이트 (TV 도 무거래 시 공란).
+    sortino = sortino_ratio(equity_float) if trades else None
+    calmar = calmar_ratio(annual_return_pct, max_drawdown)
+
+    # C14 (정직성) — 총 수수료/슬리피지 분해 집계. TV Trades parity 확장으로
+    # RawTrade 가 fee_paid/slippage_paid split 을 직접 보유 → 재계산 없이 합산
+    # (production path 의 _leg_cost 중복 루프 제거). split 미보유 trade (테스트가
+    # RawTrade 를 직접 조립한 경우) 만 legacy _leg_cost 재계산 fallback.
+    # 불변식 보존: total_fees + total_slippage == Σ RawTrade.fees.
     taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
     maker_fee = Decimal(str(cfg.maker_fee))
     total_fees = Decimal("0")
     total_slippage = Decimal("0")
     for t in trades:
+        if t.fee_paid is not None and t.slippage_paid is not None:
+            total_fees += t.fee_paid
+            total_slippage += t.slippage_paid
+            continue
         entry_fee, entry_slip = _leg_cost(
             t.entry_price * t.size,
             fill_type="taker",
@@ -584,8 +802,8 @@ def _compute_metrics(
         max_drawdown=max_drawdown,
         win_rate=win_rate,
         num_trades=num_trades,
-        sortino_ratio=None,  # pine_v2 경로 v1 — H2+
-        calmar_ratio=None,
+        sortino_ratio=sortino,
+        calmar_ratio=calmar,
         profit_factor=profit_factor,
         avg_win=avg_win,
         avg_loss=avg_loss,
@@ -614,6 +832,23 @@ def _compute_metrics(
         total_slippage=total_slippage,
         # C6 (정직성) — funding 차감 시 보유 구간 일부가 funding 데이터 범위 밖이면 True.
         funding_data_incomplete=funding_data_incomplete,
+        # TV parity 팩.
+        net_profit_abs=net_profit_abs,
+        gross_profit_abs=gross_profit_abs,
+        gross_loss_abs=gross_loss_abs_v,
+        open_pnl=open_pnl,
+        largest_win_abs=largest_win_abs,
+        largest_loss_abs=largest_loss_abs,
+        avg_trade_abs=avg_trade_abs,
+        avg_win_abs=avg_win_abs,
+        avg_loss_abs=avg_loss_abs,
+        ratio_avg_win_loss=ratio_avg_win_loss,
+        total_open_trades=total_open_trades,
+        avg_bars_in_trade=avg_bars_in_trade,
+        avg_bars_in_winning_trades=avg_bars_in_winning,
+        avg_bars_in_losing_trades=avg_bars_in_losing,
+        per_side=per_side,
+        excursion_stats=excursion_stats,
     )
 
 

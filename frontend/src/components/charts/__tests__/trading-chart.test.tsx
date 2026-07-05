@@ -8,7 +8,12 @@ import {
   vi,
 } from "vitest";
 
-import { TradingChart, type ChartPoint, type ChartMarker } from "../trading-chart";
+import {
+  TradingChart,
+  type ChartPoint,
+  type ChartMarker,
+  type HistogramPoint,
+} from "../trading-chart";
 
 // --- lightweight-charts mock ---------------------------------------------
 // jsdom 은 canvas 가 없어 createChart 가 실제로 동작 불가 → 모듈 단위로 mock.
@@ -23,6 +28,7 @@ interface SeriesSpy {
 interface ChartSpy {
   addLineSeries: ReturnType<typeof vi.fn>;
   addAreaSeries: ReturnType<typeof vi.fn>;
+  addHistogramSeries: ReturnType<typeof vi.fn>;
   removeSeries: ReturnType<typeof vi.fn>;
   applyOptions: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
@@ -43,6 +49,11 @@ vi.mock("lightweight-charts", () => {
           setMarkers: vi.fn(),
         })),
         addAreaSeries: vi.fn((): SeriesSpy => ({
+          setData: vi.fn(),
+          applyOptions: vi.fn(),
+          setMarkers: vi.fn(),
+        })),
+        addHistogramSeries: vi.fn((): SeriesSpy => ({
           setData: vi.fn(),
           applyOptions: vi.fn(),
           setMarkers: vi.fn(),
@@ -173,6 +184,52 @@ describe("TradingChart", () => {
     expect(chart.addLineSeries).toHaveBeenCalledTimes(2);
     // area overlay 1.
     expect(chart.addAreaSeries).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates histogram series with per-point colors when histogram prop provided", () => {
+    const histogramPoints: HistogramPoint[] = [
+      { time: "2026-01-01T00:00:00Z", value: 120, color: "#0f9d6b" },
+      { time: "2026-01-02T00:00:00Z", value: -80, color: "#e0413e" },
+      { time: "2026-01-03T00:00:00Z", value: 40 },
+    ];
+    render(
+      <TradingChart
+        data={POINTS}
+        histogram={{ data: histogramPoints }}
+        ariaLabel="Trade PnL bars"
+      />,
+    );
+
+    const chart = chartInstances[0]!;
+    expect(chart.addHistogramSeries).toHaveBeenCalledTimes(1);
+    const series = chart.addHistogramSeries.mock.results[0]!.value as SeriesSpy;
+    const dataArg = series.setData.mock.calls[0]![0] as Array<{
+      time: number;
+      value: number;
+      color?: string;
+    }>;
+    expect(dataArg).toHaveLength(3);
+    expect(dataArg[0]!.color).toBe("#0f9d6b");
+    expect(dataArg[1]!.color).toBe("#e0413e");
+    expect(dataArg[2]!.color).toBeUndefined();
+  });
+
+  it("removes histogram series when histogram prop is dropped", () => {
+    const histogramPoints: HistogramPoint[] = [
+      { time: "2026-01-01T00:00:00Z", value: 120 },
+    ];
+    const { rerender } = render(
+      <TradingChart
+        data={POINTS}
+        histogram={{ data: histogramPoints }}
+        ariaLabel="Trade PnL bars"
+      />,
+    );
+    const chart = chartInstances[0]!;
+    expect(chart.addHistogramSeries).toHaveBeenCalledTimes(1);
+
+    rerender(<TradingChart data={POINTS} ariaLabel="Trade PnL bars" />);
+    expect(chart.removeSeries).toHaveBeenCalledTimes(1);
   });
 
   it("calls chart.remove() on unmount (cleanup)", () => {

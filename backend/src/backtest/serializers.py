@@ -10,13 +10,73 @@ Sprint 30 gamma-BE: BacktestMetrics 12 → 24 필드 확장.
 """
 from __future__ import annotations
 
+import dataclasses
+import types as _types
+import typing
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pandas as pd
 
-from src.backtest.engine.types import BacktestMetrics
+from src.backtest.engine.types import (
+    BacktestMetrics,
+    ExcursionStats,
+    PerSideMetrics,
+    SideMetrics,
+)
+
+# TV parity 팩 flat Decimal 필드 (None 키 생략 규약 공유).
+# 추가/누락 drift 는 test_metrics_field_parity round-trip tripwire 가 차단.
+_TV_FLAT_DECIMAL_FIELDS: tuple[str, ...] = (
+    "net_profit_abs",
+    "gross_profit_abs",
+    "gross_loss_abs",
+    "open_pnl",
+    "largest_win_abs",
+    "largest_loss_abs",
+    "avg_trade_abs",
+    "avg_win_abs",
+    "avg_loss_abs",
+    "ratio_avg_win_loss",
+    "avg_bars_in_trade",
+    "avg_bars_in_winning_trades",
+    "avg_bars_in_losing_trades",
+)
+
+
+def _flat_dataclass_to_jsonb(obj: Any) -> dict[str, Any]:
+    """Decimal/int/str flat dataclass → JSONB dict (Decimal → str, None 키 생략)."""
+    out: dict[str, Any] = {}
+    for f in dataclasses.fields(obj):
+        v = getattr(obj, f.name)
+        if v is None:
+            continue
+        out[f.name] = str(v) if isinstance(v, Decimal) else v
+    return out
+
+
+def _strip_optional(tp: Any) -> Any:
+    if typing.get_origin(tp) in (typing.Union, _types.UnionType):
+        args = [a for a in typing.get_args(tp) if a is not type(None)]
+        if len(args) == 1:
+            return args[0]
+    return tp
+
+
+def _flat_dataclass_from_jsonb(cls: type[Any], data: dict[str, Any]) -> Any:
+    """JSONB dict → flat dataclass (type hint 기반 Decimal 복원, 누락 키 None)."""
+    hints = typing.get_type_hints(cls)
+    kwargs: dict[str, Any] = {}
+    for f in dataclasses.fields(cls):
+        raw = data.get(f.name)
+        if raw is None:
+            kwargs[f.name] = None
+        elif _strip_optional(hints[f.name]) is Decimal:
+            kwargs[f.name] = Decimal(str(raw))
+        else:
+            kwargs[f.name] = raw
+    return cls(**kwargs)
 
 
 def _utc_iso(dt: datetime) -> str:
@@ -110,6 +170,20 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
     # C6 (정직성 Slice 4): funding_data_incomplete (bool). None 키 생략 → backward-compat.
     if m.funding_data_incomplete is not None:
         d["funding_data_incomplete"] = m.funding_data_incomplete
+    # --- TV parity 팩 (None 키 생략 → backward-compat) ---
+    for name in _TV_FLAT_DECIMAL_FIELDS:
+        v = getattr(m, name)
+        if v is not None:
+            d[name] = str(v)
+    if m.total_open_trades is not None:
+        d["total_open_trades"] = m.total_open_trades
+    if m.per_side is not None:
+        d["per_side"] = {
+            "long": _flat_dataclass_to_jsonb(m.per_side.long) if m.per_side.long else None,
+            "short": _flat_dataclass_to_jsonb(m.per_side.short) if m.per_side.short else None,
+        }
+    if m.excursion_stats is not None:
+        d["excursion_stats"] = _flat_dataclass_to_jsonb(m.excursion_stats)
     return d
 
 
@@ -176,6 +250,26 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
         total_slippage=_opt_decimal("total_slippage"),
         # C6 (정직성 Slice 4): funding_data_incomplete (bool). 누락 시 None.
         funding_data_incomplete=data.get("funding_data_incomplete"),
+        # TV parity 팩 (누락 키 None — backward-compat).
+        **{name: _opt_decimal(name) for name in _TV_FLAT_DECIMAL_FIELDS},
+        total_open_trades=data.get("total_open_trades"),
+        per_side=_per_side_from_jsonb(data.get("per_side")),
+        excursion_stats=(
+            _flat_dataclass_from_jsonb(ExcursionStats, data["excursion_stats"])
+            if data.get("excursion_stats") is not None
+            else None
+        ),
+    )
+
+
+def _per_side_from_jsonb(raw: dict[str, Any] | None) -> PerSideMetrics | None:
+    if raw is None:
+        return None
+    long_raw = raw.get("long")
+    short_raw = raw.get("short")
+    return PerSideMetrics(
+        long=_flat_dataclass_from_jsonb(SideMetrics, long_raw) if long_raw else None,
+        short=_flat_dataclass_from_jsonb(SideMetrics, short_raw) if short_raw else None,
     )
 
 

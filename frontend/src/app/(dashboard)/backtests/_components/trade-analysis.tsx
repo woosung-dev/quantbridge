@@ -13,8 +13,6 @@ import type {
   TradeItem,
 } from "@/features/backtest/schemas";
 
-import { MonthlyReturnsHeatmap } from "./monthly-returns-heatmap";
-
 interface TradeAnalysisProps {
   metrics: BacktestMetricsOut;
   /**
@@ -103,11 +101,7 @@ export function TradeAnalysis({ metrics, trades }: TradeAnalysisProps) {
         </p>
       </section>
 
-      {/* 월별 수익률 히트맵 (Sprint 30-γ) */}
-      <section>
-        <SectionTitle>월별 수익률</SectionTitle>
-        <MonthlyReturnsHeatmap data={metrics.monthly_returns} />
-      </section>
+      {/* 월별 수익률 히트맵은 상세 결과 > 수익률 서브탭으로 이동 (TV parity IA). */}
 
       {/* 평균 수익 vs 손실 */}
       {avg_win != null && avg_loss != null ? (

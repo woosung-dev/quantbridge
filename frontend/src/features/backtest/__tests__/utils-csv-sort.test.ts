@@ -28,16 +28,17 @@ describe("tradesToCsv (Sprint 30-δ)", () => {
     const lines = csv.slice(1).split("\n");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toBe(
-      "trade_index,direction,status,entry_time,exit_time,entry_price,exit_price,size,pnl,return_pct,fees,cumulative_pnl",
+      "trade_index,direction,status,entry_time,exit_time,entry_price,exit_price,size,pnl,return_pct,fees,cumulative_pnl," +
+        "runup_abs,drawdown_abs,bars_in_trade,fee_paid,slippage_paid,exit_kind,comment",
     );
   });
 
-  it("12 컬럼 + 누적 PnL 정확", () => {
+  it("19 컬럼 (TV 확장) + 누적 PnL 정확", () => {
     const csv = tradesToCsv([T({ pnl: 10 }), T({ trade_index: 2, pnl: -3 })]);
     const lines = csv.slice(1).split("\n");
     expect(lines).toHaveLength(3); // header + 2 rows
     const cols1 = lines[1]?.split(",") ?? [];
-    expect(cols1).toHaveLength(12);
+    expect(cols1).toHaveLength(19); // 기존 12 + TV 확장 7 (null = 빈 값)
     expect(cols1[11]).toBe("10.00000000");
     const cols2 = lines[2]?.split(",") ?? [];
     expect(cols2[11]).toBe("7.00000000"); // cumulative: 10 + (-3)

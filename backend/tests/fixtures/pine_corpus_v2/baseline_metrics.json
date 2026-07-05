@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "ohlcv_sha256": "1a99144813f15ebc029f4c2d18cf4e657eb54f1a7317e28820380b80ebec5038",
-  "pine_v2_commit": "10876a3",
+  "pine_v2_commit": "97ee98d",
   "tool_versions": {
     "pynescript": "0.3.0",
     "python": "3.12"
   },
-  "generated_at": "2026-05-06T00:21:13Z",
+  "generated_at": "2026-07-05T01:52:44Z",
   "corpora": {
     "s1_pbr": {
       "metrics": {
@@ -16,7 +16,7 @@
         "win_rate": "0.38494624",
         "num_trades": 465,
         "profit_factor": "0.73370684",
-        "sortino_ratio": null,
+        "sortino_ratio": "2.34906069",
         "calmar_ratio": null,
         "avg_win": "0.01408262",
         "avg_loss": "-0.01198646",
@@ -26,7 +26,7 @@
       "var_series_digest": "sha256:868bb760d0cacb4cf9ce9073c7bf7d140b06b907573e8c0d2526242c75e8e6f7",
       "trades_digest": "sha256:b04e1ddc0632bbde03cc32d83fd982ca649319bf18be7f1cd3319c3ba7a214e8",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-05-06T00:20:25Z"
+      "updated_at": "2026-07-05T01:51:56Z"
     },
     "s2_utbot": {
       "metrics": {
@@ -36,7 +36,7 @@
         "win_rate": "0.27944573",
         "num_trades": 433,
         "profit_factor": "0.63219920",
-        "sortino_ratio": null,
+        "sortino_ratio": "-0.40819940",
         "calmar_ratio": null,
         "avg_win": "0.01765886",
         "avg_loss": "-0.01067292",
@@ -46,7 +46,7 @@
       "var_series_digest": "sha256:e60b37b755aa304734e3d166443be51c9b276661424ecda2e18639e865559387",
       "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-06-30T01:41:42Z"
+      "updated_at": "2026-07-05T01:52:12Z"
     },
     "s3_rsid": {
       "metrics": {
@@ -56,7 +56,7 @@
         "win_rate": "0.44615385",
         "num_trades": 65,
         "profit_factor": "0.88071998",
-        "sortino_ratio": null,
+        "sortino_ratio": "-0.01796062",
         "calmar_ratio": null,
         "avg_win": "0.02375509",
         "avg_loss": "-0.01978951",
@@ -66,7 +66,7 @@
       "var_series_digest": "sha256:2e43209dc6ce7416c1bbd1ce1c9ef56fe029ac52b97663a2072498041cadb9c0",
       "trades_digest": "sha256:9913b3068b312577e812061db8421959b878669480c8583f204aa8d89f234e62",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-05-06T00:20:58Z"
+      "updated_at": "2026-07-05T01:52:29Z"
     },
     "i1_utbot": {
       "metrics": {
@@ -76,7 +76,7 @@
         "win_rate": "0.27944573",
         "num_trades": 433,
         "profit_factor": "0.63219920",
-        "sortino_ratio": null,
+        "sortino_ratio": "-0.40819940",
         "calmar_ratio": null,
         "avg_win": "0.01765886",
         "avg_loss": "-0.01067292",
@@ -86,7 +86,7 @@
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-06-30T01:41:57Z"
+      "updated_at": "2026-07-05T01:52:33Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -106,7 +106,7 @@
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-05-06T00:21:13Z"
+      "updated_at": "2026-07-05T01:52:44Z"
     },
     "i3_drfx": {
       "note": "Skipped \u2014 is_runnable=false per Y1 Coverage Analyzer",
