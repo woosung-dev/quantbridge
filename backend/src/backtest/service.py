@@ -191,6 +191,8 @@ class BacktestService:
             "fees": float(data.fees_pct),
             "slippage": float(data.slippage_pct),
             "include_funding": bool(data.include_funding),
+            # TV parity — 시장가 체결 타이밍 (bar_close 기본 = 기존 동작).
+            "fill_timing": data.fill_timing,
             # BL-188 v3 — sizing canonical metadata (BacktestConfig 5 신규 필드 → JSONB).
             "sizing_source": sizing_canonical["sizing_source"],
             "sizing_basis": sizing_canonical["sizing_basis"],
@@ -647,6 +649,7 @@ class BacktestService:
                 fees=float(cfg_dict.get("fees", _default.fees)),
                 slippage=float(cfg_dict.get("slippage", _default.slippage)),
                 include_funding=bool(cfg_dict.get("include_funding", _default.include_funding)),
+                fill_timing=str(cfg_dict.get("fill_timing", _default.fill_timing)),
             )
         else:
             config_out = BacktestConfigOut(
@@ -654,6 +657,7 @@ class BacktestService:
                 fees=_default.fees,
                 slippage=_default.slippage,
                 include_funding=_default.include_funding,
+                fill_timing=_default.fill_timing,
             )
         if bt.status == BacktestStatus.COMPLETED:
             if bt.metrics:

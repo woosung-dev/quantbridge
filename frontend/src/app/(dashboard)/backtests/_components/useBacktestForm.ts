@@ -28,6 +28,8 @@ export interface BacktestFormValues {
   fees_pct: number;
   slippage_pct: number;
   include_funding: boolean;
+  // TV parity — 시장가 체결 타이밍 (bar_close 기본 | next_bar_open = TV 정합).
+  fill_timing: "bar_close" | "next_bar_open";
   default_qty_type:
     | "strategy.percent_of_equity"
     | "strategy.cash"
@@ -96,6 +98,7 @@ export function useBacktestForm() {
       fees_pct: 0.001,
       slippage_pct: 0.0005,
       include_funding: true,
+      fill_timing: "bar_close",
       default_qty_type: "strategy.percent_of_equity",
       default_qty_value: 10,
       sizing_source: "manual",
@@ -157,6 +160,7 @@ export function useBacktestForm() {
       fees_pct: Number(values.fees_pct),
       slippage_pct: Number(values.slippage_pct),
       include_funding: Boolean(values.include_funding),
+      fill_timing: values.fill_timing,
       ...(isLive
         ? {
             position_size_pct:

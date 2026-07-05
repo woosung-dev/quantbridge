@@ -1269,6 +1269,34 @@ class Interpreter:
             unsupported = [
                 k for k in kwargs if k in ("limit", "trail_points", "trail_offset", "qty_percent")
             ]
+            # TV parity — fill_timing=next_bar_open: 시장가(stop 없음) entry 는 인텐트
+            # 큐 등록 → 다음 bar 시가 체결. qty 미지정 시 체결 시가 기준 sizing 위해
+            # None 전달 (compute_qty deferred). stop= 은 기존 pending 경로 유지.
+            if self.strategy.fill_timing == "next_bar_open" and stop is None:
+                from src.strategy.pine_v2.strategy_state import MarketIntent
+
+                explicit_qty: float | None
+                if "qty" in kwargs:
+                    explicit_qty = float(kwargs["qty"])
+                elif len(positional) >= 3:
+                    explicit_qty = float(positional[2])
+                else:
+                    explicit_qty = None
+                if unsupported:
+                    self.strategy.warnings.append(
+                        f"strategy.entry({trade_id!r}): ignored unsupported kwargs: {unsupported}"
+                    )
+                self.strategy.queue_market_intent(
+                    MarketIntent(
+                        kind="entry",
+                        trade_id=trade_id,
+                        direction=direction,  # type: ignore[arg-type]
+                        qty=explicit_qty,
+                        comment=comment,
+                        placed_bar=bar_idx,
+                    )
+                )
+                return None
             self.strategy.entry(
                 trade_id,
                 direction,  # type: ignore[arg-type]
@@ -1290,6 +1318,19 @@ class Interpreter:
             if when_val is not None and not self._truthy(when_val):
                 return None
             comment = str(kwargs.get("comment", ""))
+            # TV parity — next_bar_open: close 인텐트 큐 등록 → 다음 bar 시가 체결.
+            if self.strategy.fill_timing == "next_bar_open":
+                from src.strategy.pine_v2.strategy_state import MarketIntent
+
+                self.strategy.queue_market_intent(
+                    MarketIntent(
+                        kind="close",
+                        trade_id=trade_id,
+                        comment=comment,
+                        placed_bar=bar_idx,
+                    )
+                )
+                return None
             self.strategy.close(
                 trade_id,
                 bar=bar_idx,
@@ -1302,6 +1343,14 @@ class Interpreter:
             # when= kwarg: False면 close_all skip.
             when_val = kwargs.get("when")
             if when_val is not None and not self._truthy(when_val):
+                return None
+            # TV parity — next_bar_open: close_all 인텐트 큐 등록.
+            if self.strategy.fill_timing == "next_bar_open":
+                from src.strategy.pine_v2.strategy_state import MarketIntent
+
+                self.strategy.queue_market_intent(
+                    MarketIntent(kind="close_all", trade_id="", placed_bar=bar_idx)
+                )
                 return None
             self.strategy.close_all(bar=bar_idx, fill_price=current_close)
             return None

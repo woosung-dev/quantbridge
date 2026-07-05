@@ -102,6 +102,11 @@ def build_engine_config_from_db(bt: Backtest) -> BacktestConfig:
         trading_sessions=trading_sessions_tuple,
         leverage=float(cfg_dict.get("leverage", default.leverage)),
         include_funding=bool(cfg_dict.get("include_funding", default.include_funding)),
+        # TV parity — 시장가 체결 타이밍 (구 row = bar_close fallback).
+        fill_timing=cast(
+            Literal["bar_close", "next_bar_open"],
+            str(cfg_dict.get("fill_timing", default.fill_timing)),
+        ),
         default_qty_type=form_qty_type,
         default_qty_value=form_qty_value,
         live_position_size_pct=live_pct,

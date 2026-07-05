@@ -47,6 +47,10 @@ class BacktestConfig:
     leverage: float = 1.0
     # 무기한 선물 funding 비용 — 현재 미반영 (future hook).
     include_funding: bool = False
+    # TV parity — 시장가 체결 타이밍. "bar_close"(기본, 신호 bar 종가 즉시 — 기존
+    # 동작 byte-identical) | "next_bar_open"(다음 bar 시가 — TV
+    # process_orders_on_close=false 기본. golden/trust-layer 는 기본값이라 무영향).
+    fill_timing: Literal["bar_close", "next_bar_open"] = "bar_close"
     # Sprint 37 BL-188a — 폼 입력 default_qty (Pine 미명시 시 사용).
     # priority chain: Pine strategy(default_qty_type=...) > 폼 입력 > None (qty=1.0 fallback).
     # None 시 기존 동작 (qty=1.0 hardcode 호환).
