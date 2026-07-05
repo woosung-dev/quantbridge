@@ -412,6 +412,17 @@ class BacktestService:
                     pnl=t.pnl,
                     return_pct=t.return_pct,
                     fees=t.fees,
+                    # TV Trades parity — RawTrade 확장 필드 passthrough.
+                    runup_abs=t.runup_abs,
+                    runup_pct=t.runup_pct,
+                    drawdown_abs=t.drawdown_abs,
+                    drawdown_pct=t.drawdown_pct,
+                    bars_in_trade=t.bars_in_trade,
+                    fee_paid=t.fee_paid,
+                    slippage_paid=t.slippage_paid,
+                    cumulative_pnl=t.cumulative_pnl,
+                    exit_kind=t.exit_kind.value if t.exit_kind is not None else None,
+                    comment=t.comment,
                 )
             )
         return result

@@ -422,9 +422,24 @@ class TradeItem(BaseModel):
     pnl: Decimal
     return_pct: Decimal
     fees: Decimal
+    # --- TV Trades parity (구 row = None, FE graceful hide) ---
+    runup_abs: Decimal | None = None  # MFE (보유구간 bar high/low gross, "TV 근사")
+    runup_pct: Decimal | None = None
+    drawdown_abs: Decimal | None = None  # MAE
+    drawdown_pct: Decimal | None = None
+    bars_in_trade: int | None = None
+    fee_paid: Decimal | None = None  # 불변식: fee_paid + slippage_paid == fees
+    slippage_paid: Decimal | None = None
+    cumulative_pnl: Decimal | None = None  # trade_index 순 net 누적
+    exit_kind: str | None = None  # take_profit / stop_loss / trailing_stop
+    comment: str | None = None  # Pine strategy.entry comment
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_serializer("entry_price", "exit_price", "size", "pnl", "return_pct", "fees")
+    @field_serializer(
+        "entry_price", "exit_price", "size", "pnl", "return_pct", "fees",
+        "runup_abs", "runup_pct", "drawdown_abs", "drawdown_pct",
+        "fee_paid", "slippage_paid", "cumulative_pnl",
+    )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)

@@ -172,6 +172,21 @@ class BacktestTrade(SQLModel, table=True):
     pnl: Decimal = Field(max_digits=20, decimal_places=8)
     return_pct: Decimal = Field(max_digits=12, decimal_places=6)  # 10,000% 여유
     fees: Decimal = Field(max_digits=20, decimal_places=8, default=Decimal("0"))
+    # --- TV Trades parity (순수 additive nullable — 구 row NULL, FE graceful hide.
+    # migration 20260705_0001) ---
+    runup_abs: Decimal | None = Field(default=None, max_digits=20, decimal_places=8)
+    runup_pct: Decimal | None = Field(default=None, max_digits=12, decimal_places=6)
+    drawdown_abs: Decimal | None = Field(default=None, max_digits=20, decimal_places=8)
+    drawdown_pct: Decimal | None = Field(default=None, max_digits=12, decimal_places=6)
+    bars_in_trade: int | None = Field(default=None)
+    # 불변식: fee_paid + slippage_paid == fees (결합 컬럼 유지 — 하위호환).
+    fee_paid: Decimal | None = Field(default=None, max_digits=20, decimal_places=8)
+    slippage_paid: Decimal | None = Field(default=None, max_digits=20, decimal_places=8)
+    cumulative_pnl: Decimal | None = Field(default=None, max_digits=20, decimal_places=8)
+    # ExitOrderKind wire 문자열 (take_profit/stop_loss/trailing_stop).
+    # PG enum 신설 회피 (LESSON-066 enum swap 부담).
+    exit_kind: str | None = Field(default=None, max_length=16)
+    comment: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
     backtest: "Backtest" = Relationship(back_populates="trades")
 
