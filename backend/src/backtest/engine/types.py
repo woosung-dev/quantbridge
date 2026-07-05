@@ -98,6 +98,54 @@ class BacktestConfig:
 
 
 @dataclass(frozen=True)
+class SideMetrics:
+    """long/short 한쪽 방향의 절대금액 통계 (closed only, TV parity)."""
+
+    net_profit_abs: Decimal
+    gross_profit_abs: Decimal
+    gross_loss_abs: Decimal  # 양수 크기 (TV UI 음수 표기는 FE 책임)
+    profit_factor: Decimal | None  # gross_loss 0 → None
+    avg_trade_abs: Decimal | None
+
+
+@dataclass(frozen=True)
+class PerSideMetrics:
+    """방향별 분리 팩 — 해당 방향 closed 0건이면 그 쪽 None."""
+
+    long: SideMetrics | None
+    short: SideMetrics | None
+
+
+@dataclass(frozen=True)
+class ExcursionStats:
+    """equity run-up/drawdown 통계 팩 (TV "주식 시장의 상승과 하락" parity).
+
+    에피소드 규약(우리 정의, hand-oracle 로 고정 — TV 미공개라 "TV 근사"):
+    - drawdown 에피소드 = running peak 아래 연속 bar 구간(회복 bar 미포함).
+    - run-up 에피소드 = running trough 위 연속 bar 구간(신저점 bar 에서 종료).
+    - `_intrabar` 변형 = bar high/low 로 mark 한 equity 극값 근사(낙관 근사 —
+      복수 포지션 동시 극값 미보장). FE 는 "(bar 근사)" 라벨 의무.
+    - days = bars * bar 간격(equity index 중앙값 간격 기준).
+    """
+
+    max_runup_abs: Decimal | None = None
+    max_runup_pct: Decimal | None = None  # 분모 = 에피소드 시작 trough equity
+    avg_runup_abs: Decimal | None = None
+    avg_runup_duration_bars: Decimal | None = None
+    avg_runup_duration_days: Decimal | None = None
+    avg_drawdown_abs: Decimal | None = None
+    avg_drawdown_duration_bars: Decimal | None = None
+    avg_drawdown_duration_days: Decimal | None = None
+    max_drawdown_abs: Decimal | None = None  # 절대금액 (기존 max_drawdown ratio 보완)
+    max_drawdown_recovery_bars: int | None = None  # MDD trough → 직전 peak 회복. 미회복 None
+    max_drawdown_recovery_days: Decimal | None = None
+    max_runup_intrabar_abs: Decimal | None = None
+    max_runup_intrabar_pct: Decimal | None = None
+    max_drawdown_intrabar_abs: Decimal | None = None
+    max_drawdown_intrabar_pct: Decimal | None = None
+
+
+@dataclass(frozen=True)
 class BacktestMetrics:
     """표준 지표. 금융 수치는 Decimal. 신규 필드는 None=미추출 또는 NaN.
 
@@ -169,6 +217,28 @@ class BacktestMetrics:
     # 가용 범위(인제스션 forward-only) 밖이면 True. include_funding=false 또는 funding
     # 미전달 시 None(미반영) → 기존 완료 backtest round-trip 호환.
     funding_data_incomplete: bool | None = None
+    # --- TV Strategy Tester parity 팩 (전부 optional 꼬리 추가 — 구 backtest
+    # round-trip 호환. 4-site 동시 수정은 test_metrics_field_parity tripwire 가 강제) ---
+    # 절대금액 계열 (closed net pnl 기준, Decimal 정확 합산).
+    net_profit_abs: Decimal | None = None
+    gross_profit_abs: Decimal | None = None
+    gross_loss_abs: Decimal | None = None  # 양수 크기
+    # 미실현 PnL — open trades 의 (last_close - entry)*qty*sign - 비용. open 0건 = 0,
+    # ohlcv 미전달 시 None.
+    open_pnl: Decimal | None = None
+    largest_win_abs: Decimal | None = None
+    largest_loss_abs: Decimal | None = None  # 음수 그대로. 손실 0건 → None
+    avg_trade_abs: Decimal | None = None  # TV "기대 수익(expectancy)" 와 동일값 — FE 라벨 처리
+    avg_win_abs: Decimal | None = None
+    avg_loss_abs: Decimal | None = None
+    ratio_avg_win_loss: Decimal | None = None  # avg_win_abs / |avg_loss_abs|
+    total_open_trades: int | None = None
+    avg_bars_in_trade: Decimal | None = None  # closed only
+    avg_bars_in_winning_trades: Decimal | None = None
+    avg_bars_in_losing_trades: Decimal | None = None
+    # nested 팩 2종 — site 당 1 key 로 4-site 부담 압축.
+    per_side: PerSideMetrics | None = None
+    excursion_stats: ExcursionStats | None = None
 
 
 @dataclass(frozen=True)
@@ -192,6 +262,22 @@ class RawTrade:
     # BL-104 — exit leg 종류 (TP/SL/Trailing). maker/taker 비용 라우팅 입력.
     # None = market close/flip/open → taker (byte-identical).
     exit_kind: ExitOrderKind | None = None
+    # --- TV Trades parity 확장 (전부 optional 꼬리 추가 — frozen dataclass
+    # additive-safe + trust-layer trades digest(명시적 11-필드) 불변) ---
+    # run-up(MFE)/drawdown(MAE): 보유 구간 bar high/low 기반 gross(수수료 미차감)
+    # 가격 excursion. 스캔 윈도 = (entry_bar, exit_bar] — entry bar 는 종가 체결
+    # 이전 고저가 미보유 구간이라 제외, exit bar 는 full 포함(bar 근사, "TV 근사").
+    # pct 분모 = entry notional (return_pct 규약 동일). ohlcv 미전달 시 None.
+    runup_abs: Decimal | None = None
+    runup_pct: Decimal | None = None
+    drawdown_abs: Decimal | None = None
+    drawdown_pct: Decimal | None = None
+    bars_in_trade: int | None = None  # exit_bar - entry_bar (closed only)
+    # 비용 분해 — 불변식: fee_paid + slippage_paid == fees (결합 필드 유지).
+    fee_paid: Decimal | None = None
+    slippage_paid: Decimal | None = None
+    comment: str | None = None  # Pine strategy.entry comment ("" → None)
+    cumulative_pnl: Decimal | None = None  # trade_index(entry 순) net pnl 누적
 
 
 @dataclass(frozen=True)
