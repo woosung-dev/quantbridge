@@ -6,14 +6,18 @@
 //
 // FE-02 패턴 (query key factory identity = userId) 재사용.
 
-import { useAuth } from "@clerk/nextjs";
 import {
   useMutation,
   useQuery,
-  useQueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+
+import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
+import {
+  useInvalidatingMutation,
+  type MutationCallbacks,
+} from "@/hooks/use-invalidating-mutation";
 
 import {
   approveWaitlistApplication,
@@ -31,10 +35,6 @@ import type {
 
 export { waitlistKeys };
 
-const ANON_USER_ID = "anon";
-
-type TokenGetter = () => Promise<string | null>;
-
 function makeAdminListFetcher(
   query: { status?: WaitlistStatus; limit?: number; offset?: number },
   getToken: TokenGetter,
@@ -45,10 +45,7 @@ function makeAdminListFetcher(
   };
 }
 
-export interface MutationCallbacks<TData, TError = Error> {
-  onSuccess?: (data: TData) => void;
-  onError?: (err: TError) => void;
-}
+export type { MutationCallbacks };
 
 export function useCreateWaitlist(
   opts: MutationCallbacks<WaitlistApplicationAcceptedResponse> = {},
@@ -69,8 +66,7 @@ export function useAdminWaitlistList(query: {
   limit?: number;
   offset?: number;
 }): UseQueryResult<AdminWaitlistListResponse, Error> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
+  const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: waitlistKeys.adminList(uid, query),
     queryFn: makeAdminListFetcher(query, getToken),
@@ -80,18 +76,11 @@ export function useAdminWaitlistList(query: {
 export function useApproveWaitlist(
   opts: MutationCallbacks<AdminApproveResponse> = {},
 ): UseMutationResult<AdminApproveResponse, Error, string> {
-  const { userId, getToken } = useAuth();
-  const uid = userId ?? ANON_USER_ID;
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken();
-      return approveWaitlistApplication(id, token);
+  return useInvalidatingMutation(
+    {
+      mutationFn: (id: string, token) => approveWaitlistApplication(id, token),
+      invalidateKeys: (uid) => [waitlistKeys.adminLists(uid)],
     },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: waitlistKeys.adminLists(uid) });
-      opts.onSuccess?.(data);
-    },
-    onError: (err) => opts.onError?.(err),
-  });
+    opts,
+  );
 }
