@@ -82,10 +82,11 @@ export function LandingHowItWorks() {
           {STEPS.map((s, i) => (
             <article
               key={s.number}
-              className="relative rounded-[14px] border border-[color:var(--border)] bg-[color:var(--bg)] p-7 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
+              className="relative rounded-lg border border-[color:var(--border)] bg-[color:var(--bg)] p-7 shadow-card transition-all duration-200 hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:shadow-card-hover motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
               style={{ animationDelay: `${i * 80}ms` }}
             >
-              <div className="font-mono text-xs font-semibold tracking-wider text-[color:var(--primary)]">
+              {/* mono 터미널 레이블 문법 — 11px / tracking 0.14em */}
+              <div className="font-mono text-[11px] font-medium tracking-[0.14em] text-[color:var(--primary)]">
                 {s.number}
               </div>
               <div className="mt-4 flex size-11 items-center justify-center rounded-full bg-[color:var(--primary-light)]">

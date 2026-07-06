@@ -84,7 +84,8 @@ export function LandingFooter() {
 
           {FOOTER_COLUMNS.map((col) => (
             <div key={col.heading}>
-              <h3 className="text-sm font-semibold text-[color:var(--text-primary)]">
+              {/* 라틴 전용 컬럼 레이블 — mono 터미널 문법 (11px uppercase tracking 0.14em) */}
+              <h3 className="font-mono text-[11px] font-medium tracking-[0.14em] text-[color:var(--text-muted)] uppercase">
                 {col.heading}
               </h3>
               <ul className="mt-3 space-y-2">

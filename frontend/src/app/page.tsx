@@ -39,7 +39,7 @@ export default async function LandingPage() {
         <LandingHero />
         <section
           aria-label="연동 거래소"
-          className="border-y border-[color:var(--bg-alt)] bg-muted px-6 py-8 text-center"
+          className="border-y border-[color:var(--border)] bg-muted px-6 py-8 text-center"
         >
           <p className="text-sm text-[color:var(--text-muted)]">
             Bybit Demo 연동 (Beta)
@@ -48,7 +48,7 @@ export default async function LandingPage() {
             {TRUST_BRANDS.map((b) => (
               <span
                 key={b}
-                className="rounded-full border border-[color:var(--border)] bg-[color:var(--bg-alt)] px-4 py-1.5 font-mono text-xs font-medium text-[color:var(--text-muted)]"
+                className="rounded-sm border border-[color:var(--border)] bg-[color:var(--bg-alt)] px-4 py-1.5 font-mono text-xs font-medium tracking-[0.08em] text-[color:var(--text-muted)]"
               >
                 {b}
               </span>
@@ -71,7 +71,7 @@ export default async function LandingPage() {
           </p>
           <Link
             href="/sign-up"
-            className="mt-8 inline-flex h-12 items-center gap-2 rounded-md bg-[color:var(--primary)] px-8 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all duration-200 hover:-translate-y-px hover:scale-[1.02] hover:bg-[color:var(--primary-hover)] hover:shadow-btn-primary-hover"
+            className="mt-8 inline-flex h-12 items-center gap-2 rounded-md bg-[color:var(--primary)] px-8 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all duration-200 hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-btn-primary-hover"
           >
             무료로 가입하기
           </Link>

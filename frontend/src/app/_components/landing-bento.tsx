@@ -39,7 +39,7 @@ export function LandingBento() {
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-[auto_auto]">
           {/* Cell A: 백테스트 성과 비교 (wide on lg) */}
-          <article className="rounded-[14px] border border-[color:var(--border)] bg-card p-7 shadow-card lg:col-span-2">
+          <article className="rounded-lg border border-[color:var(--border)] bg-card p-7 shadow-card lg:col-span-2">
             <h3 className="font-display text-base font-semibold text-[color:var(--text-primary)]">
               백테스트 성과 비교
             </h3>
@@ -53,12 +53,12 @@ export function LandingBento() {
                   className="flex flex-1 flex-col items-center gap-1.5"
                 >
                   <span
-                    className={`font-mono text-xs font-semibold ${b.positive ? "text-success" : "text-destructive"}`}
+                    className={`font-mono text-xs font-semibold tabular-nums ${b.positive ? "text-bullish" : "text-bearish"}`}
                   >
                     {b.pct}
                   </span>
                   <div
-                    className="w-full rounded-t-md transition-all duration-500"
+                    className="w-full rounded-t-sm transition-all duration-500"
                     style={{
                       height: `${b.height * 1.8}px`,
                       background: b.positive ? "var(--bullish)" : "var(--bearish)",
@@ -73,7 +73,7 @@ export function LandingBento() {
           </article>
 
           {/* Cell B: 리스크 지표 */}
-          <article className="rounded-[14px] border border-[color:var(--border)] bg-card p-7 shadow-card">
+          <article className="rounded-lg border border-[color:var(--border)] bg-card p-7 shadow-card">
             <h3 className="font-display text-base font-semibold text-[color:var(--text-primary)]">
               리스크 지표
             </h3>
@@ -84,46 +84,46 @@ export function LandingBento() {
             </div>
           </article>
 
-          {/* Cell C: Pine Script 코드 */}
-          <article className="rounded-[14px] border border-[color:var(--border)] bg-[#0B1120] p-6 text-[color:#EDEDEF] shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-            <h3 className="font-display text-base font-semibold text-white">
+          {/* Cell C: Pine Script 코드 — `dark` 스코프 (에디터 = 항상 카본, 코퍼 숫자) */}
+          <article className="dark rounded-lg border border-[color:var(--border)] bg-[color:var(--card)] p-6 text-[color:var(--text-primary)] shadow-card">
+            <h3 className="font-display text-base font-semibold text-[color:var(--text-primary)]">
               Pine Script
             </h3>
             <pre className="mt-4 overflow-x-auto font-mono text-[11px] leading-relaxed">
               <code>
-                <span className="text-[#8A8F98]">{"// QuantBridge 전략 예시"}</span>
+                <span className="text-[color:var(--text-muted)]">{"// QuantBridge 전략 예시"}</span>
                 {"\n"}
-                <span className="text-[#C084FC]">{"//@version=5"}</span>
+                <span className="text-[color:var(--chart-compare)]">{"//@version=5"}</span>
                 {"\n"}
-                <span className="text-[#60A5FA]">strategy</span>(
-                <span className="text-[#34D399]">&quot;MA Cross&quot;</span>,{" "}
-                <span className="text-[#FBBF24]">overlay</span>=
-                <span className="text-[#C084FC]">true</span>)
+                <span className="text-[color:var(--chart-benchmark)]">strategy</span>(
+                <span className="text-[color:var(--bullish)]">&quot;MA Cross&quot;</span>,{" "}
+                <span className="text-[color:var(--warning)]">overlay</span>=
+                <span className="text-[color:var(--chart-compare)]">true</span>)
                 {"\n\n"}
-                <span className="text-[#FBBF24]">fast</span> ={" "}
-                <span className="text-[#60A5FA]">ta.sma</span>(
-                <span className="text-[#60A5FA]">close</span>,{" "}
-                <span className="text-[#F472B6]">12</span>)
+                <span className="text-[color:var(--warning)]">fast</span> ={" "}
+                <span className="text-[color:var(--chart-benchmark)]">ta.sma</span>(
+                <span className="text-[color:var(--chart-benchmark)]">close</span>,{" "}
+                <span className="text-[color:var(--primary)]">12</span>)
                 {"\n"}
-                <span className="text-[#FBBF24]">slow</span> ={" "}
-                <span className="text-[#60A5FA]">ta.sma</span>(
-                <span className="text-[#60A5FA]">close</span>,{" "}
-                <span className="text-[#F472B6]">26</span>)
+                <span className="text-[color:var(--warning)]">slow</span> ={" "}
+                <span className="text-[color:var(--chart-benchmark)]">ta.sma</span>(
+                <span className="text-[color:var(--chart-benchmark)]">close</span>,{" "}
+                <span className="text-[color:var(--primary)]">26</span>)
                 {"\n\n"}
-                <span className="text-[#C084FC]">if</span>{" "}
-                <span className="text-[#60A5FA]">ta.crossover</span>(
-                <span className="text-[#FBBF24]">fast</span>,{" "}
-                <span className="text-[#FBBF24]">slow</span>)
+                <span className="text-[color:var(--chart-compare)]">if</span>{" "}
+                <span className="text-[color:var(--chart-benchmark)]">ta.crossover</span>(
+                <span className="text-[color:var(--warning)]">fast</span>,{" "}
+                <span className="text-[color:var(--warning)]">slow</span>)
                 {"\n  "}
-                <span className="text-[#60A5FA]">strategy.entry</span>(
-                <span className="text-[#34D399]">&quot;Long&quot;</span>,{" "}
-                <span className="text-[#60A5FA]">strategy.long</span>)
+                <span className="text-[color:var(--chart-benchmark)]">strategy.entry</span>(
+                <span className="text-[color:var(--bullish)]">&quot;Long&quot;</span>,{" "}
+                <span className="text-[color:var(--chart-benchmark)]">strategy.long</span>)
               </code>
             </pre>
           </article>
 
           {/* Cell D: 실시간 모니터링 (wide on lg) */}
-          <article className="rounded-[14px] border border-[color:var(--border)] bg-card p-7 shadow-card lg:col-span-2">
+          <article className="rounded-lg border border-[color:var(--border)] bg-card p-7 shadow-card lg:col-span-2">
             <h3 className="font-display text-base font-semibold text-[color:var(--text-primary)]">
               실시간 모니터링
             </h3>
@@ -179,19 +179,19 @@ function RiskRow({
         : "text-destructive";
   const barColor =
     tone === "good"
-      ? "bg-success-subtle"
+      ? "bg-success"
       : tone === "warn"
-        ? "bg-warning-subtle"
-        : "bg-destructive-subtle";
+        ? "bg-warning"
+        : "bg-destructive";
   return (
     <div>
       <div className="flex items-center justify-between text-sm">
         <span className="text-[color:var(--text-secondary)]">{label}</span>
-        <span className={`font-mono font-semibold ${valueColor}`}>{value}</span>
+        <span className={`font-mono font-semibold tabular-nums ${valueColor}`}>{value}</span>
       </div>
       <div className="mt-1.5 h-1.5 rounded-full bg-[color:var(--bg-alt)]">
         <div
-          className={`h-full rounded-full ${barColor}`}
+          className={`h-full rounded-full opacity-80 ${barColor}`}
           style={{ width: `${width}%` }}
         />
       </div>
