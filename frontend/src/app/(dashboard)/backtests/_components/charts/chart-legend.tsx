@@ -6,10 +6,12 @@
 // 사용자 코멘트 (dogfood Day 4 = 5/10): "지표 표시가 뭘 의미하는지 도대체 모르겠어"
 // → 차트 우측 상단 inline Legend 로 series 의미 즉시 식별 가능하게 함.
 //
-// 색상은 trading-chart.tsx 의 default 와 정합:
-// - Equity: #22c55e (green-500), solid
-// - Buy & Hold: #3b82f6 (blue-500), dashed (LineStyle.Dashed = 2)
-// - Drawdown: #ef4444 (red-500), area
+// 색상은 trading-chart.tsx 의 default(chart-tokens SSOT) 와 정합 — CSS 변수 경유:
+// - Equity: var(--chart-equity), solid
+// - Buy & Hold: var(--chart-benchmark), dashed (LineStyle.Dashed = 2)
+// - Compare: var(--chart-compare), solid
+// - Drawdown: var(--chart-dd-top/-line), area
+// DOM 마커라 var() 직접 사용 가능 — 테마 토글 시 자동 flip (DESIGN.md §2.3).
 //
 // 디자인: shadcn 스타일 (rounded-md border bg-card/80 backdrop-blur).
 // 모바일 wrap 가능하도록 flex-wrap.
@@ -51,7 +53,7 @@ export function ChartLegend({
           <span
             aria-hidden="true"
             className="inline-block h-[2px] w-5 rounded"
-            style={{ backgroundColor: "#22c55e" }}
+            style={{ backgroundColor: "var(--chart-equity)" }}
           />
         }
         label="Equity (자본 곡선)"
@@ -68,15 +70,15 @@ export function ChartLegend({
             >
               <span
                 className="inline-block h-[2px] w-1"
-                style={{ backgroundColor: "#3b82f6" }}
+                style={{ backgroundColor: "var(--chart-benchmark)" }}
               />
               <span
                 className="inline-block h-[2px] w-1"
-                style={{ backgroundColor: "#3b82f6" }}
+                style={{ backgroundColor: "var(--chart-benchmark)" }}
               />
               <span
                 className="inline-block h-[2px] w-1"
-                style={{ backgroundColor: "#3b82f6" }}
+                style={{ backgroundColor: "var(--chart-benchmark)" }}
               />
             </span>
           }
@@ -91,7 +93,7 @@ export function ChartLegend({
             <span
               aria-hidden="true"
               className="inline-block h-[2px] w-5 rounded"
-              style={{ backgroundColor: "#8b5cf6" }}
+              style={{ backgroundColor: "var(--chart-compare)" }}
             />
           }
           label={`비교${compareLabel ? ` · ${compareLabel}` : ""}`}
@@ -106,8 +108,8 @@ export function ChartLegend({
               aria-hidden="true"
               className="inline-block h-3 w-5 rounded-sm"
               style={{
-                backgroundColor: "rgba(239, 68, 68, 0.35)",
-                border: "1px solid rgba(239, 68, 68, 0.55)",
+                backgroundColor: "var(--chart-dd-top)",
+                border: "1px solid var(--chart-dd-line)",
               }}
             />
           }

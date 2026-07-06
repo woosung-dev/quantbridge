@@ -1,9 +1,11 @@
 "use client";
 
 // TV Strategy Tester "주요 통계" 스트립 — 총 PnL / 최대 손실폭 / 수익성 거래 / 수익지수
-// 상시 노출 히어로 통계. 큰 mono 숫자 + 위 라벨 (Terminal Tape).
+// 상시 노출 히어로 통계. 큰 mono 숫자 + mono 터미널 레이블 + 상단 계측 눈금
+// (Precision Instrument — DESIGN.md §0.1 키 스탯 스트립 = TickRuler 공인 사이트).
 // abs 금액(구 백테스트 null)은 % 단독 표기로 graceful degrade (Surface Trust).
 
+import { TickRuler } from "@/components/tick-ruler";
 import type { BacktestConfig, BacktestMetricsOut } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
@@ -37,7 +39,7 @@ function StatBlock({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 px-4 py-3 first:pl-5 last:pr-5">
-      <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+      <span className="font-mono text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </span>
       <span
@@ -78,46 +80,50 @@ export function KeyStatsStrip({ metrics, config }: KeyStatsStripProps) {
   return (
     <section
       aria-label="주요 통계"
-      className="grid grid-cols-2 divide-y divide-[color:var(--border)] rounded-xl border bg-card shadow-[var(--card-shadow)] md:grid-cols-4 md:divide-x md:divide-y-0"
+      className="rounded-xl border bg-card shadow-[var(--card-shadow)]"
       data-testid="key-stats-strip"
     >
-      <StatBlock
-        label="총 PnL"
-        value={
-          netAbs !== null
-            ? `${netAbs >= 0 ? "+" : ""}${formatCurrency(netAbs)} USDT`
-            : formatPercent(totalReturn)
-        }
-        sub={
-          netAbs !== null
-            ? `${totalReturn >= 0 ? "+" : ""}${formatPercent(totalReturn)}`
-            : null
-        }
-        tone={pnlTone}
-      />
-      <StatBlock
-        label="최대 손실폭"
-        value={
-          mddAbs !== null
-            ? `${formatCurrency(mddAbs)} USDT`
-            : formatPercent(Math.abs(metrics.max_drawdown))
-        }
-        sub={mddAbs !== null ? formatPercent(Math.abs(metrics.max_drawdown)) : null}
-        tone="bearish"
-        caption={mddCaption}
-      />
-      <StatBlock
-        label="수익성 거래"
-        value={formatPercent(winRate)}
-        sub={`${winCount}/${metrics.num_trades} 거래`}
-        tone={winRate >= 0.5 ? "bullish" : "neutral"}
-      />
-      <StatBlock
-        label="수익지수"
-        value={pf !== null ? pf.toFixed(3) : "—"}
-        sub={pf !== null ? "Profit Factor" : "손실 거래 없음"}
-        tone={pf !== null && pf >= 1 ? "bullish" : pf !== null ? "bearish" : "neutral"}
-      />
+      {/* 시그니처 — 키 스탯 스트립 상단 계측 눈금 (DESIGN.md §0.1) */}
+      <TickRuler className="mx-4 mt-2 opacity-70" />
+      <div className="grid grid-cols-2 divide-y divide-[color:var(--border)] md:grid-cols-4 md:divide-x md:divide-y-0">
+        <StatBlock
+          label="총 PnL"
+          value={
+            netAbs !== null
+              ? `${netAbs >= 0 ? "+" : ""}${formatCurrency(netAbs)} USDT`
+              : formatPercent(totalReturn)
+          }
+          sub={
+            netAbs !== null
+              ? `${totalReturn >= 0 ? "+" : ""}${formatPercent(totalReturn)}`
+              : null
+          }
+          tone={pnlTone}
+        />
+        <StatBlock
+          label="최대 손실폭"
+          value={
+            mddAbs !== null
+              ? `${formatCurrency(mddAbs)} USDT`
+              : formatPercent(Math.abs(metrics.max_drawdown))
+          }
+          sub={mddAbs !== null ? formatPercent(Math.abs(metrics.max_drawdown)) : null}
+          tone="bearish"
+          caption={mddCaption}
+        />
+        <StatBlock
+          label="수익성 거래"
+          value={formatPercent(winRate)}
+          sub={`${winCount}/${metrics.num_trades} 거래`}
+          tone={winRate >= 0.5 ? "bullish" : "neutral"}
+        />
+        <StatBlock
+          label="수익지수"
+          value={pf !== null ? pf.toFixed(3) : "—"}
+          sub={pf !== null ? "Profit Factor" : "손실 거래 없음"}
+          tone={pf !== null && pf >= 1 ? "bullish" : pf !== null ? "bearish" : "neutral"}
+        />
+      </div>
     </section>
   );
 }

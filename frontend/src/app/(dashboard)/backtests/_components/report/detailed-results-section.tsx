@@ -8,6 +8,7 @@
 
 import { useMemo } from "react";
 
+import { TickRuler } from "@/components/tick-ruler";
 import {
   Tabs,
   TabsContent,
@@ -249,9 +250,13 @@ export function DetailedResultsSection({
         <TabsContent value="returns" className="mt-4 space-y-6">
           <MetricTable rows={returnsRows} />
           <div>
-            <h3 className="mb-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-              월별 수익률
-            </h3>
+            {/* 섹션 헤더 경계 — SectionRule 시각(mono 레이블 + 눈금), h3 시맨틱 보존 (DESIGN.md §0.1) */}
+            <div className="mb-2 flex items-end gap-3">
+              <h3 className="font-mono text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+                월별 수익률
+              </h3>
+              <TickRuler className="mb-[3px] min-w-0 flex-1" />
+            </div>
             <MonthlyReturnsHeatmap data={m.monthly_returns} />
           </div>
         </TabsContent>

@@ -46,18 +46,21 @@
 
 import type { ChartMarker } from "@/components/charts/trading-chart";
 import type { TradeItem } from "@/features/backtest/schemas";
+import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
 
 // 차트 마커 cap — TRADE_LIMIT 정합. equity-chart-v2 의 200 과 동일 값.
 export const MARKER_LIMIT = 200;
 
-// 색상 token — entry 강조 / exit 흐림 (Tailwind green-500/red-500/green-400/red-400 정합).
+// 색상 token — chart-tokens 폴백(= globals.css --bullish/--bearish 다크 동일값).
+// lightweight-charts 마커는 캔버스 렌더라 var() 파싱 불가 → 정적 hex 소비자
+// (drawdown-pane DD_LINE_OPTIONS 와 동일 패턴, 신규 hex 리터럴 금지 — DESIGN.md §2.3).
 const COLORS = {
-  longEntry: "#22c55e", // green-500
-  longExitWin: "#22c55e", // green-500
-  longExitLoss: "#ef4444", // red-500
-  shortEntry: "#ef4444", // red-500
-  shortExitWin: "#22c55e", // green-500
-  shortExitLoss: "#ef4444", // red-500
+  longEntry: CHART_PALETTE_FALLBACK.bullish,
+  longExitWin: CHART_PALETTE_FALLBACK.bullish,
+  longExitLoss: CHART_PALETTE_FALLBACK.bearish,
+  shortEntry: CHART_PALETTE_FALLBACK.bearish,
+  shortExitWin: CHART_PALETTE_FALLBACK.bullish,
+  shortExitLoss: CHART_PALETTE_FALLBACK.bearish,
 } as const;
 
 // 가격 포맷 — 짧은 marker text 를 위해 소수점 자리 적응형.
