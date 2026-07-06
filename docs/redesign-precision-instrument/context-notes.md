@@ -42,3 +42,12 @@
 - **승인 게이트**: 브랜치/커밋/push/PR 생성은 플랜 승인으로 위임받음. main 머지(stage→main 포함)와 배포는 전부 사용자 수동.
 - **카피 동결**: 리디자인은 visual-only. E2E getByText 65건 + smoke.spec 카피 셀렉터 의존. 카피 개선은 별도 사이클.
 - 하이브리드 상태 허용: 토큰 선교체로 미개편 페이지가 새 팔레트로 뜨는 중간 상태는 버그 아님(각 PR 설명에 명기).
+
+## 2026-07-06 W1 완료 (태그 redesign-w1-done)
+
+- **머지된 PR**: #399 토큰 / #400 폰트 / #401 테마·Clerk / #402 ui·셸·모티프·DESIGN.md v3. 전부 stage CI 그린.
+- **smoke.spec 렌더 스톰 카운트에서 .woff/.woff2 제외** — Pretendard dynamic-subset의 다수 서브셋 로드는 의도된 정적 fetch(1회성). 어서션 의도(반복 data fetch 검출)는 보존.
+- **★authed E2E stale baseline 실측**: stage에서 8 spec 실패 → main 워크트리(3200) 베이스라인 재실행으로 **8건 전부 main에서도 동일 실패** 확인 = 리디자인發 신규 회귀 0. 원인은 로컬 데이터/환경 의존으로 추정(백테스트 폴링/live-session 폼/단축키 다이얼로그 등) — 리디자인 범위 밖, 별도 조사 후보. authed E2E는 CI 미실행이라 언제부터 깨졌는지 불명.
+- **시각 스팟 16샷**(6라우트 × dark/light × 1440/일부 375, scratchpad/w1-shots) — 다크 카본/스틸+코퍼+눈금+노치 응집 확인, 라이트 쿨 페이퍼 정상.
+- **로컬 e2e 함정**: 3000 포트는 타 프로젝트(nexus docker)가 점유 — 프론트는 3100(PORT=3100), `PLAYWRIGHT_BASE_URL=http://localhost:3100`으로 실행. QuantBridge 백엔드 8000/DB 5436/Redis 6380은 상시 기동 중.
+- equity-pane 테스트를 리터럴 hex → `CHART_PALETTE_FALLBACK.equity` 상수 참조로 전환(팔레트 변경 내성 패턴 — 이후 웨이브에서도 동일 패턴 권장).

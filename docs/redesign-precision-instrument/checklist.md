@@ -18,15 +18,15 @@
 - [ ] PR #398 사용자 머지 → main→stage 동기화
 - [ ] stage 대상 더미/실PR로 CI 발화 확인 (W1 PR-1이 겸함)
 
-## W1 — 토큰 파운데이션 + ui/ (직렬 크리티컬 패스)
+## W1 — 토큰 파운데이션 + ui/ (직렬 크리티컬 패스) ✅
 
-- [ ] PR-1 (토큰): globals.css 팔레트/radius/shadow 전면 교체 + `--card-raised` 신설 + `--dash-*` 삭제 + 차트 토큰 `.dark` 승격 + `src/lib/brand-palette.ts` 신설 + chart-tokens.ts 폴백 동기(동일 커밋)
-- [ ] PR-1 게이트: lint/tsc/vitest/build + 대비 계산표(4.5:1 전수) + live-smoke
-- [ ] PR-1b (폰트): pretendard 설치 + `src/lib/fonts.ts`(Archivo wdth + IBM Plex Mono) + layout.tsx + globals.css 폰트 매핑 + `.qb-display-wide/-expanded` 유틸(h1-h6 블랭킷 font-stretch 금지)
-- [ ] PR-1c (테마): defaultTheme="dark" + Clerk 3곳(bridge+sign-in/up 하드코딩 제거) + viewport themeColor + skip link 대비 수정
-- [ ] PR-2 (ui/셸/모티프): ui/ 15개 리스타일 + layout 셸 5(tick ruler) + tape 승격(components/tape/) + skeleton variant:"tape" + 공용 7 + **DESIGN.md 신 헌법 초판**
-- [ ] W1 종료 게이트: authed E2E 8 spec 전부 + 대표 6라우트 시각 스팟(dark/light × 375/768/1440)
-- [ ] 태그 `redesign-w1-done`
+- [x] PR-1 (토큰): #399 — globals.css 전면 + `--card-raised` + `--dash-*` 삭제 + 차트 `.dark` 승격 + brand-palette.ts + chart-tokens 폴백 동기
+- [x] PR-1 게이트: lint/tsc/vitest 812/build + 대비 계산표 22페어 ALL_PASS + live-smoke
+- [x] PR-1b (폰트): #400 — pretendard dynamic-subset + fonts.ts + layout.tsx + `.qb-display-wide/-expanded` (+smoke 렌더스톰 카운트 woff2 제외)
+- [x] PR-1c (테마): #401 — defaultTheme dark + Clerk 3곳 + viewport themeColor + skip link 대비
+- [x] PR-2 (ui/셸/모티프): #402 — ui/ 리스타일 + tick ruler/노치 + tape 승격 + skeleton tape + DESIGN.md v3 초판
+- [x] W1 종료 게이트: authed E2E **신규 회귀 0**(8건 실패는 main 동일 = stale baseline 실측) + 시각 스팟 16샷 PASS
+- [x] 태그 `redesign-w1-done`
 
 ## W2 — 코크핏/트레이딩 (로직 diff 0)
 
