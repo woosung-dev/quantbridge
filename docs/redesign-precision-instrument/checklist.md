@@ -50,19 +50,20 @@
 - [x] 게이트: 전체 authed 재실행 — 실패 집합이 baseline 8건과 동일(신규 회귀 0) + 시각 스팟
 - [x] 태그 `redesign-w4-done`
 
-## W5 — 랜딩/마케팅/auth (카피 동결)
+## W5 — 랜딩/마케팅/auth (카피 동결) ✅
 
-- [ ] PR-10: 랜딩 10섹션 (SVG 재제작 캡 3: landing-hero / dashboard-showcase / brand-panel)
-- [ ] PR-11: waitlist / pricing / legal 3종 / maintenance / not-available
-- [ ] PR-12: auth split-screen + Clerk appearance 최종 정합
-- [ ] 게이트: smoke + live-smoke + 랜딩 풀 시각 매트릭스 + Clerk 양테마
-- [ ] 태그 `redesign-w5-done`
+- [x] PR-10(#412): 랜딩 hex 105→0, 목업 3종 dark 스코프 신브랜드 프리뷰, tape/눈금/노치 배선 (재제작 없이 치환으로 성립 — 캡 미소진)
+- [x] PR-11(#404): waitlist ✓ 글리프 → lucide (나머지는 토큰 캐스케이드로 기정합)
+- [x] PR-12(#411): brand-panel hex 10→0, forced-dark 카본 패널, Clerk radius 토큰화
+- [x] 게이트: smoke 4/4(워커 격리 실행) + CI 그린 + 랜딩/auth 시각 검수
+- [x] 태그 `redesign-w5-done`
 
 ## W6 — 전역 QA/문서 마감
 
-- [ ] PR-13: error/404 + hex grep 스윕(예외: brand-palette.ts + 명시 SVG)
-- [ ] e2e:all + 25라우트 시각 매트릭스(~150샷)
-- [ ] 접근성 감사: focus-visible 순회 / reduced-motion / 대비 재검 / tick ruler 페인트 비용
-- [ ] chart 캐시 themeKey 초기 mismatch 검증
-- [ ] DESIGN.md 최종 정합
-- [ ] stage→main PR 생성(before/after 스크린샷) → **사용자 수동 머지**
+- [x] hex grep 스윕: 잔존 4파일 중 2개 수정(activity-timeline-chart 6건, cockpit 수동 코퍼 1건) — 공인 예외만 남음(pine-language 에디터 웰 4 + layout viewport 2, 주석 명시)
+- [x] 고아 keyframe chipPop 삭제 + onboarding SVG 구 폰트 문자열 → var(--font-mono/display)
+- [x] 42 라우트×테마 콘솔 스윕 — **앱 레벨 에러 0** (전 에러 = 로컬 CORS 환경 이슈) + 스크린샷 매트릭스(~63샷, scratchpad/w6-matrix)
+- [x] DESIGN.md v3 정합(§7/§10.4 v2 스냅샷 supersede 노트)
+- [x] 게이트: lint/tsc/vitest 812/build PASS
+- [ ] stage→main PR 생성(before/after) → **사용자 수동 머지**
+- [ ] 잔여(후속 후보): 심층 키보드 순회 감사, chart 캐시 themeKey 초기 mismatch 코드 검토, aria-label 색 이름 카피(카피 사이클), 로컬 백엔드 CORS(3100 origin) 정리

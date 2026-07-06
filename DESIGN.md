@@ -240,6 +240,8 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 
 ## 7. 컴포넌트 패턴
 
+> **v3 note:** 아래 코드 샘플 일부는 v2 시절 스냅샷. 구현 SSOT 는 `frontend/src/components/ui/` — v3 원칙(플랫 + 1px 보더, hover 색 변화만, focus ring 2px, 배지 = 4px 태그)은 §0/§6 참조. 샘플과 코드가 다르면 코드가 정답.
+
 ### 7.1 버튼
 
 | 타입              | 배경            | 텍스트             | 보더             | 용도                   |
@@ -561,6 +563,8 @@ transition: all 200ms ease;
 **높이:** `60px` 고정, `sticky`, `border-bottom: 1px solid var(--border)` (라이트) / `var(--dash-border)` (다크)
 
 ### 10.4 테마별 App Shell 색상
+
+> **v3 note:** 아래 표의 구체 hex 는 v2 스냅샷 — v3 정본은 §2.1(카본/스틸/쿨페이퍼)과 `globals.css` `--sidebar*` 토큰. 사이드바 active 는 3px border-left 가 아니라 `.qb-tick-active` 캘리브레이션 노치(§0.1).
 
 **Light Theme:**
 
