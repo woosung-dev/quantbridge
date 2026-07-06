@@ -105,7 +105,7 @@ function CodeArt() {
         <text
           x="80"
           y="70"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="9"
           fill="var(--text-muted)"
         >
@@ -114,7 +114,7 @@ function CodeArt() {
         <line x1="28" y1="82" x2="192" y2="82" stroke="var(--border)" />
 
         {/* code lines — Pine v5 mock */}
-        <g fontFamily="JetBrains Mono, monospace" fontSize="9">
+        <g fontFamily="var(--font-mono)" fontSize="9">
           <text x="30" y="98" fill="var(--text-muted)">
             1
           </text>
@@ -307,7 +307,7 @@ function ChartArt() {
         <text
           x="36"
           y="78"
-          fontFamily="Plus Jakarta Sans, sans-serif"
+          fontFamily="var(--font-display)"
           fontSize="11"
           fontWeight="700"
           fill="var(--text-primary)"
@@ -317,7 +317,7 @@ function ChartArt() {
         <text
           x="36"
           y="94"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="9"
           fill="var(--text-muted)"
         >
@@ -330,7 +330,7 @@ function ChartArt() {
             x="24"
             y="14"
             textAnchor="middle"
-            fontFamily="JetBrains Mono, monospace"
+            fontFamily="var(--font-mono)"
             fontSize="10"
             fontWeight="600"
             fill="var(--bullish)"
@@ -405,7 +405,7 @@ function TradeArt() {
         <text
           x="36"
           y="84"
-          fontFamily="Plus Jakarta Sans, sans-serif"
+          fontFamily="var(--font-display)"
           fontSize="13"
           fontWeight="700"
           fill="var(--text-primary)"
@@ -415,7 +415,7 @@ function TradeArt() {
         <text
           x="36"
           y="108"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="20"
           fontWeight="700"
           fill="var(--text-primary)"
@@ -425,7 +425,7 @@ function TradeArt() {
         <text
           x="120"
           y="108"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="13"
           fontWeight="600"
           fill="var(--bullish)"
@@ -463,7 +463,7 @@ function TradeArt() {
           <text
             x="38"
             y="18"
-            fontFamily="Plus Jakarta Sans, sans-serif"
+            fontFamily="var(--font-display)"
             fontSize="10"
             fontWeight="700"
             fill="var(--primary-foreground)"

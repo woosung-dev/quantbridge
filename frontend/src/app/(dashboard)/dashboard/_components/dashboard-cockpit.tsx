@@ -29,6 +29,7 @@ import {
   useKillSwitchEvents,
   useOrders,
 } from "@/features/trading";
+import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
 import { cn } from "@/lib/utils";
 
 import { LiveSessionTable } from "../../trading/_components/live-session-table";
@@ -200,7 +201,7 @@ export function DashboardCockpit() {
           <TradingChart
             data={equityChartData}
             height={260}
-            options={{ color: "#c2780f", lineWidth: 2 }}
+            options={{ color: CHART_PALETTE_FALLBACK.equity, lineWidth: 2 }}
             ariaLabel="활성 세션 합산 실현 손익 누적 곡선 (USDT)"
           />
         ) : agg.isLoading ? (
