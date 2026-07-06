@@ -10,7 +10,7 @@ import { ShareCopyLinkButton } from "./share-copy-link-button";
  * - 우측: 공유 URL 복사 버튼 (client) + signup CTA (`/sign-up`) — 가입 시 본인 백테스트를 만들 수 있다는 다음 액션 유도
  * - aria-live=polite + role=region 으로 외부 viewer 가 banner 존재를 인지하도록 함
  *
- * 토큰: --primary-light / --primary / --border / --muted-foreground (light theme 만 사용).
+ * 토큰: primary-light / primary / border / muted-foreground 시맨틱 유틸 (라이트/다크 flip).
  */
 export function SharePublicBanner() {
   return (
@@ -19,19 +19,19 @@ export function SharePublicBanner() {
       aria-live="polite"
       aria-label="공유 링크 안내"
       data-testid="share-public-banner"
-      className="border-b border-[color:var(--border)] bg-[color:var(--primary-light)] motion-safe:animate-[sharePopIn_240ms_ease-out_both]"
+      className="border-b bg-primary-light motion-safe:animate-[sharePopIn_240ms_ease-out_both]"
     >
       <div className="mx-auto flex max-w-3xl flex-col items-start gap-3 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-2 sm:items-center">
           <span
             aria-hidden="true"
-            className="mt-0.5 inline-flex h-5 items-center rounded-full bg-[color:var(--primary)] px-2 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--primary-foreground)] sm:mt-0"
+            className="mt-0.5 inline-flex h-5 items-center rounded-sm bg-primary px-2 font-mono text-[10px] font-semibold uppercase tracking-wider text-primary-foreground sm:mt-0"
           >
             공유 링크
           </span>
-          <p className="text-sm text-[color:var(--card-foreground)]">
+          <p className="text-sm text-card-foreground">
             <span className="font-medium">읽기 전용 백테스트 결과입니다.</span>
-            <span className="ml-1 text-[color:var(--muted-foreground)]">
+            <span className="ml-1 text-muted-foreground">
               가입하면 본인 전략으로 백테스트를 만들 수 있습니다.
             </span>
           </p>
@@ -40,7 +40,7 @@ export function SharePublicBanner() {
           <ShareCopyLinkButton />
           <Link
             href="/sign-up"
-            className="inline-flex h-8 shrink-0 items-center rounded-md bg-[color:var(--primary)] px-3 text-xs font-medium text-[color:var(--primary-foreground)] shadow-sm transition-all duration-200 ease-out hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--primary)]"
+            className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-btn-primary transition-colors duration-200 ease-out hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             QuantBridge 시작하기
           </Link>
