@@ -7,11 +7,15 @@ import { useOptimizationRuns } from "@/features/optimizer/hooks";
 import type { OptimizationRunResponse } from "@/features/optimizer/schemas";
 import { cn } from "@/lib/utils";
 
-const STATUS_BADGE: Record<OptimizationRunResponse["status"], string> = {
-  queued: "bg-muted text-muted-foreground",
-  running: "bg-primary/15 text-primary",
-  completed: "bg-success/15 text-success",
-  failed: "bg-destructive/15 text-destructive",
+// 상태 배지 — data-tone(시맨틱 토큰) 우선, 톤 미정의 상태(queued/running)만 클래스 유지.
+const STATUS_BADGE: Record<
+  OptimizationRunResponse["status"],
+  { tone?: "success" | "destructive"; className?: string }
+> = {
+  queued: { className: "bg-muted text-muted-foreground" },
+  running: { className: "bg-primary/15 text-primary" },
+  completed: { tone: "success" },
+  failed: { tone: "destructive" },
 };
 
 export function OptimizerRunList({
@@ -104,9 +108,10 @@ export function OptimizerRunList({
                 </td>
                 <td className="p-2">
                   <span
+                    data-tone={STATUS_BADGE[r.status].tone}
                     className={cn(
-                      "rounded px-2 py-0.5 text-xs font-medium",
-                      STATUS_BADGE[r.status],
+                      "rounded-sm px-2 py-0.5 font-mono text-xs font-medium",
+                      STATUS_BADGE[r.status].className,
                     )}
                   >
                     {r.status}
@@ -115,10 +120,10 @@ export function OptimizerRunList({
                 <td className="p-2 text-xs">
                   {r.param_space.objective_metric} ({r.param_space.direction})
                 </td>
-                <td className="p-2 text-xs">
+                <td className="p-2 font-mono text-xs tabular-nums">
                   {bestObjective === null ? "—" : bestObjective.toFixed(2)}
                 </td>
-                <td className="p-2 text-xs text-muted-foreground">
+                <td className="p-2 font-mono text-xs text-muted-foreground">
                   {new Date(r.created_at).toLocaleString()}
                 </td>
               </tr>
