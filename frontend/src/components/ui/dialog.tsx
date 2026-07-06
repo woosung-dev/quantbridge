@@ -33,7 +33,7 @@ function DialogOverlay({
       data-slot="dialog-overlay"
       className={cn(
         // DESIGN.md §8.1 backdrop fade 200ms ease-out
-        "fixed inset-0 isolate z-50 bg-black/10 duration-200 ease-out supports-backdrop-filter:backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none motion-reduce:duration-0",
+        "fixed inset-0 isolate z-50 bg-black/40 duration-200 ease-out supports-backdrop-filter:backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 motion-reduce:animate-none motion-reduce:duration-0 dark:bg-black/60",
         className
       )}
       {...props}
@@ -56,7 +56,7 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           // DESIGN.md §6 + §8.1 — shadow-card-hover (강한 elevation) + entrance 200ms ease-out scale+fade
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-card-hover ring-1 ring-foreground/10 duration-200 ease-out outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 motion-reduce:animate-none motion-reduce:duration-0",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-card-hover border border-border duration-200 ease-out outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 motion-reduce:animate-none motion-reduce:duration-0",
           className
         )}
         {...props}

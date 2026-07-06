@@ -1,4 +1,4 @@
-// shadcn Card — DESIGN.md §7.2 + §6 + §8.1 토큰 정합 (shadow-card / 200ms ease-out / data-hoverable opt-in lift)
+// shadcn Card — DESIGN.md §7.2 + §6 토큰 정합 (Precision Instrument: 1px 보더가 주인공, hover 만 미세 lift)
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -13,9 +13,10 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        // DESIGN.md §7.2 카드 radius-lg 14px (Tailwind v4 globals.css @theme `--radius-lg: 14px`)
-        // DESIGN.md §6 shadow-card 기본 elevation + §8.1 transition 200ms (data-hoverable opt-in 시 hover lift)
-        "group/card flex flex-col gap-4 overflow-hidden rounded-lg bg-card py-4 text-sm text-card-foreground shadow-card ring-1 ring-foreground/10 transition-[box-shadow,transform] duration-200 ease-out has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 data-[hoverable=true]:hover:-translate-y-[3px] data-[hoverable=true]:hover:shadow-card-hover motion-reduce:transition-none motion-reduce:hover:transform-none *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
+        // DESIGN.md §7.2 카드 radius-lg 10px (globals.css @theme `--radius-lg: 10px`)
+        // Precision Instrument: 정직한 1px 보더 + 플랫 shadow. data-hoverable opt-in 시
+        // 1px 미세 lift + 보더 강조 (구 3px lift/ring 중첩 폐기).
+        "group/card flex flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card py-4 text-sm text-card-foreground shadow-card transition-[box-shadow,transform,border-color] duration-200 ease-out has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 data-[hoverable=true]:hover:-translate-y-px data-[hoverable=true]:hover:border-border-dark data-[hoverable=true]:hover:shadow-card-hover motion-reduce:transition-none motion-reduce:hover:transform-none *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
         className
       )}
       {...props}
