@@ -28,28 +28,27 @@
 - [x] W1 종료 게이트: authed E2E **신규 회귀 0**(8건 실패는 main 동일 = stale baseline 실측) + 시각 스팟 16샷 PASS
 - [x] 태그 `redesign-w1-done`
 
-## W2 — 코크핏/트레이딩 (로직 diff 0)
+## W2 — 코크핏/트레이딩 (로직 diff 0) ✅
 
-- [ ] PR-3: dashboard-cockpit + pnl-tape 소비처 + trading 5종 + orders-blotter
-- [ ] 게이트: trading-ui / live-session-flow / sprint32-dogfood-gate / backtest-live-mirror
-- [ ] 태그 `redesign-w2-done`
+- [x] PR-3(#403): 팔레트 위반 4건 토큰화 + WidgetSection 눈금 + data-tone 테스트 전환
+- [x] 게이트: trading-ui 7/7 (나머지 3 spec은 stale baseline — main 동일 실패 실측)
+- [x] 태그 `redesign-w2-done`
 
-## W3 — backtests 트리 (worktree 병렬 3워커 + 통합 리뷰 1패스)
+## W3 — backtests 트리 (worktree 병렬 3워커) ✅
 
-- [ ] PR-4: report 20 + charts 15
-- [ ] PR-5: forms 8 + list 13 + trades 5
-- [ ] PR-6: share 5 + OG(brand-palette import)
-- [ ] report testid 20종 1:1 보존 체크
-- [ ] 게이트: dogfood-flow / sprint46-tier1·2 + 통합 리뷰(해석 발산 방지)
-- [ ] 태그 `redesign-w3-done`
+- [x] PR-4(#406): chart-legend/marker/axis hex → 토큰, key-stats-strip TickRuler, recharts 감사 위반 0
+- [x] PR-5(#407): TapeProgress 3사이트 + violet→warning + 선재 버그(--bg-soft/--border-light 미정의) 수정
+- [x] PR-6(#405): OG hex 13건 → BRAND_PALETTE.dark, 공유 페이지 정합
+- [x] testid 보존(테스트 수정 0) + 통합 리뷰(칩 라운딩 6px 수렴 확인)
+- [x] 태그 `redesign-w3-done`
 
-## W4 — strategies/optimizer/onboarding
+## W4 — strategies/optimizer/onboarding ✅
 
-- [ ] PR-7: strategies 30 + Monaco pine-dark/light 재작성(brand-palette 참조) + fontFamily
-- [ ] PR-8: optimizer 17
-- [ ] PR-9: onboarding 10(illustration hex→토큰) + admin 2
-- [ ] 게이트: sprint55-optimizer / sprint46-tier3 + Monaco 양테마 수동
-- [ ] 태그 `redesign-w4-done`
+- [x] PR-7(#408): Monaco pine-dark/light BRAND_PALETTE 재작성 + ibmPlexMono fontFamily + session-chips 이모지→lucide + pill 5곳 태그화
+- [x] PR-8(#409): 히트맵 bullish/bearish 정본화 + data-tone 배지 + OOS TapeProgress
+- [x] PR-9(#410): illustration 62 hex→CSS var + --text-tertiary 미정의 버그 수정 + admin 플랫화
+- [x] 게이트: 전체 authed 재실행 — 실패 집합이 baseline 8건과 동일(신규 회귀 0) + 시각 스팟
+- [x] 태그 `redesign-w4-done`
 
 ## W5 — 랜딩/마케팅/auth (카피 동결)
 

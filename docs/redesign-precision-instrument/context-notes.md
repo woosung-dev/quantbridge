@@ -51,3 +51,12 @@
 - **시각 스팟 16샷**(6라우트 × dark/light × 1440/일부 375, scratchpad/w1-shots) — 다크 카본/스틸+코퍼+눈금+노치 응집 확인, 라이트 쿨 페이퍼 정상.
 - **로컬 e2e 함정**: 3000 포트는 타 프로젝트(nexus docker)가 점유 — 프론트는 3100(PORT=3100), `PLAYWRIGHT_BASE_URL=http://localhost:3100`으로 실행. QuantBridge 백엔드 8000/DB 5436/Redis 6380은 상시 기동 중.
 - equity-pane 테스트를 리터럴 hex → `CHART_PALETTE_FALLBACK.equity` 상수 참조로 전환(팔레트 변경 내성 패턴 — 이후 웨이브에서도 동일 패턴 권장).
+
+## 2026-07-07 W2~W4 완료 (병렬 워커 6기, PR #403~#410)
+
+- **워커 발견 선재 버그 2건 수정**: backtest-list `--bg-soft`/`--border-light` 미정의 참조(무색 렌더), admin `--text-tertiary` 미정의 5건.
+- **카피 사이클 수정 후보(카피 동결로 보류)**: chart-legend/equity-pane aria-label의 색 이름("실선 녹색"/"점선 파란색") — 실색은 이제 코퍼/블루.
+- **W6 정리 후보**: 고아 keyframe `@keyframes chipPop`(globals.css — 마지막 소비자 제거됨), onboarding 일러스트 SVG 내 구 폰트 문자열(JetBrains/Jakarta), `--destructive-light`(=-subtle alias) 어휘 통일.
+- 컨버전스: 필터 칩 = 배지 아닌 세그먼트 버튼 → `rounded-md`(6px) — W3-B/W4-A 독립 판단 일치.
+- marker-layer 등 캔버스 소비자는 `CHART_PALETTE_FALLBACK` 정적 상수 패턴(기존 drawdown-pane 선례) — 테마 무관 정적, 라이트에서 다크 계열 마커 트레이드오프는 기존과 동일.
+- 로컬 스팟에서 backtests/optimizer 목록 fetch 실패 — stale-fail e2e와 동일한 로컬 백엔드 환경 이슈 계열(리디자인 무관, 별도 조사 후보). 에러 상태 UI는 온브랜드 렌더 확인.
