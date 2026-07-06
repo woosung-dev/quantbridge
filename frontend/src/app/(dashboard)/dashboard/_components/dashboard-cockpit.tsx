@@ -32,7 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { LiveSessionTable } from "../../trading/_components/live-session-table";
-import { PnlTape } from "./pnl-tape";
+import { PnlTape } from "@/components/tape/pnl-tape";
 
 function formatUsd(n: number): string {
   const sign = n > 0 ? "+" : n < 0 ? "−" : "";

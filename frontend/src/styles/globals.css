@@ -206,6 +206,55 @@ h6 {
   font-variant-numeric: tabular-nums;
 }
 
+/* ───────────────────────────────────────────────
+ * Precision Instrument 시그니처 ① — 계측 눈금 (tick ruler)
+ * 마이너 틱(8px 간격, 4px 높이) + 메이저 틱(40px 간격, 풀 높이) 2층 그라디언트.
+ * 정적 배경이라 페인트 비용 미미. 컴포넌트 래퍼는 components/tick-ruler.tsx.
+ * 남용 금지 — 섹션 헤더/키 스탯 스트립 등 구조적 경계에만 (DESIGN.md §9).
+ * ───────────────────────────────────────────── */
+.qb-ruler-x {
+  height: 6px;
+  background-image:
+    repeating-linear-gradient(90deg, var(--border-dark) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, var(--text-muted) 0 1px, transparent 1px 40px);
+  background-size:
+    100% 4px,
+    100% 6px;
+  background-position: bottom left, bottom left;
+  background-repeat: no-repeat;
+}
+.qb-ruler-y {
+  width: 6px;
+  background-image:
+    repeating-linear-gradient(180deg, var(--border-dark) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(180deg, var(--text-muted) 0 1px, transparent 1px 40px);
+  background-size:
+    4px 100%,
+    6px 100%;
+  background-position: top right, top right;
+  background-repeat: no-repeat;
+}
+
+/* 사이드바 active — 캘리브레이션 노치 (센터 틱 + 위아래 미니 틱).
+   border-left 방식과 달리 레이아웃 시프트 없음 (padding 보정 불필요). */
+.qb-tick-active {
+  position: relative;
+}
+.qb-tick-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  border-radius: 0 2px 2px 0;
+  background: var(--primary);
+  box-shadow:
+    0 -7px 0 -1px var(--primary),
+    0 7px 0 -1px var(--primary);
+}
+
 /* reduced-motion 대응 — DESIGN.md 1 접근성 */
 @media (prefers-reduced-motion: reduce) {
   *,

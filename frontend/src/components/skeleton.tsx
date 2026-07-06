@@ -12,15 +12,17 @@ import { cn } from "@/lib/utils";
  * - text: 작은 텍스트 라인 (h-4)
  * - card: 카드/그리드 placeholder (h-36 + radius-lg)
  * - list-row: 테이블/리스트 행 (h-12)
+ * - tape: P&L Tape 모티프 시머 (차트/스탯 스트립 자리 — Precision Instrument 시그니처)
  *
  * 모든 variant 는 `className` 으로 height/width 를 override 가능 (twMerge 충돌 해결).
  */
-export type SkeletonVariant = "text" | "card" | "list-row";
+export type SkeletonVariant = "text" | "card" | "list-row" | "tape";
 
 const VARIANT_CLASSES: Record<SkeletonVariant, string> = {
   text: "h-4 w-full",
   card: "h-36 w-full rounded-[var(--radius-lg)]",
   "list-row": "h-12 w-full",
+  tape: "h-6 w-full rounded-[1px] [mask-image:repeating-linear-gradient(90deg,#000_0_4px,transparent_4px_6px)]",
 };
 
 export type SkeletonProps = HTMLAttributes<HTMLDivElement> & {

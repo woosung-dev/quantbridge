@@ -1,22 +1,35 @@
 # QuantBridge — 디자인 시스템
 
-> **상태:** 확정 (Stage 2 산출물)
-> **일자:** 2026-04-14
-> **레퍼런스:** `/tmp/quantbridge-final.html` (디자인 프로토타입)
-> **도구:** ui-ux-pro-max (스타일: Swiss Minimalism + Glassmorphism 하이브리드)
+> **상태:** 확정 — "Precision Instrument" v3
+> **일자:** 2026-07-06 (v3 초판, W1 PR-2)
+> **구현 SSOT:** `frontend/src/styles/globals.css` (토큰) + `frontend/src/lib/brand-palette.ts` (hex 상수, CSS 변수 못 읽는 소비자용) — 두 파일과 본 문서는 항상 같은 커밋에서 동기.
 
 ---
 
-## 0. 방향 v2 — "Terminal Tape" (2026-07-01, 본 섹션이 §1 테마원칙·§11 페이지테마·§15 light-only 결정을 supersede)
+## 0. 방향 v3 — "Precision Instrument" (2026-07-06, 본 섹션이 v2 "Terminal Tape"를 supersede)
 
-> 풀 UI/UX 개편으로 디자인 언어를 재확정했다. 작업 SSOT: `docs/ui-overhaul/` (checklist·context-notes) + `~/.claude/plans/synthetic-rolling-scott.md`. design-shotgun 4종 비교 후 **A "Terminal Tape"** 채택.
+> 전면 리디자인. 작업 SSOT: `docs/redesign-precision-instrument/` (checklist·context-notes) + `~/.claude/plans/golden-enchanting-teacup.md`. 채택 근거: v2의 웜크림+코퍼 조합이 AI 생성 디자인 기본값 클러스터(웜크림+테라코타)와 인접 → 뉴트럴 전면 교체로 브랜드 확보.
 
-- **테마:** 페이지별 라이트/다크 분리(구 §1/§11)를 폐기하고 **앱 전체 라이트/다크 토글**(`next-themes`, `.dark` class)로 통일. 구 `[data-theme="dash"]` 스코프 삭제. Sprint 42 "화이트 통일"(구 §15) 종료.
-- **정체성:** 단일 SaaS 블루 → **시그널 코퍼**(amber/copper) 단일 액센트. 라이트=웜 그래파이트 잉크 on 웜 페이퍼, 다크=동일 코퍼의 웜 니어블랙 파생(틸 미접목).
-- **시그니처 = "P&L Tape":** bullish/bearish 마이크로바 연속 레일(KPI 카드·trade-table return 셀·섹션 디바이더). 계산된 미적 리스크를 여기 한 곳에 집중.
-- **폰트:** Plus Jakarta Sans(display)+Inter(body)+JetBrains Mono(숫자) 유지. mono를 구조적으로 더 활용 — 섹션/컬럼 레이블 = mono uppercase + tracking(터미널 레이블).
-- **정규 어휘:** 테마 인지 시맨틱 토큰(shadcn + 금융 확장 `success/destructive/bullish/bearish` + `-subtle`), `:root`/`.dark` 양쪽 정의. 라이트 전용 커스텀-var 클래스 deprecated.
-- **전체 라이트+다크 hex 토큰 페어(WCAG AA 검증):** `docs/ui-overhaul/context-notes.md` 참조. §2 토큰은 P1에서 본 방향으로 재작성된다.
+- **컨셉:** QuantBridge = **전략을 정직하게 계측하는 정밀 계측기.** 제품의 영혼(TV-parity·oracle 검증·honesty gate)과 일치하는 시각 언어 — 측정, 교정(calibration), 검증.
+- **테마:** **다크 디폴트** (카본/스틸 — 트레이딩 표준, 차트 몰입). 라이트(쿨 페이퍼) 완전 지원, `next-themes` 토글 유지. `enableSystem` 유지 — 기존 사용자 localStorage 선택 우선.
+- **정체성:** 뉴트럴 = **쿨 카본/스틸**(웜크림·웜니어블랙 폐기). 액센트 = **시그널 코퍼 유지**(라이트 `#b45309` / 다크 `#f08c2e`) — 브랜드 연속성 + 차트 equity 히어로 시리즈.
+- **시그니처 2종 (볼드함은 여기에만, 나머지는 절제):**
+  1. **계측 눈금(tick ruler)** — `components/tick-ruler.tsx` + `.qb-ruler-x/-y` + 사이드바 active 노치(`.qb-tick-active`). 구조적 경계에만.
+  2. **P&L Tape 모티프 승격** — `components/tape/` (pnl-tape `size:micro|default`, tape-progress, skeleton `variant:"tape"`). 테이블 인라인·진행률·스켈레톤까지.
+- **컴포넌트 무드:** **플랫 + 1px 보더가 주인공.** hover 만 미세 lift(1px)·보더 강조. 코퍼 글로우/그라디언트/3px lift 폐기. radius 타이트닝(md 6px). focus ring 2px 정밀 링.
+- **폰트:** **Archivo**(display, wdth 축) + **Pretendard Variable**(body — 한국어 UI 품질) + **IBM Plex Mono**(숫자/터미널 레이블). 숫자 = mono tabular 이 주인공. `font-stretch` 는 라틴 전용 유틸(`.qb-display-wide/-expanded`)로만 — 한글 폴백 혼합 폭 방지, h1-h6 블랭킷 금지.
+- **정규 어휘:** 테마 인지 시맨틱 토큰(shadcn + 금융 확장 `success/destructive/bullish/bearish` + `-subtle` + `--card-raised`), `:root`/`.dark` 양쪽 정의. 차트 토큰도 테마 인지(다크에서 자동 flip).
+
+### 0.1 시그니처 모티프 사용처 매트릭스
+
+| 모티프                                     | 사용                                                    | 금지                                       |
+| ------------------------------------------ | ------------------------------------------------------- | ------------------------------------------ |
+| tick ruler (`<TickRuler>`/`<SectionRule>`) | 섹션 헤더 경계, 키 스탯 스트립 상단, 사이드바 로고 하단 | 카드마다 도배, 본문 중간, 모바일 협소 영역 |
+| tick notch (`.qb-tick-active`)             | 사이드바/수직 nav active                                | 버튼·탭(탭은 2px 코퍼 underline)           |
+| P&L tape (`<PnlTape>`)                     | 대시보드 hero, 테이블 수익 셀(micro), 리포트 요약       | 손익 무관 데이터                           |
+| tape progress (`<TapeProgress>`)           | 백테스트/최적화 진행률                                  | 일반 로딩 스피너 대체 전부                 |
+| tape skeleton (`variant:"tape"`)           | 차트/스탯 스트립 로딩 자리                              | 텍스트/폼 스켈레톤                         |
+| mono 터미널 레이블                         | 섹션/컬럼 레이블 = mono 11px uppercase tracking 0.14em  | 본문 문장                                  |
 
 ---
 
@@ -34,129 +47,74 @@
 
 ## 2. 색상 토큰
 
-### 2.1 Light Theme (마케팅, 설정, 일반 페이지)
+> 값 SSOT 는 `globals.css`. 아래 표는 헌법 사본 — 변경 시 같은 커밋에서 동기.
+> 대비 수치는 W1 PR-1 대비 계산표(22페어 전수 PASS) 실측.
 
-```css
-:root {
-  /* 배경 */
-  --bg: #fafbfc; /* 메인 배경 */
-  --bg-alt: #f1f5f9; /* 대체 섹션 배경 (slate-100) */
-  --card: #ffffff; /* 카드/서피스 */
+### 2.1 서페이스 / 텍스트 / 보더
 
-  /* 텍스트 */
-  --text-primary: #0f172a; /* 제목, 본문 강조 (slate-900) */
-  --text-secondary: #475569; /* 본문, 설명 (slate-600) */
-  --text-muted: #94a3b8; /* 힌트, 비활성 (slate-400) */
+| 토큰                             | Light (쿨 페이퍼)     | Dark (카본/스틸, 기본)            |
+| -------------------------------- | --------------------- | --------------------------------- |
+| `--bg`                           | `#f6f7f8`             | `#0b0d0f`                         |
+| `--bg-alt`                       | `#edeff1`             | `#101214`                         |
+| `--card`                         | `#ffffff`             | `#141619`                         |
+| `--card-raised` (popover/dialog) | `#ffffff`             | `#1a1d21`                         |
+| `--border` / `--border-dark`     | `#e2e5e9` / `#cbd1d7` | `#22262b` / `#31363d` (solid hex) |
+| `--text-primary`                 | `#171a1e` (16.3:1)    | `#e8eaed` (16.2:1)                |
+| `--text-secondary`               | `#4b535c` (7.3:1)     | `#a6adb5` (8.0:1)                 |
+| `--text-muted`                   | `#656e78` (4.8:1)     | `#7a828c` (4.7:1 on card)         |
 
-  /* 브랜드 */
-  --primary: #2563eb; /* 메인 액션 (blue-600) */
-  --primary-hover: #1d4ed8; /* 호버 (blue-700) */
-  --primary-light: #eff6ff; /* 아이콘 배경 (blue-50) */
-  --primary-100: #dbeafe; /* 보더, 뱃지 배경 (blue-100) */
+### 2.2 브랜드 / 시맨틱
 
-  /* 시맨틱 */
-  --success: #059669; /* 긍정 액션 (emerald-600) */
-  --success-light: #d1fae5; /* 성공 배경 */
-  --destructive: #dc2626; /* 위험, 삭제 (red-600) */
-  --destructive-light: #fee2e2; /* 에러 배경 */
+| 토큰                                | Light                 | Dark                                   |
+| ----------------------------------- | --------------------- | -------------------------------------- |
+| `--primary` / `--primary-hover`     | `#b45309` / `#9a4507` | `#f08c2e` / `#f79d4d` (밝아지는 hover) |
+| `--primary-light` / `--primary-100` | `#f8ede0` / `#efdcc3` | copper 10% / 20% rgba                  |
+| `--primary-foreground`              | `#ffffff`             | `#1a1006` (코퍼 버튼 잉크 텍스트)      |
+| `--bullish` / `--bearish`           | `#0b7a55` / `#c93a31` | `#2dd4a7` / `#f6685e`                  |
+| `--success` (+`-subtle`)            | `#047857` / `#e4f3ec` | `#34d399` / 12% rgba                   |
+| `--destructive` (+`-subtle`)        | `#c22a2a` / `#fae9e8` | `#f6685e` (bearish 통일) / 12% rgba    |
+| `--warning` (+`-subtle`)            | `#a16207` / `#f7efdc` | `#e5a93d` / 12% rgba                   |
 
-  /* 보더 & 구분 */
-  --border: #e2e8f0; /* 기본 보더 (slate-200) */
-  --border-dark: #cbd5e1; /* 강조 보더 (slate-300) */
-}
-```
+### 2.3 차트 (테마 인지 — `:root`/`.dark` 양쪽 정의)
 
-### 2.2 Dark Theme (트레이딩 대시보드, 차트 화면)
+| 토큰                                    | Light                 | Dark                  | 비고                                    |
+| --------------------------------------- | --------------------- | --------------------- | --------------------------------------- |
+| `--chart-equity` (= `--chart-line`)     | `#b45309`             | `#f08c2e`             | **equity = 코퍼, 브랜드 히어로 시리즈** |
+| `--chart-bullish` / `--chart-bearish`   | `#0b7a55` / `#c93a31` | `#2dd4a7` / `#f6685e` | TV 기본색(#26a69a/#ef5350) 폐기         |
+| `--chart-benchmark` / `--chart-compare` | `#2563eb` / `#7c3aed` | `#6aa2f7` / `#a78bfa` |                                         |
+| `--chart-area-top/-bottom`              | copper 14% → 0        | copper 16% → 0        | equity 영역 틴트                        |
+| `--chart-grid` / `--chart-axis`         | ink 7% / `#656e78`    | paper 7% / `#7a828c`  |                                         |
+| `--chart-dd-*`                          | bearish 계열 rgba     | bearish 계열 rgba     | drawdown                                |
 
-```css
-:root {
-  /* 배경 */
-  --dash-bg: #0b1120; /* 메인 배경 */
-  --dash-surface: rgba(255, 255, 255, 0.04); /* 카드 */
-  --dash-surface-elevated: rgba(255, 255, 255, 0.07); /* 강조 카드 */
-
-  /* 텍스트 */
-  --dash-text: #ededef; /* 제목, 본문 */
-  --dash-text-muted: #8a8f98; /* 힌트, 레이블 */
-
-  /* 액센트 */
-  --dash-accent: #6366f1; /* 인디고 (indigo-500) */
-  --dash-accent-glow: rgba(99, 102, 241, 0.25); /* 글로우 쉐도우 */
-
-  /* 금융 데이터 */
-  --dash-green: #34d399; /* 수익, Long 포지션 (emerald-400) */
-  --dash-red: #f87171; /* 손실, Short 포지션 (red-400) */
-
-  /* 보더 */
-  --dash-border: rgba(255, 255, 255, 0.08);
-}
-```
-
-### 2.3 차트 전용 색상
-
-```css
-/* 캔들스틱 */
---chart-bullish: #26a69a; /* 양봉 (TradingView 표준) */
---chart-bearish: #ef5350; /* 음봉 */
-
-/* 영역 차트 그라데이션 */
---chart-area-top: rgba(52, 211, 153, 0.3); /* #34D399 30% */
---chart-area-bottom: rgba(52, 211, 153, 0); /* 투명 */
---chart-line: #34d399; /* 라인 스트로크 */
-
-/* 그리드 & 축 */
---chart-grid: rgba(255, 255, 255, 0.04); /* 다크 모드 그리드 */
---chart-axis: #8a8f98; /* 축 레이블 */
-```
+CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는 `lib/brand-palette.ts` 상수를 import — 하드코딩 hex 신규 작성 금지.
 
 ### 2.4 색상 사용 규칙
 
-| 용도              | Light Theme                                    | Dark Theme                                      |
-| ----------------- | ---------------------------------------------- | ----------------------------------------------- |
-| 수익/이익         | `--success` #059669                            | `--dash-green` #34D399                          |
-| 손실/위험         | `--destructive` #DC2626                        | `--dash-red` #F87171                            |
-| Long 포지션 배지  | bg `--success-light`, text `--success`         | bg `rgba(52,211,153,0.15)`, text `--dash-green` |
-| Short 포지션 배지 | bg `--destructive-light`, text `--destructive` | bg `rgba(248,113,113,0.15)`, text `--dash-red`  |
-| CTA 버튼          | bg `--primary`, text `#FFFFFF`                 | bg `--dash-accent`, text `#FFFFFF`              |
-| 비활성 탭         | text `--text-muted`                            | text `--dash-text-muted`                        |
-| 활성 탭           | text `--primary`, border `--primary`           | text `--dash-text`, border `--dash-accent`      |
+| 용도                                                  | 규칙                                                                                |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 수익/이익                                             | text `--bullish` (시스템 성공 상태는 `--success`)                                   |
+| 손실/위험                                             | text `--bearish` (파괴적 액션은 `--destructive`)                                    |
+| Long/Short 배지                                       | `data-tone` success/destructive (subtle bg + 시맨틱 text)                           |
+| CTA 버튼                                              | bg `--primary`, text `--primary-foreground` (다크는 잉크 — white 금지)              |
+| 비활성/활성 탭                                        | text `--text-muted` → active text `--foreground` + 2px 코퍼 underline(line variant) |
+| Tailwind 팔레트 클래스 직접 사용(`text-green-600` 등) | **금지** — 시맨틱 토큰 경유                                                         |
 
 ---
 
 ## 3. 타이포그래피
 
-### 3.1 폰트 패밀리
+### 3.1 폰트 패밀리 (Precision Instrument v3)
 
-| 용도         | 폰트              | Weight        | 적용                                    |
-| ------------ | ----------------- | ------------- | --------------------------------------- |
-| 제목 (h1~h4) | Plus Jakarta Sans | 600, 700, 800 | 히어로 헤드라인, 섹션 타이틀, 카드 제목 |
-| 본문         | Inter             | 400, 500, 600 | 설명, 레이블, 네비게이션                |
-| 데이터/숫자  | JetBrains Mono    | 500, 700      | 가격, 수익률, 통계, 코드, 시간          |
+| 용도         | 폰트                | Weight        | 로딩                                                         |
+| ------------ | ------------------- | ------------- | ------------------------------------------------------------ |
+| 제목 (h1~h6) | Archivo (wdth 축)   | 500, 600, 700 | next/font — `lib/fonts.ts` SSOT                              |
+| 본문         | Pretendard Variable | variable      | `pretendard` 패키지 dynamic-subset CSS @import (globals.css) |
+| 데이터/숫자  | IBM Plex Mono       | 400, 500, 600 | next/font — `lib/fonts.ts` SSOT                              |
 
-```css
-/* Google Fonts 임포트 */
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap");
-
-/* CSS 적용 */
-body {
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-}
-h1,
-h2,
-h3,
-h4,
-h5 {
-  font-family: "Plus Jakarta Sans", sans-serif;
-}
-.mono,
-[data-type="number"] {
-  font-family: "JetBrains Mono", monospace;
-}
-```
+- **Pretendard 는 next/font/local 금지** — 한글 variable 단일 woff2 2.3MB preload 가 LCP 를 해침. dynamic-subset(unicode-range 분할)이 표준.
+- **Archivo 는 라틴 전용** — 한글 제목은 Pretendard 로 자동 폴백. 따라서 `font-stretch` 를 h1~h6 에 블랭킷 적용 금지(라틴만 늘어나는 혼합 폭). 라틴 전용 요소(로고 워드마크, 영문 eyebrow, KPI 레이블)에만 `.qb-display-wide`(112.5%) / `.qb-display-expanded`(125%) 유틸.
+- Monaco 에디터는 CSS 변수를 못 읽음 — `ibmPlexMono.style.fontFamily` 를 옵션으로 직접 주입.
+- 본문 숫자에 mono 없이 열 정렬만 필요하면 `.qb-tnum`(Pretendard tnum).
 
 ### 3.2 타입 스케일
 
@@ -172,7 +130,7 @@ h5 {
 
 ### 3.3 타이포 규칙
 
-- 제목 letter-spacing: `-0.02em` (Display, H2)
+- 제목 letter-spacing: `-0.01em` (v3 — Archivo 는 -0.02em 이 과함)
 - 본문 letter-spacing: `0` (기본)
 - 금융 숫자는 **반드시** JetBrains Mono — 탭룰러 피겨로 열 정렬 유지
 - 코드 스니펫 (Pine Script 등): JetBrains Mono, `0.75rem`, line-height `1.7`
@@ -242,41 +200,41 @@ h5 {
 
 ---
 
-## 5. Border Radius 토큰
+## 5. Border Radius 토큰 (v3 타이트닝)
 
 ```css
---radius-sm: 6px; /* 인풋, 작은 배지 */
---radius-md: 10px; /* 버튼, 필 */
---radius-lg: 14px; /* 카드, FAQ 아이템 */
---radius-xl: 18px; /* 대시보드 컨테이너, 브라우저 목업 */
+--radius-sm: 4px; /* 인풋, 계측기 태그(배지) */
+--radius-md: 6px; /* 버튼, 탭 세그먼트 */
+--radius-lg: 10px; /* 카드 */
+--radius-xl: 14px; /* 시트 상단, 다이얼로그 */
 --radius-full: 50%; /* 아바타, 아이콘 원형 */
---radius-pill: 20px; /* 필/배지 (공지 배너, 거래소 태그) */
+--radius-pill: 20px; /* 잔존 pill 소비처 (신규 사용 금지 — 배지는 4px 태그) */
 ```
 
 ---
 
-## 6. 그림자 (Elevation)
+## 6. 그림자 (Elevation) — v3 플랫화
+
+> **원칙: 1px 보더가 주인공, 그림자는 조연.** 글로우(코퍼/인디고) 전면 폐기.
+> 기본 상태 = 헤어라인 그림자, hover(opt-in) 만 미세 승격.
 
 ```css
-/* Light Theme 카드 */
---card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
---card-shadow-hover:
-  0 2px 8px rgba(0, 0, 0, 0.08), 0 16px 40px rgba(0, 0, 0, 0.06);
+/* Light */
+--card-shadow: 0 1px 2px rgba(23, 26, 30, 0.06);
+--card-shadow-hover: 0 4px 12px rgba(23, 26, 30, 0.08);
+--nav-shadow: 0 1px 2px rgba(23, 26, 30, 0.05);
+--btn-primary-shadow: 0 1px 2px rgba(23, 26, 30, 0.18);
+--btn-primary-shadow-hover: 0 2px 4px rgba(23, 26, 30, 0.2);
 
-/* 네비게이션 (스크롤 시) */
---nav-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-
-/* CTA 버튼 */
---btn-primary-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
---btn-primary-shadow-hover: 0 6px 20px rgba(37, 99, 235, 0.35);
-
-/* Dark Theme — 글로우 */
---dash-glow: 0 0 80px rgba(99, 102, 241, 0.06); /* 배경 앰비언트 */
---dash-accent-glow: 0 0 20px rgba(99, 102, 241, 0.25); /* CTA 글로우 */
-
-/* 브라우저 목업 */
---mockup-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+/* Dark (.dark) */
+--card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+--card-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.45);
+--nav-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+--btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+--btn-primary-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.4);
 ```
+
+컴포넌트 규칙: 카드/팝오버는 `border border-border`(popover 는 `--card-raised` 표면) — `ring-1 ring-foreground/10` 패턴 폐기. hover lift 는 `data-hoverable` opt-in 1px + 보더 강조만.
 
 ---
 
