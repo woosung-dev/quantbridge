@@ -3,12 +3,15 @@
 // lightweight-charts 는 `var()` 문자열 파싱 불가(colorStringToRgba throw) →
 // getComputedStyle 로 해석한 hex/rgba 를 전달해야 한다. recharts/SVG 는 var()
 // 문자열도 허용하지만 팔레트 일관성을 위해 동일 경로 사용.
-// SSR/jsdom 폴백 상수는 globals.css 토큰 값과 동일하게 유지 (플래시 방지).
+// SSR/jsdom 폴백은 brand-palette.ts 다크 상수 — 앱 기본 테마가 다크라서
+// 다크 폴백이 다수 사용자에게 무플래시 (라이트 사용자만 hydration 후 1회 flip).
 
 "use client";
 
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
+
+import { BRAND_PALETTE } from "@/lib/brand-palette";
 
 export interface ChartPalette {
   /** 상승/수익 (bullish) — per-point 히스토그램 등 */
@@ -31,18 +34,18 @@ export interface ChartPalette {
   ddBottom: string;
 }
 
-/** globals.css 토큰 값과 동일한 SSR/jsdom 폴백 (theme 독립 시리즈 색). */
+/** globals.css `.dark` 토큰 값과 동일한 SSR/jsdom 폴백 (다크 디폴트 정합). */
 export const CHART_PALETTE_FALLBACK: ChartPalette = {
-  bullish: "#0f9d6b",
-  bearish: "#e0413e",
-  equity: "#22c55e",
-  benchmark: "#3b82f6",
-  compare: "#8b5cf6",
-  axis: "#767b85",
-  grid: "rgba(127,127,127,0.12)",
-  ddLine: "rgba(239, 68, 68, 0.55)",
-  ddTop: "rgba(239, 68, 68, 0.35)",
-  ddBottom: "rgba(239, 68, 68, 0.02)",
+  bullish: BRAND_PALETTE.dark.bullish,
+  bearish: BRAND_PALETTE.dark.bearish,
+  equity: BRAND_PALETTE.dark.chartEquity,
+  benchmark: BRAND_PALETTE.dark.chartBenchmark,
+  compare: BRAND_PALETTE.dark.chartCompare,
+  axis: BRAND_PALETTE.dark.textMuted,
+  grid: BRAND_PALETTE.dark.border,
+  ddLine: BRAND_PALETTE.dark.ddLine,
+  ddTop: BRAND_PALETTE.dark.ddTop,
+  ddBottom: BRAND_PALETTE.dark.ddBottom,
 };
 
 /** document 루트에서 차트 팔레트 해석. 브라우저 전용 — SSR 은 폴백 반환. */

@@ -7,89 +7,77 @@
 /* 폰트는 next/font/google로 로드 (app/layout.tsx 참조) — DESIGN.md 3.1 */
 
 /* ───────────────────────────────────────────────
- * Light Theme — 마케팅, 설정, 일반 페이지
- * DESIGN.md 2.1 (원본 hex 토큰 보존)
+ * Light Theme — Precision Instrument 쿨 페이퍼 (보조 테마, 다크가 기본)
+ * DESIGN.md §2.1 — hex 는 lib/brand-palette.ts 상수와 동기 의무
  * ───────────────────────────────────────────── */
 :root {
-  /* 배경 — Terminal Tape 웜 페이퍼 (DESIGN.md §0) */
-  --bg: #fafaf7;
-  --bg-alt: #f0efea;
+  /* 배경 — 쿨 페이퍼 (웜크림 폐기, Precision Instrument §0) */
+  --bg: #f6f7f8;
+  --bg-alt: #edeff1;
   --card: #ffffff;
+  --card-raised: #ffffff;
 
-  /* 텍스트 — 웜 그래파이트 잉크 */
-  --text-primary: #1a1d23;
-  --text-secondary: #565a63;
-  --text-muted: #767b85;
+  /* 텍스트 — 카본 잉크 (쿨 뉴트럴) */
+  --text-primary: #171a1e;
+  --text-secondary: #4b535c;
+  --text-muted: #656e78; /* 쿨 페이퍼 위 4.84:1 — 구 #767b85 는 4.37:1 미달 */
 
-  /* 브랜드 — 시그널 코퍼 */
+  /* 브랜드 — 시그널 코퍼 (유지) */
   --primary: #b45309;
-  --primary-hover: #92400e;
-  --primary-light: #fcf3e9;
-  --primary-100: #f5e2cc;
+  --primary-hover: #9a4507;
+  --primary-light: #f8ede0;
+  --primary-100: #efdcc3;
   --primary-foreground-token: #ffffff;
 
   /* 금융 시맨틱 (테마 인지 — :root/.dark 양쪽 정의) */
   --success: #047857;
   --success-foreground: #ffffff;
-  --success-subtle: #e7f5ef;
-  --success-light: #e7f5ef;
-  --bullish: #0f9d6b;
-  --destructive: #dc2626;
-  --destructive-subtle: #fcebea;
-  --destructive-light: #fcebea;
-  --bearish: #e0413e;
+  --success-subtle: #e4f3ec;
+  --success-light: #e4f3ec;
+  --bullish: #0b7a55; /* 화이트 카드 위 5.0:1 — 구 #0f9d6b 는 미달 */
+  --destructive: #c22a2a; /* 5.35:1 — 구 #dc2626 는 4.47:1 미달 */
+  --destructive-subtle: #fae9e8;
+  --destructive-light: #fae9e8;
+  --bearish: #c93a31; /* 4.7:1 — 구 #e0413e 는 미달 */
   --warning: #a16207;
   --warning-foreground: #ffffff;
-  --warning-subtle: #faf0d7;
+  --warning-subtle: #f7efdc;
   --accent-amber: #a16207;
-  --accent-amber-light: #faf0d7;
+  --accent-amber-light: #f7efdc;
 
-  /* 보더 */
-  --border: #e7e5de;
-  --border-dark: #d4d1c8;
+  /* 보더 — 쿨 헤어라인 2단 */
+  --border: #e2e5e9;
+  --border-dark: #cbd1d7;
 
-  /* Dark Theme 토큰 (테마 독립적으로 접근 가능) — DESIGN.md 2.2 */
-  --dash-bg: #0b1120;
-  --dash-surface: rgba(255, 255, 255, 0.04);
-  --dash-surface-elevated: rgba(255, 255, 255, 0.07);
-  --dash-text: #ededef;
-  --dash-text-muted: #8a8f98;
-  --dash-accent: #6366f1;
-  --dash-accent-glow: rgba(99, 102, 241, 0.25);
-  --dash-green: #34d399;
-  --dash-red: #f87171;
-  --dash-border: rgba(255, 255, 255, 0.08);
+  /* 차트 — equity = 시그널 코퍼 (브랜드 히어로 시리즈).
+     lib/chart-tokens.ts 가 해석, lib/brand-palette.ts 와 값 동기 의무. */
+  --chart-bullish: #0b7a55;
+  --chart-bearish: #c93a31;
+  --chart-area-top: rgba(180, 83, 9, 0.14);
+  --chart-area-bottom: rgba(180, 83, 9, 0);
+  --chart-line: #b45309;
+  --chart-grid: rgba(23, 26, 30, 0.07);
+  --chart-axis: #656e78;
+  --chart-equity: #b45309;
+  --chart-benchmark: #2563eb;
+  --chart-compare: #7c3aed;
+  --chart-dd-line: rgba(201, 58, 49, 0.55);
+  --chart-dd-top: rgba(201, 58, 49, 0.3);
+  --chart-dd-bottom: rgba(201, 58, 49, 0.02);
 
-  /* 차트 — DESIGN.md 2.3 */
-  --chart-bullish: #26a69a;
-  --chart-bearish: #ef5350;
-  --chart-area-top: rgba(52, 211, 153, 0.3);
-  --chart-area-bottom: rgba(52, 211, 153, 0);
-  --chart-line: #34d399;
-  --chart-grid: rgba(255, 255, 255, 0.04);
-  --chart-axis: #8a8f98;
-  /* 백테스트 리포트 시리즈 — lib/chart-tokens.ts 가 해석 (하드코딩 hex 이관, 값 동일) */
-  --chart-equity: #22c55e;
-  --chart-benchmark: #3b82f6;
-  --chart-compare: #8b5cf6;
-  --chart-dd-line: rgba(239, 68, 68, 0.55);
-  --chart-dd-top: rgba(239, 68, 68, 0.35);
-  --chart-dd-bottom: rgba(239, 68, 68, 0.02);
-
-  /* Radius — DESIGN.md 5 */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  /* Radius — Precision Instrument 타이트닝 (DESIGN.md §5) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-pill: 20px;
 
-  /* Elevation — DESIGN.md §0 (웜 그래파이트 잉크 섀도우) */
-  --card-shadow: 0 1px 2px rgba(26, 29, 35, 0.04), 0 4px 16px rgba(26, 29, 35, 0.04);
-  --card-shadow-hover: 0 2px 6px rgba(26, 29, 35, 0.06), 0 12px 32px rgba(26, 29, 35, 0.07);
-  --nav-shadow: 0 1px 2px rgba(26, 29, 35, 0.06);
-  --btn-primary-shadow: 0 4px 14px rgba(180, 83, 9, 0.22);
-  --btn-primary-shadow-hover: 0 6px 20px rgba(180, 83, 9, 0.32);
-  --dash-glow: 0 0 80px rgba(180, 83, 9, 0.06);
+  /* Elevation — 플랫: 1px 보더가 주인공, hover 만 미세 lift (코퍼 글로우 폐기) */
+  --card-shadow: 0 1px 2px rgba(23, 26, 30, 0.06);
+  --card-shadow-hover: 0 4px 12px rgba(23, 26, 30, 0.08);
+  --nav-shadow: 0 1px 2px rgba(23, 26, 30, 0.05);
+  --btn-primary-shadow: 0 1px 2px rgba(23, 26, 30, 0.18);
+  --btn-primary-shadow-hover: 0 2px 4px rgba(23, 26, 30, 0.2);
 
   /* Z-Index — DESIGN.md 4.4 */
   --z-base: 0;
@@ -101,36 +89,35 @@
 
   /* ───────────────────────────────────────────────
    * shadcn/ui 시맨틱 토큰 — DESIGN.md 토큰으로 오버라이드
-   * Sprint 7c Task 1 Step 1.3
    * ───────────────────────────────────────────── */
-  --background: #fafaf7;
-  --foreground: #1a1d23;
-  --card-foreground: #1a1d23;
-  --popover: #ffffff;
-  --popover-foreground: #1a1d23;
+  --background: #f6f7f8;
+  --foreground: #171a1e;
+  --card-foreground: #171a1e;
+  --popover: var(--card-raised);
+  --popover-foreground: #171a1e;
   --primary-foreground: #ffffff;
-  --secondary: #f0efea;
-  --secondary-foreground: #1a1d23;
-  --muted: #f0efea;
-  --muted-foreground: #767b85;
-  --accent: #f0efea;
-  --accent-foreground: #1a1d23;
+  --secondary: #edeff1;
+  --secondary-foreground: #171a1e;
+  --muted: #edeff1;
+  --muted-foreground: #656e78;
+  --accent: #edeff1;
+  --accent-foreground: #171a1e;
   --destructive-foreground: #ffffff;
-  --input: #e7e5de;
+  --input: #dce0e5;
   --ring: #b45309;
   --chart-1: #b45309;
   --chart-2: #047857;
-  --chart-3: #dc2626;
+  --chart-3: #c22a2a;
   --chart-4: #a16207;
-  --chart-5: #2dd4a7;
-  --radius: 10px;
+  --chart-5: #0b7a55;
+  --radius: 6px;
   --sidebar: #ffffff;
-  --sidebar-foreground: #1a1d23;
+  --sidebar-foreground: #171a1e;
   --sidebar-primary: #b45309;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f0efea;
-  --sidebar-accent-foreground: #1a1d23;
-  --sidebar-border: #e7e5de;
+  --sidebar-accent: #edeff1;
+  --sidebar-accent-foreground: #171a1e;
+  --sidebar-border: #e2e5e9;
   --sidebar-ring: #b45309;
 }
 
@@ -151,10 +138,10 @@
   --font-display: var(--font-jakarta), ui-sans-serif, sans-serif;
   --font-mono: var(--font-mono-code), ui-monospace, SFMono-Regular, monospace;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-pill: 20px;
 }
 
@@ -235,15 +222,7 @@ h6 {
   --color-accent-amber-light: var(--accent-amber-light);
   --color-border-default: var(--border);
   --color-border-dark: var(--border-dark);
-  --color-dash-bg: var(--dash-bg);
-  --color-dash-surface: var(--dash-surface);
-  --color-dash-surface-elevated: var(--dash-surface-elevated);
-  --color-dash-text: var(--dash-text);
-  --color-dash-text-muted: var(--dash-text-muted);
-  --color-dash-accent: var(--dash-accent);
-  --color-dash-green: var(--dash-green);
-  --color-dash-red: var(--dash-red);
-  --color-dash-border: var(--dash-border);
+  --color-card-raised: var(--card-raised);
 
   /* Elevation utility — :root/.dark 의 --card-shadow 라이브 참조 (테마 flip) */
   --shadow-card: var(--card-shadow);
@@ -287,78 +266,96 @@ h6 {
 }
 
 /* ───────────────────────────────────────────────
- * Dark mode — Terminal Tape 다크 (정규 SSOT, DESIGN.md §0)
- * next-themes attribute="class" → <html class="dark">. 커스텀 + 금융 + shadcn
- * 시맨틱 전체셋을 웜 니어블랙/코퍼로 재정의 → 모든 유틸리티 flip.
+ * Dark mode — Precision Instrument 카본/스틸 (기본 테마, 정규 SSOT)
+ * next-themes attribute="class" → <html class="dark">. 커스텀 + 금융 + 차트 + shadcn
+ * 시맨틱 전체셋을 카본/스틸/코퍼로 재정의 → 모든 유틸리티 flip.
+ * hex 는 lib/brand-palette.ts 상수와 동기 의무.
  * ───────────────────────────────────────────── */
 .dark {
   color-scheme: dark;
 
-  /* 커스텀 (테마 인지) */
-  --bg: #0e0f11;
-  --bg-alt: #17181b;
-  --card: #16171a;
-  --text-primary: #eceae3;
-  --text-secondary: #a8a39a;
-  --text-muted: #8b867c;
-  --primary: #e0832b;
-  --primary-hover: #c9701e;
-  --primary-light: rgba(224, 131, 43, 0.12);
-  --primary-100: rgba(224, 131, 43, 0.22);
-  --border: rgba(236, 234, 227, 0.1);
-  --border-dark: rgba(236, 234, 227, 0.16);
+  /* 커스텀 (테마 인지) — 카본 배경 / 스틸 카드 */
+  --bg: #0b0d0f;
+  --bg-alt: #101214;
+  --card: #141619;
+  --card-raised: #1a1d21;
+  --text-primary: #e8eaed;
+  --text-secondary: #a6adb5;
+  --text-muted: #7a828c;
+  --primary: #f08c2e;
+  --primary-hover: #f79d4d; /* 다크는 밝아지는 hover — 계측기 "활성" 무드 */
+  --primary-light: rgba(240, 140, 46, 0.1);
+  --primary-100: rgba(240, 140, 46, 0.2);
+  --border: #22262b; /* solid hex — rgba 중첩 시 어두워짐 방지 */
+  --border-dark: #31363d;
 
-  /* 금융 시맨틱 (다크 등급) */
+  /* 금융 시맨틱 (다크 등급) — destructive = bearish 통일(팔레트 절약) */
   --success: #34d399;
   --success-foreground: #08130d;
-  --success-subtle: rgba(52, 211, 153, 0.14);
-  --success-light: rgba(52, 211, 153, 0.14);
+  --success-subtle: rgba(52, 211, 153, 0.12);
+  --success-light: rgba(52, 211, 153, 0.12);
   --bullish: #2dd4a7;
-  --destructive: #f87171;
-  --destructive-subtle: rgba(248, 113, 113, 0.14);
-  --destructive-light: rgba(248, 113, 113, 0.14);
+  --destructive: #f6685e;
+  --destructive-subtle: rgba(246, 104, 94, 0.12);
+  --destructive-light: rgba(246, 104, 94, 0.12);
   --bearish: #f6685e;
-  --warning: #e0a53c;
-  --warning-foreground: #1a1209;
-  --warning-subtle: rgba(224, 165, 60, 0.14);
-  --accent-amber: #e0a53c;
-  --accent-amber-light: rgba(224, 165, 60, 0.14);
+  --warning: #e5a93d;
+  --warning-foreground: #1a1006;
+  --warning-subtle: rgba(229, 169, 61, 0.12);
+  --accent-amber: #e5a93d;
+  --accent-amber-light: rgba(229, 169, 61, 0.12);
 
-  /* Elevation (다크) */
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
-  --card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.4);
-  --btn-primary-shadow: 0 4px 14px rgba(224, 131, 43, 0.28);
-  --btn-primary-shadow-hover: 0 6px 20px rgba(224, 131, 43, 0.4);
+  /* 차트 (다크) — :root 값 상속 폐지, 테마 인지 승격. equity = 코퍼 */
+  --chart-bullish: #2dd4a7;
+  --chart-bearish: #f6685e;
+  --chart-area-top: rgba(240, 140, 46, 0.16);
+  --chart-area-bottom: rgba(240, 140, 46, 0);
+  --chart-line: #f08c2e;
+  --chart-grid: rgba(232, 234, 237, 0.07);
+  --chart-axis: #7a828c;
+  --chart-equity: #f08c2e;
+  --chart-benchmark: #6aa2f7;
+  --chart-compare: #a78bfa;
+  --chart-dd-line: rgba(246, 104, 94, 0.55);
+  --chart-dd-top: rgba(246, 104, 94, 0.28);
+  --chart-dd-bottom: rgba(246, 104, 94, 0.02);
+
+  /* Elevation (다크) — 플랫 */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --card-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --nav-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --btn-primary-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.4);
 
   /* shadcn 시맨틱 (다크) — 코퍼 버튼은 ink 텍스트(white 대비 부족) */
-  --background: #0e0f11;
-  --foreground: #eceae3;
-  --card-foreground: #eceae3;
-  --popover: #16171a;
-  --popover-foreground: #eceae3;
-  --primary-foreground: #1a1209;
-  --secondary: #17181b;
-  --secondary-foreground: #eceae3;
-  --muted: #1c1d21;
-  --muted-foreground: #8b867c;
-  --accent: #1c1d21;
-  --accent-foreground: #eceae3;
-  --destructive-foreground: #1a1209;
-  --input: rgba(236, 234, 227, 0.1);
-  --ring: #e0832b;
-  --chart-1: #e0832b;
+  --background: #0b0d0f;
+  --foreground: #e8eaed;
+  --card-foreground: #e8eaed;
+  --popover: var(--card-raised);
+  --popover-foreground: #e8eaed;
+  --primary-foreground: #1a1006;
+  --secondary: #16191d;
+  --secondary-foreground: #e8eaed;
+  --muted: #1b1e22;
+  --muted-foreground: #7a828c;
+  --accent: #1e2226;
+  --accent-foreground: #e8eaed;
+  --destructive-foreground: #1a1006;
+  --input: #2a2f35;
+  --ring: #f08c2e;
+  --chart-1: #f08c2e;
   --chart-2: #34d399;
-  --chart-3: #f87171;
-  --chart-4: #e0a53c;
+  --chart-3: #f6685e;
+  --chart-4: #e5a93d;
   --chart-5: #2dd4a7;
-  --sidebar: #121316;
-  --sidebar-foreground: #eceae3;
-  --sidebar-primary: #e0832b;
-  --sidebar-primary-foreground: #1a1209;
-  --sidebar-accent: #1c1d21;
-  --sidebar-accent-foreground: #eceae3;
-  --sidebar-border: rgba(236, 234, 227, 0.1);
-  --sidebar-ring: #e0832b;
+  --sidebar: #0d0f12;
+  --sidebar-foreground: #e8eaed;
+  --sidebar-primary: #f08c2e;
+  --sidebar-primary-foreground: #1a1006;
+  --sidebar-accent: #16191d;
+  --sidebar-accent-foreground: #e8eaed;
+  --sidebar-border: #1b1f24;
+  --sidebar-ring: #f08c2e;
 }
 
 @layer base {
@@ -471,7 +468,7 @@ h6 {
   height: 18px;
   border-radius: 50%;
   background: var(--primary);
-  border: 3px solid #ffffff;
+  border: 3px solid var(--card);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 40%, transparent);
   cursor: grab;
   transition: transform 200ms ease;
@@ -487,7 +484,7 @@ h6 {
   height: 18px;
   border-radius: 50%;
   background: var(--primary);
-  border: 3px solid #ffffff;
+  border: 3px solid var(--card);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 40%, transparent);
   cursor: grab;
 }
