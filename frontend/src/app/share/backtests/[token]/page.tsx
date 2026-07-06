@@ -122,7 +122,7 @@ export default async function SharedBacktestPage({ params }: PageProps) {
 
         {bt.equity_curve && bt.equity_curve.length > 0 ? (
           <section
-            className="mt-6 rounded-xl border bg-card p-4 motion-safe:animate-[sharePopIn_320ms_ease-out_240ms_both]"
+            className="mt-6 rounded-lg border bg-card p-4 motion-safe:animate-[sharePopIn_320ms_ease-out_240ms_both]"
             style={{ animationDelay: "240ms" }}
           >
             <h2 className="mb-3 text-sm font-medium">자산 곡선 미리보기</h2>
@@ -130,13 +130,13 @@ export default async function SharedBacktestPage({ params }: PageProps) {
           </section>
         ) : null}
 
-        <footer className="mt-10 flex flex-col items-center gap-3 rounded-xl border bg-muted/40 p-6 text-center motion-safe:animate-[sharePopIn_320ms_ease-out_360ms_both]">
+        <footer className="mt-10 flex flex-col items-center gap-3 rounded-lg border bg-muted/40 p-6 text-center motion-safe:animate-[sharePopIn_320ms_ease-out_360ms_both]">
           <p className="text-sm text-muted-foreground">
             QuantBridge 에서 만든 백테스트 결과 — 데모 트레이딩 무료 시작
           </p>
           <Link
             href="/sign-up"
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-200 ease-out hover:-translate-y-px hover:opacity-90 hover:shadow-md"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-btn-primary transition-colors duration-200 ease-out hover:bg-primary-hover"
           >
             QuantBridge 시작하기
           </Link>
@@ -173,9 +173,11 @@ function Stat({
   return (
     <div
       style={{ animationDelay: `${animationDelay}ms` }}
-      className="rounded-lg border bg-card p-3 transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-sm motion-safe:animate-[staggerIn_280ms_ease-out_both]"
+      className="rounded-lg border bg-card p-3 transition-colors duration-200 ease-out hover:border-border-dark motion-safe:animate-[staggerIn_280ms_ease-out_both]"
     >
-      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </p>
       <p className="mt-1 font-mono text-base font-semibold">{value}</p>
     </div>
   );

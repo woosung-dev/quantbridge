@@ -1,8 +1,13 @@
 // 백테스트 share OG 이미지 (Next.js 16 ImageResponse API) — Sprint 41 Worker H
+// 색상: 정적 렌더라 CSS 변수 불가 → lib/brand-palette.ts 다크 팔레트 상수 참조 (하드코딩 hex 금지)
 import { ImageResponse } from "next/og";
 
 import { getApiBase } from "@/lib/api-base";
+import { BRAND_PALETTE } from "@/lib/brand-palette";
 import { BacktestDetailSchema } from "@/features/backtest/schemas";
+
+// 다크 디폴트 브랜드와 일치 — OG 는 카본/스틸 다크 팔레트 고정
+const P = BRAND_PALETTE.dark;
 
 export const runtime = "nodejs";
 export const size = { width: 1200, height: 630 };
@@ -42,9 +47,8 @@ export default async function OG({ params }: OGProps) {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background:
-            "linear-gradient(135deg, #0b0f1a 0%, #11182b 50%, #0d1326 100%)",
-          color: "#f8fafc",
+          background: P.bg,
+          color: P.textPrimary,
           padding: 64,
           fontFamily: "system-ui, sans-serif",
         }}
@@ -55,10 +59,10 @@ export default async function OG({ params }: OGProps) {
             alignItems: "center",
             gap: 12,
             fontSize: 24,
-            color: "#94a3b8",
+            color: P.textSecondary,
           }}
         >
-          <span style={{ fontWeight: 700, color: "#60a5fa" }}>QuantBridge</span>
+          <span style={{ fontWeight: 700, color: P.primary }}>QuantBridge</span>
           <span style={{ opacity: 0.5 }}>·</span>
           <span>백테스트 결과</span>
         </div>
@@ -74,7 +78,9 @@ export default async function OG({ params }: OGProps) {
           }}
         >
           <span>{symbol}</span>
-          <span style={{ fontSize: 40, color: "#94a3b8", fontWeight: 500 }}>
+          <span
+            style={{ fontSize: 40, color: P.textSecondary, fontWeight: 500 }}
+          >
             {timeframe}
           </span>
         </div>
@@ -85,9 +91,9 @@ export default async function OG({ params }: OGProps) {
             gap: 28,
           }}
         >
-          <Stat label="총 수익률" value={pct(totalReturn)} accent="#22c55e" />
-          <Stat label="Sharpe" value={num(sharpe)} accent="#60a5fa" />
-          <Stat label="MDD" value={pct(mdd)} accent="#f87171" />
+          <Stat label="총 수익률" value={pct(totalReturn)} accent={P.bullish} />
+          <Stat label="Sharpe" value={num(sharpe)} accent={P.primary} />
+          <Stat label="MDD" value={pct(mdd)} accent={P.bearish} />
         </div>
         <div
           style={{
@@ -96,7 +102,7 @@ export default async function OG({ params }: OGProps) {
             justifyContent: "space-between",
             alignItems: "center",
             fontSize: 22,
-            color: "#94a3b8",
+            color: P.textMuted,
           }}
         >
           <span>quantbridge.app/share</span>
@@ -123,13 +129,13 @@ function Stat({
         display: "flex",
         flexDirection: "column",
         padding: "24px 32px",
-        borderRadius: 16,
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 10, // DESIGN.md §5 radius-lg (카드)
+        background: P.card,
+        border: `1px solid ${P.border}`, // 플랫 + 1px 보더 (글래스 rgba 폐기)
         minWidth: 240,
       }}
     >
-      <span style={{ fontSize: 20, color: "#94a3b8" }}>{label}</span>
+      <span style={{ fontSize: 20, color: P.textSecondary }}>{label}</span>
       <span
         style={{
           marginTop: 8,
