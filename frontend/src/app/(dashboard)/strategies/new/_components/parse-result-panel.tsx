@@ -6,6 +6,7 @@
 // Sprint 44 W F2: error / result body slide-down 200ms ease-out + fade (parseResultIn keyframe)
 
 import { CheckIcon, XIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/skeleton";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 
@@ -179,13 +180,13 @@ function ResultBody({ result }: { result: ParsePreviewResponse }) {
 
 function FeaturePill({ label, present }: { label: string; present: boolean }) {
   return (
-    <span
-      // prototype 07: padding 4px 10px, font-size 0.72rem, font-weight 600
+    <Badge
+      // Precision Instrument: rounded-full pill → 기본 Badge (4px 계측기 태그)
+      variant="outline"
       className={
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.72rem] font-semibold " +
-        (present
+        present
           ? "border-[color:var(--primary-100)] bg-card text-[color:var(--primary)]"
-          : "border-[color:var(--border)] bg-[color:var(--bg-alt)] text-[color:var(--text-muted)]")
+          : "border-[color:var(--border)] bg-[color:var(--bg-alt)] text-[color:var(--text-muted)]"
       }
     >
       {present ? (
@@ -202,7 +203,7 @@ function FeaturePill({ label, present }: { label: string; present: boolean }) {
         />
       )}
       {label}
-    </span>
+    </Badge>
   );
 }
 

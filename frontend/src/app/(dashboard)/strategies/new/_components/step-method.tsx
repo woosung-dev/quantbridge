@@ -47,15 +47,17 @@ export function StepMethod(props: {
         <ChevronRightIcon className="size-5 text-[color:var(--primary)] transition group-hover:translate-x-0.5" />
       </button>
 
-      {/* Disabled 옵션: 1줄 chip row */}
+      {/* Disabled 옵션: 1줄 chip row — Precision Instrument: rounded-full pill → 기본 Badge(4px 태그) */}
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[color:var(--text-muted)]">
         <span>곧 지원:</span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] px-2 py-1">
-          <UploadIcon className="size-3" />.pine 파일 업로드
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] px-2 py-1">
-          <LinkIcon className="size-3" />TradingView URL
-        </span>
+        <Badge variant="outline" className="border-[color:var(--border)] font-normal text-[color:var(--text-muted)]">
+          <UploadIcon className="size-3" aria-hidden />
+          .pine 파일 업로드
+        </Badge>
+        <Badge variant="outline" className="border-[color:var(--border)] font-normal text-[color:var(--text-muted)]">
+          <LinkIcon className="size-3" aria-hidden />
+          TradingView URL
+        </Badge>
         <span className="text-[0.65rem] opacity-70">준비 중</span>
       </div>
 

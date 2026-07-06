@@ -34,7 +34,7 @@ export function BacktestHistoryCard({ entry, href }: BacktestHistoryCardProps) {
   // prototype: grid-template-columns: 1fr auto / gap 4px 10px / padding 12 14
   const inner = (
     <div
-      className="grid grid-cols-[1fr_auto] items-baseline gap-x-2.5 gap-y-1 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--bg)] px-3.5 py-3 transition-all hover:-translate-y-px hover:border-[color:var(--primary-100)] hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]/30"
+      className="grid grid-cols-[1fr_auto] items-baseline gap-x-2.5 gap-y-1 rounded-lg border border-[color:var(--border)] bg-[color:var(--bg)] px-3.5 py-3 transition-all hover:-translate-y-px hover:border-[color:var(--primary-100)] hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]/30"
       data-testid="backtest-history-card"
     >
       <span className="font-mono text-[0.75rem] font-medium text-[color:var(--text-muted)]">
