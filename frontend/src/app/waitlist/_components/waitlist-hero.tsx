@@ -3,6 +3,7 @@
 // 참고: brand-panel.tsx (Sprint 42-polish W1) split layout 패턴
 
 import Link from "next/link";
+import { Check } from "lucide-react";
 
 interface ValueProp {
   title: string;
@@ -89,9 +90,9 @@ export function WaitlistHero() {
           >
             <span
               aria-hidden="true"
-              className="mt-1 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber)] text-xs font-bold text-[color:var(--warning-foreground)]"
+              className="mt-1 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber)] text-[color:var(--warning-foreground)]"
             >
-              ✓
+              <Check className="size-3.5" strokeWidth={3} />
             </span>
             <div className="space-y-1">
               <p className="font-semibold text-[color:var(--text-primary)]">
