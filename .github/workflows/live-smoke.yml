@@ -12,10 +12,13 @@ name: Live Dev Smoke (frontend hooks diff)
 
 on:
   pull_request:
-    branches: [main]
+    # stage/** — 리디자인 등 대형 작업의 웨이브 PR(base=stage/<theme>)에도 발화
+    branches: [main, "stage/**"]
     paths:
       - "frontend/src/**/*.ts"
       - "frontend/src/**/*.tsx"
+      # css-only PR(디자인 토큰 globals.css 등)도 차트 crash 게이트 대상 — BL-157 계열
+      - "frontend/src/**/*.css"
       - "frontend/package.json"
       - "frontend/pnpm-lock.yaml"
 
