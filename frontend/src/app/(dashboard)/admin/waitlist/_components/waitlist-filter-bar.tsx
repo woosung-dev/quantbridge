@@ -96,10 +96,11 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
               onClick={() => onStatusChange(chip.id)}
               data-active={active || undefined}
               className={
-                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 ease-out data-[active]:motion-safe:animate-[chipPop_220ms_cubic-bezier(0.34,1.56,0.64,1)] " +
+                // Precision Instrument: 플랫 + 1px 보더 — chipPop/hover lift/shadow 폐기, 색 변화만.
+                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-200 ease-out " +
                 (active
-                  ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)] shadow-sm"
-                  : "border-[color:var(--border)] bg-card text-[color:var(--text-secondary)] hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)] hover:shadow-sm")
+                  ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)]"
+                  : "border-[color:var(--border)] bg-card text-[color:var(--text-secondary)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]")
               }
             >
               {chip.id !== "all" && (

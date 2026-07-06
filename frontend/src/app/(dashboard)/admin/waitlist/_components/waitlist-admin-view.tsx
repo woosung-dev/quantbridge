@@ -71,7 +71,7 @@ export function WaitlistAdminView() {
       ) : null}
 
       {isPending && !error ? (
-        <p className="text-sm text-[color:var(--text-tertiary)]">불러오는 중…</p>
+        <p className="text-sm text-[color:var(--text-muted)]">불러오는 중…</p>
       ) : null}
 
       {error && errStatus !== 403 ? (
@@ -106,7 +106,7 @@ export function WaitlistAdminView() {
               ? `"${search}" 와 일치하는 신청이 없습니다`
               : "이 필터에 해당하는 신청이 없습니다"}
           </p>
-          <p className="text-xs text-[color:var(--text-tertiary)]">
+          <p className="text-xs text-[color:var(--text-muted)]">
             {search
               ? "검색어를 비우거나 다른 상태 필터를 선택해 보세요."
               : "다른 상태 필터를 선택하면 더 많은 신청을 볼 수 있습니다."}
@@ -123,7 +123,7 @@ export function WaitlistAdminView() {
       ) : null}
 
       {data ? (
-        <p className="text-xs text-[color:var(--text-tertiary)]">
+        <p className="text-xs text-[color:var(--text-muted)]">
           전체: {data.total}
           {search ? ` · 검색 결과: ${filteredItems.length}` : null}
         </p>
