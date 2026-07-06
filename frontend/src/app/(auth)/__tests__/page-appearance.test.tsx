@@ -50,18 +50,24 @@ describe("(auth) Clerk appearance prop", () => {
     expect(appearance?.variables?.borderRadius).toBe("6px");
     // colorPrimary 는 ClerkThemeBridge 가 테마별 주입 — 페이지 재정의(하드코딩) 금지
     expect(appearance?.variables).not.toHaveProperty("colorPrimary");
+    // Precision Instrument: hover 는 색 변화만 — 그림자 승격(lift) 금지
+    expect(appearance?.elements?.formButtonPrimary).not.toContain(
+      "hover:shadow",
+    );
   });
 
-  it("SignUp 페이지 — formFieldInput 에 --border 토큰 + radius=8px (prototype 정합)", () => {
+  it("SignUp 페이지 — formFieldInput 에 --border 토큰 + radius-sm 토큰 (Precision Instrument)", () => {
     render(<SignUpPage />);
     const appearance = captured.signUpProps?.appearance as
       | AppearanceShape
       | undefined;
     expect(appearance).toBeDefined();
     expect(appearance?.elements?.formFieldInput).toContain("var(--border)");
-    // prototype 04 의 .input border-radius=8px (Tailwind arbitrary `rounded-[8px]`)
-    expect(appearance?.elements?.formFieldInput).toContain("rounded-[8px]");
-    // input height=48px (prototype `.input { height: 48px }`)
+    // 인풋 radius = --radius-sm 토큰 (구 rounded-[8px] 리터럴 폐기, DESIGN.md §5)
+    expect(appearance?.elements?.formFieldInput).toContain(
+      "rounded-[var(--radius-sm)]",
+    );
+    // input height=48px 터치 타겟 유지
     expect(appearance?.elements?.formFieldInput).toContain("h-12");
   });
 });
