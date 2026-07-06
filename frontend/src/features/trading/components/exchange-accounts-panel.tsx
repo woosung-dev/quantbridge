@@ -14,20 +14,14 @@ import { TradingEmptyState } from "./trading-empty-state";
 function ModeBadge({ mode }: { mode: string | null | undefined }) {
   if (mode === "demo") {
     return (
-      <Badge
-        variant="outline"
-        className="border-amber-500 text-amber-600 uppercase text-xs font-semibold"
-      >
+      <Badge variant="outline" data-tone="warning" className="font-mono font-semibold uppercase">
         DEMO
       </Badge>
     );
   }
   if (mode === "live") {
     return (
-      <Badge
-        variant="outline"
-        className="border-green-500 text-green-600 uppercase text-xs font-semibold"
-      >
+      <Badge variant="outline" data-tone="success" className="font-mono font-semibold uppercase">
         LIVE
       </Badge>
     );

@@ -97,7 +97,7 @@ export function LiveSessionForm({
     <div className="space-y-4">
       {/* Bybit Demo 한정 안내 — mainnet 출시 전까지 */}
       <div
-        className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+        className="rounded-md border border-transparent bg-warning-subtle p-3 text-sm text-warning"
         data-testid="live-session-bybit-demo-notice"
       >
         <strong>Bybit Demo 한정</strong> — 가상 자금만 사용. 실제 자금 손실

@@ -132,7 +132,7 @@ export function LiveSessionDetail({ session }: Props) {
                       <span
                         className={
                           ev.status === "dispatched"
-                            ? "text-green-600"
+                            ? "text-success"
                             : ev.status === "failed"
                               ? "text-destructive"
                               : "text-muted-foreground"
