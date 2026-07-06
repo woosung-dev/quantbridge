@@ -1,10 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* 본문 폰트 Pretendard Variable — unicode-range 분할 woff2 (dynamic-subset).
+   next/font/local 미사용: 한글 variable 단일 파일 2.3MB preload 가 LCP 를 해침. */
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 
 @custom-variant dark (&:is(.dark *));
 
-/* 폰트는 next/font/google로 로드 (app/layout.tsx 참조) — DESIGN.md 3.1 */
+/* 디스플레이(Archivo)/모노(IBM Plex Mono)는 next/font 로드 (lib/fonts.ts) — DESIGN.md §3.1 */
 
 /* ───────────────────────────────────────────────
  * Light Theme — Precision Instrument 쿨 페이퍼 (보조 테마, 다크가 기본)
@@ -134,9 +137,15 @@
   --breakpoint-xl: 1200px;
   --breakpoint-2xl: 1440px;
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-jakarta), ui-sans-serif, sans-serif;
-  --font-mono: var(--font-mono-code), ui-monospace, SFMono-Regular, monospace;
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo",
+    ui-sans-serif, system-ui, sans-serif;
+  /* Archivo 는 라틴 전용 — 한글 제목은 Pretendard 로 폴백 (font-stretch 는
+     라틴 전용 유틸 .qb-display-wide/-expanded 로만 적용, h1-h6 블랭킷 금지) */
+  --font-display: var(--font-archivo), "Pretendard Variable", ui-sans-serif, sans-serif;
+  --font-mono:
+    var(--font-mono-code), "Pretendard Variable", ui-monospace, SFMono-Regular,
+    monospace;
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -169,13 +178,31 @@ h4,
 h5,
 h6 {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.2;
 }
 
 .mono,
 [data-type="number"] {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Precision Instrument 디스플레이 폭 유틸 — 라틴 전용 요소(로고/영문 eyebrow/
+   KPI 레이블)에만 적용. 한글 혼용 제목에 걸면 Pretendard 폴백 글리프는 폭이
+   안 늘어나 혼합 폭이 됨 → h1-h6 블랭킷 적용 금지. */
+.qb-display-wide {
+  font-family: var(--font-display);
+  font-stretch: 112.5%;
+}
+.qb-display-expanded {
+  font-family: var(--font-display);
+  font-stretch: 125%;
+  letter-spacing: 0.01em;
+}
+
+/* 본문 숫자 정렬 — mono 로 바꾸지 않고 tabular figure 만 필요할 때 (Pretendard tnum 지원) */
+.qb-tnum {
   font-variant-numeric: tabular-nums;
 }
 
