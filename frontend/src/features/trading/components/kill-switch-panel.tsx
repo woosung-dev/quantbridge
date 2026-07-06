@@ -39,9 +39,9 @@ export function KillSwitchPanel() {
         {hasActiveDanger ? (
           <span
             aria-label="Kill Switch 활성"
-            className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
+            className="inline-flex items-center gap-1.5 rounded-[4px] bg-destructive px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-destructive-foreground uppercase"
           >
-            <span className="size-1.5 rounded-full bg-white" />
+            <span className="size-1.5 rounded-full bg-current" />
             활성
           </span>
         ) : null}
@@ -63,7 +63,7 @@ export function KillSwitchPanel() {
                 type="button"
                 onClick={() => resolve.mutate(e.id)}
                 disabled={resolve.isPending}
-                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md bg-destructive px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md bg-destructive px-3 py-2 text-sm font-semibold text-destructive-foreground transition-colors duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {resolve.isPending ? "처리 중…" : "해결"}
               </button>

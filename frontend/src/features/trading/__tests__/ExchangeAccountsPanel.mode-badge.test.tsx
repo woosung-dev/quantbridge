@@ -42,7 +42,7 @@ beforeEach(async () => {
   vi.mocked(apiFetch).mockReset();
 });
 
-test("ExchangeAccountsPanel — DEMO 배지 렌더 (amber 텍스트)", async () => {
+test("ExchangeAccountsPanel — DEMO 배지 렌더 (warning 톤)", async () => {
   const { apiFetch } = await import("@/lib/api-client");
   vi.mocked(apiFetch).mockResolvedValueOnce({ items: [DEMO_ACCOUNT] });
 
@@ -52,14 +52,14 @@ test("ExchangeAccountsPanel — DEMO 배지 렌더 (amber 텍스트)", async () 
     </QueryClientProvider>,
   );
 
-  // DEMO 배지 노출
+  // DEMO 배지 노출 — Precision Instrument: 리터럴 팔레트 클래스 대신
+  // 시맨틱 data-tone 어서션 (globals.css [data-tone] 규칙이 색 결정).
   const demoBadge = await screen.findByText("DEMO");
   expect(demoBadge).toBeInTheDocument();
-  // amber 색상 클래스 확인
-  expect(demoBadge).toHaveClass("text-amber-600");
+  expect(demoBadge).toHaveAttribute("data-tone", "warning");
 });
 
-test("ExchangeAccountsPanel — LIVE 배지 렌더 (green 텍스트)", async () => {
+test("ExchangeAccountsPanel — LIVE 배지 렌더 (success 톤)", async () => {
   const { apiFetch } = await import("@/lib/api-client");
   vi.mocked(apiFetch).mockResolvedValueOnce({ items: [LIVE_ACCOUNT] });
 
@@ -71,5 +71,5 @@ test("ExchangeAccountsPanel — LIVE 배지 렌더 (green 텍스트)", async () 
 
   const liveBadge = await screen.findByText("LIVE");
   expect(liveBadge).toBeInTheDocument();
-  expect(liveBadge).toHaveClass("text-green-600");
+  expect(liveBadge).toHaveAttribute("data-tone", "success");
 });
