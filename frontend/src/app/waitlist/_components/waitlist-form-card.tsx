@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
@@ -111,9 +112,9 @@ export function WaitlistFormCard() {
         <div className="space-y-5 text-center">
           <span
             aria-hidden="true"
-            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-2xl motion-safe:animate-[scale-in_300ms_cubic-bezier(0.34,1.56,0.64,1)_100ms_both]"
+            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-[color:var(--accent-amber)] motion-safe:animate-[scale-in_300ms_cubic-bezier(0.34,1.56,0.64,1)_100ms_both]"
           >
-            ✓
+            <Check className="size-7" strokeWidth={2.5} />
           </span>
           <h2 className="font-display text-2xl font-bold tracking-tight text-[color:var(--text-primary)] motion-safe:animate-[fadeInUp_400ms_ease-out_200ms_both]">
             신청 완료
