@@ -91,10 +91,10 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 ### 2.4 색상 사용 규칙
 
 | 용도                                                  | 규칙                                                                                |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------- |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | 수익/이익                                             | text `--bullish` (시스템 성공 상태는 `--success`)                                   |
 | 손실/위험                                             | text `--bearish` (파괴적 액션은 `--destructive`)                                    |
-| Long/Short 배지                                       | `data-tone="success                                                                 | destructive"` (subtle bg + 시맨틱 text) |
+| Long/Short 배지                                       | `data-tone` success/destructive (subtle bg + 시맨틱 text)                           |
 | CTA 버튼                                              | bg `--primary`, text `--primary-foreground` (다크는 잉크 — white 금지)              |
 | 비활성/활성 탭                                        | text `--text-muted` → active text `--foreground` + 2px 코퍼 underline(line variant) |
 | Tailwind 팔레트 클래스 직접 사용(`text-green-600` 등) | **금지** — 시맨틱 토큰 경유                                                         |
