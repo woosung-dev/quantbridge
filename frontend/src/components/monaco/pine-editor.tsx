@@ -6,6 +6,7 @@
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 import type { BeforeMount, OnMount } from "@monaco-editor/react";
+import { ibmPlexMono } from "@/lib/fonts";
 import { registerPineLanguage } from "./pine-language";
 
 // Monaco는 bundle size가 커서 client-only + dynamic import.
@@ -52,7 +53,9 @@ export function PineEditor(props: PineEditorProps) {
       onMount={handleMount}
       options={{
         readOnly: props.readOnly,
-        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+        // Precision Instrument: IBM Plex Mono — next/font 가 생성한 해시 family 명을
+        // 직접 주입 (Monaco 는 CSS 변수 해석 불가, 리터럴 "IBM Plex Mono" 금지 — lib/fonts.ts).
+        fontFamily: ibmPlexMono.style.fontFamily,
         fontSize: 13,
         lineHeight: 20,
         minimap: { enabled: false },

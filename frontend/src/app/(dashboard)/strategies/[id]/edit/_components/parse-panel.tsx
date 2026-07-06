@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { AlertCircleIcon, CheckCircle2Icon, CheckIcon, TerminalIcon } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 
 type PanelTab = "result" | "problems" | "output";
@@ -104,9 +105,10 @@ function PanelTabButton({
       {icon}
       <span>{label}</span>
       {typeof count === "number" && count > 0 && (
-        <span className="ml-1 rounded-full bg-[color:var(--bg-alt)] px-1.5 py-0.5 text-[0.6875rem] font-semibold text-[color:var(--text-secondary)]">
+        // Precision Instrument: rounded-full 카운트 pill → 기본 Badge(4px 태그)
+        <Badge variant="secondary" className="ml-1 font-mono tabular-nums">
           {count}
-        </span>
+        </Badge>
       )}
     </button>
   );

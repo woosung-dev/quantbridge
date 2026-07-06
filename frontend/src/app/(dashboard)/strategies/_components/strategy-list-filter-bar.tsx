@@ -125,10 +125,11 @@ export function StrategyListFilterBar(props: StrategyListFilterBarProps) {
               onClick={() => onStatusChange(chip.id)}
               // Sprint 61 T-2 (BL-339): touch target ≥44pt 보장 (min-h-11 + 모바일 px-4 확대).
               // Mobile QA 페르소나 발견: 30h 시 Apple HIG/Material 44pt 미달 → 한 손 사용자 오탑.
+              // Precision Instrument: pill → 6px 세그먼트(rounded-md) + 플랫(active shadow 폐기).
               className={
-                "inline-flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:min-h-0 md:px-3 " +
+                "inline-flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-md border px-4 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:min-h-0 md:px-3 " +
                 (active
-                  ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)] shadow-sm"
+                  ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)]"
                   : "border-[color:var(--border)] bg-card text-[color:var(--text-secondary)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]")
               }
             >

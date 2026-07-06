@@ -68,12 +68,11 @@ export function StepCode(props: {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
         {/*
           Pass 6 Responsive: Monaco wrapper adaptive height.
-          W3-fidelity: prototype 07 `.code-editor` 의 inset 1px ring + rounded-md + overflow-hidden.
-          Terminal Tape 롤아웃: 하드코딩 다크 editor-bg/ring → 테마 토큰(bg-muted / --border)으로 교체.
+          Precision Instrument: inset ring → 정직한 1px 보더 (DESIGN.md §6 — 보더가 주인공).
           Monaco 자체는 앱 테마에 맞춰 pine-light/pine-dark 로 flip.
         */}
         <div
-          className="h-[300px] overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-muted shadow-[inset_0_0_0_1px_var(--border)] md:h-[400px] lg:h-[520px]"
+          className="h-[300px] overflow-hidden rounded-[var(--radius-md,0.625rem)] border border-border bg-muted md:h-[400px] lg:h-[520px]"
         >
           <PineEditor
             value={props.pineSource}

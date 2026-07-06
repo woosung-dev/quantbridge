@@ -33,11 +33,11 @@ describe("StrategyCard", () => {
     expect(screen.getByText(/Pine v5/)).toBeInTheDocument();
   });
 
-  it("hover lift 트랜지션 클래스를 가지고 있다 (group + hover:-translate-y)", () => {
+  it("hover lift 는 Card data-hoverable opt-in 으로 위임한다 (Precision Instrument SSOT)", () => {
     const { container } = render(<StrategyCard strategy={FIXTURE} />);
     const root = container.querySelector('[aria-label$="전략"]');
     expect(root?.className).toMatch(/group/);
-    expect(root?.className).toMatch(/hover:-translate-y/);
+    expect(root?.getAttribute("data-hoverable")).toBe("true");
   });
 
   it("tags 가 3 개 초과면 처음 3 개 + '+N' 표시한다", () => {
