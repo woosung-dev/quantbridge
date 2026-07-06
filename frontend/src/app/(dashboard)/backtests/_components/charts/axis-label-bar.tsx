@@ -10,7 +10,8 @@
 // 설계:
 // - 차트 pane 바로 아래 한 줄 axis label bar (Y축 단위 + X축 단위 + variant 색상)
 // - shadcn 스타일 (text-xs text-muted-foreground)
-// - variant=equity/drawdown 으로 좌측 dot 색상 구분 (legend 와 정합)
+// - variant=equity/drawdown 으로 좌측 dot 색상 구분 (legend 와 정합 —
+//   --chart-equity / --chart-dd-line 토큰, 테마 인지)
 // - 모바일 wrap: flex-wrap + space-x
 
 interface AxisLabelBarProps {
@@ -18,7 +19,7 @@ interface AxisLabelBarProps {
   yAxisLabel: string;
   /** X축 단위 라벨 (예: "시간 · 1h 단위 캔들"). */
   xAxisLabel: string;
-  /** 시각 구분용 — equity (green) / drawdown (red). */
+  /** 시각 구분용 — equity (--chart-equity) / drawdown (--chart-dd-line). */
   variant: "equity" | "drawdown";
 }
 
@@ -27,7 +28,8 @@ export function AxisLabelBar({
   xAxisLabel,
   variant,
 }: AxisLabelBarProps) {
-  const dotColor = variant === "equity" ? "#22c55e" : "#ef4444";
+  const dotColor =
+    variant === "equity" ? "var(--chart-equity)" : "var(--chart-dd-line)";
   const ariaLabel =
     variant === "equity"
       ? "자본 곡선 차트 축 단위 안내"

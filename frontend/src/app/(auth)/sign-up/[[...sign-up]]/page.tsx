@@ -1,6 +1,6 @@
 // Clerk 회원가입 페이지 — split-screen shell + Clerk appearance 토큰 정합
-// design source: docs/prototypes/04-login.html (input radius=8 / button radius=10 / h=48)
-// Sprint 44 W F2: focus ring transition 200ms / button hover lift / form rootBox fadeInUp.
+// Precision Instrument W5 PR-12: radius 토큰 정합(input=--radius-sm / button=--radius-md)
+// + hover lift 폐기(색 변화만). form rootBox fadeInUp 유지.
 import { SignUp } from "@clerk/nextjs";
 import { SplitScreenShell } from "../../_components/split-screen-shell";
 
@@ -16,10 +16,11 @@ export default function SignUpPage() {
             headerTitle:
               "font-[var(--font-heading)] text-[color:var(--text-primary)]",
             headerSubtitle: "text-[color:var(--text-muted)]",
+            // Precision Instrument: hover 색 변화만 + input radius-sm 토큰 (sign-in 과 동일)
             formButtonPrimary:
-              "bg-[color:var(--primary)] hover:bg-[color:var(--primary-hover)] rounded-[var(--radius-md)] shadow-[var(--btn-primary-shadow)] hover:shadow-[var(--btn-primary-shadow-hover)] normal-case text-sm font-semibold h-12 transition-[box-shadow,background-color] duration-200 ease-out",
+              "bg-[color:var(--primary)] hover:bg-[color:var(--primary-hover)] rounded-[var(--radius-md)] shadow-[var(--btn-primary-shadow)] normal-case text-sm font-semibold h-12 transition-colors duration-200 ease-out",
             formFieldInput:
-              "rounded-[8px] border-[1.5px] border-[color:var(--border)] h-12 focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary)]/15 transition-[border-color,box-shadow] duration-200 ease-out",
+              "rounded-[var(--radius-sm)] border-[1.5px] border-[color:var(--border)] h-12 focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary)]/15 transition-[border-color,box-shadow] duration-200 ease-out",
             formFieldLabel:
               "text-[color:var(--text-secondary)] text-sm font-medium",
             socialButtonsBlockButton:
@@ -30,9 +31,9 @@ export default function SignUpPage() {
             dividerText: "text-[color:var(--text-muted)]",
           },
           variables: {
-            // 코퍼 브랜드 컬러. text/background 는 ClerkThemeBridge(baseTheme)가 라이트/다크 처리.
-            colorPrimary: "#b45309",
-            borderRadius: "10px",
+            // colorPrimary 는 ClerkThemeBridge 가 테마별 코퍼 등급으로 주입 — 여기서
+            // 재정의하면 다크 코퍼(#f08c2e)를 덮어써서 하드코딩 금지.
+            borderRadius: "6px",
           },
         }}
       />

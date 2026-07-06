@@ -6,6 +6,7 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 
 import { cn } from "@/lib/utils";
+import { TickRuler } from "@/components/tick-ruler";
 
 import { DashboardNavList } from "./dashboard-nav-list";
 
@@ -23,8 +24,8 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
         sidebarOpen ? "w-[220px]" : "w-16",
       )}
     >
-      {/* 로고 — Plus Jakarta Sans 볼드 + primary-gradient 마크.
-          Sprint 44-WC1 polish: opacity transition 150ms + motion-reduce. */}
+      {/* 로고 — Archivo 확장 폭 워드마크(라틴 전용 = .qb-display-wide 적정 사이트) +
+          플랫 코퍼 마크. Precision Instrument: 그라디언트 폐기. */}
       <Link
         href="/strategies"
         className={cn(
@@ -33,7 +34,7 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
         )}
         aria-label="QuantBridge 홈"
       >
-        <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[color:var(--primary)] to-[color:var(--primary-hover)] text-[color:var(--primary-foreground)] shadow-sm">
+        <span className="grid size-7 place-items-center rounded-md bg-[color:var(--primary)] text-[color:var(--primary-foreground)]">
           <svg
             width="15"
             height="15"
@@ -54,9 +55,14 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
           </svg>
         </span>
         {sidebarOpen && (
-          <span className="font-display text-base font-bold tracking-tight">QuantBridge</span>
+          <span className="qb-display-wide text-base font-bold tracking-tight">
+            QuantBridge
+          </span>
         )}
       </Link>
+
+      {/* 시그니처 — 로고 하단 계측 눈금 (nav 와의 구조적 경계) */}
+      <TickRuler className="mx-4 opacity-70" />
 
       <DashboardNavList sidebarOpen={sidebarOpen} pathname={pathname} />
 

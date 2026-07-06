@@ -7,6 +7,7 @@ import type {
 } from "@/components/charts/trading-chart";
 
 import { EquityPane } from "@/app/(dashboard)/backtests/_components/charts/equity-pane";
+import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
 
 // --- lightweight-charts mock ---------------------------------------------
 // EquityPane → TradingChart → lightweight-charts.createChart 까지 호출 체인.
@@ -115,7 +116,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
       .ResizeObserver;
   });
 
-  it("renders TradingChart with green color (Equity series)", async () => {
+  it("renders TradingChart with brand equity color (Equity series)", async () => {
     render(
       <EquityPane
         equityData={EQUITY}
@@ -133,12 +134,13 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
     // main + benchmark = 2 line series.
     expect(chart.addLineSeries).toHaveBeenCalledTimes(2);
 
-    // 첫 line series options 에 color #22c55e (green) 포함.
+    // 첫 line series options 에 브랜드 equity 색(팔레트 폴백 = 시그널 코퍼) 포함.
+    // 리터럴 hex 대신 상수 참조 — 팔레트 변경 시 테스트가 브랜드를 따라감.
     const mainOptions = chart.addLineSeries.mock.calls[0]![0] as {
       color?: string;
       lineWidth?: number;
     };
-    expect(mainOptions.color).toBe("#22c55e");
+    expect(mainOptions.color).toBe(CHART_PALETTE_FALLBACK.equity);
     expect(mainOptions.lineWidth).toBe(2);
   });
 

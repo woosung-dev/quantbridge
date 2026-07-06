@@ -126,7 +126,7 @@ export function WaitlistTable({
           {sorted.map((item) => (
             <tr
               key={item.id}
-              className="border-t border-[color:var(--border)] align-top transition-colors duration-200 ease-out hover:bg-[color:var(--primary-light)]/40 hover:cursor-default"
+              className="border-t border-[color:var(--border)] align-top transition-colors duration-200 ease-out hover:bg-muted/50"
             >
               <td className="px-4 py-3 font-medium">{item.email}</td>
               <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
@@ -150,7 +150,7 @@ export function WaitlistTable({
                   {STATUS_LABEL[item.status]}
                 </span>
               </td>
-              <td className="px-4 py-3 text-xs text-[color:var(--text-tertiary)]">
+              <td className="px-4 py-3 text-xs text-[color:var(--text-muted)]">
                 {new Date(item.created_at).toLocaleDateString("ko-KR")}
               </td>
               <td className="px-4 py-3 text-right">
@@ -160,7 +160,6 @@ export function WaitlistTable({
                     size="sm"
                     disabled={isApproving}
                     onClick={() => onApprove(item.id)}
-                    className="transition-all duration-200 ease-out hover:-translate-y-px hover:shadow-md disabled:opacity-70"
                   >
                     {isApproving ? (
                       <span className="inline-flex items-center gap-1.5">
@@ -183,7 +182,7 @@ export function WaitlistTable({
                     )}
                   </Button>
                 ) : (
-                  <span className="text-xs text-[color:var(--text-tertiary)]">
+                  <span className="text-xs text-[color:var(--text-muted)]">
                     —
                   </span>
                 )}

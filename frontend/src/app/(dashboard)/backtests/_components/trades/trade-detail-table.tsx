@@ -160,7 +160,7 @@ export function TradeDetailTable({
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-card shadow-sm">
+      <div className="overflow-x-auto rounded-lg border bg-card shadow-card">
         <table className="w-full text-sm" role="table">
           <caption className="sr-only">
             백테스트 거래 내역 표. 컬럼 정렬 가능, 행 클릭으로 상세 확장.
@@ -238,7 +238,7 @@ export function TradeDetailTable({
                     )}
                     data-direction={t.direction}
                   >
-                    <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+                    <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-muted-foreground">
                       {t.trade_index}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
@@ -280,7 +280,7 @@ export function TradeDetailTable({
                     >
                       {formatPercent(t.return_pct)}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-bearish/80">
+                    <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-bearish/80">
                       {formatCurrency(t.fees)}
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -471,7 +471,7 @@ function DetailItem({
   return (
     <li className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
       <span>{label}</span>
-      <span className={`font-mono font-semibold ${toneClass}`}>{value}</span>
+      <span className={`font-mono font-semibold tabular-nums ${toneClass}`}>{value}</span>
     </li>
   );
 }

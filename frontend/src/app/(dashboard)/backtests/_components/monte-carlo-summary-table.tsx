@@ -26,7 +26,7 @@ export function MonteCarloSummaryTable({
     return (
       <section
         aria-label="Monte Carlo 요약 통계"
-        className="rounded-xl border bg-muted/30 px-4 py-3"
+        className="rounded-lg border bg-muted/30 px-4 py-3"
       >
         <p className="text-xs text-muted-foreground">
           Monte Carlo 미실행
@@ -65,7 +65,7 @@ export function MonteCarloSummaryTable({
     <section
       aria-label="Monte Carlo 요약 통계"
       data-testid="monte-carlo-summary-table"
-      className="rounded-xl border bg-muted/30 px-4 py-3"
+      className="rounded-lg border bg-muted/30 px-4 py-3"
     >
       <header className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-sm font-medium">Monte Carlo 요약 통계</h3>

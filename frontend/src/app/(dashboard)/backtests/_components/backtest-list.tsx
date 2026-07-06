@@ -147,7 +147,7 @@ export function BacktestList() {
               title={title}
               data-testid={`backtest-filter-${f.id}`}
               className={
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-150 ease-out " +
+                "rounded-md border px-3 py-1 text-xs font-medium transition-colors duration-150 ease-out " +
                 (isDisabled
                   ? "cursor-not-allowed border-[color:var(--border)] text-[color:var(--text-muted)] opacity-50"
                   : active
@@ -283,7 +283,7 @@ function KpiCard({
 
 function ListSkeleton() {
   return (
-    <div className="overflow-x-auto rounded-xl border bg-card">
+    <div className="overflow-x-auto rounded-lg border bg-card">
       <div className="flex flex-col gap-2 p-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} variant="list-row" />
@@ -295,9 +295,9 @@ function ListSkeleton() {
 
 function BacktestSummaryTable({ items }: { items: readonly BacktestSummary[] }) {
   return (
-    <div className="overflow-x-auto rounded-xl border bg-card shadow-[var(--card-shadow)]">
+    <div className="overflow-x-auto rounded-lg border bg-card shadow-card">
       <table className="w-full text-sm">
-        <thead className="bg-[color:var(--bg-soft)] text-xs uppercase tracking-wide text-[color:var(--text-muted)]">
+        <thead className="bg-[color:var(--bg-alt)] text-xs uppercase tracking-wide text-[color:var(--text-muted)]">
           <tr>
             <th scope="col" className="px-4 py-3 text-left">심볼</th>
             <th scope="col" className="px-4 py-3 text-left">TF</th>
@@ -313,7 +313,7 @@ function BacktestSummaryTable({ items }: { items: readonly BacktestSummary[] }) 
             return (
               <tr
                 key={b.id}
-                className="cursor-pointer border-t border-[color:var(--border-light)] border-l-2 border-l-transparent transition-colors duration-150 ease-out hover:border-l-[color:var(--primary)] hover:bg-[color:var(--bg-soft)]"
+                className="cursor-pointer border-t border-[color:var(--border)] border-l-2 border-l-transparent transition-colors duration-150 ease-out hover:border-l-[color:var(--primary)] hover:bg-[color:var(--bg-alt)]"
                 data-testid={`backtest-row-${b.id}`}
                 data-status={b.status}
               >

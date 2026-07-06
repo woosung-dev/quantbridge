@@ -7,6 +7,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export interface TagInputProps {
@@ -76,10 +77,11 @@ export function TagInput({
       )}
     >
       {value.map((tag, index) => (
-        <span
+        // Precision Instrument: rounded-full chip → 기본 Badge(4px 계측기 태그)
+        <Badge
           key={`${tag}-${index}`}
+          variant="secondary"
           data-slot="tag-chip"
-          className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground"
         >
           <span>{tag}</span>
           <button
@@ -90,7 +92,7 @@ export function TagInput({
           >
             <XIcon aria-hidden className="size-3" />
           </button>
-        </span>
+        </Badge>
       ))}
       <input
         id={id}

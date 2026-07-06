@@ -9,12 +9,16 @@ import { ClerkThemeBridge } from "./clerk-theme-bridge";
 // suppressHydrationWarning 전제). disableTransitionOnChange 로 토글 시 전역 색 전환
 // 애니메이션(transition-all/.qb-* )이 한꺼번에 깜빡이는 것을 방지.
 //
+// Precision Instrument: 다크가 기본 테마 (트레이딩 앱 표준, 차트 몰입).
+// enableSystem 유지 — localStorage 에 명시 선택이 있는 기존 사용자는 그 값이 우선,
+// 신규 방문자만 다크로 시작.
+//
 // Clerk 한국어 localization + 자체 도메인 routing 은 ClerkThemeBridge 로 이동 (BL-319/328).
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="system"
+      defaultTheme="dark"
       enableSystem
       disableTransitionOnChange
     >

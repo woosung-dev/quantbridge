@@ -26,7 +26,7 @@ export function BayesianBestParamsTable({ result }: Props) {
         {result.degenerate_count > 0 && (
           <span
             data-tone="warning"
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+            className="inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium"
             aria-label={`${result.degenerate_count} of ${result.total_iterations} iterations were degenerate`}
           >
             <AlertTriangle className="h-3 w-3" aria-hidden="true" />

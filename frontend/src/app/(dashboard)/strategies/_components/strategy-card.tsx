@@ -12,36 +12,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ParseStatus, StrategyListItem } from "@/features/strategy/schemas";
+import type { StrategyListItem } from "@/features/strategy/schemas";
 import { PARSE_STATUS_META } from "@/features/strategy/utils";
-
-// prototype §card-top-row.status-indicator dot tone 매핑
-const DOT_COLOR: Record<ParseStatus, string> = {
-  ok: "var(--success)",
-  unsupported: "var(--warning)",
-  error: "var(--destructive)",
-};
 
 export function StrategyCard({ strategy }: { strategy: StrategyListItem }) {
   const meta = PARSE_STATUS_META[strategy.parse_status];
   return (
     <Card
-      className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-[color:var(--border-dark)] hover:shadow-[var(--card-shadow-hover)] focus-within:ring-2 focus-within:ring-[color:var(--primary-light)]"
+      // Precision Instrument: hover 는 Card data-hoverable opt-in (1px lift + 보더 강조) SSOT.
+      data-hoverable="true"
+      className="group relative cursor-pointer focus-within:ring-2 focus-within:ring-[color:var(--primary-light)]"
       aria-label={`${strategy.name} 전략`}
     >
       {/* 상단 — status indicator + kebab */}
       <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--bg-alt)] px-2 py-0.5 text-[11px] font-medium text-[color:var(--text-secondary)]"
-          data-tone={meta.tone}
-        >
-          <span
-            aria-hidden="true"
-            className="size-1.5 rounded-full"
-            style={{ backgroundColor: DOT_COLOR[strategy.parse_status] }}
-          />
+        <Badge variant="outline" data-tone={meta.tone}>
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
           {meta.label}
-        </span>
+        </Badge>
         <RowActions id={strategy.id} />
       </CardHeader>
 

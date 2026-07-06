@@ -6,7 +6,10 @@
 // - complete: 큰 체크 원 + sparkle stars
 // prefers-reduced-motion 시 globals.css 가 일괄 disable. 추가 motion-safe wrapper 불필요.
 // Sprint 44 W F2: variant 변경 시 fadeInUp 200ms (key 로 re-mount 트리거).
+// W4 PR-9 (Precision Instrument): 구 팔레트 hex 62건 → 시맨틱 CSS var 치환 (형태/구도 불변).
 "use client";
+
+import { BRAND_PALETTE } from "@/lib/brand-palette";
 
 export type IllustrationVariant = "code" | "chart" | "trade" | "complete";
 
@@ -31,8 +34,8 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
       >
         <defs>
           <linearGradient id="onb-codeBg" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#FFFFFF" />
-            <stop offset="1" stopColor="#F8FAFC" />
+            <stop offset="0" stopColor="var(--card)" />
+            <stop offset="1" stopColor="var(--bg)" />
           </linearGradient>
           <linearGradient id="onb-targetGrad" x1="0" x2="1" y1="0" y2="1">
             <stop offset="0" stopColor="var(--primary)" />
@@ -43,11 +46,18 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
             <stop offset="1" stopColor="var(--primary)" />
           </linearGradient>
           <linearGradient id="onb-successGrad" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0" stopColor="#10B981" />
-            <stop offset="1" stopColor="#059669" />
+            <stop offset="0" stopColor="var(--bullish)" />
+            <stop offset="1" stopColor="var(--success)" />
           </linearGradient>
           <filter id="onb-codeShadow" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#1E293B" floodOpacity="0.08" />
+            {/* 그림자 = 테마 불변 카본 잉크 (다크에서 밝은 그림자 방지) — 대응 색상 토큰 없어 brand-palette 상수 사용 */}
+            <feDropShadow
+              dx="0"
+              dy="4"
+              stdDeviation="6"
+              floodColor={BRAND_PALETTE.light.textPrimary}
+              floodOpacity="0.08"
+            />
           </filter>
         </defs>
 
@@ -86,122 +96,122 @@ function CodeArt() {
           height="160"
           rx="12"
           fill="url(#onb-codeBg)"
-          stroke="#E2E8F0"
+          stroke="var(--border)"
         />
         {/* title bar dots */}
-        <circle cx="36" cy="66" r="3.5" fill="#F87171" />
-        <circle cx="48" cy="66" r="3.5" fill="#FBBF24" />
-        <circle cx="60" cy="66" r="3.5" fill="#34D399" />
+        <circle cx="36" cy="66" r="3.5" fill="var(--bearish)" />
+        <circle cx="48" cy="66" r="3.5" fill="var(--warning)" />
+        <circle cx="60" cy="66" r="3.5" fill="var(--bullish)" />
         <text
           x="80"
           y="70"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="9"
-          fill="#94A3B8"
+          fill="var(--text-muted)"
         >
           strategy.pine
         </text>
-        <line x1="28" y1="82" x2="192" y2="82" stroke="#F1F5F9" />
+        <line x1="28" y1="82" x2="192" y2="82" stroke="var(--border)" />
 
         {/* code lines — Pine v5 mock */}
-        <g fontFamily="JetBrains Mono, monospace" fontSize="9">
-          <text x="30" y="98" fill="#94A3B8">
+        <g fontFamily="var(--font-mono)" fontSize="9">
+          <text x="30" y="98" fill="var(--text-muted)">
             1
           </text>
-          <text x="46" y="98" fill="#7C3AED">
+          <text x="46" y="98" fill="var(--chart-compare)">
             {"//@version=5"}
           </text>
 
-          <text x="30" y="114" fill="#94A3B8">
+          <text x="30" y="114" fill="var(--text-muted)">
             2
           </text>
           <text x="46" y="114" fill="var(--primary)">
             strategy
           </text>
-          <text x="92" y="114" fill="#475569">
+          <text x="92" y="114" fill="var(--text-secondary)">
             (
           </text>
-          <text x="97" y="114" fill="#059669">
+          <text x="97" y="114" fill="var(--bullish)">
             &quot;EMA Cross&quot;
           </text>
 
-          <text x="30" y="130" fill="#94A3B8">
+          <text x="30" y="130" fill="var(--text-muted)">
             3
           </text>
           <text x="46" y="130" fill="var(--primary)">
             fast
           </text>
-          <text x="68" y="130" fill="#475569">
+          <text x="68" y="130" fill="var(--text-secondary)">
             =
           </text>
-          <text x="76" y="130" fill="#DC2626">
+          <text x="76" y="130" fill="var(--bearish)">
             ema
           </text>
-          <text x="94" y="130" fill="#475569">
+          <text x="94" y="130" fill="var(--text-secondary)">
             (close,
           </text>
-          <text x="128" y="130" fill="#F59E0B">
+          <text x="128" y="130" fill="var(--warning)">
             12
           </text>
-          <text x="140" y="130" fill="#475569">
+          <text x="140" y="130" fill="var(--text-secondary)">
             )
           </text>
 
-          <text x="30" y="146" fill="#94A3B8">
+          <text x="30" y="146" fill="var(--text-muted)">
             4
           </text>
           <text x="46" y="146" fill="var(--primary)">
             slow
           </text>
-          <text x="68" y="146" fill="#475569">
+          <text x="68" y="146" fill="var(--text-secondary)">
             =
           </text>
-          <text x="76" y="146" fill="#DC2626">
+          <text x="76" y="146" fill="var(--bearish)">
             ema
           </text>
-          <text x="94" y="146" fill="#475569">
+          <text x="94" y="146" fill="var(--text-secondary)">
             (close,
           </text>
-          <text x="128" y="146" fill="#F59E0B">
+          <text x="128" y="146" fill="var(--warning)">
             26
           </text>
-          <text x="140" y="146" fill="#475569">
+          <text x="140" y="146" fill="var(--text-secondary)">
             )
           </text>
 
-          <text x="30" y="162" fill="#94A3B8">
+          <text x="30" y="162" fill="var(--text-muted)">
             5
           </text>
-          <text x="46" y="162" fill="#7C3AED">
+          <text x="46" y="162" fill="var(--chart-compare)">
             if
           </text>
-          <text x="60" y="162" fill="#475569">
+          <text x="60" y="162" fill="var(--text-secondary)">
             ta.crossover(fast,
           </text>
-          <text x="152" y="162" fill="#475569">
+          <text x="152" y="162" fill="var(--text-secondary)">
             slow)
           </text>
 
-          <text x="30" y="178" fill="#94A3B8">
+          <text x="30" y="178" fill="var(--text-muted)">
             6
           </text>
-          <text x="52" y="178" fill="#475569">
+          <text x="52" y="178" fill="var(--text-secondary)">
             strategy.entry(
           </text>
-          <text x="120" y="178" fill="#059669">
+          <text x="120" y="178" fill="var(--bullish)">
             &quot;L&quot;
           </text>
-          <text x="135" y="178" fill="#475569">
+          <text x="135" y="178" fill="var(--text-secondary)">
             ,
           </text>
           <text x="145" y="178" fill="var(--primary)">
             long
           </text>
-          <text x="168" y="178" fill="#475569">
+          <text x="168" y="178" fill="var(--text-secondary)">
             )
           </text>
 
-          <text x="30" y="194" fill="#94A3B8">
+          <text x="30" y="194" fill="var(--text-muted)">
             7
           </text>
           {/* caret blink */}
@@ -239,7 +249,7 @@ function CodeArt() {
           strokeWidth="6"
         />
         <g
-          stroke="#fff"
+          stroke="var(--primary-foreground)"
           strokeWidth="2.4"
           fill="none"
           strokeLinecap="round"
@@ -258,7 +268,7 @@ function CodeArt() {
         cx="218"
         cy="220"
         r="4"
-        fill="#FBBF24"
+        fill="var(--warning)"
         style={{ animation: "onb-spark-pulse 1.6s infinite" }}
       />
     </>
@@ -291,47 +301,47 @@ function ChartArt() {
           height="220"
           rx="14"
           fill="url(#onb-codeBg)"
-          stroke="#E2E8F0"
+          stroke="var(--border)"
         />
         {/* header */}
         <text
           x="36"
           y="78"
-          fontFamily="Plus Jakarta Sans, sans-serif"
+          fontFamily="var(--font-display)"
           fontSize="11"
           fontWeight="700"
-          fill="#0F172A"
+          fill="var(--text-primary)"
         >
           Equity Curve
         </text>
         <text
           x="36"
           y="94"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="9"
-          fill="#94A3B8"
+          fill="var(--text-muted)"
         >
           backtest · 6mo
         </text>
         {/* P&L badge */}
         <g transform="translate(196 70)">
-          <rect width="48" height="20" rx="10" fill="#D1FAE5" />
+          <rect width="48" height="20" rx="10" fill="var(--success-subtle)" />
           <text
             x="24"
             y="14"
             textAnchor="middle"
-            fontFamily="JetBrains Mono, monospace"
+            fontFamily="var(--font-mono)"
             fontSize="10"
             fontWeight="600"
-            fill="#059669"
+            fill="var(--bullish)"
           >
             +18.4%
           </text>
         </g>
 
         {/* axis */}
-        <line x1="36" y1="240" x2="244" y2="240" stroke="#E2E8F0" />
-        <line x1="36" y1="120" x2="36" y2="240" stroke="#E2E8F0" />
+        <line x1="36" y1="240" x2="244" y2="240" stroke="var(--border)" />
+        <line x1="36" y1="120" x2="36" y2="240" stroke="var(--border)" />
 
         {/* bars — bottom-up rising */}
         <g>
@@ -389,36 +399,36 @@ function TradeArt() {
           height="220"
           rx="14"
           fill="url(#onb-codeBg)"
-          stroke="#E2E8F0"
+          stroke="var(--border)"
         />
         {/* symbol */}
         <text
           x="36"
           y="84"
-          fontFamily="Plus Jakarta Sans, sans-serif"
+          fontFamily="var(--font-display)"
           fontSize="13"
           fontWeight="700"
-          fill="#0F172A"
+          fill="var(--text-primary)"
         >
           BTC/USDT
         </text>
         <text
           x="36"
           y="108"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="20"
           fontWeight="700"
-          fill="#0F172A"
+          fill="var(--text-primary)"
         >
           68,420
         </text>
         <text
           x="120"
           y="108"
-          fontFamily="JetBrains Mono, monospace"
+          fontFamily="var(--font-mono)"
           fontSize="13"
           fontWeight="600"
-          fill="#059669"
+          fill="var(--bullish)"
         >
           +2.34%
         </text>
@@ -433,15 +443,15 @@ function TradeArt() {
           strokeLinejoin="round"
         />
         {/* dashed grid */}
-        <line x1="36" y1="148" x2="244" y2="148" stroke="#E2E8F0" strokeDasharray="3 4" />
-        <line x1="36" y1="200" x2="244" y2="200" stroke="#E2E8F0" strokeDasharray="3 4" />
+        <line x1="36" y1="148" x2="244" y2="148" stroke="var(--border)" strokeDasharray="3 4" />
+        <line x1="36" y1="200" x2="244" y2="200" stroke="var(--border)" strokeDasharray="3 4" />
 
         {/* BUY signal pill at last point */}
         <g transform="translate(196 220)">
           <rect width="56" height="28" rx="14" fill="var(--primary)" />
           <g
             transform="translate(10 14)"
-            stroke="#fff"
+            stroke="var(--primary-foreground)"
             strokeWidth="2"
             fill="none"
             strokeLinecap="round"
@@ -453,10 +463,10 @@ function TradeArt() {
           <text
             x="38"
             y="18"
-            fontFamily="Plus Jakarta Sans, sans-serif"
+            fontFamily="var(--font-display)"
             fontSize="10"
             fontWeight="700"
-            fill="#fff"
+            fill="var(--primary-foreground)"
             textAnchor="middle"
           >
             BUY
@@ -482,21 +492,21 @@ function CompleteArt() {
   return (
     <>
       {/* outer glow ring */}
-      <circle cx="140" cy="160" r="92" fill="#D1FAE5" opacity="0.65" />
-      <circle cx="140" cy="160" r="76" fill="#D1FAE5" />
+      <circle cx="140" cy="160" r="92" fill="var(--success-subtle)" opacity="0.65" />
+      <circle cx="140" cy="160" r="76" fill="var(--success-subtle)" />
       {/* core circle */}
       <circle cx="140" cy="160" r="60" fill="url(#onb-successGrad)" />
       <path
         d="M115 160 L135 180 L170 140"
         fill="none"
-        stroke="#fff"
+        stroke="var(--success-foreground)"
         strokeWidth="7"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
       {/* sparkle stars around the check */}
-      <g fill="#FBBF24">
+      <g fill="var(--warning)">
         <path d="M50 80 l3 7 l7 3 l-7 3 l-3 7 l-3-7 l-7-3 l7-3 z">
           <animate attributeName="opacity" values="0.4;1;0.4" dur="1.8s" repeatCount="indefinite" />
         </path>
@@ -511,9 +521,9 @@ function CompleteArt() {
       {/* small confetti bits */}
       <g>
         <circle cx="80" cy="240" r="3" fill="var(--primary)" opacity="0.7" />
-        <circle cx="220" cy="260" r="3" fill="#A78BFA" opacity="0.7" />
-        <rect x="60" y="120" width="6" height="6" rx="1" fill="#F472B6" opacity="0.7" />
-        <rect x="216" y="170" width="6" height="6" rx="1" fill="#34D399" opacity="0.7" />
+        <circle cx="220" cy="260" r="3" fill="var(--chart-compare)" opacity="0.7" />
+        <rect x="60" y="120" width="6" height="6" rx="1" fill="var(--chart-benchmark)" opacity="0.7" />
+        <rect x="216" y="170" width="6" height="6" rx="1" fill="var(--bullish)" opacity="0.7" />
       </g>
     </>
   );

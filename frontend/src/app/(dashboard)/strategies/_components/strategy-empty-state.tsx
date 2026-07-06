@@ -15,11 +15,8 @@ export function StrategyEmptyState() {
         TradingView에서 작성한 Pine Script를 붙여넣거나, 미리 준비된 템플릿에서 시작할 수 있습니다.
       </p>
       <div className="mt-6 flex justify-center gap-2">
-        <Button
-          render={<Link href="/strategies/new" />}
-          nativeButton={false}
-          className="rounded-md motion-safe:animate-[subtleHover_2s_ease-in-out_infinite]"
-        >
+        {/* Precision Instrument: subtleHover 코퍼 글로우 pulse 폐기 (DESIGN.md §6 글로우 전면 폐기) */}
+        <Button render={<Link href="/strategies/new" />} nativeButton={false}>
           <PlusIcon className="size-4" />새 전략 만들기
         </Button>
         <Button variant="outline" disabled>템플릿 둘러보기 (곧 지원)</Button>

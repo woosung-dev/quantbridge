@@ -21,7 +21,7 @@ export function EditorMonacoWrapper({
 }: EditorMonacoWrapperProps) {
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-[var(--radius-md,0.625rem)] bg-card ring-1 ring-inset ring-border"
+      className="flex flex-col overflow-hidden rounded-[var(--radius-md,0.625rem)] border border-border bg-card"
       data-testid="editor-monaco-wrapper"
     >
       {/* prototype 01: .editor-toolbar 36px / muted / file-tab primary(코퍼) 보더 */}

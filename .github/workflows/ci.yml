@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # stage/** — 리디자인 등 대형 작업의 웨이브 PR(base=stage/<theme>)에도 CI 발화
+    branches: [main, "stage/**"]
 
 # dorny/paths-filter가 PR 변경 파일 목록을 조회할 수 있도록 최소 권한 부여
 permissions:

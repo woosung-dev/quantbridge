@@ -2,6 +2,7 @@
 // 부모 (TradeDetailTable) 가 상태 owner. 본 컴포넌트는 controlled inputs.
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -222,12 +223,9 @@ export function TradeFilterRow({
       <div className="ml-auto flex items-center gap-2">
         {activeCount > 0 ? (
           <>
-            <span
-              aria-label={`활성 필터 ${activeCount}개`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
-            >
+            <Badge aria-label={`활성 필터 ${activeCount}개`}>
               필터 {activeCount}개
-            </span>
+            </Badge>
             <button
               type="button"
               onClick={onReset}

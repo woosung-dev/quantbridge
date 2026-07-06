@@ -11,12 +11,18 @@ import { expect, test } from "@playwright/test";
 
 test("landing page renders without render storm", async ({ page }) => {
   const responses: number[] = [];
-  page.on("response", (r) => responses.push(r.status()));
+  page.on("response", (r) => {
+    // 폰트 정적 자산은 카운트 제외 — Pretendard dynamic-subset 이 unicode-range
+    // 분할 woff2 를 다수 로드하는 건 의도된 전략(1회성 정적 fetch)이지 렌더 스톰이
+    // 아님. 본 어서션의 목적은 반복 data fetch(polling/loop) 검출.
+    if (r.url().endsWith(".woff2") || r.url().endsWith(".woff")) return;
+    responses.push(r.status());
+  });
 
   await page.goto("/");
   await expect(page).toHaveTitle(/QuantBridge/i);
 
-  // 네트워크 요청이 100건 초과면 polling/loop 의심
+  // 네트워크 요청이 50건 이상이면 polling/loop 의심
   expect(
     responses.filter((s) => s < 400).length,
     "landing should not trigger more than 50 successful requests",

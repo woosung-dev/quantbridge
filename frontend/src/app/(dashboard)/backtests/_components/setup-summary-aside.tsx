@@ -136,7 +136,7 @@ export function SetupSummaryAside({
 
   return (
     <aside
-      className="qb-card-fade-in sticky top-24 flex flex-col gap-3 rounded-[14px] border bg-card p-6 shadow-[var(--card-shadow)]"
+      className="qb-card-fade-in sticky top-24 flex flex-col gap-3 rounded-lg border bg-card p-6 shadow-card"
       aria-label="백테스트 설정 요약"
       data-testid="setup-summary-aside"
     >
@@ -181,13 +181,13 @@ export function SetupSummaryAside({
       <div className="border-t" aria-hidden="true" />
       {/* prototype runtime amber 카드 — full bg + border + 큰 폰트 (1.5rem). */}
       <div
-        className="flex flex-col gap-1 rounded-[10px] border border-[var(--accent-amber-light)] bg-[var(--accent-amber-light)] px-4 py-4"
+        className="flex flex-col gap-1 rounded-md border border-[var(--warning-subtle)] bg-[var(--warning-subtle)] px-4 py-4"
         data-testid="summary-runtime-card"
       >
-        <p className="text-[0.78rem] font-semibold text-[var(--accent-amber)]">
+        <p className="text-[0.78rem] font-semibold text-[var(--warning)]">
           예상 실행 시간
         </p>
-        <p className="font-mono text-[1.5rem] font-bold leading-none tracking-tight text-[var(--accent-amber)]">
+        <p className="font-mono text-[1.5rem] font-bold leading-none tracking-tight tabular-nums text-[var(--warning)]">
           {runtime}
         </p>
         <p className="text-[0.72rem] font-medium text-muted-foreground">

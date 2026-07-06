@@ -16,6 +16,8 @@
 
 import { useMemo } from "react";
 
+import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
+
 import {
   TradingChart,
   type ChartPoint,
@@ -129,7 +131,7 @@ export function ActivityTimelineChart({
               ? {
                   data: [...closesData],
                   options: {
-                    color: "#3b82f6",
+                    color: CHART_PALETTE_FALLBACK.benchmark,
                     lineWidth: 2,
                     lineStyle: 0, // solid (entries 도 solid 라 구분 위해 색상만 차이)
                     priceLineVisible: false,
@@ -139,7 +141,7 @@ export function ActivityTimelineChart({
               : undefined
           }
           options={{
-            color: "#22c55e",
+            color: CHART_PALETTE_FALLBACK.bullish,
             lineWidth: 2,
             priceFormat: {
               type: "price",
@@ -158,7 +160,7 @@ export function ActivityTimelineChart({
             <span
               aria-hidden="true"
               className="inline-block h-0.5 w-3"
-              style={{ backgroundColor: "#22c55e" }}
+              style={{ backgroundColor: "var(--bullish)" }}
             />
             Entries (window)
           </span>
@@ -166,7 +168,7 @@ export function ActivityTimelineChart({
             <span
               aria-hidden="true"
               className="inline-block h-0.5 w-3"
-              style={{ backgroundColor: "#3b82f6" }}
+              style={{ backgroundColor: "var(--chart-benchmark)" }}
             />
             Closes (window)
           </span>
@@ -175,7 +177,7 @@ export function ActivityTimelineChart({
               <span
                 aria-hidden="true"
                 className="inline-block h-0.5 w-3"
-                style={{ backgroundColor: "#f59e0b" }}
+                style={{ backgroundColor: "var(--chart-equity)" }}
               />
               Equity (PnL, USDT)
             </span>
@@ -188,7 +190,7 @@ export function ActivityTimelineChart({
           <TradingChart
             data={[...equityData]}
             options={{
-              color: "#f59e0b",
+              color: CHART_PALETTE_FALLBACK.equity,
               lineWidth: 2,
               priceFormat: {
                 type: "price",

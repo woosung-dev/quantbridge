@@ -9,17 +9,24 @@ import { koKR } from "@clerk/localizations";
 import { dark } from "@clerk/themes";
 import { useTheme } from "next-themes";
 import type { ReactNode } from "react";
+import { BRAND_PALETTE } from "@/lib/brand-palette";
 import { QueryProvider } from "./query-provider";
 
 export function ClerkThemeBridge({ children }: { children: ReactNode }) {
   const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   return (
     <ClerkProvider
       localization={koKR}
       appearance={{
-        baseTheme: resolvedTheme === "dark" ? dark : undefined,
-        variables: { colorPrimary: "#b45309" },
+        baseTheme: isDark ? dark : undefined,
+        // 코퍼는 테마별 등급이 다름(다크는 밝은 코퍼) — brand-palette SSOT 참조
+        variables: {
+          colorPrimary: isDark
+            ? BRAND_PALETTE.dark.primary
+            : BRAND_PALETTE.light.primary,
+        },
       }}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"

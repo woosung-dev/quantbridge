@@ -1,21 +1,21 @@
-// shadcn Button — DESIGN.md §7.1 + §8.1 토큰 정합 (transition 200ms / primary shadow / hover 미세 lift)
+// shadcn Button — DESIGN.md §7.1 토큰 정합 (Precision Instrument: 플랫, hover 는 색 변화만)
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  // DESIGN.md §7.1 primary CTA radius 10px = rounded-md (Tailwind v4 + globals.css @theme `--radius-md: 10px`)
-  // DESIGN.md §8.1 transition: all 200ms ease (motion-reduce 자동 비활성)
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all duration-200 ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 motion-reduce:transition-none motion-reduce:transform-none dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // DESIGN.md §7.1 radius-md 6px (globals.css @theme). transition 200ms ease-out.
+  // Precision Instrument: hover lift/글로우 폐기 — 색 변화만. active 는 1px 눌림 유지.
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all duration-200 ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 motion-reduce:transition-none motion-reduce:transform-none dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        // DESIGN.md §7.1 + §8.1: Primary CTA hover translateY(-1px) + shadow upgrade
+        // Primary CTA — 코퍼 solid, hover 는 코퍼 등급 변화만 (lift/shadow 승격 없음)
         default:
-          "bg-primary text-primary-foreground shadow-btn-primary hover:bg-primary-hover hover:-translate-y-px hover:shadow-btn-primary-hover [a]:hover:bg-primary/80",
+          "bg-primary text-primary-foreground shadow-btn-primary hover:bg-primary-hover [a]:hover:bg-primary/80",
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border-dark bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:

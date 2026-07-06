@@ -1,6 +1,7 @@
 // 사이드바 nav 항목 리스트 — pathname 기반 active state + disabled 항목 표시.
 // Sprint 45: dashboard-shell.tsx 에서 분리. props 로 sidebarOpen, pathname 받음.
-// Sprint 44-WC1 active 스타일 (primary-light bg + primary text + 3px border-left + pl-9px) 보존.
+// Precision Instrument: active = 캘리브레이션 틱 노치(.qb-tick-active) —
+// border-left 방식과 달리 레이아웃 시프트 없음 (pl 보정 불필요).
 
 import Link from "next/link";
 import {
@@ -55,7 +56,7 @@ export function DashboardNavList({ sidebarOpen, pathname }: DashboardNavListProp
         // motion-reduce:transition-none → prefers-reduced-motion 보호.
         const baseClass = cn(
           "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm",
-          "transition-[background-color,color,padding-left] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          "transition-[background-color,color] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
           "motion-reduce:transition-none",
           sidebarOpen ? "justify-start" : "justify-center",
         );
@@ -77,8 +78,8 @@ export function DashboardNavList({ sidebarOpen, pathname }: DashboardNavListProp
           );
         }
 
-        // Sprint 44-WC1: active = primary-light bg + primary text + 3px border-left
-        // + pl-9px (DESIGN.md §10.2 / prototype 06 .nav-item.active 정합).
+        // Precision Instrument: active = primary-light bg + primary text +
+        // 캘리브레이션 틱 노치 (globals.css .qb-tick-active).
         // hover = bg-alt (sidebar-accent) — active 와 명확히 구분.
         return (
           <Link
@@ -88,7 +89,7 @@ export function DashboardNavList({ sidebarOpen, pathname }: DashboardNavListProp
             className={cn(
               baseClass,
               isActive
-                ? "bg-[color:var(--primary-light)] text-[color:var(--primary)] font-medium border-l-[3px] border-[color:var(--primary)] pl-[9px]"
+                ? "qb-tick-active bg-[color:var(--primary-light)] font-medium text-[color:var(--primary)]"
                 : "text-[color:var(--muted-foreground)] hover:bg-[color:var(--sidebar-accent)] hover:text-[color:var(--sidebar-accent-foreground)]",
             )}
           >
