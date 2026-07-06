@@ -140,7 +140,7 @@ export function AssumptionsCard({
   return (
     <section
       aria-label="백테스트 가정"
-      className="rounded-xl border bg-muted/30 px-4 py-3"
+      className="rounded-lg border bg-muted/30 px-4 py-3"
     >
       <header className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium">백테스트 가정</h2>

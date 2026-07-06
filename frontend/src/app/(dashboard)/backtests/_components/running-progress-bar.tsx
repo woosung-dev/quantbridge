@@ -1,9 +1,10 @@
-// 백테스트 실행 상태 시각화 — prototype 09 의 .period-cell.running / .status-pill.running pulseDot 패턴.
+// 백테스트 실행 상태 시각화 — Precision Instrument TapeProgress (indeterminate) + pulse dot.
 //
-// running: indeterminate progress bar (pulse animation, 종료 시점 미상)
+// running: TapeProgress indeterminate (틱 페이드, 종료 시점 미상 — BE progress 에 % 없음)
 // queued: pulse dot + "대기" 라벨 (Celery 큐에 진입 후 worker pickup 전)
 // 그 외 status: null 반환 (호출 측에서 분기).
 
+import { TapeProgress } from "@/components/tape/tape-progress";
 import type { BacktestStatus } from "@/features/backtest/schemas";
 
 interface RunningProgressBarProps {
@@ -27,13 +28,11 @@ export function RunningProgressBar({ status, label }: RunningProgressBarProps) {
           style={{ animation: "qb-pulse-dot 1.6s infinite" }}
           aria-hidden="true"
         />
-        <span className="relative h-1 flex-1 overflow-hidden rounded-full bg-[color:var(--bg-alt)]">
-          <span
-            className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-[color:var(--primary)]"
-            style={{ animation: "qb-progress-indeterminate 1.4s ease-in-out infinite" }}
-            aria-hidden="true"
-          />
-        </span>
+        <TapeProgress
+          value={null}
+          className="h-2 flex-1"
+          ariaLabel={label ?? (status === "cancelling" ? "취소 중" : "실행 중")}
+        />
         <span className="font-mono text-[0.75rem] font-medium text-[color:var(--primary)]">
           {status === "cancelling" ? "취소 중…" : "실행 중…"}
         </span>

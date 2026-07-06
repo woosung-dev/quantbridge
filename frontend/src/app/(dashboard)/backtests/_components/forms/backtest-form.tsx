@@ -74,7 +74,7 @@ export function BacktestForm() {
     >
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="flex flex-col gap-5 rounded-[14px] border bg-card p-7 shadow-[var(--card-shadow)]"
+        className="flex flex-col gap-5 rounded-lg border bg-card p-7 shadow-card"
         aria-label="backtest-form"
       >
         <div className="flex flex-col gap-1.5">
@@ -192,14 +192,14 @@ export function BacktestForm() {
           onConverted={setConvertResult}
         />
 
-        {/* pine-compat-experiment — AI 변환 결과 표시. */}
+        {/* pine-compat-experiment — AI 변환 결과 표시 (검토 요구 알림 = warning 톤). */}
         {convertResult ? (
-          <div className="rounded-md border border-violet-300 bg-violet-50 p-3 text-sm dark:border-violet-700 dark:bg-violet-950">
-            <p className="mb-1 font-semibold text-violet-900 dark:text-violet-200">
+          <div className="rounded-md border border-warning/40 bg-warning-subtle p-3 text-sm">
+            <p className="mb-1 font-semibold text-warning">
               AI 변환 결과 — 검토 후 새 strategy 로 저장하세요.
             </p>
             {convertResult.warnings.length > 0 ? (
-              <ul className="mb-2 list-inside list-disc space-y-0.5 text-xs text-violet-800 dark:text-violet-300">
+              <ul className="mb-2 list-inside list-disc space-y-0.5 text-xs text-warning">
                 {convertResult.warnings.map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
@@ -209,11 +209,11 @@ export function BacktestForm() {
               readOnly
               value={convertResult.converted_code}
               rows={12}
-              className="w-full rounded border border-violet-200 bg-card p-2 font-mono text-xs leading-relaxed text-foreground dark:border-violet-700"
+              className="w-full rounded border border-border bg-card p-2 font-mono text-xs leading-relaxed text-foreground"
             />
             <button
               type="button"
-              className="mt-2 text-xs text-violet-700 underline hover:opacity-80 dark:text-violet-300"
+              className="mt-2 text-xs text-primary underline hover:opacity-80"
               onClick={() => {
                 void navigator.clipboard.writeText(convertResult.converted_code);
                 toast.success("클립보드에 복사됨");

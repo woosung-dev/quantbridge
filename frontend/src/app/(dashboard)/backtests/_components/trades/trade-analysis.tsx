@@ -149,7 +149,7 @@ function DirectionBadge({
   return (
     <div className="flex items-baseline gap-1.5 rounded-md border border-[color:var(--border)] px-4 py-2">
       <span className="text-xs text-[color:var(--text-muted)]">{label}</span>
-      <span className="text-xl font-bold">{value ?? "—"}</span>
+      <span className="font-mono text-xl font-bold tabular-nums">{value ?? "—"}</span>
       {value != null && (
         <span className="text-xs text-[color:var(--text-muted)]">건</span>
       )}
@@ -181,7 +181,7 @@ function RatioBar({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="w-16 text-right font-mono text-xs">
+      <span className="w-16 text-right font-mono text-xs tabular-nums">
         {(value * 100).toFixed(2)}%
       </span>
     </div>
@@ -218,11 +218,11 @@ function DirectionStatsCard({
       <dl className="mt-2 space-y-1 text-sm">
         <div className="flex justify-between">
           <dt className="text-[color:var(--text-muted)]">승률</dt>
-          <dd className="font-mono">{(stats.winRate * 100).toFixed(1)}%</dd>
+          <dd className="font-mono tabular-nums">{(stats.winRate * 100).toFixed(1)}%</dd>
         </div>
         <div className="flex justify-between">
           <dt className="text-[color:var(--text-muted)]">평균 PnL</dt>
-          <dd className="font-mono">
+          <dd className="font-mono tabular-nums">
             {sign}
             {stats.avgPnl.toFixed(2)}
           </dd>
