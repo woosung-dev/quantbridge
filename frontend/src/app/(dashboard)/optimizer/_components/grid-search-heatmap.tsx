@@ -69,8 +69,8 @@ export function GridSearchHeatmap({ result, pair }: Props) {
     const intensity = Math.min(100, (Math.abs(value) / maxAbs) * 100);
     const color =
       result.direction === "maximize"
-        ? value >= 0 ? "var(--success)" : "var(--destructive)"
-        : value <= 0 ? "var(--success)" : "var(--destructive)";
+        ? value >= 0 ? "var(--bullish)" : "var(--bearish)"
+        : value <= 0 ? "var(--bullish)" : "var(--bearish)";
     return `color-mix(in srgb, ${color} ${intensity}%, transparent)`;
   }
 
@@ -83,11 +83,11 @@ export function GridSearchHeatmap({ result, pair }: Props) {
     <div className="space-y-3 overflow-x-auto">
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
-          <ArrowUp className="h-3 w-3 text-success" aria-hidden="true" />{" "}
+          <ArrowUp className="h-3 w-3 text-bullish" aria-hidden="true" />{" "}
           {result.direction === "maximize" ? "유리" : "음수 우대"}
         </span>
         <span className="flex items-center gap-1">
-          <ArrowDown className="h-3 w-3 text-destructive" aria-hidden="true" />{" "}
+          <ArrowDown className="h-3 w-3 text-bearish" aria-hidden="true" />{" "}
           {result.direction === "maximize" ? "불리" : "양수 음수전환"}
         </span>
         <span>— 거래 0건 또는 NaN (degenerate)</span>
@@ -109,7 +109,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
             {yValues.map((v) => (
               <th
                 key={v}
-                className="p-1 text-xs font-medium"
+                className="p-1 font-mono text-xs font-medium tabular-nums"
                 scope="col"
               >
                 {v}
@@ -120,7 +120,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         <tbody>
           {xValues.map((x) => (
             <tr key={x}>
-              <th className="p-1 text-xs font-medium text-right" scope="row">
+              <th className="p-1 font-mono text-xs font-medium tabular-nums text-right" scope="row">
                 {x}
               </th>
               {yValues.map((y) => {
@@ -151,7 +151,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                   <td
                     key={`${x}-${y}`}
                     className={cn(
-                      "p-2 text-xs text-center min-w-[72px] border border-border tabular-nums",
+                      "p-2 font-mono text-xs text-center min-w-[72px] border border-border tabular-nums",
                       "focus:outline-2 focus:outline-primary focus:outline-offset-1",
                       cell.is_degenerate && "text-muted-foreground",
                       isBest && "outline outline-2 outline-primary outline-offset-[-2px]",

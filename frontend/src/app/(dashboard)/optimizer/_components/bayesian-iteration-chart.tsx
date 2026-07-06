@@ -70,12 +70,12 @@ export function BayesianIterationChart({ result }: Props) {
           best_so_far per iteration ({result.objective_metric}, {result.direction})
         </span>
         <span>
-          random warm-up: <strong className="text-foreground">{initialRandomBoundary}</strong>
-          {" · "}total: <strong className="text-foreground">{result.total_iterations}</strong>
+          random warm-up: <strong className="font-mono tabular-nums text-foreground">{initialRandomBoundary}</strong>
+          {" · "}total: <strong className="font-mono tabular-nums text-foreground">{result.total_iterations}</strong>
           {result.degenerate_count > 0 && (
             <>
               {" · "}degenerate:{" "}
-              <span className="text-warning">
+              <span className="font-mono tabular-nums text-warning">
                 {result.degenerate_count} / {result.total_iterations}
               </span>
             </>
@@ -156,7 +156,7 @@ export function BayesianIterationChart({ result }: Props) {
             />
           ))}
           {/* y axis labels */}
-          <text x={4} y={PAD + 4} fontSize={10} fill="currentColor" opacity={0.6}>
+          <text x={4} y={PAD + 4} fontSize={10} fill="currentColor" opacity={0.6} className="font-mono">
             {yMax.toFixed(3)}
           </text>
           <text
@@ -165,11 +165,12 @@ export function BayesianIterationChart({ result }: Props) {
             fontSize={10}
             fill="currentColor"
             opacity={0.6}
+            className="font-mono"
           >
             {yMin.toFixed(3)}
           </text>
           {/* x axis labels */}
-          <text x={PAD} y={H - 8} fontSize={10} fill="currentColor" opacity={0.6}>
+          <text x={PAD} y={H - 8} fontSize={10} fill="currentColor" opacity={0.6} className="font-mono">
             0
           </text>
           <text
@@ -179,6 +180,7 @@ export function BayesianIterationChart({ result }: Props) {
             fill="currentColor"
             opacity={0.6}
             textAnchor="end"
+            className="font-mono"
           >
             {xMax}
           </text>

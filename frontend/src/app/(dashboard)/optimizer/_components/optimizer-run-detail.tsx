@@ -147,13 +147,13 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                           .map(([k, v]) => `${k}=${v}`)
                           .join(", ")}
                       </td>
-                      <td className="p-2 text-right tabular-nums">
+                      <td className="p-2 text-right font-mono tabular-nums">
                         {c.objective_value === null ? "—" : c.objective_value.toFixed(4)}
                       </td>
-                      <td className="p-2 text-right tabular-nums">{c.sharpe ?? "—"}</td>
-                      <td className="p-2 text-right tabular-nums">{c.total_return}</td>
-                      <td className="p-2 text-right tabular-nums">{c.max_drawdown}</td>
-                      <td className="p-2 text-right tabular-nums">{c.num_trades}</td>
+                      <td className="p-2 text-right font-mono tabular-nums">{c.sharpe ?? "—"}</td>
+                      <td className="p-2 text-right font-mono tabular-nums">{c.total_return}</td>
+                      <td className="p-2 text-right font-mono tabular-nums">{c.max_drawdown}</td>
+                      <td className="p-2 text-right font-mono tabular-nums">{c.num_trades}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -205,12 +205,12 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                               .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
                               .join(", ")}
                           </td>
-                          <td className="p-2 text-right tabular-nums">
+                          <td className="p-2 text-right font-mono tabular-nums">
                             {it.objective_value === null
                               ? "—"
                               : it.objective_value.toFixed(4)}
                           </td>
-                          <td className="p-2 text-right tabular-nums">
+                          <td className="p-2 text-right font-mono tabular-nums">
                             {it.best_so_far === null
                               ? "—"
                               : it.best_so_far.toFixed(4)}
@@ -263,18 +263,18 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                           }
                         >
                           <td className="p-2 text-right font-mono tabular-nums">{it.idx}</td>
-                          <td className="p-2 tabular-nums">{it.generation}</td>
+                          <td className="p-2 font-mono tabular-nums">{it.generation}</td>
                           <td className="p-2 font-mono">
                             {Object.entries(it.params)
                               .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
                               .join(", ")}
                           </td>
-                          <td className="p-2 text-right tabular-nums">
+                          <td className="p-2 text-right font-mono tabular-nums">
                             {it.objective_value === null
                               ? "—"
                               : it.objective_value.toFixed(4)}
                           </td>
-                          <td className="p-2 text-right tabular-nums">
+                          <td className="p-2 text-right font-mono tabular-nums">
                             {it.best_so_far === null
                               ? "—"
                               : it.best_so_far.toFixed(4)}

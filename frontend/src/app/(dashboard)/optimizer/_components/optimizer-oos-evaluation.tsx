@@ -9,6 +9,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { WalkForwardBarChart } from "@/app/(dashboard)/backtests/_components/charts/walk-forward-bar-chart";
+import { TapeProgress } from "@/components/tape/tape-progress";
 import { Button } from "@/components/ui/button";
 import { useCreateWalkForward, useStressTest } from "@/features/backtest/hooks";
 import type { OptimizationKind, ParamSpace } from "@/features/optimizer/schemas";
@@ -93,6 +94,14 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind }: Props) 
               실행 중… (2초 간격 자동 새로고침 · fold별 재최적화는 시간이 더
               걸립니다)
             </p>
+          ) : null}
+
+          {isActive ? (
+            <TapeProgress
+              value={null}
+              ariaLabel="Walk-Forward OOS 검증 진행률"
+              className="mt-2"
+            />
           ) : null}
 
           {stressData?.status === "failed" ? (
