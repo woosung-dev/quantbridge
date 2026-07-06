@@ -32,9 +32,9 @@ export default function SignInPage() {
             dividerText: "text-[color:var(--text-muted)]",
           },
           variables: {
-            // 코퍼 브랜드 컬러. text/background 는 ClerkThemeBridge(baseTheme)가 라이트/다크 처리.
-            colorPrimary: "#b45309",
-            borderRadius: "10px",
+            // colorPrimary 는 ClerkThemeBridge 가 테마별 코퍼 등급으로 주입 — 여기서
+            // 재정의하면 다크 코퍼(#f08c2e)를 덮어써서 하드코딩 금지.
+            borderRadius: "6px",
           },
         }}
       />
