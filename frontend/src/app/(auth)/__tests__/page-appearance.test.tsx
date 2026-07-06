@@ -46,7 +46,10 @@ describe("(auth) Clerk appearance prop", () => {
     expect(appearance?.elements?.formButtonPrimary).toContain(
       "var(--radius-md)",
     );
-    expect(appearance?.variables?.borderRadius).toBe("10px");
+    // Precision Instrument radius-md=6px 정합 (구 10px)
+    expect(appearance?.variables?.borderRadius).toBe("6px");
+    // colorPrimary 는 ClerkThemeBridge 가 테마별 주입 — 페이지 재정의(하드코딩) 금지
+    expect(appearance?.variables).not.toHaveProperty("colorPrimary");
   });
 
   it("SignUp 페이지 — formFieldInput 에 --border 토큰 + radius=8px (prototype 정합)", () => {
