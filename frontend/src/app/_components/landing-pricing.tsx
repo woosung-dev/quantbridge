@@ -96,14 +96,14 @@ export function LandingPricing() {
             return (
               <article
                 key={plan.name}
-                className={`relative flex flex-col rounded-[14px] border p-7 transition-all duration-200 ${
+                className={`relative flex flex-col rounded-lg border p-7 transition-all duration-200 ${
                   isHi
-                    ? "border-[color:var(--primary)] bg-card shadow-btn-primary md:scale-[1.03]"
-                    : "border-[color:var(--border)] bg-card shadow-card hover:-translate-y-0.5 hover:shadow-card-hover"
+                    ? "border-[color:var(--primary)] bg-card shadow-card"
+                    : "border-[color:var(--border)] bg-card shadow-card hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:shadow-card-hover"
                 }`}
               >
                 {isHi && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-btn-primary">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-sm bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
                     인기
                   </span>
                 )}
@@ -112,7 +112,7 @@ export function LandingPricing() {
                   {plan.name}
                 </h3>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <span className="font-mono text-4xl font-extrabold text-[color:var(--text-primary)]">
+                  <span className="font-mono text-4xl font-semibold text-[color:var(--text-primary)] tabular-nums">
                     {plan.price}
                   </span>
                   {plan.priceSuffix && (
