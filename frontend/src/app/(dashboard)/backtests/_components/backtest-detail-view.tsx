@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 
+import { TapeProgress } from "@/components/tape/tape-progress";
 import { Button } from "@/components/ui/button";
 import { useBacktest, useBacktestProgress } from "@/features/backtest/hooks";
 import { formatDate } from "@/features/backtest/utils";
@@ -142,8 +143,8 @@ function InProgressCard({
         ? "실행 중"
         : "취소 중";
   return (
-    <div className="qb-card-fade-in flex items-center gap-3 rounded-xl border bg-card p-4">
-      <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-primary" />
+    <div className="qb-card-fade-in flex flex-col gap-3 rounded-lg border bg-card p-4">
+      <TapeProgress value={null} ariaLabel={`${label} 진행률`} />
       <p className="text-sm">
         {label}입니다. 결과가 준비되면 자동으로 화면이 전환됩니다. (30초 간격
         폴링)
@@ -160,7 +161,7 @@ function ErrorCard({
   onRetry: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+    <div className="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive-subtle p-4">
       <p className="text-sm text-destructive">{message}</p>
       <div>
         <Button variant="outline" size="sm" onClick={onRetry}>

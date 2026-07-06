@@ -89,7 +89,7 @@ export function TradeDetailShell({ id }: { id: string }) {
       {/* 요약 카드: 백테스트 메타 + 4 metric-mini */}
       <section
         aria-labelledby="trade-detail-summary-title"
-        className="flex flex-wrap items-center justify-between gap-6 rounded-xl border bg-card px-6 py-5 shadow-sm"
+        className="flex flex-wrap items-center justify-between gap-6 rounded-lg border bg-card px-6 py-5 shadow-card"
       >
         <div className="min-w-0 flex-1">
           <h1

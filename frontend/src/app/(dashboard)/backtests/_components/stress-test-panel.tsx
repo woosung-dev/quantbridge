@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { TapeProgress } from "@/components/tape/tape-progress";
 import { Button } from "@/components/ui/button";
 import {
   useCreateCostAssumption,
@@ -162,9 +163,12 @@ export function StressTestPanel({ backtestId }: Props) {
           ) : null}
 
           {stressData?.status === "running" ? (
-            <p className="text-sm text-muted-foreground">
-              실행 중… (2초 간격 자동 새로고침)
-            </p>
+            <div className="space-y-2">
+              <TapeProgress value={null} ariaLabel="스트레스 테스트 진행률" />
+              <p className="text-sm text-muted-foreground">
+                실행 중… (2초 간격 자동 새로고침)
+              </p>
+            </div>
           ) : null}
 
           {stressData?.status === "failed" ? (
