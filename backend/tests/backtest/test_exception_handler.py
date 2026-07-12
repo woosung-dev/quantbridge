@@ -130,10 +130,15 @@ def test_format_friendly_message_includes_workaround_for_known_builtin() -> None
     # category 라벨 (corruption) 은 항상 포함.
 
 
-def test_format_friendly_message_array_new_float_workaround() -> None:
-    """Pine v6 `array.new_float` — syntax category + 단일 series 변수 권장 안내."""
-    msg = format_friendly_message(["array.new_float"])
-    assert "array.new_float" in msg
+def test_format_friendly_message_array_sort_workaround() -> None:
+    """Pine v6 `array.sort` — syntax category + 단일 series 변수 재구성 권장 안내.
+
+    (2026-07-12 pine-batch QA #425 @9398a36) `array.new_*` 15종이 SUPPORTED 로 승격되며
+    `_UNSUPPORTED_WORKAROUNDS` 의 `array.new_float` entry 가 제거됨. 잔여 미지원 array.*
+    (avg/sort/new_color 등) 로 회귀 케이스를 갱신 — syntax 카테고리 + 단일 series 워크어라운드 경로 유지.
+    """
+    msg = format_friendly_message(["array.sort"])
+    assert "array.sort" in msg
     assert "Pine v6" in msg or "paradigm mismatch" in msg
     assert "단일 series" in msg or "ta.highest" in msg
 
