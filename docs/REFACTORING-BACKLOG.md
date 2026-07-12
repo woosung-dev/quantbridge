@@ -1176,20 +1176,24 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
-### BL-405
+### BL-405 — ❌ CLOSED: not-a-bug (오라클 전제 오류, 2026-07-12 재분류)
 
-**Title:** pine_v2 bool 시리즈 na→False 실체화 — indicator 워밍업 경계 스퓨리어스 시그널 (TV parity 편차)
+**Title:** ~~pine_v2 bool 시리즈 na→False 실체화 — 워밍업 스퓨리어스 시그널~~ → **재분류: 엔진이 TV 정답, 버그 아님**
 **Category:** Backend / pine_v2 na-semantics
-**Priority:** P2
-**Trigger:** 다음 pine_v2 TV-parity 사이클 (BL-374/376 na-semantics 계열 후속)
-**Est:** M (4-6h — bool 시리즈 na 전파는 비교 연산 반환 타입 설계 변경)
-**출처:** 2026-07-12 pine-batch QA 오라클 ② (`docs/qa/2026-07-12-pine-batch-1h4h/report.md` §4.2)
+**Priority:** ~~P2~~ → **CLOSED**
+**출처:** 2026-07-12 pine-batch QA 오라클 ② (`report.md` §4.2) → **2026-07-12 A+B+C Trust 번들에서 TV 공식문서로 반증**
 
-**원인 / 영향:** Pine 은 `na > x` 비교가 na 를 반환하고 na 조건은 false 로 평가되지만, 시리즈 자체에는 na 가 보존된다. pine_v2 는 nan 비교를 즉시 False 로 실체화 → `bullTrend = ta.ema(c,5) > ta.ema(c,13)` 같은 bool 시리즈가 워밍업 구간에서 "False" 값을 가진다. emaSlow 가 처음 정의되는 bar 에서 `bullTrend != bullTrend[1]` 이 False→True "전환" 으로 오인되어 **TV 에는 없는 진입 시그널 1건**이 생성된다 (bs 4h 2024 실측: 엔진 첫 트레이드 bar 12 long vs TV 시멘틱 bar 15 short — 순수 pandas 수계산 양 시멘틱 재현으로 확정). 워밍업 경계 1회성이라 장기 메트릭 왜곡은 제한적이나 TV 대조 시 트레이드 오프셋 발생.
+**재분류 결론:** BL-405 의 전제("Pine 비교는 na 를 반환하고 bool 시리즈에 na 가 보존된다")는 **TradingView 공식 문서로 반증됨** (r.jina.ai 리더로 verbatim 확보):
 
-**권장 접근:** 비교 연산에서 피연산자 na 시 na(nan) 반환 + `_truthy(nan)=False` 유지 + var_series 에 nan 보존. `!=`/`==` 의 na 처리(Pine: na==na → na)까지 포함. 골든 영향 사전 조사 필수 — runnable 코퍼스 5종 중 워밍업 경계 시그널 의존 스크립트 존재 시 베이스라인 재생성 (`--confirm` 게이트).
+- type-system: _"values of the 'bool' type are never na. Any 'bool' return type returns `false` instead of na if data is not available."_ → **bool 은 절대 na 아님**.
+- type-system: _"The ==, != operators, and all other comparison operators always return `false` if at least one of the operands is … `na`."_ → 비교는 na 피연산자에 **concrete false** (na 전파 아님). `!=` 도 false (True 아님 — 오라클이 놓친 지점).
+- type-system: bool history-ref on nonexistent bar → false. operators: _"If at least one operand is na, the result is also na."_ → **na 전파는 산술에만**.
 
-**Risk:** 🟡 (비교 연산은 전 스크립트 공통 경로 — 골든/parity 재검증 의무).
+→ **현재 pine_v2 동작(비교→False, bool never na, crossover→False, 산술→na)이 TV 정답이다.** 계획됐던 "비교/not/crossover 를 na 전파로 바꾸는 수정"은 TV 정합을 깨는 **회귀**였다 (미실행). 오라클 ②의 "TV=bar 15"는 bool na 전파를 잘못 가정한 계산 — 실제 TV 는 bool 을 na 로 만들지 않아 엔진처럼 bar 12 를 낸다(ta.ema 워밍업 동일 가정 하).
+
+**조치 (엔진 동작 무변경):** TV-정합 동작을 잠그는 회귀 테스트 13건 추가 (`tests/strategy/pine_v2/test_na_bool_tv_parity.py`) + `_eval_compare`(interpreter.py) / `ta_crossover|crossunder|cross`(stdlib.py) 오해 유발 주석 정정 + `report.md` §4.2 erratum. **bs bar12↔bar15 실측 편차의 진짜 후보는 bool-na 가 아니라 ta.ema 워밍업 시딩 → BL-409 로 분리 추적.**
+
+**Risk:** — (해소, 코드 동작 변경 없음).
 
 ---
 
@@ -1243,6 +1247,24 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **Risk:** 🟢 (표시 전용 — 시각 스냅샷 확인만).
 
 ---
+
+### BL-409
+
+**Title:** pine_v2 워밍업 TV-parity 잔여 2건 — (a) ta.ema 시딩 정합 (bs bar12↔bar15 실측 편차 진짜 후보) (b) bool[n] 범위밖 과거참조 nan vs TV false
+**Category:** Backend / pine_v2 warmup parity
+**Priority:** P3
+**Trigger:** 다음 pine_v2 TV-parity 사이클 (BL-405 재분류 후속) — 특히 (a)는 실제 TradingView 그라운드트루스 확보 시
+**Est:** M ((a) ta.ema 시딩 조사 2-4h — 단 확정엔 실제 TV 실행 대조 필요 / (b) XS, 관측 무영향이라 저순위)
+**출처:** 2026-07-12 A+B+C Trust 번들 — BL-405 재분류 과정에서 TV 문서 검증 + 회귀 테스트(`test_na_bool_tv_parity.py`)로 표면화
+
+**원인 / 영향:**
+
+- **(a) ta.ema 워밍업 시딩** — 엔진 `ta_ema`(stdlib.py:81-97)는 첫 `length-1` bar 를 nan 으로 두고 bar `length-1` 에서 SMA 로 시드. 실제 TradingView 의 ta.ema 워밍업 시작 bar/값이 다르면 emaSlow 가 다른 bar 에서 살아나 `bull != bull[1]` 첫 전환이 다른 bar 로 이동한다. **bs 4h 2024 의 엔진 bar 12 vs 오라클 주장 bar 15 편차의 진짜 후보** (bool-na 와 무관). 확정하려면 실제 TradingView 에서 bs 4h 2024 의 첫 시그널 bar + ta.ema(5)/ta.ema(13) 초기 시리즈를 관측해 엔진과 대조해야 함 (순수 pandas 오라클이 엔진과 같은 시딩을 가정하면 순환검증 — §7.3).
+- **(b) bool[n] 범위밖 과거참조** — `_eval_subscript`(interpreter.py:882-884)가 범위밖 history 를 타입 무관 nan 반환. bool 변수의 `b[1]` 이 bar 0 에서 nan (TV 는 false). 소비(비교/제어흐름)에서 `_truthy`/비교가 nan→false 로 소거 → **거래·시그널 영향 0** (test_na_bool_tv_parity.py 가 관측 등가 잠금). raw 저장 값만 편차.
+
+**권장 접근:** (a) 실제 TV ta.ema 초기 시리즈 캡처 → 엔진 시딩 규칙 대조/조정 (BL-378 ta.atr Wilder 검증 프로토콜 재사용 — TV 문서/실행 대조 + 수계산 오라클). (b) 관측 등가라 저순위 — 정적 bool 타입 추론 도입 시 함께 (pine_v2 동적 타입이라 난이도 있음).
+
+**Risk:** 🟢 ((a) 조사 우선; (b) 관측 무영향).
 
 ## Beta 오픈 번들 — 단일 milestone
 

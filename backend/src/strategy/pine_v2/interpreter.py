@@ -581,9 +581,7 @@ class Interpreter:
         if isinstance(iterable, (list, tuple)):
             items = iter(list(iterable))
         else:
-            raise PineRuntimeError(
-                f"for-in expects an array/tuple, got {type(iterable).__name__}"
-            )
+            raise PineRuntimeError(f"for-in expects an array/tuple, got {type(iterable).__name__}")
         names: list[str] = []
         if isinstance(target, pyne_ast.Name):
             names = [target.id]
@@ -634,9 +632,7 @@ class Interpreter:
           에서도 raise (부분 실행 금지).
         - `new_<type>` 의 initial_value 기본값은 TV 와 동일하게 na.
         """
-        args = [
-            self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
-        ]
+        args = [self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args]
         op = name.removeprefix("array.")
 
         if op.startswith("new_"):
@@ -685,9 +681,7 @@ class Interpreter:
             except (TypeError, ValueError, OverflowError):
                 raise PineRuntimeError(f"{name}: index is not an integer") from None
             if index < 0 or index >= len(arr):
-                raise PineRuntimeError(
-                    f"{name}: index {index} out of bounds (size {len(arr)})"
-                )
+                raise PineRuntimeError(f"{name}: index {index} out of bounds (size {len(arr)})")
             if op == "get":
                 return arr[index]
             arr[index] = args[2] if len(args) > 2 else float("nan")
@@ -835,7 +829,12 @@ class Interpreter:
             if fn is None:
                 raise PineRuntimeError(f"Unsupported compare: {op_name}")
             if _is_na(left) or _is_na(right):
-                # Pine의 na 전파 — 비교 결과도 na. Python bool로 표현 불가하므로 False 처리
+                # Pine: 비교 연산은 na 피연산자에 concrete **false** 반환 (na 전파 아님).
+                # TV type-system: "The ==, != operators, and all other comparison operators
+                # always return `false` if at least one of the operands is na" + "values of
+                # the 'bool' type are never na". 산술(_eval_binop)만 na 전파. 이 false 반환이
+                # TV 정답 — BL-405("na→False 실체화 버그") 는 오라클 전제 오류로 재분류(not-a-bug).
+                # 회귀 잠금: tests/strategy/pine_v2/test_na_bool_tv_parity.py.
                 return False
             if not fn(left, right):
                 return False
