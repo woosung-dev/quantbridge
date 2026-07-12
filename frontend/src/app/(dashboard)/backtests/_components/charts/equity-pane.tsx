@@ -75,7 +75,7 @@ export function EquityPane({
       height={height}
       ariaLabel={
         ariaLabel ??
-        "자본 곡선 (Equity, 실선 녹색) 및 Buy and Hold 벤치마크 (점선 파란색) 비교 — 단위는 PnL (USDT, 시작=0)"
+        "자본 곡선 (Equity, 실선 코퍼) 및 Buy and Hold 벤치마크 (점선 파란색) 비교 — 단위는 PnL (USDT, 시작=0)"
       }
     />
   );

@@ -40,7 +40,7 @@ describe("ChartLegend (Sprint 32-B BL-169)", () => {
     render(<ChartLegend />);
 
     expect(
-      screen.getByLabelText("Equity (자본 곡선): 실선 녹색"),
+      screen.getByLabelText("Equity (자본 곡선): 실선 코퍼"),
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText("Buy & Hold 벤치마크: 점선 파란색"),

@@ -80,7 +80,7 @@ export function KeyStatsStrip({ metrics, config }: KeyStatsStripProps) {
   return (
     <section
       aria-label="주요 통계"
-      className="rounded-xl border bg-card shadow-[var(--card-shadow)]"
+      className="rounded-lg border bg-card shadow-[var(--card-shadow)]"
       data-testid="key-stats-strip"
     >
       {/* 시그니처 — 키 스탯 스트립 상단 계측 눈금 (DESIGN.md §0.1) */}

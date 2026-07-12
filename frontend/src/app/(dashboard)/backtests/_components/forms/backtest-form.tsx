@@ -5,13 +5,7 @@ import { toast } from "sonner";
 
 import { FormErrorInline } from "@/components/form-error-inline";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 
@@ -81,31 +75,19 @@ export function BacktestForm() {
           <label htmlFor="strategy_id" className="text-sm font-medium">
             전략
           </label>
-          <Select
+          <SelectWithDisplayName
+            options={strategyItems.map((s) => ({ value: s.id, label: s.name }))}
             value={selectedStrategy}
             onValueChange={(v) =>
-              setValue("strategy_id", v ?? "", { shouldValidate: true })
+              setValue("strategy_id", v, { shouldValidate: true })
             }
-          >
-            <SelectTrigger id="strategy_id" aria-label="strategy select">
-              <SelectValue placeholder="전략을 선택하세요" />
-            </SelectTrigger>
-            <SelectContent>
-              {strategyItems.length === 0 ? (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                  사용 가능한 전략이 없습니다
-                </div>
-              ) : (
-                strategyItems.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+            placeholder="전략을 선택하세요"
+            emptyMessage="사용 가능한 전략이 없습니다"
+            ariaLabel="전략 선택"
+          />
           <input
             type="hidden"
+            id="strategy_id"
             {...register("strategy_id", { required: "전략을 선택하세요" })}
           />
           {errors.strategy_id ? (

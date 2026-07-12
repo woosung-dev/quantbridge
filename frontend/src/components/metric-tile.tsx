@@ -56,7 +56,7 @@ export function MetricTile({
         className,
       )}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </div>
       <div
