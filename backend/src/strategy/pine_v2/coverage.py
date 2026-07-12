@@ -19,6 +19,9 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from src.strategy.pine_v2._names import (
+    ARRAY_FUNCTIONS as _ARRAY_FUNCTIONS,
+)
+from src.strategy.pine_v2._names import (
     TA_FUNCTIONS as _TA_FUNCTIONS,
 )
 from src.strategy.pine_v2._names import (
@@ -158,7 +161,9 @@ _KNOWN_UNSUPPORTED_FUNCTIONS: frozenset[str] = frozenset(
 # 추가 enumeration 불필요 — namespace 차원에서 catch.
 _PINE_V6_COLLECTION_NAMESPACES: frozenset[str] = frozenset(
     {
-        "array",  # array.new_float / array.push / array.pop / array.size 등 모두 catch
+        # G2 (2026-07-12 QA): _names.ARRAY_FUNCTIONS 15종은 SUPPORTED 승격 —
+        # namespace 는 유지하여 잔여 array.* (avg/sort/new_color 등) 자동 catch.
+        "array",
         "matrix",  # matrix.new / matrix.set / matrix.get 등
         "map",  # map.new / map.put / map.get 등
     }
@@ -218,25 +223,14 @@ _UNSUPPORTED_WORKAROUNDS: dict[str, str] = {
     "fixnan": "nz() + 직전 값 캐싱 조합으로 대체 가능.",
     "time": "시간 기반 로직은 가격 기반 (close/open 변화) 권장. 필요 시 변수 추출.",
     "request.security": "단일 timeframe 전략으로 재구성 권장. Slice A graceful 가정 시 current bar 값 반환.",
-    # Sprint 31 A (BL-159+161): Pine v5/v6 collection types 미지원 안내.
-    # 공통 워크어라운드: 단일 series 변수 또는 ta.highest/lowest 등 stateful 지표.
-    "array.new_float": "Pine array<float> 미지원. 단일 series 변수 또는 ta.highest/lowest 등 stateful 지표로 대체.",
-    "array.new_int": "Pine array<int> 미지원. 단일 series 변수 사용.",
-    "array.new_bool": "Pine array<bool> 미지원. 단일 boolean series 변수 사용.",
-    "array.new_string": "Pine array<string> 미지원. 단일 string 변수 사용.",
+    # Sprint 31 A (BL-159+161) → G2 (2026-07-12 QA) 부분 지원 전환:
+    # _names.ARRAY_FUNCTIONS 15종(new_float/int/bool/string/line/label/box +
+    # push/pop/get/set/clear/size/shift/unshift)은 SUPPORTED 로 승격.
+    # 아래 잔여 array.* 는 여전히 미지원 — namespace catch 가 자동 등록.
     "array.new_color": "Pine array<color> 미지원. 시각 NOP 영역 — 제거 권장.",
-    "array.new_line": "Pine array<line> 미지원. 시각 NOP 영역 — 단일 line 변수 사용.",
-    "array.new_label": "Pine array<label> 미지원. 시각 NOP 영역 — 단일 label 변수 사용.",
-    "array.new_box": "Pine array<box> 미지원. 시각 NOP 영역 — 단일 box 변수 사용.",
     "array.new_table": "Pine array<table> 미지원. 시각 NOP 영역 — 단일 table 변수 사용.",
-    "array.push": "array.* 자체 미지원 → 호출 불필요. 단일 series 변수로 재구성.",
-    "array.pop": "array.* 자체 미지원 → 호출 불필요.",
-    "array.get": "array.* 자체 미지원 → 호출 불필요.",
-    "array.set": "array.* 자체 미지원 → 호출 불필요.",
-    "array.size": "array.* 자체 미지원 → 호출 불필요.",
-    "array.shift": "array.* 자체 미지원 → 호출 불필요.",
-    "array.unshift": "array.* 자체 미지원 → 호출 불필요.",
-    "array.clear": "array.* 자체 미지원 → 호출 불필요.",
+    "array.avg": "array 집계 미지원 — for 루프 + array.get 으로 직접 합산.",
+    "array.sort": "array 정렬 미지원 — 필요 시 단일 series 변수 재구성.",
     "matrix.new": "Pine matrix<T> 미지원. 2D 데이터는 외부 source 또는 다중 series 로 재구성.",
     "map.new": "Pine map<K,V> 미지원. dict-like 데이터는 외부 source 또는 lookup 변수로 재구성.",
 }
@@ -304,6 +298,7 @@ SUPPORTED_FUNCTIONS: frozenset[str] = (
     | _V4_ALIASES
     | _SECURITY_FUNCTIONS  # Sprint 29 Slice A: graceful request.security + v4 security
     | _HEIKINASHI_FUNCTIONS  # Sprint 29 Slice A (a): dogfood-only flag
+    | _ARRAY_FUNCTIONS  # G2 (2026-07-12 pine-batch QA): array.* 최소 서브셋 (_names SSOT)
 )
 
 # Built-in series variables (close/high/low/open/volume + ta.tr 등)
@@ -571,6 +566,7 @@ def _find_line(source: str, pattern: str) -> int | None:
 _DEGRADED_FUNCTIONS: frozenset[str] = frozenset(
     {
         "request.security",  # Slice A: 단일 timeframe 가정 graceful — 다른 TF 의도 시 거짓 양성
+        "security",  # G3 (2026-07-12 QA): v4 bare alias — request.security 와 동일 graceful 경로
         "heikinashi",  # Slice A (a) ADR: 일반 OHLC 그대로 반환 — Heikin-Ashi 결과 차이 가능
     }
 )

@@ -909,6 +909,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 **영향 파일:** `app/(dashboard)/optimizer/_components/optimizer-page-view.tsx` (:33, :65-90).
 
+**2026-07-12 pine-batch QA 실측 확장 (3사이트 추가):** (a) `backtests/_components/forms/backtest-form.tsx:84-106` **strategy picker** — 옵션 실클릭 후 트리거 raw UUID 노출 Playwright 실측 + 소스 감사로 원인 확정 (raw `Select`+자식 없는 `SelectValue`). (b) `report/trade-ledger-table.tsx:98-125` (c) `trades/trade-filter-row.tsx:116-141,202-211` 방향/결과 필터 — 동일 클래스 (value≠label), 선택 후 raw 토큰 노출 추정. 전부 `SelectWithDisplayName` 교체로 일괄 처리 (`equity-chart-with-compare.tsx:76` 선례). 상세: `docs/qa/2026-07-12-pine-batch-1h4h/report.md` §6.1.
+
 **Risk:** 🟢 (프리젠테이션 전용 — 선택 값 전달 로직 무변경).
 
 ---
@@ -1174,6 +1176,74 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-405
+
+**Title:** pine_v2 bool 시리즈 na→False 실체화 — indicator 워밍업 경계 스퓨리어스 시그널 (TV parity 편차)
+**Category:** Backend / pine_v2 na-semantics
+**Priority:** P2
+**Trigger:** 다음 pine_v2 TV-parity 사이클 (BL-374/376 na-semantics 계열 후속)
+**Est:** M (4-6h — bool 시리즈 na 전파는 비교 연산 반환 타입 설계 변경)
+**출처:** 2026-07-12 pine-batch QA 오라클 ② (`docs/qa/2026-07-12-pine-batch-1h4h/report.md` §4.2)
+
+**원인 / 영향:** Pine 은 `na > x` 비교가 na 를 반환하고 na 조건은 false 로 평가되지만, 시리즈 자체에는 na 가 보존된다. pine_v2 는 nan 비교를 즉시 False 로 실체화 → `bullTrend = ta.ema(c,5) > ta.ema(c,13)` 같은 bool 시리즈가 워밍업 구간에서 "False" 값을 가진다. emaSlow 가 처음 정의되는 bar 에서 `bullTrend != bullTrend[1]` 이 False→True "전환" 으로 오인되어 **TV 에는 없는 진입 시그널 1건**이 생성된다 (bs 4h 2024 실측: 엔진 첫 트레이드 bar 12 long vs TV 시멘틱 bar 15 short — 순수 pandas 수계산 양 시멘틱 재현으로 확정). 워밍업 경계 1회성이라 장기 메트릭 왜곡은 제한적이나 TV 대조 시 트레이드 오프셋 발생.
+
+**권장 접근:** 비교 연산에서 피연산자 na 시 na(nan) 반환 + `_truthy(nan)=False` 유지 + var_series 에 nan 보존. `!=`/`==` 의 na 처리(Pine: na==na → na)까지 포함. 골든 영향 사전 조사 필수 — runnable 코퍼스 5종 중 워밍업 경계 시그널 의존 스크립트 존재 시 베이스라인 재생성 (`--confirm` 게이트).
+
+**Risk:** 🟡 (비교 연산은 전 스크립트 공통 경로 — 골든/parity 재검증 의무).
+
+---
+
+### BL-406
+
+**Title:** DrFXGOD 잔여 미지원 builtin 5종 — ta.alma / ta.dmi / time() 호출형 / ticker.new / request.security_lower_tf
+**Category:** Backend / pine_v2 coverage
+**Priority:** P3
+**Trigger:** 사용자 DrFXGOD 류 대형 indicator 수요 재확인 시
+**Est:** M (ta.alma/ta.dmi 각 2-3h + time() stub 1h) / ticker.new·security_lower_tf 는 별도 설계 필요
+**출처:** 2026-07-12 pine-batch QA (`docs/qa/2026-07-12-pine-batch-1h4h/report.md` §2)
+
+**원인 / 영향:** G2(array 15종) 이후 DrFXGOD_indicator_hard(=i3_drfx) 의 잔여 차단 표면. (a) `ta.alma`(Arnaud Legoux MA)·`ta.dmi`(DMI/ADX) 는 순수 지표 — stdlib 추가로 feasible. (b) `time("")` 호출형은 timestamp stub 확장으로 feasible. (c) `ticker.new` + `request.security_lower_tf` 는 멀티심볼·하위 TF 데이터 패러다임 — 단일 TF 백테스트 전제 밖(거부 유지가 정직). (a)+(b) 만 구현해도 DrFXGOD 는 (c) 로 여전히 차단 — **전체 지원 목표가 아니라 (a)(b) 의 범용 가치로 판단할 것**.
+
+**권장 접근:** ta.alma/ta.dmi 를 `_names.TA_FUNCTIONS` + stdlib `_call` 에 추가 (BL-378 ta.atr Wilder 검증 프로토콜 재사용 — TV 문서 대조 + 수계산 오라클). time() 은 bar timestamp 반환 stub. (c) 는 workaround 텍스트 유지.
+
+**Risk:** 🟢 (신규 함수 추가 — 기존 경로 무변경).
+
+---
+
+### BL-407
+
+**Title:** 백테스트 리포트 낙폭(Drawdown) 차트 Y축 눈금 전부 "-0.1%" 동일 표기 — 축 포맷터 정밀도/단위 버그
+**Category:** Frontend / backtest 리포트 차트
+**Priority:** P3
+**Trigger:** backtest 리포트 차트 polish 사이클
+**Est:** XS (0.5-1h)
+**출처:** 2026-07-12 pine-batch QA Playwright 실측 (`docs/qa/2026-07-12-pine-batch-1h4h/screenshots/03-backtest-report-1h.png`)
+
+**원인 / 영향:** MDD -59.91% 인 리포트에서 낙폭 미니차트 Y축 눈금 4개가 모두 "-0.1%" 로 표기 (현재값 배지도 -0.1%). 시리즈 형상은 정상 변동 — 눈금 라벨 포맷터가 ratio(-0.0~-0.6)를 %로 변환할 때 정밀도가 뭉개지거나 tick 간격 계산이 단위 불일치로 보임. 시각 신뢰 훼손 (Surface Trust ADR-019 관점).
+
+**권장 접근:** lightweight-charts drawdown pane 의 priceFormat/tickMarkFormatter 확인 — ratio→% 변환 위치와 `precision` 옵션 정합. 라이트/다크 양 테마 + 1M/3M/6M/전체 기간 스위치 회귀 확인.
+
+**Risk:** 🟢 (표시 전용).
+
+---
+
+### BL-408
+
+**Title:** 리포트/위저드 Precision Instrument 폴리시 잔여물 팩 (stale aria-label 색명 + radius/글래스/레이블 어휘 6건)
+**Category:** Frontend / 디자인 시스템 정합
+**Priority:** P3
+**Trigger:** 다음 FE polish 사이클 (BL-402 처리와 묶음 권장 — 파일 겹침)
+**Est:** S (2-3h — 전부 표시 전용)
+**출처:** 2026-07-12 pine-batch QA 디자인 감사 (`docs/qa/2026-07-12-pine-batch-1h4h/report.md` §6.1)
+
+**원인 / 영향:** W6 잔여물 + 리디자인 이후 미세 드리프트 묶음. (1) `charts/chart-legend.tsx:51`·`charts/equity-pane.tsx:78` aria-label "실선 녹색" — 실제 equity 색은 코퍼, 스크린리더에 틀린 색 전달 (P2급, 팩 내 최우선. E2E getByLabelText 2건 동반 수정). (2) `report/key-stats-strip.tsx:83`·`report/performance-chart.tsx:42` 히어로 카드 `rounded-xl`(14px) — DESIGN.md §5 카드 규격은 10px. (3) `charts/chart-legend.tsx:44` `bg-card/80 backdrop-blur` 글래스 잔존 — v3 플랫+1px 보더 원칙 위반 (스코프 내 유일). (4) `components/metric-tile.tsx:60` 레이블 sans 10px — §0.1 mono 11px tracking 0.14em 규격과 분열. (5) `report/trade-ledger-table.tsx` 금액 셀 mono/tabular 혼용. (6) `--destructive-light` alias 잔존 + 영문 aria-label("strategy select" 등). DESIGN.md §11 표의 "백테스트 결과 = Light" 는 v2 스냅샷 잔재 — 문서 정리 동반.
+
+**권장 접근:** 항목별 1-line 수정 (전부 표시/문서 전용, 로직 무변경). BL-402 SelectWithDisplayName 교체 PR 에 동승 가능.
+
+**Risk:** 🟢 (표시 전용 — 시각 스냅샷 확인만).
+
+---
+
 ## Beta 오픈 번들 — 단일 milestone
 
 > **deferred** — Beta 본격 진입 trigger (BL-005 self-assessment ≥ 7/10 + 본인 의지 second gate) 도래 시 main 으로 row 이동.
@@ -1247,7 +1317,13 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 > Sprint 별 BL 변경 1-line 요약. 상세는 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 또는 해당 sprint dev-log.
 
-### 데모 라이브 dogfood (2026-07-05)
+### pine-batch QA + 엔진 개선 루프 (2026-07-12)
+
+- **신규 4건**: BL-405(P2, pine_v2 bool na→False 실체화 — 워밍업 경계 스퓨리어스 시그널, 오라클 수계산으로 확정) + BL-406(P3, DrFXGOD 잔여 5종 — alma/dmi/time feasible, ticker.new/security_lower_tf 패러다임 밖) + BL-407(P3, 낙폭 차트 Y축 눈금 "-0.1%" 뭉개짐) + BL-408(P3, 디자인 폴리시 잔여물 팩 — stale aria-label 색명 등 6건).
+- **기존 확장 1건**: BL-402 에 3사이트 추가 — `backtests/new` strategy picker(UUID 실측+원인 확정) + 원장/필터 Select 2파일 동일 클래스.
+- **디자인 감사 총평**: strategies/new + 리포트 페이지 AI-slop 판정 **명백한 부정** — raw hex 0/팔레트 클래스 0/이모지 0, 다크·라이트 양 테마 변수 완비.
+- **엔진 즉시 해소 5건 (BL 미경유)**: G1 루프 silent skip / G2 array 15종 / G3 bare security degraded / G4 table.new positional / G5 label.style\_ drift — PR #422, 스위트 778→815 그린.
+- **데이터 정직성**: `BTCUSDT_1h.csv` 합성 데이터(OHLC 위반 77%)를 실 Bybit perp 로 교체 + 4h/최근1년 3세트 신설 — PR #421.
 
 - **신규 1건 + 즉시 해소**: BL-404(P1, watchdog `fetch_order` Bybit 전면 실패 — ccxt acknowledged 게이트 + futures 심볼 미정규화 2중 결함) ✅ Resolved 동일 PR. 데모 라이브 세션 실주문 dogfood(코크핏/블로터 3면 검증 PASS)에서 실측 발견.
 - **미등재 관찰(후보)**: 신규 세션 첫 evaluate 전 `/state` 404 FE 콘솔 노이즈 / host 기동 `/healthz` celery inspect ping 상시 timeout / ws_stream 큐의 삭제된 계정 태스크 잔재 / `fetch_mark_price` spot 티커 근사(BL-404 본문 기재).
