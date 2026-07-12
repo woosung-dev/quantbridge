@@ -8,7 +8,11 @@ SUPPORTED 0건 + `_KNOWN_NAMESPACES` 미등록 → false positive 방지 명목�
 Fix: `_KNOWN_NAMESPACES` 에 `array` / `matrix` / `map` 추가 → `_is_pine_namespace`
 True 반환 → SUPPORTED_FUNCTIONS 에 없음 → unsupported_functions 자동 등록 → 422 reject.
 
-Sprint Y1 trust layer 패턴 답습: pre-flight 단계에서 명시적 unsupported 노출.
+**G2 갱신 (2026-07-12 pine-batch QA)**: `_names.ARRAY_FUNCTIONS` 15종
+(new_float/int/bool/string/line/label/box + push/pop/get/set/clear/size/shift/unshift)
+이 실제 인터프리터 지원으로 승격 — dogfood Day 3 root cause 는 이제 "차단" 이 아니라
+"실행" 으로 해소. 잔여 array.* (avg/sort/new_color 등) + matrix/map 은 여전히
+namespace catch 로 pre-flight 차단 (부분 실행 금지 Golden Rule).
 """
 
 from __future__ import annotations
@@ -31,11 +35,10 @@ from src.strategy.pine_v2.coverage import analyze_coverage
         ("array.new_string(0)", "array.new_string"),
     ],
 )
-def test_array_new_typed_caught_as_unsupported(func_call: str, fn_name: str) -> None:
-    """Pine v6 `array.new_<type>(...)` 가 pre-flight 에서 unsupported_functions 로 catch.
+def test_array_new_typed_now_supported(func_call: str, fn_name: str) -> None:
+    """G2 (2026-07-12): `array.new_<type>` 4종은 SUPPORTED 승격 — pre-flight 통과.
 
-    dogfood Day 3 root cause: false negative → runtime fail.
-    Sprint 31 A fix: `_KNOWN_NAMESPACES` 에 `array` 등록.
+    dogfood Day 3 root cause 의 최종 해소 형태 (차단 → 실행).
     """
     src = f"""
 //@version=6
@@ -43,59 +46,45 @@ indicator("Buy Sell Signal")
 arr = {func_call}
 """
     r = analyze_coverage(src)
-    assert not r.is_runnable, (
-        f"{fn_name} should be unsupported (Pine v6 array<type> 미지원). "
+    assert r.is_runnable, (
+        f"{fn_name} 은 G2 승격 이후 supported 여야 함. "
         f"unsupported_functions={r.unsupported_functions}"
     )
-    assert fn_name in r.unsupported_functions, (
-        f"expected {fn_name} in unsupported_functions, got {r.unsupported_functions}"
-    )
 
 
-def test_array_push_caught_as_unsupported() -> None:
-    """`array.push(...)` 도 unsupported (mutation method)."""
+def test_array_push_pop_now_supported() -> None:
+    """G2: push/pop mutation 도 SUPPORTED 승격."""
     src = """
 //@version=6
 indicator("Buy Sell Signal")
 myArr = array.new_float(0)
 array.push(myArr, close)
-"""
-    r = analyze_coverage(src)
-    assert not r.is_runnable
-    assert "array.push" in r.unsupported_functions
-    assert "array.new_float" in r.unsupported_functions
-
-
-def test_array_pop_caught_as_unsupported() -> None:
-    """`array.pop(...)` 도 unsupported."""
-    src = """
-//@version=6
-indicator("BS")
-myArr = array.new_float(0)
 v = array.pop(myArr)
 """
     r = analyze_coverage(src)
-    assert not r.is_runnable
-    assert "array.pop" in r.unsupported_functions
+    assert r.is_runnable, f"unsupported={r.all_unsupported}"
 
 
 def test_array_workaround_message_present() -> None:
-    """Sprint Y1 trust layer 패턴: unsupported_calls 안에 workaround 안내 포함."""
+    """Sprint Y1 trust layer 패턴: 잔여 미지원 array.* 에 workaround 안내 포함.
+
+    G2 이후 미지원 대표 = array.avg (집계 계열).
+    """
     src = """
 //@version=6
 indicator("BS")
 arr = array.new_float(10)
+v = array.avg(arr)
 """
     r = analyze_coverage(src)
     assert not r.is_runnable
-    # unsupported_calls 안에 array.new_float 항목 + workaround 메시지.
-    matched = [c for c in r.unsupported_calls if c["name"] == "array.new_float"]
-    assert matched, f"unsupported_calls 에 array.new_float 누락. got={r.unsupported_calls}"
+    matched = [c for c in r.unsupported_calls if c["name"] == "array.avg"]
+    assert matched, f"unsupported_calls 에 array.avg 누락. got={r.unsupported_calls}"
     call = matched[0]
     assert call["category"] == "syntax", (
-        f"array.* 는 v6 type system 갭 (syntax category), got {call['category']}"
+        f"array.* 잔여는 v6 type system 갭 (syntax category), got {call['category']}"
     )
-    assert call["workaround"] is not None and "단일 series" in call["workaround"], (
+    assert call["workaround"] is not None and "루프" in call["workaround"], (
         f"워크어라운드 안내 누락. got={call['workaround']}"
     )
 
@@ -182,7 +171,12 @@ foo = bar.baz()
 
 
 def test_dogfood_day3_user_strategy_bs_pattern() -> None:
-    """dogfood Day 3 사용자 Pine v6 strategy "bs" 패턴 — array.new_float pre-flight catch."""
+    """dogfood Day 3 사용자 Pine v6 strategy "bs" 패턴 — G2 승격 후 pre-flight 통과.
+
+    Sprint 31 A 는 이 패턴을 "차단" 으로 해소했고 (false negative → 422),
+    G2 (2026-07-12) 는 실제 array 지원으로 "실행" 까지 해소. 회귀 방향이 반전됨:
+    이 테스트가 다시 실패하면 array 지원이 깨진 것.
+    """
     src = """
 //@version=6
 indicator("Buy Sell Signal", overlay=true)
@@ -194,10 +188,6 @@ if ta.crossover(src, ta.sma(src, length))
     array.push(buyLevels, src)
 """
     r = analyze_coverage(src)
-    assert not r.is_runnable, "dogfood Day 3 root cause 가 여전히 false negative."
-    assert "array.new_float" in r.unsupported_functions
-    assert "array.push" in r.unsupported_functions
-    # category 분류 확인
-    by_name = {c["name"]: c for c in r.unsupported_calls}
-    assert by_name["array.new_float"]["category"] == "syntax"
-    assert by_name["array.push"]["category"] == "syntax"
+    assert r.is_runnable, (
+        f"dogfood Day 3 패턴은 G2 이후 runnable 이어야 함. unsupported={r.all_unsupported}"
+    )

@@ -248,6 +248,30 @@ class PineRuntimeError(RuntimeError):
     """Pine 실행 중 발생한 오류 (미지원 노드, 미정의 변수 등)."""
 
 
+# G1 (2026-07-12 pine-batch QA) — 루프 제어 흐름. PineRuntimeError 서브클래스라
+# 루프 밖 stray break/continue 는 strict 모드에서 그대로 loud 하게 전파된다.
+class LoopBreak(PineRuntimeError):
+    """`break` — 가장 안쪽 루프 핸들러가 catch."""
+
+
+class LoopContinue(PineRuntimeError):
+    """`continue` — 가장 안쪽 루프 핸들러가 catch."""
+
+
+# TV 는 loop 당 500ms 시간 제한 → 본 엔진은 결정적 iteration 상한 채택.
+_LOOP_ITERATION_CAP = 100_000
+
+# Expr 로 래핑되어 오는 문장형 노드 (pynescript 는 top-level 문장을 Expr(value=...) 로 감쌈)
+_STATEMENT_EXPR_NODES = (
+    pyne_ast.If,
+    pyne_ast.ForTo,
+    pyne_ast.ForIn,
+    pyne_ast.While,
+    pyne_ast.Break,
+    pyne_ast.Continue,
+)
+
+
 class Interpreter:
     """Pine AST interpreter — per-bar 실행.
 
@@ -339,27 +363,39 @@ class Interpreter:
     # ---- 문장 디스패치 -------------------------------------------------
 
     def _exec_stmt(self, node: Any) -> None:
+        if isinstance(node, pyne_ast.Expr):
+            # pynescript는 top-level 문장(if/for/while/break/continue)을
+            # Expr(value=...)로 래핑함 — 문장형이면 unwrap 후 아래 디스패치로.
+            inner = node.value
+            if isinstance(inner, _STATEMENT_EXPR_NODES):
+                node = inner
+            else:
+                # 표현식 문장: 호출 등 side-effect만 있는 것 (e.g., alert)
+                self._eval_expr(inner)
+                return
         if isinstance(node, pyne_ast.Assign):
             self._exec_assign(node)
         elif isinstance(node, pyne_ast.ReAssign):
             self._exec_reassign(node)
         elif isinstance(node, pyne_ast.If):
             self._exec_if(node)
-        elif isinstance(node, pyne_ast.Expr):
-            # pynescript는 top-level `if`를 Expr(value=If(...))로 래핑함
-            inner = node.value
-            if isinstance(inner, pyne_ast.If):
-                self._exec_if(inner)
-            else:
-                # 표현식 문장: 호출 등 side-effect만 있는 것 (e.g., alert)
-                self._eval_expr(inner)
+        elif isinstance(node, pyne_ast.ForTo):
+            self._exec_for_to(node)
+        elif isinstance(node, pyne_ast.ForIn):
+            self._exec_for_in(node)
+        elif isinstance(node, pyne_ast.While):
+            self._exec_while(node)
+        elif isinstance(node, pyne_ast.Break):
+            raise LoopBreak("break outside loop")
+        elif isinstance(node, pyne_ast.Continue):
+            raise LoopContinue("continue outside loop")
         elif isinstance(node, pyne_ast.FunctionDef):
             # Pine user function 정의: top-level에서만 등록. 호출은 _eval_call에서 dispatch.
             # (함수 내부 중첩 함수 정의는 H2+ — Pine 공식 범위 밖.)
             if not self._scope_stack:
                 self._user_functions[node.name] = node
         else:
-            # Return, for/while 등 Day 1-2 범위 밖 — 조용히 skip
+            # Return 등 잔여 범위 밖 노드 — 조용히 skip
             pass
 
     def _exec_assign(self, node: Any) -> None:
@@ -477,6 +513,192 @@ class Interpreter:
         else:
             for stmt in node.orelse or []:
                 self._exec_stmt(stmt)
+
+    # ---- 루프 (G1, 2026-07-12 pine-batch QA) ---------------------------
+
+    def _set_loop_var(self, name: str, value: Any) -> None:
+        """루프 카운터를 현재 스코프(함수 frame 또는 transient)에 기록."""
+        if self._scope_stack:
+            self._scope_stack[-1][name] = value
+        else:
+            self._transient[name] = value
+
+    def _run_loop_body(self, body: list[Any]) -> bool:
+        """루프 body 1회 실행. break 발생 시 True 반환 (루프 종료 신호)."""
+        try:
+            for stmt in body:
+                self._exec_stmt(stmt)
+        except LoopContinue:
+            return False
+        except LoopBreak:
+            return True
+        return False
+
+    def _exec_for_to(self, node: Any) -> None:
+        """`for i = from to to [by step]` — TV 시멘틱.
+
+        - 양 끝 **inclusive**.
+        - 방향 자동: to > from 상향, to < from 하향 (`for i = 1 to 0` 은 1, 0 두 번).
+        - `by step` 은 양수 크기 — 방향은 여전히 from/to 비교가 결정.
+        """
+        target = getattr(node, "target", None)
+        if not isinstance(target, pyne_ast.Name):
+            raise PineRuntimeError("for loop counter must be an identifier")
+        start = self._eval_expr(node.start)
+        end = self._eval_expr(node.end)
+        for bound, label in ((start, "from"), (end, "to")):
+            if bound is None or (isinstance(bound, float) and math.isnan(bound)):
+                raise PineRuntimeError(f"for loop '{label}' bound is na")
+        step_mag: Any = 1
+        if getattr(node, "step", None) is not None:
+            raw_step = self._eval_expr(node.step)
+            if raw_step is None or (isinstance(raw_step, float) and math.isnan(raw_step)):
+                raise PineRuntimeError("for loop 'by' step is na")
+            step_mag = abs(raw_step)
+            if step_mag == 0:
+                raise PineRuntimeError("for loop 'by' step must be non-zero")
+        direction = 1 if end >= start else -1
+        step = step_mag * direction
+
+        counter = start
+        iterations = 0
+        while (direction > 0 and counter <= end) or (direction < 0 and counter >= end):
+            iterations += 1
+            if iterations > _LOOP_ITERATION_CAP:
+                raise PineRuntimeError(
+                    f"for loop exceeded {_LOOP_ITERATION_CAP} iterations (runaway guard)"
+                )
+            self._set_loop_var(target.id, counter)
+            if self._run_loop_body(node.body):
+                break
+            counter = counter + step
+
+    def _exec_for_in(self, node: Any) -> None:
+        """`for x in collection` — array 등 시퀀스 순회 (G2 array.* 와 조합)."""
+        target = getattr(node, "target", None)
+        iterable = self._eval_expr(node.iter)
+        items: Iterator[Any]
+        if isinstance(iterable, (list, tuple)):
+            items = iter(list(iterable))
+        else:
+            raise PineRuntimeError(
+                f"for-in expects an array/tuple, got {type(iterable).__name__}"
+            )
+        names: list[str] = []
+        if isinstance(target, pyne_ast.Name):
+            names = [target.id]
+        elif isinstance(target, pyne_ast.Tuple):
+            # `for [i, x] in arr` — index + 원소 동시 바인딩
+            for elt in target.elts:
+                if not isinstance(elt, pyne_ast.Name):
+                    raise PineRuntimeError("for-in target must be identifier or [index, value]")
+                names.append(elt.id)
+            if len(names) != 2:
+                raise PineRuntimeError("for-in tuple target must be [index, value]")
+        else:
+            raise PineRuntimeError("for-in target must be identifier or [index, value]")
+
+        for index, item in enumerate(items):
+            if index >= _LOOP_ITERATION_CAP:
+                raise PineRuntimeError(
+                    f"for-in loop exceeded {_LOOP_ITERATION_CAP} iterations (runaway guard)"
+                )
+            if len(names) == 1:
+                self._set_loop_var(names[0], item)
+            else:
+                self._set_loop_var(names[0], index)
+                self._set_loop_var(names[1], item)
+            if self._run_loop_body(node.body):
+                break
+
+    def _exec_while(self, node: Any) -> None:
+        """`while cond` — 매 iteration 전 조건 평가 (TV 시멘틱)."""
+        iterations = 0
+        while self._truthy(self._eval_expr(node.test)):
+            iterations += 1
+            if iterations > _LOOP_ITERATION_CAP:
+                raise PineRuntimeError(
+                    f"while loop exceeded {_LOOP_ITERATION_CAP} iterations (runaway guard)"
+                )
+            if self._run_loop_body(node.body):
+                break
+
+    # ---- array.* (G2, 2026-07-12 pine-batch QA) -------------------------
+
+    def _eval_array_call(self, name: str, node: Any) -> Any:
+        """`array.*` 최소 서브셋 — `_names.ARRAY_FUNCTIONS` 와 1:1.
+
+        - Pine array 는 참조 타입 → Python list. TV 와 동일하게 범위 밖 index 는
+          runtime error (loud PineRuntimeError).
+        - 미등재 array 함수는 coverage preflight 가 차단하지만, 방어적으로 runtime
+          에서도 raise (부분 실행 금지).
+        - `new_<type>` 의 initial_value 기본값은 TV 와 동일하게 na.
+        """
+        args = [
+            self._eval_expr(a.value if isinstance(a, pyne_ast.Arg) else a) for a in node.args
+        ]
+        op = name.removeprefix("array.")
+
+        if op.startswith("new_"):
+            if op not in (
+                "new_float",
+                "new_int",
+                "new_bool",
+                "new_string",
+                "new_line",
+                "new_label",
+                "new_box",
+            ):
+                raise PineRuntimeError(f"array function not supported: {name}")
+            size_raw = args[0] if args else 0
+            try:
+                size = int(size_raw)
+            except (TypeError, ValueError, OverflowError):
+                size = 0
+            if size < 0:
+                raise PineRuntimeError(f"{name}: negative size {size}")
+            initial = args[1] if len(args) > 1 else float("nan")  # TV 기본 = na
+            return [initial] * size
+
+        if not args or not isinstance(args[0], list):
+            got = type(args[0]).__name__ if args else "no argument"
+            raise PineRuntimeError(f"{name}: first argument must be an array, got {got}")
+        arr: list[Any] = args[0]
+
+        if op == "push":
+            arr.append(args[1] if len(args) > 1 else float("nan"))
+            return None
+        if op == "pop":
+            if not arr:
+                raise PineRuntimeError("array.pop: index out of bounds (array is empty)")
+            return arr.pop()
+        if op == "shift":
+            if not arr:
+                raise PineRuntimeError("array.shift: index out of bounds (array is empty)")
+            return arr.pop(0)
+        if op == "unshift":
+            arr.insert(0, args[1] if len(args) > 1 else float("nan"))
+            return None
+        if op in ("get", "set"):
+            try:
+                index = int(args[1])
+            except (TypeError, ValueError, OverflowError):
+                raise PineRuntimeError(f"{name}: index is not an integer") from None
+            if index < 0 or index >= len(arr):
+                raise PineRuntimeError(
+                    f"{name}: index {index} out of bounds (size {len(arr)})"
+                )
+            if op == "get":
+                return arr[index]
+            arr[index] = args[2] if len(args) > 2 else float("nan")
+            return None
+        if op == "clear":
+            arr.clear()
+            return None
+        if op == "size":
+            return len(arr)
+
+        raise PineRuntimeError(f"array function not supported: {name}")
 
     # ---- 표현식 평가 --------------------------------------------------
 
@@ -802,6 +1024,12 @@ class Interpreter:
                 return sum(args) if len(args) > 1 else args[0]
             raise PineRuntimeError(f"math function not supported: {name}")
 
+        # array.* — G2 (2026-07-12 pine-batch QA) 최소 서브셋. Pine array 는 참조
+        # 타입 — Python list 로 표현, var 선언 시 PersistentStore 가 객체 identity
+        # 를 보관하므로 in-place mutation 이 bar 간 영속.
+        if name and name.startswith("array."):
+            return self._eval_array_call(name, node)
+
         # timestamp(y, mo, d, h, mi[, s]) — v4/v5 built-in. 실제 datetime은 불필요
         # (time_cond 같은 기간 필터에서만 사용). year/month/day/hour/minute을 반영한
         # approx epoch ms 반환. time(=bar_index 기반 stub)과 같은 scale로 비교됨.
@@ -1039,10 +1267,11 @@ class Interpreter:
             for stmt in fn_def.body:
                 if isinstance(stmt, pyne_ast.Expr):
                     inner = stmt.value
-                    # pynescript는 top-level if를 Expr(value=If)로 래핑. 이건 statement
-                    # 실행이지 return expr이 아니므로 _exec_if로 우회.
-                    if isinstance(inner, pyne_ast.If):
-                        self._exec_if(inner)
+                    # pynescript는 top-level if/for/while 을 Expr(value=...)로 래핑.
+                    # 이건 statement 실행이지 return expr이 아니므로 _exec_stmt로 우회.
+                    # (Pine 의 loop/if-as-expression 반환값은 미지원 — 기존 If 한계 유지.)
+                    if isinstance(inner, _STATEMENT_EXPR_NODES):
+                        self._exec_stmt(stmt)
                         continue
                     # 마지막 Expr(Tuple literal)은 Python tuple로 반환 — multi-return.
                     if isinstance(inner, pyne_ast.Tuple):
@@ -1187,8 +1416,22 @@ class Interpreter:
         # color.* 는 렌더링 맥락에서만 쓰이므로 na 반환
         if chain.startswith("color."):
             return float("nan")
-        # alert.freq_* / display.* 등 추가 Pine enum은 문자열 stub 반환
-        if chain.startswith(("alert.freq_", "display.", "xloc.", "yloc.", "text.", "font.")):
+        # alert.freq_* / display.* 등 추가 Pine enum은 문자열 stub 반환.
+        # G5 (2026-07-12 QA): label.style_* / line.style_* prefix fallback 추가 —
+        # coverage._ENUM_PREFIXES 는 prefix 로 허용하는데 runtime 은 dict 열거만
+        # 하던 drift 봉합 (bs `label.style_label_down` 케이스). 명시 dict 우선.
+        if chain.startswith(
+            (
+                "alert.freq_",
+                "display.",
+                "xloc.",
+                "yloc.",
+                "text.",
+                "font.",
+                "label.style_",
+                "line.style_",
+            )
+        ):
             return chain.split(".", 1)[1]
         # S2 (전체 정검 P1-10/13): currency.* enum — coverage._CURRENCY_CONSTANTS explicit
         # set 이 preflight 에서 invalid 차단. runtime 은 통화 코드 suffix 반환 (currency.USD == "USD").

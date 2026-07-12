@@ -72,7 +72,38 @@ UTILITY_FUNCTIONS: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
+# ARRAY_FUNCTIONS — Pine `array.*` 최소 서브셋 (G2, 2026-07-12 pine-batch QA).
+# interpreter._eval_array_call 디스패치와 1:1. coverage.SUPPORTED_FUNCTIONS 에도
+# 합류 — `array` namespace 는 _PINE_V6_COLLECTION_NAMESPACES 에 남아 있으므로
+# 본 set 에 없는 array.* 호출(array.avg / array.sort 등)은 여전히 preflight
+# 하드 fail (부분 실행 금지 Golden Rule).
+# 추가 절차: 본 set + interpreter._eval_array_call 분기 동시 갱신.
+# ---------------------------------------------------------------------------
+ARRAY_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        # 생성 — new_<type>(size[, initial_value])
+        "array.new_float",
+        "array.new_int",
+        "array.new_bool",
+        "array.new_string",
+        "array.new_line",  # 시각 객체 배열 — 원소는 rendering handle/na
+        "array.new_label",
+        "array.new_box",
+        # 조작
+        "array.push",
+        "array.pop",
+        "array.get",
+        "array.set",
+        "array.clear",
+        "array.size",
+        "array.shift",
+        "array.unshift",
+    }
+)
+
+# ---------------------------------------------------------------------------
 # STDLIB_NAMES — TA_FUNCTIONS | UTILITY_FUNCTIONS (총 19종, set union).
 # interpreter._eval_call 이 Call 노드 디스패치 대상으로 사용.
+# (ARRAY_FUNCTIONS 는 별도 dispatch 경로 — STDLIB_NAMES 비포함.)
 # ---------------------------------------------------------------------------
 STDLIB_NAMES: frozenset[str] = TA_FUNCTIONS | UTILITY_FUNCTIONS
