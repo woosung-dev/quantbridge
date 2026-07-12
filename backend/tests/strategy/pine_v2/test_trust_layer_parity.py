@@ -146,6 +146,7 @@ def test_p2_supported_functions_union_consistency() -> None:
     그룹 추가/삭제 시 합집합 재계산 누락 방지.
 
     Sprint 29 Slice A: _SECURITY_FUNCTIONS + _HEIKINASHI_FUNCTIONS 추가 (12그룹).
+    G2 (2026-07-12 pine-batch QA): _ARRAY_FUNCTIONS 추가 (13그룹).
     """
     expected_union = (
         cov._TA_FUNCTIONS
@@ -160,9 +161,10 @@ def test_p2_supported_functions_union_consistency() -> None:
         | cov._V4_ALIASES
         | cov._SECURITY_FUNCTIONS  # Sprint 29 Slice A
         | cov._HEIKINASHI_FUNCTIONS  # Sprint 29 Slice A (a)
+        | cov._ARRAY_FUNCTIONS  # G2 (2026-07-12): array.* 최소 서브셋 (_names SSOT)
     )
     assert expected_union == cov.SUPPORTED_FUNCTIONS, (
-        "SUPPORTED_FUNCTIONS 가 12 하위 그룹 합집합과 불일치. "
+        "SUPPORTED_FUNCTIONS 가 13 하위 그룹 합집합과 불일치. "
         "coverage.py 의 그룹 정의와 최종 변수 선언 재확인 필요."
     )
 

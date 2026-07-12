@@ -155,14 +155,17 @@ class RenderingRegistry:
         label.deleted = True
 
     # ---- table ----
-    def table_new(self, position: str = "", **extras: Any) -> TableObject:
+    def table_new(self, position: str = "", *args: Any, **extras: Any) -> TableObject:
+        # G4 (2026-07-12 pine-batch QA): Pine `table.new(position, columns, rows, ...)`
+        # 는 columns/rows 를 positional 로 전달 — 시각 NOP 이므로 흡수만 하고 미보관.
         obj = TableObject(position=position, extras=dict(extras))
         self.tables.append(obj)
         return obj
 
     def table_cell(
-        self, table: TableObject, column: int, row: int, text: str = ""
+        self, table: TableObject, column: int, row: int, text: str = "", *args: Any, **extras: Any
     ) -> None:
+        # G4: Pine `table.cell(..., width, height, text_color, ...)` positional/kwargs 흡수.
         table.cells[(column, row)] = text
 
     def table_delete(self, table: TableObject) -> None:
