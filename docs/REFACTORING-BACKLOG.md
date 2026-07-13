@@ -5,7 +5,7 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-05-17 (**Beta 본격 진입 결정** — Sprint 60→61→62 누적 3-sprint cycle 완료, 34 BL Resolved + BL-070~075 트랙 활성화)
+**최종 갱신:** 2026-07-13 (**optimizer deepen 1차 + FE vercel 70룰 감사** — BL-407 Resolved + 신규 BL-410~412. deepen 은 감사→같은 세션 구현으로 BL 등재 없이 해소)
 **현재 상태:** **51 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적; 2026-06-30 backtest-deepen +5 BL-387~391 → 45 → 50; 2026-06-30 stress_test-deepen +1 BL-392 → 51). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
@@ -1216,12 +1216,14 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-407
 
-**Title:** 백테스트 리포트 낙폭(Drawdown) 차트 Y축 눈금 전부 "-0.1%" 동일 표기 — 축 포맷터 정밀도/단위 버그
+**Title:** 백테스트 리포트 낙폭(Drawdown) 차트 Y축 눈금 전부 "-0.1%" 동일 표기 — 축 포맷터 정밀도/단위 버그 → ✅ **Resolved (2026-07-13, PR #433 stage/fe-react-audit)**
 **Category:** Frontend / backtest 리포트 차트
 **Priority:** P3
 **Trigger:** backtest 리포트 차트 polish 사이클
 **Est:** XS (0.5-1h)
 **출처:** 2026-07-12 pine-batch QA Playwright 실측 (`docs/qa/2026-07-12-pine-batch-1h4h/screenshots/03-backtest-report-1h.png`)
+
+**해소 (2026-07-13):** 원인 실측 확정 — lightweight-charts **v4 `PercentageFormatter` 는 값에 ×100 을 하지 않으며**(파일 주석의 전제가 거짓), percent 타입 precision 이 priceScale 에서 1/2 단위 양자화되어 |값|∈[0.25,0.75) 눈금이 전부 "-0.1%" 로 붕괴하는 이중 결함. `type:"custom"` 포맷터(비율×100 + toFixed(2)%)로 함정 자체 회피. 실 리포트 스크린샷 육안 검증 PASS (0.00% ~ -44.91% 정상 렌더).
 
 **원인 / 영향:** MDD -59.91% 인 리포트에서 낙폭 미니차트 Y축 눈금 4개가 모두 "-0.1%" 로 표기 (현재값 배지도 -0.1%). 시리즈 형상은 정상 변동 — 눈금 라벨 포맷터가 ratio(-0.0~-0.6)를 %로 변환할 때 정밀도가 뭉개지거나 tick 간격 계산이 단위 불일치로 보임. 시각 신뢰 훼손 (Surface Trust ADR-019 관점).
 
@@ -1305,12 +1307,63 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-410
+
+**Title:** FE vercel-react-best-practices 감사 low 잔여 팩 (확정 8건 — 배럴 2 + localStorage 스키마 2 + js 최적화 3 + fitContent 설계 1)
+**Category:** Frontend / 성능·컨벤션
+**Priority:** P3
+**Trigger:** 다음 FE polish 사이클 (BL-408 과 묶음 가능)
+**Est:** S (2-4h — 전부 국소)
+**출처:** 2026-07-13 vercel 70룰 멀티에이전트 감사 (파인더 6 + 반박형 검증, 원시 24 → 확정 18 중 high/medium 10건은 stage/fe-react-audit PR #433 에서 해소 — 본 팩은 low 8건)
+
+**원인 / 영향:** (1) `components/ui/form.tsx:6` + `features/trading/index.ts:3` 배럴 import. (2) `features/strategy/webhook-secret-storage.ts:53` + `draft.ts:89` localStorage 버전 스키마 부재. (3) `features/backtest/utils.ts:218` 함수 결과 캐시 부재 + `equity-chart-v2.tsx:184` / `trade-stats-strip.tsx:113` filter/map 다중 순회. (4) `components/charts/trading-chart.tsx:300` data effect 의 `fitContent()` 가 매 sync 마다 실행되는 설계 — 근본 수정(최초 1회 제한)은 전 호출처 동작 변경이라 별도 검토 (PR #433 은 호출측 identity 안정화로 해소).
+
+**권장 접근:** 항목별 1-line~소형 수정. (4)는 lightweight-charts v5 업그레이드 (BL-395) 와 함께 재검토.
+
+**Risk:** 🟢.
+
+---
+
+### BL-411
+
+**Title:** optimizer 422 에러 메시지 stale — "Sprint 55 supports {grid_search, bayesian}" 이 genetic 활성 후에도 미지원 안내
+**Category:** Optimizer / correctness (사용자 노출 메시지)
+**Priority:** P3
+**Trigger:** optimizer 다음 터치 시 동승
+**Est:** XS (~0.5h)
+**출처:** 2026-07-13 optimizer deepen 감사 후보 N3 (사용자 pick 제외 → BL 등재). `backend/src/optimizer/exceptions.py:43-76`
+
+**원인 / 영향:** genetic 은 Sprint 56 활성인데 `OptimizationKindUnsupportedError` 메시지가 "genetic = Sprint 56+ 예정" 이라 안내 — kind mismatch 시 사용자가 틀린 지원 목록을 받음. `OptimizationParameterUnsupportedError` 의 "Sprint 54 MVP" 문구도 동류.
+
+**권장 접근:** 지원 목록을 `OptimizationKind` enum 에서 파생해 drift 구조 차단 + `test_exceptions.py` 메시지 assert 갱신.
+
+**Risk:** 🟢 (문자열).
+
+---
+
+### BL-412
+
+**Title:** optimizer result read-side 판별 유니온 (C-full) — `OptimizationRunResponse.result: dict[str,Any]` 를 FE 동형 `OptimizationResultOut` 으로
+**Category:** Optimizer / Arch (read-side 타입화)
+**Priority:** P3
+**Trigger:** optimizer 폼/리포트 다음 기능 사이클 (BL-235/236/364 중 아무거나 착수 시 동승 검토)
+**Est:** M (+80~120 LOC, FE 동형 유지 의무)
+**출처:** 2026-07-13 optimizer deepen 감사 후보 C-full (C-min 은 동일 세션 해소 — get/list 손상 row 방어 대칭화, PR feat/optimizer-cmin-n2)
+
+**원인 / 영향:** BE 는 typed 역직렬화 역량(`*_from_jsonb`)을 갖고도 read 응답을 untyped dict 로 흘려 FE zod 가 유일한 검증층. writer 변경 시 drift 를 BE 테스트가 못 잡음 (BL-388/392 harm-class).
+
+**권장 접근:** ADR-013 §7.2/§8.2 result grammar 를 정확히 mirror 하는 `OptimizationResultOut` 판별 유니온 추가 — 반드시 C-min 의 저하 경로(retro-incorrect row 404) 위에서 soft-validate. FE `schemas.ts` 와 필드 1:1 대조 테스트 동반.
+
+**Risk:** 🟡 (구 row 실패율 상승 가능 — C-min 선행 완료로 완화됨).
+
+---
+
 ## 운영 규약
 
 ### 신규 항목 추가
 
 1. 적절한 priority 결정 (P0~P3 정의 표 참조)
-2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~404)
+2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~412)
 3. 표준 8 필드 모두 채우기: ID / 제목 / 카테고리 / priority / trigger / est / 출처 / 권장 접근
 4. 출처 cross-link (파일:라인 또는 dev-log 파일명) 필수
 5. 의존성 있으면 명시 (다른 BL ID 또는 외부 자원)
@@ -1338,6 +1391,12 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 ## 변경 이력
 
 > Sprint 별 BL 변경 1-line 요약. 상세는 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 또는 해당 sprint dev-log.
+
+### optimizer deepen + FE vercel 70룰 감사 (2026-07-13)
+
+- **optimizer deepen 1차 (improve-codebase-architecture, 감사→같은 세션 구현)**: STOP 실측(repository.py 40%) → S0 test-first (40%→100%, 실 DB 11건) + A(디스패치 SSOT — service inline match 제거, seam 3이름→1이름) + B(serializer 공통 helper + `optimizer_result_to_jsonb` 진입점, golden byte-compat 실증) + N1(`engine/dispatch.py`→`select.py` rename — dispatcher.py 이름충돌 해소) + C-min(get/list 손상 row 방어 대칭화, get 500→404) + N2(pick-best·objective 화이트리스트 `_common` SSOT). PR #431/#432/feat/optimizer-cmin-n2 (base stage/optimizer-deepen). 적대 리뷰 P1 0건 + 실 celery worker 3-cell grid 풀 스모크 COMPLETED 검증. KILL/보류: N3→BL-411, C-full→BL-412, N4/N5(이미 deep/의도된 분리 — 재제안 금지).
+- **FE vercel 70룰 감사** (파인더 6+반박 검증 30 에이전트, 원시 24→확정 18): high/medium 10건 수정 — **BL-407 Resolved** (lwc v4 PercentageFormatter ×100 부재+precision 양자화 이중결함, 육안 검증 PASS) + live-sessions 차트 identity churn(폴링마다 줌 리셋, "React Compiler 자동 memoize" 주석 거짓 전제 확인) + O(E×N)→O(E+N) + all-trades 병렬 페치 + clerk 배럴 4.9MB→95KB. PR #433 (base stage/fe-react-audit), live smoke 그린(authed 실패 8건은 main 과 동일 집합 = 기지 stale 베이스라인 실측 대조). low 잔여 → **신규 BL-410**.
+- **신규 3건**: BL-410(P3 FE low 팩) + BL-411(P3 optimizer stale 422 메시지) + BL-412(P3 result read-side 유니온 C-full).
 
 ### pine-batch QA + 엔진 개선 루프 (2026-07-12)
 
