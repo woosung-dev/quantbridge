@@ -22,6 +22,7 @@ import {
   TradingChart,
   type ChartPoint,
 } from "@/components/charts/trading-chart";
+import type { LineSeriesPartialOptions } from "lightweight-charts";
 
 import type {
   ActivityTimelinePoint,
@@ -31,6 +32,41 @@ import type {
 // 2-pane 비율 (EquityChartV2 와 동일).
 const TOP_PANE_RATIO = 0.6;
 const BOTTOM_PANE_RATIO = 0.4;
+
+// 정적 옵션 — 렌더 간 identity 고정 (EquityPane/DrawdownPane 패턴 mirror).
+// 인라인 객체는 폴링 리렌더마다 새 identity → TradingChart data effect 재실행
+// (setData + fitContent = 사용자 줌/팬 리셋). 모듈 상수로 차단.
+const CLOSES_BENCHMARK_OPTIONS: LineSeriesPartialOptions = {
+  color: CHART_PALETTE_FALLBACK.benchmark,
+  lineWidth: 2,
+  lineStyle: 0, // solid (entries 도 solid 라 구분 위해 색상만 차이)
+  priceLineVisible: false,
+  lastValueVisible: true,
+};
+
+const COUNTS_LINE_OPTIONS: LineSeriesPartialOptions = {
+  color: CHART_PALETTE_FALLBACK.bullish,
+  lineWidth: 2,
+  priceFormat: {
+    type: "price",
+    precision: 0,
+    minMove: 1,
+  },
+  priceLineVisible: false,
+  lastValueVisible: true,
+};
+
+const EQUITY_LINE_OPTIONS: LineSeriesPartialOptions = {
+  color: CHART_PALETTE_FALLBACK.equity,
+  lineWidth: 2,
+  priceFormat: {
+    type: "price",
+    precision: 2,
+    minMove: 0.01,
+  },
+  priceLineVisible: false,
+  lastValueVisible: true,
+};
 
 interface ActivityTimelineChartProps {
   /** buildActivityTimeline / buildActivityTimelineWithEquity 결과. ascending 정렬됨. */
@@ -103,6 +139,15 @@ export function ActivityTimelineChart({
     });
   }, [data, showEquity]);
 
+  // benchmark 슬롯 (closes) — 인라인 객체 대신 useMemo 로 identity 안정화.
+  const benchmark = useMemo(
+    () =>
+      closesData.length > 0
+        ? { data: closesData, options: CLOSES_BENCHMARK_OPTIONS }
+        : undefined,
+    [closesData],
+  );
+
   // 데이터 없음 — 호출 측에서 이미 빈 상태 처리하지만 방어 코드.
   if (data.length === 0) {
     return null;
@@ -125,32 +170,9 @@ export function ActivityTimelineChart({
     >
       <div data-testid="activity-timeline-counts-pane">
         <TradingChart
-          data={[...entriesData]}
-          benchmark={
-            closesData.length > 0
-              ? {
-                  data: [...closesData],
-                  options: {
-                    color: CHART_PALETTE_FALLBACK.benchmark,
-                    lineWidth: 2,
-                    lineStyle: 0, // solid (entries 도 solid 라 구분 위해 색상만 차이)
-                    priceLineVisible: false,
-                    lastValueVisible: true,
-                  },
-                }
-              : undefined
-          }
-          options={{
-            color: CHART_PALETTE_FALLBACK.bullish,
-            lineWidth: 2,
-            priceFormat: {
-              type: "price",
-              precision: 0,
-              minMove: 1,
-            },
-            priceLineVisible: false,
-            lastValueVisible: true,
-          }}
+          data={entriesData}
+          benchmark={benchmark}
+          options={COUNTS_LINE_OPTIONS}
           height={topHeight}
           ariaLabel="Activity counts — entries (녹색 실선) / closes (파란 실선) 누적 카운트"
         />
@@ -188,18 +210,8 @@ export function ActivityTimelineChart({
       {showEquity && (
         <div data-testid="activity-timeline-equity-pane">
           <TradingChart
-            data={[...equityData]}
-            options={{
-              color: CHART_PALETTE_FALLBACK.equity,
-              lineWidth: 2,
-              priceFormat: {
-                type: "price",
-                precision: 2,
-                minMove: 0.01,
-              },
-              priceLineVisible: false,
-              lastValueVisible: true,
-            }}
+            data={equityData}
+            options={EQUITY_LINE_OPTIONS}
             height={bottomHeight}
             ariaLabel="Cumulative PnL (USDT) — equity curve from BE state.equity_curve"
           />

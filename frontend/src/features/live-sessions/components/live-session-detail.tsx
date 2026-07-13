@@ -13,6 +13,8 @@
 //  - Activity Timeline line chart (cumulative entry / close count + optional PnL)
 //  - Recent events log (action / direction / status / order_id)
 
+import { useMemo } from "react";
+
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
 import type { LiveSession } from "../schemas";
 // Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
@@ -39,16 +41,18 @@ export function LiveSessionDetail({ session }: Props) {
   );
 
   // Sprint 33-A: chart data 사전 계산 (lightweight-charts 호환).
-  // React Compiler 가 자동 memoize — 수동 useMemo 사용 시 inferred-dep 충돌 발생.
-  const hasEquity = Boolean(
-    state?.equity_curve && state.equity_curve.length > 0,
-  );
-  const timelineData =
-    !events || events.items.length === 0
-      ? []
-      : hasEquity && state?.equity_curve
-        ? buildActivityTimelineWithEquity(events.items, state.equity_curve)
-        : buildActivityTimeline(events.items);
+  // useMemo — RQ structural sharing 이 items/equity_curve 하위 참조 identity 를
+  // 보존하므로 dep 안전. 폴링 리렌더마다 새 배열이 생성되면 TradingChart data
+  // effect(setData + fitContent)가 재실행되어 사용자 줌/팬이 리셋되는 것을 차단.
+  const eventItems = events?.items;
+  const equityCurve = state?.equity_curve;
+  const hasEquity = Boolean(equityCurve && equityCurve.length > 0);
+  const timelineData = useMemo(() => {
+    if (!eventItems || eventItems.length === 0) return [];
+    return hasEquity && equityCurve
+      ? buildActivityTimelineWithEquity(eventItems, equityCurve)
+      : buildActivityTimeline(eventItems);
+  }, [eventItems, equityCurve, hasEquity]);
 
   return (
     <div className="space-y-4" data-testid={`live-session-detail-${session.id}`}>
