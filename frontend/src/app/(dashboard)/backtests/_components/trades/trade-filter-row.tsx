@@ -3,13 +3,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 import type {
   TradeFilters,
   TradeSortDir,
@@ -49,6 +43,18 @@ interface TradeFilterRowProps {
   activeCount: number;
   onReset: () => void;
 }
+
+const DIRECTION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "all", label: "방향: 전체" },
+  { value: "long", label: "롱만" },
+  { value: "short", label: "숏만" },
+];
+
+const RESULT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "all", label: "결과: 전체" },
+  { value: "win", label: "승리만" },
+  { value: "loss", label: "패배만" },
+];
 
 const SORT_OPTIONS: Array<{
   value: `${TradeSortField}:${TradeSortDir}`;
@@ -113,34 +119,24 @@ export function TradeFilterRow({
       </div>
 
       {/* 2. 방향 */}
-      <Select
+      <SelectWithDisplayName
+        options={DIRECTION_OPTIONS}
         value={filters.direction}
         onValueChange={(v) => update("direction", v as TradeFilters["direction"])}
-      >
-        <SelectTrigger className="h-9 w-32 text-xs" aria-label="방향 필터">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">방향: 전체</SelectItem>
-          <SelectItem value="long">롱만</SelectItem>
-          <SelectItem value="short">숏만</SelectItem>
-        </SelectContent>
-      </Select>
+        placeholder="방향: 전체"
+        ariaLabel="방향 필터"
+        className="h-9 w-32 text-xs"
+      />
 
       {/* 3. 결과 */}
-      <Select
+      <SelectWithDisplayName
+        options={RESULT_OPTIONS}
         value={filters.result}
         onValueChange={(v) => update("result", v as TradeFilters["result"])}
-      >
-        <SelectTrigger className="h-9 w-32 text-xs" aria-label="결과 필터">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">결과: 전체</SelectItem>
-          <SelectItem value="win">승리만</SelectItem>
-          <SelectItem value="loss">패배만</SelectItem>
-        </SelectContent>
-      </Select>
+        placeholder="결과: 전체"
+        ariaLabel="결과 필터"
+        className="h-9 w-32 text-xs"
+      />
 
       {/* 4. 기간 */}
       <div className="flex items-center gap-1.5">
@@ -199,25 +195,18 @@ export function TradeFilterRow({
       </div>
 
       {/* 6. 정렬 */}
-      <Select
+      <SelectWithDisplayName
+        options={SORT_OPTIONS}
         value={sortValue}
         onValueChange={(v) => {
           if (!v) return;
           const [f, d] = v.split(":") as [TradeSortField, TradeSortDir];
           onSortChange(f, d);
         }}
-      >
-        <SelectTrigger className="h-9 w-40 text-xs" aria-label="정렬">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {SORT_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        placeholder="정렬"
+        ariaLabel="정렬"
+        className="h-9 w-40 text-xs"
+      />
 
       {/* 활성 pill + 초기화 */}
       <div className="ml-auto flex items-center gap-2">

@@ -8,13 +8,7 @@ import { ChevronDown, ChevronUp, Download } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 import type { TradeItem } from "@/features/backtest/schemas";
 import {
   type TradeFilters,
@@ -34,6 +28,18 @@ const EXIT_KIND_LABEL: Record<string, string> = {
   stop_loss: "청산 · SL",
   trailing_stop: "청산 · 트레일링",
 };
+
+const DIRECTION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "all", label: "방향: 전체" },
+  { value: "long", label: "롱만" },
+  { value: "short", label: "숏만" },
+];
+
+const RESULT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "all", label: "결과: 전체" },
+  { value: "win", label: "승리만" },
+  { value: "loss", label: "패배만" },
+];
 
 interface TradeLedgerTableProps {
   trades: readonly TradeItem[];
@@ -95,34 +101,24 @@ export function TradeLedgerTable({
     <div className="space-y-3" data-testid="trade-ledger-table">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Select
+          <SelectWithDisplayName
+            options={DIRECTION_OPTIONS}
             value={directionFilter}
             onValueChange={(v) =>
               setDirectionFilter(v as TradeFilters["direction"])
             }
-          >
-            <SelectTrigger className="w-32" aria-label="방향 필터">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">방향: 전체</SelectItem>
-              <SelectItem value="long">롱만</SelectItem>
-              <SelectItem value="short">숏만</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
+            placeholder="방향: 전체"
+            ariaLabel="방향 필터"
+            className="w-32"
+          />
+          <SelectWithDisplayName
+            options={RESULT_OPTIONS}
             value={resultFilter}
             onValueChange={(v) => setResultFilter(v as TradeFilters["result"])}
-          >
-            <SelectTrigger className="w-32" aria-label="결과 필터">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">결과: 전체</SelectItem>
-              <SelectItem value="win">승리만</SelectItem>
-              <SelectItem value="loss">패배만</SelectItem>
-            </SelectContent>
-          </Select>
+            placeholder="결과: 전체"
+            ariaLabel="결과 필터"
+            className="w-32"
+          />
           <span className="text-xs text-muted-foreground">
             {filtered.length} / {trades.length} 건
           </span>
@@ -243,7 +239,7 @@ function LedgerRows({
 
   const spanCells = (
     <>
-      <td rowSpan={rowSpan} className="px-3 py-2 align-middle text-right tabular-nums">
+      <td rowSpan={rowSpan} className="px-3 py-2 align-middle text-right font-mono tabular-nums">
         <div>{formatCurrency(t.size, 4)}</div>
         <div className="text-xs text-muted-foreground">
           {formatCurrency(notional, 0)} USDT
@@ -345,7 +341,7 @@ function LedgerRows({
         <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
           {formatDateTime(t.entry_time)}
         </td>
-        <td className="px-3 py-2 text-right tabular-nums">
+        <td className="px-3 py-2 text-right font-mono tabular-nums">
           {formatCurrency(t.entry_price)} USDT
         </td>
         {spanCells}
@@ -361,7 +357,7 @@ function LedgerRows({
         <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
           {formatDateTime(t.exit_time)}
         </td>
-        <td className="px-3 py-2 text-right tabular-nums">
+        <td className="px-3 py-2 text-right font-mono tabular-nums">
           {t.exit_price !== null ? `${formatCurrency(t.exit_price)} USDT` : "—"}
         </td>
         {spanCells}
@@ -371,7 +367,7 @@ function LedgerRows({
         <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
           {formatDateTime(t.entry_time)}
         </td>
-        <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">
+        <td className="px-3 py-2 text-right font-mono text-muted-foreground tabular-nums">
           {formatCurrency(t.entry_price)} USDT
         </td>
       </tr>

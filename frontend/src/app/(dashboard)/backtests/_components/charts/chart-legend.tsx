@@ -13,7 +13,7 @@
 // - Drawdown: var(--chart-dd-top/-line), area
 // DOM 마커라 var() 직접 사용 가능 — 테마 토글 시 자동 flip (DESIGN.md §2.3).
 //
-// 디자인: shadcn 스타일 (rounded-md border bg-card/80 backdrop-blur).
+// 디자인: v3 Precision Instrument 플랫 스타일 (rounded-md border bg-card — 글래스 제거, BL-408).
 // 모바일 wrap 가능하도록 flex-wrap.
 
 interface ChartLegendProps {
@@ -41,14 +41,14 @@ export function ChartLegend({
       role="list"
       aria-label="차트 범례"
       className={[
-        "flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card/80 px-3 py-2 text-xs text-muted-foreground backdrop-blur-sm",
+        "flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground",
         className ?? "",
       ]
         .filter(Boolean)
         .join(" ")}
     >
       <LegendItem
-        ariaLabel="Equity (자본 곡선): 실선 녹색"
+        ariaLabel="Equity (자본 곡선): 실선 코퍼"
         marker={
           <span
             aria-hidden="true"

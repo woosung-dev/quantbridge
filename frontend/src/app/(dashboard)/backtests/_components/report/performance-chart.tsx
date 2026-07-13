@@ -40,7 +40,7 @@ export function PerformanceChart({
 
   return (
     <section
-      className="rounded-xl border bg-card shadow-[var(--card-shadow)]"
+      className="rounded-lg border bg-card shadow-[var(--card-shadow)]"
       aria-label="성과 차트"
       data-testid="performance-chart"
     >
