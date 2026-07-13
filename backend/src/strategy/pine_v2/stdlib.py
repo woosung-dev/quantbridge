@@ -209,6 +209,7 @@ def ta_crossover(state: IndicatorState, node_id: int, a: float, b: float) -> boo
     prev_b = slot["prev_b"]
     slot["prev_a"] = a
     slot["prev_b"] = b
+    # na 피연산자(워밍업 첫 bar 등) → concrete false (bool 은 절대 na 아님, TV 정합). BL-405 참조.
     if _is_na(prev_a) or _is_na(prev_b) or _is_na(a) or _is_na(b):
         return False
     return prev_a <= prev_b and a > b
@@ -221,6 +222,7 @@ def ta_crossunder(state: IndicatorState, node_id: int, a: float, b: float) -> bo
     prev_b = slot["prev_b"]
     slot["prev_a"] = a
     slot["prev_b"] = b
+    # na 피연산자 → concrete false (bool 은 절대 na 아님, TV 정합). BL-405 참조.
     if _is_na(prev_a) or _is_na(prev_b) or _is_na(a) or _is_na(b):
         return False
     return prev_a >= prev_b and a < b
@@ -598,6 +600,7 @@ def ta_cross(state: IndicatorState, node_id: int, a: float, b: float) -> bool:
     slot = state.buffers.setdefault(node_id, {"prev_a": float("nan"), "prev_b": float("nan")})
     prev_a, prev_b = slot["prev_a"], slot["prev_b"]
     slot["prev_a"], slot["prev_b"] = a, b
+    # na 피연산자 → concrete false (bool 은 절대 na 아님, TV 정합). BL-405 참조.
     if _is_na(prev_a) or _is_na(prev_b) or _is_na(a) or _is_na(b):
         return False
     return (prev_a <= prev_b and a > b) or (prev_a >= prev_b and a < b)

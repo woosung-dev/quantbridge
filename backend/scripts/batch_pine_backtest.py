@@ -127,12 +127,26 @@ def _fmt(value: Any, kind: str) -> str:
     return f"{float(value):.2f}"
 
 
-def _run_cell(source: str, ohlcv: pd.DataFrame, timeframe: str) -> dict[str, Any]:
-    """단일 백테스트 셀 실행 → 상태/메트릭 dict."""
+def _run_cell(source: str, ohlcv: pd.DataFrame, timeframe: str, normalized: bool) -> dict[str, Any]:
+    """단일 백테스트 셀 실행 → 상태/메트릭 dict.
+
+    normalized=True 면 form-tier `percent_of_equity=100` 폴백을 주입한다. 엔진 사이징
+    우선순위는 **Pine > form > fallback** (service.py `_resolve_sizing_canonical`,
+    compat.parse_and_run_v2) 이므로 `strategy(default_qty_type=...)` 를 명시한 스크립트는
+    Pine 선언이 우선 적용되고 form 폴백은 무효다. 미선언(지표/qty 없는 strategy)만 100%
+    equity 가 적용된다 — 어느 tier 가 적용됐는지는 coverage["sizing"] 로 리포트에 노출.
+    """
     from src.backtest.engine.types import BacktestConfig
     from src.backtest.engine.v2_adapter import run_backtest_v2
 
-    config = BacktestConfig(freq=timeframe)
+    if normalized:
+        config = BacktestConfig(
+            freq=timeframe,
+            default_qty_type="strategy.percent_of_equity",
+            default_qty_value=100.0,
+        )
+    else:
+        config = BacktestConfig(freq=timeframe)
     started = time.monotonic()
     signal.signal(signal.SIGALRM, _alarm_handler)
     signal.alarm(CELL_TIMEOUT_SECONDS)
@@ -172,6 +186,23 @@ def _run_cell(source: str, ohlcv: pd.DataFrame, timeframe: str) -> dict[str, Any
     return row
 
 
+def _pine_sizing(source: str) -> dict[str, Any]:
+    """Pine strategy() 선언의 default_qty 추출 — 정규화 시 어느 tier 가 적용됐는지 판정용.
+
+    반환: {"pine_declared": {"type", "value"}} (선언 있음) / {"pine_declared": None} (미선언).
+    엔진 우선순위 Pine > form 이므로 pine_declared 가 있으면 --normalized 의 form 폴백은 무효.
+    """
+    try:
+        from src.strategy.pine_v2.compat import _extract_default_qty
+
+        qty_type, qty_value = _extract_default_qty(source)
+    except Exception as exc:
+        return {"pine_declared": None, "note": f"extract_error: {exc}"}
+    if qty_type is None:
+        return {"pine_declared": None}
+    return {"pine_declared": {"type": qty_type, "value": qty_value}}
+
+
 def _coverage_row(source: str) -> dict[str, Any]:
     from src.strategy.pine_v2.ast_classifier import classify_script
     from src.strategy.pine_v2.coverage import analyze_coverage
@@ -186,6 +217,7 @@ def _coverage_row(source: str) -> dict[str, Any]:
         "degraded": sorted(set(cov.degraded_calls)),
         "unsupported": list(cov.all_unsupported),
         "track": track,
+        "sizing": _pine_sizing(source),
     }
 
 
@@ -247,6 +279,11 @@ def main() -> int:
         default=None,
         help="파일명 subset (기본: 디렉토리 내 전체 *.pine)",
     )
+    parser.add_argument(
+        "--normalized",
+        action="store_true",
+        help="form-tier percent_of_equity=100 폴백 주입 (엔진 우선순위 Pine > form — 선언 스크립트는 Pine 우선)",
+    )
     args = parser.parse_args()
 
     script_paths = sorted(args.scripts_dir.glob("*.pine"))
@@ -280,7 +317,7 @@ def main() -> int:
                 run: dict[str, Any] = {"status": "skipped_unsupported"}
             else:
                 print(f"  [run] {path.name} × {period}/{tf} ...", flush=True)
-                run = _run_cell(source, df, tf)
+                run = _run_cell(source, df, tf, args.normalized)
                 print(f"        → {run['status']} ({run.get('elapsed_s', '?')}s)")
             cells.append({"script": path.name, "period": period, "timeframe": tf, "run": run})
 
@@ -299,6 +336,10 @@ def main() -> int:
             "slippage": 0.0005,
             "freq": "per-TF",
             "cell_timeout_s": CELL_TIMEOUT_SECONDS,
+            "normalized": args.normalized,
+            "default_qty": (
+                {"type": "strategy.percent_of_equity", "value": 100.0} if args.normalized else None
+            ),
         },
         "coverage": coverage,
         "cells": json_cells,

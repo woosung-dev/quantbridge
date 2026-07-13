@@ -5,13 +5,7 @@
 
 import { useMemo, useState } from "react";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 import { useBacktests } from "@/features/backtest/hooks";
 
 import { BayesianSearchForm } from "./bayesian-search-form";
@@ -62,32 +56,25 @@ export function OptimizerPageView() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[240px]">
-            <Select
-              value={backtestId || undefined}
+            <SelectWithDisplayName
+              options={completedOptions.map((opt) => ({
+                value: opt.id,
+                label: opt.label,
+              }))}
+              value={backtestId}
               onValueChange={(v) => {
-                setBacktestId(v ?? "");
+                setBacktestId(v);
                 setShowForm(false);
               }}
-            >
-              <SelectTrigger aria-label="백테스트 선택">
-                <SelectValue
-                  placeholder={
-                    backtestsQuery.isLoading
-                      ? "백테스트 로딩 중…"
-                      : completedOptions.length === 0
-                        ? "완료된 백테스트 없음"
-                        : "백테스트 선택 (완료됨)"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {completedOptions.map((opt) => (
-                  <SelectItem key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={
+                backtestsQuery.isLoading
+                  ? "백테스트 로딩 중…"
+                  : completedOptions.length === 0
+                    ? "완료된 백테스트 없음"
+                    : "백테스트 선택 (완료됨)"
+              }
+              ariaLabel="백테스트 선택"
+            />
           </div>
           <select
             value={algorithm}
