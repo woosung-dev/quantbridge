@@ -17,17 +17,15 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.dispatcher import OptimizationTaskDispatcher
-from src.optimizer.engine import (
-    run_bayesian_search,
-    run_genetic_search,
-    run_grid_search,
-)
+from src.optimizer.engine.select import run_optimizer_by_kind
 from src.optimizer.exceptions import (
     BacktestNotCompletedForOptimization,
     OptimizationExecutionError,
@@ -48,11 +46,7 @@ from src.optimizer.schemas import (
     OptimizationRunResponse,
     ParamSpace,
 )
-from src.optimizer.serializers import (
-    bayesian_search_result_to_jsonb,
-    genetic_search_result_to_jsonb,
-    grid_search_result_to_jsonb,
-)
+from src.optimizer.serializers import optimizer_result_to_jsonb
 from src.strategy.repository import StrategyRepository
 
 logger = logging.getLogger(__name__)
@@ -230,11 +224,12 @@ class OptimizerService:
         await self.repo.commit()
 
     async def _execute(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
-        """공통 executor 경로 — strategy/ohlcv/config load (kind 무관 동일) 후
-        kind 별 engine runner + result→jsonb 직렬화만 분기.
+        """공통 executor 경로 — strategy/ohlcv/config load 후 엔진 선택 SSOT 위임.
 
-        Sprint 54/55/56 의 _execute_grid/bayesian/genetic 통합. runner 함수명을
-        직접 참조해 테스트 monkeypatch(setattr) seam 을 보존한다.
+        optimizer-deepen A: 잔여 `match run.kind` 를 engine.select.run_optimizer_by_kind
+        (walk_forward 와 공유)로, runner→serializer 페어링을 optimizer_result_to_jsonb 로
+        흡수. 테스트 monkeypatch seam 은 runner 3이름 → 본 모듈의
+        ``run_optimizer_by_kind`` 1이름으로 축소 (test_service_commits.py).
         """
         strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
@@ -251,33 +246,21 @@ class OptimizerService:
         backtest_config = build_engine_config_from_db(bt)
         pine = strategy.pine_source
 
-        match run.kind:
-            case OptimizationKind.GRID_SEARCH:
-                return grid_search_result_to_jsonb(
-                    run_grid_search(
-                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
-                    )
-                )
-            case OptimizationKind.BAYESIAN:
-                return bayesian_search_result_to_jsonb(
-                    run_bayesian_search(
-                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
-                    )
-                )
-            case OptimizationKind.GENETIC:
-                return genetic_search_result_to_jsonb(
-                    run_genetic_search(
-                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
-                    )
-                )
-            case _:  # pragma: no cover — exhaustiveness guard
-                raise OptimizationKindUnsupportedError(run.kind.value)
+        result = run_optimizer_by_kind(
+            run.kind, pine, ohlcv, param_space=param_space, backtest_config=backtest_config
+        )
+        return optimizer_result_to_jsonb(result)
 
     # ---------- HTTP read ----------
 
     async def get(self, run_id: UUID, *, user_id: UUID) -> OptimizationRunResponse:
         run = await self._load_owned(run_id, user_id)
-        return self._to_response(run)
+        response = self._to_response_or_none(run)
+        if response is None:
+            # deepen C-min: 손상 row (Sprint 50-52 retro-incorrect param_space) 는
+            # list 에서 skip 되므로 상세 조회도 500 대신 404 로 대칭 처리.
+            raise OptimizationNotFoundError(run_id)
+        return response
 
     async def list(
         self,
@@ -289,20 +272,13 @@ class OptimizerService:
     ) -> Page[OptimizationRunResponse]:
         # Sprint 62 T-1 (BL-350/354): row-level resilience. Sprint 50-52 retro-incorrect row
         # + 53-55 schema tightening 합집합으로 _to_response 가 Pydantic ValidationError raise 시
-        # 응답 전체 500 fail. 본 fix = row 별 try/except → invalid skip + WARN log + valid 만 반환.
+        # 응답 전체 500 fail. 손상 row 방어는 _to_response_or_none SSOT (deepen C-min, get 대칭).
         items, total = await self.repo.list_by_user(
             user_id, limit=limit, offset=offset, backtest_id=backtest_id
         )
-        valid_items: list[OptimizationRunResponse] = []
-        for run in items:
-            try:
-                valid_items.append(self._to_response(run))
-            except Exception as exc:
-                logger.warning(
-                    "optimizer_run_skip_invalid_schema run_id=%s err=%s",
-                    run.id,
-                    exc,
-                )
+        valid_items = [
+            response for run in items if (response := self._to_response_or_none(run)) is not None
+        ]
         return Page[OptimizationRunResponse](
             items=valid_items,
             total=total,
@@ -335,6 +311,23 @@ class OptimizerService:
                     f"current status: {bt.status.value}"
                 )
             )
+
+    def _to_response_or_none(self, run: OptimizationRun) -> OptimizationRunResponse | None:
+        """손상 row 방어 SSOT (deepen C-min) — get/list 대칭. 변환 실패 시 WARN + None.
+
+        catch 는 손상 row 가 실제로 내는 예외로 한정 — ValidationError(retro-incorrect
+        param_space) + ValueError(구 enum 값 등). 그 외 프로그래밍 버그는 기존처럼
+        시끄럽게 500 으로 표면 (적대 리뷰 P2-2: broad except 는 미래 버그를 404 로 위장).
+        """
+        try:
+            return self._to_response(run)
+        except (ValidationError, ValueError) as exc:
+            logger.warning(
+                "optimizer_run_skip_invalid_schema run_id=%s err=%s",
+                run.id,
+                exc,
+            )
+            return None
 
     @staticmethod
     def _to_response(run: OptimizationRun) -> OptimizationRunResponse:

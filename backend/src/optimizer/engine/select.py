@@ -1,4 +1,4 @@
-# Optimizer 3종(grid/bayesian/genetic) kind-dispatch SSOT + best_params 추출.
+# Optimizer 3종(grid/bayesian/genetic) kind별 엔진 선택 SSOT + best_params 추출.
 from __future__ import annotations
 
 from decimal import Decimal
@@ -26,8 +26,13 @@ def run_optimizer_by_kind(
 ) -> OptimizerResult:
     """kind 별 옵티마이저 엔진(순수함수) 호출 — optimizer/service + walk-forward 공유 SSOT.
 
-    LESSON-063: 동일 `match kind` 디스패치가 optimizer/service._execute 와 WFO 양쪽에
-    중복되던 것을 1회로 통합.
+    LESSON-063: WFO(walk_forward) 쪽 `match kind` 는 본 함수로 먼저 통합됐고,
+    optimizer/service._execute 의 잔여 중복 `match` 는 optimizer-deepen A (2026-07-13)
+    에서 흡수 — 이제 두 소비자(service + walk_forward)가 본 함수 1곳만 거친다.
+    직렬화 페어링은 serializers.optimizer_result_to_jsonb 담당 (같은 deepen).
+
+    (구 파일명 dispatch.py — submit 경로 Celery enqueue 추상화 optimizer/dispatcher.py
+    와 이름 충돌로 select.py 로 rename, deepen N1.)
     """
     match kind:
         case OptimizationKind.GRID_SEARCH:

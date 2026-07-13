@@ -19,7 +19,7 @@ import pandas as pd
 from src.backtest.engine import run_backtest  # pine_v2 기반 (v2_adapter.run_backtest_v2 alias)
 from src.backtest.engine.types import BacktestConfig, BacktestOutcome
 from src.optimizer.engine._common import build_cell_config
-from src.optimizer.engine.dispatch import best_params_of, run_optimizer_by_kind
+from src.optimizer.engine.select import best_params_of, run_optimizer_by_kind
 from src.optimizer.models import OptimizationKind
 from src.optimizer.schemas import ParamSpace
 from src.strategy.pine_v2.coverage import analyze_coverage

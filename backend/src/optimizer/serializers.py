@@ -20,6 +20,85 @@ from src.optimizer.engine import (
     GridSearchCell,
     GridSearchResult,
 )
+from src.optimizer.engine.select import OptimizerResult
+
+
+def optimizer_result_to_jsonb(result: OptimizerResult) -> dict[str, Any]:
+    """kind 무관 단일 직렬화 진입점 — service._execute 소비 (deepen A).
+
+    engine.select.run_optimizer_by_kind 와 짝을 이뤄 "runner → serializer 페어링"
+    분기가 서비스에 재등장하지 않도록 한다. 새 알고리즘 추가 시 여기 1곳만 확장.
+    """
+    if isinstance(result, GridSearchResult):
+        return grid_search_result_to_jsonb(result)
+    if isinstance(result, BayesianSearchResult):
+        return bayesian_search_result_to_jsonb(result)
+    if isinstance(result, GeneticSearchResult):
+        return genetic_search_result_to_jsonb(result)
+    raise TypeError(f"Unsupported optimizer result type: {type(result)!r}")
+
+
+def _iteration_common_to_jsonb(it: BayesianIteration | GeneticIndividual) -> dict[str, Any]:
+    """iteration 공통 5키 직렬화 — Decimal→str, None 보존 (deepen B, SSOT).
+
+    bayesian 은 phase, genetic 은 generation 을 caller 가 6번째 키로 추가한다.
+    """
+    return {
+        "idx": it.idx,
+        "params": {k: str(v) for k, v in it.params.items()},
+        "objective_value": (None if it.objective_value is None else str(it.objective_value)),
+        "best_so_far": None if it.best_so_far is None else str(it.best_so_far),
+        "is_degenerate": it.is_degenerate,
+    }
+
+
+def _iteration_common_from_jsonb(it: dict[str, Any]) -> dict[str, Any]:
+    """iteration 공통 5키 역직렬화 — dataclass kwargs 로 반환."""
+    return {
+        "idx": int(it["idx"]),
+        "params": {k: Decimal(v) for k, v in it["params"].items()},
+        "objective_value": (
+            None if it.get("objective_value") is None else Decimal(it["objective_value"])
+        ),
+        "best_so_far": (None if it.get("best_so_far") is None else Decimal(it["best_so_far"])),
+        "is_degenerate": bool(it["is_degenerate"]),
+    }
+
+
+def _search_summary_to_jsonb(
+    r: BayesianSearchResult | GeneticSearchResult,
+) -> dict[str, Any]:
+    """best 블록 + objective/direction 공통 직렬화 (bayesian ≡ genetic)."""
+    return {
+        "best_params": (
+            None if r.best_params is None else {k: str(v) for k, v in r.best_params.items()}
+        ),
+        "best_objective_value": (
+            None if r.best_objective_value is None else str(r.best_objective_value)
+        ),
+        "best_iteration_idx": r.best_iteration_idx,
+        "objective_metric": r.objective_metric,
+        "direction": r.direction,
+    }
+
+
+def _search_summary_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
+    """best 블록 + objective/direction 공통 역직렬화 — dataclass kwargs 로 반환."""
+    return {
+        "best_params": (
+            None
+            if data.get("best_params") is None
+            else {k: Decimal(v) for k, v in data["best_params"].items()}
+        ),
+        "best_objective_value": (
+            None
+            if data.get("best_objective_value") is None
+            else Decimal(data["best_objective_value"])
+        ),
+        "best_iteration_idx": data.get("best_iteration_idx"),
+        "objective_metric": data["objective_metric"],
+        "direction": data["direction"],
+    }
 
 
 def grid_search_result_to_jsonb(r: GridSearchResult) -> dict[str, Any]:
@@ -31,9 +110,7 @@ def grid_search_result_to_jsonb(r: GridSearchResult) -> dict[str, Any]:
         "schema_version": 1,
         "kind": "grid_search",
         "param_names": list(r.param_names),
-        "param_values": {
-            k: [str(v) for v in vs] for k, vs in r.param_values.items()
-        },
+        "param_values": {k: [str(v) for v in vs] for k, vs in r.param_values.items()},
         "cells": [
             {
                 "param_values": {k: str(v) for k, v in c.param_values.items()},
@@ -42,9 +119,7 @@ def grid_search_result_to_jsonb(r: GridSearchResult) -> dict[str, Any]:
                 "max_drawdown": str(c.max_drawdown),
                 "num_trades": c.num_trades,
                 "is_degenerate": c.is_degenerate,
-                "objective_value": (
-                    None if c.objective_value is None else str(c.objective_value)
-                ),
+                "objective_value": (None if c.objective_value is None else str(c.objective_value)),
             }
             for c in r.cells
         ],
@@ -58,22 +133,18 @@ def grid_search_result_from_jsonb(data: dict[str, Any]) -> GridSearchResult:
     """JSONB dict → GridSearchResult (test / detail rendering 용)."""
     param_names = tuple(data["param_names"])
     param_values: dict[str, tuple[Decimal, ...]] = {
-        k: tuple(Decimal(v) for v in vs)
-        for k, vs in data["param_values"].items()
+        k: tuple(Decimal(v) for v in vs) for k, vs in data["param_values"].items()
     }
     cells_t = tuple(
         GridSearchCell(
-            param_values={
-                k: Decimal(v) for k, v in c["param_values"].items()
-            },
+            param_values={k: Decimal(v) for k, v in c["param_values"].items()},
             sharpe=None if c.get("sharpe") is None else Decimal(c["sharpe"]),
             total_return=Decimal(c["total_return"]),
             max_drawdown=Decimal(c["max_drawdown"]),
             num_trades=int(c["num_trades"]),
             is_degenerate=bool(c["is_degenerate"]),
             objective_value=(
-                None if c.get("objective_value") is None
-                else Decimal(c["objective_value"])
+                None if c.get("objective_value") is None else Decimal(c["objective_value"])
             ),
         )
         for c in data["cells"]
@@ -102,31 +173,9 @@ def bayesian_search_result_to_jsonb(r: BayesianSearchResult) -> dict[str, Any]:
         "kind": "bayesian",
         "param_names": list(r.param_names),
         "iterations": [
-            {
-                "idx": it.idx,
-                "params": {k: str(v) for k, v in it.params.items()},
-                "objective_value": (
-                    None if it.objective_value is None else str(it.objective_value)
-                ),
-                "best_so_far": (
-                    None if it.best_so_far is None else str(it.best_so_far)
-                ),
-                "is_degenerate": it.is_degenerate,
-                "phase": it.phase,
-            }
-            for it in r.iterations
+            {**_iteration_common_to_jsonb(it), "phase": it.phase} for it in r.iterations
         ],
-        "best_params": (
-            None
-            if r.best_params is None
-            else {k: str(v) for k, v in r.best_params.items()}
-        ),
-        "best_objective_value": (
-            None if r.best_objective_value is None else str(r.best_objective_value)
-        ),
-        "best_iteration_idx": r.best_iteration_idx,
-        "objective_metric": r.objective_metric,
-        "direction": r.direction,
+        **_search_summary_to_jsonb(r),
         "bayesian_acquisition": r.bayesian_acquisition,
         "bayesian_n_initial_random": r.bayesian_n_initial_random,
         "max_evaluations": r.max_evaluations,
@@ -137,38 +186,14 @@ def bayesian_search_result_to_jsonb(r: BayesianSearchResult) -> dict[str, Any]:
 
 def bayesian_search_result_from_jsonb(data: dict[str, Any]) -> BayesianSearchResult:
     """JSONB dict → BayesianSearchResult (test / detail rendering 용)."""
-    param_names = tuple(data["param_names"])
     iterations_t = tuple(
-        BayesianIteration(
-            idx=int(it["idx"]),
-            params={k: Decimal(v) for k, v in it["params"].items()},
-            objective_value=(
-                None if it.get("objective_value") is None else Decimal(it["objective_value"])
-            ),
-            best_so_far=(
-                None if it.get("best_so_far") is None else Decimal(it["best_so_far"])
-            ),
-            is_degenerate=bool(it["is_degenerate"]),
-            phase=it["phase"],
-        )
+        BayesianIteration(**_iteration_common_from_jsonb(it), phase=it["phase"])
         for it in data["iterations"]
     )
     return BayesianSearchResult(
-        param_names=param_names,
+        param_names=tuple(data["param_names"]),
         iterations=iterations_t,
-        best_params=(
-            None
-            if data.get("best_params") is None
-            else {k: Decimal(v) for k, v in data["best_params"].items()}
-        ),
-        best_objective_value=(
-            None
-            if data.get("best_objective_value") is None
-            else Decimal(data["best_objective_value"])
-        ),
-        best_iteration_idx=data.get("best_iteration_idx"),
-        objective_metric=data["objective_metric"],
-        direction=data["direction"],
+        **_search_summary_from_jsonb(data),
         bayesian_acquisition=data["bayesian_acquisition"],
         bayesian_n_initial_random=int(data["bayesian_n_initial_random"]),
         max_evaluations=int(data["max_evaluations"]),
@@ -191,31 +216,9 @@ def genetic_search_result_to_jsonb(r: GeneticSearchResult) -> dict[str, Any]:
         "kind": "genetic",
         "param_names": list(r.param_names),
         "iterations": [
-            {
-                "idx": it.idx,
-                "params": {k: str(v) for k, v in it.params.items()},
-                "objective_value": (
-                    None if it.objective_value is None else str(it.objective_value)
-                ),
-                "best_so_far": (
-                    None if it.best_so_far is None else str(it.best_so_far)
-                ),
-                "is_degenerate": it.is_degenerate,
-                "generation": it.generation,
-            }
-            for it in r.iterations
+            {**_iteration_common_to_jsonb(it), "generation": it.generation} for it in r.iterations
         ],
-        "best_params": (
-            None
-            if r.best_params is None
-            else {k: str(v) for k, v in r.best_params.items()}
-        ),
-        "best_objective_value": (
-            None if r.best_objective_value is None else str(r.best_objective_value)
-        ),
-        "best_iteration_idx": r.best_iteration_idx,
-        "objective_metric": r.objective_metric,
-        "direction": r.direction,
+        **_search_summary_to_jsonb(r),
         "population_size": r.population_size,
         "n_generations": r.n_generations,
         "mutation_rate": str(r.mutation_rate),
@@ -228,38 +231,14 @@ def genetic_search_result_to_jsonb(r: GeneticSearchResult) -> dict[str, Any]:
 
 def genetic_search_result_from_jsonb(data: dict[str, Any]) -> GeneticSearchResult:
     """JSONB dict → GeneticSearchResult (test / detail rendering 용)."""
-    param_names = tuple(data["param_names"])
     iterations_t = tuple(
-        GeneticIndividual(
-            idx=int(it["idx"]),
-            params={k: Decimal(v) for k, v in it["params"].items()},
-            objective_value=(
-                None if it.get("objective_value") is None else Decimal(it["objective_value"])
-            ),
-            best_so_far=(
-                None if it.get("best_so_far") is None else Decimal(it["best_so_far"])
-            ),
-            is_degenerate=bool(it["is_degenerate"]),
-            generation=int(it["generation"]),
-        )
+        GeneticIndividual(**_iteration_common_from_jsonb(it), generation=int(it["generation"]))
         for it in data["iterations"]
     )
     return GeneticSearchResult(
-        param_names=param_names,
+        param_names=tuple(data["param_names"]),
         iterations=iterations_t,
-        best_params=(
-            None
-            if data.get("best_params") is None
-            else {k: Decimal(v) for k, v in data["best_params"].items()}
-        ),
-        best_objective_value=(
-            None
-            if data.get("best_objective_value") is None
-            else Decimal(data["best_objective_value"])
-        ),
-        best_iteration_idx=data.get("best_iteration_idx"),
-        objective_metric=data["objective_metric"],
-        direction=data["direction"],
+        **_search_summary_from_jsonb(data),
         population_size=int(data["population_size"]),
         n_generations=int(data["n_generations"]),
         mutation_rate=Decimal(data["mutation_rate"]),
