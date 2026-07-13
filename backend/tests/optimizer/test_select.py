@@ -9,8 +9,8 @@ from src.optimizer.engine import (
     GridSearchCell,
     GridSearchResult,
 )
-from src.optimizer.engine import dispatch as dispatch_mod
-from src.optimizer.engine.dispatch import best_params_of, run_optimizer_by_kind
+from src.optimizer.engine import select as select_mod
+from src.optimizer.engine.select import best_params_of, run_optimizer_by_kind
 from src.optimizer.models import OptimizationKind
 
 
@@ -110,7 +110,7 @@ class TestRunOptimizerByKind:
             captured["args"] = (pine, ohlcv, param_space, backtest_config)
             return "GRID"
 
-        monkeypatch.setattr(dispatch_mod, "run_grid_search", fake_grid)
+        monkeypatch.setattr(select_mod, "run_grid_search", fake_grid)
         out = run_optimizer_by_kind(
             OptimizationKind.GRID_SEARCH,
             "pine",
@@ -122,14 +122,14 @@ class TestRunOptimizerByKind:
         assert captured["args"] == ("pine", "ohlcv", "PS", "CFG")
 
     def test_bayesian_route(self, monkeypatch) -> None:
-        monkeypatch.setattr(dispatch_mod, "run_bayesian_search", lambda *a, **k: "BAYES")
+        monkeypatch.setattr(select_mod, "run_bayesian_search", lambda *a, **k: "BAYES")
         assert (
             run_optimizer_by_kind(OptimizationKind.BAYESIAN, "p", "o", param_space="PS")
             == "BAYES"
         )
 
     def test_genetic_route(self, monkeypatch) -> None:
-        monkeypatch.setattr(dispatch_mod, "run_genetic_search", lambda *a, **k: "GEN")
+        monkeypatch.setattr(select_mod, "run_genetic_search", lambda *a, **k: "GEN")
         assert (
             run_optimizer_by_kind(OptimizationKind.GENETIC, "p", "o", param_space="PS")
             == "GEN"

@@ -246,7 +246,7 @@ def test_real_grid_wfo_end_to_end() -> None:
     옵티마이저 best_params (no-lookahead + 올바른 윈도잉을 실 경로에서 입증).
     """
     from src.backtest.engine.types import BacktestConfig
-    from src.optimizer.engine.dispatch import best_params_of
+    from src.optimizer.engine.select import best_params_of
     from src.optimizer.engine.grid_search import run_grid_search
 
     ohlcv = make_sine_ohlcv(n_bars=300)
