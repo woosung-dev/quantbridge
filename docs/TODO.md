@@ -24,7 +24,8 @@
 
 - [ ] 브랜치 `docs/verification-loop-2026-06-30` 푸시 + PR (사용자 승인)
 - [x] (선택) 다음 deepen = ~~stress_test~~ ✅ (2026-06-30 `/deepen-modules`, [`dev-log`](dev-log/2026-06-30-stress_test-deepen.md)): C1 BL-363 sharpen + C2 신규 BL-392, C3/C4 거부. 코드 0, 50 → 51 active.
-- [ ] (선택) 다음 deepen = **optimizer** (잔여 미감사 도메인. Iron Law = 새 session, `serializers.py`/`repository.py` coverage <70% STOP 선확인)
+- [x] (선택) 다음 deepen = ~~optimizer~~ ✅ (2026-07-13 `/improve-codebase-architecture` — 감사→같은 세션 구현): STOP 실측 repository.py 40% → S0 test-first(→100%) + A/B/N1 디스패치·직렬화 SSOT + C-min get 404 + N2 pick-best 공유. PR #431/#432/+cmin-n2 → stage/optimizer-deepen. N3→BL-411, C-full→BL-412.
+- [ ] (선택) 다음 deepen = **tasks** (잔여 미감사 도메인 중 최대 4,098 LOC — trading.py 1,109 + live_signal.py 993, money-path Celery entrypoint. Iron Law = 새 session)
 - [ ] `.ai/` 마스터 ai-rules repo 미러 (LESSON-068 manual sync)
 
 ---
