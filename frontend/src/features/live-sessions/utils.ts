@@ -56,6 +56,39 @@ export type ActivityTimelinePoint = {
   closes_in_window: number;
 };
 
+// 내부 helper — bar_time asc → 같은 bar 면 sequence_no asc 정렬.
+// comparator 의 Date.parse 반복 호출을 epoch ms 키 사전 계산으로 제거.
+// buildActivityTimeline / buildActivityTimelineWithEquity 가 공유 (정렬 1회 통합).
+type SortedEvent = { ev: LiveSignalEvent; ts: number };
+
+function sortEventsChronologically(
+  events: ReadonlyArray<LiveSignalEvent>,
+): SortedEvent[] {
+  return events
+    .map((ev) => ({ ev, ts: Date.parse(ev.bar_time) }))
+    .sort((a, b) =>
+      a.ts !== b.ts ? a.ts - b.ts : a.ev.sequence_no - b.ev.sequence_no,
+    );
+}
+
+// 정렬된 events → cumulative entry/close datapoint 변환.
+function toTimelinePoints(
+  sorted: ReadonlyArray<SortedEvent>,
+): ActivityTimelinePoint[] {
+  let entries = 0;
+  let closes = 0;
+  return sorted.map(({ ev }) => {
+    if (ev.action === "entry") entries += 1;
+    else if (ev.action === "close") closes += 1;
+    return {
+      // codex G.2 P2 #3 — toLocaleString() (장시간 세션 X축 중복 방어).
+      label: new Date(ev.bar_time).toLocaleString(),
+      entries_in_window: entries,
+      closes_in_window: closes,
+    };
+  });
+}
+
 /**
  * Sprint 27 BL-140 — events 윈도우 내 cumulative entry/close 카운트.
  *
@@ -70,24 +103,7 @@ export type ActivityTimelinePoint = {
 export function buildActivityTimeline(
   events: ReadonlyArray<LiveSignalEvent>,
 ): ActivityTimelinePoint[] {
-  const sorted = events.slice().sort((a, b) => {
-    const ta = Date.parse(a.bar_time);
-    const tb = Date.parse(b.bar_time);
-    if (ta !== tb) return ta - tb;
-    return a.sequence_no - b.sequence_no;
-  });
-  let entries = 0;
-  let closes = 0;
-  return sorted.map((ev) => {
-    if (ev.action === "entry") entries += 1;
-    else if (ev.action === "close") closes += 1;
-    return {
-      // codex G.2 P2 #3 — toLocaleString() (장시간 세션 X축 중복 방어).
-      label: new Date(ev.bar_time).toLocaleString(),
-      entries_in_window: entries,
-      closes_in_window: closes,
-    };
-  });
+  return toTimelinePoints(sortEventsChronologically(events));
 }
 
 // Sprint 28 Slice 3 (BL-140b) — entry/close + real cumulative equity 통합.
@@ -112,38 +128,32 @@ export function buildActivityTimelineWithEquity(
   events: ReadonlyArray<LiveSignalEvent>,
   equityCurve: ReadonlyArray<EquityCurvePoint>,
 ): ActivityTimelineWithEquityPoint[] {
-  const baseTimeline = buildActivityTimeline(events);
+  // 정렬 1회 통합 — timeline 변환과 equity 매칭이 같은 정렬 결과를 공유.
+  const sortedEvents = sortEventsChronologically(events);
+  const baseTimeline = toTimelinePoints(sortedEvents);
 
   // equity_curve 의 timestamp_ms → cumulative_pnl 매핑
   const sortedEquity = equityCurve
     .slice()
     .sort((a, b) => a.timestamp_ms - b.timestamp_ms);
 
-  // 원본 event 의 bar_time 재계산 (label 은 toLocaleString 이라 원본 보존 필요).
-  // sortedEvents 는 baseTimeline 과 동일 순서 보장 (buildActivityTimeline 안 동일 sort 적용).
-  const sortedEvents = events.slice().sort((a, b) => {
-    const ta = Date.parse(a.bar_time);
-    const tb = Date.parse(b.bar_time);
-    if (ta !== tb) return ta - tb;
-    return a.sequence_no - b.sequence_no;
-  });
-
-  // 각 event 의 bar_time ms 와 가장 가까운 (≤) equity_curve point 찾기
+  // two-pointer — 양쪽 모두 asc 정렬이므로 equity 인덱스는 뒤로만 전진 O(E+N).
+  // (기존: 이벤트마다 sortedEquity 전체 선형 재스캔 O(E×N).)
+  let eqIdx = 0;
+  let cumulativePnl = 0; // 첫 equity point 이전 이벤트는 0 (기존 시맨틱스 유지)
   return baseTimeline.map((point, idx) => {
-    const ev = sortedEvents[idx];
-    if (!ev) {
+    const entry = sortedEvents[idx];
+    if (!entry) {
       return { ...point, cumulative_pnl: 0 };
     }
-    const eventTimestampMs = Date.parse(ev.bar_time);
 
-    // bar_time 이전의 마지막 equity (carry-forward)
-    let cumulativePnl = 0;
-    for (const eq of sortedEquity) {
-      if (eq.timestamp_ms <= eventTimestampMs) {
-        cumulativePnl = parseFloat(eq.cumulative_pnl);
-      } else {
-        break;
-      }
+    // bar_time 이전(≤)의 마지막 equity 값 carry-forward.
+    while (
+      eqIdx < sortedEquity.length &&
+      sortedEquity[eqIdx]!.timestamp_ms <= entry.ts
+    ) {
+      cumulativePnl = parseFloat(sortedEquity[eqIdx]!.cumulative_pnl);
+      eqIdx += 1;
     }
 
     return {

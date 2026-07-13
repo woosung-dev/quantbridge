@@ -31,6 +31,7 @@ import {
 } from "@/features/trading";
 import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
 import { cn } from "@/lib/utils";
+import type { LineSeriesPartialOptions } from "lightweight-charts";
 
 import { LiveSessionTable } from "../../trading/_components/live-session-table";
 import { PnlTape } from "@/components/tape/pnl-tape";
@@ -46,6 +47,14 @@ function formatUsd(n: number): string {
 
 const MICRO_LABEL =
   "font-mono text-[0.68rem] font-medium uppercase tracking-[0.14em] text-muted-foreground";
+
+// 정적 차트 옵션 — 렌더 간 identity 고정 (equity-pane.tsx EQUITY_LINE_OPTIONS
+// 패턴 mirror). 인라인 객체는 폴링 리렌더마다 TradingChart data effect 를
+// 재실행시켜(setData + fitContent) 사용자 줌/팬을 리셋한다.
+const EQUITY_LINE_OPTIONS: LineSeriesPartialOptions = {
+  color: CHART_PALETTE_FALLBACK.equity,
+  lineWidth: 2,
+};
 
 export function DashboardCockpit() {
   const sessionsQ = useLiveSessions();
@@ -201,7 +210,7 @@ export function DashboardCockpit() {
           <TradingChart
             data={equityChartData}
             height={260}
-            options={{ color: CHART_PALETTE_FALLBACK.equity, lineWidth: 2 }}
+            options={EQUITY_LINE_OPTIONS}
             ariaLabel="활성 세션 합산 실현 손익 누적 곡선 (USDT)"
           />
         ) : agg.isLoading ? (

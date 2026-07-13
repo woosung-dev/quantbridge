@@ -128,23 +128,16 @@ export interface LiveSessionsAggregate {
 }
 
 /**
- * 여러 라이브 세션의 state 를 useQueries 로 팬아웃 fetch 후 합산 집계.
- * 세션당 useLiveSessionState 와 동일 queryKey → 캐시 공유(추가 네트워크 최소).
- * MAX_LIVE_SESSIONS_PER_USER(=5) 상한이라 N+1 팬아웃 비용 제한적.
+ * useQueries combine — 팬아웃 결과를 렌더 바디 밖에서 합산 집계 (module-level).
+ * 렌더 바디에서 mergeCumulativeCurves 직행 호출은 매 렌더 새 identity 를 반환해
+ * 하위 차트의 data effect(setData + fitContent)를 폴링마다 재실행시켰다(줌 리셋).
+ * combine 결과는 RQ 가 structural sharing(replaceEqualDeep) 으로 memoize 하므로
+ * 데이터 불변 시 mergedEquityCurve 등 하위 참조 identity 가 유지된다.
+ * (단순 useMemo([results]) 는 useQueries 가 매 렌더 새 배열이라 불충분.)
  */
-export function useLiveSessionsAggregate(
-  sessions: readonly LiveSession[],
+function combineLiveSessionStates(
+  results: UseQueryResult<LiveSignalState | null, Error>[],
 ): LiveSessionsAggregate {
-  const { uid, getToken } = useAuthCtx();
-  const results = useQueries({
-    queries: sessions.map((s) => ({
-      queryKey: liveSessionKeys.state(uid, s.id),
-      queryFn: makeStateFetcher(s.id, getToken),
-      enabled: Boolean(s.id),
-      refetchInterval: liveStateRefetchInterval(s.is_active),
-    })),
-  });
-
   let totalRealizedPnl = 0;
   let totalClosedTrades = 0;
   let populatedSessions = 0;
@@ -176,6 +169,27 @@ export function useLiveSessionsAggregate(
     populatedSessions,
     isLoading: results.some((r) => r.isLoading),
   };
+}
+
+/**
+ * 여러 라이브 세션의 state 를 useQueries 로 팬아웃 fetch 후 합산 집계.
+ * 세션당 useLiveSessionState 와 동일 queryKey → 캐시 공유(추가 네트워크 최소).
+ * MAX_LIVE_SESSIONS_PER_USER(=5) 상한이라 N+1 팬아웃 비용 제한적.
+ * 집계는 combine 옵션 (combineLiveSessionStates) — 반환 identity 안정화.
+ */
+export function useLiveSessionsAggregate(
+  sessions: readonly LiveSession[],
+): LiveSessionsAggregate {
+  const { uid, getToken } = useAuthCtx();
+  return useQueries({
+    queries: sessions.map((s) => ({
+      queryKey: liveSessionKeys.state(uid, s.id),
+      queryFn: makeStateFetcher(s.id, getToken),
+      enabled: Boolean(s.id),
+      refetchInterval: liveStateRefetchInterval(s.is_active),
+    })),
+    combine: combineLiveSessionStates,
+  });
 }
 
 export function useLiveSessionEvents(

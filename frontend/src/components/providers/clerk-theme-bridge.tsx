@@ -5,7 +5,8 @@
 // 없으므로, 본 client 컴포넌트가 ThemeProvider 내부에서 resolvedTheme 을 읽어 Clerk 위젯
 // (SignIn/UserButton 등)의 다크/라이트를 앱 테마와 동기화한다. proxy.ts/clerkMiddleware 불변.
 import { ClerkProvider } from "@clerk/nextjs";
-import { koKR } from "@clerk/localizations";
+// 배럴(@clerk/localizations, 4.9MB) 대신 단일 로케일 모듈(95KB) subpath import.
+import { koKR } from "@clerk/localizations/ko-KR";
 import { dark } from "@clerk/themes";
 import { useTheme } from "next-themes";
 import type { ReactNode } from "react";
