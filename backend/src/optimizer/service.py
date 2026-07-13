@@ -253,7 +253,12 @@ class OptimizerService:
 
     async def get(self, run_id: UUID, *, user_id: UUID) -> OptimizationRunResponse:
         run = await self._load_owned(run_id, user_id)
-        return self._to_response(run)
+        response = self._to_response_or_none(run)
+        if response is None:
+            # deepen C-min: 손상 row (Sprint 50-52 retro-incorrect param_space) 는
+            # list 에서 skip 되므로 상세 조회도 500 대신 404 로 대칭 처리.
+            raise OptimizationNotFoundError(run_id)
+        return response
 
     async def list(
         self,
@@ -265,20 +270,13 @@ class OptimizerService:
     ) -> Page[OptimizationRunResponse]:
         # Sprint 62 T-1 (BL-350/354): row-level resilience. Sprint 50-52 retro-incorrect row
         # + 53-55 schema tightening 합집합으로 _to_response 가 Pydantic ValidationError raise 시
-        # 응답 전체 500 fail. 본 fix = row 별 try/except → invalid skip + WARN log + valid 만 반환.
+        # 응답 전체 500 fail. 손상 row 방어는 _to_response_or_none SSOT (deepen C-min, get 대칭).
         items, total = await self.repo.list_by_user(
             user_id, limit=limit, offset=offset, backtest_id=backtest_id
         )
-        valid_items: list[OptimizationRunResponse] = []
-        for run in items:
-            try:
-                valid_items.append(self._to_response(run))
-            except Exception as exc:
-                logger.warning(
-                    "optimizer_run_skip_invalid_schema run_id=%s err=%s",
-                    run.id,
-                    exc,
-                )
+        valid_items = [
+            response for run in items if (response := self._to_response_or_none(run)) is not None
+        ]
         return Page[OptimizationRunResponse](
             items=valid_items,
             total=total,
@@ -311,6 +309,18 @@ class OptimizerService:
                     f"current status: {bt.status.value}"
                 )
             )
+
+    def _to_response_or_none(self, run: OptimizationRun) -> OptimizationRunResponse | None:
+        """손상 row 방어 SSOT (deepen C-min) — get/list 대칭. 변환 실패 시 WARN + None."""
+        try:
+            return self._to_response(run)
+        except Exception as exc:
+            logger.warning(
+                "optimizer_run_skip_invalid_schema run_id=%s err=%s",
+                run.id,
+                exc,
+            )
+            return None
 
     @staticmethod
     def _to_response(run: OptimizationRun) -> OptimizationRunResponse:

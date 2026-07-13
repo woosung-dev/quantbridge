@@ -1,4 +1,4 @@
-# Sprint 62 T-1 (BL-350+354) — OptimizerService.list row-level resilience 회귀 test
+# Sprint 62 T-1 (BL-350+354) — OptimizerService get/list 손상 row resilience 회귀 test
 """row-level resilience — invalid row 자동 skip + valid only 응답.
 
 Multi-Agent QA 2026-05-17 발견 (★★★ Curious + Casual 공통 P0):
@@ -7,6 +7,8 @@ Sprint 50-52 의 retro-incorrect result_jsonb row + Sprint 53-55 의 schema tigh
 전체 fail → API 500 → FE 가 raw error JSON 본문 노출.
 
 본 fix: list() 내부 row 별 try/except + skip + WARN log + valid items 만 응답.
+optimizer-deepen C-min (2026-07-13): 방어를 _to_response_or_none SSOT 로 승격,
+get() 도 손상 row 에서 500 대신 404 (OptimizationNotFoundError) — 대칭 회귀 추가.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.optimizer.dispatcher import FakeOptimizationTaskDispatcher
+from src.optimizer.exceptions import OptimizationNotFoundError
 from src.optimizer.models import (
     OptimizationKind,
     OptimizationRun,
@@ -95,6 +98,45 @@ async def test_list_returns_valid_items_only_when_some_rows_invalid(
         r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()
     ]
     assert len(skip_logs) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_corrupt_row_raises_not_found_instead_of_500(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """deepen C-min: 손상 row 상세 조회 → ValidationError 500 대신 404 + WARN."""
+    user_id = uuid4()
+    corrupt_run = _make_run(
+        user_id=user_id,
+        param_space={"schema_version": 1, "broken_field": "no_required_fields"},
+    )
+
+    repo = AsyncMock()
+    repo.get_by_id.return_value = corrupt_run
+    service = _build_service(repo=repo)
+
+    caplog.set_level(logging.WARNING, logger="src.optimizer.service")
+    with pytest.raises(OptimizationNotFoundError):
+        await service.get(corrupt_run.id, user_id=user_id)
+
+    skip_logs = [
+        r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()
+    ]
+    assert len(skip_logs) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_valid_row_returns_response() -> None:
+    """deepen C-min 회귀: 정상 row 는 기존과 동일하게 응답."""
+    user_id = uuid4()
+    valid_run = _make_run(user_id=user_id, param_space=_make_valid_param_space_dict())
+
+    repo = AsyncMock()
+    repo.get_by_id.return_value = valid_run
+    service = _build_service(repo=repo)
+
+    response = await service.get(valid_run.id, user_id=user_id)
+    assert response.id == valid_run.id
 
 
 @pytest.mark.asyncio
