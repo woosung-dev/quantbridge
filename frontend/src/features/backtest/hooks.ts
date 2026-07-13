@@ -97,7 +97,7 @@ function makeTradesFetcher(
   };
 }
 
-// 전체 trades 페이지 루프 — 리포트 파생 계산(분포/원장/마커)용 200-cap 해소.
+// 전체 trades 페이지 fetch — 리포트 파생 계산(분포/원장/마커)용 200-cap 해소.
 // 상한 2000건 (BE 분포 집계 엔드포인트 도입 전 안전 cap — 초과 시 truncated 표기).
 const ALL_TRADES_PAGE_SIZE = 200;
 const MAX_ANALYTICS_TRADES = 2000;
@@ -109,23 +109,37 @@ export interface AllTradesResult {
   truncated: boolean;
 }
 
-function makeAllTradesFetcher(id: string, getToken: TokenGetter) {
+// first-page-then-parallel: 페이지 1 fetch 로 total 확보 → 잔여 offset 들을
+// Promise.all 병렬 fetch (기존 순차 루프의 왕복 누적 latency 제거).
+// export 는 단위 테스트용 (stressTestRefetchInterval export 패턴 mirror).
+export function makeAllTradesFetcher(id: string, getToken: TokenGetter) {
   return async (): Promise<AllTradesResult> => {
     const token = await getToken();
-    const items: TradeItem[] = [];
-    let total = 0;
-    for (let offset = 0; offset < MAX_ANALYTICS_TRADES; offset += ALL_TRADES_PAGE_SIZE) {
-      const page = await listBacktestTrades(
-        id,
-        { limit: ALL_TRADES_PAGE_SIZE, offset },
-        token,
-      );
-      items.push(...page.items);
-      total = page.total;
-      if (items.length >= page.total || page.items.length === 0) {
-        break;
-      }
+    const first = await listBacktestTrades(
+      id,
+      { limit: ALL_TRADES_PAGE_SIZE, offset: 0 },
+      token,
+    );
+    const total = first.total;
+
+    // MAX_ANALYTICS_TRADES cap 유지 — 잔여 offset 은 min(total, cap) 까지만 생성.
+    const cappedTotal = Math.min(total, MAX_ANALYTICS_TRADES);
+    const restOffsets: number[] = [];
+    for (
+      let offset = ALL_TRADES_PAGE_SIZE;
+      offset < cappedTotal;
+      offset += ALL_TRADES_PAGE_SIZE
+    ) {
+      restOffsets.push(offset);
     }
+    const restPages = await Promise.all(
+      restOffsets.map((offset) =>
+        listBacktestTrades(id, { limit: ALL_TRADES_PAGE_SIZE, offset }, token),
+      ),
+    );
+
+    // Promise.all 이 입력 순서를 보존 → offset 순 concat 보장.
+    const items = [...first.items, ...restPages.flatMap((p) => p.items)];
     return { items, total, truncated: items.length < total };
   };
 }
