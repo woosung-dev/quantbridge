@@ -1,0 +1,1336 @@
+{
+  "generated_at": "2026-07-12T14:57:50.410179+00:00",
+  "git_commit": "dfde1f7",
+  "config": {
+    "init_cash": "10000",
+    "fees": 0.001,
+    "slippage": 0.0005,
+    "freq": "per-TF",
+    "cell_timeout_s": 900,
+    "normalized": true,
+    "default_qty": {
+      "type": "strategy.percent_of_equity",
+      "value": 100.0
+    }
+  },
+  "coverage": {
+    "DrFXGOD_indicator_hard.pine": {
+      "runnable": false,
+      "degraded": ["request.security", "timeframe.period"],
+      "unsupported": [
+        "request.security_lower_tf",
+        "ta.alma",
+        "ta.dmi",
+        "ticker.new",
+        "time"
+      ],
+      "track": "A",
+      "sizing": {
+        "pine_declared": null
+      }
+    },
+    "DrFX_strategy_quantbridge.pine": {
+      "runnable": true,
+      "degraded": [],
+      "unsupported": [],
+      "track": "S",
+      "sizing": {
+        "pine_declared": {
+          "type": "strategy.percent_of_equity",
+          "value": 100.0
+        }
+      }
+    },
+    "LuxAlgo_indicator_medium.pine": {
+      "runnable": true,
+      "degraded": [],
+      "unsupported": [],
+      "track": "A",
+      "sizing": {
+        "pine_declared": null
+      }
+    },
+    "PbR_strategy_easy.pine": {
+      "runnable": true,
+      "degraded": [],
+      "unsupported": [],
+      "track": "S",
+      "sizing": {
+        "pine_declared": null
+      }
+    },
+    "RsiD_strategy_hard.pine": {
+      "runnable": true,
+      "degraded": [],
+      "unsupported": [],
+      "track": "S",
+      "sizing": {
+        "pine_declared": {
+          "type": "strategy.fixed",
+          "value": 2.0
+        }
+      }
+    },
+    "UtBot_indicator_easy.pine": {
+      "runnable": true,
+      "degraded": ["heikinashi", "security", "timeframe.period"],
+      "unsupported": [],
+      "track": "A",
+      "sizing": {
+        "pine_declared": null
+      }
+    },
+    "UtBot_strategy_medium.pine": {
+      "runnable": true,
+      "degraded": ["heikinashi", "security", "timeframe.period"],
+      "unsupported": [],
+      "track": "S",
+      "sizing": {
+        "pine_declared": null
+      }
+    },
+    "bs_indicator_medium.pine": {
+      "runnable": true,
+      "degraded": [],
+      "unsupported": [],
+      "track": "A",
+      "sizing": {
+        "pine_declared": null
+      }
+    }
+  },
+  "cells": [
+    {
+      "script": "DrFXGOD_indicator_hard.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "skipped_unsupported"
+      }
+    },
+    {
+      "script": "DrFXGOD_indicator_hard.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "skipped_unsupported"
+      }
+    },
+    {
+      "script": "DrFXGOD_indicator_hard.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "skipped_unsupported"
+      }
+    },
+    {
+      "script": "DrFXGOD_indicator_hard.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "skipped_unsupported"
+      }
+    },
+    {
+      "script": "DrFX_strategy_quantbridge.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 4.9,
+        "metrics": {
+          "num_trades": 142,
+          "total_return": "-0.46539888",
+          "annual_return_pct": "-0.46475049",
+          "sharpe_ratio": "-0.55544407",
+          "sortino_ratio": "-0.46153641",
+          "max_drawdown": "-0.59906403",
+          "win_rate": "0.32394366",
+          "profit_factor": "0.77320932",
+          "avg_holding_hours": "61.51408451",
+          "consecutive_losses_max": 9,
+          "total_fees": "2313.69408684",
+          "total_slippage": "1156.84704342"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 19,
+            "entry_price": "43570.10000000",
+            "exit_bar_index": 59,
+            "exit_price": "43736.20000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 59,
+            "entry_price": "43736.20000000",
+            "exit_bar_index": 179,
+            "exit_price": "44653.90000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 179,
+            "entry_price": "44653.90000000",
+            "exit_bar_index": 228,
+            "exit_price": "44678.00000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "DrFX_strategy_quantbridge.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.4,
+        "metrics": {
+          "num_trades": 35,
+          "total_return": "-0.17754422",
+          "annual_return_pct": "-0.17728785",
+          "sharpe_ratio": "-0.08805859",
+          "sortino_ratio": "-0.07556714",
+          "max_drawdown": "-0.55655742",
+          "win_rate": "0.40000000",
+          "profit_factor": "0.82068932",
+          "avg_holding_hours": "236.68571429",
+          "consecutive_losses_max": 6,
+          "total_fees": "717.77968668",
+          "total_slippage": "358.88984334"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 46,
+            "entry_price": "47005.90000000",
+            "exit_bar_index": 71,
+            "exit_price": "42797.90000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 71,
+            "entry_price": "42797.90000000",
+            "exit_bar_index": 154,
+            "exit_price": "42045.40000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 154,
+            "entry_price": "42045.40000000",
+            "exit_bar_index": 388,
+            "exit_price": "61482.40000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "DrFX_strategy_quantbridge.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 5.0,
+        "metrics": {
+          "num_trades": 131,
+          "total_return": "-0.24493030",
+          "annual_return_pct": "-0.24509982",
+          "sharpe_ratio": "-0.26163057",
+          "sortino_ratio": "-0.09526194",
+          "max_drawdown": "-0.51232507",
+          "win_rate": "0.34351145",
+          "profit_factor": "0.85443413",
+          "avg_holding_hours": "65.62595420",
+          "consecutive_losses_max": 17,
+          "total_fees": "2502.59601579",
+          "total_slippage": "1251.29800790"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 32,
+            "entry_price": "107688.10000000",
+            "exit_bar_index": 85,
+            "exit_price": "107916.40000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 85,
+            "entry_price": "107916.40000000",
+            "exit_bar_index": 133,
+            "exit_price": "108731.50000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 133,
+            "entry_price": "108731.50000000",
+            "exit_bar_index": 169,
+            "exit_price": "107630.90000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "DrFX_strategy_quantbridge.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.5,
+        "metrics": {
+          "num_trades": 31,
+          "total_return": "0.25854937",
+          "annual_return_pct": "0.25887995",
+          "sharpe_ratio": "0.77388579",
+          "sortino_ratio": "0.35027608",
+          "max_drawdown": "-0.31962005",
+          "win_rate": "0.41935484",
+          "profit_factor": "1.21693338",
+          "avg_holding_hours": "266.06451613",
+          "consecutive_losses_max": 4,
+          "total_fees": "680.01783120",
+          "total_slippage": "340.00891560"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 52,
+            "entry_price": "111702.60000000",
+            "exit_bar_index": 84,
+            "exit_price": "117210.20000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 84,
+            "entry_price": "117210.20000000",
+            "exit_bar_index": 226,
+            "exit_price": "117380.60000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 226,
+            "entry_price": "117380.60000000",
+            "exit_bar_index": 268,
+            "exit_price": "117915.40000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "LuxAlgo_indicator_medium.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 3.2,
+        "metrics": {
+          "num_trades": 0,
+          "total_return": "0.00000000",
+          "annual_return_pct": "0.00000000",
+          "sharpe_ratio": "0.00000000",
+          "sortino_ratio": null,
+          "max_drawdown": "0.00000000",
+          "win_rate": "0.00000000",
+          "profit_factor": null,
+          "avg_holding_hours": null,
+          "consecutive_losses_max": null,
+          "total_fees": "0.00000000",
+          "total_slippage": "0.00000000"
+        },
+        "first_trades": []
+      }
+    },
+    {
+      "script": "LuxAlgo_indicator_medium.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.0,
+        "metrics": {
+          "num_trades": 0,
+          "total_return": "0.00000000",
+          "annual_return_pct": "0.00000000",
+          "sharpe_ratio": "0.00000000",
+          "sortino_ratio": null,
+          "max_drawdown": "0.00000000",
+          "win_rate": "0.00000000",
+          "profit_factor": null,
+          "avg_holding_hours": null,
+          "consecutive_losses_max": null,
+          "total_fees": "0.00000000",
+          "total_slippage": "0.00000000"
+        },
+        "first_trades": []
+      }
+    },
+    {
+      "script": "LuxAlgo_indicator_medium.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 3.3,
+        "metrics": {
+          "num_trades": 0,
+          "total_return": "0.00000000",
+          "annual_return_pct": "0.00000000",
+          "sharpe_ratio": "0.00000000",
+          "sortino_ratio": null,
+          "max_drawdown": "0.00000000",
+          "win_rate": "0.00000000",
+          "profit_factor": null,
+          "avg_holding_hours": null,
+          "consecutive_losses_max": null,
+          "total_fees": "0.00000000",
+          "total_slippage": "0.00000000"
+        },
+        "first_trades": []
+      }
+    },
+    {
+      "script": "LuxAlgo_indicator_medium.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.0,
+        "metrics": {
+          "num_trades": 0,
+          "total_return": "0.00000000",
+          "annual_return_pct": "0.00000000",
+          "sharpe_ratio": "0.00000000",
+          "sortino_ratio": null,
+          "max_drawdown": "0.00000000",
+          "win_rate": "0.00000000",
+          "profit_factor": null,
+          "avg_holding_hours": null,
+          "consecutive_losses_max": null,
+          "total_fees": "0.00000000",
+          "total_slippage": "0.00000000"
+        },
+        "first_trades": []
+      }
+    },
+    {
+      "script": "PbR_strategy_easy.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 3.3,
+        "metrics": {
+          "num_trades": 949,
+          "total_return": "-3.66008395",
+          "annual_return_pct": null,
+          "sharpe_ratio": "-1.17791775",
+          "sortino_ratio": "-0.14816449",
+          "max_drawdown": "-3.51493937",
+          "win_rate": "0.41412013",
+          "profit_factor": "0.68872907",
+          "avg_holding_hours": "9.22760801",
+          "consecutive_losses_max": 11,
+          "total_fees": "33242.01851686",
+          "total_slippage": "16621.00925843"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 15,
+            "entry_price": "42820.01000000",
+            "exit_bar_index": 23,
+            "exit_price": "43909.51000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 23,
+            "entry_price": "43909.51000000",
+            "exit_bar_index": 31,
+            "exit_price": "45578.91000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 31,
+            "entry_price": "45578.91000000",
+            "exit_bar_index": 43,
+            "exit_price": "44868.19000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "PbR_strategy_easy.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 0.8,
+        "metrics": {
+          "num_trades": 251,
+          "total_return": "1.13385191",
+          "annual_return_pct": "1.13127461",
+          "sharpe_ratio": "1.43005185",
+          "sortino_ratio": "1.04463526",
+          "max_drawdown": "-0.32007813",
+          "win_rate": "0.58565737",
+          "profit_factor": "1.23611209",
+          "avg_holding_hours": "34.72509960",
+          "consecutive_losses_max": 4,
+          "total_fees": "9336.13750600",
+          "total_slippage": "4668.06875300"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 14,
+            "entry_price": "44632.99000000",
+            "exit_bar_index": 39,
+            "exit_price": "44285.01000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 39,
+            "entry_price": "44285.01000000",
+            "exit_bar_index": 44,
+            "exit_price": "44509.61000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 44,
+            "entry_price": "44509.61000000",
+            "exit_bar_index": 53,
+            "exit_price": "47318.31000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "PbR_strategy_easy.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 3.3,
+        "metrics": {
+          "num_trades": 962,
+          "total_return": "-2.98966002",
+          "annual_return_pct": null,
+          "sharpe_ratio": "-0.97786617",
+          "sortino_ratio": "7.70467093",
+          "max_drawdown": "-2.94623532",
+          "win_rate": "0.38565489",
+          "profit_factor": "0.61181814",
+          "avg_holding_hours": "9.07796258",
+          "consecutive_losses_max": 19,
+          "total_fees": "24872.19877555",
+          "total_slippage": "12436.09938777"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 14,
+            "entry_price": "106233.69000000",
+            "exit_bar_index": 19,
+            "exit_price": "105549.99000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 19,
+            "entry_price": "105549.99000000",
+            "exit_bar_index": 25,
+            "exit_price": "105180.29000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 25,
+            "entry_price": "105180.29000000",
+            "exit_bar_index": 31,
+            "exit_price": "107139.91000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "PbR_strategy_easy.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 0.8,
+        "metrics": {
+          "num_trades": 254,
+          "total_return": "-0.58517703",
+          "annual_return_pct": "-0.58559369",
+          "sharpe_ratio": "-0.76782341",
+          "sortino_ratio": "-0.17441565",
+          "max_drawdown": "-0.78605804",
+          "win_rate": "0.46850394",
+          "profit_factor": "0.77726011",
+          "avg_holding_hours": "34.22047244",
+          "consecutive_losses_max": 14,
+          "total_fees": "4977.19901597",
+          "total_slippage": "2488.59950798"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 14,
+            "entry_price": "109740.91000000",
+            "exit_bar_index": 33,
+            "exit_price": "108200.01000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 33,
+            "entry_price": "108200.01000000",
+            "exit_bar_index": 40,
+            "exit_price": "107762.59000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 40,
+            "entry_price": "107762.59000000",
+            "exit_bar_index": 51,
+            "exit_price": "109188.01000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "RsiD_strategy_hard.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 10.1,
+        "metrics": {
+          "num_trades": 133,
+          "total_return": "-4.11960043",
+          "annual_return_pct": null,
+          "sharpe_ratio": "0.50430162",
+          "sortino_ratio": "2.65360099",
+          "max_drawdown": "-2.19159177",
+          "win_rate": "0.43609023",
+          "profit_factor": "0.81427284",
+          "avg_holding_hours": "37.63909774",
+          "consecutive_losses_max": 8,
+          "total_fees": "35480.93620000",
+          "total_slippage": "17740.46810000"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 152,
+            "entry_price": "44031.40000000",
+            "exit_bar_index": 186,
+            "exit_price": "46981.20000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 249,
+            "entry_price": "46223.60000000",
+            "exit_bar_index": 254,
+            "exit_price": "48578.20000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 302,
+            "entry_price": "42874.90000000",
+            "exit_bar_index": 423,
+            "exit_price": "42629.30000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "RsiD_strategy_hard.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 3.7,
+        "metrics": {
+          "num_trades": 23,
+          "total_return": "2.44335762",
+          "annual_return_pct": "2.43657554",
+          "sharpe_ratio": "-0.08769651",
+          "sortino_ratio": "1.02968442",
+          "max_drawdown": "-1.05440576",
+          "win_rate": "0.56521739",
+          "profit_factor": "1.75823720",
+          "avg_holding_hours": "122.95652174",
+          "consecutive_losses_max": 2,
+          "total_fees": "6516.54920000",
+          "total_slippage": "3258.27460000"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 257,
+            "entry_price": "49960.90000000",
+            "exit_bar_index": 270,
+            "exit_price": "52394.90000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 366,
+            "entry_price": "62367.90000000",
+            "exit_bar_index": 372,
+            "exit_price": "61996.60000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 372,
+            "entry_price": "61996.60000000",
+            "exit_bar_index": 380,
+            "exit_price": "65328.10000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "RsiD_strategy_hard.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 9.7,
+        "metrics": {
+          "num_trades": 110,
+          "total_return": "-12.77028357",
+          "annual_return_pct": null,
+          "sharpe_ratio": "-0.98225030",
+          "sortino_ratio": "1.21215688",
+          "max_drawdown": "-6.32603105",
+          "win_rate": "0.48181818",
+          "profit_factor": "0.54296684",
+          "avg_holding_hours": "43.10909091",
+          "consecutive_losses_max": 8,
+          "total_fees": "39733.62380000",
+          "total_slippage": "19866.81190000"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 94,
+            "entry_price": "108192.30000000",
+            "exit_bar_index": 134,
+            "exit_price": "108879.50000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 172,
+            "entry_price": "107988.00000000",
+            "exit_bar_index": 209,
+            "exit_price": "109106.10000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 209,
+            "entry_price": "109106.10000000",
+            "exit_bar_index": 211,
+            "exit_price": "111702.60000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "RsiD_strategy_hard.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 3.7,
+        "metrics": {
+          "num_trades": 29,
+          "total_return": "-7.69096299",
+          "annual_return_pct": null,
+          "sharpe_ratio": "1.35501489",
+          "sortino_ratio": "1.68508017",
+          "max_drawdown": "-4.77471411",
+          "win_rate": "0.44827586",
+          "profit_factor": "0.52646348",
+          "avg_holding_hours": "117.10344828",
+          "consecutive_losses_max": 5,
+          "total_fees": "10349.08660000",
+          "total_slippage": "5174.54330000"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 199,
+            "entry_price": "113662.80000000",
+            "exit_bar_index": 239,
+            "exit_price": "116406.20000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 456,
+            "entry_price": "115381.90000000",
+            "exit_bar_index": 472,
+            "exit_price": "115610.10000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 487,
+            "entry_price": "115928.60000000",
+            "exit_bar_index": 543,
+            "exit_price": "113762.50000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_indicator_easy.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 4.6,
+        "metrics": {
+          "num_trades": 916,
+          "total_return": "-3.18930170",
+          "annual_return_pct": null,
+          "sharpe_ratio": "0.97345173",
+          "sortino_ratio": "0.51166850",
+          "max_drawdown": "-3.18297694",
+          "win_rate": "0.27838428",
+          "profit_factor": "0.59066833",
+          "avg_holding_hours": "9.54148472",
+          "consecutive_losses_max": 14,
+          "total_fees": "19913.02647307",
+          "total_slippage": "9956.51323653"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 36,
+            "entry_price": "45365.30000000",
+            "exit_bar_index": 49,
+            "exit_price": "45367.70000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 49,
+            "entry_price": "45367.70000000",
+            "exit_bar_index": 59,
+            "exit_price": "43736.20000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 59,
+            "entry_price": "43736.20000000",
+            "exit_bar_index": 63,
+            "exit_price": "43011.30000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_indicator_easy.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.4,
+        "metrics": {
+          "num_trades": 228,
+          "total_return": "-0.71524892",
+          "annual_return_pct": "-0.71467800",
+          "sharpe_ratio": "-0.79370223",
+          "sortino_ratio": "-0.51556338",
+          "max_drawdown": "-0.80465808",
+          "win_rate": "0.31578947",
+          "profit_factor": "0.74989629",
+          "avg_holding_hours": "38.26315789",
+          "consecutive_losses_max": 13,
+          "total_fees": "4185.65383879",
+          "total_slippage": "2092.82691940"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 14,
+            "entry_price": "43736.20000000",
+            "exit_bar_index": 21,
+            "exit_price": "44089.90000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 21,
+            "entry_price": "44089.90000000",
+            "exit_bar_index": 42,
+            "exit_price": "43527.70000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 42,
+            "entry_price": "43527.70000000",
+            "exit_bar_index": 44,
+            "exit_price": "44653.90000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_indicator_easy.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 4.7,
+        "metrics": {
+          "num_trades": 961,
+          "total_return": "-2.86136187",
+          "annual_return_pct": null,
+          "sharpe_ratio": "-0.46363988",
+          "sortino_ratio": "0.68002605",
+          "max_drawdown": "-2.86956362",
+          "win_rate": "0.29448491",
+          "profit_factor": "0.56604957",
+          "avg_holding_hours": "9.09573361",
+          "consecutive_losses_max": 13,
+          "total_fees": "20431.30535313",
+          "total_slippage": "10215.65267657"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 14,
+            "entry_price": "105872.20000000",
+            "exit_bar_index": 20,
+            "exit_price": "105865.70000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 20,
+            "entry_price": "105865.70000000",
+            "exit_bar_index": 24,
+            "exit_price": "105340.00000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 24,
+            "entry_price": "105340.00000000",
+            "exit_bar_index": 26,
+            "exit_price": "105857.40000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_indicator_easy.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.2,
+        "metrics": {
+          "num_trades": 224,
+          "total_return": "-0.72082411",
+          "annual_return_pct": "-0.72123063",
+          "sharpe_ratio": "-1.31930617",
+          "sortino_ratio": "-0.44890521",
+          "max_drawdown": "-0.77767132",
+          "win_rate": "0.36607143",
+          "profit_factor": "0.76596863",
+          "avg_holding_hours": "38.82142857",
+          "consecutive_losses_max": 9,
+          "total_fees": "5328.32617887",
+          "total_slippage": "2664.16308943"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 12,
+            "entry_price": "108592.60000000",
+            "exit_bar_index": 16,
+            "exit_price": "109744.10000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 16,
+            "entry_price": "109744.10000000",
+            "exit_bar_index": 19,
+            "exit_price": "108650.00000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 19,
+            "entry_price": "108650.00000000",
+            "exit_bar_index": 33,
+            "exit_price": "108860.00000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_strategy_medium.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 6.0,
+        "metrics": {
+          "num_trades": 916,
+          "total_return": "-3.18975000",
+          "annual_return_pct": null,
+          "sharpe_ratio": "0.65315987",
+          "sortino_ratio": "0.50837969",
+          "max_drawdown": "-3.18346215",
+          "win_rate": "0.27838428",
+          "profit_factor": "0.59070456",
+          "avg_holding_hours": "9.54148472",
+          "consecutive_losses_max": 14,
+          "total_fees": "19915.78298072",
+          "total_slippage": "9957.89149036"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 36,
+            "entry_price": "45365.30000000",
+            "exit_bar_index": 49,
+            "exit_price": "45367.70000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 49,
+            "entry_price": "45367.70000000",
+            "exit_bar_index": 59,
+            "exit_price": "43736.20000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 59,
+            "entry_price": "43736.20000000",
+            "exit_bar_index": 63,
+            "exit_price": "43011.30000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_strategy_medium.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.4,
+        "metrics": {
+          "num_trades": 228,
+          "total_return": "-0.68761399",
+          "annual_return_pct": "-0.68703389",
+          "sharpe_ratio": "-0.72172463",
+          "sortino_ratio": "-0.47513923",
+          "max_drawdown": "-0.80086839",
+          "win_rate": "0.31578947",
+          "profit_factor": "0.76270001",
+          "avg_holding_hours": "38.26315789",
+          "consecutive_losses_max": 13,
+          "total_fees": "4268.72344100",
+          "total_slippage": "2134.36172050"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 14,
+            "entry_price": "43736.20000000",
+            "exit_bar_index": 21,
+            "exit_price": "44089.90000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 21,
+            "entry_price": "44089.90000000",
+            "exit_bar_index": 42,
+            "exit_price": "43527.70000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 42,
+            "entry_price": "43527.70000000",
+            "exit_bar_index": 44,
+            "exit_price": "44653.90000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_strategy_medium.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 5.7,
+        "metrics": {
+          "num_trades": 961,
+          "total_return": "-2.86402184",
+          "annual_return_pct": null,
+          "sharpe_ratio": "1.21868871",
+          "sortino_ratio": "0.69458290",
+          "max_drawdown": "-2.87253461",
+          "win_rate": "0.29448491",
+          "profit_factor": "0.56625384",
+          "avg_holding_hours": "9.09573361",
+          "consecutive_losses_max": 13,
+          "total_fees": "20463.41212115",
+          "total_slippage": "10231.70606057"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 14,
+            "entry_price": "105872.20000000",
+            "exit_bar_index": 20,
+            "exit_price": "105865.70000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 20,
+            "entry_price": "105865.70000000",
+            "exit_bar_index": 24,
+            "exit_price": "105340.00000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 24,
+            "entry_price": "105340.00000000",
+            "exit_bar_index": 26,
+            "exit_price": "105857.40000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "UtBot_strategy_medium.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 1.7,
+        "metrics": {
+          "num_trades": 224,
+          "total_return": "-0.72490196",
+          "annual_return_pct": "-0.72530716",
+          "sharpe_ratio": "-1.32612446",
+          "sortino_ratio": "-0.44934744",
+          "max_drawdown": "-0.77905154",
+          "win_rate": "0.36607143",
+          "profit_factor": "0.76320357",
+          "avg_holding_hours": "38.82142857",
+          "consecutive_losses_max": 9,
+          "total_fees": "5288.54375652",
+          "total_slippage": "2644.27187826"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 12,
+            "entry_price": "108592.60000000",
+            "exit_bar_index": 16,
+            "exit_price": "109744.10000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 16,
+            "entry_price": "109744.10000000",
+            "exit_bar_index": 19,
+            "exit_price": "108650.00000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 19,
+            "entry_price": "108650.00000000",
+            "exit_bar_index": 33,
+            "exit_price": "108860.00000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "bs_indicator_medium.pine",
+      "period": "2024",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 16.4,
+        "metrics": {
+          "num_trades": 599,
+          "total_return": "-1.68580427",
+          "annual_return_pct": null,
+          "sharpe_ratio": "0.35697141",
+          "sortino_ratio": "-0.25198012",
+          "max_drawdown": "-1.68490845",
+          "win_rate": "0.21702838",
+          "profit_factor": "0.56333065",
+          "avg_holding_hours": "14.58597663",
+          "consecutive_losses_max": 19,
+          "total_fees": "8580.39984295",
+          "total_slippage": "4290.19992148"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 43,
+            "entry_price": "45088.60000000",
+            "exit_bar_index": 49,
+            "exit_price": "45367.70000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 49,
+            "entry_price": "45367.70000000",
+            "exit_bar_index": 55,
+            "exit_price": "45044.00000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 55,
+            "entry_price": "45044.00000000",
+            "exit_bar_index": 56,
+            "exit_price": "45231.70000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "bs_indicator_medium.pine",
+      "period": "2024",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 12.3,
+        "metrics": {
+          "num_trades": 129,
+          "total_return": "0.35150166",
+          "annual_return_pct": "0.35085269",
+          "sharpe_ratio": "0.79624155",
+          "sortino_ratio": "0.54217917",
+          "max_drawdown": "-0.36868223",
+          "win_rate": "0.28682171",
+          "profit_factor": "1.19094635",
+          "avg_holding_hours": "67.62790698",
+          "consecutive_losses_max": 9,
+          "total_fees": "2937.69173131",
+          "total_slippage": "1468.84586565"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 12,
+            "entry_price": "45309.20000000",
+            "exit_bar_index": 15,
+            "exit_price": "43011.30000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 15,
+            "entry_price": "43011.30000000",
+            "exit_bar_index": 27,
+            "exit_price": "43516.10000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 27,
+            "entry_price": "43516.10000000",
+            "exit_bar_index": 29,
+            "exit_price": "44156.80000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "bs_indicator_medium.pine",
+      "period": "recent",
+      "timeframe": "1h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 16.5,
+        "metrics": {
+          "num_trades": 575,
+          "total_return": "-1.83129844",
+          "annual_return_pct": null,
+          "sharpe_ratio": "0.72631628",
+          "sortino_ratio": "4.21953819",
+          "max_drawdown": "-1.75483829",
+          "win_rate": "0.23478261",
+          "profit_factor": "0.66016241",
+          "avg_holding_hours": "15.13217391",
+          "consecutive_losses_max": 21,
+          "total_fees": "14357.02846381",
+          "total_slippage": "7178.51423190"
+        },
+        "first_trades": [
+          {
+            "direction": "long",
+            "entry_bar_index": 28,
+            "entry_price": "106338.00000000",
+            "exit_bar_index": 104,
+            "exit_price": "107970.00000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 104,
+            "entry_price": "107970.00000000",
+            "exit_bar_index": 108,
+            "exit_price": "108099.90000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 108,
+            "entry_price": "108099.90000000",
+            "exit_bar_index": 113,
+            "exit_price": "108035.30000000"
+          }
+        ]
+      }
+    },
+    {
+      "script": "bs_indicator_medium.pine",
+      "period": "recent",
+      "timeframe": "4h",
+      "run": {
+        "status": "ok",
+        "elapsed_s": 12.5,
+        "metrics": {
+          "num_trades": 145,
+          "total_return": "-0.50470893",
+          "annual_return_pct": "-0.50510621",
+          "sharpe_ratio": "-0.92092085",
+          "sortino_ratio": "-0.24927472",
+          "max_drawdown": "-0.64186681",
+          "win_rate": "0.26206897",
+          "profit_factor": "0.70843053",
+          "avg_holding_hours": "59.64137931",
+          "consecutive_losses_max": 18,
+          "total_fees": "2624.81166285",
+          "total_slippage": "1312.40583143"
+        },
+        "first_trades": [
+          {
+            "direction": "short",
+            "entry_bar_index": 22,
+            "entry_price": "107453.90000000",
+            "exit_bar_index": 33,
+            "exit_price": "108860.00000000"
+          },
+          {
+            "direction": "long",
+            "entry_bar_index": 33,
+            "entry_price": "108860.00000000",
+            "exit_bar_index": 40,
+            "exit_price": "107990.00000000"
+          },
+          {
+            "direction": "short",
+            "entry_bar_index": 40,
+            "entry_price": "107990.00000000",
+            "exit_bar_index": 44,
+            "exit_price": "108718.10000000"
+          }
+        ]
+      }
+    }
+  ]
+}
