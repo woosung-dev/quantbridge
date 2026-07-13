@@ -31,7 +31,11 @@ import pandas as pd
 from src.backtest.engine import run_backtest
 from src.backtest.engine.types import BacktestConfig
 from src.common.grid_sweep import GridSweepCellError, run_grid_sweep
-from src.optimizer.engine._common import build_cell_config
+from src.optimizer.engine._common import (
+    build_cell_config,
+    metric_value_for_objective,
+    pick_best_index,
+)
 from src.optimizer.exceptions import (
     OptimizationExecutionError,
     OptimizationObjectiveUnsupportedError,
@@ -175,31 +179,30 @@ def _validate_grid_search_pre(
 
 
 def _cell_objective_value(cell: GridSearchCell, *, objective_metric: str) -> Decimal | None:
-    """cell raw metric → objective_value. degenerate cell or None metric → None."""
+    """cell raw metric → objective_value. degenerate cell or None metric → None.
+
+    degenerate 게이트 = cell.is_degenerate (num_trades==0 or sharpe None) — bayesian/
+    genetic 의 num_trades==0 게이트보다 넓은 의미이며 현행 보존 (deepen N2 는
+    metric 화이트리스트만 _common 과 공유).
+    """
     if cell.is_degenerate:
         return None
-    if objective_metric == "sharpe_ratio":
-        return cell.sharpe
-    if objective_metric == "total_return":
-        return cell.total_return
-    if objective_metric == "max_drawdown":
-        return cell.max_drawdown
-    # 도달 불가 (pre-check in run_grid_search) — defensive.
-    raise OptimizationObjectiveUnsupportedError(objective_metric)
+    return metric_value_for_objective(
+        objective_metric=objective_metric,
+        sharpe=cell.sharpe,
+        total_return=cell.total_return,
+        max_drawdown=cell.max_drawdown,
+    )
 
 
 def _pick_best_cell_index(cells: tuple[GridSearchCell, ...], *, direction: str) -> int | None:
-    """direction 적용 후 best cell idx 반환. 모든 cell degenerate → None."""
-    candidates: list[tuple[int, Decimal]] = [
-        (idx, c.objective_value) for idx, c in enumerate(cells) if c.objective_value is not None
-    ]
-    if not candidates:
-        return None
-    if direction == "maximize":
-        candidates.sort(key=lambda t: t[1], reverse=True)
-    else:  # minimize — schemas Literal lock
-        candidates.sort(key=lambda t: t[1])
-    return candidates[0][0]
+    """direction 적용 후 best cell idx 반환. 모든 cell degenerate → None.
+
+    deepen N2: 정렬/선택 로직은 _common.pick_best_index 위임 (3엔진 공유 SSOT).
+    """
+    return pick_best_index(
+        [(idx, c.objective_value) for idx, c in enumerate(cells)], direction=direction
+    )
 
 
 def run_grid_search(
