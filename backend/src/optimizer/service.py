@@ -17,6 +17,8 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
@@ -253,7 +255,12 @@ class OptimizerService:
 
     async def get(self, run_id: UUID, *, user_id: UUID) -> OptimizationRunResponse:
         run = await self._load_owned(run_id, user_id)
-        return self._to_response(run)
+        response = self._to_response_or_none(run)
+        if response is None:
+            # deepen C-min: 손상 row (Sprint 50-52 retro-incorrect param_space) 는
+            # list 에서 skip 되므로 상세 조회도 500 대신 404 로 대칭 처리.
+            raise OptimizationNotFoundError(run_id)
+        return response
 
     async def list(
         self,
@@ -265,20 +272,13 @@ class OptimizerService:
     ) -> Page[OptimizationRunResponse]:
         # Sprint 62 T-1 (BL-350/354): row-level resilience. Sprint 50-52 retro-incorrect row
         # + 53-55 schema tightening 합집합으로 _to_response 가 Pydantic ValidationError raise 시
-        # 응답 전체 500 fail. 본 fix = row 별 try/except → invalid skip + WARN log + valid 만 반환.
+        # 응답 전체 500 fail. 손상 row 방어는 _to_response_or_none SSOT (deepen C-min, get 대칭).
         items, total = await self.repo.list_by_user(
             user_id, limit=limit, offset=offset, backtest_id=backtest_id
         )
-        valid_items: list[OptimizationRunResponse] = []
-        for run in items:
-            try:
-                valid_items.append(self._to_response(run))
-            except Exception as exc:
-                logger.warning(
-                    "optimizer_run_skip_invalid_schema run_id=%s err=%s",
-                    run.id,
-                    exc,
-                )
+        valid_items = [
+            response for run in items if (response := self._to_response_or_none(run)) is not None
+        ]
         return Page[OptimizationRunResponse](
             items=valid_items,
             total=total,
@@ -311,6 +311,23 @@ class OptimizerService:
                     f"current status: {bt.status.value}"
                 )
             )
+
+    def _to_response_or_none(self, run: OptimizationRun) -> OptimizationRunResponse | None:
+        """손상 row 방어 SSOT (deepen C-min) — get/list 대칭. 변환 실패 시 WARN + None.
+
+        catch 는 손상 row 가 실제로 내는 예외로 한정 — ValidationError(retro-incorrect
+        param_space) + ValueError(구 enum 값 등). 그 외 프로그래밍 버그는 기존처럼
+        시끄럽게 500 으로 표면 (적대 리뷰 P2-2: broad except 는 미래 버그를 404 로 위장).
+        """
+        try:
+            return self._to_response(run)
+        except (ValidationError, ValueError) as exc:
+            logger.warning(
+                "optimizer_run_skip_invalid_schema run_id=%s err=%s",
+                run.id,
+                exc,
+            )
+            return None
 
     @staticmethod
     def _to_response(run: OptimizationRun) -> OptimizationRunResponse:
