@@ -23,11 +23,7 @@ from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
 from src.market_data.providers import OHLCVProvider
 from src.optimizer.dispatcher import OptimizationTaskDispatcher
-from src.optimizer.engine import (
-    run_bayesian_search,
-    run_genetic_search,
-    run_grid_search,
-)
+from src.optimizer.engine.select import run_optimizer_by_kind
 from src.optimizer.exceptions import (
     BacktestNotCompletedForOptimization,
     OptimizationExecutionError,
@@ -48,11 +44,7 @@ from src.optimizer.schemas import (
     OptimizationRunResponse,
     ParamSpace,
 )
-from src.optimizer.serializers import (
-    bayesian_search_result_to_jsonb,
-    genetic_search_result_to_jsonb,
-    grid_search_result_to_jsonb,
-)
+from src.optimizer.serializers import optimizer_result_to_jsonb
 from src.strategy.repository import StrategyRepository
 
 logger = logging.getLogger(__name__)
@@ -230,11 +222,12 @@ class OptimizerService:
         await self.repo.commit()
 
     async def _execute(self, run: OptimizationRun, bt: Backtest) -> dict[str, object]:
-        """공통 executor 경로 — strategy/ohlcv/config load (kind 무관 동일) 후
-        kind 별 engine runner + result→jsonb 직렬화만 분기.
+        """공통 executor 경로 — strategy/ohlcv/config load 후 엔진 선택 SSOT 위임.
 
-        Sprint 54/55/56 의 _execute_grid/bayesian/genetic 통합. runner 함수명을
-        직접 참조해 테스트 monkeypatch(setattr) seam 을 보존한다.
+        optimizer-deepen A: 잔여 `match run.kind` 를 engine.select.run_optimizer_by_kind
+        (walk_forward 와 공유)로, runner→serializer 페어링을 optimizer_result_to_jsonb 로
+        흡수. 테스트 monkeypatch seam 은 runner 3이름 → 본 모듈의
+        ``run_optimizer_by_kind`` 1이름으로 축소 (test_service_commits.py).
         """
         strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
         if strategy is None:
@@ -251,27 +244,10 @@ class OptimizerService:
         backtest_config = build_engine_config_from_db(bt)
         pine = strategy.pine_source
 
-        match run.kind:
-            case OptimizationKind.GRID_SEARCH:
-                return grid_search_result_to_jsonb(
-                    run_grid_search(
-                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
-                    )
-                )
-            case OptimizationKind.BAYESIAN:
-                return bayesian_search_result_to_jsonb(
-                    run_bayesian_search(
-                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
-                    )
-                )
-            case OptimizationKind.GENETIC:
-                return genetic_search_result_to_jsonb(
-                    run_genetic_search(
-                        pine, ohlcv, param_space=param_space, backtest_config=backtest_config
-                    )
-                )
-            case _:  # pragma: no cover — exhaustiveness guard
-                raise OptimizationKindUnsupportedError(run.kind.value)
+        result = run_optimizer_by_kind(
+            run.kind, pine, ohlcv, param_space=param_space, backtest_config=backtest_config
+        )
+        return optimizer_result_to_jsonb(result)
 
     # ---------- HTTP read ----------
 

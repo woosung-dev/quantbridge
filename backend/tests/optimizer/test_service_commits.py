@@ -218,7 +218,7 @@ async def test_run_complete_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -
     provider = AsyncMock()
     provider.get_ohlcv.return_value = pd.DataFrame()
 
-    # engine.run_grid_search 를 monkeypatch — 실제 backtest 미실행.
+    # run_optimizer_by_kind (엔진 선택 SSOT) 를 monkeypatch — 실제 backtest 미실행.
     fake_result = GridSearchResult(
         param_names=("ema", "stop"),
         param_values={
@@ -245,7 +245,7 @@ async def test_run_complete_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -
         return fake_result
 
     monkeypatch.setattr(
-        "src.optimizer.service.run_grid_search", _fake_run_grid_search
+        "src.optimizer.service.run_optimizer_by_kind", _fake_run_grid_search
     )
     # build_engine_config_from_db — Backtest mock 으로부터 호출됨. monkeypatch.
     monkeypatch.setattr(
@@ -302,7 +302,7 @@ async def test_run_fail_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
         )
 
     monkeypatch.setattr(
-        "src.optimizer.service.run_grid_search", _failing_executor
+        "src.optimizer.service.run_optimizer_by_kind", _failing_executor
     )
     monkeypatch.setattr(
         "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
@@ -467,9 +467,17 @@ async def test_run_bayesian_complete_calls_repo_commit(
         bayesian_acquisition="EI", bayesian_n_initial_random=2,
         max_evaluations=5, degenerate_count=0, total_iterations=1,
     )
+    # 적대 리뷰 P2-1: 1이름 seam 축소로 사라진 "service 가 올바른 kind 를 넘기는가"
+    # 암묵 커버리지를 fake 의 kind 캡처 assert 로 복원.
+    captured_kinds: list[OptimizationKind] = []
+
+    def _fake_run_optimizer_by_kind(kind: OptimizationKind, *a: Any, **kw: Any) -> Any:
+        captured_kinds.append(kind)
+        return fake_result
+
     monkeypatch.setattr(
-        "src.optimizer.service.run_bayesian_search",
-        lambda *a, **kw: fake_result,
+        "src.optimizer.service.run_optimizer_by_kind",
+        _fake_run_optimizer_by_kind,
     )
     monkeypatch.setattr(
         "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
@@ -485,7 +493,9 @@ async def test_run_bayesian_complete_calls_repo_commit(
     repo.transition_to_running.assert_awaited_once()
     repo.complete.assert_awaited_once()
     repo.fail.assert_not_called()
-    # _execute_bayesian 가 result_jsonb 에 kind="bayesian" echo 했는지 검증.
+    # service → 엔진 선택 SSOT 로 run.kind 를 그대로 전달했는지 (P2-1).
+    assert captured_kinds == [OptimizationKind.BAYESIAN]
+    # _execute 가 result_jsonb 에 kind="bayesian" echo 했는지 검증 (serializer 페어링).
     complete_kwargs = repo.complete.await_args.kwargs
     assert complete_kwargs["result"]["kind"] == "bayesian"
     assert complete_kwargs["result"]["schema_version"] == 2
@@ -520,7 +530,7 @@ async def test_run_bayesian_fail_calls_repo_commit(
         )
 
     monkeypatch.setattr(
-        "src.optimizer.service.run_bayesian_search", _failing_executor
+        "src.optimizer.service.run_optimizer_by_kind", _failing_executor
     )
     monkeypatch.setattr(
         "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
@@ -680,7 +690,7 @@ async def test_run_genetic_complete_calls_repo_commit(
         max_evaluations=12, degenerate_count=0, total_iterations=1,
     )
     monkeypatch.setattr(
-        "src.optimizer.service.run_genetic_search",
+        "src.optimizer.service.run_optimizer_by_kind",
         lambda *a, **kw: fake_result,
     )
     monkeypatch.setattr(
@@ -697,7 +707,7 @@ async def test_run_genetic_complete_calls_repo_commit(
     repo.transition_to_running.assert_awaited_once()
     repo.complete.assert_awaited_once()
     repo.fail.assert_not_called()
-    # _execute_genetic 가 result_jsonb 에 kind="genetic" + schema_version=2 echo.
+    # _execute 가 result_jsonb 에 kind="genetic" + schema_version=2 echo (serializer 페어링).
     complete_kwargs = repo.complete.await_args.kwargs
     assert complete_kwargs["result"]["kind"] == "genetic"
     assert complete_kwargs["result"]["schema_version"] == 2
@@ -733,7 +743,7 @@ async def test_run_genetic_fail_calls_repo_commit(
         )
 
     monkeypatch.setattr(
-        "src.optimizer.service.run_genetic_search", _failing_executor
+        "src.optimizer.service.run_optimizer_by_kind", _failing_executor
     )
     monkeypatch.setattr(
         "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
