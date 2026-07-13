@@ -17,6 +17,8 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
@@ -311,10 +313,15 @@ class OptimizerService:
             )
 
     def _to_response_or_none(self, run: OptimizationRun) -> OptimizationRunResponse | None:
-        """손상 row 방어 SSOT (deepen C-min) — get/list 대칭. 변환 실패 시 WARN + None."""
+        """손상 row 방어 SSOT (deepen C-min) — get/list 대칭. 변환 실패 시 WARN + None.
+
+        catch 는 손상 row 가 실제로 내는 예외로 한정 — ValidationError(retro-incorrect
+        param_space) + ValueError(구 enum 값 등). 그 외 프로그래밍 버그는 기존처럼
+        시끄럽게 500 으로 표면 (적대 리뷰 P2-2: broad except 는 미래 버그를 404 로 위장).
+        """
         try:
             return self._to_response(run)
-        except Exception as exc:
+        except (ValidationError, ValueError) as exc:
             logger.warning(
                 "optimizer_run_skip_invalid_schema run_id=%s err=%s",
                 run.id,
