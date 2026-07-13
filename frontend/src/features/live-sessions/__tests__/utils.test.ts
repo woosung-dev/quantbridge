@@ -3,11 +3,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { LiveSignalEvent } from "../schemas";
+import type { EquityCurvePoint, LiveSignalEvent } from "../schemas";
 import {
   LIVE_SESSION_STATE_REFETCH_ACTIVE_MS,
   LIVE_SESSION_STATE_REFETCH_IDLE_MS,
   buildActivityTimeline,
+  buildActivityTimelineWithEquity,
   computeLiveSessionStateRefetchInterval,
 } from "../utils";
 
@@ -114,5 +115,38 @@ describe("buildActivityTimeline (Sprint 27 BL-140)", () => {
     buildActivityTimeline(original);
     const after = original.map((e) => e.bar_time);
     expect(after).toEqual(before);
+  });
+});
+
+describe("buildActivityTimelineWithEquity (two-pointer 경계)", () => {
+  // Helper — equity_curve fixture.
+  const eq = (iso: string, pnl: string): EquityCurvePoint => ({
+    timestamp_ms: Date.parse(iso),
+    cumulative_pnl: pnl,
+  });
+
+  it("이벤트가 첫 equity point 이전 → cumulative_pnl=0", () => {
+    const result = buildActivityTimelineWithEquity(
+      [
+        ev({ bar_time: "2026-05-01T11:00:00Z", sequence_no: 0, action: "entry" }),
+      ],
+      [eq("2026-05-01T12:00:00Z", "10.5")],
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.cumulative_pnl).toBe(0);
+  });
+
+  it("이벤트가 마지막 equity point 이후 → 마지막 값 carry-forward (경계 = 포함)", () => {
+    const result = buildActivityTimelineWithEquity(
+      [
+        ev({ bar_time: "2026-05-01T12:00:00Z", sequence_no: 0, action: "entry" }),
+        ev({ bar_time: "2026-05-01T14:00:00Z", sequence_no: 0, action: "close" }),
+      ],
+      [
+        eq("2026-05-01T12:00:00Z", "10.5"), // 같은 timestamp (≤) → 포함
+        eq("2026-05-01T13:00:00Z", "-3.25"),
+      ],
+    );
+    expect(result.map((p) => p.cumulative_pnl)).toEqual([10.5, -3.25]);
   });
 });
