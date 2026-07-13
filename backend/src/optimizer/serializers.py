@@ -20,8 +20,7 @@ from src.optimizer.engine import (
     GridSearchCell,
     GridSearchResult,
 )
-
-OptimizerResult = GridSearchResult | BayesianSearchResult | GeneticSearchResult
+from src.optimizer.engine.select import OptimizerResult
 
 
 def optimizer_result_to_jsonb(result: OptimizerResult) -> dict[str, Any]:
@@ -47,9 +46,7 @@ def _iteration_common_to_jsonb(it: BayesianIteration | GeneticIndividual) -> dic
     return {
         "idx": it.idx,
         "params": {k: str(v) for k, v in it.params.items()},
-        "objective_value": (
-            None if it.objective_value is None else str(it.objective_value)
-        ),
+        "objective_value": (None if it.objective_value is None else str(it.objective_value)),
         "best_so_far": None if it.best_so_far is None else str(it.best_so_far),
         "is_degenerate": it.is_degenerate,
     }
@@ -63,9 +60,7 @@ def _iteration_common_from_jsonb(it: dict[str, Any]) -> dict[str, Any]:
         "objective_value": (
             None if it.get("objective_value") is None else Decimal(it["objective_value"])
         ),
-        "best_so_far": (
-            None if it.get("best_so_far") is None else Decimal(it["best_so_far"])
-        ),
+        "best_so_far": (None if it.get("best_so_far") is None else Decimal(it["best_so_far"])),
         "is_degenerate": bool(it["is_degenerate"]),
     }
 
@@ -76,9 +71,7 @@ def _search_summary_to_jsonb(
     """best 블록 + objective/direction 공통 직렬화 (bayesian ≡ genetic)."""
     return {
         "best_params": (
-            None
-            if r.best_params is None
-            else {k: str(v) for k, v in r.best_params.items()}
+            None if r.best_params is None else {k: str(v) for k, v in r.best_params.items()}
         ),
         "best_objective_value": (
             None if r.best_objective_value is None else str(r.best_objective_value)
@@ -117,9 +110,7 @@ def grid_search_result_to_jsonb(r: GridSearchResult) -> dict[str, Any]:
         "schema_version": 1,
         "kind": "grid_search",
         "param_names": list(r.param_names),
-        "param_values": {
-            k: [str(v) for v in vs] for k, vs in r.param_values.items()
-        },
+        "param_values": {k: [str(v) for v in vs] for k, vs in r.param_values.items()},
         "cells": [
             {
                 "param_values": {k: str(v) for k, v in c.param_values.items()},
@@ -128,9 +119,7 @@ def grid_search_result_to_jsonb(r: GridSearchResult) -> dict[str, Any]:
                 "max_drawdown": str(c.max_drawdown),
                 "num_trades": c.num_trades,
                 "is_degenerate": c.is_degenerate,
-                "objective_value": (
-                    None if c.objective_value is None else str(c.objective_value)
-                ),
+                "objective_value": (None if c.objective_value is None else str(c.objective_value)),
             }
             for c in r.cells
         ],
@@ -144,22 +133,18 @@ def grid_search_result_from_jsonb(data: dict[str, Any]) -> GridSearchResult:
     """JSONB dict → GridSearchResult (test / detail rendering 용)."""
     param_names = tuple(data["param_names"])
     param_values: dict[str, tuple[Decimal, ...]] = {
-        k: tuple(Decimal(v) for v in vs)
-        for k, vs in data["param_values"].items()
+        k: tuple(Decimal(v) for v in vs) for k, vs in data["param_values"].items()
     }
     cells_t = tuple(
         GridSearchCell(
-            param_values={
-                k: Decimal(v) for k, v in c["param_values"].items()
-            },
+            param_values={k: Decimal(v) for k, v in c["param_values"].items()},
             sharpe=None if c.get("sharpe") is None else Decimal(c["sharpe"]),
             total_return=Decimal(c["total_return"]),
             max_drawdown=Decimal(c["max_drawdown"]),
             num_trades=int(c["num_trades"]),
             is_degenerate=bool(c["is_degenerate"]),
             objective_value=(
-                None if c.get("objective_value") is None
-                else Decimal(c["objective_value"])
+                None if c.get("objective_value") is None else Decimal(c["objective_value"])
             ),
         )
         for c in data["cells"]
@@ -231,8 +216,7 @@ def genetic_search_result_to_jsonb(r: GeneticSearchResult) -> dict[str, Any]:
         "kind": "genetic",
         "param_names": list(r.param_names),
         "iterations": [
-            {**_iteration_common_to_jsonb(it), "generation": it.generation}
-            for it in r.iterations
+            {**_iteration_common_to_jsonb(it), "generation": it.generation} for it in r.iterations
         ],
         **_search_summary_to_jsonb(r),
         "population_size": r.population_size,

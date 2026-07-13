@@ -1,4 +1,4 @@
-# Optimizer kind-dispatch SSOT 테스트 — run_optimizer_by_kind 라우팅 + best_params_of 추출.
+# Optimizer 엔진 선택(select) SSOT 테스트 — run_optimizer_by_kind 라우팅 + best_params_of 추출.
 from __future__ import annotations
 
 from decimal import Decimal

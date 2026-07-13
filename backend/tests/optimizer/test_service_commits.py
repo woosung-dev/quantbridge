@@ -467,9 +467,17 @@ async def test_run_bayesian_complete_calls_repo_commit(
         bayesian_acquisition="EI", bayesian_n_initial_random=2,
         max_evaluations=5, degenerate_count=0, total_iterations=1,
     )
+    # 적대 리뷰 P2-1: 1이름 seam 축소로 사라진 "service 가 올바른 kind 를 넘기는가"
+    # 암묵 커버리지를 fake 의 kind 캡처 assert 로 복원.
+    captured_kinds: list[OptimizationKind] = []
+
+    def _fake_run_optimizer_by_kind(kind: OptimizationKind, *a: Any, **kw: Any) -> Any:
+        captured_kinds.append(kind)
+        return fake_result
+
     monkeypatch.setattr(
         "src.optimizer.service.run_optimizer_by_kind",
-        lambda *a, **kw: fake_result,
+        _fake_run_optimizer_by_kind,
     )
     monkeypatch.setattr(
         "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
@@ -485,6 +493,8 @@ async def test_run_bayesian_complete_calls_repo_commit(
     repo.transition_to_running.assert_awaited_once()
     repo.complete.assert_awaited_once()
     repo.fail.assert_not_called()
+    # service → 엔진 선택 SSOT 로 run.kind 를 그대로 전달했는지 (P2-1).
+    assert captured_kinds == [OptimizationKind.BAYESIAN]
     # _execute 가 result_jsonb 에 kind="bayesian" echo 했는지 검증 (serializer 페어링).
     complete_kwargs = repo.complete.await_args.kwargs
     assert complete_kwargs["result"]["kind"] == "bayesian"

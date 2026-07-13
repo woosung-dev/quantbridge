@@ -137,9 +137,7 @@ class TestOrchestration:
         fixed = {"emaPeriod": Decimal("7")}
         oos_overrides: list[dict | None] = []
 
-        monkeypatch.setattr(
-            wf_mod, "_optimize_fold", lambda *a, **k: dict(fixed)
-        )
+        monkeypatch.setattr(wf_mod, "_optimize_fold", lambda *a, **k: dict(fixed))
 
         def fake_bt(pine, slice_, cfg):  # type: ignore[no-untyped-def]
             # test slice(len 50) 백테스트의 config override 만 수집.
@@ -246,8 +244,8 @@ def test_real_grid_wfo_end_to_end() -> None:
     옵티마이저 best_params (no-lookahead + 올바른 윈도잉을 실 경로에서 입증).
     """
     from src.backtest.engine.types import BacktestConfig
-    from src.optimizer.engine.select import best_params_of
     from src.optimizer.engine.grid_search import run_grid_search
+    from src.optimizer.engine.select import best_params_of
 
     ohlcv = make_sine_ohlcv(n_bars=300)
     ps = _grid_space()
@@ -285,9 +283,7 @@ def test_real_grid_wfo_end_to_end() -> None:
 def test_plain_run_walk_forward_not_reoptimized() -> None:
     """회귀 0 — 기존 run_walk_forward 는 reoptimized_per_fold=False + selected_params=None."""
     ohlcv = make_sine_ohlcv(n_bars=300)
-    result = run_walk_forward(
-        SIMPLE_PINE, ohlcv, train_bars=100, test_bars=50, step_bars=50
-    )
+    result = run_walk_forward(SIMPLE_PINE, ohlcv, train_bars=100, test_bars=50, step_bars=50)
     assert result.reoptimized_per_fold is False
     for fold in result.folds:
         assert fold.selected_params is None
