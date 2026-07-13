@@ -234,13 +234,21 @@ async def test_rollback_discards_uncommitted(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_commit_makes_row_visible(db_session: AsyncSession) -> None:
-    """commit 본문 실행 회귀 — savepoint 격리 안에서 release 후 재조회 가능."""
+async def test_commit_survives_subsequent_rollback(db_session: AsyncSession) -> None:
+    """commit 본문 실행 회귀 — commit 후 rollback 해도 row 잔존 (vacuous 방지).
+
+    적대 리뷰 P2-3: create 는 flush 하므로 commit 없이도 같은 세션 재조회는 성공한다
+    — 재조회만으로는 commit 을 검증하지 못함 (mutation probe 실증). savepoint fixture
+    에서 commit 유무를 실제로 구별하는 방법 = commit 뒤 rollback 후 재조회
+    (commit 이 없었다면 rollback 이 row 를 폐기 — test_rollback_discards_uncommitted
+    와 동일 메커니즘의 대우 명제).
+    """
     user, _, backtest = await seed_user_strategy_backtest(db_session)
     repo = OptimizationRepository(db_session)
     run = await repo.create(_make_run(user.id, backtest.id))
 
     await repo.commit()
+    await repo.rollback()
 
     loaded = await repo.get_by_id(run.id)
     assert loaded is not None
