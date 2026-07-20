@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AppProviders } from "@/components/providers/app-providers";
 import { LegalNoticeBanner } from "@/components/legal-notice-banner";
 import { Toaster } from "@/components/ui/sonner";
+import { BRAND_PALETTE } from "@/lib/brand-palette";
 import { archivo, ibmPlexMono } from "@/lib/fonts";
 import "@/styles/globals.css";
 
@@ -20,8 +21,8 @@ export const metadata: Metadata = {
 // 모바일 브라우저 크롬 색 — 테마별 배경 토큰과 동기 (brand-palette bg)
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0b0d0f" },
-    { media: "(prefers-color-scheme: light)", color: "#f6f7f8" },
+    { media: "(prefers-color-scheme: dark)", color: BRAND_PALETTE.dark.bg },
+    { media: "(prefers-color-scheme: light)", color: BRAND_PALETTE.light.bg },
   ],
 };
 
