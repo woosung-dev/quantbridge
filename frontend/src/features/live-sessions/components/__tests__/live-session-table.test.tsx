@@ -1,11 +1,11 @@
-// Sprint 43-W12 — LiveSessionTable 단위 테스트.
+// C 이식 S8 — LiveSessionTable 단위 테스트 (trading/_components 에서 이 도메인 폴더로 이동).
 // - 빈 배열 → 안내 문구
-// - 활성 세션 → ACTIVE badge + 심볼 / 인터벌 표시
+// - 세션 → ACTIVE/PAUSED 칩 + 심볼 / 인터벌 표시
 // - sort toggle: 최신 시작순 ↔ 활성 우선
 
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { LiveSessionTable } from "@/app/(dashboard)/trading/_components/live-session-table";
+import { LiveSessionTable } from "../live-session-table";
 import type { LiveSession } from "@/features/live-sessions/schemas";
 
 const SESSION_A: LiveSession = {
@@ -37,7 +37,7 @@ describe("LiveSessionTable", () => {
     expect(screen.queryByTestId("live-session-table")).not.toBeInTheDocument();
   });
 
-  test("세션 2개 → 심볼 + ACTIVE/PAUSED badge 표시", () => {
+  test("세션 2개 → 심볼 + ACTIVE/PAUSED 칩 표시", () => {
     render(<LiveSessionTable sessions={[SESSION_A, SESSION_B]} />);
     expect(screen.getByTestId("live-session-table")).toBeInTheDocument();
     expect(screen.getByText("BTC/USDT")).toBeInTheDocument();
