@@ -1927,6 +1927,15 @@ h6 {
   height: 10px;
 }
 
+/* C 캐논 전역 포커스 링 — _kit.html:100 이식. KITPORT 무결성 가드가 전역 리셋 구역
+   (`.mono` 이전)을 대조에서 제외해 S2 이식에서 빠졌던 규칙이다. 이 규칙이 없으면
+   date input 등이 UA 기본 outline 에 의존해 authed-canon-p1 포커스 검사가 실패한다. */
+:focus-visible {
+  outline: 2px solid var(--copper);
+  outline-offset: 2px;
+  border-radius: var(--r);
+}
+
 /* ==========================================================================
  * C 디자인 언어 화면 전용 CSS — /backtests/[id]/trades 거래 목록 (이식 S6).
  *   출처 docs/prototypes/shotgun-2026-07/screen-04-trade-detail.html (순수 표).
@@ -1936,6 +1945,13 @@ h6 {
  * ========================================================================== */
 
 /* 확장 필터 입력 — 공용 .input(220px) 위에 폭만 조정. 포커스링은 :focus-visible 이 준다. */
+/* date input 은 Chromium 내부 파트(월/일/년/피커 버튼)가 각각 tab stop 이고, 피커 버튼
+   포커스 시 :focus-visible 이 input 에 매치되지 않아 링이 사라진다 (Tab 순회 실측).
+   _kit.html:301 의 .searchbox:focus-within 과 같은 관례로 :focus-within 링을 보강한다. */
+.input-date:focus-within {
+  outline: 2px solid var(--copper);
+  outline-offset: 2px;
+}
 .input-date { width: 150px; }
 .input-num { width: 92px; }
 .filter-sep { align-self: center; color: var(--ink-3); font-size: 0.82rem; }
