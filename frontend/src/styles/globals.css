@@ -1985,3 +1985,89 @@ table.trades tbody tr.trade-selected td:first-child { box-shadow: inset 3px 0 0 
   border: 1px solid var(--line);
   border-radius: var(--r);
 }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /trading 코크핏 (이식 S8).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-01-trading-cockpit.html.
+ *   공용 .card/.section/.kpi/.trades/.state-box/.diag/.trust-* 는 KITPORT 가 이미 제공하고,
+ *   여기서는 screen-01 의 PAGE-SPECIFIC 규칙(.btn-danger 등)과 패널 고유 소품만 얹는다.
+ *   KITPORT 센티넬(무결성 가드) 밖 · 언레이어드. 색은 캐논 토큰 별칭만 쓴다(hex 리터럴 금지).
+ * ========================================================================== */
+
+/* 위험 액션 버튼 — 코퍼가 아니라 bear 아웃라인. 긴급 정지 · 청산 · 삭제 · 킬 해결에만 쓴다.
+   screen-01:1007 이식. 원본 rgba 리터럴은 --bear 토큰 color-mix 로 치환. */
+.btn-danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--bear) 42%, transparent);
+  color: var(--bear);
+}
+.btn-danger:hover {
+  background: var(--bear-soft);
+  border-color: var(--bear);
+}
+
+/* 주문 원장 — 폴링 인디케이터 점 + 브로커 증거 색 + 오류 셀 */
+.polling-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  border-radius: var(--r);
+  background: var(--copper);
+  vertical-align: middle;
+  animation: polling-pulse 1.6s var(--ease) infinite;
+}
+@keyframes polling-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.evi-mock { color: var(--warn); font-size: 0.78rem; }
+.evi-broker { color: var(--bull); font-size: 0.78rem; }
+table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
+
+/* 킬 스위치 패널 — 정상 상태 줄 + active 목록 */
+.ks-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--bull);
+  font-weight: 600;
+}
+.ks-ok svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.9; }
+.ks-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.ks-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* 킬 스위치 경고 배너 — S7 이 제거한 안전 경고 재도입. 코크핏 최상단 가로 배너. */
+.ks-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  margin-bottom: 20px;
+}
+.ks-banner-warn { border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: var(--warn-soft); color: var(--warn); }
+.ks-banner-danger { border-color: color-mix(in srgb, var(--bear) 40%, transparent); background: var(--bear-soft); color: var(--bear); }
+.ks-banner-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  flex-shrink: 0;
+}
+.ks-banner-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.9; }
+.ks-banner-body { font-size: 0.86rem; font-weight: 600; line-height: 1.5; padding-top: 6px; }
+.ks-banner-main { min-width: 0; flex: 1; }
+.ks-banner-title { font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+.ks-banner-list { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; }
+.ks-banner-trigger { font-weight: 600; }

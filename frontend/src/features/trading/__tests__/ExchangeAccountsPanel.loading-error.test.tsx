@@ -28,10 +28,6 @@ vi.mock("../components/register-exchange-account-dialog", () => ({
   RegisterExchangeAccountDialog: () => null,
 }));
 
-vi.mock("../components/trading-empty-state", () => ({
-  TradingEmptyState: () => null,
-}));
-
 import { ExchangeAccountsPanel } from "../components/exchange-accounts-panel";
 
 function renderPanel() {

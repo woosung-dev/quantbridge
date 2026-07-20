@@ -40,10 +40,14 @@ afterEach(() => {
   apiFetchMock.mockReset();
 });
 
-test("OrdersPanel 최근 주문 50건 렌더", async () => {
+test("OrdersPanel 최근 주문 50건 렌더 — 상태는 용어 SSOT 라벨(체결)로", async () => {
   _mountOrders([{ ..._baseOrder, exchange_order_id: "fixture-1" }]);
   expect(await screen.findByText("BTC/USDT")).toBeInTheDocument();
-  expect(screen.getByText(/filled/i)).toBeInTheDocument();
+  // 원시 enum "filled" 가 아니라 ORDER_STATE_LABEL 의 "체결" (S4 인계).
+  expect(screen.getByText("체결")).toBeInTheDocument();
+  expect(screen.queryByText("filled")).not.toBeInTheDocument();
+  // 주문 방향도 SSOT — buy → 매수.
+  expect(screen.getByText("매수")).toBeInTheDocument();
 });
 
 // Sprint 21 BL-093 superset — broker evidence column 시각 분기.
@@ -51,8 +55,8 @@ test("OrdersPanel 최근 주문 50건 렌더", async () => {
 test("OrdersPanel: exchange_order_id null 일 때 BrokerBadge 가 dash 만 표시", async () => {
   _mountOrders([{ ..._baseOrder, exchange_order_id: null }]);
   await screen.findByText("BTC/USDT");
-  // 브로커 ID 컬럼 헤더 노출
-  expect(screen.getByText("브로커 ID")).toBeInTheDocument();
+  // 거래소 주문번호 컬럼 헤더 노출
+  expect(screen.getByText("거래소 주문번호")).toBeInTheDocument();
   // null 인 경우 Mock/Real 라벨 미렌더
   expect(screen.queryByTestId("broker-badge-mock")).not.toBeInTheDocument();
   expect(screen.queryByTestId("broker-badge-real")).not.toBeInTheDocument();
@@ -103,7 +107,7 @@ test("OrdersPanel: TP/SL 값이 있으면 렌더, 청산가는 graceful '—'", 
     },
   ]);
   await screen.findByText("BTC/USDT");
-  expect(screen.getByText("TP/SL")).toBeInTheDocument();
+  expect(screen.getByText("익절·손절")).toBeInTheDocument();
   expect(screen.getByText("청산가")).toBeInTheDocument();
   const tpslCell = screen.getByTestId("tpsl-cell");
   expect(tpslCell).toHaveTextContent("55000");
