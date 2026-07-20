@@ -1,4 +1,5 @@
-// 404/500/503 에러 페이지 복구 카드 — prototype 11 의 helpful grid / tech-info / ETA+updates 3 variant
+// 404/500 에러 페이지 복구 카드 — prototype 11 의 helpful grid(404) / tech-info(500) 2 variant.
+// (503 maintenance 카드는 S9 에서 삭제. 타입은 NotFoundProps | ServerErrorProps 두 가지뿐.)
 
 "use client";
 

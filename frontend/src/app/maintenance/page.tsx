@@ -1,4 +1,5 @@
-// 503 점검 페이지 — prototype 11 의 503 layout (ETA + 진행 바 + 업데이트 목록) 1:1 visual fidelity
+// 503 점검 페이지 — ErrorIllustration(503) + 안내 문구 + 홈 복귀 링크.
+// (프로토타입 11 의 ETA·진행 바·업데이트 목록은 실데이터가 없어 S9 에서 제거했다.)
 
 import Link from "next/link";
 
