@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<!--
+  QuantBridge · SCREEN 15 · 로그인 (마케팅/인증 표면)
+  디자인 언어 정본 = variant-c.html. 공용 셸 = _kit.html. 토큰/컴포넌트 CSS 는 손대지 않았다.
+  화면 고유 CSS 는 PAGE-SPECIFIC 마커 아래에만 있다.
+
+  마케팅 표면이라 앱 셸(사이드바 · 상단바 · breadcrumb)을 걷어내고 자체 헤더/푸터를 쓴다.
+
+  이 화면의 핵심 정직성 규칙.
+  구 프로토타입(04-login.html)의 소셜 프루프를 전부 폐기했다.
+  아바타 5개 / "10,000+ 트레이더" / "지금 7,234명" + 맥동 점 / 99.97% · 35ms · 156 · 2.4B /
+  가공 인물 후기 / "Bank-grade" · "SOC 2" 배지 / "실전 수익으로" 태그라인 = 근거 없는 주장이라 전부 삭제.
+  대신 코드와 문서로 확인 가능한 정책 4줄만 남겼고, 숫자 주장은 하지 않는다.
+-->
+<html lang="ko" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>로그인 | QuantBridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ==========================================================
+     TOKENS — Precision Instrument carbon/steel, dark = default.
+     Mirrors frontend/src/styles/globals.css .dark block.
+     ========================================================== */
+  :root {
+    --bg: #0b0d0f;
+    --bg-alt: #101214;
+    --card: #141619;
+    --card-2: #1a1d21;
+    --card-3: #1e2226;
+    --line: #22262b;
+    --line-2: #31363d;
+
+    --ink: #e8eaed;
+    --ink-2: #a6adb5;
+    --ink-3: #8b939c;
+
+    /* the single brand accent */
+    --copper: #f08c2e;
+    --copper-hover: #f79d4d;
+    --copper-ink: #1a1006;
+    --copper-soft: rgba(240, 140, 46, 0.12);
+    --copper-line: rgba(240, 140, 46, 0.3);
+
+    /* semantic data colors — P&L only */
+    --bull: #2dd4a7;
+    --bull-soft: rgba(45, 212, 167, 0.12);
+    --bear: #f6685e;
+    --bear-soft: rgba(246, 104, 94, 0.12);
+    /* semantic status color — degraded / failed panels only */
+    --warn: #e5a93d;
+    --warn-soft: rgba(229, 169, 61, 0.1);
+    /* chart-only second series */
+    --benchmark: #6aa2f7;
+
+    /* ONE radius scale */
+    --r: 12px;
+
+    /* soft elevation, the signature of this variant */
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 26px -14px rgba(0, 0, 0, 0.8);
+    --shadow-hi: 0 1px 2px rgba(0, 0, 0, 0.55), 0 16px 34px -16px rgba(0, 0, 0, 0.9);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur: 220ms;
+
+    --sidebar-w: 232px;
+    --topbar-h: 60px;
+
+    --f-body: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+    --f-display: 'Archivo', 'Pretendard Variable', system-ui, sans-serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  ul, ol { list-style: none; }
+  button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
+  button { border: none; background: none; cursor: pointer; }
+
+  ::selection { background: var(--copper-soft); color: var(--ink); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r); border: 3px solid var(--bg); }
+
+  :focus-visible {
+    outline: 2px solid var(--copper);
+    outline-offset: 2px;
+    border-radius: var(--r);
+  }
+
+  .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+  .pos { color: var(--bull); }
+  .neg { color: var(--bear); }
+  .dim { color: var(--ink-3); }
+
+  /* ================= APP SHELL · SIDEBAR ================= */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-w);
+    background: var(--bg-alt);
+    border-right: 1px solid var(--line);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 120;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 8px;
+    margin-bottom: 20px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r);
+    background: var(--copper);
+    color: var(--copper-ink);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
+  }
+
+  .nav-group-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0 10px;
+    margin: 6px 0 6px;
+  }
+
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; stroke: currentColor; stroke-width: 1.6; }
+  .nav-item:hover { background: var(--card-2); color: var(--ink); }
+
+  .nav-item.active {
+    background: var(--copper-soft);
+    color: var(--copper);
+    font-weight: 600;
+  }
+  .nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 0 var(--r) var(--r) 0;
+    background: var(--copper);
+  }
+
+  .nav-count {
+    margin-left: auto;
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 1px 7px;
+  }
+
+  .sidebar-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+
+  .account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    text-align: left;
+    transition: background var(--dur) var(--ease);
+  }
+  .account:hover { background: var(--card-2); }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .account-name { font-size: 0.84rem; font-weight: 600; line-height: 1.2; }
+  .account-sub { font-size: 0.72rem; color: var(--ink-3); line-height: 1.3; }
+
+  /* ================= APP SHELL · TOP BAR ================= */
+  .topbar {
+    position: sticky;
+    top: 0;
+    height: var(--topbar-h);
+    margin-left: var(--sidebar-w);
+    background: rgba(11, 13, 15, 0.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    z-index: 110;
+  }
+
+  .hamburger {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    place-items: center;
+  }
+  .hamburger:hover { background: var(--card-2); color: var(--ink); }
+
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 0.85rem;
+    color: var(--ink-3);
+  }
+  .crumbs a { white-space: nowrap; }
+  .crumbs a:hover { color: var(--ink); }
+  .crumbs .sep { color: var(--line-2); }
+  .crumbs .here { color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .topbar-spacer { flex: 1; }
+
+  .searchbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 260px;
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink-3);
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .searchbox:hover { border-color: var(--line-2); }
+  /* 안쪽 input 은 outline 을 유지하되(박스 안에서 링이 어색하므로) 컨테이너에 포커스 링을 준다.
+     .searchbox input 의 outline:none 은 특이도 0,1,1 이라 :focus-visible 0,1,0 을 항상 이겨
+     키보드 포커스가 완전히 비가시였다. */
+  .searchbox:focus-within { outline: 2px solid var(--copper); outline-offset: 2px; border-color: var(--line-2); }
+  .searchbox input { flex: 1; min-width: 0; border: none; background: none; outline: none; font-size: 0.84rem; }
+  .searchbox input::placeholder { color: var(--ink-3); }
+  .kbd {
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    padding: 1px 6px;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .icon-btn:hover { background: var(--card-2); border-color: var(--line-2); color: var(--ink); }
+  .icon-btn svg { width: 17px; height: 17px; stroke: currentColor; stroke-width: 1.7; }
+
+  /* ================= MAIN ================= */
+  .main {
+    margin-left: var(--sidebar-w);
+    min-height: calc(100vh - var(--topbar-h));
+  }
+
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+  }
+
+  /* ================= BUTTONS ================= */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: var(--r);
+    border: 1px solid var(--line-2);
+    background: var(--card-2);
+    color: var(--ink);
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform 120ms var(--ease);
+  }
+  .btn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; }
+  .btn:hover { background: var(--card-3); border-color: var(--ink-3); }
+  .btn:active { transform: translateY(1px); }
+
+  .btn-primary {
+    background: var(--copper);
+    border-color: var(--copper);
+    color: var(--copper-ink);
+  }
+  .btn-primary:hover { background: var(--copper-hover); border-color: var(--copper-hover); }
+
+  .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink-2); }
+  .btn-ghost:hover { background: var(--card-2); color: var(--ink); }
+
+  .btn-block { width: 100%; }
+
+  /* ================= CARD ================= */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .card-pad { padding: 20px 22px; }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .card-title {
+    font-family: var(--f-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .card-sub { font-size: 0.8rem; color: var(--ink-3); margin-top: 3px; }
+  .card-body { padding: 20px 22px; }
+
+  /* ================= SECTION HEADERS ================= */
+  .section { margin-top: 28px; }
+
+  .section-head { margin-bottom: 14px; }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+  .eyebrow .num {
+    color: var(--copper);
+    border: 1px solid var(--copper-line);
+    background: var(--copper-soft);
+    border-radius: var(--r);
+    padding: 0 6px;
+    letter-spacing: 0.06em;
+  }
+
+  .section-title {
+    font-family: var(--f-display);
+    font-size: 1.18rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  .section-desc { font-size: 0.85rem; color: var(--ink-3); margin-top: 3px; max-width: 68ch; }
+
+  /* ================= REPORT HEADER ================= */
+  .report {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 22px;
+  }
+  .report-title {
+    font-family: var(--f-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+  .report-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  .chip svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; }
+  .chip.done { color: var(--bull); border-color: rgba(45, 212, 167, 0.32); background: var(--bull-soft); }
+  .chip.accent { color: var(--copper); border-color: var(--copper-line); background: var(--copper-soft); }
+
+  .report-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* ================= HERO KPI ================= */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .kpi {
+    position: relative;
+    padding: 18px 20px 16px;
+    overflow: hidden;
+  }
+  .kpi:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+
+  .kpi-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-value {
+    font-family: var(--f-mono);
+    font-size: 1.85rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-top: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-foot {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 0.76rem;
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-foot .mono { color: var(--ink-2); }
+
+  .meter {
+    height: 4px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper); }
+  .meter.bull > span { background: var(--bull); }
+  .meter.bear > span { background: var(--bear); }
+
+  /* ================= CHART ================= */
+  .chart-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+  .tab {
+    position: relative;
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: var(--r);
+    font-family: var(--f-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: var(--card-3); color: var(--copper); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 0 22px 14px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-2); }
+  .legend-key { width: 16px; height: 3px; border-radius: var(--r); flex-shrink: 0; }
+  .legend-key.eq { background: var(--copper); }
+  .legend-key.bm { background: var(--benchmark); }
+  .legend-key.dd { background: var(--bear); }
+  .legend-val { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+
+  .chart-wrap { padding: 0 14px; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; }
+
+  .axis-text { font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: #8b939c; }
+  .grid-line { stroke: rgba(232, 234, 237, 0.07); stroke-width: 1; }
+  .axis-line { stroke: #22262b; stroke-width: 1; }
+
+  .eq-line { fill: none; stroke: var(--copper); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .bm-line { fill: none; stroke: var(--benchmark); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; opacity: 0.9; }
+  .dd-line { fill: none; stroke: var(--bear); stroke-width: 1.4; stroke-linejoin: round; }
+
+  .chart-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px 18px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .chart-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* ================= DETAIL METRIC GRID ================= */
+  .metric-groups {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .metric-group { padding: 20px 22px; border-right: 1px solid var(--line); }
+  .metric-group:last-child { border-right: none; }
+
+  .metric-group-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+  }
+
+  .metric {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:last-child { border-bottom: none; }
+  .metric-label { font-size: 0.82rem; color: var(--ink-2); }
+  .metric-value {
+    font-family: var(--f-mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .metric-value.empty { color: var(--ink-3); font-weight: 500; }
+
+  /* ================= DIAGNOSTICS · 3 STATES ================= */
+  .diag-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .diag { display: flex; flex-direction: column; min-height: 268px; }
+  .diag .card-head { padding: 16px 18px; }
+  .diag .card-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
+
+  /* skeleton */
+  .sk {
+    background: linear-gradient(90deg, var(--card-2) 0%, var(--card-3) 50%, var(--card-2) 100%);
+    background-size: 220% 100%;
+    border-radius: var(--r);
+    animation: shimmer 1.5s linear infinite;
+  }
+  @keyframes shimmer { from { background-position: 140% 0; } to { background-position: -40% 0; } }
+
+  .sk-bars { display: flex; align-items: flex-end; gap: 8px; height: 132px; margin-bottom: 14px; }
+  .sk-bars > span { flex: 1; border-radius: var(--r); }
+  .sk-line { height: 10px; margin-top: 8px; }
+
+  .state-note {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 12px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .state-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* error */
+  .state-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    padding: 18px 10px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r);
+    background: var(--bg-alt);
+  }
+  .state-box.failed { border-color: rgba(229, 169, 61, 0.4); background: var(--warn-soft); }
+
+  .state-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    color: var(--ink-3);
+    margin-bottom: 2px;
+  }
+  .state-icon.failed { background: var(--warn-soft); border-color: rgba(229, 169, 61, 0.4); color: var(--warn); }
+  .state-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .state-title { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+  .state-body { font-size: 0.8rem; color: var(--ink-3); max-width: 34ch; }
+  .state-code { font-family: var(--f-mono); font-size: 0.72rem; color: var(--warn); }
+
+  /* ================= TRADES TABLE ================= */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .input, .select {
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink);
+    font-size: 0.82rem;
+    /* outline:none 제거 — L118 :focus-visible 이 소스 순서에 밀려 키보드 포커스가 죽던 문제 */
+    transition: border-color var(--dur) var(--ease);
+  }
+  .input { width: 220px; }
+  .input::placeholder { color: var(--ink-3); }
+  .input:hover, .select:hover { border-color: var(--line-2); }
+  .select { appearance: none; padding-right: 30px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b939c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  .table-wrap { overflow-x: auto; }
+  table.trades { width: 100%; min-width: 940px; border-collapse: collapse; }
+
+  table.trades thead th {
+    position: sticky;
+    top: 0;
+    background: var(--card-2);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  table.trades thead th.num { text-align: right; }
+  table.trades thead th:first-child { padding-left: 22px; }
+  table.trades thead th:last-child { padding-right: 22px; }
+
+  table.trades tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+    white-space: nowrap;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.mono-l {
+    text-align: left;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.num {
+    text-align: right;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  table.trades tbody td:first-child { padding-left: 22px; }
+  table.trades tbody td:last-child { padding-right: 22px; }
+  table.trades tbody tr { transition: background var(--dur) var(--ease); }
+  table.trades tbody tr:hover { background: var(--card-2); }
+  table.trades tbody tr:last-child td { border-bottom: none; }
+
+  .side {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: var(--f-mono);
+  }
+  .side.long { background: var(--bull-soft); color: var(--bull); }
+  .side.short { background: var(--bear-soft); color: var(--bear); }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  .pager-nums { display: inline-flex; gap: 4px; }
+  .pg {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 9px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    color: var(--ink-2);
+    font-family: var(--f-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .pg:hover { background: var(--card-3); color: var(--ink); }
+  .pg.active { background: var(--copper); border-color: var(--copper); color: var(--copper-ink); }
+
+  /* ================= TRUST PANEL ================= */
+  .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trust-col { padding: 18px 22px; }
+  .trust-col:first-child { border-right: 1px solid var(--line); }
+
+  .trust-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .trust-row:last-child { border-bottom: none; }
+  .trust-key { font-size: 0.82rem; color: var(--ink-2); }
+  .trust-val { font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink); text-align: right; }
+
+  .disclaimer {
+    display: flex;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-alt);
+    border-radius: 0 0 var(--r) var(--r);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .disclaimer svg { width: 15px; height: 15px; stroke: var(--ink-3); stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }
+
+  /* ================= NEXT STEP CTA ================= */
+  .cta-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .cta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+  }
+  .cta:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+  .cta.recommended { border-color: var(--copper-line); }
+
+  .cta-badge {
+    align-self: flex-start;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--copper);
+    background: var(--copper-soft);
+    border: 1px solid var(--copper-line);
+    border-radius: var(--r);
+    padding: 2px 8px;
+  }
+  .cta-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+  }
+  .cta.recommended .cta-icon { background: var(--copper-soft); border-color: var(--copper-line); color: var(--copper); }
+  .cta-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .cta-title { font-family: var(--f-display); font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
+  .cta-desc { font-size: 0.82rem; color: var(--ink-3); line-height: 1.55; }
+  .cta-meta { font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); }
+  .cta .btn { margin-top: auto; }
+
+  /* ================= FOOTER ================= */
+  .foot {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    color: var(--ink-3);
+  }
+
+  /* ================= TOAST ================= */
+  .toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    max-width: 340px;
+    padding: 12px 14px;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-hi);
+    font-size: 0.8rem;
+    color: var(--ink-2);
+    line-height: 1.5;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+    z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ================= MOTION ================= */
+  .rise { animation: rise 520ms var(--ease) both; }
+  .d1 { animation-delay: 40ms; }
+  .d2 { animation-delay: 90ms; }
+  .d3 { animation-delay: 140ms; }
+  .d4 { animation-delay: 190ms; }
+  .d5 { animation-delay: 240ms; }
+  .d6 { animation-delay: 290ms; }
+  .d7 { animation-delay: 340ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .draw { stroke-dasharray: 2600; stroke-dashoffset: 2600; animation: draw 1400ms var(--ease) 180ms forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+    .rise { animation: none; opacity: 1; transform: none; }
+    .draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+    .sk { animation: none; background: var(--card-2); }
+  }
+
+  /* ================= RESPONSIVE ================= */
+  @media (max-width: 1200px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .metric-groups { grid-template-columns: repeat(2, 1fr); }
+    .metric-group:nth-child(2) { border-right: none; }
+    .metric-group:nth-child(1), .metric-group:nth-child(2) { border-bottom: 1px solid var(--line); }
+    .diag-row { grid-template-columns: 1fr 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: 1 / -1; }
+    .cta-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 64px; }
+    .brand { justify-content: center; padding: 0; }
+    .brand-name, .nav-group-label, .account-name, .account-sub, .nav-count { display: none; }
+    .nav-item { justify-content: center; padding: 8px; }
+    .nav-item .label { display: none; }
+    .account { justify-content: center; padding: 8px; }
+    .searchbox { display: none; }
+  }
+
+  @media (max-width: 768px) {
+    :root { --sidebar-w: 0px; }
+    .sidebar { display: none; }
+    .main, .topbar { margin-left: 0; }
+    .topbar { padding: 0 14px; }
+    .hamburger { display: grid; }
+    .crumbs a, .crumbs .sep { display: none; }
+    .page { padding: 18px 14px 48px; }
+    .kpi-row { grid-template-columns: 1fr; }
+    .metric-groups { grid-template-columns: 1fr; }
+    .metric-group { border-right: none; border-bottom: 1px solid var(--line); }
+    .metric-group:last-child { border-bottom: none; }
+    .diag-row { grid-template-columns: 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: auto; }
+    .trust-grid { grid-template-columns: 1fr; }
+    .trust-col:first-child { border-right: none; border-bottom: 1px solid var(--line); }
+    .report-title { font-size: 1.3rem; }
+    .input { width: 100%; }
+    .toolbar { width: 100%; }
+  }
+
+  /* ==========================================================
+     PAGE-SPECIFIC — 화면 고유 CSS 는 여기부터. 위쪽 토큰/컴포넌트는 건드리지 않는다.
+     새 규칙도 border-radius 는 var(--r) 하나만 쓴다.
+     ========================================================== */
+
+  /* 이 화면은 마케팅/인증 표면이라 앱 셸(사이드바·상단바)을 쓰지 않는다.
+     대신 같은 토큰으로 자체 헤더/푸터를 만든다. */
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ================= 자체 헤더 ================= */
+  .auth-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: var(--topbar-h);
+    padding: 0 24px;
+    background: var(--bg-alt);
+    border-bottom: 1px solid var(--line);
+  }
+  .auth-logo { display: inline-flex; align-items: center; gap: 10px; }
+  .auth-logo .brand-name { font-size: 0.95rem; }
+  .auth-top-right { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; }
+
+  /* ================= 좌우 2분할 ================= */
+  .auth-main { flex: 1; }
+  .auth-split {
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 44px 24px 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+    gap: 44px;
+    align-items: start;
+  }
+
+  /* 한국어 줄바꿈. 어절 중간에서 끊기지 않게 한다("잇습니다" 가 "잇 / 습니다" 로 갈리던 문제). */
+  .auth-h1, .auth-lede, .fact-title, .fact-body, .auth-note,
+  .auth-alert-title, .auth-alert-body, .auth-terms,
+  .auth-brand .section-desc, .auth-form-col .section-desc { word-break: keep-all; }
+
+  /* ================= 좌 · 브랜드와 사실 ================= */
+  .auth-h1 {
+    font-family: var(--f-display);
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.28;
+    max-width: 620px;
+  }
+  .auth-lede {
+    margin-top: 14px;
+    max-width: 620px;
+    font-size: 0.95rem;
+    line-height: 1.75;
+    color: var(--ink-2);
+  }
+
+  .auth-facts-head { margin-top: 34px; margin-bottom: 14px; }
+
+  .facts { overflow: hidden; }
+  .fact {
+    display: flex;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .fact:last-child { border-bottom: none; }
+  .fact-idx {
+    flex-shrink: 0;
+    width: 28px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .fact-title { display: block; font-size: 0.88rem; font-weight: 600; color: var(--ink); line-height: 1.5; }
+  .fact-body { display: block; margin-top: 4px; font-size: 0.82rem; line-height: 1.65; color: var(--ink-2); }
+  .fact-body .mono { color: var(--ink); }
+
+  .auth-note {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    color: var(--ink-3);
+  }
+  .auth-note svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; margin-top: 3px; }
+
+  /* ================= 우 · 인증 폼 ================= */
+  .auth-form-head { margin-bottom: 14px; }
+  .auth-card .card-body { padding: 22px; }
+
+  .auth-tabs { display: flex; width: 100%; }
+  .auth-tabs .tab { flex: 1; min-height: 34px; }
+
+  .auth-social { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+  .auth-card .btn-block { min-height: 42px; }
+  .auth-social .btn svg { width: 16px; height: 16px; stroke: none; }
+
+  .auth-div {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0;
+    font-size: 0.76rem;
+    color: var(--ink-3);
+  }
+  .auth-div::before, .auth-div::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  .auth-alert {
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    background: var(--warn-soft);
+    border: 1px solid rgba(229, 169, 61, 0.4);
+    border-radius: var(--r);
+  }
+  .auth-alert svg { width: 16px; height: 16px; stroke: var(--warn); stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }
+  .auth-alert-title { display: block; font-size: 0.84rem; font-weight: 600; color: var(--ink); }
+  .auth-alert-body { display: block; margin-top: 3px; font-size: 0.79rem; line-height: 1.6; color: var(--ink-2); }
+  .auth-alert .state-code { display: block; margin-top: 6px; }
+  /* 회원가입 모드에서 감출 때 flex 가 hidden 을 이기지 않도록 명시한다. */
+  .auth-alert[hidden], .auth-links[hidden] { display: none; }
+
+  .auth-form { display: flex; flex-direction: column; gap: 14px; }
+  .auth-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .auth-label { font-size: 0.78rem; font-weight: 600; color: var(--ink-2); }
+  .auth-field .input { width: 100%; height: 42px; }
+  .auth-field .input[aria-invalid="true"] { border-color: rgba(229, 169, 61, 0.5); }
+
+  .auth-input-wrap { position: relative; display: block; }
+  .auth-input-wrap .input { padding-right: 46px; }
+  .auth-eye {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r);
+    color: var(--ink-3);
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .auth-eye:hover { background: var(--card-3); color: var(--ink); }
+  .auth-eye svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+
+  .auth-links { display: flex; justify-content: flex-end; }
+  .auth-link { font-size: 0.8rem; font-weight: 600; color: var(--copper); }
+  .auth-link:hover { color: var(--copper-hover); }
+
+  .auth-terms {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 0.76rem;
+    line-height: 1.65;
+    color: var(--ink-3);
+  }
+  .auth-terms a { color: var(--ink-2); text-decoration: underline; }
+  .auth-terms a:hover { color: var(--ink); }
+
+  /* ================= 자체 푸터 ================= */
+  .auth-foot {
+    width: 100%;
+    max-width: 1240px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-bottom: 28px;
+  }
+
+  /* ================= 반응형 ================= */
+  @media (max-width: 1024px) {
+    /* 1024 이하 세로 스택. 좌 패널은 축약한다(안내문은 푸터가 같은 내용을 이미 말한다). */
+    .auth-split { grid-template-columns: minmax(0, 1fr); gap: 30px; padding: 32px 20px 24px; }
+    .auth-h1 { font-size: 1.62rem; }
+    .auth-facts-head { margin-top: 26px; }
+    .auth-note { display: none; }
+    .auth-form-col { max-width: 460px; }
+  }
+
+  @media (max-width: 768px) {
+    .auth-top { padding: 0 14px; }
+    .auth-top .chip { display: none; }
+    .auth-split { padding: 24px 14px 20px; }
+    .auth-h1 { font-size: 1.42rem; }
+    .fact { padding: 14px 16px; }
+    .auth-card .card-body { padding: 18px; }
+    .auth-foot { padding-left: 14px; padding-right: 14px; }
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ==================== 자체 헤더 (앱 셸 없음) ==================== -->
+<header class="auth-top">
+  <a class="auth-logo" href="index.html" aria-label="QuantBridge 프로토타입 화면 목록으로 이동">
+    <span class="brand-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+    </span>
+    <span class="brand-name">QuantBridge</span>
+  </a>
+
+  <span class="auth-top-right">
+    <span class="chip">프로토타입</span>
+    <a class="btn btn-ghost" href="index.html">화면 목록</a>
+  </span>
+</header>
+
+<main class="auth-main">
+  <div class="auth-split">
+
+    <!-- ==================== 좌 · 이 도구가 무엇인지 ==================== -->
+    <section class="auth-brand rise d1" aria-labelledby="auth-h1">
+      <h1 class="auth-h1" id="auth-h1">Pine Script 전략을 검증하고, 검증한 그대로 주문까지 잇습니다.</h1>
+      <p class="auth-lede">
+        QuantBridge 는 TradingView 에서 쓰던 Pine Script 를 파싱해 자체 인터프리터로 백테스트하고,
+        같은 전략을 거래소 주문으로 연결하는 로컬 워크스페이스입니다.
+        백테스트와 실제 주문이 서로 다른 코드 경로를 타지 않도록 만들었습니다.
+      </p>
+
+      <header class="auth-facts-head section-head">
+        <p class="eyebrow"><span class="num">01</span> 확인 가능한 사실</p>
+        <h2 class="section-title">숫자 자랑 대신 정책을 적습니다.</h2>
+        <p class="section-desc">
+          사용자 수나 체결 속도처럼 이 화면에서 확인할 수 없는 수치는 싣지 않습니다.
+          대신 코드와 문서로 확인할 수 있는 규칙 네 가지를 적습니다.
+        </p>
+      </header>
+
+      <ul class="card facts">
+        <li class="fact">
+          <span class="fact-idx" aria-hidden="true">01</span>
+          <span>
+            <span class="fact-title">엔진은 <span class="mono">pine_v2</span> 자체 인터프리터입니다.</span>
+            <span class="fact-body">봉을 하나씩 순회하는 바 단위 이벤트 루프로 실행합니다. 지표를 미리 다 계산해 두고 한 번에 훑는 방식이 아니라, 봉마다 주문과 잔고 상태를 다시 계산합니다.</span>
+          </span>
+        </li>
+        <li class="fact">
+          <span class="fact-idx" aria-hidden="true">02</span>
+          <span>
+            <span class="fact-title">거래소 API 키는 AES-256(Fernet)으로 암호화해 저장합니다.</span>
+            <span class="fact-body">평문으로 보관하지 않습니다. 복호화 키는 코드가 아니라 환경 변수에서 읽고, 저장소에는 암호문만 남습니다.</span>
+          </span>
+        </li>
+        <li class="fact">
+          <span class="fact-idx" aria-hidden="true">03</span>
+          <span>
+            <span class="fact-title">미지원 Pine 함수가 하나라도 있으면 전체를 거부합니다.</span>
+            <span class="fact-body">부분 실행으로 그럴듯한 숫자를 만드는 대신, 해석하지 못한다고 먼저 말합니다. 어느 함수 때문인지도 함께 돌려줍니다.</span>
+          </span>
+        </li>
+        <li class="fact">
+          <span class="fact-idx" aria-hidden="true">04</span>
+          <span>
+            <span class="fact-title">리포트는 체결 가정과 데이터 출처를 결과 옆에 인쇄합니다.</span>
+            <span class="fact-body">체결 시점, 수수료율, 슬리피지, 데이터 구간, 펀딩 반영 여부를 수익률과 같은 화면에 둡니다. 가정을 모르면 수익률도 읽을 수 없기 때문입니다.</span>
+          </span>
+        </li>
+      </ul>
+
+      <p class="auth-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>
+        이 화면은 프로토타입입니다. 실제 계정 인증은 제품에서 Clerk 가 처리하며, 여기서 입력한 값은 어디로도 전송되지 않습니다.
+      </p>
+    </section>
+
+    <!-- ==================== 우 · 인증 폼 ==================== -->
+    <section class="auth-form-col rise d2" aria-labelledby="auth-title">
+      <header class="auth-form-head section-head">
+        <p class="eyebrow"><span class="num">02</span> 계정</p>
+        <h2 class="section-title" id="auth-title">로그인</h2>
+        <p class="section-desc" id="auth-desc">이메일과 비밀번호, 또는 Google · GitHub 계정으로 워크스페이스에 들어갑니다.</p>
+      </header>
+
+      <div class="card auth-card">
+        <div class="card-body">
+
+          <div class="tabs auth-tabs" role="group" aria-label="인증 방식 선택">
+            <button class="tab active" type="button" id="tab-signin" data-mode="signin" aria-pressed="true">로그인</button>
+            <button class="tab" type="button" id="tab-signup" data-mode="signup" aria-pressed="false">회원가입</button>
+          </div>
+
+          <div class="auth-social">
+            <button class="btn btn-block" type="button">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M19.6 10.23c0-.68-.06-1.36-.17-2.02H10v3.82h5.39a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.76 3-4.35 3-7.32z" fill="#4285f4"/>
+                <path d="M10 20c2.7 0 4.97-.9 6.63-2.45l-3.24-2.5c-.9.6-2.05.95-3.39.95-2.6 0-4.8-1.76-5.6-4.12H1.06v2.58A10 10 0 0 0 10 20z" fill="#34a853"/>
+                <path d="M4.4 11.88A6 6 0 0 1 4.1 10c0-.65.11-1.28.3-1.88V5.54H1.06A10 10 0 0 0 0 10c0 1.61.39 3.13 1.06 4.46l3.34-2.58z" fill="#fbbc04"/>
+                <path d="M10 3.98c1.47 0 2.78.5 3.82 1.5l2.86-2.87A10 10 0 0 0 10 0 10 10 0 0 0 1.06 5.54L4.4 8.12C5.2 5.76 7.4 3.98 10 3.98z" fill="#ea4335"/>
+              </svg>
+              Google 계정으로 계속
+            </button>
+            <button class="btn btn-block" type="button">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10 0C4.48 0 0 4.58 0 10.25c0 4.52 2.87 8.35 6.84 9.7.5.1.68-.22.68-.49l-.01-1.9c-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.5-1.11-1.5-.9-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.11 2.9.85.1-.66.35-1.11.63-1.37-2.22-.26-4.55-1.13-4.55-5.04 0-1.11.39-2.02 1.03-2.73-.1-.26-.45-1.3.1-2.7 0 0 .84-.28 2.75 1.04a9.3 9.3 0 0 1 5 0c1.9-1.32 2.75-1.04 2.75-1.04.55 1.4.2 2.44.1 2.7.64.71 1.03 1.62 1.03 2.73 0 3.92-2.34 4.78-4.57 5.03.36.31.68.93.68 1.87l-.01 2.78c0 .27.18.59.69.49A10.26 10.26 0 0 0 20 10.25C20 4.58 15.52 0 10 0z"/>
+              </svg>
+              GitHub 계정으로 계속
+            </button>
+          </div>
+
+          <p class="auth-div"><span>또는 이메일로</span></p>
+
+          <!-- 인증 실패 상태. 마지막 시도의 응답을 그대로 인쇄한다. -->
+          <div class="auth-alert" role="alert" id="auth-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
+            <span>
+              <span class="auth-alert-title">이메일 또는 비밀번호가 올바르지 않습니다.</span>
+              <span class="auth-alert-body">대문자 잠금 상태와 자동완성으로 채워진 값을 확인해 주세요. 어느 쪽이 틀렸는지는 계정 보호를 위해 구분해 알리지 않습니다.</span>
+              <span class="state-code">POST /auth/sign-in · 401</span>
+            </span>
+          </div>
+
+          <form class="auth-form" id="auth-form" novalidate>
+            <div class="auth-field">
+              <label class="auth-label" for="auth-email">이메일 주소</label>
+              <input class="input" id="auth-email" name="email" type="email" autocomplete="email"
+                     placeholder="name@example.com" value="woosung@example.com"
+                     aria-invalid="true" aria-describedby="auth-error" />
+            </div>
+
+            <div class="auth-field">
+              <label class="auth-label" for="auth-password">비밀번호</label>
+              <span class="auth-input-wrap">
+                <input class="input" id="auth-password" name="password" type="password" autocomplete="current-password"
+                       placeholder="비밀번호" value="quantbridge"
+                       aria-invalid="true" aria-describedby="auth-error" />
+                <button class="auth-eye" type="button" id="auth-eye" aria-label="비밀번호 표시" aria-pressed="false" aria-controls="auth-password">
+                  <svg id="auth-eye-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.6 12S5.4 4.8 12 4.8 22.4 12 22.4 12 18.6 19.2 12 19.2 1.6 12 1.6 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </span>
+            </div>
+
+            <p class="auth-links" id="auth-forgot">
+              <a class="auth-link" href="#">비밀번호 재설정 메일 받기</a>
+            </p>
+
+            <button class="btn btn-primary btn-block" type="submit" id="auth-submit">로그인</button>
+          </form>
+
+          <p class="auth-terms" id="auth-legal">
+            계속하면 <a href="#">이용약관</a>과 <a href="#">개인정보처리방침</a>에 동의하는 것으로 봅니다.
+          </p>
+
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="foot auth-foot">
+  <span>QuantBridge · 로그인 · 인증은 Clerk 로 처리합니다.</span>
+  <span>프로토타입 화면이라 실제로 로그인되지 않습니다.</span>
+</footer>
+
+<script>
+  // 로그인 / 회원가입 토글. 실제 인증은 하지 않고 폼 문구와 상태 표시만 바꾼다.
+  var titleEl = document.getElementById('auth-title');
+  var descEl = document.getElementById('auth-desc');
+  var submitEl = document.getElementById('auth-submit');
+  var forgotEl = document.getElementById('auth-forgot');
+  var alertEl = document.getElementById('auth-error');
+  var emailEl = document.getElementById('auth-email');
+  var passwordEl = document.getElementById('auth-password');
+
+  var COPY = {
+    signin: {
+      title: '로그인',
+      desc: '이메일과 비밀번호, 또는 Google · GitHub 계정으로 워크스페이스에 들어갑니다.',
+      submit: '로그인',
+      autocomplete: 'current-password'
+    },
+    signup: {
+      title: '회원가입',
+      desc: '이메일로 워크스페이스 계정을 만듭니다. 거래소 연결은 가입 뒤에 따로 진행합니다.',
+      submit: '계정 만들기',
+      autocomplete: 'new-password'
+    }
+  };
+
+  function setMode(mode) {
+    var copy = COPY[mode];
+    document.querySelectorAll('.auth-tabs .tab').forEach(function (tab) {
+      var on = tab.dataset.mode === mode;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-pressed', String(on));
+    });
+
+    titleEl.textContent = copy.title;
+    descEl.textContent = copy.desc;
+    submitEl.textContent = copy.submit;
+    passwordEl.setAttribute('autocomplete', copy.autocomplete);
+
+    // 401 은 직전 로그인 시도의 결과다. 회원가입 모드에서는 성립하지 않으므로 감춘다.
+    var signin = mode === 'signin';
+    alertEl.hidden = !signin;
+    forgotEl.hidden = !signin;
+    [emailEl, passwordEl].forEach(function (el) {
+      if (signin) {
+        el.setAttribute('aria-invalid', 'true');
+        el.setAttribute('aria-describedby', 'auth-error');
+      } else {
+        el.removeAttribute('aria-invalid');
+        el.removeAttribute('aria-describedby');
+      }
+    });
+  }
+
+  document.querySelectorAll('.auth-tabs .tab').forEach(function (tab) {
+    tab.addEventListener('click', function () { setMode(tab.dataset.mode); });
+  });
+
+  // 비밀번호 표시 토글. 포커스 링은 전역 :focus-visible 을 그대로 쓴다.
+  var eyeBtn = document.getElementById('auth-eye');
+  var eyeIcon = document.getElementById('auth-eye-icon');
+  var EYE_OPEN = '<path d="M1.6 12S5.4 4.8 12 4.8 22.4 12 22.4 12 18.6 19.2 12 19.2 1.6 12 1.6 12z"/><circle cx="12" cy="12" r="3"/>';
+  var EYE_OFF = '<path d="M17.9 17.9A10.2 10.2 0 0 1 12 19.2C5.4 19.2 1.6 12 1.6 12a18.5 18.5 0 0 1 5.1-5.9M9.9 4.9A9.2 9.2 0 0 1 12 4.8c6.6 0 10.4 7.2 10.4 7.2a18.6 18.6 0 0 1-2.2 3.2m-6.7-1.1a3 3 0 1 1-4.2-4.2"/><line x1="2.5" y1="2.5" x2="21.5" y2="21.5"/>';
+
+  eyeBtn.addEventListener('click', function () {
+    var willShow = passwordEl.type === 'password';
+    passwordEl.type = willShow ? 'text' : 'password';
+    eyeBtn.setAttribute('aria-pressed', String(willShow));
+    eyeBtn.setAttribute('aria-label', willShow ? '비밀번호 숨기기' : '비밀번호 표시');
+    eyeIcon.innerHTML = willShow ? EYE_OFF : EYE_OPEN;
+  });
+
+  // 제출은 프로토타입이라 아무 데도 보내지 않는다. 그려 둔 401 상태를 그대로 유지한다.
+  document.getElementById('auth-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+  });
+</script>
+
+<!--
+  NUMBERS AUDIT
+  파생 숫자 없음(모두 원시값 또는 서수 라벨).
+  이 화면에 인쇄한 수 형태의 문자열은 아래가 전부이며, 계산으로 얻은 값이 하나도 없다.
+    01 / 02 / 03 / 04  = 사실 목록의 서수 라벨. 항목 4개 -> 라벨 4개. 계산값 아님 ✓
+    01 / 02            = eyebrow 섹션 번호(좌 패널 사실, 우 패널 계정). 계산값 아님 ✓
+    AES-256            = 암호화 알고리즘 이름(Fernet). 측정치 아님 ✓
+    401                = 그려 둔 인증 실패 응답의 HTTP 상태 코드. POST /auth/sign-in 의 표준 코드 ✓
+  의도적으로 넣지 않은 수치.
+    사용자 수 / 동시 접속 / 가동률 / 체결 레이턴시 / 누적 거래량 / 평점 / 거래소 개수.
+    이 화면에는 그 값을 만들어 내는 데이터 원본이 없다. 없으면 쓰지 않는다.
+  라이브 언어 없음.
+    맥동 점 / aria-live / 카운트다운 / 진행률 바 / "지금 N명" 문구를 쓰지 않았다.
+    role="alert" 는 갱신되는 지표가 아니라 이미 발생한 인증 실패 1건을 알리는 용도다.
+    무한 반복 애니메이션은 이 화면에 없다(공용 shimmer 도 미사용).
+  캐논 대조.
+    계정 woosung / 로컬 워크스페이스 표기 유지. 가공 인물 · 후기 · 아바타 군집 없음 ✓
+    엔진 표기 = pine_v2 · 바 단위 이벤트 루프. "벡터화" 표기 없음(ADR-011) ✓
+    거래소 이름은 이 화면에서 주장하지 않는다(연결 사실은 설정 화면의 몫) ✓
+-->
+
+</body>
+</html>

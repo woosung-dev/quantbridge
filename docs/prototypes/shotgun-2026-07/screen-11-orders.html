@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<!--
+  QuantBridge · C 디자인 언어 공용 셸 (KIT)
+  정본 = variant-c.html. 이 파일은 그 토큰/컴포넌트/셸을 그대로 잘라낸 복사본이다.
+  새 화면은 이 파일을 복사해 시작한다. 토큰 블록과 공용 컴포넌트 CSS 는 수정하지 않는다.
+  화면 고유 CSS 는 반드시 "PAGE-SPECIFIC" 마커 아래에만 추가한다.
+
+  치환 지점.
+  1. <title> — "화면명 | QuantBridge"
+  2. 사이드바 .nav-item 중 현재 화면에 active + aria-current="page" 부여 (다른 것에서는 제거)
+  3. .nav-count 숫자는 화면 간 동일 값 유지 (전략 12 / 백테스트 48 / 주문 7)
+  4. 상단 breadcrumb .crumbs
+  5. <main> 안의 PAGE CONTENT
+-->
+<html lang="ko" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>주문 | QuantBridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ==========================================================
+     TOKENS — Precision Instrument carbon/steel, dark = default.
+     Mirrors frontend/src/styles/globals.css .dark block.
+     ========================================================== */
+  :root {
+    --bg: #0b0d0f;
+    --bg-alt: #101214;
+    --card: #141619;
+    --card-2: #1a1d21;
+    --card-3: #1e2226;
+    --line: #22262b;
+    --line-2: #31363d;
+
+    --ink: #e8eaed;
+    --ink-2: #a6adb5;
+    --ink-3: #8b939c;
+
+    /* the single brand accent */
+    --copper: #f08c2e;
+    --copper-hover: #f79d4d;
+    --copper-ink: #1a1006;
+    --copper-soft: rgba(240, 140, 46, 0.12);
+    --copper-line: rgba(240, 140, 46, 0.3);
+
+    /* semantic data colors — P&L only */
+    --bull: #2dd4a7;
+    --bull-soft: rgba(45, 212, 167, 0.12);
+    --bear: #f6685e;
+    --bear-soft: rgba(246, 104, 94, 0.12);
+    /* semantic status color — degraded / failed panels only */
+    --warn: #e5a93d;
+    --warn-soft: rgba(229, 169, 61, 0.1);
+    /* chart-only second series */
+    --benchmark: #6aa2f7;
+
+    /* ONE radius scale */
+    --r: 12px;
+
+    /* soft elevation, the signature of this variant */
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 26px -14px rgba(0, 0, 0, 0.8);
+    --shadow-hi: 0 1px 2px rgba(0, 0, 0, 0.55), 0 16px 34px -16px rgba(0, 0, 0, 0.9);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur: 220ms;
+
+    --sidebar-w: 232px;
+    --topbar-h: 60px;
+
+    --f-body: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+    --f-display: 'Archivo', 'Pretendard Variable', system-ui, sans-serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  ul, ol { list-style: none; }
+  button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
+  button { border: none; background: none; cursor: pointer; }
+
+  ::selection { background: var(--copper-soft); color: var(--ink); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r); border: 3px solid var(--bg); }
+
+  :focus-visible {
+    outline: 2px solid var(--copper);
+    outline-offset: 2px;
+    border-radius: var(--r);
+  }
+
+  .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+  .pos { color: var(--bull); }
+  .neg { color: var(--bear); }
+  .dim { color: var(--ink-3); }
+
+  /* ================= APP SHELL · SIDEBAR ================= */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-w);
+    background: var(--bg-alt);
+    border-right: 1px solid var(--line);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 120;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 8px;
+    margin-bottom: 20px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r);
+    background: var(--copper);
+    color: var(--copper-ink);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
+  }
+
+  .nav-group-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0 10px;
+    margin: 6px 0 6px;
+  }
+
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; stroke: currentColor; stroke-width: 1.6; }
+  .nav-item:hover { background: var(--card-2); color: var(--ink); }
+
+  .nav-item.active {
+    background: var(--copper-soft);
+    color: var(--copper);
+    font-weight: 600;
+  }
+  .nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 0 var(--r) var(--r) 0;
+    background: var(--copper);
+  }
+
+  .nav-count {
+    margin-left: auto;
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 1px 7px;
+  }
+
+  .sidebar-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+
+  .account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    text-align: left;
+    transition: background var(--dur) var(--ease);
+  }
+  .account:hover { background: var(--card-2); }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .account-name { font-size: 0.84rem; font-weight: 600; line-height: 1.2; }
+  .account-sub { font-size: 0.72rem; color: var(--ink-3); line-height: 1.3; }
+
+  /* ================= APP SHELL · TOP BAR ================= */
+  .topbar {
+    position: sticky;
+    top: 0;
+    height: var(--topbar-h);
+    margin-left: var(--sidebar-w);
+    background: rgba(11, 13, 15, 0.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    z-index: 110;
+  }
+
+  .hamburger {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    place-items: center;
+  }
+  .hamburger:hover { background: var(--card-2); color: var(--ink); }
+
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 0.85rem;
+    color: var(--ink-3);
+  }
+  .crumbs a { white-space: nowrap; }
+  .crumbs a:hover { color: var(--ink); }
+  .crumbs .sep { color: var(--line-2); }
+  .crumbs .here { color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .topbar-spacer { flex: 1; }
+
+  .searchbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 260px;
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink-3);
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .searchbox:hover { border-color: var(--line-2); }
+  /* 안쪽 input 은 outline 을 유지하되(박스 안에서 링이 어색하므로) 컨테이너에 포커스 링을 준다.
+     .searchbox input 의 outline:none 은 특이도 0,1,1 이라 :focus-visible 0,1,0 을 항상 이겨
+     키보드 포커스가 완전히 비가시였다. */
+  .searchbox:focus-within { outline: 2px solid var(--copper); outline-offset: 2px; border-color: var(--line-2); }
+  .searchbox input { flex: 1; min-width: 0; border: none; background: none; outline: none; font-size: 0.84rem; }
+  .searchbox input::placeholder { color: var(--ink-3); }
+  .kbd {
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    padding: 1px 6px;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .icon-btn:hover { background: var(--card-2); border-color: var(--line-2); color: var(--ink); }
+  .icon-btn svg { width: 17px; height: 17px; stroke: currentColor; stroke-width: 1.7; }
+
+  /* ================= MAIN ================= */
+  .main {
+    margin-left: var(--sidebar-w);
+    min-height: calc(100vh - var(--topbar-h));
+  }
+
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+  }
+
+  /* ================= BUTTONS ================= */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: var(--r);
+    border: 1px solid var(--line-2);
+    background: var(--card-2);
+    color: var(--ink);
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform 120ms var(--ease);
+  }
+  .btn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; }
+  .btn:hover { background: var(--card-3); border-color: var(--ink-3); }
+  .btn:active { transform: translateY(1px); }
+
+  .btn-primary {
+    background: var(--copper);
+    border-color: var(--copper);
+    color: var(--copper-ink);
+  }
+  .btn-primary:hover { background: var(--copper-hover); border-color: var(--copper-hover); }
+
+  .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink-2); }
+  .btn-ghost:hover { background: var(--card-2); color: var(--ink); }
+
+  .btn-block { width: 100%; }
+
+  /* ================= CARD ================= */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .card-pad { padding: 20px 22px; }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .card-title {
+    font-family: var(--f-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .card-sub { font-size: 0.8rem; color: var(--ink-3); margin-top: 3px; }
+  .card-body { padding: 20px 22px; }
+
+  /* ================= SECTION HEADERS ================= */
+  .section { margin-top: 28px; }
+
+  .section-head { margin-bottom: 14px; }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+  .eyebrow .num {
+    color: var(--copper);
+    border: 1px solid var(--copper-line);
+    background: var(--copper-soft);
+    border-radius: var(--r);
+    padding: 0 6px;
+    letter-spacing: 0.06em;
+  }
+
+  .section-title {
+    font-family: var(--f-display);
+    font-size: 1.18rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  .section-desc { font-size: 0.85rem; color: var(--ink-3); margin-top: 3px; max-width: 68ch; }
+
+  /* ================= REPORT HEADER ================= */
+  .report {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 22px;
+  }
+  .report-title {
+    font-family: var(--f-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+  .report-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  .chip svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; }
+  .chip.done { color: var(--bull); border-color: rgba(45, 212, 167, 0.32); background: var(--bull-soft); }
+  .chip.accent { color: var(--copper); border-color: var(--copper-line); background: var(--copper-soft); }
+
+  .report-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* ================= HERO KPI ================= */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .kpi {
+    position: relative;
+    padding: 18px 20px 16px;
+    overflow: hidden;
+  }
+  .kpi:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+
+  .kpi-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-value {
+    font-family: var(--f-mono);
+    font-size: 1.85rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-top: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-foot {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 0.76rem;
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-foot .mono { color: var(--ink-2); }
+
+  .meter {
+    height: 4px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper); }
+  .meter.bull > span { background: var(--bull); }
+  .meter.bear > span { background: var(--bear); }
+
+  /* ================= CHART ================= */
+  .chart-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+  .tab {
+    position: relative;
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: var(--r);
+    font-family: var(--f-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: var(--card-3); color: var(--copper); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 0 22px 14px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-2); }
+  .legend-key { width: 16px; height: 3px; border-radius: var(--r); flex-shrink: 0; }
+  .legend-key.eq { background: var(--copper); }
+  .legend-key.bm { background: var(--benchmark); }
+  .legend-key.dd { background: var(--bear); }
+  .legend-val { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+
+  .chart-wrap { padding: 0 14px; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; }
+
+  .axis-text { font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: #8b939c; }
+  .grid-line { stroke: rgba(232, 234, 237, 0.07); stroke-width: 1; }
+  .axis-line { stroke: #22262b; stroke-width: 1; }
+
+  .eq-line { fill: none; stroke: var(--copper); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .bm-line { fill: none; stroke: var(--benchmark); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; opacity: 0.9; }
+  .dd-line { fill: none; stroke: var(--bear); stroke-width: 1.4; stroke-linejoin: round; }
+
+  .chart-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px 18px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .chart-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* ================= DETAIL METRIC GRID ================= */
+  .metric-groups {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .metric-group { padding: 20px 22px; border-right: 1px solid var(--line); }
+  .metric-group:last-child { border-right: none; }
+
+  .metric-group-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+  }
+
+  .metric {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:last-child { border-bottom: none; }
+  .metric-label { font-size: 0.82rem; color: var(--ink-2); }
+  .metric-value {
+    font-family: var(--f-mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .metric-value.empty { color: var(--ink-3); font-weight: 500; }
+
+  /* ================= DIAGNOSTICS · 3 STATES ================= */
+  .diag-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .diag { display: flex; flex-direction: column; min-height: 268px; }
+  .diag .card-head { padding: 16px 18px; }
+  .diag .card-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
+
+  /* skeleton */
+  .sk {
+    background: linear-gradient(90deg, var(--card-2) 0%, var(--card-3) 50%, var(--card-2) 100%);
+    background-size: 220% 100%;
+    border-radius: var(--r);
+    animation: shimmer 1.5s linear infinite;
+  }
+  @keyframes shimmer { from { background-position: 140% 0; } to { background-position: -40% 0; } }
+
+  .sk-bars { display: flex; align-items: flex-end; gap: 8px; height: 132px; margin-bottom: 14px; }
+  .sk-bars > span { flex: 1; border-radius: var(--r); }
+  .sk-line { height: 10px; margin-top: 8px; }
+
+  .state-note {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 12px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .state-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* error */
+  .state-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    padding: 18px 10px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r);
+    background: var(--bg-alt);
+  }
+  .state-box.failed { border-color: rgba(229, 169, 61, 0.4); background: var(--warn-soft); }
+
+  .state-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    color: var(--ink-3);
+    margin-bottom: 2px;
+  }
+  .state-icon.failed { background: var(--warn-soft); border-color: rgba(229, 169, 61, 0.4); color: var(--warn); }
+  .state-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .state-title { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+  .state-body { font-size: 0.8rem; color: var(--ink-3); max-width: 34ch; }
+  .state-code { font-family: var(--f-mono); font-size: 0.72rem; color: var(--warn); }
+
+  /* ================= TRADES TABLE ================= */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .input, .select {
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink);
+    font-size: 0.82rem;
+    /* outline:none 제거 — L118 :focus-visible 이 소스 순서에 밀려 키보드 포커스가 죽던 문제 */
+    transition: border-color var(--dur) var(--ease);
+  }
+  .input { width: 220px; }
+  .input::placeholder { color: var(--ink-3); }
+  .input:hover, .select:hover { border-color: var(--line-2); }
+  .select { appearance: none; padding-right: 30px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b939c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  .table-wrap { overflow-x: auto; }
+  table.trades { width: 100%; min-width: 940px; border-collapse: collapse; }
+
+  table.trades thead th {
+    position: sticky;
+    top: 0;
+    background: var(--card-2);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  table.trades thead th.num { text-align: right; }
+  table.trades thead th:first-child { padding-left: 22px; }
+  table.trades thead th:last-child { padding-right: 22px; }
+
+  table.trades tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+    white-space: nowrap;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.mono-l {
+    text-align: left;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.num {
+    text-align: right;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  table.trades tbody td:first-child { padding-left: 22px; }
+  table.trades tbody td:last-child { padding-right: 22px; }
+  table.trades tbody tr { transition: background var(--dur) var(--ease); }
+  table.trades tbody tr:hover { background: var(--card-2); }
+  table.trades tbody tr:last-child td { border-bottom: none; }
+
+  .side {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: var(--f-mono);
+  }
+  .side.long { background: var(--bull-soft); color: var(--bull); }
+  .side.short { background: var(--bear-soft); color: var(--bear); }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  .pager-nums { display: inline-flex; gap: 4px; }
+  .pg {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 9px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    color: var(--ink-2);
+    font-family: var(--f-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .pg:hover { background: var(--card-3); color: var(--ink); }
+  .pg.active { background: var(--copper); border-color: var(--copper); color: var(--copper-ink); }
+
+  /* ================= TRUST PANEL ================= */
+  .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trust-col { padding: 18px 22px; }
+  .trust-col:first-child { border-right: 1px solid var(--line); }
+
+  .trust-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .trust-row:last-child { border-bottom: none; }
+  .trust-key { font-size: 0.82rem; color: var(--ink-2); }
+  .trust-val { font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink); text-align: right; }
+
+  .disclaimer {
+    display: flex;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-alt);
+    border-radius: 0 0 var(--r) var(--r);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .disclaimer svg { width: 15px; height: 15px; stroke: var(--ink-3); stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }
+
+  /* ================= NEXT STEP CTA ================= */
+  .cta-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .cta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+  }
+  .cta:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+  .cta.recommended { border-color: var(--copper-line); }
+
+  .cta-badge {
+    align-self: flex-start;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--copper);
+    background: var(--copper-soft);
+    border: 1px solid var(--copper-line);
+    border-radius: var(--r);
+    padding: 2px 8px;
+  }
+  .cta-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+  }
+  .cta.recommended .cta-icon { background: var(--copper-soft); border-color: var(--copper-line); color: var(--copper); }
+  .cta-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .cta-title { font-family: var(--f-display); font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
+  .cta-desc { font-size: 0.82rem; color: var(--ink-3); line-height: 1.55; }
+  .cta-meta { font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); }
+  .cta .btn { margin-top: auto; }
+
+  /* ================= FOOTER ================= */
+  .foot {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    color: var(--ink-3);
+  }
+
+  /* ================= TOAST ================= */
+  .toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    max-width: 340px;
+    padding: 12px 14px;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-hi);
+    font-size: 0.8rem;
+    color: var(--ink-2);
+    line-height: 1.5;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+    z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ================= MOTION ================= */
+  .rise { animation: rise 520ms var(--ease) both; }
+  .d1 { animation-delay: 40ms; }
+  .d2 { animation-delay: 90ms; }
+  .d3 { animation-delay: 140ms; }
+  .d4 { animation-delay: 190ms; }
+  .d5 { animation-delay: 240ms; }
+  .d6 { animation-delay: 290ms; }
+  .d7 { animation-delay: 340ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .draw { stroke-dasharray: 2600; stroke-dashoffset: 2600; animation: draw 1400ms var(--ease) 180ms forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+    .rise { animation: none; opacity: 1; transform: none; }
+    .draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+    .sk { animation: none; background: var(--card-2); }
+  }
+
+  /* ================= RESPONSIVE ================= */
+  @media (max-width: 1200px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .metric-groups { grid-template-columns: repeat(2, 1fr); }
+    .metric-group:nth-child(2) { border-right: none; }
+    .metric-group:nth-child(1), .metric-group:nth-child(2) { border-bottom: 1px solid var(--line); }
+    .diag-row { grid-template-columns: 1fr 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: 1 / -1; }
+    .cta-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 64px; }
+    .brand { justify-content: center; padding: 0; }
+    .brand-name, .nav-group-label, .account-name, .account-sub, .nav-count { display: none; }
+    .nav-item { justify-content: center; padding: 8px; }
+    .nav-item .label { display: none; }
+    .account { justify-content: center; padding: 8px; }
+    .searchbox { display: none; }
+  }
+
+  @media (max-width: 768px) {
+    :root { --sidebar-w: 0px; }
+    .sidebar { display: none; }
+    .main, .topbar { margin-left: 0; }
+    .topbar { padding: 0 14px; }
+    .hamburger { display: grid; }
+    .crumbs a, .crumbs .sep { display: none; }
+    .page { padding: 18px 14px 48px; }
+    .kpi-row { grid-template-columns: 1fr; }
+    .metric-groups { grid-template-columns: 1fr; }
+    .metric-group { border-right: none; border-bottom: 1px solid var(--line); }
+    .metric-group:last-child { border-bottom: none; }
+    .diag-row { grid-template-columns: 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: auto; }
+    .trust-grid { grid-template-columns: 1fr; }
+    .trust-col:first-child { border-right: none; border-bottom: 1px solid var(--line); }
+    .report-title { font-size: 1.3rem; }
+    .input { width: 100%; }
+    .toolbar { width: 100%; }
+  }
+
+  /* ==========================================================
+     PAGE-SPECIFIC — 화면 고유 CSS 는 여기부터. 위쪽 토큰/컴포넌트는 건드리지 않는다.
+     새 규칙도 border-radius 는 var(--r) 하나만 쓴다.
+     ========================================================== */
+
+  /* 폴링 안내 — 맥동 점 대신 문장으로 갱신 주기를 밝힌다 */
+  .poll-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    line-height: 1.55;
+  }
+  .poll-line svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; margin-top: 3px; }
+  .poll-line .mono { color: var(--ink-2); }
+  .poll-line > span { flex: 1 1 320px; }
+  .poll-line .poll-btn { flex: 0 0 auto; }
+  .poll-line .poll-btn svg { width: 15px; height: 15px; margin-top: 0; }
+
+  /* 상태 필터 탭 */
+  .filter-note { margin-top: 12px; font-size: 0.8rem; color: var(--ink-3); }
+  .filter-note .mono { color: var(--ink); }
+
+  /* 요약 줄 + 체결 비율 미터 */
+  .orders-summary {
+    display: block;
+    padding: 13px 22px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  .orders-summary .mono { color: var(--ink); }
+
+  .fill-ratio {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 22px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .fill-ratio .meter { flex: 1 1 180px; max-width: 280px; margin-top: 0; }
+  .fill-ratio-label { font-size: 0.78rem; color: var(--ink-3); }
+  .fill-ratio-label .mono { color: var(--ink); }
+
+  /* 원장 표 */
+  .orders-table { min-width: 1080px; }
+  .orders-table tbody td { vertical-align: top; padding-left: 11px; padding-right: 11px; }
+  .orders-table thead th { padding-left: 11px; padding-right: 11px; }
+  .cell-sub { display: block; margin-top: 3px; font-size: 0.74rem; line-height: 1.45; color: var(--ink-3); }
+  .col-state { min-width: 84px; }
+  .col-tpsl { min-width: 176px; white-space: normal; }
+  .col-error { min-width: 132px; white-space: normal; }
+  .dir-cell { white-space: nowrap; }
+  .dir-cell .chip { margin-left: 6px; }
+
+  /* 주문 방향(매수/매도)은 포지션 방향(롱/숏)과 다른 개념이라 클래스를 나눈다.
+     셸의 .side.long/.short 는 포지션 방향 전용이므로 이 화면에서는 쓰지 않는다. */
+  .order-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: var(--f-mono);
+  }
+  .order-side.buy { background: var(--bull-soft); color: var(--bull); }
+  .order-side.sell { background: var(--bear-soft); color: var(--bear); }
+
+  /* 필터 버튼 그룹 — 탭이 아니라 상호배타 토글이라 role=group + aria-pressed 를 쓴다 */
+  .filter-state { margin-top: 12px; font-size: 0.8rem; color: var(--ink-2); line-height: 1.6; }
+  .filter-state .mono { color: var(--ink); }
+  tr.is-hidden { display: none; }
+
+  .chip-xs { height: 22px; padding: 0 8px; font-size: 0.7rem; }
+  .chip.failed { color: var(--warn); border-color: rgba(229, 169, 61, 0.4); background: var(--warn-soft); }
+
+  .btn-xs { min-height: 30px; padding: 0 10px; font-size: 0.76rem; }
+  /* 위험 액션은 코퍼가 아니라 bear 아웃라인 */
+  .btn-danger { background: transparent; border-color: rgba(246, 104, 94, 0.42); color: var(--bear); }
+  .btn-danger:hover { background: var(--bear-soft); border-color: var(--bear); }
+
+  .sk-cell { display: block; height: 10px; }
+  .table-foot-note { padding-top: 4px; align-items: flex-start; }
+  .table-foot-note svg { margin-top: 3px; }
+  .table-foot-note span { line-height: 1.6; }
+
+</style>
+</head>
+<body>
+
+<!-- ==================== SIDEBAR ==================== -->
+<aside class="sidebar" aria-label="메인 내비게이션">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+    </span>
+    <span class="brand-name">QuantBridge</span>
+  </div>
+
+  <p class="nav-group-label">워크스페이스</p>
+  <nav class="nav" aria-label="주요 메뉴">
+    <a href="screen-02-dashboard.html" class="nav-item" aria-label="대시보드">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      <span class="label">대시보드</span>
+    </a>
+    <a href="screen-06-strategies-list.html" class="nav-item" aria-label="전략">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span class="label">전략</span>
+      <span class="nav-count">12</span>
+    </a>
+    <a href="screen-03-backtests-list.html" class="nav-item" aria-label="백테스트">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="10"/></svg>
+      <span class="label">백테스트</span>
+      <span class="nav-count">48</span>
+    </a>
+    <a href="screen-09-optimizer-list.html" class="nav-item" aria-label="옵티마이저">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+      <span class="label">옵티마이저</span>
+    </a>
+    <a href="screen-01-trading-cockpit.html" class="nav-item" aria-label="트레이딩">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+      <span class="label">트레이딩</span>
+    </a>
+    <a href="screen-11-orders.html" class="nav-item active" aria-current="page" aria-label="주문">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+      <span class="label">주문</span>
+      <span class="nav-count">7</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-foot">
+    <button class="account" type="button" aria-label="계정 메뉴 열기">
+      <span class="avatar" aria-hidden="true">WS</span>
+      <span>
+        <span class="account-name">woosung</span>
+        <span class="account-sub">로컬 워크스페이스</span>
+      </span>
+    </button>
+  </div>
+</aside>
+
+<!-- ==================== TOP BAR ==================== -->
+<header class="topbar">
+  <button class="hamburger" type="button" aria-label="메뉴 열기">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+  </button>
+
+  <nav class="crumbs" aria-label="breadcrumb">
+    <span class="here">주문</span>
+  </nav>
+
+  <span class="topbar-spacer"></span>
+
+  <div class="searchbox" role="search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+    <input type="text" placeholder="전략, 심볼, 실행 ID 검색" aria-label="검색" />
+    <span class="kbd" aria-hidden="true">⌘K</span>
+  </div>
+
+  <button class="icon-btn" type="button" id="themeToggle" aria-label="테마 전환" title="테마 전환">
+    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.8 6.8 0 0 0 9.8 9.8z"/></svg>
+  </button>
+
+  <button class="icon-btn" type="button" aria-label="계정 메뉴 열기" style="font-family: var(--f-mono); font-size: 0.72rem; font-weight: 600;">WS</button>
+</header>
+
+<!-- ==================== MAIN ==================== -->
+<main class="main">
+  <div class="page">
+
+    <!-- ===== 헤더 ===== -->
+    <section class="card rise d1" aria-label="주문 개요">
+      <div class="report">
+        <div>
+          <h1 class="report-title">주문</h1>
+          <div class="report-meta">
+            <span class="chip">데모 세션 sess_8d14</span>
+            <span class="chip">Bybit 데모</span>
+            <span class="chip accent">미체결 7건</span>
+            <span class="chip">마지막 갱신 21:07:03</span>
+          </div>
+          <p class="poll-line">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+            <span>이 목록은 <span class="mono">30초</span> 간격으로 다시 불러옵니다. 마지막으로 받아온 시각은 <span class="mono">21:07:03</span> 입니다. 지금 화면은 정적 프로토타입이라 시간이 지나도 값이 바뀌지 않습니다.</span>
+            <button class="btn btn-ghost poll-btn" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>
+              지금 새로고침
+            </button>
+          </p>
+        </div>
+        <div class="report-actions">
+          <button class="btn btn-ghost" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            CSV 내보내기
+          </button>
+          <button class="btn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>
+            새로고침
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 01 상태 필터 ===== -->
+    <section class="section rise d2" aria-label="상태 필터">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">01</span> 상태 필터</p>
+        <h2 class="section-title">어떤 상태만 볼지 고르기</h2>
+        <p class="section-desc">아직 끝나지 않은 주문과 이미 끝난 주문을 나눠서 봅니다. 괄호 없이 붙은 숫자가 그 상태의 건수입니다.</p>
+      </header>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="tabs" role="group" aria-label="주문 상태 필터">
+            <button class="tab active" type="button" aria-pressed="true" data-filter="all" data-total="14">전체 14</button>
+            <button class="tab" type="button" aria-pressed="false" data-filter="filled" data-total="5">체결 5</button>
+            <button class="tab" type="button" aria-pressed="false" data-filter="open" data-total="7">대기·전송 7</button>
+            <button class="tab" type="button" aria-pressed="false" data-filter="closed" data-total="2">취소·거부 2</button>
+          </div>
+          <p class="filter-state" id="filterState" role="status" aria-live="polite">
+            지금 보고 있는 상태는 <span class="mono">전체</span> 입니다. 조건에 맞는 <span class="mono">14</span>건 가운데 1페이지에 실린 <span class="mono">10</span>건이 아래 표에 보입니다.
+          </p>
+          <p class="filter-note">
+            버튼을 누르면 아래 원장 표에서 그 상태의 행만 남깁니다. 거르는 대상은 <span class="mono">1페이지에 이미 받아온 10건</span> 이고, 2페이지의 4건은 아직 받아오지 않아 걸러지지 않습니다.
+          </p>
+          <p class="filter-note">
+            사이드바의 주문 <span class="mono">7</span> 은 아직 끝나지 않은 주문 수입니다. 대기 <span class="mono">4</span> 와 전송 <span class="mono">3</span> 을 더한 값이고, 위 <span class="mono">대기·전송 7</span> 과 같은 숫자입니다.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 목록 ===== -->
+    <section class="section rise d3" aria-label="주문 원장">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">02</span> 목록</p>
+        <h2 class="section-title">주문 원장 14건</h2>
+        <p class="section-desc">세션이 낸 주문을 낸 시각의 역순으로 쌓습니다. 값이 아직 없는 칸은 비어 있다고 그대로 표시합니다.</p>
+      </header>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3 class="card-title">주문 원장</h3>
+            <p class="card-sub">1페이지 · 10건 표시 · 시각 내림차순</p>
+          </div>
+          <div class="chart-head-actions">
+            <span class="chip">2026-04-09 09:00 KST 세션 시작</span>
+          </div>
+        </div>
+
+        <p class="orders-summary">
+          <span class="mono">14</span>건 · 체결 <span class="mono">5</span> · 대기 <span class="mono">4</span> · 전송 <span class="mono">3</span> · 취소 <span class="mono">1</span> · 거부 <span class="mono">1</span>
+        </p>
+
+        <div class="fill-ratio">
+          <span class="meter" role="img" aria-label="전체 14건 가운데 체결 5건, 35.7 퍼센트"><span style="width: 35.7%"></span></span>
+          <span class="fill-ratio-label">체결 <span class="mono">5</span>건 / 전체 <span class="mono">14</span>건 = <span class="mono">35.7%</span></span>
+        </div>
+
+        <div class="table-wrap">
+          <table class="trades orders-table" aria-label="주문 원장. 14건 중 1번부터 10번까지, 시각 내림차순.">
+            <thead>
+              <tr>
+                <th scope="col">시각</th>
+                <th scope="col">심볼</th>
+                <th scope="col" title="주문의 매수·매도 방향입니다. 포지션의 롱·숏 방향과는 다른 값이라 트레이딩 코크핏의 롱·숏 배지와 구분해 표시합니다.">주문 방향</th>
+                <th scope="col" class="num">수량</th>
+                <th scope="col" class="num">체결가</th>
+                <th scope="col">상태</th>
+                <th scope="col">익절·손절</th>
+                <th scope="col">거래소 주문번호</th>
+                <th scope="col">오류</th>
+                <th scope="col">액션</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <!-- 1 · 대기 -->
+              <tr data-state="pending">
+                <td class="mono-l">21:06:12<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">SOL/USDT</td>
+                <td class="dir-cell"><span class="order-side sell">매도</span><span class="chip chip-xs" title="열려 있는 포지션을 줄이는 주문입니다. 새 포지션을 만들지 않습니다.">감소전용</span></td>
+                <td class="num">0.85</td>
+                <td class="num dim" title="아직 체결되지 않아 체결가가 없습니다.">—</td>
+                <td class="col-state"><span class="chip">대기</span></td>
+                <td class="col-tpsl dim" title="이 주문에는 익절도 손절도 걸려 있지 않습니다.">—</td>
+                <td class="mono-l dim" title="아직 거래소로 보내지 않아 주문번호가 없습니다.">—</td>
+                <td class="col-error dim" title="오류 없이 대기 중입니다.">—</td>
+                <td><button class="btn btn-xs btn-danger" type="button" title="대기 중인 주문을 취소합니다. 취소하면 다시 살릴 수 없고 새로 내야 합니다.">주문 취소</button></td>
+              </tr>
+
+              <!-- 2 · 전송 -->
+              <tr data-state="sent">
+                <td class="mono-l">21:05:47<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">BTC/USDT</td>
+                <td class="dir-cell"><span class="order-side buy">매수</span></td>
+                <td class="num">0.014</td>
+                <td class="num dim" title="거래소가 아직 체결 결과를 돌려주지 않았습니다.">—</td>
+                <td class="col-state"><span class="chip">전송</span></td>
+                <td class="col-tpsl mono-l">익절 64,200.00 · 손절 61,900.00</td>
+                <td class="mono-l">78410023<span class="cell-sub"><span class="chip chip-xs" title="Bybit 데모가 돌려준 주문번호입니다.">브로커</span></span></td>
+                <td class="col-error dim" title="오류 없이 전송된 상태입니다.">—</td>
+                <td><button class="btn btn-xs btn-danger" type="button" title="전송된 주문의 취소를 거래소에 요청합니다. 이미 체결됐다면 취소되지 않습니다.">주문 취소</button></td>
+              </tr>
+
+              <!-- 3 · 대기 -->
+              <tr data-state="pending">
+                <td class="mono-l">21:04:33<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">BTC/USDT</td>
+                <td class="dir-cell"><span class="order-side sell">매도</span><span class="chip chip-xs" title="열려 있는 포지션을 줄이는 주문입니다. 새 포지션을 만들지 않습니다.">감소전용</span></td>
+                <td class="num">0.021</td>
+                <td class="num dim" title="아직 체결되지 않아 체결가가 없습니다.">—</td>
+                <td class="col-state"><span class="chip">대기</span></td>
+                <td class="col-tpsl dim" title="이 주문에는 익절도 손절도 걸려 있지 않습니다.">—</td>
+                <td class="mono-l dim" title="아직 거래소로 보내지 않아 주문번호가 없습니다.">—</td>
+                <td class="col-error dim" title="오류 없이 대기 중입니다.">—</td>
+                <td><button class="btn btn-xs btn-danger" type="button" title="대기 중인 주문을 취소합니다. 취소하면 다시 살릴 수 없고 새로 내야 합니다.">주문 취소</button></td>
+              </tr>
+
+              <!-- 4 · 전송 -->
+              <tr data-state="sent">
+                <td class="mono-l">20:58:10<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">SOL/USDT</td>
+                <td class="dir-cell"><span class="order-side buy">매수</span></td>
+                <td class="num">1.20</td>
+                <td class="num dim" title="거래소가 아직 체결 결과를 돌려주지 않았습니다.">—</td>
+                <td class="col-state"><span class="chip">전송</span></td>
+                <td class="col-tpsl mono-l" title="체결가에서 6.40 만큼 떨어진 자리를 따라붙는 손절입니다.">추적손절 6.40</td>
+                <td class="mono-l">78409615<span class="cell-sub"><span class="chip chip-xs" title="Bybit 데모가 돌려준 주문번호입니다.">브로커</span></span></td>
+                <td class="col-error dim" title="오류 없이 전송된 상태입니다.">—</td>
+                <td><button class="btn btn-xs btn-danger" type="button" title="전송된 주문의 취소를 거래소에 요청합니다. 이미 체결됐다면 취소되지 않습니다.">주문 취소</button></td>
+              </tr>
+
+              <!-- 5 · 거부 -->
+              <tr data-state="rejected">
+                <td class="mono-l">20:33:02<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">SOL/USDT</td>
+                <td class="dir-cell"><span class="order-side sell">매도</span></td>
+                <td class="num">0.05</td>
+                <td class="num dim" title="거부된 주문이라 체결가가 없습니다.">—</td>
+                <td class="col-state"><span class="chip failed">거부</span></td>
+                <td class="col-tpsl dim" title="거래소로 나가기 전에 걸러져서 익절과 손절도 붙지 않았습니다.">—</td>
+                <td class="mono-l dim" title="거래소로 나가기 전에 걸러져서 주문번호가 없습니다.">—</td>
+                <td class="col-error">최소 주문 수량 미달<span class="cell-sub">최소 0.1 · 요청 0.05</span></td>
+                <td class="dim" title="이미 거부로 끝난 주문이라 취소할 수 없습니다.">—</td>
+              </tr>
+
+              <!-- 6 · 체결 -->
+              <tr data-state="filled">
+                <td class="mono-l" title="2026-04-14 20:00 1시간봉 시가에 체결된 주문입니다. 트레이딩 코크핏은 같은 체결을 봉 시각인 20:00 으로 적습니다.">20:00:04<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">BTC/USDT</td>
+                <td class="dir-cell"><span class="order-side buy">매수</span></td>
+                <td class="num">0.021</td>
+                <td class="num">62,880.00</td>
+                <td class="col-state"><span class="chip done"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>체결</span></td>
+                <td class="col-tpsl mono-l">익절 64,200.00 · 손절 61,900.00<span class="cell-sub">체결가 62,880.00 대비 +2.10% / -1.56%</span></td>
+                <td class="mono-l">78409188<span class="cell-sub"><span class="chip chip-xs" title="Bybit 데모가 돌려준 주문번호입니다.">브로커</span></span></td>
+                <td class="col-error dim" title="오류 없이 체결됐습니다.">—</td>
+                <td class="dim" title="이미 체결이 끝난 주문이라 취소할 수 없습니다.">—</td>
+              </tr>
+
+              <!-- 7 · 취소 -->
+              <tr data-state="canceled">
+                <td class="mono-l">19:47:19<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">BTC/USDT</td>
+                <td class="dir-cell"><span class="order-side sell">매도</span><span class="chip chip-xs" title="열려 있는 포지션을 줄이는 주문입니다. 새 포지션을 만들지 않습니다.">감소전용</span></td>
+                <td class="num">0.008</td>
+                <td class="num dim" title="체결 전에 취소돼서 체결가가 없습니다.">—</td>
+                <td class="col-state"><span class="chip">취소</span></td>
+                <td class="col-tpsl dim" title="이 주문에는 익절도 손절도 걸려 있지 않았습니다.">—</td>
+                <td class="mono-l">78407930<span class="cell-sub"><span class="chip chip-xs" title="Bybit 데모가 돌려준 주문번호입니다.">브로커</span></span></td>
+                <td class="col-error dim" title="사용자가 직접 취소했습니다. 오류는 없습니다.">—</td>
+                <td class="dim" title="이미 취소된 주문입니다.">—</td>
+              </tr>
+
+              <!-- 8 · 대기 -->
+              <tr data-state="pending">
+                <td class="mono-l">19:20:05<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">BTC/USDT</td>
+                <td class="dir-cell"><span class="order-side buy">매수</span></td>
+                <td class="num">0.007</td>
+                <td class="num dim" title="아직 체결되지 않아 체결가가 없습니다.">—</td>
+                <td class="col-state"><span class="chip">대기</span></td>
+                <td class="col-tpsl mono-l">손절 61,400.00</td>
+                <td class="mono-l dim" title="아직 거래소로 보내지 않아 주문번호가 없습니다.">—</td>
+                <td class="col-error dim" title="오류 없이 대기 중입니다.">—</td>
+                <td><button class="btn btn-xs btn-danger" type="button" title="대기 중인 주문을 취소합니다. 취소하면 다시 살릴 수 없고 새로 내야 합니다.">주문 취소</button></td>
+              </tr>
+
+              <!-- 9 · 전송 -->
+              <tr data-state="sent">
+                <td class="mono-l">18:55:38<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">SOL/USDT</td>
+                <td class="dir-cell"><span class="order-side buy">매수</span></td>
+                <td class="num">0.45</td>
+                <td class="num dim" title="목 어댑터가 아직 체결 결과를 돌려주지 않았습니다.">—</td>
+                <td class="col-state"><span class="chip">전송</span></td>
+                <td class="col-tpsl mono-l">손절 138.20</td>
+                <td class="mono-l">5f2a91c4<span class="cell-sub"><span class="chip chip-xs" title="거래소를 붙이지 않고 로컬 목 어댑터로 실행한 주문입니다. 실제 거래소에는 나가지 않았습니다.">모의</span></span></td>
+                <td class="col-error dim" title="오류 없이 전송된 상태입니다.">—</td>
+                <td><button class="btn btn-xs btn-danger" type="button" title="목 어댑터로 나간 주문을 취소합니다. 실제 거래소에는 영향이 없습니다.">주문 취소</button></td>
+              </tr>
+
+              <!-- 10 · 체결 -->
+              <tr data-state="filled">
+                <td class="mono-l" title="2026-04-14 17:00 1시간봉 시가에 체결된 주문입니다. 트레이딩 코크핏 05 최근 체결 표의 SOL/USDT 숏 청산 행과 같은 체결입니다.">17:00:06<span class="cell-sub">2026-04-14</span></td>
+                <td class="mono-l">SOL/USDT</td>
+                <td class="dir-cell"><span class="order-side buy">매수</span><span class="chip chip-xs" title="열려 있는 포지션을 줄이는 주문입니다. 새 포지션을 만들지 않습니다.">감소전용</span></td>
+                <td class="num">3.2</td>
+                <td class="num">149.30</td>
+                <td class="col-state"><span class="chip done"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>체결</span></td>
+                <td class="col-tpsl dim" title="숏 포지션을 되사서 줄이는 주문이라 익절과 손절을 걸지 않았습니다.">—</td>
+                <td class="mono-l">78407412<span class="cell-sub"><span class="chip chip-xs" title="Bybit 데모가 돌려준 주문번호입니다.">브로커</span></span></td>
+                <td class="col-error dim" title="오류 없이 체결됐습니다.">—</td>
+                <td class="dim" title="이미 체결이 끝난 주문이라 취소할 수 없습니다.">—</td>
+              </tr>
+            </tbody>
+
+            <tbody aria-busy="true" aria-label="다음 페이지를 불러오는 중">
+              <tr>
+                <td><span class="sk sk-cell" style="width: 74%"></span></td>
+                <td><span class="sk sk-cell" style="width: 82%"></span></td>
+                <td><span class="sk sk-cell" style="width: 56%"></span></td>
+                <td><span class="sk sk-cell" style="width: 48%"></span></td>
+                <td><span class="sk sk-cell" style="width: 62%"></span></td>
+                <td><span class="sk sk-cell" style="width: 52%"></span></td>
+                <td><span class="sk sk-cell" style="width: 78%"></span></td>
+                <td><span class="sk sk-cell" style="width: 66%"></span></td>
+                <td><span class="sk sk-cell" style="width: 44%"></span></td>
+                <td><span class="sk sk-cell" style="width: 58%"></span></td>
+              </tr>
+              <tr>
+                <td><span class="sk sk-cell" style="width: 70%"></span></td>
+                <td><span class="sk sk-cell" style="width: 82%"></span></td>
+                <td><span class="sk sk-cell" style="width: 56%"></span></td>
+                <td><span class="sk sk-cell" style="width: 44%"></span></td>
+                <td><span class="sk sk-cell" style="width: 60%"></span></td>
+                <td><span class="sk sk-cell" style="width: 52%"></span></td>
+                <td><span class="sk sk-cell" style="width: 72%"></span></td>
+                <td><span class="sk sk-cell" style="width: 66%"></span></td>
+                <td><span class="sk sk-cell" style="width: 40%"></span></td>
+                <td><span class="sk sk-cell" style="width: 58%"></span></td>
+              </tr>
+              <tr>
+                <td><span class="sk sk-cell" style="width: 76%"></span></td>
+                <td><span class="sk sk-cell" style="width: 82%"></span></td>
+                <td><span class="sk sk-cell" style="width: 56%"></span></td>
+                <td><span class="sk sk-cell" style="width: 46%"></span></td>
+                <td><span class="sk sk-cell" style="width: 64%"></span></td>
+                <td><span class="sk sk-cell" style="width: 52%"></span></td>
+                <td><span class="sk sk-cell" style="width: 70%"></span></td>
+                <td><span class="sk sk-cell" style="width: 66%"></span></td>
+                <td><span class="sk sk-cell" style="width: 42%"></span></td>
+                <td><span class="sk sk-cell" style="width: 58%"></span></td>
+              </tr>
+              <tr>
+                <td><span class="sk sk-cell" style="width: 72%"></span></td>
+                <td><span class="sk sk-cell" style="width: 82%"></span></td>
+                <td><span class="sk sk-cell" style="width: 56%"></span></td>
+                <td><span class="sk sk-cell" style="width: 50%"></span></td>
+                <td><span class="sk sk-cell" style="width: 58%"></span></td>
+                <td><span class="sk sk-cell" style="width: 52%"></span></td>
+                <td><span class="sk sk-cell" style="width: 76%"></span></td>
+                <td><span class="sk sk-cell" style="width: 66%"></span></td>
+                <td><span class="sk sk-cell" style="width: 46%"></span></td>
+                <td><span class="sk sk-cell" style="width: 58%"></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="chart-note table-foot-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7.5" x2="12.01" y2="7.5"/></svg>
+          <span>청산가는 이 표에 표시하지 않습니다. 체결된 주문이 곧 열린 포지션을 뜻하지 않고(이미 청산됐을 수 있습니다), 지금 포지션을 돌려주는 API 도 아직 없기 때문입니다. 확인할 수 없는 값을 라이브 위험처럼 보이게 하지 않으려고 칸 자체를 두지 않았습니다. 포지션은 트레이딩 코크핏에서 확인하세요.</span>
+        </p>
+
+        <p class="chart-note table-foot-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="14" x2="13" y2="14"/></svg>
+          <span>거래소 주문번호는 뒤 8자만 보여줍니다. <span class="mono">브로커</span> 는 Bybit 데모가 돌려준 번호이고, <span class="mono">모의</span> 는 거래소를 붙이지 않고 로컬 목 어댑터로 실행했을 때 붙는 번호입니다. 대기와 거부 상태에는 아직 번호가 없어서 빈 칸으로 둡니다.</span>
+        </p>
+
+        <div class="pager">
+          <span>14건 중 1번부터 10번까지</span>
+          <span class="pager-nums">
+            <button class="pg" type="button" aria-label="이전 페이지">‹</button>
+            <button class="pg active" type="button" aria-current="page">1</button>
+            <button class="pg" type="button">2</button>
+            <button class="pg" type="button" aria-label="다음 페이지">›</button>
+          </span>
+        </div>
+
+        <p class="disclaimer">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7.5" x2="12.01" y2="7.5"/></svg>
+          <span>이 화면의 숫자는 프로토타입용 샘플 데이터입니다. 이 원장에 담긴 주문은 Bybit 데모 세션 sess_8d14 가 낸 것뿐이고, 다른 거래소 주문은 들어 있지 않습니다.</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== 03 진단 ===== -->
+    <section class="section rise d4" aria-label="원장 진단">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">03</span> 진단</p>
+        <h2 class="section-title">아직 못 채운 것과 실패한 것</h2>
+        <p class="section-desc">원장이 다 채워지지 않은 자리를 감추지 않고 그대로 보여줍니다.</p>
+      </header>
+
+      <div class="diag-row">
+
+        <!-- 스켈레톤 -->
+        <article class="card diag" aria-label="다음 페이지, 불러오는 중">
+          <div class="card-head">
+            <div>
+              <h3 class="card-title">다음 페이지</h3>
+              <p class="card-sub">11번부터 14번까지</p>
+            </div>
+          </div>
+          <div class="card-body" aria-busy="true">
+            <span class="sk sk-line" style="height: 30px; margin-top: 0;"></span>
+            <span class="sk sk-line" style="width: 88%;"></span>
+            <span class="sk sk-line" style="width: 72%;"></span>
+            <span class="sk sk-line" style="width: 80%;"></span>
+            <span class="sk sk-line" style="width: 60%;"></span>
+            <p class="state-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+              남은 4건을 불러오는 중입니다. 보통 1초 안에 채워집니다.
+            </p>
+          </div>
+        </article>
+
+        <!-- 에러 -->
+        <article class="card diag" aria-label="원장 새로고침, 실패">
+          <div class="card-head">
+            <div>
+              <h3 class="card-title">원장 새로고침</h3>
+              <p class="card-sub">21:07:33 시도</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="state-box failed" role="alert">
+              <span class="state-icon failed" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </span>
+              <p class="state-title">원장을 다시 받아오지 못했습니다.</p>
+              <p class="state-body">화면에 남아 있는 14건은 21:07:03 에 성공한 응답 그대로입니다. 30초 뒤 재요청이 실패해서 그 뒤로는 값이 바뀌지 않았습니다.</p>
+              <p class="state-code">GET /orders?limit=200 · 500</p>
+              <button class="btn btn-ghost" type="button" style="margin-top: 4px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>
+                다시 시도
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <!-- 빈 상태 -->
+        <article class="card diag" aria-label="라이브 세션 주문, 비어 있음">
+          <div class="card-head">
+            <div>
+              <h3 class="card-title">라이브 세션 주문</h3>
+              <p class="card-sub">Bybit 메인넷</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="state-box">
+              <span class="state-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+              </span>
+              <p class="state-title">표시할 주문이 없습니다.</p>
+              <p class="state-body">라이브·데모 세션이 주문을 실행하면 이곳 원장에 기록됩니다.</p>
+              <button class="btn btn-ghost" type="button" style="margin-top: 4px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+                트레이딩 코크핏 열기
+              </button>
+            </div>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <footer class="foot">
+      <span>QuantBridge · 주문 원장 · 14건</span>
+      <span>기준 2026-04-14 21:07 KST</span>
+    </footer>
+
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  // 상태 필터 — 누르면 실제로 원장 표의 행을 거른다. 탭이 아니라 상호배타 토글이라
+  // role="group" + aria-pressed 를 쓰고, 걸러진 결과를 aria-live 로 읽어 준다.
+  var FILTER_STATES = {
+    all: null,
+    filled: ['filled'],
+    open: ['pending', 'sent'],
+    closed: ['canceled', 'rejected']
+  };
+  var FILTER_NAMES = { all: '전체', filled: '체결', open: '대기·전송', closed: '취소·거부' };
+
+  var filterButtons = document.querySelectorAll('.tabs .tab');
+  var ledgerRows = document.querySelectorAll('.orders-table tbody tr[data-state]');
+  var filterState = document.getElementById('filterState');
+
+  function applyFilter(button) {
+    var key = button.getAttribute('data-filter');
+    var allowed = FILTER_STATES[key];
+
+    filterButtons.forEach(function (b) {
+      var on = b === button;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+
+    var shown = 0;
+    ledgerRows.forEach(function (row) {
+      var visible = allowed === null || allowed.indexOf(row.getAttribute('data-state')) !== -1;
+      row.classList.toggle('is-hidden', !visible);
+      if (visible) { shown += 1; }
+    });
+
+    filterState.innerHTML =
+      '지금 보고 있는 상태는 <span class="mono">' + FILTER_NAMES[key] + '</span> 입니다. ' +
+      '조건에 맞는 <span class="mono">' + button.getAttribute('data-total') + '</span>건 가운데 ' +
+      '1페이지에 실린 <span class="mono">' + shown + '</span>건이 아래 표에 보입니다.';
+  }
+
+  filterButtons.forEach(function (button) {
+    button.addEventListener('click', function () { applyFilter(button); });
+  });
+
+  // 테마 토글 — 이 프로토타입은 다크 고정이라는 사실을 그대로 알린다.
+  var toast = document.getElementById('toast');
+  var toastTimer = null;
+  function say(message) {
+    toast.textContent = message;
+    toast.classList.add('show');
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(function () { toast.classList.remove('show'); }, 4200);
+  }
+  document.getElementById('themeToggle').addEventListener('click', function () {
+    say('이 프로토타입은 다크 테마로 고정되어 있습니다. 라이트는 globals.css 의 :root 쿨 페이퍼 토큰 세트로 교체하면 같은 레이아웃 그대로 전환됩니다.');
+  });
+</script>
+
+<!--
+  NUMBERS AUDIT — 이 화면에 인쇄한 파생 숫자의 검산
+
+  전체 건수      = 체결 5 + 대기 4 + 전송 3 + 취소 1 + 거부 1 = 14 ✓ (요약 줄 "14건" 과 일치)
+  필터 버튼 합계 = 체결 5 + 대기·전송 7 + 취소·거부 2 = 14 ✓ (= 버튼 "전체 14")
+  대기·전송 7    = 대기 4 + 전송 3 = 7 ✓
+                   -> 사이드바 nav-count 주문 7 = 헤더 칩 "미체결 7건" = 버튼 "대기·전송 7" 세 곳이 같은 숫자 ✓
+                   (원장을 12에서 14로 늘린 것은 체결만이라 미체결 7 은 그대로 성립한다.)
+  취소·거부 2    = 취소 1 + 거부 1 = 2 ✓
+  1페이지 10행   = 대기 3(21:06:12 / 21:04:33 / 19:20:05)
+                 + 전송 3(21:05:47 / 20:58:10 / 18:55:38)
+                 + 체결 2(20:00:04 / 17:00:06)
+                 + 취소 1(19:47:19)
+                 + 거부 1(20:33:02) = 10 ✓ (상태 5종 모두 등장)
+  행 정렬        = 21:06:12 > 21:05:47 > 21:04:33 > 20:58:10 > 20:33:02 > 20:00:04
+                 > 19:47:19 > 19:20:05 > 18:55:38 > 17:00:06 -> 10행 모두 시각 내림차순 ✓
+  필터 적용 결과 = 버튼을 누르면 data-state 로 실제로 행을 거른다(표시용 토글이 아니다).
+                   전체     -> 10행 표시 (전체 14건 중 1페이지 10건)
+                   체결     -> filled 2행  (전체 5건 중 1페이지 2건)
+                   대기·전송 -> pending 3 + sent 3 = 6행 (전체 7건 중 1페이지 6건)
+                   취소·거부 -> canceled 1 + rejected 1 = 2행 (전체 2건 중 1페이지 2건)
+                   10 = 2 + 6 + 2 ✓ (네 버튼의 1페이지 표시 건수 합 = 1페이지 행 수)
+                   aria-live 문장의 "1페이지에 실린 N건" 은 JS 가 센 실제 표시 행 수라 표와 어긋날 수 없다.
+  2페이지 잔여   = 14 - 10 = 4건, 내역은 체결 3 + 대기 1
+                   체결 3 = 코크핏 05 표의 04-14 09:00 / 04-13 22:00 / 04-13 15:00 체결에 대응하는 주문
+                            (아래 "코크핏 체결 1대1 대응" 참조. 셋 다 17:00:06 보다 과거라 2페이지로 밀린다)
+                   검산: 체결 2+3 = 5 ✓ / 대기 3+1 = 4 ✓ / 전송 3 ✓ / 취소 1 ✓ / 거부 1 ✓ -> 합 14 ✓
+                   스켈레톤 tbody 도 4행이라 "남은 4건" 과 어긋나지 않는다 ✓
+  페이지 수      = ceil(14 / 10) = 1.4 -> 2 ✓ (pager 버튼 1, 2)
+  현재 페이지 범위 = 1 + (1-1)x10 = 1번, min(1x10, 14) = 10번 -> "14건 중 1번부터 10번까지" ✓
+  다음 페이지 범위 = 11번부터 14번까지 ✓ (스켈레톤 카드 card-sub, 그리고 "남은 4건")
+  체결 비율 미터 = 5 / 14 = 0.3571428 -> 35.7% ✓ (미터 width:35.7% 와 인쇄값 35.7% 일치.
+                   기준을 "체결 5건 / 전체 14건" 으로 함께 인쇄해 무엇 대비인지 못 헷갈리게 했다.
+                   부호 없는 완료 비율이라 손익 색(--bull/--bear)을 쓰지 않고 기본 .meter(코퍼)로 둔다.)
+  폴링 재시도 시각 = 마지막 성공 21:07:03 + 폴링 주기 30초 = 21:07:33 -> 03 진단 에러 카드 "21:07:33 시도" ✓
+                   (헤더의 "마지막 갱신 21:07:03" 은 성공 시각, 에러 카드는 그다음 실패 시각. 같은 시각을 두 뜻으로 쓰지 않는다.)
+  익절 거리      = 64,200.00 / 62,880.00 - 1 = 0.0209923 -> +2.10% ✓ (기준 = 체결가 62,880.00, 셀에 함께 인쇄)
+  손절 거리      = 61,900.00 / 62,880.00 - 1 = -0.0155852 -> -1.56% ✓ (같은 기준)
+  거부 사유      = 요청 0.05 < SOL/USDT 최소 0.1 -> "최소 주문 수량 미달" 과 모순 없음 ✓
+  주문번호 뒤 8자 = 78410023 / 78409615 / 78409188 / 78407930 / 78407412 / 5f2a91c4 모두 8자 ✓
+  주문번호 단조성 = 브로커 번호는 시각이 이를수록 작다.
+                   21:05:47 78410023 > 20:58:10 78409615 > 20:00:04 78409188 > 19:47:19 78407930 > 17:00:06 78407412 ✓
+                   (5f2a91c4 는 로컬 목 어댑터가 매긴 별도 체계라 이 순서 비교 대상이 아니다.)
+
+  캐논 대조(파생 아님)
+    - 기준 시각 2026-04-14 21:07 KST -> 마지막 갱신 21:07:03, 실패한 재시도 21:07:33, 원장 최신 행 21:06:12 (모두 21:07 분 안) ✓
+    - 연결 거래소는 Bybit 하나. 이 원장은 Bybit 데모 세션 sess_8d14 주문만 담고, 타 거래소나 제품 로드맵은 주장하지 않는다 ✓
+    - 데모 세션 sess_8d14 · Bybit 데모 · 2026-04-09 09:00 KST 시작 ✓
+    - 20:00:04 체결 행 BTC/USDT 매수 0.021 @ 62,880.00 = 캐논의 열린 포지션(롱 0.021 @ 62,880.00) 진입 주문 ✓
+      트레이딩 코크핏(screen-01)은 같은 체결을 봉 시각 "2026-04-14 20:00" 으로 적는다(BTC/USDT 1시간봉 · 체결 = 시그널 다음 봉 시가).
+      원장은 초 단위를 쓰는 표라 20:00:04 로 적고, 분 단위로 자르면 20:00 으로 코크핏과 같은 값이 된다 ✓
+      (이전 값 20:41:55 는 1시간봉 시가가 아니어서 코크핏의 20:00 과 어긋났다. 원장 쪽을 캐논에 맞췄다.)
+    - 주문 방향 배지는 .order-side.buy/.sell (매수/매도) 로 두고, 셸의 .side.long/.short (롱/숏) 를 쓰지 않는다.
+      코크핏·거래 상세의 롱/숏 배지는 포지션 방향이고 이 표의 매수/매도는 주문 방향이라 다른 개념이다 ✓
+    - nav-count 전략 12 / 백테스트 48 / 주문 7 은 셸 그대로 ✓
+
+  상태별 필드 규칙(원장 안에서 자기모순이 없는지 확인한 것)
+    - 대기  = exchange_order_id null / filled_price null / error_message null
+    - 전송  = exchange_order_id 있음 / filled_price null / error_message null
+    - 체결  = exchange_order_id 있음 / filled_price 있음 / error_message null
+    - 취소  = exchange_order_id 있음 / filled_price null / error_message null
+    - 거부  = exchange_order_id null / filled_price null / error_message 있음
+    10행 전부 이 규칙을 지킨다 ✓
+
+  [해소됨 · 트레이딩 코크핏(screen-01) 과 체결 건수 불일치]
+  이전 상태. 이 원장은 체결 3 · 전체 12 를 인쇄했고 코크핏 05 표는 같은 세션에서 체결 5건을 인쇄했다.
+  겹치는 것이 확실한 체결은 20:00:04 한 건뿐이었고, 원장에는 코크핏의 나머지 4건이 들어갈 자리가 없었다.
+  판정. 원장 쪽을 늘렸다. 근거는 포함 관계다. 세션이 낸 체결은 반드시 주문 원장 안에 있어야 하는데
+  원장이 3건만 담아 5건을 수용하지 못했다. 코크핏의 5건은 KPI 체인(오늘 실현 +38.55 = +50.91 - 12.36)으로
+  검산되므로 줄이면 KPI4 와 03 배포된 전략의 오늘 체결 2건/1건, 05 각주가 연쇄로 무너진다.
+  조치. 원장을 12건에서 14건으로 확장했다.
+    (a) 코크핏 표에 짝이 없던 20:12:41(SOL/USDT 감소전용 매도 0.90 @ 143.05) 행을 걷어냈다.
+        이 행은 원장 안에 짝이 되는 진입 체결도 없어서 어차피 자기모순이었다.
+    (b) 코크핏 05 표의 체결 5건에 1대1로 대응하는 주문 행을 채웠다. 20:00:04 는 이미 있어 재사용했고,
+        17:00:06 을 1페이지에, 09:00:05 / 04-13 22:00:07 / 04-13 15:00:03 을 2페이지 잔여로 넣었다.
+    검산: 12 - 1(제거) + 4(추가) = 15 가 아니라, 2페이지 잔여의 체결 1건이 (b)의 3건에 흡수되므로
+          12 - 2 + 4 = 14 ✓ (제거 2 = 20:12:41 + 2페이지의 미상 체결 1)
+  결과. 전체 14 = 체결 5 + 대기 4 + 전송 3 + 취소 1 + 거부 1 ✓
+        nav-count 주문 7 = 대기 4 + 전송 3 은 그대로 성립한다(늘린 것이 체결뿐이라 미체결 수가 안 변한다) ✓
+        코크핏 쪽 인쇄값은 한 글자도 바꾸지 않았고, screen-02 로 내려가는 세션 KPI 도 그대로다.
+
+  [코크핏 체결 1대1 대응 · screen-01 05 표 5행 = 이 원장의 체결 5건]
+  방향 변환 규칙. 롱 진입 = 매수 / 롱 청산 = 매도(감소전용) / 숏 진입 = 매도 / 숏 청산 = 매수(감소전용).
+  코크핏은 포지션 방향(롱/숏)을, 원장은 주문 방향(매수/매도)을 적으므로 같은 체결이라도 라벨이 다르다.
+  시각은 코크핏이 1시간봉 시각, 원장이 초 단위다. 원장 시각을 분 단위로 자르면 코크핏 값과 같아진다.
+
+    코크핏 05 행                              원장 행                                             위치
+    04-14 20:00 BTC 롱 진입 0.021 @62,880.00  20:00:04 매수 0.021 @62,880.00        78409188  1페이지
+    04-14 17:00 SOL 숏 청산 3.2   @  149.30   17:00:06 매수 감소전용 3.2 @149.30    78407412  1페이지
+    04-14 09:00 BTC 롱 청산 0.020 @62,410.00  09:00:05 매도 감소전용 0.020 @62,410.00         2페이지
+    04-13 22:00 BTC 롱 진입 0.020 @59,797.00  22:00:07 매수 0.020 @59,797.00                  2페이지
+    04-13 15:00 SOL 숏 진입 3.2   @  145.60   15:00:03 매도 3.2 @145.60                        2페이지
+
+  수량·체결가는 다섯 행 모두 코크핏 표와 같은 값이다 ✓ (원장에는 수수료와 실현 손익 컬럼이 없다.
+  그 두 값은 거래 단위라 주문 단위 원장이 아니라 코크핏 05 표에서만 센다.)
+  2페이지 세 행의 브로커 번호는 화면에 인쇄되지 않으므로 여기서도 특정하지 않는다.
+
+  의도적으로 인쇄하지 않은 값
+    - 청산가. 체결 주문이 곧 열린 포지션이 아니고 포지션 API 가 없어 컬럼 자체를 두지 않았다(표 아래 문구로 명시).
+    - 갱신까지 남은 시간, 진행률 바, 접속자 수, 지연 시간. 이 화면에 그 값을 만들 근거가 없다.
+-->
+
+</body>
+</html>
