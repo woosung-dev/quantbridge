@@ -34,15 +34,13 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
 
 /**
  * 공개 라우트 하드 실패 allowlist (2026-07-20 실측 baseline). 슬라이스가 줄인다.
- *   - `/` 2 — "Bybit Demo 연동 (Beta)" 가 rgb(122,130,140)=#7a828c 로 4.3:1 (AA 4.5 미달).
- *     1440·375 두 폭에서 같은 결함이 잡혀 2다. ★이 색은 토큰 감사가 잡은 --text-muted 와
- *     같다 (context-notes §2, 카드 위 4.66 미달). **S1a 의 --text-muted→#8b939c 교정이
- *     이 랜딩 결함도 함께 고친다** — 그때 이 항목이 0으로 내려간다.
+ *   - `/` 0 — 과거 "Bybit Demo 연동 (Beta)" #7a828c 4.3:1(AA 미달) 2건이 있었으나
+ *     --text-muted→#8b939c 교정(S5 가 앞당긴 S1a #1)으로 해소됐다.
  *   - `/waitlist` 0 — 깨끗.
  * /pricing 은 현재 `/` 로 리다이렉트해 같은 결함이 중복 잡히므로 대상에서 뺐다.
  */
 const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
-  "/": 2,
+  "/": 0,
   "/waitlist": 0,
 };
 

@@ -42,7 +42,7 @@ export const BRAND_PALETTE = {
     borderDark: "#31363d",
     textPrimary: "#e8eaed",
     textSecondary: "#a6adb5",
-    textMuted: "#7a828c",
+    textMuted: "#8b939c", // S1a #1 — globals.css .dark --text-muted 미러 (AA 4.5+)
     primary: "#f08c2e",
     primaryHover: "#f79d4d",
     bullish: "#2dd4a7",

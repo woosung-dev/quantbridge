@@ -394,7 +394,7 @@ h6 {
   --card-raised: #1a1d21;
   --text-primary: #e8eaed;
   --text-secondary: #a6adb5;
-  --text-muted: #7a828c;
+  --text-muted: #8b939c; /* S1a #1 (S5 가 앞당김) — 구 #7a828c 는 카드 위 4.35:1 로 AA 미달 */
   --primary: #f08c2e;
   --primary-hover: #f79d4d; /* 다크는 밝아지는 hover — 계측기 "활성" 무드 */
   --primary-light: rgba(240, 140, 46, 0.1);
@@ -1837,4 +1837,106 @@ h6 {
      새 규칙도 border-radius 는 var(--r) 하나만 쓴다.
      ========================================================== */
 
+}
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /backtests 목록 (이식 S5)
+ *   출처 docs/prototypes/shotgun-2026-07/screen-03-backtests-list.html :997-1077.
+ *   공용 클래스(위 @layer components)를 소비하는 화면 고유 규칙만. 토큰은 캐논 별칭 해석.
+ * ========================================================================== */
+@layer components {
+  /* 필터 카드 */
+  .toolbar .push {
+    margin-left: auto;
+  }
+  .filter-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .filter-chips-label {
+    font-size: 0.76rem;
+    color: var(--ink-3);
+  }
+  .filter-chips-note {
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--ink-3);
+  }
+  .chip-x {
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    margin-left: 1px;
+    margin-right: -3px;
+    border-radius: var(--r);
+    color: var(--ink-3);
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .chip-x:hover {
+    background: var(--card-3);
+    color: var(--ink);
+  }
+  .chip-x svg {
+    width: 10px;
+    height: 10px;
+    stroke: currentColor;
+    stroke-width: 2.4;
+  }
+
+  /* 상태 칩 확장 — 실패는 warn */
+  .chip.failed {
+    color: var(--warn);
+    border-color: rgba(229, 169, 61, 0.4);
+    background: var(--warn-soft);
+  }
+
+  /* 요약 줄 */
+  .runs-summary {
+    display: block;
+    padding: 13px 22px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  .runs-summary .mono {
+    color: var(--ink);
+  }
+
+  /* 목록 표 */
+  .runs-table {
+    min-width: 960px;
+  }
+  .runs-table tbody td {
+    vertical-align: top;
+  }
+  .col-status {
+    min-width: 152px;
+    white-space: normal;
+  }
+  .run-id {
+    color: var(--ink);
+  }
+  .run-sub {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.74rem;
+    color: var(--ink-3);
+  }
+
+  .btn-xs {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 0.76rem;
+  }
+
+  .sk-cell {
+    display: block;
+    height: 10px;
+  }
 }
