@@ -101,21 +101,6 @@ export default function GlobalError({
             홈으로
           </Link>
         </div>
-
-        {/* 시스템 상태 pill bar */}
-        <div
-          role="status"
-          aria-live="polite"
-          className="relative z-[2] mt-8 inline-flex flex-wrap items-center justify-center gap-2.5 rounded-full border border-[color:var(--border)] bg-card px-4 py-2.5 text-[13px] shadow-sm"
-        >
-          <span aria-hidden="true" className="relative h-2 w-2 rounded-full bg-[color:var(--success)]">
-            <span className="absolute -inset-1 rounded-full bg-[color:var(--success)] opacity-35 motion-safe:animate-ping" />
-          </span>
-          <span className="font-medium text-[color:var(--text-secondary)]">시스템 상태:</span>
-          <span className="inline-flex items-center rounded-full bg-[color:var(--success-light)] px-2.5 py-0.5 text-xs font-semibold text-[color:var(--success)]">
-            정상 운영 중
-          </span>
-        </div>
       </div>
     </section>
   );

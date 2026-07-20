@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 import { ErrorIllustration } from "@/app/_components/error-illustration";
-import { ErrorRecoveryBox } from "@/app/_components/error-recovery-box";
 
 export default function MaintenancePage() {
   return (
@@ -23,19 +22,6 @@ export default function MaintenancePage() {
         <p className="mx-auto mb-8 max-w-[480px] whitespace-pre-line text-base leading-relaxed text-[color:var(--text-secondary)]">
           {`더 나은 서비스 제공을 위해 시스템을 업데이트하고 있습니다.\n잠시 후 다시 이용해주세요.`}
         </p>
-
-        <ErrorRecoveryBox
-          variant="503"
-          etaLabel="약 15분 남음"
-          startedAt="14:10 KST"
-          finishesAt="14:40 KST"
-          progressPercent={60}
-          updates={[
-            { status: "done", label: "백테스트 엔진 성능 개선" },
-            { status: "done", label: "실시간 차트 최적화" },
-            { status: "progress", label: "데이터베이스 정리 중" },
-          ]}
-        />
 
         <div role="group" aria-label="복구 동작" className="relative z-[2] flex flex-wrap justify-center gap-3">
           <Link
