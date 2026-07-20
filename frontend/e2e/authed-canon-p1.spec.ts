@@ -50,13 +50,14 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
  *   - /dashboard 0 — 깨끗.
  *   - /backtests 0 — S5 C 이식 완료. 375px 가로 오버플로는 .table-wrap 스크롤 컨테이너가
  *     해소한다(표는 컨테이너 안에서 스크롤, 페이지 본문은 넘치지 않는다).
- *   - /backtests/:id/trades 3 — 검색·기간 시작·기간 종료 입력이 포커스링 없음. S6.
+ *   - /backtests/:id/trades 0 — S6 C 이식 완료. 검색·기간 시작·기간 종료 입력이 공용
+ *     .input 스타일을 소비하며 :focus-visible 카퍼 링을 받는다(outline-none 제거).
  *   - /trading 1 — outline-none 인 포커스가능 div("Kill Switch…"). S8.
  */
 const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/dashboard": 0,
   "/backtests": 0,
-  "/backtests/:id/trades": 3,
+  "/backtests/:id/trades": 0,
   "/trading": 1,
 };
 
