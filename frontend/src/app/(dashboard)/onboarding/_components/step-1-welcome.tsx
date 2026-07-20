@@ -35,7 +35,7 @@ export function Step1Welcome({ onNext }: { onNext: () => void }) {
             strokeWidth={2}
           />
           <span className="break-keep">
-            샘플 <strong>EMA Crossover</strong> 전략으로 시작 — 복사·붙여넣기 없이 한 번의 클릭으로 등록됩니다.
+            샘플 <strong>EMA Crossover</strong> 전략으로 시작하세요. 복사·붙여넣기 없이 한 번의 클릭으로 등록됩니다.
           </span>
         </li>
         <li className="flex items-start gap-3">

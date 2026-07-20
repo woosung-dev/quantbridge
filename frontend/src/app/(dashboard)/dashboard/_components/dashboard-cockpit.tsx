@@ -127,7 +127,7 @@ export function DashboardCockpit() {
           className="flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive-subtle p-3 text-sm text-destructive"
         >
           <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Kill Switch 가 활성 상태입니다 — 주문이 차단됩니다.{" "}
+          Kill Switch 가 활성 상태입니다. 주문이 차단됩니다.{" "}
           <Link href="/trading" className="font-semibold underline">
             트레이딩에서 확인
           </Link>

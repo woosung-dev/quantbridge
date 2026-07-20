@@ -220,7 +220,6 @@ const HEX_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
 const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(auth)/_components/brand-panel.tsx", 2],
   ["app/(dashboard)/backtests/_components/assumptions-card.tsx", 2],
-  ["app/(dashboard)/backtests/_components/backtest-list.tsx", 2],
   ["app/(dashboard)/backtests/_components/charts/cost-assumption-heatmap.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/drawdown-pane.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/equity-pane.tsx", 1],
@@ -233,8 +232,6 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/backtests/_components/report/detailed-results-section.tsx", 1],
   ["app/(dashboard)/backtests/_components/report/runup-drawdown-section.tsx", 2],
   ["app/(dashboard)/backtests/_components/report/trade-pnl-pane.tsx", 1],
-  ["app/(dashboard)/dashboard/_components/dashboard-cockpit.tsx", 1],
-  ["app/(dashboard)/onboarding/_components/step-1-welcome.tsx", 1],
   ["app/(dashboard)/optimizer/_components/bayesian-iteration-chart.tsx", 2],
   ["app/(dashboard)/optimizer/_components/genetic-generation-chart.tsx", 2],
   ["app/(dashboard)/optimizer/_components/grid-search-heatmap.tsx", 1],
@@ -249,7 +246,6 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/trading/_components/kill-switch-modal.tsx", 3], // S8 삭제 예정 (죽은 파일)
   ["app/(dashboard)/trading/_components/trading-dash-hero.tsx", 1],
   ["app/_components/landing-bento.tsx", 1],
-  ["app/_components/landing-dashboard-showcase.tsx", 1],
   ["app/_components/landing-hero.tsx", 1],
   ["app/disclaimer/page.tsx", 1],
   ["app/privacy/page.tsx", 6], // 정의 목록 (Clerk — 인증). 정당

@@ -131,7 +131,7 @@ export function BacktestList() {
           const active = f.id === activeStatus;
           const isDisabled = hasMorePages && f.id !== "all";
           const title = isDisabled
-            ? "현재 페이지(20건) 만 필터되므로 비활성화 — Beta 에 서버 필터 추가 예정"
+            ? "현재 페이지(20건) 만 필터되므로 비활성화됩니다. Beta 에 서버 필터 추가 예정"
             : undefined;
           return (
             <button
@@ -165,7 +165,7 @@ export function BacktestList() {
           data-testid="backtest-filter-notice"
           className="mb-6 text-xs text-[color:var(--text-muted)]"
         >
-          현재 페이지(20건)만 필터됩니다 — Beta 에 서버 필터가 추가될 예정입니다.
+          현재 페이지(20건)만 필터됩니다. Beta 에 서버 필터가 추가될 예정입니다.
         </p>
       )}
       {!hasMorePages && <div className="mb-6" />}
