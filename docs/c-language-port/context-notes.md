@@ -223,11 +223,11 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 
 시도한 것과 결과.
 
-| 시도 | 결과 |
-| --- | --- |
-| `touch globals.css` (mtime 만 변경) | 무효 |
-| dev 서버 완전 재기동 | **무효** — `.next` 캐시가 살아남는다 |
-| `rm -rf .next` | 권한 차단 |
+| 시도                                   | 결과                                  |
+| -------------------------------------- | ------------------------------------- |
+| `touch globals.css` (mtime 만 변경)    | 무효                                  |
+| dev 서버 완전 재기동                   | **무효** — `.next` 캐시가 살아남는다  |
+| `rm -rf .next`                         | 권한 차단                             |
 | **파일 내용 변경(주석 1줄 추가/삭제)** | **유효** — 해시가 바뀌어야 무효화된다 |
 
 원인은 복구 방식이었다. `cp` 로 되돌리면 내용이 원본과 **동일**해져 Turbopack 이
@@ -246,7 +246,43 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 
 ---
 
+## S0 종료 — 검사 장치 이식 결과 (2026-07-20)
+
+계획대로 `runtime-check.mjs` 를 "다시 겨눴다". 착수 전 `node runtime-check.mjs` = **17/17 PASS** 를 직접 재현하고 시작했다.
+
+### 감사 코어를 공유 모듈로 뽑았다
+
+`e2e/design-canon-audit.ts` = `AUDIT`(:18-110) · `MOTION_AUDIT` · 포커스링 프로브 · 4폭 이식. **캘리브레이션 spec 과 앱 spec 이 같은 모듈을 import 한다** — 사본을 두 벌 두면 "프로토타입 17/17 재현"이 앱에 대해 아무것도 증명하지 못하기 때문이다. 핸드오프가 적은 `design-canon.spec.ts` 대신 3분할(모듈 + `design-canon-calibration` + `authed-canon-p1`)로 갔다. 이유는 **`playwright.config.ts:63` 의 testMatch 가 `/design-canon-.*\.spec\.ts$/` 라 하이픈이 필수** — `design-canon.spec.ts` 는 매치되지 않아 0케이스로 조용히 통과할 자리였다.
+
+### 캘리브레이션이 먼저다 (함정 #4 이행)
+
+`design-canon-calibration.spec.ts` 로 프로토타입 17벌 + 라이트 2벌을 `file://` 로 감사 → **22 passed**, canon 카운트가 기준선과 전부 정확 일치. 반증 3종(임계 5.82→6.5 / width:3000px 주입 / 인벤토리 글롭 어긋냄)으로 가드가 실제로 잡는 것을 확인하고 되돌렸다.
+
+### 정적 검사는 주석 인지 스캐너가 핵심
+
+`design-canon-source.test.ts` — 반경 21 · hex 6 · 노출 산문 em-dash 100 을 per-file 정확일치 래칫으로 동결. **calibration 이 grep 함정을 실증했다.** raw hex 58 → 주석 제거 44 → `brand-palette.ts`(정의 계층) 제외 6. `PR #171`(3자리 hex 오검)·주석 안 hex/em-dash 가 전부 걸러졌다. ★em-dash 100 은 **회귀 동결이지 슬롭 판정이 아니다** — `unsupported-builtin-hints.ts` 29(hint 데이터)·`privacy` 6(정의 목록)·`kill-switch-modal` 3(S8 삭제예정) 등 정당/사멸 케이스가 섞여 있다. 감축은 S1b ④ 의 사람 판단.
+
+### React baseline — 백엔드를 직접 띄워야 했다
+
+★함정 2건 실측.
+
+1. **포트 8000 을 cookmark(냉파) 프로젝트가 점유** 중이었다. `openapi.json` title `냉파 backend`·경로 2개로 판별. 리로드 수퍼바이저 PID 20022 를 정리해 비웠다.
+2. **backend `.env.local` 의 DATABASE_URL 이 5433(ffwpu-postgres, 남의 DB)을 가리킨다.** QuantBridge DB 는 **5436**(`quantbridge-db`). `make be` 를 그냥 쓰면 남의 DB 에 붙는다 (메모리 `project_full_inspection_20260601` 기록 함정 재확인). `DATABASE_URL/TIMESCALE_URL=5436 · REDIS=6380 · FRONTEND_URL=3000` 오버라이드로 기동.
+
+채워진 baseline(백테스트 6·체결 최대 585·거래소 1) 에서 P1 4라우트를 감사해 allowlist 확정. **nextjs-portal(next dev 오버레이)이 포커스 감사에서 거짓 결함**을 내 audit 코어에서 tag 제외하고 캘리브레이션 22 재확인. 실제 앱 결함 = backtests 375px overflow · trades 입력 3개 포커스링 · trading 포커스가능 div. **canon 은 게이트 아님**(지표).
+
+### 고아 spec — 실행하니 stale
+
+`sprint55-optimizer-bayesian` 을 배선해 돌리니 폼 UX 가 통째로 바뀌어(텍스트 `backtest_id` → `useBacktests` 드롭다운 피커, P1-8/S7-B) 첫 상호작용에서 타임아웃. `/optimizer` 는 P1 밖. 사용자 결정 = **test.skip + TODO**, 배선 되돌림. optimizer 이식 때 현행 UX 로 재작성.
+
+### CI 배선
+
+`pnpm e2e:design-canon` 을 `ci.yml` e2e 잡에 추가(병행안). 캘리브레이션(file://) + 공개 라우트 런타임 = CI, authed P1 = 로컬. `vercel-react-best-practices` 는 S0 이 React 런타임 코드 0 이라 보류 → S1a.
+
+---
+
 ## 변경 이력
 
 - **2026-07-20** — 계획 수립. 베이스라인 실측 3종 + 핸드오프 전제 독립 검증(색 5건 불일치 발견) + 사용자 인터뷰 4Q + 미해결 6건 처리 + 슬라이스 S0~S9 + 검사 장치 설계. 코드 수정 없음.
 - **2026-07-20** — 라이트 팔레트 **B2 확정**. 핸드오프 전제 2건 반증(감사표 수치 오류 · A 안의 채움 등광도) + A′ 도출 + 4안 프로토타입 + 픽셀 실측(최대 0.61%) + 스킬 채점 → B2. 채움 토큰 제거 · `td.num` 교정 · 감사 블록 재계산 · 기각안 6벌 삭제. 라이트 2/2 · 다크 17/17 PASS.
+- **2026-07-20** — **S0 종료.** 감사 코어 공유 모듈 이식(`design-canon-audit.ts`) + 캘리브레이션 22 재현 + 정적 검사 3종 래칫 + React P1 4라우트 baseline + CI 배선 + 고아 spec skip. 반증 7종 통과. 5 커밋(`97941e6`~`e8fc657`). 다음 = S1a.

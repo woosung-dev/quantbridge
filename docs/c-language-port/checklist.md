@@ -40,19 +40,19 @@
 
 ---
 
-## S0 — 검사 장치 + 캘리브레이션 (진행 중)
+## S0 — 검사 장치 + 캘리브레이션 (완료 2026-07-20)
 
 > 안전망이 먼저다. 토큰 리네임을 안전망 없이 하면 `chart-tokens.ts` 가 **런타임 에러 없이 색만 틀리게** 조용히 깨진다.
 
 **확정된 seam 5개** (2026-07-20 사용자 승인). 승인 안 된 seam 에는 테스트를 쓰지 않는다.
 
-| #   | seam                                  | 상태                      |
-| --- | ------------------------------------- | ------------------------- |
-| 1   | URL 의 렌더된 DOM (4폭)               | 미착수                    |
-| 2   | `resolveChartTokens()` 계약           | **완료**                  |
-| 3   | 커밋된 소스 텍스트 (반경·hex·em-dash) | 부분 — 토큰만 완료        |
-| 4   | 검사기가 스캔한 인벤토리 (위생 메타)  | 완료 (가드 2종에 동봉)    |
-| 5   | allowlist 래칫                        | 완료 (캐논 토큰 5건 고정) |
+| #   | seam                                  | 상태                                                  |
+| --- | ------------------------------------- | ----------------------------------------------------- |
+| 1   | URL 의 렌더된 DOM (4폭)               | **완료** — `authed-canon-p1.spec.ts`                  |
+| 2   | `resolveChartTokens()` 계약           | **완료**                                              |
+| 3   | 커밋된 소스 텍스트 (반경·hex·em-dash) | **완료** — `design-canon-source.test`                 |
+| 4   | 검사기가 스캔한 인벤토리 (위생 메타)  | 완료 (가드 3종에 동봉)                                |
+| 5   | allowlist 래칫                        | 완료 (캐논 5 + 반경 21 + hex 6 + em 100 + P1 4라우트) |
 
 **red→green 대체 절차.** S0 은 기존 동작의 안전망이라 테스트가 처음부터 GREEN 이다.
 "red first" 에 해당하는 것은 **반증**이다 — 가드가 잡겠다는 결함을 주입해 FAIL 을 확인하고 되돌린다.
@@ -63,17 +63,21 @@
 - [x] `e2e/design-canon-runtime.spec.ts` — 런타임 해석 검증 (반증 2/2)
 - [x] playwright project `chromium-design-canon` + `pnpm e2e:design-canon`
 - [x] 위생 메타테스트 — 블록 미검출 시 `Tests no tests` 로 시끄럽게 실패함을 반증으로 확인
-- [ ] `e2e/design-canon.spec.ts` — `runtime-check.mjs` 의 `AUDIT`/`MOTION_AUDIT` 이식
-- [ ] 정적 검사 확장 — 반경 스케일 · 하드코딩 hex · 노출 em-dash
-- [ ] 고아 spec `e2e/sprint55-optimizer-bayesian.spec.ts` `testMatch` 배선 후 실행 결과 보고
-- [ ] **CI 배선** — `chromium-design-canon` 을 `.github/workflows/ci.yml` 에 (사용자 선택 = 병행안)
+- [x] `e2e/design-canon-audit.ts` — `runtime-check.mjs` 의 `AUDIT`/`MOTION_AUDIT`/포커스링/4폭 이식 (공유 모듈). `design-canon.spec.ts` 대신 모듈+캘리브레이션+앱 spec 3분할 (하이픈 없는 `.spec.ts` 는 testMatch 미매치라 이 이름이 필수)
+- [x] 정적 검사 확장 — `design-canon-source.test.ts` (반경 21 · hex 6 · 노출 em-dash 100, 반증 4/4). 주석 인지 스캐너로 grep 거짓양성 차단
+- [x] 공개 라우트 감사 — `design-canon-public.spec.ts` (CI). `/` 2(랜딩 대비 결함, S1a 해소) · `/waitlist` 0. code-review 후 추가
+- [x] 고아 spec `sprint55-optimizer-bayesian.spec.ts` 배선→실행→**폼 UX stale 확인**→사용자 결정 `test.skip + TODO` (배선 되돌림, /optimizer 는 P1 밖)
+- [x] **CI 배선** — `pnpm e2e:design-canon` 을 `ci.yml` e2e 잡에 (병행안). 캘리브레이션+런타임+public 27 passed
 
 **검증 게이트**
 
-- [ ] ★캘리브레이션 — 새 spec 을 **프로토타입 17벌에 먼저** 돌려 17/17 PASS 재현. 출력 그대로 기록
-- [ ] React 4라우트 baseline 측정 → allowlist 초기값 확정
-- [x] `pnpm test` 그린 — 157파일 847테스트
-- [ ] `vercel-react-best-practices` + `code-review`
+- [x] ★캘리브레이션 — 프로토타입 17벌 + 라이트 2벌 = **22 passed**, canon 카운트 전부 기준선 일치 (재현 확인). 출력 기록 → [`s0-baseline.md`](./s0-baseline.md)
+- [x] React 4라우트 baseline 측정 → allowlist 확정: dashboard 0 · backtests 1(375px overflow) · trades 3(포커스링) · trading 1(포커스가능 div)
+- [x] `pnpm test` 그린 — 158파일 856테스트
+- [x] `code-review` — Standards(하드 위반 0) + Spec 2축 병렬. Spec 지적 3건 반영: 공개라우트 CI 추가 · 출력 기록 · stale 참조 수정
+- [~] `vercel-react-best-practices` — S0 은 React 런타임 코드 0(테스트/CI 만)이라 N/A. S1a(globals.css/컴포넌트)에서 적용
+
+**S0 커밋** — `97941e6` 캘리브레이션 · `24fde4c` 정적 래칫 · `45d21d9` 고아 skip · `bcad78c` CI · `e8fc657` P1 baseline · `fefde1a` 공개라우트+리뷰대응. main 대비 12 앞.
 
 ---
 

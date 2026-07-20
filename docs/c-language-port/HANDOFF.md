@@ -2,18 +2,39 @@
 
 # QuantBridge 핸드오프 — C 디자인 언어 React 이식
 
-갱신 2026-07-20 (3판) · 라이트 팔레트 확정 + S0 절반 세션에서 이어짐
+갱신 2026-07-20 (4판) · **S0 완료** 세션에서 이어짐
 이전 판은 `/tmp/quantbridge-handoff-react-port-20260720.md` (2판, 휘발성). **이 문서가 정본이다.**
 
 ---
 
 ## 0. 다음 세션이 할 일
 
-**S0 잔여를 마무리한다.** 팔레트 blocker 는 해소됐고 검사 장치 절반이 서 있다.
+**S1a — 토큰 정합.** S0 검사 장치가 전부 섰다. 이제 안전망 아래에서 토큰을 고친다.
 
-가장 큰 덩어리는 **`e2e/design-canon.spec.ts` + 프로토타입 17벌 캘리브레이션**이다.
-`runtime-check.mjs`(212줄)의 `AUDIT`/`MOTION_AUDIT` 를 Playwright spec 으로 옮기고,
-**React 에 대기 전에 프로토타입 17벌에 먼저 돌려 17/17 을 재현**해야 한다.
+`checklist.md` 의 S1a 섹션이 작업 목록이다. 핵심은 `.dark` 색 5건 교정 + 토큰 13건 리네임 +
+`chart-tokens.ts:60-69` 동반 수정(누락 시 조용히 깨짐) + `--r: 12px` 도입이다.
+
+★S1a 착수 첫 step = **안전망이 실제로 지키는지 확인**. `pnpm test`(design-canon-tokens /
+chart-tokens-contract / design-canon-source) + `pnpm e2e:design-canon`(27) 를 baseline 으로
+돌리고 시작해라. 그리고 **함정 §6-1(Turbopack CSS 캐시)** 를 반드시 다시 만난다.
+
+S1a 가 끝나면 두 래칫이 내려가야 한다 — `design-canon-tokens` allowlist 5건 → 0,
+`design-canon-public` `/` 대비 결함 2 → 0 (`--text-muted`→#8b939c 가 같은 색을 고친다).
+
+---
+
+## 0.5 S0 에서 확정·측정된 것 (재론 금지)
+
+- **감사 코어 = 공유 모듈** `e2e/design-canon-audit.ts` (`runtime-check.mjs` 이식). 캘리브레이션·
+  공개라우트·P1 spec 이 **모두 이 하나를 import** 한다. 사본 만들지 마라.
+- **검사기 3층.** `chromium-design-canon`(CI): 캘리브레이션(프로토타입 file://) + 공개라우트(`/`·
+  `/waitlist`) + 런타임 토큰 = **27 passed**. `chromium-authed`(로컬): `authed-canon-p1` P1 4라우트.
+  vitest: `design-canon-source`(정적 래칫) + 기존 토큰 가드 2종.
+- **baseline 실측 = [`s0-baseline.md`](./s0-baseline.md).** 이 수치가 래칫 기준선이다.
+- **canon 은 게이트 아니라 지표.** 하드 게이트 = overflow·대비 AA·포커스링·콘솔·reduced-motion.
+- **고아 spec** `sprint55-optimizer-bayesian` = `test.describe.skip` + 미배선. 폼 UX 가 stale
+  (텍스트 입력 → `useBacktests` 피커). optimizer 이식 때 재작성.
+- **`nextjs-portal`** (next dev 오버레이)는 감사 코어 포커스 검사에서 tag 제외됨.
 
 ---
 
@@ -102,15 +123,18 @@ playwright project `chromium-design-canon` 신설 + `pnpm e2e:design-canon` 추�
 
 ## 4. 레포 상태
 
-브랜치 **`stage/c-language-port`** · 작업 트리 clean · **main 보다 5 커밋 앞**.
+브랜치 **`stage/c-language-port`** · 작업 트리 clean · **main 보다 12 커밋 앞**.
+
+S0 세션이 얹은 6 커밋 (그 아래는 이전 세션):
 
 ```
-9d77e17  test(frontend): guard chart-token CSS variables statically and at runtime
-302b040  test(frontend): guard C design-language canon tokens against globals.css drift
-48a87a6  feat(prototypes): lock light palette to B2 and drop the fill-token split
-6872a58  docs(port): plan artifacts from the port planning session
-51a4196  feat(prototypes): light theme reference set with a canon-grade contrast check
-050ac64  docs(prototypes): C 디자인 언어 화면 17벌 + 캐논/용어 SSOT (#460)   <- main
+fefde1a  test(frontend): audit public routes in CI + fix a stale doc reference
+e8fc657  test(frontend): aim the canon auditor at the P1 routes and freeze a baseline
+bcad78c  ci(frontend): gate the design-canon project in the e2e job
+45d21d9  test(frontend): quarantine the stale sprint55 optimizer orphan spec
+24fde4c  test(frontend): freeze source-text canon violations with a static ratchet
+97941e6  test(frontend): port the prototype canon auditor and calibrate it on 17 screens
+41556f4  docs(port): S0 handoff — seams confirmed, half the harness standing   <- 이전 세션 top
 ```
 
 머지는 사용자가 직접 한다. **main 직접 커밋·푸시는 영구 차단.**
@@ -119,7 +143,10 @@ CI 트리거가 `[main, "stage/**"]` 라 그 밖의 브랜치로 PR 을 올리�
 
 ---
 
-## 5. S0 잔여 작업
+## 5. S0 잔여 작업 — ✅ 전부 완료 (2026-07-20)
+
+> 아래는 S0 진입 시점의 잔여 목록이고 **전부 닫혔다.** 결과는 `checklist.md` S0 섹션 +
+> `s0-baseline.md` + `context-notes.md` "S0 종료" 절에 있다. 이하는 착수 당시 기록으로 보존.
 
 ### 5.1 `e2e/design-canon.spec.ts` — 가장 큰 덩어리
 
@@ -207,19 +234,27 @@ HTML 전용 = 파일 탐색(`:13-15`) · `pathToFileURL`(`:110`) · 인증 부�
 - **dev 서버가 3000 에 떠 있을 수 있다** (이번 세션이 띄웠다). `lsof -ti:3000` 으로 확인하고
   `kill <PID>` 로 정리해라. Playwright 는 `PLAYWRIGHT_BASE_URL=http://localhost:3000` 을 주면
   기존 서버를 재사용한다.
+- ★**백엔드 8000 함정 2건 (S0 에서 실측).** (a) 포트 8000 을 cookmark(냉파) 프로젝트가
+  점유할 수 있다 — `curl -s localhost:8000/openapi.json | ...` title 로 판별하고 사용자에게
+  정리 요청. (b) backend `.env.local` 의 `DATABASE_URL` 이 **5433(ffwpu, 남의 DB)** 을 가리킨다.
+  QuantBridge DB 는 **5436**. `make be` 를 그냥 쓰면 남의 DB 에 붙는다. 기동은 오버라이드로:
+  `DATABASE_URL=...@localhost:5436/quantbridge TIMESCALE_URL=... REDIS_URL=...6380/0 FRONTEND_URL=http://localhost:3000 uv run uvicorn src.main:app --port 8000`.
+- ★**authed 검사 전 storageState 재발급.** `pnpm exec playwright test --project=setup` 1회.
+  쿠키 만료 타임스탬프가 미래여도 Clerk 세션은 죽어 있을 수 있다 (전부 sign-in 리다이렉트로 판별).
 - `rm -rf` 는 이 환경에서 권한 차단된다. 캐시 정리가 필요하면 사용자에게 `! rm -rf frontend/.next` 를 요청해라.
 - 프로토타입 뷰어는 4173, `python3 serve.py`.
 
 ---
 
-## 9. 다음 세션 첫 스텝
+## 9. 다음 세션 첫 스텝 (S1a)
 
-1. §1 의 문서 1~3 읽기
-2. `node docs/prototypes/shotgun-2026-07/runtime-check.mjs` 로 **17/17 기준선 재확인**
-3. `e2e/design-canon.spec.ts` 작성 → **프로토타입 17벌에 먼저 돌려 17/17 재현** (§5.2)
-4. React 4라우트 baseline → allowlist 초기값
-5. CI 배선 + 고아 spec 배선
-6. `vercel-react-best-practices` + `code-review` 후 S0 종료, S1a 진입
+1. §0 + §0.5 + `checklist.md` S1a 섹션 + `context-notes.md` "S0 종료" 절 읽기
+2. **안전망 baseline 재확인** — `cd frontend && pnpm test`(design-canon-tokens / chart-tokens-contract /
+   design-canon-source 그린) + `pnpm e2e:design-canon`(27 passed). 남의 자기보고다, 재현하고 시작해라
+3. S1a 착수 — `.dark` 색 5건 + 토큰 13 리네임 + `chart-tokens.ts:60-69` 동반 + `--r: 12px`.
+   ★**함정 §6-1 (Turbopack CSS 캐시)** 를 반드시 다시 만난다
+4. 두 래칫이 내려가는지 확인 — `design-canon-tokens` 5→0, `design-canon-public` `/` 2→0
+5. `live-smoke` + `vercel-react-best-practices` + `code-review` (S1a 는 globals.css 를 대대적으로 고친다)
 
 ---
 
