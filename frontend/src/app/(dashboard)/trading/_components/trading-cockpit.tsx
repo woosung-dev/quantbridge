@@ -106,9 +106,6 @@ export function TradingCockpit() {
     void queryClient.invalidateQueries();
   };
 
-  // 진단 카드의 포지션 엔드포인트에 박을 세션 id (있으면 첫 활성 세션).
-  const diagSessionId = activeSessions[0]?.id ?? null;
-
   return (
     <main className="page">
       {/* Kill Switch 안전 경고 — S7 이 /dashboard 에서 제거한 노출을 여기서 재도입한다. */}
@@ -191,7 +188,9 @@ export function TradingCockpit() {
             <p className="kpi-value mono" data-testid="kpi-total-sessions">
               {sessionItems.length}
             </p>
-            <p className="kpi-foot">활성·비활성을 합친 전체 라이브 세션 수입니다.</p>
+            <p className="kpi-foot">
+              비활성 세션은 API 가 아직 반환하지 않아, 지금은 활성 세션만 집계합니다.
+            </p>
           </article>
         </div>
       </section>
@@ -313,7 +312,7 @@ export function TradingCockpit() {
             아직 연결되지 않았거나 실패했거나 비어 있는 항목도 감추지 않고 그대로 보여줍니다.
           </p>
         </header>
-        <SessionDiagnostics sessionId={diagSessionId} />
+        <SessionDiagnostics />
       </section>
 
       <p className="disclaimer">

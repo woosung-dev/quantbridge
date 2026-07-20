@@ -62,7 +62,10 @@ export function LiveSessionTable({
       <div className="card-head">
         <div>
           <h3 className="card-title">라이브 세션 ({sessions.length})</h3>
-          <p className="card-sub">활성·비활성 세션을 모두 담은 읽기 전용 요약입니다.</p>
+          <p className="card-sub">
+            지금 활성인 라이브 세션의 읽기 전용 요약입니다. 비활성 세션은 API 가 아직
+            반환하지 않습니다.
+          </p>
         </div>
         <div className="chart-head-actions">
           <button

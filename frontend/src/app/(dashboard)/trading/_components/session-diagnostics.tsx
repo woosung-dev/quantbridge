@@ -2,16 +2,18 @@
 
 // 세션 부가 진단 (코크핏 §06) — C 디자인 언어 이식 (S8). 프로토타입 screen-01 §06 처럼
 // 스키마가 받치지 않는 표면(포지션 대조·실시간 스트림·알림 규칙)을 감추지 않고 정직하게
-// 미연결/에러/빈/정상 4상태로 노출한다(캐논 §4.9 · §6). 공용 .diag/.state-box/.sk 를 소비한다.
-//   - 포지션 동기화: 열린 포지션을 거래소에서 직접 대조하는 조회를 아직 배선하지 않았다.
-//     이 코크핏은 포지션 표를 지어내지 않고 에러 상태로 둔다. 실제 조회 엔드포인트는
-//     GET /trading/sessions/{id}/positions 이고, 거래소 무응답 시 503 을 낸다(캐논 §6).
+// 미제공/에러/빈/정상 상태로 노출한다(캐논 §4.9 · §6). 공용 .diag/.state-box/.sk 를 소비한다.
+//   - 포지션 동기화: 열린 포지션을 거래소에서 직접 대조하는 API 가 아직 없다. 백엔드엔
+//     GET /live-sessions/{id}/state 만 있고 포지션 대조 엔드포인트는 미구현이다. 캐논 §6 의
+//     프로토타입 표기(엔드포인트+상태코드 노출)와 충돌하면 '실제 API 부재' 쪽이 정직성
+//     우선이라, 지어낸 GET .../positions · 503 대신 '미제공' 상태로 둔다(가짜 코드·경로 제거).
 
 import type { ReactNode } from "react";
 import {
   AlertTriangleIcon,
   BellIcon,
   ClockIcon,
+  LayersIcon,
   WifiIcon,
 } from "lucide-react";
 
@@ -92,23 +94,17 @@ export function DiagnosticCard({
   );
 }
 
-/** 코크핏 §06 진단 3종. sessionId 가 있으면 포지션 엔드포인트에 실 id 를 박는다. */
-export function SessionDiagnostics({
-  sessionId,
-}: {
-  sessionId?: string | null;
-}) {
-  const positionsEndpoint = `GET /trading/sessions/${sessionId ?? "{id}"}/positions · 503`;
+/** 코크핏 §06 진단 3종. 셋 다 스키마가 받치지 않는 표면이라 미제공/미연결로 정직하게 둔다. */
+export function SessionDiagnostics() {
   return (
     <div className="diag-row">
       <DiagnosticCard
         title="포지션 동기화"
         subtitle="거래소 대조 조회"
-        state="error"
-        icon={<AlertTriangleIcon />}
-        heading="포지션을 대조하지 못했습니다."
-        body="이 코크핏은 열린 포지션을 거래소에서 직접 대조하는 조회를 아직 배선하지 않았습니다. 확인할 수 없는 값을 지어내지 않으려고 포지션 표를 두지 않고 미연결로 둡니다."
-        code={positionsEndpoint}
+        state="empty"
+        icon={<LayersIcon />}
+        heading="포지션 대조는 아직 제공되지 않습니다."
+        body="열린 포지션을 거래소에서 직접 대조하는 API 가 아직 없습니다. 확인할 수 없는 값을 지어내지 않으려고 포지션 표를 두지 않고 미제공으로 둡니다."
       />
       <DiagnosticCard
         title="실시간 가격 스트림"

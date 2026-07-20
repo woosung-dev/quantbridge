@@ -1,5 +1,6 @@
 // C 이식 S8 — 세션 진단 카드 4상태(로딩/에러/빈/정상) + §06 진단 섹션 단위 테스트.
-// 에러 상태의 실제 엔드포인트 = GET /trading/sessions/{id}/positions · 503 (캐논 §6).
+// DiagnosticCard 는 실제 에러+엔드포인트를 받을 수 있는 범용 프리미티브지만, SessionDiagnostics
+// 는 포지션 대조 API 가 없어 지어낸 엔드포인트를 노출하지 않고 '미제공' 상태로 둔다(정직성 우선).
 
 import { render, screen } from "@testing-library/react";
 import { AlertTriangleIcon } from "lucide-react";
@@ -26,24 +27,25 @@ describe("DiagnosticCard 4상태", () => {
     expect(screen.getByText("연결하고 있습니다.")).toBeInTheDocument();
   });
 
-  test("error — 실제 엔드포인트(positions · 503) 노출 + role=alert", () => {
+  test("error — 실제 엔드포인트 코드 노출 + role=alert", () => {
+    // 프리미티브 자체는 실제 에러+엔드포인트를 받을 수 있다(실재하는 /orders 경로로 예시).
     render(
       <DiagnosticCard
-        title="포지션 동기화"
-        subtitle="거래소 대조 조회"
+        title="주문 원장"
+        subtitle="주문 조회"
         state="error"
-        heading="포지션을 대조하지 못했습니다."
-        body="아직 배선하지 않았습니다."
-        code="GET /trading/sessions/sess_8d14/positions · 503"
+        heading="주문을 불러오지 못했습니다."
+        body="일시적 오류일 수 있습니다."
+        code="GET /api/v1/trading/orders · 503"
         icon={<AlertTriangleIcon />}
       />,
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(
-      screen.getByText("GET /trading/sessions/sess_8d14/positions · 503"),
+      screen.getByText("GET /api/v1/trading/orders · 503"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("포지션을 대조하지 못했습니다."),
+      screen.getByText("주문을 불러오지 못했습니다."),
     ).toBeInTheDocument();
   });
 
@@ -79,21 +81,18 @@ describe("DiagnosticCard 4상태", () => {
 });
 
 describe("SessionDiagnostics 섹션", () => {
-  test("sessionId 없으면 포지션 엔드포인트에 {id} 플레이스홀더", () => {
+  test("포지션 대조는 지어낸 엔드포인트 대신 '미제공' 상태로 정직하게 둔다", () => {
     render(<SessionDiagnostics />);
+    // 존재하지 않는 positions 엔드포인트·상태코드를 노출하지 않는다.
+    expect(screen.queryByText(/\/positions/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/· 503/)).not.toBeInTheDocument();
+    // 미제공 상태를 정직하게 표기한다.
     expect(
-      screen.getByText("GET /trading/sessions/{id}/positions · 503"),
+      screen.getByText("포지션 대조는 아직 제공되지 않습니다."),
     ).toBeInTheDocument();
     // 포지션·스트림·알림 3종 진단 카드.
     expect(screen.getByText("포지션 동기화")).toBeInTheDocument();
     expect(screen.getByText("실시간 가격 스트림")).toBeInTheDocument();
     expect(screen.getByText("알림 규칙")).toBeInTheDocument();
-  });
-
-  test("sessionId 있으면 실제 id 를 엔드포인트에 박는다", () => {
-    render(<SessionDiagnostics sessionId="sess_abcd" />);
-    expect(
-      screen.getByText("GET /trading/sessions/sess_abcd/positions · 503"),
-    ).toBeInTheDocument();
   });
 });
