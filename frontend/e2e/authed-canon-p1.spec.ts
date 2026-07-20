@@ -48,13 +48,14 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
  * P1 4라우트 하드 실패 allowlist (2026-07-20 실측 baseline). S5~S8 이 줄인다.
  * nextjs-portal(dev 오버레이) 제외 후 남은 실제 앱 결함만이다.
  *   - /dashboard 0 — 깨끗.
- *   - /backtests 1 — 375px 가로 오버플로(scrollWidth 436 > 375). S5 가 고친다.
+ *   - /backtests 0 — S5 C 이식 완료. 375px 가로 오버플로는 .table-wrap 스크롤 컨테이너가
+ *     해소한다(표는 컨테이너 안에서 스크롤, 페이지 본문은 넘치지 않는다).
  *   - /backtests/:id/trades 3 — 검색·기간 시작·기간 종료 입력이 포커스링 없음. S6.
  *   - /trading 1 — outline-none 인 포커스가능 div("Kill Switch…"). S8.
  */
 const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/dashboard": 0,
-  "/backtests": 1,
+  "/backtests": 0,
   "/backtests/:id/trades": 3,
   "/trading": 1,
 };

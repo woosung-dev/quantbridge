@@ -1869,3 +1869,60 @@ h6 {
      ========================================================== */
   /* KITPORT-END — 대조 경계 끝. */
 }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /backtests 목록 (이식 S5).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-03-backtests-list.html:1029-1076.
+ *   KITPORT 센티넬(무결성 가드) 밖 · 언레이어드. @layer components 의 공용 클래스를
+ *   소비하는 화면 고유 규칙만 담는다. 색은 KITPORT 가 해석한 캐논 토큰 별칭을 그대로 쓴다.
+ *   .chip.failed(프로토타입) 대신 S4 canonical tone 인 .chip.warn 로 둔다
+ *   (lib/labels.ts CHIP_TONE_CLASS.warn = "chip warn"). S6~S8 이 이 패턴을 따른다.
+ * ========================================================================== */
+
+/* 요약 줄 */
+.runs-summary {
+  display: block;
+  padding: 13px 22px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+.runs-summary .mono {
+  color: var(--ink);
+}
+
+/* 목록 표 — 셀 상단 정렬(기간 sub 줄과 나머지 셀의 첫 줄을 맞춘다). 폭은 공용 table.trades 상속. */
+.runs-table tbody td {
+  vertical-align: top;
+}
+.col-status {
+  min-width: 152px;
+  white-space: normal;
+}
+.run-id {
+  color: var(--ink);
+}
+.run-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.74rem;
+  color: var(--ink-3);
+}
+
+/* 상태 칩 확장 — 실패/거부/미저장 tone = warn. 공용 .chip 레이아웃 위에 색만 얹는다. */
+.chip.warn {
+  color: var(--warn);
+  border-color: rgba(229, 169, 61, 0.4);
+  background: var(--warn-soft);
+}
+
+/* 소형 액션 버튼 + 스켈레톤 셀 */
+.btn-xs {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.76rem;
+}
+.sk-cell {
+  display: block;
+  height: 10px;
+}
