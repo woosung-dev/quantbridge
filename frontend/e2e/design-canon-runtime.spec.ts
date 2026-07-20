@@ -8,6 +8,7 @@
 // P1 4라우트(전부 authed)의 캐논 검사는 로컬 `pnpm e2e:authed` 몫이다.
 
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 /**
  * resolveChartTokens() 가 읽는 변수 전체.
@@ -29,7 +30,7 @@ const CHART_TOKEN_CONTRACT = [
 
 /** 루트에서 변수를 읽는다. chart-tokens.ts 의 read() 와 같은 경로다. */
 async function readRootTokens(
-  page: import("@playwright/test").Page,
+  page: Page,
   names: readonly string[],
 ): Promise<Record<string, string>> {
   return page.evaluate((tokenNames) => {
