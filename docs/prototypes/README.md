@@ -1,6 +1,20 @@
-# QuantBridge — Stage 2 프로토타입
+# QuantBridge — Stage 2 프로토타입 (구세대 · superseded)
 
-> **상태:** 확정 (2026-04-14)
+> ## ⚠️ 이 문서는 구세대다. 새 작업의 기준으로 삼지 마라
+>
+> 아래 12벌은 **2026-04-14 Stage 2 세대**이고, **2026-07-20 확정된 C 디자인 언어 17벌로 대체됐다.**
+>
+> - **현행 목표 캐논** → [`shotgun-2026-07/_KIT.md`](./shotgun-2026-07/_KIT.md) + `shotgun-2026-07/screen-01~17-*.html`
+> - **이식 진행 상태** → [`docs/c-language-port/HANDOFF.md`](../c-language-port/HANDOFF.md)
+> - **어느 문서가 정본인지 판정** → [`docs/design-docs-map.md`](../design-docs-map.md)
+>
+> **그런데도 이 파일들을 지우지 않은 이유가 있다.** 온보딩·로그인 등 아직 이식되지 않은 컴포넌트가
+> `05-onboarding.html` · `04-login.html` 을 **행 번호까지 인용**한다(목록은 지도 §4). 이식이 그 화면에
+> 도달하기 전까지는 제자리에 있어야 한다. **읽기 전용 참조로만 쓰고, 새 화면의 근거로 인용하지 마라.**
+>
+> 특히 `00-landing.html` 의 `100+ 거래소` · `벡터화` 표현은 현행 하드제약 위반이다(ADR-011, Bybit 단일).
+
+> **원 상태:** 확정 (2026-04-14)
 > **디자인 시스템:** [DESIGN.md](../../DESIGN.md)
 > **App Shell 패턴:** [DESIGN.md §10](../../DESIGN.md#10-app-shell-패턴-인증된-앱-페이지-공통)
 > **방법론:** [development-methodology.md](../guides/development-methodology.md) (Stage 2)
@@ -10,36 +24,41 @@
 ## 프로토타입 목록
 
 ### 🎨 마케팅 (외부 방문자)
-| # | 파일 | 화면 | URL (구현 시) | 테마 |
-|:-:|------|------|-------------|------|
-| 00 | [00-landing.html](./00-landing.html) | 랜딩 페이지 | `/` | Light + 플로팅 다크 쇼케이스 |
+
+|  #  | 파일                                 | 화면        | URL (구현 시) | 테마                         |
+| :-: | ------------------------------------ | ----------- | ------------- | ---------------------------- |
+| 00  | [00-landing.html](./00-landing.html) | 랜딩 페이지 | `/`           | Light + 플로팅 다크 쇼케이스 |
 
 ### 🔐 인증 (비로그인/온보딩)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 04 | [04-login.html](./04-login.html) | 로그인 / 회원가입 | `/sign-in`, `/sign-up` | Split-screen (다크 브랜드 + 라이트 폼) |
-| 05 | [05-onboarding.html](./05-onboarding.html) | 온보딩 (4단계) | `/onboarding` | Light (standalone, no App Shell) |
-| 11 | [11-error-pages.html](./11-error-pages.html) | 에러 페이지 (404 / 500 / 503) | `/404`, `/500`, `/503` | Light (standalone) |
+
+|  #  | 파일                                         | 화면                          | URL                    | 테마                                   |
+| :-: | -------------------------------------------- | ----------------------------- | ---------------------- | -------------------------------------- |
+| 04  | [04-login.html](./04-login.html)             | 로그인 / 회원가입             | `/sign-in`, `/sign-up` | Split-screen (다크 브랜드 + 라이트 폼) |
+| 05  | [05-onboarding.html](./05-onboarding.html)   | 온보딩 (4단계)                | `/onboarding`          | Light (standalone, no App Shell)       |
+| 11  | [11-error-pages.html](./11-error-pages.html) | 에러 페이지 (404 / 500 / 503) | `/404`, `/500`, `/503` | Light (standalone)                     |
 
 ### 🧠 전략 (Strategies)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 06 | [06-strategies-list.html](./06-strategies-list.html) | 전략 목록 | `/strategies` | Light + App Shell |
-| 07 | [07-strategy-create.html](./07-strategy-create.html) | 전략 생성 (3-step 위저드) | `/strategies/new` | Light + App Shell |
-| 01 | [01-strategy-editor.html](./01-strategy-editor.html) | 전략 편집 (Monaco) | `/strategies/[id]/edit` | Light + 다크 에디터 |
+
+|  #  | 파일                                                 | 화면                      | URL                     | 테마                |
+| :-: | ---------------------------------------------------- | ------------------------- | ----------------------- | ------------------- |
+| 06  | [06-strategies-list.html](./06-strategies-list.html) | 전략 목록                 | `/strategies`           | Light + App Shell   |
+| 07  | [07-strategy-create.html](./07-strategy-create.html) | 전략 생성 (3-step 위저드) | `/strategies/new`       | Light + App Shell   |
+| 01  | [01-strategy-editor.html](./01-strategy-editor.html) | 전략 편집 (Monaco)        | `/strategies/[id]/edit` | Light + 다크 에디터 |
 
 ### 📊 백테스트 (Backtests)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 08 | [08-backtest-setup.html](./08-backtest-setup.html) | 백테스트 설정 | `/backtests/new` | Light + App Shell |
-| 09 | [09-backtests-list.html](./09-backtests-list.html) | 백테스트 목록 | `/backtests` | Light + App Shell |
-| 02 | [02-backtest-report.html](./02-backtest-report.html) | 백테스트 결과 리포트 | `/backtests/[id]` | Light + 다크 차트 |
-| 10 | [10-trades-detail.html](./10-trades-detail.html) | 거래 내역 상세 | `/backtests/[id]/trades` | Light + App Shell |
+
+|  #  | 파일                                                 | 화면                 | URL                      | 테마              |
+| :-: | ---------------------------------------------------- | -------------------- | ------------------------ | ----------------- |
+| 08  | [08-backtest-setup.html](./08-backtest-setup.html)   | 백테스트 설정        | `/backtests/new`         | Light + App Shell |
+| 09  | [09-backtests-list.html](./09-backtests-list.html)   | 백테스트 목록        | `/backtests`             | Light + App Shell |
+| 02  | [02-backtest-report.html](./02-backtest-report.html) | 백테스트 결과 리포트 | `/backtests/[id]`        | Light + 다크 차트 |
+| 10  | [10-trades-detail.html](./10-trades-detail.html)     | 거래 내역 상세       | `/backtests/[id]/trades` | Light + App Shell |
 
 ### ⚡ 트레이딩 (Trading)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 03 | [03-trading-dashboard.html](./03-trading-dashboard.html) | 트레이딩 대시보드 | `/dashboard` | **Full Dark** + App Shell |
+
+|  #  | 파일                                                     | 화면              | URL          | 테마                      |
+| :-: | -------------------------------------------------------- | ----------------- | ------------ | ------------------------- |
+| 03  | [03-trading-dashboard.html](./03-trading-dashboard.html) | 트레이딩 대시보드 | `/dashboard` | **Full Dark** + App Shell |
 
 ---
 
@@ -47,14 +66,14 @@
 
 **총 12개 파일 / 35개 페이지 계획**
 
-| 구분 | 완료 | 남은 페이지 |
-|------|:---:|----------|
-| 랜딩/인증/에러 | 4개 | — |
-| Phase 1 MVP | **7개** ✅ | — |
-| Phase 2 (고급 백테스트) | 0개 | 8개 (멀티심볼, Monte Carlo, Walk-Forward, 최적화, 템플릿 등) |
-| Phase 3 (데모 트레이딩) | 0개 | 7개 (거래소 연동, 세션, 라이브 모니터링 등) |
-| Phase 4 (라이브) | 0개 | 5개 (라이브 전환, 리스크 관리, 알림, 리포트) |
-| 공통 설정 | 0개 | 4개 (프로필, 빌링, 알림센터, 도움말) |
+| 구분                    |    완료    | 남은 페이지                                                  |
+| ----------------------- | :--------: | ------------------------------------------------------------ |
+| 랜딩/인증/에러          |    4개     | —                                                            |
+| Phase 1 MVP             | **7개** ✅ | —                                                            |
+| Phase 2 (고급 백테스트) |    0개     | 8개 (멀티심볼, Monte Carlo, Walk-Forward, 최적화, 템플릿 등) |
+| Phase 3 (데모 트레이딩) |    0개     | 7개 (거래소 연동, 세션, 라이브 모니터링 등)                  |
+| Phase 4 (라이브)        |    0개     | 5개 (라이브 전환, 리스크 관리, 알림, 리포트)                 |
+| 공통 설정               |    0개     | 4개 (프로필, 빌링, 알림센터, 도움말)                         |
 
 **Tier 1 (Phase 1 MVP) 완료** — MVP 개발에 필요한 모든 화면 확보.
 
@@ -78,6 +97,7 @@ python3 -m http.server 8899 --bind 127.0.0.1
 모든 인증된 앱 페이지 (01, 02, 03, 06, 07, 08, 09, 10)는 **동일한 App Shell** 구조를 공유:
 
 ### Sidebar (220px 고정 / 60px 축소 / 햄버거 모바일)
+
 ```
 로고
 ─────────
@@ -94,11 +114,13 @@ python3 -m http.server 8899 --bind 127.0.0.1
 ```
 
 ### Global Header (60px)
+
 ```
 [브레드크럼] ... [⌘K 검색] ... [페이지별 CTA] [알림] [아바타]
 ```
 
 **테마만 다르고 구조는 동일:**
+
 - 01, 02, 06, 07, 08, 09, 10 → Light 테마
 - 03 (대시보드) → Dark 테마 (트레이딩 UI 표준)
 
@@ -114,18 +136,18 @@ python3 -m http.server 8899 --bind 127.0.0.1
 
 ### 실제 구현 매핑
 
-| 프로토타입 요소 | 실제 구현 |
-|---------------|----------|
-| Monaco 풍 에디터 | `@monaco-editor/react` |
-| 캔들스틱/자산 곡선 차트 | TradingView Lightweight Charts v4 |
-| 히트맵/히스토그램 | Recharts 또는 Plotly |
-| 사이드바/카드/버튼 | shadcn/ui v4 컴포넌트 |
-| 테마 토큰 | `tailwind.config.ts` + CSS 변수 (DESIGN.md §14) |
-| 아이콘 | Lucide Icons (`lucide-react`) |
-| 폼 검증 | react-hook-form + Zod v4 |
-| 실시간 업데이트 | Socket.IO client + React Query |
-| 날짜 피커 | shadcn/ui DatePicker |
-| 테이블 | TanStack Table v8 |
+| 프로토타입 요소         | 실제 구현                                       |
+| ----------------------- | ----------------------------------------------- |
+| Monaco 풍 에디터        | `@monaco-editor/react`                          |
+| 캔들스틱/자산 곡선 차트 | TradingView Lightweight Charts v4               |
+| 히트맵/히스토그램       | Recharts 또는 Plotly                            |
+| 사이드바/카드/버튼      | shadcn/ui v4 컴포넌트                           |
+| 테마 토큰               | `tailwind.config.ts` + CSS 변수 (DESIGN.md §14) |
+| 아이콘                  | Lucide Icons (`lucide-react`)                   |
+| 폼 검증                 | react-hook-form + Zod v4                        |
+| 실시간 업데이트         | Socket.IO client + React Query                  |
+| 날짜 피커               | shadcn/ui DatePicker                            |
+| 테이블                  | TanStack Table v8                               |
 
 ### 주의 사항
 

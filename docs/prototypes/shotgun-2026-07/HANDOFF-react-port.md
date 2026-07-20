@@ -1,6 +1,19 @@
 <!-- C 디자인 언어 프로토타입 17벌을 React 로 이식하기 위한 다음 세션 핸드오프 -->
 
-# QuantBridge 핸드오프 — C 디자인 언어 React 이식
+# QuantBridge 핸드오프 — C 디자인 언어 React 이식 (superseded)
+
+> ## ⚠️ 이 판은 대체됐다. 정본은 `docs/c-language-port/HANDOFF.md` 다
+>
+> 이 문서는 **이식에 착수하기 전**에 쓰였다. 그래서 아래 §0 의 "이식 계획 수립부터 시작한다" 와
+> §10 의 "프로토타입이 아직 untracked" 는 **둘 다 이미 거짓**이다. 계획은 수립됐고, 프로토타입은
+> 커밋됐으며(#460), 슬라이스 **S0 · S2 · S5 는 완료**됐다.
+>
+> - **진행 정본** → [`docs/c-language-port/HANDOFF.md`](../../c-language-port/HANDOFF.md)
+> - **슬라이스 상태** → [`docs/c-language-port/checklist.md`](../../c-language-port/checklist.md)
+> - **문서 판정표** → [`docs/design-docs-map.md`](../../design-docs-map.md)
+>
+> 아래 §1 의 **확정된 사용자 결정 4건**(1차 슬라이스 · 토큰 전면교체 · 슬롭 동시처리 · Bybit 단일)은
+> 여전히 유효하다. 그 부분만 이력으로 참조하라.
 
 작성 2026-07-20 · 프로토타입 확정 세션에서 이어짐
 
