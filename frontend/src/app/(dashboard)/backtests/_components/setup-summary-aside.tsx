@@ -191,7 +191,7 @@ export function SetupSummaryAside({
           {runtime}
         </p>
         <p className="text-[0.72rem] font-medium text-muted-foreground">
-          고성능 벡터화 엔진 사용
+          바 단위 이벤트 루프 엔진 기준
         </p>
       </div>
     </aside>

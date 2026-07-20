@@ -25,9 +25,9 @@ const FEATURES: FeatureItem[] = [
     ),
   },
   {
-    title: "벡터화 백테스트",
+    title: "정밀 백테스트",
     description:
-      "고성능 벡터화 백테스트로 수년간의 데이터를 초 단위로 검증합니다.",
+      "TradingView 로직을 바 단위로 그대로 재현하는 엔진으로 수년간의 데이터를 검증합니다.",
     icon: <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" />,
   },
   {
