@@ -241,7 +241,6 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/strategies/[id]/edit/_components/tab-parse.tsx", 1],
   ["app/(dashboard)/strategies/new/_components/parse-preview-panel.tsx", 1],
   ["app/(dashboard)/strategies/new/_components/parse-result-panel.tsx", 1],
-  ["app/(dashboard)/trading/_components/trading-dash-hero.tsx", 1],
   ["app/_components/landing-bento.tsx", 1],
   ["app/_components/landing-hero.tsx", 1],
   ["app/disclaimer/page.tsx", 1],

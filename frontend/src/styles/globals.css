@@ -2071,3 +2071,27 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 .ks-banner-title { font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
 .ks-banner-list { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; }
 .ks-banner-trigger { font-weight: 600; }
+
+/* §01 KPI — 킬 스위치 카운트 옆 상태 태그(활성/대기) */
+.kpi-value-tag {
+  margin-left: 8px;
+  font-family: var(--f-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  vertical-align: middle;
+}
+
+/* §05 라이브 세션 관리 — 요약 표 아래 2열(생성·활성 / 상세). 카드 소품(폼·리스트)을 감싼다. */
+.session-manage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.session-manage-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.session-card-sub { margin-bottom: 16px; }
+
+@media (max-width: 900px) {
+  .session-manage { grid-template-columns: 1fr; }
+}
