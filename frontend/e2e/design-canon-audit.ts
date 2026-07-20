@@ -320,7 +320,9 @@ export async function auditUrl(
       for (let i = 0; i < FOCUS_TAB_COUNT; i++) {
         await page.keyboard.press("Tab");
         const f = await page.evaluate(FOCUS_PROBE);
-        if (f && !f.visible) res.focus.push(f);
+        // `nextjs-portal` 은 next dev 가 주입하는 개발 도구 오버레이다 — 앱 UI 도 아니고
+        // 프로덕션·프로토타입에도 없다. Tab 이 여기 걸려 "링 없음" 을 내면 거짓 결함이다.
+        if (f && !f.visible && f.tag !== "nextjs-portal") res.focus.push(f);
       }
     }
     await ctx.close();

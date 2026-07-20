@@ -69,8 +69,9 @@ export default defineConfig({
       // C 이식 S0 — `sprint55-optimizer-bayesian` 은 배선하지 않는다. testMatch 에 넣어 실행하니
       //   폼 UX 가 통째로 stale (텍스트 backtest_id 입력 -> useBacktests 드롭다운 피커, P1-8/S7-B).
       //   파일 안 test.skip + TODO 로 남겨 optimizer 이식 때 현행 UX 로 재작성한다.
+      // C 이식 S0 — `authed-canon-p1` 추가 (P1 4라우트 디자인 캐논 baseline, 로컬 전용).
       testMatch:
-        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth)\.spec\.ts$/,
+        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1)\.spec\.ts$/,
       fullyParallel: false,
       use: {
         ...devices["Desktop Chrome"],
