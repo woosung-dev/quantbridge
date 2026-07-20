@@ -188,7 +188,9 @@ function countProseEmDash(s: string): number {
 const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/onboarding/_components/option-card-radio.tsx", 1],
   ["app/_components/error-illustration.tsx", 1],
-  ["app/_components/error-recovery-box.tsx", 4],
+  // 503 maintenance 카드(rounded-[14px] + rounded-[10px] 2건)를 S9 에서 삭제 → 4→2.
+  // 남은 2건은 404 helpful 카드 · 500 tech-info 카드. 둘 다 P1 밖(에러 경계) 이라 이연.
+  ["app/_components/error-recovery-box.tsx", 2],
   ["app/error.tsx", 2],
   ["app/maintenance/page.tsx", 1],
   ["app/not-found.tsx", 2],

@@ -1,4 +1,4 @@
-// ErrorRecoveryBox 3 variant 검증 — Sprint 43 W8
+// ErrorRecoveryBox variant 검증 — Sprint 43 W8 (503 variant 은 S9 에서 삭제: 프로덕션 소비자 0)
 
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -54,27 +54,5 @@ describe("ErrorRecoveryBox — variant 분기", () => {
       expect(mockToastSuccess).toHaveBeenCalled();
     });
     expect(mockToastError).not.toHaveBeenCalled();
-  });
-
-  it("variant 503 — ETA + 진행바 (aria-valuenow=60) + 업데이트 목록", () => {
-    render(
-      <ErrorRecoveryBox
-        variant="503"
-        etaLabel="약 15분 남음"
-        startedAt="14:10 KST"
-        finishesAt="14:40 KST"
-        progressPercent={60}
-        updates={[
-          { status: "done", label: "백테스트 엔진 성능 개선" },
-          { status: "progress", label: "DB 정리 중" },
-        ]}
-      />,
-    );
-
-    expect(screen.getByText("약 15분 남음")).toBeInTheDocument();
-    const bar = screen.getByRole("progressbar");
-    expect(bar).toHaveAttribute("aria-valuenow", "60");
-    expect(screen.getByText("백테스트 엔진 성능 개선")).toBeInTheDocument();
-    expect(screen.getByText("DB 정리 중")).toBeInTheDocument();
   });
 });
