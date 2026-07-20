@@ -40,21 +40,39 @@
 
 ---
 
-## S0 — 검사 장치 + 캘리브레이션
+## S0 — 검사 장치 + 캘리브레이션 (진행 중)
 
 > 안전망이 먼저다. 토큰 리네임을 안전망 없이 하면 `chart-tokens.ts` 가 **런타임 에러 없이 색만 틀리게** 조용히 깨진다.
 
-- [ ] `frontend/e2e/design-canon.spec.ts` — `runtime-check.mjs` 의 `AUDIT`/`MOTION_AUDIT` 를 그대로 이식
-- [ ] `frontend/src/__tests__/design-canon.test.ts` — `no-internal-ids.test.ts` 템플릿으로 정적 검사
-- [ ] 위생 메타테스트 2종 (인벤토리 파일 수 범위 + P1 4라우트 명시 포함)
-- [ ] allowlist ratchet 구조 (알려진 위반 고정, 슬라이스마다 축소)
-- [ ] 고아 spec `e2e/sprint55-optimizer-bayesian.spec.ts` 처리 (어느 `testMatch` 에도 안 걸려 한 번도 실행된 적 없음)
+**확정된 seam 5개** (2026-07-20 사용자 승인). 승인 안 된 seam 에는 테스트를 쓰지 않는다.
+
+| #   | seam                                  | 상태                      |
+| --- | ------------------------------------- | ------------------------- |
+| 1   | URL 의 렌더된 DOM (4폭)               | 미착수                    |
+| 2   | `resolveChartTokens()` 계약           | **완료**                  |
+| 3   | 커밋된 소스 텍스트 (반경·hex·em-dash) | 부분 — 토큰만 완료        |
+| 4   | 검사기가 스캔한 인벤토리 (위생 메타)  | 완료 (가드 2종에 동봉)    |
+| 5   | allowlist 래칫                        | 완료 (캐논 토큰 5건 고정) |
+
+**red→green 대체 절차.** S0 은 기존 동작의 안전망이라 테스트가 처음부터 GREEN 이다.
+"red first" 에 해당하는 것은 **반증**이다 — 가드가 잡겠다는 결함을 주입해 FAIL 을 확인하고 되돌린다.
+이 단계 없이는 아무것도 스캔하지 않는 가드가 통과하고 멀쩡해 보인다.
+
+- [x] `src/__tests__/design-canon-tokens.test.ts` — 캐논 22종 대조 + 래칫 (반증 3/3)
+- [x] `src/__tests__/chart-tokens-contract.test.ts` — read() 이름 ↔ 계약 ↔ globals.css (반증 2/2)
+- [x] `e2e/design-canon-runtime.spec.ts` — 런타임 해석 검증 (반증 2/2)
+- [x] playwright project `chromium-design-canon` + `pnpm e2e:design-canon`
+- [x] 위생 메타테스트 — 블록 미검출 시 `Tests no tests` 로 시끄럽게 실패함을 반증으로 확인
+- [ ] `e2e/design-canon.spec.ts` — `runtime-check.mjs` 의 `AUDIT`/`MOTION_AUDIT` 이식
+- [ ] 정적 검사 확장 — 반경 스케일 · 하드코딩 hex · 노출 em-dash
+- [ ] 고아 spec `e2e/sprint55-optimizer-bayesian.spec.ts` `testMatch` 배선 후 실행 결과 보고
+- [ ] **CI 배선** — `chromium-design-canon` 을 `.github/workflows/ci.yml` 에 (사용자 선택 = 병행안)
 
 **검증 게이트**
 
 - [ ] ★캘리브레이션 — 새 spec 을 **프로토타입 17벌에 먼저** 돌려 17/17 PASS 재현. 출력 그대로 기록
 - [ ] React 4라우트 baseline 측정 → allowlist 초기값 확정
-- [ ] `pnpm test` 그린
+- [x] `pnpm test` 그린 — 157파일 847테스트
 - [ ] `vercel-react-best-practices` + `code-review`
 
 ---
