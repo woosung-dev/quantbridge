@@ -184,12 +184,15 @@
 
 > 차트 없는 순수 표. 표·페이저·필터 프리미티브를 여기서 확립한다.
 
-- [ ] 표/페이저/필터 프리미티브
-- [ ] 중복 로딩 마크업 통합 — `page.tsx:28-34` 와 `trade-detail-shell.tsx:31-35` 가 같은 `<p>불러오는 중…</p>`
-- [ ] `error.tsx` — **신설 제외** (부모 `[id]/error.tsx` 82줄이 이미 덮는다)
-- [ ] 상태 4종 실제 렌더
+- [x] 표/페이저/필터 프리미티브 — `table.trades`/`.pager`·`.pg`(번호창+gap)/`.toolbar`·`.input`·`.select` 소비. 이후 표 화면이 따른다.
+- [x] 중복 로딩 마크업 통합 — `page.tsx` Suspense fallback 과 shell isLoading 이 공유 `TradeDetailSkeleton`(`.sk`) 렌더
+- [x] `error.tsx` — **신설 제외** (부모 `[id]/error.tsx` 82줄이 이미 덮는다)
+- [x] 상태 4종 실제 렌더 — 스켈레톤/에러(`state-box.failed`)/빈(`state-box`)/데이터 + 컴포넌트 테스트 8종
+- [x] S4 인계 — `{t.direction}` 원시 enum → `TRADE_DIRECTION_LABEL` 소비(표 셀·필터 옵션·펼침 상세)
+- [x] 래칫 하강 — authed-canon-p1 `/backtests/:id/trades` allowlist 3 → 0 (검색·기간 입력이 공용 `.input` :focus-visible 링 소비). 실측 focus=0
+- [x] 전 거래 로드 — `useAllBacktestTrades`(200-cap 해소)로 헤더 건수와 표 행 일치(정직성)
 
-**검증 게이트** — S5 와 동일
+**검증 게이트** — S5 와 동일. 실측: vitest 877(+2)/tsc/lint/build 그린, design-canon 29, authed-canon-p1 5/5(trades 3→0), 4폭 overflow 0·console 0
 
 ---
 

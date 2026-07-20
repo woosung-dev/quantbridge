@@ -1926,3 +1926,37 @@ h6 {
   display: block;
   height: 10px;
 }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /backtests/[id]/trades 거래 목록 (이식 S6).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-04-trade-detail.html (순수 표).
+ *   공용 .toolbar/.input/.select/table.trades/.pager/.metric-group 를 소비하고,
+ *   확장 필터(기간·손익 범위) 입력 폭과 펼침 상세 그리드만 여기서 조정한다.
+ *   KITPORT 센티넬(무결성 가드) 밖 · 언레이어드. S5 페이지 전용 블록과 같은 관례.
+ * ========================================================================== */
+
+/* 확장 필터 입력 — 공용 .input(220px) 위에 폭만 조정. 포커스링은 :focus-visible 이 준다. */
+.input-date { width: 150px; }
+.input-num { width: 92px; }
+.filter-sep { align-self: center; color: var(--ink-3); font-size: 0.82rem; }
+
+/* 선택된 거래 펼침 상세 — 진입/청산/성과 3열. 공용 .metric-group/.metric 소비. */
+.trade-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: var(--bg-alt);
+  border-radius: var(--r);
+}
+.trade-detail-cell { padding: 0; }
+
+/* 선택 행 강조 — 공용 table.trades tbody 위에 카퍼 하이라이트만 얹는다. */
+table.trades tbody tr.trade-selected,
+table.trades tbody tr.trade-selected:hover { background: var(--copper-soft); }
+table.trades tbody tr.trade-selected td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
+
+@media (max-width: 900px) {
+  .trade-detail-metrics { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .input-date, .input-num { width: 100%; }
+}

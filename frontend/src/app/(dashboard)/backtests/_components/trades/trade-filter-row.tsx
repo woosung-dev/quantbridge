@@ -1,9 +1,9 @@
-// Sprint 43 W11 — 거래 필터 행 (6 필터: 검색/방향/결과/기간/PnL/정렬).
-// 부모 (TradeDetailTable) 가 상태 owner. 본 컴포넌트는 controlled inputs.
+// 거래 목록 필터 툴바 — C 디자인 언어 이식(S6). 공용 .toolbar/.input/.select 를 소비한다.
+// 부모(TradeDetailTable)가 상태 owner. 본 컴포넌트는 controlled inputs.
+// 방향 옵션 라벨은 S4 용어 SSOT(TRADE_DIRECTION_LABEL)에서 온다.
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
+import { TRADE_DIRECTION_LABEL } from "@/features/backtest/labels";
 import type {
   TradeFilters,
   TradeSortDir,
@@ -45,18 +45,18 @@ interface TradeFilterRowProps {
 }
 
 const DIRECTION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "all", label: "방향: 전체" },
-  { value: "long", label: "롱만" },
-  { value: "short", label: "숏만" },
+  { value: "all", label: "방향 전체" },
+  { value: "long", label: TRADE_DIRECTION_LABEL.long },
+  { value: "short", label: TRADE_DIRECTION_LABEL.short },
 ];
 
 const RESULT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "all", label: "결과: 전체" },
-  { value: "win", label: "승리만" },
-  { value: "loss", label: "패배만" },
+  { value: "all", label: "결과 전체" },
+  { value: "win", label: "수익" },
+  { value: "loss", label: "손실" },
 ];
 
-const SORT_OPTIONS: Array<{
+const SORT_OPTIONS: ReadonlyArray<{
   value: `${TradeSortField}:${TradeSortDir}`;
   label: string;
 }> = [
@@ -84,148 +84,146 @@ export function TradeFilterRow({
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  const sortValue = `${sortField}:${sortDir}` as `${TradeSortField}:${TradeSortDir}`;
+  const sortValue =
+    `${sortField}:${sortDir}` as `${TradeSortField}:${TradeSortDir}`;
 
   return (
-    <section
-      aria-label="거래 필터"
+    <div
+      className="toolbar"
       role="group"
-      className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-4"
+      aria-label="거래 필터"
       data-testid="trade-filter-row"
     >
       {/* 1. 검색 */}
-      <div className="relative flex h-9 w-full items-center rounded-md border bg-card pl-9 pr-3 sm:w-60">
-        <svg
-          className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          type="search"
-          aria-label="거래 검색"
-          placeholder="거래 #번호 / long·short 검색"
-          value={filters.search}
-          onChange={(e) => update("search", e.target.value)}
-          className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-        />
-      </div>
+      <input
+        className="input"
+        type="search"
+        aria-label="거래 검색"
+        placeholder="거래 번호, 방향 검색"
+        value={filters.search}
+        onChange={(e) => update("search", e.target.value)}
+      />
 
       {/* 2. 방향 */}
-      <SelectWithDisplayName
-        options={DIRECTION_OPTIONS}
+      <select
+        className="select"
+        aria-label="방향 필터"
         value={filters.direction}
-        onValueChange={(v) => update("direction", v as TradeFilters["direction"])}
-        placeholder="방향: 전체"
-        ariaLabel="방향 필터"
-        className="h-9 w-32 text-xs"
-      />
+        onChange={(e) =>
+          update("direction", e.target.value as TradeFilters["direction"])
+        }
+      >
+        {DIRECTION_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
 
       {/* 3. 결과 */}
-      <SelectWithDisplayName
-        options={RESULT_OPTIONS}
+      <select
+        className="select"
+        aria-label="결과 필터"
         value={filters.result}
-        onValueChange={(v) => update("result", v as TradeFilters["result"])}
-        placeholder="결과: 전체"
-        ariaLabel="결과 필터"
-        className="h-9 w-32 text-xs"
+        onChange={(e) =>
+          update("result", e.target.value as TradeFilters["result"])
+        }
+      >
+        {RESULT_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+
+      {/* 4. 기간 (entry_time 기준) */}
+      <input
+        className="input input-date"
+        type="date"
+        aria-label="기간 시작"
+        value={filters.periodStart}
+        onChange={(e) => update("periodStart", e.target.value)}
+      />
+      <span aria-hidden className="filter-sep">
+        ~
+      </span>
+      <input
+        className="input input-date"
+        type="date"
+        aria-label="기간 종료"
+        value={filters.periodEnd}
+        onChange={(e) => update("periodEnd", e.target.value)}
       />
 
-      {/* 4. 기간 */}
-      <div className="flex items-center gap-1.5">
-        <input
-          type="date"
-          aria-label="기간 시작"
-          value={filters.periodStart}
-          onChange={(e) => update("periodStart", e.target.value)}
-          className="h-9 rounded-md border bg-card px-2 font-mono text-xs"
-        />
-        <span aria-hidden className="text-xs text-muted-foreground">
-          ~
-        </span>
-        <input
-          type="date"
-          aria-label="기간 종료"
-          value={filters.periodEnd}
-          onChange={(e) => update("periodEnd", e.target.value)}
-          className="h-9 rounded-md border bg-card px-2 font-mono text-xs"
-        />
-      </div>
-
-      {/* 5. PnL 슬라이더 (단순 min/max numeric 입력) */}
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          step="0.01"
-          aria-label="최소 손익 비율 (예: -0.05 = -5%)"
-          placeholder="PnL≥"
-          value={filters.pnlMinPct === null ? "" : filters.pnlMinPct}
-          onChange={(e) =>
-            update(
-              "pnlMinPct",
-              e.target.value === "" ? null : Number.parseFloat(e.target.value),
-            )
-          }
-          className="h-9 w-20 rounded-md border bg-card px-2 font-mono text-xs"
-        />
-        <span aria-hidden className="text-xs text-muted-foreground">
-          ~
-        </span>
-        <input
-          type="number"
-          step="0.01"
-          aria-label="최대 손익 비율"
-          placeholder="≤PnL"
-          value={filters.pnlMaxPct === null ? "" : filters.pnlMaxPct}
-          onChange={(e) =>
-            update(
-              "pnlMaxPct",
-              e.target.value === "" ? null : Number.parseFloat(e.target.value),
-            )
-          }
-          className="h-9 w-20 rounded-md border bg-card px-2 font-mono text-xs"
-        />
-      </div>
+      {/* 5. 손익률 범위 (decimal, e.g. -0.05 = -5%) */}
+      <input
+        className="input input-num"
+        type="number"
+        step="0.01"
+        aria-label="최소 손익 비율 (예: -0.05 = -5%)"
+        placeholder="PnL≥"
+        value={filters.pnlMinPct === null ? "" : filters.pnlMinPct}
+        onChange={(e) =>
+          update(
+            "pnlMinPct",
+            e.target.value === "" ? null : Number.parseFloat(e.target.value),
+          )
+        }
+      />
+      <span aria-hidden className="filter-sep">
+        ~
+      </span>
+      <input
+        className="input input-num"
+        type="number"
+        step="0.01"
+        aria-label="최대 손익 비율"
+        placeholder="≤PnL"
+        value={filters.pnlMaxPct === null ? "" : filters.pnlMaxPct}
+        onChange={(e) =>
+          update(
+            "pnlMaxPct",
+            e.target.value === "" ? null : Number.parseFloat(e.target.value),
+          )
+        }
+      />
 
       {/* 6. 정렬 */}
-      <SelectWithDisplayName
-        options={SORT_OPTIONS}
+      <select
+        className="select"
+        aria-label="정렬"
         value={sortValue}
-        onValueChange={(v) => {
-          if (!v) return;
-          const [f, d] = v.split(":") as [TradeSortField, TradeSortDir];
+        onChange={(e) => {
+          const [f, d] = e.target.value.split(":") as [
+            TradeSortField,
+            TradeSortDir,
+          ];
           onSortChange(f, d);
         }}
-        placeholder="정렬"
-        ariaLabel="정렬"
-        className="h-9 w-40 text-xs"
-      />
+      >
+        {SORT_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
 
       {/* 활성 pill + 초기화 */}
-      <div className="ml-auto flex items-center gap-2">
-        {activeCount > 0 ? (
-          <>
-            <Badge aria-label={`활성 필터 ${activeCount}개`}>
-              필터 {activeCount}개
-            </Badge>
-            <button
-              type="button"
-              onClick={onReset}
-              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-primary"
-            >
-              초기화
-            </button>
-          </>
-        ) : null}
-      </div>
-    </section>
+      {activeCount > 0 ? (
+        <>
+          <span className="chip accent" aria-label={`활성 필터 ${activeCount}개`}>
+            필터 {activeCount}개
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={onReset}
+          >
+            초기화
+          </button>
+        </>
+      ) : null}
+    </div>
   );
 }
 
