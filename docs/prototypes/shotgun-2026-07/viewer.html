@@ -127,6 +127,7 @@
 <div class="bar">
   <div class="brand"><b>QuantBridge</b><span>C 언어 화면 세트</span></div>
   <div class="spacer"></div>
+  <button class="toggle" id="cmp" type="button" aria-pressed="false" disabled>다크 비교</button>
   <div class="vp" role="group" aria-label="뷰포트 너비 프리셋">
     <span class="vp-label">Viewport</span>
     <button data-w="0" aria-pressed="true" type="button">전체</button>
@@ -149,14 +150,19 @@
     </div>
     <div class="frames" id="frames">
       <div class="pane" id="paneA">
+        <span class="pane-label" id="labelA" hidden>라이트</span>
         <iframe id="frameA" src="variant-c.html" title="선택한 화면 미리보기"></iframe>
+      </div>
+      <div class="pane" id="paneB" hidden>
+        <span class="pane-label" id="labelB">다크</span>
+        <iframe id="frameB" src="about:blank" title="다크 짝 미리보기"></iframe>
       </div>
     </div>
   </div>
 </div>
 
 <div class="hint">
-  <b>↑/↓</b> 화면 이동 · <b>1~5</b> 뷰포트 · 서버 <b>python3 serve.py</b> · 빌드 <b id="build">2026-07-20c</b> <span id="loadedAt"></span> · 2안 5쌍은 픽 완료
+  <b>↑/↓</b> 화면 이동 · <b>C</b> 다크 비교 · <b>1~5</b> 뷰포트 · 서버 <b>python3 serve.py</b> · 빌드 <b id="build">2026-07-20d</b> <span id="loadedAt"></span> · 라이트 2벌 검토 대기
 </div>
 
 <script>
@@ -184,6 +190,10 @@
       { no: '12', name: '온보딩', file: 'screen-12-onboarding.html' },
       { no: '13', name: '에러 · 유지보수', file: 'screen-13-error-pages.html' },
     ]},
+    { title: '라이트 테마 검토', items: [
+      { no: 'L1', name: '리포트 (라이트)', file: 'light-01-report.html', pair: 'variant-c.html', pairName: '다크 정본' },
+      { no: 'L2', name: '코크핏 (라이트)', file: 'light-02-trading-cockpit.html', pair: 'screen-01-trading-cockpit.html', pairName: '다크 정본' },
+    ]},
     { title: 'P4 마케팅', items: [
       { no: '14', name: '랜딩', file: 'screen-14-landing.html' },
       { no: '15', name: '로그인', file: 'screen-15-login.html' },
@@ -205,7 +215,8 @@
       b.setAttribute('aria-current', 'false');
       b.setAttribute('aria-label', it.no + ' ' + it.name);
       b.innerHTML = '<span class="no">' + it.no + '</span><span>' + it.name + '</span>' +
-        (it.pick ? '<span class="ab" aria-hidden="true" title="' + it.pick + '">픽</span>' : '');
+        (it.pick ? '<span class="ab" aria-hidden="true" title="' + it.pick + '">픽</span>' : '') +
+        (it.pair ? '<span class="ab" aria-hidden="true" title="다크와 나란히 비교 가능">비교</span>' : '');
       b.addEventListener('click', function () { select(it); });
       it.el = b;
       flat.push(it);
@@ -214,8 +225,14 @@
   });
 
   var frameA = document.getElementById('frameA');
+  var frameB = document.getElementById('frameB');
+  var paneB = document.getElementById('paneB');
+  var labelA = document.getElementById('labelA');
+  var labelB = document.getElementById('labelB');
+  var cmp = document.getElementById('cmp');
   var frames = document.getElementById('frames');
   var openNew = document.getElementById('openNew');
+  var comparePref = null;
   // 화면 파일도 캐시로 굳는다. 이 뷰어를 연 시각을 붙여 매 로드마다 새로 받게 한다.
   var BUST = '?v=' + Date.now();
   var bust = function (u) { return u + BUST; };
@@ -224,16 +241,30 @@
   var cur = flat[0];
 
   function render() {
+    var compare = !!cur.pair && (comparePref === null ? true : comparePref);
     flat.forEach(function (it) { it.el.setAttribute('aria-current', String(it === cur)); });
     document.getElementById('shName').textContent = cur.name;
     document.getElementById('shFile').textContent = cur.file;
-    document.getElementById('shNote').textContent = cur.note || cur.pick || '';
+    document.getElementById('shNote').textContent =
+      cur.note || cur.pick || (cur.pair ? (compare ? '다크와 나란히 비교 중' : 'C 로 다크 비교') : '');
     frameA.src = bust(cur.file);
     openNew.href = cur.file;
+    cmp.disabled = !cur.pair;
+    cmp.setAttribute('aria-pressed', String(compare));
+    paneB.hidden = !compare;
+    labelA.hidden = !compare;
+    if (compare) { labelA.textContent = '라이트 (검토 대상)'; labelB.textContent = cur.pairName; }
+    frameB.src = compare ? bust(cur.pair) : 'about:blank';
     try { history.replaceState(null, '', '#' + cur.no); } catch (e) {}
   }
 
   function select(it) { cur = it; render(); }
+
+  cmp.addEventListener('click', function () {
+    if (!cur.pair) return;
+    comparePref = cmp.getAttribute('aria-pressed') !== 'true';
+    render();
+  });
 
   var vpBtns = Array.prototype.slice.call(document.querySelectorAll('.vp button'));
   vpBtns.forEach(function (b) {
@@ -242,10 +273,10 @@
       var w = b.getAttribute('data-w');
       if (!w || w === '0') {
         frames.classList.remove('framed');
-        frameA.style.width = '100%'; frameA.style.maxWidth = 'none';
+        [frameA, frameB].forEach(function (f) { f.style.width = '100%'; f.style.maxWidth = 'none'; });
       } else {
         frames.classList.add('framed');
-        frameA.style.width = w + 'px'; frameA.style.maxWidth = '100%';
+        [frameA, frameB].forEach(function (f) { f.style.width = w + 'px'; f.style.maxWidth = '100%'; });
       }
     });
   });
@@ -255,6 +286,7 @@
     var i = flat.indexOf(cur);
     if (e.key === 'ArrowDown') { select(flat[(i + 1) % flat.length]); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { select(flat[(i - 1 + flat.length) % flat.length]); e.preventDefault(); }
+    else if (e.key === 'c' || e.key === 'C') { cmp.click(); }
     else if (/^[1-5]$/.test(e.key)) { vpBtns[Number(e.key) - 1].click(); }
   });
 
