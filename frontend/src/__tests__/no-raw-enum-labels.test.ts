@@ -64,7 +64,8 @@ export function detectRawEnumRenders(rawContent: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(cleaned)) !== null) {
     const matched = m[0];
-    if (!GUARDED_ENUM_FIELDS.includes(lastSegment(m[1]))) continue;
+    const chain = m[1];
+    if (!chain || !GUARDED_ENUM_FIELDS.includes(lastSegment(chain))) continue;
     const matchStart = m.index;
     const before = cleaned.slice(Math.max(0, matchStart - 500), matchStart);
     const after = cleaned.slice(
