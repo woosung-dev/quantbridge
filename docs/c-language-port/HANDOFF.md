@@ -123,7 +123,7 @@ playwright project `chromium-design-canon` 신설 + `pnpm e2e:design-canon` 추�
 
 ## 4. 레포 상태
 
-브랜치 **`stage/c-language-port`** · 작업 트리 clean · **main 보다 12 커밋 앞**.
+브랜치 **`stage/c-language-port`** · 작업 트리 clean · **main(`050ac64`) 보다 13 커밋 앞**.
 
 S0 세션이 얹은 6 커밋 (그 아래는 이전 세션):
 

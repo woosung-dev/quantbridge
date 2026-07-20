@@ -77,7 +77,7 @@
 - [x] `code-review` — Standards(하드 위반 0) + Spec 2축 병렬. Spec 지적 3건 반영: 공개라우트 CI 추가 · 출력 기록 · stale 참조 수정
 - [~] `vercel-react-best-practices` — S0 은 React 런타임 코드 0(테스트/CI 만)이라 N/A. S1a(globals.css/컴포넌트)에서 적용
 
-**S0 커밋** — `97941e6` 캘리브레이션 · `24fde4c` 정적 래칫 · `45d21d9` 고아 skip · `bcad78c` CI · `e8fc657` P1 baseline · `fefde1a` 공개라우트+리뷰대응. main 대비 12 앞.
+**S0 커밋** — `97941e6` 캘리브레이션 · `24fde4c` 정적 래칫 · `45d21d9` 고아 skip · `bcad78c` CI · `e8fc657` P1 baseline · `fefde1a` 공개라우트+리뷰대응 · `6ba6697` docs. main(`050ac64`) 대비 13 앞.
 
 ---
 
