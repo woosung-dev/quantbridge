@@ -9,11 +9,12 @@
 // 데이터 흐름은 S3 셸과의 중복 페치를 걷어냈다(주문 페치 제거 → transition-toast 이중 발화 차단,
 // 카운트는 목록 쿼리의 total 로 파생 → 코크핏당 도메인 쿼리 1개). 상세는 context-notes 참조.
 
-import type { ReactNode } from "react";
 import { useMemo } from "react";
 import Link from "next/link";
 import { PlusIcon, RefreshCwIcon } from "lucide-react";
 
+import { InfoIcon } from "@/components/info-icon";
+import { StateBox } from "@/components/state-box";
 import type { ChartPoint } from "@/components/charts/trading-chart";
 import { useBacktests } from "@/features/backtest/hooks";
 import { BACKTEST_STATUS_LABEL } from "@/features/backtest/labels";
@@ -226,17 +227,18 @@ export function DashboardCockpit() {
             <RunsSkeleton />
           ) : backtestsQ.isError ? (
             <div className="card-body">
-              <div className="state-box failed" role="alert" data-testid="runs-error">
-                <span className="state-icon failed" aria-hidden="true">
-                  <AlertTriangleIcon />
-                </span>
-                <p className="state-title">실행 목록을 불러오지 못했습니다.</p>
-                <p className="state-body">
-                  {backtestsQ.error
+              <StateBox
+                tone="failed"
+                testId="runs-error"
+                icon={<AlertTriangleIcon />}
+                title="실행 목록을 불러오지 못했습니다."
+                body={
+                  backtestsQ.error
                     ? backtestsQ.error.message
-                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
-                </p>
-                <p className="state-code">{RUNS_ENDPOINT}</p>
+                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
+                }
+                code={RUNS_ENDPOINT}
+              >
                 <button
                   className="btn btn-ghost"
                   type="button"
@@ -245,22 +247,20 @@ export function DashboardCockpit() {
                   <RefreshCwIcon aria-hidden="true" />
                   다시 시도
                 </button>
-              </div>
+              </StateBox>
             </div>
           ) : backtestItems.length === 0 ? (
             <div className="card-body">
-              <div className="state-box" role="status" data-testid="runs-empty">
-                <span className="state-icon" aria-hidden="true">
-                  <InboxIcon />
-                </span>
-                <p className="state-title">아직 실행한 백테스트가 없습니다.</p>
-                <p className="state-body">
-                  전략을 선택하고 기간을 설정하면 첫 백테스트 결과를 받을 수 있습니다.
-                </p>
+              <StateBox
+                testId="runs-empty"
+                icon={<InboxIcon />}
+                title="아직 실행한 백테스트가 없습니다."
+                body="전략을 선택하고 기간을 설정하면 첫 백테스트 결과를 받을 수 있습니다."
+              >
                 <Link className="btn btn-primary btn-xs" href="/backtests/new">
                   첫 백테스트 실행
                 </Link>
-              </div>
+              </StateBox>
             </div>
           ) : (
             <div className="table-wrap">
@@ -350,17 +350,18 @@ export function DashboardCockpit() {
             <RunsSkeleton columns={4} />
           ) : strategyListQ.isError ? (
             <div className="card-body">
-              <div className="state-box failed" role="alert" data-testid="strategies-error">
-                <span className="state-icon failed" aria-hidden="true">
-                  <AlertTriangleIcon />
-                </span>
-                <p className="state-title">전략 목록을 불러오지 못했습니다.</p>
-                <p className="state-body">
-                  {strategyListQ.error
+              <StateBox
+                tone="failed"
+                testId="strategies-error"
+                icon={<AlertTriangleIcon />}
+                title="전략 목록을 불러오지 못했습니다."
+                body={
+                  strategyListQ.error
                     ? strategyListQ.error.message
-                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
-                </p>
-                <p className="state-code">GET /api/v1/strategies</p>
+                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
+                }
+                code="GET /api/v1/strategies"
+              >
                 <button
                   className="btn btn-ghost"
                   type="button"
@@ -369,22 +370,20 @@ export function DashboardCockpit() {
                   <RefreshCwIcon aria-hidden="true" />
                   다시 시도
                 </button>
-              </div>
+              </StateBox>
             </div>
           ) : strategyItems.length === 0 ? (
             <div className="card-body">
-              <div className="state-box" role="status" data-testid="strategies-empty">
-                <span className="state-icon" aria-hidden="true">
-                  <InboxIcon />
-                </span>
-                <p className="state-title">아직 등록한 전략이 없습니다.</p>
-                <p className="state-body">
-                  Pine Script 전략을 등록하면 백테스트와 라이브 세션에서 쓸 수 있습니다.
-                </p>
+              <StateBox
+                testId="strategies-empty"
+                icon={<InboxIcon />}
+                title="아직 등록한 전략이 없습니다."
+                body="Pine Script 전략을 등록하면 백테스트와 라이브 세션에서 쓸 수 있습니다."
+              >
                 <Link className="btn btn-primary btn-xs" href="/strategies/new">
                   첫 전략 등록
                 </Link>
-              </div>
+              </StateBox>
             </div>
           ) : (
             <div className="table-wrap">
@@ -501,23 +500,6 @@ function InboxIcon() {
     >
       <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
       <path d="M5.5 6.5 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-5.5A2 2 0 0 0 16.8 5H7.2a2 2 0 0 0-1.7 1.5z" />
-    </svg>
-  );
-}
-
-function InfoIcon(): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <line x1="12" y1="11" x2="12" y2="16" />
-      <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
     </svg>
   );
 }

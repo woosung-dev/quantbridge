@@ -13,6 +13,7 @@ import {
   RefreshCwIcon,
 } from "lucide-react";
 
+import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
 import { useIsOrderDisabledByKs, useOrders } from "../hooks";
@@ -97,33 +98,32 @@ export function OrdersPanel() {
         <OrdersSkeleton />
       ) : isError ? (
         <div className="card-body">
-          <div className="state-box failed" role="alert" data-testid="orders-error">
-            <span className="state-icon failed" aria-hidden="true">
-              <AlertTriangleIcon />
-            </span>
-            <p className="state-title">주문 목록을 불러오지 못했습니다.</p>
-            <p className="state-body">
-              네트워크 또는 서버 상태 일시적 오류일 수 있습니다. 주문을 내기 전에 상태를 확인하세요.
-            </p>
-            <p className="state-code">{ORDERS_ENDPOINT}</p>
+          <StateBox
+            tone="failed"
+            testId="orders-error"
+            icon={<AlertTriangleIcon />}
+            title="주문 목록을 불러오지 못했습니다."
+            body="네트워크 또는 서버 상태 일시적 오류일 수 있습니다. 주문을 내기 전에 상태를 확인하세요."
+            code={ORDERS_ENDPOINT}
+          >
             <button className="btn btn-ghost" type="button" onClick={() => refetch()}>
               <RefreshCwIcon aria-hidden="true" />
               다시 시도
             </button>
-          </div>
+          </StateBox>
         </div>
       ) : !data || data.items.length === 0 ? (
         <div className="card-body">
-          <div className="state-box" role="status" data-testid="orders-empty">
-            <span className="state-icon" aria-hidden="true">
-              <InboxIcon />
-            </span>
-            <p className="state-title">아직 주문이 없습니다.</p>
-            <p className="state-body">전략을 실행하면 여기에 표시됩니다.</p>
+          <StateBox
+            testId="orders-empty"
+            icon={<InboxIcon />}
+            title="아직 주문이 없습니다."
+            body="전략을 실행하면 여기에 표시됩니다."
+          >
             <Link className="btn btn-primary btn-xs" href="/strategies">
               전략 보기
             </Link>
-          </div>
+          </StateBox>
         </div>
       ) : (
         <div className="table-wrap">

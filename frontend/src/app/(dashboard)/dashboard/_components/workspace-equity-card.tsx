@@ -8,6 +8,8 @@
 
 import type { ChartPoint } from "@/components/charts/trading-chart";
 import { TradingChart } from "@/components/charts/trading-chart";
+import { InfoIcon } from "@/components/info-icon";
+import { StateBox } from "@/components/state-box";
 
 import { EQUITY_LINE_OPTIONS, formatEquityAxis } from "./equity-chart-config";
 
@@ -75,15 +77,12 @@ export function WorkspaceEquityCard({
         </div>
       ) : (
         <div className="card-body">
-          <div className="state-box" role="status" data-testid="equity-empty">
-            <span className="state-icon" aria-hidden="true">
-              <ChartIcon />
-            </span>
-            <p className="state-title">아직 그릴 손익 곡선이 없습니다.</p>
-            <p className="state-body">
-              활성 라이브 세션이 거래를 시작하면 합산 실현 손익 곡선이 여기에 그려집니다.
-            </p>
-          </div>
+          <StateBox
+            testId="equity-empty"
+            icon={<ChartIcon />}
+            title="아직 그릴 손익 곡선이 없습니다."
+            body="활성 라이브 세션이 거래를 시작하면 합산 실현 손익 곡선이 여기에 그려집니다."
+          />
         </div>
       )}
 
@@ -128,23 +127,6 @@ function ChartIcon() {
       <line x1="6" y1="20" x2="6" y2="14" />
       <line x1="12" y1="20" x2="12" y2="4" />
       <line x1="18" y1="20" x2="18" y2="10" />
-    </svg>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <line x1="12" y1="11" x2="12" y2="16" />
-      <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
     </svg>
   );
 }

@@ -19,6 +19,7 @@ import {
 import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
 import { formatDateTime } from "@/features/backtest/utils";
+import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 const PAGE_SIZE = 20;
@@ -173,37 +174,36 @@ export function BacktestList() {
             <ListSkeleton />
           ) : isError ? (
             <div className="card-body">
-              <div className="state-box failed" role="alert" data-testid="backtest-error">
-                <span className="state-icon failed" aria-hidden="true">
-                  <AlertTriangleIcon />
-                </span>
-                <p className="state-title">목록을 불러오지 못했습니다.</p>
-                <p className="state-body">
-                  {error ? error.message : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
-                </p>
-                <p className="state-code">{LIST_ENDPOINT}</p>
+              <StateBox
+                tone="failed"
+                testId="backtest-error"
+                icon={<AlertTriangleIcon />}
+                title="목록을 불러오지 못했습니다."
+                body={error ? error.message : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
+                code={LIST_ENDPOINT}
+              >
                 <button className="btn btn-ghost" type="button" onClick={() => refetch()}>
                   <RefreshCwIcon aria-hidden="true" />
                   다시 시도
                 </button>
-              </div>
+              </StateBox>
             </div>
           ) : filtered.length === 0 ? (
             <div className="card-body">
-              <div className="state-box" role="status" data-testid="backtest-empty">
-                <span className="state-icon" aria-hidden="true">
-                  <InboxIcon />
-                </span>
-                <p className="state-title">
-                  {items.length === 0
+              <StateBox
+                testId="backtest-empty"
+                icon={<InboxIcon />}
+                title={
+                  items.length === 0
                     ? "첫 백테스트를 시작하세요"
-                    : "해당 상태의 백테스트가 없습니다"}
-                </p>
-                <p className="state-body">
-                  {items.length === 0
+                    : "해당 상태의 백테스트가 없습니다"
+                }
+                body={
+                  items.length === 0
                     ? "전략을 선택하고 기간을 설정하면 결과를 받을 수 있습니다."
-                    : "다른 상태를 선택하거나 새 백테스트를 실행하세요."}
-                </p>
+                    : "다른 상태를 선택하거나 새 백테스트를 실행하세요."
+                }
+              >
                 {items.length === 0 ? (
                   <Link className="btn btn-primary btn-xs" href="/backtests/new">
                     첫 백테스트 실행
@@ -213,7 +213,7 @@ export function BacktestList() {
                     전체 보기
                   </button>
                 )}
-              </div>
+              </StateBox>
             </div>
           ) : (
             <div className="table-wrap">

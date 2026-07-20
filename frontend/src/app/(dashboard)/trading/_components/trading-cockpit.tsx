@@ -28,6 +28,8 @@ import {
   useKillSwitchEvents,
 } from "@/features/trading";
 import type { ExchangeAccount, KillSwitchEvent } from "@/features/trading/schemas";
+import { InfoIcon } from "@/components/info-icon";
+import { StateBox } from "@/components/state-box";
 
 import { KillSwitchBanner } from "./kill-switch-banner";
 import { SessionDiagnostics } from "./session-diagnostics";
@@ -290,12 +292,10 @@ export function TradingCockpit() {
               </div>
             ) : (
               <div className="card card-pad">
-                <div className="state-box" role="status">
-                  <p className="state-title">세션을 선택하세요.</p>
-                  <p className="state-body">
-                    왼쪽 활성 세션 목록에서 하나를 고르면 체결 이력과 활동 타임라인을 봅니다.
-                  </p>
-                </div>
+                <StateBox
+                  title="세션을 선택하세요."
+                  body="왼쪽 활성 세션 목록에서 하나를 고르면 체결 이력과 활동 타임라인을 봅니다."
+                />
               </div>
             )}
           </div>
@@ -330,22 +330,5 @@ export function TradingCockpit() {
         <span>실시간 = WebSocket + Zustand · 이 코크핏 = 폴링 스냅샷</span>
       </footer>
     </main>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <line x1="12" y1="11" x2="12" y2="16" />
-      <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
-    </svg>
   );
 }
