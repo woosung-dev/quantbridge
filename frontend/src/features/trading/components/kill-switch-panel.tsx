@@ -76,10 +76,10 @@ export function KillSwitchPanel() {
                   <span className="mono">
                     {e.trigger_type}: {e.trigger_value} / {e.threshold}
                   </span>
-                  {/* Wave 2 — 모바일 터치타겟 확보용 공용 .btn (min-height 38px). */}
+                  {/* 모바일 터치타겟 — 파괴적 액션이라 btn-xs(30px) 대신 공용 .btn(38px)로 확보. */}
                   <button
                     type="button"
-                    className="btn btn-danger btn-xs"
+                    className="btn btn-danger"
                     onClick={() => resolve.mutate(e.id)}
                     disabled={resolve.isPending}
                   >

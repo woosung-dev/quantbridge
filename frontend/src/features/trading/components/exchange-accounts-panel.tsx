@@ -110,7 +110,7 @@ export function ExchangeAccountsPanel() {
                   <td>
                     <button
                       type="button"
-                      className="btn btn-danger btn-xs"
+                      className="btn btn-danger"
                       onClick={() =>
                         deleteAccount.mutate(a.id, {
                           onError: () => {
