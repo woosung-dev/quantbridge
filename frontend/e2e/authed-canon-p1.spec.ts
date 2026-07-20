@@ -52,13 +52,15 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
  *     해소한다(표는 컨테이너 안에서 스크롤, 페이지 본문은 넘치지 않는다).
  *   - /backtests/:id/trades 0 — S6 C 이식 완료. 검색·기간 시작·기간 종료 입력이 공용
  *     .input 스타일을 소비하며 :focus-visible 카퍼 링을 받는다(outline-none 제거).
- *   - /trading 1 — outline-none 인 포커스가능 div("Kill Switch…"). S8.
+ *   - /trading 0 — S8 C 이식 완료. base-ui 탭(outline-none 인 포커스가능 Tabs.Panel div,
+ *     내용이 "Kill Switch…")을 번호 섹션 단일 스크롤로 대체해 그 포커스가능 div 를 없앴다.
+ *     공용 .btn/.card 만 포커스를 받고 언레이어드 전역 :focus-visible 카퍼 링이 전부 걸린다.
  */
 const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/dashboard": 0,
   "/backtests": 0,
   "/backtests/:id/trades": 0,
-  "/trading": 1,
+  "/trading": 0,
 };
 
 const auditOptions = {
