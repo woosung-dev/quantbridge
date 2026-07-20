@@ -94,16 +94,16 @@ export function OrdersPanel() {
           <table className="w-full text-sm min-w-[820px]">
             <thead>
               <tr className="text-left">
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Qty</th>
-                <th>State</th>
-                <th>Price</th>
+                <th>심볼</th>
+                <th>방향</th>
+                <th>수량</th>
+                <th>상태</th>
+                <th>체결가</th>
                 {/* Wave 2 — bracket TP/SL + 청산가(graceful) */}
                 <th>TP/SL</th>
                 <th>청산가</th>
-                <th>Broker ID</th>
-                <th>Error</th>
+                <th>브로커 ID</th>
+                <th>오류</th>
               </tr>
             </thead>
             <tbody>

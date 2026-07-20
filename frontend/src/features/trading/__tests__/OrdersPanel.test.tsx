@@ -51,8 +51,8 @@ test("OrdersPanel 최근 주문 50건 렌더", async () => {
 test("OrdersPanel: exchange_order_id null 일 때 BrokerBadge 가 dash 만 표시", async () => {
   _mountOrders([{ ..._baseOrder, exchange_order_id: null }]);
   await screen.findByText("BTC/USDT");
-  // Broker ID 컬럼 헤더 노출
-  expect(screen.getByText("Broker ID")).toBeInTheDocument();
+  // 브로커 ID 컬럼 헤더 노출
+  expect(screen.getByText("브로커 ID")).toBeInTheDocument();
   // null 인 경우 Mock/Real 라벨 미렌더
   expect(screen.queryByTestId("broker-badge-mock")).not.toBeInTheDocument();
   expect(screen.queryByTestId("broker-badge-real")).not.toBeInTheDocument();
