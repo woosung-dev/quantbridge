@@ -9,6 +9,7 @@ import {
   CheckCircle2Icon,
   ChartNoAxesCombinedIcon,
   ExternalLinkIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,43 @@ export function Step4Result({
   const totalReturn = metrics?.total_return ?? null;
   const winRate = metrics?.win_rate ?? null;
   const numTrades = metrics?.num_trades ?? null;
+
+  // 결과 조회 실패 시 "완주!" 축하 헤드라인을 띄우지 않는다 (Surface Trust — 실데이터 없는 성공 표기 금지).
+  if (backtestId && detail.isError) {
+    return (
+      <div>
+        <div className="mb-5 flex items-center gap-3">
+          <div className="grid size-12 place-items-center rounded-full bg-[color:var(--destructive)]/10">
+            <TriangleAlertIcon
+              className="size-6 text-[color:var(--destructive)]"
+              strokeWidth={1.8}
+            />
+          </div>
+          <div>
+            <h2 className="font-display text-xl font-bold">
+              결과를 불러오지 못했습니다
+            </h2>
+            <p className="text-xs text-[color:var(--text-muted)]">
+              백테스트 결과를 가져오는 중 문제가 발생했습니다. 대시보드에서 다시
+              확인해주세요.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-3">
+          <Button
+            onClick={() => {
+              onFinish();
+              router.push("/dashboard");
+            }}
+            aria-label="대시보드로 이동"
+          >
+            대시보드로 이동
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

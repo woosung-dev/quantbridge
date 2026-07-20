@@ -85,13 +85,18 @@ export function OptimizerRunList({
         <tbody>
           {data.items.map((r) => {
             // Sprint 55 — discriminated union by result.kind. Best 표시 = grid_search 면 cell objective,
-            // bayesian 이면 best_iteration objective_value.
+            // bayesian/genetic 이면 best_iteration objective_value.
             let bestObjective: number | null = null;
             if (r.result?.kind === "grid_search" && r.result.best_cell_index !== null) {
               bestObjective =
                 r.result.cells[r.result.best_cell_index]?.objective_value ?? null;
             } else if (
               r.result?.kind === "bayesian" &&
+              r.result.best_iteration_idx !== null
+            ) {
+              bestObjective = r.result.best_objective_value;
+            } else if (
+              r.result?.kind === "genetic" &&
               r.result.best_iteration_idx !== null
             ) {
               bestObjective = r.result.best_objective_value;
