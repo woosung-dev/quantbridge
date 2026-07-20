@@ -37,7 +37,7 @@ const config = [
   },
   prettier,
   {
-    ignores: [".next/**", "node_modules/**", "dist/**", "coverage/**"],
+    ignores: [".next/**", ".next-build/**", "node_modules/**", "dist/**", "coverage/**"],
   },
   {
     rules: {
