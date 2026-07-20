@@ -6,10 +6,11 @@
 // 인쇄하면 실패시킨다. 이는 no-internal-ids.test.ts 의 재귀 워커 + JSX 문맥 휴리스틱
 // 구조를 따른다.
 //
-// 스코프 판정. S4 가 이관한 필드는 백테스트 `status` 와 주문 `state` 두 가지이고,
-// 대상 파일은 /backtests · /orders 라우트 컴포넌트다. `side` / `direction`(거래 방향)
-// 원시 노출은 orders-panel.tsx · trade-detail-table.tsx 등에 아직 남아 있으나 그것은
-// /trading · /backtests trade 재구축 슬라이스의 소관이므로 이 가드의 스코프 밖이다.
+// 스코프 판정. S4 가 이관한 필드는 백테스트 `status` 와 주문 `state` 두 가지다.
+// S9 에서 스코프를 /dashboard · /trading 라우트가 렌더하는 컴포넌트 트리까지 넓힌다
+// (dashboard/·trading/ _components + 두 라우트가 실제로 그리는 features/trading·
+// features/live-sessions 컴포넌트). `side` / `direction`(거래 방향)은 자유문자열이라
+// GUARDED_ENUM_FIELDS 밖이므로 여전히 잡지 않는다 — status/state enum 만 대상이다.
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -101,26 +102,39 @@ function walk(dir: string, results: string[] = []): string[] {
   return results;
 }
 
-// S4 이관 스코프 = /backtests · /orders 라우트 컴포넌트 트리.
+// 가드 스코프 = P1 라우트가 렌더하는 컴포넌트 트리.
+//   S4: /backtests · /orders (_components)
+//   S9: /dashboard · /trading (_components) + 두 라우트가 그리는 features 컴포넌트 트리
+//       (features/trading = OrdersPanel 등, features/live-sessions = LiveSession* 등).
 function getScopedFiles(): string[] {
   const root = resolve(__dirname, "..");
   const dirs = [
     join(root, "app", "(dashboard)", "backtests", "_components"),
     join(root, "app", "(dashboard)", "orders", "_components"),
+    join(root, "app", "(dashboard)", "dashboard", "_components"),
+    join(root, "app", "(dashboard)", "trading", "_components"),
+    join(root, "features", "trading", "components"),
+    join(root, "features", "live-sessions", "components"),
   ];
   const results: string[] = [];
   for (const d of dirs) walk(d, results);
   return results;
 }
 
-describe("S4 — no raw status/state enum rendered in /backtests · /orders UI", () => {
+describe("S4/S9 — no raw status/state enum rendered in P1 route UI", () => {
   const files = getScopedFiles();
 
   it("scope inventory is non-empty and includes the migrated files", () => {
     expect(files.length).toBeGreaterThan(0);
+    // S4 스코프 (backtests · orders)
     expect(files.some((f) => f.endsWith("status-badge.tsx"))).toBe(true);
     expect(files.some((f) => f.endsWith("backtest-list.tsx"))).toBe(true);
     expect(files.some((f) => f.endsWith("orders-blotter.tsx"))).toBe(true);
+    // S9 확장 스코프 (dashboard · trading · features 트리)
+    expect(files.some((f) => f.endsWith("dashboard-cockpit.tsx"))).toBe(true);
+    expect(files.some((f) => f.endsWith("trading-cockpit.tsx"))).toBe(true);
+    expect(files.some((f) => f.endsWith("orders-panel.tsx"))).toBe(true);
+    expect(files.some((f) => f.endsWith("live-session-detail.tsx"))).toBe(true);
   });
 
   // 위생 메타테스트 (falsification) — 검출기가 실제로 동작함을 증명한다.
