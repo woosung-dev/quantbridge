@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<!--
+  QuantBridge · C 디자인 언어 공용 셸 (KIT)
+  정본 = variant-c.html. 이 파일은 그 토큰/컴포넌트/셸을 그대로 잘라낸 복사본이다.
+  새 화면은 이 파일을 복사해 시작한다. 토큰 블록과 공용 컴포넌트 CSS 는 수정하지 않는다.
+  화면 고유 CSS 는 반드시 "PAGE-SPECIFIC" 마커 아래에만 추가한다.
+
+  치환 지점.
+  1. <title> — "화면명 | QuantBridge"
+  2. 사이드바 .nav-item 중 현재 화면에 active + aria-current="page" 부여 (다른 것에서는 제거)
+  3. .nav-count 숫자는 화면 간 동일 값 유지 (전략 12 / 백테스트 48 / 주문 7)
+  4. 상단 breadcrumb .crumbs
+  5. <main> 안의 PAGE CONTENT
+-->
+<html lang="ko" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>요금제 | QuantBridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ==========================================================
+     TOKENS — Precision Instrument carbon/steel, dark = default.
+     Mirrors frontend/src/styles/globals.css .dark block.
+     ========================================================== */
+  :root {
+    --bg: #0b0d0f;
+    --bg-alt: #101214;
+    --card: #141619;
+    --card-2: #1a1d21;
+    --card-3: #1e2226;
+    --line: #22262b;
+    --line-2: #31363d;
+
+    --ink: #e8eaed;
+    --ink-2: #a6adb5;
+    --ink-3: #8b939c;
+
+    /* the single brand accent */
+    --copper: #f08c2e;
+    --copper-hover: #f79d4d;
+    --copper-ink: #1a1006;
+    --copper-soft: rgba(240, 140, 46, 0.12);
+    --copper-line: rgba(240, 140, 46, 0.3);
+
+    /* semantic data colors — P&L only */
+    --bull: #2dd4a7;
+    --bull-soft: rgba(45, 212, 167, 0.12);
+    --bear: #f6685e;
+    --bear-soft: rgba(246, 104, 94, 0.12);
+    /* semantic status color — degraded / failed panels only */
+    --warn: #e5a93d;
+    --warn-soft: rgba(229, 169, 61, 0.1);
+    /* chart-only second series */
+    --benchmark: #6aa2f7;
+
+    /* ONE radius scale */
+    --r: 12px;
+
+    /* soft elevation, the signature of this variant */
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 26px -14px rgba(0, 0, 0, 0.8);
+    --shadow-hi: 0 1px 2px rgba(0, 0, 0, 0.55), 0 16px 34px -16px rgba(0, 0, 0, 0.9);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur: 220ms;
+
+    --sidebar-w: 232px;
+    --topbar-h: 60px;
+
+    --f-body: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+    --f-display: 'Archivo', 'Pretendard Variable', system-ui, sans-serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  ul, ol { list-style: none; }
+  button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
+  button { border: none; background: none; cursor: pointer; }
+
+  ::selection { background: var(--copper-soft); color: var(--ink); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r); border: 3px solid var(--bg); }
+
+  :focus-visible {
+    outline: 2px solid var(--copper);
+    outline-offset: 2px;
+    border-radius: var(--r);
+  }
+
+  .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+  .pos { color: var(--bull); }
+  .neg { color: var(--bear); }
+  .dim { color: var(--ink-3); }
+
+  /* ================= APP SHELL · SIDEBAR ================= */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-w);
+    background: var(--bg-alt);
+    border-right: 1px solid var(--line);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 120;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 8px;
+    margin-bottom: 20px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r);
+    background: var(--copper);
+    color: var(--copper-ink);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
+  }
+
+  .nav-group-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0 10px;
+    margin: 6px 0 6px;
+  }
+
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; stroke: currentColor; stroke-width: 1.6; }
+  .nav-item:hover { background: var(--card-2); color: var(--ink); }
+
+  .nav-item.active {
+    background: var(--copper-soft);
+    color: var(--copper);
+    font-weight: 600;
+  }
+  .nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 0 var(--r) var(--r) 0;
+    background: var(--copper);
+  }
+
+  .nav-count {
+    margin-left: auto;
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 1px 7px;
+  }
+
+  .sidebar-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+
+  .account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    text-align: left;
+    transition: background var(--dur) var(--ease);
+  }
+  .account:hover { background: var(--card-2); }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .account-name { font-size: 0.84rem; font-weight: 600; line-height: 1.2; }
+  .account-sub { font-size: 0.72rem; color: var(--ink-3); line-height: 1.3; }
+
+  /* ================= APP SHELL · TOP BAR ================= */
+  .topbar {
+    position: sticky;
+    top: 0;
+    height: var(--topbar-h);
+    margin-left: var(--sidebar-w);
+    background: rgba(11, 13, 15, 0.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    z-index: 110;
+  }
+
+  .hamburger {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    place-items: center;
+  }
+  .hamburger:hover { background: var(--card-2); color: var(--ink); }
+
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 0.85rem;
+    color: var(--ink-3);
+  }
+  .crumbs a { white-space: nowrap; }
+  .crumbs a:hover { color: var(--ink); }
+  .crumbs .sep { color: var(--line-2); }
+  .crumbs .here { color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .topbar-spacer { flex: 1; }
+
+  .searchbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 260px;
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink-3);
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .searchbox:hover { border-color: var(--line-2); }
+  /* 안쪽 input 은 outline 을 유지하되(박스 안에서 링이 어색하므로) 컨테이너에 포커스 링을 준다.
+     .searchbox input 의 outline:none 은 특이도 0,1,1 이라 :focus-visible 0,1,0 을 항상 이겨
+     키보드 포커스가 완전히 비가시였다. */
+  .searchbox:focus-within { outline: 2px solid var(--copper); outline-offset: 2px; border-color: var(--line-2); }
+  .searchbox input { flex: 1; min-width: 0; border: none; background: none; outline: none; font-size: 0.84rem; }
+  .searchbox input::placeholder { color: var(--ink-3); }
+  .kbd {
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    padding: 1px 6px;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .icon-btn:hover { background: var(--card-2); border-color: var(--line-2); color: var(--ink); }
+  .icon-btn svg { width: 17px; height: 17px; stroke: currentColor; stroke-width: 1.7; }
+
+  /* ================= MAIN ================= */
+  .main {
+    margin-left: var(--sidebar-w);
+    min-height: calc(100vh - var(--topbar-h));
+  }
+
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+  }
+
+  /* ================= BUTTONS ================= */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: var(--r);
+    border: 1px solid var(--line-2);
+    background: var(--card-2);
+    color: var(--ink);
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform 120ms var(--ease);
+  }
+  .btn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; }
+  .btn:hover { background: var(--card-3); border-color: var(--ink-3); }
+  .btn:active { transform: translateY(1px); }
+
+  .btn-primary {
+    background: var(--copper);
+    border-color: var(--copper);
+    color: var(--copper-ink);
+  }
+  .btn-primary:hover { background: var(--copper-hover); border-color: var(--copper-hover); }
+
+  .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink-2); }
+  .btn-ghost:hover { background: var(--card-2); color: var(--ink); }
+
+  .btn-block { width: 100%; }
+
+  /* ================= CARD ================= */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .card-pad { padding: 20px 22px; }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .card-title {
+    font-family: var(--f-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .card-sub { font-size: 0.8rem; color: var(--ink-3); margin-top: 3px; }
+  .card-body { padding: 20px 22px; }
+
+  /* ================= SECTION HEADERS ================= */
+  .section { margin-top: 28px; }
+
+  .section-head { margin-bottom: 14px; }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+  .eyebrow .num {
+    color: var(--copper);
+    border: 1px solid var(--copper-line);
+    background: var(--copper-soft);
+    border-radius: var(--r);
+    padding: 0 6px;
+    letter-spacing: 0.06em;
+  }
+
+  .section-title {
+    font-family: var(--f-display);
+    font-size: 1.18rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  .section-desc { font-size: 0.85rem; color: var(--ink-3); margin-top: 3px; max-width: 68ch; }
+
+  /* ================= REPORT HEADER ================= */
+  .report {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 22px;
+  }
+  .report-title {
+    font-family: var(--f-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+  .report-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  .chip svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; }
+  .chip.done { color: var(--bull); border-color: rgba(45, 212, 167, 0.32); background: var(--bull-soft); }
+  .chip.accent { color: var(--copper); border-color: var(--copper-line); background: var(--copper-soft); }
+
+  .report-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* ================= HERO KPI ================= */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .kpi {
+    position: relative;
+    padding: 18px 20px 16px;
+    overflow: hidden;
+  }
+  .kpi:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+
+  .kpi-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-value {
+    font-family: var(--f-mono);
+    font-size: 1.85rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-top: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-foot {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 0.76rem;
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-foot .mono { color: var(--ink-2); }
+
+  .meter {
+    height: 4px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper); }
+  .meter.bull > span { background: var(--bull); }
+  .meter.bear > span { background: var(--bear); }
+
+  /* ================= CHART ================= */
+  .chart-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+  .tab {
+    position: relative;
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: var(--r);
+    font-family: var(--f-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: var(--card-3); color: var(--copper); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 0 22px 14px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-2); }
+  .legend-key { width: 16px; height: 3px; border-radius: var(--r); flex-shrink: 0; }
+  .legend-key.eq { background: var(--copper); }
+  .legend-key.bm { background: var(--benchmark); }
+  .legend-key.dd { background: var(--bear); }
+  .legend-val { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+
+  .chart-wrap { padding: 0 14px; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; }
+
+  .axis-text { font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: #8b939c; }
+  .grid-line { stroke: rgba(232, 234, 237, 0.07); stroke-width: 1; }
+  .axis-line { stroke: #22262b; stroke-width: 1; }
+
+  .eq-line { fill: none; stroke: var(--copper); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .bm-line { fill: none; stroke: var(--benchmark); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; opacity: 0.9; }
+  .dd-line { fill: none; stroke: var(--bear); stroke-width: 1.4; stroke-linejoin: round; }
+
+  .chart-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px 18px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .chart-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* ================= DETAIL METRIC GRID ================= */
+  .metric-groups {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .metric-group { padding: 20px 22px; border-right: 1px solid var(--line); }
+  .metric-group:last-child { border-right: none; }
+
+  .metric-group-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+  }
+
+  .metric {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:last-child { border-bottom: none; }
+  .metric-label { font-size: 0.82rem; color: var(--ink-2); }
+  .metric-value {
+    font-family: var(--f-mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .metric-value.empty { color: var(--ink-3); font-weight: 500; }
+
+  /* ================= DIAGNOSTICS · 3 STATES ================= */
+  .diag-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .diag { display: flex; flex-direction: column; min-height: 268px; }
+  .diag .card-head { padding: 16px 18px; }
+  .diag .card-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
+
+  /* skeleton */
+  .sk {
+    background: linear-gradient(90deg, var(--card-2) 0%, var(--card-3) 50%, var(--card-2) 100%);
+    background-size: 220% 100%;
+    border-radius: var(--r);
+    animation: shimmer 1.5s linear infinite;
+  }
+  @keyframes shimmer { from { background-position: 140% 0; } to { background-position: -40% 0; } }
+
+  .sk-bars { display: flex; align-items: flex-end; gap: 8px; height: 132px; margin-bottom: 14px; }
+  .sk-bars > span { flex: 1; border-radius: var(--r); }
+  .sk-line { height: 10px; margin-top: 8px; }
+
+  .state-note {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 12px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .state-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* error */
+  .state-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    padding: 18px 10px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r);
+    background: var(--bg-alt);
+  }
+  .state-box.failed { border-color: rgba(229, 169, 61, 0.4); background: var(--warn-soft); }
+
+  .state-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    color: var(--ink-3);
+    margin-bottom: 2px;
+  }
+  .state-icon.failed { background: var(--warn-soft); border-color: rgba(229, 169, 61, 0.4); color: var(--warn); }
+  .state-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .state-title { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+  .state-body { font-size: 0.8rem; color: var(--ink-3); max-width: 34ch; }
+  .state-code { font-family: var(--f-mono); font-size: 0.72rem; color: var(--warn); }
+
+  /* ================= TRADES TABLE ================= */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .input, .select {
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink);
+    font-size: 0.82rem;
+    /* outline:none 제거 — L118 :focus-visible 이 소스 순서에 밀려 키보드 포커스가 죽던 문제 */
+    transition: border-color var(--dur) var(--ease);
+  }
+  .input { width: 220px; }
+  .input::placeholder { color: var(--ink-3); }
+  .input:hover, .select:hover { border-color: var(--line-2); }
+  .select { appearance: none; padding-right: 30px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b939c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  .table-wrap { overflow-x: auto; }
+  table.trades { width: 100%; min-width: 940px; border-collapse: collapse; }
+
+  table.trades thead th {
+    position: sticky;
+    top: 0;
+    background: var(--card-2);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  table.trades thead th.num { text-align: right; }
+  table.trades thead th:first-child { padding-left: 22px; }
+  table.trades thead th:last-child { padding-right: 22px; }
+
+  table.trades tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+    white-space: nowrap;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.mono-l {
+    text-align: left;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.num {
+    text-align: right;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  table.trades tbody td:first-child { padding-left: 22px; }
+  table.trades tbody td:last-child { padding-right: 22px; }
+  table.trades tbody tr { transition: background var(--dur) var(--ease); }
+  table.trades tbody tr:hover { background: var(--card-2); }
+  table.trades tbody tr:last-child td { border-bottom: none; }
+
+  .side {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: var(--f-mono);
+  }
+  .side.long { background: var(--bull-soft); color: var(--bull); }
+  .side.short { background: var(--bear-soft); color: var(--bear); }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  .pager-nums { display: inline-flex; gap: 4px; }
+  .pg {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 9px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    color: var(--ink-2);
+    font-family: var(--f-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .pg:hover { background: var(--card-3); color: var(--ink); }
+  .pg.active { background: var(--copper); border-color: var(--copper); color: var(--copper-ink); }
+
+  /* ================= TRUST PANEL ================= */
+  .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trust-col { padding: 18px 22px; }
+  .trust-col:first-child { border-right: 1px solid var(--line); }
+
+  .trust-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .trust-row:last-child { border-bottom: none; }
+  .trust-key { font-size: 0.82rem; color: var(--ink-2); }
+  .trust-val { font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink); text-align: right; }
+
+  .disclaimer {
+    display: flex;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-alt);
+    border-radius: 0 0 var(--r) var(--r);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .disclaimer svg { width: 15px; height: 15px; stroke: var(--ink-3); stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }
+
+  /* ================= NEXT STEP CTA ================= */
+  .cta-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .cta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+  }
+  .cta:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+  .cta.recommended { border-color: var(--copper-line); }
+
+  .cta-badge {
+    align-self: flex-start;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--copper);
+    background: var(--copper-soft);
+    border: 1px solid var(--copper-line);
+    border-radius: var(--r);
+    padding: 2px 8px;
+  }
+  .cta-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+  }
+  .cta.recommended .cta-icon { background: var(--copper-soft); border-color: var(--copper-line); color: var(--copper); }
+  .cta-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .cta-title { font-family: var(--f-display); font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
+  .cta-desc { font-size: 0.82rem; color: var(--ink-3); line-height: 1.55; }
+  .cta-meta { font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); }
+  .cta .btn { margin-top: auto; }
+
+  /* ================= FOOTER ================= */
+  .foot {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    color: var(--ink-3);
+  }
+
+  /* ================= TOAST ================= */
+  .toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    max-width: 340px;
+    padding: 12px 14px;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-hi);
+    font-size: 0.8rem;
+    color: var(--ink-2);
+    line-height: 1.5;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+    z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ================= MOTION ================= */
+  .rise { animation: rise 520ms var(--ease) both; }
+  .d1 { animation-delay: 40ms; }
+  .d2 { animation-delay: 90ms; }
+  .d3 { animation-delay: 140ms; }
+  .d4 { animation-delay: 190ms; }
+  .d5 { animation-delay: 240ms; }
+  .d6 { animation-delay: 290ms; }
+  .d7 { animation-delay: 340ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .draw { stroke-dasharray: 2600; stroke-dashoffset: 2600; animation: draw 1400ms var(--ease) 180ms forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+    .rise { animation: none; opacity: 1; transform: none; }
+    .draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+    .sk { animation: none; background: var(--card-2); }
+  }
+
+  /* ================= RESPONSIVE ================= */
+  @media (max-width: 1200px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .metric-groups { grid-template-columns: repeat(2, 1fr); }
+    .metric-group:nth-child(2) { border-right: none; }
+    .metric-group:nth-child(1), .metric-group:nth-child(2) { border-bottom: 1px solid var(--line); }
+    .diag-row { grid-template-columns: 1fr 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: 1 / -1; }
+    .cta-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 64px; }
+    .brand { justify-content: center; padding: 0; }
+    .brand-name, .nav-group-label, .account-name, .account-sub, .nav-count { display: none; }
+    .nav-item { justify-content: center; padding: 8px; }
+    .nav-item .label { display: none; }
+    .account { justify-content: center; padding: 8px; }
+    .searchbox { display: none; }
+  }
+
+  @media (max-width: 768px) {
+    :root { --sidebar-w: 0px; }
+    .sidebar { display: none; }
+    .main, .topbar { margin-left: 0; }
+    .topbar { padding: 0 14px; }
+    .hamburger { display: grid; }
+    .crumbs a, .crumbs .sep { display: none; }
+    .page { padding: 18px 14px 48px; }
+    .kpi-row { grid-template-columns: 1fr; }
+    .metric-groups { grid-template-columns: 1fr; }
+    .metric-group { border-right: none; border-bottom: 1px solid var(--line); }
+    .metric-group:last-child { border-bottom: none; }
+    .diag-row { grid-template-columns: 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: auto; }
+    .trust-grid { grid-template-columns: 1fr; }
+    .trust-col:first-child { border-right: none; border-bottom: 1px solid var(--line); }
+    .report-title { font-size: 1.3rem; }
+    .input { width: 100%; }
+    .toolbar { width: 100%; }
+  }
+
+  /* ==========================================================
+     PAGE-SPECIFIC — 화면 고유 CSS 는 여기부터. 위쪽 토큰/컴포넌트는 건드리지 않는다.
+     새 규칙도 border-radius 는 var(--r) 하나만 쓴다.
+     ========================================================== */
+
+  /* ---- 마케팅 셸 (앱 사이드바/상단바 없음) ---- */
+  .site-main { min-height: 100vh; }
+
+  .site-head {
+    position: sticky;
+    top: 0;
+    z-index: 110;
+    background: rgba(11, 13, 15, 0.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .site-head-in {
+    max-width: 1240px;
+    margin: 0 auto;
+    height: var(--topbar-h);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+  }
+  .site-brand { display: flex; align-items: center; gap: 10px; }
+  /* 마케팅 셸에는 아이콘 레일이 없으므로 좁은 폭에서도 브랜드 이름을 유지한다. */
+  .site-brand .brand-name { display: block; }
+
+  .site-nav { display: flex; align-items: center; gap: 2px; margin-left: 14px; }
+  .site-nav a {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ink-2);
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .site-nav a:hover { background: var(--card-2); color: var(--ink); }
+  .head-spacer { flex: 1; }
+  .cta-short { display: none; }
+
+  /* ---- 히어로 ---- */
+  .hero { padding: 42px 0 6px; max-width: 66ch; }
+  .hero h1 {
+    font-family: var(--f-display);
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.14;
+  }
+  .hero p { margin-top: 12px; font-size: 0.95rem; color: var(--ink-2); }
+  .hero-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+  /* ---- 현재 상태 배너 ---- */
+  .banner { display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px; }
+  .banner .state-icon { flex-shrink: 0; margin-bottom: 0; }
+  .banner-title { font-family: var(--f-display); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.015em; }
+  .banner-body { font-size: 0.88rem; color: var(--ink-2); margin-top: 6px; max-width: 76ch; line-height: 1.65; }
+  .banner-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* ---- 계획 중인 구성 ---- */
+  .plan-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+  .plan { display: flex; flex-direction: column; }
+  .plan-top { padding: 20px 22px 18px; border-bottom: 1px solid var(--line); }
+  .plan-name { font-family: var(--f-display); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.015em; }
+  .plan-for { font-size: 0.82rem; color: var(--ink-3); margin-top: 5px; min-height: 2.6em; }
+  .plan-price { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
+  .plan-price .amt {
+    font-family: var(--f-mono);
+    font-size: 1.85rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--ink-3);
+  }
+  .plan-price .unit { font-size: 0.78rem; color: var(--ink-3); }
+  .plan-meter-foot { margin-top: 8px; font-size: 0.76rem; color: var(--ink-3); }
+
+  .plan-body { padding: 16px 22px 20px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+  .plan-sub {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .feat-list { display: flex; flex-direction: column; gap: 9px; margin-top: 9px; }
+  .feat { display: flex; align-items: flex-start; gap: 9px; font-size: 0.84rem; line-height: 1.5; }
+  .feat svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 3px; stroke: currentColor; stroke-width: 2; }
+  .feat.on { color: var(--ink-2); }
+  .feat.off { color: var(--ink-3); }
+  .feat .chip { height: 20px; padding: 0 7px; font-size: 0.68rem; margin-left: 2px; }
+  .plan .btn { margin-top: auto; }
+
+  /* ---- 비교표 ---- */
+  table.cmp { min-width: 640px; }
+  table.cmp thead th.val { text-align: center; }
+  table.cmp tbody td.val {
+    text-align: center;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  table.cmp tbody td.val.yes { color: var(--ink); }
+  table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
+
+  /* ---- FAQ ---- */
+  .faq-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .faq-q { font-family: var(--f-display); font-size: 0.96rem; font-weight: 700; letter-spacing: -0.01em; }
+  .faq-a { margin-top: 9px; font-size: 0.85rem; color: var(--ink-2); line-height: 1.68; }
+
+  /* ---- 웨이트리스트 폼 ---- */
+  .signup { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; max-width: 520px; }
+  .field-label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+  .field-error { display: flex; align-items: flex-start; gap: 7px; margin-top: 9px; font-size: 0.78rem; color: var(--warn); }
+  .field-error svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; stroke: currentColor; stroke-width: 1.9; }
+  .input.invalid { border-color: rgba(229, 169, 61, 0.55); }
+  .signup-note { margin-top: 14px; font-size: 0.8rem; color: var(--ink-3); max-width: 60ch; line-height: 1.6; }
+
+  /* ---- 푸터 ---- */
+  .site-main > .page { padding-bottom: 44px; }
+  .site-foot { border-top: 1px solid var(--line); background: var(--bg-alt); }
+  .site-foot-in {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 26px 24px 34px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .foot-links { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.82rem; color: var(--ink-3); }
+  .foot-links a:hover { color: var(--ink); }
+  .foot-note { font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); line-height: 1.7; }
+
+  @media (max-width: 1024px) {
+    .plan-row { grid-template-columns: 1fr; }
+    .plan-for { min-height: 0; }
+    .faq-list { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    .site-nav { display: none; }
+    .cta-long { display: none; }
+    .cta-short { display: inline; }
+    .site-head-in { padding: 0 14px; gap: 10px; }
+    .hero { padding: 28px 0 4px; }
+    .hero h1 { font-size: 1.5rem; }
+    .banner { flex-direction: column; gap: 12px; }
+    .signup { grid-template-columns: 1fr; }
+    .site-foot-in { padding: 22px 14px 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== SITE HEADER (마케팅 표면 · 앱 셸 없음) ==================== -->
+<header class="site-head">
+  <div class="site-head-in">
+    <a class="site-brand" href="index.html" aria-label="QuantBridge 프로토타입 목록으로">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+      </span>
+      <span class="brand-name">QuantBridge</span>
+    </a>
+
+    <nav class="site-nav" aria-label="이 페이지의 목차">
+      <a href="#plans">계획 중인 구성</a>
+      <a href="#compare">항목별 비교</a>
+      <a href="#faq">자주 묻는 질문</a>
+    </nav>
+
+    <span class="head-spacer"></span>
+
+    <a class="btn" href="#waitlist" aria-label="웨이트리스트 등록"><span class="cta-long">웨이트리스트 등록</span><span class="cta-short" aria-hidden="true">등록</span></a>
+  </div>
+</header>
+
+<!-- ==================== MAIN ==================== -->
+<main class="site-main">
+  <div class="page">
+
+    <!-- ===== 히어로 ===== -->
+    <section class="hero rise d1" aria-label="요금제 개요">
+      <h1>요금제</h1>
+      <p>아직 가격이 없습니다. 정하지 않았기 때문에 비워 두었고, 대신 지금 무엇이 되고 무엇이 안 되는지를 그대로 적었습니다.</p>
+      <div class="hero-meta">
+        <span class="chip">공개 판매 전</span>
+        <span class="chip">사용자 1명 (woosung)</span>
+        <span class="chip accent">pine_v2 · 바 단위 이벤트 루프</span>
+      </div>
+    </section>
+
+    <!-- ===== 01 현재 상태 ===== -->
+    <section class="section rise d2" aria-label="현재 상태">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">01</span> 현재 상태</p>
+        <h2 class="section-title">지금 이 제품이 서 있는 자리</h2>
+        <p class="section-desc">판매 여부와 사용 가능 범위를 먼저 밝힙니다.</p>
+      </header>
+
+      <div class="card">
+        <div class="banner">
+          <span class="state-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.4" x2="12" y2="16.5"/></svg>
+          </span>
+          <div>
+            <h3 class="banner-title">현재 QuantBridge 는 공개 판매하지 않습니다.</h3>
+            <p class="banner-body">개발자 본인의 로컬 워크스페이스에서 매일 사용하며 검증하는 단계입니다. 계정도 결제도 열려 있지 않고, 서버에 올라간 인스턴스도 없습니다. 아래 세 구성은 만들겠다고 정한 계획이며, 가격은 아직 정하지 않았습니다.</p>
+            <div class="banner-actions">
+              <a class="btn btn-primary" href="#waitlist">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><polyline points="4 7 12 13 20 7"/></svg>
+                웨이트리스트 등록
+              </a>
+              <a class="btn btn-ghost" href="screen-03-backtests-list.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="10"/></svg>
+                무엇을 검증했는지 보기
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 계획 중인 구성 ===== -->
+    <section class="section rise d3" id="plans" aria-label="계획 중인 구성">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">02</span> 계획 중인 구성</p>
+        <h2 class="section-title">세 가지 구성을 계획하고 있습니다</h2>
+        <p class="section-desc">각 구성에서 지금 실제로 도는 기능과 아직 못 도는 기능을 나눠 적었습니다. 가격 칸은 정하지 않아 비워 두었습니다.</p>
+      </header>
+
+      <div class="plan-row">
+
+        <!-- 로컬 -->
+        <article class="card plan">
+          <div class="plan-top">
+            <div class="report-meta" style="margin-top: 0">
+              <span class="chip done">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                지금 도는 구성
+              </span>
+            </div>
+            <h3 class="plan-name" style="margin-top: 10px">로컬</h3>
+            <p class="plan-for">저장소를 받아 자기 컴퓨터에서 도커로 직접 띄우는 방식입니다.</p>
+            <p class="plan-price">
+              <span class="amt mono" title="아직 정하지 않았습니다.">—</span>
+              <span class="unit">가격을 아직 정하지 않았습니다.</span>
+            </p>
+            <div class="meter"><span style="width: 85.7%"></span></div>
+            <p class="plan-meter-foot">아래 비교표 11개 중 로컬에 해당하는 <span class="mono">7</span>개 기준으로 지금 되는 것 <span class="mono">6</span>개 (85.7%). 로컬 계획에 없는 4개 항목은 분모에서 뺐습니다.</p>
+          </div>
+          <div class="plan-body">
+            <div>
+              <p class="plan-sub">지금 되는 것</p>
+              <div class="feat-list">
+                <p class="feat on"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pine Script 파싱</p>
+                <p class="feat on"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>pine_v2 백테스트 (바 단위 이벤트 루프)</p>
+                <p class="feat on"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>파라미터 최적화 (그리드 9조합, 베이지안 100회, 유전 100회)</p>
+                <p class="feat on"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>스트레스 테스트</p>
+                <p class="feat on"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Bybit 데모 트레이딩</p>
+                <p class="feat on"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Kill Switch (신규 주문 차단)</p>
+              </div>
+            </div>
+            <div>
+              <p class="plan-sub">아직 아닌 것</p>
+              <div class="feat-list">
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>설치 문서와 사용자 지원<span class="chip">로드맵</span></p>
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>OKX · Binance · Bitget 연동<span class="chip">로드맵</span></p>
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>결제. 로컬 실행에는 결제 경로 자체가 없습니다.</p>
+              </div>
+            </div>
+            <a class="btn btn-ghost btn-block" href="screen-05-backtest-setup.html">로컬에서 도는 화면 보기</a>
+          </div>
+        </article>
+
+        <!-- 클라우드 -->
+        <article class="card plan">
+          <div class="plan-top">
+            <div class="report-meta" style="margin-top: 0">
+              <span class="chip">계획</span>
+            </div>
+            <h3 class="plan-name" style="margin-top: 10px">클라우드</h3>
+            <p class="plan-for">백테스트와 세션을 내 컴퓨터가 꺼져 있어도 돌리는 방식입니다.</p>
+            <p class="plan-price">
+              <span class="amt mono" title="아직 정하지 않았습니다.">—</span>
+              <span class="unit">가격을 아직 정하지 않았습니다.</span>
+            </p>
+            <div class="meter"><span style="width: 0%"></span></div>
+            <p class="plan-meter-foot">아래 비교표 11개 중 클라우드에 해당하는 <span class="mono">8</span>개 기준으로 지금 되는 것 <span class="mono">0</span>개 (0%). 포함 여부를 정하지 않은 3개 항목은 분모에서 뺐습니다.</p>
+          </div>
+          <div class="plan-body">
+            <div>
+              <p class="plan-sub">지금 되는 것</p>
+              <div class="feat-list">
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>없습니다. 배포된 인스턴스가 아직 하나도 없습니다.</p>
+              </div>
+            </div>
+            <div>
+              <p class="plan-sub">만들려는 것</p>
+              <div class="feat-list">
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>클라우드에서 백테스트 · 최적화 실행<span class="chip">로드맵</span></p>
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>내 컴퓨터와 무관하게 유지되는 데모 세션<span class="chip">로드맵</span></p>
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>결제와 청구<span class="chip">로드맵</span></p>
+              </div>
+            </div>
+            <button class="btn btn-ghost btn-block" type="button" disabled aria-disabled="true">아직 열 수 없습니다</button>
+          </div>
+        </article>
+
+        <!-- 팀 -->
+        <article class="card plan">
+          <div class="plan-top">
+            <div class="report-meta" style="margin-top: 0">
+              <span class="chip">계획</span>
+            </div>
+            <h3 class="plan-name" style="margin-top: 10px">팀</h3>
+            <p class="plan-for">전략과 실행 기록을 여러 사람이 함께 보는 방식입니다.</p>
+            <p class="plan-price">
+              <span class="amt mono" title="아직 정하지 않았습니다.">—</span>
+              <span class="unit">가격을 아직 정하지 않았습니다.</span>
+            </p>
+            <div class="meter"><span style="width: 0%"></span></div>
+            <p class="plan-meter-foot">아래 비교표 11개 중 팀에 해당하는 <span class="mono">10</span>개 기준으로 지금 되는 것 <span class="mono">0</span>개 (0%). 결제는 가격을 정하지 않아 분모에서 뺐습니다.</p>
+          </div>
+          <div class="plan-body">
+            <div>
+              <p class="plan-sub">지금 되는 것</p>
+              <div class="feat-list">
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>없습니다. 지금은 계정 하나로만 검증했습니다.</p>
+              </div>
+            </div>
+            <div>
+              <p class="plan-sub">만들려는 것</p>
+              <div class="feat-list">
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>다중 사용자 계정<span class="chip">로드맵</span></p>
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>팀 안에서 전략과 리포트 공유<span class="chip">로드맵</span></p>
+                <p class="feat off"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>역할별 권한 분리<span class="chip">로드맵</span></p>
+              </div>
+            </div>
+            <button class="btn btn-ghost btn-block" type="button" disabled aria-disabled="true">아직 열 수 없습니다</button>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ===== 03 항목별 비교 ===== -->
+    <section class="section rise d4" id="compare" aria-label="항목별 비교">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">03</span> 항목별 비교</p>
+        <h2 class="section-title">구성별로 지금 무엇이 되는지</h2>
+        <p class="section-desc">확인한 것만 지원으로 적었습니다. 결정하지 않은 칸은 비워 두었습니다.</p>
+      </header>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3 class="card-title">기능 대조표</h3>
+            <p class="card-sub">비교 항목 11개 · 그중 지원으로 확인한 것 6개 · 기준 시각 2026-04-14 21:07 KST</p>
+          </div>
+          <div class="report-meta" style="margin-top: 0">
+            <span class="chip accent">가격 미정</span>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="trades cmp" aria-label="구성별 기능 대조표">
+            <thead>
+              <tr>
+                <th scope="col">기능</th>
+                <th scope="col" class="val">로컬</th>
+                <th scope="col" class="val">클라우드</th>
+                <th scope="col" class="val">팀</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="row-label">Pine Script 파싱</td>
+                <td class="val yes">지원</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">pine_v2 백테스트 (바 단위 이벤트 루프)</td>
+                <td class="val yes">지원</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">파라미터 최적화 (그리드 · 베이지안 · 유전)</td>
+                <td class="val yes">지원</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">스트레스 테스트 (몬테카를로 · 워크포워드)</td>
+                <td class="val yes">지원</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">Bybit 데모 트레이딩</td>
+                <td class="val yes">지원</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">Kill Switch (신규 주문 차단)</td>
+                <td class="val yes">지원</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">OKX · Binance · Bitget 연동</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">클라우드 실행</td>
+                <td class="val" title="로컬 구성에서는 계획에 없습니다.">—</td>
+                <td class="val">로드맵</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">다중 사용자 계정</td>
+                <td class="val" title="로컬 구성에서는 계획에 없습니다.">—</td>
+                <td class="val" title="클라우드 구성에 포함할지 아직 정하지 않았습니다.">—</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">팀 전략 공유</td>
+                <td class="val" title="로컬 구성에서는 계획에 없습니다.">—</td>
+                <td class="val" title="클라우드 구성에 포함할지 아직 정하지 않았습니다.">—</td>
+                <td class="val">로드맵</td>
+              </tr>
+              <tr>
+                <td class="row-label">결제 · 청구</td>
+                <td class="val" title="로컬 실행에는 결제 경로가 필요하지 않습니다.">—</td>
+                <td class="val" title="결제 수단과 가격을 아직 정하지 않았습니다.">—</td>
+                <td class="val" title="결제 수단과 가격을 아직 정하지 않았습니다.">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="chart-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7.6" x2="12" y2="7.7"/></svg>
+          연결해 본 거래소는 Bybit (데모 · 메인넷) 하나입니다. OKX 와 Binance 와 Bitget 은 로드맵이며 아직 연결하지 않았습니다.
+        </p>
+
+        <p class="disclaimer">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 20h18z"/><line x1="12" y1="10" x2="12" y2="14.5"/><line x1="12" y1="17" x2="12" y2="17.1"/></svg>
+          <span>이 표에 가격은 없습니다. 세 구성 모두 금액을 정하지 않았고, 비어 있는 칸은 임의로 채우는 대신 그대로 두었습니다. 지원으로 적은 6개 항목은 로컬 워크스페이스에서 실제로 실행해 본 기능입니다.</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== 04 자주 묻는 질문 ===== -->
+    <section class="section rise d5" id="faq" aria-label="자주 묻는 질문">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">04</span> 자주 묻는 질문</p>
+        <h2 class="section-title">먼저 답해 두는 네 가지</h2>
+        <p class="section-desc">판매 시점, 사용 가능 여부, 데이터 위치, 라이브 거래 위험을 밝힙니다.</p>
+      </header>
+
+      <div class="faq-list">
+        <article class="card card-pad">
+          <h3 class="faq-q">언제 판매하나요?</h3>
+          <p class="faq-a">정해진 날짜가 없습니다. 결제, 다중 사용자 계정, 클라우드 실행 세 가지가 모두 붙기 전에는 팔지 않습니다. 셋 다 지금은 코드에 없습니다. 웨이트리스트에 등록하면 판매를 시작할 때 한 번 알립니다.</p>
+        </article>
+
+        <article class="card card-pad">
+          <h3 class="faq-q">지금 쓸 수 있나요?</h3>
+          <p class="faq-a">개발자 본인의 로컬 환경에서만 돕니다. 가입 경로가 없고, 접속할 수 있는 주소도 없습니다. 저장소를 직접 받아 도커로 띄우면 백테스트와 데모 트레이딩까지 동작하지만, 설치 문서와 지원은 아직 준비하지 않았습니다.</p>
+        </article>
+
+        <article class="card card-pad">
+          <h3 class="faq-q">데이터는 어디에 저장되나요?</h3>
+          <p class="faq-a">실행하는 컴퓨터 안의 PostgreSQL (TimescaleDB) 와 Redis 에만 저장됩니다. 외부로 나가는 통신은 거래소 API 호출과 시세 수집뿐이고, 분석 도구나 광고 스크립트는 붙어 있지 않습니다. 거래소 API 키는 AES-256 (Fernet) 으로 암호화해 저장합니다.</p>
+        </article>
+
+        <article class="card card-pad">
+          <h3 class="faq-q">라이브 거래는 얼마나 위험한가요?</h3>
+          <p class="faq-a">백테스트 결과는 미래 수익을 보장하지 않습니다. 라이브 주문은 실제 자금을 움직이고 손실은 사용자 책임입니다. 먼저 데모 세션으로 검증하기를 권합니다. Kill Switch 는 신규 주문을 막을 뿐, 이미 열려 있는 포지션을 자동으로 청산하지는 않습니다.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== 05 웨이트리스트 ===== -->
+    <section class="section rise d6" id="waitlist" aria-label="웨이트리스트 등록">
+      <header class="section-head">
+        <p class="eyebrow"><span class="num">05</span> 웨이트리스트</p>
+        <h2 class="section-title">판매를 시작하면 한 번 알립니다</h2>
+        <p class="section-desc">등록 인원수나 대기 순번은 세지 않습니다. 보낼 메일도 그 한 통뿐입니다.</p>
+      </header>
+
+      <div class="card card-pad">
+        <form class="signup" id="waitlistForm" novalidate>
+          <div>
+            <label class="field-label" for="waitlist-email">이메일 주소</label>
+            <input class="input invalid" id="waitlist-email" name="email" type="email" value="woosung@" placeholder="name@example.com" style="width: 100%" aria-invalid="true" aria-describedby="waitlist-email-error" />
+          </div>
+          <button class="btn btn-primary" type="submit">등록하기</button>
+        </form>
+
+        <p class="field-error" id="waitlist-email-error" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7.5" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12" y2="16.1"/></svg>
+          이메일 주소 형식이 올바르지 않습니다. @ 뒤에 도메인을 입력해 주세요.
+        </p>
+
+        <p class="signup-note">이 프로토타입의 폼은 아무것도 전송하지 않습니다. 실제 저장소도 발송 경로도 아직 연결하지 않았습니다.</p>
+      </div>
+
+    </section>
+
+  </div>
+
+  <!-- ==================== SITE FOOTER ==================== -->
+  <footer class="site-foot">
+    <div class="site-foot-in">
+      <div>
+        <span class="site-brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+          </span>
+          <span class="brand-name">QuantBridge</span>
+        </span>
+        <p class="foot-note" style="margin-top: 10px">Pine Script 전략을 백테스트하고 데모로 검증하는 개인 워크스페이스입니다.<br />제품 표면은 프로토타입이며 공개 판매하지 않습니다.<br />기준 시각 2026-04-14 21:07 KST</p>
+      </div>
+
+      <nav class="foot-links" aria-label="푸터 링크">
+        <a href="#plans">계획 중인 구성</a>
+        <a href="#compare">항목별 비교</a>
+        <a href="#faq">자주 묻는 질문</a>
+        <a href="#waitlist">웨이트리스트</a>
+        <a href="index.html">프로토타입 목록</a>
+      </nav>
+    </div>
+  </footer>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  var toast = document.getElementById('toast');
+  var toastTimer = null;
+  function say(message) {
+    toast.textContent = message;
+    toast.classList.add('show');
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(function () { toast.classList.remove('show'); }, 4200);
+  }
+  // 웨이트리스트 폼 — 전송 경로가 없으므로 실제로 보내지 않는다는 사실을 그대로 알린다.
+  document.getElementById('waitlistForm').addEventListener('submit', function (event) {
+    event.preventDefault();
+    say('이 프로토타입은 등록을 저장하지 않습니다. 저장소도 발송 경로도 아직 연결하지 않았습니다.');
+  });
+</script>
+
+<!--
+  NUMBERS AUDIT
+  미터 분모 규칙  = 각 구성의 비교표 열에서 무데이터 셀(값이 '—' 뿐인 칸)을 뺀 '해당 항목' 수.
+                    무데이터 셀은 그 구성에 계획이 없거나 아직 정하지 않은 항목이므로 분모에서 제외한다.
+  로컬 열 집계    = 지원 6 + 로드맵 1 + 무데이터 4 = 11행. 해당 항목 = 11 - 4 = 7
+  로컬 진행률     = 6 / 7 = 0.857142 -> 85.7% (미터 폭 85.7%) OK
+  클라우드 열 집계 = 지원 0 + 로드맵 8 + 무데이터 3 = 11행. 해당 항목 = 11 - 3 = 8
+  클라우드 진행률 = 0 / 8 = 0% (미터 폭 0%) OK
+  팀 열 집계      = 지원 0 + 로드맵 10 + 무데이터 1 = 11행. 해당 항목 = 11 - 1 = 10
+  팀 진행률       = 0 / 10 = 0% (미터 폭 0%) OK
+  '지원' 6개 근거 = Pine Script 파싱 / pine_v2 백테스트 / 파라미터 최적화 / 스트레스 테스트 /
+                    Bybit 데모 트레이딩 / Kill Switch (비교표 로컬 열에서 직접 셀 수 있음)
+                    비교표 카드 서브타이틀의 '지원으로 확인한 것 6개' 와 disclaimer 의 6개가 같은 값이다.
+  비교표 행 수    = 11행 (지원 6 + 로드맵 전용 1 + 무데이터 포함 4) = 6 + 1 + 4 = 11 OK
+  가격            = 파생값 없음. 세 카드 모두 무데이터 셀 하나뿐이며 금액을 만들지 않았다.
+  그리드 9조합 / 베이지안 100회 / 유전 100회 = 실행 설정 원시값. 파생 계산 없음.
+  기준 시각 2026-04-14 21:07 KST = 워크스페이스 캐논 원시값.
+-->
+
+</body>
+</html>

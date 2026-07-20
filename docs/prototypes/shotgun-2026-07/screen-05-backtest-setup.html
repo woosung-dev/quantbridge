@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<!--
+  QuantBridge · 백테스트 설정 (SCR: 새 실행)
+  _kit.html 복사본. 공용 토큰/컴포넌트 CSS 는 그대로 두고 PAGE-SPECIFIC 아래에만 화면 고유 규칙을 넣는다.
+-->
+<html lang="ko" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>백테스트 설정 | QuantBridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ==========================================================
+     TOKENS — Precision Instrument carbon/steel, dark = default.
+     Mirrors frontend/src/styles/globals.css .dark block.
+     ========================================================== */
+  :root {
+    --bg: #0b0d0f;
+    --bg-alt: #101214;
+    --card: #141619;
+    --card-2: #1a1d21;
+    --card-3: #1e2226;
+    --line: #22262b;
+    --line-2: #31363d;
+
+    --ink: #e8eaed;
+    --ink-2: #a6adb5;
+    --ink-3: #8b939c;
+
+    /* the single brand accent */
+    --copper: #f08c2e;
+    --copper-hover: #f79d4d;
+    --copper-ink: #1a1006;
+    --copper-soft: rgba(240, 140, 46, 0.12);
+    --copper-line: rgba(240, 140, 46, 0.3);
+
+    /* semantic data colors — P&L only */
+    --bull: #2dd4a7;
+    --bull-soft: rgba(45, 212, 167, 0.12);
+    --bear: #f6685e;
+    --bear-soft: rgba(246, 104, 94, 0.12);
+    /* semantic status color — degraded / failed panels only */
+    --warn: #e5a93d;
+    --warn-soft: rgba(229, 169, 61, 0.1);
+    /* chart-only second series */
+    --benchmark: #6aa2f7;
+
+    /* ONE radius scale */
+    --r: 12px;
+
+    /* soft elevation, the signature of this variant */
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 26px -14px rgba(0, 0, 0, 0.8);
+    --shadow-hi: 0 1px 2px rgba(0, 0, 0, 0.55), 0 16px 34px -16px rgba(0, 0, 0, 0.9);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur: 220ms;
+
+    --sidebar-w: 232px;
+    --topbar-h: 60px;
+
+    --f-body: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+    --f-display: 'Archivo', 'Pretendard Variable', system-ui, sans-serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  ul, ol { list-style: none; }
+  button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
+  button { border: none; background: none; cursor: pointer; }
+
+  ::selection { background: var(--copper-soft); color: var(--ink); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r); border: 3px solid var(--bg); }
+
+  :focus-visible {
+    outline: 2px solid var(--copper);
+    outline-offset: 2px;
+    border-radius: var(--r);
+  }
+
+  .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+  .pos { color: var(--bull); }
+  .neg { color: var(--bear); }
+  .dim { color: var(--ink-3); }
+
+  /* ================= APP SHELL · SIDEBAR ================= */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-w);
+    background: var(--bg-alt);
+    border-right: 1px solid var(--line);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 120;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 8px;
+    margin-bottom: 20px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r);
+    background: var(--copper);
+    color: var(--copper-ink);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
+  }
+
+  .nav-group-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0 10px;
+    margin: 6px 0 6px;
+  }
+
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; stroke: currentColor; stroke-width: 1.6; }
+  .nav-item:hover { background: var(--card-2); color: var(--ink); }
+
+  .nav-item.active {
+    background: var(--copper-soft);
+    color: var(--copper);
+    font-weight: 600;
+  }
+  .nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 0 var(--r) var(--r) 0;
+    background: var(--copper);
+  }
+
+  .nav-count {
+    margin-left: auto;
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 1px 7px;
+  }
+
+  .sidebar-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+
+  .account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: var(--r);
+    text-align: left;
+    transition: background var(--dur) var(--ease);
+  }
+  .account:hover { background: var(--card-2); }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .account-name { font-size: 0.84rem; font-weight: 600; line-height: 1.2; }
+  .account-sub { font-size: 0.72rem; color: var(--ink-3); line-height: 1.3; }
+
+  /* ================= APP SHELL · TOP BAR ================= */
+  .topbar {
+    position: sticky;
+    top: 0;
+    height: var(--topbar-h);
+    margin-left: var(--sidebar-w);
+    background: rgba(11, 13, 15, 0.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    z-index: 110;
+  }
+
+  .hamburger {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r);
+    color: var(--ink-2);
+    place-items: center;
+  }
+  .hamburger:hover { background: var(--card-2); color: var(--ink); }
+
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 0.85rem;
+    color: var(--ink-3);
+  }
+  .crumbs a { white-space: nowrap; }
+  .crumbs a:hover { color: var(--ink); }
+  .crumbs .sep { color: var(--line-2); }
+  .crumbs .here { color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .topbar-spacer { flex: 1; }
+
+  .searchbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 260px;
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink-3);
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .searchbox:hover { border-color: var(--line-2); }
+  /* 안쪽 input 은 outline 을 유지하되(박스 안에서 링이 어색하므로) 컨테이너에 포커스 링을 준다.
+     .searchbox input 의 outline:none 은 특이도 0,1,1 이라 :focus-visible 0,1,0 을 항상 이겨
+     키보드 포커스가 완전히 비가시였다. */
+  .searchbox:focus-within { outline: 2px solid var(--copper); outline-offset: 2px; border-color: var(--line-2); }
+  .searchbox input { flex: 1; min-width: 0; border: none; background: none; outline: none; font-size: 0.84rem; }
+  .searchbox input::placeholder { color: var(--ink-3); }
+  .kbd {
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    padding: 1px 6px;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .icon-btn:hover { background: var(--card-2); border-color: var(--line-2); color: var(--ink); }
+  .icon-btn svg { width: 17px; height: 17px; stroke: currentColor; stroke-width: 1.7; }
+
+  /* ================= MAIN ================= */
+  .main {
+    margin-left: var(--sidebar-w);
+    min-height: calc(100vh - var(--topbar-h));
+  }
+
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+  }
+
+  /* ================= BUTTONS ================= */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: var(--r);
+    border: 1px solid var(--line-2);
+    background: var(--card-2);
+    color: var(--ink);
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform 120ms var(--ease);
+  }
+  .btn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; }
+  .btn:hover { background: var(--card-3); border-color: var(--ink-3); }
+  .btn:active { transform: translateY(1px); }
+
+  .btn-primary {
+    background: var(--copper);
+    border-color: var(--copper);
+    color: var(--copper-ink);
+  }
+  .btn-primary:hover { background: var(--copper-hover); border-color: var(--copper-hover); }
+
+  .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink-2); }
+  .btn-ghost:hover { background: var(--card-2); color: var(--ink); }
+
+  .btn-block { width: 100%; }
+
+  /* ================= CARD ================= */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .card-pad { padding: 20px 22px; }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .card-title {
+    font-family: var(--f-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .card-sub { font-size: 0.8rem; color: var(--ink-3); margin-top: 3px; }
+  .card-body { padding: 20px 22px; }
+
+  /* ================= SECTION HEADERS ================= */
+  .section { margin-top: 28px; }
+
+  .section-head { margin-bottom: 14px; }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+  .eyebrow .num {
+    color: var(--copper);
+    border: 1px solid var(--copper-line);
+    background: var(--copper-soft);
+    border-radius: var(--r);
+    padding: 0 6px;
+    letter-spacing: 0.06em;
+  }
+
+  .section-title {
+    font-family: var(--f-display);
+    font-size: 1.18rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  .section-desc { font-size: 0.85rem; color: var(--ink-3); margin-top: 3px; max-width: 68ch; }
+
+  /* ================= REPORT HEADER ================= */
+  .report {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 22px;
+  }
+  .report-title {
+    font-family: var(--f-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+  .report-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  .chip svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; }
+  .chip.done { color: var(--bull); border-color: rgba(45, 212, 167, 0.32); background: var(--bull-soft); }
+  .chip.accent { color: var(--copper); border-color: var(--copper-line); background: var(--copper-soft); }
+
+  .report-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* ================= HERO KPI ================= */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .kpi {
+    position: relative;
+    padding: 18px 20px 16px;
+    overflow: hidden;
+  }
+  .kpi:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+
+  .kpi-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-value {
+    font-family: var(--f-mono);
+    font-size: 1.85rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-top: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-foot {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 0.76rem;
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-foot .mono { color: var(--ink-2); }
+
+  .meter {
+    height: 4px;
+    border-radius: var(--r);
+    background: var(--card-3);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper); }
+  .meter.bull > span { background: var(--bull); }
+  .meter.bear > span { background: var(--bear); }
+
+  /* ================= CHART ================= */
+  .chart-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+  .tab {
+    position: relative;
+    min-height: 30px;
+    padding: 0 12px;
+    border-radius: var(--r);
+    font-family: var(--f-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: var(--card-3); color: var(--copper); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 0 22px 14px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-2); }
+  .legend-key { width: 16px; height: 3px; border-radius: var(--r); flex-shrink: 0; }
+  .legend-key.eq { background: var(--copper); }
+  .legend-key.bm { background: var(--benchmark); }
+  .legend-key.dd { background: var(--bear); }
+  .legend-val { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
+
+  .chart-wrap { padding: 0 14px; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; }
+
+  .axis-text { font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: #8b939c; }
+  .grid-line { stroke: rgba(232, 234, 237, 0.07); stroke-width: 1; }
+  .axis-line { stroke: #22262b; stroke-width: 1; }
+
+  .eq-line { fill: none; stroke: var(--copper); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .bm-line { fill: none; stroke: var(--benchmark); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; opacity: 0.9; }
+  .dd-line { fill: none; stroke: var(--bear); stroke-width: 1.4; stroke-linejoin: round; }
+
+  .chart-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px 18px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .chart-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* ================= DETAIL METRIC GRID ================= */
+  .metric-groups {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .metric-group { padding: 20px 22px; border-right: 1px solid var(--line); }
+  .metric-group:last-child { border-right: none; }
+
+  .metric-group-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 4px;
+  }
+
+  .metric {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric:last-child { border-bottom: none; }
+  .metric-label { font-size: 0.82rem; color: var(--ink-2); }
+  .metric-value {
+    font-family: var(--f-mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .metric-value.empty { color: var(--ink-3); font-weight: 500; }
+
+  /* ================= DIAGNOSTICS · 3 STATES ================= */
+  .diag-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .diag { display: flex; flex-direction: column; min-height: 268px; }
+  .diag .card-head { padding: 16px 18px; }
+  .diag .card-body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
+
+  /* skeleton */
+  .sk {
+    background: linear-gradient(90deg, var(--card-2) 0%, var(--card-3) 50%, var(--card-2) 100%);
+    background-size: 220% 100%;
+    border-radius: var(--r);
+    animation: shimmer 1.5s linear infinite;
+  }
+  @keyframes shimmer { from { background-position: 140% 0; } to { background-position: -40% 0; } }
+
+  .sk-bars { display: flex; align-items: flex-end; gap: 8px; height: 132px; margin-bottom: 14px; }
+  .sk-bars > span { flex: 1; border-radius: var(--r); }
+  .sk-line { height: 10px; margin-top: 8px; }
+
+  .state-note {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 12px;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+  .state-note svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+
+  /* error */
+  .state-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    padding: 18px 10px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r);
+    background: var(--bg-alt);
+  }
+  .state-box.failed { border-color: rgba(229, 169, 61, 0.4); background: var(--warn-soft); }
+
+  .state-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    color: var(--ink-3);
+    margin-bottom: 2px;
+  }
+  .state-icon.failed { background: var(--warn-soft); border-color: rgba(229, 169, 61, 0.4); color: var(--warn); }
+  .state-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .state-title { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+  .state-body { font-size: 0.8rem; color: var(--ink-3); max-width: 34ch; }
+  .state-code { font-family: var(--f-mono); font-size: 0.72rem; color: var(--warn); }
+
+  /* ================= TRADES TABLE ================= */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .input, .select {
+    height: 38px;
+    padding: 0 12px;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    color: var(--ink);
+    font-size: 0.82rem;
+    /* outline:none 제거 — L118 :focus-visible 이 소스 순서에 밀려 키보드 포커스가 죽던 문제 */
+    transition: border-color var(--dur) var(--ease);
+  }
+  .input { width: 220px; }
+  .input::placeholder { color: var(--ink-3); }
+  .input:hover, .select:hover { border-color: var(--line-2); }
+  .select { appearance: none; padding-right: 30px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b939c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  .table-wrap { overflow-x: auto; }
+  table.trades { width: 100%; min-width: 940px; border-collapse: collapse; }
+
+  table.trades thead th {
+    position: sticky;
+    top: 0;
+    background: var(--card-2);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  table.trades thead th.num { text-align: right; }
+  table.trades thead th:first-child { padding-left: 22px; }
+  table.trades thead th:last-child { padding-right: 22px; }
+
+  table.trades tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+    white-space: nowrap;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.mono-l {
+    text-align: left;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+  table.trades tbody td.num {
+    text-align: right;
+    font-family: var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  table.trades tbody td:first-child { padding-left: 22px; }
+  table.trades tbody td:last-child { padding-right: 22px; }
+  table.trades tbody tr { transition: background var(--dur) var(--ease); }
+  table.trades tbody tr:hover { background: var(--card-2); }
+  table.trades tbody tr:last-child td { border-bottom: none; }
+
+  .side {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: var(--r);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: var(--f-mono);
+  }
+  .side.long { background: var(--bull-soft); color: var(--bull); }
+  .side.short { background: var(--bear-soft); color: var(--bear); }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+  }
+  .pager-nums { display: inline-flex; gap: 4px; }
+  .pg {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 9px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    color: var(--ink-2);
+    font-family: var(--f-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .pg:hover { background: var(--card-3); color: var(--ink); }
+  .pg.active { background: var(--copper); border-color: var(--copper); color: var(--copper-ink); }
+
+  /* ================= TRUST PANEL ================= */
+  .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trust-col { padding: 18px 22px; }
+  .trust-col:first-child { border-right: 1px solid var(--line); }
+
+  .trust-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .trust-row:last-child { border-bottom: none; }
+  .trust-key { font-size: 0.82rem; color: var(--ink-2); }
+  .trust-val { font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink); text-align: right; }
+
+  .disclaimer {
+    display: flex;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-alt);
+    border-radius: 0 0 var(--r) var(--r);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .disclaimer svg { width: 15px; height: 15px; stroke: var(--ink-3); stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }
+
+  /* ================= NEXT STEP CTA ================= */
+  .cta-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .cta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+  }
+  .cta:hover { box-shadow: var(--shadow-hi); border-color: var(--line-2); transform: translateY(-2px); }
+  .cta.recommended { border-color: var(--copper-line); }
+
+  .cta-badge {
+    align-self: flex-start;
+    font-family: var(--f-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--copper);
+    background: var(--copper-soft);
+    border: 1px solid var(--copper-line);
+    border-radius: var(--r);
+    padding: 2px 8px;
+  }
+  .cta-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r);
+    display: grid;
+    place-items: center;
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+  }
+  .cta.recommended .cta-icon { background: var(--copper-soft); border-color: var(--copper-line); color: var(--copper); }
+  .cta-icon svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; }
+
+  .cta-title { font-family: var(--f-display); font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
+  .cta-desc { font-size: 0.82rem; color: var(--ink-3); line-height: 1.55; }
+  .cta-meta { font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); }
+  .cta .btn { margin-top: auto; }
+
+  /* ================= FOOTER ================= */
+  .foot {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    color: var(--ink-3);
+  }
+
+  /* ================= TOAST ================= */
+  .toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    max-width: 340px;
+    padding: 12px 14px;
+    background: var(--card-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-hi);
+    font-size: 0.8rem;
+    color: var(--ink-2);
+    line-height: 1.5;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+    z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ================= MOTION ================= */
+  .rise { animation: rise 520ms var(--ease) both; }
+  .d1 { animation-delay: 40ms; }
+  .d2 { animation-delay: 90ms; }
+  .d3 { animation-delay: 140ms; }
+  .d4 { animation-delay: 190ms; }
+  .d5 { animation-delay: 240ms; }
+  .d6 { animation-delay: 290ms; }
+  .d7 { animation-delay: 340ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .draw { stroke-dasharray: 2600; stroke-dashoffset: 2600; animation: draw 1400ms var(--ease) 180ms forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+    .rise { animation: none; opacity: 1; transform: none; }
+    .draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+    .sk { animation: none; background: var(--card-2); }
+  }
+
+  /* ================= RESPONSIVE ================= */
+  @media (max-width: 1200px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .metric-groups { grid-template-columns: repeat(2, 1fr); }
+    .metric-group:nth-child(2) { border-right: none; }
+    .metric-group:nth-child(1), .metric-group:nth-child(2) { border-bottom: 1px solid var(--line); }
+    .diag-row { grid-template-columns: 1fr 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: 1 / -1; }
+    .cta-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 64px; }
+    .brand { justify-content: center; padding: 0; }
+    .brand-name, .nav-group-label, .account-name, .account-sub, .nav-count { display: none; }
+    .nav-item { justify-content: center; padding: 8px; }
+    .nav-item .label { display: none; }
+    .account { justify-content: center; padding: 8px; }
+    .searchbox { display: none; }
+  }
+
+  @media (max-width: 768px) {
+    :root { --sidebar-w: 0px; }
+    .sidebar { display: none; }
+    .main, .topbar { margin-left: 0; }
+    .topbar { padding: 0 14px; }
+    .hamburger { display: grid; }
+    .crumbs a, .crumbs .sep { display: none; }
+    .page { padding: 18px 14px 48px; }
+    .kpi-row { grid-template-columns: 1fr; }
+    .metric-groups { grid-template-columns: 1fr; }
+    .metric-group { border-right: none; border-bottom: 1px solid var(--line); }
+    .metric-group:last-child { border-bottom: none; }
+    .diag-row { grid-template-columns: 1fr; }
+    .diag-row > *:nth-child(3) { grid-column: auto; }
+    .trust-grid { grid-template-columns: 1fr; }
+    .trust-col:first-child { border-right: none; border-bottom: 1px solid var(--line); }
+    .report-title { font-size: 1.3rem; }
+    .input { width: 100%; }
+    .toolbar { width: 100%; }
+  }
+
+  /* ==========================================================
+     PAGE-SPECIFIC — 화면 고유 CSS 는 여기부터. 위쪽 토큰/컴포넌트는 건드리지 않는다.
+     새 규칙도 border-radius 는 var(--r) 하나만 쓴다.
+     ========================================================== */
+
+  /* ---- 2단 레이아웃 (좌 폼 + 우 sticky 요약) ---- */
+  .setup-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 16px;
+    align-items: start;
+    margin-top: 28px;
+  }
+  .setup-main, .setup-side { min-width: 0; }
+  .setup-main > .section:first-child { margin-top: 0; }
+  .setup-side > .section {
+    margin-top: 0;
+    position: sticky;
+    top: calc(var(--topbar-h) + 20px);
+  }
+
+  /* ---- 폼 ---- */
+  .field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 18px;
+  }
+  .field-grid .span2 { grid-column: 1 / -1; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field-label { font-size: 0.8rem; font-weight: 600; color: var(--ink-2); }
+  .field-label .req {
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    color: var(--copper);
+    margin-left: 5px;
+  }
+  .field .input, .field .select { width: 100%; }
+  .field .input[type="date"] { color-scheme: dark; }
+  .field .meter { margin-top: 2px; }
+  /* 날짜 입력의 달력 버튼은 UA 섀도우 안의 별도 탭 스톱이라 호스트에 :focus-visible 이 걸리지 않는다.
+     .searchbox 와 같은 방식으로 감싼 요소에 :focus-within 링을 준다. */
+  .date-wrap { display: block; border-radius: var(--r); }
+  .date-wrap:focus-within { outline: 2px solid var(--copper); outline-offset: 2px; }
+  .field-hint { font-size: 0.76rem; color: var(--ink-3); line-height: 1.5; }
+
+  /* 에러 표현은 셸(.state-box.failed / .state-code)과 같은 --warn 계열로 맞춘다.
+     --bull / --bear 는 손익 데이터 전용 색인이라 폼 검증에 쓰지 않는다. */
+  .input.invalid { border-color: rgba(229, 169, 61, 0.55); background: var(--warn-soft); }
+  .field-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 0.77rem;
+    line-height: 1.5;
+    color: var(--warn);
+  }
+  .field-error svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; flex-shrink: 0; margin-top: 3px; }
+
+  .field-static {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 0 12px;
+    background: var(--bg-alt);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    font-family: var(--f-mono);
+    font-size: 0.82rem;
+    color: var(--ink-2);
+  }
+  .field-static .lock { width: 13px; height: 13px; stroke: var(--ink-3); stroke-width: 1.9; flex-shrink: 0; }
+
+  .check-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    padding: 12px 14px;
+    background: var(--bg-alt);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+  .check-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: var(--copper);
+    flex-shrink: 0;
+  }
+  .check-title { font-size: 0.82rem; font-weight: 600; color: var(--ink-2); }
+  .check-why { font-size: 0.76rem; color: var(--ink-3); margin-top: 2px; line-height: 1.5; }
+
+  /* ---- 기간 요약 스트립 ---- */
+  .calc-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--line);
+  }
+  .calc { padding: 14px 22px; border-right: 1px solid var(--line); }
+  .calc:last-child { border-right: none; }
+  .calc-label { font-size: 0.74rem; font-weight: 600; color: var(--ink-3); }
+  .calc-value {
+    font-family: var(--f-mono);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .calc-foot { font-size: 0.74rem; color: var(--ink-3); margin-top: 3px; }
+  .calc-value.empty { color: var(--ink-3); font-weight: 500; }
+
+  /* ---- 2열 지표 묶음 ---- */
+  .mg2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mg2 > div { padding: 18px 22px; border-right: 1px solid var(--line); }
+  .mg2 > div:last-child { border-right: none; }
+
+  /* ---- 진단 2열 ---- */
+  .diag-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .diag-2 > .span2 { grid-column: 1 / -1; }
+  .diag.compact { min-height: 0; }
+
+  /* ---- 우측 요약 사이드 ---- */
+  .side-rows { padding: 12px 20px; }
+  .side-rows .trust-val { max-width: 64%; }
+  .trust-val.warn-val { color: var(--warn); }
+
+  .eta { padding: 14px 20px; border-top: 1px solid var(--line); }
+  .eta-label { font-size: 0.76rem; font-weight: 600; color: var(--ink-3); }
+  .eta-value {
+    font-family: var(--f-mono);
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-top: 4px;
+  }
+  .eta-foot { font-size: 0.76rem; color: var(--ink-3); margin-top: 4px; }
+
+  .side-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--line);
+    background: var(--warn-soft);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--warn);
+  }
+  .side-warn svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.9; flex-shrink: 0; margin-top: 2px; }
+
+  .side-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .btn[disabled] { cursor: not-allowed; }
+  .btn-primary[disabled] {
+    background: var(--card-2);
+    border-color: var(--line-2);
+    color: var(--ink-3);
+  }
+  .btn-primary[disabled]:hover { background: var(--card-2); border-color: var(--line-2); }
+
+  @media (max-width: 1200px) {
+    .setup-grid { grid-template-columns: minmax(0, 1fr); }
+    .setup-side > .section { position: static; margin-top: 28px; }
+    .side-rows .trust-val { max-width: none; }
+  }
+
+  @media (max-width: 768px) {
+    .setup-grid { margin-top: 18px; }
+    .field-grid { grid-template-columns: minmax(0, 1fr); }
+    .calc-strip { grid-template-columns: minmax(0, 1fr); }
+    .calc { border-right: none; border-bottom: 1px solid var(--line); }
+    .calc:last-child { border-bottom: none; }
+    .mg2 { grid-template-columns: minmax(0, 1fr); }
+    .mg2 > div { border-right: none; border-bottom: 1px solid var(--line); }
+    .mg2 > div:last-child { border-bottom: none; }
+    .diag-2 { grid-template-columns: minmax(0, 1fr); }
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ==================== SIDEBAR ==================== -->
+<aside class="sidebar" aria-label="메인 내비게이션">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+    </span>
+    <span class="brand-name">QuantBridge</span>
+  </div>
+
+  <p class="nav-group-label">워크스페이스</p>
+  <nav class="nav" aria-label="주요 메뉴">
+    <a href="screen-02-dashboard.html" class="nav-item" aria-label="대시보드">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      <span class="label">대시보드</span>
+    </a>
+    <a href="screen-06-strategies-list.html" class="nav-item" aria-label="전략">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span class="label">전략</span>
+      <span class="nav-count">12</span>
+    </a>
+    <a href="screen-03-backtests-list.html" class="nav-item active" aria-current="page" aria-label="백테스트">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="10"/></svg>
+      <span class="label">백테스트</span>
+      <span class="nav-count">48</span>
+    </a>
+    <a href="screen-09-optimizer-list.html" class="nav-item" aria-label="옵티마이저">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+      <span class="label">옵티마이저</span>
+    </a>
+    <a href="screen-01-trading-cockpit.html" class="nav-item" aria-label="트레이딩">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+      <span class="label">트레이딩</span>
+    </a>
+    <a href="screen-11-orders.html" class="nav-item" aria-label="주문">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+      <span class="label">주문</span>
+      <span class="nav-count">7</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-foot">
+    <button class="account" type="button" aria-label="계정 메뉴 열기">
+      <span class="avatar" aria-hidden="true">WS</span>
+      <span>
+        <span class="account-name">woosung</span>
+        <span class="account-sub">로컬 워크스페이스</span>
+      </span>
+    </button>
+  </div>
+</aside>
+
+<!-- ==================== TOP BAR ==================== -->
+<header class="topbar">
+  <button class="hamburger" type="button" aria-label="메뉴 열기">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+  </button>
+
+  <nav class="crumbs" aria-label="breadcrumb">
+    <a href="screen-03-backtests-list.html">백테스트</a>
+    <span class="sep" aria-hidden="true">/</span>
+    <span class="here">새 실행</span>
+  </nav>
+
+  <span class="topbar-spacer"></span>
+
+  <div class="searchbox" role="search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+    <input type="text" placeholder="전략, 심볼, 실행 ID 검색" aria-label="검색" />
+    <span class="kbd" aria-hidden="true">⌘K</span>
+  </div>
+
+  <button class="icon-btn" type="button" id="themeToggle" aria-label="테마 전환" title="테마 전환">
+    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.8 6.8 0 0 0 9.8 9.8z"/></svg>
+  </button>
+
+  <button class="icon-btn" type="button" aria-label="계정 메뉴 열기" style="font-family: var(--f-mono); font-size: 0.72rem; font-weight: 600;">WS</button>
+</header>
+
+<!-- ==================== MAIN ==================== -->
+<main class="main">
+  <div class="page">
+
+    <!-- ===== 화면 헤더 ===== -->
+    <section class="card rise d1" aria-label="새 백테스트 설정 개요">
+      <div class="report">
+        <div>
+          <h1 class="report-title">새 백테스트 실행</h1>
+          <div class="report-meta">
+            <span class="chip">MA Crossover Strategy</span>
+            <span class="chip">BTC/USDT</span>
+            <span class="chip">1h</span>
+            <span class="chip">Bybit</span>
+            <span class="chip">2024-01-01 ~ 2026-04-14</span>
+            <span class="chip accent">pine_v2 · 바 단위 이벤트 루프</span>
+          </div>
+        </div>
+        <div class="report-actions">
+          <button class="btn btn-ghost" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            전략 코드 보기
+          </button>
+          <button class="btn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>
+            기본값으로 되돌리기
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <div class="setup-grid">
+
+      <!-- ==================== 좌 · 폼 ==================== -->
+      <div class="setup-main">
+
+        <!-- ===== 01 전략 ===== -->
+        <section class="section rise d2" aria-label="전략 선택">
+          <header class="section-head">
+            <p class="eyebrow"><span class="num">01</span> 전략</p>
+            <h2 class="section-title">실행할 전략</h2>
+            <p class="section-desc">백테스트는 Pine 파일을 파싱한 결과를 그대로 실행합니다. 파싱 상태가 지원됨이 아니면 실행할 수 없습니다.</p>
+          </header>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">전략 선택</h3>
+                <p class="card-sub">워크스페이스에 저장된 12개 중에서 고릅니다.</p>
+              </div>
+            </div>
+
+            <div class="card-body">
+              <div class="field">
+                <label class="field-label" for="strategy">전략<span class="req" aria-hidden="true">필수</span></label>
+                <select class="select" id="strategy">
+                  <option selected>MA Crossover Strategy · strat_7a31 · 배포됨</option>
+                  <option>RSI Divergence v3 · strat_9c02 · 검증됨</option>
+                  <option>Donchian Breakout · strat_4e18 · 초안</option>
+                  <option>Bollinger MeanRev · strat_1b55 · 배포됨</option>
+                </select>
+                <p class="field-hint">전략을 바꾸면 아래 파라미터와 기본 심볼이 그 전략의 저장값으로 다시 채워집니다.</p>
+              </div>
+            </div>
+
+            <div class="mg2">
+              <div>
+                <p class="metric-group-title">선택한 전략</p>
+                <div class="metric"><span class="metric-label">파일</span><span class="metric-value">ma_crossover.pine</span></div>
+                <div class="metric"><span class="metric-label">파라미터 수</span><span class="metric-value">4개</span></div>
+                <div class="metric"><span class="metric-label">마지막 수정</span><span class="metric-value">2026-04-12 18:31</span></div>
+                <div class="metric"><span class="metric-label">파싱 상태</span><span class="metric-value">지원됨</span></div>
+              </div>
+              <div>
+                <p class="metric-group-title">전략별 마지막 백테스트</p>
+                <div class="metric"><span class="metric-label">MA Crossover Strategy</span><span class="metric-value">2026-04-14</span></div>
+                <div class="metric"><span class="metric-label">RSI Divergence v3</span><span class="metric-value">2026-03-30</span></div>
+                <div class="metric"><span class="metric-label">Donchian Breakout</span><span class="metric-value empty" title="이 전략은 아직 백테스트를 실행한 적이 없습니다.">—</span></div>
+                <div class="metric"><span class="metric-label">Bollinger MeanRev</span><span class="metric-value">2026-04-08</span></div>
+              </div>
+            </div>
+
+            <p class="chart-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7.5" x2="12.01" y2="7.5"/></svg>
+              미지원 Pine 함수가 하나라도 들어 있으면 부분 실행 없이 전체를 중단합니다. 잘못된 결과를 만드는 것보다 낫다고 봅니다.
+            </p>
+          </div>
+        </section>
+
+        <!-- ===== 02 시장과 기간 ===== -->
+        <section class="section rise d3" aria-label="시장과 기간">
+          <header class="section-head">
+            <p class="eyebrow"><span class="num">02</span> 시장과 기간</p>
+            <h2 class="section-title">어떤 데이터로 돌릴까요?</h2>
+            <p class="section-desc">기간과 주기를 고르면 실행할 봉 수가 결정됩니다. 봉 수는 소요 시간과 결과의 표본 크기를 함께 결정합니다.</p>
+          </header>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">시장과 기간</h3>
+                <p class="card-sub">Bybit 공개 OHLCV 를 그대로 사용합니다.</p>
+              </div>
+            </div>
+
+            <div class="card-body">
+              <div class="field-grid">
+                <div class="field">
+                  <label class="field-label" for="symbol">심볼<span class="req" aria-hidden="true">필수</span></label>
+                  <select class="select" id="symbol">
+                    <option selected>BTC/USDT</option>
+                    <option>ETH/USDT</option>
+                    <option>SOL/USDT</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="timeframe">타임프레임<span class="req" aria-hidden="true">필수</span></label>
+                  <select class="select" id="timeframe">
+                    <option>15m</option>
+                    <option selected>1h</option>
+                    <option>4h</option>
+                    <option>1d</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="date-start">시작일</label>
+                  <span class="date-wrap"><input class="input" type="date" id="date-start" value="2024-01-01" /></span>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="date-end">종료일</label>
+                  <span class="date-wrap"><input class="input" type="date" id="date-end" value="2026-04-14" /></span>
+                </div>
+
+                <div class="field span2">
+                  <span class="field-label">거래소</span>
+                  <p class="field-static">
+                    <svg class="lock" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+                    Bybit
+                  </p>
+                  <p class="field-hint">고정 값입니다. 바꾸려면 연결 설정에서 다른 거래소 API 키를 먼저 등록해야 합니다.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="calc-strip">
+              <div class="calc">
+                <p class="calc-label">기간</p>
+                <p class="calc-value">836일</p>
+                <p class="calc-foot">2024-01-01 부터 2026-04-14 까지</p>
+              </div>
+              <div class="calc">
+                <p class="calc-label">실행할 봉 수</p>
+                <p class="calc-value">20,064개</p>
+                <p class="calc-foot">836일 × 24 (1시간 봉)</p>
+              </div>
+              <div class="calc">
+                <p class="calc-label">결측 봉</p>
+                <p class="calc-value empty" title="가용 범위 점검이 실패해 아직 확인하지 못했습니다.">—</p>
+                <p class="calc-foot">아래 결측 봉 점검이 실패했습니다.</p>
+              </div>
+            </div>
+
+            <p class="chart-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7.5" x2="12.01" y2="7.5"/></svg>
+              현재 연결된 거래소는 Bybit 하나입니다. 다른 거래소의 체결 결과는 이 실행으로 알 수 없습니다.
+            </p>
+          </div>
+        </section>
+
+        <!-- ===== 03 자본과 체결 가정 ===== -->
+        <section class="section rise d4" aria-label="자본과 체결 가정">
+          <header class="section-head">
+            <p class="eyebrow"><span class="num">03</span> 자본과 체결 가정</p>
+            <h2 class="section-title">결과를 바꾸는 가정</h2>
+            <p class="section-desc">수익률이 달라지는 이유는 대부분 여기 있습니다. 리포트에도 같은 값이 그대로 인쇄됩니다.</p>
+          </header>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3 class="card-title">자본과 체결</h3>
+                <p class="card-sub">모든 금액 단위는 USDT 입니다.</p>
+              </div>
+            </div>
+
+            <div class="card-body">
+              <div class="field-grid">
+                <div class="field">
+                  <label class="field-label" for="capital">초기 자본<span class="req" aria-hidden="true">필수</span></label>
+                  <input class="input invalid mono" type="number" id="capital" value="50" min="100" step="100"
+                         aria-invalid="true" aria-describedby="capital-error capital-hint" />
+                  <p class="field-error" id="capital-error" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7.5" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></svg>
+                    초기 자본은 100 이상이어야 합니다. 지금 값 50 으로는 최소 주문 수량 0.001 BTC 를 채울 수 없습니다.
+                  </p>
+                  <p class="field-hint" id="capital-hint">기본값은 10,000 입니다. 리포트의 모든 금액과 수익률이 이 값을 기준으로 계산됩니다.</p>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="sizing">포지션 사이징</label>
+                  <select class="select" id="sizing">
+                    <option selected>자본 비율 90%</option>
+                    <option>자본 비율 50%</option>
+                    <option>자본 비율 25%</option>
+                    <option>고정 수량 0.1 BTC</option>
+                  </select>
+                  <div class="meter" aria-hidden="true"><span style="width: 90%"></span></div>
+                  <p class="field-hint">한 번 진입할 때마다 그 시점 자본의 90% 를 씁니다. 남는 10% 는 수수료와 슬리피지 여유분입니다.</p>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="leverage">레버리지</label>
+                  <select class="select" id="leverage">
+                    <option selected>1배</option>
+                    <option>2배</option>
+                    <option>3배</option>
+                    <option>5배</option>
+                  </select>
+                  <p class="field-hint">1배는 청산이 발생하지 않는다는 뜻입니다. 2배 이상을 고르면 청산가 계산이 함께 켜집니다.</p>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="fee">테이커 수수료</label>
+                  <input class="input mono" type="text" id="fee" value="0.055%" />
+                  <p class="field-hint">Bybit 테이커 기준입니다. 진입과 청산 양쪽에 각각 적용합니다.</p>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="slippage">슬리피지</label>
+                  <select class="select" id="slippage">
+                    <option>없음</option>
+                    <option selected>1틱 고정</option>
+                    <option>2틱 고정</option>
+                  </select>
+                  <p class="field-hint">불리한 방향으로만 적용합니다. 유리한 체결은 가정하지 않습니다.</p>
+                </div>
+
+                <div class="field">
+                  <label class="field-label" for="fill-timing">체결 시점</label>
+                  <select class="select" id="fill-timing">
+                    <option selected>시그널 다음 봉 시가</option>
+                    <option>시그널 봉 종가</option>
+                  </select>
+                  <p class="field-hint">다음 봉 시가로 체결하면 시그널이 확정된 봉의 종가를 미리 아는 미래 참조를 막을 수 있습니다.</p>
+                </div>
+
+                <div class="field span2">
+                  <label class="check-row" for="funding">
+                    <input type="checkbox" id="funding" disabled />
+                    <span>
+                      <span class="check-title">펀딩 반영</span>
+                      <span class="check-why">지금 설정은 현물 기준이라 펀딩이 발생하지 않습니다. 무기한 선물 심볼을 고르면 켜집니다.</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== 04 진단 ===== -->
+        <section class="section rise d5" aria-label="실행 전 점검">
+          <header class="section-head">
+            <p class="eyebrow"><span class="num">04</span> 진단</p>
+            <h2 class="section-title">실행 전 점검</h2>
+            <p class="section-desc">데이터가 실제로 있는지, 저장해 둔 설정이 있는지 먼저 확인합니다. 아직 준비되지 않은 항목도 그대로 보여줍니다.</p>
+          </header>
+
+          <div class="diag-2">
+
+            <!-- 스켈레톤 -->
+            <article class="card diag" aria-busy="true" aria-label="사용 가능한 봉 범위, 확인 중">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title">사용 가능한 봉 범위</h3>
+                  <p class="card-sub">BTC/USDT · 1h</p>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="sk-bars" aria-hidden="true">
+                  <span class="sk" style="height: 52%"></span>
+                  <span class="sk" style="height: 74%"></span>
+                  <span class="sk" style="height: 41%"></span>
+                  <span class="sk" style="height: 86%"></span>
+                  <span class="sk" style="height: 63%"></span>
+                  <span class="sk" style="height: 70%"></span>
+                  <span class="sk" style="height: 34%"></span>
+                  <span class="sk" style="height: 80%"></span>
+                </div>
+                <div class="sk sk-line" style="width: 58%" aria-hidden="true"></div>
+                <p class="state-note">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+                  선택한 기간에 실제로 저장된 봉이 있는지 확인하고 있습니다. 보통 2초 정도 걸립니다.
+                </p>
+              </div>
+            </article>
+
+            <!-- 에러 -->
+            <article class="card diag" aria-label="결측 봉 점검, 불러오기 실패">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title">결측 봉 점검</h3>
+                  <p class="card-sub">선택 기간 전체</p>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="state-box failed" role="alert">
+                  <span class="state-icon failed" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  </span>
+                  <p class="state-title">가용 범위를 확인하지 못했습니다.</p>
+                  <p class="state-body">데이터 서비스가 응답하지 않습니다. 지금 실행하면 결측 봉을 모른 채 계산하게 됩니다.</p>
+                  <p class="state-code">GET /market-data/availability?symbol=BTCUSDT · 503</p>
+                  <button class="btn btn-ghost" type="button" style="margin-top: 4px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>
+                    다시 시도
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- 빈 상태 -->
+            <article class="card diag compact span2" aria-label="저장된 설정 프리셋, 비어 있음">
+              <div class="card-head">
+                <div>
+                  <h3 class="card-title">저장된 설정 프리셋</h3>
+                  <p class="card-sub">이 워크스페이스에만 저장됩니다.</p>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="state-box">
+                  <span class="state-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="14 3 14 8 19 8"/><line x1="8" y1="13" x2="15" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
+                  </span>
+                  <p class="state-title">저장된 설정 프리셋이 없습니다.</p>
+                  <p class="state-body">지금 설정을 프리셋으로 저장해 두면 다음 실행에서 같은 가정을 그대로 불러올 수 있습니다.</p>
+                  <button class="btn btn-ghost" type="button" style="margin-top: 4px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    현재 설정을 프리셋으로 저장
+                  </button>
+                </div>
+              </div>
+            </article>
+
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ==================== 우 · 요약 ==================== -->
+      <aside class="setup-side">
+        <section class="section rise d6" aria-label="실행 요약">
+          <header class="section-head">
+            <p class="eyebrow"><span class="num">05</span> 요약</p>
+            <h2 class="section-title">실행 요약</h2>
+            <p class="section-desc">지금 화면의 값 그대로입니다.</p>
+          </header>
+
+          <div class="card">
+            <div class="side-rows">
+              <div class="trust-row"><span class="trust-key">전략</span><span class="trust-val">MA Crossover Strategy</span></div>
+              <div class="trust-row"><span class="trust-key">심볼</span><span class="trust-val">BTC/USDT</span></div>
+              <div class="trust-row"><span class="trust-key">주기</span><span class="trust-val">1h</span></div>
+              <div class="trust-row"><span class="trust-key">기간</span><span class="trust-val">2024-01-01 ~ 2026-04-14</span></div>
+              <div class="trust-row"><span class="trust-key">봉 수</span><span class="trust-val">20,064개</span></div>
+              <div class="trust-row"><span class="trust-key">초기 자본</span><span class="trust-val warn-val">50 · 확인 필요</span></div>
+              <div class="trust-row"><span class="trust-key">수수료</span><span class="trust-val">테이커 0.055% · 양방향</span></div>
+              <div class="trust-row"><span class="trust-key">슬리피지</span><span class="trust-val">1틱 고정</span></div>
+              <div class="trust-row"><span class="trust-key">체결 시점</span><span class="trust-val">시그널 다음 봉 시가</span></div>
+              <div class="trust-row"><span class="trust-key">엔진</span><span class="trust-val">pine_v2 · 바 단위 이벤트 루프</span></div>
+            </div>
+
+            <div class="eta">
+              <p class="eta-label">예상 소요 시간</p>
+              <p class="eta-value mono">약 3초</p>
+              <p class="eta-foot">직전 동일 조건 실행 3.24초 (run_2f9c41).</p>
+            </div>
+
+            <p class="side-warn" role="status">
+              <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              입력값 1건을 고쳐야 실행할 수 있습니다. 초기 자본을 100 이상으로 올리세요.
+            </p>
+
+            <div class="side-actions">
+              <button class="btn btn-primary btn-block" type="button" disabled aria-disabled="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="7 4 20 12 7 20 7 4"/></svg>
+                백테스트 실행
+              </button>
+              <button class="btn btn-block" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><polyline points="8 3 8 9 15 9"/><rect x="8" y="13" width="8" height="6" rx="1"/></svg>
+                설정 저장
+              </button>
+            </div>
+
+            <p class="disclaimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7.5" x2="12.01" y2="7.5"/></svg>
+              <span>이 화면의 값은 프로토타입용 샘플 설정입니다. 위 가정 중 하나만 바뀌어도 결과는 달라지므로, 리포트를 읽기 전에 이 목록부터 확인하세요.</span>
+            </p>
+          </div>
+        </section>
+      </aside>
+
+    </div>
+
+    <footer class="foot">
+      <span>QuantBridge · 백테스트 설정 · 아직 저장하지 않은 초안</span>
+      <span>기준 시각 2026-04-14 21:07 KST</span>
+    </footer>
+
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  // 테마 토글 — 이 프로토타입은 다크 고정이라는 사실을 그대로 알린다.
+  var toast = document.getElementById('toast');
+  var toastTimer = null;
+  function say(message) {
+    toast.textContent = message;
+    toast.classList.add('show');
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(function () { toast.classList.remove('show'); }, 4200);
+  }
+  document.getElementById('themeToggle').addEventListener('click', function () {
+    say('이 프로토타입은 다크 테마로 고정되어 있습니다. 라이트는 globals.css 의 :root 쿨 페이퍼 토큰 세트로 교체하면 같은 레이아웃 그대로 전환됩니다.');
+  });
+</script>
+
+<!--
+  NUMBERS AUDIT
+  봉 수          = 836일 x 24 (1시간 봉) = 20,064개 ✓ (워크스페이스 캐논 run_2f9c41 과 동일)
+  기간 라벨      = 2024-01-01 ~ 2026-04-14, 캐논 표기 836일 그대로 사용
+                   [불일치 기록] 실제 달력 차이는 834일(양끝 포함 835일)이라 836 과 어긋난다.
+                   _KIT.md §4 가 "836일 · 20,064봉" 을 SSOT 로 못박고 있고 다른 화면도 같은 값을 인쇄하므로
+                   이 화면에서 단독으로 고치지 않는다. 고치려면 _KIT.md §4 부터 바꿔야 한다.
+  포지션 사이징  = 미터 폭 90% = 사이징 셀렉트의 "자본 비율 90%" 와 동일한 값 ✓
+  여유분         = 100% - 90% = 10% ✓ (필드 힌트의 "남는 10%" 는 이 보수값)
+  예상 소요 시간 = 직전 동일 조건 실행 3.24초 -> 반올림 표기 "약 3초" ✓
+  초기 자본      = 폼 입력값 50 (검증 실패, 하한 100). 요약 사이드에 같은 50 을 그대로 인쇄 ✓
+                   기본값 10,000 은 필드 힌트에만 표기하며 요약에 반영하지 않음 (아직 입력되지 않았으므로)
+  수수료         = 테이커 0.055% 양방향, 캐논 실행 가정 그대로 (파생 계산 없음)
+  전략 수 12 / 백테스트 48 / 주문 7 = 사이드바 nav-count 캐논 그대로 (파생 계산 없음)
+  결측 봉        = 미확인. 가용 범위 점검(GET /market-data/availability)이 503 이라 값을 인쇄하지 않고 무데이터 셀 처리 ✓
+  차트 없음      = 이 화면에는 축이 있는 SVG 차트가 없으므로 y축 선형성 검산 대상 없음
+-->
+</body>
+</html>
