@@ -212,12 +212,16 @@
 
 > 핸드오프의 2,494 는 `features/live-sessions` 1,543줄을 뺀 수다.
 
-- [ ] `features/trading` + `features/live-sessions` 양쪽 포함
-- [ ] 죽은 `kill-switch-modal.tsx` 177줄 + 그 테스트 삭제
-- [ ] `error.tsx` 신설
-- [ ] 상태 4종 실제 렌더 (에러 엔드포인트 = `GET /trading/sessions/{id}/positions · 503`)
+- [x] `features/trading` + `features/live-sessions` 양쪽 포함 — 코크핏이 두 도메인 훅·패널을 §01~§06 로 구성
+- [x] 죽은 `kill-switch-modal.tsx` 177줄 + 그 테스트 삭제 — grep 0 소비자 재확인, em-dash 래칫 3건 감축
+- [x] `error.tsx` 신설 — frontend.md §6 (use client + reset + state-box)
+- [x] 상태 4종 실제 렌더 (에러 엔드포인트 = `GET /trading/sessions/{id}/positions · 503`) — SessionDiagnostics 4상태 프리미티브 + 패널 로딩/에러/빈/채움
+- [x] ★S7 인계: KS 배너 재도입(코크핏 최상단) + LiveSessionTable → `features/live-sessions/components/` 이동(응집도)
+- [x] ★S4 인계: `orders-panel.tsx` `{o.side}`·`{o.state}` → SSOT(`ORDER_SIDE_LABEL`/`statusLabelOf(ORDER_STATE_LABEL)`)
+- [x] ★래칫: authed-canon-p1 `/trading` allowlist 1→0 (탭 제거로 outline-none 포커스가능 div 소멸, 실측 focus=0)
+- [x] no-raw-enum 가드 스코프 유지(비확장) 그린
 
-**검증 게이트** — S5 공통 + `ui-ux-pro-max` 2회차
+**검증 게이트** — S5 공통 + `ui-ux-pro-max` 2회차 ✅ (vitest 906·tsc·lint·build·design-canon 29·authed-canon-p1 5·4폭 실측·스킬 4종)
 
 ---
 
