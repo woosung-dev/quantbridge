@@ -100,7 +100,7 @@ export function LiveSessionForm({
         className="rounded-md border border-transparent bg-warning-subtle p-3 text-sm text-warning"
         data-testid="live-session-bybit-demo-notice"
       >
-        <strong>Bybit Demo 한정</strong> — 가상 자금만 사용. 실제 자금 손실
+        <strong>Bybit Demo 한정</strong>. 가상 자금만 사용. 실제 자금 손실
         없음. (Live mainnet 은 안정성 검증 후 단계적 활성화 예정)
       </div>
 
@@ -147,7 +147,7 @@ export function LiveSessionForm({
                     value={field.value}
                     onValueChange={field.onChange}
                     placeholder="Bybit Demo 계정 선택"
-                    emptyMessage="Bybit Demo 계정 없음 — 먼저 등록해주세요"
+                    emptyMessage="Bybit Demo 계정 없음. 먼저 등록해주세요"
                     triggerTestId="live-session-account-trigger"
                     ariaLabel="거래소 계정 선택"
                   />

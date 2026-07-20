@@ -253,7 +253,6 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["components/monaco/pine-language.ts", 3],
   ["features/backtest/utils.ts", 2],
   ["features/live-sessions/components/activity-timeline-chart.tsx", 3],
-  ["features/live-sessions/components/live-session-form.tsx", 2],
   ["features/trading/components/test-order-dialog.tsx", 1],
   ["lib/api-base.ts", 1],
   ["lib/unsupported-builtin-hints.ts", 29], // hint 데이터의 절 구분자. 구조적, 슬롭 아님

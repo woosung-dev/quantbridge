@@ -237,7 +237,7 @@ describe("LiveSessionForm — BL-164 emptyMessage", () => {
       </QueryClientProvider>,
     );
     expect(
-      screen.getByText("Bybit Demo 계정 없음 — 먼저 등록해주세요"),
+      screen.getByText("Bybit Demo 계정 없음. 먼저 등록해주세요"),
     ).toBeInTheDocument();
     // submit 버튼 disabled 검증.
     const submit = screen.getByTestId("live-session-submit");
