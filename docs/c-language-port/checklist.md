@@ -244,6 +244,23 @@
 
 ---
 
+## D0 — 문서 토폴로지 정리 (코드 변경 0)
+
+> 슬라이스가 아니라 선행 정리다. "어떤 곳은 A, 어떤 곳은 B" 혼동의 원인이 **캐논 내용이 아니라 세대 라벨 부재**임을 규명하고 해소했다.
+
+- [x] `docs/design-docs-map.md` 신설 — 문서별 세대(1세대/구세대/2세대/이식)·상태·역할 판정표 + 우선순위 규칙 + 구세대 잔존 이유 + 잔여 불일치 4종
+- [x] `docs/README.md` 배선 — 지도를 ⭐정본으로 최상단 노출, `DESIGN.md` = "1세대 현행", prototypes = "구세대 + C 17벌 혼재", `c-language-port/` 행 신설
+- [x] superseded 배너 3건 — `docs/prototypes/README.md` · `INTERACTION_SPEC.md` · `shotgun-2026-07/HANDOFF-react-port.md`(→ `c-language-port/HANDOFF.md` 로 리다이렉트)
+- [x] `abbr` 캐논 모순 교정 — `terminology-ssot.md` B5/B7 헤더 + `:102` 를 `_KIT.md` §4.10 에 정합
+- [x] **S4 복사용 TS 모듈까지 교정** — `OBJECTIVE_METRIC_ABBR` 을 `Partial<Record<…>>` 로 바꾸고 `total_return` 키 제거(`_KIT.md:534` 축약 금지). 안 했으면 S4 에서 폐기 규칙이 코드가 됐다
+- [x] 철회 2건 기록 — 구 프로토타입 물리 이동(살아있는 인용 7건 파손) · 플랜 레포 편입(레포 관례 위반)
+
+**검증** — 코드 미변경. 구 프로토타입 경로 참조 7건 전부 제자리 유지 확인. prettier(lint-staged `*.md`) 사전 적용.
+
+**남은 것** — 없음. 다음은 S3(셸).
+
+---
+
 ## Blocked
 
 (현재 없음)
