@@ -1960,3 +1960,12 @@ table.trades tbody tr.trade-selected td:first-child { box-shadow: inset 3px 0 0 
 @media (max-width: 768px) {
   .input-date, .input-num { width: 100%; }
 }
+
+/* 대시보드(§S7) 고지 — 마지막 카드 안이 아니라 page 직속으로 세운다. 공용 .disclaimer 는
+   카드 하단 부착용(border-top + 아래쪽만 둥근 모서리)이라, 단독으로 설 때 테두리를 닫아 준다.
+   프로토타입 screen-02 의 page-specific 규칙(.page > .disclaimer)과 동일하다. */
+.page > .disclaimer {
+  margin-top: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
