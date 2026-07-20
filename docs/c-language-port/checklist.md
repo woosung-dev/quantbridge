@@ -225,14 +225,21 @@
 
 ---
 
-## S9 — 교차 정합 감사 + 잔여 정리
+## S9 — 교차 정합 감사 + 잔여 정리 (완료 2026-07-21)
 
 > 함정 #5. 프로토타입 17벌이 개별 통과 후 교차 감사에서 49건(BLOCKER 3)이 나왔다. React 에서는 **컴포넌트 경계**에서 같은 일이 일어난다.
 
-- [ ] 캐논 §4.1 원장 지정을 React 화면에 매핑해 교차 감사 (파생 `/dashboard` 가 원장 `/backtests` 와 어긋나면 파생이 고칠 쪽)
-- [ ] 잔여 반경 — `rounded-2xl`/`3xl` 6건 · 리터럴 px arbitrary 16건 · stale `var()` 폴백 5건
-- [ ] `button.tsx:31,32,36,38` · `select.tsx:46` 무력 `min()` 클램프 제거
-- [ ] allowlist 0 도달 확인
+- [x] 캐논 §4.1 원장 지정을 React 화면에 매핑해 교차 감사 — **사실 모순 0건**. 파생 `/dashboard` §03 은 원장 `/backtests` 와 같은 API `.total` 을 읽고 상태 라벨은 4화면 모두 S4 SSOT(BACKTEST/TRADE/ORDER)를 경유한다. nav-count 주문은 원장 전체(툴팁으로 미체결 아님을 명시)로 /trading §03 과 정합. 세션 수(활성/총)도 동일 소스. 유일한 잔여 = live-session-detail/list 의 `toLocaleString` 날짜 포맷(형식 불일치, §05 미이식 층 3e 이연).
+- [x] 무력 `min()` 클램프 제거 — `button.tsx`(xs/sm/icon-xs/icon-sm) · `select.tsx`(sm) → `rounded-md`(=--radius-md 6px, 클램프가 항상 var 값). `badge.tsx` `rounded-[4px]`→`rounded-sm`.
+- [x] 잔여 반경 재실측 후 정리 — 공용 층(badge)만 정리. **P1 4라우트+셸 마크업엔 반경 리터럴 0건**(전부 시맨틱 CSS 소비). 나머지 반경/stale var() 폴백은 전부 P1 밖(waitlist·share·error·maintenance·onboarding·strategies) = 공유 프리미티브 규칙상 이연(remaining 참조). tape `rounded-[1px]` 3건은 의도(불가침 pnl-tape 정합).
+- [x] 503 orphan 삭제(3d) · 크로스페이지 프리미티브 StateBox/InfoIcon 추출(3a) · raw-enum 가드 확장 + live-session-detail `{ev.status}` SSOT 이관(3b) · live-session-form em-dash 2건 교정(3c).
+- [x] allowlist 확인 — authed-canon-p1 4라우트 HARDFAIL 0 유지 · design-canon-tokens KNOWN_MISMATCHES 0 · design-canon-source 래칫 3종 감축(radius badge 제거·error-recovery 4→2 · em-dash live-session-form 제거).
+
+**검증 게이트 (2026-07-21 실측)**
+
+- [x] `pnpm test --run` — 164 files / **905 tests** (baseline 906 − 삭제된 503 variant 테스트 1)
+- [x] `pnpm tsc --noEmit` 클린 · `pnpm lint` 클린 · `pnpm build`(임시 distDir → 원복) 성공
+- [x] `chromium-design-canon` **29 passed** · `chromium-authed authed-canon-p1` **5 passed** (4 P1 라우트 하드 실패 0)
 
 ---
 
