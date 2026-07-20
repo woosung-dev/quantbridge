@@ -75,13 +75,10 @@
     --warn: #875206;
     --warn-soft: rgba(135, 82, 6, 0.1);
     /* chart-only second series */
-    /* ── 채움 전용 토큰 ──────────────────────────────────────────
-       위에 텍스트가 없는 면(미터 바 · 차트선 · 활성 표시)에만 쓴다.
-       텍스트 대비 5.83 제약을 받지 않으므로 WCAG 그래픽 기준 3:1 만 지키고
-       나머지 여유를 전부 생동감에 쓴다. 텍스트용 --copper/--bull/--bear 와 분리. */
-    --copper-fill: #d06c0f;
-    --bull-fill: #1f9878;
-    --bear-fill: #f4483c;
+    /* 채움(미터 바 · 차트선 · 활성 표시)도 텍스트와 같은 토큰을 쓴다.
+       채움 전용 토큰을 따로 두면 같은 의미색이 두 색으로 갈라져
+       design-taste-frontend §4.2 COLOR CONSISTENCY LOCK 을 어긴다.
+       근거와 기각한 대안 3종은 docs/c-language-port/light-palette-trilemma.md 참조. */
     --benchmark: #1452db;
 
     /* ONE radius scale */
@@ -220,7 +217,7 @@
     bottom: 9px;
     width: 3px;
     border-radius: 0 var(--r) var(--r) 0;
-    background: var(--copper-fill);
+    background: var(--copper);
   }
 
   .nav-count {
@@ -554,9 +551,9 @@
     overflow: hidden;
     margin-top: 12px;
   }
-  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper-fill); }
-  .meter.bull > span { background: var(--bull-fill); }
-  .meter.bear > span { background: var(--bear-fill); }
+  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper); }
+  .meter.bull > span { background: var(--bull); }
+  .meter.bear > span { background: var(--bear); }
 
   /* ================= CHART ================= */
   .chart-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -592,9 +589,9 @@
   }
   .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-2); }
   .legend-key { width: 16px; height: 3px; border-radius: var(--r); flex-shrink: 0; }
-  .legend-key.eq { background: var(--copper-fill); }
+  .legend-key.eq { background: var(--copper); }
   .legend-key.bm { background: var(--benchmark); }
-  .legend-key.dd { background: var(--bear-fill); }
+  .legend-key.dd { background: var(--bear); }
   .legend-val { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
 
   .chart-wrap { padding: 0 14px; }
@@ -606,9 +603,9 @@
   .grid-line { stroke: rgba(23, 26, 30, 0.07); stroke-width: 1; }
   .axis-line { stroke: #dfe2e5; stroke-width: 1; }
 
-  .eq-line { fill: none; stroke: var(--copper-fill); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .eq-line { fill: none; stroke: var(--copper); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .bm-line { fill: none; stroke: var(--benchmark); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; opacity: 0.9; }
-  .dd-line { fill: none; stroke: var(--bear-fill); stroke-width: 1.4; stroke-linejoin: round; }
+  .dd-line { fill: none; stroke: var(--bear); stroke-width: 1.4; stroke-linejoin: round; }
 
   .chart-note {
     display: flex;
@@ -794,6 +791,10 @@
     font-variant-numeric: tabular-nums;
     color: var(--ink);
   }
+  /* td.num(0,2,3) 이 .pos/.neg(0,1,0) 를 이겨 표의 손익 색이 두 테마 모두 죽어 있었다.
+     같은 명시도로 올려 되살린다. 이식 계획 S2 가 정본 공용 CSS 에 동일 반영한다. */
+  table.trades tbody td.num.pos { color: var(--bull); }
+  table.trades tbody td.num.neg { color: var(--bear); }
   table.trades tbody td:first-child { padding-left: 22px; }
   table.trades tbody td:last-child { padding-right: 22px; }
   table.trades tbody tr { transition: background var(--dur) var(--ease); }
@@ -1622,6 +1623,31 @@
 </script>
 
 <!--
+  ==========================================================================
+  ★라이트 팔레트 확정 = B2 (2026-07-20, 지시자 결정)
+
+  텍스트와 채움이 같은 토큰을 쓴다. --copper-fill / --bull-fill / --bear-fill
+  3개는 제거했고 소비처(미터 바 · 차트선 · 범례 키 · 활성 표시)는 텍스트 토큰을 가리킨다.
+
+      --copper #883e07   card 7.53   bg 7.02
+      --bull   #074b34   card 9.99   bg 9.32
+      --bear   #ad322a   card 6.32   bg 5.89
+      bull/bear 상호 1.58 (다크 정본 1.57)
+
+  기각한 대안 3종(A · A′ · B1)과 실측 비교표는
+  docs/c-language-port/light-palette-trilemma.md 에 있다.
+
+  ★아래 손글씨 감사 블록의 수치는 전면 재계산해서 교체했다. 산문은 보존했다.
+    이전 판은 --copper 를 6.26, --bull 을 6.33 으로 적었으나 실측은 7.53 · 9.99 다.
+    같은 배율 오차가 틴트 표에도 전파돼 있었다. 재실측 구현은 공표 WCAG 기준값
+    6종(#767676 / #595959 / 순흑 / 순백 / 순청 / 순적 on 백)으로 검증했다.
+
+  ★td.num 명시도 결함은 고쳤다. 아래 블록이 "판단 대기로 남긴다" 고 적은 항목이다.
+    table.trades tbody td.num.pos / .neg 규칙 2줄을 넣어 표의 손익 색을 되살렸다.
+  ==========================================================================
+-->
+
+<!--
   NUMBERS AUDIT · screen-01-trading-cockpit
   기준: 캐논 §4 데모 세션 sess_8d14. 수수료는 테이커 0.055% = 0.00055, 표시는 소수 둘째 자리 반올림.
 
@@ -1731,8 +1757,8 @@
     "-12.36"  rgb(23, 26, 30) on rgb(253, 253, 252)  17.15:1  통과
     "+50.91"  rgb(23, 26, 30) on rgb(253, 253, 252)  17.15:1  통과
     "-0.73"   rgb(23, 26, 30) on rgb(253, 253, 252)  17.15:1  통과
-    "+142.18" rgb(7, 75, 52) on rgb(253, 253, 252)  6.33:1  통과 (KPI 는 --bull 이 적용됨)
-    "+38.55"  rgb(7, 75, 52) on rgb(253, 253, 252)  6.33:1  통과
+    "+142.18" rgb(7, 75, 52) on rgb(253, 253, 252)  9.99:1  통과 (KPI 는 --bull 이 적용됨)
+    "+38.55"  rgb(7, 75, 52) on rgb(253, 253, 252)  9.99:1  통과
 
   [★ 선행 결함 · 표 안의 손익 숫자에는 --bull / --bear 가 아예 적용되지 않는다]
   rgb(23, 26, 30) 은 --bull 도 --bear 도 아니고 --ink 다. 마크업은 분명히
@@ -1759,42 +1785,42 @@
 
   [고친 뒤에 통과할 것인가 · 선행 검산]
   위 수정을 넣으면 표의 손익 숫자가 실제로 --bull / --bear 로 칠해진다. 그때의 대비를 미리 쟀다.
-    --bull #074b34 on --card #fdfdfc    6.33:1  통과
-    --bear #ad322a on --card #fdfdfc    6.27:1  통과
+    --bull #074b34 on --card #fdfdfc    9.99:1  통과
+    --bear #ad322a on --card #fdfdfc    6.32:1  통과
     행 hover 로 배경이 --card-2 #f4f5f6 가 되는 경우
-    --bull on --card-2  5.90:1 통과 / --bear on --card-2  5.85:1 통과
+    --bull on --card-2  9.32:1 통과 / --bear on --card-2  5.89:1 통과
   즉 결함을 고쳐도 라이트 팔레트는 정지/hover 양쪽에서 캐논 5.83:1 을 넘는다.
   이번 라이트 변환이 이 부분에서 새로 만든 위험은 없다.
 
   [데이터색 5종 · 캐논 대비 · 카드와 배경 양쪽]
   토큰        hex       on --card   on --bg    앱 현행 라이트(개선 전)
-  --copper    #883e07     6.26        5.83       #b45309  4.60  미달
-  --bull      #074b34     6.33        5.90       #0b7a55  4.90  미달
-  --bear      #ad322a     6.27        5.85       #c93a31  4.65  미달
-  --warn      #875206     6.28        5.85       #a16207  4.51  미달
-  --benchmark #1452db     6.33        5.90       #2563eb  4.73  미달
-  --ink-3     #585f68     6.27        5.84       #656e78  4.74  미달
-  --ink-2     #4b535c     7.67        7.15       유지
-  --ink       #171a1e    17.15       15.99       유지
+  --copper    #883e07      7.53      7.02       #b45309  4.93  미달
+  --bull      #074b34      9.99      9.32       #0b7a55  5.25  미달
+  --bear      #ad322a      6.32      5.89       #c93a31  4.99  미달
+  --warn      #875206      6.37      5.94       #a16207  4.84  미달
+  --benchmark #1452db      6.33      5.90       #2563eb  5.08  미달
+  --ink-3     #585f68      6.35      5.92       #656e78  5.09  미달
+  --ink-2     #4b535c      7.67      7.15       유지
+  --ink       #171a1e     17.15     15.99       유지
 
   [코퍼 위 텍스트]
-  --copper-ink #ffffff on --copper #883e07        6.37:1  통과 (.btn-primary / .pg.active / .brand-mark)
+  --copper-ink #ffffff on --copper #883e07        7.67:1  통과 (.btn-primary / .pg.active / .brand-mark)
   --copper-ink #ffffff on --copper-hover #7f3a06  8.37:1  통과
-  [정정] 지시서는 이 값을 7.4:1 로 적었으나 실측은 6.37:1 이다. AA 대형/일반 기준은 모두 넘지만
+  [정정] 지시서는 이 값을 7.4:1 로 적었으나 실측은 7.67:1 이다. AA 대형/일반 기준은 모두 넘지만
          숫자 자체는 지시서 쪽이 틀렸다. 근거를 남긴다. --copper-hover 는 지시서에 값이 없어
          라이트 관례대로 코퍼를 어둡게 눌렀다(다크는 밝게 띄웠다). 흰 글자 대비가 hover 에서
          6.37 -> 8.37 로 올라가므로 방향이 안전한 쪽이다.
 
   [★ 5.83 미만으로 남은 곳 · 전부 "틴트 배경 위" 이고 전부 숫자가 아니라 라벨/뱃지다]
   요소                          전경/배경                              라이트   다크 정본
-  .side.long "롱"               --bull on bull-soft/card               5.46     7.69
-  .side.short "숏"              --bear on bear-soft/card               5.37     5.24  ← 다크도 미달
-  .chip.accent "배포됨"          --copper on copper-soft/card           5.39     6.12
-  .eyebrow .num "01".."06"      --copper on copper-soft/bg             5.05     6.73
-  .nav-item.active "트레이딩"     --copper on copper-soft/bg-alt         4.75     6.40
-  .state-code "GET ... · 503"   --warn on warn-soft/bg-alt             4.79     7.68
-  .tab.active                   --copper on --card-3                   5.33     6.48
-  .btn-danger:hover "긴급 정지"   --bear on bear 12% 틴트/card            5.20     6.09
+  .side.long "롱"               --bull on bull-soft/card                8.40     8.02
+  .side.short "숏"              --bear on bear-soft/card                5.42     5.39
+  .chip.accent "배포됨"           --copper on copper-soft/card            6.44     6.33
+  .eyebrow .num "01".."06"     --copper on copper-soft/bg              6.03     6.94
+  .nav-item.active "트레이딩"      --copper on copper-soft/bg-alt          5.65     6.94
+  .state-code "GET ... · 503"  --warn on warn-soft/bg-alt              4.84     8.06
+  .tab.active                  --copper on --card-3                    6.42     6.77
+  .btn-danger:hover "긴급 정지"    --bear on bear 12% 틴트/card              5.24     5.23
   전부 WCAG AA 4.5:1 은 넘고 runtime-check 도 통과한다. 그러나 이 프로토타입이 스스로 세운
   5.83:1 캐논에는 못 미친다.
   [확인 필요] 원인은 지시서가 못박은 틴트 알파(copper/bull/bear/warn-soft = 0.10, copper-line = 0.28)다.

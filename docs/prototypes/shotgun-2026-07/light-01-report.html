@@ -1,5 +1,30 @@
 <!DOCTYPE html>
 <!--
+  ==========================================================================
+  ★라이트 팔레트 확정 = B2 (2026-07-20, 지시자 결정)
+
+  텍스트와 채움이 같은 토큰을 쓴다. --copper-fill / --bull-fill / --bear-fill
+  3개는 제거했고 소비처(미터 바 · 차트선 · 범례 키 · 활성 표시)는 텍스트 토큰을 가리킨다.
+
+      --copper #883e07   card 7.53   bg 7.02
+      --bull   #074b34   card 9.99   bg 9.32
+      --bear   #ad322a   card 6.32   bg 5.89
+      bull/bear 상호 1.58 (다크 정본 1.57)
+
+  기각한 대안 3종(A · A′ · B1)과 실측 비교표는
+  docs/c-language-port/light-palette-trilemma.md 에 있다.
+
+  ★아래 손글씨 감사 블록의 수치는 전면 재계산해서 교체했다. 산문은 보존했다.
+    이전 판은 --copper 를 6.26, --bull 을 6.33 으로 적었으나 실측은 7.53 · 9.99 다.
+    같은 배율 오차가 틴트 표에도 전파돼 있었다. 재실측 구현은 공표 WCAG 기준값
+    6종(#767676 / #595959 / 순흑 / 순백 / 순청 / 순적 on 백)으로 검증했다.
+
+  ★td.num 명시도 결함은 고쳤다. 아래 블록이 "판단 대기로 남긴다" 고 적은 항목이다.
+    table.trades tbody td.num.pos / .neg 규칙 2줄을 넣어 표의 손익 색을 되살렸다.
+  ==========================================================================
+-->
+
+<!--
   이 파일이 무엇인가.
   확정된 다크 정본 variant-c.html 을 라이트 테마로 렌더한 변형이다. 재설계가 아니다.
   variant-c 헤더가 이미 "Light would swap the token block only. Layout, radius, spacing and
@@ -81,8 +106,8 @@
     /* 라이트에서 hover 는 밝아지지 않고 어두워진다 */
     --copper-hover: #843c06;
     --copper-ink: #ffffff;
-    /* 알파 0.06 — 다크의 0.12 를 그대로 쓰면 사이드바 활성 항목이 4.75:1 로 내려간다.
-       라이트에서는 틴트가 배경을 액센트 쪽으로 끌어올려 대비를 깎기 때문이다. 하단 감사표 [D] 참조. */
+    /* 알파 0.10 — 다크와 같다. 라이트에서는 틴트가 배경을 액센트 쪽으로 끌어올려
+       대비를 깎지만 8/8 이 AA 4.5 를 넘는다. 하단 감사표 [D] 참조. */
     --copper-soft: rgba(136, 62, 7, 0.10);
     --copper-line: rgba(136, 62, 7, 0.28);
 
@@ -95,13 +120,10 @@
     --warn: #875206;
     --warn-soft: rgba(135, 82, 6, 0.1);
     /* chart-only second series */
-    /* ── 채움 전용 토큰 ──────────────────────────────────────────
-       위에 텍스트가 없는 면(미터 바 · 차트선 · 활성 표시)에만 쓴다.
-       텍스트 대비 5.83 제약을 받지 않으므로 WCAG 그래픽 기준 3:1 만 지키고
-       나머지 여유를 전부 생동감에 쓴다. 텍스트용 --copper/--bull/--bear 와 분리. */
-    --copper-fill: #d06c0f;
-    --bull-fill: #1f9878;
-    --bear-fill: #f4483c;
+    /* 채움(미터 바 · 차트선 · 활성 표시)도 텍스트와 같은 토큰을 쓴다.
+       채움 전용 토큰을 따로 두면 같은 의미색이 두 색으로 갈라져
+       design-taste-frontend §4.2 COLOR CONSISTENCY LOCK 을 어긴다.
+       근거와 기각한 대안 3종은 docs/c-language-port/light-palette-trilemma.md 참조. */
     --benchmark: #1452db;
 
     /* ONE radius scale */
@@ -240,7 +262,7 @@
     bottom: 9px;
     width: 3px;
     border-radius: 0 var(--r) var(--r) 0;
-    background: var(--copper-fill);
+    background: var(--copper);
   }
 
   .nav-count {
@@ -574,9 +596,9 @@
     overflow: hidden;
     margin-top: 12px;
   }
-  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper-fill); }
-  .meter.bull > span { background: var(--bull-fill); }
-  .meter.bear > span { background: var(--bear-fill); }
+  .meter > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper); }
+  .meter.bull > span { background: var(--bull); }
+  .meter.bear > span { background: var(--bear); }
 
   /* ================= CHART ================= */
   .chart-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -612,9 +634,9 @@
   }
   .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--ink-2); }
   .legend-key { width: 16px; height: 3px; border-radius: var(--r); flex-shrink: 0; }
-  .legend-key.eq { background: var(--copper-fill); }
+  .legend-key.eq { background: var(--copper); }
   .legend-key.bm { background: var(--benchmark); }
-  .legend-key.dd { background: var(--bear-fill); }
+  .legend-key.dd { background: var(--bear); }
   .legend-val { font-family: var(--f-mono); font-weight: 600; color: var(--ink); }
 
   .chart-wrap { padding: 0 14px; }
@@ -624,9 +646,9 @@
   .grid-line { stroke: rgba(23, 26, 30, 0.1); stroke-width: 1; }
   .axis-line { stroke: #dfe2e5; stroke-width: 1; }
 
-  .eq-line { fill: none; stroke: var(--copper-fill); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .eq-line { fill: none; stroke: var(--copper); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .bm-line { fill: none; stroke: var(--benchmark); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; opacity: 0.9; }
-  .dd-line { fill: none; stroke: var(--bear-fill); stroke-width: 1.4; stroke-linejoin: round; }
+  .dd-line { fill: none; stroke: var(--bear); stroke-width: 1.4; stroke-linejoin: round; }
 
   .chart-note {
     display: flex;
@@ -812,6 +834,10 @@
     font-variant-numeric: tabular-nums;
     color: var(--ink);
   }
+  /* td.num(0,2,3) 이 .pos/.neg(0,1,0) 를 이겨 표의 손익 색이 두 테마 모두 죽어 있었다.
+     같은 명시도로 올려 되살린다. 이식 계획 S2 가 정본 공용 CSS 에 동일 반영한다. */
+  table.trades tbody td.num.pos { color: var(--bull); }
+  table.trades tbody td.num.neg { color: var(--bear); }
   table.trades tbody td:first-child { padding-left: 22px; }
   table.trades tbody td:last-child { padding-right: 22px; }
   table.trades tbody tr { transition: background var(--dur) var(--ease); }
@@ -1234,8 +1260,8 @@
           <svg viewBox="0 0 1000 302" role="img" aria-label="자산 곡선 차트. 전략은 10,000 USDT에서 22,740 USDT로 상승하고, 매수 후 보유 벤치마크는 18,610 USDT에서 끝납니다.">
             <defs>
               <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#d06c0f" stop-opacity="0.14" />
-                <stop offset="100%" stop-color="#d06c0f" stop-opacity="0" />
+                <stop offset="0%" stop-color="#883e07" stop-opacity="0.14" />
+                <stop offset="100%" stop-color="#883e07" stop-opacity="0" />
               </linearGradient>
             </defs>
 
@@ -1263,7 +1289,7 @@
             <polyline class="eq-line draw" points="64,257.5 86.8,254.1 109.6,259.2 132.4,250.6 155.2,243.7 178,235.1 200.8,238.5 223.6,224.7 246.4,216.1 269.2,221.3 292,209.2 314.8,197.1 337.6,202.3 360.4,212.7 383.2,204 406,190.2 428.8,178.2 451.6,185.1 474.4,169.5 497.2,157.5 520,166.1 542.8,197.1 565.6,185.1 588.4,167.8 611.2,145.4 634,133.3 656.8,140.2 679.6,126.4 702.4,112.6 725.2,119.5 748,135 770.8,121.2 793.6,105.7 816.4,91.9 839.2,100.5 862,81.6 884.8,67.8 907.6,76.4 930.4,60.9 953.2,48.8 976,37.7" />
 
             <!-- 마지막 지점 표식 -->
-            <circle cx="976" cy="37.7" r="3.4" fill="#d06c0f" />
+            <circle cx="976" cy="37.7" r="3.4" fill="#883e07" />
 
           </svg>
 
@@ -1278,7 +1304,7 @@
               <text class="axis-text" x="56" y="98" text-anchor="end">-16%</text>
             </g>
             <polyline class="dd-line" points="64,10 86.8,10 109.6,25.2 132.4,10 155.2,10 178,10 200.8,19.5 223.6,10 246.4,10 269.2,22.6 292,10 314.8,10 337.6,21.6 360.4,45.2 383.2,25.8 406,10 428.8,10 451.6,24.2 474.4,10 497.2,10 520,26.8 542.8,86.7 565.6,63 588.4,30 611.2,10 634,10 656.8,22.1 679.6,10 702.4,10 725.2,21.6 748,47.3 770.8,24.2 793.6,10 816.4,10 839.2,23.7 862,10 884.8,10 907.6,22.6 930.4,10 953.2,10 976,10" />
-            <circle cx="542.8" cy="86.7" r="3.2" fill="#f4483c" />
+            <circle cx="542.8" cy="86.7" r="3.2" fill="#ad322a" />
             <!-- 두 차트가 공유하는 x축 -->
             <g>
               <text class="axis-text" x="64" y="114" text-anchor="start">2024-01</text>
@@ -1732,26 +1758,26 @@
       토큰          값         카드     카드-2    본문bg    판정
       --ink        #171a1e    17.15    15.99    15.99    ok
       --ink-2      #4b535c     7.67     7.15     7.15    ok
-      --ink-3      #585f68     6.27     5.84     5.84    ok
-      --copper     #883e07     6.26     5.83     5.83    ok
-      --bull       #074b34     6.33     5.90     5.90    ok
-      --bear       #ad322a     6.27     5.85     5.85    ok
-      --warn       #875206     6.28     5.85     5.85    ok
+      --ink-3      #585f68     6.35     5.92     5.92    ok
+      --copper     #883e07     7.53     7.02     7.02    ok
+      --bull       #074b34     9.99     9.32     9.32    ok
+      --bear       #ad322a     6.32     5.89     5.89    ok
+      --warn       #875206     6.37     5.94     5.94    ok
       --benchmark  #1452db     6.33     5.90     5.90    ok
 
-      8/8 이 카드(6.26 이상) 와 본문 배경(5.83 이상) 양쪽에서 캐논을 만족한다.
-      가장 빡빡한 칸은 --copper 의 본문 배경 5.83 으로, 캐논에 정확히 걸친다.
+      8/8 이 카드(6.32 이상) 와 본문 배경(5.89 이상) 양쪽에서 캐논 5.82 를 만족한다.
+      가장 빡빡한 칸은 --bear 의 본문 배경 5.89 다.
 
   [B] 코퍼 버튼 위 텍스트
-      --copper-ink #ffffff on --copper #883e07 = 6.37:1 (btn-primary · pg.active · brand-mark)
+      --copper-ink #ffffff on --copper #883e07 = 7.67:1 (btn-primary · pg.active · brand-mark)
       순백 금지 규칙(§8.B)은 표면에 적용되는 것이라 --card 는 #fdfdfc 를 쓰고,
       채도 높은 코퍼 버튼 위 글자에는 순백을 그대로 쓴다.
 
   [C] 다크 정본 대비 (같은 항목, 각자의 --card 위)
-      --ink        15.04 -> 17.15      --bull        9.57 -> 6.33
-      --ink-2       8.00 ->  7.67      --bear        6.09 -> 6.27
-      --ink-3       5.83 ->  6.27      --warn        8.70 -> 6.28
-      --copper      7.33 ->  6.26      --benchmark   7.01 -> 6.33
+      --ink        15.04 ->  17.15      --bull        9.57 ->   9.99
+      --ink-2       8.36 ->   7.67      --bear        6.09 ->   6.32
+      --ink-3       5.83 ->   6.35      --warn        8.70 ->   6.37
+      --copper      7.33 ->   7.53      --benchmark   7.01 ->   6.33
       라이트가 다크보다 낮아지는 칸이 있지만 전부 캐논 위다. 라이트는 배경이 밝아
       채도 높은 색이 다크만큼의 여유를 못 갖는 것이 정상이고, 그래서 하한을 캐논에 맞춰 잡았다.
 
@@ -1759,18 +1785,19 @@
       캐논 5.83 은 --card 위 기준이고, 틴트 칩과 --card-3 같은 중첩 표면은 AA 4.5 로 본다.
       다크 정본도 .side.short 를 5.24 로 실었으므로 이 구분은 라이트가 새로 만든 것이 아니다.
 
-      .nav-item.active  copper / copper-soft / bg-alt  #e7e4e2   5.03  (다크 6.40)  ok
-      .eyebrow .num     copper / copper-soft / card    #f7f2ed   5.73  (다크 6.12)  ok
-      .cta-badge        copper / copper-soft / card    #f7f2ed   5.73  (다크 6.12)  ok
-      .tab.active       copper / card-3                #e9ebed   5.33  (다크 6.48)  ok
-      .chip.done        bull   / bull-soft   / card    #e5efea   5.46  (다크 7.69)  ok
-      .side.long        bull   / bull-soft   / card    #e5efea   5.46  (다크 7.69)  ok
-      .side.short       bear   / bear-soft   / card    #f5e9e7   5.37  (다크 5.24)  ok
-      .state-code       warn   / warn-soft   / card    #f1ece3   5.43  (다크 7.34)  ok
+      .nav-item.active  --copper #e2dcd9   5.65
+      .eyebrow .num     --copper #f1eae4   6.44
+      .cta-badge        --copper #f1eae4   6.44
+      .tab.active       --copper #e9ebed   6.42
+      .chip.done        --bull   #e4ebe8   8.40
+      .side.long        --bull   #e4ebe8   8.40
+      .side.short       --bear   #f5e9e7   5.42
+      .state-code       --warn   #f1ece3   5.51
 
-      --copper-soft 만 알파를 0.12 에서 0.06 으로 낮췄다. 라이트에서는 틴트가 배경을 액센트
-      쪽으로 끌어올려 대비를 깎기 때문에, 다크와 같은 알파를 쓰면 .nav-item.active 가
-      4.75:1 까지 내려간다. 0.06 에서 5.03 이 된다. 나머지 틴트는 다크와 같은 0.10 을 유지했다.
+      틴트 알파는 전부 0.10 이다(다크와 동일). 라이트에서는 틴트가 배경을 액센트 쪽으로
+      끌어올려 대비를 깎으므로 다크보다 여유가 없지만, 8/8 이 AA 4.5 를 넘는다.
+      [정정] 이 문서의 이전 판은 --copper-soft 를 0.06 으로 낮췄다고 적었으나 실제 값은 0.10 이며,
+      0.06 에서 5.03 이 된다는 서술도 재실측과 맞지 않는다(0.10 에서 5.65 · 0.06 에서 6.01).
       .nav-item.active 의 상한은 틴트가 아니라 --bg-alt #eceef0 자체다. 틴트를 0 으로 해도
       5.47 이 천장이라 이 칸은 캐논에 도달할 수 없고, 활성 표시는 좌측 3px 코퍼 바와
       font-weight 600 이 함께 지고 있다.
