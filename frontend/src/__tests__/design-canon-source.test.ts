@@ -13,7 +13,7 @@
 // 현재 100건 안에는 정당한 것이 섞여 있다 —
 //   - `unsupported-builtin-hints.ts` 29건 = hint 데이터의 절 구분자
 //   - `privacy/page.tsx` 6건 = `<strong>Clerk</strong> — 인증` 정의 목록
-//   - `kill-switch-modal.tsx` 3건 = S8 에서 삭제 예정인 죽은 파일
+//   - `kill-switch-modal.tsx` 는 S8 에서 삭제됐다 (죽은 파일). allowlist 에서 함께 제거.
 // 이 가드의 역할은 **새 노출 em-dash 를 막는 것** 뿐이다. 어느 것을 실제로 고칠지는
 // S1b 의 사람 판단이며, 그때 아래 allowlist 를 함께 줄인다.
 //
@@ -243,7 +243,6 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/strategies/new/_components/parse-preview-panel.tsx", 1],
   ["app/(dashboard)/strategies/new/_components/parse-result-panel.tsx", 1],
   ["app/(dashboard)/trading/_components/kill-switch-banner.tsx", 1],
-  ["app/(dashboard)/trading/_components/kill-switch-modal.tsx", 3], // S8 삭제 예정 (죽은 파일)
   ["app/(dashboard)/trading/_components/trading-dash-hero.tsx", 1],
   ["app/_components/landing-bento.tsx", 1],
   ["app/_components/landing-hero.tsx", 1],
