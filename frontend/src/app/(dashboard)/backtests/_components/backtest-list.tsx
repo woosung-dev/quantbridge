@@ -158,11 +158,16 @@ export function BacktestList() {
             </div>
           </div>
 
+          {/* total 은 BE 전역 건수지만 상태 분해는 client-side counts 라 현재 페이지(≤20)만
+              반영한다. 페이지가 더 있으면 '이 페이지 기준' 을 붙여 전역 집계로 오인하지 않게
+              한다. 대기(queued)는 실행 중(running)에 합치지 않고, 취소(cancelled)도 함께 센다. */}
           <p className="runs-summary">
-            <span className="mono">{total}</span>건 · 완료{" "}
+            <span className="mono">{total}</span>건 · {hasMorePages ? "이 페이지 기준 " : ""}완료{" "}
             <span className="mono">{counts.completed}</span> · 실행 중{" "}
-            <span className="mono">{counts.running + counts.queued}</span> · 실패{" "}
-            <span className="mono">{counts.failed}</span>
+            <span className="mono">{counts.running}</span> · 대기{" "}
+            <span className="mono">{counts.queued}</span> · 실패{" "}
+            <span className="mono">{counts.failed}</span> · 취소{" "}
+            <span className="mono">{counts.cancelled}</span>
           </p>
           {hasMorePages ? (
             <p className="runs-summary" data-testid="backtest-filter-notice">
