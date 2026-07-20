@@ -199,7 +199,6 @@ const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["components/skeleton.tsx", 1],
   ["components/tape/pnl-tape.tsx", 1],
   ["components/tape/tape-progress.tsx", 1],
-  ["components/ui/badge.tsx", 1],
 ];
 
 /**
