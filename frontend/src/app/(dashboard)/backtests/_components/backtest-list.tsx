@@ -18,6 +18,7 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
+import { BACKTEST_STATUS_FILTER_LABEL } from "@/features/backtest/labels";
 import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
 import { formatDateTime } from "@/features/backtest/utils";
@@ -26,13 +27,14 @@ import { RunningProgressBar } from "@/app/(dashboard)/backtests/_components/runn
 import { BacktestStatusBadge } from "@/app/(dashboard)/backtests/_components/status-badge";
 
 const PAGE_SIZE = 20;
-const STATUS_FILTERS: ReadonlyArray<{ id: "all" | BacktestStatus; label: string }> = [
-  { id: "all", label: "전체" },
-  { id: "completed", label: "완료" },
-  { id: "running", label: "실행중" },
-  { id: "queued", label: "대기" },
-  { id: "failed", label: "실패" },
-  { id: "cancelled", label: "취소" },
+// 라벨은 용어 SSOT(BACKTEST_STATUS_FILTER_LABEL)에서 파생 — 배지 표기와 불일치 방지.
+const STATUS_FILTERS: ReadonlyArray<{ id: "all" | BacktestStatus }> = [
+  { id: "all" },
+  { id: "completed" },
+  { id: "running" },
+  { id: "queued" },
+  { id: "failed" },
+  { id: "cancelled" },
 ];
 
 export function BacktestList() {
@@ -155,7 +157,7 @@ export function BacktestList() {
                     : "border-[color:var(--border)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-alt)]")
               }
             >
-              {f.label}
+              {BACKTEST_STATUS_FILTER_LABEL[f.id]}
             </button>
           );
         })}
