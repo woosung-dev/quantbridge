@@ -1,29 +1,26 @@
 "use client";
 
-// 인증된 앱 페이지 공통 App Shell — Sidebar(220px) + Header(64px) + 콘텐츠.
-// Sprint 41-B2: 프로토타입 06/09/02/03 visual layout 정합 (sidebar w-[220px], 페이지 타이틀 slot).
-// Sprint 42-polish-3 (2026-05-08): 화이트 모드 통일 — /trading 의 Full Dark scope 제거 (사용자 결정).
-// Sprint 44-WC1 (2026-05-08): App Shell sidebar/header inline polish — DESIGN.md §10.2 active 스타일 정합.
-// Sprint 45 (2026-05-09): 4 컴포넌트 분리 — DashboardSidebar / DashboardHeader / DashboardNavList.
-//   Shell 은 useUiStore + usePathname + derivePageTitle 만 보유 (state composition root).
+// 인증된 앱 페이지 공통 App Shell — 프로토타입(screen-02) 셸 구조.
+// C 이식 S3: position:fixed .sidebar + margin-left .topbar/.main 모델로 재작성(구 flex 모델 대체).
+//   sidebarOpen 토글 상태를 삭제했다 — 데스크톱 접힘은 순수 CSS 아이콘 레일(globals.css @media)이
+//   담당하고, 셸은 스토어를 구독하지 않아 mobileNav 토글이 페이지 트리를 리렌더하지 않는다.
+//   셸 = usePathname + derivePageTitle 만 보유(state composition root).
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-
-import { useUiStore } from "@/store/ui-store";
 
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNav } from "./mobile-nav";
 
-// 페이지 타이틀 매핑 (헤더 slot). 없는 경로는 빈 문자열 — 헤더 좌측이 비어 보이지 않도록
-// fallback="QuantBridge" 적용은 prefer X (시각적 노이즈). 미매핑 경로는 그냥 빈 슬롯.
+// 페이지 타이틀 매핑 (상단바 breadcrumb). 미매핑 경로는 빈 슬롯.
 const PAGE_TITLE_MAP: Record<string, string> = {
   "/dashboard": "대시보드",
   "/strategies": "전략",
   "/strategies/new": "새 전략",
   "/backtests": "백테스트",
   "/backtests/new": "새 백테스트",
+  "/optimizer": "옵티마이저",
   "/trading": "트레이딩",
   "/orders": "주문 내역",
   "/onboarding": "온보딩",
@@ -31,38 +28,29 @@ const PAGE_TITLE_MAP: Record<string, string> = {
 
 function derivePageTitle(pathname: string | null): string {
   if (!pathname) return "";
-  // exact match 우선
   if (PAGE_TITLE_MAP[pathname]) return PAGE_TITLE_MAP[pathname];
-  // /backtests/[id], /strategies/[id]/edit 등 prefix
   if (pathname.startsWith("/backtests/")) return "백테스트";
   if (pathname.startsWith("/strategies/")) return "전략";
+  if (pathname.startsWith("/optimizer/")) return "옵티마이저";
   if (pathname.startsWith("/trading")) return "트레이딩";
   return "";
 }
 
 export function DashboardShell({ children }: { children: ReactNode }) {
-  const { sidebarOpen, toggleSidebar } = useUiStore();
   const pathname = usePathname();
   const pageTitle = derivePageTitle(pathname);
 
   return (
-    <div className="flex min-h-dvh bg-[color:var(--background)] text-[color:var(--foreground)]">
-      <DashboardSidebar sidebarOpen={sidebarOpen} pathname={pathname} />
-      {/* Sprint 60 S4 (BL-285/300): 모바일 drawer — Sheet 기반 left-side, mobile-only (md:hidden) */}
+    <>
+      {/* position:fixed — 문서 흐름 밖. .topbar/.main 이 margin-left 로 자리를 비운다. */}
+      <DashboardSidebar pathname={pathname} />
+      {/* 모바일 drawer — Sheet 기반 left-side, ≤768px 햄버거로 연다 (md:hidden). */}
       <MobileNav pathname={pathname} />
-      {/* Sprint 61 T-1 (BL-340): flex 자식의 default min-width:auto 가 자식 min-content
-          폭 (KPI sublabel + 한국어 long string) 을 부모에 강제 → 모바일 viewport overflow.
-          min-w-0 로 flex shrink 허용 → 모든 dashboard 페이지 horizontal overflow 0. */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <DashboardHeader
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={toggleSidebar}
-          pageTitle={pageTitle}
-        />
-        <main id="main-content" className="min-w-0 flex-1">
-          {children}
-        </main>
-      </div>
-    </div>
+      <DashboardHeader pageTitle={pageTitle} />
+      {/* #main-content = 스킵 링크 대상(app/layout.tsx). .main = margin-left 오프셋. */}
+      <main id="main-content" className="main">
+        {children}
+      </main>
+    </>
   );
 }

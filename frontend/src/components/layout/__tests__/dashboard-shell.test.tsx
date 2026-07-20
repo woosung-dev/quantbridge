@@ -1,5 +1,5 @@
-// DashboardShell — Sprint 41-B2 (App Shell prototype 정합) 단위 테스트.
-// pageTitle slot 자동 derivation + /trading 진입 시 data-theme="dash" 자동 토글 검증.
+// DashboardShell — C 이식 S3 (프로토타입 셸 구조) 단위 테스트.
+// breadcrumb pageTitle 자동 derivation + nav 6개(disabled 0) + nav-count 배지 정직성.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
@@ -16,14 +16,9 @@ vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div data-testid="user-button" />,
 }));
 
-// useUiStore — sidebarOpen=true 기본 (proto 06/09 상태). selector 호환 mock.
-// Sprint 60 S4: mobileNavOpen / setMobileNavOpen 추가 (MobileNav drawer state). 기본 false 라
-// drawer 미렌더 → desktop sidebar 와의 nav label 중복 방지.
+// C 이식 S3: 스토어에서 sidebarOpen/toggleSidebar/setSidebarOpen 삭제 — mobileNav 만 남는다.
 const mockUiState = {
-  sidebarOpen: true,
   mobileNavOpen: false,
-  toggleSidebar: () => {},
-  setSidebarOpen: () => {},
   setMobileNavOpen: () => {},
 };
 vi.mock("@/store/ui-store", () => ({
@@ -31,37 +26,45 @@ vi.mock("@/store/ui-store", () => ({
     selector ? selector(mockUiState) : mockUiState,
 }));
 
+// nav-count 3개 = 목록 스키마 total 재사용. 셸 테스트는 데이터 페치를 격리하려 훅을 mock.
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategies: () => ({ data: { total: 12 } }),
+}));
+vi.mock("@/features/backtest/hooks", () => ({
+  useBacktests: () => ({ data: { total: 48 } }),
+}));
+vi.mock("@/features/trading/hooks", () => ({
+  useOrders: () => ({ data: { total: 14 } }),
+}));
+
 afterEach(() => {
   cleanup();
   mockPathname = "/strategies";
 });
 
-describe("DashboardShell — Sprint 41-B2 prototype layout", () => {
-  it("/strategies 에서 페이지 타이틀 '전략' 이 헤더 slot 에 노출된다", () => {
+describe("DashboardShell — C 이식 S3 프로토타입 셸", () => {
+  it("/strategies 에서 breadcrumb 에 '전략' 이 노출된다", () => {
     mockPathname = "/strategies";
     render(
       <DashboardShell>
         <p>content</p>
       </DashboardShell>,
     );
-    expect(
-      screen.getAllByRole("heading", { name: "전략" }).length,
-    ).toBeGreaterThan(0);
+    // crumbs 의 .here + nav aria-label 이 겹칠 수 있어 텍스트 존재만 확인.
+    expect(screen.getAllByText("전략").length).toBeGreaterThan(0);
   });
 
-  it("/backtests/abc 에서 prefix 매칭으로 '백테스트' 가 헤더에 노출된다", () => {
+  it("/backtests/abc 에서 prefix 매칭으로 breadcrumb '백테스트' 가 노출된다", () => {
     mockPathname = "/backtests/abc-123";
     render(
       <DashboardShell>
         <p>content</p>
       </DashboardShell>,
     );
-    expect(
-      screen.getAllByRole("heading", { name: "백테스트" }).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("백테스트").length).toBeGreaterThan(0);
   });
 
-  it("/trading 에서도 data-theme=\"dash\" 가 적용되지 않는다 (Sprint 42-polish-3 화이트 통일)", () => {
+  it("data-theme=\"dash\" 스코프가 새지 않는다 (라이트/다크 앱 전역 토글)", () => {
     mockPathname = "/trading";
     const { container } = render(
       <DashboardShell>
@@ -71,52 +74,34 @@ describe("DashboardShell — Sprint 41-B2 prototype layout", () => {
     expect(container.querySelector("[data-theme=\"dash\"]")).toBeNull();
   });
 
-  it("/strategies 에서도 dash 테마가 적용되지 않는다 (Light 통일)", () => {
-    mockPathname = "/strategies";
+  it("nav 6개가 모두 링크로 렌더되고 disabled(곧 출시) 항목이 없다", () => {
     const { container } = render(
       <DashboardShell>
         <p>content</p>
       </DashboardShell>,
     );
-    expect(container.querySelector("[data-theme=\"dash\"]")).toBeNull();
-  });
-
-  // Sprint 61 T-1 (BL-340) — flex shell 의 자식이 min-w-0 으로 shrink 허용해야
-  // 자식 콘텐츠 (예: 한국어 long sublabel) 가 모바일 viewport 폭 초과 시 부모를
-  // 강제로 늘리지 않는다. min-w-0 missing → trading +227px overflow (Mobile QA 발견).
-  it("flex shell 와 main element 가 min-w-0 을 가져 자식 overflow 차단한다 (BL-340)", () => {
-    mockPathname = "/trading";
-    const { container } = render(
-      <DashboardShell>
-        <p>content</p>
-      </DashboardShell>,
-    );
-    // main 의 부모 (= flex flex-col 컨테이너) 는 min-w-0 필수.
-    const main = container.querySelector("#main-content");
-    expect(main).not.toBeNull();
-    expect(main!.className).toMatch(/\bmin-w-0\b/);
-    const flexCol = main!.parentElement;
-    expect(flexCol).not.toBeNull();
-    expect(flexCol!.className).toMatch(/\bmin-w-0\b/);
-  });
-
-  it("sidebar nav 에 활성 항목 (대시보드/전략/백테스트/트레이딩) 와 disabled 2개 (템플릿/거래소) 가 렌더된다", () => {
-    render(
-      <DashboardShell>
-        <p>content</p>
-      </DashboardShell>,
-    );
-    // 활성 (link)
-    expect(screen.getByRole("link", { name: /대시보드/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /전략/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /백테스트/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /트레이딩/ })).toBeInTheDocument();
-    // disabled (aria-disabled span)
-    const disabledLabels = ["템플릿", "거래소"];
-    for (const label of disabledLabels) {
-      const item = screen.getByText(label);
-      const span = item.closest("[aria-disabled=\"true\"]");
-      expect(span).not.toBeNull();
+    // 프로토타입 6개 — 전부 실제 라우트(링크). 데스크톱 sidebar 만 렌더(모바일 drawer 는 닫힘).
+    for (const label of ["대시보드", "전략", "백테스트", "옵티마이저", "트레이딩", "주문"]) {
+      expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
     }
+    // disabled 항목 제거 확인 — aria-disabled 요소 0.
+    expect(container.querySelectorAll('[aria-disabled="true"]').length).toBe(0);
+  });
+
+  it("nav-count 배지 3개가 목록 total 로 렌더되고, 주문 배지는 전체 원장임을 툴팁으로 밝힌다", () => {
+    const { container } = render(
+      <DashboardShell>
+        <p>content</p>
+      </DashboardShell>,
+    );
+    const badges = container.querySelectorAll(".nav-count");
+    // 전략/백테스트/주문 = 3개.
+    expect(badges.length).toBe(3);
+    const texts = Array.from(badges).map((b) => b.textContent);
+    expect(texts).toEqual(["12", "48", "14"]);
+    // 주문 배지 = 미체결이 아니라 전체 원장임을 정직하게 표기.
+    const ordersBadge = Array.from(badges).find((b) => b.textContent === "14");
+    expect(ordersBadge?.getAttribute("title")).toMatch(/전체 주문/);
+    expect(ordersBadge?.getAttribute("title")).toMatch(/미체결/);
   });
 });

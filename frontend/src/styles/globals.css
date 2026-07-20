@@ -167,6 +167,30 @@
 }
 
 /* ───────────────────────────────────────────────
+ * 아이콘 레일 브레이크포인트 — --sidebar-w 언레이어드 오버라이드 (C 이식 S3).
+ * S2 이식 블록(KITPORT)의 @media { :root { --sidebar-w } } 는 @layer components
+ * 소속이라, 언레이어드 base :root(--sidebar-w:232px)에 캐스케이드로 항상 진다
+ * (언레이어드 > 레이어드, 명시도 무관). 레일이 발동하려면 언레이어드 레벨에서
+ * 같은 미디어를 다시 선언해야 한다. 값·브레이크포인트는 _kit.html 과 동일.
+ *   ≤1024px = 아이콘 레일 64px / ≤768px = 숨김 0px (햄버거 + 모바일 drawer).
+ * KITPORT 이식 블록은 무결성 가드가 잠그므로 건드리지 않고 여기서 오버라이드한다.
+ * ───────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  :root { --sidebar-w: 64px; }
+}
+@media (max-width: 768px) {
+  :root { --sidebar-w: 0px; }
+}
+
+/* 모바일 nav drawer 는 .nav-item 시각을 재사용하지만 아이콘 레일 collapse 는 받지 않는다.
+   KITPORT 의 @media(≤1024) .nav-item 축소·라벨 숨김 규칙을 언레이어드(더 높은 명시도)로
+   되돌린다 — drawer 는 항상 풀 라벨. Sheet 는 Portal 이라 body 위치에서도 이 스코프가 닿는다. */
+@media (max-width: 1024px) {
+  .qb-mobile-nav .nav-item { justify-content: flex-start; padding: 8px 10px; }
+  .qb-mobile-nav .nav-item .label { display: block; }
+}
+
+/* ───────────────────────────────────────────────
  * Tailwind v4 theme 매핑 — CSS 변수를 Tailwind 토큰으로 노출
  * Sprint 7c Task 1 Step 1.4b: breakpoint 재정렬 (DESIGN.md §4.3)
  * ───────────────────────────────────────────── */

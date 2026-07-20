@@ -1,106 +1,85 @@
-// 사이드바 nav 항목 리스트 — pathname 기반 active state + disabled 항목 표시.
-// Sprint 45: dashboard-shell.tsx 에서 분리. props 로 sidebarOpen, pathname 받음.
-// Precision Instrument: active = 캘리브레이션 틱 노치(.qb-tick-active) —
-// border-left 방식과 달리 레이아웃 시프트 없음 (pl 보정 불필요).
+// 사이드바 nav 항목 리스트 — pathname 기반 active + nav-count 배지.
+// C 이식 S3: 프로토타입(screen-02) nav 6개로 정렬 + disabled 2개(/templates·/exchanges) 제거.
+//   시맨틱 클래스(.nav / .nav-item / .label / .nav-count)를 소비하고, 1024px 아이콘 레일은
+//   순수 CSS(.label display:none)로 접힌다 — JS 분기 없음. 라벨이 숨는 레일에서도 접근 가능한
+//   이름을 위해 <a> 에 aria-label 을 둔다.
+//   nav-count 는 상위(sidebar)가 목록 total 을 프롭으로 주입한다 — 이 컴포넌트는 페치하지 않는다.
 
 import Link from "next/link";
 import {
-  Home as HomeIcon,
-  Code as CodeIcon,
-  Layers as LayersIcon,
-  BarChart as BarChartIcon,
-  SlidersHorizontal as SlidersIcon,
-  Zap as ZapIcon,
-  Receipt as ReceiptIcon,
-  Globe as GlobeIcon,
+  LayoutDashboard as DashboardIcon,
+  Code2 as StrategyIcon,
+  BarChart3 as BacktestIcon,
+  Settings as OptimizerIcon,
+  Activity as TradingIcon,
+  ClipboardList as OrdersIcon,
   type LucideIcon,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+// nav-count 가 붙는 항목의 데이터 키. 셸이 목록 스키마 total 로 채운다.
+export type NavCountKey = "strategies" | "backtests" | "orders";
+export type NavCounts = Partial<Record<NavCountKey, number>>;
 
 type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  disabled: boolean;
+  countKey?: NavCountKey;
 };
 
-// Sprint 61 T-8 (BL-323): Optimizer 페이지 노출. Sprint 54-56 으로 Grid/Bayesian/Genetic
-// 3 모드 구축됐으나 사이드바 미노출 → 잠재 고객 "기능 진짜 있나" 의문 발생 (Curious 페르소나).
+// 프로토타입 screen-02 워크스페이스 nav 6개 (순서·라벨 정합).
 export const navItems: readonly NavItem[] = [
-  { href: "/dashboard", label: "대시보드", icon: HomeIcon, disabled: false },
-  { href: "/strategies", label: "전략", icon: CodeIcon, disabled: false },
-  { href: "/templates", label: "템플릿", icon: LayersIcon, disabled: true },
-  { href: "/backtests", label: "백테스트", icon: BarChartIcon, disabled: false },
-  { href: "/optimizer", label: "최적화", icon: SlidersIcon, disabled: false },
-  { href: "/trading", label: "트레이딩", icon: ZapIcon, disabled: false },
-  { href: "/orders", label: "주문 내역", icon: ReceiptIcon, disabled: false },
-  { href: "/exchanges", label: "거래소", icon: GlobeIcon, disabled: true },
+  { href: "/dashboard", label: "대시보드", icon: DashboardIcon },
+  { href: "/strategies", label: "전략", icon: StrategyIcon, countKey: "strategies" },
+  { href: "/backtests", label: "백테스트", icon: BacktestIcon, countKey: "backtests" },
+  { href: "/optimizer", label: "옵티마이저", icon: OptimizerIcon },
+  { href: "/trading", label: "트레이딩", icon: TradingIcon },
+  { href: "/orders", label: "주문", icon: OrdersIcon, countKey: "orders" },
 ] as const;
 
+// 주문 배지의 정직성 표기. 캐논상 nav-count 는 "미체결 수(대기+전송)"지만, 새 API 없이
+// limit=1 로 재사용할 수 있는 값은 목록 total = 전체 원장 건수뿐이다 — 두 수는 다르다.
+// 그래서 미체결로 표기하지 않고 툴팁으로 "전체 주문"임을 밝힌다(context-notes §nav-count).
+function countTitle(key: NavCountKey, value: number): string {
+  switch (key) {
+    case "strategies":
+      return `전략 ${value}개`;
+    case "backtests":
+      return `백테스트 ${value}개`;
+    case "orders":
+      return `전체 주문 ${value}건 (미체결 수 아님)`;
+  }
+}
+
 type DashboardNavListProps = {
-  sidebarOpen: boolean;
   pathname: string | null;
+  // 미제공 시 배지를 렌더하지 않는다 (모바일 drawer 는 배지를 쓰지 않는다).
+  counts?: NavCounts;
 };
 
-export function DashboardNavList({ sidebarOpen, pathname }: DashboardNavListProps) {
+export function DashboardNavList({ pathname, counts }: DashboardNavListProps) {
   return (
-    <nav
-      aria-label="메인 내비게이션"
-      className="flex flex-1 flex-col gap-1 px-2 py-2"
-    >
+    <nav className="nav" aria-label="주요 메뉴">
       {navItems.map((item) => {
         const isActive = pathname?.startsWith(item.href) ?? false;
         const Icon = item.icon;
-        // Sprint 44-WC1: motion-safe transition 200ms (DESIGN.md §10.2 prototype 06).
-        // motion-reduce:transition-none → prefers-reduced-motion 보호.
-        const baseClass = cn(
-          "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm",
-          "transition-[background-color,color] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
-          "motion-reduce:transition-none",
-          sidebarOpen ? "justify-start" : "justify-center",
-        );
-
-        if (item.disabled) {
-          return (
-            <span
-              key={item.href}
-              aria-disabled="true"
-              title="곧 출시"
-              className={cn(
-                baseClass,
-                "cursor-not-allowed text-[color:var(--muted-foreground)] opacity-50",
-              )}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden="true" />
-              {sidebarOpen && <span className="truncate">{item.label}</span>}
-            </span>
-          );
-        }
-
-        // Precision Instrument: active = primary-light bg + primary text +
-        // 캘리브레이션 틱 노치 (globals.css .qb-tick-active).
-        // hover = bg-alt (sidebar-accent) — active 와 명확히 구분.
+        const count = item.countKey ? counts?.[item.countKey] : undefined;
         return (
           <Link
             key={item.href}
             href={item.href}
+            aria-label={item.label}
             aria-current={isActive ? "page" : undefined}
-            className={cn(
-              baseClass,
-              isActive
-                ? "qb-tick-active bg-[color:var(--primary-light)] font-medium text-[color:var(--primary)]"
-                : "text-[color:var(--muted-foreground)] hover:bg-[color:var(--sidebar-accent)] hover:text-[color:var(--sidebar-accent-foreground)]",
-            )}
+            className={isActive ? "nav-item active" : "nav-item"}
           >
-            <Icon
-              className={cn(
-                "size-4 shrink-0",
-                isActive && "stroke-[color:var(--primary)]",
-              )}
-              aria-hidden="true"
-            />
-            {sidebarOpen && <span className="truncate">{item.label}</span>}
+            {/* size 클래스를 붙이지 않는다 — .nav-item svg 시맨틱 CSS(17px·stroke 1.6)가 제어. */}
+            <Icon aria-hidden="true" />
+            <span className="label">{item.label}</span>
+            {item.countKey && typeof count === "number" && (
+              <span className="nav-count" title={countTitle(item.countKey, count)}>
+                {count}
+              </span>
+            )}
           </Link>
         );
       })}
