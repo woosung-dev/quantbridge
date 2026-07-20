@@ -64,6 +64,26 @@ const TOKEN_MAP: ReadonlyArray<readonly [canon: string, app: string]> = [
  */
 const KNOWN_MISMATCHES: ReadonlyArray<{ canon: string; fixedBy: string }> = [];
 
+/**
+ * 캐논 비색상 상수. 색 매핑표(TOKEN_MAP)와 달리 이름이 캐논과 동일하고 테마 무관이라
+ * 앱 `:root` 에 직접 정의된다(`.dark` 오버라이드 없음). S2 공용 CSS 가 소비하므로
+ * 값이 어긋나면 런타임 에러 없이 그림자/모션/치수/폰트만 틀린다 — 색 회귀와 같은 종류의
+ * 조용한 회귀다. 아래 검사가 캐논 `:root` ↔ 앱 `:root` 값 일치를 강제한다.
+ */
+const NON_COLOR_TOKENS = [
+  "--r",
+  "--shadow",
+  "--shadow-hi",
+  "--ease",
+  "--dur",
+  "--sidebar-w",
+  "--topbar-h",
+  "--f-body",
+  "--f-display",
+  "--f-mono",
+] as const;
+const NON_COLOR_SET: ReadonlySet<string> = new Set(NON_COLOR_TOKENS);
+
 /** `:root { ... }` / `.dark { ... }` 블록에서 커스텀 프로퍼티만 뽑는다. */
 function readTokenBlock(source: string, blockPattern: RegExp): Map<string, string> {
   const block = source.match(blockPattern);
@@ -98,6 +118,11 @@ const appDarkTokens = readTokenBlock(
   readFileSync(GLOBALS_CSS, "utf-8"),
   /^\.dark\s*\{[\s\S]*?^\}/m,
 );
+// 비색상 상수는 테마 무관이라 `.dark` 가 아니라 `:root` 에 산다.
+const appRootTokens = readTokenBlock(
+  readFileSync(GLOBALS_CSS, "utf-8"),
+  /^:root\s*\{[\s\S]*?^\}/m,
+);
 
 function findMismatches(): { canon: string; app: string; canonValue: string; appValue: string }[] {
   const mismatches: { canon: string; app: string; canonValue: string; appValue: string }[] = [];
@@ -125,11 +150,27 @@ describe("C 디자인 언어 캐논 토큰 정합 (이식 S1a 안전망)", () =>
   it("매핑표가 캐논의 색·표면 토큰을 빠짐없이 덮는다", () => {
     const mapped = new Set(TOKEN_MAP.map(([canon]) => canon));
     const uncovered = [...canonTokens.keys()].filter((token) => {
-      // 색·표면 토큰만 대상. 타이포·모션·치수는 별도 슬라이스가 다룬다.
-      const isNonColor = /^--(r|shadow|shadow-hi|ease|dur|sidebar-w|topbar-h|f-body|f-display|f-mono)$/.test(token);
-      return !isNonColor && !mapped.has(token);
+      // 색·표면 토큰만 대상. 비색상 상수(NON_COLOR_TOKENS)는 아래 별도 검사가 값까지 대조한다.
+      return !NON_COLOR_SET.has(token) && !mapped.has(token);
     });
     expect(uncovered, `매핑표에서 빠진 캐논 토큰: ${uncovered.join(", ")}`).toEqual([]);
+  });
+
+  it("비색상 캐논 상수가 앱 :root 값과 일치한다", () => {
+    const mismatches = NON_COLOR_TOKENS.flatMap((token) => {
+      const canonValue = canonTokens.get(token);
+      const appValue = appRootTokens.get(token);
+      if (canonValue === undefined) return [`${token}: 캐논 정본에 없음`];
+      if (appValue === undefined) return [`${token}: 앱 :root 에 없음`];
+      if (normalize(canonValue) !== normalize(appValue)) {
+        return [`${token}: 캐논 ${canonValue} / 앱 ${appValue}`];
+      }
+      return [];
+    });
+    expect(
+      mismatches,
+      `캐논과 어긋난 비색상 상수:\n${mismatches.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("매핑표의 앱 토큰이 전부 .dark 에 실재한다", () => {
