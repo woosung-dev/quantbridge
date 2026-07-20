@@ -93,13 +93,13 @@
 - 현재 실측. 완전형 `그리드 탐색` = `screen-09-optimizer-list.html:1200` 셀렉트 옵션 · `:1291` `:1319` `:1366` · `screen-10-optimizer-detail.html:1221` `:1248`. **폐기 표기 `격자` 는 노출 카피 0건** 이고, `screen-10-optimizer-detail.html:1908` 감사 주석의 해소 기록 1건만 남았다. 축약 `그리드` 단독 = `screen-12-onboarding.html:1555` `:1556` · `screen-14-landing.html:1367` `:1368` · `screen-16-pricing.html:1260` `:1392` · `screen-17-waitlist.html:1353`.
 - 근거. `screen-10-optimizer-detail.html:1908` 이 `grid_search  -> "그리드 탐색" 으로 고정. "격자" 표기는 전부 제거했고, 3 x 3 배치를 가리킬 때는 "히트맵" 을 쓴다.` 라고 선언했다. 마케팅·온보딩 화면의 축약형은 3방식 나열 문맥의 생략이라 별도 enum 이 아니라 표기 축약이며, 라벨을 하나로 잠그면 자동 해소된다.
 
-#### B5. `sharpe_ratio` = 샤프 지수 (표 헤더 축약은 `abbr="샤프"`)
+#### B5. `sharpe_ratio` = 샤프 지수 (좁은 칸 축약 `샤프` 허용 · `abbr="샤프"` 형태는 폐기)
 
 - 탈락. `샤프` 단독 표기.
 - 실측. `샤프 지수` = `screen-09-optimizer-list.html:1209` 셀렉트 옵션(09 전역 4행) · **`screen-10-optimizer-detail.html` 전역 24행 = 노출 카피 16행(1259/1264/1271/1304/1309/1323/1415/1427/1443/1529/1535/1561/1602/1603/1613/1639) + 감사 주석 8행(1825/1847/1848/1852/1854/1862/1906/1918)**. 한 행에 2회 인쇄하는 곳이 2행(`:1309` `:1427`)이라 문자열 출현 수로 세면 26회다. `screen-03-backtests-list.html:1308` · `screen-06-strategies-list.html:1248` 은 `aria-label` 로 완전형을 쓴다. 시각 텍스트 `샤프` 단독 = `screen-02-dashboard.html:1458` `:1482` `:1506` `:1530` · `screen-03-backtests-list.html:1309` · `screen-06-strategies-list.html:1248`.
 - 좌표 정정 기록. 이전 판본의 "전역 16곳" 은 `screen-10` 본문만 센 값이었다. 감사 주석까지 포함한 파일 전역은 24행이다. 두 숫자를 함께 적어 어느 모집단인지 못 헷갈리게 한다.
 - 근거 셋. (1) 사용자가 목표 지표를 실제로 선택하는 곳이 `screen-09:1209` 이고 완전형이다. (2) `screen-03-backtests-list.html:1308` 이 이미 `aria-label="샤프 지수 기준 정렬"` 로 접근성 이름에 완전형을 쓰면서 시각 텍스트(`:1309`)만 줄였다. 완전형이 정본이고 축약은 폭 제약임을 그 화면이 스스로 인정한다. (3) `screen-06-strategies-list.html:1248` 이 이번 라운드에 `aria-label="샤프 지수"` 를 얻어 같은 형태로 정렬됐다.
-- 축약 허용 자리는 표 헤더 하나뿐이고, 방식은 `screen-02-dashboard.html:1307` 의 `abbr` 속성 패턴 또는 `screen-06:1248` 의 `aria-label` 패턴을 쓴다.
+- 축약 허용 자리는 좁은 칸(표 헤더·성과 카드 라벨)이고, 방식은 `screen-06:1248` 의 **`aria-label` 패턴**을 쓴다. `abbr="샤프"` 는 17벌 실측 0건이라 `_KIT.md:532` 가 명시적으로 폐기했으므로 쓰지 않는다. 상세 규약은 `_KIT.md` §4.10 이 상위다.
 
 #### B6. `max_drawdown` = 최대 낙폭 (표 헤더 축약은 `abbr="MDD"`)
 
@@ -108,9 +108,10 @@
 - 근거. `screen-02-dashboard.html:1307` 의 `<th scope="col" class="num" abbr="MDD">최대 낙폭</th>` 하나가 "시각 텍스트는 완전형 + `abbr` 로 축약" 이라는 정답 형태를 이미 구현했다. `screen-03:1302` 는 정렬 버튼 `aria-label` 에만 완전형을 쓰고 `abbr` 이 없다. `screen-06:1247` 은 이번 라운드에 `aria-label="최대 낙폭"` 을 얻어 접근 가능한 이름은 확보했으나 `abbr` 은 여전히 없다.
 - 남은 교정 2건. `screen-03-backtests-list.html:1303` · `screen-06-strategies-list.html:1247` 의 시각 텍스트. 둘 다 `screen-02:1307` 형태로.
 
-#### B7. `total_return` = 총 수익률 (표 헤더 축약은 `abbr="수익률"`)
+#### B7. `total_return` = 총 수익률 (표 헤더도 완전형 · 축약 금지)
 
-- 탈락. `수익률` 단독 시각 텍스트.
+- 탈락. `수익률` 단독 시각 텍스트, `abbr="수익률"`.
+- **축약 금지 근거.** `_KIT.md:534` 는 "축약해도 되는 이름은 `MDD` 와 `샤프` 두 개뿐이고 `수익률` · `거래 수` 같은 다른 열은 축약하지 않는다" 고 못박았다. 이전 판본이 지정했던 `abbr="수익률"` 은 그래서 폐기다.
 - 실측. `총 수익률` = `screen-09-optimizer-list.html:1210` 셀렉트 옵션 · `screen-10-optimizer-detail.html:1278` `:1310` `:1324` · `screen-12-onboarding.html:1388` `:1506` · `screen-14-landing.html:1315`. 시각 텍스트 `수익률` 단독 = `screen-02-dashboard.html:1306` · `screen-03-backtests-list.html:1297`.
 - 근거. 목표 지표 셀렉트가 완전형이다.
 - **동명이의 분리 의무.** 아래 셋은 `total_return` 이 아니라 각각 다른 enum 이다. 합치면 같은 값처럼 오독된다.
@@ -674,15 +675,15 @@ export const OBJECTIVE_METRIC_LABEL: Record<
 };
 
 /**
- * 표 헤더용 축약. 시각 텍스트는 완전형을 쓰고 이 값은 th 의 abbr 속성에만 넣는다.
- * 정답 형태는 screen-02-dashboard.html:1304 의 <th abbr="MDD">최대 낙폭</th> 이다.
+ * 좁은 칸용 축약. 이 값을 **가시 텍스트**로 쓰고, 정식 명칭은 aria-label 로 준다.
+ * abbr 속성이 아니다 — 17벌 실측상 abbr 은 screen-02 의 MDD 1건뿐이고
+ * abbr="샤프" 는 0건이라 _KIT.md:532 가 폐기했다.
+ * total_return 은 키가 없다. _KIT.md:534 가 "수익률 은 축약하지 않는다" 고 못박았다.
  */
-export const OBJECTIVE_METRIC_ABBR: Record<
-  OptimizationObjectiveMetric,
-  string
+export const OBJECTIVE_METRIC_ABBR: Partial<
+  Record<OptimizationObjectiveMetric, string>
 > = {
   sharpe_ratio: "샤프",
-  total_return: "수익률",
   max_drawdown: "MDD",
 };
 
@@ -859,7 +860,8 @@ export const TRADE_STATUS_LABEL: Record<TradeStatus, string> = {
 };
 
 /**
- * 성과 지표 이름. 완전형만 화면 텍스트로 쓰고 축약은 th 의 abbr 속성에만 넣는다.
+ * 성과 지표 이름. 완전형이 정본이고, 좁은 칸에서만 OBJECTIVE_METRIC_ABBR 의
+ * 축약(MDD · 샤프)을 가시 텍스트로 쓰되 완전형을 aria-label 로 준다(_KIT.md §4.10).
  * total_return 계열 3종은 서로 다른 enum 이므로 합치지 않는다.
  */
 export const METRIC_LABEL = {
