@@ -58,16 +58,11 @@ const TOKEN_MAP: ReadonlyArray<readonly [canon: string, app: string]> = [
 ] as const;
 
 /**
- * 알려진 불일치 래칫. S1a 가 전부 비운다.
+ * 알려진 불일치 래칫. S1a 가 5건 전부 `.dark` 값 교정으로 해소하고 비웠다 (2026-07-20).
  * 근거는 `docs/c-language-port/context-notes.md` §1 (프로토타입 22종 대조).
+ * 이제 22종 전부 값이 일치한다 — 새 불일치가 생기면 allowlist 가 비어 있어 즉시 빨개진다.
  */
-const KNOWN_MISMATCHES: ReadonlyArray<{ canon: string; fixedBy: string }> = [
-  { canon: "--ink-3", fixedBy: "S1a — 접근성 결함. 카드 위 4.66:1 로 캐논 5.83 미달" },
-  { canon: "--copper-soft", fixedBy: "S1a — 틴트 알파 0.1 대 캐논 0.12" },
-  { canon: "--copper-line", fixedBy: "S1a — 틴트 알파 0.2 대 캐논 0.3" },
-  { canon: "--bull-soft", fixedBy: "S1a — 앱 내부 모순. --bullish 가 아니라 --success 에서 파생" },
-  { canon: "--warn-soft", fixedBy: "S1a — 틴트 알파 0.12 대 캐논 0.1" },
-];
+const KNOWN_MISMATCHES: ReadonlyArray<{ canon: string; fixedBy: string }> = [];
 
 /** `:root { ... }` / `.dark { ... }` 블록에서 커스텀 프로퍼티만 뽑는다. */
 function readTokenBlock(source: string, blockPattern: RegExp): Map<string, string> {

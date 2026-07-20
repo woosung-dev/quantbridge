@@ -73,7 +73,6 @@
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-xl: 14px;
-  --radius-pill: 20px;
 
   /* Elevation — 플랫: 1px 보더가 주인공, hover 만 미세 lift (코퍼 글로우 폐기) */
   --card-shadow: 0 1px 2px rgba(23, 26, 30, 0.06);
@@ -113,7 +112,6 @@
   --chart-3: #c22a2a;
   --chart-4: #a16207;
   --chart-5: #0b7a55;
-  --radius: 6px;
   --sidebar: #ffffff;
   --sidebar-foreground: #171a1e;
   --sidebar-primary: #b45309;
@@ -122,6 +120,37 @@
   --sidebar-accent-foreground: #171a1e;
   --sidebar-border: #e2e5e9;
   --sidebar-ring: #b45309;
+
+  /* ───────────────────────────────────────────────
+   * C 디자인 언어 캐논 토큰 별칭 (이식 S1a) — docs/c-language-port
+   * 프로토타입(docs/prototypes/shotgun-2026-07/variant-c.html)은 캐논 이름(--copper/--ink/--r...)을
+   * 쓴다. 앱 토큰을 var() 로 지연 참조하는 별칭으로 정의 → :root/.dark cascade 자동 반영.
+   * 값은 앱 토큰과 동일하고 @theme inline 유틸리티 키도 그대로다 — 물리적 리네임 대신 별칭을
+   * 택한 근거는 직접 소비처가 60+ 파일(마케팅 포함)이라 리네임이 비수술적이기 때문 (context-notes §b).
+   * 새 소비자(S2 공용 CSS)만 이 이름을 쓴다.
+   * ───────────────────────────────────────────── */
+  --ink: var(--text-primary);
+  --ink-2: var(--text-secondary);
+  --ink-3: var(--text-muted);
+  --card-2: var(--card-raised);
+  --card-3: var(--accent); /* [검증] 캐논 다크 #1e2226 = 앱 --accent 다크. 라이트는 앱 --accent(#edeff1), 라이트 미관리 */
+  --line: var(--border);
+  --line-2: var(--border-dark);
+  --copper: var(--primary);
+  --copper-hover: var(--primary-hover);
+  --copper-ink: var(--primary-foreground);
+  --copper-soft: var(--primary-light);
+  --copper-line: var(--primary-100);
+  --bull: var(--bullish);
+  --bull-soft: var(--success-subtle);
+  --bear: var(--bearish);
+  --bear-soft: var(--destructive-subtle);
+  --warn: var(--warning);
+  --warn-soft: var(--warning-subtle);
+  --benchmark: var(--chart-benchmark);
+
+  /* 캐논 단일 반경 (프로토타입 --r). S2 공용 CSS 의 .card/.btn/.input 이 소비한다. */
+  --r: 12px;
 }
 
 /* ───────────────────────────────────────────────
@@ -151,7 +180,6 @@
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-xl: 14px;
-  --radius-pill: 20px;
 }
 
 /* DESIGN.md §0: 구 [data-theme="dash"] 스코프 삭제 (앱 전체 라이트/다크 토글로 대체).
@@ -330,11 +358,9 @@ h6 {
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   /* radius 토큰은 상단 @theme 블록 (--radius-sm/md/lg/xl)에서 DESIGN.md §5 값으로 정의됨.
@@ -357,18 +383,18 @@ h6 {
   --card-raised: #1a1d21;
   --text-primary: #e8eaed;
   --text-secondary: #a6adb5;
-  --text-muted: #7a828c;
+  --text-muted: #8b939c; /* 캐논 --ink-3. 구 #7a828c 는 카드 위 4.66:1 로 캐논 5.83 미달 (a11y) */
   --primary: #f08c2e;
   --primary-hover: #f79d4d; /* 다크는 밝아지는 hover — 계측기 "활성" 무드 */
-  --primary-light: rgba(240, 140, 46, 0.1);
-  --primary-100: rgba(240, 140, 46, 0.2);
+  --primary-light: rgba(240, 140, 46, 0.12); /* 캐논 --copper-soft */
+  --primary-100: rgba(240, 140, 46, 0.3); /* 캐논 --copper-line */
   --border: #22262b; /* solid hex — rgba 중첩 시 어두워짐 방지 */
   --border-dark: #31363d;
 
   /* 금융 시맨틱 (다크 등급) — destructive = bearish 통일(팔레트 절약) */
   --success: #34d399;
   --success-foreground: #08130d;
-  --success-subtle: rgba(52, 211, 153, 0.12);
+  --success-subtle: rgba(45, 212, 167, 0.12); /* 캐논 --bull-soft: --bullish(#2dd4a7) 파생 (구값은 --success 파생 = 앱 내부 모순) */
   --success-light: rgba(52, 211, 153, 0.12);
   --bullish: #2dd4a7;
   --destructive: #f6685e;
@@ -377,7 +403,7 @@ h6 {
   --bearish: #f6685e;
   --warning: #e5a93d;
   --warning-foreground: #1a1006;
-  --warning-subtle: rgba(229, 169, 61, 0.12);
+  --warning-subtle: rgba(229, 169, 61, 0.1); /* 캐논 --warn-soft */
   --accent-amber: #e5a93d;
   --accent-amber-light: rgba(229, 169, 61, 0.12);
 

@@ -42,7 +42,7 @@ export const BRAND_PALETTE = {
     borderDark: "#31363d",
     textPrimary: "#e8eaed",
     textSecondary: "#a6adb5",
-    textMuted: "#7a828c",
+    textMuted: "#8b939c", // 캐논 --ink-3 정합 (구 #7a828c 는 카드 위 4.66:1 로 5.83 미달)
     primary: "#f08c2e",
     primaryHover: "#f79d4d",
     bullish: "#2dd4a7",
