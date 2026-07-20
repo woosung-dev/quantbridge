@@ -69,17 +69,13 @@ describe("TradeStatsStrip", () => {
     );
   });
 
-  // Sprint 44 W F3 — entrance stagger class 4 카드 모두 적용
-  it("4 카드 모두 qb-stat-rise-{1..4} entrance class 적용", () => {
+  // C 이식 S6 — 공용 .kpi 카드 4개(role=listitem)로 렌더한다.
+  it("4개 KPI 카드가 공용 .card.kpi 로 렌더된다", () => {
     render(<TradeStatsStrip trades={[]} />);
-    const card1 = screen.getByTestId("trade-stat-총 거래").parentElement;
-    const card2 = screen.getByTestId("trade-stat-평균 수익").parentElement;
-    const card3 = screen.getByTestId("trade-stat-평균 손실").parentElement;
-    const card4 = screen.getByTestId("trade-stat-평균 보유 시간").parentElement;
-    expect(card1?.className).toContain("qb-stat-rise-1");
-    expect(card2?.className).toContain("qb-stat-rise-2");
-    expect(card3?.className).toContain("qb-stat-rise-3");
-    expect(card4?.className).toContain("qb-stat-rise-4");
+    const cards = screen.getAllByRole("listitem");
+    expect(cards).toHaveLength(4);
+    const valueCard = screen.getByTestId("trade-stat-총 거래").parentElement;
+    expect(valueCard?.className).toContain("kpi");
   });
 
   it("평균 보유 시간 — 1h 단위 표시", () => {
