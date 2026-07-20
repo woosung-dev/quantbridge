@@ -2072,6 +2072,16 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 .ks-banner-list { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; }
 .ks-banner-trigger { font-weight: 600; }
 
+/* §01 KPI — 소스 쿼리 오류/미수신 시 값 슬롯 표기. 성공-0 과 시각적으로 구분되게
+   본문 폰트로 축소·감쇠한다(LESSON-039 Surface Trust). */
+.kpi-na {
+  font-family: var(--f-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  letter-spacing: 0;
+}
+
 /* §01 KPI — 킬 스위치 카운트 옆 상태 태그(활성/대기) */
 .kpi-value-tag {
   margin-left: 8px;

@@ -15,6 +15,7 @@ import { PlusIcon, RefreshCwIcon } from "lucide-react";
 
 import { InfoIcon } from "@/components/info-icon";
 import { StateBox } from "@/components/state-box";
+import { StatValue } from "@/components/stat-value";
 import type { ChartPoint } from "@/components/charts/trading-chart";
 import { useBacktests } from "@/features/backtest/hooks";
 import { BACKTEST_STATUS_LABEL } from "@/features/backtest/labels";
@@ -98,10 +99,16 @@ export function DashboardCockpit() {
           <div>
             <h1 className="report-title">워크스페이스</h1>
             <div className="report-meta">
-              <span className="chip">
-                {accounts > 0 ? `거래소 ${accounts}개 연결` : "거래소 미등록"}
+              <span className={accountsQ.isError ? "chip warn" : "chip"}>
+                {accountsQ.isError
+                  ? "거래소 확인 불가"
+                  : accounts > 0
+                    ? `거래소 ${accounts}개 연결`
+                    : "거래소 미등록"}
               </span>
-              <span className="chip">활성 세션 {activeSessions.length}</span>
+              <span className="chip">
+                활성 세션 {sessionsQ.isError ? "확인 불가" : activeSessions.length}
+              </span>
             </div>
           </div>
           <div className="report-actions">
@@ -134,7 +141,9 @@ export function DashboardCockpit() {
           <article className="card kpi">
             <p className="kpi-label">전략</p>
             <p className="kpi-value mono" data-testid="kpi-strategies">
-              {strategyCount}
+              <StatValue isError={strategyListQ.isError} isPending={strategyListQ.isPending}>
+                {strategyCount}
+              </StatValue>
             </p>
             <p className="kpi-foot">아카이브 제외 등록 전략 수입니다.</p>
           </article>
@@ -142,7 +151,9 @@ export function DashboardCockpit() {
           <article className="card kpi">
             <p className="kpi-label">백테스트</p>
             <p className="kpi-value mono" data-testid="kpi-backtests">
-              {backtestTotal}
+              <StatValue isError={backtestsQ.isError} isPending={backtestsQ.isPending}>
+                {backtestTotal}
+              </StatValue>
             </p>
             <p className="kpi-foot">바 단위 이벤트 루프 엔진으로 실행합니다.</p>
           </article>
@@ -161,7 +172,9 @@ export function DashboardCockpit() {
           <article className="card kpi">
             <p className="kpi-label">활성 세션</p>
             <p className="kpi-value mono" data-testid="kpi-sessions">
-              {activeSessions.length}
+              <StatValue isError={sessionsQ.isError} isPending={sessionsQ.isPending}>
+                {activeSessions.length}
+              </StatValue>
             </p>
             <p className="kpi-foot">지금 거래를 돌리고 있는 라이브 세션 수입니다.</p>
           </article>

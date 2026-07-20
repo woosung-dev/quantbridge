@@ -30,6 +30,7 @@ import {
 import type { ExchangeAccount, KillSwitchEvent } from "@/features/trading/schemas";
 import { InfoIcon } from "@/components/info-icon";
 import { StateBox } from "@/components/state-box";
+import { StatValue } from "@/components/stat-value";
 
 import { KillSwitchBanner } from "./kill-switch-banner";
 import { SessionDiagnostics } from "./session-diagnostics";
@@ -117,12 +118,16 @@ export function TradingCockpit() {
           <div>
             <h1 className="report-title">트레이딩 코크핏</h1>
             <div className="report-meta">
-              <span className="chip">
-                {accountsCount > 0
-                  ? `거래소 ${accountsCount}개 연결`
-                  : "거래소 미등록"}
+              <span className={accountsQ.isError ? "chip warn" : "chip"}>
+                {accountsQ.isError
+                  ? "거래소 확인 불가"
+                  : accountsCount > 0
+                    ? `거래소 ${accountsCount}개 연결`
+                    : "거래소 미등록"}
               </span>
-              <span className="chip">활성 세션 {activeSessions.length}</span>
+              <span className="chip">
+                활성 세션 {sessionsQ.isError ? "확인 불가" : activeSessions.length}
+              </span>
               <span className="chip accent">바 단위 이벤트 루프</span>
             </div>
           </div>
@@ -152,7 +157,9 @@ export function TradingCockpit() {
           <article className="card kpi">
             <p className="kpi-label">활성 세션</p>
             <p className="kpi-value mono" data-testid="kpi-active-sessions">
-              {activeSessions.length}
+              <StatValue isError={sessionsQ.isError} isPending={sessionsQ.isPending}>
+                {activeSessions.length}
+              </StatValue>
             </p>
             <p className="kpi-foot">지금 거래를 돌리고 있는 라이브 세션 수입니다.</p>
           </article>
@@ -160,33 +167,51 @@ export function TradingCockpit() {
           <article className="card kpi">
             <p className="kpi-label">연결된 거래소</p>
             <p className="kpi-value mono" data-testid="kpi-accounts">
-              {accountsCount}
+              <StatValue isError={accountsQ.isError} isPending={accountsQ.isPending}>
+                {accountsCount}
+              </StatValue>
             </p>
             <p className="kpi-foot">
-              {accountsCount > 0 ? "API 키가 등록된 계정입니다." : "API 키가 아직 없습니다."}
+              {accountsQ.isError
+                ? "계정 목록을 확인하지 못했습니다."
+                : accountsCount > 0
+                  ? "API 키가 등록된 계정입니다."
+                  : "API 키가 아직 없습니다."}
             </p>
           </article>
 
           <article className="card kpi">
             <p className="kpi-label">킬 스위치</p>
             <p
-              className={`kpi-value mono ${unresolvedKs > 0 ? "neg" : ""}`}
+              className={`kpi-value mono ${!ksQ.isError && unresolvedKs > 0 ? "neg" : ""}`}
               data-testid="kpi-kill-switch"
             >
-              {unresolvedKs}
-              <span className="kpi-value-tag">{unresolvedKs > 0 ? "활성" : "대기"}</span>
+              {ksQ.isError ? (
+                <span className="kpi-na">확인 불가</span>
+              ) : ksQ.isPending ? (
+                <span className="kpi-na">불러오는 중</span>
+              ) : (
+                <>
+                  {unresolvedKs}
+                  <span className="kpi-value-tag">{unresolvedKs > 0 ? "활성" : "대기"}</span>
+                </>
+              )}
             </p>
             <p className="kpi-foot">
-              {unresolvedKs > 0
-                ? "미해결 이벤트가 있어 자동 주문이 차단됩니다."
-                : "미해결 이벤트가 없습니다."}
+              {ksQ.isError
+                ? "킬 스위치 상태를 확인하지 못했습니다."
+                : unresolvedKs > 0
+                  ? "미해결 이벤트가 있어 자동 주문이 차단됩니다."
+                  : "미해결 이벤트가 없습니다."}
             </p>
           </article>
 
           <article className="card kpi">
             <p className="kpi-label">총 세션</p>
             <p className="kpi-value mono" data-testid="kpi-total-sessions">
-              {sessionItems.length}
+              <StatValue isError={sessionsQ.isError} isPending={sessionsQ.isPending}>
+                {sessionItems.length}
+              </StatValue>
             </p>
             <p className="kpi-foot">
               비활성 세션은 API 가 아직 반환하지 않아, 지금은 활성 세션만 집계합니다.
