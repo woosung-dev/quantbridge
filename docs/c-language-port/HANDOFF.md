@@ -9,21 +9,17 @@
 
 ## 0. 다음 세션이 할 일
 
-**S3 — 셸(사이드바+탑바) 을 C 로.** S0(검사)·S2(공용 CSS)·S5(/backtests 콘텐츠) 완료.
-지금 /backtests 는 **콘텐츠만 C** 이고 사이드바는 예전 그대로다. 셸은 공유라 한 번 고치면
-**전 대시보드 라우트가 C 사이드바**가 되어 가장 넓게 티 난다. `checklist.md` S3 섹션이 목록.
+**S1a — 토큰 정합.** S0 검사 장치가 전부 섰다. 이제 안전망 아래에서 토큰을 고친다.
 
-또는 **S1a 잔여**(틴트 4건·하드코딩 hex·죽은 토큰·리네임 재평가) 또는 **S6(/trades)**.
-셸(S3)이 시각 효과가 가장 크다.
+`checklist.md` 의 S1a 섹션이 작업 목록이다. 핵심은 `.dark` 색 5건 교정 + 토큰 13건 리네임 +
+`chart-tokens.ts:60-69` 동반 수정(누락 시 조용히 깨짐) + `--r: 12px` 도입이다.
 
-★착수 첫 step = **안전망 baseline 재확인**. `cd frontend && pnpm test`(858) +
-`pnpm e2e:design-canon`(27) + `pnpm e2e:authed authed-canon-p1`(5, 백엔드 필요 — §8 참조).
-그리고 **함정 §6-1(Turbopack CSS 캐시)** — 이번 세션엔 내용 추가라 정상 재컴파일됐지만
-S3 도 globals.css 를 건드린다.
+★S1a 착수 첫 step = **안전망이 실제로 지키는지 확인**. `pnpm test`(design-canon-tokens /
+chart-tokens-contract / design-canon-source) + `pnpm e2e:design-canon`(27) 를 baseline 으로
+돌리고 시작해라. 그리고 **함정 §6-1(Turbopack CSS 캐시)** 를 반드시 다시 만난다.
 
-**이번 세션 실측 교훈** — S1a(토큰)는 사실상 무변화(앱이 이미 코퍼/카본). 화면이 프로토타입과
-다른 건 색이 아니라 레이아웃/구조다. 그래서 S2(공용 CSS)+화면 재작성이 시각 변화의 본체다.
-그리고 **정직성 이식** — 목업의 지표열을 베끼지 말고 실데이터가 받치는 열만 그린다(캐논 §4.9).
+S1a 가 끝나면 두 래칫이 내려가야 한다 — `design-canon-tokens` allowlist 5건 → 0,
+`design-canon-public` `/` 대비 결함 2 → 0 (`--text-muted`→#8b939c 가 같은 색을 고친다).
 
 ---
 
@@ -127,17 +123,9 @@ playwright project `chromium-design-canon` 신설 + `pnpm e2e:design-canon` 추�
 
 ## 4. 레포 상태
 
-브랜치 **`stage/c-language-port`** · 작업 트리 clean · **main(`050ac64`) 보다 16 커밋 앞**.
+브랜치 **`stage/c-language-port`** · 작업 트리 clean · **main(`050ac64`) 보다 13 커밋 앞**.
 
-S2/S5 세션이 얹은 3 커밋:
-
-```
-57c3ec9  feat(port): rebuild /backtests content in the C design language (S5)
-f0715dc  feat(port): port the C design-language shared CSS into globals (S2)
-dc5b860  docs(port): correct the ahead-of-main commit count (12 -> 13)
-```
-
-그 아래 S0 세션 6 커밋:
+S0 세션이 얹은 6 커밋 (그 아래는 이전 세션):
 
 ```
 fefde1a  test(frontend): audit public routes in CI + fix a stale doc reference
@@ -152,6 +140,27 @@ bcad78c  ci(frontend): gate the design-canon project in the e2e job
 머지는 사용자가 직접 한다. **main 직접 커밋·푸시는 영구 차단.**
 
 CI 트리거가 `[main, "stage/**"]` 라 그 밖의 브랜치로 PR 을 올리면 lint·tsc·test·build 가 통째로 침묵한다.
+
+### ★S2·S5 를 한 번 구현했다가 되돌렸다 (2026-07-20)
+
+**S2(공용 CSS 이식)와 S5(`/backtests` 재구축)를 실제로 구현한 커밋이 히스토리에 있고, 사용자 판단으로 내용을 전부 되돌렸다.**
+
+```
+57c3ec9  feat(port): rebuild /backtests content in the C design language (S5)
+f0715dc  feat(port): port the C design-language shared CSS into globals (S2)
+```
+
+**되돌린 사유는 기록되지 않았다.** 재시도 전에 사용자에게 물어라 — 추측하고 같은 방식으로 다시 하면 같은 이유로 또 되돌아갈 수 있다.
+
+되돌림에 딸려 온 것들.
+
+- 그 두 커밋이 앞당겼던 `--text-muted` `#7a828c`→`#8b939c` 교정도 함께 되돌아갔다. 그래서
+  `design-canon-tokens` 의 `--ink-3` 래칫과 `design-canon-public` 의 `/` 대비 2건이 **다시 열려 있다.** S1a 몫으로 복귀.
+- S5 가 만든 `backtest-list-status-chip.test.tsx` 는 그 컴포넌트와 함께 사라졌고, S5 가 지웠던
+  S0 판 `backtest-list-progress-cell.test.tsx`(157줄)를 **복원했다.** 안 하면 되돌아온
+  `backtest-list.tsx` 를 아무 테스트도 안 지킨다 (커버리지 임계가 없어 CI 도 침묵한다).
+
+**코드는 지워지지 않았다.** 재시도 시 위 두 커밋을 그대로 참조하면 된다.
 
 ---
 

@@ -62,8 +62,7 @@ const TOKEN_MAP: ReadonlyArray<readonly [canon: string, app: string]> = [
  * 근거는 `docs/c-language-port/context-notes.md` §1 (프로토타입 22종 대조).
  */
 const KNOWN_MISMATCHES: ReadonlyArray<{ canon: string; fixedBy: string }> = [
-  // --ink-3 (--text-muted) 는 S5 가 앞당겨 해소 (#7a828c -> #8b939c). C 콘텐츠가 딤 텍스트를
-  // 다수 써서 AA 위반 22건으로 드러났고 그 자리에서 고쳤다.
+  { canon: "--ink-3", fixedBy: "S1a — 접근성 결함. 카드 위 4.66:1 로 캐논 5.83 미달" },
   { canon: "--copper-soft", fixedBy: "S1a — 틴트 알파 0.1 대 캐논 0.12" },
   { canon: "--copper-line", fixedBy: "S1a — 틴트 알파 0.2 대 캐논 0.3" },
   { canon: "--bull-soft", fixedBy: "S1a — 앱 내부 모순. --bullish 가 아니라 --success 에서 파생" },
