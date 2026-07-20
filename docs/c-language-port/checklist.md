@@ -83,87 +83,87 @@
 
 ## S1a — 토큰 정합
 
-- [ ] `.dark` 색 5건 교정 — `globals.css:360` `:363` `:364` `:371` `:380`
-- [ ] `brand-palette.ts:45` `textMuted` 미러 갱신
-- [ ] 토큰 이름 13건 리네임
-- [ ] ★`chart-tokens.ts:60-69` 동반 수정 (누락 시 조용히 깨짐)
-- [ ] `--r: 12px` 도입
-- [ ] 하드코딩 hex — `app/layout.tsx:23,24` → `BRAND_PALETTE`, `app/icon.svg` `#2563eb` → 코퍼
-- [ ] 죽은 토큰 제거 — `--radius`(소비자 0) · `--radius-pill`(소비자 0) · `@theme inline` 중복 키 2건
+- [x] `.dark` 색 5건 교정 — `globals.css:360` `:363` `:364` `:371` `:380`
+- [x] `brand-palette.ts:45` `textMuted` 미러 갱신
+- [x] 토큰 이름 13건 리네임
+- [x] ★`chart-tokens.ts:60-69` 동반 수정 (누락 시 조용히 깨짐)
+- [x] `--r: 12px` 도입
+- [x] 하드코딩 hex — `app/layout.tsx:23,24` → `BRAND_PALETTE`, `app/icon.svg` `#2563eb` → 코퍼
+- [x] 죽은 토큰 제거 — `--radius`(소비자 0) · `--radius-pill`(소비자 0) · `@theme inline` 중복 키 2건
 
 **검증 게이트**
 
-- [ ] `chart-tokens.ts` 전용 회귀 테스트 — 10개 변수가 실제 해석되고 fallback 과 다른 값
-- [ ] `pnpm test` · `pnpm tsc --noEmit` · `pnpm build` 그린
-- [ ] `live-smoke` 그린 (이 워크플로는 `globals.css` 변경을 명시적 대상으로 삼는다)
-- [ ] allowlist 에서 `--text-muted` 대비 위반 제거 확인
-- [ ] `vercel-react-best-practices` + `code-review`
+- [x] `chart-tokens.ts` 전용 회귀 테스트 — 10개 변수가 실제 해석되고 fallback 과 다른 값
+- [x] `pnpm test` · `pnpm tsc --noEmit` · `pnpm build` 그린
+- [x] `live-smoke` 그린 (이 워크플로는 `globals.css` 변경을 명시적 대상으로 삼는다)
+- [x] allowlist 에서 `--text-muted` 대비 위반 제거 확인
+- [x] `vercel-react-best-practices` + `code-review`
 
 ---
 
 ## S1b — Track A 슬롭 9종
 
-- [ ] ① `landing-faq.tsx:11` "100개 이상의 글로벌 거래소" → Bybit 단일
-- [ ] ② `step-4-result.tsx:67` `isError` 분기 신설
-- [ ] ③ 평가 상한 카피 `≤ 50회` → `최대 100회` (`optimizer-page-view.tsx:88-90`) + `genetic.py:19` docstring
-- [ ] ④ 노출 카피 em-dash (주석 치환 후 노출 마크업만. `"—"` 플레이스홀더 113건 일괄 치환 금지)
-- [ ] ⑤ "벡터화" 4곳 + 테스트 1곳
-- [ ] ⑥ 가짜 라이브 — `app/error.tsx:105-118` · `maintenance/page.tsx:29-37`
+- [x] ① `landing-faq.tsx:11` "100개 이상의 글로벌 거래소" → Bybit 단일
+- [x] ② `step-4-result.tsx:67` `isError` 분기 신설
+- [x] ③ 평가 상한 카피 `≤ 50회` → `최대 100회` (`optimizer-page-view.tsx:88-90`) + `genetic.py:19` docstring
+- [x] ④ 노출 카피 em-dash (주석 치환 후 노출 마크업만. `"—"` 플레이스홀더 113건 일괄 치환 금지)
+- [x] ⑤ "벡터화" 4곳 + 테스트 1곳
+- [x] ⑥ 가짜 라이브 — `app/error.tsx:105-118` · `maintenance/page.tsx:29-37`
 - [x] ⑦ 가짜 소셜프루프 — 이미 해결 (BL-270/271)
-- [ ] ⑧ `optimizer-run-list.tsx:89-98` genetic 분기 누락 (Best 열이 항상 `—`)
-- [ ] ⑨ `orders-panel.tsx:97-106` 헤더 한글화
+- [x] ⑧ `optimizer-run-list.tsx:89-98` genetic 분기 누락 (Best 열이 항상 `—`)
+- [x] ⑨ `orders-panel.tsx:97-106` 헤더 한글화
 
 **검증 게이트**
 
-- [ ] `pnpm test` 그린 (카피 assert 테스트 동반 수정)
-- [ ] 정적 가드 C1/C6 allowlist 가 0
-- [ ] `code-review`
+- [x] `pnpm test` 그린 (카피 assert 테스트 동반 수정)
+- [x] 정적 가드 C1/C6 allowlist 가 0
+- [x] `code-review`
 
 ---
 
 ## S2 — 공용 CSS 이식
 
-- [ ] `_kit.html` 24~997행 사이 **972줄**을 `globals.css` `@layer components` 로
-- [ ] 바이트 무결성 테스트 활성화
+- [x] `_kit.html` 24~997행 사이 **972줄**을 `globals.css` `@layer components` 로
+- [x] 바이트 무결성 테스트 활성화
 
 **검증 게이트**
 
-- [ ] 바이트 무결성 테스트 PASS
-- [ ] `pnpm build` 그린 · **시각 변화 0** (이 시점 소비자 0)
-- [ ] `live-smoke` 그린
-- [ ] `code-review`
+- [x] 바이트 무결성 테스트 PASS
+- [x] `pnpm build` 그린 · **시각 변화 0** (이 시점 소비자 0)
+- [x] `live-smoke` 그린
+- [x] `code-review`
 
 ---
 
 ## S3 — 셸 + 1024px 아이콘 레일
 
-- [ ] `ui-store.ts` 의 `sidebarOpen`/`toggleSidebar`/`setSidebarOpen` 삭제 (런타임 상수 `true`, 호출자 0)
-- [ ] `dashboard-header.tsx:14,15,19,28,29` 죽은 prop 2개 삭제
-- [ ] 1024px 레일을 **CSS 미디어쿼리로** (프로토타입도 JS 없이 CSS 로 한다)
-- [ ] nav 6개 정렬 + disabled 2개 제거
-- [ ] nav-count 3개 — 기존 `total` 재사용, 주문은 미체결 수임을 화면이 밝힌다
-- [ ] `dashboard-shell.tsx:13,44` 전체 스토어 구조분해 → 셀렉터
+- [x] `ui-store.ts` 의 `sidebarOpen`/`toggleSidebar`/`setSidebarOpen` 삭제 (런타임 상수 `true`, 호출자 0)
+- [x] `dashboard-header.tsx:14,15,19,28,29` 죽은 prop 2개 삭제
+- [x] 1024px 레일을 **CSS 미디어쿼리로** (프로토타입도 JS 없이 CSS 로 한다)
+- [x] nav 6개 정렬 + disabled 2개 제거
+- [x] nav-count 3개 — 기존 `total` 재사용, 주문은 미체결 수임을 화면이 밝힌다
+- [x] `dashboard-shell.tsx:13,44` 전체 스토어 구조분해 → 셀렉터
 
 **검증 게이트**
 
-- [ ] design-canon 1024px — 모든 nav-item 접근 가능한 이름 + 가로 스크롤 0
-- [ ] 4폭(1440/1024/768/375) 전부 PASS
-- [ ] `components/layout/__tests__/` 갱신 후 그린
-- [ ] `design-taste-frontend` §9/§14 → `ui-ux-pro-max` → `vercel-react-best-practices` → `code-review`
+- [x] design-canon 1024px — 모든 nav-item 접근 가능한 이름 + 가로 스크롤 0
+- [x] 4폭(1440/1024/768/375) 전부 PASS
+- [x] `components/layout/__tests__/` 갱신 후 그린
+- [x] `design-taste-frontend` §9/§14 → `ui-ux-pro-max` → `vercel-react-best-practices` → `code-review`
 
 ---
 
 ## S4 — 용어 SSOT 모듈
 
-- [ ] `src/lib/labels.ts`
-- [ ] `src/features/backtest/labels.ts` · `src/features/trading/labels.ts`
-- [ ] 복제 Record 제거 — `status-badge.tsx:9-16` ↔ `backtest-list.tsx:30-37` (`queued` 가 `대기 중`/`대기` 로 갈림), `orders-blotter.tsx:33-42` `STATE_META` 이관
+- [x] `src/lib/labels.ts`
+- [x] `src/features/backtest/labels.ts` · `src/features/trading/labels.ts`
+- [x] 복제 Record 제거 — `status-badge.tsx:9-16` ↔ `backtest-list.tsx:30-37` (`queued` 가 `대기 중`/`대기` 로 갈림), `orders-blotter.tsx:33-42` `STATE_META` 이관
 
 **검증 게이트**
 
-- [ ] `pnpm tsc --noEmit` 그린 (enum 추가 시 `Record` 누락이 타입 에러가 되는 배치인지 확인)
-- [ ] 원시 enum 노출 가드 테스트 신설
-- [ ] `code-review`
+- [x] `pnpm tsc --noEmit` 그린 (enum 추가 시 `Record` 누락이 타입 에러가 되는 배치인지 확인)
+- [x] 원시 enum 노출 가드 테스트 신설
+- [x] `code-review`
 
 ---
 
@@ -171,10 +171,10 @@
 
 > 가장 작고 self-contained. 유일한 서버 prefetch + HydrationBoundary 패턴을 여기서 확정한다.
 
-- [ ] 시맨틱 CSS 클래스 사용 패턴 확립 (이후 화면이 따른다)
-- [ ] prefetch 패턴 보존
-- [ ] `error.tsx` 신설
-- [ ] 상태 4종 실제 렌더
+- [x] 시맨틱 CSS 클래스 사용 패턴 확립 (이후 화면이 따른다)
+- [x] prefetch 패턴 보존
+- [x] `error.tsx` 신설
+- [x] 상태 4종 실제 렌더
 
 **검증 게이트** — design-canon 4폭 · 상태 4종 컴포넌트 테스트 · `pnpm e2e:authed` · allowlist 감소 · `design-taste-frontend` → `vercel-react-best-practices` → `code-review`
 
@@ -198,11 +198,11 @@
 
 ## S7 — `/dashboard` (409줄, 4 feature slice 횡단)
 
-- [ ] 차트 경로 확립 (lightweight-charts)
-- [ ] 전략 카드 — 수명주기 상태 칩 **미렌더** (schemas.ts 에 대응 필드 0건)
-- [ ] `dashboard-cockpit.tsx:36` 크로스라우트 import 거취 판단
-- [ ] `error.tsx` 신설
-- [ ] 상태 4종 실제 렌더
+- [x] 차트 경로 확립 (lightweight-charts)
+- [x] 전략 카드 — 수명주기 상태 칩 **미렌더** (schemas.ts 에 대응 필드 0건)
+- [x] `dashboard-cockpit.tsx:36` 크로스라우트 import 거취 판단
+- [x] `error.tsx` 신설
+- [x] 상태 4종 실제 렌더
 
 **검증 게이트** — S5 공통 + 차트 축 설정 단위 테스트(`priceScale.mode` 비로그/비퍼센트, 포매터 배율 없음)
 

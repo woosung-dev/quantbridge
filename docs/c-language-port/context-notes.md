@@ -293,3 +293,16 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
   - **StateBox 추출 판단.** `.state-box`(에러/빈) 골격이 S5·S7·S8 에서 10+회 반복 → `components/state-box.tsx` 로 추출. 인터페이스는 tone(neutral/failed)→role(status/alert)+클래스 파생 1개로 얕지 않게. DOM 바이트 보존으로 소비처 테스트 무변경. **미이관 잔여**(trades 표 S6 · session-diagnostics · exchange-accounts · kill-switch · live-session-table · route error.tsx)는 구조 편차/저반복이라 위험 대비 이득이 낮아 이연(remaining). InfoIcon 은 3벌 바이트 동일 → `components/info-icon.tsx`.
   - **가드 확장 스코프 결정.** "dashboard/·trading/ 라우트" = 두 라우트가 실제 렌더하는 트리로 해석 → `_components` + `features/trading/components` + `features/live-sessions/components` 추가. 확장 직후 RED(live-session-detail `{ev.status}` 1건만) 재현 = 반증 성공 후 SSOT 이관으로 그린.
   - **503 orphan 삭제.** MaintenanceCard/ProgressFill 프로덕션 소비자 0(not-found=404·error=500·maintenance=Illustration만). radius 래칫 4→2 cascade.
+
+## codex 최종 누적 검증 (2026-07-21, S1b~S9 diff)
+
+반증 축 7개 중 **래칫 우회(A)·훅 규칙(C)·테스트 정직성(F)은 반증 실패** — 게이트 체계가 유효했다. 발견 6건 전부 코드 대조로 사실 확인 후 픽스 (`0635e3c`~`41380a0`).
+
+- **정직성(B) 4건** — ① backtest 상태 롤업이 페이지 집계를 전역처럼 표시(+cancelled 누락) ② 코크핏이 RQ 오류를 0/빈으로 평탄화 ("거래소 미등록"·"미해결 이벤트 없음"이 오류 시 거짓) → `StatValue` 프리미티브(오류=확인 불가) ③ "활성·비활성 전체 세션" 문구가 거짓 (API 는 is_active 만 반환) ④ 존재하지 않는 `GET /trading/sessions/{id}/positions·503` 을 실호출처럼 렌더 — 캐논 §6 표기보다 **실제 API 부재의 정직성이 우선**.
+- **toast 중복(G)** — 셸 nav 배지 `useOrders(1)` 이 전환 toast 훅이라 중복 발화 → `notifyTransitions` opt-out.
+- **잔존 주석(E)** — 삭제된 503 variant·ETA 충실도 주장 주석 갱신.
+- **미픽스 잔여** — 전역 :focus-visible 의 P1 밖 이중 링 (MINOR, 캐논 전역 규칙 vs P1 한정 = 사용자 판단) · kpi-pnl 오류 표기 (aggregate 훅 시그니처 변경 필요).
+
+## 변경 이력 (append)
+
+- **2026-07-21** — **S1a~S9 완주 + codex 3회 검증.** 최종 게이트: vitest 164/904 · canon 29 · authed 5 · allowlist 전부 0. 상세는 HANDOFF 5판 §0.5.
