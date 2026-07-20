@@ -230,7 +230,22 @@ React 이식 시 대응 방안 후보 — 계획 단계에서 정하라.
 ?? skills-lock.json
 ```
 
-프로젝트 규칙상 **main 직접 커밋·푸시는 영구 차단**이다. 이식 착수 전에 브랜치를 만들고 프로토타입부터 커밋해야 산출물이 안전해진다. 머지 전략은 `stage/<theme>` 경유 + **사용자가 stage→main 을 수동 처리**하는 것이 이 프로젝트의 기본값이다.
+프로젝트 규칙상 **main 직접 커밋·푸시는 영구 차단**이다. 머지 전략은 `stage/<theme>` 경유 + **사용자가 stage→main 을 수동 처리**하는 것이 이 프로젝트의 기본값이다.
+
+### ★이식 브랜치는 반드시 `stage/` 접두사를 써라
+
+`.github/workflows/ci.yml` 의 트리거가 이렇다.
+
+```yaml
+on:
+  pull_request:
+    branches: [main, "stage/**"]
+```
+
+**base 가 `main` 이거나 `stage/**`인 PR 에서만 CI 가 발화한다.** 그 밖의 브랜치로 PR 을 올리면 lint·tsc·test·build 게이트가 **통째로 침묵한다.**
+앱 코드를 바꾸는 이식 작업에서 이건 위험하다. 이식 브랜치는`stage/c-language-port` 처럼 잡거나 base 를 main 으로 두어라.
+
+(프로토타입 커밋은 `docs/` + `skills-lock.json` 뿐이라 path 필터 `frontend/**`·`backend/**` 에도 안 걸려 CI 가 필요 없었다. 이식은 다르다.)
 
 ---
 
