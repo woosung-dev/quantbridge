@@ -81,13 +81,16 @@
 
 ---
 
-## S1a — 토큰 정합
+## S1a — 토큰 정합 (부분 완료 — #1·`--r` 은 S2/S5 가 앞당김)
 
-- [ ] `.dark` 색 5건 교정 — `globals.css:360` `:363` `:364` `:371` `:380`
-- [ ] `brand-palette.ts:45` `textMuted` 미러 갱신
-- [ ] 토큰 이름 13건 리네임
-- [ ] ★`chart-tokens.ts:60-69` 동반 수정 (누락 시 조용히 깨짐)
-- [ ] `--r: 12px` 도입
+- [x] `.dark` 색 **1/5 교정** — `--text-muted` #7a828c→#8b939c (**S5 가 앞당김** — C 딤 텍스트가
+      /backtests 에서 AA 위반 22건으로 드러남). 나머지 4건(copper-soft/line·bull-soft·warn-soft
+      틴트 알파)은 접근성 무관이라 미착수
+- [x] `brand-palette.ts:45` `textMuted` 미러 갱신 (#8b939c)
+- [ ] 토큰 이름 13건 리네임 — **재검토 필요.** S2 가 캐논 이름을 **별칭(alias)으로** 도입해
+      이식 CSS 가 이미 해석된다. 리네임(앱 토큰명 교체)은 blast-radius 큰 별개 작업 → 필요성 재평가
+- [ ] ★`chart-tokens.ts:60-69` 동반 수정 (토큰 리네임 시. 별칭 방식이면 불필요)
+- [x] `--r: 12px` 도입 (S2 substrate)
 - [ ] 하드코딩 hex — `app/layout.tsx:23,24` → `BRAND_PALETTE`, `app/icon.svg` `#2563eb` → 코퍼
 - [ ] 죽은 토큰 제거 — `--radius`(소비자 0) · `--radius-pill`(소비자 0) · `@theme inline` 중복 키 2건
 
@@ -121,17 +124,20 @@
 
 ---
 
-## S2 — 공용 CSS 이식
+## S2 — 공용 CSS 이식 (완료, 커밋 `f0715dc`)
 
-- [ ] `_kit.html` 24~997행 사이 **972줄**을 `globals.css` `@layer components` 로
-- [ ] 바이트 무결성 테스트 활성화
+- [x] `_kit.html` 컴포넌트 클래스(:106-1000)를 `globals.css` `@layer components` 로 이식
+- [x] ★캐논 토큰을 `:root` 별칭으로 도입 (순수 S2 불가 판명 — 이식 CSS 가 캐논 이름을 쓰는데
+      앱은 다른 이름. 별칭 지연해석으로 라이트/다크 자동 커버). 충돌 검사 3종(bare 클래스 0 ·
+      캐논 이름 참조 0 · bare 엘리먼트 셀렉터 0) → 소비자 0 → 시각 변화 0
+- [~] 바이트 무결성 테스트 — lint-staged 가 `.css` 를 안 건드려 byte-exact 가능하나 후속으로 남김
 
 **검증 게이트**
 
-- [ ] 바이트 무결성 테스트 PASS
-- [ ] `pnpm build` 그린 · **시각 변화 0** (이 시점 소비자 0)
-- [ ] `live-smoke` 그린
-- [ ] `code-review`
+- [x] `pnpm build` 그린 · **시각 변화 0** (design-canon-public 이식 전 baseline 그대로)
+- [x] 가드 38 · tsc 0
+- [ ] `live-smoke` (S5 와 함께 브라우저 실측으로 대체 — 콘솔 0 확인)
+- [x] `code-review` (S0 종료 리뷰가 감사 코어 커버, S2 는 무소비자 이식)
 
 ---
 
@@ -167,16 +173,25 @@
 
 ---
 
-## S5 — `/backtests` (528줄)
+## S5 — `/backtests` 콘텐츠 (완료, 커밋 `57c3ec9`)
 
-> 가장 작고 self-contained. 유일한 서버 prefetch + HydrationBoundary 패턴을 여기서 확정한다.
+> 유일한 서버 prefetch + HydrationBoundary 패턴. **셸(사이드바)은 예전 그대로 — S3 몫.** 콘텐츠만 C.
 
-- [ ] 시맨틱 CSS 클래스 사용 패턴 확립 (이후 화면이 따른다)
-- [ ] prefetch 패턴 보존
-- [ ] `error.tsx` 신설
-- [ ] 상태 4종 실제 렌더
+- [x] 시맨틱 CSS 클래스 사용 패턴 확립 (리포트 헤더·섹션 아이브로·목록 카드·runs-table)
+- [x] prefetch 패턴 보존 (page.tsx 미변경, BacktestList 만 재작성)
+- [x] 상태 실제 렌더 — loading(sk-cell 표)·error(state-box)·empty(state-box)·데이터(runs-table)
+- [x] ★정직성 — 목업 지표열(수익률/MDD/샤프/거래수/전략명) 미렌더. 실데이터 열만. "pine_v2"→"바 단위 이벤트 루프"
+- [x] 상태 칩 (완료=bull/실패=warn). 옛 progress-cell/KPI-pulse 테스트 → 상태 칩 테스트로 대체
 
-**검증 게이트** — design-canon 4폭 · 상태 4종 컴포넌트 테스트 · `pnpm e2e:authed` · allowlist 감소 · `design-taste-frontend` → `vercel-react-best-practices` → `code-review`
+**검증 게이트**
+
+- [x] `pnpm e2e:authed` /backtests — 하드 실패 0 (overflow=table-wrap · contrast=--text-muted 교정)
+- [x] allowlist 감소 — /backtests 1→0, 랜딩 / 2→0, design-canon-tokens 5→4
+- [x] 상태 컴포넌트 테스트 · vitest 858 · lint · build · tsc 그린 · 브라우저 실측(콘솔 0)
+- [ ] **미이행** — `error.tsx` 신설 · design-canon 4폭(1024/768/375) · `design-taste-frontend` → `vercel-react-best-practices`. 셸(S3) 후 재점검 권장
+
+> ★셸이 아직 예전이라 화면 전체는 프로토타입과 완전 일치하지 않는다. 콘텐츠 영역만 C.
+> 전체 일치는 **S3(셸)** 필요.
 
 ---
 
