@@ -52,6 +52,14 @@ export default defineConfig({
       testMatch: /live-smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
     },
+    // C 디자인 언어 이식 S0 — 인증 없는 디자인 캐논 게이트.
+    // 공개 라우트만 쓰므로 CI 에서 돌릴 수 있다 (`pnpm e2e:design-canon`).
+    // P1 4라우트는 전부 authed 라 `chromium-authed` 몫이고 로컬 전용이다.
+    {
+      name: "chromium-design-canon",
+      testMatch: /design-canon-.*\.spec\.ts$/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     {
       name: "chromium-authed",
       // Sprint 38 BL-188 v3 D — `backtest-live-mirror` 추가 (5 case Live mirror E2E).
