@@ -1,4 +1,4 @@
-// LandingNav — 로고/메뉴/CTA + 모바일 햄버거 토글 검증
+// LandingNav (C 이식) — 마케팅 헤더 브랜드 + 앵커 메뉴 + 로그인/시작 링크 + 햄버거 토글.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
@@ -7,45 +7,43 @@ import { LandingNav } from "../landing-nav";
 describe("LandingNav", () => {
   afterEach(() => {
     cleanup();
-    document.body.style.overflow = "";
   });
 
-  it("로고 + 데스크톱 앵커 메뉴 + 로그인/CTA 링크 노출", () => {
-    render(<LandingNav />);
-    expect(
-      screen.getAllByText("QuantBridge").length,
-    ).toBeGreaterThanOrEqual(1);
+  it("브랜드 + 앵커 메뉴(#features/#how/#support/#faq) + 로그인/시작 CTA", () => {
+    const { container } = render(<LandingNav />);
+    expect(screen.getAllByText("QuantBridge").length).toBeGreaterThanOrEqual(1);
 
-    const featuresLinks = screen.getAllByRole("link", { name: "기능" });
-    expect(featuresLinks.length).toBeGreaterThanOrEqual(1);
-    expect(featuresLinks[0]).toHaveAttribute("href", "#features");
+    const nav = container.querySelector("nav.lp-nav");
+    expect(nav).not.toBeNull();
+    expect(nav?.querySelector('a[href="#features"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="#how"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="#support"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="#faq"]')).not.toBeNull();
 
-    const howLinks = screen.getAllByRole("link", { name: "사용법" });
-    expect(howLinks[0]).toHaveAttribute("href", "#how-it-works");
-
-    const pricingLinks = screen.getAllByRole("link", { name: "요금제" });
-    expect(pricingLinks[0]).toHaveAttribute("href", "#pricing");
-
-    const faqLinks = screen.getAllByRole("link", { name: "FAQ" });
-    expect(faqLinks[0]).toHaveAttribute("href", "#faq");
-
-    const signIn = screen.getAllByRole("link", { name: "로그인" })[0];
-    expect(signIn).toHaveAttribute("href", "/sign-in");
-
-    const signUp = screen.getAllByRole("link", { name: "무료로 시작하기" })[0];
-    expect(signUp).toHaveAttribute("href", "/sign-up");
+    const login = screen.getAllByRole("link", { name: "로그인" })[0];
+    expect(login).toHaveAttribute("href", "/sign-in");
+    const start = screen.getByRole("link", { name: "시작하기" });
+    expect(start).toHaveAttribute("href", "/sign-up");
   });
 
-  it("햄버거 클릭 시 모바일 메뉴 dialog open + 닫기 버튼으로 close", () => {
-    render(<LandingNav />);
-    const hamburger = screen.getByRole("button", { name: "메뉴 열기" });
-    expect(hamburger).toHaveAttribute("aria-expanded", "false");
+  it("햄버거 클릭 시 lp-nav 가 open 되고 aria-expanded 토글", () => {
+    const { container } = render(<LandingNav />);
+    const burger = screen.getByRole("button", { name: "메뉴 열기" });
+    expect(burger).toHaveAttribute("aria-expanded", "false");
 
-    fireEvent.click(hamburger);
-    expect(screen.getByRole("dialog", { name: "모바일 메뉴" })).toBeInTheDocument();
+    fireEvent.click(burger);
+    expect(container.querySelector("nav.lp-nav.open")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "메뉴 닫기" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
 
-    const closeBtn = screen.getByRole("button", { name: "메뉴 닫기" });
-    fireEvent.click(closeBtn);
-    expect(screen.queryByRole("dialog", { name: "모바일 메뉴" })).not.toBeInTheDocument();
+  it("전역 카퍼 :focus-visible 소비 — outline:none 하드코딩 없음", () => {
+    const { container } = render(<LandingNav />);
+    const outlineNone = Array.from(container.querySelectorAll("*")).filter(
+      (el) => (el as HTMLElement).style?.outline === "none",
+    );
+    expect(outlineNone.length).toBe(0);
   });
 });

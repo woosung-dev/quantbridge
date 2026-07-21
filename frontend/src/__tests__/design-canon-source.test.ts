@@ -111,10 +111,7 @@ function productionFiles(): string[] {
       const full = join(dir, entry);
       const stat = statSync(full);
       if (stat.isDirectory()) walk(full);
-      else if (
-        /\.(ts|tsx)$/.test(full) &&
-        !/\.(test|spec)\.(ts|tsx)$/.test(full)
-      ) {
+      else if (/\.(ts|tsx)$/.test(full) && !/\.(test|spec)\.(ts|tsx)$/.test(full)) {
         results.push(full);
       }
     }
@@ -175,8 +172,14 @@ const WORD = /[\p{L}\p{N}]/u;
 function countProseEmDash(s: string): number {
   let cnt = 0;
   for (let i = s.indexOf("—"); i !== -1; i = s.indexOf("—", i + 1)) {
-    const prev = s.slice(Math.max(0, i - 3), i).replace(/\s/g, "").slice(-1);
-    const next = s.slice(i + 1, i + 4).replace(/\s/g, "").slice(0, 1);
+    const prev = s
+      .slice(Math.max(0, i - 3), i)
+      .replace(/\s/g, "")
+      .slice(-1);
+    const next = s
+      .slice(i + 1, i + 4)
+      .replace(/\s/g, "")
+      .slice(0, 1);
     if (WORD.test(prev || "") || WORD.test(next || "")) cnt++;
   }
   return cnt;
@@ -193,8 +196,8 @@ const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   // 리터럴을 var(--r) 시맨틱 소비로 전부 해소했다(구 컴포넌트 2벌은 삭제). 래칫 하강 완료.
   ["app/share/backtests/[token]/_components/share-not-found-state.tsx", 1],
   ["app/share/backtests/[token]/_components/share-revoked-state.tsx", 1],
-  ["app/waitlist/_components/waitlist-form-card.tsx", 2],
-  ["app/waitlist/_components/waitlist-hero.tsx", 1],
+  // W3-G: waitlist-form-card / waitlist-hero 를 C 디자인 언어로 재작성하며 rounded-[Npx]
+  // 리터럴을 var(--r) 시맨틱 소비로 전부 해소했다 → allowlist 에서 제거(래칫 하강).
   ["components/skeleton.tsx", 1],
   ["components/tape/pnl-tape.tsx", 1],
   ["components/tape/tape-progress.tsx", 1],
@@ -215,7 +218,8 @@ const HEX_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
  * S1b ④ 가 실제로 고칠 것을 골라 줄인다.
  */
 const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
-  ["app/(auth)/_components/brand-panel.tsx", 2],
+  // W3-G: (auth)/brand-panel 을 C 사실 패널로 재작성하며 testimonial/sub 의 노출 em-dash 2건을
+  // 마침표 산문으로 교정해 0 이 됐다 → allowlist 에서 제거(래칫 하강).
   // assumptions-card.tsx (구 2건)는 W2 리포트 상세 이식에서 trust-grid 재스킨과 함께 산문
   // em-dash 를 마침표로 교정해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/charts/cost-assumption-heatmap.tsx", 1],
@@ -234,14 +238,14 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   // tab-metadata/parse-result-panel C 재작성으로 노출 em-dash 0건 → allowlist 에서 제거.
   // W3-C: optimizer 5파일(bayesian/genetic chart · grid heatmap · pair-selector · oos)도 C 이식에서
   // 노출 산문 em-dash 전부 해소(한국어 카피 교체 + aria-label em-dash 제거) → allowlist 에서 제거.
-  ["app/_components/landing-bento.tsx", 1],
-  ["app/_components/landing-hero.tsx", 1],
+  // W3-G: landing-bento.tsx 삭제(프로토타입 미사용) + landing-hero.tsx C 재작성으로 노출
+  // em-dash 각 1건 해소 → 두 항목 제거(래칫 하강).
   ["app/disclaimer/page.tsx", 1],
   ["app/privacy/page.tsx", 6], // 정의 목록 (Clerk — 인증). 정당
   ["app/share/backtests/[token]/page.tsx", 2],
   ["app/terms/page.tsx", 1],
   ["components/form-error-inline.tsx", 1],
-  ["components/legal-notice-banner.tsx", 1],
+  // W3-G: legal-notice-banner.tsx 를 한국어 C 재스킨하며 "Beta 단계 — H2 말..." em-dash 해소 → 제거.
   ["components/monaco/pine-language.ts", 3],
   ["features/backtest/utils.ts", 2],
   ["features/live-sessions/components/activity-timeline-chart.tsx", 3],

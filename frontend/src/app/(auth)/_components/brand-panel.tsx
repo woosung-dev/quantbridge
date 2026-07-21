@@ -1,215 +1,89 @@
-// 인증 페이지 좌측 카본 브랜드 패널 — Precision Instrument W5 PR-12
-// 항상 다크(카본+코퍼): `dark` 클래스 스코프로 .dark 토큰을 고정 적용 (하드코딩 hex 금지).
-// 카피/testid 불변 — 스타일만 v3 정합 (구 블루 그라디언트/글래스/글로우 폐기).
+// 인증 화면 좌측 브랜드 패널 (.auth-brand) — C 디자인 언어. screen-15-login.html 이식.
+// 확인 가능한 사실 4가지만 적는다. 가공 인물·후기·가짜 라이브 점·아바타 군집은 쓰지 않는다(C7·C14).
+// mode 무관 — 좌 패널은 제품 사실이라 로그인/회원가입에서 동일하다.
 
-import Link from "next/link";
-import { TickRuler } from "@/components/tick-ruler";
-
-type BrandMode = "sign-in" | "sign-up";
-
-interface BrandPanelProps {
-  mode: BrandMode;
+interface Fact {
+  idx: string;
+  title: React.ReactNode;
+  body: string;
 }
 
-interface ModeCopy {
-  heading: string;
-  sub: string;
-  testimonialText: string;
-  testimonialAuthor: string;
-  testimonialRole: string;
-}
-
-// Multi-Agent QA BL-271 fix (Sprint 60 S2) — 가짜 testimonial author 익명화 + sub 정직 표시
-const MODE_COPY: Record<BrandMode, ModeCopy> = {
-  "sign-in": {
-    heading: "Pine Script 전략을\n실전 수익으로",
-    sub: "Beta 단계 — 초기 사용자와 함께 만드는 퀀트 트레이딩 플랫폼",
-    testimonialText: "backtest에서 최적화까지 3분이면 끝난다",
-    testimonialAuthor: "초기 사용자",
-    testimonialRole: "Beta dogfooder",
+const FACTS: Fact[] = [
+  {
+    idx: "01",
+    title: "엔진은 바 단위 이벤트 루프 자체 인터프리터입니다.",
+    body: "봉을 하나씩 순회하며 실행합니다. 지표를 미리 다 계산해 두고 한 번에 훑는 방식이 아니라, 봉마다 주문과 잔고 상태를 다시 계산합니다.",
   },
-  "sign-up": {
-    heading: "지금 시작하세요\n무료 데모로 안전하게",
-    sub: "가입 즉시 Bybit Demo 환경에서 전략을 검증할 수 있습니다",
-    testimonialText: "회원가입 5분이면 첫 백테스트 결과를 본다",
-    testimonialAuthor: "초기 사용자",
-    testimonialRole: "Beta dogfooder",
+  {
+    idx: "02",
+    title: "거래소 API 키는 AES-256(Fernet)으로 암호화해 저장합니다.",
+    body: "평문으로 보관하지 않습니다. 복호화 키는 코드가 아니라 환경 변수에서 읽고, 저장소에는 암호문만 남습니다.",
   },
-};
-
-interface StatRow {
-  value: string;
-  label: string;
-}
-
-const STATS: StatRow[] = [
-  { value: "Beta", label: "단계" },
-  { value: "Dev", label: "환경" },
-  { value: "Demo", label: "거래소" },
-  { value: "Open", label: "feedback" },
+  {
+    idx: "03",
+    title: "미지원 Pine 함수가 하나라도 있으면 전체를 거부합니다.",
+    body: "부분 실행으로 그럴듯한 숫자를 만드는 대신, 해석하지 못한다고 먼저 말합니다. 어느 함수 때문인지도 함께 돌려줍니다.",
+  },
+  {
+    idx: "04",
+    title: "리포트는 체결 가정과 데이터 출처를 결과 옆에 인쇄합니다.",
+    body: "체결 시점, 수수료율, 슬리피지, 데이터 구간, 펀딩 반영 여부를 수익률과 같은 화면에 둡니다. 가정을 모르면 수익률도 읽을 수 없기 때문입니다.",
+  },
 ];
 
-// 5 사용자 avatar (initials + 플랫 시맨틱 액센트 — v3 그라디언트 폐기). hidden md+ 전용.
-interface Avatar {
-  initials: string;
-  background: string;
-}
-
-const AVATARS: Avatar[] = [
-  { initials: "JK", background: "var(--primary)" },
-  { initials: "MH", background: "var(--bullish)" },
-  { initials: "YS", background: "var(--bearish)" },
-  { initials: "DW", background: "var(--chart-compare)" },
-  { initials: "SJ", background: "var(--warning)" },
-];
-
-export function BrandPanel({ mode }: BrandPanelProps) {
-  const copy = MODE_COPY[mode];
-
+export function BrandPanel() {
   return (
-    <aside
-      aria-label="QuantBridge 소개"
-      className="dark relative hidden flex-col justify-between gap-12 overflow-hidden border-r border-[color:var(--border)] bg-[color:var(--bg)] p-16 text-[color:var(--text-primary)] md:flex"
-    >
-      {/* 로고 — fadeInUp 0.6s. 플랫 스틸 마크 (글래스/backdrop-blur 폐기) */}
-      <Link
-        href="/"
-        aria-label="QuantBridge 홈으로 이동"
-        className="auth-fade-in-1 relative inline-flex items-center gap-3 self-start"
-      >
-        <span
-          aria-hidden="true"
-          className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[color:var(--border-dark)] bg-[color:var(--card)]"
-        >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M3 17h18M5 17V9a2 2 0 012-2h2M19 17V9a2 2 0 00-2-2h-2M9 7V4M15 7V4M3 21h18"
-              className="stroke-[color:var(--text-primary)]"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M9 11h6"
-              className="stroke-[color:var(--primary)]"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-        <span className="qb-display-wide text-xl font-bold tracking-tight">
-          QuantBridge
-        </span>
-      </Link>
+    <section className="auth-brand rise d1" aria-labelledby="auth-h1">
+      <h1 className="auth-h1" id="auth-h1">
+        Pine Script 전략을 검증하고, 검증한 그대로 주문까지 잇습니다.
+      </h1>
+      <p className="auth-lede">
+        QuantBridge 는 TradingView 에서 쓰던 Pine Script 를 파싱해 자체
+        인터프리터로 백테스트하고, 같은 전략을 거래소 주문으로 연결하는 로컬
+        워크스페이스입니다. 백테스트와 실제 주문이 서로 다른 코드 경로를 타지
+        않도록 만들었습니다.
+      </p>
 
-      {/* 미들: 가치 제안 + 소셜 프루프 — fadeInUp 0.7s delay 0.1s */}
-      <div className="auth-fade-in-2 relative flex flex-col gap-10">
-        <div>
-          <h1 className="m-0 whitespace-pre-line text-[2.5rem] leading-[1.2] font-bold">
-            {copy.heading}
-          </h1>
-          <p className="mt-4 text-[1.05rem] leading-[1.6] text-[color:var(--text-secondary)]">
-            {copy.sub}
-          </p>
-        </div>
+      <header className="auth-facts-head section-head">
+        <p className="eyebrow">
+          <span className="num">01</span> 확인 가능한 사실
+        </p>
+        <h2 className="section-title">숫자 자랑 대신 정책을 적습니다.</h2>
+        <p className="section-desc">
+          사용자 수나 체결 속도처럼 이 화면에서 확인할 수 없는 수치는 싣지
+          않습니다. 대신 코드와 문서로 확인할 수 있는 규칙 네 가지를 적습니다.
+        </p>
+      </header>
 
-        {/* 소셜 프루프 카드 — 플랫 스틸 카드: 1px 보더가 주인공 (글래스/blur 폐기) */}
-        <div
-          role="group"
-          aria-label="사용자 현황"
-          className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--card)] p-6"
-        >
-          {/* avatars row — 5 flat accent chips, -8px overlap, mb=14px */}
-          <div
-            aria-hidden="true"
-            data-testid="brand-avatars"
-            className="mb-[14px] flex items-center"
-          >
-            {AVATARS.map((av, idx) => (
-              <span
-                key={av.initials}
-                className="font-display flex h-10 w-10 items-center justify-center rounded-full border-2 border-[color:var(--card)] text-[0.82rem] font-bold text-[color:var(--background)]"
-                style={{
-                  background: av.background,
-                  marginLeft: idx === 0 ? 0 : "-8px",
-                }}
-              >
-                {av.initials}
-              </span>
-            ))}
-          </div>
-
-          {/* live indicator — livePulse keyframe 유지, green 은 --success 토큰 */}
-          <div className="flex items-center gap-2.5 text-[0.92rem] font-medium text-[color:var(--text-secondary)]">
-            <span
-              aria-hidden="true"
-              className="relative inline-block h-2 w-2 flex-shrink-0 rounded-full bg-[color:var(--success)]"
-            >
-              <span
-                aria-hidden="true"
-                className="absolute -inset-1 rounded-full bg-[color:var(--success)]/50 motion-safe:animate-[livePulse_2s_infinite]"
-              />
+      <ul className="card facts">
+        {FACTS.map((f) => (
+          <li key={f.idx} className="fact">
+            <span className="fact-idx" aria-hidden="true">
+              {f.idx}
             </span>
             <span>
-              Beta 단계 — 초기 사용자와 함께 검증 중
+              <span className="fact-title">{f.title}</span>
+              <span className="fact-body">{f.body}</span>
             </span>
-          </div>
+          </li>
+        ))}
+      </ul>
 
-          {/* 시그니처 — 키 스탯 스트립 상단 계측 눈금 (DESIGN.md §0.1 공인 사이트) */}
-          <TickRuler className="mt-[18px] opacity-70" />
-          <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3">
-            {STATS.map((stat) => (
-              <div
-                key={stat.label}
-                className="flex items-baseline gap-2 text-[0.82rem] text-[color:var(--text-secondary)]"
-              >
-                <span
-                  className="font-semibold text-[color:var(--text-primary)]"
-                  data-type="number"
-                >
-                  {stat.value}
-                </span>
-                <span className="text-[0.75rem] text-[color:var(--text-muted)]">
-                  {stat.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 인용문 — fadeInUp 0.8s delay 0.2s */}
-      <blockquote className="auth-fade-in-3 relative pl-7">
+      <p className="auth-note">
         <svg
-          aria-hidden="true"
-          className="absolute -top-2.5 -left-1 opacity-20"
-          width="36"
-          height="28"
-          viewBox="0 0 36 28"
+          viewBox="0 0 24 24"
           fill="none"
-          xmlns="http://www.w3.org/2000/svg"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
         >
-          <path
-            d="M0 28V18.666c0-3.111.51-5.935 1.528-8.47C2.546 7.66 4.08 5.333 6.132 3.2 8.183 1.066 10.74.066 13.8 0v5.066c-2.037.8-3.6 2.4-4.69 4.8-1.09 2.4-1.528 4.933-1.313 7.6H13.8V28H0zm20.1 0V18.666c0-3.111.51-5.935 1.528-8.47 1.018-2.535 2.552-4.862 4.604-6.996C28.283 1.066 30.84.066 33.9 0v5.066c-2.037.8-3.6 2.4-4.69 4.8-1.09 2.4-1.528 4.933-1.313 7.6H33.9V28H20.1z"
-            fill="currentColor"
-          />
+          <circle cx="12" cy="12" r="9" />
+          <line x1="12" y1="11" x2="12" y2="16.5" />
+          <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
         </svg>
-        <p className="font-display m-0 mb-2.5 text-[1.05rem] leading-[1.55] font-medium">
-          {copy.testimonialText}
-        </p>
-        <p className="text-[0.85rem] text-[color:var(--text-muted)]">
-          <strong className="font-semibold text-[color:var(--text-secondary)]">
-            {copy.testimonialAuthor}
-          </strong>{" "}
-          — {copy.testimonialRole}
-        </p>
-      </blockquote>
-    </aside>
+        실제 계정 인증은 Clerk 가 처리합니다. 이메일과 비밀번호, 또는 소셜
+        계정으로 워크스페이스에 들어갑니다.
+      </p>
+    </section>
   );
 }

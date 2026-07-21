@@ -1,4 +1,4 @@
-// WaitlistHero — 가치제안 / Beta 통계 / 로그인 링크 노출 검증
+// WaitlistHero (C 이식) — 소개 카피 + 칩 + 사실 카드(미정 무데이터). AI-slop(OKX 지원·7초) 제거 검증.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -9,26 +9,25 @@ describe("WaitlistHero", () => {
     cleanup();
   });
 
-  it("h1 — 'Pine Script 전략을' + '실전 자동매매' 카피 노출", () => {
+  it("h1 카피 + 엔진 / Bybit 칩", () => {
     render(<WaitlistHero />);
     const heading = screen.getByRole("heading", { level: 1 });
-    expect(heading.textContent).toContain("Pine Script 전략을");
-    expect(heading.textContent).toContain("실전 자동매매");
+    expect(heading.textContent).toContain("TradingView Pine 전략을 백테스트");
+    expect(screen.getByText("바 단위 이벤트 루프 자체 인터프리터")).toBeInTheDocument();
+    expect(screen.getByText("Bybit 데모 · 메인넷")).toBeInTheDocument();
   });
 
-  it("Beta · Invite Only 배지 + 3개 가치제안 + Beta 통계 3건 노출", () => {
-    render(<WaitlistHero />);
-    expect(screen.getByText(/Beta · Invite Only/)).toBeInTheDocument();
-    expect(screen.getByText(/Pine Script 그대로 자동매매/)).toBeInTheDocument();
-    expect(screen.getByText(/백테스트는 7초/)).toBeInTheDocument();
-    expect(screen.getByText(/Beta 신청자에게만 공개/)).toBeInTheDocument();
-    expect(screen.getByText("1-2주")).toBeInTheDocument();
-    expect(screen.getByText("Bybit + OKX")).toBeInTheDocument();
+  it("사실 카드 — 공개 시점/가격 미정(무데이터 + title)", () => {
+    const { container } = render(<WaitlistHero />);
+    const dims = container.querySelectorAll(".trust-val.dim");
+    expect(dims.length).toBe(2);
+    dims.forEach((el) => expect(el.textContent).toBe("미정"));
   });
 
-  it("로그인 링크 → /sign-in", () => {
+  it("AI-slop 제거 — OKX 지원/7초 속도/가짜 배지 없음", () => {
     render(<WaitlistHero />);
-    const link = screen.getByText("로그인").closest("a");
-    expect(link).toHaveAttribute("href", "/sign-in");
+    expect(screen.queryByText(/OKX/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/7초/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Invite Only/)).not.toBeInTheDocument();
   });
 });

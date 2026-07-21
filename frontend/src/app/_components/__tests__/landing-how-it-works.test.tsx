@@ -1,4 +1,4 @@
-// LandingHowItWorks — 4 step 모두 렌더 + section id 검증
+// LandingHowItWorks (C 이식) — 4 단계 카드 + section id=how.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -9,33 +9,18 @@ describe("LandingHowItWorks", () => {
     cleanup();
   });
 
-  it("section heading + sub copy 노출", () => {
-    render(<LandingHowItWorks />);
-    expect(
-      screen.getByRole("heading", { level: 2, name: /어떻게 작동하나요/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/4단계로 끝납니다/),
-    ).toBeInTheDocument();
+  it("section id=how + eyebrow 02", () => {
+    const { container } = render(<LandingHowItWorks />);
+    expect(container.querySelector("#how")).not.toBeNull();
+    expect(container.querySelector(".eyebrow .num")?.textContent).toBe("02");
   });
 
-  it("4 step 카드 — h3 + step number 모두 렌더", () => {
+  it("4 단계 카드(.lp-step) + STEP 라벨", () => {
     const { container } = render(<LandingHowItWorks />);
-    // Sprint 62 T-3 (BL-353): step 01 라벨 "전략 업로드" → "전략 코드 붙여넣기" hero 정합.
-    const titles = [
-      "전략 코드 붙여넣기",
-      "백테스트 실행",
-      "파라미터 최적화",
-      "자동 매매 시작",
-    ] as const;
-    for (const t of titles) {
-      expect(
-        screen.getByRole("heading", { level: 3, name: t }),
-      ).toBeInTheDocument();
-    }
-    for (const n of ["01", "02", "03", "04"]) {
-      expect(screen.getByText(n)).toBeInTheDocument();
-    }
-    expect(container.querySelector("#how-it-works")).not.toBeNull();
+    expect(container.querySelectorAll(".lp-step").length).toBe(4);
+    expect(screen.getByText("STEP 1")).toBeInTheDocument();
+    expect(screen.getByText("STEP 4")).toBeInTheDocument();
+    expect(screen.getByText("전략 등록")).toBeInTheDocument();
+    expect(screen.getByText("데모 실행")).toBeInTheDocument();
   });
 });

@@ -1,29 +1,19 @@
-// 랜딩 페이지 (인증 사용자 자동 /strategies redirect + hero + features)
-import Link from "next/link";
+// 랜딩 페이지 (/) — C 디자인 언어 이식. 인증 사용자는 /strategies 로 redirect.
+// screen-14-landing.html 6섹션 구조: 히어로 → 기능 → 작동 방식 → 지원 현황 → 성능 → FAQ → 시작.
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
 import { GeoBlockBanner } from "@/components/geo-block-banner";
 
-import { LandingBento } from "./_components/landing-bento";
-import { LandingDashboardShowcase } from "./_components/landing-dashboard-showcase";
+import { LandingCta } from "./_components/landing-cta";
 import { LandingFaq } from "./_components/landing-faq";
 import { LandingFeatures } from "./_components/landing-features";
 import { LandingFooter } from "./_components/landing-footer";
 import { LandingHero } from "./_components/landing-hero";
 import { LandingHowItWorks } from "./_components/landing-how-it-works";
 import { LandingNav } from "./_components/landing-nav";
-import { LandingPricing } from "./_components/landing-pricing";
-import { LandingStatsStrip } from "./_components/landing-stats-strip";
-
-const TRUST_BRANDS = [
-  "Binance",
-  "Bybit",
-  "OKX",
-  "Upbit",
-  "Bithumb",
-  "Coinbase",
-] as const;
+import { LandingPerformance } from "./_components/landing-performance";
+import { LandingSupport } from "./_components/landing-support";
 
 export default async function LandingPage() {
   const { userId } = await auth();
@@ -32,52 +22,21 @@ export default async function LandingPage() {
   }
 
   return (
-    <>
+    <div className="lp-page">
       <GeoBlockBanner />
       <LandingNav />
-      <main id="main-content" className="bg-[color:var(--bg)]">
-        <LandingHero />
-        <section
-          aria-label="연동 거래소"
-          className="border-y border-[color:var(--border)] bg-muted px-6 py-8 text-center"
-        >
-          <p className="text-sm text-[color:var(--text-muted)]">
-            Bybit Demo 연동 (Beta)
-          </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
-            {TRUST_BRANDS.map((b) => (
-              <span
-                key={b}
-                className="rounded-sm border border-[color:var(--border)] bg-[color:var(--bg-alt)] px-4 py-1.5 font-mono text-xs font-medium tracking-[0.08em] text-[color:var(--text-muted)]"
-              >
-                {b}
-              </span>
-            ))}
-          </div>
-        </section>
-        <LandingFeatures />
-        <LandingHowItWorks />
-        <LandingBento />
-        <LandingDashboardShowcase />
-        <LandingStatsStrip />
-        <LandingPricing />
-        <LandingFaq />
-        <section className="bg-card px-6 py-20 text-center">
-          <h2 className="font-display text-3xl font-bold text-[color:var(--text-primary)] md:text-4xl">
-            지금 바로 시작하세요
-          </h2>
-          <p className="mx-auto mt-3 max-w-[480px] text-base text-[color:var(--text-secondary)]">
-            Bybit Demo Trading 환경에서 위험 없이 전략을 검증합니다.
-          </p>
-          <Link
-            href="/sign-up"
-            className="mt-8 inline-flex h-12 items-center gap-2 rounded-md bg-[color:var(--primary)] px-8 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all duration-200 hover:-translate-y-px hover:bg-[color:var(--primary-hover)] hover:shadow-btn-primary-hover"
-          >
-            무료로 가입하기
-          </Link>
-        </section>
+      <main id="main-content">
+        <div className="page">
+          <LandingHero />
+          <LandingFeatures />
+          <LandingHowItWorks />
+          <LandingSupport />
+          <LandingPerformance />
+          <LandingFaq />
+          <LandingCta />
+          <LandingFooter />
+        </div>
       </main>
-      <LandingFooter />
-    </>
+    </div>
   );
 }
