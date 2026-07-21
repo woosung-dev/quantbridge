@@ -5,12 +5,12 @@
 // 초기 자본 필드는 CreateStrategyRequest 에 대응 필드가 0건이라 렌더하지 않는다(§4.9).
 // draft(localStorage) 복원과 create/parse 훅은 그대로 보존한다.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
-import { SaveIcon, SearchIcon } from "lucide-react";
+import { FileCode2Icon, FolderOpenIcon, InfoIcon, SaveIcon, SearchIcon } from "lucide-react";
 
 import {
   Dialog,
@@ -24,6 +24,7 @@ import { PineEditor } from "@/components/monaco/pine-editor";
 import { useCreateStrategy, useParseStrategy, usePreviewParse } from "@/features/strategy/hooks";
 import { handleMutationError } from "@/features/strategy/error-handler";
 import { useDebouncedValue } from "@/features/strategy/utils";
+import { PINE_FUNCTION_LEXICON } from "@/features/strategy/pine-lexicon";
 import {
   clearOtherUsersDrafts,
   clearWizardDraft,
@@ -37,6 +38,12 @@ import { ParseResultPanel } from "./parse-result-panel";
 const SYMBOL_OPTIONS = ["BTC/USDT", "ETH/USDT", "SOL/USDT"] as const;
 const TIMEFRAME_OPTIONS = ["15m", "1h", "4h", "1d"] as const;
 
+// 지원 함수 사전(04 진단) — pine-lexicon 정적 상수를 삽입 순서대로 나열한다. 동기 데이터라
+// 로딩/스켈레톤 상태가 없다(§4.9 가짜 로딩 금지). 실제 지원 여부 판정은 서버 파서가 한다.
+const LEXICON_ENTRIES = Object.entries(PINE_FUNCTION_LEXICON);
+// 레포 내 실존 예제 스크립트. frontend/public/samples/ema-crossover.pine (정적 자산).
+const EXAMPLE_PINE_URL = "/samples/ema-crossover.pine";
+
 export function NewStrategyWizard() {
   const router = useRouter();
   const { userId } = useAuth();
@@ -47,13 +54,19 @@ export function NewStrategyWizard() {
   const [description, setDescription] = useState("");
   const [pineSource, setPineSource] = useState("");
 
+  // 파일 열기(로컬 파일 선택 → 소스 주입) + 예제 불러오기(정적 자산 fetch → 소스 주입).
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exampleLoading, setExampleLoading] = useState(false);
+
   // Draft 복원 — render-time 에 localStorage 를 derive (LESSON-004, set-state-in-effect 금지).
   const availableDraft = useDraftSnapshot(userId);
-  const [promptDismissed, setPromptDismissed] = useState(false);
-  const shouldPromptRestore =
-    !promptDismissed &&
+  // 의미 있는 초안 = 원문 또는 이름이 있는 것. 자동 저장이 만드는 빈 초안(원문·이름 없음)은
+  // 저장된 작업이 없는 것과 같으므로 04 진단 카드에서 빈 상태로 취급한다(복원 Dialog 와 같은 게이트).
+  const hasMeaningfulDraft =
     availableDraft !== null &&
     (availableDraft.pineSource.trim().length > 0 || Boolean(availableDraft.metadata.name));
+  const [promptDismissed, setPromptDismissed] = useState(false);
+  const shouldPromptRestore = !promptDismissed && hasMeaningfulDraft;
 
   // 계정 전환 대비 — 다른 userId 의 잔여 draft 를 best-effort 로 정리.
   useEffect(() => {
@@ -114,6 +127,36 @@ export function NewStrategyWizard() {
       metadata: { name, description, symbol, timeframe },
     });
     toast.success("초안을 저장했습니다");
+  };
+
+  const handleOpenFile = () => fileInputRef.current?.click();
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // 같은 파일 재선택 허용
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setPineSource(text);
+      toast.success(`"${file.name}" 을 불러왔습니다`);
+    } catch {
+      toast.error("파일을 읽지 못했습니다");
+    }
+  };
+
+  const handleLoadExample = async () => {
+    setExampleLoading(true);
+    try {
+      const res = await fetch(EXAMPLE_PINE_URL);
+      if (!res.ok) throw new Error(`샘플 응답 ${res.status}`);
+      const text = await res.text();
+      setPineSource(text);
+      toast.success("예제 스크립트를 불러왔습니다");
+    } catch {
+      toast.error("예제를 불러오지 못했습니다");
+    } finally {
+      setExampleLoading(false);
+    }
   };
 
   const handleRestore = () => {
@@ -269,6 +312,27 @@ export function NewStrategyWizard() {
                   <p className="card-sub">바 단위 이벤트 루프 · ⌘+Enter 로 즉시 파싱</p>
                 </div>
                 <div className="toolbar">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pine,.txt,text/plain"
+                    onChange={handleFileChange}
+                    hidden
+                    data-testid="pine-file-input"
+                  />
+                  <button className="btn btn-ghost" type="button" onClick={handleOpenFile}>
+                    <FolderOpenIcon aria-hidden="true" />
+                    파일 열기
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    type="button"
+                    onClick={handleLoadExample}
+                    disabled={exampleLoading}
+                  >
+                    <FileCode2Icon aria-hidden="true" />
+                    예제 불러오기
+                  </button>
                   <button
                     className="btn btn-primary"
                     type="button"
@@ -326,6 +390,94 @@ export function NewStrategyWizard() {
           </section>
         </div>
       </div>
+
+      {/* ===== 04 진단 ===== */}
+      <section className="section" aria-label="진단">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">04</span> 진단
+          </p>
+          <h2 className="section-title">준비 중이거나 비어 있는 항목</h2>
+          <p className="section-desc">
+            지원 함수 사전과 저장된 초안은 아직 준비되지 않았거나 비어 있는 상태도 감추지 않고 그대로
+            보여줍니다.
+          </p>
+        </header>
+
+        <div className="diag-2">
+          {/* (a) 지원 함수 사전 — pine-lexicon 정적 목록 (backed) */}
+          <article className="card diag" aria-label="지원 함수 사전">
+            <div className="card-head">
+              <div>
+                <h3 className="card-title">지원 함수 사전</h3>
+                <p className="card-sub">
+                  바 단위 이벤트 루프가 해석하는 함수 {LEXICON_ENTRIES.length}종
+                </p>
+              </div>
+            </div>
+            <div className="card-body">
+              <ul className="lexicon-list" data-testid="lexicon-list">
+                {LEXICON_ENTRIES.map(([fnName, desc]) => (
+                  <li key={fnName}>
+                    <code className="mono">{fnName}</code>
+                    <span>{desc.summary}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="state-note">
+                <InfoIcon aria-hidden="true" />
+                미지원 함수가 하나라도 있으면 부분 실행 없이 전체를 지원되지 않음으로 처리합니다.
+              </p>
+            </div>
+          </article>
+
+          {/* (b) 저장된 초안 — localStorage draft (이 브라우저에만 남음) */}
+          <article className="card diag" aria-label="저장된 초안">
+            <div className="card-head">
+              <div>
+                <h3 className="card-title">저장된 초안</h3>
+                <p className="card-sub">이 브라우저에만 남습니다.</p>
+              </div>
+            </div>
+            <div className="card-body">
+              {hasMeaningfulDraft && availableDraft ? (
+                <div className="draft-present" data-testid="draft-present">
+                  <p className="draft-meta">
+                    {new Date(availableDraft.savedAt).toLocaleString("ko-KR")}에 저장한 초안이
+                    있습니다.
+                    {availableDraft.metadata.name
+                      ? ` 이름 "${availableDraft.metadata.name}".`
+                      : ""}
+                  </p>
+                  <div className="draft-actions">
+                    <button className="btn btn-ghost btn-xs" type="button" onClick={handleRestore}>
+                      이어서 작성
+                    </button>
+                    <button className="btn btn-ghost btn-xs" type="button" onClick={handleSaveDraft}>
+                      <SaveIcon aria-hidden="true" />
+                      지금 다시 저장
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="state-box" data-testid="draft-empty">
+                  <span className="state-icon" aria-hidden="true">
+                    <SaveIcon />
+                  </span>
+                  <p className="state-title">저장된 초안이 없습니다.</p>
+                  <p className="state-body">
+                    지금 입력한 내용을 초안으로 두면 파싱 검사에 실패해도 원문이 남습니다.
+                  </p>
+                  <button className="btn btn-ghost" type="button" onClick={handleSaveDraft}>
+                    <SaveIcon aria-hidden="true" />
+                    현재 입력을 초안으로 저장
+                  </button>
+                </div>
+              )}
+            </div>
+          </article>
+        </div>
+      </section>
 
       {/* Draft 복원 Dialog */}
       <Dialog
