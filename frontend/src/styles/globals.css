@@ -1873,7 +1873,7 @@ h6 {
 }
 
 /* c-port-remaining(2026-07-21): 아래 화면 전용 블록들은 KITPORT 밖 언레이어드에만 추가한다.
-   (주석 개정 r3 — Turbopack 캐시 무효화 이력: 슬라이스 통합마다 이 줄을 갱신한다) */
+   (주석 개정 r4 — Turbopack 캐시 무효화 이력: 슬라이스 통합마다 이 줄을 갱신한다) */
 
 /* ==========================================================================
  * C 디자인 언어 화면 전용 CSS — /backtests 목록 (이식 S5).
@@ -2359,7 +2359,7 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
  * C 디자인 언어 화면 전용 CSS — /strategies/[id]/edit 편집 (이식 W3-B, screen-08).
  *   출처 docs/prototypes/shotgun-2026-07/screen-08-strategy-editor.html:997-1138.
  *   진단 띠(진짜 탭 3종)와 code-foot, 그리고 보존 기능(메타/webhook) 소품만 얹는다.
- *   공용 .card/.tabs/.tab/.metric-group/.trust-*/.state-box 는 KITPORT 가 제공한다.
+ *   공용 .card/.tabs/.tab/.metric-group/.trust- 계열/.state-box 는 KITPORT 가 제공한다.
  *   .chip.warn 은 S5 블록이 이미 정의한다. KITPORT 센티넬 밖 · 언레이어드.
  * ========================================================================== */
 
