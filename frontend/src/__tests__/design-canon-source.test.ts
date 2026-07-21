@@ -1,7 +1,8 @@
 // 커밋된 소스 텍스트의 캐논 위반 3종을 동결하는 정적 래칫 (이식 seam #3)
 //
 // 검사 대상.
-//   1. 반경 스케일 — `rounded-2xl`/`rounded-3xl` + `rounded-[Npx]` 리터럴. S9 가 비운다.
+//   1. 반경 스케일 — `rounded-2xl`/`rounded-3xl` + `rounded-[Npx]` 리터럴. W-final 판정 후
+//      잔여 5건은 정당(RADIUS_ALLOWLIST 주석 참조) — 프로토타입 밖 share 2 + 불가침 테이프 3.
 //   2. 하드코딩 hex — 토큰 정의 계층(`brand-palette.ts`) 밖의 색 리터럴. layout 2건은 S1a.
 //   3. 노출 em-dash — 산문에 쓰인 em-dash. S1b ④ 가 판단해 줄인다.
 //
@@ -187,20 +188,26 @@ function countProseEmDash(s: string): number {
 
 // ── allowlist (2026-07-20 calibration 실측) ──────────────────────────────────
 
-/** 반경 리터럴. S9 가 전부 비운다. */
+/**
+ * 반경 리터럴 allowlist. 하강 이력: W3-E(onboarding) · W3-H(에러 3종 + 구 illustration/
+ * recovery 2벌 삭제) · W3-G(waitlist-form-card/hero)를 var(--r) 시맨틱 소비로 전부 해소.
+ *
+ * ★W-final 잔여 판정 (2026-07-21) — 남은 5건 전부 정당 잔여, 안전 감축 불가.
+ *   자체 focus ring 제거(이중 링 sweep)로 co-drop 될 반경도 없다(반경은 focus ring 과 무관).
+ */
 const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
-  // W3-E: onboarding option-card-radio 의 rounded-[10px] 를 var(--r) 로 교체해 0 이 됐다
-  // (self focus ring 제거 + C 토큰 정합). 래칫 하강 완료 → 항목 제거.
-  // 에러 3종(error.tsx 500 · not-found.tsx 404 · maintenance/page.tsx 503) + 구 컴포넌트
-  // error-illustration/error-recovery-box 는 W3-H 에서 screen-13 C 구조로 재스킨하며 반경
-  // 리터럴을 var(--r) 시맨틱 소비로 전부 해소했다(구 컴포넌트 2벌은 삭제). 래칫 하강 완료.
-  ["app/share/backtests/[token]/_components/share-not-found-state.tsx", 1],
-  ["app/share/backtests/[token]/_components/share-revoked-state.tsx", 1],
-  // W3-G: waitlist-form-card / waitlist-hero 를 C 디자인 언어로 재작성하며 rounded-[Npx]
-  // 리터럴을 var(--r) 시맨틱 소비로 전부 해소했다 → allowlist 에서 제거(래칫 하강).
-  ["components/skeleton.tsx", 1],
-  ["components/tape/pnl-tape.tsx", 1],
-  ["components/tape/tape-progress.tsx", 1],
+  // ── share 2건 = 프로토타입 없는 화면(이식 범위 밖). rounded-3xl 은 24×24 일러스트 배지
+  //    반경이고, share 스크린 자체가 C 이식 대상이 아니라 그 화면을 재스킨하는 시점에
+  //    var(--r) 로 흡수된다. 지금 감축하려면 화면 이식이 선행돼야 하므로 범위 밖 — 유지.
+  ["app/share/backtests/[token]/_components/share-not-found-state.tsx", 1], // rounded-3xl 일러스트 배지
+  ["app/share/backtests/[token]/_components/share-revoked-state.tsx", 1], // rounded-3xl 일러스트 배지
+  // ── skeleton/pnl-tape/tape-progress 3건 = 불가침 프리미티브(operating-contract §7 "tick-ruler·
+  //    pnl-tape 불가침"). rounded-[1px] 은 테이프/스켈레톤 세그먼트의 1px 헤어라인으로,
+  //    rounded-2xl/3xl 슬롭이 아니라 테이프 미학의 의도된 계측 디테일이다. var(--r)(6px)로
+  //    바꾸면 시각 정본이 깨진다 — 유지.
+  ["components/skeleton.tsx", 1], // rounded-[1px] 테이프 마스크 헤어라인
+  ["components/tape/pnl-tape.tsx", 1], // rounded-[1px] PnL 테이프 세그먼트
+  ["components/tape/tape-progress.tsx", 1], // rounded-[1px] 진행 테이프 세그먼트
 ];
 
 /**
@@ -272,7 +279,7 @@ describe("C 디자인 언어 소스 텍스트 정적 래칫 (이식 seam #3)", (
     expect(stripComments(`const a = 1; // #ffffff PR #171`)).not.toContain("#ffffff");
   });
 
-  describe("반경 스케일 (S9 가 비운다)", () => {
+  describe("반경 스케일 (W-final: 정당 잔여 5건 동결)", () => {
     const actual = scanByFile(files, countRadius);
     it("allowlist 밖의 새 반경 리터럴이 없다", () => {
       const { grown } = diffRatchet(actual, RADIUS_ALLOWLIST);
