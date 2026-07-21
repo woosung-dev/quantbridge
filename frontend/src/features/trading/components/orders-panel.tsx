@@ -141,11 +141,10 @@ export function OrdersPanel() {
                 <th scope="col" className="num">
                   체결가
                 </th>
-                {/* Wave 2 — bracket TP/SL + 청산가(graceful) */}
+                {/* Wave 2 — bracket TP/SL. 청산가 열은 캐논 §4.6 대로 두지 않는다
+                    (체결 주문이 곧 열린 포지션을 뜻하지 않고 포지션 API 도 없다 —
+                    ORDER_LIQUIDATION_DELEGATION_NOTE 로 코크핏에 위임). */}
                 <th scope="col">익절·손절</th>
-                <th scope="col" className="num">
-                  청산가
-                </th>
                 <th scope="col">거래소 주문번호</th>
                 <th scope="col">오류</th>
               </tr>
@@ -179,13 +178,6 @@ export function OrdersPanel() {
                           }`
                         : EMPTY_CELL}
                     </td>
-                    {/* 청산가 graceful-empty (의도적). 주문 목록은 "열린 포지션" 상태를
-                        노출하지 않는다 — filled 주문이 곧 열린 포지션을 의미하지 않으며(이미
-                        청산/반대매매됐을 수 있음), positions API 도 부재. 과거 주문에 라이브
-                        위험 수준처럼 보이는 청산가를 찍으면 오해 유발(Surface Trust 위반). */}
-                    <td data-testid="liquidation-cell" className="num dim">
-                      {EMPTY_CELL}
-                    </td>
                     <td>
                       <BrokerBadge orderId={o.exchange_order_id} />
                     </td>
@@ -209,7 +201,7 @@ function OrdersSkeleton() {
         <tbody>
           {Array.from({ length: 5 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 9 }).map((__, j) => (
+              {Array.from({ length: 8 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>

@@ -95,9 +95,10 @@ test("OrdersPanel: real broker UUID 시 broker 배지 + 마지막 8자 + (broker
   );
 });
 
-// Wave 2 — TP/SL 컬럼 + 청산가 컬럼(graceful-empty).
+// Wave 2 — TP/SL 컬럼. C 이식(W3-F): 청산가 열은 캐논 §4.6 대로 제거됐다
+// (체결 주문이 곧 열린 포지션을 뜻하지 않고 포지션 API 도 없다 — 코크핏에 위임).
 
-test("OrdersPanel: TP/SL 값이 있으면 렌더, 청산가는 graceful '—'", async () => {
+test("OrdersPanel: TP/SL 값이 있으면 렌더하고, 청산가 열은 두지 않는다", async () => {
   _mountOrders([
     {
       ..._baseOrder,
@@ -108,12 +109,12 @@ test("OrdersPanel: TP/SL 값이 있으면 렌더, 청산가는 graceful '—'", 
   ]);
   await screen.findByText("BTC/USDT");
   expect(screen.getByText("익절·손절")).toBeInTheDocument();
-  expect(screen.getByText("청산가")).toBeInTheDocument();
   const tpslCell = screen.getByTestId("tpsl-cell");
   expect(tpslCell).toHaveTextContent("55000");
   expect(tpslCell).toHaveTextContent("48000");
-  // 청산가는 W-B 미머지 → graceful-empty 셀
-  expect(screen.getByTestId("liquidation-cell")).toHaveTextContent("—");
+  // 청산가 열·셀은 제거됐다 (Surface Trust — 확인 불가한 값을 라이브 위험처럼 보이지 않게).
+  expect(screen.queryByText("청산가")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("liquidation-cell")).not.toBeInTheDocument();
 });
 
 // STEP B — 트레일링 의도(Order.trailing_stop) 표출 (Playwright UI 검증 대상).
