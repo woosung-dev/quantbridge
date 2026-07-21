@@ -300,6 +300,20 @@ export async function auditUrl(
       ...contextOptions,
       viewport: { width: w, height: 900 },
       deviceScaleFactor: 1,
+      // 대비/canon/overflow/포커스 표본은 반드시 **정지 상태**에서 떠야 한다.
+      // 캐논 하드 제약 11 — `prefers-reduced-motion: reduce` 에서 globals.css L1821 이
+      // `.rise { animation: none; opacity: 1 }` 로 강제한다(`.sk`/`.draw` 도 동). 즉 이 값은
+      // 애니메이션 완료 후 정지값과 같다.
+      //   실측(2026-07-21, /trading). full authed 스위트에서 "라이브 세션 시작" 버튼 텍스트
+      //   대비가 1.11:1 로 결정적 FAIL 했으나 단독 실행은 반복 PASS 였다. §05 폼은 .rise 스태거
+      //   지연 사슬의 최말단이라, load+settleMs 시점이 스위트 문맥의 수백 ms 타이밍 차이에서
+      //   입장 opacity 램프 중간을 찍었던 것이다(화면 결함이 아니라 표본 타이밍 결함).
+      //   reduce 로 램프를 없애 knife-edge 를 제거한다.
+      // ★프로토타입 canon 기준선은 애니메이션이 이미 끝난(520ms < settleMs 700) 정지값이라
+      //   불변이다. reduce 를 걸어도 같은 정지값을 재현하므로 캘리브레이션은 그대로 통과한다.
+      // ★아래 MOTION_AUDIT 컨텍스트(reduced-motion 누수 검사)는 절대 건드리지 않는다 —
+      //   그쪽은 CSS 미디어쿼리가 애니메이션을 죽이는지 자체를 검증하는 별개 mechanism 이다.
+      reducedMotion: "reduce",
     });
     const page = await ctx.newPage();
     page.on("console", (m) => {
