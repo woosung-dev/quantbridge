@@ -36,6 +36,8 @@ const EXPECTED_CONSOLE = [
   /networkerror/i,
   /net::err_/i,
   /\b40[0-9]\b/,
+  // 연속 4폭 감사가 백엔드 레이트리밋을 치면 429 가 난다 — 스위트 환경 아티팩트지 캐논 위반이 아니다.
+  /\b429\b|too many requests/i,
   /\b50[0-9]\b/,
   /clerk has been loaded/i,
   /development keys/i,
