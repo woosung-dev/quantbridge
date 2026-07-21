@@ -180,7 +180,7 @@ export function OptimizerPageView() {
             최근 생성순입니다. 아직 끝나지 않은 실행은 결과 열이 비어 있습니다.
           </p>
         </header>
-        <OptimizerRunList limit={20} />
+        <OptimizerRunList limit={10} />
       </section>
     </main>
   );

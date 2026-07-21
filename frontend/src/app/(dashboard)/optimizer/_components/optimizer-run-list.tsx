@@ -7,6 +7,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { AlertTriangleIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 
 import { useOptimizationRuns } from "@/features/optimizer/hooks";
@@ -29,6 +30,9 @@ import type {
 
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/optimizer/runs";
+
+// 페이지당 요청 개수 토글 값 (screen-09 02 목록 · role=group + aria-pressed).
+const PAGE_SIZES = [10, 25, 50] as const;
 
 // grid 는 cell objective, bayesian/genetic 은 best_iteration objective_value 로 최고 목표값 파생.
 function bestObjectiveOf(r: OptimizationRunResponse): number | null {
@@ -66,14 +70,18 @@ function statusNoteOf(status: OptimizationStatus): string | null {
 }
 
 export function OptimizerRunList({
-  limit = 20,
+  limit = 10,
   backtestId,
 }: {
   limit?: number;
   backtestId?: string;
 }) {
+  // 페이지당 요청 개수는 토글로 바뀐다(초기값 = limit prop). 값 변경 시 queryKey 가 바뀌어 재조회.
+  const [pageSize, setPageSize] = useState<number>(
+    (PAGE_SIZES as readonly number[]).includes(limit) ? limit : 10,
+  );
   const { data, isLoading, error, refetch } = useOptimizationRuns({
-    limit,
+    limit: pageSize,
     offset: 0,
     backtest_id: backtestId,
   });
@@ -101,6 +109,23 @@ export function OptimizerRunList({
           <p className="card-sub">
             {items.length}건 표시{total > items.length ? ` · 전체 ${total}건 중` : ""}
           </p>
+        </div>
+        {/* 페이지당 요청 개수 토글 — 패널을 바꾸지 않는 상호배타 버튼이라 role=group + aria-pressed (§3-6). */}
+        <div className="chart-head-actions">
+          <div className="tabs" role="group" aria-label="페이지당 요청 개수">
+            {PAGE_SIZES.map((size) => (
+              <button
+                key={size}
+                type="button"
+                className={"tab" + (size === pageSize ? " active" : "")}
+                aria-pressed={size === pageSize}
+                data-testid={`optimizer-pagesize-${size}`}
+                onClick={() => setPageSize(size)}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

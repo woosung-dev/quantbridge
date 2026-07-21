@@ -188,6 +188,22 @@ describe("OptimizerRunList — C 시맨틱 구조 (screen-09 02 목록)", () => 
     expect(container.textContent).not.toContain("queued");
     expect(container.textContent).not.toContain("grid_search");
   });
+
+  it("페이지당 개수 토글 — role=group + aria-pressed (§3-6, tablist 아님)", () => {
+    runsResult = {
+      data: { items: [listRow("completed", "1f")], total: 1, limit: 10, offset: 0, skipped_count: 0 },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    const group = render(<OptimizerRunList />).getByRole("group", { name: "페이지당 요청 개수" });
+    expect(group).not.toBeNull();
+    // role=tablist 오용이 아니다.
+    expect(group.getAttribute("role")).toBe("group");
+    const btn10 = screen.getByTestId("optimizer-pagesize-10");
+    expect(btn10).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("optimizer-pagesize-25")).toHaveAttribute("aria-pressed", "false");
+  });
 });
 
 describe("OptimizerRunDetail — C 시맨틱 구조 (screen-10)", () => {
