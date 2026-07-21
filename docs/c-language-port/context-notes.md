@@ -323,4 +323,16 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 - **fixture 갭 1건: optimizer 완료 run 0** (유일 run = GRID_SEARCH FAILED). /optimizer/[id] 완료 상태 게이트 침묵 skip 방지 위해 W0 에서 실제 엔진으로 grid search 1건 완주 시딩.
 - **/pricing 은 현재 `redirect("/#pricing")` 7줄** — screen-16 이식 시 실페이지 신설 + 리다이렉트 제거 + public spec/live-smoke 편입.
 - **Clerk sign-in**: colorPrimary 는 `clerk-theme-bridge.tsx` 단일 소스(하드코딩 금지 주석 실존). 이식 범위 = split-screen-shell + appearance 토큰 정렬. Clerk 내부 DOM 재구성 불가.
-- **`/backtests/[id]` 는 lwc + recharts 5플롯 이중 스택.** recharts 유지(교체 금지), SVG 공선성 검사 신설은 W2 에서 반증 절차로 검토. `/share/backtests/[token]` 이 report 컴포넌트 공유 — blast radius 교차 감사 등재.
+- **`/backtests/[id]` 는 lwc + recharts 5플롯 이중 스택.** recharts 유지(교체 금지), SVG 공선성 검사 신설은 W2 에서 반증 절차로 검토.
+
+### codex 플랜 검증 (W0, 8건 — BLOCKER 0 · MAJOR 6 · MINOR 2, 전건 코드 대조 후 처분)
+
+- **채택 6.** ① G/H 가 `app/_components/error-*` 를 공유(3파일 import 확인) → error-\* 는 H 로 명시 배정. ② `/backtests/[id]` authed 케이스는 완료 상태 행만 선택 + fixture 부재 시 skip 아닌 expect FAIL + ReportShell 렌더 대기. ③ coverage 매트릭스 신설(checklist 표) — canon 29→33 · authed 5→14 추적. ④ CI 는 authed 캐논을 안 돌므로 PR 본문에 직렬 e2e:authed 로그 + --list 증빙 의무. ⑤ no-raw-enum 가드는 status/state 만 감시(확인) → W1 에서 kind/direction/objective_metric/prior/phase + 템플릿 보간 확장, 유형별 RED 반증. ⑥ OKX 제거 시 register-exchange-account-dialog.test 의 okx 케이스 파손 → 테스트 정리 + bybit 단일/passphrase:null 회귀 테스트 교체를 W3-F 범위에 포함.
+- **교정 채택 1.** ⑦ ~~share 가 report 컴포넌트 공유~~ — 실측 반증: share 페이지는 스키마 + 자체 `_components` 만 import. 플랜의 blast radius 전제를 삭제하고 share 는 전역 토큰 계약 관점만 유지.
+- **부분 채택 1.** ⑧ Tab 30회 한계 + box-shadow 링 인정 — **감사 코어는 불변으로 둔다.** 코어를 바꾸면 S0 캘리브레이션(프로토타입 22 PASS 재현)의 동등성이 깨진다. 대신 대형 신규 화면 워커에 30탭 밖 핵심 인터랙티브 요소 포커스 링 수동 확인 + 요소 목록 falsifiable 보고를 의무화.
+
+### W0 환경 복구·시딩 기록
+
+- stale Turbopack 캐시: globals.css 내용 변경(주석 1줄, `1a8addb`) + 재기동으로 해소. 컴파일 CSS 에 `#8b939c` 존재·`#7a828c` 부재 curl 확인 후 baseline 재현 (vitest 164/904 · canon 29 · authed 5).
+- ★fixture 함정 재확인: `FixtureProvider` 는 `{root}/{symbol}_{tf}.csv` 에 심볼 슬래시가 경로로 들어간다 (`BTC/USDT` → `root/BTC/USDT_1h.csv`). 레포 커밋본은 평면 `BTCUSDT_1h.csv` 뿐이라 그대로는 miss — **스크래치패드에 `ohlcv-root/BTC/USDT_1h.csv` 심링크 트리를 만들어 worker 에 `OHLCV_FIXTURE_ROOT` 절대경로로 주입** (레포 오염 0). celery worker 는 `-Q celery,optimizer_heavy` (optimizer.run 라우팅) + DATABASE_URL 5436 오버라이드.
+- 옵티마이저 완료 run 시딩: 실 API(`POST /api/v1/optimizer/runs/grid-search`, Clerk JWT 는 storageState→`window.Clerk.session.getToken()`) → grid 2x2, run `47ab18b7` **COMPLETED** (result 1.3KB). 실패 상태 fixture 도 자연 확보(`776ad44a` FAILED — fixture miss 시절).

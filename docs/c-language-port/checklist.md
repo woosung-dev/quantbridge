@@ -259,7 +259,23 @@
 - [ ] W3-F — live-sessions 부채 (§05 재스킨 + kpi-pnl isError + ★OKX FE 제거 (사용자 확정))
 - [ ] W3-G — 마케팅 4벌 (14 → 16 `/pricing` 신설 → 17 → 15 sign-in) + ui-ux-pro-max
 - [ ] W3-H — screen-13 → 에러 3종
-- [ ] W-final — StateBox 6곳 + 이중 링/반경 sweep + 교차 정합 감사 + codex 최종 + 문서 갱신 + 푸시/PR/CI
+- [ ] W-final — StateBox 6곳 + 이중 링/반경 sweep + 교차 정합 감사 + codex 최종 + 문서 갱신 + 푸시/PR/CI (PR 본문에 직렬 `e2e:authed` 로그 + `--list` 출력 증빙 의무 — CI 는 authed 캐논을 안 돈다)
+
+**Coverage 매트릭스 (codex#3 — 슬라이스마다 이 표로 단조 증가 추적)**
+
+| 라우트                          | spec                                                                                        | 소유 | 축   |
+| ------------------------------- | ------------------------------------------------------------------------------------------- | ---- | ---- |
+| /backtests/[id] 완료 리포트     | `authed-canon-remaining.spec.ts` **신설**(+testMatch, 완료행 선택·fixture expect·렌더 대기) | W2   | 로컬 |
+| /backtests/new                  | authed-canon-remaining                                                                      | W3-A | 로컬 |
+| /strategies · /new · /[id]/edit | authed-canon-remaining (+3)                                                                 | W3-B | 로컬 |
+| /optimizer · /[id](완료)        | authed-canon-remaining (+2)                                                                 | W3-C | 로컬 |
+| /orders                         | authed-canon-remaining                                                                      | W3-D | 로컬 |
+| /onboarding                     | authed-canon-remaining                                                                      | W3-E | 로컬 |
+| /pricing                        | design-canon-public + live-smoke                                                            | W3-G | CI   |
+| /sign-in                        | design-canon-public (Clerk 불안정 시 remaining 이관+사유)                                   | W3-G | CI   |
+| /maintenance · 404              | design-canon-public (+2)                                                                    | W3-H | CI   |
+
+기대 passed: canon **29→33** · authed **5→14**. 조 소유권 교정(codex#1): G = landing-_ + page.tsx + waitlist + pricing + (auth) / H = 루트 에러 3종 + `app/\_components/error-_` + 그 테스트.
 
 ## Blocked
 
