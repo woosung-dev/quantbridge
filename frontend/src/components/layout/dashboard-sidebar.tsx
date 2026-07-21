@@ -1,82 +1,67 @@
-// 인증된 앱 페이지 사이드바 — 로고 + nav + footer dock(UserButton).
-// Sprint 45: dashboard-shell.tsx 에서 분리. props 로 sidebarOpen, pathname 받음.
-// Sprint 41-B2 sidebar 220px (collapsed 64px, 모바일 hidden) + Sprint 44-WC1 logo opacity transition 보존.
+// 인증된 앱 페이지 사이드바 — brand + nav(+count 배지) + footer dock(UserButton).
+// C 이식 S3: 프로토타입(screen-02) .sidebar 구조로 재작성. position:fixed + width var(--sidebar-w),
+//   1024px 아이콘 레일은 순수 CSS(globals.css @media)로 접힌다 — sidebarOpen 프롭 삭제.
+//   nav-count 3개는 여기서 목록 스키마 total 을 limit=1 로 페치해 nav-list 에 프롭으로 내린다.
+//   이 컴포넌트는 <main> 의 형제라, count 폴링 갱신이 페이지 트리를 리렌더하지 않는다.
 
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 
-import { cn } from "@/lib/utils";
-import { TickRuler } from "@/components/tick-ruler";
+import { useStrategies } from "@/features/strategy/hooks";
+import { useBacktests } from "@/features/backtest/hooks";
+import { useOrders } from "@/features/trading/hooks";
 
-import { DashboardNavList } from "./dashboard-nav-list";
+import { DashboardNavList, type NavCounts } from "./dashboard-nav-list";
 
 type DashboardSidebarProps = {
-  sidebarOpen: boolean;
   pathname: string | null;
 };
 
-export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProps) {
+export function DashboardSidebar({ pathname }: DashboardSidebarProps) {
+  // nav-count = 기존 목록 스키마 total 재사용 (새 API 없음, limit=1 최소 페이로드).
+  // H-2: queryKey 는 각 훅이 userId identity 로 구성한다 — getToken 미포함.
+  const strategiesQ = useStrategies({ limit: 1, offset: 0, is_archived: false });
+  const backtestsQ = useBacktests({ limit: 1, offset: 0 });
+  // 셸은 count 배지 전용 — 전환 toast 를 끈다. 켜두면 /trading·/orders 소비처와
+  // queryKey(limit)가 갈려 같은 주문 전환에 toast 가 중복 발화한다.
+  const ordersQ = useOrders(1, { notifyTransitions: false });
+
+  const counts: NavCounts = {
+    strategies: strategiesQ.data?.total,
+    backtests: backtestsQ.data?.total,
+    orders: ordersQ.data?.total,
+  };
+
   return (
-    <aside
-      className={cn(
-        "hidden flex-col border-r border-[color:var(--sidebar-border)] bg-[color:var(--sidebar)] text-[color:var(--sidebar-foreground)] md:flex",
-        // 프로토타입 06/09/02/03 fixed sidebar 220px (collapsed 64px, 모바일 hidden)
-        sidebarOpen ? "w-[220px]" : "w-16",
-      )}
-    >
-      {/* 로고 — Archivo 확장 폭 워드마크(라틴 전용 = .qb-display-wide 적정 사이트) +
-          플랫 코퍼 마크. Precision Instrument: 그라디언트 폐기. */}
-      <Link
-        href="/strategies"
-        className={cn(
-          "flex h-16 items-center gap-2.5 px-4 hover:opacity-90",
-          "transition-opacity duration-150 motion-reduce:transition-none",
-        )}
-        aria-label="QuantBridge 홈"
-      >
-        <span className="grid size-7 place-items-center rounded-md bg-[color:var(--primary)] text-[color:var(--primary-foreground)]">
+    <aside className="sidebar" aria-label="메인 내비게이션">
+      <Link href="/dashboard" className="brand" aria-label="QuantBridge 홈">
+        <span className="brand-mark" aria-hidden="true">
           <svg
-            width="15"
-            height="15"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.5"
+            strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
-            aria-hidden="true"
           >
-            <path d="M2 16h20" />
-            <path d="M5 16V9" />
-            <path d="M19 16V9" />
-            <path d="M5 9c2 0 4-2 7-2s5 2 7 2" />
-            <path d="M9 16v4" />
-            <path d="M15 16v4" />
+            <polyline points="3 17 9 11 13 15 21 7" />
+            <polyline points="15 7 21 7 21 13" />
           </svg>
         </span>
-        {sidebarOpen && (
-          <span className="qb-display-wide text-base font-bold tracking-tight">
-            QuantBridge
-          </span>
-        )}
+        <span className="brand-name">QuantBridge</span>
       </Link>
 
-      {/* 시그니처 — 로고 하단 계측 눈금 (nav 와의 구조적 경계) */}
-      <TickRuler className="mx-4 opacity-70" />
+      <p className="nav-group-label">워크스페이스</p>
+      <DashboardNavList pathname={pathname} counts={counts} />
 
-      <DashboardNavList sidebarOpen={sidebarOpen} pathname={pathname} />
-
-      {/* 사이드바 footer — 프로필 dock (UserButton). 프로토타입 06/03 sidebar-bottom 패턴.
-          Sprint 60 S4 BL-305: min 36×36 wrapper 로 Clerk inner span collapse 방지 (mobile header 와 동일 패턴). */}
-      <div className="mt-auto border-t border-[color:var(--sidebar-border)] px-3 py-3">
-        <div
-          className={cn(
-            "flex items-center gap-2",
-            sidebarOpen ? "justify-start" : "justify-center",
-          )}
-        >
+      {/* footer dock — 실제 계정 제어는 Clerk UserButton. 프로토타입의 하드코딩 이름/부제는
+          실 사용자 신원이 아니므로 재현하지 않는다(정직성). 레일에서는 아바타만 남는다. */}
+      <div className="sidebar-foot">
+        <div className="account">
+          {/* wrapper 만으로는 Clerk 내부 hit target 0×0 가능 → elements 로 size 강제 (BL-305). */}
           <div className="inline-flex min-h-9 min-w-9 items-center justify-center">
-            {/* G.3-2 (P1): wrapper 만으로는 hit target 0×0 가능, Clerk elements size-9 강제 */}
             <UserButton
               appearance={{
                 elements: {
@@ -87,9 +72,7 @@ export function DashboardSidebar({ sidebarOpen, pathname }: DashboardSidebarProp
               }}
             />
           </div>
-          {sidebarOpen && (
-            <span className="text-xs text-[color:var(--muted-foreground)] truncate">계정</span>
-          )}
+          <span className="account-name">계정</span>
         </div>
       </div>
     </aside>

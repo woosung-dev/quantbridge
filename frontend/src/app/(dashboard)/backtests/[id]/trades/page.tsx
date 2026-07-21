@@ -6,7 +6,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { TradeDetailShell } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-shell";
+import {
+  TradeDetailShell,
+  TradeDetailSkeleton,
+} from "@/app/(dashboard)/backtests/_components/trades/trade-detail-shell";
 
 export const metadata: Metadata = {
   title: "거래 내역 | QuantBridge",
@@ -23,17 +26,11 @@ export default async function BacktestTradesPage({ params }: PageProps) {
   if (!UUID_REGEX.test(id)) {
     notFound();
   }
+  // shell 이 <main className="page"> 로 레이아웃을 소유한다. Suspense fallback 과
+  // shell isLoading 이 동일 스켈레톤을 공유한다(중복 로딩 마크업 통합, S6).
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-8">
-      <Suspense
-        fallback={
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            불러오는 중…
-          </p>
-        }
-      >
-        <TradeDetailShell id={id} />
-      </Suspense>
-    </div>
+    <Suspense fallback={<TradeDetailSkeleton />}>
+      <TradeDetailShell id={id} />
+    </Suspense>
   );
 }

@@ -69,7 +69,7 @@ export function LandingDashboardShowcase() {
             실시간 트레이딩 대시보드 (예시 화면)
           </h2>
           <p className="mx-auto mt-3 max-w-[560px] text-base text-[color:var(--text-secondary)]">
-            포지션, 봇, 체결을 한 화면에서 모니터링하세요 — 제품 미리보기 (샘플 데이터)
+            포지션, 봇, 체결을 한 화면에서 모니터링하세요. 제품 미리보기 (샘플 데이터)
           </p>
         </div>
 

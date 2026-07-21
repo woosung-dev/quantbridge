@@ -23,7 +23,7 @@ describe("LandingFeatures", () => {
     render(<LandingFeatures />);
     const titles = [
       "Pine Script 파싱",
-      "벡터화 백테스트",
+      "정밀 백테스트",
       "스트레스 테스트",
       "파라미터 최적화",
       "데모 트레이딩",

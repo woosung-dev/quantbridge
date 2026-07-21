@@ -1,4 +1,5 @@
-// 404/500/503 에러 페이지 복구 카드 — prototype 11 의 helpful grid / tech-info / ETA+updates 3 variant
+// 404/500 에러 페이지 복구 카드 — prototype 11 의 helpful grid(404) / tech-info(500) 2 variant.
+// (503 maintenance 카드는 S9 에서 삭제. 타입은 NotFoundProps | ServerErrorProps 두 가지뿐.)
 
 "use client";
 
@@ -11,11 +12,6 @@ interface HelpfulItem {
   title: string;
   path: string;
   icon: React.ReactNode;
-}
-
-interface UpdateItem {
-  status: "done" | "progress";
-  label: string;
 }
 
 interface NotFoundProps {
@@ -31,16 +27,7 @@ interface ServerErrorProps {
   helpHref?: string;
 }
 
-interface MaintenanceProps {
-  variant: "503";
-  etaLabel: string; // 예: "약 15분 남음"
-  startedAt: string; // 예: "14:10 KST"
-  finishesAt: string; // 예: "14:40 KST"
-  progressPercent: number; // 0..100
-  updates: UpdateItem[];
-}
-
-type ErrorRecoveryBoxProps = NotFoundProps | ServerErrorProps | MaintenanceProps;
+type ErrorRecoveryBoxProps = NotFoundProps | ServerErrorProps;
 
 const DEFAULT_HELPFUL: HelpfulItem[] = [
   {
@@ -86,7 +73,9 @@ const DEFAULT_HELPFUL: HelpfulItem[] = [
  *
  * - 404: 추천 카드 grid + 검색 input (검색 form 은 dummy, blur 시 noop)
  * - 500: tech-info-box (요청ID + 복사 + sonner toast + 시각)
- * - 503: ETA card + 진행 바 + 업데이트 목록
+ *
+ * (503 maintenance 카드는 프로덕션 소비자가 없어 S9 에서 삭제. 점검 페이지는
+ *  app/maintenance/page.tsx 가 ErrorIllustration 만으로 자체 레이아웃을 그린다.)
  *
  * clipboard 미지원 / 실패 시 sonner toast.error fallback.
  */
@@ -165,11 +154,7 @@ export function ErrorRecoveryBox(props: ErrorRecoveryBoxProps) {
     );
   }
 
-  if (props.variant === "500") {
-    return <ServerErrorCard {...props} />;
-  }
-
-  return <MaintenanceCard {...props} />;
+  return <ServerErrorCard {...props} />;
 }
 
 function ServerErrorCard({ requestId, errorCode, occurredAt }: ServerErrorProps) {
@@ -263,95 +248,3 @@ function ServerErrorCard({ requestId, errorCode, occurredAt }: ServerErrorProps)
   );
 }
 
-function MaintenanceCard({ etaLabel, startedAt, finishesAt, progressPercent, updates }: MaintenanceProps) {
-  const clamped = Math.min(100, Math.max(0, progressPercent));
-  return (
-    <div data-testid="error-recovery-box" data-variant="503" className="relative z-[2] w-full">
-      <div
-        role="group"
-        aria-label="예상 복구 시간"
-        className="mx-auto my-7 max-w-[480px] rounded-[14px] border border-[color:var(--primary-100)] bg-[color:var(--primary-light)] p-6 text-left"
-      >
-        <div className="mb-3.5 flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="grid h-10 w-10 place-items-center rounded-[10px] bg-card text-[color:var(--primary)] shadow-sm"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </span>
-          <div>
-            <div className="text-[13px] font-medium text-[color:var(--text-secondary)]">예상 복구 시간</div>
-            <div className="font-mono text-2xl font-bold leading-tight text-[color:var(--primary)]">{etaLabel}</div>
-          </div>
-        </div>
-        <div
-          role="progressbar"
-          aria-valuenow={clamped}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`점검 진행률 ${clamped}%`}
-          className="relative my-3 h-2.5 w-full overflow-hidden rounded-full bg-[color:var(--primary-100)]"
-        >
-          <ProgressFill percent={clamped} />
-        </div>
-        <p className="font-mono text-[11px] text-[color:var(--text-muted)]">
-          점검 시작: {startedAt} · 예상 완료: {finishesAt}
-        </p>
-      </div>
-
-      <section
-        aria-labelledby="updates-title"
-        className="mx-auto my-7 max-w-[480px] rounded-xl border border-[color:var(--border)] bg-card p-5 text-left"
-      >
-        <h2 id="updates-title" className="mb-3 font-display text-[13px] font-semibold text-[color:var(--text-primary)]">
-          이번 점검 내용:
-        </h2>
-        <ul className="flex flex-col gap-2.5" data-testid="error-recovery-updates">
-          {updates.map((u, idx) => (
-            <li
-              key={idx}
-              style={{ animationDelay: `${idx * 70}ms` }}
-              className="flex items-center gap-2.5 text-[13px] text-[color:var(--text-secondary)] motion-safe:animate-[staggerIn_280ms_ease-out_both]"
-            >
-              <span
-                aria-label={u.status === "done" ? "완료" : "진행 중"}
-                className={
-                  "grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[11px] font-bold transition-colors duration-200 " +
-                  (u.status === "done"
-                    ? "bg-[color:var(--success-light)] text-[color:var(--success)]"
-                    : "bg-[color:var(--primary-light)] text-[color:var(--primary)] motion-safe:animate-pulse")
-                }
-              >
-                {u.status === "done" ? "✓" : "⋯"}
-              </span>
-              {u.label}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function ProgressFill({ percent }: { percent: number }) {
-  // shimmer overlay (motion-reduce 시 비활성)
-  const [width] = useState(`${percent}%`);
-  return (
-    <div
-      className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-[color:var(--primary)] to-[color:var(--primary-hover)]"
-      style={{ width }}
-    >
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 motion-safe:animate-[shimmer_1.8s_linear_infinite] motion-reduce:hidden"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)",
-        }}
-      />
-    </div>
-  );
-}

@@ -52,14 +52,26 @@ export default defineConfig({
       testMatch: /live-smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
     },
+    // C 디자인 언어 이식 S0 — 인증 없는 디자인 캐논 게이트.
+    // 공개 라우트만 쓰므로 CI 에서 돌릴 수 있다 (`pnpm e2e:design-canon`).
+    // P1 4라우트는 전부 authed 라 `chromium-authed` 몫이고 로컬 전용이다.
+    {
+      name: "chromium-design-canon",
+      testMatch: /design-canon-.*\.spec\.ts$/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     {
       name: "chromium-authed",
       // Sprint 38 BL-188 v3 D — `backtest-live-mirror` 추가 (5 case Live mirror E2E).
       // Sprint 46 W2 — `sprint46-tier1-critical` 추가 (5 case Tier 1 critical user journey).
       // Sprint 46 W3 — `sprint46-tier2-high` 추가 (4 case Tier 2 dogfood polish).
       // Sprint 46 W4 — `sprint46-tier3-nth` 추가 (Tier 3 polish 7 시나리오).
+      // C 이식 S0 — `sprint55-optimizer-bayesian` 은 배선하지 않는다. testMatch 에 넣어 실행하니
+      //   폼 UX 가 통째로 stale (텍스트 backtest_id 입력 -> useBacktests 드롭다운 피커, P1-8/S7-B).
+      //   파일 안 test.skip + TODO 로 남겨 optimizer 이식 때 현행 UX 로 재작성한다.
+      // C 이식 S0 — `authed-canon-p1` 추가 (P1 4라우트 디자인 캐논 baseline, 로컬 전용).
       testMatch:
-        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth)\.spec\.ts$/,
+        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1)\.spec\.ts$/,
       fullyParallel: false,
       use: {
         ...devices["Desktop Chrome"],

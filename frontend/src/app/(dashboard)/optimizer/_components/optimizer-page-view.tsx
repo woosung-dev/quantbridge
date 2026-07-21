@@ -86,8 +86,8 @@ export function OptimizerPageView() {
             aria-label="최적화 알고리즘"
           >
             <option value="grid_search">그리드 탐색 (최대 9개 조합)</option>
-            <option value="bayesian">베이지안 탐색 (≤ 50회 평가)</option>
-            <option value="genetic">유전 알고리즘 (≤ 50회 평가)</option>
+            <option value="bayesian">베이지안 탐색 (최대 100회 평가)</option>
+            <option value="genetic">유전 알고리즘 (최대 100회 평가)</option>
           </select>
           <button
             type="button"

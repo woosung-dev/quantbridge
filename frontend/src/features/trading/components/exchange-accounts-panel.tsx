@@ -1,120 +1,116 @@
 "use client";
 
-import { Trash2, WalletIcon } from "lucide-react";
+// 거래소 계정 패널 — C 디자인 언어 이식 (S8). 공용 .card/.trades/.state-box 시맨틱 CSS 를
+// 소비한다. mode(demo/live) 는 EXECUTION_MODE 축이라 칩 톤으로 표기하되 data-tone 을 유지해
+// 시맨틱 어서션(리터럴 팔레트 금지)을 지킨다. 4상태(로딩/에러/빈/채움)를 실제로 렌더한다.
+
+import { Trash2Icon, AlertTriangleIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/skeleton";
+
+import { EMPTY_CELL } from "@/lib/labels";
+
 import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
-import { TradingEmptyState } from "./trading-empty-state";
 
-// C-2: Demo/Live 배지 컴포넌트.
-// null/undefined 가드 필수 — ExchangeAccount.mode 는 string (nullable 아님이지만 방어적으로 처리).
+// Demo/Live 배지 — data-tone 은 globals.css [data-tone] 규칙이 색을 결정(리터럴 팔레트 금지).
 function ModeBadge({ mode }: { mode: string | null | undefined }) {
   if (mode === "demo") {
     return (
-      <Badge variant="outline" data-tone="warning" className="font-mono font-semibold uppercase">
+      <span className="chip warn" data-tone="warning">
         DEMO
-      </Badge>
+      </span>
     );
   }
   if (mode === "live") {
     return (
-      <Badge variant="outline" data-tone="success" className="font-mono font-semibold uppercase">
+      <span className="chip done" data-tone="success">
         LIVE
-      </Badge>
+      </span>
     );
   }
-  return (
-    <Badge
-      variant="outline"
-      className="border-border text-muted-foreground uppercase text-xs"
-    >
-      {mode ?? "UNKNOWN"}
-    </Badge>
-  );
+  return <span className="chip">{(mode ?? "UNKNOWN").toUpperCase()}</span>;
 }
 
 export function ExchangeAccountsPanel() {
-  // Sprint 14 Phase B-2 — isLoading 분기 추가 (skeleton) + isError 시 retry 버튼.
-  // 기존: !data return null → 로딩 중 빈 화면. 이제 skeleton 으로 명시.
   const { data, isError, isLoading, refetch } = useExchangeAccounts();
   const deleteAccount = useDeleteExchangeAccount();
 
-  if (isError) {
-    return (
-      <section className="p-4 border rounded">
-        <p className="text-sm text-destructive">
-          거래소 계정 목록을 불러오지 못했습니다.
-        </p>
-        <p className="mt-1 text-xs text-text-secondary">
-          네트워크 또는 인증 문제가 있을 수 있습니다.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={() => refetch()}
-        >
-          다시 시도
-        </Button>
-      </section>
-    );
-  }
-  if (isLoading || !data) {
-    return (
-      <section className="p-4 border rounded">
-        <Skeleton
-          aria-label="거래소 계정 불러오는 중"
-          className="h-20 w-full"
-        />
-      </section>
-    );
-  }
-
   return (
-    <section className="qb-account-card p-4 border rounded">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold">거래소 계정</h2>
-        <RegisterExchangeAccountDialog />
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <h3 className="card-title">거래소 계정</h3>
+          <p className="card-sub">
+            API 키는 AES-256 으로 암호화 저장되며 마스킹해 보여 줍니다.
+          </p>
+        </div>
+        <div className="chart-head-actions">
+          <RegisterExchangeAccountDialog />
+        </div>
       </div>
-      {data.length === 0 ? (
-        <TradingEmptyState
-          icon={WalletIcon}
-          title="연결된 거래소 계정이 없습니다."
-          description="위 '계정 추가' 버튼으로 거래소 계정을 연결하세요."
-        />
+
+      {isLoading || (!data && !isError) ? (
+        <div className="card-body">
+          <div
+            className="sk"
+            style={{ height: 80 }}
+            aria-label="거래소 계정 불러오는 중"
+          />
+        </div>
+      ) : isError ? (
+        <div className="card-body">
+          <div className="state-box failed" role="alert" data-testid="accounts-error">
+            <span className="state-icon failed" aria-hidden="true">
+              <AlertTriangleIcon />
+            </span>
+            <p className="state-title">거래소 계정 목록을 불러오지 못했습니다.</p>
+            <p className="state-body">
+              네트워크 또는 인증 문제가 있을 수 있습니다.
+            </p>
+            <p className="state-code">GET /api/v1/exchange-accounts</p>
+            <button className="btn btn-ghost" type="button" onClick={() => refetch()}>
+              <RefreshCwIcon aria-hidden="true" />
+              다시 시도
+            </button>
+          </div>
+        </div>
+      ) : !data || data.length === 0 ? (
+        <div className="card-body">
+          <div className="state-box" role="status" data-testid="accounts-empty">
+            <span className="state-icon" aria-hidden="true">
+              <InboxIcon />
+            </span>
+            <p className="state-title">연결된 거래소 계정이 없습니다.</p>
+            <p className="state-body">
+              위 &lsquo;계정 추가&rsquo; 버튼으로 거래소 계정을 연결하세요.
+            </p>
+          </div>
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[520px]">
+        <div className="table-wrap">
+          <table className="trades" aria-label={`거래소 계정 ${data.length}개`}>
             <thead>
-              <tr className="text-left text-text-secondary">
-                <th className="py-1 font-medium">Exchange</th>
-                <th className="py-1 font-medium">Mode</th>
-                <th className="py-1 font-medium">Label</th>
-                <th className="py-1 font-medium">API Key</th>
-                <th className="py-1 w-8"></th>
+              <tr>
+                <th scope="col">거래소</th>
+                <th scope="col">모드</th>
+                <th scope="col">라벨</th>
+                <th scope="col">API 키</th>
+                <th scope="col">액션</th>
               </tr>
             </thead>
             <tbody>
               {data.map((a) => (
-                <tr
-                  key={a.id}
-                  className="border-t transition-colors hover:bg-muted/60"
-                >
-                  <td className="py-1.5">{a.exchange}</td>
-                  <td className="py-1.5">
+                <tr key={a.id}>
+                  <td className="mono-l">{a.exchange}</td>
+                  <td>
                     <ModeBadge mode={a.mode} />
                   </td>
-                  <td className="py-1.5">{a.label ?? "—"}</td>
-                  <td className="py-1.5 font-mono text-xs">{a.api_key_masked}</td>
-                  <td className="py-1.5">
-                    {/* Sprint 62 T-2 (BL-359): 모바일 viewport 에서 touch hit area 44pt 강제.
-                        16x16 → 44x44 (모바일) / 데스크톱 md: 분기 복원. high risk action (계정
-                        삭제) 이라 한 손 미스탭 차단 우선. */}
+                  <td>{a.label ?? EMPTY_CELL}</td>
+                  <td className="mono-l dim">{a.api_key_masked}</td>
+                  <td>
                     <button
                       type="button"
+                      className="btn btn-danger"
                       onClick={() =>
                         deleteAccount.mutate(a.id, {
                           onError: () => {
@@ -126,9 +122,9 @@ export function ExchangeAccountsPanel() {
                       }
                       disabled={deleteAccount.isPending}
                       aria-label="계정 삭제"
-                      className="inline-flex size-11 items-center justify-center text-destructive hover:opacity-70 disabled:opacity-40 transition-opacity md:size-auto"
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2Icon aria-hidden="true" />
+                      삭제
                     </button>
                   </td>
                 </tr>
@@ -137,6 +133,6 @@ export function ExchangeAccountsPanel() {
           </table>
         </div>
       )}
-    </section>
+    </div>
   );
 }

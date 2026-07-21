@@ -162,6 +162,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
+      # C 디자인 언어 이식 S0 — 디자인 캐논 게이트 (병행안).
+      # 프로토타입 17벌 캘리브레이션(file://, 서버 불요) + 공개 라우트 런타임 토큰 검사.
+      # P1 4라우트는 전부 authed 라 로컬 `pnpm e2e:authed` 몫이고 CI 에는 없다.
+      # webServer 가 자동 기동하며 인증·백엔드 의존이 없다 (랜딩 CSS 변수만 읽는다).
+      - run: pnpm e2e:design-canon
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4

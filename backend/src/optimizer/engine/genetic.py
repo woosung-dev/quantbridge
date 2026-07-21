@@ -16,7 +16,7 @@ crossover_rate) 으로 진화. tournament select + single-point crossover + gaus
   4. **확장성** — Sprint 57+ NSGA-II / multi-objective / island model 필요 시 DEAP 마이그레이션
      검토 가능 (현 시점 over-engineering).
 
-서버 50 evaluation 강제 상한 (`_MAX_GENETIC_EVALUATIONS`): default queue + soft_time_limit
+서버 100 evaluation 강제 상한 (`_MAX_GENETIC_EVALUATIONS`): default queue + soft_time_limit
 부재 시 worker block 위험. dedicated queue 는 Sprint 57+ BL-237. 실제 evaluation count =
 ``population_size * (n_generations + 1)`` (initial pop + 각 generation 의 새 offspring
 재평가, 부모는 deterministic objective 가정 하에 재평가 생략).

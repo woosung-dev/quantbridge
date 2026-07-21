@@ -8,7 +8,7 @@ const FAQ: FaqItem[] = [
   {
     question: "QuantBridge는 어떤 거래소를 지원하나요?",
     answer:
-      "CCXT 라이브러리를 기반으로 Binance, Bybit, OKX, Upbit, Bithumb, Coinbase 등 100개 이상의 글로벌 거래소를 지원합니다. 지원 거래소는 계속 추가되고 있습니다.",
+      "현재는 Bybit 거래소를 지원합니다. Beta 기간에는 Bybit Demo 환경에서 위험 없이 전략을 검증할 수 있습니다.",
   },
   {
     question: "Pine Script 외에 다른 언어도 지원하나요?",

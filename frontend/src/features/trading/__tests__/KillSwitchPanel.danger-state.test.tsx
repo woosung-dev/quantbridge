@@ -32,8 +32,8 @@ describe("KillSwitchPanel — Sprint 44 W F3 danger state polish", () => {
     expect(panel.className).not.toContain("qb-danger-pulse");
   });
 
-  // Wave 2 — active KS 의 '해결' 버튼은 모바일 터치타겟 ≥44pt (min-h-11).
-  test("active KS '해결' 버튼 터치타겟 ≥44pt", async () => {
+  // C 이식(S8) — active KS 의 '해결' 버튼은 공용 .btn.btn-danger 를 소비한다.
+  test("active KS '해결' 버튼은 danger 톤 공용 버튼", async () => {
     const { apiFetch } = await import("@/lib/api-client");
     vi.mocked(apiFetch).mockResolvedValueOnce({
       items: [
@@ -57,6 +57,11 @@ describe("KillSwitchPanel — Sprint 44 W F3 danger state polish", () => {
     );
 
     const resolveBtn = await screen.findByRole("button", { name: /해결/ });
-    expect(resolveBtn.className).toContain("min-h-11");
+    expect(resolveBtn.className).toContain("btn-danger");
+    // 패널이 active 상태로 전환됐는지도 확인.
+    expect(screen.getByTestId("kill-switch-panel")).toHaveAttribute(
+      "data-state",
+      "active",
+    );
   });
 });

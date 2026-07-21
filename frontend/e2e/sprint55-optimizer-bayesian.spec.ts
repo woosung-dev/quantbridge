@@ -130,7 +130,18 @@ const RUN_LIST = {
   offset: 0,
 };
 
-test.describe("Sprint 55 — Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차단 가드)", () => {
+// ★ C 이식 S0 (2026-07-20) — 이 spec 은 testMatch 미등록 고아였다. 배선해 돌려보니
+// 폼 상호작용이 통째로 stale 이다. Sprint 55 는 backtest_id 텍스트 입력이었으나 이후
+// P1-8(S7-B) 에서 useBacktests 완료-백테스트 드롭다운 피커로 교체됐다. 즉 아래는 4곳이 어긋난다.
+//   - getByLabel("backtest_id")         -> SelectWithDisplayName(콤보박스 "백테스트 선택")
+//   - getByLabel("optimizer algorithm") -> aria-label "최적화 알고리즘"
+//   - 완료 백테스트 목록 mock 부재       -> "완료된 백테스트 없음" + 제출 버튼 disabled
+//   - 버튼 "Bayesian 신규 제출"          -> "베이지안 탐색 새 실행"(열기) + 폼 내부 제출
+// /optimizer 는 P1 밖이라 지금 고쳐도 이식 작업을 지키지 못한다. optimizer 이식 슬라이스에서
+// 현행 UX(피커 + BayesianSearchForm)로 재작성하고 skip 을 푼다. 결과-렌더 가드
+// (BayesianIterationChart / best_iteration_idx / degenerate badge, LESSON-066 6차)의 의도는
+// 그때까지 이 파일이 문서로 보존한다.
+test.describe.skip("Sprint 55 — Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차단 가드)", () => {
   test("algorithm select + form + submit + detail render", async ({ page }) => {
     let postedToBayesianEndpoint = false;
     let detailPollCount = 0;

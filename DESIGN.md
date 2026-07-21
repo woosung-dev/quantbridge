@@ -208,7 +208,6 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 --radius-lg: 10px; /* 카드 */
 --radius-xl: 14px; /* 시트 상단, 다이얼로그 */
 --radius-full: 50%; /* 아바타, 아이콘 원형 */
---radius-pill: 20px; /* 잔존 pill 소비처 (신규 사용 금지 — 배지는 4px 태그) */
 ```
 
 ---
@@ -342,7 +341,7 @@ input:focus {
   font-size: 0.8rem;
   font-weight: 500;
   padding: 6px 14px;
-  border-radius: var(--radius-pill); /* 20px */
+  border-radius: var(--radius-sm); /* 4px — pill 반경 폐기, 태그로 타이트닝 */
 }
 
 /* 포지션 배지 */

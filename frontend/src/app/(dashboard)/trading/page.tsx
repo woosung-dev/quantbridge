@@ -1,33 +1,15 @@
-// 트레이딩 페이지 — 프로토타입 03 (Full Dark App Shell) visual layout 적용.
-// data-theme="dash" 는 DashboardShell 이 /trading 진입 시 자동 토글.
-
-import { Suspense } from "react";
+// 트레이딩 코크핏 라우트 — C 디자인 언어 이식 (S8). 프로토타입 screen-01 구조를 소비하는
+// 단일 클라이언트 코크핏(TradingCockpit)에 렌더를 위임한다. 라우트 레벨 예외는 error.tsx,
+// 초기 로딩은 loading.tsx 가 처리한다.
 
 import type { Metadata } from "next";
 
-import { TableSkeleton } from "@/components/skeleton";
-
-import { KillSwitchBanner } from "./_components/kill-switch-banner";
-import { TradingDashHero } from "./_components/trading-dash-hero";
-import { TradingTabs } from "./_components/trading-tabs";
+import { TradingCockpit } from "./_components/trading-cockpit";
 
 export const metadata: Metadata = {
   title: "트레이딩 | QuantBridge",
 };
 
 export default function TradingPage() {
-  return (
-    <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-6 sm:px-6 sm:py-8">
-      {/* C-1: Kill Switch 활성 배너 (Sprint 12 Phase A 그대로) */}
-      <KillSwitchBanner />
-
-      {/* Sprint 41-B2: 프로토타입 03 KPI 스트립 — 활성 세션 / 거래소 / KS / 총 세션 */}
-      <TradingDashHero />
-
-      {/* Sprint 26: Tabs (Orders / Live Sessions). Suspense 는 useSearchParams 요구사항. */}
-      <Suspense fallback={<TableSkeleton rows={6} columns={5} />}>
-        <TradingTabs />
-      </Suspense>
-    </div>
-  );
+  return <TradingCockpit />;
 }

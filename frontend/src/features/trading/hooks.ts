@@ -147,7 +147,12 @@ function makeLiquidationFetcher(
 
 export function useOrders(
   limit = 50,
+  // 셸 nav 배지처럼 count 만 필요한 소비처는 notifyTransitions:false 로 전환 toast 를 끈다.
+  // (기본 true = 기존 동작 불변. limit 이 다른 인스턴스마다 prevStatesRef 가 분리돼
+  //  같은 주문 전환에 toast 가 중복 발화하던 문제를 count 전용 경로에서 차단한다.)
+  options?: { notifyTransitions?: boolean },
 ): UseQueryResult<{ items: Order[]; total: number }, Error> {
+  const notifyTransitions = options?.notifyTransitions ?? true;
   const { uid, getToken } = useAuthCtx();
 
   // 이전 주문 state 추적 — Map<orderId, state>
@@ -166,6 +171,7 @@ export function useOrders(
   // H-1 준수: dep array 없는 sync useEffect — 매 commit 후 실행하되,
   // dataUpdatedAt 스칼라 가드로 새 폴링 응답이 있을 때만 orders 를 순회한다.
   useEffect(() => {
+    if (!notifyTransitions) return;
     if (query.dataUpdatedAt === processedAtRef.current) return;
     processedAtRef.current = query.dataUpdatedAt;
 

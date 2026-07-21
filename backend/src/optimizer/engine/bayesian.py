@@ -9,9 +9,9 @@ scikit-optimize (skopt) 0.10.x 채택 = scikit-learn 1.8.0 transitive dep 이미
 ask-tell 패턴 + BSD-3 + random_state 결정성. ADR-013 §5 reference 따라 자체 ADR 신규
 작성 불필요 (Sprint 55 close-out dev-log §7 amendment 1 paragraph 으로 충분).
 
-서버 50 evaluation 강제 상한 (Plan §11.7): default queue + soft_time_limit 부재
-시 cell * 50 = 250s+ Celery worker block 위험. dedicated queue + soft_time_limit
-은 Sprint 56+ BL-237.
+서버 100 evaluation 강제 상한 (Plan §11.7, `_MAX_BAYESIAN_EVALUATIONS`): Sprint 57
+optimizer_heavy queue 도입으로 50 → 100 relax (BL-237). default queue 시절에는
+soft_time_limit 부재로 worker block 위험 방지 목적 50 상한이었다.
 
 direction=maximize 처리 — skopt 는 minimization → ``-float(objective_value)`` tell
 부호 반전 + best_iteration_idx 는 raw objective_value 기준 재선출 (wrapper 격리).

@@ -38,7 +38,12 @@ const AUDIT = () => {
     return (x + 0.05) / (y + 0.05);
   };
   const bgOf = (el) => {
-    let base = { r: 11, g: 13, b: 15, a: 1 };
+    // 최종 배경은 html/body 의 실제 계산값에서 받는다. 다크 #0b0d0f 를 상수로 박아두면
+    // 라이트 화면에서 대비가 전부 뒤집혀 계산된다.
+    const rootBg =
+      parse(getComputedStyle(document.body).backgroundColor) ||
+      parse(getComputedStyle(document.documentElement).backgroundColor);
+    let base = rootBg && rootBg.a === 1 ? rootBg : { r: 11, g: 13, b: 15, a: 1 };
     const stack = [];
     for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
       const c = parse(getComputedStyle(n).backgroundColor);
@@ -49,7 +54,7 @@ const AUDIT = () => {
     return base;
   };
 
-  const out = { overflow: null, contrast: [], tiny: [] };
+  const out = { overflow: null, contrast: [], canon: [], tiny: [] };
   out.overflow = {
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,
@@ -77,11 +82,24 @@ const AUDIT = () => {
     const weight = parseInt(cs.fontWeight, 10) || 400;
     const large = size >= 24 || (size >= 18.66 && weight >= 700);
     const cr = ratio(fg, bg);
+    // WCAG AA = 하드 실패. 캐논은 별도 등급으로 "센다"(자동 실패시키지 않는다).
+    //
+    // 캐논 정의값 = 다크 정본의 최약 텍스트 --ink-3 #8b939c 가 --card #141619 위에서 갖는 값
+    //            = 5.827427...  (문서의 "5.83" 은 반올림 표기다)
+    // 임계를 5.83 으로 두면 캐논을 정의하는 토큰 자신이 걸린다. 5.82 로 둔다.
+    //
+    // 이 캐논은 "카드 위" 기준이다. --card-2 / --card-3 같은 중첩 표면에서는 같은 토큰이
+    // 5.44 / 5.15 로 내려가며, 다크 정본도 원래 그렇다. 따라서 canon 은 하드 실패가 아니라
+    // 지표이고, 판정 기준은 "라이트가 다크 짝보다 나쁘지 않은가" 라는 상대 비교다.
     const need = large ? 3 : 4.5;
+    const canonNeed = large ? 3 : 5.82;
     const key = cs.color + '|' + Math.round(size) + '|' + txt.slice(0, 20);
     if (cr < need && !seen.has(key)) {
       seen.add(key);
       out.contrast.push({ text: txt.slice(0, 42), color: cs.color, size, ratio: +cr.toFixed(2), need });
+    } else if (cr < canonNeed && !seen.has('c' + key)) {
+      seen.add('c' + key);
+      out.canon.push({ text: txt.slice(0, 42), color: cs.color, size, ratio: +cr.toFixed(2), need: canonNeed });
     }
     if (size < 9.4 && !seen.has('t' + key)) { // C 정본 최소치 0.68rem=9.52px 보다 작은 것만
       seen.add('t' + key);
@@ -108,7 +126,7 @@ const results = [];
 
 for (const file of files) {
   const url = pathToFileURL(join(HERE, file)).href;
-  const res = { file, overflow: [], contrast: [], tiny: [], focus: [], motion: [], console: [] };
+  const res = { file, overflow: [], contrast: [], canon: [], tiny: [], focus: [], motion: [], console: [] };
 
   for (const w of WIDTHS) {
     const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, deviceScaleFactor: 1 });
@@ -126,6 +144,7 @@ for (const file of files) {
     }
     if (w === 1440 || w === 375) {
       a.contrast.forEach((c) => res.contrast.push({ w, ...c }));
+      a.canon.forEach((c) => res.canon.push({ w, ...c }));
       a.tiny.forEach((t) => res.tiny.push({ w, ...t }));
     }
 
@@ -168,13 +187,15 @@ for (const file of files) {
   await rctx.close();
 
   results.push(res);
+  // canon 은 집계에서 뺀다. 다크 정본도 중첩 표면에서 걸리므로 하드 실패로 쓰면 게이트가 무의미해진다.
   const bad =
     res.overflow.length + res.contrast.length + res.focus.length + res.motion.length + res.console.length;
   console.log(
-    `${bad === 0 ? 'PASS' : 'FAIL'}  ${file}  overflow=${res.overflow.length} contrast=${res.contrast.length} focus=${res.focus.length} motion=${res.motion.length} console=${res.console.length} tiny=${res.tiny.length}`,
+    `${bad === 0 ? 'PASS' : 'FAIL'}  ${file}  overflow=${res.overflow.length} contrast=${res.contrast.length} focus=${res.focus.length} motion=${res.motion.length} canon=${res.canon.length} console=${res.console.length} tiny=${res.tiny.length}`,
   );
   if (res.overflow.length) console.log('   overflow:', JSON.stringify(res.overflow));
   res.contrast.slice(0, 8).forEach((c) => console.log(`   contrast ${c.w}px ${c.ratio}:1 (${c.need} 필요) ${c.color} ${c.size}px "${c.text}"`));
+  res.canon.slice(0, 4).forEach((c) => console.log(`   canon ${c.w}px ${c.ratio}:1 (${c.need} 필요) ${c.color} ${c.size}px "${c.text}"`));
   res.focus.slice(0, 8).forEach((f) => console.log(`   focus 링 없음: ${f.tag}.${f.cls} "${f.label}"`));
   res.motion.slice(0, 5).forEach((m) => console.log(`   reduced-motion 누수: ${m.cls} ${m.name} ${m.dur}`));
   res.console.slice(0, 5).forEach((c) => console.log(`   console: ${c}`));

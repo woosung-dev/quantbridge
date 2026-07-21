@@ -8,7 +8,9 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
 import { downloadCsv } from "@/features/backtest/utils";
 import { useOrders } from "@/features/trading";
+import { ORDER_STATE_LABEL } from "@/features/trading/labels";
 import type { Order } from "@/features/trading/schemas";
+import { statusLabelOf, type ChipTone } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 const FETCH_LIMIT = 200;
@@ -30,15 +32,13 @@ function matchesFilter(state: Order["state"], f: StateFilter): boolean {
   return state === "cancelled" || state === "rejected";
 }
 
-const STATE_META: Record<
-  Order["state"],
-  { label: string; tone: string }
-> = {
-  filled: { label: "체결", tone: "bg-success-subtle text-success" },
-  submitted: { label: "전송", tone: "bg-primary-light text-primary" },
-  pending: { label: "대기", tone: "bg-muted text-muted-foreground" },
-  cancelled: { label: "취소", tone: "bg-muted text-muted-foreground" },
-  rejected: { label: "거부", tone: "bg-destructive-subtle text-destructive" },
+// 라벨·톤은 용어 SSOT(ORDER_STATE_LABEL)에서 온다. 아래는 ChipTone → 현행 Tailwind
+// 표현 매핑일 뿐이며, 프로토타입 chip 클래스 적용은 /trading 재구축 슬라이스 소관이다.
+const TONE_CLASS: Record<ChipTone, string> = {
+  neutral: "bg-muted text-muted-foreground",
+  done: "bg-success-subtle text-success",
+  accent: "bg-primary-light text-primary",
+  warn: "bg-destructive-subtle text-destructive",
 };
 
 function formatDateTime(iso: string): string {
@@ -62,7 +62,7 @@ function ordersToCsv(orders: readonly Order[]): string {
     o.side === "buy" ? "매수" : "매도",
     o.quantity,
     o.filled_price ?? "",
-    STATE_META[o.state].label,
+    statusLabelOf(ORDER_STATE_LABEL, o.state, "order.state").label,
   ]);
   return [header, ...rows]
     .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
@@ -199,7 +199,11 @@ export function OrdersBlotter() {
               </thead>
               <tbody className="divide-y divide-border">
                 {pageRows.map((o) => {
-                  const meta = STATE_META[o.state];
+                  const { label, tone } = statusLabelOf(
+                    ORDER_STATE_LABEL,
+                    o.state,
+                    "order.state",
+                  );
                   return (
                     <tr key={o.id} className="transition-colors hover:bg-muted/50">
                       <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground">
@@ -232,10 +236,10 @@ export function OrdersBlotter() {
                         <span
                           className={cn(
                             "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                            meta.tone,
+                            TONE_CLASS[tone],
                           )}
                         >
-                          {meta.label}
+                          {label}
                         </span>
                       </td>
                     </tr>

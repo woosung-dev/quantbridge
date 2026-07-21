@@ -41,7 +41,7 @@ export function MobileNav({ pathname }: MobileNavProps) {
           showHandle=false (handle 은 bottom-sheet 시각 단서, left drawer 에는 불필요). */}
       <SheetContent
         showHandle={false}
-        className="inset-y-0 left-0 right-auto bottom-auto h-dvh w-[280px] max-w-[85vw] rounded-none border-r border-t-0 p-0 pb-0 data-open:slide-in-from-left data-closed:slide-out-to-left md:hidden"
+        className="qb-mobile-nav inset-y-0 left-0 right-auto bottom-auto h-dvh w-[280px] max-w-[85vw] rounded-none border-r border-t-0 p-0 pb-0 data-open:slide-in-from-left data-closed:slide-out-to-left md:hidden"
       >
         <SheetHeader className="flex flex-row items-center justify-between border-b border-[color:var(--border)] px-4 py-3">
           <SheetTitle className="font-display text-base">QuantBridge</SheetTitle>
@@ -53,7 +53,8 @@ export function MobileNav({ pathname }: MobileNavProps) {
             <CloseIcon className="size-5" aria-hidden="true" />
           </SheetClose>
         </SheetHeader>
-        <DashboardNavList sidebarOpen={true} pathname={pathname} />
+        {/* 배지(nav-count) 없음 — 캐논상 ≤1024px 에서 숨김이라 모바일 drawer 도 라벨만. */}
+        <DashboardNavList pathname={pathname} />
       </SheetContent>
     </Sheet>
   );

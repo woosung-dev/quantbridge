@@ -1,4 +1,4 @@
-// Sprint 43 W11 — TradeDetailTable 행 expand + pagination + CSV 버튼 검증.
+// C 이식 S6 — TradeDetailTable 4상태(스켈레톤/에러/빈/데이터) + 페이저 + 방향 라벨 검증.
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TradeItem } from "@/features/backtest/schemas";
 
 import { TradeDetailTable } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-table";
+
+const ENDPOINT = "GET /api/v1/backtests/abcd1234/trades";
 
 function mkTrade(idx: number, pnl = 10): TradeItem {
   return {
@@ -24,42 +26,83 @@ function mkTrade(idx: number, pnl = 10): TradeItem {
 }
 
 afterEach(() => {
-  // jsdom URL.createObjectURL polyfill cleanup if test triggered CSV.
   vi.restoreAllMocks();
 });
 
-describe("TradeDetailTable", () => {
-  it("loading state → '거래 불러오는 중…'", () => {
+describe("TradeDetailTable — 4상태", () => {
+  it("로딩 → 스켈레톤 렌더 (표 미노출)", () => {
     render(
       <TradeDetailTable
         trades={[]}
         isLoading
         isError={false}
+        endpoint={ENDPOINT}
         filenamePrefix="bt-test"
       />,
     );
-    expect(screen.getByText(/거래 불러오는 중/)).toBeInTheDocument();
+    expect(screen.getByTestId("trade-skeleton")).toBeInTheDocument();
+    // 스켈레톤은 aria-hidden 이므로 a11y 트리에서 table 은 숨겨진다.
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trade-empty")).not.toBeInTheDocument();
   });
 
-  it("error state → 메시지 표시", () => {
+  it("에러 → state-box(alert) + 메시지 + 엔드포인트", () => {
     render(
       <TradeDetailTable
         trades={[]}
         isLoading={false}
         isError
         errorMessage="500 server"
+        endpoint={ENDPOINT}
         filenamePrefix="bt-test"
       />,
     );
+    const box = screen.getByTestId("trade-error");
+    expect(box).toHaveAttribute("role", "alert");
     expect(screen.getByText(/500 server/)).toBeInTheDocument();
+    expect(screen.getByText(ENDPOINT)).toBeInTheDocument();
   });
 
-  it("행 expand 토글 — aria-expanded 변경 + detail 영역 노출", () => {
+  it("빈 상태(필터 없음) → trade-empty state-box(status)", () => {
+    render(
+      <TradeDetailTable
+        trades={[]}
+        isLoading={false}
+        isError={false}
+        endpoint={ENDPOINT}
+        filenamePrefix="bt-test"
+      />,
+    );
+    const box = screen.getByTestId("trade-empty");
+    expect(box).toHaveAttribute("role", "status");
+    // 필터 없으면 초기화 버튼 미표시
+    expect(screen.queryByTestId("trade-empty-reset")).not.toBeInTheDocument();
+  });
+
+  it("데이터 → 방향 셀은 S4 라벨(롱), 원시 enum(long) 미노출", () => {
     render(
       <TradeDetailTable
         trades={[mkTrade(1, 100)]}
         isLoading={false}
         isError={false}
+        endpoint={ENDPOINT}
+        filenamePrefix="bt-test"
+      />,
+    );
+    // side 칩은 한국어 라벨 (표 안에서). "롱" 은 방향 필터 option 에도 있으므로 표로 스코프.
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("롱")).toBeInTheDocument();
+    // 표 셀에 원시 enum "long" 이 노출되지 않는다 (data-direction 속성은 허용)
+    expect(within(table).queryByText("long")).not.toBeInTheDocument();
+  });
+
+  it("행 expand 토글 — aria-expanded 변경 + 상세 3그룹 노출", () => {
+    render(
+      <TradeDetailTable
+        trades={[mkTrade(1, 100)]}
+        isLoading={false}
+        isError={false}
+        endpoint={ENDPOINT}
         filenamePrefix="bt-test"
       />,
     );
@@ -72,32 +115,48 @@ describe("TradeDetailTable", () => {
     const closeBtn = screen.getByLabelText("거래 #1 상세 닫기");
     expect(closeBtn).toHaveAttribute("aria-expanded", "true");
     const expanded = screen.getByTestId("trade-detail-expanded");
-    expect(expanded).toBeInTheDocument();
     expect(within(expanded).getByText("진입 정보")).toBeInTheDocument();
     expect(within(expanded).getByText("청산 정보")).toBeInTheDocument();
     expect(within(expanded).getByText("성과")).toBeInTheDocument();
   });
 
-  it("pageSize 50 — 60건 입력 시 페이지 컨트롤 표시", () => {
-    const trades: TradeItem[] = Array.from({ length: 60 }, (_, i) =>
-      mkTrade(i + 1),
+  it("row click → expand 토글 (button stopPropagation 으로 button 단독 클릭도 정상)", () => {
+    render(
+      <TradeDetailTable
+        trades={[mkTrade(1, 100)]}
+        isLoading={false}
+        isError={false}
+        endpoint={ENDPOINT}
+        filenamePrefix="bt-test"
+      />,
     );
+    expect(screen.queryByTestId("trade-detail-expanded")).not.toBeInTheDocument();
+    const cells = screen.getAllByRole("cell");
+    fireEvent.click(cells[0]!); // 첫 행 첫 셀
+    expect(screen.getByTestId("trade-detail-expanded")).toBeInTheDocument();
+  });
+
+  it("pageSize 50 — 60건 입력 시 페이저 노출 + 2페이지 이동", () => {
+    const trades: TradeItem[] = Array.from({ length: 60 }, (_, i) => mkTrade(i + 1));
     render(
       <TradeDetailTable
         trades={trades}
         isLoading={false}
         isError={false}
+        endpoint={ENDPOINT}
         filenamePrefix="bt-test"
       />,
     );
     // 페이지 컨트롤 노출
     expect(screen.getByLabelText("이전 페이지")).toBeInTheDocument();
-    expect(screen.getByLabelText("다음 페이지")).toBeInTheDocument();
-    // 다음 페이지로 이동
-    fireEvent.click(screen.getByLabelText("다음 페이지"));
-    // page 2 / 2 표시 (info bar + pagination 모두 매칭 — 최소 1개)
-    expect(screen.getAllByText(/2 \/ 2/).length).toBeGreaterThanOrEqual(1);
-    // 다음 페이지 버튼 disabled (마지막 페이지)
+    const next = screen.getByLabelText("다음 페이지");
+    expect(next).toBeInTheDocument();
+    expect(screen.getByLabelText("이전 페이지")).toBeDisabled();
+
+    // 다음 페이지로 이동 → "2" 버튼 활성 + 다음 disabled
+    fireEvent.click(next);
+    const page2 = screen.getByRole("button", { name: "2" });
+    expect(page2).toHaveAttribute("aria-current", "page");
     expect(screen.getByLabelText("다음 페이지")).toBeDisabled();
   });
 
@@ -107,29 +166,10 @@ describe("TradeDetailTable", () => {
         trades={[]}
         isLoading={false}
         isError={false}
+        endpoint={ENDPOINT}
         filenamePrefix="bt-test"
       />,
     );
-    const btn = screen.getByLabelText("CSV 내보내기");
-    expect(btn).toBeDisabled();
-  });
-
-  // Sprint 44 W F3 — row click toggles expand (button click 외 row 자체도 클릭 가능)
-  it("row click → expand 토글 (button stopPropagation 으로 button 단독 클릭도 정상)", () => {
-    render(
-      <TradeDetailTable
-        trades={[mkTrade(1, 100)]}
-        isLoading={false}
-        isError={false}
-        filenamePrefix="bt-test"
-      />,
-    );
-    expect(screen.queryByTestId("trade-detail-expanded")).not.toBeInTheDocument();
-
-    // row 의 첫 셀 (#) 클릭 → row click 으로 expand
-    const cells = screen.getAllByRole("cell");
-    fireEvent.click(cells[0]!); // 첫 행 첫 셀
-
-    expect(screen.getByTestId("trade-detail-expanded")).toBeInTheDocument();
+    expect(screen.getByLabelText("CSV 내보내기")).toBeDisabled();
   });
 });
