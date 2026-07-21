@@ -111,7 +111,25 @@ test.describe("Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차�
   test("picker + form + submit → POST bayesian endpoint", async ({ page }) => {
     let postedToBayesianEndpoint = false;
 
-    await page.route("**/api/v1/optimizer/runs/bayesian", async (route) => {
+    // FE 는 크로스오리진 백엔드(NEXT_PUBLIC_API_URL=http://localhost:8000)로 제출한다.
+    // ★함정: 일반 라우트 `**/optimizer/runs**` 가 구체 라우트 `**/optimizer/runs/bayesian` 을
+    // 가린다. Playwright 은 등록 역순으로 매칭하므로(마지막 등록이 최우선), 이전 판본은 bayesian 을
+    // 먼저 등록해 뒤이은 runs 목록 라우트가 POST 까지 가로챘고 RUN_LIST 를 돌려줬다. mutation 은
+    // 그것을 OptimizerRun 으로 파싱하려다 실패해 alert 를 띄웠다(postedToBayesianEndpoint=false).
+    // 수정: context.route 로 통일(크로스오리진 프레임까지 커버) + 구체 bayesian 라우트를
+    // **마지막에 등록**해 일반 runs 라우트보다 우선하게 한다.
+    const context = page.context();
+
+    // 완료 백테스트 picker 소스 (GET).
+    await context.route("**/api/v1/backtests**", async (route) => {
+      await fulfillJson(BACKTEST_LIST)(route);
+    });
+    // /optimizer 하단 실행 목록 (GET). bayesian 보다 먼저 등록 → 낮은 우선순위.
+    await context.route("**/api/v1/optimizer/runs**", async (route) => {
+      await fulfillJson(RUN_LIST)(route);
+    });
+    // 제출 엔드포인트 (POST) — 마지막 등록으로 위 일반 라우트보다 우선한다.
+    await context.route("**/optimizer/runs/bayesian", async (route) => {
       postedToBayesianEndpoint = true;
       const body = JSON.parse(route.request().postData() ?? "{}");
       // submit body 검증 — kind=bayesian + schema_version=2 (LESSON-066 case mismatch 차단).
@@ -119,14 +137,6 @@ test.describe("Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차�
       expect(body.param_space.schema_version).toBe(2);
       expect(body.param_space.bayesian_acquisition).toBe("EI");
       await fulfillJson(RUN_QUEUED, 202)(route);
-    });
-    // 완료 백테스트 picker 소스.
-    await page.route("**/api/v1/backtests**", async (route) => {
-      await fulfillJson(BACKTEST_LIST)(route);
-    });
-    // /optimizer 하단 실행 목록.
-    await page.route("**/api/v1/optimizer/runs**", async (route) => {
-      await fulfillJson(RUN_LIST)(route);
     });
 
     await page.goto("/optimizer");
@@ -156,7 +166,8 @@ test.describe("Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차�
   test("detail(mock COMPLETED) — 반복 곡선 + 최적 파라미터 + 축퇴 배지 (LESSON-066 가드)", async ({
     page,
   }) => {
-    await page.route(`**/api/v1/optimizer/runs/${RUN_ID}`, async (route) => {
+    // 상세 GET (크로스오리진). context.route 로 통일 — 제출 테스트와 같은 함정 예방.
+    await page.context().route(`**/optimizer/runs/${RUN_ID}`, async (route) => {
       await fulfillJson(RUN_COMPLETED)(route);
     });
 
@@ -168,6 +179,7 @@ test.describe("Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차�
     await expect(page.getByText("최적 파라미터").first()).toBeVisible();
     await expect(page.getByText(/최적 반복 #/)).toBeVisible();
     // degenerate 배지 (1 / 5) — Sprint 50/51/52 retro 차단 가드.
-    await expect(page.getByText(/축퇴 1 \/ 5/)).toBeVisible();
+    // ★`축퇴 1 / 5` 는 요약 텍스트와 배지 두 곳에 나온다(strict mode 위반). 배지(.chip.warn)로 좁힌다.
+    await expect(page.locator("span.chip.warn", { hasText: "축퇴 1 / 5" })).toBeVisible();
   });
 });
