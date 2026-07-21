@@ -331,6 +331,12 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 - **교정 채택 1.** ⑦ ~~share 가 report 컴포넌트 공유~~ — 실측 반증: share 페이지는 스키마 + 자체 `_components` 만 import. 플랜의 blast radius 전제를 삭제하고 share 는 전역 토큰 계약 관점만 유지.
 - **부분 채택 1.** ⑧ Tab 30회 한계 + box-shadow 링 인정 — **감사 코어는 불변으로 둔다.** 코어를 바꾸면 S0 캘리브레이션(프로토타입 22 PASS 재현)의 동등성이 깨진다. 대신 대형 신규 화면 워커에 30탭 밖 핵심 인터랙티브 요소 포커스 링 수동 확인 + 요소 목록 falsifiable 보고를 의무화.
 
+### 통합(cherry-pick) 루틴에서 실측한 함정 3건 (2026-07-21, W2~C 통합)
+
+1. **cherry-pick 도 Turbopack stale 을 유발한다.** W2 통합 직후 `/backtests/:id` 가 contrast=4 로 FAIL — 컴파일 CSS 가 여전히 구 `--muted-foreground #7a828c` 를 서빙(소스는 `#8b939c`). 서버 재기동으로도 무효. **확정 루틴 = 서버 정지 → globals.css 캐시 무효화 주석(r 카운터) 갱신 → 기동 → 컴파일 CSS 에 신규 값/클래스 curl 확인 → 게이트.** 슬라이스 통합마다 의무.
+2. **CSS 주석 안 `*/` 연쇄 = 주석 조기 종결 → 전 라우트 500.** W3-B 블록 주석의 `.trust-*/` 가 PostCSS 파스를 깨뜨렸다(에러 좌표는 생성 코드 기준 8497줄이라 소스 대조가 오도됨). 워커 게이트에 build/컴파일 확인이 없어 통과 — 이후 웨이브부터 주석 `*/` 스캔 + 자기 포트 dev 200 확인을 워커 게이트에 추가.
+3. **fresh 서버 첫 방문(콜드 컴파일) 중 canon 감사는 콘솔/발견 flake 를 낸다.** /optimizer console=10 → 단독 재실행 0. 판정은 warm 재실행으로.
+
 ### W0 환경 복구·시딩 기록
 
 - stale Turbopack 캐시: globals.css 내용 변경(주석 1줄, `1a8addb`) + 재기동으로 해소. 컴파일 CSS 에 `#8b939c` 존재·`#7a828c` 부재 curl 확인 후 baseline 재현 (vitest 164/904 · canon 29 · authed 5).
