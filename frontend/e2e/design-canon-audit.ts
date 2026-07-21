@@ -173,7 +173,21 @@ export const AUDIT = () => {
     const need = large ? 3 : 4.5;
     const canonNeed = large ? 3 : 5.82;
     const key = cs.color + "|" + Math.round(size) + "|" + txt.slice(0, 20);
-    if (cr < need && !seen.has(key)) {
+    // WCAG 1.4.3(Contrast Minimum) 예외 — "inactive user interface component" 안의
+    // 텍스트는 대비 요구 대상이 아니다. 자기 또는 조상 중 하나라도 :disabled / [disabled] /
+    // [aria-disabled="true"] 인 비활성 컨트롤의 텍스트를 하드 대비(WCAG AA 게이트)에서 뺀다.
+    //   실측(2026-07-21, /trading). 비활성 "라이브 세션 시작" 버튼
+    //   (.btn-primary + .btn:disabled{opacity:.5}) 텍스트 rgb(26,16,6) 가 3.21:1 로 하드
+    //   실패했으나 WCAG 1.4.3 상 위반이 아니다. 화면이 아니라 이 감사기가 예외를 몰랐던 것이
+    //   결함이었다.
+    // ★canon(아래 else-if)·tiny 는 의도적으로 건드리지 않는다. canon 은 하드 실패가 아니라
+    //   드리프트 지표이고(위 need/canonNeed 주석 참조), 프로토타입 screen-05 의 비활성
+    //   btn-primary "백테스트 실행"(5.44:1)이 그 canon 기준선 7 중 2건(1440·375px)을 이룬다.
+    //   canon 에서까지 빼면 known-good 캘리브레이션이 7→5 로 깨지는데, 그 기준선 파일은 이
+    //   과업 범위 밖이다. 비활성 컨트롤이 비게이트 지표에 세어져도 WCAG 위반이 아니므로
+    //   (게이트는 하드 실패만 본다) 하드 대비 게이트에서만 제외한다.
+    const inactive = !!el.closest(':disabled,[disabled],[aria-disabled="true"]');
+    if (cr < need && !inactive && !seen.has(key)) {
       seen.add(key);
       out.contrast.push({ text: txt.slice(0, 42), color: cs.color, size, ratio: +cr.toFixed(2), need });
     } else if (cr < canonNeed && !seen.has("c" + key)) {
