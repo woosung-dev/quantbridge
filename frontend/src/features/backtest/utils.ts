@@ -52,9 +52,11 @@ export function formatCurrency(value: number, digits = 2): string {
 /**
  * ISO datetime → YYYY-MM-DD.
  */
-export function formatDate(iso: string): string {
+// ISO 문자열 또는 epoch(ms) 숫자를 받는다 — 로컬 저장 타임스탬프(draft.savedAt: number)도
+// 같은 UTC 포맷으로 통일한다. 잘못된 값은 던지지 않고 원값을 그대로 돌려준다.
+export function formatDate(iso: string | number): string {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return String(iso);
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
@@ -64,7 +66,7 @@ export function formatDate(iso: string): string {
 /**
  * ISO → YYYY-MM-DD HH:mm (UTC).
  */
-export function formatDateTime(iso: string | null | undefined): string {
+export function formatDateTime(iso: string | number | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
@@ -72,6 +74,19 @@ export function formatDateTime(iso: string | null | undefined): string {
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mm = String(d.getUTCMinutes()).padStart(2, "0");
   return `${base} ${hh}:${mm}`;
+}
+
+/**
+ * ISO → HH:mm:ss (UTC). 주문 시각처럼 초 단위가 필요한 표에서 쓴다. 날짜는 formatDate 로
+ * 따로 얻는다. 로컬 타임존(toLocaleTimeString)을 쓰지 않아 서버·클라이언트 렌더가 일치한다.
+ */
+export function formatTimeSeconds(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
 
 // --- CSV export (Sprint 30-δ) -------------------------------------------

@@ -6,6 +6,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { formatDate } from "@/features/backtest/utils";
 import type {
   WaitlistApplicationResponse,
   WaitlistStatus,
@@ -151,7 +152,7 @@ export function WaitlistTable({
                 </span>
               </td>
               <td className="px-4 py-3 text-xs text-[color:var(--text-muted)]">
-                {new Date(item.created_at).toLocaleDateString("ko-KR")}
+                {formatDate(item.created_at)}
               </td>
               <td className="px-4 py-3 text-right">
                 {item.status === "pending" ? (

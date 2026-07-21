@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
-import { downloadCsv } from "@/features/backtest/utils";
+import { downloadCsv, formatDate, formatTimeSeconds } from "@/features/backtest/utils";
 import { useOrders } from "@/features/trading/hooks";
 import {
   filledPriceEmptyReason,
@@ -58,17 +58,11 @@ function matchesFilter(state: Order["state"], f: OrderStateFilter): boolean {
 }
 
 // 시각 셀 — 시(초 단위)를 본문에, 날짜를 보조 줄(cell-sub)에 둔다. 프로토타입 21:06:12 / 2026-04-14 관례.
+// UTC 고정(formatTimeSeconds/formatDate SSOT) — 로컬 타임존 잔재를 없애 서버·클라이언트 렌더가 일치한다.
 function formatOrderTime(iso: string): { time: string; date: string } {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return { time: iso, date: "" };
-  const time = d.toLocaleTimeString("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const date = d.toLocaleDateString("sv-SE"); // YYYY-MM-DD
-  return { time, date };
+  return { time: formatTimeSeconds(iso), date: formatDate(iso) };
 }
 
 function signedPct(value: number): string {
