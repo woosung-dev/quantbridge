@@ -6,7 +6,6 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
 import { EquityChartWithCompare } from "@/app/(dashboard)/backtests/_components/charts/equity-chart-with-compare";
@@ -39,44 +38,42 @@ export function PerformanceChart({
   const hasTrades = (trades?.length ?? 0) > 0;
 
   return (
-    <section
-      className="rounded-lg border bg-card shadow-[var(--card-shadow)]"
-      aria-label="성과 차트"
-      data-testid="performance-chart"
-    >
-      <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-2">
-        <h2 className="text-sm font-semibold">성과</h2>
-        <div className="flex items-center gap-3">
+    <section className="card" aria-label="성과 차트" data-testid="performance-chart">
+      <div className="card-head">
+        <div>
+          <h3 className="card-title">자산 곡선</h3>
+          <p className="card-sub">전략 자산 곡선 · 매수 후 보유 벤치마크 · 낙폭 띠 (같은 x축)</p>
+        </div>
+        <div className="chart-head-actions">
           {hasTrades && !collapsed ? (
-            <label className="inline-flex items-center gap-2 text-xs text-[color:var(--text-secondary)] select-none">
+            <label className="chart-toggle">
               <input
                 type="checkbox"
                 checked={showTradePnl}
                 onChange={(e) => setShowTradePnl(e.target.checked)}
-                className="h-4 w-4 cursor-pointer accent-[color:var(--primary)]"
                 aria-label="거래별 PnL 바 표시"
               />
               거래 PnL
             </label>
           ) : null}
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
             onClick={() => setCollapsed((prev) => !prev)}
             aria-expanded={!collapsed}
             aria-label={collapsed ? "성과 차트 펼치기" : "성과 차트 접기"}
           >
             {collapsed ? (
-              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+              <ChevronDown aria-hidden="true" />
             ) : (
-              <ChevronUp className="h-4 w-4" aria-hidden="true" />
+              <ChevronUp aria-hidden="true" />
             )}
-          </Button>
+          </button>
         </div>
       </div>
 
       {!collapsed ? (
-        <div className="space-y-3 p-4">
+        <div className="card-body chart-wrap">
           <EquityChartWithCompare
             currentId={currentId}
             equityCurve={equityCurve}
@@ -88,7 +85,7 @@ export function PerformanceChart({
           />
           {hasTrades && showTradePnl ? (
             <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">
+              <p className="card-sub" style={{ marginBottom: 4 }}>
                 거래별 순손익 (USDT)
               </p>
               <TradePnlPane trades={trades ?? []} height={TRADE_PNL_PANE_HEIGHT} />

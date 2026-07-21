@@ -476,7 +476,9 @@ h6 {
   --secondary: #16191d;
   --secondary-foreground: #e8eaed;
   --muted: #1b1e22;
-  --muted-foreground: #7a828c;
+  /* W2: 구 #7a828c 는 카드 위 4.3:1 로 WCAG AA(4.5) 미달 — 이미 교정된 --text-muted 와 동일하게
+     캐논 --ink-3 #8b939c(카드 위 5.83:1) 로 올린다. shadcn text-muted-foreground 전역 a11y 정합. */
+  --muted-foreground: #8b939c;
   --accent: #1e2226;
   --accent-foreground: #e8eaed;
   --destructive-foreground: #1a1006;
@@ -2106,4 +2108,101 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 
 @media (max-width: 900px) {
   .session-manage { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /backtests/[id] 리포트 상세 (이식 W2).
+ *   출처 docs/prototypes/shotgun-2026-07/variant-c.html.
+ *   공용 .report/.section/.kpi/.metric-groups/.trust-grid/.cta-row/.chart-wrap 는 KITPORT 가
+ *   이미 제공하고, 여기서는 리포트 상세 고유 소품(공유 버튼·경고 고지·심화 분석 그리드·차트 토글)만 얹는다.
+ *   KITPORT 센티넬(무결성 가드) 밖 · 언레이어드. 색은 캐논 토큰 별칭만 쓴다(hex 리터럴 금지).
+ * ========================================================================== */
+
+/* 공용 .btn 의 disabled 상태 — 네이티브 button(재실행·공유)이 소비. */
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 에러 상태 코드(엔드포인트 URL)는 공백 없는 긴 문자열이라 375px 에서 페이지를 넘친다.
+   공용 .state-code(KITPORT) 위에 줄바꿈만 언레이어드로 보강한다 (전 화면 에러 박스 공통 개선). */
+.state-code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 공유 버튼 활성("공유 중") 래퍼 */
+.share-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 표준 가정값 안내(실행 조건 카드 헤드) — 아이콘 + 문구 인라인 */
+.assumptions-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.assumptions-notice svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  flex-shrink: 0;
+}
+
+/* 펀딩 미반영 경고 고지 — 공용 .disclaimer 위에 warn 톤만 얹는다. */
+.report-note-warn {
+  color: var(--warn);
+  border-top-color: color-mix(in srgb, var(--warn) 40%, transparent);
+  background: var(--warn-soft);
+}
+.report-note-warn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* 심화 분석 — 수익 구조 / 벤치마킹 2열 + 월별 수익률 전폭. */
+.report-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.report-analysis-wide {
+  grid-column: 1 / -1;
+}
+/* 그리드 자식은 min-content(recharts·긴 문구)로 부풀지 않게 축소 허용 — 375px 가로 넘침 차단. */
+.report-analysis-grid > .card {
+  min-width: 0;
+}
+.report-analysis-grid .card-body {
+  min-width: 0;
+}
+
+/* 성과 차트 헤드의 거래 PnL 토글 라벨 */
+.chart-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  user-select: none;
+}
+.chart-toggle input {
+  accent-color: var(--copper);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .report-analysis-grid {
+    grid-template-columns: 1fr;
+  }
 }

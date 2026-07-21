@@ -219,7 +219,8 @@ const HEX_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
  */
 const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(auth)/_components/brand-panel.tsx", 2],
-  ["app/(dashboard)/backtests/_components/assumptions-card.tsx", 2],
+  // assumptions-card.tsx (구 2건)는 W2 리포트 상세 이식에서 trust-grid 재스킨과 함께 산문
+  // em-dash 를 마침표로 교정해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/charts/cost-assumption-heatmap.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/drawdown-pane.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/equity-pane.tsx", 1],
@@ -229,7 +230,8 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/backtests/_components/live-settings-badge.tsx", 1],
   ["app/(dashboard)/backtests/_components/monte-carlo-summary-table.tsx", 3],
   ["app/(dashboard)/backtests/_components/report/benchmark-floating-bars.tsx", 1],
-  ["app/(dashboard)/backtests/_components/report/detailed-results-section.tsx", 1],
+  // detailed-results-section.tsx (구 1건)은 W2 에서 심화 분석 시각 카드로 재편하며 벤치마킹
+  // 캡션의 em-dash 를 제거해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/report/runup-drawdown-section.tsx", 2],
   ["app/(dashboard)/backtests/_components/report/trade-pnl-pane.tsx", 1],
   ["app/(dashboard)/optimizer/_components/bayesian-iteration-chart.tsx", 2],

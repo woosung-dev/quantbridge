@@ -4,7 +4,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import {
   useCreateBacktestShare,
   useRevokeBacktestShare,
@@ -74,28 +73,28 @@ export function ShareButton({ backtestId, isEnabled = true }: ShareButtonProps) 
 
   if (sharedUrl) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">공유 중</span>
-        <Button
-          variant="outline"
-          size="sm"
+      <div className="share-active">
+        <span className="dim">공유 중</span>
+        <button
+          type="button"
+          className="btn btn-ghost"
           onClick={handleRevoke}
           disabled={revokeShare.isPending}
         >
           {revokeShare.isPending ? "해제 중…" : "공유 취소"}
-        </Button>
+        </button>
       </div>
     );
   }
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
+    <button
+      type="button"
+      className="btn btn-ghost"
       onClick={handleCreate}
       disabled={!isEnabled || createShare.isPending}
     >
       {createShare.isPending ? "생성 중…" : "공유"}
-    </Button>
+    </button>
   );
 }

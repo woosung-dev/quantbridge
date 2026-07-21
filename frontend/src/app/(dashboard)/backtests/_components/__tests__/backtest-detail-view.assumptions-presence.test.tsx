@@ -57,6 +57,8 @@ vi.mock("@/features/backtest/hooks", () => ({
   }),
   useCreateMonteCarlo: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateWalkForward: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateCostAssumption: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateParamStability: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("next/navigation", () => ({
