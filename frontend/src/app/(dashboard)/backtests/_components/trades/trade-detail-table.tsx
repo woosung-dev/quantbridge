@@ -19,6 +19,7 @@ import {
   tradesToCsv,
 } from "@/features/backtest/utils";
 import { EMPTY_CELL } from "@/lib/labels";
+import { StateBox } from "@/components/state-box";
 
 import {
   DEFAULT_FILTERS,
@@ -173,39 +174,38 @@ export function TradeDetailTable({
         <TableSkeleton />
       ) : isError ? (
         <div className="card-body">
-          <div className="state-box failed" role="alert" data-testid="trade-error">
-            <span className="state-icon failed" aria-hidden="true">
-              <AlertTriangleIcon />
-            </span>
-            <p className="state-title">거래 기록을 불러오지 못했습니다.</p>
-            <p className="state-body">
-              {errorMessage ?? "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
-            </p>
-            <p className="state-code">{endpoint}</p>
+          <StateBox
+            tone="failed"
+            testId="trade-error"
+            icon={<AlertTriangleIcon />}
+            title="거래 기록을 불러오지 못했습니다."
+            body={errorMessage ?? "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
+            code={endpoint}
+          >
             {onRetry ? (
               <button className="btn btn-ghost" type="button" onClick={onRetry}>
                 <RefreshCwIcon aria-hidden="true" />
                 다시 시도
               </button>
             ) : null}
-          </div>
+          </StateBox>
         </div>
       ) : filtered.length === 0 ? (
         <div className="card-body">
-          <div className="state-box" role="status" data-testid="trade-empty">
-            <span className="state-icon" aria-hidden="true">
-              <InboxIcon />
-            </span>
-            <p className="state-title">
-              {activeCount > 0
+          <StateBox
+            testId="trade-empty"
+            icon={<InboxIcon />}
+            title={
+              activeCount > 0
                 ? "조건에 맞는 거래가 없습니다"
-                : "표시할 거래가 없습니다"}
-            </p>
-            <p className="state-body">
-              {activeCount > 0
+                : "표시할 거래가 없습니다"
+            }
+            body={
+              activeCount > 0
                 ? "필터를 완화하거나 초기화하면 거래가 다시 나타납니다."
-                : "완료된 실행에서만 체결이 기록됩니다."}
-            </p>
+                : "완료된 실행에서만 체결이 기록됩니다."
+            }
+          >
             {activeCount > 0 ? (
               <button
                 className="btn btn-ghost btn-xs"
@@ -216,7 +216,7 @@ export function TradeDetailTable({
                 모든 필터 초기화
               </button>
             ) : null}
-          </div>
+          </StateBox>
         </div>
       ) : (
         <div className="table-wrap">
