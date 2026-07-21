@@ -29,8 +29,10 @@ const EXPECTED_CONSOLE = [
   /networkerror/i,
   /net::err_/i,
   /\b40[0-9]\b/,
-  // 연속 4폭 감사가 백엔드 레이트리밋을 치면 429 가 난다 — 스위트 환경 아티팩트지 캐논 위반이 아니다.
-  /\b429\b|too many requests/i,
+  // 리소스 로드 429(레이트리밋)만 무시한다 — 연속 4폭 감사가 백엔드를 치면 나는 스위트 환경
+  // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
+  // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
+  /failed to load resource.*429/i,
   /\b50[0-9]\b/,
   /clerk has been loaded/i,
   /development keys/i,
@@ -74,7 +76,13 @@ const auditOptions = {
 const DETAIL_HREF_RE = /^\/backtests\/[0-9a-f-]{36}$/;
 
 test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 로컬 전용)", () => {
-  test.skip(!existsSync(STORAGE_STATE), "storageState 없음 — setup 프로젝트 먼저 실행");
+  // storageState 부재 시 조용한 skip 이 아니라 시끄럽게 실패시킨다(운영계약 §3ⓒ — skip 침묵 통과 방지).
+  test("사전조건 — storageState 존재", () => {
+    expect(
+      existsSync(STORAGE_STATE),
+      `storageState 없음 (${STORAGE_STATE}) — chromium-authed-setup 프로젝트를 먼저 실행하라 (pnpm e2e:authed).`,
+    ).toBe(true);
+  });
 
   test("위생 — 커버할 잔여 라우트 배열이 비어있지 않다", () => {
     const routes = Object.keys(HARDFAIL_ALLOWLIST);
