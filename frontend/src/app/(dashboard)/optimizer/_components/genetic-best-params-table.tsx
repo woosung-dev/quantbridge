@@ -1,18 +1,18 @@
-// 유전 알고리즘 최적화의 최적 파라미터 테이블 (세대 표시 포함)
+// 유전 알고리즘 최적화의 최적 파라미터 테이블 (세대 표시 포함) — C 디자인 언어 이식 (W3-C).
 "use client";
 
-import { AlertTriangle, Star } from "lucide-react";
+import { AlertTriangleIcon, StarIcon } from "lucide-react";
 
 import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import type { GeneticSearchResult } from "@/features/optimizer/schemas";
+import { EMPTY_CELL } from "@/lib/labels";
 
 interface Props {
   result: GeneticSearchResult;
 }
 
 export function GeneticBestParamsTable({ result }: Props) {
-  const hasBest =
-    result.best_iteration_idx !== null && result.best_params !== null;
+  const hasBest = result.best_iteration_idx !== null && result.best_params !== null;
   const degenerateRatio =
     result.total_iterations > 0
       ? (result.degenerate_count / result.total_iterations) * 100
@@ -20,77 +20,71 @@ export function GeneticBestParamsTable({ result }: Props) {
 
   const bestGeneration =
     result.best_iteration_idx !== null
-      ? result.iterations.find((it) => it.idx === result.best_iteration_idx)
-          ?.generation
+      ? result.iterations.find((it) => it.idx === result.best_iteration_idx)?.generation
       : undefined;
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <h4 className="font-display font-semibold text-foreground">
-          최적 파라미터
-        </h4>
-        {result.degenerate_count > 0 && (
+      <div className="card-head" style={{ border: "none", padding: 0 }}>
+        <h3 className="card-title">최적 파라미터</h3>
+        {result.degenerate_count > 0 ? (
           <span
-            data-tone="warning"
-            className="inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium"
-            aria-label={`${result.degenerate_count} of ${result.total_iterations} iterations were degenerate`}
+            className="chip warn"
+            aria-label={`${result.total_iterations}회 중 ${result.degenerate_count}회가 축퇴 반복입니다.`}
           >
-            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-            비정상 {result.degenerate_count} / {result.total_iterations} (
+            <AlertTriangleIcon aria-hidden="true" />
+            축퇴 {result.degenerate_count} / {result.total_iterations} (
             {degenerateRatio.toFixed(0)}%)
           </span>
-        )}
+        ) : null}
       </div>
 
       {!hasBest ? (
-        <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          모든 반복이 비정상(거래 0건 또는 지표 산출 불가)이라 최적 파라미터를 선정하지
-          못했습니다. 파라미터 범위나 전략을 다시 확인해 주세요.
+        <p className="chart-note" style={{ paddingLeft: 0 }}>
+          모든 반복이 축퇴(거래 0건 또는 지표 산출 불가)라 최적 파라미터를 선정하지 못했습니다.
+          파라미터 범위나 전략을 다시 확인해 주세요.
         </p>
       ) : (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-card">
-          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span className="inline-flex items-center gap-1.5 font-semibold text-primary">
-              <Star className="h-4 w-4 fill-current" aria-hidden="true" />
-              최적 반복
-            </span>
-            <span className="text-xs text-muted-foreground">
-              #<span className="font-mono tabular-nums">{result.best_iteration_idx}</span>
-            </span>
-            {bestGeneration !== undefined && (
-              <span className="text-xs text-muted-foreground">
-                · 세대 <span className="font-mono tabular-nums">{bestGeneration}</span>
-              </span>
-            )}
-            <span className="text-xs text-muted-foreground">
+        <>
+          <p className="chart-note" style={{ paddingLeft: 0, paddingTop: 0 }}>
+            <StarIcon aria-hidden="true" />
+            <span>
+              최적 반복 #<span className="mono">{result.best_iteration_idx}</span>
+              {bestGeneration !== undefined ? (
+                <>
+                  {" "}
+                  · 세대 <span className="mono">{bestGeneration}</span>
+                </>
+              ) : null}{" "}
               · {OBJECTIVE_METRIC_LABEL[result.objective_metric]}{" "}
-              <span className="font-mono tabular-nums text-foreground">
+              <span className="mono">
                 {result.best_objective_value === null
-                  ? "—"
+                  ? EMPTY_CELL
                   : result.best_objective_value.toFixed(4)}
               </span>
             </span>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="py-1.5 pr-3 font-medium">파라미터</th>
-                <th className="py-1.5 text-right font-medium">값</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(result.best_params ?? {}).map(([name, value]) => (
-                <tr key={name} className="border-b border-border/60 last:border-b-0">
-                  <td className="py-1.5 pr-3 font-mono">{name}</td>
-                  <td className="py-1.5 text-right font-mono tabular-nums">
-                    {value.toFixed(6)}
-                  </td>
+          </p>
+          <div className="table-wrap">
+            <table className="trades" aria-label="최적 파라미터">
+              <thead>
+                <tr>
+                  <th scope="col">파라미터</th>
+                  <th scope="col" className="num">
+                    값
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {Object.entries(result.best_params ?? {}).map(([name, value]) => (
+                  <tr key={name}>
+                    <td className="mono-l">{name}</td>
+                    <td className="num">{value.toFixed(6)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

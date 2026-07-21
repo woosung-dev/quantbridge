@@ -1,4 +1,4 @@
-// Sprint 54 — Grid Search N>2 변수쌍 선택 (heatmap 2D viz 강제, N-dim viz Sprint 55+).
+// 그리드 탐색 N>2 변수쌍 선택 — C 디자인 언어 이식 (W3-C). heatmap 2D 표시용 축 2개 선택.
 "use client";
 
 import { useState } from "react";
@@ -12,17 +12,16 @@ interface Props {
 
 export function GridSearchPairSelector({ result }: Props) {
   const names = result.param_names;
-  const initial: [string, string] = names.length >= 2
-    ? [names[0]!, names[1]!]
-    : ["", ""];
+  const initial: [string, string] = names.length >= 2 ? [names[0]!, names[1]!] : ["", ""];
   const [pair, setPair] = useState<[string, string]>(initial);
 
   if (names.length < 2) {
     // 1D — 안내만 표시.
     return (
-      <div className="rounded border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-        param_space 변수 1개 — 2D heatmap 미적용. 결과 표는 detail 페이지의 cells list 참고.
-      </div>
+      <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
+        파라미터 공간이 변수 1개라 2D 히트맵을 그리지 않습니다. 위 리더보드가 전체 조합을
+        순위로 보여 줍니다.
+      </p>
     );
   }
 
@@ -32,21 +31,23 @@ export function GridSearchPairSelector({ result }: Props) {
 
   // N>2 — 변수쌍 선택 prompt.
   return (
-    <div className="space-y-4">
-      <div data-tone="warning" className="rounded border p-3 text-xs">
-        <strong className="block font-medium">N-dim 결과 ({names.length} 변수)</strong>
-        heatmap 표시할 변수쌍 2개 선택 (best cell 의 나머지 변수 값으로 slice).
-        N-dim viz (parallel-coord / surface) 확장 예정.
-      </div>
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <label className="flex items-center gap-2">
-          <span className="text-muted-foreground">X 축:</span>
+    <div>
+      <p className="notice-inline" style={{ marginBottom: 14 }} role="status">
+        <span>
+          변수 {names.length}개 결과입니다. 히트맵으로 볼 변수쌍 2개를 고르세요. 나머지 변수는
+          최적 셀 값으로 고정한 단면을 그립니다.
+        </span>
+      </p>
+      <div className="toolbar" style={{ marginBottom: 14 }}>
+        <span className="field">
+          <span className="field-label">가로축</span>
           <select
-            className="rounded border border-input bg-background px-2 py-1 text-sm"
+            className="select"
+            aria-label="히트맵 가로축 변수"
             value={pair[0]}
             onChange={(e) => {
               const v = e.target.value;
-              setPair(([_, y]) => (y === v ? [v, names.find((n) => n !== v) ?? y] : [v, y]));
+              setPair(([, y]) => (y === v ? [v, names.find((n) => n !== v) ?? y] : [v, y]));
             }}
           >
             {names.map((n) => (
@@ -55,15 +56,16 @@ export function GridSearchPairSelector({ result }: Props) {
               </option>
             ))}
           </select>
-        </label>
-        <label className="flex items-center gap-2">
-          <span className="text-muted-foreground">Y 축:</span>
+        </span>
+        <span className="field">
+          <span className="field-label">세로축</span>
           <select
-            className="rounded border border-input bg-background px-2 py-1 text-sm"
+            className="select"
+            aria-label="히트맵 세로축 변수"
             value={pair[1]}
             onChange={(e) => {
               const v = e.target.value;
-              setPair(([x, _]) => (x === v ? [names.find((n) => n !== v) ?? x, v] : [x, v]));
+              setPair(([x]) => (x === v ? [names.find((n) => n !== v) ?? x, v] : [x, v]));
             }}
           >
             {names.map((n) => (
@@ -72,7 +74,7 @@ export function GridSearchPairSelector({ result }: Props) {
               </option>
             ))}
           </select>
-        </label>
+        </span>
       </div>
       <GridSearchHeatmap result={result} pair={pair} />
     </div>

@@ -83,27 +83,24 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
         emptyRow={EMPTY_ROW}
         renderRowCells={(idx, removeButton) => (
           <>
-            <select
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              {...form.register(`parameters.${idx}.kind`)}
-            >
+            <select className="select" {...form.register(`parameters.${idx}.kind`)}>
               <option value="integer">정수</option>
               <option value="decimal">실수</option>
             </select>
             <input
               placeholder="최소"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="input"
               {...form.register(`parameters.${idx}.min`)}
             />
             <input
               placeholder="최대"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="input"
               {...form.register(`parameters.${idx}.max`)}
             />
-            <div className="flex items-center gap-1">
+            <div className="opt-param-row-tail">
               <input
                 placeholder="간격"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="input"
                 {...form.register(`parameters.${idx}.step`)}
               />
               {removeButton}

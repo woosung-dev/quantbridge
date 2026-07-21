@@ -53,9 +53,9 @@ export function GeneticGenerationChart({ result }: Props) {
 
   if (data.length === 0) {
     return (
-      <p className="rounded border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-        모든 iteration 이 degenerate (num_trades=0 또는 sharpe=null) — chart 표시 불가.
-        파라미터 범위 또는 strategy 검토 권장.
+      <p className="chart-note" style={{ paddingLeft: 0 }}>
+        모든 반복이 축퇴(거래 0건 또는 지표 산출 불가)라 누적 최고값 곡선을 그릴 수 없습니다.
+        파라미터 범위나 전략을 다시 확인해 주세요.
       </p>
     );
   }
@@ -81,18 +81,18 @@ export function GeneticGenerationChart({ result }: Props) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
         <span>
-          best_so_far per iteration ({OBJECTIVE_METRIC_LABEL[result.objective_metric]},{" "}
+          반복별 누적 최고값 ({OBJECTIVE_METRIC_LABEL[result.objective_metric]},{" "}
           {OBJECTIVE_DIRECTION_LABEL[result.direction]})
         </span>
         <span>
-          population: <strong className="font-mono tabular-nums text-foreground">{result.population_size}</strong>
-          {" · "}generations:{" "}
+          개체군 <strong className="font-mono tabular-nums text-foreground">{result.population_size}</strong>
+          {" · "}세대{" "}
           <strong className="font-mono tabular-nums text-foreground">{result.n_generations}</strong>
-          {" · "}total:{" "}
+          {" · "}전체{" "}
           <strong className="font-mono tabular-nums text-foreground">{result.total_iterations}</strong>
           {result.degenerate_count > 0 && (
             <>
-              {" · "}degenerate:{" "}
+              {" · "}축퇴{" "}
               <span className="font-mono tabular-nums text-warning">
                 {result.degenerate_count} / {result.total_iterations}
               </span>
@@ -107,7 +107,7 @@ export function GeneticGenerationChart({ result }: Props) {
           viewBox={`0 0 ${W} ${H}`}
           className="rounded border border-border bg-background"
           role="img"
-          aria-label={`Genetic generation chart — ${result.total_iterations} iterations over ${result.n_generations + 1} generations`}
+          aria-label={`유전 알고리즘 세대 곡선. 반복 ${result.total_iterations}회, 세대 ${result.n_generations + 1}개.`}
         >
           {/* axes */}
           <line

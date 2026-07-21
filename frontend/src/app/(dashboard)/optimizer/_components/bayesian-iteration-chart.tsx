@@ -41,9 +41,9 @@ export function BayesianIterationChart({ result }: Props) {
 
   if (data.length === 0) {
     return (
-      <p className="rounded border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-        모든 iteration 이 degenerate (num_trades=0 또는 sharpe=null) — chart 표시 불가.
-        파라미터 범위 또는 strategy 검토 권장.
+      <p className="chart-note" style={{ paddingLeft: 0 }}>
+        모든 반복이 축퇴(거래 0건 또는 지표 산출 불가)라 누적 최고값 곡선을 그릴 수 없습니다.
+        파라미터 범위나 전략을 다시 확인해 주세요.
       </p>
     );
   }
@@ -71,15 +71,15 @@ export function BayesianIterationChart({ result }: Props) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
         <span>
-          best_so_far per iteration ({OBJECTIVE_METRIC_LABEL[result.objective_metric]},{" "}
+          반복별 누적 최고값 ({OBJECTIVE_METRIC_LABEL[result.objective_metric]},{" "}
           {OBJECTIVE_DIRECTION_LABEL[result.direction]})
         </span>
         <span>
-          random warm-up: <strong className="font-mono tabular-nums text-foreground">{initialRandomBoundary}</strong>
-          {" · "}total: <strong className="font-mono tabular-nums text-foreground">{result.total_iterations}</strong>
+          초기 랜덤 탐색 <strong className="font-mono tabular-nums text-foreground">{initialRandomBoundary}</strong>
+          {" · "}전체 <strong className="font-mono tabular-nums text-foreground">{result.total_iterations}</strong>
           {result.degenerate_count > 0 && (
             <>
-              {" · "}degenerate:{" "}
+              {" · "}축퇴{" "}
               <span className="font-mono tabular-nums text-warning">
                 {result.degenerate_count} / {result.total_iterations}
               </span>
@@ -94,7 +94,7 @@ export function BayesianIterationChart({ result }: Props) {
           viewBox={`0 0 ${W} ${H}`}
           className="rounded border border-border bg-background"
           role="img"
-          aria-label={`Bayesian iteration chart — ${result.total_iterations} iterations`}
+          aria-label={`베이지안 반복 곡선. 반복 ${result.total_iterations}회.`}
         >
           {/* axes */}
           <line
@@ -132,7 +132,7 @@ export function BayesianIterationChart({ result }: Props) {
                 fill="currentColor"
                 opacity={0.6}
               >
-                acquisition →
+                획득 함수 →
               </text>
             </>
           )}

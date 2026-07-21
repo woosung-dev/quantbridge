@@ -2,8 +2,9 @@
 
 // Optimizer 3폼 공통 파라미터 row fieldset — var_name 셀 + append/remove(1~4 상한).
 // 알고리즘별 나머지 셀(kind/step vs prior/log_scale)은 renderRowCells 로 주입받는다.
+// C 디자인 언어 이식 (W3-C): .opt-fieldset/.opt-param-row/.input/.icon-btn/.btn 소비.
 
-import { Plus, X } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   useFieldArray,
@@ -44,18 +45,13 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
   });
 
   return (
-    <fieldset className="space-y-2 rounded-lg border border-border p-3">
-      <legend className="px-1 text-sm font-medium text-foreground">
-        {legend}
-      </legend>
+    <fieldset className="opt-fieldset">
+      <legend>{legend}</legend>
       {fields.fields.map((field, idx) => (
-        <div
-          key={field.id}
-          className="grid grid-cols-1 gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-6"
-        >
+        <div key={field.id} className="opt-param-row">
           <input
             placeholder="변수 이름 (예: length)"
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm sm:col-span-2"
+            className="input"
             {...register(`parameters.${idx}.var_name` as Path<TValues>)}
           />
           {renderRowCells(
@@ -64,22 +60,21 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
               type="button"
               onClick={() => fields.remove(idx)}
               aria-label="파라미터 삭제"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="icon-btn"
             >
-              <X className="h-4 w-4" aria-hidden="true" />
+              <XIcon aria-hidden="true" />
             </button>,
           )}
         </div>
       ))}
       <button
         type="button"
-        onClick={() =>
-          fields.append(emptyRow as FieldArray<TValues, ArrayPath<TValues>>)
-        }
+        onClick={() => fields.append(emptyRow as FieldArray<TValues, ArrayPath<TValues>>)}
         disabled={fields.fields.length >= MAX_ROWS}
-        className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
+        className="btn btn-ghost btn-xs"
+        style={{ alignSelf: "flex-start" }}
       >
-        <Plus className="h-4 w-4" aria-hidden="true" />
+        <PlusIcon aria-hidden="true" />
         파라미터 추가
       </button>
     </fieldset>

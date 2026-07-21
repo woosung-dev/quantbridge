@@ -2491,3 +2491,178 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
   color: var(--warn);
 }
 .webhook-secret-warn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /optimizer 목록 (screen-09) + /optimizer/[id] 상세 (screen-10) (이식 W3-C).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-09-optimizer-list.html:1001-1067 ·
+ *        screen-10-optimizer-detail.html:1001-1129.
+ *   KITPORT 센티넬(무결성 가드) 밖 · 언레이어드. @layer components 의 공용 클래스를 소비하고
+ *   화면 고유 규칙만 담는다. 색은 KITPORT 가 해석한 캐논 토큰 별칭만 쓴다.
+ *   공용화된 것(.runs-summary/.col-status/.run-id/.run-sub/.chip.warn/.btn-xs/.btn-danger/.sk-cell)은
+ *   여기서 다시 정의하지 않고 S5/S8 정의를 상속한다.
+ * ========================================================================== */
+
+/* 헤더 카드 설명 한 줄 — 크로스페이지 프리미티브(orchestrator union 시 중복 제거). */
+.report-desc {
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  margin-top: 8px;
+  max-width: 68ch;
+}
+
+/* 제출 폼 — 공용 .toolbar 를 그대로 쓰되 라벨이 붙으므로 아래 정렬 */
+.opt-form { align-items: flex-end; row-gap: 14px; }
+/* .field / .field-label — 크로스페이지 폼 프리미티브 (terminology-ssot §3-2/§3-3).
+   .field-label 확정값 = 0.78rem / 600 / --ink-2 (§3-3). orchestrator union 시 중복 제거. */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 176px; }
+.field-label { font-size: 0.78rem; font-weight: 600; color: var(--ink-2); }
+.field .select,
+.field .input { width: 100%; }
+.opt-form .btn-primary { flex: 0 0 auto; }
+
+/* 폼 필드 오류 문구 — 크로스페이지 프리미티브 (terminology-ssot §3-2 = .field-error). */
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--warn);
+}
+.field-error svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.9; flex-shrink: 0; margin-top: 2px; }
+
+/* 제출 폼 그리드 — 목표/하이퍼파라미터 필드 묶음. 공용 .field 를 grid 셀에 담는다. */
+.opt-field-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.opt-field-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.opt-field-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.opt-fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.opt-fieldset legend { font-size: 0.82rem; font-weight: 600; color: var(--ink-2); padding: 0 4px; }
+.opt-param-row {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.opt-param-row .input,
+.opt-param-row .select { width: 100%; }
+.opt-param-row-tail { display: flex; align-items: center; gap: 6px; }
+.opt-param-check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; color: var(--ink-2); white-space: nowrap; }
+.opt-form-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.opt-form-helper { font-size: 0.78rem; color: var(--ink-3); }
+@media (max-width: 768px) {
+  .opt-field-grid, .opt-field-grid-2, .opt-field-grid-4 { grid-template-columns: 1fr; }
+  .opt-param-row { grid-template-columns: 1fr 1fr; }
+}
+
+/* 부분 실패/형식 불일치 인라인 고지 — warn 계열 얇은 줄 (terminology-ssot §3-4 = .notice-inline). */
+.notice-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  border: 1px solid rgba(229, 169, 61, 0.4);
+  border-radius: var(--r);
+  background: var(--warn-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.notice-inline svg { width: 15px; height: 15px; stroke: var(--warn); stroke-width: 1.8; flex-shrink: 0; }
+.notice-inline .mono { color: var(--ink); }
+
+/* 목록 표 — 넓은 옵티마이저 원장 폭 + 셀 상단 정렬 */
+.opt-table { min-width: 1080px; }
+.opt-table tbody td { vertical-align: top; }
+.run-main { color: var(--ink); font-weight: 600; }
+.run-note { display: block; margin-top: 6px; font-size: 0.72rem; line-height: 1.45; color: var(--ink-3); }
+
+/* 표 아래 ETA 미표시 안내 — 이 화면에서 가장 중요한 문장 (§4.9 인쇄 금지 근거) */
+.no-eta { align-items: flex-start; padding-top: 14px; }
+.no-eta svg { margin-top: 2px; }
+.no-eta strong { color: var(--ink-2); font-weight: 600; }
+
+/* ---------- screen-10 02 리더보드 ---------- */
+.lb-rank { display: inline-flex; align-items: center; gap: 9px; }
+.row-best td {
+  background: var(--copper-soft);
+  border-top: 1px solid var(--copper-line);
+  border-bottom: 1px solid var(--copper-line);
+}
+.row-best td:first-child { border-left: 1px solid var(--copper-line); }
+.row-best td:last-child { border-right: 1px solid var(--copper-line); }
+.row-best:hover td { background: var(--copper-soft); }
+/* 손익 색을 표 안에서도 살린다. td.num 이 .pos/.neg 를 이기던 문제 보정. */
+table.trades tbody td.num.pos { color: var(--bull); }
+table.trades tbody td.num.neg { color: var(--bear); }
+
+/* ---------- screen-10 04 히트맵 (접힌 보조 자료) ---------- */
+.hm-sum {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 22px;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  border-radius: var(--r);
+  list-style: none;
+}
+.hm-sum::-webkit-details-marker { display: none; }
+.hm-sum:hover { color: var(--ink); }
+.hm-sum .hm-tail { margin-left: auto; font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); font-weight: 500; }
+.hm-chev {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+  flex-shrink: 0;
+  transition: transform var(--dur) var(--ease);
+}
+details[open] .hm-chev { transform: rotate(90deg); }
+.hm-body { padding: 0 22px 6px; border-top: 1px solid var(--line); }
+table.hm { border-collapse: separate; border-spacing: 4px; min-width: 460px; margin: 14px 0 4px -4px; }
+table.hm th {
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 6px 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+table.hm th[scope="row"] { text-align: right; }
+.hm-cell {
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 54px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-family: var(--f-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+/* 최적 칸은 색이 아니라 테두리로 표시한다. 코퍼 위 코퍼 글자는 대비 3.8:1 로 떨어진다. */
+.hm-cell.best { border-color: var(--copper); box-shadow: 0 0 0 1px var(--copper-line); }
+/* 거래 0건 축퇴 칸. 색 스케일 밖이므로 무채색 점선으로 스케일에서 빼낸다. */
+.hm-cell.degenerate { border-style: dashed; border-color: var(--line-2); background: var(--card-3); color: var(--ink-3); }
+
+/* 상세 파라미터 공간·하이퍼파라미터 목록 — 공용 .trust-row 소비, 코드 심볼 mono 강조. */
+.opt-param-space { padding: 6px 22px 18px; }
+.opt-param-space .trust-key { font-family: var(--f-mono); }
+
+@media (max-width: 768px) {
+  .field { flex-basis: 100%; }
+  .opt-form .btn-primary { width: 100%; }
+}

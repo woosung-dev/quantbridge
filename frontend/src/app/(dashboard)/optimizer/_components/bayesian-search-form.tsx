@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 
 import {
-  FIELD_CLS,
+  INPUT_CLS,
+  SELECT_CLS,
   FormErrorAlert,
   ObjectiveFields,
   SubmitRow,
@@ -107,20 +108,20 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <ObjectiveFields register={form.register} maxEvaluations={100} />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">초기 랜덤 탐색 횟수 (워밍업)</span>
+      <div className="opt-field-grid-2">
+        <label className="field">
+          <span className="field-label">초기 랜덤 탐색 횟수 (워밍업)</span>
           <input
             type="number"
             min={1}
             max={100}
-            className={FIELD_CLS}
+            className={INPUT_CLS}
             {...form.register("bayesian_n_initial_random", { valueAsNumber: true })}
           />
         </label>
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">획득 함수 (acquisition)</span>
-          <select className={FIELD_CLS} {...form.register("bayesian_acquisition")}>
+        <label className="field">
+          <span className="field-label">획득 함수 (acquisition)</span>
+          <select className={SELECT_CLS} {...form.register("bayesian_acquisition")}>
             <option value="EI">EI (기대 개선량)</option>
             <option value="UCB">UCB (신뢰상한)</option>
             <option value="PI">PI (개선 확률)</option>
@@ -137,30 +138,24 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
           <>
             <input
               placeholder="최소"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="input"
               {...form.register(`parameters.${idx}.min`)}
             />
             <input
               placeholder="최대"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="input"
               {...form.register(`parameters.${idx}.max`)}
             />
-            <select
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              {...form.register(`parameters.${idx}.prior`)}
-            >
+            <select className="select" {...form.register(`parameters.${idx}.prior`)}>
               <option value="uniform">균등 (uniform)</option>
               <option value="log_uniform">로그균등 (min &gt; 0)</option>
               <option value="normal" disabled>
                 정규분포 (준비 중)
               </option>
             </select>
-            <div className="flex items-center justify-between gap-1">
-              <label className="flex items-center gap-1.5 text-xs">
-                <input
-                  type="checkbox"
-                  {...form.register(`parameters.${idx}.log_scale`)}
-                />
+            <div className="opt-param-row-tail">
+              <label className="opt-param-check">
+                <input type="checkbox" {...form.register(`parameters.${idx}.log_scale`)} />
                 로그 스케일
               </label>
               {removeButton}
