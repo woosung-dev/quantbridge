@@ -204,15 +204,12 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
       timeout: 15_000,
     });
 
-    // strategy_id 미선택 + 빈 form 제출 시도 — react-hook-form mode:"onChange" 가
-    // 각 required field 별 FormMessage 를 반환 → 동시에 ≥3 개 alert 표시.
-    // initial_capital 비움 + symbol 비움 + 잘못된 strategy.
-    const symbolInput = page.getByLabel(/symbol|심볼/i).first();
-    if (await symbolInput.isVisible()) {
-      await symbolInput.fill("");
-    }
+    // strategy_id 미선택 + 필수 input 비움 → react-hook-form mode:"onChange" 가
+    // 각 required field 별 FormMessage(role="alert") 를 반환하여 다중 inline error 표시.
+    // C 이식: 심볼은 이제 <select id="symbol">(빈 문자열 fill 불가)라 client-clear 대상에서
+    // 제외한다. 초기 자본은 input 이므로 비워 필수 검증을 유발한다(strategy 미선택과 합쳐 다중 error).
     const capitalInput = page.getByLabel(/initial.?capital|초기 자본/i).first();
-    if (await capitalInput.isVisible()) {
+    if (await capitalInput.isVisible().catch(() => false)) {
       await capitalInput.fill("");
     }
 
@@ -242,7 +239,9 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
     const BACKTEST_ID = "b1000000-0000-4000-b100-000000000091";
     const STRATEGY_ID = "9d000000-0000-4000-9d00-000000000041";
 
-    // 24 metric BE 직렬화 (Decimal → string 변환). 모든 신규/legacy 필드 채움.
+    // 24 metric BE 직렬화 (Decimal → string 변환). C 이식 리포트(KeyStatsStrip +
+    // MetricGroupsSection 4묶음)가 실제로 읽는 필드명(BacktestMetricsOutSchema)에 맞춰 채운다.
+    // TV parity abs 팩(net_profit_abs 등)이 없으면 셀이 "—"로 비므로 값 정확성 검증이 무의미해진다.
     const FULL_METRICS = {
       total_return: "0.2345",
       sharpe_ratio: "1.78",
@@ -252,23 +251,22 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
       sortino_ratio: "2.31",
       calmar_ratio: "1.91",
       profit_factor: "2.15",
-      avg_win: "0.0345",
-      avg_loss: "-0.0188",
-      long_count: 38,
-      short_count: 35,
-      avg_holding_hours: "12.4",
+      annual_return_pct: "0.187",
+      drawdown_duration: 14,
       consecutive_wins_max: 7,
       consecutive_losses_max: 4,
-      long_win_rate_pct: "0.61",
-      short_win_rate_pct: "0.55",
-      drawdown_duration: 14,
-      annual_return_pct: "0.187",
-      total_trades: 73,
-      avg_trade_pct: "0.0098",
-      best_trade_pct: "0.0721",
-      worst_trade_pct: "-0.0488",
+      avg_holding_hours: "12.4",
       mdd_unit: "equity_ratio",
       mdd_exceeds_capital: false,
+      // TV parity abs 팩 — MetricGroupsSection/KeyStatsStrip 이 읽는 절대금액 필드.
+      net_profit_abs: "2345.00",
+      gross_profit_abs: "4200.50",
+      gross_loss_abs: "1855.50",
+      avg_win_abs: "185.20",
+      avg_loss_abs: "98.30",
+      ratio_avg_win_loss: "1.88",
+      total_fees: "88.40",
+      total_slippage: "45.10",
     };
 
     const DETAIL = {
@@ -336,34 +334,40 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
 
     await page.goto(`/backtests/${BACKTEST_ID}`, { timeout: 60_000 });
 
-    // overview 탭 — MetricsCards 5 카드 visible.
-    await expect(page.getByText("총 수익률").first()).toBeVisible({
+    // C 이식: 리포트 탭 IA → 번호 섹션 단일 스크롤. 개요 KPI = KeyStatsStrip(01 성과 요약)의
+    // 4 카드(총 수익률/순손익/최대 낙폭/샤프 지수). 상세 지표 = MetricGroupsSection(03 상세 지표)
+    // 의 4묶음(수익성/위험/거래 통계/실행 품질). 탭 클릭 없이 스크롤 안에 전부 렌더된다.
+    const overviewLabels = ["총 수익률", "순손익", "최대 낙폭", "샤프 지수"];
+    for (const label of overviewLabels) {
+      await expect(page.getByText(label).first()).toBeVisible({
+        timeout: 15_000,
+      });
+    }
+
+    // 03 상세 지표 region + MetricGroupsSection 렌더 대기.
+    await expect(page.getByRole("region", { name: "상세 지표" })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText("Sharpe Ratio").first()).toBeVisible();
-    await expect(page.getByText("Max Drawdown").first()).toBeVisible();
-    await expect(page.getByText("Profit Factor").first()).toBeVisible();
-    await expect(page.getByText("승률 · 거래").first()).toBeVisible();
+    await expect(page.getByTestId("metric-groups-section")).toBeVisible();
 
-    // 성과 지표 탭 click → MetricsDetail 18 row 라벨 검증.
-    await page.getByRole("tab", { name: "성과 지표" }).click();
-
-    // 신규/legacy 라벨 visible — getByText 부분 매칭 (★ 마크 sibling 허용).
+    // MetricGroupsSection 4묶음 24 슬롯의 대표 라벨(스키마가 받치는 실 필드) 검증.
     const detailLabels = [
-      "연간수익률",
-      "평균 거래",
+      "연환산 수익률",
+      "순손익",
+      "총 이익",
+      "총 손실",
+      "수익 팩터",
+      "소르티노 지수",
+      "칼마 지수",
+      "최대 낙폭 지속",
       "평균 수익",
       "평균 손실",
-      "최고 거래",
-      "최악 거래",
-      "Sortino Ratio",
-      "Calmar Ratio",
-      "DD 지속 기간",
-      "롱 승률",
-      "숏 승률",
-      "연속 승 최대",
-      "연속 패 최대",
-      "평균 보유 시간",
+      "손익비",
+      "평균 보유 기간",
+      "최대 연속 승",
+      "최대 연속 패",
+      "총 수수료",
+      "슬리피지 비용",
     ];
     for (const label of detailLabels) {
       await expect(page.getByText(label).first()).toBeVisible({
@@ -371,16 +375,14 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
       });
     }
 
-    // 모든 값 cell 의 "—" 미허용 — full metrics 채움 가정. detail tab 의 값 셀은
-    // font-mono 클래스가 부착됨. dash 갯수가 라벨 절반보다 적으면 정상 렌더 인정.
-    const valueCells = page.locator("td.font-mono");
+    // 값 정확성 — MetricGroupsSection 값 셀은 .metric-value(무데이터 시 .empty 추가). full
+    // metrics 를 채웠으므로 값 채운 셀이 존재하고, 대시(.empty)가 전체 라벨 수보다 적어야 한다.
+    const valueCells = page.locator(".metric-value");
     const cellCount = await valueCells.count();
     expect(cellCount).toBeGreaterThan(0);
-    let dashCount = 0;
-    for (let i = 0; i < cellCount; i++) {
-      const text = (await valueCells.nth(i).innerText()).trim();
-      if (text === "—") dashCount += 1;
-    }
+    const filledCount = await page.locator(".metric-value:not(.empty)").count();
+    expect(filledCount).toBeGreaterThan(0);
+    const dashCount = await page.locator(".metric-value.empty").count();
     expect(dashCount).toBeLessThan(detailLabels.length);
   });
 });

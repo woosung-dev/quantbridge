@@ -190,9 +190,10 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     });
 
     await page.goto(`/backtests/${BACKTEST_ID}`, { timeout: 60_000 });
-    // InProgressCard 의 paragraph (배지 외 — 30초 폴링 안내 문구) 매칭.
+    // C 이식: InProgressCard 안내 문구가 "{label}입니다. … 30초 간격으로 다시 확인합니다." 로
+    // 재작성됨(queued label="대기"). 30초 폴링 안내 + 대기 상태 표지 검증 의도 유지.
     await expect(
-      page.getByText(/대기 중입니다.*30초 간격 폴링/),
+      page.getByText(/대기입니다.*30초 간격으로 다시 확인/),
     ).toBeVisible({ timeout: 15_000 });
 
     // Phase 2: running. mock swap + reload (refetchInterval 30s 우회).
@@ -223,7 +224,7 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
 
     await page.reload({ timeout: 60_000 });
     await expect(
-      page.getByText(/실행 중입니다.*30초 간격 폴링/),
+      page.getByText(/실행 중입니다.*30초 간격으로 다시 확인/),
     ).toBeVisible({ timeout: 15_000 });
 
     // Phase 3: completed + metrics + equity_curve → chart shell + tabs visible.
@@ -256,12 +257,13 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
 
     await page.reload({ timeout: 60_000 });
 
-    // chart shell + 24-metric panel 의 대표 tab 들 visible.
+    // chart shell + 리포트 지표 패널 visible. C 이식으로 5탭 IA → 번호 섹션 단일 스크롤로
+    // 재편됨(BacktestReportShell). 탭 대신 등가 섹션 region(aria-label)으로 완료 리포트 검증.
     await expect(page.getByTestId("equity-chart-v2")).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole("tab", { name: "성과 지표" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "거래 분석" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "상세 지표" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "거래 분석" })).toBeVisible();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -538,6 +540,10 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
       )(route);
     });
 
+    // 테스트 주문 다이얼로그는 필드가 많아 기본 720px 뷰포트에서 제출("발송") 버튼이 접힘
+    // 아래로 밀린다(스크롤해도 viewport 밖). 높은 뷰포트로 버튼이 보이게 해 실제 click 을 유지한다.
+    await page.setViewportSize({ width: 1280, height: 1400 });
+
     await page.goto("/trading", { timeout: 60_000 });
 
     // 테스트 주문 button → dialog open.
@@ -548,18 +554,22 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
       page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" }),
     ).toBeVisible({ timeout: 15_000 });
 
-    // 전략 select.
-    await page.getByLabel("전략").click();
+    // 전략/계정/수량 select — C 이식 코크핏에는 nav "전략" 링크 + 라이브 세션 폼의 전략/계정
+    // trigger 도 있어 getByLabel 이 전역에서 다중 매칭된다. 다이얼로그로 scope 한다.
+    // (옵션 listbox 는 포털이라 page 레벨 getByRole("option") 유지.)
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("전략").click();
     await page
       .getByRole("option", { name: STRATEGY_DETAIL.name })
       .click();
 
-    // 거래소 계정 select.
-    await page.getByLabel("거래소 계정").click();
-    await page.getByRole("option").first().click();
+    // 거래소 계정 select — getByRole("option").first() 는 방금 닫힌 전략 listbox 의 숨은
+    // option 을 잡을 수 있어(hidden), 계정 option 을 식별 텍스트(라벨 "Bybit Demo")로 지정한다.
+    await dialog.getByLabel("거래소 계정").click();
+    await page.getByRole("option", { name: /Bybit Demo/ }).click();
 
     // 수량 입력.
-    await page.getByLabel(/수량/).fill("0.001");
+    await dialog.getByLabel(/수량/).fill("0.001");
 
     // 발송 → POST webhook.
     await page.getByRole("button", { name: /^발송$/ }).click();
