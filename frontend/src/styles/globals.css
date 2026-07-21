@@ -2207,3 +2207,50 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — 에러 3종 (이식 W3-H).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-13-error-pages.html:1001-1037 (PAGE-SPECIFIC).
+ *   대상 라우트 app/error.tsx(500) · app/not-found.tsx(404) · app/maintenance/page.tsx(503).
+ *   공용 .state-box · .trust-grid · .cta · .chart-note · .disclaimer 는 KITPORT 가 이미 제공하고,
+ *   여기서는 히어로 여백·액션 줄·요청 ID 복사 버튼만 얹는다.
+ *   KITPORT 센티넬(무결성 가드) 밖 · 언레이어드. 색은 캐논 토큰 별칭만 쓴다(hex 리터럴 금지).
+ * ========================================================================== */
+
+/* 에러 히어로 — 공용 .state-box 를 카드 폭 전체로 쓸 때 여백만 넓힌다. */
+.err-hero { padding: 30px 18px; gap: 10px; }
+.err-hero .state-body { max-width: 54ch; }
+
+/* 경로·코드 문자열이 좁은 화면에서 넘치지 않게 한다. */
+.state-code, .trust-val, .cta-meta { overflow-wrap: anywhere; }
+
+/* 카드 하단 액션 줄. */
+.err-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 16px 22px;
+  border-top: 1px solid var(--line);
+}
+
+.card-body + .trust-grid { border-top: 1px solid var(--line); }
+
+/* 요청 ID 복사 버튼 — 서버가 digest 를 준 경우에만 나타난다. 포커스 링은 전역 :focus-visible 이 준다. */
+.copy {
+  margin-left: 8px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--card-2);
+  color: var(--ink-2);
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.copy:hover { background: var(--card-3); color: var(--ink); }
+
+/* 값이 없는 셀 — 서버가 값을 주지 않은 무데이터 트러스트 행. */
+.trust-val.empty { color: var(--ink-3); font-weight: 500; }

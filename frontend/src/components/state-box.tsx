@@ -18,6 +18,8 @@ interface StateBoxProps {
   /** 액션 버튼/링크. body·code 뒤에 붙는다. */
   children?: ReactNode;
   testId?: string;
+  /** 공용 .state-box 위에 얹을 화면 전용 클래스(예: 에러 3종의 .err-hero). 생략 시 기존 출력 그대로. */
+  className?: string;
 }
 
 export function StateBox({
@@ -28,11 +30,13 @@ export function StateBox({
   code,
   children,
   testId,
+  className,
 }: StateBoxProps) {
   const isFailed = tone === "failed";
+  const base = isFailed ? "state-box failed" : "state-box";
   return (
     <div
-      className={isFailed ? "state-box failed" : "state-box"}
+      className={className ? `${base} ${className}` : base}
       role={isFailed ? "alert" : "status"}
       data-testid={testId}
     >

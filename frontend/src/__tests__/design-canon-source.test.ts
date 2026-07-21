@@ -187,13 +187,9 @@ function countProseEmDash(s: string): number {
 /** 반경 리터럴. S9 가 전부 비운다. */
 const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/onboarding/_components/option-card-radio.tsx", 1],
-  ["app/_components/error-illustration.tsx", 1],
-  // 503 maintenance 카드(rounded-[14px] + rounded-[10px] 2건)를 S9 에서 삭제 → 4→2.
-  // 남은 2건은 404 helpful 카드 · 500 tech-info 카드. 둘 다 P1 밖(에러 경계) 이라 이연.
-  ["app/_components/error-recovery-box.tsx", 2],
-  ["app/error.tsx", 2],
-  ["app/maintenance/page.tsx", 1],
-  ["app/not-found.tsx", 2],
+  // 에러 3종(error.tsx 500 · not-found.tsx 404 · maintenance/page.tsx 503) + 구 컴포넌트
+  // error-illustration/error-recovery-box 는 W3-H 에서 screen-13 C 구조로 재스킨하며 반경
+  // 리터럴을 var(--r) 시맨틱 소비로 전부 해소했다(구 컴포넌트 2벌은 삭제). 래칫 하강 완료.
   ["app/share/backtests/[token]/_components/share-not-found-state.tsx", 1],
   ["app/share/backtests/[token]/_components/share-revoked-state.tsx", 1],
   ["app/waitlist/_components/waitlist-form-card.tsx", 2],
