@@ -63,7 +63,7 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
       className="mb-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center"
     >
       <label
-        className="flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card px-3 transition focus-within:border-[color:var(--primary)] focus-within:ring-2 focus-within:ring-[color:var(--primary-light)] md:w-[280px]"
+        className="flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card px-3 transition focus-within:border-[color:var(--primary)] md:w-[280px]"
         aria-label="이메일 검색"
       >
         <SearchIcon
@@ -75,7 +75,7 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
           value={draft}
           onChange={(e) => handleSearchInput(e.target.value)}
           placeholder="이메일 검색..."
-          className="flex-1 bg-transparent text-sm outline-none placeholder:text-[color:var(--text-muted)]"
+          className="flex-1 bg-transparent text-sm placeholder:text-[color:var(--text-muted)]"
         />
       </label>
 

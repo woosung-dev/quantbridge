@@ -90,8 +90,8 @@ export function MonthlyReturnsHeatmap({ data }: MonthlyReturnsHeatmapProps) {
                       tabIndex={value != null ? 0 : -1}
                       aria-label={tooltipText}
                       className={cn(
+                        // 자체 focus ring 제거 — 전역 :focus-visible 카퍼 링을 소비한다.
                         "h-9 w-12 cursor-default border border-[color:var(--border)]/50 text-center font-mono tabular-nums transition-colors",
-                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]",
                       )}
                       style={
                         value != null

@@ -39,7 +39,7 @@ export function ShareCopyLinkButton() {
       data-testid="share-copy-link-button"
       data-copied={hasCopied || undefined}
       aria-label={hasCopied ? "링크 복사 완료" : "공유 링크 복사"}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-xs font-medium text-text-secondary transition-colors duration-200 ease-out hover:border-primary hover:text-primary focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none data-[copied]:border-success data-[copied]:text-success"
+      className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-xs font-medium text-text-secondary transition-colors duration-200 ease-out hover:border-primary hover:text-primary data-[copied]:border-success data-[copied]:text-success"
     >
       {hasCopied ? (
         <>
