@@ -2638,6 +2638,55 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 table.trades tbody td.num.pos { color: var(--bull); }
 table.trades tbody td.num.neg { color: var(--bear); }
 
+/* ---------- screen-10 03 파라미터 안정성 ---------- */
+.pgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pcol { padding: 18px 22px 20px; min-width: 0; }
+.pcol:first-child { border-right: 1px solid var(--line); }
+.pcol-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.prow {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) 60px;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.prow:last-of-type { border-bottom: none; }
+.plabel { font-size: 0.82rem; color: var(--ink-2); }
+.pbar { height: 10px; border-radius: var(--r); background: var(--card-3); overflow: hidden; }
+.pbar > span { display: block; height: 100%; border-radius: var(--r); background: var(--copper); }
+.pval {
+  font-family: var(--f-mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.prow.best .pval { color: var(--copper); }
+.pscale { display: grid; grid-template-columns: 104px minmax(0, 1fr) 60px; gap: 12px; padding-top: 10px; }
+.pscale-in {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--f-mono);
+  font-size: 0.7rem;
+  color: var(--ink-3);
+}
+.pfoot { font-size: 0.78rem; color: var(--ink-3); padding-top: 12px; line-height: 1.6; }
+
+@media (max-width: 768px) {
+  .pgrid { grid-template-columns: 1fr; }
+  .pcol:first-child { border-right: none; border-bottom: 1px solid var(--line); }
+}
+
 /* ---------- screen-10 04 히트맵 (접힌 보조 자료) ---------- */
 .hm-sum {
   display: flex;

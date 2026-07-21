@@ -34,6 +34,7 @@ import { GeneticBestParamsTable } from "./genetic-best-params-table";
 import { GeneticGenerationChart } from "./genetic-generation-chart";
 import { GridSearchPairSelector } from "./grid-search-pair-selector";
 import { OptimizerOosEvaluation } from "./optimizer-oos-evaluation";
+import { ParameterStabilitySection } from "./parameter-stability-section";
 
 const DETAIL_ENDPOINT = "GET /api/v1/optimizer/runs";
 
@@ -201,7 +202,11 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
 
       {/* ===== 결과 (kind 분기) ===== */}
       {data.status === "completed" && data.result?.kind === "grid_search" ? (
-        <GridResult result={data.result} />
+        <>
+          <GridResult result={data.result} />
+          {/* 03 파라미터 안정성 — grid_search 완료 결과에만 (screen-10). */}
+          <ParameterStabilitySection result={data.result} />
+        </>
       ) : null}
 
       {data.status === "completed" && data.result?.kind === "bayesian" ? (
