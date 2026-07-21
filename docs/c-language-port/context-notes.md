@@ -346,6 +346,13 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 - **부채 마감 실측이 S9 판단을 뒤집었다.** S9 가 "구조 편차라 이연"한 StateBox 6곳이 **인터페이스 확장 0 으로 전량 이관 가능**했다(children 슬롯이 흡수) — 9파일 13곳, DOM 바이트 보존. 이연 사유가 프리미티브 성숙(className prop 추가)으로 소멸한 사례.
 - **잔여 관측 3종(후속 판단).** hand-rolled state-box 3건(trade-ledger-table:71·parse-result-panel:205·new-strategy-wizard:463 — 시각 동일) · backtest-history-card.tsx = dead(소비자 0) · KPI 미터 미렌더(W2 결정)와 히트맵 기본 접힘(C 결정)은 프로토타입 대비 의도적 편차로 사용자 보고 대상.
 
+### W-final 마감 기록 (2026-07-21)
+
+- **교차 감사 8건**: 7픽스(title.template '%s · QuantBridge' 통일+누락 3라우트 · 코크핏 §03 영문 잔재 SSOT 화 · Live Session 영문 혼입 · woosung 하드코딩 칩 제거 · 로컬 tz 잔재 → UTC 포맷터 · hand-rolled state-box 3건 이관) + 1기결(주문 nav-count = 전체+툴팁, S9 판정 유지 — 캐논 §4.6 과의 차이는 문서 소관).
+- **codex 최종 8건**: 7픽스(429 필터를 리소스 메시지로 좁힘 — pageerror 429 는 계속 하드 · tab-webhook 테스트 4행동 복구 · authed spec 침묵 skip → 시끄러운 사전조건 · 리포트 데모 CTA /onboarding→/trading · '3 x 3' 고정 표기 제거 · globals 중복/죽은 규칙 정리) + 1기각(labels 미소비 export = terminology-ssot §4 전문 그대로 정책의 의도 산물, 유지).
+- **레거시 authed 스펙 수리**: 8스펙 12+ 실패 전부 테스트측 staleness(구 5탭 IA·구 카피·z.uuid 위반 mock id·셀렉터 다중 매칭). 앱 결함 0. KS resolve un-skip(기능이 이식 중 구현돼 skip 사유 소멸) → **전체 56 passed / 0 failed / 0 skipped**.
+- **감사기 결함 2종 수리** (화면이 아니라 자의 결함): ① WCAG 1.4.3 비활성 컨트롤 예외(hard 축만 — canon 까지 빼면 프로토 screen-05 disabled 버튼이 캘리브레이션 기준선을 깬다는 실측으로 스코핑) ② 대비 샘플링을 reduced-motion 정지 상태로 — /trading §05 버튼(.rise 스태거 최말단)이 스위트 문맥에서만 1.11:1 로 결정적 FAIL 하던 knife-edge 는 입장 애니메이션 opacity 램프를 찍던 표본 타이밍 결함. 두 건 모두 캘리브레이션 22 동등성 재현 + 양방향 반증 통과.
+
 ### W0 환경 복구·시딩 기록
 
 - stale Turbopack 캐시: globals.css 내용 변경(주석 1줄, `1a8addb`) + 재기동으로 해소. 컴파일 CSS 에 `#8b939c` 존재·`#7a828c` 부재 curl 확인 후 baseline 재현 (vitest 164/904 · canon 29 · authed 5).

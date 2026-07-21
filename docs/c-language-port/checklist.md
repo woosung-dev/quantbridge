@@ -268,11 +268,11 @@
 4. sprint55-optimizer-bayesian spec 라이브 그린화 — mock 라우트가 실제 크로스오리진(8000) 요청과 미매치 → 실백엔드 거부 alert. 제품 결함 아님
 5. (교차 감사 사용자 노출) W2 KPI 미터 미렌더 결정 · 상단 Beta 배너(영문+em-dash) 처리 · 히트맵 기본 접힘
 
-- [~] W-final — 부채 마감 완료 (`e04bf57`~`665f4b3`): StateBox **9파일 13곳 전량 이관(이연 0)** + 이중 링 sweep 7파일 + 반경 잔여 5건 판정 주석. FIX 슬라이스(`f2860f6`~`120c141`) + 감사기 WCAG 1.4.3 비활성 예외(`225f83e`, hard 축만 — canon 은 캘리브레이션 동등성 유지, 프로토 screen-05 disabled 버튼 실측 근거) + 429 콘솔 필터. 잔여 = 교차 감사 → codex 최종 → 문서 → 푸시/PR/CI (PR 본문에 직렬 `e2e:authed` 로그 + `--list` 증빙 의무)
+- [x] W-final — 완료. 부채 마감(`e04bf57`~`665f4b3`: StateBox 9파일 13곳 전량 이관·이중 링 sweep 7파일·반경 판정) + 감사기 픽스 2종(`225f83e` WCAG 1.4.3 비활성 예외 hard 축만 · `3b02f03` 대비 샘플링 reduced-motion 정지 상태 — .rise 스태거 knife-edge 제거, 캘리브레이션 22 동등 유지) + 교차 감사 8건 처분(7픽스 `eb65ed2`~`07a6613` + nav-count 기결) + codex 최종 8건 처분(7픽스 `f3b52cc`~`af9e284` + labels 미소비 export 기각=문서 전문 정책) + 레거시 authed 스펙 수리(`81fa8e4`~`b449338` — 8스펙 재작성, KS resolve un-skip, 앱 결함 0)
 
-**통합 후 게이트 실측 (2026-07-21, 오케스트레이터 직렬 재현)**
+**최종 게이트 실측 (2026-07-21, 오케스트레이터 직렬 재현)**
 
-- vitest **168파일/959** · tsc 0 · lint 0 · design-canon **32**(29→31 에러 2 →32 pricing) · authed **17 passed**(P1 5 유지 + remaining 10 + sprint55 2 — 신규 전 라우트 하드 실패 0) · live-smoke(+pricing) 그린 · kit-port 무결성 유지
+- vitest **169파일/963** · tsc 0 · lint 0 · **build 0**(임시 distDir→원복) · design-canon **32**(캘리브레이션 22 동등) · **e2e:authed 전체 56 passed / 0 failed / 0 skipped**(캐논 17 + 레거시 수리분 포함) · live-smoke(+pricing) 그린 · kit-port 무결성 유지
 - 잔여 관측: hand-rolled state-box 3건(trade-ledger-table·parse-result-panel·new-strategy-wizard — 시각 동일, 일관성 부채) · backtest-history-card = dead(삭제는 후속 판단) · KPI 미터 미렌더 결정(사용자 노출 대상)
 
 **Coverage 매트릭스 (codex#3 — 슬라이스마다 이 표로 단조 증가 추적)**
