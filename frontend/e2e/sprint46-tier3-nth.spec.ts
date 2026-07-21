@@ -35,7 +35,7 @@ function makeStrategyListItem(idx: number) {
   return {
     id: `222222${idx.toString().padStart(2, "0")}-2222-4222-a222-222222222222`,
     name: `Strategy ${idx}`,
-    pine_version: "pine_v2",
+    pine_version: "v5",
     parse_status: "ok",
     parse_errors: null,
     timeframe: "1h",
@@ -216,12 +216,12 @@ test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async 
 
   await page.goto("/strategies", { timeout: 60_000 });
 
+  // C 이식(screen-06): report-title "전략".
   await expect(
-    page.getByRole("heading", { name: "내 전략" }),
+    page.getByRole("heading", { name: "전략", exact: true }),
   ).toBeVisible({ timeout: 30_000 });
 
-  // 페이지 horizontal overflow 검출 — body scrollWidth 가 viewport width 를
-  // 초과하면 가로 스크롤 발생.
+  // 페이지 horizontal overflow 검출 — 표는 .table-wrap 안에서만 스크롤하고 본문은 넘치지 않는다.
   const overflow = await page.evaluate(() => {
     return {
       scrollWidth: document.documentElement.scrollWidth,
@@ -230,9 +230,9 @@ test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async 
   });
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
 
-  // 검색 input 가 모바일에서도 visible — filter bar 의 toolbar role 확인.
+  // 파싱 상태 필터 group 이 모바일에서도 visible.
   await expect(
-    page.getByRole("toolbar", { name: "전략 필터 및 정렬" }),
+    page.getByRole("group", { name: "파싱 상태 필터" }),
   ).toBeVisible();
 });
 
@@ -293,27 +293,17 @@ test("#15 Strategy list — 11+ items + filter input 동작", async ({ page }) =
 
   await page.goto("/strategies", { timeout: 60_000 });
 
-  // 페이지 heading + 11 items render 확인.
+  // C 이식(screen-06): report-title "전략" + 표(table.trades) 에 11행 렌더.
   await expect(
-    page.getByRole("heading", { name: "내 전략" }),
+    page.getByRole("heading", { name: "전략", exact: true }),
   ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("table", { name: /전략 목록 11개/ })).toBeVisible();
 
-  // filter bar toolbar 노출 — search input + chip group.
-  const toolbar = page.getByRole("toolbar", { name: "전략 필터 및 정렬" });
-  await expect(toolbar).toBeVisible();
-
-  // 검색 input 에 "Strategy 1" 타이핑 → list 가 narrow.
-  const searchInput = page.getByPlaceholder("전략 이름·심볼 검색...");
-  await searchInput.fill("Strategy 1");
-  // debounce 적용 가능 — 짧게 wait. list 가 비지 않으면 OK (실제 filter logic 은
-  // client-side 일 수도, server round-trip 일 수도. 본 e2e 는 input 이 fillable
-  // 한지 + toolbar 살아있는지만 검증).
-  await expect(searchInput).toHaveValue("Strategy 1");
-
-  // 상태 필터 radio group 도 visible.
-  await expect(
-    page.getByRole("radiogroup", { name: "상태 필터" }),
-  ).toBeVisible();
+  // 프로토타입 상태 필터(수명주기)는 스키마에 필드가 0건이라 실존 필드 parse_status 필터로
+  // 대체했다(§4.9). 상호배타 아닌 다중토글이 아니라 단일 활성 필터라 role=group + aria-pressed.
+  const filterGroup = page.getByRole("group", { name: "파싱 상태 필터" });
+  await expect(filterGroup).toBeVisible();
+  await expect(filterGroup.getByRole("button", { name: "변환 가능" })).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------

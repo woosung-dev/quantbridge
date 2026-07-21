@@ -235,11 +235,8 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/optimizer/_components/grid-search-heatmap.tsx", 1],
   ["app/(dashboard)/optimizer/_components/grid-search-pair-selector.tsx", 1],
   ["app/(dashboard)/optimizer/_components/optimizer-oos-evaluation.tsx", 2],
-  ["app/(dashboard)/strategies/[id]/edit/_components/parse-panel.tsx", 1],
-  ["app/(dashboard)/strategies/[id]/edit/_components/tab-metadata.tsx", 1],
-  ["app/(dashboard)/strategies/[id]/edit/_components/tab-parse.tsx", 1],
-  ["app/(dashboard)/strategies/new/_components/parse-preview-panel.tsx", 1],
-  ["app/(dashboard)/strategies/new/_components/parse-result-panel.tsx", 1],
+  // W3-B: strategies em-dash 5건 해소. parse-panel/tab-parse/parse-preview-panel 삭제 +
+  // tab-metadata/parse-result-panel C 재작성으로 노출 em-dash 0건 → allowlist 에서 제거.
   ["app/_components/landing-bento.tsx", 1],
   ["app/_components/landing-hero.tsx", 1],
   ["app/disclaimer/page.tsx", 1],

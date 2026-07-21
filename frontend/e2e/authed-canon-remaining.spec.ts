@@ -43,7 +43,13 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
  */
 const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/backtests/:id": 0,
+  "/strategies": 0,
+  "/strategies/new": 0,
+  "/strategies/:id/edit": 0,
 };
+
+// 정적 라우트 — 워커 슬라이스가 늘어날 때마다 오케스트레이터가 union 으로 추가한다.
+const STATIC_ROUTES = ["/strategies", "/strategies/new"] as const;
 
 const auditOptions = {
   contextOptions: { storageState: STORAGE_STATE },
@@ -61,6 +67,47 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       routes.length,
       "HARDFAIL_ALLOWLIST 가 비었다 — 이 spec 은 아무 라우트도 감사하지 않고 조용히 통과 중이다",
     ).toBeGreaterThan(0);
+  });
+
+  for (const path of STATIC_ROUTES) {
+    test(`${path} — 하드 실패 ≤ allowlist`, async ({ browser }) => {
+      test.setTimeout(180_000);
+      const res = await auditUrl(browser, `${BASE_URL}${path}`, { label: path, ...auditOptions });
+      process.stdout.write(formatCanonResult(res) + "\n");
+      expect(
+        hardFailCount(res),
+        `${path} 하드 실패:\n${formatCanonResult(res)}`,
+      ).toBeLessThanOrEqual(HARDFAIL_ALLOWLIST[path] ?? 0);
+    });
+  }
+
+  test("/strategies/:id/edit — 하드 실패 ≤ allowlist", async ({ browser }) => {
+    test.setTimeout(180_000);
+
+    // 편집 라우트 id 는 환경마다 다르다. /strategies 목록에서 실존 전략 편집 링크를 런타임 발견.
+    const discovery = await browser.newContext({ storageState: STORAGE_STATE });
+    const dpage = await discovery.newPage();
+    await dpage.goto(`${BASE_URL}/strategies`, { waitUntil: "load" });
+    await dpage.waitForTimeout(1500);
+    const editHref = await dpage.locator('a[href*="/strategies/"]').evaluateAll((els) => {
+      const re = /^\/strategies\/[0-9a-f-]{36}\/edit$/;
+      const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));
+      return found ? new URL(found.href).pathname : null;
+    });
+    await discovery.close();
+
+    // 부재 시 skip 이 아니라 실패 — 편집 라우트 커버리지 공백을 드러낸다(운영 계약 §3 ⓒ).
+    expect(editHref, "목록에서 실존 전략 편집 링크를 찾지 못했습니다 (데이터 시딩 필요)").toBeTruthy();
+
+    const res = await auditUrl(browser, `${BASE_URL}${editHref}`, {
+      label: editHref ?? "/strategies/:id/edit",
+      ...auditOptions,
+    });
+    process.stdout.write(formatCanonResult(res) + "\n");
+    expect(
+      hardFailCount(res),
+      `${editHref} 하드 실패:\n${formatCanonResult(res)}`,
+    ).toBeLessThanOrEqual(HARDFAIL_ALLOWLIST["/strategies/:id/edit"] ?? 0);
   });
 
   test("/backtests/:id — 완료 백테스트 리포트 상세 하드 실패 ≤ allowlist", async ({ browser }) => {

@@ -202,7 +202,8 @@ describe("S4/S9/W1 — no raw enum rendered in P1 route UI", () => {
     // 대표 이관 파일 편입 확인.
     expect(files.some((f) => f.endsWith("optimizer-run-list.tsx"))).toBe(true);
     expect(files.some((f) => f.endsWith("optimizer-run-detail.tsx"))).toBe(true);
-    expect(files.some((f) => f.endsWith("parse-panel.tsx"))).toBe(true);
+    // W3-B: parse-panel.tsx 는 C 이식(screen-08)에서 diagnostics-strip.tsx 로 교체됐다.
+    expect(files.some((f) => f.endsWith("diagnostics-strip.tsx"))).toBe(true);
     expect(files.some((f) => f.endsWith("parse-result-panel.tsx"))).toBe(true);
   });
 
