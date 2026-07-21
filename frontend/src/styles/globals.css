@@ -2937,3 +2937,95 @@ table.hm th[scope="row"] { text-align: right; }
   .mg2 > div { border-right: none; border-bottom: 1px solid var(--line); }
   .mg2 > div:last-child { border-bottom: none; }
 }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /orders 주문 원장 (이식 W3-D).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-11-orders.html:1001-1089.
+ *   KITPORT 센티넬(무결성 가드) 밖 · 언레이어드. @layer components 의 공용 클래스를 소비하고
+ *   화면 고유 규칙만 담는다. 색은 KITPORT 가 해석한 캐논 토큰 별칭만 쓴다(hex 리터럴 금지).
+ *   공용화된 것(.chip.warn / .btn-xs / .btn-danger / .sk-cell)은 S5/S8 정의를 상속한다.
+ *   .filter-note(프로토타입)는 screen-06 칩 나열 컨테이너와 이름이 겹쳐 .filter-hint 로 개명한다
+ *   (terminology-ssot §3-4).
+ * ========================================================================== */
+
+/* 폴링 안내 — 맥동 점 대신 문장으로 갱신 주기를 밝힌다 */
+.poll-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  line-height: 1.55;
+}
+.poll-line svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; margin-top: 3px; }
+.poll-line .mono { color: var(--ink-2); }
+.poll-line > span { flex: 1 1 320px; }
+.poll-line .poll-btn { flex: 0 0 auto; }
+.poll-line .poll-btn svg { width: 15px; height: 15px; margin-top: 0; }
+
+/* 상태 필터 — 현재 상태 문장(aria-live) + 필터 대상 안내 2줄 */
+.filter-state { margin-top: 12px; font-size: 0.8rem; color: var(--ink-2); line-height: 1.6; }
+.filter-state .mono { color: var(--ink); }
+.filter-hint { margin-top: 12px; font-size: 0.8rem; color: var(--ink-3); }
+.filter-hint .mono { color: var(--ink); }
+
+/* 요약 줄 + 체결 비율 미터 */
+.orders-summary {
+  display: block;
+  padding: 13px 22px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+.orders-summary .mono { color: var(--ink); }
+
+.fill-ratio {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.fill-ratio .meter { flex: 1 1 180px; max-width: 280px; margin-top: 0; }
+.fill-ratio-label { font-size: 0.78rem; color: var(--ink-3); }
+.fill-ratio-label .mono { color: var(--ink); }
+
+/* 원장 표 — 넓은 폭 + 셀 상단 정렬(익절·손절 보조 줄과 나머지 셀의 첫 줄을 맞춘다). */
+.orders-table { min-width: 1040px; }
+.orders-table tbody td { vertical-align: top; padding-left: 11px; padding-right: 11px; }
+.orders-table thead th { padding-left: 11px; padding-right: 11px; }
+.cell-sub { display: block; margin-top: 3px; font-size: 0.74rem; line-height: 1.45; color: var(--ink-3); }
+.col-state { min-width: 84px; }
+.col-tpsl { min-width: 176px; white-space: normal; }
+.col-error { min-width: 132px; white-space: normal; }
+.dir-cell { white-space: nowrap; }
+.dir-cell .chip { margin-left: 6px; }
+
+/* 주문 방향(매수·매도) 배지 — 포지션 방향(롱·숏)과 다른 개념이라 클래스를 나눈다.
+   공용 .side 계열은 포지션 방향 전용이므로 이 화면에서는 쓰지 않는다(§4.6). */
+.order-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--r);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--f-mono);
+}
+.order-side.buy { background: var(--bull-soft); color: var(--bull); }
+.order-side.sell { background: var(--bear-soft); color: var(--bear); }
+
+/* 소형 칩 — 감소전용·출처 배지용. 공용 .chip 위에 크기만 줄인다. */
+.chip-xs { height: 22px; padding: 0 8px; font-size: 0.7rem; }
+
+/* 표 아래 안내 문구 — 청산가 미표시·주문번호 규약 (공용 .chart-note 상단 정렬 보강) */
+.table-foot-note { padding-top: 4px; align-items: flex-start; }
+.table-foot-note svg { margin-top: 3px; }
+.table-foot-note span { line-height: 1.6; }

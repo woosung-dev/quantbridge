@@ -49,11 +49,18 @@ const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/strategies/:id/edit": 0,
   "/optimizer": 0,
   "/optimizer/:id": 0,
+  "/orders": 0,
 };
 
 // 정적 라우트 — 워커 슬라이스가 늘어날 때마다 오케스트레이터가 union 으로 추가한다.
-// W3-A: /backtests/new (screen-05 새 백테스트 실행 폼).
-const STATIC_ROUTES = ["/strategies", "/strategies/new", "/optimizer", "/backtests/new"] as const;
+// W3-A: /backtests/new (screen-05 새 백테스트 실행 폼). W3-D: /orders (screen-11 주문).
+const STATIC_ROUTES = [
+  "/strategies",
+  "/strategies/new",
+  "/optimizer",
+  "/backtests/new",
+  "/orders",
+] as const;
 
 const auditOptions = {
   contextOptions: { storageState: STORAGE_STATE },
