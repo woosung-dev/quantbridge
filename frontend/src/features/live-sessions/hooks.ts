@@ -125,6 +125,10 @@ export interface LiveSessionsAggregate {
   populatedSessions: number;
   /** 하나라도 로딩 중이면 true. */
   isLoading: boolean;
+  /** 하나라도 state 조회에 실패하면 true — 합산 손익이 불완전하다는 신호. */
+  isError: boolean;
+  /** 하나라도 첫 응답을 아직 못 받았으면 true. */
+  isPending: boolean;
 }
 
 /**
@@ -168,6 +172,10 @@ function combineLiveSessionStates(
     mergedEquityCurve: mergeCumulativeCurves(curves),
     populatedSessions,
     isLoading: results.some((r) => r.isLoading),
+    // 합산은 모든 세션 state 를 더한 값이라, 하나라도 실패/미수신이면 손익이 불완전하다.
+    // 소비처(대시보드 kpi-pnl)가 성공-0 과 구분해 "확인 불가"/"불러오는 중"으로 표기한다.
+    isError: results.some((r) => r.isError),
+    isPending: results.some((r) => r.isPending),
   };
 }
 
