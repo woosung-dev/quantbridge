@@ -38,11 +38,20 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
  *     이전 baseline 은 2 — "Bybit Demo 연동 (Beta)" (page.tsx:44 `text-[color:var(--text-muted)]`)가
  *     rgb(122,130,140)=#7a828c 로 4.3:1 (AA 4.5 미달), 1440·375 두 폭에서 같은 결함이 잡혀 2였다.
  *   - `/waitlist` 0 — 깨끗.
+ *   - `/maintenance` 0 — W3-H 503 점검 화면(C 구조 이식). proxy.ts 가 공개 라우트로 열었다.
+ *   - `/qb-canon-404-probe` 0 — W3-H 404 프로브. 존재하지 않는 공개 경로라 root not-found 를
+ *     렌더한다. proxy.ts 가 이 경로를 공개로 열어 auth.protect 우회 → 인증 없이 감사 가능.
  * /pricing 은 현재 `/` 로 리다이렉트해 같은 결함이 중복 잡히므로 대상에서 뺐다.
+ *
+ * ★app/error.tsx(500)는 라우트 방문으로 감사할 수 없다 — Next.js 루트 에러 바운더리는
+ *   실제 런타임 throw 로만 트리거되고 도달 가능한 URL 이 없다. 시맨틱 구조·상태·복구 동작은
+ *   컴포넌트 테스트(src/app/__tests__/error.test.tsx)로 갈음한다.
  */
 const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/": 0,
   "/waitlist": 0,
+  "/maintenance": 0,
+  "/qb-canon-404-probe": 0,
 };
 
 test.describe("공개 라우트 디자인 캐논 baseline (이식 seam #1, CI)", () => {
