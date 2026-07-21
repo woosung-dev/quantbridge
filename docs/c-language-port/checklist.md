@@ -249,7 +249,7 @@
 > 게이트 3분류 ⓐⓑⓒ + 스킬 게이트 + 오케스트레이터 직렬 재현. baseline: vitest 164/904 · canon 29 · authed 5.
 
 - [ ] W0 — 브랜치 + 운영 계약 커밋 + 환경 복구(stale CSS 재컴파일) + fixture 시딩(optimizer 완료 run) + codex 플랜 검증
-- [ ] W1 — 용어 SSOT 확장 (`features/optimizer/labels.ts` + `features/strategy/labels.ts` + 적용 §5-3/5-4/5-5 + 가드 스코프 확장)
+- [x] W1 — 용어 SSOT 확장 완료 (`af9eb2d`~`67e2893`). labels 2모듈(§4-3/§4-5 전문) + §5-3/5-4/5-5 이관 + 가드 5필드·템플릿보간·6스코프 확장. ★반증이 가드 위양성(`=>` 를 태그닫힘 오인) 발견→교정, 스코프 확장이 §5 미기재 원시 렌더 6곳 표면화(차트·리더보드 5벌 + live-session-detail 방향)→이관, `LIVE_SIGNAL_DIRECTION_LABEL` 신설(backend models.py long|short 실측 근거). 오케스트레이터 재현: vitest 164/**907**·tsc 0·lint 0·가드+래칫 16/16
 - [ ] W2 — variant-c → `/backtests/[id]` 리포트 상세 (+ share 회귀 + authed spec +1)
 - [ ] W3-A — screen-05 → `/backtests/new`
 - [ ] W3-B — 전략 3벌 (06 `/strategies` → 07 `/new` → 08 `/[id]/edit`) + stale var() 4파일. ★backtest_count 열 미렌더 (사용자 확정)
