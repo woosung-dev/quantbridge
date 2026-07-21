@@ -43,6 +43,7 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
  */
 const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/backtests/:id": 0,
+  "/backtests/new": 0,
   "/strategies": 0,
   "/strategies/new": 0,
   "/strategies/:id/edit": 0,
@@ -51,7 +52,8 @@ const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 // 정적 라우트 — 워커 슬라이스가 늘어날 때마다 오케스트레이터가 union 으로 추가한다.
-const STATIC_ROUTES = ["/strategies", "/strategies/new", "/optimizer"] as const;
+// W3-A: /backtests/new (screen-05 새 백테스트 실행 폼).
+const STATIC_ROUTES = ["/strategies", "/strategies/new", "/optimizer", "/backtests/new"] as const;
 
 const auditOptions = {
   contextOptions: { storageState: STORAGE_STATE },

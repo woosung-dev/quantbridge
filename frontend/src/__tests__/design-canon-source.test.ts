@@ -221,9 +221,8 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   ["app/(dashboard)/backtests/_components/charts/drawdown-pane.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/equity-pane.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/param-stability-heatmap.tsx", 1],
-  ["app/(dashboard)/backtests/_components/forms/BacktestSizingFieldSet.tsx", 2],
-  ["app/(dashboard)/backtests/_components/forms/backtest-form.tsx", 3],
-  ["app/(dashboard)/backtests/_components/live-settings-badge.tsx", 1],
+  // W3-A: backtest-form(구 3) · BacktestSizingFieldSet(구 2) · live-settings-badge(구 1)은
+  // screen-05 C 이식에서 산문 em-dash 를 마침표·가운뎃점으로 교정해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/monte-carlo-summary-table.tsx", 3],
   ["app/(dashboard)/backtests/_components/report/benchmark-floating-bars.tsx", 1],
   // detailed-results-section.tsx (구 1건)은 W2 에서 심화 분석 시각 카드로 재편하며 벤치마킹

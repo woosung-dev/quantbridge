@@ -1,4 +1,4 @@
-// 백테스트 폼 2열 layout + summary aside / preset pills 통합 테스트 — Sprint 42-polish W4
+// 백테스트 폼 2단 layout + 요약 사이드 / 기간 프리셋 통합 테스트 — C 이식(W3-A).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
@@ -39,21 +39,25 @@ afterEach(() => {
   cleanup();
 });
 
-describe("BacktestForm layout — Sprint 42-polish W4", () => {
-  it("2열 grid wrapper 가 form + summary aside 양쪽 모두 렌더한다", () => {
+describe("BacktestForm layout — C 이식(W3-A)", () => {
+  it("setup-grid 2단 wrapper 가 form + summary aside 양쪽 모두 렌더한다", () => {
     render(<BacktestForm />);
 
     const layout = screen.getByTestId("backtest-form-layout");
     expect(layout).toBeInTheDocument();
-    // 모바일 1열 → md+ 2열 (2fr / 1fr) 클래스 확인
-    expect(layout.className).toMatch(/grid-cols-1/);
-    expect(layout.className).toMatch(/md:grid-cols-\[2fr_1fr\]/);
+    // C 디자인 언어 2단 레이아웃 클래스 (globals.css .setup-grid 이 minmax(0,1fr) 340px)
+    expect(layout.className).toMatch(/setup-grid/);
 
     // 양쪽 자식 모두 렌더
     expect(
       screen.getByRole("form", { name: "backtest-form" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("setup-summary-aside")).toBeInTheDocument();
+
+    // h1 은 동사형 화면명(5축 규약 — h1 만 동사형)
+    expect(
+      screen.getByRole("heading", { level: 1, name: "새 백테스트 실행" }),
+    ).toBeInTheDocument();
   });
 
   it("date preset 1Y 클릭 시 시작/종료일 input 값과 summary 기간 row 가 함께 갱신된다", () => {

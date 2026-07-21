@@ -1,7 +1,6 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
+// 새 백테스트 실행 페이지 (server) — C 이식(screen-05). 전체 폼 셸은 BacktestForm 이 렌더한다.
 
-import { FormSkeleton } from "@/components/skeleton";
+import type { Metadata } from "next";
 
 import { BacktestForm } from "@/app/(dashboard)/backtests/_components/forms/backtest-form";
 
@@ -10,20 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function NewBacktestPage() {
-  return (
-    <div className="mx-auto max-w-[1280px] px-6 py-8">
-      <header className="mb-6">
-        <h1 className="font-display text-[1.75rem] font-bold tracking-tight">
-          백테스트 설정
-        </h1>
-        <p className="text-[0.95rem] text-muted-foreground">
-          전략과 시장 조건을 선택해 백테스트를 실행합니다.
-        </p>
-      </header>
-
-      <Suspense fallback={<FormSkeleton fields={6} />}>
-        <BacktestForm />
-      </Suspense>
-    </div>
-  );
+  return <BacktestForm />;
 }

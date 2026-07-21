@@ -2751,3 +2751,189 @@ table.hm th[scope="row"] { text-align: right; }
   .field { flex-basis: 100%; }
   .opt-form .btn-primary { width: 100%; }
 }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /backtests/new 새 백테스트 실행 (이식 W3-A, screen-05).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-05-backtest-setup.html:992-1171.
+ *   좌 폼(setup-main) 과 우 sticky 요약(setup-side) 2단 배치, 기간 파생 계산 스트립,
+ *   선택 전략 지표 묶음, 고정값 필드, 요약 사이드 액션만 얹는다.
+ *   공용 .card 와 .section 과 .field 계열과 .select 과 .input 과 .trust 계열과 .state-box 과
+ *   .metric 계열과 .chart-note 과 .disclaimer 는 KITPORT 와 앞 c-port 블록이 이미 제공한다.
+ *   KITPORT 센티넬(무결성 가드) 밖 언레이어드. 색은 캐논 토큰 별칭만 쓴다(hex 리터럴 금지).
+ * ========================================================================== */
+
+/* 2단 레이아웃. 좌 폼(1fr) + 우 요약(340px). 1200px 이하 세로 스택. */
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+  margin-top: 28px;
+}
+.setup-main,
+.setup-side { min-width: 0; }
+.setup-main > .section:first-child { margin-top: 0; }
+.setup-side > .section {
+  margin-top: 0;
+  position: sticky;
+  top: calc(var(--topbar-h) + 20px);
+}
+
+/* 필드 라벨 필수 표식. 접근 이름을 흔들지 않게 라벨 밖 형제로 둔다. */
+.field-reqline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.field-req {
+  font-family: var(--f-mono);
+  font-size: 0.7rem;
+  color: var(--copper);
+}
+.field .input[type="date"] { color-scheme: dark; }
+.field .meter { margin-top: 2px; }
+
+/* 날짜 입력의 UA 달력 버튼은 별도 탭 스톱이라 호스트에 :focus-visible 이 안 걸린다.
+   .searchbox 관례대로 감싼 요소에 :focus-within 링을 준다. */
+.date-wrap { display: block; border-radius: var(--r); }
+.date-wrap:focus-within { outline: 2px solid var(--copper); outline-offset: 2px; }
+
+/* 폼 검증 실패 입력. 테두리 색만 (terminology-ssot §3-3 확정. warn-soft 배경 금지). */
+.input.invalid { border-color: rgba(229, 169, 61, 0.55); }
+
+/* 고정값 표시 필드 (거래소 = Bybit). */
+.field-static {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-family: var(--f-mono);
+  font-size: 0.82rem;
+  color: var(--ink-2);
+}
+.field-static .lock { width: 13px; height: 13px; stroke: var(--ink-3); stroke-width: 1.9; flex-shrink: 0; }
+
+/* 체크박스 행 (펀딩 반영 안내 등). */
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 14px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+.check-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--copper);
+  flex-shrink: 0;
+}
+.check-title { font-size: 0.82rem; font-weight: 600; color: var(--ink-2); }
+.check-why { font-size: 0.76rem; color: var(--ink-3); margin-top: 2px; line-height: 1.5; }
+
+/* 기간과 봉 수 파생 계산 스트립 (terminology-ssot §3-4 = .calc-cell). */
+.calc-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+.calc-cell { padding: 14px 22px; border-right: 1px solid var(--line); }
+.calc-cell:last-child { border-right: none; }
+.calc-label { font-size: 0.74rem; font-weight: 600; color: var(--ink-3); }
+.calc-value {
+  font-family: var(--f-mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.calc-value.empty { color: var(--ink-3); font-weight: 500; }
+.calc-foot { font-size: 0.74rem; color: var(--ink-3); margin-top: 3px; }
+
+/* 선택한 전략 지표 2열 묶음. */
+.mg2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mg2 > div { padding: 18px 22px; border-right: 1px solid var(--line); }
+.mg2 > div:last-child { border-right: none; }
+
+/* 주문 크기 방식 하위 블록 (자본과 체결 카드 안). */
+.sizing-block { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sizing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.sizing-narrow { max-width: 340px; }
+.sizing-gap { margin-top: 16px; }
+.sizing-gap.sizing-narrow { max-width: 420px; }
+
+/* 모델 요약 안내 줄 (시뮬레이션 모델). */
+.model-note {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.model-note .model-title { display: block; margin-bottom: 4px; font-weight: 600; color: var(--ink-2); }
+
+/* 우측 요약 사이드. */
+.side-rows { padding: 12px 20px; }
+.side-rows .trust-val { max-width: 64%; }
+
+.side-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--warn-soft);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.side-warn svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.9; flex-shrink: 0; margin-top: 2px; }
+
+.side-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.btn[disabled] { cursor: not-allowed; }
+.btn-primary[disabled] {
+  background: var(--card-2);
+  border-color: var(--line-2);
+  color: var(--ink-3);
+}
+.btn-primary[disabled]:hover { background: var(--card-2); border-color: var(--line-2); }
+
+@media (max-width: 1200px) {
+  .setup-grid { grid-template-columns: minmax(0, 1fr); }
+  .setup-side > .section { position: static; margin-top: 28px; }
+  .side-rows .trust-val { max-width: none; }
+}
+
+@media (max-width: 768px) {
+  .setup-grid { margin-top: 18px; }
+  .calc-strip { grid-template-columns: minmax(0, 1fr); }
+  .calc-cell { border-right: none; border-bottom: 1px solid var(--line); }
+  .calc-cell:last-child { border-bottom: none; }
+  .mg2 { grid-template-columns: minmax(0, 1fr); }
+  .mg2 > div { border-right: none; border-bottom: 1px solid var(--line); }
+  .mg2 > div:last-child { border-bottom: none; }
+}

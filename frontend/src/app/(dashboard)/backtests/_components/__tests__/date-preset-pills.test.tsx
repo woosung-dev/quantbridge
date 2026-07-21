@@ -27,16 +27,16 @@ describe("DatePresetPills", () => {
     }
   });
 
-  it("active pill 은 aria-checked=true 표시", () => {
+  it("active tab 은 aria-pressed=true 표시 (C 이식: 상호배타 토글)", () => {
     const onSelect = vi.fn();
     render(<DatePresetPills value="3m" onSelect={onSelect} />);
 
     expect(screen.getByTestId("date-preset-3m")).toHaveAttribute(
-      "aria-checked",
+      "aria-pressed",
       "true",
     );
     expect(screen.getByTestId("date-preset-1m")).toHaveAttribute(
-      "aria-checked",
+      "aria-pressed",
       "false",
     );
   });
@@ -50,16 +50,14 @@ describe("DatePresetPills", () => {
     expect(onSelect).toHaveBeenCalledWith("custom", null);
   });
 
-  // Sprint 44 W F3 — active pill 에 qb-pill-pop entrance class 적용 (inactive 는 미적용)
-  it("active pill 만 qb-pill-pop class 추가 (inactive 는 미적용)", () => {
+  // C 이식(W3-A) — active tab 에 프로토타입 .tab.active 클래스 적용 (inactive 는 .tab 만)
+  it("active tab 만 active class 추가 (inactive 는 미적용)", () => {
     const onSelect = vi.fn();
     render(<DatePresetPills value="6m" onSelect={onSelect} />);
 
-    expect(screen.getByTestId("date-preset-6m").className).toContain(
-      "qb-pill-pop",
-    );
+    expect(screen.getByTestId("date-preset-6m").className).toContain("active");
     expect(screen.getByTestId("date-preset-1m").className).not.toContain(
-      "qb-pill-pop",
+      "active",
     );
   });
 

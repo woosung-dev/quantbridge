@@ -1,7 +1,5 @@
-// 백테스트 기간 preset pills — 1M/3M/6M/1Y/3Y/5Y radiogroup
+// 백테스트 기간 프리셋 토글 — C 디자인 언어 이식(W3-A). 상호배타 토글이라 role=group + aria-pressed.
 "use client";
-
-import { cn } from "@/lib/utils";
 
 export type DatePreset = "1m" | "3m" | "6m" | "1y" | "3y" | "5y" | "custom";
 
@@ -53,9 +51,9 @@ export interface DatePresetPillsProps {
 export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
   return (
     <div
-      role="radiogroup"
+      className="tabs"
+      role="group"
       aria-label="기간 프리셋"
-      className="flex flex-wrap gap-2"
       data-testid="date-preset-pills"
     >
       {PRESETS.map((p) => {
@@ -64,17 +62,10 @@ export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
           <button
             key={p.key}
             type="button"
-            role="radio"
-            aria-checked={isActive}
+            className={isActive ? "tab active" : "tab"}
+            aria-pressed={isActive}
             data-testid={`date-preset-${p.key}`}
             onClick={() => onSelect(p.key, calcDateRange(p.key))}
-            className={cn(
-              // Sprint 62 T-2 (BL-356): 모바일 viewport 에서 height 44pt 강제. 데스크톱 (md+) 은 h-8.
-              "h-11 rounded-md border px-3.5 text-[13px] font-semibold transition-all duration-200 hover:-translate-y-px motion-reduce:hover:translate-y-0 md:h-8",
-              isActive
-                ? "qb-pill-pop border-primary bg-primary text-primary-foreground shadow-btn-primary"
-                : "border-transparent bg-[var(--bg-alt)] text-[var(--text-secondary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]",
-            )}
           >
             {p.label}
           </button>
@@ -82,16 +73,10 @@ export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
       })}
       <button
         type="button"
-        role="radio"
-        aria-checked={value === "custom"}
+        className={value === "custom" ? "tab active" : "tab"}
+        aria-pressed={value === "custom"}
         data-testid="date-preset-custom"
         onClick={() => onSelect("custom", null)}
-        className={cn(
-          "h-8 rounded-md border px-3.5 text-[13px] font-semibold transition-all duration-200 hover:-translate-y-px motion-reduce:hover:translate-y-0",
-          value === "custom"
-            ? "qb-pill-pop border-primary bg-primary text-primary-foreground shadow-btn-primary"
-            : "border-transparent bg-[var(--bg-alt)] text-[var(--text-secondary)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]",
-        )}
       >
         커스텀
       </button>

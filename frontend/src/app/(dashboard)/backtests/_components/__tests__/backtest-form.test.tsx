@@ -122,7 +122,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
@@ -165,7 +165,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
@@ -232,7 +232,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
@@ -279,7 +279,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
@@ -317,7 +317,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
@@ -367,7 +367,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
@@ -423,7 +423,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
@@ -470,7 +470,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       fireEvent.change(screen.getByLabelText("종료일"), {
         target: { value: "2026-01-31" },
       });
-      fireEvent.change(screen.getByLabelText("초기 자본 (USDT)"), {
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
       fireEvent.submit(screen.getByLabelText("backtest-form"));
