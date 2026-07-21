@@ -46,10 +46,12 @@ const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/strategies": 0,
   "/strategies/new": 0,
   "/strategies/:id/edit": 0,
+  "/optimizer": 0,
+  "/optimizer/:id": 0,
 };
 
 // 정적 라우트 — 워커 슬라이스가 늘어날 때마다 오케스트레이터가 union 으로 추가한다.
-const STATIC_ROUTES = ["/strategies", "/strategies/new"] as const;
+const STATIC_ROUTES = ["/strategies", "/strategies/new", "/optimizer"] as const;
 
 const auditOptions = {
   contextOptions: { storageState: STORAGE_STATE },
@@ -108,6 +110,39 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       hardFailCount(res),
       `${editHref} 하드 실패:\n${formatCanonResult(res)}`,
     ).toBeLessThanOrEqual(HARDFAIL_ALLOWLIST["/strategies/:id/edit"] ?? 0);
+  });
+
+  test("/optimizer/:id — 하드 실패 ≤ allowlist (완료 run 상세)", async ({ browser }) => {
+    test.setTimeout(180_000);
+
+    // optimizer run id 를 하드코딩하지 않는다 (환경마다 다르다). /optimizer 에서 완료 run 링크 발견.
+    const discovery = await browser.newContext({ storageState: STORAGE_STATE });
+    const dpage = await discovery.newPage();
+    await dpage.goto(`${BASE_URL}/optimizer`, { waitUntil: "load" });
+    await dpage.waitForTimeout(1500);
+    const optHref = await dpage
+      .locator('tr[data-status="completed"] a[href^="/optimizer/"], a[href^="/optimizer/"]')
+      .evaluateAll((els) => {
+        const re = /^\/optimizer\/[0-9a-f-]{36}$/;
+        const found = (els as HTMLAnchorElement[]).find((a) =>
+          re.test(new URL(a.href).pathname),
+        );
+        return found ? new URL(found.href).pathname : null;
+      });
+    await discovery.close();
+
+    // ★부재 시 skip 이 아니라 실패 — 완료 optimizer run 시딩(fixture 47ab18b7...)을 강제한다.
+    expect(optHref, "완료 optimizer run 상세 링크를 찾지 못했다 — 완료 run 시딩 필요").toBeTruthy();
+
+    const res = await auditUrl(browser, `${BASE_URL}${optHref}`, {
+      label: `${optHref}`,
+      ...auditOptions,
+    });
+    process.stdout.write(formatCanonResult(res) + "\n");
+    expect(
+      hardFailCount(res),
+      `/optimizer/:id 하드 실패:\n${formatCanonResult(res)}`,
+    ).toBeLessThanOrEqual(HARDFAIL_ALLOWLIST["/optimizer/:id"] ?? 0);
   });
 
   test("/backtests/:id — 완료 백테스트 리포트 상세 하드 실패 ≤ allowlist", async ({ browser }) => {
