@@ -17,7 +17,13 @@ import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
 import { useIsOrderDisabledByKs, useOrders } from "../hooks";
-import { ORDER_SIDE_LABEL, ORDER_STATE_LABEL } from "../labels";
+import {
+  ORDER_ID_SOURCE_HINT,
+  ORDER_ID_SOURCE_LABEL,
+  ORDER_SIDE_LABEL,
+  ORDER_STATE_LABEL,
+  ORDER_TRAILING_STOP_LABEL,
+} from "../labels";
 import { TestOrderDialog } from "./test-order-dialog";
 
 // 주문 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
@@ -26,33 +32,24 @@ const ORDERS_ENDPOINT = "GET /api/v1/orders";
 /**
  * Sprint 21 BL-093 superset — broker evidence column.
  *   - null/undefined → EMPTY_CELL (아직 발송 안 됨)
- *   - "fixture-" prefix → warn 톤 "mock" (fixture provider 산출물)
- *   - 그 외 → bull 톤 "broker" + slice(-8) (실제 거래소 ID)
+ *   - "fixture-" prefix → warn 톤 "모의" (fixture provider 산출물)
+ *   - 그 외 → bull 톤 "브로커" + slice(-8) (실제 거래소 ID)
  * codex G.0 P2: UUID 형식 판정 X. fixture-* 만 분기하고 나머지는 "broker id present".
+ * 출처 라벨·title 은 용어 SSOT(ORDER_ID_SOURCE_LABEL / ORDER_ID_SOURCE_HINT)에서만 온다.
  */
 function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
   if (!orderId) {
     return <span className="dim">{EMPTY_CELL}</span>;
   }
   const isFixture = orderId.startsWith("fixture-");
-  if (isFixture) {
-    return (
-      <span
-        className="mono evi-mock"
-        title={`Mock fixture: ${orderId}`}
-        data-testid="broker-badge-mock"
-      >
-        {orderId.slice(-8)} (mock)
-      </span>
-    );
-  }
+  const source = isFixture ? "mock" : "broker";
   return (
     <span
-      className="mono evi-broker"
-      title={`Broker order: ${orderId}`}
-      data-testid="broker-badge-real"
+      className={isFixture ? "mono evi-mock" : "mono evi-broker"}
+      title={ORDER_ID_SOURCE_HINT[source]}
+      data-testid={isFixture ? "broker-badge-mock" : "broker-badge-real"}
     >
-      {orderId.slice(-8)} (broker)
+      {orderId.slice(-8)} ({ORDER_ID_SOURCE_LABEL[source]})
     </span>
   );
 }
@@ -174,7 +171,9 @@ export function OrdersPanel() {
                           place_trailing_stop 가 거래소에 부착(별도 주문 아님). */}
                       {o.take_profit || o.stop_loss || o.trailing_stop
                         ? `${o.take_profit ?? EMPTY_CELL} / ${o.stop_loss ?? EMPTY_CELL}${
-                            o.trailing_stop ? ` / trail ${o.trailing_stop}` : ""
+                            o.trailing_stop
+                              ? ` / ${ORDER_TRAILING_STOP_LABEL} ${o.trailing_stop}`
+                              : ""
                           }`
                         : EMPTY_CELL}
                     </td>

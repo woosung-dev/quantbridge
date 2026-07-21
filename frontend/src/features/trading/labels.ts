@@ -55,6 +55,15 @@ export const ORDER_ID_SOURCE_LABEL: Record<OrderIdSource, string> = {
   broker: "브로커",
   mock: "모의",
 };
+/**
+ * 주문번호 출처 배지 title. 모의는 실행 경로 힌트를 그대로 쓰고(로컬 목 어댑터라 거래소에
+ * 나가지 않음), 브로커는 거래소가 돌려준 번호임을 밝힌다. 컴포넌트는 데모·라이브를 구분하지
+ * 않으므로 특정 거래소명은 넣지 않는다. screen-11-orders.html:1306 · :1404
+ */
+export const ORDER_ID_SOURCE_HINT: Record<OrderIdSource, string> = {
+  broker: "거래소가 돌려준 주문번호입니다.",
+  mock: EXECUTION_MODE_HINT.mock,
+};
 
 /**
  * 주문 표 헤더 10열. screen-11-orders.html:1269-1278 의 th 를 순서대로 옮긴 것이고
@@ -133,6 +142,9 @@ export const ORDER_ERROR_NONE_TITLE: Partial<Record<OrderState, string>> = {
 
 // 주문 취소·취소 불가 셀 title(screen-11 액션 열)은 여기 두지 않는다. 취소 주문 API 가
 // trading/api.ts 에 아직 없어서 액션 열 자체를 렌더하지 않기 때문이다(§4.9 미백킹 affordance).
+
+/** 추적손절 라벨. §4.6 규약 — 원시 "trail" 문자열 대신 한글 라벨을 쓴다. screen-11-orders.html:1333 */
+export const ORDER_TRAILING_STOP_LABEL = "추적손절";
 
 /** 추적손절 셀 title. screen-11-orders.html:1333 */
 export const ORDER_TRAILING_STOP_TITLE =
