@@ -230,13 +230,10 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   // 캡션의 em-dash 를 제거해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/report/runup-drawdown-section.tsx", 2],
   ["app/(dashboard)/backtests/_components/report/trade-pnl-pane.tsx", 1],
-  ["app/(dashboard)/optimizer/_components/bayesian-iteration-chart.tsx", 2],
-  ["app/(dashboard)/optimizer/_components/genetic-generation-chart.tsx", 2],
-  ["app/(dashboard)/optimizer/_components/grid-search-heatmap.tsx", 1],
-  ["app/(dashboard)/optimizer/_components/grid-search-pair-selector.tsx", 1],
-  ["app/(dashboard)/optimizer/_components/optimizer-oos-evaluation.tsx", 2],
   // W3-B: strategies em-dash 5건 해소. parse-panel/tab-parse/parse-preview-panel 삭제 +
   // tab-metadata/parse-result-panel C 재작성으로 노출 em-dash 0건 → allowlist 에서 제거.
+  // W3-C: optimizer 5파일(bayesian/genetic chart · grid heatmap · pair-selector · oos)도 C 이식에서
+  // 노출 산문 em-dash 전부 해소(한국어 카피 교체 + aria-label em-dash 제거) → allowlist 에서 제거.
   ["app/_components/landing-bento.tsx", 1],
   ["app/_components/landing-hero.tsx", 1],
   ["app/disclaimer/page.tsx", 1],

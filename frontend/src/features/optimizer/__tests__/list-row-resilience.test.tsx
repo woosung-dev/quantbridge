@@ -50,10 +50,13 @@ describe("OptimizerRunList graceful error (Sprint 62 T-1, BL-350+354)", () => {
     // 1차 발견 패턴 — raw JSON 노출 X
     expect(screen.queryByText(/expected.*invalid_type/)).not.toBeInTheDocument();
     expect(screen.queryByText(/bayesian_n_initial_random/)).not.toBeInTheDocument();
-    // 새 user-friendly 메시지 (W1 용어 SSOT: 도메인명 "옵티마이저" = OPTIMIZER_DOMAIN_LABEL.page)
-    expect(
-      screen.getByText(/옵티마이저 목록을 불러오지 못했습니다/),
-    ).toBeInTheDocument();
+    // W3-C C 이식: 에러는 state-box failed(role=alert) + user-friendly 문구(W1 사유 SSOT)로 렌더.
+    const box = screen.getByTestId("optimizer-error");
+    expect(box.className).toContain("state-box");
+    expect(box.className).toContain("failed");
+    expect(screen.getByText(/불러오지 못했습니다/)).toBeInTheDocument();
+    // 에러 패널에 실존 엔드포인트 + HTTP 코드 노출.
+    expect(box.textContent).toMatch(/GET \/api\/v1\/optimizer\/runs/);
   });
 
   it("skipped_count > 0 시 graceful warn 표시", () => {
@@ -76,17 +79,16 @@ describe("OptimizerRunList graceful error (Sprint 62 T-1, BL-350+354)", () => {
     expect(warn.textContent).toMatch(/3개 항목이 표시되지 않습니다/);
   });
 
-  it("isLoading 시 '로드 중…' 노출 + error 메시지 부재", () => {
+  it("isLoading 시 스켈레톤(.sk) 노출 + error 메시지 부재 (W3-C C 이식)", () => {
     vi.mocked(useOptimizationRuns).mockReturnValue({
       data: undefined,
       isLoading: true,
       error: null,
     } as unknown as ReturnType<typeof useOptimizationRuns>);
 
-    renderWithQueryClient(<OptimizerRunList />);
-    expect(screen.getByText(/로드 중…/)).toBeInTheDocument();
-    expect(
-      screen.queryByText(/불러오지 못했습니다/),
-    ).not.toBeInTheDocument();
+    const { container } = renderWithQueryClient(<OptimizerRunList />);
+    expect(screen.getByTestId("optimizer-skeleton")).toBeInTheDocument();
+    expect(container.querySelector(".sk.sk-cell")).not.toBeNull();
+    expect(screen.queryByText(/불러오지 못했습니다/)).not.toBeInTheDocument();
   });
 });
