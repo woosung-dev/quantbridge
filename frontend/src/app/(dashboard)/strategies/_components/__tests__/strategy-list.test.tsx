@@ -1,7 +1,7 @@
 // 전략 목록(C 이식 screen-06) 시맨틱 구조 회귀 테스트 — 프로토타입 유래 클래스/상태 4종 assert.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { StrategyList } from "@/app/(dashboard)/strategies/_components/strategy-list";
@@ -149,5 +149,119 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     renderList();
     const cell = screen.getByTitle("이 전략에는 심볼과 주기가 저장돼 있지 않습니다.");
     expect(cell.textContent).toBe("—");
+  });
+});
+
+describe("StrategyList — 01 필터 구획 (screen-06 재도입)", () => {
+  afterEach(() => {
+    cleanup();
+    mockUseStrategies.mockReset();
+  });
+
+  function makeMulti() {
+    return {
+      data: {
+        items: [
+          makeItem({
+            id: "00000000-0000-4000-8000-000000000001",
+            name: "MA Crossover Strategy",
+            symbol: "BTC/USDT",
+            updated_at: "2026-04-14T09:32:00Z",
+          }),
+          makeItem({
+            id: "00000000-0000-4000-8000-000000000002",
+            name: "RSI Divergence v3",
+            symbol: "ETH/USDT",
+            parse_status: "unsupported" as const,
+            updated_at: "2026-04-13T21:05:00Z",
+          }),
+          makeItem({
+            id: "00000000-0000-4000-8000-000000000003",
+            name: "Bollinger MeanRev",
+            symbol: "BTC/USDT",
+            updated_at: "2026-04-12T10:47:00Z",
+          }),
+        ],
+        total: 3,
+        page: 1,
+        limit: 20,
+        total_pages: 1,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+  }
+
+  it("툴바는 .toolbar/.input/.select 구조로 검색·심볼·정렬 3컨트롤을 그린다", () => {
+    mockUseStrategies.mockReturnValue(makeMulti());
+    renderList();
+    const search = screen.getByTestId("strategy-search");
+    expect(search.className).toBe("input");
+    expect(search.closest(".toolbar")).toBeTruthy();
+    const symbol = screen.getByTestId("strategy-symbol-filter");
+    expect(symbol.className).toBe("select");
+    // 심볼 옵션은 로드된 데이터에서 실측(BTC/ETH) — 하드코딩 아님.
+    const symbolOpts = within(symbol).getAllByRole("option").map((o) => o.textContent);
+    expect(symbolOpts).toEqual(["심볼 전체", "BTC/USDT", "ETH/USDT"]);
+    const sort = screen.getByTestId("strategy-sort");
+    const sortOpts = within(sort).getAllByRole("option").map((o) => o.textContent);
+    // unbacked 성과 정렬(수익률/샤프) 미도입 — backed 2종만.
+    expect(sortOpts).toEqual(["마지막 수정 순", "이름 순"]);
+  });
+
+  it("검색은 전략명·ID 를 클라이언트 사이드로 좁힌다", () => {
+    mockUseStrategies.mockReturnValue(makeMulti());
+    renderList();
+    fireEvent.change(screen.getByTestId("strategy-search"), { target: { value: "bollinger" } });
+    const rows = screen.getAllByTestId(/^strategy-row-/);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]!).getByText("Bollinger MeanRev")).toBeTruthy();
+  });
+
+  it("심볼 필터는 선택 심볼만 남긴다", () => {
+    mockUseStrategies.mockReturnValue(makeMulti());
+    renderList();
+    fireEvent.change(screen.getByTestId("strategy-symbol-filter"), { target: { value: "ETH/USDT" } });
+    const rows = screen.getAllByTestId(/^strategy-row-/);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]!).getByText("RSI Divergence v3")).toBeTruthy();
+  });
+
+  it("이름 순 정렬은 로케일 순서로 재배열한다", () => {
+    mockUseStrategies.mockReturnValue(makeMulti());
+    renderList();
+    fireEvent.change(screen.getByTestId("strategy-sort"), { target: { value: "name" } });
+    const names = screen
+      .getAllByTestId(/^strategy-row-/)
+      .map((r) => within(r).getByRole("link", { name: /Strategy|Divergence|MeanRev/ }).textContent);
+    expect(names).toEqual(["Bollinger MeanRev", "MA Crossover Strategy", "RSI Divergence v3"]);
+  });
+
+  it("검색이 0건이면 빈 상태 + 필터 초기화 CTA 를 그린다", () => {
+    mockUseStrategies.mockReturnValue(makeMulti());
+    renderList();
+    fireEvent.change(screen.getByTestId("strategy-search"), { target: { value: "없는전략" } });
+    expect(screen.getByTestId("strategy-empty")).toBeTruthy();
+    expect(screen.getByText("필터 초기화")).toBeTruthy();
+  });
+
+  it("CSV 내보내기 버튼은 backed 헤더로 blob 을 만든다", () => {
+    mockUseStrategies.mockReturnValue(makeMulti());
+    const createUrl = vi.fn((_blob: Blob) => "blob:mock");
+    const revokeUrl = vi.fn();
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    vi.stubGlobal("URL", { ...URL, createObjectURL: createUrl, revokeObjectURL: revokeUrl });
+    renderList();
+    fireEvent.click(screen.getByTestId("strategy-export-csv"));
+    expect(createUrl).toHaveBeenCalledTimes(1);
+    const blob = createUrl.mock.calls[0]![0];
+    expect(blob.type).toContain("text/csv");
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

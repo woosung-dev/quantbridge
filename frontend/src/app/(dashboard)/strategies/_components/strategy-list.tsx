@@ -5,11 +5,24 @@
 // (최근 수익률/MDD/샤프)·파라미터 수·백테스트 건수·수명주기 칩(초안/검증됨/배포됨)은 스키마에
 // 필드가 0건이라 렌더하지 않는다 (캐논 §4.9 "데이터 모델에 없는 값 = 가짜 데이터").
 // 상태 열은 실존 필드 parse_status 를 PARSE_STATUS_LABEL → CHIP_TONE_CLASS 로 파생한다.
+//
+// screen-06 "01 필터" 구획 재도입 (W3-fix). 검색(전략명·전략 ID)·심볼 필터·정렬을 프로토타입의
+// .toolbar/.input/.select 구조로 그린다. 데이터가 6건 규모라 클라이언트 사이드 필터/정렬이며
+// 현재 페이지(≤20)에만 적용된다(hasMorePages 안내 문구가 그 범위를 밝힌다). 프로토타입 정렬의
+// "수익률 높은 순"·"샤프 높은 순" 은 성과 필드가 unbacked 라 제외하고, 상태 select 는 실존 필드
+// parse_status 토글(role=group)이 이미 담당하므로 여기 재현하지 않는다.
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangleIcon, CheckIcon, InboxIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  CheckIcon,
+  DownloadIcon,
+  InboxIcon,
+  PlusIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 
 import {
   PARSE_STATUS_FILTER_LABEL,
@@ -35,6 +48,14 @@ const STATUS_FILTERS: ReadonlyArray<{ id: ParseStatusFilter }> = [
   { id: "error" },
 ];
 
+// 정렬 축은 backed 필드에만 건다. 프로토타입의 수익률·샤프 정렬은 성과 필드가 스키마에 없어(§4.9) 뺀다.
+type SortKey = "recent" | "name";
+const SORT_OPTIONS: ReadonlyArray<{ id: SortKey; label: string }> = [
+  { id: "recent", label: "마지막 수정 순" },
+  { id: "name", label: "이름 순" },
+];
+const SYMBOL_ALL = "all";
+
 export function StrategyList() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -45,8 +66,12 @@ export function StrategyList() {
     ? (statusParam as ParseStatusFilter)
     : "all";
 
-  // BE 는 목록에서 부분 페이지만 반환하므로 client-side filter (현재 페이지 한정).
-  // hook query 는 페이지네이션만 → queryKey identity 유지 (H-2 정합).
+  // 검색·심볼·정렬은 클라이언트 로컬 상태다(타이핑마다 라우터를 흔들지 않는다). parse_status 만
+  // URL 로 남긴다(기존 관례 유지). hook query 는 페이지네이션만 → queryKey identity 유지(H-2 정합).
+  const [searchText, setSearchText] = useState("");
+  const [symbolFilter, setSymbolFilter] = useState<string>(SYMBOL_ALL);
+  const [sortKey, setSortKey] = useState<SortKey>("recent");
+
   const query = useMemo<StrategyListQuery>(
     () => ({ limit: PAGE_SIZE, offset: 0, is_archived: false }),
     [],
@@ -57,9 +82,37 @@ export function StrategyList() {
   const items = useMemo<readonly StrategyListItem[]>(() => data?.items ?? [], [data?.items]);
   const total = data?.total ?? 0;
   const hasMorePages = total > items.length;
-  const filtered =
-    activeStatus === "all" ? items : items.filter((s) => s.parse_status === activeStatus);
   const counts = useMemo(() => buildParseStatusCounts(items), [items]);
+
+  // 심볼 필터 후보는 로드된 데이터에서 실측한다(프로토타입 하드코딩 BTC/ETH/SOL 대신 backed 값).
+  const symbolOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of items) if (s.symbol) set.add(s.symbol);
+    return Array.from(set).sort();
+  }, [items]);
+
+  // 필터·정렬 파이프라인 — parse_status → 검색(이름/ID) → 심볼 → 정렬. 현재 페이지 한정.
+  const filtered = useMemo<readonly StrategyListItem[]>(() => {
+    const q = searchText.trim().toLowerCase();
+    const matched = items.filter((s) => {
+      if (activeStatus !== "all" && s.parse_status !== activeStatus) return false;
+      if (symbolFilter !== SYMBOL_ALL && s.symbol !== symbolFilter) return false;
+      if (q) {
+        const haystack = `${s.name} ${s.id}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+    const sorted = [...matched];
+    sorted.sort((a, b) =>
+      sortKey === "name"
+        ? a.name.localeCompare(b.name, "ko")
+        : b.updated_at.localeCompare(a.updated_at),
+    );
+    return sorted;
+  }, [items, activeStatus, symbolFilter, searchText, sortKey]);
+
+  const isFiltering = activeStatus !== "all" || symbolFilter !== SYMBOL_ALL || searchText.trim() !== "";
 
   const pushStatus = (id: ParseStatusFilter) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -67,6 +120,26 @@ export function StrategyList() {
     else params.set("parse_status", id);
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const resetFilters = () => {
+    setSearchText("");
+    setSymbolFilter(SYMBOL_ALL);
+    pushStatus("all");
+  };
+
+  // 목록 CSV 내보내기 — 헤더는 렌더 중인 backed 열(전략명·상태·심볼·주기·마지막 수정)과 일치한다.
+  // 지금 필터·정렬이 적용된 결과를 그대로 내보낸다.
+  const handleExportCsv = () => {
+    const csv = buildCsv(filtered);
+    // Excel 한글 인코딩 보정용 UTF-8 BOM 접두.
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "strategies.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   // 헤더 라벨은 스칼라로 푼다. STRATEGY_LIST_HEADER.status 는 헤더 문자열이지만
@@ -93,6 +166,16 @@ export function StrategyList() {
             </div>
           </div>
           <div className="report-actions">
+            <button
+              className="btn"
+              type="button"
+              onClick={handleExportCsv}
+              disabled={filtered.length === 0}
+              data-testid="strategy-export-csv"
+            >
+              <DownloadIcon aria-hidden="true" />
+              목록 CSV 내보내기
+            </button>
             <button className="btn" type="button" onClick={() => refetch()}>
               <RefreshCwIcon aria-hidden="true" />
               목록 새로고침
@@ -104,11 +187,90 @@ export function StrategyList() {
         </div>
       </section>
 
-      {/* ===== 01 목록 ===== */}
+      {/* ===== 01 필터 ===== */}
+      <section className="section" aria-label="전략 필터">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">01</span> 필터
+          </p>
+          <h2 className="section-title">전략 찾기</h2>
+          <p className="section-desc">
+            전략명이나 전략 ID 로 검색하고, 심볼과 정렬로 범위를 좁힙니다. 필터는 지금 페이지에
+            불러온 목록에 적용됩니다.
+          </p>
+        </header>
+
+        <div className="card">
+          <div className="card-body">
+            <div className="toolbar">
+              <input
+                className="input"
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="전략명, 전략 ID 검색"
+                aria-label="전략 검색"
+                data-testid="strategy-search"
+              />
+              <select
+                className="select"
+                value={symbolFilter}
+                onChange={(e) => setSymbolFilter(e.target.value)}
+                aria-label="심볼 필터"
+                data-testid="strategy-symbol-filter"
+              >
+                <option value={SYMBOL_ALL}>심볼 전체</option>
+                {symbolOptions.map((sym) => (
+                  <option key={sym} value={sym}>
+                    {sym}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="select"
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                aria-label="정렬 기준"
+                data-testid="strategy-sort"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <p className="filter-note" data-testid="strategy-filter-note">
+              {isFiltering ? (
+                <>
+                  <span>필터 적용 결과</span>
+                  <span>
+                    <span className="mono">{filtered.length}</span>개 · 불러온{" "}
+                    <span className="mono">{items.length}</span>개 중
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>필터를 적용하지 않았습니다. 지금 보이는 것은</span>
+                  <span>
+                    <span className="mono">{items.length}</span>개 · 변환 가능{" "}
+                    <span className="mono">{counts.ok}</span> · 일부 미지원{" "}
+                    <span className="mono">{counts.unsupported}</span> · 오류{" "}
+                    <span className="mono">{counts.error}</span> 입니다.
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 02 목록 ===== */}
       <section className="section" aria-label="전략 목록">
         <header className="section-head">
           <p className="eyebrow">
-            <span className="num">01</span> 목록
+            <span className="num">02</span> 목록
           </p>
           <h2 className="section-title">전략 {total}개</h2>
           <p className="section-desc">
@@ -121,7 +283,7 @@ export function StrategyList() {
             <div>
               <h3 className="card-title">전략 목록</h3>
               <p className="card-sub">
-                {items.length}개 표시{hasMorePages ? ` · 전체 ${total}개 중` : ""}
+                {filtered.length}개 표시{hasMorePages ? ` · 전체 ${total}개 중` : ""}
               </p>
             </div>
             <div className="chart-head-actions">
@@ -193,11 +355,11 @@ export function StrategyList() {
               <StateBox
                 testId="strategy-empty"
                 icon={<InboxIcon />}
-                title={items.length === 0 ? "첫 전략을 등록하세요" : "해당 상태의 전략이 없습니다"}
+                title={items.length === 0 ? "첫 전략을 등록하세요" : "조건에 맞는 전략이 없습니다"}
                 body={
                   items.length === 0
                     ? "TradingView Pine Script 를 붙여넣으면 파싱 검사 후 전략으로 저장됩니다."
-                    : "다른 상태를 선택하거나 새 전략을 등록하세요."
+                    : "검색어나 필터를 바꾸거나 새 전략을 등록하세요."
                 }
               >
                 {items.length === 0 ? (
@@ -205,12 +367,8 @@ export function StrategyList() {
                     새 전략 등록
                   </Link>
                 ) : (
-                  <button
-                    className="btn btn-ghost btn-xs"
-                    type="button"
-                    onClick={() => pushStatus("all")}
-                  >
-                    전체 보기
+                  <button className="btn btn-ghost btn-xs" type="button" onClick={resetFilters}>
+                    필터 초기화
                   </button>
                 )}
               </StateBox>
@@ -286,6 +444,26 @@ function buildParseStatusCounts(items: readonly StrategyListItem[]) {
   const result: Record<ParseStatus, number> = { ok: 0, unsupported: 0, error: 0 };
   for (const s of items) result[s.parse_status] += 1;
   return result;
+}
+
+// CSV 한 필드를 RFC 4180 규약으로 감싼다(쌍따옴표 이스케이프). 콤마·개행·따옴표 안전.
+function csvField(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+// backed 열만 내보낸다 — 전략명·상태(라벨)·심볼·주기·마지막 수정. 렌더 표와 열 구성이 같다.
+function buildCsv(rows: readonly StrategyListItem[]): string {
+  const header = ["전략명", "상태", "심볼 · 주기", "마지막 수정"];
+  const lines = [header.map(csvField).join(",")];
+  for (const s of rows) {
+    const statusLabel = PARSE_STATUS_LABEL[s.parse_status].label;
+    const symbolTf =
+      s.symbol || s.timeframe ? `${s.symbol ?? ""} · ${s.timeframe ?? ""}`.trim() : "";
+    lines.push(
+      [s.name, statusLabel, symbolTf, formatDateTime(s.updated_at)].map(csvField).join(","),
+    );
+  }
+  return lines.join("\r\n");
 }
 
 // 다음 페이지를 불러오는 동안의 스켈레톤 — 프로토타입 aria-busy tbody 관례 (.sk .sk-cell).
