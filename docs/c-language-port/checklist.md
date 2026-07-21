@@ -250,15 +250,24 @@
 
 - [ ] W0 — 브랜치 + 운영 계약 커밋 + 환경 복구(stale CSS 재컴파일) + fixture 시딩(optimizer 완료 run) + codex 플랜 검증
 - [x] W1 — 용어 SSOT 확장 완료 (`af9eb2d`~`67e2893`). labels 2모듈(§4-3/§4-5 전문) + §5-3/5-4/5-5 이관 + 가드 5필드·템플릿보간·6스코프 확장. ★반증이 가드 위양성(`=>` 를 태그닫힘 오인) 발견→교정, 스코프 확장이 §5 미기재 원시 렌더 6곳 표면화(차트·리더보드 5벌 + live-session-detail 방향)→이관, `LIVE_SIGNAL_DIRECTION_LABEL` 신설(backend models.py long|short 실측 근거). 오케스트레이터 재현: vitest 164/**907**·tsc 0·lint 0·가드+래칫 16/16
-- [ ] W2 — variant-c → `/backtests/[id]` 리포트 상세 (+ share 회귀 + authed spec +1)
+- [x] W2 — variant-c → `/backtests/[id]` 완료 (`67d56e3`·`d112b26`). 번호 섹션 01~10 IA, recharts/lwc 불변, authed-canon-remaining 신설(완료행 선택+expect FAIL+렌더 대기), 공선성 검사는 반증(ResponsiveContainer+jsdom 폭0 = 비결정)으로 기각→축 설정 단위 테스트 갈음. KPI 미터 미렌더(§4.9 — 상한이 프로토 임의값). 재현: authed `/backtests/:id` 하드 0 (첫 실측 contrast=4 는 stale CSS — r 주석 무효화 루틴으로 해소)
 - [ ] W3-A — screen-05 → `/backtests/new`
-- [ ] W3-B — 전략 3벌 (06 `/strategies` → 07 `/new` → 08 `/[id]/edit`) + stale var() 4파일. ★backtest_count 열 미렌더 (사용자 확정)
-- [ ] W3-C — 옵티마이저 2벌 (09 → 10) + 고아 spec 재작성·skip 해제
+- [x] W3-B — 전략 3벌 완료 (`17a727d`~`caf7472` cherry-pick, 구 위저드/필터바 18파일 삭제 — **테스트 순감 918→884, 삭제 목록 PR 본문 명시 의무**). backtest_count·수명주기·성과 3칸 미렌더(§4.9). ★globals 주석 `.trust-*/` 조기 종결 → CSS 파스 전면 500 — 통합 게이트가 검출·픽스. 재현: /strategies·/new·/:id/edit 하드 0
+- [x] W3-C — 옵티마이저 2벌 완료 (`e02ec72`~`3fa9662` cherry-pick). §4.5 상한 칩·무데이터 문구·backed-only(조인 부제·가짜 cap 미터 미렌더), OOS 실API 재스킨 유지. 재현: /optimizer·/optimizer/:id 하드 0. ★sprint55 spec 은 라이브에서 mock 라우트 미매치로 FAIL → FIX-4
 - [ ] W3-D — screen-11 → `/orders` + tablist→role=group
 - [ ] W3-E — screen-12 → `/onboarding`
 - [ ] W3-F — live-sessions 부채 (§05 재스킨 + kpi-pnl isError + ★OKX FE 제거 (사용자 확정))
 - [ ] W3-G — 마케팅 4벌 (14 → 16 `/pricing` 신설 → 17 → 15 sign-in) + ui-ux-pro-max
-- [ ] W3-H — screen-13 → 에러 3종
+- [x] W3-H — 에러 3종 완료 (`25f4889`~`a11854d` cherry-pick). 구 error-\* 컴포넌트 삭제(소비자 0 전수 확인), radius 래칫 -5, /maintenance+404 공개 캐논 편입. 재현: canon 29→31
+
+**FIX 목록 (게이트 통과분의 프로토타입 충실도 갭 — 별도 픽스 슬라이스)**
+
+1. screen-06 필터 행(검색·심볼·정렬 — 전부 backed, 클라이언트 필터 가능) + CSV 내보내기 미렌더 → 재도입
+2. screen-07 04 진단 섹션(지원 함수 사전 카드·저장된 초안 카드 — backed) + 파일 열기/예제 버튼 → 재도입 검토
+3. screen-10 파라미터 안정성 섹션(cells 파생 가능 — unbacked 아님) 미이식 → 이식
+4. sprint55-optimizer-bayesian spec 라이브 그린화 — mock 라우트가 실제 크로스오리진(8000) 요청과 미매치 → 실백엔드 거부 alert. 제품 결함 아님
+5. (교차 감사 사용자 노출) W2 KPI 미터 미렌더 결정 · 상단 Beta 배너(영문+em-dash) 처리 · 히트맵 기본 접힘
+
 - [ ] W-final — StateBox 6곳 + 이중 링/반경 sweep + 교차 정합 감사 + codex 최종 + 문서 갱신 + 푸시/PR/CI (PR 본문에 직렬 `e2e:authed` 로그 + `--list` 출력 증빙 의무 — CI 는 authed 캐논을 안 돈다)
 
 **Coverage 매트릭스 (codex#3 — 슬라이스마다 이 표로 단조 증가 추적)**
