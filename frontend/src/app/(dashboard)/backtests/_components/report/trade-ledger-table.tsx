@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { DownloadIcon } from "lucide-react";
 
+import { StateBox } from "@/components/state-box";
 import { TRADE_DIRECTION_LABEL } from "@/features/backtest/labels";
 import type { TradeItem } from "@/features/backtest/schemas";
 import {
@@ -68,12 +69,11 @@ export function TradeLedgerTable({
     return (
       <div className="card">
         <div className="card-body">
-          <div className="state-box" role="status" data-testid="trade-ledger-empty">
-            <p className="state-title">기록된 거래가 없습니다.</p>
-            <p className="state-body">
-              이 실행에서 체결된 거래가 없습니다. 진입 조건을 만족한 신호가 없었을 수 있습니다.
-            </p>
-          </div>
+          <StateBox
+            testId="trade-ledger-empty"
+            title="기록된 거래가 없습니다."
+            body="이 실행에서 체결된 거래가 없습니다. 진입 조건을 만족한 신호가 없었을 수 있습니다."
+          />
         </div>
       </div>
     );

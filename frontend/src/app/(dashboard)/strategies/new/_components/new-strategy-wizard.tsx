@@ -21,6 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PineEditor } from "@/components/monaco/pine-editor";
+import { StateBox } from "@/components/state-box";
+import { formatDateTime } from "@/features/backtest/utils";
 import { useCreateStrategy, useParseStrategy, usePreviewParse } from "@/features/strategy/hooks";
 import { handleMutationError } from "@/features/strategy/error-handler";
 import { useDebouncedValue } from "@/features/strategy/utils";
@@ -443,7 +445,7 @@ export function NewStrategyWizard() {
               {hasMeaningfulDraft && availableDraft ? (
                 <div className="draft-present" data-testid="draft-present">
                   <p className="draft-meta">
-                    {new Date(availableDraft.savedAt).toLocaleString("ko-KR")}에 저장한 초안이
+                    {formatDateTime(availableDraft.savedAt)}에 저장한 초안이
                     있습니다.
                     {availableDraft.metadata.name
                       ? ` 이름 "${availableDraft.metadata.name}".`
@@ -460,19 +462,17 @@ export function NewStrategyWizard() {
                   </div>
                 </div>
               ) : (
-                <div className="state-box" data-testid="draft-empty">
-                  <span className="state-icon" aria-hidden="true">
-                    <SaveIcon />
-                  </span>
-                  <p className="state-title">저장된 초안이 없습니다.</p>
-                  <p className="state-body">
-                    지금 입력한 내용을 초안으로 두면 파싱 검사에 실패해도 원문이 남습니다.
-                  </p>
+                <StateBox
+                  testId="draft-empty"
+                  icon={<SaveIcon />}
+                  title="저장된 초안이 없습니다."
+                  body="지금 입력한 내용을 초안으로 두면 파싱 검사에 실패해도 원문이 남습니다."
+                >
                   <button className="btn btn-ghost" type="button" onClick={handleSaveDraft}>
                     <SaveIcon aria-hidden="true" />
                     현재 입력을 초안으로 저장
                   </button>
-                </div>
+                </StateBox>
               )}
             </div>
           </article>
@@ -491,7 +491,7 @@ export function NewStrategyWizard() {
             <DialogTitle>이어서 작성하시겠어요?</DialogTitle>
             <DialogDescription>
               {availableDraft &&
-                `${new Date(availableDraft.savedAt).toLocaleString("ko-KR")}에 작성 중이던 초안이 있습니다.`}
+                `${formatDateTime(availableDraft.savedAt)}에 작성 중이던 초안이 있습니다.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -202,24 +202,25 @@ function UnsupportedBody({ result }: { result: ParsePreviewResponse }) {
   const label = PARSE_STATUS_LABEL[result.status].label;
   const hasUnsupported = result.unsupported_builtins.length > 0;
   return (
-    <div className="state-box failed" role="alert" data-testid="parse-unsupported">
-      <span className="state-icon failed" aria-hidden="true">
-        <AlertTriangleIcon />
-      </span>
-      <p className="state-title">
-        {hasUnsupported ? "이 스크립트는 아직 지원되지 않습니다." : label}
-      </p>
+    <StateBox
+      tone="failed"
+      testId="parse-unsupported"
+      icon={<AlertTriangleIcon />}
+      title={hasUnsupported ? "이 스크립트는 아직 지원되지 않습니다." : label}
+      body={
+        hasUnsupported
+          ? `미지원 함수 ${result.unsupported_builtins.length}개를 찾았습니다.`
+          : undefined
+      }
+    >
       {hasUnsupported ? (
-        <>
-          <p className="state-body">미지원 함수 {result.unsupported_builtins.length}개를 찾았습니다.</p>
-          <ul className="unsupported">
-            {result.unsupported_builtins.map((fn) => (
-              <li key={fn}>
-                <span className="mono">{fn}</span>
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul className="unsupported">
+          {result.unsupported_builtins.map((fn) => (
+            <li key={fn}>
+              <span className="mono">{fn}</span>
+            </li>
+          ))}
+        </ul>
       ) : null}
       {result.errors.length > 0 ? (
         <ul className="unsupported">
@@ -232,6 +233,6 @@ function UnsupportedBody({ result }: { result: ParsePreviewResponse }) {
         </ul>
       ) : null}
       <p className="state-body">{UNSUPPORTED_POLICY_NOTE}</p>
-    </div>
+    </StateBox>
   );
 }
