@@ -3,6 +3,10 @@
 
 import { ArrowDown, ArrowUp, Star } from "lucide-react";
 
+import {
+  OBJECTIVE_DIRECTION_LABEL,
+  OBJECTIVE_METRIC_LABEL,
+} from "@/features/optimizer/labels";
 import type { GridSearchResult } from "@/features/optimizer/schemas";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +98,10 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         <span className="inline-flex items-center gap-1 rounded border border-primary px-1.5 py-0.5 text-primary">
           <Star className="h-3 w-3 fill-current" aria-hidden="true" /> 최적 셀
         </span>
-        <span>· 목표 지표 = {result.objective_metric} ({result.direction})</span>
+        <span>
+          · 목표 지표 = {OBJECTIVE_METRIC_LABEL[result.objective_metric]} (
+          {OBJECTIVE_DIRECTION_LABEL[result.direction]})
+        </span>
       </div>
       <table
         className="border-collapse"
@@ -146,7 +153,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                     ));
                 const tooltip = cell.is_degenerate
                   ? `${xName}=${x}, ${yName}=${y}\n거래 0건 (degenerate)`
-                  : `${xName}=${x}, ${yName}=${y}\n${result.objective_metric}=${objVal ?? "—"}\nSharpe=${cell.sharpe ?? "—"}\nReturn=${cell.total_return}\nMDD=${cell.max_drawdown}\nTrades=${cell.num_trades}`;
+                  : `${xName}=${x}, ${yName}=${y}\n${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${objVal ?? "—"}\nSharpe=${cell.sharpe ?? "—"}\nReturn=${cell.total_return}\nMDD=${cell.max_drawdown}\nTrades=${cell.num_trades}`;
                 return (
                   <td
                     key={`${x}-${y}`}
@@ -187,7 +194,7 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         </tbody>
       </table>
       <p className="text-xs text-muted-foreground">
-        목표 지표 = {result.objective_metric}. 색 강도는 |값| 기준이며, 위·아래
+        목표 지표 = {OBJECTIVE_METRIC_LABEL[result.objective_metric]}. 색 강도는 |값| 기준이며, 위·아래
         화살표는 색맹 대비 부호, 별 아이콘은 최적 셀을 나타냅니다.
       </p>
       {result.param_names.length > 2 && Object.keys(fixOthers).length > 0 && (

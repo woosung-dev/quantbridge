@@ -8,6 +8,7 @@
 import { CheckIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/skeleton";
+import { PARSE_STATUS_LABEL } from "@/features/strategy/labels";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 
 interface ParseResultPanelProps {
@@ -88,7 +89,7 @@ function ResultBody({ result }: { result: ParsePreviewResponse }) {
   // 좌: 감지된 전략 정보 (status, pine version, entry/exit count)
   // 우: 감지된 함수 (functions_used 상위 4개) — schema 에 parameters 미제공이라 functions_used 로 대체.
   const infoRows: Array<{ key: string; value: string; muted?: boolean }> = [
-    { key: "상태", value: STATUS_LABEL[result.status] },
+    { key: "상태", value: PARSE_STATUS_LABEL[result.status].label },
     { key: "버전", value: `Pine ${result.pine_version}` },
     { key: "진입 신호", value: String(result.entry_count) },
     { key: "청산 신호", value: String(result.exit_count) },
@@ -206,9 +207,3 @@ function FeaturePill({ label, present }: { label: string; present: boolean }) {
     </Badge>
   );
 }
-
-const STATUS_LABEL: Record<ParsePreviewResponse["status"], string> = {
-  ok: "변환 완료",
-  unsupported: "일부 미지원",
-  error: "오류",
-};

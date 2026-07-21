@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 
 import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 import { useBacktests } from "@/features/backtest/hooks";
+import { OPTIMIZATION_KIND_LABEL } from "@/features/optimizer/labels";
 
 import { BayesianSearchForm } from "./bayesian-search-form";
 import { GeneticSearchForm } from "./genetic-search-form";
@@ -14,12 +15,6 @@ import { GridSearchForm } from "./grid-search-form";
 import { OptimizerRunList } from "./optimizer-run-list";
 
 type Algorithm = "grid_search" | "bayesian" | "genetic";
-
-const ALGORITHM_LABEL: Record<Algorithm, string> = {
-  grid_search: "그리드 탐색 새 실행",
-  bayesian: "베이지안 탐색 새 실행",
-  genetic: "유전 알고리즘 새 실행",
-};
 
 const PICKER_LIMIT = 100;
 
@@ -95,7 +90,7 @@ export function OptimizerPageView() {
             disabled={backtestId.length === 0}
             className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all hover:bg-primary-hover disabled:opacity-50"
           >
-            {showForm ? "폼 닫기" : ALGORITHM_LABEL[algorithm]}
+            {showForm ? "폼 닫기" : `${OPTIMIZATION_KIND_LABEL[algorithm]} 새 실행`}
           </button>
         </div>
         {showForm && backtestId && algorithm === "grid_search" && (

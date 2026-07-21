@@ -3,6 +3,7 @@
 
 import { AlertTriangle, Star } from "lucide-react";
 
+import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import type { BayesianSearchResult } from "@/features/optimizer/schemas";
 
 interface Props {
@@ -52,7 +53,7 @@ export function BayesianBestParamsTable({ result }: Props) {
               #<span className="font-mono tabular-nums">{result.best_iteration_idx}</span>
             </span>
             <span className="text-xs text-muted-foreground">
-              · {result.objective_metric}{" "}
+              · {OBJECTIVE_METRIC_LABEL[result.objective_metric]}{" "}
               <span className="font-mono tabular-nums text-foreground">
                 {result.best_objective_value === null
                   ? "—"

@@ -50,9 +50,9 @@ describe("OptimizerRunList graceful error (Sprint 62 T-1, BL-350+354)", () => {
     // 1차 발견 패턴 — raw JSON 노출 X
     expect(screen.queryByText(/expected.*invalid_type/)).not.toBeInTheDocument();
     expect(screen.queryByText(/bayesian_n_initial_random/)).not.toBeInTheDocument();
-    // 새 user-friendly 메시지
+    // 새 user-friendly 메시지 (W1 용어 SSOT: 도메인명 "옵티마이저" = OPTIMIZER_DOMAIN_LABEL.page)
     expect(
-      screen.getByText(/Optimizer 목록을 불러오지 못했습니다/),
+      screen.getByText(/옵티마이저 목록을 불러오지 못했습니다/),
     ).toBeInTheDocument();
   });
 

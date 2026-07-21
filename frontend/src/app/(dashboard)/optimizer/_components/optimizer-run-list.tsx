@@ -4,19 +4,23 @@
 import Link from "next/link";
 
 import { useOptimizationRuns } from "@/features/optimizer/hooks";
-import type { OptimizationRunResponse } from "@/features/optimizer/schemas";
-import { cn } from "@/lib/utils";
+import {
+  OBJECTIVE_DIRECTION_LABEL,
+  OBJECTIVE_METRIC_LABEL,
+  OPTIMIZATION_STATUS_LABEL,
+  OPTIMIZER_DOMAIN_LABEL,
+  OPTIMIZER_LIST_HEADER,
+} from "@/features/optimizer/labels";
+import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
-// 상태 배지 — data-tone(시맨틱 토큰) 우선, 톤 미정의 상태(queued/running)만 클래스 유지.
-const STATUS_BADGE: Record<
-  OptimizationRunResponse["status"],
-  { tone?: "success" | "destructive"; className?: string }
-> = {
-  queued: { className: "bg-muted text-muted-foreground" },
-  running: { className: "bg-primary/15 text-primary" },
-  completed: { tone: "success" },
-  failed: { tone: "destructive" },
-};
+// 실행 이력 빈 상태 (오케스트레이터 확정 카피, terminology-ssot §6-8 해소).
+// 정적 JSX 라 렌더마다 재생성하지 않도록 모듈 스코프로 hoist (rendering-hoist-jsx).
+const EMPTY_HISTORY = (
+  <div className="text-sm text-muted-foreground">
+    <p className="font-medium text-foreground">최적화 실행 이력이 없습니다.</p>
+    <p>완료된 백테스트를 대상으로 첫 최적화를 제출하면 이곳에 실행 이력이 쌓입니다.</p>
+  </div>
+);
 
 export function OptimizerRunList({
   limit = 20,
@@ -39,26 +43,26 @@ export function OptimizerRunList({
   if (error) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        Optimizer 목록을 불러오지 못했습니다. 잠시 후 새로고침 해주세요.
+        {OPTIMIZER_DOMAIN_LABEL.page} 목록을 불러오지 못했습니다. 잠시 후 새로고침 해주세요.
       </p>
     );
   }
   // Sprint 62 T-1 (BL-350/354): skipped_count > 0 + items 0 case = 데이터는 있지만 모두
   // schema 불일치로 표시 X. empty state 대신 graceful warn 노출 의무.
   if (data == null) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Optimizer 실행 이력 없음. 새 Grid Search 를 제출하세요.
-      </p>
-    );
+    return EMPTY_HISTORY;
   }
   if (data.items.length === 0 && data.skipped_count === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Optimizer 실행 이력 없음. 새 Grid Search 를 제출하세요.
-      </p>
-    );
+    return EMPTY_HISTORY;
   }
+
+  const {
+    runId: hRunId,
+    status: hStatus,
+    objective: hObjective,
+    bestObjective: hBest,
+    createdAt: hCreated,
+  } = OPTIMIZER_LIST_HEADER;
 
   return (
     <div className="space-y-2">
@@ -75,11 +79,11 @@ export function OptimizerRunList({
       <table className="min-w-[640px] w-full text-sm">
         <thead>
           <tr className="border-b text-left text-xs text-muted-foreground">
-            <th className="p-2 font-medium">ID</th>
-            <th className="p-2 font-medium">Status</th>
-            <th className="p-2 font-medium">Objective</th>
-            <th className="p-2 font-medium">Best</th>
-            <th className="p-2 font-medium">Created</th>
+            <th className="p-2 font-medium">{hRunId}</th>
+            <th className="p-2 font-medium">{hStatus}</th>
+            <th className="p-2 font-medium">{hObjective}</th>
+            <th className="p-2 font-medium">{hBest}</th>
+            <th className="p-2 font-medium">{hCreated}</th>
           </tr>
         </thead>
         <tbody>
@@ -101,6 +105,11 @@ export function OptimizerRunList({
             ) {
               bestObjective = r.result.best_objective_value;
             }
+            // 라벨·톤은 용어 SSOT 에서만 온다 (원시 enum 렌더 금지 — no-raw-enum-labels 가드).
+            const { label: statusLabel, tone: statusTone } = statusLabelOf(
+              OPTIMIZATION_STATUS_LABEL,
+              r.status,
+            );
             return (
               <tr key={r.id} className="border-b hover:bg-muted/30">
                 <td className="p-2 font-mono text-xs">
@@ -112,21 +121,14 @@ export function OptimizerRunList({
                   </Link>
                 </td>
                 <td className="p-2">
-                  <span
-                    data-tone={STATUS_BADGE[r.status].tone}
-                    className={cn(
-                      "rounded-sm px-2 py-0.5 font-mono text-xs font-medium",
-                      STATUS_BADGE[r.status].className,
-                    )}
-                  >
-                    {r.status}
-                  </span>
+                  <span className={CHIP_TONE_CLASS[statusTone]}>{statusLabel}</span>
                 </td>
                 <td className="p-2 text-xs">
-                  {r.param_space.objective_metric} ({r.param_space.direction})
+                  {OBJECTIVE_METRIC_LABEL[r.param_space.objective_metric]} (
+                  {OBJECTIVE_DIRECTION_LABEL[r.param_space.direction]})
                 </td>
                 <td className="p-2 font-mono text-xs tabular-nums">
-                  {bestObjective === null ? "—" : bestObjective.toFixed(2)}
+                  {bestObjective === null ? EMPTY_CELL : bestObjective.toFixed(2)}
                 </td>
                 <td className="p-2 font-mono text-xs text-muted-foreground">
                   {new Date(r.created_at).toLocaleString()}

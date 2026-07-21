@@ -7,6 +7,7 @@ import { useState } from "react";
 import { AlertCircleIcon, CheckCircle2Icon, CheckIcon, TerminalIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { PARSE_STATUS_LABEL } from "@/features/strategy/labels";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
 
 type PanelTab = "result" | "problems" | "output";
@@ -135,7 +136,7 @@ function ResultBody({
   }
 
   const items: string[] = [
-    `Pine Script ${result.pine_version} 감지 — ${STATUS_LABEL[result.status]}`,
+    `Pine Script ${result.pine_version} 감지 — ${PARSE_STATUS_LABEL[result.status].label}`,
     `${result.entry_count}개 진입 시그널 / ${result.exit_count}개 청산 시그널`,
     result.functions_used.length > 0
       ? `${result.functions_used.length}개 함수 사용: ${result.functions_used.slice(0, 3).join(", ")}`
@@ -216,9 +217,3 @@ function OutputBody() {
     </p>
   );
 }
-
-const STATUS_LABEL: Record<ParsePreviewResponse["status"], string> = {
-  ok: "변환 가능",
-  unsupported: "일부 미지원",
-  error: "오류",
-};

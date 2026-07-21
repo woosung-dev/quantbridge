@@ -3,6 +3,10 @@
 
 import { useMemo } from "react";
 
+import {
+  OBJECTIVE_DIRECTION_LABEL,
+  OBJECTIVE_METRIC_LABEL,
+} from "@/features/optimizer/labels";
 import type { BayesianSearchResult } from "@/features/optimizer/schemas";
 
 interface Props {
@@ -67,7 +71,8 @@ export function BayesianIterationChart({ result }: Props) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
         <span>
-          best_so_far per iteration ({result.objective_metric}, {result.direction})
+          best_so_far per iteration ({OBJECTIVE_METRIC_LABEL[result.objective_metric]},{" "}
+          {OBJECTIVE_DIRECTION_LABEL[result.direction]})
         </span>
         <span>
           random warm-up: <strong className="font-mono tabular-nums text-foreground">{initialRandomBoundary}</strong>

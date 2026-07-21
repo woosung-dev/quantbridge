@@ -5,6 +5,17 @@ import { Star } from "lucide-react";
 
 import { extractBestParams } from "@/features/optimizer/best-params";
 import { useOptimizationRun } from "@/features/optimizer/hooks";
+import {
+  BAYESIAN_PHASE_LABEL,
+  BAYESIAN_PRIOR_LABEL,
+  OBJECTIVE_DIRECTION_LABEL,
+  OBJECTIVE_METRIC_LABEL,
+  OPTIMIZATION_KIND_LABEL,
+  OPTIMIZATION_STATUS_LABEL,
+  OPTIMIZER_CELL_HEADER,
+  PARAM_FIELD_KIND_LABEL,
+} from "@/features/optimizer/labels";
+import { EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
 import { BayesianBestParamsTable } from "./bayesian-best-params-table";
 import { BayesianIterationChart } from "./bayesian-iteration-chart";
@@ -39,13 +50,17 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
         </h2>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span>
-            상태 <strong className="text-foreground">{data.status}</strong>
+            상태{" "}
+            <strong className="text-foreground">
+              {statusLabelOf(OPTIMIZATION_STATUS_LABEL, data.status).label}
+            </strong>
           </span>
           <span>·</span>
-          <span>방식 {data.kind}</span>
+          <span>방식 {OPTIMIZATION_KIND_LABEL[data.kind]}</span>
           <span>·</span>
           <span>
-            목표 지표 {data.param_space.objective_metric} ({data.param_space.direction})
+            목표 지표 {OBJECTIVE_METRIC_LABEL[data.param_space.objective_metric]} (
+            {OBJECTIVE_DIRECTION_LABEL[data.param_space.direction]})
           </span>
         </div>
         {data.error_message && (
@@ -65,31 +80,32 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
             <li key={name}>
               <strong className="font-mono">{name}</strong>:{" "}
               {field.kind === "integer" || field.kind === "decimal" ? (
-                `${field.kind} [${field.min} .. ${field.max} step ${field.step}]`
+                `${PARAM_FIELD_KIND_LABEL[field.kind]} [${field.min} .. ${field.max} step ${field.step}]`
               ) : field.kind === "bayesian" ? (
                 <>
-                  bayesian [{field.min} .. {field.max}] prior={field.prior}
+                  {PARAM_FIELD_KIND_LABEL.bayesian} [{field.min} .. {field.max}] prior=
+                  {BAYESIAN_PRIOR_LABEL[field.prior]}
                   {field.log_scale ? " log_scale=true" : ""}
                 </>
               ) : (
-                `categorical [${field.values.join(", ")}]`
+                `${PARAM_FIELD_KIND_LABEL.categorical} [${field.values.join(", ")}]`
               )}
             </li>
           ))}
         </ul>
         {data.kind === "bayesian" && (
           <p className="mt-2 text-xs text-muted-foreground">
-            획득 함수 {data.param_space.bayesian_acquisition ?? "—"} · 초기 랜덤
-            탐색 {data.param_space.bayesian_n_initial_random ?? "—"} · 최대 평가
+            획득 함수 {data.param_space.bayesian_acquisition ?? EMPTY_CELL} · 초기 랜덤
+            탐색 {data.param_space.bayesian_n_initial_random ?? EMPTY_CELL} · 최대 평가
             횟수 {data.param_space.max_evaluations}
           </p>
         )}
         {data.kind === "genetic" && (
           <p className="mt-2 text-xs text-muted-foreground">
-            개체군 크기 {data.param_space.population_size ?? "—"} · 세대 수{" "}
-            {data.param_space.n_generations ?? "—"} · 돌연변이율{" "}
-            {data.param_space.mutation_rate ?? "—"} · 교차율{" "}
-            {data.param_space.crossover_rate ?? "—"} · 최대 평가 횟수{" "}
+            개체군 크기 {data.param_space.population_size ?? EMPTY_CELL} · 세대 수{" "}
+            {data.param_space.n_generations ?? EMPTY_CELL} · 돌연변이율{" "}
+            {data.param_space.mutation_rate ?? EMPTY_CELL} · 교차율{" "}
+            {data.param_space.crossover_rate ?? EMPTY_CELL} · 최대 평가 횟수{" "}
             {data.param_space.max_evaluations}
           </p>
         )}
@@ -114,10 +130,10 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                   .join(", ")}
               </span>
               <span className="ml-3 text-muted-foreground">
-                ({data.result.objective_metric} ={" "}
+                ({OBJECTIVE_METRIC_LABEL[data.result.objective_metric]} ={" "}
                 {data.result.cells[data.result.best_cell_index]?.objective_value?.toFixed(
                   4,
-                ) ?? "—"}
+                ) ?? EMPTY_CELL}
                 )
               </span>
             </div>
@@ -133,9 +149,9 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                   <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <th className="p-2 font-medium">파라미터</th>
                     <th className="p-2 text-right font-medium">목표값</th>
-                    <th className="p-2 text-right font-medium">샤프</th>
-                    <th className="p-2 text-right font-medium">수익률</th>
-                    <th className="p-2 text-right font-medium">최대낙폭</th>
+                    <th className="p-2 text-right font-medium">{OPTIMIZER_CELL_HEADER.sharpe}</th>
+                    <th className="p-2 text-right font-medium">{OPTIMIZER_CELL_HEADER.totalReturn}</th>
+                    <th className="p-2 text-right font-medium">{OPTIMIZER_CELL_HEADER.maxDrawdown}</th>
                     <th className="p-2 text-right font-medium">거래수</th>
                   </tr>
                 </thead>
@@ -148,9 +164,9 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                           .join(", ")}
                       </td>
                       <td className="p-2 text-right font-mono tabular-nums">
-                        {c.objective_value === null ? "—" : c.objective_value.toFixed(4)}
+                        {c.objective_value === null ? EMPTY_CELL : c.objective_value.toFixed(4)}
                       </td>
-                      <td className="p-2 text-right font-mono tabular-nums">{c.sharpe ?? "—"}</td>
+                      <td className="p-2 text-right font-mono tabular-nums">{c.sharpe ?? EMPTY_CELL}</td>
                       <td className="p-2 text-right font-mono tabular-nums">{c.total_return}</td>
                       <td className="p-2 text-right font-mono tabular-nums">{c.max_drawdown}</td>
                       <td className="p-2 text-right font-mono tabular-nums">{c.num_trades}</td>
@@ -199,7 +215,7 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                           }
                         >
                           <td className="p-2 text-right font-mono tabular-nums">{it.idx}</td>
-                          <td className="p-2">{it.phase}</td>
+                          <td className="p-2">{BAYESIAN_PHASE_LABEL[it.phase]}</td>
                           <td className="p-2 font-mono">
                             {Object.entries(it.params)
                               .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
@@ -207,12 +223,12 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                           </td>
                           <td className="p-2 text-right font-mono tabular-nums">
                             {it.objective_value === null
-                              ? "—"
+                              ? EMPTY_CELL
                               : it.objective_value.toFixed(4)}
                           </td>
                           <td className="p-2 text-right font-mono tabular-nums">
                             {it.best_so_far === null
-                              ? "—"
+                              ? EMPTY_CELL
                               : it.best_so_far.toFixed(4)}
                           </td>
                         </tr>
@@ -271,12 +287,12 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                           </td>
                           <td className="p-2 text-right font-mono tabular-nums">
                             {it.objective_value === null
-                              ? "—"
+                              ? EMPTY_CELL
                               : it.objective_value.toFixed(4)}
                           </td>
                           <td className="p-2 text-right font-mono tabular-nums">
                             {it.best_so_far === null
-                              ? "—"
+                              ? EMPTY_CELL
                               : it.best_so_far.toFixed(4)}
                           </td>
                         </tr>

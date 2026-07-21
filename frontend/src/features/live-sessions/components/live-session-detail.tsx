@@ -18,7 +18,10 @@ import { useMemo } from "react";
 import { labelOf } from "@/lib/labels";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
-import { LIVE_SIGNAL_EVENT_STATUS_LABEL } from "../labels";
+import {
+  LIVE_SIGNAL_DIRECTION_LABEL,
+  LIVE_SIGNAL_EVENT_STATUS_LABEL,
+} from "../labels";
 import type { LiveSession } from "../schemas";
 // Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
 // Sprint 28 Slice 3 (BL-140b) — buildActivityTimelineWithEquity 추가 (real cumulative PnL).
@@ -133,7 +136,13 @@ export function LiveSessionDetail({ session }: Props) {
                       {new Date(ev.bar_time).toLocaleTimeString()}
                     </td>
                     <td className="py-1">{ev.action}</td>
-                    <td className="py-1">{ev.direction}</td>
+                    <td className="py-1">
+                      {labelOf(
+                        LIVE_SIGNAL_DIRECTION_LABEL,
+                        ev.direction,
+                        "live-signal-direction",
+                      )}
+                    </td>
                     <td className="py-1 font-mono">{ev.qty}</td>
                     <td className="py-1">
                       <span
