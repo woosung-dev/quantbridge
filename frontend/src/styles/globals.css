@@ -2254,3 +2254,240 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 
 /* 값이 없는 셀 — 서버가 값을 주지 않은 무데이터 트러스트 행. */
 .trust-val.empty { color: var(--ink-3); font-weight: 500; }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /strategies 목록 (이식 W3-B, screen-06).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-06-strategies-list.html:1015-1024.
+ *   공용 table.trades/.chip/.state-box/.tabs 는 KITPORT 가 제공하고, 여기서는 전략명 셀
+ *   (이름 + 식별자 2줄)만 얹는다. 요약 줄(.runs-summary)·상태 열(.col-status)·소형 버튼
+ *   (.btn-xs)·스켈레톤 셀(.sk-cell)은 S5 블록이 이미 제공한다. KITPORT 센티넬 밖 · 언레이어드.
+ * ========================================================================== */
+
+/* 전략명 셀 — 이름 아래 식별자를 붙여 리포트/실행 화면과 대조하기 쉽게 한다. */
+.strat-name { font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+.strat-name:hover { color: var(--copper); }
+.strat-id {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /strategies/new 생성 (이식 W3-B, screen-07).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-07-strategy-create.html:997-1104.
+ *   프로토타입의 정적 코드 블록(.code/.code-gutter/.code-src)은 실 편집이 필요해 Monaco 로
+ *   교체하므로 대신 .editor-shell(테두리+반경 래퍼)만 둔다. KITPORT 센티넬 밖 · 언레이어드.
+ * ========================================================================== */
+
+/* 좌 입력(1fr) + 우 파싱 결과(380px). 1200px 이하 세로 스택. */
+.create-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 20px;
+  align-items: start;
+  margin-top: 28px;
+}
+.create-col { min-width: 0; }
+.create-col > .section:first-child { margin-top: 0; }
+
+/* 기본 정보 폼 */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field.span-2 { grid-column: 1 / -1; }
+.field-label { font-size: 0.78rem; font-weight: 600; color: var(--ink-2); }
+.field-hint { font-size: 0.76rem; color: var(--ink-3); }
+.field .input, .field .select { width: 100%; }
+
+.textarea {
+  width: 100%;
+  min-height: 92px;
+  padding: 10px 12px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color var(--dur) var(--ease);
+}
+.textarea::placeholder { color: var(--ink-3); }
+.textarea:hover { border-color: var(--line-2); }
+
+/* Monaco 편집기 래퍼 — 프로토타입 .code 의 테두리/반경/overflow 를 대신한다. */
+.editor-shell {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--bg-alt);
+}
+
+/* 파싱 판정 결과 */
+.parse-kpi { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.parse-kpi .kpi-value { font-size: 1.5rem; }
+.parse-body > .metric-group { padding: 14px 0 0; border-right: none; }
+.parse-body > .metric-group:first-child { padding-top: 16px; }
+.metric-note { margin-top: 8px; font-size: 0.76rem; color: var(--ink-3); line-height: 1.5; }
+
+.unsupported {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 2px 0;
+}
+.unsupported li { font-size: 0.79rem; color: var(--ink-2); line-height: 1.5; }
+.unsupported li .mono { display: block; color: var(--ink); font-size: 0.78rem; }
+.state-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+
+@media (max-width: 1200px) {
+  .create-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .field-grid { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /strategies/[id]/edit 편집 (이식 W3-B, screen-08).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-08-strategy-editor.html:997-1138.
+ *   진단 띠(진짜 탭 3종)와 code-foot, 그리고 보존 기능(메타/webhook) 소품만 얹는다.
+ *   공용 .card/.tabs/.tab/.metric-group/.trust-*/.state-box 는 KITPORT 가 제공한다.
+ *   .chip.warn 은 S5 블록이 이미 정의한다. KITPORT 센티넬 밖 · 언레이어드.
+ * ========================================================================== */
+
+/* 소스 카드 하단 정보 줄 */
+.code-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 22px 18px;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+/* 진단 띠 헤더 — 탭 + 판정 KPI 를 오른쪽에 나란히 */
+.strip-head { align-items: center; }
+.strip-head-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.verdict { min-width: 210px; }
+.verdict .kpi-label { justify-content: flex-start; }
+.verdict .kpi-value { font-size: 1.15rem; margin-top: 4px; }
+.verdict .meter { margin-top: 8px; }
+.verdict .kpi-foot { margin-top: 8px; padding-top: 8px; }
+
+/* 탭 패널 본문 — 높이 고정 + 내부 스크롤. 띠 밖으로 넘치지 않는다. */
+.strip-body {
+  min-height: 200px;
+  padding: 16px 22px;
+}
+
+/* 띠 안에서는 카드를 겹치지 않고 헤어라인으로만 나눈다(정본 trust-grid 관례). */
+.strip-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.strip-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 20px;
+  border-right: 1px solid var(--line);
+}
+.strip-col:first-child { padding-left: 0; }
+.strip-col:last-child { padding-right: 0; border-right: none; }
+
+.strip-col-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.strip-3 .sk-bars { height: 84px; margin-bottom: 12px; }
+.strip-3 .state-box { padding: 14px 10px; }
+
+.strip-body .metric-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.strip-body .metric-group { padding: 0 22px 0 0; border-right: none; }
+.strip-body .metric-group + .metric-group { padding: 0 0 0 22px; border-left: 1px solid var(--line); }
+.strip-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+@media (max-width: 1200px) {
+  .strip-3 { grid-template-columns: 1fr; }
+  .strip-col { padding: 18px 0 0; border-right: none; border-top: 1px solid var(--line); }
+  .strip-col:first-child { padding-top: 0; border-top: none; }
+}
+
+@media (max-width: 768px) {
+  .strip-body { padding: 14px; }
+  .strip-body .metric-groups { grid-template-columns: 1fr; }
+  .strip-body .metric-group + .metric-group { padding: 0; border-left: none; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+}
+
+/* 폼 하단 액션 줄 (메타데이터·설정·webhook 카드 공통) */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* 필드 단위 검증 에러 — warn 이 아니라 실패이므로 bear 계열 텍스트 */
+.field-error { font-size: 0.76rem; color: var(--bear); }
+
+/* Webhook 소품 — URL/secret 코드 줄 + 1회성 secret 경고 박스 */
+.webhook-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.webhook-code {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  padding: 8px 12px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-family: var(--f-mono);
+  font-size: 0.76rem;
+  color: var(--ink);
+}
+.webhook-secret {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: var(--warn-soft);
+  border-radius: var(--r);
+}
+.webhook-secret-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--warn);
+}
+.webhook-secret-warn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }

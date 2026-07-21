@@ -37,6 +37,23 @@ export function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 /**
+ * ISO datetime 을 `YYYY-MM-DD HH:mm` (UTC) 로 표기한다. 값이 없거나 파싱 불가면
+ * 무데이터 셀 표기(EMPTY_CELL "—")를 돌려준다. 목록의 마지막 수정 시각에 쓴다.
+ * backtest/utils.formatDateTime 과 같은 규약(도메인 경계 유지 위해 별도 보유).
+ */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const yyyy = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}-${mo}-${dd} ${hh}:${mm}`;
+}
+
+/**
  * DELETE 시도 시 Backend가 409 conflict(`strategy_has_backtests`)로 응답한 경우를 식별.
  * 호출부에서 `true`일 때 "archive fallback" 모달로 전환하기 위한 타입 가드.
  */
