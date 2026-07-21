@@ -2,16 +2,34 @@
 
 # QuantBridge 핸드오프 — C 디자인 언어 React 이식
 
-갱신 2026-07-21 (5판) · **S1a~S9 전부 완료** 세션에서 이어짐. **이 문서가 정본이다.**
+갱신 2026-07-21 (6판) · **잔여 전체 완주** — 17벌 + 리포트 정본 + 부채 마감까지. **이 문서가 정본이다.**
 
 ---
 
 ## 0. 다음 세션이 할 일
 
-**구현은 끝났다. 남은 것은 사용자 결정 2건 + 후속 부채다.**
+**이식은 전부 끝났다 (17벌 + variant-c 리포트 + HANDOFF 5판 §3 부채).**
 
-1. **stage/c-language-port → main 머지는 사용자가 직접** (main 직접 push 영구 차단). CI 트리거는 `[main, "stage/**"]`.
-2. §5 남은 부채에서 다음 슬라이스를 고른다 — P1 밖 화면 이식(strategies/optimizer/orders/onboarding/랜딩)이 큰 덩어리다.
+1. **stage/c-port-remaining → main squash 머지는 사용자가 직접** (main 직접 push 영구 차단). PR 본문에 로컬 전용 authed 게이트 증빙이 있다.
+2. 잔여는 §3′(6판 잔여 부채) — 전부 소형이고 이식 범위 밖 항목이다.
+
+## 0.4 잔여 완주 세션(2026-07-21)이 한 일 — 6판 요약
+
+fable 오케스트레이터 + opus 워커 12기(화면 9 + FIX + 부채 + e2e 수리) + codex 2지점(플랜 8건·최종 8건 — BLOCKER 0) 구조로 완주. 운영 계약은 `operating-contract.md`.
+
+| 슬라이스     | 내용                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| W0           | stale Turbopack 복구 + baseline 재현(904/29/5) + optimizer 완료 run 시딩(실 API+celery) + codex 플랜 8건 처분                              |
+| W1           | optimizer/strategy labels SSOT + no-raw-enum 가드 5필드·템플릿보간 확장 (가드 위양성 `=>` 오인 교정)                                       |
+| W2           | variant-c → /backtests/[id] 번호 섹션 01~10 IA + authed-canon-remaining 신설 (recharts 공선성은 jsdom 비결정 반증으로 기각→축 설정 테스트) |
+| W3-B/C/H     | 전략 3벌·옵티마이저 2벌(고아 spec 재작성)·에러 3종 (★B 의 CSS 주석 `.trust-*/` 조기 종결 사고 = 통합 게이트 검출)                          |
+| W3-A/D/E/F/G | 백테스트 설정·주문·온보딩·live-sessions 부채(OKX FE 제거)·마케팅 4벌(/pricing 신설·Beta 배너 한국어화)                                     |
+| FIX          | 육안 대조 갭 4건 (06 필터 행·07 진단 구획·10 파라미터 안정성 — 이중 오라클 · sprint55 라이브 그린)                                         |
+| W-final      | StateBox 9파일 13곳 전량 이관(이연 0) + 이중 링 sweep + 교차 감사 8건 픽스 + codex 최종 7건 픽스 + 레거시 authed 스펙 수리                 |
+
+**최종 게이트 (오케스트레이터 직렬 재현):** vitest **169파일/963** · tsc/lint 0 · design-canon **32** (캘리브레이션 22 동등성 유지) · authed 캐논+sprint55 **17** · 신구 전 라우트 하드 실패 0 · 래칫: em-dash allowlist −12항목·radius −9·KNOWN_MISMATCHES 0 유지 · coverage: authed 5→17, public 2→5(+pricing·maintenance·404), live-smoke +pricing.
+
+**사용자 확정 (이 세션):** `strategy.backtest_count` 열 미렌더 · OKX FE 등록 제거(계정 0·주문 0 실측). **오케스트레이터 판단:** KPI 미터 미렌더(§4.9 — 정규화 상한이 프로토 임의값) · 히트맵 기본 접힘 · nav-count 주문 = 전체+툴팁(S9 기결 유지) · 감사기 WCAG 1.4.3 비활성 예외는 hard 축만(캘리브레이션 동등성 보존).
 
 ## 0.5 이번 세션(2026-07-20~21)이 한 일 — S1a~S9 완주
 
@@ -48,15 +66,25 @@
 - **토큰 리네임 대신 캐논 별칭 브리지** — `--copper: var(--primary)` 등. @theme 키(Tailwind 유틸 이름)는 유지.
 - **codex = 2지점** (2026-07-21 사용자 확정 — 플랜 확정 직후 1회 + 최종 누적 diff 1회, 내부 게이트는 유지). 5판까지의 "마지막 1회로 모은다"는 슬라이스-사이 codex 게이트 제거를 뜻한 것이며 이 정의로 동기화됐다 (`operating-contract.md` §1-4).
 
-## 3. 남은 부채 (후속 세션용)
+## 3. 남은 부채 — 5판 §3 은 전부 마감됐다. 6판 잔여 (전부 소형·범위 밖)
 
-1. **P1 밖 화면 이식** — strategies(2)/optimizer(2)/orders/onboarding/랜딩·waitlist·share·error 류. 반경 리터럴·stale var() 폴백 15파일 목록은 context-notes S9 절.
-2. **§05 trading form/list/detail 심층 재스킨** — shadcn 내부 구조 + `toLocaleString` 날짜(비결정적) + English dt 라벨. 하드 게이트는 0.
-3. **StateBox 미이관 6곳** (구조 편차 — 인터페이스 확장 판단 필요).
-4. **전역 :focus-visible 카퍼 링의 P1 밖 이중 링** (codex MINOR) — share copy button 등 자체 ring 과 중첩. 캐논 전역 규칙 vs P1 한정은 **사용자 판단**.
-5. **kpi-pnl 오류 표기 미배선** — `useLiveSessionsAggregate` 가 isError 를 노출하지 않음 (훅 시그니처 변경 필요).
-6. **라이트 화면 외관 무책임 상태** 명시적 잔존 (사용자 확정 트레이드오프).
-7. 미해결 질문 2건 유지 — `strategy.backtest_count` 정의 · OKX enum 제거 여부.
+5판의 1(P1 밖 화면)·2(§05 재스킨)·3(StateBox)·4(이중 링)·5(kpi-pnl isError)·7(질문 2건) = **이번 세션에서 전부 해소**. 잔여:
+
+1. **라이트 화면 외관 무책임 상태** 명시적 잔존 (사용자 확정 트레이드오프 — 변동 없음).
+2. **share·admin 화면 재스킨** — 프로토타입이 없는 화면이라 이식 범위 밖. RADIUS_ALLOWLIST 잔여 2건(share 일러스트 배지)이 여기 소속.
+3. **backtest-history-card.tsx = dead** (프로덕션 소비자 0 실측) — 삭제 판단만 남음.
+4. **activity-timeline-chart.tsx:169** aria-label 영문 'Live session' + em-dash 1건 (em-dash allowlist 등재 상태).
+5. **sign-in 공개 캐논 감사 제외** — Clerk 외부 스크립트가 CI 무인증 감사와 충돌(spec 주석 문서화). 시각 게이트는 육안으로 수행됨.
+6. **서버 스키마 후보 2건(별개 사안)** — strategy lifecycle 필드·backtest_count 필드 신설 여부. 신설되면 미렌더 결정을 재방문.
+
+## 4′. 6판 추가 함정 (전부 실측)
+
+1. ★**globals.css 를 바꾼 커밋(cherry-pick 포함) 직후에는 반드시 캐시 무효화 루틴** — 서버 정지 → r-카운터 주석 갱신 → 기동 → 컴파일 CSS curl 검증. 재기동만으로는 무효(2회 재실측). 이 루틴을 건너뛴 codex 픽스 직후 /trading 이 1.59:1 위양성으로 빨개졌다.
+2. ★**CSS 주석 안 `*`+`/` 연쇄 = 주석 조기 종결 → 전 라우트 500.** `.trust-*/` 사고 실측. 에러 좌표는 PostCSS 생성 코드 기준이라 소스 대조가 오도된다. 워커 게이트에 주석 스캔+컴파일 확인 의무화로 재발 차단.
+3. **fresh 서버 콜드 컴파일 중 canon 감사 = 콘솔/발견 flake.** 판정은 warm 재실행.
+4. **연속 4폭 감사가 백엔드 레이트리밋(429)을 친다** — 콘솔 필터는 "Failed to load resource … 429" 리소스 메시지에만 좁게(렌더 예외 속 429 는 삼키면 안 됨 — codex 최종 F).
+5. **감사기 대비 검사는 WCAG 1.4.3 비활성 예외를 hard 축만** — canon 까지 빼면 프로토 screen-05 disabled 버튼이 캘리브레이션 기준선을 깬다(실측 증명).
+6. **baseline/게이트는 동시 발사 금지 — 항상 직렬.** 동시 부하 시 authed 4 FAIL 위양성 실측.
 
 ## 4. 함정 (전부 실측 — 4판 목록에 추가)
 
