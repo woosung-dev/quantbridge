@@ -13,7 +13,7 @@ import { WaitlistHero } from "./_components/waitlist-hero";
 import { WaitlistProduct } from "./_components/waitlist-product";
 
 export const metadata: Metadata = {
-  title: "웨이트리스트 · QuantBridge",
+  title: "웨이트리스트",
   description:
     "QuantBridge 공개 준비가 시작되면 알림을 받도록 등록합니다. 대기자 수나 순번은 집계하지 않습니다.",
 };

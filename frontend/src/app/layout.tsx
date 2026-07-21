@@ -13,7 +13,12 @@ import "@/styles/globals.css";
 // lib/fonts.ts 의 next/font 로더 SSOT.
 
 export const metadata: Metadata = {
-  title: "QuantBridge",
+  // 페이지 <title> 은 각 라우트가 순수 페이지명만 내보내고, 브랜드 접미는 여기 template 이
+  // 가운뎃점(·)으로 붙인다. C 캐논 관례 = 가운뎃점(대시보드 " | " 과 마케팅 " · " 혼용 통일).
+  title: {
+    default: "QuantBridge",
+    template: "%s · QuantBridge",
+  },
   description:
     "TradingView Pine Script 전략을 백테스트·데모·라이브 트레이딩으로 연결하는 퀀트 플랫폼",
 };

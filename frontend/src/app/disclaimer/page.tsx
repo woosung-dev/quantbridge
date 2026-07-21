@@ -6,7 +6,7 @@ import { LegalCallout } from "../_components/legal-callout";
 import { LegalPageShell } from "../_components/legal-page-shell";
 
 export const metadata: Metadata = {
-  title: "Disclaimer · QuantBridge",
+  title: "Disclaimer",
   description: "QuantBridge Beta 면책조항 (Beta 단계 초안)",
 };
 

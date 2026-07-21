@@ -5,7 +5,7 @@ import { OrdersBlotter } from "./_components/orders-blotter";
 
 // 페이지 이름 5축 일치(§4.10) — nav · breadcrumb · h1 · 푸터 · <title> 모두 "주문".
 export const metadata: Metadata = {
-  title: "주문 | QuantBridge",
+  title: "주문",
 };
 
 export default function OrdersPage() {

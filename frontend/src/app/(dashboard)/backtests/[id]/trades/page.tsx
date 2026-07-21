@@ -12,7 +12,7 @@ import {
 } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-shell";
 
 export const metadata: Metadata = {
-  title: "거래 내역 | QuantBridge",
+  title: "거래 내역",
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

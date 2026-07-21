@@ -12,7 +12,7 @@ import type { StrategyListQuery } from "@/features/strategy/schemas";
 import { StrategyList } from "./_components/strategy-list";
 
 export const metadata: Metadata = {
-  title: "전략 | QuantBridge",
+  title: "전략",
 };
 
 const PAGE_SIZE = 20;

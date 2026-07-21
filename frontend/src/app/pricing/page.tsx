@@ -10,7 +10,7 @@ import { EMPTY_CELL } from "@/lib/marketing-canon";
 import { PricingWaitlistForm } from "./_components/pricing-waitlist-form";
 
 export const metadata: Metadata = {
-  title: "요금제 · QuantBridge",
+  title: "요금제",
   description:
     "QuantBridge 요금제. 아직 가격을 정하지 않았고, 지금 무엇이 되고 무엇이 안 되는지를 그대로 적었습니다.",
 };

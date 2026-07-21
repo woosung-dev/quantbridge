@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { BacktestDetailView } from "@/app/(dashboard)/backtests/_components/backtest-detail-view";
 
 export const metadata: Metadata = {
-  title: "백테스트 상세 | QuantBridge",
+  title: "백테스트 상세",
 };
 
 interface PageProps {

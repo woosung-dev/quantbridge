@@ -6,7 +6,7 @@ import { LegalCallout } from "../_components/legal-callout";
 import { LegalPageShell } from "../_components/legal-page-shell";
 
 export const metadata: Metadata = {
-  title: "Terms of Service · QuantBridge",
+  title: "Terms of Service",
   description: "QuantBridge Beta 이용약관",
 };
 

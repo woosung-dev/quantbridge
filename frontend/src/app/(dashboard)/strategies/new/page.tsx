@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { NewStrategyWizard } from "./_components/new-strategy-wizard";
 
 export const metadata: Metadata = {
-  title: "새 전략 | QuantBridge",
+  title: "새 전략",
 };
 
 export default function NewStrategyPage() {

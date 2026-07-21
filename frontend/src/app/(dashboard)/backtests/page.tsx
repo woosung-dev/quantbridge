@@ -12,7 +12,7 @@ import { backtestKeys } from "@/features/backtest/query-keys";
 import { BacktestList } from "@/app/(dashboard)/backtests/_components/backtest-list";
 
 export const metadata: Metadata = {
-  title: "백테스트 | QuantBridge",
+  title: "백테스트",
 };
 
 const PAGE_SIZE = 20;
