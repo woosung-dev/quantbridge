@@ -23,7 +23,7 @@ export function ReportNextSteps({ stressTestAnchorId }: ReportNextStepsProps) {
         <p className="cta-desc">
           파라미터를 격자로 훑어 이 결과가 특정 값에만 기대고 있는지 확인합니다.
         </p>
-        <p className="cta-meta">그리드 최대 9조합 (3 x 3)</p>
+        <p className="cta-meta">그리드 최대 9조합</p>
         <Link className="btn btn-primary btn-block" href="/optimizer">
           최적화 실행
         </Link>
@@ -52,8 +52,8 @@ export function ReportNextSteps({ stressTestAnchorId }: ReportNextStepsProps) {
           실자금 없이 거래소 데모 키로 같은 전략을 돌려 체결 품질을 확인합니다.
         </p>
         <p className="cta-meta">거래소 API 키 등록 필요</p>
-        <Link className="btn btn-block" href="/onboarding">
-          연결 설정으로 이동
+        <Link className="btn btn-block" href="/trading">
+          거래소 연결로 이동
         </Link>
       </article>
     </div>
