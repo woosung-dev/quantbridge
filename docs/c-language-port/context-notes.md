@@ -337,6 +337,15 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 2. **CSS 주석 안 `*/` 연쇄 = 주석 조기 종결 → 전 라우트 500.** W3-B 블록 주석의 `.trust-*/` 가 PostCSS 파스를 깨뜨렸다(에러 좌표는 생성 코드 기준 8497줄이라 소스 대조가 오도됨). 워커 게이트에 build/컴파일 확인이 없어 통과 — 이후 웨이브부터 주석 `*/` 스캔 + 자기 포트 dev 200 확인을 워커 게이트에 추가.
 3. **fresh 서버 첫 방문(콜드 컴파일) 중 canon 감사는 콘솔/발견 flake 를 낸다.** /optimizer console=10 → 단독 재실행 0. 판정은 warm 재실행으로.
 
+### 2차 웨이브(A/D/E/F/G + FIX + 부채) 통합 판단 기록 (2026-07-21)
+
+- **G(마케팅) 는 net-diff squash 로 통합.** 워커 7커밋 중간에 prettier 전체 재포맷 사고→되돌림 커밋이 껴 있어 per-commit 재생이 오염을 재재생한다 — `git diff base..tip` 3-way 적용 + squash 1커밋. kit-port 무결성 테스트가 재포맷 잔재 0 을 증명.
+- **감사기 WCAG 1.4.3 비활성 컨트롤 예외는 hard 축만.** /trading 의 disabled `.btn-primary`(opacity .5) 텍스트 3.21:1 이 하드 실패로 잡혔으나 WCAG 1.4.3 은 비활성 컨트롤을 대비 요구에서 제외한다. canon(soft) 까지 빼면 프로토타입 screen-05 의 disabled 버튼이 canon-7 에서 2건을 차지해 **캘리브레이션 기준선이 깨진다** — 실측으로 증명하고 hard 축만 예외. 반증 2종(비활성 제외 작동 + 활성 저대비는 여전히 검출) 통과.
+- **콘솔 429 는 캐논 위반이 아니다.** 전체 authed 스위트 연속 실행이 백엔드 레이트리밋을 쳐 "Failed to load resource: 429" 가 콘솔 하드 실패로 위양. EXPECTED_CONSOLE 에 429 예외 추가 (p1 + remaining 양쪽).
+- **정직 미렌더 추가 사례(전부 워커 §4.9 보고).** orders: 브로커/모의 출처 배지(스키마 무필드)·취소 액션 열(취소 API 부재 — 가짜 어포던스 금지). backtests/new: ETA·예상 수수료 휴리스틱·실시간 배지 제거(가짜 라이브). onboarding step-4: 스키마 backed 3지표만.
+- **부채 마감 실측이 S9 판단을 뒤집었다.** S9 가 "구조 편차라 이연"한 StateBox 6곳이 **인터페이스 확장 0 으로 전량 이관 가능**했다(children 슬롯이 흡수) — 9파일 13곳, DOM 바이트 보존. 이연 사유가 프리미티브 성숙(className prop 추가)으로 소멸한 사례.
+- **잔여 관측 3종(후속 판단).** hand-rolled state-box 3건(trade-ledger-table:71·parse-result-panel:205·new-strategy-wizard:463 — 시각 동일) · backtest-history-card.tsx = dead(소비자 0) · KPI 미터 미렌더(W2 결정)와 히트맵 기본 접힘(C 결정)은 프로토타입 대비 의도적 편차로 사용자 보고 대상.
+
 ### W0 환경 복구·시딩 기록
 
 - stale Turbopack 캐시: globals.css 내용 변경(주석 1줄, `1a8addb`) + 재기동으로 해소. 컴파일 CSS 에 `#8b939c` 존재·`#7a828c` 부재 curl 확인 후 baseline 재현 (vitest 164/904 · canon 29 · authed 5).
