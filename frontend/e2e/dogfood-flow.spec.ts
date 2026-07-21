@@ -160,9 +160,11 @@ test.describe("dogfood flow regression", () => {
       page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" }),
     ).toBeVisible({ timeout: 10_000 });
 
-    // 3) KS active → submit button disabled (test-order-dialog.tsx L434-436).
-    // ksDisabled=true 일 때 type="submit" 버튼 disabled + aria-disabled=true.
-    const submitButton = page.locator('button[type="submit"]');
+    // 3) KS active → dialog submit button disabled (test-order-dialog.tsx).
+    // ksDisabled=true 이면 dialog 제출 버튼 라벨이 "Kill Switch 활성화" 로 바뀌고 disabled 된다.
+    // C 이식 코크핏에는 라이브 세션 폼의 submit(라이브 세션 시작)도 함께 있어 type="submit"
+    // 셀렉터가 2개를 잡으므로, KS-guard 대상인 dialog 제출 버튼을 라벨로 지정한다.
+    const submitButton = page.getByRole("button", { name: "Kill Switch 활성화" });
     await expect(submitButton).toBeDisabled({ timeout: 10_000 });
   });
 });

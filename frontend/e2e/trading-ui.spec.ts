@@ -76,7 +76,9 @@ test("trading kill switch active — destructive 배너 + 한국어 트리거 �
   const banner = page.getByTestId("ks-active-banner");
   await expect(banner).toBeVisible();
   await expect(banner).toContainText("일일 손실 한도 초과");
-  await expect(banner).toContainText("Kill Switch 활성");
+  // C 이식(S8): KillSwitchBanner 제목이 용어 SSOT(KILL_SWITCH_LABEL.feature="킬 스위치")로
+  // 파생 — "킬 스위치 활성. 자동 주문이 중지됩니다." (기능 활성 표지 검증 의도 유지).
+  await expect(banner).toContainText("킬 스위치 활성");
 });
 
 // 시나리오 3: KS active → 주문 버튼 disabled
@@ -117,8 +119,9 @@ test("trading kill switch API 오류 — 황색 경고 배너", async ({ page })
 
   const errorBanner = page.getByTestId("ks-error-banner");
   await expect(errorBanner).toBeVisible();
+  // C 이식(S8): 경고 배너 문구가 용어 SSOT("킬 스위치")로 파생됨.
   await expect(errorBanner).toContainText(
-    "Kill Switch 상태를 불러오지 못했습니다",
+    "킬 스위치 상태를 불러오지 못했습니다",
   );
 });
 
@@ -196,6 +199,7 @@ test("trading orders — trailing_stop tpsl-cell 에 trail 거리 렌더", async
 
   const cell = page.getByTestId("tpsl-cell").first();
   await expect(cell).toBeVisible({ timeout: 10_000 });
-  await expect(cell).toContainText("trail 150.5");
+  // C 이식: trailing_stop 라벨이 "trail" → "추적손절"(한국어)로 바뀜. trail 거리 표출 의도 유지.
+  await expect(cell).toContainText("추적손절 150.5");
   await expect(cell).toContainText("48000");
 });
