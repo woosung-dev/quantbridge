@@ -3029,3 +3029,203 @@ table.hm th[scope="row"] { text-align: right; }
 .table-foot-note { padding-top: 4px; align-items: flex-start; }
 .table-foot-note svg { margin-top: 3px; }
 .table-foot-note span { line-height: 1.6; }
+
+/* ==========================================================================
+ * C 디자인 언어 화면 전용 CSS — /onboarding 4스텝 위저드 (이식 W3-E).
+ *   출처 docs/prototypes/shotgun-2026-07/screen-12-onboarding.html PAGE-SPECIFIC (1021-1184).
+ *   공용 .card / .report / .kpi / .meter / .chip / .state-box / .disclaimer 는 KITPORT 가
+ *   제공하고, 여기서는 스텝 인디케이터(ob-steps 계열)와 결과 지표 카드(ob-stat 계열)와
+ *   실패 원인 구분(ob-cause 계열)만 얹는다. KITPORT 센티넬(무결성 가드) 밖 · 언레이어드.
+ *   색은 캐논 토큰 별칭만 쓴다(hex 리터럴 금지). 반경은 var(--r) 하나(원형 금지).
+ * ========================================================================== */
+
+/* 위저드 폭 — 공용 .page(1240px) 안에서 단일 컬럼 위저드는 좁게 세운다. */
+.ob-wrap { max-width: 760px; margin: 0 auto; }
+
+/* 단계 카운터 — role=progressbar 접근 이름과 짝. */
+.ob-progress-count {
+  padding: 16px 20px 0;
+  text-align: center;
+  font-family: var(--f-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+/* 스텝 인디케이터 — 프로토타입 ob-steps 1:1. 원형 금지, 반경 var(--r). */
+.ob-steps { display: flex; align-items: center; padding: 12px 20px 16px; }
+.ob-step { display: flex; align-items: center; min-width: 0; }
+.ob-step:not(:first-child) { flex: 1; }
+.ob-step:not(:first-child)::before {
+  content: "";
+  flex: 1;
+  min-width: 16px;
+  height: 1px;
+  background: var(--line-2);
+  margin: 0 14px;
+}
+.ob-step-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 10px 6px 6px;
+  border-radius: var(--r);
+}
+.ob-step-num {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--card-2);
+  color: var(--ink-3);
+  font-family: var(--f-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.ob-step-num svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2.4; fill: none; }
+.ob-step-text { display: flex; flex-direction: column; min-width: 0; }
+.ob-step-title { font-size: 0.85rem; font-weight: 600; color: var(--ink-2); line-height: 1.25; white-space: nowrap; }
+.ob-step-state {
+  font-family: var(--f-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.ob-step.is-done .ob-step-num { background: var(--card-3); border-color: var(--line-2); color: var(--ink-2); }
+.ob-step.is-done .ob-step-title { color: var(--ink); }
+.ob-step.is-current .ob-step-num { background: var(--copper-soft); border-color: var(--copper-line); color: var(--copper); }
+.ob-step.is-current .ob-step-title { color: var(--ink); }
+.ob-step.is-current .ob-step-state { color: var(--copper); }
+.ob-steps-collapsed { display: none; }
+
+/* 위저드 본문 — 삽화(좌) + 스텝 내용(우) 2단. 좁으면 단일 컬럼. */
+.ob-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.ob-illus { min-width: 0; }
+.ob-step-content { display: flex; min-width: 0; flex-direction: column; }
+
+/* 스텝 내부 리드 헤더 — 아이콘 + 제목 + 부제. */
+.ob-lede { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.ob-lede-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--r);
+  border: 1px solid var(--copper-line);
+  background: var(--copper-soft);
+  color: var(--copper);
+}
+.ob-lede-icon svg { width: 22px; height: 22px; }
+.ob-lede-icon.warn { border-color: rgba(229, 169, 61, 0.4); background: var(--warn-soft); color: var(--warn); }
+.ob-heading { font-family: var(--f-display); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); line-height: 1.3; }
+.ob-subtle { font-size: 0.8rem; color: var(--ink-3); margin-top: 3px; line-height: 1.5; }
+
+/* 안내 체크리스트 — 아이콘 + 문장. */
+.ob-checklist { display: flex; flex-direction: column; gap: 12px; margin-bottom: 22px; }
+.ob-checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem; color: var(--ink-2); line-height: 1.55; }
+.ob-checklist li svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; stroke: var(--copper); }
+.ob-checklist strong { color: var(--ink); font-weight: 600; }
+
+/* 보조 안내 박스 — 점선 테두리. */
+.ob-aside {
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r);
+  background: var(--bg-alt);
+}
+.ob-aside-label { font-size: 0.78rem; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+.ob-aside-note { font-size: 0.74rem; color: var(--ink-3); margin-top: 8px; line-height: 1.5; }
+.ob-link { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--copper); }
+.ob-link:hover { text-decoration: underline; }
+.ob-link svg { width: 13px; height: 13px; }
+
+/* 파라미터 사양 표 — 샘플 전략 정의. */
+.ob-spec { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px; font-size: 0.8rem; }
+.ob-spec dt { color: var(--ink-3); }
+.ob-spec dd { font-family: var(--f-mono); color: var(--ink-2); }
+
+/* 실행 상태 패널 — 진행/완료/실패 텍스트와 스켈레톤을 담는 박스. */
+.ob-run {
+  min-height: 132px;
+  margin-bottom: 22px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card-2);
+}
+.ob-run-row { display: flex; align-items: flex-start; gap: 12px; }
+.ob-run-row svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+.ob-run-title { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+.ob-run-sub { font-size: 0.78rem; color: var(--ink-3); margin-top: 2px; line-height: 1.5; }
+.ob-run-done { color: var(--bull); }
+.ob-run-fail { color: var(--warn); }
+
+/* 결과 지표 3칸 — 공용 kpi-label/kpi-value/kpi-foot 소비, 카드 래퍼만. */
+.ob-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.ob-stat { padding: 14px 16px 13px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card-2); }
+.ob-stat .kpi-value { font-size: 1.3rem; margin-top: 8px; }
+.ob-stat .kpi-foot { margin-top: 9px; padding-top: 9px; line-height: 1.45; display: block; }
+/* 분모가 없는 값에는 미터를 그리지 않는다. 같은 높이의 빈 자리로 발 라인만 맞춘다. */
+.meter-void { height: 4px; margin-top: 12px; }
+
+/* 스텝 하단 액션 줄. */
+.ob-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.ob-actions.between { justify-content: space-between; }
+.ob-actions.end { justify-content: flex-end; }
+.ob-actions.center { justify-content: center; margin-top: 8px; }
+
+/* 상세 리포트 링크 — 결과 지표 아래 인라인. */
+.ob-report-link { display: inline-flex; margin-bottom: 18px; }
+
+/* 다음 단계 — 프로토타입 screen-12 04 섹션. 좁은 위저드 컬럼이라 cta-row 를 세로로 쌓는다. */
+.ob-next { margin: 4px 0 18px; }
+.ob-next-title { font-family: var(--f-display); font-size: 0.95rem; font-weight: 700; color: var(--ink); }
+.ob-next .ob-subtle { margin: 3px 0 14px; }
+.ob-next .cta-row { grid-template-columns: 1fr; gap: 12px; }
+
+/* 단독 고지 — 공용 .disclaimer 는 카드 하단 부착용이라 홀로 설 때 테두리를 닫는다. */
+.ob-disclaimer { margin-bottom: 18px; border: 1px solid var(--line); border-radius: var(--r); }
+
+/* 실패 원인 A/B 구분 — 프로토타입 ob-causes 1:1. */
+.ob-causes { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 44ch; margin: 8px auto 4px; text-align: left; }
+.ob-cause { display: flex; gap: 8px; font-size: 0.8rem; color: var(--ink-2); line-height: 1.55; }
+.ob-cause-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r);
+  border: 1px solid rgba(229, 169, 61, 0.4);
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+}
+
+@media (max-width: 900px) {
+  .ob-panel { grid-template-columns: 1fr; }
+  .ob-illus { display: none; }
+}
+@media (max-width: 768px) {
+  .ob-steps { padding: 8px 12px 12px; }
+  .ob-step-text { display: none; }
+  .ob-step:not(:first-child)::before { min-width: 10px; margin: 0 8px; }
+  .ob-steps-collapsed { display: block; padding: 10px 4px 0; font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+  .ob-stats { grid-template-columns: 1fr; }
+}

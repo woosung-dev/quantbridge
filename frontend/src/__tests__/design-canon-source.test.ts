@@ -186,7 +186,8 @@ function countProseEmDash(s: string): number {
 
 /** 반경 리터럴. S9 가 전부 비운다. */
 const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
-  ["app/(dashboard)/onboarding/_components/option-card-radio.tsx", 1],
+  // W3-E: onboarding option-card-radio 의 rounded-[10px] 를 var(--r) 로 교체해 0 이 됐다
+  // (self focus ring 제거 + C 토큰 정합). 래칫 하강 완료 → 항목 제거.
   // 에러 3종(error.tsx 500 · not-found.tsx 404 · maintenance/page.tsx 503) + 구 컴포넌트
   // error-illustration/error-recovery-box 는 W3-H 에서 screen-13 C 구조로 재스킨하며 반경
   // 리터럴을 var(--r) 시맨틱 소비로 전부 해소했다(구 컴포넌트 2벌은 삭제). 래칫 하강 완료.

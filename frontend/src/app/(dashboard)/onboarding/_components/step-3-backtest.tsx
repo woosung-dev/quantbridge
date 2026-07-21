@@ -1,15 +1,13 @@
 "use client";
 
-// H2 Sprint 11 Phase D Step 3: 샘플 전략 백테스트 실행.
+// 온보딩 스텝 3: 샘플 전략 백테스트 실행 — C 디자인 언어 이식 (W3-E).
 // 기본 파라미터: BTCUSDT 1H, 최근 30일, initial_capital 10000.
 // useBacktestProgress 로 polling (LESSON-004 준수 — refetchInterval 순수 함수).
-// Sprint 44 W F2: status 변경 시 inline fadeInUp + spinner 강조.
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircleIcon, LoaderIcon } from "lucide-react";
+import { AlertCircleIcon, CheckIcon, LoaderIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import {
   useBacktestProgress,
   useCreateBacktest,
@@ -79,7 +77,7 @@ export function Step3Backtest({
       fees_pct: 0.001,
       slippage_pct: 0.0005,
       include_funding: true,
-        fill_timing: "bar_close",
+      fill_timing: "bar_close",
     });
   }, [strategyId, create, backtestId]);
 
@@ -99,83 +97,110 @@ export function Step3Backtest({
     create.isPending ||
     progressStatus === "queued" ||
     progressStatus === "running";
+  const isIdle =
+    !isRunning && !isFailed && progressStatus === undefined && !backtestId;
 
   return (
     <div>
-      <h2 className="mb-2 font-display text-lg font-semibold">백테스트 실행</h2>
-      <p className="mb-5 text-xs text-[color:var(--text-muted)] break-keep">
-        BTC/USDT 1H · 최근 {LOOKBACK_DAYS}일 · 초기 자본 ${INITIAL_CAPITAL.toLocaleString()}
-      </p>
-
-      <div className="mb-6 min-h-[140px] rounded-[var(--radius-md)] border border-[color:var(--border)] bg-[color:var(--bg-alt)] p-5">
-        {isRunning && (
-          <div
-            className="flex items-center gap-3 text-sm text-[color:var(--text-secondary)]"
-            aria-live="polite"
+      <div className="ob-lede">
+        <span className="ob-lede-icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           >
-            <LoaderIcon
-              className="size-5 animate-spin text-[color:var(--primary)]"
-              strokeWidth={2}
-            />
-            <div>
-              <p className="font-medium">
-                {create.isPending
-                  ? "백테스트 요청 중…"
-                  : progressStatus === "queued"
-                    ? "대기열에서 순서를 기다리는 중…"
-                    : "시장 데이터 수집 및 계산 중…"}
-              </p>
-              <p className="text-xs text-[color:var(--text-muted)]">
-                백테스트 엔진이 계산 중입니다. 보통 5~30초 걸립니다.
-              </p>
+            <line x1="6" y1="20" x2="6" y2="14" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="18" y1="20" x2="18" y2="10" />
+          </svg>
+        </span>
+        <div>
+          <h2 className="ob-heading">백테스트 실행</h2>
+          <p className="ob-subtle break-keep">
+            BTC/USDT 1H · 최근 {LOOKBACK_DAYS}일 · 초기 자본{" "}
+            ${INITIAL_CAPITAL.toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      <div className="ob-run" aria-live="polite" aria-busy={isRunning || undefined}>
+        {isRunning && (
+          <>
+            <div className="ob-run-row">
+              <LoaderIcon
+                className="text-[color:var(--copper)] motion-safe:animate-spin"
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+              <div>
+                <p className="ob-run-title">
+                  {create.isPending
+                    ? "백테스트 요청 중"
+                    : progressStatus === "queued"
+                      ? "대기열에서 순서를 기다리는 중"
+                      : "시장 데이터 수집 및 계산 중"}
+                </p>
+                <p className="ob-run-sub">
+                  백테스트 엔진이 계산 중입니다. 보통 5~30초 걸립니다.
+                </p>
+              </div>
             </div>
-          </div>
+            {/* 스켈레톤 — 계산 중 결과 자리를 예약한다 (KIT 상태 4종 중 스켈레톤). */}
+            <div className="sk sk-line" style={{ width: "58%", marginTop: 16 }} aria-hidden="true" />
+          </>
         )}
         {progressStatus === "completed" && (
-          <p
-            // Sprint 44 W F2: 완료 메시지 fade-in 진입.
-            className="motion-safe:animate-[fadeInUp_220ms_ease-out_both] text-sm font-medium text-[color:var(--success)]"
-            aria-live="polite"
-          >
-            백테스트가 완료되었습니다. 결과로 이동합니다…
-          </p>
-        )}
-        {isFailed && (
-          <div
-            role="alert"
-            className="flex items-start gap-2 text-sm text-[color:var(--destructive)]"
-          >
-            <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
-            <span>
-              백테스트가 실패했습니다 ({progressStatus}).{" "}
-              {progress.data?.error ?? "알 수 없는 오류"}
-            </span>
+          <div className="ob-run-row">
+            <CheckIcon
+              className="ob-run-done"
+              strokeWidth={2.4}
+              aria-hidden="true"
+            />
+            <p className="ob-run-title ob-run-done">
+              백테스트가 완료되었습니다. 결과로 이동합니다.
+            </p>
           </div>
         )}
-        {!isRunning && !isFailed && progressStatus === undefined && !backtestId && (
-          <p className="text-xs text-[color:var(--text-muted)]">
-            전략이 준비되면 자동으로 실행됩니다.
+        {isFailed && (
+          <p role="alert" className="ob-run-row ob-run-fail">
+            <AlertCircleIcon strokeWidth={2} aria-hidden="true" />
+            <span>
+              백테스트가 실패했습니다. {progress.data?.error ?? "알 수 없는 오류"}
+            </span>
           </p>
+        )}
+        {isIdle && (
+          <p className="ob-run-sub">전략이 준비되면 자동으로 실행됩니다.</p>
         )}
       </div>
 
       {submitError !== null && (
-        <div
+        <p
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-[var(--radius-md)] border border-[color:var(--destructive)] bg-[color:var(--destructive-subtle)] p-3 text-xs text-[color:var(--destructive)]"
+          className="mb-4 flex items-start gap-2 rounded-[var(--r)] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] p-3 text-xs text-[color:var(--warn)]"
         >
-          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+          <AlertCircleIcon
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
           <span className="break-all">{submitError}</span>
-        </div>
+        </p>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost" onClick={onBack} disabled={isRunning}>
+      <div className="ob-actions between">
+        <button
+          className="btn btn-ghost"
+          type="button"
+          onClick={onBack}
+          disabled={isRunning}
+        >
           ← 이전
-        </Button>
+        </button>
         {isFailed && (
-          <Button
-            variant="secondary"
+          <button
+            className="btn"
+            type="button"
             onClick={() => {
               hasTriggeredRef.current = false;
               setBacktestId(null);
@@ -183,7 +208,7 @@ export function Step3Backtest({
             }}
           >
             다시 시도
-          </Button>
+          </button>
         )}
       </div>
     </div>

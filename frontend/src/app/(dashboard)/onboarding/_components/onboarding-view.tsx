@@ -1,10 +1,10 @@
 "use client";
 
-// Onboarding 4-step wizard shell 본문 (client) — store.step conditional render. page.tsx(server) 가 렌더.
-
-// H2 Sprint 11 Phase D: Onboarding 4-step wizard shell.
-// Clerk 인증은 (dashboard) layout + proxy.ts 에서 이미 보장.
-// store.step 에 따라 conditional render. TTL 초과 시 mount 시점에 welcome 으로 reset.
+// 온보딩 4스텝 위저드 셸 (client) — C 디자인 언어 이식 (W3-E). page.tsx(server)가 렌더.
+// 프로토타입 screen-12 의 .report/.ob-steps/.card 시맨틱을 소비하되, 스텝 흐름과 실데이터
+// (실 strategyId/backtestId)는 그대로 둔다. 프로토타입은 결과 스텝 해설 화면이라 run_2f9c41
+// 등 캐논 샘플값을 인쇄하지만, 라이브 위저드는 사용자 실 실행 ID 를 쓰므로 캐논 샘플 숫자는
+// 옮기지 않는다(§4.9 스키마 미백업 값 미렌더).
 //
 // Selector 계약 (LESSON-004): scalar selector 만 사용.
 
@@ -28,7 +28,7 @@ import { Step2Strategy } from "./step-2-strategy";
 import { Step3Backtest } from "./step-3-backtest";
 import { Step4Result } from "./step-4-result";
 
-// 4단계 상수 — prototype 05-onboarding 의 라벨 승계.
+// 4단계 상수 — features/onboarding/types 의 ONBOARDING_STEP_LABEL 과 정합.
 const STEPPER_STEPS = [
   { id: 1, label: "환영" },
   { id: 2, label: "샘플 전략" },
@@ -87,46 +87,67 @@ export function OnboardingView() {
   const illustrationVariant = STEP_ILLUSTRATION[step];
 
   return (
-    <div className="mx-auto flex max-w-[720px] flex-col items-center px-4 py-10 md:py-12">
-      <header className="mb-6 w-full text-center md:mb-8">
-        <h1 className="font-display text-2xl font-bold tracking-tight md:text-[1.75rem]">
-          온보딩
-        </h1>
-        <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
-          5분 안에 첫 Pine Script 백테스트를 완주해보세요.
-        </p>
-      </header>
+    <main className="page">
+      <div className="ob-wrap">
+        {/* ===== 개요 헤더 ===== */}
+        <section className="card rise d1" aria-label="온보딩 개요">
+          <div className="report">
+            <div>
+              <h1 className="report-title">온보딩</h1>
+              <p className="card-sub">
+                5분 안에 첫 Pine Script 백테스트를 완주해보세요.
+              </p>
+              <div className="report-meta">
+                <span className="chip">woosung</span>
+                <span className="chip">스텝 {currentStepNum} / 4</span>
+                <span className="chip accent">바 단위 이벤트 루프</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <ProgressStepper currentStep={currentStepNum} steps={STEPPER_STEPS} />
+        {/* ===== 진행 상태 ===== */}
+        <section className="section rise d2" aria-label="온보딩 진행 상태">
+          <div className="card">
+            <ProgressStepper currentStep={currentStepNum} steps={STEPPER_STEPS} />
+          </div>
+        </section>
 
-      <section
-        data-testid="onboarding-step-panel"
-        data-step={step}
-        className="mt-10 grid w-full animate-[cardIn_350ms_ease-out_both] gap-6 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--card)] p-6 shadow-[var(--card-shadow)] md:grid-cols-2 md:gap-10 md:p-14"
-      >
-        <div className="hidden md:block">
-          <IllustrationFrame variant={illustrationVariant} />
-        </div>
-        <div className="flex min-w-0 flex-col">
-          {step === "welcome" && <Step1Welcome onNext={handleNext} />}
-          {step === "strategy" && (
-            <Step2Strategy
-              onStrategyReady={handleStrategyReady}
-              onBack={handleBack}
-            />
-          )}
-          {step === "backtest" && (
-            <Step3Backtest
-              strategyId={strategyId}
-              onBacktestReady={handleBacktestReady}
-              onBack={handleBack}
-            />
-          )}
-          {step === "result" && (
-            <Step4Result backtestId={backtestId} onFinish={handleFinish} />
-          )}
-        </div>
-      </section>
-    </div>
+        {/* ===== 현재 단계 ===== */}
+        <section
+          className="section rise d3"
+          data-testid="onboarding-step-panel"
+          data-step={step}
+          aria-label="현재 온보딩 단계"
+        >
+          <div className="card">
+            <div className="card-body ob-panel">
+              <div className="ob-illus">
+                <IllustrationFrame variant={illustrationVariant} />
+              </div>
+              <div className="ob-step-content">
+                {step === "welcome" && <Step1Welcome onNext={handleNext} />}
+                {step === "strategy" && (
+                  <Step2Strategy
+                    onStrategyReady={handleStrategyReady}
+                    onBack={handleBack}
+                  />
+                )}
+                {step === "backtest" && (
+                  <Step3Backtest
+                    strategyId={strategyId}
+                    onBacktestReady={handleBacktestReady}
+                    onBack={handleBack}
+                  />
+                )}
+                {step === "result" && (
+                  <Step4Result backtestId={backtestId} onFinish={handleFinish} />
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }

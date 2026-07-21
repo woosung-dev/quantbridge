@@ -23,7 +23,7 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
       key={variant}
       data-testid={`illustration-${variant}`}
       // Sprint 44 W F2: variant 변경 시 fadeInUp 200ms 진입 (key 로 re-mount).
-      className="motion-safe:animate-[fadeInUp_220ms_ease-out_both] relative grid min-h-[220px] place-items-center overflow-hidden rounded-[var(--radius-lg)] bg-gradient-to-br from-[color:var(--primary-light)] to-[color:var(--primary-100)] p-5 md:min-h-[340px] md:p-8"
+      className="motion-safe:animate-[fadeInUp_220ms_ease-out_both] relative grid min-h-[220px] place-items-center overflow-hidden rounded-[var(--r)] bg-gradient-to-br from-[color:var(--copper-soft)] to-[color:var(--copper-line)] p-5 md:min-h-[340px] md:p-8"
       aria-hidden="true"
     >
       <svg
