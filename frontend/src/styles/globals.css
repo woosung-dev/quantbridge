@@ -1870,6 +1870,8 @@ h6 {
   /* KITPORT-END — 대조 경계 끝. */
 }
 
+/* c-port-remaining(2026-07-21): 아래 화면 전용 블록들은 KITPORT 밖 언레이어드에만 추가한다. */
+
 /* ==========================================================================
  * C 디자인 언어 화면 전용 CSS — /backtests 목록 (이식 S5).
  *   출처 docs/prototypes/shotgun-2026-07/screen-03-backtests-list.html:1029-1076.
