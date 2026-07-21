@@ -1,26 +1,24 @@
 "use client";
 
-// Sprint 7c T5 / FE-03:
-// EditorView — 3 탭(코드/파싱/메타) + 헤더(back/백테스트stub/저장/삭제) + URL 쿼리 동기화.
-// Sprint FE-03 에서 편집 버퍼를 Zustand edit-store 로 lift-up. 페이지 진입 시
-// loadServerSnapshot 으로 store 초기화, Save 는 header 에서 담당, isDirty 시 unload 경고.
+// 전략 편집 — C 디자인 언어 이식 (screen-08). 단일 페이지: 헤더 + 01 소스(Monaco) +
+// 02 진단(진짜 탭) + 03 실행 설정 + 04 메타데이터 + 05 Webhook. 편집 버퍼는 Zustand edit-store,
+// 저장/되돌리기/삭제는 헤더에서 담당한다. 프로토타입 고정 실행 가정(수수료/슬리피지/체결 시점/
+// 펀딩/마지막 백테스트)은 per-strategy 필드가 아니라 백테스트 시점 값이라 미렌더한다(§4.9).
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeftIcon,
-  Loader2Icon,
+  AlertTriangleIcon,
+  CheckIcon,
+  CopyIcon,
   PlayIcon,
+  RotateCcwIcon,
   SaveIcon,
   Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   selectIsDirty,
   selectPineSource,
@@ -28,38 +26,41 @@ import {
   useEditStore,
 } from "@/features/strategy/edit-store";
 import { useStrategy, useUpdateStrategy } from "@/features/strategy/hooks";
-import { PARSE_STATUS_META } from "@/features/strategy/utils";
+import { PARSE_STATUS_LABEL } from "@/features/strategy/labels";
+import type { MarginMode } from "@/features/strategy/schemas";
+import { formatDateTime } from "@/features/strategy/utils";
+import { StateBox } from "@/components/state-box";
+import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 import { DeleteDialog } from "./delete-dialog";
-import { TabCode } from "./tab-code";
+import { DiagnosticsStrip } from "./diagnostics-strip";
+import { EditorMonacoWrapper } from "./editor-monaco-wrapper";
 import { TabMetadata } from "./tab-metadata";
-import { TabParse } from "./tab-parse";
 import { TabWebhook } from "./tab-webhook";
 
-type TabKey = "code" | "parse" | "metadata" | "webhook";
+const MARGIN_MODE_LABEL: Record<MarginMode, string> = {
+  cross: "교차 (Cross)",
+  isolated: "격리 (Isolated)",
+};
 
 export function EditorView({ id }: { id: string }) {
   const router = useRouter();
   const params = useSearchParams();
-  const initialTab = (params.get("tab") as TabKey) || "code";
-  const [tab, setTab] = useState<TabKey>(initialTab);
   const [deleteOpen, setDeleteOpen] = useState(
     params.get("action") === "delete" || params.get("action") === "archive",
   );
 
   const { data: strategy, isLoading, isError } = useStrategy(id);
 
-  // Sprint FE-03: store 구독 — scalar selector 만 사용 (LESSON-004).
   const storeStrategyId = useEditStore(selectStrategyId);
   const isDirty = useEditStore(selectIsDirty);
   const pineSource = useEditStore(selectPineSource);
+  const setPineSource = useEditStore((s) => s.setPineSource);
   const loadServerSnapshot = useEditStore((s) => s.loadServerSnapshot);
   const markSaved = useEditStore((s) => s.markSaved);
+  const resetDirty = useEditStore((s) => s.resetDirty);
 
-  // 서버에서 받은 strategy 로 store 초기화.
-  // - isLoading/isError 완료 시 & store 가 다른 strategy 를 보고 있거나 비어있을 때 1회 실행.
-  // - primitive dep (strategy.id, strategy.pine_source) 만 넣고 actions 는 store 에서 꺼내 쓰므로
-  //   참조가 안정적이다 (Zustand create 반환 actions 는 불변).
+  // 서버 strategy 로 store 초기화 (primitive dep 만, actions 는 불변 참조).
   const serverPineSource = strategy?.pine_source;
   const serverStrategyId = strategy?.id;
   useEffect(() => {
@@ -70,26 +71,28 @@ export function EditorView({ id }: { id: string }) {
     }
   }, [serverStrategyId, serverPineSource, storeStrategyId, loadServerSnapshot]);
 
-  // URL 쿼리 ?action=archive/delete — 초기값은 deleteOpen useState initializer 가 처리.
-  // 마운트 후 param 변경(같은 라우트 내 history 이동)은 render-time
-  // "reset state on prop change" 패턴으로 반영 (H-1: set-state-in-effect 금지).
+  // URL ?action=archive/delete — 마운트 후 param 변경도 render-time reset (H-1: set-state-in-effect 금지).
   const action = params.get("action");
   const actionRequested = action === "delete" || action === "archive";
   const [prevActionRequested, setPrevActionRequested] = useState(actionRequested);
   if (actionRequested !== prevActionRequested) {
     setPrevActionRequested(actionRequested);
-    if (actionRequested) {
-      setDeleteOpen(true);
-    }
+    if (actionRequested) setDeleteOpen(true);
   }
 
-  // Sprint FE-03: unload 경고 — isDirty 동안 browser tab close / refresh 시 확인.
-  // 최신 브라우저는 preventDefault() 만으로 leave prompt 를 띄운다 (returnValue 는 legacy).
+  // ?tab=webhook 딥링크(생성 직후 진입) — webhook 섹션으로 스크롤.
+  const webhookRef = useRef<HTMLElement | null>(null);
+  const wantsWebhook = params.get("tab") === "webhook";
+  useEffect(() => {
+    if (wantsWebhook && webhookRef.current) {
+      webhookRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [wantsWebhook, isLoading]);
+
+  // isDirty 동안 tab close/refresh 경고.
   useEffect(() => {
     if (!isDirty) return;
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
@@ -97,7 +100,7 @@ export function EditorView({ id }: { id: string }) {
   const update = useUpdateStrategy(id, {
     onSuccess: () => {
       markSaved(new Date());
-      toast.success("저장되었습니다");
+      toast.success("저장했습니다");
     },
     onError: (e) => toast.error(`저장 실패: ${e.message}`),
   });
@@ -107,139 +110,288 @@ export function EditorView({ id }: { id: string }) {
     update.mutate({ pine_source: pineSource });
   };
 
+  const handleCopySource = async () => {
+    try {
+      await navigator.clipboard.writeText(pineSource);
+      toast.success("소스를 복사했습니다");
+    } catch {
+      toast.error("클립보드 복사 실패");
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="p-8">
-        <Skeleton className="h-96 w-full" />
-      </div>
+      <main className="page" aria-busy="true">
+        <section className="card">
+          <div className="card-body">
+            <span className="sk sk-line" style={{ width: "220px" }} aria-hidden="true" />
+          </div>
+        </section>
+        <section className="section">
+          <div className="card">
+            <div className="card-body">
+              <span className="sk" style={{ display: "block", height: "360px" }} aria-hidden="true" />
+            </div>
+          </div>
+        </section>
+      </main>
     );
   }
+
   if (isError || !strategy) {
     return (
-      <div className="mx-auto max-w-[1200px] px-6 py-8">
-        <div className="mx-auto max-w-md rounded-[var(--radius-lg)] border border-[color:var(--destructive-light)] bg-[color:var(--destructive-light)] p-8 text-center">
-          <h2 className="font-display text-lg font-semibold text-[color:var(--destructive)]">
-            전략을 찾을 수 없습니다
-          </h2>
-          <p className="mt-2 text-sm text-[color:var(--text-secondary)]">
-            전략이 삭제되었거나 접근 권한이 없을 수 있습니다.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-5"
-            render={<Link href="/strategies" />}
-            nativeButton={false}
-          >
-            <ArrowLeftIcon className="size-4" aria-hidden />
-            전략 목록으로
-          </Button>
-        </div>
-      </div>
+      <main className="page">
+        <section className="card">
+          <div className="card-body">
+            <StateBox
+              tone="failed"
+              testId="strategy-not-found"
+              icon={<AlertTriangleIcon />}
+              title="전략을 찾을 수 없습니다."
+              body="전략이 삭제되었거나 접근 권한이 없을 수 있습니다."
+              code={`GET /api/v1/strategies/${id}`}
+            >
+              <Link className="btn btn-ghost" href="/strategies">
+                전략 목록으로
+              </Link>
+            </StateBox>
+          </div>
+        </section>
+      </main>
     );
   }
 
-  const meta = PARSE_STATUS_META[strategy.parse_status];
+  const parseChip = PARSE_STATUS_LABEL[strategy.parse_status];
+  const lineCount = pineSource.length === 0 ? 0 : pineSource.split("\n").length;
+  const settings = strategy.settings ?? null;
+  const sessions = strategy.trading_sessions ?? [];
 
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-6">
-      <header className="sticky top-0 z-10 mb-5 flex flex-wrap items-center gap-3 bg-background py-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="목록으로"
-          render={<Link href="/strategies" />}
-          nativeButton={false}
-        >
-          <ArrowLeftIcon className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-display text-xl font-bold">{strategy.name}</h1>
-          <p className="flex items-center gap-2 text-xs text-[color:var(--text-muted)]">
-            <Badge variant="outline" data-tone={meta.tone}>
-              {meta.label}
-            </Badge>
-            <span className="font-mono">
-              {strategy.symbol ?? "—"} · {strategy.timeframe ?? "—"} · Pine {strategy.pine_version}
-            </span>
-            {strategy.is_archived && <Badge variant="secondary">보관됨</Badge>}
-            {isDirty && (
-              // Sprint 44 W F2: dirty pulse — 저장 잊지 않도록 0.18 amber ring 호흡 (2.4s).
-              <Badge
-                variant="outline"
-                data-tone="warning"
-                className="motion-safe:animate-[dirtyPulse_2.4s_ease-out_infinite]"
-              >
-                저장되지 않은 변경
-              </Badge>
-            )}
+    <main className="page">
+      {/* ===== 헤더 ===== */}
+      <section className="card" aria-label="전략 개요">
+        <div className="report">
+          <div>
+            <h1 className="report-title">{strategy.name}</h1>
+            <div className="report-meta">
+              <span className="chip">{strategy.id.slice(0, 8)}</span>
+              <span className={CHIP_TONE_CLASS[parseChip.tone]}>
+                {parseChip.showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
+                {parseChip.label}
+              </span>
+              <span className="chip">{strategy.symbol ?? EMPTY_CELL}</span>
+              <span className="chip">{strategy.timeframe ?? EMPTY_CELL}</span>
+              <span className="chip">Pine {strategy.pine_version}</span>
+              {strategy.is_archived ? <span className="chip">보관됨</span> : null}
+              {isDirty ? (
+                <span className="chip warn" data-testid="unsaved-chip">
+                  저장되지 않은 변경
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="report-actions">
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={resetDirty}
+              disabled={!isDirty}
+            >
+              <RotateCcwIcon aria-hidden="true" />
+              되돌리기
+            </button>
+            <Link className="btn" href={`/backtests/new?strategy_id=${strategy.id}`}>
+              <PlayIcon aria-hidden="true" />
+              백테스트 실행
+            </Link>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={handleSave}
+              disabled={!isDirty || update.isPending}
+              aria-busy={update.isPending || undefined}
+            >
+              <SaveIcon aria-hidden="true" />
+              {update.isPending ? "저장 중" : "저장"}
+            </button>
+            <button className="btn btn-danger" type="button" onClick={() => setDeleteOpen(true)}>
+              <Trash2Icon aria-hidden="true" />
+              삭제
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 01 소스 ===== */}
+      <section className="section" aria-label="Pine 소스">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">01</span> 소스
+          </p>
+          <h2 className="section-title">Pine 소스 {lineCount}줄</h2>
+          <p className="section-desc">
+            저장하면 이 소스를 다시 파싱하고, 배포된 데모 세션의 전략도 같은 소스로 교체됩니다.
+          </p>
+        </header>
+
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3 className="card-title">Pine Script 원문</h3>
+              <p className="card-sub">
+                마지막 저장 {formatDateTime(strategy.updated_at)} · 바 단위 이벤트 루프
+              </p>
+            </div>
+            <div className="toolbar">
+              <button className="btn btn-ghost" type="button" onClick={handleCopySource} aria-label="소스 전체 복사">
+                <CopyIcon aria-hidden="true" />
+                복사
+              </button>
+            </div>
+          </div>
+
+          <div className="card-body">
+            <EditorMonacoWrapper
+              fileName="strategy.pine"
+              versionLabel={`Pine ${strategy.pine_version}`}
+              value={pineSource}
+              onChange={setPineSource}
+              height={480}
+            />
+          </div>
+
+          <p className="code-foot">
+            Pine {strategy.pine_version} · {lineCount}줄 · UTF-8 · 편집 즉시 위 진단에서 재파싱됩니다.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={handleSave}
-            disabled={!isDirty || update.isPending}
-            aria-label="변경사항 저장"
-            aria-busy={update.isPending || undefined}
-          >
-            {update.isPending ? (
-              // Sprint 44 W F2: loading 시 spinner + 텍스트 미세 dim.
-              <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden />
-            ) : (
-              <SaveIcon className="size-4" />
-            )}
-            <span className={update.isPending ? "opacity-80" : undefined}>
-              {update.isPending ? "저장 중..." : "저장"}
-            </span>
-          </Button>
-          <Button
-            variant="outline"
-            render={<Link href={`/backtests/new?strategy_id=${strategy.id}`} />}
-            nativeButton={false}
-            aria-label="백테스트 실행"
-          >
-            <PlayIcon className="size-4" />
-            백테스트 실행
-          </Button>
-          <Button variant="outline" onClick={() => setDeleteOpen(true)}>
-            <Trash2Icon className="size-4" />
-            삭제
-          </Button>
-        </div>
-      </header>
+      </section>
 
-      <Tabs
-        value={tab}
-        onValueChange={(v) => {
-          const next = v as TabKey;
-          setTab(next);
-          router.replace(`?tab=${next}`);
-        }}
-      >
-        {/* Sprint 43 W9: prototype 01 의 .tab-bar underline + active primary 색상 정합.
-            shadcn variant="line" 가 native underline (after pseudo-element 200ms transition).
-            data-active:text-primary 로 prototype primary color 매칭. */}
-        <TabsList
-          variant="line"
-          className="h-11 w-full justify-start gap-0 border-b border-[color:var(--border)] bg-transparent px-4 [&_[data-state=active]]:font-semibold [&_[data-state=active]]:text-[color:var(--primary)] [&_[data-state=active]]:after:bg-[color:var(--primary)]"
-        >
-          <TabsTrigger value="code">코드</TabsTrigger>
-          <TabsTrigger value="parse">파싱 결과</TabsTrigger>
-          <TabsTrigger value="metadata">메타데이터</TabsTrigger>
-          <TabsTrigger value="webhook">Webhook</TabsTrigger>
-        </TabsList>
-        <TabsContent value="code" className="mt-4">
-          <TabCode strategy={strategy} />
-        </TabsContent>
-        <TabsContent value="parse" className="mt-4">
-          <TabParse strategy={strategy} />
-        </TabsContent>
-        <TabsContent value="metadata" className="mt-4">
-          <TabMetadata strategy={strategy} />
-        </TabsContent>
-        <TabsContent value="webhook" className="mt-4">
-          <TabWebhook strategyId={strategy.id} />
-        </TabsContent>
-      </Tabs>
+      {/* ===== 02 진단 ===== */}
+      <section className="section" aria-label="진단">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">02</span> 진단
+          </p>
+          <h2 className="section-title">저장 전 정적 분석</h2>
+          <p className="section-desc">파싱 결과와 감지된 함수를 저장 전에 먼저 확인합니다.</p>
+        </header>
+        <DiagnosticsStrip strategy={strategy} />
+      </section>
+
+      {/* ===== 03 실행 설정 ===== */}
+      <section className="section" aria-label="실행 설정">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">03</span> 실행 설정
+          </p>
+          <h2 className="section-title">이 전략에 저장된 실행 조건</h2>
+          <p className="section-desc">
+            백테스트와 데모 주문에 쓰이는 값입니다. 수수료와 슬리피지, 체결 시점 같은 실행 가정은
+            전략이 아니라 백테스트를 실행할 때 정하므로 여기 표시하지 않습니다.
+          </p>
+        </header>
+
+        <div className="card">
+          <div className="trust-grid">
+            <div className="trust-col">
+              <div className="trust-row">
+                <span className="trust-key">심볼</span>
+                <span className="trust-val">{strategy.symbol ?? EMPTY_CELL}</span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">타임프레임</span>
+                <span className="trust-val">{strategy.timeframe ?? EMPTY_CELL}</span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">거래소</span>
+                <span className="trust-val">Bybit</span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">Pine 버전</span>
+                <span className="trust-val">{strategy.pine_version}</span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">엔진</span>
+                <span className="trust-val">바 단위 이벤트 루프</span>
+              </div>
+            </div>
+            <div className="trust-col">
+              <div className="trust-row">
+                <span className="trust-key">레버리지</span>
+                <span className="trust-val">
+                  {settings ? (
+                    `${settings.leverage}배`
+                  ) : (
+                    <span title="트레이딩 설정이 아직 등록되지 않았습니다.">{EMPTY_CELL}</span>
+                  )}
+                </span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">마진 모드</span>
+                <span className="trust-val">
+                  {settings ? (
+                    MARGIN_MODE_LABEL[settings.margin_mode]
+                  ) : (
+                    <span title="트레이딩 설정이 아직 등록되지 않았습니다.">{EMPTY_CELL}</span>
+                  )}
+                </span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">포지션 크기</span>
+                <span className="trust-val">
+                  {settings ? (
+                    `자본의 ${settings.position_size_pct}%`
+                  ) : (
+                    <span title="트레이딩 설정이 아직 등록되지 않았습니다.">{EMPTY_CELL}</span>
+                  )}
+                </span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">거래 세션</span>
+                <span className="trust-val">
+                  {sessions.length === 0 ? "제한 없음" : sessions.join(" · ")}
+                </span>
+              </div>
+              <div className="trust-row">
+                <span className="trust-key">펀딩 반영</span>
+                <span className="trust-val">미반영</span>
+              </div>
+            </div>
+          </div>
+          <p className="disclaimer">
+            <span>
+              미지원 함수가 하나라도 있으면 부분 실행 없이 전체를 지원되지 않음으로 처리합니다.
+              원문은 변환 없이 바 단위 이벤트 루프 엔진이 그대로 실행합니다.
+            </span>
+          </p>
+        </div>
+      </section>
+
+      {/* ===== 04 메타데이터 ===== */}
+      <section className="section" aria-label="메타데이터">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">04</span> 메타데이터
+          </p>
+          <h2 className="section-title">이름 · 심볼 · 태그 · 트레이딩 설정</h2>
+          <p className="section-desc">전략의 표시 정보와 라이브 세션 파라미터를 수정합니다.</p>
+        </header>
+        <TabMetadata strategy={strategy} />
+      </section>
+
+      {/* ===== 05 Webhook ===== */}
+      <section className="section" aria-label="Webhook" ref={webhookRef}>
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">05</span> Webhook
+          </p>
+          <h2 className="section-title">외부 신호 수신 주소</h2>
+          <p className="section-desc">
+            TradingView alert 나 외부 시스템이 이 전략으로 신호를 보내는 주소와 secret 을 관리합니다.
+          </p>
+        </header>
+        <TabWebhook strategyId={strategy.id} />
+      </section>
 
       <DeleteDialog
         open={deleteOpen}
@@ -247,15 +399,15 @@ export function EditorView({ id }: { id: string }) {
         strategyId={strategy.id}
         strategyName={strategy.name}
         onDone={() => {
-          toast.success("전략이 삭제되었습니다");
+          toast.success("전략을 삭제했습니다");
           router.push("/strategies");
         }}
         onArchived={() => {
-          toast.success("전략이 보관되었습니다");
+          toast.success("전략을 보관했습니다");
           setDeleteOpen(false);
           router.refresh();
         }}
       />
-    </div>
+    </main>
   );
 }

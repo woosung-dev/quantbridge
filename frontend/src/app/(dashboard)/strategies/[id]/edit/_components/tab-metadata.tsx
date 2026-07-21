@@ -1,33 +1,13 @@
 "use client";
 
-// Sprint 7c T5: 메타데이터 탭 — react-hook-form + Zod (UpdateStrategyRequestSchema).
-// Sprint FE-TradingSession: trading_sessions toggle chip 추가.
-// Sprint 27 BL-137: trading settings (leverage / margin_mode / position_size_pct) UI 추가.
-//   별도 form (PUT /strategies/{id}/settings) 으로 분리 — 메타데이터(name 등) 와 트랜잭션 분리.
+// 메타데이터 편집 — C 디자인 언어 이식 (screen-08 보존 기능). 프로토타입 screen-08 은 메타데이터
+// 편집을 그리지 않지만, 이름/심볼/주기/태그/세션과 trading settings 는 실기능이라 C 카드로 보존한다.
+// react-hook-form + Zod(UpdateStrategyRequestSchema / UpdateStrategySettingsRequestSchema) 유지.
 
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
   useUpdateStrategy,
   useUpdateStrategySettings,
@@ -54,7 +34,7 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
     },
   });
   const update = useUpdateStrategy(strategy.id, {
-    onSuccess: () => toast.success("메타데이터가 저장되었습니다"),
+    onSuccess: () => toast.success("메타데이터를 저장했습니다"),
     onError: (e) => toast.error(`저장 실패: ${e.message}`),
   });
 
@@ -69,237 +49,174 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
     },
   });
   const updateSettings = useUpdateStrategySettings(strategy.id, {
-    onSuccess: () => toast.success("Trading settings 가 저장되었습니다"),
+    onSuccess: () => toast.success("트레이딩 설정을 저장했습니다"),
     onError: (e) => toast.error(`저장 실패: ${e.message}`),
   });
 
-  return (
-    <div className="space-y-8">
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit((v) => update.mutate(v))}
-        className="max-w-2xl space-y-5"
-      >
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>이름</FormLabel>
-              <FormControl>
-                <Input {...field} value={field.value ?? ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>설명</FormLabel>
-              <FormControl>
-                <Textarea rows={3} {...field} value={field.value ?? ""} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="symbol"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>심볼</FormLabel>
-                <FormControl>
-                  <Input {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="timeframe"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>타임프레임</FormLabel>
-                <FormControl>
-                  <Input {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <FormItem>
-          <FormLabel>태그 (쉼표로 구분)</FormLabel>
-          <FormControl>
-            <Input
-              defaultValue={strategy.tags.join(", ")}
-              onChange={(e) => {
-                const tags = e.target.value
-                  .split(",")
-                  .map((t) => t.trim())
-                  .filter(Boolean);
-                form.setValue("tags", tags, { shouldDirty: true });
-              }}
-            />
-          </FormControl>
-        </FormItem>
-        <FormField
-          control={form.control}
-          name="trading_sessions"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>거래 세션</FormLabel>
-              <FormControl>
-                <SessionChips
-                  value={field.value ?? []}
-                  onChange={field.onChange}
-                />
-              </FormControl>
-              <FormDescription>
-                {(field.value ?? []).length === 0
-                  ? "24시간 제한 없음 — 선택 없으면 언제든 주문 실행"
-                  : "선택한 세션 시간에만 주문 실행 (BE UTC 필터링)"}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="pt-2">
-          <Button
-            type="submit"
-            disabled={!form.formState.isDirty || update.isPending}
-          >
-            {update.isPending ? "저장 중..." : "변경사항 저장"}
-          </Button>
-        </div>
-      </form>
-    </Form>
+  // React Compiler 호환 — form.watch() 는 memoize 불가라 useWatch 구독 훅을 쓴다.
+  const tradingSessions = useWatch({ control: form.control, name: "trading_sessions" }) ?? [];
+  const nameError = form.formState.errors.name?.message;
 
-    {/* Sprint 27 BL-137 — Trading Settings (Live Signal Auto-Trading 의무) */}
-    <section className="max-w-2xl rounded-md border bg-card p-5">
-      <header className="mb-4 space-y-1">
-        <h3 className="text-sm font-semibold">Trading Settings</h3>
-        <p className="text-xs text-muted-foreground">
-          Live Session 시작에 필요한 trading params.
-          {strategy.settings == null ? (
-            <span className="ml-1 font-medium text-[color:var(--warning)]">
-              · 미설정 (Live Session 차단됨)
-            </span>
-          ) : null}
-        </p>
-      </header>
-      <Form {...settingsForm}>
-        <form
-          onSubmit={settingsForm.handleSubmit((v) => updateSettings.mutate(v))}
-          className="space-y-5"
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FormField
-              control={settingsForm.control}
-              name="leverage"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Leverage (1-125)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={125}
-                      step={1}
-                      {...field}
-                      onChange={(e) =>
-                        field.onChange(
-                          e.target.value === ""
-                            ? undefined
-                            : Number(e.target.value),
-                        )
-                      }
-                    />
-                  </FormControl>
-                  <FormDescription>거래소 마진 배수 (Bybit ≤ 125x)</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={settingsForm.control}
-              name="margin_mode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Margin Mode</FormLabel>
-                  <FormControl>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Margin mode 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cross">Cross</SelectItem>
-                        <SelectItem value="isolated">Isolated</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+  return (
+    <>
+      {/* ===== 메타데이터 ===== */}
+      <div className="card">
+        <div className="card-body">
+          <form onSubmit={form.handleSubmit((v) => update.mutate(v))}>
+            <div className="field-grid">
+              <div className="field span-2">
+                <label className="field-label" htmlFor="m-name">
+                  이름
+                </label>
+                <input
+                  className="input"
+                  id="m-name"
+                  type="text"
+                  maxLength={120}
+                  {...form.register("name")}
+                />
+                {nameError ? <span className="field-error">{nameError}</span> : null}
+              </div>
+              <div className="field span-2">
+                <label className="field-label" htmlFor="m-desc">
+                  설명
+                </label>
+                <textarea
+                  className="textarea"
+                  id="m-desc"
+                  maxLength={2000}
+                  {...form.register("description")}
+                />
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="m-symbol">
+                  심볼
+                </label>
+                <input className="input" id="m-symbol" type="text" maxLength={32} {...form.register("symbol")} />
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="m-tf">
+                  타임프레임
+                </label>
+                <input className="input" id="m-tf" type="text" maxLength={16} {...form.register("timeframe")} />
+              </div>
+              <div className="field span-2">
+                <label className="field-label" htmlFor="m-tags">
+                  태그
+                </label>
+                <input
+                  className="input"
+                  id="m-tags"
+                  type="text"
+                  defaultValue={strategy.tags.join(", ")}
+                  placeholder="쉼표로 구분 (예: trend, ema)"
+                  onChange={(e) => {
+                    const tags = e.target.value
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean);
+                    form.setValue("tags", tags, { shouldDirty: true });
+                  }}
+                />
+              </div>
+              <div className="field span-2">
+                <span className="field-label">거래 세션</span>
+                <SessionChips
+                  value={tradingSessions}
+                  onChange={(next) =>
+                    form.setValue("trading_sessions", next, { shouldDirty: true })
+                  }
+                />
+                <span className="field-hint">
+                  {tradingSessions.length === 0
+                    ? "선택하지 않으면 24시간 제한 없이 주문을 실행합니다."
+                    : "선택한 세션 시간에만 주문을 실행합니다. 서버가 UTC 로 필터링합니다."}
+                </span>
+              </div>
+            </div>
+            <div className="form-actions">
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={!form.formState.isDirty || update.isPending}
+              >
+                {update.isPending ? "저장 중" : "변경사항 저장"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* ===== 트레이딩 설정 ===== */}
+      <div className="card" style={{ marginTop: "16px" }}>
+        <div className="card-head">
+          <div>
+            <h3 className="card-title">트레이딩 설정</h3>
+            <p className="card-sub">
+              라이브 세션 시작에 필요한 값입니다.
+              {strategy.settings == null ? " 아직 설정하지 않아 라이브 세션이 차단됩니다." : ""}
+            </p>
           </div>
-          <FormField
-            control={settingsForm.control}
-            name="position_size_pct"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Position Size % (0 &lt; v ≤ 100)</FormLabel>
-                <FormControl>
-                  {/* step="any" — HTML5 native validation 회피 (min=0.01 + step=0.1
-                      조합 시 10 등 정상값이 invalid 처리되어 submit 차단). */}
-                  <Input
-                    type="number"
-                    min={0.01}
-                    max={100}
-                    step="any"
-                    {...field}
-                    onChange={(e) =>
-                      field.onChange(
-                        e.target.value === ""
-                          ? undefined
-                          : Number(e.target.value),
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormDescription>
-                  가용 잔고 대비 포지션 크기 (100 = all-in)
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="pt-2">
-            <Button
-              type="submit"
-              disabled={
-                !settingsForm.formState.isDirty || updateSettings.isPending
-              }
-            >
-              {updateSettings.isPending
-                ? "저장 중..."
-                : strategy.settings == null
-                  ? "Settings 등록"
-                  : "Settings 저장"}
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </section>
-    </div>
+        </div>
+        <div className="card-body">
+          <form onSubmit={settingsForm.handleSubmit((v) => updateSettings.mutate(v))}>
+            <div className="field-grid">
+              <div className="field">
+                <label className="field-label" htmlFor="s-lev">
+                  레버리지 (1 ~ 125)
+                </label>
+                <input
+                  className="input mono"
+                  id="s-lev"
+                  type="number"
+                  min={1}
+                  max={125}
+                  step={1}
+                  {...settingsForm.register("leverage", { valueAsNumber: true })}
+                />
+                <span className="field-hint">거래소 마진 배수입니다. Bybit 은 최대 125배입니다.</span>
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="s-margin">
+                  마진 모드
+                </label>
+                <select className="select" id="s-margin" {...settingsForm.register("margin_mode")}>
+                  <option value="cross">교차 (Cross)</option>
+                  <option value="isolated">격리 (Isolated)</option>
+                </select>
+              </div>
+              <div className="field span-2">
+                <label className="field-label" htmlFor="s-size">
+                  포지션 크기 % (0 초과 100 이하)
+                </label>
+                <input
+                  className="input mono"
+                  id="s-size"
+                  type="number"
+                  min={0.01}
+                  max={100}
+                  step="any"
+                  {...settingsForm.register("position_size_pct", { valueAsNumber: true })}
+                />
+                <span className="field-hint">가용 잔고 대비 포지션 크기입니다. 100 이면 전액입니다.</span>
+              </div>
+            </div>
+            <div className="form-actions">
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={!settingsForm.formState.isDirty || updateSettings.isPending}
+              >
+                {updateSettings.isPending
+                  ? "저장 중"
+                  : strategy.settings == null
+                    ? "설정 등록"
+                    : "설정 저장"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
   );
 }

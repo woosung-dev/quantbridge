@@ -1,6 +1,7 @@
 "use client";
 
-// 거래 세션 토글 칩 — Precision Instrument: 이모지 대신 lucide 아이콘 (DESIGN.md §1 이모지 금지)
+// 거래 세션 토글 칩 — C 디자인 언어. 상호배타 아님(다중 선택)이라 .tab 이 아니라 aria-pressed
+// 토글 버튼이다. 선택 시 코퍼 활성, 아니면 중립. 이모지 대신 lucide 아이콘.
 
 import { Building2Icon, GlobeIcon, LandmarkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,10 +40,10 @@ export function SessionChips({ value, onChange }: SessionChipsProps) {
             onClick={() => toggle(v)}
             aria-pressed={selected}
             className={cn(
-              "flex flex-col items-center rounded-md border px-4 py-2 text-sm font-medium transition-colors",
+              "flex flex-col items-center rounded-[var(--r)] border px-4 py-2 text-sm font-medium transition-colors",
               selected
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border text-text-secondary hover:border-primary hover:text-primary",
+                ? "border-[color:var(--copper-line)] bg-[color:var(--copper-soft)] text-[color:var(--copper)]"
+                : "border-[color:var(--line)] text-[color:var(--ink-2)] hover:border-[color:var(--line-2)] hover:text-[color:var(--ink)]",
             )}
           >
             <span className="flex items-center gap-1.5">
