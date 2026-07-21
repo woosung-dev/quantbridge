@@ -243,11 +243,28 @@
 
 ---
 
+## 잔여 완주 세션 (2026-07-21 착수) — 브랜치 `stage/c-port-remaining`
+
+> 계획 `~/.claude/plans/c-react-greedy-stardust.md` · 운영 계약 [`operating-contract.md`](./operating-contract.md)
+> 게이트 3분류 ⓐⓑⓒ + 스킬 게이트 + 오케스트레이터 직렬 재현. baseline: vitest 164/904 · canon 29 · authed 5.
+
+- [ ] W0 — 브랜치 + 운영 계약 커밋 + 환경 복구(stale CSS 재컴파일) + fixture 시딩(optimizer 완료 run) + codex 플랜 검증
+- [ ] W1 — 용어 SSOT 확장 (`features/optimizer/labels.ts` + `features/strategy/labels.ts` + 적용 §5-3/5-4/5-5 + 가드 스코프 확장)
+- [ ] W2 — variant-c → `/backtests/[id]` 리포트 상세 (+ share 회귀 + authed spec +1)
+- [ ] W3-A — screen-05 → `/backtests/new`
+- [ ] W3-B — 전략 3벌 (06 `/strategies` → 07 `/new` → 08 `/[id]/edit`) + stale var() 4파일. ★backtest_count 열 미렌더 (사용자 확정)
+- [ ] W3-C — 옵티마이저 2벌 (09 → 10) + 고아 spec 재작성·skip 해제
+- [ ] W3-D — screen-11 → `/orders` + tablist→role=group
+- [ ] W3-E — screen-12 → `/onboarding`
+- [ ] W3-F — live-sessions 부채 (§05 재스킨 + kpi-pnl isError + ★OKX FE 제거 (사용자 확정))
+- [ ] W3-G — 마케팅 4벌 (14 → 16 `/pricing` 신설 → 17 → 15 sign-in) + ui-ux-pro-max
+- [ ] W3-H — screen-13 → 에러 3종
+- [ ] W-final — StateBox 6곳 + 이중 링/반경 sweep + 교차 정합 감사 + codex 최종 + 문서 갱신 + 푸시/PR/CI
+
 ## Blocked
 
 (현재 없음)
 
 ## Questions
 
-- `strategy.backtest_count` 정의 (완료 기준 대 전체 실행 기준) — 원장이 `screen-06` 이라 P1 밖. 전략 목록 이식 시 결정
-- OKX 를 `frontend/src/features/trading/schemas.ts:71` enum 에서 뺄지 — "OKX 데모로 실제 주문이 오갔는가" 실측 후 판단
+(2026-07-21 해소) `strategy.backtest_count` = **열 미렌더** 확정 · OKX = **FE 등록 폼에서 제거** 확정 (계정 0·주문 0 실측). 근거는 context-notes 잔여 세션 절.

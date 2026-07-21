@@ -306,3 +306,21 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 ## 변경 이력 (append)
 
 - **2026-07-21** — **S1a~S9 완주 + codex 3회 검증.** 최종 게이트: vitest 164/904 · canon 29 · authed 5 · allowlist 전부 0. 상세는 HANDOFF 5판 §0.5.
+
+---
+
+## 잔여 완주 세션 (2026-07-21 착수) — 플랜 단계 결정 기록
+
+### 사용자 확정 2건 (플랜 모드 AskUserQuestion, 실측 근거 동봉)
+
+1. **`strategy.backtest_count` = 열 미렌더.** 실측: `StrategyResponseSchema` 에 대응 필드 자체가 0건(완료/전체 정의 이전 문제) + 원장 §4.2 가 스스로 "미해소 — 새 화면은 이 열을 다시 인쇄하지 않는 쪽이 기본"이라 명시. §4.9 보수 원칙 그대로. FE 파생 집계(N+1)·백엔드 필드 신설(범위 밖 수술)은 기각.
+2. **OKX = FE 등록 폼에서 제거.** 실측: DB 5436 에서 okx 거래소 계정 0건·주문 0건 — "OKX 데모로 실제 주문이 오간 적" 없음. 캐논(Bybit 단일)과 화면 카피가 이김. 제거 범위 = `features/trading/schemas.ts:71` enum + `register-exchange-account-dialog.tsx` SelectItem/passphrase 게이팅 + superRefine 분기 + `zod-v4-resolver.ts:9` 주석. **백엔드 불변**(git 가역). 마케팅 화면의 OKX 로드맵 표기(§4.8 5행 표)는 유지. terminology-ssot §6-4 해소.
+
+### 플랜 단계 실측이 교정한 것
+
+- **HANDOFF §3-1 "반경/stale-var 15파일" 은 부정확.** 실측 = stale `var(--radius…,폴백)` 콤마 폴백 **4파일 5건**(전부 strategies 슬라이스: parse-result-panel 2 · step-code 1 · parse-panel 1 · editor-monaco-wrapper 1) + 리터럴 반경은 P1 밖 **50+파일**. 후자는 각 화면 이식 시 시맨틱 CSS 소비로 자연 소멸이 원칙(S9 실증), 화면 밖 잔여만 W-final sweep.
+- **baseline 재현 부분 실패의 원인 = Turbopack stale 캐시 (코드 회귀 아님).** dev 서버 컴파일 CSS 에 `--text-muted:#7a828c`(커밋 소스에 없는 구 다크 값) 실측. `/` contrast 2 · trades focus 2 · 전 라우트 canon=2 가 전부 이것으로 설명. 교훈: **baseline 3종 동시 발사 금지 — 게이트 재현은 항상 직렬** (동시 부하 시 authed 4 FAIL 위양성 실측).
+- **fixture 갭 1건: optimizer 완료 run 0** (유일 run = GRID_SEARCH FAILED). /optimizer/[id] 완료 상태 게이트 침묵 skip 방지 위해 W0 에서 실제 엔진으로 grid search 1건 완주 시딩.
+- **/pricing 은 현재 `redirect("/#pricing")` 7줄** — screen-16 이식 시 실페이지 신설 + 리다이렉트 제거 + public spec/live-smoke 편입.
+- **Clerk sign-in**: colorPrimary 는 `clerk-theme-bridge.tsx` 단일 소스(하드코딩 금지 주석 실존). 이식 범위 = split-screen-shell + appearance 토큰 정렬. Clerk 내부 DOM 재구성 불가.
+- **`/backtests/[id]` 는 lwc + recharts 5플롯 이중 스택.** recharts 유지(교체 금지), SVG 공선성 검사 신설은 W2 에서 반증 절차로 검토. `/share/backtests/[token]` 이 report 컴포넌트 공유 — blast radius 교차 감사 등재.
