@@ -1,7 +1,30 @@
 // Sprint 26 — Live Sessions pure helpers (테스트 가능 단위).
 // Sprint 27 BL-140 — buildActivityTimeline (recent events cumulative).
+// C 이식(W3-F) — formatDateTime 추가. 세션 시각을 결정적 UTC 로 인쇄한다.
+
+import { EMPTY_CELL } from "@/lib/labels";
 
 import type { LiveSignalEvent } from "./schemas";
+
+/**
+ * ISO datetime 을 `YYYY-MM-DD HH:mm` (UTC) 로 표기한다. 값이 없거나 파싱 불가면
+ * 무데이터 셀 표기(EMPTY_CELL "—")를 돌려준다. 세션 상세·목록의 시각 열에 쓴다.
+ *
+ * backtest/utils.formatDateTime · strategy/utils.formatDateTime 과 같은 규약이다.
+ * toLocaleString 류는 실행 환경 타임존에 따라 결과가 갈려 캐논(모든 화면이 같은 사실을
+ * 말한다)과 컴포넌트 테스트를 깨뜨리므로 쓰지 않는다(도메인 경계 유지 위해 로컬 보유).
+ */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return EMPTY_CELL;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return EMPTY_CELL;
+  const yyyy = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}-${mo}-${dd} ${hh}:${mm}`;
+}
 
 // ── Refetch interval — active session 일 때만 빠르게 폴링 ────────────────
 //

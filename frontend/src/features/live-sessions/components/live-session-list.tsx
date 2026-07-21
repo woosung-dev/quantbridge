@@ -23,7 +23,7 @@ import {
   useLiveSessions,
 } from "../hooks";
 import type { LiveSession } from "../schemas";
-import { formatRealizedPnl } from "../utils";
+import { formatDateTime, formatRealizedPnl } from "../utils";
 import { LiveSessionStateView } from "./live-session-state-view";
 
 type Props = {
@@ -105,7 +105,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
             >
               <span className="block font-medium">{s.symbol}</span>
               <p className="text-xs text-muted-foreground">
-                {s.interval} · created: {new Date(s.created_at).toLocaleString()}
+                {s.interval} · 생성 {formatDateTime(s.created_at)}
               </p>
               <SessionPnlBadge sessionId={s.id} isActive={s.is_active} />
             </button>
