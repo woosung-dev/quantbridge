@@ -224,6 +224,7 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
           backtestId={data.backtest_id}
           paramSpace={data.param_space}
           kind={data.kind}
+          sectionNum={data.result?.kind === "grid_search" ? "04" : "03"}
         />
       ) : null}
     </main>

@@ -247,4 +247,13 @@ describe("OptimizerRunDetail — C 시맨틱 구조 (screen-10)", () => {
       "GET /api/v1/optimizer/runs",
     );
   });
+
+  it("완료 grid — 섹션 번호 순차·유일 (03 파라미터 안정성 + 04 OOS, 중복 03 회귀 방지)", () => {
+    runResult = { data: completedGridRun(), isLoading: false, error: null, refetch: vi.fn() };
+    const { container } = render(<OptimizerRunDetail runId={UUID} />);
+    const nums = [...container.querySelectorAll(".eyebrow .num")].map(
+      (el) => el.textContent,
+    );
+    expect(nums).toEqual(["01", "02", "03", "04"]);
+  });
 });
