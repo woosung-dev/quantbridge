@@ -1,11 +1,12 @@
 "use client";
 
-// TV Strategy Tester "주요 통계" 스트립 — 총 PnL / 최대 손실폭 / 수익성 거래 / 수익지수
-// 상시 노출 히어로 통계. 큰 mono 숫자 + mono 터미널 레이블 + 상단 계측 눈금
-// (Precision Instrument — DESIGN.md §0.1 키 스탯 스트립 = TickRuler 공인 사이트).
-// abs 금액(구 백테스트 null)은 % 단독 표기로 graceful degrade (Surface Trust).
+// 01 요약 — variant-c "성과 요약" 이식. 공용 .kpi-row/.kpi 를 소비한다.
+// 프로토타입 variant-c.html:1142-1170 의 4 KPI(총 수익률/순손익/최대 낙폭/샤프 지수) 구조.
+// 미터 바(.meter)는 정규화 기준이 스키마로 뒷받침되지 않아 그리지 않는다(S6~S8 kpi-row 선례,
+// LESSON-039 Surface Trust). foot 문구는 전부 스키마가 받치는 값(연환산·수수료·회복일)만 쓴다.
 
-import { TickRuler } from "@/components/tick-ruler";
+import type { ReactNode } from "react";
+
 import type { BacktestConfig, BacktestMetricsOut } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
@@ -16,114 +17,124 @@ interface KeyStatsStripProps {
   config?: BacktestConfig | null;
 }
 
-type Tone = "bullish" | "bearish" | "neutral";
+type Tone = "pos" | "neg" | "neutral";
 
 function toneClass(tone: Tone): string {
-  if (tone === "bullish") return "text-[color:var(--bullish)]";
-  if (tone === "bearish") return "text-[color:var(--bearish)]";
-  return "text-foreground";
+  return tone === "pos"
+    ? "kpi-value mono pos"
+    : tone === "neg"
+      ? "kpi-value mono neg"
+      : "kpi-value mono";
 }
 
-function StatBlock({
+function signedPct(v: number, digits = 2): string {
+  const sign = v > 0 ? "+" : "";
+  return `${sign}${formatPercent(v, digits)}`;
+}
+
+function signedCurrency(v: number): string {
+  const sign = v > 0 ? "+" : "";
+  return `${sign}${formatCurrency(v)}`;
+}
+
+function KpiCard({
   label,
   value,
-  sub,
   tone = "neutral",
-  caption,
+  foot,
+  testId,
 }: {
   label: string;
   value: string;
-  sub?: string | null;
   tone?: Tone;
-  caption?: string | null;
+  foot?: ReactNode;
+  testId?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 px-4 py-3 first:pl-5 last:pr-5">
-      <span className="font-mono text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-        {label}
-      </span>
-      <span
-        className={`font-mono text-xl font-bold tabular-nums md:text-2xl ${toneClass(tone)}`}
-      >
+    <article className="card kpi" role="listitem">
+      <p className="kpi-label">{label}</p>
+      <p className={toneClass(tone)} data-testid={testId}>
         {value}
-      </span>
-      {sub ? (
-        <span className={`font-mono text-xs tabular-nums ${toneClass(tone)} opacity-80`}>
-          {sub}
-        </span>
-      ) : null}
-      {caption ? (
-        <span className="text-[11px] text-muted-foreground">{caption}</span>
-      ) : null}
-    </div>
+      </p>
+      {foot ? <p className="kpi-foot">{foot}</p> : null}
+    </article>
   );
 }
 
-export function KeyStatsStrip({ metrics, config }: KeyStatsStripProps) {
-  const netAbs = metrics.net_profit_abs ?? null;
-  const totalReturn = metrics.total_return;
-  const pnlTone: Tone =
-    totalReturn > 0 ? "bullish" : totalReturn < 0 ? "bearish" : "neutral";
+export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
+  const totalReturn = m.total_return;
+  const returnTone: Tone =
+    totalReturn > 0 ? "pos" : totalReturn < 0 ? "neg" : "neutral";
 
-  const mddAbs = metrics.excursion_stats?.max_drawdown_abs ?? null;
+  const netAbs = m.net_profit_abs ?? null;
+  const totalFees = m.total_fees ?? null;
+
+  const recoveryDays = m.excursion_stats?.max_drawdown_recovery_days ?? null;
+
   const mddCaption = buildMddCaption({
     leverage: config?.leverage ?? 1,
-    mddBelowCapital: metrics.max_drawdown < -1,
-    mddExceedsCapital: metrics.mdd_exceeds_capital ?? null,
+    mddBelowCapital: m.max_drawdown < -1,
+    mddExceedsCapital: m.mdd_exceeds_capital ?? null,
   });
 
-  const winRate = metrics.win_rate;
-  const winCount = Math.round(winRate * metrics.num_trades);
-
-  const pf = metrics.profit_factor ?? null;
-
   return (
-    <section
-      aria-label="주요 통계"
-      className="rounded-lg border bg-card shadow-[var(--card-shadow)]"
+    <div
+      className="kpi-row"
+      role="list"
+      aria-label="성과 요약"
       data-testid="key-stats-strip"
     >
-      {/* 시그니처 — 키 스탯 스트립 상단 계측 눈금 (DESIGN.md §0.1) */}
-      <TickRuler className="mx-4 mt-2 opacity-70" />
-      <div className="grid grid-cols-2 divide-y divide-[color:var(--border)] md:grid-cols-4 md:divide-x md:divide-y-0">
-        <StatBlock
-          label="총 PnL"
-          value={
-            netAbs !== null
-              ? `${netAbs >= 0 ? "+" : ""}${formatCurrency(netAbs)} USDT`
-              : formatPercent(totalReturn)
-          }
-          sub={
-            netAbs !== null
-              ? `${totalReturn >= 0 ? "+" : ""}${formatPercent(totalReturn)}`
-              : null
-          }
-          tone={pnlTone}
-        />
-        <StatBlock
-          label="최대 손실폭"
-          value={
-            mddAbs !== null
-              ? `${formatCurrency(mddAbs)} USDT`
-              : formatPercent(Math.abs(metrics.max_drawdown))
-          }
-          sub={mddAbs !== null ? formatPercent(Math.abs(metrics.max_drawdown)) : null}
-          tone="bearish"
-          caption={mddCaption}
-        />
-        <StatBlock
-          label="수익성 거래"
-          value={formatPercent(winRate)}
-          sub={`${winCount}/${metrics.num_trades} 거래`}
-          tone={winRate >= 0.5 ? "bullish" : "neutral"}
-        />
-        <StatBlock
-          label="수익지수"
-          value={pf !== null ? pf.toFixed(3) : "—"}
-          sub={pf !== null ? "Profit Factor" : "손실 거래 없음"}
-          tone={pf !== null && pf >= 1 ? "bullish" : pf !== null ? "bearish" : "neutral"}
-        />
-      </div>
-    </section>
+      <KpiCard
+        label="총 수익률"
+        value={signedPct(totalReturn)}
+        tone={returnTone}
+        testId="kpi-total-return"
+        foot={
+          m.annual_return_pct != null ? (
+            <>
+              연환산 <span className="mono">{signedPct(m.annual_return_pct)}</span>
+            </>
+          ) : (
+            "수수료·슬리피지 반영 후"
+          )
+        }
+      />
+      <KpiCard
+        label="순손익"
+        value={netAbs != null ? `${signedCurrency(netAbs)}` : signedPct(totalReturn)}
+        tone={netAbs != null ? (netAbs >= 0 ? "pos" : "neg") : returnTone}
+        testId="kpi-net-profit"
+        foot={
+          totalFees != null ? (
+            <>
+              USDT · 수수료 <span className="mono neg">{signedCurrency(-Math.abs(totalFees))}</span> 반영
+            </>
+          ) : (
+            "USDT · 순(net) 기준"
+          )
+        }
+      />
+      <KpiCard
+        label="최대 낙폭"
+        value={signedPct(m.max_drawdown)}
+        tone="neg"
+        testId="kpi-max-drawdown"
+        foot={
+          recoveryDays != null ? (
+            <>
+              회복 <span className="mono">{Math.round(recoveryDays)}일</span>
+            </>
+          ) : (
+            mddCaption ?? "종가 기준"
+          )
+        }
+      />
+      <KpiCard
+        label="샤프 지수"
+        value={m.sharpe_ratio.toFixed(2)}
+        testId="kpi-sharpe"
+        foot="무위험 수익률 0% 가정"
+      />
+    </div>
   );
 }

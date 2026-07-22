@@ -62,21 +62,21 @@ test("OrdersPanel: exchange_order_id null 일 때 BrokerBadge 가 dash 만 표�
   expect(screen.queryByTestId("broker-badge-real")).not.toBeInTheDocument();
 });
 
-test("OrdersPanel: fixture- prefix 시 mock 배지 + 마지막 8자 + (mock) 라벨", async () => {
+test("OrdersPanel: fixture- prefix 시 mock 배지 + 마지막 8자 + (모의) 라벨", async () => {
   _mountOrders([
     { ..._baseOrder, exchange_order_id: "fixture-abcdefghijklmnop" },
   ]);
   await screen.findByText("BTC/USDT");
   const badge = await screen.findByTestId("broker-badge-mock");
   expect(badge).toBeInTheDocument();
-  expect(badge.textContent).toContain("(mock)");
+  expect(badge.textContent).toContain("(모의)");
   // 마지막 8자 = "ijklmnop"
   expect(badge.textContent).toContain("ijklmnop");
-  // tooltip 에 전체 ID
-  expect(badge.getAttribute("title")).toContain("fixture-abcdefghijklmnop");
+  // tooltip 은 용어 SSOT 의 모의 실행 경로 힌트 (ORDER_ID_SOURCE_HINT.mock)
+  expect(badge.getAttribute("title")).toContain("로컬 목 어댑터");
 });
 
-test("OrdersPanel: real broker UUID 시 broker 배지 + 마지막 8자 + (broker) 라벨", async () => {
+test("OrdersPanel: real broker UUID 시 broker 배지 + 마지막 8자 + (브로커) 라벨", async () => {
   _mountOrders([
     {
       ..._baseOrder,
@@ -86,18 +86,17 @@ test("OrdersPanel: real broker UUID 시 broker 배지 + 마지막 8자 + (broker
   await screen.findByText("BTC/USDT");
   const badge = await screen.findByTestId("broker-badge-real");
   expect(badge).toBeInTheDocument();
-  expect(badge.textContent).toContain("(broker)");
-  // 마지막 8자 = "x9y8z7" 보다 8자 = "id-x9y8z7" 의 last 8 = "-x9y8z7" 가 아니라 "x-x9y8z7"... 정확히는 slice(-8)
-  // 전체 ID = "1234567890abcdef-bybit-real-trading-id-x9y8z7" (45자), slice(-8) = "x9y8z7" 보다 6자 (오타 — 실제 검증)
-  // 단순화: title 에 전체 ID 포함 + (broker) 라벨 검증.
-  expect(badge.getAttribute("title")).toContain(
-    "1234567890abcdef-bybit-real-trading-id-x9y8z7",
-  );
+  expect(badge.textContent).toContain("(브로커)");
+  // 마지막 8자 = slice(-8) 이므로 꼬리 "x9y8z7" 를 포함한다. tooltip 은 용어 SSOT 의
+  // 브로커 출처 힌트 (ORDER_ID_SOURCE_HINT.broker).
+  expect(badge.textContent).toContain("x9y8z7");
+  expect(badge.getAttribute("title")).toContain("거래소가 돌려준 주문번호");
 });
 
-// Wave 2 — TP/SL 컬럼 + 청산가 컬럼(graceful-empty).
+// Wave 2 — TP/SL 컬럼. C 이식(W3-F): 청산가 열은 캐논 §4.6 대로 제거됐다
+// (체결 주문이 곧 열린 포지션을 뜻하지 않고 포지션 API 도 없다 — 코크핏에 위임).
 
-test("OrdersPanel: TP/SL 값이 있으면 렌더, 청산가는 graceful '—'", async () => {
+test("OrdersPanel: TP/SL 값이 있으면 렌더하고, 청산가 열은 두지 않는다", async () => {
   _mountOrders([
     {
       ..._baseOrder,
@@ -108,12 +107,12 @@ test("OrdersPanel: TP/SL 값이 있으면 렌더, 청산가는 graceful '—'", 
   ]);
   await screen.findByText("BTC/USDT");
   expect(screen.getByText("익절·손절")).toBeInTheDocument();
-  expect(screen.getByText("청산가")).toBeInTheDocument();
   const tpslCell = screen.getByTestId("tpsl-cell");
   expect(tpslCell).toHaveTextContent("55000");
   expect(tpslCell).toHaveTextContent("48000");
-  // 청산가는 W-B 미머지 → graceful-empty 셀
-  expect(screen.getByTestId("liquidation-cell")).toHaveTextContent("—");
+  // 청산가 열·셀은 제거됐다 (Surface Trust — 확인 불가한 값을 라이브 위험처럼 보이지 않게).
+  expect(screen.queryByText("청산가")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("liquidation-cell")).not.toBeInTheDocument();
 });
 
 // STEP B — 트레일링 의도(Order.trailing_stop) 표출 (Playwright UI 검증 대상).
@@ -129,7 +128,7 @@ test("OrdersPanel: trailing_stop 있으면 trail 거리 렌더", async () => {
   await screen.findByText("BTC/USDT");
   const tpslCell = screen.getByTestId("tpsl-cell");
   expect(tpslCell).toHaveTextContent("48000");
-  expect(tpslCell).toHaveTextContent("trail 150.5");
+  expect(tpslCell).toHaveTextContent("추적손절 150.5");
 });
 
 // STEP B (qa-P2) — trail-only: TP·SL 모두 null, trailing_stop 만 → '— / — / trail X'.
@@ -147,7 +146,7 @@ test("OrdersPanel: TP·SL 없고 trailing_stop 만 있으면 trail 렌더 ('—'
   ]);
   await screen.findByText("BTC/USDT");
   const tpslCell = screen.getByTestId("tpsl-cell");
-  expect(tpslCell).toHaveTextContent("— / — / trail 150.5");
+  expect(tpslCell).toHaveTextContent("— / — / 추적손절 150.5");
   expect(tpslCell).not.toHaveTextContent(/^—$/);
 });
 

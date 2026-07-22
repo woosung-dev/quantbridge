@@ -10,7 +10,26 @@ import {
   buildActivityTimeline,
   buildActivityTimelineWithEquity,
   computeLiveSessionStateRefetchInterval,
+  formatDateTime,
 } from "../utils";
+
+// C 이식(W3-F) — 세션 시각 표기는 실행 환경 타임존과 무관하게 결정적이어야 한다(UTC).
+describe("formatDateTime — 결정적 UTC 표기", () => {
+  it("ISO datetime 을 YYYY-MM-DD HH:mm (UTC) 로 포맷한다", () => {
+    expect(formatDateTime("2026-04-14T21:07:00Z")).toBe("2026-04-14 21:07");
+  });
+
+  it("타임존 오프셋 입력도 UTC 로 정규화한다 (환경 무관 결정성)", () => {
+    // +09:00(KST) 자정 = 전날 15:00 UTC. Date.getTimezoneOffset 에 의존하지 않는다.
+    expect(formatDateTime("2026-04-14T00:00:00+09:00")).toBe("2026-04-13 15:00");
+  });
+
+  it("null/undefined/파싱 불가 값은 무데이터 셀(—)로 떨어뜨린다", () => {
+    expect(formatDateTime(null)).toBe("—");
+    expect(formatDateTime(undefined)).toBe("—");
+    expect(formatDateTime("not-a-date")).toBe("—");
+  });
+});
 
 // Helper — fixture builder. status는 최소 valid 값 ("dispatched").
 function ev(

@@ -1,14 +1,24 @@
 "use client";
 
 // Optimizer 제출 폼 3종의 공통 프레젠테이션 조각 — 헤더 3필드 / 에러 alert / 제출 행.
-// 폼 로직(스키마·매핑)은 form-schemas.ts, 상태는 use-optimizer-submit.ts 담당.
+// C 디자인 언어 이식 (W3-C): 공용 .field/.field-label/.input/.select/.btn 소비.
+// 자체 focus ring 제거 — 전역 카퍼 :focus-visible 링을 소비한다.
+// 라벨은 W1 용어 SSOT(OBJECTIVE_*_LABEL) 경유 (샤프 지수 등 표기 통일).
 
 import type { FieldValues, Path, UseFormRegister } from "react-hook-form";
 
+import { AlertTriangleIcon } from "lucide-react";
+
+import {
+  OBJECTIVE_DIRECTION_HINT,
+  OBJECTIVE_DIRECTION_LABEL,
+  OBJECTIVE_METRIC_LABEL,
+} from "@/features/optimizer/labels";
 import type { OptimizerFormBaseValues } from "../form-schemas";
 
-export const FIELD_CLS =
-  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+// C 공용 입력/셀렉트 클래스 — 자체 focus ring 없음(전역 :focus-visible 카퍼 링 소비).
+export const INPUT_CLS = "input";
+export const SELECT_CLS = "select";
 
 /**
  * 목표 지표 / 최적화 방향 / 최대 평가 횟수 — 3폼 공통 헤더.
@@ -24,31 +34,33 @@ export function ObjectiveFields<TValues extends FieldValues>({
   // base 필드 경로는 OptimizerFormBaseValues 부분집합 계약 — generic Path 캐스트.
   const path = (p: keyof OptimizerFormBaseValues) => p as Path<TValues>;
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-      <label className="space-y-1.5 text-sm">
-        <span className="font-medium text-foreground">목표 지표</span>
-        <select className={FIELD_CLS} {...register(path("objective_metric"))}>
-          <option value="sharpe_ratio">샤프 비율</option>
-          <option value="total_return">총 수익률</option>
-          <option value="max_drawdown">최대 낙폭</option>
+    <div className="opt-field-grid">
+      <label className="field">
+        <span className="field-label">목표 지표</span>
+        <select className={SELECT_CLS} {...register(path("objective_metric"))}>
+          <option value="sharpe_ratio">{OBJECTIVE_METRIC_LABEL.sharpe_ratio}</option>
+          <option value="total_return">{OBJECTIVE_METRIC_LABEL.total_return}</option>
+          <option value="max_drawdown">{OBJECTIVE_METRIC_LABEL.max_drawdown}</option>
         </select>
       </label>
-      <label className="space-y-1.5 text-sm">
-        <span className="font-medium text-foreground">최적화 방향</span>
-        <select className={FIELD_CLS} {...register(path("direction"))}>
-          <option value="maximize">최대화</option>
-          <option value="minimize">최소화</option>
+      <label className="field">
+        <span className="field-label">최적화 방향</span>
+        <select className={SELECT_CLS} {...register(path("direction"))}>
+          <option value="maximize">
+            {OBJECTIVE_DIRECTION_LABEL.maximize} ({OBJECTIVE_DIRECTION_HINT.maximize})
+          </option>
+          <option value="minimize">
+            {OBJECTIVE_DIRECTION_LABEL.minimize} ({OBJECTIVE_DIRECTION_HINT.minimize})
+          </option>
         </select>
       </label>
-      <label className="space-y-1.5 text-sm">
-        <span className="font-medium text-foreground">
-          최대 평가 횟수 (≤ {maxEvaluations})
-        </span>
+      <label className="field">
+        <span className="field-label">최대 평가 횟수 (최대 {maxEvaluations})</span>
         <input
           type="number"
           min={1}
           max={maxEvaluations}
-          className={FIELD_CLS}
+          className={INPUT_CLS}
           {...register(path("max_evaluations"), { valueAsNumber: true })}
         />
       </label>
@@ -59,19 +71,17 @@ export function ObjectiveFields<TValues extends FieldValues>({
 export function FormErrorAlert({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <div
-      role="alert"
-      className="rounded-md border border-destructive/40 bg-destructive-subtle p-3 text-sm text-destructive"
-    >
-      {message}
-    </div>
+    <p role="alert" className="notice-inline">
+      <AlertTriangleIcon aria-hidden="true" />
+      <span>{message}</span>
+    </p>
   );
 }
 
 export function SubmitRow({
   isPending,
   submitLabel,
-  pendingLabel = "실행 중…",
+  pendingLabel = "실행 중",
   helper,
 }: {
   isPending: boolean;
@@ -80,15 +90,11 @@ export function SubmitRow({
   helper: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <button
-        type="submit"
-        disabled={isPending}
-        className="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-btn-primary transition-all hover:bg-primary-hover disabled:opacity-50"
-      >
+    <div className="opt-form-actions">
+      <button type="submit" disabled={isPending} className="btn btn-primary">
         {isPending ? pendingLabel : submitLabel}
       </button>
-      <p className="text-xs text-muted-foreground">{helper}</p>
+      <p className="opt-form-helper">{helper}</p>
     </div>
   );
 }

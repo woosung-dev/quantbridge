@@ -1,19 +1,21 @@
 // Sprint 55 — Bayesian optimizer e2e (mock-based) + LESSON-066 6차 SAEnum case mismatch silent regression 가드.
 //
-// 본 spec 은 Sprint 55 Slice 6 의무 (e2e Bayesian flow) 를 mock fixture 로 검증한다.
-// 실 backend chain (router → service → repository → DB INSERT 안 BAYESIAN enum value
-// roundtrip) 은 사용자 manual 의무 — `docker compose up worker` + Pine strategy fixture
-// + COMPLETED backtest + 본인 dogfood UI session.
+// 본 spec 은 Bayesian optimizer 제출 flow 와 결과 렌더 가드를 mock fixture 로 검증한다.
+// 실 backend chain (router → service → repository → DB INSERT 안 BAYESIAN enum value roundtrip)
+// 은 사용자 manual 의무 — `docker compose up worker` + Pine strategy + COMPLETED backtest + dogfood.
+//
+// ★C 이식 W3-C(2026-07-21) 재작성. 이 파일은 S0 시점에 testMatch 미등록 고아였고 폼 UX 가 통째로
+// stale 이었다(텍스트 backtest_id 입력 → useBacktests 완료-백테스트 SelectWithDisplayName 피커,
+// "최적화 알고리즘" 네이티브 select, "베이지안 탐색 새 실행" 폼 열기 버튼 + "베이지안 탐색 실행"
+// 폼 내부 제출). 현행 UX 로 재작성하고 skip 을 풀었다.
+// ★베이지안 완료 run 은 실 데이터에 없다 — 존재를 전제하지 않고 detail 은 mock 으로만 렌더한다.
 //
 // 검증 대상:
-//   1. /optimizer 페이지 algorithm select dropdown 안 "Bayesian" 옵션 활성.
-//   2. BayesianSearchForm render + 필수 필드 (acquisition / n_initial_random) 노출.
-//   3. submit 시 POST /api/v1/optimizer/runs/bayesian 호출 (별도 endpoint, Sprint 55 결정).
-//   4. detail page polling QUEUED → COMPLETED 후 BayesianIterationChart + BayesianBestParamsTable
-//      render. result.kind="bayesian" + best_iteration_idx 명시 (Sprint 50/51/52 차단).
-//   5. degenerate iteration 표시 (badge).
-//
-// Tier: dogfood Phase 2 critical (Sprint 56+ 본격 dogfood 시 regression 가드).
+//   1. /optimizer picker 에서 완료 백테스트 선택 + algorithm=bayesian → "베이지안 탐색 새 실행".
+//   2. BayesianSearchForm 핵심 필드(획득 함수 / 초기 랜덤 탐색 횟수) 노출.
+//   3. submit 시 POST /api/v1/optimizer/runs/bayesian (별도 endpoint) + kind=bayesian + schema_version=2.
+//   4. detail(mock COMPLETED)에서 BayesianIterationChart + BayesianBestParamsTable render.
+//      result.kind="bayesian" + best_iteration_idx 명시 + degenerate 배지 (LESSON-066 6차 · Sprint 50/51/52 차단).
 
 import { expect, test } from "@playwright/test";
 
@@ -22,16 +24,31 @@ import { fulfillJson } from "./fixtures/api-mock";
 test.describe.configure({ mode: "serial" });
 
 const USER_ID = "a0000000-0000-4000-8000-000000000099";
+const STRATEGY_ID = "c0000000-0000-4000-8000-000000000055";
 const BACKTEST_ID = "b0000000-0000-4000-8000-000000000055";
 const RUN_ID = "00000000-0000-4000-8000-000000005555";
 
 const NOW = "2026-05-11T15:00:00+00:00";
 
+// 완료 백테스트 1건 — picker 는 status="completed" 만 노출한다.
+const BACKTEST_SUMMARY = {
+  id: BACKTEST_ID,
+  strategy_id: STRATEGY_ID,
+  symbol: "BTC/USDT",
+  timeframe: "1h",
+  period_start: "2024-01-01T00:00:00+00:00",
+  period_end: NOW,
+  status: "completed",
+  created_at: NOW,
+  completed_at: NOW,
+};
+const BACKTEST_LIST = { items: [BACKTEST_SUMMARY], total: 1, limit: 100, offset: 0 };
+
 const PARAM_SPACE = {
   schema_version: 2,
   objective_metric: "sharpe_ratio",
   direction: "maximize",
-  max_evaluations: 5,
+  max_evaluations: 15,
   parameters: {
     emaPeriod: {
       kind: "bayesian",
@@ -41,7 +58,7 @@ const PARAM_SPACE = {
       log_scale: false,
     },
   },
-  bayesian_n_initial_random: 2,
+  bayesian_n_initial_random: 5,
   bayesian_acquisition: "EI",
 };
 
@@ -69,46 +86,11 @@ const RUN_COMPLETED = {
     kind: "bayesian",
     param_names: ["emaPeriod"],
     iterations: [
-      {
-        idx: 0,
-        params: { emaPeriod: "12" },
-        objective_value: "1.20",
-        best_so_far: "1.20",
-        is_degenerate: false,
-        phase: "random",
-      },
-      {
-        idx: 1,
-        params: { emaPeriod: "25" },
-        objective_value: null,
-        best_so_far: "1.20",
-        is_degenerate: true,
-        phase: "random",
-      },
-      {
-        idx: 2,
-        params: { emaPeriod: "17" },
-        objective_value: "1.85",
-        best_so_far: "1.85",
-        is_degenerate: false,
-        phase: "acquisition",
-      },
-      {
-        idx: 3,
-        params: { emaPeriod: "18" },
-        objective_value: "1.75",
-        best_so_far: "1.85",
-        is_degenerate: false,
-        phase: "acquisition",
-      },
-      {
-        idx: 4,
-        params: { emaPeriod: "16" },
-        objective_value: "1.92",
-        best_so_far: "1.92",
-        is_degenerate: false,
-        phase: "acquisition",
-      },
+      { idx: 0, params: { emaPeriod: "12" }, objective_value: "1.20", best_so_far: "1.20", is_degenerate: false, phase: "random" },
+      { idx: 1, params: { emaPeriod: "25" }, objective_value: null, best_so_far: "1.20", is_degenerate: true, phase: "random" },
+      { idx: 2, params: { emaPeriod: "17" }, objective_value: "1.85", best_so_far: "1.85", is_degenerate: false, phase: "acquisition" },
+      { idx: 3, params: { emaPeriod: "18" }, objective_value: "1.75", best_so_far: "1.85", is_degenerate: false, phase: "acquisition" },
+      { idx: 4, params: { emaPeriod: "16" }, objective_value: "1.92", best_so_far: "1.92", is_degenerate: false, phase: "acquisition" },
     ],
     best_params: { emaPeriod: "16" },
     best_objective_value: "1.92",
@@ -123,30 +105,31 @@ const RUN_COMPLETED = {
   },
 };
 
-const RUN_LIST = {
-  items: [RUN_COMPLETED],
-  total: 1,
-  limit: 20,
-  offset: 0,
-};
+const RUN_LIST = { items: [RUN_COMPLETED], total: 1, limit: 20, offset: 0 };
 
-// ★ C 이식 S0 (2026-07-20) — 이 spec 은 testMatch 미등록 고아였다. 배선해 돌려보니
-// 폼 상호작용이 통째로 stale 이다. Sprint 55 는 backtest_id 텍스트 입력이었으나 이후
-// P1-8(S7-B) 에서 useBacktests 완료-백테스트 드롭다운 피커로 교체됐다. 즉 아래는 4곳이 어긋난다.
-//   - getByLabel("backtest_id")         -> SelectWithDisplayName(콤보박스 "백테스트 선택")
-//   - getByLabel("optimizer algorithm") -> aria-label "최적화 알고리즘"
-//   - 완료 백테스트 목록 mock 부재       -> "완료된 백테스트 없음" + 제출 버튼 disabled
-//   - 버튼 "Bayesian 신규 제출"          -> "베이지안 탐색 새 실행"(열기) + 폼 내부 제출
-// /optimizer 는 P1 밖이라 지금 고쳐도 이식 작업을 지키지 못한다. optimizer 이식 슬라이스에서
-// 현행 UX(피커 + BayesianSearchForm)로 재작성하고 skip 을 푼다. 결과-렌더 가드
-// (BayesianIterationChart / best_iteration_idx / degenerate badge, LESSON-066 6차)의 의도는
-// 그때까지 이 파일이 문서로 보존한다.
-test.describe.skip("Sprint 55 — Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차단 가드)", () => {
-  test("algorithm select + form + submit + detail render", async ({ page }) => {
+test.describe("Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차단 가드)", () => {
+  test("picker + form + submit → POST bayesian endpoint", async ({ page }) => {
     let postedToBayesianEndpoint = false;
-    let detailPollCount = 0;
 
-    await page.route("**/api/v1/optimizer/runs/bayesian", async (route) => {
+    // FE 는 크로스오리진 백엔드(NEXT_PUBLIC_API_URL=http://localhost:8000)로 제출한다.
+    // ★함정: 일반 라우트 `**/optimizer/runs**` 가 구체 라우트 `**/optimizer/runs/bayesian` 을
+    // 가린다. Playwright 은 등록 역순으로 매칭하므로(마지막 등록이 최우선), 이전 판본은 bayesian 을
+    // 먼저 등록해 뒤이은 runs 목록 라우트가 POST 까지 가로챘고 RUN_LIST 를 돌려줬다. mutation 은
+    // 그것을 OptimizerRun 으로 파싱하려다 실패해 alert 를 띄웠다(postedToBayesianEndpoint=false).
+    // 수정: context.route 로 통일(크로스오리진 프레임까지 커버) + 구체 bayesian 라우트를
+    // **마지막에 등록**해 일반 runs 라우트보다 우선하게 한다.
+    const context = page.context();
+
+    // 완료 백테스트 picker 소스 (GET).
+    await context.route("**/api/v1/backtests**", async (route) => {
+      await fulfillJson(BACKTEST_LIST)(route);
+    });
+    // /optimizer 하단 실행 목록 (GET). bayesian 보다 먼저 등록 → 낮은 우선순위.
+    await context.route("**/api/v1/optimizer/runs**", async (route) => {
+      await fulfillJson(RUN_LIST)(route);
+    });
+    // 제출 엔드포인트 (POST) — 마지막 등록으로 위 일반 라우트보다 우선한다.
+    await context.route("**/optimizer/runs/bayesian", async (route) => {
       postedToBayesianEndpoint = true;
       const body = JSON.parse(route.request().postData() ?? "{}");
       // submit body 검증 — kind=bayesian + schema_version=2 (LESSON-066 case mismatch 차단).
@@ -156,37 +139,47 @@ test.describe.skip("Sprint 55 — Bayesian optimizer (LESSON-066 6차 + Sprint 5
       await fulfillJson(RUN_QUEUED, 202)(route);
     });
 
-    await page.route(`**/api/v1/optimizer/runs/${RUN_ID}`, async (route) => {
-      detailPollCount += 1;
-      // 1st poll = QUEUED, 2nd+ = COMPLETED (polling 종료 trigger).
-      const body = detailPollCount === 1 ? RUN_QUEUED : RUN_COMPLETED;
-      await fulfillJson(body)(route);
-    });
-
-    await page.route("**/api/v1/optimizer/runs**", async (route) => {
-      // list endpoint (page.tsx 의 OptimizerRunList).
-      await fulfillJson(RUN_LIST)(route);
-    });
-
     await page.goto("/optimizer");
 
-    // 1. backtest_id 입력 + algorithm = bayesian.
-    await page.getByLabel("backtest_id").fill(BACKTEST_ID);
-    await page.getByLabel("optimizer algorithm").selectOption("bayesian");
-    await page.getByRole("button", { name: /Bayesian 신규 제출/ }).click();
+    // 1. 완료 백테스트 선택 (SelectWithDisplayName combobox).
+    await page.getByRole("combobox", { name: "백테스트 선택" }).click();
+    await page.getByRole("option", { name: /BTC\/USDT/ }).click();
 
-    // 2. BayesianSearchForm 핵심 필드 노출.
-    await expect(page.getByText("acquisition function")).toBeVisible();
-    await expect(page.getByText("random warm-up")).toBeVisible();
+    // 2. algorithm = bayesian (네이티브 select aria-label "최적화 알고리즘").
+    await page.getByLabel("최적화 알고리즘").selectOption("bayesian");
 
-    // 3. var_name 입력 + submit.
-    await page.getByPlaceholder("var_name (pine input)").fill("emaPeriod");
-    await page.getByRole("button", { name: /Bayesian 제출/ }).click();
+    // 3. "베이지안 탐색 새 실행" 으로 폼 열기.
+    await page.getByRole("button", { name: /베이지안 탐색 새 실행/ }).click();
 
-    // 4. submit endpoint 호출 검증.
+    // 4. BayesianSearchForm 핵심 필드 노출.
+    await expect(page.getByText("획득 함수 (acquisition)")).toBeVisible();
+    await expect(page.getByText("초기 랜덤 탐색 횟수 (워밍업)")).toBeVisible();
+
+    // 5. var_name 입력 + 폼 내부 제출.
+    await page.getByPlaceholder("변수 이름 (예: length)").fill("emaPeriod");
+    await page.getByRole("button", { name: /베이지안 탐색 실행/ }).click();
+
+    // 6. submit endpoint 호출 검증.
     await expect.poll(() => postedToBayesianEndpoint).toBe(true);
+  });
 
-    // 5. 사용자 manual = run_id 라우팅 + chart render — spec 안 결과 page polling 검증은
-    //    Sprint 56+ Genetic 묶음 e2e 확장 시 scope. 현재는 submit + endpoint 호출 검증만.
+  test("detail(mock COMPLETED) — 반복 곡선 + 최적 파라미터 + 축퇴 배지 (LESSON-066 가드)", async ({
+    page,
+  }) => {
+    // 상세 GET (크로스오리진). context.route 로 통일 — 제출 테스트와 같은 함정 예방.
+    await page.context().route(`**/optimizer/runs/${RUN_ID}`, async (route) => {
+      await fulfillJson(RUN_COMPLETED)(route);
+    });
+
+    await page.goto(`/optimizer/${RUN_ID}`);
+
+    // BayesianIterationChart (best_so_far 곡선, SVG aria-label).
+    await expect(page.getByRole("img", { name: /베이지안 반복 곡선/ })).toBeVisible();
+    // BayesianBestParamsTable — 최적 파라미터 + best_iteration_idx 명시.
+    await expect(page.getByText("최적 파라미터").first()).toBeVisible();
+    await expect(page.getByText(/최적 반복 #/)).toBeVisible();
+    // degenerate 배지 (1 / 5) — Sprint 50/51/52 retro 차단 가드.
+    // ★`축퇴 1 / 5` 는 요약 텍스트와 배지 두 곳에 나온다(strict mode 위반). 배지(.chip.warn)로 좁힌다.
+    await expect(page.locator("span.chip.warn", { hasText: "축퇴 1 / 5" })).toBeVisible();
   });
 });

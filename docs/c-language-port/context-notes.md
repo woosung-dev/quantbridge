@@ -306,3 +306,65 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 ## 변경 이력 (append)
 
 - **2026-07-21** — **S1a~S9 완주 + codex 3회 검증.** 최종 게이트: vitest 164/904 · canon 29 · authed 5 · allowlist 전부 0. 상세는 HANDOFF 5판 §0.5.
+
+---
+
+## 잔여 완주 세션 (2026-07-21 착수) — 플랜 단계 결정 기록
+
+### 사용자 확정 2건 (플랜 모드 AskUserQuestion, 실측 근거 동봉)
+
+1. **`strategy.backtest_count` = 열 미렌더.** 실측: `StrategyResponseSchema` 에 대응 필드 자체가 0건(완료/전체 정의 이전 문제) + 원장 §4.2 가 스스로 "미해소 — 새 화면은 이 열을 다시 인쇄하지 않는 쪽이 기본"이라 명시. §4.9 보수 원칙 그대로. FE 파생 집계(N+1)·백엔드 필드 신설(범위 밖 수술)은 기각.
+2. **OKX = FE 등록 폼에서 제거.** 실측: DB 5436 에서 okx 거래소 계정 0건·주문 0건 — "OKX 데모로 실제 주문이 오간 적" 없음. 캐논(Bybit 단일)과 화면 카피가 이김. 제거 범위 = `features/trading/schemas.ts:71` enum + `register-exchange-account-dialog.tsx` SelectItem/passphrase 게이팅 + superRefine 분기 + `zod-v4-resolver.ts:9` 주석. **백엔드 불변**(git 가역). 마케팅 화면의 OKX 로드맵 표기(§4.8 5행 표)는 유지. terminology-ssot §6-4 해소.
+
+### 플랜 단계 실측이 교정한 것
+
+- **HANDOFF §3-1 "반경/stale-var 15파일" 은 부정확.** 실측 = stale `var(--radius…,폴백)` 콤마 폴백 **4파일 5건**(전부 strategies 슬라이스: parse-result-panel 2 · step-code 1 · parse-panel 1 · editor-monaco-wrapper 1) + 리터럴 반경은 P1 밖 **50+파일**. 후자는 각 화면 이식 시 시맨틱 CSS 소비로 자연 소멸이 원칙(S9 실증), 화면 밖 잔여만 W-final sweep.
+- **baseline 재현 부분 실패의 원인 = Turbopack stale 캐시 (코드 회귀 아님).** dev 서버 컴파일 CSS 에 `--text-muted:#7a828c`(커밋 소스에 없는 구 다크 값) 실측. `/` contrast 2 · trades focus 2 · 전 라우트 canon=2 가 전부 이것으로 설명. 교훈: **baseline 3종 동시 발사 금지 — 게이트 재현은 항상 직렬** (동시 부하 시 authed 4 FAIL 위양성 실측).
+- **fixture 갭 1건: optimizer 완료 run 0** (유일 run = GRID_SEARCH FAILED). /optimizer/[id] 완료 상태 게이트 침묵 skip 방지 위해 W0 에서 실제 엔진으로 grid search 1건 완주 시딩.
+- **/pricing 은 현재 `redirect("/#pricing")` 7줄** — screen-16 이식 시 실페이지 신설 + 리다이렉트 제거 + public spec/live-smoke 편입.
+- **Clerk sign-in**: colorPrimary 는 `clerk-theme-bridge.tsx` 단일 소스(하드코딩 금지 주석 실존). 이식 범위 = split-screen-shell + appearance 토큰 정렬. Clerk 내부 DOM 재구성 불가.
+- **`/backtests/[id]` 는 lwc + recharts 5플롯 이중 스택.** recharts 유지(교체 금지), SVG 공선성 검사 신설은 W2 에서 반증 절차로 검토.
+
+### codex 플랜 검증 (W0, 8건 — BLOCKER 0 · MAJOR 6 · MINOR 2, 전건 코드 대조 후 처분)
+
+- **채택 6.** ① G/H 가 `app/_components/error-*` 를 공유(3파일 import 확인) → error-\* 는 H 로 명시 배정. ② `/backtests/[id]` authed 케이스는 완료 상태 행만 선택 + fixture 부재 시 skip 아닌 expect FAIL + ReportShell 렌더 대기. ③ coverage 매트릭스 신설(checklist 표) — canon 29→33 · authed 5→14 추적. ④ CI 는 authed 캐논을 안 돌므로 PR 본문에 직렬 e2e:authed 로그 + --list 증빙 의무. ⑤ no-raw-enum 가드는 status/state 만 감시(확인) → W1 에서 kind/direction/objective_metric/prior/phase + 템플릿 보간 확장, 유형별 RED 반증. ⑥ OKX 제거 시 register-exchange-account-dialog.test 의 okx 케이스 파손 → 테스트 정리 + bybit 단일/passphrase:null 회귀 테스트 교체를 W3-F 범위에 포함.
+- **교정 채택 1.** ⑦ ~~share 가 report 컴포넌트 공유~~ — 실측 반증: share 페이지는 스키마 + 자체 `_components` 만 import. 플랜의 blast radius 전제를 삭제하고 share 는 전역 토큰 계약 관점만 유지.
+- **부분 채택 1.** ⑧ Tab 30회 한계 + box-shadow 링 인정 — **감사 코어는 불변으로 둔다.** 코어를 바꾸면 S0 캘리브레이션(프로토타입 22 PASS 재현)의 동등성이 깨진다. 대신 대형 신규 화면 워커에 30탭 밖 핵심 인터랙티브 요소 포커스 링 수동 확인 + 요소 목록 falsifiable 보고를 의무화.
+
+### 통합(cherry-pick) 루틴에서 실측한 함정 3건 (2026-07-21, W2~C 통합)
+
+1. **cherry-pick 도 Turbopack stale 을 유발한다.** W2 통합 직후 `/backtests/:id` 가 contrast=4 로 FAIL — 컴파일 CSS 가 여전히 구 `--muted-foreground #7a828c` 를 서빙(소스는 `#8b939c`). 서버 재기동으로도 무효. **확정 루틴 = 서버 정지 → globals.css 캐시 무효화 주석(r 카운터) 갱신 → 기동 → 컴파일 CSS 에 신규 값/클래스 curl 확인 → 게이트.** 슬라이스 통합마다 의무.
+2. **CSS 주석 안 `*/` 연쇄 = 주석 조기 종결 → 전 라우트 500.** W3-B 블록 주석의 `.trust-*/` 가 PostCSS 파스를 깨뜨렸다(에러 좌표는 생성 코드 기준 8497줄이라 소스 대조가 오도됨). 워커 게이트에 build/컴파일 확인이 없어 통과 — 이후 웨이브부터 주석 `*/` 스캔 + 자기 포트 dev 200 확인을 워커 게이트에 추가.
+3. **fresh 서버 첫 방문(콜드 컴파일) 중 canon 감사는 콘솔/발견 flake 를 낸다.** /optimizer console=10 → 단독 재실행 0. 판정은 warm 재실행으로.
+
+### 2차 웨이브(A/D/E/F/G + FIX + 부채) 통합 판단 기록 (2026-07-21)
+
+- **G(마케팅) 는 net-diff squash 로 통합.** 워커 7커밋 중간에 prettier 전체 재포맷 사고→되돌림 커밋이 껴 있어 per-commit 재생이 오염을 재재생한다 — `git diff base..tip` 3-way 적용 + squash 1커밋. kit-port 무결성 테스트가 재포맷 잔재 0 을 증명.
+- **감사기 WCAG 1.4.3 비활성 컨트롤 예외는 hard 축만.** /trading 의 disabled `.btn-primary`(opacity .5) 텍스트 3.21:1 이 하드 실패로 잡혔으나 WCAG 1.4.3 은 비활성 컨트롤을 대비 요구에서 제외한다. canon(soft) 까지 빼면 프로토타입 screen-05 의 disabled 버튼이 canon-7 에서 2건을 차지해 **캘리브레이션 기준선이 깨진다** — 실측으로 증명하고 hard 축만 예외. 반증 2종(비활성 제외 작동 + 활성 저대비는 여전히 검출) 통과.
+- **콘솔 429 는 캐논 위반이 아니다.** 전체 authed 스위트 연속 실행이 백엔드 레이트리밋을 쳐 "Failed to load resource: 429" 가 콘솔 하드 실패로 위양. EXPECTED_CONSOLE 에 429 예외 추가 (p1 + remaining 양쪽).
+- **정직 미렌더 추가 사례(전부 워커 §4.9 보고).** orders: 브로커/모의 출처 배지(스키마 무필드)·취소 액션 열(취소 API 부재 — 가짜 어포던스 금지). backtests/new: ETA·예상 수수료 휴리스틱·실시간 배지 제거(가짜 라이브). onboarding step-4: 스키마 backed 3지표만.
+- **부채 마감 실측이 S9 판단을 뒤집었다.** S9 가 "구조 편차라 이연"한 StateBox 6곳이 **인터페이스 확장 0 으로 전량 이관 가능**했다(children 슬롯이 흡수) — 9파일 13곳, DOM 바이트 보존. 이연 사유가 프리미티브 성숙(className prop 추가)으로 소멸한 사례.
+- **잔여 관측 3종(후속 판단).** hand-rolled state-box 3건(trade-ledger-table:71·parse-result-panel:205·new-strategy-wizard:463 — 시각 동일) · backtest-history-card.tsx = dead(소비자 0) · KPI 미터 미렌더(W2 결정)와 히트맵 기본 접힘(C 결정)은 프로토타입 대비 의도적 편차로 사용자 보고 대상.
+
+### W-final 마감 기록 (2026-07-21)
+
+- **교차 감사 8건**: 7픽스(title.template '%s · QuantBridge' 통일+누락 3라우트 · 코크핏 §03 영문 잔재 SSOT 화 · Live Session 영문 혼입 · woosung 하드코딩 칩 제거 · 로컬 tz 잔재 → UTC 포맷터 · hand-rolled state-box 3건 이관) + 1기결(주문 nav-count = 전체+툴팁, S9 판정 유지 — 캐논 §4.6 과의 차이는 문서 소관).
+- **codex 최종 8건**: 7픽스(429 필터를 리소스 메시지로 좁힘 — pageerror 429 는 계속 하드 · tab-webhook 테스트 4행동 복구 · authed spec 침묵 skip → 시끄러운 사전조건 · 리포트 데모 CTA /onboarding→/trading · '3 x 3' 고정 표기 제거 · globals 중복/죽은 규칙 정리) + 1기각(labels 미소비 export = terminology-ssot §4 전문 그대로 정책의 의도 산물, 유지).
+- **레거시 authed 스펙 수리**: 8스펙 12+ 실패 전부 테스트측 staleness(구 5탭 IA·구 카피·z.uuid 위반 mock id·셀렉터 다중 매칭). 앱 결함 0. KS resolve un-skip(기능이 이식 중 구현돼 skip 사유 소멸) → **전체 56 passed / 0 failed / 0 skipped**.
+- **감사기 결함 2종 수리** (화면이 아니라 자의 결함): ① WCAG 1.4.3 비활성 컨트롤 예외(hard 축만 — canon 까지 빼면 프로토 screen-05 disabled 버튼이 캘리브레이션 기준선을 깬다는 실측으로 스코핑) ② 대비 샘플링을 reduced-motion 정지 상태로 — /trading §05 버튼(.rise 스태거 최말단)이 스위트 문맥에서만 1.11:1 로 결정적 FAIL 하던 knife-edge 는 입장 애니메이션 opacity 램프를 찍던 표본 타이밍 결함. 두 건 모두 캘리브레이션 22 동등성 재현 + 양방향 반증 통과.
+
+### W0 환경 복구·시딩 기록
+
+- stale Turbopack 캐시: globals.css 내용 변경(주석 1줄, `1a8addb`) + 재기동으로 해소. 컴파일 CSS 에 `#8b939c` 존재·`#7a828c` 부재 curl 확인 후 baseline 재현 (vitest 164/904 · canon 29 · authed 5).
+- ★fixture 함정 재확인: `FixtureProvider` 는 `{root}/{symbol}_{tf}.csv` 에 심볼 슬래시가 경로로 들어간다 (`BTC/USDT` → `root/BTC/USDT_1h.csv`). 레포 커밋본은 평면 `BTCUSDT_1h.csv` 뿐이라 그대로는 miss — **스크래치패드에 `ohlcv-root/BTC/USDT_1h.csv` 심링크 트리를 만들어 worker 에 `OHLCV_FIXTURE_ROOT` 절대경로로 주입** (레포 오염 0). celery worker 는 `-Q celery,optimizer_heavy` (optimizer.run 라우팅) + DATABASE_URL 5436 오버라이드.
+- 옵티마이저 완료 run 시딩: 실 API(`POST /api/v1/optimizer/runs/grid-search`, Clerk JWT 는 storageState→`window.Clerk.session.getToken()`) → grid 2x2, run `47ab18b7` **COMPLETED** (result 1.3KB). 실패 상태 fixture 도 자연 확보(`776ad44a` FAILED — fixture miss 시절).
+
+### MCP playwright 실브라우저 검증 (2026-07-22, PR #464 위 후속 브랜치)
+
+- **계기**: 기존 게이트는 전부 Playwright CLI(e2e·canon) — 실브라우저 대화형(MCP) 육안 검증 기록이 없어, 이식 화면 15+ 를 라이트·다크·모바일(390px)로 실주행. 세션 주입은 e2e storageState 쿠키 재사용(전부 non-HttpOnly).
+- **결함 2건 발견·수정** (둘 다 CLI 게이트의 사각).
+  1. `/optimizer/:id` grid 완료 화면 섹션 번호 03 중복 — 03 파라미터 안정성 + 03 OOS 검증. OOS 는 grid 에서 04, bayesian/genetic 에선(안정성 섹션 부재) 03 이어야 해 `sectionNum` prop 주입으로 동적화. 유닛 회귀 2건 추가(순차·유일 ["01","02","03","04"]). CLI 사각 사유: canon 은 하드페일 카운트만 대조, 유닛은 번호를 단언하지 않았다.
+  2. `.topbar` 배경 `rgba(11,13,15,.86)` 하드코딩 — 라이트 테마에서 다크 바 위 라이트용 crumbs 잉크(#171a1e) = **1.1:1 판독 불가** (데스크탑·모바일 동일). `--topbar-bg` 토큰(:root/.dark) 신설로 해소. CLI 사각 사유: authed canon 은 다크 기본으로만 주행, public 라이트 감사엔 `.topbar` 셸이 없다. kit-port 무결성은 allowlist 2호(topbar 토큰화, \_kit.html 은 다크 단일 팔레트라 하드코딩이 정당) 등록 — silent no-op 방지 assertion 동반.
+- **결함 아님 판정 3건**: 영어 Beta 배너 = Sprint 11 geo-block(미/EU 대상 의도적 영어, 한국어 재스킨된 것은 legal-notice-banner) · 404 콘솔 에러 2건 = 404 리소스 상태 로그 자체 · recharts "width(-1)" 경고 = ResponsiveContainer 초기 마운트 노이즈(기록된 비결정 사유와 동일 계열).
+- **환경 함정 재확인**: 장수 dev 서버가 `.strat-name`/`.strat-id` 룰이 아예 없는 stale CSS 를 서빙(이름+ID 한 덩어리 렌더로 위장) — r 주석 루틴으로 즉시 해소. **MCP 육안 검증도 시작 전 stale CSS 무효화가 선행 의무.**
+- **게이트 재현(수정 후)**: vitest 169/965 · tsc 0 · lint 0 · design-canon 32 · e2e:authed 56/0/0.

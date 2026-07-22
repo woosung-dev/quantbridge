@@ -48,10 +48,8 @@ async function renderDialog() {
 }
 
 async function fillAndSubmit(opts: {
-  exchange?: "bybit" | "okx";
   apiKey?: string;
   apiSecret?: string;
-  passphrase?: string;
 }) {
   const apiKeyInput = screen.getByPlaceholderText("API Key");
   fireEvent.change(apiKeyInput, { target: { value: opts.apiKey ?? "K" } });
@@ -59,11 +57,6 @@ async function fillAndSubmit(opts: {
   fireEvent.change(apiSecretInput, {
     target: { value: opts.apiSecret ?? "S" },
   });
-  if (opts.exchange === "okx") {
-    // OKX 선택 시 schema cross-field 검증을 위해 form 의 exchange 값을 직접 setter 로 변경할
-    // 방법이 없어서, defaultValues 가 "bybit" 인 케이스만 시뮬레이션한다. OKX 경로는
-    // 별도 schema unit test (test-schema-okx-passphrase) 로 검증.
-  }
   const submitBtn = screen.getByRole("button", { name: /^등록$/ });
   await act(async () => {
     fireEvent.click(submitBtn);
@@ -90,7 +83,7 @@ describe("RegisterExchangeAccountDialog — P1-1/11 (S7-A)", () => {
   });
 
   it("mutation 이 throw 하면 root.serverError 가 inline 표시", async () => {
-    mutateAsyncMock.mockRejectedValueOnce(new Error("HTTP 422: OKX 검증 실패"));
+    mutateAsyncMock.mockRejectedValueOnce(new Error("HTTP 422: 검증 실패"));
     await renderDialog();
     await fillAndSubmit({ apiKey: "K2", apiSecret: "S2" });
 
@@ -117,18 +110,13 @@ describe("RegisterExchangeAccountDialog — P1-1/11 (S7-A)", () => {
     });
   });
 
-  // Phase C QA hotfix (2026-05-30) — OKX 선택 후 passphrase 누락 시 dialog UI
-  // 차단 시나리오는 Base UI Select 가 jsdom 에서 onValueChange 를 정상 호출하지
-  // 않아 unit test 로 cover 불가. schema-level test (아래 schema describe) 가
-  // superRefine 동작을 검증하고, dialog 통합은 Playwright E2E + Phase C 라이브
-  // QA evidence (qa-2026-05-30/11-s7a-okx-passphrase-missing.png) 로 입증.
 });
 
-describe("RegisterAccountRequestSchema — P1-1/11 (S7-A) OKX passphrase 강제", () => {
-  it("bybit 선택 시 passphrase null 허용", async () => {
-    const { RegisterAccountRequestSchema } = await import(
-      "../../schemas"
-    );
+// C 이식(W3-F): 연결 거래소 Bybit 단일화 회귀. OKX enum·passphrase superRefine 을 걷어냈으므로
+// (1) Bybit + passphrase null 직렬화가 통과하고 (2) OKX 는 enum 단계에서 거부돼야 한다.
+describe("RegisterAccountRequestSchema — Bybit 단일 (OKX 제거)", () => {
+  it("bybit + passphrase null → 통과 (폼이 항상 null 직렬화)", async () => {
+    const { RegisterAccountRequestSchema } = await import("../../schemas");
     const result = RegisterAccountRequestSchema.safeParse({
       exchange: "bybit",
       mode: "demo",
@@ -138,48 +126,14 @@ describe("RegisterAccountRequestSchema — P1-1/11 (S7-A) OKX passphrase 강제"
       passphrase: null,
     });
     expect(result.success).toBe(true);
-  });
-
-  it("okx + passphrase null → validation fail", async () => {
-    const { RegisterAccountRequestSchema } = await import(
-      "../../schemas"
-    );
-    const result = RegisterAccountRequestSchema.safeParse({
-      exchange: "okx",
-      mode: "demo",
-      label: null,
-      api_key: "K",
-      api_secret: "S",
-      passphrase: null,
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const passphraseError = result.error.issues.find((i) =>
-        i.path.includes("passphrase"),
-      );
-      expect(passphraseError?.message).toContain("Passphrase");
+    if (result.success) {
+      expect(result.data.exchange).toBe("bybit");
+      expect(result.data.passphrase).toBeNull();
     }
   });
 
-  it("okx + passphrase 빈 string → validation fail", async () => {
-    const { RegisterAccountRequestSchema } = await import(
-      "../../schemas"
-    );
-    const result = RegisterAccountRequestSchema.safeParse({
-      exchange: "okx",
-      mode: "demo",
-      label: null,
-      api_key: "K",
-      api_secret: "S",
-      passphrase: "",
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("okx + passphrase non-empty → validation pass", async () => {
-    const { RegisterAccountRequestSchema } = await import(
-      "../../schemas"
-    );
+  it("okx → enum 단계에서 거부 (더 이상 지원 거래소가 아님)", async () => {
+    const { RegisterAccountRequestSchema } = await import("../../schemas");
     const result = RegisterAccountRequestSchema.safeParse({
       exchange: "okx",
       mode: "demo",
@@ -188,6 +142,12 @@ describe("RegisterAccountRequestSchema — P1-1/11 (S7-A) OKX passphrase 강제"
       api_secret: "S",
       passphrase: "MyPass123",
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const exchangeError = result.error.issues.find((i) =>
+        i.path.includes("exchange"),
+      );
+      expect(exchangeError).toBeDefined();
+    }
   });
 });

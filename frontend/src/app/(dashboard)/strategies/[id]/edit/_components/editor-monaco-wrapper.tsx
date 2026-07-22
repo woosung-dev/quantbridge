@@ -1,6 +1,6 @@
-// Monaco Pine 에디터를 파일 탭 toolbar 로 감싸는 wrapper (Sprint 43 W9-fidelity)
-// prototype 01: file-tab primary(코퍼) top border + .editor-toolbar + JetBrains Mono.
-// Terminal Tape 롤아웃: 하드코딩 다크 hex/slate → 테마 토큰으로 교체해 앱 라이트/다크에 함께 flip.
+// Monaco Pine 에디터를 파일 탭 toolbar 로 감싸는 wrapper — C 디자인 언어 이식 (screen-08 소스).
+// C 토큰(--line/--card/--card-2/--copper/--ink)만 쓰고 단일 반경(var(--r))을 지킨다. 자체
+// 포커스 링(focus-visible:ring)은 제거해 전역 :focus-visible 카퍼 링만 걸리게 한다.
 "use client";
 
 import { FileIcon, MaximizeIcon, SearchIcon } from "lucide-react";
@@ -8,7 +8,7 @@ import { FileIcon, MaximizeIcon, SearchIcon } from "lucide-react";
 import { PineEditor, type PineEditorProps } from "@/components/monaco/pine-editor";
 
 export interface EditorMonacoWrapperProps extends PineEditorProps {
-  /** 파일 탭에 표시할 파일명 (예: ma_crossover.pine) */
+  /** 파일 탭에 표시할 파일명 (예: strategy.pine) */
   fileName?: string;
   /** Pine 버전 라벨 (toolbar 우측 표시) */
   versionLabel?: string;
@@ -21,22 +21,18 @@ export function EditorMonacoWrapper({
 }: EditorMonacoWrapperProps) {
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-[var(--radius-md,0.625rem)] border border-border bg-card"
+      className="flex flex-col overflow-hidden rounded-[var(--r)] border border-[color:var(--line)] bg-[color:var(--bg-alt)]"
       data-testid="editor-monaco-wrapper"
     >
-      {/* prototype 01: .editor-toolbar 36px / muted / file-tab primary(코퍼) 보더 */}
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-muted px-3">
+      {/* 파일 탭 toolbar 36px — file-tab 은 코퍼 상단 보더로 활성 파일을 표시 */}
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[color:var(--line)] bg-[color:var(--card-2)] px-3">
         <div
-          className="-mb-px inline-flex items-center gap-2 rounded-t-md border-t-2 border-[color:var(--primary)] bg-card px-3 py-1.5 font-mono text-[0.75rem] text-foreground"
+          className="-mb-px inline-flex items-center gap-2 rounded-t-[var(--r)] border-t-2 border-[color:var(--copper)] bg-[color:var(--card)] px-3 py-1.5 font-mono text-[0.75rem] text-[color:var(--ink)]"
           data-testid="editor-monaco-wrapper-filetab"
         >
-          <FileIcon
-            aria-hidden
-            className="size-3 text-[color:var(--primary)]"
-            strokeWidth={2}
-          />
+          <FileIcon aria-hidden className="size-3 text-[color:var(--copper)]" strokeWidth={2} />
           <span>{fileName}</span>
-          <span className="font-mono text-[0.7rem] text-muted-foreground">{versionLabel}</span>
+          <span className="font-mono text-[0.7rem] text-[color:var(--ink-3)]">{versionLabel}</span>
         </div>
 
         <div className="ml-auto flex items-center gap-1">
@@ -49,7 +45,7 @@ export function EditorMonacoWrapper({
         </div>
       </div>
 
-      {/* Monaco editor 본체 — JetBrains Mono 는 PineEditor options 에서 이미 지정 */}
+      {/* Monaco editor 본체 */}
       <div className="min-h-0 flex-1">
         <PineEditor {...editorProps} />
       </div>
@@ -62,12 +58,13 @@ interface ToolbarIconButtonProps {
   children: React.ReactNode;
 }
 
+// 자체 포커스 링 없음 — 전역 언레이어드 :focus-visible 카퍼 링이 대신 걸린다.
 function ToolbarIconButton({ ariaLabel, children }: ToolbarIconButtonProps) {
   return (
     <button
       type="button"
       aria-label={ariaLabel}
-      className="grid size-7 place-items-center rounded text-muted-foreground transition-colors hover:bg-[color:var(--border)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="grid size-7 place-items-center rounded-[var(--r)] text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--card-3)] hover:text-[color:var(--ink)]"
     >
       {children}
     </button>

@@ -55,6 +55,15 @@ export const ORDER_ID_SOURCE_LABEL: Record<OrderIdSource, string> = {
   broker: "브로커",
   mock: "모의",
 };
+/**
+ * 주문번호 출처 배지 title. 모의는 실행 경로 힌트를 그대로 쓰고(로컬 목 어댑터라 거래소에
+ * 나가지 않음), 브로커는 거래소가 돌려준 번호임을 밝힌다. 컴포넌트는 데모·라이브를 구분하지
+ * 않으므로 특정 거래소명은 넣지 않는다. screen-11-orders.html:1306 · :1404
+ */
+export const ORDER_ID_SOURCE_HINT: Record<OrderIdSource, string> = {
+  broker: "거래소가 돌려준 주문번호입니다.",
+  mock: EXECUTION_MODE_HINT.mock,
+};
 
 /**
  * 주문 표 헤더 10열. screen-11-orders.html:1269-1278 의 th 를 순서대로 옮긴 것이고
@@ -101,13 +110,81 @@ export const ORDER_STATE_FILTER_LABEL: Record<OrderStateFilter, string> = {
   closed: "취소·거부",
 };
 
-/** 무데이터 사유. screen-11-orders.html:1289 · :1292 · :1347 · :1348 */
+/** 무데이터 사유. screen-11-orders.html:1289 · :1292 · :1347 · :1348 · :1373 · :1375 */
 export const ORDER_EMPTY_REASON = {
   filledPriceNotYet: "아직 체결되지 않아 체결가가 없습니다.",
+  filledPriceRejected: "거부된 주문이라 체결가가 없습니다.",
+  filledPriceCancelled: "체결 전에 취소돼서 체결가가 없습니다.",
   brokerIdNotSent: "아직 거래소로 보내지 않아 주문번호가 없습니다.",
   brokerIdRejected: "거래소로 나가기 전에 걸러져서 주문번호가 없습니다.",
+  takeProfitStopLossNone: "이 주문에는 익절도 손절도 걸려 있지 않습니다.",
   takeProfitStopLossRejected:
     "거래소로 나가기 전에 걸러져서 익절과 손절도 붙지 않았습니다.",
+} as const;
+
+/**
+ * 체결가 무데이터 title 을 상태별로 고른다. 체결 전 상태(대기·전송)는 같은 문구를 쓴다.
+ * screen-11-orders.html:1289(대기) · :1345(거부) · :1373(취소).
+ */
+export function filledPriceEmptyReason(state: OrderState): string {
+  if (state === "rejected") return ORDER_EMPTY_REASON.filledPriceRejected;
+  if (state === "cancelled") return ORDER_EMPTY_REASON.filledPriceCancelled;
+  return ORDER_EMPTY_REASON.filledPriceNotYet;
+}
+
+/** 오류 없음 셀 title. 상태마다 왜 오류가 없는지 다르게 밝힌다. screen-11-orders.html:1293 · :1307 · :1363 · :1377 */
+export const ORDER_ERROR_NONE_TITLE: Partial<Record<OrderState, string>> = {
+  pending: "오류 없이 대기 중입니다.",
+  submitted: "오류 없이 전송된 상태입니다.",
+  filled: "오류 없이 체결됐습니다.",
+  cancelled: "사용자가 직접 취소했습니다. 오류는 없습니다.",
+};
+
+// 주문 취소·취소 불가 셀 title(screen-11 액션 열)은 여기 두지 않는다. 취소 주문 API 가
+// trading/api.ts 에 아직 없어서 액션 열 자체를 렌더하지 않기 때문이다(§4.9 미백킹 affordance).
+
+/** 추적손절 라벨. §4.6 규약 — 원시 "trail" 문자열 대신 한글 라벨을 쓴다. screen-11-orders.html:1333 */
+export const ORDER_TRAILING_STOP_LABEL = "추적손절";
+
+/** 추적손절 셀 title. screen-11-orders.html:1333 */
+export const ORDER_TRAILING_STOP_TITLE =
+  "체결가에서 벌어진 거리를 따라붙는 손절입니다.";
+
+/**
+ * 폴링 정책 안내. 주문 원장은 자기 리소스의 갱신 정책을 명시한다(§4.6).
+ * 실제 훅은 진행 중 주문이 있으면 5초, 없으면 30초로 폴링한다(hooks.ts).
+ */
+export const ORDER_POLLING_NOTE =
+  "이 목록은 30초 간격으로 다시 불러옵니다. 진행 중인 주문이 있으면 더 자주 확인합니다.";
+
+/**
+ * 상태 필터 안내 2줄. 첫 줄은 필터 대상 범위, 둘째 줄은 미체결 건수와 사이드바 배지의 차이를 밝힌다.
+ * 사이드바 배지는 전체 주문 수라서(셸 결정, 미체결 아님) 헤더의 미체결 건수와 다를 수 있음을 정직하게 적는다.
+ */
+export const ORDER_FILTER_HINT = {
+  scope:
+    "버튼을 누르면 원장 표에서 그 상태의 행만 남깁니다. 거르는 대상은 이미 받아온 주문이고, 아직 받아오지 않은 페이지는 걸러지지 않습니다.",
+  navCount:
+    "위 미체결 건수는 대기와 전송을 더한 값입니다. 사이드바 배지는 전체 주문 수라서 이 값과 다를 수 있습니다.",
+} as const;
+
+/**
+ * 거래소 주문번호 안내. 뒤 8자만 보여 주고, 아직 번호가 없는 상태를 밝힌다.
+ * 브로커·모의 구분 배지는 주문 스키마에 대응 필드가 없어 렌더하지 않는다(§4.9).
+ */
+export const ORDER_NUMBER_NOTE =
+  "거래소 주문번호는 뒤 8자만 보여줍니다. 대기와 거부 상태에는 아직 번호가 없어서 빈 칸으로 둡니다.";
+
+/** 목록 화면 섹션 카피(구조·라벨). screen-11-orders.html:1211-1213 · :1240-1242 · :1249 */
+export const ORDER_LEDGER_COPY = {
+  filterEyebrow: "상태 필터",
+  filterTitle: "어떤 상태만 볼지 고르기",
+  filterDesc:
+    "아직 끝나지 않은 주문과 이미 끝난 주문을 나눠서 봅니다. 괄호 없이 붙은 숫자가 그 상태의 건수입니다.",
+  listEyebrow: "목록",
+  listDescription:
+    "세션이 낸 주문을 낸 시각의 역순으로 쌓습니다. 값이 아직 없는 칸은 비어 있다고 그대로 표시합니다.",
+  cardTitle: "주문 원장",
 } as const;
 
 /**

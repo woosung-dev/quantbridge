@@ -1,4 +1,4 @@
-// LandingFeatures — 6개 카드 + section header 노출 검증
+// LandingFeatures (C 이식) — 6 기능 카드 + 섹션 헤더 + note 노출.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -9,30 +9,24 @@ describe("LandingFeatures", () => {
     cleanup();
   });
 
-  it("section heading + sub copy 노출", () => {
-    render(<LandingFeatures />);
-    expect(
-      screen.getByRole("heading", { level: 2, name: /핵심 기능/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/트레이딩 전략의 전체 라이프사이클/),
-    ).toBeInTheDocument();
+  it("section id=features + eyebrow 01", () => {
+    const { container } = render(<LandingFeatures />);
+    expect(container.querySelector("#features")).not.toBeNull();
+    expect(container.querySelector(".eyebrow .num")?.textContent).toBe("01");
   });
 
-  it("6개 feature 카드 — h3 모두 렌더", () => {
+  it("6개 기능 카드(.lp-feat) + 대표 타이틀 노출", () => {
+    const { container } = render(<LandingFeatures />);
+    expect(container.querySelectorAll(".lp-feat").length).toBe(6);
+    expect(screen.getByText("Pine Script 파싱")).toBeInTheDocument();
+    expect(screen.getByText("데모 트레이딩")).toBeInTheDocument();
+    expect(screen.getByText("리스크 가드와 Kill Switch")).toBeInTheDocument();
+  });
+
+  it("Pine 전체 거부 정책 문구 노출 (ADR-003)", () => {
     render(<LandingFeatures />);
-    const titles = [
-      "Pine Script 파싱",
-      "정밀 백테스트",
-      "스트레스 테스트",
-      "파라미터 최적화",
-      "데모 트레이딩",
-      "라이브 트레이딩",
-    ] as const;
-    for (const t of titles) {
-      expect(
-        screen.getByRole("heading", { level: 3, name: t }),
-      ).toBeInTheDocument();
-    }
+    expect(
+      screen.getByText(/미지원 함수가 하나라도 있으면 전체를 지원되지 않음/),
+    ).toBeInTheDocument();
   });
 });

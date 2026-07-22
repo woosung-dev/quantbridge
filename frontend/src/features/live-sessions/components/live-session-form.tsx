@@ -1,9 +1,11 @@
 "use client";
 
-// Sprint 26 — Live Session 등록 form.
+// 라이브 세션 등록 폼 — C 디자인 언어 이식(W3-F, screen-01 §05 세션 관리).
+// shadcn Form/Select + SelectWithDisplayName(BL-164 UUID 은닉)은 기능·접근성 때문에 유지하고,
+// 스타일 층만 C 규약(.field-label / .input / .notice-inline / .btn)으로 옮겼다.
 //
-// dogfood UX:
-//  - amber notice "Bybit Demo 한정 — 가상 자금만 사용. 실제 자금 손실 없음."
+// dogfood UX 유지:
+//  - Bybit 데모 한정 안내(가상 자금만, 실제 자금 손실 없음)
 //  - 5건 quota 도달 → submit disabled + tooltip
 //  - 422 inline error (StrategySettingsRequired / InvalidStrategySettings /
 //    AccountModeNotAllowed / LiveSessionQuotaExceeded)
@@ -15,7 +17,6 @@ import { useForm } from "react-hook-form";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -24,7 +25,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -65,7 +65,7 @@ export function LiveSessionForm({
 
   const isQuotaReached = activeSessionsCount >= MAX_LIVE_SESSIONS_PER_USER;
 
-  // Bybit Demo 만 허용 — UI 에서 사전 필터링 + form-level error 도 백업
+  // Bybit 데모만 허용 — UI 에서 사전 필터링 + form-level error 도 백업
   const allowedAccounts = exchangeAccounts.filter(
     (a) => a.exchange === "bybit" && a.mode === "demo",
   );
@@ -84,7 +84,7 @@ export function LiveSessionForm({
     setServerError(null);
     try {
       const session = await register.mutateAsync(values);
-      toast.success("Live Session 시작됨");
+      toast.success("라이브 세션 시작됨");
       form.reset();
       onSuccess?.(session);
     } catch (err) {
@@ -95,14 +95,14 @@ export function LiveSessionForm({
 
   return (
     <div className="space-y-4">
-      {/* Bybit Demo 한정 안내 — mainnet 출시 전까지 */}
-      <div
-        className="rounded-md border border-transparent bg-warning-subtle p-3 text-sm text-warning"
+      {/* Bybit 데모 한정 안내 — 메인넷 출시 전까지 */}
+      <p
+        className="notice-inline"
         data-testid="live-session-bybit-demo-notice"
       >
-        <strong>Bybit Demo 한정</strong>. 가상 자금만 사용. 실제 자금 손실
-        없음. (Live mainnet 은 안정성 검증 후 단계적 활성화 예정)
-      </div>
+        <strong>Bybit 데모 한정</strong>. 가상 자금만 사용합니다. 실제 자금 손실은
+        없습니다. 라이브 메인넷은 안정성 검증 후 단계적으로 활성화할 예정입니다.
+      </p>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -111,7 +111,7 @@ export function LiveSessionForm({
             name="strategy_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Strategy</FormLabel>
+                <FormLabel className="field-label">전략</FormLabel>
                 <FormControl>
                   {/* BL-164 — SelectWithDisplayName 헬퍼로 통일.
                       render prop 캡슐화로 raw value(UUID) 노출 자동 차단. */}
@@ -122,7 +122,7 @@ export function LiveSessionForm({
                     }))}
                     value={field.value}
                     onValueChange={field.onChange}
-                    placeholder="전략 선택 (settings 필요)"
+                    placeholder="전략 선택 (설정 필요)"
                     triggerTestId="live-session-strategy-trigger"
                     ariaLabel="전략 선택"
                   />
@@ -136,7 +136,7 @@ export function LiveSessionForm({
             name="exchange_account_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>거래소 계정 (Bybit Demo)</FormLabel>
+                <FormLabel className="field-label">거래소 계정 (Bybit 데모)</FormLabel>
                 <FormControl>
                   {/* BL-164 — SelectWithDisplayName 헬퍼 통일. */}
                   <SelectWithDisplayName
@@ -146,8 +146,8 @@ export function LiveSessionForm({
                     }))}
                     value={field.value}
                     onValueChange={field.onChange}
-                    placeholder="Bybit Demo 계정 선택"
-                    emptyMessage="Bybit Demo 계정 없음. 먼저 등록해주세요"
+                    placeholder="Bybit 데모 계정 선택"
+                    emptyMessage="Bybit 데모 계정 없음. 먼저 등록해주세요"
                     triggerTestId="live-session-account-trigger"
                     ariaLabel="거래소 계정 선택"
                   />
@@ -161,9 +161,9 @@ export function LiveSessionForm({
             name="symbol"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>심볼</FormLabel>
+                <FormLabel className="field-label">심볼</FormLabel>
                 <FormControl>
-                  <Input placeholder="BTC/USDT" {...field} />
+                  <input className="input" placeholder="BTC/USDT" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -174,7 +174,7 @@ export function LiveSessionForm({
             name="interval"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>평가 주기</FormLabel>
+                <FormLabel className="field-label">평가 주기</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
@@ -194,21 +194,22 @@ export function LiveSessionForm({
           />
 
           {serverError ? (
-            <div
-              className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive"
+            <p
+              className="notice-inline"
               role="alert"
               data-testid="live-session-form-error"
             >
               {serverError}
-            </div>
+            </p>
           ) : null}
 
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
-              활성 session: {activeSessionsCount} / {MAX_LIVE_SESSIONS_PER_USER}
+            <p className="field-hint">
+              활성 세션 {activeSessionsCount} / {MAX_LIVE_SESSIONS_PER_USER}
             </p>
-            <Button
+            <button
               type="submit"
+              className="btn btn-primary"
               disabled={
                 register.isPending ||
                 isQuotaReached ||
@@ -221,8 +222,8 @@ export function LiveSessionForm({
               }
               data-testid="live-session-submit"
             >
-              {register.isPending ? "시작 중..." : "Live Session 시작"}
-            </Button>
+              {register.isPending ? "시작 중..." : "라이브 세션 시작"}
+            </button>
           </div>
         </form>
       </Form>

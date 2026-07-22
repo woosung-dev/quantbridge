@@ -1,61 +1,54 @@
-// Sprint 30-α (Surface Hardening): 백테스트 가정 박스.
-// PRD `backtests.config` JSONB 5 필드 (initial_capital / leverage / fees / slippage /
-// include_funding) 를 결과 페이지 Overview 탭 상단에 노출. 차별화 (현실적 시뮬레이션)
-// 의 시각적 대표 — 사용자가 결과 수치가 어떤 가정으로 계산되었는지 즉각 인지.
-//
-// 본 sprint 30-α scope: BE 응답에 `config` 필드 미포함 시 표준 가정값으로 graceful
-// degrade. Sprint 30-γ-BE 에서 BacktestDetail.config JSONB 노출 후 자동 upgrade.
-//
-// Sprint 31 BL-162a — 사용자 입력 활성화 (TradingView strategy 속성 패턴). 사용자가
-// BacktestForm 에서 leverage/fees/slippage/include_funding 입력 시 BE 가 그 값을
-// 그대로 응답 → AssumptionsCard 가 (기본) 마크 자동 제거 (graceful upgrade).
+"use client";
+
+// 08 실행 조건 — variant-c "가정과 데이터 출처" 이식. 공용 .trust-grid/.trust-row/.disclaimer 를 소비한다.
+// 프로토타입 variant-c.html:1587-1609 의 2열(실행 가정 / 데이터·비용) 구조. 봉 개수·결측 봉·소요 시간은
+// BacktestDetail 스키마에 대응 필드가 없어 그리지 않는다(§4.9). 고지 문구는 프로토타입의 "샘플 데이터"
+// 카피가 아니라 실데이터 화면의 정직한 가설적 결과 고지를 유지한다(카피 재설계 아님, 도메인 정합).
 //
 // LESSON-004: render body 에서 ref/state 변경 없음. props → 파생값만 계산.
 
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
+import { InfoIcon } from "@/components/info-icon";
 import type { BacktestConfig } from "@/features/backtest/schemas";
-import { formatPercent } from "@/features/backtest/utils";
+import { formatDate, formatDateTime, formatPercent } from "@/features/backtest/utils";
 
 // PRD `BacktestConfig` dataclass + Bybit Perpetual taker 표준값.
-const DEFAULT_LEVERAGE = 1.0;
 const DEFAULT_FEES = 0.001; // 0.10%
 const DEFAULT_SLIPPAGE = 0.0005; // 0.05%
-const DEFAULT_INCLUDE_FUNDING = true;
+
+// 엔진은 도메인 상수 — 바 단위 이벤트 루프 (ADR-011, 벡터화 아님). 내부 모듈명(pine_v2)은
+// no-internal-ids 가드에 따라 노출 카피에서 제외하고, backtest-list/코크핏 칩과 같은 문구를 쓴다.
+const ENGINE_LABEL = "바 단위 이벤트 루프";
 
 interface AssumptionRow {
   readonly label: string;
   readonly value: string;
-  readonly title: string;
+  readonly title?: string;
   readonly isDefault: boolean;
 }
 
 export interface AssumptionsCardProps {
-  /** BE 응답 `initial_capital` 을 number 로 (Decimal → str → transform 후). */
   readonly initialCapital: number;
-  /**
-   * BE `BacktestDetail.config` JSONB. Sprint 30-α 시점 BE 미응답 → null/undefined.
-   * Sprint 30-γ-BE 에서 BE 가 응답에 포함하면 graceful upgrade.
-   */
   readonly config?: BacktestConfig | null;
-  /**
-   * C14 (정직성) — metrics.total_fees / total_slippage 절대 총비용 (USDT).
-   * 헤드라인 수치가 net 임을 숨길 수 없는 line item 으로 노출. 구 백테스트
-   * (totals 미저장) 는 null/undefined → 행 미렌더 (backward-compat).
-   */
   readonly totalFees?: number | null;
   readonly totalSlippage?: number | null;
-  /**
-   * C6 (정직성) — metrics.funding_data_incomplete. perp funding 차감 시 보유 구간
-   * 일부가 funding 데이터 가용 범위(인제스션 forward-only — 최근 Bybit BTC/ETH) 밖이면
-   * true → "펀딩 비용 미반영 구간 있음" 정직 고지. false=전 구간 반영, null/undefined=
-   * funding 미반영(include_funding=false / 구 백테스트) → 둘 다 미렌더.
-   */
   readonly fundingDataIncomplete?: boolean | null;
+  /** 데이터·기간 열 파생용 (BacktestDetail 에서 shell 이 전달). 없으면 그 행 미렌더. */
+  readonly periodStart?: string | null;
+  readonly periodEnd?: string | null;
+  readonly ranAt?: string | null;
 }
 
 function formatUsdt(v: number): string {
   return `${v.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDT`;
+}
+
+function daysBetween(startIso: string, endIso: string): number | null {
+  const s = new Date(startIso).getTime();
+  const e = new Date(endIso).getTime();
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return null;
+  return Math.round((e - s) / (24 * 60 * 60 * 1000));
 }
 
 export function AssumptionsCard({
@@ -64,39 +57,25 @@ export function AssumptionsCard({
   totalFees,
   totalSlippage,
   fundingDataIncomplete,
+  periodStart,
+  periodEnd,
+  ranAt,
 }: AssumptionsCardProps) {
-  const leverage = config?.leverage ?? DEFAULT_LEVERAGE;
   const fees = config?.fees ?? DEFAULT_FEES;
   const slippage = config?.slippage ?? DEFAULT_SLIPPAGE;
-  const includeFunding = config?.include_funding ?? DEFAULT_INCLUDE_FUNDING;
 
-  // Sprint 37 BL-187a: leverage / include_funding row 제거 (사용자 명시 — 일단 빼기).
-  // BE 응답에는 그대로 노출 (graceful upgrade 보존). FE 표시만 simplify.
-  // BL-186 후속 풀 모델 (funding/mm rate/liquidation) 도래 시 두 row 재노출 검토.
-  void leverage;
-  void includeFunding;
-
-  const items: readonly AssumptionRow[] = [
-    {
-      label: "초기 자본",
-      value: `${initialCapital.toLocaleString("en-US", {
-        maximumFractionDigits: 0,
-      })} USDT`,
-      title: "백테스트 시작 시점의 가용 자본",
-      isDefault: false,
-    },
-    // Sprint 37 BL-185 → BL-187a: 라벨 simplify ("Spot-equivalent" → "1x · 롱/숏").
-    // 사용자가 "Spot" 단어를 "현물 = 롱만" 으로 오해 — 실제는 롱/숏 모두 가능.
+  // 실행 가정 열 (variant-c 좌열).
+  const execRows: readonly AssumptionRow[] = [
+    { label: "엔진", value: ENGINE_LABEL, isDefault: false },
     {
       label: "포지션 모델",
       value: "1x · 롱/숏",
       title:
         "1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내). " +
-        "Pine strategy(default_qty_type=...) 3종 (percent_of_equity / cash / fixed) 사용. " +
-        "funding rate / 강제 청산 / 유지 증거금 미반영.",
+        "전략의 수량 지정 3종 (자본 비율 / 현금 / 고정 수량) 사용. " +
+        "펀딩 비용 / 강제 청산 / 유지 증거금 미반영.",
       isDefault: false,
     },
-    // TV parity — 시장가 체결 타이밍 (구 백테스트 = bar_close 취급).
     {
       label: "체결 타이밍",
       value:
@@ -111,7 +90,7 @@ export function AssumptionsCard({
     {
       label: "수수료",
       value: formatPercent(fees, 2),
-      title: "Bybit/OKX Perpetual 표준 taker 수수료 (0.10%) 가정",
+      title: "Bybit Perpetual 표준 taker 수수료 (0.10%) 가정",
       isDefault: config?.fees == null,
     },
     {
@@ -122,96 +101,101 @@ export function AssumptionsCard({
     },
   ];
 
-  // BE config 응답 여부 판단: 초기 자본 (사용자 입력) + 포지션 모델 (Sprint 37 고정)
-  // 외 2개 가정 (수수료 / 슬리피지) 모두 default = BE config 미응답.
-  const allAssumptionsDefaulted = items
-    .slice(2)
-    .every((it) => it.isDefault);
-
-  // C14 (정직성) — 절대 총비용 행. metrics totals 가 있을 때만 노출 (구 백테스트 호환).
-  const costItems: { label: string; value: string }[] = [];
+  // 데이터·비용 열 (variant-c 우열). 스키마가 받치는 값만.
+  const dataRows: AssumptionRow[] = [
+    {
+      label: "초기 자본",
+      value: `${initialCapital.toLocaleString("en-US", { maximumFractionDigits: 0 })} USDT`,
+      isDefault: false,
+    },
+  ];
+  if (periodStart != null && periodEnd != null) {
+    const d = daysBetween(periodStart, periodEnd);
+    dataRows.push({
+      label: "기간",
+      value: `${formatDate(periodStart)} ~ ${formatDate(periodEnd)}${d != null ? ` (${d}일)` : ""}`,
+      isDefault: false,
+    });
+  }
+  if (ranAt != null) {
+    dataRows.push({ label: "실행 시각", value: formatDateTime(ranAt), isDefault: false });
+  }
   if (totalFees != null) {
-    costItems.push({ label: "총 수수료", value: formatUsdt(totalFees) });
+    dataRows.push({ label: "총 수수료", value: formatUsdt(totalFees), isDefault: false });
   }
   if (totalSlippage != null) {
-    costItems.push({ label: "총 슬리피지", value: formatUsdt(totalSlippage) });
+    dataRows.push({ label: "총 슬리피지", value: formatUsdt(totalSlippage), isDefault: false });
   }
 
+  // 수수료 + 슬리피지 모두 default = BE config 미응답.
+  const allAssumptionsDefaulted = execRows
+    .slice(3)
+    .every((it) => it.isDefault);
+
   return (
-    <section
-      aria-label="백테스트 가정"
-      className="rounded-lg border bg-muted/30 px-4 py-3"
-    >
-      <header className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">백테스트 가정</h2>
-        {allAssumptionsDefaulted ? (
+    <section className="card" aria-label="백테스트 가정">
+      {allAssumptionsDefaulted ? (
+        <div className="card-head">
           <span
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+            className="card-sub assumptions-notice"
             data-testid="assumptions-default-notice"
           >
-            <Info className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <InfoIcon />
             표준 가정값 (BE config 미응답)
           </span>
-        ) : null}
-      </header>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3 lg:grid-cols-5">
-        {items.map((it) => (
-          <div key={it.label} className="flex flex-col gap-0.5">
-            <dt
-              className="flex items-center gap-1 text-muted-foreground"
-              title={it.title}
-            >
-              <span>{it.label}</span>
-              {it.isDefault ? (
-                <span
-                  className="text-[10px] text-muted-foreground/60"
-                  aria-label="기본 가정값"
-                >
-                  (기본)
-                </span>
-              ) : null}
-            </dt>
-            <dd className="font-mono text-sm font-medium tabular-nums">
-              {it.value}
-            </dd>
-          </div>
-        ))}
-        {costItems.map((it) => (
-          <div key={it.label} className="flex flex-col gap-0.5">
-            <dt className="text-muted-foreground">{it.label}</dt>
-            <dd className="font-mono text-sm font-medium tabular-nums">
-              {it.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {/* C14 (정직성) — 가설적 결과 + 순(net) + 체결 가정 상시 고지. */}
-      <p
-        data-testid="backtest-honesty-note"
-        className="mt-2 flex gap-1.5 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground"
-      >
-        <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        </div>
+      ) : null}
+
+      <div className="trust-grid">
+        <div className="trust-col">
+          {execRows.map((row) => (
+            <TrustRow key={row.label} row={row} />
+          ))}
+        </div>
+        <div className="trust-col">
+          {dataRows.map((row) => (
+            <TrustRow key={row.label} row={row} />
+          ))}
+        </div>
+      </div>
+
+      <p className="disclaimer" data-testid="backtest-honesty-note">
+        <InfoIcon />
         <span>
           가설적 결과입니다. 후행 데이터로 계산되며 위 수수료·슬리피지가 차감된 순(net)
-          수치입니다. 체결 가정 — 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후
-          트리거가에 체결됩니다.
+          수치입니다. 체결 가정. 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후 트리거가에
+          체결됩니다.
         </span>
       </p>
-      {/* C6 (정직성) — funding 데이터가 보유 구간 일부를 못 덮을 때만 표시. "결측"
-          (혼란) 대신 *왜* 미반영인지 설명. include_funding=false / 미반영 시 미렌더. */}
+
       {fundingDataIncomplete === true ? (
-        <p
-          data-testid="backtest-funding-incomplete-note"
-          className="mt-2 flex gap-1.5 text-[11px] leading-relaxed text-warning"
-        >
-          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <p className="disclaimer report-note-warn" data-testid="backtest-funding-incomplete-note">
+          <AlertTriangle aria-hidden="true" />
           <span>
-            펀딩 비용 미반영 구간 있음 — funding 데이터 가용 범위(최근 Bybit
-            BTC/ETH) 밖의 보유 구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은
-            펀딩 비용만큼 낙관 편향일 수 있습니다.
+            펀딩 비용 미반영 구간이 있습니다. funding 데이터 가용 범위(최근 Bybit BTC/ETH)
+            밖의 보유 구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은 펀딩 비용만큼 낙관
+            편향일 수 있습니다.
           </span>
         </p>
       ) : null}
     </section>
+  );
+}
+
+/** trust-key 는 라벨 텍스트 노드 + (기본) 마크를 함께 담고 title 을 갖는다. */
+function TrustRow({ row }: { row: AssumptionRow }) {
+  return (
+    <div className="trust-row">
+      <span className="trust-key" title={row.title}>
+        <span>{row.label}</span>
+        {row.isDefault ? (
+          <span className="dim" aria-label="기본 가정값">
+            {" "}
+            (기본)
+          </span>
+        ) : null}
+      </span>
+      <span className="trust-val">{row.value}</span>
+    </div>
   );
 }

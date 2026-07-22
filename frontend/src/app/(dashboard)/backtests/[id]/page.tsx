@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { BacktestDetailView } from "@/app/(dashboard)/backtests/_components/backtest-detail-view";
 
 export const metadata: Metadata = {
-  title: "백테스트 상세 | QuantBridge",
+  title: "백테스트 상세",
 };
 
 interface PageProps {
@@ -12,9 +12,6 @@ interface PageProps {
 
 export default async function BacktestDetailPage({ params }: PageProps) {
   const { id } = await params;
-  return (
-    <div className="mx-auto max-w-[1280px] px-6 py-8">
-      <BacktestDetailView id={id} />
-    </div>
-  );
+  // BacktestDetailView 가 <main className="page"> 로 C 디자인 언어 최대폭·패딩을 소유한다.
+  return <BacktestDetailView id={id} />;
 }

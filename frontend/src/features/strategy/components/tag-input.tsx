@@ -72,7 +72,7 @@ export function TagInput({
       role="group"
       aria-label="태그"
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        "flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-2 text-sm shadow-xs",
         className,
       )}
     >
@@ -88,7 +88,7 @@ export function TagInput({
             type="button"
             aria-label={`${tag} 태그 제거`}
             onClick={() => removeAt(index)}
-            className="inline-flex size-4 items-center justify-center rounded-full text-secondary-foreground/70 transition-colors hover:bg-secondary-foreground/10 hover:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex size-4 items-center justify-center rounded-full text-secondary-foreground/70 transition-colors hover:bg-secondary-foreground/10 hover:text-secondary-foreground"
           >
             <XIcon aria-hidden className="size-3" />
           </button>
@@ -104,7 +104,7 @@ export function TagInput({
         onBlur={() => {
           if (draft.trim().length > 0) commit();
         }}
-        className="min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        className="min-w-[120px] flex-1 bg-transparent text-sm placeholder:text-muted-foreground"
       />
     </div>
   );

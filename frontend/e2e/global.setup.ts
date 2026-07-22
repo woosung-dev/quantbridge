@@ -65,9 +65,9 @@ setup("authenticate", async ({ page }) => {
   await expect(page).toHaveURL(({ pathname }) => pathname === "/strategies", {
     timeout: 30_000,
   });
-  // 페이지 로드 완료 + 인증된 사용자만 보이는 heading
+  // 페이지 로드 완료 + 인증된 사용자만 보이는 heading (C 이식 screen-06: report-title "전략")
   await expect(
-    page.getByRole("heading", { name: "내 전략" }),
+    page.getByRole("heading", { name: "전략", exact: true }),
   ).toBeVisible({ timeout: 30_000 });
 
   // 5) Pre-warm — chromium-authed 프로젝트의 첫 spec 이 dev server JIT compile 안 만나도록

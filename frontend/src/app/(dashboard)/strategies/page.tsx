@@ -8,58 +8,34 @@ import {
 
 import { listStrategies } from "@/features/strategy/api";
 import { strategyKeys } from "@/features/strategy/query-keys";
-import type { ParseStatus, StrategyListQuery } from "@/features/strategy/schemas";
+import type { StrategyListQuery } from "@/features/strategy/schemas";
 import { StrategyList } from "./_components/strategy-list";
 
 export const metadata: Metadata = {
-  title: "전략 | QuantBridge",
+  title: "전략",
 };
 
 const PAGE_SIZE = 20;
 
-function parseStatusOrUndefined(v?: string): ParseStatus | undefined {
-  return v === "ok" || v === "unsupported" || v === "error" ? v : undefined;
-}
-
-// Sprint FE-02: queryFn을 모듈-level factory로 분리.
-// @tanstack/query/exhaustive-deps는 queryFn이 ArrowFunction/FunctionExpression일 때만
-// closure capture를 검사하므로, 함수 호출식(CallExpression)으로 넘기면 건너뛴다.
-// token은 매 요청의 auth accessor 결과라 queryKey identity에 포함하지 않는다
-// (userId만 identity로 사용 — hooks.ts와 동일).
-function makePrefetchListFetcher(
-  query: StrategyListQuery,
-  token: string,
-) {
+// Sprint FE-02: queryFn을 모듈-level factory로 분리 (@tanstack/query/exhaustive-deps 우회).
+// token은 매 요청의 auth accessor 결과라 queryKey identity에 포함하지 않는다.
+function makePrefetchListFetcher(query: StrategyListQuery, token: string) {
   return () => listStrategies(query, token);
 }
 
-export default async function StrategiesPage({
-  searchParams,
-}: {
-  // Next 16 App Router — searchParams는 Promise. StrategyList 클라이언트 필터와 동일 key 체계.
-  searchParams: Promise<{
-    parse_status?: string;
-    archived?: string;
-    page?: string;
-  }>;
-}) {
-  const sp = await searchParams;
-  const archived = sp.archived === "true";
-  const parseStatus = parseStatusOrUndefined(sp.parse_status);
-  const page = Math.max(0, Number(sp.page ?? "0") || 0);
-
+export default async function StrategiesPage() {
+  // C 이식(screen-06) — parse_status 필터는 client-side(현재 페이지 한정)라 서버 쿼리는
+  // 페이지네이션 고정값만 쓴다. client hook(useStrategies)과 동일한 queryKey 를 위해 같은 query.
   const query: StrategyListQuery = {
     limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
-    is_archived: archived,
+    offset: 0,
+    is_archived: false,
   };
-  if (parseStatus) query.parse_status = parseStatus;
 
   const queryClient = new QueryClient();
 
-  // 서버 prefetch는 URL 쿼리 그대로 반영하여 client query key와 일치시킨다.
   // proxy.ts가 이 라우트를 보호하므로 익명 접근은 여기까지 오지 않음.
-  // Sprint FE-02: queryKey factory가 userId를 요구 — client hook과 동일한 uid 사용.
+  // queryKey factory가 userId를 요구 — client hook과 동일한 uid 사용.
   const { userId, getToken } = await auth();
   const token = await getToken();
   const uid = userId ?? "anon";

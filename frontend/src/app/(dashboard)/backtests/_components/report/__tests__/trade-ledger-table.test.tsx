@@ -1,4 +1,4 @@
-// TradeLedgerTable — 2행 원장 구조 / exit_kind 라벨 / null 컬럼 hide / CSV 확장
+// TradeLedgerTable — variant-c 단일행 10열 table.trades / 청산 사유 라벨 / 빈 상태 / CSV 확장
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -24,49 +24,46 @@ function trade(overrides: Partial<TradeItem>): TradeItem {
   } as TradeItem;
 }
 
-describe("TradeLedgerTable", () => {
-  it("closed 거래 = 청산/진입 2행 + 방향 badge + 순손익 abs+%", () => {
+describe("TradeLedgerTable (05 거래 내역)", () => {
+  it("공용 table.trades + 10열 헤더 시맨틱 구조", () => {
+    const { container } = render(<TradeLedgerTable trades={[trade({})]} />);
+    expect(container.querySelector("table.trades")).not.toBeNull();
+    expect(container.querySelectorAll("thead th")).toHaveLength(10);
+    for (const h of ["번호", "진입 시각", "청산 시각", "손익", "청산 사유"]) {
+      expect(screen.getByText(h)).toBeInTheDocument();
+    }
+  });
+
+  it("closed 거래 = 단일행 + 방향 칩(.side.long) + 손익 abs + 수익률 + 청산 사유", () => {
+    const { container } = render(
+      <TradeLedgerTable trades={[trade({ exit_kind: "trailing_stop" })]} />,
+    );
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(1);
+    const sideChip = container.querySelector(".side.long");
+    expect(sideChip).not.toBeNull();
+    expect(sideChip).toHaveTextContent("롱");
+    expect(screen.getByText("+14,195.45")).toBeInTheDocument();
+    expect(screen.getByText("+0.50%")).toBeInTheDocument();
+    expect(screen.getByText("추적 손절")).toBeInTheDocument();
+  });
+
+  it("exit_kind 없는 청산 = 시그널 청산, open 거래 = 청산가·청산시각 무데이터 셀", () => {
     render(
       <TradeLedgerTable
         trades={[
-          trade({
-            exit_kind: "trailing_stop",
-            runup_abs: 500,
-            runup_pct: 0.01,
-            drawdown_abs: 200,
-            drawdown_pct: 0.004,
-            cumulative_pnl: 14195.447,
-          }),
+          trade({ trade_index: 1, exit_kind: null }),
+          trade({ trade_index: 2, status: "open", exit_time: null, exit_price: null }),
         ]}
       />,
     );
-    // 2행 구조: 청산(트레일링 라벨) 먼저, 진입 아래.
-    expect(screen.getByText("청산 · 트레일링")).toBeInTheDocument();
-    expect(screen.getByText("진입")).toBeInTheDocument();
-    expect(screen.getByText("롱")).toBeInTheDocument();
-    expect(screen.getByText("+14,195.45 USDT")).toBeInTheDocument();
-    expect(screen.getByText("+0.50%")).toBeInTheDocument();
-    // 신규 컬럼 (런업/드로다운/누적) 노출
-    expect(screen.getByText(/런업/)).toBeInTheDocument();
-    expect(screen.getByText(/드로다운/)).toBeInTheDocument();
-    expect(screen.getByText("누적 PnL")).toBeInTheDocument();
+    expect(screen.getByText("시그널 청산")).toBeInTheDocument();
+    expect(screen.getByText("보유 중")).toBeInTheDocument();
   });
 
-  it("신규 필드 전부 null (구 백테스트) → 런업/드로다운/누적 컬럼 hide", () => {
-    render(<TradeLedgerTable trades={[trade({})]} />);
-    expect(screen.queryByText(/런업/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/드로다운/)).not.toBeInTheDocument();
-    expect(screen.queryByText("누적 PnL")).not.toBeInTheDocument();
-  });
-
-  it("open 거래 = 진입 1행 (보유 중)", () => {
-    render(
-      <TradeLedgerTable
-        trades={[trade({ status: "open", exit_time: null, exit_price: null })]}
-      />,
-    );
-    expect(screen.getByText("진입 (보유 중)")).toBeInTheDocument();
-    expect(screen.queryByText("청산")).not.toBeInTheDocument();
+  it("거래 0건 → 빈 상태 렌더", () => {
+    render(<TradeLedgerTable trades={[]} />);
+    expect(screen.getByTestId("trade-ledger-empty")).toBeInTheDocument();
+    expect(screen.getByText("기록된 거래가 없습니다.")).toBeInTheDocument();
   });
 });
 

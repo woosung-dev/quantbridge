@@ -23,6 +23,8 @@ import { expect, test } from "@playwright/test";
 
 const PUBLIC_PAGES: ReadonlyArray<{ path: string; label: string }> = [
   { path: "/", label: "landing" },
+  // W3-G — /pricing 은 Clerk 미의존 정적 마케팅 표면이라 public smoke 대상.
+  { path: "/pricing", label: "pricing" },
   { path: "/disclaimer", label: "disclaimer" },
   { path: "/terms", label: "terms" },
   { path: "/privacy", label: "privacy" },
@@ -47,9 +49,7 @@ function isExpected(text: string): boolean {
   return EXPECTED_ERROR_PATTERNS.some((re) => re.test(text));
 }
 
-test("public pages render without unexpected console errors (BL-157)", async ({
-  page,
-}) => {
+test("public pages render without unexpected console errors (BL-157)", async ({ page }) => {
   const errors: string[] = [];
 
   page.on("pageerror", (err) => {

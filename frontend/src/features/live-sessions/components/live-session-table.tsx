@@ -9,6 +9,8 @@
 import { useMemo, useState } from "react";
 import { ArrowUpDown } from "lucide-react";
 
+import { StateBox } from "@/components/state-box";
+
 import type { LiveSession } from "../schemas";
 
 type SortMode = "recent" | "active";
@@ -46,12 +48,10 @@ export function LiveSessionTable({
     return (
       <div className="card">
         <div className="card-body">
-          <div className="state-box" role="status">
-            <p className="state-title">활성 세션이 없습니다.</p>
-            <p className="state-body">
-              아래 폼으로 라이브 세션을 시작하면 이 표에 나타납니다.
-            </p>
-          </div>
+          <StateBox
+            title="활성 세션이 없습니다."
+            body="아래 폼으로 라이브 세션을 시작하면 이 표에 나타납니다."
+          />
         </div>
       </div>
     );

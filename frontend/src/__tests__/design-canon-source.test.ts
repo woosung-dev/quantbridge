@@ -1,7 +1,8 @@
 // 커밋된 소스 텍스트의 캐논 위반 3종을 동결하는 정적 래칫 (이식 seam #3)
 //
 // 검사 대상.
-//   1. 반경 스케일 — `rounded-2xl`/`rounded-3xl` + `rounded-[Npx]` 리터럴. S9 가 비운다.
+//   1. 반경 스케일 — `rounded-2xl`/`rounded-3xl` + `rounded-[Npx]` 리터럴. W-final 판정 후
+//      잔여 5건은 정당(RADIUS_ALLOWLIST 주석 참조) — 프로토타입 밖 share 2 + 불가침 테이프 3.
 //   2. 하드코딩 hex — 토큰 정의 계층(`brand-palette.ts`) 밖의 색 리터럴. layout 2건은 S1a.
 //   3. 노출 em-dash — 산문에 쓰인 em-dash. S1b ④ 가 판단해 줄인다.
 //
@@ -111,10 +112,7 @@ function productionFiles(): string[] {
       const full = join(dir, entry);
       const stat = statSync(full);
       if (stat.isDirectory()) walk(full);
-      else if (
-        /\.(ts|tsx)$/.test(full) &&
-        !/\.(test|spec)\.(ts|tsx)$/.test(full)
-      ) {
+      else if (/\.(ts|tsx)$/.test(full) && !/\.(test|spec)\.(ts|tsx)$/.test(full)) {
         results.push(full);
       }
     }
@@ -175,8 +173,14 @@ const WORD = /[\p{L}\p{N}]/u;
 function countProseEmDash(s: string): number {
   let cnt = 0;
   for (let i = s.indexOf("—"); i !== -1; i = s.indexOf("—", i + 1)) {
-    const prev = s.slice(Math.max(0, i - 3), i).replace(/\s/g, "").slice(-1);
-    const next = s.slice(i + 1, i + 4).replace(/\s/g, "").slice(0, 1);
+    const prev = s
+      .slice(Math.max(0, i - 3), i)
+      .replace(/\s/g, "")
+      .slice(-1);
+    const next = s
+      .slice(i + 1, i + 4)
+      .replace(/\s/g, "")
+      .slice(0, 1);
     if (WORD.test(prev || "") || WORD.test(next || "")) cnt++;
   }
   return cnt;
@@ -184,23 +188,26 @@ function countProseEmDash(s: string): number {
 
 // ── allowlist (2026-07-20 calibration 실측) ──────────────────────────────────
 
-/** 반경 리터럴. S9 가 전부 비운다. */
+/**
+ * 반경 리터럴 allowlist. 하강 이력: W3-E(onboarding) · W3-H(에러 3종 + 구 illustration/
+ * recovery 2벌 삭제) · W3-G(waitlist-form-card/hero)를 var(--r) 시맨틱 소비로 전부 해소.
+ *
+ * ★W-final 잔여 판정 (2026-07-21) — 남은 5건 전부 정당 잔여, 안전 감축 불가.
+ *   자체 focus ring 제거(이중 링 sweep)로 co-drop 될 반경도 없다(반경은 focus ring 과 무관).
+ */
 const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
-  ["app/(dashboard)/onboarding/_components/option-card-radio.tsx", 1],
-  ["app/_components/error-illustration.tsx", 1],
-  // 503 maintenance 카드(rounded-[14px] + rounded-[10px] 2건)를 S9 에서 삭제 → 4→2.
-  // 남은 2건은 404 helpful 카드 · 500 tech-info 카드. 둘 다 P1 밖(에러 경계) 이라 이연.
-  ["app/_components/error-recovery-box.tsx", 2],
-  ["app/error.tsx", 2],
-  ["app/maintenance/page.tsx", 1],
-  ["app/not-found.tsx", 2],
-  ["app/share/backtests/[token]/_components/share-not-found-state.tsx", 1],
-  ["app/share/backtests/[token]/_components/share-revoked-state.tsx", 1],
-  ["app/waitlist/_components/waitlist-form-card.tsx", 2],
-  ["app/waitlist/_components/waitlist-hero.tsx", 1],
-  ["components/skeleton.tsx", 1],
-  ["components/tape/pnl-tape.tsx", 1],
-  ["components/tape/tape-progress.tsx", 1],
+  // ── share 2건 = 프로토타입 없는 화면(이식 범위 밖). rounded-3xl 은 24×24 일러스트 배지
+  //    반경이고, share 스크린 자체가 C 이식 대상이 아니라 그 화면을 재스킨하는 시점에
+  //    var(--r) 로 흡수된다. 지금 감축하려면 화면 이식이 선행돼야 하므로 범위 밖 — 유지.
+  ["app/share/backtests/[token]/_components/share-not-found-state.tsx", 1], // rounded-3xl 일러스트 배지
+  ["app/share/backtests/[token]/_components/share-revoked-state.tsx", 1], // rounded-3xl 일러스트 배지
+  // ── skeleton/pnl-tape/tape-progress 3건 = 불가침 프리미티브(operating-contract §7 "tick-ruler·
+  //    pnl-tape 불가침"). rounded-[1px] 은 테이프/스켈레톤 세그먼트의 1px 헤어라인으로,
+  //    rounded-2xl/3xl 슬롭이 아니라 테이프 미학의 의도된 계측 디테일이다. var(--r)(6px)로
+  //    바꾸면 시각 정본이 깨진다 — 유지.
+  ["components/skeleton.tsx", 1], // rounded-[1px] 테이프 마스크 헤어라인
+  ["components/tape/pnl-tape.tsx", 1], // rounded-[1px] PnL 테이프 세그먼트
+  ["components/tape/tape-progress.tsx", 1], // rounded-[1px] 진행 테이프 세그먼트
 ];
 
 /**
@@ -218,38 +225,34 @@ const HEX_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
  * S1b ④ 가 실제로 고칠 것을 골라 줄인다.
  */
 const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
-  ["app/(auth)/_components/brand-panel.tsx", 2],
-  ["app/(dashboard)/backtests/_components/assumptions-card.tsx", 2],
+  // W3-G: (auth)/brand-panel 을 C 사실 패널로 재작성하며 testimonial/sub 의 노출 em-dash 2건을
+  // 마침표 산문으로 교정해 0 이 됐다 → allowlist 에서 제거(래칫 하강).
+  // assumptions-card.tsx (구 2건)는 W2 리포트 상세 이식에서 trust-grid 재스킨과 함께 산문
+  // em-dash 를 마침표로 교정해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/charts/cost-assumption-heatmap.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/drawdown-pane.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/equity-pane.tsx", 1],
   ["app/(dashboard)/backtests/_components/charts/param-stability-heatmap.tsx", 1],
-  ["app/(dashboard)/backtests/_components/forms/BacktestSizingFieldSet.tsx", 2],
-  ["app/(dashboard)/backtests/_components/forms/backtest-form.tsx", 3],
-  ["app/(dashboard)/backtests/_components/live-settings-badge.tsx", 1],
+  // W3-A: backtest-form(구 3) · BacktestSizingFieldSet(구 2) · live-settings-badge(구 1)은
+  // screen-05 C 이식에서 산문 em-dash 를 마침표·가운뎃점으로 교정해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/monte-carlo-summary-table.tsx", 3],
   ["app/(dashboard)/backtests/_components/report/benchmark-floating-bars.tsx", 1],
-  ["app/(dashboard)/backtests/_components/report/detailed-results-section.tsx", 1],
+  // detailed-results-section.tsx (구 1건)은 W2 에서 심화 분석 시각 카드로 재편하며 벤치마킹
+  // 캡션의 em-dash 를 제거해 0 이 됐다 → 항목 제거(래칫 하강).
   ["app/(dashboard)/backtests/_components/report/runup-drawdown-section.tsx", 2],
   ["app/(dashboard)/backtests/_components/report/trade-pnl-pane.tsx", 1],
-  ["app/(dashboard)/optimizer/_components/bayesian-iteration-chart.tsx", 2],
-  ["app/(dashboard)/optimizer/_components/genetic-generation-chart.tsx", 2],
-  ["app/(dashboard)/optimizer/_components/grid-search-heatmap.tsx", 1],
-  ["app/(dashboard)/optimizer/_components/grid-search-pair-selector.tsx", 1],
-  ["app/(dashboard)/optimizer/_components/optimizer-oos-evaluation.tsx", 2],
-  ["app/(dashboard)/strategies/[id]/edit/_components/parse-panel.tsx", 1],
-  ["app/(dashboard)/strategies/[id]/edit/_components/tab-metadata.tsx", 1],
-  ["app/(dashboard)/strategies/[id]/edit/_components/tab-parse.tsx", 1],
-  ["app/(dashboard)/strategies/new/_components/parse-preview-panel.tsx", 1],
-  ["app/(dashboard)/strategies/new/_components/parse-result-panel.tsx", 1],
-  ["app/_components/landing-bento.tsx", 1],
-  ["app/_components/landing-hero.tsx", 1],
+  // W3-B: strategies em-dash 5건 해소. parse-panel/tab-parse/parse-preview-panel 삭제 +
+  // tab-metadata/parse-result-panel C 재작성으로 노출 em-dash 0건 → allowlist 에서 제거.
+  // W3-C: optimizer 5파일(bayesian/genetic chart · grid heatmap · pair-selector · oos)도 C 이식에서
+  // 노출 산문 em-dash 전부 해소(한국어 카피 교체 + aria-label em-dash 제거) → allowlist 에서 제거.
+  // W3-G: landing-bento.tsx 삭제(프로토타입 미사용) + landing-hero.tsx C 재작성으로 노출
+  // em-dash 각 1건 해소 → 두 항목 제거(래칫 하강).
   ["app/disclaimer/page.tsx", 1],
   ["app/privacy/page.tsx", 6], // 정의 목록 (Clerk — 인증). 정당
   ["app/share/backtests/[token]/page.tsx", 2],
   ["app/terms/page.tsx", 1],
   ["components/form-error-inline.tsx", 1],
-  ["components/legal-notice-banner.tsx", 1],
+  // W3-G: legal-notice-banner.tsx 를 한국어 C 재스킨하며 "Beta 단계 — H2 말..." em-dash 해소 → 제거.
   ["components/monaco/pine-language.ts", 3],
   ["features/backtest/utils.ts", 2],
   ["features/live-sessions/components/activity-timeline-chart.tsx", 3],
@@ -276,7 +279,7 @@ describe("C 디자인 언어 소스 텍스트 정적 래칫 (이식 seam #3)", (
     expect(stripComments(`const a = 1; // #ffffff PR #171`)).not.toContain("#ffffff");
   });
 
-  describe("반경 스케일 (S9 가 비운다)", () => {
+  describe("반경 스케일 (W-final: 정당 잔여 5건 동결)", () => {
     const actual = scanByFile(files, countRadius);
     it("allowlist 밖의 새 반경 리터럴이 없다", () => {
       const { grown } = diffRatchet(actual, RADIUS_ALLOWLIST);

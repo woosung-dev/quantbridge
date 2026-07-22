@@ -8,8 +8,8 @@
 // 여러 줄로 펼치고 들여쓰기를 바꾼다). 그래서 공백/개행을 단일 공백으로 접어(normalize) 대조한다.
 // 값·주석·토큰은 보존하므로 규칙 한 글자만 바뀌어도(예: 30px→31px) FAIL 한다.
 //
-// ★유일한 의도적 편차 = td.num 명시도 교정. _kit.html 에는 없고 이식본에만 있다. 아래 allowlist 가
-// 근거와 함께 명시적으로 걷어낸 뒤 대조한다. allowlist 항목이 실재하지 않으면(누가 교정을 지우면)
+// ★의도적 편차 2건 = td.num 명시도 교정 + .topbar 배경 토큰화. 아래 allowlist 가 근거와 함께
+// 명시적으로 걷어낸 뒤 대조한다. allowlist 항목이 실재하지 않으면(누가 교정을 지우면)
 // 별도 assertion 이 먼저 빨개져 silent no-op 를 막는다.
 
 import { readFileSync } from "node:fs";
@@ -65,6 +65,13 @@ const TD_NUM_FIX = normalize(`
   table.trades tbody td.num.neg { color: var(--bear); }
 `);
 
+// .topbar 배경 토큰화. _kit.html 은 다크 단일 팔레트라 rgba(11,13,15,.86) 하드코딩이 정당하지만,
+// 앱은 듀얼 테마여서 그대로 두면 라이트 모드에서 다크 topbar 위 다크 crumbs 잉크 = 1.1:1 로 판독
+// 불가 (2026-07-22 MCP 실측). 토큰 정의(:root/.dark 의 --topbar-bg)는 센티넬 밖. _kit.html 이
+// 토큰화를 반영하면 이 항목을 지운다.
+const TOPBAR_BG_PORTED = normalize(`background: var(--topbar-bg);`);
+const TOPBAR_BG_KIT = normalize(`background: rgba(11, 13, 15, 0.86);`);
+
 describe("C 공용 CSS 이식 무결성 (S2)", () => {
   const globalsSrc = readFileSync(GLOBALS, "utf8");
   const kitSrc = readFileSync(KIT, "utf8");
@@ -76,9 +83,16 @@ describe("C 공용 CSS 이식 무결성 (S2)", () => {
     expect(portedNorm).toContain(TD_NUM_FIX);
   });
 
+  it(".topbar 배경 토큰화 allowlist 는 이식본에 실재한다 (silent no-op 방지)", () => {
+    expect(portedNorm).toContain(TOPBAR_BG_PORTED);
+    expect(kitNorm).toContain(TOPBAR_BG_KIT);
+  });
+
   it("이식 블록은 allowlist 를 제외하면 _kit.html 공용 블록과 정규화 동일하다", () => {
     // allowlist(선행 공백 포함)를 걷어내면 정본과 완전히 일치해야 한다.
-    const portedMinusAllowlist = portedNorm.replace(" " + TD_NUM_FIX, "");
+    const portedMinusAllowlist = portedNorm
+      .replace(" " + TD_NUM_FIX, "")
+      .replace(TOPBAR_BG_PORTED, TOPBAR_BG_KIT);
     expect(portedMinusAllowlist).toBe(kitNorm);
   });
 });

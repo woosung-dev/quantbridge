@@ -1,21 +1,13 @@
 "use client";
 
-// Sprint 13 Phase A.2: Strategy Webhook 패널 — Webhook URL 표시 + Secret Rotate UI.
-//
-// dogfood Day 1 발견 — webhook 외부 등록 + secret 표시 UI 부재로 dogfood 사용자가
-// trading 시작 entry 자체 못 잡음. 이 탭이 정식 entry 추가.
-//
-// Sprint 6 broken bug fix 후 (BE WebhookSecretService.rotate() 가 commit 호출),
-// rotate 응답의 plaintext 가 실제로 DB 영구 저장됨. frontend 가 sessionStorage 캐시.
-//
-// LESSON-004 준수: rotate response data 를 useEffect dep 로 사용 X — onSuccess 콜백
-// 직접 처리 (cacheWebhookSecret + setState scalar).
+// Webhook 관리 — C 디자인 언어 이식 (screen-08 보존 기능). 프로토타입 screen-08 은 webhook 을
+// 그리지 않지만, 생성 직후 1회 노출되는 secret 표시와 rotate 는 실기능이라 C 카드로 보존한다.
+// secret 은 sessionStorage(external store)로만 수명 관리한다(LESSON-004, useSyncExternalStore).
 
 import { useState, useSyncExternalStore } from "react";
 import { CheckIcon, CopyIcon, EyeOffIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -37,20 +29,12 @@ type TabWebhookProps = {
 };
 
 function buildWebhookUrl(strategyId: string): string {
-  // Phase B 가 token (HMAC-SHA256 hex) 을 동적으로 추가. 표시용 URL 은 placeholder.
-  // Sprint 60 S3 BL-268 — getWebhookBaseUrl 사용 (NEXT_PUBLIC_WEBHOOK_BASE_URL 분리).
   const { url } = getWebhookBaseUrl();
   return `${url}/api/v1/webhooks/${strategyId}?token={HMAC}`;
 }
 
 export function TabWebhook({ strategyId }: TabWebhookProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Sprint 14 Phase A — useSyncExternalStore 패턴 (Day 2 Pain #2 hydration race fix).
-  // sessionStorage 를 external store 로 추상화 — server snapshot 은 항상 null (SSR
-  // 단계 prerender 가 amber card 미렌더 보장), client snapshot 은 mount 후 read.
-  // cacheWebhookSecret/clearWebhookSecret 가 notify() 호출하면 구독 컴포넌트 자동
-  // re-render → rotate / hide / 다른 탭 변경에도 반응. LESSON-004 의
-  // react-hooks/set-state-in-effect 차단을 회피 (React 공식 external state hook).
   const displayedSecret = useSyncExternalStore<string | null>(
     subscribeWebhookSecret,
     () => readWebhookSecret(strategyId),
@@ -62,14 +46,10 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
 
   const rotate = useRotateWebhookSecret(strategyId, {
     onSuccess: () => {
-      // hooks.ts onSuccess 가 cacheWebhookSecret 호출 → notify() →
-      // useSyncExternalStore 가 새 snapshot 읽어 자동 re-render. setState 불필요.
       setConfirmOpen(false);
-      toast.success("새 webhook secret 발급됨");
+      toast.success("새 webhook secret 을 발급했습니다");
     },
-    onError: (err) => {
-      toast.error(`Rotate 실패: ${err.message}`);
-    },
+    onError: (err) => toast.error(`회전 실패: ${err.message}`),
   });
 
   const handleCopy = async (text: string, field: "url" | "secret") => {
@@ -84,124 +64,115 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
 
   const handleHideSecret = () => {
     clearWebhookSecret(strategyId);
-    // notify() → useSyncExternalStore 가 새 snapshot 읽어 null 반영, amber card 자동 사라짐.
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Webhook URL Card */}
-      <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-alt)] p-5">
-        <h2 className="font-display text-base font-semibold">Webhook URL</h2>
-        <p className="mt-1 text-xs text-[color:var(--text-muted)]">
-          TradingView alert 또는 외부 시스템에서 이 URL 로 webhook 발송. {`{HMAC}`} 자리에는
-          HMAC-SHA256 hex 토큰 (secret + body) 을 채워야 합니다.
-        </p>
-        <div className="mt-3 flex items-center gap-2">
-          <code className="flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
-            {webhookUrl}
-          </code>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="URL 복사"
-            onClick={() => handleCopy(webhookUrl, "url")}
-          >
-            {copiedField === "url" ? (
-              <CheckIcon className="size-4 text-[color:var(--success)]" />
-            ) : (
-              <CopyIcon className="size-4" />
-            )}
-          </Button>
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <h3 className="card-title">Webhook</h3>
+          <p className="card-sub">TradingView alert 또는 외부 시스템이 이 URL 로 신호를 보냅니다.</p>
         </div>
-        <p className="mt-3 flex items-start gap-1.5 text-xs text-[color:var(--text-muted)]">
-          <TriangleAlertIcon className="mt-0.5 size-3.5 flex-shrink-0 text-[color:var(--warning)]" />
-          외부에 URL 이 노출됐다면 즉시 secret rotation 필수.
-        </p>
-      </section>
-
-      {/* Secret Card */}
-      <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-alt)] p-5">
-        <h2 className="font-display text-base font-semibold">Webhook Secret</h2>
+      </div>
+      <div className="card-body">
+        <div className="field">
+          <span className="field-label">Webhook URL</span>
+          <div className="webhook-row">
+            <code className="webhook-code">{webhookUrl}</code>
+            <button
+              className="btn btn-ghost btn-xs"
+              type="button"
+              aria-label="URL 복사"
+              onClick={() => handleCopy(webhookUrl, "url")}
+            >
+              {copiedField === "url" ? <CheckIcon aria-hidden="true" /> : <CopyIcon aria-hidden="true" />}
+              복사
+            </button>
+          </div>
+          <span className="field-hint">
+            {`{HMAC}`} 자리에는 secret 과 body 로 만든 HMAC-SHA256 토큰을 채웁니다. URL 이 외부에
+            노출됐다면 즉시 secret 을 회전하세요.
+          </span>
+        </div>
 
         {displayedSecret ? (
-          <div
-            data-testid="webhook-secret-amber-card"
-            className="mt-3 rounded-md border border-[color:var(--warning)]/40 bg-[color:var(--warning-subtle)] p-4"
-          >
-            <p className="flex items-start gap-1.5 text-xs font-medium text-[color:var(--warning)]">
-              <TriangleAlertIcon className="mt-0.5 size-4 flex-shrink-0" />
-              이 secret 은 한 번만 표시됩니다. 닫으면 다시 조회할 수 없습니다.
+          <div className="webhook-secret" data-testid="webhook-secret-amber-card">
+            <p className="webhook-secret-warn">
+              <TriangleAlertIcon aria-hidden="true" />이 secret 은 한 번만 표시됩니다. 닫으면 다시
+              조회할 수 없습니다.
             </p>
-            <div className="mt-3 flex items-center gap-2">
-              <code
-                data-testid="webhook-secret-plaintext"
-                className="flex-1 break-all rounded-md bg-card px-3 py-2 font-mono text-xs"
-              >
+            <div className="webhook-row">
+              <code className="webhook-code" data-testid="webhook-secret-plaintext">
                 {displayedSecret}
               </code>
-              <Button
-                variant="outline"
-                size="icon"
+              <button
+                className="btn btn-ghost btn-xs"
+                type="button"
                 aria-label="Secret 복사"
                 onClick={() => handleCopy(displayedSecret, "secret")}
               >
                 {copiedField === "secret" ? (
-                  <CheckIcon className="size-4 text-[color:var(--success)]" />
+                  <CheckIcon aria-hidden="true" />
                 ) : (
-                  <CopyIcon className="size-4" />
+                  <CopyIcon aria-hidden="true" />
                 )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
+                복사
+              </button>
+              <button
+                className="btn btn-ghost btn-xs"
+                type="button"
                 aria-label="Secret 숨기기"
                 onClick={handleHideSecret}
               >
-                <EyeOffIcon className="size-4" />
-              </Button>
+                <EyeOffIcon aria-hidden="true" />
+                숨기기
+              </button>
             </div>
           </div>
         ) : (
-          <p className="mt-2 text-xs text-[color:var(--text-muted)]">
-            Secret 값은 발급/회전 직후에만 1회 표시됩니다. 외부 webhook 에 다시 등록하려면
-            아래 버튼으로 회전하세요.
+          <p className="field-hint" style={{ marginTop: "16px" }}>
+            Secret 값은 발급이나 회전 직후에만 한 번 표시됩니다. 외부 webhook 에 다시 등록하려면
+            아래에서 회전하세요.
           </p>
         )}
 
-        <div className="mt-4 flex justify-end">
-          <Button
-            variant="outline"
+        <div className="form-actions">
+          <button
+            className="btn"
+            type="button"
             onClick={() => setConfirmOpen(true)}
             disabled={rotate.isPending}
             aria-label="webhook secret 회전"
           >
-            <RefreshCwIcon className="size-4" />
-            Secret Rotate
-          </Button>
+            <RefreshCwIcon aria-hidden="true" />
+            Secret 회전
+          </button>
         </div>
-      </section>
+      </div>
 
-      {/* Rotate Confirm Dialog */}
+      {/* 회전 확인 Dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Webhook Secret 회전</DialogTitle>
             <DialogDescription>
-              기존 secret 은 5분 grace period 후 무효화됩니다. TradingView 등 외부 webhook 의
-              secret 도 함께 재설정 필수입니다.
+              기존 secret 은 5분 유예 뒤 무효화됩니다. TradingView 등 외부 webhook 의 secret 도 함께
+              다시 설정해야 합니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+            <button className="btn btn-ghost" type="button" onClick={() => setConfirmOpen(false)}>
               취소
-            </Button>
-            <Button
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
               onClick={() => rotate.mutate()}
               disabled={rotate.isPending}
-              aria-label="rotate 확정"
+              aria-label="회전 확정"
             >
-              {rotate.isPending ? "회전 중..." : "확정"}
-            </Button>
+              {rotate.isPending ? "회전 중" : "확정"}
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

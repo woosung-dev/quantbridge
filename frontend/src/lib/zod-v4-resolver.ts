@@ -6,9 +6,9 @@
 //
 // 표준 reference: test-order-dialog.tsx (Sprint 13 dogfood). Phase C 라이브 QA
 // (2026-05-30) 에서 register-exchange-account-dialog 가 평범한 zodResolver 사용
-// → OKX passphrase superRefine 이 RHF errors 미매핑 → 사용자 무피드백 +
-// console ZodError unhandled. 공유 helper 로 추출하여 두 dialog (및 향후 신규)
-// 모두 동일 resolver 사용.
+// → cross-field superRefine 이 RHF errors 미매핑 → 사용자 무피드백 + console
+// ZodError unhandled. 공유 helper 로 추출하여 여러 dialog·form 이 동일 resolver 사용.
+// (당시 예시였던 OKX passphrase 분기는 C 이식 W3-F 에서 Bybit 단일화로 제거됐다.)
 
 import type { Resolver, FieldValues } from "react-hook-form";
 import { type core, type ZodType } from "zod/v4";

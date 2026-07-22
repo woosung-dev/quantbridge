@@ -66,12 +66,14 @@ export default defineConfig({
       // Sprint 46 W2 — `sprint46-tier1-critical` 추가 (5 case Tier 1 critical user journey).
       // Sprint 46 W3 — `sprint46-tier2-high` 추가 (4 case Tier 2 dogfood polish).
       // Sprint 46 W4 — `sprint46-tier3-nth` 추가 (Tier 3 polish 7 시나리오).
-      // C 이식 S0 — `sprint55-optimizer-bayesian` 은 배선하지 않는다. testMatch 에 넣어 실행하니
-      //   폼 UX 가 통째로 stale (텍스트 backtest_id 입력 -> useBacktests 드롭다운 피커, P1-8/S7-B).
-      //   파일 안 test.skip + TODO 로 남겨 optimizer 이식 때 현행 UX 로 재작성한다.
+      // C 이식 W3-C — `sprint55-optimizer-bayesian` 재작성 완료(현행 UX: SelectWithDisplayName 피커 +
+      //   "최적화 알고리즘" aria-label + "베이지안 탐색 새 실행")로 skip 해제 + 배선.
       // C 이식 S0 — `authed-canon-p1` 추가 (P1 4라우트 디자인 캐논 baseline, 로컬 전용).
+      // C 이식 W2 — `authed-canon-remaining` 추가 (잔여 authed 라우트 캐논 게이트, /backtests/[id] 등).
+      //   열거식 testMatch 라 파일명을 여기 넣지 않으면 spec 이 발견조차 안 된다 (coverage 함정).
+      //   W3-C — 고아 spec `sprint55-optimizer-bayesian` 재작성 후 재배선.
       testMatch:
-        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1)\.spec\.ts$/,
+        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1|authed-canon-remaining|sprint55-optimizer-bayesian)\.spec\.ts$/,
       fullyParallel: false,
       use: {
         ...devices["Desktop Chrome"],

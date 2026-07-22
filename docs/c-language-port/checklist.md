@@ -243,11 +243,58 @@
 
 ---
 
+## 잔여 완주 세션 (2026-07-21 착수) — 브랜치 `stage/c-port-remaining`
+
+> 계획 `~/.claude/plans/c-react-greedy-stardust.md` · 운영 계약 [`operating-contract.md`](./operating-contract.md)
+> 게이트 3분류 ⓐⓑⓒ + 스킬 게이트 + 오케스트레이터 직렬 재현. baseline: vitest 164/904 · canon 29 · authed 5.
+
+- [ ] W0 — 브랜치 + 운영 계약 커밋 + 환경 복구(stale CSS 재컴파일) + fixture 시딩(optimizer 완료 run) + codex 플랜 검증
+- [x] W1 — 용어 SSOT 확장 완료 (`af9eb2d`~`67e2893`). labels 2모듈(§4-3/§4-5 전문) + §5-3/5-4/5-5 이관 + 가드 5필드·템플릿보간·6스코프 확장. ★반증이 가드 위양성(`=>` 를 태그닫힘 오인) 발견→교정, 스코프 확장이 §5 미기재 원시 렌더 6곳 표면화(차트·리더보드 5벌 + live-session-detail 방향)→이관, `LIVE_SIGNAL_DIRECTION_LABEL` 신설(backend models.py long|short 실측 근거). 오케스트레이터 재현: vitest 164/**907**·tsc 0·lint 0·가드+래칫 16/16
+- [x] W2 — variant-c → `/backtests/[id]` 완료 (`67d56e3`·`d112b26`). 번호 섹션 01~10 IA, recharts/lwc 불변, authed-canon-remaining 신설(완료행 선택+expect FAIL+렌더 대기), 공선성 검사는 반증(ResponsiveContainer+jsdom 폭0 = 비결정)으로 기각→축 설정 단위 테스트 갈음. KPI 미터 미렌더(§4.9 — 상한이 프로토 임의값). 재현: authed `/backtests/:id` 하드 0 (첫 실측 contrast=4 는 stale CSS — r 주석 무효화 루틴으로 해소)
+- [x] W3-A — screen-05 → `/backtests/new` 완료 (`2bcd0e1` cherry-pick). 가짜 라이브 배지·ETA/수수료 휴리스틱 제거(unbacked ETA 검증 테스트 2건 삭제 명시), em-dash 래칫 -3항목
+- [x] W3-B — 전략 3벌 완료 (`17a727d`~`caf7472` cherry-pick, 구 위저드/필터바 18파일 삭제 — **테스트 순감 918→884, 삭제 목록 PR 본문 명시 의무**). backtest_count·수명주기·성과 3칸 미렌더(§4.9). ★globals 주석 `.trust-*/` 조기 종결 → CSS 파스 전면 500 — 통합 게이트가 검출·픽스. 재현: /strategies·/new·/:id/edit 하드 0
+- [x] W3-C — 옵티마이저 2벌 완료 (`e02ec72`~`3fa9662` cherry-pick). §4.5 상한 칩·무데이터 문구·backed-only(조인 부제·가짜 cap 미터 미렌더), OOS 실API 재스킨 유지. 재현: /optimizer·/optimizer/:id 하드 0. ★sprint55 spec 은 라이브에서 mock 라우트 미매치로 FAIL → FIX-4
+- [x] W3-D — `/orders` 완료 (`e112052`→`f21335f`). §4.6 규약 전이식 + tablist→role=group + 정직 미렌더 5건(브로커/모의 배지·취소 열 — 스키마/API unbacked)
+- [x] W3-E — `/onboarding` 완료 (`c1b0a24`→`4698e50`). radius 래칫 -1(option-card-radio)
+- [x] W3-F — live-sessions 부채 완료 (`653699a`~`fc7e6fe`). §05 재스킨 + 결정적 날짜 + kpi-pnl isError(StatValue) + ★OKX FE 제거(테스트 교체 포함, codex#6) + orders-panel 청산가 열 제거
+- [x] W3-G — 마케팅 4벌 완료 (net-diff squash `64634d4` — 중간 prettier 재포맷 사고 커밋 배제). `/pricing` 신설+public/live-smoke 편입, Beta 배너 한국어 재스킨(em-dash 해소), 래칫 radius -3·em-dash -4. sign-in 은 Clerk 외부 로드 사유로 public 감사 제외(주석 문서화, 시각 게이트는 오케스트레이터 육안)
+- [x] W3-H — 에러 3종 완료 (`25f4889`~`a11854d` cherry-pick). 구 error-\* 컴포넌트 삭제(소비자 0 전수 확인), radius 래칫 -5, /maintenance+404 공개 캐논 편입. 재현: canon 29→31
+
+**FIX 목록 (게이트 통과분의 프로토타입 충실도 갭 — 별도 픽스 슬라이스)**
+
+1. screen-06 필터 행(검색·심볼·정렬 — 전부 backed, 클라이언트 필터 가능) + CSV 내보내기 미렌더 → 재도입
+2. screen-07 04 진단 섹션(지원 함수 사전 카드·저장된 초안 카드 — backed) + 파일 열기/예제 버튼 → 재도입 검토
+3. screen-10 파라미터 안정성 섹션(cells 파생 가능 — unbacked 아님) 미이식 → 이식
+4. sprint55-optimizer-bayesian spec 라이브 그린화 — mock 라우트가 실제 크로스오리진(8000) 요청과 미매치 → 실백엔드 거부 alert. 제품 결함 아님
+5. (교차 감사 사용자 노출) W2 KPI 미터 미렌더 결정 · 상단 Beta 배너(영문+em-dash) 처리 · 히트맵 기본 접힘
+
+- [x] W-final — 완료. 부채 마감(`e04bf57`~`665f4b3`: StateBox 9파일 13곳 전량 이관·이중 링 sweep 7파일·반경 판정) + 감사기 픽스 2종(`225f83e` WCAG 1.4.3 비활성 예외 hard 축만 · `3b02f03` 대비 샘플링 reduced-motion 정지 상태 — .rise 스태거 knife-edge 제거, 캘리브레이션 22 동등 유지) + 교차 감사 8건 처분(7픽스 `eb65ed2`~`07a6613` + nav-count 기결) + codex 최종 8건 처분(7픽스 `f3b52cc`~`af9e284` + labels 미소비 export 기각=문서 전문 정책) + 레거시 authed 스펙 수리(`81fa8e4`~`b449338` — 8스펙 재작성, KS resolve un-skip, 앱 결함 0)
+
+**최종 게이트 실측 (2026-07-21, 오케스트레이터 직렬 재현)**
+
+- vitest **169파일/963** · tsc 0 · lint 0 · **build 0**(임시 distDir→원복) · design-canon **32**(캘리브레이션 22 동등) · **e2e:authed 전체 56 passed / 0 failed / 0 skipped**(캐논 17 + 레거시 수리분 포함) · live-smoke(+pricing) 그린 · kit-port 무결성 유지
+- 잔여 관측: hand-rolled state-box 3건(trade-ledger-table·parse-result-panel·new-strategy-wizard — 시각 동일, 일관성 부채) · backtest-history-card = dead(삭제는 후속 판단) · KPI 미터 미렌더 결정(사용자 노출 대상)
+
+**Coverage 매트릭스 (codex#3 — 슬라이스마다 이 표로 단조 증가 추적)**
+
+| 라우트                          | spec                                                                                        | 소유 | 축   |
+| ------------------------------- | ------------------------------------------------------------------------------------------- | ---- | ---- |
+| /backtests/[id] 완료 리포트     | `authed-canon-remaining.spec.ts` **신설**(+testMatch, 완료행 선택·fixture expect·렌더 대기) | W2   | 로컬 |
+| /backtests/new                  | authed-canon-remaining                                                                      | W3-A | 로컬 |
+| /strategies · /new · /[id]/edit | authed-canon-remaining (+3)                                                                 | W3-B | 로컬 |
+| /optimizer · /[id](완료)        | authed-canon-remaining (+2)                                                                 | W3-C | 로컬 |
+| /orders                         | authed-canon-remaining                                                                      | W3-D | 로컬 |
+| /onboarding                     | authed-canon-remaining                                                                      | W3-E | 로컬 |
+| /pricing                        | design-canon-public + live-smoke                                                            | W3-G | CI   |
+| /sign-in                        | design-canon-public (Clerk 불안정 시 remaining 이관+사유)                                   | W3-G | CI   |
+| /maintenance · 404              | design-canon-public (+2)                                                                    | W3-H | CI   |
+
+기대 passed: canon **29→33** · authed **5→14**. 조 소유권 교정(codex#1): G = landing-_ + page.tsx + waitlist + pricing + (auth) / H = 루트 에러 3종 + `app/\_components/error-_` + 그 테스트.
+
 ## Blocked
 
 (현재 없음)
 
 ## Questions
 
-- `strategy.backtest_count` 정의 (완료 기준 대 전체 실행 기준) — 원장이 `screen-06` 이라 P1 밖. 전략 목록 이식 시 결정
-- OKX 를 `frontend/src/features/trading/schemas.ts:71` enum 에서 뺄지 — "OKX 데모로 실제 주문이 오갔는가" 실측 후 판단
+(2026-07-21 해소) `strategy.backtest_count` = **열 미렌더** 확정 · OKX = **FE 등록 폼에서 제거** 확정 (계정 0·주문 0 실측). 근거는 context-notes 잔여 세션 절.

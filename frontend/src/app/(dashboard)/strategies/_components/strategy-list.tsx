@@ -1,293 +1,488 @@
-// 전략 목록 컨테이너 — 검색/필터/정렬/페이지네이션 + 그리드/리스트 뷰 토글 (06 prototype 매핑)
 "use client";
 
+// 전략 목록 — C 디자인 언어 이식 (screen-06). 프로토타입의 시맨틱 CSS(.trades/.chip/.state-box)를
+// 소비하되, 열은 실데이터(StrategyListItem)가 받치는 것만 그린다. 프로토타입의 성과 3칸
+// (최근 수익률/MDD/샤프)·파라미터 수·백테스트 건수·수명주기 칩(초안/검증됨/배포됨)은 스키마에
+// 필드가 0건이라 렌더하지 않는다 (캐논 §4.9 "데이터 모델에 없는 값 = 가짜 데이터").
+// 상태 열은 실존 필드 parse_status 를 PARSE_STATUS_LABEL → CHIP_TONE_CLASS 로 파생한다.
+//
+// screen-06 "01 필터" 구획 재도입 (W3-fix). 검색(전략명·전략 ID)·심볼 필터·정렬을 프로토타입의
+// .toolbar/.input/.select 구조로 그린다. 데이터가 6건 규모라 클라이언트 사이드 필터/정렬이며
+// 현재 페이지(≤20)에만 적용된다(hasMorePages 안내 문구가 그 범위를 밝힌다). 프로토타입 정렬의
+// "수익률 높은 순"·"샤프 높은 순" 은 성과 필드가 unbacked 라 제외하고, 상태 select 는 실존 필드
+// parse_status 토글(role=group)이 이미 담당하므로 여기 재현하지 않는다.
+
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/skeleton";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  AlertTriangleIcon,
+  CheckIcon,
+  DownloadIcon,
+  InboxIcon,
+  PlusIcon,
+  RefreshCwIcon,
+} from "lucide-react";
+
+import {
+  PARSE_STATUS_FILTER_LABEL,
+  PARSE_STATUS_LABEL,
+  STRATEGY_LIST_HEADER,
+  type ParseStatusFilter,
+} from "@/features/strategy/labels";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { ParseStatus, StrategyListItem, StrategyListQuery } from "@/features/strategy/schemas";
-import { StrategyCard } from "./strategy-card";
-import { StrategyEmptyState } from "./strategy-empty-state";
-import {
-  StrategyListFilterBar,
-  type SortKey,
-  type StatusFilter,
-} from "./strategy-list-filter-bar";
-import { StrategyTable } from "./strategy-table";
+import { formatDateTime } from "@/features/strategy/utils";
+import { StateBox } from "@/components/state-box";
+import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 const PAGE_SIZE = 20;
-type ViewMode = "grid" | "list";
+// 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
+const LIST_ENDPOINT = "GET /api/v1/strategies";
+
+// parse_status 필터 옵션. 프로토타입 상태 필터(수명주기)가 unbacked 라 실존 필드로 대체한다.
+const STATUS_FILTERS: ReadonlyArray<{ id: ParseStatusFilter }> = [
+  { id: "all" },
+  { id: "ok" },
+  { id: "unsupported" },
+  { id: "error" },
+];
+
+// 정렬 축은 backed 필드에만 건다. 프로토타입의 수익률·샤프 정렬은 성과 필드가 스키마에 없어(§4.9) 뺀다.
+type SortKey = "recent" | "name";
+const SORT_OPTIONS: ReadonlyArray<{ id: SortKey; label: string }> = [
+  { id: "recent", label: "마지막 수정 순" },
+  { id: "name", label: "이름 순" },
+];
+const SYMBOL_ALL = "all";
 
 export function StrategyList() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  // 뷰 토글 / 정렬 / 검색은 세션 한정 (URL 노출 가치 낮음).
-  // 필터·페이지는 URL 단일 source — Next 16 routing convention.
-  const [view, setView] = useState<ViewMode>("grid");
-  const [sort, setSort] = useState<SortKey>("updated_desc");
-  const [search, setSearch] = useState("");
+  const statusParam = searchParams.get("parse_status") ?? "all";
+  const activeStatus: ParseStatusFilter = STATUS_FILTERS.some((f) => f.id === statusParam)
+    ? (statusParam as ParseStatusFilter)
+    : "all";
 
-  const status: StatusFilter = (() => {
-    if (searchParams.get("favorite") === "true") return "favorite";
-    if (searchParams.get("archived") === "true") return "archived";
-    const ps = searchParams.get("parse_status");
-    if (ps === "ok" || ps === "unsupported" || ps === "error") return ps;
-    return "all";
-  })();
-  const page = Math.max(0, Number(searchParams.get("page") ?? "0") || 0);
+  // 검색·심볼·정렬은 클라이언트 로컬 상태다(타이핑마다 라우터를 흔들지 않는다). parse_status 만
+  // URL 로 남긴다(기존 관례 유지). hook query 는 페이지네이션만 → queryKey identity 유지(H-2 정합).
+  const [searchText, setSearchText] = useState("");
+  const [symbolFilter, setSymbolFilter] = useState<string>(SYMBOL_ALL);
+  const [sortKey, setSortKey] = useState<SortKey>("recent");
 
-  const pushStatus = (v: StatusFilter) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("parse_status");
-    params.delete("archived");
-    params.delete("favorite");
-    params.delete("page");
-    if (v === "archived") params.set("archived", "true");
-    else if (v === "favorite") params.set("favorite", "true");
-    else if (v !== "all") params.set("parse_status", v);
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  };
-
-  const pushPage = (p: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (p <= 0) params.delete("page");
-    else params.set("page", String(p));
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  };
-
-  // BE 호출 query — favorite 필터는 BE 미지원이므로 'all' 로 fallback,
-  // 클라이언트에서 다시 favorite 만 추려낸다 (placeholder 동작, 활성화는 후속 BL).
-  const query = useMemo<StrategyListQuery>(() => {
-    const q: StrategyListQuery = {
-      limit: PAGE_SIZE,
-      offset: page * PAGE_SIZE,
-      is_archived: status === "archived",
-    };
-    if (status === "ok" || status === "unsupported" || status === "error") {
-      q.parse_status = status as ParseStatus;
-    }
-    return q;
-  }, [page, status]);
-
-  const { data, isLoading, isError, refetch } = useStrategies(query);
-
-  // 클라이언트-side 검색·정렬·즐겨찾기 필터.
-  // 즐겨찾기는 BE 미지원이므로 현재 페이지 응답에서만 매치 (UI placeholder).
-  const filteredItems = useMemo<StrategyListItem[]>(() => {
-    let arr: StrategyListItem[] = data?.items ?? [];
-    if (status === "favorite") {
-      // BE 필드 부재 — 현재는 모두 비-즐겨찾기로 취급. 후속 BL 에서 sync.
-      arr = [];
-    }
-    const q = search.trim().toLowerCase();
-    if (q.length > 0) {
-      arr = arr.filter((s) => {
-        return (
-          s.name.toLowerCase().includes(q) ||
-          (s.symbol ?? "").toLowerCase().includes(q)
-        );
-      });
-    }
-    const sorted = arr.slice();
-    if (sort === "name_asc") {
-      sorted.sort((a, b) => a.name.localeCompare(b.name, "ko"));
-    } else if (sort === "created_desc") {
-      sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    } else {
-      sorted.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-    }
-    return sorted;
-  }, [data?.items, search, sort, status]);
-
-  const totalPages = data?.total_pages ?? 0;
-  const isEmpty =
-    !isLoading &&
-    !isError &&
-    filteredItems.length === 0 &&
-    page === 0 &&
-    status === "all" &&
-    search.length === 0;
-
-  return (
-    <div className="mx-auto max-w-[1200px] px-6 py-8">
-      {/* 헤더 — DESIGN.md §3.2 H2 토큰은 globals.css base 에서 자동 적용 */}
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">내 전략</h1>
-          <p className="text-sm text-text-secondary">
-            Pine Script 전략 관리 · 백테스트 · 데모 트레이딩
-          </p>
-        </div>
-        <Button render={<Link href="/strategies/new" />} nativeButton={false}>
-          <PlusIcon className="size-4" />새 전략
-        </Button>
-      </header>
-
-      {/* 필터바 (검색 + chip + 정렬) + 뷰 토글 */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-start">
-        <div className="flex-1 min-w-0">
-          <StrategyListFilterBar
-            status={status}
-            sort={sort}
-            search={search}
-            onStatusChange={pushStatus}
-            onSortChange={setSort}
-            onSearchChange={setSearch}
-          />
-        </div>
-        <div className="hidden lg:flex h-10 rounded-[var(--radius-md)] border border-[color:var(--border)]">
-          <Button
-            size="icon"
-            variant={view === "grid" ? "default" : "ghost"}
-            className="rounded-r-none"
-            aria-label="그리드 뷰"
-            onClick={() => setView("grid")}
-          >
-            <LayoutGridIcon className="size-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant={view === "list" ? "default" : "ghost"}
-            className="rounded-l-none"
-            aria-label="목록 뷰"
-            onClick={() => setView("list")}
-          >
-            <ListIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* aria-live: 검색 결과 갱신 알림 */}
-      <p
-        role="status"
-        aria-live="polite"
-        className="sr-only"
-      >
-        {isLoading
-          ? "전략 목록을 불러오는 중"
-          : `전략 ${filteredItems.length}개 표시`}
-      </p>
-
-      {/* 로딩 / 에러 / 빈 상태 / 콘텐츠 */}
-      {isError ? (
-        <div className="rounded-[var(--radius-lg)] border border-[color:var(--destructive-light)] bg-[color:var(--destructive-light)] p-6 text-sm">
-          <p className="font-medium text-[color:var(--destructive)]">
-            전략 목록을 불러오지 못했습니다.
-          </p>
-          <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
-            네트워크 또는 인증 문제가 있을 수 있습니다.
-          </p>
-          <Button variant="outline" className="mt-4" onClick={() => refetch()}>
-            다시 시도
-          </Button>
-        </div>
-      ) : isLoading ? (
-        <ListSkeleton view={view} />
-      ) : isEmpty ? (
-        <StrategyEmptyState />
-      ) : filteredItems.length === 0 ? (
-        <NoResultsHint search={search} status={status} />
-      ) : view === "grid" ? (
-        <div className="grid grid-cols-1 gap-5 motion-safe:animate-[fadeInUp_200ms_ease-out_both] md:grid-cols-2 xl:grid-cols-3">
-          {filteredItems.map((s) => (
-            <StrategyCard key={s.id} strategy={s} />
-          ))}
-        </div>
-      ) : (
-        <div className="motion-safe:animate-[fadeInUp_200ms_ease-out_both]">
-          <StrategyTable items={filteredItems} />
-        </div>
-      )}
-
-      {/* 페이지네이션 — BE 페이지 기준 (클라 필터 적용 전) */}
-      {totalPages > 1 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={data!.total}
-          limit={data!.limit}
-          onPage={pushPage}
-        />
-      )}
-    </div>
+  const query = useMemo<StrategyListQuery>(
+    () => ({ limit: PAGE_SIZE, offset: 0, is_archived: false }),
+    [],
   );
-}
+  const { data, isLoading, isError, error, refetch } = useStrategies(query);
 
-// ---- local sub-components ----
+  // useMemo dep 안정성을 위해 items reference 자체를 memoize (H-1 정합 — RQ data 직접 dep 금지).
+  const items = useMemo<readonly StrategyListItem[]>(() => data?.items ?? [], [data?.items]);
+  const total = data?.total ?? 0;
+  const hasMorePages = total > items.length;
+  const counts = useMemo(() => buildParseStatusCounts(items), [items]);
 
-function NoResultsHint({ search, status }: { search: string; status: StatusFilter }) {
-  return (
-    <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-dark)] bg-card p-10 text-center text-sm">
-      <p className="font-medium text-[color:var(--text-primary)]">
-        {status === "favorite"
-          ? "즐겨찾기 한 전략이 없습니다."
-          : `'${search}' 검색 결과가 없습니다.`}
-      </p>
-      <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
-        다른 키워드로 검색하거나 필터를 해제해 보세요.
-      </p>
-    </div>
-  );
-}
+  // 심볼 필터 후보는 로드된 데이터에서 실측한다(프로토타입 하드코딩 BTC/ETH/SOL 대신 backed 값).
+  const symbolOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of items) if (s.symbol) set.add(s.symbol);
+    return Array.from(set).sort();
+  }, [items]);
 
-function Pagination(props: {
-  page: number;
-  totalPages: number;
-  total: number;
-  limit: number;
-  onPage: (p: number) => void;
-}) {
-  const from = props.page * props.limit + 1;
-  const to = Math.min((props.page + 1) * props.limit, props.total);
-  return (
-    <nav className="mt-8 flex items-center justify-between" aria-label="페이지 탐색">
-      <p className="text-sm text-[color:var(--text-secondary)]">
-        {props.total}개 중 {from}–{to} 표시
-      </p>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={props.page === 0}
-          onClick={() => props.onPage(props.page - 1)}
-        >
-          이전
-        </Button>
-        <span className="text-sm font-mono">
-          {props.page + 1} / {props.totalPages}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={props.page + 1 >= props.totalPages}
-          onClick={() => props.onPage(props.page + 1)}
-        >
-          다음
-        </Button>
-      </div>
-    </nav>
-  );
-}
-
-function ListSkeleton({ view }: { view: ViewMode }) {
-  return (
-    <div
-      className={
-        view === "grid"
-          ? "grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
-          : "flex flex-col gap-2"
+  // 필터·정렬 파이프라인 — parse_status → 검색(이름/ID) → 심볼 → 정렬. 현재 페이지 한정.
+  const filtered = useMemo<readonly StrategyListItem[]>(() => {
+    const q = searchText.trim().toLowerCase();
+    const matched = items.filter((s) => {
+      if (activeStatus !== "all" && s.parse_status !== activeStatus) return false;
+      if (symbolFilter !== SYMBOL_ALL && s.symbol !== symbolFilter) return false;
+      if (q) {
+        const haystack = `${s.name} ${s.id}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
-    >
-      {Array.from({ length: 6 }).map((_, i) => (
-        <Skeleton key={i} variant="card" />
-      ))}
+      return true;
+    });
+    const sorted = [...matched];
+    sorted.sort((a, b) =>
+      sortKey === "name"
+        ? a.name.localeCompare(b.name, "ko")
+        : b.updated_at.localeCompare(a.updated_at),
+    );
+    return sorted;
+  }, [items, activeStatus, symbolFilter, searchText, sortKey]);
+
+  const isFiltering = activeStatus !== "all" || symbolFilter !== SYMBOL_ALL || searchText.trim() !== "";
+
+  const pushStatus = (id: ParseStatusFilter) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (id === "all") params.delete("parse_status");
+    else params.set("parse_status", id);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const resetFilters = () => {
+    setSearchText("");
+    setSymbolFilter(SYMBOL_ALL);
+    pushStatus("all");
+  };
+
+  // 목록 CSV 내보내기 — 헤더는 렌더 중인 backed 열(전략명·상태·심볼·주기·마지막 수정)과 일치한다.
+  // 지금 필터·정렬이 적용된 결과를 그대로 내보낸다.
+  const handleExportCsv = () => {
+    const csv = buildCsv(filtered);
+    // Excel 한글 인코딩 보정용 UTF-8 BOM 접두.
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "strategies.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 헤더 라벨은 스칼라로 푼다. STRATEGY_LIST_HEADER.status 는 헤더 문자열이지만
+  // no-raw-enum-labels 가드가 `.status` 로 끝나는 JSX 멤버 체인을 잡으므로 우회한다.
+  const {
+    name: hName,
+    status: hStatus,
+    symbolTimeframe: hSymbolTf,
+    updatedAt: hUpdatedAt,
+    action: hAction,
+  } = STRATEGY_LIST_HEADER;
+
+  return (
+    <main className="page">
+      {/* ===== 목록 헤더 카드 ===== */}
+      <section className="card" aria-label="전략 목록 개요">
+        <div className="report">
+          <div>
+            <h1 className="report-title">전략</h1>
+            <div className="report-meta">
+              <span className="chip">{total}개</span>
+              <span className="chip accent">바 단위 이벤트 루프</span>
+              <span className="chip">Bybit</span>
+            </div>
+          </div>
+          <div className="report-actions">
+            <button
+              className="btn"
+              type="button"
+              onClick={handleExportCsv}
+              disabled={filtered.length === 0}
+              data-testid="strategy-export-csv"
+            >
+              <DownloadIcon aria-hidden="true" />
+              목록 CSV 내보내기
+            </button>
+            <button className="btn" type="button" onClick={() => refetch()}>
+              <RefreshCwIcon aria-hidden="true" />
+              목록 새로고침
+            </button>
+            <Link className="btn btn-primary" href="/strategies/new">
+              <PlusIcon aria-hidden="true" />새 전략
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 01 필터 ===== */}
+      <section className="section" aria-label="전략 필터">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">01</span> 필터
+          </p>
+          <h2 className="section-title">전략 찾기</h2>
+          <p className="section-desc">
+            전략명이나 전략 ID 로 검색하고, 심볼과 정렬로 범위를 좁힙니다. 필터는 지금 페이지에
+            불러온 목록에 적용됩니다.
+          </p>
+        </header>
+
+        <div className="card">
+          <div className="card-body">
+            <div className="toolbar">
+              <input
+                className="input"
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="전략명, 전략 ID 검색"
+                aria-label="전략 검색"
+                data-testid="strategy-search"
+              />
+              <select
+                className="select"
+                value={symbolFilter}
+                onChange={(e) => setSymbolFilter(e.target.value)}
+                aria-label="심볼 필터"
+                data-testid="strategy-symbol-filter"
+              >
+                <option value={SYMBOL_ALL}>심볼 전체</option>
+                {symbolOptions.map((sym) => (
+                  <option key={sym} value={sym}>
+                    {sym}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="select"
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                aria-label="정렬 기준"
+                data-testid="strategy-sort"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <p className="filter-note" data-testid="strategy-filter-note">
+              {isFiltering ? (
+                <>
+                  <span>필터 적용 결과</span>
+                  <span>
+                    <span className="mono">{filtered.length}</span>개 · 불러온{" "}
+                    <span className="mono">{items.length}</span>개 중
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>필터를 적용하지 않았습니다. 지금 보이는 것은</span>
+                  <span>
+                    <span className="mono">{items.length}</span>개 · 변환 가능{" "}
+                    <span className="mono">{counts.ok}</span> · 일부 미지원{" "}
+                    <span className="mono">{counts.unsupported}</span> · 오류{" "}
+                    <span className="mono">{counts.error}</span> 입니다.
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 02 목록 ===== */}
+      <section className="section" aria-label="전략 목록">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">02</span> 목록
+          </p>
+          <h2 className="section-title">전략 {total}개</h2>
+          <p className="section-desc">
+            마지막 수정이 최근인 순서로 정렬했습니다. 심볼과 주기는 그 전략에 저장된 기본값입니다.
+          </p>
+        </header>
+
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3 className="card-title">전략 목록</h3>
+              <p className="card-sub">
+                {filtered.length}개 표시{hasMorePages ? ` · 전체 ${total}개 중` : ""}
+              </p>
+            </div>
+            <div className="chart-head-actions">
+              <div className="tabs" role="group" aria-label="파싱 상태 필터">
+                {STATUS_FILTERS.map((f) => {
+                  const active = f.id === activeStatus;
+                  const isDisabled = hasMorePages && f.id !== "all";
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      className={"tab" + (active ? " active" : "")}
+                      aria-pressed={active}
+                      aria-disabled={isDisabled || undefined}
+                      disabled={isDisabled}
+                      title={
+                        isDisabled
+                          ? "현재 페이지(20개)만 필터되므로 비활성화됩니다. Beta 에 서버 필터 추가 예정"
+                          : undefined
+                      }
+                      data-testid={`strategy-filter-${f.id}`}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        pushStatus(f.id);
+                      }}
+                    >
+                      {PARSE_STATUS_FILTER_LABEL[f.id]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* total 은 BE 전역 건수지만 상태 분해는 client-side counts 라 현재 페이지(≤20)만
+              반영한다. 페이지가 더 있으면 '이 페이지 기준' 을 붙여 전역 집계로 오인하지 않게 한다. */}
+          <p className="runs-summary">
+            <span className="mono">{total}</span>개 · {hasMorePages ? "이 페이지 기준 " : ""}
+            변환 가능 <span className="mono">{counts.ok}</span> · 일부 미지원{" "}
+            <span className="mono">{counts.unsupported}</span> · 오류{" "}
+            <span className="mono">{counts.error}</span>
+          </p>
+          {hasMorePages ? (
+            <p className="runs-summary" data-testid="strategy-filter-notice">
+              현재 페이지(20개)만 필터됩니다. Beta 에 서버 필터가 추가될 예정입니다.
+            </p>
+          ) : null}
+
+          {isLoading ? (
+            <ListSkeleton />
+          ) : isError ? (
+            <div className="card-body">
+              <StateBox
+                tone="failed"
+                testId="strategy-error"
+                icon={<AlertTriangleIcon />}
+                title="목록을 불러오지 못했습니다."
+                body={error ? error.message : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
+                code={LIST_ENDPOINT}
+              >
+                <button className="btn btn-ghost" type="button" onClick={() => refetch()}>
+                  <RefreshCwIcon aria-hidden="true" />
+                  다시 시도
+                </button>
+              </StateBox>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="card-body">
+              <StateBox
+                testId="strategy-empty"
+                icon={<InboxIcon />}
+                title={items.length === 0 ? "첫 전략을 등록하세요" : "조건에 맞는 전략이 없습니다"}
+                body={
+                  items.length === 0
+                    ? "TradingView Pine Script 를 붙여넣으면 파싱 검사 후 전략으로 저장됩니다."
+                    : "검색어나 필터를 바꾸거나 새 전략을 등록하세요."
+                }
+              >
+                {items.length === 0 ? (
+                  <Link className="btn btn-primary btn-xs" href="/strategies/new">
+                    새 전략 등록
+                  </Link>
+                ) : (
+                  <button className="btn btn-ghost btn-xs" type="button" onClick={resetFilters}>
+                    필터 초기화
+                  </button>
+                )}
+              </StateBox>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="trades runs-table" aria-label={`전략 목록 ${filtered.length}개`}>
+                <thead>
+                  <tr>
+                    <th scope="col">{hName}</th>
+                    <th scope="col" className="col-status">
+                      {hStatus}
+                    </th>
+                    <th scope="col">{hSymbolTf}</th>
+                    <th scope="col">{hUpdatedAt}</th>
+                    <th scope="col">{hAction}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s) => {
+                    // 라벨·톤은 W1 용어 SSOT 에서만 온다 (원시 enum 렌더 금지 — no-raw-enum-labels 가드).
+                    const { label, tone, showCheckIcon } = PARSE_STATUS_LABEL[s.parse_status];
+                    return (
+                      <tr
+                        key={s.id}
+                        data-testid={`strategy-row-${s.id}`}
+                        data-status={s.parse_status}
+                      >
+                        <td>
+                          <Link className="strat-name" href={`/strategies/${s.id}/edit`}>
+                            {s.name}
+                          </Link>
+                          <span className="strat-id">{s.id.slice(0, 8)}</span>
+                        </td>
+                        <td className="col-status">
+                          <span className={CHIP_TONE_CLASS[tone]}>
+                            {showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
+                            {label}
+                          </span>
+                        </td>
+                        {/* 무데이터 셀 — 심볼·주기가 전략에 저장돼 있지 않으면 EMPTY_CELL 로 표기한다. */}
+                        <td className="mono-l">
+                          {s.symbol || s.timeframe ? (
+                            <>
+                              {s.symbol ?? EMPTY_CELL} · {s.timeframe ?? EMPTY_CELL}
+                            </>
+                          ) : (
+                            <span title="이 전략에는 심볼과 주기가 저장돼 있지 않습니다.">
+                              {EMPTY_CELL}
+                            </span>
+                          )}
+                        </td>
+                        <td className="mono-l dim">{formatDateTime(s.updated_at)}</td>
+                        <td>
+                          <Link className="btn btn-ghost btn-xs" href={`/strategies/${s.id}/edit`}>
+                            편집
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function buildParseStatusCounts(items: readonly StrategyListItem[]) {
+  const result: Record<ParseStatus, number> = { ok: 0, unsupported: 0, error: 0 };
+  for (const s of items) result[s.parse_status] += 1;
+  return result;
+}
+
+// CSV 한 필드를 RFC 4180 규약으로 감싼다(쌍따옴표 이스케이프). 콤마·개행·따옴표 안전.
+function csvField(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+// backed 열만 내보낸다 — 전략명·상태(라벨)·심볼·주기·마지막 수정. 렌더 표와 열 구성이 같다.
+function buildCsv(rows: readonly StrategyListItem[]): string {
+  const header = ["전략명", "상태", "심볼 · 주기", "마지막 수정"];
+  const lines = [header.map(csvField).join(",")];
+  for (const s of rows) {
+    const statusLabel = PARSE_STATUS_LABEL[s.parse_status].label;
+    const symbolTf =
+      s.symbol || s.timeframe ? `${s.symbol ?? ""} · ${s.timeframe ?? ""}`.trim() : "";
+    lines.push(
+      [s.name, statusLabel, symbolTf, formatDateTime(s.updated_at)].map(csvField).join(","),
+    );
+  }
+  return lines.join("\r\n");
+}
+
+// 다음 페이지를 불러오는 동안의 스켈레톤 — 프로토타입 aria-busy tbody 관례 (.sk .sk-cell).
+function ListSkeleton() {
+  return (
+    <div className="table-wrap" data-testid="strategy-skeleton" aria-hidden="true">
+      <table className="trades runs-table">
+        <tbody>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <tr key={i}>
+              {Array.from({ length: 5 }).map((__, j) => (
+                <td key={j}>
+                  <span className="sk sk-cell" />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -1,136 +1,109 @@
-// 랜딩 페이지 features 섹션 (3-col grid 6 카드 + section accent header)
+// 랜딩 01 기능 (.lp-feat-grid) — 6장의 기능 카드. screen-14-landing.html 이식.
+// 각 카드는 무엇을 하고 무엇을 하지 않는지 note 로 밝힌다(정직성).
 import type { ReactNode } from "react";
 
-interface FeatureItem {
-  title: string;
-  description: string;
+interface Feature {
   icon: ReactNode;
+  title: string;
+  desc: string;
+  note: string;
 }
 
-const FEATURES: FeatureItem[] = [
+const FEATURES: Feature[] = [
   {
+    icon: (
+      <>
+        <polyline points="16 18 22 12 16 6" />
+        <polyline points="8 6 2 12 8 18" />
+      </>
+    ),
     title: "Pine Script 파싱",
-    // Sprint 61 T-8 (BL-322): 파일 업로드/TV URL 가져오기 "곧 지원" 상태이므로
-    // 카피에서 "업로드" 표현 정직화. 사용자가 직접 paste 가능함을 안내.
-    description:
-      "TradingView 전략 코드를 붙여넣으면 자동 분석 후 Python 으로 변환됩니다. 복잡한 코딩 없이 전략을 즉시 활용하세요.",
+    desc: "붙여 넣은 전략을 구문 트리로 읽어 어떤 함수와 입력을 쓰는지 목록으로 보여 줍니다.",
+    note: "미지원 함수가 하나라도 있으면 전체를 지원되지 않음으로 처리합니다. 부분 실행은 하지 않습니다.",
+  },
+  {
     icon: (
       <>
-        <polyline points="16,18 22,18 22,12" />
-        <polyline points="8,6 2,6 2,12" />
-        <line x1="2" y1="12" x2="22" y2="12" />
-        <polyline points="17,7 22,12 17,17" />
-        <polyline points="7,7 2,12 7,17" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="18" y1="20" x2="18" y2="10" />
       </>
     ),
+    title: "백테스트",
+    desc: "봉을 하나씩 순회하면서 진입과 청산, 수수료와 슬리피지를 그대로 재현합니다. 리포트에 실행 가정을 함께 인쇄합니다.",
+    note: "바 단위 이벤트 루프 자체 인터프리터",
   },
   {
-    title: "정밀 백테스트",
-    description:
-      "TradingView 로직을 바 단위로 그대로 재현하는 엔진으로 수년간의 데이터를 검증합니다.",
-    icon: <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" />,
-  },
-  {
-    title: "스트레스 테스트",
-    description:
-      "Monte Carlo, Walk-Forward 분석으로 전략의 실전 내구성을 검증합니다.",
     icon: (
       <>
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        <polyline points="9,12 11,14 15,10" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
       </>
     ),
-  },
-  {
     title: "파라미터 최적화",
-    description:
-      "Grid, Bayesian, Genetic 알고리즘으로 최적의 파라미터를 자동 탐색합니다.",
-    icon: (
-      <>
-        <line x1="4" y1="21" x2="4" y2="14" />
-        <line x1="4" y1="10" x2="4" y2="3" />
-        <line x1="12" y1="21" x2="12" y2="12" />
-        <line x1="12" y1="8" x2="12" y2="3" />
-        <line x1="20" y1="21" x2="20" y2="16" />
-        <line x1="20" y1="12" x2="20" y2="3" />
-        <line x1="1" y1="14" x2="7" y2="14" />
-        <line x1="9" y1="8" x2="15" y2="8" />
-        <line x1="17" y1="16" x2="23" y2="16" />
-      </>
-    ),
+    desc: "그리드, 베이지안, 유전 세 가지 탐색으로 파라미터 조합을 훑습니다. 자동으로 정답을 골라 주지 않고 결과를 늘어놓습니다.",
+    note: "그리드는 조합 최대 9개. 베이지안과 유전은 평가 최대 100회.",
   },
   {
+    icon: <path d="M3 12h4l3-7 4 14 3-7h4" />,
+    title: "스트레스 테스트",
+    desc: "거래 순서를 뒤섞고, 구간을 잘라 다시 최적화하고, 파라미터를 흔들어 성과가 얼마나 버티는지 확인합니다.",
+    note: "몬테카를로 · 워크포워드 · 파라미터 안정성",
+  },
+  {
+    icon: (
+      <>
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <line x1="8" y1="8" x2="16" y2="8" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+        <line x1="8" y1="16" x2="13" y2="16" />
+      </>
+    ),
     title: "데모 트레이딩",
-    description: "실제 시장 데이터로 위험 없이 전략을 실전 테스트합니다.",
-    icon: (
-      <>
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-        <line x1="8" y1="21" x2="16" y2="21" />
-        <line x1="12" y1="17" x2="12" y2="21" />
-      </>
-    ),
+    desc: "데모 계정에 실제 주문을 냅니다. 라이브와 같은 코드 경로를 쓰기 때문에 배선 오류가 여기서 먼저 드러납니다.",
+    note: "Bybit 데모 · Bybit 메인넷",
   },
   {
-    title: "라이브 트레이딩",
-    description:
-      "주요 거래소에서 자동 주문 실행. Kill Switch 내장으로 즉시 대응. (Beta: Bybit Demo)",
-    icon: <polyline points="22,12 18,12 15,21 9,3 6,12 2,12" />,
+    icon: (
+      <>
+        <path d="M12 3l7.5 3.4v5.2c0 4.4-3.1 7.9-7.5 9.4-4.4-1.5-7.5-5-7.5-9.4V6.4L12 3z" />
+        <line x1="12" y1="9" x2="12" y2="13.5" />
+        <line x1="12" y1="16.5" x2="12.01" y2="16.5" />
+      </>
+    ),
+    title: "리스크 가드와 Kill Switch",
+    desc: "주문 한도와 손실 한도를 넘으면 세션을 멈추고 신규 주문을 막습니다. 수동 Kill Switch 로도 즉시 중단합니다.",
+    note: "한도 위반 시 세션 자동 비활성",
   },
 ];
 
 export function LandingFeatures() {
   return (
-    <section
-      id="features"
-      className="bg-[color:var(--bg)] px-6 py-20"
-      aria-labelledby="features-heading"
-    >
-      <div className="mx-auto max-w-[1200px]">
-        <div className="mb-12 text-center">
-          <div
-            aria-hidden
-            className="mx-auto mb-4 h-[3px] w-12 rounded-sm bg-[color:var(--primary)]"
-          />
-          <h2
-            id="features-heading"
-            className="font-display text-[clamp(1.75rem,3vw,2.25rem)] font-bold text-[color:var(--text-primary)]"
-          >
-            핵심 기능
-          </h2>
-          <p className="mx-auto mt-3 max-w-[520px] text-base text-[color:var(--text-secondary)]">
-            트레이딩 전략의 전체 라이프사이클을 하나의 플랫폼에서
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f, i) => (
-            <article
-              key={f.title}
-              className="rounded-lg border border-[color:var(--border)] bg-card p-7 shadow-card transition-all duration-200 hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:shadow-card-hover motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
-              style={{ animationDelay: `${i * 80}ms` }}
-            >
-              <div className="flex size-11 items-center justify-center rounded-full bg-[color:var(--primary-light)]">
-                <svg
-                  aria-hidden
-                  className="size-[22px]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--primary)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  {f.icon}
-                </svg>
-              </div>
-              <h3 className="mt-4 font-display text-base font-semibold text-[color:var(--text-primary)]">
-                {f.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-secondary)]">
-                {f.description}
-              </p>
-            </article>
-          ))}
-        </div>
+    <section className="section rise d2" id="features" aria-label="기능">
+      <header className="section-head">
+        <p className="eyebrow">
+          <span className="num">01</span> 기능
+        </p>
+        <h2 className="section-title">전략 하나를 끝까지 확인하는 데 필요한 것들</h2>
+        <p className="section-desc">
+          여섯 가지가 한 줄기로 이어집니다. 각 기능이 무엇을 하고 무엇을 하지 않는지 카드 아래에
+          적었습니다.
+        </p>
+      </header>
+
+      <div className="lp-feat-grid">
+        {FEATURES.map((f) => (
+          <article key={f.title} className="card lp-feat">
+            <span className="cta-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                {f.icon}
+              </svg>
+            </span>
+            <h3 className="lp-feat-title">{f.title}</h3>
+            <p className="lp-feat-desc">{f.desc}</p>
+            <p className="lp-feat-note">{f.note}</p>
+          </article>
+        ))}
       </div>
     </section>
   );

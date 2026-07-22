@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { Loader2, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { useCreateBacktest } from "@/features/backtest/hooks";
 import type { BacktestDetail } from "@/features/backtest/schemas";
 
@@ -63,20 +62,19 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
   };
 
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
+      className="btn btn-primary"
       onClick={handleClick}
       disabled={isDisabled}
       aria-label="동일 파라미터로 재실행"
     >
       {isPending ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        <Loader2 className="animate-spin" aria-hidden="true" />
       ) : (
-        <RefreshCcw className="mr-2 h-4 w-4" />
+        <RefreshCcw aria-hidden="true" />
       )}
       재실행
-    </Button>
+    </button>
   );
 }

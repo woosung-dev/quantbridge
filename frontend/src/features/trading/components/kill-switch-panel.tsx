@@ -7,6 +7,8 @@
 
 import { AlertTriangleIcon, ShieldCheckIcon } from "lucide-react";
 
+import { StateBox } from "@/components/state-box";
+
 import { KILL_SWITCH_LABEL } from "../labels";
 import { useKillSwitchEvents, useResolveKillSwitchEvent } from "../hooks";
 
@@ -18,18 +20,13 @@ export function KillSwitchPanel() {
     return (
       <div className="card">
         <div className="card-body">
-          <div className="state-box failed" role="alert">
-            <span className="state-icon failed" aria-hidden="true">
-              <AlertTriangleIcon />
-            </span>
-            <p className="state-title">
-              킬 스위치 상태를 불러오지 못했습니다.
-            </p>
-            <p className="state-body">
-              주문을 내기 전에 상태를 확인하세요.
-            </p>
-            <p className="state-code">GET /api/v1/kill-switch/events</p>
-          </div>
+          <StateBox
+            tone="failed"
+            icon={<AlertTriangleIcon />}
+            title="킬 스위치 상태를 불러오지 못했습니다."
+            body="주문을 내기 전에 상태를 확인하세요."
+            code="GET /api/v1/kill-switch/events"
+          />
         </div>
       </div>
     );
@@ -66,10 +63,7 @@ export function KillSwitchPanel() {
         </div>
       ) : (
         <div className="card-body">
-          <div className="state-box failed" role="alert">
-            <p className="state-title">
-              킬 스위치 활성. 자동 주문이 중지됩니다.
-            </p>
+          <StateBox tone="failed" title="킬 스위치 활성. 자동 주문이 중지됩니다.">
             <ul className="ks-list">
               {active.map((e) => (
                 <li key={e.id} className="ks-row">
@@ -88,7 +82,7 @@ export function KillSwitchPanel() {
                 </li>
               ))}
             </ul>
-          </div>
+          </StateBox>
         </div>
       )}
     </div>

@@ -1,214 +1,238 @@
-// 전략 파싱 결과 패널 — stagger entrance + 초록 점 pulse (Sprint 42-polish W3-fidelity + Sprint 44 W F2)
-// loading: skeleton / error: 빨강 / null: empty hint / present: kv-list 2-col + feature pills
-// prefers-reduced-motion: stagger animation은 motion-safe class 로 자동 disable
-// aria-live="polite": result 변경 시 screen reader 알림
-// W3-fidelity 정합: padding 22/20, h4 0.72rem, kv text 0.82rem, animationDelay 100/200/300/400ms
-// Sprint 44 W F2: error / result body slide-down 200ms ease-out + fade (parseResultIn keyframe)
+"use client";
 
-import { CheckIcon, XIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/skeleton";
+// 전략 파싱 결과 패널 — C 디자인 언어 이식 (screen-07 §03). 공용 .card/.kpi/.meter/.metric-group/
+// .state-box 를 소비한다. 서버 응답(ParsePreviewResponse)이 받치는 값만 그린다.
+// 프로토타입의 "N회" 함수 호출 횟수는 functions_used 가 이름 배열이라 개수 데이터가 없어
+// 미렌더하고 함수명만 나열한다(§4.9). 파라미터 표는 스키마에 파라미터 필드가 0건이라 미렌더한다.
+
+import { AlertTriangleIcon, CheckIcon } from "lucide-react";
+
+import { PARSE_STATUS_LABEL, UNSUPPORTED_POLICY_NOTE } from "@/features/strategy/labels";
 import type { ParsePreviewResponse } from "@/features/strategy/schemas";
+import { StateBox } from "@/components/state-box";
+import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
+
+const PARSE_ENDPOINT = "POST /api/v1/strategies/parse";
 
 interface ParseResultPanelProps {
   result: ParsePreviewResponse | null;
   loading: boolean;
   error?: string | null;
+  /** 전략 저장 트리거. 파싱이 지원됨이고 이름이 채워졌을 때만 활성화된다. */
+  onSave?: () => void;
+  saving?: boolean;
+  canSave?: boolean;
 }
 
-export function ParseResultPanel({ result, loading, error = null }: ParseResultPanelProps) {
-  return (
-    <aside
-      aria-live="polite"
-      aria-label="실시간 파싱 결과"
-      // prototype 07: padding 20px 22px (vertical 20 / horizontal 22)
-      className="rounded-[var(--radius-md,0.625rem)] border border-[color:var(--primary-100)] bg-[color:var(--primary-light)] px-[22px] py-5"
-    >
-      <header className="mb-4 flex items-center gap-2.5">
-        <span
-          aria-hidden
-          className={
-            "block size-2 rounded-full " +
-            (loading
-              ? "animate-pulse bg-[color:var(--primary)]"
-              : result
-                ? "bg-[color:var(--success)] motion-safe:animate-[pulseDot_1.6s_ease-out_infinite]"
-                : "bg-[color:var(--text-muted)]")
-          }
-        />
-        <h3 className="font-display text-[0.9rem] font-bold text-[color:var(--primary)]">
-          {loading ? "파싱 중..." : "실시간 파싱 결과"}
-        </h3>
-      </header>
+export function ParseResultPanel({
+  result,
+  loading,
+  error = null,
+  onSave,
+  saving = false,
+  canSave = false,
+}: ParseResultPanelProps) {
+  const supported = result?.status === "ok" && (result?.unsupported_builtins.length ?? 0) === 0;
 
-      {error && <ErrorBlock message={error} />}
-      {!error && loading && <LoadingSkeleton />}
-      {!error && !loading && !result && <EmptyHint />}
-      {!error && !loading && result && <ResultBody result={result} />}
-    </aside>
-  );
-}
-
-function LoadingSkeleton() {
   return (
-    <div role="status" aria-label="파싱 중" className="space-y-2">
-      {[0, 1, 2, 3].map((i) => (
-        <Skeleton
-          key={i}
-          className="h-3 rounded bg-[color:var(--primary-100)]/60"
-          style={{ width: `${100 - i * 12}%` }}
-        />
-      ))}
+    <div className="card" aria-live="polite" aria-label="파싱 결과">
+      <div className="card-head">
+        <div>
+          <h3 className="card-title">판정 결과</h3>
+          <p className="card-sub">붙여넣은 스크립트 기준</p>
+        </div>
+        {!loading && !error && result && supported ? (
+          <span className={CHIP_TONE_CLASS.done}>
+            <CheckIcon aria-hidden="true" />
+            지원됨
+          </span>
+        ) : null}
+      </div>
+
+      <div className="card-body">
+        {error ? (
+          <RequestErrorState message={error} />
+        ) : loading ? (
+          <ParseSkeleton />
+        ) : !result ? (
+          <EmptyHint />
+        ) : supported ? (
+          <SupportedBody result={result} onSave={onSave} saving={saving} canSave={canSave} />
+        ) : (
+          <UnsupportedBody result={result} />
+        )}
+      </div>
     </div>
   );
 }
 
-function ErrorBlock({ message }: { message: string }) {
+// 요청 자체가 실패(네트워크/500)한 상태. 파싱 미지원(200 판정)과 구분해 엔드포인트를 노출한다.
+function RequestErrorState({ message }: { message: string }) {
   return (
-    <p
-      role="alert"
-      // Sprint 44 W F2: 에러 발생 시 slide-down 진입.
-      className="motion-safe:animate-[parseResultIn_200ms_ease-out_both] rounded-[var(--radius-sm,0.375rem)] border border-[color:var(--destructive)]/30 bg-[color:var(--destructive-light)] px-3 py-2 text-xs text-[color:var(--destructive)]"
-    >
-      {message}
-    </p>
+    <StateBox
+      tone="failed"
+      testId="parse-request-error"
+      icon={<AlertTriangleIcon />}
+      title="파싱 요청이 실패했습니다."
+      body={message}
+      code={PARSE_ENDPOINT}
+    />
+  );
+}
+
+function ParseSkeleton() {
+  return (
+    <div aria-busy="true" data-testid="parse-skeleton">
+      <div className="sk-bars" aria-hidden="true">
+        {[52, 74, 36, 84, 48, 62, 40, 70].map((h, i) => (
+          <span key={i} className="sk" style={{ height: `${h}%` }} />
+        ))}
+      </div>
+      <div className="sk sk-line" style={{ width: "58%" }} aria-hidden="true" />
+      <p className="state-note">파싱 중입니다. 보통 1초 안에 끝납니다.</p>
+    </div>
   );
 }
 
 function EmptyHint() {
   return (
-    <p className="text-xs text-[color:var(--text-secondary)]">
-      코드 입력 후 파싱 결과가 여기 표시됩니다.
-    </p>
+    <StateBox
+      testId="parse-empty"
+      title="아직 파싱 결과가 없습니다."
+      body="왼쪽에 Pine 스크립트를 붙여넣으면 지원 여부를 여기서 판정합니다."
+    />
   );
 }
 
-function ResultBody({ result }: { result: ParsePreviewResponse }) {
-  // Sprint 42-polish W3-fidelity: prototype 07 의 preview-grid 2-col 매칭
-  // 좌: 감지된 전략 정보 (status, pine version, entry/exit count)
-  // 우: 감지된 함수 (functions_used 상위 4개) — schema 에 parameters 미제공이라 functions_used 로 대체.
-  const infoRows: Array<{ key: string; value: string; muted?: boolean }> = [
-    { key: "상태", value: STATUS_LABEL[result.status] },
-    { key: "버전", value: `Pine ${result.pine_version}` },
-    { key: "진입 신호", value: String(result.entry_count) },
-    { key: "청산 신호", value: String(result.exit_count) },
-  ];
-
-  const topFunctions = result.functions_used.slice(0, 4);
+function SupportedBody({
+  result,
+  onSave,
+  saving,
+  canSave,
+}: {
+  result: ParsePreviewResponse;
+  onSave?: () => void;
+  saving?: boolean;
+  canSave?: boolean;
+}) {
+  const supportedCount = result.functions_used.length;
+  const unsupportedCount = result.unsupported_builtins.length;
+  const detected = supportedCount + unsupportedCount;
+  const pct = detected > 0 ? Math.round((supportedCount / detected) * 100) : 100;
 
   return (
-    <div
-      // Sprint 44 W F2: result body 진입 시 fade + slide-down 200ms (stagger child 와 합산 320ms 미만 유지).
-      className="motion-safe:animate-[parseResultIn_200ms_ease-out_both]"
-    >
-      {/* prototype 07: preview-grid `gap: 20px` ≈ gap-5 */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <div>
-          <h4 className="mb-2.5 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[color:var(--text-secondary)]">
-            감지된 전략 정보
-          </h4>
-          <ul className="m-0 list-none space-y-2 p-0">
-            {infoRows.map((row, idx) => (
-              <li
-                key={row.key}
-                data-testid="parse-info-row"
-                // prototype 07: 100/200/300/400ms 순차 stagger.
-                className="motion-safe:animate-[staggerIn_400ms_cubic-bezier(0.4,0,0.2,1)_forwards] flex items-baseline justify-between gap-2.5 text-[0.82rem] opacity-0"
-                style={{ animationDelay: `${(idx + 1) * 100}ms` }}
-              >
-                <span className="whitespace-nowrap text-[color:var(--text-secondary)]">
-                  {row.key}
-                </span>
-                <span
-                  className={
-                    "text-right font-mono text-[0.8rem] font-semibold " +
-                    (row.muted
-                      ? "text-[color:var(--text-muted)]"
-                      : "text-[color:var(--text-primary)]")
-                  }
-                >
-                  {row.value}
-                </span>
-              </li>
-            ))}
-          </ul>
+    <div data-testid="parse-supported">
+      <div className="parse-kpi">
+        <p className="kpi-label">지원 판정</p>
+        <p className="kpi-value mono">
+          {supportedCount} / {detected}
+        </p>
+        <div className="meter">
+          <span style={{ width: `${pct}%` }} />
         </div>
+        <p className="kpi-foot">
+          감지된 함수 <span className="mono">{detected}종</span> 대비 지원{" "}
+          <span className="mono">{pct}%</span>
+        </p>
+      </div>
 
-        <div>
-          <h4 className="mb-2.5 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[color:var(--text-secondary)]">
-            감지된 함수 ({result.functions_used.length}개)
-          </h4>
-          {topFunctions.length === 0 ? (
-            <p className="text-[0.7rem] text-[color:var(--text-muted)]">없음</p>
+      <div className="parse-body">
+        <div className="metric-group">
+          <p className="metric-group-title">감지된 함수</p>
+          {result.functions_used.length === 0 ? (
+            <div className="metric">
+              <span className="metric-label dim">감지된 함수가 없습니다.</span>
+            </div>
           ) : (
-            <ul className="m-0 list-none space-y-2 p-0">
-              {topFunctions.map((fn, idx) => (
-                <li
-                  key={fn}
-                  data-testid="parse-fn-row"
-                  className="motion-safe:animate-[staggerIn_400ms_cubic-bezier(0.4,0,0.2,1)_forwards] flex items-baseline gap-2.5 text-[0.82rem] opacity-0"
-                  style={{ animationDelay: `${(idx + 5) * 100}ms` }}
-                >
-                  <span className="truncate font-mono text-[0.8rem] font-semibold text-[color:var(--text-primary)]">
-                    {fn}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            result.functions_used.map((fn) => (
+              <div className="metric" key={fn}>
+                <span className="metric-label mono">{fn}</span>
+              </div>
+            ))
           )}
         </div>
+
+        <div className="metric-group">
+          <p className="metric-group-title">시그널</p>
+          <div className="metric">
+            <span className="metric-label">진입 시그널</span>
+            <span className="metric-value">{result.entry_count}</span>
+          </div>
+          <div className="metric">
+            <span className="metric-label">청산 시그널</span>
+            <span className="metric-value">{result.exit_count}</span>
+          </div>
+          {/* 무데이터 셀 — Pine strategy() 에 심볼 인자가 없어 위 기본 정보에서 고른 값을 쓴다. */}
+          <div className="metric">
+            <span className="metric-label">심볼 기본값</span>
+            <span
+              className="metric-value empty"
+              title="Pine 스크립트에는 심볼이 없습니다. 위 기본 정보에서 고른 값을 씁니다."
+            >
+              {EMPTY_CELL}
+            </span>
+          </div>
+          {/* 파라미터 표는 스키마에 파라미터 필드가 0건이라 렌더하지 않는다(§4.9). */}
+          <p className="metric-note">
+            추출된 파라미터 표는 서버 응답에 파라미터 필드가 없어 표시하지 않습니다.
+          </p>
+        </div>
       </div>
 
-      {/* feature pills: 진입/청산/실행 가능 — prototype 07 의 dashed top border + pill 스타일 */}
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-dashed border-[color:var(--primary-100)] pt-3.5">
-        <FeaturePill label="진입 시그널" present={result.entry_count > 0} />
-        <FeaturePill label="청산 시그널" present={result.exit_count > 0} />
-        <FeaturePill
-          label="실행 가능"
-          present={result.is_runnable && result.unsupported_builtins.length === 0}
-        />
-      </div>
-
-      {result.unsupported_builtins.length > 0 && (
-        <p className="mt-3 text-[0.7rem] text-[color:var(--text-secondary)]">
-          미지원 함수 {result.unsupported_builtins.length}개 — 백테스트 실행 불가
+      <button
+        className="btn btn-primary btn-block"
+        type="button"
+        onClick={onSave}
+        disabled={!canSave || saving}
+        data-testid="parse-save"
+      >
+        {saving ? "저장 중" : "전략으로 저장"}
+      </button>
+      {!canSave ? (
+        <p className="metric-note" style={{ textAlign: "center" }}>
+          전략 이름을 입력하면 저장할 수 있습니다.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function FeaturePill({ label, present }: { label: string; present: boolean }) {
+// 파싱이 미지원(unsupported) 또는 오류(error) 판정을 낸 상태. 200 판정이므로 HTTP 코드는 없다.
+function UnsupportedBody({ result }: { result: ParsePreviewResponse }) {
+  const label = PARSE_STATUS_LABEL[result.status].label;
+  const hasUnsupported = result.unsupported_builtins.length > 0;
   return (
-    <Badge
-      // Precision Instrument: rounded-full pill → 기본 Badge (4px 계측기 태그)
-      variant="outline"
-      className={
-        present
-          ? "border-[color:var(--primary-100)] bg-card text-[color:var(--primary)]"
-          : "border-[color:var(--border)] bg-[color:var(--bg-alt)] text-[color:var(--text-muted)]"
+    <StateBox
+      tone="failed"
+      testId="parse-unsupported"
+      icon={<AlertTriangleIcon />}
+      title={hasUnsupported ? "이 스크립트는 아직 지원되지 않습니다." : label}
+      body={
+        hasUnsupported
+          ? `미지원 함수 ${result.unsupported_builtins.length}개를 찾았습니다.`
+          : undefined
       }
     >
-      {present ? (
-        <CheckIcon
-          className="size-3 text-[color:var(--success)]"
-          strokeWidth={3.5}
-          aria-hidden
-        />
-      ) : (
-        <XIcon
-          className="size-3 text-[color:var(--text-muted)]"
-          strokeWidth={3.5}
-          aria-hidden
-        />
-      )}
-      {label}
-    </Badge>
+      {hasUnsupported ? (
+        <ul className="unsupported">
+          {result.unsupported_builtins.map((fn) => (
+            <li key={fn}>
+              <span className="mono">{fn}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {result.errors.length > 0 ? (
+        <ul className="unsupported">
+          {result.errors.map((e, i) => (
+            <li key={`${e.code}-${i}`}>
+              <span className="mono">{e.line != null ? `L${e.line}` : e.code}</span>
+              {e.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="state-body">{UNSUPPORTED_POLICY_NOTE}</p>
+    </StateBox>
   );
 }
-
-const STATUS_LABEL: Record<ParsePreviewResponse["status"], string> = {
-  ok: "변환 완료",
-  unsupported: "일부 미지원",
-  error: "오류",
-};

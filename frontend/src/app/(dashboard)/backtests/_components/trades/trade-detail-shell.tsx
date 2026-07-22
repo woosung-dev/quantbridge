@@ -12,6 +12,7 @@ import { BACKTEST_STATUS_LABEL } from "@/features/backtest/labels";
 import { useBacktest, useAllBacktestTrades } from "@/features/backtest/hooks";
 import type { TradeItem } from "@/features/backtest/schemas";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
+import { StateBox } from "@/components/state-box";
 
 import { TradeDetailTable } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-table";
 import { TradeStatsStrip } from "@/app/(dashboard)/backtests/_components/trades/trade-stats-strip";
@@ -39,22 +40,23 @@ export function TradeDetailShell({ id }: { id: string }) {
       <main className="page">
         <section className="card">
           <div className="card-body">
-            <div className="state-box failed" role="alert" data-testid="trade-detail-error">
-              <span className="state-icon failed" aria-hidden="true">
-                <AlertTriangleIcon />
-              </span>
-              <p className="state-title">백테스트 정보를 불러오지 못했습니다.</p>
-              <p className="state-body">
-                {detail.error
+            <StateBox
+              tone="failed"
+              testId="trade-detail-error"
+              icon={<AlertTriangleIcon />}
+              title="백테스트 정보를 불러오지 못했습니다."
+              body={
+                detail.error
                   ? detail.error.message
-                  : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
-              </p>
-              <p className="state-code">{`GET /api/v1/backtests/${id}`}</p>
+                  : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
+              }
+              code={`GET /api/v1/backtests/${id}`}
+            >
               <button className="btn btn-ghost" type="button" onClick={() => detail.refetch()}>
                 <RefreshCwIcon aria-hidden="true" />
                 다시 시도
               </button>
-            </div>
+            </StateBox>
           </div>
         </section>
       </main>

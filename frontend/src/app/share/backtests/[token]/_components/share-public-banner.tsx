@@ -40,7 +40,7 @@ export function SharePublicBanner() {
           <ShareCopyLinkButton />
           <Link
             href="/sign-up"
-            className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-btn-primary transition-colors duration-200 ease-out hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+            className="inline-flex h-8 shrink-0 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-btn-primary transition-colors duration-200 ease-out hover:bg-primary-hover"
           >
             QuantBridge 시작하기
           </Link>

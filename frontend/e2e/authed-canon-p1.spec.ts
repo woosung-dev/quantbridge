@@ -36,6 +36,10 @@ const EXPECTED_CONSOLE = [
   /networkerror/i,
   /net::err_/i,
   /\b40[0-9]\b/,
+  // 리소스 로드 429(레이트리밋)만 무시한다 — 연속 4폭 감사가 백엔드를 치면 나는 스위트 환경
+  // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
+  // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
+  /failed to load resource.*429/i,
   /\b50[0-9]\b/,
   /clerk has been loaded/i,
   /development keys/i,
@@ -69,7 +73,13 @@ const auditOptions = {
 } as const;
 
 test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 전용)", () => {
-  test.skip(!existsSync(STORAGE_STATE), "storageState 없음 — setup 프로젝트 먼저 실행");
+  // storageState 부재 시 조용한 skip 이 아니라 시끄럽게 실패시킨다(운영계약 §3ⓒ — skip 침묵 통과 방지).
+  test("사전조건 — storageState 존재", () => {
+    expect(
+      existsSync(STORAGE_STATE),
+      `storageState 없음 (${STORAGE_STATE}) — chromium-authed-setup 프로젝트를 먼저 실행하라 (pnpm e2e:authed).`,
+    ).toBe(true);
+  });
 
   for (const path of ["/dashboard", "/backtests", "/trading"] as const) {
     test(`${path} — 하드 실패 ≤ allowlist`, async ({ browser }) => {

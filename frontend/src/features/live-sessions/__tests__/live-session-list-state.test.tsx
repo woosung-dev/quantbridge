@@ -56,7 +56,7 @@ describe("LiveSessionList state view (BL-174 list-only)", () => {
     render(<LiveSessionList />);
     expect(screen.getByTestId("live-session-empty")).toBeInTheDocument();
     expect(
-      screen.getByText("활성 Live Session 이 없습니다"),
+      screen.getByText("활성 세션이 없습니다."),
     ).toBeInTheDocument();
   });
 

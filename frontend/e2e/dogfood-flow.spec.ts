@@ -20,12 +20,12 @@ import {
 test.describe.configure({ mode: "serial" });
 
 test.describe("dogfood flow regression", () => {
-  // 시나리오 1: Strategy create page 로드 + Pine Script multi-step wizard 보임
+  // 시나리오 1: Strategy create page 로드 + C 이식 단일 페이지 폼(기본 정보 / 파싱 결과) 보임
   // (Sprint 13 atomic webhook_secret create 의 entry point)
   //
   // Deep e2e (form 작성 → submit → /strategies/{id}/edit?tab=webhook → plaintext 표시) 는
   // 다음 sprint. 본 시나리오는 페이지 로드 + step 1 element 보임만 검증.
-  test("strategy new page — multi-step wizard 로드", async ({ page }) => {
+  test("strategy new page — C 이식 단일 페이지 폼 로드", async ({ page }) => {
     // 빈 strategies list — page server prefetch 가 200 OK 받도록
     await page.route(
       API_ROUTES.strategies,
@@ -34,10 +34,12 @@ test.describe("dogfood flow regression", () => {
 
     await page.goto("/strategies/new");
 
-    // 페이지 헤더 + 시작 버튼 element 보임
+    // C 이식(screen-07): report-title "새 전략" + 좌우 2단(기본 정보 / 파싱 결과) 로드.
     await expect(
-      page.getByRole("heading", { name: "새 전략 만들기" }),
+      page.getByRole("heading", { name: "새 전략", exact: true }),
     ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "전략 메타데이터" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "지원 여부 판정" })).toBeVisible();
   });
 
   // 시나리오 2: Backtest form 422 inline error
@@ -158,9 +160,11 @@ test.describe("dogfood flow regression", () => {
       page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" }),
     ).toBeVisible({ timeout: 10_000 });
 
-    // 3) KS active → submit button disabled (test-order-dialog.tsx L434-436).
-    // ksDisabled=true 일 때 type="submit" 버튼 disabled + aria-disabled=true.
-    const submitButton = page.locator('button[type="submit"]');
+    // 3) KS active → dialog submit button disabled (test-order-dialog.tsx).
+    // ksDisabled=true 이면 dialog 제출 버튼 라벨이 "Kill Switch 활성화" 로 바뀌고 disabled 된다.
+    // C 이식 코크핏에는 라이브 세션 폼의 submit(라이브 세션 시작)도 함께 있어 type="submit"
+    // 셀렉터가 2개를 잡으므로, KS-guard 대상인 dialog 제출 버튼을 라벨로 지정한다.
+    const submitButton = page.getByRole("button", { name: "Kill Switch 활성화" });
     await expect(submitButton).toBeDisabled({ timeout: 10_000 });
   });
 });

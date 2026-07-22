@@ -1,4 +1,4 @@
-// KeyStatsStrip — 4 스탯 렌더 + abs null graceful(% 단독) 검증
+// KeyStatsStrip — 01 요약 kpi-row 4 KPI(총 수익률/순손익/최대 낙폭/샤프) + net null graceful
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -13,46 +13,53 @@ const BASE_METRICS = {
   win_rate: 0.9898,
   num_trades: 295,
   profit_factor: 21.343,
+  annual_return_pct: 0.4328,
 } as unknown as BacktestMetricsOut;
 
-describe("KeyStatsStrip", () => {
-  it("TV 4 스탯 (총 PnL / 최대 손실폭 / 수익성 거래 / 수익지수) 렌더", () => {
-    render(
+describe("KeyStatsStrip (01 요약)", () => {
+  it("공용 .kpi-row 안 4 KPI(총 수익률/순손익/최대 낙폭/샤프 지수) 를 카드로 렌더", () => {
+    const { container } = render(
       <KeyStatsStrip
         metrics={{
           ...BASE_METRICS,
           net_profit_abs: 1890087.72,
-          excursion_stats: { max_drawdown_abs: 72109.49 },
+          total_fees: 482.16,
         } as unknown as BacktestMetricsOut}
       />,
     );
-    expect(screen.getByText("총 PnL")).toBeInTheDocument();
-    expect(screen.getByText("+1,890,087.72 USDT")).toBeInTheDocument();
-    expect(screen.getByText("+18.90%")).toBeInTheDocument();
-    expect(screen.getByText("최대 손실폭")).toBeInTheDocument();
-    expect(screen.getByText("72,109.49 USDT")).toBeInTheDocument();
-    expect(screen.getByText("수익성 거래")).toBeInTheDocument();
-    expect(screen.getByText("292/295 거래")).toBeInTheDocument();
-    expect(screen.getByText("수익지수")).toBeInTheDocument();
-    expect(screen.getByText("21.343")).toBeInTheDocument();
+    // 시맨틱 구조 — kpi-row + card kpi 4개
+    expect(container.querySelector(".kpi-row")).not.toBeNull();
+    expect(container.querySelectorAll(".card.kpi")).toHaveLength(4);
+
+    expect(screen.getByText("총 수익률")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-total-return")).toHaveTextContent("+18.90%");
+    expect(screen.getByText("순손익")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-net-profit")).toHaveTextContent("+1,890,087.72");
+    expect(screen.getByText("최대 낙폭")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-max-drawdown")).toHaveTextContent("-2.52%");
+    expect(screen.getByText("샤프 지수")).toBeInTheDocument();
+    expect(screen.getByTestId("kpi-sharpe")).toHaveTextContent("1.15");
   });
 
-  it("abs 금액 null (구 백테스트) → % 단독 graceful", () => {
+  it("net_profit_abs null (구 백테스트) → 순손익이 % 단독으로 graceful", () => {
     render(<KeyStatsStrip metrics={BASE_METRICS} />);
-    // 총 PnL 이 % 로 표기 (USDT 라인 없음)
-    expect(screen.getByText("18.90%")).toBeInTheDocument();
-    expect(screen.queryByText(/USDT/)).not.toBeInTheDocument();
-    // MDD 도 % 단독
-    expect(screen.getByText("2.52%")).toBeInTheDocument();
+    // 순손익 슬롯이 % 로 표기 (USDT 절대금액 없음)
+    expect(screen.getByTestId("kpi-net-profit")).toHaveTextContent("+18.90%");
   });
 
-  it("profit_factor null (손실 0건) → em dash", () => {
+  it("연환산 수익률 foot + 수수료 반영 foot 을 스키마 값으로 표기", () => {
     render(
       <KeyStatsStrip
-        metrics={{ ...BASE_METRICS, profit_factor: null } as unknown as BacktestMetricsOut}
+        metrics={{
+          ...BASE_METRICS,
+          net_profit_abs: 12740.18,
+          total_fees: 482.16,
+        } as unknown as BacktestMetricsOut}
       />,
     );
-    expect(screen.getByText("—")).toBeInTheDocument();
-    expect(screen.getByText("손실 거래 없음")).toBeInTheDocument();
+    expect(screen.getByText(/연환산/)).toBeInTheDocument();
+    expect(screen.getByText("+43.28%")).toBeInTheDocument();
+    expect(screen.getByText(/수수료/)).toBeInTheDocument();
+    expect(screen.getByText("-482.16")).toBeInTheDocument();
   });
 });

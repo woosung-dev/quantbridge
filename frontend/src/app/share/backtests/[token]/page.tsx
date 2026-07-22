@@ -51,10 +51,10 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { token } = await params;
   return {
-    title: "백테스트 결과 공유 | QuantBridge",
+    title: "백테스트 결과 공유",
     description: "QuantBridge 에서 만든 백테스트 결과 — 데모 트레이딩 무료 시작",
     openGraph: {
-      title: "백테스트 결과 | QuantBridge",
+      title: "백테스트 결과 · QuantBridge",
       description: "QuantBridge 백테스트 결과를 확인하세요",
       images: [`/share/backtests/${token}/opengraph-image`],
     },

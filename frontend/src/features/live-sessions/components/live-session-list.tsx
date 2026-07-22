@@ -23,7 +23,7 @@ import {
   useLiveSessions,
 } from "../hooks";
 import type { LiveSession } from "../schemas";
-import { formatRealizedPnl } from "../utils";
+import { formatDateTime, formatRealizedPnl } from "../utils";
 import { LiveSessionStateView } from "./live-session-state-view";
 
 type Props = {
@@ -42,7 +42,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
         icon={Loader2}
         iconClassName="animate-spin"
         title="로드 중"
-        description="Live Session 목록을 불러오는 중..."
+        description="라이브 세션 목록을 불러오는 중..."
         testId="live-session-loading"
       />
     );
@@ -53,7 +53,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
         icon={AlertCircle}
         variant="destructive"
         title="로드 실패"
-        description={`Live Session 목록 로드 실패: ${error.message}`}
+        description={`라이브 세션 목록 로드 실패: ${error.message}`}
         testId="live-session-error"
       />
     );
@@ -66,8 +66,8 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
     return (
       <LiveSessionStateView
         icon={Plus}
-        title="활성 Live Session 이 없습니다"
-        description="위 form 으로 새 session 을 시작하세요."
+        title="활성 세션이 없습니다."
+        description="위 폼으로 새 세션을 시작하세요."
         testId="live-session-empty"
       />
     );
@@ -105,7 +105,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
             >
               <span className="block font-medium">{s.symbol}</span>
               <p className="text-xs text-muted-foreground">
-                {s.interval} · created: {new Date(s.created_at).toLocaleString()}
+                {s.interval} · 생성 {formatDateTime(s.created_at)}
               </p>
               <SessionPnlBadge sessionId={s.id} isActive={s.is_active} />
             </button>
@@ -130,7 +130,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Live Session 중단</DialogTitle>
+            <DialogTitle>라이브 세션 중단</DialogTitle>
             <DialogDescription>
               이 session 의 자동 trading 이 중단됩니다. 미체결 주문은
               유지됩니다 (수동으로 cancel 또는 close 해주세요).

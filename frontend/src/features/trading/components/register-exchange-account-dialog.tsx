@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
@@ -52,17 +52,13 @@ export function RegisterExchangeAccountDialog() {
     },
   });
 
-  const selectedExchange = useWatch({ control: form.control, name: "exchange" });
-
   const onSubmit = async (values: RegisterAccountRequest) => {
     // P1-1/11 (S7-A): test-order-dialog 패턴 — clear → try → setError on catch.
     // 이전엔 try/catch 없이 mutateAsync 가 throw 시 unhandled rejection → 사용자 무피드백.
     form.clearErrors("root.serverError");
     try {
-      await register.mutateAsync({
-        ...values,
-        passphrase: selectedExchange === "okx" ? values.passphrase : null,
-      });
+      // C 이식(W3-F): 연결 거래소는 Bybit 하나뿐이라 passphrase 는 항상 null 로 보낸다.
+      await register.mutateAsync({ ...values, passphrase: null });
       setOpen(false);
       form.reset();
     } catch (err) {
@@ -99,9 +95,11 @@ export function RegisterExchangeAccountDialog() {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="bybit">Bybit</SelectItem>
-                      <SelectItem value="okx">OKX</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    현재 연결된 거래소는 Bybit 하나입니다.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -171,27 +169,6 @@ export function RegisterExchangeAccountDialog() {
                 </FormItem>
               )}
             />
-            {selectedExchange === "okx" && (
-              <FormField
-                control={form.control}
-                name="passphrase"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Passphrase</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="OKX Passphrase"
-                        {...field}
-                        value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value || null)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
             {rootError ? (
               <p
                 role="alert"

@@ -17,3 +17,13 @@ export const LIVE_SIGNAL_EVENT_STATUS_LABEL: Record<LiveSignalEventStatus, strin
   dispatched: "전송됨",
   failed: "실패",
 };
+
+/**
+ * 시그널 이벤트 방향. backend/src/trading/models.py:542 의 direction str = "long" | "short".
+ * FE schema 는 z.string() 자유문자열이라 labelOf 로 미지값을 안전 폴백한다.
+ * no-raw-enum-labels 가드(W1 확장, "direction" 필드)가 원시 방향 렌더를 잡는다.
+ */
+export const LIVE_SIGNAL_DIRECTION_LABEL: Record<"long" | "short", string> = {
+  long: "롱",
+  short: "숏",
+};

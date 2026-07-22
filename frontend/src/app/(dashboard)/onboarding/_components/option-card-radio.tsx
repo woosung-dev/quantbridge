@@ -1,12 +1,7 @@
-// 온보딩 옵션 선택형 라디오 카드 — Sprint 42-polish W2-fidelity + Sprint 44 W F2
-// docs/prototypes/05-onboarding.html `.option` (lines 304-385) 1:1 정합:
-//  - 16px padding, 1.5px border (selected=primary 1.5px), radius var(--radius-md)
-//  - hover: border-primary + bg-primary-light
-//  - selected: border-primary + bg-primary-light + ring 0 0 0 3px rgba(37,99,235,.08)
-//  - icon 40x40 circle, primary-light → primary on selected
-//  - checkmark 22x22 circle, transparent → primary on selected
-// Sprint 44 W F2: selected 시에도 미세 -translate-y 0.5px + ring-2 강화 (state 명확화)
-// + active:translate-y-0 (press feedback)
+// 온보딩 옵션 선택형 라디오 카드 — C 디자인 언어 이식 (W3-E).
+// 반경 var(--r)(원형 배지는 프로토타입 없음). 선택 시 코퍼 테두리 + 코퍼-소프트 배경.
+// 자체 focus ring 은 제거하고 전역 카퍼 :focus-visible(globals.css) 을 소비한다
+// (운영 계약 §1-2 이중 링 해소). 반경 리터럴 rounded-[10px] → var(--r) 로 래칫 하강.
 "use client";
 
 import { CheckIcon } from "lucide-react";
@@ -49,47 +44,44 @@ export function OptionCardRadio({
       onClick={() => onSelect(value)}
       onKeyDown={handleKeyDown}
       className={[
-        "flex w-full items-center gap-3 rounded-[var(--radius-md)] p-4 text-left",
-        "transition-[border-color,background-color,box-shadow,transform] duration-200 ease-out",
-        "border-[1.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--primary)]/35",
-        "motion-safe:active:translate-y-0",
+        "flex w-full items-center gap-3 rounded-[var(--r)] border-[1.5px] p-4 text-left",
+        "transition-[border-color,background-color,transform] duration-200 ease-out",
         selected
-          // Sprint 44 W F2: selected 시 미세 -translate-y 0.5px + ring 두께 미세 강화
-          ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] shadow-[0_0_0_3px_var(--primary-light)] motion-safe:-translate-y-[0.5px]"
-          : "border-[color:var(--border)] bg-[color:var(--card)] hover:border-[color:var(--primary)] hover:bg-[color:var(--primary-light)] motion-safe:hover:-translate-y-px motion-safe:hover:shadow-card",
+          ? "border-[color:var(--copper)] bg-[color:var(--copper-soft)]"
+          : "border-[color:var(--line)] bg-[color:var(--card-2)] hover:border-[color:var(--copper)] hover:bg-[color:var(--copper-soft)]",
       ].join(" ")}
     >
       <span
         aria-hidden="true"
         className={[
-          "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-colors duration-200",
+          "grid h-10 w-10 shrink-0 place-items-center rounded-[var(--r)] transition-colors duration-200",
           selected
-            ? "bg-[color:var(--primary)] text-[color:var(--primary-foreground)]"
-            : "bg-[color:var(--primary-light)] text-[color:var(--primary)]",
+            ? "bg-[color:var(--copper)] text-[color:var(--copper-ink)]"
+            : "bg-[color:var(--copper-soft)] text-[color:var(--copper)]",
         ].join(" ")}
       >
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2 text-[0.95rem] font-semibold text-[color:var(--text-primary)]">
+        <span className="flex items-center gap-2 text-[0.95rem] font-semibold text-[color:var(--ink)]">
           {label}
           {badge ? (
-            <span className="rounded-[10px] bg-[color:var(--success-light)] px-2 py-[2px] text-[0.68rem] font-semibold tracking-[0.02em] text-[color:var(--success)]">
+            <span className="rounded-[var(--r)] border border-[color:var(--copper-line)] bg-[color:var(--copper-soft)] px-2 py-[2px] text-[0.68rem] font-semibold tracking-[0.02em] text-[color:var(--copper)]">
               {badge}
             </span>
           ) : null}
         </span>
-        <span className="mt-[2px] block text-[0.8rem] text-[color:var(--text-muted)]">
+        <span className="mt-[2px] block text-[0.8rem] text-[color:var(--ink-3)]">
           {description}
         </span>
       </span>
       <span
         aria-hidden="true"
         className={[
-          "grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 transition-all duration-200",
+          "grid h-[22px] w-[22px] shrink-0 place-items-center rounded-[var(--r)] border-2 transition-all duration-200",
           selected
-            ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--primary-foreground)]"
-            : "border-[color:var(--border)] bg-transparent text-transparent",
+            ? "border-[color:var(--copper)] bg-[color:var(--copper)] text-[color:var(--copper-ink)]"
+            : "border-[color:var(--line)] bg-transparent text-transparent",
         ].join(" ")}
         data-testid={`option-card-check-${value}`}
       >

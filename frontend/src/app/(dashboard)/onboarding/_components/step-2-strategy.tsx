@@ -1,6 +1,6 @@
 "use client";
 
-// H2 Sprint 11 Phase D Step 2: 샘플 EMA Crossover 전략 등록.
+// 온보딩 스텝 2: 샘플 EMA Crossover 전략 등록 — C 디자인 언어 이식 (W3-E).
 // 1) public/samples/ema-crossover.pine 을 fetch
 // 2) POST /api/v1/strategies (useCreateStrategy)
 // 3) store.setStrategy(id) 후 다음 step 으로 이동
@@ -9,7 +9,6 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircleIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { useCreateStrategy } from "@/features/strategy/hooks";
 
 const SAMPLE_PINE_URL = "/samples/ema-crossover.pine";
@@ -89,46 +88,58 @@ export function Step2Strategy({
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2">
-        <SparklesIcon
-          className="size-5 text-[color:var(--primary)]"
-          strokeWidth={1.8}
-        />
-        <h2 className="font-display text-lg font-semibold">샘플 전략으로 시작</h2>
+      <div className="ob-lede">
+        <span className="ob-lede-icon" aria-hidden="true">
+          <SparklesIcon strokeWidth={1.8} />
+        </span>
+        <div>
+          <h2 className="ob-heading">샘플 전략으로 시작</h2>
+          <p className="ob-subtle break-keep">
+            EMA Crossover 전략이 자동으로 등록됩니다. ta.ema(close, 12/26) 교차
+            시점에 롱 진입·청산합니다.
+          </p>
+        </div>
       </div>
-      <p className="mb-5 text-xs text-[color:var(--text-muted)] break-keep">
-        EMA Crossover 전략이 자동으로 등록됩니다. ta.ema(close, 12/26) 교차 시점에 롱 진입·청산합니다.
-      </p>
 
-      <div className="mb-6 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-[color:var(--bg-alt)] p-4">
-        <h3 className="mb-2 text-sm font-semibold">EMA Crossover Demo</h3>
-        <dl className="grid grid-cols-2 gap-y-1.5 text-xs">
-          <dt className="text-[color:var(--text-muted)]">Fast EMA</dt>
-          <dd className="font-mono">ta.ema(close, 12)</dd>
-          <dt className="text-[color:var(--text-muted)]">Slow EMA</dt>
-          <dd className="font-mono">ta.ema(close, 26)</dd>
-          <dt className="text-[color:var(--text-muted)]">진입</dt>
-          <dd className="font-mono">ta.crossover(fast, slow) → long</dd>
-          <dt className="text-[color:var(--text-muted)]">청산</dt>
-          <dd className="font-mono">ta.crossunder(fast, slow) → close</dd>
+      <div className="ob-aside">
+        <p className="ob-aside-label">EMA Crossover Demo</p>
+        <dl className="ob-spec">
+          <dt>Fast EMA</dt>
+          <dd>ta.ema(close, 12)</dd>
+          <dt>Slow EMA</dt>
+          <dd>ta.ema(close, 26)</dd>
+          <dt>진입</dt>
+          <dd>ta.crossover(fast, slow) → long</dd>
+          <dt>청산</dt>
+          <dd>ta.crossunder(fast, slow) → close</dd>
         </dl>
       </div>
 
       {fetchError !== null && (
-        <div
+        <p
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-[var(--radius-md)] border border-[color:var(--destructive)] bg-[color:var(--destructive-subtle)] p-3 text-xs text-[color:var(--destructive)]"
+          className="mb-4 flex items-start gap-2 rounded-[var(--r)] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] p-3 text-xs text-[color:var(--warn)]"
         >
-          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+          <AlertCircleIcon
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
           <span className="break-all">{fetchError}</span>
-        </div>
+        </p>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost" onClick={onBack} disabled={isBusy}>
+      <div className="ob-actions between">
+        <button
+          className="btn btn-ghost"
+          type="button"
+          onClick={onBack}
+          disabled={isBusy}
+        >
           ← 이전
-        </Button>
-        <Button
+        </button>
+        <button
+          className="btn btn-primary"
+          type="button"
           onClick={() => {
             void handleStart();
           }}
@@ -137,12 +148,13 @@ export function Step2Strategy({
           aria-label="샘플 전략 등록 및 다음 단계"
         >
           {isBusy && (
-            <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden />
+            <Loader2Icon
+              className="size-4 motion-safe:animate-spin"
+              aria-hidden="true"
+            />
           )}
-          <span className={isBusy ? "opacity-80" : undefined}>
-            {isBusy ? "등록 중…" : "샘플로 시작하기 →"}
-          </span>
-        </Button>
+          {isBusy ? "등록 중" : "샘플로 시작하기"}
+        </button>
       </div>
     </div>
   );

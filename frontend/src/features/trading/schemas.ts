@@ -64,29 +64,17 @@ export const ExchangeAccountListResponseSchema = z.object({
 });
 export type ExchangeAccountListResponse = z.infer<typeof ExchangeAccountListResponseSchema>;
 
-// P1-1/11 (S7-A): OKX 계정은 passphrase 필수. superRefine 으로 cross-field 검증.
-// 이전엔 클라 검증 부재 → 서버 422 만 신뢰 → S7-A 의 onError 표시 도달 전까지 무피드백.
-export const RegisterAccountRequestSchema = z
-  .object({
-    exchange: z.enum(["bybit", "okx"]),
-    mode: z.enum(["demo", "live"]),
-    label: z.string().nullable(),
-    api_key: z.string().min(1, "API Key를 입력해주세요"),
-    api_secret: z.string().min(1, "API Secret을 입력해주세요"),
-    passphrase: z.string().nullable(),
-  })
-  .superRefine((data, ctx) => {
-    if (
-      data.exchange === "okx" &&
-      (data.passphrase === null || data.passphrase.length === 0)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["passphrase"],
-        message: "OKX 계정은 Passphrase 가 필수입니다",
-      });
-    }
-  });
+// C 이식(W3-F): 연결된 거래소는 Bybit 하나뿐이라 FE 등록 폼에서 OKX 를 제거했다(캐논 §4.8).
+// OKX 전용 passphrase superRefine 도 함께 걷어냈다. passphrase 필드는 BE 계약(항상 전송, 기본
+// null)을 위해 nullable 로 남기되 폼은 항상 null 을 보낸다. 백엔드 enum·마케팅 로드맵은 불변.
+export const RegisterAccountRequestSchema = z.object({
+  exchange: z.enum(["bybit"]),
+  mode: z.enum(["demo", "live"]),
+  label: z.string().nullable(),
+  api_key: z.string().min(1, "API Key를 입력해주세요"),
+  api_secret: z.string().min(1, "API Secret을 입력해주세요"),
+  passphrase: z.string().nullable(),
+});
 export type RegisterAccountRequest = z.infer<typeof RegisterAccountRequestSchema>;
 
 // Wave 2 크로스도메인 계약 (W-B liquidation, 미머지) — 청산가 on-the-fly 계산 응답.

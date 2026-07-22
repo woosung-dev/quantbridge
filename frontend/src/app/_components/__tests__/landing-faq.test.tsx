@@ -1,4 +1,4 @@
-// LandingFaq — 6 question 노출 + details/summary 토글 검증
+// LandingFaq (C 이식) — 5 질문 details/summary + id=faq + 첫 항목 기본 open.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
@@ -9,36 +9,29 @@ describe("LandingFaq", () => {
     cleanup();
   });
 
-  it("section heading + id=faq 부착", () => {
+  it("section heading + id=faq", () => {
     const { container } = render(<LandingFaq />);
     expect(
-      screen.getByRole("heading", { level: 2, name: "자주 묻는 질문" }),
+      screen.getByRole("heading", { level: 2, name: "먼저 물어볼 만한 것들" }),
     ).toBeInTheDocument();
     expect(container.querySelector("#faq")).not.toBeNull();
   });
 
-  it("6개 question 모두 노출 (summary span)", () => {
+  it("5개 질문 렌더 (lp-faq-item)", () => {
     const { container } = render(<LandingFaq />);
-    const summaries = container.querySelectorAll("details > summary > span");
-    expect(summaries.length).toBe(6);
-    const texts = Array.from(summaries).map((el) => el.textContent ?? "");
-    expect(texts).toEqual([
-      "QuantBridge는 어떤 거래소를 지원하나요?",
-      "Pine Script 외에 다른 언어도 지원하나요?",
-      "백테스트 데이터는 얼마나 제공되나요?",
-      "라이브 트레이딩의 최소 자본금은?",
-      "API Key 보안은 어떻게 보장되나요?",
-      "환불 정책은 어떻게 되나요?",
-    ]);
+    const items = container.querySelectorAll("details.lp-faq-item");
+    expect(items.length).toBe(5);
+    expect(screen.getByText("어떤 거래소를 지원하나요?")).toBeInTheDocument();
+    expect(screen.getByText("지금 쓸 수 있나요?")).toBeInTheDocument();
   });
 
-  it("summary 클릭 시 details open 토글", () => {
+  it("첫 항목 기본 open · 다른 summary 클릭 시 open 토글", () => {
     const { container } = render(<LandingFaq />);
-    const firstSummary = container.querySelector("details > summary");
-    const detailsEl = firstSummary?.closest("details");
-    expect(detailsEl).not.toBeNull();
-    expect(detailsEl?.open).toBe(false);
-    fireEvent.click(firstSummary as Element);
-    expect(detailsEl?.open).toBe(true);
+    const details = container.querySelectorAll("details.lp-faq-item");
+    expect((details[0] as HTMLDetailsElement).open).toBe(true);
+    const second = details[1] as HTMLDetailsElement;
+    expect(second.open).toBe(false);
+    fireEvent.click(second.querySelector("summary") as Element);
+    expect(second.open).toBe(true);
   });
 });

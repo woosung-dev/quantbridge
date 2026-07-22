@@ -1,77 +1,85 @@
 "use client";
 
-// Sprint 43 W13 — /waitlist 폼 카드 (Zod+RHF visual polish, 기존 로직 보존)
-// design source: ui-ux-pro-max master "form card" + DESIGN.md border/text 토큰
+// 웨이트리스트 등록 폼 (.hero-form) — C 디자인 언어. screen-17-waitlist.html 구조 이식.
+// 시각 정본은 프로토타입이지만 폼 필드는 실 백엔드 스키마(features/waitlist/schemas.ts)를 따른다.
+// 프로토타입의 "사용 목적" 셀렉트는 스키마가 받치지 않아(§4.9) 렌더하지 않는다.
+// 상태 3종을 실제로 렌더: 기본 / 필드 검증 에러(role=alert) / 등록 완료(state-box).
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check } from "lucide-react";
-import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { useForm } from "react-hook-form";
-import { z } from "zod/v4";
 import { toast } from "sonner";
+import { z } from "zod/v4";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { StateBox } from "@/components/state-box";
 import { useCreateWaitlist } from "@/features/waitlist/hooks";
 import {
   CreateWaitlistApplicationSchema,
   type CreateWaitlistApplication,
 } from "@/features/waitlist/schemas";
+import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
-// 폼 로컬 스키마 — 법무 동의 체크박스 추가 (서버로 전송하지는 않음)
+// 폼 로컬 스키마 — 법무 동의 체크(서버로 전송하지 않음)를 더한다.
 const FormSchema = CreateWaitlistApplicationSchema.extend({
-  legalConsent: z
-    .boolean()
-    .refine((v) => v === true, "약관에 동의해주세요"),
+  legalConsent: z.boolean().refine((v) => v === true, "약관에 동의해 주세요."),
 });
 type FormValues = z.infer<typeof FormSchema>;
 
-type SubscriptionOpt = {
+const SUBSCRIPTION_OPTIONS: {
   value: CreateWaitlistApplication["tv_subscription"];
   label: string;
-};
-type CapitalOpt = {
-  value: CreateWaitlistApplication["exchange_capital"];
-  label: string;
-};
-type ExperienceOpt = {
-  value: CreateWaitlistApplication["pine_experience"];
-  label: string;
-};
-
-const SUBSCRIPTION_OPTIONS: SubscriptionOpt[] = [
+}[] = [
   { value: "pro", label: "Pro" },
   { value: "pro_plus", label: "Pro+" },
   { value: "premium", label: "Premium" },
 ];
 
-const CAPITAL_OPTIONS: CapitalOpt[] = [
+const CAPITAL_OPTIONS: {
+  value: CreateWaitlistApplication["exchange_capital"];
+  label: string;
+}[] = [
   { value: "under_1k", label: "$1,000 미만" },
   { value: "1k_to_10k", label: "$1,000 ~ $10,000" },
   { value: "10k_to_100k", label: "$10,000 ~ $100,000" },
   { value: "over_100k", label: "$100,000 초과" },
 ];
 
-const EXPERIENCE_OPTIONS: ExperienceOpt[] = [
+const EXPERIENCE_OPTIONS: {
+  value: CreateWaitlistApplication["pine_experience"];
+  label: string;
+}[] = [
   { value: "none", label: "없음" },
   { value: "beginner", label: "초급" },
   { value: "intermediate", label: "중급" },
   { value: "expert", label: "전문가" },
 ];
 
-const SELECT_BASE_CLASS =
-  "h-10 w-full rounded-md border border-[color:var(--border)] bg-card px-3 text-sm text-[color:var(--text-primary)] transition-all duration-200 ease-out hover:border-[color:var(--border-dark)] focus:border-[color:var(--accent-amber)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent-amber)]/20";
+function FieldError({ id, message }: { id: string; message: string }) {
+  return (
+    <p className="field-error" id={id} role="alert">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <line x1="12" y1="7.5" x2="12" y2="13" />
+        <line x1="12" y1="16.5" x2="12" y2="16.6" />
+      </svg>
+      <span>{message}</span>
+    </p>
+  );
+}
 
-export function WaitlistFormCard() {
+export function WaitlistFormCard({ defaultEmail = "" }: { defaultEmail?: string }) {
   const [submitted, setSubmitted] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodV4Resolver(FormSchema),
     defaultValues: {
-      email: "",
+      email: defaultEmail,
       tv_subscription: "pro_plus",
       exchange_capital: "1k_to_10k",
       pine_experience: "beginner",
@@ -82,158 +90,128 @@ export function WaitlistFormCard() {
   });
 
   const create = useCreateWaitlist({
-    onSuccess: () => {
-      setSubmitted(true);
-    },
+    onSuccess: () => setSubmitted(true),
     onError: (err) => {
-      const message = err instanceof Error ? err.message : "Submission failed";
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : "등록에 실패했습니다.");
     },
   });
 
   const onSubmit = form.handleSubmit((values) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { legalConsent, ...payload } = values;
+    const { legalConsent: _legalConsent, ...payload } = values;
+    void _legalConsent;
     create.mutate({
       ...payload,
-      // 빈 문자열은 null 로 정규화 — BE 는 optional.
-      existing_tool: payload.existing_tool?.trim()
-        ? payload.existing_tool.trim()
-        : null,
+      existing_tool: payload.existing_tool?.trim() ? payload.existing_tool.trim() : null,
     });
   });
 
   if (submitted) {
     return (
-      <section
-        aria-live="polite"
-        className="rounded-2xl border border-[color:var(--border)] bg-card p-10 shadow-sm motion-safe:animate-[fadeInUp_400ms_ease-out_both]"
-      >
-        <div className="space-y-5 text-center">
-          <span
-            aria-hidden="true"
-            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-[color:var(--accent-amber)] motion-safe:animate-[scale-in_300ms_cubic-bezier(0.34,1.56,0.64,1)_100ms_both]"
-          >
-            <Check className="size-7" strokeWidth={2.5} />
-          </span>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-[color:var(--text-primary)] motion-safe:animate-[fadeInUp_400ms_ease-out_200ms_both]">
-            신청 완료
-          </h2>
-          <p className="text-sm leading-relaxed text-[color:var(--text-secondary)] motion-safe:animate-[fadeInUp_400ms_ease-out_300ms_both]">
-            QuantBridge Beta 신청이 정상 접수됐습니다. Beta 그룹을 작게 유지하기 위해 신청서를 직접 검토합니다.
-            <br />
-            평균 회신 기간은 <strong>1-2 주</strong> 입니다. 받은편지함 (스팸 폴더 포함) 에서{" "}
-            <code className="rounded bg-[color:var(--accent)] px-1.5 py-0.5 text-xs">
-              waitlist@quantbridge.app
-            </code>{" "}
-            메일을 기다려주세요.
+      <section className="card hero-form" aria-label="등록 완료" aria-live="polite">
+        <div className="card-body">
+          <StateBox
+            tone="neutral"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="4 12.5 9.5 18 20 6.5" />
+              </svg>
+            }
+            title="등록되었습니다."
+            body="공개 준비가 시작되면 그 사실만 담은 메일 한 통을 보냅니다. 그 전에는 아무 메일도 보내지 않습니다."
+          />
+          <p className="form-note">
+            등록 순번, 대기 인원, 예상 대기 기간은 표시하지 않습니다. 집계하지 않는 값이라 인쇄할
+            근거가 없습니다.
           </p>
-          <div className="pt-2 motion-safe:animate-[fadeInUp_400ms_ease-out_400ms_both]">
-            <Link
-              href="/"
-              className="inline-flex h-10 items-center justify-center rounded-md border border-[color:var(--border)] bg-card px-5 text-sm font-medium text-[color:var(--text-primary)] transition-colors duration-150 hover:bg-[color:var(--accent)]"
-            >
-              ← 홈으로
-            </Link>
-          </div>
         </div>
       </section>
     );
   }
 
-  return (
-    <section
-      aria-label="Beta 신청 폼"
-      className="rounded-2xl border border-[color:var(--border)] bg-card p-8 shadow-sm sm:p-10"
-    >
-      <header className="mb-8 space-y-2">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-[color:var(--text-primary)]">
-          Beta 신청
-        </h2>
-        <p className="text-sm text-[color:var(--text-secondary)]">
-          신청자 프로필을 매주 검토해 5-10 명에게 초대장을 보냅니다.
-        </p>
-      </header>
+  const errors = form.formState.errors;
 
-      <form onSubmit={onSubmit} className="space-y-5" noValidate>
-        <div className="space-y-1.5">
-          <Label htmlFor="email">
-            이메일 <span className="text-[color:var(--accent-amber)]">*</span>
-          </Label>
-          <Input
-            id="email"
+  return (
+    <form className="card hero-form" onSubmit={onSubmit} noValidate>
+      <div className="card-head">
+        <div>
+          <h2 className="card-title" id="signup">
+            웨이트리스트 등록
+          </h2>
+          <p className="card-sub">이메일과 몇 가지 배경만 받습니다.</p>
+        </div>
+      </div>
+      <div className="card-body">
+        <div className="field">
+          <label className="field-label" htmlFor="wl-email">
+            이메일 주소
+          </label>
+          <input
+            className={errors.email ? "input invalid" : "input"}
+            id="wl-email"
             type="email"
+            inputMode="email"
             autoComplete="email"
-            placeholder="you@example.com"
-            aria-invalid={form.formState.errors.email ? "true" : "false"}
+            placeholder="name@example.com"
+            aria-invalid={errors.email ? "true" : "false"}
+            aria-describedby={errors.email ? "wl-email-error" : "wl-email-hint"}
             {...form.register("email")}
           />
-          {form.formState.errors.email?.message ? (
-            <p role="alert" className="text-xs text-destructive">
-              {form.formState.errors.email.message}
+          {errors.email?.message ? (
+            <FieldError id="wl-email-error" message={errors.email.message} />
+          ) : (
+            <p className="field-hint" id="wl-email-hint">
+              공개 안내 메일 한 통에만 사용합니다.
             </p>
-          ) : null}
+          )}
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="tv_subscription">TradingView 구독</Label>
-            <select
-              id="tv_subscription"
-              className={SELECT_BASE_CLASS}
-              {...form.register("tv_subscription")}
-            >
-              {SUBSCRIPTION_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-[color:var(--text-muted)]">
-              webhook 발송에는 Pro+ 이상이 필요합니다.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="exchange_capital">운용 자본</Label>
-            <select
-              id="exchange_capital"
-              className={SELECT_BASE_CLASS}
-              {...form.register("exchange_capital")}
-            >
-              {CAPITAL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="field">
+          <label className="field-label" htmlFor="wl-subscription">
+            TradingView 구독
+          </label>
+          <select className="select" id="wl-subscription" {...form.register("tv_subscription")}>
+            {SUBSCRIPTION_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <p className="field-hint">webhook 발송에는 Pro+ 이상이 필요합니다.</p>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="pine_experience">Pine Script 경험</Label>
-          <select
-            id="pine_experience"
-            className={SELECT_BASE_CLASS}
-            {...form.register("pine_experience")}
-          >
-            {EXPERIENCE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
+        <div className="field">
+          <label className="field-label" htmlFor="wl-capital">
+            운용 자본
+          </label>
+          <select className="select" id="wl-capital" {...form.register("exchange_capital")}>
+            {CAPITAL_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="existing_tool">
-            현재 사용 중인 자동매매 툴{" "}
-            <span className="text-xs font-normal text-[color:var(--text-muted)]">
-              (선택)
-            </span>
-          </Label>
-          <Input
-            id="existing_tool"
+        <div className="field">
+          <label className="field-label" htmlFor="wl-experience">
+            Pine Script 경험
+          </label>
+          <select className="select" id="wl-experience" {...form.register("pine_experience")}>
+            {EXPERIENCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label className="field-label" htmlFor="wl-existing">
+            현재 쓰는 자동매매 도구 <span className="optional-tag">(선택)</span>
+          </label>
+          <input
+            className="input"
+            id="wl-existing"
             type="text"
             maxLength={120}
             placeholder="예: 3Commas, Trading Connector, 없음"
@@ -241,114 +219,60 @@ export function WaitlistFormCard() {
           />
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="pain_point">
-            QuantBridge 가 풀어주길 바라는 문제{" "}
-            <span className="text-[color:var(--accent-amber)]">*</span>
-          </Label>
-          <Textarea
-            id="pain_point"
+        <div className="field">
+          <label className="field-label" htmlFor="wl-pain">
+            QuantBridge 로 풀고 싶은 문제
+          </label>
+          <textarea
+            className={errors.pain_point ? "input invalid" : "input"}
+            id="wl-pain"
             rows={4}
             maxLength={1000}
-            placeholder="예: 알림을 거래소에 수동 복사 중인데 새벽에 진입을 놓치는 일이 잦음."
-            aria-invalid={form.formState.errors.pain_point ? "true" : "false"}
+            placeholder="예: 알림을 거래소에 수동으로 옮기다 새벽 진입을 자주 놓칩니다."
+            aria-invalid={errors.pain_point ? "true" : "false"}
+            aria-describedby={errors.pain_point ? "wl-pain-error" : undefined}
             {...form.register("pain_point")}
           />
-          {form.formState.errors.pain_point?.message ? (
-            <p role="alert" className="text-xs text-destructive">
-              {form.formState.errors.pain_point.message}
-            </p>
-          ) : null}
+          {errors.pain_point?.message && (
+            <FieldError id="wl-pain-error" message={errors.pain_point.message} />
+          )}
         </div>
 
-        <div className="flex items-start gap-3 rounded-lg border border-[color:var(--accent-amber)]/30 bg-[color:var(--accent-amber-light)]/40 p-4">
-          <input
-            id="legalConsent"
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 flex-none accent-[color:var(--accent-amber)]"
-            {...form.register("legalConsent")}
-          />
-          <div className="flex-1 space-y-1.5">
-            <Label
-              htmlFor="legalConsent"
-              className="text-sm font-semibold text-[color:var(--text-primary)]"
-            >
-              법적 고지 동의
-            </Label>
-            <p className="text-xs leading-relaxed text-[color:var(--text-secondary)]">
-              QuantBridge Beta 가 투자 자문이 아니며, 암호화폐 파생상품 거래는 원금 전액 손실 가능성이 있다는 점을 이해합니다.{" "}
-              <Link
-                href="/terms"
-                className="text-[color:var(--accent-amber)] underline underline-offset-2"
-              >
-                이용약관
-              </Link>
-              ,{" "}
-              <Link
-                href="/privacy"
-                className="text-[color:var(--accent-amber)] underline underline-offset-2"
-              >
-                개인정보 처리방침
-              </Link>
-              ,{" "}
-              <Link
-                href="/disclaimer"
-                className="text-[color:var(--accent-amber)] underline underline-offset-2"
-              >
-                면책조항
-              </Link>
-              에 동의합니다.
-            </p>
-            {form.formState.errors.legalConsent?.message ? (
-              <p role="alert" className="text-xs text-destructive">
-                {form.formState.errors.legalConsent.message}
-              </p>
-            ) : null}
+        <div className="field">
+          <div className="consent-field">
+            <input
+              id="wl-consent"
+              type="checkbox"
+              aria-invalid={errors.legalConsent ? "true" : "false"}
+              aria-describedby={errors.legalConsent ? "wl-consent-error" : undefined}
+              {...form.register("legalConsent")}
+            />
+            <label className="consent-body" htmlFor="wl-consent">
+              QuantBridge 가 투자 자문이 아니며, 자동매매는 원금 손실 가능성이 있다는 점을
+              이해합니다. <Link href="/terms">이용약관</Link>,{" "}
+              <Link href="/privacy">개인정보 처리방침</Link>,{" "}
+              <Link href="/disclaimer">면책조항</Link>에 동의합니다.
+            </label>
           </div>
+          {errors.legalConsent?.message && (
+            <FieldError id="wl-consent-error" message={errors.legalConsent.message} />
+          )}
         </div>
 
-        <Button
+        <button
+          className="btn btn-primary btn-block form-submit"
           type="submit"
           disabled={create.isPending}
-          className="h-11 w-full gap-2 text-sm font-semibold transition-all duration-200 ease-out hover:brightness-110 disabled:opacity-70"
-          style={{
-            backgroundColor: "var(--accent-amber)",
-            color: "var(--warning-foreground)",
-          }}
+          aria-busy={create.isPending}
         >
-          {create.isPending ? (
-            <>
-              <svg
-                aria-hidden="true"
-                className="size-4 motion-safe:animate-spin"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeOpacity="0.3"
-                />
-                <path
-                  d="M22 12a10 10 0 0 0-10-10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span>전송 중…</span>
-            </>
-          ) : (
-            "Beta 신청서 제출"
-          )}
-        </Button>
-        <p className="text-center text-xs text-[color:var(--text-muted)]">
-          제출 후 평균 1-2 주 안에 회신 메일을 보내드립니다.
+          {create.isPending ? "전송 중" : "등록"}
+        </button>
+
+        <p className="form-note">
+          이메일과 사용 목적만 받습니다. 대기자 수와 등록 순번은 집계하지 않으므로 표시하지
+          않습니다.
         </p>
-      </form>
-    </section>
+      </div>
+    </form>
   );
 }

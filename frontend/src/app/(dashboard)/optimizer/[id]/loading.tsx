@@ -1,20 +1,24 @@
-// Optimizer run 상세 라우트 레벨 Suspense fallback — App Router 규약.
-
-import { Skeleton } from "@/components/skeleton";
+// Optimizer run 상세 라우트 레벨 Suspense fallback — App Router 규약. C 셸(.page/.card/.kpi/.sk) 정합.
 
 export default function OptimizerRunLoading() {
   return (
-    <main className="container mx-auto space-y-6 px-4 py-6">
-      <header className="space-y-2">
-        <Skeleton className="h-7 w-64" />
-        <Skeleton variant="text" className="w-48" />
-      </header>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full" />
-        ))}
+    <main className="page" aria-busy="true">
+      <div className="card">
+        <div className="card-body">
+          <span className="sk sk-line" style={{ width: "40%", height: 24 }} />
+          <span className="sk sk-line" style={{ width: "70%" }} />
+        </div>
       </div>
-      <Skeleton className="h-[320px] w-full" />
+      <div className="section">
+        <div className="kpi-row">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="card kpi">
+              <span className="sk sk-line" style={{ width: "60%" }} />
+              <span className="sk sk-line" style={{ width: "80%", height: 24, marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+      </div>
     </main>
   );
 }

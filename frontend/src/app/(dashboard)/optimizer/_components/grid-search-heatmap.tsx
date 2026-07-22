@@ -1,25 +1,18 @@
-// Sprint 54 — Grid Search 2D heatmap (cost-assumption-heatmap.tsx 1:1 fork, best cell highlight 추가)
+// 그리드 탐색 2D 히트맵 — C 디자인 언어 이식 (W3-C, screen-10 04 히트맵).
+// 리더보드와 같은 값을 히트맵 배치로 이중 렌더한다. 코퍼 단일 색조 농도 + 숫자 병기(색만으로 읽지
+// 않게), 최적 칸은 색이 아니라 테두리, 축퇴 칸(거래 0건)은 무채색 점선 + title 규약.
 "use client";
 
-import { ArrowDown, ArrowUp, Star } from "lucide-react";
-
+import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import type { GridSearchResult } from "@/features/optimizer/schemas";
+import { OPTIMIZER_EMPTY_REASON } from "@/features/optimizer/labels";
+import { EMPTY_CELL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 interface Props {
   result: GridSearchResult;
   /** 2D heatmap 으로 그릴 변수쌍 (param_names.length === 2 일 때 자동, N>2 일 때는 pair-selector 선택) */
   pair: readonly [string, string];
-}
-
-// 부호 화살표 — 색 강도와 별개로 색맹 대비용 sign fallback.
-function SignArrow({ value }: { value: number | null }) {
-  if (value === null) return null;
-  return value >= 0 ? (
-    <ArrowUp className="inline h-3 w-3" aria-hidden="true" />
-  ) : (
-    <ArrowDown className="inline h-3 w-3" aria-hidden="true" />
-  );
 }
 
 export function GridSearchHeatmap({ result, pair }: Props) {
@@ -57,21 +50,22 @@ export function GridSearchHeatmap({ result, pair }: Props) {
     return null;
   }
 
-  // objective_value 정규화 — best cell highlight + 색 강도.
+  // objective_value 선형 정규화 → 코퍼 알파 [0.05, 0.35]. 최적일수록 진하다(direction 반영).
   const objNumbers = result.cells
     .map((c) => c.objective_value)
     .filter((v): v is number => v !== null);
-  const maxAbs =
-    objNumbers.length > 0 ? Math.max(...objNumbers.map(Math.abs), 1) : 1;
+  const objMin = objNumbers.length > 0 ? Math.min(...objNumbers) : 0;
+  const objMax = objNumbers.length > 0 ? Math.max(...objNumbers) : 1;
+  const objRange = objMax - objMin || 1;
 
   function bgFor(value: number | null): string | undefined {
     if (value === null) return undefined;
-    const intensity = Math.min(100, (Math.abs(value) / maxAbs) * 100);
-    const color =
-      result.direction === "maximize"
-        ? value >= 0 ? "var(--bullish)" : "var(--bearish)"
-        : value <= 0 ? "var(--bullish)" : "var(--bearish)";
-    return `color-mix(in srgb, ${color} ${intensity}%, transparent)`;
+    const t =
+      result.direction === "minimize"
+        ? (objMax - value) / objRange
+        : (value - objMin) / objRange;
+    const alpha = 0.05 + Math.max(0, Math.min(1, t)) * 0.3;
+    return `color-mix(in srgb, var(--copper) ${(alpha * 100).toFixed(1)}%, transparent)`;
   }
 
   const bestParamValues =
@@ -80,38 +74,19 @@ export function GridSearchHeatmap({ result, pair }: Props) {
       : null;
 
   return (
-    <div className="space-y-3 overflow-x-auto">
-      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <ArrowUp className="h-3 w-3 text-bullish" aria-hidden="true" />{" "}
-          {result.direction === "maximize" ? "유리" : "음수 우대"}
-        </span>
-        <span className="flex items-center gap-1">
-          <ArrowDown className="h-3 w-3 text-bearish" aria-hidden="true" />{" "}
-          {result.direction === "maximize" ? "불리" : "양수 음수전환"}
-        </span>
-        <span>— 거래 0건 또는 NaN (degenerate)</span>
-        <span className="inline-flex items-center gap-1 rounded border border-primary px-1.5 py-0.5 text-primary">
-          <Star className="h-3 w-3 fill-current" aria-hidden="true" /> 최적 셀
-        </span>
-        <span>· 목표 지표 = {result.objective_metric} ({result.direction})</span>
-      </div>
-      <table
-        className="border-collapse"
-        aria-label={`Grid Search heatmap (${xName} × ${yName})`}
-      >
+    <div className="table-wrap">
+      <table className="hm" aria-label={`그리드 히트맵 (${xName} × ${yName})`}>
+        <caption className="card-sub" style={{ textAlign: "left", padding: "4px 0 8px" }}>
+          가로축 {yName}, 세로축 {xName}. 칸 안 숫자는{" "}
+          {OBJECTIVE_METRIC_LABEL[result.objective_metric]}입니다.
+        </caption>
         <thead>
           <tr>
-            <th
-              className="p-1 text-xs text-muted-foreground"
-              scope="col"
-            >{`${xName} \\ ${yName}`}</th>
+            <th scope="col">
+              <span className="dim">{`${xName} \\ ${yName}`}</span>
+            </th>
             {yValues.map((v) => (
-              <th
-                key={v}
-                className="p-1 font-mono text-xs font-medium tabular-nums"
-                scope="col"
-              >
+              <th key={v} scope="col">
                 {v}
               </th>
             ))}
@@ -120,64 +95,44 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         <tbody>
           {xValues.map((x) => (
             <tr key={x}>
-              <th className="p-1 font-mono text-xs font-medium tabular-nums text-right" scope="row">
-                {x}
-              </th>
+              <th scope="row">{x}</th>
               {yValues.map((y) => {
                 const cell = findCell(x, y);
                 if (cell == null) {
                   return (
-                    <td
-                      key={`${x}-${y}`}
-                      className="p-2 text-xs text-center min-w-[72px] border border-border text-muted-foreground"
-                    >
-                      —
+                    <td key={`${x}-${y}`}>
+                      <span className="hm-cell degenerate">{EMPTY_CELL}</span>
                     </td>
                   );
                 }
                 const objVal = cell.objective_value;
+                const isDegenerate = cell.is_degenerate || cell.num_trades === 0;
                 const isBest =
                   bestParamValues != null &&
                   bestParamValues[xName] === x &&
                   bestParamValues[yName] === y &&
                   (Object.keys(fixOthers).length === 0 ||
-                    Object.entries(fixOthers).every(
-                      ([k, v]) => bestParamValues[k] === v,
-                    ));
-                const tooltip = cell.is_degenerate
-                  ? `${xName}=${x}, ${yName}=${y}\n거래 0건 (degenerate)`
-                  : `${xName}=${x}, ${yName}=${y}\n${result.objective_metric}=${objVal ?? "—"}\nSharpe=${cell.sharpe ?? "—"}\nReturn=${cell.total_return}\nMDD=${cell.max_drawdown}\nTrades=${cell.num_trades}`;
+                    Object.entries(fixOthers).every(([k, v]) => bestParamValues[k] === v));
+                if (isDegenerate || objVal === null) {
+                  return (
+                    <td key={`${x}-${y}`}>
+                      <span
+                        className="hm-cell degenerate"
+                        title={OPTIMIZER_EMPTY_REASON.degenerateNoSharpe}
+                      >
+                        {EMPTY_CELL}
+                      </span>
+                    </td>
+                  );
+                }
                 return (
-                  <td
-                    key={`${x}-${y}`}
-                    className={cn(
-                      "p-2 font-mono text-xs text-center min-w-[72px] border border-border tabular-nums",
-                      "focus:outline-2 focus:outline-primary focus:outline-offset-1",
-                      cell.is_degenerate && "text-muted-foreground",
-                      isBest && "outline outline-2 outline-primary outline-offset-[-2px]",
-                    )}
-                    style={
-                      cell.is_degenerate ? undefined : { background: bgFor(objVal) }
-                    }
-                    tabIndex={0}
-                    aria-label={tooltip.replace(/\n/g, ", ") + (isBest ? " 최적 셀" : "")}
-                    title={tooltip + (isBest ? "\n최적 셀" : "")}
-                  >
-                    <span className="block leading-tight">
-                      {cell.is_degenerate || objVal === null ? (
-                        "—"
-                      ) : (
-                        <>
-                          {isBest && (
-                            <Star
-                              className="mr-0.5 inline h-3 w-3 fill-current text-primary"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <SignArrow value={objVal} />{" "}
-                          {objVal.toFixed(2)}
-                        </>
-                      )}
+                  <td key={`${x}-${y}`}>
+                    <span
+                      className={cn("hm-cell", isBest && "best")}
+                      style={{ background: bgFor(objVal) }}
+                      title={`${xName}=${x}, ${yName}=${y}, ${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${objVal.toFixed(2)}${isBest ? " (최적)" : ""}`}
+                    >
+                      {objVal.toFixed(2)}
                     </span>
                   </td>
                 );
@@ -186,18 +141,29 @@ export function GridSearchHeatmap({ result, pair }: Props) {
           ))}
         </tbody>
       </table>
-      <p className="text-xs text-muted-foreground">
-        목표 지표 = {result.objective_metric}. 색 강도는 |값| 기준이며, 위·아래
-        화살표는 색맹 대비 부호, 별 아이콘은 최적 셀을 나타냅니다.
+      <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
+        <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <line x1="12" y1="11" x2="12" y2="16" />
+          <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
+        </svg>
+        칸 농도는 목표값을 선형으로 이었습니다. 색만으로 읽지 않도록 숫자를 함께 인쇄합니다. 최적
+        칸은 색이 아니라 코퍼 테두리로, 거래 0건 축퇴 칸은 색을 넣지 않고 점선 테두리로 스케일에서
+        빼냅니다.
       </p>
-      {result.param_names.length > 2 && Object.keys(fixOthers).length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          기타 변수 고정: {Object.entries(fixOthers)
+      {result.param_names.length > 2 && Object.keys(fixOthers).length > 0 ? (
+        <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
+          <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="11" x2="12" y2="16" />
+            <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
+          </svg>
+          기타 변수는 최적 셀 값으로 고정한 단면입니다.{" "}
+          {Object.entries(fixOthers)
             .map(([k, v]) => `${k}=${v}`)
-            .join(", ")}{" "}
-          (best cell 기준 slice). N-dim viz 확장 예정.
+            .join(", ")}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

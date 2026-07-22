@@ -180,7 +180,7 @@ describe("LiveSessionForm — BL-164 dropdown UUID 노출 차단", () => {
   it("exchange dropdown trigger 가 초기에는 placeholder, 선택 후 label 을 표시 (UUID 미노출)", () => {
     renderForm();
     const trigger = screen.getByTestId("live-session-account-trigger");
-    expect(trigger).toHaveTextContent("Bybit Demo 계정 선택");
+    expect(trigger).toHaveTextContent("Bybit 데모 계정 선택");
     expect(trigger).not.toHaveTextContent(ACCOUNT_ID);
 
     const items = screen
@@ -237,7 +237,7 @@ describe("LiveSessionForm — BL-164 emptyMessage", () => {
       </QueryClientProvider>,
     );
     expect(
-      screen.getByText("Bybit Demo 계정 없음. 먼저 등록해주세요"),
+      screen.getByText("Bybit 데모 계정 없음. 먼저 등록해주세요"),
     ).toBeInTheDocument();
     // submit 버튼 disabled 검증.
     const submit = screen.getByTestId("live-session-submit");

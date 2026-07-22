@@ -48,6 +48,8 @@ const AGG_POPULATED = {
   ],
   populatedSessions: 1,
   isLoading: false,
+  isError: false,
+  isPending: false,
 };
 
 const AGG_EMPTY = {
@@ -56,6 +58,8 @@ const AGG_EMPTY = {
   mergedEquityCurve: [],
   populatedSessions: 0,
   isLoading: false,
+  isError: false,
+  isPending: false,
 };
 
 const STRATEGIES = {
@@ -164,6 +168,34 @@ describe("DashboardCockpit — 헤더·KPI 정직성", () => {
     render(<DashboardCockpit />);
     expect(screen.getByText("거래소 1개 연결")).toBeInTheDocument();
     expect(screen.getByText("활성 세션 1")).toBeInTheDocument();
+  });
+});
+
+describe("DashboardCockpit — 손익 KPI 정직성 (StatValue 규율)", () => {
+  it("세션별 state 집계가 실패하면 kpi-pnl 을 성공-0 이 아니라 '확인 불가'로 그린다", () => {
+    // 합산 손익은 세션별 state 조회 합이라, 하나라도 실패하면 +0.00 처럼 그리면 거짓 정상.
+    useLiveSessionsAggregateMock.mockReturnValue({ ...AGG_POPULATED, isError: true });
+    render(<DashboardCockpit />);
+    const pnl = screen.getByTestId("kpi-pnl");
+    expect(pnl).toHaveTextContent("확인 불가");
+    expect(pnl).not.toHaveTextContent("+142.18");
+  });
+
+  it("세션 목록 조회가 실패하면(활성 세션 미상) kpi-pnl 도 '확인 불가'로 전파한다", () => {
+    // 어떤 세션을 합산할지 모르는 상태 → 손익을 0 으로 단정하지 않는다.
+    useLiveSessionsMock.mockReturnValue({ ...SESSIONS, isError: true });
+    useLiveSessionsAggregateMock.mockReturnValue(AGG_EMPTY);
+    render(<DashboardCockpit />);
+    expect(screen.getByTestId("kpi-pnl")).toHaveTextContent("확인 불가");
+  });
+
+  it("집계가 아직 미수신이면 kpi-pnl 을 '불러오는 중'으로 그린다", () => {
+    useLiveSessionsAggregateMock.mockReturnValue({
+      ...AGG_EMPTY,
+      isPending: true,
+    });
+    render(<DashboardCockpit />);
+    expect(screen.getByTestId("kpi-pnl")).toHaveTextContent("불러오는 중");
   });
 });
 

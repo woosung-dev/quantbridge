@@ -1,133 +1,45 @@
-// Sprint 43 W13 — /waitlist 좌측 hero 패널 (외부 첫인상 가치제안 + accent-amber illustration)
-// design source: ui-ux-pro-max master "split-screen value prop" + DESIGN.md accent-amber 토큰
-// 참고: brand-panel.tsx (Sprint 42-polish W1) split layout 패턴
-
-import Link from "next/link";
-import { Check } from "lucide-react";
-
-interface ValueProp {
-  title: string;
-  description: string;
-}
-
-const VALUE_PROPS: ValueProp[] = [
-  {
-    title: "Pine Script 그대로 자동매매",
-    description:
-      "TradingView 알림을 webhook 으로 받아 Bybit / OKX 실거래까지. 코드 한 줄 수정 없이.",
-  },
-  {
-    title: "백테스트는 7초",
-    description:
-      "TradingView 로직을 바 단위로 그대로 재현하는 엔진. BTC 1년치 1m 봉 백테스트가 7초 안에 끝납니다.",
-  },
-  {
-    title: "Beta 신청자에게만 공개",
-    description:
-      "현재 micro-cohort 운영 중. 안정화 단계라 매주 5-10명씩 초대장 발송.",
-  },
-];
-
-interface BetaStat {
-  value: string;
-  label: string;
-}
-
-const BETA_STATS: BetaStat[] = [
-  { value: "1-2주", label: "평균 대기" },
-  { value: "Bybit + OKX", label: "지원 거래소" },
-  { value: "Demo", label: "안전한 시작" },
-];
-
+// 웨이트리스트 히어로 좌측 카피 (.hero-copy) — 소개 + 칩 + 사실 카드. screen-17-waitlist.html 이식.
+// 공개 시점·가격은 미정(무데이터 + title). 대기자 수·순번은 집계하지 않으므로 표시하지 않는다.
 export function WaitlistHero() {
   return (
-    <aside
-      aria-label="QuantBridge Beta 가치제안"
-      className="relative hidden flex-col justify-between gap-10 overflow-hidden rounded-2xl p-12 text-[color:var(--text-primary)] lg:flex"
-      style={{
-        background:
-          "linear-gradient(135deg, var(--accent-amber-light) 0%, var(--primary-light) 100%)",
-      }}
-    >
-      {/* 배경 장식 — accent-amber 그라디언트 blob */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-32 -right-32 h-[480px] w-[480px] rounded-full opacity-40"
-        style={{
-          background:
-            "radial-gradient(circle, var(--accent-amber) 0%, transparent 70%)",
-        }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-24 -left-24 h-[360px] w-[360px] rounded-full opacity-30"
-        style={{
-          background: "radial-gradient(circle, var(--accent-amber) 0%, transparent 70%)",
-        }}
-      />
+    <div className="hero-copy">
+      <h1 className="hero-title">
+        TradingView Pine 전략을 백테스트하고, 같은 전략을 거래소에 연결합니다.
+      </h1>
+      <p className="hero-sub">
+        지금은 개발자 본인이 매일 사용하며 검증하는 단계입니다. 공개 시점은 정하지 않았습니다.
+        준비가 시작되면 등록하신 주소로 알리겠습니다.
+      </p>
 
-      <header className="relative z-10 space-y-4">
-        <span className="inline-flex items-center gap-2 rounded-full bg-card/70 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[color:var(--accent-amber)] backdrop-blur-sm">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--accent-amber)]" />
-          Beta · Invite Only
-        </span>
-        <h1 className="font-display text-4xl font-extrabold leading-tight tracking-tight">
-          Pine Script 전략을
-          <br />
-          <span className="text-[color:var(--accent-amber)]">실전 자동매매</span>로
-        </h1>
-        <p className="text-base leading-relaxed text-[color:var(--text-secondary)]">
-          QuantBridge Beta 는 매주 5-10 명씩만 초대합니다. 신청서를 남기면 1-2 주 안에 회신 드립니다.
-        </p>
-      </header>
-
-      <ul className="relative z-10 space-y-5">
-        {VALUE_PROPS.map((prop, i) => (
-          <li
-            key={prop.title}
-            className="flex items-start gap-3 motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
-            style={{ animationDelay: `${100 + i * 100}ms` }}
-          >
-            <span
-              aria-hidden="true"
-              className="mt-1 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber)] text-[color:var(--warning-foreground)]"
-            >
-              <Check className="size-3.5" strokeWidth={3} />
-            </span>
-            <div className="space-y-1">
-              <p className="font-semibold text-[color:var(--text-primary)]">
-                {prop.title}
-              </p>
-              <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-                {prop.description}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      <div className="relative z-10 grid grid-cols-3 gap-4 border-t border-[color:var(--accent-amber)]/20 pt-6">
-        {BETA_STATS.map((stat) => (
-          <div key={stat.label} className="space-y-1">
-            <p className="font-display text-xl font-bold text-[color:var(--text-primary)]">
-              {stat.value}
-            </p>
-            <p className="text-xs uppercase tracking-wide text-[color:var(--text-secondary)]">
-              {stat.label}
-            </p>
-          </div>
-        ))}
+      <div className="hero-chips">
+        <span className="chip">바 단위 이벤트 루프 자체 인터프리터</span>
+        <span className="chip">Bybit 데모 · 메인넷</span>
       </div>
 
-      <p className="relative z-10 text-xs text-[color:var(--text-secondary)]">
-        이미 계정이 있으신가요?{" "}
-        <Link
-          href="/sign-in"
-          className="font-semibold text-[color:var(--accent-amber)] underline underline-offset-4"
-        >
-          로그인
-        </Link>
-      </p>
-    </aside>
+      <div className="card hero-facts">
+        <div className="trust-col">
+          <div className="trust-row">
+            <span className="trust-key">현재 단계</span>
+            <span className="trust-val">개발자 1인 로컬 사용</span>
+          </div>
+          <div className="trust-row">
+            <span className="trust-key">공개 시점</span>
+            <span className="trust-val dim" title="공개 일정을 아직 정하지 않았습니다.">
+              미정
+            </span>
+          </div>
+          <div className="trust-row">
+            <span className="trust-key">가격</span>
+            <span className="trust-val dim" title="가격 정책을 아직 정하지 않았습니다.">
+              미정
+            </span>
+          </div>
+          <div className="trust-row">
+            <span className="trust-key">보낼 메일</span>
+            <span className="trust-val">공개 안내 1회</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

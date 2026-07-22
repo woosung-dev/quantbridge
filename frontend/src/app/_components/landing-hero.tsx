@@ -1,224 +1,144 @@
-// 랜딩 페이지 hero 섹션 (pill + h1 + underline svg + sub + CTA + trust avatars)
+// 랜딩 히어로 (.lp-hero) — 2단: 소개 카피 + "화면 예시" 목업 리포트 카드.
+// screen-14-landing.html 이식. 목업 숫자는 프로토타입 샘플임을 disclaimer 로 명시(정직성).
 import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
-import { PnlTape } from "@/components/tape/pnl-tape";
-
-// Precision Instrument: 아바타 = 플랫 스틸 칩 (구 브랜드 컬러 hex 폐기, 토큰 경유)
-const TRUST_AVATARS = ["JK", "MH", "YS", "DW", "SJ"] as const;
-
-// hero mockup 장식용 P&L tape 샘플 델타 (양수=bullish / 음수=bearish 마이크로바)
-const HERO_TAPE_DELTAS = [
-  3, 5, -2, 4, 6, -3, 2, 7, -1, 4, 5, -4, 3, 8, 2, -2, 6, 4, -3, 5, 7, -2, 4,
-  6, 3, -1, 5, 8, -3, 6, 4, 7,
-] as const;
 
 export function LandingHero() {
   return (
-    <section className="relative overflow-hidden bg-card px-6 pt-24 pb-20 md:pt-28 md:pb-24">
-      {/* §6 플랫 원칙 — 미세 코퍼 radial 틴트 1개 (5%) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(56% 44% at 72% 16%, color-mix(in srgb, var(--primary) 5%, transparent), transparent 70%)",
-        }}
-      />
-      <div className="relative mx-auto grid max-w-[1200px] items-center gap-12 lg:grid-cols-[55%_45%]">
-        <div className="flex flex-col">
-          <div className="mb-6 inline-flex w-fit items-center gap-2 rounded-sm border border-[color:var(--primary-100)] bg-[color:var(--primary-light)] px-3.5 py-1.5 text-xs font-medium text-[color:var(--primary)]">
-            <span className="size-1.5 rounded-full bg-[color:var(--primary)]" />
-            v2.0 출시 — Monte Carlo 스트레스 테스트 지원
-          </div>
-          <h1 className="font-display text-[clamp(2.5rem,5vw,3.75rem)] font-extrabold leading-[1.15] tracking-[-0.01em] text-[color:var(--text-primary)]">
-            Pine Script 전략을
-            <br />
-            <span className="relative inline-block">
-              자동 트레이딩으로
-              <svg
-                aria-hidden
-                className="absolute -bottom-1.5 left-0 w-full motion-safe:animate-[heroEntrance_700ms_cubic-bezier(0.34,1.56,0.64,1)_300ms_both]"
-                viewBox="0 0 280 12"
-                fill="none"
-              >
-                <path
-                  d="M2 8C40 2 80 10 140 5C200 0 240 9 278 4"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  opacity="0.4"
-                />
-              </svg>
-            </span>
-          </h1>
-          <p className="mt-5 max-w-[480px] text-lg leading-[1.7] text-[color:var(--text-secondary)] motion-safe:animate-[fadeInUp_500ms_ease-out_100ms_both]">
-            {/* Sprint 61 T-8 (BL-322): hero copy ↔ 실제 기능 정합. 파일 업로드 / TV URL
-                가져오기 "곧 지원" 상태이므로 "Pine Script 코드를 붙여넣으면" 으로 정직화. */}
-            Pine Script 코드를 붙여넣으면 백테스트, 최적화, 스트레스 테스트를 거쳐 데모 또는 라이브 자동 매매까지 한 번에 연결됩니다.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3 motion-safe:animate-[fadeInUp_500ms_ease-out_200ms_both]">
-            <Button
-              size="lg"
-              render={<Link href="/sign-up" />}
-              nativeButton={false}
-              className="shadow-btn-primary transition-all duration-200 hover:-translate-y-px hover:shadow-btn-primary-hover"
-            >
-              무료로 시작하기
-              <svg
-                aria-hidden
-                width="18"
-                height="18"
-                viewBox="0 0 18 18"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="4" y1="9" x2="14" y2="9" />
-                <polyline points="10,5 14,9 10,13" />
-              </svg>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              render={<Link href="/sign-in" />}
-              nativeButton={false}
-              className="hover:border-[color:var(--primary)] hover:text-[color:var(--primary)]"
-            >
-              <svg
-                aria-hidden
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polygon points="5,3 13,8 5,13" />
-              </svg>
-              라이브 데모
-            </Button>
-          </div>
-          <div className="mt-8 flex items-center gap-4 motion-safe:animate-[fadeInUp_500ms_ease-out_300ms_both]">
-            <div className="flex">
-              {TRUST_AVATARS.map((initials) => (
-                <span
-                  key={initials}
-                  className="-ml-2 flex size-8 items-center justify-center rounded-full border-2 border-card bg-[color:var(--bg-alt)] font-mono text-[0.6rem] font-semibold text-[color:var(--text-secondary)] first:ml-0"
-                  aria-hidden
-                >
-                  {initials}
-                </span>
-              ))}
-            </div>
-            <span className="text-sm text-[color:var(--text-muted)]">
-              Beta · 초기 dogfooder · feedback 환영
-            </span>
-          </div>
+    <section className="lp-hero rise d1" aria-label="소개">
+      <div>
+        <div className="lp-hero-meta">
+          <span className="chip">로컬 도구</span>
+          <span className="chip">공개 전</span>
         </div>
-        <HeroBrowserMockup />
+        <h1 className="lp-hero-title">
+          TradingView 전략을
+          <br />
+          가정까지 드러내서 검증합니다.
+        </h1>
+        <p className="lp-hero-sub">
+          Pine Script 를 넣으면 먼저 파싱해서 무엇을 지원하고 무엇을 지원하지 않는지 알려 줍니다.
+          그다음 봉을 하나씩 순회하는 백테스트로 체결과 비용을 재현하고, 최적화와 스트레스 테스트를
+          거쳐 데모 계정에서 같은 코드 경로로 돌립니다.
+        </p>
+        <div className="lp-hero-cta">
+          <Link className="btn btn-primary" href="/sign-up">
+            시작하기
+          </Link>
+          <a className="btn btn-ghost" href="#support">
+            지원 현황 확인
+          </a>
+        </div>
+        <p className="lp-hero-fact">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="11" x2="12" y2="16" />
+            <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
+          </svg>
+          <span>
+            현재 Bybit 데모 연동 기준으로 동작합니다. 공개 서비스가 아니라 개발자 한 사람이 로컬에서
+            매일 쓰는 도구이고, 이 페이지는 언젠가 공개할 때 쓰려고 미리 적어 둔 초안입니다.
+          </span>
+        </p>
       </div>
-    </section>
-  );
-}
 
-// 데스크톱 우측 브라우저 mockup — 차트 + P&L tape + KPI 3개.
-// `dark` 스코프로 항상 카본/스틸/코퍼 제품 프리뷰 (라이트 테마에서도 다크 목업 유지).
-function HeroBrowserMockup() {
-  return (
-    <div className="dark hidden overflow-hidden rounded-lg border border-[color:var(--border)] bg-card shadow-card motion-safe:animate-[heroFloat_6s_ease-in-out_infinite] lg:block">
-      <div className="flex h-9 items-center gap-2 border-b border-[color:var(--border)] bg-muted px-3">
-        <span className="size-2.5 rounded-full bg-bearish" />
-        <span className="size-2.5 rounded-full bg-warning" />
-        <span className="size-2.5 rounded-full bg-bullish" />
-        <span className="ml-2 max-w-[260px] flex-1 truncate rounded-sm bg-[color:var(--bg-alt)] px-2.5 py-0.5 font-mono text-[0.7rem] text-[color:var(--text-muted)]">
-          app.quantbridge.io/dashboard
-        </span>
-      </div>
-      <div className="grid min-h-[280px] grid-cols-[60px_1fr] gap-3 bg-[color:var(--bg)] p-4">
-        <div className="flex flex-col items-center gap-4 rounded-md bg-[color:var(--card)] py-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="size-7 rounded-md bg-[color:var(--bg-alt)]" />
-          ))}
-        </div>
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="font-display text-xs font-semibold text-[color:var(--text-primary)]">포트폴리오 개요</span>
-            <div className="flex gap-1.5">
-              <span className="rounded-sm border border-[color:var(--border)] bg-[color:var(--card)] px-2.5 py-1 text-[0.6rem] text-[color:var(--text-muted)]">
-                Export
-              </span>
-              <span className="rounded-sm bg-[color:var(--primary)] px-2.5 py-1 text-[0.6rem] font-medium text-[color:var(--primary-foreground)]">
-                +전략 추가
-              </span>
-            </div>
+      <div className="card" aria-label="화면 예시">
+        <div className="mock-head">
+          <div>
+            <p className="mock-title">백테스트 리포트</p>
+            <p className="mock-sub">run_2f9c41 · BTC/USDT · 1h</p>
           </div>
-          <svg viewBox="0 0 400 120" fill="none" className="w-full">
+          <span className="chip accent">화면 예시</span>
+        </div>
+
+        <div className="mock-chart">
+          <svg
+            viewBox="0 0 640 224"
+            role="img"
+            aria-label="자산 곡선 예시. 전략은 10,000 USDT 에서 22,740.18 USDT 로 끝나고, 같은 기간 매수 후 보유는 18,610.00 USDT 로 끝납니다."
+          >
             <defs>
-              <linearGradient id="heroChartGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--chart-equity)" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="var(--chart-equity)" stopOpacity="0" />
+              <linearGradient id="lpEqFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--copper)" stopOpacity="0.18" />
+                <stop offset="100%" stopColor="var(--copper)" stopOpacity="0" />
               </linearGradient>
             </defs>
-            <text x="0" y="15" fill="var(--chart-axis)" fontSize="8" fontFamily="var(--font-mono)">$130K</text>
-            <text x="0" y="40" fill="var(--chart-axis)" fontSize="8" fontFamily="var(--font-mono)">$120K</text>
-            <text x="0" y="65" fill="var(--chart-axis)" fontSize="8" fontFamily="var(--font-mono)">$110K</text>
-            <text x="0" y="90" fill="var(--chart-axis)" fontSize="8" fontFamily="var(--font-mono)">$100K</text>
-            <path
-              d="M40,85 L60,80 L80,78 L100,72 L120,75 L140,65 L160,60 L180,55 L200,58 L220,50 L240,45 L260,40 L280,35 L300,30 L320,25 L340,22 L360,18 L380,15"
-              stroke="var(--chart-equity)"
-              strokeWidth="2"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            <g>
+              <line className="grid-line" x1="56" y1="18" x2="624" y2="18" />
+              <line className="grid-line" x1="56" y1="110" x2="624" y2="110" />
+              <line className="axis-line" x1="56" y1="202" x2="624" y2="202" />
+              <text className="axis-text" x="48" y="22" textAnchor="end">
+                24,000
+              </text>
+              <text className="axis-text" x="48" y="114" textAnchor="end">
+                16,000
+              </text>
+              <text className="axis-text" x="48" y="206" textAnchor="end">
+                8,000
+              </text>
+            </g>
+            <polygon
+              fill="url(#lpEqFill)"
+              points="56.0,179.0 70.2,176.7 84.4,180.1 98.6,174.4 112.8,169.8 127.0,164.1 141.2,166.3 155.4,157.1 169.6,151.4 183.8,154.9 198.0,146.8 212.2,138.7 226.4,142.2 240.6,149.1 254.8,143.3 269.0,134.1 283.2,126.1 297.4,130.7 311.6,120.3 325.8,112.3 340.0,118.1 354.2,138.7 368.4,130.7 382.6,119.2 396.8,104.3 411.0,96.2 425.2,100.8 439.4,91.6 453.6,82.4 467.8,87.0 482.0,97.3 496.2,88.1 510.4,77.8 524.6,68.6 538.8,74.3 553.0,61.7 567.2,52.5 581.4,58.3 595.6,47.9 609.8,39.9 624.0,32.5 624,202 56,202"
             />
-            <path
-              d="M40,85 L60,80 L80,78 L100,72 L120,75 L140,65 L160,60 L180,55 L200,58 L220,50 L240,45 L260,40 L280,35 L300,30 L320,25 L340,22 L360,18 L380,15 L380,100 L40,100 Z"
-              fill="url(#heroChartGrad)"
+            <polyline
+              className="bm-line"
+              points="56.0,179.0 70.2,172.1 84.4,162.9 98.6,169.8 112.8,157.1 127.0,146.8 141.2,156.0 155.4,139.9 169.6,130.7 183.8,143.3 198.0,151.4 212.2,137.6 226.4,123.8 240.6,134.1 254.8,145.7 269.0,131.9 283.2,116.9 297.4,126.1 311.6,138.7 325.8,122.7 340.0,107.7 354.2,120.3 368.4,135.3 382.6,121.5 396.8,105.4 411.0,92.7 425.2,107.7 439.4,121.5 453.6,106.5 467.8,89.3 482.0,103.1 496.2,116.9 510.4,99.7 524.6,84.7 538.8,98.5 553.0,111.1 567.2,93.9 581.4,76.7 595.6,91.6 609.8,85.9 624.0,79.7"
             />
+            <polyline
+              className="eq-line"
+              points="56.0,179.0 70.2,176.7 84.4,180.1 98.6,174.4 112.8,169.8 127.0,164.1 141.2,166.3 155.4,157.1 169.6,151.4 183.8,154.9 198.0,146.8 212.2,138.7 226.4,142.2 240.6,149.1 254.8,143.3 269.0,134.1 283.2,126.1 297.4,130.7 311.6,120.3 325.8,112.3 340.0,118.1 354.2,138.7 368.4,130.7 382.6,119.2 396.8,104.3 411.0,96.2 425.2,100.8 439.4,91.6 453.6,82.4 467.8,87.0 482.0,97.3 496.2,88.1 510.4,77.8 524.6,68.6 538.8,74.3 553.0,61.7 567.2,52.5 581.4,58.3 595.6,47.9 609.8,39.9 624.0,32.5"
+            />
+            <circle cx="624" cy="32.5" r="3.2" fill="var(--copper)" />
+            <g>
+              <text className="axis-text" x="56" y="218" textAnchor="start">
+                2024-01
+              </text>
+              <text className="axis-text" x="340" y="218" textAnchor="middle">
+                2025-02
+              </text>
+              <text className="axis-text" x="624" y="218" textAnchor="end">
+                2026-04
+              </text>
+            </g>
           </svg>
-          {/* Precision Instrument 시그니처 — P&L tape 마이크로바 (장식) */}
-          <PnlTape
-            deltas={HERO_TAPE_DELTAS}
-            maxBars={32}
-            size="micro"
-            className="opacity-80"
-          />
-          <div className="grid grid-cols-3 gap-2">
-            <MockStat label="Total" value="—" />
-            <MockStat label="Today" value="—" tone="green" />
-            <MockStat label="Win Rate" value="—" />
+        </div>
+
+        <div className="mock-stats">
+          <div className="mock-stat">
+            <p className="mock-k">총 수익률</p>
+            <p className="mock-v pos">+127.40%</p>
+          </div>
+          <div className="mock-stat">
+            <p className="mock-k">매수 후 보유</p>
+            <p className="mock-v">+86.10%</p>
+          </div>
+          <div className="mock-stat">
+            <p className="mock-k">최대 낙폭</p>
+            <p className="mock-v neg">-14.60%</p>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function MockStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "green";
-}) {
-  return (
-    <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--card)] p-2.5">
-      <div className="mb-0.5 font-mono text-[0.6rem] tracking-[0.08em] text-[color:var(--text-muted)] uppercase">{label}</div>
-      <div
-        className="font-mono text-sm font-semibold tabular-nums"
-        style={{
-          color: tone === "green" ? "var(--bullish)" : "var(--text-primary)",
-        }}
-      >
-        {value}
+        <p className="disclaimer">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 3 2.5 20h19L12 3z" />
+            <line x1="12" y1="10" x2="12" y2="14" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          이 화면 예시의 숫자는 프로토타입용 샘플 데이터입니다. 실제 계좌의 성과가 아닙니다.
+        </p>
       </div>
-    </div>
+    </section>
   );
 }

@@ -1,25 +1,33 @@
-// 전략 리스트 라우트 레벨 Suspense fallback — App Router 규약.
-// server prefetch가 실패하거나 streaming 지연 시 노출.
-// Sprint 47 BL-206: animate-pulse 직접 사용 → Skeleton variant API 로 SSOT 일원화.
-
-import { Skeleton } from "@/components/skeleton";
+// 전략 리스트 라우트 레벨 Suspense fallback — C 디자인 언어(screen-06) 표 스켈레톤.
+// server prefetch 실패/스트리밍 지연 시 노출. 목록 컴포넌트의 .sk .sk-cell 골격과 같다.
 
 export default function StrategiesLoading() {
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-8">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <Skeleton className="mb-2 h-7 w-32" />
-          <Skeleton variant="text" className="w-48" />
+    <main className="page" aria-busy="true" aria-label="전략 목록 불러오는 중">
+      <section className="card" aria-label="전략 목록 개요">
+        <div className="card-body">
+          <span className="sk sk-line" style={{ width: "160px" }} aria-hidden="true" />
         </div>
-        <Skeleton className="h-9 w-24" />
-      </header>
-      <Skeleton className="mb-6 h-9 w-full" />
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} variant="card" />
-        ))}
-      </div>
-    </div>
+      </section>
+      <section className="section">
+        <div className="card">
+          <div className="table-wrap">
+            <table className="trades runs-table">
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 5 }).map((__, j) => (
+                      <td key={j}>
+                        <span className="sk sk-cell" />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

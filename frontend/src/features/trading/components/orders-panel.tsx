@@ -17,7 +17,13 @@ import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
 import { useIsOrderDisabledByKs, useOrders } from "../hooks";
-import { ORDER_SIDE_LABEL, ORDER_STATE_LABEL } from "../labels";
+import {
+  ORDER_ID_SOURCE_HINT,
+  ORDER_ID_SOURCE_LABEL,
+  ORDER_SIDE_LABEL,
+  ORDER_STATE_LABEL,
+  ORDER_TRAILING_STOP_LABEL,
+} from "../labels";
 import { TestOrderDialog } from "./test-order-dialog";
 
 // 주문 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
@@ -26,33 +32,24 @@ const ORDERS_ENDPOINT = "GET /api/v1/orders";
 /**
  * Sprint 21 BL-093 superset — broker evidence column.
  *   - null/undefined → EMPTY_CELL (아직 발송 안 됨)
- *   - "fixture-" prefix → warn 톤 "mock" (fixture provider 산출물)
- *   - 그 외 → bull 톤 "broker" + slice(-8) (실제 거래소 ID)
+ *   - "fixture-" prefix → warn 톤 "모의" (fixture provider 산출물)
+ *   - 그 외 → bull 톤 "브로커" + slice(-8) (실제 거래소 ID)
  * codex G.0 P2: UUID 형식 판정 X. fixture-* 만 분기하고 나머지는 "broker id present".
+ * 출처 라벨·title 은 용어 SSOT(ORDER_ID_SOURCE_LABEL / ORDER_ID_SOURCE_HINT)에서만 온다.
  */
 function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
   if (!orderId) {
     return <span className="dim">{EMPTY_CELL}</span>;
   }
   const isFixture = orderId.startsWith("fixture-");
-  if (isFixture) {
-    return (
-      <span
-        className="mono evi-mock"
-        title={`Mock fixture: ${orderId}`}
-        data-testid="broker-badge-mock"
-      >
-        {orderId.slice(-8)} (mock)
-      </span>
-    );
-  }
+  const source = isFixture ? "mock" : "broker";
   return (
     <span
-      className="mono evi-broker"
-      title={`Broker order: ${orderId}`}
-      data-testid="broker-badge-real"
+      className={isFixture ? "mono evi-mock" : "mono evi-broker"}
+      title={ORDER_ID_SOURCE_HINT[source]}
+      data-testid={isFixture ? "broker-badge-mock" : "broker-badge-real"}
     >
-      {orderId.slice(-8)} (broker)
+      {orderId.slice(-8)} ({ORDER_ID_SOURCE_LABEL[source]})
     </span>
   );
 }
@@ -141,11 +138,10 @@ export function OrdersPanel() {
                 <th scope="col" className="num">
                   체결가
                 </th>
-                {/* Wave 2 — bracket TP/SL + 청산가(graceful) */}
+                {/* Wave 2 — bracket TP/SL. 청산가 열은 캐논 §4.6 대로 두지 않는다
+                    (체결 주문이 곧 열린 포지션을 뜻하지 않고 포지션 API 도 없다 —
+                    ORDER_LIQUIDATION_DELEGATION_NOTE 로 코크핏에 위임). */}
                 <th scope="col">익절·손절</th>
-                <th scope="col" className="num">
-                  청산가
-                </th>
                 <th scope="col">거래소 주문번호</th>
                 <th scope="col">오류</th>
               </tr>
@@ -175,16 +171,11 @@ export function OrdersPanel() {
                           place_trailing_stop 가 거래소에 부착(별도 주문 아님). */}
                       {o.take_profit || o.stop_loss || o.trailing_stop
                         ? `${o.take_profit ?? EMPTY_CELL} / ${o.stop_loss ?? EMPTY_CELL}${
-                            o.trailing_stop ? ` / trail ${o.trailing_stop}` : ""
+                            o.trailing_stop
+                              ? ` / ${ORDER_TRAILING_STOP_LABEL} ${o.trailing_stop}`
+                              : ""
                           }`
                         : EMPTY_CELL}
-                    </td>
-                    {/* 청산가 graceful-empty (의도적). 주문 목록은 "열린 포지션" 상태를
-                        노출하지 않는다 — filled 주문이 곧 열린 포지션을 의미하지 않으며(이미
-                        청산/반대매매됐을 수 있음), positions API 도 부재. 과거 주문에 라이브
-                        위험 수준처럼 보이는 청산가를 찍으면 오해 유발(Surface Trust 위반). */}
-                    <td data-testid="liquidation-cell" className="num dim">
-                      {EMPTY_CELL}
                     </td>
                     <td>
                       <BrokerBadge orderId={o.exchange_order_id} />
@@ -209,7 +200,7 @@ function OrdersSkeleton() {
         <tbody>
           {Array.from({ length: 5 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 9 }).map((__, j) => (
+              {Array.from({ length: 8 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>

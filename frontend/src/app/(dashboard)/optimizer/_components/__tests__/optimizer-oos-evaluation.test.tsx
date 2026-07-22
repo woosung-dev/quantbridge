@@ -91,12 +91,13 @@ function walkForwardDetail(
   };
 }
 
-function renderOos() {
+function renderOos(sectionNum = "04") {
   return render(
     <OptimizerOosEvaluation
       backtestId={BACKTEST_ID}
       paramSpace={PARAM_SPACE}
       kind="grid_search"
+      sectionNum={sectionNum}
     />,
   );
 }
@@ -113,6 +114,8 @@ describe("OptimizerOosEvaluation (true WFO)", () => {
     expect(
       screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
     ).toBeInTheDocument();
+    // 섹션 번호는 페이지 조립부가 주입 — grid 는 03 파라미터 안정성 뒤라 04 (중복 03 회귀 방지).
+    expect(screen.getByText("04")).toBeInTheDocument();
     // 진짜 out-of-sample 고지 (낙관 경고 X).
     expect(screen.getByText(/진짜 out-of-sample/)).toBeInTheDocument();
     expect(screen.getByText(/in-sample.*재최적화/)).toBeInTheDocument();

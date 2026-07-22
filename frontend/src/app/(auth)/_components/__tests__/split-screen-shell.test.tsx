@@ -1,6 +1,7 @@
-// SplitScreenShell — mobile (md 이하) 에서 BrandPanel 미노출 (hidden md:flex)
+// SplitScreenShell (C 이식) — 자체 헤더/2분할/푸터 + 좌 BrandPanel + 우 form-col(모드 제목) + Clerk children.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+
 import { SplitScreenShell } from "../split-screen-shell";
 
 describe("SplitScreenShell", () => {
@@ -8,55 +9,49 @@ describe("SplitScreenShell", () => {
     cleanup();
   });
 
-  it("BrandPanel 에 hidden md:flex 클래스 적용 (mobile 미노출)", () => {
-    render(
+  it("자체 헤더 로고 → / + 좌 BrandPanel + 우 form-col + children 이 auth-clerk 안", () => {
+    const { container } = render(
       <SplitScreenShell mode="sign-in">
-        <div data-testid="form-child">child content</div>
-      </SplitScreenShell>,
-    );
-
-    // BrandPanel 의 aside (aria-label="QuantBridge 소개") 가 hidden md:flex 클래스 보유
-    const aside = screen.getByLabelText("QuantBridge 소개");
-    expect(aside.className).toContain("hidden");
-    expect(aside.className).toContain("md:flex");
-  });
-
-  it("children 이 우측 main wrapper 안에 렌더된다 + 흰색 배경 (prototype 04 정합)", () => {
-    render(
-      <SplitScreenShell mode="sign-up">
         <div data-testid="form-child">Clerk form</div>
       </SplitScreenShell>,
     );
-
+    expect(container.querySelector(".auth-top .auth-logo")).not.toBeNull();
+    // 좌 패널
+    expect(container.querySelector(".auth-brand")).not.toBeNull();
+    // children 이 .auth-clerk 카드 안에 렌더
     const child = screen.getByTestId("form-child");
-    expect(child).toBeInTheDocument();
-    // main wrapper 가 부모 chain 에 존재
-    const main = child.closest("main");
-    expect(main).not.toBeNull();
-    expect(main?.className).toContain("min-h-dvh");
-    // prototype 04 의 .form-panel { background: #fff } — Terminal Tape bg-card 토큰 (라이트/다크 flip)
-    expect(main?.className).toContain("bg-card");
+    expect(child.closest(".auth-clerk")).not.toBeNull();
   });
 
-  it("form wrapper — prototype max-w 400px 정합", () => {
+  it("sign-in 모드 — form-col 제목 로그인", () => {
     render(
       <SplitScreenShell mode="sign-in">
-        <div data-testid="form-child">x</div>
+        <div>x</div>
       </SplitScreenShell>,
     );
-    const child = screen.getByTestId("form-child");
-    const wrapper = child.parentElement;
-    expect(wrapper?.className).toContain("max-w-[400px]");
+    expect(
+      screen.getByRole("heading", { level: 2, name: "로그인" }),
+    ).toBeInTheDocument();
   });
 
-  it("desktop grid 50/50 = grid-cols-1 md:grid-cols-2", () => {
+  it("sign-up 모드 — form-col 제목 회원가입", () => {
+    render(
+      <SplitScreenShell mode="sign-up">
+        <div>x</div>
+      </SplitScreenShell>,
+    );
+    expect(
+      screen.getByRole("heading", { level: 2, name: "회원가입" }),
+    ).toBeInTheDocument();
+  });
+
+  it("자체 푸터 노출 (Clerk 처리 명시)", () => {
     const { container } = render(
       <SplitScreenShell mode="sign-in">
         <div>x</div>
       </SplitScreenShell>,
     );
-    const root = container.firstChild as HTMLElement;
-    expect(root.className).toContain("grid-cols-1");
-    expect(root.className).toContain("md:grid-cols-2");
+    const foot = container.querySelector("footer.auth-foot");
+    expect(foot?.textContent).toContain("인증은 Clerk 가 처리합니다");
   });
 });

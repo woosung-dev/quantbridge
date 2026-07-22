@@ -8,6 +8,7 @@ import { Trash2Icon, AlertTriangleIcon, InboxIcon, RefreshCwIcon } from "lucide-
 import { toast } from "sonner";
 
 import { EMPTY_CELL } from "@/lib/labels";
+import { StateBox } from "@/components/state-box";
 
 import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
@@ -59,32 +60,28 @@ export function ExchangeAccountsPanel() {
         </div>
       ) : isError ? (
         <div className="card-body">
-          <div className="state-box failed" role="alert" data-testid="accounts-error">
-            <span className="state-icon failed" aria-hidden="true">
-              <AlertTriangleIcon />
-            </span>
-            <p className="state-title">거래소 계정 목록을 불러오지 못했습니다.</p>
-            <p className="state-body">
-              네트워크 또는 인증 문제가 있을 수 있습니다.
-            </p>
-            <p className="state-code">GET /api/v1/exchange-accounts</p>
+          <StateBox
+            tone="failed"
+            testId="accounts-error"
+            icon={<AlertTriangleIcon />}
+            title="거래소 계정 목록을 불러오지 못했습니다."
+            body="네트워크 또는 인증 문제가 있을 수 있습니다."
+            code="GET /api/v1/exchange-accounts"
+          >
             <button className="btn btn-ghost" type="button" onClick={() => refetch()}>
               <RefreshCwIcon aria-hidden="true" />
               다시 시도
             </button>
-          </div>
+          </StateBox>
         </div>
       ) : !data || data.length === 0 ? (
         <div className="card-body">
-          <div className="state-box" role="status" data-testid="accounts-empty">
-            <span className="state-icon" aria-hidden="true">
-              <InboxIcon />
-            </span>
-            <p className="state-title">연결된 거래소 계정이 없습니다.</p>
-            <p className="state-body">
-              위 &lsquo;계정 추가&rsquo; 버튼으로 거래소 계정을 연결하세요.
-            </p>
-          </div>
+          <StateBox
+            testId="accounts-empty"
+            icon={<InboxIcon />}
+            title="연결된 거래소 계정이 없습니다."
+            body={<>위 &lsquo;계정 추가&rsquo; 버튼으로 거래소 계정을 연결하세요.</>}
+          />
         </div>
       ) : (
         <div className="table-wrap">

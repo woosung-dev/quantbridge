@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 
 import {
-  FIELD_CLS,
+  INPUT_CLS,
+  SELECT_CLS,
   FormErrorAlert,
   ObjectiveFields,
   SubmitRow,
@@ -153,55 +154,52 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <ObjectiveFields register={form.register} maxEvaluations={100} />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">개체군 크기 (population)</span>
+      <div className="opt-field-grid-4">
+        <label className="field">
+          <span className="field-label">개체군 크기 (population)</span>
           <input
             type="number"
             min={2}
             max={200}
-            className={FIELD_CLS}
+            className={INPUT_CLS}
             {...form.register("population_size", { valueAsNumber: true })}
           />
         </label>
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">세대 수 (generations)</span>
+        <label className="field">
+          <span className="field-label">세대 수 (generations)</span>
           <input
             type="number"
             min={1}
             max={100}
-            className={FIELD_CLS}
+            className={INPUT_CLS}
             {...form.register("n_generations", { valueAsNumber: true })}
           />
         </label>
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">돌연변이율 (mutation)</span>
+        <label className="field">
+          <span className="field-label">돌연변이율 (mutation)</span>
           <input
             type="text"
             placeholder="0.2"
-            className={FIELD_CLS}
+            className={INPUT_CLS}
             {...form.register("mutation_rate")}
           />
         </label>
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">교차율 (crossover)</span>
+        <label className="field">
+          <span className="field-label">교차율 (crossover)</span>
           <input
             type="text"
             placeholder="0.8"
-            className={FIELD_CLS}
+            className={INPUT_CLS}
             {...form.register("crossover_rate")}
           />
         </label>
       </div>
 
       {/* Sprint 57 BL-234: selection method */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">선택 방식 (selection)</span>
-          <select
-            className={FIELD_CLS}
-            {...form.register("genetic_selection_method")}
-          >
+      <div className="opt-field-grid-2">
+        <label className="field">
+          <span className="field-label">선택 방식 (selection)</span>
+          <select className={SELECT_CLS} {...form.register("genetic_selection_method")}>
             <option value="tournament">토너먼트 (k=3)</option>
             <option value="roulette">룰렛 (순위 기반)</option>
           </select>
@@ -215,27 +213,24 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
         emptyRow={EMPTY_ROW}
         renderRowCells={(idx, removeButton) => (
           <>
-            <select
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              {...form.register(`parameters.${idx}.kind`)}
-            >
+            <select className="select" {...form.register(`parameters.${idx}.kind`)}>
               <option value="integer">정수</option>
               <option value="decimal">실수</option>
             </select>
             <input
               placeholder="최소"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="input"
               {...form.register(`parameters.${idx}.min`)}
             />
             <input
               placeholder="최대"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="input"
               {...form.register(`parameters.${idx}.max`)}
             />
-            <div className="flex items-center gap-1">
+            <div className="opt-param-row-tail">
               <input
                 placeholder="간격"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="input"
                 {...form.register(`parameters.${idx}.step`)}
               />
               {removeButton}

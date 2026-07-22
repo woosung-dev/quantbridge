@@ -1,117 +1,57 @@
-// 랜딩 페이지 "어떻게 작동하나요?" 4 step 섹션
-import type { ReactNode } from "react";
+// 랜딩 02 작동 방식 (.lp-steps) — 4단계. screen-14-landing.html 이식.
+// 각 단계는 앞 단계 결과를 그대로 받는다.
 
-interface StepItem {
-  number: string;
+interface Step {
+  num: string;
   title: string;
-  description: string;
-  icon: ReactNode;
+  desc: string;
 }
 
-const STEPS: StepItem[] = [
+const STEPS: Step[] = [
   {
-    number: "01",
-    // Sprint 62 T-3 (BL-353): hero copy "Pine Script 코드를 붙여넣으면" 과 정합화.
-    // 파일 업로드 / TV URL 가져오기 "곧 지원" 동안 사실 기반 카피로 통일.
-    title: "전략 코드 붙여넣기",
-    description: "Pine Script 코드를 붙여넣으면 자동으로 파싱 및 변환됩니다.",
-    icon: (
-      <>
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17,8 12,3 7,8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-      </>
-    ),
+    num: "STEP 1",
+    title: "전략 등록",
+    desc: "Pine Script 를 넣으면 파싱 결과와 지원 여부를 먼저 확인합니다. 지원되지 않으면 여기서 멈춥니다.",
   },
   {
-    number: "02",
-    title: "백테스트 실행",
-    description: "과거 데이터로 전략 성과를 빠르게 검증합니다.",
-    icon: (
-      <>
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
-      </>
-    ),
+    num: "STEP 2",
+    title: "백테스트",
+    desc: "심볼, 기간, 수수료와 슬리피지 가정을 정해 실행합니다. 리포트에 그 가정이 함께 남습니다.",
   },
   {
-    number: "03",
-    title: "파라미터 최적화",
-    description: "Grid·Bayesian·Genetic 알고리즘이 최적 설정을 자동 탐색합니다.",
-    icon: (
-      <>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-      </>
-    ),
+    num: "STEP 3",
+    title: "최적화와 OOS 검증",
+    desc: "파라미터를 탐색한 뒤 구간을 나눠, 탐색에 쓰지 않은 기간으로 다시 확인합니다.",
   },
   {
-    number: "04",
-    title: "자동 매매 시작",
-    description: "검증된 전략으로 데모 또는 라이브 트레이딩을 시작합니다.",
-    icon: <polygon points="5,3 19,12 5,21 5,3" />,
+    num: "STEP 4",
+    title: "데모 실행",
+    desc: "데모 계정에 배포해 주문과 포지션이 의도대로 도는지 지켜봅니다. 실자금은 그다음 이야기입니다.",
   },
 ];
 
 export function LandingHowItWorks() {
   return (
-    <section
-      id="how-it-works"
-      className="bg-card px-6 py-20"
-      aria-labelledby="how-it-works-heading"
-    >
-      <div className="mx-auto max-w-[1200px]">
-        <div className="mb-12 text-center">
-          <div
-            aria-hidden
-            className="mx-auto mb-4 h-[3px] w-12 rounded-sm bg-[color:var(--primary)]"
-          />
-          <h2
-            id="how-it-works-heading"
-            className="font-display text-[clamp(1.75rem,3vw,2.25rem)] font-bold text-[color:var(--text-primary)]"
-          >
-            어떻게 작동하나요?
-          </h2>
-          <p className="mx-auto mt-3 max-w-[520px] text-base text-[color:var(--text-secondary)]">
-            전략 코드 붙여넣기부터 자동 매매까지 4단계로 끝납니다
-          </p>
-        </div>
+    <section className="section rise d3" id="how" aria-label="작동 방식">
+      <header className="section-head">
+        <p className="eyebrow">
+          <span className="num">02</span> 작동 방식
+        </p>
+        <h2 className="section-title">네 단계로 진행합니다</h2>
+        <p className="section-desc">
+          각 단계는 앞 단계의 결과를 그대로 받습니다. 중간을 건너뛰면 다음 화면에서 무엇이 빠졌는지
+          표시합니다.
+        </p>
+      </header>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s, i) => (
-            <article
-              key={s.number}
-              className="relative rounded-lg border border-[color:var(--border)] bg-[color:var(--bg)] p-7 shadow-card transition-all duration-200 hover:-translate-y-px hover:border-[color:var(--border-dark)] hover:shadow-card-hover motion-safe:animate-[fadeInUp_500ms_ease-out_both]"
-              style={{ animationDelay: `${i * 80}ms` }}
-            >
-              {/* mono 터미널 레이블 문법 — 11px / tracking 0.14em */}
-              <div className="font-mono text-[11px] font-medium tracking-[0.14em] text-[color:var(--primary)]">
-                {s.number}
-              </div>
-              <div className="mt-4 flex size-11 items-center justify-center rounded-full bg-[color:var(--primary-light)]">
-                <svg
-                  aria-hidden
-                  className="size-[22px]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--primary)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  {s.icon}
-                </svg>
-              </div>
-              <h3 className="mt-4 font-display text-base font-semibold text-[color:var(--text-primary)]">
-                {s.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-secondary)]">
-                {s.description}
-              </p>
-            </article>
-          ))}
-        </div>
+      <div className="lp-steps">
+        {STEPS.map((s) => (
+          <article key={s.num} className="card lp-step">
+            <span className="lp-step-num">{s.num}</span>
+            <h3 className="lp-step-title">{s.title}</h3>
+            <p className="lp-step-desc">{s.desc}</p>
+          </article>
+        ))}
       </div>
     </section>
   );

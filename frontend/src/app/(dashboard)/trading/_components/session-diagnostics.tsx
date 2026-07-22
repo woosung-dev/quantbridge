@@ -17,6 +17,8 @@ import {
   WifiIcon,
 } from "lucide-react";
 
+import { StateBox } from "@/components/state-box";
+
 export type DiagnosticState = "loading" | "error" | "empty" | "ok";
 
 const STATE_ARIA: Record<DiagnosticState, string> = {
@@ -71,23 +73,14 @@ export function DiagnosticCard({
               {body}
             </p>
           </>
-        ) : state === "error" ? (
-          <div className="state-box failed" role="alert">
-            <span className="state-icon failed" aria-hidden="true">
-              <AlertTriangleIcon />
-            </span>
-            <p className="state-title">{heading}</p>
-            <p className="state-body">{body}</p>
-            {code ? <p className="state-code">{code}</p> : null}
-          </div>
         ) : (
-          <div className="state-box" role="status">
-            <span className="state-icon" aria-hidden="true">
-              {icon}
-            </span>
-            <p className="state-title">{heading}</p>
-            <p className="state-body">{body}</p>
-          </div>
+          <StateBox
+            tone={state === "error" ? "failed" : "neutral"}
+            icon={state === "error" ? <AlertTriangleIcon /> : icon}
+            title={heading}
+            body={body}
+            code={state === "error" && code ? code : undefined}
+          />
         )}
       </div>
     </article>

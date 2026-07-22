@@ -18,13 +18,17 @@ import { useMemo } from "react";
 import { labelOf } from "@/lib/labels";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
-import { LIVE_SIGNAL_EVENT_STATUS_LABEL } from "../labels";
+import {
+  LIVE_SIGNAL_DIRECTION_LABEL,
+  LIVE_SIGNAL_EVENT_STATUS_LABEL,
+} from "../labels";
 import type { LiveSession } from "../schemas";
 // Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
 // Sprint 28 Slice 3 (BL-140b) — buildActivityTimelineWithEquity 추가 (real cumulative PnL).
 import {
   buildActivityTimeline,
   buildActivityTimelineWithEquity,
+  formatDateTime,
   formatRealizedPnl,
 } from "../utils";
 import { ActivityTimelineChart } from "./activity-timeline-chart";
@@ -62,20 +66,17 @@ export function LiveSessionDetail({ session }: Props) {
       <div className="rounded-md border p-4">
         <h3 className="font-medium">{session.symbol}</h3>
         <p className="text-xs text-muted-foreground">
-          {session.interval} · last evaluated:{" "}
-          {session.last_evaluated_bar_time
-            ? new Date(session.last_evaluated_bar_time).toLocaleString()
-            : "—"}
+          {session.interval} · 마지막 평가 {formatDateTime(session.last_evaluated_bar_time)}
         </p>
         <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-muted-foreground">Closed Trades</dt>
+            <dt className="text-muted-foreground">종료 거래</dt>
             <dd className="font-mono">
               {stateLoading ? "…" : state?.total_closed_trades ?? 0}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Realized PnL</dt>
+            <dt className="text-muted-foreground">실현 손익</dt>
             <dd className="font-mono">
               {stateLoading ? (
                 "…"
@@ -130,10 +131,16 @@ export function LiveSessionDetail({ session }: Props) {
                 {events.items.slice(0, 20).map((ev) => (
                   <tr key={ev.id} className="border-t">
                     <td className="py-1 font-mono">
-                      {new Date(ev.bar_time).toLocaleTimeString()}
+                      {formatDateTime(ev.bar_time)}
                     </td>
                     <td className="py-1">{ev.action}</td>
-                    <td className="py-1">{ev.direction}</td>
+                    <td className="py-1">
+                      {labelOf(
+                        LIVE_SIGNAL_DIRECTION_LABEL,
+                        ev.direction,
+                        "live-signal-direction",
+                      )}
+                    </td>
                     <td className="py-1 font-mono">{ev.qty}</td>
                     <td className="py-1">
                       <span

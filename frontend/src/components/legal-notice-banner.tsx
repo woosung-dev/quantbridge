@@ -1,7 +1,5 @@
-// Sprint 11 Phase B — Beta 단계 고지 배너. 모든 페이지 상단에 고정 (layout.tsx).
-// 정식 변호사 검토본 (D-5 A안) 배포 전까지 표시. H2 말 (~2026-06-30) 교체 예정.
-//
-// Sprint 61 T-2 (BL-339): 모바일 touch target ≥44pt — 링크 padding 확대 (14pt 위반 fix).
+// 전 페이지 상단 고정 법적 고지 배너 (layout.tsx). C 디자인 언어 재스킨 — 한국어 · em-dash 0.
+// 법적 고지이므로 제거하지 않는다. warn 토큰(카본 위 앰버) 얇은 줄로 둔다.
 
 import Link from "next/link";
 
@@ -14,21 +12,21 @@ export function LegalNoticeBanner() {
   return (
     <div
       role="note"
-      className="w-full border-b border-warning/30 bg-warning-subtle px-4 py-1.5 text-center text-[11px] text-warning"
+      className="w-full border-b border-[color:var(--warn)]/30 bg-[color:var(--warn-soft)] px-4 py-1.5 text-center text-[11px] text-[color:var(--warn)]"
     >
-      <strong>Beta:</strong> QuantBridge is provided as-is. See{" "}
+      <strong>고지.</strong> QuantBridge 는 있는 그대로 제공되는 공개 전 개인 워크스페이스입니다.
+      투자 자문이 아니며 트레이딩 결과는 사용자 책임입니다.{" "}
       <Link href={LEGAL_LINKS.disclaimer} className={LINK_CLASS}>
-        Disclaimer
+        면책조항
       </Link>{" "}
       ·{" "}
       <Link href={LEGAL_LINKS.terms} className={LINK_CLASS}>
-        Terms
+        이용약관
       </Link>{" "}
       ·{" "}
       <Link href={LEGAL_LINKS.privacy} className={LINK_CLASS}>
-        Privacy
+        개인정보 처리방침
       </Link>
-      . <span className="opacity-75">(Beta 단계 — H2 말 정식 변호사 검토본 교체 예정)</span>
     </div>
   );
 }

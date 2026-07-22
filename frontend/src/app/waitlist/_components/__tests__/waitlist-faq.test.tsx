@@ -1,4 +1,4 @@
-// WaitlistFaq — 5개 FAQ 항목 + native details/summary 토글 검증
+// WaitlistFaq (C 이식) — 3문항 + 프로토타입 고지. AI-slop(평생 할인/OKX Demo 지원) 제거 검증.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -9,21 +9,23 @@ describe("WaitlistFaq", () => {
     cleanup();
   });
 
-  it("h2 '자주 묻는 질문' + 5개 질문 노출", () => {
-    render(<WaitlistFaq />);
+  it("h2 + 3문항(.faq-item)", () => {
+    const { container } = render(<WaitlistFaq />);
     expect(
-      screen.getByRole("heading", { level: 2, name: /자주 묻는 질문/ }),
+      screen.getByRole("heading", { level: 2, name: /먼저 답해 두는 세 가지/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Beta 는 무료인가요/)).toBeInTheDocument();
-    expect(screen.getByText(/TradingView Pro\+ 가 꼭 필요한가요/)).toBeInTheDocument();
-    expect(screen.getByText(/어떤 거래소를 지원하나요/)).toBeInTheDocument();
-    expect(screen.getByText(/초대장은 언제 받을 수 있나요/)).toBeInTheDocument();
-    expect(screen.getByText(/Demo 환경에서 진짜 돈을 잃지 않나요/)).toBeInTheDocument();
+    expect(container.querySelectorAll(".faq-item").length).toBe(3);
+    expect(screen.getByText("언제 공개되나요?")).toBeInTheDocument();
   });
 
-  it("FAQ 5건 모두 native <details> 요소로 렌더 (접근성 + JS 의존도 0)", () => {
-    const { container } = render(<WaitlistFaq />);
-    const detailsList = container.querySelectorAll("details");
-    expect(detailsList.length).toBe(5);
+  it("Bybit 데모·메인넷 확인 + OKX/Binance/Bitget 로드맵 표기", () => {
+    render(<WaitlistFaq />);
+    expect(screen.getByText(/OKX, Binance, Bitget 은 로드맵에 있을 뿐/)).toBeInTheDocument();
+  });
+
+  it("AI-slop 제거 — 평생 할인/무료 약속 없음", () => {
+    render(<WaitlistFaq />);
+    expect(screen.queryByText(/평생 할인/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/무료입니다/)).not.toBeInTheDocument();
   });
 });

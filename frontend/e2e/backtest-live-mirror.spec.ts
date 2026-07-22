@@ -19,7 +19,10 @@ import { API_ROUTES, fulfillJson } from "./fixtures/api-mock";
 // `serial mode` — 공유 storageState flake 차단 (dogfood-flow.spec.ts 패턴).
 test.describe.configure({ mode: "serial" });
 
-const STRATEGY_ID = "d0000000-0000-4000-d000-000000000001";
+// z.uuid()(StrategyResponseSchema.id)는 RFC 4122 variant nibble [89ab]만 허용 →
+// 4번째 그룹 첫 글자 'd'는 reject 되어 strategy detail parse 실패 → prefill 미도착.
+// variant nibble 을 '8'로 정정(테스트 의도: Live 설정 mirror prefill 검증)한다.
+const STRATEGY_ID = "d0000000-0000-4000-8000-000000000001";
 
 type LiveSettings = {
   schema_version: number;
@@ -268,13 +271,16 @@ test.describe("backtest live mirror — BL-188 v3 D", () => {
       timeout: 10_000,
     });
     // sessions section 가 prefill 도착할 때까지 대기 — useStrategy data 로드 후
-    // useEffect reset() 가 trading_sessions 채움. data-testid 가 wrapping <label>
-    // 에 부착되어 있으므로 toBeChecked() 는 inner <input type="checkbox"> 매칭 필요.
-    const asiaInput = page.locator('[data-testid="session-checkbox-asia"] input');
-    const londonInput = page.locator('[data-testid="session-checkbox-london"] input');
-    const nyInput = page.locator('[data-testid="session-checkbox-ny"] input');
-    await expect(asiaInput).toBeChecked({ timeout: 10_000 });
-    await expect(londonInput).not.toBeChecked();
-    await expect(nyInput).not.toBeChecked();
+    // useEffect reset() 가 trading_sessions 채움. C 이식으로 세션 선택이 <input checkbox> →
+    // aria-pressed 토글 <button>(data-testid="session-checkbox-*")으로 바뀌어, 선택 상태는
+    // aria-pressed="true"/"false" 로 검증한다(asia 선택 · london/ny 미선택 의도 유지).
+    const asiaBtn = page.getByTestId("session-checkbox-asia");
+    const londonBtn = page.getByTestId("session-checkbox-london");
+    const nyBtn = page.getByTestId("session-checkbox-ny");
+    await expect(asiaBtn).toHaveAttribute("aria-pressed", "true", {
+      timeout: 10_000,
+    });
+    await expect(londonBtn).toHaveAttribute("aria-pressed", "false");
+    await expect(nyBtn).toHaveAttribute("aria-pressed", "false");
   });
 });

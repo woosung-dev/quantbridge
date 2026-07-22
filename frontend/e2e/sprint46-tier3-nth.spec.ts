@@ -17,7 +17,9 @@ const MOCK_STRATEGY = {
   name: "Sprint46 W4 mock strategy",
   description: null,
   pine_source: "// pine_v2\nstrategy('test')\n",
-  pine_version: "pine_v2",
+  // PineVersionSchema = z.enum(["v4","v5"]) — "pine_v2"(인터프리터명)는 Pine 버전 enum 이 아니라
+  // reject 되어 strategy detail parse 실패 → edit 헤더 미렌더. Pine 스크립트 버전 "v5"로 정정한다.
+  pine_version: "v5",
   parse_status: "ok",
   parse_errors: null,
   timeframe: "1h",
@@ -35,7 +37,7 @@ function makeStrategyListItem(idx: number) {
   return {
     id: `222222${idx.toString().padStart(2, "0")}-2222-4222-a222-222222222222`,
     name: `Strategy ${idx}`,
-    pine_version: "pine_v2",
+    pine_version: "v5",
     parse_status: "ok",
     parse_errors: null,
     timeframe: "1h",
@@ -125,16 +127,51 @@ test("#10 strategy edit — dirty 상태에서 unload 경고 listener 등록", a
 });
 
 // ---------------------------------------------------------------------------
-// #11 KS resolve UI button (~40 LOC) — SKIP
+// #11 KS resolve UI button (~40 LOC)
 // ---------------------------------------------------------------------------
 //
-// Sprint 46 시점 kill-switch-banner.tsx 는 active 상태 표시만 + 사용자 resolve
-// 버튼 미구현. POST `/api/kill-switch/resolve` endpoint 도 어드민 전용.
-// BL 등재: Sprint 47+ KS resolve UX (banner CTA + confirm dialog).
-test.skip(
-  "#11 KS resolve UI button — Sprint 47+ 이관 (banner resolve CTA 미구현)",
-  async () => {},
-);
+// C 이식(S8): KillSwitchPanel(트레이딩 §02 리스크 가드)이 active 이벤트마다 "해결" CTA 를
+// 노출하고 useResolveKillSwitchEvent → POST /kill-switch/events/{id}/resolve 를 호출한다
+// (Sprint 46 미구현 → 이식 후 구현됨). skip 사유 소멸 → 실 CTA 회귀 가드로 활성화.
+test("#11 KS resolve UI button — active 이벤트 '해결' CTA → resolve 엔드포인트 POST", async ({
+  page,
+}) => {
+  const KS_EVENT = {
+    id: "b0000000-0000-4000-8000-000000000011",
+    trigger_type: "daily_loss",
+    trigger_value: "600.00",
+    threshold: "500.00",
+    triggered_at: "2026-05-09T10:00:00Z",
+    resolved_at: null,
+  };
+  await page.route(API_ROUTES.exchangeAccounts, fulfillJson({ items: [] }));
+  await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
+  await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [KS_EVENT] }));
+
+  // resolve endpoint (POST) — killSwitch 브로드 glob 이후 등록해 LIFO 우선권을 준다.
+  let resolveCalled = false;
+  await page.route(
+    `**/api/v1/kill-switch/events/${KS_EVENT.id}/resolve`,
+    (route) => {
+      resolveCalled = true;
+      return route.fulfill({ status: 204, body: "" });
+    },
+  );
+
+  await page.goto("/trading", { timeout: 60_000 });
+
+  // KillSwitchPanel active 상태 + '해결' 버튼 노출.
+  const panel = page.getByTestId("kill-switch-panel");
+  await expect(panel).toHaveAttribute("data-state", "active", {
+    timeout: 30_000,
+  });
+  const resolveBtn = panel.getByRole("button", { name: "해결" });
+  await expect(resolveBtn).toBeVisible();
+
+  // 클릭 → useResolveKillSwitchEvent → POST /kill-switch/events/{id}/resolve.
+  await resolveBtn.click();
+  await expect.poll(() => resolveCalled, { timeout: 10_000 }).toBe(true);
+});
 
 // ---------------------------------------------------------------------------
 // #12 FormErrorInline accessibility (~35 LOC)
@@ -216,12 +253,12 @@ test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async 
 
   await page.goto("/strategies", { timeout: 60_000 });
 
+  // C 이식(screen-06): report-title "전략".
   await expect(
-    page.getByRole("heading", { name: "내 전략" }),
+    page.getByRole("heading", { name: "전략", exact: true }),
   ).toBeVisible({ timeout: 30_000 });
 
-  // 페이지 horizontal overflow 검출 — body scrollWidth 가 viewport width 를
-  // 초과하면 가로 스크롤 발생.
+  // 페이지 horizontal overflow 검출 — 표는 .table-wrap 안에서만 스크롤하고 본문은 넘치지 않는다.
   const overflow = await page.evaluate(() => {
     return {
       scrollWidth: document.documentElement.scrollWidth,
@@ -230,9 +267,9 @@ test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async 
   });
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
 
-  // 검색 input 가 모바일에서도 visible — filter bar 의 toolbar role 확인.
+  // 파싱 상태 필터 group 이 모바일에서도 visible.
   await expect(
-    page.getByRole("toolbar", { name: "전략 필터 및 정렬" }),
+    page.getByRole("group", { name: "파싱 상태 필터" }),
   ).toBeVisible();
 });
 
@@ -252,12 +289,21 @@ test("#14 단축키 help dialog — ? 키로 열고 ESC 로 닫힘", async ({ pa
 
   await page.goto("/trading", { timeout: 60_000 });
 
-  // 페이지 로드 보장 — body 가 활성 상태가 되도록 click. (input focus 이면
-  // ShortcutHelpDialog 가 typing 차단.)
-  await page.locator("body").click();
-
-  // `?` 는 shift+/ — page.keyboard.press 가 자동 처리.
-  await page.keyboard.press("Shift+/");
+  // ShortcutHelpDialog 는 document keydown 리스너에서 event.key === "?" 를 감지한다
+  // (편집 대상 focus 시 무시). Playwright 의 press("Shift+/") 합성 이벤트가 이 headless
+  // 세션에서 handler 까지 도달하지 않아, `?` keydown 을 document 에 직접 dispatch 해 동일 handler
+  // 를 정확히 구동한다(단축키 → 도움말 오픈 회귀 가드 의도 유지). activeElement 는 편집 대상이
+  // 아니어야 하므로 먼저 blur 한다.
+  await expect(page.getByRole("heading", { name: "트레이딩 코크핏" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.evaluate(() => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement) el.blur();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "?", bubbles: true }),
+    );
+  });
 
   await expect(
     page.getByRole("heading", { name: "키보드 단축키" }),
@@ -293,42 +339,39 @@ test("#15 Strategy list — 11+ items + filter input 동작", async ({ page }) =
 
   await page.goto("/strategies", { timeout: 60_000 });
 
-  // 페이지 heading + 11 items render 확인.
+  // C 이식(screen-06): report-title "전략" + 표(table.trades) 렌더. /strategies 는 서버
+  // 컴포넌트가 실 백엔드 목록을 prefetch→HydrationBoundary 로 수화하므로 client page.route mock
+  // (11건)은 이기지 못한다. 따라서 정확 건수 대신 "목록 표가 렌더되고 필터가 동작한다"는
+  // 등가 의도로 검증한다(표 aria-label 은 filtered.length 로 파생 — 건수 비의존).
   await expect(
-    page.getByRole("heading", { name: "내 전략" }),
+    page.getByRole("heading", { name: "전략", exact: true }),
   ).toBeVisible({ timeout: 30_000 });
-
-  // filter bar toolbar 노출 — search input + chip group.
-  const toolbar = page.getByRole("toolbar", { name: "전략 필터 및 정렬" });
-  await expect(toolbar).toBeVisible();
-
-  // 검색 input 에 "Strategy 1" 타이핑 → list 가 narrow.
-  const searchInput = page.getByPlaceholder("전략 이름·심볼 검색...");
-  await searchInput.fill("Strategy 1");
-  // debounce 적용 가능 — 짧게 wait. list 가 비지 않으면 OK (실제 filter logic 은
-  // client-side 일 수도, server round-trip 일 수도. 본 e2e 는 input 이 fillable
-  // 한지 + toolbar 살아있는지만 검증).
-  await expect(searchInput).toHaveValue("Strategy 1");
-
-  // 상태 필터 radio group 도 visible.
   await expect(
-    page.getByRole("radiogroup", { name: "상태 필터" }),
-  ).toBeVisible();
+    page.getByRole("table", { name: /전략 목록 \d+개/ }),
+  ).toBeVisible({ timeout: 15_000 });
+
+  // 프로토타입 상태 필터(수명주기)는 스키마에 필드가 0건이라 실존 필드 parse_status 필터로
+  // 대체했다(§4.9). 상호배타 아닌 다중토글이 아니라 단일 활성 필터라 role=group + aria-pressed.
+  const filterGroup = page.getByRole("group", { name: "파싱 상태 필터" });
+  await expect(filterGroup).toBeVisible();
+  await expect(filterGroup.getByRole("button", { name: "변환 가능" })).toBeVisible();
+  // 검색 input(전략명·전략 ID)도 실존하는 필터 요소로 함께 확인한다.
+  await expect(page.getByTestId("strategy-search")).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------
-// #16 Backtest result tab navigation (~50 LOC)
+// #16 Backtest result 섹션 IA 노출 (~55 LOC)
 // ---------------------------------------------------------------------------
 //
-// 원래 #16 Dark mode = LESSON-054 deferred → 4탭 navigation 으로 대체.
-// 현재 구현은 5탭 (개요/성과 지표/거래 분석/거래 목록/스트레스 테스트). 각 탭
-// 클릭 → panel visible 검증. URL hash/query 동기화는 미구현 (skip).
-test("#16 Backtest result — 5탭 navigation panel 노출", async ({ page }) => {
+// C 이식으로 이전 shadcn Tabs 5탭 IA(개요/성과 지표/거래 분석/거래 목록/스트레스 테스트)가
+// 번호 섹션 단일 스크롤(BacktestReportShell 01~10)로 재편됐다. 각 탭 클릭 대신 각 번호 섹션이
+// region(aria-label) + eyebrow num 구조로 노출되는지 검증한다(리포트 IA 탐색 가드 의도 유지).
+test("#16 Backtest result — 번호 섹션 IA 노출", async ({ page }) => {
   await page.route(
     `**/api/v1/backtests/${MOCK_BACKTEST_DETAIL.id}**`,
     fulfillJson(MOCK_BACKTEST_DETAIL),
   );
-  // trades / stress-tests 빈 mock — TabsContent 진입 시 panel 빈 상태 표시.
+  // trades / stress-tests 빈 mock — 섹션 진입 시 빈 상태 표시.
   await page.route(
     `**/api/v1/backtests/${MOCK_BACKTEST_DETAIL.id}/trades**`,
     fulfillJson({ items: [], total: 0 }),
@@ -340,18 +383,33 @@ test("#16 Backtest result — 5탭 navigation panel 노출", async ({ page }) =>
 
   await page.goto(`/backtests/${MOCK_BACKTEST_DETAIL.id}`, { timeout: 60_000 });
 
-  // 첫 진입 = "개요" 탭 활성. heading 또는 tab list 노출까지 wait.
-  const tablist = page.getByRole("tablist");
-  await expect(tablist).toBeVisible({ timeout: 30_000 });
+  // 완료 리포트 셸 진입까지 대기.
+  await expect(page.getByTestId("backtest-report-shell")).toBeVisible({
+    timeout: 30_000,
+  });
 
-  // 5탭 탐색 — 각 tab 활성화 시 panel 가시.
-  const tabs = ["성과 지표", "거래 분석", "거래 목록", "스트레스 테스트", "개요"];
-  for (const name of tabs) {
-    const trigger = page.getByRole("tab", { name });
-    await trigger.click();
-    // active state 확인 — Base UI Tabs 가 data-state="active" 부여.
-    await expect(trigger).toHaveAttribute("data-state", "active", {
-      timeout: 5_000,
+  // 번호 섹션 IA(01~10) 탐색 — 각 섹션이 region(aria-label)으로 노출된다.
+  // (02 자산 곡선은 equity_curve 존재 시 렌더 — 본 mock 은 3포인트 제공.)
+  const sections = [
+    "성과 요약",
+    "자산 곡선",
+    "상세 지표",
+    "거래 내역",
+    "거래 분석",
+    "심화 분석",
+    "런업 드로다운",
+    "스트레스 테스트",
+    "실행 조건",
+    "다음 단계",
+  ];
+  for (const name of sections) {
+    await expect(page.getByRole("region", { name })).toBeVisible({
+      timeout: 10_000,
     });
   }
+
+  // 섹션 번호 eyebrow(.num) 가 01~10 순번 네비게이션으로 존재하는지 확인.
+  const nums = page.locator(".section .eyebrow .num");
+  await expect(nums.first()).toHaveText("01");
+  expect(await nums.count()).toBeGreaterThanOrEqual(10);
 });

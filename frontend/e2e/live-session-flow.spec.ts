@@ -5,7 +5,9 @@ import { API_ROUTES, fulfillJson } from "./fixtures/api-mock";
 // Sprint 26: BE ExchangeName enum 은 'bybit' (not 'bybit_futures' — historical fixture
 // 와 다름). LiveSessionForm.allowedAccounts 가 정확히 'bybit' + 'demo' filter.
 const MOCK_BYBIT_DEMO_ACCOUNT = {
-  id: "a0000000-0000-4000-c000-000000000001",
+  // z.uuid()(ExchangeAccountSchema.id)는 variant nibble [89ab]만 허용 → 'c000'은 reject 되어
+  // accounts parse 실패 → allowedAccounts 0 → submit disabled. variant nibble 을 'b'로 정정한다.
+  id: "a0000000-0000-4000-b000-000000000001",
   exchange: "bybit",
   mode: "demo",
   label: "Bybit Demo",
@@ -25,7 +27,8 @@ const MOCK_BYBIT_DEMO_ACCOUNT = {
 
 test.describe.configure({ mode: "serial" });
 
-const STRATEGY_ID = "s0000000-0000-4000-c000-000000000001";
+// z.uuid() 준수 — 's'는 hex 아님, 'c'는 non-RFC variant. 둘 다 정정한다.
+const STRATEGY_ID = "c0000000-0000-4000-8000-000000000001";
 
 const MOCK_STRATEGY = {
   id: STRATEGY_ID,
@@ -108,8 +111,9 @@ test.describe("live session flow", () => {
     page,
   }) => {
     const fiveActive = Array.from({ length: 5 }, (_, i) => ({
-      id: `e0000000-0000-4000-c000-00000000000${i}`,
-      user_id: "u0000000-0000-4000-a000-000000000001",
+      // z.uuid()(LiveSessionSchema) 준수 — id variant nibble 'c'→'8', user_id 'u'(non-hex)→'a'.
+      id: `e0000000-0000-4000-8000-00000000000${i}`,
+      user_id: "a0000000-0000-4000-a000-000000000001",
       strategy_id: STRATEGY_ID,
       exchange_account_id: MOCK_BYBIT_DEMO_ACCOUNT.id,
       symbol: `BTC${i}/USDT`,

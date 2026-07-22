@@ -160,8 +160,16 @@ export function DashboardCockpit() {
 
           <article className="card kpi">
             <p className="kpi-label">데모 실현 손익 · 합산</p>
+            {/* 형제 KPI 와 같은 규율(StatValue) — 세션 목록/집계 조회가 실패·미수신이면
+                합산 손익을 성공-0 처럼 그리지 않는다. 손익은 목록(어떤 세션인지)과 세션별
+                state(합산 대상)에 모두 의존하므로 두 쿼리 상태를 OR 로 본다. */}
             <p className={`kpi-value mono ${pnlToneClass}`} data-testid="kpi-pnl">
-              {formatSignedUsd(agg.totalRealizedPnl)}
+              <StatValue
+                isError={sessionsQ.isError || agg.isError}
+                isPending={sessionsQ.isPending || agg.isPending}
+              >
+                {formatSignedUsd(agg.totalRealizedPnl)}
+              </StatValue>
             </p>
             <p className="kpi-foot">
               USDT. 활성 세션 종료 거래 <span className="mono">{agg.totalClosedTrades}</span>건의

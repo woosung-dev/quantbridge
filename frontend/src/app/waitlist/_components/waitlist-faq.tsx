@@ -1,6 +1,5 @@
-// Sprint 43 W13 — /waitlist FAQ accordion (native details/summary, 외부 첫인상 신뢰도 보강)
-// design source: ui-ux-pro-max master "FAQ accordion" + DESIGN.md border/text 토큰
-
+// 웨이트리스트 04 FAQ (.faq-item) — 3문항 + 프로토타입 고지. screen-17-waitlist.html 이식.
+// 날짜를 지어내지 않고, 집계 근거 없는 수치는 싣지 않는다(정직성).
 interface FaqItem {
   question: string;
   answer: string;
@@ -8,64 +7,57 @@ interface FaqItem {
 
 const FAQ_ITEMS: FaqItem[] = [
   {
-    question: "Beta 는 무료인가요?",
+    question: "언제 공개되나요?",
     answer:
-      "네, Beta 기간 동안 모든 기능 무료입니다. 정식 출시 시 가격 정책을 별도 안내드립니다. Beta 참여자는 평생 할인 혜택이 적용됩니다.",
+      "정하지 않았습니다. 지금은 개발자 본인이 로컬에서 매일 쓰면서 고치는 단계이고, 이 단계가 끝나야 다음을 정합니다. 날짜를 지어내 적지 않겠습니다.",
   },
   {
-    question: "TradingView Pro+ 가 꼭 필요한가요?",
+    question: "등록하면 무엇을 받게 되나요?",
     answer:
-      "Pro+ 이상이어야 webhook 알림을 외부로 발송할 수 있습니다. 무료 플랜은 알림이 화면에만 뜨므로 자동매매가 불가능합니다.",
+      "공개 준비가 시작되면 그 사실을 알리는 메일 한 통을 받습니다. 뉴스레터, 할인 안내, 제휴 메일은 보내지 않습니다. 주소는 다른 곳에 넘기지 않고, 해지 요청을 받으면 지웁니다.",
   },
   {
-    question: "어떤 거래소를 지원하나요?",
+    question: "지금 어떤 거래소에 연결할 수 있나요?",
     answer:
-      "현재 Bybit (Demo + Mainnet) 와 OKX (Demo) 를 지원합니다. Binance, Bitget 은 H2 로드맵에 포함되어 있습니다.",
-  },
-  {
-    question: "초대장은 언제 받을 수 있나요?",
-    answer:
-      "신청 후 1-2 주 안에 회신 드립니다. 매주 5-10 명씩만 초대하기 때문에 안정화 단계가 끝나면 cohort 가 확대됩니다.",
-  },
-  {
-    question: "Demo 환경에서 진짜 돈을 잃지 않나요?",
-    answer:
-      "Bybit Demo Trading 환경은 가상 자금으로 작동합니다. 실거래(Mainnet) 전환은 사용자가 직접 키를 등록하고 명시적으로 활성화해야만 가능합니다.",
+      "Bybit 데모와 메인넷입니다. 두 환경 모두 주문 제출, 포지션 조회, TP/SL 부착까지 실제로 주문을 넣어 확인했습니다. OKX, Binance, Bitget 은 로드맵에 있을 뿐 아직 연결 코드가 없습니다.",
   },
 ];
 
 export function WaitlistFaq() {
   return (
-    <section
-      aria-labelledby="waitlist-faq-heading"
-      className="space-y-4"
-    >
-      <h2
-        id="waitlist-faq-heading"
-        className="font-display text-xl font-bold tracking-tight text-[color:var(--text-primary)]"
-      >
-        자주 묻는 질문
-      </h2>
-      <div className="space-y-2">
+    <section className="section rise d4" id="faq" aria-label="자주 묻는 질문">
+      <div className="section-head">
+        <p className="eyebrow">
+          <span className="num">03</span> 자주 묻는 것
+        </p>
+        <h2 className="section-title">먼저 답해 두는 세 가지.</h2>
+        <p className="section-desc">등록 전에 알고 있어야 손해가 없는 내용입니다.</p>
+      </div>
+
+      <div className="card">
         {FAQ_ITEMS.map((item) => (
-          <details
-            key={item.question}
-            className="group rounded-md border border-[color:var(--border)] bg-card px-4 py-3 transition-colors duration-200 ease-out hover:border-[color:var(--accent-amber)]/40"
-          >
-            <summary className="flex cursor-pointer items-center justify-between gap-4 text-sm font-semibold text-[color:var(--text-primary)] [&::-webkit-details-marker]:hidden">
-              <span>{item.question}</span>
-              <span
-                aria-hidden="true"
-                className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-[color:var(--accent-amber-light)] text-xs font-bold text-[color:var(--accent-amber)] transition-transform duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-open:rotate-45"
-              >
-                +
-              </span>
-            </summary>
-            <p className="mt-3 text-sm leading-relaxed text-[color:var(--text-secondary)] motion-safe:group-open:animate-[accordionSlide_250ms_ease-out_both]">
-              {item.answer}
-            </p>
-          </details>
+          <div key={item.question} className="faq-item">
+            <h3 className="faq-q">{item.question}</h3>
+            <p className="faq-a">{item.answer}</p>
+          </div>
         ))}
+        <div className="disclaimer">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="11" x2="12" y2="16.5" />
+            <line x1="12" y1="7.5" x2="12" y2="7.6" />
+          </svg>
+          <span>
+            이 화면의 폼은 실제로 전송됩니다. 다만 사용자 수와 거래량 같은 집계 수치는 근거가 없어
+            어디에도 싣지 않았습니다.
+          </span>
+        </div>
       </div>
     </section>
   );

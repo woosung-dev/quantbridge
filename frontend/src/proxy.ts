@@ -20,6 +20,11 @@ const isPublicRoute = createRouteMatcher([
   "/share/backtests/(.*)",
   // Sprint 60 S3 BL-269 — /pricing 은 landing #pricing redirect (인증 불필요)
   "/pricing",
+  // W3-H — 점검 페이지는 인증(및 백엔드)이 내려가도 렌더돼야 하므로 공개.
+  "/maintenance",
+  // W3-H — 디자인 캐논 404 프로브. 존재하지 않는 공개 경로라 auth.protect 우회 후 not-found
+  // 를 렌더한다(design-canon-public.spec.ts 가 인증 없이 감사). 실제 페이지는 없다.
+  "/qb-canon-404-probe",
 ]);
 
 // Sprint 11 Phase A/B — geo-block 제외 라우트 (landing, 법무, webhook 은 모든 지역 표시).
@@ -36,6 +41,8 @@ const isGeoExemptRoute = createRouteMatcher([
   "/share/backtests/(.*)",
   // Sprint 60 S3 BL-269 — /pricing 도 모든 지역 열람 가능
   "/pricing",
+  // W3-H — 점검 페이지는 모든 지역에서 표시(restricted country 도 서비스 상태는 봐야 함).
+  "/maintenance",
 ]);
 
 export default clerkMiddleware(

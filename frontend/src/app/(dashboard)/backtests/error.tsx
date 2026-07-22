@@ -6,6 +6,8 @@
 
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
+import { StateBox } from "@/components/state-box";
+
 interface BacktestsErrorProps {
   error: Error & { digest?: string };
   reset: () => void;
@@ -16,20 +18,22 @@ export default function BacktestsError({ error, reset }: BacktestsErrorProps) {
     <main className="page">
       <div className="card">
         <div className="card-body">
-          <div className="state-box failed" role="alert" data-testid="backtests-route-error">
-            <span className="state-icon failed" aria-hidden="true">
-              <AlertTriangleIcon />
-            </span>
-            <p className="state-title">백테스트 목록을 표시하지 못했습니다.</p>
-            <p className="state-body">
-              {error.message || "예상치 못한 오류가 발생했습니다. 다시 시도하거나 잠시 후 새로고침해 주세요."}
-            </p>
-            {error.digest ? <p className="state-code">ref: {error.digest}</p> : null}
+          <StateBox
+            tone="failed"
+            testId="backtests-route-error"
+            icon={<AlertTriangleIcon />}
+            title="백테스트 목록을 표시하지 못했습니다."
+            body={
+              error.message ||
+              "예상치 못한 오류가 발생했습니다. 다시 시도하거나 잠시 후 새로고침해 주세요."
+            }
+            code={error.digest ? `ref: ${error.digest}` : undefined}
+          >
             <button className="btn btn-primary" type="button" onClick={reset}>
               <RefreshCwIcon aria-hidden="true" />
               다시 시도
             </button>
-          </div>
+          </StateBox>
         </div>
       </div>
     </main>
