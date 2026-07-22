@@ -358,3 +358,13 @@ S0 slice 2 반증 중에 실제로 데였다. **거짓 결함을 사용자에게
 - stale Turbopack 캐시: globals.css 내용 변경(주석 1줄, `1a8addb`) + 재기동으로 해소. 컴파일 CSS 에 `#8b939c` 존재·`#7a828c` 부재 curl 확인 후 baseline 재현 (vitest 164/904 · canon 29 · authed 5).
 - ★fixture 함정 재확인: `FixtureProvider` 는 `{root}/{symbol}_{tf}.csv` 에 심볼 슬래시가 경로로 들어간다 (`BTC/USDT` → `root/BTC/USDT_1h.csv`). 레포 커밋본은 평면 `BTCUSDT_1h.csv` 뿐이라 그대로는 miss — **스크래치패드에 `ohlcv-root/BTC/USDT_1h.csv` 심링크 트리를 만들어 worker 에 `OHLCV_FIXTURE_ROOT` 절대경로로 주입** (레포 오염 0). celery worker 는 `-Q celery,optimizer_heavy` (optimizer.run 라우팅) + DATABASE_URL 5436 오버라이드.
 - 옵티마이저 완료 run 시딩: 실 API(`POST /api/v1/optimizer/runs/grid-search`, Clerk JWT 는 storageState→`window.Clerk.session.getToken()`) → grid 2x2, run `47ab18b7` **COMPLETED** (result 1.3KB). 실패 상태 fixture 도 자연 확보(`776ad44a` FAILED — fixture miss 시절).
+
+### MCP playwright 실브라우저 검증 (2026-07-22, PR #464 위 후속 브랜치)
+
+- **계기**: 기존 게이트는 전부 Playwright CLI(e2e·canon) — 실브라우저 대화형(MCP) 육안 검증 기록이 없어, 이식 화면 15+ 를 라이트·다크·모바일(390px)로 실주행. 세션 주입은 e2e storageState 쿠키 재사용(전부 non-HttpOnly).
+- **결함 2건 발견·수정** (둘 다 CLI 게이트의 사각).
+  1. `/optimizer/:id` grid 완료 화면 섹션 번호 03 중복 — 03 파라미터 안정성 + 03 OOS 검증. OOS 는 grid 에서 04, bayesian/genetic 에선(안정성 섹션 부재) 03 이어야 해 `sectionNum` prop 주입으로 동적화. 유닛 회귀 2건 추가(순차·유일 ["01","02","03","04"]). CLI 사각 사유: canon 은 하드페일 카운트만 대조, 유닛은 번호를 단언하지 않았다.
+  2. `.topbar` 배경 `rgba(11,13,15,.86)` 하드코딩 — 라이트 테마에서 다크 바 위 라이트용 crumbs 잉크(#171a1e) = **1.1:1 판독 불가** (데스크탑·모바일 동일). `--topbar-bg` 토큰(:root/.dark) 신설로 해소. CLI 사각 사유: authed canon 은 다크 기본으로만 주행, public 라이트 감사엔 `.topbar` 셸이 없다. kit-port 무결성은 allowlist 2호(topbar 토큰화, \_kit.html 은 다크 단일 팔레트라 하드코딩이 정당) 등록 — silent no-op 방지 assertion 동반.
+- **결함 아님 판정 3건**: 영어 Beta 배너 = Sprint 11 geo-block(미/EU 대상 의도적 영어, 한국어 재스킨된 것은 legal-notice-banner) · 404 콘솔 에러 2건 = 404 리소스 상태 로그 자체 · recharts "width(-1)" 경고 = ResponsiveContainer 초기 마운트 노이즈(기록된 비결정 사유와 동일 계열).
+- **환경 함정 재확인**: 장수 dev 서버가 `.strat-name`/`.strat-id` 룰이 아예 없는 stale CSS 를 서빙(이름+ID 한 덩어리 렌더로 위장) — r 주석 루틴으로 즉시 해소. **MCP 육안 검증도 시작 전 stale CSS 무효화가 선행 의무.**
+- **게이트 재현(수정 후)**: vitest 169/965 · tsc 0 · lint 0 · design-canon 32 · e2e:authed 56/0/0.

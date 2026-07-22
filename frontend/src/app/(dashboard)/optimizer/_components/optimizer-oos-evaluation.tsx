@@ -27,9 +27,11 @@ interface Props {
   backtestId: string;
   paramSpace: ParamSpace;
   kind: OptimizationKind;
+  /** 페이지 내 섹션 번호 — grid 는 03 파라미터 안정성 뒤라 04, bayesian/genetic 은 03. */
+  sectionNum: string;
 }
 
-export function OptimizerOosEvaluation({ backtestId, paramSpace, kind }: Props) {
+export function OptimizerOosEvaluation({ backtestId, paramSpace, kind, sectionNum }: Props) {
   const [activeStressTestId, setActiveStressTestId] = useState<string | null>(null);
 
   const wfMutation = useCreateWalkForward({
@@ -64,7 +66,7 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind }: Props) 
     <section className="section" aria-label="최적화 OOS 검증">
       <header className="section-head">
         <p className="eyebrow">
-          <span className="num">03</span> OOS 검증
+          <span className="num">{sectionNum}</span> OOS 검증
         </p>
         <h2 className="section-title">최적화 OOS 검증 (진짜 walk-forward)</h2>
         <p className="section-desc">
