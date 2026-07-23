@@ -1,6 +1,17 @@
 # QuantBridge — Stage 2 프로토타입
 
-> **상태:** 확정 (2026-04-14)
+> ## ⛔ superseded — 화면 캐논은 여기가 아니다
+>
+> 이 디렉토리의 `00~11-*.html` 과 `INTERACTION_SPEC.md` 는 **Stage 2 (2026-04-14) 구세대**다.
+> 현행 화면 캐논은 [`shotgun-2026-07/`](./shotgun-2026-07/) 의 **`screen-01~17-*.html` 17벌 + `_KIT.md` §4** 이며,
+> 2026-07-22 자로 앱 이식이 끝났다. 새 화면을 만들거나 기존 화면을 고칠 때 **이 문서를 근거로 삼지 말 것.**
+>
+> **그럼에도 삭제하지 않는다.** 살아있는 코드가 아직 4곳에서 이 파일들을 행 번호까지 인용한다
+> (`illustration-frame.tsx:2,85` → `05-onboarding.html:654-757` · `globals.css:589` → `08-backtest-setup.html` ·
+> `globals.css:690` → `04-login.html:536-545` + `00-landing.html` · `frontend/README.md:70` → `00-landing.html`).
+> 옮기거나 지우면 그 인용이 전부 끊긴다. 판정 근거는 [`docs/design-docs-map.md`](../design-docs-map.md).
+
+> **상태:** 확정 (2026-04-14) — 위 배너 참조, 지금은 superseded
 > **디자인 시스템:** [DESIGN.md](../../DESIGN.md)
 > **App Shell 패턴:** [DESIGN.md §10](../../DESIGN.md#10-app-shell-패턴-인증된-앱-페이지-공통)
 > **방법론:** [development-methodology.md](../guides/development-methodology.md) (Stage 2)
