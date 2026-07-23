@@ -18,3 +18,21 @@
 1. **취소 202 계약**: 실제 응답은 `{order_id, state: "submitted", detail: "exchange cancel requested"}` 이며, 200 `OrderResponse` 와 Zod union 으로 구분한다. `apiFetch`가 `Response.ok`를 사용하므로 202 별도 성공 처리는 불필요하다.
 2. **취소 toast**: pending 200은 목록 invalidate 뒤 기존 `notifyTransitions`의 cancelled 전이 toast만 사용한다. submitted 202만 「거래소에 취소를 요청했습니다」 정보 toast를 내며, 409은 안내 toast와 주문 prefix invalidate를 함께 수행한다.
 3. **nav-count 소스**: `/orders?state=pending&state=submitted&limit=1`의 filtered total을 사용한다. Repository의 목록과 count가 같은 states 조건을 공유해 배지와 원장 집계가 어긋나지 않는다.
+
+## 2026-07-23 통합·게이트 — 환경 함정 3건 (전부 실측)
+
+1. **5433 = ffwpu 재현**: Docker 데몬 기동 시 ffwpu-postgres 가 5433 을 선점해 `make up-isolated` 의 quantbridge-db 바인딩이 실패했다. 세션 한정 오버레이 compose 로 **db 를 5436** 으로 우회(과거 dogfood 레시피와 동일 포트). host 프로세스(uvicorn/alembic/pytest/psql)는 전부 env 오버라이드로 5436 을 본다. `backend/.env.local` 의 5433 은 여전히 남의 DB 를 가리키는 지뢰 — **DB 정체성 프로브(openapi title + psql↔API 동일 row) 없이 오라클 선언 금지**.
+2. **3000 = 타 프로젝트 next 서버**: nexus-core FE 가 3000 을 점유 중이라 quantbridge dev 는 밀려나고, e2e/design-canon 이 **엉뚱한 앱을 감사**해 5건 위양성 실패가 났다(27/32). BE 만 정체성 프로브하고 FE 를 생략한 것이 원인. **FE 도 `<title>` 프로브 의무**. 해법 = FE 3100 + BE `FRONTEND_URL=3100` CORS + `PLAYWRIGHT_BASE_URL=http://localhost:3100`. 재조준 후 32/32.
+3. **BE pytest 에러 16건 = `TEST_REDIS_LOCK_URL` 미설정**: conftest 기본값이 6379 라 격리 redis(6380)에 닿지 못했다. `TEST_REDIS_LOCK_URL=redis://localhost:6380/3` 로 waitlist 18 전부 그린. full-run 인캔테이션에 포함할 것.
+
+## 2026-07-23 수용 루프 실적 — 적대 평가가 잡은 실버그 3건
+
+- **fp-backtest F-1**: `page.items[0]` 이 스트레스 0건(최빈 케이스)에서 undefined resolve → RQ v5 가 "data is undefined" throw → 상세 진입마다 영구 error + 콘솔 에러, 표면은 멀쩡한 silent failure(§7.3 패턴). `?? null` + 타입 `| null` + 빈 배열 테스트로 수정.
+- **fp-optimizer F1**: 워커가 grid 에 `min >= max` 거부를 신설 — BE 계약(min==max 단일점 스윕 허용, schemas.py "min must be <= max")을 깨는 회귀. `min > max` 만 거부 + "작거나 같아야 합니다" 로 정합 + min==max 허용 계약 테스트 잠금.
+- **fp-optimizer F2**: exceptions.py:86 "Sprint 54 MVP" 사용자 노출 문구 잔존 → 중립화.
+- 교차 구조(codex 생성 ↔ Claude 평가)의 가치 실증 — 3건 전부 워커 자기 게이트는 그린이었다.
+
+## 2026-07-23 e2e 추가 — SSR 프리페치 함정
+
+- `/strategies` 는 HydrationBoundary 서버 프리페치라 **Playwright 라우트 목이 Node-side fetch 를 못 가로챈다**. B1 e2e 는 목 대신 라이브 구조 불변식(열 존재 + 전 행 정수 + 0행이면 실패)으로 전환 — SSR 실경로 검증이라 오히려 정직. 목 기반 스펙을 쓸 땐 대상 페이지가 클라이언트 페치인지 먼저 확인할 것.
+- 전략 목록 봉투는 `{items,total,page,limit,total_pages}` 5필드 — 2필드 목은 zod 파싱 실패로 빈 화면이 된다(스펙 1차 실패 원인).

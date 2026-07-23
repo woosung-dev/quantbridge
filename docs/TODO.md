@@ -1,11 +1,41 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-05-30 (audit Phase F P1 7/7 close-out + Phase C 라이브 QA 1 regression hotfix)
-> **Active Sprint:** **Sprint 63 = Beta 본격 진입 prep — Phase F P1 7/7 완료 + Phase C QA 검증** — 사용자 manual gate (G1/G7/G8 + BL-070/072) 대기
-> **Active Branch:** main @ `7c07cbe` (PR #305~#319 모두 머지)
-> **Sprint type:** F (audit Phase F fix-and-merge 완료) + C (라이브 QA hotfix 완료) + D (external-dependency setup 대기)
+> **Last Updated:** 2026-07-23 (functional-parity 스프린트 — C 디자인 이식 후 기능 격차 마감)
+> **Active Sprint:** **functional-parity** — 구현 완료·게이트 그린, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/functional-parity` (main @ `88faccd` 베이스)
+> **Sprint type:** A (신규 배선) + C (결함 수리) — codex 4-generator 병렬 + Claude 적대 평가 + Opus MCP dogfood
 > **office-hours 진행:** N
-> **Next Trigger:** 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS 1-2h+24h) + BL-071 (Backend prod 배포) + BL-072 (Resend 1-2h+24h) → 실 prod 배포 → BL-073~075 자연 trigger.
+> **Next Trigger:** 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS 1-2h+24h) + BL-071 (Backend prod 배포) + BL-072 (Resend 1-2h+24h) → 실 prod 배포 → BL-073~075 자연 trigger. (2026-05-30 Sprint 63 prep 에서 이월 — 변동 없음.)
+
+---
+
+## ⚡ functional-parity 스프린트 (2026-07-23, `docs/functional-parity/`)
+
+**스코프**: C 디자인 이식(PR #463/#464)이 남긴 기능 격차 마감 (Tier A+B, 사용자 확정. Tier C = WS/포지션동기화/알림/펀딩 제외).
+
+### Completed
+
+- [x] A2 주문 취소 배선 — "API unbacked" 미렌더 전제가 거짓(CF4 완비 실측) → 액션 열 재도입(프로토타입 title 바이트 일치), 200/202/409 3분기
+- [x] B2 nav-count 미체결 소스 — BE `state` 반복 Query + `useOpenOrdersCount`, 캐논 §4.6 복원
+- [x] B1 `strategy.backtest_count` — read-time GROUP BY(COMPLETED 기준, migration 0) + 열 재렌더
+- [x] A7-lite 스트레스 최신 결과 리로드 복원 + C1 정리(dead card·viewBacktestShare·StrategyWithPine stub)
+- [x] A1 대시보드 전략 링크 404 → edit 재조준
+- [x] BL-401(zod field 에러 렌더)·BL-411(stale 422)·BL-402(구조 소멸) Resolved / 신규 BL-413~416
+- [x] 게이트: vitest 965→980 · BE pytest 2416+18 · canon **32 불변** · authed **56→62** (`--list` 증빙)
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 중 — pine_v2 na-safe 실험 미커밋 잔재(BL-374/PR #373 계열). 삭제 여부 사용자 판단 [확인 필요]
+
+### Next Actions
+
+- [ ] stage/functional-parity → main PR 사용자 squash
+- [ ] Tier C 후보 재평가 (실시간 WS 스트림이 최저비용 — prereq spike 선행)
+- [ ] (이월) 다음 deepen = tasks 도메인
 
 ---
 

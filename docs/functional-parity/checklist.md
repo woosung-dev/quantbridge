@@ -20,25 +20,25 @@
 
 ### W-strategy (`fp/strategies`)
 
-- [ ] **B1 `strategy.backtest_count` (M)** — 저장 컬럼·migration 없이 read-time GROUP BY 집계. 정의=COMPLETED 기준(FE `STRATEGY_BACKTEST_COUNT_HINT` 선제 등재와 정합). BE repository+service+`StrategyListItem` / FE 스키마 optional+`strategy-list.tsx` 열 재도입(스켈레톤 5→6열, CSV 열 추가).
-- [ ] **A1 대시보드 링크 404 (S)** — `dashboard-cockpit.tsx:424` `/strategies/{id}` → `/strategies/{id}/edit` + href 테스트 단언.
+- [x] **B1 `strategy.backtest_count` (M)** — 저장 컬럼·migration 없이 read-time GROUP BY 집계. 정의=COMPLETED 기준(FE `STRATEGY_BACKTEST_COUNT_HINT` 선제 등재와 정합). BE repository+service+`StrategyListItem` / FE 스키마 optional+`strategy-list.tsx` 열 재도입(스켈레톤 5→6열, CSV 열 추가).
+- [x] **A1 대시보드 링크 404 (S)** — `dashboard-cockpit.tsx:424` `/strategies/{id}` → `/strategies/{id}/edit` + href 테스트 단언.
 
 ### W-optimizer (`fp/optimizer`)
 
-- [ ] **BL-401 zod field 에러 렌더 (M)** — 3폼 `formState.errors` 전달 + `.field-error` 프리미티브(waitlist FieldError 패턴, role=alert). `form-schemas.ts` 메시지 한국어화(payload 무변경 — characterization 테스트 유지). 신규 필드 에러 테스트 3폼.
-- [ ] **BL-411 stale 422 메시지 (XS, BE)** — `optimizer/exceptions.py` 지원 목록을 `OptimizationKind` enum 파생으로. `test_exceptions.py:21,30` 동반 갱신.
+- [x] **BL-401 zod field 에러 렌더 (M)** — 3폼 `formState.errors` 전달 + `.field-error` 프리미티브(waitlist FieldError 패턴, role=alert). `form-schemas.ts` 메시지 한국어화(payload 무변경 — characterization 테스트 유지). 신규 필드 에러 테스트 3폼.
+- [x] **BL-411 stale 422 메시지 (XS, BE)** — `optimizer/exceptions.py` 지원 목록을 `OptimizationKind` enum 파생으로. `test_exceptions.py:21,30` 동반 갱신.
 
 ### W-backtest (`fp/backtest`)
 
-- [ ] **A7-lite 최신 스트레스 결과 복원 (S)** — `GET /stress-tests?backtest_id=&limit=1` 배선, `stressTestKeys.byBacktest` 소비, `activeStressTestId ?? latest?.id` render-time 파생(effect 금지).
-- [ ] **C1 정리 (S)** — `backtest-history-card.tsx` 삭제 / `viewBacktestShare()` 삭제 / `StrategyWithPine` 로컬 stub 제거(`StrategyResponseSchema.pine_declared_qty` 직접 사용).
+- [x] **A7-lite 최신 스트레스 결과 복원 (S)** — `GET /stress-tests?backtest_id=&limit=1` 배선, `stressTestKeys.byBacktest` 소비, `activeStressTestId ?? latest?.id` render-time 파생(effect 금지).
+- [x] **C1 정리 (S)** — `backtest-history-card.tsx` 삭제 / `viewBacktestShare()` 삭제 / `StrategyWithPine` 로컬 stub 제거(`StrategyResponseSchema.pine_declared_qty` 직접 사용).
 
 ### W-final (오케스트레이터 직접)
 
-- [ ] 기구현 5건 회귀 검증 (vitest 그린 + dogfood 스팟)
-- [ ] e2e: `authed-order-cancel.spec.ts` 신설 + `playwright.config.ts` testMatch 등재 + sprint46-tier1/sprint55 확장
-- [ ] BL 등재: defer 2건(주문 상세 affordance·스트레스 이력 리스트) / Resolved: BL-401·BL-402·BL-411
-- [ ] `docs/TODO.md` 갱신 · `terminology-ssot.md` §6-3 해소 기록 · `HANDOFF.md` 6판 §3 소거 표기
+- [x] 기구현 5건 회귀 검증 — 통합 vitest 980 그린 + authed 62 (sprint55 재실행 포함)
+- [x] e2e: `authed-functional-parity.spec.ts` 신설(5 case — A1 클릭스루 포함으로 tier1 확장 대체) + testMatch 등재 + sprint55 BL-401 확장 1 case
+- [x] BL 등재: defer BL-413·BL-414 + 평가 파생 BL-415·BL-416 / Resolved: BL-401·BL-402·BL-411
+- [x] `docs/TODO.md` 갱신 · `terminology-ssot.md` §6-3 해소 기록 · `HANDOFF.md` 6판 §3 소거 표기
 
 ## 2. Defer 확정 (프로토타입 근거 부재 — 캐논 준수)
 
@@ -47,13 +47,13 @@
 
 ## 3. 게이트 추적
 
-| 게이트                                            | baseline       | 목표                                      | 실측 |
-| ------------------------------------------------- | -------------- | ----------------------------------------- | ---- |
-| FE vitest                                         | ~963 passed    | 순증 그린                                 |      |
-| FE tsc / lint                                     | 그린           | 그린                                      |      |
-| BE pytest                                         | ~2173          | 그린                                      |      |
-| BE ruff / mypy                                    | 그린           | 그린                                      |      |
-| e2e:design-canon                                  | 32             | **32 불변**                               |      |
-| e2e:authed                                        | 56 / skipped 0 | 56→N 증가, `--list` 증빙                  |      |
-| DB 오라클 3건 (취소·backtest_count 3점·nav-count) | —              | Fable 직접 실측                           |      |
-| Opus MCP dogfood                                  | —              | 신규 배선 화면 전수 + 기지 예외 외 콘솔 0 |      |
+| 게이트                                            | baseline              | 목표                                      | 실측                                                                                   |
+| ------------------------------------------------- | --------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| FE vitest                                         | 965 passed (169 파일) | 순증 그린                                 | ✅ **980 passed (171 파일)**                                                           |
+| FE tsc / lint                                     | 그린                  | 그린                                      | ✅ 0 / 0                                                                               |
+| BE pytest                                         | 2412+2env실패         | 그린                                      | ✅ **2416 passed·46 skipped·0 failed** (+waitlist 18 = `TEST_REDIS_LOCK_URL` env 해소) |
+| BE ruff / mypy                                    | 그린                  | 그린                                      | ✅ 0 / 0                                                                               |
+| e2e:design-canon                                  | 32                    | **32 불변**                               | ✅ **32/32** (3100 재조준 후 warm)                                                     |
+| e2e:authed                                        | 56 / skipped 0        | 56→N 증가, `--list` 증빙                  | ✅ **62/62** (`--list` 62 등재 확인)                                                   |
+| DB 오라클 3건 (취소·backtest_count 3점·nav-count) | —                     | Fable 직접 실측                           | 진행 중 (시딩 완료: 미체결 2·카운트 [0,2,0,1,0,0])                                     |
+| Opus MCP dogfood                                  | —                     | 신규 배선 화면 전수 + 기지 예외 외 콘솔 0 |                                                                                        |
