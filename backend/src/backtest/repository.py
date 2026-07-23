@@ -61,6 +61,21 @@ class BacktestRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
 
+    async def count_completed_by_strategy_ids(
+        self, strategy_ids: Sequence[UUID]
+    ) -> dict[UUID, int]:
+        """전략별 완료 백테스트 수를 단일 GROUP BY 쿼리로 집계한다."""
+        if not strategy_ids:
+            return {}
+        stmt = (
+            select(Backtest.strategy_id, func.count())  # type: ignore[call-overload]
+            .where(Backtest.status == BacktestStatus.COMPLETED)
+            .where(Backtest.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
+            .group_by(Backtest.strategy_id)
+        )
+        result = await self.session.execute(stmt)
+        return {strategy_id: int(count) for strategy_id, count in result.all()}
+
     async def delete(self, backtest_id: UUID) -> int:
         result = await self.session.execute(
             delete(Backtest).where(Backtest.id == backtest_id)  # type: ignore[arg-type]

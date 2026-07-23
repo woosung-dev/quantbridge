@@ -421,7 +421,7 @@ export function DashboardCockpit() {
                   {strategyItems.map((s) => (
                     <tr key={s.id} data-testid={`strategy-row-${s.id}`}>
                       <td className="run-id">
-                        <Link href={`/strategies/${s.id}`}>{s.name}</Link>
+                        <Link href={`/strategies/${s.id}/edit`}>{s.name}</Link>
                       </td>
                       <td className="mono-l">
                         {s.symbol ? s.symbol : EMPTY_CELL}

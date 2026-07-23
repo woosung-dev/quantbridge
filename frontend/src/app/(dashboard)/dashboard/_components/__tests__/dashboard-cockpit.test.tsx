@@ -2,7 +2,7 @@
 // 훅은 데이터 페치를 격리하려 mock 한다 (dashboard-shell.test.tsx 관례). TradingChart 는
 // lightweight-charts 의존을 피해 스텁으로 갈아끼운다.
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useLiveSessionsMock = vi.fn();
@@ -265,6 +265,11 @@ describe("DashboardCockpit — 전략 §04 수명주기 칩 미렌더", () => {
     expect(screen.queryByText("초안")).not.toBeInTheDocument();
     // 심볼이 null 인 전략은 무데이터 표기(EMPTY_CELL)로 떨어진다.
     expect(screen.getByTestId("strategy-row-strat-2")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("strategy-row-strat-1")).getByRole("link", {
+        name: "MA Crossover Strategy",
+      }),
+    ).toHaveAttribute("href", "/strategies/strat-1/edit");
   });
 });
 

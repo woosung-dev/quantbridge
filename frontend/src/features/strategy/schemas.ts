@@ -98,6 +98,8 @@ export type WebhookRotateResponse = z.infer<typeof WebhookRotateResponseSchema>;
 export const StrategyListItemSchema = StrategyResponseSchema.omit({
   pine_source: true,
   description: true,
+}).extend({
+  backtest_count: z.number().int().optional(),
 });
 export type StrategyListItem = z.infer<typeof StrategyListItemSchema>;
 

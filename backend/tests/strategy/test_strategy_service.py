@@ -82,6 +82,43 @@ async def test_get_by_id_not_owned_raises_not_found(service, repo_mock):
 
 
 @pytest.mark.asyncio
+async def test_list_adds_completed_backtest_counts(repo_mock):
+    owner_id = uuid4()
+    counted = Strategy(
+        id=uuid4(),
+        user_id=owner_id,
+        name="counted",
+        pine_source=_OK_SOURCE,
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
+    )
+    empty = Strategy(
+        id=uuid4(),
+        user_id=owner_id,
+        name="empty",
+        pine_source=_OK_SOURCE,
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
+    )
+    repo_mock.list_by_owner.return_value = ([counted, empty], 2)
+    backtest_repo = AsyncMock()
+    backtest_repo.count_completed_by_strategy_ids.return_value = {counted.id: 3}
+
+    result = await StrategyService(repo_mock, backtest_repo).list(
+        owner_id=owner_id,
+        limit=20,
+        offset=0,
+        parse_status=None,
+        is_archived=False,
+    )
+
+    assert [item.backtest_count for item in result.items] == [3, 0]
+    backtest_repo.count_completed_by_strategy_ids.assert_awaited_once_with(
+        [counted.id, empty.id]
+    )
+
+
+@pytest.mark.asyncio
 async def test_update_reparses_when_pine_source_changed(service, repo_mock):
     owner_id = uuid4()
     existing = Strategy(

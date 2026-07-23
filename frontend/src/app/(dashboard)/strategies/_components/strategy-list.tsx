@@ -2,8 +2,8 @@
 
 // 전략 목록 — C 디자인 언어 이식 (screen-06). 프로토타입의 시맨틱 CSS(.trades/.chip/.state-box)를
 // 소비하되, 열은 실데이터(StrategyListItem)가 받치는 것만 그린다. 프로토타입의 성과 3칸
-// (최근 수익률/MDD/샤프)·파라미터 수·백테스트 건수·수명주기 칩(초안/검증됨/배포됨)은 스키마에
-// 필드가 0건이라 렌더하지 않는다 (캐논 §4.9 "데이터 모델에 없는 값 = 가짜 데이터").
+// (최근 수익률/MDD/샤프)·파라미터 수·수명주기 칩(초안/검증됨/배포됨)은 스키마에 필드가 0건이라
+// 렌더하지 않는다 (캐논 §4.9 "데이터 모델에 없는 값 = 가짜 데이터").
 // 상태 열은 실존 필드 parse_status 를 PARSE_STATUS_LABEL → CHIP_TONE_CLASS 로 파생한다.
 //
 // screen-06 "01 필터" 구획 재도입 (W3-fix). 검색(전략명·전략 ID)·심볼 필터·정렬을 프로토타입의
@@ -27,6 +27,8 @@ import {
 import {
   PARSE_STATUS_FILTER_LABEL,
   PARSE_STATUS_LABEL,
+  STRATEGY_BACKTEST_COUNT_HINT,
+  STRATEGY_EMPTY_REASON,
   STRATEGY_LIST_HEADER,
   type ParseStatusFilter,
 } from "@/features/strategy/labels";
@@ -128,7 +130,7 @@ export function StrategyList() {
     pushStatus("all");
   };
 
-  // 목록 CSV 내보내기 — 헤더는 렌더 중인 backed 열(전략명·상태·심볼·주기·마지막 수정)과 일치한다.
+  // 목록 CSV 내보내기 — 헤더는 렌더 중인 backed 열과 일치한다.
   // 지금 필터·정렬이 적용된 결과를 그대로 내보낸다.
   const handleExportCsv = () => {
     const csv = buildCsv(filtered);
@@ -148,6 +150,7 @@ export function StrategyList() {
     name: hName,
     status: hStatus,
     symbolTimeframe: hSymbolTf,
+    backtestCount: hBacktestCount,
     updatedAt: hUpdatedAt,
     action: hAction,
   } = STRATEGY_LIST_HEADER;
@@ -383,6 +386,9 @@ export function StrategyList() {
                       {hStatus}
                     </th>
                     <th scope="col">{hSymbolTf}</th>
+                    <th scope="col" className="num" title={STRATEGY_BACKTEST_COUNT_HINT}>
+                      {hBacktestCount}
+                    </th>
                     <th scope="col">{hUpdatedAt}</th>
                     <th scope="col">{hAction}</th>
                   </tr>
@@ -421,6 +427,16 @@ export function StrategyList() {
                             </span>
                           )}
                         </td>
+                        <td
+                          className="num"
+                          title={
+                            s.backtest_count === 0
+                              ? STRATEGY_EMPTY_REASON.noBacktestYet
+                              : undefined
+                          }
+                        >
+                          {s.backtest_count ?? EMPTY_CELL}
+                        </td>
                         <td className="mono-l dim">{formatDateTime(s.updated_at)}</td>
                         <td>
                           <Link className="btn btn-ghost btn-xs" href={`/strategies/${s.id}/edit`}>
@@ -451,16 +467,24 @@ function csvField(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-// backed 열만 내보낸다 — 전략명·상태(라벨)·심볼·주기·마지막 수정. 렌더 표와 열 구성이 같다.
+// backed 열만 내보낸다 — 렌더 표와 열 구성이 같다.
 function buildCsv(rows: readonly StrategyListItem[]): string {
-  const header = ["전략명", "상태", "심볼 · 주기", "마지막 수정"];
+  const header = ["전략명", "상태", "심볼 · 주기", "백테스트", "마지막 수정"];
   const lines = [header.map(csvField).join(",")];
   for (const s of rows) {
     const statusLabel = PARSE_STATUS_LABEL[s.parse_status].label;
     const symbolTf =
       s.symbol || s.timeframe ? `${s.symbol ?? ""} · ${s.timeframe ?? ""}`.trim() : "";
     lines.push(
-      [s.name, statusLabel, symbolTf, formatDateTime(s.updated_at)].map(csvField).join(","),
+      [
+        s.name,
+        statusLabel,
+        symbolTf,
+        String(s.backtest_count ?? EMPTY_CELL),
+        formatDateTime(s.updated_at),
+      ]
+        .map(csvField)
+        .join(","),
     );
   }
   return lines.join("\r\n");
@@ -474,7 +498,7 @@ function ListSkeleton() {
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 5 }).map((__, j) => (
+              {Array.from({ length: 6 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>

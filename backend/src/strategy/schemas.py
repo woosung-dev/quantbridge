@@ -159,6 +159,7 @@ class StrategyListItem(BaseModel):
     is_archived: bool
     created_at: AwareDatetime
     updated_at: AwareDatetime
+    backtest_count: int = 0
 
 
 class StrategyResponse(BaseModel):
