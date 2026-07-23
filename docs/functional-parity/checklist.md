@@ -15,8 +15,8 @@
 
 ### W-trading (`fp/trading`)
 
-- [ ] **A2 주문 취소 배선 (M)** — BE `POST /api/v1/orders/{id}/cancel` 기존재(CF4). 액션 열 재도입(screen-11 `:1278` 10번째 열, `.btn.btn-xs.btn-danger`, 확인 다이얼로그 없음·title 경고가 캐논). 202=「거래소에 취소를 요청했습니다」(취소됨 표기 금지), 409=안내 toast+invalidate. `orders-blotter.tsx:4-5` 잘못된 전제 주석 교정. `orders-blotter.test.tsx:134` 9열 단언 반전.
-- [ ] **B2 nav-count 미체결 소스 (S+S)** — 캐논 `_KIT.md` §4.6 복원. BE `list_orders` state 반복 Query + `OrderRepository` states 필터. FE `useOpenOrdersCount()`(limit=1, states=[pending,submitted]) + 사이드바 교체 + countTitle 갱신 + `ORDER_FILTER_HINT.navCount` 문구 반전.
+- [x] **A2 주문 취소 배선 (M)** — BE `POST /api/v1/orders/{id}/cancel` 기존재(CF4). 액션 열 재도입(screen-11 `:1278` 10번째 열, `.btn.btn-xs.btn-danger`, 확인 다이얼로그 없음·title 경고가 캐논). 202=「거래소에 취소를 요청했습니다」(취소됨 표기 금지), 409=안내 toast+invalidate. `orders-blotter.tsx:4-5` 잘못된 전제 주석 교정. `orders-blotter.test.tsx:134` 9열 단언 반전.
+- [x] **B2 nav-count 미체결 소스 (S+S)** — 캐논 `_KIT.md` §4.6 복원. BE `list_orders` state 반복 Query + `OrderRepository` states 필터. FE `useOpenOrdersCount()`(limit=1, states=[pending,submitted]) + 사이드바 교체 + countTitle 갱신 + `ORDER_FILTER_HINT.navCount` 문구 반전.
 
 ### W-strategy (`fp/strategies`)
 

@@ -12,3 +12,9 @@
 6. **A7 축소**: 이력 리스트 화면은 프로토타입 부재로 defer. 기능 격차의 본질 = 리로드 시 스트레스 결과 소실(`useState` 만) → `?backtest_id=&limit=1` 최신 복원(A7-lite)로 해소.
 7. **워크트리 정리**: stale 13개 제거 + merged 브랜치 대량 정리. **wf_b2f8516a-320-1/2/3 은 미커밋 변경(pine_v2 na-safe 실험, BL-374/PR #373 계열 잔재) 있어 보류** — 사용자 판단 대기.
 8. **평가자 = Claude**: 생성자가 codex 이므로 리뷰어를 Claude 로 교차 (c-port 는 반대 방향). codex read-only 는 최종 누적 diff 1회만.
+
+## 2026-07-23 W-trading — A2·B2 구현 결정
+
+1. **취소 202 계약**: 실제 응답은 `{order_id, state: "submitted", detail: "exchange cancel requested"}` 이며, 200 `OrderResponse` 와 Zod union 으로 구분한다. `apiFetch`가 `Response.ok`를 사용하므로 202 별도 성공 처리는 불필요하다.
+2. **취소 toast**: pending 200은 목록 invalidate 뒤 기존 `notifyTransitions`의 cancelled 전이 toast만 사용한다. submitted 202만 「거래소에 취소를 요청했습니다」 정보 toast를 내며, 409은 안내 toast와 주문 prefix invalidate를 함께 수행한다.
+3. **nav-count 소스**: `/orders?state=pending&state=submitted&limit=1`의 filtered total을 사용한다. Repository의 목록과 count가 같은 states 조건을 공유해 배지와 원장 집계가 어긋나지 않는다.

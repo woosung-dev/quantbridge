@@ -39,7 +39,12 @@ class OrderRepository:
         return result.scalar_one_or_none()
 
     async def list_by_user(
-        self, user_id: UUID, *, limit: int, offset: int
+        self,
+        user_id: UUID,
+        *,
+        limit: int,
+        offset: int,
+        states: Sequence[OrderState] | None = None,
     ) -> tuple[Sequence[Order], int]:
         """Join ExchangeAccount → user_id 매칭. Sprint 5 M4 pagination 스타일."""
         total_stmt = (
@@ -47,6 +52,8 @@ class OrderRepository:
             .join(ExchangeAccount, Order.exchange_account_id == ExchangeAccount.id)  # type: ignore[arg-type]
             .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
         )
+        if states:
+            total_stmt = total_stmt.where(Order.state.in_(states))  # type: ignore[attr-defined]
         total = (await self.session.execute(total_stmt)).scalar_one()
 
         stmt = (
@@ -57,6 +64,8 @@ class OrderRepository:
             .limit(limit)
             .offset(offset)
         )
+        if states:
+            stmt = stmt.where(Order.state.in_(states))  # type: ignore[attr-defined]
         return (await self.session.execute(stmt)).scalars().all(), total
 
     async def list_filled_realized_by_strategy_and_account(

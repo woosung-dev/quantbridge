@@ -22,6 +22,7 @@
 import { useEffect, useRef } from "react";
 import {
   useQuery,
+  useQueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
@@ -29,9 +30,11 @@ import { toast } from "sonner";
 
 import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
 import { useInvalidatingMutation } from "@/hooks/use-invalidating-mutation";
+import { ApiError } from "@/lib/api-client";
 import { makeRefetchInterval } from "@/lib/query-poll";
 
 import {
+  cancelOrder,
   deleteExchangeAccount,
   getLiquidationInfo,
   listExchangeAccounts,
@@ -44,6 +47,7 @@ import {
 import { tradingKeys } from "./query-keys";
 import type {
   ExchangeAccount,
+  CancelOrderResponse,
   KillSwitchEvent,
   LiquidationInfoResponse,
   Order,
@@ -61,6 +65,7 @@ export const ACTIVE_ORDER_STATES: ReadonlySet<Order["state"]> = new Set([
   "pending",
   "submitted",
 ]);
+export const OPEN_ORDER_STATES = ["pending", "submitted"] as const;
 
 /**
  * Sprint 12 Phase C — pure helper for unit testing.
@@ -109,10 +114,14 @@ export { tradingKeys };
 
 // --- queryFn factories (module-level) ---------------------------------------
 
-function makeOrdersFetcher(limit: number, getToken: TokenGetter) {
+function makeOrdersFetcher(
+  limit: number,
+  getToken: TokenGetter,
+  states: readonly Order["state"][] | undefined,
+) {
   return async () => {
     const token = await getToken();
-    return listOrders(limit, token);
+    return listOrders(limit, token, { states });
   };
 }
 
@@ -150,7 +159,7 @@ export function useOrders(
   // 셸 nav 배지처럼 count 만 필요한 소비처는 notifyTransitions:false 로 전환 toast 를 끈다.
   // (기본 true = 기존 동작 불변. limit 이 다른 인스턴스마다 prevStatesRef 가 분리돼
   //  같은 주문 전환에 toast 가 중복 발화하던 문제를 count 전용 경로에서 차단한다.)
-  options?: { notifyTransitions?: boolean },
+  options?: { notifyTransitions?: boolean; states?: readonly Order["state"][] },
 ): UseQueryResult<{ items: Order[]; total: number }, Error> {
   const notifyTransitions = options?.notifyTransitions ?? true;
   const { uid, getToken } = useAuthCtx();
@@ -162,8 +171,8 @@ export function useOrders(
   const processedAtRef = useRef(0);
 
   const query = useQuery({
-    queryKey: tradingKeys.orders(uid, limit),
-    queryFn: makeOrdersFetcher(limit, getToken),
+    queryKey: tradingKeys.orders(uid, limit, options?.states),
+    queryFn: makeOrdersFetcher(limit, getToken, options?.states),
     refetchInterval: ordersRefetchInterval,
   });
 
@@ -213,6 +222,36 @@ export function useOrders(
   });
 
   return query;
+}
+
+export function useOpenOrdersCount(): number | undefined {
+  const { data } = useOrders(1, {
+    notifyTransitions: false,
+    states: OPEN_ORDER_STATES,
+  });
+  return data?.total;
+}
+
+export function useCancelOrder(): UseMutationResult<CancelOrderResponse, Error, string> {
+  const { uid } = useAuthCtx();
+  const queryClient = useQueryClient();
+  return useInvalidatingMutation(
+    {
+      mutationFn: (orderId: string, token) => cancelOrder(orderId, token),
+      invalidateKeys: (userId) => [tradingKeys.ordersPrefix(userId)],
+    },
+    {
+      onSuccess: (result) => {
+        if ("order_id" in result) toast.info("거래소에 취소를 요청했습니다");
+      },
+      onError: (error) => {
+        if (error instanceof ApiError && error.status === 409) {
+          toast.error("이미 진행된 주문이라 취소할 수 없습니다.");
+          void queryClient.invalidateQueries({ queryKey: tradingKeys.ordersPrefix(uid) });
+        }
+      },
+    },
+  );
 }
 
 export function useKillSwitchEvents(): UseQueryResult<

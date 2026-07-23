@@ -6,10 +6,12 @@ import { apiFetch } from "@/lib/api-client";
 import {
   ExchangeAccountListResponseSchema,
   ExchangeAccountSchema,
+  CancelOrderResponseSchema,
   KillSwitchListResponseSchema,
   LiquidationInfoResponseSchema,
   OrderListResponseSchema,
   type ExchangeAccount,
+  type CancelOrderResponse,
   type KillSwitchEvent,
   type LiquidationInfoResponse,
   type Order,
@@ -29,16 +31,35 @@ export type LiquidationParams = {
   leverage: number;
 };
 
+export type ListOrdersOptions = {
+  states?: readonly Order["state"][];
+};
+
 export async function listOrders(
   limit: number,
   token: string | null,
+  options: ListOrdersOptions = {},
 ): Promise<{ items: Order[]; total: number }> {
-  const raw = await apiFetch<unknown>(ORDERS_PATH, {
+  const stateQuery = options.states?.length
+    ? `?${new URLSearchParams(options.states.map((state) => ["state", state])).toString()}`
+    : "";
+  const raw = await apiFetch<unknown>(`${ORDERS_PATH}${stateQuery}`, {
     method: "GET",
     token,
     params: { limit, offset: 0 },
   });
   return OrderListResponseSchema.parse(raw);
+}
+
+export async function cancelOrder(
+  orderId: string,
+  token: string | null,
+): Promise<CancelOrderResponse> {
+  const raw = await apiFetch<unknown>(`${ORDERS_PATH}/${orderId}/cancel`, {
+    method: "POST",
+    token,
+  });
+  return CancelOrderResponseSchema.parse(raw);
 }
 
 export async function listKillSwitchEvents(

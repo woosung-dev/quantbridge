@@ -221,11 +221,14 @@ async def delete_exchange_account(
 async def list_orders(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    state: list[OrderState] | None = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, object]:
     repo = OrderRepository(session)
-    items, total = await repo.list_by_user(current_user.id, limit=limit, offset=offset)
+    items, total = await repo.list_by_user(
+        current_user.id, limit=limit, offset=offset, states=state
+    )
     return {
         "items": [OrderResponse.model_validate(o).model_dump(mode="json") for o in items],
         "total": total,

@@ -37,9 +37,7 @@ export const navItems: readonly NavItem[] = [
   { href: "/orders", label: "주문", icon: OrdersIcon, countKey: "orders" },
 ] as const;
 
-// 주문 배지의 정직성 표기. 캐논상 nav-count 는 "미체결 수(대기+전송)"지만, 새 API 없이
-// limit=1 로 재사용할 수 있는 값은 목록 total = 전체 원장 건수뿐이다 — 두 수는 다르다.
-// 그래서 미체결로 표기하지 않고 툴팁으로 "전체 주문"임을 밝힌다(context-notes §nav-count).
+// 주문 배지는 대기·전송 state 필터를 적용한 목록 total 이다.
 function countTitle(key: NavCountKey, value: number): string {
   switch (key) {
     case "strategies":
@@ -47,7 +45,7 @@ function countTitle(key: NavCountKey, value: number): string {
     case "backtests":
       return `백테스트 ${value}개`;
     case "orders":
-      return `전체 주문 ${value}건 (미체결 수 아님)`;
+      return `미체결(대기+전송) 주문 ${value}건`;
   }
 }
 

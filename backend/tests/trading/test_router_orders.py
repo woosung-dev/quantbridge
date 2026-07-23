@@ -48,24 +48,49 @@ async def test_list_orders_returns_user_only(
     db_session.add(strategy)
     await db_session.flush()
 
-    db_session.add(
-        Order(
-            strategy_id=strategy.id,
-            exchange_account_id=acc.id,
-            symbol="BTC/USDT",
-            side=OrderSide.buy,
-            type=OrderType.market,
-            quantity=Decimal("0.01"),
-            state=OrderState.pending,
-        )
+    db_session.add_all(
+        [
+            Order(
+                strategy_id=strategy.id,
+                exchange_account_id=acc.id,
+                symbol="BTC/USDT",
+                side=OrderSide.buy,
+                type=OrderType.market,
+                quantity=Decimal("0.01"),
+                state=OrderState.pending,
+            ),
+            Order(
+                strategy_id=strategy.id,
+                exchange_account_id=acc.id,
+                symbol="ETH/USDT",
+                side=OrderSide.buy,
+                type=OrderType.market,
+                quantity=Decimal("0.01"),
+                state=OrderState.submitted,
+            ),
+            Order(
+                strategy_id=strategy.id,
+                exchange_account_id=acc.id,
+                symbol="SOL/USDT",
+                side=OrderSide.buy,
+                type=OrderType.market,
+                quantity=Decimal("0.01"),
+                state=OrderState.filled,
+            ),
+        ]
     )
     await db_session.commit()
 
     resp = await client.get("/api/v1/orders?limit=10&offset=0")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["total"] == 1
-    assert body["items"][0]["symbol"] == "BTC/USDT"
+    assert body["total"] == 3
+
+    filtered = await client.get("/api/v1/orders?state=pending&state=submitted")
+    assert filtered.status_code == 200, filtered.text
+    filtered_body = filtered.json()
+    assert filtered_body["total"] == 2
+    assert {item["state"] for item in filtered_body["items"]} == {"pending", "submitted"}
 
 
 @pytest.mark.asyncio

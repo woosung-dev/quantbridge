@@ -1,8 +1,8 @@
 "use client";
 
 // 주문 원장(Blotter) — C 디자인 언어 이식 (W3-D). 프로토타입 screen-11-orders 의 시맨틱 CSS·구조를
-// 소비하되, 열은 실데이터(Order 스키마)가 받치는 것만 그린다. §4.9 미백킹 값(브로커·모의 출처 배지,
-// 취소 주문 API 없는 액션 열, 세션 ID)은 렌더하지 않는다. 상태 라벨·톤·무데이터 title 은 용어
+// 소비하되, 열은 실데이터(Order 스키마)가 받치는 것만 그린다. 취소 API는 완비되어 액션 열을 다시
+// 렌더한다. §4.9 미백킹 값(브로커·모의 출처 배지, 세션 ID)은 렌더하지 않는다. 상태 라벨·톤·무데이터 title 은 용어
 // SSOT(features/trading/labels.ts)에서만 온다(원시 enum 렌더 금지 — no-raw-enum-labels 가드).
 
 import { useMemo, useState } from "react";
@@ -19,9 +19,14 @@ import {
 
 import { StateBox } from "@/components/state-box";
 import { downloadCsv, formatDate, formatTimeSeconds } from "@/features/backtest/utils";
-import { useOrders } from "@/features/trading/hooks";
+import {
+  ACTIVE_ORDER_STATES,
+  useCancelOrder,
+  useOrders,
+} from "@/features/trading/hooks";
 import {
   filledPriceEmptyReason,
+  ORDER_CANCEL_ACTION,
   ORDER_EMPTY_REASON,
   ORDER_EMPTY_STATE,
   ORDER_ERROR_NONE_TITLE,
@@ -144,6 +149,7 @@ function buildStateCounts(orders: readonly Order[]): StateCounts {
 
 export function OrdersBlotter() {
   const ordersQ = useOrders(FETCH_LIMIT);
+  const cancelOrder = useCancelOrder();
   const [filter, setFilter] = useState<OrderStateFilter>("all");
   const [page, setPage] = useState(0);
 
@@ -205,6 +211,7 @@ export function OrdersBlotter() {
     takeProfitStopLoss: hTpSl,
     brokerOrderId: hBrokerOrderId,
     errorMessage: hErrorMessage,
+    action: hAction,
   } = ORDER_TABLE_HEADER;
 
   return (
@@ -419,11 +426,17 @@ export function OrdersBlotter() {
                       <th scope="col">{hTpSl}</th>
                       <th scope="col">{hBrokerOrderId}</th>
                       <th scope="col">{hErrorMessage}</th>
+                      <th scope="col">{hAction}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageRows.map((o) => (
-                      <OrderRow key={o.id} order={o} />
+                      <OrderRow
+                        key={o.id}
+                        order={o}
+                        onCancel={cancelOrder.mutate}
+                        isCancelling={cancelOrder.isPending}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -483,8 +496,16 @@ export function OrdersBlotter() {
   );
 }
 
-// 원장 한 행 — 9개 backed 열. 라벨·톤·무데이터 title 은 전부 용어 SSOT 에서 온다.
-function OrderRow({ order: o }: { order: Order }) {
+// 원장 한 행 — 10개 backed 열. 라벨·톤·무데이터 title 은 전부 용어 SSOT 에서 온다.
+function OrderRow({
+  order: o,
+  onCancel,
+  isCancelling,
+}: {
+  order: Order;
+  onCancel: (orderId: string) => void;
+  isCancelling: boolean;
+}) {
   const { label, tone, showCheckIcon } = ORDER_STATE_LABEL[o.state];
   const { time, date } = formatOrderTime(o.created_at);
   return (
@@ -538,6 +559,23 @@ function OrderRow({ order: o }: { order: Order }) {
           {EMPTY_CELL}
         </td>
       )}
+      {ACTIVE_ORDER_STATES.has(o.state) ? (
+        <td>
+          <button
+            className="btn btn-xs btn-danger"
+            type="button"
+            title={ORDER_CANCEL_ACTION.title[o.state]}
+            disabled={isCancelling}
+            onClick={() => onCancel(o.id)}
+          >
+            {ORDER_CANCEL_ACTION.label}
+          </button>
+        </td>
+      ) : (
+        <td className="dim" title={ORDER_CANCEL_ACTION.title[o.state]}>
+          {EMPTY_CELL}
+        </td>
+      )}
     </tr>
   );
 }
@@ -580,7 +618,7 @@ function TakeProfitStopLossCell({ order: o }: { order: Order }) {
   );
 }
 
-// 다음 페이지를 불러오는 동안의 스켈레톤 — 프로토타입 aria-busy tbody 관례 (.sk .sk-cell). 9열.
+// 다음 페이지를 불러오는 동안의 스켈레톤 — 프로토타입 aria-busy tbody 관례 (.sk .sk-cell). 10열.
 function ListSkeleton() {
   return (
     <div className="table-wrap" data-testid="order-skeleton" aria-hidden="true">
@@ -588,7 +626,7 @@ function ListSkeleton() {
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 9 }).map((__, j) => (
+              {Array.from({ length: 10 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>
