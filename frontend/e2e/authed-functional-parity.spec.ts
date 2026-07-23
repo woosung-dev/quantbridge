@@ -5,7 +5,7 @@
 // 먼저 등록하고, 구체 라우트(/cancel POST)는 **마지막에 등록**해 우선시킨다
 // (sprint55 스펙에서 실증된 Playwright 등록 역순 매칭 함정).
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { API_ROUTES, fulfillJson } from "./fixtures/api-mock";
 
@@ -100,7 +100,7 @@ function makeStrategyListEnvelope(items: unknown[]) {
 // orders 는 URL 에 state 필터가 있으면(사이드바 미체결 배지) filtered total 을,
 // 없으면(원장 FETCH_LIMIT=200) 전체 3건을 돌려준다.
 async function mockShellRoutes(
-  page: import("@playwright/test").Page,
+  page: Page,
   opts?: { openOrdersTotal?: number },
 ) {
   const context = page.context();
