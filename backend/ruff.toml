@@ -23,8 +23,12 @@ ignore = [
 [lint.per-file-ignores]
 # Test files: 한국어 docstring + 수학 기호 (×, ∪, ⊆, ⟺ 등) 허용
 # scripts/: 유틸 스크립트도 한국어 docstring + 수학 기호 동일 허용
+# alembic/versions/: extend-exclude 대상이지만 lint-staged 훅이 파일을 명시 경로로
+#   넘기면 exclude 가 우회됨(ruff 기본 동작) — DDL f-string(S608)·한국어 docstring 허용을
+#   ignores 로도 미러해 훅 경로에서 동일 판정 보장 (2026-07-23 실측).
 "tests/**/*.py" = ["S", "B", "RUF001", "RUF002", "RUF003"]
 "scripts/**/*.py" = ["RUF001", "RUF002", "RUF003"]
+"alembic/versions/*.py" = ["S", "RUF001", "RUF002", "RUF003"]
 
 [lint.isort]
 known-first-party = ["src"]
