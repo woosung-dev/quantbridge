@@ -88,4 +88,22 @@ describe("OptimizerSearchForm field errors", () => {
     );
     expect(mutateAsync).not.toHaveBeenCalled();
   });
+
+  // 최종 diff 리뷰 P2 — 행 0개면 행별 슬롯이 없어 .min(1) 오류가 사라지는 무피드백 회귀 가드.
+  it.each(forms)("$name 폼은 파라미터 행을 전부 삭제하고 제출하면 배열 오류를 표시하고 제출을 차단한다", async ({
+    Form,
+    submitLabel,
+    mutateAsync,
+  }) => {
+    render(<Form backtestId={BACKTEST_ID} />);
+    fireEvent.click(screen.getByRole("button", { name: "파라미터 삭제" }));
+    fireEvent.click(screen.getByRole("button", { name: submitLabel }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "파라미터를 하나 이상 추가하세요.",
+      ),
+    );
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
 });

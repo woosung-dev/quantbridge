@@ -114,7 +114,7 @@
 | `GET`    | `/api/v1/exchange-accounts`                     | 본인 계정 목록 (masked API key)                                                                                                                      | Clerk JWT   |
 | `DELETE` | `/api/v1/exchange-accounts/{id}`                | 계정 삭제                                                                                                                                            | Clerk JWT   |
 | `POST`   | `/api/v1/webhooks/{strategy_id}?token=<hmac>`   | TV Alert 수신, Idempotency-Key header                                                                                                                | HMAC-SHA256 |
-| `GET`    | `/api/v1/orders?limit&offset`                   | 본인 주문 목록                                                                                                                                       | Clerk JWT   |
+| `GET`    | `/api/v1/orders?limit&offset&state`             | 본인 주문 목록 — `state` 반복 파라미터(예: `?state=pending&state=submitted`)로 상태 필터. 목록·total 동일 적용 (nav-count 미체결 배지 소스)          | Clerk JWT   |
 | `GET`    | `/api/v1/orders/{id}`                           | 주문 상세                                                                                                                                            | Clerk JWT   |
 | `POST`   | `/api/v1/orders/{id}/cancel`                    | 주문 취소 — pending: 즉시 DB cancel (200); submitted(거래소 live): `cancel_order_task` 위임 **202** (거래소 취소 성공 시에만 cancelled, CF4/PR #305) | Clerk JWT   |
 | `GET`    | `/api/v1/kill-switch/events?limit&offset`       | Kill Switch 이벤트 감사                                                                                                                              | Clerk JWT   |

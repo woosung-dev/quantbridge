@@ -55,6 +55,17 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
     name: "parameters" as ArrayPath<TValues>,
   });
 
+  // 배열 레벨 오류(.min(1)/.max(4)) — 행이 0개면 행별 슬롯이 없어 여기서만 표출된다.
+  // resolver 평탄 키("parameters")와 RHF 중첩(root/직접 message) 모두 흡수.
+  const arrayLevelHolder = (
+    errors as { parameters?: { message?: unknown; root?: { message?: unknown } } }
+  ).parameters;
+  const arrayLevelMessage = [
+    arrayLevelHolder?.message,
+    arrayLevelHolder?.root?.message,
+    (errors as Record<string, { message?: unknown } | undefined>)["parameters"]?.message,
+  ].find((m): m is string => typeof m === "string");
+
   return (
     <fieldset className="opt-fieldset">
       <legend>{legend}</legend>
@@ -105,6 +116,9 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
           </div>
         );
       })}
+      {arrayLevelMessage ? (
+        <FieldError id="optimizer-parameters-error" message={arrayLevelMessage} />
+      ) : null}
       <button
         type="button"
         onClick={() => fields.append(emptyRow as FieldArray<TValues, ArrayPath<TValues>>)}
