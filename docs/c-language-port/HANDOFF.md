@@ -72,10 +72,10 @@ fable 오케스트레이터 + opus 워커 12기(화면 9 + FIX + 부채 + e2e �
 
 1. **라이트 화면 외관 무책임 상태** 명시적 잔존 (사용자 확정 트레이드오프 — 변동 없음).
 2. **share·admin 화면 재스킨** — 프로토타입이 없는 화면이라 이식 범위 밖. RADIUS_ALLOWLIST 잔여 2건(share 일러스트 배지)이 여기 소속.
-3. **backtest-history-card.tsx = dead** (프로덕션 소비자 0 실측) — 삭제 판단만 남음.
+3. ~~**backtest-history-card.tsx = dead**~~ — ✅ **삭제 완료 (2026-07-23 functional-parity C1)**.
 4. **activity-timeline-chart.tsx:169** aria-label 영문 'Live session' + em-dash 1건 (em-dash allowlist 등재 상태).
 5. **sign-in 공개 캐논 감사 제외** — Clerk 외부 스크립트가 CI 무인증 감사와 충돌(spec 주석 문서화). 시각 게이트는 육안으로 수행됨.
-6. **서버 스키마 후보 2건(별개 사안)** — strategy lifecycle 필드·backtest_count 필드 신설 여부. 신설되면 미렌더 결정을 재방문.
+6. **서버 스키마 후보 2건(별개 사안)** — strategy lifecycle 필드는 잔존. ~~backtest_count~~ 는 ✅ **신설 완료 (2026-07-23 functional-parity B1** — COMPLETED 기준 read-time 집계, 열 재렌더**)**. 아울러 5판 미렌더 목록의 주문취소 액션 열은 "API unbacked" 전제가 거짓으로 판명되어(CF4 완비) **A2 로 재도입 완료**.
 
 ## 4′. 6판 추가 함정 (전부 실측)
 

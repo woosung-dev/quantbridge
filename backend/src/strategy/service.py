@@ -236,8 +236,18 @@ class StrategyService:
         # response 호환성: page/total_pages는 limit/offset에서 역산.
         total_pages = (total + limit - 1) // limit if total > 0 else 0
         page = (offset // limit) + 1 if limit > 0 else 1
+        counts = (
+            await self.backtest_repo.count_completed_by_strategy_ids([s.id for s in items])
+            if self.backtest_repo is not None and items
+            else {}
+        )
         return StrategyListResponse(
-            items=[StrategyListItem.model_validate(s) for s in items],
+            items=[
+                StrategyListItem.model_validate(s).model_copy(
+                    update={"backtest_count": counts.get(s.id, 0)}
+                )
+                for s in items
+            ],
             total=total,
             page=page,
             limit=limit,

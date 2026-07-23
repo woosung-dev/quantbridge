@@ -2,11 +2,41 @@
 // LESSON-004: useEffect dep 에 data 객체를 넣는 대신, RQ refetchInterval 함수가 q.state.data 를 직접 읽어
 //             터미널 전이 시 자동 정지. 본 테스트가 그 불변식을 검증.
 
-import { describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Query } from "@tanstack/react-query";
 
-import { stressTestRefetchInterval } from "../hooks";
-import type { StressTestDetail } from "../schemas";
+import type * as ApiModule from "../api";
+import {
+  stressTestKeys,
+  stressTestRefetchInterval,
+  useLatestStressTest,
+} from "../hooks";
+import type {
+  StressTestDetail,
+  StressTestListResponse,
+} from "../schemas";
+
+vi.mock("@clerk/nextjs", () => ({
+  useAuth: () => ({ userId: "user_1", getToken: async () => "test-token" }),
+}));
+
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof ApiModule>();
+  return { ...actual, listStressTests: vi.fn() };
+});
+
+import { listStressTests } from "../api";
+
+const listStressTestsMock = vi.mocked(listStressTests);
+
+function makeWrapper(queryClient: QueryClient) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client: queryClient }, children);
+  };
+}
 
 type MockQuery = Query<StressTestDetail, Error>;
 
@@ -73,5 +103,64 @@ describe("stressTestRefetchInterval", () => {
   it("returns false on query error state (무한 루프 방지)", () => {
     const result = stressTestRefetchInterval(makeQuery("error", undefined));
     expect(result).toBe(false);
+  });
+});
+
+describe("useLatestStressTest", () => {
+  beforeEach(() => {
+    listStressTestsMock.mockReset();
+  });
+
+  it("backtest별 키로 limit=1 최신 항목을 반환한다", async () => {
+    const backtestId = "22222222-2222-4222-8222-222222222222";
+    const page: StressTestListResponse = {
+      items: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          backtest_id: backtestId,
+          kind: "monte_carlo",
+          status: "completed",
+          created_at: "2026-04-24T00:00:00+00:00",
+          completed_at: "2026-04-24T00:01:00+00:00",
+        },
+      ],
+      total: 1,
+      limit: 1,
+      offset: 0,
+    };
+    listStressTestsMock.mockResolvedValue(page);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useLatestStressTest(backtestId), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(page.items[0]));
+    expect(listStressTestsMock).toHaveBeenCalledWith(backtestId, 1, "test-token");
+    expect(
+      queryClient.getQueryData(stressTestKeys.byBacktest("user_1", backtestId)),
+    ).toEqual(page.items[0]);
+  });
+
+  it("스트레스 테스트가 없으면 null을 반환하고 error 상태가 아니다", async () => {
+    const backtestId = "22222222-2222-4222-8222-222222222222";
+    listStressTestsMock.mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 1,
+      offset: 0,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useLatestStressTest(backtestId), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.data).toBeNull());
+    expect(result.current.isError).toBe(false);
   });
 });

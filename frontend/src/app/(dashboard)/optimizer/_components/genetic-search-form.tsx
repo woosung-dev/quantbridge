@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import {
   INPUT_CLS,
   SELECT_CLS,
+  FieldError,
   FormErrorAlert,
   ObjectiveFields,
   SubmitRow,
@@ -26,10 +27,20 @@ import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 const FormSchema = z
   .object({
     ...makeOptimizerFormBaseFields(100), // BL-237: 50→100
-    population_size: z.coerce.number().int().min(2).max(200),
-    n_generations: z.coerce.number().int().min(1).max(100),
-    mutation_rate: z.string().min(1, "mutation_rate required"),
-    crossover_rate: z.string().min(1, "crossover_rate required"),
+    population_size: z
+      .coerce
+      .number()
+      .int("개체군 크기는 정수여야 합니다.")
+      .min(2, "개체군 크기는 2 이상이어야 합니다.")
+      .max(200, "개체군 크기는 200 이하여야 합니다."),
+    n_generations: z
+      .coerce
+      .number()
+      .int("세대 수는 정수여야 합니다.")
+      .min(1, "세대 수는 1 이상이어야 합니다.")
+      .max(100, "세대 수는 100 이하여야 합니다."),
+    mutation_rate: z.string().min(1, "돌연변이율을 입력하세요."),
+    crossover_rate: z.string().min(1, "교차율을 입력하세요."),
     // Sprint 57 BL-234: roulette selection method enum.
     genetic_selection_method: z
       .enum(["tournament", "roulette"])
@@ -43,14 +54,14 @@ const FormSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["mutation_rate"],
-        message: "mutation_rate must be in (0, 1]",
+        message: "돌연변이율은 0보다 크고 1 이하여야 합니다.",
       });
     }
     if (!(crossN > 0 && crossN <= 1)) {
       ctx.addIssue({
         code: "custom",
         path: ["crossover_rate"],
-        message: "crossover_rate must be in (0, 1]",
+        message: "교차율은 0보다 크고 1 이하여야 합니다.",
       });
     }
     // budget = pop * (gen + 1) <= max_evaluations <= 100 (BL-237).
@@ -59,14 +70,14 @@ const FormSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["max_evaluations"],
-        message: `evaluation budget ${budget} > max_evaluations ${values.max_evaluations} (population_size × (n_generations + 1)).`,
+        message: `평가 예산(${budget}) > 최대 평가 횟수(${values.max_evaluations})입니다.`,
       });
     }
     if (budget > 100) {
       ctx.addIssue({
         code: "custom",
         path: ["population_size"],
-        message: `evaluation budget ${budget} > 100 server cap.`,
+        message: `평가 예산(${budget}) > 서버 상한(100)입니다.`,
       });
     }
   });
@@ -149,10 +160,18 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
       }),
     );
   });
+  const populationError = form.formState.errors.population_size?.message;
+  const generationsError = form.formState.errors.n_generations?.message;
+  const mutationRateError = form.formState.errors.mutation_rate?.message;
+  const crossoverRateError = form.formState.errors.crossover_rate?.message;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <ObjectiveFields register={form.register} maxEvaluations={100} />
+      <ObjectiveFields
+        register={form.register}
+        errors={form.formState.errors}
+        maxEvaluations={100}
+      />
 
       <div className="opt-field-grid-4">
         <label className="field">
@@ -162,8 +181,13 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
             min={2}
             max={200}
             className={INPUT_CLS}
+            aria-invalid={populationError ? "true" : "false"}
+            aria-describedby={populationError ? "optimizer-population-size-error" : undefined}
             {...form.register("population_size", { valueAsNumber: true })}
           />
+          {populationError && (
+            <FieldError id="optimizer-population-size-error" message={populationError} />
+          )}
         </label>
         <label className="field">
           <span className="field-label">세대 수 (generations)</span>
@@ -172,8 +196,13 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
             min={1}
             max={100}
             className={INPUT_CLS}
+            aria-invalid={generationsError ? "true" : "false"}
+            aria-describedby={generationsError ? "optimizer-generations-error" : undefined}
             {...form.register("n_generations", { valueAsNumber: true })}
           />
+          {generationsError && (
+            <FieldError id="optimizer-generations-error" message={generationsError} />
+          )}
         </label>
         <label className="field">
           <span className="field-label">돌연변이율 (mutation)</span>
@@ -181,8 +210,13 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
             type="text"
             placeholder="0.2"
             className={INPUT_CLS}
+            aria-invalid={mutationRateError ? "true" : "false"}
+            aria-describedby={mutationRateError ? "optimizer-mutation-rate-error" : undefined}
             {...form.register("mutation_rate")}
           />
+          {mutationRateError && (
+            <FieldError id="optimizer-mutation-rate-error" message={mutationRateError} />
+          )}
         </label>
         <label className="field">
           <span className="field-label">교차율 (crossover)</span>
@@ -190,8 +224,13 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
             type="text"
             placeholder="0.8"
             className={INPUT_CLS}
+            aria-invalid={crossoverRateError ? "true" : "false"}
+            aria-describedby={crossoverRateError ? "optimizer-crossover-rate-error" : undefined}
             {...form.register("crossover_rate")}
           />
+          {crossoverRateError && (
+            <FieldError id="optimizer-crossover-rate-error" message={crossoverRateError} />
+          )}
         </label>
       </div>
 
@@ -209,9 +248,10 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
       <ParamRowsFieldset
         control={form.control}
         register={form.register}
+        errors={form.formState.errors}
         legend="파라미터 (1~4개)"
         emptyRow={EMPTY_ROW}
-        renderRowCells={(idx, removeButton) => (
+        renderRowCells={(idx, removeButton, errors, errorId) => (
           <>
             <select className="select" {...form.register(`parameters.${idx}.kind`)}>
               <option value="integer">정수</option>
@@ -220,17 +260,23 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
             <input
               placeholder="최소"
               className="input"
+              aria-invalid={errors.min ? "true" : "false"}
+              aria-describedby={errors.min ? errorId("min") : undefined}
               {...form.register(`parameters.${idx}.min`)}
             />
             <input
               placeholder="최대"
               className="input"
+              aria-invalid={errors.max ? "true" : "false"}
+              aria-describedby={errors.max ? errorId("max") : undefined}
               {...form.register(`parameters.${idx}.max`)}
             />
             <div className="opt-param-row-tail">
               <input
                 placeholder="간격"
                 className="input"
+                aria-invalid={errors.step ? "true" : "false"}
+                aria-describedby={errors.step ? errorId("step") : undefined}
                 {...form.register(`parameters.${idx}.step`)}
               />
               {removeButton}

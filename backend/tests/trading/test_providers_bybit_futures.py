@@ -187,8 +187,9 @@ async def test_bybit_futures_cancel_order(credentials, ccxt_mock):
     from src.trading.providers import BybitFuturesProvider
 
     provider = BybitFuturesProvider()
-    await provider.cancel_order(credentials, "bybit-futures-42")
-    mock_exchange.cancel_order.assert_awaited_once_with("bybit-futures-42")
+    await provider.cancel_order(credentials, "bybit-futures-42", "BTC/USDT")
+    # functional-parity 2026-07-23 — symbol 필수 + linear 정규화(BL-404 동형) 회귀 가드.
+    mock_exchange.cancel_order.assert_awaited_once_with("bybit-futures-42", "BTC/USDT:USDT")
     mock_exchange.close.assert_awaited_once()
 
 

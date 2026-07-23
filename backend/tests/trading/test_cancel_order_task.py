@@ -81,11 +81,13 @@ def _fake_create_worker_engine_and_sm(db_session: AsyncSession):
 
 class _RecordingProvider:
     def __init__(self, *, raise_error: bool = False) -> None:
-        self.cancel_calls: list[str] = []
+        self.cancel_calls: list[tuple[str, str]] = []
         self._raise = raise_error
 
-    async def cancel_order(self, creds, exchange_order_id: str) -> None:
-        self.cancel_calls.append(exchange_order_id)
+    async def cancel_order(self, creds, exchange_order_id: str, symbol: str) -> None:
+        # functional-parity 2026-07-23 — symbol 전달 계약 회귀 가드 (미전달 시
+        # ccxt ArgumentsRequired 로 실거래소 취소 전멸).
+        self.cancel_calls.append((exchange_order_id, symbol))
         if self._raise:
             raise ProviderError("exchange cancel failed")
 
@@ -108,7 +110,10 @@ async def test_cancel_order_task_cancels_submitted_on_exchange(
     result = await task_mod._async_cancel_order(order.id)
 
     assert result["state"] == "cancelled"
-    assert prov.cancel_calls == ["bybit-cf4-1"], "거래소 cancel_order 가 호출돼야 함"
+    assert len(prov.cancel_calls) == 1, "거래소 cancel_order 가 호출돼야 함"
+    called_id, called_symbol = prov.cancel_calls[0]
+    assert called_id == "bybit-cf4-1"
+    assert called_symbol == order.symbol, "order.symbol 이 provider 로 전달돼야 함"
     await db_session.refresh(order)
     assert order.state == OrderState.cancelled
 

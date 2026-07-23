@@ -34,6 +34,17 @@ export const OrderListResponseSchema = z.object({
 });
 export type OrderListResponse = z.infer<typeof OrderListResponseSchema>;
 
+export const CancelOrderAcknowledgementSchema = z.object({
+  order_id: z.uuid(),
+  state: z.literal("submitted"),
+  detail: z.literal("exchange cancel requested"),
+});
+export const CancelOrderResponseSchema = z.union([
+  OrderSchema,
+  CancelOrderAcknowledgementSchema,
+]);
+export type CancelOrderResponse = z.infer<typeof CancelOrderResponseSchema>;
+
 export const KillSwitchEventSchema = z.object({
   id: z.uuid(),
   trigger_type: z.enum(["cumulative_loss", "daily_loss", "api_error"]),

@@ -63,6 +63,52 @@ def test_alembic_roundtrip(tmp_path, monkeypatch):
     command.upgrade(cfg, "head")
 
 
+def test_stress_test_enum_labels_match_member_names(monkeypatch):
+    """alembic 제공 DB 의 enum 라벨 = SAEnum 이 저장하는 member NAME 전체 (drift sentinel).
+
+    functional-parity 2026-07-23 실측 — 최초 migration 의 소문자 라벨('monte_carlo',
+    'walk_forward')이 잔존해 실 DB 에서 Monte Carlo / Walk-Forward 생성이 500
+    (`invalid input value for enum stress_test_kind: "MONTE_CARLO"`). 테스트 DB 는
+    metadata 생성이라 이 클래스의 드리프트를 못 잡았다 — 본 테스트가 alembic 경로의
+    enum 라벨을 Python member NAME 과 직접 대조한다 (migration 20260723_0001 검증).
+    """
+    from sqlalchemy import text
+
+    from src.stress_test.models import StressTestKind, StressTestStatus
+    from tests.conftest import _to_psycopg2_url
+
+    monkeypatch.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cfg = _alembic_cfg()
+    command.upgrade(cfg, "head")
+
+    engine = create_engine(_to_psycopg2_url(_resolved_test_db_url()), poolclass=NullPool)
+    try:
+        with engine.connect() as conn:
+            for enum_name, member_cls in (
+                ("stress_test_kind", StressTestKind),
+                ("stress_test_status", StressTestStatus),
+            ):
+                labels = {
+                    row[0]
+                    for row in conn.execute(
+                        text(
+                            "SELECT e.enumlabel FROM pg_enum e "
+                            "JOIN pg_type t ON t.oid = e.enumtypid "
+                            "WHERE t.typname = :name"
+                        ),
+                        {"name": enum_name},
+                    )
+                }
+                member_names = {member.name for member in member_cls}
+                missing = member_names - labels
+                assert not missing, (
+                    f"{enum_name} enum 에 SAEnum 저장값(member NAME) 누락: {missing} "
+                    f"(라벨 실측: {sorted(labels)})"
+                )
+    finally:
+        engine.dispose()
+
+
 @pytest.mark.asyncio
 async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     """alembic upgrade 후 실제 schema와 SQLModel.metadata가 일치하는지 검증.

@@ -9,7 +9,7 @@ import { UserButton } from "@clerk/nextjs";
 
 import { useStrategies } from "@/features/strategy/hooks";
 import { useBacktests } from "@/features/backtest/hooks";
-import { useOrders } from "@/features/trading/hooks";
+import { useOpenOrdersCount } from "@/features/trading/hooks";
 
 import { DashboardNavList, type NavCounts } from "./dashboard-nav-list";
 
@@ -22,14 +22,12 @@ export function DashboardSidebar({ pathname }: DashboardSidebarProps) {
   // H-2: queryKey 는 각 훅이 userId identity 로 구성한다 — getToken 미포함.
   const strategiesQ = useStrategies({ limit: 1, offset: 0, is_archived: false });
   const backtestsQ = useBacktests({ limit: 1, offset: 0 });
-  // 셸은 count 배지 전용 — 전환 toast 를 끈다. 켜두면 /trading·/orders 소비처와
-  // queryKey(limit)가 갈려 같은 주문 전환에 toast 가 중복 발화한다.
-  const ordersQ = useOrders(1, { notifyTransitions: false });
+  const openOrdersCount = useOpenOrdersCount();
 
   const counts: NavCounts = {
     strategies: strategiesQ.data?.total,
     backtests: backtestsQ.data?.total,
-    orders: ordersQ.data?.total,
+    orders: openOrdersCount,
   };
 
   return (

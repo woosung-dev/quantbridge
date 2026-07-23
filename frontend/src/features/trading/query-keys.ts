@@ -5,8 +5,9 @@
 
 export const tradingKeys = {
   all: (userId: string) => ["trading", userId] as const,
-  orders: (userId: string, limit: number) =>
-    [...tradingKeys.all(userId), "orders", limit] as const,
+  ordersPrefix: (userId: string) => [...tradingKeys.all(userId), "orders"] as const,
+  orders: (userId: string, limit: number, states?: readonly string[]) =>
+    [...tradingKeys.ordersPrefix(userId), limit, states ?? []] as const,
   killSwitch: (userId: string) =>
     [...tradingKeys.all(userId), "kill-switch"] as const,
   exchangeAccounts: (userId: string) =>

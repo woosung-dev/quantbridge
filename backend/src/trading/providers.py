@@ -256,7 +256,9 @@ def _merge_exit_params(
 class ExchangeProvider(Protocol):
     async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt: ...
 
-    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None: ...
+    async def cancel_order(
+        self, creds: Credentials, exchange_order_id: str, symbol: str
+    ) -> None: ...
 
     async def fetch_order(
         self, creds: Credentials, exchange_order_id: str, symbol: str
@@ -295,8 +297,13 @@ class FixtureExchangeProvider:
             raw={"symbol": order.symbol, "side": order.side.value, "quantity": str(order.quantity)},
         )
 
-    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
-        logger.debug("fixture_cancel_order", extra={"exchange_order_id": exchange_order_id})
+    async def cancel_order(
+        self, creds: Credentials, exchange_order_id: str, symbol: str
+    ) -> None:
+        logger.debug(
+            "fixture_cancel_order",
+            extra={"exchange_order_id": exchange_order_id, "symbol": symbol},
+        )
 
     async def fetch_order(
         self, creds: Credentials, exchange_order_id: str, symbol: str
@@ -394,7 +401,12 @@ class BybitDemoProvider:
             except Exception:
                 logger.warning("bybit_close_failed", exc_info=True)
 
-    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+    async def cancel_order(
+        self, creds: Credentials, exchange_order_id: str, symbol: str
+    ) -> None:
+        # functional-parity 2026-07-23 — ccxt bybit cancelOrder() 는 symbol 필수
+        # (미전달 시 전 호출이 ArgumentsRequired → CF4 fail-closed 로 submitted 잔존.
+        # BL-404 fetch_order 와 동형 결함, 실브라우저 dogfood 워커 로그로 발견).
         exchange = ccxt_async.bybit(
             {
                 "apiKey": creds.api_key,
@@ -409,7 +421,7 @@ class BybitDemoProvider:
         _apply_bybit_env(exchange, creds.environment)
         try:
             async with ccxt_timer("bybit", "cancel_order"):
-                await exchange.cancel_order(exchange_order_id)
+                await exchange.cancel_order(exchange_order_id, symbol)
         except ProviderError:
             raise  # already wrapped, do not re-wrap
         except ccxt_async.BaseError as e:
@@ -733,7 +745,11 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
-    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+    async def cancel_order(
+        self, creds: Credentials, exchange_order_id: str, symbol: str
+    ) -> None:
+        # functional-parity 2026-07-23 — symbol 필수 + BL-404 와 동일하게 linear
+        # unified symbol 로 정규화 (spot 포맷이면 category=spot 조회로 어긋남).
         exchange = ccxt_async.bybit(
             {
                 "apiKey": creds.api_key,
@@ -748,7 +764,7 @@ class BybitFuturesProvider:
         _apply_bybit_env(exchange, creds.environment)
         try:
             async with ccxt_timer("bybit_futures", "cancel_order"):
-                await exchange.cancel_order(exchange_order_id)
+                await exchange.cancel_order(exchange_order_id, _to_bybit_linear_symbol(symbol))
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:
@@ -1001,7 +1017,10 @@ class OkxDemoProvider:
             except Exception:
                 logger.warning("okx_close_failed", exc_info=True)
 
-    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+    async def cancel_order(
+        self, creds: Credentials, exchange_order_id: str, symbol: str
+    ) -> None:
+        # functional-parity 2026-07-23 — ccxt okx cancelOrder() 도 symbol(instId) 필수.
         if creds.passphrase is None:
             raise ProviderError("OkxDemoProvider requires a passphrase (OKX auth)")
 
@@ -1017,7 +1036,7 @@ class OkxDemoProvider:
         exchange.set_sandbox_mode(creds.environment == ExchangeMode.demo)
         try:
             async with ccxt_timer("okx", "cancel_order"):
-                await exchange.cancel_order(exchange_order_id)
+                await exchange.cancel_order(exchange_order_id, symbol)
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:
@@ -1203,7 +1222,9 @@ class BybitLiveProvider:
     async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
         raise ProviderError("Bybit live (mainnet) 미지원 — BL-003 mainnet runbook 완료 후 활성화")
 
-    async def cancel_order(self, creds: Credentials, exchange_order_id: str) -> None:
+    async def cancel_order(
+        self, creds: Credentials, exchange_order_id: str, symbol: str
+    ) -> None:
         raise ProviderError("Bybit live cancel 미지원 — BL-003 mainnet runbook 대기")
 
     async def fetch_order(

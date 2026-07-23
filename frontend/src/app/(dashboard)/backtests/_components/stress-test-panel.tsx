@@ -17,6 +17,7 @@ import {
   useCreateMonteCarlo,
   useCreateParamStability,
   useCreateWalkForward,
+  useLatestStressTest,
   useStressTest,
 } from "@/features/backtest/hooks";
 
@@ -58,7 +59,10 @@ export function StressTestPanel({ backtestId }: Props) {
     onError: (err) =>
       toast.error(`Param Stability 실행 실패: ${err.message}`),
   });
-  const stress = useStressTest(activeStressTestId);
+  const latestStressTest = useLatestStressTest(backtestId);
+  const displayedStressTestId =
+    activeStressTestId ?? latestStressTest.data?.id ?? null;
+  const stress = useStressTest(displayedStressTestId);
 
   const handleRunMonteCarlo = () => {
     mcMutation.mutate({
@@ -148,7 +152,7 @@ export function StressTestPanel({ backtestId }: Props) {
         />
       ) : null}
 
-      {activeStressTestId === null ? (
+      {displayedStressTestId === null ? (
         <p className="text-sm text-muted-foreground">
           위 버튼을 눌러 이 백테스트에 대한 스트레스 테스트를 실행하세요.
         </p>

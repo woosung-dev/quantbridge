@@ -9,9 +9,15 @@ describe("tradingKeys", () => {
     expect(tradingKeys.all("user_abc")).toEqual(["trading", "user_abc"]);
   });
 
-  it("orders key includes userId and limit", () => {
-    const key = tradingKeys.orders("user_a", 50);
-    expect(key).toEqual(["trading", "user_a", "orders", 50]);
+  it("orders key includes userId, limit, and states", () => {
+    const key = tradingKeys.orders("user_a", 50, ["pending", "submitted"]);
+    expect(key).toEqual([
+      "trading",
+      "user_a",
+      "orders",
+      50,
+      ["pending", "submitted"],
+    ]);
   });
 
   it("different userId isolates orders cache for same limit", () => {

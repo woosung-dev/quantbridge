@@ -1,17 +1,24 @@
 // 주문 원장(OrdersBlotter) — C 이식(W3-D) 상태 4종 + 프로토타입 시맨틱 구조 회귀 가드.
 // useOrders 를 목으로 갈아끼워 로딩/에러/빈/데이터 경로를 각각 렌더하고, 프로토타입 유래
-// 핵심 클래스(role=group 필터 · .order-side.buy/.sell · .chip.done · 9열 헤더 · 무데이터 title)를
+// 핵심 클래스(role=group 필터 · .order-side.buy/.sell · .chip.done · 10열 헤더 · 무데이터 title)를
 // assert 한다. 라벨은 전부 용어 SSOT 에서 오므로 원시 enum 이 새어 나오지 않는지도 함께 본다.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { OrdersBlotter } from "@/app/(dashboard)/orders/_components/orders-blotter";
-import type { Order } from "@/features/trading/schemas";
+import {
+  CancelOrderResponseSchema,
+  type Order,
+} from "@/features/trading/schemas";
 
 const mockUseOrders = vi.fn();
+const mockUseCancelOrder = vi.fn();
+const mockCancelOrder = vi.fn();
 vi.mock("@/features/trading/hooks", () => ({
   useOrders: (...args: unknown[]) => mockUseOrders(...args),
+  useCancelOrder: () => mockUseCancelOrder(),
+  ACTIVE_ORDER_STATES: new Set(["pending", "submitted"]),
 }));
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
@@ -38,6 +45,10 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
 }
 
 function mockReturn(over: Record<string, unknown>) {
+  mockUseCancelOrder.mockReturnValue({
+    mutate: mockCancelOrder,
+    isPending: false,
+  });
   mockUseOrders.mockReturnValue({
     data: undefined,
     isLoading: false,
@@ -55,6 +66,8 @@ function withOrders(items: Order[]) {
 afterEach(() => {
   cleanup();
   mockUseOrders.mockReset();
+  mockUseCancelOrder.mockReset();
+  mockCancelOrder.mockReset();
 });
 
 describe("OrdersBlotter — 상태 4종", () => {
@@ -104,6 +117,11 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     const all = screen.getByTestId("order-filter-all");
     expect(all).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("order-filter-filled")).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.getByText(
+        "위 미체결 건수는 대기와 전송을 더한 값입니다. 사이드바 배지도 같은 미체결 주문 수를 표시합니다.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("주문 방향 배지는 .order-side.buy / .order-side.sell 를 쓴다(포지션 .side 와 분리)", () => {
@@ -131,15 +149,15 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     expect(container.querySelector(".chip.warn")?.textContent).toContain("거부");
   });
 
-  it("헤더는 9열이고 청산가·액션 열이 없다(§4.6 · §4.9)", () => {
+  it("헤더는 10열이고 액션 열을 포함하며 청산가는 없다", () => {
     withOrders([makeOrder()]);
     render(<OrdersBlotter />);
     const headers = screen.getAllByRole("columnheader");
-    expect(headers).toHaveLength(9);
+    expect(headers).toHaveLength(10);
     const texts = headers.map((h) => h.textContent);
     expect(texts).toContain("익절·손절");
     expect(texts).not.toContain("청산가");
-    expect(texts).not.toContain("액션");
+    expect(texts).toContain("액션");
   });
 
   it("감소전용 배지 + title, 익절·손절 셀은 체결가 대비 거리를 함께 인쇄한다", () => {
@@ -170,6 +188,44 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     expect(screen.getByText("78409188")).toBeInTheDocument();
     expect(screen.queryByText("브로커")).toBeNull();
     expect(screen.queryByText("모의")).toBeNull();
+  });
+
+  it("대기·전송 주문에는 취소 버튼, terminal 주문에는 취소 불가 dim 셀을 그린다", () => {
+    withOrders([
+      makeOrder({ id: "p", state: "pending", filled_price: null, exchange_order_id: null }),
+      makeOrder({ id: "s", state: "submitted", filled_price: null }),
+      makeOrder({ id: "f", state: "filled" }),
+      makeOrder({ id: "c", state: "cancelled", filled_price: null }),
+      makeOrder({ id: "r", state: "rejected", filled_price: null, exchange_order_id: null }),
+    ]);
+    const { container } = render(<OrdersBlotter />);
+    expect(screen.getAllByRole("button", { name: "주문 취소" })).toHaveLength(2);
+    expect(
+      container.querySelector('[title="이미 체결이 끝난 주문이라 취소할 수 없습니다."]'),
+    ).toHaveClass("dim");
+    expect(
+      container.querySelector('[title="이미 취소된 주문입니다."]'),
+    ).toHaveClass("dim");
+    expect(
+      container.querySelector('[title="이미 거부로 끝난 주문이라 취소할 수 없습니다."]'),
+    ).toHaveClass("dim");
+  });
+
+  it("취소 버튼 클릭은 주문 ID로 mutation을 호출한다", () => {
+    withOrders([makeOrder({ id: "p", state: "pending", filled_price: null, exchange_order_id: null })]);
+    render(<OrdersBlotter />);
+    fireEvent.click(screen.getByRole("button", { name: "주문 취소" }));
+    expect(mockCancelOrder).toHaveBeenCalledWith("p");
+  });
+
+  it("202 취소 접수 응답을 파싱한다", () => {
+    expect(
+      CancelOrderResponseSchema.parse({
+        order_id: "00000000-0000-4000-8000-000000000001",
+        state: "submitted",
+        detail: "exchange cancel requested",
+      }),
+    ).toMatchObject({ state: "submitted", detail: "exchange cancel requested" });
   });
 
   it("필터 토글 — 체결만 선택하면 거부 행이 사라진다", () => {

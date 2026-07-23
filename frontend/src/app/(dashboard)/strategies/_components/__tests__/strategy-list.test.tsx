@@ -57,9 +57,22 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     mockUseStrategies.mockReset();
   });
 
-  it("표는 table.trades + backed 열 5개(전략명/상태/심볼·주기/마지막 수정/액션)를 그린다", () => {
+  it("표는 백테스트 열과 완료 수 3·0을 그린다", () => {
     mockUseStrategies.mockReturnValue({
-      data: { items: [makeItem()], total: 1, page: 1, limit: 20, total_pages: 1 },
+      data: {
+        items: [
+          makeItem({ backtest_count: 3 }),
+          makeItem({
+            id: "00000000-0000-4000-8000-000000000002",
+            name: "Donchian Breakout",
+            backtest_count: 0,
+          }),
+        ],
+        total: 2,
+        page: 1,
+        limit: 20,
+        total_pages: 1,
+      },
       isLoading: false,
       isError: false,
       error: null,
@@ -67,15 +80,19 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     });
     renderList();
 
-    const table = screen.getByRole("table", { name: /전략 목록 1개/ });
+    const table = screen.getByRole("table", { name: /전략 목록 2개/ });
     expect(table.className).toContain("trades");
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["전략명", "상태", "심볼 · 주기", "마지막 수정", "액션"]);
+    expect(headers).toEqual(["전략명", "상태", "심볼 · 주기", "백테스트", "마지막 수정", "액션"]);
+    expect(within(table).getByTitle("완료된 백테스트 수입니다. 실행 중이거나 실패한 실행은 세지 않습니다.")).toHaveTextContent("백테스트");
     // parse_status ok → "변환 가능" chip done (원시 enum 미노출)
     const row = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000001");
     expect(within(row).getByText("변환 가능").className).toBe("chip done");
     expect(within(row).getByText("MA Crossover Strategy").className).toBe("strat-name");
     expect(within(row).getByText("00000000")).toBeTruthy();
+    expect(within(row).getByText("3").closest("td")).toHaveClass("num");
+    const emptyRow = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000002");
+    expect(within(emptyRow).getByTitle("아직 백테스트를 실행하지 않았습니다.")).toHaveTextContent("0");
   });
 
   it("파싱 상태 필터는 role=group + 탭 4종(전체/변환 가능/일부 미지원/오류)이다", () => {

@@ -42,7 +42,7 @@ async def test_fixture_provider_cancel_order_is_noop(credentials):
 
     provider = FixtureExchangeProvider()
     # 예외 없이 리턴
-    await provider.cancel_order(credentials, "fixture-xyz")
+    await provider.cancel_order(credentials, "fixture-xyz", "BTC/USDT")
 
 
 async def test_fixture_provider_respects_configured_fill_price(credentials, order_submit):

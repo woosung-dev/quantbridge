@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import {
   INPUT_CLS,
   SELECT_CLS,
+  FieldError,
   FormErrorAlert,
   ObjectiveFields,
   SubmitRow,
@@ -26,7 +27,12 @@ import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
 const FormSchema = z.object({
   ...makeOptimizerFormBaseFields(100),
-  bayesian_n_initial_random: z.coerce.number().int().min(1).max(100),
+  bayesian_n_initial_random: z
+    .coerce
+    .number()
+    .int("초기 랜덤 탐색 횟수는 정수여야 합니다.")
+    .min(1, "초기 랜덤 탐색 횟수는 1 이상이어야 합니다.")
+    .max(100, "초기 랜덤 탐색 횟수는 100 이하여야 합니다."),
   bayesian_acquisition: BayesianAcquisitionSchema,
   parameters: makeParametersArraySchema(BayesianRowSchema),
 });
@@ -103,10 +109,15 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
       }),
     );
   });
+  const initialRandomError = form.formState.errors.bayesian_n_initial_random?.message;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <ObjectiveFields register={form.register} maxEvaluations={100} />
+      <ObjectiveFields
+        register={form.register}
+        errors={form.formState.errors}
+        maxEvaluations={100}
+      />
 
       <div className="opt-field-grid-2">
         <label className="field">
@@ -116,8 +127,13 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
             min={1}
             max={100}
             className={INPUT_CLS}
+            aria-invalid={initialRandomError ? "true" : "false"}
+            aria-describedby={initialRandomError ? "optimizer-initial-random-error" : undefined}
             {...form.register("bayesian_n_initial_random", { valueAsNumber: true })}
           />
+          {initialRandomError && (
+            <FieldError id="optimizer-initial-random-error" message={initialRandomError} />
+          )}
         </label>
         <label className="field">
           <span className="field-label">획득 함수 (acquisition)</span>
@@ -132,18 +148,23 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
       <ParamRowsFieldset
         control={form.control}
         register={form.register}
+        errors={form.formState.errors}
         legend="파라미터 (1~4개, 정규분포 prior 준비 중)"
         emptyRow={EMPTY_ROW}
-        renderRowCells={(idx, removeButton) => (
+        renderRowCells={(idx, removeButton, errors, errorId) => (
           <>
             <input
               placeholder="최소"
               className="input"
+              aria-invalid={errors.min ? "true" : "false"}
+              aria-describedby={errors.min ? errorId("min") : undefined}
               {...form.register(`parameters.${idx}.min`)}
             />
             <input
               placeholder="최대"
               className="input"
+              aria-invalid={errors.max ? "true" : "false"}
+              aria-describedby={errors.max ? errorId("max") : undefined}
               {...form.register(`parameters.${idx}.max`)}
             />
             <select className="select" {...form.register(`parameters.${idx}.prior`)}>

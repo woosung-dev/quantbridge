@@ -119,6 +119,28 @@ class TestBacktestRepository:
         assert await repo.exists_for_strategy(uuid4()) is False
 
     @pytest.mark.asyncio
+    async def test_count_completed_by_strategy_ids_excludes_non_completed(
+        self, db_session: AsyncSession
+    ) -> None:
+        completed = await _seed_bt(db_session, BacktestStatus.COMPLETED)
+        running = await _seed_bt(db_session, BacktestStatus.RUNNING)
+        failed = await _seed_bt(db_session, BacktestStatus.FAILED)
+        other_completed = await _seed_bt(db_session, BacktestStatus.COMPLETED)
+        running.strategy_id = completed.strategy_id
+        failed.strategy_id = completed.strategy_id
+        await db_session.flush()
+
+        missing_strategy_id = uuid4()
+        counts = await BacktestRepository(db_session).count_completed_by_strategy_ids(
+            [completed.strategy_id, other_completed.strategy_id, missing_strategy_id]
+        )
+
+        assert counts == {
+            completed.strategy_id: 1,
+            other_completed.strategy_id: 1,
+        }
+
+    @pytest.mark.asyncio
     async def test_list_by_user_pagination(self, db_session: AsyncSession) -> None:
         bt = await _seed_bt(db_session)
         repo = BacktestRepository(db_session)

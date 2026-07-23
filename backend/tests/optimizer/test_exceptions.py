@@ -8,6 +8,7 @@ from src.optimizer.exceptions import (
     OptimizationKindUnsupportedError,
     OptimizationNotFoundError,
 )
+from src.optimizer.models import OptimizationKind
 
 
 def test_optimization_not_found_error_carries_id() -> None:
@@ -19,20 +20,21 @@ def test_optimization_not_found_error_carries_id() -> None:
 
 
 def test_optimization_kind_unsupported_error_message_lists_supported() -> None:
-    """Sprint 55 = grid_search + bayesian. 메시지 안 supported list 노출 의무."""
-    err = OptimizationKindUnsupportedError("genetic")
-    assert err.kind == "genetic"
+    """지원 목록은 사용자에게 노출된다."""
+    err = OptimizationKindUnsupportedError("unsupported")
+    assert err.kind == "unsupported"
     msg = str(err)
     assert "grid_search" in msg
     assert "bayesian" in msg
+    assert "genetic" in msg
 
 
-def test_optimization_kind_unsupported_error_genetic_message() -> None:
-    """Sprint 56+ Genetic 활성 path 명시 (BL-233)."""
-    err = OptimizationKindUnsupportedError("genetic")
+def test_optimization_kind_unsupported_error_derives_all_enum_values() -> None:
+    """새 kind 추가 시 메시지 목록도 enum 순회로 함께 갱신된다."""
+    err = OptimizationKindUnsupportedError("unsupported")
     msg = str(err)
-    assert "Sprint 56+" in msg
-    assert "BL-233" in msg
+    assert all(kind.value in msg for kind in OptimizationKind)
+    assert "Sprint" not in msg
 
 
 def test_optimization_kind_out_bayesian_active() -> None:

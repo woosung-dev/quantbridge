@@ -18,6 +18,7 @@ import {
   ShareTokenResponseSchema,
   StressTestCreatedResponseSchema,
   StressTestDetailSchema,
+  StressTestListResponseSchema,
   TradeListResponseSchema,
   type BacktestCancelResponse,
   type BacktestCreatedResponse,
@@ -34,6 +35,7 @@ import {
   type ShareTokenResponse,
   type StressTestCreatedResponse,
   type StressTestDetail,
+  type StressTestListResponse,
   type TradeListResponse,
 } from "./schemas";
 
@@ -144,20 +146,6 @@ export async function revokeBacktestShare(
   });
 }
 
-export async function viewBacktestShare(
-  shareToken: string,
-): Promise<BacktestDetail> {
-  // public — Clerk JWT 미사용. apiFetch 가 token=null 시 Authorization header 미부착.
-  const raw = await apiFetch<unknown>(
-    `${BACKTESTS_PATH}/share/${shareToken}`,
-    {
-      method: "GET",
-      token: null,
-    },
-  );
-  return BacktestDetailSchema.parse(raw);
-}
-
 // --- Stress Test (Phase C) -----------------------------------------------
 
 export async function postMonteCarlo(
@@ -229,6 +217,19 @@ export async function getStressTest(
     token,
   });
   return StressTestDetailSchema.parse(raw);
+}
+
+export async function listStressTests(
+  backtestId: string,
+  limit: number,
+  token: string | null,
+): Promise<StressTestListResponse> {
+  const raw = await apiFetch<unknown>(STRESS_TESTS_PATH, {
+    method: "GET",
+    token,
+    params: { backtest_id: backtestId, limit, offset: 0 },
+  });
+  return StressTestListResponseSchema.parse(raw);
 }
 
 // --- Indicator Convert -------------------------------------------------------

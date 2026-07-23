@@ -140,8 +140,16 @@ export const ORDER_ERROR_NONE_TITLE: Partial<Record<OrderState, string>> = {
   cancelled: "사용자가 직접 취소했습니다. 오류는 없습니다.",
 };
 
-// 주문 취소·취소 불가 셀 title(screen-11 액션 열)은 여기 두지 않는다. 취소 주문 API 가
-// trading/api.ts 에 아직 없어서 액션 열 자체를 렌더하지 않기 때문이다(§4.9 미백킹 affordance).
+export const ORDER_CANCEL_ACTION = {
+  label: "주문 취소",
+  title: {
+    pending: "대기 중인 주문을 취소합니다. 취소하면 다시 살릴 수 없고 새로 내야 합니다.",
+    submitted: "전송된 주문의 취소를 거래소에 요청합니다. 이미 체결됐다면 취소되지 않습니다.",
+    filled: "이미 체결이 끝난 주문이라 취소할 수 없습니다.",
+    cancelled: "이미 취소된 주문입니다.",
+    rejected: "이미 거부로 끝난 주문이라 취소할 수 없습니다.",
+  } satisfies Record<OrderState, string>,
+} as const;
 
 /** 추적손절 라벨. §4.6 규약 — 원시 "trail" 문자열 대신 한글 라벨을 쓴다. screen-11-orders.html:1333 */
 export const ORDER_TRAILING_STOP_LABEL = "추적손절";
@@ -158,14 +166,13 @@ export const ORDER_POLLING_NOTE =
   "이 목록은 30초 간격으로 다시 불러옵니다. 진행 중인 주문이 있으면 더 자주 확인합니다.";
 
 /**
- * 상태 필터 안내 2줄. 첫 줄은 필터 대상 범위, 둘째 줄은 미체결 건수와 사이드바 배지의 차이를 밝힌다.
- * 사이드바 배지는 전체 주문 수라서(셸 결정, 미체결 아님) 헤더의 미체결 건수와 다를 수 있음을 정직하게 적는다.
+ * 상태 필터 안내 2줄. 첫 줄은 필터 대상 범위, 둘째 줄은 미체결 건수와 사이드바 배지의 일치를 밝힌다.
  */
 export const ORDER_FILTER_HINT = {
   scope:
     "버튼을 누르면 원장 표에서 그 상태의 행만 남깁니다. 거르는 대상은 이미 받아온 주문이고, 아직 받아오지 않은 페이지는 걸러지지 않습니다.",
   navCount:
-    "위 미체결 건수는 대기와 전송을 더한 값입니다. 사이드바 배지는 전체 주문 수라서 이 값과 다를 수 있습니다.",
+    "위 미체결 건수는 대기와 전송을 더한 값입니다. 사이드바 배지도 같은 미체결 주문 수를 표시합니다.",
 } as const;
 
 /**

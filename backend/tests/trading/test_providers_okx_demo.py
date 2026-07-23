@@ -155,8 +155,8 @@ async def test_okx_demo_cancel_order(creds_with_passphrase, ccxt_okx_mock):
     from src.trading.providers import OkxDemoProvider
 
     provider = OkxDemoProvider()
-    await provider.cancel_order(creds_with_passphrase, "okx-order-7")
-    mock_exchange.cancel_order.assert_awaited_once_with("okx-order-7")
+    await provider.cancel_order(creds_with_passphrase, "okx-order-7", "BTC/USDT")
+    mock_exchange.cancel_order.assert_awaited_once_with("okx-order-7", "BTC/USDT")
     mock_exchange.close.assert_awaited_once()
     # cancel 경로도 sandbox mode 전환
     mock_exchange.set_sandbox_mode.assert_called_once_with(True)
@@ -172,7 +172,7 @@ async def test_okx_demo_cancel_raises_when_passphrase_missing(ccxt_okx_mock):
     creds = Credentials(api_key="k", api_secret="s", passphrase=None)
     provider = OkxDemoProvider()
     with pytest.raises(ProviderError, match="passphrase"):
-        await provider.cancel_order(creds, "x")
+        await provider.cancel_order(creds, "x", "BTC/USDT")
 
     _, mock_okx_cls = ccxt_okx_mock
     mock_okx_cls.assert_not_called()

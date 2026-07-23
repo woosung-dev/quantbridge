@@ -3,7 +3,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { StressTestDetail } from "@/features/backtest/schemas";
+import type {
+  StressTestDetail,
+  StressTestSummary,
+} from "@/features/backtest/schemas";
 
 // --- hooks mocks ---------------------------------------------------------
 
@@ -22,6 +25,8 @@ let _lastWfOpts: Opts;
 let _lastCaOpts: Opts;
 let lastPsOpts: Opts;
 let stressData: StressTestDetail | undefined;
+let latestStressTest: StressTestSummary | null | undefined;
+let requestedStressTestId: string | null | undefined;
 
 vi.mock("@/features/backtest/hooks", () => ({
   useCreateMonteCarlo: (opts: Opts) => {
@@ -40,12 +45,16 @@ vi.mock("@/features/backtest/hooks", () => ({
     lastPsOpts = opts;
     return psMutation;
   },
-  useStressTest: () => ({
+  useLatestStressTest: () => ({ data: latestStressTest }),
+  useStressTest: (id: string | null) => {
+    requestedStressTestId = id;
+    return {
     data: stressData,
     isLoading: false,
     isError: false,
     error: null,
-  }),
+    };
+  },
 }));
 
 vi.mock("sonner", () => ({
@@ -65,6 +74,8 @@ beforeEach(() => {
   _lastCaOpts = null;
   lastPsOpts = null;
   stressData = undefined;
+  latestStressTest = undefined;
+  requestedStressTestId = undefined;
 });
 
 describe("StressTestPanel", () => {
@@ -76,6 +87,17 @@ describe("StressTestPanel", () => {
     expect(
       screen.getByRole("button", { name: /Walk-Forward/ }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/스트레스 테스트를 실행하세요/),
+    ).toBeInTheDocument();
+  });
+
+  it("스트레스 테스트가 없으면 빈 패널을 렌더한다", () => {
+    latestStressTest = null;
+
+    render(<StressTestPanel backtestId="abc" />);
+
+    expect(requestedStressTestId).toBeNull();
     expect(
       screen.getByText(/스트레스 테스트를 실행하세요/),
     ).toBeInTheDocument();
@@ -173,6 +195,45 @@ describe("StressTestPanel", () => {
     // fan chart 도 같이 렌더 (책임 분리 유지 검증).
     // jsdom 환경 → placeholder branch (aria-busy="true"). 존재만 확인.
     expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("리로드 시 최신 스트레스 테스트 결과를 렌더한다", () => {
+    latestStressTest = {
+      id: "11111111-1111-4111-8111-111111111111",
+      backtest_id: "abc12345-1111-4111-8111-111111111111",
+      kind: "monte_carlo",
+      status: "completed",
+      created_at: "2026-04-24T00:00:00+00:00",
+      completed_at: "2026-04-24T00:01:00+00:00",
+    };
+    stressData = {
+      id: latestStressTest.id,
+      backtest_id: latestStressTest.backtest_id,
+      kind: "monte_carlo",
+      status: "completed",
+      params: {},
+      monte_carlo_result: {
+        samples: 1000,
+        ci_lower_95: 9500,
+        ci_upper_95: 11000,
+        median_final_equity: 10500,
+        max_drawdown_mean: -0.05,
+        max_drawdown_p95: -0.12,
+        equity_percentiles: {},
+      },
+      walk_forward_result: null,
+      error: null,
+      created_at: latestStressTest.created_at,
+      started_at: latestStressTest.created_at,
+      completed_at: latestStressTest.completed_at,
+    };
+
+    render(
+      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
+    );
+
+    expect(requestedStressTestId).toBe(latestStressTest.id);
+    expect(screen.getByLabelText("Monte Carlo 요약 통계")).toBeInTheDocument();
   });
 
   it("running 상태에서 실행 버튼이 disabled 된다 + '실행 중' 텍스트 표시", () => {

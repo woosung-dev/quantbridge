@@ -34,7 +34,7 @@ vi.mock("@/features/backtest/hooks", () => ({
   useBacktests: () => ({ data: { total: 48 } }),
 }));
 vi.mock("@/features/trading/hooks", () => ({
-  useOrders: () => ({ data: { total: 14 } }),
+  useOpenOrdersCount: () => 7,
 }));
 
 afterEach(() => {
@@ -88,7 +88,7 @@ describe("DashboardShell — C 이식 S3 프로토타입 셸", () => {
     expect(container.querySelectorAll('[aria-disabled="true"]').length).toBe(0);
   });
 
-  it("nav-count 배지 3개가 목록 total 로 렌더되고, 주문 배지는 전체 원장임을 툴팁으로 밝힌다", () => {
+  it("nav-count 배지 3개가 목록 total 로 렌더되고, 주문 배지는 미체결 수를 밝힌다", () => {
     const { container } = render(
       <DashboardShell>
         <p>content</p>
@@ -98,10 +98,9 @@ describe("DashboardShell — C 이식 S3 프로토타입 셸", () => {
     // 전략/백테스트/주문 = 3개.
     expect(badges.length).toBe(3);
     const texts = Array.from(badges).map((b) => b.textContent);
-    expect(texts).toEqual(["12", "48", "14"]);
-    // 주문 배지 = 미체결이 아니라 전체 원장임을 정직하게 표기.
-    const ordersBadge = Array.from(badges).find((b) => b.textContent === "14");
-    expect(ordersBadge?.getAttribute("title")).toMatch(/전체 주문/);
+    expect(texts).toEqual(["12", "48", "7"]);
+    const ordersBadge = Array.from(badges).find((b) => b.textContent === "7");
     expect(ordersBadge?.getAttribute("title")).toMatch(/미체결/);
+    expect(ordersBadge?.getAttribute("title")).toMatch(/대기\+전송/);
   });
 });
