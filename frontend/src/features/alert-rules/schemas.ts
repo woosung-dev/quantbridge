@@ -32,6 +32,7 @@ export const AlertRuleCreateRequestSchema = z
       .string()
       .regex(/^\d+(?:\.\d+)?$/, "손실 한도는 0보다 큰 숫자여야 합니다.")
       .refine((value) => Number(value) > 0, "손실 한도는 0보다 커야 합니다.")
+      .refine((value) => Number(value) <= 100, "손실 한도는 100% 이하여야 합니다.")
       .optional(),
     channel: AlertChannelSchema,
   })

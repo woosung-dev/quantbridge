@@ -37,19 +37,27 @@ describe("handleRealtimeEvent", () => {
       },
       tradingKeys.killSwitch(userId),
     ],
-    [
-      {
-        v: 1,
-        type: "session_state",
-        ts: 1,
-        payload: { session_id: "session-1" },
-      },
-      liveSessionKeys.state(userId, "session-1"),
-    ],
   ] as const)("%s 이벤트를 해당 키로 invalidate한다", (event, queryKey) => {
     const queryClient = makeQueryClient();
     handleRealtimeEvent(queryClient, userId, event as RealtimeEnvelope);
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey });
+  });
+
+  it("session_state는 상세와 목록 키를 함께 invalidate한다", () => {
+    const queryClient = makeQueryClient();
+    handleRealtimeEvent(queryClient, userId, {
+      v: 1,
+      type: "session_state",
+      ts: 1,
+      payload: { session_id: "session-1" },
+    });
+
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, {
+      queryKey: liveSessionKeys.state(userId, "session-1"),
+    });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, {
+      queryKey: liveSessionKeys.list(userId),
+    });
   });
 });

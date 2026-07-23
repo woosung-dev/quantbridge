@@ -27,5 +27,8 @@ export function handleRealtimeEvent(
       void queryClient.invalidateQueries({
         queryKey: liveSessionKeys.state(userId, envelope.payload.session_id),
       });
+      void queryClient.invalidateQueries({
+        queryKey: liveSessionKeys.list(userId),
+      });
   }
 }

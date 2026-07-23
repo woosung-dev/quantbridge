@@ -162,6 +162,16 @@ describe("SessionDiagnostics", () => {
     );
   });
 
+  test("손실 한도 100% 초과는 필드 오류를 보이고 요청하지 않는다", async () => {
+    render(<SessionDiagnostics session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 만들기" }));
+    fireEvent.change(screen.getByLabelText("손실 한도 (%)"), { target: { value: "100.01" } });
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 저장" }));
+
+    expect(await screen.findByText("손실 한도는 100% 이하여야 합니다.")).toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
   test("알림 규칙 409는 중복 활성 규칙 안내를 표시한다", async () => {
     mutateAsync.mockRejectedValue(
       new ApiError(409, "unknown_error", "conflict", {
