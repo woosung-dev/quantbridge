@@ -16,27 +16,33 @@
 
 ## 문서 구조
 
-| 디렉토리                                           | 내용                                                                 | 상태     |
-| -------------------------------------------------- | -------------------------------------------------------------------- | -------- |
-| [00_project/](./00_project/)                       | 프로젝트 비전, 개요, 로드맵                                          | ✅ 완료  |
-| [01_requirements/](./01_requirements/)             | 요구사항 개요, REQ 카탈로그, Pine 분석                               | ✅ 완료  |
-| [02_domain/](./02_domain/)                         | 도메인 개요, 엔티티, 상태 머신                                       | ✅ 완료  |
-| [03_api/](./03_api/)                               | API 엔드포인트 스펙                                                  | ✅ 활성  |
-| [04_architecture/](./04_architecture/)             | ERD, 시스템 아키텍처, 데이터 흐름, 정합성 audit                      | ✅ 완료  |
-| [05_env/](./05_env/)                               | 로컬 셋업, 환경 변수, Clerk 가이드                                   | ✅ 완료  |
-| [06_devops/](./06_devops/)                         | Docker Compose, CI/CD, Pre-commit                                    | ✅ 완료  |
-| [07_infra/](./07_infra/)                           | 배포·Observability·Runbook (draft)                                   | 📝 Draft |
-| [DESIGN.md](../DESIGN.md)                          | 디자인 시스템 (색상, 타이포, 컴포넌트)                               | ✅ 확정  |
-| [prototypes/](./prototypes/)                       | Stage 2 HTML 프로토타입 (12개 화면)                                  | ✅ 확정  |
-| [audit/](./audit/)                                 | 보안 감사 리포트 archive (CSO/Security review 산출물)                | 활성     |
-| [marketing/](./marketing/)                         | build-in-public 콘텐츠 archive (Twitter thread / blog draft)         | 활성     |
-| [reports/](./reports/)                             | 자동 생성 dogfood/retro/audit HTML 리포트                            | 활성     |
-| [superpowers/](./superpowers/)                     | H1 sprint plan/spec/review 누적 (~71 파일, INDEX 참조)               | 활성     |
-| [dev-log/](./dev-log/)                             | ADR (의사결정 기록) + sprint 회고 + dogfood 기록                     | 활성     |
-| [guides/](./guides/)                               | 개발 가이드, Sprint 킥오프/종료 템플릿, BL audit checklist           | 활성     |
-| [TODO.md](./TODO.md)                               | active sprint 작업 추적 (4 섹션)                                     | 활성     |
-| [REFACTORING-BACKLOG.md](./REFACTORING-BACKLOG.md) | deferred 작업 백로그 (BL-XXX, 50+ 항목, 4 priority + Beta 번들)      | 활성     |
-| [\_archive/](./_archive/)                          | Deprecated docs 보관소 (6개월+ 미참조 / 삭제 금지 / 분기별 디렉토리) | archive  |
+> **디자인 문서를 찾는다면 [design-docs-map.md](./design-docs-map.md) 를 먼저 볼 것.**
+> 디자인 문서는 여러 개가 동시에 "확정" 도장을 달고 있고 다루는 **층이 다르다**(토큰 층 = `DESIGN.md` / 화면·용어 캐논 층 = `prototypes/shotgun-2026-07/`).
+> 그 지도가 어느 문서를 근거로 삼아야 하는지 판정한다.
+
+| 디렉토리                                                     | 내용                                                                            | 상태                                |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------- |
+| [00_project/](./00_project/)                                 | 프로젝트 비전, 개요, 로드맵                                                     | ✅ 완료                             |
+| [01_requirements/](./01_requirements/)                       | 요구사항 개요, REQ 카탈로그, Pine 분석                                          | ✅ 완료                             |
+| [02_domain/](./02_domain/)                                   | 도메인 개요, 엔티티, 상태 머신                                                  | ✅ 완료                             |
+| [03_api/](./03_api/)                                         | API 엔드포인트 스펙                                                             | ✅ 활성                             |
+| [04_architecture/](./04_architecture/)                       | ERD, 시스템 아키텍처, 데이터 흐름, 정합성 audit                                 | ✅ 완료                             |
+| [05_env/](./05_env/)                                         | 로컬 셋업, 환경 변수, Clerk 가이드                                              | ✅ 완료                             |
+| [06_devops/](./06_devops/)                                   | Docker Compose, CI/CD, Pre-commit                                               | ✅ 완료                             |
+| [07_infra/](./07_infra/)                                     | 배포·Observability·Runbook (draft)                                              | 📝 Draft                            |
+| [design-docs-map.md](./design-docs-map.md)                   | **디자인 문서 판정 지도 — 디자인 문서는 여기부터**                              | ✅ 활성                             |
+| [DESIGN.md](../DESIGN.md)                                    | 디자인 시스템 — 색·타이포·간격·컴포넌트 **토큰 층** 정본                        | ✅ 현행                             |
+| [prototypes/shotgun-2026-07/](./prototypes/shotgun-2026-07/) | C 디자인 언어 **화면 캐논 17벌** + `_KIT.md` + 용어 SSOT (이식 완료 2026-07-22) | ✅ 현행 캐논                        |
+| [prototypes/](./prototypes/)                                 | Stage 2 HTML 프로토타입 12벌 + INTERACTION_SPEC                                 | ⛔ superseded (삭제 금지 — 지도 §5) |
+| [audit/](./audit/)                                           | 보안 감사 리포트 archive (CSO/Security review 산출물)                           | 활성                                |
+| [marketing/](./marketing/)                                   | build-in-public 콘텐츠 archive (Twitter thread / blog draft)                    | 활성                                |
+| [reports/](./reports/)                                       | 자동 생성 dogfood/retro/audit HTML 리포트                                       | 활성                                |
+| [superpowers/](./superpowers/)                               | H1 sprint plan/spec/review 누적 (~71 파일, INDEX 참조)                          | 활성                                |
+| [dev-log/](./dev-log/)                                       | ADR (의사결정 기록) + sprint 회고 + dogfood 기록                                | 활성                                |
+| [guides/](./guides/)                                         | 개발 가이드, Sprint 킥오프/종료 템플릿, BL audit checklist                      | 활성                                |
+| [TODO.md](./TODO.md)                                         | active sprint 작업 추적 (4 섹션)                                                | 활성                                |
+| [REFACTORING-BACKLOG.md](./REFACTORING-BACKLOG.md)           | deferred 작업 백로그 (BL-XXX, 50+ 항목, 4 priority + Beta 번들)                 | 활성                                |
+| [\_archive/](./_archive/)                                    | Deprecated docs 보관소 (6개월+ 미참조 / 삭제 금지 / 분기별 디렉토리)            | archive                             |
 
 ## 빠른 시작
 

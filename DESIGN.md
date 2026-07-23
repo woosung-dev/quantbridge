@@ -3,6 +3,11 @@
 > **상태:** 확정 — "Precision Instrument" v3
 > **일자:** 2026-07-06 (v3 초판, W1 PR-2)
 > **구현 SSOT:** `frontend/src/styles/globals.css` (토큰) + `frontend/src/lib/brand-palette.ts` (hex 상수, CSS 변수 못 읽는 소비자용) — 두 파일과 본 문서는 항상 같은 커밋에서 동기.
+>
+> **적용 범위 — 본 문서는 토큰 층이다.** 색·타이포·간격·radius·그림자·컴포넌트 패턴의 정본이며 현행이다.
+> **화면이 무엇을 말하는가**(라벨 문구·표 열·수치·인쇄 금지 목록)는 본 문서가 아니라 C 디자인 언어 캐논
+> (`docs/prototypes/shotgun-2026-07/screen-01~17-*.html` + `_KIT.md` §4)이 정한다. 두 층의 판정은
+> [`docs/design-docs-map.md`](docs/design-docs-map.md) 참조.
 
 ---
 
