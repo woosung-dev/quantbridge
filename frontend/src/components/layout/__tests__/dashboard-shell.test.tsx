@@ -16,6 +16,12 @@ vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div data-testid="user-button" />,
 }));
 
+// tier-c: 셸이 RealtimeBridge 를 mount — 셸 단위 테스트는 브리지를 null 로 치환
+// (브리지 자체 동작은 features/realtime 테스트가 소유).
+vi.mock("@/features/realtime/realtime-bridge", () => ({
+  RealtimeBridge: () => null,
+}));
+
 // C 이식 S3: 스토어에서 sidebarOpen/toggleSidebar/setSidebarOpen 삭제 — mobileNav 만 남는다.
 const mockUiState = {
   mobileNavOpen: false,
