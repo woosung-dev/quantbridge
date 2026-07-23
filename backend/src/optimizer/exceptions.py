@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import status
 
 from src.common.exceptions import AppException, NotFoundError, ValidationError
+from src.optimizer.models import OptimizationKind
 
 # Sprint 54 BL-230: optimization_runs.error_message Text 컬럼 truncation 상한.
 # public/internal 양쪽 동일 상한 적용. DB row size 예측 가능성 + log spam 방어.
@@ -41,28 +42,21 @@ class OptimizationNotFoundError(NotFoundError):
 
 
 class OptimizationKindUnsupportedError(ValidationError):
-    """미지원 Optimizer 알고리즘 (Sprint 55 = grid_search + bayesian) — 422 + machine-readable code.
-
-    Sprint 56+ = GENETIC executor 활성 시 본 메시지 갱신 의무 (BL-233).
-    """
+    """미지원 Optimizer 알고리즘 — 422 + machine-readable code."""
 
     code = "OPTIMIZATION_KIND_UNSUPPORTED"
 
     def __init__(self, kind: str) -> None:
         self.kind = kind
+        supported_kinds = ", ".join(item.value for item in OptimizationKind)
         super().__init__(
             f"Optimization kind {kind!r} not supported. "
-            "Sprint 55 supports: {grid_search, bayesian}. "
-            "genetic = Sprint 56+ (BL-233)."
+            f"Supported kinds: {{{supported_kinds}}}."
         )
 
 
 class OptimizationParameterUnsupportedError(ValidationError):
-    """ParamSpaceField.kind = categorical 등 Sprint 54 MVP 미지원 field — 422.
-
-    Sprint 54 Grid Search MVP = integer + decimal field 만 grid expansion. categorical
-    은 Bayesian/Genetic 진입 후 활성화 (ADR-013 reservation).
-    """
+    """ParamSpaceField.kind = categorical 등 미지원 field — 422."""
 
     code = "OPTIMIZATION_PARAMETER_UNSUPPORTED"
 
@@ -71,17 +65,13 @@ class OptimizationParameterUnsupportedError(ValidationError):
         self.kind = kind
         super().__init__(
             f"Optimization parameter {var_name!r} has kind={kind!r}. "
-            f"Sprint 54 Grid Search MVP supports only kind ∈ {{integer, decimal}}. "
-            f"categorical extension tracked under ADR-013 (Sprint 55+)."
+            "Only integer and decimal parameter kinds are supported. "
+            "Categorical extension is tracked under ADR-013."
         )
 
 
 class OptimizationObjectiveUnsupportedError(ValidationError):
-    """objective_metric 화이트리스트 밖 — 422.
-
-    Sprint 54 MVP whitelist = {sharpe_ratio, total_return, max_drawdown}.
-    BacktestMetrics 다른 24 지표는 Sprint 55+ 확장.
-    """
+    """objective_metric 화이트리스트 밖 — 422."""
 
     code = "OPTIMIZATION_OBJECTIVE_UNSUPPORTED"
 
@@ -89,7 +79,7 @@ class OptimizationObjectiveUnsupportedError(ValidationError):
         self.objective_metric = objective_metric
         super().__init__(
             f"Optimization objective_metric {objective_metric!r} not supported. "
-            f"Sprint 54 MVP = {{sharpe_ratio, total_return, max_drawdown}}."
+            "Supported objective metrics: {sharpe_ratio, total_return, max_drawdown}."
         )
 
 

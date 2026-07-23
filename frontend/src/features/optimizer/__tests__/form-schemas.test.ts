@@ -35,6 +35,18 @@ describe("row 스키마", () => {
     });
   });
 
+  it("grid row — min == max 허용 (단일점 스윕)", () => {
+    expect(
+      GridParameterRowSchema.safeParse({
+        var_name: "length",
+        kind: "integer",
+        min: "10",
+        max: "10",
+        step: "1",
+      }).success,
+    ).toBe(true);
+  });
+
   it("bayesian row — min >= max 거부", () => {
     const res = BayesianRowSchema.safeParse({
       var_name: "x",

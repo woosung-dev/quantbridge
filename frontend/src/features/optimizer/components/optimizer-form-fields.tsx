@@ -5,7 +5,7 @@
 // 자체 focus ring 제거 — 전역 카퍼 :focus-visible 링을 소비한다.
 // 라벨은 W1 용어 SSOT(OBJECTIVE_*_LABEL) 경유 (샤프 지수 등 표기 통일).
 
-import type { FieldValues, Path, UseFormRegister } from "react-hook-form";
+import type { FieldErrors, FieldValues, Path, UseFormRegister } from "react-hook-form";
 
 import { AlertTriangleIcon } from "lucide-react";
 
@@ -20,32 +20,76 @@ import type { OptimizerFormBaseValues } from "../form-schemas";
 export const INPUT_CLS = "input";
 export const SELECT_CLS = "select";
 
+export function FieldError({ id, message }: { id: string; message: string }) {
+  return (
+    <p className="field-error" id={id} role="alert">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <line x1="12" y1="7.5" x2="12" y2="13" />
+        <line x1="12" y1="16.5" x2="12" y2="16.6" />
+      </svg>
+      <span>{message}</span>
+    </p>
+  );
+}
+
 /**
  * 목표 지표 / 최적화 방향 / 최대 평가 횟수 — 3폼 공통 헤더.
  * TValues 는 OptimizerFormBaseValues 를 구조적으로 포함해야 한다(호출측 스키마 계약).
  */
 export function ObjectiveFields<TValues extends FieldValues>({
   register,
+  errors,
   maxEvaluations,
 }: {
   register: UseFormRegister<TValues>;
+  errors: FieldErrors<TValues>;
   maxEvaluations: number;
 }) {
   // base 필드 경로는 OptimizerFormBaseValues 부분집합 계약 — generic Path 캐스트.
   const path = (p: keyof OptimizerFormBaseValues) => p as Path<TValues>;
+  const baseErrors = errors as FieldErrors<OptimizerFormBaseValues>;
+  const errorMessage = (field: keyof OptimizerFormBaseValues) => {
+    const message = baseErrors[field]?.message;
+    return typeof message === "string" ? message : undefined;
+  };
+  const metricError = errorMessage("objective_metric");
+  const directionError = errorMessage("direction");
+  const evaluationsError = errorMessage("max_evaluations");
   return (
     <div className="opt-field-grid">
       <label className="field">
         <span className="field-label">목표 지표</span>
-        <select className={SELECT_CLS} {...register(path("objective_metric"))}>
+        <select
+          id="optimizer-objective-metric"
+          className={SELECT_CLS}
+          aria-invalid={metricError ? "true" : "false"}
+          aria-describedby={
+            metricError ? "optimizer-objective-metric-error" : undefined
+          }
+          {...register(path("objective_metric"))}
+        >
           <option value="sharpe_ratio">{OBJECTIVE_METRIC_LABEL.sharpe_ratio}</option>
           <option value="total_return">{OBJECTIVE_METRIC_LABEL.total_return}</option>
           <option value="max_drawdown">{OBJECTIVE_METRIC_LABEL.max_drawdown}</option>
         </select>
+        {metricError && <FieldError id="optimizer-objective-metric-error" message={metricError} />}
       </label>
       <label className="field">
         <span className="field-label">최적화 방향</span>
-        <select className={SELECT_CLS} {...register(path("direction"))}>
+        <select
+          id="optimizer-direction"
+          className={SELECT_CLS}
+          aria-invalid={directionError ? "true" : "false"}
+          aria-describedby={directionError ? "optimizer-direction-error" : undefined}
+          {...register(path("direction"))}
+        >
           <option value="maximize">
             {OBJECTIVE_DIRECTION_LABEL.maximize} ({OBJECTIVE_DIRECTION_HINT.maximize})
           </option>
@@ -53,16 +97,28 @@ export function ObjectiveFields<TValues extends FieldValues>({
             {OBJECTIVE_DIRECTION_LABEL.minimize} ({OBJECTIVE_DIRECTION_HINT.minimize})
           </option>
         </select>
+        {directionError && <FieldError id="optimizer-direction-error" message={directionError} />}
       </label>
       <label className="field">
         <span className="field-label">최대 평가 횟수 (최대 {maxEvaluations})</span>
         <input
+          id="optimizer-max-evaluations"
           type="number"
           min={1}
           max={maxEvaluations}
           className={INPUT_CLS}
+          aria-invalid={evaluationsError ? "true" : "false"}
+          aria-describedby={
+            evaluationsError ? "optimizer-max-evaluations-error" : undefined
+          }
           {...register(path("max_evaluations"), { valueAsNumber: true })}
         />
+        {evaluationsError && (
+          <FieldError
+            id="optimizer-max-evaluations-error"
+            message={evaluationsError}
+          />
+        )}
       </label>
     </div>
   );

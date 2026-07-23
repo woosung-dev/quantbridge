@@ -17,10 +17,15 @@ import {
 /** 3폼 공통 헤더 필드 — max_evaluations 상한만 알고리즘별로 다르다. */
 export function makeOptimizerFormBaseFields(maxEvaluations: number) {
   return {
-    backtest_id: z.uuid(),
+    backtest_id: z.uuid("백테스트 ID 형식이 올바르지 않습니다."),
     objective_metric: OptimizationObjectiveMetricSchema,
     direction: OptimizationDirectionSchema,
-    max_evaluations: z.coerce.number().int().min(1).max(maxEvaluations),
+    max_evaluations: z
+      .coerce
+      .number()
+      .int("최대 평가 횟수는 정수여야 합니다.")
+      .min(1, "최대 평가 횟수는 1 이상이어야 합니다.")
+      .max(maxEvaluations, `최대 평가 횟수는 ${maxEvaluations} 이하여야 합니다.`),
   };
 }
 
@@ -34,30 +39,44 @@ export interface OptimizerFormBaseValues {
 // ── row 스키마 (알고리즘별 구조가 달라 통합하지 않는다) ────────────────────
 
 /** Grid — IntegerField/DecimalField discriminated union (integer 만 숫자 coerce). */
-export const GridParameterRowSchema = z.discriminatedUnion("kind", [
-  z.object({
-    var_name: z.string().min(1, "var_name required"),
-    kind: z.literal("integer"),
-    min: z.coerce.number().int(),
-    max: z.coerce.number().int(),
-    step: z.coerce.number().int().min(1).default(1),
-  }),
-  z.object({
-    var_name: z.string().min(1, "var_name required"),
-    kind: z.literal("decimal"),
-    min: z.string().min(1, "min required"),
-    max: z.string().min(1, "max required"),
-    step: z.string().min(1, "step required"),
-  }),
-]);
+export const GridParameterRowSchema = z
+  .discriminatedUnion("kind", [
+    z.object({
+      var_name: z.string().min(1, "변수 이름을 입력하세요."),
+      kind: z.literal("integer"),
+      min: z.coerce.number().int("최소값은 정수여야 합니다."),
+      max: z.coerce.number().int("최대값은 정수여야 합니다."),
+      step: z.coerce
+        .number()
+        .int("간격은 정수여야 합니다.")
+        .min(1, "간격은 1 이상이어야 합니다.")
+        .default(1),
+    }),
+    z.object({
+      var_name: z.string().min(1, "변수 이름을 입력하세요."),
+      kind: z.literal("decimal"),
+      min: z.string().min(1, "최소값을 입력하세요."),
+      max: z.string().min(1, "최대값을 입력하세요."),
+      step: z.string().min(1, "간격을 입력하세요."),
+    }),
+  ])
+  .superRefine((row, ctx) => {
+    if (Number.isFinite(Number(row.min)) && Number.isFinite(Number(row.max)) && Number(row.min) > Number(row.max)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["max"],
+        message: "최소값은 최대값보다 작거나 같아야 합니다.",
+      });
+    }
+  });
 export type GridParameterRow = z.infer<typeof GridParameterRowSchema>;
 
 /** Bayesian — min/max 문자열 + prior/log_scale, min<max·log 시 min>0 검증. */
 export const BayesianRowSchema = z
   .object({
-    var_name: z.string().min(1, "var_name required"),
-    min: z.string().min(1, "min required"),
-    max: z.string().min(1, "max required"),
+    var_name: z.string().min(1, "변수 이름을 입력하세요."),
+    min: z.string().min(1, "최소값을 입력하세요."),
+    max: z.string().min(1, "최대값을 입력하세요."),
     prior: BayesianPriorSchema.default("uniform"),
     log_scale: z.boolean().default(false),
   })
@@ -68,14 +87,14 @@ export const BayesianRowSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["max"],
-        message: `min < max 강제 (got ${row.min} / ${row.max})`,
+        message: "최소값은 최대값보다 작아야 합니다.",
       });
     }
     if ((row.log_scale || row.prior === "log_uniform") && minN <= 0) {
       ctx.addIssue({
         code: "custom",
         path: ["min"],
-        message: "log_scale / log_uniform 은 min > 0 필요",
+        message: "로그 스케일은 최소값이 0보다 커야 합니다.",
       });
     }
   });
@@ -84,11 +103,11 @@ export type BayesianRow = z.infer<typeof BayesianRowSchema>;
 /** Genetic — kind+min/max/step 전부 문자열 입력, min<=max 검증. */
 export const GeneticRowSchema = z
   .object({
-    var_name: z.string().min(1, "var_name required"),
+    var_name: z.string().min(1, "변수 이름을 입력하세요."),
     kind: z.enum(["integer", "decimal"]).default("integer"),
-    min: z.string().min(1, "min required"),
-    max: z.string().min(1, "max required"),
-    step: z.string().min(1, "step required"),
+    min: z.string().min(1, "최소값을 입력하세요."),
+    max: z.string().min(1, "최대값을 입력하세요."),
+    step: z.string().min(1, "간격을 입력하세요."),
   })
   .superRefine((row, ctx) => {
     const minN = Number(row.min);
@@ -97,7 +116,7 @@ export const GeneticRowSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["max"],
-        message: `min <= max 강제 (got ${row.min} / ${row.max})`,
+        message: "최소값은 최대값보다 작거나 같아야 합니다.",
       });
     }
   });
@@ -105,7 +124,10 @@ export type GeneticRow = z.infer<typeof GeneticRowSchema>;
 
 /** 3폼 공통 parameters 배열 제약 (1~4개). */
 export function makeParametersArraySchema<TRow extends z.ZodType>(row: TRow) {
-  return z.array(row).min(1).max(4);
+  return z
+    .array(row)
+    .min(1, "파라미터를 하나 이상 추가하세요.")
+    .max(4, "파라미터는 최대 4개까지 추가할 수 있습니다.");
 }
 
 // ── row → wire 매핑 ────────────────────────────────────────────────────────

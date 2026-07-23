@@ -11,16 +11,21 @@ import {
   type ArrayPath,
   type Control,
   type FieldArray,
+  type FieldErrors,
   type FieldValues,
   type Path,
   type UseFormRegister,
 } from "react-hook-form";
 
+import { FieldError } from "./optimizer-form-fields";
+
 const MAX_ROWS = 4;
+type ParamRowErrors = Record<string, { message?: unknown } | undefined>;
 
 export interface ParamRowsFieldsetProps<TValues extends FieldValues> {
   control: Control<TValues>;
   register: UseFormRegister<TValues>;
+  errors: FieldErrors<TValues>;
   legend: string;
   /** append 시 기본 row 값 — 호출측 row 스키마 기본형. */
   emptyRow: Record<string, unknown>;
@@ -28,12 +33,18 @@ export interface ParamRowsFieldsetProps<TValues extends FieldValues> {
    * var_name 다음의 알고리즘별 셀들. removeButton 을 마지막 셀 안에 배치할 것
    * (기존 3폼 레이아웃 유지 — 마지막 셀이 flex 로 버튼을 품는다).
    */
-  renderRowCells: (index: number, removeButton: ReactNode) => ReactNode;
+  renderRowCells: (
+    index: number,
+    removeButton: ReactNode,
+    errors: ParamRowErrors,
+    errorId: (field: string) => string,
+  ) => ReactNode;
 }
 
 export function ParamRowsFieldset<TValues extends FieldValues>({
   control,
   register,
+  errors,
   legend,
   emptyRow,
   renderRowCells,
@@ -47,26 +58,53 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
   return (
     <fieldset className="opt-fieldset">
       <legend>{legend}</legend>
-      {fields.fields.map((field, idx) => (
-        <div key={field.id} className="opt-param-row">
-          <input
-            placeholder="변수 이름 (예: length)"
-            className="input"
-            {...register(`parameters.${idx}.var_name` as Path<TValues>)}
-          />
-          {renderRowCells(
-            idx,
-            <button
-              type="button"
-              onClick={() => fields.remove(idx)}
-              aria-label="파라미터 삭제"
-              className="icon-btn"
-            >
-              <XIcon aria-hidden="true" />
-            </button>,
-          )}
-        </div>
-      ))}
+      {fields.fields.map((field, idx) => {
+        const nestedErrors = (errors as { parameters?: ParamRowErrors[] }).parameters?.[idx];
+        const flatErrors = errors as Record<string, { message?: unknown } | undefined>;
+        const rowErrors = Object.fromEntries(
+          ["var_name", "min", "max", "step"].flatMap((name) => {
+            const error = nestedErrors?.[name] ?? flatErrors[`parameters.${idx}.${name}`];
+            return error ? [[name, error]] : [];
+          }),
+        ) as ParamRowErrors;
+        const errorId = (name: string) => `optimizer-param-${idx}-${name}-error`;
+        const errorMessage = (name: string) => {
+          const message = rowErrors[name]?.message;
+          return typeof message === "string" ? message : undefined;
+        };
+
+        return (
+          <div key={field.id}>
+            <div className="opt-param-row">
+              <input
+                placeholder="변수 이름 (예: length)"
+                className="input"
+                aria-invalid={errorMessage("var_name") ? "true" : "false"}
+                aria-describedby={errorMessage("var_name") ? errorId("var_name") : undefined}
+                {...register(`parameters.${idx}.var_name` as Path<TValues>)}
+              />
+              {renderRowCells(
+                idx,
+                <button
+                  type="button"
+                  onClick={() => fields.remove(idx)}
+                  aria-label="파라미터 삭제"
+                  className="icon-btn"
+                >
+                  <XIcon aria-hidden="true" />
+                </button>,
+                rowErrors,
+                errorId,
+              )}
+            </div>
+            {Object.entries(rowErrors).map(([name, error]) =>
+              typeof error?.message === "string" ? (
+                <FieldError key={name} id={errorId(name)} message={error.message} />
+              ) : null,
+            )}
+          </div>
+        );
+      })}
       <button
         type="button"
         onClick={() => fields.append(emptyRow as FieldArray<TValues, ArrayPath<TValues>>)}

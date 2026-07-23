@@ -74,14 +74,19 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <ObjectiveFields register={form.register} maxEvaluations={9} />
+      <ObjectiveFields
+        register={form.register}
+        errors={form.formState.errors}
+        maxEvaluations={9}
+      />
 
       <ParamRowsFieldset
         control={form.control}
         register={form.register}
+        errors={form.formState.errors}
         legend="파라미터 (1~4개)"
         emptyRow={EMPTY_ROW}
-        renderRowCells={(idx, removeButton) => (
+        renderRowCells={(idx, removeButton, errors, errorId) => (
           <>
             <select className="select" {...form.register(`parameters.${idx}.kind`)}>
               <option value="integer">정수</option>
@@ -90,17 +95,23 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
             <input
               placeholder="최소"
               className="input"
+              aria-invalid={errors.min ? "true" : "false"}
+              aria-describedby={errors.min ? errorId("min") : undefined}
               {...form.register(`parameters.${idx}.min`)}
             />
             <input
               placeholder="최대"
               className="input"
+              aria-invalid={errors.max ? "true" : "false"}
+              aria-describedby={errors.max ? errorId("max") : undefined}
               {...form.register(`parameters.${idx}.max`)}
             />
             <div className="opt-param-row-tail">
               <input
                 placeholder="간격"
                 className="input"
+                aria-invalid={errors.step ? "true" : "false"}
+                aria-describedby={errors.step ? errorId("step") : undefined}
                 {...form.register(`parameters.${idx}.step`)}
               />
               {removeButton}
