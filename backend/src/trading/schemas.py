@@ -228,3 +228,43 @@ class LiveSignalEventResponse(BaseModel):
 
 class LiveSignalEventListResponse(BaseModel):
     items: list[LiveSignalEventResponse]
+
+
+class ExchangePositionSchema(BaseModel):
+    """거래소에서 조회한 개별 open position leg."""
+
+    side: str
+    size: Decimal
+    entry_price: Decimal | None
+    mark_price: Decimal | None
+    unrealized_pnl: Decimal | None
+    liquidation_price: Decimal | None
+    leverage: Decimal | None
+
+
+class PositionDiffSchema(BaseModel):
+    """로컬 Pine open trade와 거래소 포지션의 읽기 전용 대조 결과."""
+
+    verdict: Literal[
+        "match",
+        "qty_mismatch",
+        "side_mismatch",
+        "exchange_only",
+        "local_only",
+        "unknown",
+    ]
+    local_source: Literal["strategy_state_report", "none"]
+
+
+class LiveSessionPositionsResponse(BaseModel):
+    """GET /live-sessions/{id}/positions 응답."""
+
+    session_id: UUID
+    symbol: str
+    market_type: Literal["futures", "spot"]
+    supported: bool
+    reason: str | None
+    fetched_at: AwareDatetime | None
+    positions: list[ExchangePositionSchema]
+    local_open_trades_snapshot: list[dict[str, object]]
+    diff: PositionDiffSchema

@@ -24,9 +24,11 @@ from src.trading.dependencies import (
     get_liquidation_service,
     get_live_signal_session_service,
     get_order_service,
+    get_position_service,
     get_webhook_service,
 )
 from src.trading.equity_calculator import recompute_equity_curve
+from src.trading.exceptions import ProviderError
 from src.trading.liquidation_schemas import (
     LiquidationInfoResponse,
     LiquidationPreviewRequest,
@@ -41,6 +43,7 @@ from src.trading.schemas import (
     ExchangeAccountResponse,
     KillSwitchEventResponse,
     LiveSessionListResponse,
+    LiveSessionPositionsResponse,
     LiveSessionResponse,
     LiveSignalEventListResponse,
     LiveSignalEventResponse,
@@ -56,6 +59,7 @@ from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
+from src.trading.services.position_service import PositionService
 from src.trading.webhook import WebhookService, parse_tv_payload
 
 router = APIRouter(tags=["trading"])
@@ -458,6 +462,21 @@ async def get_live_session_state(
         equity_curve=[dict(p) for p in real_equity_curve],  # TypedDict → dict 호환 cast
         updated_at=state.updated_at,
     )
+
+
+@router.get(
+    "/live-sessions/{session_id}/positions",
+    response_model=LiveSessionPositionsResponse,
+)
+async def get_live_session_positions(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: PositionService = Depends(get_position_service),
+) -> LiveSessionPositionsResponse:
+    try:
+        return await service.get_reconciliation(current_user.id, session_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=503, detail="exchange position lookup unavailable") from exc
 
 
 @router.get(
