@@ -51,10 +51,9 @@ export const StrategySettingsSchema = z
   .strict();
 export type StrategySettings = z.infer<typeof StrategySettingsSchema>;
 
-// Sprint 38 BL-188 v3 D — Pine declaration optional. BL-188 v3 B (PR #171) 가
-// backtest-form.tsx 에 `StrategyWithPine` TS stub 만 두었음. BE 가 pine_declared_qty
-// 를 strategy detail 응답에 surface 하면 Zod strip 차단으로 form 가 4-state 의
-// "pine" tier 로 정상 분기. forward-ready optional 필드 — BE 미emit 시 undefined.
+// Sprint 38 BL-188 v3 D — Pine declaration optional. StrategyResponseSchema 가
+// strategy detail 응답의 pine_declared_qty 를 직접 보존해 form 이 4-state 의
+// "pine" tier 로 분기한다. BE 미emit 시 undefined.
 export const PineDeclaredQtySchema = z.object({
   type: z.string().nullable().optional(),
   value: z.number().nullable().optional(),

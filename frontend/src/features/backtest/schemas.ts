@@ -402,6 +402,27 @@ export const StressTestStatusSchema = z.enum([
 ]);
 export type StressTestStatus = z.infer<typeof StressTestStatusSchema>;
 
+// 목록 항목은 결과 payload 없이 실행 메타데이터만 반환한다.
+export const StressTestSummarySchema = z.object({
+  id: z.uuid(),
+  backtest_id: z.uuid(),
+  kind: StressTestKindSchema,
+  status: StressTestStatusSchema,
+  created_at: z.iso.datetime({ offset: true }),
+  completed_at: z.iso.datetime({ offset: true }).nullable(),
+});
+export type StressTestSummary = z.infer<typeof StressTestSummarySchema>;
+
+export const StressTestListResponseSchema = z.object({
+  items: z.array(StressTestSummarySchema),
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+});
+export type StressTestListResponse = z.infer<
+  typeof StressTestListResponseSchema
+>;
+
 // Monte Carlo result — BE Decimal → str 직렬화에 대해 transform 적용.
 // `equity_percentiles` 는 "5"/"25"/"50"/"75"/"95" 키를 가진 dict; 각 시계열은 number 배열로 변환.
 export const MonteCarloResultSchema = z.object({

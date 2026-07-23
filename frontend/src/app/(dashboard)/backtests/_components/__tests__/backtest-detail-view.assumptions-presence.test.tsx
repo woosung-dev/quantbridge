@@ -55,6 +55,7 @@ vi.mock("@/features/backtest/hooks", () => ({
     isError: false,
     error: null,
   }),
+  useLatestStressTest: () => ({ data: undefined }),
   useCreateMonteCarlo: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateWalkForward: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateCostAssumption: () => ({ mutate: vi.fn(), isPending: false }),

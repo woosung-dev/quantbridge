@@ -40,11 +40,6 @@ export interface BacktestFormValues {
   trading_sessions: TradingSession[];
 }
 
-// Sprint 38 BL-188 v3 — Pine declaration optional probe (BE A2 후 활성).
-type StrategyWithPine = {
-  pine_declared_qty?: { type?: string | null; value?: number | null } | null;
-};
-
 // Sprint 31 BL-167 — date default helper. 6개월 default (180일) UX 마찰 제거.
 function toYmd(d: Date): string {
   const y = d.getFullYear();
@@ -180,9 +175,7 @@ export function useBacktestForm() {
   const selectedStrategy = useWatch({ control, name: "strategy_id" });
   const { data: strategy } = useStrategy(selectedStrategy || undefined);
 
-  const pineDeclared = Boolean(
-    (strategy as StrategyWithPine | undefined)?.pine_declared_qty?.type,
-  );
+  const pineDeclared = Boolean(strategy?.pine_declared_qty?.type);
   const liveLeverage = strategy?.settings?.leverage ?? null;
   const livePct = strategy?.settings?.position_size_pct ?? null;
   const strategyId = strategy?.id ?? null;

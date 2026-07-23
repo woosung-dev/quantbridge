@@ -29,6 +29,7 @@ import {
   getStressTest,
   listBacktests,
   listBacktestTrades,
+  listStressTests,
   postCostAssumption,
   postMonteCarlo,
   postParamStability,
@@ -55,6 +56,7 @@ import type {
   ShareTokenResponse,
   StressTestCreatedResponse,
   StressTestDetail,
+  StressTestSummary,
   TradeItem,
   TradeListResponse,
 } from "./schemas";
@@ -306,6 +308,17 @@ function makeStressTestFetcher(id: string, getToken: TokenGetter) {
   };
 }
 
+function makeLatestStressTestFetcher(
+  backtestId: string,
+  getToken: TokenGetter,
+) {
+  return async () => {
+    const token = await getToken();
+    const page = await listStressTests(backtestId, 1, token);
+    return page.items[0] ?? null;
+  };
+}
+
 // LESSON-004 guard: refetchInterval 은 module-level 순수 함수로, terminal status 에서 false 반환.
 // React Query data 객체를 useEffect dep 로 쓰지 않아 CPU 100% 루프를 원천 차단.
 export const stressTestRefetchInterval: RefetchIntervalFn<StressTestDetail> =
@@ -381,5 +394,18 @@ export function useStressTest(
     enabled: Boolean(id),
     refetchInterval: stressTestRefetchInterval,
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useLatestStressTest(
+  backtestId: string | undefined,
+): UseQueryResult<StressTestSummary | null, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: backtestId
+      ? stressTestKeys.byBacktest(uid, backtestId)
+      : stressTestKeys.all(uid),
+    queryFn: makeLatestStressTestFetcher(backtestId ?? "", getToken),
+    enabled: Boolean(backtestId),
   });
 }
