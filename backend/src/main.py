@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -143,7 +144,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await healthcheck_redis_lock(app)
 
+    # Redis listener는 healthcheck와 동일하게 best-effort다. 장애는 listener 내부의
+    # backoff 재연결로 흡수하고 HTTP/WS 앱 기동은 계속한다.
+    from src.realtime.manager import ConnectionManager
+
+    app.state.realtime_manager = ConnectionManager()
+    app.state.realtime_listener_task = asyncio.create_task(app.state.realtime_manager.listen())
+
     yield
+
+    app.state.realtime_listener_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await app.state.realtime_listener_task
+    await app.state.realtime_manager.close()
 
     if getattr(app.state, "ccxt_provider", None) is not None:
         await app.state.ccxt_provider.close()
@@ -280,6 +293,10 @@ def create_app() -> FastAPI:
     from src.waitlist.router import router as waitlist_router
 
     app.include_router(waitlist_router, prefix="/api/v1")
+
+    from src.realtime.router import router as realtime_router
+
+    app.include_router(realtime_router, prefix="/api/v1")
 
     return app
 
