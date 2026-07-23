@@ -20,6 +20,7 @@ from src.auth.schemas import CurrentUser
 from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
 from src.trading.dependencies import (
+    get_alert_rule_service,
     get_exchange_account_service,
     get_liquidation_service,
     get_live_signal_session_service,
@@ -40,6 +41,9 @@ from src.trading.repositories.live_signal_event_repository import LiveSignalEven
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import (
+    AlertRuleCreateRequest,
+    AlertRuleListResponse,
+    AlertRuleResponse,
     ExchangeAccountResponse,
     KillSwitchEventResponse,
     LiveSessionListResponse,
@@ -56,6 +60,7 @@ from src.trading.schemas import (
     mask_api_key,
 )
 from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
@@ -499,3 +504,44 @@ async def list_live_session_events(
     return LiveSignalEventListResponse(
         items=[LiveSignalEventResponse.model_validate(e) for e in events]
     )
+
+
+@router.get(
+    "/live-sessions/{session_id}/alert-rules",
+    response_model=AlertRuleListResponse,
+)
+async def list_alert_rules(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AlertRuleService = Depends(get_alert_rule_service),
+) -> AlertRuleListResponse:
+    rules = await service.list_active(current_user.id, session_id)
+    items = [AlertRuleResponse.model_validate(rule) for rule in rules]
+    return AlertRuleListResponse(items=items, total=len(items))
+
+
+@router.post(
+    "/live-sessions/{session_id}/alert-rules",
+    status_code=201,
+    response_model=AlertRuleResponse,
+)
+async def create_alert_rule(
+    data: AlertRuleCreateRequest,
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AlertRuleService = Depends(get_alert_rule_service),
+) -> AlertRuleResponse:
+    return AlertRuleResponse.model_validate(await service.create(current_user.id, session_id, data))
+
+
+@router.delete(
+    "/live-sessions/{session_id}/alert-rules/{rule_id}",
+    status_code=204,
+)
+async def delete_alert_rule(
+    session_id: UUID = Path(...),
+    rule_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AlertRuleService = Depends(get_alert_rule_service),
+) -> None:
+    await service.deactivate(current_user.id, session_id, rule_id)

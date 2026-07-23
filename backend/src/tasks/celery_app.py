@@ -36,6 +36,7 @@ celery_app = Celery(
         "src.tasks.websocket_task",
         "src.tasks.orphan_scanner",
         "src.tasks.live_signal",  # Sprint 26 — Pine Signal Auto-Trading
+        "src.tasks.alert_rules",
     ],
 )
 
@@ -142,6 +143,11 @@ celery_app.conf.beat_schedule = {
     # eval task 의 apply_async 가 broker 일시 장애로 유실됐을 때 list_pending() 재enqueue.
     "dispatch-pending-live-signal-events": {
         "task": "live_signal.dispatch_pending",
+        "schedule": 300.0,
+        "options": {"expires": 240},
+    },
+    "evaluate-alert-rules": {
+        "task": "alert_rules.evaluate_loss",
         "schedule": 300.0,
         "options": {"expires": 240},
     },

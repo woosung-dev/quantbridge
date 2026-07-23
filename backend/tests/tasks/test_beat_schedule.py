@@ -1,4 +1,5 @@
 """Beat schedule 등록 검증 — reclaim_stale_running_task 5분 주기."""
+from src.tasks import alert_rules as _alert_rules  # noqa: F401 — task 등록 강제
 from src.tasks import backtest as _backtest  # noqa: F401 — task 등록 강제
 from src.tasks import celery_app  # type: ignore[attr-defined]
 from src.tasks import optimizer_tasks as _optimizer  # noqa: F401 — task 등록 강제
@@ -42,3 +43,13 @@ def test_stress_test_reclaim_stale_registered() -> None:
     assert entry["schedule"] == 300.0
     assert entry["options"]["expires"] == 240
     assert "stress_test.reclaim_stale" in celery_app.tasks
+
+
+def test_alert_rules_beat_registered() -> None:
+    schedule = celery_app.conf.beat_schedule
+    entry = schedule["evaluate-alert-rules"]
+    assert entry["task"] == "alert_rules.evaluate_loss"
+    assert entry["schedule"] == 300.0
+    assert entry["options"]["expires"] == 240
+    assert "alert_rules.evaluate_loss" in celery_app.tasks
+    assert celery_app.amqp.router.route({}, "alert_rules.evaluate_loss")["queue"].name == "celery"

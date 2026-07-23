@@ -25,12 +25,14 @@ from src.trading.kill_switch import (
     KillSwitchService,
 )
 from src.trading.providers import BybitFuturesProvider
+from src.trading.repositories.alert_rule_repository import AlertRuleRepository
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
@@ -191,6 +193,15 @@ async def get_live_signal_session_service(
         account_repo=ExchangeAccountRepository(session),
         strategy_repo=StrategyRepository(session),
         user_repo=UserRepository(session),
+    )
+
+
+async def get_alert_rule_service(
+    session: AsyncSession = Depends(get_async_session),
+) -> AlertRuleService:
+    return AlertRuleService(
+        repo=AlertRuleRepository(session),
+        session_repo=LiveSignalSessionRepository(session),
     )
 
 

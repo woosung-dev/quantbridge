@@ -7,7 +7,15 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from src.trading.models import ExchangeMode, ExchangeName, OrderSide, OrderState, OrderType
+from src.trading.models import (
+    AlertChannel,
+    AlertRuleType,
+    ExchangeMode,
+    ExchangeName,
+    OrderSide,
+    OrderState,
+    OrderType,
+)
 
 
 class RegisterAccountRequest(BaseModel):
@@ -181,6 +189,42 @@ class LiveSessionResponse(BaseModel):
 
 class LiveSessionListResponse(BaseModel):
     items: list[LiveSessionResponse]
+    total: int
+
+
+class AlertRuleCreateRequest(BaseModel):
+    """POST /live-sessions/{id}/alert-rules 요청."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rule_type: AlertRuleType
+    threshold_percent: Decimal | None = Field(default=None, gt=0, decimal_places=8)
+    channel: AlertChannel
+
+    @model_validator(mode="after")
+    def _validate_type_threshold(self) -> AlertRuleCreateRequest:
+        if self.rule_type == AlertRuleType.loss_limit and self.threshold_percent is None:
+            raise ValueError("loss_limit rules require threshold_percent")
+        if self.rule_type == AlertRuleType.watchdog and self.threshold_percent is not None:
+            raise ValueError("watchdog rules must not set threshold_percent")
+        return self
+
+
+class AlertRuleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    session_id: UUID
+    rule_type: AlertRuleType
+    threshold_percent: Decimal | None
+    channel: AlertChannel
+    is_active: bool
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+
+
+class AlertRuleListResponse(BaseModel):
+    items: list[AlertRuleResponse]
     total: int
 
 

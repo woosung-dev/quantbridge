@@ -33,6 +33,7 @@ from src.common.alert import send_critical_alert
 from src.common.metrics import qb_active_orders, qb_trailing_placement_total
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
+from src.trading.alerting import send_rule_alert
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
     OrderNotFound,
@@ -49,6 +50,8 @@ from src.trading.models import (
 )
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
 from src.trading.registry import dispatch as _dispatch_provider
+from src.trading.repositories.alert_rule_repository import AlertRuleRepository
+from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 
 # Sprint 15 Phase A.2 — submitted watchdog (BL-001) 상수.
@@ -459,6 +462,53 @@ def _get_redis_lock_pool_for_alert() -> Any:
     return get_redis_lock_pool()
 
 
+def _get_redis_lock_pool_for_rule_alert() -> Any:
+    """규칙 팬아웃 dedupe의 테스트 가능한 Redis pool 간접 함수."""
+    return get_redis_lock_pool()
+
+
+async def _try_rule_fanout_watchdog(session_db: AsyncSession, order: Any, reason: str) -> None:
+    """매칭 live session의 watchdog 규칙만 best-effort로 fan-out한다."""
+    try:
+        live_session = await LiveSignalSessionRepository(
+            session_db
+        ).find_active_by_strategy_account_symbol(
+            order.strategy_id, order.exchange_account_id, order.symbol
+        )
+        if live_session is None:
+            return
+        rules = await AlertRuleRepository(session_db).find_active_watchdog_rules_for(
+            live_session.id
+        )
+        for rule in rules:
+            can_fire = bool(
+                await _get_redis_lock_pool_for_rule_alert().set(
+                    f"qb_rule_alert:{rule.id}:{order.id}".encode(),
+                    b"1",
+                    nx=True,
+                    ex=_WATCHDOG_ALERT_TTL_SECONDS,
+                )
+            )
+            if can_fire:
+                await send_rule_alert(
+                    settings,
+                    channel=rule.channel,
+                    title="Live session order watchdog gave up",
+                    message=(
+                        f"Order watchdog gave up. Reason: {reason}. "
+                        "Scope: the matching live session order."
+                    ),
+                    context={
+                        "rule_id": str(rule.id)[:8],
+                        "session_id": str(live_session.id)[:8],
+                        "order_id": str(order.id)[:8],
+                        "reason": reason,
+                    },
+                )
+    except Exception:
+        logger.exception("alert_rule_watchdog_fanout_failed", extra={"order_id": str(order.id)})
+
+
 async def _try_watchdog_alert_throttled(
     order_id: UUID,
     exchange_order_id: str | None,
@@ -613,6 +663,7 @@ async def _fetch_order_status_with_session(
                 attempt,
                 reason=f"provider_error:{type(e).__name__}",
             )
+            await _try_rule_fanout_watchdog(session, order, f"provider_error:{type(e).__name__}")
             return {
                 "order_id": str(order_id),
                 "skipped": "provider_error",
@@ -701,6 +752,7 @@ async def _fetch_order_status_with_session(
             attempt,
             reason="still_submitted_after_max_attempts",
         )
+        await _try_rule_fanout_watchdog(session, order, "still_submitted_after_max_attempts")
         return {
             "order_id": str(order_id),
             "state": "submitted",

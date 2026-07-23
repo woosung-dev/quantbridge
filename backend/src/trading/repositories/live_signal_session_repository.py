@@ -46,6 +46,18 @@ class LiveSignalSessionRepository:
         )
         return result.scalar_one_or_none()
 
+    async def find_active_by_strategy_account_symbol(
+        self, strategy_id: UUID, exchange_account_id: UUID, symbol: str
+    ) -> LiveSignalSession | None:
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.exchange_account_id == exchange_account_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.symbol == symbol)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+        )
+        return result.scalar_one_or_none()
+
     async def list_active_by_user(self, user_id: UUID) -> Sequence[LiveSignalSession]:
         result = await self.session.execute(
             select(LiveSignalSession)

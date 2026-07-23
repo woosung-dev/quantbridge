@@ -279,12 +279,19 @@ async def test_fetch_order_status_max_attempts_alerts_and_giveup(
         return True
 
     monkeypatch.setattr(task_mod, "send_critical_alert", _fake_alert)
+    rule_fanout_calls: list[str] = []
+
+    async def _fake_rule_fanout(_session, _order, reason):  # type: ignore[no-untyped-def]
+        rule_fanout_calls.append(reason)
+
+    monkeypatch.setattr(task_mod, "_try_rule_fanout_watchdog", _fake_rule_fanout)
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=3)
 
     assert result["state"] == "submitted"
     assert result["watchdog_giveup"] is True
     assert len(alert_calls) == 1
+    assert rule_fanout_calls == ["still_submitted_after_max_attempts"]
     assert "stuck" in alert_calls[0]["message"].lower() or "submit" in alert_calls[0]["message"].lower()
 
 
@@ -323,6 +330,38 @@ async def test_fetch_order_status_alert_throttled_on_second_giveup(
     await task_mod._async_fetch_order_status(order.id, attempt=3)
 
     assert len(alert_calls) == 1, "throttle 후 두 번째 alert 안 발화"
+
+
+@pytest.mark.asyncio
+async def test_rule_watchdog_fanout_is_noop_without_matching_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """세션 미매칭 주문은 규칙 조회·발송을 하지 않아 기존 Slack 경로에 영향이 없다."""
+    import src.tasks.trading as task_mod
+
+    class _Sessions:
+        def __init__(self, _session) -> None:
+            pass
+
+        async def find_active_by_strategy_account_symbol(self, *_args):
+            return None
+
+    rule_repo_calls = 0
+
+    class _Rules:
+        def __init__(self, _session) -> None:
+            nonlocal rule_repo_calls
+            rule_repo_calls += 1
+
+    monkeypatch.setattr(task_mod, "LiveSignalSessionRepository", _Sessions)
+    monkeypatch.setattr(task_mod, "AlertRuleRepository", _Rules)
+    order = type(
+        "OrderStub",
+        (),
+        {"id": uuid4(), "strategy_id": uuid4(), "exchange_account_id": uuid4(), "symbol": "BTCUSDT"},
+    )()
+    await task_mod._try_rule_fanout_watchdog(object(), order, "test")
+    assert rule_repo_calls == 0
 
 
 # -------------------------------------------------------------------------
