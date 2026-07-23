@@ -36,3 +36,10 @@
 
 - `/strategies` 는 HydrationBoundary 서버 프리페치라 **Playwright 라우트 목이 Node-side fetch 를 못 가로챈다**. B1 e2e 는 목 대신 라이브 구조 불변식(열 존재 + 전 행 정수 + 0행이면 실패)으로 전환 — SSR 실경로 검증이라 오히려 정직. 목 기반 스펙을 쓸 땐 대상 페이지가 클라이언트 페치인지 먼저 확인할 것.
 - 전략 목록 봉투는 `{items,total,page,limit,total_pages}` 5필드 — 2필드 목은 zod 파싱 실패로 빈 화면이 된다(스펙 1차 실패 원인).
+
+## 2026-07-23 dogfood 발굴 잠복 P1 2건 (스프린트 내 해소)
+
+1. **stress_test enum 혼합 케이싱**: MC 실행 클릭 → 500 `invalid input value for enum stress_test_kind: "MONTE_CARLO"`. 최초 migration(20260424)이 소문자 라벨 생성 + `duplicate_object THEN NULL` 가드(기존 타입 조용히 유지 — DB 이력별 케이싱 분기 경로), LESSON-066 이후 신규 값만 대문자. **테스트 DB 는 metadata 생성이라 이 클래스를 구조적으로 못 잡는다** → alembic-경로 enum 라벨 ↔ Python member NAME 대조 sentinel 신설 — 작성 즉시 `stress_test_status` 드리프트까지 추가 검출(2건째). 수정 = RENAME VALUE migration(멱등 가드, 저장 row 자동 이행).
+2. **provider cancel_order symbol 미전달**: 202 취소의 celery leg 가 `bybit cancelOrder() requires a symbol argument` 로 전멸(스모크 시딩의 provider_error 가 단서 — 에러 종류를 읽었기에 발견, LESSON "Read Errors, Don't Guess"). bybit spot/futures/okx/live 전부 동일. BL-404(watchdog fetch_order) 와 동형 — futures 는 `_to_bybit_linear_symbol` 재사용. **잔여 리스크**: 실거래소 왕복(실 submitted 주문 취소 성공→cancelled 전이)은 다음 실 demo dogfood 에서 확인 필요 — 유닛은 전달 계약까지만 잠근다.
+3. **V7b 재검증**: enum 수정 후 MC 202→완료→결과 렌더→리로드 복원(A7-lite) 동일 값 실측 PASS. dogfood 최종 V1~V10 전 항목 PASS.
+4. 훅 함정: lint-staged 가 파일을 명시 경로로 넘기면 ruff `extend-exclude` 가 우회됨 → `alembic/versions` per-file-ignores 미러 추가 (S608 등).
