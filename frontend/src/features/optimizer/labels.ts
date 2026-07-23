@@ -48,18 +48,12 @@ export const OBJECTIVE_METRIC_LABEL: Record<
   max_drawdown: "최대 낙폭",
 };
 
-/**
- * 표 헤더용 축약. 시각 텍스트는 완전형을 쓰고 이 값은 th 의 abbr 속성에만 넣는다.
- * 정답 형태는 screen-02-dashboard.html:1304 의 <th abbr="MDD">최대 낙폭</th> 이다.
- */
-export const OBJECTIVE_METRIC_ABBR: Record<
-  OptimizationObjectiveMetric,
-  string
-> = {
-  sharpe_ratio: "샤프",
-  total_return: "수익률",
-  max_drawdown: "MDD",
-};
+// 목표 지표 축약 매핑(`OBJECTIVE_METRIC_ABBR`)은 두지 않는다. `_KIT.md` §4.10 이
+// 캐논이며, 축약은 지표별 상수가 아니라 **자리**로 판정한다 — 좁은 칸이면 축약,
+// 표 헤더·산문이면 완전형이다. 축약해도 되는 이름은 `MDD` 와 `샤프` 둘뿐이고
+// `수익률` 은 명시적으로 금지다. 3-키 Record 는 그 판정을 지표 단위로 잘못
+// 인코딩해서 `수익률` 축약을 되살린다. 축약이 필요한 좁은 칸은 해당 컴포넌트에서
+// 리터럴로 쓰고, 접근 이름에는 위 완전형을 단다(가시 텍스트로 열 폭을 흔들지 않는다).
 
 /** 최적화 방향. screen-09-optimizer-list.html:1218-1219 */
 export const OBJECTIVE_DIRECTION_LABEL: Record<OptimizationDirection, string> =
