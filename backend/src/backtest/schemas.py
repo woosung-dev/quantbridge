@@ -301,6 +301,7 @@ class BacktestMetricsOut(BaseModel):
     # C6 (정직성 Slice 4) — funding 차감 시 보유 구간 일부가 데이터 범위 밖이면 True.
     # bool 이라 _decimal_to_str 직렬화 대상 아님. None=미반영 (구 backtest 호환).
     funding_data_incomplete: bool | None = None
+    total_funding: Decimal | None = None
     # --- TV parity 팩 (구 backtest = None, graceful upgrade) ---
     net_profit_abs: Decimal | None = None
     gross_profit_abs: Decimal | None = None
@@ -324,7 +325,7 @@ class BacktestMetricsOut(BaseModel):
         "sortino_ratio", "calmar_ratio", "profit_factor", "avg_win", "avg_loss",
         "avg_holding_hours", "long_win_rate_pct", "short_win_rate_pct",
         "annual_return_pct", "avg_trade_pct", "best_trade_pct", "worst_trade_pct",
-        "total_fees", "total_slippage",
+        "total_fees", "total_slippage", "total_funding",
         # TV parity 팩 Decimal flat
         "net_profit_abs", "gross_profit_abs", "gross_loss_abs", "open_pnl",
         "largest_win_abs", "largest_loss_abs", "avg_trade_abs", "avg_win_abs",

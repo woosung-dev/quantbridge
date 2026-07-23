@@ -6,6 +6,7 @@ FundingRate 모델은 trading/models.py에 정의.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from decimal import Decimal
@@ -19,6 +20,33 @@ if TYPE_CHECKING:
 from src.trading.models import FundingRate
 
 logger = logging.getLogger(__name__)
+
+
+async def _store_rows(session: AsyncSession, rows: list[FundingRate]) -> int:
+    """FundingRate 행을 멱등 저장하고 새로 삽입된 수를 반환한다."""
+    if not rows:
+        return 0
+
+    inserted = 0
+    for row in rows:
+        result = await session.execute(
+            text(
+                "INSERT INTO trading.funding_rates "
+                "(id, symbol, exchange, funding_rate, funding_timestamp, fetched_at) "
+                "VALUES (:id, :symbol, :exchange, :funding_rate, :funding_timestamp, NOW()) "
+                "ON CONFLICT (exchange, symbol, funding_timestamp) DO NOTHING"
+            ),
+            {
+                "id": str(row.id),
+                "symbol": row.symbol,
+                "exchange": row.exchange,
+                "funding_rate": str(row.funding_rate),
+                "funding_timestamp": row.funding_timestamp,
+            },
+        )
+        inserted += result.rowcount  # type: ignore[attr-defined]
+    await session.commit()
+    return inserted
 
 
 async def fetch_and_store_funding_rates(
@@ -69,30 +97,82 @@ async def fetch_and_store_funding_rates(
             )
         )
 
-    if not rows:
-        return 0
-
-    inserted = 0
-    for row in rows:
-        result = await session.execute(
-            text(
-                "INSERT INTO trading.funding_rates "
-                "(id, symbol, exchange, funding_rate, funding_timestamp, fetched_at) "
-                "VALUES (:id, :symbol, :exchange, :funding_rate, :funding_timestamp, NOW()) "
-                "ON CONFLICT (exchange, symbol, funding_timestamp) DO NOTHING"
-            ),
-            {
-                "id": str(row.id),
-                "symbol": row.symbol,
-                "exchange": row.exchange,
-                "funding_rate": str(row.funding_rate),
-                "funding_timestamp": row.funding_timestamp,
-            },
-        )
-        inserted += result.rowcount  # type: ignore[attr-defined]
-    await session.commit()
+    inserted = await _store_rows(session, rows)
     logger.info(
         "funding_rates_stored",
+        extra={"exchange": exchange_name, "symbol": symbol, "inserted": inserted},
+    )
+    return inserted
+
+
+async def backfill_funding_rate_history(
+    *,
+    exchange_name: str,
+    symbol: str,
+    start: datetime,
+    end: datetime,
+    session: AsyncSession,
+    page_limit: int = 200,
+    max_pages: int = 200,
+) -> int:
+    """지정 기간의 funding 이력을 페이지 단위로 멱등 backfill 한다."""
+    import ccxt.async_support as ccxt_async
+
+    exchange_cls = getattr(ccxt_async, exchange_name, None)
+    if exchange_cls is None:
+        raise ValueError(f"Unknown CCXT exchange: {exchange_name!r}")
+
+    start_ms = int(start.timestamp() * 1000)
+    end_ms = int(end.timestamp() * 1000)
+    since_ms = start_ms
+    inserted = 0
+    page_count = 0
+    exchange = exchange_cls()
+    try:
+        while since_ms <= end_ms and page_count < max_pages:
+            raw = await exchange.fetch_funding_rate_history(
+                symbol, since=since_ms, limit=page_limit
+            )
+            if not raw:
+                break
+
+            timestamped = [
+                (item, timestamp)
+                for item in raw
+                if (timestamp := item.get("timestamp")) is not None
+            ]
+            if not timestamped:
+                break
+            last_ts = max(timestamp for _, timestamp in timestamped)
+            rows = [
+                FundingRate(
+                    symbol=symbol,
+                    exchange=exchange_name,  # type: ignore[arg-type]
+                    funding_rate=Decimal(str(item["fundingRate"])),
+                    funding_timestamp=datetime.fromtimestamp(
+                        timestamp / 1000, tz=start.tzinfo or None
+                    ),
+                )
+                for item, timestamp in timestamped
+                if item.get("fundingRate") is not None and start_ms <= timestamp <= end_ms
+            ]
+            inserted += await _store_rows(session, rows)
+            page_count += 1
+            if last_ts >= end_ms:
+                break
+            since_ms = last_ts + 1
+            if page_count < max_pages:
+                await asyncio.sleep(0.1)
+    finally:
+        await exchange.close()
+
+    if page_count >= max_pages:
+        logger.warning(
+            "funding_rate_backfill_max_pages_reached",
+            extra={"exchange": exchange_name, "symbol": symbol, "pages": page_count},
+        )
+    logger.info(
+        "funding_rate_history_backfilled",
         extra={"exchange": exchange_name, "symbol": symbol, "inserted": inserted},
     )
     return inserted

@@ -113,6 +113,12 @@ celery_app.conf.beat_schedule = {
         "args": ["bybit", "ETH/USDT:USDT", 2],
         "options": {"expires": 3000},
     },
+    "fetch-funding-rates-sol": {
+        "task": "trading.fetch_funding_rates",
+        "schedule": 3600.0,
+        "args": ["bybit", "SOL/USDT:USDT", 2],
+        "options": {"expires": 3000},
+    },
     "dogfood-daily-report": {
         "task": "reporting.dogfood_daily",
         "schedule": crontab(hour=22, minute=0),  # 매일 22:00 UTC

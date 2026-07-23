@@ -80,3 +80,116 @@ async def test_fetch_and_store_unknown_exchange_raises():
             since=datetime.now(UTC),
             session=MagicMock(),
         )
+
+
+async def test_backfill_paginates_with_next_timestamp_cursor():
+    """두 페이지는 마지막 timestamp+1을 다음 since로 사용한다."""
+    from src.trading.funding import backfill_funding_rate_history
+
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    first_ts = int(start.timestamp() * 1000)
+    second_ts = first_ts + 8 * 60 * 60 * 1000
+    mock_exchange = MagicMock()
+    mock_exchange.fetch_funding_rate_history = AsyncMock(
+        side_effect=[
+            [{"timestamp": first_ts, "fundingRate": "0.0001"}],
+            [{"timestamp": second_ts, "fundingRate": "0.0002"}],
+        ]
+    )
+    mock_exchange.close = AsyncMock()
+    mock_result = MagicMock(rowcount=1)
+    mock_session = MagicMock(execute=AsyncMock(return_value=mock_result), commit=AsyncMock())
+
+    with (
+        patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)),
+        patch("src.trading.funding.asyncio.sleep", new=AsyncMock()),
+    ):
+        inserted = await backfill_funding_rate_history(
+            exchange_name="bybit",
+            symbol="BTC/USDT:USDT",
+            start=start,
+            end=datetime(2024, 1, 1, 8, tzinfo=UTC),
+            session=mock_session,
+        )
+
+    assert inserted == 2
+    assert mock_exchange.fetch_funding_rate_history.call_args_list[0].kwargs["since"] == first_ts
+    assert mock_exchange.fetch_funding_rate_history.call_args_list[1].kwargs["since"] == first_ts + 1
+
+
+async def test_backfill_does_not_store_records_after_end():
+    """종료 시각 이후 funding record는 DB insert 대상이 아니다."""
+    from src.trading.funding import backfill_funding_rate_history
+
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    end = datetime(2024, 1, 1, 8, tzinfo=UTC)
+    mock_exchange = MagicMock()
+    mock_exchange.fetch_funding_rate_history = AsyncMock(
+        return_value=[
+            {"timestamp": int(start.timestamp() * 1000), "fundingRate": "0.0001"},
+            {"timestamp": int((end + timedelta(hours=8)).timestamp() * 1000), "fundingRate": "0.0002"},
+        ]
+    )
+    mock_exchange.close = AsyncMock()
+    mock_session = MagicMock(execute=AsyncMock(return_value=MagicMock(rowcount=1)), commit=AsyncMock())
+
+    with patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)):
+        inserted = await backfill_funding_rate_history(
+            exchange_name="bybit",
+            symbol="BTC/USDT:USDT",
+            start=start,
+            end=end,
+            session=mock_session,
+        )
+
+    assert inserted == 1
+    assert mock_session.execute.await_count == 1
+
+
+async def test_backfill_is_idempotent_when_all_rows_conflict():
+    """ON CONFLICT 결과가 0이면 재실행해도 새 행 수는 0이다."""
+    from src.trading.funding import backfill_funding_rate_history
+
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    mock_exchange = MagicMock()
+    mock_exchange.fetch_funding_rate_history = AsyncMock(
+        return_value=[{"timestamp": int(start.timestamp() * 1000), "fundingRate": "0.0001"}]
+    )
+    mock_exchange.close = AsyncMock()
+    mock_session = MagicMock(execute=AsyncMock(return_value=MagicMock(rowcount=0)), commit=AsyncMock())
+
+    with patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)):
+        inserted = await backfill_funding_rate_history(
+            exchange_name="bybit",
+            symbol="BTC/USDT:USDT",
+            start=start,
+            end=start,
+            session=mock_session,
+        )
+
+    assert inserted == 0
+    mock_session.commit.assert_awaited_once()
+
+
+async def test_backfill_empty_first_page_skips_database():
+    """첫 페이지가 비어 있으면 저장 및 commit 없이 종료한다."""
+    from src.trading.funding import backfill_funding_rate_history
+
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    mock_exchange = MagicMock()
+    mock_exchange.fetch_funding_rate_history = AsyncMock(return_value=[])
+    mock_exchange.close = AsyncMock()
+    mock_session = MagicMock(execute=AsyncMock(), commit=AsyncMock())
+
+    with patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)):
+        inserted = await backfill_funding_rate_history(
+            exchange_name="bybit",
+            symbol="BTC/USDT:USDT",
+            start=start,
+            end=start,
+            session=mock_session,
+        )
+
+    assert inserted == 0
+    mock_session.execute.assert_not_awaited()
+    mock_session.commit.assert_not_awaited()

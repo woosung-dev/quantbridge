@@ -201,3 +201,102 @@ def test_equity_curve_funding_reduces_equity() -> None:
     assert funded.iloc[0] == base.iloc[0] - Decimal("0.01")
     assert funded.iloc[1] == base.iloc[1] - Decimal("0.032")
     assert funded.iloc[2] == base.iloc[2] - Decimal("0.032")
+
+
+def test_funding_settlement_between_bars_belongs_to_previous_bar() -> None:
+    ohlcv = _ohlcv_8h([100, 110, 120])
+    trades = [_long_trade(entry_bar=0, exit_bar=None, qty="1", entry="100", exit_=None)]
+    funding = pd.Series(
+        [Decimal("0.0001")], index=pd.to_datetime(["2024-01-01T04:00:00Z"])
+    )
+
+    costs, _ = _funding_cost_by_bar(trades, ohlcv, funding)
+
+    assert costs == [Decimal("0.01"), Decimal("0"), Decimal("0")]
+
+
+def test_funding_before_first_bar_is_not_attributed() -> None:
+    ohlcv = _ohlcv_8h([100, 110])
+    trades = [_long_trade(entry_bar=0, exit_bar=None, qty="1", entry="100", exit_=None)]
+    funding = pd.Series(
+        [Decimal("0.5")], index=pd.to_datetime(["2023-12-31T16:00:00Z"])
+    )
+
+    costs, _ = _funding_cost_by_bar(trades, ohlcv, funding)
+
+    assert costs == [Decimal("0"), Decimal("0")]
+
+
+def test_run_backtest_total_funding_matches_equity_difference() -> None:
+    ohlcv = _ohlcv_full_8h([100, 100, 100, 100, 100, 100])
+    funding = pd.Series(
+        [Decimal("0.0001"), Decimal("0.0002")],
+        index=pd.to_datetime(["2024-01-01T16:00:00Z", "2024-01-02T00:00:00Z"]),
+    )
+    cfg = BacktestConfig(init_cash=Decimal("1000"), fees=0.0, slippage=0.0, freq="8h")
+
+    equity_off = run_backtest(_HODL_SRC, ohlcv, cfg)
+    equity_on = run_backtest(_HODL_SRC, ohlcv, cfg, funding_rates=funding)
+
+    assert equity_off.result is not None and equity_on.result is not None
+    total_funding = equity_on.result.metrics.total_funding
+    assert total_funding == Decimal("0.03")
+    assert equity_off.result.equity_curve.iloc[-1] - equity_on.result.equity_curve.iloc[-1] == total_funding
+
+
+def test_empty_funding_with_open_position_reports_zero_total_and_incomplete() -> None:
+    ohlcv = _ohlcv_full_8h([100, 100, 100])
+    funding = pd.Series([], index=pd.to_datetime([]), dtype=object)
+    cfg = BacktestConfig(init_cash=Decimal("1000"), fees=0.0, slippage=0.0, freq="8h")
+
+    outcome = run_backtest(_HODL_SRC, ohlcv, cfg, funding_rates=funding)
+
+    assert outcome.result is not None
+    assert outcome.result.metrics.total_funding == Decimal("0")
+    assert outcome.result.metrics.funding_data_incomplete is True
+
+
+def test_missing_funding_keeps_metrics_byte_identical_and_total_none() -> None:
+    ohlcv = _ohlcv_full_8h([100, 100, 100])
+    cfg = BacktestConfig(init_cash=Decimal("1000"), fees=0.0, slippage=0.0, freq="8h")
+
+    omitted = run_backtest(_HODL_SRC, ohlcv, cfg)
+    explicit_none = run_backtest(_HODL_SRC, ohlcv, cfg, funding_rates=None)
+
+    assert omitted.result is not None and explicit_none.result is not None
+    assert omitted.result.metrics == explicit_none.result.metrics
+    assert explicit_none.result.metrics.total_funding is None
+
+
+def test_short_funding_receipt_produces_negative_total() -> None:
+    source = """//@version=5
+strategy("SHORT")
+if bar_index == 1
+    strategy.entry("Short", strategy.short)
+"""
+    ohlcv = _ohlcv_full_8h([100, 100, 100, 100])
+    funding = pd.Series(
+        [Decimal("0.001")], index=pd.to_datetime(["2024-01-01T16:00:00Z"])
+    )
+    cfg = BacktestConfig(init_cash=Decimal("1000"), fees=0.0, slippage=0.0, freq="8h")
+
+    outcome = run_backtest(source, ohlcv, cfg, funding_rates=funding)
+
+    assert outcome.result is not None
+    assert outcome.result.metrics.total_funding == Decimal("-0.1")
+
+
+def test_precomputed_funding_costs_match_funding_rates_path() -> None:
+    ohlcv = _ohlcv_8h([100, 110, 120])
+    trades = [_long_trade(entry_bar=0, exit_bar=2, qty="1", entry="100", exit_="120")]
+    funding = pd.Series(
+        [Decimal("0.0001"), Decimal("0.0002")],
+        index=pd.to_datetime(["2024-01-01T00:00:00Z", "2024-01-01T08:00:00Z"]),
+    )
+    cfg = BacktestConfig(init_cash=Decimal("1000"), fees=0.0, slippage=0.0, freq="8h")
+    costs, _ = _funding_cost_by_bar(trades, ohlcv, funding)
+
+    computed = _compute_equity_curve(trades, ohlcv, cfg, funding_rates=funding)
+    precomputed = _compute_equity_curve(trades, ohlcv, cfg, funding_costs=costs)
+
+    assert list(precomputed) == list(computed)
