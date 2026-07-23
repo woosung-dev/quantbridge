@@ -809,7 +809,9 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
 
         try:
             provider = _provider_from_order_snapshot_or_fallback(order, account, submit=None)
-            await provider.cancel_order(creds, order.exchange_order_id)
+            # functional-parity 2026-07-23 — symbol 미전달로 실거래소 취소가 전부
+            # ArgumentsRequired 였던 결함 수정 (provider 가 시장별 정규화 담당).
+            await provider.cancel_order(creds, order.exchange_order_id, order.symbol)
         except ProviderError as e:
             # CF4 fail-closed: 거래소 취소 실패 시 DB flip 금지. 주문 submitted 유지
             # (reconciler / watchdog 가 terminal evidence 확보 시 전이).
@@ -1100,9 +1102,7 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
     #   (완전 무방비 아님 — 고정 bracket SL floor 유효라 critical alert 불요). silent 미부착 차단.
     if result.get("transient") == "position_not_visible":
         if self.request.retries < _TRAILING_FLAT_RETRY_LIMIT:
-            raise self.retry(
-                countdown=_TRAILING_RETRY_BASE_SECONDS * (2**self.request.retries)
-            )
+            raise self.retry(countdown=_TRAILING_RETRY_BASE_SECONDS * (2**self.request.retries))
         logger.warning("trailing_concede_position_flat", extra={"order_id": order_id})
         qb_trailing_placement_total.labels(outcome="skipped_position_flat_confirmed").inc()
         return {"skipped": "position_flat", "order_id": order_id}

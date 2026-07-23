@@ -158,8 +158,9 @@ async def test_bybit_demo_cancel_order(credentials, ccxt_mock):
     from src.trading.providers import BybitDemoProvider
 
     provider = BybitDemoProvider()
-    await provider.cancel_order(credentials, "bybit-order-42")
-    mock_exchange.cancel_order.assert_awaited_once_with("bybit-order-42")
+    await provider.cancel_order(credentials, "bybit-order-42", "BTC/USDT")
+    # functional-parity 2026-07-23 — symbol 필수 (미전달 시 ccxt ArgumentsRequired) 회귀 가드.
+    mock_exchange.cancel_order.assert_awaited_once_with("bybit-order-42", "BTC/USDT")
     mock_exchange.close.assert_awaited_once()
 
 

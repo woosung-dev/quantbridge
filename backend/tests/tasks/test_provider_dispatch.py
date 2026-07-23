@@ -150,7 +150,7 @@ class TestBybitLiveStub:
         provider = BybitLiveProvider()
         creds = Credentials(api_key="k", api_secret="s")
         with pytest.raises(ProviderError):
-            await provider.cancel_order(creds, "fake-id")
+            await provider.cancel_order(creds, "fake-id", "BTC/USDT")
 
     @pytest.mark.asyncio
     async def test_bybit_live_fetch_order_raises_provider_error(self) -> None:
