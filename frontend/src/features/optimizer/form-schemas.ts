@@ -97,6 +97,14 @@ export const BayesianRowSchema = z
         message: "로그 스케일은 최소값이 0보다 커야 합니다.",
       });
     }
+    if (row.prior === "normal" && row.log_scale) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["log_scale"],
+        message:
+          "정규분포 prior 는 로그 스케일과 함께 쓸 수 없습니다. 로그 스케일은 로그균등 prior 를 사용하세요.",
+      });
+    }
   });
 export type BayesianRow = z.infer<typeof BayesianRowSchema>;
 

@@ -115,6 +115,25 @@ describe("BayesianSearchForm — 기본값 제출 body", () => {
     );
     expect(bayesianMutateAsync).not.toHaveBeenCalled();
   });
+
+  it("F5 normal prior 를 선택해 제출하면 normal payload 를 보내고 준비 중 표기가 없다", async () => {
+    render(<BayesianSearchForm backtestId={BACKTEST_ID} />);
+    fillVarName("length");
+    const normalOption = screen.getByRole("option", {
+      name: "정규분포 (중앙 집중)",
+    });
+
+    expect(normalOption).not.toBeDisabled();
+    expect(screen.getByText("파라미터 (1~4개)")).toBeInTheDocument();
+    expect(screen.queryByText(/준비 중/)).not.toBeInTheDocument();
+    fireEvent.change(normalOption.parentElement!, { target: { value: "normal" } });
+    fireEvent.click(screen.getByRole("button", { name: /베이지안 탐색 실행/ }));
+
+    await waitFor(() => expect(bayesianMutateAsync).toHaveBeenCalledTimes(1));
+    expect(bayesianMutateAsync.mock.calls[0]![0]).toMatchObject({
+      param_space: { parameters: { length: { prior: "normal" } } },
+    });
+  });
 });
 
 describe("GeneticSearchForm — 기본값 제출 body", () => {

@@ -20,8 +20,9 @@ degenerate cell 처리 — outcome.status=="ok" but metrics.sharpe_ratio is None
 num_trades=0 → objective_value=None + ``y=_DEGENERATE_PENALTY`` (large finite, GP fit
 safe). NaN/inf 는 skopt GP Cholesky decomposition fail 위험.
 
-prior=normal — skopt 미지원 → ``NotImplementedError`` raise (Sprint 56+ 자체 sampler
-wrapper). ADR-013 §7 amendment 의무.
+prior=normal — skopt 에는 uniform 으로 등록하고 초기 랜덤 phase 샘플을
+_inject_normal_prior_values 가 N(loc=(min+max)/2, scale=(max-min)/4) clip 값으로 교체
+(BL-234).
 
 LESSON-019 (commit-spy): 본 executor 자체는 DB 미접근. Service 가 호출 결과를
 result_jsonb 로 저장 + commit. spy 회귀는 Service test 책임.
@@ -314,7 +315,6 @@ def run_bayesian_search(
         OptimizationParameterUnsupportedError (422): unknown field kind.
         OptimizationObjectiveUnsupportedError (422): objective_metric 화이트리스트 밖.
         OptimizationExecutionError (500): cell run_backtest 실패.
-        NotImplementedError: BayesianHyperparamsField.prior='normal' (Sprint 56+ BL-234).
         ValueError: pine coverage 미통과, var_name 부재, input_type 미지원,
                     schema_version != 2, max_evaluations > 50, bayesian_* None.
     """

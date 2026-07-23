@@ -106,4 +106,25 @@ describe("OptimizerSearchForm field errors", () => {
     );
     expect(mutateAsync).not.toHaveBeenCalled();
   });
+
+  it("F6 normal prior 와 로그 스케일 조합은 log_scale 오류를 표시하고 제출을 차단한다", async () => {
+    render(<BayesianSearchForm backtestId={BACKTEST_ID} />);
+    fireEvent.change(screen.getByPlaceholderText("변수 이름 (예: length)"), {
+      target: { value: "length" },
+    });
+    const normalOption = screen.getByRole("option", {
+      name: "정규분포 (중앙 집중)",
+    });
+    fireEvent.change(normalOption.parentElement!, { target: { value: "normal" } });
+    fireEvent.click(screen.getByLabelText("로그 스케일"));
+    fireEvent.click(screen.getByRole("button", { name: /베이지안 탐색 실행/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "정규분포 prior 는 로그 스케일과 함께 쓸 수 없습니다. 로그 스케일은 로그균등 prior 를 사용하세요.",
+      ),
+    );
+    expect(screen.getByLabelText("로그 스케일")).toHaveAttribute("aria-invalid", "true");
+    expect(bayesianMutateAsync).not.toHaveBeenCalled();
+  });
 });
