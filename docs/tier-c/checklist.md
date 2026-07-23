@@ -14,10 +14,10 @@
 
 ### W1 — 병렬 4기
 
-- [ ] **tc/funding-be (축3 A+B, M)** — 엔진 funding 1회 계산 호이스팅(`funding_costs` kwarg 병존, oracle 9건 byte-identical) + `total_funding` 4-site(①BacktestMetrics ②BacktestMetricsOut+serializer ③serializers 왕복 — FE zod ④는 tc/funding-fe) + oracle T1~T7 + `types.py:48` 주석 교정 + backfill 태스크(`trading.backfill_funding_rates`, 페이지네이션+`_store_rows` 추출+멱등) + beat SOL + B1~B5 테스트.
-- [ ] **tc/optimizer-fe (축3 D, S)** — normal prior option 해제 + legend + `BayesianRowSchema` E1(normal+log_scale 거부) + F5~F6 + BE `bayesian.py` stale docstring 2곳.
-- [ ] **tc/position-be (축2 S1, M)** — `PositionSnapshot`+`fetch_open_positions`(hedge 2건 반환) + `PositionService`(supported=false 정직 분기 + Redis 15s 캐시 + snapshot diff verdict 6종) + `GET /live-sessions/{id}/positions` + 스키마 + 테스트(verdict 6종·ownership 404·503·캐시).
-- [ ] **tc/realtime-be (축1 S0+S1, M)** — `src/realtime/`(router `/api/v1/realtime/ws`·manager·schemas·auth) + `authenticate_clerk_token` 추출 + main.py lifespan + Origin 4403/auth 4401/상한 테스트 (starlette TestClient).
+- [x] **tc/funding-be (축3 A+B, M)** — 엔진 funding 1회 계산 호이스팅(`funding_costs` kwarg 병존, oracle 9건 byte-identical) + `total_funding` 4-site(①BacktestMetrics ②BacktestMetricsOut+serializer ③serializers 왕복 — FE zod ④는 tc/funding-fe) + oracle T1~T7 + `types.py:48` 주석 교정 + backfill 태스크(`trading.backfill_funding_rates`, 페이지네이션+`_store_rows` 추출+멱등) + beat SOL + B1~B5 테스트.
+- [x] **tc/optimizer-fe (축3 D, S)** — normal prior option 해제 + legend + `BayesianRowSchema` E1(normal+log_scale 거부) + F5~F6 + BE `bayesian.py` stale docstring 2곳.
+- [x] **tc/position-be (축2 S1, M)** — `PositionSnapshot`+`fetch_open_positions`(hedge 2건 반환) + `PositionService`(supported=false 정직 분기 + Redis 15s 캐시 + snapshot diff verdict 6종) + `GET /live-sessions/{id}/positions` + 스키마 + 테스트(verdict 6종·ownership 404·503·캐시).
+- [x] **tc/realtime-be (축1 S0+S1, M)** — `src/realtime/`(router `/api/v1/realtime/ws`·manager·schemas·auth) + `authenticate_clerk_token` 추출 + main.py lifespan + Origin 4403/auth 4401/상한 테스트 (starlette TestClient).
 
 ### W2 — 직렬~부분 병렬
 
