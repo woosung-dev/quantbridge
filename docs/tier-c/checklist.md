@@ -23,8 +23,8 @@
 
 - [ ] **tc/alerts-be (축2 S2, L)** — `trading.alert_rules` 테이블(String+StrEnum, partial unique) + alembic 1건 + CRUD 3본 + `alerting.py` send_rule_alert(Telegram 최초 배선) + beat `alert_rules.evaluate_loss` 300s + giveup 훅 2곳 + dedupe + 테스트(commit-spy·409·채널 라우팅·throttle·giveup 회귀).
 - [ ] **tc/publish-be (축1 S2, M)** — `realtime_publisher.py`(no-raise) + 발행 5지점(state_handler user_id 주입 / tasks/trading 3곳 / kill_switch / live_signal) + commit-후-1회-발행 spy 테스트.
-- [ ] **tc/funding-fe (축3 C, S+)** — 체크박스 register+활성화+문구(캐논 이탈 주석) + FE zod `total_funding` + assumptions-card "총 펀딩" 행+tooltip 동적 + report-shell + F1~F4.
-- [ ] **tc/realtime-fe (축1 S3, M)** — `lib/ws-client.ts` + `features/realtime/`(store scalar·handlers·schemas·RealtimeBridge) + dashboard-shell mount + vitest(백오프·auth·invalidate 매핑).
+- [x] **tc/funding-fe (축3 C, S+)** — 체크박스 register+활성화+문구(캐논 이탈 주석) + FE zod `total_funding` + assumptions-card "총 펀딩" 행+tooltip 동적 + report-shell + F1~F4.
+- [x] **tc/realtime-fe (축1 S3, M)** — `lib/ws-client.ts` + `features/realtime/`(store scalar·handlers·schemas·RealtimeBridge) + dashboard-shell mount + vitest(백오프·auth·invalidate 매핑).
 
 ### W3 — 통합 FE
 

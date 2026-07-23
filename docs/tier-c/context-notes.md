@@ -22,3 +22,20 @@
 1. **BE pytest 인캔테이션에 `DATABASE_URL` 오버라이드 추가 의무 (3-env)**: 2-env(TEST\_\*)만으로는 `test_market_data_backfill.py` 2건이 FAIL — `_async_backfill` 이 worker 엔진을 `DATABASE_URL`(backend/.env.local 의 5433 = 남의 DB)로 생성해 InvalidPasswordError. `DATABASE_URL=...5436/quantbridge_test` 추가 시 2/2 그린. **실효 baseline = 2433 passed · 46 skipped** (문서 기준과 합계 일치). 전 워커 게이트 인캔테이션에 반영 완료.
 2. FE baseline = 983 passed(171 파일) 정확 재현. ruff/mypy/tsc/lint 전부 0.
 3. host psql 부재 — DB 오라클은 `docker exec quantbridge-db psql` 로 수행.
+
+## 2026-07-24 G0 — codex read-only 플랜 검증 (273k tokens, 프레임 2 + MAJOR 5 + MINOR 2)
+
+1. **★프레임 1 (코드 대조 확정)**: `last_open_trades_snapshot` 은 실경로에서 항상 `{}` — `to_report()` 가 open_trades 를 **리스트**로 내는데(strategy_state.py:813) live_signal.py 업서트 가드(L636-638)는 dict 만 저장. **대조 소스를 `last_strategy_state_report["open_trades"]` 로 변경** (report 는 dict 라 정상 저장 중 — 마이그레이션 불요 유지). 잠복 결함은 신규 BL 등재 예정 (이번 스프린트에서 저장 계약 수술은 범위 외 — 수술 시 소비자 전수 확인 필요).
+2. **★프레임 2**: 발행 지점 5→7 확장 — cancel_order celery leg 전이(source="cancel") + live_signal 세션 자동 비활성 2곳(L429/L496) 추가. 거절 등 잔여 전이는 fetch_order_status terminal 발행 + 폴링 폴백이 커버(과잉 확장 금지).
+3. **MAJOR 반영**: (a) WS 순서 계약 — Origin 불일치는 accept 전 close(=HTTP 403 핸드셰이크 거부, WS close code 미전달을 테스트로 실측 잠금), auth 실패만 accept 후 4401. (b) 세션 손실 provenance = `LiveSignalEvent.order_id` 귀속 조인 (Order 에 live_session_id 없음 — strategy_id 합산은 수동/타 세션 오염. 킬스위치와 스코프 다름을 발송 메시지에 정직 표기). (c) alert_rules 에 타입별 CheckConstraint (loss_limit↔threshold NOT NULL). (d) BL-388 tripwire 는 BE 3-site 만 강제 — FE zod 는 funding-fe 의 F4 vitest 가 담당(플랜 문구 과장 교정). (e) realtime lifespan 실패 정책 — listener 는 background task, Redis 불능이어도 앱 시작 차단 금지(degraded startup 계약 유지), shutdown cancel→await→close.
+4. **MINOR 반영**: RealtimeBridge mount = Query Provider(Clerk 내부) 하위 (clerk-theme-bridge.tsx:16). 알림 검증 기준 통일 = mock 까지 (플랜 내 "실수신" 잔존 문구 정리).
+5. G0 가 옳다고 확인한 항목: funding 호이스팅 전략 / WS in-process / Requestish 어댑터 + Origin 별도 검증 / String+StrEnum + partial unique / giveup 2지점 좌표 / fetch_open_positions 분리.
+
+## 2026-07-24 수용 루프 실적 — 적대 평가(모델 교차)가 잡은 실버그 (워커 자기 게이트는 전부 그린이었다)
+
+1. **tc-optimizer-fe F**: E1 필드 에러가 실 UI 에서 절대 미렌더 — zodV4Resolver 는 평탄 키("parameters.0.log_scale")로 errors 를 내는데 워커는 중첩 경로만 읽음. F6 테스트(워커 자신이 작성)가 정확히 반증. 픽스 = param-rows-fieldset 의 이중 흡수 패턴 미러.
+2. **tc-realtime-fe P1**: 접속 URL 에 `/api/v1/realtime/ws` 경로 미부착 — 커밋된 모든 설정값(origin만)으로 실환경 접속 원천 불가 + 테스트가 env stub 에 경로를 구워 넣어 은폐(§7.3 전형). 픽스 = `realtimeWsUrl()` 코드 유도 + 최종 URL 값 단언.
+3. **tc-alerts-be P1**: beat 태스크 task_routes `{"queue": "default"}` — 프로젝트 디폴트 큐 이름은 `celery` 고 `default` 소비 워커 부재 → **손실한도 알림 영구 미실행 silent failure** (LESSON-038 부류, 평가자가 celery 라우터 실해석으로 실증). 픽스 = 라우트 삭제(관례 = 전용 큐만 등재) + route 큐 이름 단정 테스트.
+4. **tc-alerts-be P2 실증 2건**: (a) G0 핵심 결정인 귀속 조인 SQL 이 전 테스트에서 스텁 우회 — repo 레벨 DB oracle 테스트 신설 지시. (b) no-op 테스트의 AssertionError 가 훅의 except 에 삼켜져 반증 불가 — 평가자가 오동작 재현 테스트로 실증 후 카운터 스텁 교체 지시.
+5. **환경 함정 (worktree)**: codex sandbox 가 uv 캐시·DB 소켓(5436)·DNS 를 차단 → 워커 자기 게이트는 부분 불능. 대응 = FE worktree 사전 pnpm install(스토어 하드링크 ~7s) + BE 는 메인 레포 `.venv/bin/*` 바이너리 직접 사용 + DB 게이트는 평가자/오케스트레이터가 재현. worktree 커밋은 lint-staged 미가동(루트 node_modules 부재) — W4 에서 prettier 정규화 확인 의무.
+6. cherry-pick 은 반드시 메인 트리에서 (워크트리 안에서 자기 HEAD cherry-pick 은 no-op — 1회 실측).
