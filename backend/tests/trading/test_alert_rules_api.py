@@ -81,3 +81,19 @@ async def test_alert_rules_api_preserves_404_and_409_from_service() -> None:
                 json={"rule_type": "watchdog", "channel": "slack"},
             )
         ).status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_alert_rules_api_rejects_loss_threshold_over_100() -> None:
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=uuid4())
+    app.dependency_overrides[get_alert_rule_service] = lambda: SimpleNamespace()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/live-sessions/{uuid4()}/alert-rules",
+            json={"rule_type": "loss_limit", "threshold_percent": "100.00000001", "channel": "slack"},
+        )
+
+    assert response.status_code == 422

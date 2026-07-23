@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -347,17 +348,25 @@ async def test_fetch_order_status_alert_throttled_on_second_giveup(
 
 
 @pytest.mark.asyncio
-async def test_rule_watchdog_fanout_is_noop_without_matching_session(
+async def test_rule_watchdog_fanout_is_noop_without_event_attribution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """세션 미매칭 주문은 규칙 조회·발송을 하지 않아 기존 Slack 경로에 영향이 없다."""
+    """같은 세션 필드 조합의 수동 주문도 이벤트 귀속 없이는 발화하지 않는다."""
     import src.tasks.trading as task_mod
+
+    strategy_id = uuid4()
+    account_id = uuid4()
+    live_session = SimpleNamespace(
+        id=uuid4(), strategy_id=strategy_id, exchange_account_id=account_id, symbol="BTCUSDT"
+    )
+    lookup_order_ids: list = []
 
     class _Sessions:
         def __init__(self, _session) -> None:
             pass
 
-        async def find_active_by_strategy_account_symbol(self, *_args):
+        async def find_active_by_order_id(self, order_id):
+            lookup_order_ids.append(order_id)
             return None
 
     rule_repo_calls = 0
@@ -372,10 +381,61 @@ async def test_rule_watchdog_fanout_is_noop_without_matching_session(
     order = type(
         "OrderStub",
         (),
-        {"id": uuid4(), "strategy_id": uuid4(), "exchange_account_id": uuid4(), "symbol": "BTCUSDT"},
+        {
+            "id": uuid4(),
+            "strategy_id": live_session.strategy_id,
+            "exchange_account_id": live_session.exchange_account_id,
+            "symbol": live_session.symbol,
+        },
     )()
     await task_mod._try_rule_fanout_watchdog(object(), order, "test")
+    assert lookup_order_ids == [order.id]
     assert rule_repo_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_rule_watchdog_fanout_sends_only_for_event_attributed_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.tasks.trading as task_mod
+
+    live_session = SimpleNamespace(id=uuid4())
+    rule = SimpleNamespace(id=uuid4(), channel="slack")
+
+    class _Sessions:
+        def __init__(self, _session) -> None:
+            pass
+
+        async def find_active_by_order_id(self, _order_id):
+            return live_session
+
+    class _Rules:
+        def __init__(self, _session) -> None:
+            pass
+
+        async def find_active_watchdog_rules_for(self, session_id):
+            assert session_id == live_session.id
+            return [rule]
+
+    class _Redis:
+        async def set(self, *_args, **_kwargs):
+            return True
+
+    sent: list[dict] = []
+
+    async def _send(_settings, **kwargs):
+        sent.append(kwargs)
+        return {"slack": True}
+
+    monkeypatch.setattr(task_mod, "LiveSignalSessionRepository", _Sessions)
+    monkeypatch.setattr(task_mod, "AlertRuleRepository", _Rules)
+    monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_rule_alert", _Redis)
+    monkeypatch.setattr(task_mod, "send_rule_alert", _send)
+    order = SimpleNamespace(id=uuid4())
+
+    await task_mod._try_rule_fanout_watchdog(object(), order, "test")
+
+    assert sent[0]["context"]["session_id"] == str(live_session.id)[:8]
 
 
 # -------------------------------------------------------------------------

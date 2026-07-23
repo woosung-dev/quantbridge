@@ -496,12 +496,10 @@ def _get_redis_lock_pool_for_rule_alert() -> Any:
 
 
 async def _try_rule_fanout_watchdog(session_db: AsyncSession, order: Any, reason: str) -> None:
-    """매칭 live session의 watchdog 규칙만 best-effort로 fan-out한다."""
+    """이벤트로 정확히 귀속된 live session의 watchdog 규칙만 fan-out한다."""
     try:
-        live_session = await LiveSignalSessionRepository(
-            session_db
-        ).find_active_by_strategy_account_symbol(
-            order.strategy_id, order.exchange_account_id, order.symbol
+        live_session = await LiveSignalSessionRepository(session_db).find_active_by_order_id(
+            order.id
         )
         if live_session is None:
             return

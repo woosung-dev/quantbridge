@@ -198,7 +198,8 @@ class AlertRuleCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     rule_type: AlertRuleType
-    threshold_percent: Decimal | None = Field(default=None, gt=0, decimal_places=8)
+    # 절대 손실률은 100%를 넘을 수 없으므로 DB NUMERIC overflow 전에 차단한다.
+    threshold_percent: Decimal | None = Field(default=None, gt=0, le=100, decimal_places=8)
     channel: AlertChannel
 
     @model_validator(mode="after")

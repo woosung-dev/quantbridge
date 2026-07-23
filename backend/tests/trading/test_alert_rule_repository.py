@@ -23,6 +23,7 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
+from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 
 
@@ -127,3 +128,6 @@ async def test_sum_filled_realized_pnl_uses_only_orders_attributed_to_session(
     assert await OrderRepository(db_session).sum_filled_realized_pnl_for_live_session(
         target_session.id
     ) == Decimal("-5")
+    session_repo = LiveSignalSessionRepository(db_session)
+    assert (await session_repo.find_active_by_order_id(attributed.id)).id == target_session.id
+    assert await session_repo.find_active_by_order_id(unattributed.id) is None
