@@ -1,98 +1,209 @@
-// C 이식 S8 — 세션 진단 카드 4상태(로딩/에러/빈/정상) + §06 진단 섹션 단위 테스트.
-// DiagnosticCard 는 실제 에러+엔드포인트를 받을 수 있는 범용 프리미티브지만, SessionDiagnostics
-// 는 포지션 대조 API 가 없어 지어낸 엔드포인트를 노출하지 않고 '미제공' 상태로 둔다(정직성 우선).
-
-import { render, screen } from "@testing-library/react";
+// 코크핏 §06 진단 카드의 실제 API·스토어 상태 매핑을 검증한다.
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AlertTriangleIcon } from "lucide-react";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
+import { ApiError } from "@/lib/api-client";
 import {
   DiagnosticCard,
   SessionDiagnostics,
 } from "@/app/(dashboard)/trading/_components/session-diagnostics";
+import { useAlertRules, useCreateAlertRule, useDeactivateAlertRule } from "@/features/alert-rules/hooks";
+import { useLiveSessionPositions } from "@/features/live-sessions/hooks";
+import type { LiveSession } from "@/features/live-sessions/schemas";
+
+vi.mock("@/features/live-sessions/hooks", () => ({
+  useLiveSessionPositions: vi.fn(),
+}));
+vi.mock("@/features/alert-rules/hooks", () => ({
+  useAlertRules: vi.fn(),
+  useCreateAlertRule: vi.fn(),
+  useDeactivateAlertRule: vi.fn(),
+}));
+
+let realtime = { status: "idle", lastEventTs: null as number | null };
+vi.mock("@/features/realtime/store", () => ({
+  useRealtimeStore: (selector: (state: typeof realtime) => unknown) => selector(realtime),
+  selectRealtimeStatus: (state: typeof realtime) => state.status,
+  selectLastRealtimeEventTs: (state: typeof realtime) => state.lastEventTs,
+}));
+
+const session: LiveSession = {
+  id: "a0000000-0000-4000-8000-000000000001",
+  user_id: "a0000000-0000-4000-8000-000000000002",
+  strategy_id: "a0000000-0000-4000-8000-000000000003",
+  exchange_account_id: "a0000000-0000-4000-8000-000000000004",
+  symbol: "BTC/USDT",
+  interval: "1m",
+  is_active: true,
+  last_evaluated_bar_time: null,
+  created_at: "2026-07-24T00:00:00Z",
+  deactivated_at: null,
+};
+
+const mockPositions = vi.mocked(useLiveSessionPositions);
+const mockRules = vi.mocked(useAlertRules);
+const mockCreateRule = vi.mocked(useCreateAlertRule);
+const mockDeactivateRule = vi.mocked(useDeactivateAlertRule);
+
+const refetch = vi.fn();
+const mutateAsync = vi.fn();
+const deactivate = vi.fn();
+
+function positions(data?: unknown, overrides: Record<string, unknown> = {}) {
+  return {
+    data,
+    isLoading: false,
+    isError: false,
+    refetch,
+    ...overrides,
+  } as unknown as ReturnType<typeof useLiveSessionPositions>;
+}
+
+function rules(data?: unknown, overrides: Record<string, unknown> = {}) {
+  return {
+    data,
+    isLoading: false,
+    isError: false,
+    refetch,
+    ...overrides,
+  } as unknown as ReturnType<typeof useAlertRules>;
+}
+
+beforeEach(() => {
+  realtime = { status: "idle", lastEventTs: null };
+  refetch.mockReset();
+  mutateAsync.mockReset();
+  deactivate.mockReset();
+  mutateAsync.mockResolvedValue({});
+  mockPositions.mockReturnValue(positions());
+  mockRules.mockReturnValue(rules({ items: [], total: 0 }));
+  mockCreateRule.mockReturnValue({ mutateAsync, isPending: false } as never);
+  mockDeactivateRule.mockReturnValue({ mutate: deactivate, isPending: false } as never);
+});
 
 describe("DiagnosticCard 4상태", () => {
-  test("loading — 스켈레톤 + aria-busy", () => {
+  test("action을 상태 박스 안에 렌더한다", () => {
     render(
       <DiagnosticCard
         title="포지션 동기화"
         subtitle="거래소 대조 조회"
-        state="loading"
-        heading="불러오는 중"
-        body="연결하고 있습니다."
-        icon={<AlertTriangleIcon />}
-      />,
-    );
-    const card = screen.getByTestId("diag-loading");
-    expect(card).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByText("연결하고 있습니다.")).toBeInTheDocument();
-  });
-
-  test("error — 실제 엔드포인트 코드 노출 + role=alert", () => {
-    // 프리미티브 자체는 실제 에러+엔드포인트를 받을 수 있다(실재하는 /orders 경로로 예시).
-    render(
-      <DiagnosticCard
-        title="주문 원장"
-        subtitle="주문 조회"
         state="error"
-        heading="주문을 불러오지 못했습니다."
-        body="일시적 오류일 수 있습니다."
-        code="GET /api/v1/trading/orders · 503"
+        heading="실패"
+        body="다시 확인하세요."
+        code="GET /api/v1/live-sessions/id/positions · 503"
         icon={<AlertTriangleIcon />}
+        action={<button type="button">다시 시도</button>}
       />,
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(
-      screen.getByText("GET /api/v1/trading/orders · 503"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("주문을 불러오지 못했습니다."),
-    ).toBeInTheDocument();
-  });
-
-  test("empty — 상태 박스 + role=status", () => {
-    render(
-      <DiagnosticCard
-        title="알림 규칙"
-        subtitle="이 세션 전용"
-        state="empty"
-        heading="알림 규칙이 없습니다."
-        body="규칙을 걸 수 있습니다."
-        icon={<AlertTriangleIcon />}
-      />,
-    );
-    expect(screen.getByTestId("diag-empty")).toBeInTheDocument();
-    expect(screen.getByText("알림 규칙이 없습니다.")).toBeInTheDocument();
-  });
-
-  test("ok — 상태 박스(정상) 렌더", () => {
-    render(
-      <DiagnosticCard
-        title="데이터 갱신"
-        subtitle="폴링"
-        state="ok"
-        heading="정상"
-        body="폴링 스냅샷으로 갱신합니다."
-        icon={<AlertTriangleIcon />}
-      />,
-    );
-    expect(screen.getByTestId("diag-ok")).toBeInTheDocument();
-    expect(screen.getByText("정상")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
   });
 });
 
-describe("SessionDiagnostics 섹션", () => {
-  test("포지션 대조는 지어낸 엔드포인트 대신 '미제공' 상태로 정직하게 둔다", () => {
-    render(<SessionDiagnostics />);
-    // 존재하지 않는 positions 엔드포인트·상태코드를 노출하지 않는다.
-    expect(screen.queryByText(/\/positions/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/· 503/)).not.toBeInTheDocument();
-    // 미제공 상태를 정직하게 표기한다.
+describe("SessionDiagnostics", () => {
+  test("세션 미선택이면 포지션과 알림을 빈 상태로 안내한다", () => {
+    render(<SessionDiagnostics session={null} />);
+    expect(screen.getByText("세션을 선택하면 거래소 포지션을 대조합니다.")).toBeInTheDocument();
+    expect(screen.getByText("세션을 선택하면 이 세션의 알림 규칙을 확인합니다.")).toBeInTheDocument();
+  });
+
+  test("포지션과 알림 조회 중에는 각 카드가 로딩 상태가 된다", () => {
+    mockPositions.mockReturnValue(positions(undefined, { isLoading: true }));
+    mockRules.mockReturnValue(rules(undefined, { isLoading: true }));
+    render(<SessionDiagnostics session={session} />);
+    expect(screen.getByLabelText("포지션 동기화, 불러오는 중")).toBeInTheDocument();
+    expect(screen.getByLabelText("알림 규칙, 불러오는 중")).toBeInTheDocument();
+  });
+
+  test("포지션 match는 거래소 수량과 대조 시각을 그대로 표시한다", () => {
+    mockPositions.mockReturnValue(
+      positions({
+        supported: true,
+        fetched_at: "2026-07-24T12:00:00Z",
+        positions: [{ side: "long", size: "0.25" }],
+        diff: { verdict: "match" },
+      }),
+    );
+    render(<SessionDiagnostics session={session} />);
+    expect(screen.getByText("거래소와 일치")).toBeInTheDocument();
+    expect(screen.getByText(/대조 시각 2026-07-24T12:00:00Z · 거래소 수량 long 0.25/)).toBeInTheDocument();
+  });
+
+  test("포지션 오류는 실제 경로 코드와 재시도 action을 표시한다", () => {
+    mockPositions.mockReturnValue(positions(undefined, { isError: true }));
+    render(<SessionDiagnostics session={session} />);
     expect(
-      screen.getByText("포지션 대조는 아직 제공되지 않습니다."),
+      screen.getByText(`GET /api/v1/live-sessions/${session.id}/positions · 503`),
     ).toBeInTheDocument();
-    // 포지션·스트림·알림 3종 진단 카드.
-    expect(screen.getByText("포지션 동기화")).toBeInTheDocument();
-    expect(screen.getByText("실시간 가격 스트림")).toBeInTheDocument();
-    expect(screen.getByText("알림 규칙")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "다시 시도" })[0]!);
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  test("포지션 미지원 사유를 정직하게 표시한다", () => {
+    mockPositions.mockReturnValue(
+      positions({ supported: false, reason: "spot_position_api_unsupported" }),
+    );
+    render(<SessionDiagnostics session={session} />);
+    expect(screen.getByText("현물 세션의 포지션 대조는 아직 지원하지 않습니다.")).toBeInTheDocument();
+  });
+
+  test("알림 규칙이 없으면 인라인 생성 버튼을 표시하고 loss_limit payload를 보낸다", async () => {
+    render(<SessionDiagnostics session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 만들기" }));
+    fireEvent.change(screen.getByLabelText("손실 한도 (%)"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 저장" }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        rule_type: "loss_limit",
+        threshold_percent: "5",
+        channel: "telegram",
+      }),
+    );
+  });
+
+  test("알림 규칙 409는 중복 활성 규칙 안내를 표시한다", async () => {
+    mutateAsync.mockRejectedValue(
+      new ApiError(409, "unknown_error", "conflict", {
+        detail: { code: "alert_rule_already_active" },
+      }),
+    );
+    render(<SessionDiagnostics session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 만들기" }));
+    fireEvent.change(screen.getByLabelText("손실 한도 (%)"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 저장" }));
+    expect(await screen.findByText("이미 같은 유형의 활성 규칙이 있습니다.")).toBeInTheDocument();
+  });
+
+  test("활성 규칙은 저장값을 요약하고 해제 action을 제공한다", () => {
+    mockRules.mockReturnValue(
+      rules({
+        items: [
+          {
+            id: "a0000000-0000-4000-8000-000000000010",
+            rule_type: "loss_limit",
+            threshold_percent: "5",
+            channel: "telegram",
+          },
+        ],
+        total: 1,
+      }),
+    );
+    render(<SessionDiagnostics session={session} />);
+    expect(screen.getByText("규칙 1개 활성")).toBeInTheDocument();
+    expect(screen.getByText("손실 한도 5% · telegram")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "해제" }));
+    expect(deactivate).toHaveBeenCalledWith("a0000000-0000-4000-8000-000000000010");
+  });
+
+  test.each([
+    ["authed", "실시간 스트림 연결됨"],
+    ["connecting", "실시간 스트림에 연결하고 있습니다."],
+    ["idle", "실시간 스트림이 설정되지 않았습니다."],
+    ["closed", "실시간 스트림 연결이 끊겼습니다."],
+  ])("실시간 %s 상태를 %s로 표시한다", (status, heading) => {
+    realtime = { status, lastEventTs: null };
+    render(<SessionDiagnostics session={session} />);
+    expect(screen.getByText(new RegExp(heading))).toBeInTheDocument();
   });
 });

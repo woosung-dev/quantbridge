@@ -5,10 +5,12 @@ import { apiFetch } from "@/lib/api-client";
 
 import {
   LiveSessionListResponseSchema,
+  LiveSessionPositionsResponseSchema,
   LiveSessionSchema,
   LiveSignalEventListResponseSchema,
   LiveSignalStateSchema,
   type LiveSession,
+  type LiveSessionPositions,
   type LiveSignalEvent,
   type LiveSignalState,
   type RegisterLiveSessionRequest,
@@ -77,4 +79,15 @@ export async function listLiveSessionEvents(
     { method: "GET", token },
   );
   return LiveSignalEventListResponseSchema.parse(raw);
+}
+
+export async function getLiveSessionPositions(
+  sessionId: string,
+  token: string | null,
+): Promise<LiveSessionPositions> {
+  const raw = await apiFetch<unknown>(
+    `${LIVE_SESSIONS_PATH}/${sessionId}/positions`,
+    { method: "GET", token },
+  );
+  return LiveSessionPositionsResponseSchema.parse(raw);
 }

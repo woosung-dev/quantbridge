@@ -22,6 +22,7 @@ import { makeRefetchInterval, type RefetchIntervalFn } from "@/lib/query-poll";
 import { mergeCumulativeCurves, type CurvePoint } from "./aggregate";
 import {
   deactivateLiveSession,
+  getLiveSessionPositions,
   getLiveSessionState,
   listLiveSessionEvents,
   listLiveSessions,
@@ -30,6 +31,7 @@ import {
 import { liveSessionKeys } from "./query-keys";
 import type {
   LiveSession,
+  LiveSessionPositions,
   LiveSignalEvent,
   LiveSignalState,
   RegisterLiveSessionRequest,
@@ -50,6 +52,10 @@ const listRefetchInterval = makeRefetchInterval<{
 const eventsRefetchInterval = makeRefetchInterval<{
   items: LiveSignalEvent[];
 }>(() => LIVE_SESSION_LIST_REFETCH_MS);
+
+const positionsRefetchInterval = makeRefetchInterval<LiveSessionPositions>(
+  () => LIVE_SESSION_LIST_REFETCH_MS,
+);
 
 /**
  * 세션 state 폴링 간격 — active 여부에 따라 5s/30s, error 시 중단.
@@ -84,6 +90,13 @@ function makeEventsFetcher(sessionId: string, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return listLiveSessionEvents(sessionId, token);
+  };
+}
+
+function makePositionsFetcher(sessionId: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getLiveSessionPositions(sessionId, token);
   };
 }
 
@@ -209,6 +222,18 @@ export function useLiveSessionEvents(
     queryFn: makeEventsFetcher(sessionId ?? "", getToken),
     enabled: Boolean(sessionId),
     refetchInterval: eventsRefetchInterval,
+  });
+}
+
+export function useLiveSessionPositions(
+  sessionId: string | null,
+): UseQueryResult<LiveSessionPositions, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: liveSessionKeys.positions(uid, sessionId ?? ""),
+    queryFn: makePositionsFetcher(sessionId ?? "", getToken),
+    enabled: Boolean(sessionId),
+    refetchInterval: positionsRefetchInterval,
   });
 }
 
