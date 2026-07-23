@@ -163,6 +163,43 @@ test.describe("Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차�
     await expect.poll(() => postedToBayesianEndpoint).toBe(true);
   });
 
+  // functional-parity BL-401 — 검증 실패가 무피드백 제출 차단이 아니라 field-level
+  // 에러(role=alert)로 표출되는지 가드. var_name 을 비운 채 제출 → 에러 렌더 + POST 미발사.
+  test("BL-401 — 빈 var_name 제출 시 field error 표출 + POST 미발사", async ({
+    page,
+  }) => {
+    let postedToBayesianEndpoint = false;
+    const context = page.context();
+
+    await context.route("**/api/v1/backtests**", async (route) => {
+      await fulfillJson(BACKTEST_LIST)(route);
+    });
+    await context.route("**/api/v1/optimizer/runs**", async (route) => {
+      await fulfillJson(RUN_LIST)(route);
+    });
+    await context.route("**/optimizer/runs/bayesian", async (route) => {
+      postedToBayesianEndpoint = true;
+      await fulfillJson(RUN_QUEUED, 202)(route);
+    });
+
+    await page.goto("/optimizer");
+
+    await page.getByRole("combobox", { name: "백테스트 선택" }).click();
+    await page.getByRole("option", { name: /BTC\/USDT/ }).click();
+    await page.getByLabel("최적화 알고리즘").selectOption("bayesian");
+    await page.getByRole("button", { name: /베이지안 탐색 새 실행/ }).click();
+
+    // var_name 을 비운 채 제출.
+    await page.getByPlaceholder("변수 이름 (예: length)").fill("");
+    await page.getByRole("button", { name: /베이지안 탐색 실행/ }).click();
+
+    // field-level 에러가 role=alert 로 표출되고, POST 는 발사되지 않아야 한다.
+    await expect(
+      page.getByRole("alert").filter({ hasText: "변수 이름을 입력하세요." }).first(),
+    ).toBeVisible();
+    expect(postedToBayesianEndpoint).toBe(false);
+  });
+
   test("detail(mock COMPLETED) — 반복 곡선 + 최적 파라미터 + 축퇴 배지 (LESSON-066 가드)", async ({
     page,
   }) => {

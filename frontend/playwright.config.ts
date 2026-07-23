@@ -72,8 +72,10 @@ export default defineConfig({
       // C 이식 W2 — `authed-canon-remaining` 추가 (잔여 authed 라우트 캐논 게이트, /backtests/[id] 등).
       //   열거식 testMatch 라 파일명을 여기 넣지 않으면 spec 이 발견조차 안 된다 (coverage 함정).
       //   W3-C — 고아 spec `sprint55-optimizer-bayesian` 재작성 후 재배선.
+      // functional-parity — `authed-functional-parity` 추가 (주문취소 A2 / nav-count B2 /
+      //   backtest_count B1 / 대시보드 링크 A1 회귀 가드 5 case).
       testMatch:
-        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1|authed-canon-remaining|sprint55-optimizer-bayesian)\.spec\.ts$/,
+        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1|authed-canon-remaining|sprint55-optimizer-bayesian|authed-functional-parity)\.spec\.ts$/,
       fullyParallel: false,
       use: {
         ...devices["Desktop Chrome"],
