@@ -35,6 +35,7 @@ from src.trading.liquidation_schemas import (
     LiquidationPreviewRequest,
 )
 from src.trading.models import OrderState
+from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
@@ -369,6 +370,12 @@ async def resolve_kill_switch(
     note = str(raw_note) if raw_note is not None else None
     rowcount = await repo.resolve(event_id, note=note)
     await repo.commit()
+    if rowcount == 1:
+        await publish_realtime(
+            str(current_user.id),
+            "kill_switch_resolved",
+            {"event_id": str(event_id), "trigger_type": owned.trigger_type.value},
+        )
     if rowcount == 0:
         raise HTTPException(status_code=404, detail="event not found or already resolved")
     fetched = await repo.get_by_id(event_id)

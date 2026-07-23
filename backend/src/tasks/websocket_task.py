@@ -184,7 +184,9 @@ async def _stream_main(
         endpoint = _BYBIT_WS_ENDPOINTS.get(env, _BYBIT_WS_ENDPOINTS["demo"])
 
         # 2. Handler / Reconciler 조립 — sm() 가 stream lifetime 동안 새 session 발급.
-        handler = StateHandler(session_factory=sm, settings=settings)
+        handler = StateHandler(
+            session_factory=sm, settings=settings, user_id=account.user_id
+        )
         from src.trading.websocket.reconcile_fetcher import BybitReconcileFetcher
 
         fetcher = BybitReconcileFetcher(account=account, crypto=crypto)

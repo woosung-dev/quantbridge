@@ -59,6 +59,8 @@ async def test_first_gated_transition_fires_alert(
 
     mock_alert = AsyncMock(return_value=True)
     monkeypatch.setattr("src.trading.kill_switch.send_critical_alert", mock_alert)
+    publisher = AsyncMock()
+    monkeypatch.setattr("src.trading.kill_switch.publish_realtime", publisher)
 
     repo = KillSwitchEventRepository(db_session)
     violating = _StaticEvaluator(
@@ -86,6 +88,8 @@ async def test_first_gated_transition_fires_alert(
     assert context is not None
     assert context["trigger_type"] == "daily_loss"
     assert context["account_id"] == str(acc.id)
+    publisher.assert_awaited_once()
+    assert publisher.await_args.args[0:2] == (str(user.id), "kill_switch")
 
 
 async def test_existing_active_event_does_not_alert(

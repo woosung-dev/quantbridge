@@ -17,6 +17,7 @@ has_leverage) 3-tuple 기반 dynamic. settings.exchange_provider 는 dispatch pa
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -49,6 +50,7 @@ from src.trading.models import (
     OrderState,
 )
 from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
+from src.trading.realtime_publisher import publish_realtime
 from src.trading.registry import dispatch as _dispatch_provider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
@@ -264,6 +266,21 @@ async def _execute_with_session(
             )
             return {"order_id": str(order_id), "state": "conflict", "skipped": True}
         await session.commit()
+        account = None
+        with contextlib.suppress(Exception):
+            account = await session.get(ExchangeAccount, order.exchange_account_id)
+        if account is not None:
+            await publish_realtime(
+                str(account.user_id),
+                "order_update",
+                {
+                    "order_id": str(order.id),
+                    "state": OrderState.submitted.value,
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                    "source": "rest",
+                },
+            )
 
         # 3. Decrypt credentials
         try:
@@ -388,6 +405,17 @@ async def _execute_with_session(
                 )
                 return {"order_id": str(order_id), "state": "conflict", "skipped": True}
             await session.commit()
+            await publish_realtime(
+                str(account.user_id),
+                "order_update",
+                {
+                    "order_id": str(order.id),
+                    "state": OrderState.filled.value,
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                    "source": "rest",
+                },
+            )
             qb_active_orders.dec()  # Sprint 9 Phase D: terminal state (filled)
             # STEP B — 동기 fill winner: trailing 의도 entry 면 place_trailing_stop enqueue.
             _enqueue_trailing_if_intended(order)
@@ -685,6 +713,17 @@ async def _fetch_order_status_with_session(
             )
             if rows == 1:
                 await session.commit()
+                await publish_realtime(
+                    str(account.user_id),
+                    "order_update",
+                    {
+                        "order_id": str(order.id),
+                        "state": OrderState.filled.value,
+                        "symbol": order.symbol,
+                        "side": order.side.value,
+                        "source": "watchdog",
+                    },
+                )
                 qb_active_orders.dec()
                 # STEP B — watchdog fill winner (WS 유실 fallback): trailing enqueue.
                 _enqueue_trailing_if_intended(order)
@@ -713,6 +752,17 @@ async def _fetch_order_status_with_session(
             )
             if rows == 1:
                 await session.commit()
+                await publish_realtime(
+                    str(account.user_id),
+                    "order_update",
+                    {
+                        "order_id": str(order.id),
+                        "state": OrderState.rejected.value,
+                        "symbol": order.symbol,
+                        "side": order.side.value,
+                        "source": "watchdog",
+                    },
+                )
                 qb_active_orders.dec()
                 return {"order_id": str(order_id), "state": "rejected"}
             return {
@@ -725,6 +775,17 @@ async def _fetch_order_status_with_session(
             rows = await repo.transition_to_cancelled(order_id, cancelled_at=now)
             if rows == 1:
                 await session.commit()
+                await publish_realtime(
+                    str(account.user_id),
+                    "order_update",
+                    {
+                        "order_id": str(order.id),
+                        "state": OrderState.cancelled.value,
+                        "symbol": order.symbol,
+                        "side": order.side.value,
+                        "source": "watchdog",
+                    },
+                )
                 qb_active_orders.dec()
                 return {"order_id": str(order_id), "state": "cancelled"}
             return {
@@ -876,6 +937,17 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
         rows = await repo.transition_to_cancelled(order_id, cancelled_at=datetime.now(UTC))
         if rows == 1:
             await session.commit()
+            await publish_realtime(
+                str(account.user_id),
+                "order_update",
+                {
+                    "order_id": str(order.id),
+                    "state": OrderState.cancelled.value,
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                    "source": "cancel",
+                },
+            )
             qb_active_orders.dec()  # terminal 전이 — active gauge dec
             logger.info("order_cancelled_on_exchange", extra={"order_id": str(order_id)})
             return {"order_id": str(order_id), "state": "cancelled"}

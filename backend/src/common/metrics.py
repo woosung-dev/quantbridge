@@ -291,6 +291,12 @@ qb_live_signal_divergence_total = Counter(
     labelnames=("stage", "category"),
 )
 
+# Redis 실시간 팬아웃 발행 실패. user/event ID는 label로 사용하지 않는다.
+qb_rt_publish_failed_total = Counter(
+    "qb_rt_publish_failed_total",
+    "Realtime Redis publish failures",
+)
+
 
 @asynccontextmanager
 async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:

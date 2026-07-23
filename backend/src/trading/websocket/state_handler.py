@@ -27,6 +27,7 @@ from src.common.metrics import (
 )
 from src.core.config import Settings
 from src.trading.models import OrderState
+from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.order_repository import OrderRepository
 
 logger = logging.getLogger(__name__)
@@ -60,11 +61,13 @@ class StateHandler:
         session_factory: SessionFactory,
         settings: Settings,
         alert_sender: Callable[..., Awaitable[bool]] | None = None,
+        user_id: UUID | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._settings = settings
         # test injection — None 이면 Phase A send_critical_alert 사용
         self._alert_sender = alert_sender or send_critical_alert
+        self._user_id = user_id
         # orderLinkId / exchange_order_id → (payload, ts) FIFO
         self._orphan_buffer: OrderedDict[str, tuple[dict[str, Any], float]] = (
             OrderedDict()
@@ -111,6 +114,18 @@ class StateHandler:
             await session.commit()
 
             if rowcount == 1:
+                if self._user_id is not None:
+                    await publish_realtime(
+                        str(self._user_id),
+                        "order_update",
+                        {
+                            "order_id": str(order.id),
+                            "state": new_state.value,
+                            "symbol": order.symbol,
+                            "side": order.side.value,
+                            "source": "ws",
+                        },
+                    )
                 if new_state in (
                     OrderState.filled,
                     OrderState.rejected,

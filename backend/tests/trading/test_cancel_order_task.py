@@ -8,6 +8,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -99,13 +100,15 @@ async def test_cancel_order_task_cancels_submitted_on_exchange(
     """provider.cancel_order 성공 → DB cancelled + 거래소 호출 발생."""
     import src.tasks.trading as task_mod
 
-    order, _acc = submitted_order
+    order, account = submitted_order
     prov = _RecordingProvider()
     monkeypatch.setattr(
         task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
     )
     monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda e, m, h: prov)
     monkeypatch.setattr(task_mod.qb_active_orders, "dec", lambda *a, **k: None)
+    publisher = AsyncMock()
+    monkeypatch.setattr(task_mod, "publish_realtime", publisher)
 
     result = await task_mod._async_cancel_order(order.id)
 
@@ -114,6 +117,17 @@ async def test_cancel_order_task_cancels_submitted_on_exchange(
     called_id, called_symbol = prov.cancel_calls[0]
     assert called_id == "bybit-cf4-1"
     assert called_symbol == order.symbol, "order.symbol 이 provider 로 전달돼야 함"
+    publisher.assert_awaited_once_with(
+        str(account.user_id),
+        "order_update",
+        {
+            "order_id": str(order.id),
+            "state": "cancelled",
+            "symbol": order.symbol,
+            "side": order.side.value,
+            "source": "cancel",
+        },
+    )
     await db_session.refresh(order)
     assert order.state == OrderState.cancelled
 
@@ -131,6 +145,8 @@ async def test_cancel_order_task_provider_error_keeps_submitted(
         task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
     )
     monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda e, m, h: prov)
+    publisher = AsyncMock()
+    monkeypatch.setattr(task_mod, "publish_realtime", publisher)
 
     result = await task_mod._async_cancel_order(order.id)
 
@@ -139,3 +155,4 @@ async def test_cancel_order_task_provider_error_keeps_submitted(
     assert order.state == OrderState.submitted, (
         "거래소 취소 실패 시 DB 를 cancelled 로 바꾸면 안 됨 (orphan/false-cancel)"
     )
+    publisher.assert_not_awaited()

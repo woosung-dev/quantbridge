@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -130,7 +131,7 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     import src.tasks.trading as task_mod
     from src.trading.providers import FixtureExchangeProvider
 
-    order, _acc = submitted_order
+    order, account = submitted_order
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
@@ -143,6 +144,8 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     monkeypatch.setattr(
         task_mod.qb_active_orders, "dec", lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1)
     )
+    publisher = AsyncMock()
+    monkeypatch.setattr(task_mod, "publish_realtime", publisher)
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
 
@@ -153,6 +156,17 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     await db_session.refresh(order)
     assert order.state == OrderState.filled
     assert order.filled_at is not None
+    publisher.assert_awaited_once_with(
+        str(account.user_id),
+        "order_update",
+        {
+            "order_id": str(order.id),
+            "state": "filled",
+            "symbol": order.symbol,
+            "side": order.side.value,
+            "source": "watchdog",
+        },
+    )
 
 
 @pytest.mark.asyncio
