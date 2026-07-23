@@ -1,4 +1,5 @@
 // 백테스트 폼의 자본과 체결 필드 (초기 자본 + 테이커 수수료 + 슬리피지 + 체결 시점 + 펀딩 안내) — C 디자인 언어 이식(W3-A).
+// 프로토타입 screen-05:1504는 disabled이나 funding 배선(C6 Slice 4) 이후 활성화한다.
 "use client";
 
 import type { UseFormRegister, FieldErrors } from "react-hook-form";
@@ -144,12 +145,13 @@ export function BacktestCostFieldSet({
 
         <div className="field span-2">
           <label className="check-row" htmlFor="funding">
-            <input type="checkbox" id="funding" disabled />
+            <input type="checkbox" id="funding" {...register("include_funding")} />
             <span>
               <span className="check-title">펀딩 반영</span>
               <span className="check-why">
-                지금 설정은 1배 현물 기준이라 펀딩이 발생하지 않습니다. 무기한
-                선물 모델이 준비되면 켜집니다.
+                무기한 선물 펀딩비를 8시간 정산 주기로 차감합니다. Bybit 실측
+                펀딩 데이터를 사용하며, 데이터가 없는 구간은 리포트에 결측으로
+                표시됩니다.
               </span>
             </span>
           </label>

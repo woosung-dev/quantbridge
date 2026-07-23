@@ -63,6 +63,22 @@ describe("BacktestMetricsOutSchema", () => {
     });
     expect(parsed.funding_data_incomplete).toBe(expected);
   });
+
+  it.each([
+    [{ total_funding: "12.5" }, 12.5],
+    [{ total_funding: null }, null],
+    [{}, undefined],
+  ])("parses total_funding %o", (extra, expected) => {
+    const parsed = BacktestMetricsOutSchema.parse({
+      total_return: "0.1",
+      sharpe_ratio: "1.0",
+      max_drawdown: "-0.05",
+      win_rate: "0.5",
+      num_trades: 10,
+      ...extra,
+    });
+    expect(parsed.total_funding).toBe(expected);
+  });
 });
 
 describe("TradeItemSchema", () => {
