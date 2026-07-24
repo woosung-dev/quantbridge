@@ -12,8 +12,8 @@
 
 ## 1. Phase 1 — 정비 팩
 
-- [ ] **W0** — stage 브랜치 + 문서 3종 + 베이스라인 재측정(§7.1) + codex G0
-- [ ] **beat /data 권한 (오케스트레이터)** — Dockerfile mkdir+chown 2줄 + compose 주석 + 볼륨 재생성 반증 실측(D1)
+- [x] **W0** — stage 브랜치 + 문서 3종 + 베이스라인 재측정(§7.1: FE 1019/177 · BE 2489+1 env-fail→hermetic 픽스 @d50bb2d 로 2490 상당) + codex G0 (REVISE→반영, context-notes #9)
+- [x] **beat /data 권한 (오케스트레이터)** — Dockerfile /data seed @a7c47d5 + 반증: 익명 볼륨 fresh-seed uid 1000·WRITE_OK + 재시작 후 PermissionError 0·즉시 발화·schedule 파일 1000:1000 (D1 선행 완료, context-notes #11)
 - [ ] **op/contract-core** — BL-417 컬럼 제거(alembic 왕복 포함) + BL-421 200+`evaluated:false` + authed 브로드 4xx allowlist 제거 + BL-419 발행 1줄+spy
 - [ ] **op/alert-ui** — BL-422 ok 상태 추가 어포던스 + `formatThresholdPercent` trimming + 테스트 5건
 - [ ] **op/rt-contract** — BL-418 PAYLOAD_MODELS 발행측 검증 + `qb_rt_publish_invalid_total` + 계약 테스트 4건
