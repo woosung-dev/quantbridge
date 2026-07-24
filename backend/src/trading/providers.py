@@ -147,6 +147,22 @@ class PositionSnapshot:
     leverage: Decimal | None
     take_profit_price: Decimal | None
     stop_loss_price: Decimal | None
+    position_idx: int | None = None
+    trailing_stop: Decimal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ConditionalOrderSnapshot:
+    """조건부 reduce-only 주문의 read-only 정규화 스냅샷."""
+
+    order_id: str
+    side: str
+    kind: str
+    price: Decimal | None
+    trigger_price: Decimal | None
+    qty: Decimal | None
+    reduce_only: bool
+    position_idx: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -536,24 +552,25 @@ class BybitFuturesProvider:
         )
         _apply_bybit_env(exchange, creds.environment)
         try:
-            # 마진 모드 먼저 → 레버리지 → 주문 순서 (Bybit v5 UTA 요구사항)
-            # BL-125 — Bybit v5 의 set_margin_mode/set_leverage 는 이미 같은 값이면
-            # error 반환 (retCode 110026 "isolated margin mode not modified" /
-            # 110043 "leverage not modified"). 본질적으로 idempotent operation 이므로
-            # "not modified" 응답은 silently ignore — 후속 set_leverage / create_order
-            # 은 정상 진행.
-            async with ccxt_timer("bybit_futures", "set_margin_mode"):
-                try:
-                    await exchange.set_margin_mode(order.margin_mode, linear_symbol)
-                except ccxt_async.BadRequest as e:
-                    if "not modified" not in str(e):
-                        raise
-            async with ccxt_timer("bybit_futures", "set_leverage"):
-                try:
-                    await exchange.set_leverage(order.leverage, linear_symbol)
-                except ccxt_async.BadRequest as e:
-                    if "not modified" not in str(e):
-                        raise
+            if not order.reduce_only:
+                # 마진 모드 먼저 → 레버리지 → 주문 순서 (Bybit v5 UTA 요구사항)
+                # BL-125 — Bybit v5 의 set_margin_mode/set_leverage 는 이미 같은 값이면
+                # error 반환 (retCode 110026 "isolated margin mode not modified" /
+                # 110043 "leverage not modified"). 본질적으로 idempotent operation 이므로
+                # "not modified" 응답은 silently ignore — 후속 set_leverage / create_order
+                # 은 정상 진행. reduce-only 청산은 기존 포지션 설정을 재설정하지 않는다.
+                async with ccxt_timer("bybit_futures", "set_margin_mode"):
+                    try:
+                        await exchange.set_margin_mode(order.margin_mode, linear_symbol)
+                    except ccxt_async.BadRequest as e:
+                        if "not modified" not in str(e):
+                            raise
+                async with ccxt_timer("bybit_futures", "set_leverage"):
+                    try:
+                        await exchange.set_leverage(order.leverage, linear_symbol)
+                    except ccxt_async.BadRequest as e:
+                        if "not modified" not in str(e):
+                            raise
             async with ccxt_timer("bybit_futures", "create_order"):
                 # MP-4: float() 대신 거래소 precision 문자열 제출(정밀도 손실 차단).
                 amount, price = await _to_exchange_precision(exchange, linear_symbol, order)
@@ -810,8 +827,14 @@ class BybitFuturesProvider:
                     raise ProviderError("malformed Bybit position: missing side")
                 take_profit_price = decimal_or_none(position.get("takeProfitPrice"))
                 stop_loss_price = decimal_or_none(position.get("stopLossPrice"))
+                info = position.get("info") or {}
+                position_idx = (
+                    int(info["positionIdx"]) if info.get("positionIdx") is not None else None
+                )
+                trailing_stop = decimal_or_none(info.get("trailingStop"))
                 take_profit_price = None if take_profit_price == 0 else take_profit_price
                 stop_loss_price = None if stop_loss_price == 0 else stop_loss_price
+                trailing_stop = None if trailing_stop == 0 else trailing_stop
                 snapshots.append(
                     PositionSnapshot(
                         side=side,
@@ -823,6 +846,97 @@ class BybitFuturesProvider:
                         leverage=decimal_or_none(position.get("leverage")),
                         take_profit_price=take_profit_price,
                         stop_loss_price=stop_loss_price,
+                        position_idx=position_idx,
+                        trailing_stop=trailing_stop,
+                    )
+                )
+            return snapshots
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_open_conditional_orders(
+        self, creds: Credentials, symbol: str
+    ) -> list[ConditionalOrderSnapshot]:
+        """현재 linear reduce-only 조건부 주문을 대조용으로 반환한다."""
+        linear_symbol = _to_bybit_linear_symbol(symbol)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_open_conditional_orders"):
+                regular_orders = await exchange.fetch_open_orders(
+                    linear_symbol, params={"category": "linear", "paginate": True}
+                )
+                trigger_orders = await exchange.fetch_open_orders(
+                    linear_symbol,
+                    params={"category": "linear", "trigger": True, "paginate": True},
+                )
+
+            snapshots: list[ConditionalOrderSnapshot] = []
+            seen_order_ids: set[str] = set()
+            for order in [*regular_orders, *trigger_orders]:
+                info = order.get("info") or {}
+                order_id = str(order.get("id") or info.get("orderId"))
+                if order_id in seen_order_ids:
+                    continue
+                seen_order_ids.add(order_id)
+
+                raw_reduce_only = order.get("reduceOnly", info.get("reduceOnly", False))
+                reduce_only = (
+                    raw_reduce_only.lower() == "true"
+                    if isinstance(raw_reduce_only, str)
+                    else bool(raw_reduce_only)
+                )
+                if not reduce_only:
+                    continue
+
+                def decimal_or_none(value: Any) -> Decimal | None:
+                    decimal_value = Decimal(str(value)) if value not in (None, "") else None
+                    return None if decimal_value == 0 else decimal_value
+
+                stop_order_type = str(info.get("stopOrderType") or "")
+                kind = {
+                    "TakeProfit": "tp",
+                    "PartialTakeProfit": "tp",
+                    "StopLoss": "sl",
+                    "PartialStopLoss": "sl",
+                    "TrailingStop": "trail",
+                }.get(stop_order_type, "other")
+                snapshots.append(
+                    ConditionalOrderSnapshot(
+                        order_id=order_id,
+                        side=str(order.get("side") or info.get("side") or "").lower(),
+                        kind=kind,
+                        price=decimal_or_none(order.get("price")),
+                        trigger_price=decimal_or_none(
+                            order.get("triggerPrice") or info.get("triggerPrice")
+                        ),
+                        qty=decimal_or_none(order.get("amount") or order.get("qty")),
+                        reduce_only=True,
+                        position_idx=(
+                            int(info["positionIdx"])
+                            if info.get("positionIdx") is not None
+                            else None
+                        ),
                     )
                 )
             return snapshots

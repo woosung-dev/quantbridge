@@ -19,7 +19,9 @@ from src.trading.services.order_service import OrderService
 _SETTINGS = {"leverage": 3, "margin_mode": "cross", "position_size_pct": 10.0}
 
 
-def _position(side: str = "long", leverage: Decimal = Decimal("3")) -> PositionSnapshot:
+def _position(
+    side: str = "long", leverage: Decimal = Decimal("3"), position_idx: int | None = None
+) -> PositionSnapshot:
     return PositionSnapshot(
         side=side,
         size=Decimal("1.25"),
@@ -30,6 +32,7 @@ def _position(side: str = "long", leverage: Decimal = Decimal("3")) -> PositionS
         leverage=leverage,
         take_profit_price=None,
         stop_loss_price=None,
+        position_idx=position_idx,
     )
 
 
@@ -121,6 +124,17 @@ async def test_close_rejects_flat_or_hedged_position(positions, reason) -> None:
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == reason
+    orders.execute.assert_not_awaited()
+
+
+async def test_close_rejects_nonzero_position_index() -> None:
+    service, user_id, session, orders = _service(positions=[_position(position_idx=1)])
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.close_position(user_id, session.id)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "hedge_unsupported"
     orders.execute.assert_not_awaited()
 
 

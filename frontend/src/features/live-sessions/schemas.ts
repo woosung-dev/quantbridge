@@ -87,8 +87,9 @@ export const ExchangePositionSchema = z.object({
   entry_price: z.string().nullable(),
   mark_price: z.string().nullable(),
   unrealized_pnl: z.string().nullable(),
-  take_profit_price: z.string().nullable(),
-  stop_loss_price: z.string().nullable(),
+  take_profit_prices: z.array(z.string()),
+  stop_loss_prices: z.array(z.string()),
+  has_trailing_stop: z.boolean(),
   liquidation_price: z.string().nullable(),
   leverage: z.string().nullable(),
 });

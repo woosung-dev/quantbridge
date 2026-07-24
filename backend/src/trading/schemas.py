@@ -303,8 +303,9 @@ class ExchangePositionSchema(BaseModel):
     unrealized_pnl: Decimal | None
     liquidation_price: Decimal | None
     leverage: Decimal | None
-    take_profit_price: str | None
-    stop_loss_price: str | None
+    take_profit_prices: list[str]
+    stop_loss_prices: list[str]
+    has_trailing_stop: bool
 
 
 class PositionDiffSchema(BaseModel):

@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -106,6 +107,21 @@ async def test_bybit_futures_create_order_sets_leverage_and_margin_mode(
     assert receipt.exchange_order_id == "bybit-futures-42"
     assert receipt.filled_price == Decimal("50123.45")
     assert receipt.status == "filled"
+
+
+async def test_bybit_futures_reduce_only_skips_margin_and_leverage_setup(
+    credentials, order_submit_futures, ccxt_mock
+):
+    mock_exchange, _ = ccxt_mock
+    from src.trading.providers import BybitFuturesProvider
+
+    reduce_only_order = replace(order_submit_futures, reduce_only=True)
+
+    await BybitFuturesProvider().create_order(credentials, reduce_only_order)
+
+    mock_exchange.set_margin_mode.assert_not_awaited()
+    mock_exchange.set_leverage.assert_not_awaited()
+    mock_exchange.create_order.assert_awaited_once()
 
 
 async def test_bybit_futures_rejects_missing_leverage(credentials, ccxt_mock):

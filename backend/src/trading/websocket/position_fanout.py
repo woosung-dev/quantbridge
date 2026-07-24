@@ -12,6 +12,7 @@ from src.common.metrics import qb_ws_subscribe_rejected_total
 from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
+from src.trading.services.position_service import position_snapshot_cache_key
 from src.trading.websocket.bybit_private_stream import MessageEventHandler
 from src.trading.websocket.state_handler import StateHandler
 
@@ -71,7 +72,7 @@ class PositionFanoutHandler:
             if to_bybit_raw_symbol(live_session.symbol) != symbol:
                 continue
             try:
-                await self._redis.delete(f"qb_pos_snapshot:{live_session.id}")
+                await self._redis.delete(position_snapshot_cache_key(live_session.id))
             except Exception as exc:
                 logger.warning(
                     "position_snapshot_cache_delete_failed session=%s err=%s",

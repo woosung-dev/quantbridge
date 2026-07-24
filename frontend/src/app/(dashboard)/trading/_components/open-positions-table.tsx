@@ -39,6 +39,10 @@ const POSITION_UNSUPPORTED_BODY: Record<string, string> = {
 
 const EMPTY_CELL = "—";
 
+function formatPrices(prices: string[]): string {
+  return prices.length > 0 ? prices.join(", ") : EMPTY_CELL;
+}
+
 function directionLabel(side: string): string {
   if (side === "long") return "롱";
   if (side === "short") return "숏";
@@ -114,8 +118,8 @@ function PositionRow({
       <td className={`num ${returnNumber !== null && returnNumber < 0 ? "neg" : returnNumber !== null && returnNumber > 0 ? "pos" : ""}`}>
         {returnValue ?? EMPTY_CELL}
       </td>
-      <td className="num">{position.take_profit_price ?? EMPTY_CELL}</td>
-      <td className="num">{position.stop_loss_price ?? EMPTY_CELL}</td>
+      <td className="num">{formatPrices(position.take_profit_prices)}</td>
+      <td className="num">{formatPrices(position.stop_loss_prices)}</td>
       <td className="num">{position.liquidation_price ?? EMPTY_CELL}</td>
       <td className="num">{position.leverage ?? EMPTY_CELL}</td>
       <td>{resolveStrategyName?.(row.sessionId, row.sessionLabel) ?? row.sessionLabel}</td>
@@ -138,15 +142,20 @@ function PositionRow({
   );
 }
 
-function PositionFootnote() {
+function PositionFootnote({ hasTrailingStop }: { hasTrailingStop: boolean }) {
   return (
     <>
       <p className="table-foot-note">
         §01 미실현(추정)과 이 표의 거래소 보고값은 다를 수 있으며 임의로 맞추지 않습니다.
       </p>
       <p className="table-foot-note">
-        거래소가 포지션에 보고한 TP/SL만 표시 (별도 조건부 주문으로 건 TP/SL은 포함되지 않을 수 있습니다).
+        익절/손절은 포지션-부착 값과 별도 조건부 주문(Partial 지정가 익절·독립 손절)을 합산해 표시합니다.
       </p>
+      {hasTrailingStop ? (
+        <p className="table-foot-note">
+          트레일링 스톱은 거리 기반이라 가격 열에는 표시되지 않습니다.
+        </p>
+      ) : null}
     </>
   );
 }
@@ -232,10 +241,12 @@ export function OpenPositionsTable({
             body="활성 세션의 거래소 보고값에서 열린 포지션을 찾지 못했습니다."
           />
         </div>
-        <PositionFootnote />
+        <PositionFootnote hasTrailingStop={false} />
       </div>
     );
   }
+
+  const hasTrailingStop = positions.rows.some((row) => row.position.has_trailing_stop);
 
   return (
     <>
@@ -277,7 +288,7 @@ export function OpenPositionsTable({
             </tbody>
           </table>
         </div>
-        <PositionFootnote />
+        <PositionFootnote hasTrailingStop={hasTrailingStop} />
       </div>
       <Dialog
         open={closeTarget !== null}

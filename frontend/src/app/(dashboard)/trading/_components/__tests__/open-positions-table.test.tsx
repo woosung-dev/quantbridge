@@ -92,7 +92,7 @@ describe("OpenPositionsTable", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
-  it("flat은 수익률을 비우고 short 수익률은 진입가 하락을 양수로 표시하며 TP/SL을 렌더한다", () => {
+  it("flat은 수익률을 비우고 short 수익률은 진입가 하락을 양수로 표시하며 병합 TP/SL을 렌더한다", () => {
     mockPositions.mockReturnValue(
       aggregate({
         latestFetchedAt: "2026-07-24T12:00:00Z",
@@ -108,8 +108,9 @@ describe("OpenPositionsTable", () => {
               entry_price: "100",
               mark_price: "90",
               unrealized_pnl: "10",
-              take_profit_price: "80",
-              stop_loss_price: null,
+              take_profit_prices: ["80", "70"],
+              stop_loss_prices: [],
+              has_trailing_stop: false,
               liquidation_price: "150",
               leverage: "5",
             },
@@ -125,8 +126,9 @@ describe("OpenPositionsTable", () => {
               entry_price: "100",
               mark_price: "100",
               unrealized_pnl: null,
-              take_profit_price: null,
-              stop_loss_price: null,
+              take_profit_prices: [],
+              stop_loss_prices: [],
+              has_trailing_stop: false,
               liquidation_price: null,
               leverage: null,
             },
@@ -142,9 +144,41 @@ describe("OpenPositionsTable", () => {
     expect(screen.getByRole("columnheader", { name: "익절" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "손절" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "청산" })).toBeInTheDocument();
-    expect(screen.getByText("80")).toBeInTheDocument();
+    expect(screen.getByText("80, 70")).toBeInTheDocument();
     expect(screen.getAllByText("\u2014").length).toBeGreaterThan(0);
-    expect(screen.getByText(/거래소가 포지션에 보고한 TP\/SL만 표시/)).toBeInTheDocument();
+    expect(screen.getByText(/포지션-부착 값과 별도 조건부 주문/)).toBeInTheDocument();
+    expect(screen.queryByText("트레일링 스톱은 거리 기반이라 가격 열에는 표시되지 않습니다.")).not.toBeInTheDocument();
+  });
+
+  it("트레일링 스톱이 있는 포지션이면 가격 열 제외 안내를 표시한다", () => {
+    mockPositions.mockReturnValue(
+      aggregate({
+        rows: [
+          {
+            sessionId: session.id,
+            sessionLabel: "전략 A",
+            symbol: "BTCUSDT",
+            verdict: "match",
+            position: {
+              side: "long",
+              size: "1",
+              entry_price: "100",
+              mark_price: "100",
+              unrealized_pnl: "0",
+              take_profit_prices: [],
+              stop_loss_prices: [],
+              has_trailing_stop: true,
+              liquidation_price: null,
+              leverage: null,
+            },
+          },
+        ],
+      }),
+    );
+
+    render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
+
+    expect(screen.getByText("트레일링 스톱은 거리 기반이라 가격 열에는 표시되지 않습니다.")).toBeInTheDocument();
   });
 
   it("청산 확인창은 계정 단위 시장가 주문과 봇 재진입 가능성을 알린다", () => {
@@ -162,8 +196,9 @@ describe("OpenPositionsTable", () => {
               entry_price: "100",
               mark_price: "100",
               unrealized_pnl: "0",
-              take_profit_price: null,
-              stop_loss_price: null,
+              take_profit_prices: [],
+              stop_loss_prices: [],
+              has_trailing_stop: false,
               liquidation_price: null,
               leverage: null,
             },
@@ -201,8 +236,9 @@ describe("OpenPositionsTable", () => {
               entry_price: "100",
               mark_price: "100",
               unrealized_pnl: "0",
-              take_profit_price: null,
-              stop_loss_price: null,
+              take_profit_prices: [],
+              stop_loss_prices: [],
+              has_trailing_stop: false,
               liquidation_price: null,
               leverage: null,
             },
@@ -218,8 +254,9 @@ describe("OpenPositionsTable", () => {
               entry_price: "100",
               mark_price: "100",
               unrealized_pnl: "0",
-              take_profit_price: null,
-              stop_loss_price: null,
+              take_profit_prices: [],
+              stop_loss_prices: [],
+              has_trailing_stop: false,
               liquidation_price: null,
               leverage: null,
             },
@@ -254,8 +291,9 @@ describe("OpenPositionsTable", () => {
               entry_price: "100",
               mark_price: "100",
               unrealized_pnl: "0",
-              take_profit_price: null,
-              stop_loss_price: null,
+              take_profit_prices: [],
+              stop_loss_prices: [],
+              has_trailing_stop: false,
               liquidation_price: null,
               leverage: null,
             },

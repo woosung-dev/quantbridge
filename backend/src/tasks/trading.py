@@ -55,6 +55,7 @@ from src.trading.registry import dispatch as _dispatch_provider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.position_service import position_snapshot_cache_key
 
 # Sprint 15 Phase A.2 — submitted watchdog (BL-001) 상수.
 _WATCHDOG_ALERT_TTL_SECONDS = 3600  # 1h Redis throttle (G.0 P1 #2)
@@ -417,6 +418,20 @@ async def _execute_with_session(
                 },
             )
             qb_active_orders.dec()  # Sprint 9 Phase D: terminal state (filled)
+            if order.reduce_only:
+                try:
+                    sessions = await LiveSignalSessionRepository(session).list_active_by_account(
+                        account.id
+                    )
+                    redis = get_redis_lock_pool()
+                    for live_session in sessions:
+                        await redis.delete(position_snapshot_cache_key(live_session.id))
+                except Exception:
+                    logger.warning(
+                        "position_snapshot_cache_delete_failed",
+                        extra={"order_id": str(order_id)},
+                        exc_info=True,
+                    )
             # STEP B — 동기 fill winner: trailing 의도 entry 면 place_trailing_stop enqueue.
             _enqueue_trailing_if_intended(order)
             logger.info(

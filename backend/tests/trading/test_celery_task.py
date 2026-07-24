@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -164,6 +165,107 @@ async def test_execute_order_task_transitions_pending_to_filled(
         "side": order.side.value,
         "source": "rest",
     }
+
+
+@pytest.mark.asyncio
+async def test_reduce_only_filled_order_deletes_active_position_snapshot_caches(
+    db_session: AsyncSession,
+    pending_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.tasks.trading as task_mod
+    from src.trading.providers import FixtureExchangeProvider
+    from src.trading.services.position_service import position_snapshot_cache_key
+
+    order, account = pending_order
+    order.reduce_only = True
+    await db_session.commit()
+    active_sessions = [SimpleNamespace(id=uuid4()), SimpleNamespace(id=uuid4())]
+    queried_account_ids: list[object] = []
+
+    async def list_active_by_account(_self, account_id):  # type: ignore[no-untyped-def]
+        queried_account_ids.append(account_id)
+        return active_sessions
+
+    redis = SimpleNamespace(delete=AsyncMock())
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
+    )
+    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+
+    result = await task_mod._async_execute(order.id)
+
+    assert result["state"] == "filled"
+    assert queried_account_ids == [account.id]
+    assert [call.args for call in redis.delete.await_args_list] == [
+        (position_snapshot_cache_key(active_sessions[0].id),),
+        (position_snapshot_cache_key(active_sessions[1].id),),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_entry_filled_order_does_not_delete_position_snapshot_caches(
+    db_session: AsyncSession,
+    pending_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.tasks.trading as task_mod
+    from src.trading.providers import FixtureExchangeProvider
+
+    order, _ = pending_order
+    list_active_by_account = AsyncMock()
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
+    )
+    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: SimpleNamespace(delete=AsyncMock()))
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+
+    result = await task_mod._async_execute(order.id)
+
+    assert result["state"] == "filled"
+    list_active_by_account.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reduce_only_cache_delete_failure_does_not_change_filled_result(
+    db_session: AsyncSession,
+    pending_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.tasks.trading as task_mod
+    from src.trading.providers import FixtureExchangeProvider
+
+    order, _ = pending_order
+    order.reduce_only = True
+    await db_session.commit()
+
+    async def list_active_by_account(_self, _account_id):  # type: ignore[no-untyped-def]
+        return [SimpleNamespace(id=uuid4())]
+
+    redis = SimpleNamespace(delete=AsyncMock(side_effect=RuntimeError("redis unavailable")))
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
+    )
+    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+
+    result = await task_mod._async_execute(order.id)
+
+    assert result["state"] == "filled"
+    redis.delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio

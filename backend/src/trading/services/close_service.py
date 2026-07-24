@@ -67,6 +67,8 @@ class ClosePositionService:
             raise HTTPException(status_code=409, detail="hedge_unsupported")
 
         position = positions[0]
+        if position.position_idx not in (0, None):
+            raise HTTPException(status_code=409, detail="hedge_unsupported")
         if position.side == "long":
             side = OrderSide.sell
         elif position.side == "short":

@@ -1,11 +1,41 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-24 (trading-surface-pack 스프린트 — 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성)
-> **Active Sprint:** **trading-surface-pack** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/trading-surface` (main @ `ed0d1c5` 베이스)
-> **Sprint type:** 신규 청산 엔드포인트 + 표면 완성 (비영속, 마이그레이션 0) — codex exec 2-워커(backend/frontend 교집합 0) + Claude 적대 평가 per-worker(생성/평가 분리, 게이트 직접 실행) + codex G0(14건)/최종 diff(MAJOR 1 leverage fix) + Opus dogfood(2계통 오라클 + kill-switch 활성 청산 bypass 실증)
+> **Last Updated:** 2026-07-25 (close-completeness 스프린트 — 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고)
+> **Active Sprint:** **close-completeness** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/close-completeness` (main @ `c859174` 베이스)
+> **Sprint type:** 청산/TP-SL 완성도 후속 3건 (비영속, 마이그레이션 0) — codex G0 REJECT→전건 코드 대조 개정 + 사용자 재인터뷰 + codex 2-워커(be/fe 교집합 0) + Claude 적대평가 per-worker(생성/평가 분리) + codex 최종 diff([P1] 1) + Opus dogfood 3계통(독립 오라클↔앱 provider↔get_reconciliation + authed 브라우저)
 > **office-hours 진행:** N
-> **Next Trigger:** trading-surface-pack 머지 후 → 다음 deepen = tasks 도메인, 또는 BL-434(완전 TP/SL 보고=fetch_open_orders 조인)/BL-435(청산 캐시 DEL). // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+> **Next Trigger:** close-completeness 머지 후 → 다음 deepen = tasks 도메인, 또는 BL-437(청산 스윕 = post-fill flat 확인 + orderLinkId 세션 귀속). // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+
+---
+
+## ⚡ close-completeness 스프린트 (2026-07-25, `docs/close-completeness/`)
+
+**스코프**: trading-surface-pack(#473) 후속. ① **BL-435** 청산 즉시 flat — post-fill Celery 캐시 DEL(accept-time DEL 은 async close 라 무효; `_execute_with_session` reduce_only fill 승자 → 활성 세션 캐시 DEL, SSOT 키 헬퍼) ② **BL-436** 청산 margin 503 회피 — `create_order` reduce_only 시 set_margin_mode/set_leverage skip(ccxt marginMode 신뢰불가 우회) ③ **BL-434 부분** 완전 TP/SL 보고(display) — `fetch_open_conditional_orders`(2콜 union+orderId dedupe+stopOrderType 엄격분류) → §03 병합 리스트(익절/손절 plural)+has_trailing_stop 각주; **스윕 BL-437 이연** ④ hedge positionIdx 409 가드. 마이그레이션 0.
+
+### Completed
+
+- [x] **B1 BL-435** — `position_snapshot_cache_key` SSOT(3곳) + tasks/trading.py `_execute_with_session` reduce_only fill 승자 → `list_active_by_account` 세션 캐시 best-effort DEL
+- [x] **B2 BL-436** — `create_order` set_margin_mode/set_leverage 를 `if not order.reduce_only:` 로 감쌈(fast-fail 불변, reduce_only 이미 Order 영속=마이그레이션 0)
+- [x] **B3 BL-434(부분)** — `fetch_open_conditional_orders` provider + `ConditionalOrderSnapshot` + PositionSnapshot(position_idx/trailing_stop) + position_service 조인(병합 리스트 source-dedup·마크근접순) + ExchangePositionSchema plural(BE+FE 미러) + FE 병합 표시·각주 + close_service hedge 409 가드
+- [x] 게이트: BE **2611**(+10)·FE **1084**(+1)·ruff/mypy/tsc/lint 0·canon **32 불변**·마이그레이션 0(alembic 20260724_0002 head 무변경)
+- [x] 검증: codex G0 **REJECT**(전건 코드 대조 §7.3 후 개정 = B2 skip·B1 post-fill·B3 union dedupe·trail=position 필드·hedge 가드) → 사용자 재인터뷰(스윕 이연·트레일링 각주) → codex 2워커 ↔ Claude 적대평가 per-worker(W1 ruff B023×3+mypy → codex resume hoist `_merged_prices`) → codex 최종 diff **[P1] 1**(has_trailing_stop 조건부 trail → `or any(kind=="trail")`+테스트) → **dogfood 3계통**(독립 오라클 raw ↔ 앱 provider(66000/62000 분류·count=2 dedupe) ↔ get_reconciliation 병합=익절['66000.0']/손절['62000.0'] + **authed 브라우저**(§03 병합·청산 flat·콘솔 0) + B1 redis 키 부재 + B2 no-503 + Bybit Partial 자동취소=스윕 이연 안전)
+- [x] BL: BL-435/436 Resolved + BL-434 부분 Resolved + 신규 **BL-437**(스윕 이연)
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [ ] stage/close-completeness → main PR 사용자 squash
+- [ ] (후속) BL-437 청산 스윕(post-fill flat 확인 + orderLinkId 세션 귀속)
+- [ ] (이월) 다음 deepen = tasks 도메인
+- [ ] ★환경 함정: docker db/redis 5436/6380 커스텀 오버레이 — worker 재빌드 시 `--no-deps` 필수(plain `docker compose up <svc>` 이 base 5432/6379 로 되돌림)
 
 ---
 
