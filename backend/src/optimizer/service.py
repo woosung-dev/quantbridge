@@ -154,19 +154,20 @@ class OptimizerService:
 
         run.celery_task_id = task_id
         await self.repo.commit()
-        return self._to_response(run)
+        return self._to_response(run, bt)
 
     # ---------- Worker run ----------
 
     async def run(self, run_id: UUID) -> None:
         """Worker entrypoint — Grid Search executor 호출."""
-        run = await self.repo.get_by_id(run_id)
-        if run is None:
+        row = await self.repo.get_by_id(run_id)
+        if row is None:
             logger.warning(
                 "optimization_run_not_found_in_worker",
                 extra={"run_id": str(run_id)},
             )
             return
+        run, backtest = row
         if run.status != OptimizationStatus.QUEUED:
             logger.info(
                 "worker_skip_non_queued_optimization",
@@ -174,8 +175,7 @@ class OptimizerService:
             )
             return
 
-        bt = await self.backtest_repo.get_by_id(run.backtest_id)
-        if bt is None or bt.status != BacktestStatus.COMPLETED:
+        if backtest is None or backtest.status != BacktestStatus.COMPLETED:
             await self.repo.fail(
                 run_id,
                 error_message=truncate_error_message(
@@ -184,6 +184,8 @@ class OptimizerService:
             )
             await self.repo.commit()
             return
+
+        bt = backtest
 
         rows = await self.repo.transition_to_running(run_id, started_at=datetime.now(UTC))
         if rows == 0:
@@ -254,8 +256,8 @@ class OptimizerService:
     # ---------- HTTP read ----------
 
     async def get(self, run_id: UUID, *, user_id: UUID) -> OptimizationRunResponse:
-        run = await self._load_owned(run_id, user_id)
-        response = self._to_response_or_none(run)
+        run, backtest = await self._load_owned(run_id, user_id)
+        response = self._to_response_or_none(run, backtest)
         if response is None:
             # deepen C-min: 손상 row (Sprint 50-52 retro-incorrect param_space) 는
             # list 에서 skip 되므로 상세 조회도 500 대신 404 로 대칭 처리.
@@ -277,7 +279,9 @@ class OptimizerService:
             user_id, limit=limit, offset=offset, backtest_id=backtest_id
         )
         valid_items = [
-            response for run in items if (response := self._to_response_or_none(run)) is not None
+            response
+            for run, backtest in items
+            if (response := self._to_response_or_none(run, backtest)) is not None
         ]
         return Page[OptimizationRunResponse](
             items=valid_items,
@@ -288,11 +292,13 @@ class OptimizerService:
 
     # ---------- helpers ----------
 
-    async def _load_owned(self, run_id: UUID, user_id: UUID) -> OptimizationRun:
-        run = await self.repo.get_by_id(run_id, user_id=user_id)
-        if run is None:
+    async def _load_owned(
+        self, run_id: UUID, user_id: UUID
+    ) -> tuple[OptimizationRun, Backtest | None]:
+        row = await self.repo.get_by_id(run_id, user_id=user_id)
+        if row is None:
             raise OptimizationNotFoundError(run_id)
-        return run
+        return row
 
     async def _load_owned_backtest(self, backtest_id: UUID, user_id: UUID) -> Backtest:
         bt = await self.backtest_repo.get_by_id(backtest_id, user_id=user_id)
@@ -312,7 +318,9 @@ class OptimizerService:
                 )
             )
 
-    def _to_response_or_none(self, run: OptimizationRun) -> OptimizationRunResponse | None:
+    def _to_response_or_none(
+        self, run: OptimizationRun, backtest: Backtest | None = None
+    ) -> OptimizationRunResponse | None:
         """손상 row 방어 SSOT (deepen C-min) — get/list 대칭. 변환 실패 시 WARN + None.
 
         catch 는 손상 row 가 실제로 내는 예외로 한정 — ValidationError(retro-incorrect
@@ -320,7 +328,7 @@ class OptimizerService:
         시끄럽게 500 으로 표면 (적대 리뷰 P2-2: broad except 는 미래 버그를 404 로 위장).
         """
         try:
-            return self._to_response(run)
+            return self._to_response(run, backtest)
         except (ValidationError, ValueError) as exc:
             logger.warning(
                 "optimizer_run_skip_invalid_schema run_id=%s err=%s",
@@ -330,11 +338,18 @@ class OptimizerService:
             return None
 
     @staticmethod
-    def _to_response(run: OptimizationRun) -> OptimizationRunResponse:
+    def _to_response(
+        run: OptimizationRun, backtest: Backtest | None = None
+    ) -> OptimizationRunResponse:
         return OptimizationRunResponse(
             id=run.id,
             user_id=run.user_id,
             backtest_id=run.backtest_id,
+            strategy_id=backtest.strategy_id if backtest is not None else None,
+            backtest_symbol=backtest.symbol if backtest is not None else None,
+            backtest_timeframe=backtest.timeframe if backtest is not None else None,
+            backtest_period_start=backtest.period_start if backtest is not None else None,
+            backtest_period_end=backtest.period_end if backtest is not None else None,
             kind=OptimizationKindOut(run.kind.value),
             status=run.status.value,  # type: ignore[arg-type]  # StrEnum → Literal mirror
             param_space=ParamSpace.model_validate(run.param_space),

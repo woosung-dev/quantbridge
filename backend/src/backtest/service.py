@@ -55,6 +55,7 @@ from src.backtest.serializers import (
     _parse_utc_iso,
     equity_curve_to_jsonb,
     metrics_from_jsonb,
+    metrics_summary_from_jsonb,
     metrics_to_jsonb,
 )
 from src.common.pagination import Page
@@ -443,10 +444,35 @@ class BacktestService:
             direction_counts = await self.repo.count_trades_by_direction(bt.id)
         return self._to_detail(bt, direction_counts=direction_counts)
 
-    async def list(self, *, user_id: UUID, limit: int, offset: int) -> Page[BacktestSummary]:
-        items, total = await self.repo.list_by_user(user_id, limit=limit, offset=offset)
+    async def list(
+        self,
+        *,
+        user_id: UUID,
+        limit: int,
+        offset: int,
+        order_by: str = "created_at",
+        order: str = "desc",
+    ) -> Page[BacktestSummary]:
+        items, total = await self.repo.list_by_user(
+            user_id,
+            limit=limit,
+            offset=offset,
+            order_by=order_by,
+            order=order,
+        )
         return Page[BacktestSummary](
-            items=[BacktestSummary.model_validate(bt) for bt in items],
+            items=[
+                BacktestSummary.model_validate(bt).model_copy(
+                    update={
+                        "metrics_summary": (
+                            metrics_summary_from_jsonb(bt.metrics)
+                            if bt.status == BacktestStatus.COMPLETED
+                            else None
+                        )
+                    }
+                )
+                for bt in items
+            ],
             total=total,
             limit=limit,
             offset=offset,

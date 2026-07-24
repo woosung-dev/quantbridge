@@ -25,6 +25,7 @@ from src.backtest.engine.types import (
     PerSideMetrics,
     SideMetrics,
 )
+from src.backtest.schemas import BacktestMetricsSummary
 
 # TV parity 팩 flat Decimal 필드 (None 키 생략 규약 공유).
 # 추가/누락 drift 는 test_metrics_field_parity round-trip tripwire 가 차단.
@@ -96,6 +97,30 @@ def _parse_utc_iso(s: str) -> datetime:
 
 
 # --- metrics ---
+
+def metrics_summary_from_jsonb(
+    metrics: dict[str, Any] | None,
+) -> BacktestMetricsSummary | None:
+    """JSONB metrics를 목록용 경량 성과 지표로 투영한다."""
+    if metrics is None:
+        return None
+
+    def _opt_decimal(key: str) -> Decimal | None:
+        raw = metrics.get(key)
+        return Decimal(str(raw)) if raw is not None else None
+
+    def _opt_int(key: str) -> int | None:
+        raw = metrics.get(key)
+        return int(raw) if raw is not None else None
+
+    return BacktestMetricsSummary(
+        total_return=_opt_decimal("total_return"),
+        net_profit_abs=_opt_decimal("net_profit_abs"),
+        sharpe_ratio=_opt_decimal("sharpe_ratio"),
+        max_drawdown=_opt_decimal("max_drawdown"),
+        num_trades=_opt_int("num_trades"),
+        total_open_trades=_opt_int("total_open_trades"),
+    )
 
 def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
     """BacktestMetrics → JSONB dict (Decimal → str, None 필드는 키 생략).

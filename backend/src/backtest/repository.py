@@ -7,8 +7,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, delete, func, or_, select, text, update
+from sqlalchemy import Numeric, and_, delete, func, or_, select, text, update
+from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from src.backtest.models import Backtest, BacktestStatus, BacktestTrade
 
@@ -40,7 +42,13 @@ class BacktestRepository:
         return result.scalar_one_or_none()
 
     async def list_by_user(
-        self, user_id: UUID, *, limit: int, offset: int
+        self,
+        user_id: UUID,
+        *,
+        limit: int,
+        offset: int,
+        order_by: str = "created_at",
+        order: str = "desc",
     ) -> tuple[Sequence[Backtest], int]:
         total_stmt = (
             select(func.count())
@@ -51,10 +59,27 @@ class BacktestRepository:
         )
         total = (await self.session.execute(total_stmt)).scalar_one()
 
+        sort_columns: dict[str, Any] = {
+            "created_at": Backtest.created_at,
+            "total_return": Backtest.metrics["total_return"].astext.cast(Numeric),  # type: ignore[index]
+            "max_drawdown": Backtest.metrics["max_drawdown"].astext.cast(Numeric),  # type: ignore[index]
+            "sharpe_ratio": Backtest.metrics["sharpe_ratio"].astext.cast(Numeric),  # type: ignore[index]
+            "num_trades": Backtest.metrics["num_trades"].astext.cast(Numeric),  # type: ignore[index]
+        }
+        sort_expression = sort_columns[order_by]
+        primary_order = sort_expression.asc() if order == "asc" else sort_expression.desc()
+        if order_by != "created_at":
+            primary_order = primary_order.nulls_last()
+
         stmt = (
             select(Backtest)
+            .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
             .where(Backtest.user_id == user_id)  # type: ignore[arg-type]
-            .order_by(Backtest.created_at.desc())  # type: ignore[attr-defined]
+            .order_by(
+                primary_order,
+                Backtest.created_at.desc(),  # type: ignore[attr-defined]
+                Backtest.id.desc(),  # type: ignore[attr-defined]
+            )
             .limit(limit)
             .offset(offset)
         )
@@ -75,6 +100,32 @@ class BacktestRepository:
         )
         result = await self.session.execute(stmt)
         return {strategy_id: int(count) for strategy_id, count in result.all()}
+
+    async def latest_completed_by_strategy_ids(
+        self, strategy_ids: Sequence[UUID]
+    ) -> dict[UUID, Row[Any]]:
+        """전략별 가장 최근 완료 백테스트를 단일 DISTINCT ON 쿼리로 조회한다."""
+        if not strategy_ids:
+            return {}
+        stmt = (
+            select(  # type: ignore[call-overload]
+                Backtest.strategy_id,
+                Backtest.id,
+                Backtest.completed_at,
+                Backtest.metrics,
+            )
+            .where(Backtest.status == BacktestStatus.COMPLETED)
+            .where(Backtest.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
+            .distinct(Backtest.strategy_id)
+            .order_by(
+                Backtest.strategy_id,
+                Backtest.completed_at.desc().nulls_last(),  # type: ignore[union-attr]
+                Backtest.created_at.desc(),  # type: ignore[attr-defined]
+                Backtest.id.desc(),  # type: ignore[attr-defined]
+            )
+        )
+        result = await self.session.execute(stmt)
+        return {row.strategy_id: row for row in result.all()}
 
     async def delete(self, backtest_id: UUID) -> int:
         result = await self.session.execute(

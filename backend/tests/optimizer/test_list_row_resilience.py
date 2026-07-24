@@ -81,7 +81,7 @@ async def test_list_returns_valid_items_only_when_some_rows_invalid(
     )
 
     repo = AsyncMock()
-    repo.list_by_user.return_value = ([invalid_run, valid_run, invalid_run], 3)
+    repo.list_by_user.return_value = ([(invalid_run, None), (valid_run, None), (invalid_run, None)], 3)
     service = _build_service(repo=repo)
 
     caplog.set_level(logging.WARNING, logger="src.optimizer.service")
@@ -112,7 +112,7 @@ async def test_get_corrupt_row_raises_not_found_instead_of_500(
     )
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = corrupt_run
+    repo.get_by_id.return_value = (corrupt_run, None)
     service = _build_service(repo=repo)
 
     caplog.set_level(logging.WARNING, logger="src.optimizer.service")
@@ -132,7 +132,7 @@ async def test_get_valid_row_returns_response() -> None:
     valid_run = _make_run(user_id=user_id, param_space=_make_valid_param_space_dict())
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = valid_run
+    repo.get_by_id.return_value = (valid_run, None)
     service = _build_service(repo=repo)
 
     response = await service.get(valid_run.id, user_id=user_id)
@@ -149,7 +149,7 @@ async def test_list_returns_all_items_when_all_valid() -> None:
     ]
 
     repo = AsyncMock()
-    repo.list_by_user.return_value = (runs, 3)
+    repo.list_by_user.return_value = ([(run, None) for run in runs], 3)
     service = _build_service(repo=repo)
 
     page = await service.list(user_id=user_id, limit=10, offset=0)
@@ -169,7 +169,7 @@ async def test_list_returns_empty_when_all_invalid(
     ]
 
     repo = AsyncMock()
-    repo.list_by_user.return_value = (runs, 2)
+    repo.list_by_user.return_value = ([(run, None) for run in runs], 2)
     service = _build_service(repo=repo)
 
     caplog.set_level(logging.WARNING, logger="src.optimizer.service")

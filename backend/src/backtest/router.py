@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
@@ -54,8 +55,18 @@ async def list_backtests(
     service: BacktestService = Depends(get_backtest_service),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    order_by: Literal[
+        "created_at", "total_return", "max_drawdown", "sharpe_ratio", "num_trades"
+    ] = Query("created_at"),
+    order: Literal["asc", "desc"] = Query("desc"),
 ) -> Page[BacktestSummary]:
-    return await service.list(user_id=user.id, limit=limit, offset=offset)
+    return await service.list(
+        user_id=user.id,
+        limit=limit,
+        offset=offset,
+        order_by=order_by,
+        order=order,
+    )
 
 
 @router.get("/{backtest_id}", response_model=BacktestDetail)

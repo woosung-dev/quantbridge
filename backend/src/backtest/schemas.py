@@ -179,6 +179,24 @@ class ShareTokenResponse(BaseModel):
 
 # --- Detail / List ---
 
+class BacktestMetricsSummary(BaseModel):
+    """목록·대시보드용 경량 성과 지표 팩."""
+
+    total_return: Decimal | None = None
+    net_profit_abs: Decimal | None = None
+    sharpe_ratio: Decimal | None = None
+    max_drawdown: Decimal | None = None
+    num_trades: int | None = None
+    total_open_trades: int | None = None
+
+    @field_serializer(
+        "total_return", "net_profit_abs", "sharpe_ratio", "max_drawdown",
+        when_used="json",
+    )
+    def _decimal_to_str(self, v: Decimal | None) -> str | None:
+        return None if v is None else str(v)
+
+
 class BacktestSummary(BaseModel):
     """목록 항목. metrics/equity_curve 미포함."""
 
@@ -191,6 +209,7 @@ class BacktestSummary(BaseModel):
     status: BacktestStatus
     created_at: AwareDatetime
     completed_at: AwareDatetime | None
+    metrics_summary: BacktestMetricsSummary | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -7,12 +7,15 @@ from uuid import UUID
 
 # asyncpg FK violation 타입 — 드라이버 부재 시 None으로 fallback (단위 테스트 호환)
 try:
-    from asyncpg.exceptions import ForeignKeyViolationError as _AsyncpgFKViolation
+    from asyncpg.exceptions import (  # type: ignore[import-untyped]
+        ForeignKeyViolationError as _AsyncpgFKViolation,
+    )
 except ImportError:
     _AsyncpgFKViolation = None
 
 from sqlalchemy.exc import IntegrityError
 
+from src.backtest.serializers import metrics_summary_from_jsonb
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.strategy.pine_v2.coverage import analyze_coverage
@@ -20,6 +23,7 @@ from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import (
     CreateStrategyRequest,
+    LatestBacktestSummary,
     ParseError,
     ParsePreviewResponse,
     StrategyCreateResponse,
@@ -241,10 +245,26 @@ class StrategyService:
             if self.backtest_repo is not None and items
             else {}
         )
+        latest_backtests = (
+            await self.backtest_repo.latest_completed_by_strategy_ids([s.id for s in items])
+            if self.backtest_repo is not None and items
+            else {}
+        )
         return StrategyListResponse(
             items=[
                 StrategyListItem.model_validate(s).model_copy(
-                    update={"backtest_count": counts.get(s.id, 0)}
+                    update={
+                        "backtest_count": counts.get(s.id, 0),
+                        "latest_backtest": (
+                            LatestBacktestSummary(
+                                backtest_id=row.id,
+                                completed_at=row.completed_at,
+                                metrics=metrics_summary_from_jsonb(row.metrics),
+                            )
+                            if (row := latest_backtests.get(s.id)) is not None
+                            else None
+                        ),
+                    }
                 )
                 for s in items
             ],

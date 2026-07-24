@@ -206,7 +206,7 @@ async def test_run_complete_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -
     run = _make_optimization_run(user_id=user_id, backtest_id=bt.id)
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = run
+    repo.get_by_id.return_value = (run, bt)
     repo.transition_to_running.return_value = 1
     repo.complete.return_value = 1
 
@@ -283,7 +283,7 @@ async def test_run_fail_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
     run = _make_optimization_run(user_id=user_id, backtest_id=bt.id)
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = run
+    repo.get_by_id.return_value = (run, bt)
     repo.transition_to_running.return_value = 1
     repo.fail.return_value = 1
 
@@ -440,7 +440,7 @@ async def test_run_bayesian_complete_calls_repo_commit(
     run = _make_optimization_run_bayesian(user_id=user_id, backtest_id=bt.id)
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = run
+    repo.get_by_id.return_value = (run, bt)
     repo.transition_to_running.return_value = 1
     repo.complete.return_value = 1
 
@@ -512,7 +512,7 @@ async def test_run_bayesian_fail_calls_repo_commit(
     run = _make_optimization_run_bayesian(user_id=user_id, backtest_id=bt.id)
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = run
+    repo.get_by_id.return_value = (run, bt)
     repo.transition_to_running.return_value = 1
     repo.fail.return_value = 1
 
@@ -661,7 +661,7 @@ async def test_run_genetic_complete_calls_repo_commit(
     run = _make_optimization_run_genetic(user_id=user_id, backtest_id=bt.id)
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = run
+    repo.get_by_id.return_value = (run, bt)
     repo.transition_to_running.return_value = 1
     repo.complete.return_value = 1
 
@@ -725,7 +725,7 @@ async def test_run_genetic_fail_calls_repo_commit(
     run = _make_optimization_run_genetic(user_id=user_id, backtest_id=bt.id)
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = run
+    repo.get_by_id.return_value = (run, bt)
     repo.transition_to_running.return_value = 1
     repo.fail.return_value = 1
 

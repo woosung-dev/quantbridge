@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from src.common.strict_decimal_input import StrictDecimalInput
 
@@ -237,6 +237,11 @@ class OptimizationRunResponse(BaseModel):
     id: UUID
     user_id: UUID
     backtest_id: UUID
+    strategy_id: UUID | None = None
+    backtest_symbol: str | None = None
+    backtest_timeframe: str | None = None
+    backtest_period_start: AwareDatetime | None = None
+    backtest_period_end: AwareDatetime | None = None
     kind: OptimizationKindOut
     status: OptimizationStatusOut
     param_space: ParamSpace

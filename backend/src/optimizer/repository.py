@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.backtest.models import Backtest
 from src.optimizer.models import OptimizationRun, OptimizationStatus
 
 
@@ -36,12 +37,18 @@ class OptimizationRepository:
 
     async def get_by_id(
         self, run_id: UUID, *, user_id: UUID | None = None
-    ) -> OptimizationRun | None:
-        stmt = select(OptimizationRun).where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
+    ) -> tuple[OptimizationRun, Backtest | None] | None:
+        stmt = (
+            select(OptimizationRun, Backtest)
+            .outerjoin(
+                Backtest, OptimizationRun.backtest_id == Backtest.id  # type: ignore[arg-type]
+            )
+            .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
+        )
         if user_id is not None:
             stmt = stmt.where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.tuples().one_or_none()
 
     async def list_by_user(
         self,
@@ -50,8 +57,14 @@ class OptimizationRepository:
         limit: int,
         offset: int,
         backtest_id: UUID | None = None,
-    ) -> tuple[Sequence[OptimizationRun], int]:
-        base = select(OptimizationRun).where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
+    ) -> tuple[Sequence[tuple[OptimizationRun, Backtest | None]], int]:
+        base = (
+            select(OptimizationRun, Backtest)
+            .outerjoin(
+                Backtest, OptimizationRun.backtest_id == Backtest.id  # type: ignore[arg-type]
+            )
+            .where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
+        )
         total_base = select(func.count()).select_from(OptimizationRun).where(
             OptimizationRun.user_id == user_id  # type: ignore[arg-type]
         )
@@ -68,7 +81,7 @@ class OptimizationRepository:
             .offset(offset)
         )
         result = await self.session.execute(stmt)
-        return result.scalars().all(), total
+        return result.tuples().all(), total
 
     # --- 상태 전이 ---
 
