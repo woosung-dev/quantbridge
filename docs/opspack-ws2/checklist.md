@@ -31,9 +31,9 @@
 
 ## 3. 마무리
 
-- [ ] codex read-only 최종 누적 diff 리뷰 1회 (finding §7.3 코드 대조)
-- [ ] `/vercel-react-best-practices` FE 변경분 검토 → eslint+tsc → (수정 시) 스코프 재게이트
-- [ ] 문서 3종 갱신 + TODO.md + BL 등재/해소 → push(`QB_PRE_PUSH_BYPASS=1`) → stage→main PR 1개 (squash 는 사용자)
+- [x] codex read-only 최종 누적 diff 리뷰 — REVISE 3건 → §7.3 판정: 2 수용 픽스(@3748757 update_symbols 경합·register 킥) + 1 기각(FE float — 설계 결정 기존재, context-notes #19)
+- [x] `/vercel-react-best-practices` FE 변경분 검토 — 위반 0 (context-notes #20) + BE 풀런 재게이트 **2533 passed·46 skip**
+- [x] 문서 3종 + TODO.md + BL(5 Resolved·BL-423~426 신규) → push → **stage→main PR #470** (squash 는 사용자)
 
 ## 4. 게이트 추적
 
