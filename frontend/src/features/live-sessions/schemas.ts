@@ -8,11 +8,7 @@ import { z } from "zod/v4";
 export const LiveSignalIntervalSchema = z.enum(["1m", "5m", "15m", "1h"]);
 export type LiveSignalInterval = z.infer<typeof LiveSignalIntervalSchema>;
 
-export const LiveSignalEventStatusSchema = z.enum([
-  "pending",
-  "dispatched",
-  "failed",
-]);
+export const LiveSignalEventStatusSchema = z.enum(["pending", "dispatched", "failed"]);
 export type LiveSignalEventStatus = z.infer<typeof LiveSignalEventStatusSchema>;
 
 // ── Response schemas ────────────────────────────────────────────────────
@@ -35,9 +31,7 @@ export const LiveSessionListResponseSchema = z.object({
   items: z.array(LiveSessionSchema),
   total: z.number(),
 });
-export type LiveSessionListResponse = z.infer<
-  typeof LiveSessionListResponseSchema
->;
+export type LiveSessionListResponse = z.infer<typeof LiveSessionListResponseSchema>;
 
 // Sprint 28 Slice 3 (BL-140b) — equity_curve datapoint (BE 정합)
 export const EquityCurvePointSchema = z.object({
@@ -83,9 +77,7 @@ export type LiveSignalEvent = z.infer<typeof LiveSignalEventSchema>;
 export const LiveSignalEventListResponseSchema = z.object({
   items: z.array(LiveSignalEventSchema),
 });
-export type LiveSignalEventListResponse = z.infer<
-  typeof LiveSignalEventListResponseSchema
->;
+export type LiveSignalEventListResponse = z.infer<typeof LiveSignalEventListResponseSchema>;
 
 // ── Position reconciliation response ───────────────────────────────────
 
@@ -131,19 +123,14 @@ export const LiveSessionPositionsResponseSchema = z.object({
   local_open_trades_snapshot: z.array(z.record(z.string(), z.unknown())),
   diff: PositionDiffSchema,
 });
-export type LiveSessionPositions = z.infer<
-  typeof LiveSessionPositionsResponseSchema
->;
+export type LiveSessionPositions = z.infer<typeof LiveSessionPositionsResponseSchema>;
 
 // ── Form schema — UI input only (RHF + Zod v4 transform 불필요) ────────
 
 export const LiveSessionFormSchema = z.object({
   strategy_id: z.uuid("Strategy 를 선택해주세요"),
   exchange_account_id: z.uuid("거래소 계정을 선택해주세요"),
-  symbol: z
-    .string()
-    .min(1, "심볼은 필수입니다")
-    .max(32, "심볼은 최대 32자입니다"),
+  symbol: z.string().min(1, "심볼은 필수입니다").max(32, "심볼은 최대 32자입니다"),
   interval: LiveSignalIntervalSchema,
 });
 export type LiveSessionForm = z.infer<typeof LiveSessionFormSchema>;
@@ -151,6 +138,4 @@ export type LiveSessionForm = z.infer<typeof LiveSessionFormSchema>;
 // ── Register request (POST body) ────────────────────────────────────────
 
 export const RegisterLiveSessionRequestSchema = LiveSessionFormSchema;
-export type RegisterLiveSessionRequest = z.infer<
-  typeof RegisterLiveSessionRequestSchema
->;
+export type RegisterLiveSessionRequest = z.infer<typeof RegisterLiveSessionRequestSchema>;

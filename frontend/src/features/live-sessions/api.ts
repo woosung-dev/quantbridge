@@ -40,10 +40,7 @@ export async function registerLiveSession(
   return LiveSessionSchema.parse(raw);
 }
 
-export async function deactivateLiveSession(
-  id: string,
-  token: string | null,
-): Promise<void> {
+export async function deactivateLiveSession(id: string, token: string | null): Promise<void> {
   await apiFetch<void>(`${LIVE_SESSIONS_PATH}/${id}`, {
     method: "DELETE",
     token,
@@ -55,10 +52,10 @@ export async function getLiveSessionState(
   token: string | null,
 ): Promise<LiveSignalState | null> {
   try {
-    const raw = await apiFetch<unknown>(
-      `${LIVE_SESSIONS_PATH}/${sessionId}/state`,
-      { method: "GET", token },
-    );
+    const raw = await apiFetch<unknown>(`${LIVE_SESSIONS_PATH}/${sessionId}/state`, {
+      method: "GET",
+      token,
+    });
     const parsed = LiveSignalStateSchema.parse(raw);
     return parsed.evaluated ? parsed : null;
   } catch (err) {
@@ -74,10 +71,10 @@ export async function listLiveSessionEvents(
   sessionId: string,
   token: string | null,
 ): Promise<{ items: LiveSignalEvent[] }> {
-  const raw = await apiFetch<unknown>(
-    `${LIVE_SESSIONS_PATH}/${sessionId}/events`,
-    { method: "GET", token },
-  );
+  const raw = await apiFetch<unknown>(`${LIVE_SESSIONS_PATH}/${sessionId}/events`, {
+    method: "GET",
+    token,
+  });
   return LiveSignalEventListResponseSchema.parse(raw);
 }
 
@@ -85,9 +82,9 @@ export async function getLiveSessionPositions(
   sessionId: string,
   token: string | null,
 ): Promise<LiveSessionPositions> {
-  const raw = await apiFetch<unknown>(
-    `${LIVE_SESSIONS_PATH}/${sessionId}/positions`,
-    { method: "GET", token },
-  );
+  const raw = await apiFetch<unknown>(`${LIVE_SESSIONS_PATH}/${sessionId}/positions`, {
+    method: "GET",
+    token,
+  });
   return LiveSessionPositionsResponseSchema.parse(raw);
 }

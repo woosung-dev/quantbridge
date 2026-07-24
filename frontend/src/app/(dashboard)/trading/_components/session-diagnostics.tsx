@@ -14,10 +14,7 @@ import {
 import { StateBox } from "@/components/state-box";
 import { AlertRuleForm } from "@/features/alert-rules/components/alert-rule-form";
 import { formatThresholdPercent } from "@/features/alert-rules/format";
-import {
-  useAlertRules,
-  useDeactivateAlertRule,
-} from "@/features/alert-rules/hooks";
+import { useAlertRules, useDeactivateAlertRule } from "@/features/alert-rules/hooks";
 import type { AlertRule, AlertRuleType } from "@/features/alert-rules/schemas";
 import { useLiveSessionPositions } from "@/features/live-sessions/hooks";
 import type { LiveSession, LiveSessionPositions } from "@/features/live-sessions/schemas";
@@ -181,7 +178,9 @@ function PositionDiagnostic({ session }: { session: LiveSession | null }) {
         state="empty"
         icon={<LayersIcon />}
         heading="이 세션은 포지션 대조를 지원하지 않습니다."
-        body={POSITION_UNSUPPORTED_BODY[data?.reason ?? ""] ?? "포지션 대조 조건을 확인하지 못했습니다."}
+        body={
+          POSITION_UNSUPPORTED_BODY[data?.reason ?? ""] ?? "포지션 대조 조건을 확인하지 못했습니다."
+        }
       />
     );
   }
@@ -263,10 +262,16 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
         body="손실 한도 접근이나 워치독 중단을 알림으로 받을 수 있습니다."
         action={
           <>
-            <button className="btn btn-ghost" type="button" onClick={() => setFormOpen((open) => !open)}>
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={() => setFormOpen((open) => !open)}
+            >
               {formOpen ? "알림 규칙 만들기 닫기" : "알림 규칙 만들기"}
             </button>
-            {formOpen ? <AlertRuleForm sessionId={session.id} onSuccess={() => setFormOpen(false)} /> : null}
+            {formOpen ? (
+              <AlertRuleForm sessionId={session.id} onSuccess={() => setFormOpen(false)} />
+            ) : null}
           </>
         }
       />
@@ -295,10 +300,16 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
               </button>
             </div>
           ))}
-          <button className="btn btn-ghost" type="button" onClick={() => setFormOpen((open) => !open)}>
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => setFormOpen((open) => !open)}
+          >
             {formOpen ? "알림 규칙 만들기 닫기" : "알림 규칙 만들기"}
           </button>
-          {formOpen ? <AlertRuleForm sessionId={session.id} onSuccess={() => setFormOpen(false)} /> : null}
+          {formOpen ? (
+            <AlertRuleForm sessionId={session.id} onSuccess={() => setFormOpen(false)} />
+          ) : null}
         </div>
       }
     />

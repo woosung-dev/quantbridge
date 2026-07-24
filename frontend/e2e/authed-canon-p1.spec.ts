@@ -102,15 +102,11 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
     const dpage = await discovery.newPage();
     await dpage.goto(`${BASE_URL}/backtests`, { waitUntil: "load" });
     await dpage.waitForTimeout(1500);
-    const href = await dpage
-      .locator('a[href^="/backtests/"]')
-      .evaluateAll((els) => {
-        const re = /^\/backtests\/[0-9a-f-]{36}$/;
-        const found = (els as HTMLAnchorElement[]).find((a) =>
-          re.test(new URL(a.href).pathname),
-        );
-        return found ? new URL(found.href).pathname : null;
-      });
+    const href = await dpage.locator('a[href^="/backtests/"]').evaluateAll((els) => {
+      const re = /^\/backtests\/[0-9a-f-]{36}$/;
+      const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));
+      return found ? new URL(found.href).pathname : null;
+    });
     await discovery.close();
 
     test.skip(!href, "완료된 백테스트 상세 링크를 찾지 못했다 (데이터 없음)");
@@ -120,9 +116,8 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
       ...auditOptions,
     });
     process.stdout.write(formatCanonResult(res) + "\n");
-    expect(
-      hardFailCount(res),
-      `/trades 하드 실패:\n${formatCanonResult(res)}`,
-    ).toBeLessThanOrEqual(HARDFAIL_ALLOWLIST["/backtests/:id/trades"] ?? 0);
+    expect(hardFailCount(res), `/trades 하드 실패:\n${formatCanonResult(res)}`).toBeLessThanOrEqual(
+      HARDFAIL_ALLOWLIST["/backtests/:id/trades"] ?? 0,
+    );
   });
 });

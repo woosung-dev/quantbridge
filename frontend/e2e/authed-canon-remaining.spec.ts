@@ -120,7 +120,10 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
     await discovery.close();
 
     // 부재 시 skip 이 아니라 실패 — 편집 라우트 커버리지 공백을 드러낸다(운영 계약 §3 ⓒ).
-    expect(editHref, "목록에서 실존 전략 편집 링크를 찾지 못했습니다 (데이터 시딩 필요)").toBeTruthy();
+    expect(
+      editHref,
+      "목록에서 실존 전략 편집 링크를 찾지 못했습니다 (데이터 시딩 필요)",
+    ).toBeTruthy();
 
     const res = await auditUrl(browser, `${BASE_URL}${editHref}`, {
       label: editHref ?? "/strategies/:id/edit",
@@ -145,9 +148,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       .locator('tr[data-status="completed"] a[href^="/optimizer/"], a[href^="/optimizer/"]')
       .evaluateAll((els) => {
         const re = /^\/optimizer\/[0-9a-f-]{36}$/;
-        const found = (els as HTMLAnchorElement[]).find((a) =>
-          re.test(new URL(a.href).pathname),
-        );
+        const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));
         return found ? new URL(found.href).pathname : null;
       });
     await discovery.close();

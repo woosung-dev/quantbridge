@@ -8,7 +8,11 @@ import {
   DiagnosticCard,
   SessionDiagnostics,
 } from "@/app/(dashboard)/trading/_components/session-diagnostics";
-import { useAlertRules, useCreateAlertRule, useDeactivateAlertRule } from "@/features/alert-rules/hooks";
+import {
+  useAlertRules,
+  useCreateAlertRule,
+  useDeactivateAlertRule,
+} from "@/features/alert-rules/hooks";
 import { useLiveSessionPositions } from "@/features/live-sessions/hooks";
 import type { LiveSession } from "@/features/live-sessions/schemas";
 
@@ -105,7 +109,9 @@ describe("SessionDiagnostics", () => {
   test("세션 미선택이면 포지션과 알림을 빈 상태로 안내한다", () => {
     render(<SessionDiagnostics session={null} />);
     expect(screen.getByText("세션을 선택하면 거래소 포지션을 대조합니다.")).toBeInTheDocument();
-    expect(screen.getByText("세션을 선택하면 이 세션의 알림 규칙을 확인합니다.")).toBeInTheDocument();
+    expect(
+      screen.getByText("세션을 선택하면 이 세션의 알림 규칙을 확인합니다."),
+    ).toBeInTheDocument();
   });
 
   test("포지션과 알림 조회 중에는 각 카드가 로딩 상태가 된다", () => {
@@ -127,7 +133,9 @@ describe("SessionDiagnostics", () => {
     );
     render(<SessionDiagnostics session={session} />);
     expect(screen.getByText("거래소와 일치")).toBeInTheDocument();
-    expect(screen.getByText(/대조 시각 2026-07-24T12:00:00Z · 거래소 수량 long 0.25/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/대조 시각 2026-07-24T12:00:00Z · 거래소 수량 long 0.25/),
+    ).toBeInTheDocument();
   });
 
   test("포지션 오류는 실제 경로 코드와 재시도 action을 표시한다", () => {
@@ -145,7 +153,9 @@ describe("SessionDiagnostics", () => {
       positions({ supported: false, reason: "spot_position_api_unsupported" }),
     );
     render(<SessionDiagnostics session={session} />);
-    expect(screen.getByText("현물 세션의 포지션 대조는 아직 지원하지 않습니다.")).toBeInTheDocument();
+    expect(
+      screen.getByText("현물 세션의 포지션 대조는 아직 지원하지 않습니다."),
+    ).toBeInTheDocument();
   });
 
   test("알림 규칙이 없으면 인라인 생성 버튼을 표시하고 loss_limit payload를 보낸다", async () => {
