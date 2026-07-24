@@ -19,6 +19,7 @@ from src.backtest.schemas import (
     CreateBacktestRequest,
     ShareTokenResponse,
     TradeItem,
+    TradeOhlcvResponse,
 )
 from src.backtest.service import BacktestService
 from src.common.pagination import Page
@@ -87,6 +88,16 @@ async def list_backtest_trades(
     offset: int = Query(0, ge=0),
 ) -> Page[TradeItem]:
     return await service.list_trades(backtest_id, user_id=user.id, limit=limit, offset=offset)
+
+
+@router.get("/{backtest_id}/trades/{trade_index}/ohlcv", response_model=TradeOhlcvResponse)
+async def get_trade_ohlcv(
+    backtest_id: UUID,
+    trade_index: int,
+    user: CurrentUser = Depends(get_current_user),
+    service: BacktestService = Depends(get_backtest_service),
+) -> TradeOhlcvResponse:
+    return await service.trade_ohlcv(backtest_id, trade_index, user_id=user.id)
 
 
 @router.get("/{backtest_id}/progress", response_model=BacktestProgressResponse)

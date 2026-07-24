@@ -12,6 +12,7 @@ from src.common.database import get_async_session
 from src.core.config import settings
 from src.market_data.dependencies import get_ohlcv_provider
 from src.market_data.providers import OHLCVProvider
+from src.market_data.repository import OHLCVRepository
 from src.strategy.repository import StrategyRepository
 from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
@@ -25,6 +26,7 @@ async def get_backtest_service(
         repo=BacktestRepository(session),
         strategy_repo=StrategyRepository(session),
         ohlcv_provider=ohlcv_provider,
+        ohlcv_repo=OHLCVRepository(session),
         dispatcher=CeleryTaskDispatcher(),
         funding_repo=FundingRateRepository(session),
     )
@@ -58,6 +60,7 @@ def build_backtest_service_for_worker(session: AsyncSession) -> BacktestService:
         repo=BacktestRepository(session),
         strategy_repo=StrategyRepository(session),
         ohlcv_provider=ohlcv_provider,
+        ohlcv_repo=OHLCVRepository(session),
         dispatcher=NoopTaskDispatcher(),
         funding_repo=FundingRateRepository(session),
     )

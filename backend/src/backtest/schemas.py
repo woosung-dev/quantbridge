@@ -518,3 +518,35 @@ class TradeItem(BaseModel):
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
+
+
+class OhlcvBar(BaseModel):
+    """거래 구간 미니 차트용 OHLCV 봉."""
+
+    time: AwareDatetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("open", "high", "low", "close", "volume", when_used="json")
+    def _decimal_to_str(self, v: Decimal) -> str:
+        return str(v)
+
+
+class TradeOhlcvResponse(BaseModel):
+    """거래 전후 구간의 OHLCV 미니 차트 응답."""
+
+    backtest_id: UUID
+    trade_index: int
+    symbol: str
+    timeframe: str
+    entry_time: AwareDatetime
+    exit_time: AwareDatetime | None
+    pad_bars: int
+    stride: int
+    truncated: bool
+    bars: list[OhlcvBar]

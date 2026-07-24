@@ -240,6 +240,15 @@ class BacktestRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
 
+    async def get_trade_by_index(self, backtest_id: UUID, trade_index: int) -> BacktestTrade | None:
+        """백테스트의 거래 인덱스로 단일 거래를 조회한다."""
+        stmt = select(BacktestTrade).where(
+            BacktestTrade.backtest_id == backtest_id,  # type: ignore[arg-type]
+            BacktestTrade.trade_index == trade_index,  # type: ignore[arg-type]
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def count_trades_by_direction(self, backtest_id: UUID) -> tuple[int, int, int]:
         """방향별 거래 수 집계 (open + closed 모두 포함).
 
