@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.repository import UserRepository
 from src.common.database import get_async_session
+from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.strategy.models import Strategy
 from src.strategy.repository import StrategyRepository
@@ -33,6 +34,7 @@ from src.trading.repositories.order_repository import OrderRepository
 from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.alert_rule_service import AlertRuleService
+from src.trading.services.balance_service import AccountBalanceService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
@@ -216,4 +218,17 @@ async def get_position_service(
         strategy_repo=StrategyRepository(session),
         account_service=account_service,
         bybit_futures_provider=bybit_futures_provider,
+    )
+
+
+async def get_balance_service(
+    session: AsyncSession = Depends(get_async_session),
+    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
+    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
+) -> AccountBalanceService:
+    return AccountBalanceService(
+        account_repo=ExchangeAccountRepository(session),
+        account_service=account_service,
+        bybit_futures_provider=bybit_futures_provider,
+        redis=get_redis_lock_pool(),
     )

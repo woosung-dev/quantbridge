@@ -155,6 +155,18 @@ class PaginatedExchangeAccounts(BaseModel):
     total: int
 
 
+class AccountBalanceResponse(BaseModel):
+    """GET /exchange-accounts/{account_id}/balance 응답."""
+
+    account_id: UUID
+    asset: Literal["USDT"]
+    supported: bool
+    reason: str | None
+    total: Decimal | None
+    free: Decimal | None
+    fetched_at: AwareDatetime | None
+
+
 # ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
 
 

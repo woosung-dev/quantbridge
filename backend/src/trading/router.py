@@ -21,6 +21,7 @@ from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
 from src.trading.dependencies import (
     get_alert_rule_service,
+    get_balance_service,
     get_exchange_account_service,
     get_liquidation_service,
     get_live_signal_session_service,
@@ -42,6 +43,7 @@ from src.trading.repositories.live_signal_event_repository import LiveSignalEven
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import (
+    AccountBalanceResponse,
     AlertRuleCreateRequest,
     AlertRuleListResponse,
     AlertRuleResponse,
@@ -62,6 +64,7 @@ from src.trading.schemas import (
 )
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.alert_rule_service import AlertRuleService
+from src.trading.services.balance_service import AccountBalanceService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
@@ -203,6 +206,21 @@ async def list_exchange_accounts(
             )
         )
     return PaginatedExchangeAccounts(items=items, total=len(items))
+
+
+@router.get(
+    "/exchange-accounts/{account_id}/balance",
+    response_model=AccountBalanceResponse,
+)
+async def get_exchange_account_balance(
+    account_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AccountBalanceService = Depends(get_balance_service),
+) -> AccountBalanceResponse:
+    try:
+        return await service.get_balance(current_user.id, account_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=503, detail="exchange balance lookup unavailable") from exc
 
 
 @router.delete(
