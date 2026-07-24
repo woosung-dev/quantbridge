@@ -32,3 +32,18 @@ Explore 3기(BE/FE/canon·docs) 병렬로 핸드오프 전제 전수 검증. 구
 - 컨테이너 Up: quantbridge-db(5436→5432)·redis(6380→6379)·worker·beat·ws-stream·optimizer-heavy.
 - baseline: FE **1044 passed(182 파일)** — 문서치 정확 일치. BE 재측정 진행.
 - 앱 서버: FE 3100 + BE 8100 러닝(3000=nexus-core).
+- baseline BE = **2533 passed, 46 skipped** (298s) — 문서치 정확 일치. drift 0.
+
+## #4. codex G0 판정 = REVISE — 코드 대조 후 반영 (opspack-ws2 선례: 1건 기각)
+
+read-only codex G0(high effort) 결과. 각 finding 코드 대조(§7.3) 후 판정:
+
+- **[P1 기각] "브랜치가 main 아니라 stage/perf-surface"** — codex 가 실제 상태를 정확히 읽음(W0 docs 커밋 후 실행됨). 프롬프트 "zero diff" 프레이밍이 stale 했을 뿐, W0 docs 커밋은 의도된 것. 플랜 결함 아님.
+- **[P1 수용] C3 FE 미러 누락** — `frontend/src/features/strategy/schemas.ts:98` StrategyListItemSchema 는 backtest_count 만 extend. `latest_backtest` zod 추가 필요 → **W3 스코프 명시 추가**.
+- **[P1 수용] C5 FE 미러 누락** — `frontend/src/features/optimizer/schemas.ts:333` OptimizationRunResponseSchema 에 5 denormalize 필드 없음(list 는 row-level safeParse 로 이 스키마 사용) → **W3 스코프 명시 추가**.
+- **[P1 수용] C5 응답 일관성** — `_to_response`(service.py:333) 는 POST/GET/LIST 공유. list_by_user 만 join 하면 GET/POST 는 5필드 None. **결정: `_to_response(run, backtest=None)` optional 파라미터 + list_by_user·get_by_id 둘 다 LEFT JOIN Backtest + submit 은 이미 fetch 한 backtest 전달 → 3경로 모두 일관 채움**(FK 상 backtest 항상 존재). W1 스코프.
+- **[P2 수용] C6 stride 마커 보존** — deriveTradeMarkers 는 entry/exit_time 마커 생성. stride 다운샘플이 그 봉 제거 시 마커 분리 → **C6: first/last + entry/exit 봉 보존 의무**.
+- **[P2 수용] latest DISTINCT ON tie-breaker** — completed_at nullable(models.py:111) 동률 비결정 → ORDER BY `strategy_id, completed_at DESC NULLS LAST, created_at DESC, id DESC`.
+- **[P2 수용] num_trades sort 키** — types.py: num_trades:int(항상), total_trades:int|None(alias). C4 coalesce 대신 **`metrics['num_trades']` 단독**(항상 존재·authoritative).
+- **[확인 CONFIRMED] metrics_summary_from_jsonb**: COMPLETED partial metrics 실재 가능(repository.py:97 임의 dict) → `metrics_from_jsonb`(base-5 필수 인덱싱) 재사용 금지, **per-field `.get()` projection**. pack None 은 metrics NULL/비COMPLETED 만.
+- **[확인 CONFIRMED]** astext.cast(Numeric)+NULLS LAST / get_range 양끝 포함 / 단방향 import 순환 없음 / DISTINCT ON 선행 ORDER BY 규칙 / 신규 summary 스키마가 test_metrics_field_parity 안 깸(BacktestMetrics+BacktestMetricsOut 만 비교).
