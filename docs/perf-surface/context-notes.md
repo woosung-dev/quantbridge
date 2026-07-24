@@ -31,8 +31,23 @@ Explore 3기(BE/FE/canon·docs) 병렬로 핸드오프 전제 전수 검증. 구
 - main = `b023ce5`(PR #470), 트리 클린, `stage/perf-surface` 신설.
 - 컨테이너 Up: quantbridge-db(5436→5432)·redis(6380→6379)·worker·beat·ws-stream·optimizer-heavy.
 - baseline: FE **1044 passed(182 파일)** — 문서치 정확 일치. BE 재측정 진행.
-- 앱 서버: FE 3100 + BE 8100 러닝(3000=nexus-core).
-- baseline BE = **2533 passed, 46 skipped** (298s) — 문서치 정확 일치. drift 0.
+- 앱 서버: FE 3100 + BE 8100 러닝(3000=nexus-core). uvicorn --reload/next HMR 가 cherry-pick 신코드 자동 반영(정체성 프로브 = openapi title "QuantBridge" + order_by/order 파라미터 존재 확인).
+- baseline BE = **2533 passed, 46 skipped** (298s) — 문서치 정확 일치. drift 0. 통합 후 BE **2557**(+24)·FE **1056**(+12).
+
+## #5. Opus MCP 실브라우저 dogfood (storageState 쿠키 주입, 전 항목 PASS)
+
+storageState(`e2e/.auth/storageState.json`) 쿠키를 `context.addCookies`(httpOnly __session 포함, `browser_run_code_unsafe` filename 경로=MCP allowed root)로 주입 → 실브라우저 검증. **오라클 표본 4a3bb5d3/8f6ba11a 소유자 = dogfood 유저**(최신 2건).
+
+- **오라클 3점 대조 PASS**: psql total_return ↔ 목록 수익률 ↔ 리포트 상세 3점 일치. 4a3bb5d3=0.038350→**3.83% 미청산 포함**, 8f6ba11a=0.031168→**3.12% 미청산 포함**. MDD/샤프/거래수도 psql 일치. **미청산 부기(total_open_trades=1) 실증 완료**.
+- A1 목록: 11열(종료시각 제거), null→`—`+title, 서버 정렬(수익률 클릭→`?order_by=total_return&order=desc`, 단일 aria-sort=descending, 내림차 재정렬 NULLS LAST).
+- A2 /strategies: 3 성과열, DrFX 최근=4a3bb5d3(3.83%) = DISTINCT ON 최신 검증, 무완료→`—`.
+- A3 대시보드 §03: 백테스트+최적화 병합(유형 파생 라벨), 최적화 행 전략명·심볼 렌더=**C5 denormalize 종단 검증**. §04 미터: 음수수익률 clamp 0%("−208.99 / 150.00 = 0.0%" basis 정직 표기), DrFX 2.56% width.
+- A4 미니차트: 펼침 전 fetch 0 → 펼침 후 `/trades/12/ohlcv` 200(종단 C6), 차트 렌더, 종가註. 리포트 각주 "총수익률은 기말 미청산 평가손익·펀딩 반영, 순손익은 실현분만" 렌더.
+- **콘솔 error 0** (전 페이지).
+
+### ★dogfood 실버그 1건 (§7.3 직접기능검증이 유닛/평가자 놓친 것 포착) → 즉시 수정 @a9bf72a
+
+미청산(open) 거래는 `bars_in_trade`=null → chart card-sub 가 `?? "알 수 없음"` 폴백으로 **"보유 알 수 없음봉"** 표기. 이 유저 백테스트는 전부 open trade 1건 보유라 상시 노출. 수정: 청산→"보유 N봉", 미청산→"미청산(보유 중)". +회귀테스트(chart 4→5). 프로덕션 C6/데이터는 정상, FE 표기만.
 
 ## #4. codex G0 판정 = REVISE — 코드 대조 후 반영 (opspack-ws2 선례: 1건 기각)
 
