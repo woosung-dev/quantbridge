@@ -1,7 +1,6 @@
 # Bybit private position 팬아웃과 캐시 무효화 계약을 검증한다.
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -185,18 +184,23 @@ async def test_redis_delete_failure_does_not_skip_publish(monkeypatch: pytest.Mo
 
 @pytest.mark.asyncio
 async def test_router_ignores_acks_and_warns_on_rejected_subscribe(
-    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     router = PrivateTopicRouter(
         account_id=uuid4(), state_handler=AsyncMock(), position_handler=AsyncMock()
     )
+    # caplog 전역 전파에 의존하면 다른 테스트의 logging.disable 오염에 취약하므로
+    # 로거 warning 을 직접 가로채 격리-내성으로 검증한다.
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        position_fanout.logger, "warning", lambda msg, *a, **k: warnings.append(str(msg))
+    )
 
-    with caplog.at_level(logging.WARNING, logger=position_fanout.__name__):
-        await router.handle_message({"op": "subscribe", "success": True})
-        await router.handle_message({"op": "subscribe", "success": False})
-        await router.handle_message({"topic": "unknown", "data": []})
+    await router.handle_message({"op": "subscribe", "success": True})
+    await router.handle_message({"op": "subscribe", "success": False})
+    await router.handle_message({"topic": "unknown", "data": []})
 
-    assert "ws_subscribe_rejected" in caplog.text
+    assert [w for w in warnings if "ws_subscribe_rejected" in w]
 
 
 @pytest.mark.asyncio

@@ -53,7 +53,9 @@ export function AccountBalanceSection({ accounts }: { accounts: readonly Account
               {query?.isLoading ? "불러오는 중" : balance?.free ?? "확인 불가"}
               {balance?.free !== null && balance?.free !== undefined ? ` ${asset}` : null}
             </p>
-            {!balance?.supported ? (
+            {query?.isLoading ? null : query?.isError ? (
+              <p className="kpi-foot">잔고를 불러오지 못했습니다.</p>
+            ) : !balance?.supported ? (
               <p className="kpi-foot">{balance?.reason ?? "잔고 조회를 지원하지 않습니다."}</p>
             ) : percent === null ? (
               <p className="kpi-foot">확인 불가</p>

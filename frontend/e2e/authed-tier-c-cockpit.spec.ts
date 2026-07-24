@@ -1,4 +1,4 @@
-// 인증된 코크핏 KPI·§06 진단 카드의 라이브 구조 불변식을 검증한다.
+// 인증된 코크핏 KPI·§08 진단 카드의 라이브 구조 불변식을 검증한다.
 import { expect, test } from "@playwright/test";
 
 test("코크핏 잔고·포지션 섹션과 진단 카드 2장을 렌더한다", async ({ page }) => {

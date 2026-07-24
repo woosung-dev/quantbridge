@@ -1,4 +1,4 @@
-// 코크핏 §06 진단 카드의 실제 API·스토어 상태 매핑을 검증한다.
+// 코크핏 §08 진단 카드의 실제 API·스토어 상태 매핑을 검증한다.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AlertTriangleIcon } from "lucide-react";
 import { beforeEach, describe, expect, test, vi } from "vitest";

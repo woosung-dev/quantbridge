@@ -106,4 +106,20 @@ describe("AccountBalanceSection", () => {
 
     expect(screen.getByText("Bybit 계정만 지원합니다.")).toBeInTheDocument();
   });
+
+  it("로딩 중에는 미지원 문구 대신 불러오는 중만 표시한다", () => {
+    mockBalances.mockReturnValue([query(undefined, { isLoading: true })]);
+    render(<AccountBalanceSection accounts={[account]} />);
+
+    expect(screen.getAllByText("불러오는 중")).toHaveLength(2);
+    expect(screen.queryByText("잔고 조회를 지원하지 않습니다.")).not.toBeInTheDocument();
+  });
+
+  it("조회 실패는 미지원이 아니라 실패 문구로 표시한다", () => {
+    mockBalances.mockReturnValue([query(undefined, { isError: true })]);
+    render(<AccountBalanceSection accounts={[account]} />);
+
+    expect(screen.getByText("잔고를 불러오지 못했습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("잔고 조회를 지원하지 않습니다.")).not.toBeInTheDocument();
+  });
 });
