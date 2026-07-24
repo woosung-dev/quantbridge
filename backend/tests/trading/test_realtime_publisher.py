@@ -30,7 +30,16 @@ async def test_publish_realtime_serializes_envelope_and_decimal(
     monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
 
     await realtime_publisher.publish_realtime(
-        "user-1", "order_update", {"price": Decimal("123.45")}
+        "user-1",
+        "order_update",
+        {
+            "order_id": "order-1",
+            "state": "filled",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "source": "rest",
+            "price": Decimal("123.45"),
+        },
     )
 
     assert len(pool.calls) == 1
@@ -40,7 +49,14 @@ async def test_publish_realtime_serializes_envelope_and_decimal(
     assert envelope["v"] == 1
     assert envelope["type"] == "order_update"
     assert isinstance(envelope["ts"], int)
-    assert envelope["payload"] == {"price": "123.45"}
+    assert envelope["payload"] == {
+        "order_id": "order-1",
+        "state": "filled",
+        "symbol": "BTC/USDT",
+        "side": "buy",
+        "source": "rest",
+        "price": "123.45",
+    }
 
 
 @pytest.mark.asyncio
@@ -51,6 +67,8 @@ async def test_publish_realtime_swallows_redis_error_and_counts_failure(
     monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
     before = qb_rt_publish_failed_total._value.get()
 
-    await realtime_publisher.publish_realtime("user-1", "session_state", {})
+    await realtime_publisher.publish_realtime(
+        "user-1", "session_state", {"session_id": "session-1"}
+    )
 
     assert qb_rt_publish_failed_total._value.get() == before + 1

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 USER_CHANNEL_PREFIX = "qb:rt:user:"
 WS_CLOSE_AUTH_FAILED = 4401
@@ -23,6 +23,8 @@ class RealtimeEnvelope(BaseModel):
 class OrderUpdatePayload(BaseModel):
     """주문 상태 변경 이벤트 payload."""
 
+    model_config = ConfigDict(extra="ignore")
+
     order_id: str
     state: str
     symbol: str
@@ -33,6 +35,8 @@ class OrderUpdatePayload(BaseModel):
 class KillSwitchPayload(BaseModel):
     """킬 스위치 변경 이벤트 payload."""
 
+    model_config = ConfigDict(extra="ignore")
+
     event_id: str
     trigger_type: str
 
@@ -40,7 +44,17 @@ class KillSwitchPayload(BaseModel):
 class SessionStatePayload(BaseModel):
     """트레이딩 세션 상태 변경 이벤트 payload."""
 
+    model_config = ConfigDict(extra="ignore")
+
     session_id: str
+
+
+PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
+    "order_update": OrderUpdatePayload,
+    "kill_switch": KillSwitchPayload,
+    "kill_switch_resolved": KillSwitchPayload,
+    "session_state": SessionStatePayload,
+}
 
 
 class AuthMessage(BaseModel):

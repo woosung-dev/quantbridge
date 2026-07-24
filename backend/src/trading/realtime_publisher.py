@@ -6,9 +6,11 @@ import time
 from contextlib import suppress
 from typing import Any, Literal, cast
 
-from src.common.metrics import qb_rt_publish_failed_total
+from pydantic import ValidationError
+
+from src.common.metrics import qb_rt_publish_failed_total, qb_rt_publish_invalid_total
 from src.common.redis_client import get_redis_lock_pool
-from src.realtime.schemas import RealtimeEnvelope, user_channel
+from src.realtime.schemas import PAYLOAD_MODELS, RealtimeEnvelope, user_channel
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,14 @@ async def publish_realtime(
     user_id: str, event_type: str, payload: dict[str, Any]
 ) -> None:
     """Redis pub/sub 발행 실패가 거래 상태 전이를 방해하지 않게 한다."""
+    try:
+        PAYLOAD_MODELS[event_type].model_validate(payload)
+    except (KeyError, ValidationError):
+        logger.warning("realtime_publish_invalid_payload event_type=%s", event_type)
+        with suppress(Exception):
+            qb_rt_publish_invalid_total.labels(event_type=event_type).inc()
+        return
+
     try:
         envelope = RealtimeEnvelope(
             type=cast(
