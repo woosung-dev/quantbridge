@@ -132,7 +132,12 @@ class LiveSignalSessionService:
         await self._repo.commit()
         from src.tasks.websocket_task import run_bybit_public_ticker_stream
 
-        run_bybit_public_ticker_stream.delay()
+        try:
+            run_bybit_public_ticker_stream.delay()
+        except Exception as exc:
+            # best-effort 즉시성 킥 — 실패해도 beat reconcile(5분)이 기동을 보증하므로
+            # 세션 등록 성공을 500 으로 오염시키지 않는다.
+            logger.warning("public_ticker_kick_failed err=%s", exc)
         return saved
 
     async def _enforce_demo_stability(self, user_id: UUID) -> None:
@@ -140,12 +145,8 @@ class LiveSignalSessionService:
 
         조회 실패(None)는 검증 불가 → fail-closed(days_elapsed=0)로 거부.
         """
-        created_at = (
-            await self._user_repo.get_created_at(user_id) if self._user_repo else None
-        )
-        days_elapsed = (
-            0 if created_at is None else (datetime.now(UTC) - created_at).days
-        )
+        created_at = await self._user_repo.get_created_at(user_id) if self._user_repo else None
+        days_elapsed = 0 if created_at is None else (datetime.now(UTC) - created_at).days
         if days_elapsed < _MIN_DEMO_STABLE_DAYS:
             raise DemoAccountNotYetStable(
                 days_elapsed=days_elapsed, min_required=_MIN_DEMO_STABLE_DAYS

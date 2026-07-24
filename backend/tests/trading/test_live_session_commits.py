@@ -362,3 +362,43 @@ async def test_deactivate_ownership_violation_404() -> None:
 
     repo.deactivate.assert_not_called()
     repo.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_register_survives_ticker_kick_failure(monkeypatch) -> None:
+    """ticker 킥은 best-effort — broker 장애로 delay 가 죽어도 등록은 성공한다.
+
+    실패 시 beat reconcile(5분)이 기동을 보증하므로 500 오염 금지 (codex 최종
+    diff 리뷰 반영).
+    """
+    from src.trading.services.live_session_service import LiveSignalSessionService
+
+    user_id = uuid4()
+    strategy = _make_strategy(user_id)
+    account = _make_account(user_id)
+    saved = _make_session(user_id, strategy.id, account.id)
+
+    repo = AsyncMock()
+    repo.acquire_quota_lock = AsyncMock(return_value=None)
+    repo.count_active_by_user = AsyncMock(return_value=0)
+    repo.save = AsyncMock(return_value=saved)
+
+    account_repo = AsyncMock()
+    account_repo.get_by_id = AsyncMock(return_value=account)
+
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
+
+    svc = LiveSignalSessionService(
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+    )
+    from src.tasks.websocket_task import run_bybit_public_ticker_stream
+
+    delay = MagicMock(side_effect=RuntimeError("broker down"))
+    monkeypatch.setattr(run_bybit_public_ticker_stream, "delay", delay)
+
+    result = await svc.register(user_id, _make_req(strategy.id, account.id))
+
+    repo.commit.assert_awaited_once()
+    delay.assert_called_once_with()
+    assert result is saved

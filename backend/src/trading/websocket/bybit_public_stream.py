@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from typing import Any
 
 from src.trading.realtime_publisher import publish_ticker
 from src.trading.websocket.bybit_private_stream import BybitPrivateStream
+
+logger = logging.getLogger(__name__)
 
 # Bybit 공식 문서: demo 계정도 공개 시세는 mainnet public linear endpoint를 공유한다.
 _BYBIT_PUBLIC_WS_ENDPOINT = "wss://stream.bybit.com/v5/public/linear"
@@ -93,12 +96,21 @@ class BybitPublicTickerStream:
         await self._stream.__aexit__(*exc_info)
 
     async def update_symbols(self, new: set[str]) -> None:
-        """현재 연결에서는 diff만 보내고 재연결용 topics도 즉시 교체한다."""
+        """현재 연결에서는 diff만 보내고 재연결용 topics도 즉시 교체한다.
+
+        topics 교체를 send 이전에 확정한다 — supervisor 재연결과 경합해 send 가
+        실패해도(소켓 사망) 태스크·refresh 루프는 살아야 하고, 재연결 시
+        `_subscribe` 가 최신 topics 로 재구독하므로 diff send 는 best-effort 다.
+        """
         new_symbols = set(new)
         removed = self._symbols - new_symbols
         added = new_symbols - self._symbols
+        self._symbols = new_symbols
+        self._stream._topics = self._topics_for(new_symbols)
         ws = self._stream._ws
-        if self._stream.connected and ws is not None:
+        if not (self._stream.connected and ws is not None):
+            return
+        try:
             if removed:
                 await ws.send(
                     json.dumps({"op": "unsubscribe", "args": list(self._topics_for(removed))})
@@ -107,5 +119,5 @@ class BybitPublicTickerStream:
                 await ws.send(
                     json.dumps({"op": "subscribe", "args": list(self._topics_for(added))})
                 )
-        self._symbols = new_symbols
-        self._stream._topics = self._topics_for(new_symbols)
+        except Exception as exc:
+            logger.warning("public_ticker_resubscribe_send_failed err=%s", exc)

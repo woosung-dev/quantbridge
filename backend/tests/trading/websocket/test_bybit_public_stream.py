@@ -126,3 +126,24 @@ async def test_update_symbols_sends_live_subscribe_and_unsubscribe(fake_ws, fake
             {"op": "subscribe", "args": ["tickers.ETHUSDT"]},
         ]
         assert stream._stream._topics == ("tickers.ETHUSDT",)
+
+
+@pytest.mark.asyncio
+async def test_update_symbols_survives_send_failure_and_updates_topics(
+    fake_ws, fake_connect, monkeypatch
+) -> None:
+    """supervisor 재연결과 경합해 send 가 죽어도 예외가 새지 않고 topics 는 교체된다.
+
+    codex 최종 diff 리뷰 반영 — send 실패 시 태스크/refresh 루프가 죽으면 beat
+    reconcile(5분)까지 ticker 공백. topics 선교체 + best-effort send 로 재연결 시
+    최신 셋 재구독을 보장한다.
+    """
+    stream = BybitPublicTickerStream(symbols={"BTCUSDT"}, connect_func=fake_connect)
+
+    async with stream:
+        monkeypatch.setattr(
+            stream._stream._ws, "send", AsyncMock(side_effect=RuntimeError("socket dead"))
+        )
+        await stream.update_symbols({"ETHUSDT"})
+        assert stream._stream._topics == ("tickers.ETHUSDT",)
+        assert stream._symbols == {"ETHUSDT"}
