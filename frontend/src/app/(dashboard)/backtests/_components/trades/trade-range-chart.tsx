@@ -77,7 +77,8 @@ export function TradeRangeChart({
   const ariaLabel = data.exit_time && trade.exit_price !== null
     ? `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입해 ${formatDateTime(data.exit_time)}에 ${formatCurrency(trade.exit_price)}에 청산했습니다.`
     : `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입한 뒤 아직 청산하지 않았습니다.`;
-  const holdBars = trade.bars_in_trade ?? "알 수 없음";
+  // 청산된 거래는 보유 봉 수, 미청산(open) 거래는 bars_in_trade 가 null 이므로 "보유 중" 으로 표기.
+  const holdLabel = trade.bars_in_trade != null ? `보유 ${trade.bars_in_trade}봉` : "미청산(보유 중)";
   const samplingNote = data.stride > 1
     ? ` ${data.stride}봉 간격으로 표본을 표시했습니다.`
     : "";
@@ -88,7 +89,7 @@ export function TradeRangeChart({
         <div>
           <h3 className="card-title">구간 가격</h3>
           <p className="card-sub">
-            보유 {holdBars}봉 + 앞뒤 {data.pad_bars}봉 · {data.timeframe} 봉 {data.bars.length}개
+            {holdLabel} + 앞뒤 {data.pad_bars}봉 · {data.timeframe} 봉 {data.bars.length}개
             {samplingNote}
           </p>
         </div>

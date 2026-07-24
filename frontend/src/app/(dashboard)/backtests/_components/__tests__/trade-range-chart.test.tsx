@@ -150,6 +150,27 @@ describe("TradeRangeChart", () => {
     expect(screen.getByText(/3봉 간격으로 표본을 표시했습니다/)).toBeInTheDocument();
   });
 
+  it("청산 거래는 보유 봉 수를, 미청산 거래는 보유 중 라벨을 표시한다", () => {
+    const { rerender } = render(
+      <TradeRangeChart backtestId={BACKTEST_ID} tradeIndex={trade.trade_index} trade={trade} />,
+    );
+    expect(screen.getByText(/보유 2봉/)).toBeInTheDocument();
+
+    const openTrade: TradeItem = {
+      ...trade,
+      status: "open",
+      exit_time: null,
+      exit_price: null,
+      bars_in_trade: null,
+    };
+    mocks.useTradeOhlcv.mockReturnValue(queryResult({ data: { ...response, exit_time: null } }));
+    rerender(
+      <TradeRangeChart backtestId={BACKTEST_ID} tradeIndex={openTrade.trade_index} trade={openTrade} />,
+    );
+    expect(screen.getByText(/미청산\(보유 중\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/알 수 없음/)).not.toBeInTheDocument();
+  });
+
   it("오류와 빈 봉 상태를 StateBox로 렌더링한다", () => {
     mocks.useTradeOhlcv.mockReturnValue(
       queryResult({ isError: true, error: new Error("network") }),
