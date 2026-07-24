@@ -288,9 +288,7 @@ class BacktestRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_id_for_update(
-        self, backtest_id: UUID, *, user_id: UUID
-    ) -> Backtest | None:
+    async def get_by_id_for_update(self, backtest_id: UUID, *, user_id: UUID) -> Backtest | None:
         """SELECT ... FOR UPDATE — codex P2 race condition fix.
 
         share_token 발급 시 동시 POST 2개가 둘 다 NULL 읽고 다른 토큰 commit 하는

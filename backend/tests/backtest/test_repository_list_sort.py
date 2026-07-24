@@ -15,7 +15,8 @@ from tests.backtest.test_repository import _seed_bt
 @pytest.mark.asyncio
 @pytest.mark.parametrize("order", ["asc", "desc"])
 @pytest.mark.parametrize(
-    "order_by", [
+    "order_by",
+    [
         "created_at",
         "total_return",
         "max_drawdown",

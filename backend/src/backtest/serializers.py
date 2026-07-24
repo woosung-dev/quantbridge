@@ -8,6 +8,7 @@ _utc_iso()는 방어적으로 naive 입력도 처리하지만, 신규 코드는 
 Sprint 30 gamma-BE: BacktestMetrics 12 → 24 필드 확장.
 신규 12 필드는 모두 Optional default None → Sprint 28 이전 backtest backward-compat.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -98,6 +99,7 @@ def _parse_utc_iso(s: str) -> datetime:
 
 # --- metrics ---
 
+
 def metrics_summary_from_jsonb(
     metrics: dict[str, Any] | None,
 ) -> BacktestMetricsSummary | None:
@@ -121,6 +123,7 @@ def metrics_summary_from_jsonb(
         num_trades=_opt_int("num_trades"),
         total_open_trades=_opt_int("total_open_trades"),
     )
+
 
 def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
     """BacktestMetrics → JSONB dict (Decimal → str, None 필드는 키 생략).
@@ -220,6 +223,7 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
     Sprint 30 gamma-BE: 24 필드 round-trip identity. Sprint 28 이전 12 필드만 set 시
     신규 12 필드는 모두 None.
     """
+
     def _opt_decimal(key: str) -> Decimal | None:
         raw = data.get(key)
         return Decimal(raw) if raw is not None else None
@@ -302,6 +306,7 @@ def _per_side_from_jsonb(raw: dict[str, Any] | None) -> PerSideMetrics | None:
 
 
 # --- equity_curve ---
+
 
 def equity_curve_to_jsonb(series: pd.Series) -> list[list[str]]:
     """pd.Series(DatetimeIndex, Decimal or float values) → [[ISO str, Decimal str], ...]."""

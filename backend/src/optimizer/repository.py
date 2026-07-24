@@ -2,6 +2,7 @@
 
 stress_test/repository.py pattern 1:1 mirror. Sprint 18 BL-080 + LESSON-019 commit 의무.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -41,7 +42,8 @@ class OptimizationRepository:
         stmt = (
             select(OptimizationRun, Backtest)
             .outerjoin(
-                Backtest, OptimizationRun.backtest_id == Backtest.id  # type: ignore[arg-type]
+                Backtest,
+                OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
             )
             .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
         )
@@ -61,12 +63,17 @@ class OptimizationRepository:
         base = (
             select(OptimizationRun, Backtest)
             .outerjoin(
-                Backtest, OptimizationRun.backtest_id == Backtest.id  # type: ignore[arg-type]
+                Backtest,
+                OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
             )
             .where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
         )
-        total_base = select(func.count()).select_from(OptimizationRun).where(
-            OptimizationRun.user_id == user_id  # type: ignore[arg-type]
+        total_base = (
+            select(func.count())
+            .select_from(OptimizationRun)
+            .where(
+                OptimizationRun.user_id == user_id  # type: ignore[arg-type]
+            )
         )
         if backtest_id is not None:
             base = base.where(OptimizationRun.backtest_id == backtest_id)  # type: ignore[arg-type]
@@ -85,9 +92,7 @@ class OptimizationRepository:
 
     # --- 상태 전이 ---
 
-    async def transition_to_running(
-        self, run_id: UUID, *, started_at: datetime
-    ) -> int:
+    async def transition_to_running(self, run_id: UUID, *, started_at: datetime) -> int:
         """queued → running. UPDATE rows=0 → silent skip (stress_test pattern mirror)."""
         result = await self.session.execute(
             update(OptimizationRun)

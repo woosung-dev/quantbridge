@@ -167,9 +167,7 @@ async def test_submit_grid_search_dispatcher_raise_rolls_back() -> None:
     provider = AsyncMock()
 
     raising_dispatcher = MagicMock()
-    raising_dispatcher.dispatch_optimization.side_effect = RuntimeError(
-        "broker connection error"
-    )
+    raising_dispatcher.dispatch_optimization.side_effect = RuntimeError("broker connection error")
 
     svc = _build_service(
         repo=repo,
@@ -244,9 +242,7 @@ async def test_run_complete_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -
     def _fake_run_grid_search(*args: Any, **kwargs: Any) -> GridSearchResult:
         return fake_result
 
-    monkeypatch.setattr(
-        "src.optimizer.service.run_optimizer_by_kind", _fake_run_grid_search
-    )
+    monkeypatch.setattr("src.optimizer.service.run_optimizer_by_kind", _fake_run_grid_search)
     # build_engine_config_from_db — Backtest mock 으로부터 호출됨. monkeypatch.
     monkeypatch.setattr(
         "src.optimizer.service.build_engine_config_from_db",
@@ -301,12 +297,8 @@ async def test_run_fail_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
             message_internal="long internal stack" * 100,
         )
 
-    monkeypatch.setattr(
-        "src.optimizer.service.run_optimizer_by_kind", _failing_executor
-    )
-    monkeypatch.setattr(
-        "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
-    )
+    monkeypatch.setattr("src.optimizer.service.run_optimizer_by_kind", _failing_executor)
+    monkeypatch.setattr("src.optimizer.service.build_engine_config_from_db", lambda _bt: None)
 
     svc = _build_service(
         repo=repo,
@@ -327,6 +319,7 @@ async def test_run_fail_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
     call_kwargs = repo.fail.await_args.kwargs
     assert "error_message" in call_kwargs
     from src.optimizer.exceptions import MAX_ERROR_MESSAGE_LEN
+
     assert len(call_kwargs["error_message"]) <= MAX_ERROR_MESSAGE_LEN
 
 
@@ -344,8 +337,11 @@ def _make_bayesian_param_space() -> ParamSpace:
             "max_evaluations": 5,
             "parameters": {
                 "ema": {
-                    "kind": "bayesian", "min": "5", "max": "30",
-                    "prior": "uniform", "log_scale": False,
+                    "kind": "bayesian",
+                    "min": "5",
+                    "max": "30",
+                    "prior": "uniform",
+                    "log_scale": False,
                 },
             },
             "bayesian_n_initial_random": 2,
@@ -384,8 +380,11 @@ async def test_submit_bayesian_calls_repo_commit() -> None:
     dispatcher = FakeOptimizationTaskDispatcher()
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=dispatcher,
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=dispatcher,
     )
     req = CreateOptimizationRunRequest(
         backtest_id=bt.id,
@@ -414,8 +413,11 @@ async def test_submit_bayesian_dispatcher_raise_rolls_back() -> None:
     raising.dispatch_optimization.side_effect = RuntimeError("broker fail")
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=raising,
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=raising,
     )
     req = CreateOptimizationRunRequest(
         backtest_id=bt.id,
@@ -455,17 +457,24 @@ async def test_run_bayesian_complete_calls_repo_commit(
         param_names=("ema",),
         iterations=(
             BayesianIteration(
-                idx=0, params={"ema": Decimal("14")},
-                objective_value=Decimal("1.5"), best_so_far=Decimal("1.5"),
-                is_degenerate=False, phase="random",
+                idx=0,
+                params={"ema": Decimal("14")},
+                objective_value=Decimal("1.5"),
+                best_so_far=Decimal("1.5"),
+                is_degenerate=False,
+                phase="random",
             ),
         ),
         best_params={"ema": Decimal("14")},
         best_objective_value=Decimal("1.5"),
         best_iteration_idx=0,
-        objective_metric="sharpe_ratio", direction="maximize",
-        bayesian_acquisition="EI", bayesian_n_initial_random=2,
-        max_evaluations=5, degenerate_count=0, total_iterations=1,
+        objective_metric="sharpe_ratio",
+        direction="maximize",
+        bayesian_acquisition="EI",
+        bayesian_n_initial_random=2,
+        max_evaluations=5,
+        degenerate_count=0,
+        total_iterations=1,
     )
     # 적대 리뷰 P2-1: 1이름 seam 축소로 사라진 "service 가 올바른 kind 를 넘기는가"
     # 암묵 커버리지를 fake 의 kind 캡처 assert 로 복원.
@@ -479,13 +488,14 @@ async def test_run_bayesian_complete_calls_repo_commit(
         "src.optimizer.service.run_optimizer_by_kind",
         _fake_run_optimizer_by_kind,
     )
-    monkeypatch.setattr(
-        "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
-    )
+    monkeypatch.setattr("src.optimizer.service.build_engine_config_from_db", lambda _bt: None)
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=FakeOptimizationTaskDispatcher(),
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=FakeOptimizationTaskDispatcher(),
     )
     await svc.run(run.id)
 
@@ -529,16 +539,15 @@ async def test_run_bayesian_fail_calls_repo_commit(
             message_internal="long bayesian internal stack" * 100,
         )
 
-    monkeypatch.setattr(
-        "src.optimizer.service.run_optimizer_by_kind", _failing_executor
-    )
-    monkeypatch.setattr(
-        "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
-    )
+    monkeypatch.setattr("src.optimizer.service.run_optimizer_by_kind", _failing_executor)
+    monkeypatch.setattr("src.optimizer.service.build_engine_config_from_db", lambda _bt: None)
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=FakeOptimizationTaskDispatcher(),
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=FakeOptimizationTaskDispatcher(),
     )
     await svc.run(run.id)
 
@@ -549,6 +558,7 @@ async def test_run_bayesian_fail_calls_repo_commit(
     call_kwargs = repo.fail.await_args.kwargs
     assert "error_message" in call_kwargs
     from src.optimizer.exceptions import MAX_ERROR_MESSAGE_LEN
+
     assert len(call_kwargs["error_message"]) <= MAX_ERROR_MESSAGE_LEN
 
 
@@ -605,8 +615,11 @@ async def test_submit_genetic_calls_repo_commit() -> None:
     dispatcher = FakeOptimizationTaskDispatcher()
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=dispatcher,
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=dispatcher,
     )
     req = CreateOptimizationRunRequest(
         backtest_id=bt.id,
@@ -635,8 +648,11 @@ async def test_submit_genetic_dispatcher_raise_rolls_back() -> None:
     raising.dispatch_optimization.side_effect = RuntimeError("broker fail")
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=raising,
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=raising,
     )
     req = CreateOptimizationRunRequest(
         backtest_id=bt.id,
@@ -676,30 +692,39 @@ async def test_run_genetic_complete_calls_repo_commit(
         param_names=("ema",),
         iterations=(
             GeneticIndividual(
-                idx=0, params={"ema": Decimal("14")},
-                objective_value=Decimal("1.5"), best_so_far=Decimal("1.5"),
-                is_degenerate=False, generation=0,
+                idx=0,
+                params={"ema": Decimal("14")},
+                objective_value=Decimal("1.5"),
+                best_so_far=Decimal("1.5"),
+                is_degenerate=False,
+                generation=0,
             ),
         ),
         best_params={"ema": Decimal("14")},
         best_objective_value=Decimal("1.5"),
         best_iteration_idx=0,
-        objective_metric="sharpe_ratio", direction="maximize",
-        population_size=4, n_generations=2,
-        mutation_rate=Decimal("0.2"), crossover_rate=Decimal("0.8"),
-        max_evaluations=12, degenerate_count=0, total_iterations=1,
+        objective_metric="sharpe_ratio",
+        direction="maximize",
+        population_size=4,
+        n_generations=2,
+        mutation_rate=Decimal("0.2"),
+        crossover_rate=Decimal("0.8"),
+        max_evaluations=12,
+        degenerate_count=0,
+        total_iterations=1,
     )
     monkeypatch.setattr(
         "src.optimizer.service.run_optimizer_by_kind",
         lambda *a, **kw: fake_result,
     )
-    monkeypatch.setattr(
-        "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
-    )
+    monkeypatch.setattr("src.optimizer.service.build_engine_config_from_db", lambda _bt: None)
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=FakeOptimizationTaskDispatcher(),
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=FakeOptimizationTaskDispatcher(),
     )
     await svc.run(run.id)
 
@@ -742,16 +767,15 @@ async def test_run_genetic_fail_calls_repo_commit(
             message_internal="long genetic internal stack" * 100,
         )
 
-    monkeypatch.setattr(
-        "src.optimizer.service.run_optimizer_by_kind", _failing_executor
-    )
-    monkeypatch.setattr(
-        "src.optimizer.service.build_engine_config_from_db", lambda _bt: None
-    )
+    monkeypatch.setattr("src.optimizer.service.run_optimizer_by_kind", _failing_executor)
+    monkeypatch.setattr("src.optimizer.service.build_engine_config_from_db", lambda _bt: None)
 
     svc = _build_service(
-        repo=repo, backtest_repo=backtest_repo, strategy_repo=strategy_repo,
-        ohlcv_provider=provider, dispatcher=FakeOptimizationTaskDispatcher(),
+        repo=repo,
+        backtest_repo=backtest_repo,
+        strategy_repo=strategy_repo,
+        ohlcv_provider=provider,
+        dispatcher=FakeOptimizationTaskDispatcher(),
     )
     await svc.run(run.id)
 
@@ -762,4 +786,5 @@ async def test_run_genetic_fail_calls_repo_commit(
     call_kwargs = repo.fail.await_args.kwargs
     assert "error_message" in call_kwargs
     from src.optimizer.exceptions import MAX_ERROR_MESSAGE_LEN
+
     assert len(call_kwargs["error_message"]) <= MAX_ERROR_MESSAGE_LEN

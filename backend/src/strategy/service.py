@@ -1,4 +1,5 @@
 """strategy Service. Pine 파싱 + CRUD 조율."""
+
 from __future__ import annotations
 
 import re
@@ -42,9 +43,7 @@ if TYPE_CHECKING:
 
 _VERSION_RE = re.compile(r"//\s*@version\s*=\s*(\d+)", re.MULTILINE)
 _STRATEGY_ENTRY_RE = re.compile(r"\bstrategy\.entry\s*\(", re.MULTILINE)
-_STRATEGY_EXIT_RE = re.compile(
-    r"\bstrategy\.(?:close(?:_all)?|exit)\s*\(", re.MULTILINE
-)
+_STRATEGY_EXIT_RE = re.compile(r"\bstrategy\.(?:close(?:_all)?|exit)\s*\(", re.MULTILINE)
 _CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
 _COMMENT_RE = re.compile(r"//[^\n]*")
 
@@ -159,8 +158,8 @@ class StrategyService:
         self._secret_svc = secret_svc
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
-        status, version, warnings, errors, entry_count, exit_count, functions_used = (
-            _parse(pine_source)
+        status, version, warnings, errors, entry_count, exit_count, functions_used = _parse(
+            pine_source
         )
         # Sprint Y1: pre-flight coverage analyzer — 미지원 built-in 식별
         coverage = analyze_coverage(pine_source)
@@ -209,9 +208,7 @@ class StrategyService:
         webhook_secret_plaintext: str | None = None
         if self._secret_svc is not None:
             # commit=False: 동일 session 내 add+flush 만. repo.commit() 이 atomic.
-            webhook_secret_plaintext = await self._secret_svc.issue(
-                saved.id, commit=False
-            )
+            webhook_secret_plaintext = await self._secret_svc.issue(saved.id, commit=False)
 
         await self.repo.commit()  # strategy + webhook_secret 동일 트랜잭션 commit
         base = StrategyResponse.model_validate(saved)
@@ -344,7 +341,9 @@ class StrategyService:
             raise StrategyNotFoundError()
 
         # 선조회 — Sprint 4부터 backtest_repo 주입됨
-        if self.backtest_repo is not None and await self.backtest_repo.exists_for_strategy(strategy_id):
+        if self.backtest_repo is not None and await self.backtest_repo.exists_for_strategy(
+            strategy_id
+        ):
             raise StrategyHasBacktests()
 
         # TOCTOU 방어: FK RESTRICT가 race loser를 DB 레벨에서 catch
