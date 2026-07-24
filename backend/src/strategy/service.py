@@ -8,9 +8,7 @@ from uuid import UUID
 
 # asyncpg FK violation 타입 — 드라이버 부재 시 None으로 fallback (단위 테스트 호환)
 try:
-    from asyncpg.exceptions import (  # type: ignore[import-untyped]
-        ForeignKeyViolationError as _AsyncpgFKViolation,
-    )
+    from asyncpg.exceptions import ForeignKeyViolationError as _AsyncpgFKViolation
 except ImportError:
     _AsyncpgFKViolation = None
 
