@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -108,16 +108,21 @@ async def test_live_boundary_exactly_n_days_passes_gate():
 
 
 @pytest.mark.asyncio
-async def test_demo_path_skips_gate_no_user_repo_call():
+async def test_demo_path_skips_gate_no_user_repo_call(monkeypatch: pytest.MonkeyPatch):
     """demo 경로 → readiness 미적용 → user_repo 미호출 → 정상 등록 commit."""
     user_id = uuid4()
     strategy = _strategy(user_id)
     account = _account(user_id, mode=ExchangeMode.demo)
     svc, repo, user_repo = _svc(strategy=strategy, account=account, created_at=None)
     repo.save = AsyncMock(return_value=object())
+    from src.tasks.websocket_task import run_bybit_public_ticker_stream
+
+    delay = MagicMock()
+    monkeypatch.setattr(run_bybit_public_ticker_stream, "delay", delay)
     await svc.register(user_id, _req(strategy.id, account.id))
     user_repo.get_created_at.assert_not_called()
     repo.commit.assert_awaited_once()
+    delay.assert_called_once_with()
 
 
 @pytest.mark.asyncio

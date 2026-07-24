@@ -9,7 +9,7 @@ Sprint 6 (webhook_secret) → Sprint 13 (OrderService) → Sprint 15-A (Exchange
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -83,7 +83,7 @@ def _make_req(strategy_id, account_id) -> RegisterLiveSessionRequest:
 
 
 @pytest.mark.asyncio
-async def test_register_calls_repo_commit() -> None:
+async def test_register_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> None:
     """LESSON-019 spy: register() 정상 path 에서 repo.commit() 호출 강제.
 
     Sprint 6 (webhook_secret) / 13 (OrderService) / 15-A (ExchangeAccount) 4번째 재발 방어.
@@ -109,12 +109,17 @@ async def test_register_calls_repo_commit() -> None:
     svc = LiveSignalSessionService(
         repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
     )
+    from src.tasks.websocket_task import run_bybit_public_ticker_stream
+
+    delay = MagicMock()
+    monkeypatch.setattr(run_bybit_public_ticker_stream, "delay", delay)
 
     req = _make_req(strategy.id, account.id)
     result = await svc.register(user_id, req)
 
     repo.save.assert_awaited_once()
     repo.commit.assert_awaited_once()  # ← broken bug 재발 방어
+    delay.assert_called_once_with()
     assert result is saved
 
 

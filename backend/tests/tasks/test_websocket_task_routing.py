@@ -27,6 +27,7 @@ def test_celery_routes_ws_stream_queue():
 
     routes = celery_app.conf.task_routes or {}
     assert routes.get("trading.run_bybit_private_stream", {}).get("queue") == "ws_stream"
+    assert routes.get("trading.run_bybit_public_ticker_stream", {}).get("queue") == "ws_stream"
 
 
 def test_beat_schedule_includes_reconcile_ws_streams():

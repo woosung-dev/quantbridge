@@ -71,6 +71,7 @@ celery_app.conf.update(
 # Sprint 12 Phase C — ws_stream queue routing. Sprint 57 BL-237 — optimizer_heavy.
 celery_app.conf.task_routes = {
     "trading.run_bybit_private_stream": {"queue": "ws_stream"},
+    "trading.run_bybit_public_ticker_stream": {"queue": "ws_stream"},
     "optimizer.run": {"queue": "optimizer_heavy"},  # BL-237: dedicated queue
 }
 

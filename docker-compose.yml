@@ -86,11 +86,10 @@ services:
     build:
       context: ./backend
     container_name: quantbridge-ws-stream
-    # Sprint 24 BL-012 (codex G.0 P1 #2): --pool=prefork --concurrency=2 복귀.
+    # 계정 N개 private stream + public ticker 1개이므로 N + 1 ≤ concurrency를 유지한다.
     # Sprint 12 G4 revisit `--pool=solo` 한계 해소 — prefork child 가 worker_process_shutdown
     # 에서 signal_all_stop_events() 호출 (celery_app.py 참조). dogfood multi-account 지원.
-    # 사용자 ≥ 2 account 운영 시 concurrency 추가 상향 가능 (account 수 ≤ concurrency 권장).
-    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=prefork --concurrency=2 --loglevel=info
+    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=prefork --concurrency=3 --loglevel=info
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }

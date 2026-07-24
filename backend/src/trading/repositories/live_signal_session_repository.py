@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, or_, select, text, update
@@ -73,6 +74,16 @@ class LiveSignalSessionRepository:
             .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712  # type: ignore[arg-type]
         )
         return int(result.scalar_one() or 0)
+
+    async def list_distinct_active_symbols(self) -> list[str]:
+        """활성 라이브 세션이 요구하는 중복 없는 ticker 심볼을 반환한다."""
+        result = await self.session.execute(
+            select(cast(Any, LiveSignalSession.symbol))
+            .where(cast(Any, LiveSignalSession.is_active) == True)  # noqa: E712
+            .distinct()
+            .order_by(cast(Any, LiveSignalSession.symbol))
+        )
+        return list(result.scalars().all())
 
     async def acquire_quota_lock(self, user_id: UUID) -> None:
         """PG advisory xact lock — quota race 방어 (codex G.0 P3 #3 + plan §3 A.4).

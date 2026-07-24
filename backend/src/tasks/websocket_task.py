@@ -73,6 +73,8 @@ _BYBIT_WS_ENDPOINTS: dict[str, str] = {
     "demo": "wss://stream-demo.bybit.com/v5/private",
     "live": "wss://stream.bybit.com/v5/private",
 }
+_PUBLIC_TICKER_LEASE_ID = "public-ticker"
+_PUBLIC_TICKER_REFRESH_S = 60.0
 
 
 @shared_task(  # type: ignore[untyped-decorator]
@@ -94,6 +96,19 @@ def run_bybit_private_stream(account_id: str) -> dict[str, Any]:
     from src.tasks._worker_loop import run_in_worker_loop
 
     return run_in_worker_loop(_run_async(account_id))
+
+
+@shared_task(  # type: ignore[untyped-decorator]
+    name="trading.run_bybit_public_ticker_stream",
+    queue="ws_stream",
+    max_retries=None,
+    acks_late=True,
+)
+def run_bybit_public_ticker_stream() -> dict[str, Any]:
+    """활성 라이브 세션 심볼의 Bybit 공개 ticker 스트림을 유지한다."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_run_public_ticker_async())
 
 
 async def _run_async(account_id: str) -> dict[str, Any]:
@@ -132,6 +147,94 @@ async def _run_async(account_id: str) -> dict[str, Any]:
     # heartbeat 실패 시 stream 종료, split-brain 차단.
     async with lease:
         return await _stream_main(account_id, lease_lost_event=lease.lost_event)
+
+
+async def _run_public_ticker_async() -> dict[str, Any]:
+    """public-ticker 단일 lease로 중복 worker 연결을 차단한다."""
+    from src.tasks._ws_lease import acquire_ws_lease
+
+    lease = await acquire_ws_lease(_PUBLIC_TICKER_LEASE_ID)
+    if lease is None:
+        qb_ws_duplicate_enqueue_total.inc()
+        logger.info("ws_public_ticker_duplicate_skip")
+        return {"status": "duplicate"}
+
+    async with lease:
+        return await _public_ticker_stream_main(lease_lost_event=lease.lost_event)
+
+
+async def _list_active_ticker_symbols(sm: Any) -> set[str]:
+    """Repository를 통해 활성 세션의 Bybit raw ticker 심볼을 읽는다."""
+    from src.market_data.constants import to_bybit_raw_symbol
+    from src.trading.repositories.live_signal_session_repository import (
+        LiveSignalSessionRepository,
+    )
+
+    async with sm() as session:
+        symbols = await LiveSignalSessionRepository(session).list_distinct_active_symbols()
+    return {to_bybit_raw_symbol(symbol) for symbol in symbols}
+
+
+async def _public_ticker_stream_main(
+    *, lease_lost_event: asyncio.Event | None = None
+) -> dict[str, Any]:
+    """공개 ticker 연결과 60초 심볼 refresh를 수행한다."""
+    from src.trading.websocket.bybit_public_stream import BybitPublicTickerStream
+
+    engine, sm = create_worker_engine_and_sm()
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    try:
+        symbols = await _list_active_ticker_symbols(sm)
+        if not symbols:
+            return {"status": "no_symbols"}
+
+        with _STOP_EVENTS_LOCK:
+            _STOP_EVENTS[_PUBLIC_TICKER_LEASE_ID] = (loop, stop_event)
+
+        try:
+            async with BybitPublicTickerStream(
+                symbols=symbols, stop_event=stop_event
+            ) as stream:
+                while not stop_event.is_set():
+                    waiters = [asyncio.create_task(stop_event.wait())]
+                    if lease_lost_event is not None:
+                        waiters.append(asyncio.create_task(lease_lost_event.wait()))
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED),
+                            timeout=_PUBLIC_TICKER_REFRESH_S,
+                        )
+                    except TimeoutError:
+                        symbols = await _list_active_ticker_symbols(sm)
+                        if not symbols:
+                            return {"status": "no_symbols"}
+                        await stream.update_symbols(symbols)
+                        continue
+                    finally:
+                        for waiter in waiters:
+                            if not waiter.done():
+                                waiter.cancel()
+                        await asyncio.gather(*waiters, return_exceptions=True)
+                    if lease_lost_event is not None and lease_lost_event.is_set():
+                        logger.warning("ws_public_ticker_lease_lost_terminating")
+                        return {"status": "lease_lost"}
+            return {"status": "completed"}
+        except TimeoutError as exc:
+            from src.tasks._ws_circuit_breaker import record_network_failure
+
+            opened = await record_network_failure(_PUBLIC_TICKER_LEASE_ID)
+            logger.warning(
+                "ws_public_ticker_first_connect_timeout err=%s circuit_opened=%s",
+                exc,
+                opened,
+            )
+            return {"status": "first_connect_timeout", "circuit_opened": opened}
+        finally:
+            with _STOP_EVENTS_LOCK:
+                _STOP_EVENTS.pop(_PUBLIC_TICKER_LEASE_ID, None)
+    finally:
+        await engine.dispose()
 
 
 async def _stream_main(
@@ -329,6 +432,13 @@ async def _reconcile_async() -> dict[str, Any]:
                 ExchangeAccount.exchange == ExchangeName.bybit,  # type: ignore[arg-type]
             )
             accounts = (await session.execute(stmt)).scalars().all()
+            from src.trading.repositories.live_signal_session_repository import (
+                LiveSignalSessionRepository,
+            )
+
+            active_symbols = await LiveSignalSessionRepository(
+                session
+            ).list_distinct_active_symbols()
 
         # Sprint 24 BL-012 (codex G.0 P2 #1): _PROCESS_ACTIVE_STREAMS snapshot 대신
         # Redis lease key 존재 여부로 active 판단. prefork 환경에서 process-level
@@ -344,10 +454,20 @@ async def _reconcile_async() -> dict[str, Any]:
             enqueued.append(acc_id_str)
             logger.info("ws_stream_reenqueued account=%s", acc_id_str)
 
+        public_ticker = "not_needed"
+        if active_symbols:
+            if await is_lease_active(_PUBLIC_TICKER_LEASE_ID):
+                public_ticker = "skipped_active"
+            else:
+                run_bybit_public_ticker_stream.delay()
+                public_ticker = "enqueued"
+                logger.info("ws_public_ticker_reenqueued")
+
         return {
             "enqueued": enqueued,
             "skipped_active": skipped,
             "total": len(accounts),
+            "public_ticker": public_ticker,
         }
     finally:
         await engine.dispose()

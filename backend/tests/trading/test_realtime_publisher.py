@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import pytest
 
-from src.common.metrics import qb_rt_publish_failed_total
-from src.realtime.schemas import user_channel
+from src.common.metrics import qb_rt_publish_failed_total, qb_rt_publish_invalid_total
+from src.realtime.schemas import ticker_channel, user_channel
 from src.trading import realtime_publisher
 
 
@@ -72,3 +72,34 @@ async def test_publish_realtime_swallows_redis_error_and_counts_failure(
     )
 
     assert qb_rt_publish_failed_total._value.get() == before + 1
+
+
+@pytest.mark.asyncio
+async def test_publish_ticker_uses_symbol_channel_and_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _RecordingPool()
+    monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
+
+    await realtime_publisher.publish_ticker(
+        "BTCUSDT",
+        {"symbol": "BTCUSDT", "mark_price": "67000", "last_price": "66999"},
+    )
+
+    assert pool.calls[0][0] == ticker_channel("BTCUSDT")
+    assert json.loads(pool.calls[0][1])["type"] == "ticker"
+
+
+@pytest.mark.asyncio
+async def test_publish_ticker_uses_shared_payload_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _RecordingPool()
+    monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
+    counter = qb_rt_publish_invalid_total.labels(event_type="ticker")
+    before = counter._value.get()
+
+    await realtime_publisher.publish_ticker("BTCUSDT", {"symbol": "BTCUSDT"})
+
+    assert pool.calls == []
+    assert counter._value.get() == before + 1

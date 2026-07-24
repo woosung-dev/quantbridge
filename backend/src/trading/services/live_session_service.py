@@ -130,6 +130,9 @@ class LiveSignalSessionService:
         # 5. LESSON-019 — Sprint 6 (webhook_secret) / 13 (OrderService) / 15-A
         # (ExchangeAccount) 와 동일 broken bug 4번째 재발 방어.
         await self._repo.commit()
+        from src.tasks.websocket_task import run_bybit_public_ticker_stream
+
+        run_bybit_public_ticker_stream.delay()
         return saved
 
     async def _enforce_demo_stability(self, user_id: UUID) -> None:
