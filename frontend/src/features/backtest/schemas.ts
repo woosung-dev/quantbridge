@@ -367,6 +367,30 @@ export const TradeItemSchema = z.object({
 });
 export type TradeItem = z.infer<typeof TradeItemSchema>;
 
+export const OhlcvBarSchema = z.object({
+  time: z.iso.datetime({ offset: true }),
+  open: decimalString,
+  high: decimalString,
+  low: decimalString,
+  close: decimalString,
+  volume: decimalString,
+});
+export type OhlcvBar = z.infer<typeof OhlcvBarSchema>;
+
+export const TradeOhlcvResponseSchema = z.object({
+  backtest_id: z.uuid(),
+  trade_index: z.number().int(),
+  symbol: z.string(),
+  timeframe: z.string(),
+  entry_time: z.iso.datetime({ offset: true }),
+  exit_time: z.iso.datetime({ offset: true }).nullable(),
+  pad_bars: z.number().int(),
+  stride: z.number().int(),
+  truncated: z.boolean(),
+  bars: z.array(OhlcvBarSchema),
+});
+export type TradeOhlcvResponse = z.infer<typeof TradeOhlcvResponseSchema>;
+
 // --- Pagination ----------------------------------------------------------
 
 export function pageSchema<T extends z.ZodTypeAny>(item: T) {

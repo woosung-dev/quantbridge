@@ -129,6 +129,7 @@ export function TradeDetailShell({ id }: { id: string }) {
           ) : null}
         </header>
         <TradeDetailTable
+          backtestId={id}
           trades={items}
           isLoading={trades.isLoading}
           isError={trades.isError}

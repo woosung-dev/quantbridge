@@ -19,6 +19,7 @@ import {
   StressTestCreatedResponseSchema,
   StressTestDetailSchema,
   StressTestListResponseSchema,
+  TradeOhlcvResponseSchema,
   TradeListResponseSchema,
   type BacktestCancelResponse,
   type BacktestCreatedResponse,
@@ -36,6 +37,7 @@ import {
   type StressTestCreatedResponse,
   type StressTestDetail,
   type StressTestListResponse,
+  type TradeOhlcvResponse,
   type TradeListResponse,
 } from "./schemas";
 
@@ -105,6 +107,22 @@ export async function listBacktestTrades(
     params: { limit: query.limit, offset: query.offset },
   });
   return TradeListResponseSchema.parse(raw);
+}
+
+export async function getTradeOhlcv(
+  _userId: string,
+  backtestId: string,
+  tradeIndex: number,
+  getToken: () => Promise<string | null>,
+): Promise<TradeOhlcvResponse> {
+  const raw = await apiFetch<unknown>(
+    `${BACKTESTS_PATH}/${backtestId}/trades/${tradeIndex}/ohlcv`,
+    {
+      method: "GET",
+      token: await getToken(),
+    },
+  );
+  return TradeOhlcvResponseSchema.parse(raw);
 }
 
 export async function cancelBacktest(

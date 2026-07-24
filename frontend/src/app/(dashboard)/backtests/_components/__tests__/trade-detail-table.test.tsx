@@ -1,11 +1,20 @@
 // C 이식 S6 — TradeDetailTable 4상태(스켈레톤/에러/빈/데이터) + 페이저 + 방향 라벨 검증.
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TradeItem } from "@/features/backtest/schemas";
 
 import { TradeDetailTable } from "@/app/(dashboard)/backtests/_components/trades/trade-detail-table";
+
+const tradeRangeChartMock = vi.hoisted(() => vi.fn());
+
+vi.mock(
+  "@/app/(dashboard)/backtests/_components/trades/trade-range-chart",
+  () => ({
+    TradeRangeChart: tradeRangeChartMock,
+  }),
+);
 
 const ENDPOINT = "GET /api/v1/backtests/abcd1234/trades";
 
@@ -27,6 +36,13 @@ function mkTrade(idx: number, pnl = 10): TradeItem {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+beforeEach(() => {
+  tradeRangeChartMock.mockReset();
+  tradeRangeChartMock.mockImplementation(() => (
+    <div data-testid="trade-range-chart">구간 가격</div>
+  ));
 });
 
 describe("TradeDetailTable — 4상태", () => {
@@ -118,6 +134,44 @@ describe("TradeDetailTable — 4상태", () => {
     expect(within(expanded).getByText("진입 정보")).toBeInTheDocument();
     expect(within(expanded).getByText("청산 정보")).toBeInTheDocument();
     expect(within(expanded).getByText("성과")).toBeInTheDocument();
+  });
+
+  it("backtestId가 있으면 확장 시 거래 구간 차트를 연결한다", () => {
+    render(
+      <TradeDetailTable
+        backtestId="11111111-1111-4111-8111-111111111111"
+        trades={[mkTrade(1, 100)]}
+        isLoading={false}
+        isError={false}
+        endpoint={ENDPOINT}
+        filenamePrefix="bt-test"
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("거래 #1 상세 보기"));
+
+    expect(screen.getByTestId("trade-range-chart")).toBeInTheDocument();
+    expect(tradeRangeChartMock.mock.calls[0]?.[0]).toMatchObject({
+      backtestId: "11111111-1111-4111-8111-111111111111",
+      tradeIndex: 1,
+    });
+  });
+
+  it("backtestId가 없으면 확장해도 거래 구간 차트를 만들지 않는다", () => {
+    render(
+      <TradeDetailTable
+        trades={[mkTrade(1, 100)]}
+        isLoading={false}
+        isError={false}
+        endpoint={ENDPOINT}
+        filenamePrefix="bt-test"
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("거래 #1 상세 보기"));
+
+    expect(screen.queryByTestId("trade-range-chart")).not.toBeInTheDocument();
+    expect(tradeRangeChartMock).not.toHaveBeenCalled();
   });
 
   it("row click → expand 토글 (button stopPropagation 으로 button 단독 클릭도 정상)", () => {

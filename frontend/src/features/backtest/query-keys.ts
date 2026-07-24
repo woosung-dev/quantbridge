@@ -26,6 +26,8 @@ export const backtestKeys = {
     [...backtestKeys.all(userId), "progress", id] as const,
   trades: (userId: string, id: string, query: BacktestTradesQuery) =>
     [...backtestKeys.all(userId), "trades", id, query] as const,
+  tradeOhlcv: (userId: string, backtestId: string, tradeIndex: number) =>
+    [...backtestKeys.all(userId), "trade-ohlcv", backtestId, tradeIndex] as const,
   // 전체 trades (페이지 루프 병합) — 리포트 파생 계산용. staleTime Infinity.
   tradesAll: (userId: string, id: string) =>
     [...backtestKeys.all(userId), "trades-all", id] as const,
