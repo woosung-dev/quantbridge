@@ -295,6 +295,32 @@ def test_pubsub_message_fans_in_to_only_its_user_socket(
         assert other_websocket.receive_text() == "pong"
 
 
+def test_position_update_pubsub_fans_in_to_its_user_socket(
+    realtime_app: tuple[FastAPI, FakeRedis],
+) -> None:
+    app, fake_redis = realtime_app
+    event = {
+        "v": 1,
+        "type": "position_update",
+        "ts": 1,
+        "payload": {"symbol": "BTCUSDT", "side": "long", "size": "1"},
+    }
+    with TestClient(app) as client, _connect(client) as websocket:
+        websocket.send_json({"type": "auth", "token": "valid"})
+        assert websocket.receive_json() == {"type": "ready"}
+        fake_redis.pubsub_instance.messages.append(
+            {
+                "channel": user_channel(str(REALTIME_USER_ID)).encode(),
+                "data": (
+                    b'{"v":1,"type":"position_update","ts":1,'
+                    b'"payload":{"symbol":"BTCUSDT","side":"long","size":"1"}}'
+                ),
+            }
+        )
+
+        assert websocket.receive_json() == event
+
+
 def test_ticker_pubsub_fans_out_to_all_authenticated_sockets(
     realtime_app: tuple[FastAPI, FakeRedis]
 ) -> None:

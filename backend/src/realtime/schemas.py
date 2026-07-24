@@ -20,7 +20,12 @@ class RealtimeEnvelope(BaseModel):
 
     v: int = 1
     type: Literal[
-        "order_update", "kill_switch", "kill_switch_resolved", "session_state", "ticker"
+        "order_update",
+        "kill_switch",
+        "kill_switch_resolved",
+        "session_state",
+        "ticker",
+        "position_update",
     ]
     ts: int
     payload: dict[str, object]
@@ -65,12 +70,23 @@ class TickerPayload(BaseModel):
     last_price: str | None = None
 
 
+class PositionUpdatePayload(BaseModel):
+    """거래소 포지션 변경 무효화 힌트 payload."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    symbol: str
+    side: str
+    size: str
+
+
 PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "order_update": OrderUpdatePayload,
     "kill_switch": KillSwitchPayload,
     "kill_switch_resolved": KillSwitchPayload,
     "session_state": SessionStatePayload,
     "ticker": TickerPayload,
+    "position_update": PositionUpdatePayload,
 }
 
 

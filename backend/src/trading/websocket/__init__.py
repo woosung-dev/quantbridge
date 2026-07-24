@@ -12,12 +12,15 @@ from src.trading.websocket.bybit_private_stream import (
     BybitAuthError,
     BybitPrivateStream,
 )
+from src.trading.websocket.position_fanout import PositionFanoutHandler, PrivateTopicRouter
 from src.trading.websocket.reconciliation import Reconciler
 from src.trading.websocket.state_handler import StateHandler
 
 __all__ = [
     "BybitAuthError",
     "BybitPrivateStream",
+    "PositionFanoutHandler",
+    "PrivateTopicRouter",
     "Reconciler",
     "StateHandler",
 ]
