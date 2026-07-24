@@ -21,36 +21,36 @@
 
 ### W2 — 직렬~부분 병렬
 
-- [ ] **tc/alerts-be (축2 S2, L)** — `trading.alert_rules` 테이블(String+StrEnum, partial unique) + alembic 1건 + CRUD 3본 + `alerting.py` send_rule_alert(Telegram 최초 배선) + beat `alert_rules.evaluate_loss` 300s + giveup 훅 2곳 + dedupe + 테스트(commit-spy·409·채널 라우팅·throttle·giveup 회귀).
-- [ ] **tc/publish-be (축1 S2, M)** — `realtime_publisher.py`(no-raise) + 발행 5지점(state_handler user_id 주입 / tasks/trading 3곳 / kill_switch / live_signal) + commit-후-1회-발행 spy 테스트.
+- [x] **tc/alerts-be (축2 S2, L)** — `trading.alert_rules` 테이블(String+StrEnum, partial unique) + alembic 1건 + CRUD 3본 + `alerting.py` send_rule_alert(Telegram 최초 배선) + beat `alert_rules.evaluate_loss` 300s + giveup 훅 2곳 + dedupe + 테스트(commit-spy·409·채널 라우팅·throttle·giveup 회귀).
+- [x] **tc/publish-be (축1 S2, M)** — `realtime_publisher.py`(no-raise) + 발행 5지점(state_handler user_id 주입 / tasks/trading 3곳 / kill_switch / live_signal) + commit-후-1회-발행 spy 테스트.
 - [x] **tc/funding-fe (축3 C, S+)** — 체크박스 register+활성화+문구(캐논 이탈 주석) + FE zod `total_funding` + assumptions-card "총 펀딩" 행+tooltip 동적 + report-shell + F1~F4.
 - [x] **tc/realtime-fe (축1 S3, M)** — `lib/ws-client.ts` + `features/realtime/`(store scalar·handlers·schemas·RealtimeBridge) + dashboard-shell mount + vitest(백오프·auth·invalidate 매핑).
 
 ### W3 — 통합 FE
 
-- [ ] **tc/cockpit-fe (축2 S3 + 축1 S4, M)** — `SessionDiagnostics({session})` 배선(포지션 30s 폴링 훅·알림 규칙·실시간 스트림 status) + `DiagnosticCard` action prop + `features/alert-rules/` 모듈 + `SessionDiagnostics.test.tsx` 재작성 + authed spec 갱신(+testMatch 등재).
+- [x] **tc/cockpit-fe (축2 S3 + 축1 S4, M)** — `SessionDiagnostics({session})` 배선(포지션 30s 폴링 훅·알림 규칙·실시간 스트림 status) + `DiagnosticCard` action prop + `features/alert-rules/` 모듈 + `SessionDiagnostics.test.tsx` 재작성 + authed spec 갱신(+testMatch 등재).
 
 ### W4 — 오케스트레이터
 
-- [ ] 통합 게이트 직렬 재현 (아래 §게이트 표)
-- [ ] codex read-only 최종 누적 diff 리뷰 1회
-- [ ] backfill 실행(BTC/ETH/SOL × 2024-01-01~) + psql 커버리지 검증
-- [ ] Opus MCP dogfood (펀딩 3점 오라클 / 포지션 D1~D3 / 알림 D4~D5 mock / WS 실측 / cancel_order 왕복)
+- [x] 통합 게이트 직렬 재현 (아래 §게이트 표)
+- [x] codex read-only 최종 누적 diff 리뷰 1회 — 프레임 0 / MAJOR 2(해소) / MINOR 2(1 해소+1 BL)
+- [x] backfill 실행(BTC/ETH/SOL × 2024-01-01~) + psql 커버리지 검증 — 3심볼×2804행·8h 갭 0
+- [x] Opus MCP dogfood — V1~V5 전 항목 기능 PASS + 펀딩 3점 오라클 psql 일치(71.8206952…) + cancel 실거래소 왕복 2건 cancelled + WS 101 실측. 발견 = BL-421/422 + beat /data 권한 함정
 - [ ] 문서 3종 갱신 + TODO.md + BL 등재 → push + stage→main PR
 
 ## 2. 게이트 추적
 
-| 게이트                                        | baseline (재측정 실측)                                    | 목표                          | 실측                                                   |
-| --------------------------------------------- | --------------------------------------------------------- | ----------------------------- | ------------------------------------------------------ |
-| FE vitest                                     | **983 passed (171 파일)** ✅ 2026-07-24 재측정            | 순증 그린 (+50~70 예상)       | ✅ **1019 passed (177 파일)** (+36)                    |
-| FE tsc / lint                                 | **0 / 0** ✅ 재측정                                       | 0 / 0                         | ✅ 0 / 0 (+prettier check exit 0)                      |
-| BE pytest                                     | **2433 passed · 46 skipped** ✅ 재측정 (3-env 인캔테이션) | 순증 그린 (+60~90 예상)       | ✅ **2490 passed · 46 skipped** (+57)                  |
-| BE ruff / mypy                                | **0 / 0** ✅ 재측정                                       | 0 / 0                         | ✅ 0 / 0 (197 파일)                                    |
-| e2e:design-canon                              | 32 (문서 기준)                                            | **32 불변**                   | ✅ **32/32** (최종 스택 재실행)                        |
-| e2e:authed                                    | 62 (문서 기준)                                            | +3~5, `--list` 증빙           | ✅ **63/63** (`--list` 63 = 62+tier-c 1)               |
-| alembic upgrade/downgrade 왕복                | —                                                         | 그린 (alert_rules 1건)        | ✅ dev DB 실왕복 + psql `\d` DDL 검증 (평가자)         |
-| DB 오라클 (펀딩 3점·포지션 2계통·cancel 왕복) | —                                                         | Fable 직접 실측               | backfill ✅ 3심볼×2804행·8h 갭 0 / 잔여 = dogfood 연동 |
-| Opus MCP dogfood                              | —                                                         | 전 항목 + 기지 예외 외 콘솔 0 | 진행 중                                                |
+| 게이트                                        | baseline (재측정 실측)                                    | 목표                          | 실측                                               |
+| --------------------------------------------- | --------------------------------------------------------- | ----------------------------- | -------------------------------------------------- |
+| FE vitest                                     | **983 passed (171 파일)** ✅ 2026-07-24 재측정            | 순증 그린 (+50~70 예상)       | ✅ **1019 passed (177 파일)** (+36)                |
+| FE tsc / lint                                 | **0 / 0** ✅ 재측정                                       | 0 / 0                         | ✅ 0 / 0 (+prettier check exit 0)                  |
+| BE pytest                                     | **2433 passed · 46 skipped** ✅ 재측정 (3-env 인캔테이션) | 순증 그린 (+60~90 예상)       | ✅ **2490 passed · 46 skipped** (+57)              |
+| BE ruff / mypy                                | **0 / 0** ✅ 재측정                                       | 0 / 0                         | ✅ 0 / 0 (197 파일)                                |
+| e2e:design-canon                              | 32 (문서 기준)                                            | **32 불변**                   | ✅ **32/32** (최종 스택 재실행)                    |
+| e2e:authed                                    | 62 (문서 기준)                                            | +3~5, `--list` 증빙           | ✅ **63/63** (`--list` 63 = 62+tier-c 1)           |
+| alembic upgrade/downgrade 왕복                | —                                                         | 그린 (alert_rules 1건)        | ✅ dev DB 실왕복 + psql `\d` DDL 검증 (평가자)     |
+| DB 오라클 (펀딩 3점·포지션 2계통·cancel 왕복) | —                                                         | Fable 직접 실측               | ✅ 펀딩 3점 일치·alert row·cancelled 2건 psql 확정 |
+| Opus MCP dogfood                              | —                                                         | 전 항목 + 기지 예외 외 콘솔 0 | ✅ V1~V5 PASS·psql 재대조 완료 (발견은 BL-421/422) |
 
 ## 3. 환경 (재발 방지 실측치)
 

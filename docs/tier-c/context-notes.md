@@ -48,3 +48,11 @@
 4. **★게이트 러닝 중 cherry-pick 금지 재확인**: 통합 풀런 도중 stage 에 커밋을 얹어 uvicorn --reload 재시작 → authed 4 did not run 위양성. 안정 상태 단독 재실행으로 63/63. "게이트 재현은 직렬"은 커밋 동결까지 포함한다.
 5. **publish-be 평가 F2건**: 발행용 조회가 money-path 임계 구간 침범(전이 앞 SELECT 이동·save↔commit 사이 SELECT). 픽스 = 원위치 복원 + commit 후 suppress best-effort. 순수 append diff 재확인.
 6. **최종 확정 게이트**: BE 2490+46skip / FE 1019(177) / ruff·mypy·tsc·lint·prettier 0 / canon 32 / authed 63. backfill 3심볼×2804행(2024-01-01~), 8h 갭 0. 워커 컨테이너 sentinel(§7.2) 통과.
+
+## 2026-07-24 Opus dogfood + psql 재대조 (V1~V5 전 항목 기능 PASS)
+
+1. **펀딩 3점 오라클 일치**: UI "총 펀딩 71.82" ↔ DB metrics.total_funding 71.8206952387811241… ↔ SQL(equity_off−equity_on) 71.820695238781124131344 — Decimal 25자리 일치. OFF 실행은 키 자체 생략(None 규약) 실증. ON/OFF 총수익률 차 0.71%p ≈ 71 USDT 정합.
+2. **cancel_order 실거래소 왕복 확정 (전 스프린트 잔여 해소)**: 실 Bybit demo 원거리 지정가 2건 발주(submitted, exchange_order_id 실발급)→블로터 취소→**cancelled 전이 psql 확정**, 콘솔 error 0, 확정 토스트 1~2s(폴링 5s 미만 — push 정황). 워커 로그 execute→cancel→fetch(already_terminal) 체인 전부 succeeded.
+3. **WS 101 실측**: `ws://localhost:8100/api/v1/realtime/ws` 연결 수립, 스트림 카드 "실시간 스트림 연결됨". 알림 CRUD 실주행(생성→409(API)→250 필드에러→해제) + alert_rules row psql 대조(is_active=f 이력 일치).
+4. **★beat 사망 함정 (인프라)**: watchfiles 재시작 시 `/data/celerybeat-schedule` Permission denied 로 beat 크래시(23:47) — beat-data 볼륨 /data 가 root 소유인데 컨테이너는 appuser(1000). **chown 1000:1000 + docker restart 로 복구**, `live_signal.evaluate_all` + `alert_rules.evaluate_loss`(D4 — 큐 라우팅 P1 픽스의 실환경 소비 증명, {evaluated:0, fired:0} 정합) received→succeeded 실측. dogfood 의 "state 미평가·/state 404 지속"의 근본 원인. 재발 방지 후보: compose 볼륨 초기 권한 또는 entrypoint chown (BL 등재 대신 아래 5의 BL-421 과 별도 — compose 수정은 스프린트 범위 밖, TODO Questions 기록).
+5. **dogfood 발견 → BL**: BL-421(/state 404 무한 폴링 콘솔 도배 — 기존재) + BL-422(알림 폼 empty 전용 — watchdog 규칙 UI 추가 불가 + 표기 nit). [확인 필요] 백테스트 총수익률(+) vs 순손익(−) 표면 모순 = 기말 미청산 평가손익 반영으로 추정 — 기존 메트릭 시맨틱, TODO Questions.
