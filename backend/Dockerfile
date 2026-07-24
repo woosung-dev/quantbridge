@@ -58,6 +58,12 @@ COPY --from=builder --chown=appuser:appuser /app /app
 # entrypoint 실행 권한 보장 (host umask 영향 무시)
 RUN chmod +x /app/docker-entrypoint.sh
 
+# beat schedule 볼륨(/data) 소유권 seed — named volume 은 첫 생성 시 이미지 마운트
+# 포인트의 내용·소유권을 복사한다. 이 디렉토리가 이미지에 없으면 볼륨이 root 소유로
+# 초기화되어 appuser beat 가 /data/celerybeat-schedule 쓰기 실패 (Sprint 4→tier-c 만성
+# 재발). 기존 root-소유 볼륨은 1회 재생성 필요.
+RUN mkdir -p /data && chown appuser:appuser /data
+
 USER appuser
 
 # Cloud Run 은 ENV PORT 를 inject. 미지정 시 8080 default.

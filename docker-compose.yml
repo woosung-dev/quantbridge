@@ -168,6 +168,8 @@ services:
 volumes:
   db-data:
   redis-data:
+  # beat-data 소유권은 backend/Dockerfile 의 /data seed(appuser)가 첫 생성 시 복사됨.
+  # 픽스 이전에 만들어진 root-소유 볼륨은 `docker volume rm <project>_beat-data` 후 재생성.
   beat-data:
 
 networks:
