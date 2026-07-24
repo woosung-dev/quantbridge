@@ -13,13 +13,17 @@ from redis.asyncio import Redis
 
 from src.common.redis_client import get_redis_lock_pool
 from src.realtime.schemas import (
+    TICKER_CHANNEL_PREFIX,
     USER_CHANNEL_PREFIX,
     WS_CLOSE_CONNECTION_LIMIT,
     RealtimeEnvelope,
 )
 
 _LOGGER = logging.getLogger(__name__)
-_CHANNEL_PATTERN = f"{USER_CHANNEL_PREFIX}*"
+_CHANNEL_PATTERNS = (
+    f"{USER_CHANNEL_PREFIX}*",
+    f"{TICKER_CHANNEL_PREFIX}*",
+)
 _MAX_CONNECTIONS_PER_USER = 3
 
 
@@ -71,6 +75,15 @@ class ConnectionManager:
             except Exception:  # 연결 종료와 send 경쟁은 정상적인 정리 경로다.
                 self.unregister(user_id, websocket)
 
+    async def send_to_all(self, message: dict[str, object]) -> None:
+        """인증 완료된 모든 사용자 소켓에 JSON 메시지를 fan-out한다."""
+        for user_id, connections in tuple(self._connections.items()):
+            for websocket in tuple(connections):
+                try:
+                    await websocket.send_json(message)
+                except Exception:  # 연결 종료와 send 경쟁은 정상적인 정리 경로다.
+                    self.unregister(user_id, websocket)
+
     async def listen(self) -> None:
         """단일 psubscribe listener를 실행하고 Redis 장애 시 backoff 재연결한다."""
         retry_seconds = 1.0
@@ -78,7 +91,7 @@ class ConnectionManager:
             pubsub: Any | None = None
             try:
                 pubsub = self._redis_pool_factory().pubsub()
-                await pubsub.psubscribe(_CHANNEL_PATTERN)
+                await pubsub.psubscribe(*_CHANNEL_PATTERNS)
                 retry_seconds = 1.0
                 while True:
                     message = await pubsub.get_message(
@@ -117,14 +130,19 @@ class ConnectionManager:
         if not isinstance(channel, (str, bytes)) or not isinstance(data, (str, bytes, bytearray)):
             return
         channel_name = channel.decode() if isinstance(channel, bytes) else channel
-        if not channel_name.startswith(USER_CHANNEL_PREFIX):
-            return
-        user_id = channel_name.removeprefix(USER_CHANNEL_PREFIX)
-        if not user_id:
+        is_user_channel = channel_name.startswith(USER_CHANNEL_PREFIX)
+        is_ticker_channel = channel_name.startswith(TICKER_CHANNEL_PREFIX)
+        if not is_user_channel and not is_ticker_channel:
             return
         try:
             envelope = RealtimeEnvelope.model_validate(json.loads(data))
         except (TypeError, ValueError):
             _LOGGER.warning("realtime_pubsub_invalid_message channel=%s", channel_name)
             return
-        await self.send_to_user(user_id, envelope.model_dump(mode="json"))
+        payload = envelope.model_dump(mode="json")
+        if is_user_channel:
+            user_id = channel_name.removeprefix(USER_CHANNEL_PREFIX)
+            if user_id:
+                await self.send_to_user(user_id, payload)
+        elif is_ticker_channel:
+            await self.send_to_all(payload)
