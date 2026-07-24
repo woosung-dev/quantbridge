@@ -39,3 +39,12 @@
 4. **tc-alerts-be P2 실증 2건**: (a) G0 핵심 결정인 귀속 조인 SQL 이 전 테스트에서 스텁 우회 — repo 레벨 DB oracle 테스트 신설 지시. (b) no-op 테스트의 AssertionError 가 훅의 except 에 삼켜져 반증 불가 — 평가자가 오동작 재현 테스트로 실증 후 카운터 스텁 교체 지시.
 5. **환경 함정 (worktree)**: codex sandbox 가 uv 캐시·DB 소켓(5436)·DNS 를 차단 → 워커 자기 게이트는 부분 불능. 대응 = FE worktree 사전 pnpm install(스토어 하드링크 ~7s) + BE 는 메인 레포 `.venv/bin/*` 바이너리 직접 사용 + DB 게이트는 평가자/오케스트레이터가 재현. worktree 커밋은 lint-staged 미가동(루트 node_modules 부재) — W4 에서 prettier 정규화 확인 의무.
 6. cherry-pick 은 반드시 메인 트리에서 (워크트리 안에서 자기 HEAD cherry-pick 은 no-op — 1회 실측).
+
+## 2026-07-24 최종 누적 diff 리뷰 (codex 238k) + 통합 마찰 3건
+
+1. **MAJOR 2건 해소**: (a) threshold_percent 상한 부재 — FE/BE 통과·NUMERIC(18,8) overflow 500. BE `le=100` + FE zod max 100 미러 + 422/필드 에러 테스트. (b) 워치독 세션 귀속 휴리스틱(전략·계좌·심볼) — 동일 조합 수동 주문 오발화. `LiveSignalEvent.order_id` 정확 귀속으로 교체(휴리스틱 finder 제거) + 수동 주문 no-op oracle.
+2. **MINOR 2건 처리**: session_state 발행 시 FE 가 목록 키도 invalidate(활성 세션 수 정합 — 코드 반영). payload 계약 미강제 + live_signal errors 경로 발행 누락 → BL 등재로 이연.
+3. **통합 마찰 3건 (오케스트레이터 직접, 계약 예외)**: test_migrations 기대 테이블 8→9 / 테스트 DB 고아 alert_rules drop 후 alembic head 정렬(create_all 선점 생성 vs alembic 이력 충돌 — 신규 마이그레이션 랜딩 시 테스트 DB 정렬 절차 확인) / dashboard-shell 테스트에 RealtimeBridge null mock(셸 mount 가 QueryClient 요구).
+4. **★게이트 러닝 중 cherry-pick 금지 재확인**: 통합 풀런 도중 stage 에 커밋을 얹어 uvicorn --reload 재시작 → authed 4 did not run 위양성. 안정 상태 단독 재실행으로 63/63. "게이트 재현은 직렬"은 커밋 동결까지 포함한다.
+5. **publish-be 평가 F2건**: 발행용 조회가 money-path 임계 구간 침범(전이 앞 SELECT 이동·save↔commit 사이 SELECT). 픽스 = 원위치 복원 + commit 후 suppress best-effort. 순수 append diff 재확인.
+6. **최종 확정 게이트**: BE 2490+46skip / FE 1019(177) / ruff·mypy·tsc·lint·prettier 0 / canon 32 / authed 63. backfill 3심볼×2804행(2024-01-01~), 8h 갭 0. 워커 컨테이너 sentinel(§7.2) 통과.

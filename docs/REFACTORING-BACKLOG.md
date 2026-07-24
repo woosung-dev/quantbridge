@@ -1420,6 +1420,66 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-417
+
+**Title:** `LiveSignalState.last_open_trades_snapshot` 이 실경로에서 항상 `{}` — 저장 가드가 리스트를 버림 (dead data 컬럼)
+**Category:** Backend / trading live-signal
+**Priority:** P2
+**Trigger:** live_signal 다음 터치 또는 스냅샷 소비자 신설 시
+**Est:** S (2-4h)
+**출처:** 2026-07-24 tier-c G0 (codex) 발견 — 코드 대조 확정
+
+**원인 / 영향:** `to_report()` 는 `open_trades` 를 **리스트**로 내는데(strategy_state.py:813) live_signal.py 업서트 가드는 `isinstance(dict)` 만 저장 → 컬럼이 영구 `{}`. tier-c 포지션 대조는 `last_strategy_state_report["open_trades"]` 로 우회했으나, 컬럼 자체는 죽은 데이터로 남아 미래 소비자를 오도한다.
+
+**권장 접근:** 저장 계약을 리스트로 교정(소비자 전수 확인 후) 또는 컬럼 제거 마이그레이션. 어느 쪽이든 report 필드와의 SSOT 단일화.
+
+---
+
+### BL-418
+
+**Title:** realtime 이벤트 payload 계약 미강제 — publisher/manager 가 임의 dict 통과 (worker 간 계약 drift 표면)
+**Category:** Backend / realtime
+**Priority:** P3
+**Trigger:** 발행 지점 추가 또는 이벤트 타입 확장 시
+**Est:** S (2-3h)
+**출처:** 2026-07-24 tier-c 최종 diff 리뷰 (codex MINOR)
+
+**원인 / 영향:** BE 에 타입별 payload Pydantic 모델이 선언돼 있으나 publish_realtime 은 dict 를 그대로 직렬화. 필수 필드 누락 발행 시 FE zod 가 조용히 drop — 현 13개 발행 지점은 전부 채우지만 신규 지점의 계약 위반을 못 잡는다.
+
+**권장 접근:** publish_realtime 이 event_type 별 payload 모델로 validate (no-raise 유지 — 실패 시 skip+counter) + 계약 테스트.
+
+---
+
+### BL-419
+
+**Title:** live_signal `result.errors` 경로의 세션 자동 비활성이 `session_state` 를 발행하지 않음 (최대 30s stale)
+**Category:** Backend / realtime
+**Priority:** P3
+**Trigger:** realtime 다음 터치 시
+**Est:** XS (1h)
+**출처:** 2026-07-24 tier-c 최종 diff 리뷰 (codex MINOR — live_signal.py:533 부근)
+
+**원인 / 영향:** preflight/런타임 오류 2경로는 발행하나 `result.errors` 비활성 경로는 누락 — 폴링(30s)까지 코크핏 활성 세션 수가 stale.
+
+**권장 접근:** 해당 commit 직후 발행 1줄 + spy 테스트 (publish-be 패턴 미러).
+
+---
+
+### BL-420
+
+**Title:** WS 인바운드 서버 하드닝 팩 — 비인증 소켓 글로벌 상한/rate-limit + auth→realtime 역참조 정리
+**Category:** Backend / realtime 보안·아키텍처
+**Priority:** P3
+**Trigger:** Beta 공개 배포 전 또는 realtime 다음 터치 시
+**Est:** S (2-4h)
+**출처:** 2026-07-24 tc-realtime-be 적대 평가 잔여 리스크 2건
+
+**원인 / 영향:** accept 후 5s auth 창을 쥔 미인증 소켓의 동시 수 상한이 없음(per-user 상한은 인증 후에만 작동, Origin 은 비브라우저가 위조 가능 — 인증 자체는 별도라 보안 붕괴는 아님). 또 `src/auth/dependencies.py` 가 feature 도메인 `src.realtime.auth` 를 import 하는 방향 역전.
+
+**권장 접근:** pre-auth 소켓 글로벌 상한/접속 rate-limit + helper 를 `src/auth/` 로 이동하고 realtime 이 역참조. (부수: position 서비스의 spot 방어 분기 dead code — `market_type` 키는 실경로 저장 불가 — 함께 정리.)
+
+---
+
 ## 운영 규약
 
 ### 신규 항목 추가
