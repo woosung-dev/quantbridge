@@ -12,6 +12,10 @@ export const tradingKeys = {
     [...tradingKeys.all(userId), "kill-switch"] as const,
   exchangeAccounts: (userId: string) =>
     [...tradingKeys.all(userId), "exchange-accounts"] as const,
+  balancePrefix: (userId: string) =>
+    [...tradingKeys.all(userId), "exchange-accounts", "balance"] as const,
+  balance: (userId: string, accountId: string) =>
+    [...tradingKeys.balancePrefix(userId), accountId] as const,
   // Wave 2 — 청산가 계약(W-B). LESSON-005: userId 첫 인자. 파라미터는 계산 입력으로 식별.
   liquidation: (
     userId: string,

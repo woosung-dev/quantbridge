@@ -20,10 +20,13 @@ export {
   useLiveSessions,
   useLiveSessionState,
   useLiveSessionsAggregate,
+  useLiveSessionsPositions,
   useLiveSessionEvents,
   useRegisterLiveSession,
   useDeactivateLiveSession,
   type LiveSessionsAggregate,
+  type LiveSessionsPositionsAggregate,
+  type LiveSessionPositionRow,
 } from "./hooks";
 export {
   computeUnrealizedPnl,

@@ -75,6 +75,17 @@ export const ExchangeAccountListResponseSchema = z.object({
 });
 export type ExchangeAccountListResponse = z.infer<typeof ExchangeAccountListResponseSchema>;
 
+export const AccountBalanceSchema = z.object({
+  account_id: z.uuid(),
+  asset: z.string(),
+  supported: z.boolean(),
+  reason: z.string().nullable(),
+  total: z.string().nullable(),
+  free: z.string().nullable(),
+  fetched_at: z.string().nullable(),
+});
+export type AccountBalance = z.infer<typeof AccountBalanceSchema>;
+
 // C 이식(W3-F): 연결된 거래소는 Bybit 하나뿐이라 FE 등록 폼에서 OKX 를 제거했다(캐논 §4.8).
 // OKX 전용 passphrase superRefine 도 함께 걷어냈다. passphrase 필드는 BE 계약(항상 전송, 기본
 // null)을 위해 nullable 로 남기되 폼은 항상 null 을 보낸다. 백엔드 enum·마케팅 로드맵은 불변.

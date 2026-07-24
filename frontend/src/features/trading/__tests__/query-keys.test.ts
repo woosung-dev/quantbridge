@@ -41,4 +41,20 @@ describe("tradingKeys", () => {
       "exchange-accounts",
     ]);
   });
+
+  it("balance key is account별로 분리되고 prefix의 자식이다", () => {
+    expect(tradingKeys.balancePrefix("user_b")).toEqual([
+      "trading",
+      "user_b",
+      "exchange-accounts",
+      "balance",
+    ]);
+    expect(tradingKeys.balance("user_b", "account-1")).toEqual([
+      "trading",
+      "user_b",
+      "exchange-accounts",
+      "balance",
+      "account-1",
+    ]);
+  });
 });

@@ -32,6 +32,11 @@ export function handleRealtimeEvent(
         queryKey: liveSessionKeys.list(userId),
       });
       return;
+    case "position_update":
+      void queryClient.invalidateQueries({
+        queryKey: liveSessionKeys.positionsPrefix(userId),
+      });
+      return;
     case "ticker":
       // ticker는 RQ 서버 스냅샷이 아닌 WS push cache만 갱신한다.
       useRealtimeStore.getState().applyTicker(envelope.payload.symbol, {

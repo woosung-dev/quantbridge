@@ -36,6 +36,20 @@ describe("parseRealtimeEnvelope", () => {
     expect(parseRealtimeEnvelope(JSON.stringify(raw))).toEqual(raw);
   });
 
+  it("position_update는 long·short·flat 계약만 허용한다", () => {
+    const raw = {
+      v: 1,
+      type: "position_update",
+      ts: 1_720_000_000,
+      payload: { symbol: "BTCUSDT", side: "flat", size: "0" },
+    };
+
+    expect(parseRealtimeEnvelope(JSON.stringify(raw))).toEqual(raw);
+    expect(
+      parseRealtimeEnvelope(JSON.stringify({ ...raw, payload: { ...raw.payload, side: "buy" } })),
+    ).toBeNull();
+  });
+
   it("미지 타입과 잘못된 JSON은 조용히 무시한다", () => {
     expect(parseRealtimeEnvelope('{"v":1,"type":"future_event","ts":1,"payload":{}}')).toBeNull();
     expect(parseRealtimeEnvelope("not-json")).toBeNull();

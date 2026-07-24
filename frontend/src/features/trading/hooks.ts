@@ -21,6 +21,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  useQueries,
   useQuery,
   useQueryClient,
   type UseMutationResult,
@@ -36,6 +37,7 @@ import { makeRefetchInterval } from "@/lib/query-poll";
 import {
   cancelOrder,
   deleteExchangeAccount,
+  getAccountBalance,
   getLiquidationInfo,
   listExchangeAccounts,
   listKillSwitchEvents,
@@ -47,6 +49,7 @@ import {
 import { tradingKeys } from "./query-keys";
 import type {
   ExchangeAccount,
+  AccountBalance,
   CancelOrderResponse,
   KillSwitchEvent,
   LiquidationInfoResponse,
@@ -59,6 +62,7 @@ import type {
 export const ORDERS_REFETCH_INTERVAL_ACTIVE_MS = 5_000;
 export const ORDERS_REFETCH_INTERVAL_IDLE_MS = 30_000;
 const KILL_SWITCH_REFETCH_INTERVAL_MS = 30_000;
+const BALANCE_REFETCH_INTERVAL_MS = 30_000;
 
 // "진행 중" 상태 — 이 상태가 존재할 때 빠른 폴링
 export const ACTIVE_ORDER_STATES: ReadonlySet<Order["state"]> = new Set([
@@ -88,6 +92,10 @@ const ordersRefetchInterval = makeRefetchInterval<{ items: Order[]; total: numbe
 const killSwitchRefetchInterval = makeRefetchInterval<{
   items: KillSwitchEvent[];
 }>(() => KILL_SWITCH_REFETCH_INTERVAL_MS);
+
+const balanceRefetchInterval = makeRefetchInterval<AccountBalance>(
+  () => BALANCE_REFETCH_INTERVAL_MS,
+);
 
 // 이전 상태가 "진행 중"이었고 새 상태로 전환될 때 toast 알림
 type TransitionRule = {
@@ -136,6 +144,13 @@ function makeExchangeAccountsFetcher(getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return listExchangeAccounts(token);
+  };
+}
+
+function makeAccountBalanceFetcher(accountId: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getAccountBalance(accountId, token);
   };
 }
 
@@ -284,6 +299,21 @@ export function useExchangeAccounts(): UseQueryResult<ExchangeAccount[], Error> 
     queryFn: makeExchangeAccountsFetcher(getToken),
     // Sprint 14 Phase B-2 — dogfood 지연 회피용 retry: 1.
     retry: 1,
+  });
+}
+
+/** 활성 세션이 참조하는 계정의 잔고를 계정별로 폴링한다. */
+export function useAccountBalances(
+  accounts: readonly Pick<ExchangeAccount, "id">[],
+): UseQueryResult<AccountBalance, Error>[] {
+  const { uid, getToken } = useAuthCtx();
+  return useQueries({
+    queries: accounts.map((account) => ({
+      queryKey: tradingKeys.balance(uid, account.id),
+      queryFn: makeAccountBalanceFetcher(account.id, getToken),
+      enabled: Boolean(account.id),
+      refetchInterval: balanceRefetchInterval,
+    })),
   });
 }
 
