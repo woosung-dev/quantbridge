@@ -4,7 +4,7 @@
 //   2. 무데이터 셀 — 아직 끝나지 않은 실행(대기/실행 중)은 종료 시각이 없어 EMPTY_CELL 로 표기된다.
 //   3. 스켈레톤 / 에러(role="alert" + 엔드포인트 + 재시도) / 빈 상태가 실제로 렌더된다.
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -24,8 +24,12 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 const mockUseBacktests = vi.fn();
+const mockUseStrategies = vi.fn();
 vi.mock("@/features/backtest/hooks", () => ({
   useBacktests: (...args: unknown[]) => mockUseBacktests(...args),
+}));
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategies: (...args: unknown[]) => mockUseStrategies(...args),
 }));
 
 function makeQc() {
@@ -45,6 +49,10 @@ const baseItem = {
   created_at: "2026-02-02T00:00:00Z",
   completed_at: "2026-02-02T00:05:00Z" as string | null,
 };
+
+beforeEach(() => {
+  mockUseStrategies.mockReturnValue({ data: { items: [] } });
+});
 
 function renderList(overrides: Partial<typeof baseItem> = {}, listOverrides: Record<string, unknown> = {}) {
   mockUseBacktests.mockReturnValue({
@@ -66,6 +74,7 @@ describe("BacktestList — C 상태 칩 + 4상태 렌더 (S5 이식)", () => {
   afterEach(() => {
     cleanup();
     mockUseBacktests.mockReset();
+    mockUseStrategies.mockReset();
   });
 
   // 상태 → 행에 표시되는 칩 라벨 (SSOT 파생 — 하드코딩 드리프트 방지).
@@ -88,10 +97,10 @@ describe("BacktestList — C 상태 칩 + 4상태 렌더 (S5 이식)", () => {
     });
   }
 
-  it("무데이터 셀 — 아직 끝나지 않은(queued) 실행은 종료 시각을 EMPTY_CELL 로 표기한다", () => {
+  it("무데이터 셀 — 아직 끝나지 않은(queued) 실행은 성과를 EMPTY_CELL 로 표기한다", () => {
     renderList({ status: "queued", completed_at: null });
     const row = screen.getByTestId("backtest-row-00000000-0000-4000-8000-000000000a01");
-    expect(within(row).getByText(EMPTY_CELL)).toBeInTheDocument();
+    expect(within(row).getAllByText(EMPTY_CELL).length).toBeGreaterThanOrEqual(4);
   });
 
   it("스켈레톤 — isLoading 이면 aria-hidden 스켈레톤 표가 렌더된다", () => {

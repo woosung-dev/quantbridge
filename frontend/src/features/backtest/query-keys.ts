@@ -5,6 +5,8 @@
 export interface BacktestListQuery {
   limit: number;
   offset: number;
+  order_by?: "created_at" | "total_return" | "max_drawdown" | "sharpe_ratio" | "num_trades";
+  order?: "asc" | "desc";
 }
 
 export interface BacktestTradesQuery {

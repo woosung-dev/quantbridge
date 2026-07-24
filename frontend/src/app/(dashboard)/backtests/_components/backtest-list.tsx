@@ -1,30 +1,53 @@
 "use client";
 
-// 백테스트 목록 — C 디자인 언어 이식 (S5). 프로토타입 screen-03 의 시맨틱 CSS 를 소비하되,
-// 열은 실데이터(BacktestSummary)가 받치는 것만 그린다. 목업의 수익률/MDD/샤프/거래수/전략명은
-// list 스키마에 없어 렌더하지 않는다 (캐논 §4.9 "데이터 모델에 없는 값 = 가짜 데이터").
+// 백테스트 목록 — C 디자인 언어 이식 (S5). 프로토타입 screen-03 의 시맨틱 CSS 를 소비하고,
+// list projection 의 metrics_summary 와 전략 목록 이름 맵으로 성과 4칸과 전략명을 정직하게 그린다.
+// 목록 API가 정렬 결과를 돌려주므로 페이지 내 client sort 는 하지 않는다.
 // 상태 라벨·톤은 S4 용어 SSOT(BACKTEST_STATUS_LABEL) → CHIP_TONE_CLASS 로 파생한다.
 
 import Link from "next/link";
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangleIcon, CheckIcon, InboxIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  ArrowDownUpIcon,
+  CheckIcon,
+  InboxIcon,
+  PlusIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 
 import {
   BACKTEST_LIST_HEADER,
+  BACKTEST_LIST_SORT_LABEL,
   BACKTEST_STATUS_FILTER_LABEL,
   BACKTEST_STATUS_LABEL,
   NEW_BACKTEST_LABEL,
 } from "@/features/backtest/labels";
 import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
-import { formatDateTime } from "@/features/backtest/utils";
+import { formatDateTime, formatPercent } from "@/features/backtest/utils";
+import { useStrategies } from "@/features/strategy/hooks";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 const PAGE_SIZE = 20;
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/backtests";
+const STRATEGY_FETCH_LIMIT = 100;
+const RETURN_METRIC = "total_return";
+const UNFINISHED_METRICS_TITLE = "아직 끝나지 않은 실행은 수익률을 채우지 않습니다.";
+
+type BacktestOrderBy = "created_at" | "total_return" | "max_drawdown" | "sharpe_ratio" | "num_trades";
+type BacktestOrder = "asc" | "desc";
+
+const BACKTEST_ORDER_BY: readonly BacktestOrderBy[] = [
+  "created_at",
+  "total_return",
+  "max_drawdown",
+  "sharpe_ratio",
+  "num_trades",
+];
 
 // 라벨은 용어 SSOT(BACKTEST_STATUS_FILTER_LABEL)에서 파생 — 배지 표기와 불일치 방지.
 const STATUS_FILTERS: ReadonlyArray<{ id: "all" | BacktestStatus }> = [
@@ -42,17 +65,40 @@ export function BacktestList() {
   const pathname = usePathname();
 
   const statusParam = searchParams.get("status") ?? "all";
+  const orderByParam = searchParams.get("order_by");
+  const orderParam = searchParams.get("order");
   const activeStatus: "all" | BacktestStatus = STATUS_FILTERS.some((f) => f.id === statusParam)
     ? (statusParam as "all" | BacktestStatus)
     : "all";
+  const orderBy: BacktestOrderBy = BACKTEST_ORDER_BY.some((column) => column === orderByParam)
+    ? (orderByParam as BacktestOrderBy)
+    : "created_at";
+  const order: BacktestOrder = orderParam === "asc" ? "asc" : "desc";
 
   // BE 가 status 필터를 list endpoint 에서 지원하지 않으므로 client-side filter (현재 페이지 한정).
-  // hook query 는 페이지네이션만 → queryKey identity 유지 (H-2 정합).
-  const query = useMemo(() => ({ limit: PAGE_SIZE, offset: 0 }), []);
+  // sort 축·방향은 URL 스칼라에만 의존해 queryKey 와 서버 정렬을 동기화한다(H-1/H-2 정합).
+  const query = useMemo(
+    () => ({ limit: PAGE_SIZE, offset: 0, order_by: orderBy, order }),
+    [orderBy, order],
+  );
   const { data, isLoading, isError, error, refetch } = useBacktests(query);
+  const strategiesQ = useStrategies({
+    limit: STRATEGY_FETCH_LIMIT,
+    offset: 0,
+    is_archived: false,
+  });
 
   // useMemo dep 안정성을 위해 items reference 자체를 memoize (H-1 정합 — RQ data 를 직접 dep 금지).
   const items = useMemo<readonly BacktestSummary[]>(() => data?.items ?? [], [data?.items]);
+  const strategyItems = useMemo(
+    () => strategiesQ.data?.items ?? [],
+    [strategiesQ.data?.items],
+  );
+  const strategyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const strategy of strategyItems) map.set(strategy.id, strategy.name);
+    return map;
+  }, [strategyItems]);
   // Sprint 41-B2 (codex review P2): client-side status 필터는 현재 페이지(limit 20)에만 적용 가능.
   // total > items.length 면 후속 페이지의 매칭이 누락 → chip(전체 제외) 비활성 + 안내 문구 표시.
   const total = data?.total ?? 0;
@@ -68,12 +114,25 @@ export function BacktestList() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   };
 
+  const pushSort = (nextOrderBy: BacktestOrderBy) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const nextOrder: BacktestOrder = nextOrderBy === orderBy && order === "desc" ? "asc" : "desc";
+    params.set("order_by", nextOrderBy);
+    params.set("order", nextOrder);
+    router.replace(`${pathname}?${params.toString()}`);
+  };
+
   // 헤더 라벨은 스칼라로 푼다. BACKTEST_LIST_HEADER.status 는 enum 값이 아닌 헤더 문자열이지만,
   // no-raw-enum-labels 가드가 `.status`/`.state` 로 끝나는 JSX 멤버 체인을 전부 잡으므로 우회한다.
   const {
     runId: hRunId,
+    strategy: hStrategy,
     symbolTimeframe: hSymbolTf,
     period: hPeriod,
+    totalReturn: hTotalReturn,
+    maxDrawdown: hMaxDrawdown,
+    sharpeRatio: hSharpeRatio,
+    numTrades: hNumTrades,
     status: hStatus,
     startedAt: hStartedAt,
     action: hAction,
@@ -229,13 +288,52 @@ export function BacktestList() {
                 <thead>
                   <tr>
                     <th scope="col">{hRunId}</th>
+                    <th scope="col">{hStrategy}</th>
                     <th scope="col">{hSymbolTf}</th>
                     <th scope="col">{hPeriod}</th>
+                    <SortHeader
+                      orderBy="total_return"
+                      label={hTotalReturn}
+                      ariaLabel={BACKTEST_LIST_SORT_LABEL.totalReturn}
+                      activeOrderBy={orderBy}
+                      order={order}
+                      onClick={pushSort}
+                    />
+                    <SortHeader
+                      orderBy="max_drawdown"
+                      label={hMaxDrawdown}
+                      ariaLabel={BACKTEST_LIST_SORT_LABEL.maxDrawdown}
+                      activeOrderBy={orderBy}
+                      order={order}
+                      onClick={pushSort}
+                    />
+                    <SortHeader
+                      orderBy="sharpe_ratio"
+                      label={hSharpeRatio}
+                      ariaLabel={BACKTEST_LIST_SORT_LABEL.sharpeRatio}
+                      activeOrderBy={orderBy}
+                      order={order}
+                      onClick={pushSort}
+                    />
+                    <SortHeader
+                      orderBy="num_trades"
+                      label={hNumTrades}
+                      ariaLabel={BACKTEST_LIST_SORT_LABEL.numTrades}
+                      activeOrderBy={orderBy}
+                      order={order}
+                      onClick={pushSort}
+                    />
                     <th scope="col" className="col-status">
                       {hStatus}
                     </th>
-                    <th scope="col">{hStartedAt}</th>
-                    <th scope="col">종료 시각</th>
+                    <SortHeader
+                      orderBy="created_at"
+                      label={hStartedAt}
+                      ariaLabel={BACKTEST_LIST_SORT_LABEL.startedAt}
+                      activeOrderBy={orderBy}
+                      order={order}
+                      onClick={pushSort}
+                    />
                     <th scope="col">{hAction}</th>
                   </tr>
                 </thead>
@@ -248,6 +346,7 @@ export function BacktestList() {
                         <td className="mono-l run-id">
                           <Link href={`/backtests/${b.id}`}>{b.id.slice(0, 8)}</Link>
                         </td>
+                        <td>{strategyNameById.get(b.strategy_id) ?? EMPTY_CELL}</td>
                         <td className="mono-l">
                           {b.symbol} · {b.timeframe}
                         </td>
@@ -255,6 +354,27 @@ export function BacktestList() {
                           {formatDateTime(b.period_start)}
                           <span className="run-sub">~ {formatDateTime(b.period_end)}</span>
                         </td>
+                        <MetricCell
+                          value={b.metrics_summary?.[RETURN_METRIC]}
+                          missing={b.metrics_summary == null}
+                          format={(value) => formatPercent(value)}
+                          note={b.metrics_summary?.total_open_trades}
+                        />
+                        <MetricCell
+                          value={b.metrics_summary?.max_drawdown}
+                          missing={b.metrics_summary == null}
+                          format={(value) => formatPercent(value)}
+                        />
+                        <MetricCell
+                          value={b.metrics_summary?.sharpe_ratio}
+                          missing={b.metrics_summary == null}
+                          format={(value) => value.toFixed(2)}
+                        />
+                        <MetricCell
+                          value={b.metrics_summary?.num_trades}
+                          missing={b.metrics_summary == null}
+                          format={(value) => value.toLocaleString("en-US")}
+                        />
                         <td className="col-status">
                           <span className={CHIP_TONE_CLASS[tone]}>
                             {showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
@@ -262,11 +382,6 @@ export function BacktestList() {
                           </span>
                         </td>
                         <td className="mono-l dim">{formatDateTime(b.created_at)}</td>
-                        {/* 무데이터 셀 — completed_at 은 종료(완료/실패/취소) 시각이다. 아직 끝나지
-                            않은 실행(대기/실행 중)은 값이 없어 EMPTY_CELL 로 표기한다 (S4 lib/labels). */}
-                        <td className="mono-l dim">
-                          {b.completed_at ? formatDateTime(b.completed_at) : EMPTY_CELL}
-                        </td>
                         <td>
                           <Link className="btn btn-ghost btn-xs" href={`/backtests/${b.id}`}>
                             상세
@@ -282,6 +397,58 @@ export function BacktestList() {
         </div>
       </section>
     </main>
+  );
+}
+
+function SortHeader({
+  orderBy,
+  label,
+  ariaLabel,
+  activeOrderBy,
+  order,
+  onClick,
+}: {
+  orderBy: BacktestOrderBy;
+  label: string;
+  ariaLabel: string;
+  activeOrderBy: BacktestOrderBy;
+  order: BacktestOrder;
+  onClick: (orderBy: BacktestOrderBy) => void;
+}) {
+  const active = orderBy === activeOrderBy;
+  return (
+    <th scope="col" className="num" aria-sort={active ? (order === "asc" ? "ascending" : "descending") : undefined}>
+      <button className="th-sort" type="button" aria-label={ariaLabel} onClick={() => onClick(orderBy)}>
+        {label}
+        <ArrowDownUpIcon aria-hidden="true" />
+      </button>
+    </th>
+  );
+}
+
+function MetricCell({
+  value,
+  missing,
+  format,
+  note,
+}: {
+  value: number | null | undefined;
+  missing: boolean;
+  format: (value: number) => string;
+  note?: number | null;
+}) {
+  if (value == null) {
+    return (
+      <td className="num" title={missing ? UNFINISHED_METRICS_TITLE : undefined}>
+        {EMPTY_CELL}
+      </td>
+    );
+  }
+  return (
+    <td className="num">
+      {format(value)}
+      {note != null && note > 0 ? <span className="run-sub">미청산 포함</span> : null}
+    </td>
   );
 }
 
@@ -318,7 +485,7 @@ function ListSkeleton() {
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 7 }).map((__, j) => (
+              {Array.from({ length: 11 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>

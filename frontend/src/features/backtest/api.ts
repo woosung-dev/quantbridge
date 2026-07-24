@@ -49,7 +49,12 @@ export async function listBacktests(
   const raw = await apiFetch<unknown>(BACKTESTS_PATH, {
     method: "GET",
     token,
-    params: { limit: query.limit, offset: query.offset },
+    params: {
+      limit: query.limit,
+      offset: query.offset,
+      order_by: query.order_by,
+      order: query.order,
+    },
   });
   return BacktestListResponseSchema.parse(raw);
 }

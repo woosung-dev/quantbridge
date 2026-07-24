@@ -1,7 +1,7 @@
 // BacktestList — codex review P2 fix (Sprint 41-B2).
 // hasMorePages (data.total > items.length) 시 status 필터 chip(전체 제외) 비활성 + 안내 노출.
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -18,8 +18,12 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 const mockUseBacktests = vi.fn();
+const mockUseStrategies = vi.fn();
 vi.mock("@/features/backtest/hooks", () => ({
   useBacktests: (...args: unknown[]) => mockUseBacktests(...args),
+}));
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategies: (...args: unknown[]) => mockUseStrategies(...args),
 }));
 
 function makeQc() {
@@ -43,10 +47,15 @@ function makeItem(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+beforeEach(() => {
+  mockUseStrategies.mockReturnValue({ data: { items: [] } });
+});
+
 describe("BacktestList — Sprint 41-B2 hasMorePages filter UX", () => {
   afterEach(() => {
     cleanup();
     mockUseBacktests.mockReset();
+    mockUseStrategies.mockReset();
   });
 
   it("total <= items.length (현재 페이지에 모든 데이터) → 전 chip 활성 + 안내 미표시", () => {

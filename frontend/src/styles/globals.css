@@ -1908,6 +1908,21 @@ h6 {
   min-width: 152px;
   white-space: normal;
 }
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.runs-table thead th.num .th-sort { flex-direction: row-reverse; }
+.th-sort svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2.2; opacity: 0.55; }
+.runs-table thead th[aria-sort="ascending"],
+.runs-table thead th[aria-sort="descending"] { color: var(--ink); }
+.runs-table thead th[aria-sort="ascending"] .th-sort svg,
+.runs-table thead th[aria-sort="descending"] .th-sort svg { color: var(--copper); opacity: 1; }
 .run-id {
   color: var(--ink);
 }
@@ -1916,6 +1931,39 @@ h6 {
   margin-top: 3px;
   font-size: 0.74rem;
   color: var(--ink-3);
+}
+
+/* 전략별 최근 완료 백테스트 성과. 완료 실행이 없으면 수치를 만들지 않는다. */
+.perf-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 116px 84px minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: center;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.perf-row:last-child { border-bottom: none; }
+.perf-name { font-size: 0.9rem; font-weight: 600; letter-spacing: -0.01em; }
+.perf-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.perf-figure { text-align: right; }
+.perf-figure .k { font-size: 0.74rem; color: var(--ink-3); }
+.perf-figure .v {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--f-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.perf-bar .meter { margin-top: 0; }
+.perf-basis { font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); margin-top: 7px; }
+.perf-note { font-size: 0.74rem; line-height: 1.5; color: var(--ink-3); }
+
+@media (max-width: 900px) {
+  .perf-row { grid-template-columns: 1fr 1fr; row-gap: 14px; }
+  .perf-row > .perf-id { grid-column: 1 / -1; }
+  .perf-row > .perf-bar { grid-column: 1 / -1; }
+  .perf-figure { text-align: left; }
 }
 
 /* 상태 칩 확장 — 실패/거부/미저장 tone = warn. 공용 .chip 레이아웃 위에 색만 얹는다. */

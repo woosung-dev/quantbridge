@@ -138,6 +138,9 @@ export function MetricGroupsSection({
           </div>
         ))}
       </div>
+      <p className="metric-note">
+        총수익률은 기말 미청산 평가손익·펀딩을 반영하고, 순손익은 실현분만 집계합니다.
+      </p>
     </div>
   );
 }

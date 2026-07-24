@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { StrategyList } from "@/app/(dashboard)/strategies/_components/strategy-list";
+import { EMPTY_CELL } from "@/lib/labels";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
@@ -39,6 +40,18 @@ function makeItem(overrides: Partial<Record<string, unknown>> = {}) {
     is_archived: false,
     created_at: "2026-04-14T09:00:00Z",
     updated_at: "2026-04-14T09:32:00Z",
+    latest_backtest: {
+      backtest_id: "00000000-0000-4000-8000-000000000999",
+      completed_at: "2026-04-14T10:00:00Z",
+      metrics: {
+        total_return: 0.1234,
+        net_profit_abs: 12,
+        sharpe_ratio: 1.5,
+        max_drawdown: -0.04,
+        num_trades: 3,
+        total_open_trades: 0,
+      },
+    },
     ...overrides,
   };
 }
@@ -57,7 +70,7 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     mockUseStrategies.mockReset();
   });
 
-  it("표는 백테스트 열과 완료 수 3·0을 그린다", () => {
+  it("표는 최신 성과 3칸과 백테스트 완료 수 3·0을 그린다", () => {
     mockUseStrategies.mockReturnValue({
       data: {
         items: [
@@ -83,13 +96,26 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     const table = screen.getByRole("table", { name: /전략 목록 2개/ });
     expect(table.className).toContain("trades");
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["전략명", "상태", "심볼 · 주기", "백테스트", "마지막 수정", "액션"]);
+    expect(headers).toEqual([
+      "전략명",
+      "상태",
+      "심볼 · 주기",
+      "최근 수익률",
+      "MDD",
+      "샤프",
+      "백테스트",
+      "마지막 수정",
+      "액션",
+    ]);
     expect(within(table).getByTitle("완료된 백테스트 수입니다. 실행 중이거나 실패한 실행은 세지 않습니다.")).toHaveTextContent("백테스트");
     // parse_status ok → "변환 가능" chip done (원시 enum 미노출)
     const row = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000001");
     expect(within(row).getByText("변환 가능").className).toBe("chip done");
     expect(within(row).getByText("MA Crossover Strategy").className).toBe("strat-name");
     expect(within(row).getByText("00000000")).toBeTruthy();
+    expect(within(row).getByText("12.34%")).toBeTruthy();
+    expect(within(row).getByText("-4.00%")).toBeTruthy();
+    expect(within(row).getByText("1.50")).toBeTruthy();
     expect(within(row).getByText("3").closest("td")).toHaveClass("num");
     const emptyRow = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000002");
     expect(within(emptyRow).getByTitle("아직 백테스트를 실행하지 않았습니다.")).toHaveTextContent("0");
@@ -166,6 +192,26 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     renderList();
     const cell = screen.getByTitle("이 전략에는 심볼과 주기가 저장돼 있지 않습니다.");
     expect(cell.textContent).toBe("—");
+  });
+
+  it("완료 실행이 없으면 성과 3칸을 EMPTY_CELL 과 사유로 표기한다", () => {
+    mockUseStrategies.mockReturnValue({
+      data: {
+        items: [makeItem({ latest_backtest: null })],
+        total: 1,
+        page: 1,
+        limit: 20,
+        total_pages: 1,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderList();
+    const row = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000001");
+    expect(within(row).getAllByTitle("완료 실행 없음")).toHaveLength(3);
+    expect(within(row).getAllByText(EMPTY_CELL).length).toBeGreaterThanOrEqual(3);
   });
 });
 
