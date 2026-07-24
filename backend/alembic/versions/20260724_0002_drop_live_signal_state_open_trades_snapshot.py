@@ -20,7 +20,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.drop_column("live_signal_states", "last_open_trades_snapshot", schema="trading")
+    # IF EXISTS: 테스트 DB 는 conftest 가 metadata.create_all(신모델 — 컬럼 없음)로
+    # 테이블을 재생성하는데 alembic_version(비모델 테이블)은 살아남아 stale revision
+    # 에서 본 마이그레이션만 단독 실행될 수 있다 (20260626_0001 선례 미러).
+    op.execute(
+        "ALTER TABLE trading.live_signal_states DROP COLUMN IF EXISTS last_open_trades_snapshot"
+    )
 
 
 def downgrade() -> None:
