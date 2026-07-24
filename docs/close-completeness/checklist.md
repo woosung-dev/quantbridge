@@ -41,4 +41,4 @@
 
 - [x] docs/close-completeness/{checklist,operating-contract,context-notes}
 - [x] TODO.md 섹션 + BL-435/436 Resolved + BL-434 부분 + dev-log INDEX + 신규 BL-437(스윕)
-- [ ] 커밋 → push(QB_PRE_PUSH_BYPASS=1) → stage/close-completeness → main PR(squash=사용자)
+- [x] 커밋(c73bcf3) → push(QB_PRE_PUSH_BYPASS=1) → **PR #474**(stage/close-completeness → main, squash=사용자 대기)
