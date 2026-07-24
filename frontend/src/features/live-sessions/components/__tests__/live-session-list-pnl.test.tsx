@@ -35,9 +35,9 @@ const SESSION: LiveSession = {
 
 const STATE: LiveSignalState = {
   session_id: SESSION.id,
+  evaluated: true,
   schema_version: 1,
   last_strategy_state_report: {},
-  last_open_trades_snapshot: {},
   total_closed_trades: 3,
   total_realized_pnl: "42.5",
   equity_curve: [],

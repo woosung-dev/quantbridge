@@ -54,15 +54,15 @@ export async function getLiveSessionState(
   sessionId: string,
   token: string | null,
 ): Promise<LiveSignalState | null> {
-  // BE 응답이 비어있을 수 있음 (아직 1번도 evaluate 안된 session). 404 → null.
   try {
     const raw = await apiFetch<unknown>(
       `${LIVE_SESSIONS_PATH}/${sessionId}/state`,
       { method: "GET", token },
     );
-    return LiveSignalStateSchema.parse(raw);
+    const parsed = LiveSignalStateSchema.parse(raw);
+    return parsed.evaluated ? parsed : null;
   } catch (err) {
-    // apiFetch 가 status >= 400 throw — 404 는 null 반환
+    // 세션 삭제 직후 폴링 race에서는 apiFetch의 404를 null로 흡수한다.
     if (err instanceof Error && /\b404\b/.test(err.message)) {
       return null;
     }

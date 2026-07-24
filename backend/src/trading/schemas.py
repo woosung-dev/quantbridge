@@ -240,13 +240,13 @@ class LiveSignalStateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     session_id: UUID
+    evaluated: bool = True
     schema_version: int
     last_strategy_state_report: dict[str, object]
-    last_open_trades_snapshot: dict[str, object]
     total_closed_trades: int
     total_realized_pnl: Decimal
     equity_curve: list[dict[str, object]] = []  # Sprint 28 Slice 3 BL-140b
-    updated_at: AwareDatetime
+    updated_at: AwareDatetime | None
 
 
 class LiveSignalEventResponse(BaseModel):

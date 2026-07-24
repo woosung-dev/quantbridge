@@ -153,7 +153,6 @@ class LiveSignalSessionRepository:
         *,
         session_id: UUID,
         last_strategy_state_report: dict[str, object],
-        last_open_trades_snapshot: dict[str, object],
         total_closed_trades: int,
         total_realized_pnl: Decimal,
         equity_curve: list[dict[str, object]] | None = None,
@@ -170,7 +169,6 @@ class LiveSignalSessionRepository:
             state = LiveSignalState(
                 session_id=session_id,
                 last_strategy_state_report=last_strategy_state_report,
-                last_open_trades_snapshot=last_open_trades_snapshot,
                 total_closed_trades=total_closed_trades,
                 total_realized_pnl=total_realized_pnl,
                 equity_curve=equity_curve if equity_curve is not None else [],
@@ -180,7 +178,6 @@ class LiveSignalSessionRepository:
             await self.session.flush()
             return state
         existing.last_strategy_state_report = last_strategy_state_report
-        existing.last_open_trades_snapshot = last_open_trades_snapshot
         existing.total_closed_trades = total_closed_trades
         existing.total_realized_pnl = total_realized_pnl
         if equity_curve is not None:

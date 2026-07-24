@@ -537,6 +537,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe
+                    await publish_realtime(
+                        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                    )
                     qb_live_signal_divergence_total.labels(stage="runtime", category=category).inc()
                     qb_live_signal_evaluated_total.labels(
                         interval=interval_value, outcome="divergence_blocked"
@@ -594,11 +597,6 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # BL-123 — JSONB 호환 sanitize (NaN/Infinity → None). run_historical 의
             # warmup 중 ATR/EMA 등이 NaN 반환 가능 → PG strict JSONB reject.
             sanitized_report = _sanitize_for_jsonb(result.strategy_state_report)
-            open_trades_snapshot = (
-                sanitized_report.get("open_trades", {})
-                if isinstance(sanitized_report, dict)
-                else {}
-            )
             # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
             # 신규 closed trade 발생 시점 = total_realized_pnl 변동. delta 계산 후
             # equity_calculator.append_equity_point 호출. 변동 없으면 curve 갱신 X.
@@ -639,9 +637,6 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 session_id=sess.id,
                 last_strategy_state_report=sanitized_report
                 if isinstance(sanitized_report, dict)
-                else {},
-                last_open_trades_snapshot=open_trades_snapshot
-                if isinstance(open_trades_snapshot, dict)
                 else {},
                 total_closed_trades=result.total_closed_trades,
                 total_realized_pnl=result.total_realized_pnl,

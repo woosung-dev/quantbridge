@@ -195,9 +195,9 @@ export function makeLiveSessionState(opts: {
 }) {
   return {
     session_id: opts.sessionId,
+    evaluated: true,
     schema_version: 1,
     last_strategy_state_report: {},
-    last_open_trades_snapshot: {},
     total_closed_trades: opts.closedTrades ?? 0,
     total_realized_pnl: opts.realizedPnl ?? "0",
     equity_curve: opts.equityCurve ?? [],

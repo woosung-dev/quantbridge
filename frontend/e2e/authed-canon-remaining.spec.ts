@@ -28,7 +28,7 @@ const EXPECTED_CONSOLE = [
   /failed to fetch/i,
   /networkerror/i,
   /net::err_/i,
-  /\b40[0-9]\b/,
+  /failed to load resource.*\b40[13]\b/i,
   // 리소스 로드 429(레이트리밋)만 무시한다 — 연속 4폭 감사가 백엔드를 치면 나는 스위트 환경
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.

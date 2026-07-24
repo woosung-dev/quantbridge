@@ -10,9 +10,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 
+from src.auth.models import User
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.trading.models import (
     ExchangeAccount,
@@ -28,7 +30,7 @@ from src.trading.models import (
 )
 
 
-async def _seed_session(db_session, user):
+async def _seed_session(db_session, user, *, with_state: bool = True):
     strategy = Strategy(
         user_id=user.id,
         name="s",
@@ -57,15 +59,15 @@ async def _seed_session(db_session, user):
     await db_session.flush()
 
     # 시뮬레이션 재생 결과(잘못된 값) — 실제로는 이 값이 그대로 노출되면 안 된다.
-    state = LiveSignalState(
-        session_id=session.id,
-        last_strategy_state_report={"position_size": 0.0},
-        last_open_trades_snapshot={},
-        total_closed_trades=153,
-        total_realized_pnl=Decimal("-1007.70"),
-        equity_curve=[{"timestamp_ms": 1782894780000, "cumulative_pnl": "-1007.70"}],
-    )
-    db_session.add(state)
+    if with_state:
+        state = LiveSignalState(
+            session_id=session.id,
+            last_strategy_state_report={"position_size": 0.0},
+            total_closed_trades=153,
+            total_realized_pnl=Decimal("-1007.70"),
+            equity_curve=[{"timestamp_ms": 1782894780000, "cumulative_pnl": "-1007.70"}],
+        )
+        db_session.add(state)
     await db_session.commit()
     return strategy, account, session
 
@@ -147,3 +149,41 @@ async def test_state_returns_zero_when_no_filled_orders_yet(client, mock_clerk_a
     assert Decimal(str(body["total_realized_pnl"])) == Decimal("0")
     assert body["total_closed_trades"] == 0
     assert body["equity_curve"] == []
+
+
+@pytest.mark.asyncio
+async def test_state_pending_returns_unevaluated_zero_response(client, mock_clerk_auth, db_session):
+    """세션은 있으나 첫 평가 전이면 404 대신 pending 응답을 반환한다."""
+    _, _, session = await _seed_session(db_session, mock_clerk_auth, with_state=False)
+
+    resp = await client.get(f"/api/v1/live-sessions/{session.id}/state")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "session_id": str(session.id),
+        "evaluated": False,
+        "schema_version": 0,
+        "last_strategy_state_report": {},
+        "total_closed_trades": 0,
+        "total_realized_pnl": "0",
+        "equity_curve": [],
+        "updated_at": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_state_missing_or_not_owned_remains_not_found(client, mock_clerk_auth, db_session):
+    """없는 세션과 타인 세션은 pending으로 숨기지 않고 404를 유지한다."""
+    missing = await client.get(f"/api/v1/live-sessions/{uuid4()}/state")
+    assert missing.status_code == 404
+
+    other_user = User(
+        clerk_user_id=f"other_{uuid4().hex[:8]}",
+        email=f"{uuid4().hex[:8]}@example.com",
+    )
+    db_session.add(other_user)
+    await db_session.flush()
+    _, _, other_session = await _seed_session(db_session, other_user)
+
+    not_owned = await client.get(f"/api/v1/live-sessions/{other_session.id}/state")
+    assert not_owned.status_code == 404

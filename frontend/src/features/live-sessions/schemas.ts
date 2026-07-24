@@ -48,16 +48,16 @@ export type EquityCurvePoint = z.infer<typeof EquityCurvePointSchema>;
 
 export const LiveSignalStateSchema = z.object({
   session_id: z.uuid(),
+  evaluated: z.boolean().default(true),
   schema_version: z.number(),
   last_strategy_state_report: z.record(z.string(), z.unknown()),
-  last_open_trades_snapshot: z.record(z.string(), z.unknown()),
   total_closed_trades: z.number(),
   total_realized_pnl: z.string(),
   // Sprint 28 Slice 3 (BL-140b) — cumulative realized PnL timeseries.
   // 형식: [{"timestamp_ms": 1700000000000, "cumulative_pnl": "0.123"}, ...]
   // 빈 array default (legacy session 호환).
   equity_curve: z.array(EquityCurvePointSchema).default([]),
-  updated_at: z.string(),
+  updated_at: z.string().nullable(),
 });
 export type LiveSignalState = z.infer<typeof LiveSignalStateSchema>;
 

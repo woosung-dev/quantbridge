@@ -169,9 +169,9 @@ const EVENTS: LiveSignalEvent[] = [
 
 const STATE_NO_EQUITY: LiveSignalState = {
   session_id: SESSION.id,
+  evaluated: true,
   schema_version: 1,
   last_strategy_state_report: {},
-  last_open_trades_snapshot: {},
   total_closed_trades: 1,
   total_realized_pnl: "12.34",
   equity_curve: [],
