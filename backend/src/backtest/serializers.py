@@ -15,7 +15,7 @@ import dataclasses
 import types as _types
 import typing
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import pandas as pd
@@ -107,13 +107,25 @@ def metrics_summary_from_jsonb(
     if metrics is None:
         return None
 
+    # 값이 손상/NaN/list 여도 목록 응답 전체가 500 되지 않도록 필드별 방어 (한 행이 전체를 오염하지 않게).
     def _opt_decimal(key: str) -> Decimal | None:
         raw = metrics.get(key)
-        return Decimal(str(raw)) if raw is not None else None
+        if raw is None:
+            return None
+        try:
+            value = Decimal(str(raw))
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+        return value if value.is_finite() else None
 
     def _opt_int(key: str) -> int | None:
         raw = metrics.get(key)
-        return int(raw) if raw is not None else None
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except (ValueError, TypeError):
+            return None
 
     return BacktestMetricsSummary(
         total_return=_opt_decimal("total_return"),

@@ -527,7 +527,8 @@ class BacktestService:
         self, backtest_id: UUID, trade_index: int, *, user_id: UUID
     ) -> TradeOhlcvResponse:
         """소유 거래의 전후 OHLCV 범위를 읽기 전용으로 반환한다."""
-        bt = await self._load_owned(backtest_id, user_id)
+        # 소유권 확인 + 심볼/주기/기간만 필요 → 무거운 equity_curve 미로드.
+        bt = await self._load_owned(backtest_id, user_id, defer_equity_curve=True)
         trade = await self.repo.get_trade_by_index(backtest_id, trade_index)
         if trade is None:
             raise BacktestNotFound()
@@ -544,11 +545,14 @@ class BacktestService:
         stride = 1
         truncated = False
         if len(rows) > MAX_BARS:
-            stride = ceil(len(rows) / MAX_BARS)
-            indices = set(range(0, len(rows), stride)) | {0, len(rows) - 1}
-            indices.add(_closest_bar_index(rows, trade.entry_time))
+            # 마커 정합을 위해 첫/끝/entry/exit 봉은 반드시 보존한다. 다만 forced 슬롯을 먼저
+            # 예약한 예산으로 stride 를 계산해 최종 bar 수가 MAX_BARS 상한을 넘지 않게 한다.
+            forced = {0, len(rows) - 1, _closest_bar_index(rows, trade.entry_time)}
             if trade.exit_time is not None:
-                indices.add(_closest_bar_index(rows, trade.exit_time))
+                forced.add(_closest_bar_index(rows, trade.exit_time))
+            budget = max(MAX_BARS - len(forced), 1)
+            stride = ceil(len(rows) / budget)
+            indices = set(range(0, len(rows), stride)) | forced
             rows = [rows[index] for index in sorted(indices)]
             truncated = True
 
@@ -693,8 +697,12 @@ class BacktestService:
 
     # --- helpers ---
 
-    async def _load_owned(self, backtest_id: UUID, user_id: UUID) -> Backtest:
-        bt = await self.repo.get_by_id(backtest_id, user_id=user_id)
+    async def _load_owned(
+        self, backtest_id: UUID, user_id: UUID, *, defer_equity_curve: bool = False
+    ) -> Backtest:
+        bt = await self.repo.get_by_id(
+            backtest_id, user_id=user_id, defer_equity_curve=defer_equity_curve
+        )
         if bt is None:
             raise BacktestNotFound()
         return bt

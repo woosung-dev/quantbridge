@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from src.backtest.models import Backtest
 from src.optimizer.models import OptimizationRun, OptimizationStatus
@@ -45,6 +46,8 @@ class OptimizationRepository:
                 Backtest,
                 OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
             )
+            # 응답은 심볼/주기/기간 5필드만 쓴다 — 무거운 equity_curve JSONB 는 로드하지 않는다.
+            .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
             .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
         )
         if user_id is not None:
@@ -66,6 +69,8 @@ class OptimizationRepository:
                 Backtest,
                 OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
             )
+            # 무거운 equity_curve JSONB 미로드 (denormalize 5필드만 사용).
+            .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
             .where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
         )
         total_base = (

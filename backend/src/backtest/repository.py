@@ -34,10 +34,19 @@ class BacktestRepository:
         await self.session.flush()
         return bt
 
-    async def get_by_id(self, backtest_id: UUID, *, user_id: UUID | None = None) -> Backtest | None:
+    async def get_by_id(
+        self,
+        backtest_id: UUID,
+        *,
+        user_id: UUID | None = None,
+        defer_equity_curve: bool = False,
+    ) -> Backtest | None:
         stmt = select(Backtest).where(Backtest.id == backtest_id)  # type: ignore[arg-type]
         if user_id is not None:
             stmt = stmt.where(Backtest.user_id == user_id)  # type: ignore[arg-type]
+        if defer_equity_curve:
+            # 소유권/메타만 필요한 경로(예: 거래 OHLCV)에서 무거운 equity_curve 미로드.
+            stmt = stmt.options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

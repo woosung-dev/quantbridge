@@ -455,6 +455,7 @@ export function StrategyList() {
                         />
                         <td
                           className="num"
+                          data-testid="strategy-backtest-count"
                           title={
                             s.backtest_count === 0
                               ? STRATEGY_EMPTY_REASON.noBacktestYet

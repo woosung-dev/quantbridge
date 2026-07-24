@@ -214,7 +214,7 @@ async def test_trade_ohlcv_downsamples_and_preserves_trade_markers(
     assert response.bars[-1].time == _time() + timedelta(minutes=694)
     assert entry_time in times
     assert exit_time in times
-    assert len(response.bars) <= MAX_BARS + 4
+    assert len(response.bars) <= MAX_BARS
 
 
 @pytest.mark.asyncio

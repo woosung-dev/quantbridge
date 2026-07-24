@@ -1,6 +1,8 @@
 // 거래 확장 행의 OHLCV 구간 가격 차트를 렌더링한다.
 "use client";
 
+import { useMemo } from "react";
+
 import { AlertTriangleIcon, InboxIcon, LoaderCircleIcon } from "lucide-react";
 
 import { TradingChart } from "@/components/charts/trading-chart";
@@ -24,6 +26,16 @@ export function TradeRangeChart({
   trade,
 }: TradeRangeChartProps) {
   const ohlcv = useTradeOhlcv(backtestId, tradeIndex, { enabled: true });
+
+  // TradingChart 는 data/markers/options 참조 안정성을 요구한다(그 doc-comment). 인라인 생성 시
+  // 부모(TradeDetailTable) 재렌더마다 syncSeries+getComputedStyle 이 재실행되므로 memoize 한다.
+  const bars = ohlcv.data?.bars;
+  const chartData = useMemo(
+    () => (bars ?? []).map((bar) => ({ time: bar.time, value: bar.close })),
+    [bars],
+  );
+  const chartMarkers = useMemo(() => deriveTradeMarkers([trade]), [trade]);
+  const chartOptions = useMemo(() => ({ color: resolveChartTokens().equity }), []);
 
   if (ohlcv.isLoading) {
     return (
@@ -96,9 +108,9 @@ export function TradeRangeChart({
       </div>
       <div className="card-body chart-wrap">
         <TradingChart
-          data={data.bars.map((bar) => ({ time: bar.time, value: bar.close }))}
-          markers={deriveTradeMarkers([trade])}
-          options={{ color: resolveChartTokens().equity }}
+          data={chartData}
+          markers={chartMarkers}
+          options={chartOptions}
           height={200}
           ariaLabel={ariaLabel}
         />
