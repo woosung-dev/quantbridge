@@ -1,4 +1,5 @@
 """Backtest 도메인 Pydantic V2 스키마 — Request/Response DTOs."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -10,6 +11,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializ
 from src.backtest.models import BacktestStatus, TradeDirection, TradeStatus
 
 # --- Request ---
+
 
 class CreateBacktestRequest(BaseModel):
     """POST /backtests body.
@@ -67,9 +69,9 @@ class CreateBacktestRequest(BaseModel):
     # priority chain: Pine strategy(default_qty_type=...) > 폼 입력 > 시스템 default (1.0)
     # default_qty_type=None 시 system fallback (qty=1.0). 사용자 명시 시 backtest engine
     # configure_sizing(default_qty_type, default_qty_value) 호출.
-    default_qty_type: Literal[
-        "strategy.percent_of_equity", "strategy.cash", "strategy.fixed"
-    ] | None = None
+    default_qty_type: (
+        Literal["strategy.percent_of_equity", "strategy.cash", "strategy.fixed"] | None
+    ) = None
     default_qty_value: Decimal | None = Field(
         default=None,
         gt=Decimal("0"),
@@ -104,9 +106,7 @@ class CreateBacktestRequest(BaseModel):
     def _validate_default_qty(self) -> Self:
         # 둘 다 명시되거나 둘 다 None — 일관성.
         if (self.default_qty_type is None) != (self.default_qty_value is None):
-            raise ValueError(
-                "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None"
-            )
+            raise ValueError("default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None")
         return self
 
     @model_validator(mode="after")
@@ -126,6 +126,7 @@ class CreateBacktestRequest(BaseModel):
 
 
 # --- Response: base ---
+
 
 class BacktestCreatedResponse(BaseModel):
     """POST /backtests → 202 Accepted.
@@ -179,6 +180,28 @@ class ShareTokenResponse(BaseModel):
 
 # --- Detail / List ---
 
+
+class BacktestMetricsSummary(BaseModel):
+    """목록·대시보드용 경량 성과 지표 팩."""
+
+    total_return: Decimal | None = None
+    net_profit_abs: Decimal | None = None
+    sharpe_ratio: Decimal | None = None
+    max_drawdown: Decimal | None = None
+    num_trades: int | None = None
+    total_open_trades: int | None = None
+
+    @field_serializer(
+        "total_return",
+        "net_profit_abs",
+        "sharpe_ratio",
+        "max_drawdown",
+        when_used="json",
+    )
+    def _decimal_to_str(self, v: Decimal | None) -> str | None:
+        return None if v is None else str(v)
+
+
 class BacktestSummary(BaseModel):
     """목록 항목. metrics/equity_curve 미포함."""
 
@@ -191,6 +214,7 @@ class BacktestSummary(BaseModel):
     status: BacktestStatus
     created_at: AwareDatetime
     completed_at: AwareDatetime | None
+    metrics_summary: BacktestMetricsSummary | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -205,8 +229,11 @@ class SideMetricsOut(BaseModel):
     avg_trade_abs: Decimal | None = None
 
     @field_serializer(
-        "net_profit_abs", "gross_profit_abs", "gross_loss_abs",
-        "profit_factor", "avg_trade_abs",
+        "net_profit_abs",
+        "gross_profit_abs",
+        "gross_loss_abs",
+        "profit_factor",
+        "avg_trade_abs",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
@@ -240,12 +267,20 @@ class ExcursionStatsOut(BaseModel):
     max_drawdown_intrabar_pct: Decimal | None = None
 
     @field_serializer(
-        "max_runup_abs", "max_runup_pct", "avg_runup_abs",
-        "avg_runup_duration_bars", "avg_runup_duration_days",
-        "avg_drawdown_abs", "avg_drawdown_duration_bars", "avg_drawdown_duration_days",
-        "max_drawdown_abs", "max_drawdown_recovery_days",
-        "max_runup_intrabar_abs", "max_runup_intrabar_pct",
-        "max_drawdown_intrabar_abs", "max_drawdown_intrabar_pct",
+        "max_runup_abs",
+        "max_runup_pct",
+        "avg_runup_abs",
+        "avg_runup_duration_bars",
+        "avg_runup_duration_days",
+        "avg_drawdown_abs",
+        "avg_drawdown_duration_bars",
+        "avg_drawdown_duration_days",
+        "max_drawdown_abs",
+        "max_drawdown_recovery_days",
+        "max_runup_intrabar_abs",
+        "max_runup_intrabar_pct",
+        "max_drawdown_intrabar_abs",
+        "max_drawdown_intrabar_pct",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
@@ -321,16 +356,39 @@ class BacktestMetricsOut(BaseModel):
     excursion_stats: ExcursionStatsOut | None = None
 
     @field_serializer(
-        "total_return", "sharpe_ratio", "max_drawdown", "win_rate",
-        "sortino_ratio", "calmar_ratio", "profit_factor", "avg_win", "avg_loss",
-        "avg_holding_hours", "long_win_rate_pct", "short_win_rate_pct",
-        "annual_return_pct", "avg_trade_pct", "best_trade_pct", "worst_trade_pct",
-        "total_fees", "total_slippage", "total_funding",
+        "total_return",
+        "sharpe_ratio",
+        "max_drawdown",
+        "win_rate",
+        "sortino_ratio",
+        "calmar_ratio",
+        "profit_factor",
+        "avg_win",
+        "avg_loss",
+        "avg_holding_hours",
+        "long_win_rate_pct",
+        "short_win_rate_pct",
+        "annual_return_pct",
+        "avg_trade_pct",
+        "best_trade_pct",
+        "worst_trade_pct",
+        "total_fees",
+        "total_slippage",
+        "total_funding",
         # TV parity 팩 Decimal flat
-        "net_profit_abs", "gross_profit_abs", "gross_loss_abs", "open_pnl",
-        "largest_win_abs", "largest_loss_abs", "avg_trade_abs", "avg_win_abs",
-        "avg_loss_abs", "ratio_avg_win_loss", "avg_bars_in_trade",
-        "avg_bars_in_winning_trades", "avg_bars_in_losing_trades",
+        "net_profit_abs",
+        "gross_profit_abs",
+        "gross_loss_abs",
+        "open_pnl",
+        "largest_win_abs",
+        "largest_loss_abs",
+        "avg_trade_abs",
+        "avg_win_abs",
+        "avg_loss_abs",
+        "ratio_avg_win_loss",
+        "avg_bars_in_trade",
+        "avg_bars_in_winning_trades",
+        "avg_bars_in_losing_trades",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
@@ -414,6 +472,7 @@ class BacktestDetail(BacktestSummary):
 
 # --- Trade ---
 
+
 class TradeItem(BaseModel):
     """GET /:id/trades 항목."""
 
@@ -443,9 +502,51 @@ class TradeItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer(
-        "entry_price", "exit_price", "size", "pnl", "return_pct", "fees",
-        "runup_abs", "runup_pct", "drawdown_abs", "drawdown_pct",
-        "fee_paid", "slippage_paid", "cumulative_pnl",
+        "entry_price",
+        "exit_price",
+        "size",
+        "pnl",
+        "return_pct",
+        "fees",
+        "runup_abs",
+        "runup_pct",
+        "drawdown_abs",
+        "drawdown_pct",
+        "fee_paid",
+        "slippage_paid",
+        "cumulative_pnl",
     )
     def _decimal_to_str(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
+
+
+class OhlcvBar(BaseModel):
+    """거래 구간 미니 차트용 OHLCV 봉."""
+
+    time: AwareDatetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("open", "high", "low", "close", "volume", when_used="json")
+    def _decimal_to_str(self, v: Decimal) -> str:
+        return str(v)
+
+
+class TradeOhlcvResponse(BaseModel):
+    """거래 전후 구간의 OHLCV 미니 차트 응답."""
+
+    backtest_id: UUID
+    trade_index: int
+    symbol: str
+    timeframe: str
+    entry_time: AwareDatetime
+    exit_time: AwareDatetime | None
+    pad_bars: int
+    stride: int
+    truncated: bool
+    bars: list[OhlcvBar]

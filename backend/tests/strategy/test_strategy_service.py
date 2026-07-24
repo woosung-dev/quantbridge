@@ -1,6 +1,10 @@
 """StrategyService 단위 — repository mock + 실 parser."""
+
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -103,6 +107,13 @@ async def test_list_adds_completed_backtest_counts(repo_mock):
     repo_mock.list_by_owner.return_value = ([counted, empty], 2)
     backtest_repo = AsyncMock()
     backtest_repo.count_completed_by_strategy_ids.return_value = {counted.id: 3}
+    backtest_repo.latest_completed_by_strategy_ids.return_value = {
+        counted.id: SimpleNamespace(
+            id=uuid4(),
+            completed_at=datetime(2024, 1, 1, tzinfo=UTC),
+            metrics={"total_return": "0.1", "num_trades": 2},
+        )
+    }
 
     result = await StrategyService(repo_mock, backtest_repo).list(
         owner_id=owner_id,
@@ -113,9 +124,12 @@ async def test_list_adds_completed_backtest_counts(repo_mock):
     )
 
     assert [item.backtest_count for item in result.items] == [3, 0]
-    backtest_repo.count_completed_by_strategy_ids.assert_awaited_once_with(
-        [counted.id, empty.id]
-    )
+    backtest_repo.count_completed_by_strategy_ids.assert_awaited_once_with([counted.id, empty.id])
+    backtest_repo.latest_completed_by_strategy_ids.assert_awaited_once_with([counted.id, empty.id])
+    assert result.items[0].latest_backtest is not None
+    assert result.items[0].latest_backtest.metrics is not None
+    assert result.items[0].latest_backtest.metrics.total_return == Decimal("0.1")
+    assert result.items[1].latest_backtest is None
 
 
 @pytest.mark.asyncio
@@ -133,9 +147,7 @@ async def test_update_reparses_when_pine_source_changed(service, repo_mock):
     repo_mock.update.side_effect = lambda s: s
 
     req = UpdateStrategyRequest(pine_source=_UNSUPPORTED_SOURCE)
-    result = await service.update(
-        strategy_id=existing.id, owner_id=owner_id, data=req
-    )
+    result = await service.update(strategy_id=existing.id, owner_id=owner_id, data=req)
     assert result.parse_status in (ParseStatus.unsupported, ParseStatus.error)
 
 

@@ -27,11 +27,13 @@ import {
   TradeFilterRow,
   countActiveFilters,
 } from "@/app/(dashboard)/backtests/_components/trades/trade-filter-row";
+import { TradeRangeChart } from "@/app/(dashboard)/backtests/_components/trades/trade-range-chart";
 
 const PAGE_SIZE = 50;
 const COL_COUNT = 11;
 
 interface TradeDetailTableProps {
+  backtestId?: string;
   trades: readonly TradeItem[];
   isLoading: boolean;
   isError: boolean;
@@ -44,6 +46,7 @@ interface TradeDetailTableProps {
 }
 
 export function TradeDetailTable({
+  backtestId,
   trades,
   isLoading,
   isError,
@@ -321,7 +324,7 @@ export function TradeDetailTable({
                   isExpanded ? (
                     <tr key={`detail-${t.trade_index}`} aria-live="polite">
                       <td className="trade-detail-cell" colSpan={COL_COUNT}>
-                        <ExpandedDetail trade={t} />
+                        <ExpandedDetail backtestId={backtestId} trade={t} />
                       </td>
                     </tr>
                   ) : null,
@@ -347,7 +350,13 @@ export function TradeDetailTable({
 
 // --- 펼침 상세 — 진입/청산/성과 3열. 공용 .metric-group/.metric 소비. ------------
 
-function ExpandedDetail({ trade }: { trade: TradeItem }) {
+function ExpandedDetail({
+  backtestId,
+  trade,
+}: {
+  backtestId?: string;
+  trade: TradeItem;
+}) {
   const isProfit = trade.pnl >= 0;
   const holdMinutes = trade.exit_time
     ? Math.max(
@@ -361,46 +370,55 @@ function ExpandedDetail({ trade }: { trade: TradeItem }) {
     : null;
   const toneP = isProfit ? "pos" : "neg";
   return (
-    <div
-      className="trade-detail-metrics"
-      role="region"
-      aria-label={`거래 #${trade.trade_index} 상세 정보`}
-      data-testid="trade-detail-expanded"
-    >
-      <div className="metric-group">
-        <p className="metric-group-title">진입 정보</p>
-        <Metric label="시각" value={formatDateTime(trade.entry_time)} />
-        <Metric label="진입가" value={formatCurrency(trade.entry_price)} />
-        <Metric label="수량" value={formatCurrency(trade.size, 4)} />
-        <Metric label="방향" value={TRADE_DIRECTION_LABEL[trade.direction]} />
+    <>
+      <div
+        className="trade-detail-metrics"
+        role="region"
+        aria-label={`거래 #${trade.trade_index} 상세 정보`}
+        data-testid="trade-detail-expanded"
+      >
+        <div className="metric-group">
+          <p className="metric-group-title">진입 정보</p>
+          <Metric label="시각" value={formatDateTime(trade.entry_time)} />
+          <Metric label="진입가" value={formatCurrency(trade.entry_price)} />
+          <Metric label="수량" value={formatCurrency(trade.size, 4)} />
+          <Metric label="방향" value={TRADE_DIRECTION_LABEL[trade.direction]} />
+        </div>
+        <div className="metric-group">
+          <p className="metric-group-title">청산 정보</p>
+          <Metric
+            label="시각"
+            value={trade.exit_time ? formatDateTime(trade.exit_time) : EMPTY_CELL}
+          />
+          <Metric
+            label="청산가"
+            value={
+              trade.exit_price !== null
+                ? formatCurrency(trade.exit_price)
+                : EMPTY_CELL
+            }
+          />
+          <Metric label="상태" value={TRADE_STATUS_LABEL[trade.status]} />
+          <Metric
+            label="보유 시간"
+            value={holdMinutes !== null ? formatHoldMinutes(holdMinutes) : EMPTY_CELL}
+          />
+        </div>
+        <div className="metric-group">
+          <p className="metric-group-title">성과</p>
+          <Metric label="손익" value={formatCurrency(trade.pnl)} tone={toneP} />
+          <Metric label="수익률" value={formatPercent(trade.return_pct)} tone={toneP} />
+          <Metric label="수수료" value={formatCurrency(trade.fees)} />
+        </div>
       </div>
-      <div className="metric-group">
-        <p className="metric-group-title">청산 정보</p>
-        <Metric
-          label="시각"
-          value={trade.exit_time ? formatDateTime(trade.exit_time) : EMPTY_CELL}
+      {backtestId ? (
+        <TradeRangeChart
+          backtestId={backtestId}
+          tradeIndex={trade.trade_index}
+          trade={trade}
         />
-        <Metric
-          label="청산가"
-          value={
-            trade.exit_price !== null
-              ? formatCurrency(trade.exit_price)
-              : EMPTY_CELL
-          }
-        />
-        <Metric label="상태" value={TRADE_STATUS_LABEL[trade.status]} />
-        <Metric
-          label="보유 시간"
-          value={holdMinutes !== null ? formatHoldMinutes(holdMinutes) : EMPTY_CELL}
-        />
-      </div>
-      <div className="metric-group">
-        <p className="metric-group-title">성과</p>
-        <Metric label="손익" value={formatCurrency(trade.pnl)} tone={toneP} />
-        <Metric label="수익률" value={formatPercent(trade.return_pct)} tone={toneP} />
-        <Metric label="수수료" value={formatCurrency(trade.fees)} />
-      </div>
-    </div>
+      ) : null}
+    </>
   );
 }
 

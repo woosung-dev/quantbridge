@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
@@ -18,6 +19,7 @@ from src.backtest.schemas import (
     CreateBacktestRequest,
     ShareTokenResponse,
     TradeItem,
+    TradeOhlcvResponse,
 )
 from src.backtest.service import BacktestService
 from src.common.pagination import Page
@@ -54,8 +56,18 @@ async def list_backtests(
     service: BacktestService = Depends(get_backtest_service),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    order_by: Literal[
+        "created_at", "total_return", "max_drawdown", "sharpe_ratio", "num_trades"
+    ] = Query("created_at"),
+    order: Literal["asc", "desc"] = Query("desc"),
 ) -> Page[BacktestSummary]:
-    return await service.list(user_id=user.id, limit=limit, offset=offset)
+    return await service.list(
+        user_id=user.id,
+        limit=limit,
+        offset=offset,
+        order_by=order_by,
+        order=order,
+    )
 
 
 @router.get("/{backtest_id}", response_model=BacktestDetail)
@@ -76,6 +88,16 @@ async def list_backtest_trades(
     offset: int = Query(0, ge=0),
 ) -> Page[TradeItem]:
     return await service.list_trades(backtest_id, user_id=user.id, limit=limit, offset=offset)
+
+
+@router.get("/{backtest_id}/trades/{trade_index}/ohlcv", response_model=TradeOhlcvResponse)
+async def get_trade_ohlcv(
+    backtest_id: UUID,
+    trade_index: int,
+    user: CurrentUser = Depends(get_current_user),
+    service: BacktestService = Depends(get_backtest_service),
+) -> TradeOhlcvResponse:
+    return await service.trade_ohlcv(backtest_id, trade_index, user_id=user.id)
 
 
 @router.get("/{backtest_id}/progress", response_model=BacktestProgressResponse)
@@ -110,6 +132,7 @@ async def delete_backtest(
 
 
 # Sprint 41 Worker H — share read-only public link (revoke 가능). PDF P1 deferral.
+
 
 @router.post("/{backtest_id}/share", response_model=ShareTokenResponse)
 async def create_share(

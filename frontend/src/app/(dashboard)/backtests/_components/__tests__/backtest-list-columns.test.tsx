@@ -1,0 +1,103 @@
+// 백테스트 목록의 성과 열과 미청산 부기를 검증한다.
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+import { BacktestList } from "@/app/(dashboard)/backtests/_components/backtest-list";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => "/backtests",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+const mockUseBacktests = vi.fn();
+const mockUseStrategies = vi.fn();
+vi.mock("@/features/backtest/hooks", () => ({
+  useBacktests: (...args: unknown[]) => mockUseBacktests(...args),
+}));
+vi.mock("@/features/strategy/hooks", () => ({
+  useStrategies: (...args: unknown[]) => mockUseStrategies(...args),
+}));
+
+const item = {
+  id: "00000000-0000-4000-8000-000000000001",
+  strategy_id: "00000000-0000-4000-8000-000000000111",
+  symbol: "BTCUSDT",
+  timeframe: "1h",
+  period_start: "2026-01-01T00:00:00Z",
+  period_end: "2026-02-01T00:00:00Z",
+  status: "completed" as const,
+  created_at: "2026-02-02T00:00:00Z",
+  completed_at: "2026-02-02T00:05:00Z",
+};
+
+function renderList() {
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <BacktestList />
+    </QueryClientProvider>,
+  );
+}
+
+describe("BacktestList 성과 열", () => {
+  afterEach(() => {
+    cleanup();
+    mockUseBacktests.mockReset();
+    mockUseStrategies.mockReset();
+  });
+
+  it("11개 열과 성과 숫자, 미청산 부기를 렌더한다", () => {
+    mockUseBacktests.mockReturnValue({
+      data: {
+        items: [
+          {
+            ...item,
+            metrics_summary: {
+              total_return: 0.1234,
+              net_profit_abs: 12,
+              sharpe_ratio: 1.5,
+              max_drawdown: -0.04,
+              num_trades: 1234,
+              total_open_trades: 1,
+            },
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseStrategies.mockReturnValue({ data: { items: [{ id: item.strategy_id, name: "MA 전략" }] } });
+
+    renderList();
+
+    const table = screen.getByRole("table", { name: /백테스트 실행 목록/ });
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(11);
+    const row = screen.getByTestId(`backtest-row-${item.id}`);
+    expect(within(row).getByText("12.34%")).toBeInTheDocument();
+    expect(within(row).getByText("-4.00%")).toBeInTheDocument();
+    expect(within(row).getByText("1.50")).toBeInTheDocument();
+    expect(within(row).getByText("1,234")).toBeInTheDocument();
+    expect(within(row).getByText("미청산 포함")).toBeInTheDocument();
+  });
+
+  it("metrics_summary 가 null 이면 성과 네 칸을 무데이터 사유와 함께 렌더한다", () => {
+    mockUseBacktests.mockReturnValue({
+      data: { items: [{ ...item, metrics_summary: null }], total: 1 },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseStrategies.mockReturnValue({ data: { items: [] } });
+
+    renderList();
+
+    const row = screen.getByTestId(`backtest-row-${item.id}`);
+    expect(within(row).getAllByTitle("아직 끝나지 않은 실행은 수익률을 채우지 않습니다.")).toHaveLength(4);
+  });
+});

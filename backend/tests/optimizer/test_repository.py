@@ -62,8 +62,10 @@ async def test_create_flushes_and_is_readable(db_session: AsyncSession) -> None:
     assert run.id is not None
     loaded = await repo.get_by_id(run.id)
     assert loaded is not None
-    assert loaded.status == OptimizationStatus.QUEUED
-    assert loaded.param_space == {"schema_version": 1, "parameters": {}}
+    loaded_run, loaded_backtest = loaded
+    assert loaded_run.status == OptimizationStatus.QUEUED
+    assert loaded_run.param_space == {"schema_version": 1, "parameters": {}}
+    assert loaded_backtest is not None
 
 
 @pytest.mark.asyncio
@@ -103,11 +105,11 @@ async def test_list_by_user_orders_desc_and_pages(db_session: AsyncSession) -> N
 
     rows, total = await repo.list_by_user(user.id, limit=2, offset=0)
     assert total == 3
-    assert [r.id for r in rows] == [newest.id, middle.id]
+    assert [run.id for run, _ in rows] == [newest.id, middle.id]
 
     rows, total = await repo.list_by_user(user.id, limit=2, offset=2)
     assert total == 3
-    assert [r.id for r in rows] == [oldest.id]
+    assert [run.id for run, _ in rows] == [oldest.id]
 
 
 @pytest.mark.asyncio
@@ -122,7 +124,7 @@ async def test_list_by_user_scopes_to_user_and_backtest(db_session: AsyncSession
 
     rows, total = await repo.list_by_user(user_a.id, limit=10, offset=0)
     assert total == 2
-    assert {r.user_id for r in rows} == {user_a.id}
+    assert {run.user_id for run, _ in rows} == {user_a.id}
 
     rows, total = await repo.list_by_user(user_a.id, limit=10, offset=0, backtest_id=backtest_a.id)
     assert total == 2
@@ -252,4 +254,4 @@ async def test_commit_survives_subsequent_rollback(db_session: AsyncSession) -> 
 
     loaded = await repo.get_by_id(run.id)
     assert loaded is not None
-    assert loaded.id == run.id
+    assert loaded[0].id == run.id

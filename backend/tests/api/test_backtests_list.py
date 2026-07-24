@@ -1,4 +1,5 @@
 """GET /api/v1/backtests — pagination + ownership isolation."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -14,7 +15,14 @@ from src.backtest.models import Backtest, BacktestStatus
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 
 
-async def _seed_backtest(session: AsyncSession, user_id, symbol: str = "BTCUSDT") -> Backtest:
+async def _seed_backtest(
+    session: AsyncSession,
+    user_id,
+    symbol: str = "BTCUSDT",
+    *,
+    status: BacktestStatus = BacktestStatus.COMPLETED,
+    metrics: dict[str, object] | None = None,
+) -> Backtest:
     """테스트용 Strategy + Backtest 시드 생성 헬퍼."""
     strategy = Strategy(
         id=uuid4(),
@@ -35,7 +43,8 @@ async def _seed_backtest(session: AsyncSession, user_id, symbol: str = "BTCUSDT"
         period_start=datetime(2024, 1, 1, tzinfo=UTC),
         period_end=datetime(2024, 1, 2, tzinfo=UTC),
         initial_capital=Decimal("1000"),
-        status=BacktestStatus.COMPLETED,
+        status=status,
+        metrics=metrics,
     )
     session.add(bt)
     return bt
@@ -104,3 +113,70 @@ async def test_list_ownership_isolation(
     body = r.json()
     assert body["total"] == 1
     assert body["items"][0]["symbol"] == "MINE"
+
+
+@pytest.mark.asyncio
+async def test_list_projects_metrics_summary_and_sorts_metrics(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    mock_clerk_auth,
+) -> None:
+    user: User = mock_clerk_auth
+    completed = await _seed_backtest(
+        db_session,
+        user.id,
+        symbol="HIGH",
+        metrics={
+            "total_return": "0.20",
+            "net_profit_abs": "200",
+            "sharpe_ratio": "1.5",
+            "max_drawdown": "-0.10",
+            "num_trades": 7,
+            "total_open_trades": 1,
+        },
+    )
+    await _seed_backtest(
+        db_session,
+        user.id,
+        symbol="LOW",
+        metrics={
+            "total_return": "0.10",
+            "sharpe_ratio": "1.0",
+            "max_drawdown": "-0.20",
+            "num_trades": 3,
+        },
+    )
+    pending = await _seed_backtest(
+        db_session,
+        user.id,
+        symbol="PENDING",
+        status=BacktestStatus.QUEUED,
+    )
+    await db_session.commit()
+
+    response = await client.get("/api/v1/backtests?order_by=total_return&order=desc")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["symbol"] for item in items] == ["HIGH", "LOW", "PENDING"]
+    completed_item = next(item for item in items if item["id"] == str(completed.id))
+    pending_item = next(item for item in items if item["id"] == str(pending.id))
+    assert completed_item["metrics_summary"] == {
+        "total_return": "0.20",
+        "net_profit_abs": "200",
+        "sharpe_ratio": "1.5",
+        "max_drawdown": "-0.10",
+        "num_trades": 7,
+        "total_open_trades": 1,
+    }
+    assert pending_item["metrics_summary"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_rejects_unknown_sort_axis(
+    client: AsyncClient,
+    mock_clerk_auth,
+) -> None:
+    response = await client.get("/api/v1/backtests?order_by=bad")
+
+    assert response.status_code == 422

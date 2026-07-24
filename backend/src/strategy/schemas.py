@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
+from src.backtest.schemas import BacktestMetricsSummary
 from src.strategy.models import ParseStatus, PineVersion
 from src.strategy.trading_sessions import validate_session_names
 
@@ -141,6 +142,14 @@ class UpdateStrategySettingsRequest(BaseModel):
     position_size_pct: float = Field(gt=0, le=100)
 
 
+class LatestBacktestSummary(BaseModel):
+    """전략 목록에 노출하는 최신 완료 백테스트 요약."""
+
+    backtest_id: UUID
+    completed_at: AwareDatetime | None
+    metrics: BacktestMetricsSummary | None
+
+
 class StrategyListItem(BaseModel):
     """목록 DTO — pine_source/description 제외."""
 
@@ -160,6 +169,7 @@ class StrategyListItem(BaseModel):
     created_at: AwareDatetime
     updated_at: AwareDatetime
     backtest_count: int = 0
+    latest_backtest: LatestBacktestSummary | None = None
 
 
 class StrategyResponse(BaseModel):

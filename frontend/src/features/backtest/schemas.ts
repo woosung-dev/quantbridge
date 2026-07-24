@@ -10,7 +10,7 @@ import type { ParamSpace } from "@/features/optimizer/schemas";
 
 // --- Decimal 문자열 → finite number 변환 ----------------------------------
 
-const decimalString = z.string().transform((s, ctx) => {
+export const decimalString = z.string().transform((s, ctx) => {
   const n = Number.parseFloat(s);
   if (!Number.isFinite(n)) {
     ctx.addIssue({
@@ -177,6 +177,16 @@ export type BacktestCancelResponse = z.infer<
 
 // --- Summary + Detail -----------------------------------------------------
 
+export const BacktestMetricsSummarySchema = z.object({
+  total_return: decimalString.nullable(),
+  net_profit_abs: decimalString.nullable(),
+  sharpe_ratio: decimalString.nullable(),
+  max_drawdown: decimalString.nullable(),
+  num_trades: z.number().int().nullable(),
+  total_open_trades: z.number().int().nullable(),
+});
+export type BacktestMetricsSummary = z.infer<typeof BacktestMetricsSummarySchema>;
+
 export const BacktestSummarySchema = z.object({
   id: z.uuid(),
   strategy_id: z.uuid(),
@@ -187,6 +197,7 @@ export const BacktestSummarySchema = z.object({
   status: BacktestStatusSchema,
   created_at: z.iso.datetime({ offset: true }),
   completed_at: z.iso.datetime({ offset: true }).nullable(),
+  metrics_summary: BacktestMetricsSummarySchema.nullable().optional(),
 });
 export type BacktestSummary = z.infer<typeof BacktestSummarySchema>;
 
@@ -355,6 +366,30 @@ export const TradeItemSchema = z.object({
   comment: z.string().nullable().optional(),
 });
 export type TradeItem = z.infer<typeof TradeItemSchema>;
+
+export const OhlcvBarSchema = z.object({
+  time: z.iso.datetime({ offset: true }),
+  open: decimalString,
+  high: decimalString,
+  low: decimalString,
+  close: decimalString,
+  volume: decimalString,
+});
+export type OhlcvBar = z.infer<typeof OhlcvBarSchema>;
+
+export const TradeOhlcvResponseSchema = z.object({
+  backtest_id: z.uuid(),
+  trade_index: z.number().int(),
+  symbol: z.string(),
+  timeframe: z.string(),
+  entry_time: z.iso.datetime({ offset: true }),
+  exit_time: z.iso.datetime({ offset: true }).nullable(),
+  pad_bars: z.number().int(),
+  stride: z.number().int(),
+  truncated: z.boolean(),
+  bars: z.array(OhlcvBarSchema),
+});
+export type TradeOhlcvResponse = z.infer<typeof TradeOhlcvResponseSchema>;
 
 // --- Pagination ----------------------------------------------------------
 

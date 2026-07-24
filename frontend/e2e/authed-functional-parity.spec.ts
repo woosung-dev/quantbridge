@@ -207,7 +207,8 @@ test.describe("functional-parity 회귀 가드", () => {
       page.getByRole("columnheader", { name: "백테스트" }),
     ).toBeVisible();
 
-    const countCells = page.locator("tbody tr td.num");
+    // perf-surface 가 성과 3열(td.num, 미완료 시 '—')을 추가했으므로 count 열만 정확히 겨냥한다.
+    const countCells = page.locator('tbody tr td[data-testid="strategy-backtest-count"]');
     const n = await countCells.count();
     // 라이브 시드 DB(전략 목록) 전제 — 0행이면 침묵 통과가 아니라 실패로 드러낸다.
     expect(n).toBeGreaterThan(0);

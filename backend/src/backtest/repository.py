@@ -7,8 +7,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, delete, func, or_, select, text, update
+from sqlalchemy import Numeric, and_, delete, func, or_, select, text, update
+from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from src.backtest.models import Backtest, BacktestStatus, BacktestTrade
 
@@ -32,15 +34,30 @@ class BacktestRepository:
         await self.session.flush()
         return bt
 
-    async def get_by_id(self, backtest_id: UUID, *, user_id: UUID | None = None) -> Backtest | None:
+    async def get_by_id(
+        self,
+        backtest_id: UUID,
+        *,
+        user_id: UUID | None = None,
+        defer_equity_curve: bool = False,
+    ) -> Backtest | None:
         stmt = select(Backtest).where(Backtest.id == backtest_id)  # type: ignore[arg-type]
         if user_id is not None:
             stmt = stmt.where(Backtest.user_id == user_id)  # type: ignore[arg-type]
+        if defer_equity_curve:
+            # 소유권/메타만 필요한 경로(예: 거래 OHLCV)에서 무거운 equity_curve 미로드.
+            stmt = stmt.options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def list_by_user(
-        self, user_id: UUID, *, limit: int, offset: int
+        self,
+        user_id: UUID,
+        *,
+        limit: int,
+        offset: int,
+        order_by: str = "created_at",
+        order: str = "desc",
     ) -> tuple[Sequence[Backtest], int]:
         total_stmt = (
             select(func.count())
@@ -51,10 +68,27 @@ class BacktestRepository:
         )
         total = (await self.session.execute(total_stmt)).scalar_one()
 
+        sort_columns: dict[str, Any] = {
+            "created_at": Backtest.created_at,
+            "total_return": Backtest.metrics["total_return"].astext.cast(Numeric),  # type: ignore[index]
+            "max_drawdown": Backtest.metrics["max_drawdown"].astext.cast(Numeric),  # type: ignore[index]
+            "sharpe_ratio": Backtest.metrics["sharpe_ratio"].astext.cast(Numeric),  # type: ignore[index]
+            "num_trades": Backtest.metrics["num_trades"].astext.cast(Numeric),  # type: ignore[index]
+        }
+        sort_expression = sort_columns[order_by]
+        primary_order = sort_expression.asc() if order == "asc" else sort_expression.desc()
+        if order_by != "created_at":
+            primary_order = primary_order.nulls_last()
+
         stmt = (
             select(Backtest)
+            .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
             .where(Backtest.user_id == user_id)  # type: ignore[arg-type]
-            .order_by(Backtest.created_at.desc())  # type: ignore[attr-defined]
+            .order_by(
+                primary_order,
+                Backtest.created_at.desc(),  # type: ignore[attr-defined]
+                Backtest.id.desc(),  # type: ignore[attr-defined]
+            )
             .limit(limit)
             .offset(offset)
         )
@@ -75,6 +109,32 @@ class BacktestRepository:
         )
         result = await self.session.execute(stmt)
         return {strategy_id: int(count) for strategy_id, count in result.all()}
+
+    async def latest_completed_by_strategy_ids(
+        self, strategy_ids: Sequence[UUID]
+    ) -> dict[UUID, Row[Any]]:
+        """전략별 가장 최근 완료 백테스트를 단일 DISTINCT ON 쿼리로 조회한다."""
+        if not strategy_ids:
+            return {}
+        stmt = (
+            select(  # type: ignore[call-overload]
+                Backtest.strategy_id,
+                Backtest.id,
+                Backtest.completed_at,
+                Backtest.metrics,
+            )
+            .where(Backtest.status == BacktestStatus.COMPLETED)
+            .where(Backtest.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
+            .distinct(Backtest.strategy_id)
+            .order_by(
+                Backtest.strategy_id,
+                Backtest.completed_at.desc().nulls_last(),  # type: ignore[union-attr]
+                Backtest.created_at.desc(),  # type: ignore[attr-defined]
+                Backtest.id.desc(),  # type: ignore[attr-defined]
+            )
+        )
+        result = await self.session.execute(stmt)
+        return {row.strategy_id: row for row in result.all()}
 
     async def delete(self, backtest_id: UUID) -> int:
         result = await self.session.execute(
@@ -189,6 +249,15 @@ class BacktestRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
 
+    async def get_trade_by_index(self, backtest_id: UUID, trade_index: int) -> BacktestTrade | None:
+        """백테스트의 거래 인덱스로 단일 거래를 조회한다."""
+        stmt = select(BacktestTrade).where(
+            BacktestTrade.backtest_id == backtest_id,  # type: ignore[arg-type]
+            BacktestTrade.trade_index == trade_index,  # type: ignore[arg-type]
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def count_trades_by_direction(self, backtest_id: UUID) -> tuple[int, int, int]:
         """방향별 거래 수 집계 (open + closed 모두 포함).
 
@@ -237,9 +306,7 @@ class BacktestRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_id_for_update(
-        self, backtest_id: UUID, *, user_id: UUID
-    ) -> Backtest | None:
+    async def get_by_id_for_update(self, backtest_id: UUID, *, user_id: UUID) -> Backtest | None:
         """SELECT ... FOR UPDATE — codex P2 race condition fix.
 
         share_token 발급 시 동시 POST 2개가 둘 다 NULL 읽고 다른 토큰 commit 하는

@@ -10,6 +10,7 @@ Sprint 50-52 의 retro-incorrect result_jsonb row + Sprint 53-55 의 schema tigh
 optimizer-deepen C-min (2026-07-13): 방어를 _to_response_or_none SSOT 로 승격,
 get() 도 손상 row 에서 500 대신 404 (OptimizationNotFoundError) — 대칭 회귀 추가.
 """
+
 from __future__ import annotations
 
 import logging
@@ -81,7 +82,10 @@ async def test_list_returns_valid_items_only_when_some_rows_invalid(
     )
 
     repo = AsyncMock()
-    repo.list_by_user.return_value = ([invalid_run, valid_run, invalid_run], 3)
+    repo.list_by_user.return_value = (
+        [(invalid_run, None), (valid_run, None), (invalid_run, None)],
+        3,
+    )
     service = _build_service(repo=repo)
 
     caplog.set_level(logging.WARNING, logger="src.optimizer.service")
@@ -94,9 +98,7 @@ async def test_list_returns_valid_items_only_when_some_rows_invalid(
     assert page.total == 3
 
     # WARN log 2건 (invalid 각각)
-    skip_logs = [
-        r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()
-    ]
+    skip_logs = [r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()]
     assert len(skip_logs) == 2
 
 
@@ -112,16 +114,14 @@ async def test_get_corrupt_row_raises_not_found_instead_of_500(
     )
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = corrupt_run
+    repo.get_by_id.return_value = (corrupt_run, None)
     service = _build_service(repo=repo)
 
     caplog.set_level(logging.WARNING, logger="src.optimizer.service")
     with pytest.raises(OptimizationNotFoundError):
         await service.get(corrupt_run.id, user_id=user_id)
 
-    skip_logs = [
-        r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()
-    ]
+    skip_logs = [r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()]
     assert len(skip_logs) == 1
 
 
@@ -132,7 +132,7 @@ async def test_get_valid_row_returns_response() -> None:
     valid_run = _make_run(user_id=user_id, param_space=_make_valid_param_space_dict())
 
     repo = AsyncMock()
-    repo.get_by_id.return_value = valid_run
+    repo.get_by_id.return_value = (valid_run, None)
     service = _build_service(repo=repo)
 
     response = await service.get(valid_run.id, user_id=user_id)
@@ -144,12 +144,11 @@ async def test_list_returns_all_items_when_all_valid() -> None:
     """모두 valid 시 raise 없이 전체 응답 + WARN log 0."""
     user_id = uuid4()
     runs = [
-        _make_run(user_id=user_id, param_space=_make_valid_param_space_dict())
-        for _ in range(3)
+        _make_run(user_id=user_id, param_space=_make_valid_param_space_dict()) for _ in range(3)
     ]
 
     repo = AsyncMock()
-    repo.list_by_user.return_value = (runs, 3)
+    repo.list_by_user.return_value = ([(run, None) for run in runs], 3)
     service = _build_service(repo=repo)
 
     page = await service.list(user_id=user_id, limit=10, offset=0)
@@ -163,13 +162,10 @@ async def test_list_returns_empty_when_all_invalid(
 ) -> None:
     """모두 invalid 시 raise 안 함 + items 빈 배열 + WARN log 만 누적."""
     user_id = uuid4()
-    runs = [
-        _make_run(user_id=user_id, param_space={"broken": True})
-        for _ in range(2)
-    ]
+    runs = [_make_run(user_id=user_id, param_space={"broken": True}) for _ in range(2)]
 
     repo = AsyncMock()
-    repo.list_by_user.return_value = (runs, 2)
+    repo.list_by_user.return_value = ([(run, None) for run in runs], 2)
     service = _build_service(repo=repo)
 
     caplog.set_level(logging.WARNING, logger="src.optimizer.service")
@@ -177,7 +173,5 @@ async def test_list_returns_empty_when_all_invalid(
     assert len(page.items) == 0
     assert page.total == 2
 
-    skip_logs = [
-        r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()
-    ]
+    skip_logs = [r for r in caplog.records if "optimizer_run_skip_invalid_schema" in r.getMessage()]
     assert len(skip_logs) == 2

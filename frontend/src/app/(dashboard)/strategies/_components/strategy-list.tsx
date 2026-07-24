@@ -1,9 +1,7 @@
 "use client";
 
-// 전략 목록 — C 디자인 언어 이식 (screen-06). 프로토타입의 시맨틱 CSS(.trades/.chip/.state-box)를
-// 소비하되, 열은 실데이터(StrategyListItem)가 받치는 것만 그린다. 프로토타입의 성과 3칸
-// (최근 수익률/MDD/샤프)·파라미터 수·수명주기 칩(초안/검증됨/배포됨)은 스키마에 필드가 0건이라
-// 렌더하지 않는다 (캐논 §4.9 "데이터 모델에 없는 값 = 가짜 데이터").
+// 전략 목록 — C 디자인 언어 이식 (screen-06). latest_backtest projection으로 최근 수익률/MDD/샤프를
+// 그린다. 파라미터 수·수명주기 칩(초안/검증됨/배포됨)은 스키마에 없어 렌더하지 않는다 (§4.9).
 // 상태 열은 실존 필드 parse_status 를 PARSE_STATUS_LABEL → CHIP_TONE_CLASS 로 파생한다.
 //
 // screen-06 "01 필터" 구획 재도입 (W3-fix). 검색(전략명·전략 ID)·심볼 필터·정렬을 프로토타입의
@@ -35,6 +33,7 @@ import {
 import { useStrategies } from "@/features/strategy/hooks";
 import type { ParseStatus, StrategyListItem, StrategyListQuery } from "@/features/strategy/schemas";
 import { formatDateTime } from "@/features/strategy/utils";
+import { formatPercent } from "@/features/backtest/utils";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
@@ -150,6 +149,9 @@ export function StrategyList() {
     name: hName,
     status: hStatus,
     symbolTimeframe: hSymbolTf,
+    lastRunReturn: hLastRunReturn,
+    maxDrawdown: hMaxDrawdown,
+    sharpeRatio: hSharpeRatio,
     backtestCount: hBacktestCount,
     updatedAt: hUpdatedAt,
     action: hAction,
@@ -386,6 +388,15 @@ export function StrategyList() {
                       {hStatus}
                     </th>
                     <th scope="col">{hSymbolTf}</th>
+                    <th scope="col" className="num">
+                      {hLastRunReturn}
+                    </th>
+                    <th scope="col" className="num">
+                      {hMaxDrawdown}
+                    </th>
+                    <th scope="col" className="num">
+                      {hSharpeRatio}
+                    </th>
                     <th scope="col" className="num" title={STRATEGY_BACKTEST_COUNT_HINT}>
                       {hBacktestCount}
                     </th>
@@ -427,8 +438,24 @@ export function StrategyList() {
                             </span>
                           )}
                         </td>
+                        <StrategyMetricCell
+                          value={s.latest_backtest?.metrics?.total_return}
+                          missing={s.latest_backtest == null}
+                          format={(value) => formatPercent(value)}
+                        />
+                        <StrategyMetricCell
+                          value={s.latest_backtest?.metrics?.max_drawdown}
+                          missing={s.latest_backtest == null}
+                          format={(value) => formatPercent(value)}
+                        />
+                        <StrategyMetricCell
+                          value={s.latest_backtest?.metrics?.sharpe_ratio}
+                          missing={s.latest_backtest == null}
+                          format={(value) => value.toFixed(2)}
+                        />
                         <td
                           className="num"
+                          data-testid="strategy-backtest-count"
                           title={
                             s.backtest_count === 0
                               ? STRATEGY_EMPTY_REASON.noBacktestYet
@@ -456,6 +483,22 @@ export function StrategyList() {
   );
 }
 
+function StrategyMetricCell({
+  value,
+  missing,
+  format,
+}: {
+  value: number | null | undefined;
+  missing: boolean;
+  format: (value: number) => string;
+}) {
+  return (
+    <td className="num" title={missing ? "완료 실행 없음" : undefined}>
+      {value == null ? EMPTY_CELL : format(value)}
+    </td>
+  );
+}
+
 function buildParseStatusCounts(items: readonly StrategyListItem[]) {
   const result: Record<ParseStatus, number> = { ok: 0, unsupported: 0, error: 0 };
   for (const s of items) result[s.parse_status] += 1;
@@ -469,7 +512,16 @@ function csvField(value: string): string {
 
 // backed 열만 내보낸다 — 렌더 표와 열 구성이 같다.
 function buildCsv(rows: readonly StrategyListItem[]): string {
-  const header = ["전략명", "상태", "심볼 · 주기", "백테스트", "마지막 수정"];
+  const header = [
+    "전략명",
+    "상태",
+    "심볼 · 주기",
+    "최근 수익률",
+    "MDD",
+    "샤프",
+    "백테스트",
+    "마지막 수정",
+  ];
   const lines = [header.map(csvField).join(",")];
   for (const s of rows) {
     const statusLabel = PARSE_STATUS_LABEL[s.parse_status].label;
@@ -480,6 +532,15 @@ function buildCsv(rows: readonly StrategyListItem[]): string {
         s.name,
         statusLabel,
         symbolTf,
+        s.latest_backtest?.metrics?.total_return != null
+          ? formatPercent(s.latest_backtest.metrics.total_return)
+          : EMPTY_CELL,
+        s.latest_backtest?.metrics?.max_drawdown != null
+          ? formatPercent(s.latest_backtest.metrics.max_drawdown)
+          : EMPTY_CELL,
+        s.latest_backtest?.metrics?.sharpe_ratio != null
+          ? s.latest_backtest.metrics.sharpe_ratio.toFixed(2)
+          : EMPTY_CELL,
         String(s.backtest_count ?? EMPTY_CELL),
         formatDateTime(s.updated_at),
       ]
@@ -498,7 +559,7 @@ function ListSkeleton() {
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 6 }).map((__, j) => (
+              {Array.from({ length: 9 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>

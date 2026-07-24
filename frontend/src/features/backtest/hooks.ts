@@ -27,6 +27,7 @@ import {
   getBacktest,
   getBacktestProgress,
   getStressTest,
+  getTradeOhlcv,
   listBacktests,
   listBacktestTrades,
   listStressTests,
@@ -59,6 +60,7 @@ import type {
   StressTestSummary,
   TradeItem,
   TradeListResponse,
+  TradeOhlcvResponse,
 } from "./schemas";
 
 export { backtestKeys, stressTestKeys };
@@ -97,6 +99,15 @@ function makeTradesFetcher(
     const token = await getToken();
     return listBacktestTrades(id, query, token);
   };
+}
+
+function makeTradeOhlcvFetcher(
+  userId: string,
+  backtestId: string,
+  tradeIndex: number,
+  getToken: TokenGetter,
+) {
+  return () => getTradeOhlcv(userId, backtestId, tradeIndex, getToken);
 }
 
 // 전체 trades 페이지 fetch — 리포트 파생 계산(분포/원장/마커)용 200-cap 해소.
@@ -204,6 +215,25 @@ export function useBacktestTrades(
       : backtestKeys.all(uid),
     queryFn: makeTradesFetcher(id ?? "", query, getToken),
     enabled: Boolean(id) && (options.enabled ?? true),
+  });
+}
+
+export function useTradeOhlcv(
+  backtestId: string | undefined,
+  tradeIndex: number | undefined,
+  options: { enabled?: boolean } = {},
+): UseQueryResult<TradeOhlcvResponse, Error> {
+  const { uid, getToken } = useAuthCtx();
+  const isEnabled =
+    Boolean(backtestId) && tradeIndex !== undefined && (options.enabled ?? true);
+  return useQuery({
+    queryKey:
+      backtestId !== undefined && tradeIndex !== undefined
+        ? backtestKeys.tradeOhlcv(uid, backtestId, tradeIndex)
+        : backtestKeys.all(uid),
+    queryFn: makeTradeOhlcvFetcher(uid, backtestId ?? "", tradeIndex ?? 0, getToken),
+    enabled: isEnabled,
+    staleTime: Infinity,
   });
 }
 

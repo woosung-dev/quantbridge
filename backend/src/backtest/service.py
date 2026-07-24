@@ -9,6 +9,7 @@ import secrets
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from math import ceil
 from typing import Any
 from uuid import UUID
 
@@ -48,19 +49,24 @@ from src.backtest.schemas import (
     BacktestSummary,
     CreateBacktestRequest,
     EquityPoint,
+    OhlcvBar,
     ShareTokenResponse,
     TradeItem,
+    TradeOhlcvResponse,
 )
 from src.backtest.serializers import (
     _parse_utc_iso,
     equity_curve_to_jsonb,
     metrics_from_jsonb,
+    metrics_summary_from_jsonb,
     metrics_to_jsonb,
 )
 from src.common.pagination import Page
 from src.core.config import settings
-from src.market_data.constants import to_ccxt_perpetual_symbol
+from src.market_data.constants import TIMEFRAME_SECONDS, normalize_symbol, to_ccxt_perpetual_symbol
+from src.market_data.models import OHLCV
 from src.market_data.providers import OHLCVProvider
+from src.market_data.repository import OHLCVRepository
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import Strategy
 from src.strategy.pine_v2.compat import _extract_default_qty
@@ -71,6 +77,14 @@ from src.trading.repositories.funding_rate_repository import FundingRateReposito
 
 logger = logging.getLogger(__name__)
 
+PAD_BARS = 4
+MAX_BARS = 500
+
+
+def _closest_bar_index(rows: list[OHLCV], target: datetime) -> int:
+    """대상 시각과 가장 가까운 봉의 인덱스를 반환한다."""
+    return min(range(len(rows)), key=lambda index: abs(rows[index].time - target))
+
 
 class BacktestService:
     def __init__(
@@ -79,12 +93,14 @@ class BacktestService:
         repo: BacktestRepository,
         strategy_repo: StrategyRepository,
         ohlcv_provider: OHLCVProvider,
+        ohlcv_repo: OHLCVRepository | None = None,
         dispatcher: TaskDispatcher,
         funding_repo: FundingRateRepository | None = None,
     ) -> None:
         self.repo = repo
         self.strategy_repo = strategy_repo
         self.provider = ohlcv_provider
+        self.ohlcv_repo = ohlcv_repo
         self.dispatcher = dispatcher
         # C6 (Slice 4) — perp funding 차감용 read-only repo. run() 의 worker 경로에서만
         # 사용. HTTP submit/detail 경로는 None 으로 충분(run() 미실행).
@@ -443,10 +459,35 @@ class BacktestService:
             direction_counts = await self.repo.count_trades_by_direction(bt.id)
         return self._to_detail(bt, direction_counts=direction_counts)
 
-    async def list(self, *, user_id: UUID, limit: int, offset: int) -> Page[BacktestSummary]:
-        items, total = await self.repo.list_by_user(user_id, limit=limit, offset=offset)
+    async def list(
+        self,
+        *,
+        user_id: UUID,
+        limit: int,
+        offset: int,
+        order_by: str = "created_at",
+        order: str = "desc",
+    ) -> Page[BacktestSummary]:
+        items, total = await self.repo.list_by_user(
+            user_id,
+            limit=limit,
+            offset=offset,
+            order_by=order_by,
+            order=order,
+        )
         return Page[BacktestSummary](
-            items=[BacktestSummary.model_validate(bt) for bt in items],
+            items=[
+                BacktestSummary.model_validate(bt).model_copy(
+                    update={
+                        "metrics_summary": (
+                            metrics_summary_from_jsonb(bt.metrics)
+                            if bt.status == BacktestStatus.COMPLETED
+                            else None
+                        )
+                    }
+                )
+                for bt in items
+            ],
             total=total,
             limit=limit,
             offset=offset,
@@ -480,6 +521,52 @@ class BacktestService:
             total=total,
             limit=limit,
             offset=offset,
+        )
+
+    async def trade_ohlcv(
+        self, backtest_id: UUID, trade_index: int, *, user_id: UUID
+    ) -> TradeOhlcvResponse:
+        """소유 거래의 전후 OHLCV 범위를 읽기 전용으로 반환한다."""
+        # 소유권 확인 + 심볼/주기/기간만 필요 → 무거운 equity_curve 미로드.
+        bt = await self._load_owned(backtest_id, user_id, defer_equity_curve=True)
+        trade = await self.repo.get_trade_by_index(backtest_id, trade_index)
+        if trade is None:
+            raise BacktestNotFound()
+        if self.ohlcv_repo is None:
+            raise RuntimeError("OHLCV repository is required for trade OHLCV")
+
+        bar_delta = timedelta(seconds=PAD_BARS * TIMEFRAME_SECONDS[bt.timeframe])
+        range_start = max(bt.period_start, trade.entry_time - bar_delta)
+        range_end = min(bt.period_end, (trade.exit_time or bt.period_end) + bar_delta)
+        rows = await self.ohlcv_repo.get_range(
+            normalize_symbol(bt.symbol), bt.timeframe, range_start, range_end
+        )
+
+        stride = 1
+        truncated = False
+        if len(rows) > MAX_BARS:
+            # 마커 정합을 위해 첫/끝/entry/exit 봉은 반드시 보존한다. 다만 forced 슬롯을 먼저
+            # 예약한 예산으로 stride 를 계산해 최종 bar 수가 MAX_BARS 상한을 넘지 않게 한다.
+            forced = {0, len(rows) - 1, _closest_bar_index(rows, trade.entry_time)}
+            if trade.exit_time is not None:
+                forced.add(_closest_bar_index(rows, trade.exit_time))
+            budget = max(MAX_BARS - len(forced), 1)
+            stride = ceil(len(rows) / budget)
+            indices = set(range(0, len(rows), stride)) | forced
+            rows = [rows[index] for index in sorted(indices)]
+            truncated = True
+
+        return TradeOhlcvResponse(
+            backtest_id=bt.id,
+            trade_index=trade.trade_index,
+            symbol=normalize_symbol(bt.symbol),
+            timeframe=bt.timeframe,
+            entry_time=trade.entry_time,
+            exit_time=trade.exit_time,
+            pad_bars=PAD_BARS,
+            stride=stride,
+            truncated=truncated,
+            bars=[OhlcvBar.model_validate(row) for row in rows],
         )
 
     # --- HTTP mutation paths ---
@@ -610,8 +697,12 @@ class BacktestService:
 
     # --- helpers ---
 
-    async def _load_owned(self, backtest_id: UUID, user_id: UUID) -> Backtest:
-        bt = await self.repo.get_by_id(backtest_id, user_id=user_id)
+    async def _load_owned(
+        self, backtest_id: UUID, user_id: UUID, *, defer_equity_curve: bool = False
+    ) -> Backtest:
+        bt = await self.repo.get_by_id(
+            backtest_id, user_id=user_id, defer_equity_curve=defer_equity_curve
+        )
         if bt is None:
             raise BacktestNotFound()
         return bt

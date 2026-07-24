@@ -2,6 +2,7 @@
 
 stress_test/repository.py pattern 1:1 mirror. Sprint 18 BL-080 + LESSON-019 commit 의무.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -11,7 +12,9 @@ from uuid import UUID
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
+from src.backtest.models import Backtest
 from src.optimizer.models import OptimizationRun, OptimizationStatus
 
 
@@ -36,12 +39,21 @@ class OptimizationRepository:
 
     async def get_by_id(
         self, run_id: UUID, *, user_id: UUID | None = None
-    ) -> OptimizationRun | None:
-        stmt = select(OptimizationRun).where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
+    ) -> tuple[OptimizationRun, Backtest | None] | None:
+        stmt = (
+            select(OptimizationRun, Backtest)
+            .outerjoin(
+                Backtest,
+                OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
+            )
+            # 응답은 심볼/주기/기간 5필드만 쓴다 — 무거운 equity_curve JSONB 는 로드하지 않는다.
+            .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
+            .where(OptimizationRun.id == run_id)  # type: ignore[arg-type]
+        )
         if user_id is not None:
             stmt = stmt.where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.tuples().one_or_none()
 
     async def list_by_user(
         self,
@@ -50,10 +62,23 @@ class OptimizationRepository:
         limit: int,
         offset: int,
         backtest_id: UUID | None = None,
-    ) -> tuple[Sequence[OptimizationRun], int]:
-        base = select(OptimizationRun).where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
-        total_base = select(func.count()).select_from(OptimizationRun).where(
-            OptimizationRun.user_id == user_id  # type: ignore[arg-type]
+    ) -> tuple[Sequence[tuple[OptimizationRun, Backtest | None]], int]:
+        base = (
+            select(OptimizationRun, Backtest)
+            .outerjoin(
+                Backtest,
+                OptimizationRun.backtest_id == Backtest.id,  # type: ignore[arg-type]
+            )
+            # 무거운 equity_curve JSONB 미로드 (denormalize 5필드만 사용).
+            .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
+            .where(OptimizationRun.user_id == user_id)  # type: ignore[arg-type]
+        )
+        total_base = (
+            select(func.count())
+            .select_from(OptimizationRun)
+            .where(
+                OptimizationRun.user_id == user_id  # type: ignore[arg-type]
+            )
         )
         if backtest_id is not None:
             base = base.where(OptimizationRun.backtest_id == backtest_id)  # type: ignore[arg-type]
@@ -68,13 +93,11 @@ class OptimizationRepository:
             .offset(offset)
         )
         result = await self.session.execute(stmt)
-        return result.scalars().all(), total
+        return result.tuples().all(), total
 
     # --- 상태 전이 ---
 
-    async def transition_to_running(
-        self, run_id: UUID, *, started_at: datetime
-    ) -> int:
+    async def transition_to_running(self, run_id: UUID, *, started_at: datetime) -> int:
         """queued → running. UPDATE rows=0 → silent skip (stress_test pattern mirror)."""
         result = await self.session.execute(
             update(OptimizationRun)

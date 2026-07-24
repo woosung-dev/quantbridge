@@ -11,6 +11,7 @@ const useUnrealizedPnlEstimateMock = vi.fn();
 const useExchangeAccountsMock = vi.fn();
 const useStrategiesMock = vi.fn();
 const useBacktestsMock = vi.fn();
+const useOptimizationRunsMock = vi.fn();
 
 vi.mock("@/features/live-sessions", () => ({
   useLiveSessions: () => useLiveSessionsMock(),
@@ -22,6 +23,9 @@ vi.mock("@/features/strategy/hooks", () => ({
 }));
 vi.mock("@/features/backtest/hooks", () => ({
   useBacktests: () => useBacktestsMock(),
+}));
+vi.mock("@/features/optimizer/hooks", () => ({
+  useOptimizationRuns: () => useOptimizationRunsMock(),
 }));
 vi.mock("@/features/trading", () => ({
   useExchangeAccounts: () => useExchangeAccountsMock(),
@@ -80,6 +84,11 @@ const STRATEGIES = {
         timeframe: "1h",
         tags: ["trend"],
         updated_at: "2026-04-14T21:07:00Z",
+        latest_backtest: {
+          backtest_id: "run-2f9c41aa",
+          completed_at: "2026-04-14T21:20:00Z",
+          metrics: { total_return: 0.1234, sharpe_ratio: 1.5 },
+        },
       },
       {
         id: "strat-2",
@@ -88,6 +97,29 @@ const STRATEGIES = {
         timeframe: null,
         tags: [],
         updated_at: "2026-04-13T11:05:00Z",
+        latest_backtest: null,
+      },
+    ],
+  },
+  isLoading: false,
+  isError: false,
+  error: null,
+  refetch: vi.fn(),
+};
+
+const OPTIMIZATIONS = {
+  data: {
+    items: [
+      {
+        id: "opt-c268af00",
+        backtest_id: "run-2f9c41aa",
+        strategy_id: "strat-1",
+        backtest_symbol: "BTC/USDT",
+        backtest_timeframe: "1h",
+        kind: "grid_search",
+        status: "completed",
+        param_space: {},
+        created_at: "2026-04-14T21:06:00Z",
       },
     ],
   },
@@ -153,6 +185,7 @@ function setDefaults() {
   useExchangeAccountsMock.mockReturnValue({ data: [{ id: "acc-1" }] });
   useStrategiesMock.mockReturnValue(STRATEGIES);
   useBacktestsMock.mockReturnValue(BACKTESTS);
+  useOptimizationRunsMock.mockReturnValue(OPTIMIZATIONS);
 }
 
 beforeEach(() => {
@@ -212,12 +245,15 @@ describe("DashboardCockpit — 손익 KPI 정직성 (StatValue 규율)", () => {
   });
 });
 
-describe("DashboardCockpit — 실행 표 4상태", () => {
-  it("populated — 실행 행을 한국어 상태 라벨로 그린다 (원시 enum 렌더 금지)", () => {
+describe("DashboardCockpit — 최근 실행 원장", () => {
+  it("백테스트와 최적화를 시간순으로 합치고 유형 라벨과 성과를 정직하게 그린다", () => {
     render(<DashboardCockpit />);
     expect(screen.getByTestId("run-row-run-2f9c41aa")).toBeInTheDocument();
+    expect(screen.getByTestId("run-row-opt-c268af00")).toBeInTheDocument();
+    expect(within(screen.getByTestId("run-row-run-2f9c41aa")).getByText("백테스트")).toBeInTheDocument();
+    expect(within(screen.getByTestId("run-row-opt-c268af00")).getByText("최적화")).toBeInTheDocument();
     // 상태 칩은 S4 라벨(완료/실행 중/실패)로만 나온다.
-    expect(screen.getByText("완료")).toBeInTheDocument();
+    expect(screen.getAllByText("완료").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("실행 중")).toBeInTheDocument();
     expect(screen.getByText("실패")).toBeInTheDocument();
     // 원시 enum 문자열은 텍스트로 노출되지 않는다.
@@ -225,6 +261,8 @@ describe("DashboardCockpit — 실행 표 4상태", () => {
     expect(screen.queryByText("running")).not.toBeInTheDocument();
     // 전략명은 id → name 매핑으로 나온다.
     expect(screen.getAllByText("MA Crossover Strategy").length).toBeGreaterThan(0);
+    const optimizerRow = screen.getByTestId("run-row-opt-c268af00");
+    expect(within(optimizerRow).getAllByTitle("결과는 최적화 상세에서 확인")).toHaveLength(2);
   });
 
   it("loading — 스켈레톤을 그린다", () => {
@@ -235,11 +273,18 @@ describe("DashboardCockpit — 실행 표 4상태", () => {
       error: null,
       refetch: vi.fn(),
     });
+    useOptimizationRunsMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
     render(<DashboardCockpit />);
     expect(screen.getByTestId("runs-skeleton")).toBeInTheDocument();
   });
 
-  it("error — state-box(alert) + 엔드포인트 코드를 그린다", () => {
+  it("한 원장 실패는 자체 확인 불가 칩만 표시하고 다른 원장을 유지한다", () => {
     useBacktestsMock.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -248,13 +293,12 @@ describe("DashboardCockpit — 실행 표 4상태", () => {
       refetch: vi.fn(),
     });
     render(<DashboardCockpit />);
-    const box = screen.getByTestId("runs-error");
-    expect(box).toHaveAttribute("role", "alert");
-    expect(screen.getByText("boom")).toBeInTheDocument();
-    expect(screen.getByText("GET /api/v1/backtests")).toBeInTheDocument();
+    expect(screen.getByText("백테스트 확인 불가")).toBeInTheDocument();
+    expect(screen.getByTestId("run-row-opt-c268af00")).toBeInTheDocument();
+    expect(screen.queryByTestId("runs-error")).not.toBeInTheDocument();
   });
 
-  it("empty — 빈 상태 박스를 그린다", () => {
+  it("두 원장이 모두 비면 빈 상태 박스를 그린다", () => {
     useBacktestsMock.mockReturnValue({
       data: { total: 0, items: [] },
       isLoading: false,
@@ -262,20 +306,29 @@ describe("DashboardCockpit — 실행 표 4상태", () => {
       error: null,
       refetch: vi.fn(),
     });
+    useOptimizationRunsMock.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
     render(<DashboardCockpit />);
     expect(screen.getByTestId("runs-empty")).toBeInTheDocument();
-    expect(screen.getByText("아직 실행한 백테스트가 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("아직 실행한 작업이 없습니다.")).toBeInTheDocument();
   });
 });
 
 describe("DashboardCockpit — 전략 §04 수명주기 칩 미렌더", () => {
-  it("전략 행을 식별 정보로만 그리고 배포됨/검증됨/초안 칩은 그리지 않는다", () => {
+  it("전략별 최근 성과를 그리되 배포됨/검증됨/초안 칩은 그리지 않는다", () => {
     render(<DashboardCockpit />);
     expect(screen.getByTestId("strategy-row-strat-1")).toBeInTheDocument();
     // 스키마에 없는 수명주기 라벨은 어디에도 없다 (캐논 §4.9).
     expect(screen.queryByText("배포됨")).not.toBeInTheDocument();
     expect(screen.queryByText("검증됨")).not.toBeInTheDocument();
     expect(screen.queryByText("초안")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("strategy-row-strat-1")).getByText("12.34%")).toBeInTheDocument();
+    expect(within(screen.getByTestId("strategy-row-strat-1")).getByText("1.50")).toBeInTheDocument();
     // 심볼이 null 인 전략은 무데이터 표기(EMPTY_CELL)로 떨어진다.
     expect(screen.getByTestId("strategy-row-strat-2")).toBeInTheDocument();
     expect(

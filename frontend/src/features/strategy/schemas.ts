@@ -3,6 +3,8 @@
 
 import { z } from "zod/v4";
 
+import { BacktestMetricsSummarySchema } from "@/features/backtest/schemas";
+
 export const ParseStatusSchema = z.enum(["ok", "unsupported", "error"]);
 export type ParseStatus = z.infer<typeof ParseStatusSchema>;
 
@@ -100,6 +102,14 @@ export const StrategyListItemSchema = StrategyResponseSchema.omit({
   description: true,
 }).extend({
   backtest_count: z.number().int().optional(),
+  latest_backtest: z
+    .object({
+      backtest_id: z.uuid(),
+      completed_at: z.iso.datetime({ offset: true }).nullable(),
+      metrics: BacktestMetricsSummarySchema.nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 export type StrategyListItem = z.infer<typeof StrategyListItemSchema>;
 

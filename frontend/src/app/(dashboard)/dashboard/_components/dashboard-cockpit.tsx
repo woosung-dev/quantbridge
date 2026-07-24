@@ -1,11 +1,10 @@
 "use client";
 
 // 워크스페이스 대시보드 — C 디자인 언어 이식 (S7). 프로토타입 screen-02 의 시맨틱 CSS 를
-// 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 목업의 수익률 미터·전략 수명주기 칩
-// (배포됨/검증됨/초안)·per-strategy 성과는 실 스키마에 없어 렌더하지 않는다.
+// 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 최근 실행은 백테스트·최적화 원장을 함께
+// 보이고, 전략 성과는 목록의 latest_backtest projection을 재사용한다.
 //  - 손익 KPI 는 라이브 세션 집계의 "실현" 손익이며, WS ticker 기반 미실현 추정치는 foot에만 부기한다.
 //  - 전략 §04 는 수명주기 칩을 그리지 않는다(schemas.ts 에 draft/validated/deployed 0건).
-//  - 실행 표는 목록 스키마(BacktestSummary)에 있는 열만 그린다(수익률/MDD 열 없음, S5 와 동일).
 // 데이터 흐름은 S3 셸과의 중복 페치를 걷어냈다(주문 페치 제거 → transition-toast 이중 발화 차단,
 // 카운트는 목록 쿼리의 total 로 파생 → 코크핏당 도메인 쿼리 1개). 상세는 context-notes 참조.
 
@@ -20,7 +19,7 @@ import type { ChartPoint } from "@/components/charts/trading-chart";
 import { useBacktests } from "@/features/backtest/hooks";
 import { BACKTEST_STATUS_LABEL } from "@/features/backtest/labels";
 import type { BacktestSummary } from "@/features/backtest/schemas";
-import { formatDateTime } from "@/features/backtest/utils";
+import { formatDateTime, formatPercent } from "@/features/backtest/utils";
 import {
   useLiveSessions,
   useLiveSessionsAggregate,
@@ -28,6 +27,9 @@ import {
 } from "@/features/live-sessions";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
+import { useOptimizationRuns } from "@/features/optimizer/hooks";
+import { OPTIMIZATION_STATUS_LABEL } from "@/features/optimizer/labels";
+import type { OptimizationRunResponse } from "@/features/optimizer/schemas";
 import { useExchangeAccounts } from "@/features/trading";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
@@ -36,6 +38,16 @@ import { WorkspaceEquityCard } from "./workspace-equity-card";
 const RECENT_RUNS_LIMIT = 8;
 const STRATEGY_FETCH_LIMIT = 100;
 const RUNS_ENDPOINT = "GET /api/v1/backtests";
+const OPTIMIZATION_RUNS_ENDPOINT = "GET /api/v1/optimizations";
+const METER_CAP_PCT = 150;
+const RECENT_RUN_TYPE_LABEL = {
+  backtest: "백테스트",
+  optimization: "최적화",
+} as const;
+
+type RecentRun =
+  | { type: "backtest"; createdAt: string; run: BacktestSummary }
+  | { type: "optimization"; createdAt: string; run: OptimizationRunResponse };
 
 /** 부호 + 천단위 + 소수 2자리. USDT 이므로 통화 기호를 붙이지 않는다. */
 function formatSignedUsd(n: number): string {
@@ -66,6 +78,7 @@ export function DashboardCockpit() {
   });
   // 실행표 + 백테스트 KPI 카운트(.total). 별도 count 쿼리를 두지 않는다.
   const backtestsQ = useBacktests({ limit: RECENT_RUNS_LIMIT, offset: 0 });
+  const optimizationsQ = useOptimizationRuns({ limit: RECENT_RUNS_LIMIT, offset: 0 });
 
   const accounts = accountsQ.data?.length ?? 0;
   const strategyItems = useMemo<readonly StrategyListItem[]>(
@@ -78,6 +91,19 @@ export function DashboardCockpit() {
     () => backtestsQ.data?.items ?? [],
     [backtestsQ.data?.items],
   );
+  const optimizationItems = useMemo<readonly OptimizationRunResponse[]>(
+    () => optimizationsQ.data?.items ?? [],
+    [optimizationsQ.data?.items],
+  );
+  const recentRuns = useMemo<readonly RecentRun[]>(() => {
+    const merged: RecentRun[] = [
+      ...backtestItems.map((run) => ({ type: "backtest" as const, createdAt: run.created_at, run })),
+      ...optimizationItems.map((run) => ({ type: "optimization" as const, createdAt: run.created_at, run })),
+    ];
+    return merged
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, RECENT_RUNS_LIMIT);
+  }, [backtestItems, optimizationItems]);
 
   const strategyNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -217,10 +243,10 @@ export function DashboardCockpit() {
           <p className="eyebrow">
             <span className="num">03</span> 최근 실행
           </p>
-          <h2 className="section-title">최근 백테스트 {backtestItems.length}건</h2>
+          <h2 className="section-title">최근 실행 {recentRuns.length}건</h2>
           <p className="section-desc">
-            백테스트 원장에서 최근 실행을 상태와 함께 가져왔습니다. 아직 끝나지 않은 실행은 수익률을
-            채우지 않으므로 이 표에는 결과 열을 두지 않습니다.
+            백테스트와 최적화 원장을 각각 최근 순으로 가져와 합쳤습니다. 최적화 결과의 성과는 상세에서
+            확인합니다.
           </p>
         </header>
 
@@ -229,7 +255,7 @@ export function DashboardCockpit() {
             <div>
               <h3 className="card-title">실행 목록</h3>
               <p className="card-sub">
-                최근 {backtestItems.length}건 표시 · 전체{" "}
+                최근 {recentRuns.length}건 표시 · 백테스트 전체{" "}
                 <span className="mono">{backtestTotal}</span>건.
               </p>
             </div>
@@ -242,42 +268,53 @@ export function DashboardCockpit() {
                 <RefreshCwIcon aria-hidden="true" />
                 새로고침
               </button>
+              <button
+                className="btn btn-ghost btn-xs"
+                type="button"
+                onClick={() => optimizationsQ.refetch()}
+              >
+                최적화 새로고침
+              </button>
             </div>
           </div>
 
-          {backtestsQ.isLoading ? (
-            <RunsSkeleton />
-          ) : backtestsQ.isError ? (
+          <div className="report-meta" aria-label="실행 원장 상태">
+            {backtestsQ.isError ? <span className="chip warn">백테스트 확인 불가</span> : null}
+            {optimizationsQ.isError ? <span className="chip warn">최적화 확인 불가</span> : null}
+          </div>
+
+          {backtestsQ.isLoading && optimizationsQ.isLoading ? (
+            <RunsSkeleton columns={8} />
+          ) : recentRuns.length === 0 && backtestsQ.isError && optimizationsQ.isError ? (
             <div className="card-body">
               <StateBox
                 tone="failed"
                 testId="runs-error"
                 icon={<AlertTriangleIcon />}
-                title="실행 목록을 불러오지 못했습니다."
-                body={
-                  backtestsQ.error
-                    ? backtestsQ.error.message
-                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
-                }
-                code={RUNS_ENDPOINT}
+                title="실행 원장을 불러오지 못했습니다."
+                body="백테스트와 최적화 원장이 모두 확인 불가입니다."
+                code={`${RUNS_ENDPOINT} · ${OPTIMIZATION_RUNS_ENDPOINT}`}
               >
                 <button
                   className="btn btn-ghost"
                   type="button"
-                  onClick={() => backtestsQ.refetch()}
+                  onClick={() => {
+                    void backtestsQ.refetch();
+                    void optimizationsQ.refetch();
+                  }}
                 >
                   <RefreshCwIcon aria-hidden="true" />
                   다시 시도
                 </button>
               </StateBox>
             </div>
-          ) : backtestItems.length === 0 ? (
+          ) : recentRuns.length === 0 ? (
             <div className="card-body">
               <StateBox
                 testId="runs-empty"
                 icon={<InboxIcon />}
-                title="아직 실행한 백테스트가 없습니다."
-                body="전략을 선택하고 기간을 설정하면 첫 백테스트 결과를 받을 수 있습니다."
+                title="아직 실행한 작업이 없습니다."
+                body="전략을 선택하고 기간을 설정하면 첫 백테스트 또는 최적화를 실행할 수 있습니다."
               >
                 <Link className="btn btn-primary btn-xs" href="/backtests/new">
                   첫 백테스트 실행
@@ -288,14 +325,16 @@ export function DashboardCockpit() {
             <div className="table-wrap">
               <table
                 className="trades runs-table"
-                aria-label={`최근 백테스트 실행 ${backtestItems.length}건`}
+                aria-label={`최근 실행 ${recentRuns.length}건`}
               >
                 <thead>
                   <tr>
                     <th scope="col">실행 ID</th>
+                    <th scope="col">유형</th>
                     <th scope="col">전략</th>
                     <th scope="col">심볼 · 주기</th>
-                    <th scope="col">기간</th>
+                    <th scope="col" className="num">수익률</th>
+                    <th scope="col" className="num">MDD</th>
                     <th scope="col" className="col-status">
                       상태
                     </th>
@@ -303,32 +342,13 @@ export function DashboardCockpit() {
                   </tr>
                 </thead>
                 <tbody>
-                  {backtestItems.map((b) => {
-                    // 라벨·톤은 S4 용어 SSOT 에서만 온다 (원시 enum 렌더 금지).
-                    const { label, tone, showCheckIcon } = BACKTEST_STATUS_LABEL[b.status];
-                    return (
-                      <tr key={b.id} data-testid={`run-row-${b.id}`} data-status={b.status}>
-                        <td className="mono-l run-id">
-                          <Link href={`/backtests/${b.id}`}>{b.id.slice(0, 8)}</Link>
-                        </td>
-                        <td>{strategyNameById.get(b.strategy_id) ?? EMPTY_CELL}</td>
-                        <td className="mono-l">
-                          {b.symbol} · {b.timeframe}
-                        </td>
-                        <td className="mono-l">
-                          {formatDateTime(b.period_start)}
-                          <span className="run-sub">~ {formatDateTime(b.period_end)}</span>
-                        </td>
-                        <td className="col-status">
-                          <span className={CHIP_TONE_CLASS[tone]}>
-                            {showCheckIcon ? <CheckIcon /> : null}
-                            {label}
-                          </span>
-                        </td>
-                        <td className="mono-l dim">{formatDateTime(b.created_at)}</td>
-                      </tr>
-                    );
-                  })}
+                  {recentRuns.map((recent) => (
+                    <RecentRunRow
+                      key={`${recent.type}-${recent.run.id}`}
+                      recent={recent}
+                      strategyNameById={strategyNameById}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -336,8 +356,8 @@ export function DashboardCockpit() {
 
           <div className="pager">
             <span>
-              백테스트 원장 상위 {backtestItems.length}건을 실행 시각 내림차순으로 보여 줍니다.
-              전체는 <span className="mono">{backtestTotal}</span>건입니다.
+              각 원장의 상위 {RECENT_RUNS_LIMIT}건을 실행 시각 내림차순으로 합쳐 보여 줍니다.
+              백테스트 전체는 <span className="mono">{backtestTotal}</span>건입니다.
             </span>
             <Link className="btn btn-ghost btn-xs" href="/backtests">
               백테스트 전체 보기
@@ -354,8 +374,8 @@ export function DashboardCockpit() {
           </p>
           <h2 className="section-title">등록한 전략 {strategyCount}종</h2>
           <p className="section-desc">
-            아카이브하지 않은 전략입니다. 성과는 각 전략의 백테스트 결과에서 보므로, 여기서는 식별
-            정보만 보여 줍니다.
+            각 전략의 가장 최근 완료 백테스트 결과입니다. 어떤 실행의 값인지 실행 ID와 완료 시각을
+            함께 밝힙니다.
           </p>
         </header>
 
@@ -407,35 +427,10 @@ export function DashboardCockpit() {
               </StateBox>
             </div>
           ) : (
-            <div className="table-wrap">
-              <table
-                className="trades runs-table"
-                aria-label={`전략 목록 ${strategyItems.length}종`}
-              >
-                <thead>
-                  <tr>
-                    <th scope="col">전략</th>
-                    <th scope="col">심볼 · 주기</th>
-                    <th scope="col">태그</th>
-                    <th scope="col">수정 시각</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {strategyItems.map((s) => (
-                    <tr key={s.id} data-testid={`strategy-row-${s.id}`}>
-                      <td className="run-id">
-                        <Link href={`/strategies/${s.id}/edit`}>{s.name}</Link>
-                      </td>
-                      <td className="mono-l">
-                        {s.symbol ? s.symbol : EMPTY_CELL}
-                        {s.timeframe ? ` · ${s.timeframe}` : ""}
-                      </td>
-                      <td className="dim">{s.tags.length > 0 ? s.tags.join(", ") : EMPTY_CELL}</td>
-                      <td className="mono-l dim">{formatDateTime(s.updated_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div aria-label={`전략 목록 ${strategyItems.length}종`}>
+              {strategyItems.map((strategy) => (
+                <StrategyPerformanceRow key={strategy.id} strategy={strategy} />
+              ))}
             </div>
           )}
         </div>
@@ -454,6 +449,117 @@ export function DashboardCockpit() {
         <span>바 단위 이벤트 루프 엔진</span>
       </footer>
     </main>
+  );
+}
+
+function RecentRunRow({
+  recent,
+  strategyNameById,
+}: {
+  recent: RecentRun;
+  strategyNameById: ReadonlyMap<string, string>;
+}) {
+  if (recent.type === "optimization") {
+    const { label, tone, showCheckIcon } = OPTIMIZATION_STATUS_LABEL[recent.run.status];
+    const strategyName = recent.run.strategy_id
+      ? (strategyNameById.get(recent.run.strategy_id) ?? EMPTY_CELL)
+      : EMPTY_CELL;
+    const symbolTimeframe = recent.run.backtest_symbol
+      ? `${recent.run.backtest_symbol} · ${recent.run.backtest_timeframe ?? EMPTY_CELL}`
+      : EMPTY_CELL;
+    return (
+      <tr data-testid={`run-row-${recent.run.id}`} data-status={recent.run.status}>
+        <td className="mono-l run-id">
+          <Link href={`/optimizer/${recent.run.id}`}>{recent.run.id.slice(0, 8)}</Link>
+        </td>
+        <td>{RECENT_RUN_TYPE_LABEL.optimization}</td>
+        <td>{strategyName}</td>
+        <td className="mono-l">{symbolTimeframe}</td>
+        <td className="num" title="결과는 최적화 상세에서 확인">{EMPTY_CELL}</td>
+        <td className="num" title="결과는 최적화 상세에서 확인">{EMPTY_CELL}</td>
+        <td className="col-status">
+          <span className={CHIP_TONE_CLASS[tone]}>
+            {showCheckIcon ? <CheckIcon /> : null}
+            {label}
+          </span>
+        </td>
+        <td className="mono-l dim">{formatDateTime(recent.run.created_at)}</td>
+      </tr>
+    );
+  }
+
+  const { label, tone, showCheckIcon } = BACKTEST_STATUS_LABEL[recent.run.status];
+  return (
+    <tr data-testid={`run-row-${recent.run.id}`} data-status={recent.run.status}>
+      <td className="mono-l run-id">
+        <Link href={`/backtests/${recent.run.id}`}>{recent.run.id.slice(0, 8)}</Link>
+      </td>
+      <td>{RECENT_RUN_TYPE_LABEL.backtest}</td>
+      <td>{strategyNameById.get(recent.run.strategy_id) ?? EMPTY_CELL}</td>
+      <td className="mono-l">
+        {recent.run.symbol} · {recent.run.timeframe}
+      </td>
+      <MetricValue value={recent.run.metrics_summary?.total_return} format={formatPercent} />
+      <MetricValue value={recent.run.metrics_summary?.max_drawdown} format={formatPercent} />
+      <td className="col-status">
+        <span className={CHIP_TONE_CLASS[tone]}>
+          {showCheckIcon ? <CheckIcon /> : null}
+          {label}
+        </span>
+      </td>
+      <td className="mono-l dim">{formatDateTime(recent.run.created_at)}</td>
+    </tr>
+  );
+}
+
+function MetricValue({ value, format }: { value: number | null | undefined; format: (value: number) => string }) {
+  return <td className="num">{value == null ? EMPTY_CELL : format(value)}</td>;
+}
+
+function StrategyPerformanceRow({ strategy }: { strategy: StrategyListItem }) {
+  const latest = strategy.latest_backtest;
+  const metrics = latest?.metrics;
+  const totalReturn = metrics?.total_return;
+  const returnPct = totalReturn == null ? null : totalReturn * 100;
+  const meterPct = returnPct == null ? null : Math.max(0, Math.min(returnPct, METER_CAP_PCT));
+  const meterWidth = meterPct == null ? 0 : (meterPct / METER_CAP_PCT) * 100;
+  const basis = meterPct == null ? null : `${returnPct!.toFixed(2)} / ${METER_CAP_PCT.toFixed(2)} = ${meterWidth.toFixed(1)}%`;
+
+  return (
+    <div className="perf-row" data-testid={`strategy-row-${strategy.id}`}>
+      <div className="perf-id">
+        <Link className="perf-name" href={`/strategies/${strategy.id}/edit`}>
+          {strategy.name}
+        </Link>
+        <div className="perf-meta">
+          <span className="chip">
+            {strategy.symbol ?? EMPTY_CELL} · {strategy.timeframe ?? EMPTY_CELL}
+          </span>
+          {latest ? <span className="chip">{latest.backtest_id.slice(0, 8)}</span> : null}
+          {latest?.completed_at ? <span className="chip">{formatDateTime(latest.completed_at)}</span> : null}
+        </div>
+      </div>
+      <div className="perf-figure" title={latest == null ? "완료 실행 없음" : undefined}>
+        <span className="k">최근 수익률</span>
+        <span className={`v ${totalReturn != null && totalReturn > 0 ? "pos" : totalReturn != null && totalReturn < 0 ? "neg" : ""}`}>
+          {totalReturn == null ? EMPTY_CELL : formatPercent(totalReturn)}
+        </span>
+      </div>
+      <div className="perf-figure" title={latest == null ? "완료 실행 없음" : undefined}>
+        <span className="k">샤프</span>
+        <span className="v">{metrics?.sharpe_ratio == null ? EMPTY_CELL : metrics.sharpe_ratio.toFixed(2)}</span>
+      </div>
+      <div className="perf-bar" title={latest == null ? "완료 실행 없음" : undefined}>
+        {meterPct == null ? (
+          <p className="perf-note">완료 실행 없음</p>
+        ) : (
+          <>
+            <div className="meter bull"><span style={{ width: `${meterWidth}%` }} /></div>
+            <p className="perf-basis">{basis}</p>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

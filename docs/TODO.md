@@ -1,11 +1,43 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-24 (opspack-ws2 스프린트 — 정비 팩 6종 + WS Tier 2)
-> **Active Sprint:** **opspack-ws2** — 구현·검증 완료, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/opspack-ws2` (main @ `6edc8e9` 베이스)
-> **Sprint type:** A/B 혼합 (정비 팩 + 신규 스트림) — codex 7-generator 2단계(★단계 게이트) + Claude 적대 평가 + codex G0/최종 diff + Opus MCP dogfood
+> **Last Updated:** 2026-07-24 (perf-surface 스프린트 — 성과 표면 A1~A4, Phase A)
+> **Active Sprint:** **perf-surface** — 구현·검증 완료, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/perf-surface` (main @ `b023ce5` 베이스)
+> **Sprint type:** 신규 표면 (read-time 파생, 마이그레이션 0) — codex exec 4-워커 2웨이브 + Claude 적대 평가 + codex G0/최종 diff + vercel-react + Opus MCP dogfood
 > **office-hours 진행:** N
-> **Next Trigger:** 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS 1-2h+24h) + BL-071 (Backend prod 배포) + BL-072 (Resend 1-2h+24h) → 실 prod 배포 → BL-073~075 자연 trigger. (2026-05-30 Sprint 63 prep 에서 이월 — 변동 없음.)
+> **Next Trigger:** perf-surface 머지 후 → 짝 문서 `quantbridge-position-cockpit-handoff.md` 로 Phase B 세션. // 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS) + BL-071 (Backend prod 배포) + BL-072 (Resend) → 실 prod 배포 → BL-073~075 자연 trigger.
+
+---
+
+## ⚡ perf-surface 스프린트 (2026-07-24, `docs/perf-surface/`)
+
+**스코프**: 이미 계산돼 있으나 미노출이던 백테스트 성과 지표(`backtests.metrics` JSONB)를 목록/전략목록/대시보드 표면으로 read-time 파생 노출 + 트레이드 상세 구간 OHLCV 미니차트. 2단계 스프린트의 Phase A(Phase B=position-cockpit 별도 세션). 마이그레이션 0.
+
+### Completed
+
+- [x] A1 백테스트 목록 성과 열 — 캐논 11열(종료시각 제거) + read-time `metrics_summary` 파생 + 서버 정렬(order_by/order 화이트리스트, NULLS LAST, aria-sort) + 미청산 부기(total_open_trades>0)
+- [x] A2 전략 목록 성과 3칸 — DISTINCT ON 전략별 최신 COMPLETED 백테스트 metric 조인 + CSV 확장 + 무완료 `—`
+- [x] A3 대시보드 §03 백테스트+최적화 병합(유형 파생 라벨·per-panel 정직성·C5 optimizer denormalize) + §04 per-strategy 성과 미터(latest_backtest 재사용, 추가 페치 0, min(return,150)/150 clamp)
+- [x] A4 트레이드 상세 구간 미니차트 — `GET /backtests/{id}/trades/{index}/ohlcv`(±4봉·stride≤500·first/last/entry/exit 보존) + TradingChart 재사용(펼침 마운트 fetch 게이트)
+- [x] 리포트 시맨틱 각주 — 총수익률(기말 미청산·펀딩 반영) vs 순손익(실현분)
+- [x] 게이트: BE **2557**(+24)·FE **1056**(+12)·ruff/mypy/tsc/lint 0·canon **32 불변**·authed **64**(+1, /backtests 11열 구조 e2e)·마이그레이션 0(alembic 무변경)
+- [x] 검증: codex G0(REVISE 6 반영·1 기각) → 워커별 Claude 적대 평가 4/4 PASS → codex 최종 누적 diff(P1 4 + vercel 1 + e2e 회귀 1 해소) → Opus MCP 실브라우저 dogfood 3점 오라클(psql↔목록↔리포트 일치, 모순표본 4a3bb5d3/8f6ba11a 미청산 부기 실증) + 실버그 1(open-trade 차트 라벨) 즉시 수정
+- [x] BL: 신규 BL-427~430 등재
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- ~~[확인 필요] 백테스트 리포트 총수익률(+) vs 순손익(−) 표면 모순~~ → ✅ **해소(버그 아님)**: total_return=(실현+기말 미청산 open_pnl−펀딩)/초기자본, net_profit_abs=closed 만(`v2_adapter.py:543/656/712`). psql 표본 2건 소수 10자리 일치. 해소책=미청산 부기/각주(perf-surface A1/리포트에 반영 완료).
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [ ] stage/perf-surface → main PR 사용자 squash
+- [ ] Phase B = position-cockpit (짝 문서, 본 PR 머지 전제)
+- [ ] (이월) 다음 deepen = tasks 도메인
 
 ---
 

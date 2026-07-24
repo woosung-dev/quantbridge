@@ -5,7 +5,7 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-24 (**opspack-ws2 스프린트** — BL-417/418/419/421/422 Resolved + 신규 BL-423~426. 정비 팩 6종 + WS Tier 2 public ticker·미실현 P&L)
+**최종 갱신:** 2026-07-24 (**perf-surface 스프린트** — 신규 BL-427~430. 성과 표면 A1~A4 read-time 파생. 코드 변경 없는 후속 후보만.) // 이전: opspack-ws2 — BL-417/418/419/421/422 Resolved + 신규 BL-423~426.
 **직전 갱신:** 2026-07-23 (**functional-parity 스프린트** — BL-401/BL-402/BL-411 Resolved + 신규 BL-413~416. C 이식 후 기능 격차 마감: 주문취소 배선 A2 + nav-count B2 + backtest_count B1 + 스트레스 복원 A7-lite)
 **현재 상태:** **51 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적; 2026-06-30 backtest-deepen +5 BL-387~391 → 45 → 50; 2026-06-30 stress_test-deepen +1 BL-392 → 51). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
@@ -1568,6 +1568,66 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **원인 / 영향:** reconcile 이 활성 계정마다 장기 private stream 을 enqueue 하는데 계정 수 상한이 없어, 계정 N+1 > concurrency(3) 이면 public ticker 태스크가 큐에서 기아. 또한 60s refresh/lease-lost 루프는 코드 정독+프로브로만 검증(직접 단위 테스트 없음).
 
 **권장 접근:** singleton public ticker 를 별도 큐·concurrency 1 워커로 분리하거나 계정 수 기반 concurrency 산정 + starvation 회귀 테스트. refresh 루프 유닛 동반.
+
+---
+
+### BL-427
+
+**Title:** 전략 목록 파라미터 열 / 수명주기 칩(초안·검증·배포) 미렌더 — 백엔드 스키마 부재
+**Category:** Frontend / backend schema
+**Priority:** P3
+**Trigger:** 전략 파라미터/수명주기 UI 요구 시
+**Est:** M (4-8h, BE 스키마 + FE)
+**출처:** 2026-07-24 perf-surface (캐논 프로토타입엔 존재하나 StrategyListItem 스키마에 파라미터·lifecycle 필드 없음 → §4.9 미렌더 유지)
+
+**원인 / 영향:** 캐논 screen 은 전략별 파라미터 요약 + 수명주기 칩을 그리나, `StrategyListItem` 에 해당 필드가 없어 perf-surface 는 성과 3칸만 노출하고 파라미터/칩은 의도적으로 미렌더. 데이터 모델 확장 전까지 표면 불가.
+
+**권장 접근:** Strategy 파라미터 요약 + lifecycle 상태를 list 응답에 파생/영속 후 FE 칩 렌더. 스키마 우선.
+
+---
+
+### BL-428
+
+**Title:** 트레이드 구간 미니차트 share 페이지 미지원
+**Category:** Frontend
+**Priority:** P3
+**Trigger:** 공개 share 리포트에 구간 차트 요구 시
+**Est:** M (owner-authed OHLCV 엔드포인트를 token 기반 공개 경로로 확장)
+**출처:** 2026-07-24 perf-surface A4 (TradeDetailTable 은 owner-authed `/trades/{i}/ohlcv` 사용 → share 페이지는 미렌더가 정직. 현재 share 는 trade 표 자체가 없음)
+
+**원인 / 영향:** 미니차트 fetch 는 owner-authed 엔드포인트라 share(token) 컨텍스트에서 401. 현재 share 페이지는 Stat 카드+EquitySparkline 만 있고 trade 표가 없어 무해하나, 향후 share 에 trade 상세 도입 시 차트 공백.
+
+**권장 접근:** token 기반 공개 OHLCV 조회 경로(민감도 낮음 — 과거 시세) 또는 share 렌더 시 차트 명시적 비활성 + 안내.
+
+---
+
+### BL-429
+
+**Title:** 대시보드 §03 최적화 완료행 수익률/MDD 역산 미표시(`—` 고정)
+**Category:** Frontend / backend
+**Priority:** P3
+**Trigger:** 대시보드에서 최적화 best 성과를 목록 단계에서 보고 싶을 때
+**Est:** S-M (best_params 대응 backtest metric 역산 또는 denormalize)
+**출처:** 2026-07-24 perf-surface A3 (§03 병합에서 최적화 행은 수익률/MDD 를 `—`+"결과는 최적화 상세에서 확인" 으로 고정. best 지표 역산은 후속)
+
+**원인 / 영향:** OptimizationRun 은 param_space/result(iterations) 만 보유, best 조합의 백테스트 metric 은 목록에 없어 §03 최적화 행 성과 칸이 빈칸. 정직하나 정보 밀도 낮음.
+
+**권장 접근:** result 의 best_params → 대응 backtest metric 매핑을 denormalize 하거나 best objective_value 만이라도 표기.
+
+---
+
+### BL-430
+
+**Title:** 전략 목록 성과 정렬(수익률/샤프) SORT_OPTIONS 미제공
+**Category:** Frontend
+**Priority:** P3
+**Trigger:** 전략을 최근 성과 순으로 정렬하고 싶을 때
+**Est:** S (2-3h; BE latest_backtest 정렬 축 + FE SORT_OPTIONS 확장)
+**출처:** 2026-07-24 perf-surface A2 stretch 미실행 (SORT_OPTIONS 는 recent/name 만; 성과 3칸은 표기만, 정렬 축 부재)
+
+**원인 / 영향:** 성과 열은 노출됐으나 전략 목록은 마지막수정/이름 정렬만 지원. latest_backtest 성과 기준 정렬 부재로 우열 비교가 목록 단계에서 제한적.
+
+**권장 접근:** `latest_completed_by_strategy_ids` 결과를 정렬 축으로 노출(서버 정렬) + FE SORT_OPTIONS 에 수익률/샤프 추가. 클라 정렬은 페이지 한정이라 지양.
 
 ---
 
