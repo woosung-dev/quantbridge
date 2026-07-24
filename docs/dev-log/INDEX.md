@@ -10,14 +10,18 @@
 
 > 새 AI 세션 5 분 onboarding 용. 상세는 §H2 Sprint 섹션 또는 해당 dev-log 파일.
 
-| Sprint | 날짜          | 한 줄 요약                                                                                                                                                                                          | 상태                      |
-| ------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| **59** | 2026-05-13    | Tier 1/2 Refactor Audit Cleanup — 5 PR 묶음 (`_worker_engine` SSOT / Pine v1 demolition / BACKLOG 압축 / 158 BL → 13 Active 트리아주 / backtest-form 866→232L 5-split). Net deletion ~6,000+ lines. | ✅ 완료 (main TBD)        |
-| **58** | 2026-05-11~12 | BL-241/242/243 Pine TA 확장 (ta.wma/hma/bb/cross/mom/obv+fixnan + strategy.equity + UTC 라벨) + PR #267 SignalExtractor + PR #268 alertcondition()                                                  | ✅ 완료 (main @`f8cae55`) |
-| **57** | 2026-05-11    | BL-234 Optimizer Polish (prior=normal / one_hot / roulette) + BL-237 optimizer_heavy queue                                                                                                          | ✅ 완료 (main @`38016bf`) |
-| **56** | 2026-05-11    | ADR-013 Genetic executor 본격 (GA self-implementation, 외부 dep 0) + chore BL-238/239/240 CI/CD prereq                                                                                              | ✅ 완료 (main @`5cb2767`) |
+| Sprint            | 날짜          | 한 줄 요약                                                                                                                                                                                 | 상태                           |
+| ----------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| **perf-surface**  | 2026-07-24    | 성과 표면 A1~A4 — 백테스트/전략 목록 성과 열 + 대시보드 병합·per-strategy 미터 + 트레이드 구간 OHLCV 미니차트 (read-time 파생, 마이그레이션 0). codex 4-워커 2웨이브 + dogfood 3점 오라클. | ✅ 완료 (stage→main PR 대기)   |
+| **opspack-ws2**   | 2026-07-24    | 정비 팩 6종 (beat 권한 영구픽스·BL-417 drop·pending 시맨틱·payload 계약) + WS Tier 2 (public ticker·미실현 P&L).                                                                           | ✅ 완료 (main @`b023ce5` #470) |
+| **tier-c**        | 2026-07-24    | Tier C 4종 (펀딩 노출·포지션 대조·알림 규칙·베이지안 prior) + WS Tier 1 (인바운드 서버·팬아웃 13지점).                                                                                     | ✅ 완료 (main @`6edc8e9` #469) |
+| functional-parity | 2026-07-23    | C 이식 후 기능 격차 마감 (취소 배선·nav-count·backtest_count·스트레스 복원 + 잠복 P1 2).                                                                                                   | ✅ 완료 (main @`16c8f20` #468) |
+| **59**            | 2026-05-13    | (5~6월 이전) Tier 1/2 Refactor Audit Cleanup — 5 PR 묶음. 이후 c-language-port(#463/#464) → functional-parity 로 이어짐.                                                                   | ✅ 완료                        |
+| **58**            | 2026-05-11~12 | BL-241/242/243 Pine TA 확장 (ta.wma/hma/bb/cross/mom/obv+fixnan + strategy.equity + UTC 라벨) + PR #267 SignalExtractor + PR #268 alertcondition()                                         | ✅ 완료 (main @`f8cae55`)      |
+| **57**            | 2026-05-11    | BL-234 Optimizer Polish (prior=normal / one_hot / roulette) + BL-237 optimizer_heavy queue                                                                                                 | ✅ 완료 (main @`38016bf`)      |
+| **56**            | 2026-05-11    | ADR-013 Genetic executor 본격 (GA self-implementation, 외부 dep 0) + chore BL-238/239/240 CI/CD prereq                                                                                     | ✅ 완료 (main @`5cb2767`)      |
 
-**다음 분기 (Sprint 60):** dogfood Day 7 인터뷰 (2026-05-16, 사용자 manual) 결과 + 본인 의지 second gate → 4-way 분기 (Beta 본격 BL-070~075 / 잔여 active BL / mainnet BL-003+005 / trust-breaking bug fix). 상세는 [`../TODO.md`](../TODO.md).
+**다음 분기:** perf-surface 머지 후 → Phase B = position-cockpit (짝 문서 `quantbridge-position-cockpit-handoff.md`, 본 PR 머지 전제). 별도 사용자 manual = Beta 본격 BL-070~075 / mainnet BL-003. 상세는 [`../TODO.md`](../TODO.md).
 
 ---
 
