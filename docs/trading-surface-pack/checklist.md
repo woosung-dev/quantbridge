@@ -37,10 +37,10 @@
 - [x] FE build ✓ (22/22 static)
 - [x] 최종 codex 누적 diff 1회 → MAJOR 1(청산 leverage cap-bypass) → 포지션값 fix + 재검증(BE 2601)
 - [x] 재게이트: BE 2601 / FE 1083 / ruff·mypy·tsc·lint 0 / authed 66·canon 32(flaky /backtests 재시도 pass) / build ✓ / alembic 무변경
-- [ ] push(QB_PRE_PUSH_BYPASS=1) + PR(stage/trading-surface → main, squash=사용자)
+- [x] push(QB_PRE_PUSH_BYPASS=1) + PR **#473**(stage/trading-surface → main, squash=사용자 대기)
 
 ## §8 마감
 
 - [x] docs/trading-surface-pack/{operating-contract,context-notes,checklist}.md
 - [x] TODO.md 섹션 + BL-431/416/425/432/433 Resolved + 신규 BL-434~436 + dev-log INDEX
-- [ ] 메모리 갱신
+- [x] 메모리 갱신 (project_trading_surface_pack_sprint_20260724 + MEMORY.md)
