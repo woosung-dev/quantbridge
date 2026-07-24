@@ -28,8 +28,9 @@ const exchangePosition = {
   entry_price: "100",
   mark_price: "110",
   unrealized_pnl: "1",
-  take_profit_price: null,
-  stop_loss_price: null,
+  take_profit_prices: [],
+  stop_loss_prices: [],
+  has_trailing_stop: false,
   liquidation_price: "50",
   leverage: "10",
 };

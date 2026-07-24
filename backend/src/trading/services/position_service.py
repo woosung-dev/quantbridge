@@ -13,7 +13,11 @@ from fastapi import HTTPException
 from src.common.redis_client import get_redis_lock_pool
 from src.strategy.repository import StrategyRepository
 from src.trading.models import ExchangeMode, ExchangeName
-from src.trading.providers import BybitFuturesProvider, PositionSnapshot
+from src.trading.providers import (
+    BybitFuturesProvider,
+    ConditionalOrderSnapshot,
+    PositionSnapshot,
+)
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.schemas import (
@@ -30,6 +34,32 @@ _MarketType = Literal["futures", "spot"]
 _Verdict = Literal[
     "match", "qty_mismatch", "side_mismatch", "exchange_only", "local_only", "unknown"
 ]
+
+
+def position_snapshot_cache_key(session_id: UUID) -> str:
+    """세션별 거래소 포지션 스냅샷 Redis 키를 만든다."""
+    return f"qb_pos_snapshot:{session_id}"
+
+
+def _merged_prices(
+    kind: str,
+    full_price: Decimal | None,
+    belonging_orders: list[ConditionalOrderSnapshot],
+    mark_price: Decimal | None,
+) -> list[str]:
+    """포지션 부착값과 조건부 주문 가격을 표시 순서로 합친다."""
+    conditional_prices = [
+        price
+        for order in belonging_orders
+        if order.kind == kind
+        for price in [order.price if order.price is not None else order.trigger_price]
+        if price is not None and price != full_price
+    ]
+    if mark_price is not None:
+        mark = mark_price
+        conditional_prices.sort(key=lambda price: abs(price - mark))
+    values = ([full_price] if full_price is not None else []) + conditional_prices
+    return [str(price) for price in values]
 
 
 def _get_position_redis_pool() -> Any:
@@ -85,23 +115,51 @@ class PositionService:
         if unsupported is not None:
             return unsupported
 
-        positions, fetched_at = await self._cached_exchange_positions(
+        positions, conditional_orders, fetched_at = await self._cached_exchange_positions(
             session_id, account.id, session.symbol
         )
-        position_schemas = [
-            ExchangePositionSchema(
-                side=position.side,
-                size=position.size,
-                entry_price=position.entry_price,
-                mark_price=position.mark_price,
-                unrealized_pnl=position.unrealized_pnl,
-                liquidation_price=position.liquidation_price,
-                leverage=position.leverage,
-                take_profit_price=self._decimal_string(position.take_profit_price),
-                stop_loss_price=self._decimal_string(position.stop_loss_price),
+        position_schemas = []
+        for position in positions:
+            reducing_side = (
+                "sell"
+                if position.side == "long"
+                else "buy"
+                if position.side == "short"
+                else None
             )
-            for position in positions
-        ]
+            belonging_orders = [
+                order
+                for order in conditional_orders
+                if order.reduce_only
+                and order.side == reducing_side
+                and (order.position_idx or 0) == (position.position_idx or 0)
+            ]
+
+            position_schemas.append(
+                ExchangePositionSchema(
+                    side=position.side,
+                    size=position.size,
+                    entry_price=position.entry_price,
+                    mark_price=position.mark_price,
+                    unrealized_pnl=position.unrealized_pnl,
+                    liquidation_price=position.liquidation_price,
+                    leverage=position.leverage,
+                    take_profit_prices=_merged_prices(
+                        "tp",
+                        position.take_profit_price,
+                        belonging_orders,
+                        position.mark_price,
+                    ),
+                    stop_loss_prices=_merged_prices(
+                        "sl",
+                        position.stop_loss_price,
+                        belonging_orders,
+                        position.mark_price,
+                    ),
+                    has_trailing_stop=position.trailing_stop is not None
+                    or any(order.kind == "trail" for order in belonging_orders),
+                )
+            )
         return LiveSessionPositionsResponse(
             session_id=session_id,
             symbol=session.symbol,
@@ -165,21 +223,24 @@ class PositionService:
 
     async def _cached_exchange_positions(
         self, session_id: UUID, account_id: UUID, symbol: str
-    ) -> tuple[list[PositionSnapshot], datetime]:
-        cache_key = f"qb_pos_snapshot:{session_id}"
+    ) -> tuple[list[PositionSnapshot], list[ConditionalOrderSnapshot], datetime]:
+        cache_key = position_snapshot_cache_key(session_id)
         cached = await self._read_cache(cache_key)
         if cached is not None:
             return cached
 
         credentials = await self._account_service.get_credentials_for_order(account_id)
         positions = await self._bybit_futures_provider.fetch_open_positions(credentials, symbol)
+        conditional_orders = await self._bybit_futures_provider.fetch_open_conditional_orders(
+            credentials, symbol
+        )
         fetched_at = datetime.now(UTC)
-        await self._write_cache(cache_key, positions, fetched_at)
-        return positions, fetched_at
+        await self._write_cache(cache_key, positions, conditional_orders, fetched_at)
+        return positions, conditional_orders, fetched_at
 
     async def _read_cache(
         self, cache_key: str
-    ) -> tuple[list[PositionSnapshot], datetime] | None:
+    ) -> tuple[list[PositionSnapshot], list[ConditionalOrderSnapshot], datetime] | None:
         try:
             raw = await _get_position_redis_pool().get(cache_key)
             if raw is None:
@@ -188,6 +249,9 @@ class PositionService:
             payload = json.loads(decoded)
             fetched_at = datetime.fromisoformat(payload["fetched_at"])
             if fetched_at.tzinfo is None:
+                return None
+            conditional_order_items = payload.get("conditional_orders")
+            if not isinstance(conditional_order_items, list):
                 return None
             positions = [
                 PositionSnapshot(
@@ -208,16 +272,43 @@ class PositionService:
                     stop_loss_price=Decimal(item["stop_loss_price"])
                     if item["stop_loss_price"] is not None
                     else None,
+                    position_idx=int(item.get("position_idx"))
+                    if item.get("position_idx") is not None
+                    else None,
+                    trailing_stop=Decimal(item.get("trailing_stop"))
+                    if item.get("trailing_stop") is not None
+                    else None,
                 )
                 for item in payload["positions"]
             ]
-            return positions, fetched_at
+            conditional_orders = [
+                ConditionalOrderSnapshot(
+                    order_id=item["order_id"],
+                    side=item["side"],
+                    kind=item["kind"],
+                    price=Decimal(item["price"]) if item["price"] is not None else None,
+                    trigger_price=Decimal(item["trigger_price"])
+                    if item["trigger_price"] is not None
+                    else None,
+                    qty=Decimal(item["qty"]) if item["qty"] is not None else None,
+                    reduce_only=item["reduce_only"],
+                    position_idx=int(item["position_idx"])
+                    if item["position_idx"] is not None
+                    else None,
+                )
+                for item in conditional_order_items
+            ]
+            return positions, conditional_orders, fetched_at
         except Exception as exc:
             logger.warning("position_snapshot_cache_read_failed", extra={"error": type(exc).__name__})
             return None
 
     async def _write_cache(
-        self, cache_key: str, positions: list[PositionSnapshot], fetched_at: datetime
+        self,
+        cache_key: str,
+        positions: list[PositionSnapshot],
+        conditional_orders: list[ConditionalOrderSnapshot],
+        fetched_at: datetime,
     ) -> None:
         payload = {
             "fetched_at": fetched_at.isoformat(),
@@ -232,8 +323,23 @@ class PositionService:
                     "leverage": self._decimal_string(position.leverage),
                     "take_profit_price": self._decimal_string(position.take_profit_price),
                     "stop_loss_price": self._decimal_string(position.stop_loss_price),
+                    "position_idx": position.position_idx,
+                    "trailing_stop": self._decimal_string(position.trailing_stop),
                 }
                 for position in positions
+            ],
+            "conditional_orders": [
+                {
+                    "order_id": order.order_id,
+                    "side": order.side,
+                    "kind": order.kind,
+                    "price": self._decimal_string(order.price),
+                    "trigger_price": self._decimal_string(order.trigger_price),
+                    "qty": self._decimal_string(order.qty),
+                    "reduce_only": order.reduce_only,
+                    "position_idx": order.position_idx,
+                }
+                for order in conditional_orders
             ],
         }
         try:
