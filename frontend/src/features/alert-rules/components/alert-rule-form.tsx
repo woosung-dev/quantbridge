@@ -19,10 +19,12 @@ import { useCreateAlertRule } from "../hooks";
 import {
   AlertRuleCreateRequestSchema,
   type AlertRuleCreateRequest,
+  type AlertRuleType,
 } from "../schemas";
 
 interface AlertRuleFormProps {
   sessionId: string;
+  activeRuleTypes: readonly AlertRuleType[];
   onSuccess?: () => void;
 }
 
@@ -41,7 +43,7 @@ function isDuplicateActiveRule(error: unknown): boolean {
   );
 }
 
-export function AlertRuleForm({ sessionId, onSuccess }: AlertRuleFormProps) {
+export function AlertRuleForm({ sessionId, activeRuleTypes, onSuccess }: AlertRuleFormProps) {
   const createRule = useCreateAlertRule(sessionId);
   const [serverError, setServerError] = useState<string | null>(null);
   const form = useForm<AlertRuleCreateRequest>({
@@ -56,6 +58,10 @@ export function AlertRuleForm({ sessionId, onSuccess }: AlertRuleFormProps) {
 
   const onSubmit = async (values: AlertRuleCreateRequest): Promise<void> => {
     setServerError(null);
+    if (activeRuleTypes.includes(values.rule_type)) {
+      setServerError("이미 같은 유형의 활성 규칙이 있습니다.");
+      return;
+    }
     const request =
       values.rule_type === "loss_limit"
         ? values

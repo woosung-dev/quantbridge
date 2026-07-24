@@ -4,22 +4,26 @@
 // assert 한다. 라벨은 전부 용어 SSOT 에서 오므로 원시 enum 이 새어 나오지 않는지도 함께 본다.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { OrdersBlotter } from "@/app/(dashboard)/orders/_components/orders-blotter";
 import {
   CancelOrderResponseSchema,
   type Order,
 } from "@/features/trading/schemas";
+import type * as TradingHooks from "@/features/trading/hooks";
 
 const mockUseOrders = vi.fn();
 const mockUseCancelOrder = vi.fn();
 const mockCancelOrder = vi.fn();
-vi.mock("@/features/trading/hooks", () => ({
-  useOrders: (...args: unknown[]) => mockUseOrders(...args),
-  useCancelOrder: () => mockUseCancelOrder(),
-  ACTIVE_ORDER_STATES: new Set(["pending", "submitted"]),
-}));
+vi.mock("@/features/trading/hooks", async (importOriginal) => {
+  const actual = await importOriginal<typeof TradingHooks>();
+  return {
+    ...actual,
+    useOrders: (...args: unknown[]) => mockUseOrders(...args),
+    useCancelOrder: () => mockUseCancelOrder(),
+  };
+});
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -48,6 +52,7 @@ function mockReturn(over: Record<string, unknown>) {
   mockUseCancelOrder.mockReturnValue({
     mutate: mockCancelOrder,
     isPending: false,
+    variables: undefined,
   });
   mockUseOrders.mockReturnValue({
     data: undefined,
@@ -216,6 +221,23 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     render(<OrdersBlotter />);
     fireEvent.click(screen.getByRole("button", { name: "주문 취소" }));
     expect(mockCancelOrder).toHaveBeenCalledWith("p");
+  });
+
+  it("진행 중인 취소는 해당 주문 행만 비활성화한다", () => {
+    withOrders([
+      makeOrder({ id: "p", state: "pending", filled_price: null, exchange_order_id: null }),
+      makeOrder({ id: "s", state: "submitted", filled_price: null }),
+    ]);
+    mockUseCancelOrder.mockReturnValue({
+      mutate: mockCancelOrder,
+      isPending: true,
+      variables: "p",
+    });
+
+    render(<OrdersBlotter />);
+
+    expect(within(screen.getByTestId("order-row-p")).getByRole("button", { name: "주문 취소" })).toBeDisabled();
+    expect(within(screen.getByTestId("order-row-s")).getByRole("button", { name: "주문 취소" })).toBeEnabled();
   });
 
   it("202 취소 접수 응답을 파싱한다", () => {

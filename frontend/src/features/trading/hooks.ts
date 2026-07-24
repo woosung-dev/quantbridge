@@ -263,7 +263,9 @@ export function useCancelOrder(): UseMutationResult<CancelOrderResponse, Error, 
         if (error instanceof ApiError && error.status === 409) {
           toast.error("이미 진행된 주문이라 취소할 수 없습니다.");
           void queryClient.invalidateQueries({ queryKey: tradingKeys.ordersPrefix(uid) });
+          return;
         }
+        toast.error("주문 취소에 실패했습니다. 잠시 후 다시 시도해주세요.");
       },
     },
   );

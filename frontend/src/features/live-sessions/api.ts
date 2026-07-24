@@ -4,11 +4,13 @@
 import { apiFetch } from "@/lib/api-client";
 
 import {
+  ClosePositionResponseSchema,
   LiveSessionListResponseSchema,
   LiveSessionPositionsResponseSchema,
   LiveSessionSchema,
   LiveSignalEventListResponseSchema,
   LiveSignalStateSchema,
+  type ClosePositionResponse,
   type LiveSession,
   type LiveSessionPositions,
   type LiveSignalEvent,
@@ -87,4 +89,15 @@ export async function getLiveSessionPositions(
     token,
   });
   return LiveSessionPositionsResponseSchema.parse(raw);
+}
+
+export async function closePosition(
+  sessionId: string,
+  token: string | null,
+): Promise<ClosePositionResponse> {
+  const raw = await apiFetch<unknown>(`${LIVE_SESSIONS_PATH}/${sessionId}/positions/close`, {
+    method: "POST",
+    token,
+  });
+  return ClosePositionResponseSchema.parse(raw);
 }

@@ -13,6 +13,7 @@ export {
   listLiveSessions,
   registerLiveSession,
   deactivateLiveSession,
+  closePosition,
   getLiveSessionState,
   listLiveSessionEvents,
 } from "./api";
@@ -24,9 +25,11 @@ export {
   useLiveSessionEvents,
   useRegisterLiveSession,
   useDeactivateLiveSession,
+  useClosePosition,
   type LiveSessionsAggregate,
   type LiveSessionsPositionsAggregate,
   type LiveSessionPositionRow,
+  type ClosePositionVariables,
 } from "./hooks";
 export {
   computeUnrealizedPnl,
