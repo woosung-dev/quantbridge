@@ -23,10 +23,10 @@
 ## 2. Phase 2 — WS Tier 2 (★Phase 1 게이트 표 전부 ✅ 후에만 착수)
 
 - [x] **op/ws2-s0** — ticker 계약 @ffb0a70. 소형 계약 슬라이스라 오케스트레이터 인라인 적대 검증(diff 전문 + split-limit 쌍둥이 반증 + DB 게이트 재현 62+13 그린)으로 갈음 — context-notes #16
-- [ ] **op/ws2-stream** — private 3-seam 파라미터화(기존 테스트 무수정 green) + bybit_public_stream.py(delta 병합·1s 스로틀) + 태스크(lease `ws:lease:public-ticker`·60s refresh·no_symbols 종료) + reconcile 확장 + register 킥 + 큐 라우팅 이중 선언+단정 테스트 + compose concurrency 3
-- [ ] **op/ws2-fanout** — manager psubscribe ticker 패턴 + 전원 브로드캐스트 + 테스트
-- [ ] **op/ws2-fe** — store ticker slice(identity 회귀) + handlers + unrealized.ts + 코크핏 "총 세션"→"미실현 손익 · 추정" 교체 + dashboard foot + stale 배지 + authed 갱신
-- [ ] **P2 통합** — cherry-pick(s0→stream→fanout→fe) + 게이트 풀런
+- [x] **op/ws2-stream** — 적대평가 ACCEPT(반증 8종 — private 20 무수정 green·순환 import 실증·monotonic 스로틀·DB 포함 312 재현) @9d78371
+- [x] **op/ws2-fanout** — 적대평가 ACCEPT(반증 6종 격추 실패 — mutation-safe 이중 사본·재연결 재구독 직접 재현) @fb4be92
+- [x] **op/ws2-fe** — 적대평가 REVISE 2건(em-dash 래칫·authed 단정 환경 의존) → 오케스트레이터 직접 반영 후 1044 그린 @ee82513
+- [x] **P2 통합** — cherry-pick 3건 클린 + prettier 정규화 @1eaf8a3 + 게이트 풀런 그린
 - [ ] **dogfood D5~D8** — ticker 2계통 오라클 / 미실현 손계산 / 재연결·lease / Opus 실브라우저 콘솔 0
 
 ## 3. 마무리
@@ -37,18 +37,18 @@
 
 ## 4. 게이트 추적
 
-| 게이트                   | baseline (W0 재측정)                      | Phase 1 목표/실측                                                                                    | Phase 2 목표/실측              |
-| ------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------ |
-| FE vitest                | 1019 (177 파일) ✅ 재측정                 | ≈+7 그린 / ✅ **1026**                                                                               | +15~25 그린 / —                |
-| FE tsc / lint / prettier | 0                                         | 0 / ✅ 0·0·0(터치 파일)                                                                              | 0 / —                          |
-| BE pytest (3-env)        | 2489+1 env-fail(→hermetic 픽스) ✅ 재측정 | ≈+7 그린 / ✅ **2502 passed·46 skip**                                                                | +25~35 그린 / —                |
-| BE ruff / mypy           | 0 / 0                                     | 0 / ✅ 0·0 (197 파일)                                                                                | 0 / —                          |
-| e2e:design-canon         | 32                                        | 32 불변 / ✅ **32/32**                                                                               | 32 불변 / —                    |
-| e2e:authed               | 63                                        | 63 (allowlist 강화) / ✅ **63/63** (404 비허용 하 실주행)                                            | 63± (spec 갱신) / —            |
-| alembic up→down→up       | —                                         | 그린 / ✅ dev DB 왕복 2회(평가자·psql DDL 검증) + 테스트 DB 5종 + upgrade 적용(20260724_0002·컬럼 0) | 해당 없음                      |
-| beat 볼륨 재생성 실측    | —                                         | uid 1000·발화 지속 / ✅ 익명볼륨 seed + 재시작 발화                                                  | —                              |
-| DB/외부 오라클           | —                                         | Telegram 실수신 / ✅ D4a 직발송 True + D4b beat 실발화 `fired:1`·throttled·TTL 3597                  | ticker 2계통·미실현 손계산 / — |
-| Opus MCP dogfood         | —                                         | D1~D4 / ✅ **전 항목 PASS** (증거 스크린샷 5종·네트워크·콘솔 덤프)                                   | D5~D8 / —                      |
+| 게이트                   | baseline (W0 재측정)                      | Phase 1 목표/실측                                                                                    | Phase 2 목표/실측                        |
+| ------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| FE vitest                | 1019 (177 파일) ✅ 재측정                 | ≈+7 그린 / ✅ **1026**                                                                               | +15~25 그린 / ✅ **1044** (+18)          |
+| FE tsc / lint / prettier | 0                                         | 0 / ✅ 0·0·0(터치 파일)                                                                              | 0 / ✅ 0·0·0                             |
+| BE pytest (3-env)        | 2489+1 env-fail(→hermetic 픽스) ✅ 재측정 | ≈+7 그린 / ✅ **2502 passed·46 skip**                                                                | +25~35 그린 / ✅ **2531** (+29)          |
+| BE ruff / mypy           | 0 / 0                                     | 0 / ✅ 0·0 (197 파일)                                                                                | 0 / ✅ 0·0 (198 파일)                    |
+| e2e:design-canon         | 32                                        | 32 불변 / ✅ **32/32**                                                                               | 32 불변 / ✅ **32/32**                   |
+| e2e:authed               | 63                                        | 63 (allowlist 강화) / ✅ **63/63** (404 비허용 하 실주행)                                            | 63± / ✅ **63/63** (KPI 단정 환경독립화) |
+| alembic up→down→up       | —                                         | 그린 / ✅ dev DB 왕복 2회(평가자·psql DDL 검증) + 테스트 DB 5종 + upgrade 적용(20260724_0002·컬럼 0) | 해당 없음                                |
+| beat 볼륨 재생성 실측    | —                                         | uid 1000·발화 지속 / ✅ 익명볼륨 seed + 재시작 발화                                                  | —                                        |
+| DB/외부 오라클           | —                                         | Telegram 실수신 / ✅ D4a 직발송 True + D4b beat 실발화 `fired:1`·throttled·TTL 3597                  | ticker 2계통·미실현 손계산 / —           |
+| Opus MCP dogfood         | —                                         | D1~D4 / ✅ **전 항목 PASS** (증거 스크린샷 5종·네트워크·콘솔 덤프)                                   | D5~D8 / —                                |
 
 ## 5. 환경 (재발 방지 실측치 — tier-c 승계)
 
