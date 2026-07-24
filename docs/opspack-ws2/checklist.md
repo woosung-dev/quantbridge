@@ -1,0 +1,59 @@
+<!-- opspack-ws2 스프린트(정비 팩 + WS Tier 2)의 작업 항목·게이트 추적 체크리스트 (SSOT) -->
+
+# opspack-ws2 체크리스트
+
+> 스프린트 정본: `~/.claude/plans/transient-crafting-yeti.md` · 운영 계약: [`operating-contract.md`](operating-contract.md) · 결정 기록: [`context-notes.md`](context-notes.md)
+> 기준 커밋: main @ `6edc8e9` → `stage/opspack-ws2`
+
+## 0. 범위 (사용자 확정 2026-07-24)
+
+- Phase 1 정비 팩 6종(beat 권한·BL-417 제거·BL-421 pending·BL-422·BL-418·BL-419) → ★단계 게이트 → Phase 2 WS Tier 2(public ticker + 미실현 P&L, position 채널 제외).
+- Telegram 실수신 dogfood 편입(env SET 실측). Slack mock 유지.
+
+## 1. Phase 1 — 정비 팩
+
+- [ ] **W0** — stage 브랜치 + 문서 3종 + 베이스라인 재측정(§7.1) + codex G0
+- [ ] **beat /data 권한 (오케스트레이터)** — Dockerfile mkdir+chown 2줄 + compose 주석 + 볼륨 재생성 반증 실측(D1)
+- [ ] **op/contract-core** — BL-417 컬럼 제거(alembic 왕복 포함) + BL-421 200+`evaluated:false` + authed 브로드 4xx allowlist 제거 + BL-419 발행 1줄+spy
+- [ ] **op/alert-ui** — BL-422 ok 상태 추가 어포던스 + `formatThresholdPercent` trimming + 테스트 5건
+- [ ] **op/rt-contract** — BL-418 PAYLOAD_MODELS 발행측 검증 + `qb_rt_publish_invalid_total` + 계약 테스트 4건
+- [ ] **P1 통합** — cherry-pick(beat→core→rt→ui) + prettier --check + 게이트 풀런(커밋 동결)
+- [ ] **P1 dogfood** — D1 beat / D2 state pending / D3 알림 ok / D4 Telegram 실수신
+
+## 2. Phase 2 — WS Tier 2 (★Phase 1 게이트 표 전부 ✅ 후에만 착수)
+
+- [ ] **op/ws2-s0** — ticker 계약(BE Literal+TickerPayload+PAYLOAD_MODELS / FE discriminatedUnion / to_bybit_raw_symbol BE·FE 미러+유닛)
+- [ ] **op/ws2-stream** — private 3-seam 파라미터화(기존 테스트 무수정 green) + bybit_public_stream.py(delta 병합·1s 스로틀) + 태스크(lease `ws:lease:public-ticker`·60s refresh·no_symbols 종료) + reconcile 확장 + register 킥 + 큐 라우팅 이중 선언+단정 테스트 + compose concurrency 3
+- [ ] **op/ws2-fanout** — manager psubscribe ticker 패턴 + 전원 브로드캐스트 + 테스트
+- [ ] **op/ws2-fe** — store ticker slice(identity 회귀) + handlers + unrealized.ts + 코크핏 "총 세션"→"미실현 손익 · 추정" 교체 + dashboard foot + stale 배지 + authed 갱신
+- [ ] **P2 통합** — cherry-pick(s0→stream→fanout→fe) + 게이트 풀런
+- [ ] **dogfood D5~D8** — ticker 2계통 오라클 / 미실현 손계산 / 재연결·lease / Opus 실브라우저 콘솔 0
+
+## 3. 마무리
+
+- [ ] codex read-only 최종 누적 diff 리뷰 1회 (finding §7.3 코드 대조)
+- [ ] `/vercel-react-best-practices` FE 변경분 검토 → eslint+tsc → (수정 시) 스코프 재게이트
+- [ ] 문서 3종 갱신 + TODO.md + BL 등재/해소 → push(`QB_PRE_PUSH_BYPASS=1`) → stage→main PR 1개 (squash 는 사용자)
+
+## 4. 게이트 추적
+
+| 게이트                   | baseline (W0 재측정) | Phase 1 목표/실측       | Phase 2 목표/실측              |
+| ------------------------ | -------------------- | ----------------------- | ------------------------------ |
+| FE vitest                | (재측정 중)          | ≈+7 그린 / —            | +15~25 그린 / —                |
+| FE tsc / lint / prettier | —                    | 0 / —                   | 0 / —                          |
+| BE pytest (3-env)        | (재측정 중)          | ≈+7 그린 / —            | +25~35 그린 / —                |
+| BE ruff / mypy           | —                    | 0 / —                   | 0 / —                          |
+| e2e:design-canon         | 32                   | 32 불변 / —             | 32 불변 / —                    |
+| e2e:authed               | 63                   | 63 (allowlist 강화) / — | 63± (spec 갱신) / —            |
+| alembic up→down→up       | —                    | 그린 (drop column) / —  | 해당 없음                      |
+| beat 볼륨 재생성 실측    | —                    | uid 1000·발화 지속 / —  | —                              |
+| DB/외부 오라클           | —                    | Telegram 실수신 / —     | ticker 2계통·미실현 손계산 / — |
+| Opus MCP dogfood         | —                    | D1~D4 / —               | D5~D8 / —                      |
+
+## 5. 환경 (재발 방지 실측치 — tier-c 승계)
+
+- DB 5436 오버레이 + redis 6380 (스택 가동 중 확인). psql 은 `docker exec quantbridge-db psql -U quantbridge -d quantbridge`.
+- BE pytest **3-env**: `DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5436/quantbridge_test` + `TEST_DATABASE_URL=`(동일) + `TEST_REDIS_LOCK_URL=redis://localhost:6380/3`.
+- FE 3100 + BE `FRONTEND_URL` + `PLAYWRIGHT_BASE_URL=http://localhost:3100`. 정체성 프로브(openapi title/<title>) 없이 오라클 선언 금지.
+- codex sandbox: FE worktree 사전 `pnpm install`, BE 는 메인 `.venv/bin/*` 직접, DB 게이트는 평가자/오케스트레이터.
+- 게이트 풀런 중 stage 커밋 동결. worktree 커밋 lint-staged 미가동 → 통합 시 prettier --check.
