@@ -28,7 +28,13 @@ class _FakeRedis:
         self.values[key] = value
 
 
-def _position(*, side: str = "long", size: str = "1") -> PositionSnapshot:
+def _position(
+    *,
+    side: str = "long",
+    size: str = "1",
+    take_profit_price: Decimal | None = None,
+    stop_loss_price: Decimal | None = None,
+) -> PositionSnapshot:
     return PositionSnapshot(
         side=side,
         size=Decimal(size),
@@ -37,6 +43,8 @@ def _position(*, side: str = "long", size: str = "1") -> PositionSnapshot:
         unrealized_pnl=Decimal("1"),
         liquidation_price=None,
         leverage=Decimal("3"),
+        take_profit_price=take_profit_price,
+        stop_loss_price=stop_loss_price,
     )
 
 
@@ -190,6 +198,26 @@ async def test_reconciliation_cache_hit_skips_provider(monkeypatch):
     assert provider.fetch_open_positions.await_count == 1
 
 
+async def test_reconciliation_serializes_position_tpsl(monkeypatch):
+    from src.trading.services import position_service
+
+    redis = _FakeRedis()
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", lambda: redis)
+    service, user_id, session, provider = _service(
+        report={"open_trades": [{"direction": "long", "qty": 1}]},
+        positions=[_position(take_profit_price=Decimal("110"), stop_loss_price=None)],
+    )
+
+    result = await service.get_reconciliation(user_id, session.id)
+    cached_result = await service.get_reconciliation(user_id, session.id)
+
+    assert result.positions[0].take_profit_price == "110"
+    assert result.positions[0].stop_loss_price is None
+    assert cached_result.positions[0].take_profit_price == "110"
+    assert cached_result.positions[0].stop_loss_price is None
+    provider.fetch_open_positions.assert_awaited_once()
+
+
 async def test_bybit_fetch_open_positions_returns_both_hedge_legs(monkeypatch):
     import ccxt.async_support as ccxt_async
 
@@ -233,3 +261,39 @@ async def test_bybit_fetch_open_positions_returns_both_hedge_legs(monkeypatch):
     assert positions[1].liquidation_price is None
     exchange.fetch_positions.assert_awaited_once_with(["BTC/USDT:USDT"])
     exchange.close.assert_awaited_once()
+
+
+async def test_bybit_fetch_open_positions_normalizes_zero_and_empty_tpsl(monkeypatch):
+    import ccxt.async_support as ccxt_async
+
+    from src.trading.providers import BybitFuturesProvider
+
+    exchange = MagicMock()
+    exchange.fetch_positions = AsyncMock(
+        return_value=[
+            {"contracts": "1", "side": "long", "takeProfitPrice": 0, "stopLossPrice": 0},
+            {"contracts": "1", "side": "long", "takeProfitPrice": "0", "stopLossPrice": "0"},
+            {"contracts": "1", "side": "long", "takeProfitPrice": "", "stopLossPrice": ""},
+            {"contracts": "1", "side": "long", "takeProfitPrice": None, "stopLossPrice": None},
+            {
+                "contracts": "1",
+                "side": "long",
+                "takeProfitPrice": "102.5",
+                "stopLossPrice": "99.5",
+            },
+        ]
+    )
+    exchange.close = AsyncMock()
+    monkeypatch.setattr(ccxt_async, "bybit", MagicMock(return_value=exchange))
+
+    positions = await BybitFuturesProvider().fetch_open_positions(
+        Credentials(api_key="key", api_secret="secret"), "BTC/USDT"
+    )
+
+    assert [(p.take_profit_price, p.stop_loss_price) for p in positions] == [
+        (None, None),
+        (None, None),
+        (None, None),
+        (None, None),
+        (Decimal("102.5"), Decimal("99.5")),
+    ]

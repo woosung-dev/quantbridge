@@ -97,6 +97,8 @@ class PositionService:
                 unrealized_pnl=position.unrealized_pnl,
                 liquidation_price=position.liquidation_price,
                 leverage=position.leverage,
+                take_profit_price=self._decimal_string(position.take_profit_price),
+                stop_loss_price=self._decimal_string(position.stop_loss_price),
             )
             for position in positions
         ]
@@ -200,6 +202,12 @@ class PositionService:
                     if item["liquidation_price"] is not None
                     else None,
                     leverage=Decimal(item["leverage"]) if item["leverage"] is not None else None,
+                    take_profit_price=Decimal(item["take_profit_price"])
+                    if item["take_profit_price"] is not None
+                    else None,
+                    stop_loss_price=Decimal(item["stop_loss_price"])
+                    if item["stop_loss_price"] is not None
+                    else None,
                 )
                 for item in payload["positions"]
             ]
@@ -222,6 +230,8 @@ class PositionService:
                     "unrealized_pnl": self._decimal_string(position.unrealized_pnl),
                     "liquidation_price": self._decimal_string(position.liquidation_price),
                     "leverage": self._decimal_string(position.leverage),
+                    "take_profit_price": self._decimal_string(position.take_profit_price),
+                    "stop_loss_price": self._decimal_string(position.stop_loss_price),
                 }
                 for position in positions
             ],

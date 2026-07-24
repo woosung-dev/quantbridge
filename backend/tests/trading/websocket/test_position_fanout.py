@@ -186,8 +186,9 @@ async def test_redis_delete_failure_does_not_skip_publish(monkeypatch: pytest.Mo
 async def test_router_ignores_acks_and_warns_on_rejected_subscribe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    account_id = uuid4()
     router = PrivateTopicRouter(
-        account_id=uuid4(), state_handler=AsyncMock(), position_handler=AsyncMock()
+        account_id=account_id, state_handler=AsyncMock(), position_handler=AsyncMock()
     )
     # caplog 전역 전파에 의존하면 다른 테스트의 logging.disable 오염에 취약하므로
     # 로거 warning 을 직접 가로채 격리-내성으로 검증한다.
@@ -195,12 +196,17 @@ async def test_router_ignores_acks_and_warns_on_rejected_subscribe(
     monkeypatch.setattr(
         position_fanout.logger, "warning", lambda msg, *a, **k: warnings.append(str(msg))
     )
+    counter = MagicMock()
+    counter.labels.return_value = MagicMock()
+    monkeypatch.setattr(position_fanout, "qb_ws_subscribe_rejected_total", counter)
 
     await router.handle_message({"op": "subscribe", "success": True})
     await router.handle_message({"op": "subscribe", "success": False})
     await router.handle_message({"topic": "unknown", "data": []})
 
     assert [w for w in warnings if "ws_subscribe_rejected" in w]
+    counter.labels.assert_called_once_with(account_id=str(account_id))
+    counter.labels.return_value.inc.assert_called_once()
 
 
 @pytest.mark.asyncio

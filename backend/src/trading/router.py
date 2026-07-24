@@ -22,6 +22,7 @@ from src.common.metrics import qb_active_orders
 from src.trading.dependencies import (
     get_alert_rule_service,
     get_balance_service,
+    get_close_service,
     get_exchange_account_service,
     get_liquidation_service,
     get_live_signal_session_service,
@@ -47,6 +48,7 @@ from src.trading.schemas import (
     AlertRuleCreateRequest,
     AlertRuleListResponse,
     AlertRuleResponse,
+    ClosePositionResponse,
     ExchangeAccountResponse,
     KillSwitchEventResponse,
     LiveSessionListResponse,
@@ -65,6 +67,7 @@ from src.trading.schemas import (
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.balance_service import AccountBalanceService
+from src.trading.services.close_service import ClosePositionService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
@@ -514,6 +517,22 @@ async def get_live_session_positions(
         return await service.get_reconciliation(current_user.id, session_id)
     except ProviderError as exc:
         raise HTTPException(status_code=503, detail="exchange position lookup unavailable") from exc
+
+
+@router.post(
+    "/live-sessions/{session_id}/positions/close",
+    status_code=202,
+    response_model=ClosePositionResponse,
+)
+async def close_live_session_position(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: ClosePositionService = Depends(get_close_service),
+) -> ClosePositionResponse:
+    try:
+        return await service.close_position(current_user.id, session_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=503, detail="exchange position close unavailable") from exc
 
 
 @router.get(

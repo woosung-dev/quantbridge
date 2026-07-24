@@ -145,6 +145,8 @@ class PositionSnapshot:
     unrealized_pnl: Decimal | None
     liquidation_price: Decimal | None
     leverage: Decimal | None
+    take_profit_price: Decimal | None
+    stop_loss_price: Decimal | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -801,11 +803,15 @@ class BybitFuturesProvider:
                     continue
 
                 def decimal_or_none(value: Any) -> Decimal | None:
-                    return Decimal(str(value)) if value is not None else None
+                    return Decimal(str(value)) if value not in (None, "") else None
 
                 side = position.get("side")
                 if not isinstance(side, str):
                     raise ProviderError("malformed Bybit position: missing side")
+                take_profit_price = decimal_or_none(position.get("takeProfitPrice"))
+                stop_loss_price = decimal_or_none(position.get("stopLossPrice"))
+                take_profit_price = None if take_profit_price == 0 else take_profit_price
+                stop_loss_price = None if stop_loss_price == 0 else stop_loss_price
                 snapshots.append(
                     PositionSnapshot(
                         side=side,
@@ -815,6 +821,8 @@ class BybitFuturesProvider:
                         unrealized_pnl=decimal_or_none(position.get("unrealizedPnl")),
                         liquidation_price=decimal_or_none(position.get("liquidationPrice")),
                         leverage=decimal_or_none(position.get("leverage")),
+                        take_profit_price=take_profit_price,
+                        stop_loss_price=stop_loss_price,
                     )
                 )
             return snapshots

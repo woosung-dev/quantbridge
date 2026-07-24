@@ -70,18 +70,23 @@ class OrderService:
         *,
         idempotency_key: str | None,
         body_hash: bytes | None = None,
+        flatten: bool = False,
     ) -> tuple[OrderResponse, bool]:
         """Sprint 11 Phase E — idempotency_key 가 있을 때 Service-level RedisLock 감싸기.
         실질 분산 mutex. Redis 장애 시 graceful degrade → PG advisory 가 권위.
         """
+        if flatten and not req.reduce_only:
+            raise ValueError("flatten requires reduce_only")
         if idempotency_key is None:
-            return await self._execute_inner(req, idempotency_key=None, body_hash=None)
+            return await self._execute_inner(
+                req, idempotency_key=None, body_hash=None, flatten=flatten
+            )
 
         from src.common.redlock import RedisLock
 
         async with RedisLock(f"idem:trading:{idempotency_key}", ttl_ms=30_000):
             return await self._execute_inner(
-                req, idempotency_key=idempotency_key, body_hash=body_hash
+                req, idempotency_key=idempotency_key, body_hash=body_hash, flatten=flatten
             )
 
     async def _validate_position_size(self, req: OrderRequest) -> None:
@@ -134,6 +139,7 @@ class OrderService:
         *,
         idempotency_key: str | None,
         body_hash: bytes | None,
+        flatten: bool = False,
     ) -> tuple[OrderResponse, bool]:
         """Returns (response, is_replayed).
 
@@ -188,133 +194,134 @@ class OrderService:
                     "has_leverage": req.leverage is not None and req.leverage > 0,
                 }
 
-        # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
-        # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
-        if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
-            qb_order_rejected_total.labels(exchange=_metric_exchange, reason="leverage_cap").inc()
-            raise LeverageCapExceeded(
-                requested=req.leverage,
-                cap=settings.bybit_futures_max_leverage,
-            )
-
-        # Wave 2 P2 — 서버 권위 risk-기반 position sizing. notional 가드 전에 평가하여
-        # client qty 가 risk budget 을 넘으면 거래소 round-trip 전에 빠르게 거부.
-        # risk_percent 미설정 시 no-op (회귀 0).
-        await self._validate_position_size(req)
-
-        # Sprint 8+ (2026-04-20): notional check. exchange_service 주입 + leverage 존재 시 enforce.
-        # P1-13 (S5-B, 2026-05-30): market order(price=None) 도 mark price 근사로 가드 적용.
-        # live_signal 경로의 전 주문이 market 이라 기존 'price is not None' 게이트만으로는
-        # notional 보호가 항상 우회 = #305 CF5 보호가 라이브 시그널에서 실효성 없음.
-        # 보수적 버퍼(MARKET_NOTIONAL_BUFFER) 추가로 slippage 헷지. mark price fetch 실패
-        # 시 live = fail-closed (BalanceUnverified), demo = fail-open (기존 정책 유지).
-        if self._exchange_service is not None and req.leverage is not None:
-            effective_price: Decimal | None = req.price
-            if effective_price is None:
-                # P1-13 (S5-B) — market order: mark price 근사 (네트워크 1회 추가)
-                mark = await self._exchange_service.fetch_mark_price(
-                    req.exchange_account_id, req.symbol
+        if not flatten:
+            # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
+            # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
+            if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
+                qb_order_rejected_total.labels(exchange=_metric_exchange, reason="leverage_cap").inc()
+                raise LeverageCapExceeded(
+                    requested=req.leverage,
+                    cap=settings.bybit_futures_max_leverage,
                 )
-                if mark is not None:
-                    # slippage 버퍼 — 보수적 추정 (실제 체결가가 mark 보다 worst 일 수 있음)
-                    effective_price = mark * Decimal("1.02")
 
-            if effective_price is not None:
-                # Wave 1 C5 — min-notional 가드. 거래소 최소 주문 cost(limits.cost.min) 미달
-                # 주문은 거래소가 거부하므로 사전 차단. balance 와 독립적으로 평가하며,
-                # min cost 미가용(None) 시 skip(fail-open, demo 정책 일관). max-notional 가드보다 먼저.
-                min_notional = await self._exchange_service.fetch_min_notional(
-                    req.exchange_account_id, req.symbol
-                )
-                if min_notional is not None:
-                    position_notional = req.quantity * effective_price
-                    if position_notional < min_notional:
+            # Wave 2 P2 — 서버 권위 risk-기반 position sizing. notional 가드 전에 평가하여
+            # client qty 가 risk budget 을 넘으면 거래소 round-trip 전에 빠르게 거부.
+            # risk_percent 미설정 시 no-op (회귀 0).
+            await self._validate_position_size(req)
+
+            # Sprint 8+ (2026-04-20): notional check. exchange_service 주입 + leverage 존재 시 enforce.
+            # P1-13 (S5-B, 2026-05-30): market order(price=None) 도 mark price 근사로 가드 적용.
+            # live_signal 경로의 전 주문이 market 이라 기존 'price is not None' 게이트만으로는
+            # notional 보호가 항상 우회 = #305 CF5 보호가 라이브 시그널에서 실효성 없음.
+            # 보수적 버퍼(MARKET_NOTIONAL_BUFFER) 추가로 slippage 헷지. mark price fetch 실패
+            # 시 live = fail-closed (BalanceUnverified), demo = fail-open (기존 정책 유지).
+            if self._exchange_service is not None and req.leverage is not None:
+                effective_price: Decimal | None = req.price
+                if effective_price is None:
+                    # P1-13 (S5-B) — market order: mark price 근사 (네트워크 1회 추가)
+                    mark = await self._exchange_service.fetch_mark_price(
+                        req.exchange_account_id, req.symbol
+                    )
+                    if mark is not None:
+                        # slippage 버퍼 — 보수적 추정 (실제 체결가가 mark 보다 worst 일 수 있음)
+                        effective_price = mark * Decimal("1.02")
+
+                if effective_price is not None:
+                    # Wave 1 C5 — min-notional 가드. 거래소 최소 주문 cost(limits.cost.min) 미달
+                    # 주문은 거래소가 거부하므로 사전 차단. balance 와 독립적으로 평가하며,
+                    # min cost 미가용(None) 시 skip(fail-open, demo 정책 일관). max-notional 가드보다 먼저.
+                    min_notional = await self._exchange_service.fetch_min_notional(
+                        req.exchange_account_id, req.symbol
+                    )
+                    if min_notional is not None:
+                        position_notional = req.quantity * effective_price
+                        if position_notional < min_notional:
+                            qb_order_rejected_total.labels(
+                                exchange=_metric_exchange, reason="min_notional"
+                            ).inc()
+                            raise MinNotionalNotMet(
+                                notional=position_notional, min_notional=min_notional
+                            )
+                    available = await self._exchange_service.fetch_balance_usdt(
+                        req.exchange_account_id
+                    )
+                    if available is not None and available > Decimal("0"):
+                        # CF5/MP-3 — Bybit/Binance 표준 initial-margin 모델 (벤치마크: bybit
+                        # Order-Cost help-center). position notional = qty * price (leverage 미포함).
+                        # 필요 initial margin = notional / leverage 가 available * 0.95 (open/close
+                        # fee 버퍼) 이내여야 한다. 즉 notional <= available * leverage * 0.95.
+                        # 이전 공식 (qty*price*leverage + max_leverage ceiling) 은 비표준 -
+                        # 저레버리지에서 감당 불가 포지션 허용 / 고레버리지에서 정상 포지션 거부.
+                        notional = req.quantity * effective_price
+                        max_notional = available * Decimal(req.leverage) * Decimal("0.95")
+                        if notional > max_notional:
+                            qb_order_rejected_total.labels(
+                                exchange=_metric_exchange, reason="notional"
+                            ).inc()
+                            raise NotionalExceeded(
+                                notional=notional,
+                                available=available,
+                                leverage=req.leverage,
+                                max_notional=max_notional,
+                            )
+                    elif (
+                        dispatch_snapshot is not None
+                        and dispatch_snapshot.get("mode") == ExchangeMode.live.value
+                    ):
+                        # CF5 — live 는 balance 검증 불가(fetch 실패/0) 시 fail-closed (주문 거부).
+                        # demo 는 fail-open(skip) 유지 (서비스 중단 금지 — 기존 정책).
                         qb_order_rejected_total.labels(
-                            exchange=_metric_exchange, reason="min_notional"
+                            exchange=_metric_exchange, reason="balance_unverified"
                         ).inc()
-                        raise MinNotionalNotMet(
-                            notional=position_notional, min_notional=min_notional
-                        )
-                available = await self._exchange_service.fetch_balance_usdt(
-                    req.exchange_account_id
-                )
-                if available is not None and available > Decimal("0"):
-                    # CF5/MP-3 — Bybit/Binance 표준 initial-margin 모델 (벤치마크: bybit
-                    # Order-Cost help-center). position notional = qty * price (leverage 미포함).
-                    # 필요 initial margin = notional / leverage 가 available * 0.95 (open/close
-                    # fee 버퍼) 이내여야 한다. 즉 notional <= available * leverage * 0.95.
-                    # 이전 공식 (qty*price*leverage + max_leverage ceiling) 은 비표준 -
-                    # 저레버리지에서 감당 불가 포지션 허용 / 고레버리지에서 정상 포지션 거부.
-                    notional = req.quantity * effective_price
-                    max_notional = available * Decimal(req.leverage) * Decimal("0.95")
-                    if notional > max_notional:
-                        qb_order_rejected_total.labels(
-                            exchange=_metric_exchange, reason="notional"
-                        ).inc()
-                        raise NotionalExceeded(
-                            notional=notional,
-                            available=available,
-                            leverage=req.leverage,
-                            max_notional=max_notional,
-                        )
+                        raise BalanceUnverified(account_id=req.exchange_account_id)
                 elif (
-                    dispatch_snapshot is not None
+                    req.price is None
+                    and dispatch_snapshot is not None
                     and dispatch_snapshot.get("mode") == ExchangeMode.live.value
                 ):
-                    # CF5 — live 는 balance 검증 불가(fetch 실패/0) 시 fail-closed (주문 거부).
-                    # demo 는 fail-open(skip) 유지 (서비스 중단 금지 — 기존 정책).
+                    # P1-13 (S5-B) — market order + live + mark price 추정 실패 = fail-closed.
+                    # demo 는 기존 정책대로 fail-open(skip — effective_price=None 이므로
+                    # notional/available 분기 자체를 건너뜀).
                     qb_order_rejected_total.labels(
                         exchange=_metric_exchange, reason="balance_unverified"
                     ).inc()
                     raise BalanceUnverified(account_id=req.exchange_account_id)
-            elif (
-                req.price is None
-                and dispatch_snapshot is not None
-                and dispatch_snapshot.get("mode") == ExchangeMode.live.value
-            ):
-                # P1-13 (S5-B) — market order + live + mark price 추정 실패 = fail-closed.
-                # demo 는 기존 정책대로 fail-open(skip — effective_price=None 이므로
-                # notional/available 분기 자체를 건너뜀).
-                qb_order_rejected_total.labels(
-                    exchange=_metric_exchange, reason="balance_unverified"
-                ).inc()
-                raise BalanceUnverified(account_id=req.exchange_account_id)
 
-        # Sprint 7d: 전략의 trading_sessions 가드. 비어있으면 24h(통과). 채워진 값이면
-        # 현재 UTC hour가 허용 세션 중 하나에 속해야 함. kill switch / advisory lock
-        # 이전에 평가하여 DB 사이드이펙트 최소화.
-        if self._sessions_port is not None:
-            sessions = await self._sessions_port.get_sessions(req.strategy_id)
-            now = datetime.now(UTC)
-            if not _sessions_is_allowed(sessions, now):
-                qb_order_rejected_total.labels(
-                    exchange=_metric_exchange, reason="session_closed"
-                ).inc()
-                raise TradingSessionClosed(
-                    sessions=sessions,
-                    current_hour_utc=now.hour,
-                )
+            # Sprint 7d: 전략의 trading_sessions 가드. 비어있으면 24h(통과). 채워진 값이면
+            # 현재 UTC hour가 허용 세션 중 하나에 속해야 함. kill switch / advisory lock
+            # 이전에 평가하여 DB 사이드이펙트 최소화.
+            if self._sessions_port is not None:
+                sessions = await self._sessions_port.get_sessions(req.strategy_id)
+                now = datetime.now(UTC)
+                if not _sessions_is_allowed(sessions, now):
+                    qb_order_rejected_total.labels(
+                        exchange=_metric_exchange, reason="session_closed"
+                    ).inc()
+                    raise TradingSessionClosed(
+                        sessions=sessions,
+                        current_hour_utc=now.hour,
+                    )
 
-        # ── ASYNC-1: kill-switch gate — order INSERT savepoint *밖*에서 평가 ──
-        # 신규 breach 시 ensure_not_gated 가 이벤트 INSERT + commit 후 KillSwitchActive
-        # raise. begin_nested 안에서 호출하면 raise 가 savepoint 를 rollback 시켜 audit
-        # row 가 유실되고, 매 주문마다 재평가 → alert storm (ASYNC-1). idempotent replay
-        # (기존 order 존재) 는 gate skip → cached 반환.
-        if idempotency_key is not None:
-            pre_existing = await self._repo.get_by_idempotency_key(idempotency_key)
-        else:
-            pre_existing = None
-        if pre_existing is None:
-            try:
-                await self._kill_switch.ensure_not_gated(
-                    strategy_id=req.strategy_id,
-                    account_id=req.exchange_account_id,
-                )
-            except KillSwitchActive:
-                qb_order_rejected_total.labels(
-                    exchange=_metric_exchange, reason="kill_switch"
-                ).inc()
-                raise
+            # ── ASYNC-1: kill-switch gate — order INSERT savepoint *밖*에서 평가 ──
+            # 신규 breach 시 ensure_not_gated 가 이벤트 INSERT + commit 후 KillSwitchActive
+            # raise. begin_nested 안에서 호출하면 raise 가 savepoint 를 rollback 시켜 audit
+            # row 가 유실되고, 매 주문마다 재평가 → alert storm (ASYNC-1). idempotent replay
+            # (기존 order 존재) 는 gate skip → cached 반환.
+            if idempotency_key is not None:
+                pre_existing = await self._repo.get_by_idempotency_key(idempotency_key)
+            else:
+                pre_existing = None
+            if pre_existing is None:
+                try:
+                    await self._kill_switch.ensure_not_gated(
+                        strategy_id=req.strategy_id,
+                        account_id=req.exchange_account_id,
+                    )
+                except KillSwitchActive:
+                    qb_order_rejected_total.labels(
+                        exchange=_metric_exchange, reason="kill_switch"
+                    ).inc()
+                    raise
 
         created_order_id: UUID | None = None
         cached_response: OrderResponse | None = None
