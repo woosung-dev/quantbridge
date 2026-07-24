@@ -297,6 +297,13 @@ qb_rt_publish_failed_total = Counter(
     "Realtime Redis publish failures",
 )
 
+# Redis 호출 전 payload 계약 위반은 인프라 발행 실패와 분리해 관측한다.
+qb_rt_publish_invalid_total = Counter(
+    "qb_rt_publish_invalid_total",
+    "Realtime publish payload contract violations",
+    labelnames=("event_type",),
+)
+
 
 @asynccontextmanager
 async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:

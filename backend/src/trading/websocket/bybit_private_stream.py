@@ -24,7 +24,8 @@ import hmac
 import json
 import logging
 import time
-from typing import Any, Protocol
+from collections.abc import Sequence
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 import websockets
@@ -54,6 +55,10 @@ class OrderEventHandler(Protocol):
     async def handle_order_event(self, account_id: UUID, payload: dict[str, Any]) -> None: ...
 
 
+class MessageEventHandler(Protocol):
+    async def handle_message(self, msg: dict[str, Any]) -> None: ...
+
+
 class StreamReconciler(Protocol):
     async def run(self, *, account_id: UUID) -> None: ...
 
@@ -81,14 +86,17 @@ class BybitPrivateStream:
         self,
         *,
         endpoint: str,
-        api_key: str,
-        api_secret: str,
-        account_id: UUID,
+        api_key: str | None = None,
+        api_secret: str | None = None,
+        account_id: UUID | str,
         handler: OrderEventHandler | None = None,
         reconciler: StreamReconciler | None = None,
         stop_event: asyncio.Event | None = None,
         heartbeat_interval: float = 20.0,
         connect_func: Any = None,  # test injection (websockets.connect 대체)
+        topics: Sequence[str] = ("order",),
+        auth_required: bool = True,
+        message_handler: MessageEventHandler | None = None,
     ) -> None:
         self.endpoint = endpoint
         self.api_key = api_key
@@ -96,6 +104,9 @@ class BybitPrivateStream:
         self.account_id = account_id
         self.handler = handler
         self.reconciler = reconciler
+        self._topics = tuple(topics)
+        self._auth_required = auth_required
+        self._message_handler = message_handler
         self._stop_event = stop_event or asyncio.Event()
         self._heartbeat_interval = heartbeat_interval
         self._connect_func = connect_func or websockets.connect
@@ -114,11 +125,15 @@ class BybitPrivateStream:
         return self._stop_event
 
     def _sign(self, expires: int) -> str:
+        if self.api_secret is None:
+            raise RuntimeError("Bybit API secret is required for authenticated stream")
         msg = f"GET/realtime{expires}"
         return hmac.new(self.api_secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
 
     async def _authenticate(self) -> None:
         """auth payload 송신 + response 검증. 실패 시 BybitAuthError."""
+        if self.api_key is None:
+            raise BybitAuthError("Bybit API key is required for authenticated stream")
         # codex G0-5: 공식 예시 기준 +1s
         expires = int((time.time() + 1) * 1000)
         signature = self._sign(expires)
@@ -141,7 +156,8 @@ class BybitPrivateStream:
         )
 
     async def _subscribe(self) -> None:
-        await self._ws.send(json.dumps({"op": "subscribe", "args": ["order"]}))
+        if self._topics:
+            await self._ws.send(json.dumps({"op": "subscribe", "args": list(self._topics)}))
 
     async def _maybe_reconcile(self) -> None:
         """30s debounce 로 reconciliation 호출. reconnect storm 시 skip."""
@@ -153,7 +169,7 @@ class BybitPrivateStream:
             return
         self._last_reconciled_at = now
         try:
-            await self.reconciler.run(account_id=self.account_id)
+            await self.reconciler.run(account_id=cast(UUID, self.account_id))
         except Exception as exc:
             logger.warning("ws_reconcile_failed account=%s err=%s", self.account_id, exc)
 
@@ -179,13 +195,23 @@ class BybitPrivateStream:
                     msg = json.loads(raw)
                 except json.JSONDecodeError:
                     continue
+                if self._message_handler is not None:
+                    try:
+                        await self._message_handler.handle_message(msg)
+                    except Exception as exc:
+                        logger.warning(
+                            "ws_message_handler_failed account=%s err=%s",
+                            self.account_id,
+                            exc,
+                        )
+                    continue
                 if msg.get("topic") != "order":
                     continue
                 if self.handler is None:
                     continue
                 for item in msg.get("data", []):
                     try:
-                        await self.handler.handle_order_event(self.account_id, item)
+                        await self.handler.handle_order_event(cast(UUID, self.account_id), item)
                     except Exception as exc:
                         logger.warning(
                             "ws_handler_failed account=%s err=%s",
@@ -219,7 +245,8 @@ class BybitPrivateStream:
         while not self._stop_event.is_set():
             try:
                 self._ws = await self._connect_func(self.endpoint)
-                await self._authenticate()
+                if self._auth_required:
+                    await self._authenticate()
                 await self._subscribe()
                 self.connected = True
                 self._first_connect_event.set()

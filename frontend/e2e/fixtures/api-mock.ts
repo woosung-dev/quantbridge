@@ -23,7 +23,7 @@ export const API_ROUTES = {
   killSwitch: "**/api/v1/kill-switch/events**",
   backtests: "**/api/v1/backtests**",
   stressTests: "**/api/v1/stress-tests**",
-  liveSessions: "**/api/v1/live-sessions**",  // Sprint 26
+  liveSessions: "**/api/v1/live-sessions**", // Sprint 26
   // Sprint 46 W2 — Tier 1 critical 신규 엔드포인트.
   // webhooks: TestOrderDialog HMAC POST 경로 (`/api/v1/webhooks/{strategy_id}?token=...`).
   // shareView: 비로그인 share token GET (`/api/v1/backtests/share/{token}`).
@@ -166,11 +166,8 @@ export function makeBacktestProgress(opts: {
     backtest_id: opts.id,
     status: opts.status,
     started_at:
-      opts.status === "running" || opts.status === "completed"
-        ? "2026-04-01T00:05:00+00:00"
-        : null,
-    completed_at:
-      opts.status === "completed" ? "2026-04-01T00:30:00+00:00" : null,
+      opts.status === "running" || opts.status === "completed" ? "2026-04-01T00:05:00+00:00" : null,
+    completed_at: opts.status === "completed" ? "2026-04-01T00:30:00+00:00" : null,
     error: null,
     stale: false,
   };
@@ -195,9 +192,9 @@ export function makeLiveSessionState(opts: {
 }) {
   return {
     session_id: opts.sessionId,
+    evaluated: true,
     schema_version: 1,
     last_strategy_state_report: {},
-    last_open_trades_snapshot: {},
     total_closed_trades: opts.closedTrades ?? 0,
     total_realized_pnl: opts.realizedPnl ?? "0",
     equity_curve: opts.equityCurve ?? [],

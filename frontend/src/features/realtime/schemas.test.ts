@@ -21,6 +21,21 @@ describe("parseRealtimeEnvelope", () => {
     expect(parseRealtimeEnvelope(JSON.stringify(raw))).toEqual(raw);
   });
 
+  it("유효한 ticker envelope를 round-trip 한다", () => {
+    const raw = {
+      v: 1,
+      type: "ticker",
+      ts: 1_720_000_000,
+      payload: {
+        symbol: "BTCUSDT",
+        mark_price: "67000.25",
+        last_price: "67000.00",
+      },
+    };
+
+    expect(parseRealtimeEnvelope(JSON.stringify(raw))).toEqual(raw);
+  });
+
   it("미지 타입과 잘못된 JSON은 조용히 무시한다", () => {
     expect(parseRealtimeEnvelope('{"v":1,"type":"future_event","ts":1,"payload":{}}')).toBeNull();
     expect(parseRealtimeEnvelope("not-json")).toBeNull();

@@ -9,20 +9,9 @@
 
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  LiveSession,
-  LiveSignalEvent,
-  LiveSignalState,
-} from "../../schemas";
+import type { LiveSession, LiveSignalEvent, LiveSignalState } from "../../schemas";
 import { LiveSessionDetail } from "../live-session-detail";
 
 // --- lightweight-charts mock ---------------------------------------------
@@ -133,10 +122,7 @@ const SESSION: LiveSession = {
   deactivated_at: null,
 };
 
-const EVENT_BASE: Omit<
-  LiveSignalEvent,
-  "id" | "bar_time" | "sequence_no" | "action"
-> = {
+const EVENT_BASE: Omit<LiveSignalEvent, "id" | "bar_time" | "sequence_no" | "action"> = {
   session_id: SESSION.id,
   direction: "long",
   trade_id: "T1",
@@ -169,9 +155,9 @@ const EVENTS: LiveSignalEvent[] = [
 
 const STATE_NO_EQUITY: LiveSignalState = {
   session_id: SESSION.id,
+  evaluated: true,
   schema_version: 1,
   last_strategy_state_report: {},
-  last_open_trades_snapshot: {},
   total_closed_trades: 1,
   total_realized_pnl: "12.34",
   equity_curve: [],
@@ -180,9 +166,7 @@ const STATE_NO_EQUITY: LiveSignalState = {
 
 const STATE_WITH_EQUITY: LiveSignalState = {
   ...STATE_NO_EQUITY,
-  equity_curve: [
-    { timestamp_ms: Date.parse("2026-05-01T12:01:00Z"), cumulative_pnl: "12.34" },
-  ],
+  equity_curve: [{ timestamp_ms: Date.parse("2026-05-01T12:01:00Z"), cumulative_pnl: "12.34" }],
 };
 
 // --- helpers -------------------------------------------------------------
@@ -203,14 +187,12 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     roInstances = [];
     stateMock.mockReset();
     eventsMock.mockReset();
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
-    delete (globalThis as unknown as { ResizeObserver?: unknown })
-      .ResizeObserver;
+    delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
   it("empty events — 안내 텍스트만, chart 미생성", async () => {
@@ -220,9 +202,7 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     renderWith(<LiveSessionDetail session={SESSION} />);
 
     // 안내 문구 등장 확인 (events 영역은 두 군데 — Activity Timeline + Recent Events).
-    const empties = await screen.findAllByText(
-      /아직 평가된 signal 이 없습니다/,
-    );
+    const empties = await screen.findAllByText(/아직 평가된 signal 이 없습니다/);
     expect(empties.length).toBeGreaterThanOrEqual(1);
     // chart 미생성.
     expect(createChartMock).not.toHaveBeenCalled();

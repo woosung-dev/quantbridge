@@ -483,10 +483,6 @@ class LiveSignalState(SQLModel, table=True):
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    last_open_trades_snapshot: dict[str, object] = Field(
-        default_factory=dict,
-        sa_column=Column(JSONB, nullable=False, server_default="{}"),
-    )
     total_closed_trades: int = Field(default=0)
     total_realized_pnl: Decimal = Field(
         default=Decimal("0"),

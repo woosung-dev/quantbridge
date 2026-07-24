@@ -4,6 +4,7 @@ from src.market_data.constants import (
     TIMEFRAME_SECONDS,
     VALID_TIMEFRAMES,
     normalize_symbol,
+    to_bybit_raw_symbol,
     to_ccxt_perpetual_symbol,
 )
 
@@ -59,3 +60,15 @@ def test_to_ccxt_perpetual_symbol_idempotent() -> None:
 def test_to_ccxt_perpetual_symbol_invalid() -> None:
     with pytest.raises(ValueError, match="Cannot normalize"):
         to_ccxt_perpetual_symbol("BTC")
+
+
+@pytest.mark.parametrize(
+    ("symbol", "expected"),
+    [
+        ("BTC/USDT", "BTCUSDT"),
+        ("BTC/USDT:USDT", "BTCUSDT"),
+        ("SOL/USDT", "SOLUSDT"),
+    ],
+)
+def test_to_bybit_raw_symbol(symbol: str, expected: str) -> None:
+    assert to_bybit_raw_symbol(symbol) == expected

@@ -8,6 +8,7 @@ import { tradingKeys } from "@/features/trading/query-keys";
 
 import { handleRealtimeEvent } from "./handlers";
 import type { RealtimeEnvelope } from "./schemas";
+import { useRealtimeStore } from "./store";
 
 const userId = "user-1";
 
@@ -59,5 +60,24 @@ describe("handleRealtimeEvent", () => {
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, {
       queryKey: liveSessionKeys.list(userId),
     });
+  });
+
+  it("ticker는 store만 갱신하고 query를 invalidate하지 않는다", () => {
+    const queryClient = makeQueryClient();
+    useRealtimeStore.getState().clearTickers();
+
+    handleRealtimeEvent(queryClient, userId, {
+      v: 1,
+      type: "ticker",
+      ts: 1_720_000_000_000,
+      payload: { symbol: "BTCUSDT", mark_price: "100.25", last_price: "100.20" },
+    });
+
+    expect(useRealtimeStore.getState().tickers.BTCUSDT).toEqual({
+      markPrice: "100.25",
+      lastPrice: "100.20",
+      ts: 1_720_000_000_000,
+    });
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
   });
 });

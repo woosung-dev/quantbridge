@@ -1,11 +1,41 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-24 (tier-c 스프린트 — Tier C 4종 + WS Tier 1)
-> **Active Sprint:** **tier-c** — 구현·검증 완료, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/tier-c` (main @ `16c8f20` 베이스)
-> **Sprint type:** A (신규 기능 4종) — codex 9-generator 웨이브 + Claude 적대 평가 + codex G0/최종 diff + Opus MCP dogfood
+> **Last Updated:** 2026-07-24 (opspack-ws2 스프린트 — 정비 팩 6종 + WS Tier 2)
+> **Active Sprint:** **opspack-ws2** — 구현·검증 완료, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/opspack-ws2` (main @ `6edc8e9` 베이스)
+> **Sprint type:** A/B 혼합 (정비 팩 + 신규 스트림) — codex 7-generator 2단계(★단계 게이트) + Claude 적대 평가 + codex G0/최종 diff + Opus MCP dogfood
 > **office-hours 진행:** N
 > **Next Trigger:** 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS 1-2h+24h) + BL-071 (Backend prod 배포) + BL-072 (Resend 1-2h+24h) → 실 prod 배포 → BL-073~075 자연 trigger. (2026-05-30 Sprint 63 prep 에서 이월 — 변동 없음.)
+
+---
+
+## ⚡ opspack-ws2 스프린트 (2026-07-24, `docs/opspack-ws2/`)
+
+**스코프**: Phase 1 정비 팩 6종(beat /data 권한 영구픽스·BL-417 제거·BL-421 pending·BL-422·BL-418·BL-419) → ★단계 게이트 → Phase 2 WS Tier 2(public ticker + 미실현 P&L 추정, position 채널 제외). 실측 반전 — TELEGRAM env 가 세팅되어 있어 실수신 dogfood 로 승격.
+
+### Completed
+
+- [x] beat /data 권한 영구 픽스 — Dockerfile /data seed(appuser). 익명 볼륨 fresh-seed + 재시작 발화 반증 (만성 함정 Sprint 4→tier-c 종결)
+- [x] BL-417 dead snapshot 컬럼 drop(alembic, non-empty 0/3 오라클) / BL-421 `/state` 200+`evaluated:false` + authed 브로드 4xx allowlist 제거(404 미허용) / BL-422 ok 어포던스+trimming / BL-418 발행측 payload 계약(invalid counter) / BL-419 errors 경로 발행
+- [x] WS Tier 2: BybitPrivateStream 3-seam(기존 테스트 무수정 green) + `bybit_public_stream.py`(1s 스로틀·delta 병합) + lease `ws:lease:public-ticker`·60s refresh·no_symbols 종료·reconcile 확장·register 킥 + manager 전원 브로드캐스트 + FE ticker Zustand 캐시(첫 실시간 데이터 캐시) + 미실현 KPI("총 세션" 교체) + 시세 지연 배지
+- [x] 게이트: BE **2531**(+29+telegram hermetic)·FE **1044**(+18)·ruff/mypy/tsc/lint/prettier 0·canon **32**·authed **63**(404 비허용 하)·alembic 왕복
+- [x] dogfood D1~D8 전 PASS: **Telegram 실수신 2단**(직발송 + beat 실발화 fired:1→throttled) / ticker 3계통 오라클 0.02% / 미실현 손계산 3표본 일치 / 재연결(lease 소멸→reconcile 재기동→배지 4상) / 콘솔 0 / 폴링 5.03s 단일 폴 실측
+- [x] BL: BL-417/418/419/421/422 Resolved + 신규 BL-423~426
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- [확인 필요] 백테스트 리포트 총수익률(+) vs 순손익(−) 표면 모순 — tier-c 에서 이월 (dogfood 발견 #5)
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [ ] stage/opspack-ws2 → main PR 사용자 squash
+- [ ] WS position 채널 (BL-417 정리 완료로 전제 충족) — 후속 스프린트 후보
+- [ ] (이월) 다음 deepen = tasks 도메인
 
 ---
 
@@ -32,15 +62,15 @@
 ### Questions
 
 - [확인 필요] 백테스트 리포트 총수익률(+) vs 순손익(−) 표면 모순 — 기말 미청산 평가손익이 자본에 반영되는 기존 메트릭 시맨틱으로 추정 (tier-c 무관, dogfood 발견 #5)
-- [확인 필요] beat-data 볼륨 /data root 소유 → watchfiles 재시작 시 beat 크래시 함정 — compose 초기 권한/entrypoint chown 중 어느 쪽으로 고정할지 (세션에서는 chown+restart 로 복구)
-- 알림 실수신 검증(Slack webhook / Telegram 봇 세팅) — 사용자 채널 준비 후 후속 세션 [이연 확정]
+- ~~beat-data 볼륨 /data root 소유~~ → ✅ opspack-ws2 에서 Dockerfile seed 로 영구 해소
+- ~~알림 실수신 검증~~ → ✅ opspack-ws2 D4 에서 Telegram 실수신 2단 검증 완료 (Slack 은 여전히 미세팅 — mock 유지)
 - wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
 
 ### Next Actions
 
-- [ ] stage/tier-c → main PR 사용자 squash
-- [ ] WS Tier 2 후보 (ticker/미실현 P&L/position 채널) — 별도 스프린트
-- [ ] (이월) 다음 deepen = tasks 도메인
+- [x] stage/tier-c → main PR #469 squash 완료 (main @ `6edc8e9`)
+- [x] WS Tier 2 후보 → opspack-ws2 스프린트로 실행 (position 채널만 잔여)
+- [ ] (이월) 다음 deepen = tasks 도메인 → opspack-ws2 섹션으로 이월
 
 ---
 

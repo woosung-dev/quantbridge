@@ -117,6 +117,10 @@ async def test_lease_key_isolation() -> None:
     assert _lease_key("acct-1") != _lease_key("acct-2")
 
 
+async def test_public_ticker_uses_dedicated_lease_key() -> None:
+    assert _lease_key("public-ticker") == "ws:lease:public-ticker"
+
+
 @pytest.mark.asyncio
 async def test_is_lease_active_returns_true_when_key_exists(fake_redis_pool) -> None:
     """Reconcile path (codex P2 #1) — lease key 존재 → active=True."""

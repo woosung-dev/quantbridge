@@ -28,14 +28,15 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const STORAGE_STATE = resolve(__dirname, ".auth/storageState.json");
 
 /**
- * 백엔드 부재/개발키에서 나오는 콘솔 소음은 캐논 위반이 아니다. `live-smoke.spec.ts` 와
- * 같은 필터. 측정 시엔 백엔드가 떠 있어 0이지만, 기동 안 한 채 돌려도 앱 결함만 남게 한다.
+ * 백엔드 부재/개발키에서 나오는 콘솔 소음은 캐논 위반이 아니다. 단 BL-421 이후
+ * 4xx 브로드 패턴은 제거 — 404 는 어떤 형태로도 허용하지 않는다 (`live-smoke.spec.ts`
+ * 의 공개 전용 필터보다 좁다). 기동 안 한 채 돌려도 앱 결함만 남게 한다.
  */
 const EXPECTED_CONSOLE = [
   /failed to fetch/i,
   /networkerror/i,
   /net::err_/i,
-  /\b40[0-9]\b/,
+  /failed to load resource.*\b40[13]\b/i,
   // 리소스 로드 429(레이트리밋)만 무시한다 — 연속 4폭 감사가 백엔드를 치면 나는 스위트 환경
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
@@ -101,15 +102,11 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
     const dpage = await discovery.newPage();
     await dpage.goto(`${BASE_URL}/backtests`, { waitUntil: "load" });
     await dpage.waitForTimeout(1500);
-    const href = await dpage
-      .locator('a[href^="/backtests/"]')
-      .evaluateAll((els) => {
-        const re = /^\/backtests\/[0-9a-f-]{36}$/;
-        const found = (els as HTMLAnchorElement[]).find((a) =>
-          re.test(new URL(a.href).pathname),
-        );
-        return found ? new URL(found.href).pathname : null;
-      });
+    const href = await dpage.locator('a[href^="/backtests/"]').evaluateAll((els) => {
+      const re = /^\/backtests\/[0-9a-f-]{36}$/;
+      const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));
+      return found ? new URL(found.href).pathname : null;
+    });
     await discovery.close();
 
     test.skip(!href, "완료된 백테스트 상세 링크를 찾지 못했다 (데이터 없음)");
@@ -119,9 +116,8 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
       ...auditOptions,
     });
     process.stdout.write(formatCanonResult(res) + "\n");
-    expect(
-      hardFailCount(res),
-      `/trades 하드 실패:\n${formatCanonResult(res)}`,
-    ).toBeLessThanOrEqual(HARDFAIL_ALLOWLIST["/backtests/:id/trades"] ?? 0);
+    expect(hardFailCount(res), `/trades 하드 실패:\n${formatCanonResult(res)}`).toBeLessThanOrEqual(
+      HARDFAIL_ALLOWLIST["/backtests/:id/trades"] ?? 0,
+    );
   });
 });

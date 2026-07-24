@@ -1,9 +1,9 @@
 "use client";
 
 // 워크스페이스 대시보드 — C 디자인 언어 이식 (S7). 프로토타입 screen-02 의 시맨틱 CSS 를
-// 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 목업의 미실현 손익·수익률 미터·전략
-// 수명주기 칩(배포됨/검증됨/초안)·per-strategy 성과는 실 스키마에 없어 렌더하지 않는다.
-//  - 손익 KPI 는 라이브 세션 집계의 "실현" 손익이다(미실현 필드 부재). 라벨을 실현으로 못박는다.
+// 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 목업의 수익률 미터·전략 수명주기 칩
+// (배포됨/검증됨/초안)·per-strategy 성과는 실 스키마에 없어 렌더하지 않는다.
+//  - 손익 KPI 는 라이브 세션 집계의 "실현" 손익이며, WS ticker 기반 미실현 추정치는 foot에만 부기한다.
 //  - 전략 §04 는 수명주기 칩을 그리지 않는다(schemas.ts 에 draft/validated/deployed 0건).
 //  - 실행 표는 목록 스키마(BacktestSummary)에 있는 열만 그린다(수익률/MDD 열 없음, S5 와 동일).
 // 데이터 흐름은 S3 셸과의 중복 페치를 걷어냈다(주문 페치 제거 → transition-toast 이중 발화 차단,
@@ -24,6 +24,7 @@ import { formatDateTime } from "@/features/backtest/utils";
 import {
   useLiveSessions,
   useLiveSessionsAggregate,
+  useUnrealizedPnlEstimate,
 } from "@/features/live-sessions";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
@@ -54,6 +55,7 @@ export function DashboardCockpit() {
     [sessionItems],
   );
   const agg = useLiveSessionsAggregate(activeSessions);
+  const unrealized = useUnrealizedPnlEstimate(activeSessions);
 
   const accountsQ = useExchangeAccounts();
   // 목록 쿼리 하나로 §04 전략 목록 + 실행표의 전략명 매핑 + KPI 카운트(.total)를 모두 얻는다.
@@ -88,8 +90,7 @@ export function DashboardCockpit() {
     [agg.mergedEquityCurve],
   );
 
-  const pnlToneClass =
-    agg.totalRealizedPnl > 0 ? "pos" : agg.totalRealizedPnl < 0 ? "neg" : "";
+  const pnlToneClass = agg.totalRealizedPnl > 0 ? "pos" : agg.totalRealizedPnl < 0 ? "neg" : "";
 
   return (
     <main className="page">
@@ -113,12 +114,10 @@ export function DashboardCockpit() {
           </div>
           <div className="report-actions">
             <Link className="btn" href="/strategies/new">
-              <PlusIcon aria-hidden="true" />
-              새 전략
+              <PlusIcon aria-hidden="true" />새 전략
             </Link>
             <Link className="btn btn-primary" href="/backtests/new">
-              <PlusIcon aria-hidden="true" />
-              새 백테스트
+              <PlusIcon aria-hidden="true" />새 백테스트
             </Link>
           </div>
         </div>
@@ -174,6 +173,8 @@ export function DashboardCockpit() {
             <p className="kpi-foot">
               USDT. 활성 세션 종료 거래 <span className="mono">{agg.totalClosedTrades}</span>건의
               실현 손익 합입니다.
+              <br />
+              미실현(추정) {unrealized.total === null ? "—" : formatSignedUsd(unrealized.total)}
             </p>
           </article>
 
@@ -218,8 +219,8 @@ export function DashboardCockpit() {
           </p>
           <h2 className="section-title">최근 백테스트 {backtestItems.length}건</h2>
           <p className="section-desc">
-            백테스트 원장에서 최근 실행을 상태와 함께 가져왔습니다. 아직 끝나지 않은 실행은
-            수익률을 채우지 않으므로 이 표에는 결과 열을 두지 않습니다.
+            백테스트 원장에서 최근 실행을 상태와 함께 가져왔습니다. 아직 끝나지 않은 실행은 수익률을
+            채우지 않으므로 이 표에는 결과 열을 두지 않습니다.
           </p>
         </header>
 
@@ -304,8 +305,7 @@ export function DashboardCockpit() {
                 <tbody>
                   {backtestItems.map((b) => {
                     // 라벨·톤은 S4 용어 SSOT 에서만 온다 (원시 enum 렌더 금지).
-                    const { label, tone, showCheckIcon } =
-                      BACKTEST_STATUS_LABEL[b.status];
+                    const { label, tone, showCheckIcon } = BACKTEST_STATUS_LABEL[b.status];
                     return (
                       <tr key={b.id} data-testid={`run-row-${b.id}`} data-status={b.status}>
                         <td className="mono-l run-id">
@@ -354,8 +354,8 @@ export function DashboardCockpit() {
           </p>
           <h2 className="section-title">등록한 전략 {strategyCount}종</h2>
           <p className="section-desc">
-            아카이브하지 않은 전략입니다. 성과는 각 전략의 백테스트 결과에서 보므로, 여기서는
-            식별 정보만 보여 줍니다.
+            아카이브하지 않은 전략입니다. 성과는 각 전략의 백테스트 결과에서 보므로, 여기서는 식별
+            정보만 보여 줍니다.
           </p>
         </header>
 
@@ -408,7 +408,10 @@ export function DashboardCockpit() {
             </div>
           ) : (
             <div className="table-wrap">
-              <table className="trades runs-table" aria-label={`전략 목록 ${strategyItems.length}종`}>
+              <table
+                className="trades runs-table"
+                aria-label={`전략 목록 ${strategyItems.length}종`}
+              >
                 <thead>
                   <tr>
                     <th scope="col">전략</th>
@@ -427,9 +430,7 @@ export function DashboardCockpit() {
                         {s.symbol ? s.symbol : EMPTY_CELL}
                         {s.timeframe ? ` · ${s.timeframe}` : ""}
                       </td>
-                      <td className="dim">
-                        {s.tags.length > 0 ? s.tags.join(", ") : EMPTY_CELL}
-                      </td>
+                      <td className="dim">{s.tags.length > 0 ? s.tags.join(", ") : EMPTY_CELL}</td>
                       <td className="mono-l dim">{formatDateTime(s.updated_at)}</td>
                     </tr>
                   ))}

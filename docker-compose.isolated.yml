@@ -45,7 +45,7 @@ services:
       - "watchfiles"
       - "--filter"
       - "python"
-      - "celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2 --queues=ws_stream"
+      - "celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=3 --queues=ws_stream"
       - "/app/src"
 
   backend-beat:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from contextlib import ExitStack
+from threading import Event
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -17,9 +18,16 @@ from starlette.websockets import WebSocketDisconnect
 from src.auth.exceptions import InvalidTokenError
 from src.auth.schemas import CurrentUser
 from src.main import create_app
-from src.realtime.schemas import WS_CLOSE_ORIGIN_DENIED, user_channel
+from src.realtime.manager import ConnectionManager
+from src.realtime.schemas import (
+    TICKER_CHANNEL_PREFIX,
+    WS_CLOSE_ORIGIN_DENIED,
+    ticker_channel,
+    user_channel,
+)
 
 REALTIME_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+SECOND_REALTIME_USER_ID = UUID("00000000-0000-0000-0000-000000000002")
 
 
 class FakePubSub:
@@ -28,10 +36,12 @@ class FakePubSub:
     def __init__(self) -> None:
         self.messages: deque[dict[str, object]] = deque()
         self.patterns: list[str] = []
+        self.subscribed = Event()
         self.closed = False
 
     async def psubscribe(self, *patterns: str) -> None:
         self.patterns.extend(patterns)
+        self.subscribed.set()
 
     async def get_message(self, **_: object) -> dict[str, object] | None:
         if self.messages:
@@ -65,10 +75,11 @@ def realtime_app(monkeypatch: pytest.MonkeyPatch) -> tuple[FastAPI, FakeRedis]:
         app.state.redis_lock_healthy = True
         return True
 
-    async def fake_authenticate(_token: str, _service: Any) -> CurrentUser:
+    async def fake_authenticate(token: str, _service: Any) -> CurrentUser:
+        user_id = SECOND_REALTIME_USER_ID if token == "second-user" else REALTIME_USER_ID
         return CurrentUser(
-            id=REALTIME_USER_ID,
-            clerk_user_id="user_realtime",
+            id=user_id,
+            clerk_user_id=f"user_{user_id}",
             email="realtime@example.com",
         )
 
@@ -256,14 +267,18 @@ def test_connection_limit_closes_oldest_connection(
     assert exc_info.value.code == 4408
 
 
-def test_pubsub_message_fans_in_to_user_socket(
+def test_pubsub_message_fans_in_to_only_its_user_socket(
     realtime_app: tuple[FastAPI, FakeRedis]
 ) -> None:
     """사용자 채널의 유효 envelope는 같은 사용자 소켓에 그대로 전달되어야 한다."""
     app, fake_redis = realtime_app
-    with TestClient(app) as client, _connect(client) as websocket:
+    with TestClient(app) as client, ExitStack() as stack:
+        websocket = stack.enter_context(_connect(client))
+        other_websocket = stack.enter_context(_connect(client))
         websocket.send_json({"type": "auth", "token": "valid"})
+        other_websocket.send_json({"type": "auth", "token": "second-user"})
         assert websocket.receive_json() == {"type": "ready"}
+        assert other_websocket.receive_json() == {"type": "ready"}
         fake_redis.pubsub_instance.messages.append(
             {
                 "channel": user_channel(str(REALTIME_USER_ID)).encode(),
@@ -276,3 +291,120 @@ def test_pubsub_message_fans_in_to_user_socket(
             "ts": 1,
             "payload": {"order_id": "o1"},
         }
+        other_websocket.send_text("ping")
+        assert other_websocket.receive_text() == "pong"
+
+
+def test_ticker_pubsub_fans_out_to_all_authenticated_sockets(
+    realtime_app: tuple[FastAPI, FakeRedis]
+) -> None:
+    """ticker 채널의 유효 envelope는 서로 다른 인증 사용자 모두에게 전달되어야 한다."""
+    app, fake_redis = realtime_app
+    with TestClient(app) as client, ExitStack() as stack:
+        first_websocket = stack.enter_context(_connect(client))
+        second_websocket = stack.enter_context(_connect(client))
+        first_websocket.send_json({"type": "auth", "token": "valid"})
+        second_websocket.send_json({"type": "auth", "token": "second-user"})
+        assert first_websocket.receive_json() == {"type": "ready"}
+        assert second_websocket.receive_json() == {"type": "ready"}
+        event = {
+            "v": 1,
+            "type": "ticker",
+            "ts": 1,
+            "payload": {"symbol": "BTCUSDT", "mark_price": "67000.25"},
+        }
+        fake_redis.pubsub_instance.messages.append(
+            {
+                "channel": ticker_channel("BTCUSDT").encode(),
+                "data": b'{"v":1,"type":"ticker","ts":1,"payload":{"symbol":"BTCUSDT","mark_price":"67000.25"}}',
+            }
+        )
+
+        assert first_websocket.receive_json() == event
+        assert second_websocket.receive_json() == event
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"{",
+        b'{"v":1,"type":"ticker","payload":{"symbol":"BTCUSDT"}}',
+    ],
+)
+def test_invalid_ticker_pubsub_message_is_dropped_and_connection_stays_open(
+    realtime_app: tuple[FastAPI, FakeRedis], data: bytes
+) -> None:
+    """깨진 ticker envelope는 drop하고 인증된 연결은 유지해야 한다."""
+    app, fake_redis = realtime_app
+    with TestClient(app) as client, _connect(client) as websocket:
+        websocket.send_json({"type": "auth", "token": "valid"})
+        assert websocket.receive_json() == {"type": "ready"}
+        fake_redis.pubsub_instance.messages.append(
+            {"channel": ticker_channel("BTCUSDT").encode(), "data": data}
+        )
+        fake_redis.pubsub_instance.messages.append(
+            {
+                "channel": ticker_channel("BTCUSDT").encode(),
+                "data": b'{"v":1,"type":"ticker","ts":1,"payload":{"symbol":"BTCUSDT","mark_price":"67000.25"}}',
+            }
+        )
+
+        assert websocket.receive_json()["type"] == "ticker"
+        websocket.send_text("ping")
+        assert websocket.receive_text() == "pong"
+
+
+def test_non_realtime_pubsub_channel_is_ignored(realtime_app: tuple[FastAPI, FakeRedis]) -> None:
+    """등록하지 않은 Redis 채널 이벤트는 WebSocket으로 전달하지 않아야 한다."""
+    app, fake_redis = realtime_app
+    with TestClient(app) as client, _connect(client) as websocket:
+        websocket.send_json({"type": "auth", "token": "valid"})
+        assert websocket.receive_json() == {"type": "ready"}
+        fake_redis.pubsub_instance.messages.append(
+            {
+                "channel": b"qb:other:x",
+                "data": b'{"v":1,"type":"ticker","ts":1,"payload":{"symbol":"BTCUSDT","mark_price":"67000.25"}}',
+            }
+        )
+        fake_redis.pubsub_instance.messages.append(
+            {
+                "channel": user_channel(str(REALTIME_USER_ID)).encode(),
+                "data": b'{"v":1,"type":"order_update","ts":1,"payload":{"order_id":"o1"}}',
+            }
+        )
+
+        assert websocket.receive_json()["type"] == "order_update"
+
+
+@pytest.mark.asyncio
+async def test_send_to_all_removes_failed_socket_and_keeps_other_sockets() -> None:
+    """전원 fan-out 중 실패한 소켓만 정리하고 다른 소켓 전송은 계속해야 한다."""
+    manager = ConnectionManager()
+    healthy_socket = MagicMock()
+    healthy_socket.send_json = AsyncMock()
+    failed_socket = MagicMock()
+    failed_socket.send_json = AsyncMock(side_effect=RuntimeError("closed"))
+    await manager.register("user-1", healthy_socket)
+    await manager.register("user-2", failed_socket)
+
+    message = {"v": 1, "type": "ticker", "ts": 1, "payload": {}}
+    await manager.send_to_all(message)
+
+    healthy_socket.send_json.assert_awaited_once_with(message)
+    failed_socket.send_json.assert_awaited_once_with(message)
+    assert manager._connections == {"user-1": {healthy_socket}}
+    assert manager._connection_order == {"user-1": [healthy_socket]}
+
+
+def test_listener_subscribes_to_user_and_ticker_patterns(
+    realtime_app: tuple[FastAPI, FakeRedis]
+) -> None:
+    """listener는 사용자별 채널과 ticker 채널 패턴을 함께 구독해야 한다."""
+    app, fake_redis = realtime_app
+
+    with TestClient(app):
+        assert fake_redis.pubsub_instance.subscribed.wait(timeout=1)
+        assert fake_redis.pubsub_instance.patterns == [
+            "qb:rt:user:*",
+            f"{TICKER_CHANNEL_PREFIX}*",
+        ]

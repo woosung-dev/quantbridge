@@ -44,11 +44,22 @@ export const SessionStateEnvelopeSchema = z.object({
   }),
 });
 
+export const TickerEnvelopeSchema = z.object({
+  ...EnvelopeFields,
+  type: z.literal("ticker"),
+  payload: z.object({
+    symbol: z.string(),
+    mark_price: z.string(),
+    last_price: z.string().nullable().optional(),
+  }),
+});
+
 export const RealtimeEnvelopeSchema = z.discriminatedUnion("type", [
   OrderUpdateEnvelopeSchema,
   KillSwitchEnvelopeSchema,
   KillSwitchResolvedEnvelopeSchema,
   SessionStateEnvelopeSchema,
+  TickerEnvelopeSchema,
 ]);
 
 export type RealtimeEnvelope = z.infer<typeof RealtimeEnvelopeSchema>;

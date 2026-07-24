@@ -7,6 +7,7 @@
 - BoundedSemaphore(8) max_in_flight 패턴 (wall-clock timing 회피)
 - 15s timeout
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,18 +38,22 @@ def settings_with_telegram(monkeypatch: pytest.MonkeyPatch) -> Settings:
 
 @pytest.fixture
 def settings_without_telegram(monkeypatch: pytest.MonkeyPatch) -> Settings:
-    """Telegram 미설정 Settings."""
+    """Telegram 미설정 Settings.
+
+    delenv 만으로는 부족 — Settings 는 .env.local 파일도 읽으므로 로컬에 실 크리덴셜이
+    있으면 오염된다. init kwarg(최우선 순위)로 명시 차단해 hermetic 보장.
+    """
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
-    return Settings()
+    return Settings(telegram_bot_token=None, telegram_chat_id=None)
 
 
 @pytest.fixture
 def settings_token_no_chat(monkeypatch: pytest.MonkeyPatch) -> Settings:
-    """token 만 있고 chat_id 누락 — silent skip 대상."""
+    """token 만 있고 chat_id 누락 — silent skip 대상. (.env.local 오염 차단은 위와 동일)"""
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", _BOT_TOKEN)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
-    return Settings()
+    return Settings(telegram_chat_id=None)
 
 
 def _make_mock_client(
@@ -182,10 +187,7 @@ async def test_bounded_semaphore_caps_concurrent_sends_at_8(
     transport = httpx.MockTransport(slow_handler)
     async with httpx.AsyncClient(transport=transport) as client:
         service = TelegramAlertService(settings_with_telegram, client=client)
-        tasks = [
-            asyncio.create_task(service.send("info", f"t{i}", "m", None))
-            for i in range(12)
-        ]
+        tasks = [asyncio.create_task(service.send("info", f"t{i}", "m", None)) for i in range(12)]
         await asyncio.sleep(0.1)
         release_event.set()
         results = await asyncio.gather(*tasks)

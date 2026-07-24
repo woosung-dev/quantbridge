@@ -524,8 +524,8 @@ def _divergence_scaffold(
     pine_source: str,
     run_live_result: LiveSignalResult,
     deactivate_rows: int,
-) -> tuple[SimpleNamespace, AsyncMock, AsyncMock, MagicMock, AsyncMock]:
-    """runtime-net 테스트 공통 scaffold. (sess, sess_repo, event_repo, apply_async_spy, mock_alert)."""
+) -> tuple[SimpleNamespace, AsyncMock, AsyncMock, MagicMock, AsyncMock, AsyncMock]:
+    """runtime-net 테스트 공통 scaffold. (sess, sess_repo, event_repo, apply_async_spy, mock_alert, publisher)."""
     sess = _build_session_obj()
     sess_repo = AsyncMock()
     sess_repo.get_by_id = AsyncMock(return_value=sess)
@@ -562,7 +562,7 @@ def _divergence_scaffold(
     monkeypatch.setattr(live_signal_module, "send_critical_alert", mock_alert)
     publisher = AsyncMock()
     monkeypatch.setattr(live_signal_module, "publish_realtime", publisher)
-    return sess, sess_repo, event_repo, apply_async_spy, mock_alert
+    return sess, sess_repo, event_repo, apply_async_spy, mock_alert, publisher
 
 
 # T3a — classifier ------------------------------------------------------
@@ -674,7 +674,7 @@ async def test_runtime_divergence_deactivates_and_blocks(
         total_realized_pnl=Decimal("0"),
         errors=[(299, "Call to 'ta.alma' not supported in current scope")],
     )
-    sess, sess_repo, event_repo, apply_async_spy, mock_alert = _divergence_scaffold(
+    sess, sess_repo, event_repo, apply_async_spy, mock_alert, publisher = _divergence_scaffold(
         monkeypatch,
         pine_source="//@version=5\nstrategy('x')",
         run_live_result=run_live_result,
@@ -695,6 +695,9 @@ async def test_runtime_divergence_deactivates_and_blocks(
     event_repo.insert_pending_events.assert_not_called()
     sess_repo.upsert_state.assert_not_called()
     apply_async_spy.assert_not_called()
+    publisher.assert_awaited_once_with(
+        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+    )
     assert mock_alert.call_count == 1
     assert _divergence_count("runtime", "unsupported_call") == before + 1
     after_blocked = qb_live_signal_evaluated_total.labels(
@@ -717,7 +720,7 @@ async def test_runtime_divergence_rows_zero_no_alert(monkeypatch: pytest.MonkeyP
         total_realized_pnl=Decimal("0"),
         errors=[(299, "Call to 'ta.alma' not supported in current scope")],
     )
-    sess, sess_repo, _event_repo, _apply, mock_alert = _divergence_scaffold(
+    sess, sess_repo, _event_repo, _apply, mock_alert, publisher = _divergence_scaffold(
         monkeypatch,
         pine_source="//@version=5\nstrategy('x')",
         run_live_result=run_live_result,
@@ -733,6 +736,7 @@ async def test_runtime_divergence_rows_zero_no_alert(monkeypatch: pytest.MonkeyP
     sess_repo.commit.assert_awaited_once()
     assert mock_alert.call_count == 0
     assert _divergence_count("runtime", "unsupported_call") == before  # 미증가
+    publisher.assert_not_awaited()  # winner-only 대칭 — rows==0 은 발행도 없어야 한다
 
 
 # T3e — preflight (coverage / degraded / non-demo ordering) -------------
@@ -882,7 +886,7 @@ async def test_clean_strategy_no_divergence(monkeypatch: pytest.MonkeyPatch) -> 
         total_realized_pnl=Decimal("0"),
         errors=[],
     )
-    sess, sess_repo, event_repo, apply_async_spy, mock_alert = _divergence_scaffold(
+    sess, sess_repo, event_repo, apply_async_spy, mock_alert, _publisher = _divergence_scaffold(
         monkeypatch,
         pine_source="//@version=5\nstrategy('x')",
         run_live_result=run_live_result,
@@ -916,7 +920,7 @@ async def test_clean_strategy_no_divergence(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_run_live_crash_deactivates(monkeypatch: pytest.MonkeyPatch) -> None:
     """G2 P1 — run_live 가 result.errors 로 안 잡히는 예외(ZeroDivisionError 등) raise →
     crash-loop 대신 fail-closed 비활성화 (category=run_live_error)."""
-    sess, sess_repo, event_repo, apply_async_spy, mock_alert = _divergence_scaffold(
+    sess, sess_repo, event_repo, apply_async_spy, mock_alert, _publisher = _divergence_scaffold(
         monkeypatch,
         pine_source="//@version=5\nstrategy('x')",
         run_live_result=LiveSignalResult(
@@ -955,7 +959,7 @@ async def test_runtime_divergence_real_run_live(monkeypatch: pytest.MonkeyPatch)
     import src.strategy.pine_v2.event_loop as event_loop_mod
 
     real_run_live = event_loop_mod.run_live  # scaffold 패치 전 캡처
-    sess, sess_repo, event_repo, apply_async_spy, mock_alert = _divergence_scaffold(
+    sess, sess_repo, event_repo, apply_async_spy, mock_alert, _publisher = _divergence_scaffold(
         monkeypatch,
         pine_source="//@version=5\nstrategy('x')\ny = undefined_var + 1\n",
         run_live_result=LiveSignalResult(

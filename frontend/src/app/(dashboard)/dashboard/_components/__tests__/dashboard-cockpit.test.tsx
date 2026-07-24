@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useLiveSessionsMock = vi.fn();
 const useLiveSessionsAggregateMock = vi.fn();
+const useUnrealizedPnlEstimateMock = vi.fn();
 const useExchangeAccountsMock = vi.fn();
 const useStrategiesMock = vi.fn();
 const useBacktestsMock = vi.fn();
@@ -14,6 +15,7 @@ const useBacktestsMock = vi.fn();
 vi.mock("@/features/live-sessions", () => ({
   useLiveSessions: () => useLiveSessionsMock(),
   useLiveSessionsAggregate: () => useLiveSessionsAggregateMock(),
+  useUnrealizedPnlEstimate: () => useUnrealizedPnlEstimateMock(),
 }));
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategies: () => useStrategiesMock(),
@@ -35,7 +37,12 @@ import { DashboardCockpit } from "../dashboard-cockpit";
 // --- fixtures -------------------------------------------------------------
 
 const SESSIONS = {
-  data: { items: [{ id: "s1", is_active: true }, { id: "s2", is_active: false }] },
+  data: {
+    items: [
+      { id: "s1", is_active: true },
+      { id: "s2", is_active: false },
+    ],
+  },
 };
 
 const AGG_POPULATED = {
@@ -138,6 +145,11 @@ const BACKTESTS = {
 function setDefaults() {
   useLiveSessionsMock.mockReturnValue(SESSIONS);
   useLiveSessionsAggregateMock.mockReturnValue(AGG_POPULATED);
+  useUnrealizedPnlEstimateMock.mockReturnValue({
+    total: -3.2,
+    isEstimating: false,
+    latestTs: 1_720_000_000_000,
+  });
   useExchangeAccountsMock.mockReturnValue({ data: [{ id: "acc-1" }] });
   useStrategiesMock.mockReturnValue(STRATEGIES);
   useBacktestsMock.mockReturnValue(BACKTESTS);
@@ -162,6 +174,7 @@ describe("DashboardCockpit — 헤더·KPI 정직성", () => {
     expect(screen.queryByText("데모 미실현 손익")).not.toBeInTheDocument();
     // 실현 손익 값은 부호 + 배율 없는 값.
     expect(screen.getByTestId("kpi-pnl")).toHaveTextContent("+142.18");
+    expect(screen.getByTestId("kpi-pnl").parentElement).toHaveTextContent("미실현(추정) -3.20");
   });
 
   it("거래소 연결 수를 리포트 칩에 정직하게 표기한다", () => {

@@ -5,6 +5,7 @@ import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 import { tradingKeys } from "@/features/trading/query-keys";
 
 import type { RealtimeEnvelope } from "./schemas";
+import { useRealtimeStore } from "./store";
 
 export function handleRealtimeEvent(
   queryClient: QueryClient,
@@ -30,5 +31,14 @@ export function handleRealtimeEvent(
       void queryClient.invalidateQueries({
         queryKey: liveSessionKeys.list(userId),
       });
+      return;
+    case "ticker":
+      // ticker는 RQ 서버 스냅샷이 아닌 WS push cache만 갱신한다.
+      useRealtimeStore.getState().applyTicker(envelope.payload.symbol, {
+        markPrice: envelope.payload.mark_price,
+        lastPrice: envelope.payload.last_price ?? null,
+        ts: envelope.ts,
+      });
+      return;
   }
 }

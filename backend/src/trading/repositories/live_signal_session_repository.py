@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, or_, select, text, update
@@ -73,6 +74,16 @@ class LiveSignalSessionRepository:
             .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712  # type: ignore[arg-type]
         )
         return int(result.scalar_one() or 0)
+
+    async def list_distinct_active_symbols(self) -> list[str]:
+        """활성 라이브 세션이 요구하는 중복 없는 ticker 심볼을 반환한다."""
+        result = await self.session.execute(
+            select(cast(Any, LiveSignalSession.symbol))
+            .where(cast(Any, LiveSignalSession.is_active) == True)  # noqa: E712
+            .distinct()
+            .order_by(cast(Any, LiveSignalSession.symbol))
+        )
+        return list(result.scalars().all())
 
     async def acquire_quota_lock(self, user_id: UUID) -> None:
         """PG advisory xact lock — quota race 방어 (codex G.0 P3 #3 + plan §3 A.4).
@@ -153,7 +164,6 @@ class LiveSignalSessionRepository:
         *,
         session_id: UUID,
         last_strategy_state_report: dict[str, object],
-        last_open_trades_snapshot: dict[str, object],
         total_closed_trades: int,
         total_realized_pnl: Decimal,
         equity_curve: list[dict[str, object]] | None = None,
@@ -170,7 +180,6 @@ class LiveSignalSessionRepository:
             state = LiveSignalState(
                 session_id=session_id,
                 last_strategy_state_report=last_strategy_state_report,
-                last_open_trades_snapshot=last_open_trades_snapshot,
                 total_closed_trades=total_closed_trades,
                 total_realized_pnl=total_realized_pnl,
                 equity_curve=equity_curve if equity_curve is not None else [],
@@ -180,7 +189,6 @@ class LiveSignalSessionRepository:
             await self.session.flush()
             return state
         existing.last_strategy_state_report = last_strategy_state_report
-        existing.last_open_trades_snapshot = last_open_trades_snapshot
         existing.total_closed_trades = total_closed_trades
         existing.total_realized_pnl = total_realized_pnl
         if equity_curve is not None:

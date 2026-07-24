@@ -5,7 +5,8 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-23 (**functional-parity 스프린트** — BL-401/BL-402/BL-411 Resolved + 신규 BL-413~416. C 이식 후 기능 격차 마감: 주문취소 배선 A2 + nav-count B2 + backtest_count B1 + 스트레스 복원 A7-lite)
+**최종 갱신:** 2026-07-24 (**opspack-ws2 스프린트** — BL-417/418/419/421/422 Resolved + 신규 BL-423~426. 정비 팩 6종 + WS Tier 2 public ticker·미실현 P&L)
+**직전 갱신:** 2026-07-23 (**functional-parity 스프린트** — BL-401/BL-402/BL-411 Resolved + 신규 BL-413~416. C 이식 후 기능 격차 마감: 주문취소 배선 A2 + nav-count B2 + backtest_count B1 + 스트레스 복원 A7-lite)
 **현재 상태:** **51 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적; 2026-06-30 backtest-deepen +5 BL-387~391 → 45 → 50; 2026-06-30 stress_test-deepen +1 BL-392 → 51). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
@@ -1422,7 +1423,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-417
 
-**Title:** `LiveSignalState.last_open_trades_snapshot` 이 실경로에서 항상 `{}` — 저장 가드가 리스트를 버림 (dead data 컬럼)
+**Title:** `LiveSignalState.last_open_trades_snapshot` 이 실경로에서 항상 `{}` — 저장 가드가 리스트를 버림 (dead data 컬럼) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / trading live-signal
 **Priority:** P2
 **Trigger:** live_signal 다음 터치 또는 스냅샷 소비자 신설 시
@@ -1437,7 +1438,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-418
 
-**Title:** realtime 이벤트 payload 계약 미강제 — publisher/manager 가 임의 dict 통과 (worker 간 계약 drift 표면)
+**Title:** realtime 이벤트 payload 계약 미강제 — publisher/manager 가 임의 dict 통과 (worker 간 계약 drift 표면) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / realtime
 **Priority:** P3
 **Trigger:** 발행 지점 추가 또는 이벤트 타입 확장 시
@@ -1452,7 +1453,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-419
 
-**Title:** live_signal `result.errors` 경로의 세션 자동 비활성이 `session_state` 를 발행하지 않음 (최대 30s stale)
+**Title:** live_signal `result.errors` 경로의 세션 자동 비활성이 `session_state` 를 발행하지 않음 (최대 30s stale) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / realtime
 **Priority:** P3
 **Trigger:** realtime 다음 터치 시
@@ -1482,7 +1483,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-421
 
-**Title:** 미평가 라이브 세션의 `/state` 404 무한 폴링 — 콘솔 error 도배 (정상 과도상태를 error 로 표면화)
+**Title:** 미평가 라이브 세션의 `/state` 404 무한 폴링 — 콘솔 error 도배 (정상 과도상태를 error 로 표면화) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend+Frontend / live-sessions
 **Priority:** P2
 **Trigger:** 라이브 세션 다음 터치 시
@@ -1497,7 +1498,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-422
 
-**Title:** 알림 규칙 생성 폼이 empty 상태에서만 노출 — 세션당 2번째 규칙(watchdog 등) UI 추가 불가 + 409 경로 UI 도달 불가
+**Title:** 알림 규칙 생성 폼이 empty 상태에서만 노출 — 세션당 2번째 규칙(watchdog 등) UI 추가 불가 + 409 경로 UI 도달 불가 → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Frontend / alert-rules UX
 **Priority:** P3
 **Trigger:** 알림 규칙 실사용 개시 시
@@ -1507,6 +1508,66 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **원인 / 영향:** 규칙 1개라도 있으면 "만들기" 어포던스가 사라져 loss_limit+watchdog 동시 운용을 UI 로 못 만든다 (BE 는 유형별 1개씩 허용). 409 안내 문구는 유닛으로만 검증됨.
 
 **권장 접근:** ok 상태에도 "규칙 추가" 어포던스 유지 (rule_type 별 중복은 409 안내가 처리). 표기 nit 동반: threshold "5.00000000%" → trimming (dogfood 발견 #3).
+
+---
+
+### BL-423
+
+**Title:** 비활성(과거) 세션의 진단 정보를 UI 로 열 수 없음 — `/live-sessions` 가 active 전용
+**Category:** Frontend / live-sessions UX
+**Priority:** P3
+**Trigger:** 과거 세션의 규칙·포지션·상태 회고 필요 시
+**Est:** S (2-4h)
+**출처:** 2026-07-24 opspack-ws2 Opus dogfood — 검증자가 RQ 캐시 주입으로 우회해야 했음 (docs/opspack-ws2/context-notes.md #14)
+
+**원인 / 영향:** BE `list_active()` 필터 + FE 리스트 클릭 전용 진입이라 비활성 세션의 알림 규칙/포지션 대조/state 를 볼 방법이 없다. 세션 종료 후 회고·규칙 정리가 불가.
+
+**권장 접근:** 목록 API 에 `include_inactive` 쿼리 또는 별도 이력 뷰. 상세 진입의 URL 파라미터화 동반 검토.
+
+---
+
+### BL-424
+
+**Title:** 대시보드 실현손익 카드 foot — 미실현(추정) 부기와 기존 문구가 시각적으로 밀착 (폭 부족)
+**Category:** Frontend / dashboard 시각
+**Priority:** P3
+**Trigger:** 대시보드 polish 시
+**Est:** XS (<1h)
+**출처:** 2026-07-24 opspack-ws2 D8b dogfood 스크린샷 (docs/opspack-ws2/context-notes.md #18)
+
+**원인 / 영향:** foot 문장 줄바꿈 + 부기 병치로 간격이 타이트. 판독은 가능하나 밀도 과다.
+
+**권장 접근:** 부기를 별도 행/뱃지로 분리하거나 foot 문구 축약.
+
+---
+
+### BL-425
+
+**Title:** 예상된 alert-rules 409(중복 활성 규칙)가 브라우저 콘솔 error 로 노출
+**Category:** Frontend / 관찰성
+**Priority:** P3
+**Trigger:** 콘솔 위생 게이트 강화 시
+**Est:** XS (<1h)
+**출처:** 2026-07-24 opspack-ws2 D8b dogfood (기능 무해 — FE 는 정상 캐치·안내)
+
+**원인 / 영향:** fetch 의 4xx 응답은 브라우저가 네이티브 로그를 남긴다. 409 는 정상 흐름(중복 안내)이라 노이즈.
+
+**권장 접근:** 사전 중복 검사(로컬 규칙 목록 대조)로 409 요청 자체를 회피하거나, 콘솔 게이트에서 409 전용 좁은 예외를 채택할지 결정 (404 류 브로드 예외 부활은 금지).
+
+---
+
+### BL-426
+
+**Title:** ws_stream 워커 용량 정책 — 멀티계정 시 public ticker starvation 가능 + 스트림 태스크 루프 직접 유닛 부재
+**Category:** Backend / trading websocket 인프라
+**Priority:** P3
+**Trigger:** 거래소 계정 2개 이상 등록 시 (현 로컬 1계정 무해)
+**Est:** S-M (2-6h)
+**출처:** 2026-07-24 opspack-ws2 codex G0 + WA 적대평가 P3 관찰
+
+**원인 / 영향:** reconcile 이 활성 계정마다 장기 private stream 을 enqueue 하는데 계정 수 상한이 없어, 계정 N+1 > concurrency(3) 이면 public ticker 태스크가 큐에서 기아. 또한 60s refresh/lease-lost 루프는 코드 정독+프로브로만 검증(직접 단위 테스트 없음).
+
+**권장 접근:** singleton public ticker 를 별도 큐·concurrency 1 워커로 분리하거나 계정 수 기반 concurrency 산정 + starvation 회귀 테스트. refresh 루프 유닛 동반.
 
 ---
 
