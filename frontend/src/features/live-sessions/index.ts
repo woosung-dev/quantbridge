@@ -25,6 +25,12 @@ export {
   useDeactivateLiveSession,
   type LiveSessionsAggregate,
 } from "./hooks";
+export {
+  computeUnrealizedPnl,
+  useUnrealizedPnlEstimate,
+  type OpenTrade,
+  type UnrealizedPnlEstimate,
+} from "./unrealized";
 export { LiveSessionForm } from "./components/live-session-form";
 export { LiveSessionList } from "./components/live-session-list";
 export { LiveSessionDetail } from "./components/live-session-detail";

@@ -2,11 +2,12 @@
 
 // 트레이딩 코크핏 — C 디자인 언어 이식 (S8). 프로토타입 screen-01 의 시맨틱 CSS(.page/.report/
 // .section/.kpi/.card)를 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 목업의 계좌 잔고·
-// 미실현 손익·포지션 표·배포 전략 성과는 실 스키마에 없어 렌더하지 않는다(포지션 API 부재는
-// §06 진단이 정직하게 노출). 데이터 흐름은 도메인 훅 재사용 — 실시간 스트림은 WebSocket+Zustand
-// 로 별도 배선하고(도메인 규칙), 이 코크핏은 폴링 스냅샷 + 수동 새로고침이다.
+// 포지션 표·배포 전략 성과는 실 스키마에 없어 렌더하지 않는다(포지션 API 부재는 §06 진단이
+// 정직하게 노출). 미실현 손익은 WS ticker와 state의 open_trades로 만든 추정치만 표시한다.
+// 데이터 흐름은 도메인 훅 재사용 — 실시간 스트림은 WebSocket+Zustand로 별도 배선한다.
+// 프로토타입의 "총 세션" 카드는 사용자 확정 WS Tier 2 요구로 미실현 추정 KPI로 교체한다.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 
@@ -16,6 +17,7 @@ import {
   LiveSessionList,
   LiveSessionTable,
   useLiveSessions,
+  useUnrealizedPnlEstimate,
   type LiveSession,
 } from "@/features/live-sessions";
 import { useStrategies } from "@/features/strategy/hooks";
@@ -36,6 +38,26 @@ import { KillSwitchBanner } from "./kill-switch-banner";
 import { SessionDiagnostics } from "./session-diagnostics";
 
 const STRATEGY_FETCH_LIMIT = 100;
+const TICKER_STALE_MS = 15_000;
+
+function useNowTick(intervalMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
+
+  return now;
+}
+
+function formatEstimatedPnl(value: number): string {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${Math.abs(value).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USDT`;
+}
 
 export function TradingCockpit() {
   const queryClient = useQueryClient();
@@ -73,6 +95,10 @@ export function TradingCockpit() {
     () => sessionItems.filter((s) => s.is_active),
     [sessionItems],
   );
+  const unrealized = useUnrealizedPnlEstimate(activeSessions);
+  const now = useNowTick(5_000);
+  const isTickerStale =
+    unrealized.latestTs !== null && now - unrealized.latestTs > TICKER_STALE_MS;
   const accountsCount = accountItems.length;
   const unresolvedKs = ksItems.filter((e) => e.resolved_at == null).length;
 
@@ -207,14 +233,20 @@ export function TradingCockpit() {
           </article>
 
           <article className="card kpi">
-            <p className="kpi-label">총 세션</p>
-            <p className="kpi-value mono" data-testid="kpi-total-sessions">
-              <StatValue isError={sessionsQ.isError} isPending={sessionsQ.isPending}>
-                {sessionItems.length}
-              </StatValue>
+            <p className="kpi-label">미실현 손익 · 추정</p>
+            <p className="kpi-value mono" data-testid="kpi-unrealized-pnl">
+              {unrealized.total === null ? (
+                <span className="kpi-na">시세 수신 대기</span>
+              ) : (
+                <>
+                  {formatEstimatedPnl(unrealized.total)}
+                  {isTickerStale ? <span className="kpi-value-tag">시세 지연</span> : null}
+                </>
+              )}
             </p>
             <p className="kpi-foot">
-              비활성 세션은 API 가 아직 반환하지 않아, 지금은 활성 세션만 집계합니다.
+              실시간 마크가격 × 미청산 수량 추정치. 세션 상세의 거래소 보고값(/positions)과 다를 수
+              있습니다.
             </p>
           </article>
         </div>

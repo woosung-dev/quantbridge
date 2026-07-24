@@ -1,9 +1,9 @@
 "use client";
 
 // 워크스페이스 대시보드 — C 디자인 언어 이식 (S7). 프로토타입 screen-02 의 시맨틱 CSS 를
-// 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 목업의 미실현 손익·수익률 미터·전략
-// 수명주기 칩(배포됨/검증됨/초안)·per-strategy 성과는 실 스키마에 없어 렌더하지 않는다.
-//  - 손익 KPI 는 라이브 세션 집계의 "실현" 손익이다(미실현 필드 부재). 라벨을 실현으로 못박는다.
+// 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 목업의 수익률 미터·전략 수명주기 칩
+// (배포됨/검증됨/초안)·per-strategy 성과는 실 스키마에 없어 렌더하지 않는다.
+//  - 손익 KPI 는 라이브 세션 집계의 "실현" 손익이며, WS ticker 기반 미실현 추정치는 foot에만 부기한다.
 //  - 전략 §04 는 수명주기 칩을 그리지 않는다(schemas.ts 에 draft/validated/deployed 0건).
 //  - 실행 표는 목록 스키마(BacktestSummary)에 있는 열만 그린다(수익률/MDD 열 없음, S5 와 동일).
 // 데이터 흐름은 S3 셸과의 중복 페치를 걷어냈다(주문 페치 제거 → transition-toast 이중 발화 차단,
@@ -24,6 +24,7 @@ import { formatDateTime } from "@/features/backtest/utils";
 import {
   useLiveSessions,
   useLiveSessionsAggregate,
+  useUnrealizedPnlEstimate,
 } from "@/features/live-sessions";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
@@ -54,6 +55,7 @@ export function DashboardCockpit() {
     [sessionItems],
   );
   const agg = useLiveSessionsAggregate(activeSessions);
+  const unrealized = useUnrealizedPnlEstimate(activeSessions);
 
   const accountsQ = useExchangeAccounts();
   // 목록 쿼리 하나로 §04 전략 목록 + 실행표의 전략명 매핑 + KPI 카운트(.total)를 모두 얻는다.
@@ -174,6 +176,8 @@ export function DashboardCockpit() {
             <p className="kpi-foot">
               USDT. 활성 세션 종료 거래 <span className="mono">{agg.totalClosedTrades}</span>건의
               실현 손익 합입니다.
+              <br />
+              미실현(추정) {unrealized.total === null ? "—" : formatSignedUsd(unrealized.total)}
             </p>
           </article>
 
