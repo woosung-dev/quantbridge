@@ -87,6 +87,54 @@ export type LiveSignalEventListResponse = z.infer<
   typeof LiveSignalEventListResponseSchema
 >;
 
+// ── Position reconciliation response ───────────────────────────────────
+
+export const ExchangePositionSchema = z.object({
+  side: z.string(),
+  size: z.string(),
+  entry_price: z.string().nullable(),
+  mark_price: z.string().nullable(),
+  unrealized_pnl: z.string().nullable(),
+  liquidation_price: z.string().nullable(),
+  leverage: z.string().nullable(),
+});
+export type ExchangePosition = z.infer<typeof ExchangePositionSchema>;
+
+export const PositionDiffSchema = z.object({
+  verdict: z.enum([
+    "match",
+    "qty_mismatch",
+    "side_mismatch",
+    "exchange_only",
+    "local_only",
+    "unknown",
+  ]),
+  local_source: z.enum(["strategy_state_report", "none"]),
+});
+export type PositionDiff = z.infer<typeof PositionDiffSchema>;
+
+export const LiveSessionPositionsResponseSchema = z.object({
+  session_id: z.uuid(),
+  symbol: z.string(),
+  market_type: z.enum(["futures", "spot"]),
+  supported: z.boolean(),
+  reason: z
+    .enum([
+      "live_mode_stub",
+      "exchange_unsupported",
+      "spot_position_api_unsupported",
+      "settings_unset",
+    ])
+    .nullable(),
+  fetched_at: z.string().nullable(),
+  positions: z.array(ExchangePositionSchema),
+  local_open_trades_snapshot: z.array(z.record(z.string(), z.unknown())),
+  diff: PositionDiffSchema,
+});
+export type LiveSessionPositions = z.infer<
+  typeof LiveSessionPositionsResponseSchema
+>;
+
 // ── Form schema — UI input only (RHF + Zod v4 transform 불필요) ────────
 
 export const LiveSessionFormSchema = z.object({

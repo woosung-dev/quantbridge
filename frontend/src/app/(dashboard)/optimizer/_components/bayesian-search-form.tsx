@@ -149,40 +149,59 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
         control={form.control}
         register={form.register}
         errors={form.formState.errors}
-        legend="파라미터 (1~4개, 정규분포 prior 준비 중)"
+        legend="파라미터 (1~4개)"
         emptyRow={EMPTY_ROW}
-        renderRowCells={(idx, removeButton, errors, errorId) => (
-          <>
-            <input
-              placeholder="최소"
-              className="input"
-              aria-invalid={errors.min ? "true" : "false"}
-              aria-describedby={errors.min ? errorId("min") : undefined}
-              {...form.register(`parameters.${idx}.min`)}
-            />
-            <input
-              placeholder="최대"
-              className="input"
-              aria-invalid={errors.max ? "true" : "false"}
-              aria-describedby={errors.max ? errorId("max") : undefined}
-              {...form.register(`parameters.${idx}.max`)}
-            />
-            <select className="select" {...form.register(`parameters.${idx}.prior`)}>
-              <option value="uniform">균등 (uniform)</option>
-              <option value="log_uniform">로그균등 (min &gt; 0)</option>
-              <option value="normal" disabled>
-                정규분포 (준비 중)
-              </option>
-            </select>
-            <div className="opt-param-row-tail">
-              <label className="opt-param-check">
-                <input type="checkbox" {...form.register(`parameters.${idx}.log_scale`)} />
-                로그 스케일
-              </label>
-              {removeButton}
-            </div>
-          </>
-        )}
+        renderRowCells={(idx, removeButton, errors, errorId) => {
+          const logScaleError =
+            form.formState.errors.parameters?.[idx]?.log_scale?.message ??
+            (
+              form.formState.errors as Record<
+                string,
+                { message?: string } | undefined
+              >
+            )[`parameters.${idx}.log_scale`]?.message;
+
+          return (
+            <>
+              <input
+                placeholder="최소"
+                className="input"
+                aria-invalid={errors.min ? "true" : "false"}
+                aria-describedby={errors.min ? errorId("min") : undefined}
+                {...form.register(`parameters.${idx}.min`)}
+              />
+              <input
+                placeholder="최대"
+                className="input"
+                aria-invalid={errors.max ? "true" : "false"}
+                aria-describedby={errors.max ? errorId("max") : undefined}
+                {...form.register(`parameters.${idx}.max`)}
+              />
+              <select className="select" {...form.register(`parameters.${idx}.prior`)}>
+                <option value="uniform">균등 (uniform)</option>
+                <option value="log_uniform">로그균등 (min &gt; 0)</option>
+                <option value="normal">정규분포 (중앙 집중)</option>
+              </select>
+              <div className="opt-param-row-tail">
+                <label className="opt-param-check">
+                  <input
+                    type="checkbox"
+                    aria-invalid={logScaleError ? "true" : "false"}
+                    aria-describedby={
+                      logScaleError ? errorId("log_scale") : undefined
+                    }
+                    {...form.register(`parameters.${idx}.log_scale`)}
+                  />
+                  로그 스케일
+                </label>
+                {logScaleError && (
+                  <FieldError id={errorId("log_scale")} message={logScaleError} />
+                )}
+                {removeButton}
+              </div>
+            </>
+          );
+        }}
       />
 
       <FormErrorAlert message={errMsg} />

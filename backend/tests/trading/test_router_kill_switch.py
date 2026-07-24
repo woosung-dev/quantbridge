@@ -5,6 +5,8 @@ URLs: /api/v1/kill-switch/events (router has no prefix; main.py adds /api/v1).
 """
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 
@@ -46,7 +48,7 @@ async def test_list_kill_switch_events(
 
 @pytest.mark.asyncio
 async def test_resolve_kill_switch(
-    client, mock_clerk_auth, db_session
+    client, mock_clerk_auth, db_session, monkeypatch: pytest.MonkeyPatch
 ):
     """POST /api/v1/kill-switch/events/{event_id}/resolve resolves the event."""
     from decimal import Decimal
@@ -74,6 +76,8 @@ async def test_resolve_kill_switch(
     )
     db_session.add(event)
     await db_session.commit()
+    publisher = AsyncMock()
+    monkeypatch.setattr("src.trading.router.publish_realtime", publisher)
 
     resp = await client.post(
         f"/api/v1/kill-switch/events/{event.id}/resolve",
@@ -81,3 +85,8 @@ async def test_resolve_kill_switch(
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["resolved_at"] is not None
+    publisher.assert_awaited_once_with(
+        str(user.id),
+        "kill_switch_resolved",
+        {"event_id": str(event.id), "trigger_type": "cumulative_loss"},
+    )

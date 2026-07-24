@@ -1,11 +1,46 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-23 (functional-parity 스프린트 — C 디자인 이식 후 기능 격차 마감)
-> **Active Sprint:** **functional-parity** — 구현 완료·게이트 그린, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/functional-parity` (main @ `88faccd` 베이스)
-> **Sprint type:** A (신규 배선) + C (결함 수리) — codex 4-generator 병렬 + Claude 적대 평가 + Opus MCP dogfood
+> **Last Updated:** 2026-07-24 (tier-c 스프린트 — Tier C 4종 + WS Tier 1)
+> **Active Sprint:** **tier-c** — 구현·검증 완료, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/tier-c` (main @ `16c8f20` 베이스)
+> **Sprint type:** A (신규 기능 4종) — codex 9-generator 웨이브 + Claude 적대 평가 + codex G0/최종 diff + Opus MCP dogfood
 > **office-hours 진행:** N
 > **Next Trigger:** 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS 1-2h+24h) + BL-071 (Backend prod 배포) + BL-072 (Resend 1-2h+24h) → 실 prod 배포 → BL-073~075 자연 trigger. (2026-05-30 Sprint 63 prep 에서 이월 — 변동 없음.)
+
+---
+
+## ⚡ tier-c 스프린트 (2026-07-24, `docs/tier-c/`)
+
+**스코프**: functional-parity 에서 제외했던 Tier C 4종 전부 + WS Tier 1 (사용자 A안 확정). 실측 반전 2건 — 펀딩은 이미 엔진 배선 완료(노출 완성만), WS 는 인바운드 전층 신설(최대 규모).
+
+### Completed
+
+- [x] 펀딩: total_funding 4-site 노출 + FE 체크박스 활성화 + 과거 backfill(3심볼×2804행, 8h 갭 0) + beat SOL — psql 3점 오라클 25자리 일치
+- [x] 옵티마이저: 베이지안 normal prior FE 해제 + E1 폼 검증 (BE 는 Sprint 57 부터 기구현)
+- [x] 포지션 대조: `GET /live-sessions/{id}/positions` + PositionService(verdict 6종, 비영속) + 코크핏 카드 배선
+- [x] 알림 규칙: trading.alert_rules(마이그레이션 1) + CRUD + beat evaluate_loss(세션 귀속 조인) + watchdog giveup 훅(order_id 정확 귀속) + Telegram 최초 배선(실수신 검증은 채널 미세팅으로 이연) + 코크핏 카드 UI
+- [x] WS Tier 1: src/realtime 인바운드 서버(첫 메시지 auth·Origin 403) + Redis 팬아웃 발행 13지점(commit 직후) + FE ws-client/realtime feature(invalidate 힌트 전용, 폴링=SSOT) + 스트림 카드
+- [x] cancel_order 실거래소 왕복(전 스프린트 잔여) — 실 demo 2건 submitted→cancelled psql 확정
+- [x] 게이트: BE **2490**(+57)·FE **1019**(+36)·ruff/mypy/tsc/lint/prettier 0·canon **32 불변**·authed **63**(+1, --list 증빙)·alembic 실왕복
+- [x] 검증 체인: codex G0(프레임 2 반증→플랜 수정) → 워커별 Claude 적대 평가(실버그 P1급 3건 + F 2건 적발·해소) → codex 최종 diff(MAJOR 2 해소) → Opus dogfood V1~V5 PASS
+- [x] BL: 신규 BL-417~422 등재
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- [확인 필요] 백테스트 리포트 총수익률(+) vs 순손익(−) 표면 모순 — 기말 미청산 평가손익이 자본에 반영되는 기존 메트릭 시맨틱으로 추정 (tier-c 무관, dogfood 발견 #5)
+- [확인 필요] beat-data 볼륨 /data root 소유 → watchfiles 재시작 시 beat 크래시 함정 — compose 초기 권한/entrypoint chown 중 어느 쪽으로 고정할지 (세션에서는 chown+restart 로 복구)
+- 알림 실수신 검증(Slack webhook / Telegram 봇 세팅) — 사용자 채널 준비 후 후속 세션 [이연 확정]
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [ ] stage/tier-c → main PR 사용자 squash
+- [ ] WS Tier 2 후보 (ticker/미실현 P&L/position 채널) — 별도 스프린트
+- [ ] (이월) 다음 deepen = tasks 도메인
 
 ---
 
@@ -33,9 +68,9 @@
 
 ### Next Actions
 
-- [ ] stage/functional-parity → main PR 사용자 squash
-- [ ] Tier C 후보 재평가 (실시간 WS 스트림이 최저비용 — prereq spike 선행)
-- [ ] (이월) 다음 deepen = tasks 도메인
+- [x] stage/functional-parity → main PR #468 squash 완료 (main @ `16c8f20`)
+- [x] Tier C 후보 재평가 → tier-c 스프린트로 실행 (★prereq spike 반전: WS 가 최저비용 아닌 최대 규모, 펀딩이 최소)
+- [ ] (이월) 다음 deepen = tasks 도메인 → tier-c 섹션으로 이월
 
 ---
 

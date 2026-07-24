@@ -337,7 +337,7 @@ export function TradingCockpit() {
             아직 연결되지 않았거나 실패했거나 비어 있는 항목도 감추지 않고 그대로 보여줍니다.
           </p>
         </header>
-        <SessionDiagnostics />
+        <SessionDiagnostics session={selected} />
       </section>
 
       <p className="disclaimer">

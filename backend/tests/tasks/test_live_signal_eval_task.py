@@ -446,6 +446,8 @@ async def test_success_inserts_events_and_commits(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(
         live_signal_module.dispatch_live_signal_event_task, "apply_async", apply_async_spy
     )
+    publisher = AsyncMock()
+    monkeypatch.setattr(live_signal_module, "publish_realtime", publisher)
 
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
@@ -455,6 +457,9 @@ async def test_success_inserts_events_and_commits(monkeypatch: pytest.MonkeyPatc
     sess_repo.commit.assert_awaited_once()
     sess_repo.upsert_state.assert_awaited_once()
     event_repo.insert_pending_events.assert_awaited_once()
+    publisher.assert_awaited_once_with(
+        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+    )
     # dispatch task 1건 enqueue
     apply_async_spy.assert_called_once()
     enqueued_args = apply_async_spy.call_args.kwargs.get("args") or apply_async_spy.call_args.args
@@ -555,6 +560,8 @@ def _divergence_scaffold(
     )
     mock_alert = AsyncMock(return_value=True)
     monkeypatch.setattr(live_signal_module, "send_critical_alert", mock_alert)
+    publisher = AsyncMock()
+    monkeypatch.setattr(live_signal_module, "publish_realtime", publisher)
     return sess, sess_repo, event_repo, apply_async_spy, mock_alert
 
 
@@ -758,6 +765,8 @@ async def test_preflight_unrunnable_deactivates_before_fetch(
     )
     mock_alert = AsyncMock(return_value=True)
     monkeypatch.setattr(live_signal_module, "send_critical_alert", mock_alert)
+    publisher = AsyncMock()
+    monkeypatch.setattr(live_signal_module, "publish_realtime", publisher)
     provider = celery_module.get_ccxt_provider_for_worker()
     before = _divergence_count("preflight", "coverage_unrunnable")
 
@@ -771,6 +780,9 @@ async def test_preflight_unrunnable_deactivates_before_fetch(
     provider.fetch_ohlcv.assert_not_called()  # OHLCV fetch 전에 차단
     assert mock_alert.call_count == 1
     assert _divergence_count("preflight", "coverage_unrunnable") == before + 1
+    publisher.assert_awaited_once_with(
+        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+    )
 
 
 @pytest.mark.asyncio

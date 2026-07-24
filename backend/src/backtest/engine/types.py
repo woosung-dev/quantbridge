@@ -45,7 +45,8 @@ class BacktestConfig:
     # leverage=1.0 default = 현물 가정. >1.0 시 사용자가 자본 대비 손실 한계
     # 를 100% 초과로 해석할 수 있도록 응답에 노출.
     leverage: float = 1.0
-    # 무기한 선물 funding 비용 — 현재 미반영 (future hook).
+    # 무기한 선물 funding 비용 — include_funding=True 이고 worker 경로가 funding_rates 를
+    # 제공하면 8h 정산 경계마다 차감한다(SSOT: v2_adapter._funding_cost_by_bar).
     include_funding: bool = False
     # TV parity — 시장가 체결 타이밍. "bar_close"(기본, 신호 bar 종가 즉시 — 기존
     # 동작 byte-identical) | "next_bar_open"(다음 bar 시가 — TV
@@ -221,6 +222,8 @@ class BacktestMetrics:
     # 가용 범위(인제스션 forward-only) 밖이면 True. include_funding=false 또는 funding
     # 미전달 시 None(미반영) → 기존 완료 backtest round-trip 호환.
     funding_data_incomplete: bool | None = None
+    # funding 총액. 양수=지불(equity 감소), 음수=수취. None=미반영, 0=반영했으나 정산 0건.
+    total_funding: Decimal | None = None
     # --- TV Strategy Tester parity 팩 (전부 optional 꼬리 추가 — 구 backtest
     # round-trip 호환. 4-site 동시 수정은 test_metrics_field_parity tripwire 가 강제) ---
     # 절대금액 계열 (closed net pnl 기준, Decimal 정확 합산).

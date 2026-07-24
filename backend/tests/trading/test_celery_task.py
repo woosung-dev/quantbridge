@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -130,12 +131,14 @@ async def test_execute_order_task_transitions_pending_to_filled(
     import src.tasks.trading as task_mod
     from src.trading.providers import FixtureExchangeProvider
 
-    order, _acc = pending_order
+    order, account = pending_order
 
     # Session monkeypatch — Sprint 4 pattern
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
     # Provider monkeypatch — FixtureExchangeProvider 강제 (EXCHANGE_PROVIDER 환경변수 독립)
     monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: FixtureExchangeProvider())
+    publisher = AsyncMock()
+    monkeypatch.setattr(task_mod, "publish_realtime", publisher)
 
     result = await task_mod._async_execute(order.id)
 
@@ -151,6 +154,16 @@ async def test_execute_order_task_transitions_pending_to_filled(
     assert order.filled_price is not None
     assert order.submitted_at is not None
     assert order.filled_at is not None
+    assert publisher.await_count == 2
+    assert publisher.await_args_list[0].args[0:2] == (str(account.user_id), "order_update")
+    assert publisher.await_args_list[0].args[2]["state"] == "submitted"
+    assert publisher.await_args_list[1].args[2] == {
+        "order_id": str(order.id),
+        "state": "filled",
+        "symbol": order.symbol,
+        "side": order.side.value,
+        "source": "rest",
+    }
 
 
 @pytest.mark.asyncio

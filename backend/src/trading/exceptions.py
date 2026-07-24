@@ -179,6 +179,13 @@ class SessionAlreadyActive(AppException):
     code = "session_already_active"
 
 
+class AlertRuleAlreadyActive(AppException):
+    """같은 세션·타입의 활성 알림 규칙이 이미 존재."""
+
+    status_code = 409
+    code = "alert_rule_already_active"
+
+
 class StrategySettingsRequired(AppException):
     """Sprint 26 — strategy.settings is None.
 

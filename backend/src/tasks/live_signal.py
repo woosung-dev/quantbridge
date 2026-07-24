@@ -62,6 +62,7 @@ from src.trading.models import (
     OrderSide,
     OrderType,
 )
+from src.trading.realtime_publisher import publish_realtime
 
 logger = logging.getLogger(__name__)
 
@@ -429,6 +430,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                    await publish_realtime(
+                        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                    )
                     qb_live_signal_divergence_total.labels(
                         stage="preflight", category=preflight_cat
                     ).inc()
@@ -496,6 +500,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:
+                    await publish_realtime(
+                        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                    )
                     qb_live_signal_divergence_total.labels(
                         stage="runtime", category="run_live_error"
                     ).inc()
@@ -643,6 +650,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             # LESSON-019 — claim UPDATE + events INSERT + state upsert 단일 commit
             await sess_repo.commit()
+            await publish_realtime(
+                str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+            )
 
         # 9. dispatch task enqueue — outbox commit 후 (visibility race 방지)
         for ev in new_events:

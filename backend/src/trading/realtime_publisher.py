@@ -1,0 +1,40 @@
+# 사용자별 Redis 실시간 무효화 힌트를 발행한다.
+from __future__ import annotations
+
+import logging
+import time
+from contextlib import suppress
+from typing import Any, Literal, cast
+
+from src.common.metrics import qb_rt_publish_failed_total
+from src.common.redis_client import get_redis_lock_pool
+from src.realtime.schemas import RealtimeEnvelope, user_channel
+
+logger = logging.getLogger(__name__)
+
+
+def _get_redis_lock_pool() -> Any:
+    """테스트에서 Redis pool을 교체할 수 있는 간접 지점."""
+    return get_redis_lock_pool()
+
+
+async def publish_realtime(
+    user_id: str, event_type: str, payload: dict[str, Any]
+) -> None:
+    """Redis pub/sub 발행 실패가 거래 상태 전이를 방해하지 않게 한다."""
+    try:
+        envelope = RealtimeEnvelope(
+            type=cast(
+                Literal[
+                    "order_update", "kill_switch", "kill_switch_resolved", "session_state"
+                ],
+                event_type,
+            ),
+            ts=time.time_ns() // 1_000_000,
+            payload=payload,
+        )
+        await _get_redis_lock_pool().publish(user_channel(user_id), envelope.model_dump_json())
+    except Exception:
+        logger.exception("realtime_publish_failed event_type=%s", event_type)
+        with suppress(Exception):
+            qb_rt_publish_failed_total.inc()

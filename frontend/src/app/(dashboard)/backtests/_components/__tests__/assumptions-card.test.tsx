@@ -67,6 +67,19 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
     expect(modelDt?.title ?? "").toMatch(/BL-186|미반영|후속/i);
   });
 
+  it("펀딩 반영 config 시 포지션 모델 tooltip 이 8시간 펀딩 차감을 설명", () => {
+    render(
+      <AssumptionsCard
+        initialCapital={10000}
+        config={{ include_funding: true }}
+      />,
+    );
+    const modelDt = screen.getByText("포지션 모델").parentElement;
+    expect(modelDt?.title).toBe(
+      "강제 청산 / 유지 증거금 미반영. 펀딩 비용은 8시간 정산 주기로 차감 (총 펀딩 행 참조).",
+    );
+  });
+
   it("BL-187a: 레버리지 / 펀딩비 row 완전 제거 (사용자 명시)", () => {
     render(
       <AssumptionsCard
@@ -83,19 +96,32 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
 });
 
 describe("AssumptionsCard — C14 정직성 (총비용 + 가설적 고지 + 체결 가정)", () => {
-  it("총 수수료 / 총 슬리피지 절대값 표시", () => {
+  it("총 수수료 / 총 슬리피지 / 총 펀딩을 표시하고 펀딩 부호를 보존", () => {
     render(
       <AssumptionsCard
         initialCapital={10000}
         config={{ fees: 0.001, slippage: 0.0005 }}
         totalFees={12.5}
         totalSlippage={6.25}
+        totalFunding={12.34}
       />,
     );
     expect(screen.getByText("총 수수료")).toBeInTheDocument();
     expect(screen.getByText("12.5 USDT")).toBeInTheDocument();
     expect(screen.getByText("총 슬리피지")).toBeInTheDocument();
     expect(screen.getByText("6.25 USDT")).toBeInTheDocument();
+    expect(screen.getByText("총 펀딩")).toBeInTheDocument();
+    expect(screen.getByText("12.34 USDT")).toBeInTheDocument();
+  });
+
+  it("totalFunding null 은 미렌더하고 음수 부호를 보존", () => {
+    const { rerender } = render(
+      <AssumptionsCard initialCapital={10000} totalFunding={null} />,
+    );
+    expect(screen.queryByText("총 펀딩")).toBeNull();
+
+    rerender(<AssumptionsCard initialCapital={10000} totalFunding={-5.6} />);
+    expect(screen.getByText("-5.6 USDT")).toBeInTheDocument();
   });
 
   it("가설적 결과 고지 + 순(net) + 체결 가정 문구 상시 표시", () => {

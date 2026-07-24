@@ -10,6 +10,7 @@ layer hook, Evaluator 안 X). best-effort fire-and-forget. 자세한 정책은
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -25,11 +26,13 @@ from src.common.metrics import qb_kill_switch_triggered_total
 from src.core.config import Settings, get_settings
 from src.trading.exceptions import KillSwitchActive
 from src.trading.models import (
+    ExchangeAccount,
     KillSwitchEvent,
     KillSwitchTriggerType,
     Order,
     OrderState,
 )
+from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.order_repository import OrderRepository
 
@@ -233,6 +236,15 @@ class KillSwitchService:
             # savepoint *밖*에서 호출되므로 (order_service E9 restructure) 여기 commit 은
             # pending event 만 영속화 + alert/dedup 계약 보존 (alert storm 방지).
             await self._events_repo.commit()
+            account = None
+            with contextlib.suppress(Exception):
+                account = await self._events_repo.session.get(ExchangeAccount, account_id)
+            if account is not None:
+                await publish_realtime(
+                    str(account.user_id),
+                    "kill_switch",
+                    {"event_id": str(created.id), "trigger_type": result.trigger_type},
+                )
 
             # Sprint 9 Phase D: 신규 발동만 카운트 (기존 unresolved 재히트는 제외).
             qb_kill_switch_triggered_total.labels(trigger_type=result.trigger_type).inc()

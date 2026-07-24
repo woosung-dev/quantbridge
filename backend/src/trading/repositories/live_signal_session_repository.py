@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import LiveSignalSession, LiveSignalState
+from src.trading.models import LiveSignalEvent, LiveSignalSession, LiveSignalState
 
 # interval → seconds CASE expression (list_active_due 에서 SQL-side 필터)
 _INTERVAL_SECONDS_CASE = (
@@ -45,6 +45,16 @@ class LiveSignalSessionRepository:
             select(LiveSignalSession).where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
         )
         return result.scalar_one_or_none()
+
+    async def find_active_by_order_id(self, order_id: UUID) -> LiveSignalSession | None:
+        """LiveSignalEvent.order_id에 정확히 귀속된 활성 세션을 찾는다."""
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .join(LiveSignalEvent, LiveSignalEvent.session_id == LiveSignalSession.id)  # type: ignore[arg-type]
+            .where(LiveSignalEvent.order_id == order_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+        )
+        return result.scalars().first()
 
     async def list_active_by_user(self, user_id: UUID) -> Sequence[LiveSignalSession]:
         result = await self.session.execute(

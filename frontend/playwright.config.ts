@@ -75,7 +75,7 @@ export default defineConfig({
       // functional-parity — `authed-functional-parity` 추가 (주문취소 A2 / nav-count B2 /
       //   backtest_count B1 / 대시보드 링크 A1 회귀 가드 5 case).
       testMatch:
-        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1|authed-canon-remaining|sprint55-optimizer-bayesian|authed-functional-parity)\.spec\.ts$/,
+        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1|authed-canon-remaining|sprint55-optimizer-bayesian|authed-functional-parity|authed-tier-c-cockpit)\.spec\.ts$/,
       fullyParallel: false,
       use: {
         ...devices["Desktop Chrome"],

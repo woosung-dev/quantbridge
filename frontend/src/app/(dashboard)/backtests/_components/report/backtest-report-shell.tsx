@@ -251,6 +251,7 @@ export function BacktestReportShell({
           config={bt.config}
           totalFees={metrics.total_fees}
           totalSlippage={metrics.total_slippage}
+          totalFunding={metrics.total_funding}
           fundingDataIncomplete={metrics.funding_data_incomplete}
           periodStart={bt.period_start}
           periodEnd={bt.period_end}

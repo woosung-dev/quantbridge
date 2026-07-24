@@ -151,18 +151,23 @@ def run_backtest_v2(
 
     try:
         trades = _build_raw_trades(state, cfg, ohlcv=ohlcv)
-        # C6 funding accrual 배선 — funding_rates 제공 시 8h 정산 경계 차감 + 결측 flag.
-        # flag 는 경량 헬퍼로 1회만 계산(cost 재계산 회피, _compute_equity_curve 시그니처
-        # 불변). None = 회귀 0 (기존 동작 byte-identical).
-        funding_incomplete = (
-            _funding_coverage_incomplete(trades, ohlcv, funding_rates)
+        # C6 funding accrual — 비용/결측을 한 번만 계산해 모든 equity 경로와 metric 에 공유.
+        funding_costs, funding_incomplete = (
+            _funding_cost_by_bar(trades, ohlcv, funding_rates)
             if funding_rates is not None
-            else None
+            else (None, None)
         )
-        equity = _compute_equity_curve(trades, ohlcv, cfg, funding_rates=funding_rates)
+        total_funding = (
+            sum(funding_costs, start=Decimal("0")) if funding_costs is not None else None
+        )
+        equity = _compute_equity_curve(
+            trades, ohlcv, cfg, funding_rates=funding_rates, funding_costs=funding_costs
+        )
         # TV parity — intrabar equity 극값 근사 (별도 pass, close 커브 무변경).
         extremes = (
-            _compute_equity_extremes(trades, ohlcv, cfg, funding_rates=funding_rates)
+            _compute_equity_extremes(
+                trades, ohlcv, cfg, funding_rates=funding_rates, funding_costs=funding_costs
+            )
             if trades
             else None
         )
@@ -172,6 +177,7 @@ def run_backtest_v2(
             cfg,
             ohlcv,
             funding_data_incomplete=funding_incomplete,
+            total_funding=total_funding,
             equity_extremes=extremes,
         )
     except Exception as exc:
@@ -464,6 +470,7 @@ def _compute_equity_curve(
     ohlcv: pd.DataFrame,
     cfg: BacktestConfig,
     funding_rates: pd.Series | None = None,
+    funding_costs: list[Decimal] | None = None,
 ) -> pd.Series:
     """bar-by-bar equity 재구성.
 
@@ -490,9 +497,9 @@ def _compute_equity_curve(
 
     # C6 funding accrual — funding_rates 제공 시 정산 경계마다 보유 포지션 funding
     # 누적 차감 (None = 회귀 0, 기존 동작 byte-identical).
-    funding_by_bar = (
-        _funding_cost_by_bar(trades, ohlcv, funding_rates)[0] if funding_rates is not None else None
-    )
+    funding_by_bar = funding_costs
+    if funding_by_bar is None and funding_rates is not None:
+        funding_by_bar = _funding_cost_by_bar(trades, ohlcv, funding_rates)[0]
 
     # exit bar 별 realized pnl 누적
     exits_by_bar: dict[int, list[RawTrade]] = {}
@@ -547,6 +554,7 @@ def _compute_equity_extremes(
     ohlcv: pd.DataFrame,
     cfg: BacktestConfig,
     funding_rates: pd.Series | None = None,
+    funding_costs: list[Decimal] | None = None,
 ) -> tuple[list[Decimal], list[Decimal]]:
     """bar-by-bar intrabar equity 극값 근사 (equity_high, equity_low).
 
@@ -561,11 +569,9 @@ def _compute_equity_extremes(
     taker_fee = Decimal(str(cfg.fees))
     slip_rate = Decimal(str(cfg.slippage))
 
-    funding_by_bar = (
-        _funding_cost_by_bar(trades, ohlcv, funding_rates)[0]
-        if funding_rates is not None
-        else None
-    )
+    funding_by_bar = funding_costs
+    if funding_by_bar is None and funding_rates is not None:
+        funding_by_bar = _funding_cost_by_bar(trades, ohlcv, funding_rates)[0]
     exits_by_bar: dict[int, list[RawTrade]] = {}
     for t in trades:
         if t.exit_bar_index is not None:
@@ -614,6 +620,7 @@ def _compute_metrics(
     cfg: BacktestConfig,
     ohlcv: pd.DataFrame | None = None,
     funding_data_incomplete: bool | None = None,
+    total_funding: Decimal | None = None,
     equity_extremes: tuple[list[Decimal], list[Decimal]] | None = None,
 ) -> BacktestMetrics:
     """RawTrade list + equity curve → BacktestMetrics 24 필드.
@@ -832,6 +839,7 @@ def _compute_metrics(
         total_slippage=total_slippage,
         # C6 (정직성) — funding 차감 시 보유 구간 일부가 funding 데이터 범위 밖이면 True.
         funding_data_incomplete=funding_data_incomplete,
+        total_funding=total_funding,
         # TV parity 팩.
         net_profit_abs=net_profit_abs,
         gross_profit_abs=gross_profit_abs,

@@ -87,6 +87,21 @@ class LiveSignalEventStatus(StrEnum):
     failed = "failed"
 
 
+class AlertRuleType(StrEnum):
+    """세션 알림 규칙의 발화 조건."""
+
+    loss_limit = "loss_limit"
+    watchdog = "watchdog"
+
+
+class AlertChannel(StrEnum):
+    """세션 알림 규칙의 전송 채널."""
+
+    slack = "slack"
+    telegram = "telegram"
+    both = "both"
+
+
 class ExchangeAccount(SQLModel, table=True):
     __tablename__ = "exchange_accounts"
     __table_args__ = (
@@ -581,4 +596,61 @@ class LiveSignalEvent(SQLModel, table=True):
     )
     dispatched_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
+
+
+class AlertRule(SQLModel, table=True):
+    """Live Signal 세션의 손실한도·워치독 알림 규칙."""
+
+    __tablename__ = "alert_rules"
+    __table_args__ = (
+        CheckConstraint(
+            "(rule_type = 'loss_limit' AND threshold_percent IS NOT NULL) "
+            "OR (rule_type = 'watchdog' AND threshold_percent IS NULL)",
+            name="ck_alert_rules_type_threshold",
+        ),
+        Index("ix_alert_rules_session_active", "session_id", "is_active"),
+        Index(
+            "uq_alert_rules_active_type",
+            "session_id",
+            "rule_type",
+            unique=True,
+            postgresql_where=text("is_active = true"),
+        ),
+        {"schema": "trading"},
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    session_id: UUID = Field(
+        sa_column=Column(
+            "session_id",
+            ForeignKey("trading.live_signal_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+    )
+    # LiveSignalInterval 과 같은 String + StrEnum 계약. PG enum 생성 금지.
+    rule_type: AlertRuleType = Field(sa_column=Column("rule_type", String(32), nullable=False))
+    threshold_percent: Decimal | None = Field(
+        default=None,
+        sa_column=Column("threshold_percent", Numeric(18, 8), nullable=True),
+    )
+    channel: AlertChannel = Field(
+        sa_column=Column("channel", String(16), nullable=False),
+    )
+    is_active: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default=text("true")),
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(
+            AwareDateTime(),
+            nullable=False,
+            server_default=text("NOW()"),
+            onupdate=lambda: datetime.now(UTC),
+        ),
     )

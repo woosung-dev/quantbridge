@@ -275,6 +275,7 @@ export const BacktestMetricsOutSchema = z.object({
   // C14 (정직성) — 총 수수료/슬리피지 (헤드라인 net 표시). 구 완료 백테스트 null.
   total_fees: decimalString.nullable().optional(),
   total_slippage: decimalString.nullable().optional(),
+  total_funding: decimalString.nullable().optional(),
   // C6 (정직성 Slice 4) — funding 차감 시 보유 구간 일부가 funding 데이터 가용 범위
   // 밖이면 true. include_funding=false / 펀딩 미반영 / 구 완료 백테스트 → null/absent.
   funding_data_incomplete: z.boolean().nullable().optional(),

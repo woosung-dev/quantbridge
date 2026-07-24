@@ -20,27 +20,35 @@ from src.auth.schemas import CurrentUser
 from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
 from src.trading.dependencies import (
+    get_alert_rule_service,
     get_exchange_account_service,
     get_liquidation_service,
     get_live_signal_session_service,
     get_order_service,
+    get_position_service,
     get_webhook_service,
 )
 from src.trading.equity_calculator import recompute_equity_curve
+from src.trading.exceptions import ProviderError
 from src.trading.liquidation_schemas import (
     LiquidationInfoResponse,
     LiquidationPreviewRequest,
 )
 from src.trading.models import OrderState
+from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.schemas import (
+    AlertRuleCreateRequest,
+    AlertRuleListResponse,
+    AlertRuleResponse,
     ExchangeAccountResponse,
     KillSwitchEventResponse,
     LiveSessionListResponse,
+    LiveSessionPositionsResponse,
     LiveSessionResponse,
     LiveSignalEventListResponse,
     LiveSignalEventResponse,
@@ -53,9 +61,11 @@ from src.trading.schemas import (
     mask_api_key,
 )
 from src.trading.services.account_service import ExchangeAccountService
+from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.liquidation_service import LiquidationService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
+from src.trading.services.position_service import PositionService
 from src.trading.webhook import WebhookService, parse_tv_payload
 
 router = APIRouter(tags=["trading"])
@@ -360,6 +370,12 @@ async def resolve_kill_switch(
     note = str(raw_note) if raw_note is not None else None
     rowcount = await repo.resolve(event_id, note=note)
     await repo.commit()
+    if rowcount == 1:
+        await publish_realtime(
+            str(current_user.id),
+            "kill_switch_resolved",
+            {"event_id": str(event_id), "trigger_type": owned.trigger_type.value},
+        )
     if rowcount == 0:
         raise HTTPException(status_code=404, detail="event not found or already resolved")
     fetched = await repo.get_by_id(event_id)
@@ -461,6 +477,21 @@ async def get_live_session_state(
 
 
 @router.get(
+    "/live-sessions/{session_id}/positions",
+    response_model=LiveSessionPositionsResponse,
+)
+async def get_live_session_positions(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: PositionService = Depends(get_position_service),
+) -> LiveSessionPositionsResponse:
+    try:
+        return await service.get_reconciliation(current_user.id, session_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=503, detail="exchange position lookup unavailable") from exc
+
+
+@router.get(
     "/live-sessions/{session_id}/events",
     response_model=LiveSignalEventListResponse,
 )
@@ -480,3 +511,44 @@ async def list_live_session_events(
     return LiveSignalEventListResponse(
         items=[LiveSignalEventResponse.model_validate(e) for e in events]
     )
+
+
+@router.get(
+    "/live-sessions/{session_id}/alert-rules",
+    response_model=AlertRuleListResponse,
+)
+async def list_alert_rules(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AlertRuleService = Depends(get_alert_rule_service),
+) -> AlertRuleListResponse:
+    rules = await service.list_active(current_user.id, session_id)
+    items = [AlertRuleResponse.model_validate(rule) for rule in rules]
+    return AlertRuleListResponse(items=items, total=len(items))
+
+
+@router.post(
+    "/live-sessions/{session_id}/alert-rules",
+    status_code=201,
+    response_model=AlertRuleResponse,
+)
+async def create_alert_rule(
+    data: AlertRuleCreateRequest,
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AlertRuleService = Depends(get_alert_rule_service),
+) -> AlertRuleResponse:
+    return AlertRuleResponse.model_validate(await service.create(current_user.id, session_id, data))
+
+
+@router.delete(
+    "/live-sessions/{session_id}/alert-rules/{rule_id}",
+    status_code=204,
+)
+async def delete_alert_rule(
+    session_id: UUID = Path(...),
+    rule_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: AlertRuleService = Depends(get_alert_rule_service),
+) -> None:
+    await service.deactivate(current_user.id, session_id, rule_id)

@@ -153,20 +153,33 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     repo.get_by_id = AsyncMock(return_value=order)
     repo.transition_to_filled = AsyncMock(return_value=1)
 
+    trace: list[str] = []
+
+    async def _commit() -> None:
+        trace.append("commit")
+
     session = AsyncMock()
-    session.commit = AsyncMock()
+    session.commit = AsyncMock(side_effect=_commit)
 
     settings = MagicMock()
+    user_id = uuid4()
     handler = StateHandler(
         session_factory=_make_session_factory(session),
         settings=settings,
         alert_sender=AsyncMock(return_value=True),
+        user_id=user_id,
     )
     # OrderRepository 는 handle_order_event 내부에서 OrderRepository(session) 으로 생성.
     # repo 객체를 그대로 주입 못 하므로 monkeypatch 로 OrderRepository 클래스 바이패스.
     from src.trading.websocket import state_handler as sh_module
 
     monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
+
+    async def _publish(*_args: object, **_kwargs: object) -> None:
+        trace.append("publish")
+
+    publisher = AsyncMock(side_effect=_publish)
+    monkeypatch.setattr(sh_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
 
@@ -181,6 +194,18 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     )
 
     session.commit.assert_awaited_once()
+    publisher.assert_awaited_once_with(
+        str(user_id),
+        "order_update",
+        {
+            "order_id": str(order.id),
+            "state": "filled",
+            "symbol": order.symbol,
+            "side": order.side.value,
+            "source": "ws",
+        },
+    )
+    assert trace == ["commit", "publish"]
     assert qb_active_orders._value.get() == 0.0
 
 
@@ -199,15 +224,19 @@ async def test_handle_order_event_filled_loser_commits_no_dec(
     session.commit = AsyncMock()
 
     settings = MagicMock()
+    user_id = uuid4()
     handler = StateHandler(
         session_factory=_make_session_factory(session),
         settings=settings,
         alert_sender=AsyncMock(return_value=True),
+        user_id=user_id,
     )
 
     from src.trading.websocket import state_handler as sh_module
 
     monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
+    publisher = AsyncMock()
+    monkeypatch.setattr(sh_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
 
@@ -222,6 +251,7 @@ async def test_handle_order_event_filled_loser_commits_no_dec(
     )
 
     session.commit.assert_awaited_once()  # commit 자체는 OK (no-op)
+    publisher.assert_not_awaited()
     assert qb_active_orders._value.get() == 1.0  # dec X — race loser
 
 
@@ -283,15 +313,19 @@ async def test_handle_order_event_filled_commit_failure_no_dec(
     session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
 
     settings = MagicMock()
+    user_id = uuid4()
     handler = StateHandler(
         session_factory=_make_session_factory(session),
         settings=settings,
         alert_sender=AsyncMock(return_value=True),
+        user_id=user_id,
     )
 
     from src.trading.websocket import state_handler as sh_module
 
     monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
+    publisher = AsyncMock()
+    monkeypatch.setattr(sh_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
 
@@ -307,6 +341,7 @@ async def test_handle_order_event_filled_commit_failure_no_dec(
         )
 
     # commit 실패 → dec 발화 X → DB rollback 시 gauge 일관 (drift 방어)
+    publisher.assert_not_awaited()
     assert qb_active_orders._value.get() == 1.0
 
 

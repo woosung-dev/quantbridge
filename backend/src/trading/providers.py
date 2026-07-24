@@ -134,6 +134,19 @@ class PositionInfo:
     created_at: datetime | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class PositionSnapshot:
+    """거래소 포지션 대조 API용 read-only 정규화 스냅샷."""
+
+    side: str
+    size: Decimal
+    entry_price: Decimal | None
+    mark_price: Decimal | None
+    unrealized_pnl: Decimal | None
+    liquidation_price: Decimal | None
+    leverage: Decimal | None
+
+
 def _parse_position_created_at(position: dict[str, Any]) -> datetime | None:
     """Bybit raw ``info.createdTime``(ms epoch str) → aware UTC. BL-372 same-side stale 가드 입력.
 
@@ -733,6 +746,70 @@ class BybitFuturesProvider:
                     detail=f"{len(legs)} open legs for {symbol} — one-way mode required",
                 )
             return legs[0] if legs else None
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_open_positions(
+        self, creds: Credentials, symbol: str
+    ) -> list[PositionSnapshot]:
+        """현재 linear 포지션 leg 전체를 대조용으로 반환한다.
+
+        stale trailing-stop 가드의 ``fetch_position``과 달리 hedge mode의 long/short
+        두 leg를 모두 보존한다. 이 메서드는 read-only 대조 경로 전용이다.
+        """
+        linear_symbol = _to_bybit_linear_symbol(symbol)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_open_positions"):
+                positions = await exchange.fetch_positions([linear_symbol])
+            snapshots: list[PositionSnapshot] = []
+            for position in positions:
+                contracts = position.get("contracts")
+                if contracts is None:
+                    continue
+                size = Decimal(str(contracts))
+                if size <= 0:
+                    continue
+
+                def decimal_or_none(value: Any) -> Decimal | None:
+                    return Decimal(str(value)) if value is not None else None
+
+                side = position.get("side")
+                if not isinstance(side, str):
+                    raise ProviderError("malformed Bybit position: missing side")
+                snapshots.append(
+                    PositionSnapshot(
+                        side=side,
+                        size=size,
+                        entry_price=decimal_or_none(position.get("entryPrice")),
+                        mark_price=decimal_or_none(position.get("markPrice")),
+                        unrealized_pnl=decimal_or_none(position.get("unrealizedPnl")),
+                        liquidation_price=decimal_or_none(position.get("liquidationPrice")),
+                        leverage=decimal_or_none(position.get("leverage")),
+                    )
+                )
+            return snapshots
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:

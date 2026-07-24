@@ -9,6 +9,8 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
+import { RealtimeBridge } from "@/features/realtime/realtime-bridge";
+
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNav } from "./mobile-nav";
@@ -42,6 +44,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <RealtimeBridge />
       {/* position:fixed — 문서 흐름 밖. .topbar/.main 이 margin-left 로 자리를 비운다. */}
       <DashboardSidebar pathname={pathname} />
       {/* 모바일 drawer — Sheet 기반 left-side, ≤768px 햄버거로 연다 (md:hidden). */}

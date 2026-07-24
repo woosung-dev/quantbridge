@@ -130,6 +130,43 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
     expect(payload.initial_capital).toBe(10000);
   });
 
+  it("펀딩 반영 해제 후 제출 → payload include_funding=false", async () => {
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), {
+        target: { value: "BTC/USDT" },
+      });
+      fireEvent.change(screen.getByLabelText("시작일"), {
+        target: { value: "2026-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("종료일"), {
+        target: { value: "2026-01-31" },
+      });
+      fireEvent.change(screen.getByLabelText("초기 자본"), {
+        target: { value: "10000" },
+      });
+      fireEvent.click(screen.getByRole("checkbox", { name: /펀딩 반영/ }));
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(1);
+    });
+
+    const payload = mutate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(payload.include_funding).toBe(false);
+  });
+
+  it("펀딩 반영 체크박스가 활성화되고 실측 데이터 안내를 표시", () => {
+    render(<BacktestForm />);
+
+    expect(screen.getByRole("checkbox", { name: /펀딩 반영/ })).toBeEnabled();
+    expect(
+      screen.getByText(/Bybit 실측 펀딩 데이터를 사용하며/),
+    ).toBeInTheDocument();
+  });
+
   it("validation — fees_pct -0.1 (음수) 입력 시 inline error", async () => {
     render(<BacktestForm />);
 

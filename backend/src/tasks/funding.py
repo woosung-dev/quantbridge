@@ -38,6 +38,19 @@ def fetch_funding_rates_task(
     return run_in_worker_loop(_async_fetch(exchange_name, symbol, lookback_hours))
 
 
+@shared_task(name="trading.backfill_funding_rates")  # type: ignore[untyped-decorator]
+def backfill_funding_rates_task(
+    exchange_name: str,
+    symbol: str,
+    start_iso: str,
+    end_iso: str,
+) -> dict[str, Any]:
+    """수동 요청한 기간의 funding rate 이력을 backfill 한다."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_backfill(exchange_name, symbol, start_iso, end_iso))
+
+
 async def _async_fetch(exchange_name: str, symbol: str, lookback_hours: int) -> dict[str, Any]:
     from src.trading.funding import fetch_and_store_funding_rates
 
@@ -49,6 +62,28 @@ async def _async_fetch(exchange_name: str, symbol: str, lookback_hours: int) -> 
                 exchange_name=exchange_name,
                 symbol=symbol,
                 since=since,
+                session=session,
+            )
+        return {"exchange": exchange_name, "symbol": symbol, "inserted": inserted}
+    finally:
+        await engine.dispose()
+
+
+async def _async_backfill(
+    exchange_name: str, symbol: str, start_iso: str, end_iso: str
+) -> dict[str, Any]:
+    from src.trading.funding import backfill_funding_rate_history
+
+    start = datetime.fromisoformat(start_iso)
+    end = datetime.fromisoformat(end_iso)
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            inserted = await backfill_funding_rate_history(
+                exchange_name=exchange_name,
+                symbol=symbol,
+                start=start,
+                end=end,
                 session=session,
             )
         return {"exchange": exchange_name, "symbol": symbol, "inserted": inserted}

@@ -170,6 +170,8 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
     # C6 (정직성 Slice 4): funding_data_incomplete (bool). None 키 생략 → backward-compat.
     if m.funding_data_incomplete is not None:
         d["funding_data_incomplete"] = m.funding_data_incomplete
+    if m.total_funding is not None:
+        d["total_funding"] = str(m.total_funding)
     # --- TV parity 팩 (None 키 생략 → backward-compat) ---
     for name in _TV_FLAT_DECIMAL_FIELDS:
         v = getattr(m, name)
@@ -250,6 +252,7 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
         total_slippage=_opt_decimal("total_slippage"),
         # C6 (정직성 Slice 4): funding_data_incomplete (bool). 누락 시 None.
         funding_data_incomplete=data.get("funding_data_incomplete"),
+        total_funding=_opt_decimal("total_funding"),
         # TV parity 팩 (누락 키 None — backward-compat).
         **{name: _opt_decimal(name) for name in _TV_FLAT_DECIMAL_FIELDS},
         total_open_trades=data.get("total_open_trades"),

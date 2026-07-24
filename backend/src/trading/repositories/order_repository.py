@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import ExchangeAccount, Order, OrderState
+from src.trading.models import ExchangeAccount, LiveSignalEvent, Order, OrderState
 
 
 class OrderRepository:
@@ -86,6 +86,20 @@ class OrderRepository:
             .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
         )
         return (await self.session.execute(stmt)).scalars().all()
+
+    async def sum_filled_realized_pnl_for_live_session(self, session_id: UUID) -> Decimal:
+        """LiveSignalEvent.order_id에 귀속된 체결 주문의 실현 손익 합계."""
+        event_order_ids = (
+            select(LiveSignalEvent.order_id)  # type: ignore[call-overload]
+            .where(LiveSignalEvent.session_id == session_id)
+            .where(LiveSignalEvent.order_id.is_not(None))  # type: ignore[union-attr]
+        )
+        stmt = (
+            select(func.coalesce(func.sum(Order.realized_pnl), 0))
+            .where(Order.id.in_(event_order_ids))  # type: ignore[attr-defined]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+        )
+        return Decimal(str((await self.session.execute(stmt)).scalar_one() or 0))
 
     # --- 3-guard 상태 전이 (Sprint 4 BacktestRepository 패턴 계승) ---
 

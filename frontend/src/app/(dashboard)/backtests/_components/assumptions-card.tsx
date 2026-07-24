@@ -33,6 +33,7 @@ export interface AssumptionsCardProps {
   readonly config?: BacktestConfig | null;
   readonly totalFees?: number | null;
   readonly totalSlippage?: number | null;
+  readonly totalFunding?: number | null;
   readonly fundingDataIncomplete?: boolean | null;
   /** 데이터·기간 열 파생용 (BacktestDetail 에서 shell 이 전달). 없으면 그 행 미렌더. */
   readonly periodStart?: string | null;
@@ -56,6 +57,7 @@ export function AssumptionsCard({
   config,
   totalFees,
   totalSlippage,
+  totalFunding,
   fundingDataIncomplete,
   periodStart,
   periodEnd,
@@ -70,10 +72,11 @@ export function AssumptionsCard({
     {
       label: "포지션 모델",
       value: "1x · 롱/숏",
-      title:
-        "1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내). " +
-        "전략의 수량 지정 3종 (자본 비율 / 현금 / 고정 수량) 사용. " +
-        "펀딩 비용 / 강제 청산 / 유지 증거금 미반영.",
+      title: config?.include_funding
+        ? "강제 청산 / 유지 증거금 미반영. 펀딩 비용은 8시간 정산 주기로 차감 (총 펀딩 행 참조)."
+        : "1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내). " +
+          "전략의 수량 지정 3종 (자본 비율 / 현금 / 고정 수량) 사용. " +
+          "펀딩 비용 / 강제 청산 / 유지 증거금 미반영.",
       isDefault: false,
     },
     {
@@ -125,6 +128,14 @@ export function AssumptionsCard({
   }
   if (totalSlippage != null) {
     dataRows.push({ label: "총 슬리피지", value: formatUsdt(totalSlippage), isDefault: false });
+  }
+  if (totalFunding != null) {
+    dataRows.push({
+      label: "총 펀딩",
+      value: formatUsdt(totalFunding),
+      title: "8시간 정산 주기 무기한 선물 펀딩비 순액. 양수 = 지불, 음수 = 수취 (Bybit 실측 rate 기반)",
+      isDefault: false,
+    });
   }
 
   // 수수료 + 슬리피지 모두 default = BE config 미응답.

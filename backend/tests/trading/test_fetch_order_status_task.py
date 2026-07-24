@@ -9,6 +9,8 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -130,7 +132,7 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     import src.tasks.trading as task_mod
     from src.trading.providers import FixtureExchangeProvider
 
-    order, _acc = submitted_order
+    order, account = submitted_order
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
     monkeypatch.setattr(
         task_mod,
@@ -143,6 +145,8 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     monkeypatch.setattr(
         task_mod.qb_active_orders, "dec", lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1)
     )
+    publisher = AsyncMock()
+    monkeypatch.setattr(task_mod, "publish_realtime", publisher)
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
 
@@ -153,6 +157,17 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     await db_session.refresh(order)
     assert order.state == OrderState.filled
     assert order.filled_at is not None
+    publisher.assert_awaited_once_with(
+        str(account.user_id),
+        "order_update",
+        {
+            "order_id": str(order.id),
+            "state": "filled",
+            "symbol": order.symbol,
+            "side": order.side.value,
+            "source": "watchdog",
+        },
+    )
 
 
 @pytest.mark.asyncio
@@ -279,12 +294,19 @@ async def test_fetch_order_status_max_attempts_alerts_and_giveup(
         return True
 
     monkeypatch.setattr(task_mod, "send_critical_alert", _fake_alert)
+    rule_fanout_calls: list[str] = []
+
+    async def _fake_rule_fanout(_session, _order, reason):  # type: ignore[no-untyped-def]
+        rule_fanout_calls.append(reason)
+
+    monkeypatch.setattr(task_mod, "_try_rule_fanout_watchdog", _fake_rule_fanout)
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=3)
 
     assert result["state"] == "submitted"
     assert result["watchdog_giveup"] is True
     assert len(alert_calls) == 1
+    assert rule_fanout_calls == ["still_submitted_after_max_attempts"]
     assert "stuck" in alert_calls[0]["message"].lower() or "submit" in alert_calls[0]["message"].lower()
 
 
@@ -323,6 +345,97 @@ async def test_fetch_order_status_alert_throttled_on_second_giveup(
     await task_mod._async_fetch_order_status(order.id, attempt=3)
 
     assert len(alert_calls) == 1, "throttle 후 두 번째 alert 안 발화"
+
+
+@pytest.mark.asyncio
+async def test_rule_watchdog_fanout_is_noop_without_event_attribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """같은 세션 필드 조합의 수동 주문도 이벤트 귀속 없이는 발화하지 않는다."""
+    import src.tasks.trading as task_mod
+
+    strategy_id = uuid4()
+    account_id = uuid4()
+    live_session = SimpleNamespace(
+        id=uuid4(), strategy_id=strategy_id, exchange_account_id=account_id, symbol="BTCUSDT"
+    )
+    lookup_order_ids: list = []
+
+    class _Sessions:
+        def __init__(self, _session) -> None:
+            pass
+
+        async def find_active_by_order_id(self, order_id):
+            lookup_order_ids.append(order_id)
+            return None
+
+    rule_repo_calls = 0
+
+    class _Rules:
+        def __init__(self, _session) -> None:
+            nonlocal rule_repo_calls
+            rule_repo_calls += 1
+
+    monkeypatch.setattr(task_mod, "LiveSignalSessionRepository", _Sessions)
+    monkeypatch.setattr(task_mod, "AlertRuleRepository", _Rules)
+    order = type(
+        "OrderStub",
+        (),
+        {
+            "id": uuid4(),
+            "strategy_id": live_session.strategy_id,
+            "exchange_account_id": live_session.exchange_account_id,
+            "symbol": live_session.symbol,
+        },
+    )()
+    await task_mod._try_rule_fanout_watchdog(object(), order, "test")
+    assert lookup_order_ids == [order.id]
+    assert rule_repo_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_rule_watchdog_fanout_sends_only_for_event_attributed_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.tasks.trading as task_mod
+
+    live_session = SimpleNamespace(id=uuid4())
+    rule = SimpleNamespace(id=uuid4(), channel="slack")
+
+    class _Sessions:
+        def __init__(self, _session) -> None:
+            pass
+
+        async def find_active_by_order_id(self, _order_id):
+            return live_session
+
+    class _Rules:
+        def __init__(self, _session) -> None:
+            pass
+
+        async def find_active_watchdog_rules_for(self, session_id):
+            assert session_id == live_session.id
+            return [rule]
+
+    class _Redis:
+        async def set(self, *_args, **_kwargs):
+            return True
+
+    sent: list[dict] = []
+
+    async def _send(_settings, **kwargs):
+        sent.append(kwargs)
+        return {"slack": True}
+
+    monkeypatch.setattr(task_mod, "LiveSignalSessionRepository", _Sessions)
+    monkeypatch.setattr(task_mod, "AlertRuleRepository", _Rules)
+    monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_rule_alert", _Redis)
+    monkeypatch.setattr(task_mod, "send_rule_alert", _send)
+    order = SimpleNamespace(id=uuid4())
+
+    await task_mod._try_rule_fanout_watchdog(object(), order, "test")
+
+    assert sent[0]["context"]["session_id"] == str(live_session.id)[:8]
 
 
 # -------------------------------------------------------------------------
