@@ -41,6 +41,7 @@ async def _publish_envelope(
                     "kill_switch_resolved",
                     "session_state",
                     "ticker",
+                    "position_update",
                 ],
                 event_type,
             ),

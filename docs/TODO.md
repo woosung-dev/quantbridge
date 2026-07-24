@@ -1,11 +1,41 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-24 (perf-surface 스프린트 — 성과 표면 A1~A4, Phase A)
-> **Active Sprint:** **perf-surface** — 구현·검증 완료, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/perf-surface` (main @ `b023ce5` 베이스)
-> **Sprint type:** 신규 표면 (read-time 파생, 마이그레이션 0) — codex exec 4-워커 2웨이브 + Claude 적대 평가 + codex G0/최종 diff + vercel-react + Opus MCP dogfood
+> **Last Updated:** 2026-07-24 (position-cockpit 스프린트 — WS position 채널 + 코크핏 잔고/포지션, Phase B)
+> **Active Sprint:** **position-cockpit** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/position-cockpit` (main @ `6dbd545` 베이스)
+> **Sprint type:** WS 인바운드 + 신규 표면 (비영속, 마이그레이션 0) — codex exec 3-워커 + Claude 적대 평가(생성/평가 분리) + codex G0(12건 반영)/최종 diff + Opus MCP dogfood(WS 4점 실주문)
 > **office-hours 진행:** N
-> **Next Trigger:** perf-surface 머지 후 → 짝 문서 `quantbridge-position-cockpit-handoff.md` 로 Phase B 세션. // 사용자 manual = G1 (TimescaleDB↔DB 호스팅 재결정) + BL-070 (도메인+DNS) + BL-071 (Backend prod 배포) + BL-072 (Resend) → 실 prod 배포 → BL-073~075 자연 trigger.
+> **Next Trigger:** position-cockpit 머지 후 → 다음 deepen = tasks 도메인, 또는 WS position 채널 후속(포지션 표 TP/SL·청산 액션 = API 신설). // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+
+---
+
+## ⚡ position-cockpit 스프린트 (2026-07-24, `docs/position-cockpit/`)
+
+**스코프**: Phase B(perf-surface #471 후속). ① BybitPrivateStream 에 WS **position 토픽 + 실시간 팬아웃** ② 코크핏 **계좌 잔고 KPI**(활성 세션 계정) ③ **세션별 열린 포지션 표**. 캐논 screen-01 정직 실현, 미실현 계정-보고 vs 세션-추정 불일치 보정 금지. 마이그레이션 0(비영속).
+
+### Completed
+
+- [x] **B1** WS position 채널 — PositionFanoutHandler + PrivateTopicRouter(message_handler 주입, handler 제거), position_update 3-site 등재, DEL-before-debounce, 비활성계정 no-op, list_active_by_account, 클럭 주입 debounce
+- [x] **B2** per-user position_update 발행 + qb_pos_snapshot 캐시 DEL(비영속)
+- [x] **B3** 계좌 잔고 REST — `GET /exchange-accounts/{id}/balance`(P2) + BalanceSnapshot·fetch_usdt_balance_snapshot + AccountBalanceService(Redis 15s) + 404/503/unsupported 정직, fetch_balance 불변
+- [x] **B4** 세션별 열린 포지션 표(세션열·short 부호·빈상태·503 재시도·verdict·각주) + 활성세션 잔고 카드 + §02/§03 삽입·§04~08 renumber(rise d8/d9) + 진단 포지션 카드 제거(2카드)
+- [x] 게이트: BE **2583**(+26)·FE **1075**(+18)·ruff/mypy/tsc/lint 0·canon **32 불변**·authed **64**(코크핏 §02/§03 spec 확장)·마이그레이션 0(alembic 무변경)
+- [x] 검증: codex G0 **12건 전부 CONFIRMED**(기각 0) → 전건 반영 → codex 생성 3워커(생성/평가 분리) → Claude 적대 평가 3/3(W1 테스트버그 codex resume 수정) → codex 최종 diff **NO BLOCKING** → Opus MCP dogfood 2계통(잔고 190679 curl 일치·flat) + **WS 4점 실주문**(주문→§03 포지션 64963.1↔curl→발행프레임 `position_update` P1 정확→청산)
+- [x] BL: 신규 BL-431~433 등재
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [ ] stage/position-cockpit → main PR 사용자 squash
+- [ ] (후속) 포지션 표 TP/SL·청산 액션 = BL-431(API 신설) / 잔고 selector 메모 = BL-432
+- [ ] (이월) 다음 deepen = tasks 도메인
 
 ---
 
@@ -35,9 +65,9 @@
 
 ### Next Actions
 
-- [ ] stage/perf-surface → main PR 사용자 squash
-- [ ] Phase B = position-cockpit (짝 문서, 본 PR 머지 전제)
-- [ ] (이월) 다음 deepen = tasks 도메인
+- [x] stage/perf-surface → main PR #471 squash 완료 (main @ `6dbd545`)
+- [x] Phase B = position-cockpit → 실행 완료(위 섹션, stage→main PR 대기)
+- [ ] (이월) 다음 deepen = tasks 도메인 → position-cockpit 섹션으로 이월
 
 ---
 

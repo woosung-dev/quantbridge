@@ -248,11 +248,14 @@ async def _stream_main(
     Sprint 24a codex G.2 P1 #1: lease_lost_event 가 set 되면 stream 종료 + lease
     release. heartbeat 실패 시 split-brain 차단.
     """
+    from src.common.redis_client import get_redis_lock_pool
     from src.trading.encryption import EncryptionService
     from src.trading.models import ExchangeAccount, ExchangeName
     from src.trading.websocket import (
         BybitAuthError,
         BybitPrivateStream,
+        PositionFanoutHandler,
+        PrivateTopicRouter,
         Reconciler,
         StateHandler,
     )
@@ -290,6 +293,17 @@ async def _stream_main(
         handler = StateHandler(
             session_factory=sm, settings=settings, user_id=account.user_id
         )
+        position_handler = PositionFanoutHandler(
+            sm,
+            get_redis_lock_pool(),
+            str(account.user_id),
+            account_uuid,
+        )
+        message_handler = PrivateTopicRouter(
+            account_id=account_uuid,
+            state_handler=handler,
+            position_handler=position_handler,
+        )
         from src.trading.websocket.reconcile_fetcher import BybitReconcileFetcher
 
         fetcher = BybitReconcileFetcher(account=account, crypto=crypto)
@@ -311,9 +325,10 @@ async def _stream_main(
                 api_key=api_key,
                 api_secret=api_secret,
                 account_id=account_uuid,
-                handler=handler,
                 reconciler=reconciler,
                 stop_event=stop_event,
+                topics=("order", "position"),
+                message_handler=message_handler,
             ) as stream:
                 logger.info(
                     "ws_stream_connected account=%s endpoint=%s reconnect_count=%d",

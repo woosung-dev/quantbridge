@@ -1,12 +1,11 @@
 "use client";
 
-// 코크핏 §06의 포지션 대조·알림 규칙·실시간 스트림 진단을 실제 계약으로 렌더한다.
+// 코크핏 §08의 알림 규칙·실시간 스트림 진단을 실제 계약으로 렌더한다.
 import { useState, type ReactNode } from "react";
 import {
   AlertTriangleIcon,
   BellIcon,
   ClockIcon,
-  LayersIcon,
   RefreshCwIcon,
   WifiIcon,
 } from "lucide-react";
@@ -16,8 +15,7 @@ import { AlertRuleForm } from "@/features/alert-rules/components/alert-rule-form
 import { formatThresholdPercent } from "@/features/alert-rules/format";
 import { useAlertRules, useDeactivateAlertRule } from "@/features/alert-rules/hooks";
 import type { AlertRule, AlertRuleType } from "@/features/alert-rules/schemas";
-import { useLiveSessionPositions } from "@/features/live-sessions/hooks";
-import type { LiveSession, LiveSessionPositions } from "@/features/live-sessions/schemas";
+import type { LiveSession } from "@/features/live-sessions/schemas";
 import {
   selectLastRealtimeEventTs,
   selectRealtimeStatus,
@@ -31,22 +29,6 @@ const STATE_ARIA: Record<DiagnosticState, string> = {
   error: "불러오기 실패",
   empty: "비어 있음",
   ok: "정상",
-};
-
-const POSITION_UNSUPPORTED_BODY: Record<string, string> = {
-  live_mode_stub: "라이브 모드의 포지션 대조는 아직 제공되지 않습니다.",
-  exchange_unsupported: "이 거래소의 포지션 대조는 아직 지원하지 않습니다.",
-  spot_position_api_unsupported: "현물 세션의 포지션 대조는 아직 지원하지 않습니다.",
-  settings_unset: "전략 레버리지 설정이 없어 포지션을 대조할 수 없습니다.",
-};
-
-const POSITION_VERDICT_HEADING: Record<LiveSessionPositions["diff"]["verdict"], string> = {
-  match: "거래소와 일치",
-  qty_mismatch: "거래소와 수량이 일치하지 않습니다.",
-  side_mismatch: "거래소와 방향이 일치하지 않습니다.",
-  exchange_only: "거래소에만 포지션이 있습니다.",
-  local_only: "전략에만 열린 거래가 있습니다.",
-  unknown: "포지션 대조 상태를 확인할 수 없습니다.",
 };
 
 const RULE_TYPE_LABEL: Record<AlertRuleType, string> = {
@@ -115,84 +97,6 @@ export function DiagnosticCard({
         )}
       </div>
     </article>
-  );
-}
-
-function positionSummary(positions: LiveSessionPositions): string {
-  const quantities = positions.positions.map((position) => `${position.side} ${position.size}`);
-  return `대조 시각 ${positions.fetched_at ?? "없음"} · 거래소 수량 ${quantities.join(", ") || "없음"}`;
-}
-
-function PositionDiagnostic({ session }: { session: LiveSession | null }) {
-  const positions = useLiveSessionPositions(session?.id ?? null);
-
-  if (!session) {
-    return (
-      <DiagnosticCard
-        title="포지션 동기화"
-        subtitle="거래소 대조 조회"
-        state="empty"
-        icon={<LayersIcon />}
-        heading="포지션 대조를 기다리고 있습니다."
-        body="세션을 선택하면 거래소 포지션을 대조합니다."
-      />
-    );
-  }
-  if (positions.isLoading) {
-    return (
-      <DiagnosticCard
-        title="포지션 동기화"
-        subtitle="거래소 대조 조회"
-        state="loading"
-        icon={<LayersIcon />}
-        heading="포지션을 불러오는 중입니다."
-        body="거래소 포지션을 대조하고 있습니다."
-      />
-    );
-  }
-  if (positions.isError) {
-    return (
-      <DiagnosticCard
-        title="포지션 동기화"
-        subtitle="거래소 대조 조회"
-        state="error"
-        icon={<LayersIcon />}
-        heading="포지션을 다시 불러오지 못했습니다."
-        body="거래소 응답을 확인하지 못했습니다."
-        code={`GET /api/v1/live-sessions/${session.id}/positions · 503`}
-        action={
-          <button className="btn btn-ghost" type="button" onClick={() => void positions.refetch()}>
-            <RefreshCwIcon aria-hidden="true" />
-            다시 시도
-          </button>
-        }
-      />
-    );
-  }
-  const data = positions.data;
-  if (!data || !data.supported) {
-    return (
-      <DiagnosticCard
-        title="포지션 동기화"
-        subtitle="거래소 대조 조회"
-        state="empty"
-        icon={<LayersIcon />}
-        heading="이 세션은 포지션 대조를 지원하지 않습니다."
-        body={
-          POSITION_UNSUPPORTED_BODY[data?.reason ?? ""] ?? "포지션 대조 조건을 확인하지 못했습니다."
-        }
-      />
-    );
-  }
-  return (
-    <DiagnosticCard
-      title="포지션 동기화"
-      subtitle="거래소 대조 조회"
-      state="ok"
-      icon={<LayersIcon />}
-      heading={POSITION_VERDICT_HEADING[data.diff.verdict]}
-      body={positionSummary(data)}
-    />
   );
 }
 
@@ -382,11 +286,10 @@ function RealtimeDiagnostic() {
   );
 }
 
-/** 선택된 라이브 세션의 §06 진단 3종을 표시한다. */
+/** 선택된 라이브 세션의 §08 진단 2종을 표시한다. */
 export function SessionDiagnostics({ session }: { session: LiveSession | null }) {
   return (
     <div className="diag-row">
-      <PositionDiagnostic session={session} />
       <AlertRulesDiagnostic session={session} />
       <RealtimeDiagnostic />
     </div>

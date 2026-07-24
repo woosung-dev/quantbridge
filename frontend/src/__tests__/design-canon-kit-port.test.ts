@@ -71,6 +71,12 @@ const TD_NUM_FIX = normalize(`
 // 토큰화를 반영하면 이 항목을 지운다.
 const TOPBAR_BG_PORTED = normalize(`background: var(--topbar-bg);`);
 const TOPBAR_BG_KIT = normalize(`background: rgba(11, 13, 15, 0.86);`);
+// Cockpit이 §08까지 늘어나면서 필요한 순차 애니메이션 지연이다. _kit.html에는 아직 §06까지만
+// 있어 이식본의 접근성 유지 보수를 명시적으로 허용한다.
+const COCKPIT_RISE_DELAYS = normalize(`
+  .d8 { animation-delay: 390ms; }
+  .d9 { animation-delay: 440ms; }
+`);
 
 describe("C 공용 CSS 이식 무결성 (S2)", () => {
   const globalsSrc = readFileSync(GLOBALS, "utf8");
@@ -88,11 +94,16 @@ describe("C 공용 CSS 이식 무결성 (S2)", () => {
     expect(kitNorm).toContain(TOPBAR_BG_KIT);
   });
 
+  it("Cockpit §08용 rise 지연 allowlist 는 이식본에 실재한다", () => {
+    expect(portedNorm).toContain(COCKPIT_RISE_DELAYS);
+  });
+
   it("이식 블록은 allowlist 를 제외하면 _kit.html 공용 블록과 정규화 동일하다", () => {
     // allowlist(선행 공백 포함)를 걷어내면 정본과 완전히 일치해야 한다.
     const portedMinusAllowlist = portedNorm
       .replace(" " + TD_NUM_FIX, "")
-      .replace(TOPBAR_BG_PORTED, TOPBAR_BG_KIT);
+      .replace(TOPBAR_BG_PORTED, TOPBAR_BG_KIT)
+      .replace(" " + COCKPIT_RISE_DELAYS, "");
     expect(portedMinusAllowlist).toBe(kitNorm);
   });
 });

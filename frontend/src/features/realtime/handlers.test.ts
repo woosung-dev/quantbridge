@@ -80,4 +80,23 @@ describe("handleRealtimeEvent", () => {
     });
     expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
   });
+
+  it("position_update는 포지션 prefix만 한 번 무효화하고 store를 쓰지 않는다", () => {
+    const queryClient = makeQueryClient();
+    const setQueryData = vi.fn();
+    (queryClient as unknown as { setQueryData: typeof setQueryData }).setQueryData = setQueryData;
+
+    handleRealtimeEvent(queryClient, userId, {
+      v: 1,
+      type: "position_update",
+      ts: 1,
+      payload: { symbol: "BTCUSDT", side: "long", size: "0.1" },
+    });
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1);
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: liveSessionKeys.positionsPrefix(userId),
+    });
+    expect(setQueryData).not.toHaveBeenCalled();
+  });
 });

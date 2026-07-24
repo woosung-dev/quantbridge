@@ -103,3 +103,34 @@ async def test_publish_ticker_uses_shared_payload_validation(
 
     assert pool.calls == []
     assert counter._value.get() == before + 1
+
+
+@pytest.mark.asyncio
+async def test_publish_position_update_serializes_registered_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _RecordingPool()
+    monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
+
+    await realtime_publisher.publish_realtime(
+        "user-1",
+        "position_update",
+        {"symbol": "BTCUSDT", "side": "long", "size": "1.25"},
+    )
+
+    assert json.loads(pool.calls[0][1])["type"] == "position_update"
+
+
+@pytest.mark.asyncio
+async def test_publish_realtime_skips_unregistered_type_and_counts_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = _RecordingPool()
+    monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
+    counter = qb_rt_publish_invalid_total.labels(event_type="unregistered")
+    before = counter._value.get()
+
+    await realtime_publisher.publish_realtime("user-1", "unregistered", {})
+
+    assert pool.calls == []
+    assert counter._value.get() == before + 1

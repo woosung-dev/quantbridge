@@ -1811,6 +1811,8 @@ h6 {
   .d5 { animation-delay: 240ms; }
   .d6 { animation-delay: 290ms; }
   .d7 { animation-delay: 340ms; }
+  .d8 { animation-delay: 390ms; }
+  .d9 { animation-delay: 440ms; }
   @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
   .draw { stroke-dasharray: 2600; stroke-dashoffset: 2600; animation: draw 1400ms var(--ease) 180ms forwards; }

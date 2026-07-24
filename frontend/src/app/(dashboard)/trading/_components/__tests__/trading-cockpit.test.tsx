@@ -30,6 +30,8 @@ vi.mock("@/features/trading", () => ({
   useKillSwitchEvents: () => useKillSwitchEventsMock(),
 }));
 vi.mock("../kill-switch-banner", () => ({ KillSwitchBanner: () => null }));
+vi.mock("../account-balance-section", () => ({ AccountBalanceSection: () => null }));
+vi.mock("../open-positions-table", () => ({ OpenPositionsTable: () => null }));
 vi.mock("../session-diagnostics", () => ({ SessionDiagnostics: () => null }));
 
 import { TradingCockpit } from "../trading-cockpit";
@@ -96,5 +98,14 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
 
     expect(screen.getByTestId("kpi-unrealized-pnl")).toHaveTextContent("-4.50 USDT");
     expect(screen.getByText("시세 지연")).toBeInTheDocument();
+  });
+
+  it("새 §02·§03을 넣고 기존 섹션을 §08까지 순서대로 번호 매긴다", () => {
+    render(<TradingCockpit />);
+
+    expect(screen.getByRole("region", { name: "계좌 잔고" })).toHaveTextContent("02 계좌 잔고");
+    expect(screen.getByRole("region", { name: "열린 포지션" })).toHaveTextContent("03 열린 포지션");
+    expect(screen.getByRole("region", { name: "리스크 가드" })).toHaveTextContent("04 리스크 가드");
+    expect(screen.getByRole("region", { name: "진단" })).toHaveTextContent("08 진단");
   });
 });

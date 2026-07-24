@@ -1,10 +1,9 @@
 "use client";
 
 // 트레이딩 코크핏 — C 디자인 언어 이식 (S8). 프로토타입 screen-01 의 시맨틱 CSS(.page/.report/
-// .section/.kpi/.card)를 소비하되, 스키마가 받치는 값만 그린다(캐논 §4.9). 목업의 계좌 잔고·
-// 포지션 표·배포 전략 성과는 실 스키마에 없어 렌더하지 않는다(포지션 API 부재는 §06 진단이
-// 정직하게 노출). 미실현 손익은 WS ticker와 state의 open_trades로 만든 추정치만 표시한다.
-// 데이터 흐름은 도메인 훅 재사용 — 실시간 스트림은 WebSocket+Zustand로 별도 배선한다.
+// .section/.kpi/.card)를 소비하며, §02 잔고와 §03 세션별 포지션 대조는 실 API 스키마를 쓴다.
+// 미실현 손익은 WS ticker와 state의 open_trades로 만든 추정치이며 §03 거래소 보고값과 다를 수 있다.
+// 데이터 흐름은 도메인 훅 재사용. 실시간 스트림은 WebSocket+Zustand로 별도 배선한다.
 // 프로토타입의 "총 세션" 카드는 사용자 확정 WS Tier 2 요구로 미실현 추정 KPI로 교체한다.
 
 import { useEffect, useMemo, useState } from "react";
@@ -35,6 +34,8 @@ import { StateBox } from "@/components/state-box";
 import { StatValue } from "@/components/stat-value";
 
 import { KillSwitchBanner } from "./kill-switch-banner";
+import { AccountBalanceSection } from "./account-balance-section";
+import { OpenPositionsTable } from "./open-positions-table";
 import { SessionDiagnostics } from "./session-diagnostics";
 
 const STRATEGY_FETCH_LIMIT = 100;
@@ -108,6 +109,30 @@ export function TradingCockpit() {
     for (const a of accountItems) map.set(a.id, a.label ?? `${a.exchange} ${a.mode}`);
     return map;
   }, [accountItems]);
+  const activeAccountTargets = useMemo(() => {
+    const ids = new Set(
+      activeSessions
+        .map((session) => session.exchange_account_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+    return [...ids].map((id) => ({
+      id,
+      label: accountLabelById.get(id) ?? id.slice(0, 8),
+    }));
+  }, [accountLabelById, activeSessions]);
+  const strategyNameBySessionId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const session of activeSessions) {
+      const strategyId = session.strategy_id;
+      map.set(
+        session.id,
+        typeof strategyId === "string"
+          ? (strategyNameById.get(strategyId) ?? strategyId.slice(0, 8))
+          : session.id.slice(0, 8),
+      );
+    }
+    return map;
+  }, [activeSessions, strategyNameById]);
 
   const formStrategies = useMemo(
     () => strategyItems.map((s) => ({ id: s.id, name: s.name })),
@@ -241,18 +266,50 @@ export function TradingCockpit() {
               )}
             </p>
             <p className="kpi-foot">
-              실시간 마크가격 × 미청산 수량 추정치. 세션 상세의 거래소 보고값(/positions)과 다를 수
-              있습니다.
+              실시간 마크가격 × 미청산 수량 추정치. §03 거래소 보고값(/positions)과 다를 수 있습니다.
             </p>
           </article>
         </div>
       </section>
 
-      {/* ===== 02 리스크 가드 ===== */}
-      <section className="section rise d3" aria-label="리스크 가드">
+      {/* ===== 02 계좌 잔고 ===== */}
+      <section className="section rise d3" aria-label="계좌 잔고">
         <header className="section-head">
           <p className="eyebrow">
-            <span className="num">02</span> 리스크 가드
+            <span className="num">02</span> 계좌 잔고
+          </p>
+          <h2 className="section-title">활성 세션 계정의 잔고</h2>
+          <p className="section-desc">
+            활성 라이브 세션이 참조하는 거래소 계정만 표시합니다. 지원하지 않는 계정도 이유를 숨기지 않습니다.
+          </p>
+        </header>
+        <AccountBalanceSection accounts={activeAccountTargets} />
+      </section>
+
+      {/* ===== 03 열린 포지션 ===== */}
+      <section className="section rise d4" aria-label="열린 포지션">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">03</span> 열린 포지션
+          </p>
+          <h2 className="section-title">거래소 보고 포지션</h2>
+          <p className="section-desc">
+            같은 계정과 심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
+          </p>
+        </header>
+        <OpenPositionsTable
+          sessions={activeSessions}
+          resolveStrategyName={(sessionId, fallback) =>
+            strategyNameBySessionId.get(sessionId) ?? fallback
+          }
+        />
+      </section>
+
+      {/* ===== 04 리스크 가드 ===== */}
+      <section className="section rise d5" aria-label="리스크 가드">
+        <header className="section-head">
+          <p className="eyebrow">
+            <span className="num">04</span> 리스크 가드
           </p>
           <h2 className="section-title">지금 걸려 있는 제한</h2>
           <p className="section-desc">
@@ -263,11 +320,11 @@ export function TradingCockpit() {
         <KillSwitchPanel />
       </section>
 
-      {/* ===== 03 주문 원장 ===== */}
-      <section className="section rise d4" aria-label="주문 원장">
+      {/* ===== 05 주문 원장 ===== */}
+      <section className="section rise d6" aria-label="주문 원장">
         <header className="section-head">
           <p className="eyebrow">
-            <span className="num">03</span> 주문 원장
+            <span className="num">05</span> 주문 원장
           </p>
           <h2 className="section-title">최근 주문</h2>
           <p className="section-desc">
@@ -278,11 +335,11 @@ export function TradingCockpit() {
         <OrdersPanel />
       </section>
 
-      {/* ===== 04 거래소 계좌 ===== */}
-      <section className="section rise d5" aria-label="거래소 계좌">
+      {/* ===== 06 거래소 계좌 ===== */}
+      <section className="section rise d7" aria-label="거래소 계좌">
         <header className="section-head">
           <p className="eyebrow">
-            <span className="num">04</span> 거래소 계좌
+            <span className="num">06</span> 거래소 계좌
           </p>
           <h2 className="section-title">연결된 거래소</h2>
           <p className="section-desc">
@@ -293,11 +350,11 @@ export function TradingCockpit() {
         <ExchangeAccountsPanel />
       </section>
 
-      {/* ===== 05 라이브 세션 ===== */}
-      <section className="section rise d6" aria-label="라이브 세션">
+      {/* ===== 07 라이브 세션 ===== */}
+      <section className="section rise d8" aria-label="라이브 세션">
         <header className="section-head">
           <p className="eyebrow">
-            <span className="num">05</span> 라이브 세션
+            <span className="num">07</span> 라이브 세션
           </p>
           <h2 className="section-title">자동 실행 세션</h2>
           <p className="section-desc">
@@ -349,11 +406,11 @@ export function TradingCockpit() {
         </div>
       </section>
 
-      {/* ===== 06 진단 ===== */}
-      <section className="section rise d7" aria-label="진단">
+      {/* ===== 08 진단 ===== */}
+      <section className="section rise d9" aria-label="진단">
         <header className="section-head">
           <p className="eyebrow">
-            <span className="num">06</span> 진단
+            <span className="num">08</span> 진단
           </p>
           <h2 className="section-title">연결과 알림 상태</h2>
           <p className="section-desc">

@@ -5,7 +5,7 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-24 (**perf-surface 스프린트** — 신규 BL-427~430. 성과 표면 A1~A4 read-time 파생. 코드 변경 없는 후속 후보만.) // 이전: opspack-ws2 — BL-417/418/419/421/422 Resolved + 신규 BL-423~426.
+**최종 갱신:** 2026-07-24 (**position-cockpit 스프린트** — 신규 BL-431~433. WS position 채널 + 코크핏 잔고/포지션 후속.) // 이전: perf-surface — 신규 BL-427~430.
 **직전 갱신:** 2026-07-23 (**functional-parity 스프린트** — BL-401/BL-402/BL-411 Resolved + 신규 BL-413~416. C 이식 후 기능 격차 마감: 주문취소 배선 A2 + nav-count B2 + backtest_count B1 + 스트레스 복원 A7-lite)
 **현재 상태:** **51 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적; 2026-06-30 backtest-deepen +5 BL-387~391 → 45 → 50; 2026-06-30 stress_test-deepen +1 BL-392 → 51). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
@@ -1631,12 +1631,57 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-431
+
+**Title:** 코크핏 §03 열린 포지션 표 TP/SL·청산 액션 열 미렌더 — API 부재
+**Category:** Backend / Frontend
+**Priority:** P2
+**Trigger:** 코크핏에서 포지션 TP/SL 확인 또는 시장가 청산이 필요할 때
+**Est:** M-L (BE bracket/close 조회·발주 API + FE 열/액션)
+**출처:** 2026-07-24 position-cockpit B4 (캐논 screen-01 은 TP/SL·청산 열 보유하나 `/positions` verdict 응답에 없어 §4.9 미렌더)
+
+**원인 / 영향:** 캐논 프로토타입은 열린 포지션 행에 TP/SL 값 + 시장가 청산 액션을 두나, 현재 PositionService 응답은 대조 verdict + 거래소 보고 포지션(size/side/entry/mark/uPnL/liq/leverage)만 제공. TP/SL 부착 상태 조회 API 와 청산 발주 API 부재로 정직하게 미렌더.
+
+**권장 접근:** 거래소 conditional order(TP/SL) 조회를 positions 응답에 조인 + reduce-only 시장가 청산 엔드포인트 신설 후 표 열/액션 렌더.
+
+---
+
+### BL-432
+
+**Title:** 잔고/포지션 useQueries select 콜백이 렌더마다 새 클로저
+**Category:** Frontend / perf
+**Priority:** P3
+**Trigger:** 코크핏 리렌더 프로파일링 또는 vercel-react 정리 시
+**Est:** S (2-3h; per-session selector 메모 또는 combine 이관)
+**출처:** 2026-07-24 position-cockpit W3 평가(hooks.ts:340 `select: makePositionsSelector(session)` 렌더마다 새 identity → select 재실행)
+
+**원인 / 영향:** `useLiveSessionsPositions` 의 useQueries 각 쿼리 `select` 가 렌더마다 새 함수라 select 변환이 매 렌더 재실행. combine 산출은 structural sharing 되고 identity-민감 effect 없어 무해(cosmetic/perf-only). 기존 per-render 팩토리 컨벤션(makeXFetcher)과 동일 패턴이라 회귀 위험 고려해 이번 스프린트 미수정.
+
+**권장 접근:** session-label 부착을 select 대신 combine 으로 이관(쿼리별 select 제거)하거나 session 키 기준 selector 메모. tsc/lint 무영향.
+
+---
+
+### BL-433
+
+**Title:** WS subscribe negative-ack 관측이 warning 로그만 — metric counter 부재 + BL-423 연계
+**Category:** Backend / observability
+**Priority:** P3
+**Trigger:** position 구독 거부의 silent 폴링 degrade 를 대시보드로 감지하려 할 때
+**Est:** S (metric counter + BL-423 비활성 세션 진단 표기)
+**출처:** 2026-07-24 position-cockpit (PrivateTopicRouter subscribe success:false → `ws_subscribe_rejected` warning 만; 진단 §08 에서 PositionDiagnostic 제거로 포지션 상태가 §03 표로 이관)
+
+**원인 / 영향:** position 구독이 거부되면 warning 만 남기고 15s 폴링으로 조용히 degrade — Prometheus counter 부재로 집계 불가. 또한 결정 ⑤로 §08 진단의 PositionDiagnostic 제거되어 비활성 세션의 포지션 상태 노출이 §03 표(활성 세션만)로 이관 → BL-423(비활성 세션 진단 UI)과 연계 재검토 필요.
+
+**권장 접근:** `qb_ws_subscribe_rejected_total` counter 추가 + BL-423 에서 비활성 세션 포지션 상태의 별도 진단 표기 여부 결정.
+
+---
+
 ## 운영 규약
 
 ### 신규 항목 추가
 
 1. 적절한 priority 결정 (P0~P3 정의 표 참조)
-2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~412)
+2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~433)
 3. 표준 8 필드 모두 채우기: ID / 제목 / 카테고리 / priority / trigger / est / 출처 / 권장 접근
 4. 출처 cross-link (파일:라인 또는 dev-log 파일명) 필수
 5. 의존성 있으면 명시 (다른 BL ID 또는 외부 자원)

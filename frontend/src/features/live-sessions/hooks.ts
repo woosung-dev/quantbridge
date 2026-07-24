@@ -32,6 +32,7 @@ import { liveSessionKeys } from "./query-keys";
 import type {
   LiveSession,
   LiveSessionPositions,
+  ExchangePosition,
   LiveSignalEvent,
   LiveSignalState,
   RegisterLiveSessionRequest,
@@ -56,6 +57,39 @@ const eventsRefetchInterval = makeRefetchInterval<{
 const positionsRefetchInterval = makeRefetchInterval<LiveSessionPositions>(
   () => LIVE_SESSION_LIST_REFETCH_MS,
 );
+
+type LiveSessionPositionQueryData = {
+  session: LiveSession;
+  positions: LiveSessionPositions;
+};
+
+export interface LiveSessionPositionRow {
+  sessionId: string;
+  sessionLabel: string;
+  symbol: string;
+  verdict: LiveSessionPositions["diff"]["verdict"];
+  position: ExchangePosition;
+  fetchedAt: string | null;
+}
+
+export interface UnsupportedLiveSessionPosition {
+  sessionId: string;
+  sessionLabel: string;
+  symbol: string;
+  reason: string | null;
+  fetchedAt: string | null;
+}
+
+export interface LiveSessionsPositionsAggregate {
+  rows: LiveSessionPositionRow[];
+  unsupported: UnsupportedLiveSessionPosition[];
+  latestFetchedAt: string | null;
+  isLoading: boolean;
+  isError: boolean;
+  isPending: boolean;
+  isEmpty: boolean;
+  refetch: () => Promise<unknown[]>;
+}
 
 /**
  * 세션 state 폴링 간격 — active 여부에 따라 5s/30s, error 시 중단.
@@ -97,6 +131,63 @@ function makePositionsFetcher(sessionId: string, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return getLiveSessionPositions(sessionId, token);
+  };
+}
+
+function makePositionsSelector(session: LiveSession) {
+  return (positions: LiveSessionPositions): LiveSessionPositionQueryData => ({
+    session,
+    positions,
+  });
+}
+
+/** 활성 세션별 거래소 포지션을 행으로 펼친다. 같은 계정·심볼도 세션 단위로 보존한다. */
+export function combineLiveSessionPositions(
+  results: UseQueryResult<LiveSessionPositionQueryData, Error>[],
+): LiveSessionsPositionsAggregate {
+  const rows: LiveSessionPositionRow[] = [];
+  const unsupported: UnsupportedLiveSessionPosition[] = [];
+  let latestFetchedAt: string | null = null;
+
+  for (const result of results) {
+    const data = result.data;
+    if (!data) continue;
+    const { session, positions } = data;
+    if (positions.fetched_at && (!latestFetchedAt || positions.fetched_at > latestFetchedAt)) {
+      latestFetchedAt = positions.fetched_at;
+    }
+    const sessionLabel = session.strategy_id.slice(0, 8);
+    if (!positions.supported) {
+      unsupported.push({
+        sessionId: session.id,
+        sessionLabel,
+        symbol: positions.symbol,
+        reason: positions.reason,
+        fetchedAt: positions.fetched_at,
+      });
+      continue;
+    }
+    for (const position of positions.positions) {
+      rows.push({
+        sessionId: session.id,
+        sessionLabel,
+        symbol: positions.symbol,
+        verdict: positions.diff.verdict,
+        position,
+        fetchedAt: positions.fetched_at,
+      });
+    }
+  }
+
+  return {
+    rows,
+    unsupported,
+    latestFetchedAt,
+    isLoading: results.some((result) => result.isLoading),
+    isError: results.some((result) => result.isError),
+    isPending: results.some((result) => result.isPending),
+    isEmpty: results.length === 0 || (rows.length === 0 && unsupported.length === 0),
+    refetch: () => Promise.all(results.map((result) => result.refetch())),
   };
 }
 
@@ -234,6 +325,23 @@ export function useLiveSessionPositions(
     queryFn: makePositionsFetcher(sessionId ?? "", getToken),
     enabled: Boolean(sessionId),
     refetchInterval: positionsRefetchInterval,
+  });
+}
+
+/** 활성 세션의 포지션 대조를 같은 query cache에서 팬아웃해 세션별 행으로 합친다. */
+export function useLiveSessionsPositions(
+  sessions: readonly LiveSession[],
+): LiveSessionsPositionsAggregate {
+  const { uid, getToken } = useAuthCtx();
+  return useQueries({
+    queries: sessions.map((session) => ({
+      queryKey: liveSessionKeys.positions(uid, session.id),
+      queryFn: makePositionsFetcher(session.id, getToken),
+      select: makePositionsSelector(session),
+      enabled: Boolean(session.id),
+      refetchInterval: positionsRefetchInterval,
+    })),
+    combine: combineLiveSessionPositions,
   });
 }
 

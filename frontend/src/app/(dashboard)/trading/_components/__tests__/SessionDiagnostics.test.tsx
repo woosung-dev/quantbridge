@@ -1,4 +1,4 @@
-// 코크핏 §06 진단 카드의 실제 API·스토어 상태 매핑을 검증한다.
+// 코크핏 §08 진단 카드의 실제 API·스토어 상태 매핑을 검증한다.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AlertTriangleIcon } from "lucide-react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -13,12 +13,8 @@ import {
   useCreateAlertRule,
   useDeactivateAlertRule,
 } from "@/features/alert-rules/hooks";
-import { useLiveSessionPositions } from "@/features/live-sessions/hooks";
 import type { LiveSession } from "@/features/live-sessions/schemas";
 
-vi.mock("@/features/live-sessions/hooks", () => ({
-  useLiveSessionPositions: vi.fn(),
-}));
 vi.mock("@/features/alert-rules/hooks", () => ({
   useAlertRules: vi.fn(),
   useCreateAlertRule: vi.fn(),
@@ -45,7 +41,6 @@ const session: LiveSession = {
   deactivated_at: null,
 };
 
-const mockPositions = vi.mocked(useLiveSessionPositions);
 const mockRules = vi.mocked(useAlertRules);
 const mockCreateRule = vi.mocked(useCreateAlertRule);
 const mockDeactivateRule = vi.mocked(useDeactivateAlertRule);
@@ -53,16 +48,6 @@ const mockDeactivateRule = vi.mocked(useDeactivateAlertRule);
 const refetch = vi.fn();
 const mutateAsync = vi.fn();
 const deactivate = vi.fn();
-
-function positions(data?: unknown, overrides: Record<string, unknown> = {}) {
-  return {
-    data,
-    isLoading: false,
-    isError: false,
-    refetch,
-    ...overrides,
-  } as unknown as ReturnType<typeof useLiveSessionPositions>;
-}
 
 function rules(data?: unknown, overrides: Record<string, unknown> = {}) {
   return {
@@ -76,11 +61,9 @@ function rules(data?: unknown, overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   realtime = { status: "idle", lastEventTs: null };
-  refetch.mockReset();
   mutateAsync.mockReset();
   deactivate.mockReset();
   mutateAsync.mockResolvedValue({});
-  mockPositions.mockReturnValue(positions());
   mockRules.mockReturnValue(rules({ items: [], total: 0 }));
   mockCreateRule.mockReturnValue({ mutateAsync, isPending: false } as never);
   mockDeactivateRule.mockReturnValue({ mutate: deactivate, isPending: false } as never);
@@ -106,56 +89,18 @@ describe("DiagnosticCard 4상태", () => {
 });
 
 describe("SessionDiagnostics", () => {
-  test("세션 미선택이면 포지션과 알림을 빈 상태로 안내한다", () => {
+  test("세션 미선택이면 알림 규칙만 빈 상태로 안내한다", () => {
     render(<SessionDiagnostics session={null} />);
-    expect(screen.getByText("세션을 선택하면 거래소 포지션을 대조합니다.")).toBeInTheDocument();
     expect(
       screen.getByText("세션을 선택하면 이 세션의 알림 규칙을 확인합니다."),
     ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "포지션 동기화" })).not.toBeInTheDocument();
   });
 
-  test("포지션과 알림 조회 중에는 각 카드가 로딩 상태가 된다", () => {
-    mockPositions.mockReturnValue(positions(undefined, { isLoading: true }));
+  test("알림 조회 중에는 알림 카드가 로딩 상태가 된다", () => {
     mockRules.mockReturnValue(rules(undefined, { isLoading: true }));
     render(<SessionDiagnostics session={session} />);
-    expect(screen.getByLabelText("포지션 동기화, 불러오는 중")).toBeInTheDocument();
     expect(screen.getByLabelText("알림 규칙, 불러오는 중")).toBeInTheDocument();
-  });
-
-  test("포지션 match는 거래소 수량과 대조 시각을 그대로 표시한다", () => {
-    mockPositions.mockReturnValue(
-      positions({
-        supported: true,
-        fetched_at: "2026-07-24T12:00:00Z",
-        positions: [{ side: "long", size: "0.25" }],
-        diff: { verdict: "match" },
-      }),
-    );
-    render(<SessionDiagnostics session={session} />);
-    expect(screen.getByText("거래소와 일치")).toBeInTheDocument();
-    expect(
-      screen.getByText(/대조 시각 2026-07-24T12:00:00Z · 거래소 수량 long 0.25/),
-    ).toBeInTheDocument();
-  });
-
-  test("포지션 오류는 실제 경로 코드와 재시도 action을 표시한다", () => {
-    mockPositions.mockReturnValue(positions(undefined, { isError: true }));
-    render(<SessionDiagnostics session={session} />);
-    expect(
-      screen.getByText(`GET /api/v1/live-sessions/${session.id}/positions · 503`),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "다시 시도" })[0]!);
-    expect(refetch).toHaveBeenCalledOnce();
-  });
-
-  test("포지션 미지원 사유를 정직하게 표시한다", () => {
-    mockPositions.mockReturnValue(
-      positions({ supported: false, reason: "spot_position_api_unsupported" }),
-    );
-    render(<SessionDiagnostics session={session} />);
-    expect(
-      screen.getByText("현물 세션의 포지션 대조는 아직 지원하지 않습니다."),
-    ).toBeInTheDocument();
   });
 
   test("알림 규칙이 없으면 인라인 생성 버튼을 표시하고 loss_limit payload를 보낸다", async () => {

@@ -147,6 +147,14 @@ class PositionSnapshot:
     leverage: Decimal | None
 
 
+@dataclass(frozen=True, slots=True)
+class BalanceSnapshot:
+    """거래소 USDT wallet line의 total/free 정규화 스냅샷."""
+
+    total: Decimal | None
+    free: Decimal | None
+
+
 def _parse_position_created_at(position: dict[str, Any]) -> datetime | None:
     """Bybit raw ``info.createdTime``(ms epoch str) → aware UTC. BL-372 same-side stale 가드 입력.
 
@@ -911,6 +919,53 @@ class BybitFuturesProvider:
             raise ProviderError(f"{type(e).__name__}: {e}") from e
         except Exception as e:
             # SECURITY: non-CCXT 예외는 traceback에 ccxt.bybit 인스턴스 (apiKey/secret 보유) 노출 위험.
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_usdt_balance_snapshot(self, creds: Credentials) -> BalanceSnapshot:
+        """USDT wallet line의 total/free를 조회한다."""
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_balance"):
+                raw = await exchange.fetch_balance()
+            usdt = raw.get("USDT", {}) if isinstance(raw, dict) else {}
+            if not isinstance(usdt, dict):
+                usdt = {}
+
+            def decimal_or_none(value: Any) -> Decimal | None:
+                if value is None:
+                    return None
+                try:
+                    result = Decimal(str(value))
+                except (InvalidOperation, TypeError, ValueError):
+                    return None
+                return result if result.is_finite() else None
+
+            return BalanceSnapshot(
+                total=decimal_or_none(usdt.get("total")),
+                free=decimal_or_none(usdt.get("free")),
+            )
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
             raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
         finally:
             try:

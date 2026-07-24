@@ -14,6 +14,8 @@ export const liveSessionKeys = {
     [...liveSessionKeys.all(userId), "state", sessionId] as const,
   events: (userId: string, sessionId: string) =>
     [...liveSessionKeys.all(userId), "events", sessionId] as const,
+  positionsPrefix: (userId: string) =>
+    [...liveSessionKeys.all(userId), "positions"] as const,
   positions: (userId: string, sessionId: string) =>
-    [...liveSessionKeys.all(userId), "positions", sessionId] as const,
+    [...liveSessionKeys.positionsPrefix(userId), sessionId] as const,
 };

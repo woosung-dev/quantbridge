@@ -6,11 +6,13 @@ import { apiFetch } from "@/lib/api-client";
 import {
   ExchangeAccountListResponseSchema,
   ExchangeAccountSchema,
+  AccountBalanceSchema,
   CancelOrderResponseSchema,
   KillSwitchListResponseSchema,
   LiquidationInfoResponseSchema,
   OrderListResponseSchema,
   type ExchangeAccount,
+  type AccountBalance,
   type CancelOrderResponse,
   type KillSwitchEvent,
   type LiquidationInfoResponse,
@@ -94,6 +96,17 @@ export async function listExchangeAccounts(
     token,
   });
   return ExchangeAccountListResponseSchema.parse(raw).items;
+}
+
+export async function getAccountBalance(
+  accountId: string,
+  token: string | null,
+): Promise<AccountBalance> {
+  const raw = await apiFetch<unknown>(`${EXCHANGE_ACCOUNTS_PATH}/${accountId}/balance`, {
+    method: "GET",
+    token,
+  });
+  return AccountBalanceSchema.parse(raw);
 }
 
 export async function registerExchangeAccount(

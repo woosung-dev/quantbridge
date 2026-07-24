@@ -66,6 +66,15 @@ class LiveSignalSessionRepository:
         )
         return result.scalars().all()
 
+    async def list_active_by_account(self, account_id: UUID) -> Sequence[LiveSignalSession]:
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
     async def count_active_by_user(self, user_id: UUID) -> int:
         """Sprint 26 quota check — 사용자별 active session ≤ 5."""
         result = await self.session.execute(
