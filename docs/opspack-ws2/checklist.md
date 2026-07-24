@@ -34,6 +34,7 @@
 - [x] codex read-only 최종 누적 diff 리뷰 — REVISE 3건 → §7.3 판정: 2 수용 픽스(@3748757 update_symbols 경합·register 킥) + 1 기각(FE float — 설계 결정 기존재, context-notes #19)
 - [x] `/vercel-react-best-practices` FE 변경분 검토 — 위반 0 (context-notes #20) + BE 풀런 재게이트 **2533 passed·46 skip**
 - [x] 문서 3종 + TODO.md + BL(5 Resolved·BL-423~426 신규) → push → **stage→main PR #470** (squash 는 사용자)
+- [x] **CI 잡 로컬 패리티 사후 보완** (PR 체크 실패 = 결제 차단·전 잡 step 0 실행 확인 후): 미실행분 3건 발견·실행 — ① `pnpm build` exit 0 + rules-of-hooks disable 가드 grep 0 ② `pnpm e2e`(chromium 공개 스모크) **4 passed** ③ `chromium-live-smoke`(hooks diff 의무 게이트) **1 passed**. ★함정: `pnpm build` 가 러닝 dev 서버(.next 공유)를 죽여 CONNECTION_REFUSED 위양성 — 재기동 후 canon 32·authed 63 도 최종 트리(BE 픽스 @3748757 이후)에서 재실행 그린 (context-notes #22)
 
 ## 4. 게이트 추적
 
