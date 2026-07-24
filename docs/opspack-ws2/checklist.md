@@ -22,7 +22,7 @@
 
 ## 2. Phase 2 — WS Tier 2 (★Phase 1 게이트 표 전부 ✅ 후에만 착수)
 
-- [ ] **op/ws2-s0** — ticker 계약(BE Literal+TickerPayload+PAYLOAD_MODELS / FE discriminatedUnion / to_bybit_raw_symbol BE·FE 미러+유닛)
+- [x] **op/ws2-s0** — ticker 계약 @ffb0a70. 소형 계약 슬라이스라 오케스트레이터 인라인 적대 검증(diff 전문 + split-limit 쌍둥이 반증 + DB 게이트 재현 62+13 그린)으로 갈음 — context-notes #16
 - [ ] **op/ws2-stream** — private 3-seam 파라미터화(기존 테스트 무수정 green) + bybit_public_stream.py(delta 병합·1s 스로틀) + 태스크(lease `ws:lease:public-ticker`·60s refresh·no_symbols 종료) + reconcile 확장 + register 킥 + 큐 라우팅 이중 선언+단정 테스트 + compose concurrency 3
 - [ ] **op/ws2-fanout** — manager psubscribe ticker 패턴 + 전원 브로드캐스트 + 테스트
 - [ ] **op/ws2-fe** — store ticker slice(identity 회귀) + handlers + unrealized.ts + 코크핏 "총 세션"→"미실현 손익 · 추정" 교체 + dashboard foot + stale 배지 + authed 갱신
