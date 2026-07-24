@@ -37,7 +37,12 @@ import { DashboardCockpit } from "../dashboard-cockpit";
 // --- fixtures -------------------------------------------------------------
 
 const SESSIONS = {
-  data: { items: [{ id: "s1", is_active: true }, { id: "s2", is_active: false }] },
+  data: {
+    items: [
+      { id: "s1", is_active: true },
+      { id: "s2", is_active: false },
+    ],
+  },
 };
 
 const AGG_POPULATED = {

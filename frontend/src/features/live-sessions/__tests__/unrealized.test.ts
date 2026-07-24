@@ -36,10 +36,7 @@ describe("computeUnrealizedPnl", () => {
       ),
     ).toBeNull();
     expect(
-      computeUnrealizedPnl(
-        [{ direction: "long", qty: Number.NaN, entry_price: 100 }],
-        "110",
-      ),
+      computeUnrealizedPnl([{ direction: "long", qty: Number.NaN, entry_price: 100 }], "110"),
     ).toBeNull();
   });
 });

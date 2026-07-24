@@ -28,9 +28,7 @@ function makeStateFetcher(sessionId: string, getToken: TokenGetter) {
 }
 
 function parseOpenTrades(state: LiveSignalState | null | undefined): OpenTrade[] | null {
-  const result = z.array(OpenTradeSchema).safeParse(
-    state?.last_strategy_state_report.open_trades,
-  );
+  const result = z.array(OpenTradeSchema).safeParse(state?.last_strategy_state_report.open_trades);
   return result.success ? result.data : null;
 }
 
@@ -47,10 +45,7 @@ export function computeUnrealizedPnl(
 
   let total = 0;
   for (const trade of parsedTrades.data) {
-    if (
-      !Number.isFinite(trade.qty) ||
-      !Number.isFinite(trade.entry_price)
-    ) {
+    if (!Number.isFinite(trade.qty) || !Number.isFinite(trade.entry_price)) {
       return null;
     }
     total += (mark - trade.entry_price) * trade.qty * (trade.direction === "long" ? 1 : -1);

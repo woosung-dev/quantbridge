@@ -91,14 +91,10 @@ export function TradingCockpit() {
     [strategyListQ.data?.items],
   );
 
-  const activeSessions = useMemo(
-    () => sessionItems.filter((s) => s.is_active),
-    [sessionItems],
-  );
+  const activeSessions = useMemo(() => sessionItems.filter((s) => s.is_active), [sessionItems]);
   const unrealized = useUnrealizedPnlEstimate(activeSessions);
   const now = useNowTick(5_000);
-  const isTickerStale =
-    unrealized.latestTs !== null && now - unrealized.latestTs > TICKER_STALE_MS;
+  const isTickerStale = unrealized.latestTs !== null && now - unrealized.latestTs > TICKER_STALE_MS;
   const accountsCount = accountItems.length;
   const unresolvedKs = ksItems.filter((e) => e.resolved_at == null).length;
 
@@ -260,8 +256,8 @@ export function TradingCockpit() {
           </p>
           <h2 className="section-title">지금 걸려 있는 제한</h2>
           <p className="section-desc">
-            주문을 내기 전에 어떤 제한이 살아 있는지 확인하는 자리입니다. 킬 스위치가 활성이면
-            자동 주문이 차단됩니다.
+            주문을 내기 전에 어떤 제한이 살아 있는지 확인하는 자리입니다. 킬 스위치가 활성이면 자동
+            주문이 차단됩니다.
           </p>
         </header>
         <KillSwitchPanel />
@@ -320,9 +316,7 @@ export function TradingCockpit() {
           <div className="session-manage-col">
             <div className="card card-pad">
               <h3 className="card-title">새 라이브 세션</h3>
-              <p className="card-sub session-card-sub">
-                Bybit 데모 계정에 전략을 붙여 시작합니다.
-              </p>
+              <p className="card-sub session-card-sub">Bybit 데모 계정에 전략을 붙여 시작합니다.</p>
               <LiveSessionForm
                 strategies={formStrategies}
                 exchangeAccounts={formAccounts}
@@ -335,10 +329,7 @@ export function TradingCockpit() {
               <p className="card-sub session-card-sub">
                 지금 돌고 있는 세션을 고르면 오른쪽에 상세가 열립니다.
               </p>
-              <LiveSessionList
-                onSelect={setSelected}
-                selectedId={selected?.id ?? null}
-              />
+              <LiveSessionList onSelect={setSelected} selectedId={selected?.id ?? null} />
             </div>
           </div>
           <div className="session-manage-col">
@@ -376,8 +367,8 @@ export function TradingCockpit() {
         <InfoIcon />
         <span>
           데모 계정은 Bybit 데모 환경의 주문 결과이며 실자금이 아닙니다. 데모는 실거래와 같은 코드
-          경로를 쓰지만 슬리피지와 체결 지연은 다르게 나타납니다. 이 화면에서 잘 도는 것이 실자금에서도
-          그대로 된다는 뜻은 아닙니다.
+          경로를 쓰지만 슬리피지와 체결 지연은 다르게 나타납니다. 이 화면에서 잘 도는 것이
+          실자금에서도 그대로 된다는 뜻은 아닙니다.
         </span>
       </p>
 

@@ -49,6 +49,5 @@ export const useRealtimeStore = create<RealtimeState>()((set) => ({
 }));
 
 export const selectRealtimeStatus = (state: RealtimeState): WsStatus => state.status;
-export const selectLastRealtimeEventTs = (state: RealtimeState): number | null =>
-  state.lastEventTs;
+export const selectLastRealtimeEventTs = (state: RealtimeState): number | null => state.lastEventTs;
 export const selectReconnectCount = (state: RealtimeState): number => state.reconnectCount;
