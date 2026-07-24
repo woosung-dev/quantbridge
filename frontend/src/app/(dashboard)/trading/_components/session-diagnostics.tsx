@@ -13,6 +13,7 @@ import {
 
 import { StateBox } from "@/components/state-box";
 import { AlertRuleForm } from "@/features/alert-rules/components/alert-rule-form";
+import { formatThresholdPercent } from "@/features/alert-rules/format";
 import {
   useAlertRules,
   useDeactivateAlertRule,
@@ -197,7 +198,9 @@ function PositionDiagnostic({ session }: { session: LiveSession | null }) {
 }
 
 function ruleSummary(rule: AlertRule): string {
-  const threshold = rule.threshold_percent ? ` ${rule.threshold_percent}%` : "";
+  const threshold = rule.threshold_percent
+    ? ` ${formatThresholdPercent(rule.threshold_percent)}%`
+    : "";
   return `${RULE_TYPE_LABEL[rule.rule_type]}${threshold} · ${rule.channel}`;
 }
 
@@ -292,6 +295,10 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
               </button>
             </div>
           ))}
+          <button className="btn btn-ghost" type="button" onClick={() => setFormOpen((open) => !open)}>
+            {formOpen ? "알림 규칙 만들기 닫기" : "알림 규칙 만들기"}
+          </button>
+          {formOpen ? <AlertRuleForm sessionId={session.id} onSuccess={() => setFormOpen(false)} /> : null}
         </div>
       }
     />

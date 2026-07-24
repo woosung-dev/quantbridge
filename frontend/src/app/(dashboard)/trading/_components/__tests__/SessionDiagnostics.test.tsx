@@ -206,6 +206,47 @@ describe("SessionDiagnostics", () => {
     expect(deactivate).toHaveBeenCalledWith("a0000000-0000-4000-8000-000000000010");
   });
 
+  test("활성 규칙이 있어도 생성 폼을 열 수 있다", () => {
+    mockRules.mockReturnValue(
+      rules({
+        items: [
+          {
+            id: "a0000000-0000-4000-8000-000000000010",
+            rule_type: "watchdog",
+            threshold_percent: null,
+            channel: "telegram",
+          },
+        ],
+        total: 1,
+      }),
+    );
+    render(<SessionDiagnostics session={session} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 만들기" }));
+
+    expect(screen.getByRole("button", { name: "알림 규칙 만들기 닫기" })).toBeInTheDocument();
+    expect(screen.getByLabelText("손실 한도 (%)")).toBeInTheDocument();
+  });
+
+  test("활성 규칙의 Numeric threshold 끝 0을 숨긴다", () => {
+    mockRules.mockReturnValue(
+      rules({
+        items: [
+          {
+            id: "a0000000-0000-4000-8000-000000000010",
+            rule_type: "loss_limit",
+            threshold_percent: "5.00000000",
+            channel: "telegram",
+          },
+        ],
+        total: 1,
+      }),
+    );
+    render(<SessionDiagnostics session={session} />);
+
+    expect(screen.getByText("손실 한도 5% · telegram")).toBeInTheDocument();
+  });
+
   test.each([
     ["authed", "실시간 스트림 연결됨"],
     ["connecting", "실시간 스트림에 연결하고 있습니다."],
