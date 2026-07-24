@@ -81,7 +81,11 @@ class ClosePositionService:
             type=OrderType.market,
             quantity=position.size,
             price=None,
-            leverage=int(validated_settings.leverage),
+            leverage=(
+                int(position.leverage)
+                if position.leverage is not None
+                else int(validated_settings.leverage)
+            ),
             margin_mode=validated_settings.margin_mode,
             reduce_only=True,
             risk_percent=None,

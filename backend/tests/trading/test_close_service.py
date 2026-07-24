@@ -19,7 +19,7 @@ from src.trading.services.order_service import OrderService
 _SETTINGS = {"leverage": 3, "margin_mode": "cross", "position_size_pct": 10.0}
 
 
-def _position(side: str = "long") -> PositionSnapshot:
+def _position(side: str = "long", leverage: Decimal = Decimal("3")) -> PositionSnapshot:
     return PositionSnapshot(
         side=side,
         size=Decimal("1.25"),
@@ -27,7 +27,7 @@ def _position(side: str = "long") -> PositionSnapshot:
         mark_price=Decimal("101"),
         unrealized_pnl=Decimal("1"),
         liquidation_price=None,
-        leverage=Decimal("3"),
+        leverage=leverage,
         take_profit_price=None,
         stop_loss_price=None,
     )
@@ -129,7 +129,9 @@ async def test_close_rejects_flat_or_hedged_position(positions, reason) -> None:
     [("long", OrderSide.sell), ("short", OrderSide.buy)],
 )
 async def test_close_builds_reduce_only_futures_order(position_side, close_side) -> None:
-    service, user_id, session, orders = _service(positions=[_position(position_side)])
+    service, user_id, session, orders = _service(
+        positions=[_position(position_side, leverage=Decimal("7"))]
+    )
 
     response = await service.close_position(user_id, session.id)
 
@@ -139,7 +141,7 @@ async def test_close_builds_reduce_only_futures_order(position_side, close_side)
     assert request.quantity == Decimal("1.25")
     assert request.price is None
     assert request.reduce_only is True
-    assert request.leverage == 3
+    assert request.leverage == 7
     assert request.risk_percent is None
     assert orders.execute.await_args.kwargs == {"idempotency_key": None, "flatten": True}
     assert response.order_id == orders.execute.return_value[0].id
