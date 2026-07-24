@@ -211,4 +211,31 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       `/backtests/:id 하드 실패:\n${formatCanonResult(res)}`,
     ).toBeLessThanOrEqual(HARDFAIL_ALLOWLIST["/backtests/:id"] ?? 0);
   });
+
+  // perf-surface: 목록 성과 표면의 구조 불변식(캐논 screen-03 11열 + 서버 정렬 aria-sort).
+  // 캐논 hex/em-dash 감사는 source ratchet + /backtests/:id 가 이미 커버하므로 여기선 구조만 본다.
+  test("/backtests — 성과 목록 11열 + 서버 정렬(aria-sort + order_by URL)", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const ctx = await browser.newContext({ storageState: STORAGE_STATE });
+    const page = await ctx.newPage();
+    await page.goto(`${BASE_URL}/backtests`, { waitUntil: "load" });
+    await page.waitForSelector('[data-testid^="backtest-row-"]', { timeout: 25_000 });
+
+    const headerCount = await page.locator("table.runs-table thead th").count();
+    expect(headerCount, "백테스트 목록은 캐논 11열이어야 한다").toBe(11);
+
+    // 수익률 헤더 클릭 → 서버 정렬(URL order_by) + 활성 헤더 단일 aria-sort.
+    await page
+      .locator("table.runs-table thead th", { hasText: "수익률" })
+      .locator("button")
+      .click();
+    await page.waitForTimeout(1500);
+    expect(page.url(), "수익률 정렬은 order_by=total_return 을 URL 에 반영해야 한다").toMatch(
+      /order_by=total_return/,
+    );
+    const activeSort = await page.locator("table.runs-table thead th[aria-sort]").count();
+    expect(activeSort, "정렬 활성 헤더는 정확히 1개(aria-sort)여야 한다").toBe(1);
+
+    await ctx.close();
+  });
 });
