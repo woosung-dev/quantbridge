@@ -155,6 +155,7 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
     );
   }
   const items = rules.data?.items ?? [];
+  const activeRuleTypes = items.map((rule) => rule.rule_type);
   if (items.length === 0) {
     return (
       <DiagnosticCard
@@ -174,7 +175,11 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
               {formOpen ? "알림 규칙 만들기 닫기" : "알림 규칙 만들기"}
             </button>
             {formOpen ? (
-              <AlertRuleForm sessionId={session.id} onSuccess={() => setFormOpen(false)} />
+              <AlertRuleForm
+                sessionId={session.id}
+                activeRuleTypes={activeRuleTypes}
+                onSuccess={() => setFormOpen(false)}
+              />
             ) : null}
           </>
         }
@@ -212,7 +217,11 @@ function AlertRulesDiagnostic({ session }: { session: LiveSession | null }) {
             {formOpen ? "알림 규칙 만들기 닫기" : "알림 규칙 만들기"}
           </button>
           {formOpen ? (
-            <AlertRuleForm sessionId={session.id} onSuccess={() => setFormOpen(false)} />
+            <AlertRuleForm
+              sessionId={session.id}
+              activeRuleTypes={activeRuleTypes}
+              onSuccess={() => setFormOpen(false)}
+            />
           ) : null}
         </div>
       }

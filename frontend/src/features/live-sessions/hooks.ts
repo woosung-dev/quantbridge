@@ -21,6 +21,7 @@ import { makeRefetchInterval, type RefetchIntervalFn } from "@/lib/query-poll";
 
 import { mergeCumulativeCurves, type CurvePoint } from "./aggregate";
 import {
+  closePosition,
   deactivateLiveSession,
   getLiveSessionPositions,
   getLiveSessionState,
@@ -30,6 +31,7 @@ import {
 } from "./api";
 import { liveSessionKeys } from "./query-keys";
 import type {
+  ClosePositionResponse,
   LiveSession,
   LiveSessionPositions,
   ExchangePosition,
@@ -57,11 +59,6 @@ const eventsRefetchInterval = makeRefetchInterval<{
 const positionsRefetchInterval = makeRefetchInterval<LiveSessionPositions>(
   () => LIVE_SESSION_LIST_REFETCH_MS,
 );
-
-type LiveSessionPositionQueryData = {
-  session: LiveSession;
-  positions: LiveSessionPositions;
-};
 
 export interface LiveSessionPositionRow {
   sessionId: string;
@@ -134,25 +131,19 @@ function makePositionsFetcher(sessionId: string, getToken: TokenGetter) {
   };
 }
 
-function makePositionsSelector(session: LiveSession) {
-  return (positions: LiveSessionPositions): LiveSessionPositionQueryData => ({
-    session,
-    positions,
-  });
-}
-
 /** 활성 세션별 거래소 포지션을 행으로 펼친다. 같은 계정·심볼도 세션 단위로 보존한다. */
 export function combineLiveSessionPositions(
-  results: UseQueryResult<LiveSessionPositionQueryData, Error>[],
+  sessions: readonly Pick<LiveSession, "id" | "strategy_id">[],
+  results: readonly UseQueryResult<LiveSessionPositions, Error>[],
 ): LiveSessionsPositionsAggregate {
   const rows: LiveSessionPositionRow[] = [];
   const unsupported: UnsupportedLiveSessionPosition[] = [];
   let latestFetchedAt: string | null = null;
 
-  for (const result of results) {
-    const data = result.data;
-    if (!data) continue;
-    const { session, positions } = data;
+  for (const [index, result] of results.entries()) {
+    const session = sessions[index];
+    const positions = result.data;
+    if (!session || !positions) continue;
     if (positions.fetched_at && (!latestFetchedAt || positions.fetched_at > latestFetchedAt)) {
       latestFetchedAt = positions.fetched_at;
     }
@@ -337,11 +328,10 @@ export function useLiveSessionsPositions(
     queries: sessions.map((session) => ({
       queryKey: liveSessionKeys.positions(uid, session.id),
       queryFn: makePositionsFetcher(session.id, getToken),
-      select: makePositionsSelector(session),
       enabled: Boolean(session.id),
       refetchInterval: positionsRefetchInterval,
     })),
-    combine: combineLiveSessionPositions,
+    combine: (results) => combineLiveSessionPositions(sessions, results),
   });
 }
 
@@ -365,5 +355,21 @@ export function useDeactivateLiveSession(): UseMutationResult<
   return useInvalidatingMutation({
     mutationFn: (id: string, token) => deactivateLiveSession(id, token),
     invalidateKeys: (uid) => [liveSessionKeys.list(uid)],
+  });
+}
+
+export interface ClosePositionVariables {
+  sessionId: string;
+  symbol: string;
+}
+
+export function useClosePosition(): UseMutationResult<
+  ClosePositionResponse,
+  Error,
+  ClosePositionVariables
+> {
+  return useInvalidatingMutation({
+    mutationFn: ({ sessionId }, token) => closePosition(sessionId, token),
+    invalidateKeys: (uid) => [liveSessionKeys.positionsPrefix(uid)],
   });
 }

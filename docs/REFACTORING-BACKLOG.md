@@ -5,12 +5,13 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-24 (**position-cockpit 스프린트** — 신규 BL-431~433. WS position 채널 + 코크핏 잔고/포지션 후속.) // 이전: perf-surface — 신규 BL-427~430.
-**직전 갱신:** 2026-07-23 (**functional-parity 스프린트** — BL-401/BL-402/BL-411 Resolved + 신규 BL-413~416. C 이식 후 기능 격차 마감: 주문취소 배선 A2 + nav-count B2 + backtest_count B1 + 스트레스 복원 A7-lite)
-**현재 상태:** **51 active BL** (Sprint 62 6 Resolved + Sprint 61 11 Resolved 누적; 2026-06-30 backtest-deepen +5 BL-387~391 → 45 → 50; 2026-06-30 stress_test-deepen +1 BL-392 → 51). main @ `36bb4e0` (PR #288 + #289 + #290 모두 merge). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**최종 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.) // 이전: position-cockpit — 신규 BL-431~433.
+**직전 갱신:** 2026-07-24 (**position-cockpit 스프린트** — 신규 BL-431~433. WS position 채널 + 코크핏 잔고/포지션 후속.)
+**현재 상태:** **49 active BL** (trading-surface-pack 5 Resolved + 신규 3 → 51-5+3=49). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
 
+- **2026-07-24 trading-surface-pack 스프린트 (codex 2-generator ∥ + Claude 적대평가 per-worker + Opus dogfood)**: position-cockpit(#472) 후속. 코크핏 §03 포지션 표에 TP/SL 열 + reduce-only 시장가 청산 완성 + 부채 4종. **BL-431 Resolved**(BE: 포지션-보고 TP/SL read-time 0→null 정규화 + `POST /live-sessions/{id}/positions/close` reduce-only 청산 = 신규 `close_service.py` + `OrderService.execute(flatten=True)` 진입-위험 가드 ②~⑧ bypass·ownership 유지·reduce_only 불변식·**청산 leverage=포지션값**으로 set_leverage no-op·cap-bypass 방지 / FE: 익절·손절 2열 + 청산 액션·확인 모달(정직 고지)·colSpan 14) + **BL-416 Resolved**(주문취소 행별 disabled `cancelOrder.variables` + 비-409 broad toast + 실 ACTIVE_ORDER_STATES import) + **BL-425 Resolved**(alert-rule 중복 유형 사전검사 = 마운트 목록 재사용, 409 요청·콘솔 노이즈 회피) + **BL-432 Resolved**(positions select→combine 인덱스 zip + 고아 삭제) + **BL-433 Resolved**(`qb_ws_subscribe_rejected_total{account_id}` counter). 마이그레이션 0. 게이트: BE **2601**(+18) / FE **1083**(+8) / canon **32** / authed **66**(+2 코크핏 §03 구조) / build ✓ / alembic 무변경. **검증 체인**: codex G0 14건(코드 대조 후 반영, BLOCKING 3=leverage 라우팅·flatten 불변식·hedge 거부) → codex 2워커 병렬(backend/frontend 교집합 0) ↔ Claude 적대평가 per-worker(게이트 직접 실행, W1 RUF059 1건 codex resume) → 최종 codex 누적 diff(MAJOR 1=청산 leverage cap-bypass → 포지션값 사용 fix) → **Opus dogfood 2계통**(독립 Bybit HMAC 오라클 ↔ 코크핏 §03: TP/SL 값 66000/62000 정확 일치·빈값→— 정직 / 청산 종단 flat+Order row / **kill-switch 활성 청산 성공 = 가드 bypass 실증, KS 미소비** / 콘솔 error 0). 신규 **BL-434~436**.
 - **2026-07-23 functional-parity 스프린트 (codex 4-generator ∥ + Claude 적대평가 + Opus dogfood)**: C 디자인 이식 후 기능 격차 마감. **BL-401 Resolved**(3폼 `formState.errors` → `.field-error` 프리미티브, superRefine 평탄 경로 row 매핑, 메시지 한국어화 — grid min>max 만 거부로 BE 계약 정합) + **BL-411 Resolved**(지원 kind 목록 `OptimizationKind` enum 파생 + Sprint 넘버 문구 중립화) + **BL-402 Resolved (구조 소멸)** — C 이식이 4사이트 전부 네이티브 `<select>` 로 재작성해 uncontrolled/raw-UUID 결함 자체가 소멸(실측 재확인, 코드 변경 0). 신규 A2(주문취소 액션 열 — "API 없음" 미렌더 전제가 거짓이었음, CF4 완비)·B2(orders state 반복 Query + 미체결 nav-count 캐논 §4.6 복원)·B1(strategy.backtest_count read-time GROUP BY, COMPLETED 기준)·A7-lite(스트레스 최신 결과 리로드 복원)·A1(대시보드 전략 링크 404→edit). 게이트: vitest 965→980 / BE 2416+18 / canon 32 불변 / authed 56→62. 신규 **BL-413~416**. **Opus MCP dogfood(10항목)가 잠복 P1 2건 추가 발굴·동일 스프린트 해소**: (a) stress_test enum 혼합 케이싱 — 최초 migration 소문자 라벨 vs SAEnum 대문자 저장으로 실 DB 에서 MC/WF 생성 전부 500 → RENAME VALUE migration `20260723_0001` + alembic-경로 enum 라벨 sentinel 테스트(즉시 status enum 드리프트도 추가 검출). (b) provider cancel_order 전 구현이 ccxt 에 symbol 미전달 — 실거래소 취소가 전부 ArgumentsRequired(CF4 fail-closed 로 submitted 영구 잔존, BL-404 동형) → Protocol+5 provider symbol 관통 + futures linear 정규화. dogfood 최종 V1~V10 전 항목 PASS (취소 200/202 실클릭 + DB 오라클 3점 + A7-lite 리로드 복원 실측).
 
 - **2026-06-30 stress_test-deepen (deepen-modules)**: stress_test 도메인 1차 deepen (`/deepen-modules`, 코드 변경 0). C1 = **BL-363 sharpen**(money-path framing + git 실증 `6c7adfba`→`ffb2299b` + `_load_run_context`/`_execute_grid_sweep` 구체 인터페이스) / C2 = 신규 **BL-392**(CA/PS "2D grid sweep" DTO 8-site 평행 정의 통합, untyped JSONB seam). 거부 = C3(`StressTestKind` dispatch registry — blast radius 최대 + 4타입 over-eng, 5번째 타입 등장 시 재평가) / C4(invariant SSOT — C2 graft 권장). engine 은 이미 `run_grid_sweep` 공유 = Deep 유지(건드리지 않음). dev-log [`2026-06-30-stress_test-deepen.md`](dev-log/2026-06-30-stress_test-deepen.md).
@@ -1408,6 +1409,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-416
 
+**✅ Resolved (2026-07-24 trading-surface-pack)** — `cancelOrder.variables===o.id` 행별 disabled + 비-409 broad toast + 실 ACTIVE_ORDER_STATES import.
+
 **Title:** 주문취소 FE polish 팩 — 행별 disabled(현재 전역 `isPending` 으로 전 행 잠김) + 비-409 에러 무피드백 + 테스트 mock 의 ACTIVE_ORDER_STATES 리터럴 드리프트
 **Category:** Frontend / orders UX
 **Priority:** P3
@@ -1543,6 +1546,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-425
 
+**✅ Resolved (2026-07-24 trading-surface-pack)** — alert-rule-form 사전 중복검사(마운트된 `rules.data.items` 재사용, 새 fetch·409 요청·broad 콘솔 allowlist 없음). dogfood 전 상호작용 콘솔 error 0.
+
 **Title:** 예상된 alert-rules 409(중복 활성 규칙)가 브라우저 콘솔 error 로 노출
 **Category:** Frontend / 관찰성
 **Priority:** P3
@@ -1633,6 +1638,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-431
 
+**✅ Resolved (2026-07-24 trading-surface-pack)** — 포지션-보고 TP/SL read-time 2열 + reduce-only 시장가 청산(세션스코프 202, flatten 가드 bypass, 청산 leverage=포지션값). 완전 TP/SL 보고(조건부 주문 조인)는 BL-434 이연.
+
 **Title:** 코크핏 §03 열린 포지션 표 TP/SL·청산 액션 열 미렌더 — API 부재
 **Category:** Backend / Frontend
 **Priority:** P2
@@ -1647,6 +1654,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 ---
 
 ### BL-432
+
+**✅ Resolved (2026-07-24 trading-surface-pack)** — `useLiveSessionsPositions` per-query select 제거 → `combineLiveSessionPositions(sessions, results)` 인덱스 zip(형제 aggregate 패턴) + 고아 `makePositionsSelector`/`LiveSessionPositionQueryData` 삭제.
 
 **Title:** 잔고/포지션 useQueries select 콜백이 렌더마다 새 클로저
 **Category:** Frontend / perf
@@ -1663,6 +1672,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-433
 
+**✅ Resolved (2026-07-24 trading-surface-pack, metric 부분)** — `qb_ws_subscribe_rejected_total{account_id}` counter + position_fanout reject `.labels().inc()`. BL-423(비활성 세션 진단 UI) 연계는 별도 유지.
+
 **Title:** WS subscribe negative-ack 관측이 warning 로그만 — metric counter 부재 + BL-423 연계
 **Category:** Backend / observability
 **Priority:** P3
@@ -1673,6 +1684,51 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **원인 / 영향:** position 구독이 거부되면 warning 만 남기고 15s 폴링으로 조용히 degrade — Prometheus counter 부재로 집계 불가. 또한 결정 ⑤로 §08 진단의 PositionDiagnostic 제거되어 비활성 세션의 포지션 상태 노출이 §03 표(활성 세션만)로 이관 → BL-423(비활성 세션 진단 UI)과 연계 재검토 필요.
 
 **권장 접근:** `qb_ws_subscribe_rejected_total` counter 추가 + BL-423 에서 비활성 세션 포지션 상태의 별도 진단 표기 여부 결정.
+
+---
+
+### BL-434
+
+**Title:** 완전 TP/SL 보고 — 포지션-부착 외 조건부(Partial-mode limit-TP) 주문 미표시 + 청산 시 미스윕
+**Category:** Backend / Frontend / trading
+**Priority:** P3
+**Trigger:** 코크핏 §03 이 걸어둔 모든 TP/SL 을 보여줘야 하거나, 청산 후 잔여 조건부 주문 정리가 필요할 때
+**Est:** M (fetch_open_orders 조인 + 스키마 확장 + 청산 스윕)
+**출처:** 2026-07-24 trading-surface-pack (BL-431 은 포지션 필드만 read — Partial-mode limit-TP 는 별도 conditional order 라 미표시, 각주로 정직)
+
+**원인 / 영향:** ccxt `fetch_positions` 의 position 필드는 Full-mode SL + set-trading-stop 트레일링만 담는다. QB 가 tpslMode=Partial 로 부착한 limit-TP 는 별도 조건부 주문이라 §03 에 안 나온다(각주로 고지). 또 reduce-only 청산은 포지션만 flatten 하고 잔여 조건부 주문은 스윕하지 않는다(포지션-부착 TP/SL 은 Bybit 이 flat 시 자동취소).
+
+**권장 접근:** `fetch_open_orders`(conditional) 조인으로 완전 TP/SL 표시 + 청산 시 열린 reduce-only 조건부 주문 취소.
+
+---
+
+### BL-435
+
+**Title:** 수동 청산 후 §03 flat 반영 지연 — WS 미연결 창에서 캐시 TTL+폴 지연(~15-30s)
+**Category:** Backend / Frontend / UX
+**Priority:** P3
+**Trigger:** 청산 즉시성 UX 개선 또는 WS 미연결 시나리오 다발 시
+**Est:** S (청산 서비스에서 position 캐시 DEL)
+**출처:** 2026-07-24 trading-surface-pack dogfood (청산 202 후 오라클 flat 이나 §03 는 WS 미연결 창에서 ~30s 뒤 빈복귀 — 사용자 확정 비동기 202 설계 내이나 WS 의존)
+
+**원인 / 영향:** 청산 flat 반영은 WS position_update(fast) + 15s 폴링(fallback)에 의존. 신규 활성 세션은 ws-stream reconcile(300s) 전이라 WS 미푸시 → 폴 fallback 만 동작(캐시 15s TTL + 폴 간격). 머니-패스 정확(청산 성공)하나 즉시성 미흡.
+
+**권장 접근:** 청산 서비스가 발주 직후 `qb_pos_snapshot:{session_id}` 캐시 DEL(WS position_update 핸들러 DEL 패턴 미러) → 폴 fallback 이 WS 독립으로 fresh. (거래소 체결 지연은 잔존.)
+
+---
+
+### BL-436
+
+**Title:** 청산 create_order 가 settings.margin_mode 로 set_margin_mode — 포지션 실제 mode 불일치 시 실패 가능
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** 포지션 실제 margin_mode 와 전략 settings 가 어긋나는 수동/외부 포지션 청산 시
+**Est:** S (PositionSnapshot 에 margin_mode 노출 후 포지션값 사용, leverage fix 와 동형)
+**출처:** 2026-07-24 trading-surface-pack (최종 codex diff review — leverage 는 포지션값으로 fix, margin_mode 는 잔여)
+
+**원인 / 영향:** `create_order`(providers.py:545-556)가 주문 전 `set_margin_mode(order.margin_mode)` 호출. 청산은 `settings.margin_mode` 사용 — 포지션 실제 mode 와 같으면 "not modified" no-op(관리 플로우), 다르면 Bybit 이 open position 의 margin 변경을 거부해 청산 503 가능. leverage 는 포지션값 사용으로 해소했으나 PositionSnapshot 에 margin_mode 필드 부재로 margin 은 잔여. live_signal 청산 경로도 동형(공유 특성).
+
+**권장 접근:** PositionSnapshot 에 margin_mode 노출 → 청산 req 에 포지션값 사용(leverage 와 동일 원리, set_margin_mode no-op). 또는 reduce_only 경로에서 set_margin_mode/set_leverage skip.
 
 ---
 

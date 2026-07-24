@@ -93,6 +93,16 @@ export function TradingCockpit() {
   );
 
   const activeSessions = useMemo(() => sessionItems.filter((s) => s.is_active), [sessionItems]);
+  const demoSessionIds = useMemo(() => {
+    const demoAccountIds = new Set(
+      accountItems.filter((account) => account.mode === "demo").map((account) => account.id),
+    );
+    return new Set(
+      activeSessions
+        .filter((session) => demoAccountIds.has(session.exchange_account_id))
+        .map((session) => session.id),
+    );
+  }, [accountItems, activeSessions]);
   const unrealized = useUnrealizedPnlEstimate(activeSessions);
   const now = useNowTick(5_000);
   const isTickerStale = unrealized.latestTs !== null && now - unrealized.latestTs > TICKER_STALE_MS;
@@ -299,6 +309,7 @@ export function TradingCockpit() {
         </header>
         <OpenPositionsTable
           sessions={activeSessions}
+          demoSessionIds={demoSessionIds}
           resolveStrategyName={(sessionId, fallback) =>
             strategyNameBySessionId.get(sessionId) ?? fallback
           }

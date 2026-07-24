@@ -140,6 +140,29 @@ describe("SessionDiagnostics", () => {
     expect(await screen.findByText("이미 같은 유형의 활성 규칙이 있습니다.")).toBeInTheDocument();
   });
 
+  test("이미 활성인 규칙 유형은 요청 전에 차단한다", async () => {
+    mockRules.mockReturnValue(
+      rules({
+        items: [
+          {
+            id: "a0000000-0000-4000-8000-000000000010",
+            rule_type: "loss_limit",
+            threshold_percent: "5",
+            channel: "telegram",
+          },
+        ],
+        total: 1,
+      }),
+    );
+    render(<SessionDiagnostics session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 만들기" }));
+    fireEvent.change(screen.getByLabelText("손실 한도 (%)"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "알림 규칙 저장" }));
+
+    expect(await screen.findByText("이미 같은 유형의 활성 규칙이 있습니다.")).toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
   test("활성 규칙은 저장값을 요약하고 해제 action을 제공한다", () => {
     mockRules.mockReturnValue(
       rules({

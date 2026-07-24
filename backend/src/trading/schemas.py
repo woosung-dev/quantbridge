@@ -116,6 +116,12 @@ class OrderResponse(BaseModel):
     trailing_stop: Decimal | None = None
 
 
+class ClosePositionResponse(BaseModel):
+    order_id: UUID
+    state: OrderState
+    detail: str | None = None
+
+
 class KillSwitchEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -297,6 +303,8 @@ class ExchangePositionSchema(BaseModel):
     unrealized_pnl: Decimal | None
     liquidation_price: Decimal | None
     leverage: Decimal | None
+    take_profit_price: str | None
+    stop_loss_price: str | None
 
 
 class PositionDiffSchema(BaseModel):

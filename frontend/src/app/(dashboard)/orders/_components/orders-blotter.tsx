@@ -435,7 +435,9 @@ export function OrdersBlotter() {
                         key={o.id}
                         order={o}
                         onCancel={cancelOrder.mutate}
-                        isCancelling={cancelOrder.isPending}
+                        cancellingOrderId={
+                          cancelOrder.isPending ? cancelOrder.variables : undefined
+                        }
                       />
                     ))}
                   </tbody>
@@ -500,11 +502,11 @@ export function OrdersBlotter() {
 function OrderRow({
   order: o,
   onCancel,
-  isCancelling,
+  cancellingOrderId,
 }: {
   order: Order;
   onCancel: (orderId: string) => void;
-  isCancelling: boolean;
+  cancellingOrderId: string | undefined;
 }) {
   const { label, tone, showCheckIcon } = ORDER_STATE_LABEL[o.state];
   const { time, date } = formatOrderTime(o.created_at);
@@ -565,7 +567,7 @@ function OrderRow({
             className="btn btn-xs btn-danger"
             type="button"
             title={ORDER_CANCEL_ACTION.title[o.state]}
-            disabled={isCancelling}
+            disabled={cancellingOrderId === o.id}
             onClick={() => onCancel(o.id)}
           >
             {ORDER_CANCEL_ACTION.label}

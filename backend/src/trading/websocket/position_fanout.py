@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
+from src.common.metrics import qb_ws_subscribe_rejected_total
 from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
@@ -123,3 +124,4 @@ class PrivateTopicRouter(MessageEventHandler):
             return
         if msg.get("op") == "subscribe" and msg.get("success") is False:
             logger.warning("ws_subscribe_rejected account=%s msg=%s", self._account_id, msg)
+            qb_ws_subscribe_rejected_total.labels(account_id=str(self._account_id)).inc()

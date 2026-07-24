@@ -87,6 +87,8 @@ export const ExchangePositionSchema = z.object({
   entry_price: z.string().nullable(),
   mark_price: z.string().nullable(),
   unrealized_pnl: z.string().nullable(),
+  take_profit_price: z.string().nullable(),
+  stop_loss_price: z.string().nullable(),
   liquidation_price: z.string().nullable(),
   leverage: z.string().nullable(),
 });
@@ -124,6 +126,13 @@ export const LiveSessionPositionsResponseSchema = z.object({
   diff: PositionDiffSchema,
 });
 export type LiveSessionPositions = z.infer<typeof LiveSessionPositionsResponseSchema>;
+
+export const ClosePositionResponseSchema = z.object({
+  order_id: z.string(),
+  state: z.string(),
+  detail: z.string().nullable(),
+});
+export type ClosePositionResponse = z.infer<typeof ClosePositionResponseSchema>;
 
 // ── Form schema — UI input only (RHF + Zod v4 transform 불필요) ────────
 

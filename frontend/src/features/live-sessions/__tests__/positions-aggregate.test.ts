@@ -12,9 +12,9 @@ const secondSession = {
   strategy_id: "a0000000-0000-4000-8000-000000000012",
 };
 
-function result(session: typeof firstSession, positions: Record<string, unknown>) {
+function result(positions?: Record<string, unknown>) {
   return {
-    data: { session, positions },
+    data: positions,
     isLoading: false,
     isError: false,
     isPending: false,
@@ -28,21 +28,23 @@ const exchangePosition = {
   entry_price: "100",
   mark_price: "110",
   unrealized_pnl: "1",
+  take_profit_price: null,
+  stop_loss_price: null,
   liquidation_price: "50",
   leverage: "10",
 };
 
 describe("combineLiveSessionPositions", () => {
   it("같은 계정·심볼의 두 세션을 합치지 않고 각각의 전략 라벨로 보존한다", () => {
-    const aggregate = combineLiveSessionPositions([
-      result(firstSession, {
+    const aggregate = combineLiveSessionPositions([firstSession, secondSession], [
+      result({
         supported: true,
         symbol: "BTCUSDT",
         fetched_at: "2026-07-24T12:00:00Z",
         positions: [exchangePosition],
         diff: { verdict: "match" },
       }),
-      result(secondSession, {
+      result({
         supported: true,
         symbol: "BTCUSDT",
         fetched_at: "2026-07-24T12:01:00Z",
@@ -59,8 +61,8 @@ describe("combineLiveSessionPositions", () => {
   });
 
   it("지원하지 않는 세션은 행과 분리해 사유를 보존한다", () => {
-    const aggregate = combineLiveSessionPositions([
-      result(firstSession, {
+    const aggregate = combineLiveSessionPositions([firstSession], [
+      result({
         supported: false,
         symbol: "BTCUSDT",
         fetched_at: null,
@@ -72,5 +74,20 @@ describe("combineLiveSessionPositions", () => {
     expect(aggregate.unsupported).toMatchObject([
       { sessionId: firstSession.id, symbol: "BTCUSDT", reason: "spot_position_api_unsupported" },
     ]);
+  });
+
+  it("앞선 disabled 슬롯의 응답이 없어도 다음 세션의 인덱스를 보존한다", () => {
+    const aggregate = combineLiveSessionPositions([firstSession, secondSession], [
+      result(),
+      result({
+        supported: true,
+        symbol: "ETHUSDT",
+        fetched_at: null,
+        positions: [exchangePosition],
+        diff: { verdict: "match" },
+      }),
+    ]);
+
+    expect(aggregate.rows).toMatchObject([{ sessionId: secondSession.id, symbol: "ETHUSDT" }]);
   });
 });
