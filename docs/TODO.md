@@ -1,11 +1,42 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-24 (position-cockpit 스프린트 — WS position 채널 + 코크핏 잔고/포지션, Phase B)
-> **Active Sprint:** **position-cockpit** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/position-cockpit` (main @ `6dbd545` 베이스)
-> **Sprint type:** WS 인바운드 + 신규 표면 (비영속, 마이그레이션 0) — codex exec 3-워커 + Claude 적대 평가(생성/평가 분리) + codex G0(12건 반영)/최종 diff + Opus MCP dogfood(WS 4점 실주문)
+> **Last Updated:** 2026-07-24 (trading-surface-pack 스프린트 — 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성)
+> **Active Sprint:** **trading-surface-pack** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/trading-surface` (main @ `ed0d1c5` 베이스)
+> **Sprint type:** 신규 청산 엔드포인트 + 표면 완성 (비영속, 마이그레이션 0) — codex exec 2-워커(backend/frontend 교집합 0) + Claude 적대 평가 per-worker(생성/평가 분리, 게이트 직접 실행) + codex G0(14건)/최종 diff(MAJOR 1 leverage fix) + Opus dogfood(2계통 오라클 + kill-switch 활성 청산 bypass 실증)
 > **office-hours 진행:** N
-> **Next Trigger:** position-cockpit 머지 후 → 다음 deepen = tasks 도메인, 또는 WS position 채널 후속(포지션 표 TP/SL·청산 액션 = API 신설). // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+> **Next Trigger:** trading-surface-pack 머지 후 → 다음 deepen = tasks 도메인, 또는 BL-434(완전 TP/SL 보고=fetch_open_orders 조인)/BL-435(청산 캐시 DEL). // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+
+---
+
+## ⚡ trading-surface-pack 스프린트 (2026-07-24, `docs/trading-surface-pack/`)
+
+**스코프**: position-cockpit(#472) 후속. ① BL-431 코크핏 §03 포지션 표 **TP/SL 열**(거래소 보고 포지션-부착, 0→— 정직) + **reduce-only 시장가 청산**(세션스코프 `POST /live-sessions/{id}/positions/close` 202, `OrderService.execute(flatten=True)` 진입-위험 가드 ②~⑧ bypass·ownership 유지·청산 leverage=포지션값) ② BL-416 주문취소 polish ③ BL-425 alert 409 콘솔 노이즈 ④ BL-432 select→combine ⑤ BL-433 subscribe-reject metric. 마이그레이션 0.
+
+### Completed
+
+- [x] BL-431 BE — PositionSnapshot/ExchangePositionSchema TP/SL 2필드(0/''→None) + 신규 `close_service.py`(canonical settings 검증·hedge/no-position 409·demo·bybit) + `close` 엔드포인트(202 ClosePositionResponse) + `execute(flatten=True)` 가드 bypass(reduce_only 불변식) + dependencies 배선
+- [x] BL-431 FE — §03 익절/손절 2열 + 청산 액션열(colSpan 14) + 확인 모달(reduce-only 시장가·계정 순포지션·재진입 정직 고지) + `useClosePosition`(pending 행별 disabled) + demo 계정 게이팅 + 각주(포지션-보고값)
+- [x] BL-416 — `cancelOrder.variables===o.id` 행별 disabled + 비-409 broad toast + 실 ACTIVE_ORDER_STATES import
+- [x] BL-425 — alert-rule 사전 중복검사(마운트 목록 재사용, 409 요청·콘솔 노이즈 회피, broad allowlist 없음)
+- [x] BL-432 — positions select→combine 인덱스 zip + 고아 삭제 / BL-433 — `qb_ws_subscribe_rejected_total{account_id}` counter
+- [x] 게이트: BE **2601**(+18)·FE **1083**(+8)·ruff/mypy/tsc/lint 0·canon **32**·authed **66**(+2 §03 구조)·build ✓·마이그레이션 0(alembic 무변경)
+- [x] 검증: codex G0 **14건**(코드 대조 후 반영·BLOCKING 3=leverage 라우팅·flatten 불변식·hedge 거부) → codex 2워커 생성 ↔ Claude 적대평가 per-worker(게이트 직접 실행·W1 RUF059 codex resume) → 최종 codex diff **MAJOR 1**(청산 leverage cap-bypass → 포지션값 사용 fix) → **Opus dogfood 2계통**(독립 Bybit HMAC 오라클 ↔ 코크핏 §03 TP/SL 66000/62000 일치·빈값→— 정직 / 청산 종단 flat+Order row / **kill-switch 활성 청산 성공=bypass 실증·KS 미소비** / 콘솔 error 0)
+- [x] BL: BL-431/416/425/432/433 Resolved + 신규 BL-434~436
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [ ] stage/trading-surface → main PR 사용자 squash
+- [ ] (후속) BL-434 완전 TP/SL 보고(fetch_open_orders 조인+청산 스윕) / BL-435 청산 캐시 DEL(즉시 flat) / BL-436 청산 margin_mode 포지션값
+- [ ] (이월) 다음 deepen = tasks 도메인
 
 ---
 
