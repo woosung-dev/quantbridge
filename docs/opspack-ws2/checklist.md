@@ -18,7 +18,7 @@
 - [x] **op/alert-ui** — 적대평가 ACCEPT(반증 16입력 실행·fail-on-base 증명) @fe5f343, docs 헝크 제외
 - [x] **op/rt-contract** — 적대평가 ACCEPT(반증 7종·12지점 독립 재대조 일치) @8317564
 - [x] **P1 통합** — cherry-pick 3건 클린 + prettier 정규화 @a68f839 + ★통합 발견 1건: 마이그레이션 테스트 5 FAIL(테스트 DB metadata-스키마 + stale alembic_version) → DROP IF EXISTS 방어(20260626 선례 미러) @26bdf01
-- [ ] **P1 dogfood** — D1 beat / D2 state pending / D3 알림 ok / D4 Telegram 실수신
+- [x] **P1 dogfood** — D1 beat(선행) / D2 /state 200+`evaluated:false` 17회+·콘솔 404 0(Opus 실브라우저) / D3 ok 어포던스·"0.01%" 트리밍·201×2+409×1 / D4a 실 Telegram 수신(`{'telegram': True}`) + **D4b 풀 파이프라인 실발화**(beat→규칙평가→실잔고→발화 `fired:1`→2주기 throttled + redis TTL — 합성 손실 주입·전량 복구, context-notes #13)
 
 ## 2. Phase 2 — WS Tier 2 (★Phase 1 게이트 표 전부 ✅ 후에만 착수)
 
@@ -47,8 +47,8 @@
 | e2e:authed               | 63                                        | 63 (allowlist 강화) / ✅ **63/63** (404 비허용 하 실주행)                                            | 63± (spec 갱신) / —            |
 | alembic up→down→up       | —                                         | 그린 / ✅ dev DB 왕복 2회(평가자·psql DDL 검증) + 테스트 DB 5종 + upgrade 적용(20260724_0002·컬럼 0) | 해당 없음                      |
 | beat 볼륨 재생성 실측    | —                                         | uid 1000·발화 지속 / ✅ 익명볼륨 seed + 재시작 발화                                                  | —                              |
-| DB/외부 오라클           | —                                         | Telegram 실수신 / —                                                                                  | ticker 2계통·미실현 손계산 / — |
-| Opus MCP dogfood         | —                                         | D1~D4 / —                                                                                            | D5~D8 / —                      |
+| DB/외부 오라클           | —                                         | Telegram 실수신 / ✅ D4a 직발송 True + D4b beat 실발화 `fired:1`·throttled·TTL 3597                  | ticker 2계통·미실현 손계산 / — |
+| Opus MCP dogfood         | —                                         | D1~D4 / ✅ **전 항목 PASS** (증거 스크린샷 5종·네트워크·콘솔 덤프)                                   | D5~D8 / —                      |
 
 ## 5. 환경 (재발 방지 실측치 — tier-c 승계)
 
