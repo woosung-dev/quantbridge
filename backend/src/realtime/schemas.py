@@ -6,16 +6,22 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 USER_CHANNEL_PREFIX = "qb:rt:user:"
+TICKER_CHANNEL_PREFIX = "qb:rt:ticker:"
 WS_CLOSE_AUTH_FAILED = 4401
 WS_CLOSE_ORIGIN_DENIED = 4403
 WS_CLOSE_CONNECTION_LIMIT = 4408
 
 
 class RealtimeEnvelope(BaseModel):
-    """Redis pubsub와 WebSocket이 공유하는 이벤트 envelope."""
+    """Redis pubsub와 WebSocket이 공유하는 이벤트 envelope.
+
+    ts는 epoch-ms 단위다.
+    """
 
     v: int = 1
-    type: Literal["order_update", "kill_switch", "kill_switch_resolved", "session_state"]
+    type: Literal[
+        "order_update", "kill_switch", "kill_switch_resolved", "session_state", "ticker"
+    ]
     ts: int
     payload: dict[str, object]
 
@@ -49,11 +55,22 @@ class SessionStatePayload(BaseModel):
     session_id: str
 
 
+class TickerPayload(BaseModel):
+    """Bybit 공개 ticker 이벤트 payload."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    symbol: str
+    mark_price: str
+    last_price: str | None = None
+
+
 PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "order_update": OrderUpdatePayload,
     "kill_switch": KillSwitchPayload,
     "kill_switch_resolved": KillSwitchPayload,
     "session_state": SessionStatePayload,
+    "ticker": TickerPayload,
 }
 
 
@@ -67,3 +84,8 @@ class AuthMessage(BaseModel):
 def user_channel(user_id: str) -> str:
     """채널 키는 users.id 내부 UUID 문자열이며 clerk_user_id가 아니다."""
     return f"{USER_CHANNEL_PREFIX}{user_id}"
+
+
+def ticker_channel(symbol: str) -> str:
+    """Bybit raw 심볼별 공개 ticker Redis 채널을 만든다."""
+    return f"{TICKER_CHANNEL_PREFIX}{symbol}"

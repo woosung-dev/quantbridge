@@ -7,7 +7,7 @@ from typing import get_args
 import pytest
 
 from src.common.metrics import qb_rt_publish_invalid_total
-from src.realtime.schemas import PAYLOAD_MODELS, RealtimeEnvelope
+from src.realtime.schemas import PAYLOAD_MODELS, RealtimeEnvelope, ticker_channel
 from src.trading import realtime_publisher
 
 
@@ -30,6 +30,11 @@ VALID_PAYLOADS = {
     "kill_switch": {"event_id": "event-1", "trigger_type": "daily_loss"},
     "kill_switch_resolved": {"event_id": "event-1", "trigger_type": "daily_loss"},
     "session_state": {"session_id": "session-1"},
+    "ticker": {
+        "symbol": "BTCUSDT",
+        "mark_price": "67000.25",
+        "last_price": "67000.00",
+    },
 }
 
 
@@ -38,6 +43,10 @@ def test_payload_models_match_envelope_event_types() -> None:
     event_types = set(get_args(RealtimeEnvelope.model_fields["type"].annotation))
 
     assert event_types == set(PAYLOAD_MODELS)
+
+
+def test_ticker_channel_uses_bybit_raw_symbol() -> None:
+    assert ticker_channel("BTCUSDT") == "qb:rt:ticker:BTCUSDT"
 
 
 @pytest.mark.asyncio
@@ -56,16 +65,23 @@ async def test_valid_payload_publishes(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("event_type", "payload"),
+    [
+        ("session_state", {}),
+        ("ticker", {"symbol": "BTCUSDT"}),
+    ],
+)
 async def test_invalid_payload_skips_publish_and_counts_contract_violation(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, event_type: str, payload: dict[str, str]
 ) -> None:
     """필수 필드가 없으면 Redis 호출 없이 계약 위반만 기록해야 한다."""
     pool = _RecordingPool()
     monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
-    counter = qb_rt_publish_invalid_total.labels(event_type="session_state")
+    counter = qb_rt_publish_invalid_total.labels(event_type=event_type)
     before = counter._value.get()
 
-    await realtime_publisher.publish_realtime("user-1", "session_state", {})
+    await realtime_publisher.publish_realtime("user-1", event_type, payload)
 
     assert pool.calls == []
     assert counter._value.get() == before + 1
@@ -90,6 +106,14 @@ async def test_invalid_payload_skips_publish_and_counts_contract_violation(
             {"event_id": "event-1", "trigger_type": "daily_loss"},
         ),
         ("session_state", {"session_id": "session-1"}),
+        (
+            "ticker",
+            {
+                "symbol": "BTCUSDT",
+                "mark_price": "67000.25",
+                "last_price": "67000.00",
+            },
+        ),
     ],
 )
 def test_representative_publisher_payloads_match_models(

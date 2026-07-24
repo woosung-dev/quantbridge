@@ -44,3 +44,11 @@ def to_ccxt_perpetual_symbol(symbol: str) -> str:
     unified = normalize_symbol(symbol)
     quote = unified.split("/")[1]
     return f"{unified}:{quote}"
+
+
+def to_bybit_raw_symbol(symbol: str) -> str:
+    """CCXT unified/perp 심볼 → Bybit raw 심볼 ('BTCUSDT').
+
+    CCXT perpetual settle 통화는 제거하고 slash도 제거한다.
+    """
+    return symbol.split(":", maxsplit=1)[0].replace("/", "").upper()
