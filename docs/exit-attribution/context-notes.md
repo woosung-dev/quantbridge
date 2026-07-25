@@ -170,3 +170,23 @@ BE **2706 passed / 46 skipped / 0 failed**(축소 전 2710). 감소분의 내역
 - **authed 58 passed / 1 skipped / 6 failed** — 6건은 전부 **채워진 표를 단정하는 데이터 의존** 스펙(`/strategies/:id/edit` · `/optimizer/:id` · `/backtests/:id` · `/backtests` 11열 · 전략목록 `backtest_count` · 전략목록 11+ items)이고 개발 DB 는 `strategies 0 · backtests 0 · orders 0` 이다. 실패 메시지도 populated-table locator 의 `element(s) not found`. 축소 diff 가 `frontend/`·router·service 를 **한 파일도 건드리지 않았고** `/orders` 계열은 **5/5 green**(A2 취소 2 · B2 배지 · kill-switch disabled)이라 인과가 없다.
   - **정직 고지** — 이 브랜치에는 **authed 녹색 baseline 이 없다**(원 스프린트가 authed 를 dogfood 로 이연했다). 따라서 "이전에도 빨갰다"를 기록으로 증명할 수는 없고, 무인과는 **diff 범위 + 실패 양태**로 판정했다. 데이터 복원 후 재실행이 남은 확인이다.
 - **★3000 은 nexus-core, 3100 이 QuantBridge** 를 title 프로브로 재확인하고 `PLAYWRIGHT_BASE_URL=http://localhost:3100` 으로 돌렸다.
+
+## #9.9 ★사용자 계정 재등록 후 dogfood 완주 — 또 P1 을 잡았다
+
+사용자가 Bybit demo 계정을 재등록(`19a8166a-...`)해 §6 dogfood 를 완주했다.
+
+**독립 오라클 실측** — 앱 provider 코드를 전혀 거치지 않고 `asyncpg` 로 `trading.exchange_accounts` 암호문을 직접 읽어 `MultiFernet` 복호화 후 `api-demo.bybit.com` 에 raw HMAC 서명 요청을 보냈다(`/v5/position/closed-pnl`, 최근 7일). 결과 = **4행, 합계 −0.12392537**. 스윕 1회 실행 후 원장도 **4행, 합계 −0.12392537** — 완전 일치. 분류는 4행 중 3행이 `orderLinkId` 가 우리 앱 관례(`Order.id` UUID4)와 형식이 일치해 `ours`(이 판정은 `orders` 테이블 존재 여부와 무관 — orderLinkId 형식만으로 성립하는 별도 경로), 나머지 1행은 `orderLinkId` 없음 + `createType=CreateByUser` → `external_manual`. **이 4행은 DB 전소 이전에 이 앱이 직접 발주했던 흔적**이라는 뜻이다(3/4가 우리 관례의 orderLinkId 를 달고 있다) — 다만 원 주문 행 자체는 사라졌으므로 `attribution_confidence` 는 전부 `none`, 백필 종단 검증은 여전히 불가하다.
+
+**★알림이 죽어 있었다 — 진짜 P1.** 1회차 스윕에서 `alerted:0`(기대 1)이 나왔다. 조사 결과 `_alert_new_exchange_exits`(`tasks/trading.py`)는 `list_by_row_hashes` 로 **새 세션에서 원장을 재조회**하는데, `ExchangeExit.classification` 컬럼이 평문 `String(24)`(Sprint 26 의 `UndefinedObjectError` 회피 워크어라운드, `models.py:438-440` 주석)라 SQLAlchemy 가 재수화할 때 `ExitClassification` StrEnum 이 아니라 **plain str** 을 그대로 준다. 방금 만든 메모리 객체일 때만 진짜 enum 이다. `Counter(row.classification.value for row in external_rows)` 의 `.value` 접근이 plain str 에는 없어 `AttributeError` 를 던지고, 함수 전체를 감싼 `except Exception:` 이 그걸 삼켜 **신규 미귀속 행 알림이 매 사이클 조용히 죽고 있었다** — 로그에는 `exchange_exit_alert_failed` 만 남고 원인은 별도 확인 전엔 안 보인다.
+
+이 경로가 이번 세션 전엔 실 DB 라운드트립으로 exercise 된 적이 없었다 — 유닛테스트는 fake repo(이미 enum 인스턴스)를 썼고, 원 스프린트의 dogfood 는 DB 전소로 여기 도달하기 전에 끊겼다. **dogfood 가 정확히 이런 걸 잡으라고 있는 것**이다.
+
+**수정** — `str(row.classification)` 로 교체(`StrEnum.__str__` 은 값 자체를 돌려주므로 reload 된 plain str 과 메모리상 enum 인스턴스 양쪽에 안전). 회귀 테스트는 실 DB 에 커밋 후 `session.expire_all()` 로 강제 재조회시켜 SQLAlchemy 의 실제 hydration 경로를 태운다(fake 로는 재현 불가) — 구 코드로 되돌리면 정확히 이 `AttributeError` 로 red 가 되는 것을 확인했다. ★테스트 작성 중 부수 함정 1건 — `expire_all()` 뒤에 `row.row_hash`/`account.id` 를 **동기 접근**하면 SQLAlchemy 가 그 자리에서 강제 재조회를 시도해 `MissingGreenlet` 이 뜬다. 넘길 값은 expire 전에 미리 로컬 변수로 꺼내둬야 한다.
+
+**감사 — 같은 패턴이 다른 곳에도 있는가.** `StrEnum` 타입인데 평문 `String` 컬럼인 필드가 5개 더 있다(`LiveSignalSession.interval` · `LiveSignalEvent.status` · `AlertRule.rule_type`/`channel` · `ExchangeExit.attribution_confidence`) — 전부 Sprint 26 의 동일 워크어라운드다. 호출부 전수 조사 결과 **실제 크래시 사이트는 이 한 곳뿐**이었다(나머지는 `==`/`!=`/`str()` 만 쓰거나 호출부 자체가 없음, `StrEnum` 이 `str` 서브클래스라 비교 연산은 reload 여부와 무관하게 안전). → 재발 방지를 위한 최소 등재 [BL-453](../REFACTORING-BACKLOG.md#bl-453).
+
+**재검증** — 알림 fix 적용 + 워커 재빌드 → 원장 TRUNCATE(거래소에서 7일 안에 언제든 재조회 가능한 관측 캐시라 안전) → 재스윕 → **`alerted:1`**, `exchange_exit_alert_failed` 로그 0건. 2회차 재스윕 → `inserted:0`·`alerted:0`(멱등 확인). 최종 상태 = 활성 세션 0 · 미체결 주문 0 · 계정 1(사용자 등록분 보존) · 원장 4행 · 포트 보존.
+
+### #9.10 축소+dogfood 최종 게이트
+
+BE **2707 passed**(축소 2706 + 알림 회귀 테스트 1) / ruff·mypy clean. push `325e5f3`.

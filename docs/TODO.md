@@ -1,7 +1,7 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-25 (exit-attribution 스프린트 — 거래소 청산 원장 + 과거 스캔 경계 + 스윕 계정 독립 열거)
-> **Active Sprint:** **exit-attribution** — 구현·게이트 완료, **dogfood 사용자 조치 대기**(로컬 개발 DB 전소로 거래소 계정 재등록 필요)
+> **Last Updated:** 2026-07-25 (exit-attribution 스프린트 — 거래소 청산 원장, 범위 축소로 최근 7일 창 + dogfood 완주)
+> **Active Sprint:** **exit-attribution** — **완주.** PR #476 사용자 squash 대기
 > **Active Branch:** `stage/exit-attribution` (main @ `6b200e5` 베이스)
 
 ## ⚡ exit-attribution 스프린트 (2026-07-25, `docs/exit-attribution/`)
@@ -28,11 +28,10 @@
 - [x] 게이트: BE **2706** / FE **1094**(미변경) / ruff·mypy·tsc·lint 0 / alembic 왕복 + head `20260725_0002` / 마이그레이션 신규 테이블 **1개**
 - [x] 검증: codex G0 **REJECT**(전건 대조 후 절반 수용, "계정 단위 열거 불가" 는 **실측 반박**) → Explore 3-리더(핸드오프 좌표 **3건 반박**) → **Plan 압박검증이 내 설계 결함 적발**(원장 min 파생 워터마크가 빈 창에서 영구 정지 → 실측 시각 시뮬레이션으로 반증·재검증) → 사용자 인터뷰 **10건** → codex 4워커 ↔ **Claude 적대평가 4기**(BLOCKING 4 + MAJOR 4, **내가 넣은 회귀 1건**(`row_hash` 가 `None`/`""` 를 다르게 봐 손익 2배 백필) 포함 전건 수정 + 회귀 테스트) → 최종 codex 누적 diff **DO-NOT-SHIP 2**
 - [x] **축소 후 최종 codex 재실행 = P1 1건 추가** — `fetch_closed_pnl_window` 커서가 `oldest_ms - 1` 이라 **같은 createdTime 을 공유하는 분할 행**(구분은 updatedTime)이 페이지 상한을 넘으면 조용히 누락되고 부분합이 `realized_pnl` 로 영구 고정. 경계 포함(`until = oldest_ms`)으로 수정 + 중복은 원장 UNIQUE 흡수 + 회귀 테스트(구 커서로 red 실증)
-- [x] BL: **BL-438 부분 Resolved**(관측 원장 **최근 7일**) · **BL-442 Resolved** · 신규 **BL-443~452**
-
-### Blocked
-
-- **dogfood** — ★로컬 개발 DB 전소(아래 Questions). 사용자가 앱에서 **Bybit demo API 키로 거래소 계정을 재등록**해야 원장 적재·분류·알림·창 전진 종단 검증이 가능하다. 주문 이력이 없어 **백필(33.8%) 종단 검증은 이번 스프린트에서 불가**(정직 각주).
+- [x] BL: **BL-438 부분 Resolved**(관측 원장 **최근 7일**) · **BL-442 Resolved** · 신규 **BL-443~453**
+- [x] **dogfood 완주** — 사용자가 Bybit demo 계정 재등록 후 독립 오라클(raw HMAC) 실측 = 원장 적재와 **완전 일치**(4행, 합계 −0.12392537). 분류(3 ours·1 external_manual)·멱등·알림 1회성·§9.5 라이브 worker·authed(`/orders` 5/5 green) 전부 실 계정으로 검증. 백필 종단 검증은 주문 이력 소실로 여전히 불가(정직 각주).
+- [x] **★dogfood 가 진짜 P1 을 하나 더 잡았다** — `_alert_new_exchange_exits` 가 원장을 새 세션으로 재조회하면 `classification` 컬럼이 평문 `str` 로 와서(`ExitClassification` StrEnum 재캐스팅 안 됨) `.value` 접근이 `AttributeError` → 신규 미귀속 행 알림이 매 사이클 조용히 죽고 있었다. `str()` 로 수정 + 실 DB 회귀 테스트(커밋 후 `expire_all()` 로 강제 재조회) + 재검증(`alerted:1` 확인). 같은 패턴 4개 필드 감사 → 실제 크래시 사이트는 이 한 곳뿐, 예방 등재 BL-453
+- [x] **§7.2 sentinel 이 stale 워커를 실제로 검출** — 재빌드 전 이미지가 `78ceadd` 시점에 baked 되어 있었다(제거 심볼 3종 잔존)
 
 ### Questions
 
@@ -41,10 +40,11 @@
 
 ### Next Actions
 
-- [ ] 사용자: 거래소 계정 재등록 → dogfood 8단계 진행
-- [x] 최종 codex 누적 diff 리뷰 — **DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 전건 수정**(원장 우회 CAS · max_pages 소진 · malformed 미계상 · downgrade 인덱스)
-- [ ] canon 32 / authed `/orders` / §9.5 라이브 worker 검증
+- [x] 사용자: 거래소 계정 재등록 → dogfood 8단계 완주
+- [x] 최종 codex 누적 diff 리뷰 — **DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 전건 수정**(원장 우회 CAS · max_pages 소진 · malformed 미계상 · downgrade 인덱스) + 축소 후 재실행 **P1 1건**(커서 tie 누락) 추가 수정
+- [x] canon 32 / authed `/orders` / §9.5 라이브 worker 검증 — 전부 green
 - [ ] **PR [#476](https://github.com/woosung-dev/quantbridge/pull/476)** stage/exit-attribution → main 사용자 squash
+- [ ] 다음 세션 = tasks 도메인 deepen 또는 BL-438 잔여(② 거래소 exit 머니-패스 계상)
 
 ---
 

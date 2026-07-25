@@ -97,22 +97,24 @@
 - [x] CSV 실내보내기 — **손익 출처 열 신설 · 시각의 날짜 복원 · 부분체결 마커**, 거부·취소 행은 손익·출처 모두 빈 칸, 헤더 12열 == 각 행 12열
 - [x] **콘솔 error 0** · body 가로 스크롤 **false**
 
-## dogfood
+## dogfood — 완주 (2026-07-25, 사용자 계정 재등록 후)
 
-> ★로컬 개발 DB 전소(context-notes #6)로 거래소 계정·주문 이력이 소실됐다. 사용자 재등록 후 진행한다.
->
-> **실측 현황(2026-07-25 축소 마감 시점)** — `exchange_accounts` **0** · `orders` **0** · `strategies` **0** · `backtests` **0** · `exchange_exits` **0**. 계정 재등록만으로 1~6 은 되지만 **authed 6건(§게이트 각주)은 전략·백테스트 데이터까지 복원돼야** 녹색이 된다.
+> ★로컬 개발 DB 전소(context-notes #6)로 거래소 계정·주문 이력이 소실됐었다. 사용자가 `19a8166a-...`(bybit demo)를 재등록해 아래를 검증했다.
 
-- [ ] 사용자: 앱에서 Bybit demo API 키로 거래소 계정 재등록
-- [ ] 1 원장 적재 — 스윕 1회 후 행 수·손익 합이 오라클 raw 와 일치
-- [ ] 2 분류 — 미귀속 행이 `external_manual` 로 분류(`createType=CreateByUser`·`orderLinkId` 없음)
-- [ ] 3 멱등 — 2회차 `inserted:0`, 원장 행 수 불변
-- [ ] 4 창 고정 — 매 주기 `[now−7d, now]` 한 창만 조회(§S6 축소로 과거 전진 없음)
-- [ ] 5 알림 1회성 — 신규 미귀속 행에 1회 발화, 다음 주기 무발화
-- [ ] 6 §9.5 라이브 worker — 같은 child 에서 연속 성공 + beat 발화
-- [ ] 7 authed 브라우저(3100) — `/orders` 손익 셀·CSV·콘솔 error 0
-- [ ] 8 상태 복구 — 활성 세션 0 · 포지션 미개설 · docker 5436/6380 보존
-- [ ] **정직 각주** — 주문 이력이 없어 모든 closed-pnl 행이 미귀속으로 분류되므로 **백필(33.8%) 종단 검증은 이번 스프린트에서 불가**
+- [x] 사용자: 앱에서 Bybit demo API 키로 거래소 계정 재등록
+- [x] **1 원장 적재** — 독립 오라클(raw HMAC, `api-demo.bybit.com` 직접 호출) 실측 = **4행, 합계 −0.12392537**. 스윕 1회 후 원장도 **4행, 합계 −0.12392537** — **완전 일치**
+- [x] **2 분류** — 4행 중 3행은 `orderLinkId` 가 우리 앱 관례(UUID4)와 일치해 `ours`(orders 테이블이 비어 있어도 이 판정은 orderLinkId 형식만으로 성립), 1행은 `orderLinkId` 없음·`createType=CreateByUser` → `external_manual`
+- [x] **3 멱등** — 2회차 `inserted:0`·`alerted:0`, 원장 행 수 4 불변
+- [x] **4 창 고정** — provider 요청 kwargs 로 `[now−7d, now]` 한 창만 조회 확인(§S6 축소 반영)
+- [x] **5 알림 1회성** — 신규 삽입 1회차 `alerted:1`, 2회차(같은 행) `alerted:0`
+- [x] **6 §9.5 라이브 worker** — 재빌드 후 같은 child 에서 스윕 다회 연속 성공 + beat 자체 발화(§게이트 각주에 상세)
+- [x] **7 authed 브라우저(3100)** — `/orders` 계열 5/5 green·콘솔 error 0(원장은 아직 API 미노출 — 관측 전용 스코프, router 확인)
+- [x] **8 상태 복구** — 활성 세션 0 · 미체결 주문 0 · 계정 1(사용자 등록분, 보존) · docker 5436/6380 보존
+- [x] **정직 각주** — 주문 이력이 없어 원장 4행 중 매칭 가능한 3행도 `attribution_confidence=none`(order 테이블 부재)이다. **백필 종단 검증(우리 주문이 거래소 확정값으로 정정되는 대조)은 이번에도 불가** — 대조군인 `orders` 행 자체가 없다.
+
+### ★dogfood 가 실제 P1 을 하나 더 잡았다 — `_alert_new_exchange_exits` 크래시
+
+1회차 스윕에서 `alerted:0`(기대 1)이 나와 원인을 추적한 결과, `ExchangeExit.classification` 컬럼이 평문 `String(24)` 라 새 세션으로 원장을 재조회하면 `ExitClassification` enum 이 아니라 plain `str` 로 온다는 것을 발견했다. `.value` 접근이 `AttributeError` 를 던지고 함수를 감싼 `except Exception:` 이 조용히 삼켜 **신규 미귀속 행 알림이 매번 죽고 있었다.** `str()` 로 교체(StrEnum·plain str 양쪽 안전) + 실 DB 회귀 테스트(커밋 후 `expire_all()` 로 강제 재조회) + 원장 초기화 후 재스윕으로 `alerted:1` 확인. 상세는 context-notes #9.9. 같은 패턴(StrEnum + 평문 String 컬럼)의 다른 5개 필드도 감사했으나 실제 크래시 사이트는 이 한 곳뿐이었다 → BL-453.
 
 ## 최종 codex 누적 diff — DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 (전건 수정)
 
