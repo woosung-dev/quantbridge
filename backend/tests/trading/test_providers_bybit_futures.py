@@ -39,6 +39,7 @@ def ccxt_mock(monkeypatch):
         return_value={
             "id": "bybit-futures-42",
             "average": 50123.45,
+            "filled": "0.001",
             "status": "closed",
             "symbol": "BTC/USDT:USDT",
         }
@@ -106,7 +107,24 @@ async def test_bybit_futures_create_order_sets_leverage_and_margin_mode(
     # 4. receipt
     assert receipt.exchange_order_id == "bybit-futures-42"
     assert receipt.filled_price == Decimal("50123.45")
+    assert receipt.filled_quantity == Decimal("0.001")
     assert receipt.status == "filled"
+
+
+@pytest.mark.parametrize("filled", [None, "not-a-number"])
+async def test_bybit_futures_create_order_ignores_missing_or_malformed_filled_quantity(
+    credentials, order_submit_futures, ccxt_mock, filled
+):
+    mock_exchange, _ = ccxt_mock
+    if filled is None:
+        mock_exchange.create_order.return_value.pop("filled")
+    else:
+        mock_exchange.create_order.return_value["filled"] = filled
+    from src.trading.providers import BybitFuturesProvider
+
+    receipt = await BybitFuturesProvider().create_order(credentials, order_submit_futures)
+
+    assert receipt.filled_quantity is None
 
 
 async def test_bybit_futures_reduce_only_skips_margin_and_leverage_setup(

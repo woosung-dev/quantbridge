@@ -13,6 +13,7 @@ async def test_list_orders_returns_user_only(
     client, mock_clerk_auth, db_session
 ):
     """GET /api/v1/orders returns only orders belonging to the authed user."""
+    from datetime import UTC, datetime
     from decimal import Decimal
 
     from src.strategy.models import ParseStatus, PineVersion, Strategy
@@ -76,6 +77,9 @@ async def test_list_orders_returns_user_only(
                 type=OrderType.market,
                 quantity=Decimal("0.01"),
                 state=OrderState.filled,
+                filled_quantity=Decimal("0.005"),
+                realized_pnl=Decimal("12.34"),
+                realized_pnl_synced_at=datetime.now(UTC),
             ),
         ]
     )
@@ -85,6 +89,11 @@ async def test_list_orders_returns_user_only(
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["total"] == 3
+    filled = next(item for item in body["items"] if item["state"] == "filled")
+    # Numeric(18, 8) 컬럼이라 직렬화 문자열도 소수 8자리로 고정된다.
+    assert filled["filled_quantity"] == "0.00500000"
+    assert filled["realized_pnl"] == "12.34000000"
+    assert filled["realized_pnl_synced_at"] is not None
 
     filtered = await client.get("/api/v1/orders?state=pending&state=submitted")
     assert filtered.status_code == 200, filtered.text

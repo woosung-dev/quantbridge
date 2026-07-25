@@ -522,3 +522,67 @@ async def test_bybit_fetch_open_conditional_orders_unions_and_classifies(monkeyp
     assert exchange.fetch_open_orders.await_args_list[1].kwargs == {
         "params": {"category": "linear", "trigger": True, "paginate": True}
     }
+
+
+async def test_bybit_fetch_open_positions_fails_loud_on_unparseable_stop_loss(monkeypatch):
+    """§7.3 Surface Trust — 파싱 불가한 손절가를 None 으로 삼키면 안 된다.
+
+    None 으로 삼키면 코크핏 §03 이 "손절 없음(—)" 이라 말하는데 실제로는 거래소에 손절이
+    걸려 있는 false negative 가 된다. 사용자가 무방비라고 오판하고 수동 개입할 수 있으므로
+    ProviderError 로 fail-loud 해야 한다.
+    """
+    import ccxt.async_support as ccxt_async
+
+    from src.trading.exceptions import ProviderError
+    from src.trading.providers import BybitFuturesProvider
+
+    exchange = MagicMock()
+    exchange.fetch_positions = AsyncMock(
+        return_value=[
+            {
+                "contracts": "1",
+                "side": "long",
+                "takeProfitPrice": "110",
+                "stopLossPrice": "N/A",
+                "info": {"positionIdx": "0"},
+            }
+        ]
+    )
+    exchange.close = AsyncMock()
+    monkeypatch.setattr(ccxt_async, "bybit", MagicMock(return_value=exchange))
+
+    with pytest.raises(ProviderError):
+        await BybitFuturesProvider().fetch_open_positions(
+            Credentials(api_key="key", api_secret="secret"), "BTC/USDT"
+        )
+    exchange.close.assert_awaited_once()
+
+
+async def test_bybit_fetch_open_conditional_orders_fails_loud_on_unparseable_trigger(monkeypatch):
+    """조건부 주문 트리거가도 같은 이유로 fail-loud 한다(§7.3)."""
+    import ccxt.async_support as ccxt_async
+
+    from src.trading.exceptions import ProviderError
+    from src.trading.providers import BybitFuturesProvider
+
+    exchange = MagicMock()
+    exchange.fetch_open_orders = AsyncMock(
+        side_effect=[
+            [
+                {
+                    "id": "sl",
+                    "side": "Sell",
+                    "triggerPrice": "not-a-number",
+                    "info": {"stopOrderType": "StopLoss", "reduceOnly": "true"},
+                }
+            ],
+            [],
+        ]
+    )
+    exchange.close = AsyncMock()
+    monkeypatch.setattr(ccxt_async, "bybit", MagicMock(return_value=exchange))
+
+    with pytest.raises(ProviderError):
+        await BybitFuturesProvider().fetch_open_conditional_orders(
+            Credentials(api_key="key", api_secret="secret"), "BTC/USDT"
+        )

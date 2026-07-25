@@ -194,6 +194,10 @@ class Order(SQLModel, table=True):
     realized_pnl: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 8), nullable=True)
     )
+    # MP-2 — realized_pnl 출처 마커. NULL = pine_v2 추정값, 값 있음 = 거래소 확정(closedPnl).
+    realized_pnl_synced_at: datetime | None = Field(
+        default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
     # autoplan Eng E2: same-key + different-body 충돌 감지용 payload hash (SHA-256 bytes).
     idempotency_payload_hash: bytes | None = Field(
         default=None, sa_column=Column(LargeBinary, nullable=True)

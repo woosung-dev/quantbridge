@@ -8,6 +8,7 @@ Per-account ephemeral CCXT client 패턴 (spec §2.1):
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
@@ -15,7 +16,7 @@ from typing import Any, Literal, Protocol
 
 import ccxt.async_support as ccxt_async
 
-from src.common.metrics import ccxt_timer
+from src.common.metrics import ccxt_timer, qb_closed_pnl_backfill_total
 from src.trading.exceptions import ProviderError, TrailingContractError
 from src.trading.models import ExchangeMode, OrderSide, OrderType
 
@@ -25,6 +26,47 @@ logger = logging.getLogger(__name__)
 #   (본질 reduce-only)로 라우팅한다는 계약에 의존. pyproject 는 ccxt>=4.0.0 이라 lock bump
 #   시 라우팅이 silent 변경될 수 있어, 검증된 버전 밖이면 발주 전 하드실패(non-retry).
 _VALIDATED_CCXT_VERSIONS = frozenset({"4.5.49"})
+
+# closedPnl 조회 시 되돌아볼 여유 구간 (ms).
+# ccxt 4.5.49 의 `fetch_positions_history` 는 Bybit 응답을 받은 뒤 `filter_by_since_limit` 로 한 번
+# 더 거르는데, 이때 비교하는 값은 `parse_position` 이 **`createdTime`** (거래소가 청산 주문을 만든
+# 시각) 에서 뽑은 timestamp 다. 반면 우리가 넘기는 since 는 `Order.filled_at` = 체결을 **감지한**
+# 시각이다. WS 이벤트가 유실돼 reconciler(300s 주기) 나 늦은 watchdog 이 fill winner 가 되면
+# filled_at 이 createdTime 보다 한참 뒤라, 여유가 좁으면 ccxt 가 우리 행을 클라이언트 단에서
+# 버린다 → snapshot None → 재시도해도 창이 그대로라 영구 실패 + 오탐 알림.
+# 1h = reconciler 주기(300s) 의 12배 여유. Bybit 의 (endTime - startTime) ≤ 7d 제약 안이다.
+_CLOSED_PNL_LOOKBACK_MS = 3_600_000
+# Bybit 한 페이지 상한 100, 최대 5페이지 = 500행. 뒤로 훑는 비용 상한이자 무한루프 방지선.
+_CLOSED_PNL_MAX_PAGES = 5
+
+
+def _decimal_or_none(
+    value: Any,
+    *,
+    zero_as_none: bool = False,
+    finite_only: bool = False,
+    strict: bool = False,
+) -> Decimal | None:
+    """CCXT 숫자 필드를 Decimal로 정규화한다.
+
+    `strict=True` 는 파싱 실패를 삼키지 않고 `InvalidOperation` 을 전파해 호출 메서드의
+    except 절이 `ProviderError` 로 승격하게 한다. 포지션/조건부 주문의 TP/SL 처럼 값이
+    화면에 그대로 노출되는 경로는 반드시 strict — 파싱 실패를 None 으로 삼키면 실제로는
+    손절이 걸려 있는데 화면이 "손절 없음"이라 말하는 Surface Trust false negative 가 된다
+    (§7.3). 반대로 receipt/balance 처럼 결측이 정상인 경로는 기존대로 swallow 한다.
+    """
+    if value in (None, ""):
+        return None
+    if strict:
+        result = Decimal(str(value))
+    else:
+        try:
+            result = Decimal(str(value))
+        except (ValueError, TypeError, InvalidOperation):
+            return None
+    if (zero_as_none and result == 0) or (finite_only and not result.is_finite()):
+        return None
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +145,7 @@ class OrderReceipt:
     # T11+ Order.raw_response 저장 시 INFO+ 레벨 로깅 금지. T6 BybitDemoProvider는
     # 가능하면 known-key allow-list로 projection 권장.
     raw: dict[str, Any]
+    filled_quantity: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +209,17 @@ class ConditionalOrderSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class ClosedPnlSnapshot:
+    """거래소가 확정한 청산 손익(Bybit closedPnl) 스냅샷 — 수수료 포함 net."""
+
+    order_id: str
+    closed_pnl: Decimal
+    closed_size: Decimal | None
+    avg_exit_price: Decimal | None
+    updated_at_ms: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class BalanceSnapshot:
     """거래소 USDT wallet line의 total/free 정규화 스냅샷."""
 
@@ -193,6 +247,68 @@ def _parse_position_created_at(position: dict[str, Any]) -> datetime | None:
     if ms <= 0:
         return None
     return datetime.fromtimestamp(ms / 1000, tz=UTC)
+
+
+def aggregate_closed_pnl_by_order(
+    snapshots: Iterable[ClosedPnlSnapshot],
+) -> dict[str, ClosedPnlSnapshot]:
+    """closedPnl 행을 orderId 별로 합산한다.
+
+    Bybit 는 한 청산 주문을 여러 closedPnl 행으로 쪼개 낼 수 있다. 마지막 행만 취하면
+    부분 손익이 저장되고, backfill CAS 가 realized_pnl_synced_at 을 채워 재시도를 막으므로
+    그 부분값이 **영구 고정**된다. 단일 주문 조회(refresh)와 스윕이 반드시 같은 합산을
+    쓰도록 여기 한 곳에 모은다.
+    """
+    grouped: dict[str, list[ClosedPnlSnapshot]] = {}
+    for snapshot in snapshots:
+        grouped.setdefault(snapshot.order_id, []).append(snapshot)
+    merged: dict[str, ClosedPnlSnapshot] = {}
+    for order_id, rows in grouped.items():
+        sizes = [row.closed_size for row in rows if row.closed_size is not None]
+        merged[order_id] = ClosedPnlSnapshot(
+            order_id=order_id,
+            closed_pnl=sum((row.closed_pnl for row in rows), Decimal("0")).quantize(
+                Decimal("0.00000001")
+            ),
+            closed_size=sum(sizes, Decimal("0")) if sizes else None,
+            avg_exit_price=rows[-1].avg_exit_price,
+            updated_at_ms=rows[-1].updated_at_ms,
+        )
+    return merged
+
+
+def _closed_pnl_snapshot_from_position(position: dict[str, Any]) -> ClosedPnlSnapshot | None:
+    """ccxt가 보존한 Bybit 원본 closedPnl 행을 Decimal 스냅샷으로 변환한다.
+
+    파싱 불가능한 행은 raise 대신 None 을 돌려준다 — 한 행 때문에 페이지 전체를 버리면
+    같은 페이지에 있는 우리 주문까지 못 찾고, 스윕에서는 해당 (계정, 심볼) 그룹이 매 주기
+    영구 실패한다. 우리 orderId 를 못 찾는 경우는 상위 retry → never_found 알림 경로가
+    이미 담당하므로, 건너뛰기는 이미 알림이 붙어 있는 경로로 안전하게 수렴한다.
+    """
+    row = position.get("info")
+    if not isinstance(row, dict) or row.get("orderId") in (None, ""):
+        return None
+    closed_pnl = row.get("closedPnl")
+    if closed_pnl in (None, ""):
+        return None
+    try:
+        return ClosedPnlSnapshot(
+            order_id=str(row["orderId"]),
+            closed_pnl=Decimal(str(closed_pnl)),
+            closed_size=(
+                Decimal(str(row["closedSize"])) if row.get("closedSize") not in (None, "") else None
+            ),
+            avg_exit_price=(
+                Decimal(str(row["avgExitPrice"]))
+                if row.get("avgExitPrice") not in (None, "")
+                else None
+            ),
+            updated_at_ms=(
+                int(str(row["updatedTime"])) if row.get("updatedTime") not in (None, "") else None
+            ),
+        )
+    except (InvalidOperation, TypeError, ValueError):
+        return None
 
 
 async def _to_exchange_precision(
@@ -334,6 +450,7 @@ class FixtureExchangeProvider:
             filled_price=self._fill_price,
             status="filled",
             raw={"symbol": order.symbol, "side": order.side.value, "quantity": str(order.quantity)},
+            filled_quantity=order.quantity,
         )
 
     async def cancel_order(
@@ -422,9 +539,10 @@ class BybitDemoProvider:
             avg = result.get("average")
             return OrderReceipt(
                 exchange_order_id=str(result["id"]),
-                filled_price=Decimal(str(avg)) if avg is not None else None,
+                filled_price=_decimal_or_none(avg),
                 status=_map_ccxt_status(result.get("status")),
                 raw=dict(result),
+                filled_quantity=_decimal_or_none(result.get("filled")),
             )
         except ProviderError:
             raise  # already wrapped, do not re-wrap
@@ -608,9 +726,10 @@ class BybitFuturesProvider:
             avg = result.get("average")
             return OrderReceipt(
                 exchange_order_id=str(result["id"]),
-                filled_price=Decimal(str(avg)) if avg is not None else None,
+                filled_price=_decimal_or_none(avg),
                 status=_map_ccxt_status(result.get("status")),
                 raw=dict(result),
+                filled_quantity=_decimal_or_none(result.get("filled")),
             )
         except ProviderError:
             raise
@@ -819,31 +938,35 @@ class BybitFuturesProvider:
                 if size <= 0:
                     continue
 
-                def decimal_or_none(value: Any) -> Decimal | None:
-                    return Decimal(str(value)) if value not in (None, "") else None
-
                 side = position.get("side")
                 if not isinstance(side, str):
                     raise ProviderError("malformed Bybit position: missing side")
-                take_profit_price = decimal_or_none(position.get("takeProfitPrice"))
-                stop_loss_price = decimal_or_none(position.get("stopLossPrice"))
+                take_profit_price = _decimal_or_none(
+                    position.get("takeProfitPrice"), zero_as_none=True, strict=True
+                )
+                stop_loss_price = _decimal_or_none(
+                    position.get("stopLossPrice"), zero_as_none=True, strict=True
+                )
                 info = position.get("info") or {}
                 position_idx = (
                     int(info["positionIdx"]) if info.get("positionIdx") is not None else None
                 )
-                trailing_stop = decimal_or_none(info.get("trailingStop"))
-                take_profit_price = None if take_profit_price == 0 else take_profit_price
-                stop_loss_price = None if stop_loss_price == 0 else stop_loss_price
-                trailing_stop = None if trailing_stop == 0 else trailing_stop
+                trailing_stop = _decimal_or_none(
+                    info.get("trailingStop"), zero_as_none=True, strict=True
+                )
                 snapshots.append(
                     PositionSnapshot(
                         side=side,
                         size=size,
-                        entry_price=decimal_or_none(position.get("entryPrice")),
-                        mark_price=decimal_or_none(position.get("markPrice")),
-                        unrealized_pnl=decimal_or_none(position.get("unrealizedPnl")),
-                        liquidation_price=decimal_or_none(position.get("liquidationPrice")),
-                        leverage=decimal_or_none(position.get("leverage")),
+                        entry_price=_decimal_or_none(position.get("entryPrice"), strict=True),
+                        mark_price=_decimal_or_none(position.get("markPrice"), strict=True),
+                        unrealized_pnl=_decimal_or_none(
+                            position.get("unrealizedPnl"), strict=True
+                        ),
+                        liquidation_price=_decimal_or_none(
+                            position.get("liquidationPrice"), strict=True
+                        ),
+                        leverage=_decimal_or_none(position.get("leverage"), strict=True),
                         take_profit_price=take_profit_price,
                         stop_loss_price=stop_loss_price,
                         position_idx=position_idx,
@@ -909,10 +1032,6 @@ class BybitFuturesProvider:
                 if not reduce_only:
                     continue
 
-                def decimal_or_none(value: Any) -> Decimal | None:
-                    decimal_value = Decimal(str(value)) if value not in (None, "") else None
-                    return None if decimal_value == 0 else decimal_value
-
                 stop_order_type = str(info.get("stopOrderType") or "")
                 kind = {
                     "TakeProfit": "tp",
@@ -926,11 +1045,19 @@ class BybitFuturesProvider:
                         order_id=order_id,
                         side=str(order.get("side") or info.get("side") or "").lower(),
                         kind=kind,
-                        price=decimal_or_none(order.get("price")),
-                        trigger_price=decimal_or_none(
-                            order.get("triggerPrice") or info.get("triggerPrice")
+                        price=_decimal_or_none(
+                            order.get("price"), zero_as_none=True, strict=True
                         ),
-                        qty=decimal_or_none(order.get("amount") or order.get("qty")),
+                        trigger_price=_decimal_or_none(
+                            order.get("triggerPrice") or info.get("triggerPrice"),
+                            zero_as_none=True,
+                            strict=True,
+                        ),
+                        qty=_decimal_or_none(
+                            order.get("amount") or order.get("qty"),
+                            zero_as_none=True,
+                            strict=True,
+                        ),
                         reduce_only=True,
                         position_idx=(
                             int(info["positionIdx"])
@@ -946,6 +1073,117 @@ class BybitFuturesProvider:
             raise ProviderError(f"{type(e).__name__}: {e}") from e
         except Exception as e:
             raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_closed_pnl(
+        self,
+        creds: Credentials,
+        symbol: str,
+        *,
+        order_id: str,
+        since: datetime | None = None,
+    ) -> ClosedPnlSnapshot | None:
+        """Bybit가 확정한 주문별 closedPnl을 반환한다. 동일 주문의 분할 행은 합산한다."""
+        if since is None:
+            snapshots = await self._fetch_closed_pnl_rows(creds, symbol)
+        else:
+            snapshots = await self.fetch_closed_pnl_page(creds, symbol, since=since)
+        return aggregate_closed_pnl_by_order(snapshots).get(order_id)
+
+    async def fetch_closed_pnl_page(
+        self,
+        creds: Credentials,
+        symbol: str,
+        *,
+        since: datetime,
+        limit: int = 100,
+        max_pages: int = _CLOSED_PNL_MAX_PAGES,
+    ) -> list[ClosedPnlSnapshot]:
+        """since 이후 closedPnl 행을 원본 문자열 정밀도로 모아 반환한다.
+
+        Bybit 한 페이지 상한은 100이고 ccxt 는 nextPageCursor 를 버린다. 한 번만 조회하면
+        바쁜 (account, symbol) 의 오래된 행이 매 틱 같은 첫 페이지 밖에 남아 영구
+        미동기화된다. until 을 직전 페이지의 가장 오래된 행 **직전**으로 당겨 뒤로 훑되
+        (겹침 없음 = 이중 합산 없음), max_pages 로 비용을 묶는다.
+        """
+        since_ms = int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS
+        until_ms = int(datetime.now(UTC).timestamp() * 1000)
+        collected: list[ClosedPnlSnapshot] = []
+        for _ in range(max_pages):
+            page = await self._fetch_closed_pnl_rows(
+                creds,
+                symbol,
+                since_ms=since_ms,
+                until_ms=until_ms,
+                limit=limit,
+            )
+            collected.extend(page)
+            if len(page) < limit:
+                break
+            oldest_ms = min(
+                (row.updated_at_ms for row in page if row.updated_at_ms is not None),
+                default=None,
+            )
+            if oldest_ms is None or oldest_ms <= since_ms:
+                break
+            until_ms = oldest_ms - 1
+        return collected
+
+    async def _fetch_closed_pnl_rows(
+        self,
+        creds: Credentials,
+        symbol: str,
+        *,
+        since_ms: int | None = None,
+        until_ms: int | None = None,
+        limit: int = 100,
+    ) -> list[ClosedPnlSnapshot]:
+        """closedPnl 엔드포인트 호출과 원본 행 파싱을 공유한다."""
+        linear_symbol = _to_bybit_linear_symbol(symbol)
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_closed_pnl"):
+                if since_ms is None:
+                    positions = await exchange.fetch_positions_history([linear_symbol], limit=limit)
+                else:
+                    if until_ms is None:
+                        raise ProviderError("closed PnL bounds must be supplied together")
+                    positions = await exchange.fetch_positions_history(
+                        [linear_symbol],
+                        since=since_ms,
+                        limit=limit,
+                        params={"until": until_ms},
+                    )
+            snapshots: list[ClosedPnlSnapshot] = []
+            for position in positions:
+                snapshot = _closed_pnl_snapshot_from_position(position)
+                if snapshot is None:
+                    qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
+                    logger.warning(
+                        "bybit_closed_pnl_row_skipped", extra={"symbol": linear_symbol}
+                    )
+                    continue
+                snapshots.append(snapshot)
+            return snapshots
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception:
+            raise ProviderError("unexpected non-CCXT error in fetch_closed_pnl") from None
         finally:
             try:
                 await exchange.close()
@@ -1070,18 +1308,9 @@ class BybitFuturesProvider:
             if not isinstance(usdt, dict):
                 usdt = {}
 
-            def decimal_or_none(value: Any) -> Decimal | None:
-                if value is None:
-                    return None
-                try:
-                    result = Decimal(str(value))
-                except (InvalidOperation, TypeError, ValueError):
-                    return None
-                return result if result.is_finite() else None
-
             return BalanceSnapshot(
-                total=decimal_or_none(usdt.get("total")),
-                free=decimal_or_none(usdt.get("free")),
+                total=_decimal_or_none(usdt.get("total"), finite_only=True),
+                free=_decimal_or_none(usdt.get("free"), finite_only=True),
             )
         except ProviderError:
             raise
@@ -1253,9 +1482,10 @@ class OkxDemoProvider:
             avg = result.get("average")
             return OrderReceipt(
                 exchange_order_id=str(result["id"]),
-                filled_price=Decimal(str(avg)) if avg is not None else None,
+                filled_price=_decimal_or_none(avg),
                 status=_map_ccxt_status(result.get("status")),
                 raw=dict(result),
+                filled_quantity=_decimal_or_none(result.get("filled")),
             )
         except ProviderError:
             raise  # already wrapped, do not re-wrap
@@ -1396,23 +1626,11 @@ def _build_order_status_fetch(exchange_order_id: str, result: dict[str, Any]) ->
     avg = result.get("average")
     filled_qty = result.get("filled")
 
-    filled_price: Decimal | None
-    try:
-        filled_price = Decimal(str(avg)) if avg is not None else None
-    except (ValueError, TypeError, InvalidOperation):
-        filled_price = None
-
-    filled_quantity: Decimal | None
-    try:
-        filled_quantity = Decimal(str(filled_qty)) if filled_qty is not None else None
-    except (ValueError, TypeError, InvalidOperation):
-        filled_quantity = None
-
     return OrderStatusFetch(
         exchange_order_id=exchange_order_id,
         status=_map_ccxt_status_for_fetch(result.get("status")),
-        filled_price=filled_price,
-        filled_quantity=filled_quantity,
+        filled_price=_decimal_or_none(avg),
+        filled_quantity=_decimal_or_none(filled_qty),
         raw=dict(result),
     )
 

@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.common.metrics import qb_active_orders
+from src.common.metrics import qb_active_orders, qb_partial_fill_total
 from src.trading.models import (
     Order,
     OrderSide,
@@ -90,10 +90,11 @@ async def test_apply_transition_filled_returns_rowcount_no_dec(
         session,
         local,
         OrderState.filled,
-        {"average": "100.0", "id": "exchange-abc"},
+        {"average": "100.0", "filled": "0.0005", "id": "exchange-abc"},
     )
 
     assert rc == 1
+    assert repo.transition_to_filled.await_args.kwargs["filled_quantity"] == Decimal("0.0005")
     # caller responsibility — _apply_transition 자체는 dec 안 함
     assert qb_active_orders._value.get() == 1.0
 
@@ -173,6 +174,7 @@ async def test_run_filled_winner_commits_then_decs(
                 "clientOrderId": str(local.id),
                 "status": "Filled",
                 "average": "100.0",
+                "filled": "0.0005",
                 "id": "exchange-abc",
             }
         ]
@@ -193,11 +195,14 @@ async def test_run_filled_winner_commits_then_decs(
     monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
+    partial_counter = qb_partial_fill_total.labels(source="reconciler")
+    before_partial = partial_counter._value.get()
 
     await reconciler.run(account_id=uuid4())
 
     session.commit.assert_awaited_once()
     assert qb_active_orders._value.get() == 0.0  # winner-only dec
+    assert partial_counter._value.get() == before_partial + 1
 
 
 @pytest.mark.asyncio

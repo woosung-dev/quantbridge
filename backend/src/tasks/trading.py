@@ -18,6 +18,7 @@ has_leverage) 3-tuple 기반 dynamic. settings.exchange_provider 는 dispatch pa
 from __future__ import annotations
 
 import contextlib
+import itertools
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -31,7 +32,12 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.common.alert import send_critical_alert
-from src.common.metrics import qb_active_orders, qb_trailing_placement_total
+from src.common.metrics import (
+    qb_active_orders,
+    qb_closed_pnl_backfill_total,
+    qb_partial_fill_total,
+    qb_trailing_placement_total,
+)
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.trading.alerting import send_rule_alert
@@ -43,13 +49,19 @@ from src.trading.exceptions import (
     UnsupportedExchangeError,
 )
 from src.trading.models import (
+    AlertChannel,
     ExchangeAccount,
     ExchangeMode,
     ExchangeName,
     OrderSide,
     OrderState,
 )
-from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
+from src.trading.providers import (
+    Credentials,
+    ExchangeProvider,
+    OrderSubmit,
+    aggregate_closed_pnl_by_order,
+)
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.registry import dispatch as _dispatch_provider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
@@ -61,6 +73,9 @@ from src.trading.services.position_service import position_snapshot_cache_key
 _WATCHDOG_ALERT_TTL_SECONDS = 3600  # 1h Redis throttle (G.0 P1 #2)
 _WATCHDOG_RETRY_BASE_SECONDS = 15
 _WATCHDOG_MAX_ATTEMPTS = 3
+_CLOSED_PNL_MAX_RETRIES = 4
+_CLOSED_PNL_RETRY_BASE_SECONDS = 5
+_CLOSED_PNL_ENQUEUE_COUNTDOWN = 5
 
 logger = logging.getLogger(__name__)
 
@@ -397,6 +412,7 @@ async def _execute_with_session(
                 order_id,
                 exchange_order_id=receipt.exchange_order_id,
                 filled_price=receipt.filled_price,
+                filled_quantity=receipt.filled_quantity,
                 filled_at=filled_at,
             )
             if rows == 0:
@@ -433,7 +449,14 @@ async def _execute_with_session(
                         exc_info=True,
                     )
             # STEP B — 동기 fill winner: trailing 의도 entry 면 place_trailing_stop enqueue.
+            if (
+                receipt.filled_quantity is not None
+                and receipt.filled_quantity.is_finite()
+                and receipt.filled_quantity < order.quantity
+            ):
+                qb_partial_fill_total.labels(source="rest").inc()
             _enqueue_trailing_if_intended(order)
+            _enqueue_closed_pnl_refresh(order)
             logger.info(
                 "order_executed",
                 extra={
@@ -739,7 +762,14 @@ async def _fetch_order_status_with_session(
                 )
                 qb_active_orders.dec()
                 # STEP B — watchdog fill winner (WS 유실 fallback): trailing enqueue.
+                if (
+                    status_fetch.filled_quantity is not None
+                    and status_fetch.filled_quantity.is_finite()
+                    and status_fetch.filled_quantity < order.quantity
+                ):
+                    qb_partial_fill_total.labels(source="watchdog").inc()
                 _enqueue_trailing_if_intended(order)
+                _enqueue_closed_pnl_refresh(order)
                 logger.info(
                     "watchdog_filled",
                     extra={
@@ -1026,6 +1056,15 @@ def _enqueue_trailing_if_intended(order: Any) -> None:
     place_trailing_stop_task.apply_async(args=[str(order.id)], countdown=2)
 
 
+def _enqueue_closed_pnl_refresh(order: Any) -> None:
+    """fill-transition winner 가 reduce-only 주문이면 거래소 확정 손익 조회를 예약한다."""
+    if not getattr(order, "reduce_only", False):
+        return
+    refresh_closed_pnl_task.apply_async(
+        args=[str(order.id)], countdown=_CLOSED_PNL_ENQUEUE_COUNTDOWN
+    )
+
+
 async def _do_place_trailing_stop(
     *,
     order_id: UUID,
@@ -1244,3 +1283,260 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
         qb_trailing_placement_total.labels(outcome="skipped_position_flat_confirmed").inc()
         return {"skipped": "position_flat", "order_id": order_id}
     return result
+
+
+async def _alert_closed_pnl_unbackfilled(order_id: UUID, reason: str) -> None:
+    """거래소 확정 손익 미반영을 운영자에게 명시한다.
+
+    같은 스프린트의 divergence 알림과 동일하게 Slack+Telegram 양쪽으로 보낸다 — 리스크
+    게이트가 추정값으로 돌고 있다는 사실은 발산 경고 못지않게 money-critical 이라
+    한 채널만 보는 시간대에 놓치면 안 된다. 채널별 실패는 send_rule_alert 가 격리한다.
+    """
+    await send_rule_alert(
+        settings,
+        channel=AlertChannel.both,
+        title="거래소 확정 청산 손익 미반영",
+        message=(
+            "closedPnl 조회를 포기했습니다. 이 주문 행은 pine_v2 추정 손익을 유지하고 있으며 "
+            "Kill Switch도 해당 추정값을 사용 중입니다. "
+            f"사유: {reason}"
+        ),
+        context={"order_id": str(order_id)[:8], "reason": reason},
+    )
+
+
+async def _refresh_closed_pnl_with_session(
+    order_id: UUID,
+    sm: async_sessionmaker[AsyncSession],
+    *,
+    provider: Any = None,
+) -> dict[str, Any]:
+    """단일 reduce-only 체결 주문의 Bybit 확정 손익을 조건부로 교체한다."""
+    async with sm() as session:
+        repo = OrderRepository(session)
+        order = await repo.get_by_id(order_id)
+        if order is None:
+            return {"skipped": "order_missing", "order_id": str(order_id)}
+        if order.state != OrderState.filled:
+            return {"skipped": "not_filled", "order_id": str(order_id)}
+        if not order.reduce_only:
+            return {"skipped": "not_reduce_only", "order_id": str(order_id)}
+        # 아래 세 갈래는 "정상 no-op"(경합/미지원)이 아니라 데이터 이상이다 — 조용히
+        # 반환하면 해당 체결 청산이 추정 손익으로 남는데 운영이 알 방법이 없다.
+        if order.exchange_order_id is None:
+            qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
+            return {"skipped": "no_exchange_order_id", "order_id": str(order_id)}
+        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        if account is None:
+            qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
+            return {"skipped": "account_missing", "order_id": str(order_id)}
+        if account.exchange != ExchangeName.bybit or order.leverage is None:
+            qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
+            return {"skipped": "unsupported_exchange", "order_id": str(order_id)}
+        try:
+            crypto = EncryptionService(settings.trading_encryption_keys)
+            passphrase_pt = (
+                crypto.decrypt(account.passphrase_encrypted)
+                if account.passphrase_encrypted is not None
+                else None
+            )
+            creds = Credentials(
+                api_key=crypto.decrypt(account.api_key_encrypted),
+                api_secret=crypto.decrypt(account.api_secret_encrypted),
+                passphrase=passphrase_pt,
+                environment=account.mode,
+            )
+        except Exception as exc:
+            logger.error(
+                "closed_pnl_credential_decrypt_failed",
+                extra={"order_id": str(order_id), "error": str(exc)},
+            )
+            # 키 회전 실패 등 — 계정 전체가 영향받으므로 metric 으로 반드시 표면화한다.
+            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
+            return {"skipped": "decrypt_failed", "order_id": str(order_id)}
+        symbol = order.symbol
+        exchange_order_id = order.exchange_order_id
+        filled_at = order.filled_at
+
+    if filled_at is None:
+        qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
+        return {"skipped": "no_filled_at", "order_id": str(order_id)}
+    if provider is None:
+        from src.trading.providers import BybitFuturesProvider
+
+        provider = BybitFuturesProvider()
+    snapshot = await provider.fetch_closed_pnl(
+        creds, symbol, order_id=exchange_order_id, since=filled_at
+    )
+    if snapshot is None:
+        return {
+            "transient": "closed_pnl_not_yet_available",
+            "order_id": str(order_id),
+        }
+
+    async with sm() as session:
+        rows = await OrderRepository(session).backfill_exchange_realized_pnl(
+            order_id,
+            realized_pnl=snapshot.closed_pnl,
+            synced_at=datetime.now(UTC),
+        )
+        if rows == 1:
+            await session.commit()
+            qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
+            return {"applied": True, "order_id": str(order_id)}
+    qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
+    return {"skipped": "already_synced", "order_id": str(order_id)}
+
+
+async def _async_refresh_closed_pnl(order_id: UUID) -> dict[str, Any]:
+    """작업 호출마다 엔진을 만들고 확정 손익 조회 뒤 반드시 폐기한다."""
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _refresh_closed_pnl_with_session(order_id, sm)
+    finally:
+        await engine.dispose()
+
+
+@shared_task(  # type: ignore[untyped-decorator]
+    name="trading.refresh_closed_pnl", bind=True, max_retries=_CLOSED_PNL_MAX_RETRIES
+)
+def refresh_closed_pnl_task(self: Any, order_id: str) -> dict[str, Any]:
+    """체결 직후 Bybit closedPnl이 정착되면 pine_v2 추정 손익을 교체한다."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    try:
+        result = run_in_worker_loop(_async_refresh_closed_pnl(UUID(order_id)))
+    except Exception as exc:
+        if self.request.retries >= _CLOSED_PNL_MAX_RETRIES:
+            logger.exception("closed_pnl_backfill_provider_giveup", extra={"order_id": order_id})
+            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
+            run_in_worker_loop(_alert_closed_pnl_unbackfilled(UUID(order_id), "provider_error"))
+            return {"failed": "provider_error", "order_id": order_id}
+        raise self.retry(
+            exc=exc,
+            countdown=_CLOSED_PNL_RETRY_BASE_SECONDS * (2**self.request.retries),
+        ) from exc
+
+    if result.get("transient") == "closed_pnl_not_yet_available":
+        if self.request.retries < _CLOSED_PNL_MAX_RETRIES:
+            raise self.retry(
+                countdown=_CLOSED_PNL_RETRY_BASE_SECONDS * (2**self.request.retries)
+            )
+        logger.warning("closed_pnl_backfill_never_found", extra={"order_id": order_id})
+        qb_closed_pnl_backfill_total.labels(outcome="never_found").inc()
+        run_in_worker_loop(_alert_closed_pnl_unbackfilled(UUID(order_id), "closed_pnl_not_yet_available"))
+        return {"failed": "closed_pnl_not_yet_available", "order_id": order_id}
+    return result
+
+
+async def _sweep_closed_pnl_with_session(
+    sm: async_sessionmaker[AsyncSession], *, provider: Any = None, now: datetime | None = None
+) -> dict[str, int]:
+    """최근 24시간 미동기화 청산 주문을 계정·심볼별 한 번의 Bybit 요청으로 보완한다."""
+    current = now or datetime.now(UTC)
+    async with sm() as session:
+        orders = await OrderRepository(session).list_unsynced_reduce_only_since(
+            current - timedelta(hours=24)
+        )
+
+    summary = {"scanned": len(orders), "applied": 0, "orphan": 0, "groups": 0}
+    for (account_id, symbol), group_iter in itertools.groupby(
+        orders, key=lambda order: (order.exchange_account_id, order.symbol)
+    ):
+        group = list(group_iter)
+        summary["groups"] += 1
+        try:
+            filled_times = [order.filled_at for order in group if order.filled_at is not None]
+            if not filled_times:
+                continue
+            oldest_filled_at = min(filled_times)
+            async with sm() as session:
+                account = await session.get(ExchangeAccount, account_id)
+                if account is None:
+                    continue
+                if account.exchange != ExchangeName.bybit or group[0].leverage is None:
+                    qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
+                    continue
+                crypto = EncryptionService(settings.trading_encryption_keys)
+                passphrase_pt = (
+                    crypto.decrypt(account.passphrase_encrypted)
+                    if account.passphrase_encrypted is not None
+                    else None
+                )
+                creds = Credentials(
+                    api_key=crypto.decrypt(account.api_key_encrypted),
+                    api_secret=crypto.decrypt(account.api_secret_encrypted),
+                    passphrase=passphrase_pt,
+                    environment=account.mode,
+                )
+            if provider is None:
+                from src.trading.providers import BybitFuturesProvider
+
+                provider = BybitFuturesProvider()
+            snapshots = await provider.fetch_closed_pnl_page(
+                creds, symbol, since=oldest_filled_at
+            )
+            # 분할 행 합산은 refresh 경로와 동일 헬퍼를 쓴다 — 마지막 행만 취하면 부분
+            # 손익이 저장되고 CAS 가 synced_at 을 채워 그 값이 영구 고정된다.
+            snapshots_by_order_id = aggregate_closed_pnl_by_order(snapshots)
+            exchange_order_ids = {
+                order.exchange_order_id for order in group if order.exchange_order_id is not None
+            }
+            for snapshot_order_id in snapshots_by_order_id:
+                if snapshot_order_id not in exchange_order_ids:
+                    qb_closed_pnl_backfill_total.labels(outcome="orphan_row").inc()
+                    summary["orphan"] += 1
+            async with sm() as session:
+                repo = OrderRepository(session)
+                applied_in_group = 0
+                already_synced_in_group = 0
+                for order in group:
+                    if order.exchange_order_id is None:
+                        continue
+                    snapshot = snapshots_by_order_id.get(order.exchange_order_id)
+                    if snapshot is None:
+                        continue
+                    rows = await repo.backfill_exchange_realized_pnl(
+                        order.id,
+                        realized_pnl=snapshot.closed_pnl,
+                        synced_at=current,
+                    )
+                    if rows == 1:
+                        applied_in_group += 1
+                    else:
+                        already_synced_in_group += 1
+                if applied_in_group:
+                    await session.commit()
+                # 커밋 성공 뒤에 계상한다 — commit 실패 시 summary/metric 이 과다계상되면
+                # "보정 완료" 로 오독되고, 실제로는 추정값이 그대로 남는다.
+                summary["applied"] += applied_in_group
+                for _ in range(applied_in_group):
+                    qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
+                for _ in range(already_synced_in_group):
+                    qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
+        except Exception:
+            # 스윕은 refresh task 유실의 회복 안전망이다 — 그룹 실패를 로그로만 남기면
+            # 해당 (account, symbol) 이 5분마다 조용히 실패해도 아무도 모른다.
+            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
+            logger.exception(
+                "closed_pnl_sweep_group_failed",
+                extra={"account_id": str(account_id), "symbol": symbol},
+            )
+    return summary
+
+
+async def _async_sweep_closed_pnl() -> dict[str, int]:
+    """스윕 작업 호출마다 엔진을 만들고 완료 뒤 폐기한다."""
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _sweep_closed_pnl_with_session(sm)
+    finally:
+        await engine.dispose()
+
+
+@shared_task(name="trading.sweep_closed_pnl")  # type: ignore[untyped-decorator]
+def sweep_closed_pnl_task() -> dict[str, int]:
+    """최근 청산 주문의 Bybit closedPnl 미반영분을 주기적으로 보완한다."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_sweep_closed_pnl())

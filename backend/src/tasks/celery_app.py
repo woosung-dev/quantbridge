@@ -133,6 +133,11 @@ celery_app.conf.beat_schedule = {
         "schedule": 300.0,  # 5분
         "options": {"expires": 240},
     },
+    "sweep-closed-pnl-backfill": {
+        "task": "trading.sweep_closed_pnl",
+        "schedule": 300.0,
+        "options": {"expires": 240},
+    },
     # Sprint 26 — Pine Signal Auto-Trading. 1분 fire, list_active_due 가
     # interval (1m/5m/15m/1h) 별 due session 만 평가.
     "evaluate-live-signals": {
@@ -226,6 +231,14 @@ def _on_worker_ready(sender: object = None, **_kwargs: object) -> None:
 
     @worker_ready는 Celery master 프로세스에서 1회 실행 — prefork 자식마다 아님.
     """
+    missing_tasks = {
+        "trading.refresh_closed_pnl",
+        "trading.sweep_closed_pnl",
+    }.difference(celery_app.tasks)
+    if missing_tasks:
+        logger.error("closed_pnl_tasks_missing", extra={"tasks": sorted(missing_tasks)})
+        raise RuntimeError(f"missing closed PnL tasks: {sorted(missing_tasks)}")
+
     # CF3 (Phase C-1) — backtest + optimizer + stress_test 3 도메인 stale reclaim.
     # 도메인별 isolation: 한 도메인 실패가 나머지를 막지 않도록 개별 try.
     from src.tasks.backtest import reclaim_stale_running as _reclaim_backtests  # 지연 import

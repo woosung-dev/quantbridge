@@ -60,6 +60,7 @@ def ccxt_mock(monkeypatch):
         return_value={
             "id": "bybit-order-42",
             "average": 50123.45,
+            "filled": "0.001",
             "status": "closed",
             "symbol": "BTC/USDT",
         }
@@ -107,6 +108,23 @@ async def test_bybit_demo_create_order_uses_credentials(credentials, order_submi
     # 4. receipt 매핑
     assert receipt.exchange_order_id == "bybit-order-42"
     assert receipt.filled_price == Decimal("50123.45")
+    assert receipt.filled_quantity == Decimal("0.001")
+
+
+@pytest.mark.parametrize("filled", [None, "not-a-number"])
+async def test_bybit_demo_create_order_ignores_missing_or_malformed_filled_quantity(
+    credentials, order_submit, ccxt_mock, filled
+):
+    mock_exchange, _ = ccxt_mock
+    if filled is None:
+        mock_exchange.create_order.return_value.pop("filled")
+    else:
+        mock_exchange.create_order.return_value["filled"] = filled
+    from src.trading.providers import BybitDemoProvider
+
+    receipt = await BybitDemoProvider().create_order(credentials, order_submit)
+
+    assert receipt.filled_quantity is None
 
 
 async def test_bybit_demo_create_order_passes_orderLinkId_when_client_order_id_set(

@@ -66,7 +66,7 @@ export const ORDER_ID_SOURCE_HINT: Record<OrderIdSource, string> = {
 };
 
 /**
- * 주문 표 헤더 10열. screen-11-orders.html:1269-1278 의 th 를 순서대로 옮긴 것이고
+ * 주문 표 헤더 12열. screen-11-orders.html:1269-1278 의 th 를 순서대로 옮긴 것이고
  * 문자열은 화면이 인쇄하는 값과 바이트 일치한다.
  * 주의 둘. createdAt 은 "시간" 이 아니라 "시각" 이다.
  * takeProfitStopLoss 는 가운뎃점 앞뒤에 공백이 없다("익절·손절").
@@ -77,11 +77,30 @@ export const ORDER_TABLE_HEADER = {
   side: "주문 방향",
   quantity: "수량",
   filledPrice: "체결가",
+  filledQuantity: "체결 수량",
+  realizedPnl: "실현 손익",
   state: "상태",
   takeProfitStopLoss: "익절·손절",
   brokerOrderId: "거래소 주문번호",
   errorMessage: "오류",
   action: "액션",
+} as const;
+
+/** 체결 수량 보조 표기. 주문 수량보다 작으면 부분체결임을 함께 밝힌다. */
+export const ORDER_FILLED_QUANTITY = {
+  partial: "부분",
+  partialTitle: (quantity: string, filledQuantity: string) =>
+    `주문 수량 ${quantity} 중 ${filledQuantity} 체결`,
+} as const;
+
+/** 실현 손익 출처. 거래소 확정 전에는 pine_v2 전략 시뮬레이션 추정값임을 밝힌다. */
+export const ORDER_REALIZED_PNL_SOURCE_LABEL = {
+  confirmed: "거래소 확정",
+  estimated: "추정",
+} as const;
+export const ORDER_REALIZED_PNL_SOURCE_HINT = {
+  confirmed: "거래소가 확정한 정산 손익",
+  estimated: "전략 시뮬레이션 추정값 \u2014 거래소 확정 전",
 } as const;
 
 /** 주문 방향 열 헤더 title. 롱·숏과의 혼동을 막는 문구다. */
@@ -93,8 +112,7 @@ export const ORDER_FLAG_LABEL = {
   reduceOnly: "감소전용",
 } as const;
 export const ORDER_FLAG_HINT = {
-  reduceOnly:
-    "열려 있는 포지션을 줄이는 주문입니다. 새 포지션을 만들지 않습니다.",
+  reduceOnly: "열려 있는 포지션을 줄이는 주문입니다. 새 포지션을 만들지 않습니다.",
 } as const;
 
 /**
@@ -118,8 +136,7 @@ export const ORDER_EMPTY_REASON = {
   brokerIdNotSent: "아직 거래소로 보내지 않아 주문번호가 없습니다.",
   brokerIdRejected: "거래소로 나가기 전에 걸러져서 주문번호가 없습니다.",
   takeProfitStopLossNone: "이 주문에는 익절도 손절도 걸려 있지 않습니다.",
-  takeProfitStopLossRejected:
-    "거래소로 나가기 전에 걸러져서 익절과 손절도 붙지 않았습니다.",
+  takeProfitStopLossRejected: "거래소로 나가기 전에 걸러져서 익절과 손절도 붙지 않았습니다.",
 } as const;
 
 /**
@@ -155,8 +172,7 @@ export const ORDER_CANCEL_ACTION = {
 export const ORDER_TRAILING_STOP_LABEL = "추적손절";
 
 /** 추적손절 셀 title. screen-11-orders.html:1333 */
-export const ORDER_TRAILING_STOP_TITLE =
-  "체결가에서 벌어진 거리를 따라붙는 손절입니다.";
+export const ORDER_TRAILING_STOP_TITLE = "체결가에서 벌어진 거리를 따라붙는 손절입니다.";
 
 /**
  * 폴링 정책 안내. 주문 원장은 자기 리소스의 갱신 정책을 명시한다(§4.6).
@@ -206,8 +222,7 @@ export const ORDER_LIQUIDATION_DELEGATION_NOTE =
 export const KILL_SWITCH_LABEL = {
   feature: "킬 스위치",
   action: "긴급 정지",
-  confirm:
-    "긴급 정지는 모든 포지션 시장가 청산 후 세션 중지. 되돌릴 수 없습니다.",
+  confirm: "긴급 정지는 모든 포지션 시장가 청산 후 세션 중지. 되돌릴 수 없습니다.",
 } as const;
 
 /** 세션 빈 상태. screen-11-orders.html:1572-1573 (카드 제목 :1563 "라이브 세션 주문") */

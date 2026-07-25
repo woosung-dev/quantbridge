@@ -22,6 +22,7 @@ from uuid import UUID
 from src.common.alert import send_critical_alert
 from src.common.metrics import (
     qb_active_orders,
+    qb_partial_fill_total,
     qb_ws_orphan_buffer_size,
     qb_ws_orphan_event_total,
 )
@@ -138,9 +139,23 @@ class StateHandler:
                     #   동기/WS/watchdog winner-only 전이라 정확히 1회만 발화(구조적 dedup).
                     #   동기/watchdog 와 동일한 `_enqueue_trailing_if_intended` helper 재사용
                     #   (inline 복제 금지 — divergence 차단). lazy import 로 순환 의존 회피.
-                    from src.tasks.trading import _enqueue_trailing_if_intended
+                    from decimal import Decimal
 
+                    from src.tasks.trading import (
+                        _enqueue_closed_pnl_refresh,
+                        _enqueue_trailing_if_intended,
+                    )
+
+                    filled = payload.get("cumExecQty") or payload.get("filled")
+                    filled_quantity = Decimal(str(filled)) if filled else None
+                    if (
+                        filled_quantity is not None
+                        and filled_quantity.is_finite()
+                        and filled_quantity < order.quantity
+                    ):
+                        qb_partial_fill_total.labels(source="ws").inc()
                     _enqueue_trailing_if_intended(order)
+                    _enqueue_closed_pnl_refresh(order)
 
                 if new_state == OrderState.rejected:
                     await self._alert_sender(
@@ -210,13 +225,16 @@ class StateHandler:
         now = datetime.now(UTC)
         if new_state == OrderState.filled:
             avg = payload.get("avgPrice") or payload.get("average")
+            filled = payload.get("cumExecQty") or payload.get("filled")
             from decimal import Decimal
 
             filled_price = Decimal(str(avg)) if avg else None
+            filled_quantity = Decimal(str(filled)) if filled else None
             return await repo.transition_to_filled(
                 order_id,
                 exchange_order_id=str(payload.get("orderId", "")),
                 filled_price=filled_price,
+                filled_quantity=filled_quantity,
                 filled_at=now,
             )
         elif new_state == OrderState.rejected:

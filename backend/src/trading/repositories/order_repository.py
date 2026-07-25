@@ -112,6 +112,39 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    async def backfill_exchange_realized_pnl(
+        self, order_id: UUID, *, realized_pnl: Decimal, synced_at: datetime
+    ) -> int:
+        """거래소 확정 손익만 기록한다. 실패 조회가 kill-switch 입력을 NULL로 만들 수 없어야 한다."""
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
+            .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def list_unsynced_reduce_only_since(
+        self, cutoff: datetime, *, limit: int = 200
+    ) -> Sequence[Order]:
+        """거래소 확정 손익이 아직 없는 최근 reduce-only 체결 주문을 계정·심볼 순으로 조회한다."""
+        stmt = (
+            select(Order)
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.reduce_only.is_(True))  # type: ignore[attr-defined]
+            .where(Order.filled_at >= cutoff)  # type: ignore[operator, arg-type]
+            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
+            .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
+            .order_by(
+                Order.exchange_account_id,  # type: ignore[arg-type]
+                Order.symbol,
+                Order.filled_at,  # type: ignore[arg-type]
+            )
+            .limit(limit)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
     async def transition_to_filled(
         self,
         order_id: UUID,
@@ -127,6 +160,7 @@ class OrderRepository:
         # 명시 인자가 있을 때만 갱신 (exchange-reported closedPnl 등 follow-up A 경로).
         # None 이면 생성 시점 값을 보존 — 이전엔 무조건 NULL 로 덮어써서 kill-switch
         # CumulativeLoss/DailyLoss 평가기가 SUM=0 으로 영구 inert 였다.
+        # filled_quantity 무조건 갱신은 submitted 상태 CAS가 단일 winner를 보장하므로 안전하다.
         values: dict[str, object] = {
             "state": OrderState.filled,
             "exchange_order_id": exchange_order_id,

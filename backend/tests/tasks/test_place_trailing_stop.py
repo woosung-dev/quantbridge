@@ -315,6 +315,30 @@ def test_enqueue_gates_on_trailing_intent(monkeypatch):
     assert len(calls) == 1
 
 
+def test_enqueue_closed_pnl_refresh_gates_on_reduce_only(monkeypatch):
+    """4 fill winner(동기/WS/watchdog/reconciler)가 공유하는 closedPnl enqueue helper.
+
+    청산(reduce-only) 주문에서만 발화해야 한다 — 진입 주문까지 예약하면 Bybit 조회를
+    헛돌리고 skipped_unsupported 메트릭만 부풀린다.
+    """
+    from types import SimpleNamespace
+
+    from src.tasks import trading as t
+
+    calls: list[dict] = []
+    monkeypatch.setattr(t.refresh_closed_pnl_task, "apply_async", lambda **kw: calls.append(kw))
+
+    close_id = uuid4()
+    t._enqueue_closed_pnl_refresh(SimpleNamespace(id=close_id, reduce_only=True))
+    assert len(calls) == 1
+    assert calls[0]["args"] == [str(close_id)]
+    assert calls[0]["countdown"] == t._CLOSED_PNL_ENQUEUE_COUNTDOWN
+
+    # 진입 주문(reduce_only=False)은 확정 손익 대상이 아니다.
+    t._enqueue_closed_pnl_refresh(SimpleNamespace(id=uuid4(), reduce_only=False))
+    assert len(calls) == 1
+
+
 # ---------------------------------------------------------------------------
 # place_trailing_stop_task 본문 — retry / backoff / exhaustion→alert / flat-retry concede.
 # (qa-P2: 실패-표면화 코어가 무테스트였음 + STEP B fast-fill flat-retry fix 커버)

@@ -46,6 +46,7 @@ def ccxt_okx_mock(monkeypatch):
         return_value={
             "id": "okx-order-7",
             "average": 50421.50,
+            "filled": "0.01",
             "status": "closed",
             "symbol": "BTC/USDT",
         }
@@ -98,7 +99,24 @@ async def test_okx_demo_uses_credentials_with_passphrase(
     # 5. receipt 매핑
     assert receipt.exchange_order_id == "okx-order-7"
     assert receipt.filled_price == Decimal("50421.50")
+    assert receipt.filled_quantity == Decimal("0.01")
     assert receipt.status == "filled"
+
+
+@pytest.mark.parametrize("filled", [None, "not-a-number"])
+async def test_okx_demo_create_order_ignores_missing_or_malformed_filled_quantity(
+    creds_with_passphrase, order_submit, ccxt_okx_mock, filled
+):
+    mock_exchange, _ = ccxt_okx_mock
+    if filled is None:
+        mock_exchange.create_order.return_value.pop("filled")
+    else:
+        mock_exchange.create_order.return_value["filled"] = filled
+    from src.trading.providers import OkxDemoProvider
+
+    receipt = await OkxDemoProvider().create_order(creds_with_passphrase, order_submit)
+
+    assert receipt.filled_quantity is None
 
 
 async def test_okx_demo_raises_when_passphrase_missing(order_submit, ccxt_okx_mock):

@@ -25,6 +25,11 @@ export const OrderSchema = z.object({
   trigger_direction: z.number().int().nullable().default(null),
   oco_group_id: z.string().nullable().default(null),
   trailing_stop: z.string().nullable().default(null),
+  // Wave 3 (체결 수량·실현 손익) — BE OrderResponse 와 1:1. realized_pnl_synced_at 은
+  // 거래소 확정 손익인지 pine_v2 추정값인지 밝히는 출처 마커이며 구 fixture 는 null 로 둔다.
+  filled_quantity: z.string().nullable().default(null),
+  realized_pnl: z.string().nullable().default(null),
+  realized_pnl_synced_at: z.string().nullable().default(null),
 });
 export type Order = z.infer<typeof OrderSchema>;
 
@@ -39,10 +44,7 @@ export const CancelOrderAcknowledgementSchema = z.object({
   state: z.literal("submitted"),
   detail: z.literal("exchange cancel requested"),
 });
-export const CancelOrderResponseSchema = z.union([
-  OrderSchema,
-  CancelOrderAcknowledgementSchema,
-]);
+export const CancelOrderResponseSchema = z.union([OrderSchema, CancelOrderAcknowledgementSchema]);
 export type CancelOrderResponse = z.infer<typeof CancelOrderResponseSchema>;
 
 export const KillSwitchEventSchema = z.object({
