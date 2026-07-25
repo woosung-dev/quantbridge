@@ -526,9 +526,7 @@ class FixtureExchangeProvider:
             filled_quantity=order.quantity,
         )
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         logger.debug(
             "fixture_cancel_order",
             extra={"exchange_order_id": exchange_order_id, "symbol": symbol},
@@ -631,9 +629,7 @@ class BybitDemoProvider:
             except Exception:
                 logger.warning("bybit_close_failed", exc_info=True)
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         # functional-parity 2026-07-23 — ccxt bybit cancelOrder() 는 symbol 필수
         # (미전달 시 전 호출이 ArgumentsRequired → CF4 fail-closed 로 submitted 잔존.
         # BL-404 fetch_order 와 동형 결함, 실브라우저 dogfood 워커 로그로 발견).
@@ -977,9 +973,7 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
-    async def fetch_open_positions(
-        self, creds: Credentials, symbol: str
-    ) -> list[PositionSnapshot]:
+    async def fetch_open_positions(self, creds: Credentials, symbol: str) -> list[PositionSnapshot]:
         """현재 linear 포지션 leg 전체를 대조용으로 반환한다.
 
         stale trailing-stop 가드의 ``fetch_position``과 달리 hedge mode의 long/short
@@ -1033,9 +1027,7 @@ class BybitFuturesProvider:
                         size=size,
                         entry_price=_decimal_or_none(position.get("entryPrice"), strict=True),
                         mark_price=_decimal_or_none(position.get("markPrice"), strict=True),
-                        unrealized_pnl=_decimal_or_none(
-                            position.get("unrealizedPnl"), strict=True
-                        ),
+                        unrealized_pnl=_decimal_or_none(position.get("unrealizedPnl"), strict=True),
                         liquidation_price=_decimal_or_none(
                             position.get("liquidationPrice"), strict=True
                         ),
@@ -1118,9 +1110,7 @@ class BybitFuturesProvider:
                         order_id=order_id,
                         side=str(order.get("side") or info.get("side") or "").lower(),
                         kind=kind,
-                        price=_decimal_or_none(
-                            order.get("price"), zero_as_none=True, strict=True
-                        ),
+                        price=_decimal_or_none(order.get("price"), zero_as_none=True, strict=True),
                         trigger_price=_decimal_or_none(
                             order.get("triggerPrice") or info.get("triggerPrice"),
                             zero_as_none=True,
@@ -1237,10 +1227,16 @@ class BybitFuturesProvider:
             oldest_ms = min((value for value in cursors if value is not None), default=None)
             if oldest_ms is None:
                 break
-            next_until_ms = oldest_ms - 1
+            # ★커서를 oldest-1 로 내리면 그 밀리초에 남은 **동일 createdTime 행**을 영구히
+            # 건너뛴다. 한 청산 주문의 분할 행은 createdTime 을 공유할 수 있고(구분은
+            # updatedTime) 페이지 상한을 넘는 tie 가 조용히 사라진다. 그게 우리 주문이면
+            # aggregate_closed_pnl 이 부분합을 돌려주고 잘못된 realized_pnl 이 CAS 로
+            # 영구 고정된다. Bybit 은 tie-breaker 커서를 주지 않으므로 경계를 **포함**해
+            # 다시 읽는다 — 중복 행은 원장 UNIQUE(row_hash) 가 흡수하므로 이중 합산이 없다.
+            next_until_ms = oldest_ms
             if next_until_ms >= until_ms or next_until_ms <= start_ms:
-                # 창 시작까지 훑었으면 완전 조회다. 커서가 더 못 가는 경우는 불완전으로 둔다.
-                truncated = next_until_ms > start_ms
+                # 꽉 찬 페이지에서 커서가 더 못 가면 완전 조회를 증명할 수 없다.
+                # 완전 조회의 유일한 증거는 상한 미만 페이지다(위 truncated=False).
                 break
             until_ms = next_until_ms
         if truncated:
@@ -1301,9 +1297,7 @@ class BybitFuturesProvider:
                 snapshot = _closed_pnl_snapshot_from_position(position)
                 if snapshot is None:
                     qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
-                    logger.warning(
-                        "bybit_closed_pnl_row_skipped", extra={"symbol": linear_symbol}
-                    )
+                    logger.warning("bybit_closed_pnl_row_skipped", extra={"symbol": linear_symbol})
                     continue
                 snapshots.append(snapshot)
             return snapshots
@@ -1419,9 +1413,7 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         # functional-parity 2026-07-23 — symbol 필수 + BL-404 와 동일하게 linear
         # unified symbol 로 정규화 (spot 포맷이면 category=spot 조회로 어긋남).
         exchange = ccxt_async.bybit(
@@ -1730,9 +1722,7 @@ class OkxDemoProvider:
             except Exception:
                 logger.warning("okx_close_failed", exc_info=True)
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         # functional-parity 2026-07-23 — ccxt okx cancelOrder() 도 symbol(instId) 필수.
         if creds.passphrase is None:
             raise ProviderError("OkxDemoProvider requires a passphrase (OKX auth)")
@@ -1923,9 +1913,7 @@ class BybitLiveProvider:
     async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
         raise ProviderError("Bybit live (mainnet) 미지원 — BL-003 mainnet runbook 완료 후 활성화")
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         raise ProviderError("Bybit live cancel 미지원 — BL-003 mainnet runbook 대기")
 
     async def fetch_order(

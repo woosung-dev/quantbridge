@@ -33,15 +33,16 @@
 - [x] `_fetch_closed_pnl_rows` 심볼 옵셔널 → **계정당 1콜 전 심볼 열거**
 - [x] `fetch_closed_order_meta` + `ClosedOrderMeta` (`fetch_closed_orders` 경유)
 - [x] 페이징 커서를 **createdTime 축**으로 교정 + 단조 전진 강제
+- [x] **커서 경계 포함**(`until = oldest_ms`) — 같은 createdTime tie 행 조용한 누락 차단 (§S6, 최종 codex diff P1)
 - [x] 기존 3필드 **strict 파싱 복원**(fail-loud 삼킴 회귀 차단)
 
 ## S2 원장 — 마이그레이션 · 모델 · 리포지토리
 
 - [x] `trading.exchange_exits`(행 단위 원본 + provenance JSONB) + 3 인덱스
-- [x] `trading.exchange_exit_sync_state`(과거 스캔 경계) — 빈 창 영구 정지 차단
-- [x] 마이그레이션 `20260725_0002` (신규 테이블 2개, downgrade `DROP TABLE IF EXISTS`)
+- [x] ~~`trading.exchange_exit_sync_state`(과거 스캔 경계)~~ → **범위 축소로 제거**(§S6)
+- [x] 마이그레이션 `20260725_0002` (신규 테이블 **1개**, downgrade `DROP TABLE IF EXISTS`)
 - [x] `ExchangeExit.compute_row_hash` — `\x1f` 구분자 · `None`/`""` 동일 정규화 · 빈 order_id 거부
-- [x] `ExchangeExitRepository` — upsert(청킹 500) / aggregate / bounds / 워터마크 get·set(단조)
+- [x] `ExchangeExitRepository` — upsert(청킹 500) / aggregate (`bounds`·워터마크 get·set 은 §S6 에서 제거)
 - [x] `ExchangeAccountRepository.list_by_exchange`
 - [x] `qb_exchange_exit_rows_total{classification}` (기존 8-outcome 계약 불변)
 
@@ -72,13 +73,13 @@
 
 - [x] `_assert_disposable_database` — 파괴적 마이그레이션 테스트가 `_test` 아닌 DB 를 향하면 `RuntimeError`
 - [x] 가드 실증 — 개발 DB DSN 으로 실행 시 파괴 대신 예외
-- [x] `test_trading_schema_round_trip` 신규 테이블 2개 반영 (9 → 11)
+- [x] `test_trading_schema_round_trip` 신규 테이블 반영 (9 → 11 → **10**, §S6 축소 후)
 
 ## 게이트
 
 - [x] BE ruff / mypy / pytest 3-env — **2710 passed / 46 skipped / 0 failed** (baseline 2653, +57)
 - [x] FE tsc / test / lint — **1094 passed** (baseline 1088, +6), tsc·lint clean
-- [x] alembic 왕복 + head `20260725_0002` (마이그레이션 **1**, 신규 테이블 2개)
+- [x] alembic 왕복 + head `20260725_0002` (마이그레이션 **1**, 신규 테이블 **1개** — §S6 축소 후)
 - [ ] canon 32 불변 · authed (`/orders` 라우트 직접 확인)
 - [ ] §9.5 — 같은 worker child 에서 스윕 N회 연속 성공 + beat 자체 발화
 
@@ -110,14 +111,29 @@
 ## 최종 codex 누적 diff — DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 (전건 수정)
 
 - [x] **DO-NOT-SHIP** 체결 직후 refresh 가 원장을 우회해 부분합을 CAS 고정 → `resync_exchange_realized_pnl` + 스윕 대조 경로
-- [x] **DO-NOT-SHIP** `max_pages` 소진을 성공 취급 → `ClosedPnlWindow(rows, truncated)` + 잘린 창은 읽은 최고령 행까지만 경계 전진
+- [x] **DO-NOT-SHIP** `max_pages` 소진을 성공 취급 → `ClosedPnlWindow(rows, truncated)` + 잘린 창은 읽은 최고령 행까지만 경계 전진 _(§S6 축소로 dataclass 제거 → 발생 지점 로그 + 계정 식별자로 대체. 워터마크가 없어져 호출자가 대응할 수단이 사라졌기 때문)_
 - [x] **MAJOR** 시각 결측 행이 로그만 남기고 소실 → `malformed_row` 계상
 - [x] **MINOR** downgrade 인덱스 drop 무조건 실행 → `DROP INDEX IF EXISTS`
 - [x] 4건 전부 회귀 테스트 부착
 
+## S6 범위 축소 — 과거 전진 기계장치 제거 (2026-07-25, 머지 전)
+
+> 사용자 판정. 원장은 **최근 7일만** 담는다. 배경·실측은 `context-notes.md` §9.
+
+- [x] 마이그레이션 `20260725_0002` 에서 `exchange_exit_sync_state` `create_table` 제거 (**2 → 1 테이블**)
+- [x] **downgrade 의 `DROP TABLE IF EXISTS` 는 의도적으로 남김** + 이유 주석 — 초판 적용 DB 에서 `downgrade base` 가 April 마이그레이션의 평문 `drop_table('exchange_accounts')` 에서 의존 FK 로 거부되는 것을 차단. `quantbridge_test` 자기치유 실측
+- [x] `ExchangeExitSyncState` 모델 · `get/set_backfilled_from` · `created_at_bounds`(자기 고아, 기각된 설계를 문서화) 제거
+- [x] `_EXIT_LEDGER_HORIZON_DAYS` · `_closed_pnl_windows` · 창 루프 · `window_index` · `truncated` 경계 복구 · `summary["windows"]` 제거
+- [x] `ClosedPnlWindow` dataclass 제거 → `list[ClosedPnlSnapshot]` + **발생 지점 `logger.warning("closed_pnl_window_truncated")`** (최종 `truncated` 값 = 3경로 모두 · `log_context` 로 계정/심볼 식별)
+- [x] **커서 경계 포함**(`until = oldest_ms`) — 최종 codex diff **P1**: 같은 createdTime tie 행이 페이지 경계에서 조용히 누락돼 부분합이 `realized_pnl` 로 고정되는 결함. 회귀 테스트 + 구 커서로 red 실증
+- [x] 테스트 수술 — 워터마크 6건 삭제 · provider 잘림 2건을 **logger mock** 으로 전환(caplog 은 전체 스위트에서 격리 깨짐 실측) · 분할행 집계 테스트는 **원장 선적재**로 재작성(한 창에 합치면 무의미해짐) · 신규 2건
+- [x] **페이크 세션을 트랜잭션화** — 커밋 시에만 원장에 보이게. 원장 커밋을 지우면 3건 red(이전엔 0건) 실증
+- [x] 개발 DB 는 `DROP TABLE` 한 줄(alembic_version 유지), 검증은 가드 걸린 `quantbridge_test` 왕복 — 수동 alembic 이 개발 DB 를 향하는 구조(BL-451 ④) 회피
+- [x] 게이트 재실행 — BE **2706** / ruff · mypy clean / alembic base→head + 10 테이블 센티널 / FE 미변경
+
 ## 마감
 
-- [x] 최종 codex 누적 diff 리뷰 1회 (생략 금지)
+- [x] 최종 codex 누적 diff 리뷰 1회 (생략 금지) — **축소 후 재실행에서 P1 1건 추가 발견·수정**
 - [x] docs/exit-attribution/{checklist,operating-contract,context-notes}.md
-- [x] TODO / dev-log / BL — BL-438 부분 Resolved · BL-442 Resolved · 신규 BL-443~451
-- [x] push (QB_PRE_PUSH_BYPASS=1) → main PR 1개 (squash 는 사용자)
+- [x] TODO / dev-log / BL — BL-438 부분 Resolved(관측 원장 최근 7일) · BL-442 Resolved · 신규 BL-443~**452**
+- [x] push (QB_PRE_PUSH_BYPASS=1) → PR #476 본문 갱신 (squash 는 사용자)

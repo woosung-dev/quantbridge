@@ -6,7 +6,7 @@
 
 ## ⚡ exit-attribution 스프린트 (2026-07-25, `docs/exit-attribution/`)
 
-**스코프**: money-path-accuracy(#475) 후속. **BL-438 부분** — 거래소에만 존재하는 청산 기록을 원장으로 흡수해 보이게 만들고, 우리 주문의 손익만 계상한다. 마이그레이션 **1**(`20260725_0002`, 신규 테이블 2개).
+**스코프**: money-path-accuracy(#475) 후속. **BL-438 부분** — 거래소에만 존재하는 청산 기록을 원장으로 흡수해 보이게 만들고, 우리 주문의 손익만 계상한다. 마이그레이션 **1**(`20260725_0002`, 신규 테이블 1개 — 과거 스캔 경계 테이블은 머지 전 범위 축소로 제거).
 
 ### ★§0.5 측정 스파이크가 전제를 뒤집었다
 
@@ -19,14 +19,16 @@
 ### Completed
 
 - [x] **S1 provider** — `ClosedPnlSnapshot` 9필드 확장(위치 인자 하위호환) + `fetch_closed_pnl_window`(7일 상한 강제) + 심볼리스 열거(계정당 1콜) + `fetch_closed_order_meta`(`fetch_closed_orders`, UTA 대응) + **페이징 커서 createdTime 축 교정** + 기존 3필드 strict 파싱 복원
-- [x] **S2 원장** — `trading.exchange_exits`(행 단위 원본 + provenance JSONB `none_as_null`) + `trading.exchange_exit_sync_state`(과거 스캔 경계) + `compute_row_hash`(제어문자 구분자 · `None`/`""` 동일 정규화 · 빈 order_id 거부) + 리포지토리(청킹·집계·워터마크 단조)
-- [x] **S3 스윕 재작성** — 계정 독립 열거 + 최근/과거 2창 + 조건부 보강(정상 상태 0콜) + **원장 전체 집계 백필** + 커밋 후 계상 + 알림 1회성 + `orphan_row` 계상 제거
+- [x] **S2 원장** — `trading.exchange_exits`(행 단위 원본 + provenance JSONB `none_as_null`) + `compute_row_hash`(제어문자 구분자 · `None`/`""` 동일 정규화 · 빈 order_id 거부) + 리포지토리(청킹·집계)
+- [x] **S3 스윕 재작성** — 계정 독립 열거 + **최근 7일 1창** + 조건부 보강(정상 상태 0콜) + **원장 전체 집계 백필** + 커밋 후 계상 + 알림 1회성 + `orphan_row` 계상 제거
 - [x] **S4 분류·귀속** — classification 7종(`stopOrderType` 폴백 · `orderLinkId` UUID 검증) + attribution 3등급(두 조건 AND) + `qb_exchange_exit_rows_total`. **`inferred` 는 머니-패스 미투입**(검정력 없음)
 - [x] **S5 FE** — `displayRealizedPnl`/`isPartialFill`/`realizedPnlSource` SSOT + 체결 전 주문 손익 은닉 + 사유 title + CSV 3열 복원
-- [x] **안전** — `_assert_disposable_database`(파괴적 마이그레이션 테스트가 `_test` 아닌 DB 향하면 `RuntimeError`) + 스키마 열거 센티널 9→11
-- [x] 게이트: BE **2710**(+57) / FE **1094**(+6) / ruff·mypy·tsc·lint 0 / alembic 왕복 + head `20260725_0002`
-- [x] 검증: codex G0 **REJECT**(전건 대조 후 절반 수용, "계정 단위 열거 불가" 는 **실측 반박**) → Explore 3-리더(핸드오프 좌표 **3건 반박**) → **Plan 압박검증이 내 설계 결함 적발**(원장 min 파생 워터마크가 빈 창에서 영구 정지 → 실측 시각 시뮬레이션으로 반증·재검증) → 사용자 인터뷰 **10건** → codex 4워커 ↔ **Claude 적대평가 4기**(BLOCKING 4 + MAJOR 4, **내가 넣은 회귀 1건**(`row_hash` 가 `None`/`""` 를 다르게 봐 손익 2배 백필) 포함 전건 수정 + 회귀 테스트)
-- [x] BL: **BL-438 부분 Resolved** · **BL-442 Resolved** · 신규 **BL-443~451**
+- [x] **안전** — `_assert_disposable_database`(파괴적 마이그레이션 테스트가 `_test` 아닌 DB 향하면 `RuntimeError`) + 스키마 열거 센티널 9→**10**
+- [x] **S6 범위 축소 (머지 전)** — 과거 90일 catch-up 기계장치 제거(워터마크 테이블·창 전진·잘림 처리). **실측 = 그 기계장치는 ~13주기(65분) 후 영구 자기정지하는 일회성 catch-up 이었다** → 정상 상태 동작은 축소 전후 동일, 실제 소멸분은 일회성 역사 수입 하나. 원장은 **최근 7일만** → BL-452. 잘림은 발생 지점 로그(계정 식별자)로 대체
+- [x] 게이트: BE **2706** / FE **1094**(미변경) / ruff·mypy·tsc·lint 0 / alembic 왕복 + head `20260725_0002` / 마이그레이션 신규 테이블 **1개**
+- [x] 검증: codex G0 **REJECT**(전건 대조 후 절반 수용, "계정 단위 열거 불가" 는 **실측 반박**) → Explore 3-리더(핸드오프 좌표 **3건 반박**) → **Plan 압박검증이 내 설계 결함 적발**(원장 min 파생 워터마크가 빈 창에서 영구 정지 → 실측 시각 시뮬레이션으로 반증·재검증) → 사용자 인터뷰 **10건** → codex 4워커 ↔ **Claude 적대평가 4기**(BLOCKING 4 + MAJOR 4, **내가 넣은 회귀 1건**(`row_hash` 가 `None`/`""` 를 다르게 봐 손익 2배 백필) 포함 전건 수정 + 회귀 테스트) → 최종 codex 누적 diff **DO-NOT-SHIP 2**
+- [x] **축소 후 최종 codex 재실행 = P1 1건 추가** — `fetch_closed_pnl_window` 커서가 `oldest_ms - 1` 이라 **같은 createdTime 을 공유하는 분할 행**(구분은 updatedTime)이 페이지 상한을 넘으면 조용히 누락되고 부분합이 `realized_pnl` 로 영구 고정. 경계 포함(`until = oldest_ms`)으로 수정 + 중복은 원장 UNIQUE 흡수 + 회귀 테스트(구 커서로 red 실증)
+- [x] BL: **BL-438 부분 Resolved**(관측 원장 **최근 7일**) · **BL-442 Resolved** · 신규 **BL-443~452**
 
 ### Blocked
 

@@ -116,8 +116,56 @@ async def test_closed_pnl_window_cursor_uses_created_time_axis(
     )
 
     second_until = exchange.fetch_positions_history.await_args_list[1].kwargs["params"]["until"]
-    # updatedTime(end_ms+100_000) 이 아니라 createdTime 최솟값 직전이어야 한다.
-    assert second_until == start_ms + 2_000 - 1
+    # updatedTime(end_ms+100_000) 이 아니라 createdTime 최솟값 기준이어야 한다.
+    # 경계는 포함이다 — oldest-1 로 내리면 같은 밀리초의 tie 행이 영구 누락된다.
+    assert second_until == start_ms + 2_000
+
+
+async def test_window_does_not_skip_rows_sharing_the_oldest_created_time(
+    monkeypatch: pytest.MonkeyPatch, credentials: Credentials
+) -> None:
+    """페이지 상한을 넘는 동일 createdTime 행이 커서 경계에서 사라지면 안 된다.
+
+    한 청산 주문의 분할 행은 createdTime 을 공유할 수 있다(구분은 updatedTime). 커서를
+    oldest-1 로 내리면 그 밀리초의 나머지 행을 다시 조회할 방법이 없고, 다음 페이지가
+    비면 잘림 신호조차 없어 **조용히** 누락된다. 그 행이 우리 주문의 분할이면
+    aggregate_closed_pnl 이 부분합을 돌려주고 틀린 realized_pnl 이 CAS 로 고정된다.
+    """
+    start_ms = 10_000_000_000
+    end_ms = start_ms + SEVEN_DAYS_MS
+    tie_ms = start_ms + 5_000
+
+    def _row(order_id: str, created_ms: int, updated_ms: int) -> dict[str, object]:
+        return {
+            "info": {
+                "orderId": order_id,
+                "closedPnl": "-0.01",
+                "closedSize": "0.001",
+                "avgExitPrice": "64000",
+                "symbol": "BTCUSDT",
+                "side": "Sell",
+                "createdTime": str(created_ms),
+                "updatedTime": str(updated_ms),
+            }
+        }
+
+    # limit=2 를 꽉 채운 첫 페이지의 두 행이 같은 createdTime 을 갖는다.
+    # 같은 밀리초에 세 번째 분할 행이 더 있다.
+    first_page = [_row("split-a", tie_ms, tie_ms + 10), _row("split-b", tie_ms, tie_ms + 20)]
+    exchange = MagicMock()
+    exchange.fetch_positions_history = AsyncMock(
+        side_effect=[first_page, [_row("split-c", tie_ms, tie_ms + 30)]]
+    )
+    exchange.close = AsyncMock()
+    _patch_exchange(monkeypatch, exchange)
+
+    rows = await BybitFuturesProvider().fetch_closed_pnl_window(
+        credentials, None, start_ms=start_ms, end_ms=end_ms, limit=2
+    )
+
+    second_until = exchange.fetch_positions_history.await_args_list[1].kwargs["params"]["until"]
+    assert second_until == tie_ms, "경계를 배제하면 같은 밀리초의 남은 행을 못 읽는다"
+    assert "split-c" in [row.order_id for row in rows], "동일 createdTime tie 행이 누락됐다"
 
 
 def test_malformed_existing_field_skips_the_row_instead_of_silently_nulling_it() -> None:

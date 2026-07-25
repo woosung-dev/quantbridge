@@ -2,7 +2,9 @@
 
 # exit-attribution context-notes
 
-> money-path-accuracy(#475) 후속. BL-438 부분. **마이그레이션 1건**(신규 테이블 2개).
+> money-path-accuracy(#475) 후속. BL-438 부분. **마이그레이션 1건**(신규 테이블 **1개**).
+>
+> **★#1~#8 은 축소 전 기록이다**(append-only — 지우지 않는다). 머지 전 범위 축소로 과거 전진 기계장치를 걷어낸 경위·실측·추가 발견은 **#9** 를 읽어라. #8 의 게이트 수치도 #9.6 이 대체한다.
 
 ## #1. §0.5 측정 스파이크가 핸드오프 전제를 뒤집었다
 
@@ -104,6 +106,56 @@ W1b 적대 평가자에게 alembic 왕복 실측을 지시하며 `export DATABAS
 - **★`postgresql.JSONB(none_as_null=True)`** — 지정하지 않으면 Python `None` 이 SQL NULL 이 아니라 JSONB `'null'` 로 저장돼 `IS NULL` 술어가 무력해진다(`Order.webhook_payload` 실측 15/17행).
 - **★alembic 마이그레이션을 적용 후에 수정하면 downgrade 가 깨진다.** 이미 적용된 환경에서 나중에 추가한 테이블을 drop 하려다 실패한다 — `DROP TABLE IF EXISTS` 로 쓴다.
 
-## #8. 게이트
+## #8. 게이트 (축소 전 — 현재 수치는 #9.6)
 
 BE **2710 passed / 46 skipped / 0 failed**(baseline 2653, +57) · ruff·mypy clean · FE **1094 passed**(baseline 1088, +6) · tsc·lint clean · alembic 왕복 + head `20260725_0002` · 마이그레이션 **1**(신규 테이블 2개).
+
+---
+
+## #9. ★범위 축소 — 사용자가 옳았다 (2026-07-25, 같은 브랜치·머지 전)
+
+#1 의 측정이 전제를 뒤집었는데 **뒤집힌 결과를 스코프에 충분히 반영하지 못했다.** 브래킷 체결 0건 · 거래소 전용 4행 중 우리 것 1건뿐 · 나머지는 이전 세션 dogfood 오라클이 만든 앱 밖 거래였는데도, 과거 90일을 훑는 기계장치(워터마크 테이블 · 창 전진 · 잘림 처리)를 만들었다. 그걸 만든 직접적 이유였던 "20일 전 미동기화 4건 회수" 는 #6 의 DB 전소로 사라졌다.
+
+**사용자 판정 = 줄인다.** 원장 + 최근 7일 창만 남긴다.
+
+### #9.1 실측 반전 — 과거 전진은 애초에 "일회성" 이었다
+
+축소를 "커버리지 90일 → 7일 축소" 로 이해하고 있었는데, 코드를 다시 재면 그게 아니었다.
+
+`_closed_pnl_windows` 의 `horizon_ms` 는 **매 주기 `now` 에서 재계산**되고 `backfilled_from` 은 **과거로만** 전진한다. beat 주기는 300초(`celery_app.py:138`)이므로 워터마크는 주기당 7일 후퇴하고 horizon 은 5분 전진한다. **~13주기(약 65분) 후 `end_ms <= horizon_ms` 가 영구 latch** 되고, 워터마크가 DB 영속이라 프로세스 재시작으로도 풀리지 않는다.
+
+→ **정상 상태에서 축소 전후 동작은 동일하다.** 없어지는 것은 일회성 90일 역사 수입 하나다. 그래서 BL-452 제목도 "90일 커버리지 복원" 이 아니라 **"일회성 과거 catch-up 재도입"** 으로 적었다 — 다음 세션이 상시 기제를 재설계하지 않도록.
+
+### #9.2 축소가 드러낸 결함 2건 (함께 고침)
+
+- **★커밋 누락을 탐지할 테스트가 없었다.** 제거 대상 블록이 `upsert_rows` 와 `await session.commit()` **사이**에 있어 커밋을 함께 지우기 쉬운데, 페이크 세션이 `session.commit = AsyncMock()` 이고 아무도 assert 하지 않아(파일 전체에서 `commit` 문자열 1회) **어떤 테스트도 실패하지 않았다.** 커밋이 없으면 `summary["inserted"]` 는 N 을 보고하는데 알림·백필은 새 세션으로 되읽어 빈 원장을 본다 = 조용한 무동작. → 페이크를 **트랜잭션처럼** 만들었다(upsert 는 staging, commit 이 원장으로 이동). 커밋을 지우면 **3건이 red** 가 되는 것을 실증했다(이전엔 0건).
+- **★마이그레이션 downgrade 가 깨질 뻔했다.** 워터마크 `create_table` 을 지우면서 downgrade 의 `DROP TABLE IF EXISTS` 도 함께 지우는 것이 자연스러워 보이지만, 그러면 **수정 전 리비전을 이미 적용한 DB**(내 로컬 dev·`quantbridge_test`)에서 테이블이 살아남아 `downgrade base` 가 `20260416_2206` 의 평문 `drop_table('exchange_accounts')` 에서 의존 FK 로 거부된다. 안전망 `DROP SCHEMA ... CASCADE` 는 그 뒤 줄이라 도달하지 못한다. `test_alembic_roundtrip` 이 `test_migrations.py` 의 **첫 테스트**여서 파일 전체가 연쇄 실패하고 재실행으로도 안 낫는다. → **drop 줄을 의도적으로 남기고 왜 남기는지 주석**을 붙였다. `quantbridge_test` 의 stale 테이블이 실제로 자기치유되는 것을 확인했다(10 테이블).
+
+### #9.3 절차 이탈 1건 (사용자 승인)
+
+핸드오프 §8 은 "개발 DB `alembic downgrade -1` → 파일 수정 → `upgrade head`" 를 지시했으나, `alembic/env.py:40` 이 `settings.database_url` 을 주입하므로 **수동 alembic 은 가드 없이 개발 DB 를 향한다** — #6 사고와 같은 형태의 명령이고, 개발 DB 는 사용자가 거래소 계정을 재등록할 곳이다. 사용자 승인으로 **개발 DB 는 `DROP TABLE trading.exchange_exit_sync_state` 한 줄**(alembic_version 은 `20260725_0002` 유지 → 수정된 `upgrade()` 산출 스키마와 비트 동일)로 처리하고, 마이그레이션 검증은 가드가 걸리는 `quantbridge_test` 의 `test_migrations.py` 에 맡겼다. 드롭 전 실측 = sync_state 0행 · 원장 0행 · 계정 0 · 주문 0(전소 확인).
+
+### #9.4 다른 판단 3건
+
+- **`created_at_bounds` 제거** — 이 브랜치가 만든 자기 고아(프로덕션 호출자 0)이고 docstring 이 **기각된 min-파생 설계**를 문서화하고 있었다. 남기면 다음 세션이 오독한다. 실 DB 통합 테스트 7건 → 5건.
+- **`summary["windows"]` 제거** — 계정당 창이 항상 1이면 "commit 에 도달한 계정 수" 의 중복이고 이름이 오독을 부른다. 프로덕션 소비자 0.
+- **`list_unsynced_reduce_only` 의 `ASC LIMIT 500` 은 등재만**(사용자 확정). 7일 밖 청산은 원장에 못 들어와 영구 좀비가 되고 ASC 라 앞줄을 차지하지만, #9.1 대로 축소 전에도 위험이 동일했고 1인 로컬 앱에서 좀비 500건은 멀다. → BL-452.
+
+### #9.3.5 ★최종 codex 누적 diff 가 또 P1 을 잡았다 (이 단계 생략 금지의 3번째 근거)
+
+축소가 본론이었는데, 누적 diff 리뷰가 **축소와 무관한 머니-패스 P1** 을 하나 더 찾았다. 전건 코드 대조로 확인했다.
+
+**동일 `createdTime` tie 행이 페이지 경계에서 조용히 사라진다.** `fetch_closed_pnl_window` 의 커서가 `until = oldest_ms - 1` 이었다. 한 청산 주문의 분할 행은 **createdTime 을 공유**할 수 있고(구분은 `updatedTime` — 그래서 `row_hash` 가 둘 다 넣는다), 같은 밀리초의 행이 페이지 상한(100)을 넘으면 커서가 그 밀리초 **아래로** 내려가 남은 tie 행을 다시 조회할 방법이 없어진다. 게다가 다음 페이지가 짧으면 `truncated = False` 로 **완전 조회라고 보고**한다 — 500행 상한에 걸리지도 않았는데 잘림 신호조차 없다. 누락 행이 우리 주문의 분할이면 `aggregate_closed_pnl` 이 부분합을 돌려주고 **틀린 `realized_pnl` 이 CAS 로 영구 고정**된다. 기존 커서 테스트는 서로 다른 createdTime 만 써서 이 경우를 통과시켰다.
+
+**수정 = 경계를 포함해 다시 읽는다**(`until = oldest_ms`). Bybit 은 tie-breaker 커서를 주지 않으므로 이게 유일한 무손실 방법이고, 겹쳐 읽힌 중복은 **원장 `UNIQUE(exchange_account_id, row_hash)` 가 흡수**하므로 이중 합산이 없다(스윕의 `new_hash_set.remove()` 도 중복 행을 두 번 계상하지 않게 이미 설계돼 있었다). 꽉 찬 페이지에서 커서가 더 못 가면 이제 **완전 조회를 주장하지 않는다** — 완전 조회의 유일한 증거는 상한 미만 페이지다. 회귀 테스트를 붙이고 **구 커서로 되돌리면 red 가 되는 것을 실증**했다.
+
+**같은 패턴이 `fetch_closed_order_meta`(`providers.py:1410`)에도 있으나 고치지 않았다** — 분류 라벨 전용이고 `setdefault` 라 재조회가 멱등하다. tie 누락의 결과는 일부 행이 `unknown` 으로 분류되는 것뿐이며 머니-패스에 들어가지 않는다. BL-452 에 적었다.
+
+### #9.5 신규 함정
+
+- **★caplog 은 전체 스위트에서 격리가 깨진다.** 잘림 경고 검증을 `caplog` 로 썼더니 **파일 단독 실행은 통과(608 passed)하는데 전체 스위트에서 `caplog.records` 가 비어 실패**했다. `propagate=False` 를 세팅하는 코드는 레포에 없어 원인 모듈은 특정하지 못했다. 이 레포의 기존 교훈대로 **logger mock**(`monkeypatch.setattr(providers_mod.logger, "warning", mock)`)으로 전환해 전역 logging 상태 의존을 제거했다. 발화 지점을 직접 관찰하므로 순서 의존이 없다.
+- ruff `RUF003` — 주석의 `×`(MULTIPLICATION SIGN)가 걸린다. `*` 로 쓴다.
+
+### #9.6 축소 후 게이트
+
+BE **2706 passed / 46 skipped / 0 failed**(축소 전 2710). 감소분의 내역 = 워터마크·창 전진 테스트 **6건 삭제**(`_closed_pnl_windows` 2 · 과거 창 재시도 1 · 잘린 창 경계 1 · `backfilled_from` 단조성 1 · `created_at_bounds` 1) + **2건 신설**(계정당 창이 정확히 1개이고 `[now−7d, now]` 인지 · #9.3.5 의 createdTime tie 누락 회귀). 회귀가 아니다. ruff·mypy clean · alembic base→head 왕복 + 스키마 10 테이블 센티널 green · 마이그레이션 **1**(신규 테이블 **1개**) · **FE 미변경**(1094 불변).

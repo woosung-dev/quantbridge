@@ -286,7 +286,6 @@ async def test_fetch_closed_pnl_page_walks_back_until_page_not_full(monkeypatch)
 
     assert [row.order_id for row in rows] == ["a0", "a1", "a2", "target"]
     assert exchange.fetch_positions_history.await_count == 2
-    # 2번째 호출의 until 은 1번째 페이지의 가장 오래된 행 '직전' — 겹침 없음 = 이중 합산 없음.
-    assert exchange.fetch_positions_history.await_args_list[1].kwargs["params"]["until"] == (
-        base_ms - 1
-    )
+    # 2번째 호출의 until 은 1번째 페이지의 가장 오래된 행을 '포함'한다 — 같은 밀리초에
+    # 남은 분할 행을 건너뛰지 않기 위해서다. 겹쳐 읽힌 행은 원장 UNIQUE 가 흡수한다.
+    assert exchange.fetch_positions_history.await_args_list[1].kwargs["params"]["until"] == base_ms
