@@ -35,7 +35,9 @@
 
 브래킷 TP 가 체결되면 — WS `order` 고아 이벤트는 5초 버퍼 후 폐기(`state_handler.py:97-102`, `logger.debug` 만, 알림 없음) · `execution` 토픽 미구독 · reconciler 는 local→exchange 단방향이라 INSERT 없음 · Order INSERT 지점은 `OrderService.execute` 2곳뿐. 그 다음 바에서 pine 이 **같은 청산을 스스로 추측**해 이미 flat 인 포지션에 reduce-only close 를 쏘고 → `ProviderError` → `state=rejected` → 모든 손익 쿼리가 `state==filled` 로 걸러낸다. **브래킷 익절 손익이 통째로 유실 중이다.**
 
-사용자 확정 = 후속 BL 등재만. 단 스윕이 closed-pnl 페이지를 어차피 읽으므로 매칭 안 되는 행을 `orphan_row` 로 **계상만** 해서 다음 스프린트가 구멍 크기를 수치로 갖고 시작하게 했다.
+사용자 확정 = 후속 BL 등재만. 단 스윕이 closed-pnl 페이지를 어차피 읽으므로 매칭 안 되는 행을 `orphan_row` 로 **계상만** 하게 했다.
+
+★**자체 정정(마감 직전 발견).** 이 카운터는 구멍 크기를 **측정하지 못한다.** 스윕 후보가 `list_unsynced_reduce_only_since()` = _우리_ 미동기화 주문이라, 백필이 정상 동작하는 steady state 에선 후보가 0 → 페이지를 아예 안 가져와 orphan 이 영영 0 이다(dogfood 에서 `groups=0` 실측). 하한선으로만 유효하며, 실측하려면 활성 계정·심볼을 독립 열거하는 조회가 선행돼야 한다. BL-438 의 첫 step 을 그 측정 스파이크로 잡았다.
 
 ### 3.2 마커 컬럼 없이는 스윕이 종료 조건을 못 갖는다 (마이그레이션 0 → 1)
 

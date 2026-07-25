@@ -8,7 +8,7 @@
 
 ### C-PNL-SOURCE — `Order.realized_pnl` 의 의미가 바뀐다 (breaking, 내부 소비 5곳)
 
-- **이전:** 항상 pine_v2 시뮬레이션 값. close 주문 _생성 시점_(state=`pending`)에 기록. `(sim_exit − sim_entry) × 진입 전량 × sign`, 수수료 0(`strategy_state.py:551-552`), 바 종가 기준, 실제 체결가·체결수량 무시. 체결 후 보정 없음.
+- **이전:** 항상 pine*v2 시뮬레이션 값. close 주문 *생성 시점\_(state=`pending`)에 기록. `(sim_exit − sim_entry) × 진입 전량 × sign`, 수수료 0(`strategy_state.py:551-552`), 바 종가 기준, 실제 체결가·체결수량 무시. 체결 후 보정 없음.
 - **이후:** reduce-only 주문이 `filled` 에 도달하면 Bybit `/v5/position/closed-pnl` 의 `closedPnl`(**수수료 포함 net**)로 덮어쓴다. 실측 검증 = `closedPnl == gross − (openFee + closeFee)` 정확 성립.
 - **신규 컬럼 `Order.realized_pnl_synced_at`**(`TIMESTAMPTZ NULL`, 마이그레이션 `20260725_0001`). **NULL = pine_v2 추정값 / 값 있음 = 거래소 확정.** 백필 없음 — 기존 행은 전부 NULL(정직).
 - 영향받는 소비처 5곳이 전부 자동으로 거래소 진실을 본다 — `kill_switch.py:97`(cumulative_loss) · `kill_switch.py:150`(daily_loss) · `order_repository.py:84`→`router.py:483-501`(세션 에쿼티 커브) · `order_repository.py:98`→`tasks/alert_rules.py:62`(loss-limit 알림) · `order_repository.py:262`→`tasks/dogfood_report.py`(일일 보고).
@@ -37,7 +37,7 @@
 - `trading.sweep_closed_pnl`, 5분 주기(`options.expires: 240`), 기본 `celery` 큐(라우팅 불요).
 - 대상 = `list_unsynced_reduce_only_since(now − 24h)` — `state == filled` **필수**(`filled_at` 은 rejected/cancelled 도 쓰는 오버로드 컬럼) + `reduce_only` + `exchange_order_id IS NOT NULL` + `realized_pnl_synced_at IS NULL`.
 - `(exchange_account_id, symbol)` 그룹당 provider **1콜**(ORDER BY 로 groupby 연속성 보장). 그룹 실패는 격리 — 나머지 그룹을 중단시키지 않는다.
-- **orphan 카운터** — 페이지 안에서 우리 Order 와 매칭 안 되는 closedPnl 행 = `outcome="orphan_row"`. **계상·알림·행 생성 없음, 수치만.** 이 값이 곧 "거래소 네이티브 TP/SL 청산 손익 미계상" 구멍의 실측 크기다(후속 BL).
+- **orphan 카운터** — 페이지 안에서 우리 Order 와 매칭 안 되는 closedPnl 행 = `outcome="orphan_row"`. **계상·알림·행 생성 없음, 수치만.** ★단 이 카운터는 **구멍 크기의 하한선일 뿐이다** — 스윕 후보가 _우리_ 미동기화 주문이라, 백필이 정상이면 후보 0 → 페이지 미조회 → orphan 도 0 으로 읽힌다. 실측하려면 활성 계정·심볼 독립 열거가 필요하다(BL-438 첫 step).
 
 ### C-FILLED-QTY — 죽은 컬럼 소생 (4 경로 + 관측성 + API)
 

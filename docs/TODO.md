@@ -5,7 +5,7 @@
 > **Active Branch:** `stage/money-path-accuracy` (main @ `3a91713` 베이스)
 > **Sprint type:** 머니-패스 정확도 (마이그레이션 **1**) — codex G0 REJECT→§7.3 전건 코드 대조 후 절반 수용/절반 실측 반박 + Explore 3-리더 grounding + Plan 압박검증(설계 결함 R1) + 사용자 인터뷰 11건 + codex 3-pass 워커(be 2 / fe 1) ↔ Claude 적대평가 per-worker(게이트 직접 실행, **프로덕션 파손 2건 발견**) + 최종 codex 누적 diff(**DO-NOT-SHIP 2 BLOCKING**) + 실자금 데이터 dogfood
 > **office-hours 진행:** N
-> **Next Trigger:** money-path-accuracy 머지 후 → **BL-438**(거래소 네이티브 TP/SL 청산 손익 미계상, P1 — 스윕 orphan 카운터가 규모 제공) 또는 다음 deepen = tasks 도메인. // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+> **Next Trigger:** money-path-accuracy 머지 후 → **BL-438**(거래소 네이티브 TP/SL 청산 손익 미계상, P1) 또는 다음 deepen = tasks 도메인. // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
 
 ## ⚡ money-path-accuracy 스프린트 (2026-07-25, `docs/money-path-accuracy/`)
 
@@ -32,7 +32,7 @@
 ### Next Actions
 
 - [ ] stage/money-path-accuracy → main PR 사용자 squash
-- [ ] (후속·P1) **BL-438** 거래소 네이티브 TP/SL 청산 손익 미계상 — 브래킷 익절 손익이 리스크 게이트에 안 잡힌다. 스윕 `orphan_row` 카운터가 규모 제공
+- [ ] (후속·P1) **BL-438** 거래소 네이티브 TP/SL 청산 손익 미계상 — 브래킷 익절 손익이 리스크 게이트에 안 잡힌다. ★첫 step = 구멍 규모 측정 스파이크(현 `orphan_row` 는 스윕 후보가 우리 미동기화 주문이라 steady state 에서 0 으로 읽히는 하한선)
 - [ ] (이월) 다음 deepen = tasks 도메인
 - [ ] ★환경 함정: codex 샌드박스가 localhost:5436 을 막아 워커는 DB 테스트를 못 돌린다 — **전체 스위트는 평가자가 직접** 돌릴 것
 
