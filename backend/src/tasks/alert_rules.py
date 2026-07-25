@@ -17,7 +17,7 @@ from src.trading.encryption import EncryptionService
 from src.trading.providers import BybitFuturesProvider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
-from src.trading.repositories.order_repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository, SessionScope
 from src.trading.services.account_service import ExchangeAccountService
 
 logger = logging.getLogger(__name__)
@@ -59,8 +59,10 @@ async def _async_evaluate_loss_rules() -> dict[str, int]:
             evaluated = fired = 0
             for rule, live_session in await rule_repo.list_active_loss_rules_with_sessions():
                 evaluated += 1
-                total_pnl = await order_repo.sum_filled_realized_pnl_for_live_session(
-                    live_session.id
+                # BL-444 — 예전에는 `live_signal_events` 조인이라 이벤트를 남기지 않는
+                # 수동 청산·TV 웹훅 주문의 손실을 구조적으로 못 봤다.
+                total_pnl = await order_repo.sum_filled_realized_pnl_for_session(
+                    SessionScope.from_live_session(live_session)
                 )
                 if total_pnl >= Decimal("0"):
                     continue
@@ -88,7 +90,8 @@ async def _async_evaluate_loss_rules() -> dict[str, int]:
                     title="Live session loss limit reached",
                     message=(
                         f"Loss {loss_percent}% reached the {threshold}% threshold. "
-                        "Scope: orders attributed to this live session."
+                        "Scope: filled orders on this session's strategy, account and "
+                        "symbol, filled within the session window."
                     ),
                     context={
                         "rule_id": str(rule.id)[:8],
@@ -96,7 +99,9 @@ async def _async_evaluate_loss_rules() -> dict[str, int]:
                         "total_realized_pnl": str(total_pnl),
                         "loss_percent": str(loss_percent),
                         "threshold_percent": str(threshold),
-                        "scope": "orders attributed to this live session",
+                        "scope": (
+                            "session strategy+account+symbol, filled_at within session window"
+                        ),
                     },
                 ):
                     fired += 1

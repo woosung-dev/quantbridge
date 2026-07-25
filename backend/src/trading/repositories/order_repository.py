@@ -4,14 +4,70 @@ from __future__ import annotations
 
 import datetime as _dt_module
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import ExchangeAccount, LiveSignalEvent, Order, OrderState
+from src.trading.models import ExchangeAccount, LiveSignalSession, Order, OrderState
+
+
+@dataclass(frozen=True, slots=True)
+class SessionScope:
+    """한 라이브 세션이 소유하는 주문의 범위. 생성 경로는 `from_live_session` 하나뿐이다.
+
+    왜 값 객체인가 — BL-444(loss-limit 알림)와 BL-445(세션 에쿼티 커브)는 서로 다른
+    두 버그가 아니라 **같은 스코프 버그가 두 군데 있는 것**이었다. 두 소비처가 각자
+    술어를 조립하면 그 병이 그대로 재생산되므로, 스코프 정의를 이 타입 하나로 막고
+    `_session_scope_where` 한 곳에서만 SQL 로 번역한다.
+
+    수용한 트레이드오프 2 종 — 되돌리기 전에 `docs/exit-money-path/` 를 읽을 것.
+
+    - `symbol` 은 **정확 문자열 동등**이다. 세션 등록(`RegisterLiveSessionRequest`)도
+      TV 웹훅(`parse_tv_payload`)도 심볼을 정규화하지 않으므로, 표기가 다른 웹훅
+      주문은 스코프에서 조용히 빠진다. dispatch 와 수동 청산은 세션 심볼을 그대로
+      복사하므로 구조적으로 항상 일치한다.
+    - 창은 `filled_at` 기준 반열림 `[started_at, ended_at)` 이다. 세션 종료 뒤에
+      체결된 주문(늦은 체결)은 인접 세션이 있으면 그쪽으로, 없으면 어디에도 안
+      잡힌다. `filled_at` 은 거래소 체결시각이 아니라 우리 관측시각이다.
+    """
+
+    strategy_id: UUID
+    exchange_account_id: UUID
+    symbol: str
+    started_at: datetime
+    ended_at: datetime | None
+
+    @classmethod
+    def from_live_session(cls, session: LiveSignalSession) -> SessionScope:
+        """세션 행에서 스코프를 뽑는다. 호출부가 필드를 임의 조합하지 못하게 막는 유일 입구."""
+        return cls(
+            strategy_id=session.strategy_id,
+            exchange_account_id=session.exchange_account_id,
+            symbol=session.symbol,
+            started_at=session.created_at,
+            ended_at=session.deactivated_at,
+        )
+
+
+def _session_scope_where(scope: SessionScope) -> list[Any]:
+    """세션 스코프를 SQL 술어로 번역하는 **유일한** 자리."""
+    predicates: list[Any] = [
+        Order.strategy_id == scope.strategy_id,
+        Order.exchange_account_id == scope.exchange_account_id,
+        Order.symbol == scope.symbol,
+        Order.state == OrderState.filled,
+        Order.filled_at.is_not(None),  # type: ignore[union-attr]
+        Order.filled_at >= scope.started_at,  # type: ignore[operator]
+    ]
+    # 활성 세션은 `deactivated_at IS NULL` 이라 상한이 없다.
+    if scope.ended_at is not None:
+        predicates.append(Order.filled_at < scope.ended_at)  # type: ignore[operator]
+    return predicates
 
 
 class OrderRepository:
@@ -68,36 +124,32 @@ class OrderRepository:
             stmt = stmt.where(Order.state.in_(states))  # type: ignore[attr-defined]
         return (await self.session.execute(stmt)).scalars().all(), total
 
-    async def list_filled_realized_by_strategy_and_account(
-        self, strategy_id: UUID, exchange_account_id: UUID
-    ) -> Sequence[Order]:
-        """실제 체결(state=filled) + realized_pnl 보유 주문만 filled_at ASC.
+    async def list_filled_realized_for_session(self, scope: SessionScope) -> Sequence[Order]:
+        """세션 스코프 안의 체결 + realized_pnl 보유 주문만 filled_at ASC.
 
         live-session 대시보드의 "실현 손익" 이 Pine 시뮬레이션 재생이 아니라
         실제 거래소 체결 결과를 반영하도록 하는 조회 (2026-07-01 dogfood 발견).
+        BL-445 — 예전에는 `(strategy, account)` 튜플만 봐서 같은 튜플 위의 비활성
+        세션들이 하나의 커브를 공유했다. 이제 세션 창과 심볼이 함께 걸린다.
         """
         stmt = (
             select(Order)
-            .where(Order.strategy_id == strategy_id)  # type: ignore[arg-type]
-            .where(Order.exchange_account_id == exchange_account_id)  # type: ignore[arg-type]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(*_session_scope_where(scope))
             .where(Order.realized_pnl.is_not(None))  # type: ignore[union-attr]
-            .where(Order.filled_at.is_not(None))  # type: ignore[union-attr]
             .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
         )
         return (await self.session.execute(stmt)).scalars().all()
 
-    async def sum_filled_realized_pnl_for_live_session(self, session_id: UUID) -> Decimal:
-        """LiveSignalEvent.order_id에 귀속된 체결 주문의 실현 손익 합계."""
-        event_order_ids = (
-            select(LiveSignalEvent.order_id)  # type: ignore[call-overload]
-            .where(LiveSignalEvent.session_id == session_id)
-            .where(LiveSignalEvent.order_id.is_not(None))  # type: ignore[union-attr]
-        )
-        stmt = (
-            select(func.coalesce(func.sum(Order.realized_pnl), 0))
-            .where(Order.id.in_(event_order_ids))  # type: ignore[attr-defined]
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+    async def sum_filled_realized_pnl_for_session(self, scope: SessionScope) -> Decimal:
+        """세션 스코프 안의 체결 주문 실현 손익 합계.
+
+        BL-444 — 예전에는 `live_signal_events.order_id` 서브셀렉트였다. 이벤트는
+        dispatch 경로에서만 생기므로 수동 청산(`ClosePositionService`)과 TV 웹훅
+        주문의 손익을 loss-limit 알림이 **구조적으로 못 봤다**. 스코프 기준으로
+        바꿔 세 쓰기 경로를 모두 덮는다.
+        """
+        stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
+            *_session_scope_where(scope)
         )
         return Decimal(str((await self.session.execute(stmt)).scalar_one() or 0))
 

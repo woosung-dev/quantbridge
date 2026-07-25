@@ -1694,9 +1694,11 @@ async def _sweep_closed_pnl_with_session(
             new_hash_set = set(new_hashes)
             for row in rows:
                 if row.row_hash in new_hash_set:
-                    qb_exchange_exit_rows_total.labels(
-                        classification=row.classification.value
-                    ).inc()
+                    # BL-453 — classification 은 StrEnum + 평문 String 컬럼이라 재조회된
+                    # 행에서는 plain str 로 온다. 여기 `rows` 는 아직 메모리 객체지만
+                    # `.value` 를 남겨두면 소스가 재조회 경로로 바뀌는 순간 조용히 죽는다.
+                    # `str()` 은 양쪽 모두 안전하다(StrEnum.__str__ 이 값 자체를 돌려준다).
+                    qb_exchange_exit_rows_total.labels(classification=str(row.classification)).inc()
                     new_hash_set.remove(row.row_hash)
 
             async with sm() as session:

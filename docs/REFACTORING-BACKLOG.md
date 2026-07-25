@@ -5,9 +5,18 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
+**최종 갱신:** 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **49 active BL** (trading-surface-pack 5 Resolved + 신규 3 → 51-5+3=49). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **81 active BL / 전체 115 항목** (2026-07-25 exit-money-path 기준). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+
+> ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 하게 남아 있었다. 산식 = `### BL-` 헤딩 수(전체) 대비 각 섹션 본문에 `Resolved` 가 등장하지 않는 항목 수(active). 부분 Resolved 는 active 로 세지 않는다(본문에 `Resolved` 문자열이 있으므로).
+>
+> ```bash
+> awk '/^### BL-/ { if (id) print id, res?"RESOLVED":"ACTIVE"; id=$2; res=0; next }
+>      /^## / && id { print id, res?"RESOLVED":"ACTIVE"; id=""; next }
+>      { if (id && /Resolved/) res=1 }
+>      END { if (id) print id, res?"RESOLVED":"ACTIVE" }' docs/REFACTORING-BACKLOG.md | sort | uniq -c -f1
+> ```
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
 
@@ -1783,6 +1792,20 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 **잔여 = ② 거래소 exit 의 머니-패스 계상 + 과거 이력 적재·백필** — 다음 스프린트가 이 원장 데이터를 근거로 결정한다. 관련 신규 = [BL-444](#bl-444)(loss-limit 알림 스코프) · [BL-446](#bl-446)(cumulative_loss 시간축) · [BL-452](#bl-452)(원장 7일 한계) · [BL-453](#bl-453)(StrEnum 재조회 크래시 패턴).
 
+**★② 재평가 (2026-07-25, exit-money-path §0.5) — "미룬 것" 이 아니라 "현재 데이터로는 정직하게 구현 불가" 다.** 실측이 결론을 강제했다.
+
+```
+bracket_tp / bracket_sl / trailing / liquidation = 0 행
+matched_order_id IS NOT NULL = 0 · attributed_strategy_id IS NOT NULL = 0
+JOIN trading.orders ON exchange_order_id → 0 행
+```
+
+원장 행을 머니-패스에 넣으려면 행마다 "어느 세션의 자본이 움직였나" 에 답해야 하는데, 쓸 수 있는 등급은 `exact`(존재 행 0)와 `inferred`(머니-패스 투입 금지)뿐이고 남는 것은 `none` = **귀속 불가**다. 오귀속은 곧 오차단이라 되돌릴 수 없다.
+
+**정직하게 만들 수 있는 유일한 산출물은 귀속 없는 계정 단위 숫자**이고, 그건 Site 2(`DailyLossEvaluator`)의 스코프다. 즉 ② 는 "세션 귀속" 이 아니라 **"거래소 exit 를 포함한 계정 단위 실현손익"** 이라는 별개 설계(원장 직접 조회 + 새 집계 메서드 + Site 2 의 새 가산항)이며 스프린트 하나짜리다. exit-money-path 는 이 결론만 기록하고 착수하지 않았다.
+
+부수 발견 = [BL-457](#bl-457)(`classify_exit` 의 format-only `ours`).
+
 ---
 
 ### BL-439
@@ -1877,6 +1900,16 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 **Risk:** 🔴 (세션 손실한도 알림이 실제 정산 손실을 못 본다)
 
+**상태:** ✅ **Resolved (2026-07-25, `stage/exit-money-path`).** 읽기 스코프만 교체하는 안 (a) 채택 — 신규 `SessionScope` 값 객체 + `_session_scope_where` 단일 술어로 [BL-445](#bl-445) 와 함께 해결. `sum_filled_realized_pnl_for_session(scope)` 로 개명하고 구 메서드는 삭제했다.
+
+**★안 (b)(`close_service` 가 이벤트를 남기게) 를 기각한 실측 근거** — `dispatch_pending_live_signal_events_task`(`tasks/live_signal.py:756`)가 beat 5분 주기로 `list_pending(limit=50)` 을 **세션 필터 없이 무조건 재발행**한다. `close_service` 가 pending 이벤트를 넣으면 이 beat 이 집어 **두 번째 reduce-only 시장가 청산**을 발주한다. 게다가 `OrderService.execute` 가 내부에서 commit 하므로 "주문 커밋 → 이벤트 커밋" 사이 원자성 구멍을 이번 범위에서 막을 수 없다. 비상 청산 버튼 위의 쓰기 경로라 리스크 등급이 다르다. 잔여 이득(FE 타임라인 가시성 · watchdog 팬아웃)은 [BL-455](#bl-455) 로 분리 등재.
+
+**★본문 실측 근거는 재현 불가.** "확정 3건은 이벤트 없음 / 이벤트 있는 4건은 pine 시뮬값" 은 로컬 DB 전소 이전 데이터다. 이 수정은 **코드 경로 논증**(`close_service.py:78` 의 `OrderRequest` 에 `realized_pnl` 필드 자체가 없고 `LiveSignalEvent` 도 만들지 않는다 — 코드로 확실)에 근거한다. 규모 실측 없이 진행한 것을 명시해 둔다.
+
+**★"보이느냐" 는 고쳤지만 "언제 보이느냐" 는 안 고쳤다.** 수동 청산은 삽입 시 `realized_pnl` 이 NULL 이라, 이 수정 후에도 `refresh_closed_pnl_task` → 스윕 백필이 도착하기 전까지는 여전히 0 으로 보인다.
+
+**검증** — `tests/tasks/test_alert_rules_scope_real_db.py` 실 DB 종단(임계 10% · 자본 100 에서 이벤트 있는 −5 만 세면 5.00% 로 **미발화**, 수동 청산 −7 을 포함해야 12.00% 로 발화 → 판별). `tests/trading/test_session_scope_money_path.py` 대조군.
+
 ---
 
 ### BL-445
@@ -1891,6 +1924,14 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **원인 / 영향:** `list_filled_realized_by_strategy_and_account`(`order_repository.py:71-88`) → `router.py:483-501` 은 세션에서 `(strategy_id, exchange_account_id)` 만 뽑아 그 튜플의 모든 filled 주문을 긁는다. 세션 창 필터가 없다. 활성 유일성 제약(`uq_live_sessions_active_unique`)은 `is_active=true` 부분 인덱스라 **비활성 세션은 무제한 누적**된다. 실측상 세션 4개 중 3개가 동일 튜플이었고, 이벤트가 0건인 세션이 다른 세션의 거래를 자기 커브로 렌더했다. 대시보드 §01 KPI 도 같은 경로다.
 
 **권장 접근:** 세션의 `created_at`~`deactivated_at` 창을 `filled_at` 에 적용한다. [BL-444](#bl-444) 와 같은 PR 로 묶는 것이 자연스럽다.
+
+**상태:** ✅ **Resolved (2026-07-25, `stage/exit-money-path`).** 권장안대로 `filled_at` 반열림 `[created_at, deactivated_at)` 을 적용하고, `list_filled_realized_for_session(scope)` 로 개명해 [BL-444](#bl-444) 와 **같은 술어**(`_session_scope_where`)를 공유하게 했다. 둘은 서로 다른 두 버그가 아니라 같은 스코프 버그가 두 군데 있던 것이라, 술어를 두 벌 두면 그 병이 재생산된다.
+
+**★권장안에 없던 `symbol` 술어를 추가했다.** `uq_live_sessions_active_unique` 가 `(user_id, strategy_id, exchange_account_id, symbol) WHERE is_active` 라 **심볼만 다른 활성 세션 2개가 합법**이고, 대시보드 §01 KPI(`dashboard-cockpit.tsx` → `useLiveSessionsAggregate`)는 활성 세션들의 `total_realized_pnl` 을 단순 합산한다 → 같은 손익을 두 번 더하고 있었다. 심볼 술어로 **FE 변경 없이** 닫혔다. 트레이드오프는 [BL-454](#bl-454) 참조.
+
+**★수용한 트레이드오프 — 늦은 체결.** 창을 `filled_at` 에 걸었으므로 세션 종료 뒤 체결된 주문은 인접 세션이 있으면 그쪽으로 귀속되고, 없으면 어디에도 안 잡힌다 → [BL-456](#bl-456). 또한 `Order.filled_at` 은 거래소 체결시각이 아니라 **우리 관측시각**("terminal_at")이라 창의 정밀도가 관측 지연만큼 흐리다(codex G0 지적).
+
+**검증** — `tests/trading/test_session_scope_money_path.py`(세 세션이 fix 전 `-1151.00001151` 로 동일했다가 fix 후 `-3.00000003`/`-28.00000028`/`-32.00000032` 로 서로소가 되는 것을 고정) + `tests/trading/test_router_live_session_state_real_pnl.py` 라우터 종단(인접 세션 2개가 서로 다른 커브).
 
 ---
 
@@ -2028,6 +2069,133 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **권장 접근:** (a) 최소 — 5개 필드 선언부에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만 사용" 주석을 통일해서 남긴다(현재 `interval` 필드에만 있음, 나머지 4개엔 없음) (b) 중간 — ruff 커스텀 규칙 또는 AST 기반 테스트(이 레포의 `test_no_module_level_loop_bound_state.py` 패턴 참고)로 이 5개 필드명에 대한 `.value`/`.name` 접근을 정적으로 금지 (c) 근본 — Sprint 26 워크어라운드가 아직 필요한지 재검토하고, 필요 없으면 `sa.Enum` 으로 되돌려 SQLAlchemy 가 재캐스팅을 대신하게 한다.
 
 **Risk:** 🟢 (현재 실제 발생한 크래시는 이미 수정됨. 이 항목은 재발 방지용 예방적 등재)
+
+**상태:** 🟡 **부분 Resolved — 권장안 (a) 까지 (2026-07-25, `stage/exit-money-path`).** `tasks/trading.py:1698` 의 마지막 `.value` 잔존(`qb_exchange_exit_rows_total` 라벨)을 `str(row.classification)` 로 바꿨다. 지금은 메모리 객체라 안전하지만, 소스가 재조회 경로로 바뀌는 리팩터 한 번이면 dogfood 때와 같은 크래시가 재현되는 자리였다(grep 결과 코드베이스에 남은 유일한 `.value`). 그리고 **감사 목록에서 빠져 있던 `ExchangeExit.attribution_confidence` 를 포함해 6개 필드 전부**에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만" 주석을 통일했다(`models.py:441 · 583 · 634 · 640 · 718 · 742`). 권장안 (b) 정적 가드와 (c) `sa.Enum` 복귀는 미착수.
+
+---
+
+### BL-454
+
+**Title:** 세션 등록·TV 웹훅 어느 쪽도 심볼을 정규화하지 않아 두 자유 문자열이 세션 스코프에서 어긋난다
+**Category:** Backend / trading (money path)
+**Priority:** P2
+**Trigger:** TV 웹훅을 실제로 쓰기 시작할 때 · 또는 세션 스코프가 조용히 빈 것을 관측할 때
+**Est:** S (2h, 마이그레이션 0 — **지금은**)
+**출처:** 2026-07-25 exit-money-path codex G0 [P1] → 전건 코드 대조
+
+**원인 / 영향:** `RegisterLiveSessionRequest.symbol` 은 `Field(min_length=1, max_length=32)` 뿐이라 형식 검증도 정규화도 없고(`schemas.py:183`), `live_session_service.py:118` 이 `req.symbol` 을 그대로 저장한다. TV 웹훅은 `webhook.py:89` 가 `str(payload["symbol"])` 원문을 싣는다. `normalize_symbol`(`market_data/constants.py:18`, `BTCUSDT` → `BTC/USDT`)이 존재하지만 **`src/trading/`·`src/tasks/` 어디서도 호출되지 않는다**(grep 0건). 즉 세션 심볼과 주문 심볼은 서로 독립된 자유 문자열 두 개다.
+
+[BL-445](#bl-445) 가 세션 스코프에 `symbol` 정확 문자열 동등을 넣었으므로, **표기가 어긋난 TV 웹훅 주문은 세션 손익에서 조용히 빠진다** = loss-limit 알림의 fail-open. dispatch(`tasks/live_signal.py:926`)와 수동 청산(`close_service.py:81`)은 세션 심볼을 그대로 복사하므로 구조적으로 항상 일치한다 — 노출은 웹훅 경로 하나로 한정된다.
+
+**권장 접근:** 두 ingress(`RegisterLiveSessionRequest` 검증 또는 `live_session_service`, 그리고 `parse_tv_payload`)에 `normalize_symbol` 을 적용한다. ★**지금 `trading.orders` 와 `trading.live_signal_sessions` 가 0행이라 데이터 백필 비용이 0 인 유일한 창이다.** 행이 쌓인 뒤에는 정규화 마이그레이션이 따라붙는다.
+
+**Risk:** 🟡 (세션 손익 과소 집계 → 손실 알림 지연. 노출 경로는 TV 웹훅 하나)
+
+---
+
+### BL-455
+
+**Title:** 수동 청산이 `LiveSignalEvent` 를 남기지 않아 FE 타임라인과 watchdog 팬아웃에서 빠진다
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** 수동 청산을 이벤트 타임라인에서 보고 싶을 때 · watchdog 규칙을 수동 청산에도 걸고 싶을 때
+**Est:** M (4-6h — 쓰기 경로 + 원자성 설계)
+**출처:** 2026-07-25 exit-money-path — [BL-444](#bl-444) 안 (b) 기각분 분리 등재
+
+**원인 / 영향:** `ClosePositionService.close_position`(`close_service.py:78-95`)은 Order 만 만들고 `LiveSignalEvent` 를 만들지 않는다. [BL-444](#bl-444) 의 손익 집계 결함은 읽기 스코프 교체로 닫혔으나, **이벤트 FK 에 의존하는 나머지 두 기능은 여전히 수동 청산을 못 본다** — ① FE §07 이벤트 타임라인 ② `LiveSignalSessionRepository.find_active_by_order_id` 기반 watchdog 규칙 팬아웃(`tasks/trading.py:549-585`). TradingView 웹훅 주문도 같다.
+
+**★착수 전 반드시 읽을 것 — 순진한 구현은 중복 청산을 발주한다.** `dispatch_pending_live_signal_events_task`(`tasks/live_signal.py:756`)가 beat 5분 주기로 `list_pending(limit=50)` 을 **세션 필터 없이 무조건 재발행**한다. `status=pending` 이벤트를 넣으면 beat 이 집어 두 번째 reduce-only 시장가 청산을 낸다. 수동 청산은 `idempotency_key=None`(`close_service.py:93`)이라 idempotency 방어도 없다. 또 `OrderService.execute` 가 내부에서 commit 하므로 "주문 커밋 → 이벤트 커밋" 사이 프로세스가 죽으면 이벤트 없는 주문이 남는다 — OrderService 의 커밋 경계를 재설계하지 않는 한 이 구멍은 못 막는다.
+
+**★UNIQUE 주의.** `uq_live_signal_events_idempotency(session_id, bar_time, sequence_no, action, trade_id)` 에 `on_conflict_do_nothing` 이 걸려 있다(`live_signal_event_repository.py:100`). `bar_time` 을 바 경계로 정렬하면 **진짜 Pine 시그널 INSERT 가 조용히 삼켜진다.** `trade_id = f"manual:{order_id}"` 처럼 그 필드 하나로 전역 유일성이 보장되는 형태여야 한다.
+
+**권장 접근:** 이벤트 테이블의 계약("엔진이 낸 실행 지시")을 오염시키지 않는 별도 표현(예: 이벤트에 출처 컬럼 추가, 또는 타임라인을 Order 기준으로 합성)을 먼저 검토한다. 이벤트를 직접 넣기로 한다면 `status` 를 pending 이 아닌 terminal 로 넣어 beat 재발행 경로를 원천 차단할 것.
+
+**Risk:** 🟡 (관측 결손. 잘못 구현하면 🔴 — 중복 청산 발주)
+
+---
+
+### BL-456
+
+**Title:** 세션 창이 `filled_at` 반열림이라 늦은 체결이 다음 세션으로 오귀속되거나 영구 미귀속된다
+**Category:** Backend / trading (money path)
+**Priority:** P3
+**Trigger:** 세션 종료 직후 체결이 실제로 관측될 때 — `filled_at − created_at` 간극이 세션 종료 지연보다 클 때
+**Est:** M (3-4h — 대안마다 다른 결함이 있어 설계가 핵심)
+**출처:** 2026-07-25 exit-money-path [BL-445](#bl-445) 가 **수용한** 트레이드오프
+
+**원인 / 영향:** `_session_scope_where`(`order_repository.py`)가 창을 `Order.filled_at` 에 `[created_at, deactivated_at)` 로 건다. 청산을 누르고(202, `state=pending`) 곧바로 세션을 끈 뒤 체결이 도착하면 그 주문은 자기를 만든 세션에서 빠진다. 인접 세션이 있으면 **그쪽으로 귀속**되고, 없으면 **어느 세션에도 안 잡힌다.** 후자의 경우 Site 3(loss-limit)·Site 4(커브·대시보드 KPI) 양쪽에서 사라진다.
+
+덧붙여 `Order.filled_at` 은 거래소 체결시각이 아니라 **우리 관측시각**("terminal_at")이라, 창의 정밀도가 관측 지연만큼 흐리다(codex G0 지적).
+
+**검토한 대안과 각각의 결함** — ① `created_at` 상한: 늦은 체결을 살리고 인접 세션 중복도 없지만, 인과("이 세션이 이 주문을 일으켰나")와 커브 x축(`filled_at`)의 기준이 갈린다 ② `filled_at + grace`: 임의 상수가 생기고 인접 세션과 창이 겹쳐 **같은 주문이 두 커브에 동시 등장**한다 ③ 현행 `filled_at` 반열림: 배타성은 완벽하나 늦은 체결을 흘린다.
+
+**권장 접근:** 실측이 선행돼야 한다 — dogfood 에서 `filled_at − created_at` 실제 간극을 재고, 그 간극이 세션 종료 지연보다 유의하게 큰지 확인한 뒤에야 대안을 고른다. 간극이 수백 ms 수준이면 현행 유지가 옳다.
+
+**Risk:** 🟡 (경계 케이스 손익 누락. 현행 계약은 테스트로 고정돼 있어 조용한 변경은 불가)
+
+---
+
+### BL-457
+
+**Title:** `classify_exit` 의 `ours` 는 실제 매칭이 아니라 orderLinkId 가 UUID 로 파싱되는지만 본다
+**Category:** Backend / trading (원장 라벨 정확도)
+**Priority:** P2
+**Trigger:** 즉시 (현재 진행형 오보고) — 그리고 `classification` 이 머니-패스 입력으로 승격되기 전 필수
+**Est:** S (1-2h)
+**출처:** 2026-07-25 exit-money-path §0.5 실측 + Explore 코드 대조
+
+**원인 / 영향:** `classify_exit`(`exit_attribution.py:33-69`)이 `ours` 를 돌려주는 경로는 둘이다 — ① `matched_order_id is not None`(진짜 매칭) ② `meta.order_link_id` 가 UUID 로 **파싱되기만** 하면(`_is_our_client_order_id` 는 맨 `UUID(s)` try/except 로 DB 조회가 없다). 후자가 형식-only 휴리스틱이다.
+
+**DB 실측 — `ours` 3행 전부 `matched_order_id IS NULL` + `attribution_confidence='none'`** 이다. 즉 지금 원장의 `ours` 라벨은 전부 형식만 보고 붙었다. 결과는 두 가지다. ① `_alert_new_exchange_exits`(`tasks/trading.py:1490`)가 `classification != ours` 로 거르므로 **UUID 모양 client id 를 단 외부 청산이 운영자 알림에서 조용히 빠진다** ② `qb_exchange_exit_rows_total{classification="ours"}` 가 과대 집계된다. 함수의 주석은 정확히 이 오분류를 피하려 한다고 적혀 있는데 구현은 "비어 있지 않음" 을 "UUID 로 파싱됨" 으로 한 칸 올렸을 뿐이라 여전히 순수 구문 판정이다.
+
+`ix_exchange_exits_classification` 인덱스는 아직 쓰는 쿼리가 없다. [BL-438](#bl-438) ② 가 랜딩해 무언가 `classification` 으로 필터링하는 순간 이 결함은 **머니-패스 결함**이 된다.
+
+**권장 접근:** `exit_attribution.py` 는 지난 스프린트가 **순수 함수 + 순수 테스트**로 확정한 모듈이라 안에서 DB 를 조회하면 안 된다. 순수성을 지키는 방법은 `known_order_ids: frozenset[UUID]` 를 인자로 받는 것이다 — 스윕은 이미 같은 자리에서 `matched_by_exchange_id`(`tasks/trading.py:1576`)를 만들고 `attribution_facts` 가 `order_id` 를 들고 있으므로 새 쿼리가 필요 없다.
+
+**Risk:** 🟡 (현재는 운영자 알림 누락 + 메트릭 과대. 머니-패스 승격 시 🔴)
+
+---
+
+### BL-458
+
+**Title:** 머니-패스 5곳이 `realized_pnl_synced_at` 을 구분하지 않아 pine 추정값과 거래소 확정값이 한 합계에 섞인다
+**Category:** Backend / trading (money path)
+**Priority:** P2
+**Trigger:** 실자금 전환 전
+**Est:** M (4h — 스키마 필드 추가 + FE)
+**출처:** 2026-07-25 exit-money-path Explore 3-리더 grounding
+
+**원인 / 영향:** money-path-accuracy 스프린트가 `Order.realized_pnl_synced_at`(`models.py:200`)을 출처 마커로 만들었다 — NULL = pine_v2 추정, 값 있음 = 거래소 확정 `closedPnl`. 그런데 **소비처 5곳 어디도 이 컬럼을 읽지 않는다.** Kill Switch 누적·일일, loss-limit 알림, 세션 커브·대시보드 KPI, 일일 리포트 전부 추정값과 확정값을 무차별로 더한다. FE 블로터는 주문 **행 단위로는** 이 구분을 렌더하고 있어(`orders-blotter.tsx`), 집계에서만 사라진다.
+
+**★권장 접근 — 필터링은 틀린 해법이다.** `realized_pnl_synced_at IS NOT NULL` 로 합계를 좁히면 **체결 시점부터 스윕 도착까지의 손실이 통째로 안 보인다**(fail-open). 자본 보호 게이트에 대해 추정값은 0 보다 엄격하게 낫다 — pine 추정 오차는 수수료·슬리피지 수준이지만 배제는 오차 100% 다. 게다가 수동 청산은 삽입 시 `realized_pnl` 이 **애초에 NULL** 이라 이중으로 사라진다.
+
+올바른 방향은 **라벨**이다. Site 4 응답의 커브 포인트(또는 주문)에 `confirmed: bool` 을 실어 FE 가 추정 구간을 다르게 렌더하게 한다. 가산적이고 게이트에 무영향이다. `LiveSignalStateResponse` 스키마 필드 추가 + FE 변경이 따른다.
+
+**Risk:** 🟡 (숫자의 신뢰 등급이 화면에 안 드러난다. 게이트 자체는 fail-loud 쪽이라 안전)
+
+---
+
+### BL-459
+
+**Title:** 세션 읽기와 주문 조회 사이에 비활성화가 커밋되면 그 한 번의 응답이 종료 후 체결을 포함한다 (TOCTOU)
+**Category:** Backend / trading (money path — 관측 정확도)
+**Priority:** P3
+**Trigger:** 세션 종료와 체결이 같은 순간에 겹치는 것이 실제로 관측될 때
+**Est:** M (3-4h — 세션↔주문 단일 조인으로 재구성)
+**출처:** 2026-07-25 exit-money-path **최종 codex 누적 diff 리뷰** [P2]
+
+**원인 / 영향:** 두 소비처 모두 **세션 행을 먼저 읽고 → 별도 SELECT 로 주문을 조회**한다.
+
+- `alert_rules.py:60` — `list_active_loss_rules_with_sessions()` 가 `is_active=true` 세션만 돌려주므로 `SessionScope.ended_at` 은 항상 `None`(무상한)이다.
+- `router.py:465` — `get_by_id(session_id)` 로 읽은 `sess` 의 `deactivated_at` 을 그대로 쓴다.
+
+그 사이에 `LiveSignalSessionRepository.deactivate`(`:155`)가 커밋되면 — 호출 지점은 4곳(`tasks/live_signal.py:433/503/539` beat + `router.py:442` 사용자 DELETE) — 스코프는 여전히 무상한이라 **종료 후 체결이 그 한 번의 계산에 섞인다.** READ COMMITTED 라 두 번째 SELECT 는 새 스냅샷을 보지만 `ended_at` 값은 이미 파이썬 쪽에 잡혀 있다.
+
+**★등급 판단 — 회귀가 아니다.** 이 변경 **전에는** Site 4 에 창이 아예 없었고(전 기간 무조건 포함) Site 3 도 창이 없었다. 즉 이 레이스는 새 코드가 **한 번의 계산 동안만** 옛 동작을 하게 만드는 것이고, 다음 평가/요청에서 자가 교정된다. 두 경로 모두 발주를 막지 않는 **읽기 전용 관측**이다. 그래서 exit-money-path 는 이걸 고치지 않고 등재만 했다 — 스프린트 막바지에 쿼리 구조를 바꾸면 회귀 표면이 넓어지고, codex 자신도 "새 테스트는 순차 실행뿐이라 이 경쟁 조건을 잡지 못한다" 고 적었다.
+
+**권장 접근:** 세션 경계와 주문을 **한 쿼리**로 묶는다(`live_signal_sessions` 를 조인해 `s.created_at`/`s.deactivated_at` 을 SQL 안에서 읽게 한다 — `docs/exit-money-path/operating-contract.md` §5 의 진단 SQL 이 이미 그 형태다). 그러면 단일 스냅샷 안에서 경계와 행이 함께 결정된다. 잠금은 불필요하다.
+
+**Risk:** 🟢 (한 번의 응답/평가에 한정 · 자가 교정 · 변경 전보다 엄격)
 
 ---
 

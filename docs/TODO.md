@@ -1,10 +1,52 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-25 (exit-attribution 스프린트 — 거래소 청산 원장, 범위 축소로 최근 7일 창 + dogfood 완주)
-> **Active Sprint:** **exit-attribution** — **완주.** PR #476 사용자 squash 대기
-> **Active Branch:** `stage/exit-attribution` (main @ `6b200e5` 베이스)
+> **Last Updated:** 2026-07-25 (exit-money-path 스프린트 — 세션 스코프 머니-패스 정정)
+> **Active Sprint:** **exit-money-path** — BL-444 P1 + BL-445 P2
+> **Active Branch:** `stage/exit-money-path` (main @ `0a8e229` 베이스)
 
-## ⚡ exit-attribution 스프린트 (2026-07-25, `docs/exit-attribution/`)
+## ⚡ exit-money-path 스프린트 (2026-07-25, `docs/exit-money-path/`)
+
+**스코프**: exit-attribution(#476) 후속. **BL-444(P1) + BL-445(P2)** — 라이브 세션 손익을 읽는 두 소비처가 서로 다른 행 집합을 세면서 둘 다 "이 세션의 손익" 이라고 주장하던 것을 **하나의 스코프 정의**로 통일한다. 마이그레이션 **0**.
+
+### ★§0.5 측정이 스코프를 확정했다
+
+```
+trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
+소비처 5곳 전부: 0행 위에서 0 합산
+원장: ours/none 3 · external_manual/none 1 · bracket/trailing/liquidation 0행
+      matched_order_id NOT NULL = 0 · attributed_strategy_id NOT NULL = 0
+```
+
+- **BL-438 ② 는 스코프 밖** — 귀속 등급이 `exact`(0행)·`inferred`(투입 금지)뿐이라 남는 건 `none` = 귀속 불가. **미룬 게 아니라 현재 데이터로는 정직하게 구현 불가**다.
+- **BL-444 본문의 규모 근거는 재현 불가**(DB 전소 이전 데이터) → 이 PR 은 **코드 경로 논증**에 근거한다고 명시.
+
+### Completed
+
+- [x] **Slice 0 대조군** — `test_session_scope_money_path.py`. 세션 3개 + 주문 11건, 손익을 2의 거듭제곱으로 심어 **어떤 부분합도 유일**. ★**프로덕션을 `git stash` 로 되돌려 before 값 5 passed 를 확인해 판별력을 실제로 증명**한 뒤 after 로 뒤집었다
+- [x] **Slice 1** — `SessionScope`(frozen, 생성 경로 `from_live_session` 하나) + `_session_scope_where`(SQL 번역 단일 지점) + 개명 2건, 구 메서드 삭제
+- [x] **Slice 2a** — `router.py` Site 4 배선 + 라우터 종단(인접 세션 2개가 서로 다른 커브)
+- [x] **Slice 2b** — `alert_rules.py` Site 3 배선 + **알림 문구 2곳 정직화**(event-join 서술이 거짓이 됨) + 신규 실 DB 태스크 테스트(이벤트 있는 −5 만 세면 5.00% 미발화, 수동 청산 −7 포함 시 12.00% 발화 → 판별)
+- [x] **Slice 3** — BL-453 부분: 코드베이스 마지막 `.value` 잔존 제거 + StrEnum **6필드**(감사 누락분 `attribution_confidence` 포함) 주석 통일
+- [x] 기존 테스트 3파일 갱신 + 개명 잔존 참조 전수 grep(코드 0건)
+- [x] 게이트: ruff 0 / **mypy 203 files Success** / **FE 1094 = baseline 정확 일치**(FE 변경 0)
+- [x] 검증: Plan 압박검증 반론 4건 **전건 코드 대조**(1건은 과장으로 정정) → codex G0 **REVISE [P1] 2건**(둘 다 코드 확인 후 수용, 1건은 codex 가 말한 것보다 나빴다) → fixture 기대값 10건 독립 산술 검증
+- [x] BL: **BL-444/445 Resolved** · **BL-453 부분** · **BL-438 ② 재분류** · 신규 **BL-454~458** · active 카운트 산식 헤더 고정(49 → 실제 81)
+
+### ★인프라 사고 2건 (코드 무관, 시간을 가장 많이 먹었다)
+
+1. **3-env 미export** — 셸에 env 가 없어 conftest 가 `localhost:5432` 로 폴백 → 400+ 에러. `set -a; source backend/.env.local; set +a` 필수(3개를 통째로).
+2. **Docker VM 디스크 100% 포화** — Postgres 가 `PANIC: could not write ... No space left on device` 로 **무한 크래시-복구 루프**. 호스트는 49Gi 여유였으나 Docker Desktop VM 이 58.4G 중 0. **빌드 캐시만** 정리(10GB 회수) → 복구, 데이터 무손실. ★볼륨(33GB)·이미지는 건드리지 않았다 — 캐시는 재생성되지만 볼륨은 아니다(BL-451 전력).
+
+### Next Actions
+
+- [ ] BE 전체 스위트 재확인 — `test_redis_client.py::test_get_pool_safe_across_event_loops` 가 전체 실행에서만 1회 실패(단독·clean main 모두 통과). 순서 의존 flake 여부 판정 중
+- [ ] canon 32 + MCP Playwright 브라우저 회귀 dogfood(콘솔 error 0 · 빈 상태 `—` · state shape 불변)
+- [x] 최종 codex 누적 diff 리뷰 — **REVISE [P2] 1건**(TOCTOU) → 전건 대조 후 회귀 아님 판정, BL-459 등재
+- [x] **PR [#477](https://github.com/woosung-dev/quantbridge/pull/477)** — squash 는 사용자
+
+---
+
+## exit-attribution 스프린트 (2026-07-25, `docs/exit-attribution/`) — 완료 · main @ `0a8e229` (#476)
 
 **스코프**: money-path-accuracy(#475) 후속. **BL-438 부분** — 거래소에만 존재하는 청산 기록을 원장으로 흡수해 보이게 만들고, 우리 주문의 손익만 계상한다. 마이그레이션 **1**(`20260725_0002`, 신규 테이블 1개 — 과거 스캔 경계 테이블은 머지 전 범위 축소로 제거).
 
@@ -43,8 +85,8 @@
 - [x] 사용자: 거래소 계정 재등록 → dogfood 8단계 완주
 - [x] 최종 codex 누적 diff 리뷰 — **DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 전건 수정**(원장 우회 CAS · max_pages 소진 · malformed 미계상 · downgrade 인덱스) + 축소 후 재실행 **P1 1건**(커서 tie 누락) 추가 수정
 - [x] canon 32 / authed `/orders` / §9.5 라이브 worker 검증 — 전부 green
-- [ ] **PR [#476](https://github.com/woosung-dev/quantbridge/pull/476)** stage/exit-attribution → main 사용자 squash
-- [ ] 다음 세션 = tasks 도메인 deepen 또는 BL-438 잔여(② 거래소 exit 머니-패스 계상)
+- [x] **PR [#476](https://github.com/woosung-dev/quantbridge/pull/476)** stage/exit-attribution → main 사용자 squash — **머지 완료 @ `0a8e229`**
+- [x] 다음 세션 = BL-438 잔여 → **exit-money-path 로 착수**(② 는 §0.5 실측으로 스코프 제외, BL-444/445 로 재조준)
 
 ---
 
