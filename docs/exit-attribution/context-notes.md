@@ -141,7 +141,7 @@ BE **2710 passed / 46 skipped / 0 failed**(baseline 2653, +57) · ruff·mypy cle
 - **`summary["windows"]` 제거** — 계정당 창이 항상 1이면 "commit 에 도달한 계정 수" 의 중복이고 이름이 오독을 부른다. 프로덕션 소비자 0.
 - **`list_unsynced_reduce_only` 의 `ASC LIMIT 500` 은 등재만**(사용자 확정). 7일 밖 청산은 원장에 못 들어와 영구 좀비가 되고 ASC 라 앞줄을 차지하지만, #9.1 대로 축소 전에도 위험이 동일했고 1인 로컬 앱에서 좀비 500건은 멀다. → BL-452.
 
-### #9.3.5 ★최종 codex 누적 diff 가 또 P1 을 잡았다 (이 단계 생략 금지의 3번째 근거)
+### #9.5 ★최종 codex 누적 diff 가 또 P1 을 잡았다 (이 단계 생략 금지의 3번째 근거)
 
 축소가 본론이었는데, 누적 diff 리뷰가 **축소와 무관한 머니-패스 P1** 을 하나 더 찾았다. 전건 코드 대조로 확인했다.
 
@@ -151,11 +151,22 @@ BE **2710 passed / 46 skipped / 0 failed**(baseline 2653, +57) · ruff·mypy cle
 
 **같은 패턴이 `fetch_closed_order_meta`(`providers.py:1410`)에도 있으나 고치지 않았다** — 분류 라벨 전용이고 `setdefault` 라 재조회가 멱등하다. tie 누락의 결과는 일부 행이 `unknown` 으로 분류되는 것뿐이며 머니-패스에 들어가지 않는다. BL-452 에 적었다.
 
-### #9.5 신규 함정
+### #9.6 신규 함정
 
 - **★caplog 은 전체 스위트에서 격리가 깨진다.** 잘림 경고 검증을 `caplog` 로 썼더니 **파일 단독 실행은 통과(608 passed)하는데 전체 스위트에서 `caplog.records` 가 비어 실패**했다. `propagate=False` 를 세팅하는 코드는 레포에 없어 원인 모듈은 특정하지 못했다. 이 레포의 기존 교훈대로 **logger mock**(`monkeypatch.setattr(providers_mod.logger, "warning", mock)`)으로 전환해 전역 logging 상태 의존을 제거했다. 발화 지점을 직접 관찰하므로 순서 의존이 없다.
 - ruff `RUF003` — 주석의 `×`(MULTIPLICATION SIGN)가 걸린다. `*` 로 쓴다.
 
-### #9.6 축소 후 게이트
+### #9.7 축소 후 게이트
 
-BE **2706 passed / 46 skipped / 0 failed**(축소 전 2710). 감소분의 내역 = 워터마크·창 전진 테스트 **6건 삭제**(`_closed_pnl_windows` 2 · 과거 창 재시도 1 · 잘린 창 경계 1 · `backfilled_from` 단조성 1 · `created_at_bounds` 1) + **2건 신설**(계정당 창이 정확히 1개이고 `[now−7d, now]` 인지 · #9.3.5 의 createdTime tie 누락 회귀). 회귀가 아니다. ruff·mypy clean · alembic base→head 왕복 + 스키마 10 테이블 센티널 green · 마이그레이션 **1**(신규 테이블 **1개**) · **FE 미변경**(1094 불변).
+BE **2706 passed / 46 skipped / 0 failed**(축소 전 2710). 감소분의 내역 = 워터마크·창 전진 테스트 **6건 삭제**(`_closed_pnl_windows` 2 · 과거 창 재시도 1 · 잘린 창 경계 1 · `backfilled_from` 단조성 1 · `created_at_bounds` 1) + **2건 신설**(계정당 창이 정확히 1개이고 `[now−7d, now]` 인지 · #9.3.5 의 createdTime tie 누락 회귀). 회귀가 아니다. ruff·mypy clean · alembic base→head 왕복 + 스키마 10 테이블 센티널 green · 마이그레이션 **1**(신규 테이블 **1개**) · **FE 미변경**(1094 불변, tsc·lint clean).
+
+### #9.8 축소 후 라이브 검증 — 계정 없이도 되는 것은 다 했다
+
+거래소 계정 재등록 전이라 원장 적재·분류·백필 dogfood 는 못 하지만, **계정에 의존하지 않는 항목은 전부 실측했다.**
+
+- **★§7.2 sentinel 이 실제로 stale 워커를 잡았다.** 재빌드 전 워커는 `_closed_pnl_windows` · `_EXIT_LEDGER_HORIZON_DAYS` · `ExchangeExitSyncState` 를 아직 갖고 있으면서 `ClosedPnlWindow` 는 **없었다** — 이미지가 정확히 `78ceadd` 시점에 baked 됐다는 뜻이다(`ClosedPnlWindow` 는 다음 커밋 `2ad3b11` 에서 추가됐다). 재빌드(`docker compose up -d --build --no-deps backend-worker backend-beat`) 후 4종 전부 부재 + 단일 창 인라인 + `log_context` 전달 확인. **워커가 조용히 구 코드를 돌리는 위험이 문서상 가정이 아니라 이 세션의 실제 상태였다.**
+- **§9.5 라이브(운영 계약)** — 같은 child(`ForkPoolWorker-2`)에서 스윕 **4회 연속 성공**(수동 3 + **beat 자체 발화 1**, `sweep-closed-pnl-backfill` 300s). 라이브 반환 shape 이 `{'accounts','inserted','backfilled','resynced','alerted'}` 로 나와 **`windows` 키 부재를 실환경에서 확인**했다(테스트 기대값 ↔ 프로덕션 동작 일치).
+- **canon 32 passed** · **FE 1094 passed**(tsc·lint clean).
+- **authed 58 passed / 1 skipped / 6 failed** — 6건은 전부 **채워진 표를 단정하는 데이터 의존** 스펙(`/strategies/:id/edit` · `/optimizer/:id` · `/backtests/:id` · `/backtests` 11열 · 전략목록 `backtest_count` · 전략목록 11+ items)이고 개발 DB 는 `strategies 0 · backtests 0 · orders 0` 이다. 실패 메시지도 populated-table locator 의 `element(s) not found`. 축소 diff 가 `frontend/`·router·service 를 **한 파일도 건드리지 않았고** `/orders` 계열은 **5/5 green**(A2 취소 2 · B2 배지 · kill-switch disabled)이라 인과가 없다.
+  - **정직 고지** — 이 브랜치에는 **authed 녹색 baseline 이 없다**(원 스프린트가 authed 를 dogfood 로 이연했다). 따라서 "이전에도 빨갰다"를 기록으로 증명할 수는 없고, 무인과는 **diff 범위 + 실패 양태**로 판정했다. 데이터 복원 후 재실행이 남은 확인이다.
+- **★3000 은 nexus-core, 3100 이 QuantBridge** 를 title 프로브로 재확인하고 `PLAYWRIGHT_BASE_URL=http://localhost:3100` 으로 돌렸다.

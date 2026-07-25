@@ -80,8 +80,12 @@
 - [x] BE ruff / mypy / pytest 3-env — **2710 passed / 46 skipped / 0 failed** (baseline 2653, +57) → **축소 후 2706** (§S6)
 - [x] FE tsc / test / lint — **1094 passed** (baseline 1088, +6), tsc·lint clean
 - [x] alembic 왕복 + head `20260725_0002` (마이그레이션 **1**, 신규 테이블 **1개** — §S6 축소 후)
-- [ ] canon 32 불변 · authed (`/orders` 라우트 직접 확인)
-- [ ] §9.5 — 같은 worker child 에서 스윕 N회 연속 성공 + beat 자체 발화
+- [x] **canon 32 불변** — `e2e:design-canon` **32 passed**(3100)
+- [x] **authed — 58 passed / 1 skipped / 6 실패는 빈 DB 데이터 의존**(아래 각주). `/orders` 계열은 **5/5 green**(A2 취소 2건 · B2 배지 · kill-switch disabled)
+- [x] **§9.5 라이브 worker** — worker/beat 재빌드 후 **같은 child(ForkPoolWorker-2)에서 스윕 4회 연속 성공**(수동 3 + **beat 자체 발화 1**, `sweep-closed-pnl-backfill` 300s). 라이브 반환 shape = `{'accounts','inserted','backfilled','resynced','alerted'}` — **`windows` 키 부재를 실환경에서 확인**
+- [x] **§7.2 sentinel** — 재빌드 전 워커는 `_closed_pnl_windows`/`_EXIT_LEDGER_HORIZON_DAYS`/`ExchangeExitSyncState` 를 아직 갖고 있고 `ClosedPnlWindow` 는 없었다(= 이미지가 `78ceadd` 시점에 baked). 재빌드 후 **4종 전부 부재 + 단일 창 인라인 + `log_context` 전달** 확인
+
+> **authed 6건 실패는 이번 변경과 인과가 없다.** 전부 **채워진 표를 단정하는 데이터 의존** 스펙이고(`/strategies/:id/edit` · `/optimizer/:id` · `/backtests/:id` · `/backtests` 11열 · 전략목록 `backtest_count` · 전략목록 11+ items) 개발 DB 는 전소로 **strategies 0 · backtests 0 · orders 0** 이다. 실패 메시지도 `getByRole('table', { name: /전략 목록 \d+개/ })` **element(s) not found**. 축소 diff 는 `frontend/` · router · service 를 **한 파일도 건드리지 않았다**(exit 원장 백엔드 경로 + 테스트 + 문서만). 데이터 복원 후 재실행 대상 → dogfood 선행 조건에 포함.
 
 ## FE 증빙 (authed 브라우저 실촬영)
 
@@ -96,6 +100,8 @@
 ## dogfood
 
 > ★로컬 개발 DB 전소(context-notes #6)로 거래소 계정·주문 이력이 소실됐다. 사용자 재등록 후 진행한다.
+>
+> **실측 현황(2026-07-25 축소 마감 시점)** — `exchange_accounts` **0** · `orders` **0** · `strategies` **0** · `backtests` **0** · `exchange_exits` **0**. 계정 재등록만으로 1~6 은 되지만 **authed 6건(§게이트 각주)은 전략·백테스트 데이터까지 복원돼야** 녹색이 된다.
 
 - [ ] 사용자: 앱에서 Bybit demo API 키로 거래소 계정 재등록
 - [ ] 1 원장 적재 — 스윕 1회 후 행 수·손익 합이 오라클 raw 와 일치
