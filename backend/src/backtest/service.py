@@ -439,7 +439,11 @@ class BacktestService:
                     fee_paid=t.fee_paid,
                     slippage_paid=t.slippage_paid,
                     cumulative_pnl=t.cumulative_pnl,
-                    exit_kind=t.exit_kind.value if t.exit_kind is not None else None,
+                    exit_kind=(
+                        "liquidation"
+                        if t.liquidated
+                        else (t.exit_kind.value if t.exit_kind is not None else None)
+                    ),
                     comment=t.comment,
                 )
             )

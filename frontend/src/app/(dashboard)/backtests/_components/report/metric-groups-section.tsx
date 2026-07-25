@@ -1,4 +1,4 @@
-// 03 상세 지표 — variant-c "지표 24종" 이식. 공용 .metric-groups(4×6) 를 소비한다.
+// 03 상세 지표 — variant-c 지표 묶음 이식. 공용 .metric-groups 를 소비한다.
 // 프로토타입 variant-c.html:1280-1324 의 4묶음(수익성/위험/거래 통계/실행 품질) 구조를
 // 그대로 옮기되, 값은 BacktestMetricsOut 스키마가 받치는 것만 그린다. 스키마에 필드가 없는
 // 연환산 변동성·베타는 무데이터 셀(.metric-value.empty + title) 로 정직하게 남긴다 (§4.9).
@@ -12,6 +12,7 @@ import type {
   BacktestMetricsOut,
   EquityPoint,
 } from "@/features/backtest/schemas";
+import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 import { EMPTY_CELL } from "@/lib/labels";
 
@@ -19,6 +20,8 @@ interface MetricGroupsSectionProps {
   metrics: BacktestMetricsOut;
   /** 벤치마크 초과 파생용 — 없으면 그 셀만 무데이터. */
   buyAndHoldCurve?: readonly EquityPoint[] | null;
+  /** 구 실행의 청산 모델 부재와 1배 실행을 구분하는 입력. */
+  leverage?: number | null;
 }
 
 type Tone = "pos" | "neg" | "neutral";
@@ -30,6 +33,8 @@ interface MetricSpec {
   tone?: Tone;
   /** 무데이터 셀의 사유 (title 속성). */
   emptyTitle?: string;
+  /** 값이 있는 셀의 부연. */
+  valueTitle?: string;
 }
 
 const NOT_COMPUTED = "이 실행에서는 계산되지 않았습니다.";
@@ -64,6 +69,7 @@ function fixed(v: number | null | undefined, digits = 2): string | null {
 export function MetricGroupsSection({
   metrics: m,
   buyAndHoldCurve,
+  leverage,
 }: MetricGroupsSectionProps) {
   // 벤치마크 초과(%p) = 전략 총 수익률 - 매수 후 보유 수익률. BH 커브가 있어야 파생 가능.
   const excessPct = useMemo(() => {
@@ -72,6 +78,7 @@ export function MetricGroupsSection({
     if (bh === null) return null;
     return m.total_return - bh.returnPct;
   }, [buyAndHoldCurve, m.total_return]);
+  const sharpe = describeSharpe(m.sharpe_convention, m.sharpe_ratio);
 
   const profitability: MetricSpec[] = [
     { label: "총 수익률", value: signedPct(m.total_return), tone: m.total_return >= 0 ? "pos" : "neg" },
@@ -88,7 +95,11 @@ export function MetricGroupsSection({
       label: "최대 낙폭 지속",
       value: m.drawdown_duration != null ? `${m.drawdown_duration} bars` : null,
     },
-    { label: "샤프 지수", value: fixed(m.sharpe_ratio) },
+    {
+      label: "샤프 지수",
+      value: sharpe.display,
+      valueTitle: sharpe.foot,
+    },
     { label: "소르티노 지수", value: fixed(m.sortino_ratio) },
     { label: "칼마 지수", value: fixed(m.calmar_ratio) },
     // 연환산 변동성은 응답 스키마에 대응 필드가 없다 → 항상 무데이터 셀 (§4.9).
@@ -114,6 +125,15 @@ export function MetricGroupsSection({
       value: excessPct != null ? `${signedPct(excessPct)}p` : null,
       tone: (excessPct ?? 0) >= 0 ? "pos" : "neg",
       emptyTitle: "매수 후 보유 곡선이 없어 초과 수익을 계산할 수 없습니다.",
+    },
+    {
+      label: "강제청산",
+      value: m.liquidation_count != null ? `${m.liquidation_count}건` : null,
+      emptyTitle:
+        leverage != null && leverage > 1
+          ? "이 실행 시점에는 청산 모델이 없었습니다(구 실행)."
+          : "레버리지 1배 실행에는 마진 모델이 적용되지 않습니다.",
+      valueTitle: "플랫 유지증거금률 0.5% · 단일 tier · 격리마진 · Bybit 기준.",
     },
     // 베타는 이 실행에서 계산하지 않는다 → 무데이터 셀 (variant-c.html:1320 과 동일).
     { label: "베타", value: null, emptyTitle: NOT_COMPUTED },
@@ -157,7 +177,7 @@ function MetricRow({ spec }: { spec: MetricSpec }) {
   return (
     <div className="metric">
       <span className="metric-label">{spec.label}</span>
-      <span className={toneClass} title={spec.value == null ? spec.emptyTitle : undefined}>
+      <span className={toneClass} title={spec.value == null ? spec.emptyTitle : spec.valueTitle}>
         {spec.value ?? EMPTY_CELL}
       </span>
     </div>

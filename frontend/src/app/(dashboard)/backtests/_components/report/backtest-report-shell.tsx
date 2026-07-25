@@ -122,11 +122,15 @@ export function BacktestReportShell({
       <Section
         num="03"
         eyebrow="상세 지표"
-        title="지표 24종"
+        title="상세 지표"
         desc="수익성, 위험, 거래 통계, 실행 품질 네 묶음으로 나눠 봅니다. 값이 없는 지표는 대시로 표시합니다."
         ariaLabel="상세 지표"
       >
-        <MetricGroupsSection metrics={metrics} buyAndHoldCurve={buyAndHoldPoints} />
+        <MetricGroupsSection
+          metrics={metrics}
+          buyAndHoldCurve={buyAndHoldPoints}
+          leverage={bt.config?.leverage}
+        />
       </Section>
 
       {/* ===== 04 거래 내역 ===== */}

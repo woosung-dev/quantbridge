@@ -333,6 +333,10 @@
 **Title:** Full leverage + funding rate + maintenance margin + cross/isolated margin + liquidation 풀 모델
 **Category:** 트랜잭션 / Risk / Pine v2
 **Priority:** P2
+**🔸 부분 Resolved (BL-186a):** 2026-07-26 backtest-trust 스프린트. **격리(isolated) 단일 tier 모델을 TV/MT5 컨벤션으로 구현.** ★**레버리지는 주문 수량을 바꾸지 않는다** — 1차 출처 조사(TV `margin_long/short` % · MT5 계좌 레버리지→필요증거금 · QC `SetLeverage`=매수여력 상한. 거래소 UI 조차 곱하는 대상은 _증거금_ 입력)로 확인해 핸드오프의 "사이징 × leverage" 안을 폐기했다. 따라서 **`compute_qty` 무변경 → 레버리지>1 에서도 TV parity 유지**.
+구현: `pine_v2/leverage_model.py`(순수 수식, 라이브 `trading/liquidation.py` 와의 일치를 **216 케이스 parity 테스트**로 강제) + **단일 chokepoint `_open_trade()`**(마진 게이트 + 청산가. ★`Trade` 생성 site 가 `entry()` 와 `check_pending_fills()` **2곳**이라 `entry()` 에만 걸면 stop 진입이 뚫린다 — codex G0 적발) + `check_liquidations()`(양 루프, `check_exit_fills` **앞** = 비관적) + `RawTrade.liquidated` → metrics 4-site → DB `exit_kind='liquidation'`(★`ExitOrderKind` **enum 미확장** — `exit_order_mapping.py:48` else fall-through 가 BL-365 배선 시 새 값을 trigger-market 으로 빌드) + FE 레버리지 입력 재도입(Sprint 37 BL-187 제거분) + 고지 5종.
+실측: **L=1 byte-identity 5 corpus** · 청산 1x=0 / 25x=8 / 100x=267(metrics·RawTrade·comment 3중 일치) · 마진 게이트가 corpus 내재 **4.2x** 를 정확 판정(3x 거부 / 10x 통과). 마이그레이션 **0**.
+**잔여 = BL-186b** — cross 마진 / tier 계단 MMR / 파산수수료 / 멀티거래소 / 펀딩-청산 상호작용. 추가로 **마진 게이트가 gross 자본 판정**(신규 BL).
 **Trigger:** Sprint 38+ deferred (BL-185 spot-equivalent foundation 위)
 **Est:** M-L (16-24h)
 **출처:** Sprint 37 BL-185 spot-equivalent 채택 후 풀 모델 후속
@@ -781,6 +785,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **Title:** BacktestMetrics 24-field 가 4곳 평행 정의 (engine dataclass ↔ schema ↔ serializer ↔ `_to_detail`) — field-parity 무검증 leaky seam
 **Category:** Backtest / Architecture (locality / multi-SSOT)
 **Priority:** P2
+**✅ Resolved:** 2026-07-26 backtest-trust 스프린트. ★**착수 시 실측하니 이미 해결 상태였다** — 본문의 "24-field / 4곳" 은 stale 이고 실제는 **48필드 / 실질 3-site**(`_to_detail` 은 PR #391 에서 `asdict` spread 로 전환), dataclass/OutSchema/to_jsonb/from_jsonb **전 차집합 공집합**, tripwire 6테스트 통과 중. 재구현하지 않고 close + **micro-tripwire 2건 추가**(① `BacktestMetricsSummary` 키 ⊆ dataclass 필드 — 기존 tripwire 사각지대 ② `BacktestMetricsOut` 의 Decimal 필드 전수가 `field_serializer` 에 등재 — 누락 시 JSON float 로 새는 조용한 정밀도 손실) → **8 passed**. 본 스프린트가 신규 필드 3개(`sharpe_convention`/`liquidation_occurred`/`liquidation_count`)를 추가할 때 이 tripwire 가 4-site 동시 수정을 실제로 강제했다. stale 주석은 숫자를 다시 적지 않고 "필드 수 SSOT = dataclass + tripwire" 로 정정(재-stale 차단). **full SSOT 파생(metaprogram)은 사용자 명시 거부** — serializer 가 필드별 커스텀 shape 를 갖고 있어 genericize 시 가독성만 악화.
 **Trigger:** backtest deepening sprint 또는 BL-236(objective_metric 노출) 진행 시
 **Est:** S-M (3-5h)
 **출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex challenge 가 4번째 site `_to_detail` 추가 발견)
@@ -881,6 +886,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **Title:** Sharpe TV convention 정렬 (달력월 수익률 + RFR 2%/yr) — optimizer objective 영향 분석 동반
 **Category:** Backtest / metrics (TV parity)
 **Priority:** P2
+**✅ Resolved:** 2026-07-26 backtest-trust 스프린트. `engine/metrics.py` 에 `_periodic_returns` 재사용 형제 `sharpe_ratio()` 신설(달력월 + RFR 2%/12, 모집단 SD, 연율화 없음) + `v2_adapter:662` 교체 + `_sharpe` 제거. **Decimal 비-옵셔널 유지**(None 시 `grid_search.py:249` dead branch 부활 + FE `.toFixed` 크래시). **신규 `sharpe_convention` 마커 4종**(`tv_monthly_rfr2`/`tv_daily_rfr2`/`unavailable`/null=구 실행)을 4-site 동시 등재해 baked 혼재를 화면에서 구분. **랭킹 flip 실측(의무 이행)**: 15셀에서 **argmax FLIP** · Kendall τ 0.6381 · 11/15 셀 2계단 이상 이동. ★핵심 근거 = 구 수식이 **자본 38배 손실(−3837%) 실행에 양수 샤프 +0.3955** 를 줬다(신 −0.0757). baseline regen 1회(diff 는 sharpe 키 + 메타 한정, 3종 digest 불변). 잔여는 신규 BL(목록 read-time recompute / optimizer·stress 저장값 혼재 / `_periodic_returns` sub-daily fallback).
 **Trigger:** TV parity 2차 또는 사용자 Sharpe 값 문의 시
 **Est:** M (4-6h — baseline 재생성 + optimizer `sharpe_ratio` objective 랭킹 영향 분석 의무)
 **출처:** 2026-07-05 TV-parity sprint B3 (sortino 는 TV convention 으로 신규 구현, sharpe 는 blast radius 로 이연)
@@ -930,6 +936,25 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **2026-07-12 pine-batch QA 실측 확장 (3사이트 추가):** (a) `backtests/_components/forms/backtest-form.tsx:84-106` **strategy picker** — 옵션 실클릭 후 트리거 raw UUID 노출 Playwright 실측 + 소스 감사로 원인 확정 (raw `Select`+자식 없는 `SelectValue`). (b) `report/trade-ledger-table.tsx:98-125` (c) `trades/trade-filter-row.tsx:116-141,202-211` 방향/결과 필터 — 동일 클래스 (value≠label), 선택 후 raw 토큰 노출 추정. 전부 `SelectWithDisplayName` 교체로 일괄 처리 (`equity-chart-with-compare.tsx:76` 선례). 상세: `docs/qa/2026-07-12-pine-batch-1h4h/report.md` §6.1.
 
 **Risk:** 🟢 (프리젠테이션 전용 — 선택 값 전달 로직 무변경).
+
+---
+
+### BL-460
+
+**Title:** 백테스트 마진 게이트가 **gross 자본**으로 판정 — 수수료·슬리피지 차감 전 `running_equity` 사용
+**Category:** Backtest / Risk (레버리지 모델 정확도)
+**Priority:** P2
+**Trigger:** 실자금 레버리지 백테스트 신뢰 필요 시 / BL-186b 진행 시
+**Est:** M (설계 선행 필요)
+**출처:** 2026-07-26 backtest-trust 스프린트 실측 (BL-186a 구현 중 발견)
+
+**원인 / 영향:** `StrategyState.close()`(strategy_state.py:551)가 **gross pnl 만 누적**한다(docstring 의 "fees=0 Sprint 37 가정"). BL-186a 의 마진 게이트가 이 `running_equity` 에서 가용 증거금을 파생하므로, 거래가 쌓일수록 실제 순자산보다 낙관적으로 평가한다. 실측(`s1_pbr`, 초기 10,000): 종료 gross **+38,678.96** vs net(`total_return`) **−53,670** — 차이 약 **92,000**(465거래 × $42k notional × 0.15% × 2레그 ≈ $58,590 비용 미반영 + 복리). 즉 순자산이 깊은 마이너스일 때도 "증거금 충분" 으로 판정한다. **단 초기 판정은 정확**하다(초기 자본은 gross = net) — 실제로 corpus 의 내재 4.2x 를 3x 에서 정확히 거부했다.
+
+**권장 접근:** `running_equity` 자체를 net 으로 바꾸면 그 값이 `compute_qty`(percent_of_equity) 입력이자 Pine `strategy.equity`(interpreter.py:1322)라 **leverage=1 byte-identity 가 즉시 깨진다**. 후보: (a) 게이트 전용 net 추정치를 별도 누적(체결 시점에 `fees`/`slippage` config 로 추정 차감) (b) `leverage > 1` 에서만 net 전환(같은 스크립트가 설정에 따라 다른 `strategy.equity` 를 보는 부작용 검증 필요). 어느 쪽이든 golden/Trust Layer 영향 분석 선행.
+
+**영향 파일:** `strategy/pine_v2/strategy_state.py`(close/\_open_trade), `strategy/pine_v2/leverage_model.py`.
+
+**Risk:** 🟡 (현재는 FE 배너로 정직 고지 중 — "증거금 충분 여부는 수수료·슬리피지 차감 전 자본으로 판정합니다").
 
 ---
 
@@ -1285,6 +1310,61 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **권장 접근:** (a) 실제 TV ta.ema 초기 시리즈 캡처 → 엔진 시딩 규칙 대조/조정 (BL-378 ta.atr Wilder 검증 프로토콜 재사용 — TV 문서/실행 대조 + 수계산 오라클). (b) 관측 등가라 저순위 — 정적 bool 타입 추론 도입 시 함께 (pine_v2 동적 타입이라 난이도 있음).
 
 **Risk:** 🟢 ((a) 조사 우선; (b) 관측 무영향).
+
+---
+
+### BL-461
+
+**Title:** `_periodic_returns` daily fallback 이 sub-daily 봉을 "1 bar = 1 day" 로 센다 (resample 부재)
+**Category:** Backtest / metrics (TV parity)
+**Priority:** P3
+**Trigger:** 2개월 미만 백테스트의 Sharpe/Sortino 문의 시
+**Est:** S-M (baseline 2 metric 확산 주의)
+**출처:** 2026-07-26 backtest-trust 스프린트 (BL-398 구현 중 발견)
+
+**원인 / 영향:** `engine/metrics.py:41-43` 의 else 분기가 **resample 없이 전 bar** 를 기간 표본으로 쓰고 RFR 은 `0.02/365` 를 적용한다. 1h/5m 백테스트가 2 달력월 미만이면 1시간을 하루로 세어 위험조정 지표가 왜곡된다. **sortino 가 이미 갖고 있던 선재 결함**이고, BL-398 이 `_periodic_returns` 를 재사용하면서 sharpe 로도 전파됐다.
+
+**권장 접근:** daily fallback 에서 `equity.resample("D").last()` 적용. ★고치면 **sortino 값도 바뀌어** baseline regen 이 2 metric 으로 번지므로, "sharpe-only diff" 같은 감사 가능성을 유지하려면 별도 슬라이스로 분리하고 regen diff 범위를 미리 선언할 것.
+
+**현재 대응:** `sharpe_ratio` docstring 명시 + FE 문구 "무위험 2%/년 · 봉 단위 기간 기준(2개월 미만)" 로 정직 고지.
+
+**Risk:** 🟢 (고지 중 · 2개월 이상 백테스트는 월간 경로라 무영향).
+
+---
+
+### BL-462
+
+**Title:** 백테스트 목록 Sharpe 정렬이 신·구 컨벤션을 섞어 센다
+**Category:** Backtest / API (정렬 정합)
+**Priority:** P3
+**Trigger:** 구 백테스트가 목록에 남아 있는 동안
+**Est:** M (equity_curve 로딩 필요)
+**출처:** 2026-07-26 backtest-trust 스프린트 (codex G0 P1 지적 → 수용)
+
+**원인 / 영향:** `backtest/repository.py:71-77` sort whitelist 가 `metrics->>'sharpe_ratio'` 를 Numeric 캐스팅해 **서버 정렬**하는데 convention 을 보지 않는다. 마커(`sharpe_convention`)는 혼재를 **보이게** 할 뿐 정렬을 **고치지는** 못한다 — 의미가 다른 값이 계속 한 순위로 섞인다.
+
+**권장 접근:** 목록에서 equity_curve 를 읽어 read-time recompute(성능 부담 — `list_by_user` 가 `defer(equity_curve)` 중), 또는 구 컨벤션 행을 정렬에서 분리 표시. 현재는 **FE 고지**("구 기준과 현재 기준 샤프가 섞여 있어 정렬 순위를 그대로 신뢰할 수 없습니다")로 대응.
+
+**Risk:** 🟢 (고지 중 · 과거 백테스트를 재실행하면 자연 소멸).
+
+---
+
+### BL-463
+
+**Title:** optimizer / stress_test 저장 sharpe 에 컨벤션 마커 없음
+**Category:** Optimizer / Stress test (metrics 정합)
+**Priority:** P3
+**Trigger:** 구 optimizer·stress 결과 재해석 필요 시
+**Est:** M (2 도메인 JSONB 스키마 확장)
+**출처:** 2026-07-26 backtest-trust 스프린트 (codex G0 P2 지적 → 스코프 밖 수용)
+
+**원인 / 영향:** `optimizer/serializers.py:104` 와 `stress_test/serializers.py:80,159` 가 각자 독립 JSONB 에 sharpe 를 저장한다. 본 스프린트는 **backtest metrics 만** 마킹했으므로 두 도메인의 과거 결과는 구·신 구분 없이 남는다. 신규 실행은 새 수식이지만 저장값에 그 사실이 기록되지 않는다.
+
+**권장 접근:** 두 도메인 result JSONB 에도 컨벤션 마커 추가 + FE 표기. 3 도메인 동시 마킹은 스코프 폭발이라 분리했다.
+
+**Risk:** 🟢 (신규 실행은 일관 · 구 결과 비교 시에만 오해 가능).
+
+---
 
 ## Beta 오픈 번들 — 단일 milestone
 

@@ -66,6 +66,7 @@ def parse_and_run_v2(
     live_position_size_pct: float | None = None,
     form_default_qty_type: str | None = None,
     form_default_qty_value: float | None = None,
+    leverage: float = 1.0,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
     fill_timing: str = "bar_close",
@@ -74,6 +75,7 @@ def parse_and_run_v2(
 
     BL-185: initial_capital 지정 시 ScriptContent 에서 default_qty_type/value 추출 후
     runner 에 전달 → StrategyState.configure_sizing 호출 → in-loop sizing 활성화.
+    leverage 는 격리 증거금 게이트와 청산가에만 전달하며 주문 수량은 바꾸지 않는다.
 
     BL-188 v3 D2 priority chain (Pine > form > Live > None):
       1. Pine `strategy(default_qty_type=..., default_qty_value=...)` 명시 → override
@@ -129,6 +131,7 @@ def parse_and_run_v2(
         initial_capital=initial_capital,
         default_qty_type=default_qty_type,
         default_qty_value=default_qty_value,
+        leverage=leverage,
         sessions_allowed=sessions_allowed,
         input_overrides=input_overrides,
         pyramiding=pyramiding,

@@ -5,8 +5,8 @@ Decimal → str, datetime → ISO 8601 Z.
 tz-aware UTC datetime 전제 (AwareDateTime TypeDecorator, Sprint 5 Stage B).
 _utc_iso()는 방어적으로 naive 입력도 처리하지만, 신규 코드는 tz-aware 사용.
 
-Sprint 30 gamma-BE: BacktestMetrics 12 → 24 필드 확장.
-신규 12 필드는 모두 Optional default None → Sprint 28 이전 backtest backward-compat.
+메트릭 필드 수의 SSOT 는 `BacktestMetrics` dataclass +
+`tests/backtest/test_metrics_field_parity.py` tripwire 이다.
 """
 
 from __future__ import annotations
@@ -127,10 +127,15 @@ def metrics_summary_from_jsonb(
         except (ValueError, TypeError):
             return None
 
+    def _opt_str(key: str) -> str | None:
+        raw = metrics.get(key)
+        return raw if isinstance(raw, str) else None
+
     return BacktestMetricsSummary(
         total_return=_opt_decimal("total_return"),
         net_profit_abs=_opt_decimal("net_profit_abs"),
         sharpe_ratio=_opt_decimal("sharpe_ratio"),
+        sharpe_convention=_opt_str("sharpe_convention"),
         max_drawdown=_opt_decimal("max_drawdown"),
         num_trades=_opt_int("num_trades"),
         total_open_trades=_opt_int("total_open_trades"),
@@ -140,7 +145,8 @@ def metrics_summary_from_jsonb(
 def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
     """BacktestMetrics → JSONB dict (Decimal → str, None 필드는 키 생략).
 
-    Sprint 30 gamma-BE: 24 필드 spec. 기존 12 필드는 변경 없음, 신규 12 필드 추가.
+    필드 수의 SSOT 는 dataclass + `tests/backtest/test_metrics_field_parity.py`
+    tripwire 이다.
     """
     d: dict[str, Any] = {
         "total_return": str(m.total_return),
@@ -151,6 +157,12 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
     }
     if m.sortino_ratio is not None:
         d["sortino_ratio"] = str(m.sortino_ratio)
+    if m.sharpe_convention is not None:
+        d["sharpe_convention"] = m.sharpe_convention
+    if m.liquidation_occurred is not None:
+        d["liquidation_occurred"] = m.liquidation_occurred
+    if m.liquidation_count is not None:
+        d["liquidation_count"] = m.liquidation_count
     if m.calmar_ratio is not None:
         d["calmar_ratio"] = str(m.calmar_ratio)
     if m.profit_factor is not None:
@@ -232,8 +244,8 @@ def metrics_to_jsonb(m: BacktestMetrics) -> dict[str, Any]:
 def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
     """JSONB dict → BacktestMetrics (신규 Optional 필드는 .get()으로 하위 호환).
 
-    Sprint 30 gamma-BE: 24 필드 round-trip identity. Sprint 28 이전 12 필드만 set 시
-    신규 12 필드는 모두 None.
+    필드 수의 SSOT 는 dataclass + `tests/backtest/test_metrics_field_parity.py`
+    tripwire 이다. 과거 JSONB 에 없는 선택 필드는 None 으로 복원한다.
     """
 
     def _opt_decimal(key: str) -> Decimal | None:
@@ -303,6 +315,9 @@ def metrics_from_jsonb(data: dict[str, Any]) -> BacktestMetrics:
             if data.get("excursion_stats") is not None
             else None
         ),
+        sharpe_convention=data.get("sharpe_convention"),
+        liquidation_occurred=data.get("liquidation_occurred"),
+        liquidation_count=data.get("liquidation_count"),
     )
 
 

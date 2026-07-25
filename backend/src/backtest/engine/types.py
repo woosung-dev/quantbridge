@@ -154,9 +154,9 @@ class ExcursionStats:
 class BacktestMetrics:
     """표준 지표. 금융 수치는 Decimal. 신규 필드는 None=미추출 또는 NaN.
 
-    Sprint 30 gamma-BE: 12 → 24 필드 확장 (PRD `backtests.results` JSONB 정합).
-    신규 12 필드는 모두 Optional default None → backward-compat
-    (Sprint 28 이전 backtest round-trip 안전).
+    필드 수의 SSOT 는 dataclass + `tests/backtest/test_metrics_field_parity.py`
+    tripwire 이다. 선택 필드는 default None 으로 구 backtest round-trip 호환을
+    유지한다.
 
     Sprint 32-D BL-156 — MDD 수학 정합 메타 추가:
       - max_drawdown 의미: equity 시리즈 기준 ratio. 분모 = running peak equity,
@@ -246,6 +246,12 @@ class BacktestMetrics:
     # nested 팩 2종 — site 당 1 key 로 4-site 부담 압축.
     per_side: PerSideMetrics | None = None
     excursion_stats: ExcursionStats | None = None
+    # TV Sharpe 컨벤션. tv_monthly_rfr2 / tv_daily_rfr2 / unavailable /
+    # None=구 실행.
+    sharpe_convention: str | None = None
+    # 격리 레버리지 모델 적용 결과. leverage<=1 이면 항상 None.
+    liquidation_occurred: bool | None = None
+    liquidation_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -285,6 +291,7 @@ class RawTrade:
     slippage_paid: Decimal | None = None
     comment: str | None = None  # Pine strategy.entry comment ("" → None)
     cumulative_pnl: Decimal | None = None  # trade_index(entry 순) net pnl 누적
+    liquidated: bool | None = None  # 격리 강제청산으로 종료된 거래.
 
 
 @dataclass(frozen=True)

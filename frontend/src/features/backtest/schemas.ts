@@ -181,6 +181,7 @@ export const BacktestMetricsSummarySchema = z.object({
   total_return: decimalString.nullable(),
   net_profit_abs: decimalString.nullable(),
   sharpe_ratio: decimalString.nullable(),
+  sharpe_convention: z.string().nullable().optional(),
   max_drawdown: decimalString.nullable(),
   num_trades: z.number().int().nullable(),
   total_open_trades: z.number().int().nullable(),
@@ -248,6 +249,7 @@ export type ExcursionStats = z.infer<typeof ExcursionStatsSchema>;
 export const BacktestMetricsOutSchema = z.object({
   total_return: decimalString,
   sharpe_ratio: decimalString,
+  sharpe_convention: z.string().nullable().optional(),
   max_drawdown: decimalString,
   win_rate: decimalString,
   num_trades: z.number().int(),
@@ -278,6 +280,8 @@ export const BacktestMetricsOutSchema = z.object({
   // FE 가 leverage 가정 inline 표시).
   mdd_unit: z.string().nullable().optional(),
   mdd_exceeds_capital: z.boolean().nullable().optional(),
+  liquidation_occurred: z.boolean().nullable().optional(),
+  liquidation_count: z.number().nullable().optional(),
   // Sprint 34 BL-175 — Buy & Hold curve (BE OHLCV 첫/끝 close 기반 정확 계산).
   // [(ISO ts, decimalString)] tuple. drawdown_curve 와 동일 직렬화 패턴.
   // null 시 EquityChartV2 가 BH series 미렌더 + ChartLegend BH 항목 자동 hide

@@ -170,6 +170,7 @@ def run_virtual_strategy(
     initial_capital: float | None = None,
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
+    leverage: float = 1.0,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
@@ -182,6 +183,7 @@ def run_virtual_strategy(
 
     BL-185 spot-equivalent: initial_capital 지정 시 configure_sizing 호출.
     process_bar 가 state.compute_qty(fill_price) 로 entry qty 계산.
+    leverage 는 주문 수량이 아닌 격리 증거금 게이트와 청산가에만 적용한다.
 
     BL-188 v3: sessions_allowed → state.sessions_allowed 주입. 비어있으면 24h.
     비어있지 않으면 ohlcv.index 가 tz-aware DatetimeIndex 여야 함 (v2_adapter 보증).
@@ -203,6 +205,7 @@ def run_virtual_strategy(
             initial_capital=initial_capital,
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
+            leverage=leverage,
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
     interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
@@ -230,6 +233,12 @@ def run_virtual_strategy(
             high=bar.current("high"),
             low=bar.current("low"),
             bar_ts=bar_ts.to_pydatetime() if bar_ts is not None else None,
+        )
+        interp.strategy.check_liquidations(
+            bar=bar.bar_index,
+            open_=bar.current("open"),
+            high=bar.current("high"),
+            low=bar.current("low"),
         )
         try:
             interp.execute(tree)

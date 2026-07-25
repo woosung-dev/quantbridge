@@ -18,6 +18,7 @@ import { PARSE_STATUS_LABEL } from "@/features/strategy/labels";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 
 import { BacktestCostFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestCostFieldSet";
+import { BacktestLeverageFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestLeverageFieldSet";
 import { BacktestSessionFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestSessionFieldSet";
 import { BacktestSizingFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestSizingFieldSet";
 import { BacktestTradingSessionsFieldSet } from "@/app/(dashboard)/backtests/_components/forms/BacktestTradingSessionsFieldSet";
@@ -398,6 +399,12 @@ export function BacktestForm() {
               <div className="card-body">
                 <BacktestCostFieldSet register={register} errors={errors} />
 
+                <BacktestLeverageFieldSet
+                  control={control}
+                  register={register}
+                  errors={errors}
+                />
+
                 <BacktestSizingFieldSet
                   control={control}
                   register={register}
@@ -411,16 +418,6 @@ export function BacktestForm() {
                   control={control}
                   setValue={setValue}
                 />
-
-                <section
-                  className="model-note"
-                  aria-label="시뮬레이션 모델"
-                  data-testid="backtest-form-model-section"
-                >
-                  <span className="model-title">모델: 1x · 롱/숏</span>
-                  1x 비레버리지입니다. 롱과 숏 모두 가능합니다(자기자본 한도 내).
-                  funding rate 와 강제 청산과 유지 증거금은 미반영입니다.
-                </section>
               </div>
             </div>
 

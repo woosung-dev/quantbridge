@@ -22,6 +22,12 @@ from datetime import datetime
 from typing import Any, Literal, NamedTuple
 
 from src.strategy.pine_v2.exit_orders import SAME_BAR_FILL_PRIORITY, ExitOrderKind
+from src.strategy.pine_v2.leverage_model import (
+    is_leverage_active,
+    liquidation_price,
+    margin_available_ok,
+    required_margin,
+)
 
 Direction = Literal["long", "short"]
 
@@ -169,6 +175,11 @@ class Trade:
     # BL-104 — 청산 leg 종류 (TP/SL/Trailing). market close/flip 등 일반 청산은 None.
     # C6 비용 split(maker/taker) 의 입력. exit_kind=None → taker (byte-identical).
     exit_kind: ExitOrderKind | None = None
+    # BL-186a — 격리 레버리지 강제청산 여부와 진입 시 계산한 청산가.
+    liquidated: bool = False
+    liq_price: float | None = None
+    # BL-186a — 격리 증거금. 가용 증거금은 open trade 합계에서 파생한다.
+    margin_used: float | None = None
 
     @property
     def is_open(self) -> bool:
@@ -247,6 +258,10 @@ class StrategyState:
     running_equity: float | None = None
     default_qty_type: str | None = None  # "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None
     default_qty_value: float | None = None
+    # BL-186a — 1.0 이하는 기존 현물 경로, 초과 시 격리 레버리지 모델을 적용한다.
+    leverage: float = 1.0
+    # BL-186a — 실행 중 발생한 격리 강제청산 횟수.
+    liquidation_count: int = 0
     # Sprint 38 BL-188 v3 — entry placement + pending fill 양쪽에 적용되는 trading session gate.
     # event_loop / virtual_strategy 가 cfg.trading_sessions 로 주입. 비어있으면 24h (회귀 0).
     # 단일 reference: src.strategy.trading_sessions.is_allowed (Live `is_allowed` 와 동일 함수).
@@ -269,11 +284,12 @@ class StrategyState:
         initial_capital: float,
         default_qty_type: str | None = None,
         default_qty_value: float | None = None,
+        leverage: float = 1.0,
     ) -> None:
         """백테스트 시작 시 1회 호출. running_equity 초기화 + Pine default_qty_* 등록.
 
-        BL-185: leverage / funding / liquidation 미반영 (Sprint 38 BL-186 후속).
-        running_equity 갱신 = closed_trades PnL 누적 (fees=0 Sprint 37 가정).
+        BL-185: running_equity 갱신 = closed_trades PnL 누적 (fees=0 Sprint 37 가정).
+        BL-186a: leverage 는 주문 수량이 아닌 증거금 게이트와 청산가에만 사용한다.
         """
         self.initial_capital = float(initial_capital)
         self.running_equity = float(initial_capital)
@@ -281,6 +297,7 @@ class StrategyState:
         self.default_qty_value = (
             float(default_qty_value) if default_qty_value is not None else None
         )
+        self.leverage = float(leverage)
 
     def compute_qty(self, *, fill_price: float) -> float:
         """default_qty_type/value 기반 entry qty 계산.
@@ -340,6 +357,105 @@ class StrategyState:
                 comment=comment,
             )
         )
+
+    def _can_afford_entry(
+        self,
+        *,
+        trade_id: str,
+        direction: Direction,
+        qty: float,
+        fill_price: float,
+    ) -> bool:
+        """flip/close 부작용을 내기 전에 진입 가능 여부를 판정한다.
+
+        flip은 반대방향 전부와 동일 id를 청산하므로 그 증거금은 해제되고 PnL이
+        실현된다. 두 효과를 모두 반영한 사후 상태로 판정해 주문 전체 거부와 맞춘다.
+        """
+        if not is_leverage_active(self.leverage) or self.running_equity is None:
+            return True
+
+        opposite: Direction = "short" if direction == "long" else "long"
+        closing_ids = {
+            tid
+            for tid, trade in self.open_trades.items()
+            if trade.direction == opposite or tid == trade_id
+        }
+        post_close_equity = self.running_equity + sum(
+            (fill_price - trade.entry_price)
+            * trade.qty
+            * (1.0 if trade.direction == "long" else -1.0)
+            for tid, trade in self.open_trades.items()
+            if tid in closing_ids
+        )
+        available = post_close_equity - sum(
+            trade.margin_used or 0.0
+            for tid, trade in self.open_trades.items()
+            if tid not in closing_ids
+        )
+        required = required_margin(
+            qty=qty,
+            price=fill_price,
+            leverage=self.leverage,
+        )
+        return margin_available_ok(required=required, available=available)
+
+    def _open_trade(
+        self,
+        *,
+        trade_id: str,
+        direction: Direction,
+        qty: float,
+        bar: int,
+        fill_price: float,
+        comment: str,
+        event_action: Literal["entry", "fill"],
+    ) -> Trade | None:
+        """마진 게이트 후 청산가를 계산해 Trade를 생성하는 유일한 관문."""
+        margin_used: float | None = None
+        liq_price: float | None = None
+        if is_leverage_active(self.leverage):
+            if self.running_equity is not None:
+                required = required_margin(
+                    qty=qty,
+                    price=fill_price,
+                    leverage=self.leverage,
+                )
+                available = self.running_equity - sum(
+                    trade.margin_used or 0.0 for trade in self.open_trades.values()
+                )
+                if not margin_available_ok(required=required, available=available):
+                    self.warnings.append(
+                        f"strategy.entry({trade_id!r}): 증거금 부족으로 진입 skip"
+                    )
+                    return None
+                margin_used = required
+            liq_price = liquidation_price(
+                entry_price=fill_price,
+                direction=direction,
+                leverage=self.leverage,
+            )
+
+        trade = Trade(
+            id=trade_id,
+            direction=direction,
+            qty=qty,
+            entry_bar=bar,
+            entry_price=fill_price,
+            comment=comment,
+            liq_price=liq_price,
+            margin_used=margin_used,
+        )
+        self.open_trades[trade_id] = trade
+        self._record_event(
+            bar=bar,
+            action=event_action,
+            direction=direction,
+            trade_id=trade_id,
+            qty=qty,
+            price=fill_price,
+            comment=comment,
+        )
+        return trade
 
     # ---- 포지션 정보 (strategy.position_size 등 built-in 응답) -------
 
@@ -492,6 +608,15 @@ class StrategyState:
             )
             return None
 
+        if not self._can_afford_entry(
+            trade_id=trade_id,
+            direction=direction,
+            qty=qty,
+            fill_price=fill_price,
+        ):
+            self.warnings.append(f"strategy.entry({trade_id!r}): 증거금 부족으로 진입 skip")
+            return None
+
         # 시장가: opposite direction 전부 flip (Pine 표준) → 중복 id 청산 → 신규 entry
         self._flip_opposite_positions(direction, bar=bar, fill_price=fill_price)
         if trade_id in self.open_trades:
@@ -506,26 +631,15 @@ class StrategyState:
             if same_dir >= self.pyramiding:
                 return None
 
-        trade = Trade(
-            id=trade_id,
-            direction=direction,
-            qty=qty,
-            entry_bar=bar,
-            entry_price=fill_price,
-            comment=comment,
-        )
-        self.open_trades[trade_id] = trade
-        # Sprint 26 P1 #2 — 시장가 entry event log
-        self._record_event(
-            bar=bar,
-            action="entry",
-            direction=direction,
+        return self._open_trade(
             trade_id=trade_id,
+            direction=direction,
             qty=qty,
-            price=fill_price,
+            bar=bar,
+            fill_price=fill_price,
             comment=comment,
+            event_action="entry",
         )
-        return trade
 
     def close(
         self,
@@ -619,34 +733,73 @@ class StrategyState:
         filled: list[Trade] = []
         to_remove: list[str] = []
         for order_id, order, fill_price in candidates:
+            if not self._can_afford_entry(
+                trade_id=order_id,
+                direction=order.direction,
+                qty=order.qty,
+                fill_price=fill_price,
+            ):
+                self.warnings.append(
+                    f"strategy.entry({order_id!r}): 증거금 부족으로 진입 skip"
+                )
+                to_remove.append(order_id)
+                continue
             # 체결: opposite direction flip → 동일 id 중복 청산 → 신규 open
             self._flip_opposite_positions(order.direction, bar=bar, fill_price=fill_price)
             if order_id in self.open_trades:
                 self.close(order_id, bar=bar, fill_price=fill_price)
-            trade = Trade(
-                id=order_id,
-                direction=order.direction,
-                qty=order.qty,
-                entry_bar=bar,
-                entry_price=fill_price,
-                comment=order.comment,
-            )
-            self.open_trades[order_id] = trade
-            # Sprint 26 P1 #2 — pending fill event (action=fill 로 entry 와 구분)
-            self._record_event(
-                bar=bar,
-                action="fill",
-                direction=order.direction,
+            trade = self._open_trade(
                 trade_id=order_id,
+                direction=order.direction,
                 qty=order.qty,
-                price=fill_price,
+                bar=bar,
+                fill_price=fill_price,
                 comment=order.comment,
+                event_action="fill",
             )
-            filled.append(trade)
             to_remove.append(order_id)
+            if trade is not None:
+                filled.append(trade)
         for oid in to_remove:
             self.pending_orders.pop(oid, None)
         return filled
+
+    def check_liquidations(
+        self,
+        *,
+        bar: int,
+        open_: float,
+        high: float,
+        low: float,
+    ) -> list[Trade]:
+        """현재 bar OHLC로 활성 격리 포지션의 강제청산을 검사한다."""
+        if not is_leverage_active(self.leverage):
+            return []
+
+        liquidated: list[Trade] = []
+        for trade_id, trade in list(self.open_trades.items()):
+            liq_price = trade.liq_price
+            if liq_price is None or trade.entry_bar >= bar:
+                continue
+            if trade.direction == "long":
+                if low > liq_price:
+                    continue
+                fill_price = min(open_, liq_price)
+            else:
+                if high < liq_price:
+                    continue
+                fill_price = max(open_, liq_price)
+            closed = self.close(
+                trade_id,
+                bar=bar,
+                fill_price=fill_price,
+                comment="liquidation",
+            )
+            if closed is not None:
+                closed.liquidated = True
+                self.liquidation_count += 1
+                liquidated.append(closed)
+        return liquidated
 
     # ---- BL-104: OCO TP/SL exit orders ------------------------------
 

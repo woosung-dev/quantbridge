@@ -65,29 +65,37 @@ afterEach(() => {
 });
 
 describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
-  it("수수료/슬리피지 기본값 = Bybit taker 표준. 레버리지·펀딩비 입력 필드는 없다", () => {
+  it("수수료/슬리피지 기본값과 1배 레버리지 입력을 표시한다", () => {
     render(<BacktestForm />);
 
     const fees = screen.getByLabelText("테이커 수수료") as HTMLInputElement;
     const slippage = screen.getByLabelText("슬리피지") as HTMLInputElement;
+    const leverage = screen.getByLabelText("레버리지 (배)") as HTMLInputElement;
 
     expect(fees.value).toBe("0.001");
     expect(slippage.value).toBe("0.0005");
-
-    // 레버리지 / 펀딩비 입력 필드는 없다 (1x 모델 고정, BL-187).
-    expect(screen.queryByLabelText(/레버리지 \(배/)).toBeNull();
-    expect(screen.queryByLabelText(/펀딩비 반영/)).toBeNull();
+    expect(leverage.value).toBe("1");
+    expect(leverage).toHaveAttribute("min", "1");
+    expect(leverage).toHaveAttribute("max", "125");
+    expect(leverage).toHaveAttribute("step", "0.01");
+    expect(screen.queryByTestId("backtest-leverage-notice")).not.toBeInTheDocument();
   });
 
-  it("섹션 — 자본과 체결 + 시뮬레이션 모델", () => {
+  it("레버리지 1배 초과 시 프리뷰와 모델·시맨틱·Live 구분 고지를 표시한다", async () => {
     render(<BacktestForm />);
 
-    expect(screen.getByLabelText("자본과 체결")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("레버리지 (배)"), {
+        target: { value: "10" },
+      });
+    });
 
-    expect(screen.getByLabelText("시뮬레이션 모델")).toBeInTheDocument();
-    expect(screen.getByText("모델: 1x · 롱/숏")).toBeInTheDocument();
-    expect(screen.getByText(/자기자본 한도/)).toBeInTheDocument();
-    expect(screen.getByText(/funding rate.*미반영/)).toBeInTheDocument();
+    expect(screen.getByTestId("backtest-leverage-notice")).toBeInTheDocument();
+    expect(screen.getByText("필요 증거금 = 포지션가치의 10.0%")).toBeInTheDocument();
+    expect(screen.getByText("청산가는 진입가에서 약 9.50% 역행 지점")).toBeInTheDocument();
+    expect(screen.getByText(/플랫 유지증거금률 0.5%/)).toBeInTheDocument();
+    expect(screen.getByText(/레버리지는 주문 수량을 바꾸지 않습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/전략의 Live Settings 레버리지와 별개/)).toBeInTheDocument();
   });
 
   it("form 제출 → payload 의 leverage / include_funding default 자동 채움", async () => {
@@ -106,6 +114,9 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
       fireEvent.change(screen.getByLabelText("초기 자본"), {
         target: { value: "10000" },
       });
+      fireEvent.change(screen.getByLabelText("레버리지 (배)"), {
+        target: { value: "2.5" },
+      });
       fireEvent.change(screen.getByLabelText("테이커 수수료"), {
         target: { value: "0.0006" },
       });
@@ -123,7 +134,7 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
     const payload = mutate.mock.calls[0]![0] as Record<string, unknown>;
     expect(payload.fees_pct).toBe(0.0006);
     expect(payload.slippage_pct).toBe(0.0001);
-    expect(payload.leverage).toBe(1);
+    expect(payload.leverage).toBe(2.5);
     expect(payload.include_funding).toBe(true);
     expect(payload.strategy_id).toBe("abc");
     expect(payload.symbol).toBe("BTC/USDT");
@@ -246,9 +257,9 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
     render(<BacktestForm />);
 
     const costSection = screen.getByTestId("backtest-form-cost-section");
-    const modelSection = screen.getByTestId("backtest-form-model-section");
+    const leverageSection = screen.getByTestId("backtest-form-leverage-section");
     expect(costSection).toBeInTheDocument();
-    expect(modelSection).toBeInTheDocument();
+    expect(leverageSection).toBeInTheDocument();
 
     // C 이식 폼 필드는 Tailwind grid 가 아니라 프로토타입 .field-grid 를 소비한다.
     const grid = costSection.querySelector(".field-grid");

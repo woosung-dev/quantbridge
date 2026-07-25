@@ -33,9 +33,9 @@
 
 ## 🔵 진행중 / 📋 계획됨 (핸드오프 SSOT 존재)
 
-| 항목               | 상태      | 핸드오프                                                | 스코프                                                                                                            |
-| ------------------ | --------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **backtest-trust** | 🔵 진행중 | `~/.claude/plans/quantbridge-backtest-trust-handoff.md` | BL-398 Sharpe TV(월간·RFR 2%) + BL-186a 레버리지 충실도(사이징+격리청산 원자) + BL-388 SSOT close. 마이그레이션 0 |
+| 항목               | 상태              | 핸드오프                                                                         | 스코프                                                                                                               |
+| ------------------ | ----------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **backtest-trust** | ✅ 완료 (PR 대기) | `docs/backtest-trust/` (플랜 = `~/.claude/plans/backtest-trust-joyful-wirth.md`) | BL-398 Resolved + **BL-186a Resolved**(★TV/MT5 컨벤션 = 레버리지가 수량을 안 바꿈) + BL-388 Resolved. 마이그레이션 0 |
 
 ## ⭐ 권장 착수 순서 (제안 — Trust ≥ Scale · dogfood-first 기준)
 
@@ -62,8 +62,12 @@
 
 - [ ] **BL-014** [P1] Partial fill 추적 — **부분 완료(#475: closedPnl overwrite + filled_quantity 4경로)** · 잔여 = per-execution ledger(BL-440)·cancelled 부분체결(BL-439)·entry warmup-replay(BL-441)
 - [ ] **BL-015** [P1] OKX Private WS — OKX 어댑터 REST 만, WS 부재로 fetch_order polling 부담 · 선행: OKX WS signing(Bybit Demo 안정화 후)
-- [ ] **BL-186a** [P2] 레버리지 충실도 최소 슬라이스 — **backtest-trust 계획됨**(사이징+격리청산 원자, leverage=1.0 byte-identical). 펀딩은 이미 완결
-- [ ] **BL-186b** [P2] cross/tiered MM + 멀티거래소 풀 레버리지·funding·liquidation — 186a 이후 이연
+- [x] **BL-186a** [P2] 레버리지 충실도 — ✅ **backtest-trust 완료**. ★TV/MT5 컨벤션(레버리지는 **수량을 바꾸지 않고** 필요증거금·청산가만 정함) → `compute_qty` 무변경 → 레버리지>1 에서도 TV parity 유지. 격리 청산 + 마진 게이트(단일 chokepoint) + FE 입력 재도입. L=1 byte-identical
+- [ ] **BL-186b** [P2] cross/tiered MM + 파산수수료 + 멀티거래소 + 펀딩-청산 상호작용 — 186a 이후 이연
+- [ ] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
+- [ ] **BL-461** [P3] `_periodic_returns` daily fallback 이 sub-daily 를 "1 bar = 1 day" 로 계산 — resample 부재. sortino 도 동일 영향이라 고치면 baseline 2 metric 확산
+- [ ] **BL-462** [P3] Sharpe 목록 정렬 신·구 컨벤션 혼재 — `repository.py:75` 가 원시 JSONB 숫자만 캐스팅. 현재는 FE 고지로 대응, 완전 해소는 read-time recompute
+- [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기 — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
 
 ## 3) 리팩토링 부채 (80 OPEN · P0 1 / P1 6 / P2 26 / P3 47)
 

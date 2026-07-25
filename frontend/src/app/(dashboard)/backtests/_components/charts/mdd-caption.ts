@@ -7,17 +7,26 @@ export interface MddCaptionInput {
   readonly mddBelowCapital: boolean;
   /** BE 메타: 우선 신뢰 (Sprint 32-D 이후 응답). null 이면 클라이언트 fallback. */
   readonly mddExceedsCapital: boolean | null;
+  /** 레버리지 마진 모델의 강제청산 발생 여부. 구 실행은 null. */
+  readonly liquidationOccurred: boolean | null;
 }
 
 export function buildMddCaption({
   leverage,
   mddBelowCapital,
   mddExceedsCapital,
+  liquidationOccurred,
 }: MddCaptionInput): string | null {
   const exceedsCapital = mddExceedsCapital ?? mddBelowCapital;
   const leverageLabel =
     leverage === 1 ? "leverage 1x · 현물" : `leverage ${leverage.toFixed(1)}x`;
 
+  if (leverage > 1 && liquidationOccurred) {
+    return `${leverageLabel} · 강제청산 발생${exceedsCapital ? " · 갭 체결로 증거금 초과" : ""}`;
+  }
+  if (leverage > 1 && exceedsCapital && liquidationOccurred === false) {
+    return `${leverageLabel} · 레버리지 가정과 손실이 맞지 않습니다`;
+  }
   if (exceedsCapital) {
     // 자본 초과 손실 — 사용자 신뢰 quality bar 의무 표시.
     return `${leverageLabel} · 자본 초과 손실`;

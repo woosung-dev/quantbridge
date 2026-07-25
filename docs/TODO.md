@@ -1,8 +1,53 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-25 (exit-money-path 스프린트 — 세션 스코프 머니-패스 정정)
-> **Active Sprint:** **exit-money-path** — BL-444 P1 + BL-445 P2
-> **Active Branch:** `stage/exit-money-path` (main @ `0a8e229` 베이스)
+> **Last Updated:** 2026-07-26 (backtest-trust 스프린트 — 백테스트 숫자 신뢰도)
+> **Active Sprint:** **backtest-trust** — BL-398 + BL-186a + BL-388
+> **Active Branch:** `stage/backtest-trust` (main @ `a4954e4` 베이스)
+
+## ⚡ backtest-trust 스프린트 (2026-07-26, `docs/backtest-trust/`)
+
+**스코프**: 라이브 머니-패스 5스프린트(#474~#478) 완주 후, 이번엔 **백테스트가 화면에 내놓는 숫자**. **BL-398**(Sharpe TV 컨벤션) + **BL-186a**(레버리지 충실도) + **BL-388**(SSOT close). 마이그레이션 **0**.
+
+### ★§0.5 실측이 전제를 3건 뒤집었다
+
+```
+핸드오프 경로 2건 오류(engine/ vs pine_v2/) · BL-388 은 "24필드 4-site" 가 아니라 48필드 전 차집합 공집합(이미 해결)
+BL-398 "FE 가 (bar 기준) 라벨로 고지 중" → 그 문자열은 없다. 실제 각주는 "무위험 수익률 0% 가정"(RFR 2% 도입 즉시 거짓)
+BL-186a "M" → 실제 L — FE 폼에 레버리지 입력이 아예 없어(Sprint 37 BL-187 이 제거) 엔진만 고치면 도달 경로 0
+```
+
+### ★★사용자 결정이 설계를 뒤집었다 — TV/MT5 컨벤션
+
+핸드오프는 "사이징 × leverage" 였으나 사용자가 TV 정렬을 지시했고, 1차 출처 조사 결과 **곱하기 모델은 업계 어디에도 없었다**(TV=`margin_long/short` %, MT5=계좌 레버리지→필요증거금, QC=`SetLeverage`=매수여력 상한. 거래소 UI 조차 곱하는 대상은 _증거금_ 입력). → **레버리지는 주문 수량을 바꾸지 않는다.**
+
+이 전환이 설계를 **줄이면서 강하게** 만들었다 — `compute_qty` 무변경 → 레버리지>1 에서도 **TV parity 유지**, 마진 게이트가 부가기능이 아니라 **레버리지의 작동 기제 자체**, "사이징+청산 원자성" 우려 소멸.
+
+### Completed
+
+- [x] **B1 BL-398** — `metrics.py` 에 TV 컨벤션 `sharpe_ratio()`(달력월 + RFR 2%, 모집단 SD, 연율화 없음) + `_periodic_returns` 3-tuple 확장 + `_sharpe` 제거 + **`sharpe_convention` 마커 4종**(4-site 동시) + FE `sharpe-convention.ts` SSOT + 렌더 3곳 + **혼재 정렬 고지**
+- [x] **B1 랭킹 flip 실측(의무)** — 15셀. **argmax FLIP** · Kendall τ **0.6381** · 11/15 셀 2계단 이상 이동. ★결정적 증거 = `s2_utbot@0.005` 가 **자본 38배 손실(−3837%)에 구 수식이 양수 샤프 +0.3955** 를 줬다 → 신 −0.0757
+- [x] **B2 BL-186a** — `leverage_model.py`(순수 수식) + **단일 chokepoint `_open_trade()`**(마진 게이트 + 청산가) + `check_liquidations()` + 배관 4층 + **양 루프**(Track S/M + A) + `RawTrade.liquidated` → metrics 4-site → DB `exit_kind='liquidation'` + FE 레버리지 입력 재도입 + 고지 5종
+- [x] **B3 BL-388** — 이미 해결 상태 확인 후 close + micro-tripwire 2 + stale 주석 정정(숫자 재기입 금지)
+- [x] 게이트: BE **2968**(+251) · FE **1113**(+16) · ruff/mypy/tsc/lint 0 · **canon 32 불변** · build ok · **마이그레이션 0**
+- [x] 검증: codex G0 **BLOCKING 1 + P1 3 + P2 3**(전건 코드 대조 → 5 수용/2 이미반영) → **설계 결함 적발**(마진 게이트를 `entry()` 에만 걸면 `check_pending_fills` 의 직접 `Trade` 생성 경로로 뚫림 → chokepoint 통합) → 슬라이스별 게이트 **평가자 직접 실행**
+- [x] **dogfood** — 엔진: Sharpe 손오라클 일치 · 청산 1x=0/25x=8/100x=267(**metrics·RawTrade·comment 3중 일치**) · 마진 게이트가 corpus 내재 **4.2x** 판정(3x 거부/10x 통과) · L=1 byte-identity 5 corpus. 실브라우저: 레버리지 배너 파생값 산술 정확(4.0%/3.50%) · 고지 7종 · **콘솔 0**
+
+### ★발견 — 마진 게이트는 gross 자본으로 판정한다
+
+`running_equity` 가 수수료·슬리피지 차감 전이라(`close()` 의 "fees=0 Sprint 37 가정"), `s1_pbr` 에서 gross **+38,679** 인데 net 은 **−53,670**(차이 약 92,000). 게이트가 실제 순자산이 깊은 마이너스일 때도 증거금 충분으로 본다. **선재 구조**이고 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 가 깨진다 → **배너에 명시 고지 + 후속 BL**. 단 **초기 판정은 정확**(초기 자본은 gross=net).
+
+### Questions
+
+- authed e2e 7건 실패는 **빈 DB**(strategies=0/backtests=0) 때문 — 코드 회귀 아님(로케이터 타임아웃으로 판별). 전략·백테스트 데이터 복원은 스코프 밖 [확인 필요]
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 [확인 필요]
+
+### Next Actions
+
+- [ ] 최종 codex 누적 diff 리뷰
+- [ ] 백로그 갱신(BL-398/388 Resolved · BL-186 부분) + 신규 BL(BL-186b · 마진게이트 net 자본 · `_periodic_returns` sub-daily fallback · Sharpe 목록 read-time recompute · optimizer/stress sharpe 혼재)
+- [ ] `stage/backtest-trust` → main PR (squash 는 사용자)
+
+---
 
 ## ⚡ exit-money-path 스프린트 (2026-07-25, `docs/exit-money-path/`)
 

@@ -24,6 +24,7 @@ from src.backtest.engine.metrics import (
     calmar_ratio,
     compute_excursion_stats,
     compute_side_metrics,
+    sharpe_ratio,
     sortino_ratio,
 )
 from src.backtest.engine.types import BacktestConfig, RawTrade
@@ -91,6 +92,42 @@ def test_sortino_no_downside_returns_none() -> None:
     ]
     eq = pd.Series(values, index=idx, dtype=float)
     assert sortino_ratio(eq) is None
+
+
+# ── sharpe ───────────────────────────────────────────────────────────────────
+
+
+def test_sharpe_monthly_hand_oracle() -> None:
+    """rfr_m = 0.02/12 = 0.00166667, mean = 0.03333333, excess = 0.03166667.
+    popSD = sqrt((0.06666667^2 + 0.13333333^2 + 0.06666667^2)/3) = 0.09428090.
+    sharpe = 0.03166667 / 0.09428090 = 0.335876.
+    """
+    value, convention = sharpe_ratio(_monthly_equity())
+    assert float(value) == pytest.approx(0.335876, abs=1e-5)
+    assert convention == "tv_monthly_rfr2"
+
+
+def test_sharpe_daily_fallback_hand_oracle() -> None:
+    """returns [0.1, -0.1], mean = 0, popSD = 0.1, rfr_d = 0.02/365.
+    sharpe = -0.0000547945 / 0.1 = -0.000547945.
+    """
+    idx = pd.date_range("2024-01-01", periods=3, freq="D")
+    eq = pd.Series([100.0, 110.0, 99.0], index=idx, dtype=float)
+    value, convention = sharpe_ratio(eq)
+    assert float(value) == pytest.approx(-0.000548, abs=1e-6)
+    assert convention == "tv_daily_rfr2"
+
+
+def test_sharpe_zero_sd_returns_zero_not_none() -> None:
+    idx = pd.date_range("2024-01-01", "2024-03-31", freq="D")
+    eq = pd.Series([100.0] * len(idx), index=idx, dtype=float)
+    # Sortino와 의도적 비대칭으로 Sharpe는 unavailable convention과 함께 0을 반환한다.
+    assert sharpe_ratio(eq) == (Decimal("0"), "unavailable")
+
+
+def test_sharpe_non_datetime_index_unavailable() -> None:
+    # golden fixture ema_cross_atr_sltp_v5/ohlcv.csv는 timestamp 컬럼이 없어 RangeIndex라 이 경로를 탄다는 계약을 고정한다.
+    assert sharpe_ratio(pd.Series([100.0, 110.0, 99.0])) == (Decimal("0"), "unavailable")
 
 
 # ── calmar ───────────────────────────────────────────────────────────────────

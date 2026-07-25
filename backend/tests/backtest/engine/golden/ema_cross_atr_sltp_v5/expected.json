@@ -7,11 +7,12 @@
   "exits_indices": [
     22, 26, 40, 59, 64, 78, 90, 94, 123, 138, 157, 164, 166, 179
   ],
-  "description": "EMA cross with ATR-based stop and limit bracket order (pine_v2 strategy.exit, BL-104)",
+  "description": "EMA cross with ATR-based stop and limit bracket order (pine_v2 strategy.exit, BL-104). BL-398: ohlcv.csv 에 timestamp 컬럼이 없어 equity index 가 RangeIndex 이고, TV 컨벤션 Sharpe 는 달력 기간을 못 잡아 sharpe_convention=unavailable + 값 0 이 된다(구 bar 기준 값은 -0.34227508263480416 이었다).",
   "backtest": {
     "metrics": {
       "total_return": "-0.0003771138174282226845",
-      "sharpe_ratio": "-0.34227508263480416",
+      "sharpe_ratio": "0",
+      "sharpe_convention": "unavailable",
       "max_drawdown": "-0.0014634176774924912",
       "win_rate": "0.2142857142857142857142857143",
       "num_trades": 14
