@@ -24,7 +24,7 @@
 - [x] **S4 분류·귀속** — classification 7종(`stopOrderType` 폴백 · `orderLinkId` UUID 검증) + attribution 3등급(두 조건 AND) + `qb_exchange_exit_rows_total`. **`inferred` 는 머니-패스 미투입**(검정력 없음)
 - [x] **S5 FE** — `displayRealizedPnl`/`isPartialFill`/`realizedPnlSource` SSOT + 체결 전 주문 손익 은닉 + 사유 title + CSV 3열 복원
 - [x] **안전** — `_assert_disposable_database`(파괴적 마이그레이션 테스트가 `_test` 아닌 DB 향하면 `RuntimeError`) + 스키마 열거 센티널 9→11
-- [x] 게이트: BE **2703**(+50) / FE **1094**(+6) / ruff·mypy·tsc·lint 0 / alembic 왕복 + head `20260725_0002`
+- [x] 게이트: BE **2710**(+57) / FE **1094**(+6) / ruff·mypy·tsc·lint 0 / alembic 왕복 + head `20260725_0002`
 - [x] 검증: codex G0 **REJECT**(전건 대조 후 절반 수용, "계정 단위 열거 불가" 는 **실측 반박**) → Explore 3-리더(핸드오프 좌표 **3건 반박**) → **Plan 압박검증이 내 설계 결함 적발**(원장 min 파생 워터마크가 빈 창에서 영구 정지 → 실측 시각 시뮬레이션으로 반증·재검증) → 사용자 인터뷰 **10건** → codex 4워커 ↔ **Claude 적대평가 4기**(BLOCKING 4 + MAJOR 4, **내가 넣은 회귀 1건**(`row_hash` 가 `None`/`""` 를 다르게 봐 손익 2배 백필) 포함 전건 수정 + 회귀 테스트)
 - [x] BL: **BL-438 부분 Resolved** · **BL-442 Resolved** · 신규 **BL-443~451**
 

@@ -106,4 +106,4 @@ W1b 적대 평가자에게 alembic 왕복 실측을 지시하며 `export DATABAS
 
 ## #8. 게이트
 
-BE **2703 passed / 46 skipped / 0 failed**(baseline 2653, +50) · ruff·mypy clean · FE **1094 passed**(baseline 1088, +6) · tsc·lint clean · alembic 왕복 + head `20260725_0002` · 마이그레이션 **1**(신규 테이블 2개).
+BE **2710 passed / 46 skipped / 0 failed**(baseline 2653, +57) · ruff·mypy clean · FE **1094 passed**(baseline 1088, +6) · tsc·lint clean · alembic 왕복 + head `20260725_0002` · 마이그레이션 **1**(신규 테이블 2개).

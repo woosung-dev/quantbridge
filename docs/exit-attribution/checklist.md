@@ -76,7 +76,7 @@
 
 ## 게이트
 
-- [x] BE ruff / mypy / pytest 3-env — **2703 passed / 46 skipped / 0 failed** (baseline 2653, +50)
+- [x] BE ruff / mypy / pytest 3-env — **2710 passed / 46 skipped / 0 failed** (baseline 2653, +57)
 - [x] FE tsc / test / lint — **1094 passed** (baseline 1088, +6), tsc·lint clean
 - [x] alembic 왕복 + head `20260725_0002` (마이그레이션 **1**, 신규 테이블 2개)
 - [ ] canon 32 불변 · authed (`/orders` 라우트 직접 확인)
@@ -119,5 +119,5 @@
 
 - [x] 최종 codex 누적 diff 리뷰 1회 (생략 금지)
 - [x] docs/exit-attribution/{checklist,operating-contract,context-notes}.md
-- [ ] TODO / dev-log / BL — BL-438 부분 Resolved · BL-442 Resolved · 신규 BL
-- [ ] push (QB_PRE_PUSH_BYPASS=1) → main PR 1개 (squash 는 사용자)
+- [x] TODO / dev-log / BL — BL-438 부분 Resolved · BL-442 Resolved · 신규 BL-443~451
+- [x] push (QB_PRE_PUSH_BYPASS=1) → main PR 1개 (squash 는 사용자)
