@@ -49,7 +49,7 @@
 ## S3 스윕 재작성
 
 - [x] 계정 독립 열거 + 계정별 실패 격리
-- [x] 창 선택 = 최근 1 + 워터마크 파생 과거 1 (horizon 90일)
+- [x] 창 선택 = ~~최근 1 + 워터마크 파생 과거 1 (horizon 90일)~~ → **최근 7일 1창**(§S6 축소)
 - [x] 조건부 보강 조회 (정상 상태 0콜, 실패 시 `unknown` 으로 진행)
 - [x] **원장 전체 집계 백필** (단일 fetch 아님 → 창 경계 부분합 고정 없음)
 - [x] 커밋 후 계상 · 새 행만 metric · 알림 1회성(조회까지 try 안)
@@ -77,7 +77,7 @@
 
 ## 게이트
 
-- [x] BE ruff / mypy / pytest 3-env — **2710 passed / 46 skipped / 0 failed** (baseline 2653, +57)
+- [x] BE ruff / mypy / pytest 3-env — **2710 passed / 46 skipped / 0 failed** (baseline 2653, +57) → **축소 후 2706** (§S6)
 - [x] FE tsc / test / lint — **1094 passed** (baseline 1088, +6), tsc·lint clean
 - [x] alembic 왕복 + head `20260725_0002` (마이그레이션 **1**, 신규 테이블 **1개** — §S6 축소 후)
 - [ ] canon 32 불변 · authed (`/orders` 라우트 직접 확인)
@@ -101,7 +101,7 @@
 - [ ] 1 원장 적재 — 스윕 1회 후 행 수·손익 합이 오라클 raw 와 일치
 - [ ] 2 분류 — 미귀속 행이 `external_manual` 로 분류(`createType=CreateByUser`·`orderLinkId` 없음)
 - [ ] 3 멱등 — 2회차 `inserted:0`, 원장 행 수 불변
-- [ ] 4 창 전진 — 워터마크가 주기마다 7일씩 과거로 이동하고 horizon 에서 정지
+- [ ] 4 창 고정 — 매 주기 `[now−7d, now]` 한 창만 조회(§S6 축소로 과거 전진 없음)
 - [ ] 5 알림 1회성 — 신규 미귀속 행에 1회 발화, 다음 주기 무발화
 - [ ] 6 §9.5 라이브 worker — 같은 child 에서 연속 성공 + beat 발화
 - [ ] 7 authed 브라우저(3100) — `/orders` 손익 셀·CSV·콘솔 error 0
