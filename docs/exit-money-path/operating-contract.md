@@ -63,7 +63,13 @@ Site 4 만 추가로 `realized_pnl IS NOT NULL` + `ORDER BY filled_at ASC`.
 얻은 것 — 심볼만 다른 활성 세션 2개가 합법(`uq_live_sessions_active_unique` 에 symbol 포함)이므로, 대시보드 §01 KPI 가 같은 손익을 두 번 더하던 문제가 **FE 변경 없이** 닫혔다.
 고정 위치 — `test_symbol_mismatch_drops_the_webhook_order_from_every_session`.
 
-### 3.3 수동 청산은 체결 직후에도 0 이다
+### 3.3 세션 경계는 파이썬 쪽에서 한 번 잡힌다 (TOCTOU)
+
+두 소비처 모두 세션 행을 먼저 읽고 **별도 SELECT** 로 주문을 조회한다. 그 사이 `deactivate` 가 커밋되면 스코프는 여전히 무상한이라 **그 한 번의 계산에** 종료 후 체결이 섞인다.
+
+**변경 전보다는 엄격하다** — 예전에는 창이 아예 없어 항상 전 기간을 포함했다. 이 레이스는 새 코드가 한 번의 계산 동안만 옛 동작을 하게 만들고, 다음 평가/요청에서 자가 교정된다. 두 경로 모두 발주를 막지 않는 읽기 전용이다. 근본 수정(세션↔주문 단일 조인)은 [BL-459](../REFACTORING-BACKLOG.md#bl-459).
+
+### 3.4 수동 청산은 체결 직후에도 0 이다
 
 `ClosePositionService` 는 `realized_pnl` 을 안 싣는다(`close_service.py:78` 의 `OrderRequest` 에 필드 자체가 없다). 값은 나중에 `refresh_closed_pnl_task` → `sweep_closed_pnl` 체인이 백필한다.
 

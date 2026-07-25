@@ -119,3 +119,57 @@ all server processes terminated; reinitializing
 - 수동 청산은 삽입 시 `realized_pnl` 이 NULL 이라 이 PR 후에도 **스윕이 백필하기 전까지는** 여전히 0 으로 보인다. BL-444 는 "보이느냐"를 고쳤지 "언제 보이느냐"를 고치지 않았다.
 - **라이브 손익에 펀딩이 한 푼도 반영되지 않는다**(BL-186).
 - 이번 범위에서 원장(`trading.exchange_exits`)을 읽는 소비자를 만들지 않았으므로 **"합성 Order 금지" 제약은 시험되지 않았다.**
+
+---
+
+## §8 최종 codex 누적 diff 리뷰 — REVISE [P2] 1건, 회귀 아님으로 판정
+
+codex 가 `main...HEAD` 전체를 읽고 낸 유일한 finding은 **TOCTOU** 였다. 두 소비처 모두 세션 행을 먼저 읽어 `SessionScope` 를 만들고 **별도 SELECT** 로 주문을 조회하는데, 그 사이 `LiveSignalSessionRepository.deactivate`(`:155`)가 커밋되면 스코프는 여전히 무상한(`ended_at=None`)이라 종료 후 체결이 그 한 번의 계산에 섞인다. `deactivate` 호출 지점은 4곳이다(`tasks/live_signal.py:433/503/539` beat + `router.py:442` 사용자 DELETE) — 코드 대조로 실재를 확인했다.
+
+**그런데 등급 판단은 codex 와 다르게 했다. 이건 회귀가 아니다.**
+
+- 변경 **전에는** Site 4 에 창이 아예 없었다(전 기간 무조건 포함). Site 3 도 event-join 이라 창이 없었다.
+- 즉 이 레이스는 새 코드가 **한 번의 계산 동안만** 옛 동작을 하게 만드는 것이고, 다음 평가/요청에서 자가 교정된다. 변경 전의 **영구적** 동작보다 엄격하다.
+- 두 경로 모두 발주를 막지 않는 **읽기 전용 관측**이다(Site 1·2 만 게이트).
+- 올바른 수정(세션↔주문 단일 조인)은 쿼리 구조 변경이고, codex 스스로 "새 테스트는 순차 실행뿐이라 이 경쟁 조건을 잡지 못한다" 고 적었다 — 즉 고쳐도 검증할 수단이 이번 범위에 없다.
+
+→ 수정 대신 [BL-459](../REFACTORING-BACKLOG.md#bl-459) 등재 + `operating-contract.md` §3.3 에 계약으로 명시. **codex 판정을 그대로 받지도, 그냥 무시하지도 않았다** — 실재를 확인하고 등급만 근거와 함께 조정했다.
+
+codex 가 함께 확인해준 것 — 구 메서드/문자열·동적 참조 잔존 0 · 술어의 NULL/반열림/UTC/Decimal/`where(*list)` 정확 · Site 1/2/5 와 응답 스키마 간접 변경 없음 · 기대값 산술 정확.
+
+---
+
+## §9 게이트 결과와 한 번 red 였던 것
+
+| 게이트         | 결과                                                                   |
+| -------------- | ---------------------------------------------------------------------- |
+| `ruff check .` | All checks passed (pre-commit `ruff format` 후 재게이트 포함)          |
+| `mypy src/`    | Success, 203 source files                                              |
+| BE pytest      | **2717 passed / 0 failed** (baseline 2707 → +10 = 신규 테스트 수 일치) |
+| FE `pnpm test` | **1094 = baseline 정확 일치** (FE 변경 0)                              |
+| alembic        | 무변경, head `20260725_0002` 유지                                      |
+| canon          | 27 / 32 — 5 실패는 **main 기존 결함**(아래)                            |
+
+**★한 번 red 였던 항목.** BE 첫 전량 실행에서 `test_redis_client.py::test_get_pool_safe_across_event_loops` 1건 실패. 단독·clean main·2회차 전량 모두 통과 → **순서 의존 flake**. 내 변경 파일은 `tests/tasks`·`tests/trading` 이라 알파벳 순으로 `tests/common` **뒤에** 돌아 원인이 될 수 없다. 숨기지 않고 기록한다.
+
+---
+
+## §10 dogfood 가 못 돈 이유 — 환경 2건 (둘 다 이 브랜치와 무관)
+
+### ① 로컬 백엔드가 죽은 DB 포트를 향하고 있다
+
+`/dashboard` 를 실제 브라우저로 열었더니 렌더는 정상인데 **콘솔 error 48건이 전부 CORS/`ERR_FAILED`** 였다. 파고들었더니 CORS 설정은 멀쩡했다 — `OPTIONS` 프리플라이트가 `access-control-allow-origin: http://localhost:3100` 을 정상 반환한다.
+
+진짜 원인은 8100 백엔드 프로세스가 **2026-07-24 08:22 기동**이고 인라인 env 가 `DATABASE_URL=...localhost:5436` 이라는 것. **5436 은 닫혀 있다** — 2026-07-25 포트 정렬(5436 → 5433) **이전**에 뜬 stale 프로세스다. DB 를 건드리는 요청이 전송 단계에서 실패해 브라우저가 CORS 로 보고할 뿐이었다.
+
+사용자가 띄운 프로세스라 임의로 죽이지 않았다. **5433 으로 재기동해야 브라우저 dogfood 가 의미를 갖는다.**
+
+### ② main 에서 차트 토큰 9/10 이 런타임 미해석
+
+canon 5 실패의 실체 = `해석되지 않은 변수 — chart-tokens.ts 가 폴백으로 조용히 떨어진다`. `--border` 하나만 해석되고 나머지 9개가 빈 문자열이다.
+
+확인한 것 — 토큰은 `src/styles/globals.css` 의 `:root`(43·55…)와 `.dark`(416~)에 실재하고 dev 서버가 내려주는 CSS 청크에도 각 2회 존재한다. **`--border`(55)와 `--bullish`(43)가 같은 `:root` 블록인데 하나만 해석된다** 는 것이 핵심 단서다. `frontend/` 이 main 과 **바이트 동일**이라 이 브랜치가 만들 수 없는 결함이므로 특성 파악까지만 하고 멈췄다.
+
+### ③ 그래서 dogfood 는 무엇을 증명했나
+
+**아무것도 증명하지 못했다** — 정직하게 그렇게 적는다. 다행히 D3 에서 대조군을 fixture 단독으로 잡았으므로 **값 판별력은 애초에 dogfood 몫이 아니었다**. dogfood 는 회귀 안전망이었고 그 안전망이 환경 때문에 못 돌았다.
