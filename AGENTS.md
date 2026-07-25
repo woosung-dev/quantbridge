@@ -1,6 +1,6 @@
 # QuantBridge — TradingView Pine Script 전략 → 백테스트·데모·라이브 트레이딩 퀀트 플랫폼
 
-> **새 AI 세션 첫 step:** `CONTEXT.md` (도메인 헌법 — 용어/관계 SSOT, Stage 0) + 본 파일 + `docs/TODO.md` (활성 sprint 상태) + `docs/REFACTORING-BACKLOG.md` (open BL) 4 종 읽기.
+> **새 AI 세션 첫 step:** `CONTEXT.md` (도메인 헌법 — 용어/관계 SSOT, Stage 0) + 본 파일 + `docs/TODO.md` (활성 sprint 상태) + `docs/REFACTORING-BACKLOG.md` (open BL) + `docs/product-roadmap.md` (남은 작업 로드맵 — 매 세션 다음 후보 확인 + 완료 체크) 5 종 읽기.
 > 본 파일은 **stable orientation** 만 보존. Sprint-specific narrative 는 `docs/TODO.md`, 회고/ADR 은 `docs/dev-log/INDEX.md`.
 
 ---
@@ -83,6 +83,7 @@ ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-`
 
 - **활성 sprint 상태 / 다음 분기 결정:** [`docs/TODO.md`](docs/TODO.md)
 - **미해결 BL:** [`docs/REFACTORING-BACKLOG.md`](docs/REFACTORING-BACKLOG.md)
+- **남은 작업 로드맵 / 다음 후보 (매 세션 체크):** [`docs/product-roadmap.md`](docs/product-roadmap.md)
 - **전체 sprint 이력:** [`docs/dev-log/INDEX.md`](docs/dev-log/INDEX.md)
 
 ---
