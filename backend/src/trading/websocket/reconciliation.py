@@ -25,7 +25,11 @@ from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.common.alert import send_critical_alert
-from src.common.metrics import qb_active_orders, qb_ws_reconcile_unknown_total
+from src.common.metrics import (
+    qb_active_orders,
+    qb_partial_fill_total,
+    qb_ws_reconcile_unknown_total,
+)
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
 from src.trading.repositories.order_repository import OrderRepository
@@ -94,7 +98,7 @@ class Reconciler:
 
             # Sprint 16 BL-027 (codex G.0 P1 #1): commit-then-dec winner-only.
             # _apply_transition 가 rowcount return → 누적 후 commit 성공 시점에 dec 발화.
-            winners: list[tuple[Order, OrderState]] = []
+            winners: list[tuple[Order, OrderState, dict[str, Any]]] = []
             for local in local_active:
                 exch = self._find_match(all_exch, str(local.id))
                 if exch is None:
@@ -111,13 +115,13 @@ class Reconciler:
                             session, local, new_state, exch
                         )
                         if rowcount == 1:
-                            winners.append((local, new_state))
+                            winners.append((local, new_state, exch))
                 # else: 명시 status 없으면 state 유지
 
             await session.commit()
 
             # Sprint 16 BL-027: commit 성공 후 winner-only dec — 이전엔 dec 누락 (drift).
-            for local, new_state in winners:
+            for local, new_state, exch in winners:
                 if new_state in (
                     OrderState.filled,
                     OrderState.rejected,
@@ -130,9 +134,23 @@ class Reconciler:
                     #   rowcount==0 으로 skip → trailing 이 silent 미발주됐다(blocker).
                     #   동기/WS/watchdog 와 동일 winner-only 경로로 enqueue. lazy import 로
                     #   순환 의존 회피. expire_on_commit=False 라 post-commit attr 접근 안전.
-                    from src.tasks.trading import _enqueue_trailing_if_intended
+                    from decimal import Decimal
 
+                    from src.tasks.trading import (
+                        _enqueue_closed_pnl_refresh,
+                        _enqueue_trailing_if_intended,
+                    )
+
+                    filled = exch.get("filled") or exch.get("cumExecQty")
+                    filled_quantity = Decimal(str(filled)) if filled else None
+                    if (
+                        filled_quantity is not None
+                        and filled_quantity.is_finite()
+                        and filled_quantity < local.quantity
+                    ):
+                        qb_partial_fill_total.labels(source="reconciler").inc()
                     _enqueue_trailing_if_intended(local)
+                    _enqueue_closed_pnl_refresh(local)
 
     async def _list_local_active(
         self, session: AsyncSession, account_id: UUID
@@ -207,11 +225,14 @@ class Reconciler:
             from decimal import Decimal
 
             avg = exch.get("average") or exch.get("avgPrice")
+            filled = exch.get("filled") or exch.get("cumExecQty")
             filled_price = Decimal(str(avg)) if avg else None
+            filled_quantity = Decimal(str(filled)) if filled else None
             rowcount = await repo.transition_to_filled(
                 local.id,
                 exchange_order_id=str(exch.get("id", local.exchange_order_id or "")),
                 filled_price=filled_price,
+                filled_quantity=filled_quantity,
                 filled_at=now,
             )
         elif new_state == OrderState.cancelled:

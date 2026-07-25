@@ -75,3 +75,24 @@ describe("OrderSchema Wave2 fields", () => {
     expect(parsed.trailing_stop).toBeNull();
   });
 });
+
+describe("OrderSchema Wave3 fields", () => {
+  it("Wave3 필드가 없는 구 응답도 default null 로 parse 한다", () => {
+    const parsed = OrderSchema.parse(BASE);
+    expect(parsed.filled_quantity).toBeNull();
+    expect(parsed.realized_pnl).toBeNull();
+    expect(parsed.realized_pnl_synced_at).toBeNull();
+  });
+
+  it("Wave3 체결 수량·실현 손익·출처 마커를 그대로 parse 한다", () => {
+    const parsed = OrderSchema.parse({
+      ...BASE,
+      filled_quantity: "0.005",
+      realized_pnl: "12.34",
+      realized_pnl_synced_at: "2026-06-26T10:01:00Z",
+    });
+    expect(parsed.filled_quantity).toBe("0.005");
+    expect(parsed.realized_pnl).toBe("12.34");
+    expect(parsed.realized_pnl_synced_at).toBe("2026-06-26T10:01:00Z");
+  });
+});

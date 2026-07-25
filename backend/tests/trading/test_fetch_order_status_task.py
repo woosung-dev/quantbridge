@@ -171,6 +171,44 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
 
 
 @pytest.mark.asyncio
+async def test_fetch_order_status_partial_fill_increments_watchdog_metric(
+    db_session: AsyncSession,
+    submitted_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.tasks.trading as task_mod
+    from src.common.metrics import qb_partial_fill_total
+    from src.trading.providers import OrderStatusFetch
+
+    class _PartialStatusProvider:
+        async def fetch_order(self, creds, exchange_order_id, symbol):  # type: ignore[no-untyped-def]
+            return OrderStatusFetch(
+                exchange_order_id=exchange_order_id,
+                status="filled",
+                filled_price=Decimal("50000"),
+                filled_quantity=Decimal("0.0005"),
+            )
+
+    order, _ = submitted_order
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _PartialStatusProvider(),
+    )
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+    counter = qb_partial_fill_total.labels(source="watchdog")
+    before = counter._value.get()
+
+    result = await task_mod._async_fetch_order_status(order.id, attempt=1)
+
+    assert result["state"] == "filled"
+    assert counter._value.get() == before + 1
+
+
+@pytest.mark.asyncio
 async def test_fetch_order_status_cancelled_transitions(
     db_session: AsyncSession,
     submitted_order,

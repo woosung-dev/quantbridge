@@ -18,7 +18,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.common.metrics import qb_active_orders
+from src.common.metrics import qb_active_orders, qb_partial_fill_total
 from src.trading.models import (
     Order,
     OrderSide,
@@ -77,10 +77,11 @@ async def test_apply_transition_filled_returns_rowcount_no_dec() -> None:
         repo,
         uuid4(),
         OrderState.filled,
-        {"avgPrice": "100.0", "orderId": "abc"},
+        {"avgPrice": "100.0", "cumExecQty": "0.0005", "orderId": "abc"},
     )
 
     assert rc == 1
+    assert repo.transition_to_filled.await_args.kwargs["filled_quantity"] == Decimal("0.0005")
     # caller responsibility — _apply_transition 자체는 dec 안 함
     assert qb_active_orders._value.get() == 1.0
 
@@ -182,6 +183,8 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     monkeypatch.setattr(sh_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
+    partial_counter = qb_partial_fill_total.labels(source="ws")
+    before_partial = partial_counter._value.get()
 
     await handler.handle_order_event(
         uuid4(),
@@ -190,6 +193,7 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
             "orderStatus": "Filled",
             "orderId": "exchange-abc",
             "avgPrice": "100.0",
+            "cumExecQty": "0.0005",
         },
     )
 
@@ -207,6 +211,7 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     )
     assert trace == ["commit", "publish"]
     assert qb_active_orders._value.get() == 0.0
+    assert partial_counter._value.get() == before_partial + 1
 
 
 @pytest.mark.asyncio

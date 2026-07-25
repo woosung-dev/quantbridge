@@ -19,11 +19,7 @@ import {
 
 import { StateBox } from "@/components/state-box";
 import { downloadCsv, formatDate, formatTimeSeconds } from "@/features/backtest/utils";
-import {
-  ACTIVE_ORDER_STATES,
-  useCancelOrder,
-  useOrders,
-} from "@/features/trading/hooks";
+import { ACTIVE_ORDER_STATES, useCancelOrder, useOrders } from "@/features/trading/hooks";
 import {
   filledPriceEmptyReason,
   ORDER_CANCEL_ACTION,
@@ -31,12 +27,15 @@ import {
   ORDER_EMPTY_STATE,
   ORDER_ERROR_NONE_TITLE,
   ORDER_FILTER_HINT,
+  ORDER_FILLED_QUANTITY,
   ORDER_FLAG_HINT,
   ORDER_FLAG_LABEL,
   ORDER_LEDGER_COPY,
   ORDER_LIQUIDATION_DELEGATION_NOTE,
   ORDER_NUMBER_NOTE,
   ORDER_POLLING_NOTE,
+  ORDER_REALIZED_PNL_SOURCE_HINT,
+  ORDER_REALIZED_PNL_SOURCE_LABEL,
   ORDER_SIDE_HEADER_HINT,
   ORDER_SIDE_LABEL,
   ORDER_STATE_FILTER_LABEL,
@@ -102,6 +101,8 @@ const CSV_HEADER = [
   ORDER_TABLE_HEADER.side,
   ORDER_TABLE_HEADER.quantity,
   ORDER_TABLE_HEADER.filledPrice,
+  ORDER_TABLE_HEADER.filledQuantity,
+  ORDER_TABLE_HEADER.realizedPnl,
   ORDER_TABLE_HEADER.state,
   ORDER_TABLE_HEADER.takeProfitStopLoss,
   ORDER_TABLE_HEADER.brokerOrderId,
@@ -123,6 +124,8 @@ function ordersToCsv(orders: readonly Order[]): string {
     ORDER_SIDE_LABEL[o.side] + (o.reduce_only ? ` (${ORDER_FLAG_LABEL.reduceOnly})` : ""),
     o.quantity,
     o.filled_price ?? "",
+    o.filled_quantity ?? "",
+    o.realized_pnl ?? "",
     ORDER_STATE_LABEL[o.state].label,
     tpSlText(o),
     o.exchange_order_id != null ? o.exchange_order_id.slice(-8) : "",
@@ -207,6 +210,8 @@ export function OrdersBlotter() {
     side: hSide,
     quantity: hQuantity,
     filledPrice: hFilledPrice,
+    filledQuantity: hFilledQuantity,
+    realizedPnl: hRealizedPnl,
     state: hState,
     takeProfitStopLoss: hTpSl,
     brokerOrderId: hBrokerOrderId,
@@ -278,8 +283,7 @@ export function OrdersBlotter() {
                     data-testid={`order-filter-${f}`}
                     onClick={() => handleFilter(f)}
                   >
-                    {ORDER_STATE_FILTER_LABEL[f]}{" "}
-                    <span className="mono">{filterCounts[f]}</span>
+                    {ORDER_STATE_FILTER_LABEL[f]} <span className="mono">{filterCounts[f]}</span>
                   </button>
                 );
               })}
@@ -291,8 +295,8 @@ export function OrdersBlotter() {
               data-testid="order-filter-state"
             >
               지금 보고 있는 상태는 <span className="mono">{ORDER_STATE_FILTER_LABEL[filter]}</span>{" "}
-              입니다. 조건에 맞는 <span className="mono">{filtered.length}</span>건 가운데 이 페이지에
-              실린 <span className="mono">{pageRows.length}</span>건이 아래 표에 보입니다.
+              입니다. 조건에 맞는 <span className="mono">{filtered.length}</span>건 가운데 이
+              페이지에 실린 <span className="mono">{pageRows.length}</span>건이 아래 표에 보입니다.
             </p>
             <p className="filter-hint">{ORDER_FILTER_HINT.scope}</p>
             <p className="filter-hint">{ORDER_FILTER_HINT.navCount}</p>
@@ -356,11 +360,7 @@ export function OrdersBlotter() {
                 testId="order-error"
                 icon={<AlertTriangleIcon />}
                 title="원장을 다시 받아오지 못했습니다."
-                body={
-                  error
-                    ? error.message
-                    : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."
-                }
+                body={error ? error.message : "네트워크 또는 서버 상태 일시적 오류일 수 있습니다."}
                 code={`${LIST_ENDPOINT} · 500`}
               >
                 <button className="btn btn-ghost" type="button" onClick={() => refetch()}>
@@ -419,6 +419,12 @@ export function OrdersBlotter() {
                       </th>
                       <th scope="col" className="num">
                         {hFilledPrice}
+                      </th>
+                      <th scope="col" className="num">
+                        {hFilledQuantity}
+                      </th>
+                      <th scope="col" className="num">
+                        {hRealizedPnl}
                       </th>
                       <th scope="col" className="col-state">
                         {hState}
@@ -498,7 +504,7 @@ export function OrdersBlotter() {
   );
 }
 
-// 원장 한 행 — 10개 backed 열. 라벨·톤·무데이터 title 은 전부 용어 SSOT 에서 온다.
+// 원장 한 행 — 12개 backed 열. 라벨·톤·무데이터 title 은 전부 용어 SSOT 에서 온다.
 function OrderRow({
   order: o,
   onCancel,
@@ -510,6 +516,17 @@ function OrderRow({
 }) {
   const { label, tone, showCheckIcon } = ORDER_STATE_LABEL[o.state];
   const { time, date } = formatOrderTime(o.created_at);
+  const isPartialFill = o.filled_quantity != null && Number(o.filled_quantity) < Number(o.quantity);
+  const realizedPnl = o.realized_pnl == null ? null : Number(o.realized_pnl);
+  const realizedPnlTone =
+    realizedPnl != null && Number.isFinite(realizedPnl)
+      ? realizedPnl < 0
+        ? "neg"
+        : realizedPnl > 0
+          ? "pos"
+          : ""
+      : "";
+  const pnlSource = o.realized_pnl_synced_at != null ? "confirmed" : "estimated";
   return (
     <tr data-state={o.state} data-testid={`order-row-${o.id}`}>
       <td className="mono-l">
@@ -532,6 +549,34 @@ function OrderRow({
         <td className="num dim" title={filledPriceEmptyReason(o.state)}>
           {EMPTY_CELL}
         </td>
+      )}
+      {o.filled_quantity != null ? (
+        <td className="num">
+          {o.filled_quantity}
+          {isPartialFill ? (
+            <>
+              {" "}
+              <span
+                className="chip chip-xs"
+                title={ORDER_FILLED_QUANTITY.partialTitle(o.quantity, o.filled_quantity)}
+              >
+                {ORDER_FILLED_QUANTITY.partial}
+              </span>
+            </>
+          ) : null}
+        </td>
+      ) : (
+        <td className="num dim">{EMPTY_CELL}</td>
+      )}
+      {o.realized_pnl != null ? (
+        <td className={`num ${realizedPnlTone}`}>
+          {o.realized_pnl}{" "}
+          <span className="chip chip-xs" title={ORDER_REALIZED_PNL_SOURCE_HINT[pnlSource]}>
+            {ORDER_REALIZED_PNL_SOURCE_LABEL[pnlSource]}
+          </span>
+        </td>
+      ) : (
+        <td className="num dim">{EMPTY_CELL}</td>
       )}
       <td className="col-state">
         <span className={CHIP_TONE_CLASS[tone]}>
@@ -620,7 +665,7 @@ function TakeProfitStopLossCell({ order: o }: { order: Order }) {
   );
 }
 
-// 다음 페이지를 불러오는 동안의 스켈레톤 — 프로토타입 aria-busy tbody 관례 (.sk .sk-cell). 10열.
+// 다음 페이지를 불러오는 동안의 스켈레톤 — 프로토타입 aria-busy tbody 관례 (.sk .sk-cell). 12열.
 function ListSkeleton() {
   return (
     <div className="table-wrap" data-testid="order-skeleton" aria-hidden="true">
@@ -628,7 +673,7 @@ function ListSkeleton() {
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 10 }).map((__, j) => (
+              {Array.from({ length: 12 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>

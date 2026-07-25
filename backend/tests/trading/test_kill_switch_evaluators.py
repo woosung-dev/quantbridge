@@ -353,3 +353,47 @@ async def test_cumulative_loss_provider_called_on_every_trigger(
         await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert provider.call_count == 3
+
+
+async def test_daily_loss_uses_exchange_backfilled_manual_close_pnl(
+    db_session, strat_account
+):
+    """수동 청산은 생성 시 realized_pnl이 NULL이어도 backfill 뒤 거래소 값으로 한 번 집계한다.
+
+    이는 pine_v2 추정값 대신 확정 closedPnl이 Kill Switch 손실 판단을 바꾸는 의도적 money-path 변경이다.
+    """
+    from src.trading.kill_switch import DailyLossEvaluator, EvaluationContext
+    from src.trading.repositories.order_repository import OrderRepository
+
+    strategy, account = strat_account
+    now = datetime.now(UTC)
+    manual_close = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=Decimal("0.01"),
+        state=OrderState.filled,
+        reduce_only=True,
+        exchange_order_id="manual-close-1",
+        realized_pnl=None,
+        filled_at=now,
+    )
+    db_session.add(manual_close)
+    await db_session.flush()
+    repo = OrderRepository(db_session)
+    assert (
+        await repo.backfill_exchange_realized_pnl(
+            manual_close.id, realized_pnl=Decimal("-600"), synced_at=now
+        )
+        == 1
+    )
+    await db_session.commit()
+
+    result = await DailyLossEvaluator(repo, threshold_usd=Decimal("500")).evaluate(
+        EvaluationContext(strategy.id, account.id, now)
+    )
+    assert result.gated is True
+    # DailyLossEvaluator 는 부호 있는 당일 합계를 그대로 trigger_value 로 돌려준다.
+    assert result.trigger_value == Decimal("-600")

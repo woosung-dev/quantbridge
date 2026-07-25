@@ -44,6 +44,7 @@ from src.common.metrics import (  # noqa: E402
 )
 from src.strategy.pine_v2.event_loop import LiveSignal, LiveSignalResult  # noqa: E402
 from src.trading.models import (  # noqa: E402
+    AlertChannel,
     ExchangeMode,
     ExchangeName,
     LiveSignalEventStatus,
@@ -558,8 +559,8 @@ def _divergence_scaffold(
     monkeypatch.setattr(
         live_signal_module.dispatch_live_signal_event_task, "apply_async", apply_async_spy
     )
-    mock_alert = AsyncMock(return_value=True)
-    monkeypatch.setattr(live_signal_module, "send_critical_alert", mock_alert)
+    mock_alert = AsyncMock(return_value={"slack": True, "telegram": True})
+    monkeypatch.setattr(live_signal_module, "send_rule_alert", mock_alert)
     publisher = AsyncMock()
     monkeypatch.setattr(live_signal_module, "publish_realtime", publisher)
     return sess, sess_repo, event_repo, apply_async_spy, mock_alert, publisher
@@ -614,11 +615,13 @@ def test_classify_live_divergence_bounded_enum() -> None:
 async def test_alert_live_divergence_fires_critical(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[dict[str, Any]] = []
 
-    async def fake_alert(settings: Any, *, title: str, message: str, context: Any) -> bool:
-        sent.append({"title": title, "message": message, "context": context})
-        return True
+    async def fake_alert(
+        settings: Any, *, channel: AlertChannel, title: str, message: str, context: Any
+    ) -> dict[str, bool]:
+        sent.append({"channel": channel, "title": title, "message": message, "context": context})
+        return {"slack": True, "telegram": True}
 
-    monkeypatch.setattr(live_signal_module, "send_critical_alert", fake_alert)
+    monkeypatch.setattr(live_signal_module, "send_rule_alert", fake_alert)
     sid = uuid4()
     await live_signal_module._alert_live_divergence(
         session_id=sid,
@@ -631,6 +634,7 @@ async def test_alert_live_divergence_fires_critical(monkeypatch: pytest.MonkeyPa
     assert len(sent) == 1
     # 사용자 본인 Pine 심볼은 actionable 차원에서 Slack 메시지에 포함 (시크릿 아님).
     assert "undefined_var" in sent[0]["message"]
+    assert sent[0]["channel"] == AlertChannel.both
     ctx = sent[0]["context"]
     assert ctx["category"] == "undefined_name"
     assert ctx["session_id"] == str(sid)[:8]
@@ -641,11 +645,13 @@ async def test_alert_live_divergence_fires_critical(monkeypatch: pytest.MonkeyPa
 async def test_alert_live_divergence_truncates_raw(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[str] = []
 
-    async def fake_alert(settings: Any, *, title: str, message: str, context: Any) -> bool:
+    async def fake_alert(
+        settings: Any, *, channel: AlertChannel, title: str, message: str, context: Any
+    ) -> dict[str, bool]:
         sent.append(message)
-        return True
+        return {"slack": True, "telegram": True}
 
-    monkeypatch.setattr(live_signal_module, "send_critical_alert", fake_alert)
+    monkeypatch.setattr(live_signal_module, "send_rule_alert", fake_alert)
     await live_signal_module._alert_live_divergence(
         session_id=uuid4(),
         stage="preflight",
@@ -767,8 +773,8 @@ async def test_preflight_unrunnable_deactivates_before_fetch(
         strategy_repo=strategy_repo,
         ohlcv_rows=[[1, 1, 2, 0, 1, 100]],
     )
-    mock_alert = AsyncMock(return_value=True)
-    monkeypatch.setattr(live_signal_module, "send_critical_alert", mock_alert)
+    mock_alert = AsyncMock(return_value={"slack": True, "telegram": True})
+    monkeypatch.setattr(live_signal_module, "send_rule_alert", mock_alert)
     publisher = AsyncMock()
     monkeypatch.setattr(live_signal_module, "publish_realtime", publisher)
     provider = celery_module.get_ccxt_provider_for_worker()
@@ -815,8 +821,8 @@ async def test_preflight_degraded_deactivates(monkeypatch: pytest.MonkeyPatch) -
         strategy_repo=strategy_repo,
         ohlcv_rows=[[1, 1, 2, 0, 1, 100]],
     )
-    mock_alert = AsyncMock(return_value=True)
-    monkeypatch.setattr(live_signal_module, "send_critical_alert", mock_alert)
+    mock_alert = AsyncMock(return_value={"slack": True, "telegram": True})
+    monkeypatch.setattr(live_signal_module, "send_rule_alert", mock_alert)
     before = _divergence_count("preflight", "degraded_unconsented")
 
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
@@ -949,6 +955,9 @@ async def test_run_live_crash_deactivates(monkeypatch: pytest.MonkeyPatch) -> No
     event_repo.insert_pending_events.assert_not_called()
     apply_async_spy.assert_not_called()
     assert mock_alert.call_count == 1
+    alert_message = mock_alert.await_args.kwargs["message"]
+    assert "ZeroDivisionError" in alert_message
+    assert "float division by zero" not in alert_message
     assert _divergence_count("runtime", "run_live_error") == before + 1
 
 
@@ -988,12 +997,14 @@ async def test_runtime_divergence_real_run_live(monkeypatch: pytest.MonkeyPatch)
 async def test_alert_live_divergence_send_failure_swallowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """G2 P2#3 — send_critical_alert raise 시 swallow + log (예외 전파 X)."""
+    """G2 P2#3 — send_rule_alert raise 시 swallow + log (예외 전파 X)."""
 
-    async def boom_alert(settings: Any, *, title: str, message: str, context: Any) -> bool:
+    async def boom_alert(
+        settings: Any, *, channel: AlertChannel, title: str, message: str, context: Any
+    ) -> dict[str, bool]:
         raise RuntimeError("slack down")
 
-    monkeypatch.setattr(live_signal_module, "send_critical_alert", boom_alert)
+    monkeypatch.setattr(live_signal_module, "send_rule_alert", boom_alert)
     # 예외가 전파되면 이 await 가 raise → 테스트 실패. swallow 되면 정상 반환.
     await live_signal_module._alert_live_divergence(
         session_id=uuid4(),
@@ -1034,7 +1045,11 @@ async def test_preflight_unrunnable_precedence_over_degraded(
         strategy_repo=strategy_repo,
         ohlcv_rows=[[1, 1, 2, 0, 1, 100]],
     )
-    monkeypatch.setattr(live_signal_module, "send_critical_alert", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        live_signal_module,
+        "send_rule_alert",
+        AsyncMock(return_value={"slack": True, "telegram": True}),
+    )
     before = _divergence_count("preflight", "coverage_unrunnable")
 
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")

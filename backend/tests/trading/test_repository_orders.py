@@ -101,6 +101,51 @@ async def test_transition_to_filled_records_exchange_order_id_and_price(db_sessi
     assert fetched.filled_price == Decimal("50000")
 
 
+async def test_backfill_exchange_realized_pnl_is_filled_only_and_idempotent(
+    db_session, strategy, account
+):
+    """확정 closedPnl은 filled 행에서 한 번만 추정 손익을 교체한다."""
+    repo, order = await _make_order(db_session, strategy, account)
+    await repo.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await repo.transition_to_filled(
+        order.id,
+        exchange_order_id="bybit-close-1",
+        filled_price=Decimal("50000"),
+        filled_at=datetime.now(UTC),
+    )
+    await repo.commit()
+
+    synced_at = datetime.now(UTC)
+    assert (
+        await repo.backfill_exchange_realized_pnl(
+            order.id, realized_pnl=Decimal("-12.34567890"), synced_at=synced_at
+        )
+        == 1
+    )
+    await repo.commit()
+    fetched = await repo.get_by_id(order.id)
+    assert fetched is not None
+    assert fetched.realized_pnl == Decimal("-12.34567890")
+    assert fetched.realized_pnl_synced_at is not None
+    assert (
+        await repo.backfill_exchange_realized_pnl(
+            order.id, realized_pnl=Decimal("-1"), synced_at=datetime.now(UTC)
+        )
+        == 0
+    )
+
+
+async def test_backfill_exchange_realized_pnl_rejects_non_filled(db_session, strategy, account):
+    """submitted 등 비체결 주문에는 확정 손익을 기록하지 않는다."""
+    repo, order = await _make_order(db_session, strategy, account)
+    assert (
+        await repo.backfill_exchange_realized_pnl(
+            order.id, realized_pnl=Decimal("-1"), synced_at=datetime.now(UTC)
+        )
+        == 0
+    )
+
+
 async def test_transition_to_rejected_records_error_message(db_session, strategy, account):
     repo, order = await _make_order(db_session, strategy, account)
     await repo.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))

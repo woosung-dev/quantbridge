@@ -1,16 +1,15 @@
 // 주문 원장(OrdersBlotter) — C 이식(W3-D) 상태 4종 + 프로토타입 시맨틱 구조 회귀 가드.
 // useOrders 를 목으로 갈아끼워 로딩/에러/빈/데이터 경로를 각각 렌더하고, 프로토타입 유래
-// 핵심 클래스(role=group 필터 · .order-side.buy/.sell · .chip.done · 10열 헤더 · 무데이터 title)를
+// 핵심 클래스(role=group 필터 · .order-side.buy/.sell · .chip.done · 12열 헤더 · 무데이터 title)를
 // assert 한다. 라벨은 전부 용어 SSOT 에서 오므로 원시 enum 이 새어 나오지 않는지도 함께 본다.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { OrdersBlotter } from "@/app/(dashboard)/orders/_components/orders-blotter";
-import {
-  CancelOrderResponseSchema,
-  type Order,
-} from "@/features/trading/schemas";
+import { ORDER_REALIZED_PNL_SOURCE_HINT } from "@/features/trading/labels";
+import { CancelOrderResponseSchema, type Order } from "@/features/trading/schemas";
+import { EMPTY_CELL } from "@/lib/labels";
 import type * as TradingHooks from "@/features/trading/hooks";
 
 const mockUseOrders = vi.fn();
@@ -44,6 +43,9 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     trigger_direction: null,
     oco_group_id: null,
     trailing_stop: null,
+    filled_quantity: null,
+    realized_pnl: null,
+    realized_pnl_synced_at: null,
     ...overrides,
   };
 }
@@ -109,6 +111,11 @@ describe("OrdersBlotter — 상태 4종", () => {
     expect(
       container.querySelector('[title="아직 거래소로 보내지 않아 주문번호가 없습니다."]'),
     ).not.toBeNull();
+    const cells = within(
+      screen.getByTestId("order-row-00000000-0000-4000-8000-000000000001"),
+    ).getAllByRole("cell");
+    expect(cells[5]!).toHaveTextContent(EMPTY_CELL);
+    expect(cells[6]!).toHaveTextContent(EMPTY_CELL);
   });
 });
 
@@ -132,7 +139,14 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
   it("주문 방향 배지는 .order-side.buy / .order-side.sell 를 쓴다(포지션 .side 와 분리)", () => {
     withOrders([
       makeOrder({ id: "b", side: "buy" }),
-      makeOrder({ id: "s", side: "sell", state: "rejected", filled_price: null, exchange_order_id: null, error_message: "최소 주문 수량 미달" }),
+      makeOrder({
+        id: "s",
+        side: "sell",
+        state: "rejected",
+        filled_price: null,
+        exchange_order_id: null,
+        error_message: "최소 주문 수량 미달",
+      }),
     ]);
     const { container } = render(<OrdersBlotter />);
     const buy = container.querySelector(".order-side.buy");
@@ -147,22 +161,84 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
   it("체결 상태는 .chip.done, 거부 상태는 .chip.warn 톤을 쓴다", () => {
     withOrders([
       makeOrder({ id: "f", state: "filled" }),
-      makeOrder({ id: "r", state: "rejected", filled_price: null, exchange_order_id: null, error_message: "최소 주문 수량 미달" }),
+      makeOrder({
+        id: "r",
+        state: "rejected",
+        filled_price: null,
+        exchange_order_id: null,
+        error_message: "최소 주문 수량 미달",
+      }),
     ]);
     const { container } = render(<OrdersBlotter />);
     expect(container.querySelector(".chip.done")?.textContent).toContain("체결");
     expect(container.querySelector(".chip.warn")?.textContent).toContain("거부");
   });
 
-  it("헤더는 10열이고 액션 열을 포함하며 청산가는 없다", () => {
+  it("헤더는 12열이고 체결가 뒤에 체결 수량·실현 손익과 액션 열을 포함하며 청산가는 없다", () => {
     withOrders([makeOrder()]);
     render(<OrdersBlotter />);
     const headers = screen.getAllByRole("columnheader");
-    expect(headers).toHaveLength(10);
+    expect(headers).toHaveLength(12);
     const texts = headers.map((h) => h.textContent);
+    expect(texts.slice(4, 7)).toEqual(["체결가", "체결 수량", "실현 손익"]);
     expect(texts).toContain("익절·손절");
     expect(texts).not.toContain("청산가");
     expect(texts).toContain("액션");
+  });
+
+  it("부분체결 수량과 실현 손익 출처·색상을 표시한다", () => {
+    withOrders([
+      makeOrder({
+        id: "confirmed",
+        quantity: "1",
+        filled_quantity: "0.5",
+        realized_pnl: "12.34",
+        realized_pnl_synced_at: "2026-04-14T20:00:05Z",
+      }),
+      makeOrder({ id: "estimated", realized_pnl: "-2.50" }),
+    ]);
+    render(<OrdersBlotter />);
+
+    const confirmedCells = within(screen.getByTestId("order-row-confirmed")).getAllByRole("cell");
+    expect(confirmedCells[5]!).toHaveTextContent("0.5 부분");
+    expect(within(confirmedCells[5]!).getByText("부분")).toHaveAttribute(
+      "title",
+      "주문 수량 1 중 0.5 체결",
+    );
+    expect(confirmedCells[6]!).toHaveClass("num", "pos");
+    expect(within(confirmedCells[6]!).getByText("거래소 확정")).toHaveAttribute(
+      "title",
+      "거래소가 확정한 정산 손익",
+    );
+
+    const estimatedCells = within(screen.getByTestId("order-row-estimated")).getAllByRole("cell");
+    expect(estimatedCells[6]!).toHaveClass("num", "neg");
+    expect(within(estimatedCells[6]!).getByText("추정")).toHaveAttribute(
+      "title",
+      ORDER_REALIZED_PNL_SOURCE_HINT.estimated,
+    );
+  });
+
+  it("본전 손익 0 은 무데이터로 숨기지 않고, 표기만 다른 완전체결은 부분으로 읽지 않는다", () => {
+    withOrders([
+      makeOrder({
+        id: "breakeven",
+        quantity: "0.001",
+        filled_quantity: "0.0010",
+        realized_pnl: "0",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+
+    const cells = within(screen.getByTestId("order-row-breakeven")).getAllByRole("cell");
+    // 소수 표기만 다른 완전체결("0.0010" vs "0.001")을 부분체결로 오독하면 안 된다.
+    expect(cells[5]!).toHaveTextContent("0.0010");
+    expect(within(cells[5]!).queryByText("부분")).toBeNull();
+    // 본전 트레이드의 0 은 실제 값이라 EMPTY_CELL 로 숨기지 않는다(색은 중립).
+    expect(cells[6]!.textContent).not.toContain(EMPTY_CELL);
+    expect(within(cells[6]!).getByText("추정")).toBeInTheDocument();
+    expect(cells[6]!).not.toHaveClass("pos");
+    expect(cells[6]!).not.toHaveClass("neg");
   });
 
   it("감소전용 배지 + title, 익절·손절 셀은 체결가 대비 거리를 함께 인쇄한다", () => {
@@ -181,9 +257,9 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
       "열려 있는 포지션을 줄이는 주문입니다. 새 포지션을 만들지 않습니다.",
     );
     // 64200/62880-1 = +2.10% · 61900/62880-1 = -1.56%
-    expect(
-      container.querySelector(".col-tpsl .cell-sub")?.textContent,
-    ).toBe("체결가 62880.00 대비 +2.10% / -1.56%");
+    expect(container.querySelector(".col-tpsl .cell-sub")?.textContent).toBe(
+      "체결가 62880.00 대비 +2.10% / -1.56%",
+    );
   });
 
   it("출처 배지(브로커·모의)는 스키마 미백킹이라 렌더하지 않는다(§4.9)", () => {
@@ -208,16 +284,16 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     expect(
       container.querySelector('[title="이미 체결이 끝난 주문이라 취소할 수 없습니다."]'),
     ).toHaveClass("dim");
-    expect(
-      container.querySelector('[title="이미 취소된 주문입니다."]'),
-    ).toHaveClass("dim");
+    expect(container.querySelector('[title="이미 취소된 주문입니다."]')).toHaveClass("dim");
     expect(
       container.querySelector('[title="이미 거부로 끝난 주문이라 취소할 수 없습니다."]'),
     ).toHaveClass("dim");
   });
 
   it("취소 버튼 클릭은 주문 ID로 mutation을 호출한다", () => {
-    withOrders([makeOrder({ id: "p", state: "pending", filled_price: null, exchange_order_id: null })]);
+    withOrders([
+      makeOrder({ id: "p", state: "pending", filled_price: null, exchange_order_id: null }),
+    ]);
     render(<OrdersBlotter />);
     fireEvent.click(screen.getByRole("button", { name: "주문 취소" }));
     expect(mockCancelOrder).toHaveBeenCalledWith("p");
@@ -236,8 +312,12 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
 
     render(<OrdersBlotter />);
 
-    expect(within(screen.getByTestId("order-row-p")).getByRole("button", { name: "주문 취소" })).toBeDisabled();
-    expect(within(screen.getByTestId("order-row-s")).getByRole("button", { name: "주문 취소" })).toBeEnabled();
+    expect(
+      within(screen.getByTestId("order-row-p")).getByRole("button", { name: "주문 취소" }),
+    ).toBeDisabled();
+    expect(
+      within(screen.getByTestId("order-row-s")).getByRole("button", { name: "주문 취소" }),
+    ).toBeEnabled();
   });
 
   it("202 취소 접수 응답을 파싱한다", () => {
@@ -253,7 +333,13 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
   it("필터 토글 — 체결만 선택하면 거부 행이 사라진다", () => {
     withOrders([
       makeOrder({ id: "f", state: "filled" }),
-      makeOrder({ id: "r", state: "rejected", filled_price: null, exchange_order_id: null, error_message: "err" }),
+      makeOrder({
+        id: "r",
+        state: "rejected",
+        filled_price: null,
+        exchange_order_id: null,
+        error_message: "err",
+      }),
     ]);
     render(<OrdersBlotter />);
     expect(screen.getByTestId("order-row-f")).toBeInTheDocument();

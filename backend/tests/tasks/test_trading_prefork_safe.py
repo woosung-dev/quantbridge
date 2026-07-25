@@ -212,3 +212,78 @@ def test_module_no_global_worker_engine_attribute() -> None:
     assert hasattr(trading_mod, "create_worker_engine_and_sm"), (
         "create_worker_engine_and_sm helper 가 trading_mod 에 존재해야 함"
     )
+
+
+# -------------------------------------------------------------------------
+# MP-2: closedPnl refresh / sweep
+# -------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_async_refresh_closed_pnl_creates_and_disposes_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """확정 손익 즉시 갱신도 호출별 엔진 생성과 finally 폐기를 보장한다."""
+    import src.tasks.trading as trading_mod
+
+    factory, engine = _fake_create_worker_engine_and_sm()
+    monkeypatch.setattr(trading_mod, "create_worker_engine_and_sm", factory)
+    monkeypatch.setattr(
+        trading_mod, "_refresh_closed_pnl_with_session", AsyncMock(return_value={"applied": True})
+    )
+
+    assert await trading_mod._async_refresh_closed_pnl(uuid4()) == {"applied": True}
+    assert engine.dispose_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_async_refresh_closed_pnl_disposes_engine_on_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """확정 손익 즉시 갱신 예외에도 엔진을 누수하지 않는다."""
+    import src.tasks.trading as trading_mod
+
+    factory, engine = _fake_create_worker_engine_and_sm()
+    monkeypatch.setattr(trading_mod, "create_worker_engine_and_sm", factory)
+    monkeypatch.setattr(
+        trading_mod, "_refresh_closed_pnl_with_session", AsyncMock(side_effect=RuntimeError("boom"))
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await trading_mod._async_refresh_closed_pnl(uuid4())
+    assert engine.dispose_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_async_sweep_closed_pnl_creates_and_disposes_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """주기 스윕도 호출별 엔진 생성과 finally 폐기를 보장한다."""
+    import src.tasks.trading as trading_mod
+
+    factory, engine = _fake_create_worker_engine_and_sm()
+    monkeypatch.setattr(trading_mod, "create_worker_engine_and_sm", factory)
+    monkeypatch.setattr(
+        trading_mod, "_sweep_closed_pnl_with_session", AsyncMock(return_value={"scanned": 0})
+    )
+
+    assert await trading_mod._async_sweep_closed_pnl() == {"scanned": 0}
+    assert engine.dispose_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_async_sweep_closed_pnl_disposes_engine_on_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """주기 스윕 예외에도 엔진을 누수하지 않는다."""
+    import src.tasks.trading as trading_mod
+
+    factory, engine = _fake_create_worker_engine_and_sm()
+    monkeypatch.setattr(trading_mod, "create_worker_engine_and_sm", factory)
+    monkeypatch.setattr(
+        trading_mod, "_sweep_closed_pnl_with_session", AsyncMock(side_effect=RuntimeError("boom"))
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await trading_mod._async_sweep_closed_pnl()
+    assert engine.dispose_calls == 1

@@ -3047,7 +3047,7 @@ table.hm th[scope="row"] { text-align: right; }
 .fill-ratio-label .mono { color: var(--ink); }
 
 /* 원장 표 — 넓은 폭 + 셀 상단 정렬(익절·손절 보조 줄과 나머지 셀의 첫 줄을 맞춘다). */
-.orders-table { min-width: 1040px; }
+.orders-table { min-width: 1240px; }
 .orders-table tbody td { vertical-align: top; padding-left: 11px; padding-right: 11px; }
 .orders-table thead th { padding-left: 11px; padding-right: 11px; }
 .cell-sub { display: block; margin-top: 3px; font-size: 0.74rem; line-height: 1.45; color: var(--ink-3); }

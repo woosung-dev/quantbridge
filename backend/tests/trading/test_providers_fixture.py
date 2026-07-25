@@ -34,6 +34,7 @@ async def test_fixture_provider_create_order_returns_deterministic_receipt(crede
 
     assert receipt.exchange_order_id.startswith("fixture-")
     assert receipt.filled_price == Decimal("50000.00")  # 고정 price
+    assert receipt.filled_quantity == order_submit.quantity
     assert receipt.status == "filled"
 
 

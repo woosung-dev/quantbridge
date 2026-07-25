@@ -324,6 +324,49 @@ class _SubmittedReceiptProvider:
         return None
 
 
+class _PartialReceiptProvider:
+    """부분 체결 receipt를 반환하는 REST winner 메트릭 테스트용 provider."""
+
+    async def create_order(self, creds, order):  # type: ignore[no-untyped-def]
+        from src.trading.providers import OrderReceipt
+
+        return OrderReceipt(
+            exchange_order_id="bybit-partial-12345",
+            filled_price=Decimal("50000"),
+            filled_quantity=Decimal("0.0005"),
+            status="filled",
+            raw={"id": "bybit-partial-12345", "status": "closed"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_execute_order_task_partial_fill_increments_rest_metric(
+    db_session: AsyncSession,
+    pending_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.tasks.trading as task_mod
+    from src.common.metrics import qb_partial_fill_total
+
+    order, _ = pending_order
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _PartialReceiptProvider(),
+    )
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+    counter = qb_partial_fill_total.labels(source="rest")
+    before = counter._value.get()
+
+    result = await task_mod._async_execute(order.id)
+
+    assert result["state"] == "filled"
+    assert counter._value.get() == before + 1
+
+
 class _RejectedReceiptProvider:
     """provider.create_order 가 receipt.status='rejected' 반환하는 mock."""
 

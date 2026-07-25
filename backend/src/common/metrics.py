@@ -16,6 +16,8 @@
 - qb_live_signal_skipped_total    (Counter, labels: reason)             ← Sprint 26 B.4
 - qb_live_signal_eval_duration_seconds (Histogram, labels: interval)    ← Sprint 26 B.4
 - qb_live_signal_outbox_pending_gauge  (Gauge)                          ← Sprint 26 B.4
+- qb_closed_pnl_backfill_total       (Counter, labels: outcome)         ← MP-2
+- qb_partial_fill_total              (Counter, labels: source)          ← Sprint 48 Pass 2
 
 원칙:
 - registry 는 기본 `REGISTRY` (single-process). Sprint 10+ 에서 multi-process 고려.
@@ -268,6 +270,27 @@ qb_trailing_placement_total = Counter(
     #          | failed (network/exchange → 무방비 → critical alert)
     #          | failed_contract (TrailingContractError — 버전/degenerate/hedge)
     labelnames=("outcome",),
+)
+
+# MP-2 — Bybit closedPnl 확정 손익 backfill 결과.
+# outcome: applied | already_synced | skipped_unsupported | never_found | failed_provider
+#          | orphan_row | malformed_row.
+# never_found 또는 failed_provider > 0 이면 Kill Switch가 pine_v2 시뮬레이션 손익을 사용 중이다.
+# malformed_row 는 파싱 불가로 건너뛴 거래소 행 (페이지 전체를 버리지 않기 위한 관측치).
+# Cardinality: 고정 outcome 7개 series만 허용한다.
+qb_closed_pnl_backfill_total = Counter(
+    "qb_closed_pnl_backfill_total",
+    "Bybit closedPnl 확정 손익 backfill 결과",
+    labelnames=("outcome",),
+)
+
+# Sprint 48 Pass 2 — 체결 winner가 주문 수량보다 적은 확정 수량을 받은 경우만 집계.
+# source: rest | ws | watchdog | reconciler.
+# Cardinality: 고정 source 4개 series만 허용한다.
+qb_partial_fill_total = Counter(
+    "qb_partial_fill_total",
+    "Orders filled with a known quantity below the requested quantity",
+    labelnames=("source",),
 )
 qb_live_signal_skipped_total = Counter(
     "qb_live_signal_skipped_total",

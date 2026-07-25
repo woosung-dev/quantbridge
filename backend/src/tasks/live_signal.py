@@ -34,7 +34,7 @@ from uuid import UUID, uuid4
 from celery import shared_task
 from pydantic import ValidationError
 
-from src.common.alert import send_critical_alert, track_pending_alert
+from src.common.alert import track_pending_alert
 from src.common.metrics import (
     qb_live_signal_dispatch_total,
     qb_live_signal_divergence_total,
@@ -47,6 +47,7 @@ from src.common.redlock import RedisLock
 from src.core.config import settings
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
+from src.trading.alerting import send_rule_alert
 from src.trading.exceptions import (
     IdempotencyConflict,
     KillSwitchActive,
@@ -56,6 +57,7 @@ from src.trading.exceptions import (
     TradingSessionClosed,
 )
 from src.trading.models import (
+    AlertChannel,
     ExchangeMode,
     ExchangeName,
     LiveSignalEventStatus,
@@ -190,8 +192,9 @@ async def _alert_live_divergence(
     fire-and-forget task 를 unretrieved-exception 으로 남기거나 흐름 깨면 안 됨).
     """
     try:
-        await send_critical_alert(
+        await send_rule_alert(
             settings,
+            channel=AlertChannel.both,
             title="Live signal divergence — 세션 자동 비활성화 (무신호 차단)",
             message=(
                 f"pine_v2 coverage↔interpreter 발산({stage}/{category}) 감지 — 세션을 "
@@ -509,14 +512,13 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     qb_live_signal_evaluated_total.labels(
                         interval=interval_value, outcome="divergence_blocked"
                     ).inc()
-                    # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). 거래소
-                    # 시크릿은 아니나 SyntaxError snippet / 공개 OHLC 숫자 포함 가능 → Slack-only
-                    # + [:200] truncate 로 bound (PineRuntimeError 경로와 달리 미감사 path).
+                    # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). Telegram까지
+                    # fan-out하므로 호출부에서 예외 클래스명만 전달한다. 전체 원문은 아래 logger에만 남긴다.
                     _fire_divergence_alert(
                         session_id=sess.id,
                         stage="runtime",
                         category="run_live_error",
-                        raw_msg=f"{type(exc).__name__}: {exc}",
+                        raw_msg=type(exc).__name__,
                         error_count=1,
                         last_error_bar=-1,
                     )

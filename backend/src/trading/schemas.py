@@ -97,6 +97,10 @@ class OrderResponse(BaseModel):
     idempotency_key: str | None
     exchange_order_id: str | None
     filled_price: Decimal | None
+    filled_quantity: Decimal | None = None
+    # realized_pnl_synced_at 비어 있지 않음 = 거래소가 확정한 net 손익(수수료 포함), 비어 있음 = pine_v2 추정값.
+    realized_pnl: Decimal | None = None
+    realized_pnl_synced_at: AwareDatetime | None = None
     error_message: str | None
     submitted_at: AwareDatetime | None
     filled_at: AwareDatetime | None
