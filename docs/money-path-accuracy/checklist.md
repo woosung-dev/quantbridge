@@ -39,26 +39,26 @@
 
 ## 게이트
 
-- [ ] BE ruff / mypy / pytest 3-env (baseline 2611 초과, 실패 0)
-- [ ] FE tsc / test / lint (baseline 1084 초과, 실패 0) — **1088 확인**
-- [ ] alembic 왕복 (upgrade → downgrade -1 → upgrade) + 드리프트 0
-- [ ] canon 32 불변 · authed 66
-- [ ] §9.5 신규 task 라이브 검증 (같은 child N번째 성공)
+- [x] BE ruff / mypy / pytest 3-env — **2653 passed / 46 skipped / 0 failed** (baseline 2611, +42)
+- [x] FE tsc / test / lint — **1088 passed** (baseline 1084, +4), tsc·lint clean
+- [x] alembic 왕복 + base 부터 전체 체인 + 드리프트 0 (마이그레이션 **1** = `20260725_0001`)
+- [x] **canon 32 불변** · authed 63 passed(+1 데이터 시딩 의존 flake, diff 무관 — 실행마다 다른 라우트에서 발생) · `/orders` 전용 5건 전부 통과
+- [x] §9.5 — 같은 child(`ForkPoolWorker-2`)에서 sweep task 4건 연속 성공 + beat 자체 발화 + §7.2 sentinel(`@worker_ready` 등록 검증) 통과
 
 ## dogfood (7단계)
 
-- [ ] 1 자동 청산 종단 — realized_pnl 이 closedPnl 로 교체 + synced_at 기록, 오라클 대조
-- [ ] 2 수동 청산 종단 — NULL → 거래소값, Kill Switch SUM 반영 (psql)
-- [ ] 3 수수료 차이 실증 — net vs gross
-- [ ] 4 스윕 회수 + 재실행 멱등(rowcount 0)
-- [ ] 5 BL-362 텔레그램 실수신 + raw 문자열 부재 확인
-- [ ] 6 MCP playwright authed — /orders 12열 · 배지 · 콘솔 error 0
-- [ ] 7 부분체결은 픽스쳐 커버 + 각주 정직 명시
-- [ ] 상태 전량 복구 + psql 재검증
+- [x] 1 백필 종단 — 3건 전부 오라클 closedPnl 과 **완전 일치** + `synced_at` 기록
+- [x] 2 수동 청산 — NULL → 거래소값, Kill Switch SUM `42.4607`→**`42.41703`** 이동 실증
+- [x] 3 수수료 실증 — `closedPnl = gross − (openFee+closeFee)` 정확 성립. `e9026276` 은 **부호가 뒤집힘**(시뮬 +0.0253 → 실제 −0.04524449)
+- [x] 4 스윕 — run1 `{scanned:3,applied:3,groups:1}` → run2 `{0,0}` **멱등**, 라이브 worker 로도 회수 재현
+- [x] 5 BL-362 — `channel=both`, 클래스명 있고 raw 없음, 실발송 `{'slack': False, 'telegram': True}`. ★`SLACK_WEBHOOK_URL` 미설정 = **이전엔 발산 알림이 아무에게도 도달하지 않았음**
+- [x] 6 authed 브라우저 — 12열 정확 · 확정/추정 배지 · body 가로스크롤 false · **콘솔 error 0**
+- [x] 7 부분체결 — Bybit demo BTCUSDT 시장가로는 자극이 비현실적이라 결정론적 픽스쳐로 커버(각주 명시)
+- [x] 상태 — 활성 세션 0 유지, 포지션 미개설(신규 거래 0), 되돌린 행 원복 확인, docker 5436/6380 보존
 
 ## 마감
 
-- [ ] 최종 codex 누적 diff 1회
-- [ ] docs/money-path-accuracy/{checklist,operating-contract,context-notes}.md
-- [ ] TODO / dev-log / BL — BL-014 부분 Resolved · BL-362 Resolved · 후속 BL 4~5건
+- [x] 최종 codex 누적 diff — **DO-NOT-SHIP 2 BLOCKING** 전건 코드 대조 후 수정(분할 행 합산 / 스윕 페이징)
+- [x] docs/money-path-accuracy/{checklist,operating-contract,context-notes}.md
+- [x] TODO / BL — **BL-014 부분 Resolved** · **BL-362 Resolved** · 신규 **BL-438~442**
 - [ ] push (QB_PRE_PUSH_BYPASS=1) → main PR 1개 (squash 는 사용자)

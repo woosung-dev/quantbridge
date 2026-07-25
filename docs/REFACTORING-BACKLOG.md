@@ -132,6 +132,8 @@
 
 **권장 접근:** `order_executions` append-only table 신설 (order_id / executed_at / qty / price / fee). WS event 마다 row insert + Order.filled_quantity 누적 갱신.
 
+**상태:** 🟡 **부분 Resolved (2026-07-25, `stage/money-path-accuracy`).** 재프레임 후 원안(ledger 테이블)이 아닌 **거래소 확정 손익 도입**으로 해결했다 — 진짜 리스크는 부분체결 추적이 아니라 `Order.realized_pnl` 이 close 주문 _생성 시점_ pine_v2 시뮬레이션 값(수수료 0·바 종가·전량청산 가정)이고 체결 후 한 번도 보정되지 않는다는 점이었다(머니-패스 5곳이 이 값을 SUM). Bybit `/v5/position/closed-pnl` 의 `closedPnl`(net) 로 reduce-only 체결분을 overwrite + `realized_pnl_synced_at` 출처 마커 + 4 winner 공용 backfill task + beat 스윕. `filled_quantity` 는 4 체결 경로 전부 write + `qb_partial_fill_total` + API/블로터 노출로 dead 컬럼 해소. **잔여** = per-execution ledger([BL-440](#bl-440)) / cancelled 종료 부분체결([BL-439](#bl-439)) / entry 부분체결 발산([BL-441](#bl-441)). 검증 = 실 Bybit demo 3건 오라클 대조 일치 + 스윕 멱등 + 라이브 worker 회수 + Kill Switch SUM 이동 실증.
+
 ---
 
 ### BL-015
@@ -430,6 +432,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 **원인 / 영향:** `run_live` 가 `run_historical(..., strict=False)`(event_loop.py:219) 호출 → `PineRuntimeError` 를 `result.errors` 에 기록만 하고 **그 bar statement 만 건너뛴 채 실행 계속**(event_loop.py:128-133). live 경로엔 coverage preflight 게이트도 없음. BL-361 이 현재 28 누출을 닫았으나, **향후 임의의 coverage↔interpreter divergence 가 라이브에서 조용히 오신호 생성**할 latent risk 상존. (S2 는 DEC-16=A 로 본 갭을 S5 이관.)
 
 **권장 접근:** (a) live 진입 전 `analyze_coverage` preflight reject 적용, 또는 (b) `run_live` 의 swallowed `result.errors` 를 Slack/Prometheus alert + (선택) 세션 abort 로 표면화. money path 변경이므로 S5 에서 commit-spy + kill-switch 회귀와 함께 신중 검토.
+
+**상태:** ✅ **Resolved (2026-07-25, `stage/money-path-accuracy`).** 본체는 PR #369(commit `a9dca4f`)가 이미 shipped — preflight reject + `run_live` fail-closed + runtime divergence safety-net + `qb_live_signal_divergence_total` + 14 테스트. 잔여였던 알림 채널을 이번에 마감했다: `_alert_live_divergence` 가 Slack 전용 `send_critical_alert` → `send_rule_alert(channel=AlertChannel.both)`(채널별 예외 격리). `run_live_error` 경로는 raw 예외 문자열이 미감사 텍스트라 **호출부에서 클래스명만** 싣도록 축소(원문은 `logger.exception` 유지). `backend/.env.example`·`.env.prod.example` 에 `TELEGRAM_*` 추가. ★dogfood 실측에서 `SLACK_WEBHOOK_URL` 이 이 환경에 미설정임이 드러나 **이 변경 전까지 발산 알림이 아무에게도 도달하지 않았음**이 확인됐다(텔레그램 실수신 `{'slack': False, 'telegram': True}` = 채널 격리도 동시 실증).
 
 ---
 
@@ -1754,12 +1758,89 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-438
+
+**Title:** 거래소 네이티브 TP/SL·트레일링 청산 손익이 머니-패스에 전혀 계상되지 않음
+**Category:** Backend / trading (money path)
+**Priority:** P1
+**Trigger:** 즉시 (스윕 `qb_closed_pnl_backfill_total{outcome="orphan_row"}` 이 구멍 크기를 실측 제공)
+**Est:** M (6-8h — 귀속 설계가 핵심)
+**출처:** 2026-07-25 money-path-accuracy 계획 단계 실발견 ([`docs/money-path-accuracy/context-notes.md`](money-path-accuracy/context-notes.md) §3.1)
+
+**원인 / 영향:** entry 에 부착한 브래킷 TP/SL 이나 `set_trading_stop` 트레일링이 체결되면 포지션이 닫히지만 **우리 DB 엔 아무 행도 생기지 않는다.** WS `order` 고아 이벤트는 5초 버퍼 후 폐기(`state_handler.py:97-102`, `logger.debug` 만 — 알림 없음), `execution` 토픽은 미구독(`websocket_task.py:330`), reconciler 는 local→exchange 단방향이라 INSERT 하지 않는다(`reconciliation.py:137-148`). Order INSERT 지점은 `OrderService.execute` 2곳뿐이다. 그 다음 바에서 pine_v2 warmup-replay 가 **같은 청산을 스스로 추측**해 이미 flat 인 포지션에 reduce-only close 를 발주하고 → `ProviderError` → `state=rejected` → 모든 손익 쿼리가 `state==filled` 로 걸러낸다. 결과적으로 **브래킷으로 익절/손절된 거래의 손익은 Kill Switch·loss-limit 알림·세션 에쿼티 커브 어디에도 잡히지 않는다.** money-path-accuracy(BL-014 부분)는 "우리가 발주한 청산 주문"만 고쳤으므로 이 구멍은 그대로다.
+
+**권장 접근:** 스윕이 이미 `/v5/position/closed-pnl` 페이지를 읽고 있으므로 orphan 행을 (a) 합성 Order 행으로 INSERT(state=filled·reduce_only=true·exchange_order_id=Bybit orderId, 마이그레이션 0 가능하나 멱등성·세션 귀속 설계 필요) 하거나 (b) 별도 exchange-exit 원장을 신설한다. 어느 쪽이든 **세션 귀속**(어느 LiveSignalSession 의 포지션이었나)이 핵심 난점이다. 선행으로 `execution` 토픽 구독을 검토하면 실시간 귀속이 쉬워진다.
+
+**Risk:** 🔴 (리스크 게이트가 실현 손실의 일부를 못 본다 — 한도 초과를 늦게 감지)
+
+---
+
+### BL-439
+
+**Title:** 부분체결 후 `cancelled` 로 종료된 청산의 실체결 손익 누락
+**Category:** Backend / trading (money path)
+**Priority:** P3
+**Trigger:** limit 청산 경로가 생기거나, 부분체결 상태에서 사용자 취소가 가능해질 때
+**Est:** S (2-3h)
+**출처:** 2026-07-25 money-path-accuracy (codex G0 BLOCKING 을 실측 반박한 뒤 남은 진짜 잔여)
+
+**원인 / 영향:** closedPnl backfill 은 `state==filled` 인 reduce-only 주문만 대상으로 한다. 부분체결 뒤 `cancelled` 로 끝난 청산은 실제로 자금이 움직였는데도 `state==filled` 필터에 걸려 손익이 계상되지 않는다. **현재는 도달 불가** — 이 레포의 청산은 전부 `OrderType.market` 이고 Bybit 시장가 부분체결은 `PartiallyFilledCanceled` → ccxt `closed` → 우리 `filled` 로 매핑되기 때문이다. limit 청산이 도입되는 순간 활성화된다.
+
+**권장 접근:** `transition_to_cancelled` 승자에서도 reduce-only 면 backfill 을 enqueue 하고, Kill Switch SUM 의 state 필터를 `realized_pnl_synced_at IS NOT NULL` 기준으로 넓힌다(단 생성 시점 엔진 추정값이 cancelled 행에 남아 있으면 오계상되므로 취소 시 null-out 이 선행돼야 한다).
+
+---
+
+### BL-440
+
+**Title:** per-execution ledger (`order_executions`) — BL-014 원안의 잔여
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** 주문 1건의 체결 내역(체결가·수량·수수료 분포) 분석 요구가 생길 때
+**Est:** M (4-5h, 마이그레이션 1)
+**출처:** 2026-07-25 money-path-accuracy (BL-014 부분 Resolved 후 잔여)
+
+**원인 / 영향:** BL-014 원안은 append-only `order_executions` 테이블(order_id / executed_at / qty / price / fee)을 권고했다. money-path-accuracy 는 거래소 확정 `closedPnl` 로 **주문 단위** 정확도를 확보했으므로 리스크 집계에는 충분하지만, 한 주문 안의 체결 분포는 여전히 표현되지 않는다. `Order.filled_quantity` 는 누적 체결 수량 1개 값만 보유한다.
+
+**권장 접근:** 실제 분석 수요가 생기기 전에는 만들지 않는다(YAGNI). 필요해지면 `/v5/execution/list` 를 원천으로 append-only 적재.
+
+---
+
+### BL-441
+
+**Title:** entry 부분체결 시 pine_v2 warmup-replay 의 사이즈 발산
+**Category:** Backend / pine_v2 · trading (money path)
+**Priority:** P2
+**Trigger:** entry 부분체결이 1건이라도 실관측될 때
+**Est:** M (4-6h)
+**출처:** 2026-07-25 money-path-accuracy
+
+**원인 / 영향:** entry 주문이 부분체결되면 거래소 실포지션은 시뮬레이션이 가정한 수량보다 작다. `run_live` 는 매 평가마다 전체 히스토리를 재실행하며 **자기 시뮬 포지션**을 기준으로 청산 수량을 산출하므로, 이후 close 신호가 실제 보유량보다 큰 수량을 요청한다. reduce-only 라 over-fill 은 막히지만 시뮬과 실계좌의 사이즈가 계속 어긋난다.
+
+**권장 접근:** `Order.filled_quantity`(이번 스프린트로 4 경로 전부 write 됨)를 warmup-replay 진입 수량 보정 입력으로 사용하거나, 부분체결 감지 시 세션을 fail-closed 비활성화한다. `qb_partial_fill_total` 이 실관측 빈도를 제공한다.
+
+---
+
+### BL-442
+
+**Title:** 주문 원장 CSV 내보내기에 손익 출처(거래소 확정/추정) 미표기
+**Category:** Frontend / trading
+**Priority:** P3
+**Trigger:** CSV 를 외부 회계·세무에 쓰기 시작할 때
+**Est:** S (1h)
+**출처:** 2026-07-25 money-path-accuracy (FE 적대 평가 #11)
+
+**원인 / 영향:** 화면 손익 셀에는 "거래소 확정 / 추정" 배지가 붙지만 CSV 내보내기는 `realized_pnl` 값만 싣는다. 내보낸 행만 보면 pine_v2 추정값과 거래소 정산값을 구분할 수 없다 — 이 레포의 정직성 원칙에 어긋난다.
+
+**권장 접근:** CSV 에 `realized_pnl_source` 열을 추가하거나 손익 값 옆에 접미사를 붙인다. 화면 열 수와 CSV 열 수를 맞추는 기존 관례와의 충돌은 주석으로 명시.
+
+---
+
 ## 운영 규약
 
 ### 신규 항목 추가
 
 1. 적절한 priority 결정 (P0~P3 정의 표 참조)
-2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~433)
+2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~442)
 3. 표준 8 필드 모두 채우기: ID / 제목 / 카테고리 / priority / trigger / est / 출처 / 권장 접근
 4. 출처 cross-link (파일:라인 또는 dev-log 파일명) 필수
 5. 의존성 있으면 명시 (다른 BL ID 또는 외부 자원)

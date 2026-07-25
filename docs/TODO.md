@@ -1,11 +1,40 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-25 (close-completeness 스프린트 — 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고)
-> **Active Sprint:** **close-completeness** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/close-completeness` (main @ `c859174` 베이스)
-> **Sprint type:** 청산/TP-SL 완성도 후속 3건 (비영속, 마이그레이션 0) — codex G0 REJECT→전건 코드 대조 개정 + 사용자 재인터뷰 + codex 2-워커(be/fe 교집합 0) + Claude 적대평가 per-worker(생성/평가 분리) + codex 최종 diff([P1] 1) + Opus dogfood 3계통(독립 오라클↔앱 provider↔get_reconciliation + authed 브라우저)
+> **Last Updated:** 2026-07-25 (money-path-accuracy 스프린트 — 거래소 확정 손익 + filled_quantity 소생 + BL-362 텔레그램 팬아웃)
+> **Active Sprint:** **money-path-accuracy** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
+> **Active Branch:** `stage/money-path-accuracy` (main @ `3a91713` 베이스)
+> **Sprint type:** 머니-패스 정확도 (마이그레이션 **1**) — codex G0 REJECT→§7.3 전건 코드 대조 후 절반 수용/절반 실측 반박 + Explore 3-리더 grounding + Plan 압박검증(설계 결함 R1) + 사용자 인터뷰 11건 + codex 3-pass 워커(be 2 / fe 1) ↔ Claude 적대평가 per-worker(게이트 직접 실행, **프로덕션 파손 2건 발견**) + 최종 codex 누적 diff(**DO-NOT-SHIP 2 BLOCKING**) + 실자금 데이터 dogfood
 > **office-hours 진행:** N
-> **Next Trigger:** close-completeness 머지 후 → 다음 deepen = tasks 도메인, 또는 BL-437(청산 스윕 = post-fill flat 확인 + orderLinkId 세션 귀속). // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+> **Next Trigger:** money-path-accuracy 머지 후 → **BL-438**(거래소 네이티브 TP/SL 청산 손익 미계상, P1 — 스윕 orphan 카운터가 규모 제공) 또는 다음 deepen = tasks 도메인. // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
+
+## ⚡ money-path-accuracy 스프린트 (2026-07-25, `docs/money-path-accuracy/`)
+
+**스코프**: close-completeness(#474) 후속. ① **BL-014 부분** — `Order.realized_pnl` 이 close 주문 _생성 시점_ pine_v2 시뮬레이션 값(수수료 0·바 종가·전량청산 가정)이고 체결 후 보정이 없었다. 머니-패스 5곳(Kill Switch 2 · 세션 에쿼티 커브 · loss-limit 알림 · 일일 보고)이 이 값을 SUM 하므로 **리스크 게이트가 시뮬레이션으로 작동**했고, `close_service` 의 수동 청산은 아예 NULL 이라 5곳 전부에서 보이지 않았다 → Bybit `/v5/position/closed-pnl` 의 `closedPnl`(net) 로 reduce-only 체결분 overwrite + `realized_pnl_synced_at` 출처 마커 + 4 winner 공용 backfill task + beat 스윕 ② dead 컬럼 `filled_quantity` 를 4 체결 경로 전부에 write + `qb_partial_fill_total` + API/블로터 노출 ③ **BL-362** 발산 알림 Slack→Slack+Telegram(raw 예외 문자열은 호출부에서 제거). **마이그레이션 1**(`20260725_0001`, 순수 증분).
+
+### Completed
+
+- [x] **B1 BL-014(부분)** — `fetch_closed_pnl`/`fetch_closed_pnl_page`(ccxt `fetch_positions_history`, `info.closedPnl` 원본 문자열→Decimal, 분할 행 합산, malformed 행 skip+계상) + `realized_pnl_synced_at` 컬럼 + `backfill_exchange_realized_pnl`(non-optional Decimal · 3-guard 멱등 CAS) + `trading.refresh_closed_pnl`(4 winner 공용 helper, 5/10/20/40s 재시도, 실패 시 기존값 보존이 **구조적 보장**) + `trading.sweep_closed_pnl`(beat 5분, 그룹당 provider 1콜, 뒤로 훑는 페이징, orphan 카운터)
+- [x] **B1 filled_quantity** — `OrderReceipt` += 필드 + 4 create_order 구현 + 4 체결 winner write(WS 는 Bybit 원본 `cumExecQty`, reconciler 는 ccxt 통합 `filled`) + `qb_partial_fill_total{source}` + `OrderResponse` 3필드 + 주문 원장 **10→12열** + 손익 출처 배지
+- [x] **B2 BL-362** — `send_rule_alert(channel=both)` 라우팅 + 외곽 try/except 유지 + `run_live_error` raw 제거(호출부) + `backend/.env{,.prod}.example` TELEGRAM\_\*
+- [x] 게이트: BE **2653**(+42)·FE **1088**(+4)·ruff/mypy/tsc/lint 0·**canon 32 불변**·alembic 왕복+base 체인+드리프트 0·마이그레이션 **1**
+- [x] 검증: codex G0 **REJECT**(§7.3 전건 대조 → "부분체결→취소 누락" BLOCKING 은 **실측 반박**(청산은 전부 시장가 → `PartiallyFilledCanceled`→ccxt `closed`→우리 `filled`), "BL-362 이미 Resolved" 는 오독) → Explore 3-리더 + Plan 압박검증(**설계 결함 R1** = 마커 컬럼 없이는 스윕 종료 불가 → 마이그레이션 0→1) → 사용자 인터뷰 **11건** → codex 워커 3-pass ↔ **Claude 적대평가**(BE **인도 시점 FAIL** — `since` 창이 ccxt `filter_by_since_limit` 에 걸려 대상 행을 버림 / malformed 행이 페이지 전체를 죽임) → 최종 codex 누적 diff **DO-NOT-SHIP 2 BLOCKING**(스윕이 분할 행을 마지막 하나로 축약 / 단일 페이지 조회로 오래된 행 영구 누락) 전건 수정
+- [x] **dogfood — 새 거래 없이 실자금 데이터로 종단**: 07-24 수동 청산 3건(`realized_pnl=NULL`)이 오라클 closed-pnl 행과 1:1 매칭 → 백필 후 `-0.04524449`/`-0.08623685`/`0.08781055` **오라클 완전 일치** · 스윕 run1 `{scanned:3,applied:3}` → run2 `{0,0}` **멱등** · **라이브 worker §9.5**(같은 child 4 task 연속 성공 + beat 자체 발화 + NULL 되돌린 행 회수) · Kill Switch SUM `42.4607`→**`42.41703`** 이동 실증 · authed 브라우저 12열+배지+**콘솔 0**+가로스크롤 false · **BL-362 텔레그램 실수신**(`{'slack': False, 'telegram': True}` — ★`SLACK_WEBHOOK_URL` 미설정이라 **이전엔 발산 알림이 아무에게도 도달하지 않았음** 확인)
+- [x] BL: **BL-014 부분 Resolved** · **BL-362 Resolved** · 신규 **BL-438~442**
+
+### Blocked
+
+- 없음.
+
+### Questions
+
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [ ] stage/money-path-accuracy → main PR 사용자 squash
+- [ ] (후속·P1) **BL-438** 거래소 네이티브 TP/SL 청산 손익 미계상 — 브래킷 익절 손익이 리스크 게이트에 안 잡힌다. 스윕 `orphan_row` 카운터가 규모 제공
+- [ ] (이월) 다음 deepen = tasks 도메인
+- [ ] ★환경 함정: codex 샌드박스가 localhost:5436 을 막아 워커는 DB 테스트를 못 돌린다 — **전체 스위트는 평가자가 직접** 돌릴 것
 
 ---
 
