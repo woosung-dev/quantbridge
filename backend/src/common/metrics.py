@@ -288,6 +288,16 @@ qb_closed_pnl_backfill_total = Counter(
     labelnames=("outcome",),
 )
 
+# exit-attribution — 거래소 청산 원장에 새로 적재된 행 수. 재조회로 중복 관측되는 행은
+# 세지 않는다(원장 UNIQUE 가 종료 조건을 준다).
+# classification: ours | bracket_tp | bracket_sl | trailing | liquidation | external_manual | unknown.
+# Cardinality: 고정 classification 7개 series만 허용한다.
+qb_exchange_exit_rows_total = Counter(
+    "qb_exchange_exit_rows_total",
+    "거래소 청산 원장에 새로 적재된 행 수",
+    labelnames=("classification",),
+)
+
 # Sprint 48 Pass 2 — 체결 winner가 주문 수량보다 적은 확정 수량을 받은 경우만 집계.
 # source: rest | ws | watchdog | reconciler.
 # Cardinality: 고정 source 4개 series만 허용한다.

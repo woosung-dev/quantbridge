@@ -181,7 +181,9 @@ async def test_fetch_closed_pnl_survives_late_fill_detection(
 
     from src.trading.providers import BybitFuturesProvider
 
-    created_ms = 1_753_400_000_000
+    # exit-attribution — 절대 시각을 고정하면 조회 창이 "지금" 기준 7일로 클램프되면서
+    # 시간이 지날수록 픽스처가 창 밖으로 밀려나 테스트가 시간 의존적이 된다. 상대 시각으로 고정한다.
+    created_ms = int(datetime.now(UTC).timestamp() * 1000) - 2 * 60 * 60 * 1000
     raw_row = {
         "symbol": "BTCUSDT",
         "orderId": "close-1",
@@ -263,8 +265,12 @@ async def test_fetch_closed_pnl_page_walks_back_until_page_not_full(monkeypatch)
             }
         }
 
-    full_page = [_row(f"a{i}", 2_000_000 + i) for i in range(3)]
-    tail_page = [_row("target", 1_500_000)]
+    # exit-attribution — 조회 창이 "지금" 기준 7일로 클램프되므로 에포크 근처 픽스처는
+    # 창 밖으로 밀려 첫 페이지에서 끊긴다. 상대 시각으로 고정해 시간 의존성을 없앤다.
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
+    base_ms = now_ms - 3 * 24 * 60 * 60 * 1000
+    full_page = [_row(f"a{i}", base_ms + i) for i in range(3)]
+    tail_page = [_row("target", base_ms - 60_000)]
 
     exchange = MagicMock()
     exchange.fetch_positions_history = AsyncMock(side_effect=[full_page, tail_page])
@@ -274,7 +280,7 @@ async def test_fetch_closed_pnl_page_walks_back_until_page_not_full(monkeypatch)
     rows = await BybitFuturesProvider().fetch_closed_pnl_page(
         Credentials(api_key="key", api_secret="secret"),
         "BTC/USDT",
-        since=datetime.fromtimestamp(1_000, tz=UTC),
+        since=datetime.fromtimestamp((base_ms - 120_000) / 1000, tz=UTC),
         limit=3,
     )
 
@@ -282,5 +288,5 @@ async def test_fetch_closed_pnl_page_walks_back_until_page_not_full(monkeypatch)
     assert exchange.fetch_positions_history.await_count == 2
     # 2번째 호출의 until 은 1번째 페이지의 가장 오래된 행 '직전' — 겹침 없음 = 이중 합산 없음.
     assert exchange.fetch_positions_history.await_args_list[1].kwargs["params"]["until"] == (
-        2_000_000 - 1
+        base_ms - 1
     )

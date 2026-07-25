@@ -86,6 +86,11 @@ export const ORDER_TABLE_HEADER = {
   action: "액션",
 } as const;
 
+// 화면 표의 12열 SSOT와 달리 CSV에만 손익 출처를 보존하므로 별도 헤더로 둔다.
+export const ORDER_CSV_EXTRA_HEADER = {
+  realizedPnlSource: "손익 출처",
+} as const;
+
 /** 체결 수량 보조 표기. 주문 수량보다 작으면 부분체결임을 함께 밝힌다. */
 export const ORDER_FILLED_QUANTITY = {
   partial: "부분",
@@ -137,7 +142,22 @@ export const ORDER_EMPTY_REASON = {
   brokerIdRejected: "거래소로 나가기 전에 걸러져서 주문번호가 없습니다.",
   takeProfitStopLossNone: "이 주문에는 익절도 손절도 걸려 있지 않습니다.",
   takeProfitStopLossRejected: "거래소로 나가기 전에 걸러져서 익절과 손절도 붙지 않았습니다.",
+  realizedPnlNotYet: "아직 체결되지 않아 실현 손익이 없습니다.",
+  realizedPnlRejected: "거부된 주문이라 자금이 움직이지 않았습니다.",
+  realizedPnlCancelled: "체결 전에 취소돼서 자금이 움직이지 않았습니다.",
+  realizedPnlNotRecorded: "체결됐지만 실현 손익이 기록되지 않았습니다.",
 } as const;
+
+/**
+ * 실현 손익 무데이터 title 을 고른다. 체결되지 않은 주문에도 pine_v2 추정 손익이 남아
+ * 있으므로, 값을 감춘 이유를 밝히지 않으면 사용자는 셀이 왜 비었는지 알 수 없다.
+ */
+export function realizedPnlEmptyReason(state: OrderState): string {
+  if (state === "rejected") return ORDER_EMPTY_REASON.realizedPnlRejected;
+  if (state === "cancelled") return ORDER_EMPTY_REASON.realizedPnlCancelled;
+  if (state === "filled") return ORDER_EMPTY_REASON.realizedPnlNotRecorded;
+  return ORDER_EMPTY_REASON.realizedPnlNotYet;
+}
 
 /**
  * 체결가 무데이터 title 을 상태별로 고른다. 체결 전 상태(대기·전송)는 같은 문구를 쓴다.

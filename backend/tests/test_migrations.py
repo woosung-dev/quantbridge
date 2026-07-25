@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 from alembic.config import Config
@@ -36,12 +37,30 @@ def _resolved_test_db_url() -> str:
 
     Sprint 18 의 conftest.DB_URL 우선순위와 일치하여 격리 docker stack (5433) 에서
     실행 시 정확한 DSN 사용.
+
+    ★exit-attribution — 이 모듈은 `command.downgrade(cfg, "base")` 로 **전 테이블을
+    드롭**한다. `TEST_DATABASE_URL` 없이 `DATABASE_URL` 만 export 된 셸에서 이 파일을
+    돌리면 그 폴백이 개발 DB 를 향하고, 실제로 로컬 dogfood 데이터(주문 17행 · 거래소
+    계정의 암호화 API 키 · 전략 6종)가 전소했다. DSN 의 DB 이름을 검사해 구조적으로 막는다.
     """
-    return (
+    url = (
         os.environ.get("TEST_DATABASE_URL")
         or os.environ.get("DATABASE_URL")
         or "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test"
     )
+    _assert_disposable_database(url)
+    return url
+
+
+def _assert_disposable_database(url: str) -> None:
+    """파괴적 마이그레이션 테스트가 버려도 되는 DB 를 향하는지 확인한다."""
+    database = urlsplit(url).path.lstrip("/").split("?", 1)[0]
+    if not database.endswith("_test"):
+        raise RuntimeError(
+            "test_migrations 는 downgrade base 로 전 테이블을 드롭한다. "
+            f"버려도 되는 DB(_test 접미사)만 허용하는데 '{database}' 를 받았다. "
+            "TEST_DATABASE_URL 을 함께 export 했는지 확인하라."
+        )
 
 
 def _alembic_cfg() -> Config:
@@ -177,11 +196,13 @@ def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
 
 
 def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """trading schema + 9 테이블이 upgrade head 후 존재하는지 검증.
+    """trading schema + 11 테이블이 upgrade head 후 존재하는지 검증.
 
     Sprint 26 Phase A 추가 — live_signal_sessions / live_signal_states /
     live_signal_events (Pine Signal Auto-Trading outbox + state).
     tier-c 추가 — alert_rules (세션별 손실한도/워치독 알림 규칙).
+    exit-attribution 추가 — exchange_exits (거래소 원본 청산 원장) +
+    exchange_exit_sync_state (과거 적재 경계).
     """
     engine, inspector = _upgrade_and_inspect(monkeypatch)
     try:
@@ -201,7 +222,10 @@ def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
             "live_signal_events",
             # tier-c — 세션별 알림 규칙
             "alert_rules",
-        }, f"예상 9 테이블과 불일치: {trading_tables}"
+            # exit-attribution — 거래소 원본 청산 원장 + 과거 적재 경계
+            "exchange_exits",
+            "exchange_exit_sync_state",
+        }, f"예상 11 테이블과 불일치: {trading_tables}"
     finally:
         engine.dispose()
 
@@ -216,3 +240,15 @@ def test_trading_orders_idempotency_unique(monkeypatch: pytest.MonkeyPatch) -> N
         assert idem[0]["unique"] is True
     finally:
         engine.dispose()
+
+
+def test_destructive_migration_tests_refuse_a_non_disposable_database() -> None:
+    """downgrade base 가 개발 DB 를 향하면 즉시 멈춰야 한다.
+
+    exit-attribution 실사고 — TEST_DATABASE_URL 없이 DATABASE_URL 만 export 된 셸에서
+    이 파일을 돌려 로컬 개발 DB 가 전소했다(주문 17행·거래소 계정 암호화 키·전략 6종).
+    """
+    with pytest.raises(RuntimeError, match="_test"):
+        _assert_disposable_database("postgresql+asyncpg://u:p@localhost:5436/quantbridge")
+    # 정상 경로는 통과한다.
+    _assert_disposable_database("postgresql+asyncpg://u:p@localhost:5436/quantbridge_test")

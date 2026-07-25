@@ -145,6 +145,56 @@ class OrderRepository:
         )
         return (await self.session.execute(stmt)).scalars().all()
 
+    async def list_by_exchange_order_ids(
+        self, account_id: UUID, exchange_order_ids: Sequence[str]
+    ) -> Sequence[Order]:
+        """계정 스코프로 거래소 주문 id를 역조회한다. 전역 조회는 계정 간 id 충돌에 취약하다."""
+        if not exchange_order_ids:
+            return []
+        stmt = (
+            select(Order)
+            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(Order.exchange_order_id.in_(exchange_order_ids))  # type: ignore[union-attr]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_unsynced_reduce_only(
+        self, account_id: UUID, *, limit: int = 500
+    ) -> Sequence[Order]:
+        """시간창 없이 미동기화 reduce-only 체결 주문 전량을 조회한다."""
+        stmt = (
+            select(Order)
+            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.reduce_only.is_(True))  # type: ignore[attr-defined]
+            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
+            .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
+            .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
+            .limit(limit)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_filled_for_attribution(
+        self, account_id: UUID, *, limit: int = 500
+    ) -> Sequence[Order]:
+        """귀속 추정 입력으로 해당 계정의 filled 주문을 시간순으로 조회한다.
+
+        ★가장 **최근** limit 건을 가져온 뒤 시간 오름차순으로 되돌린다. 오름차순 LIMIT 로
+        자르면 오래된 주문만 남아 최근 청산의 진입이 표본 밖으로 밀리고, 순포지션 합산이
+        절단 부산물이 돼 엉뚱한 전략으로 inferred 가 나간다.
+        """
+        stmt = (
+            select(Order)
+            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.filled_at.is_not(None))  # type: ignore[union-attr]
+            .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
+            .limit(limit)
+        )
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return sorted(rows, key=lambda order: order.filled_at or datetime.min.replace(tzinfo=UTC))
+
     async def transition_to_filled(
         self,
         order_id: UUID,

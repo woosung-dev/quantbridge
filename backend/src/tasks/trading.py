@@ -18,8 +18,9 @@ has_leverage) 3-tuple 기반 dynamic. settings.exchange_provider 는 dispatch pa
 from __future__ import annotations
 
 import contextlib
-import itertools
 import logging
+from collections import Counter
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -35,6 +36,7 @@ from src.common.alert import send_critical_alert
 from src.common.metrics import (
     qb_active_orders,
     qb_closed_pnl_backfill_total,
+    qb_exchange_exit_rows_total,
     qb_partial_fill_total,
     qb_trailing_placement_total,
 )
@@ -48,23 +50,31 @@ from src.trading.exceptions import (
     TrailingContractError,
     UnsupportedExchangeError,
 )
+from src.trading.exit_attribution import OrderFact, attribute_exit, classify_exit
 from src.trading.models import (
     AlertChannel,
     ExchangeAccount,
+    ExchangeExit,
     ExchangeMode,
     ExchangeName,
+    ExitAttribution,
+    ExitClassification,
+    Order,
     OrderSide,
     OrderState,
 )
 from src.trading.providers import (
+    BybitFuturesProvider,
+    ClosedOrderMeta,
     Credentials,
     ExchangeProvider,
     OrderSubmit,
-    aggregate_closed_pnl_by_order,
 )
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.registry import dispatch as _dispatch_provider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
+from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+from src.trading.repositories.exchange_exit_repository import ExchangeExitRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.services.position_service import position_snapshot_cache_key
@@ -76,6 +86,9 @@ _WATCHDOG_MAX_ATTEMPTS = 3
 _CLOSED_PNL_MAX_RETRIES = 4
 _CLOSED_PNL_RETRY_BASE_SECONDS = 5
 _CLOSED_PNL_ENQUEUE_COUNTDOWN = 5
+_EXIT_LEDGER_HORIZON_DAYS = 90
+_EXIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+_UNIX_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 logger = logging.getLogger(__name__)
 
@@ -1429,99 +1442,318 @@ def refresh_closed_pnl_task(self: Any, order_id: str) -> dict[str, Any]:
     return result
 
 
+def _datetime_to_ms(value: datetime) -> int:
+    """Aware UTC 시각을 부동소수점 없이 epoch 밀리초로 바꾼다."""
+    delta = value.astimezone(UTC) - _UNIX_EPOCH
+    return ((delta.days * 86_400 + delta.seconds) * 1_000) + delta.microseconds // 1_000
+
+
+def _ms_to_datetime(value: int) -> datetime:
+    """epoch 밀리초를 aware UTC 시각으로 바꾼다."""
+    return _UNIX_EPOCH + timedelta(milliseconds=value)
+
+
+def _datetime_from_ms(value: int | None) -> datetime | None:
+    """epoch 밀리초를 aware UTC 시각으로 바꾼다. 값이 없으면 None."""
+    return None if value is None else _ms_to_datetime(value)
+
+
+def _closed_pnl_windows(now_ms: int, backfilled_from: datetime | None) -> list[tuple[int, int]]:
+    """최근 창과, 영속된 스캔 경계에서 한 칸 물러난 과거 전진 창을 고른다.
+
+    ★진행 상태를 원장의 min(exchange_created_at) 에서 파생하면 안 된다. 청산이 한 건도
+    없던 과거 구간을 만나면 삽입이 0 이라 min 이 그대로여서 같은 빈 창을 영원히 다시
+    조회하고 그 이전 역사에 도달하지 못한다(실측 반증 — 07-05 행 7건 영구 미적재).
+    """
+    recent_start_ms = now_ms - _EXIT_WINDOW_MS
+    windows = [(recent_start_ms, now_ms)]
+    horizon_ms = now_ms - _EXIT_LEDGER_HORIZON_DAYS * 24 * 60 * 60 * 1_000
+    # 경계가 아직 없으면 최근 창의 시작점부터 뒤로 훑기 시작한다.
+    end_ms = recent_start_ms if backfilled_from is None else _datetime_to_ms(backfilled_from)
+    if end_ms <= horizon_ms:
+        return windows
+    start_ms = max(horizon_ms, end_ms - _EXIT_WINDOW_MS)
+    if start_ms < end_ms:
+        windows.append((start_ms, end_ms))
+    return windows
+
+
+def _order_facts(orders: Sequence[Order]) -> list[OrderFact]:
+    """영속 Order를 귀속 순수 함수의 최소 입력으로 축소한다."""
+    return [
+        OrderFact(
+            order_id=order.id,
+            strategy_id=order.strategy_id,
+            symbol=order.symbol,
+            side_is_buy=order.side == OrderSide.buy,
+            reduce_only=order.reduce_only,
+            quantity=order.quantity,
+            filled_price=order.filled_price,
+            filled_at=order.filled_at,
+        )
+        for order in orders
+        if order.filled_at is not None
+    ]
+
+
+async def _alert_new_exchange_exits(
+    sm: async_sessionmaker[AsyncSession], account_id: UUID, row_hashes: Sequence[str]
+) -> bool:
+    """새 비앱 청산 행을 계정별 한 번만 운영자에게 알린다.
+
+    조회까지 try 안에 둔다 — 원장은 이미 커밋됐고 provider 도 정상인데 알림 조회 실패가
+    계정 핸들러로 새면 outcome="failed_provider" 로 잘못 계상된다.
+    """
+    # 원장 UNIQUE가 "본 적 있음"을 영속하므로 같은 행은 재조회되어도 다시 발화하지 않는다.
+    try:
+        async with sm() as session:
+            rows = await ExchangeExitRepository(session).list_by_row_hashes(account_id, row_hashes)
+        external_rows = [row for row in rows if row.classification != ExitClassification.ours]
+        if not external_rows:
+            return False
+        classifications = Counter(row.classification.value for row in external_rows)
+        total_pnl = sum((row.closed_pnl for row in external_rows), Decimal("0"))
+        symbols = sorted({row.symbol for row in external_rows})
+        await send_rule_alert(
+            settings,
+            channel=AlertChannel.both,
+            title="거래소 청산 원장 신규 비앱 청산",
+            message=(
+                f"거래소에만 있던 청산 {len(external_rows)}건을 적재했습니다. "
+                f"순손익 {total_pnl}, 분류 {dict(classifications)}, 심볼 {', '.join(symbols)}."
+            ),
+            context={
+                "account_id": str(account_id)[:8],
+                "count": len(external_rows),
+                "closed_pnl": str(total_pnl),
+                "classifications": dict(classifications),
+                "symbols": symbols,
+            },
+        )
+    except Exception:
+        # 알림 실패가 이미 커밋된 원장 적재를 되돌려서는 안 된다.
+        logger.exception("exchange_exit_alert_failed", extra={"account_id": str(account_id)})
+        return False
+    return True
+
+
 async def _sweep_closed_pnl_with_session(
     sm: async_sessionmaker[AsyncSession], *, provider: Any = None, now: datetime | None = None
 ) -> dict[str, int]:
-    """최근 24시간 미동기화 청산 주문을 계정·심볼별 한 번의 Bybit 요청으로 보완한다."""
+    """Bybit 계정별 청산 원장을 채우고 원장 합계로 우리 주문 손익을 보정한다."""
     current = now or datetime.now(UTC)
+    now_ms = _datetime_to_ms(current)
+    summary = {"accounts": 0, "windows": 0, "inserted": 0, "backfilled": 0, "alerted": 0}
     async with sm() as session:
-        orders = await OrderRepository(session).list_unsynced_reduce_only_since(
-            current - timedelta(hours=24)
-        )
+        accounts = await ExchangeAccountRepository(session).list_by_exchange(ExchangeName.bybit)
 
-    summary = {"scanned": len(orders), "applied": 0, "orphan": 0, "groups": 0}
-    for (account_id, symbol), group_iter in itertools.groupby(
-        orders, key=lambda order: (order.exchange_account_id, order.symbol)
-    ):
-        group = list(group_iter)
-        summary["groups"] += 1
+    for account in accounts:
+        summary["accounts"] += 1
         try:
-            filled_times = [order.filled_at for order in group if order.filled_at is not None]
-            if not filled_times:
+            if account.exchange != ExchangeName.bybit:
+                qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
                 continue
-            oldest_filled_at = min(filled_times)
-            async with sm() as session:
-                account = await session.get(ExchangeAccount, account_id)
-                if account is None:
-                    continue
-                if account.exchange != ExchangeName.bybit or group[0].leverage is None:
-                    qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
-                    continue
-                crypto = EncryptionService(settings.trading_encryption_keys)
-                passphrase_pt = (
-                    crypto.decrypt(account.passphrase_encrypted)
-                    if account.passphrase_encrypted is not None
-                    else None
-                )
-                creds = Credentials(
-                    api_key=crypto.decrypt(account.api_key_encrypted),
-                    api_secret=crypto.decrypt(account.api_secret_encrypted),
-                    passphrase=passphrase_pt,
-                    environment=account.mode,
-                )
-            if provider is None:
-                from src.trading.providers import BybitFuturesProvider
-
-                provider = BybitFuturesProvider()
-            snapshots = await provider.fetch_closed_pnl_page(
-                creds, symbol, since=oldest_filled_at
+            try:
+                account_provider = provider or BybitFuturesProvider()
+            except UnsupportedExchangeError:
+                qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
+                continue
+            crypto = EncryptionService(settings.trading_encryption_keys)
+            passphrase = (
+                crypto.decrypt(account.passphrase_encrypted)
+                if account.passphrase_encrypted is not None
+                else None
             )
-            # 분할 행 합산은 refresh 경로와 동일 헬퍼를 쓴다 — 마지막 행만 취하면 부분
-            # 손익이 저장되고 CAS 가 synced_at 을 채워 그 값이 영구 고정된다.
-            snapshots_by_order_id = aggregate_closed_pnl_by_order(snapshots)
-            exchange_order_ids = {
-                order.exchange_order_id for order in group if order.exchange_order_id is not None
-            }
-            for snapshot_order_id in snapshots_by_order_id:
-                if snapshot_order_id not in exchange_order_ids:
-                    qb_closed_pnl_backfill_total.labels(outcome="orphan_row").inc()
-                    summary["orphan"] += 1
+            creds = Credentials(
+                api_key=crypto.decrypt(account.api_key_encrypted),
+                api_secret=crypto.decrypt(account.api_secret_encrypted),
+                passphrase=passphrase,
+                environment=account.mode,
+            )
             async with sm() as session:
-                repo = OrderRepository(session)
-                applied_in_group = 0
-                already_synced_in_group = 0
-                for order in group:
+                backfilled_from = await ExchangeExitRepository(session).get_backfilled_from(
+                    account.id
+                )
+
+            inserted_hashes: list[str] = []
+            attribution_facts: list[OrderFact] | None = None
+            # 스캔 경계는 커밋과 같은 트랜잭션에서 전진시킨다. 창 처리가 실패하면 경계가
+            # 그대로라 다음 주기에 같은 창을 재시도해 구조적으로 구멍이 생기지 않고,
+            # 행이 0건인 창도 경계를 전진시켜 빈 구간에서 멈추지 않는다.
+            for window_index, (start_ms, end_ms) in enumerate(
+                _closed_pnl_windows(now_ms, backfilled_from)
+            ):
+                snapshots = await account_provider.fetch_closed_pnl_window(
+                    creds, None, start_ms=start_ms, end_ms=end_ms
+                )
+                exchange_order_ids = list({snapshot.order_id for snapshot in snapshots})
+                async with sm() as session:
+                    matched_orders = await OrderRepository(session).list_by_exchange_order_ids(
+                        account.id, exchange_order_ids
+                    )
+                matched_by_exchange_id = {
+                    order.exchange_order_id: order
+                    for order in matched_orders
+                    if order.exchange_order_id is not None
+                }
+                unmatched_ids = [
+                    snapshot.order_id
+                    for snapshot in snapshots
+                    if snapshot.order_id not in matched_by_exchange_id
+                ]
+                meta_by_order_id: dict[str, ClosedOrderMeta] = {}
+                if unmatched_ids:
+                    try:
+                        meta_by_order_id = await account_provider.fetch_closed_order_meta(
+                            creds, None, start_ms=start_ms, end_ms=end_ms
+                        )
+                    except Exception:
+                        logger.warning(
+                            "closed_order_meta_fetch_failed",
+                            exc_info=True,
+                            extra={"account_id": str(account.id)},
+                        )
+                    if attribution_facts is None:
+                        async with sm() as session:
+                            attribution_orders = await OrderRepository(
+                                session
+                            ).list_filled_for_attribution(account.id)
+                        attribution_facts = _order_facts(attribution_orders)
+
+                rows: list[ExchangeExit] = []
+                for snapshot in snapshots:
+                    exchange_created_at = _datetime_from_ms(
+                        snapshot.created_at_ms
+                        if snapshot.created_at_ms is not None
+                        else snapshot.updated_at_ms
+                    )
+                    if exchange_created_at is None or snapshot.symbol is None or snapshot.side is None:
+                        logger.warning(
+                            "closed_pnl_ledger_row_skipped",
+                            extra={"account_id": str(account.id), "order_id": snapshot.order_id},
+                        )
+                        continue
+                    matched_order = matched_by_exchange_id.get(snapshot.order_id)
+                    if matched_order is None:
+                        attribution, strategy_id = attribute_exit(
+                            symbol=snapshot.symbol,
+                            avg_entry_price=snapshot.avg_entry_price,
+                            exit_at=exchange_created_at,
+                            our_filled_orders=attribution_facts or [],
+                        )
+                    else:
+                        attribution = ExitAttribution.exact
+                        strategy_id = matched_order.strategy_id
+                    raw: dict[str, object] = dict(snapshot.raw or {})
+                    rows.append(
+                        ExchangeExit(
+                            exchange_account_id=account.id,
+                            exchange_order_id=snapshot.order_id,
+                            row_hash=ExchangeExit.compute_row_hash(
+                                # raw 가 비어도 축퇴하지 않도록 항상 존재하는 스냅샷 id 를 쓴다.
+                                snapshot.order_id,
+                                raw.get("createdTime"),
+                                raw.get("updatedTime"),
+                                raw.get("closedSize"),
+                                raw.get("closedPnl"),
+                                raw.get("avgEntryPrice"),
+                                raw.get("avgExitPrice"),
+                                raw.get("cumExitValue"),
+                            ),
+                            symbol=snapshot.symbol,
+                            side=snapshot.side,
+                            closed_pnl=snapshot.closed_pnl,
+                            closed_size=snapshot.closed_size,
+                            avg_entry_price=snapshot.avg_entry_price,
+                            avg_exit_price=snapshot.avg_exit_price,
+                            exchange_created_at=exchange_created_at,
+                            exchange_updated_at=_datetime_from_ms(snapshot.updated_at_ms),
+                            classification=classify_exit(
+                                matched_order_id=(
+                                    matched_order.id if matched_order is not None else None
+                                ),
+                                meta=meta_by_order_id.get(snapshot.order_id),
+                            ),
+                            create_type=(
+                                meta_by_order_id[snapshot.order_id].create_type
+                                if snapshot.order_id in meta_by_order_id
+                                else None
+                            ),
+                            stop_order_type=(
+                                meta_by_order_id[snapshot.order_id].stop_order_type
+                                if snapshot.order_id in meta_by_order_id
+                                else None
+                            ),
+                            order_link_id=(
+                                meta_by_order_id[snapshot.order_id].order_link_id
+                                if snapshot.order_id in meta_by_order_id
+                                else None
+                            ),
+                            matched_order_id=(
+                                matched_order.id if matched_order is not None else None
+                            ),
+                            attributed_strategy_id=strategy_id,
+                            attribution_confidence=attribution,
+                            raw=raw,
+                        )
+                    )
+                async with sm() as session:
+                    exit_repo = ExchangeExitRepository(session)
+                    new_hashes = await exit_repo.upsert_rows(rows)
+                    if window_index > 0:
+                        await exit_repo.set_backfilled_from(account.id, _ms_to_datetime(start_ms))
+                    await session.commit()
+                # 커밋 성공 뒤에만 새 행을 계상해 실패한 트랜잭션을 완료로 보지 않는다.
+                summary["windows"] += 1
+                summary["inserted"] += len(new_hashes)
+                inserted_hashes.extend(new_hashes)
+                new_hash_set = set(new_hashes)
+                for row in rows:
+                    if row.row_hash in new_hash_set:
+                        qb_exchange_exit_rows_total.labels(
+                            classification=row.classification.value
+                        ).inc()
+                        new_hash_set.remove(row.row_hash)
+
+            async with sm() as session:
+                order_repo = OrderRepository(session)
+                exit_repo = ExchangeExitRepository(session)
+                unsynced_orders = await order_repo.list_unsynced_reduce_only(account.id)
+                sums = await exit_repo.aggregate_closed_pnl(
+                    account.id,
+                    [
+                        order.exchange_order_id
+                        for order in unsynced_orders
+                        if order.exchange_order_id is not None
+                    ],
+                )
+                applied = 0
+                already_synced = 0
+                for order in unsynced_orders:
                     if order.exchange_order_id is None:
                         continue
-                    snapshot = snapshots_by_order_id.get(order.exchange_order_id)
-                    if snapshot is None:
+                    realized_pnl = sums.get(order.exchange_order_id)
+                    if realized_pnl is None:
                         continue
-                    rows = await repo.backfill_exchange_realized_pnl(
-                        order.id,
-                        realized_pnl=snapshot.closed_pnl,
-                        synced_at=current,
-                    )
-                    if rows == 1:
-                        applied_in_group += 1
+                    if await order_repo.backfill_exchange_realized_pnl(
+                        order.id, realized_pnl=realized_pnl, synced_at=current
+                    ) == 1:
+                        applied += 1
                     else:
-                        already_synced_in_group += 1
-                if applied_in_group:
-                    await session.commit()
-                # 커밋 성공 뒤에 계상한다 — commit 실패 시 summary/metric 이 과다계상되면
-                # "보정 완료" 로 오독되고, 실제로는 추정값이 그대로 남는다.
-                summary["applied"] += applied_in_group
-                for _ in range(applied_in_group):
-                    qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
-                for _ in range(already_synced_in_group):
-                    qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
+                        already_synced += 1
+                await session.commit()
+            # 단일 fetch 결과가 아니라 원장 전체를 집계하므로 분할 행이 7일 창 경계에 갈려도
+            # 부분합이 CAS로 영구 고정되지 않는다.
+            summary["backfilled"] += applied
+            for _ in range(applied):
+                qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
+            for _ in range(already_synced):
+                qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
+            if await _alert_new_exchange_exits(sm, account.id, inserted_hashes):
+                summary["alerted"] += 1
         except Exception:
-            # 스윕은 refresh task 유실의 회복 안전망이다 — 그룹 실패를 로그로만 남기면
-            # 해당 (account, symbol) 이 5분마다 조용히 실패해도 아무도 모른다.
             qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
-            logger.exception(
-                "closed_pnl_sweep_group_failed",
-                extra={"account_id": str(account_id), "symbol": symbol},
-            )
+            logger.exception("closed_pnl_sweep_account_failed", extra={"account_id": str(account.id)})
     return summary
 
 
