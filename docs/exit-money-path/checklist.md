@@ -82,4 +82,4 @@ canon 실패 5건의 실체 = `해석되지 않은 변수 — chart-tokens.ts �
 - [x] BL-444/445 Resolved · BL-453 부분 · BL-438 ② 재분류
 - [x] 문서 드리프트 5건 정리 + active BL 카운트 산식 헤더 고정
 - [x] **최종 codex 누적 diff 리뷰 1회** (`main...HEAD`) — **REVISE [P2] 1건**(세션 읽기↔주문 조회 TOCTOU). 전건 코드 대조 후 **회귀 아님**으로 판정(변경 전에는 창이 아예 없어 항상 전 기간 포함 · 읽기 전용 · 자가 교정) → 수정 대신 [BL-459](../REFACTORING-BACKLOG.md#bl-459) 등재 + 계약 §3.3 명시
-- [ ] PR 1개 (`stage/exit-money-path` → main), squash 는 사용자
+- [x] **PR [#477](https://github.com/woosung-dev/quantbridge/pull/477)** (`stage/exit-money-path` → main) — squash 는 사용자

@@ -41,8 +41,8 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 - [ ] BE 전체 스위트 재확인 — `test_redis_client.py::test_get_pool_safe_across_event_loops` 가 전체 실행에서만 1회 실패(단독·clean main 모두 통과). 순서 의존 flake 여부 판정 중
 - [ ] canon 32 + MCP Playwright 브라우저 회귀 dogfood(콘솔 error 0 · 빈 상태 `—` · state shape 불변)
-- [ ] 최종 codex 누적 diff 리뷰 (`main...HEAD`) — **생략 금지**
-- [ ] PR 1개 `stage/exit-money-path` → main, squash 는 사용자
+- [x] 최종 codex 누적 diff 리뷰 — **REVISE [P2] 1건**(TOCTOU) → 전건 대조 후 회귀 아님 판정, BL-459 등재
+- [x] **PR [#477](https://github.com/woosung-dev/quantbridge/pull/477)** — squash 는 사용자
 
 ---
 
