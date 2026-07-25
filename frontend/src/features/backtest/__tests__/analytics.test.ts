@@ -134,3 +134,23 @@ describe("computeProfitStructure", () => {
     expect(computeProfitStructure([{ status: "open", pnl: 0, fees: 1 }])).toBeNull();
   });
 });
+
+describe("binReturnDistribution — 대용량 입력", () => {
+  // 예전 구현은 `Math.min(...finite)` 였다. spread 는 인자 개수 상한이라
+  // Node 22 실측 ≈ 124,000 부터 RangeError 를 던지고, 그러면 리포트의
+  // 수익률 분포 섹션이 통째로 렌더되지 않는다.
+  it("13만 건에서도 던지지 않고 경계값을 정확히 잡는다", () => {
+    const returns = Array.from({ length: 130_000 }, (_, i) => (i % 200) / 1_000);
+    // 최소/최대를 배열 양 끝이 아닌 중간에 심어 전 구간 스캔을 강제한다.
+    returns[65_000] = -0.5;
+    returns[65_001] = 0.75;
+
+    const bins = binReturnDistribution(returns, 10);
+
+    expect(bins).toHaveLength(10);
+    expect(bins[0]?.from).toBeCloseTo(-0.5, 10);
+    expect(bins[9]?.to).toBeCloseTo(0.75, 10);
+    const counted = bins.reduce((sum, b) => sum + b.count, 0);
+    expect(counted).toBe(returns.length);
+  });
+});
