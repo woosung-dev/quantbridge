@@ -165,6 +165,9 @@ async def test_list_projects_metrics_summary_and_sorts_metrics(
         "total_return": "0.20",
         "net_profit_abs": "200",
         "sharpe_ratio": "1.5",
+        # BL-398: 구 실행 JSONB 에는 sharpe_convention 키가 없다 → None.
+        # FE 가 이걸 보고 "구 기준(봉 수익률 · 무위험 0%)" 으로 표기한다.
+        "sharpe_convention": None,
         "max_drawdown": "-0.10",
         "num_trades": 7,
         "total_open_trades": 1,

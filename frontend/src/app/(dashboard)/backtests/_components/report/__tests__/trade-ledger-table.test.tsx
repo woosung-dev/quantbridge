@@ -60,6 +60,13 @@ describe("TradeLedgerTable (05 거래 내역)", () => {
     expect(screen.getByText("보유 중")).toBeInTheDocument();
   });
 
+  it("liquidation 청산은 시그널 청산이 아니라 강제청산으로 표시한다", () => {
+    render(<TradeLedgerTable trades={[trade({ exit_kind: "liquidation" })]} />);
+
+    expect(screen.getByText("강제청산")).toBeInTheDocument();
+    expect(screen.queryByText("시그널 청산")).not.toBeInTheDocument();
+  });
+
   it("거래 0건 → 빈 상태 렌더", () => {
     render(<TradeLedgerTable trades={[]} />);
     expect(screen.getByTestId("trade-ledger-empty")).toBeInTheDocument();

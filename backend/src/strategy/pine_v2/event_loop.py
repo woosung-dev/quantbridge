@@ -68,6 +68,7 @@ def run_historical(
     initial_capital: float | None = None,
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
+    leverage: float = 1.0,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
@@ -85,6 +86,7 @@ def run_historical(
             None 이면 기존 qty=1.0 fallback (호환).
         default_qty_type: "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None.
         default_qty_value: percent / cash / fixed value. None 또는 default_qty_type=None 시 무시.
+        leverage: 1.0 초과 시 격리 증거금 게이트와 강제청산을 적용한다.
         sessions_allowed: BL-188 v3 — entry placement + pending fill 양쪽에 적용되는
             session gate. 비어있으면 24h. 비어있지 않으면 ohlcv.index 가 tz-aware
             DatetimeIndex 여야 함 (v2_adapter 가 422 reject 책임).
@@ -107,6 +109,7 @@ def run_historical(
             initial_capital=initial_capital,
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
+            leverage=leverage,
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
     interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
@@ -136,6 +139,12 @@ def run_historical(
             high=bar.current("high"),
             low=bar.current("low"),
             bar_ts=bar_ts_py,
+        )
+        interp.strategy.check_liquidations(
+            bar=bar.bar_index,
+            open_=bar.current("open"),
+            high=bar.current("high"),
+            low=bar.current("low"),
         )
         # BL-104 — pending exit 브래킷 체결 검사 (entry fill 직후, execute 전).
         # pending_exits 비어있으면 즉시 no-op → strategy.exit 미사용 시 회귀 0.

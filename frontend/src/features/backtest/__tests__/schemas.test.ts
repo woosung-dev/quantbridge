@@ -35,15 +35,42 @@ describe("BacktestMetricsOutSchema", () => {
     const parsed = BacktestMetricsOutSchema.parse({
       total_return: "0.234",
       sharpe_ratio: "1.8",
+      sharpe_convention: "tv_daily_rfr2",
       max_drawdown: "-0.12",
       win_rate: "0.55",
       num_trades: 42,
     });
     expect(parsed.total_return).toBeCloseTo(0.234, 6);
     expect(parsed.sharpe_ratio).toBeCloseTo(1.8, 6);
+    expect(parsed.sharpe_convention).toBe("tv_daily_rfr2");
     expect(parsed.max_drawdown).toBeCloseTo(-0.12, 6);
     expect(parsed.win_rate).toBeCloseTo(0.55, 6);
     expect(parsed.num_trades).toBe(42);
+  });
+
+  it("sharpe_convention 이 없는 구 실행 응답도 파싱한다", () => {
+    const parsed = BacktestMetricsOutSchema.parse({
+      total_return: "0.234",
+      sharpe_ratio: "1.8",
+      max_drawdown: "-0.12",
+      win_rate: "0.55",
+      num_trades: 42,
+    });
+
+    expect(parsed.sharpe_convention).toBeUndefined();
+  });
+
+  it("강제청산 필드가 없는 구 실행 응답도 파싱한다", () => {
+    const parsed = BacktestMetricsOutSchema.parse({
+      total_return: "0.234",
+      sharpe_ratio: "1.8",
+      max_drawdown: "-0.12",
+      win_rate: "0.55",
+      num_trades: 42,
+    });
+
+    expect(parsed.liquidation_occurred).toBeUndefined();
+    expect(parsed.liquidation_count).toBeUndefined();
   });
 
   // C6 (정직성 Slice 4) — funding 결측 flag (bool nullable optional).

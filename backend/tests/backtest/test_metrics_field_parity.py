@@ -28,6 +28,7 @@ from src.backtest.engine.types import (
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.schemas import (
     BacktestMetricsOut,
+    BacktestMetricsSummary,
     ExcursionStatsOut,
     PerSideMetricsOut,
     SideMetricsOut,
@@ -97,6 +98,18 @@ def test_dataclass_and_schema_field_sets_match() -> None:
     )
 
 
+# BacktestMetricsSummary 는 목록·대시보드 응답에 실리지만 tripwire ①의 사각지대다.
+# 수기 키가 dataclass 에 없으면 JSONB 에 없어 metrics_summary_from_jsonb 가 항상 None 을 돌린다.
+def test_summary_keys_subset_of_dataclass() -> None:
+    """목록·대시보드용 summary 키가 engine dataclass 에만 의존하는지 검증."""
+    dataclass_fields = {f.name for f in dataclasses.fields(BacktestMetrics)}
+    summary_fields = set(BacktestMetricsSummary.model_fields)
+    assert summary_fields <= dataclass_fields, (
+        "BL-388 summary drift: dataclass 에 없는 summary keys="
+        f"{summary_fields - dataclass_fields}"
+    )
+
+
 def test_nested_dataclass_and_schema_field_sets_match() -> None:
     """tripwire ① 확장: nested 팩(dataclass ↔ Pydantic sub-model) parity."""
     for dc, model in _NESTED_PAIRS:
@@ -106,6 +119,26 @@ def test_nested_dataclass_and_schema_field_sets_match() -> None:
             f"BL-388 nested drift ({dc.__name__} ↔ {model.__name__}): "
             f"dataclass-only={dc_fields - model_fields}, "
             f"schema-only={model_fields - dc_fields}"
+        )
+
+
+# Decimal serializer 누락은 JSON float 변환으로 금융 수치의 정밀도를 조용히 잃게 만든다.
+def test_all_decimal_fields_have_field_serializer() -> None:
+    """최상위·nested API 모델의 Decimal 필드가 모두 문자열 serializer 를 갖는지 검증."""
+    for model in (BacktestMetricsOut, SideMetricsOut, ExcursionStatsOut):
+        decimal_fields = {
+            name
+            for name, annotation in typing.get_type_hints(model).items()
+            if annotation is Decimal or Decimal in typing.get_args(annotation)
+        }
+        serializer_fields = {
+            field
+            for decorator in model.__pydantic_decorators__.field_serializers.values()
+            for field in decorator.info.fields
+        }
+        assert decimal_fields <= serializer_fields, (
+            f"BL-388 Decimal serializer drift ({model.__name__}): "
+            f"missing={decimal_fields - serializer_fields}"
         )
 
 

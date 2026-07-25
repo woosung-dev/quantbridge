@@ -21,13 +21,16 @@ import pandas as pd
 from src.backtest.engine.types import ExcursionStats, PerSideMetrics, RawTrade, SideMetrics
 
 _RFR_ANNUAL = 0.02  # TV 기본 risk-free rate
+SHARPE_CONVENTION_MONTHLY = "tv_monthly_rfr2"
+SHARPE_CONVENTION_DAILY = "tv_daily_rfr2"
+SHARPE_CONVENTION_UNAVAILABLE = "unavailable"
 
 
 # ── sortino ──────────────────────────────────────────────────────────────────
 
 
-def _periodic_returns(equity: pd.Series) -> tuple[list[float], float] | None:
-    """equity(float, DatetimeIndex) → (기간 수익률 목록, 기간 RFR).
+def _periodic_returns(equity: pd.Series) -> tuple[list[float], float, str] | None:
+    """equity(float, DatetimeIndex) → (기간 수익률 목록, 기간 RFR, 기간 라벨).
 
     달력 월말 샘플 ≥ 2 → 월간(RFR 2%/12), 아니면 daily(RFR 2%/365) fallback.
     기준점 = equity 첫 값 (TV 예시: 1월 1일 100 → 2월 1일 110 = +10%).
@@ -38,9 +41,11 @@ def _periodic_returns(equity: pd.Series) -> tuple[list[float], float] | None:
     if len(monthly) >= 2:
         samples = [float(equity.iloc[0]), *[float(v) for v in monthly]]
         rfr = _RFR_ANNUAL / 12.0
+        period = "monthly"
     else:
         samples = [float(v) for v in equity]
         rfr = _RFR_ANNUAL / 365.0
+        period = "daily"
     returns: list[float] = []
     for prev, cur in itertools.pairwise(samples):
         if prev == 0 or not (math.isfinite(prev) and math.isfinite(cur)):
@@ -48,7 +53,7 @@ def _periodic_returns(equity: pd.Series) -> tuple[list[float], float] | None:
         returns.append((cur - prev) / prev)
     if not returns:
         return None
-    return returns, rfr
+    return returns, rfr, period
 
 
 def sortino_ratio(equity: pd.Series) -> Decimal | None:
@@ -56,7 +61,7 @@ def sortino_ratio(equity: pd.Series) -> Decimal | None:
     periodic = _periodic_returns(equity)
     if periodic is None:
         return None
-    returns, rfr = periodic
+    returns, rfr, _ = periodic
     mean_return = sum(returns) / len(returns)
     downside_sq = [max(0.0, rfr - r) ** 2 for r in returns]
     dd = math.sqrt(sum(downside_sq) / len(downside_sq))
@@ -66,6 +71,36 @@ def sortino_ratio(equity: pd.Series) -> Decimal | None:
     if not math.isfinite(value):
         return None
     return Decimal(str(value))
+
+
+def sharpe_ratio(equity: pd.Series) -> tuple[Decimal, str]:
+    """TV Sharpe = (MR - RFR) / 모집단 표준편차. 연율화하지 않는다.
+
+    형제 `sortino_ratio`는 `Decimal | None`을 반환하지만, Sharpe는 의도적으로
+    비-옵셔널 `Decimal`을 반환한다. None을 반환하면
+    `optimizer/engine/grid_search.py:249`의 현재 dead branch
+    `metrics.sharpe_ratio is None`이 되살아나 degenerate 셀이 급증하고, FE
+    `key-stats-strip.tsx`의 `.toFixed(2)`가 깨진다. degenerate는 값 0과
+    convention `"unavailable"`로 구분한다.
+
+    daily fallback은 sub-daily 타임프레임을 "1 bar = 1 day"로 센다. 이는
+    `_periodic_returns`가 이미 가진 선재 결함이며 `sortino_ratio`도 동일하게
+    영향받는다. 이 슬라이스에서는 고치지 않는다. 고치면 Sortino baseline까지
+    흔들린다.
+    """
+    periodic = _periodic_returns(equity)
+    if periodic is None:
+        return Decimal("0"), SHARPE_CONVENTION_UNAVAILABLE
+    returns, rfr, period = periodic
+    mean_return = sum(returns) / len(returns)
+    sd = math.sqrt(sum((r - mean_return) ** 2 for r in returns) / len(returns))
+    if sd == 0 or not math.isfinite(sd):
+        return Decimal("0"), SHARPE_CONVENTION_UNAVAILABLE
+    value = (mean_return - rfr) / sd
+    if not math.isfinite(value):
+        return Decimal("0"), SHARPE_CONVENTION_UNAVAILABLE
+    convention = SHARPE_CONVENTION_MONTHLY if period == "monthly" else SHARPE_CONVENTION_DAILY
+    return Decimal(str(value)), convention
 
 
 # ── calmar ───────────────────────────────────────────────────────────────────

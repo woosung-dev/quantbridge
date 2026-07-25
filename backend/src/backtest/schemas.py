@@ -187,6 +187,7 @@ class BacktestMetricsSummary(BaseModel):
     total_return: Decimal | None = None
     net_profit_abs: Decimal | None = None
     sharpe_ratio: Decimal | None = None
+    sharpe_convention: str | None = None
     max_drawdown: Decimal | None = None
     num_trades: int | None = None
     total_open_trades: int | None = None
@@ -289,13 +290,14 @@ class ExcursionStatsOut(BaseModel):
 class BacktestMetricsOut(BaseModel):
     """engine.types.BacktestMetrics → API 노출 (Decimal → str).
 
-    Sprint 30 gamma-BE: PRD `backtests.results` JSONB 24 metric 정합. 기존 12 + 신규 12.
-    신규 필드는 모두 Optional default None (Sprint 28 이전 backtest 호환).
+    필드 수의 SSOT 는 dataclass + `tests/backtest/test_metrics_field_parity.py`
+    tripwire 이다. 선택 필드는 default None 으로 구 backtest 호환을 유지한다.
     TV parity 팩 (abs 금액/open PnL/bars/per-side/excursion) — 구 backtest 는 None.
     """
 
     total_return: Decimal
     sharpe_ratio: Decimal
+    sharpe_convention: str | None = None
     max_drawdown: Decimal
     win_rate: Decimal
     num_trades: int
@@ -354,6 +356,9 @@ class BacktestMetricsOut(BaseModel):
     avg_bars_in_losing_trades: Decimal | None = None
     per_side: PerSideMetricsOut | None = None
     excursion_stats: ExcursionStatsOut | None = None
+    # 격리 레버리지 모델 적용 결과. leverage<=1 이면 항상 None.
+    liquidation_occurred: bool | None = None
+    liquidation_count: int | None = None
 
     @field_serializer(
         "total_return",

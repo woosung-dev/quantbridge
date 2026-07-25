@@ -25,6 +25,7 @@ from src.backtest.engine.metrics import (
     calmar_ratio,
     compute_excursion_stats,
     compute_side_metrics,
+    sharpe_ratio,
     sortino_ratio,
 )
 from src.backtest.engine.types import (
@@ -39,6 +40,7 @@ from src.strategy.pine.types import ParseOutcome, SignalResult
 from src.strategy.pine_v2.compat import V2RunResult, parse_and_run_v2
 from src.strategy.pine_v2.exit_orders import fill_type_for
 from src.strategy.pine_v2.interpreter import PineRuntimeError
+from src.strategy.pine_v2.leverage_model import is_leverage_active
 from src.strategy.pine_v2.strategy_state import StrategyState, Trade
 
 logger = logging.getLogger(__name__)
@@ -99,6 +101,7 @@ def run_backtest_v2(
             live_position_size_pct=cfg.live_position_size_pct,
             form_default_qty_type=cfg.default_qty_type,
             form_default_qty_value=cfg.default_qty_value,
+            leverage=cfg.leverage,
             sessions_allowed=cfg.trading_sessions,
             # Sprint 51 BL-220 — pine_v2 input override (Param Stability grid sweep).
             # cfg.input_overrides=None 일 때 = 회귀 0 (기존 backtest path 변경 X).
@@ -395,6 +398,7 @@ def _build_raw_trades(
                 slippage_paid=entry_slip + exit_slip,
                 comment=t.comment or None,
                 cumulative_pnl=running_pnl,
+                liquidated=t.liquidated,
             )
         )
     return raw
@@ -623,7 +627,10 @@ def _compute_metrics(
     total_funding: Decimal | None = None,
     equity_extremes: tuple[list[Decimal], list[Decimal]] | None = None,
 ) -> BacktestMetrics:
-    """RawTrade list + equity curve → BacktestMetrics 24 필드.
+    """RawTrade list + equity curve → BacktestMetrics.
+
+    필드 수의 SSOT 는 dataclass + `tests/backtest/test_metrics_field_parity.py`
+    tripwire 이다.
 
     Sprint 31 BL-154: pine_v2 엔진 production path 에 신규 12 metric 직접
     계산 (vectorbt 의존 없이 RawTrade + equity Series 만 사용). vectorbt
@@ -659,7 +666,7 @@ def _compute_metrics(
 
     # Sharpe/MDD 는 근사 지표 — float 변환하여 numpy/pandas 연산 활용.
     equity_float = _as_float_series(equity)
-    sharpe_ratio = _sharpe(equity_float)
+    sharpe_ratio_value, sharpe_convention = sharpe_ratio(equity_float)
     max_drawdown = _max_drawdown(equity_float)
     # Sprint 32-D BL-156: MDD 수학 정합 메타.
     # leverage=1 가정 하에서 MDD < -1.0 (= -100%) 는 수학적으로 자본 초과 손실
@@ -766,6 +773,14 @@ def _compute_metrics(
     # → None 게이트 (TV 도 무거래 시 공란).
     sortino = sortino_ratio(equity_float) if trades else None
     calmar = calmar_ratio(annual_return_pct, max_drawdown)
+    liquidation_count = (
+        sum(t.liquidated is True for t in closed)
+        if is_leverage_active(cfg.leverage)
+        else None
+    )
+    liquidation_occurred = (
+        liquidation_count > 0 if liquidation_count is not None else None
+    )
 
     # C14 (정직성) — 총 수수료/슬리피지 분해 집계. TV Trades parity 확장으로
     # RawTrade 가 fee_paid/slippage_paid split 을 직접 보유 → 재계산 없이 합산
@@ -805,7 +820,10 @@ def _compute_metrics(
 
     return BacktestMetrics(
         total_return=total_return,
-        sharpe_ratio=sharpe_ratio,
+        sharpe_ratio=sharpe_ratio_value,
+        sharpe_convention=sharpe_convention,
+        liquidation_occurred=liquidation_occurred,
+        liquidation_count=liquidation_count,
         max_drawdown=max_drawdown,
         win_rate=win_rate,
         num_trades=num_trades,
@@ -1125,22 +1143,6 @@ def _as_float_series(equity: pd.Series) -> pd.Series:
     if equity.dtype == object:
         return pd.Series([float(v) for v in equity], index=equity.index, dtype=float)
     return equity.astype(float)
-
-
-def _sharpe(equity: pd.Series) -> Decimal:
-    if len(equity) < 2:
-        return Decimal("0")
-    returns = equity.pct_change().dropna()
-    if returns.empty:
-        return Decimal("0")
-    mean = float(returns.mean())
-    std = float(returns.std(ddof=1))
-    if std == 0 or not math.isfinite(std):
-        return Decimal("0")
-    sharpe = mean / std * math.sqrt(len(returns))
-    if not math.isfinite(sharpe):
-        return Decimal("0")
-    return Decimal(str(sharpe))
 
 
 def _max_drawdown(equity: pd.Series) -> Decimal:

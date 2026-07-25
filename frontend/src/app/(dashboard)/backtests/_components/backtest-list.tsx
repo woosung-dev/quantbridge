@@ -26,6 +26,7 @@ import {
 } from "@/features/backtest/labels";
 import { useBacktests } from "@/features/backtest/hooks";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
+import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { formatDateTime, formatPercent } from "@/features/backtest/utils";
 import { useStrategies } from "@/features/strategy/hooks";
 import { StateBox } from "@/components/state-box";
@@ -105,6 +106,18 @@ export function BacktestList() {
   const hasMorePages = total > items.length;
   const filtered = activeStatus === "all" ? items : items.filter((b) => b.status === activeStatus);
   const counts = useMemo(() => buildStatusCounts(items), [items]);
+  const hasMixedSharpeConventions =
+    orderBy === "sharpe_ratio" &&
+    filtered.some(
+      (b) =>
+        b.metrics_summary?.sharpe_ratio != null &&
+        b.metrics_summary.sharpe_convention == null,
+    ) &&
+    filtered.some(
+      (b) =>
+        b.metrics_summary?.sharpe_ratio != null &&
+        b.metrics_summary.sharpe_convention != null,
+    );
 
   const pushStatus = (id: "all" | BacktestStatus) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -280,7 +293,8 @@ export function BacktestList() {
               </StateBox>
             </div>
           ) : (
-            <div className="table-wrap">
+            <>
+              <div className="table-wrap">
               <table
                 className="trades runs-table"
                 aria-label={`백테스트 실행 목록 ${filtered.length}건`}
@@ -341,6 +355,10 @@ export function BacktestList() {
                   {filtered.map((b) => {
                     // 라벨·톤은 S4 용어 SSOT 에서만 온다 (원시 enum 렌더 금지 — no-raw-enum-labels 가드).
                     const { label, tone, showCheckIcon } = BACKTEST_STATUS_LABEL[b.status];
+                    const sharpe = describeSharpe(
+                      b.metrics_summary?.sharpe_convention,
+                      b.metrics_summary?.sharpe_ratio,
+                    );
                     return (
                       <tr key={b.id} data-testid={`backtest-row-${b.id}`} data-status={b.status}>
                         <td className="mono-l run-id">
@@ -365,11 +383,18 @@ export function BacktestList() {
                           missing={b.metrics_summary == null}
                           format={(value) => formatPercent(value)}
                         />
-                        <MetricCell
-                          value={b.metrics_summary?.sharpe_ratio}
-                          missing={b.metrics_summary == null}
-                          format={(value) => value.toFixed(2)}
-                        />
+                        <td
+                          className="num"
+                          title={
+                            b.metrics_summary == null
+                              ? UNFINISHED_METRICS_TITLE
+                              : sharpe.isLegacy || sharpe.isUnavailable
+                                ? sharpe.foot
+                                : undefined
+                          }
+                        >
+                          {b.metrics_summary == null ? EMPTY_CELL : sharpe.display}
+                        </td>
                         <MetricCell
                           value={b.metrics_summary?.num_trades}
                           missing={b.metrics_summary == null}
@@ -392,7 +417,13 @@ export function BacktestList() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+              {hasMixedSharpeConventions ? (
+                <p className="runs-summary" data-testid="backtest-sharpe-sort-notice">
+                  구 기준과 현재 기준 샤프가 섞여 있어 정렬 순위를 그대로 신뢰할 수 없습니다.
+                </p>
+              ) : null}
+            </>
           )}
         </div>
       </section>

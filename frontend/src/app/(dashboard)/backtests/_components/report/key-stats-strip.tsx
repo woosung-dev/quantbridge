@@ -8,6 +8,7 @@
 import type { ReactNode } from "react";
 
 import type { BacktestConfig, BacktestMetricsOut } from "@/features/backtest/schemas";
+import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
 import { buildMddCaption } from "@/app/(dashboard)/backtests/_components/charts/mdd-caption";
@@ -70,11 +71,13 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
   const totalFees = m.total_fees ?? null;
 
   const recoveryDays = m.excursion_stats?.max_drawdown_recovery_days ?? null;
+  const sharpe = describeSharpe(m.sharpe_convention, m.sharpe_ratio);
 
   const mddCaption = buildMddCaption({
     leverage: config?.leverage ?? 1,
     mddBelowCapital: m.max_drawdown < -1,
     mddExceedsCapital: m.mdd_exceeds_capital ?? null,
+    liquidationOccurred: m.liquidation_occurred ?? null,
   });
 
   return (
@@ -131,9 +134,9 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
       />
       <KpiCard
         label="샤프 지수"
-        value={m.sharpe_ratio.toFixed(2)}
+        value={sharpe.display}
         testId="kpi-sharpe"
-        foot="무위험 수익률 0% 가정"
+        foot={sharpe.foot}
       />
     </div>
   );

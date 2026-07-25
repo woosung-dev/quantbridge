@@ -30,6 +30,7 @@ const EXIT_REASON_LABEL: Record<string, string> = {
   take_profit: "익절",
   stop_loss: "손절",
   trailing_stop: "추적 손절",
+  liquidation: "강제청산",
 };
 
 interface TradeLedgerTableProps {

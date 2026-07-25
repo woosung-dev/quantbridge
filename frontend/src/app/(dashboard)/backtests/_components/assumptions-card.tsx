@@ -65,18 +65,22 @@ export function AssumptionsCard({
 }: AssumptionsCardProps) {
   const fees = config?.fees ?? DEFAULT_FEES;
   const slippage = config?.slippage ?? DEFAULT_SLIPPAGE;
+  const leverage = config?.leverage ?? 1;
+  const hasMarginModel = leverage > 1;
 
   // 실행 가정 열 (variant-c 좌열).
   const execRows: readonly AssumptionRow[] = [
     { label: "엔진", value: ENGINE_LABEL, isDefault: false },
     {
       label: "포지션 모델",
-      value: "1x · 롱/숏",
-      title: config?.include_funding
-        ? "강제 청산 / 유지 증거금 미반영. 펀딩 비용은 8시간 정산 주기로 차감 (총 펀딩 행 참조)."
-        : "1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내). " +
-          "전략의 수량 지정 3종 (자본 비율 / 현금 / 고정 수량) 사용. " +
-          "펀딩 비용 / 강제 청산 / 유지 증거금 미반영.",
+      value: hasMarginModel ? `${leverage}x · 롱/숏 · 격리마진` : "1x · 롱/숏",
+      title: hasMarginModel
+        ? "플랫 유지증거금률 0.5% · 단일 tier · Bybit 기준 강제청산 반영. tier 계단·파산수수료 미반영. 펀딩 비용은 8시간 정산 주기로 차감."
+        : config?.include_funding
+          ? "강제 청산 / 유지 증거금 미반영. 펀딩 비용은 8시간 정산 주기로 차감 (총 펀딩 행 참조)."
+          : "1x 비레버리지. 롱/숏 모두 가능 (자기자본 한도 내). " +
+            "전략의 수량 지정 3종 (자본 비율 / 현금 / 고정 수량) 사용. " +
+            "펀딩 비용 / 강제 청산 / 유지 증거금 미반영.",
       isDefault: false,
     },
     {

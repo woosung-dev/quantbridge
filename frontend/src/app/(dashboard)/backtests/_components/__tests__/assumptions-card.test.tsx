@@ -80,6 +80,20 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
     );
   });
 
+  it("Nx config 시 격리마진과 강제청산 가정을 표시한다", () => {
+    render(
+      <AssumptionsCard
+        initialCapital={10000}
+        config={{ leverage: 5, include_funding: true }}
+      />,
+    );
+
+    expect(screen.getByText("5x · 롱/숏 · 격리마진")).toBeInTheDocument();
+    expect(screen.getByText("포지션 모델").parentElement?.title).toBe(
+      "플랫 유지증거금률 0.5% · 단일 tier · Bybit 기준 강제청산 반영. tier 계단·파산수수료 미반영. 펀딩 비용은 8시간 정산 주기로 차감.",
+    );
+  });
+
   it("BL-187a: 레버리지 / 펀딩비 row 완전 제거 (사용자 명시)", () => {
     render(
       <AssumptionsCard
