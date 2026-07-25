@@ -40,9 +40,9 @@
 ### Next Actions
 
 - [ ] 사용자: 거래소 계정 재등록 → dogfood 8단계 진행
-- [ ] 최종 codex 누적 diff 리뷰 1회 (생략 금지)
+- [x] 최종 codex 누적 diff 리뷰 — **DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 전건 수정**(원장 우회 CAS · max_pages 소진 · malformed 미계상 · downgrade 인덱스)
 - [ ] canon 32 / authed `/orders` / §9.5 라이브 worker 검증
-- [ ] stage/exit-attribution → main PR 사용자 squash
+- [ ] **PR [#476](https://github.com/woosung-dev/quantbridge/pull/476)** stage/exit-attribution → main 사용자 squash
 
 ---
 
