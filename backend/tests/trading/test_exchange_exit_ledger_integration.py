@@ -136,23 +136,6 @@ async def test_aggregate_closed_pnl_sums_split_rows_as_decimal(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_created_at_bounds_returns_min_then_max(db_session: AsyncSession) -> None:
-    account = await _make_account(db_session)
-    repo = ExchangeExitRepository(db_session)
-    assert await repo.created_at_bounds(account.id) == (None, None)
-
-    await repo.upsert_rows(
-        [
-            _row(account.id, order_id="late", closed_pnl="-1", created_at=_BASE + timedelta(days=2)),
-            _row(account.id, order_id="early", closed_pnl="-1", created_at=_BASE),
-        ]
-    )
-    oldest, newest = await repo.created_at_bounds(account.id)
-    assert oldest == _BASE
-    assert newest == _BASE + timedelta(days=2)
-
-
-@pytest.mark.asyncio
 async def test_raw_column_rejects_null_instead_of_storing_json_null(
     db_session: AsyncSession,
 ) -> None:
@@ -167,27 +150,6 @@ async def test_raw_column_rejects_null_instead_of_storing_json_null(
     with pytest.raises(IntegrityError):
         await db_session.flush()
     await db_session.rollback()
-
-
-@pytest.mark.asyncio
-async def test_backfilled_from_advances_backwards_only(db_session: AsyncSession) -> None:
-    """스캔 경계는 과거로만 간다 — 재실행이 경계를 앞당기면 이미 훑은 구간을 다시 판다."""
-    account = await _make_account(db_session)
-    repo = ExchangeExitRepository(db_session)
-    assert await repo.get_backfilled_from(account.id) is None
-
-    await repo.set_backfilled_from(account.id, _BASE)
-    await db_session.flush()
-    assert await repo.get_backfilled_from(account.id) == _BASE
-
-    await repo.set_backfilled_from(account.id, _BASE - timedelta(days=7))
-    await db_session.flush()
-    assert await repo.get_backfilled_from(account.id) == _BASE - timedelta(days=7)
-
-    # 뒤늦게 도착한 최신 경계는 무시한다.
-    await repo.set_backfilled_from(account.id, _BASE + timedelta(days=30))
-    await db_session.flush()
-    assert await repo.get_backfilled_from(account.id) == _BASE - timedelta(days=7)
 
 
 @pytest.mark.asyncio

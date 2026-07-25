@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
 from decimal import Decimal
-from typing import cast
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import ExchangeExit, ExchangeExitSyncState
+from src.trading.models import ExchangeExit
 
 # asyncpg 쿼리 인자 상한 32767 을 컬럼 수로 나눈 보수적 배치 크기.
 _UPSERT_CHUNK_ROWS = 500
@@ -42,33 +40,6 @@ class ExchangeExitRepository:
             inserted.extend(str(row_hash) for row_hash in result.scalars().all())
         return inserted
 
-    async def get_backfilled_from(self, account_id: UUID) -> datetime | None:
-        """과거 스캔을 마친 가장 이른 경계. 없으면 아직 한 번도 과거로 훑지 않은 계정이다."""
-        stmt = select(ExchangeExitSyncState.backfilled_from).where(  # type: ignore[call-overload]
-            ExchangeExitSyncState.exchange_account_id == account_id
-        )
-        return cast(datetime | None, (await self.session.execute(stmt)).scalar_one_or_none())
-
-    async def set_backfilled_from(self, account_id: UUID, boundary: datetime) -> None:
-        """스캔 경계를 과거로만 전진시킨다.
-
-        행이 하나도 없던 창도 전진시켜야 한다 — 그러지 않으면 청산이 없던 구간에서
-        같은 빈 창을 영원히 재조회한다. 단조 감소만 허용해 재실행이 경계를 되돌리지 않는다.
-        """
-        stmt = (
-            insert(ExchangeExitSyncState)
-            .values(exchange_account_id=account_id, backfilled_from=boundary)
-            .on_conflict_do_update(
-                index_elements=["exchange_account_id"],
-                set_={"backfilled_from": boundary, "updated_at": datetime.now(UTC)},
-                where=(
-                    (ExchangeExitSyncState.backfilled_from.is_(None))  # type: ignore[union-attr]
-                    | (ExchangeExitSyncState.backfilled_from > boundary)  # type: ignore[operator]
-                ),
-            )
-        )
-        await self.session.execute(stmt)
-
     async def aggregate_closed_pnl(
         self, account_id: UUID, exchange_order_ids: Sequence[str]
     ) -> dict[str, Decimal]:
@@ -86,17 +57,6 @@ class ExchangeExitRepository:
             str(exchange_order_id): Decimal(str(closed_pnl))
             for exchange_order_id, closed_pnl in result.all()
         }
-
-    async def created_at_bounds(
-        self, account_id: UUID
-    ) -> tuple[datetime | None, datetime | None]:
-        """계정별 원장의 (가장 오래된, 가장 최근) exchange_created_at. 스윕의 과거 전진 상태를 여기서 파생한다."""
-        stmt = select(
-            func.min(ExchangeExit.exchange_created_at),
-            func.max(ExchangeExit.exchange_created_at),
-        ).where(ExchangeExit.exchange_account_id == account_id)  # type: ignore[arg-type]
-        oldest, newest = (await self.session.execute(stmt)).one()
-        return cast(datetime | None, oldest), cast(datetime | None, newest)
 
     async def list_by_row_hashes(
         self, account_id: UUID, row_hashes: Sequence[str]

@@ -250,19 +250,6 @@ class ClosedPnlSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
-class ClosedPnlWindow:
-    """창 조회 결과.
-
-    ``truncated=True`` 는 ``max_pages`` 상한에 걸려 창 안에 **더 오래된 행이 남아 있다**는
-    뜻이다. 이걸 구분하지 않으면 스윕이 스캔 경계를 창 시작까지 전진시켜 못 읽은 구간을
-    영영 다시 보지 않고 원장에 구멍이 남는다.
-    """
-
-    rows: list[ClosedPnlSnapshot]
-    truncated: bool
-
-
-@dataclass(frozen=True, slots=True)
 class ClosedOrderMeta:
     """거래소 청산 주문의 출처 메타 — closed-pnl 행에 없는 createType/stopOrderType/orderLinkId 를 보강한다."""
 
@@ -1194,15 +1181,15 @@ class BybitFuturesProvider:
         end_ms = int(datetime.now(UTC).timestamp() * 1000)
         # Bybit는 7일 초과 창을 거부하므로 오래된 호출도 최근 7일만 조회한다.
         start_ms = max(start_ms, end_ms - _CLOSED_PNL_MAX_WINDOW_MS)
-        window = await self.fetch_closed_pnl_window(
+        return await self.fetch_closed_pnl_window(
             creds,
             symbol,
             start_ms=start_ms,
             end_ms=end_ms,
             limit=limit,
             max_pages=max_pages,
+            log_context={"symbol": symbol},
         )
-        return window.rows
 
     async def fetch_closed_pnl_window(
         self,
@@ -1213,12 +1200,14 @@ class BybitFuturesProvider:
         end_ms: int,
         limit: int = 100,
         max_pages: int = _CLOSED_PNL_MAX_PAGES,
-    ) -> ClosedPnlWindow:
+        log_context: dict[str, str] | None = None,
+    ) -> list[ClosedPnlSnapshot]:
         """Bybit 허용 창 안에서 closedPnl 행을 겹치지 않게 뒤로 훑는다.
 
-        ``max_pages`` 상한에 걸려 더 오래된 행이 남았는지를 ``truncated`` 로 알린다 —
-        호출자가 이걸 무시하고 스캔 경계를 창 시작까지 전진시키면 못 읽은 구간이
-        영구 구멍으로 남는다.
+        창 안에 더 오래된 행이 남았는데 다 못 읽으면(``max_pages`` 소진 · 커서 정지)
+        그 행들은 **영구히 조회되지 않는다** — 호출자가 대응할 수단이 없으므로
+        신호를 발생 지점에서 로그로 남긴다. ``log_context`` 는 어느 계정/심볼의
+        조회였는지 식별하는 데 쓴다(같은 함수를 스윕과 체결 직후 refresh 가 함께 쓴다).
         """
         _validate_closed_pnl_window(start_ms, end_ms)
         until_ms = end_ms
@@ -1254,7 +1243,21 @@ class BybitFuturesProvider:
                 truncated = next_until_ms > start_ms
                 break
             until_ms = next_until_ms
-        return ClosedPnlWindow(rows=collected, truncated=truncated)
+        if truncated:
+            # 창에 못 읽은 더 오래된 행이 남았다. 스윕은 최근 7일 한 창만 보므로
+            # 이 행들은 창에서 밀려나면 원장에 영영 들어오지 않는다(의도된 상한이지만
+            # 소실이므로 관측은 남긴다). 7일 500행(max_pages * limit) 초과 계정 신호.
+            logger.warning(
+                "closed_pnl_window_truncated",
+                extra={
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                    "fetched_rows": len(collected),
+                    "max_pages": max_pages,
+                    **(log_context or {}),
+                },
+            )
+        return collected
 
     async def _fetch_closed_pnl_rows(
         self,

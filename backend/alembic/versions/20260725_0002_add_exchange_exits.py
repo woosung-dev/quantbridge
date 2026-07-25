@@ -84,37 +84,19 @@ def upgrade() -> None:
         ["classification"],
         schema="trading",
     )
-    # 과거 적재 진행 상태는 원장 min 으로 파생할 수 없다. 청산이 없던 구간을 만나면
-    # 삽입이 0 이라 min 이 안 움직여 같은 빈 창을 영원히 재조회한다.
-    op.create_table(
-        "exchange_exit_sync_state",
-        sa.Column("exchange_account_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("backfilled_from", AwareDateTime(), nullable=True),
-        sa.Column(
-            "created_at",
-            AwareDateTime(),
-            server_default=sa.text("NOW()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            AwareDateTime(),
-            server_default=sa.text("NOW()"),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["exchange_account_id"],
-            ["trading.exchange_accounts.id"],
-            ondelete="RESTRICT",
-        ),
-        sa.PrimaryKeyConstraint("exchange_account_id"),
-        schema="trading",
-    )
 
 
 def downgrade() -> None:
     # DROP 은 IF EXISTS 로 쓴다. 부분 적용된 환경에서 downgrade 가 중간에 죽으면
     # 되돌릴 방법이 없어진다(이 레포 교훈).
+    #
+    # ★아래 exchange_exit_sync_state drop 은 upgrade() 가 더 이상 만들지 않는 테이블을
+    # 지운다 — 의도적이다. 이 마이그레이션의 초판(머지 전)은 과거 스캔 경계 테이블을
+    # 함께 만들었고, 범위 축소로 걷어냈다. 초판을 이미 적용한 DB 에서 이 줄을 지우면
+    # 그 테이블이 살아남아 downgrade 체인이 20260416_2206 의 평문
+    # drop_table('exchange_accounts') 에서 의존 FK 때문에 거부되고, 안전망인
+    # DROP SCHEMA ... CASCADE 는 그 뒤라 도달하지 못한다. IF EXISTS 라 깨끗한 DB 에선
+    # no-op 이고 초판 적용 DB 는 자기치유된다.
     op.execute("DROP TABLE IF EXISTS trading.exchange_exit_sync_state")
     op.execute("DROP INDEX IF EXISTS trading.ix_exchange_exits_classification")
     op.execute("DROP INDEX IF EXISTS trading.ix_exchange_exits_account_created")

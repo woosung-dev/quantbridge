@@ -86,7 +86,6 @@ _WATCHDOG_MAX_ATTEMPTS = 3
 _CLOSED_PNL_MAX_RETRIES = 4
 _CLOSED_PNL_RETRY_BASE_SECONDS = 5
 _CLOSED_PNL_ENQUEUE_COUNTDOWN = 5
-_EXIT_LEDGER_HORIZON_DAYS = 90
 _EXIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 _UNIX_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -1458,26 +1457,6 @@ def _datetime_from_ms(value: int | None) -> datetime | None:
     return None if value is None else _ms_to_datetime(value)
 
 
-def _closed_pnl_windows(now_ms: int, backfilled_from: datetime | None) -> list[tuple[int, int]]:
-    """최근 창과, 영속된 스캔 경계에서 한 칸 물러난 과거 전진 창을 고른다.
-
-    ★진행 상태를 원장의 min(exchange_created_at) 에서 파생하면 안 된다. 청산이 한 건도
-    없던 과거 구간을 만나면 삽입이 0 이라 min 이 그대로여서 같은 빈 창을 영원히 다시
-    조회하고 그 이전 역사에 도달하지 못한다(실측 반증 — 07-05 행 7건 영구 미적재).
-    """
-    recent_start_ms = now_ms - _EXIT_WINDOW_MS
-    windows = [(recent_start_ms, now_ms)]
-    horizon_ms = now_ms - _EXIT_LEDGER_HORIZON_DAYS * 24 * 60 * 60 * 1_000
-    # 경계가 아직 없으면 최근 창의 시작점부터 뒤로 훑기 시작한다.
-    end_ms = recent_start_ms if backfilled_from is None else _datetime_to_ms(backfilled_from)
-    if end_ms <= horizon_ms:
-        return windows
-    start_ms = max(horizon_ms, end_ms - _EXIT_WINDOW_MS)
-    if start_ms < end_ms:
-        windows.append((start_ms, end_ms))
-    return windows
-
-
 def _order_facts(orders: Sequence[Order]) -> list[OrderFact]:
     """영속 Order를 귀속 순수 함수의 최소 입력으로 축소한다."""
     return [
@@ -1545,7 +1524,6 @@ async def _sweep_closed_pnl_with_session(
     now_ms = _datetime_to_ms(current)
     summary = {
         "accounts": 0,
-        "windows": 0,
         "inserted": 0,
         "backfilled": 0,
         "resynced": 0,
@@ -1577,173 +1555,143 @@ async def _sweep_closed_pnl_with_session(
                 passphrase=passphrase,
                 environment=account.mode,
             )
+            # 원장은 최근 7일 한 창만 담는다. 과거로 훑던 창과 워터마크는 범위 축소로
+            # 걷어냈다 — 그보다 오래된 거래소 청산은 원장에 들어오지 않는다(의도된 계약).
+            start_ms = now_ms - _EXIT_WINDOW_MS
+            end_ms = now_ms
+            snapshots = await account_provider.fetch_closed_pnl_window(
+                creds,
+                None,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                log_context={"account_id": str(account.id)},
+            )
+            exchange_order_ids = list({snapshot.order_id for snapshot in snapshots})
             async with sm() as session:
-                backfilled_from = await ExchangeExitRepository(session).get_backfilled_from(
-                    account.id
+                matched_orders = await OrderRepository(session).list_by_exchange_order_ids(
+                    account.id, exchange_order_ids
                 )
-
-            inserted_hashes: list[str] = []
-            attribution_facts: list[OrderFact] | None = None
-            # 스캔 경계는 커밋과 같은 트랜잭션에서 전진시킨다. 창 처리가 실패하면 경계가
-            # 그대로라 다음 주기에 같은 창을 재시도해 구조적으로 구멍이 생기지 않고,
-            # 행이 0건인 창도 경계를 전진시켜 빈 구간에서 멈추지 않는다.
-            for window_index, (start_ms, end_ms) in enumerate(
-                _closed_pnl_windows(now_ms, backfilled_from)
-            ):
-                window = await account_provider.fetch_closed_pnl_window(
-                    creds, None, start_ms=start_ms, end_ms=end_ms
-                )
-                snapshots = window.rows
-                exchange_order_ids = list({snapshot.order_id for snapshot in snapshots})
+            matched_by_exchange_id = {
+                order.exchange_order_id: order
+                for order in matched_orders
+                if order.exchange_order_id is not None
+            }
+            unmatched_ids = [
+                snapshot.order_id
+                for snapshot in snapshots
+                if snapshot.order_id not in matched_by_exchange_id
+            ]
+            meta_by_order_id: dict[str, ClosedOrderMeta] = {}
+            attribution_facts: list[OrderFact] = []
+            if unmatched_ids:
+                try:
+                    meta_by_order_id = await account_provider.fetch_closed_order_meta(
+                        creds, None, start_ms=start_ms, end_ms=end_ms
+                    )
+                except Exception:
+                    logger.warning(
+                        "closed_order_meta_fetch_failed",
+                        exc_info=True,
+                        extra={"account_id": str(account.id)},
+                    )
                 async with sm() as session:
-                    matched_orders = await OrderRepository(session).list_by_exchange_order_ids(
-                        account.id, exchange_order_ids
-                    )
-                matched_by_exchange_id = {
-                    order.exchange_order_id: order
-                    for order in matched_orders
-                    if order.exchange_order_id is not None
-                }
-                unmatched_ids = [
-                    snapshot.order_id
-                    for snapshot in snapshots
-                    if snapshot.order_id not in matched_by_exchange_id
-                ]
-                meta_by_order_id: dict[str, ClosedOrderMeta] = {}
-                if unmatched_ids:
-                    try:
-                        meta_by_order_id = await account_provider.fetch_closed_order_meta(
-                            creds, None, start_ms=start_ms, end_ms=end_ms
-                        )
-                    except Exception:
-                        logger.warning(
-                            "closed_order_meta_fetch_failed",
-                            exc_info=True,
-                            extra={"account_id": str(account.id)},
-                        )
-                    if attribution_facts is None:
-                        async with sm() as session:
-                            attribution_orders = await OrderRepository(
-                                session
-                            ).list_filled_for_attribution(account.id)
-                        attribution_facts = _order_facts(attribution_orders)
+                    attribution_orders = await OrderRepository(
+                        session
+                    ).list_filled_for_attribution(account.id)
+                attribution_facts = _order_facts(attribution_orders)
 
-                rows: list[ExchangeExit] = []
-                for snapshot in snapshots:
-                    exchange_created_at = _datetime_from_ms(
-                        snapshot.created_at_ms
-                        if snapshot.created_at_ms is not None
-                        else snapshot.updated_at_ms
+            rows: list[ExchangeExit] = []
+            for snapshot in snapshots:
+                exchange_created_at = _datetime_from_ms(
+                    snapshot.created_at_ms
+                    if snapshot.created_at_ms is not None
+                    else snapshot.updated_at_ms
+                )
+                if exchange_created_at is None or snapshot.symbol is None or snapshot.side is None:
+                    # 원장 필수 필드를 못 만든 행은 적재할 수 없다. 로그만 남기면
+                    # 이 소실이 관측되지 않으므로 malformed_row 로 표면화한다.
+                    qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
+                    logger.warning(
+                        "closed_pnl_ledger_row_skipped",
+                        extra={"account_id": str(account.id), "order_id": snapshot.order_id},
                     )
-                    if (
-                        exchange_created_at is None
-                        or snapshot.symbol is None
-                        or snapshot.side is None
-                    ):
-                        # 원장 필수 필드를 못 만든 행은 적재할 수 없다. 로그만 남기면
-                        # 이 소실이 관측되지 않으므로 malformed_row 로 표면화한다.
-                        qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
-                        logger.warning(
-                            "closed_pnl_ledger_row_skipped",
-                            extra={"account_id": str(account.id), "order_id": snapshot.order_id},
-                        )
-                        continue
-                    matched_order = matched_by_exchange_id.get(snapshot.order_id)
-                    if matched_order is None:
-                        attribution, strategy_id = attribute_exit(
-                            symbol=snapshot.symbol,
-                            avg_entry_price=snapshot.avg_entry_price,
-                            exit_at=exchange_created_at,
-                            our_filled_orders=attribution_facts or [],
-                        )
-                    else:
-                        attribution = ExitAttribution.exact
-                        strategy_id = matched_order.strategy_id
-                    raw: dict[str, object] = dict(snapshot.raw or {})
-                    rows.append(
-                        ExchangeExit(
-                            exchange_account_id=account.id,
-                            exchange_order_id=snapshot.order_id,
-                            row_hash=ExchangeExit.compute_row_hash(
-                                # raw 가 비어도 축퇴하지 않도록 항상 존재하는 스냅샷 id 를 쓴다.
-                                snapshot.order_id,
-                                raw.get("createdTime"),
-                                raw.get("updatedTime"),
-                                raw.get("closedSize"),
-                                raw.get("closedPnl"),
-                                raw.get("avgEntryPrice"),
-                                raw.get("avgExitPrice"),
-                                raw.get("cumExitValue"),
-                            ),
-                            symbol=snapshot.symbol,
-                            side=snapshot.side,
-                            closed_pnl=snapshot.closed_pnl,
-                            closed_size=snapshot.closed_size,
-                            avg_entry_price=snapshot.avg_entry_price,
-                            avg_exit_price=snapshot.avg_exit_price,
-                            exchange_created_at=exchange_created_at,
-                            exchange_updated_at=_datetime_from_ms(snapshot.updated_at_ms),
-                            classification=classify_exit(
-                                matched_order_id=(
-                                    matched_order.id if matched_order is not None else None
-                                ),
-                                meta=meta_by_order_id.get(snapshot.order_id),
-                            ),
-                            create_type=(
-                                meta_by_order_id[snapshot.order_id].create_type
-                                if snapshot.order_id in meta_by_order_id
-                                else None
-                            ),
-                            stop_order_type=(
-                                meta_by_order_id[snapshot.order_id].stop_order_type
-                                if snapshot.order_id in meta_by_order_id
-                                else None
-                            ),
-                            order_link_id=(
-                                meta_by_order_id[snapshot.order_id].order_link_id
-                                if snapshot.order_id in meta_by_order_id
-                                else None
-                            ),
+                    continue
+                matched_order = matched_by_exchange_id.get(snapshot.order_id)
+                if matched_order is None:
+                    attribution, strategy_id = attribute_exit(
+                        symbol=snapshot.symbol,
+                        avg_entry_price=snapshot.avg_entry_price,
+                        exit_at=exchange_created_at,
+                        our_filled_orders=attribution_facts,
+                    )
+                else:
+                    attribution = ExitAttribution.exact
+                    strategy_id = matched_order.strategy_id
+                raw: dict[str, object] = dict(snapshot.raw or {})
+                rows.append(
+                    ExchangeExit(
+                        exchange_account_id=account.id,
+                        exchange_order_id=snapshot.order_id,
+                        row_hash=ExchangeExit.compute_row_hash(
+                            # raw 가 비어도 축퇴하지 않도록 항상 존재하는 스냅샷 id 를 쓴다.
+                            snapshot.order_id,
+                            raw.get("createdTime"),
+                            raw.get("updatedTime"),
+                            raw.get("closedSize"),
+                            raw.get("closedPnl"),
+                            raw.get("avgEntryPrice"),
+                            raw.get("avgExitPrice"),
+                            raw.get("cumExitValue"),
+                        ),
+                        symbol=snapshot.symbol,
+                        side=snapshot.side,
+                        closed_pnl=snapshot.closed_pnl,
+                        closed_size=snapshot.closed_size,
+                        avg_entry_price=snapshot.avg_entry_price,
+                        avg_exit_price=snapshot.avg_exit_price,
+                        exchange_created_at=exchange_created_at,
+                        exchange_updated_at=_datetime_from_ms(snapshot.updated_at_ms),
+                        classification=classify_exit(
                             matched_order_id=(
                                 matched_order.id if matched_order is not None else None
                             ),
-                            attributed_strategy_id=strategy_id,
-                            attribution_confidence=attribution,
-                            raw=raw,
-                        )
+                            meta=meta_by_order_id.get(snapshot.order_id),
+                        ),
+                        create_type=(
+                            meta_by_order_id[snapshot.order_id].create_type
+                            if snapshot.order_id in meta_by_order_id
+                            else None
+                        ),
+                        stop_order_type=(
+                            meta_by_order_id[snapshot.order_id].stop_order_type
+                            if snapshot.order_id in meta_by_order_id
+                            else None
+                        ),
+                        order_link_id=(
+                            meta_by_order_id[snapshot.order_id].order_link_id
+                            if snapshot.order_id in meta_by_order_id
+                            else None
+                        ),
+                        matched_order_id=(matched_order.id if matched_order is not None else None),
+                        attributed_strategy_id=strategy_id,
+                        attribution_confidence=attribution,
+                        raw=raw,
                     )
-                async with sm() as session:
-                    exit_repo = ExchangeExitRepository(session)
-                    new_hashes = await exit_repo.upsert_rows(rows)
-                    if window_index > 0:
-                        # ★조회가 max_pages 상한에 걸렸으면 창 시작까지 전진시키면 안 된다.
-                        # 못 읽은 더 오래된 구간을 영영 다시 보지 않아 원장에 구멍이 남는다.
-                        # 이 경우 실제로 읽은 가장 오래된 행까지만 전진해 다음 주기가
-                        # 거기서부터 이어 읽게 한다(한 주기에 최소 max_pages 만큼 전진).
-                        boundary_ms = start_ms
-                        if window.truncated:
-                            fetched_ms = [
-                                row.created_at_ms
-                                for row in snapshots
-                                if row.created_at_ms is not None
-                            ]
-                            if fetched_ms:
-                                boundary_ms = max(start_ms, min(fetched_ms))
-                        await exit_repo.set_backfilled_from(
-                            account.id, _ms_to_datetime(boundary_ms)
-                        )
-                    await session.commit()
-                # 커밋 성공 뒤에만 새 행을 계상해 실패한 트랜잭션을 완료로 보지 않는다.
-                summary["windows"] += 1
-                summary["inserted"] += len(new_hashes)
-                inserted_hashes.extend(new_hashes)
-                new_hash_set = set(new_hashes)
-                for row in rows:
-                    if row.row_hash in new_hash_set:
-                        qb_exchange_exit_rows_total.labels(
-                            classification=row.classification.value
-                        ).inc()
-                        new_hash_set.remove(row.row_hash)
+                )
+            async with sm() as session:
+                new_hashes = await ExchangeExitRepository(session).upsert_rows(rows)
+                await session.commit()
+            # 커밋 성공 뒤에만 새 행을 계상해 실패한 트랜잭션을 완료로 보지 않는다.
+            # ★알림·백필은 아래에서 새 세션으로 되읽으므로 이 커밋이 빠지면 둘 다
+            # 조용히 아무 일도 하지 않는다(테스트가 커밋 호출을 검증한다).
+            summary["inserted"] += len(new_hashes)
+            new_hash_set = set(new_hashes)
+            for row in rows:
+                if row.row_hash in new_hash_set:
+                    qb_exchange_exit_rows_total.labels(
+                        classification=row.classification.value
+                    ).inc()
+                    new_hash_set.remove(row.row_hash)
 
             async with sm() as session:
                 order_repo = OrderRepository(session)
@@ -1807,7 +1755,7 @@ async def _sweep_closed_pnl_with_session(
                 qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
             for _ in range(already_synced):
                 qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
-            if await _alert_new_exchange_exits(sm, account.id, inserted_hashes):
+            if await _alert_new_exchange_exits(sm, account.id, new_hashes):
                 summary["alerted"] += 1
         except Exception:
             qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()

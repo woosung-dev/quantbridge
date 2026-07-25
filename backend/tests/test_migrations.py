@@ -196,13 +196,13 @@ def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
 
 
 def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """trading schema + 11 테이블이 upgrade head 후 존재하는지 검증.
+    """trading schema + 10 테이블이 upgrade head 후 존재하는지 검증.
 
     Sprint 26 Phase A 추가 — live_signal_sessions / live_signal_states /
     live_signal_events (Pine Signal Auto-Trading outbox + state).
     tier-c 추가 — alert_rules (세션별 손실한도/워치독 알림 규칙).
-    exit-attribution 추가 — exchange_exits (거래소 원본 청산 원장) +
-    exchange_exit_sync_state (과거 적재 경계).
+    exit-attribution 추가 — exchange_exits (거래소 원본 청산 원장).
+    범위 축소로 exchange_exit_sync_state (과거 적재 경계) 는 도입 전에 걷어냈다.
     """
     engine, inspector = _upgrade_and_inspect(monkeypatch)
     try:
@@ -222,10 +222,9 @@ def test_trading_schema_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
             "live_signal_events",
             # tier-c — 세션별 알림 규칙
             "alert_rules",
-            # exit-attribution — 거래소 원본 청산 원장 + 과거 적재 경계
+            # exit-attribution — 거래소 원본 청산 원장
             "exchange_exits",
-            "exchange_exit_sync_state",
-        }, f"예상 11 테이블과 불일치: {trading_tables}"
+        }, f"예상 10 테이블과 불일치: {trading_tables}"
     finally:
         engine.dispose()
 

@@ -203,12 +203,35 @@ def test_row_hash_requires_an_order_id() -> None:
         ExchangeExit.compute_row_hash(None, None, None, None, None, None, None, None)
 
 
+def _capture_provider_warnings(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """provider 경고를 logger mock 으로 잡는다.
+
+    caplog 은 전역 logging 상태에 의존해 전체 스위트에서 격리가 깨진다(이 파일만 돌리면
+    통과하고 전체에서는 레코드가 비었다 — 실측). 발화 지점을 직접 관찰해 순서 의존을 없앤다.
+    """
+    import src.trading.providers as providers_mod
+
+    warn = MagicMock()
+    monkeypatch.setattr(providers_mod.logger, "warning", warn)
+    return warn
+
+
+def _truncation_events(warn: MagicMock) -> list[dict[str, object]]:
+    return [
+        call.kwargs["extra"]
+        for call in warn.call_args_list
+        if call.args and call.args[0] == "closed_pnl_window_truncated"
+    ]
+
+
 async def test_window_reports_truncation_when_the_page_budget_runs_out(
     monkeypatch: pytest.MonkeyPatch, credentials: Credentials
 ) -> None:
-    """max_pages 를 다 써도 더 오래된 행이 남았으면 그 사실을 호출자에게 알려야 한다.
+    """max_pages 를 다 써도 더 오래된 행이 남았으면 그 사실이 관측돼야 한다.
 
-    이걸 감추면 스윕이 스캔 경계를 창 시작까지 전진시켜 못 읽은 구간이 영구 구멍이 된다.
+    범위 축소로 스윕은 최근 7일 한 창만 보므로 호출자가 잘림에 대응할 수단이 없다.
+    그래서 신호를 발생 지점의 로그로 남긴다 — 이걸 감추면 7일 500행을 넘는 계정이
+    가장 오래된 행을 잃는 것이 아무 데도 나타나지 않는다.
     """
     start_ms = 10_000_000_000
     end_ms = start_ms + SEVEN_DAYS_MS
@@ -234,12 +257,23 @@ async def test_window_reports_truncation_when_the_page_budget_runs_out(
     exchange.close = AsyncMock()
     _patch_exchange(monkeypatch, exchange)
 
-    window = await BybitFuturesProvider().fetch_closed_pnl_window(
-        credentials, None, start_ms=start_ms, end_ms=end_ms, limit=2, max_pages=3
+    warn = _capture_provider_warnings(monkeypatch)
+    rows = await BybitFuturesProvider().fetch_closed_pnl_window(
+        credentials,
+        None,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        limit=2,
+        max_pages=3,
+        log_context={"account_id": "acc-1"},
     )
 
-    assert window.truncated is True
-    assert len(window.rows) == 6
+    assert len(rows) == 6
+    events = _truncation_events(warn)
+    assert len(events) == 1, "잘림이 로그로 관측되지 않는다"
+    # 스윕과 체결 직후 refresh 가 같은 함수를 쓰므로 어느 조회였는지 식별돼야 한다.
+    assert events[0]["account_id"] == "acc-1"
+    assert events[0]["fetched_rows"] == 6
 
 
 async def test_window_is_not_truncated_when_the_page_is_short(
@@ -251,8 +285,11 @@ async def test_window_is_not_truncated_when_the_page_is_short(
     exchange.close = AsyncMock()
     _patch_exchange(monkeypatch, exchange)
 
-    window = await BybitFuturesProvider().fetch_closed_pnl_window(
+    warn = _capture_provider_warnings(monkeypatch)
+    rows = await BybitFuturesProvider().fetch_closed_pnl_window(
         credentials, None, start_ms=start_ms, end_ms=start_ms + SEVEN_DAYS_MS, limit=2
     )
-    assert window.truncated is False
-    assert window.rows == []
+
+    assert rows == []
+    # 완전 조회는 잘림 경고를 내지 않는다 — 그러면 경고가 신호 가치를 잃는다.
+    assert _truncation_events(warn) == []
