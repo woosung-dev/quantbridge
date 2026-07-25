@@ -47,12 +47,13 @@ async def test_closed_pnl_window_rejects_over_seven_days_and_accepts_exact_limit
         )
 
     exchange = _mock_exchange(monkeypatch)
-    assert await provider.fetch_closed_pnl_window(
+    window = await provider.fetch_closed_pnl_window(
         credentials,
         "BTC/USDT",
         start_ms=0,
         end_ms=_CLOSED_PNL_MAX_WINDOW_MS,
-    ) == []
+    )
+    assert window.rows == []
     exchange.fetch_positions_history.assert_awaited_once()
 
 

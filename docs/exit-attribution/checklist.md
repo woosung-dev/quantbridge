@@ -107,9 +107,17 @@
 - [ ] 8 상태 복구 — 활성 세션 0 · 포지션 미개설 · docker 5436/6380 보존
 - [ ] **정직 각주** — 주문 이력이 없어 모든 closed-pnl 행이 미귀속으로 분류되므로 **백필(33.8%) 종단 검증은 이번 스프린트에서 불가**
 
+## 최종 codex 누적 diff — DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 (전건 수정)
+
+- [x] **DO-NOT-SHIP** 체결 직후 refresh 가 원장을 우회해 부분합을 CAS 고정 → `resync_exchange_realized_pnl` + 스윕 대조 경로
+- [x] **DO-NOT-SHIP** `max_pages` 소진을 성공 취급 → `ClosedPnlWindow(rows, truncated)` + 잘린 창은 읽은 최고령 행까지만 경계 전진
+- [x] **MAJOR** 시각 결측 행이 로그만 남기고 소실 → `malformed_row` 계상
+- [x] **MINOR** downgrade 인덱스 drop 무조건 실행 → `DROP INDEX IF EXISTS`
+- [x] 4건 전부 회귀 테스트 부착
+
 ## 마감
 
-- [ ] 최종 codex 누적 diff 리뷰 1회 (생략 금지)
+- [x] 최종 codex 누적 diff 리뷰 1회 (생략 금지)
 - [x] docs/exit-attribution/{checklist,operating-contract,context-notes}.md
 - [ ] TODO / dev-log / BL — BL-438 부분 Resolved · BL-442 Resolved · 신규 BL
 - [ ] push (QB_PRE_PUSH_BYPASS=1) → main PR 1개 (squash 는 사용자)

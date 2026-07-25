@@ -1543,7 +1543,14 @@ async def _sweep_closed_pnl_with_session(
     """Bybit 계정별 청산 원장을 채우고 원장 합계로 우리 주문 손익을 보정한다."""
     current = now or datetime.now(UTC)
     now_ms = _datetime_to_ms(current)
-    summary = {"accounts": 0, "windows": 0, "inserted": 0, "backfilled": 0, "alerted": 0}
+    summary = {
+        "accounts": 0,
+        "windows": 0,
+        "inserted": 0,
+        "backfilled": 0,
+        "resynced": 0,
+        "alerted": 0,
+    }
     async with sm() as session:
         accounts = await ExchangeAccountRepository(session).list_by_exchange(ExchangeName.bybit)
 
@@ -1583,9 +1590,10 @@ async def _sweep_closed_pnl_with_session(
             for window_index, (start_ms, end_ms) in enumerate(
                 _closed_pnl_windows(now_ms, backfilled_from)
             ):
-                snapshots = await account_provider.fetch_closed_pnl_window(
+                window = await account_provider.fetch_closed_pnl_window(
                     creds, None, start_ms=start_ms, end_ms=end_ms
                 )
+                snapshots = window.rows
                 exchange_order_ids = list({snapshot.order_id for snapshot in snapshots})
                 async with sm() as session:
                     matched_orders = await OrderRepository(session).list_by_exchange_order_ids(
@@ -1627,7 +1635,14 @@ async def _sweep_closed_pnl_with_session(
                         if snapshot.created_at_ms is not None
                         else snapshot.updated_at_ms
                     )
-                    if exchange_created_at is None or snapshot.symbol is None or snapshot.side is None:
+                    if (
+                        exchange_created_at is None
+                        or snapshot.symbol is None
+                        or snapshot.side is None
+                    ):
+                        # 원장 필수 필드를 못 만든 행은 적재할 수 없다. 로그만 남기면
+                        # 이 소실이 관측되지 않으므로 malformed_row 로 표면화한다.
+                        qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
                         logger.warning(
                             "closed_pnl_ledger_row_skipped",
                             extra={"account_id": str(account.id), "order_id": snapshot.order_id},
@@ -1701,7 +1716,22 @@ async def _sweep_closed_pnl_with_session(
                     exit_repo = ExchangeExitRepository(session)
                     new_hashes = await exit_repo.upsert_rows(rows)
                     if window_index > 0:
-                        await exit_repo.set_backfilled_from(account.id, _ms_to_datetime(start_ms))
+                        # ★조회가 max_pages 상한에 걸렸으면 창 시작까지 전진시키면 안 된다.
+                        # 못 읽은 더 오래된 구간을 영영 다시 보지 않아 원장에 구멍이 남는다.
+                        # 이 경우 실제로 읽은 가장 오래된 행까지만 전진해 다음 주기가
+                        # 거기서부터 이어 읽게 한다(한 주기에 최소 max_pages 만큼 전진).
+                        boundary_ms = start_ms
+                        if window.truncated:
+                            fetched_ms = [
+                                row.created_at_ms
+                                for row in snapshots
+                                if row.created_at_ms is not None
+                            ]
+                            if fetched_ms:
+                                boundary_ms = max(start_ms, min(fetched_ms))
+                        await exit_repo.set_backfilled_from(
+                            account.id, _ms_to_datetime(boundary_ms)
+                        )
                     await session.commit()
                 # 커밋 성공 뒤에만 새 행을 계상해 실패한 트랜잭션을 완료로 보지 않는다.
                 summary["windows"] += 1
@@ -1729,6 +1759,7 @@ async def _sweep_closed_pnl_with_session(
                 )
                 applied = 0
                 already_synced = 0
+                resynced = 0
                 for order in unsynced_orders:
                     if order.exchange_order_id is None:
                         continue
@@ -1741,11 +1772,38 @@ async def _sweep_closed_pnl_with_session(
                         applied += 1
                     else:
                         already_synced += 1
+                # ★체결 직후 refresh 는 원장을 거치지 않고 단일 조회 결과를 CAS 한다.
+                # 분할 행 중 일부만 보이는 순간에 걸리면 부분합이 synced 로 고정되고
+                # 미동기화 술어를 쓰는 위 경로는 그 주문을 영영 건너뛴다. 원장 합계와
+                # 다르면 정정한다(값이 같으면 rowcount 0 이라 멱등).
+                synced_orders = await order_repo.list_synced_reduce_only(account.id)
+                synced_sums = await exit_repo.aggregate_closed_pnl(
+                    account.id,
+                    [
+                        order.exchange_order_id
+                        for order in synced_orders
+                        if order.exchange_order_id is not None
+                    ],
+                )
+                for order in synced_orders:
+                    if order.exchange_order_id is None:
+                        continue
+                    ledger_pnl = synced_sums.get(order.exchange_order_id)
+                    if ledger_pnl is None:
+                        continue
+                    if (
+                        await order_repo.resync_exchange_realized_pnl(
+                            order.id, realized_pnl=ledger_pnl, synced_at=current
+                        )
+                        == 1
+                    ):
+                        resynced += 1
                 await session.commit()
             # 단일 fetch 결과가 아니라 원장 전체를 집계하므로 분할 행이 7일 창 경계에 갈려도
             # 부분합이 CAS로 영구 고정되지 않는다.
             summary["backfilled"] += applied
-            for _ in range(applied):
+            summary["resynced"] += resynced
+            for _ in range(applied + resynced):
                 qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
             for _ in range(already_synced):
                 qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()

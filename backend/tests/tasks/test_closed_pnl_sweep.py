@@ -70,7 +70,15 @@ def _order(account_id: UUID, exchange_order_id: str, *, synced: bool = False) ->
         filled_price=Decimal("100"),
         filled_at=datetime(2026, 7, 1, tzinfo=UTC),
         realized_pnl_synced_at=datetime(2026, 7, 1, tzinfo=UTC) if synced else None,
+        realized_pnl=Decimal("0"),
     )
+
+
+def _window(rows, *, truncated: bool = False):
+    """provider 계약이 ClosedPnlWindow 로 바뀌었다 — 잘림 여부를 함께 돌려준다."""
+    from src.trading.providers import ClosedPnlWindow
+
+    return ClosedPnlWindow(rows=list(rows), truncated=truncated)
 
 
 class _State:
@@ -83,7 +91,9 @@ class _State:
         self.matched_orders: list[SimpleNamespace] = []
         self.attribution_orders: list[SimpleNamespace] = []
         self.unsynced_orders: list[SimpleNamespace] = []
+        self.synced_orders: list[SimpleNamespace] = []
         self.backfills: list[tuple[UUID, Decimal]] = []
+        self.resyncs: list[tuple[UUID, Decimal]] = []
 
 
 def _sessionmaker():
@@ -160,6 +170,19 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
             state.backfills.append((order_id, realized_pnl))
             return 1
 
+        async def list_synced_reduce_only(self, account_id: UUID):
+            return state.synced_orders
+
+        async def resync_exchange_realized_pnl(self, order_id: UUID, *, realized_pnl, synced_at):
+            # 실제 CAS 는 값이 같으면 rowcount 0 이다. 페이크도 같은 계약을 흉내낸다.
+            stored = next(
+                (o.realized_pnl for o in state.synced_orders if o.id == order_id), None
+            )
+            if stored == realized_pnl:
+                return 0
+            state.resyncs.append((order_id, realized_pnl))
+            return 1
+
     monkeypatch.setattr(trading_mod, "ExchangeAccountRepository", AccountRepository)
     monkeypatch.setattr(trading_mod, "ExchangeExitRepository", ExitRepository)
     monkeypatch.setattr(trading_mod, "OrderRepository", OrderRepository)
@@ -213,7 +236,7 @@ async def test_sweep_skips_meta_when_every_row_matches(monkeypatch: pytest.Monke
     state.matched_orders = [_order(account.id, "our-close")]
     _install_repositories(monkeypatch, state)
     provider = SimpleNamespace(
-        fetch_closed_pnl_window=AsyncMock(return_value=[_snapshot("our-close", created_at_ms=1)]),
+        fetch_closed_pnl_window=AsyncMock(return_value=_window([_snapshot("our-close", created_at_ms=1)])),
         fetch_closed_order_meta=AsyncMock(),
     )
 
@@ -223,7 +246,7 @@ async def test_sweep_skips_meta_when_every_row_matches(monkeypatch: pytest.Monke
 
     assert provider.fetch_closed_order_meta.await_count == 0
     # 경계가 없는 계정도 최근 창 + 과거 첫 창을 함께 본다. 같은 행은 UNIQUE 로 한 번만 들어간다.
-    assert summary == {"accounts": 1, "windows": 2, "inserted": 1, "backfilled": 0, "alerted": 0}
+    assert summary == {"accounts": 1, "windows": 2, "inserted": 1, "backfilled": 0, "resynced": 0, "alerted": 0}
     assert state.rows[0].classification == ExitClassification.ours
 
 
@@ -234,7 +257,7 @@ async def test_sweep_continues_when_meta_lookup_fails(monkeypatch: pytest.Monkey
     state = _State([_account()])
     _install_repositories(monkeypatch, state)
     provider = SimpleNamespace(
-        fetch_closed_pnl_window=AsyncMock(return_value=[_snapshot("external", created_at_ms=1)]),
+        fetch_closed_pnl_window=AsyncMock(return_value=_window([_snapshot("external", created_at_ms=1)])),
         fetch_closed_order_meta=AsyncMock(side_effect=RuntimeError("metadata unavailable")),
     )
 
@@ -260,8 +283,8 @@ async def test_sweep_aggregates_ledger_rows_before_backfill(monkeypatch: pytest.
     provider = SimpleNamespace(
         fetch_closed_pnl_window=AsyncMock(
             side_effect=[
-                [_snapshot("split-close", created_at_ms=1, closed_pnl="-0.02")],
-                [_snapshot("split-close", created_at_ms=2, closed_pnl="-0.03")],
+                _window([_snapshot("split-close", created_at_ms=1, closed_pnl="-0.02")]),
+                _window([_snapshot("split-close", created_at_ms=2, closed_pnl="-0.03")]),
             ]
         ),
         fetch_closed_order_meta=AsyncMock(return_value={}),
@@ -284,7 +307,7 @@ async def test_sweep_alerts_only_new_external_rows(monkeypatch: pytest.MonkeyPat
     send_alert = AsyncMock(return_value={"slack": True, "telegram": True})
     monkeypatch.setattr(trading_mod, "send_rule_alert", send_alert)
     provider = SimpleNamespace(
-        fetch_closed_pnl_window=AsyncMock(return_value=[_snapshot("external", created_at_ms=1)]),
+        fetch_closed_pnl_window=AsyncMock(return_value=_window([_snapshot("external", created_at_ms=1)])),
         fetch_closed_order_meta=AsyncMock(return_value={"external": ClosedOrderMeta("external", "CreateByUser", None, None)}),
     )
 
@@ -307,12 +330,7 @@ async def test_sweep_skips_rows_without_created_or_updated_time(monkeypatch: pyt
     state = _State([_account()])
     _install_repositories(monkeypatch, state)
     provider = SimpleNamespace(
-        fetch_closed_pnl_window=AsyncMock(
-            return_value=[
-                _snapshot("missing-time", created_at_ms=None),
-                _snapshot("valid", created_at_ms=1),
-            ]
-        ),
+        fetch_closed_pnl_window=AsyncMock(return_value=_window([_snapshot("missing-time", created_at_ms=None), _snapshot("valid", created_at_ms=1)])),
         fetch_closed_order_meta=AsyncMock(return_value={}),
     )
 
@@ -337,7 +355,7 @@ async def test_sweep_retries_same_historical_window_after_failure(monkeypatch: p
         calls.append((start_ms, end_ms))
         if len(calls) % 2 == 0:
             raise RuntimeError("historical failure")
-        return []
+        return _window([])
 
     provider = SimpleNamespace(fetch_closed_pnl_window=fetch_window, fetch_closed_order_meta=AsyncMock())
 
@@ -354,7 +372,7 @@ async def test_sweep_isolates_one_account_failure(monkeypatch: pytest.MonkeyPatc
     state = _State([_account(), _account()])
     _install_repositories(monkeypatch, state)
     provider = SimpleNamespace(
-        fetch_closed_pnl_window=AsyncMock(side_effect=[RuntimeError("first failed"), [], []]),
+        fetch_closed_pnl_window=AsyncMock(side_effect=[RuntimeError("first failed"), _window([]), _window([])]),
         fetch_closed_order_meta=AsyncMock(),
     )
 
@@ -364,4 +382,143 @@ async def test_sweep_isolates_one_account_failure(monkeypatch: pytest.MonkeyPatc
 
     # 첫 계정은 첫 창에서 죽고, 둘째 계정은 최근 창 + 과거 첫 창을 정상 처리한다.
     assert provider.fetch_closed_pnl_window.await_count == 3
-    assert summary == {"accounts": 2, "windows": 2, "inserted": 0, "backfilled": 0, "alerted": 0}
+    assert summary == {"accounts": 2, "windows": 2, "inserted": 0, "backfilled": 0, "resynced": 0, "alerted": 0}
+
+
+@pytest.mark.asyncio
+async def test_sweep_corrects_a_partial_sum_frozen_by_the_post_fill_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """체결 직후 refresh 는 원장을 거치지 않고 단일 조회 결과를 CAS 한다.
+
+    분할 행 중 첫 행만 보이는 순간에 걸리면 부분합이 synced 로 고정되고, 미동기화
+    술어를 쓰는 백필 경로는 그 주문을 영영 건너뛴다. 원장 합계와 다르면 정정해야 한다.
+    """
+    import src.tasks.trading as trading_mod
+
+    account = _account()
+    state = _State([account])
+    frozen = _order(account.id, "split-close", synced=True)
+    frozen.realized_pnl = Decimal("-0.02")  # refresh 가 고정한 부분합
+    state.matched_orders = [frozen]
+    state.synced_orders = [frozen]
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            side_effect=[
+                _window(
+                    [
+                        _snapshot("split-close", created_at_ms=1, closed_pnl="-0.02"),
+                        _snapshot("split-close", created_at_ms=2, closed_pnl="-0.03"),
+                    ]
+                ),
+                _window([]),
+            ]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(), provider=provider, now=datetime(2026, 7, 25, tzinfo=UTC)
+    )
+
+    assert summary["resynced"] == 1
+    assert state.resyncs == [(frozen.id, Decimal("-0.05"))]
+
+
+@pytest.mark.asyncio
+async def test_sweep_does_not_resync_when_the_ledger_agrees(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """값이 같으면 CAS rowcount 가 0 이라 정정 경로는 멱등하다."""
+    import src.tasks.trading as trading_mod
+
+    account = _account()
+    state = _State([account])
+    agreed = _order(account.id, "settled", synced=True)
+    agreed.realized_pnl = Decimal("1")
+    state.matched_orders = [agreed]
+    state.synced_orders = [agreed]
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            side_effect=[_window([_snapshot("settled", created_at_ms=1)]), _window([])]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(), provider=provider, now=datetime(2026, 7, 25, tzinfo=UTC)
+    )
+
+    assert summary["resynced"] == 0
+    assert state.resyncs == []
+
+
+@pytest.mark.asyncio
+async def test_sweep_does_not_skip_past_rows_it_never_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """max_pages 상한에 걸린 창에서 경계를 창 시작까지 밀면 못 읽은 구간이 영구 구멍이 된다.
+
+    실제로 읽은 가장 오래된 행까지만 전진해 다음 주기가 거기서부터 이어 읽어야 한다.
+    """
+    import src.tasks.trading as trading_mod
+    from src.tasks.trading import _EXIT_WINDOW_MS, _datetime_to_ms, _ms_to_datetime
+
+    now = datetime(2026, 7, 25, tzinfo=UTC)
+    now_ms = _datetime_to_ms(now)
+    historical_start_ms = now_ms - 2 * _EXIT_WINDOW_MS
+    oldest_read_ms = historical_start_ms + 3_600_000  # 창 시작보다 1시간 뒤까지만 읽음
+
+    account = _account()
+    state = _State([account], oldest=_ms_to_datetime(now_ms - _EXIT_WINDOW_MS))
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            side_effect=[
+                _window([]),
+                _window(
+                    [_snapshot("truncated-row", created_at_ms=oldest_read_ms)], truncated=True
+                ),
+            ]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+
+    await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(), provider=provider, now=now
+    )
+
+    assert state.backfilled_from == _ms_to_datetime(oldest_read_ms), (
+        "잘린 창에서 경계를 창 시작까지 밀면 못 읽은 구간을 영영 다시 보지 않는다"
+    )
+
+
+@pytest.mark.asyncio
+async def test_sweep_counts_rows_it_cannot_persist_as_malformed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """원장 필수 필드를 못 만든 행은 로그만 남기면 소실이 관측되지 않는다."""
+    import src.tasks.trading as trading_mod
+
+    state = _State([_account()])
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            side_effect=[
+                _window([_snapshot("no-time", created_at_ms=None)]),
+                _window([]),
+            ]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+    counter = trading_mod.qb_closed_pnl_backfill_total.labels(outcome="malformed_row")
+    before = counter._value.get()
+
+    await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(), provider=provider, now=datetime(2026, 7, 25, tzinfo=UTC)
+    )
+
+    assert counter._value.get() == before + 1
+    assert state.rows == []

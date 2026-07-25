@@ -70,6 +70,17 @@ cycle 3~6: 동일 (영구 정지)
 
 **반박한 것.** "합산 스냅샷의 `raw` 가 원장에 영속된다" → `aggregate_closed_pnl_by_order` 는 `providers.py:1149` 단건 refresh 경로에서만 쓰이고 스윕은 행 단위 스냅샷을 적재한다. 원장에 도달하지 않는다(docstring 경고만 추가).
 
+## #5.5. 최종 codex 누적 diff = DO-NOT-SHIP — 여기서 또 2건이 더 나왔다
+
+생략하면 안 되는 단계라는 것이 이번에도 확인됐다. 평가자 4기를 다 통과한 뒤에도 머니-패스 완전성 결함 2건이 남아 있었다.
+
+- **DO-NOT-SHIP — 체결 직후 refresh 가 원장을 우회한다.** `_refresh_closed_pnl_with_session` 은 원장이 아니라 **단일 조회 결과**를 CAS 한다. 분할 행 `-0.02`/`-0.03` 중 t+5s 에 첫 행만 보이면 `-0.02` 가 `synced_at` 과 함께 확정되고, 미동기화 술어를 쓰는 스윕은 그 주문을 **영영 건너뛴다**. C-SWEEP-V2 의 "원장 전체 집계 후 CAS" 가 이 경로에서만 깨져 있었다. → `resync_exchange_realized_pnl`(값이 다를 때만 UPDATE, 같으면 rowcount 0 = 멱등) + 스윕의 synced 주문 대조 경로 신설.
+- **DO-NOT-SHIP — `max_pages` 소진을 성공으로 취급했다.** 7일 창에 501행 이상 있으면 가장 오래된 행을 못 읽는데 워터마크는 **창 시작까지 전진**해 그 구간을 다시 보지 않는다. 원장에 영구 구멍이 생긴다. → `ClosedPnlWindow(rows, truncated)` 로 잘림을 알리고, 잘린 창에서는 **실제로 읽은 가장 오래된 행까지만** 경계를 전진시킨다(한 주기에 최소 `max_pages` 만큼 전진하므로 진행은 보장).
+- **MAJOR — 시각을 못 만든 행이 로그만 남기고 사라졌다.** `malformed_row` 로 표면화.
+- **MINOR — downgrade 의 인덱스 drop 이 무조건 실행.** `DROP INDEX IF EXISTS` 로 통일.
+
+네 건 모두 회귀 테스트를 붙였다.
+
 ## #6. ★사고 — 로컬 개발 DB 전소
 
 W1b 적대 평가자에게 alembic 왕복 실측을 지시하며 `export DATABASE_URL=<개발 DB>` 를 줬고, 평가자가 **같은 셸에서 `pytest tests/test_migrations.py` 를 돌렸다.** `_resolved_test_db_url()` 이 `TEST_DATABASE_URL` 없이 `DATABASE_URL` 로 폴백하고 `test_alembic_roundtrip` 이 `command.downgrade(cfg, "base")` 를 실행해 **개발 DB 의 전 테이블이 드롭·재생성**됐다.

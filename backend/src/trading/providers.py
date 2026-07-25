@@ -250,6 +250,19 @@ class ClosedPnlSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class ClosedPnlWindow:
+    """창 조회 결과.
+
+    ``truncated=True`` 는 ``max_pages`` 상한에 걸려 창 안에 **더 오래된 행이 남아 있다**는
+    뜻이다. 이걸 구분하지 않으면 스윕이 스캔 경계를 창 시작까지 전진시켜 못 읽은 구간을
+    영영 다시 보지 않고 원장에 구멍이 남는다.
+    """
+
+    rows: list[ClosedPnlSnapshot]
+    truncated: bool
+
+
+@dataclass(frozen=True, slots=True)
 class ClosedOrderMeta:
     """거래소 청산 주문의 출처 메타 — closed-pnl 행에 없는 createType/stopOrderType/orderLinkId 를 보강한다."""
 
@@ -1181,7 +1194,7 @@ class BybitFuturesProvider:
         end_ms = int(datetime.now(UTC).timestamp() * 1000)
         # Bybit는 7일 초과 창을 거부하므로 오래된 호출도 최근 7일만 조회한다.
         start_ms = max(start_ms, end_ms - _CLOSED_PNL_MAX_WINDOW_MS)
-        return await self.fetch_closed_pnl_window(
+        window = await self.fetch_closed_pnl_window(
             creds,
             symbol,
             start_ms=start_ms,
@@ -1189,6 +1202,7 @@ class BybitFuturesProvider:
             limit=limit,
             max_pages=max_pages,
         )
+        return window.rows
 
     async def fetch_closed_pnl_window(
         self,
@@ -1199,11 +1213,17 @@ class BybitFuturesProvider:
         end_ms: int,
         limit: int = 100,
         max_pages: int = _CLOSED_PNL_MAX_PAGES,
-    ) -> list[ClosedPnlSnapshot]:
-        """Bybit 허용 창 안에서 closedPnl 행을 겹치지 않게 뒤로 훑는다."""
+    ) -> ClosedPnlWindow:
+        """Bybit 허용 창 안에서 closedPnl 행을 겹치지 않게 뒤로 훑는다.
+
+        ``max_pages`` 상한에 걸려 더 오래된 행이 남았는지를 ``truncated`` 로 알린다 —
+        호출자가 이걸 무시하고 스캔 경계를 창 시작까지 전진시키면 못 읽은 구간이
+        영구 구멍으로 남는다.
+        """
         _validate_closed_pnl_window(start_ms, end_ms)
         until_ms = end_ms
         collected: list[ClosedPnlSnapshot] = []
+        truncated = True
         for _ in range(max_pages):
             page = await self._fetch_closed_pnl_rows(
                 creds,
@@ -1214,6 +1234,7 @@ class BybitFuturesProvider:
             )
             collected.extend(page)
             if len(page) < limit:
+                truncated = False
                 break
             # ★커서 축은 서버 필터와 같아야 한다. Bybit 의 startTime/endTime 과 ccxt
             # filter_by_since_limit 은 createdTime 기준인데 updatedTime 으로 당기면
@@ -1229,9 +1250,11 @@ class BybitFuturesProvider:
                 break
             next_until_ms = oldest_ms - 1
             if next_until_ms >= until_ms or next_until_ms <= start_ms:
+                # 창 시작까지 훑었으면 완전 조회다. 커서가 더 못 가는 경우는 불완전으로 둔다.
+                truncated = next_until_ms > start_ms
                 break
             until_ms = next_until_ms
-        return collected
+        return ClosedPnlWindow(rows=collected, truncated=truncated)
 
     async def _fetch_closed_pnl_rows(
         self,

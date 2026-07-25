@@ -175,6 +175,46 @@ class OrderRepository:
         )
         return (await self.session.execute(stmt)).scalars().all()
 
+    async def list_synced_reduce_only(
+        self, account_id: UUID, *, limit: int = 500
+    ) -> Sequence[Order]:
+        """이미 거래소 확정으로 표시된 reduce-only 체결 주문.
+
+        체결 직후 refresh 는 원장을 거치지 않고 **단일 조회 결과**를 CAS 한다. 분할 행
+        중 일부만 보이는 순간에 걸리면 부분합이 synced 로 고정되고, 미동기화 술어를 쓰는
+        스윕은 그 주문을 영영 건너뛴다. 원장 합계와 대조해 되돌릴 수 있게 따로 조회한다.
+        """
+        stmt = (
+            select(Order)
+            .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.reduce_only.is_(True))  # type: ignore[attr-defined]
+            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
+            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
+            .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
+            .limit(limit)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
+    async def resync_exchange_realized_pnl(
+        self, order_id: UUID, *, realized_pnl: Decimal, synced_at: datetime
+    ) -> int:
+        """원장 합계가 저장값과 다를 때만 확정 손익을 정정한다.
+
+        값이 같으면 rowcount 0 이라 멱등하다. 이미 확정된 행을 건드리는 유일한 경로이므로
+        `state == filled` 와 `realized_pnl_synced_at IS NOT NULL` 을 함께 요구해
+        미동기화 행의 정상 백필 경로(`backfill_exchange_realized_pnl`)와 겹치지 않게 한다.
+        """
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
+            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
+            .where(Order.realized_pnl.is_distinct_from(realized_pnl))  # type: ignore[union-attr]
+            .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
     async def list_filled_for_attribution(
         self, account_id: UUID, *, limit: int = 500
     ) -> Sequence[Order]:

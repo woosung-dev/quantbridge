@@ -201,3 +201,58 @@ def test_row_hash_requires_an_order_id() -> None:
 
     with pytest.raises(ValueError, match="order id"):
         ExchangeExit.compute_row_hash(None, None, None, None, None, None, None, None)
+
+
+async def test_window_reports_truncation_when_the_page_budget_runs_out(
+    monkeypatch: pytest.MonkeyPatch, credentials: Credentials
+) -> None:
+    """max_pages 를 다 써도 더 오래된 행이 남았으면 그 사실을 호출자에게 알려야 한다.
+
+    이걸 감추면 스윕이 스캔 경계를 창 시작까지 전진시켜 못 읽은 구간이 영구 구멍이 된다.
+    """
+    start_ms = 10_000_000_000
+    end_ms = start_ms + SEVEN_DAYS_MS
+
+    def _row(order_id: str, created_ms: int) -> dict[str, object]:
+        return {
+            "info": {
+                "orderId": order_id,
+                "closedPnl": "-0.01",
+                "closedSize": "0.001",
+                "avgExitPrice": "64000",
+                "symbol": "BTCUSDT",
+                "side": "Sell",
+                "createdTime": str(created_ms),
+                "updatedTime": str(created_ms),
+            }
+        }
+
+    # 매 페이지가 꽉 차고 커서는 계속 뒤로 간다 → max_pages 소진.
+    pages = [[_row(f"p{p}-{i}", end_ms - p * 1000 - i) for i in range(2)] for p in range(3)]
+    exchange = MagicMock()
+    exchange.fetch_positions_history = AsyncMock(side_effect=pages)
+    exchange.close = AsyncMock()
+    _patch_exchange(monkeypatch, exchange)
+
+    window = await BybitFuturesProvider().fetch_closed_pnl_window(
+        credentials, None, start_ms=start_ms, end_ms=end_ms, limit=2, max_pages=3
+    )
+
+    assert window.truncated is True
+    assert len(window.rows) == 6
+
+
+async def test_window_is_not_truncated_when_the_page_is_short(
+    monkeypatch: pytest.MonkeyPatch, credentials: Credentials
+) -> None:
+    start_ms = 10_000_000_000
+    exchange = MagicMock()
+    exchange.fetch_positions_history = AsyncMock(return_value=[])
+    exchange.close = AsyncMock()
+    _patch_exchange(monkeypatch, exchange)
+
+    window = await BybitFuturesProvider().fetch_closed_pnl_window(
+        credentials, None, start_ms=start_ms, end_ms=start_ms + SEVEN_DAYS_MS, limit=2
+    )
+    assert window.truncated is False
+    assert window.rows == []

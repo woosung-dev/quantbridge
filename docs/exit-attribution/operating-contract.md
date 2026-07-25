@@ -30,6 +30,9 @@
 - **심볼 없이 계정당 1콜.** ccxt `fetch_positions_history` 는 `symbols` 가 `None` 이면 `request['symbol']` 을 넣지 않고 `filter_by_array` 도 통과시킨다(4.5.49 소스 + raw API 양쪽 실측).
 - **보강 조회는 조건부** — 매칭 안 된 `order_id` 가 있을 때만 `fetch_closed_orders` 1콜. 정상 상태에선 0콜. 실패는 삼키고 분류만 `unknown` 이 된다(적재를 막지 않는다).
 - **백필은 원장 전체 집계**(`ExchangeExitRepository.aggregate_closed_pnl`)로 한다. 단일 fetch 결과가 아니므로 분할 행이 창 경계에 갈려도 부분합이 고정되지 않는다. 기존 `backfill_exchange_realized_pnl` 3-guard CAS 를 그대로 쓴다.
+- **★이미 synced 된 주문도 원장과 대조해 정정한다**(`resync_exchange_realized_pnl`). 체결 직후 `refresh_closed_pnl` 은 원장을 거치지 않고 **단일 조회 결과**를 CAS 하므로, 분할 행 중 일부만 보이는 순간에 걸리면 부분합이 `synced_at` 과 함께 고정되고 미동기화 술어를 쓰는 백필 경로가 그 주문을 영영 건너뛴다. 값이 같으면 rowcount 0 이라 멱등하다.
+- **★잘린 창에서는 스캔 경계를 창 시작까지 전진시키지 않는다.** `fetch_closed_pnl_window` 가 `ClosedPnlWindow(rows, truncated)` 로 `max_pages` 소진을 알리고, 잘렸으면 **실제로 읽은 가장 오래된 행까지만** 경계를 옮긴다. 창 시작까지 밀면 못 읽은 더 오래된 구간이 영구 구멍이 된다.
+- **원장 필수 필드를 못 만든 행**(시각·심볼·방향 결측)은 `malformed_row` 로 계상한다. 로그만 남기면 소실이 관측되지 않는다.
 - summary/metric 증가는 **커밋 성공 뒤**에만 한다. 반환 shape = `{"accounts","windows","inserted","backfilled","alerted"}`.
 - **`orphan_row` 계상 제거** — 대조 집합이 후보 그룹뿐이라 이미 synced 된 우리 주문까지 orphan 으로 셌고, 계정 단위 열거에선 매 주기 영구 재계상된다. 신호는 `qb_exchange_exit_rows_total` 이 준다. `qb_closed_pnl_backfill_total` 의 8-outcome 계약은 **불변**.
 

@@ -116,19 +116,7 @@ def downgrade() -> None:
     # DROP 은 IF EXISTS 로 쓴다. 부분 적용된 환경에서 downgrade 가 중간에 죽으면
     # 되돌릴 방법이 없어진다(이 레포 교훈).
     op.execute("DROP TABLE IF EXISTS trading.exchange_exit_sync_state")
-    op.drop_index(
-        "ix_exchange_exits_classification",
-        table_name="exchange_exits",
-        schema="trading",
-    )
-    op.drop_index(
-        "ix_exchange_exits_account_created",
-        table_name="exchange_exits",
-        schema="trading",
-    )
-    op.drop_index(
-        "uq_exchange_exits_row",
-        table_name="exchange_exits",
-        schema="trading",
-    )
+    op.execute("DROP INDEX IF EXISTS trading.ix_exchange_exits_classification")
+    op.execute("DROP INDEX IF EXISTS trading.ix_exchange_exits_account_created")
+    op.execute("DROP INDEX IF EXISTS trading.uq_exchange_exits_row")
     op.execute("DROP TABLE IF EXISTS trading.exchange_exits")
