@@ -25,8 +25,16 @@ export function binReturnDistribution(
   if (finite.length === 0 || binCount < 1) {
     return [];
   }
-  const min = Math.min(...finite);
-  const max = Math.max(...finite);
+  // ★ spread(`Math.min(...finite)`) 금지 — 인자 개수 상한이라 큰 배열에서
+  // RangeError 로 던진다(Node 22 실측 임계 ≈ 124,000). 거래 수는 전략에 따라
+  // 그 위로 갈 수 있고, 여기서 터지면 리포트 전체가 렌더되지 않는다. 단일 루프로 뽑는다.
+  let min = finite[0] as number;
+  let max = min;
+  for (let i = 1; i < finite.length; i += 1) {
+    const v = finite[i] as number;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
   if (min === max) {
     return [{ from: min, to: max, count: finite.length }];
   }

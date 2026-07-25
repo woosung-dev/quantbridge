@@ -183,28 +183,67 @@ function Stat({
   );
 }
 
+/** 스파크라인 가로 픽셀당 1 표본이면 충분하다 — 그 이상은 화면에 나타나지 않는다. */
+const SPARKLINE_MAX_SAMPLES = 600;
+
 function EquitySparkline({
   points,
 }: {
   points: BacktestDetail["equity_curve"];
 }) {
   if (!points || points.length < 2) return null;
-  const values = points.map((p) =>
-    typeof p.value === "number" ? p.value : Number(p.value),
-  );
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
+
+  // `equity_curve` 는 **OHLCV 바 하나당 1 포인트**다(백엔드 `_compute_equity_curve`
+  // = "bar-by-bar equity 재구성"). 1년 1분봉이면 ~525,600 포인트다.
+  //
+  // 그래서 두 가지를 하면 안 된다.
+  //  ① `Math.min(...values)` — spread 는 인자 개수 상한이라 큰 배열에서
+  //     RangeError 로 던진다(Node 22 실측 임계 ≈ 124,000). 이 페이지는
+  //     `force-dynamic` 서버 컴포넌트라 던지면 **공개 공유 링크가 500** 이 된다.
+  //  ② 포인트마다 path 명령을 1개씩 붙이기 — 52만 포인트면 path 문자열만
+  //     수 MB 라 HTML 응답이 그만큼 부푼다.
+  //
+  // 스케일은 전체를 한 번만 훑어 **정확하게** 잡고, 그리는 점만 솎아낸다.
   const w = 600;
   const h = 80;
-  const stepX = w / (values.length - 1);
-  const path = values
-    .map((v, i) => {
-      const x = i * stepX;
+  const total = points.length;
+
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < total; i += 1) {
+    const raw = points[i]?.value;
+    const v = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(v)) continue;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+
+  const range = max - min || 1;
+  const stride = Math.max(1, Math.ceil(total / SPARKLINE_MAX_SAMPLES));
+  const lastIndex = total - 1;
+  const segments: string[] = [];
+  for (let i = 0; i < total; i += stride) {
+    const raw = points[i]?.value;
+    const v = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(v)) continue;
+    const x = (i / lastIndex) * w;
+    const y = h - ((v - min) / range) * h;
+    segments.push(
+      `${segments.length === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`,
+    );
+  }
+  // 솎아내기가 마지막 점을 건너뛰면 커브가 끝에서 잘려 보인다.
+  if (lastIndex % stride !== 0) {
+    const raw = points[lastIndex]?.value;
+    const v = typeof raw === "number" ? raw : Number(raw);
+    if (Number.isFinite(v)) {
       const y = h - ((v - min) / range) * h;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+      segments.push(`L${w.toFixed(1)},${y.toFixed(1)}`);
+    }
+  }
+  if (segments.length < 2) return null;
+  const path = segments.join(" ");
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}

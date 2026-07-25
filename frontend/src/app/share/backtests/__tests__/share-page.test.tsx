@@ -139,3 +139,56 @@ describe("SharedBacktestPage (server component)", () => {
     ]);
   });
 });
+
+describe("SharedBacktestPage — 대용량 equity_curve", () => {
+  // `equity_curve` 는 OHLCV 바 하나당 1 포인트다(백엔드 `_compute_equity_curve`
+  // = "bar-by-bar equity 재구성"). 1년 1분봉이면 ~525,600 포인트다.
+  // 예전 구현은 `Math.min(...values)` 를 썼는데 spread 는 인자 개수 상한이라
+  // Node 22 실측 ≈ 124,000 부터 RangeError 를 던진다. 이 페이지는 force-dynamic
+  // 서버 컴포넌트라 던지면 **공개 공유 링크가 500** 이 된다.
+  const HUGE = 130_000;
+
+  const hugeCurve = Array.from({ length: HUGE }, (_, i) => ({
+    timestamp: new Date(Date.UTC(2024, 0, 1) + i * 60_000).toISOString(),
+    // 톱니 — 스케일 계산이 실제로 전 구간을 보는지 확인할 수 있게 한다.
+    value: String(10_000 + (i % 1_000)),
+  }));
+
+  it(`${HUGE.toLocaleString("en-US")} 포인트에서도 던지지 않고 렌더된다`, async () => {
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockOk({ ...SAMPLE_DETAIL, equity_curve: hugeCurve }),
+    );
+
+    const ui = await SharedBacktestPage({
+      params: Promise.resolve({ token: "tkn-huge" }),
+    });
+    render(ui);
+
+    expect(screen.getByText(/자산 곡선 미리보기/)).toBeInTheDocument();
+    const svg = screen.getByRole("img", { name: /Equity curve sparkline/i });
+    expect(svg).toBeInTheDocument();
+  });
+
+  it("path 명령 수가 표본 상한에 묶인다 — HTML 응답이 포인트 수에 비례해 부풀지 않는다", async () => {
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockOk({ ...SAMPLE_DETAIL, equity_curve: hugeCurve }),
+    );
+
+    const ui = await SharedBacktestPage({
+      params: Promise.resolve({ token: "tkn-huge-path" }),
+    });
+    render(ui);
+
+    // 배너 아이콘 등 다른 svg 가 먼저 잡히지 않도록 스파크라인을 지정한다.
+    const sparkline = screen.getByRole("img", {
+      name: /Equity curve sparkline/i,
+    });
+    const d = sparkline.querySelector("path")?.getAttribute("d") ?? "";
+    const commands = d.match(/[ML]/g)?.length ?? 0;
+    expect(commands).toBeGreaterThan(1);
+    // 가로 600px 이므로 픽셀당 1 표본 + 마지막 점 보정까지가 상한이다.
+    expect(commands).toBeLessThanOrEqual(601);
+    // 포인트 수에 비례했다면 13만 개였을 것이다.
+    expect(commands).toBeLessThan(HUGE / 100);
+  });
+});
