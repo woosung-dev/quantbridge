@@ -56,7 +56,12 @@ from src.trading.models import (
     OrderSide,
     OrderState,
 )
-from src.trading.providers import Credentials, ExchangeProvider, OrderSubmit
+from src.trading.providers import (
+    Credentials,
+    ExchangeProvider,
+    OrderSubmit,
+    aggregate_closed_pnl_by_order,
+)
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.registry import dispatch as _dispatch_provider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
@@ -1316,10 +1321,14 @@ async def _refresh_closed_pnl_with_session(
             return {"skipped": "not_filled", "order_id": str(order_id)}
         if not order.reduce_only:
             return {"skipped": "not_reduce_only", "order_id": str(order_id)}
+        # 아래 세 갈래는 "정상 no-op"(경합/미지원)이 아니라 데이터 이상이다 — 조용히
+        # 반환하면 해당 체결 청산이 추정 손익으로 남는데 운영이 알 방법이 없다.
         if order.exchange_order_id is None:
+            qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
             return {"skipped": "no_exchange_order_id", "order_id": str(order_id)}
         account = await session.get(ExchangeAccount, order.exchange_account_id)
         if account is None:
+            qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
             return {"skipped": "account_missing", "order_id": str(order_id)}
         if account.exchange != ExchangeName.bybit or order.leverage is None:
             qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
@@ -1342,12 +1351,15 @@ async def _refresh_closed_pnl_with_session(
                 "closed_pnl_credential_decrypt_failed",
                 extra={"order_id": str(order_id), "error": str(exc)},
             )
+            # 키 회전 실패 등 — 계정 전체가 영향받으므로 metric 으로 반드시 표면화한다.
+            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
             return {"skipped": "decrypt_failed", "order_id": str(order_id)}
         symbol = order.symbol
         exchange_order_id = order.exchange_order_id
         filled_at = order.filled_at
 
     if filled_at is None:
+        qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
         return {"skipped": "no_filled_at", "order_id": str(order_id)}
     if provider is None:
         from src.trading.providers import BybitFuturesProvider
@@ -1464,12 +1476,14 @@ async def _sweep_closed_pnl_with_session(
             snapshots = await provider.fetch_closed_pnl_page(
                 creds, symbol, since=oldest_filled_at
             )
-            snapshots_by_order_id = {snapshot.order_id: snapshot for snapshot in snapshots}
+            # 분할 행 합산은 refresh 경로와 동일 헬퍼를 쓴다 — 마지막 행만 취하면 부분
+            # 손익이 저장되고 CAS 가 synced_at 을 채워 그 값이 영구 고정된다.
+            snapshots_by_order_id = aggregate_closed_pnl_by_order(snapshots)
             exchange_order_ids = {
                 order.exchange_order_id for order in group if order.exchange_order_id is not None
             }
-            for snapshot in snapshots:
-                if snapshot.order_id not in exchange_order_ids:
+            for snapshot_order_id in snapshots_by_order_id:
+                if snapshot_order_id not in exchange_order_ids:
                     qb_closed_pnl_backfill_total.labels(outcome="orphan_row").inc()
                     summary["orphan"] += 1
             async with sm() as session:
@@ -1501,6 +1515,9 @@ async def _sweep_closed_pnl_with_session(
                 for _ in range(already_synced_in_group):
                     qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
         except Exception:
+            # 스윕은 refresh task 유실의 회복 안전망이다 — 그룹 실패를 로그로만 남기면
+            # 해당 (account, symbol) 이 5분마다 조용히 실패해도 아무도 모른다.
+            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
             logger.exception(
                 "closed_pnl_sweep_group_failed",
                 extra={"account_id": str(account_id), "symbol": symbol},

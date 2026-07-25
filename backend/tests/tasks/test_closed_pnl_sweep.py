@@ -100,3 +100,46 @@ async def test_sweep_groups_once_counts_orphans_and_continues_after_failure(
     assert provider.fetch_closed_pnl_page.await_count == 2
     assert summary == {"scanned": 3, "applied": 1, "orphan": 1, "groups": 2}
     assert writes == [str(orders[2].id)]
+
+
+def test_aggregate_sums_split_closed_pnl_rows() -> None:
+    """분할 closedPnl 행은 합산해야 한다 — 마지막 행만 취하면 CAS 가 부분값을 영구 고정한다.
+
+    refresh 경로는 합산하는데 스윕만 dict 로 덮어쓰면 같은 주문이 어느 경로로 보정되느냐에
+    따라 저장값이 달라진다. 두 경로 모두 aggregate_closed_pnl_by_order 를 쓰도록 고정한다.
+    """
+    from decimal import Decimal
+
+    from src.trading.providers import ClosedPnlSnapshot, aggregate_closed_pnl_by_order
+
+    rows = [
+        ClosedPnlSnapshot(
+            order_id="ex-1",
+            closed_pnl=Decimal("-0.02"),
+            closed_size=Decimal("0.0006"),
+            avg_exit_price=Decimal("64000"),
+            updated_at_ms=1,
+        ),
+        ClosedPnlSnapshot(
+            order_id="ex-1",
+            closed_pnl=Decimal("-0.03"),
+            closed_size=Decimal("0.0004"),
+            avg_exit_price=Decimal("64010"),
+            updated_at_ms=2,
+        ),
+        ClosedPnlSnapshot(
+            order_id="ex-2",
+            closed_pnl=Decimal("0.5"),
+            closed_size=Decimal("0.001"),
+            avg_exit_price=Decimal("64020"),
+            updated_at_ms=3,
+        ),
+    ]
+
+    merged = aggregate_closed_pnl_by_order(rows)
+
+    assert merged["ex-1"].closed_pnl == Decimal("-0.05000000")
+    assert merged["ex-1"].closed_size == Decimal("0.0010")
+    assert merged["ex-1"].updated_at_ms == 2
+    assert merged["ex-2"].closed_pnl == Decimal("0.50000000")
+    assert set(merged) == {"ex-1", "ex-2"}

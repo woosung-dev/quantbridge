@@ -240,3 +240,47 @@ async def test_fetch_closed_pnl_wraps_ccxt_error(monkeypatch: pytest.MonkeyPatch
             credentials, "BTC/USDT", order_id="close-1"
         )
     exchange.close.assert_awaited_once()
+
+
+async def test_fetch_closed_pnl_page_walks_back_until_page_not_full(monkeypatch) -> None:
+    """페이지가 꽉 차면 until 을 당겨 뒤로 훑는다 — 단발 조회는 오래된 행을 영구 누락한다.
+
+    Bybit 한 페이지 상한은 100 이고 ccxt 는 nextPageCursor 를 버린다. 바쁜 계정에서
+    한 번만 조회하면 목표 행이 매 틱 같은 첫 페이지 밖에 남아 조용히 영구 미동기화된다.
+    """
+    import ccxt.async_support as ccxt_async
+
+    from src.trading.providers import BybitFuturesProvider, Credentials
+
+    def _row(order_id: str, ts: int) -> dict:
+        return {
+            "info": {
+                "orderId": order_id,
+                "closedPnl": "-0.01",
+                "closedSize": "0.001",
+                "avgExitPrice": "64000",
+                "updatedTime": str(ts),
+            }
+        }
+
+    full_page = [_row(f"a{i}", 2_000_000 + i) for i in range(3)]
+    tail_page = [_row("target", 1_500_000)]
+
+    exchange = MagicMock()
+    exchange.fetch_positions_history = AsyncMock(side_effect=[full_page, tail_page])
+    exchange.close = AsyncMock()
+    monkeypatch.setattr(ccxt_async, "bybit", MagicMock(return_value=exchange))
+
+    rows = await BybitFuturesProvider().fetch_closed_pnl_page(
+        Credentials(api_key="key", api_secret="secret"),
+        "BTC/USDT",
+        since=datetime.fromtimestamp(1_000, tz=UTC),
+        limit=3,
+    )
+
+    assert [row.order_id for row in rows] == ["a0", "a1", "a2", "target"]
+    assert exchange.fetch_positions_history.await_count == 2
+    # 2번째 호출의 until 은 1번째 페이지의 가장 오래된 행 '직전' — 겹침 없음 = 이중 합산 없음.
+    assert exchange.fetch_positions_history.await_args_list[1].kwargs["params"]["until"] == (
+        2_000_000 - 1
+    )

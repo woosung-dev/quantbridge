@@ -273,11 +273,15 @@ qb_trailing_placement_total = Counter(
 )
 
 # MP-2 — Bybit closedPnl 확정 손익 backfill 결과.
-# outcome: applied | already_synced | skipped_unsupported | never_found | failed_provider
-#          | orphan_row | malformed_row.
-# never_found 또는 failed_provider > 0 이면 Kill Switch가 pine_v2 시뮬레이션 손익을 사용 중이다.
+# outcome: applied | already_synced | skipped_unsupported | skipped_incomplete | never_found
+#          | failed_provider | orphan_row | malformed_row.
+# never_found / failed_provider / skipped_incomplete > 0 이면 해당 청산 주문이 pine_v2
+# 시뮬레이션 손익을 유지한 채로 Kill Switch에 계상되고 있다는 뜻이다.
+# skipped_incomplete 는 exchange_order_id/account/filled_at 결측 같은 데이터 이상이다
+# (경합으로 인한 정상 no-op 는 계상하지 않는다).
 # malformed_row 는 파싱 불가로 건너뛴 거래소 행 (페이지 전체를 버리지 않기 위한 관측치).
-# Cardinality: 고정 outcome 7개 series만 허용한다.
+# orphan_row 는 우리 Order 와 매칭되지 않는 closedPnl 행 = 거래소 네이티브 TP/SL 청산.
+# Cardinality: 고정 outcome 8개 series만 허용한다.
 qb_closed_pnl_backfill_total = Counter(
     "qb_closed_pnl_backfill_total",
     "Bybit closedPnl 확정 손익 backfill 결과",

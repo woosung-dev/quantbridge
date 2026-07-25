@@ -8,6 +8,7 @@ Per-account ephemeral CCXT client 패턴 (spec §2.1):
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
@@ -35,6 +36,8 @@ _VALIDATED_CCXT_VERSIONS = frozenset({"4.5.49"})
 # 버린다 → snapshot None → 재시도해도 창이 그대로라 영구 실패 + 오탐 알림.
 # 1h = reconciler 주기(300s) 의 12배 여유. Bybit 의 (endTime - startTime) ≤ 7d 제약 안이다.
 _CLOSED_PNL_LOOKBACK_MS = 3_600_000
+# Bybit 한 페이지 상한 100, 최대 5페이지 = 500행. 뒤로 훑는 비용 상한이자 무한루프 방지선.
+_CLOSED_PNL_MAX_PAGES = 5
 
 
 def _decimal_or_none(
@@ -244,6 +247,34 @@ def _parse_position_created_at(position: dict[str, Any]) -> datetime | None:
     if ms <= 0:
         return None
     return datetime.fromtimestamp(ms / 1000, tz=UTC)
+
+
+def aggregate_closed_pnl_by_order(
+    snapshots: Iterable[ClosedPnlSnapshot],
+) -> dict[str, ClosedPnlSnapshot]:
+    """closedPnl 행을 orderId 별로 합산한다.
+
+    Bybit 는 한 청산 주문을 여러 closedPnl 행으로 쪼개 낼 수 있다. 마지막 행만 취하면
+    부분 손익이 저장되고, backfill CAS 가 realized_pnl_synced_at 을 채워 재시도를 막으므로
+    그 부분값이 **영구 고정**된다. 단일 주문 조회(refresh)와 스윕이 반드시 같은 합산을
+    쓰도록 여기 한 곳에 모은다.
+    """
+    grouped: dict[str, list[ClosedPnlSnapshot]] = {}
+    for snapshot in snapshots:
+        grouped.setdefault(snapshot.order_id, []).append(snapshot)
+    merged: dict[str, ClosedPnlSnapshot] = {}
+    for order_id, rows in grouped.items():
+        sizes = [row.closed_size for row in rows if row.closed_size is not None]
+        merged[order_id] = ClosedPnlSnapshot(
+            order_id=order_id,
+            closed_pnl=sum((row.closed_pnl for row in rows), Decimal("0")).quantize(
+                Decimal("0.00000001")
+            ),
+            closed_size=sum(sizes, Decimal("0")) if sizes else None,
+            avg_exit_price=rows[-1].avg_exit_price,
+            updated_at_ms=rows[-1].updated_at_ms,
+        )
+    return merged
 
 
 def _closed_pnl_snapshot_from_position(position: dict[str, Any]) -> ClosedPnlSnapshot | None:
@@ -1061,23 +1092,7 @@ class BybitFuturesProvider:
             snapshots = await self._fetch_closed_pnl_rows(creds, symbol)
         else:
             snapshots = await self.fetch_closed_pnl_page(creds, symbol, since=since)
-        matching = [snapshot for snapshot in snapshots if snapshot.order_id == order_id]
-        if not matching:
-            return None
-        return ClosedPnlSnapshot(
-            order_id=order_id,
-            closed_pnl=sum((snapshot.closed_pnl for snapshot in matching), Decimal("0")).quantize(
-                Decimal("0.00000001")
-            ),
-            closed_size=sum(
-                (snapshot.closed_size for snapshot in matching if snapshot.closed_size is not None),
-                Decimal("0"),
-            )
-            if any(snapshot.closed_size is not None for snapshot in matching)
-            else None,
-            avg_exit_price=matching[-1].avg_exit_price,
-            updated_at_ms=matching[-1].updated_at_ms,
-        )
+        return aggregate_closed_pnl_by_order(snapshots).get(order_id)
 
     async def fetch_closed_pnl_page(
         self,
@@ -1086,17 +1101,37 @@ class BybitFuturesProvider:
         *,
         since: datetime,
         limit: int = 100,
+        max_pages: int = _CLOSED_PNL_MAX_PAGES,
     ) -> list[ClosedPnlSnapshot]:
-        """Bybit closedPnl 페이지를 원본 문자열 정밀도로 반환한다."""
+        """since 이후 closedPnl 행을 원본 문자열 정밀도로 모아 반환한다.
+
+        Bybit 한 페이지 상한은 100이고 ccxt 는 nextPageCursor 를 버린다. 한 번만 조회하면
+        바쁜 (account, symbol) 의 오래된 행이 매 틱 같은 첫 페이지 밖에 남아 영구
+        미동기화된다. until 을 직전 페이지의 가장 오래된 행 **직전**으로 당겨 뒤로 훑되
+        (겹침 없음 = 이중 합산 없음), max_pages 로 비용을 묶는다.
+        """
         since_ms = int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS
         until_ms = int(datetime.now(UTC).timestamp() * 1000)
-        return await self._fetch_closed_pnl_rows(
-            creds,
-            symbol,
-            since_ms=since_ms,
-            until_ms=until_ms,
-            limit=limit,
-        )
+        collected: list[ClosedPnlSnapshot] = []
+        for _ in range(max_pages):
+            page = await self._fetch_closed_pnl_rows(
+                creds,
+                symbol,
+                since_ms=since_ms,
+                until_ms=until_ms,
+                limit=limit,
+            )
+            collected.extend(page)
+            if len(page) < limit:
+                break
+            oldest_ms = min(
+                (row.updated_at_ms for row in page if row.updated_at_ms is not None),
+                default=None,
+            )
+            if oldest_ms is None or oldest_ms <= since_ms:
+                break
+            until_ms = oldest_ms - 1
+        return collected
 
     async def _fetch_closed_pnl_rows(
         self,
