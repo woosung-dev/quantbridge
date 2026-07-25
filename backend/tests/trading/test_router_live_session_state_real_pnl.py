@@ -8,7 +8,7 @@ Uses mock_clerk_auth fixture from conftest.py for auth bypass.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -28,6 +28,11 @@ from src.trading.models import (
     OrderState,
     OrderType,
 )
+
+# BL-445 이후 세션 스코프는 `created_at` 을 하한으로 쓴다. 이 파일의 주문들은
+# 2026-07-01 체결이라 세션이 그보다 먼저 시작해 있어야 원래 관심사(시뮬 값이 아니라
+# 실체결을 쓰는가)를 검증할 수 있다.
+_SESSION_START = datetime(2026, 7, 1, 0, 0, tzinfo=UTC)
 
 
 async def _seed_session(db_session, user, *, with_state: bool = True):
@@ -54,6 +59,7 @@ async def _seed_session(db_session, user, *, with_state: bool = True):
         exchange_account_id=account.id,
         symbol="BTC/USDT",
         interval=LiveSignalInterval.m1,
+        created_at=_SESSION_START,
     )
     db_session.add(session)
     await db_session.flush()
@@ -187,3 +193,62 @@ async def test_state_missing_or_not_owned_remains_not_found(client, mock_clerk_a
 
     not_owned = await client.get(f"/api/v1/live-sessions/{other_session.id}/state")
     assert not_owned.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_two_sessions_on_the_same_tuple_get_separate_curves(
+    client, mock_clerk_auth, db_session
+):
+    """BL-445 종단 — 같은 (strategy, account) 위 인접 세션 둘이 서로 다른 커브를 낸다.
+
+    fix 전에는 라우터가 `(strategy_id, exchange_account_id)` 만 넘겨서 두 세션이
+    **같은 값**(-30)을 돌려줬다. 리포지터리만 고치고 라우터가 스코프를 안 넘기는
+    실수는 이 종단 테스트로만 잡힌다.
+    """
+    user = mock_clerk_auth
+    strategy, account, first = await _seed_session(db_session, user)
+    boundary = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
+
+    # 첫 세션을 경계에서 닫고, 같은 튜플 위에 두 번째 세션을 연다.
+    first.is_active = False
+    first.deactivated_at = boundary
+    second = LiveSignalSession(
+        user_id=user.id,
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        interval=LiveSignalInterval.m1,
+        created_at=boundary,
+    )
+    db_session.add(second)
+    await db_session.flush()
+    db_session.add(LiveSignalState(session_id=second.id))
+
+    def _filled(pnl: str, filled_at: datetime) -> Order:
+        return Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=Decimal("1"),
+            state=OrderState.filled,
+            realized_pnl=Decimal(pnl),
+            filled_at=filled_at,
+        )
+
+    db_session.add_all(
+        [
+            _filled("-10", boundary - timedelta(hours=1)),
+            _filled("-20", boundary + timedelta(hours=1)),
+        ]
+    )
+    await db_session.commit()
+
+    first_body = (await client.get(f"/api/v1/live-sessions/{first.id}/state")).json()
+    second_body = (await client.get(f"/api/v1/live-sessions/{second.id}/state")).json()
+
+    assert Decimal(str(first_body["total_realized_pnl"])) == Decimal("-10")
+    assert Decimal(str(second_body["total_realized_pnl"])) == Decimal("-20")
+    assert first_body["total_closed_trades"] == second_body["total_closed_trades"] == 1
+    assert len(first_body["equity_curve"]) == len(second_body["equity_curve"]) == 1

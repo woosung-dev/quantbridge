@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
@@ -41,7 +42,16 @@ def _worker_factory():
 
 
 def _rule(threshold: str = "10"):
-    live_session = SimpleNamespace(id=uuid4(), exchange_account_id=uuid4())
+    # SessionScope.from_live_session 이 읽는 필드를 전부 갖춘 가짜 세션.
+    # 필드가 빠지면 AttributeError 로 시끄럽게 죽으므로 조용한 통과가 없다.
+    live_session = SimpleNamespace(
+        id=uuid4(),
+        strategy_id=uuid4(),
+        exchange_account_id=uuid4(),
+        symbol="BTC/USDT",
+        created_at=datetime(2026, 7, 20, 6, 0, tzinfo=UTC),
+        deactivated_at=None,
+    )
     return (
         SimpleNamespace(
             id=uuid4(), threshold_percent=Decimal(threshold), channel=AlertChannel.slack
@@ -72,7 +82,10 @@ def _patch_task(
         def __init__(self, _session) -> None:
             pass
 
-        async def sum_filled_realized_pnl_for_live_session(self, _session_id):
+        async def sum_filled_realized_pnl_for_session(self, scope):
+            # 태스크가 세션 행이 아니라 스코프 값 객체를 넘기는지 여기서 고정한다.
+            assert scope.symbol == "BTC/USDT"
+            assert scope.ended_at is None
             return pnl
 
     class _Accounts:
@@ -104,7 +117,11 @@ async def test_loss_rule_fires_at_threshold(monkeypatch: pytest.MonkeyPatch) -> 
     calls = _patch_task(monkeypatch, rule=_rule(), pnl=Decimal("-10"))
     monkeypatch.setattr(task, "_get_redis_lock_pool_for_alert", _Redis)
     assert await task._async_evaluate_loss_rules() == {"evaluated": 1, "fired": 1}
-    assert "attributed to this live session" in calls[0]["message"]
+    # BL-444 — 스코프가 바뀌었으므로 사용자가 읽는 문구도 함께 바뀌어야 한다.
+    assert "strategy, account and symbol" in calls[0]["message"]
+    assert calls[0]["context"]["scope"] == (
+        "session strategy+account+symbol, filled_at within session window"
+    )
 
 
 @pytest.mark.asyncio

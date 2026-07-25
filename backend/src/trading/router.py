@@ -42,7 +42,7 @@ from src.trading.repositories.exchange_account_repository import ExchangeAccount
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
-from src.trading.repositories.order_repository import OrderRepository
+from src.trading.repositories.order_repository import OrderRepository, SessionScope
 from src.trading.schemas import (
     AccountBalanceResponse,
     AlertRuleCreateRequest,
@@ -479,9 +479,11 @@ async def get_live_session_state(
             updated_at=None,
         )
 
+    # BL-445 — 예전에는 `(strategy, account)` 튜플만 넘겨서 같은 튜플 위의 비활성
+    # 세션들이 하나의 커브를 공유했다. 세션 창·심볼까지 담은 스코프를 넘긴다.
     order_repo = OrderRepository(session)
-    filled_orders = await order_repo.list_filled_realized_by_strategy_and_account(
-        sess.strategy_id, sess.exchange_account_id
+    filled_orders = await order_repo.list_filled_realized_for_session(
+        SessionScope.from_live_session(sess)
     )
     closed_pnls = [
         (int(o.filled_at.timestamp() * 1000), Decimal(str(o.realized_pnl)))

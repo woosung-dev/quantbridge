@@ -12,11 +12,14 @@ from src.trading.models import (
     ExchangeAccount,
     ExchangeMode,
     ExchangeName,
+    LiveSignalInterval,
+    LiveSignalSession,
     Order,
     OrderSide,
     OrderState,
     OrderType,
 )
+from src.trading.repositories.order_repository import SessionScope
 
 
 @pytest.fixture
@@ -293,7 +296,23 @@ async def test_list_filled_realized_excludes_rejected_and_entry_only_orders(
     )
     await repo.commit()
 
-    result = await repo.list_filled_realized_by_strategy_and_account(strategy.id, account.id)
+    # BL-445 — 조회 스코프가 (strategy, account) 튜플에서 세션 스코프로 바뀌었다.
+    # 세션 창은 위 주문들을 모두 덮으므로 이 테스트의 원래 관심사(state/realized_pnl
+    # 필터)는 그대로 검증된다.
+    live_session = LiveSignalSession(
+        user_id=account.user_id,
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        interval=LiveSignalInterval.m5,
+        created_at=datetime(2026, 7, 1, 8, 0, 0, tzinfo=UTC),
+    )
+    db_session.add(live_session)
+    await db_session.flush()
+
+    result = await repo.list_filled_realized_for_session(
+        SessionScope.from_live_session(live_session)
+    )
 
     result_ids = [o.id for o in result]
     assert rejected.id not in result_ids
