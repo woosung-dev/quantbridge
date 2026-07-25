@@ -1431,12 +1431,12 @@ def refresh_closed_pnl_task(self: Any, order_id: str) -> dict[str, Any]:
 
     if result.get("transient") == "closed_pnl_not_yet_available":
         if self.request.retries < _CLOSED_PNL_MAX_RETRIES:
-            raise self.retry(
-                countdown=_CLOSED_PNL_RETRY_BASE_SECONDS * (2**self.request.retries)
-            )
+            raise self.retry(countdown=_CLOSED_PNL_RETRY_BASE_SECONDS * (2**self.request.retries))
         logger.warning("closed_pnl_backfill_never_found", extra={"order_id": order_id})
         qb_closed_pnl_backfill_total.labels(outcome="never_found").inc()
-        run_in_worker_loop(_alert_closed_pnl_unbackfilled(UUID(order_id), "closed_pnl_not_yet_available"))
+        run_in_worker_loop(
+            _alert_closed_pnl_unbackfilled(UUID(order_id), "closed_pnl_not_yet_available")
+        )
         return {"failed": "closed_pnl_not_yet_available", "order_id": order_id}
     return result
 
@@ -1490,7 +1490,13 @@ async def _alert_new_exchange_exits(
         external_rows = [row for row in rows if row.classification != ExitClassification.ours]
         if not external_rows:
             return False
-        classifications = Counter(row.classification.value for row in external_rows)
+        # ★list_by_row_hashes 는 새 세션으로 DB 를 재조회한다. `classification` 컬럼은
+        # 평문 String(24) 이라 SQLAlchemy 가 재수화할 때 str 그대로 온다(ExitClassification
+        # StrEnum 으로 다시 캐스팅하지 않는다) — row 가 방금 만든 메모리 객체일 때만 진짜
+        # enum 이다. `.value` 는 plain str 에 없어 AttributeError 로 던지고 이 함수 전체가
+        # except 로 삼켜 알림이 조용히 죽는다. StrEnum.__str__ 은 값 자체를 돌려주므로
+        # str() 은 두 경우 모두 안전하다.
+        classifications = Counter(str(row.classification) for row in external_rows)
         total_pnl = sum((row.closed_pnl for row in external_rows), Decimal("0"))
         symbols = sorted({row.symbol for row in external_rows})
         await send_rule_alert(
@@ -1595,9 +1601,9 @@ async def _sweep_closed_pnl_with_session(
                         extra={"account_id": str(account.id)},
                     )
                 async with sm() as session:
-                    attribution_orders = await OrderRepository(
-                        session
-                    ).list_filled_for_attribution(account.id)
+                    attribution_orders = await OrderRepository(session).list_filled_for_attribution(
+                        account.id
+                    )
                 attribution_facts = _order_facts(attribution_orders)
 
             rows: list[ExchangeExit] = []
@@ -1714,9 +1720,12 @@ async def _sweep_closed_pnl_with_session(
                     realized_pnl = sums.get(order.exchange_order_id)
                     if realized_pnl is None:
                         continue
-                    if await order_repo.backfill_exchange_realized_pnl(
-                        order.id, realized_pnl=realized_pnl, synced_at=current
-                    ) == 1:
+                    if (
+                        await order_repo.backfill_exchange_realized_pnl(
+                            order.id, realized_pnl=realized_pnl, synced_at=current
+                        )
+                        == 1
+                    ):
                         applied += 1
                     else:
                         already_synced += 1
@@ -1759,7 +1768,9 @@ async def _sweep_closed_pnl_with_session(
                 summary["alerted"] += 1
         except Exception:
             qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
-            logger.exception("closed_pnl_sweep_account_failed", extra={"account_id": str(account.id)})
+            logger.exception(
+                "closed_pnl_sweep_account_failed", extra={"account_id": str(account.id)}
+            )
     return summary
 
 

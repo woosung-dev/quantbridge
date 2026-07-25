@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -165,3 +167,44 @@ async def test_unique_index_exists_in_the_physical_schema(db_session: AsyncSessi
     indexdef = result.scalar_one()
     assert "UNIQUE" in indexdef
     assert "exchange_account_id" in indexdef and "row_hash" in indexdef
+
+
+@pytest.mark.asyncio
+async def test_alert_survives_a_classification_reloaded_as_plain_string(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """dogfood 실측(2026-07-25) — 원장 재조회 후 classification 은 enum 이 아니라 str 이다.
+
+    `classification` 컬럼은 평문 `String(24)` 이라 SQLAlchemy 가 새로 조회한 행을
+    hydrate 할 때 `ExitClassification` 로 재캐스팅하지 않는다. `_alert_new_exchange_exits`
+    는 새 세션으로 `list_by_row_hashes` 를 다시 조회하므로, 방금 만든 메모리 객체가 아니라
+    이 plain-str 경로를 탄다. `.value` 접근은 str 에 없어 AttributeError 를 던지고 함수
+    전체가 except 로 삼켜 **신규 미귀속 행 알림이 조용히 죽는다** — 실사용 계정 재등록 후
+    첫 dogfood 스윕에서 실제로 재현됐다.
+    """
+    import src.tasks.trading as trading_mod
+
+    account = await _make_account(db_session)
+    row = _row(account.id, order_id="dogfood-1", closed_pnl="-1.23", created_at=_BASE)
+    db_session.add(row)
+    await db_session.commit()
+    # expire_all() 뒤엔 만료된 속성의 동기 접근이 MissingGreenlet 을 던진다 — 호출부에
+    # 넘길 값은 전부 미리 꺼내둔다.
+    row_hash = row.row_hash
+    account_id = account.id
+    # identity map 이 방금 넣은 enum 인스턴스를 그대로 돌려주면 버그가 재현되지 않는다.
+    # expire 로 다음 접근을 강제 재조회시켜 실제 컬럼 타입(plain str)을 통과하게 한다.
+    db_session.expire_all()
+
+    @asynccontextmanager
+    async def sm():
+        yield db_session
+
+    send_alert = AsyncMock(return_value={"slack": True, "telegram": True})
+    monkeypatch.setattr(trading_mod, "send_rule_alert", send_alert)
+
+    alerted = await trading_mod._alert_new_exchange_exits(sm, account_id, [row_hash])
+
+    assert alerted is True, "reload 된 classification 이 str 이라 알림이 예외로 죽으면 안 된다"
+    send_alert.assert_awaited_once()
+    assert send_alert.await_args.kwargs["context"]["classifications"] == {"external_manual": 1}
