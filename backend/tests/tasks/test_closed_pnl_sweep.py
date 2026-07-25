@@ -31,7 +31,11 @@ def _snapshot(
     *,
     created_at_ms: int | None,
     closed_pnl: str = "1",
-    symbol: str | None = "BTC/USDT",
+    # ★거래소 원문이 기본값이다. Bybit closed-pnl 은 `BTCUSDT` 를 돌려준다(실측 —
+    # trading.exchange_exits 4행 전부 symbol='BTCUSDT'). 예전 기본값 `BTC/USDT` 는
+    # 우리 canonical 표기라, 원장 쪽 피연산자를 우리 표기로 위장해 BL-464(귀속 축이
+    # 심볼 공간 불일치로 죽어 있음)를 한 스프린트 내내 안 보이게 만들었다.
+    symbol: str | None = "BTCUSDT",
 ) -> ClosedPnlSnapshot:
     raw = {
         "orderId": order_id,
@@ -57,15 +61,24 @@ def _snapshot(
     )
 
 
-def _order(account_id: UUID, exchange_order_id: str, *, synced: bool = False) -> SimpleNamespace:
+def _order(
+    account_id: UUID,
+    exchange_order_id: str,
+    *,
+    synced: bool = False,
+    reduce_only: bool = True,
+    strategy_id: UUID | None = None,
+) -> SimpleNamespace:
+    # symbol 은 우리 canonical(ccxt unified) 이다. 거래소 원문(`_snapshot`)과 다른
+    # 공간이라는 것이 BL-464 의 요점이므로 여기서 임의로 맞추지 않는다.
     return SimpleNamespace(
         id=uuid4(),
-        strategy_id=uuid4(),
+        strategy_id=strategy_id or uuid4(),
         exchange_account_id=account_id,
         exchange_order_id=exchange_order_id,
         symbol="BTC/USDT",
         side=OrderSide.buy,
-        reduce_only=True,
+        reduce_only=reduce_only,
         quantity=Decimal("1"),
         filled_price=Decimal("100"),
         filled_at=datetime(2026, 7, 1, tzinfo=UTC),
@@ -83,6 +96,9 @@ class _State:
         self.row_hashes: set[str] = set()
         self.matched_orders: list[SimpleNamespace] = []
         self.attribution_orders: list[SimpleNamespace] = []
+        # BL-457 — 실재하는 우리 Order.id 집합. 비어 있으면 link-id 만으로는
+        # 소유를 주장하지 못한다.
+        self.existing_order_ids: set[UUID] = set()
         self.unsynced_orders: list[SimpleNamespace] = []
         self.synced_orders: list[SimpleNamespace] = []
         self.backfills: list[tuple[UUID, Decimal]] = []
@@ -156,6 +172,12 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
 
         async def list_filled_for_attribution(self, account_id: UUID):
             return state.attribution_orders
+
+        async def list_existing_ids(self, account_id: UUID, order_ids) -> frozenset[UUID]:
+            # ★기본이 빈 집합이다. link-id 로 `ours` 를 주장하려는 테스트는 반드시
+            # `state.existing_order_ids` 에 명시적으로 넣어야 한다 — 엄격함이 하네스에
+            # 드러나야 BL-457 회귀가 조용히 통과하지 못한다.
+            return frozenset(state.existing_order_ids) & frozenset(order_ids)
 
         async def list_unsynced_reduce_only(self, account_id: UUID):
             return state.unsynced_orders
@@ -465,3 +487,135 @@ async def test_sweep_counts_rows_it_cannot_persist_as_malformed(
 
     assert counter._value.get() == before + 1
     assert state.rows == []
+
+
+@pytest.mark.asyncio
+async def test_sweep_does_not_claim_an_unmatched_row_as_ours_without_an_order_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-457 — UUID 모양 orderLinkId 만으로는 소유를 주장하지 못한다.
+
+    핵심은 라벨이 아니라 **알림**이다. `_alert_new_exchange_exits` 는
+    `classification != ours` 로 거르므로, 형식만 보고 `ours` 를 붙이면 UUID 모양 client
+    order id 를 단 외부 청산이 운영자 알림에서 조용히 빠진다. 그래서 라벨과 함께
+    알림이 실제로 발화하는 것까지 단정한다.
+    """
+    import src.tasks.trading as trading_mod
+
+    state = _State([_account()])
+    _install_repositories(monkeypatch, state)
+    send_alert = AsyncMock(return_value={"slack": True, "telegram": True})
+    monkeypatch.setattr(trading_mod, "send_rule_alert", send_alert)
+    # 우리 DB 에 없는 UUID — 외부 도구가 UUID 모양 client id 를 단 경우다.
+    foreign_uuid = str(uuid4())
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            return_value=[_snapshot("exchange-exit", created_at_ms=1)]
+        ),
+        fetch_closed_order_meta=AsyncMock(
+            return_value={
+                "exchange-exit": ClosedOrderMeta("exchange-exit", "CreateByUser", None, foreign_uuid)
+            }
+        ),
+    )
+
+    unverified = trading_mod.qb_exchange_exit_link_unverified_total
+    before = unverified._value.get()
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=datetime(2026, 7, 25, tzinfo=UTC)
+    )
+
+    # `external_manual` 도 아니다 — 사람은 UUID4 를 타이핑하지 않는다.
+    assert state.rows[0].classification == ExitClassification.unknown
+    assert summary["alerted"] == 1
+    assert send_alert.await_count == 1
+    # 라벨이 소유를 주장하지 않고 떨어진 사실 자체가 관측돼야 한다. 이게 없으면
+    # "우리 주문 이력이 사라졌다" 와 "외부 도구가 UUID 를 쓴다" 를 구분할 수 없다.
+    assert unverified._value.get() == before + 1
+
+
+@pytest.mark.asyncio
+async def test_sweep_claims_an_unmatched_row_as_ours_when_the_order_row_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """실재 확인이 되면 거래소 주문 id 매칭이 없어도 우리 것이다.
+
+    ★이 경로가 살아 있어야 하는 이유 — 도달하는 행은 정의상 `state == filled` 매칭에
+    실패한 주문(`submitted` 등)이다. membership 쿼리에 `state` 필터를 넣으면 바로 이
+    테스트가 깨진다.
+    """
+    import src.tasks.trading as trading_mod
+
+    account = _account()
+    state = _State([account])
+    our_order = _order(account.id, "not-yet-reconciled")
+    state.existing_order_ids = {our_order.id}
+    _install_repositories(monkeypatch, state)
+    send_alert = AsyncMock(return_value={"slack": True, "telegram": True})
+    monkeypatch.setattr(trading_mod, "send_rule_alert", send_alert)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            return_value=[_snapshot("exchange-exit", created_at_ms=1)]
+        ),
+        fetch_closed_order_meta=AsyncMock(
+            return_value={
+                "exchange-exit": ClosedOrderMeta(
+                    "exchange-exit", "CreateByUser", None, str(our_order.id)
+                )
+            }
+        ),
+    )
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=datetime(2026, 7, 25, tzinfo=UTC)
+    )
+
+    assert state.rows[0].classification == ExitClassification.ours
+    assert summary["alerted"] == 0
+    assert send_alert.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_sweep_infers_the_strategy_across_the_exchange_symbol_space(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-464 — 귀속 비교는 거래소 표기와 우리 표기를 같은 공간에서 해야 한다.
+
+    원장 쪽 심볼은 Bybit 원문(`BTCUSDT`)이고 우리 주문 심볼은 canonical
+    (`BTC/USDT`)이다. `attribute_exit` 이 두 문자열을 그대로 동등 비교하면 어떤
+    표본에서도 매칭이 성립하지 않아 `inferred` 축이 **구조적으로 죽는다** — 데이터가
+    있어도 항상 `none` 이다. 그래서 "0행이라 0" 과 구분되는 실패다.
+
+    이 테스트는 매칭 가능한 진입 주문을 실제로 넣고 `inferred` 를 요구한다.
+    """
+    import src.tasks.trading as trading_mod
+    from src.tasks.trading import _datetime_to_ms
+    from src.trading.models import ExitAttribution
+
+    now = datetime(2026, 7, 25, tzinfo=UTC)
+    exit_at_ms = _datetime_to_ms(datetime(2026, 7, 20, tzinfo=UTC))
+    account = _account()
+    strategy_id = uuid4()
+    state = _State([account])
+    # 진입 주문 — reduce_only=False + filled_price == snapshot.avg_entry_price(100).
+    # 순포지션이 0 이 아니어야 하므로 buy 1 계약만 둔다.
+    state.attribution_orders = [
+        _order(account.id, "entry-order", reduce_only=False, strategy_id=strategy_id)
+    ]
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        # 매칭되지 않는 청산 행 — 그래서 귀속 추정 경로로 들어간다.
+        fetch_closed_pnl_window=AsyncMock(
+            return_value=[_snapshot("exchange-exit", created_at_ms=exit_at_ms)]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+
+    await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=now
+    )
+
+    assert len(state.rows) == 1
+    assert state.rows[0].attribution_confidence == ExitAttribution.inferred
+    assert state.rows[0].attributed_strategy_id == strategy_id

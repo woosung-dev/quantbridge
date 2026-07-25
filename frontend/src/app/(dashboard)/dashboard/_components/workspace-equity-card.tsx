@@ -22,6 +22,11 @@ interface WorkspaceEquityCardProps {
   activeSessionCount: number;
   /** 최신 누적 손익 값 (범례 표기용). */
   latestValue: number;
+  /**
+   * BL-458 — 출처 소계를 신뢰할 수 있는지. `true` 일 때만 "구간별 출처는 여기 표시하지
+   * 않는다" 는 고지를 붙인다. 소계 자체가 없으면 그 고지도 근거가 없다.
+   */
+  hasProvenanceSplit?: boolean;
 }
 
 export function WorkspaceEquityCard({
@@ -29,6 +34,7 @@ export function WorkspaceEquityCard({
   isLoading,
   activeSessionCount,
   latestValue,
+  hasProvenanceSplit = false,
 }: WorkspaceEquityCardProps) {
   // 곡선은 최소 2점 이상이어야 의미가 있다. 1점 이하는 "아직 없음" 으로 본다.
   const hasSeries = data.length >= 2;
@@ -90,6 +96,18 @@ export function WorkspaceEquityCard({
         <InfoIcon />
         세션이 보고한 누적 실현 손익 지점을 시간순으로 병합한 값입니다. 데모 계좌는 Bybit 데모
         환경의 주문 결과이며 실자금이 아닙니다.
+        {/* BL-458 — ★포인트별 출처는 이 곡선에 표시할 수 없다. 병합은 각 세션의 마지막
+            누적값을 carry-forward 해 더하므로, 한 지점의 값은 대부분 과거 거래에서
+            실려온 값의 합이다. 그걸 "이 시점의 출처" 로 칠하면 적극적으로 틀린다.
+            그래서 곡선은 집계 수준으로만 고지하고, 구간별 표시는 세션 상세에서 한다. */}
+        {hasProvenanceSplit ? (
+          <>
+            {" "}
+            구간별 출처는 이 곡선에 표시하지 않습니다. 병합 지점의 값은 여러 세션의 과거 누적이
+            합쳐진 값이라 한 시점의 출처로 칠할 수 없습니다. 확정·추정 구분은 세션 상세에서
+            봅니다.
+          </>
+        ) : null}
       </p>
     </div>
   );

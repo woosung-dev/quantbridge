@@ -9,15 +9,24 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from src.common.metrics import qb_webhook_symbol_rejected_total
+from src.common.normalized_symbol import normalize_symbol_input
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import WebhookUnauthorized
 from src.trading.models import OrderSide, OrderType
 from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+
+logger = logging.getLogger(__name__)
+
+# 미인식 심볼 원문을 로그에 남길 때의 상한. 진짜 포맷을 배우는 것이 목적이므로 자르되,
+# 통째로 버리지는 않는다.
+_SYMBOL_LOG_MAX = 64
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +73,27 @@ class WebhookService:
             raise WebhookUnauthorized("Invalid HMAC token or strategy_id")
 
 
+def _normalized_symbol_or_reject(raw: object) -> str:
+    """웹훅 심볼을 canonical 로 정규화하고, 못 하면 관측을 남기고 거부한다 (BL-454).
+
+    ★거부 자체는 바깥 `except (KeyError, ValueError, ...)` 가 `WebhookUnauthorized`
+    (401) 로 바꾸므로 계약은 그대로다. 여기서 하는 일은 **그 거부를 보이게 만드는 것**
+    뿐이다 — 카운터는 "일어나고 있나" 에만 답하고, TradingView 가 실제로 무슨 문자열을
+    보내는지는 로그만 답한다. `{{ticker}}` 가 퍼프에서 `BTCUSDT` 인지 `BTCUSDT.P` 인지
+    1차 출처로 확인하지 못했으므로, 장식 제거를 추측으로 넣는 대신 첫 실사용의 이 로그로
+    실제 포맷을 배운다.
+    """
+    try:
+        return normalize_symbol_input(raw)
+    except ValueError:
+        qb_webhook_symbol_rejected_total.inc()
+        logger.warning(
+            "webhook_symbol_normalize_failed",
+            extra={"symbol": str(raw)[:_SYMBOL_LOG_MAX]},
+        )
+        raise
+
+
 def parse_tv_payload(payload: dict[str, object]) -> ParsedTradeSignal:
     """TradingView alert payload -> 표준 signal. 필수 필드: symbol, side, quantity, type.
 
@@ -86,7 +116,7 @@ def parse_tv_payload(payload: dict[str, object]) -> ParsedTradeSignal:
             None if realized_pnl_raw is None else Decimal(str(realized_pnl_raw))
         )
         return ParsedTradeSignal(
-            symbol=str(payload["symbol"]),
+            symbol=_normalized_symbol_or_reject(payload["symbol"]),
             side=OrderSide(str(payload["side"]).lower()),
             type=OrderType(str(payload.get("type", "market")).lower()),
             quantity=Decimal(str(payload["quantity"])),

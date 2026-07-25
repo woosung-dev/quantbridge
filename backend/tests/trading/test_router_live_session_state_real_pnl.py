@@ -172,6 +172,12 @@ async def test_state_pending_returns_unevaluated_zero_response(client, mock_cler
         "last_strategy_state_report": {},
         "total_closed_trades": 0,
         "total_realized_pnl": "0",
+        # BL-458 — 소계도 응답 형태의 일부다. 이 정확-dict 단정이 신규 필드를 그냥
+        # 통과시키면 응답 계약 동결이 무의미해지므로 명시적으로 적는다.
+        "confirmed_realized_pnl": "0",
+        "estimated_realized_pnl": "0",
+        "confirmed_closed_trades": 0,
+        "estimated_closed_trades": 0,
         "equity_curve": [],
         "updated_at": None,
     }
@@ -252,3 +258,63 @@ async def test_two_sessions_on_the_same_tuple_get_separate_curves(
     assert Decimal(str(second_body["total_realized_pnl"])) == Decimal("-20")
     assert first_body["total_closed_trades"] == second_body["total_closed_trades"] == 1
     assert len(first_body["equity_curve"]) == len(second_body["equity_curve"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_state_labels_each_curve_point_with_its_provenance(
+    client, mock_clerk_auth, db_session
+):
+    """BL-458 — 커브 포인트마다 그 시점 델타의 출처가 실려야 한다.
+
+    ★이 테스트의 진짜 목적은 **리포지토리의 SQL 술어와 라우터의 파이썬 라벨이 서로
+    반전되지 않았는지** 확인하는 것이다. 두 경로는 독립 구현이라 한쪽만 뒤집혀도
+    합계는 맞고 라벨만 거짓이 된다 — 그 상태는 화면에서 구분할 수 없다.
+
+    금액을 서로 다르게 심어 어느 쪽이 뒤집혔는지 숫자가 지목하게 한다.
+    """
+    _, account, session = await _seed_session(db_session, mock_clerk_auth)
+    strategy_id = session.strategy_id
+
+    def _order(*, pnl: str, minute: int, synced: bool):
+        return Order(
+            strategy_id=strategy_id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=Decimal("1"),
+            state=OrderState.filled,
+            realized_pnl=Decimal(pnl),
+            realized_pnl_synced_at=(
+                datetime(2026, 7, 1, 9, 0, tzinfo=UTC) if synced else None
+            ),
+            filled_at=datetime(2026, 7, 1, 8, 0, tzinfo=UTC) + timedelta(minutes=minute),
+        )
+
+    # 시간 순서대로 추정 → 확정. 라벨이 뒤집히면 순서가 반대로 나온다.
+    db_session.add_all(
+        [
+            _order(pnl="-4", minute=1, synced=False),
+            _order(pnl="-2", minute=2, synced=True),
+        ]
+    )
+    await db_session.flush()
+
+    resp = await client.get(f"/api/v1/live-sessions/{session.id}/state")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert [p["source"] for p in body["equity_curve"]] == ["estimated", "confirmed"]
+    # 누적은 그대로 −4 → −6. 라벨은 가산적이고 산술을 건드리지 않는다.
+    # `Numeric(18,8)` 이라 문자열은 `-4.00000000` 로 온다 — 값으로 비교한다.
+    assert [Decimal(p["cumulative_pnl"]) for p in body["equity_curve"]] == [
+        Decimal("-4"),
+        Decimal("-6"),
+    ]
+    assert Decimal(body["confirmed_realized_pnl"]) == Decimal("-2")
+    assert Decimal(body["estimated_realized_pnl"]) == Decimal("-4")
+    assert (body["confirmed_closed_trades"], body["estimated_closed_trades"]) == (1, 1)
+    # ★항등식 — 소계 합이 게이트가 쓰는 총계와 같다.
+    assert Decimal(body["confirmed_realized_pnl"]) + Decimal(
+        body["estimated_realized_pnl"]
+    ) == Decimal(body["total_realized_pnl"])

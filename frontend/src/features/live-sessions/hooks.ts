@@ -214,6 +214,13 @@ export interface LiveSessionsAggregate {
   totalRealizedPnl: number;
   /** 합산 종료 거래 수. */
   totalClosedTrades: number;
+  /**
+   * BL-458 — 합산 손익 중 거래소가 확정한 몫. `null` = 채워진 세션 중 하나라도
+   * 소계를 보고하지 않아 분할을 신뢰할 수 없다는 뜻이다. **0 과 구분해야 한다.**
+   */
+  confirmedRealizedPnl: number | null;
+  /** 합산 손익 중 pine_v2 추정 몫. `null` 의 의미는 위와 같다. */
+  estimatedRealizedPnl: number | null;
   /** 세션별 누적 실현-PnL 곡선을 병합한 포트폴리오 곡선 (epoch seconds). */
   mergedEquityCurve: CurvePoint[];
   /** state 가 채워진(evaluate 된) 세션 수. */
@@ -241,6 +248,11 @@ function combineLiveSessionStates(
   let totalClosedTrades = 0;
   let populatedSessions = 0;
   const curves: CurvePoint[][] = [];
+  // BL-458 — 출처 소계는 **모든** 채워진 세션이 보고했을 때만 합산한다. 부분 분할은
+  // 없는 것보다 나쁘다("확정 −2" 가 실제로는 세션 하나만의 확정일 수 있다).
+  let confirmedRealizedPnl = 0;
+  let estimatedRealizedPnl = 0;
+  let splitReportedSessions = 0;
 
   for (const r of results) {
     const state = r.data;
@@ -249,6 +261,18 @@ function combineLiveSessionStates(
     const pnl = Number(state.total_realized_pnl);
     if (Number.isFinite(pnl)) totalRealizedPnl += pnl;
     totalClosedTrades += state.total_closed_trades ?? 0;
+    const confirmed = Number(state.confirmed_realized_pnl);
+    const estimated = Number(state.estimated_realized_pnl);
+    if (
+      state.confirmed_realized_pnl !== undefined &&
+      state.estimated_realized_pnl !== undefined &&
+      Number.isFinite(confirmed) &&
+      Number.isFinite(estimated)
+    ) {
+      confirmedRealizedPnl += confirmed;
+      estimatedRealizedPnl += estimated;
+      splitReportedSessions += 1;
+    }
     if (state.equity_curve && state.equity_curve.length > 0) {
       curves.push(
         state.equity_curve
@@ -261,9 +285,15 @@ function combineLiveSessionStates(
     }
   }
 
+  const splitComplete =
+    populatedSessions > 0 && splitReportedSessions === populatedSessions;
+
   return {
     totalRealizedPnl,
     totalClosedTrades,
+    // 하나라도 소계를 안 보고했으면 null — 반쪽 분할을 그리지 않는다.
+    confirmedRealizedPnl: splitComplete ? confirmedRealizedPnl : null,
+    estimatedRealizedPnl: splitComplete ? estimatedRealizedPnl : null,
     mergedEquityCurve: mergeCumulativeCurves(curves),
     populatedSessions,
     isLoading: results.some((r) => r.isLoading),

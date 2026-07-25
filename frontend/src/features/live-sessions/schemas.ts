@@ -37,8 +37,20 @@ export type LiveSessionListResponse = z.infer<typeof LiveSessionListResponseSche
 export const EquityCurvePointSchema = z.object({
   timestamp_ms: z.number(),
   cumulative_pnl: z.string(), // Decimal as string (precision 보존)
+  // BL-458 — 그 시점 델타(주문 1건)의 출처. 누적값의 출처가 아니다 — 첫 혼재 거래
+  // 이후의 누적은 구조상 혼재다. `.optional()` 인 이유는 `.default()` 가 추론 출력
+  // 타입에서 필수가 되어 기존 픽스처 전부를 깨기 때문이다. 부재는 "추정" 으로 읽는다
+  // (증거 부재가 "확정" 이 되면 안 된다).
+  source: z.enum(["confirmed", "estimated"]).optional(),
 });
 export type EquityCurvePoint = z.infer<typeof EquityCurvePointSchema>;
+
+/** 커브 포인트 출처 — 부재는 추정으로 폴백한다(fail-safe 방향). */
+export function curvePointSource(
+  point: Pick<EquityCurvePoint, "source">,
+): "confirmed" | "estimated" {
+  return point.source ?? "estimated";
+}
 
 export const LiveSignalStateSchema = z.object({
   session_id: z.uuid(),
@@ -47,6 +59,12 @@ export const LiveSignalStateSchema = z.object({
   last_strategy_state_report: z.record(z.string(), z.unknown()),
   total_closed_trades: z.number(),
   total_realized_pnl: z.string(),
+  // BL-458 — 출처 소계. `total_realized_pnl` 은 여전히 둘을 합친 값이다.
+  // `.optional()` — 구 응답 호환 + 부분 분할을 "0" 으로 위장하지 않기 위해.
+  confirmed_realized_pnl: z.string().optional(),
+  estimated_realized_pnl: z.string().optional(),
+  confirmed_closed_trades: z.number().optional(),
+  estimated_closed_trades: z.number().optional(),
   // Sprint 28 Slice 3 (BL-140b) — cumulative realized PnL timeseries.
   // 형식: [{"timestamp_ms": 1700000000000, "cumulative_pnl": "0.123"}, ...]
   // 빈 array default (legacy session 호환).

@@ -168,4 +168,33 @@ describe("buildActivityTimelineWithEquity (two-pointer 경계)", () => {
     );
     expect(result.map((p) => p.cumulative_pnl)).toEqual([10.5, -3.25]);
   });
+
+  it("BL-458 — carry-forward 되는 값의 출처도 같이 옮긴다", () => {
+    // ★값만 옮기고 출처를 안 옮기면 차트 색이 값과 어긋난다 — 그 상태는 화면에서
+    // 구분할 수 없고, "확정" 으로 잘못 칠해지면 없는 신뢰를 주장하는 셈이다.
+    const result = buildActivityTimelineWithEquity(
+      [
+        ev({ bar_time: "2026-05-01T12:00:00Z", sequence_no: 0, action: "entry" }),
+        ev({ bar_time: "2026-05-01T14:00:00Z", sequence_no: 0, action: "close" }),
+      ],
+      [
+        { ...eq("2026-05-01T12:00:00Z", "-4"), source: "estimated" },
+        { ...eq("2026-05-01T13:00:00Z", "-6"), source: "confirmed" },
+      ],
+    );
+
+    expect(result.map((p) => p.cumulative_pnl)).toEqual([-4, -6]);
+    expect(result.map((p) => p.cumulative_pnl_source)).toEqual([
+      "estimated",
+      "confirmed",
+    ]);
+  });
+
+  it("BL-458 — source 가 없는 구 응답은 추정으로 폴백한다", () => {
+    const result = buildActivityTimelineWithEquity(
+      [ev({ bar_time: "2026-05-01T12:00:00Z", sequence_no: 0, action: "entry" })],
+      [eq("2026-05-01T12:00:00Z", "-4")],
+    );
+    expect(result[0]!.cumulative_pnl_source).toBe("estimated");
+  });
 });

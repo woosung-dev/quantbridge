@@ -15,6 +15,12 @@
 
 import { useMemo } from "react";
 
+// BL-458 — 주문 블로터가 행 단위로 쓰는 출처 어휘 SSOT 를 그대로 재사용한다.
+// `live-sessions/labels.ts` 로 복사하면 블로터 칩과 이 칩이 다른 말을 하게 된다.
+import {
+  ORDER_REALIZED_PNL_SOURCE_HINT,
+  ORDER_REALIZED_PNL_SOURCE_LABEL,
+} from "@/features/trading/labels";
 import { labelOf } from "@/lib/labels";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
@@ -84,6 +90,29 @@ export function LiveSessionDetail({ session }: Props) {
                 <PnlValue raw={state?.total_realized_pnl ?? "0"} />
               )}
             </dd>
+            {/* BL-458 — 이 숫자의 신뢰 등급. 어휘는 주문 블로터 칩과 동일한 SSOT 를
+                쓴다(복사하면 두 화면이 다른 말을 하게 된다). 소계가 없으면(구 응답)
+                아무것도 그리지 않는다 — 부재를 0 으로 위장하지 않는다. */}
+            {!stateLoading &&
+            state?.confirmed_realized_pnl !== undefined &&
+            state.estimated_realized_pnl !== undefined ? (
+              <dd className="mt-1 flex flex-wrap gap-1">
+                <span
+                  className="chip chip-xs"
+                  title={ORDER_REALIZED_PNL_SOURCE_HINT.confirmed}
+                >
+                  {ORDER_REALIZED_PNL_SOURCE_LABEL.confirmed}{" "}
+                  <PnlValue raw={state.confirmed_realized_pnl} />
+                </span>
+                <span
+                  className="chip chip-xs"
+                  title={ORDER_REALIZED_PNL_SOURCE_HINT.estimated}
+                >
+                  {ORDER_REALIZED_PNL_SOURCE_LABEL.estimated}{" "}
+                  <PnlValue raw={state.estimated_realized_pnl} />
+                </span>
+              </dd>
+            ) : null}
           </div>
         </dl>
       </div>

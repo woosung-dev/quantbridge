@@ -203,3 +203,39 @@ def test_side_as_none_raises_webhook_unauthorized():
     }
     with pytest.raises(WebhookUnauthorized):
         parse_tv_payload(payload)
+
+
+# === BL-454 — 심볼 ingress 정규화 ===
+
+
+def test_parse_normalizes_the_symbol_to_ccxt_unified():
+    """TV 는 거래소 원문 티커를 보낸다. 세션 스코프는 정확 문자열 동등이라 여기서 맞춘다.
+
+    이 정규화가 없으면 표기가 어긋난 웹훅 주문이 세션 손익에서 조용히 빠지고
+    loss-limit 알림이 fail-open 한다(BL-445 가 넣은 symbol 술어의 대가).
+    """
+    from src.trading.webhook import parse_tv_payload
+
+    parsed = parse_tv_payload(
+        {"symbol": "BTCUSDT", "side": "buy", "quantity": "1", "type": "market"}
+    )
+    assert parsed.symbol == "BTC/USDT"
+
+
+def test_parse_rejects_and_counts_a_symbol_it_cannot_normalize():
+    """★fail-closed + 관측. 거부 자체는 기존 401 계약 그대로다.
+
+    카운터는 "일어나고 있나" 에만 답한다. TV 가 실제로 무슨 문자열을 보내는지는
+    `webhook_symbol_normalize_failed` 로그의 원문만 답한다 — `.P` 여부를 1차 출처로
+    확인하지 못했으므로 장식 제거를 추측으로 넣지 않고 이 경로로 배운다.
+    """
+    from src.common.metrics import qb_webhook_symbol_rejected_total
+    from src.trading.exceptions import WebhookUnauthorized
+    from src.trading.webhook import parse_tv_payload
+
+    before = qb_webhook_symbol_rejected_total._value.get()
+    with pytest.raises(WebhookUnauthorized):
+        parse_tv_payload(
+            {"symbol": "BTCUSDT.P", "side": "buy", "quantity": "1", "type": "market"}
+        )
+    assert qb_webhook_symbol_rejected_total._value.get() == before + 1

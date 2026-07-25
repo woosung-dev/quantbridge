@@ -131,11 +131,20 @@ export function ActivityTimelineChart({
   const equityData = useMemo<ChartPoint[]>(() => {
     if (!showEquity) return [];
     return data.map((p, i) => {
-      const eq = (p as ActivityTimelineWithEquityPoint).cumulative_pnl;
-      return {
+      const withEquity = p as ActivityTimelineWithEquityPoint;
+      const eq = withEquity.cumulative_pnl;
+      // BL-458 — 추정 구간은 흐린 색으로 그린다. 새 팔레트 토큰을 만들지 않고 기존
+      // fallback 축 색을 재사용한다. 확정 구간은 색을 **주지 않아** 시리즈 기본색을
+      // 그대로 쓴다(테마 토큰이 살아 있는 경로를 우회하지 않기 위해).
+      const point: ChartPoint = {
         time: pointToTime(p.label, i),
         value: typeof eq === "number" ? eq : 0,
       };
+      // `toHistogramData` 와 같은 형태 — 색이 있을 때만 새 객체를 만든다. 빈 스프레드는
+      // 확정 구간마다 불필요한 객체를 하나씩 더 만든다.
+      return withEquity.cumulative_pnl_source === "estimated"
+        ? { ...point, color: CHART_PALETTE_FALLBACK.axis }
+        : point;
     });
   }, [data, showEquity]);
 

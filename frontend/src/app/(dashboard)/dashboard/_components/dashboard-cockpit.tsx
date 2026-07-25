@@ -31,6 +31,11 @@ import { useOptimizationRuns } from "@/features/optimizer/hooks";
 import { OPTIMIZATION_STATUS_LABEL } from "@/features/optimizer/labels";
 import type { OptimizationRunResponse } from "@/features/optimizer/schemas";
 import { useExchangeAccounts } from "@/features/trading";
+// BL-458 — 출처 어휘 SSOT. 블로터 칩·세션 상세 칩과 같은 두 단어를 쓴다.
+import {
+  ORDER_REALIZED_PNL_SOURCE_HINT,
+  ORDER_REALIZED_PNL_SOURCE_LABEL,
+} from "@/features/trading/labels";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 import { WorkspaceEquityCard } from "./workspace-equity-card";
@@ -201,6 +206,19 @@ export function DashboardCockpit() {
               실현 손익 합입니다.
               <br />
               미실현(추정) {unrealized.total === null ? "—" : formatSignedUsd(unrealized.total)}
+              {/* BL-458 — 이 합계의 신뢰 등급. 채워진 세션 중 하나라도 소계를 안
+                  보고하면 집계가 null 이라 아무것도 그리지 않는다 — 반쪽 분할을
+                  전체인 것처럼 보여주지 않는다. */}
+              {agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null ? (
+                <>
+                  <br />
+                  이 중 {ORDER_REALIZED_PNL_SOURCE_LABEL.confirmed}{" "}
+                  {formatSignedUsd(agg.confirmedRealizedPnl)} ·{" "}
+                  {ORDER_REALIZED_PNL_SOURCE_LABEL.estimated}{" "}
+                  {formatSignedUsd(agg.estimatedRealizedPnl)} 입니다.{" "}
+                  {ORDER_REALIZED_PNL_SOURCE_HINT.estimated}.
+                </>
+              ) : null}
             </p>
           </article>
 
@@ -234,6 +252,9 @@ export function DashboardCockpit() {
           isLoading={agg.isLoading}
           activeSessionCount={activeSessions.length}
           latestValue={agg.totalRealizedPnl}
+          hasProvenanceSplit={
+            agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null
+          }
         />
       </section>
 

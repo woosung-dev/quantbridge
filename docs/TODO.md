@@ -1,8 +1,51 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-26 (backtest-trust 스프린트 — 백테스트 숫자 신뢰도)
-> **Active Sprint:** **backtest-trust** — BL-398 + BL-186a + BL-388
-> **Active Branch:** `stage/backtest-trust` (main @ `a4954e4` 베이스)
+> **Last Updated:** 2026-07-26 (money-path-finish 스프린트 — 머니-패스 정확도 마감 팩)
+> **Active Sprint:** **money-path-finish** — BL-457 + BL-454 + BL-458 + 신규 BL-464
+> **Active Branch:** `stage/money-path-finish` (main @ `b97ac57` 베이스)
+
+## ⚡ money-path-finish 스프린트 (2026-07-26, `docs/money-path-finish/`)
+
+**스코프**: 트레이딩 6스프린트(#472~#478)가 남긴 **숫자 정확도 부채**. 로드맵 권장 착수 순서 #2. 마이그레이션 **0**.
+
+### ★§0.5 실측이 전제를 2건 정정하고 결함 1건을 새로 찾았다
+
+```
+BL-457 의 "새 쿼리 불필요" 는 틀렸다 — attribution_facts 는 limit=500 + state==filled 로
+좁혀졌고 실재 확인이 필요한 행은 정의상 filled 매칭 실패 행이다 → 재사용하면 진짜 우리
+청산이 external 로 뒤집힌다. 백로그 본문의 그 권장 접근을 제자리에서 정정했다.
+
+format:check 는 이 레포의 통과 가능 게이트가 아니다 — main 에서 이미 356 파일 red.
+lint-staged 가 FE TS 에 eslint 만 돌려서 드리프트가 누적된 구조다(package.json:14-26).
+
+★신규 BL-464 — attribute_exit 이 order.symbol(BTC/USDT)을 snapshot.symbol(BTCUSDT)과
+비교해 inferred 귀속이 구조적으로 죽어 있었다. 픽스처 기본값이 우리 canonical 로
+위장돼 한 스프린트 동안 안 보였다.
+```
+
+### Completed
+
+- [x] **S1 BL-464** — `_order_facts` + `attribute_exit` 호출 양쪽 `to_bybit_raw_symbol` 정렬. C-red 로 죽은 축을 **테스트로 증명**한 뒤 green. `normalize_symbol` 미사용 이유 = raise 시 계정 원장 적재 전체 손실
+- [x] **S2 BL-457** — `classify_exit(known_order_ids)` **필수** + `list_existing_ids`(술어 2개 · **state 무필터**) + 분기 8 신규(`unknown` — 사람은 UUID4 를 타이핑하지 않는다) + 메트릭 2 + 경고 로그. 부수 이득 = **버려지던 TP/SL·청산 유래 부활**
+- [x] **S3 BL-454** — `src/common/normalized_symbol.py` 공용 프리미티브(선례 `strict_decimal_input.py` 미러) + 두 ingress + **거부 + 관측**(장식 제거 추측 금지). 순수 이동 증명 = `test_constants.py` **git diff 0 통과**
+- [x] **S4 BL-458 부분** — Site 3 `realized_pnl_split_for_session`(PG `FILTER` 5 스칼라, 개명·retype 으로 "출처 안 보고 합산" 표현 불가화) + 한국어 알림 본문 + Site 4 포인트별 `source` + 평면 소계 4필드
+- [x] **S5·S6 FE** — zod strip 가드 **선행** + 집계 `number|null`(부분 분할 금지) + 세션 상세 칩 + KPI foot + carry-forward 출처 동반 + 차트 per-point color(**미지정 시 출력 불변** 증명)
+- [x] 게이트: BE **3000**(+28) · FE **1124**(+9) · ruff/mypy/tsc/lint 0 · **canon 32 불변** · build ok · **마이그레이션 0**
+- [x] 검증: codex G0 **BLOCKING 0 · P1 4 · P2 1** → 전건 코드 대조(**P2 수용** — context 는 5키가 아니라 6키이고 인용 테스트는 두 값만 단정 / **P1-4 절반 기각** — 신규 nullable 과 기존 non-null 을 혼동) + `/vercel-react-best-practices`(줌-리셋 함정 재발 없음 확인, 지적 1건 수정)
+
+### ★사용자가 알아야 할 의도된 동작 변경 1건
+
+정규화로 `BTCUSDT` 와 `BTC/USDT` 가 한 문자열로 붕괴해 `uq_live_sessions_active_unique` 에서 **충돌**한다 — 예전 201 이던 등록이 4xx 가 된다. 그게 대시보드 §01 KPI 이중 계상의 원인이었으므로 수정의 요점이다. `live_signal_sessions` 0행이라 배포 시 위반도 백필도 없다.
+
+### Questions
+
+- 화면 종단 dogfood 는 `orders`/`sessions` 0행이라 seed 없이 불가 — 실주문이 필요하면 사용자 요청 선행 [확인 필요]
+
+### Next Actions
+
+- [ ] `stage/money-path-finish` → main PR (squash 는 사용자)
+
+---
 
 ## ⚡ backtest-trust 스프린트 (2026-07-26, `docs/backtest-trust/`)
 

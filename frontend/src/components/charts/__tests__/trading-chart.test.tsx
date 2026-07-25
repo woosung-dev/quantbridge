@@ -1,4 +1,4 @@
-import { act, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import {
   afterEach,
   beforeEach,
@@ -264,5 +264,36 @@ describe("TradingChart", () => {
     const node = getByRole("img");
     expect(node).toBeInTheDocument();
     expect(node.getAttribute("aria-label")).toBe("Backtest equity curve");
+  });
+
+  it("BL-458 — per-point color 는 지정 시 전달되고, 미지정 시 출력이 불변이다", async () => {
+    // ★후자가 이 테스트의 요점이다. `toLineData` 는 이 컴포넌트의 10여 호출자가
+    // 공유하므로, 색을 안 준 경우의 setData 인자가 예전과 정확히 같아야 한다.
+    // `color: undefined` 키가 끼면 그 계약이 깨진다.
+    render(<TradingChart data={POINTS} ariaLabel="Equity chart" height={300} />);
+    await flushChartInit();
+    const plain = (
+      chartInstances[0]!.addLineSeries.mock.results[0]!.value as SeriesSpy
+    ).setData.mock.calls[0]![0] as Array<Record<string, unknown>>;
+    expect(plain.every((d) => !("color" in d))).toBe(true);
+
+    cleanup();
+    chartInstances.length = 0;
+    createChartMock.mockClear();
+
+    const coloured = POINTS.map((p, i) => ({
+      ...p,
+      color: i === 0 ? "#111111" : "#222222",
+    }));
+    render(<TradingChart data={coloured} ariaLabel="Equity chart" height={300} />);
+    await flushChartInit();
+    const withColor = (
+      chartInstances[0]!.addLineSeries.mock.results[0]!.value as SeriesSpy
+    ).setData.mock.calls[0]![0] as Array<Record<string, unknown>>;
+    expect(withColor.map((d) => d.color)).toEqual([
+      "#111111",
+      "#222222",
+      "#222222",
+    ]);
   });
 });
