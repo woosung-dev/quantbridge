@@ -36,6 +36,8 @@ _VALIDATED_CCXT_VERSIONS = frozenset({"4.5.49"})
 # 버린다 → snapshot None → 재시도해도 창이 그대로라 영구 실패 + 오탐 알림.
 # 1h = reconciler 주기(300s) 의 12배 여유. Bybit 의 (endTime - startTime) ≤ 7d 제약 안이다.
 _CLOSED_PNL_LOOKBACK_MS = 3_600_000
+# Bybit closed-pnl/order-history API가 허용하는 최대 조회 창(ms).
+_CLOSED_PNL_MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 # Bybit 한 페이지 상한 100, 최대 5페이지 = 500행. 뒤로 훑는 비용 상한이자 무한루프 방지선.
 _CLOSED_PNL_MAX_PAGES = 5
 
@@ -67,6 +69,24 @@ def _decimal_or_none(
     if (zero_as_none and result == 0) or (finite_only and not result.is_finite()):
         return None
     return result
+
+
+def _int_or_none(value: Any, *, strict: bool = False) -> int | None:
+    """선택적 정수 원본 필드를 안전하게 변환한다.
+
+    Bybit 는 leverage 를 `"6.25"` 같은 소수 문자열로 낼 수 있어 `int(str(v))` 로는
+    조용히 None 이 된다. Decimal 을 거쳐 절사한다.
+    `strict=True` 는 파싱 실패를 전파해 호출자가 행 전체를 버리게 한다 — 값이 원장이나
+    시간창 커서로 쓰이는 필드는 삼키면 안 된다(§7.3).
+    """
+    if value in (None, ""):
+        return None
+    try:
+        return int(Decimal(str(value)))
+    except (InvalidOperation, TypeError, ValueError):
+        if strict:
+            raise
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +237,26 @@ class ClosedPnlSnapshot:
     closed_size: Decimal | None
     avg_exit_price: Decimal | None
     updated_at_ms: int | None
+    symbol: str | None = None
+    # ccxt 정규화값은 closed-pnl에서 방향이 뒤집히므로 반드시 raw info.side를 넣는다.
+    side: str | None = None
+    avg_entry_price: Decimal | None = None
+    qty: Decimal | None = None
+    created_at_ms: int | None = None
+    exec_type: str | None = None
+    order_type: str | None = None
+    leverage: int | None = None
+    raw: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedOrderMeta:
+    """거래소 청산 주문의 출처 메타 — closed-pnl 행에 없는 createType/stopOrderType/orderLinkId 를 보강한다."""
+
+    order_id: str
+    create_type: str | None
+    stop_order_type: str | None
+    order_link_id: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +298,11 @@ def aggregate_closed_pnl_by_order(
     부분 손익이 저장되고, backfill CAS 가 realized_pnl_synced_at 을 채워 재시도를 막으므로
     그 부분값이 **영구 고정**된다. 단일 주문 조회(refresh)와 스윕이 반드시 같은 합산을
     쓰도록 여기 한 곳에 모은다.
+
+    ★반환 스냅샷의 `raw` 와 비합산 필드는 `rows[-1]` 단일 행 값이라 합산된 `closed_pnl`
+    과 일치하지 않는다. 이 결과를 원장에 영속하면 감사 근거가 저장 금액과 어긋난다 —
+    원장은 반드시 `fetch_closed_pnl_window` 의 **행 단위 스냅샷**을 적재해야 하고,
+    이 함수는 주문 단위 금액이 필요한 backfill 경로 전용이다.
     """
     grouped: dict[str, list[ClosedPnlSnapshot]] = {}
     for snapshot in snapshots:
@@ -273,6 +318,19 @@ def aggregate_closed_pnl_by_order(
             closed_size=sum(sizes, Decimal("0")) if sizes else None,
             avg_exit_price=rows[-1].avg_exit_price,
             updated_at_ms=rows[-1].updated_at_ms,
+            symbol=rows[-1].symbol,
+            side=rows[-1].side,
+            avg_entry_price=rows[-1].avg_entry_price,
+            qty=rows[-1].qty,
+            # 분할 체결의 생성 시각은 주문 최초 생성 시각이므로 가장 오래된 값을 보존한다.
+            created_at_ms=min(
+                (row.created_at_ms for row in rows if row.created_at_ms is not None),
+                default=None,
+            ),
+            exec_type=rows[-1].exec_type,
+            order_type=rows[-1].order_type,
+            leverage=rows[-1].leverage,
+            raw=rows[-1].raw,
         )
     return merged
 
@@ -292,23 +350,38 @@ def _closed_pnl_snapshot_from_position(position: dict[str, Any]) -> ClosedPnlSna
     if closed_pnl in (None, ""):
         return None
     try:
-        return ClosedPnlSnapshot(
-            order_id=str(row["orderId"]),
-            closed_pnl=Decimal(str(closed_pnl)),
-            closed_size=(
-                Decimal(str(row["closedSize"])) if row.get("closedSize") not in (None, "") else None
-            ),
-            avg_exit_price=(
-                Decimal(str(row["avgExitPrice"]))
-                if row.get("avgExitPrice") not in (None, "")
-                else None
-            ),
-            updated_at_ms=(
-                int(str(row["updatedTime"])) if row.get("updatedTime") not in (None, "") else None
-            ),
-        )
+        parsed_closed_pnl = Decimal(str(closed_pnl))
+        # ★기존 3필드는 strict 를 유지한다. 파싱 실패를 None 으로 삼키면 행이 살아남아
+        # malformed_row 관측치가 사라지고, 분할 청산에서 closed_size 만 과소 합산돼
+        # 손익과 수량이 서로 모순된 원장 행이 CAS 로 영구 고정된다(§7.3 회귀).
+        parsed_closed_size = _decimal_or_none(row.get("closedSize"), strict=True)
+        parsed_avg_exit_price = _decimal_or_none(row.get("avgExitPrice"), strict=True)
+        parsed_updated_at_ms = _int_or_none(row.get("updatedTime"), strict=True)
     except (InvalidOperation, TypeError, ValueError):
         return None
+    return ClosedPnlSnapshot(
+        order_id=str(row["orderId"]),
+        closed_pnl=parsed_closed_pnl,
+        closed_size=parsed_closed_size,
+        avg_exit_price=parsed_avg_exit_price,
+        updated_at_ms=parsed_updated_at_ms,
+        symbol=str(row["symbol"]) if row.get("symbol") not in (None, "") else None,
+        side=str(row["side"]) if row.get("side") not in (None, "") else None,
+        avg_entry_price=_decimal_or_none(row.get("avgEntryPrice")),
+        qty=_decimal_or_none(row.get("qty")),
+        created_at_ms=_int_or_none(row.get("createdTime")),
+        exec_type=str(row["execType"]) if row.get("execType") not in (None, "") else None,
+        order_type=str(row["orderType"]) if row.get("orderType") not in (None, "") else None,
+        leverage=_int_or_none(row.get("leverage")),
+        raw=dict(row),
+    )
+
+
+def _validate_closed_pnl_window(start_ms: int, end_ms: int) -> None:
+    """Bybit가 허용하는 closed-pnl 계열 조회 창인지 확인한다."""
+    window_ms = end_ms - start_ms
+    if end_ms <= start_ms or window_ms > _CLOSED_PNL_MAX_WINDOW_MS:
+        raise ProviderError(f"closed PnL window is invalid: {window_ms}ms")
 
 
 async def _to_exchange_precision(
@@ -453,9 +526,7 @@ class FixtureExchangeProvider:
             filled_quantity=order.quantity,
         )
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         logger.debug(
             "fixture_cancel_order",
             extra={"exchange_order_id": exchange_order_id, "symbol": symbol},
@@ -558,9 +629,7 @@ class BybitDemoProvider:
             except Exception:
                 logger.warning("bybit_close_failed", exc_info=True)
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         # functional-parity 2026-07-23 — ccxt bybit cancelOrder() 는 symbol 필수
         # (미전달 시 전 호출이 ArgumentsRequired → CF4 fail-closed 로 submitted 잔존.
         # BL-404 fetch_order 와 동형 결함, 실브라우저 dogfood 워커 로그로 발견).
@@ -904,9 +973,7 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
-    async def fetch_open_positions(
-        self, creds: Credentials, symbol: str
-    ) -> list[PositionSnapshot]:
+    async def fetch_open_positions(self, creds: Credentials, symbol: str) -> list[PositionSnapshot]:
         """현재 linear 포지션 leg 전체를 대조용으로 반환한다.
 
         stale trailing-stop 가드의 ``fetch_position``과 달리 hedge mode의 long/short
@@ -960,9 +1027,7 @@ class BybitFuturesProvider:
                         size=size,
                         entry_price=_decimal_or_none(position.get("entryPrice"), strict=True),
                         mark_price=_decimal_or_none(position.get("markPrice"), strict=True),
-                        unrealized_pnl=_decimal_or_none(
-                            position.get("unrealizedPnl"), strict=True
-                        ),
+                        unrealized_pnl=_decimal_or_none(position.get("unrealizedPnl"), strict=True),
                         liquidation_price=_decimal_or_none(
                             position.get("liquidationPrice"), strict=True
                         ),
@@ -1045,9 +1110,7 @@ class BybitFuturesProvider:
                         order_id=order_id,
                         side=str(order.get("side") or info.get("side") or "").lower(),
                         kind=kind,
-                        price=_decimal_or_none(
-                            order.get("price"), zero_as_none=True, strict=True
-                        ),
+                        price=_decimal_or_none(order.get("price"), zero_as_none=True, strict=True),
                         trigger_price=_decimal_or_none(
                             order.get("triggerPrice") or info.get("triggerPrice"),
                             zero_as_none=True,
@@ -1103,47 +1166,106 @@ class BybitFuturesProvider:
         limit: int = 100,
         max_pages: int = _CLOSED_PNL_MAX_PAGES,
     ) -> list[ClosedPnlSnapshot]:
-        """since 이후 closedPnl 행을 원본 문자열 정밀도로 모아 반환한다.
+        """기존 호출자를 위해 since 기반 조회를 최근 Bybit 허용 창으로 제한한다."""
+        start_ms = int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS
+        end_ms = int(datetime.now(UTC).timestamp() * 1000)
+        # Bybit는 7일 초과 창을 거부하므로 오래된 호출도 최근 7일만 조회한다.
+        start_ms = max(start_ms, end_ms - _CLOSED_PNL_MAX_WINDOW_MS)
+        return await self.fetch_closed_pnl_window(
+            creds,
+            symbol,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            limit=limit,
+            max_pages=max_pages,
+            log_context={"symbol": symbol},
+        )
 
-        Bybit 한 페이지 상한은 100이고 ccxt 는 nextPageCursor 를 버린다. 한 번만 조회하면
-        바쁜 (account, symbol) 의 오래된 행이 매 틱 같은 첫 페이지 밖에 남아 영구
-        미동기화된다. until 을 직전 페이지의 가장 오래된 행 **직전**으로 당겨 뒤로 훑되
-        (겹침 없음 = 이중 합산 없음), max_pages 로 비용을 묶는다.
+    async def fetch_closed_pnl_window(
+        self,
+        creds: Credentials,
+        symbol: str | None,
+        *,
+        start_ms: int,
+        end_ms: int,
+        limit: int = 100,
+        max_pages: int = _CLOSED_PNL_MAX_PAGES,
+        log_context: dict[str, str] | None = None,
+    ) -> list[ClosedPnlSnapshot]:
+        """Bybit 허용 창 안에서 closedPnl 행을 겹치지 않게 뒤로 훑는다.
+
+        창 안에 더 오래된 행이 남았는데 다 못 읽으면(``max_pages`` 소진 · 커서 정지)
+        그 행들은 **영구히 조회되지 않는다** — 호출자가 대응할 수단이 없으므로
+        신호를 발생 지점에서 로그로 남긴다. ``log_context`` 는 어느 계정/심볼의
+        조회였는지 식별하는 데 쓴다(같은 함수를 스윕과 체결 직후 refresh 가 함께 쓴다).
         """
-        since_ms = int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS
-        until_ms = int(datetime.now(UTC).timestamp() * 1000)
+        _validate_closed_pnl_window(start_ms, end_ms)
+        until_ms = end_ms
         collected: list[ClosedPnlSnapshot] = []
+        truncated = True
         for _ in range(max_pages):
             page = await self._fetch_closed_pnl_rows(
                 creds,
                 symbol,
-                since_ms=since_ms,
+                since_ms=start_ms,
                 until_ms=until_ms,
                 limit=limit,
             )
             collected.extend(page)
             if len(page) < limit:
+                truncated = False
                 break
-            oldest_ms = min(
-                (row.updated_at_ms for row in page if row.updated_at_ms is not None),
-                default=None,
+            # ★커서 축은 서버 필터와 같아야 한다. Bybit 의 startTime/endTime 과 ccxt
+            # filter_by_since_limit 은 createdTime 기준인데 updatedTime 으로 당기면
+            # updatedTime >= createdTime 이라 커서가 앞으로 가 창이 7일을 넘고(10001)
+            # 같은 페이지를 max_pages 만큼 헛돈다.
+            cursors = [
+                row.created_at_ms if row.created_at_ms is not None else row.updated_at_ms
+                for row in page
+                if row.created_at_ms is not None or row.updated_at_ms is not None
+            ]
+            oldest_ms = min((value for value in cursors if value is not None), default=None)
+            if oldest_ms is None:
+                break
+            # ★커서를 oldest-1 로 내리면 그 밀리초에 남은 **동일 createdTime 행**을 영구히
+            # 건너뛴다. 한 청산 주문의 분할 행은 createdTime 을 공유할 수 있고(구분은
+            # updatedTime) 페이지 상한을 넘는 tie 가 조용히 사라진다. 그게 우리 주문이면
+            # aggregate_closed_pnl 이 부분합을 돌려주고 잘못된 realized_pnl 이 CAS 로
+            # 영구 고정된다. Bybit 은 tie-breaker 커서를 주지 않으므로 경계를 **포함**해
+            # 다시 읽는다 — 중복 행은 원장 UNIQUE(row_hash) 가 흡수하므로 이중 합산이 없다.
+            next_until_ms = oldest_ms
+            if next_until_ms >= until_ms or next_until_ms <= start_ms:
+                # 꽉 찬 페이지에서 커서가 더 못 가면 완전 조회를 증명할 수 없다.
+                # 완전 조회의 유일한 증거는 상한 미만 페이지다(위 truncated=False).
+                break
+            until_ms = next_until_ms
+        if truncated:
+            # 창에 못 읽은 더 오래된 행이 남았다. 스윕은 최근 7일 한 창만 보므로
+            # 이 행들은 창에서 밀려나면 원장에 영영 들어오지 않는다(의도된 상한이지만
+            # 소실이므로 관측은 남긴다). 7일 500행(max_pages * limit) 초과 계정 신호.
+            logger.warning(
+                "closed_pnl_window_truncated",
+                extra={
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                    "fetched_rows": len(collected),
+                    "max_pages": max_pages,
+                    **(log_context or {}),
+                },
             )
-            if oldest_ms is None or oldest_ms <= since_ms:
-                break
-            until_ms = oldest_ms - 1
         return collected
 
     async def _fetch_closed_pnl_rows(
         self,
         creds: Credentials,
-        symbol: str,
+        symbol: str | None,
         *,
         since_ms: int | None = None,
         until_ms: int | None = None,
         limit: int = 100,
     ) -> list[ClosedPnlSnapshot]:
         """closedPnl 엔드포인트 호출과 원본 행 파싱을 공유한다."""
-        linear_symbol = _to_bybit_linear_symbol(symbol)
+        linear_symbol = _to_bybit_linear_symbol(symbol) if symbol is not None else None
         exchange = ccxt_async.bybit(
             {
                 "apiKey": creds.api_key,
@@ -1157,12 +1279,15 @@ class BybitFuturesProvider:
         try:
             async with ccxt_timer("bybit_futures", "fetch_closed_pnl"):
                 if since_ms is None:
-                    positions = await exchange.fetch_positions_history([linear_symbol], limit=limit)
+                    positions = await exchange.fetch_positions_history(
+                        [linear_symbol] if linear_symbol is not None else None,
+                        limit=limit,
+                    )
                 else:
                     if until_ms is None:
                         raise ProviderError("closed PnL bounds must be supplied together")
                     positions = await exchange.fetch_positions_history(
-                        [linear_symbol],
+                        [linear_symbol] if linear_symbol is not None else None,
                         since=since_ms,
                         limit=limit,
                         params={"until": until_ms},
@@ -1172,9 +1297,7 @@ class BybitFuturesProvider:
                 snapshot = _closed_pnl_snapshot_from_position(position)
                 if snapshot is None:
                     qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
-                    logger.warning(
-                        "bybit_closed_pnl_row_skipped", extra={"symbol": linear_symbol}
-                    )
+                    logger.warning("bybit_closed_pnl_row_skipped", extra={"symbol": linear_symbol})
                     continue
                 snapshots.append(snapshot)
             return snapshots
@@ -1190,9 +1313,107 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def fetch_closed_order_meta(
+        self,
+        creds: Credentials,
+        symbol: str | None,
+        *,
+        start_ms: int,
+        end_ms: int,
+        limit: int = 100,
+        max_pages: int = _CLOSED_PNL_MAX_PAGES,
+    ) -> dict[str, ClosedOrderMeta]:
+        """closed-pnl 행에 없는 Bybit 청산 주문 메타를 보강한다."""
+        _validate_closed_pnl_window(start_ms, end_ms)
+        linear_symbol = _to_bybit_linear_symbol(symbol) if symbol is not None else None
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            until_ms = end_ms
+            meta_by_order_id: dict[str, ClosedOrderMeta] = {}
+            async with ccxt_timer("bybit_futures", "fetch_closed_order_meta"):
+                for _ in range(max_pages):
+                    orders = await exchange.fetch_closed_orders(
+                        linear_symbol,
+                        since=start_ms,
+                        limit=limit,
+                        params={"until": until_ms},
+                    )
+                    oldest_ms: int | None = None
+                    for order in orders:
+                        if not isinstance(order, dict):
+                            continue
+                        info = order.get("info")
+                        if not isinstance(info, dict) or info.get("orderId") in (None, ""):
+                            continue
+                        try:
+                            order_id = str(info["orderId"])
+                            create_type = (
+                                str(info["createType"])
+                                if info.get("createType") not in (None, "")
+                                else None
+                            )
+                            stop_order_type = (
+                                str(info["stopOrderType"])
+                                if info.get("stopOrderType") not in (None, "")
+                                else None
+                            )
+                            order_link_id = (
+                                str(info["orderLinkId"])
+                                if info.get("orderLinkId") not in (None, "")
+                                else None
+                            )
+                        except (TypeError, ValueError):
+                            continue
+                        meta_by_order_id.setdefault(
+                            order_id,
+                            ClosedOrderMeta(
+                                order_id=order_id,
+                                create_type=create_type,
+                                stop_order_type=stop_order_type,
+                                order_link_id=order_link_id,
+                            ),
+                        )
+                        # ★커서는 서버 필터와 같은 createdTime 축이어야 한다. updatedTime 은
+                        # createdTime 보다 늦을 수 있어(며칠 열려 있던 브래킷 주문) 커서가
+                        # 앞으로 가면 창이 7일을 넘어 retCode 10001 이 나고 같은 페이지를
+                        # max_pages 만큼 헛돈다. ccxt bybit 의 order["timestamp"] 도 createdTime 이다.
+                        created_ms = _int_or_none(info.get("createdTime"))
+                        if created_ms is None:
+                            created_ms = _int_or_none(order.get("timestamp"))
+                        if created_ms is not None:
+                            oldest_ms = (
+                                created_ms if oldest_ms is None else min(oldest_ms, created_ms)
+                            )
+                    if len(orders) < limit or oldest_ms is None:
+                        break
+                    next_until_ms = oldest_ms - 1
+                    # 진행이 없거나 창을 벗어나면 멈춘다 — 확대된 창은 거래소가 거부한다.
+                    if next_until_ms >= until_ms or next_until_ms <= start_ms:
+                        break
+                    until_ms = next_until_ms
+            return meta_by_order_id
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception:
+            raise ProviderError("unexpected non-CCXT error in fetch_closed_order_meta") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         # functional-parity 2026-07-23 — symbol 필수 + BL-404 와 동일하게 linear
         # unified symbol 로 정규화 (spot 포맷이면 category=spot 조회로 어긋남).
         exchange = ccxt_async.bybit(
@@ -1501,9 +1722,7 @@ class OkxDemoProvider:
             except Exception:
                 logger.warning("okx_close_failed", exc_info=True)
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         # functional-parity 2026-07-23 — ccxt okx cancelOrder() 도 symbol(instId) 필수.
         if creds.passphrase is None:
             raise ProviderError("OkxDemoProvider requires a passphrase (OKX auth)")
@@ -1694,9 +1913,7 @@ class BybitLiveProvider:
     async def create_order(self, creds: Credentials, order: OrderSubmit) -> OrderReceipt:
         raise ProviderError("Bybit live (mainnet) 미지원 — BL-003 mainnet runbook 완료 후 활성화")
 
-    async def cancel_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
-    ) -> None:
+    async def cancel_order(self, creds: Credentials, exchange_order_id: str, symbol: str) -> None:
         raise ProviderError("Bybit live cancel 미지원 — BL-003 mainnet runbook 대기")
 
     async def fetch_order(

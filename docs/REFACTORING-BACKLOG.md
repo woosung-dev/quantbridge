@@ -5,7 +5,7 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
+**최종 갱신:** 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
 **현재 상태:** **49 active BL** (trading-surface-pack 5 Resolved + 신규 3 → 51-5+3=49). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
@@ -1775,6 +1775,14 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 **Risk:** 🔴 (리스크 게이트가 실현 손실의 일부를 못 본다 — 한도 초과를 늦게 감지)
 
+**상태:** 🟡 **부분 Resolved — 관측 원장(최근 7일) 까지 (2026-07-25, `stage/exit-attribution`).** 측정 스파이크가 전제를 뒤집었다 — 거래소 전용 행 4건(행 36.4% · |손익| 55.8%)은 **브래킷이 아니라 앱 밖 수동 청산**이었고, **브래킷 체결은 전 기간 0건**(조건부 주문 4건 전부 `Deactivated`, DB 17행 중 TP/SL 실은 주문 0)이라 이 구멍은 코드 경로상 실재하나 **프로덕션 관측 0 = 잠복**이다. 게다가 거래소 전용 4건 중 우리 포지션은 1건뿐이라 자동 계상은 오차단을 만든다. 사용자 확정 = **관측 원장까지**. 신규 `trading.exchange_exits`(행 단위 원본 + provenance) + 스윕을 계정 독립 열거·최근 7일 창·원장 집계 백필로 재작성 + 분류 7종/귀속 3등급(라벨 전용, `inferred` 는 머니-패스 미투입) + 신규 미귀속 행 1회성 알림.
+
+**★범위 축소 (2026-07-25, 같은 브랜치).** 과거 90일까지 훑는 기계장치(`exchange_exit_sync_state` 워터마크 · 창 전진 · 잘림 처리)를 **머지 전에 걷어냈다.** 이유 = ① 그걸 만든 직접적 목적(20일 전 미동기화 4건 회수)이 로컬 개발 DB 전소로 소멸 ② 뒤집힌 측정을 스코프에 충분히 반영하지 못한 채 만들었다 ③ **실측 — 그 기계장치는 지속 기제가 아니라 ~13주기(약 65분) 후 영구 자기정지하는 일회성 catch-up 이었다**(워터마크는 주기당 7일 후퇴, horizon 은 매 주기 `now` 에서 재계산되어 전진 → `end_ms <= horizon_ms` 가 영구 latch, DB 영속이라 재시작으로도 안 풀림). 즉 정상 상태에서 축소 전후 동작은 동일하고, 실제로 없어진 것은 **일회성 90일 역사 수입** 하나다. 원장은 이제 **최근 7일만** 담는다 → [BL-452](#bl-452).
+
+**★dogfood 완주 (2026-07-25, 사용자 계정 재등록 후).** 독립 오라클 실측(4행, 합계 −0.12392537) = 원장 적재 결과와 **완전 일치**. 분류·멱등·알림 1회성·§9.5 라이브 worker·authed 전부 실 계정으로 검증. **dogfood 가 진짜 P1 을 하나 더 잡았다** — 신규 미귀속 행 알림이 원장 재조회 시 `classification` 컬럼 타입 문제로 매 사이클 조용히 죽고 있었다(수정 완료, [BL-453](#bl-453)). 백필 종단 검증은 주문 이력 소실로 여전히 불가.
+
+**잔여 = ② 거래소 exit 의 머니-패스 계상 + 과거 이력 적재·백필** — 다음 스프린트가 이 원장 데이터를 근거로 결정한다. 관련 신규 = [BL-444](#bl-444)(loss-limit 알림 스코프) · [BL-446](#bl-446)(cumulative_loss 시간축) · [BL-452](#bl-452)(원장 7일 한계) · [BL-453](#bl-453)(StrEnum 재조회 크래시 패턴).
+
 ---
 
 ### BL-439
@@ -1835,6 +1843,192 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 **권장 접근:** CSV 에 `realized_pnl_source` 열을 추가하거나 손익 값 옆에 접미사를 붙인다. 화면 열 수와 CSV 열 수를 맞추는 기존 관례와의 충돌은 주석으로 명시.
 
+**상태:** ✅ **Resolved (2026-07-25, `stage/exit-attribution`).** CSV 가 잃는 정보는 손익 출처 1건이 아니라 3건이었다(출처 · 부분체결 마커 · 시각의 날짜). `ORDER_CSV_EXTRA_HEADER.realizedPnlSource` 열 신설(화면 12열 SSOT `ORDER_TABLE_HEADER` 는 불변) + 날짜 복원 + 부분체결 마커를 화면과 동일 문자열로 적재. 판정은 `displayRealizedPnl` / `isPartialFill` / `realizedPnlSource` 세 헬퍼로 SSOT 화해 화면·CSV 발산을 구조적으로 차단.
+
+---
+
+### BL-443
+
+**Title:** 체결되지 않은 주문의 pine_v2 추정 손익이 원장·CSV 에 노출됨
+**Category:** Frontend / trading (정직성)
+**Priority:** P2
+**Trigger:** 즉시
+**Est:** S (1h)
+**출처:** 2026-07-25 exit-attribution grounding 실발견
+
+**원인 / 영향:** 손익 셀 렌더 조건이 `o.realized_pnl != null` 하나뿐이라 **체결된 적 없는 주문의 추정 손익이 화면에 뜬다.** `realized_pnl` 은 close 주문 **생성 시점**(state=`pending`)에 pine_v2 값으로 기록되고 거부돼도 그대로 남으며, `realized_pnl_synced_at` 은 백필 CAS 가 `state == filled` 를 요구해 영구 NULL 이라 항상 "추정" 배지가 붙는다. 실 DB 에 `state=rejected` + `realized_pnl = -1007.70000000` 인 행이 있었고 원장에 빨간 손실로 표시됐다. 백엔드 리스크 게이트는 전부 `state == filled` 로 걸러 안전하지만 **사용자만 오판한다.**
+
+**상태:** ✅ **Resolved (2026-07-25, `stage/exit-attribution`).** `displayRealizedPnl` 단일 판정(`state === "filled"`)을 화면·CSV·부호 톤이 공유. 감춘 셀에는 상태별 사유 `title` 부착. 부분체결 후 `cancelled` 는 현재 도달 불가 경로(청산이 전부 시장가 → `PartiallyFilledCanceled` → ccxt `closed` → 우리 `filled`)이므로 각주로 명시([BL-439](#bl-439) 활성화 시 조건 확대 필요).
+
+---
+
+### BL-444
+
+**Title:** loss-limit 알림이 `live_signal_events` 조인이라 거래소 확정 손익을 보지 못함
+**Category:** Backend / trading (money path)
+**Priority:** P1
+**Trigger:** 즉시
+**Est:** M (3-4h — 스코프 재정의가 핵심)
+**출처:** 2026-07-25 exit-attribution grounding 실측
+
+**원인 / 영향:** `OrderRepository.sum_filled_realized_pnl_for_live_session`(`order_repository.py:90-102`)은 `live_signal_events.order_id` 서브쿼리로 세션 귀속 주문만 합산한다. 그런데 `close_service.execute`(수동 청산)는 `LiveSignalEvent` 를 만들지 않는다 — `mark_dispatched` 는 dispatch task 전용 경로다. **DB 실측: 손익을 가진 filled reduce-only 7건 중 거래소 확정값 3건(07-24 수동 청산)은 전부 이벤트가 없고, 이벤트가 있는 4건(07-05)은 전부 pine 시뮬 오차값이다.** 즉 loss-limit 알림은 **틀린 값만 보고 맞는 값은 하나도 못 본다.**
+
+**권장 접근:** 스코프를 event-join 에서 `(strategy, account)` 튜플 + 세션 창(`created_at`~`deactivated_at`)으로 바꾼다. 단 `(strategy, account)` 스코프는 비활성 세션끼리 커브를 공유하는 [BL-445](#bl-445) 문제를 물려받으므로 세션 창 필터가 함께 가야 한다. 또는 `close_service` 가 `LiveSignalEvent` 를 남기도록 한다.
+
+**Risk:** 🔴 (세션 손실한도 알림이 실제 정산 손실을 못 본다)
+
+---
+
+### BL-445
+
+**Title:** 세션 에쿼티 커브가 `(strategy, account)` 튜플 스코프라 비활성 세션끼리 커브를 공유
+**Category:** Backend / trading
+**Priority:** P2
+**Trigger:** 같은 전략·계정으로 세션을 두 번 이상 돌린 뒤 세션별 성과를 비교할 때
+**Est:** S (2h)
+**출처:** 2026-07-25 exit-attribution grounding 실측
+
+**원인 / 영향:** `list_filled_realized_by_strategy_and_account`(`order_repository.py:71-88`) → `router.py:483-501` 은 세션에서 `(strategy_id, exchange_account_id)` 만 뽑아 그 튜플의 모든 filled 주문을 긁는다. 세션 창 필터가 없다. 활성 유일성 제약(`uq_live_sessions_active_unique`)은 `is_active=true` 부분 인덱스라 **비활성 세션은 무제한 누적**된다. 실측상 세션 4개 중 3개가 동일 튜플이었고, 이벤트가 0건인 세션이 다른 세션의 거래를 자기 커브로 렌더했다. 대시보드 §01 KPI 도 같은 경로다.
+
+**권장 접근:** 세션의 `created_at`~`deactivated_at` 창을 `filled_at` 에 적용한다. [BL-444](#bl-444) 와 같은 PR 로 묶는 것이 자연스럽다.
+
+---
+
+### BL-446
+
+**Title:** `cumulative_loss` 가 전 기간 누적 손익을 현재 잔고로 나눈다 (시간축 불일치 + 외부 거래 분모 오염)
+**Category:** Backend / trading (risk gate)
+**Priority:** P2
+**Trigger:** 실자금 전환 전 필수
+**Est:** M (4h — 리스크 게이트 변경이라 회귀 범위 넓음)
+**출처:** 2026-07-25 exit-attribution Plan 압박검증 + 실측
+
+**원인 / 영향:** `CumulativeLossEvaluator`(`kill_switch.py:97-136`)의 분자는 `strategy_id` + `state=filled` 전 기간 누적이고(시간창·`reduce_only`·`realized_pnl_synced_at` 필터 전무), 분모는 `balance_provider.fetch_balance_usdt` 로 조회한 **현재** 잔고다. ① 과거 데이터를 소급 삽입/보정하면 **오늘의 발주 게이트**가 즉시 반응한다 ② 앱 밖 외부 거래가 잔고를 줄이면 **분모가 이미 오염**되므로 그 손익을 분자에 넣으면 이중 반영, 안 넣어도 과대평가다. **실측 — 임계 10%, 분모 실잔고 190,679 USDT 기준 백필 후 loss% 는 0.00018%(여유 54,117배)라 현재 계정에선 발화하지 않는다.** 구조 결함이므로 실자금 전환 전에 닫아야 한다.
+
+**권장 접근:** `capital_base` 를 전략 시작 시점 스냅샷으로 고정하거나, 분자에 세션/기간 창을 도입해 분자·분모의 시간축을 맞춘다.
+
+---
+
+### BL-447
+
+**Title:** `exchange_order_id` write 2경로가 `""` / `"None"` 을 저장할 수 있어 unique index 도입을 막는다
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** `exchange_order_id` 에 unique index 를 걸어야 할 때 (합성 행 도입 등)
+**Est:** S (2h)
+**출처:** 2026-07-25 exit-attribution 적대 평가
+
+**원인 / 영향:** `state_handler.py:235` 는 `str(payload.get("orderId", ""))` 이라 WS 페이로드에 키가 없으면 **빈 문자열**을 저장한다. `reconciliation.py:233` 은 `str(exch.get("id", ...))` 인데 ccxt `safe_order` 가 `id` 키를 **항상 포함**하므로 값이 `None` 이어도 default 가 발동하지 않아 문자열 `"None"` 이 된다. 두 경로 모두 `transition_to_filled` 의 무조건 write 로 들어간다. partial unique index 가 걸린 상태라면 이 UPDATE 가 `IntegrityError` 로 실패해 **체결이 DB 에 기록되지 않는다.** 또한 `state_handler.py:251-263` 의 `_get_by_exchange_order_id` 는 계정 스코프가 없어 계정 간 id 충돌 시 `MultipleResultsFound` 로 터진다(Binance `orderId` 는 심볼별 int64).
+
+**권장 접근:** 두 write 경로를 sanitize(빈 문자열/`"None"`/공백 → `NULL`)하고 `transition_to_filled` 의 인자를 `str | None` 으로 바꿔 None 이면 기존값 보존. `_get_by_exchange_order_id` 에 `exchange_account_id` 조건 추가. 그 다음에야 `(exchange_account_id, exchange_order_id)` 복합 partial unique 가 안전하다.
+
+---
+
+### BL-448
+
+**Title:** WS 고아 이벤트 `replay_orphan` 이 프로덕션 호출자 0 (dead code)
+**Category:** Backend / trading (websocket)
+**Priority:** P3
+**Trigger:** WS 고아 이벤트 유실이 실제 문제로 관측될 때
+**Est:** S (2h)
+**출처:** 2026-07-25 exit-attribution grounding 실측
+
+**원인 / 영향:** `state_handler.py:172-180` 의 `replay_orphan` 은 테스트에서만 호출된다. REST 응답 경로(`attach_exchange_order_id` / `transition_to_filled`)가 부르지 않아 5초 버퍼는 사실상 **무조건 폐기**로 동작한다. TTL 소거도 다음 `_buffer_orphan` 호출 시에만 도는 lazy 방식이라 백그라운드 타이머가 없고, **폐기 시점에는 로그·메트릭·알림이 전무**하다(버퍼 진입 카운터 `qb_ws_orphan_event_total` 만 있어 유실과 구분 불가).
+
+**권장 접근:** REST 승자 경로에서 `replay_orphan(key, account_id)` 을 호출해 배선하거나, 배선하지 않을 거면 버퍼·함수를 통째로 제거하고 reconciler 단일 복구 경로임을 명시한다. 폐기 시 metric 은 어느 쪽이든 필요하다.
+
+---
+
+### BL-449
+
+**Title:** `Order.webhook_payload` 가 SQL NULL 이 아니라 JSONB `'null'` 로 저장됨
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** `webhook_payload IS NULL` 술어나 partial index 를 쓰려 할 때
+**Est:** S (1h, 마이그레이션 1)
+**출처:** 2026-07-25 exit-attribution 적대 평가 실측
+
+**원인 / 영향:** `models.py:181-184` 가 `Column(JSONB, nullable=True)` 만 지정해 `none_as_null` 이 기본값 False 다. Python `None` 이 `'null'::jsonb` 로 직렬화되어 **DB 실측 17행 중 15행이 JSONB `'null'`** 이고 SQL NULL 은 레거시 시드 2행뿐이다. `webhook_payload IS NULL` 을 술어로 쓰면 레거시 2행만 잡는다.
+
+**권장 접근:** `postgresql.JSONB(none_as_null=True)` 로 바꾸고 기존 `'null'` 행을 SQL NULL 로 정규화하는 데이터 마이그레이션을 함께 넣는다. exit-attribution 의 `ExchangeExit.raw` 는 처음부터 이 지정을 적용했다.
+
+---
+
+### BL-450
+
+**Title:** 일일 dogfood 보고 `get_daily_summary` 에 테넌트 스코프가 없음
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** 사용자가 둘 이상 되는 시점 (Beta)
+**Est:** S (1h)
+**출처:** 2026-07-25 exit-attribution grounding 실측
+
+**원인 / 영향:** `order_repository.py:286-319` 의 `get_daily_summary` 는 `state='filled' AND filled_at ∈ [UTC 자정, +1d)` 만 걸고 user/strategy/account 스코프가 전혀 없다 — **전 테넌트 글로벌 합계**다. `dogfood_report.py:84` 가 이 값을 HTML 리포트에 싣는다. 단일 사용자 환경에선 무해하나 Beta 진입 시 남의 손익이 섞인다.
+
+**권장 접근:** `user_id` 파라미터를 받아 `exchange_accounts` 조인으로 스코프를 건다.
+
+---
+
+### BL-451
+
+**Title:** 파괴적 마이그레이션 테스트가 env 폴백으로 개발 DB 를 드롭할 수 있는 구조
+**Category:** DevOps / 안전
+**Priority:** P2
+**Trigger:** 즉시 (부분 완화 완료)
+**Est:** S (2h)
+**출처:** 2026-07-25 exit-attribution **실사고**
+
+**원인 / 영향:** `tests/test_migrations.py` 는 `command.downgrade(cfg, "base")` 로 전 테이블을 드롭한다. `_resolved_test_db_url()` 이 `TEST_DATABASE_URL` 없이 `DATABASE_URL` 로 폴백하므로, `DATABASE_URL` 만 export 된 셸에서 이 파일을 돌리면 **개발 DB 가 대상이 된다.** 실제로 이번 스프린트에서 적대 평가 서브에이전트가 그 셸 상태로 실행해 **로컬 개발 DB 가 전소했다** — 주문 17행 · 거래소 계정 1(암호화된 Bybit demo API 키) · 전략 6종 Pine 소스 · 세션 4 · 이벤트 10. `.env.local` 에 평문 키가 없어 API 키는 복구 불가였고 사용자가 재등록해야 했다.
+
+**부분 완화 (2026-07-25, `stage/exit-attribution`):** `_assert_disposable_database` 가 DSN 의 DB 이름이 `_test` 로 끝나지 않으면 `RuntimeError` 를 던진다. 개발 DB DSN 으로 실행 시 파괴 대신 예외가 나는 것을 실증했다.
+
+**잔여 / 권장 접근:** ① 같은 폴백 구조가 `tests/conftest.py` 에도 있다(`TEST_DATABASE_URL > DATABASE_URL > default`) — 파괴성은 낮지만 동일 가드가 필요한지 검토 ② 로컬 개발 DB 주기 백업(`pg_dump` cron 또는 `make db-snapshot`)이 없다. dogfood 데이터는 재현 비용이 크고 API 키는 복구 불가다 ③ 서브에이전트에 DB env 를 넘길 때의 표준 레시피를 `.ai/rules` 로 승격 ④ **`alembic/env.py:40` 이 `settings.database_url` 을 주입하므로 수동 `alembic downgrade` 는 가드 없이 개발 DB 를 향한다** — `_assert_disposable_database` 는 pytest 경로만 막는다. CLI 경로 가드 또는 `make` 래퍼 검토.
+
+---
+
+### BL-452
+
+**Title:** 거래소 청산 원장이 최근 7일만 담는다 — 과거 이력 적재·백필 불가
+**Category:** Backend / trading (money path)
+**Priority:** P3
+**Trigger:** 아래 중 하나가 실제로 관측될 때 — ① 워커가 7일 넘게 정지한 실사례 ② 7일보다 오래된 미동기화 reduce-only 주문 관측 ③ 한 계정의 7일 청산이 500행 초과(`closed_pnl_window_truncated` 경고 발화) ④ `list_unsynced_reduce_only` 목록이 영구 좀비로 포화
+**Est:** M (4-6h — 일회성 catch-up 재도입)
+**출처:** 2026-07-25 exit-attribution **범위 축소** 결정 ([`docs/exit-attribution/context-notes.md`](exit-attribution/context-notes.md) §9)
+
+**원인 / 영향:** 스윕은 매 주기 `[now−7d, now]` **한 창만** 조회한다([BL-438](#bl-438) 축소). 여기서 파생되는 한계 4종을 **의도된 트레이드오프**로 수용했다.
+
+1. 7일보다 오래된 거래소 청산은 원장에 들어오지 않는다.
+2. 따라서 백필·재동기화도 **7일 안에서만** 동작한다(#475 의 24시간 한계를 7일로 넓힌 것). 7일 넘게 미동기화로 남은 주문은 자동으로 안 고쳐진다.
+3. 워커가 7일 넘게 죽어 있으면 그 구간은 영영 조회되지 않는다.
+4. 7일 500행(`_CLOSED_PNL_MAX_PAGES=5` × `limit=100`) 상한을 넘는 계정은 가장 오래된 행을 잃는다. **관측은 로그뿐** — `providers.py` 의 `closed_pnl_window_truncated` 경고(계정 식별자 포함). `qb_closed_pnl_backfill_total` 의 8-outcome 계약이 불변이라 메트릭 라벨은 추가하지 않았다.
+
+**★부수 위험 — `list_unsynced_reduce_only` head-of-line.** `order_repository.py:162` 는 시간창 없이 `ORDER BY filled_at ASC LIMIT 500` 이다. 7일 밖 청산은 원장에 못 들어오므로 그 주문은 영구 미동기화(좀비)로 남고, **ASC 라서 좀비가 앞줄을 차지**한다. 한 계정에 좀비가 500건 쌓이면 쿼리가 좀비만 돌려주어 신규 주문이 영영 백필되지 않으며, 그 상태와 "할 일 없음"을 구분하는 메트릭이 없다. `list_synced_reduce_only` 는 이미 `.desc()` 라 비대칭이다. **사용자 확정 = 등재만, 코드 미변경** (축소 전에도 90일 catch-up 이 ~65분 후 latch-off 되어 동일 위험이었고, 1인 로컬 앱에서 좀비 500건은 멀다).
+
+**★부수 항목 — `fetch_closed_order_meta` 의 커서 tie.** `providers.py:1410` 은 아직 `until = oldest_ms - 1` 이라 같은 `createdTime` 행이 페이지 상한을 넘으면 tie 행을 건너뛴다. `fetch_closed_pnl_window` 쪽은 머니-패스라 이번에 경계 포함으로 고쳤으나, 이쪽은 **분류 라벨 전용 + `setdefault` 멱등**이라 그대로 뒀다 — 누락의 결과는 일부 행이 `unknown` 으로 분류되는 것뿐이다. 분류를 게이트 입력으로 승격하려면 함께 고쳐야 한다.
+
+**권장 접근:** 워터마크 테이블을 되살리는 대신 **일회성 catch-up** 으로 설계한다(축소 전 구현이 실질적으로 그랬다 — §9 실측). 예: 관리 커맨드/1회성 task 가 지정 구간을 창 단위로 훑어 원장을 채우고 끝난다. 상시 beat 경로는 최근 7일 그대로 둔다. ★되살릴 때 **진행 상태를 원장의 `min(exchange_created_at)` 에서 파생하지 말 것** — 청산이 없던 구간에서 삽입이 0 이라 min 이 안 움직여 같은 빈 창을 영원히 재조회한다(실측 반증: 07-24 행 4건 적재 후 정지, 07-05 행 7건 영구 미도달). 함께 `list_unsynced_reduce_only` 를 `.desc()` 로 뒤집거나 `filled_at >= cutoff` 로 조회 창을 적재 창에 맞춘다.
+
+**Risk:** 🟡 (관측 범위 축소. 머니-패스 정확도 자체는 7일 안에서 온전하고, 정상 상태 동작은 축소 전과 동일)
+
+---
+
+### BL-453
+
+**Title:** StrEnum + 평문 String 컬럼 필드 — 새 세션 재조회 시 `.value`/`.name` 접근이 크래시할 수 있음
+**Category:** Backend / trading (defensive — 패턴 재발 방지)
+**Priority:** P3
+**Trigger:** 이 5개 필드 중 하나에 `.value`/`.name`/`isinstance(..., <EnumClass>)` 를 새 세션 재조회 결과에 쓰는 코드가 추가될 때
+**Est:** S (1-2h — 감사 + lint 가드 또는 테스트 1건씩)
+**출처:** 2026-07-25 exit-attribution dogfood 실측 ([`docs/exit-attribution/context-notes.md`](exit-attribution/context-notes.md) §9.9) — **실제로 프로덕션 코드에서 한 건 발생해 수정함**
+
+**원인 / 영향:** `ExchangeExit.classification`(`ExitClassification` StrEnum)이 `sa_column=Column("classification", String(24), ...)` 로 선언돼 있다(Sprint 26 의 `UndefinedObjectError` 회피 워크어라운드, `models.py:438-440`). 메모리에서 갓 만든 객체는 `.classification` 이 진짜 enum 이라 `.value` 가 되지만, **다른 세션에서 새로 `SELECT` 한 행은 SQLAlchemy 가 plain `str` 을 그대로 준다**(재캐스팅 없음) — `.value` 접근이 `AttributeError` 를 던진다. dogfood 에서 `_alert_new_exchange_exits` 가 정확히 이 경로로 죽어 신규 미귀속 행 알림이 매 사이클 조용히 실패하고 있었다(§7.3 대로 실측으로만 드러남 — 유닛테스트는 fake repo 라 잡지 못했다). `str(row.classification)` 로 수정 완료(`StrEnum.__str__` 이 값 자체를 돌려주므로 reload/메모리 양쪽 안전) + 실 DB 회귀 테스트 부착.
+
+**감사 결과** — 같은 패턴(StrEnum 타입 + 평문 String 컬럼)인 필드가 4개 더 있다: `LiveSignalSession.interval` · `LiveSignalEvent.status` · `AlertRule.rule_type` · `AlertRule.channel`. 전수 조사 결과 **현재는 이 4개 모두 `==`/`!=`/`str()` 만 쓰거나 호출부가 없어 안전**하다(`StrEnum` 이 `str` 서브클래스라 비교 연산은 reload 여부와 무관). 즉 지금 당장 고칠 버그는 없고, **미래에 이 필드들에 `.value`/`.name` 을 쓰는 코드가 추가되면 같은 함정을 반복**할 잠재 위험만 남아 있다.
+
+**권장 접근:** (a) 최소 — 5개 필드 선언부에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만 사용" 주석을 통일해서 남긴다(현재 `interval` 필드에만 있음, 나머지 4개엔 없음) (b) 중간 — ruff 커스텀 규칙 또는 AST 기반 테스트(이 레포의 `test_no_module_level_loop_bound_state.py` 패턴 참고)로 이 5개 필드명에 대한 `.value`/`.name` 접근을 정적으로 금지 (c) 근본 — Sprint 26 워크어라운드가 아직 필요한지 재검토하고, 필요 없으면 `sa.Enum` 으로 되돌려 SQLAlchemy 가 재캐스팅을 대신하게 한다.
+
+**Risk:** 🟢 (현재 실제 발생한 크래시는 이미 수정됨. 이 항목은 재발 방지용 예방적 등재)
+
 ---
 
 ## 운영 규약
@@ -1842,7 +2036,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 ### 신규 항목 추가
 
 1. 적절한 priority 결정 (P0~P3 정의 표 참조)
-2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~442)
+2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~453)
 3. 표준 8 필드 모두 채우기: ID / 제목 / 카테고리 / priority / trigger / est / 출처 / 권장 접근
 4. 출처 cross-link (파일:라인 또는 dev-log 파일명) 필수
 5. 의존성 있으면 명시 (다른 BL ID 또는 외부 자원)

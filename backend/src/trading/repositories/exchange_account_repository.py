@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import ExchangeAccount
+from src.trading.models import ExchangeAccount, ExchangeName
 
 
 class ExchangeAccountRepository:
@@ -34,6 +34,15 @@ class ExchangeAccountRepository:
             select(ExchangeAccount)
             .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
             .order_by(ExchangeAccount.created_at.desc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
+    async def list_by_exchange(self, exchange: ExchangeName) -> Sequence[ExchangeAccount]:
+        """거래소별 전 계정. 스윕이 우리 주문 유무와 무관하게 계정을 독립 열거하기 위해 필요하다."""
+        result = await self.session.execute(
+            select(ExchangeAccount)
+            .where(ExchangeAccount.exchange == exchange)  # type: ignore[arg-type]
+            .order_by(ExchangeAccount.created_at.asc())  # type: ignore[attr-defined]
         )
         return result.scalars().all()
 

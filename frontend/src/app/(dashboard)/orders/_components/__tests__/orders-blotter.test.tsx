@@ -11,16 +11,25 @@ import { ORDER_REALIZED_PNL_SOURCE_HINT } from "@/features/trading/labels";
 import { CancelOrderResponseSchema, type Order } from "@/features/trading/schemas";
 import { EMPTY_CELL } from "@/lib/labels";
 import type * as TradingHooks from "@/features/trading/hooks";
+import type * as BacktestUtils from "@/features/backtest/utils";
 
 const mockUseOrders = vi.fn();
 const mockUseCancelOrder = vi.fn();
 const mockCancelOrder = vi.fn();
+const mockDownloadCsv = vi.fn();
 vi.mock("@/features/trading/hooks", async (importOriginal) => {
   const actual = await importOriginal<typeof TradingHooks>();
   return {
     ...actual,
     useOrders: (...args: unknown[]) => mockUseOrders(...args),
     useCancelOrder: () => mockUseCancelOrder(),
+  };
+});
+vi.mock("@/features/backtest/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof BacktestUtils>();
+  return {
+    ...actual,
+    downloadCsv: (...args: unknown[]) => mockDownloadCsv(...args),
   };
 });
 
@@ -75,6 +84,7 @@ afterEach(() => {
   mockUseOrders.mockReset();
   mockUseCancelOrder.mockReset();
   mockCancelOrder.mockReset();
+  mockDownloadCsv.mockReset();
 });
 
 describe("OrdersBlotter — 상태 4종", () => {
@@ -217,6 +227,137 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
       "title",
       ORDER_REALIZED_PNL_SOURCE_HINT.estimated,
     );
+  });
+
+  it("거부된 주문에 남은 추정 손익은 표시하지 않는다", () => {
+    withOrders([
+      makeOrder({
+        id: "rejected-pnl",
+        state: "rejected",
+        filled_price: null,
+        exchange_order_id: null,
+        realized_pnl: "-1007.70000000",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+
+    const cells = within(screen.getByTestId("order-row-rejected-pnl")).getAllByRole("cell");
+    expect(cells[6]!).toHaveTextContent(EMPTY_CELL);
+    expect(cells[6]!).toHaveClass("dim");
+    expect(within(cells[6]!).queryByText("추정")).toBeNull();
+  });
+
+  it("체결된 주문의 실현 손익과 출처 배지는 표시한다", () => {
+    withOrders([makeOrder({ id: "filled-pnl", realized_pnl: "12.34" })]);
+    render(<OrdersBlotter />);
+
+    const cells = within(screen.getByTestId("order-row-filled-pnl")).getAllByRole("cell");
+    expect(cells[6]!).toHaveTextContent("12.34");
+    expect(within(cells[6]!).getByText("추정")).toBeInTheDocument();
+  });
+
+  it("취소된 주문에 남은 실현 손익은 표시하지 않는다", () => {
+    withOrders([
+      makeOrder({
+        id: "cancelled-pnl",
+        state: "cancelled",
+        filled_price: null,
+        realized_pnl: "-1.00",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+
+    const cells = within(screen.getByTestId("order-row-cancelled-pnl")).getAllByRole("cell");
+    expect(cells[6]!).toHaveTextContent(EMPTY_CELL);
+    expect(cells[6]!).toHaveClass("dim");
+    expect(within(cells[6]!).queryByText("추정")).toBeNull();
+  });
+
+  it("체결 전 주문에 미리 기록된 추정 손익도 표시하지 않는다", () => {
+    // 손익은 close 주문 생성 시점(state=pending)에 이미 기록되므로 이게 가장 흔한 경우다.
+    withOrders([
+      makeOrder({ id: "pending-pnl", state: "pending", filled_price: null, realized_pnl: "-3.00" }),
+      makeOrder({
+        id: "submitted-pnl",
+        state: "submitted",
+        filled_price: null,
+        realized_pnl: "-4.00",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+
+    for (const id of ["pending-pnl", "submitted-pnl"]) {
+      const cells = within(screen.getByTestId(`order-row-${id}`)).getAllByRole("cell");
+      expect(cells[6]!).toHaveTextContent(EMPTY_CELL);
+      // 값을 감췄는데 부호 톤만 남으면 여전히 손실처럼 읽힌다.
+      expect(cells[6]!).not.toHaveClass("neg");
+      expect(cells[6]!).not.toHaveClass("pos");
+    }
+  });
+
+  it("감춘 손익 셀은 왜 비었는지 상태별 사유를 밝힌다", () => {
+    withOrders([
+      makeOrder({
+        id: "reason-rejected",
+        state: "rejected",
+        filled_price: null,
+        exchange_order_id: null,
+        realized_pnl: "-1007.70000000",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+
+    const cells = within(screen.getByTestId("order-row-reason-rejected")).getAllByRole("cell");
+    expect(cells[6]!).toHaveAttribute("title", "거부된 주문이라 자금이 움직이지 않았습니다.");
+  });
+
+  it("CSV는 손익 출처·날짜·부분체결을 보존하고 모든 행의 열 수를 맞춘다", async () => {
+    withOrders([
+      makeOrder({
+        id: "confirmed-csv",
+        symbol: "BTC/USDT",
+        quantity: "1",
+        filled_quantity: "0.5",
+        realized_pnl: "12.34",
+        realized_pnl_synced_at: "2026-04-14T20:00:05Z",
+      }),
+      makeOrder({
+        id: "estimated-csv",
+        symbol: "ETH/USDT",
+        quantity: "1",
+        filled_quantity: "1",
+        realized_pnl: "-2.50",
+      }),
+      makeOrder({
+        id: "rejected-csv",
+        symbol: "SOL/USDT",
+        state: "rejected",
+        filled_price: null,
+        exchange_order_id: null,
+        realized_pnl: "-1007.70000000",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+    fireEvent.click(screen.getByRole("button", { name: "CSV 내보내기" }));
+
+    const csv = mockDownloadCsv.mock.calls[0]![1] as string;
+    const rows = csv.split("\n").map((line) => line.slice(1, -1).split('\",\"'));
+    const [header, ...dataRows] = rows;
+    const sourceIndex = header!.indexOf("손익 출처");
+    const filledQuantityIndex = header!.indexOf("체결 수량");
+    const timeIndex = header!.indexOf("시각");
+    const realizedPnlIndex = header!.indexOf("실현 손익");
+
+    expect(sourceIndex).toBeGreaterThan(realizedPnlIndex);
+    expect(dataRows.every((row) => row.length === header!.length)).toBe(true);
+    expect(dataRows.find((row) => row[1] === "BTC/USDT")![sourceIndex]).toBe("거래소 확정");
+    expect(dataRows.find((row) => row[1] === "ETH/USDT")![sourceIndex]).toBe("추정");
+    const rejected = dataRows.find((row) => row[1] === "SOL/USDT")!;
+    expect(rejected[sourceIndex]).toBe("");
+    expect(rejected[realizedPnlIndex]).toBe("");
+    expect(dataRows[0]![timeIndex]).toContain("2026-04-14");
+    expect(dataRows.find((row) => row[1] === "BTC/USDT")![filledQuantityIndex]).toBe("0.5 부분");
+    expect(dataRows.find((row) => row[1] === "ETH/USDT")![filledQuantityIndex]).toBe("1");
   });
 
   it("본전 손익 0 은 무데이터로 숨기지 않고, 표기만 다른 완전체결은 부분으로 읽지 않는다", () => {

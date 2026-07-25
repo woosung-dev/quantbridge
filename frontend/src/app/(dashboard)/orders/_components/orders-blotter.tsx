@@ -23,6 +23,7 @@ import { ACTIVE_ORDER_STATES, useCancelOrder, useOrders } from "@/features/tradi
 import {
   filledPriceEmptyReason,
   ORDER_CANCEL_ACTION,
+  ORDER_CSV_EXTRA_HEADER,
   ORDER_EMPTY_REASON,
   ORDER_EMPTY_STATE,
   ORDER_ERROR_NONE_TITLE,
@@ -41,6 +42,7 @@ import {
   ORDER_STATE_FILTER_LABEL,
   ORDER_STATE_LABEL,
   ORDER_TABLE_HEADER,
+  realizedPnlEmptyReason,
   ORDER_TRAILING_STOP_TITLE,
   type OrderStateFilter,
 } from "@/features/trading/labels";
@@ -94,7 +96,29 @@ function buildDistanceSub(
   return `체결가 ${filledPrice} 대비 ${parts.join(" / ")}`;
 }
 
-// CSV 헤더는 ORDER_TABLE_HEADER SSOT 에서 온다. 액션 열은 데이터가 아니라 UI 라 제외한다.
+const FILLED_ORDER_STATE: Order["state"] = "filled";
+
+// 자금이 실제로 움직인 주문만 손익을 노출한다. rejected/cancelled 행에 남아 있는 값은
+// close 주문 생성 시점의 pine_v2 추정치일 뿐이라 손실처럼 보이면 사용자가 오판한다.
+// 부분체결 후 cancelled 로 끝나는 청산은 현재 도달 불가 경로다. 청산이 전부 시장가라
+// Bybit PartiallyFilledCanceled → ccxt closed → 우리 filled 로 매핑된다. 그 경로가
+// 생기면 이 조건을 함께 넓혀야 한다.
+function displayRealizedPnl(o: Order): string | null {
+  return o.state === FILLED_ORDER_STATE && o.realized_pnl != null ? o.realized_pnl : null;
+}
+
+// 부분체결 판정과 손익 출처 판정도 화면과 CSV 가 각자 계산하면 한쪽만 고쳐졌을 때
+// 조용히 갈라진다. 손익 노출 판정과 같은 이유로 여기 한 곳에 모은다.
+function isPartialFill(o: Order): boolean {
+  return o.filled_quantity != null && Number(o.filled_quantity) < Number(o.quantity);
+}
+
+function realizedPnlSource(o: Order): "confirmed" | "estimated" {
+  return o.realized_pnl_synced_at != null ? "confirmed" : "estimated";
+}
+
+// CSV 헤더는 화면 12열 ORDER_TABLE_HEADER SSOT에서 온다. 액션은 UI 전용이라 빼고,
+// 손익 출처만 CSV 감사용 추가 열이라 ORDER_CSV_EXTRA_HEADER에서 보탠다.
 const CSV_HEADER = [
   ORDER_TABLE_HEADER.createdAt,
   ORDER_TABLE_HEADER.symbol,
@@ -103,6 +127,7 @@ const CSV_HEADER = [
   ORDER_TABLE_HEADER.filledPrice,
   ORDER_TABLE_HEADER.filledQuantity,
   ORDER_TABLE_HEADER.realizedPnl,
+  ORDER_CSV_EXTRA_HEADER.realizedPnlSource,
   ORDER_TABLE_HEADER.state,
   ORDER_TABLE_HEADER.takeProfitStopLoss,
   ORDER_TABLE_HEADER.brokerOrderId,
@@ -118,19 +143,28 @@ function tpSlText(o: Order): string {
 }
 
 function ordersToCsv(orders: readonly Order[]): string {
-  const rows = orders.map((o) => [
-    formatOrderTime(o.created_at).time,
-    o.symbol,
-    ORDER_SIDE_LABEL[o.side] + (o.reduce_only ? ` (${ORDER_FLAG_LABEL.reduceOnly})` : ""),
-    o.quantity,
-    o.filled_price ?? "",
-    o.filled_quantity ?? "",
-    o.realized_pnl ?? "",
-    ORDER_STATE_LABEL[o.state].label,
-    tpSlText(o),
-    o.exchange_order_id != null ? o.exchange_order_id.slice(-8) : "",
-    o.error_message ?? "",
-  ]);
+  const rows = orders.map((o) => {
+    const { date, time } = formatOrderTime(o.created_at);
+    const displayedRealizedPnl = displayRealizedPnl(o);
+    const partial = isPartialFill(o);
+    const pnlSource = realizedPnlSource(o);
+    return [
+      date ? `${date} ${time}` : time,
+      o.symbol,
+      ORDER_SIDE_LABEL[o.side] + (o.reduce_only ? ` (${ORDER_FLAG_LABEL.reduceOnly})` : ""),
+      o.quantity,
+      o.filled_price ?? "",
+      o.filled_quantity != null
+        ? `${o.filled_quantity}${partial ? ` ${ORDER_FILLED_QUANTITY.partial}` : ""}`
+        : "",
+      displayedRealizedPnl ?? "",
+      displayedRealizedPnl != null ? ORDER_REALIZED_PNL_SOURCE_LABEL[pnlSource] : "",
+      ORDER_STATE_LABEL[o.state].label,
+      tpSlText(o),
+      o.exchange_order_id != null ? o.exchange_order_id.slice(-8) : "",
+      o.error_message ?? "",
+    ];
+  });
   return [CSV_HEADER as readonly string[], ...rows]
     .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
     .join("\n");
@@ -516,8 +550,9 @@ function OrderRow({
 }) {
   const { label, tone, showCheckIcon } = ORDER_STATE_LABEL[o.state];
   const { time, date } = formatOrderTime(o.created_at);
-  const isPartialFill = o.filled_quantity != null && Number(o.filled_quantity) < Number(o.quantity);
-  const realizedPnl = o.realized_pnl == null ? null : Number(o.realized_pnl);
+  const partial = isPartialFill(o);
+  const displayedRealizedPnl = displayRealizedPnl(o);
+  const realizedPnl = displayedRealizedPnl == null ? null : Number(displayedRealizedPnl);
   const realizedPnlTone =
     realizedPnl != null && Number.isFinite(realizedPnl)
       ? realizedPnl < 0
@@ -526,7 +561,7 @@ function OrderRow({
           ? "pos"
           : ""
       : "";
-  const pnlSource = o.realized_pnl_synced_at != null ? "confirmed" : "estimated";
+  const pnlSource = realizedPnlSource(o);
   return (
     <tr data-state={o.state} data-testid={`order-row-${o.id}`}>
       <td className="mono-l">
@@ -553,7 +588,7 @@ function OrderRow({
       {o.filled_quantity != null ? (
         <td className="num">
           {o.filled_quantity}
-          {isPartialFill ? (
+          {partial ? (
             <>
               {" "}
               <span
@@ -568,15 +603,17 @@ function OrderRow({
       ) : (
         <td className="num dim">{EMPTY_CELL}</td>
       )}
-      {o.realized_pnl != null ? (
+      {displayedRealizedPnl != null ? (
         <td className={`num ${realizedPnlTone}`}>
-          {o.realized_pnl}{" "}
+          {displayedRealizedPnl}{" "}
           <span className="chip chip-xs" title={ORDER_REALIZED_PNL_SOURCE_HINT[pnlSource]}>
             {ORDER_REALIZED_PNL_SOURCE_LABEL[pnlSource]}
           </span>
         </td>
       ) : (
-        <td className="num dim">{EMPTY_CELL}</td>
+        <td className="num dim" title={realizedPnlEmptyReason(o.state)}>
+          {EMPTY_CELL}
+        </td>
       )}
       <td className="col-state">
         <span className={CHIP_TONE_CLASS[tone]}>

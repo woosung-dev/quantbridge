@@ -6,6 +6,7 @@ Decimal: 금액/수량은 NUMERIC(18, 8) — Sprint 4 D8 교훈.
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -20,6 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Index, LargeBinary, SQLModel
 
@@ -654,3 +656,149 @@ class AlertRule(SQLModel, table=True):
             onupdate=lambda: datetime.now(UTC),
         ),
     )
+
+
+class ExitClassification(StrEnum):
+    """거래소 청산 기록의 출처 분류. 값은 VARCHAR 로 저장한다(DB enum 미사용)."""
+
+    ours = "ours"
+    bracket_tp = "bracket_tp"
+    bracket_sl = "bracket_sl"
+    trailing = "trailing"
+    liquidation = "liquidation"
+    external_manual = "external_manual"
+    unknown = "unknown"
+
+
+class ExitAttribution(StrEnum):
+    """이 청산 손익을 어느 전략에 귀속할 수 있는지의 확신 등급."""
+
+    exact = "exact"
+    inferred = "inferred"
+    none = "none"
+
+
+class ExchangeExit(SQLModel, table=True):
+    __tablename__ = "exchange_exits"
+    __table_args__ = (
+        Index("uq_exchange_exits_row", "exchange_account_id", "row_hash", unique=True),
+        Index("ix_exchange_exits_account_created", "exchange_account_id", "exchange_created_at"),
+        Index("ix_exchange_exits_classification", "classification"),
+        {"schema": "trading"},
+    )
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    exchange_account_id: UUID = Field(
+        sa_column=Column(
+            "exchange_account_id",
+            ForeignKey("trading.exchange_accounts.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+    )
+    exchange_order_id: str = Field(sa_column=Column(String(120), nullable=False))
+    row_hash: str = Field(sa_column=Column(String(64), nullable=False))
+    symbol: str = Field(sa_column=Column(String(32), nullable=False))
+    # ccxt 는 closed-pnl 행의 side 를 뒤집으므로(Buy→short) 여기에는 거래소 원본 info.side 를 그대로 넣는다.
+    side: str = Field(sa_column=Column(String(8), nullable=False))
+    closed_pnl: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
+    closed_size: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
+    avg_entry_price: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
+    avg_exit_price: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
+    exchange_created_at: datetime = Field(sa_column=Column(AwareDateTime(), nullable=False))
+    exchange_updated_at: datetime | None = Field(
+        default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
+    classification: ExitClassification = Field(
+        sa_column=Column("classification", String(24), nullable=False)
+    )
+    create_type: str | None = Field(default=None, sa_column=Column(String(32), nullable=True))
+    stop_order_type: str | None = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
+    )
+    order_link_id: str | None = Field(default=None, sa_column=Column(String(120), nullable=True))
+    matched_order_id: UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            "matched_order_id",
+            ForeignKey("trading.orders.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    attributed_strategy_id: UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            "attributed_strategy_id",
+            ForeignKey("strategies.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    attribution_confidence: ExitAttribution = Field(
+        sa_column=Column("attribution_confidence", String(16), nullable=False)
+    )
+    # none_as_null=True 로 Python None 을 SQL NULL 로 보존한다. 기본 JSONB 는 JSONB 'null'을
+    # 저장해 IS NULL 술어가 무력해지는 webhook_payload 함정을 반복하지 않는다.
+    raw: dict[str, object] = Field(
+        sa_column=Column(postgresql.JSONB(none_as_null=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(
+            AwareDateTime(),
+            nullable=False,
+            server_default=text("NOW()"),
+            onupdate=lambda: datetime.now(UTC),
+        ),
+    )
+
+    @staticmethod
+    def compute_row_hash(
+        order_id: object | None,
+        created_time: object | None,
+        updated_time: object | None,
+        closed_size: object | None,
+        closed_pnl: object | None,
+        avg_entry_price: object | None,
+        avg_exit_price: object | None,
+        cum_exit_value: object | None,
+    ) -> str:
+        """같은 창을 다시 조회해도 같은 행은 같은 해시를 얻어 upsert 가 멱등해진다.
+
+        내용이 완전히 동일한 두 행은 하나로 합쳐지는데, 이는 구분 불가능한 행이므로 허용한다.
+
+        ★호출자 계약 — 값은 반드시 **거래소 원본 문자열**을 그대로 넘긴다. 해시는 값이 아니라
+        표현에 민감해서(`"0.10"` 과 `Decimal("0.1")` 은 서로 다른 digest) 파싱된 Decimal 을
+        넘기면 같은 행이 매 주기 새 행으로 적재된다.
+        `order_id` 는 비어 있으면 안 된다 — 전 필드가 비면 해시가 한 값으로 축퇴해
+        서로 다른 행이 UNIQUE 에 흡수된다.
+        """
+        if order_id is None or str(order_id) == "":
+            raise ValueError("row hash requires a non-empty exchange order id")
+        values = (
+            order_id,
+            created_time,
+            updated_time,
+            closed_size,
+            closed_pnl,
+            avg_entry_price,
+            avg_exit_price,
+            cum_exit_value,
+        )
+        # 구분자는 거래소 값에 나타날 수 없는 제어문자를 쓴다. 인쇄 가능한 구분자는
+        # 값 안에 섞이면 인접 필드 경계를 옮겨 서로 다른 행이 같은 해시를 얻는다.
+        # ★결측은 None 과 "" 를 반드시 같게 정규화한다. Bybit 이 한 주기엔 빈 문자열을,
+        # 다른 주기엔 키 자체를 생략하면 같은 행이 두 해시로 갈려 UNIQUE 를 통과하고,
+        # aggregate_closed_pnl 이 두 번 합산해 realized_pnl 이 실제의 2배로 백필된다.
+        payload = "\x1f".join(
+            "\x00" if value is None or str(value) == "" else str(value) for value in values
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()

@@ -1,9 +1,56 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-25 (money-path-accuracy 스프린트 — 거래소 확정 손익 + filled_quantity 소생 + BL-362 텔레그램 팬아웃)
-> **Active Sprint:** **money-path-accuracy** — 구현·검증·dogfood 완료, stage→main PR 사용자 squash 대기
-> **Active Branch:** `stage/money-path-accuracy` (main @ `3a91713` 베이스)
-> **Sprint type:** 머니-패스 정확도 (마이그레이션 **1**) — codex G0 REJECT→§7.3 전건 코드 대조 후 절반 수용/절반 실측 반박 + Explore 3-리더 grounding + Plan 압박검증(설계 결함 R1) + 사용자 인터뷰 11건 + codex 3-pass 워커(be 2 / fe 1) ↔ Claude 적대평가 per-worker(게이트 직접 실행, **프로덕션 파손 2건 발견**) + 최종 codex 누적 diff(**DO-NOT-SHIP 2 BLOCKING**) + 실자금 데이터 dogfood
+> **Last Updated:** 2026-07-25 (exit-attribution 스프린트 — 거래소 청산 원장, 범위 축소로 최근 7일 창 + dogfood 완주)
+> **Active Sprint:** **exit-attribution** — **완주.** PR #476 사용자 squash 대기
+> **Active Branch:** `stage/exit-attribution` (main @ `6b200e5` 베이스)
+
+## ⚡ exit-attribution 스프린트 (2026-07-25, `docs/exit-attribution/`)
+
+**스코프**: money-path-accuracy(#475) 후속. **BL-438 부분** — 거래소에만 존재하는 청산 기록을 원장으로 흡수해 보이게 만들고, 우리 주문의 손익만 계상한다. 마이그레이션 **1**(`20260725_0002`, 신규 테이블 1개 — 과거 스캔 경계 테이블은 머지 전 범위 축소로 제거).
+
+### ★§0.5 측정 스파이크가 전제를 뒤집었다
+
+독립 오라클 실측(계정 `0f666fae`, 07-01~07-25) — closed-pnl **11행** 중 우리 매칭 7 / **거래소 전용 4**(행 36.4% · |손익| **55.8%**). 머니-패스가 보는 합은 거래소 확정 총합의 **10.4%** 뿐이고 잔여는 고아 55.8% + 07-05 시뮬 오차 33.8% 로 정확히 닫힌다.
+
+- **거래소 전용 4행은 브래킷이 아니다** — 전부 `createType=CreateByUser`·`orderLinkId` 없음 = 앱 밖 수동 청산.
+- **브래킷 체결 전 기간 0건** — 조건부 주문 4건 전부 `Deactivated`, DB 17행 중 TP/SL/트레일링 실은 주문 **0**. 경로는 살아 있으므로 잠복 구멍.
+- **거래소 전용 4행 중 우리 포지션은 1건뿐** — 전량 자동 계상하면 남의 거래로 우리 전략을 차단한다.
+
+### Completed
+
+- [x] **S1 provider** — `ClosedPnlSnapshot` 9필드 확장(위치 인자 하위호환) + `fetch_closed_pnl_window`(7일 상한 강제) + 심볼리스 열거(계정당 1콜) + `fetch_closed_order_meta`(`fetch_closed_orders`, UTA 대응) + **페이징 커서 createdTime 축 교정** + 기존 3필드 strict 파싱 복원
+- [x] **S2 원장** — `trading.exchange_exits`(행 단위 원본 + provenance JSONB `none_as_null`) + `compute_row_hash`(제어문자 구분자 · `None`/`""` 동일 정규화 · 빈 order_id 거부) + 리포지토리(청킹·집계)
+- [x] **S3 스윕 재작성** — 계정 독립 열거 + **최근 7일 1창** + 조건부 보강(정상 상태 0콜) + **원장 전체 집계 백필** + 커밋 후 계상 + 알림 1회성 + `orphan_row` 계상 제거
+- [x] **S4 분류·귀속** — classification 7종(`stopOrderType` 폴백 · `orderLinkId` UUID 검증) + attribution 3등급(두 조건 AND) + `qb_exchange_exit_rows_total`. **`inferred` 는 머니-패스 미투입**(검정력 없음)
+- [x] **S5 FE** — `displayRealizedPnl`/`isPartialFill`/`realizedPnlSource` SSOT + 체결 전 주문 손익 은닉 + 사유 title + CSV 3열 복원
+- [x] **안전** — `_assert_disposable_database`(파괴적 마이그레이션 테스트가 `_test` 아닌 DB 향하면 `RuntimeError`) + 스키마 열거 센티널 9→**10**
+- [x] **S6 범위 축소 (머지 전)** — 과거 90일 catch-up 기계장치 제거(워터마크 테이블·창 전진·잘림 처리). **실측 = 그 기계장치는 ~13주기(65분) 후 영구 자기정지하는 일회성 catch-up 이었다** → 정상 상태 동작은 축소 전후 동일, 실제 소멸분은 일회성 역사 수입 하나. 원장은 **최근 7일만** → BL-452. 잘림은 발생 지점 로그(계정 식별자)로 대체
+- [x] 게이트: BE **2706** / FE **1094**(미변경) / ruff·mypy·tsc·lint 0 / alembic 왕복 + head `20260725_0002` / 마이그레이션 신규 테이블 **1개**
+- [x] 검증: codex G0 **REJECT**(전건 대조 후 절반 수용, "계정 단위 열거 불가" 는 **실측 반박**) → Explore 3-리더(핸드오프 좌표 **3건 반박**) → **Plan 압박검증이 내 설계 결함 적발**(원장 min 파생 워터마크가 빈 창에서 영구 정지 → 실측 시각 시뮬레이션으로 반증·재검증) → 사용자 인터뷰 **10건** → codex 4워커 ↔ **Claude 적대평가 4기**(BLOCKING 4 + MAJOR 4, **내가 넣은 회귀 1건**(`row_hash` 가 `None`/`""` 를 다르게 봐 손익 2배 백필) 포함 전건 수정 + 회귀 테스트) → 최종 codex 누적 diff **DO-NOT-SHIP 2**
+- [x] **축소 후 최종 codex 재실행 = P1 1건 추가** — `fetch_closed_pnl_window` 커서가 `oldest_ms - 1` 이라 **같은 createdTime 을 공유하는 분할 행**(구분은 updatedTime)이 페이지 상한을 넘으면 조용히 누락되고 부분합이 `realized_pnl` 로 영구 고정. 경계 포함(`until = oldest_ms`)으로 수정 + 중복은 원장 UNIQUE 흡수 + 회귀 테스트(구 커서로 red 실증)
+- [x] BL: **BL-438 부분 Resolved**(관측 원장 **최근 7일**) · **BL-442 Resolved** · 신규 **BL-443~453**
+- [x] **dogfood 완주** — 사용자가 Bybit demo 계정 재등록 후 독립 오라클(raw HMAC) 실측 = 원장 적재와 **완전 일치**(4행, 합계 −0.12392537). 분류(3 ours·1 external_manual)·멱등·알림 1회성·§9.5 라이브 worker·authed(`/orders` 5/5 green) 전부 실 계정으로 검증. 백필 종단 검증은 주문 이력 소실로 여전히 불가(정직 각주).
+- [x] **★dogfood 가 진짜 P1 을 하나 더 잡았다** — `_alert_new_exchange_exits` 가 원장을 새 세션으로 재조회하면 `classification` 컬럼이 평문 `str` 로 와서(`ExitClassification` StrEnum 재캐스팅 안 됨) `.value` 접근이 `AttributeError` → 신규 미귀속 행 알림이 매 사이클 조용히 죽고 있었다. `str()` 로 수정 + 실 DB 회귀 테스트(커밋 후 `expire_all()` 로 강제 재조회) + 재검증(`alerted:1` 확인). 같은 패턴 4개 필드 감사 → 실제 크래시 사이트는 이 한 곳뿐, 예방 등재 BL-453
+- [x] **§7.2 sentinel 이 stale 워커를 실제로 검출** — 재빌드 전 이미지가 `78ceadd` 시점에 baked 되어 있었다(제거 심볼 3종 잔존)
+
+### Questions
+
+- ★**사고 기록** — 적대 평가 서브에이전트에 `DATABASE_URL`(개발 DB)만 export 한 셸을 주었고 거기서 `pytest tests/test_migrations.py` 가 돌아 `downgrade base` 로 **개발 DB 가 전소**했다. 주문 17행 · 거래소 계정(암호화 API 키) · 전략 6종 Pine 소스 소실. 주문 17행 SQL 스냅샷만 남았으나 부모 행이 없어 단독 복원 불가. 가드는 넣었고([BL-451](REFACTORING-BACKLOG.md#bl-451)) 잔여는 **로컬 DB 주기 백업 부재** [확인 필요]
+- wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
+
+### Next Actions
+
+- [x] 사용자: 거래소 계정 재등록 → dogfood 8단계 완주
+- [x] 최종 codex 누적 diff 리뷰 — **DO-NOT-SHIP 2 + MAJOR 1 + MINOR 1 전건 수정**(원장 우회 CAS · max_pages 소진 · malformed 미계상 · downgrade 인덱스) + 축소 후 재실행 **P1 1건**(커서 tie 누락) 추가 수정
+- [x] canon 32 / authed `/orders` / §9.5 라이브 worker 검증 — 전부 green
+- [ ] **PR [#476](https://github.com/woosung-dev/quantbridge/pull/476)** stage/exit-attribution → main 사용자 squash
+- [ ] 다음 세션 = tasks 도메인 deepen 또는 BL-438 잔여(② 거래소 exit 머니-패스 계상)
+
+---
+
+> **Sprint type (exit-attribution):** 머니-패스 관측 (마이그레이션 **1**) — §0.5 측정 스파이크가 전제 3건 반박 + codex G0 REJECT→§7.3 전건 대조 + Explore 3-리더 + **Plan 압박검증이 내 설계 결함 적발** + 사용자 인터뷰 10건 + codex 4워커 ↔ Claude 적대평가 4기(BLOCKING 4/MAJOR 4) + ★로컬 개발 DB 전소 사고 대응
+>
+> **Sprint type (money-path-accuracy, 완료):** 머니-패스 정확도 (마이그레이션 **1**) — codex G0 REJECT→§7.3 전건 코드 대조 후 절반 수용/절반 실측 반박 + Explore 3-리더 grounding + Plan 압박검증(설계 결함 R1) + 사용자 인터뷰 11건 + codex 3-pass 워커(be 2 / fe 1) ↔ Claude 적대평가 per-worker(게이트 직접 실행, **프로덕션 파손 2건 발견**) + 최종 codex 누적 diff(**DO-NOT-SHIP 2 BLOCKING**) + 실자금 데이터 dogfood
 > **office-hours 진행:** N
 > **Next Trigger:** money-path-accuracy 머지 후 → **BL-438**(거래소 네이티브 TP/SL 청산 손익 미계상, P1) 또는 다음 deepen = tasks 도메인. // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
 
