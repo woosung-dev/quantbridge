@@ -35,29 +35,31 @@ flowchart TB
 
 ## 2. Frontend Job
 
-| 단계 | 명령 | 목적 |
-|------|------|------|
-| Setup | pnpm v9 + Node 20 + cache | 의존성 캐시 |
-| Install | `pnpm install --frozen-lockfile` | 재현성 확보 |
-| Lint | `pnpm lint` | ESLint + Prettier |
-| Type | `pnpm tsc --noEmit` | TypeScript Strict |
-| Test | `pnpm test -- --run` | vitest |
+| 단계    | 명령                             | 목적              |
+| ------- | -------------------------------- | ----------------- |
+| Setup   | pnpm v9 + Node 20 + cache        | 의존성 캐시       |
+| Install | `pnpm install --frozen-lockfile` | 재현성 확보       |
+| Lint    | `pnpm lint`                      | ESLint + Prettier |
+| Type    | `pnpm tsc --noEmit`              | TypeScript Strict |
+| Test    | `pnpm test -- --run`             | vitest            |
 
 > CI Node 버전은 20, 로컬 권장은 22+. 향후 일치시킬지 검토 (Sprint 5+).
+>
+> ★**로컬에서는 `pnpm test` 를 쓴다.** 위 `pnpm test -- --run` 은 `--` 구분자가 있어 CI 에서만 정상 동작한다. 로컬에서 `pnpm test --run` 으로 잘못 쓰면 인자 중복으로 죽으면서 **exit 0** 을 낸다. 게이트 전종과 함정은 [`gates-and-traps.md`](./gates-and-traps.md) 참조.
 
 ---
 
 ## 3. Backend Job
 
-| 단계 | 명령 | 목적 |
-|------|------|------|
-| Services | TimescaleDB + Redis containers | DB/Redis 의존 테스트 |
-| Setup | `astral-sh/setup-uv@v3` (cache) + Python 3.12 | uv lock 캐시 |
-| Install | `uv sync --all-extras --dev` | 의존성 |
-| Lint | `uv run ruff check .` | 린트 |
-| Type | `uv run mypy src/` | 타입 |
-| Migration | `uv run alembic upgrade head` | round-trip 게이트 (DB는 `quantbridge_test`) |
-| Test | `uv run pytest -v` | pytest 전체 |
+| 단계      | 명령                                          | 목적                                        |
+| --------- | --------------------------------------------- | ------------------------------------------- |
+| Services  | TimescaleDB + Redis containers                | DB/Redis 의존 테스트                        |
+| Setup     | `astral-sh/setup-uv@v3` (cache) + Python 3.12 | uv lock 캐시                                |
+| Install   | `uv sync --all-extras --dev`                  | 의존성                                      |
+| Lint      | `uv run ruff check .`                         | 린트                                        |
+| Type      | `uv run mypy src/`                            | 타입                                        |
+| Migration | `uv run alembic upgrade head`                 | round-trip 게이트 (DB는 `quantbridge_test`) |
+| Test      | `uv run pytest -v`                            | pytest 전체                                 |
 
 ### 환경 변수 (CI 전용)
 
@@ -73,6 +75,7 @@ flowchart TB
 ## 4. CI Summary
 
 `ci` job:
+
 - `if: always()` — 다른 job 결과와 무관하게 실행
 - frontend/backend 결과 파싱 → 둘 중 하나라도 failure이면 `exit 1`
 - skip은 통과로 간주 → docs only PR 머지 가능
@@ -96,10 +99,10 @@ flowchart TB
 
 ## 6. 캐시 전략
 
-| 캐시 | 위치 | 무효화 |
-|------|------|--------|
+| 캐시       | 위치                        | 무효화                   |
+| ---------- | --------------------------- | ------------------------ |
 | pnpm store | `~/.local/share/pnpm/store` | `pnpm-lock.yaml` 변경 시 |
-| uv cache | uv 자체 cache 디렉토리 | `uv.lock` 변경 시 |
+| uv cache   | uv 자체 cache 디렉토리      | `uv.lock` 변경 시        |
 
 > 캐시 hit 시 install 시간 단축. 의존성 추가 후 첫 PR은 cache miss로 느릴 수 있음.
 
@@ -110,6 +113,7 @@ flowchart TB
 > 현재 미설정. Sprint 7+ 배포 결정 후 별도 workflow 추가.
 
 계획:
+
 - staging deploy on push to `main` (선택)
 - production deploy on tag `v*.*.*`
 - 자동 alembic migration (Docker entrypoint)
@@ -129,18 +133,22 @@ flowchart TB
 ## 9. 자주 발생하는 문제
 
 ### 9.1 frontend / backend job이 실행 안 됨
+
 - `dorny/paths-filter` 패턴 확인 — 디렉토리 변경 없으면 skip 정상
 
 ### 9.2 backend job: alembic 실패
+
 - migration 파일 `down_revision` 충돌 — `alembic heads`로 multi-head 확인
 - `quantbridge_test` DB 권한 — services container env 점검
 
 ### 9.3 backend job: pytest 실패 (CI만)
+
 - `.ruff_cache` stale 아님 — CI는 fresh
 - timezone 차이 (CI=UTC, 로컬=KST) — naive datetime 비교 주의 (Sprint 5 S3-05 후 해소 예정)
 - DB savepoint 격리 누락 — fixture 검토
 
 ### 9.4 frontend job: tsc 에러
+
 - 로컬 IDE TypeScript 버전과 CI 버전 차이 — `frontend/tsconfig.json` strict 옵션 일치 확인
 
 ---

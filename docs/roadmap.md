@@ -4,7 +4,7 @@
 
 > **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](../.ai/templates/docs/status.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
-> **최종 갱신:** 2026-07-26 (**BL-474 ingress 패리티 완료, PR #484** — 출처 라벨·SessionScope 실화면 검증까지 닫힘. ★**신규 P1 2건** — 라이브 자동매매가 진입 주문을 낸 적이 없다(BL-478/479), 핸드오프 = `live-entry-wiring/checklist.md`). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
+> **최종 갱신:** 2026-07-26 (**live-entry-wiring 완료** — BL-478 (c) + BL-479 Resolved. 라이브 진입이 실제로 나가고 수량이 자본에 근거한다. ★잔여 P1 = **BL-483** leverage 라이브 마진게이트 미배선). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
 >
 > **동기화 규약.** BL Resolved 시 (1) REFACTORING-BACKLOG.md 에서 ✅ 마킹 (2) 본 문서 해당 체크박스 `[x]` + 스프린트/PR 표기. 신규 BL 등재 시 본 문서 해당 그룹에 1행 추가. 표류 방지 = 스프린트 마감 산출물 체크리스트에 "product-roadmap.md 갱신" 포함.
 
@@ -43,16 +43,16 @@
 
 ## 🔵 진행중 / 📋 계획됨 (핸드오프 SSOT 존재)
 
-| 항목                  | 상태      | 핸드오프                                                           | 스코프                                                                 |
-| --------------------- | --------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| **live-entry-wiring** | 📋 계획됨 | [`live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md) | BL-478/479 (P1). ★**BL-478 선택지 (a)/(b)/(c) 사용자 결정이 blocking** |
+| 항목                            | 상태 | 핸드오프 | 스코프                                |
+| ------------------------------- | ---- | -------- | ------------------------------------- |
+| _(없음 — 활성 핸드오프 문서 0)_ |      |          | 다음 후보는 아래 §권장 착수 순서 참조 |
 
 ## ⭐ 권장 착수 순서 (제안 — Trust ≥ Scale · dogfood-first 기준)
 
 1. ✅ **backtest-trust** (완료 · PR #480 머지) — 매일 보는 백테스트 숫자 신뢰(Sharpe·레버리지 청산).
 2. ✅ **머니-패스 정확도 마감 팩** (#481 완료 — BL-457/454 Resolved · BL-458 부분 · 신규 BL-464 Resolved). **잔여 = BL-446 1건**(cumulative_loss 시간축/분모 오염 — 구조 결함이지만 실측 여유 54,117배).
 3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `make seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **실주문 부분 완주** — 데모 실체결 + 심볼 정규화 실경로 확인. ★키 만료 진단은 **오진**이었고 진짜 원인은 WS `expires` 창(BL-473). **잔여였던 출처 라벨·SessionScope 화면 검증은 PR #484 에서 완료** — 추정값 주입으로 혼재 상태 포착 + 독립 raw-HMAC 오라클 3중 일치.
-4. ★**live-entry-wiring** — 📋 [`live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md). **라이브 자동매매가 진입 주문을 낸 적이 없다**(BL-478 P1) + 사이징 미배선(BL-479 P1). 조사는 끝났고 **BL-478 선택지 결정만 남았다**. 권고 = (c) 세션 시작 차단 먼저(거짓말을 즉시 멈춤) → (a) conditional order. (b) 시장가 근사는 백테스트↔라이브 일치를 조용히 깨므로 비권장.
+4. ✅ **live-entry-wiring** (완료 — **BL-478 (c)** 세션 시작 차단 + evaluate 자동 종료, **BL-479** 자본 기준선 스냅샷 + 사이징 배선). 사용자 결정 = **(c)**. 실주문 3중 대조로 종단 확인(손계산 = DB = 거래소 `0.029 Filled`, 실집행 $1,870 vs 미배선 $64,484). **잔여 = BL-478 (a) 조건부 주문 등재** — (c) 는 거짓말을 멈춘 것이지 기능을 만든 것이 아니다. `s1_pbr` 로는 여전히 라이브를 못 돌린다. 신규 BL-481~485.
 5. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
 6. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 7. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
@@ -99,9 +99,11 @@
 
 ### P1
 
-- [ ] **BL-478** [P1] ★**라이브 자동매매가 진입 주문을 낸 적이 없다** — `run_live` 가 `fill` 을 dispatch 제외하면서 "broker 가 자체 처리" 를 전제하는데 그 stop 주문을 거래소에 올린 적이 없다(`live_signal.py` 에 `trigger_price` 참조 0건). 청산만 나가 매번 110017. **`stop=` 진입 전략 한정**(시드 `s1_pbr` 이 100% 이 경로) · 핸드오프 = [`live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md)
-- [ ] **BL-479** [P1] 라이브 사이징 미배선 — `run_live` 가 사이징 인자 없이 `run_historical` 호출 → `compute_qty()` 항상 `1.0`(1 BTC ≈ $64,000). `position_size_pct` 는 라이브에서 **아무 데서도 안 읽힘**(유일 소비처가 백테스트 어댑터). Pine `default_qty_type` 선언조차 무시 · **BL-478 과 함께**
+- [x] **BL-478 (c) ✅ Resolved** [P1] ★**라이브 자동매매가 진입 주문을 낸 적이 없었다** — (c) 세션 시작 차단 + evaluate 자동 종료로 해소. **(a) 조건부 주문 등재는 열려 있다** — `run_live` 가 `fill` 을 dispatch 제외하면서 "broker 가 자체 처리" 를 전제하는데 그 stop 주문을 거래소에 올린 적이 없다(`live_signal.py` 에 `trigger_price` 참조 0건). 청산만 나가 매번 110017. **`stop=` 진입 전략 한정**(시드 `s1_pbr` 이 100% 이 경로) · 회고 = [`dev-log/2026-07-26-live-entry-wiring.md`](dev-log/2026-07-26-live-entry-wiring.md)
+- [x] **BL-479 ✅ Resolved** [P1] 라이브 사이징 미배선 — `run_live` 가 사이징 인자 없이 `run_historical` 호출 → `compute_qty()` 항상 `1.0`(1 BTC ≈ $64,000). `position_size_pct` 는 라이브에서 **아무 데서도 안 읽힘**(유일 소비처가 백테스트 어댑터). Pine `default_qty_type` 선언조차 무시 · **BL-478 과 함께**
 
+- [ ] **BL-486** [P1] ★라이브 사이징 equity 가 **300바 롤링 창**에 따라 변한다 — `running_equity` 가 창 안 청산 손익을 누적하는데 그 창이 롤링이라 같은 마지막 바의 수량이 창 내용에 따라 달라진다(실측 `0.09375 vs 0.0625`, 50% 차이). 미배선 `1.0` 보다는 낫지만 완결이 아니다. **먼저 라이브 equity 시맨틱 결정 필요** — (a) 세션 고정 / (b) 세션 누적(권고) / (c) 실잔고 추종. KNOWN_LIMITATION 테스트로 고정돼 있음
+- [ ] **BL-483** [P1] ★`leverage` 라이브 마진게이트 미배선 — `StrategySettings.leverage` 가 `OrderRequest` 로만 흐르고 `configure_sizing(leverage=)` 에 안 들어가 `_can_afford_entry` 격리증거금 게이트와 청산가 모델이 **L=1 no-op**. 백테스트가 거부할 진입을 라이브가 통과시킨다. ★그냥 넘기면 안 된다 — 증거금 부족 skip 이 `warnings` 로만 남아 **완전 무음**이라 표면화 경로를 같이 만들어야 한다. Trigger = BL-479 머지 직후
 - [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
 - [ ] **BL-022** [P1] Golden expectations 재생성 — strategy.exit 지원 후
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
