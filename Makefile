@@ -15,7 +15,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help dev up down logs be fe \
         dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
-        migrate migrate-isolated wait-db-isolated \
+        migrate migrate-isolated wait-db-isolated seed \
         test be-test fe-test fe-e2e fe-e2e-authed lint typecheck
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
@@ -143,6 +143,17 @@ migrate-isolated: wait-db-isolated
 # 기본 모드 마이그레이션 — host 5432.
 migrate:
 	cd backend && uv run alembic upgrade head
+
+# dogfood 복원 시더 — 빈 DB 를 전 화면 사용 가능 상태로.
+# 전략·백테스트를 실 서비스 계층 + 실 Celery 로 만든다(HTTP/auth 만 우회 —
+# clerk SDK 가 azp 클레임을 필수로 요구해 헤드리스 HTTP 시딩이 구조적으로 불가).
+# OHLCV 는 따로 안 심는다 — TimescaleProvider 가 cache-miss 시 Bybit 에서 받아
+# ts.ohlcv 에 직접 쓰므로 첫 백테스트가 곧 시딩이다. 멱등.
+#   make seed            전체
+#   make seed ONLY=daily 하나만
+seed:
+	cd backend && set -a; . ./.env.local; set +a; \
+	  uv run python scripts/seed_dogfood.py --confirm $(if $(ONLY),--only $(ONLY),)
 
 # 환경변수는 process env > dotenv 우선순위 (pydantic-settings).
 # .env.local 의 기본값(5432/6379/3000/8000)을 inline 으로 override.
