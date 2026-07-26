@@ -1,8 +1,43 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-26 (**live-entry-wiring** — BL-478 (c) + BL-479)
-> **Active Sprint:** **live-entry-wiring** — 라이브 자동매매가 못 하는 일을 못 한다고 말하게 만든다
-> **Active Branch:** `feat/live-entry-wiring` (main @ `fcc36bf` 베이스)
+> **Last Updated:** 2026-07-26 (**live-engine-parity** — 라이브 엔진 인자 4종 패리티 종결)
+> **Active Sprint:** **live-engine-parity** — 라이브와 백테스트가 같은 진입·사이징 규칙을 쓰게 만든다
+> **Active Branch:** `feat/live-engine-parity`
+> **요약:** 화면 총계는 원장 SSOT로 일치시켰고, leverage·세션·pyramiding·사이징 equity 경계를 배선했다. D7의 사이징 자본 일시 함몰은 BL-489로 정직하게 남긴다.
+
+## ⚡ live-engine-parity — `run_live` 인자 4종 패리티와 라이브 원장 신뢰 (2026-07-26)
+
+**스코프.** `run_live` 가 `run_historical` 로 넘기지 않던 사이징 equity 기준·`leverage`·`sessions_allowed`·`pyramiding`을 끝내고, 새로 켜지는 게이트가 무음으로 진입을 삼키지 않게 표면화한다.
+
+### ★핵심 발견
+
+- **preflight 가 킥오프 전제 4건을 반박했다.** carry 후보 `live_signal_states.total_realized_pnl` 은 창 스코프·매 tick 덮어쓰기이고, `Σ orders.realized_pnl` 은 거래소 net과 rejected 추정 PnL이 섞여 둘 다 기각됐다. 라이브 OHLCV의 `RangeIndex` + `timestamp` 는 tz 조건을 no-op으로 만들었고, NaN 기준선 단순 비교는 `InvalidOperation` 을 raise한다.
+- **★★D7.** 16:12Z의 3건·`5.16879987` 이 16:49Z의 2건·`4.07002377` 이 될 예측은 맞았지만, 이유는 창 밖 청산이 아니었다. 진입이 창 bar 0에서 EMA를 재현하지 못해 청산도 재현되지 않았고 carry에도 안 들어갔다. 화면은 원장 SSOT로 수리했지만 사이징 자본의 일시 함몰은 남는다.
+- **leverage 배선은 게이트만 켜지지 않았다.** `check_liquidations` 도 살아나 실제 reduce-only 주문을 낼 수 있는 머니-패스가 됐다. 따라서 청산 표면화와 "격리 증거금 기준" 고지를 같이 넣었다.
+
+### Completed
+
+- [x] **BL-486 ✅ Resolved.** carry는 append-only `live_signal_events`를 `bar_time < window_start`로 자른 합으로 정했다. `sum_realized_pnl_before`는 사이징 자본 경계, `sum_realized_pnl_all`은 화면 총계 원장 SSOT다. 새 close 이벤트만 `equity_curve`에 append한다.
+- [x] **BL-483 ✅ Resolved.** leverage를 라이브 엔진에 전달하고, 진입 skip을 reason별로 마지막 bar만 표면화했다. 라이브 리포트에서 `has_lastbar_skips=t`, `has_liq=t`, `liquidation_count=0` 을 확인했다.
+- [x] **BL-481 ✅ Resolved.** `Strategy.trading_sessions`를 전달하고, 값이 있을 때만 `timestamp`로 tz-aware 인덱스를 복원해 세션 밖 진입을 fail-closed로 막는다.
+- [x] **BL-482 ✅ Resolved.** 선언 `pyramiding` cap을 전달하고 cap 미만·초과 양방향 회귀를 뒀다.
+- [x] **BL-487 ✅ Resolved.** pool 객체 참조를 붙잡아 `id()` 재사용 flake를 `is not` 단정으로 바꿨다.
+- [x] 화면과 원장은 17:10Z와 17:23Z에 2회 연속 일치했다. curve는 청산 0건·tick 24회에서 +0, 청산 1건에서 정확히 +1을 기록했다.
+- [x] 변이 10종이 전부 적발됐고 매 변이에서 음성 95/96이 GREEN을 유지했다. `MUTANT` 잔존은 0, 복원은 바이트 동일이다.
+- [x] **독립 raw HMAC 오라클** — ccxt·`providers.py` 미경유로 `X-BAPI-SIGN` 을 손서명해 `/v5/position/closed-pnl` 직격. 청산 **5건 전부 DB 와 정확히 일치**(불일치 0). 시뮬 `+1.09877350` vs 거래소 `-1.09767393` 의 부호 반전이 외부 진실로 확정됐다.
+- [x] 게이트: BE **3102**(+28) · FE **1156**(+5) · **canon 32** · **e2e:authed 65-0** · ruff·mypy·tsc·lint 0 · 마이그레이션 **0**
+      ★ canon 은 처음 **27/32** 가 나왔는데 회귀가 아니라 `baseURL` 기본값 3000 을 다른 앱이 점유한 것이었다. `PLAYWRIGHT_BASE_URL=3100` 재실행으로 32. **통과 27건이 거짓 그린이었다는 게 실패 5건보다 무섭다.**
+
+### 신규 BL 4건
+
+- **BL-488 P1.** 평가 갭이 orphan close와 거래소 거부, 시뮬 손익 오염을 만든다.
+- **BL-489 P2.** D2 구간에서 사이징 자본이 일시 함몰한다. 화면 총계는 해결됐지만 `initial_capital`은 별도 설계가 필요하다.
+- **BL-490 P2.** `margin_mode` 미전달과 isolated 전용 청산 모델 때문에 cross 사용자가 조기 청산될 수 있다.
+- **BL-491 P3.** 백테스트 폼이 Live 레버리지를 아직 미러하지 않는다.
+
+### 문서 종결
+
+게이트 운영 지식 6종은 [`reference/gates-and-traps.md`](reference/gates-and-traps.md)에 승격했다. 작업 문서(`checklist.md` · `context-notes.md` · `bl-drafts.md`)는 회고·백로그·정본으로 전부 흡수했고 커밋하지 않았다. **`docs/` 최상위는 10 을 유지한다.** 이력인 아래 `live-entry-wiring` 섹션은 유지한다.
 
 ## ⚡ live-entry-wiring — BL-478 (c) 세션 차단 + BL-479 라이브 사이징 (2026-07-26)
 
