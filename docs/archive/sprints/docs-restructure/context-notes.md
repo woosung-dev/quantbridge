@@ -115,6 +115,17 @@ AWS Prescriptive Guidance 의 ADR 운영 원칙(*폐기를 삭제가 아니라 `
 | 게이트 | 결과 |
 |---|---|
 | FE vitest | **1130 passed** (canon 11건 포함 — 이동한 `reference/prototypes/` 를 실제 로드) |
-| BE pytest | 3052 collected |
+| BE pytest | **3006 passed · 46 skipped** (3:54) · ruff clean · mypy 205 files clean |
 | 깨진 링크 | main 388 → **42** (−89%). 잔여는 선재 결함(gitignore 된 `reports/*.html` 등) |
-| `docs/` 최상위 | 34 → **11** (활성 스프린트 1 포함) |
+| `docs/` 최상위 | 34 → **11** (활성 스프린트 `dogfood-restore` 1 포함) |
+| FE tsc | clean |
+
+## 10. 이 문서 자신이 규칙의 첫 적용 대상이다
+
+작업이 끝났으므로 `guides/sprint-template.md` §9 를 본 스프린트에 적용한다.
+
+- `checklist.md` · `context-notes.md` → **강등** (`docs/archive/sprints/docs-restructure/`)
+  둘 다 완결된 판단 기록이고, 앞으로 다시 읽을 사람은 "왜 이렇게 바꿨나" 를 궁금해하는
+  경우뿐이다. `reference/` 에 둘 정본은 아니다.
+- 규칙 자체(승격/강등 의무)는 `guides/sprint-template.md` §9 와 `docs/README.md` 에
+  **승격**되어 남는다 — 그게 이 스프린트가 만든 유일한 영속 자산이다.
