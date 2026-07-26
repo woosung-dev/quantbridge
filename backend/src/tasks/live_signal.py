@@ -38,14 +38,16 @@ from src.common.alert import track_pending_alert
 from src.common.metrics import (
     qb_live_signal_dispatch_total,
     qb_live_signal_divergence_total,
+    qb_live_signal_entry_skipped_total,
     qb_live_signal_eval_duration_seconds,
     qb_live_signal_evaluated_total,
+    qb_live_signal_liquidation_total,
     qb_live_signal_outbox_pending_gauge,
     qb_live_signal_skipped_total,
 )
 from src.common.redlock import RedisLock
 from src.core.config import settings
-from src.strategy.pine_v2.ast_extractor import uses_stop_entry
+from src.strategy.pine_v2.ast_extractor import extract_content, uses_stop_entry
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.alerting import send_rule_alert
@@ -88,6 +90,11 @@ _PREFLIGHT_CATEGORY_METADATA: dict[str, tuple[bool, str, str | None]] = {
         False,
         "자본 기준선 부재",
         "세션에 자본 기준선(equity_baseline_usdt)이 없습니다",
+    ),
+    "equity_exhausted": (
+        False,
+        "자본 소진",
+        "세션 누적 손익이 기준 자본을 초과했습니다",
     ),
 }
 
@@ -487,7 +494,15 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # stop-entry가 baseline 부재보다 근본 원인이므로 먼저 사용자에게 알린다.
             elif _uses_stop_entry_safe(strategy.pine_source):
                 preflight_cat = "stop_entry_unsupported"
-            elif equity_baseline_usdt is None or equity_baseline_usdt <= Decimal("0"):
+            # NaN/Infinity 를 먼저 걸러야 한다 — `Decimal('NaN') <= 0` 은 False 가 아니라
+            # InvalidOperation 을 raise 한다(실측). 그리고 그건 "자본 소진"이 아니라
+            # 애초에 쓸 수 없는 기준선이므로 equity_baseline_missing 으로 진단해야 맞다.
+            elif (
+                equity_baseline_usdt is None
+                or equity_baseline_usdt.is_nan()
+                or equity_baseline_usdt.is_infinite()
+                or equity_baseline_usdt <= Decimal("0")
+            ):
                 preflight_cat = "equity_baseline_missing"
             if preflight_cat is not None:
                 preflight_pageable, _, preflight_raw_msg = _PREFLIGHT_CATEGORY_METADATA[
@@ -533,7 +548,8 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ).inc()
                 return {"skipped": "empty_ohlcv"}
 
-            # 5. last_bar_time → no new bar skip
+            # 5. warmup 창의 첫/마지막 bar → no new bar skip
+            window_start = datetime.fromtimestamp(int(ohlcv_rows[0][0]) / 1000, tz=UTC)
             last_bar_ms = int(ohlcv_rows[-1][0])
             last_bar_time = datetime.fromtimestamp(last_bar_ms / 1000, tz=UTC)
             if (
@@ -544,6 +560,51 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     interval=interval_value, outcome="no_new_bar"
                 ).inc()
                 return {"skipped": "no_new_bar"}
+
+            carry_pnl, _ = await event_repo.sum_realized_pnl_before(
+                sess.id, bar_time=window_start
+            )
+            assert equity_baseline_usdt is not None  # 위 preflight가 None을 이미 비활성화한다.
+            effective_capital = equity_baseline_usdt + carry_pnl
+            if (
+                effective_capital.is_nan()
+                or effective_capital.is_infinite()
+                or effective_capital <= Decimal("0")
+            ):
+                preflight_cat = "equity_exhausted"
+                preflight_pageable, _, preflight_raw_msg = _PREFLIGHT_CATEGORY_METADATA[
+                    preflight_cat
+                ]
+                if preflight_raw_msg is None:
+                    preflight_raw_msg = ", ".join(preflight_symbols)[:200]
+                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                await sess_repo.commit()
+                if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                    await publish_realtime(
+                        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                    )
+                    if preflight_pageable:
+                        qb_live_signal_divergence_total.labels(
+                            stage="preflight", category=preflight_cat
+                        ).inc()
+                    qb_live_signal_skipped_total.labels(reason=preflight_cat).inc()
+                    _fire_divergence_alert(
+                        session_id=sess.id,
+                        stage="preflight",
+                        category=preflight_cat,
+                        raw_msg=preflight_raw_msg,
+                        error_count=0,
+                        last_error_bar=-1,
+                    )
+                    logger.error(
+                        "live_signal_preflight_blocked",
+                        extra={
+                            "session_id": str(sess.id),
+                            "category": preflight_cat,
+                            "symbols": list(preflight_symbols),
+                        },
+                    )
+                return {"deactivated": preflight_cat}
 
             # 6. try_claim_bar winner-only (P2 #3)
             won = await sess_repo.try_claim_bar(sess.id, last_bar_time, uuid4())
@@ -557,22 +618,26 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
+            pyramiding: int | None = None
             try:
-                # preflight와 같은 코루틴의 같은 sess 객체라 baseline은 이미 유효하다. settings도
-                # 위에서 검증됐고 position_size_pct는 필수 범위 필드다. pine_v2 float 경계 뒤 qty는
-                # dispatch에서 Decimal(str(...))로 복원한다.
-                if equity_baseline_usdt is None:
-                    # 도달 불가 — 위 preflight 의 equity_baseline_missing 이 이미 걸렀다.
-                    # return 으로 때우면 "deactivated" 를 보고하면서 실제로는 세션을 안 끄는
-                    # 거짓말이 된다. raise 하면 아래 except 가 실제로 비활성화한다 (fail-closed).
-                    raise RuntimeError(
-                        "equity_baseline_usdt is None past preflight — invariant broken"
-                    )
+                pyramiding = extract_content(strategy.pine_source).declaration.pyramiding
+            except Exception:
+                logger.warning(
+                    "live_signal_pyramiding_extract_failed",
+                    exc_info=True,
+                    extra={"session_id": str(sess.id)},
+                )
+            try:
                 result = run_live(
                     strategy.pine_source,
                     df,
-                    initial_capital=float(equity_baseline_usdt),
+                    initial_capital=float(effective_capital),
                     live_position_size_pct=parsed_settings.position_size_pct,
+                    # BL-483 후속: pine_v2 청산 모델은 isolated 기준이다.
+                    # margin_mode는 아직 전달하지 않으며 cross 모델은 별도 BL 설계가 필요하다.
+                    leverage=float(parsed_settings.leverage),
+                    sessions_allowed=tuple(strategy.trading_sessions or ()),
+                    pyramiding=pyramiding,
                 )
             except Exception as exc:
                 # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
@@ -646,6 +711,21 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     )
                 return {"deactivated": "runtime_divergence", "category": category}
 
+            for entry_skip in result.entry_skips:
+                reason = entry_skip.get("reason")
+                if not isinstance(reason, str) or reason not in (
+                    "margin_insufficient",
+                    "non_finite_qty",
+                    "pyramiding_cap",
+                    "session_closed",
+                ):
+                    reason = "other"
+                qb_live_signal_entry_skipped_total.labels(reason=reason).inc()
+            for liquidation in result.liquidations:
+                direction = liquidation.get("direction")
+                if direction in ("long", "short"):
+                    qb_live_signal_liquidation_total.labels(direction=direction).inc()
+
             # 8. transactional outbox — events INSERT + state upsert + commit (P1 #3)
             signals_payload: list[dict[str, object]] = [
                 {
@@ -676,28 +756,35 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 for e in inserted_or_existing
                 if (e.bar_time, e.sequence_no, e.action, e.trade_id) not in existing_keys
             ]
+            # 화면 총계 SSOT는 append-only LiveSignalEvent 원장이다.
+            # warmup 창이 과거 entry를 재현하지 못하면 창 안 close가 run_live 결과에서 사라진다(D2).
+            # 원장 합계는 창과 무관하게 단조이므로 화면 총계는 이 값을 사용한다.
+            ledger_realized_pnl, ledger_closed_trades = await event_repo.sum_realized_pnl_all(
+                sess.id
+            )
 
             # BL-123 — JSONB 호환 sanitize (NaN/Infinity → None). run_historical 의
             # warmup 중 ATR/EMA 등이 NaN 반환 가능 → PG strict JSONB reject.
             sanitized_report = _sanitize_for_jsonb(result.strategy_state_report)
             # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
-            # 신규 closed trade 발생 시점 = total_realized_pnl 변동. delta 계산 후
-            # equity_calculator.append_equity_point 호출. 변동 없으면 curve 갱신 X.
+            # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
+            # 재계산의 미세 변동은 point 를 추가하지 않는다.
             # defensive: non-Decimal mock value 도 graceful (None 반환 = skip).
             from src.trading.equity_calculator import append_equity_point
 
             new_equity_curve: list[dict[str, object]] | None = None
             try:
                 existing_state = await sess_repo.get_state(sess.id)
-                prev_total_pnl = (
-                    Decimal(str(existing_state.total_realized_pnl))
-                    if existing_state is not None
-                    else Decimal("0")
-                )
-                curr_total_pnl = Decimal(str(result.total_realized_pnl))
-                pnl_delta = curr_total_pnl - prev_total_pnl
-
-                if pnl_delta != Decimal("0"):
+                new_close_events = [
+                    event
+                    for event in new_events
+                    if event.action == "close" and event.realized_pnl is not None
+                ]
+                if new_close_events:
+                    pnl_delta = sum(
+                        (Decimal(str(event.realized_pnl)) for event in new_close_events),
+                        Decimal("0"),
+                    )
                     # 영구 규칙: Decimal-first 합산 (calculator 안에서 처리)
                     prev_curve = (
                         existing_state.equity_curve
@@ -721,8 +808,8 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 last_strategy_state_report=sanitized_report
                 if isinstance(sanitized_report, dict)
                 else {},
-                total_closed_trades=result.total_closed_trades,
-                total_realized_pnl=result.total_realized_pnl,
+                total_closed_trades=ledger_closed_trades,
+                total_realized_pnl=ledger_realized_pnl,
                 equity_curve=new_equity_curve,
             )
 

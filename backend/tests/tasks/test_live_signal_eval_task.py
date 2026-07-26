@@ -71,6 +71,16 @@ def _divergence_count(stage: str, category: str) -> float:
     return qb_live_signal_divergence_total.labels(stage=stage, category=category)._value.get()
 
 
+def _divergence_total() -> float:
+    """모든 divergence label series의 합계다."""
+    return sum(
+        sample.value
+        for metric in qb_live_signal_divergence_total.collect()
+        for sample in metric.samples
+        if sample.name == "qb_live_signal_divergence_total"
+    )
+
+
 # ── Beat schedule + task registration ──────────────────────────────────
 
 
@@ -194,6 +204,8 @@ def _patch_inner_dependencies(
     strategy_repo: AsyncMock,
     ohlcv_rows: list[list[Any]] | None = None,
     run_live_result: LiveSignalResult | None = None,
+    carry_result: tuple[Decimal, int] = (Decimal("0"), 0),
+    ledger_result: tuple[Decimal, int] | None = None,
 ) -> AsyncMock:
     """공통 의존성 patching. session mock 반환."""
     session = AsyncMock()
@@ -243,6 +255,10 @@ def _patch_inner_dependencies(
     import src.strategy.pine_v2.event_loop as event_loop_mod
 
     monkeypatch.setattr(event_loop_mod, "run_live", lambda *a, **kw: run_live_result)
+    event_repo.sum_realized_pnl_before = AsyncMock(return_value=carry_result)
+    event_repo.sum_realized_pnl_all = AsyncMock(
+        return_value=ledger_result if ledger_result is not None else carry_result
+    )
 
     return session
 
@@ -409,6 +425,7 @@ async def test_success_inserts_events_and_commits(monkeypatch: pytest.MonkeyPatc
             id=sess.strategy_id,
             settings={"leverage": 2, "margin_mode": "cross", "position_size_pct": 10.0},
             pine_source="//@version=5\nstrategy('x')",
+            trading_sessions=[],
         )
     )
     account_repo = AsyncMock()
@@ -516,12 +533,22 @@ async def test_empty_due_list_no_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _build_strategy(
-    strategy_id: Any, *, pine_source: str, position_size_pct: float = 10.0
+    strategy_id: Any,
+    *,
+    pine_source: str,
+    position_size_pct: float = 10.0,
+    leverage: float = 2.0,
+    trading_sessions: list[str] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=strategy_id,
-        settings={"leverage": 2, "margin_mode": "cross", "position_size_pct": position_size_pct},
+        settings={
+            "leverage": leverage,
+            "margin_mode": "cross",
+            "position_size_pct": position_size_pct,
+        },
         pine_source=pine_source,
+        trading_sessions=trading_sessions or [],
     )
 
 
@@ -539,8 +566,12 @@ def _preflight_scaffold(
     pine_source: str,
     equity_baseline_usdt: Decimal | None = Decimal("8192.00"),
     position_size_pct: float = 10.0,
+    leverage: float = 2.0,
+    trading_sessions: list[str] | None = None,
     account_repo: AsyncMock | None = None,
     ohlcv_rows: list[list[Any]] | None = None,
+    carry_result: tuple[Decimal, int] = (Decimal("0"), 0),
+    ledger_result: tuple[Decimal, int] | None = None,
 ) -> tuple[SimpleNamespace, AsyncMock, AsyncMock, AsyncMock, AsyncMock]:
     """G4b preflight와 실제 run_live 배선 테스트용 최소 공통 조립."""
     sess = _build_session_obj(equity_baseline_usdt=equity_baseline_usdt)
@@ -557,6 +588,8 @@ def _preflight_scaffold(
             sess.strategy_id,
             pine_source=pine_source,
             position_size_pct=position_size_pct,
+            leverage=leverage,
+            trading_sessions=trading_sessions,
         )
     )
     event_repo = AsyncMock()
@@ -569,6 +602,8 @@ def _preflight_scaffold(
         account_repo=account_repo if account_repo is not None else _demo_account_repo(),
         strategy_repo=strategy_repo,
         ohlcv_rows=ohlcv_rows or [[int(datetime(2026, 5, 1, tzinfo=UTC).timestamp() * 1000), 1, 2, 0, 1, 100]],
+        carry_result=carry_result,
+        ledger_result=ledger_result,
     )
     monkeypatch.setattr(
         live_signal_module,
@@ -990,6 +1025,76 @@ async def test_preflight_deactivates_null_equity_baseline(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "carry_pnl",
+    [Decimal("-8192.00"), Decimal("NaN")],
+    ids=["zero", "nan"],
+)
+async def test_effective_capital_exhaustion_deactivates_without_divergence(
+    monkeypatch: pytest.MonkeyPatch, carry_pnl: Decimal
+) -> None:
+    """0 이하 또는 비유한 실효 자본은 주문 전에 page 없이 세션을 종료한다."""
+    window_start = datetime(2026, 5, 1, 11, 58, tzinfo=UTC)
+    sess, sess_repo, event_repo, publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_MARKET_ENTRY_SOURCE,
+        carry_result=(carry_pnl, 1),
+        ohlcv_rows=[
+            [int(window_start.timestamp() * 1000), 1, 1, 1, 1, 100],
+            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 1, 1, 1, 1, 100],
+            [int(datetime(2026, 5, 1, 12, 0, tzinfo=UTC).timestamp() * 1000), 1, 1, 1, 1, 100],
+        ],
+    )
+    alert = AsyncMock(return_value={"slack": True, "telegram": True})
+    monkeypatch.setattr(live_signal_module, "send_rule_alert", alert)
+    before_divergence = _divergence_count("preflight", "equity_exhausted")
+    before_skipped = qb_live_signal_skipped_total.labels(reason="equity_exhausted")._value.get()
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    await _flush_pending_alerts()
+
+    assert res == {"deactivated": "equity_exhausted"}
+    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    sess_repo.try_claim_bar.assert_not_awaited()
+    sess_repo.deactivate.assert_awaited_once()
+    publisher.assert_awaited_once_with(
+        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+    )
+    assert alert.await_count == 1
+    assert _divergence_count("preflight", "equity_exhausted") == before_divergence
+    assert qb_live_signal_skipped_total.labels(reason="equity_exhausted")._value.get() == (
+        before_skipped + 1
+    )
+
+
+@pytest.mark.asyncio
+async def test_carry_query_error_does_not_deactivate_as_run_live_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """carry 조회 오류는 Pine 인터프리터 발산으로 분류하거나 세션을 종료하지 않는다."""
+    window_start = datetime(2026, 5, 1, 11, 58, tzinfo=UTC)
+    sess, sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_MARKET_ENTRY_SOURCE,
+        ohlcv_rows=[
+            [int(window_start.timestamp() * 1000), 1, 1, 1, 1, 100],
+            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 1, 1, 1, 1, 100],
+            [int(datetime(2026, 5, 1, 12, 0, tzinfo=UTC).timestamp() * 1000), 1, 1, 1, 1, 100],
+        ],
+    )
+    event_repo.sum_realized_pnl_before.side_effect = ConnectionError("database unavailable")
+    before_divergence = _divergence_count("runtime", "run_live_error")
+
+    with pytest.raises(ConnectionError, match="database unavailable"):
+        await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    sess_repo.try_claim_bar.assert_not_awaited()
+    sess_repo.deactivate.assert_not_awaited()
+    assert _divergence_count("runtime", "run_live_error") == before_divergence
+
+
+@pytest.mark.asyncio
 async def test_market_entry_session_with_baseline_passes_preflight(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1046,8 +1151,16 @@ async def test_non_demo_account_still_skips_not_deactivates(
 
 
 @pytest.mark.asyncio
-async def test_live_sizing_reaches_run_live_hand_computed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """8192 x 50 / 100 = 4096, 4096 / 65536 = 0.0625를 task outbox까지 검증한다."""
+async def test_live_sizing_carry_restores_window_invariance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-486 손계산 오라클로 task carry 배선을 실제 `run_live`까지 검증한다.
+
+    baseline 8192 + carry 4096 = 12288, pct 50, price 65536.
+    정답은 12288 x 50 / 100 / 65536 = 0.09375다.
+    carry 무시는 0.0625, carry 이중계상은 0.125, 미배선 fallback은 1.0이다.
+    네 값이 서로 달라 오답이 정답을 통과할 수 없다.
+    """
     import src.strategy.pine_v2.event_loop as event_loop_mod
 
     real_run_live = event_loop_mod.run_live
@@ -1055,14 +1168,18 @@ async def test_live_sizing_reaches_run_live_hand_computed(monkeypatch: pytest.Mo
         "//@version=5\nstrategy('last bar market entry')\n"
         "if close > open\n    strategy.entry('L', strategy.long)\n"
     )
+    window_start = datetime(2026, 5, 1, 11, 58, tzinfo=UTC)
     bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
     sess, _sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
         monkeypatch,
         pine_source=source,
         equity_baseline_usdt=Decimal("8192.00"),
         position_size_pct=50.0,
+        carry_result=(Decimal("4096"), 1),
         ohlcv_rows=[
-            [int(bar_time.timestamp() * 1000), 65535.0, 65536.0, 65535.0, 65536.0, 100]
+            [int(window_start.timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
+            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
+            [int(bar_time.timestamp() * 1000), 65535.0, 65536.0, 65535.0, 65536.0, 100],
         ],
     )
     monkeypatch.setattr(event_loop_mod, "run_live", real_run_live)
@@ -1070,8 +1187,442 @@ async def test_live_sizing_reaches_run_live_hand_computed(monkeypatch: pytest.Mo
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
     assert res["evaluated"] is True
+    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    signals = event_repo.insert_pending_events.await_args.kwargs["signals"]
+    assert signals[0]["qty"] == 0.09375
+    state_kwargs = _sess_repo.upsert_state.await_args.kwargs
+    assert state_kwargs["total_closed_trades"] == 1
+    assert state_kwargs["total_realized_pnl"] == Decimal("4096")
+
+
+@pytest.mark.asyncio
+async def test_live_sizing_passes_carry_to_initial_capital_and_ledger_total(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """carry는 initial_capital에만 반영하고 화면 총계는 원장 합계를 사용한다."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    window_start = datetime(2026, 5, 1, 11, 58, tzinfo=UTC)
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')",
+        carry_result=(Decimal("4096"), 1),
+        ledger_result=(Decimal("6"), 2),
+        ohlcv_rows=[
+            [int(window_start.timestamp() * 1000), 1, 2, 0, 1, 100],
+            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 1, 2, 0, 1, 100],
+            [int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100],
+        ],
+    )
+    captured_initial_capital: list[float] = []
+
+    def fake_run_live(*_args: object, **kwargs: object) -> LiveSignalResult:
+        captured_initial_capital.append(float(kwargs["initial_capital"]))
+        return LiveSignalResult(
+            last_bar_time=bar_time,
+            signals=[],
+            strategy_state_report={},
+            total_closed_trades=2,
+            total_realized_pnl=Decimal("8"),
+        )
+
+    monkeypatch.setattr(event_loop_mod, "run_live", fake_run_live)
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    _event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    _event_repo.sum_realized_pnl_all.assert_awaited_once_with(sess.id)
+    assert captured_initial_capital == [12288.0]
+    state_kwargs = sess_repo.upsert_state.await_args.kwargs
+    assert state_kwargs["total_closed_trades"] == 2
+    assert state_kwargs["total_realized_pnl"] == Decimal("6")
+
+
+@pytest.mark.asyncio
+async def test_run_live_passes_leverage_and_counts_engine_events_without_divergence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-483. 정상 skip과 모델 청산은 page나 세션 중단 없이 따로 관측한다."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_MARKET_ENTRY_SOURCE,
+        leverage=8.0,
+        ohlcv_rows=[[int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100]],
+    )
+    captured_kwargs: list[dict[str, object]] = []
+    entry_skips = [
+        {"bar_index": 0, "reason": "margin_insufficient", "trade_id": "M"},
+        {"bar_index": 0, "reason": "non_finite_qty", "trade_id": "N"},
+        {"bar_index": 0, "reason": "pyramiding_cap", "trade_id": "P"},
+        {"bar_index": 0, "reason": "session_closed", "trade_id": "S"},
+        {"bar_index": 0, "reason": "unexpected_reason", "trade_id": "U"},
+    ]
+
+    def fake_run_live(*_args: object, **kwargs: object) -> LiveSignalResult:
+        captured_kwargs.append(kwargs)
+        return LiveSignalResult(
+            last_bar_time=bar_time,
+            signals=[],
+            strategy_state_report={"last_bar_entry_skips": entry_skips},
+            total_closed_trades=0,
+            total_realized_pnl=Decimal("0"),
+            entry_skips=entry_skips,
+            liquidations=[{"direction": "long"}, {"direction": "short"}],
+        )
+
+    monkeypatch.setattr(event_loop_mod, "run_live", fake_run_live)
+    entry_skip_counter = getattr(live_signal_module, "qb_live_signal_entry_skipped_total")
+    liquidation_counter = getattr(live_signal_module, "qb_live_signal_liquidation_total")
+    reasons = [
+        "margin_insufficient",
+        "non_finite_qty",
+        "pyramiding_cap",
+        "session_closed",
+        "other",
+    ]
+    before_skips = {
+        reason: entry_skip_counter.labels(reason=reason)._value.get() for reason in reasons
+    }
+    before_divergence = _divergence_total()
+    before_liquidations = {
+        direction: liquidation_counter.labels(direction=direction)._value.get()
+        for direction in ("long", "short")
+    }
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    assert captured_kwargs == [
+        {
+            "initial_capital": 8192.0,
+            "live_position_size_pct": 10.0,
+            "leverage": 8.0,
+            "sessions_allowed": (),
+            "pyramiding": None,
+        }
+    ]
+    for reason in reasons:
+        assert entry_skip_counter.labels(reason=reason)._value.get() == before_skips[reason] + 1
+    for direction in ("long", "short"):
+        assert liquidation_counter.labels(direction=direction)._value.get() == (
+            before_liquidations[direction] + 1
+        )
+    assert _divergence_total() == before_divergence
+    sess_repo.deactivate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_live_passes_sessions_and_declared_pyramiding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-481/482. 전략 SSOT의 세션과 Pine 선언 cap을 그대로 run_live로 전달한다."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, _sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x', pyramiding=2)",
+        trading_sessions=["asia", "ny"],
+        ohlcv_rows=[[int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100]],
+    )
+    captured_kwargs: list[dict[str, object]] = []
+
+    def fake_run_live(*_args: object, **kwargs: object) -> LiveSignalResult:
+        captured_kwargs.append(kwargs)
+        return LiveSignalResult(
+            last_bar_time=bar_time,
+            signals=[],
+            strategy_state_report={},
+            total_closed_trades=0,
+            total_realized_pnl=Decimal("0"),
+        )
+
+    monkeypatch.setattr(event_loop_mod, "run_live", fake_run_live)
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    assert captured_kwargs == [
+        {
+            "initial_capital": 8192.0,
+            "live_position_size_pct": 10.0,
+            "leverage": 2.0,
+            "sessions_allowed": ("asia", "ny"),
+            "pyramiding": 2,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_live_sizing_reaches_run_live_hand_computed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """8192 x 50 / 100 / 65536 = 0.0625인 carry=0 음성 대조군을 보존한다."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    real_run_live = event_loop_mod.run_live
+    source = (
+        "//@version=5\nstrategy('last bar market entry')\n"
+        "if close > open\n    strategy.entry('L', strategy.long)\n"
+    )
+    window_start = datetime(2026, 5, 1, 11, 58, tzinfo=UTC)
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, _sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=source,
+        equity_baseline_usdt=Decimal("8192.00"),
+        position_size_pct=50.0,
+        carry_result=(Decimal("0"), 0),
+        ohlcv_rows=[
+            [int(window_start.timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
+            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
+            [int(bar_time.timestamp() * 1000), 65535.0, 65536.0, 65535.0, 65536.0, 100],
+        ],
+    )
+    monkeypatch.setattr(event_loop_mod, "run_live", real_run_live)
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
     signals = event_repo.insert_pending_events.await_args.kwargs["signals"]
     assert signals[0]["qty"] == 0.0625
+
+
+@pytest.mark.asyncio
+async def test_effective_capital_uses_decimal_sum_before_float_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """1000.07과 0.1은 Decimal에서 더한 뒤 한 번만 float으로 넘긴다."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    window_start = datetime(2026, 5, 1, 11, 58, tzinfo=UTC)
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, _sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')",
+        equity_baseline_usdt=Decimal("1000.07"),
+        carry_result=(Decimal("0.1"), 1),
+        ohlcv_rows=[
+            [int(window_start.timestamp() * 1000), 1, 2, 0, 1, 100],
+            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 1, 2, 0, 1, 100],
+            [int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100],
+        ],
+    )
+    captured_initial_capital: list[float] = []
+
+    def fake_run_live(*_args: object, **kwargs: object) -> LiveSignalResult:
+        captured_initial_capital.append(float(kwargs["initial_capital"]))
+        return LiveSignalResult(
+            last_bar_time=bar_time,
+            signals=[],
+            strategy_state_report={},
+            total_closed_trades=0,
+            total_realized_pnl=Decimal("0"),
+        )
+
+    monkeypatch.setattr(event_loop_mod, "run_live", fake_run_live)
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    assert captured_initial_capital == [1000.17]
+
+
+@pytest.mark.asyncio
+async def test_d2_ledger_is_ssot_while_sizing_remains_a_known_limitation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """D2 프로덕션 회귀다. 16:12의 3건 5.16879987이 16:49에 2건 4.07002377로 줄었다.
+
+    화면 총계는 원장 SSOT로 해결됐고 사이징 자본만 남았다. 창 밖 진입의 창 안 close가
+    재현되지 않는 동안 initial_capital은 일시적으로 함몰한다.
+    """
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    real_run_live = event_loop_mod.run_live
+    first_window_start = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    second_window_start = datetime(2026, 5, 1, 12, 3, tzinfo=UTC)
+    source = (
+        "//@version=5\nstrategy('cross window close')\n"
+        "if close == 100\n    strategy.entry('A', strategy.long)\n"
+        "if close == 200\n    strategy.close('A')\n"
+    )
+    sess, sess_repo, event_repo, _publisher, provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=source,
+        carry_result=(Decimal("0"), 0),
+        ohlcv_rows=[
+            [int(first_window_start.timestamp() * 1000), 101, 101, 101, 101, 100],
+            [int(datetime(2026, 5, 1, 12, 1, tzinfo=UTC).timestamp() * 1000), 200, 200, 200, 200, 100],
+            [int(datetime(2026, 5, 1, 12, 2, tzinfo=UTC).timestamp() * 1000), 300, 300, 300, 300, 100],
+        ],
+    )
+    provider.fetch_ohlcv.side_effect = [
+        [
+            [int(first_window_start.timestamp() * 1000), 101, 101, 101, 101, 100],
+            [int(datetime(2026, 5, 1, 12, 1, tzinfo=UTC).timestamp() * 1000), 200, 200, 200, 200, 100],
+            [int(datetime(2026, 5, 1, 12, 2, tzinfo=UTC).timestamp() * 1000), 300, 300, 300, 300, 100],
+        ],
+        [
+            [int(second_window_start.timestamp() * 1000), 301, 301, 301, 301, 100],
+            [int(datetime(2026, 5, 1, 12, 4, tzinfo=UTC).timestamp() * 1000), 302, 302, 302, 302, 100],
+            [int(datetime(2026, 5, 1, 12, 5, tzinfo=UTC).timestamp() * 1000), 303, 303, 303, 303, 100],
+        ],
+    ]
+    event_repo.sum_realized_pnl_before.side_effect = [
+        (Decimal("0"), 0),
+        (Decimal("4096"), 1),
+    ]
+    event_repo.sum_realized_pnl_all.side_effect = [
+        (Decimal("4096"), 1),
+        (Decimal("4096"), 1),
+    ]
+    initial_capitals: list[float] = []
+
+    def capture_run_live(*args: object, **kwargs: object) -> LiveSignalResult:
+        initial_capitals.append(float(kwargs["initial_capital"]))
+        return real_run_live(*args, **kwargs)
+
+    monkeypatch.setattr(event_loop_mod, "run_live", capture_run_live)
+
+    first = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    second = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert first["evaluated"] is True
+    assert second["evaluated"] is True
+    assert [
+        call.kwargs["bar_time"] for call in event_repo.sum_realized_pnl_before.await_args_list
+    ] == [first_window_start, second_window_start]
+    assert initial_capitals == [8192.0, 12288.0]
+    assert [
+        call.kwargs["total_realized_pnl"] for call in sess_repo.upsert_state.await_args_list
+    ] == [Decimal("4096"), Decimal("4096")]
+
+
+@pytest.mark.asyncio
+async def test_d2_ledger_is_ssot_when_run_live_loses_a_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """D2 프로덕션 회귀다. 16:12에는 3건 5.16879987, 16:49에는 2건 4.07002377이었다.
+
+    warmup replay가 2인 close 1건만 반환해도 append-only 원장에 6인 2건이 있으면
+    화면 상태는 원장 총계를 유지해야 한다.
+    """
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')",
+        ledger_result=(Decimal("6"), 2),
+        ohlcv_rows=[[int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100]],
+    )
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    monkeypatch.setattr(
+        event_loop_mod,
+        "run_live",
+        lambda *_args, **_kwargs: LiveSignalResult(
+            last_bar_time=bar_time,
+            signals=[],
+            strategy_state_report={},
+            total_closed_trades=1,
+            total_realized_pnl=Decimal("2"),
+        ),
+    )
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    event_repo.sum_realized_pnl_all.assert_awaited_once_with(sess.id)
+    state_kwargs = sess_repo.upsert_state.await_args.kwargs
+    assert state_kwargs["total_realized_pnl"] == Decimal("6")
+    assert state_kwargs["total_closed_trades"] == 2
+
+
+@pytest.mark.asyncio
+async def test_equity_curve_does_not_grow_without_new_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """warmup 재계산 총손익이 변해도 새 close event 없이는 curve를 갱신하지 않는다."""
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')",
+        ohlcv_rows=[[int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100]],
+    )
+    sess_repo.get_state = AsyncMock(
+        return_value=SimpleNamespace(
+            total_realized_pnl=Decimal("1"),
+            equity_curve=[{"timestamp_ms": 1, "cumulative_pnl": "1"}],
+        )
+    )
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    assert sess_repo.upsert_state.await_args.kwargs["equity_curve"] is None
+
+
+@pytest.mark.asyncio
+async def test_equity_curve_grows_once_for_new_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    """새 close event 한 건은 curve point를 정확히 한 건만 추가한다."""
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')",
+        ohlcv_rows=[[int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100]],
+    )
+    sess_repo.get_state = AsyncMock(
+        return_value=SimpleNamespace(
+            equity_curve=[{"timestamp_ms": 1, "cumulative_pnl": "1"}],
+        )
+    )
+    close_event = SimpleNamespace(
+        id=uuid4(),
+        bar_time=bar_time,
+        sequence_no=0,
+        action="close",
+        trade_id="L",
+        realized_pnl=Decimal("2"),
+        status=LiveSignalEventStatus.pending,
+    )
+    event_repo.insert_pending_events = AsyncMock(return_value=[close_event])
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    monkeypatch.setattr(
+        event_loop_mod,
+        "run_live",
+        lambda *_args, **_kwargs: LiveSignalResult(
+            last_bar_time=bar_time,
+            signals=[
+                LiveSignal(
+                    action="close",
+                    direction="long",
+                    trade_id="L",
+                    qty=1.0,
+                    sequence_no=0,
+                    realized_pnl=Decimal("2"),
+                )
+            ],
+            strategy_state_report={},
+            total_closed_trades=1,
+            total_realized_pnl=Decimal("2"),
+        ),
+    )
+    monkeypatch.setattr(live_signal_module.dispatch_live_signal_event_task, "apply_async", MagicMock())
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    curve = sess_repo.upsert_state.await_args.kwargs["equity_curve"]
+    assert curve == [
+        {"timestamp_ms": 1, "cumulative_pnl": "1"},
+        {"timestamp_ms": int(bar_time.timestamp() * 1000), "cumulative_pnl": "3"},
+    ]
 
 
 # T3f — regression: clean strategy 정상 경로 불변 ------------------------

@@ -1457,6 +1457,7 @@ class Interpreter:
                 positional.append(val)
 
         if name == "strategy.entry":
+            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
             # BL-188 v3 entry placement gate (Track S) — disallowed session 이면
             # silent skip → equity/state 영향 0. 단일 reference =
             # `src.strategy.trading_sessions.is_allowed`. timestamps 미주입 시 skip 하지 않음
@@ -1467,9 +1468,13 @@ class Interpreter:
                     from src.strategy.trading_sessions import is_allowed
 
                     if not is_allowed(list(self.strategy.sessions_allowed), bar_ts.to_pydatetime()):
+                        self.strategy._record_entry_skip(
+                            bar=bar_idx,
+                            reason="session_closed",
+                            trade_id=trade_id,
+                        )
                         return None
 
-            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
             # when= kwarg: False면 entry skip (Pine v4 backtest range 필터)
             when_val = kwargs.get("when")
             if when_val is not None and not self._truthy(when_val):

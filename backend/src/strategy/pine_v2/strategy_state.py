@@ -185,6 +185,11 @@ class Trade:
     def is_open(self) -> bool:
         return self.exit_bar is None
 
+    @property
+    def is_liquidation(self) -> bool:
+        """강제청산으로 종료된 거래인지 반환한다."""
+        return self.liquidated
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -196,6 +201,7 @@ class Trade:
             "exit_price": self.exit_price,
             "pnl": self.pnl,
             "comment": self.comment,
+            "liquidated": self.liquidated,
         }
 
 
@@ -249,6 +255,8 @@ class StrategyState:
     pending_exits: dict[str, list[ExitOrder]] = field(default_factory=dict)
     # 경고/미지원 파라미터 추적 (`limit=`, `trail_points=` 등) — 사용자에게 알림용
     warnings: list[str] = field(default_factory=list)
+    # 진입이 엔진 게이트에서 삼켜진 구조화된 기록. warnings 소비처와 분리한다.
+    entry_skips: list[dict[str, Any]] = field(default_factory=list)
     # Sprint 26 codex G.0 P1 #2 — bar-level event log. `run_live` 가 마지막 bar 의
     # entry/close 만 LiveSignalEvent outbox 로 변환. same-bar entry+close 회귀 방어.
     events: list[TradeEvent] = field(default_factory=list)
@@ -358,6 +366,13 @@ class StrategyState:
             )
         )
 
+    def _record_entry_skip(self, *, bar: int, reason: str, trade_id: str) -> None:
+        """엔진 게이트가 삼킨 진입을 구조화해 기록한다."""
+        skip = {"bar_index": bar, "reason": reason, "trade_id": trade_id}
+        if self.entry_skips[-1:] == [skip]:
+            return
+        self.entry_skips.append(skip)
+
     def _can_afford_entry(
         self,
         *,
@@ -426,6 +441,11 @@ class StrategyState:
                 if not margin_available_ok(required=required, available=available):
                     self.warnings.append(
                         f"strategy.entry({trade_id!r}): 증거금 부족으로 진입 skip"
+                    )
+                    self._record_entry_skip(
+                        bar=bar,
+                        reason="margin_insufficient",
+                        trade_id=trade_id,
                     )
                     return None
                 margin_used = required
@@ -593,6 +613,7 @@ class StrategyState:
             self.warnings.append(
                 f"strategy.entry({trade_id!r}): non-finite qty ({qty}) → 주문 skip"
             )
+            self._record_entry_skip(bar=bar, reason="non_finite_qty", trade_id=trade_id)
             return None
 
         if stop is not None:
@@ -615,6 +636,11 @@ class StrategyState:
             fill_price=fill_price,
         ):
             self.warnings.append(f"strategy.entry({trade_id!r}): 증거금 부족으로 진입 skip")
+            self._record_entry_skip(
+                bar=bar,
+                reason="margin_insufficient",
+                trade_id=trade_id,
+            )
             return None
 
         # 시장가: opposite direction 전부 flip (Pine 표준) → 중복 id 청산 → 신규 entry
@@ -629,6 +655,14 @@ class StrategyState:
                 1 for t in self.open_trades.values() if t.direction == direction
             )
             if same_dir >= self.pyramiding:
+                self.warnings.append(
+                    f"strategy.entry({trade_id!r}): pyramiding cap으로 진입 skip"
+                )
+                self._record_entry_skip(
+                    bar=bar,
+                    reason="pyramiding_cap",
+                    trade_id=trade_id,
+                )
                 return None
 
         return self._open_trade(
@@ -741,6 +775,11 @@ class StrategyState:
             ):
                 self.warnings.append(
                     f"strategy.entry({order_id!r}): 증거금 부족으로 진입 skip"
+                )
+                self._record_entry_skip(
+                    bar=bar,
+                    reason="margin_insufficient",
+                    trade_id=order_id,
                 )
                 to_remove.append(order_id)
                 continue
@@ -968,6 +1007,8 @@ class StrategyState:
             "position_size": self.position_size,
             "position_avg_price": self.position_avg_price,
             "warnings": list(self.warnings),
+            "entry_skips": list(self.entry_skips),
+            "liquidation_count": self.liquidation_count,
             "total_pnl": sum((t.pnl or 0.0) for t in self.closed_trades),
             "trade_count": len(self.closed_trades) + len(self.open_trades),
         }
