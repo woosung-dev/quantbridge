@@ -7,6 +7,7 @@ import {
   BacktestDetailSchema,
   type BacktestDetail,
 } from "@/features/backtest/schemas";
+import { describeSharpe } from "@/features/backtest/sharpe-convention";
 
 import { ShareNotFoundState } from "./_components/share-not-found-state";
 import { SharePublicBanner } from "./_components/share-public-banner";
@@ -99,7 +100,12 @@ export default async function SharedBacktestPage({ params }: PageProps) {
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { label: "총 수익률", value: `${pct(toNum(m.total_return))}%` },
-              { label: "Sharpe", value: fmt(toNum(m.sharpe_ratio)) },
+              {
+                label: "Sharpe",
+                // 공개 표면이라 더 중요하다 — degenerate 실행을 `0.00` 으로 내보내면
+                // 링크를 받은 사람은 검증할 방법이 없다.
+                value: describeSharpe(m.sharpe_convention, toNum(m.sharpe_ratio)).display,
+              },
               { label: "MDD", value: `${pct(toNum(m.max_drawdown))}%` },
               {
                 label: "거래 수",
@@ -272,10 +278,6 @@ function toNum(v: number | string | null | undefined): number | null {
 
 function pct(n: number | null): string {
   return n == null ? "—" : (n * 100).toFixed(2);
-}
-
-function fmt(n: number | null): string {
-  return n == null ? "—" : n.toFixed(2);
 }
 
 function formatRange(start: string, end: string): string {
