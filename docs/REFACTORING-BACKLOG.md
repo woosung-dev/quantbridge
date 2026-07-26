@@ -2501,7 +2501,223 @@ expires = now +60s  → success=True
 
 **부수 관측:** 시더로 만든 전략은 평문 webhook secret 이 브라우저에 없어 다이얼로그가 "캐시 없음" 으로 막힌다 — Secret 회전 1회가 선행돼야 한다. 정상 동작이지만 안내문이 "Strategy 페이지에서 Rotate" 라고만 해서 §05 Webhook 카드까지 스크롤해야 한다는 걸 알기 어렵다.
 
-**Risk:** 🟡 (도구가 잘못된 확신을 준다)
+**상태:** ✅ **Resolved (2026-07-26, `feat/bl-474-webhook-ingress-parity`).**
+
+**★진단이 한 겹 더 깊었다 — 문제는 다이얼로그가 아니라 webhook ingress 였다.** `router.py:138-147` 이 `OrderRequest` 를 7개 필드로만 조립하고 `parse_tv_payload`(`webhook.py:118-125`)가 6개 키만 읽어, **한 자리에서 세 가지가 동시에 버려지고 있었다** — leverage/margin_mode(해결 자체를 안 함) + `reduce_only` + TP/SL(프론트가 **보내는데** 파서가 안 읽음). 원인이 프론트가 아니므로 "다이얼로그가 실어 보낸다" 는 권장 접근은 잘못된 층을 고칠 뻔했다.
+
+**★leverage 만 고쳤으면 A(출처 라벨 검증)는 여전히 안 열렸다.** 청산 확정 경로 전체가 `reduce_only` 를 요구한다 — `tasks/trading.py:1342` 조기 반환 + 스윕의 `list_unsynced_reduce_only`. 그 플래그 없이는 다이얼로그 청산이 **영원히 `realized_pnl_synced_at` 을 못 받는다**.
+
+**★위 실측 표의 "leverage=1" 은 맞고, 체크리스트 §2 가 여기서 끌어낸 "레버리지 1 은 시장 유형을 바꾼다(`has_leverage=False`)" 는 틀렸다.** `order_service.py:194` = `req.leverage is not None and req.leverage > 0`, `tasks/trading.py:135` = `return lev > 0` → **1 이면 True → linear perp**. 진짜 원인은 값이 1이어서가 아니라 **아무 값도 안 보내서**다. `docs/dogfood-restore/checklist.md` 에서 정정했다.
+
+**해결:** `WebhookService.resolve_trading_params()` 신설 — `Strategy.settings` 에서 leverage/margin_mode 를 해결하고 미설정/무효는 **422 fail-closed**(`live_signal.py:852-866` / `close_service.py:47-58` 와 동일 정책). payload 로는 받지 않는다(secret 보유자가 운영자 리스크 설정을 우회하는 걸 차단). HMAC 검증 **뒤에** 호출해 응답코드 차이로 settings 유무를 탐지당하지 않게 했다. `reduce_only`/TP/SL/`risk_percent` 는 파서가 읽어 전달하며, `reduce_only` 는 `bool("false") is True` 함정을 명시 화이트리스트로 막았다.
+
+fail-closed 를 고른 이유 = spot 진입은 **닫을 수단이 없다**. 모든 청산 경로가 linear reduce-only 로 나가고 거래소는 `110017 "current position is zero"` 로 거부한다(이 스프린트가 관측한 그 에러). 하위 머니-패스(청산 원장·코크핏·`exchange_exits`)가 전부 linear 전용이라 spot 체결은 확정 손익을 영원히 못 받는다.
+
+FE 는 경고만 하고 차단하지 않는다 — 공개 ingress 라 서버가 권위여야 하고, 정책을 두 곳에 두면 반드시 어긋난다. 다이얼로그에 라우팅 배지(`Linear Perp · 2x · isolated`), settings 없을 때 422 경고, 미리보기 레버리지 기본값 = 전략 설정, secret 안내문 구체화(§05 Webhook 카드 명시)를 넣었다.
+
+회귀 = 22 테스트 **전부 수정 전 RED 확인**(parse 17 · router 4 · e2e 1). FE 신규 7건은 `git stash` 로 프로덕션 변경만 되돌려 RED 재현 — 통과만 보고 넘어가면 판별력 0인 가드를 100%로 착각한다. Sprint 7a 가 `test_e2e_webhook_to_futures_order.py:5-6` 독스트링에 "Sprint 7b 로 분리" 라 적고 미뤄둔 HTTP→ccxt 전 구간 테스트도 여기서 닫았다.
+
+**Risk:** 🟢
+
+---
+
+### BL-475
+
+**Title:** 서버 권위 risk% 사이징이 구현된 적 없다 (UI 는 있다고 말하고 있었다)
+**Category:** Backend / trading (사이징)
+**Priority:** P3
+**Trigger:** 사이징 자동화가 실제로 필요해질 때
+**Est:** M
+**출처:** 2026-07-26 BL-474 작업 중 발견
+
+**원인 / 영향:** 테스트 주문 다이얼로그의 "리스크 %" 모드 문구는 _"수량은 서버가 잔고·리스크 기준으로 계산합니다 (서버 권위 사이징)"_ 였다. 그런 코드는 없다. `OrderService._validate_position_size`(`order_service.py:92-134`)는 `max_qty` 를 구해 **client 수량이 초과하면 거부**할 뿐 수량을 만들어내지 않는다. 게다가 그 모드는 payload 에서 `quantity` 를 빼고 보냈고 `parse_tv_payload:122` 는 `payload["quantity"]` 를 필수로 읽으므로 **전송하면 401** 이었다 — 한 번도 작동한 적 없는 경로다.
+
+**BL-474 에서 한 것(전체 아님):** 모드를 실제 동작에 맞춰 재정의했다 — 수량 필수 + risk% 는 **상한**, 손절가 필수(없으면 `risk_sizing_skip_no_stop` 으로 가드가 조용히 skip 되어 "통과처럼 보이는 미검증" 이 된다). `risk_percent` 를 webhook 파서·라우터에 배선해 상한 검증이 실제로 돌게 했다.
+
+**남은 것:** 진짜 서버 사이징(잔고 × 리스크% ÷ 스탑거리로 **수량 산출**)은 미구현. 필요해지면 `_validate_position_size` 옆에 `compute_position_size` 를 두고 `OrderRequest.quantity` 를 optional 로 여는 설계 결정부터 해야 한다(현재 `Field(gt=0)` 필수).
+
+**Risk:** 🟢 (거짓 문구는 제거됨)
+
+---
+
+### BL-476
+
+**Title:** 공개 webhook 핸들러가 동기 CCXT 왕복 3회를 태운다 (실측 **+4.8초**)
+**Category:** Backend / trading (지연)
+**Priority:** P2
+**Trigger:** TradingView 실연동 전 / webhook 타임아웃 관측 시
+**Est:** M
+**출처:** 2026-07-26 BL-474 dogfood 실측
+
+**원인 / 영향:** BL-474 로 `leverage` 가 채워지면서 `order_service.py:218-266` 의 notional 가드가 webhook 경로에서 **처음으로 도달 가능**해졌다. 그 대가로 동기 HTTP 핸들러 안에 CCXT 왕복 3회가 들어왔다.
+
+```
+fetch_mark_price     1663 ms   -> 64532.7
+fetch_min_notional   1549 ms   -> 5.0
+fetch_balance_usdt   1600 ms   -> 190549.99
+TOTAL                4812 ms
+```
+
+각 호출이 계정 재조회 + 자격증명 복호화 + ephemeral ccxt 클라이언트 생성(`timeout: 30000`)을 한다. 위는 정상 응답 기준이고, 거래소가 느리거나 죽으면 **최악 90초**까지 늘어난다 — TradingView 는 webhook 을 재시도하므로 중복 신호가 될 수 있다(멱등키가 있으나 client-generated 라 재시도마다 새 값이면 무력).
+
+**★게이트가 못 잡는 종류다.** 테스트는 provider 를 stub 으로 갈아끼우므로 항상 0ms 다. 회귀는 프로덕션에서만 보인다.
+
+**권장 접근:** 가드를 Celery 경계 뒤로 옮긴다 — `OrderService.execute` 는 행을 만들고 즉시 201 을 주고, `tasks/trading.py:_execute_with_session` 이 발주 직전에 가드를 평가해 실패 시 `rejected` 로 전이. 이미 그 경로에 `except ProviderError` graceful 전이가 있다. 다만 **거부 시점이 응답 뒤로 밀리는** 계약 변경이라 별도 결정이 필요하다.
+
+**Risk:** 🟡 (지연 절벽, 데이터 오류는 아님)
+
+---
+
+### BL-477
+
+**Title:** 같은 Bybit 서브계정을 가리키는 API 키 2개가 청산 원장에 같은 행을 2번 적재한다 (phantom `unknown`)
+**Category:** Backend / trading (청산 원장 귀속)
+**Priority:** P3
+**Trigger:** 읽기 전용 계정 정리 시 또는 external-exit 알림이 시끄러워질 때
+**Est:** S
+**출처:** 2026-07-26 BL-474 dogfood 실측
+
+**원인 / 영향:** `exchange_accounts` 두 행(`19a8166a` "bybit demo" · `0277c150` "bybit demo- aaa")이 **같은 Bybit 데모 서브계정의 서로 다른 API 키**다. 스윕은 계정별로 `/v5/position/closed-pnl` 을 치므로 같은 청산이 두 번 적재되고, upsert 키에 `exchange_account_id` 가 들어가 중복으로 접히지 않는다.
+
+```
+exchange_order_id                     closed_pnl    classification  exchange_account_id
+b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   ours            19a8166a  (우리 주문과 매칭)
+b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (매칭 실패 → 외부로 분류)
+```
+
+07-24 행들도 같은 패턴이라 **선재 문제**이며 BL-474 와 무관하다.
+
+**손익 이중 계상은 없다** — `aggregate_closed_pnl`(`exchange_exit_repository.py:43-59`)이 `WHERE exchange_account_id == account_id` 로 계정 스코프이고, 세션 손익은 `orders.realized_pnl` 을 세지 원장을 세지 않는다. 실측으로 확인: 세션 확정 손익 `-0.12772399` = 두 청산의 정확한 합.
+
+**진짜 영향은 귀속/알림 표면**이다. 우리가 낸 청산이 두 번째 키 관점에서는 "앱 밖에서 일어난 청산" 으로 보여 `unknown` 이 되고, external-exit 알림이 유령 이벤트로 시끄러워진다.
+
+**권장 접근:** (a) 사용자가 읽기 전용 계정을 삭제하면 자연 소멸(가장 싸다) · (b) 등록 시 동일 거래소 서브계정 중복을 감지해 경고 · (c) 귀속을 계정이 아니라 `(exchange, exchange_order_id)` 기준으로 재조회. 셋 중 무엇을 할지는 계정 2개 등록을 계속 지원할지에 달렸다.
+
+**Risk:** 🟢 (알림 노이즈. 금액 정확도 영향 없음)
+
+---
+
+### BL-478
+
+**Title:** stop-entry 전략은 라이브에서 **진입이 구조적으로 절대 나가지 않는다** — 청산만 나가서 매번 110017
+**Category:** Backend / trading (라이브 신호 dispatch)
+**Priority:** **P1**
+**Trigger:** 즉시 (라이브 세션이 지금 이 상태로 돌고 있다)
+**Est:** M
+**출처:** 2026-07-26 dogfood-restore 체크리스트 B 조사
+
+**원인 / 영향:** `run_live` 가 `fill` 액션을 dispatch 대상에서 제외한다 — `event_loop.py:287-288`:
+
+```python
+    # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
+    if e.action not in ("entry", "close"):
+        continue
+```
+
+독스트링(`event_loop.py:253-255`)이 근거를 명시한다: _"action="fill" 은 broker 이벤트 (pending stop 체결) 이므로 Pine signal 로 dispatch 안 함 — **broker 가 자체 fill 알림 처리**"_.
+
+**★그 전제가 성립하지 않는다. broker 에 그 stop 주문을 올린 적이 없다.** `src/tasks/live_signal.py` 에 `trigger_price` / `trigger_direction` / `PendingOrder` 참조가 **0건**이다(전수 grep). 즉 조건부 진입 주문을 거래소에 등재하는 코드가 존재하지 않는다.
+
+**영향 범위 = `strategy.entry(..., stop=...)` 를 쓰는 전략 한정.** `strategy_state.py:598-608` 이 `stop` 이 있으면 `PendingOrder` 만 파킹하고 **`return None`**(이벤트 미발행) 한다. `stop` 없는 시장가 진입은 `:634-642` 가 `event_action="entry"` 로 정상 발행하므로 영향 없다.
+
+**결과 사슬** — 진입 이벤트 0건 → 거래소 포지션 0 → 다음 반전 시 pine 이 `close` 이벤트 발행(`strategy_state.py:748` `_flip_opposite_positions` → `close()` → `:671-679`) → 그건 dispatch 됨 → reduce-only 인데 포지션이 없음 → `retCode 110017 "current position is zero"`. 실측 = 라이브 세션 `0e15c3c0` 의 주문 전량이 `reduce_only=true`·`rejected`·110017 이고 진입 주문은 **한 건도 없다**.
+
+시드 전략 `s1_pbr` 은 진입 2개가 모두 `stop=` 이라(`s1_pbr.pine:7,20`) **100% 이 경로다.**
+
+**권장 접근:** 셋 중 택일 — (a) `PendingOrder` 를 거래소 conditional order 로 등재(`OrderRequest.trigger_price`/`trigger_direction` 이 이미 있고 `_merge_exit_params` 가 처리한다) · (b) `fill` 도 dispatch 대상에 넣어 시장가로 근사(체결가 괴리 발생, TV parity 훼손) · (c) stop-entry 전략의 라이브 세션 시작을 **명시적으로 차단**하고 이유를 화면에 표시. **최소 정직안은 (c)** — 지금은 조용히 안 되면서 되는 척한다.
+
+**Risk:** 🔴 (라이브 자동매매가 진입을 못 하는데 화면상 "돌고 있음")
+
+---
+
+### BL-479
+
+**Title:** 라이브 경로에 사이징이 배선돼 있지 않다 — `compute_qty()` 가 항상 `1.0`, `position_size_pct` 는 읽히지 않는다
+**Category:** Backend / trading (라이브 포지션 사이징)
+**Priority:** **P1**
+**Trigger:** BL-478 과 함께 (진입이 열리면 즉시 수량이 문제가 된다)
+**Est:** M
+**출처:** 2026-07-26 dogfood-restore 체크리스트 B 조사
+
+**원인 / 영향:** `run_live`(`event_loop.py:270-272`)가 `run_historical` 을 **사이징 인자 없이** 호출한다.
+
+```python
+    # run_historical 전체 재실행 (warmup replay)
+    result = run_historical(source, ohlcv, capture_history=False, strict=False)
+```
+
+`run_historical` 은 `initial_capital` / `default_qty_type` / `default_qty_value` / `leverage` 를 받지만(`event_loop.py:62-76`) `configure_sizing` 은 `if initial_capital is not None` 게이트 뒤에 있다(`:107-113`). 라이브에선 `None` → 미호출 → `compute_qty()` 가 fallback `1.0` 반환(`strategy_state.py:311-317`).
+
+그 `1.0` 이 그대로 `LiveSignal.qty` → `LiveSignalEvent.qty` → `OrderRequest.quantity`(`live_signal.py:929`)로 흐른다. **1 BTC ≈ $64,000 명목.**
+
+**`StrategySettings.position_size_pct` 는 라이브에서 아무 데서도 읽히지 않는다.** 전수 분류 결과 사이징 계산에 쓰이는 유일한 자리는 `compat.parse_and_run_v2`(`compat.py:99-111`)이고, 그 함수의 프로덕션 호출자는 `backtest/engine/v2_adapter.py:96` **하나뿐**이다. `live_signal.py` 는 `parsed_settings` 를 `leverage`(`:931`)·`margin_mode`(`:932`) 두 곳에만 쓰고 `position_size_pct` 는 검증만 하고 버린다. `live_session_service.py:80` 은 필드 **존재**만 요구하고 값은 안 본다.
+
+★**Pine 선언도 마찬가지로 무시된다.** `strategy(default_qty_type=..., default_qty_value=...)` 를 선언한 스크립트조차 라이브에선 `1.0` 이다 — 추출 경로(`ast_extractor.py:259-280` → `compat.py:41-57`) 전체가 `initial_capital is not None` 게이트 뒤에 있기 때문. 즉 사이징 우선순위 사슬(Pine > form > Live)이 라이브에선 통째로 죽어 있다.
+
+**권장 접근:** `run_live` 에 자본 기준선 + 사이징을 전달한다. `position_size_pct` 는 evaluate 단계에서 이미 `parsed_settings` 로 손에 있고(`live_signal.py:396`), 없는 것은 **equity 기준선**이다 — kill-switch 가 이미 쓰는 balance provider(`live_signal.py:880-885`)를 재사용하는 게 가장 짧다. 다만 "라이브 equity 를 매 tick 거래소에서 가져올 것인가"는 지연·정합성 결정이 필요하다(BL-476 과 같은 종류의 trade-off).
+
+**BL-466 과 뿌리가 다르다** — 그쪽은 백테스트 마진 게이트 no-op(L=1), 이쪽은 라이브 배선 부재다.
+
+**Risk:** 🔴 (열리면 곧바로 과대 포지션)
+
+---
+
+### BL-480
+
+**Title:** `local_only` 판정이 화면에서 **구조적으로 렌더 불가** — 발산을 은폐하고 "포지션 없음" 이라 안심시킨다
+**Category:** Frontend / trading (Surface Trust)
+**Priority:** P2
+**Trigger:** BL-478 수정 전 (지금은 이게 유일한 발산 표면)
+**Est:** S
+**출처:** 2026-07-26 dogfood-restore 체크리스트 B 실측
+
+**원인 / 영향:** 백엔드는 발산을 **정확히 안다**. 실측(2026-07-26 04:47, 세션 `0e15c3c0`):
+
+```json
+{
+  "positions": [],
+  "local_open_trades_snapshot": [
+    { "id": "PivRevLE", "direction": "long", "qty": 1, "entry_price": 64557.51 }
+  ],
+  "diff": { "verdict": "local_only", "local_source": "strategy_state_report" }
+}
+```
+
+프론트에도 문구가 있다 — `open-positions-table.tsx:29` `local_only: "전략에만 열린 거래가 있습니다."`
+
+**그런데 그 행이 만들어지지 않는다.** `hooks.ts:161-170` 이 행을 `positions.positions` 를 순회해 만드는데, `local_only` 는 **정의상 `positions` 가 비어 있는 경우**다. 루프 본문이 한 번도 안 돌아 `rows.length === 0` → `open-positions-table.tsx:234-247` 이 대신 렌더한다:
+
+> **"열린 포지션이 없습니다. 활성 세션의 거래소 보고값에서 열린 포지션을 찾지 못했습니다."**
+
+거래소 기준으로는 참이지만, **pine 이 롱을 들고 있다고 믿는다는 사실을 적극적으로 감춘다.** 같은 이유로 `exchange_only` 도 로컬이 빈 세션에서는 죽는다. 즉 6종 verdict 중 **불일치를 뜻하는 2종이 정확히 그 상황에서만 안 보인다.**
+
+**권장 접근:** 행 생성을 `positions` 순회가 아니라 **세션 단위**로 바꾼다 — 세션마다 최소 1행을 만들고 `positions` 가 비면 verdict 와 `local_open_trades_snapshot` 을 보여주는 행으로 렌더. 회귀 방어는 `verdict='local_only' + positions=[]` 픽스처로 "열린 포지션이 없습니다" 가 **아닌** 것을 단정.
+
+**상태:** ✅ **Resolved (2026-07-26, `feat/bl-474-webhook-ingress-parity`).**
+
+`combineLiveSessionPositions` 에 `divergences` 를 추가했다. `positions` 가 비었을 때 **숨기면 안 되는 판정만** 골라 세션 단위로 건져 올린다(`isDivergentWithoutExchangePosition`):
+
+| 판정                                               | 처리       | 이유                                                     |
+| -------------------------------------------------- | ---------- | -------------------------------------------------------- |
+| `local_only`                                       | **표면화** | 발산 그 자체                                             |
+| `unknown` + `local_source='strategy_state_report'` | **표면화** | 상태 보고는 있는데 대조 실패 = 알아야 하는 상태          |
+| `unknown` + `local_source='none'`                  | 조용히     | 아직 평가 전 — 숨길 것이 없다                            |
+| `match`                                            | 조용히     | 양쪽 다 비었다. 정상                                     |
+| `exchange_only`                                    | 해당 없음  | 정의상 거래소 포지션이 있어야 하므로 이 분기에 도달 불가 |
+
+`isEmpty` 와 빈 상태 가드에 `divergences` 를 포함시켜 "열린 포지션이 없습니다" 로 떨어지지 않게 했다. 표에는 `unsupported` 와 같은 colSpan 행으로 렌더하며 전략이 들고 있다고 **보고한 내용까지** 같이 적는다.
+
+**실화면 확인** — 라이브 세션이 마침 이 상태라 천연 픽스처였다:
+
+> BTC/USDT · PbR Pivot Reversal · **전략에만 열린 거래가 있습니다.** 전략 보고: **PivRevLE 롱 1** 거래소 보고 포지션은 0건입니다.
+
+[`screenshots/2026-07-26-bl480-divergence-surfaced.png`](dev-log/screenshots/2026-07-26-bl480-divergence-surfaced.png)
+
+회귀 = 7건 **수정 전 RED 확인**(훅 5 · 컴포넌트 2). `match`/평가-전 `unknown` 이 조용히 남는 것도 함께 단정해, 가드가 무차별로 시끄러워지지 않음을 증명했다.
+
+★**BL-478 이 살아 있는 동안 이게 유일한 발산 표면이다.** 근본 원인(진입 미발주)은 그대로다 — 이 수정은 **화면이 아는 것을 숨기지 않게** 만든 것뿐이다.
+
+**Risk:** 🟢
 
 ---
 

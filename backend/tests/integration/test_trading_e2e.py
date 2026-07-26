@@ -77,6 +77,14 @@ async def e2e_strategy(db_session: AsyncSession, e2e_user):
         pine_source="// e2e",
         pine_version=PineVersion.v5,
         parse_status=ParseStatus.ok,
+        # BL-474 — webhook ingress 는 이제 Strategy.settings 에서 leverage/margin_mode
+        # 를 해결하고, 없으면 422 로 거부한다(spot 으로 흘려보내면 닫을 수단이 없다).
+        settings={
+            "schema_version": 1,
+            "leverage": 2,
+            "margin_mode": "isolated",
+            "position_size_pct": 0.01,
+        },
     )
     db_session.add(s)
     await db_session.flush()

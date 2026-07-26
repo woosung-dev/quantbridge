@@ -9,6 +9,7 @@ import pytest
 from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
+from src.strategy.repository import StrategyRepository
 from src.trading.encryption import EncryptionService
 
 
@@ -32,7 +33,14 @@ async def test_verify_hmac_accepts_active_secret(db_session, strategy, crypto):
     db_session.add(ws)
     await db_session.flush()
 
-    svc = WebhookService(repo=repo, crypto=crypto, grace_seconds=3600)
+    svc = WebhookService(
+        repo=repo,
+        crypto=crypto,
+        grace_seconds=3600,
+        # BL-474 — verify() 는 안 쓰지만 생성자 필수. settings 해결 경로는
+        # test_router_webhook.py 가 별도로 잠근다.
+        strategy_repo=StrategyRepository(db_session),
+    )
     payload = b'{"symbol":"BTC/USDT","side":"buy"}'
     token = _hmac_sign("S1", payload)
 
@@ -50,7 +58,14 @@ async def test_verify_hmac_rejects_wrong_signature(db_session, strategy, crypto)
     )
     await db_session.flush()
 
-    svc = WebhookService(repo=repo, crypto=crypto, grace_seconds=3600)
+    svc = WebhookService(
+        repo=repo,
+        crypto=crypto,
+        grace_seconds=3600,
+        # BL-474 — verify() 는 안 쓰지만 생성자 필수. settings 해결 경로는
+        # test_router_webhook.py 가 별도로 잠근다.
+        strategy_repo=StrategyRepository(db_session),
+    )
     payload = b'{"symbol":"BTC/USDT"}'
     assert await svc.verify(strategy.id, token="bogus-token", payload=payload) is False
 
@@ -76,7 +91,14 @@ async def test_verify_hmac_accepts_recently_revoked_secret_within_grace(
     db_session.add_all([old, new])
     await db_session.flush()
 
-    svc = WebhookService(repo=repo, crypto=crypto, grace_seconds=3600)
+    svc = WebhookService(
+        repo=repo,
+        crypto=crypto,
+        grace_seconds=3600,
+        # BL-474 — verify() 는 안 쓰지만 생성자 필수. settings 해결 경로는
+        # test_router_webhook.py 가 별도로 잠근다.
+        strategy_repo=StrategyRepository(db_session),
+    )
     payload = b"{}"
 
     # 구 secret으로 서명해도 통과 (grace 내)
@@ -112,7 +134,14 @@ async def test_verify_hmac_rejects_old_secret_outside_grace(
     db_session.add(old)
     await db_session.flush()
 
-    svc = WebhookService(repo=repo, crypto=crypto, grace_seconds=3600)
+    svc = WebhookService(
+        repo=repo,
+        crypto=crypto,
+        grace_seconds=3600,
+        # BL-474 — verify() 는 안 쓰지만 생성자 필수. settings 해결 경로는
+        # test_router_webhook.py 가 별도로 잠근다.
+        strategy_repo=StrategyRepository(db_session),
+    )
     payload = b"{}"
     assert (
         await svc.verify(

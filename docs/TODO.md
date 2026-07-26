@@ -1,8 +1,88 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-26 (dogfood-restore 스프린트 — 로컬 실사용 복원 + 누적 신뢰 작업 실화면 검증)
-> **Active Sprint:** **dogfood-restore** — `make seed` 신설 + 3스프린트 누적 신뢰 작업 실화면 검증 + 발견 결함 수정
-> **Active Branch:** `stage/dogfood-restore` (main @ `0f84d51` 베이스)
+> **Last Updated:** 2026-07-26 (dogfood-restore 체크리스트 **A** — BL-474 webhook ingress 패리티)
+> **Active Sprint:** **dogfood-restore 체크리스트 A** — 테스트 주문이 라이브와 같은 시장(linear perp)으로 나가게 해 출처 라벨 검증을 연다
+> **Active Branch:** `feat/bl-474-webhook-ingress-parity` (main @ `a716ef3` 베이스)
+
+## ⚡ 체크리스트 A — BL-474 webhook ingress 패리티 (2026-07-26)
+
+**스코프**: [`docs/dogfood-restore/checklist.md`](dogfood-restore/checklist.md) §A. #481 출처 라벨·#477 SessionScope 를 화면에서 보려면 linear perp **진입 → 청산 → 스윕 확정**이 실제로 일어나야 하는데, 그 경로를 테스트 주문 도구가 막고 있었다.
+
+### ★진단이 한 겹 더 깊었다 — 다이얼로그가 아니라 webhook ingress
+
+`router.py:138-147` 이 `OrderRequest` 를 7개 필드로만 조립하고 `parse_tv_payload`(`webhook.py:118-125`)가 6개 키만 읽어 **한 자리에서 3건이 동시에 버려졌다**.
+
+```
+leverage / margin_mode   해결 자체를 안 함        → has_leverage=false → spot
+reduce_only              프론트는 보냄, 파서가 안 읽음 → 청산 확정 경로 전체가 막힘
+take_profit / stop_loss  프론트는 보냄, 파서가 안 읽음 → UI 입력이 거짓말
+```
+
+★**leverage 만 고쳤으면 A 는 안 열렸다** — `tasks/trading.py:1342` 가 `not order.reduce_only` 로 조기 반환하고 스윕 쿼리도 `reduce_only IS TRUE` 를 요구한다. 그 플래그 없이는 다이얼로그 청산이 영원히 `realized_pnl_synced_at` 을 못 받는다.
+
+### ★★체크리스트 자신의 함정 문구가 틀렸다
+
+`checklist.md:108` 은 "레버리지 1 → `has_leverage=False` → spot" 이라 적었는데 **같은 문서 §A 표는 정반대**(`leverage=1 … → linear perp`)였다. 코드가 심판 — `order_service.py:194` = `req.leverage is not None and req.leverage > 0`, `tasks/trading.py:135` = `return lev > 0` → **1이면 linear**. 진짜 원인은 값이 1이어서가 아니라 **아무 값도 안 보내서**다. 관측에서 원인을 성급히 일반화한 사례로 문서에 정정 기록.
+
+### Completed
+
+- [x] **BL-474 Resolved** — `WebhookService.resolve_trading_params()` 신설. `Strategy.settings` 가 SSOT(`live_signal.py:931-932` / `close_service.py:86-92` 와 동일), 미설정·무효는 **422 fail-closed**, HMAC 검증 **뒤에** 호출(응답코드로 settings 유무 탐지 차단). `reduce_only`(+`bool("false")` 함정 방어)·TP/SL·`risk_percent` 파서 통과.
+- [x] **FE** — 라우팅 배지(`Linear Perp · 2x · isolated`) · settings 없을 때 422 경고(**차단은 안 함** — 공개 ingress 라 서버가 권위) · 미리보기 레버리지 기본값 = 전략 설정 · `reduce_only` 시 `realized_pnl` 입력(추정/확정 대조용) · secret 안내문에 §05 Webhook 카드 명시
+- [x] **신규 [BL-475]** — risk% 사이징 모드는 한 번도 작동한 적 없었다(`quantity` 누락 401 + 백엔드는 상한만 검사). 문구 정정 + 수량·손절가 필수화 + `risk_percent` 배선
+- [x] **Sprint 7a 부채 청산** — `test_e2e_webhook_to_futures_order.py` 독스트링이 "Sprint 7b 로 분리" 라 적어둔 HTTP→ccxt 전 구간 테스트
+- [x] **RED 증명 22건**(parse 17 · router 4 · e2e 1) + FE 신규 7건은 `git stash` 로 프로덕션만 되돌려 RED 재현
+- [x] 게이트: BE **3029**(+24) · FE **1136**(+6) · ruff·mypy·tsc·lint 0 · 마이그레이션 **0**
+- [x] **실화면 dogfood — Bybit 데모 실주문 4건.** 결정적 증거는 **주문 ID 형식**이었다: 수정 전 `2267433208968908032`(숫자형=spot) → 수정 후 `0a245783-f809-…`(UUID=linear). 거래소가 시장 유형이 바뀌었다고 말해주는 외부 증거다
+- [x] **출처 라벨 혼재 상태 포착** — 청산에 추정 `-9.99` 주입(확정값과 우연히 같아질 수 없게) → 04:30:00 화면에 **`거래소 확정 -0.05935440` / `추정 -9.99000000`** 동시 표시 → 8초 뒤 확정 `-0.12772399`(두 청산의 정확한 합). `confirmed + estimated == total` 화면에서 성립. 대시보드 §01 KPI foot(`splitComplete`)도 렌더
+- [x] **독립 HMAC 오라클** — ccxt·`providers.py` 미경유로 `/v5/position/closed-pnl` 직격. `orders.realized_pnl` · `exchange_exits.closed_pnl` · 거래소 원문 **3중 일치**
+- [x] 라우팅 배지 · settings 없는 전략 422 경고 · 미리보기 레버리지 기본값 실화면 확인. 콘솔 error 0
+
+### ★신규 BL 2건 (dogfood 실측이 만든 것)
+
+- **[BL-476] 지연 +4.8초 실측** — `fetch_mark_price 1663ms · fetch_min_notional 1549ms · fetch_balance_usdt 1600ms`. leverage 가 채워지며 notional 가드가 webhook 에서 처음 도달 가능해진 대가. ★**게이트는 provider 를 stub 으로 갈아끼우므로 영원히 0ms** — 프로덕션에서만 보이는 회귀라 예상만 하지 않고 쟀다
+- **[BL-477] 청산 원장 유령 `unknown`** — API 키 2개가 같은 Bybit 서브계정을 가리켜 같은 청산이 2행 적재. 07-24 행도 같은 패턴이라 **선재**. 금액은 안전(`aggregate_closed_pnl` 계정 스코프 + 세션 손익은 `orders.realized_pnl` 을 셈 — 실측 확인). 영향은 귀속/알림 표면뿐
+
+---
+
+## ⚡ 체크리스트 B — pine_v2 ↔ 거래소 발산 (조사 완료, 2026-07-26)
+
+### ★★가설이 틀렸다 — "상태가 롤백 안 된다" 가 아니라 **진입이 나간 적이 없다**
+
+체크리스트 B 는 "발주 실패 후 pine_v2 상태가 롤백되는가" 를 물었다. 답은 "롤백 경로 0" 이지만 **그게 원인이 아니었다.**
+
+```
+strategy.entry(..., stop=)  →  PendingOrder 파킹 + return None   (이벤트 미발행)
+                            →  체결 시 event_action="fill"
+run_live                    →  fill 은 dispatch 대상에서 제외      ← event_loop.py:287-288
+독스트링                     →  "broker 가 자체 fill 알림 처리"
+실측                        →  live_signal.py 에 trigger_price 참조 0건
+```
+
+**broker 에 그 stop 주문을 올린 적이 없다.** 그래서 진입 이벤트가 0건이고, 반전 시 생기는 `close` 만 나가서 매번 110017. 라이브 세션 `0e15c3c0` 의 주문 전량이 `reduce_only=true`·`rejected` 이고 **진입 주문은 한 건도 없다** — 이게 그 증거였는데 "사이징 문제" 로 읽었다.
+
+**영향 범위는 `stop=` 진입 전략 한정.** 시장가 진입은 `strategy_state.py:634-642` 가 `event_action="entry"` 를 정상 발행한다. 시드 `s1_pbr` 은 진입 2개가 전부 `stop=` 이라 100% 이 경로.
+
+### 등재한 BL
+
+- **[BL-478] P1** — stop-entry 전략은 라이브에서 진입이 구조적으로 안 나간다. 최소 정직안 = 그런 전략의 세션 시작을 **차단하고 이유를 표시**(지금은 조용히 안 되면서 되는 척)
+- **[BL-479] P1** — 라이브 사이징 미배선. `run_live` 가 사이징 인자 없이 `run_historical` 호출 → `compute_qty()` 항상 `1.0`. `position_size_pct` 는 라이브에서 **아무 데서도 안 읽힌다**(유일한 소비처 `compat.parse_and_run_v2` 의 프로덕션 호출자는 백테스트 어댑터 하나). Pine `default_qty_type` 선언조차 무시됨
+- **[BL-480] P2 → ✅ Resolved** — ★**화면이 발산을 은폐했다.** 백엔드는 정확히 알고(실측 `verdict="local_only"` + `PivRevLE long qty 1 @ 64557.51`) 프론트에 문구도 있었는데, 행 생성이 `positions` 순회라 **`local_only` = `positions` 빈 배열**인 그 순간에만 렌더 불가였다. `divergences` 를 세션 단위로 건져 올려 수정. **실화면 확인** — _"BTC/USDT · PbR Pivot Reversal · 전략에만 열린 거래가 있습니다. 전략 보고: PivRevLE 롱 1 거래소 보고 포지션은 0건입니다."_ RED 7건 선확인. ★근본 원인(BL-478 진입 미발주)은 그대로 — **화면이 숨기지 않게** 만든 것뿐
+
+### 확인된 설계 사실 (결함 아님)
+
+- 상태 쓰기가 dispatch 보다 **먼저**고 그 사이 Celery 경계가 2개 — 거래소 결과를 알 수 없는 게 정상이다(transactional outbox)
+- Option B(warmup replay)라 매 tick `run_historical` 재실행 → **되먹일 자리 자체가 없다**. 되먹여도 다음 tick 이 덮어쓴다
+- 재동기화 경로(`Reconciler`·`orphan_scanner`·`resync_exchange_realized_pnl`)는 전부 **orders 만** 본다. 포지션/시뮬 재동기화는 없다
+- `router.py:504-544` 가 응답 시점에 체결 주문으로 PnL 을 재계산하는 건 **read-side mask** 다 — DB 의 `total_realized_pnl -175.82` 는 그대로 남아 있다
+
+### Next Actions
+
+**이 스프린트는 여기서 닫는다.** 잔여 전량은 [`docs/live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md) 로 이관 — 조사는 끝났고 남은 건 **결정 + 구현**이다.
+
+- [x] **PR [#484](https://github.com/woosung-dev/quantbridge/pull/484)** `feat/bl-474-webhook-ingress-parity` → main — **squash 는 사용자**
+- [ ] **다음 세션 = `docs/live-entry-wiring/checklist.md`.** 첫 step = **BL-478 선택지 (a)/(b)/(c) 사용자 결정** — 라이브 매매 시맨틱을 바꾸므로 blocking 이다. 권고 = (c) 먼저(거짓말을 즉시 멈추고 (a) 설계 시간을 번다), (b) 는 백테스트↔라이브 일치를 조용히 깨므로 비권장
+
+---
 
 ## ⚡ dogfood-restore 스프린트 (2026-07-26)
 

@@ -4,7 +4,7 @@
 
 > **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`REFACTORING-BACKLOG.md`](REFACTORING-BACKLOG.md), 활성 sprint 상태 = [`TODO.md`](TODO.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
-> **최종 갱신:** 2026-07-26 (**dogfood-restore 완료** — 로컬 실사용 복원(`make seed`) + 3스프린트 누적 신뢰 작업 실화면 검증. 잔여 = 실주문 경로만). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
+> **최종 갱신:** 2026-07-26 (**BL-474 ingress 패리티 완료, PR #484** — 출처 라벨·SessionScope 실화면 검증까지 닫힘. ★**신규 P1 2건** — 라이브 자동매매가 진입 주문을 낸 적이 없다(BL-478/479), 핸드오프 = `live-entry-wiring/checklist.md`). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
 >
 > **동기화 규약.** BL Resolved 시 (1) REFACTORING-BACKLOG.md 에서 ✅ 마킹 (2) 본 문서 해당 체크박스 `[x]` + 스프린트/PR 표기. 신규 BL 등재 시 본 문서 해당 그룹에 1행 추가. 표류 방지 = 스프린트 마감 산출물 체크리스트에 "product-roadmap.md 갱신" 포함.
 
@@ -43,20 +43,21 @@
 
 ## 🔵 진행중 / 📋 계획됨 (핸드오프 SSOT 존재)
 
-| 항목                 | 상태 | 핸드오프                           | 스코프                                        |
-| -------------------- | ---- | ---------------------------------- | --------------------------------------------- |
-| _(진행중 항목 없음)_ | —    | 다음 후보 = 아래 ⭐ 권장 착수 순서 | 최근 2스프린트(#480·#481) 모두 main 머지 완료 |
+| 항목                  | 상태      | 핸드오프                                                           | 스코프                                                                 |
+| --------------------- | --------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| **live-entry-wiring** | 📋 계획됨 | [`live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md) | BL-478/479 (P1). ★**BL-478 선택지 (a)/(b)/(c) 사용자 결정이 blocking** |
 
 ## ⭐ 권장 착수 순서 (제안 — Trust ≥ Scale · dogfood-first 기준)
 
 1. ✅ **backtest-trust** (완료 · PR #480 머지) — 매일 보는 백테스트 숫자 신뢰(Sharpe·레버리지 청산).
 2. ✅ **머니-패스 정확도 마감 팩** (#481 완료 — BL-457/454 Resolved · BL-458 부분 · 신규 BL-464 Resolved). **잔여 = BL-446 1건**(cumulative_loss 시간축/분모 오염 — 구조 결함이지만 실측 여유 54,117배).
-3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `make seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **실주문 부분 완주** — 데모 실체결 + 심볼 정규화 실경로 확인. ★키 만료 진단은 **오진**이었고 진짜 원인은 WS `expires` 창(BL-473). **잔여 = 출처 라벨·SessionScope 화면 검증**(linear perp 청산까지 가야 확정/추정이 섞인다).
-4. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
-5. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
-6. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
-7. **tasks 도메인 deepen** (상시 가능 · 내부 부채) — money-path Celery 감사(`/deepen-modules`, codex 빌드 아님).
-8. **Beta 배포** (사용자 결정 · 다음 단계) — G1 DB 호스팅 + BL-070~075.
+3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `make seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **실주문 부분 완주** — 데모 실체결 + 심볼 정규화 실경로 확인. ★키 만료 진단은 **오진**이었고 진짜 원인은 WS `expires` 창(BL-473). **잔여였던 출처 라벨·SessionScope 화면 검증은 PR #484 에서 완료** — 추정값 주입으로 혼재 상태 포착 + 독립 raw-HMAC 오라클 3중 일치.
+4. ★**live-entry-wiring** — 📋 [`live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md). **라이브 자동매매가 진입 주문을 낸 적이 없다**(BL-478 P1) + 사이징 미배선(BL-479 P1). 조사는 끝났고 **BL-478 선택지 결정만 남았다**. 권고 = (c) 세션 시작 차단 먼저(거짓말을 즉시 멈춤) → (a) conditional order. (b) 시장가 근사는 백테스트↔라이브 일치를 조용히 깨므로 비권장.
+5. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
+6. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
+7. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
+8. **tasks 도메인 deepen** (상시 가능 · 내부 부채) — money-path Celery 감사(`/deepen-modules`, codex 빌드 아님).
+9. **Beta 배포** (사용자 결정 · 다음 단계) — G1 DB 호스팅 + BL-070~075.
 
 ---
 
@@ -88,7 +89,7 @@
 - [ ] **BL-471** [P3] `exchange_exits` row_hash 멱등 → 분류 로직 변경 시 기존 행 재분류 경로 부재
 - [ ] **BL-472** [P3] 백테스트 목록이 monthly/daily 컨벤션 각주 미표기
 - [x] **BL-473** [P1] Bybit private WS 인증 `expires` 창 +1s 가 왕복 지연에 먹혀 **라이브 체결 스트리밍이 죽어 있었다** — ✅ **dogfood-restore 완료**. 통제 실험(+1s 실패 / +10s·+60s 성공)으로 격리, 10s 로 확대
-- [ ] **BL-474** [P2] 테스트 주문 다이얼로그가 **spot** 으로 나가는데 라이브 신호는 **linear perp** — 청산 원장·코크핏이 linear 만 보므로 이 도구로 한 머니-패스 dogfood 는 조용히 무효 — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
+- [x] **BL-474** [P2] 테스트 주문 다이얼로그가 **spot** 으로 나가는데 라이브 신호는 **linear perp** — ✅ **PR #484**. ★원인은 다이얼로그가 아니라 **webhook ingress 한 자리에서 3건 드롭**(leverage/margin_mode 미해결 + 프론트가 보내던 `reduce_only`·TP/SL 미독). `WebhookService.resolve_trading_params()` 신설 + settings 미설정 **422 fail-closed**. 실주문 dogfood 로 확인(주문 ID 숫자형→UUID). **출처 라벨·SessionScope 화면 검증도 여기서 완료** — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
 
 ## 3) 리팩토링 부채 (80 OPEN · P0 1 / P1 6 / P2 26 / P3 47)
 
@@ -97,6 +98,9 @@
 - [ ] **BL-003** [P0] Bybit mainnet 진입 runbook + smoke — IP whitelist·출금OFF·소액 체크리스트 · (H1 종료 직전)
 
 ### P1
+
+- [ ] **BL-478** [P1] ★**라이브 자동매매가 진입 주문을 낸 적이 없다** — `run_live` 가 `fill` 을 dispatch 제외하면서 "broker 가 자체 처리" 를 전제하는데 그 stop 주문을 거래소에 올린 적이 없다(`live_signal.py` 에 `trigger_price` 참조 0건). 청산만 나가 매번 110017. **`stop=` 진입 전략 한정**(시드 `s1_pbr` 이 100% 이 경로) · 핸드오프 = [`live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md)
+- [ ] **BL-479** [P1] 라이브 사이징 미배선 — `run_live` 가 사이징 인자 없이 `run_historical` 호출 → `compute_qty()` 항상 `1.0`(1 BTC ≈ $64,000). `position_size_pct` 는 라이브에서 **아무 데서도 안 읽힘**(유일 소비처가 백테스트 어댑터). Pine `default_qty_type` 선언조차 무시 · **BL-478 과 함께**
 
 - [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
 - [ ] **BL-022** [P1] Golden expectations 재생성 — strategy.exit 지원 후
@@ -116,6 +120,7 @@
 
 ### P2 — 트레이딩/엔진 부채
 
+- [ ] **BL-476** [P2] 공개 webhook 핸들러 동기 CCXT 왕복 3회 — **+4.8초 실측**(mark 1663 · min-notional 1549 · balance 1600). ★게이트는 provider stub 이라 영원히 0ms — 프로덕션에서만 보이는 회귀. 가드를 Celery 경계 뒤로 옮기는 건 **거부 시점이 응답 뒤로 밀리는 계약 변경**
 - [ ] **BL-365** [P2] trigger_direction_for dead-code + 서버 미배선 — standalone-trigger 방향 · (standalone exit 도입 시)
 - [ ] **BL-366** [P2] live-signal OrderService DI 인라인 중복 — HTTP factory drift
 - [ ] **BL-368** [P2] \_merge_exit_params ccxt 키명 3 call site 누설
@@ -187,6 +192,8 @@
 
 ### P3 — trading / live / money-path 하드닝
 
+- [ ] **BL-475** [P3] 서버 권위 risk% 사이징 미구현 — UI 문구는 정정했고(PR #484) risk% 는 실제 동작대로 **상한**으로 재정의. 진짜 수량 산출은 미착수
+- [ ] **BL-477** [P3] API 키 2개가 같은 Bybit 서브계정 → 청산 원장 2행 적재 + 유령 `unknown`. **선재**, 금액은 안전(`aggregate_closed_pnl` 계정 스코프). 읽기 전용 계정 삭제 시 자연 소멸
 - [ ] **BL-367** [P3] \_async_dispatch_event 205 LOC + 8× mark_failed 추출
 - [ ] **BL-370** [P3] exit-field multi-SSOT 8필드 × 3 boundary type
 - [ ] **BL-371** [P3] ws-stream 고빈도 fill 스트레스 (orphan buffer cap 1000)

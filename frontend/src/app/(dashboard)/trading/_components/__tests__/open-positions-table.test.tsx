@@ -30,6 +30,7 @@ function aggregate(overrides: Record<string, unknown> = {}) {
   return {
     rows: [],
     unsupported: [],
+    divergences: [],
     latestFetchedAt: null,
     isLoading: false,
     isPending: false,
@@ -311,5 +312,45 @@ describe("OpenPositionsTable", () => {
       symbol: "BTCUSDT",
     }));
     expect(await screen.findByRole("alert")).toHaveTextContent("거래소 연결 실패");
+  });
+});
+
+// === BL-480 — 발산을 은폐하던 빈 상태 ===
+describe("OpenPositionsTable — 발산 표면화 (BL-480)", () => {
+  const divergence = {
+    sessionId: session.id,
+    sessionLabel: "전략 A",
+    symbol: "BTCUSDT",
+    verdict: "local_only" as const,
+    localOpenTrades: [{ id: "PivRevLE", direction: "long", qty: "1" }],
+    fetchedAt: "2026-07-26T04:47:19Z",
+  };
+
+  it("local_only 면 '열린 포지션이 없습니다' 대신 발산을 표시한다", () => {
+    mockPositions.mockReturnValue(aggregate({ divergences: [divergence] }));
+    render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
+
+    // ★핵심 — 거래소 기준으로는 참이지만 pine 이 롱을 들고 있다는 걸 감추는 문구.
+    expect(screen.queryByText("열린 포지션이 없습니다.")).not.toBeInTheDocument();
+    expect(screen.getByTestId("open-positions-divergence")).toHaveTextContent(
+      "전략에만 열린 거래가 있습니다.",
+    );
+  });
+
+  it("발산 행이 전략이 들고 있다고 믿는 포지션을 함께 보여준다", () => {
+    mockPositions.mockReturnValue(aggregate({ divergences: [divergence] }));
+    render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
+
+    const row = screen.getByTestId("open-positions-divergence");
+    expect(row).toHaveTextContent("PivRevLE");
+    expect(row).toHaveTextContent("롱");
+    expect(row).toHaveTextContent("1");
+  });
+
+  it("발산이 없으면 기존 빈 상태를 그대로 유지한다", () => {
+    mockPositions.mockReturnValue(aggregate({ divergences: [] }));
+    render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
+    expect(screen.getByText("열린 포지션이 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByTestId("open-positions-divergence")).not.toBeInTheDocument();
   });
 });
