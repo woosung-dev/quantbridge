@@ -357,4 +357,34 @@ describe("DashboardCockpit — 자산 곡선 4상태 연동", () => {
     render(<DashboardCockpit />);
     expect(screen.getByTestId("equity-loading")).toBeInTheDocument();
   });
+
+  it("BL-458 — 출처 소계가 오면 KPI foot 에 확정/추정 분할을 고지한다", () => {
+    useLiveSessionsAggregateMock.mockReturnValue({
+      ...AGG_POPULATED,
+      confirmedRealizedPnl: 100,
+      estimatedRealizedPnl: 42.18,
+    });
+
+    render(<DashboardCockpit />);
+
+    const pnl = screen.getByTestId("kpi-pnl").closest("article");
+    expect(pnl).not.toBeNull();
+    expect(pnl!.textContent).toContain("거래소 확정");
+    expect(pnl!.textContent).toContain("추정");
+  });
+
+  it("BL-458 — 소계가 null 이면 분할을 그리지 않는다 (반쪽 분할 금지)", () => {
+    // 채워진 세션 중 하나라도 소계를 안 보고하면 집계가 null 이다. 그때 절반만
+    // 그리면 "확정 100" 이 전체 확정인 것처럼 읽힌다.
+    useLiveSessionsAggregateMock.mockReturnValue({
+      ...AGG_POPULATED,
+      confirmedRealizedPnl: null,
+      estimatedRealizedPnl: null,
+    });
+
+    render(<DashboardCockpit />);
+
+    const pnl = screen.getByTestId("kpi-pnl").closest("article");
+    expect(pnl!.textContent).not.toContain("거래소 확정");
+  });
 });

@@ -30,7 +30,11 @@ from src.trading.dependencies import (
     get_position_service,
     get_webhook_service,
 )
-from src.trading.equity_calculator import recompute_equity_curve
+from src.trading.equity_calculator import (
+    RealizedPnlSource,
+    label_curve_provenance,
+    recompute_equity_curve,
+)
 from src.trading.exceptions import ProviderError
 from src.trading.liquidation_schemas import (
     LiquidationInfoResponse,
@@ -485,15 +489,32 @@ async def get_live_session_state(
     filled_orders = await order_repo.list_filled_realized_for_session(
         SessionScope.from_live_session(sess)
     )
-    closed_pnls = [
-        (int(o.filled_at.timestamp() * 1000), Decimal(str(o.realized_pnl)))
+    # BL-458 — 출처를 커브·소계와 **한 리스트에서** 파생한다. 두 번째 comprehension 에
+    # 같은 2절 필터를 복제하면 누가 한쪽만 고치는 날 라벨이 조용히 어긋난다.
+    rows: list[tuple[int, Decimal, RealizedPnlSource]] = [
+        (
+            int(o.filled_at.timestamp() * 1000),
+            Decimal(str(o.realized_pnl)),
+            "confirmed" if o.realized_pnl_synced_at is not None else "estimated",
+        )
         for o in filled_orders
         if o.filled_at is not None and o.realized_pnl is not None
     ]
+    closed_pnls = [(timestamp_ms, pnl) for timestamp_ms, pnl, _ in rows]
     real_total_realized_pnl = sum(
         (pnl for _, pnl in closed_pnls), Decimal("0")
     )  # Decimal-first 합산 (Sprint 4 D8)
-    real_equity_curve = recompute_equity_curve(closed_pnls)
+    real_equity_curve = label_curve_provenance(
+        recompute_equity_curve(closed_pnls), [source for _, _, source in rows]
+    )
+    # 소계도 Decimal-first. `total` 은 기존 계산을 그대로 두므로 항등식
+    # `confirmed + estimated == total` 이 대입이 아니라 **산술로** 성립한다.
+    confirmed_pnl = sum(
+        (pnl for _, pnl, source in rows if source == "confirmed"), Decimal("0")
+    )
+    estimated_pnl = sum(
+        (pnl for _, pnl, source in rows if source == "estimated"), Decimal("0")
+    )
 
     return LiveSignalStateResponse(
         session_id=state.session_id,
@@ -501,6 +522,10 @@ async def get_live_session_state(
         last_strategy_state_report=state.last_strategy_state_report,
         total_closed_trades=len(closed_pnls),
         total_realized_pnl=real_total_realized_pnl,
+        confirmed_realized_pnl=confirmed_pnl,
+        estimated_realized_pnl=estimated_pnl,
+        confirmed_closed_trades=sum(1 for _, _, s in rows if s == "confirmed"),
+        estimated_closed_trades=sum(1 for _, _, s in rows if s == "estimated"),
         equity_curve=[dict(p) for p in real_equity_curve],  # TypedDict → dict 호환 cast
         updated_at=state.updated_at,
     )

@@ -12,15 +12,37 @@ real value 누적 → frontend 가 dual-axis recharts 로 렌더 (Slice 3 T5).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import TypedDict
+from typing import Literal, TypedDict
+
+# BL-458 — `Order.realized_pnl` 의 출처. NULL `realized_pnl_synced_at` = pine_v2 추정,
+# 값 있음 = 거래소 확정 `closedPnl`. FE 에 이미 출하된 판별자
+# (`orders-blotter.tsx` `realizedPnlSource`)와 **같은 유니온**이라 번역 계층이 없다.
+RealizedPnlSource = Literal["confirmed", "estimated"]
 
 
 class EquityPoint(TypedDict):
-    """Single equity data point — JSONB-serializable."""
+    """Single equity data point — JSONB-serializable.
+
+    ★이 형태는 pine 쓰기 경로가 `LiveSignalState.equity_curve` JSONB 로 **영속**하는
+    구조다(`tasks/live_signal.py` → `append_equity_point`). 필수 키를 추가하면 그 쓰기
+    경로가 타입 불일치가 되므로, 출처 라벨은 아래 `SessionEquityPoint` 로 분리한다.
+    """
 
     timestamp_ms: int
     cumulative_pnl: str  # Decimal as string (precision 보존)
+
+
+class SessionEquityPoint(EquityPoint):
+    """읽기 시점에 출처를 얹은 커브 포인트 (BL-458).
+
+    ★`source` 는 **그 시각에 실현된 델타**(주문 1건)의 출처이고 누적값의 출처가 아니다.
+    첫 혼재 거래 이후의 누적은 구조상 혼재다. 이 기능에서 가장 오독되기 쉬운 지점이므로
+    화면 문구도 이 구분을 지켜야 한다.
+    """
+
+    source: RealizedPnlSource
 
 
 def append_equity_point(
@@ -78,3 +100,18 @@ def recompute_equity_curve(
     for timestamp_ms, pnl in closed_pnls:
         curve = append_equity_point(curve, timestamp_ms=timestamp_ms, pnl_delta=pnl)
     return curve
+
+
+def label_curve_provenance(
+    curve: Sequence[EquityPoint], sources: Sequence[RealizedPnlSource]
+) -> list[SessionEquityPoint]:
+    """커브 포인트에 그 시점 델타의 출처를 얹는다 (BL-458). 누적 산술에는 손대지 않는다.
+
+    누적 규칙과 출처 라벨을 한 함수로 합치지 않는 이유 — `append_equity_point` 는 영속
+    쓰기 경로가 쓰는 함수라 거기에 출처를 꿰면 스코프 밖 경로가 깨진다. 라벨은 읽기
+    시점의 가산적 파생이다.
+
+    `strict=True` 는 의도적이다. 길이가 어긋나면 **조용히 짧은 커브**가 나가는 대신
+    `ValueError` 로 터진다 — 라벨이 잘못된 포인트에 붙는 것이 라벨이 없는 것보다 나쁘다.
+    """
+    return [{**point, "source": source} for point, source in zip(curve, sources, strict=True)]

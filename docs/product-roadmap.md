@@ -4,7 +4,7 @@
 
 > **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`REFACTORING-BACKLOG.md`](REFACTORING-BACKLOG.md), 활성 sprint 상태 = [`TODO.md`](TODO.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
-> **최종 갱신:** 2026-07-25 (main @ #478 후). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
+> **최종 갱신:** 2026-07-26 (money-path-finish 후 — #480 머지 · money-path-finish PR 대기). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
 >
 > **동기화 규약.** BL Resolved 시 (1) REFACTORING-BACKLOG.md 에서 ✅ 마킹 (2) 본 문서 해당 체크박스 `[x]` + 스프린트/PR 표기. 신규 BL 등재 시 본 문서 해당 그룹에 1행 추가. 표류 방지 = 스프린트 마감 산출물 체크리스트에 "product-roadmap.md 갱신" 포함.
 
@@ -39,8 +39,8 @@
 
 ## ⭐ 권장 착수 순서 (제안 — Trust ≥ Scale · dogfood-first 기준)
 
-1. 🔵 **backtest-trust** (진행중) — 매일 보는 백테스트 숫자 신뢰(Sharpe·레버리지 청산).
-2. **머니-패스 정확도 마감 팩** (★강추 · 실자금 전 필수) — 최근 트레이딩 5스프린트가 남긴 정확도 갭. **BL-457**(청산 오보고 진행형·즉시) + **BL-446**(cumulative_loss 시간축/분모 오염) + **BL-458**(realized_pnl 추정↔확정 혼합) + **BL-454**(웹훅 심볼 정규화). 실자금 전환 전 반드시.
+1. ✅ **backtest-trust** (완료 · PR #480 머지) — 매일 보는 백테스트 숫자 신뢰(Sharpe·레버리지 청산).
+2. ✅ **머니-패스 정확도 마감 팩** (money-path-finish 완료 — BL-457/454 Resolved · BL-458 부분 · 신규 BL-464 Resolved. **잔여 = BL-446 1건**) — 최근 트레이딩 5스프린트가 남긴 정확도 갭. **BL-457**(청산 오보고 진행형·즉시) + **BL-446**(cumulative_loss 시간축/분모 오염) + **BL-458**(realized_pnl 추정↔확정 혼합) + **BL-454**(웹훅 심볼 정규화). 실자금 전환 전 반드시.
 3. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
 4. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 5. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
@@ -87,9 +87,10 @@
 ### P2 — 머니-패스 정확도 (★실자금 전 필수)
 
 - [ ] **BL-446** [P2] cumulative_loss 시간축 불일치 + 외부거래 분모 오염 — 전기간 누적/현재잔고 · (실자금 전 필수)
-- [ ] **BL-457** [P2] classify_exit `ours` 가 실매칭 아님 — orderLinkId UUID 파싱만 · (★즉시, 오보고 진행형)
-- [ ] **BL-458** [P2] 머니-패스 5곳 realized_pnl_synced_at 미구분 — 추정↔확정 혼합 합계 · (실자금 전)
-- [ ] **BL-454** [P2] 세션 등록·TV 웹훅 심볼 미정규화 — 두 자유문자열 스코프 어긋남 · (TV 웹훅 실사용 시)
+- [x] **BL-457** [P2] classify_exit `ours` 가 실매칭 아님 — ✅ **money-path-finish 완료**. 계정 스코프 실재 확인(`list_existing_ids`, state 무필터) + 미확인 UUID 는 `unknown`. 부수 이득 = 버려지던 TP/SL·청산 유래 부활
+- [~] **BL-458** [P2] 머니-패스 5곳 realized_pnl_synced_at 미구분 — 🟡 **money-path-finish 부분 완료**. Site 3(알림)·Site 4(커브·KPI) 라벨+소계. **Site 1·2 게이트와 Site 5 는 의도적 혼재 유지**(확정만 좁히면 fail-open) · 병합 커브는 포인트별 출처 표현 불가 → 집계 라벨
+- [x] **BL-454** [P2] 세션 등록·TV 웹훅 심볼 미정규화 — ✅ **money-path-finish 완료**. `NormalizedSymbol` 공용 프리미티브 + 두 ingress + 거부 관측. ★의도된 동작 변경 = 활성 세션 유니크 충돌(KPI 이중 계상 차단)
+- [x] **BL-464** [P2] `attribute_exit` 이 거래소 원문↔canonical 심볼 비교로 `inferred` 귀속 구조적 사망 — ✅ **money-path-finish 완료**(신규 발견). ★픽스처 기본값이 한 스프린트 동안 가렸다
 - [ ] **BL-451** [P2] 파괴적 마이그레이션 테스트 env 폴백 dev DB drop 위험 — (부분 완화 완료)
 
 ### P2 — 트레이딩/엔진 부채

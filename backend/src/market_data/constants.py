@@ -1,6 +1,22 @@
 """market_data 도메인 상수 — Timeframe enum + Symbol 정규화."""
 from typing import Literal, get_args
 
+# BL-454 — `normalize_symbol` 은 `src/common/normalized_symbol.py` 로 이동했다.
+# `src/common` 이 도메인 모듈을 import 하지 않는다는 방향을 지키면서 trading ingress 가
+# 같은 구현을 쓰게 하려면 여기가 아니라 common 에 있어야 한다. 기존 소비처
+# (`backtest/service.py`, `market_data/providers/timescale.py`, 아래 두 헬퍼)를 위해
+# 이름은 그대로 재수출한다.
+from src.common.normalized_symbol import normalize_symbol
+
+__all__ = [
+    "TIMEFRAME_SECONDS",
+    "VALID_TIMEFRAMES",
+    "Timeframe",
+    "normalize_symbol",
+    "to_bybit_raw_symbol",
+    "to_ccxt_perpetual_symbol",
+]
+
 Timeframe = Literal["1m", "5m", "15m", "1h", "4h", "1d"]
 
 TIMEFRAME_SECONDS: dict[str, int] = {
@@ -13,23 +29,6 @@ TIMEFRAME_SECONDS: dict[str, int] = {
 }
 
 VALID_TIMEFRAMES: frozenset[str] = frozenset(get_args(Timeframe))
-
-
-def normalize_symbol(symbol: str) -> str:
-    """CCXT unified format으로 정규화. 'BTCUSDT' → 'BTC/USDT'.
-
-    이미 unified면 대문자만 적용. quote 우선순위는 길이 긴 것부터
-    (USDT/USDC가 USD보다 먼저 매칭되도록).
-    """
-    if "/" in symbol:
-        return symbol.upper()
-    upper = symbol.upper()
-    for quote in ("USDT", "USDC", "USD", "BTC", "ETH"):
-        if upper.endswith(quote):
-            base = upper[: -len(quote)]
-            if base:
-                return f"{base}/{quote}"
-    raise ValueError(f"Cannot normalize symbol: {symbol}")
 
 
 def to_ccxt_perpetual_symbol(symbol: str) -> str:

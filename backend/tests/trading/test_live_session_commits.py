@@ -74,12 +74,36 @@ def _make_session(user_id, strategy_id, account_id) -> LiveSignalSession:
 
 
 def _make_req(strategy_id, account_id) -> RegisterLiveSessionRequest:
+    # ★`BTCUSDT` 는 이제 load-bearing 이다 — 미정규화 원문을 넣어야 ingress 정규화가
+    # 실제로 도는지 검증된다(BL-454). canonical 로 바꾸지 말 것.
     return RegisterLiveSessionRequest(
         strategy_id=strategy_id,
         exchange_account_id=account_id,
         symbol="BTCUSDT",
         interval="5m",
     )
+
+
+def test_register_request_normalizes_the_symbol_at_the_boundary() -> None:
+    """BL-454 — 스키마 경계에서 한 번 정규화하면 하류는 재검증하지 않아도 된다.
+
+    이 단정이 없으면 `NormalizedSymbol` 타입이 실제로 배선됐는지 아무도 증명하지 못한다.
+    """
+    req = _make_req(uuid4(), uuid4())
+    assert req.symbol == "BTC/USDT"
+
+
+def test_register_request_rejects_a_symbol_it_cannot_normalize() -> None:
+    """정규화 불가 표기는 422 로 거부된다 — 신규 예외 배관 없이 Pydantic 이 처리한다."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        RegisterLiveSessionRequest(
+            strategy_id=uuid4(),
+            exchange_account_id=uuid4(),
+            symbol="BTCUSDT.P",
+            interval="5m",
+        )
 
 
 @pytest.mark.asyncio
@@ -121,6 +145,10 @@ async def test_register_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
     repo.commit.assert_awaited_once()  # ← broken bug 재발 방어
     delay.assert_called_once_with()
     assert result is saved
+    # BL-454 — 경계에서 정규화한 값이 실제로 **영속 모델까지** 간다.
+    # 스키마 단정만으로는 서비스가 원문을 어딘가 따로 들고 있지 않다는 보장이 없다.
+    assert repo.save.await_args is not None
+    assert repo.save.await_args.args[0].symbol == "BTC/USDT"
 
 
 @pytest.mark.asyncio

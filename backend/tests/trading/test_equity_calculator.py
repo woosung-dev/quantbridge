@@ -119,3 +119,35 @@ def test_jsonb_serializable_dict():
     deserialized = json.loads(serialized)
 
     assert deserialized == [{"timestamp_ms": 1700000000000, "cumulative_pnl": "1.234"}]
+
+
+# === BL-458 — 출처 라벨 ===
+
+
+def test_label_curve_provenance_zips_in_order() -> None:
+    from src.trading.equity_calculator import (
+        label_curve_provenance,
+        recompute_equity_curve,
+    )
+
+    curve = recompute_equity_curve([(1000, Decimal("-5")), (2000, Decimal("-7"))])
+    labelled = label_curve_provenance(curve, ["confirmed", "estimated"])
+
+    assert [p["source"] for p in labelled] == ["confirmed", "estimated"]
+    # 누적 산술은 손대지 않는다 — 라벨은 가산적 파생이다.
+    assert [p["cumulative_pnl"] for p in labelled] == ["-5", "-12"]
+    assert [p["timestamp_ms"] for p in labelled] == [1000, 2000]
+
+
+def test_label_curve_provenance_refuses_to_misalign() -> None:
+    """★조용한 절단 대신 터진다 — 잘못된 포인트에 붙은 라벨은 라벨 없음보다 나쁘다."""
+    import pytest
+
+    from src.trading.equity_calculator import (
+        label_curve_provenance,
+        recompute_equity_curve,
+    )
+
+    curve = recompute_equity_curve([(1000, Decimal("-5")), (2000, Decimal("-7"))])
+    with pytest.raises(ValueError):
+        label_curve_provenance(curve, ["confirmed"])

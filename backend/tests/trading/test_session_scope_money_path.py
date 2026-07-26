@@ -15,7 +15,9 @@
 2. D4 (`filled_at` 반열림) — 늦은 체결 O3 는 자기를 만든 S1 이 아니라 **인접한 S2**
    로 귀속된다. 인접 세션이 없으면 어디에도 안 잡힌다. 수용한 트레이드오프다.
 3. D5 (`symbol` 정확 문자열 동등) — 형식이 다른 O11(`"BTCUSDT"`)은 세션 스코프에서
-   빠진다. ingress 정규화가 없기 때문이며 이것도 수용한 트레이드오프다.
+   빠진다. **술어 계약은 유지되고, 그 표기가 들어올 ingress 는 BL-454 가 닫았다**
+   (`NormalizedSymbol`). 즉 이 항목은 더 이상 수용한 트레이드오프가 아니다 — O11 은
+   모델에 직접 심어 ingress 를 우회한 대조군 행이다.
 4. 가드레일 — Site 1 / 2 / 5 는 이번 스프린트 범위 밖이므로 fix 전후 **값이 같아야**
    한다. 세 값을 서로 다르게 배치해, 누가 Site 1 에 계정 필터를 · Site 2 에 전략
    필터를 · Site 5 에 테넌트 필터를 "친절하게" 넣으면 숫자로 드러나게 했다.
@@ -60,7 +62,8 @@ DAY = date(2026, 7, 20)
 
 BTC = "BTC/USDT"
 ETH = "ETH/USDT"
-# ingress 정규화가 없어서 TV 웹훅이 실을 수 있는 다른 표기 (D5 가 수용한 구멍).
+# 거래소 원문 표기. BL-454 가 두 ingress 를 정규화했으므로 이제 이 값은 **API 로는
+# 들어올 수 없다** — 아래에서 모델에 직접 심어 술어 대조군으로만 쓴다.
 BTC_UNNORMALIZED = "BTCUSDT"
 
 
@@ -152,6 +155,7 @@ async def _seed_money_path(db_session: AsyncSession) -> _Seed:
         strategy_id: UUID | None = None,
         account_id: UUID | None = None,
         created_at: datetime | None = None,
+        synced: bool = False,
     ) -> Order:
         return Order(
             strategy_id=strategy_id or strategy.id,
@@ -162,12 +166,16 @@ async def _seed_money_path(db_session: AsyncSession) -> _Seed:
             quantity=Decimal("1"),
             state=state,
             realized_pnl=Decimal(pnl),
+            # BL-458 — 출처 마커. 여기에 값을 심는 이유는 Site 1/2/5 가드레일이
+            # "누가 `synced_at IS NOT NULL` 로 게이트를 좁혔는가" 를 잡아내게 만드는
+            # 것이다. 좁히면 그 세 숫자가 즉시 변한다 = fail-open 이 숫자로 드러난다.
+            realized_pnl_synced_at=(T2 if synced else None),
             filled_at=filled_at,
             created_at=created_at or (filled_at or T0),
         )
 
     o1 = _order(pnl="-1.00000001", filled_at=T0 + timedelta(minutes=1))
-    o2 = _order(pnl="-2.00000002", filled_at=T0 + timedelta(minutes=2))
+    o2 = _order(pnl="-2.00000002", filled_at=T0 + timedelta(minutes=2), synced=True)
     # 늦은 체결 — S1 이 만들었지만(created 가 S1 창 안) 체결은 S1 종료 뒤다.
     o3 = _order(
         pnl="-4.00000004",
@@ -175,7 +183,7 @@ async def _seed_money_path(db_session: AsyncSession) -> _Seed:
         created_at=T2 - timedelta(seconds=30),
     )
     o4 = _order(pnl="-8.00000008", filled_at=T2 + timedelta(minutes=1))
-    o5 = _order(pnl="-16.00000016", filled_at=T2 + timedelta(minutes=2))
+    o5 = _order(pnl="-16.00000016", filled_at=T2 + timedelta(minutes=2), synced=True)
     o6 = _order(pnl="-32.00000032", filled_at=T0 + timedelta(minutes=3), symbol=ETH)
     o7 = _order(pnl="-64.00000064", filled_at=T0 - timedelta(hours=1))
     o8 = _order(
@@ -278,17 +286,39 @@ async def test_site3_now_sees_manual_close_and_webhook_orders(db_session: AsyncS
     repo = OrderRepository(db_session)
 
     # O1(dispatch) + O2(수동 청산, 이벤트 없음). 예전엔 O2 가 통째로 안 보였다.
-    assert await repo.sum_filled_realized_pnl_for_session(
+    assert (await repo.realized_pnl_split_for_session(
         SessionScope.from_live_session(seed.session_closed)
-    ) == Decimal("-3.00000003")
+    )).total == Decimal("-3.00000003")
     # O3(늦은 체결) + O4(dispatch) + O5(TV 웹훅, 이벤트 없음).
-    assert await repo.sum_filled_realized_pnl_for_session(
+    assert (await repo.realized_pnl_split_for_session(
         SessionScope.from_live_session(seed.session_active)
-    ) == Decimal("-28.00000028")
+    )).total == Decimal("-28.00000028")
     # 이벤트가 하나도 없는 세션도 이제 자기 심볼 체결(O6)을 본다.
-    assert await repo.sum_filled_realized_pnl_for_session(
+    assert (await repo.realized_pnl_split_for_session(
         SessionScope.from_live_session(seed.session_eth)
-    ) == Decimal("-32.00000032")
+    )).total == Decimal("-32.00000032")
+
+    # BL-458 — 같은 스코프를 출처별로 쪼갠다. 합계는 위와 **동일**해야 한다.
+    # O2 와 O5 만 거래소 확정이므로 세션마다 소계가 유일한 숫자로 갈린다.
+    closed = await repo.realized_pnl_split_for_session(
+        SessionScope.from_live_session(seed.session_closed)
+    )
+    assert (closed.confirmed, closed.estimated) == (
+        Decimal("-2.00000002"),
+        Decimal("-1.00000001"),
+    )
+    assert closed.total == Decimal("-3.00000003")
+    assert (closed.confirmed_count, closed.estimated_count, closed.unrecorded_count) == (1, 1, 0)
+
+    active = await repo.realized_pnl_split_for_session(
+        SessionScope.from_live_session(seed.session_active)
+    )
+    # O5 확정 / O3(늦은 체결) + O4 추정.
+    assert (active.confirmed, active.estimated) == (
+        Decimal("-16.00000016"),
+        Decimal("-12.00000012"),
+    )
+    assert active.total == Decimal("-28.00000028")
 
 
 @pytest.mark.asyncio
@@ -365,14 +395,24 @@ async def test_late_fill_lands_in_the_adjacent_session_not_its_own(
 
 
 @pytest.mark.asyncio
-async def test_symbol_mismatch_drops_the_webhook_order_from_every_session(
+async def test_session_scope_excludes_orders_whose_symbol_string_differs(
     db_session: AsyncSession,
 ) -> None:
-    """D5 계약 — ingress 정규화가 없어 표기가 다른 TV 웹훅 주문은 스코프에서 빠진다.
+    """술어 계약 — 스코프의 `symbol` 은 정확 문자열 동등이며 이 계약은 유지된다.
 
     fix 전에는 심볼 술어가 없어 O11 이 세 세션 모두에 들어갔다. 이제 전부 빠진다.
     반대로 Site 1/2/5 가드레일에는 여전히 잡히므로 "행이 사라진 게 아니라 세션
     스코프 밖으로 나간 것" 임이 숫자로 구분된다.
+
+    ★**이 테스트는 더 이상 결함을 기록하지 않는다.** BL-454 가 두 ingress 를 정규화해
+    표기가 어긋난 행이 **들어올 경로 자체를 닫았다**(`NormalizedSymbol` 타입). 그 보장은
+    ingress 테스트가 진다 — `test_live_session_commits.py` 의
+    `test_register_request_normalizes_the_symbol_at_the_boundary` +
+    `test_register_calls_repo_commit`(영속 종단) 과 `test_parse_tv_payload.py` 의
+    `test_parse_normalizes_the_symbol_to_ccxt_unified`.
+
+    여기 O11 은 모델 계층에 직접 심어 ingress 를 우회한 행이다. 리포지토리 테스트로서
+    정당하며, 술어가 조용히 느슨해지는 것을 막는 대조군으로 계속 필요하다.
     """
     seed = await _seed_money_path(db_session)
     repo = OrderRepository(db_session)
@@ -445,3 +485,47 @@ async def test_guardrail_site5_daily_summary_stays_global(db_session: AsyncSessi
     assert total == Decimal("-1919.00001919")
     assert filled == 10
     assert rejected == 1
+
+
+@pytest.mark.asyncio
+async def test_normalized_symbols_collide_on_the_active_unique_index(
+    db_session: AsyncSession,
+) -> None:
+    """★BL-454 의 의도된 동작 변경 — 예전에 201 이던 등록이 이제 충돌한다.
+
+    `uq_live_sessions_active_unique` 는 `(user_id, strategy_id, exchange_account_id,
+    symbol) WHERE is_active` 다. 정규화 전에는 `BTCUSDT` 와 `BTC/USDT` 가 **서로 다른
+    문자열**이라 같은 시장에 활성 세션 2개가 합법이었고, 대시보드 §01 KPI 가 활성 세션의
+    손익을 단순 합산하므로 **같은 손익을 두 번 더했다**.
+
+    정규화가 두 표기를 한 문자열로 붕괴시키므로 이제 충돌한다. 이건 결함이 아니라
+    수정의 요점이다. `live_signal_sessions` 0행 시점이라 배포 시 unique 위반도 백필도
+    없다 — 이 창에서만 참이다.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from src.trading.schemas import RegisterLiveSessionRequest
+
+    seed = await _seed_money_path(db_session)
+    active = seed.session_active
+
+    # 두 자유 표기가 같은 canonical 로 붕괴한다 — 충돌의 기제다.
+    unnormalized = RegisterLiveSessionRequest(
+        strategy_id=active.strategy_id,
+        exchange_account_id=active.exchange_account_id,
+        symbol=BTC_UNNORMALIZED,
+        interval="5m",
+    )
+    assert unnormalized.symbol == active.symbol
+
+    db_session.add(
+        LiveSignalSession(
+            user_id=active.user_id,
+            strategy_id=active.strategy_id,
+            exchange_account_id=active.exchange_account_id,
+            symbol=unnormalized.symbol,
+            interval=LiveSignalInterval.m5,
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db_session.flush()

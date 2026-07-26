@@ -298,6 +298,35 @@ qb_exchange_exit_rows_total = Counter(
     labelnames=("classification",),
 )
 
+# BL-457 — orderLinkId 가 우리 형식(UUID)인데 그 Order 행이 계정 스코프에 **없는** 행 수.
+# 이 값이 오르면 (a) 우리 DB 가 주문 이력을 잃었거나 (b) 외부 도구가 UUID 모양 client
+# order id 를 달고 있다. 어느 쪽이든 `ours` 를 주장할 근거가 아니므로 라벨은 unknown 으로
+# 떨어지고, 그 사실 자체를 여기서 센다. ★"우리 DB 가 행을 잃었다" 는 청산의 속성이 아니라
+# 우리 운영 사실이므로 domain enum 이 아니라 메트릭이 올바른 집이다. 이 카운터가 실제로
+# 오르기 시작하면 그때 전용 classification 값 추가를 재검토한다(양방향 마이그레이션 0).
+qb_exchange_exit_link_unverified_total = Counter(
+    "qb_exchange_exit_link_unverified_total",
+    "orderLinkId 는 우리 UUID 형식인데 해당 Order 행이 없어 소유를 주장하지 못한 청산 행 수",
+)
+
+# BL-464 — 원장 행의 전략 귀속 등급 분포. `inferred` 는 검정력이 없는 휴리스틱이므로
+# 머니-패스 입력으로 승격하기 **전에** 실제 비율을 재기 위해 존재한다.
+# confidence: exact | inferred | none. Cardinality: 고정 3개 series만 허용한다.
+qb_exchange_exit_attribution_total = Counter(
+    "qb_exchange_exit_attribution_total",
+    "거래소 청산 원장 신규 행의 전략 귀속 등급",
+    labelnames=("confidence",),
+)
+
+# BL-454 — TradingView 웹훅 심볼을 canonical 로 정규화하지 못해 거부한 횟수.
+# ★fail-closed 를 택한 이유가 이 카운터다. TV `{{ticker}}` 가 퍼프에서 정확히 무엇인지
+# 1차 출처로 확인하지 못했으므로 장식 제거를 추측으로 넣지 않았다. 이 값이 오르면
+# `webhook_symbol_normalize_failed` 로그의 원문이 실제 포맷을 알려준다.
+qb_webhook_symbol_rejected_total = Counter(
+    "qb_webhook_symbol_rejected_total",
+    "TradingView 웹훅 심볼을 정규화하지 못해 거부한 횟수",
+)
+
 # Sprint 48 Pass 2 — 체결 winner가 주문 수량보다 적은 확정 수량을 받은 경우만 집계.
 # source: rest | ws | watchdog | reconciler.
 # Cardinality: 고정 source 4개 series만 허용한다.

@@ -36,12 +36,15 @@ from src.common.alert import send_critical_alert
 from src.common.metrics import (
     qb_active_orders,
     qb_closed_pnl_backfill_total,
+    qb_exchange_exit_attribution_total,
+    qb_exchange_exit_link_unverified_total,
     qb_exchange_exit_rows_total,
     qb_partial_fill_total,
     qb_trailing_placement_total,
 )
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
+from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.alerting import send_rule_alert
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
@@ -50,7 +53,12 @@ from src.trading.exceptions import (
     TrailingContractError,
     UnsupportedExchangeError,
 )
-from src.trading.exit_attribution import OrderFact, attribute_exit, classify_exit
+from src.trading.exit_attribution import (
+    OrderFact,
+    attribute_exit,
+    classify_exit,
+    parse_our_order_link_id,
+)
 from src.trading.models import (
     AlertChannel,
     ExchangeAccount,
@@ -1458,12 +1466,26 @@ def _datetime_from_ms(value: int | None) -> datetime | None:
 
 
 def _order_facts(orders: Sequence[Order]) -> list[OrderFact]:
-    """영속 Order를 귀속 순수 함수의 최소 입력으로 축소한다."""
+    """영속 Order를 귀속 순수 함수의 최소 입력으로 축소한다.
+
+    ★symbol 은 **거래소 공간**으로 내려서 담는다(BL-464). 원장/청산 스냅샷의 심볼은
+    Bybit 원문(`BTCUSDT`)이고 `Order.symbol` 은 우리 canonical(`BTC/USDT`)이라,
+    `attribute_exit` 의 정확 문자열 동등이 어느 표본에서도 성립하지 않아 `inferred`
+    축이 구조적으로 죽어 있었다. 두 피연산자를 같은 공간에 두는 유일한 건널목이 여기다.
+
+    `normalize_symbol` 이 아니라 `to_bybit_raw_symbol` 인 이유 — 전자는 낯선 심볼에
+    `ValueError` 를 던진다. 계정 루프 안에서 던지면 바깥 `except Exception` 에 삼켜져
+    `failed_provider` 로 오집계되고 **그 계정의 원장 적재 전체를 잃는다.** 후자는 절대
+    raise 하지 않고 원문 입력에 idempotent 하다.
+
+    스윕이 Bybit 전용인 동안만 옳다(`list_by_exchange(bybit)` + 계정 exchange 가드
+    2중). OKX 가 스윕에 합류하면 이 지점이 거래소별 fan-out seam 이다.
+    """
     return [
         OrderFact(
             order_id=order.id,
             strategy_id=order.strategy_id,
-            symbol=order.symbol,
+            symbol=to_bybit_raw_symbol(order.symbol),
             side_is_buy=order.side == OrderSide.buy,
             reduce_only=order.reduce_only,
             quantity=order.quantity,
@@ -1589,6 +1611,7 @@ async def _sweep_closed_pnl_with_session(
             ]
             meta_by_order_id: dict[str, ClosedOrderMeta] = {}
             attribution_facts: list[OrderFact] = []
+            known_order_ids: frozenset[UUID] = frozenset()
             if unmatched_ids:
                 try:
                     meta_by_order_id = await account_provider.fetch_closed_order_meta(
@@ -1600,9 +1623,22 @@ async def _sweep_closed_pnl_with_session(
                         exc_info=True,
                         extra={"account_id": str(account.id)},
                     )
+                # BL-457 — 미매칭 행이 단 orderLinkId 중 UUID 형식인 것만 실재 확인
+                # 후보다. 형식 판정은 분류기와 **같은 정의**를 쓴다(복제 금지).
+                link_candidates: set[UUID] = set()
+                for unmatched_id in unmatched_ids:
+                    unmatched_meta = meta_by_order_id.get(unmatched_id)
+                    if unmatched_meta is None:
+                        continue
+                    link_id = parse_our_order_link_id(unmatched_meta.order_link_id)
+                    if link_id is not None:
+                        link_candidates.add(link_id)
                 async with sm() as session:
-                    attribution_orders = await OrderRepository(session).list_filled_for_attribution(
-                        account.id
+                    order_repo = OrderRepository(session)
+                    attribution_orders = await order_repo.list_filled_for_attribution(account.id)
+                    # 후보가 없으면 리포가 즉시 빈 집합을 돌려주므로 왕복이 늘지 않는다.
+                    known_order_ids = await order_repo.list_existing_ids(
+                        account.id, link_candidates
                     )
                 attribution_facts = _order_facts(attribution_orders)
 
@@ -1625,7 +1661,8 @@ async def _sweep_closed_pnl_with_session(
                 matched_order = matched_by_exchange_id.get(snapshot.order_id)
                 if matched_order is None:
                     attribution, strategy_id = attribute_exit(
-                        symbol=snapshot.symbol,
+                        # BL-464 — `_order_facts` 와 같은 거래소 공간으로 맞춘다.
+                        symbol=to_bybit_raw_symbol(snapshot.symbol),
                         avg_entry_price=snapshot.avg_entry_price,
                         exit_at=exchange_created_at,
                         our_filled_orders=attribution_facts,
@@ -1662,6 +1699,7 @@ async def _sweep_closed_pnl_with_session(
                                 matched_order.id if matched_order is not None else None
                             ),
                             meta=meta_by_order_id.get(snapshot.order_id),
+                            known_order_ids=known_order_ids,
                         ),
                         create_type=(
                             meta_by_order_id[snapshot.order_id].create_type
@@ -1699,6 +1737,28 @@ async def _sweep_closed_pnl_with_session(
                     # `.value` 를 남겨두면 소스가 재조회 경로로 바뀌는 순간 조용히 죽는다.
                     # `str()` 은 양쪽 모두 안전하다(StrEnum.__str__ 이 값 자체를 돌려준다).
                     qb_exchange_exit_rows_total.labels(classification=str(row.classification)).inc()
+                    qb_exchange_exit_attribution_total.labels(
+                        confidence=str(row.attribution_confidence)
+                    ).inc()
+                    # BL-457 — 형식은 우리 것인데 실재 확인이 안 된 행. 라벨은 소유를
+                    # 주장하지 않고 떨어졌지만, 그 사실을 관측하지 않으면 "우리 주문
+                    # 이력이 사라졌다" 와 "외부 도구가 UUID 를 쓴다" 를 구분할 수 없다.
+                    # ★orderLinkId 원문을 로그에 남기는 것이 요점이다 — 카운터는
+                    # "일어나고 있나" 에만 답하고, 무엇이 들어왔는지는 로그만 답한다.
+                    if (
+                        parse_our_order_link_id(row.order_link_id) is not None
+                        and row.classification != ExitClassification.ours
+                    ):
+                        qb_exchange_exit_link_unverified_total.inc()
+                        logger.warning(
+                            "exchange_exit_link_id_unverified",
+                            extra={
+                                "account_id": str(account.id),
+                                "exchange_order_id": row.exchange_order_id,
+                                "order_link_id": row.order_link_id,
+                                "classification": str(row.classification),
+                            },
+                        )
                     new_hash_set.remove(row.row_hash)
 
             async with sm() as session:

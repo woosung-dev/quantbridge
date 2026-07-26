@@ -45,3 +45,49 @@ describe("getLiveSessionState", () => {
     });
   });
 });
+
+describe("getLiveSessionState — BL-458 출처 필드", () => {
+  it("커브 포인트의 source 와 소계 4필드를 벗기지 않고 통과시킨다", async () => {
+    // ★zod 는 기본적으로 미지 키를 조용히 벗긴다. 이 스키마 갱신이 없으면 BE 가
+    // 필드를 실어 보내도 FE 에서 사라지고, 기능 전체가 green 으로 출하되면서
+    // 화면에는 아무것도 안 나온다. 그 실패 모드를 여기서 못 지나가게 막는다.
+    apiFetchMock.mockResolvedValueOnce({
+      ...stateResponse,
+      confirmed_realized_pnl: "-2",
+      estimated_realized_pnl: "-4",
+      confirmed_closed_trades: 1,
+      estimated_closed_trades: 1,
+      equity_curve: [
+        { timestamp_ms: 1000, cumulative_pnl: "-4", source: "estimated" },
+        { timestamp_ms: 2000, cumulative_pnl: "-6", source: "confirmed" },
+      ],
+    });
+
+    const state = await getLiveSessionState(sessionId, "token");
+
+    expect(state).not.toBeNull();
+    expect(state!.confirmed_realized_pnl).toBe("-2");
+    expect(state!.estimated_realized_pnl).toBe("-4");
+    expect(state!.confirmed_closed_trades).toBe(1);
+    expect(state!.estimated_closed_trades).toBe(1);
+    expect(state!.equity_curve.map((p) => p.source)).toEqual([
+      "estimated",
+      "confirmed",
+    ]);
+  });
+
+  it("source 가 없는 구 응답은 추정으로 폴백한다", async () => {
+    // 증거 부재가 "거래소 확정" 이 되면 안 된다 — 폴백 방향이 계약이다.
+    const { curvePointSource } = await import("../schemas");
+    apiFetchMock.mockResolvedValueOnce({
+      ...stateResponse,
+      equity_curve: [{ timestamp_ms: 1000, cumulative_pnl: "-4" }],
+    });
+
+    const state = await getLiveSessionState(sessionId, "token");
+
+    expect(state!.equity_curve[0]!.source).toBeUndefined();
+    expect(curvePointSource(state!.equity_curve[0]!)).toBe("estimated");
+    expect(state!.confirmed_realized_pnl).toBeUndefined();
+  });
+});

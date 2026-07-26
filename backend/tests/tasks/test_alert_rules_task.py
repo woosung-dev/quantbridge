@@ -11,6 +11,7 @@ from uuid import uuid4
 import pytest
 
 from src.trading.models import AlertChannel
+from src.trading.repositories.order_repository import SessionRealizedPnl
 
 
 class _Engine:
@@ -82,11 +83,20 @@ def _patch_task(
         def __init__(self, _session) -> None:
             pass
 
-        async def sum_filled_realized_pnl_for_session(self, scope):
+        async def realized_pnl_split_for_session(self, scope):
             # 태스크가 세션 행이 아니라 스코프 값 객체를 넘기는지 여기서 고정한다.
             assert scope.symbol == "BTC/USDT"
             assert scope.ended_at is None
-            return pnl
+            # BL-458 — 게이트가 쓰는 값은 확정+추정 합계다. 절반씩 나눠 담아
+            # 태스크가 `.total` 을 쓰는지(한쪽만 보지 않는지) 고정한다.
+            half = Decimal(str(pnl)) / Decimal("2")
+            return SessionRealizedPnl(
+                confirmed=half,
+                estimated=Decimal(str(pnl)) - half,
+                confirmed_count=1,
+                estimated_count=1,
+                unrecorded_count=0,
+            )
 
     class _Accounts:
         def __init__(self, *_args) -> None:
@@ -118,10 +128,33 @@ async def test_loss_rule_fires_at_threshold(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(task, "_get_redis_lock_pool_for_alert", _Redis)
     assert await task._async_evaluate_loss_rules() == {"evaluated": 1, "fired": 1}
     # BL-444 — 스코프가 바뀌었으므로 사용자가 읽는 문구도 함께 바뀌어야 한다.
-    assert "strategy, account and symbol" in calls[0]["message"]
-    assert calls[0]["context"]["scope"] == (
+    assert "전략·계정·심볼" in calls[0]["message"]
+    # BL-458 — 신뢰 등급이 본문에 드러나야 한다. 어휘는 FE 블로터 칩과 같은 두 단어다.
+    assert "거래소 확정" in calls[0]["message"]
+    assert "추정" in calls[0]["message"]
+    context = calls[0]["context"]
+    # ★기존 6 키는 기계 판독용이라 하나도 사라지면 안 된다. 신규 키를 더하면서
+    # 기존 키를 흘리는 회귀가 조용히 통과하지 못하게 전수로 고정한다.
+    assert set(context) == {
+        "rule_id",
+        "session_id",
+        "total_realized_pnl",
+        "loss_percent",
+        "threshold_percent",
+        "scope",
+        "confirmed_realized_pnl",
+        "estimated_realized_pnl",
+        "confirmed_count",
+        "estimated_count",
+        "unrecorded_count",
+    }
+    assert context["scope"] == (
         "session strategy+account+symbol, filled_at within session window"
     )
+    # 소계 합이 게이트가 쓴 합계와 같아야 한다 — 라벨은 가산적이다.
+    assert Decimal(context["confirmed_realized_pnl"]) + Decimal(
+        context["estimated_realized_pnl"]
+    ) == Decimal(context["total_realized_pnl"])
 
 
 @pytest.mark.asyncio

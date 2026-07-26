@@ -42,6 +42,13 @@ import { resolveChartTokens } from "@/lib/chart-tokens";
 export interface ChartPoint {
   time: string | number;
   value: number;
+  /**
+   * BL-458 — 포인트별 선 색(옵션). 미지정이면 시리즈 기본색이 그대로 쓰이고 출력이
+   * **byte-identical** 하다(기존 호출자 전원 무영향). lightweight-charts 는 포인트 색을
+   * 인접 세그먼트에 적용하므로 경계 세그먼트는 off-by-one 이다 — 데이터 매핑만
+   * 단정하고 픽셀은 단정하지 않는다.
+   */
+  color?: string;
 }
 
 /** 거래 마커 — entry/exit 표시용. */
@@ -144,10 +151,13 @@ function toTime(value: string | number): Time {
 
 function toLineData(points: readonly ChartPoint[]): LineData[] {
   // time ascending 정렬 의무 (lightweight-charts 가정 — 위반 시 throw).
-  const mapped: LineData[] = points.map((p) => ({
-    time: toTime(p.time),
-    value: p.value,
-  }));
+  // BL-458 — per-point color 는 있을 때만 실는다. `color: undefined` 를 넣으면
+  // 출력 객체 모양이 바뀌어 기존 호출자의 setData 인자가 달라진다.
+  const mapped: LineData[] = points.map((p) =>
+    p.color !== undefined
+      ? { time: toTime(p.time), value: p.value, color: p.color }
+      : { time: toTime(p.time), value: p.value },
+  );
   mapped.sort((a, b) => Number(a.time) - Number(b.time));
   // 동일 time 중복 제거 (lightweight-charts 가 throw 함).
   const seen = new Set<number>();

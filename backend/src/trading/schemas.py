@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from src.common.normalized_symbol import NormalizedSymbol
 from src.trading.models import (
     AlertChannel,
     AlertRuleType,
@@ -187,7 +188,11 @@ class RegisterLiveSessionRequest(BaseModel):
 
     strategy_id: UUID
     exchange_account_id: UUID
-    symbol: str = Field(min_length=1, max_length=32)
+    # BL-454 — canonical(`BTC/USDT`) 로 정규화해 저장한다. 세션 손익 스코프가
+    # `Order.symbol` 과 **정확 문자열 동등**을 쓰므로(`order_repository._session_scope_where`),
+    # 표기가 어긋난 주문은 세션 합계에서 조용히 빠지고 loss-limit 알림이 fail-open 한다.
+    # 정규화 불가 표기는 Pydantic 이 422 로 거부한다(신규 예외 배관 없음).
+    symbol: NormalizedSymbol = Field(min_length=1, max_length=32)
     interval: Literal["1m", "5m", "15m", "1h"]
 
 
@@ -267,6 +272,13 @@ class LiveSignalStateResponse(BaseModel):
     last_strategy_state_report: dict[str, object]
     total_closed_trades: int
     total_realized_pnl: Decimal
+    # BL-458 — 출처 소계. `total_realized_pnl` 은 여전히 **둘을 합친 값**이다(필터가
+    # 아니라 라벨이다). 항등식 `confirmed + estimated == total` 을 테스트로 고정한다.
+    # 추정을 합계에서 빼면 체결부터 스윕 도착까지의 손실이 통째로 사라져 fail-open 한다.
+    confirmed_realized_pnl: Decimal = Decimal("0")
+    estimated_realized_pnl: Decimal = Decimal("0")
+    confirmed_closed_trades: int = 0
+    estimated_closed_trades: int = 0
     equity_curve: list[dict[str, object]] = []  # Sprint 28 Slice 3 BL-140b
     updated_at: AwareDatetime | None
 

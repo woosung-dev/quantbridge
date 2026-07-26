@@ -125,12 +125,16 @@ const POINTS_WITH_EQUITY: ActivityTimelineWithEquityPoint[] = [
     entries_in_window: 1,
     closes_in_window: 0,
     cumulative_pnl: 0,
+    // BL-458 — 출처는 필수다. 생산자(`buildActivityTimelineWithEquity`)가 반드시
+    // 채우게 강제해, 색이 값과 어긋나는 상태를 타입으로 배제한다.
+    cumulative_pnl_source: "estimated",
   },
   {
     label: new Date("2026-05-01T12:01:00Z").toLocaleString(),
     entries_in_window: 1,
     closes_in_window: 1,
     cumulative_pnl: 12.34,
+    cumulative_pnl_source: "confirmed",
   },
 ];
 

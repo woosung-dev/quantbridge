@@ -141,13 +141,13 @@ async def test_sum_filled_realized_pnl_covers_orders_without_session_events(
 
     repo = OrderRepository(db_session)
     # -5(이벤트 있음) + -7(이벤트 없음). 창 밖 -3, 타 심볼 -11, 미체결 -13 은 제외.
-    assert await repo.sum_filled_realized_pnl_for_session(
+    assert (await repo.realized_pnl_split_for_session(
         SessionScope.from_live_session(target_session)
-    ) == Decimal("-12")
+    )).total == Decimal("-12")
     # 심볼이 다른 세션은 자기 심볼 체결만 본다.
-    assert await repo.sum_filled_realized_pnl_for_session(
+    assert (await repo.realized_pnl_split_for_session(
         SessionScope.from_live_session(other_symbol_session)
-    ) == Decimal("-11")
+    )).total == Decimal("-11")
 
     # 이벤트 기반 세션 역인덱스는 이번 변경과 무관하게 그대로 동작한다.
     session_repo = LiveSignalSessionRepository(db_session)
@@ -200,6 +200,6 @@ async def test_closed_session_window_is_half_open_on_filled_at(
     )
     await db_session.flush()
 
-    assert await OrderRepository(db_session).sum_filled_realized_pnl_for_session(
+    assert (await OrderRepository(db_session).realized_pnl_split_for_session(
         SessionScope.from_live_session(closed_session)
-    ) == Decimal("-12")
+    )).total == Decimal("-12")

@@ -130,10 +130,12 @@ export function buildActivityTimeline(
 }
 
 // Sprint 28 Slice 3 (BL-140b) — entry/close + real cumulative equity 통합.
-import type { EquityCurvePoint } from "./schemas";
+import { curvePointSource, type EquityCurvePoint } from "./schemas";
 
 export type ActivityTimelineWithEquityPoint = ActivityTimelinePoint & {
   cumulative_pnl: number; // BE 의 string Decimal → FE number (chart 렌더용, precision 충분)
+  // BL-458 — carry-forward 된 그 값의 출처. 값과 함께 옮겨야 색이 값과 어긋나지 않는다.
+  cumulative_pnl_source: "confirmed" | "estimated";
 };
 
 /**
@@ -164,10 +166,13 @@ export function buildActivityTimelineWithEquity(
   // (기존: 이벤트마다 sortedEquity 전체 선형 재스캔 O(E×N).)
   let eqIdx = 0;
   let cumulativePnl = 0; // 첫 equity point 이전 이벤트는 0 (기존 시맨틱스 유지)
+  // BL-458 — carry-forward 되는 값의 출처도 같이 옮긴다. 아직 equity point 를 하나도
+  // 지나지 않은 구간은 값이 0(추정도 확정도 아님)이므로 보수적으로 추정으로 둔다.
+  let cumulativeSource: "confirmed" | "estimated" = "estimated";
   return baseTimeline.map((point, idx) => {
     const entry = sortedEvents[idx];
     if (!entry) {
-      return { ...point, cumulative_pnl: 0 };
+      return { ...point, cumulative_pnl: 0, cumulative_pnl_source: "estimated" as const };
     }
 
     // bar_time 이전(≤)의 마지막 equity 값 carry-forward.
@@ -176,12 +181,14 @@ export function buildActivityTimelineWithEquity(
       sortedEquity[eqIdx]!.timestamp_ms <= entry.ts
     ) {
       cumulativePnl = parseFloat(sortedEquity[eqIdx]!.cumulative_pnl);
+      cumulativeSource = curvePointSource(sortedEquity[eqIdx]!);
       eqIdx += 1;
     }
 
     return {
       ...point,
       cumulative_pnl: cumulativePnl,
+      cumulative_pnl_source: cumulativeSource,
     };
   });
 }

@@ -286,4 +286,34 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     // Wave0 cockpit: 양수 PnL 은 + prefix + success tone 으로 표시.
     expect(screen.getByText("+98.76")).toBeInTheDocument();
   });
+
+  it("BL-458 — 출처 소계가 오면 확정/추정 칩 두 개를 그린다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      total_realized_pnl: "-6",
+      confirmed_realized_pnl: "-2",
+      estimated_realized_pnl: "-4",
+      confirmed_closed_trades: 1,
+      estimated_closed_trades: 1,
+    });
+    eventsMock.mockResolvedValue({ items: EVENTS });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    // 어휘는 주문 블로터와 같은 SSOT — 두 화면이 다른 말을 하면 안 된다.
+    expect(await screen.findByText("거래소 확정")).toBeInTheDocument();
+    expect(screen.getByText("추정")).toBeInTheDocument();
+    expect(screen.getByText("-2")).toBeInTheDocument();
+    expect(screen.getByText("-4")).toBeInTheDocument();
+  });
+
+  it("BL-458 — 소계가 없는 구 응답에서는 칩을 그리지 않는다 (부재 ≠ 0)", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: EVENTS });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await screen.findByText("BTCUSDT");
+    expect(screen.queryByText("거래소 확정")).not.toBeInTheDocument();
+  });
 });

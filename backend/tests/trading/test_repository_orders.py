@@ -1,7 +1,7 @@
 """OrderRepository — 3-guard 상태 전이 + idempotency 조회."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -318,3 +318,121 @@ async def test_list_filled_realized_excludes_rejected_and_entry_only_orders(
     assert rejected.id not in result_ids
     assert entry_filled_no_pnl.id not in result_ids
     assert result_ids == [close_filled_with_pnl.id]
+
+
+async def test_list_existing_ids_is_state_agnostic_and_account_scoped(
+    db_session, strategy, account, user
+):
+    """BL-457 — link-id 실재 확인은 상태를 묻지 않고 계정만 묻는다.
+
+    ★`state` 필터를 넣으면 안 되는 이유가 여기 고정된다. 이 확인이 필요한 행은 정의상
+    `state == filled` 매칭에 실패한 주문(`pending`/`submitted`)이므로, 상태를 거르면
+    **진짜 우리 청산이 외부 청산으로 뒤집혀** 운영자 알림이 헛발화한다.
+
+    그리고 계정 스코프여야 하는 이유 — `Order.id` 는 UUID4 라 전역 충돌이 문제가 아니고,
+    **다른 계정의 주문 id 를 이 계정의 청산으로 주장하는 것**이 문제다.
+    """
+    from uuid import uuid4
+
+    from src.trading.repositories.order_repository import OrderRepository
+
+    repo = OrderRepository(db_session)
+    _repo, pending_order = await _make_order(db_session, strategy, account)
+    assert pending_order.state == OrderState.pending
+
+    other_account = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"k2",
+        api_secret_encrypted=b"s2",
+    )
+    db_session.add(other_account)
+    await db_session.flush()
+    _repo2, other_order = await _make_order(db_session, strategy, other_account)
+
+    unknown_id = uuid4()
+    found = await repo.list_existing_ids(
+        account.id, [pending_order.id, other_order.id, unknown_id]
+    )
+
+    # 상태 무필터 — pending 주문도 우리 것이다.
+    assert pending_order.id in found
+    # 다른 계정의 주문은 이 계정 것이 아니다.
+    assert other_order.id not in found
+    assert unknown_id not in found
+    assert found == frozenset({pending_order.id})
+
+
+async def test_list_existing_ids_short_circuits_on_empty_input(db_session, account):
+    """후보가 없으면 쿼리 없이 빈 집합이다 — 스윕의 왕복이 늘지 않는다."""
+    from src.trading.repositories.order_repository import OrderRepository
+
+    assert await OrderRepository(db_session).list_existing_ids(account.id, []) == frozenset()
+
+
+async def test_realized_pnl_split_partitions_the_scope_by_provenance(
+    db_session, strategy, account
+):
+    """BL-458 — 확정·추정·미기록 세 카운트가 스코프를 **정확히 분할**한다.
+
+    `realized_pnl_synced_at` 이 출처 마커다 — NULL = pine_v2 추정, 값 있음 = 거래소
+    확정 `closedPnl`. 셋을 합치면 스코프 안 체결 주문 전체가 되어야 한다. 하나라도
+    겹치거나 빠지면 화면의 "확정 N · 추정 M" 이 거짓이 된다.
+
+    금액은 서로 다른 2의 거듭제곱으로 심어 어떤 부분집합 합계도 유일하게 만든다 —
+    틀린 답이 나오면 그 숫자가 어느 술어를 잘못 넣었는지 스스로 지목한다.
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    repo = OrderRepository(db_session)
+    base = datetime(2026, 7, 1, 8, 0, 0, tzinfo=UTC)
+
+    def _o(**kw):
+        return Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT",
+            side=OrderSide.sell,
+            type=OrderType.market,
+            quantity=Decimal("1"),
+            state=OrderState.filled,
+            **kw,
+        )
+
+    # 거래소 확정 −2, 추정 −4, 손익 미도착(수동 청산 직후) 1건.
+    await repo.save(
+        _o(
+            realized_pnl=Decimal("-2"),
+            realized_pnl_synced_at=base,
+            filled_at=base + timedelta(minutes=1),
+        )
+    )
+    await repo.save(
+        _o(realized_pnl=Decimal("-4"), filled_at=base + timedelta(minutes=2))
+    )
+    await repo.save(_o(realized_pnl=None, filled_at=base + timedelta(minutes=3)))
+    await repo.commit()
+
+    live_session = LiveSignalSession(
+        user_id=account.user_id,
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        interval=LiveSignalInterval.m5,
+        created_at=base,
+    )
+    db_session.add(live_session)
+    await db_session.flush()
+
+    split = await repo.realized_pnl_split_for_session(
+        SessionScope.from_live_session(live_session)
+    )
+
+    assert split.confirmed == Decimal("-2")
+    assert split.estimated == Decimal("-4")
+    # ★게이트가 쓰는 값은 여전히 둘의 합이다 — 라벨은 가산적이고 필터가 아니다.
+    assert split.total == Decimal("-6")
+    assert (split.confirmed_count, split.estimated_count) == (1, 1)
+    # 손익이 아직 안 온 체결은 확정도 추정도 아니다 — 개수로만 표면화한다.
+    assert split.unrecorded_count == 1

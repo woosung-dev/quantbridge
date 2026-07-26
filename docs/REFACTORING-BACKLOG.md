@@ -5,9 +5,9 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
+**최종 갱신:** 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **81 active BL / 전체 115 항목** (2026-07-25 exit-money-path 기준). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **80 active BL / 전체 121 항목** (2026-07-26 money-path-finish 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 > ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 하게 남아 있었다. 산식 = `### BL-` 헤딩 수(전체) 대비 각 섹션 본문에 `Resolved` 가 등장하지 않는 항목 수(active). 부분 Resolved 는 active 로 세지 않는다(본문에 `Resolved` 문자열이 있으므로).
 >
@@ -2171,6 +2171,8 @@ JOIN trading.orders ON exchange_order_id → 0 행
 
 **Risk:** 🟡 (세션 손익 과소 집계 → 손실 알림 지연. 노출 경로는 TV 웹훅 하나)
 
+**상태:** ✅ **Resolved (2026-07-26, `stage/money-path-finish`).** `src/common/normalized_symbol.py` 에 공용 도메인 프리미티브 `NormalizedSymbol = Annotated[str, BeforeValidator(...)]` 를 신설(레포 선례 `strict_decimal_input.py` 미러)하고 두 ingress 가 **같은 함수**를 쓴다 — `RegisterLiveSessionRequest.symbol` + `parse_tv_payload`. canonical `BTC/USDT` 는 선택이 아니라 강제였다(`providers._to_bybit_linear_symbol` 이 `"/" not in symbol` 이면 원문을 통과시켜 **원문 `BTCUSDT` 가 linear 어댑터를 우회**한다). 정규화 불가 표기는 **거부 + 관측**(API 422 / 웹훅 401 + `qb_webhook_symbol_rejected_total` + 원문 로그) — TV `{{ticker}}` 가 퍼프에서 `.P` 를 붙이는지 1차 출처로 확인하지 못했으므로 장식 제거를 추측으로 넣지 않았다. ★**의도된 동작 변경 1건** — 정규화로 `BTCUSDT`/`BTC/USDT` 가 한 문자열로 붕괴해 `uq_live_sessions_active_unique` 에서 충돌한다(예전 201 → 4xx). 그게 대시보드 §01 KPI 이중 계상의 원인이었으므로 수정의 요점이다. `live_signal_sessions` 0행이라 백필 0.
+
 ---
 
 ### BL-455
@@ -2230,9 +2232,13 @@ JOIN trading.orders ON exchange_order_id → 0 행
 
 `ix_exchange_exits_classification` 인덱스는 아직 쓰는 쿼리가 없다. [BL-438](#bl-438) ② 가 랜딩해 무언가 `classification` 으로 필터링하는 순간 이 결함은 **머니-패스 결함**이 된다.
 
-**권장 접근:** `exit_attribution.py` 는 지난 스프린트가 **순수 함수 + 순수 테스트**로 확정한 모듈이라 안에서 DB 를 조회하면 안 된다. 순수성을 지키는 방법은 `known_order_ids: frozenset[UUID]` 를 인자로 받는 것이다 — 스윕은 이미 같은 자리에서 `matched_by_exchange_id`(`tasks/trading.py:1576`)를 만들고 `attribution_facts` 가 `order_id` 를 들고 있으므로 새 쿼리가 필요 없다.
+**권장 접근:** `exit_attribution.py` 는 지난 스프린트가 **순수 함수 + 순수 테스트**로 확정한 모듈이라 안에서 DB 를 조회하면 안 된다. 순수성을 지키는 방법은 `known_order_ids: frozenset[UUID]` 를 인자로 받는 것이다.
+
+**★정정 (2026-07-26, money-path-finish 실측)** — 위 문단의 원래 후속 문장은 "`attribution_facts` 가 `order_id` 를 들고 있으므로 **새 쿼리가 필요 없다**" 였다. **그 조언은 틀렸고, 따르면 새 버그를 만든다.** `attribution_facts` 는 `list_filled_for_attribution` 이 `limit=500` + `state==filled` + `filled_at IS NOT NULL` 로 좁힌 목록이고, link-id 실재 확인이 필요한 행은 **정의상 `state==filled` 매칭에 실패한 주문**(`submitted` · 부분체결 후 `cancelled` · `pending` 중 사망)이다. 즉 그 목록에는 필요한 행이 구조적으로 없어서, 재사용하면 **진짜 우리 청산이 `external_manual` 로 뒤집혀** 운영자 알림이 헛발화한다. 계정 스코프 + **state 무필터** 전용 쿼리가 필요하다.
 
 **Risk:** 🟡 (현재는 운영자 알림 누락 + 메트릭 과대. 머니-패스 승격 시 🔴)
+
+**상태:** ✅ **Resolved (2026-07-26, `stage/money-path-finish`).** `classify_exit` 이 `known_order_ids: frozenset[UUID]` 를 **필수 키워드**로 받고, `OrderRepository.list_existing_ids`(술어 2개 · state 무필터)가 계정 스코프 실재를 확인한다. 부수 이득 2건 — ① 실재 확인을 요구하면서 `createType`/`stopOrderType` 분기가 link-id 분기 앞으로 올라와 **버려지던 TP/SL·청산 유래가 되살아났다** ② UUID 형식이지만 미확인인 행은 `external_manual`(= "사람이 UI 에서 Close 를 눌렀다" 는 거짓 단정)이 아니라 `unknown` 으로 떨어진다 — 사람은 UUID4 를 타이핑하지 않는다. 관측 = `qb_exchange_exit_link_unverified_total` + `exchange_exit_link_id_unverified` 로그(orderLinkId 원문). 사용자 결정에 따라 **기존 원장 4행은 재분류하지 않았다**(마이그레이션 0) — 근거는 `docs/money-path-finish/operating-contract.md` §2.
 
 ---
 
@@ -2252,6 +2258,10 @@ JOIN trading.orders ON exchange_order_id → 0 행
 올바른 방향은 **라벨**이다. Site 4 응답의 커브 포인트(또는 주문)에 `confirmed: bool` 을 실어 FE 가 추정 구간을 다르게 렌더하게 한다. 가산적이고 게이트에 무영향이다. `LiveSignalStateResponse` 스키마 필드 추가 + FE 변경이 따른다.
 
 **Risk:** 🟡 (숫자의 신뢰 등급이 화면에 안 드러난다. 게이트 자체는 fail-loud 쪽이라 안전)
+
+**상태:** 🟡 **부분 Resolved (2026-07-26, `stage/money-path-finish`) — 사람이 읽는 2표면까지.** 사용자 결정 = "라벨 + 소계 · Site 3·4". **Site 3**(loss-limit 알림) = `sum_filled_realized_pnl_for_session` → `realized_pnl_split_for_session -> SessionRealizedPnl`(PG `FILTER` 한 문장 5 스칼라)로 개명·retype 해 "출처를 안 보고 합산" 을 표현 불가로 만들고, 본문에 `거래소 확정 X · 추정 Y` + 손익 미도착 체결 건수를 싣는다. **Site 4**(세션 커브·대시보드 §01 KPI) = 커브 포인트에 `source` + 평면 소계 4필드, FE 는 기존 SSOT(`ORDER_REALIZED_PNL_SOURCE_LABEL`)를 재사용해 새 어휘 0. **Site 1·2 게이트 수식과 Site 5 는 무변경** — 확정값만으로 좁히면 체결~스윕 도착 구간 손실이 사라지는 fail-open 이다. 대조군 seed 에 `synced_at` 을 심어 **가드레일이 그 fail-open 좁힘을 잡아내게** 강화했다.
+
+**잔여** — ① Site 1·2 게이트는 여전히 추정·확정 혼재(의도) ② Site 5 일일 리포트 미표면화 ③ **포트폴리오 병합 커브는 포인트별 출처 표현 불가** — `mergeCumulativeCurves` 가 각 세션의 마지막 누적값을 carry-forward 해 더하므로 한 지점의 값은 대부분 과거 거래에서 실려온 값의 합이다. 집계 수준 라벨로 강등했고 구간별 표시는 세션 상세에서만 한다 ④ Site 4 는 `unrecorded_count` 를 세지 않는다(추가 왕복 0 을 택함 — 폴백은 `docs/money-path-finish/operating-contract.md` §4).
 
 ---
 
@@ -2277,6 +2287,29 @@ JOIN trading.orders ON exchange_order_id → 0 행
 
 **Risk:** 🟢 (한 번의 응답/평가에 한정 · 자가 교정 · 변경 전보다 엄격)
 
+### BL-464
+
+**Title:** `attribute_exit` 이 거래소 원문 심볼과 우리 canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었다
+**Category:** Backend / trading (원장 귀속 정확도)
+**Priority:** P2
+**Trigger:** 즉시 (귀속 축 전체가 무동작)
+**Est:** S (1h)
+**출처:** 2026-07-26 money-path-finish §0.5 실측 — 백로그에 없던 신규 발견
+
+**원인 / 영향:** `attribute_exit`(`exit_attribution.py:99`)이 `order.symbol == symbol` 로 정확 문자열 동등을 본다. 호출부(`tasks/trading.py`)가 넘기는 `snapshot.symbol` 은 Bybit 원문 **`BTCUSDT`**(`providers.py:368` 이 `str(row["symbol"])` 로 그대로 싣는다)이고, `OrderFact.symbol` 은 `_order_facts` 가 `order.symbol` 을 그대로 담은 우리 canonical **`BTC/USDT`** 다. → **어떤 표본에서도 매칭이 성립하지 않아 항상 `(ExitAttribution.none, None)`** 을 돌려준다. DB 실측 정합 — 원장 4행 전부 `attributed_strategy_id IS NULL` · `attribution_confidence='none'`. `ExitAttribution.exact`(exchange_order_id 매칭)는 영향 없다.
+
+직전 스프린트가 `attributed_strategy_id NOT NULL 0` 을 관측했지만 **"0행 위에서 0"** 으로 해석했다. 이건 구분되는 진단이다 — **데이터가 있어도** 매칭이 안 된다.
+
+**★왜 한 스프린트 동안 안 보였나** — `tests/tasks/test_closed_pnl_sweep.py::_snapshot` 의 기본 심볼이 `"BTC/USDT"`(우리 canonical)였다. 실제 Bybit closed-pnl 은 `BTCUSDT` 를 준다. 원장 쪽 피연산자를 우리 표기로 위장한 픽스처가 경계 버그를 가렸다. **외부 시스템 픽스처의 기본값은 "다루기 편한 형태" 가 아니라 그 시스템이 실제로 주는 형태여야 한다.**
+
+**상태:** ✅ **Resolved (2026-07-26, `stage/money-path-finish`).** `_order_facts` 와 `attribute_exit` 호출 양쪽에 `to_bybit_raw_symbol` 을 적용해 **같은 거래소 공간**에서 비교한다(`exit_attribution.py` 는 순수 문자열 동등 유지). `normalize_symbol` 을 쓰지 않은 이유 — 그건 **raise** 하고, 계정 루프 안에서 던지면 바깥 `except Exception` 에 삼켜져 `failed_provider` 로 오집계되며 **그 계정의 원장 적재 전체를 잃는다**. `to_bybit_raw_symbol` 은 raise 하지 않고 원문에 idempotent 하다. 규칙 = **원장은 거래소 공간 / 우리 테이블은 canonical 공간 / `_order_facts` 가 유일한 건널목**. 관측 = `qb_exchange_exit_attribution_total{confidence}`.
+
+★**되살린 것이 휴리스틱 승인은 아니다** — 함수 스스로 "실측 표본 4건에서 4/4 였지만 활성 세션이 사실상 하나였다, 검정력이 없다" 고 적고 있다. `attributed_strategy_id` 독자가 레포 전체에 0 이라서만 안전하다. 새 메트릭은 [BL-438](#bl-438) ② 가 이걸 머니-패스 입력으로 승격하기 **전에** 실제 inferred 비율을 재기 위해 존재한다.
+
+**Risk:** 🟡 (원장 귀속 결손. 소비처가 0 이라 오늘 머니-패스 영향은 없다)
+
+**Dependency:** [BL-454](#bl-454) 와 같은 뿌리(심볼 표기 비대칭)이지만 ingress 정규화로는 안 고쳐진다 — 거래소 쪽 피연산자는 구조상 원문이다.
+
 ---
 
 ## 운영 규약
@@ -2284,7 +2317,7 @@ JOIN trading.orders ON exchange_order_id → 0 행
 ### 신규 항목 추가
 
 1. 적절한 priority 결정 (P0~P3 정의 표 참조)
-2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~453)
+2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~464)
 3. 표준 8 필드 모두 채우기: ID / 제목 / 카테고리 / priority / trigger / est / 출처 / 권장 접근
 4. 출처 cross-link (파일:라인 또는 dev-log 파일명) 필수
 5. 의존성 있으면 명시 (다른 BL ID 또는 외부 자원)

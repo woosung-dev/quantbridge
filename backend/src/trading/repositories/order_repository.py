@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as _dt_module
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -25,12 +25,15 @@ class SessionScope:
     술어를 조립하면 그 병이 그대로 재생산되므로, 스코프 정의를 이 타입 하나로 막고
     `_session_scope_where` 한 곳에서만 SQL 로 번역한다.
 
-    수용한 트레이드오프 2 종 — 되돌리기 전에 `docs/exit-money-path/` 를 읽을 것.
+    - `symbol` 은 **정확 문자열 동등**이다. 예전에는 두 ingress 가 심볼을 정규화하지
+      않아 표기가 다른 웹훅 주문이 스코프에서 조용히 빠지는 구멍이 있었다. BL-454 가
+      두 ingress(`RegisterLiveSessionRequest.symbol` = `NormalizedSymbol`,
+      `parse_tv_payload`)를 canonical(`BTC/USDT`)로 정규화해 **그 표기가 들어올 경로를
+      닫았다**. dispatch 와 수동 청산은 세션 심볼을 그대로 복사하므로 구조적으로 항상
+      일치한다. 술어를 느슨하게 바꿀 이유는 없다.
 
-    - `symbol` 은 **정확 문자열 동등**이다. 세션 등록(`RegisterLiveSessionRequest`)도
-      TV 웹훅(`parse_tv_payload`)도 심볼을 정규화하지 않으므로, 표기가 다른 웹훅
-      주문은 스코프에서 조용히 빠진다. dispatch 와 수동 청산은 세션 심볼을 그대로
-      복사하므로 구조적으로 항상 일치한다.
+    수용한 트레이드오프 1 종 — 되돌리기 전에 `docs/exit-money-path/` 를 읽을 것.
+
     - 창은 `filled_at` 기준 반열림 `[started_at, ended_at)` 이다. 세션 종료 뒤에
       체결된 주문(늦은 체결)은 인접 세션이 있으면 그쪽으로, 없으면 어디에도 안
       잡힌다. `filled_at` 은 거래소 체결시각이 아니라 우리 관측시각이다.
@@ -52,6 +55,31 @@ class SessionScope:
             started_at=session.created_at,
             ended_at=session.deactivated_at,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class SessionRealizedPnl:
+    """세션 스코프 실현 손익을 출처별로 쪼갠 값 (BL-458).
+
+    `Order.realized_pnl_synced_at` 이 출처 마커다 — NULL = pine_v2 추정, 값 있음 =
+    거래소 확정 `closedPnl`.
+
+    세 카운트는 스코프를 **정확히 분할**한다. `unrecorded_count` 는 체결됐지만
+    `realized_pnl` 이 아직 NULL 인 주문이다(수동 청산은 값 없이 들어오고 스윕이 나중에
+    채운다). 그 행은 확정도 추정도 아니라 **셀 숫자가 없으므로** 금액이 아니라 개수로만
+    표면화한다 — 두 값 라벨 체계로는 표현할 수 없는 세 번째 상태다.
+    """
+
+    confirmed: Decimal
+    estimated: Decimal
+    confirmed_count: int
+    estimated_count: int
+    unrecorded_count: int
+
+    @property
+    def total(self) -> Decimal:
+        """확정 + 추정. 게이트가 쓰는 값은 여전히 이 합계다 — 라벨은 가산적이다."""
+        return Decimal(str(self.confirmed)) + Decimal(str(self.estimated))
 
 
 def _session_scope_where(scope: SessionScope) -> list[Any]:
@@ -140,18 +168,42 @@ class OrderRepository:
         )
         return (await self.session.execute(stmt)).scalars().all()
 
-    async def sum_filled_realized_pnl_for_session(self, scope: SessionScope) -> Decimal:
-        """세션 스코프 안의 체결 주문 실현 손익 합계.
+    async def realized_pnl_split_for_session(self, scope: SessionScope) -> SessionRealizedPnl:
+        """세션 스코프 안의 체결 주문 실현 손익을 **출처별로 쪼개서** 돌려준다.
 
         BL-444 — 예전에는 `live_signal_events.order_id` 서브셀렉트였다. 이벤트는
         dispatch 경로에서만 생기므로 수동 청산(`ClosePositionService`)과 TV 웹훅
         주문의 손익을 loss-limit 알림이 **구조적으로 못 봤다**. 스코프 기준으로
         바꿔 세 쓰기 경로를 모두 덮는다.
+
+        BL-458 — 합계 하나만 돌려주던 시그니처를 바꾼 이유. `Decimal` 을 돌려주는
+        메서드를 남겨두면 "출처를 안 보고 합산" 이 계속 가능하고, 그게 BL-458 이 지적한
+        결함 그 자체다. 타입으로 표현 불가하게 만든다 — `SessionScope`/`from_live_session`
+        이 이 파일에서 이미 쓴 수와 같다.
+
+        ★**술어는 하나도 좁히지 않는다.** 출처별 값은 같은 스코프 위의 두 번째 집계
+        (`FILTER`)이지 필터가 아니다. `synced_at IS NOT NULL` 로 합계를 좁히면 체결부터
+        스윕 도착까지의 손실이 통째로 사라져 자본 보호 게이트가 fail-open 한다.
         """
-        stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
-            *_session_scope_where(scope)
+        synced_at_col = Order.realized_pnl_synced_at
+        pnl_col = Order.realized_pnl
+        recorded = pnl_col.is_not(None)  # type: ignore[union-attr]
+        confirmed = synced_at_col.is_not(None)  # type: ignore[union-attr]
+        stmt = select(
+            func.coalesce(func.sum(pnl_col).filter(confirmed), 0),
+            func.coalesce(func.sum(pnl_col).filter(synced_at_col.is_(None)), 0),  # type: ignore[union-attr]
+            func.count().filter(recorded, confirmed),
+            func.count().filter(recorded, synced_at_col.is_(None)),  # type: ignore[union-attr]
+            func.count().filter(pnl_col.is_(None)),  # type: ignore[union-attr]
+        ).where(*_session_scope_where(scope))
+        row = (await self.session.execute(stmt)).one()
+        return SessionRealizedPnl(
+            confirmed=Decimal(str(row[0] or 0)),
+            estimated=Decimal(str(row[1] or 0)),
+            confirmed_count=int(row[2] or 0),
+            estimated_count=int(row[3] or 0),
+            unrecorded_count=int(row[4] or 0),
         )
-        return Decimal(str((await self.session.execute(stmt)).scalar_one() or 0))
 
     # --- 3-guard 상태 전이 (Sprint 4 BacktestRepository 패턴 계승) ---
 
@@ -210,6 +262,34 @@ class OrderRepository:
             .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
         )
         return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_existing_ids(
+        self, account_id: UUID, order_ids: Collection[UUID]
+    ) -> frozenset[UUID]:
+        """계정 스코프로 우리 `Order.id` 의 **실재**만 확인한다 (BL-457).
+
+        묻는 것이 membership 하나뿐이므로 최종 형태를 그대로 돌려준다 — 호출부에서
+        변환할 일이 없고, 인덱싱해 쓰고 싶은 유혹도 없앤다.
+
+        ★**`state` 필터를 넣지 않는다.** `list_by_exchange_order_ids` 가 이미
+        `state == filled` 로 매칭을 시도하므로, link-id 실재 확인이 필요한 행은
+        **정의상 그 매칭에 실패한 주문**이다 — `submitted`(종결 증거 미관측) ·
+        부분체결 후 `cancelled` · `pending` 중 프로세스 사망. `state` 필터는 이 확인이
+        존재하는 이유인 모집단을 정확히 배제해 **진짜 우리 청산을 외부 청산으로 뒤집고
+        운영자를 호출한다.** 같은 이유로 `list_filled_for_attribution`(= `filled` +
+        `limit=500`)의 결과를 재사용하는 것도 틀린 해법이다.
+
+        계정 스코프인 이유 — `Order.id` 는 UUID4 라 전역 충돌이 위험한 게 아니다.
+        **다른 계정의 주문 id 를 이 계정의 청산으로 주장하는 것**이 위험하다.
+        """
+        if not order_ids:
+            return frozenset()
+        stmt = (
+            select(Order.id)  # type: ignore[call-overload]
+            .where(Order.exchange_account_id == account_id)
+            .where(Order.id.in_(order_ids))  # type: ignore[attr-defined]
+        )
+        return frozenset((await self.session.execute(stmt)).scalars().all())
 
     async def list_unsynced_reduce_only(
         self, account_id: UUID, *, limit: int = 500
