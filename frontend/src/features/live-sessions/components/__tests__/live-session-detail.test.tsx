@@ -7,7 +7,7 @@
 //
 // 패턴: ExchangeAccountsPanel 테스트 동일 (Clerk + RQ 구성).
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -340,5 +340,97 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
 
     await screen.findByText("BTCUSDT");
     expect(screen.queryByText("거래소 확정")).not.toBeInTheDocument();
+  });
+
+  it("진입 스킵이 없으면 자리표를 표시한다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("live-session-entry-skips").textContent?.trim()).toBe(
+        String.fromCharCode(0x2014),
+      );
+    });
+  });
+
+  it("강제 청산이 없으면 자리표를 표시한다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("live-session-liquidations").textContent?.trim()).toBe(
+        String.fromCharCode(0x2014),
+      );
+    });
+  });
+
+  it("강제 청산 건수와 격리 증거금 고지를 표시한다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: {
+        last_bar_liquidations: [{ id: "L" }, { id: "S" }],
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("live-session-liquidations")).toHaveTextContent("2건");
+    });
+    expect(
+      screen.getByText(
+        "증거금 부족 시 시뮬레이터가 청산으로 판정해 청산 주문을 냅니다. 격리 증거금 기준이며 거래소의 실제 청산과 다를 수 있습니다.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("진입 스킵 사유별 한국어 라벨과 건수를 표시한다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: {
+        last_bar_entry_skips: [
+          { reason: "margin_insufficient" },
+          { reason: "margin_insufficient" },
+          { reason: "non_finite_qty" },
+          { reason: "pyramiding_cap" },
+          { reason: "session_closed" },
+          { reason: "unexpected_reason" },
+        ],
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("live-session-entry-skips")).toHaveTextContent("증거금 부족 2건");
+    });
+    const entrySkips = screen.getByTestId("live-session-entry-skips");
+    expect(entrySkips).toHaveTextContent("증거금 부족 2건");
+    expect(entrySkips).toHaveTextContent("수량 계산 불가 1건");
+    expect(entrySkips).toHaveTextContent("추가 진입 한도 1건");
+    expect(entrySkips).toHaveTextContent("거래 시간대 밖 1건");
+    expect(entrySkips).toHaveTextContent("unexpected_reason 1건");
+  });
+
+  it("증거금 부족 스킵에만 gross 자본 고지를 표시한다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: {
+        last_bar_entry_skips: [{ reason: "margin_insufficient" }],
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    expect(
+      await screen.findByText("증거금 판정은 수수료·슬리피지를 차감하기 전 자본으로 합니다."),
+    ).toBeInTheDocument();
   });
 });

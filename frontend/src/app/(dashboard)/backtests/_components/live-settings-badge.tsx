@@ -33,7 +33,7 @@ export function LiveSettingsBadge({
       const lev = liveLeverage ?? 0;
       return (
         <span className="chip warn" data-testid="live-settings-badge-blocked">
-          {`미러 불가 (Live 레버리지 ${lev}x · 준비 중)`}
+          {`미러 불가 (Live 레버리지 ${lev}x · 라이브 반영)`}
         </span>
       );
     }

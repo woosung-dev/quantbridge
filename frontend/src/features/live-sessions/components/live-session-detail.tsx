@@ -43,6 +43,15 @@ type Props = {
   session: LiveSession;
 };
 
+const UNAVAILABLE = "—";
+
+const ENTRY_SKIP_REASON_LABEL: Record<string, string> = {
+  margin_insufficient: "증거금 부족",
+  non_finite_qty: "수량 계산 불가",
+  pyramiding_cap: "추가 진입 한도",
+  session_closed: "거래 시간대 밖",
+};
+
 export function LiveSessionDetail({ session }: Props) {
   // LESSON-004 H-1: dep array 우회 위해 primitive (session.id, session.is_active) 직접 전달
   const { data: state, isLoading: stateLoading } = useLiveSessionState(
@@ -52,6 +61,27 @@ export function LiveSessionDetail({ session }: Props) {
   const { data: events, isLoading: eventsLoading } = useLiveSessionEvents(
     session.id,
   );
+
+  const entrySkipCounts = new Map<string, number>();
+  const entrySkips = state?.last_strategy_state_report?.last_bar_entry_skips;
+  if (Array.isArray(entrySkips)) {
+    for (const entrySkip of entrySkips) {
+      if (
+        entrySkip !== null &&
+        typeof entrySkip === "object" &&
+        "reason" in entrySkip &&
+        typeof entrySkip.reason === "string"
+      ) {
+        entrySkipCounts.set(
+          entrySkip.reason,
+          (entrySkipCounts.get(entrySkip.reason) ?? 0) + 1,
+        );
+      }
+    }
+  }
+  const hasMarginInsufficient = entrySkipCounts.has("margin_insufficient");
+  const liquidations = state?.last_strategy_state_report?.last_bar_liquidations;
+  const liquidationCount = Array.isArray(liquidations) ? liquidations.length : 0;
 
   // Sprint 33-A: chart data 사전 계산 (lightweight-charts 호환).
   // useMemo — RQ structural sharing 이 items/equity_curve 하위 참조 identity 를
@@ -119,12 +149,40 @@ export function LiveSessionDetail({ session }: Props) {
             {/* 부재는 자리표로 둔다 — 모르는 값에 단위를 붙이면 0 을 아는 척하는 것과 같다.
                 형제 `실현 손익` 칩과 같은 <dd> 를 쓴다 (<dl> 자식은 dt/dd 만 허용). */}
             <dd className="font-mono" data-testid="live-session-equity-baseline">
-              {session.equity_baseline_usdt ? `${session.equity_baseline_usdt} USDT` : "—"}
+              {session.equity_baseline_usdt ? `${session.equity_baseline_usdt} USDT` : UNAVAILABLE}
             </dd>
             <dd className="mt-1 text-xs text-muted-foreground">
               세션 시작 시점의 거래소 잔고 스냅샷입니다. 주문 수량이 이 값을 기준으로 계산되며 이후
               입출금과 손익은 반영되지 않습니다.
             </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">진입 스킵</dt>
+            <dd className="font-mono" data-testid="live-session-entry-skips">
+              {stateLoading
+                ? "…"
+                : entrySkipCounts.size === 0
+                  ? UNAVAILABLE
+                  : Array.from(entrySkipCounts, ([reason, count]) =>
+                      `${ENTRY_SKIP_REASON_LABEL[reason] ?? reason} ${count}건`,
+                    ).join(", ")}
+            </dd>
+            {hasMarginInsufficient ? (
+              <dd className="mt-1 text-xs text-muted-foreground">
+                증거금 판정은 수수료·슬리피지를 차감하기 전 자본으로 합니다.
+              </dd>
+            ) : null}
+          </div>
+          <div>
+            <dt className="text-muted-foreground">강제 청산(시뮬)</dt>
+            <dd className="font-mono" data-testid="live-session-liquidations">
+              {stateLoading ? "…" : liquidationCount === 0 ? UNAVAILABLE : `${liquidationCount}건`}
+            </dd>
+            {liquidationCount > 0 ? (
+              <dd className="mt-1 text-xs text-muted-foreground">
+                증거금 부족 시 시뮬레이터가 청산으로 판정해 청산 주문을 냅니다. 격리 증거금 기준이며 거래소의 실제 청산과 다를 수 있습니다.
+              </dd>
+            ) : null}
           </div>
         </dl>
       </div>
