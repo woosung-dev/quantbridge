@@ -77,9 +77,10 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 
 ### Next Actions
 
-- [ ] **BL-478 결정** — (a) conditional order 등재 · (b) 시장가 근사 · (c) 세션 시작 차단. **(c) 가 최소 정직안**. BL-480 을 고쳐 발산이 이제 화면에 보이므로, 그 상태로 방치해도 **조용히 속지는 않는다**
-- [ ] BL-476 결정 — 가드를 Celery 경계 뒤로 옮길지(거부 시점이 응답 뒤로 밀리는 계약 변경)
-- [ ] BL-477 — 읽기 전용 계정 `0277c150` 삭제 여부(사용자 판단, 삭제하면 자연 소멸)
+**이 스프린트는 여기서 닫는다.** 잔여 전량은 [`docs/live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md) 로 이관 — 조사는 끝났고 남은 건 **결정 + 구현**이다.
+
+- [x] **PR [#484](https://github.com/woosung-dev/quantbridge/pull/484)** `feat/bl-474-webhook-ingress-parity` → main — **squash 는 사용자**
+- [ ] **다음 세션 = `docs/live-entry-wiring/checklist.md`.** 첫 step = **BL-478 선택지 (a)/(b)/(c) 사용자 결정** — 라이브 매매 시맨틱을 바꾸므로 blocking 이다. 권고 = (c) 먼저(거짓말을 즉시 멈추고 (a) 설계 시간을 번다), (b) 는 백테스트↔라이브 일치를 조용히 깨므로 비권장
 
 ---
 
