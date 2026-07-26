@@ -1,7 +1,7 @@
 # `marketing/` — Build-in-public 콘텐츠 archive
 
 > **용도:** Twitter/X thread, blog draft, dogfood storytelling 등 외부 마케팅 콘텐츠 보관소
-> **로드맵 cross-link:** [`../00_project/roadmap.md`](../00_project/roadmap.md) — H1 부터 "Build in public 주 1회 (한국어+영어 병기)" 명시
+> **로드맵 cross-link:** [`../00_project/roadmap.md`](../../roadmap.md) — H1 부터 "Build in public 주 1회 (한국어+영어 병기)" 명시
 > **상위 docs 표준 분류표:** [`../README.md`](../README.md)
 
 ## 현재 보유 (1 파일)

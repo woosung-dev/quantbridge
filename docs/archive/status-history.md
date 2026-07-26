@@ -169,7 +169,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ### Questions
 
-- ★**사고 기록** — 적대 평가 서브에이전트에 `DATABASE_URL`(개발 DB)만 export 한 셸을 주었고 거기서 `pytest tests/test_migrations.py` 가 돌아 `downgrade base` 로 **개발 DB 가 전소**했다. 주문 17행 · 거래소 계정(암호화 API 키) · 전략 6종 Pine 소스 소실. 주문 17행 SQL 스냅샷만 남았으나 부모 행이 없어 단독 복원 불가. 가드는 넣었고([BL-451](backlog.md#bl-451)) 잔여는 **로컬 DB 주기 백업 부재** [확인 필요]
+- ★**사고 기록** — 적대 평가 서브에이전트에 `DATABASE_URL`(개발 DB)만 export 한 셸을 주었고 거기서 `pytest tests/test_migrations.py` 가 돌아 `downgrade base` 로 **개발 DB 가 전소**했다. 주문 17행 · 거래소 계정(암호화 API 키) · 전략 6종 Pine 소스 소실. 주문 17행 SQL 스냅샷만 남았으나 부모 행이 없어 단독 복원 불가. 가드는 넣었고([BL-451](../backlog.md#bl-451)) 잔여는 **로컬 DB 주기 백업 부재** [확인 필요]
 - wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
 
 ### Next Actions
@@ -751,7 +751,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 - [ ] BL-신규 Backend test fixture DB password 환경 (S1/S5 integration test 3 ERROR 공통)
 
 > 사람과 AI 가 공동 관리하는 활성 작업 추적 파일.
-> 차단 항목은 `[blocked]` 표시 / 질문은 §Questions / 활성 BL 상세는 [`backlog.md`](./backlog.md) / sprint 회고는 [`dev-log/INDEX.md`](./dev-log/INDEX.md).
+> 차단 항목은 `[blocked]` 표시 / 질문은 §Questions / 활성 BL 상세는 [`backlog.md`](../backlog.md) / sprint 회고는 [`dev-log/INDEX.md`](./dev-log/INDEX.md).
 
 ---
 
@@ -764,7 +764,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 - **신규 BL:** 0 / Resolved (PR-D 5-rule triage): 158 BL → **13 Active + 8 Deferred + 137 Archived**
 - **누적 net deletion:** ~6,000+ lines (메타 노이즈 + dead code + locality 정리)
 - **상세:** [`docs/dev-log/2026-05-13-sprint59-close.md`](./dev-log/2026-05-13-sprint59-close.md)
-- **13 active BL** (상세 = [`backlog.md`](./backlog.md) + [`refactoring-backlog/_archived.md`](archive/refactoring-backlog/_archived.md) + [`refactoring-backlog/_deferred.md`](archive/refactoring-backlog/_deferred.md))
+- **13 active BL** (상세 = [`backlog.md`](../backlog.md) + [`refactoring-backlog/_archived.md`](archive/refactoring-backlog/_archived.md) + [`refactoring-backlog/_deferred.md`](archive/refactoring-backlog/_deferred.md))
 
 ### 직전 sprint: Sprint 58 (BL-241/242/243 Pine TA 확장)
 

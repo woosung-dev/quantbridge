@@ -33,5 +33,5 @@ audit/YYYY-MM-DD-<주제>.md
 ## 활용 정책
 
 - 기존 audit 파일은 **삭제 금지** (역사적 맥락 + 트렌드 추적용)
-- 결과 요약은 [`../backlog.md`](../backlog.md) 의 P0/P1 BL 등록과 cross-link
+- 결과 요약은 [`../backlog.md`](../../backlog.md) 의 P0/P1 BL 등록과 cross-link
 - 중대한 발견은 [`../dev-log/`](../../dev-log/) 에 ADR 로 별도 기록

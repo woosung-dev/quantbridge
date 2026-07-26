@@ -669,14 +669,14 @@ exec
 
 | 디렉토리 | 내용 | 상태 |
 |----------|------|------|
-| [00_project/](./00_project/) | 프로젝트 비전, 개요 | ✅ 완료 |
-| [01_requirements/](./01_requirements/) | 요구사항 개요, REQ 카탈로그, Pine 분석 | ✅ 완료 |
-| [02_domain/](./02_domain/) | 도메인 개요, 엔티티, 상태 머신 | ✅ 완료 |
-| [03_api/](./03_api/) | API 엔드포인트 스펙 | ✅ 활성 |
-| [04_architecture/](./04_architecture/) | ERD, 시스템 아키텍처, 데이터 흐름 | ✅ 완료 |
-| [05_env/](./05_env/) | 로컬 셋업, 환경 변수, Clerk 가이드 | ✅ 완료 |
-| [06_devops/](./06_devops/) | Docker Compose, CI/CD, Pre-commit | ✅ 완료 |
-| [07_infra/](./07_infra/) | 배포·Observability·Runbook (draft) | 📝 Draft |
+| [00_project/](../../../reference/project) | 프로젝트 비전, 개요 | ✅ 완료 |
+| [01_requirements/](../../../reference) | 요구사항 개요, REQ 카탈로그, Pine 분석 | ✅ 완료 |
+| [02_domain/](../../../reference) | 도메인 개요, 엔티티, 상태 머신 | ✅ 완료 |
+| [03_api/](../../../reference) | API 엔드포인트 스펙 | ✅ 활성 |
+| [04_architecture/](../../../reference) | ERD, 시스템 아키텍처, 데이터 흐름 | ✅ 완료 |
+| [05_env/](../../../reference) | 로컬 셋업, 환경 변수, Clerk 가이드 | ✅ 완료 |
+| [06_devops/](../../../reference) | Docker Compose, CI/CD, Pre-commit | ✅ 완료 |
+| [07_infra/](../../../reference/infra) | 배포·Observability·Runbook (draft) | 📝 Draft |
 | [DESIGN.md](../../../../DESIGN.md) | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정 |
 | [prototypes/](../../../reference/prototypes/) | Stage 2 HTML 프로토타입 (12개 화면) | ✅ 확정 |
 | [dev-log/](../../../dev-log/) | ADR (의사결정 기록) | 활성 |

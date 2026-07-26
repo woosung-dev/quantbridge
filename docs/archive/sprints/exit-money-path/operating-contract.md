@@ -52,7 +52,7 @@ Site 4 만 추가로 `realized_pnl IS NOT NULL` + `ORDER BY filled_at ASC`.
 
 ### 3.2 표기가 다른 주문은 스코프에서 빠진다 — **ingress 는 닫혔다** (D5, money-path-finish 에서 해소)
 
-> ★**2026-07-26 갱신.** 이 절이 기록했던 트레이드오프는 [BL-454](../backlog.md#bl-454) 가 닫았다. 두 ingress 가 `NormalizedSymbol`(`src/common/normalized_symbol.py`) 로 canonical(`BTC/USDT`) 정규화하므로 **표기가 어긋난 주문이 API 로 들어올 경로가 없다.** 술어의 정확 문자열 동등은 유지되고, 그건 이제 결함이 아니라 계약이다. 아래 원래 서술은 이력으로 남긴다.
+> ★**2026-07-26 갱신.** 이 절이 기록했던 트레이드오프는 [BL-454](../../../backlog.md#bl-454) 가 닫았다. 두 ingress 가 `NormalizedSymbol`(`src/common/normalized_symbol.py`) 로 canonical(`BTC/USDT`) 정규화하므로 **표기가 어긋난 주문이 API 로 들어올 경로가 없다.** 술어의 정확 문자열 동등은 유지되고, 그건 이제 결함이 아니라 계약이다. 아래 원래 서술은 이력으로 남긴다.
 
 `symbol` 은 정확 문자열 동등이다. (당시) ingress 정규화가 **어디에도 없었다** — `RegisterLiveSessionRequest.symbol` 은 길이만 보고(`schemas.py:183`), TV 웹훅은 payload 원문을 그대로 싣는다(`webhook.py:89`). `normalize_symbol`(`market_data/constants.py:18`)은 존재하지만 `src/trading/`·`src/tasks/` 에서 호출 0건이다.
 
@@ -69,7 +69,7 @@ Site 4 만 추가로 `realized_pnl IS NOT NULL` + `ORDER BY filled_at ASC`.
 
 두 소비처 모두 세션 행을 먼저 읽고 **별도 SELECT** 로 주문을 조회한다. 그 사이 `deactivate` 가 커밋되면 스코프는 여전히 무상한이라 **그 한 번의 계산에** 종료 후 체결이 섞인다.
 
-**변경 전보다는 엄격하다** — 예전에는 창이 아예 없어 항상 전 기간을 포함했다. 이 레이스는 새 코드가 한 번의 계산 동안만 옛 동작을 하게 만들고, 다음 평가/요청에서 자가 교정된다. 두 경로 모두 발주를 막지 않는 읽기 전용이다. 근본 수정(세션↔주문 단일 조인)은 [BL-459](../backlog.md#bl-459).
+**변경 전보다는 엄격하다** — 예전에는 창이 아예 없어 항상 전 기간을 포함했다. 이 레이스는 새 코드가 한 번의 계산 동안만 옛 동작을 하게 만들고, 다음 평가/요청에서 자가 교정된다. 두 경로 모두 발주를 막지 않는 읽기 전용이다. 근본 수정(세션↔주문 단일 조인)은 [BL-459](../../../backlog.md#bl-459).
 
 ### 3.4 수동 청산은 체결 직후에도 0 이다
 
@@ -82,7 +82,7 @@ Site 4 만 추가로 `realized_pnl IS NOT NULL` + `ORDER BY filled_at ASC`.
 ## 4. 남아 있는 갭 (이번 범위 밖)
 
 - **펀딩이 라이브 손익에 한 푼도 반영되지 않는다.** `trading.funding_rates` 소비자는 백테스트뿐이고 Bybit `closedPnl` 도 펀딩 미포함 — BL-186.
-- **추정값과 확정값이 한 합계에 섞인다.** → **부분 해소 (2026-07-26 money-path-finish, [BL-458](../backlog.md#bl-458)).** Site 3(알림)·Site 4(커브·KPI)는 이제 출처 소계와 포인트별 라벨을 노출한다. **Site 1·2 게이트와 Site 5 는 여전히 혼재**이고 그건 의도다 — 확정값만으로 좁히면 체결~스윕 도착 구간 손실이 사라지는 fail-open 이다. 상세는 `docs/archive/sprints/money-path-finish/operating-contract.md` §4.
+- **추정값과 확정값이 한 합계에 섞인다.** → **부분 해소 (2026-07-26 money-path-finish, [BL-458](../../../backlog.md#bl-458)).** Site 3(알림)·Site 4(커브·KPI)는 이제 출처 소계와 포인트별 라벨을 노출한다. **Site 1·2 게이트와 Site 5 는 여전히 혼재**이고 그건 의도다 — 확정값만으로 좁히면 체결~스윕 도착 구간 손실이 사라지는 fail-open 이다. 상세는 `docs/archive/sprints/money-path-finish/operating-contract.md` §4.
 - **거래소 네이티브 청산(브래킷/트레일링/청산)은 여전히 머니-패스에 없다** — BL-438 ②. 원장(`trading.exchange_exits`)을 읽는 API·FE 코드는 레포 전체에 0건이고, 이번 스프린트도 만들지 않았다. 따라서 **"합성 Order 금지" 제약은 이번 PR 에서 시험되지 않았다.**
 - Site 1 의 분자·분모 시간축 불일치 — BL-446.
 - Site 5 의 전 테넌트 전역 스코프 — BL-450.

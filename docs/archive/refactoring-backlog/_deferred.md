@@ -35,6 +35,6 @@
 
 ## 부활 정책
 
-- 본 파일의 BL 은 trigger 명시. trigger 도래 시 메인 세션에서 row 를 [`../backlog.md`](../backlog.md) main table 로 이동 + status `🟡 In progress (Sprint NN)` 마킹.
+- 본 파일의 BL 은 trigger 명시. trigger 도래 시 메인 세션에서 row 를 [`../backlog.md`](../../backlog.md) main table 로 이동 + status `🟡 In progress (Sprint NN)` 마킹.
 - 6-8주마다 본 파일 재평가 (사용자 의지 second gate). 의지 X 명시 시 그대로 보존.
 - grep 가능: `grep -r "BL-070" docs/archive/refactoring-backlog/` 또는 `grep BL-005 docs/`.

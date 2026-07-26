@@ -384,7 +384,7 @@ gcloud run deploy quantbridge-ws-stream \
 
 - [`./deployment-plan.md`](./deployment-plan.md) — Cloud Run vs Fly.io vs K8s 비교
 - [`./runbook.md`](./runbook.md) — 일반 운영 runbook
-- [`../backlog.md`](../backlog.md) BL-070 / BL-071 / BL-072
+- [`../backlog.md`](../../backlog.md) BL-070 / BL-071 / BL-072
 - [`../../backend/Dockerfile`](../../../backend/Dockerfile) — Sprint 30 ε B1
 - [`../../backend/src/health/router.py`](../../../backend/src/health/router.py) — Sprint 30 ε B3
 - [`../../backend/docker-entrypoint.sh`](../../../backend/docker-entrypoint.sh) — Sprint 30 ε B6
