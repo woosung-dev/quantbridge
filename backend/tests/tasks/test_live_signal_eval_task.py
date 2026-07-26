@@ -22,6 +22,7 @@ import asyncio
 import sys
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -50,6 +51,13 @@ from src.trading.models import (  # noqa: E402
     LiveSignalEventStatus,
     LiveSignalInterval,
 )
+
+_STOP_ENTRY_SOURCE = (
+    Path(__file__).parents[1] / "fixtures" / "pine_corpus_v2" / "s1_pbr.pine"
+).read_text()
+_MARKET_ENTRY_SOURCE = (
+    Path(__file__).parents[3] / "frontend" / "public" / "samples" / "ema-crossover.pine"
+).read_text()
 
 
 async def _flush_pending_alerts() -> None:
@@ -159,7 +167,10 @@ async def test_redislock_contention_skipped(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def _build_session_obj(
-    *, is_active: bool = True, last_evaluated_bar_time: datetime | None = None
+    *,
+    is_active: bool = True,
+    last_evaluated_bar_time: datetime | None = None,
+    equity_baseline_usdt: Decimal | None = Decimal("8192.00"),
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
@@ -170,6 +181,7 @@ def _build_session_obj(
         interval=LiveSignalInterval.m1,
         is_active=is_active,
         last_evaluated_bar_time=last_evaluated_bar_time,
+        equity_baseline_usdt=equity_baseline_usdt,
     )
 
 
@@ -503,10 +515,12 @@ async def test_empty_due_list_no_error(monkeypatch: pytest.MonkeyPatch) -> None:
 # ── BL-362 — divergence observability (money-path fail-closed) ───────────
 
 
-def _build_strategy(strategy_id: Any, *, pine_source: str) -> SimpleNamespace:
+def _build_strategy(
+    strategy_id: Any, *, pine_source: str, position_size_pct: float = 10.0
+) -> SimpleNamespace:
     return SimpleNamespace(
         id=strategy_id,
-        settings={"leverage": 2, "margin_mode": "cross", "position_size_pct": 10.0},
+        settings={"leverage": 2, "margin_mode": "cross", "position_size_pct": position_size_pct},
         pine_source=pine_source,
     )
 
@@ -517,6 +531,54 @@ def _demo_account_repo() -> AsyncMock:
         return_value=SimpleNamespace(exchange=ExchangeName.bybit, mode=ExchangeMode.demo)
     )
     return account_repo
+
+
+def _preflight_scaffold(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    pine_source: str,
+    equity_baseline_usdt: Decimal | None = Decimal("8192.00"),
+    position_size_pct: float = 10.0,
+    account_repo: AsyncMock | None = None,
+    ohlcv_rows: list[list[Any]] | None = None,
+) -> tuple[SimpleNamespace, AsyncMock, AsyncMock, AsyncMock, AsyncMock]:
+    """G4b preflight와 실제 run_live 배선 테스트용 최소 공통 조립."""
+    sess = _build_session_obj(equity_baseline_usdt=equity_baseline_usdt)
+    sess_repo = AsyncMock()
+    sess_repo.get_by_id = AsyncMock(return_value=sess)
+    sess_repo.try_claim_bar = AsyncMock(return_value=True)
+    sess_repo.deactivate = AsyncMock(return_value=1)
+    sess_repo.get_state = AsyncMock(return_value=None)
+    sess_repo.upsert_state = AsyncMock()
+    sess_repo.commit = AsyncMock()
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner = AsyncMock(
+        return_value=_build_strategy(
+            sess.strategy_id,
+            pine_source=pine_source,
+            position_size_pct=position_size_pct,
+        )
+    )
+    event_repo = AsyncMock()
+    event_repo.list_by_session = AsyncMock(return_value=[])
+    event_repo.insert_pending_events = AsyncMock(return_value=[])
+    _patch_inner_dependencies(
+        monkeypatch,
+        sess_repo=sess_repo,
+        event_repo=event_repo,
+        account_repo=account_repo if account_repo is not None else _demo_account_repo(),
+        strategy_repo=strategy_repo,
+        ohlcv_rows=ohlcv_rows or [[int(datetime(2026, 5, 1, tzinfo=UTC).timestamp() * 1000), 1, 2, 0, 1, 100]],
+    )
+    monkeypatch.setattr(
+        live_signal_module,
+        "send_rule_alert",
+        AsyncMock(return_value={"slack": True, "telegram": True}),
+    )
+    publisher = AsyncMock()
+    monkeypatch.setattr(live_signal_module, "publish_realtime", publisher)
+    provider = celery_module.get_ccxt_provider_for_worker()
+    return sess, sess_repo, event_repo, publisher, provider
 
 
 def _divergence_scaffold(
@@ -866,6 +928,150 @@ async def test_preflight_non_demo_skips_not_deactivated(
 
     assert res == {"skipped": "non_demo_account"}
     sess_repo.deactivate.assert_not_called()  # 미지원 Pine 이라도 non-demo 는 비활성화 X
+
+
+@pytest.mark.asyncio
+async def test_preflight_deactivates_stop_entry_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """stop= 진입 세션은 OHLCV fetch 전에 자동 비활성화한다."""
+    sess, sess_repo, _event_repo, publisher, provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_STOP_ENTRY_SOURCE,
+    )
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res == {"deactivated": "stop_entry_unsupported"}
+    sess_repo.deactivate.assert_awaited_once()
+    publisher.assert_awaited_once_with(
+        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+    )
+    provider.fetch_ohlcv.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_preflight_stop_entry_does_not_increment_divergence_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """예상 가능한 stop-entry 종료는 page용 divergence counter를 올리지 않는다."""
+    sess, _sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_STOP_ENTRY_SOURCE,
+    )
+    before_divergence = _divergence_count("preflight", "stop_entry_unsupported")
+    before_skipped = qb_live_signal_skipped_total.labels(
+        reason="stop_entry_unsupported"
+    )._value.get()
+
+    await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert _divergence_count("preflight", "stop_entry_unsupported") == before_divergence
+    assert qb_live_signal_skipped_total.labels(reason="stop_entry_unsupported")._value.get() == (
+        before_skipped + 1
+    )
+
+
+@pytest.mark.asyncio
+async def test_preflight_deactivates_null_equity_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """시장가 전략이라도 마이그레이션 이전 NULL 기준선은 비활성화한다."""
+    sess, sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_MARKET_ENTRY_SOURCE,
+        equity_baseline_usdt=None,
+    )
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res == {"deactivated": "equity_baseline_missing"}
+    sess_repo.deactivate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_market_entry_session_with_baseline_passes_preflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """음성 대조군은 기준선이 있는 시장가 전략이 preflight를 통과함을 고정한다."""
+    sess, sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_MARKET_ENTRY_SOURCE,
+    )
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    sess_repo.deactivate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_coverage_unrunnable_wins_over_stop_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """미지원 builtin과 stop=이 함께 있으면 coverage_unrunnable이 우선한다."""
+    source = (
+        "//@version=5\nstrategy('t')\nx = ta.ewma(close, 10)\n"
+        "strategy.entry('L', strategy.long, stop=close)\n"
+    )
+    sess, _sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=source,
+    )
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res == {"deactivated": "coverage_unrunnable"}
+
+
+@pytest.mark.asyncio
+async def test_non_demo_account_still_skips_not_deactivates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """non-demo stop-entry 세션도 기존 계약대로 skip만 하고 비활성화하지 않는다."""
+    account_repo = AsyncMock()
+    account_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(exchange=ExchangeName.bybit, mode=ExchangeMode.live)
+    )
+    sess, sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=_STOP_ENTRY_SOURCE,
+        account_repo=account_repo,
+    )
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res == {"skipped": "non_demo_account"}
+    sess_repo.deactivate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_live_sizing_reaches_run_live_hand_computed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """8192 x 50 / 100 = 4096, 4096 / 65536 = 0.0625를 task outbox까지 검증한다."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    real_run_live = event_loop_mod.run_live
+    source = (
+        "//@version=5\nstrategy('last bar market entry')\n"
+        "if close > open\n    strategy.entry('L', strategy.long)\n"
+    )
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, _sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source=source,
+        equity_baseline_usdt=Decimal("8192.00"),
+        position_size_pct=50.0,
+        ohlcv_rows=[
+            [int(bar_time.timestamp() * 1000), 65535.0, 65536.0, 65535.0, 65536.0, 100]
+        ],
+    )
+    monkeypatch.setattr(event_loop_mod, "run_live", real_run_live)
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    signals = event_repo.insert_pending_events.await_args.kwargs["signals"]
+    assert signals[0]["qty"] == 0.0625
 
 
 # T3f — regression: clean strategy 정상 경로 불변 ------------------------

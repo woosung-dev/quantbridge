@@ -9,6 +9,7 @@ Sprint 6 (webhook_secret) → Sprint 13 (OrderService) → Sprint 15-A (Exchange
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -29,7 +30,7 @@ from src.trading.models import (
     LiveSignalInterval,
     LiveSignalSession,
 )
-from src.trading.schemas import RegisterLiveSessionRequest
+from src.trading.schemas import AccountBalanceResponse, RegisterLiveSessionRequest
 
 _VALID_SETTINGS = {
     "schema_version": 1,
@@ -37,6 +38,29 @@ _VALID_SETTINGS = {
     "margin_mode": "cross",
     "position_size_pct": 10.0,
 }
+
+
+def _make_balance_service(
+    *,
+    total: Decimal | None = Decimal("10000"),
+    free: Decimal | None = Decimal("10000"),
+    supported: bool = True,
+    reason: str | None = None,
+) -> AsyncMock:
+    """AccountBalanceService 스텁 — get_balance 가 AccountBalanceResponse 를 돌려준다."""
+    service = AsyncMock()
+    service.get_balance = AsyncMock(
+        return_value=AccountBalanceResponse(
+            account_id=uuid4(),
+            asset="USDT",
+            supported=supported,
+            reason=reason,
+            total=total,
+            free=free,
+            fetched_at=datetime.now(UTC),
+        )
+    )
+    return service
 
 
 def _make_strategy(user_id, settings=_VALID_SETTINGS) -> Strategy:
@@ -131,7 +155,8 @@ async def test_register_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
     from src.tasks.websocket_task import run_bybit_public_ticker_stream
 
@@ -163,7 +188,8 @@ async def test_register_strategy_not_found_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=None)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     req = _make_req(uuid4(), uuid4())
@@ -188,7 +214,8 @@ async def test_register_settings_required_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     req = _make_req(strategy.id, uuid4())
@@ -213,7 +240,8 @@ async def test_register_invalid_settings_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     req = _make_req(strategy.id, uuid4())
@@ -249,6 +277,7 @@ async def test_register_account_mode_live_rejected() -> None:
         repo=repo,
         account_repo=account_repo,
         strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
         user_repo=user_repo,
     )
 
@@ -275,7 +304,8 @@ async def test_register_exchange_okx_rejected() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     req = _make_req(strategy.id, account.id)
@@ -304,7 +334,8 @@ async def test_register_quota_exceeded_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     req = _make_req(strategy.id, account.id)
@@ -331,7 +362,8 @@ async def test_deactivate_calls_repo_commit() -> None:
     strategy_repo = AsyncMock()
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     await svc.deactivate(user_id, sess.id)
@@ -357,7 +389,8 @@ async def test_deactivate_already_inactive_no_commit() -> None:
     strategy_repo = AsyncMock()
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     await svc.deactivate(user_id, sess.id)
@@ -382,7 +415,8 @@ async def test_deactivate_ownership_violation_404() -> None:
     strategy_repo = AsyncMock()
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
 
     with pytest.raises(StrategyNotFoundError):
@@ -418,7 +452,8 @@ async def test_register_survives_ticker_kick_failure(monkeypatch) -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo
+        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
     )
     from src.tasks.websocket_task import run_bybit_public_ticker_stream
 
