@@ -124,6 +124,14 @@ services:
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
+      # optimizer.run 은 이 큐로만 라우팅되고(`celery_app.py` task_routes) 이 컨테이너가
+      # 유일한 소비자다. 아래 3종이 없으면 `ohlcv_provider` 가 코드 기본값 "fixture" 로
+      # 떨어지고 `ohlcv_fixture_root` 는 CWD(/app) 상대라 `/app/backend/data/...` 로 풀려
+      # 존재하지 않는다 → 모든 optimizer 실행이 OHLCVFixtureNotFound 로 죽는다.
+      # backend-worker 와 동일하게 맞춘다.
+      OHLCV_PROVIDER: ${OHLCV_PROVIDER:-timescale}
+      OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
+      DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}

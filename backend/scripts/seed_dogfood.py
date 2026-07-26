@@ -74,6 +74,12 @@ PINE_PBR = REPO_ROOT / "backend/tests/fixtures/pine_corpus_v2/s1_pbr.pine"
 # ★`tmp_code/pine_code/` 를 쓰면 안 된다 — `.gitignore:65` 로 무시되는 untracked
 #   경로다. `PbR_strategy_easy.pine` 과 md5 동일(31b0674d…)이라 손실 없이 대체된다.
 PINE_EMA = REPO_ROOT / "frontend/public/samples/ema-crossover.pine"
+# ★옵티마이저 전용. Grid Search MVP 는 `input.int`/`input.float` 만 sweep 하고
+#   bare `input(4, …)` 은 `input.generic` 으로 분류돼 거부된다(`grid_search.py:168`).
+#   s1_pbr 은 bare input 만 쓴다 → 옵티마이저 베이스로 못 쓴다. s4 는 타입 입력 7개.
+#   EMA 도 타입 입력이지만 그쪽은 degenerate 실행이 **최신이어야** 전략목록에서
+#   D1 이 재현되므로 백테스트를 더 붙이면 안 된다.
+PINE_HMA = REPO_ROOT / "backend/tests/fixtures/pine_corpus_v2/s4_hma_curvature.pine"
 
 
 def _utc(y: int, m: int, d: int) -> datetime:
@@ -113,6 +119,7 @@ class RunSpec:
 STRATEGIES: tuple[StrategySpec, ...] = (
     StrategySpec("pbr", "PbR Pivot Reversal", PINE_PBR),
     StrategySpec("ema", "EMA Crossover Demo", PINE_EMA),
+    StrategySpec("hma", "HMA Curvature", PINE_HMA),
 )
 
 # 마스터 창 — 격자 정렬 + 과거에서 끝나 trailing 유령 갭이 없고,
@@ -163,7 +170,18 @@ RUNS: tuple[RunSpec, ...] = (
         _utc(2026, 7, 25),
         note="거래 0 → 자본 평탄 → sd=0 → unavailable. 리포트 '—' vs 대시보드 '0.00' 대조군",
     ),
+    RunSpec(
+        "optimizer_base",
+        "hma",
+        _utc(2026, 3, 2),
+        _utc(2026, 3, 30),
+        note="옵티마이저 grid-search 의 베이스 — 타입 입력을 선언한 전략이어야 한다",
+    ),
 )
+
+
+# optimizer 가 참조할 백테스트. 짧은 창이라 4셀 재실행이 빠르다.
+OPTIMIZER_BASE_RUN = "optimizer_base"
 
 
 @dataclass
@@ -334,9 +352,124 @@ async def _wait(sm, backtest_id: UUID, timeout_s: int) -> str:
     return f"TIMEOUT(last={last})"
 
 
+async def _ensure_optimizer_run(sm, backtest_id: UUID, owner_id: UUID, timeout_s: int) -> None:
+    """완료 백테스트 위에 grid-search 1건. authed e2e 가 완료 run 상세를 요구한다.
+
+    ★`optimizer.run` 은 `optimizer_heavy` 큐로만 라우팅되고 그 큐의 유일한 소비자가
+    `backend-optimizer-heavy` 다. 그 컨테이너에 OHLCV_PROVIDER 계열 env 가 빠져 있으면
+    provider 가 없는 경로를 가리켜 전부 실패한다(이 스프린트에서 compose 수정).
+    """
+    from src.optimizer.models import OptimizationRun, OptimizationStatus
+
+    async with sm() as session:
+        existing = (
+            (
+                await session.execute(
+                    select(OptimizationRun).where(OptimizationRun.user_id == owner_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    if any(r.status is OptimizationStatus.COMPLETED for r in existing):
+        print("\n▶ optimizer — skip (완료 run 이미 존재)")
+        return
+
+    from src.backtest.repository import BacktestRepository
+    from src.core.config import settings
+    from src.market_data.providers.ccxt import CCXTProvider
+    from src.market_data.providers.timescale import TimescaleProvider
+    from src.market_data.repository import OHLCVRepository
+    from src.optimizer.dispatcher import CeleryOptimizationTaskDispatcher
+    from src.optimizer.repository import OptimizationRepository
+    from src.optimizer.schemas import CreateOptimizationRunRequest
+    from src.optimizer.service import OptimizerService
+    from src.strategy.repository import StrategyRepository
+
+    print("\n▶ optimizer — grid-search 2×2 (fastLength × slowLength)")
+    async with sm() as session:
+        # HTTP 경로(`get_optimizer_service`)와 동일 조립 — dispatcher 는 실제 Celery.
+        service = OptimizerService(
+            repo=OptimizationRepository(session),
+            backtest_repo=BacktestRepository(session),
+            strategy_repo=StrategyRepository(session),
+            ohlcv_provider=TimescaleProvider(
+                OHLCVRepository(session),
+                CCXTProvider(),
+                exchange_name=settings.default_exchange,
+            ),
+            dispatcher=CeleryOptimizationTaskDispatcher(),
+        )
+        run = await service.submit_grid_search(
+            CreateOptimizationRunRequest.model_validate(
+                {
+                    "backtest_id": str(backtest_id),
+                    "kind": "grid_search",
+                    "param_space": {
+                        "schema_version": 1,
+                        "objective_metric": "sharpe_ratio",
+                        "direction": "maximize",
+                        "max_evaluations": 4,
+                        # s4 가 실제로 선언한 `input.int` 두 개. 미선언 이름이나
+                        # bare `input()`(= input.generic)은 `_validate_grid_search_pre`
+                        # 가 거부한다(`grid_search.py:168`).
+                        "parameters": {
+                            "fastLength": {"kind": "integer", "min": 14, "max": 15, "step": 1},
+                            "slowLength": {"kind": "integer", "min": 34, "max": 35, "step": 1},
+                        },
+                    },
+                }
+            ),
+            user_id=owner_id,
+        )
+        run_id = run.id
+    print(f"    submitted {run_id} — 대기 중…")
+
+    deadline = asyncio.get_running_loop().time() + timeout_s
+    while asyncio.get_running_loop().time() < deadline:
+        async with sm() as session:
+            cur = (
+                (await session.execute(select(OptimizationRun).where(OptimizationRun.id == run_id)))
+                .scalars()
+                .one()
+            )
+            if cur.status in (OptimizationStatus.COMPLETED, OptimizationStatus.FAILED):
+                if cur.status is OptimizationStatus.FAILED:
+                    print(f"    FAILED — {cur.error_message}")
+                else:
+                    print(f"    {cur.status}")
+                return
+        await asyncio.sleep(3)
+    print("    TIMEOUT — optimizer_heavy 워커가 살아 있는지 확인하라")
+
+
+async def _find_completed(sm, owner_id: UUID, run_key: str) -> UUID | None:
+    """이미 완료된 실행 중 `run_key` 창과 일치하는 것을 찾는다(멱등 재실행용)."""
+    spec = next(r for r in RUNS if r.key == run_key)
+    async with sm() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(Backtest).where(
+                        Backtest.user_id == owner_id,
+                        Backtest.period_start == spec.period_start,
+                        Backtest.period_end == spec.period_end,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    for row in rows:
+        if row.status is BacktestStatus.COMPLETED:
+            return row.id
+    return None
+
+
 async def _run(only: str | None, timeout_s: int) -> None:
     engine, sm = create_worker_engine_and_sm()
     result = Result()
+    optimizer_base: UUID | None = None
     try:
         owner_id = await _resolve_owner(sm)
         print(f"owner={owner_id}")
@@ -363,6 +496,16 @@ async def _run(only: str | None, timeout_s: int) -> None:
             print(f"    submitted {bt_id} — 대기 중…")
             status = await _wait(sm, bt_id, timeout_s)
             print(f"    {status}")
+            if run.key == OPTIMIZER_BASE_RUN:
+                optimizer_base = bt_id
+
+        # optimizer 는 완료 백테스트를 참조해야 한다 — `daily`(69 거래, 짧은 창)를
+        # 베이스로 쓴다. 마스터 창(1028 거래)을 4셀 재실행하면 불필요하게 느리다.
+        if only is None or only == OPTIMIZER_BASE_RUN:
+            if optimizer_base is None:
+                optimizer_base = await _find_completed(sm, owner_id, OPTIMIZER_BASE_RUN)
+            if optimizer_base is not None:
+                await _ensure_optimizer_run(sm, optimizer_base, owner_id, timeout_s)
     finally:
         await engine.dispose()
 
