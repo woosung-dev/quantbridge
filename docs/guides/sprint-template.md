@@ -90,9 +90,29 @@
 ### §8 — Trailer (다음 sprint 후보)
 
 - 다음 sprint 후보 (이관 BL / 신규 도메인 / Beta path 결정)
-- TODO.md 갱신 (메타 헤더 4 필드 — Last Updated / Active Sprint / Recent BLs / Next Trigger)
+- status.md 갱신 (메타 헤더 4 필드 — Last Updated / Active Sprint / Recent BLs / Next Trigger)
 - INDEX.md 갱신 (sprint 매트릭스 추가)
 - 본 회고 dev-log 자체가 sprint-template.md 의 검증 케이스인지 명시
+
+### §9 — 문서 생명주기 종결 (의무, 2026-07-26 도입)
+
+> 이 단계가 없으면 `docs/` 는 스프린트마다 5개씩(테마 파일 3 + dev-log 1 + status 섹션 1) 늘고
+> 아무도 줄이지 않는다. 실제로 그렇게 34개까지 갔다 — 조사한 고스타 레포 90개 전부보다 많았다.
+
+`docs/<테마>/` 의 **각 파일마다** 아래 셋 중 하나를 고른다. **그대로 두는 선택지는 없다.**
+
+- [ ] **승격** → `docs/reference/` — 스프린트가 끝나도 계속 참이고, 누군가 다시 읽어야 하는 계약·정본
+      (예: 화면 숫자의 신뢰 등급을 규정한 `operating-contract.md`)
+- [ ] **강등** → `docs/archive/sprints/<테마>/` — 그때의 판단 기록. 이후 수정하지 않는다
+- [ ] **삭제** — 회고(`dev-log/`)에 이미 흡수됐고 따로 남길 이유가 없는 중간 산출물
+
+판단 기준 하나 — **"누가 이 파일을 읽는가"** 를 먼저 묻는다. 사람이 다시 읽을 일이 없고
+테스트도 로드하지 않으면 강등 또는 삭제다. 파일 개수나 최종 수정일로 고르지 않는다.
+
+ADR(`docs/decisions/`)은 예외다. 폐기해도 **삭제하지 않고 `Superseded` 상태로 남긴다**
+(AWS Prescriptive Guidance 의 ADR 운영 원칙).
+
+- [ ] 종결 후 `docs/` 최상위 엔트리 수가 **직전 스프린트 대비 늘지 않았는지** 확인
 
 ---
 

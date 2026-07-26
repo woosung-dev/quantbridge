@@ -1,101 +1,90 @@
-# QuantBridge — 문서 인덱스
+# QuantBridge 문서 목차
 
 > TradingView Pine Script → 백테스트 → 데모/라이브 트레이딩 플랫폼
+> **찾는 게 없으면 여기부터.** 이 파일이 `docs/` 의 유일한 지도다.
+
+---
+
+## 어디를 읽어야 하나
+
+| 질문 | 위치 |
+| --- | --- |
+| **지금 뭘 하고 있나** | [`status.md`](./status.md) — 활성 sprint |
+| **다음에 뭘 하나** | [`roadmap.md`](./roadmap.md) — 남은 작업 로드맵 |
+| **미해결 부채가 뭔가** | [`backlog.md`](./backlog.md) — BL 원장 |
+| **이 시스템은 어떻게 생겼나** | [`reference/`](./reference/) — 도메인·아키텍처·API·환경 |
+| **왜 그렇게 정했나** | [`decisions/`](./decisions/) — ADR |
+| **언제 무슨 일이 있었나** | [`dev-log/INDEX.md`](./dev-log/INDEX.md) — sprint 회고 |
+| **끝난 작업의 기록** | [`archive/`](./archive/) — 읽기 전용 |
+
+새 AI 세션은 `CONTEXT.md` + `AGENTS.md` + `status.md` **3종만** 읽는다. 나머지는 필요할 때 연다.
+
+---
+
+## 디렉토리
+
+| 위치 | 내용 | 갱신 규칙 |
+| --- | --- | --- |
+| [`reference/`](./reference/) | 도메인 모델·엔티티·상태머신·ERD·시스템 아키텍처·API·환경 설정·CI/CD | 코드와 어긋나면 **코드가 맞다**, 문서를 고친다 |
+| [`reference/prototypes/`](./reference/prototypes/) | 화면 프로토타입 — **FE 디자인 캐논 정본**. `design-canon-*.test.ts` 가 실제로 로드한다 | 캐논 변경 시에만 |
+| [`reference/infra/`](./reference/infra/) | 배포·Observability·Runbook | draft |
+| [`reference/project/`](./reference/project/) | 비전·포지셔닝·경쟁 지형 | 드묾 |
+| [`decisions/`](./decisions/) | ADR 20건 (`001-`~`021-`) | 폐기는 삭제가 아니라 **`Superseded` 표기** |
+| [`dev-log/`](./dev-log/) | sprint 회고 + dogfood 기록 (append-only) | 새 항목 추가 시 `INDEX.md` 동시 갱신 (husky 훅이 확인) |
+| [`guides/`](./guides/) | 개발 방법론·sprint 템플릿·BL audit 체크리스트 | 규칙 변경 시 |
+| [`reports/`](./reports/) | dogfood/retro 리포트 **출력 디렉토리** — 코드가 쓴다 (`config.py` `dogfood_report_output_dir`) | 자동 생성 |
+| [`archive/`](./archive/) | 완결 sprint 15종 + QA·감사·마케팅·superpowers 산출물 | **기존 항목 수정 금지.** 새 완결분 추가는 허용 |
+
+루트 문서 — [`../CONTEXT.md`](../CONTEXT.md) 도메인 헌법 · [`../AGENTS.md`](../AGENTS.md) 에이전트 진입점 · [`../DESIGN.md`](../DESIGN.md) 디자인 시스템 · [`../QUANTBRIDGE_PRD.md`](../QUANTBRIDGE_PRD.md) PRD · [`../.ai/rules/`](../.ai/rules/) 스택 규칙.
+
+---
+
+## 자주 여는 문서
+
+| 문서 | 설명 |
+| --- | --- |
+| [`reference/local-setup.md`](./reference/local-setup.md) | 로컬 개발 환경 5분 셋업 |
+| [`reference/env-vars.md`](./reference/env-vars.md) | 환경 변수 의미·획득법 |
+| [`reference/domain-overview.md`](./reference/domain-overview.md) | 8 도메인 경계 + 책임 매트릭스 |
+| [`reference/entities.md`](./reference/entities.md) | `ENT-###` 엔티티 카탈로그 |
+| [`reference/erd.md`](./reference/erd.md) | 컬럼 정의 SSOT |
+| [`reference/system-architecture.md`](./reference/system-architecture.md) | C4 다이어그램 + 인증/에러 경계 |
+| [`reference/supported-indicators.md`](./reference/supported-indicators.md) | 지원 지표 목록 (엔진 에러 메시지가 인용) |
+| [`reference/endpoints.md`](./reference/endpoints.md) | API 엔드포인트 스펙 |
+| [`guides/sprint-template.md`](./guides/sprint-template.md) | sprint 종료 sweep — **§9 문서 생명주기 종결 포함** |
+| [`decisions/003-pine-runtime-safety-and-parser-scope.md`](./decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
+
+---
 
 ## 기술 스택
 
-| 영역            | 기술                                                                        |
-| --------------- | --------------------------------------------------------------------------- |
-| Frontend        | Next.js 16, TypeScript, Tailwind CSS v4, shadcn/ui v4, React Query, Zustand |
-| Backend         | FastAPI, Python 3.11+, SQLModel, Pydantic V2, Celery                        |
-| Auth            | Clerk (Frontend + Backend JWT 검증)                                         |
-| Database        | PostgreSQL + TimescaleDB + Redis                                            |
-| Backtest Engine | vectorbt, pandas-ta, Optuna                                                 |
-| Exchange        | CCXT (Bybit, Binance, OKX)                                                  |
-| Infra           | Docker Compose (dev)                                                        |
-
-## 문서 구조
-
-| 디렉토리                                           | 내용                                                                 | 상태     |
-| -------------------------------------------------- | -------------------------------------------------------------------- | -------- |
-| [00_project/](./00_project/)                       | 프로젝트 비전, 개요, 로드맵                                          | ✅ 완료  |
-| [01_requirements/](./01_requirements/)             | 요구사항 개요, REQ 카탈로그, Pine 분석                               | ✅ 완료  |
-| [02_domain/](./02_domain/)                         | 도메인 개요, 엔티티, 상태 머신                                       | ✅ 완료  |
-| [03_api/](./03_api/)                               | API 엔드포인트 스펙                                                  | ✅ 활성  |
-| [04_architecture/](./04_architecture/)             | ERD, 시스템 아키텍처, 데이터 흐름, 정합성 audit                      | ✅ 완료  |
-| [05_env/](./05_env/)                               | 로컬 셋업, 환경 변수, Clerk 가이드                                   | ✅ 완료  |
-| [06_devops/](./06_devops/)                         | Docker Compose, CI/CD, Pre-commit                                    | ✅ 완료  |
-| [07_infra/](./07_infra/)                           | 배포·Observability·Runbook (draft)                                   | 📝 Draft |
-| [DESIGN.md](../DESIGN.md)                          | 디자인 시스템 (색상, 타이포, 컴포넌트)                               | ✅ 확정  |
-| [prototypes/](reference/prototypes/)                       | Stage 2 HTML 프로토타입 (12개 화면)                                  | ✅ 확정  |
-| [audit/](archive/audit/)                                 | 보안 감사 리포트 archive (CSO/Security review 산출물)                | 활성     |
-| [marketing/](archive/marketing/)                         | build-in-public 콘텐츠 archive (Twitter thread / blog draft)         | 활성     |
-| [reports/](./reports/)                             | 자동 생성 dogfood/retro/audit HTML 리포트                            | 활성     |
-| [superpowers/](./superpowers/)                     | H1 sprint plan/spec/review 누적 (~71 파일, INDEX 참조)               | 활성     |
-| [dev-log/](./dev-log/)                             | ADR (의사결정 기록) + sprint 회고 + dogfood 기록                     | 활성     |
-| [guides/](./guides/)                               | 개발 가이드, Sprint 킥오프/종료 템플릿, BL audit checklist           | 활성     |
-| [TODO.md](../.ai/templates/docs/TODO.md)                               | active sprint 작업 추적 (4 섹션)                                     | 활성     |
-| [REFACTORING-BACKLOG.md](./backlog.md) | deferred 작업 백로그 (BL-XXX, 50+ 항목, 4 priority + Beta 번들)      | 활성     |
-| [\_archive/](./_archive/)                          | Deprecated docs 보관소 (6개월+ 미참조 / 삭제 금지 / 분기별 디렉토리) | archive  |
-
-## 빠른 시작
+| 영역 | 기술 |
+| --- | --- |
+| Frontend | Next.js 16, TypeScript, Tailwind CSS v4, shadcn/ui v4, React Query, Zustand |
+| Backend | FastAPI, Python 3.11+, SQLModel, Pydantic V2, Celery |
+| Auth | Clerk (Frontend + Backend JWT 검증) |
+| Database | PostgreSQL + TimescaleDB + Redis |
+| Backtest Engine | `pine_v2` 자체 인터프리터 (SSOT) · vectorbt 는 지표 계산 전용 |
+| Exchange | CCXT (Bybit, Binance, OKX) |
+| Infra | Docker Compose (dev) |
 
 ```bash
-# 1. 인프라 실행
-docker compose up -d
-
-# 2. Frontend
-cd frontend && pnpm install && pnpm dev
-
-# 3. Backend
-cd backend && uv sync && uvicorn src.main:app --reload
+docker compose up -d                                  # 인프라
+cd frontend && pnpm install && pnpm dev               # FE
+cd backend && uv sync && uvicorn src.main:app --reload # BE
 ```
 
-## 핵심 의사결정 (gstack 스킬 확정)
+---
 
-> 아래 결정은 `/office-hours` + `/autoplan` (Codex+Claude 듀얼 검증) 으로 확정됨.
-> **규칙 변경 전 반드시 ADR 확인 및 보안/아키텍처 재검토 필요.**
+## 문서를 늘리기 전에
 
-- **제품 프레이밍:** QuantBridge = TradingView Trust Layer (범용 퀀트 ❌)
-  MVP 핵심 화면: Import → Verify → Verdict
-  타겟: 파트타임 크립토 트레이더, $1K~$50K, Python 없음
-  `[/office-hours 2026-04-13]`
+이 `docs/` 는 2026-07-26 기준 최상위 **34개**까지 불어났었다. 고스타 오픈소스 90개를 실측했을 때
+`docs/` 최상위 디렉토리 중앙값은 **1개**, 최대가 30개였다 — **우리가 표본 전체보다 많았다.**
 
-- **Pine 런타임 + 파서 범위:** [ADR-003](decisions/003-pine-runtime-safety-and-parser-scope.md)
-  - `exec()`/`eval()` 금지 → 인터프리터 패턴
-  - 미지원 함수 1개라도 있으면 전체 "Unsupported" (부분 실행 금지)
-  - Celery zombie task 복구 인프라 필수 (on_failure + Beat cleanup + cancel)
-  - TV 상위 50개 전략 분류 선행 (80%+ 커버리지 가정 폐기)
-    `[/autoplan 2026-04-13, Codex+Claude 듀얼 검증]`
+원인은 분류 실패가 아니라 **완결된 것을 내리는 규칙이 없었던 것**이다. 그래서 규칙을 만들었다.
 
-## 주요 문서 바로가기
+> **스프린트가 끝나면 그 문서를 승격(`reference/`) 하거나 강등(`archive/`) 한다. 그대로 두는 선택지는 없다.**
+> — [`guides/sprint-template.md`](./guides/sprint-template.md) §9
 
-| 문서                                                                                                         | 설명                                                |
-| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
-| [DESIGN.md](../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)                      |
-| [QUANTBRIDGE_PRD.md](../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                            |
-| [AGENTS.md](../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                                |
-| [.ai/](../.ai/)                                                                                              | 코딩 규칙                                           |
-| [01_requirements/requirements-overview.md](reference/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스                          |
-| [01_requirements/req-catalog.md](reference/req-catalog.md)                                           | REQ-### 상세 카탈로그                               |
-| [02_domain/domain-overview.md](reference/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스                       |
-| [02_domain/entities.md](reference/entities.md)                                                             | ENT-### 엔티티 카탈로그                             |
-| [02_domain/state-machines.md](reference/state-machines.md)                                                 | 도메인 상태 전이도                                  |
-| [04_architecture/system-architecture.md](reference/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계                      |
-| [04_architecture/data-flow.md](reference/data-flow.md)                                               | 도메인별 시퀀스 다이어그램                          |
-| [04_architecture/architecture-conformance.md](reference/architecture-conformance.md)                 | 정합성 audit 영구 체크리스트 (15 항목, 재실행 가능) |
-| [05_env/local-setup.md](reference/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                             |
-| [05_env/env-vars.md](reference/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그                      |
-| [05_env/clerk-setup.md](reference/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                              |
-| [06_devops/docker-compose-guide.md](reference/docker-compose-guide.md)                                     | Compose 운영 가이드                                 |
-| [06_devops/ci-cd.md](reference/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                               |
-| [06_devops/pre-commit.md](reference/pre-commit.md)                                                         | husky + lint-staged 가이드                          |
-| [07_infra/deployment-plan.md](reference/infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                              |
-| [07_infra/observability-plan.md](reference/infra/observability-plan.md)                                           | Observability 계획 (draft)                          |
-| [07_infra/runbook.md](reference/infra/runbook.md)                                                                 | 운영 Runbook (draft)                                |
-| [guides/development-methodology.md](./guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략                |
-| [guides/sprint-kickoff-template.md](./guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿                       |
-| [dev-log/001-tech-stack.md](decisions/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                             |
-| [dev-log/002-parallel-scaffold-strategy.md](decisions/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략                         |
-| [dev-log/003-pine-runtime-safety-and-parser-scope.md](decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위             |
-| [dev-log/004-pine-parser-approach-selection.md](decisions/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택                      |
+새 디렉토리를 만들기 전에 자문한다. **누가 이 파일을 읽는가?** 사람이 다시 읽을 일이 없고
+테스트도 로드하지 않는다면 그건 `archive/` 행이거나 애초에 쓰지 않아도 되는 문서다.
