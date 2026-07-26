@@ -2501,7 +2501,99 @@ expires = now +60s  → success=True
 
 **부수 관측:** 시더로 만든 전략은 평문 webhook secret 이 브라우저에 없어 다이얼로그가 "캐시 없음" 으로 막힌다 — Secret 회전 1회가 선행돼야 한다. 정상 동작이지만 안내문이 "Strategy 페이지에서 Rotate" 라고만 해서 §05 Webhook 카드까지 스크롤해야 한다는 걸 알기 어렵다.
 
-**Risk:** 🟡 (도구가 잘못된 확신을 준다)
+**상태:** ✅ **Resolved (2026-07-26, `feat/bl-474-webhook-ingress-parity`).**
+
+**★진단이 한 겹 더 깊었다 — 문제는 다이얼로그가 아니라 webhook ingress 였다.** `router.py:138-147` 이 `OrderRequest` 를 7개 필드로만 조립하고 `parse_tv_payload`(`webhook.py:118-125`)가 6개 키만 읽어, **한 자리에서 세 가지가 동시에 버려지고 있었다** — leverage/margin_mode(해결 자체를 안 함) + `reduce_only` + TP/SL(프론트가 **보내는데** 파서가 안 읽음). 원인이 프론트가 아니므로 "다이얼로그가 실어 보낸다" 는 권장 접근은 잘못된 층을 고칠 뻔했다.
+
+**★leverage 만 고쳤으면 A(출처 라벨 검증)는 여전히 안 열렸다.** 청산 확정 경로 전체가 `reduce_only` 를 요구한다 — `tasks/trading.py:1342` 조기 반환 + 스윕의 `list_unsynced_reduce_only`. 그 플래그 없이는 다이얼로그 청산이 **영원히 `realized_pnl_synced_at` 을 못 받는다**.
+
+**★위 실측 표의 "leverage=1" 은 맞고, 체크리스트 §2 가 여기서 끌어낸 "레버리지 1 은 시장 유형을 바꾼다(`has_leverage=False`)" 는 틀렸다.** `order_service.py:194` = `req.leverage is not None and req.leverage > 0`, `tasks/trading.py:135` = `return lev > 0` → **1 이면 True → linear perp**. 진짜 원인은 값이 1이어서가 아니라 **아무 값도 안 보내서**다. `docs/dogfood-restore/checklist.md` 에서 정정했다.
+
+**해결:** `WebhookService.resolve_trading_params()` 신설 — `Strategy.settings` 에서 leverage/margin_mode 를 해결하고 미설정/무효는 **422 fail-closed**(`live_signal.py:852-866` / `close_service.py:47-58` 와 동일 정책). payload 로는 받지 않는다(secret 보유자가 운영자 리스크 설정을 우회하는 걸 차단). HMAC 검증 **뒤에** 호출해 응답코드 차이로 settings 유무를 탐지당하지 않게 했다. `reduce_only`/TP/SL/`risk_percent` 는 파서가 읽어 전달하며, `reduce_only` 는 `bool("false") is True` 함정을 명시 화이트리스트로 막았다.
+
+fail-closed 를 고른 이유 = spot 진입은 **닫을 수단이 없다**. 모든 청산 경로가 linear reduce-only 로 나가고 거래소는 `110017 "current position is zero"` 로 거부한다(이 스프린트가 관측한 그 에러). 하위 머니-패스(청산 원장·코크핏·`exchange_exits`)가 전부 linear 전용이라 spot 체결은 확정 손익을 영원히 못 받는다.
+
+FE 는 경고만 하고 차단하지 않는다 — 공개 ingress 라 서버가 권위여야 하고, 정책을 두 곳에 두면 반드시 어긋난다. 다이얼로그에 라우팅 배지(`Linear Perp · 2x · isolated`), settings 없을 때 422 경고, 미리보기 레버리지 기본값 = 전략 설정, secret 안내문 구체화(§05 Webhook 카드 명시)를 넣었다.
+
+회귀 = 22 테스트 **전부 수정 전 RED 확인**(parse 17 · router 4 · e2e 1). FE 신규 7건은 `git stash` 로 프로덕션 변경만 되돌려 RED 재현 — 통과만 보고 넘어가면 판별력 0인 가드를 100%로 착각한다. Sprint 7a 가 `test_e2e_webhook_to_futures_order.py:5-6` 독스트링에 "Sprint 7b 로 분리" 라 적고 미뤄둔 HTTP→ccxt 전 구간 테스트도 여기서 닫았다.
+
+**Risk:** 🟢
+
+---
+
+### BL-475
+
+**Title:** 서버 권위 risk% 사이징이 구현된 적 없다 (UI 는 있다고 말하고 있었다)
+**Category:** Backend / trading (사이징)
+**Priority:** P3
+**Trigger:** 사이징 자동화가 실제로 필요해질 때
+**Est:** M
+**출처:** 2026-07-26 BL-474 작업 중 발견
+
+**원인 / 영향:** 테스트 주문 다이얼로그의 "리스크 %" 모드 문구는 _"수량은 서버가 잔고·리스크 기준으로 계산합니다 (서버 권위 사이징)"_ 였다. 그런 코드는 없다. `OrderService._validate_position_size`(`order_service.py:92-134`)는 `max_qty` 를 구해 **client 수량이 초과하면 거부**할 뿐 수량을 만들어내지 않는다. 게다가 그 모드는 payload 에서 `quantity` 를 빼고 보냈고 `parse_tv_payload:122` 는 `payload["quantity"]` 를 필수로 읽으므로 **전송하면 401** 이었다 — 한 번도 작동한 적 없는 경로다.
+
+**BL-474 에서 한 것(전체 아님):** 모드를 실제 동작에 맞춰 재정의했다 — 수량 필수 + risk% 는 **상한**, 손절가 필수(없으면 `risk_sizing_skip_no_stop` 으로 가드가 조용히 skip 되어 "통과처럼 보이는 미검증" 이 된다). `risk_percent` 를 webhook 파서·라우터에 배선해 상한 검증이 실제로 돌게 했다.
+
+**남은 것:** 진짜 서버 사이징(잔고 × 리스크% ÷ 스탑거리로 **수량 산출**)은 미구현. 필요해지면 `_validate_position_size` 옆에 `compute_position_size` 를 두고 `OrderRequest.quantity` 를 optional 로 여는 설계 결정부터 해야 한다(현재 `Field(gt=0)` 필수).
+
+**Risk:** 🟢 (거짓 문구는 제거됨)
+
+---
+
+### BL-476
+
+**Title:** 공개 webhook 핸들러가 동기 CCXT 왕복 3회를 태운다 (실측 **+4.8초**)
+**Category:** Backend / trading (지연)
+**Priority:** P2
+**Trigger:** TradingView 실연동 전 / webhook 타임아웃 관측 시
+**Est:** M
+**출처:** 2026-07-26 BL-474 dogfood 실측
+
+**원인 / 영향:** BL-474 로 `leverage` 가 채워지면서 `order_service.py:218-266` 의 notional 가드가 webhook 경로에서 **처음으로 도달 가능**해졌다. 그 대가로 동기 HTTP 핸들러 안에 CCXT 왕복 3회가 들어왔다.
+
+```
+fetch_mark_price     1663 ms   -> 64532.7
+fetch_min_notional   1549 ms   -> 5.0
+fetch_balance_usdt   1600 ms   -> 190549.99
+TOTAL                4812 ms
+```
+
+각 호출이 계정 재조회 + 자격증명 복호화 + ephemeral ccxt 클라이언트 생성(`timeout: 30000`)을 한다. 위는 정상 응답 기준이고, 거래소가 느리거나 죽으면 **최악 90초**까지 늘어난다 — TradingView 는 webhook 을 재시도하므로 중복 신호가 될 수 있다(멱등키가 있으나 client-generated 라 재시도마다 새 값이면 무력).
+
+**★게이트가 못 잡는 종류다.** 테스트는 provider 를 stub 으로 갈아끼우므로 항상 0ms 다. 회귀는 프로덕션에서만 보인다.
+
+**권장 접근:** 가드를 Celery 경계 뒤로 옮긴다 — `OrderService.execute` 는 행을 만들고 즉시 201 을 주고, `tasks/trading.py:_execute_with_session` 이 발주 직전에 가드를 평가해 실패 시 `rejected` 로 전이. 이미 그 경로에 `except ProviderError` graceful 전이가 있다. 다만 **거부 시점이 응답 뒤로 밀리는** 계약 변경이라 별도 결정이 필요하다.
+
+**Risk:** 🟡 (지연 절벽, 데이터 오류는 아님)
+
+---
+
+### BL-477
+
+**Title:** 같은 Bybit 서브계정을 가리키는 API 키 2개가 청산 원장에 같은 행을 2번 적재한다 (phantom `unknown`)
+**Category:** Backend / trading (청산 원장 귀속)
+**Priority:** P3
+**Trigger:** 읽기 전용 계정 정리 시 또는 external-exit 알림이 시끄러워질 때
+**Est:** S
+**출처:** 2026-07-26 BL-474 dogfood 실측
+
+**원인 / 영향:** `exchange_accounts` 두 행(`19a8166a` "bybit demo" · `0277c150` "bybit demo- aaa")이 **같은 Bybit 데모 서브계정의 서로 다른 API 키**다. 스윕은 계정별로 `/v5/position/closed-pnl` 을 치므로 같은 청산이 두 번 적재되고, upsert 키에 `exchange_account_id` 가 들어가 중복으로 접히지 않는다.
+
+```
+exchange_order_id                     closed_pnl    classification  exchange_account_id
+b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   ours            19a8166a  (우리 주문과 매칭)
+b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (매칭 실패 → 외부로 분류)
+```
+
+07-24 행들도 같은 패턴이라 **선재 문제**이며 BL-474 와 무관하다.
+
+**손익 이중 계상은 없다** — `aggregate_closed_pnl`(`exchange_exit_repository.py:43-59`)이 `WHERE exchange_account_id == account_id` 로 계정 스코프이고, 세션 손익은 `orders.realized_pnl` 을 세지 원장을 세지 않는다. 실측으로 확인: 세션 확정 손익 `-0.12772399` = 두 청산의 정확한 합.
+
+**진짜 영향은 귀속/알림 표면**이다. 우리가 낸 청산이 두 번째 키 관점에서는 "앱 밖에서 일어난 청산" 으로 보여 `unknown` 이 되고, external-exit 알림이 유령 이벤트로 시끄러워진다.
+
+**권장 접근:** (a) 사용자가 읽기 전용 계정을 삭제하면 자연 소멸(가장 싸다) · (b) 등록 시 동일 거래소 서브계정 중복을 감지해 경고 · (c) 귀속을 계정이 아니라 `(exchange, exchange_order_id)` 기준으로 재조회. 셋 중 무엇을 할지는 계정 2개 등록을 계속 지원할지에 달렸다.
+
+**Risk:** 🟢 (알림 노이즈. 금액 정확도 영향 없음)
 
 ---
 

@@ -42,8 +42,11 @@ export async function computeHmacSha256Hex(
 /**
  * 폼 값 → webhook payload. 기본 5필드 순서 보존(symbol/side/type/quantity/
  * exchange_account_id) — 기존 HMAC golden vector + body 정확매칭 테스트 유지.
- * risk% 모드면 quantity 대신 risk_percent (서버 권위 사이징).
- * optional Wave1 필드는 값이 있을 때만 append.
+ * optional 필드는 값이 있을 때만, 항상 **뒤에** append (body drift 차단).
+ *
+ * BL-474 — quantity 는 두 모드 모두 전송한다. 백엔드 `_validate_position_size`
+ * 는 수량을 계산하지 않고 상한만 검사하므로, risk_percent 는 quantity 를 대체하는
+ * 값이 아니라 그것을 검증하는 상한이다.
  */
 export function buildTestOrderPayload(
   values: TestOrderFormValues,
@@ -52,13 +55,12 @@ export function buildTestOrderPayload(
     symbol: values.symbol,
     side: values.side,
     type: "market",
+    quantity: values.quantity,
+    exchange_account_id: values.exchange_account_id,
   };
-  if (values.sizing_mode === "quantity") {
-    payload.quantity = values.quantity;
-  } else {
+  if (values.sizing_mode === "risk_percent") {
     payload.risk_percent = values.risk_percent;
   }
-  payload.exchange_account_id = values.exchange_account_id;
   if (values.take_profit.length > 0) {
     payload.take_profit = values.take_profit;
   }
@@ -67,6 +69,9 @@ export function buildTestOrderPayload(
   }
   if (values.reduce_only) {
     payload.reduce_only = true;
+  }
+  if (values.realized_pnl.length > 0) {
+    payload.realized_pnl = values.realized_pnl;
   }
   return payload;
 }

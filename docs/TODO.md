@@ -1,8 +1,54 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-26 (dogfood-restore 스프린트 — 로컬 실사용 복원 + 누적 신뢰 작업 실화면 검증)
-> **Active Sprint:** **dogfood-restore** — `make seed` 신설 + 3스프린트 누적 신뢰 작업 실화면 검증 + 발견 결함 수정
-> **Active Branch:** `stage/dogfood-restore` (main @ `0f84d51` 베이스)
+> **Last Updated:** 2026-07-26 (dogfood-restore 체크리스트 **A** — BL-474 webhook ingress 패리티)
+> **Active Sprint:** **dogfood-restore 체크리스트 A** — 테스트 주문이 라이브와 같은 시장(linear perp)으로 나가게 해 출처 라벨 검증을 연다
+> **Active Branch:** `feat/bl-474-webhook-ingress-parity` (main @ `a716ef3` 베이스)
+
+## ⚡ 체크리스트 A — BL-474 webhook ingress 패리티 (2026-07-26)
+
+**스코프**: [`docs/dogfood-restore/checklist.md`](dogfood-restore/checklist.md) §A. #481 출처 라벨·#477 SessionScope 를 화면에서 보려면 linear perp **진입 → 청산 → 스윕 확정**이 실제로 일어나야 하는데, 그 경로를 테스트 주문 도구가 막고 있었다.
+
+### ★진단이 한 겹 더 깊었다 — 다이얼로그가 아니라 webhook ingress
+
+`router.py:138-147` 이 `OrderRequest` 를 7개 필드로만 조립하고 `parse_tv_payload`(`webhook.py:118-125`)가 6개 키만 읽어 **한 자리에서 3건이 동시에 버려졌다**.
+
+```
+leverage / margin_mode   해결 자체를 안 함        → has_leverage=false → spot
+reduce_only              프론트는 보냄, 파서가 안 읽음 → 청산 확정 경로 전체가 막힘
+take_profit / stop_loss  프론트는 보냄, 파서가 안 읽음 → UI 입력이 거짓말
+```
+
+★**leverage 만 고쳤으면 A 는 안 열렸다** — `tasks/trading.py:1342` 가 `not order.reduce_only` 로 조기 반환하고 스윕 쿼리도 `reduce_only IS TRUE` 를 요구한다. 그 플래그 없이는 다이얼로그 청산이 영원히 `realized_pnl_synced_at` 을 못 받는다.
+
+### ★★체크리스트 자신의 함정 문구가 틀렸다
+
+`checklist.md:108` 은 "레버리지 1 → `has_leverage=False` → spot" 이라 적었는데 **같은 문서 §A 표는 정반대**(`leverage=1 … → linear perp`)였다. 코드가 심판 — `order_service.py:194` = `req.leverage is not None and req.leverage > 0`, `tasks/trading.py:135` = `return lev > 0` → **1이면 linear**. 진짜 원인은 값이 1이어서가 아니라 **아무 값도 안 보내서**다. 관측에서 원인을 성급히 일반화한 사례로 문서에 정정 기록.
+
+### Completed
+
+- [x] **BL-474 Resolved** — `WebhookService.resolve_trading_params()` 신설. `Strategy.settings` 가 SSOT(`live_signal.py:931-932` / `close_service.py:86-92` 와 동일), 미설정·무효는 **422 fail-closed**, HMAC 검증 **뒤에** 호출(응답코드로 settings 유무 탐지 차단). `reduce_only`(+`bool("false")` 함정 방어)·TP/SL·`risk_percent` 파서 통과.
+- [x] **FE** — 라우팅 배지(`Linear Perp · 2x · isolated`) · settings 없을 때 422 경고(**차단은 안 함** — 공개 ingress 라 서버가 권위) · 미리보기 레버리지 기본값 = 전략 설정 · `reduce_only` 시 `realized_pnl` 입력(추정/확정 대조용) · secret 안내문에 §05 Webhook 카드 명시
+- [x] **신규 [BL-475]** — risk% 사이징 모드는 한 번도 작동한 적 없었다(`quantity` 누락 401 + 백엔드는 상한만 검사). 문구 정정 + 수량·손절가 필수화 + `risk_percent` 배선
+- [x] **Sprint 7a 부채 청산** — `test_e2e_webhook_to_futures_order.py` 독스트링이 "Sprint 7b 로 분리" 라 적어둔 HTTP→ccxt 전 구간 테스트
+- [x] **RED 증명 22건**(parse 17 · router 4 · e2e 1) + FE 신규 7건은 `git stash` 로 프로덕션만 되돌려 RED 재현
+- [x] 게이트: BE **3029**(+24) · FE **1136**(+6) · ruff·mypy·tsc·lint 0 · 마이그레이션 **0**
+- [x] **실화면 dogfood — Bybit 데모 실주문 4건.** 결정적 증거는 **주문 ID 형식**이었다: 수정 전 `2267433208968908032`(숫자형=spot) → 수정 후 `0a245783-f809-…`(UUID=linear). 거래소가 시장 유형이 바뀌었다고 말해주는 외부 증거다
+- [x] **출처 라벨 혼재 상태 포착** — 청산에 추정 `-9.99` 주입(확정값과 우연히 같아질 수 없게) → 04:30:00 화면에 **`거래소 확정 -0.05935440` / `추정 -9.99000000`** 동시 표시 → 8초 뒤 확정 `-0.12772399`(두 청산의 정확한 합). `confirmed + estimated == total` 화면에서 성립. 대시보드 §01 KPI foot(`splitComplete`)도 렌더
+- [x] **독립 HMAC 오라클** — ccxt·`providers.py` 미경유로 `/v5/position/closed-pnl` 직격. `orders.realized_pnl` · `exchange_exits.closed_pnl` · 거래소 원문 **3중 일치**
+- [x] 라우팅 배지 · settings 없는 전략 422 경고 · 미리보기 레버리지 기본값 실화면 확인. 콘솔 error 0
+
+### ★신규 BL 2건 (dogfood 실측이 만든 것)
+
+- **[BL-476] 지연 +4.8초 실측** — `fetch_mark_price 1663ms · fetch_min_notional 1549ms · fetch_balance_usdt 1600ms`. leverage 가 채워지며 notional 가드가 webhook 에서 처음 도달 가능해진 대가. ★**게이트는 provider 를 stub 으로 갈아끼우므로 영원히 0ms** — 프로덕션에서만 보이는 회귀라 예상만 하지 않고 쟀다
+- **[BL-477] 청산 원장 유령 `unknown`** — API 키 2개가 같은 Bybit 서브계정을 가리켜 같은 청산이 2행 적재. 07-24 행도 같은 패턴이라 **선재**. 금액은 안전(`aggregate_closed_pnl` 계정 스코프 + 세션 손익은 `orders.realized_pnl` 을 셈 — 실측 확인). 영향은 귀속/알림 표면뿐
+
+### Next Actions
+
+- [ ] **체크리스트 B** — pine_v2 시뮬 상태 ↔ 거래소 포지션 발산. ★dogfood 가 범위를 좁혔다: 라이브 신호는 계속 `qty=1.0` reduce-only 를 쏘고(전략 `position_size_pct: 0.01` 미반영) 무포지션이라 110017 로 죽는데, 다이얼로그 경로는 0.001 로 정상 왕복했다 → **사이징 경로만 다르다**
+- [ ] BL-476 결정 — 가드를 Celery 경계 뒤로 옮길지(거부 시점이 응답 뒤로 밀리는 계약 변경)
+- [ ] BL-477 — 읽기 전용 계정 `0277c150` 삭제 여부(사용자 판단, 삭제하면 자연 소멸)
+
+---
 
 ## ⚡ dogfood-restore 스프린트 (2026-07-26)
 

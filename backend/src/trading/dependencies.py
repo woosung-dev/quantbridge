@@ -98,6 +98,9 @@ async def get_webhook_service(
         repo=repo,
         crypto=crypto,  # CSO-1 correction
         grace_seconds=settings.webhook_secret_grace_seconds,
+        # BL-474 — webhook ingress 도 Strategy.settings 에서 leverage/margin_mode 를
+        # 해결한다. 동일 session 주입 (LESSON-019 단일 트랜잭션).
+        strategy_repo=StrategyRepository(session),
     )
 
 

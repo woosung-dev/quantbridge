@@ -26,17 +26,27 @@ afterEach(() => {
 const STRATEGY_ID = "11111111-1111-4111-a111-111111111111";
 const ACCOUNT_ID = "550e8400-e29b-41d4-a716-446655440000";
 
+// BL-474 — settings(leverage/margin_mode)가 라우팅 배지의 입력이라 mock 이 그걸
+// 실어야 한다. 목록을 교체 가능한 mock 으로 둔 이유 = settings 없는 전략 케이스를
+// 별도 테스트에서 보려면 items 배열 자체를 갈아야 하는데, fillForm 이 select item
+// 인덱스로 전략/계정을 고르므로 항목 수가 바뀌면 다른 테스트가 전부 어긋난다.
+const STRATEGY_WITH_SETTINGS = {
+  id: STRATEGY_ID,
+  name: "Sample Strategy",
+  settings: {
+    schema_version: 1,
+    leverage: 2,
+    margin_mode: "isolated" as const,
+    position_size_pct: 0.01,
+  },
+};
+const strategiesMock = vi.fn<() => { items: unknown[]; total: number }>(() => ({
+  items: [STRATEGY_WITH_SETTINGS],
+  total: 1,
+}));
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategies: () => ({
-    data: {
-      items: [
-        {
-          id: STRATEGY_ID,
-          name: "Sample Strategy",
-        },
-      ],
-      total: 1,
-    },
+    data: strategiesMock(),
     isLoading: false,
     isError: false,
   }),
@@ -135,6 +145,7 @@ vi.mock("@/components/ui/select", () => {
 const FIXED_UUID = "abcdef00-0000-4000-a000-000000000000";
 beforeEach(() => {
   vi.spyOn(crypto, "randomUUID").mockReturnValue(FIXED_UUID);
+  strategiesMock.mockReturnValue({ items: [STRATEGY_WITH_SETTINGS], total: 1 });
 });
 
 import { TestOrderDialog } from "../test-order-dialog";
@@ -433,8 +444,10 @@ describe("TestOrderDialog", () => {
     );
   });
 
-  // Wave 2 — risk% 모드는 quantity 대신 risk_percent 전송 (서버 권위 사이징).
-  it("risk% 모드 → payload 에 risk_percent (quantity 미전송)", async () => {
+  // BL-474 — risk% 는 quantity 를 **대체하지 않는다**. 백엔드
+  // `_validate_position_size` 는 상한만 검사하고 수량을 만들지 않으므로, 이전
+  // 계약(quantity 미전송)은 서버에서 401 로 죽는 죽은 경로였다.
+  it("risk% 모드 → quantity + risk_percent 를 함께 전송 (상한 검증)", async () => {
     isKsDisabledMock.mockReturnValue(false);
     readWebhookSecretMock.mockReturnValue("test_secret_abc");
     const fetchMock = vi.fn().mockResolvedValue({
@@ -448,16 +461,15 @@ describe("TestOrderDialog", () => {
 
     renderDialog();
     openDialog();
-    // strategy + account 선택
-    const items = await screen.findAllByText(
-      (_, el) => el?.getAttribute("data-mock-select-item") !== null,
-    );
-    fireEvent.click(items[0]!);
-    fireEvent.click(items[1]!);
+    await fillForm();
     // 사이징 방식 = 리스크 %
     fireEvent.click(screen.getByLabelText(/리스크 %$/));
-    fireEvent.change(screen.getByLabelText(/리스크 % \(자동 사이징\)/), {
+    fireEvent.change(screen.getByLabelText(/리스크 % \(수량 상한 검증\)/), {
       target: { value: "1.5" },
+    });
+    // 손절가 없이는 서버가 상한을 못 구해 가드가 조용히 skip 된다 → 폼이 요구한다.
+    fireEvent.change(screen.getByLabelText(/손절가/), {
+      target: { value: "48000" },
     });
     clickSubmit();
 
@@ -469,8 +481,31 @@ describe("TestOrderDialog", () => {
       string,
       unknown
     >;
+    expect(body.quantity).toBe("0.001");
     expect(body.risk_percent).toBe("1.5");
-    expect(body.quantity).toBeUndefined();
+  });
+
+  it("risk% 모드 + 손절가 없음 → inline error + fetch 미호출", async () => {
+    isKsDisabledMock.mockReturnValue(false);
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderDialog();
+    openDialog();
+    await fillForm();
+    fireEvent.click(screen.getByLabelText(/리스크 %$/));
+    fireEvent.change(screen.getByLabelText(/리스크 % \(수량 상한 검증\)/), {
+      target: { value: "1.5" },
+    });
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/리스크 % 상한 검증에는 손절가가 필요합니다/),
+      ).toBeInTheDocument();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   // Wave 2 — risk% 모드에서 risk_percent 비면 inline error + fetch 미호출.
@@ -482,16 +517,119 @@ describe("TestOrderDialog", () => {
 
     renderDialog();
     openDialog();
-    const items = await screen.findAllByText(
-      (_, el) => el?.getAttribute("data-mock-select-item") !== null,
-    );
-    fireEvent.click(items[0]!);
-    fireEvent.click(items[1]!);
+    await fillForm();
     fireEvent.click(screen.getByLabelText(/리스크 %$/));
     clickSubmit();
 
     await waitFor(() => {
       expect(screen.getByText(/리스크 %를 입력하세요/)).toBeInTheDocument();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // ── BL-474 — 라우팅 표면화 + 추정 손익 주입 ──
+
+  it("전략 선택 시 라우팅 배지에 Linear Perp · 레버리지 · 마진모드 표시", async () => {
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    renderDialog();
+    openDialog();
+    await fillForm();
+
+    const badge = await screen.findByTestId("routing-badge");
+    expect(badge).toHaveTextContent(/Linear Perp/);
+    expect(badge).toHaveTextContent(/2x/);
+    expect(badge).toHaveTextContent(/isolated/);
+    expect(screen.queryByTestId("routing-warning")).not.toBeInTheDocument();
+  });
+
+  it("Live Settings 없는 전략 → 422 경고 배너 (발송은 막지 않음)", async () => {
+    // 정책을 FE 에도 복제하면 반드시 어긋난다. 공개 ingress 라 서버가 권위 —
+    // 여기서는 경고만 하고 실제 거부는 422 로 확인한다.
+    strategiesMock.mockReturnValue({
+      items: [{ id: STRATEGY_ID, name: "No Settings Strategy", settings: null }],
+      total: 1,
+    });
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    renderDialog();
+    openDialog();
+    await fillForm();
+
+    const warning = await screen.findByTestId("routing-warning");
+    expect(warning).toHaveTextContent(/Live Settings/);
+    expect(screen.queryByTestId("routing-badge")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^발송$/ })).not.toBeDisabled();
+  });
+
+  it("청산가 미리보기 레버리지 기본값 = 전략 settings.leverage", async () => {
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    renderDialog();
+    openDialog();
+    await fillForm();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/레버리지 \(배\)/)).toHaveValue("2");
+    });
+  });
+
+  it("reduce_only 체크 시에만 실현 손익 입력 노출 + payload 말미 append", async () => {
+    isKsDisabledMock.mockReturnValue(false);
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 201,
+      text: async () => "",
+      json: async () => {
+        throw new SyntaxError("empty body");
+      },
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderDialog();
+    openDialog();
+    await fillForm();
+    // 진입 주문에는 의미가 없어 노출되지 않는다.
+    expect(screen.queryByLabelText(/실현 손익/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/reduce-only/));
+    fireEvent.change(await screen.findByLabelText(/실현 손익/), {
+      target: { value: "-12.5" },
+    });
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    const [, calledInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    // append-only — 기본 5필드 순서 보존 (HMAC 골든벡터 불변).
+    expect(calledInit.body).toBe(
+      JSON.stringify({
+        symbol: "BTCUSDT",
+        side: "buy",
+        type: "market",
+        quantity: "0.001",
+        exchange_account_id: ACCOUNT_ID,
+        reduce_only: true,
+        realized_pnl: "-12.5",
+      }),
+    );
+  });
+
+  it("실현 손익은 음수를 허용하고 비숫자는 거부", async () => {
+    isKsDisabledMock.mockReturnValue(false);
+    readWebhookSecretMock.mockReturnValue("test_secret_abc");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderDialog();
+    openDialog();
+    await fillForm();
+    fireEvent.click(screen.getByLabelText(/reduce-only/));
+    fireEvent.change(await screen.findByLabelText(/실현 손익/), {
+      target: { value: "abc" },
+    });
+    clickSubmit();
+
+    await waitFor(() => {
+      expect(screen.getByText(/실현 손익은 숫자여야 합니다/)).toBeInTheDocument();
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

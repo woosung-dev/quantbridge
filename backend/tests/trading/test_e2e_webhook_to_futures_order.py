@@ -243,3 +243,149 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
     assert "orderLinkId" in create_call.args[5]
     assert len(create_call.args[5]["orderLinkId"]) == 36  # UUID4 string
     mock_exchange.close.assert_awaited_once()
+
+
+# === BL-474 — 위 독스트링이 "Sprint 7b 로 분리" 라고 적어둔 그 부채 ===
+#
+# Sprint 7a 는 webhook payload 경로를 미루고 manual service-level 로만 leverage
+# 전파를 잠갔다. 그 미룸이 그대로 남아, HTTP ingress 로 들어온 주문은 leverage 를
+# 해결하지 않아 spot 으로 나갔다. 아래가 그 마지막 고리를 HTTP 부터 ccxt 까지 잠근다.
+
+
+class _StubGuardProvider:
+    """notional 가드 경로 전용 stub (fail-soft None).
+
+    주문 자체는 `tasks/trading.py` 가 registry 로 새 BybitFuturesProvider 를 만들어
+    쓰므로 ccxt mock 이 그대로 관측한다 — 이 override 는 가드만 잠재운다.
+    """
+
+    async def fetch_mark_price(self, creds, symbol):
+        return None
+
+    async def fetch_min_notional(self, creds, symbol):
+        return None
+
+    async def fetch_balance(self, creds):
+        return {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings(
+    "ignore:nested transaction already deassociated:sqlalchemy.exc.SAWarning"
+)
+async def test_e2e_webhook_payload_routes_to_bybit_linear_provider(
+    client,
+    app,
+    db_session: AsyncSession,
+    ccxt_futures_mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HTTP webhook POST → HMAC → 파싱 → settings 해결 → linear perp 체결.
+
+    심볼로 `BTCUSDT` 를 보내 정규화 사슬을 실제로 통과시킨다 —
+    `normalize_symbol_input` → `BTC/USDT` → `_to_bybit_linear_symbol` →
+    `BTC/USDT:USDT`. 다이얼로그 기본값이 `BTCUSDT` 라 이게 실사용 형태다.
+    """
+    import hashlib
+    import hmac as hmac_module
+    import json
+
+    import src.tasks.trading as task_mod
+    from src.trading.dependencies import get_bybit_futures_provider, get_order_dispatcher
+    from src.trading.models import WebhookSecret
+
+    crypto = EncryptionService(settings.trading_encryption_keys)
+
+    user = User(
+        id=uuid4(),
+        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        email=f"{uuid4().hex[:8]}@test.local",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    strategy = Strategy(
+        user_id=user.id,
+        name="BL-474 webhook→linear",
+        pine_source="//@version=5\nstrategy('bl474')",
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
+        settings={
+            "schema_version": 1,
+            "leverage": 2,
+            "margin_mode": "isolated",
+            "position_size_pct": 0.01,
+        },
+    )
+    db_session.add(strategy)
+    await db_session.flush()
+
+    account = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=crypto.encrypt("bl474-api-key"),
+        api_secret_encrypted=crypto.encrypt("bl474-api-secret"),
+        label="bl474 webhook",
+    )
+    db_session.add(account)
+    await db_session.flush()
+
+    plaintext_secret = "BL474_E2E_SECRET"
+    db_session.add(
+        WebhookSecret(
+            strategy_id=strategy.id,
+            secret_encrypted=crypto.encrypt(plaintext_secret),
+        )
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(
+        task_mod,
+        "create_worker_engine_and_sm",
+        _make_fake_create_worker_engine_and_sm(db_session),
+    )
+
+    dispatched_ids: list[UUID] = []
+
+    class _InlineDispatcher:
+        async def dispatch_order_execution(self, order_id: UUID) -> None:
+            dispatched_ids.append(order_id)
+            await task_mod._async_execute(order_id)
+
+    app.dependency_overrides[get_order_dispatcher] = _InlineDispatcher
+    app.dependency_overrides[get_bybit_futures_provider] = _StubGuardProvider
+
+    payload = {
+        "symbol": "BTCUSDT",
+        "side": "buy",
+        "quantity": "0.001",
+        "type": "market",
+        "exchange_account_id": str(account.id),
+    }
+    body_bytes = json.dumps(payload).encode()
+    token = hmac_module.new(
+        plaintext_secret.encode(), body_bytes, hashlib.sha256
+    ).hexdigest()
+
+    res = await client.post(
+        f"/api/v1/webhooks/{strategy.id}?token={token}",
+        content=body_bytes,
+        headers={"Content-Type": "application/json"},
+    )
+    assert res.status_code == 201, res.text
+    assert len(dispatched_ids) == 1
+
+    fetched = await OrderRepository(db_session).get_by_id(UUID(res.json()["id"]))
+    assert fetched is not None
+    assert fetched.state == OrderState.filled
+    assert fetched.leverage == 2
+    assert fetched.margin_mode == "isolated"
+    # 세션 스코프는 정확 문자열 동등이라 canonical 로 저장돼야 한다 (BL-454).
+    assert fetched.symbol == "BTC/USDT"
+
+    mock_exchange, mock_bybit_cls = ccxt_futures_mock
+    assert mock_bybit_cls.call_args.args[0]["options"]["defaultType"] == "linear"
+    mock_exchange.set_margin_mode.assert_awaited_once_with("isolated", "BTC/USDT:USDT")
+    mock_exchange.set_leverage.assert_awaited_once_with(2, "BTC/USDT:USDT")
+    assert mock_exchange.create_order.await_args.args[0] == "BTC/USDT:USDT"

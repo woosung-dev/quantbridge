@@ -239,3 +239,77 @@ def test_parse_rejects_and_counts_a_symbol_it_cannot_normalize():
             {"symbol": "BTCUSDT.P", "side": "buy", "quantity": "1", "type": "market"}
         )
     assert qb_webhook_symbol_rejected_total._value.get() == before + 1
+
+
+# === BL-474 — 프론트가 이미 보내던 exit 필드를 파서가 버리고 있었다 ===
+#
+# `test-order-webhook.ts:62-70` 은 reduce_only / take_profit / stop_loss 를 body 에
+# 실어 보내는데 파서가 6개 키만 읽어 전부 바닥에 떨어졌다. reduce_only 유실은 단순
+# 누락이 아니라 청산 확정 경로 전체를 막는다 — `tasks/trading.py:1342` 가
+# `not order.reduce_only` 로 조기 반환하고 스윕 쿼리(`list_unsynced_reduce_only`)
+# 도 `reduce_only IS TRUE` 를 요구하므로, 이 필드가 없으면 그 청산은 영원히
+# `realized_pnl_synced_at` 을 못 받고 손익이 "추정" 으로 굳는다.
+
+
+def _base_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "symbol": "BTC/USDT",
+        "side": "sell",
+        "quantity": "0.01",
+        "type": "market",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_parse_reads_reduce_only():
+    """reduce_only=True 가 신호까지 살아 와야 청산 확정 경로가 열린다."""
+    parsed = parse_tv_payload(_base_payload(reduce_only=True))
+    assert parsed.reduce_only is True
+
+
+def test_reduce_only_absent_defaults_false():
+    """미기재 = 진입 주문. 기존 TV alert template 회귀 0."""
+    parsed = parse_tv_payload(_base_payload())
+    assert parsed.reduce_only is False
+
+
+@pytest.mark.parametrize("truthy", [True, "true", "True", "1", 1])
+def test_reduce_only_truthy_forms_are_true(truthy: object):
+    """TV alert 은 JSON 문자열로 보낼 수 있다. bool 과 문자열 양쪽 수용."""
+    parsed = parse_tv_payload(_base_payload(reduce_only=truthy))
+    assert parsed.reduce_only is True
+
+
+@pytest.mark.parametrize("falsy", ["false", "False", "0", 0, "", None])
+def test_reduce_only_falsy_forms_are_false(falsy: object):
+    """★`bool("false") is True` 함정. 순진한 bool() 캐스팅이면 진입 주문이
+    청산으로 둔갑해 reduce-only 로 거래소에 나가고 110017 로 거부된다.
+
+    같은 흉터가 이 레포에 이미 있다 — `test_dispatch_snapshot_priority.py:111-119`
+    가 문자열/정수 has_leverage 를 거부하는 이유가 정확히 이것이다.
+    """
+    parsed = parse_tv_payload(_base_payload(reduce_only=falsy))
+    assert parsed.reduce_only is False
+
+
+def test_parse_reads_bracket_levels():
+    """다이얼로그의 TP/SL 입력이 실제로 주문에 실린다 (지금까지는 표시만 됐다)."""
+    parsed = parse_tv_payload(
+        _base_payload(take_profit="70000.5", stop_loss="48000")
+    )
+    assert parsed.take_profit == Decimal("70000.5")
+    assert parsed.stop_loss == Decimal("48000")
+
+
+def test_bracket_levels_absent_default_none():
+    parsed = parse_tv_payload(_base_payload())
+    assert parsed.take_profit is None
+    assert parsed.stop_loss is None
+
+
+@pytest.mark.parametrize("field", ["take_profit", "stop_loss"])
+def test_invalid_bracket_level_raises_webhook_unauthorized(field: str):
+    """비숫자 TP/SL 은 기존 price 와 동일하게 401 로 붕괴 — 계약 일관."""
+    with pytest.raises(WebhookUnauthorized):
+        parse_tv_payload(_base_payload(**{field: "not-a-number"}))

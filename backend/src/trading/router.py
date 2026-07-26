@@ -131,10 +131,20 @@ async def receive_webhook(
         raise HTTPException(422, "Missing required field: exchange_account_id")
     exchange_account_id = UUID(str(exchange_account_id_raw))
 
+    # ── 거래 파라미터 해결 (BL-474) ──
+    # ★HMAC 검증 뒤여야 한다. 앞에 두면 미인증 호출자가 401/422 응답 차이만으로
+    # 어느 strategy_id 에 settings 가 있는지 캐낼 수 있다.
+    trading_params = await webhook_svc.resolve_trading_params(strategy_id)
+
     # ── Build OrderRequest ──
     # P1-12 (S5-A) — TV close-alert 가 realized_pnl 포함하면 OrderRequest 로 전파 →
     # OrderService 가 Order.realized_pnl 로 저장 → #305 kill-switch SUM(CumulativeLoss /
     # DailyLoss evaluator) 대상이 됨. 없으면 None (legacy backward-compat).
+    #
+    # BL-474 — leverage/margin_mode 는 Strategy.settings 에서(SSOT), reduce_only 와
+    # TP/SL 은 payload 에서 온다. 이전엔 셋 다 누락돼 webhook 주문이 spot 으로
+    # 나갔고, 그 체결은 linear 전용인 청산 원장·코크핏·exchange_exits 어디에도
+    # 잡히지 않아 확정 손익을 영원히 못 받았다.
     req = OrderRequest(
         strategy_id=strategy_id,
         exchange_account_id=exchange_account_id,
@@ -144,6 +154,12 @@ async def receive_webhook(
         quantity=signal.quantity,
         price=signal.price,
         realized_pnl=signal.realized_pnl,
+        leverage=trading_params.leverage,
+        margin_mode=trading_params.margin_mode,
+        reduce_only=signal.reduce_only,
+        take_profit=signal.take_profit,
+        stop_loss=signal.stop_loss,
+        risk_percent=signal.risk_percent,
     )
 
     # ── Execute order (tuple unpack: T15 correction) ──
