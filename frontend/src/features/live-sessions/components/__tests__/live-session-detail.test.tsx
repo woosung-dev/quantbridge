@@ -368,11 +368,35 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     });
   });
 
-  it("강제 청산 건수와 격리 증거금 고지를 표시한다", async () => {
+  it("쓰레기 원소는 강제 청산으로 세지 않는다", async () => {
+    // 열린 record 스키마라 `null`·숫자가 올 수 있다. 길이만 세면 `[null]` 이
+    // "강제 청산 1건" 으로 위장된다 (최종 리뷰 지적).
     stateMock.mockResolvedValue({
       ...STATE_NO_EQUITY,
       last_strategy_state_report: {
-        last_bar_liquidations: [{ id: "L" }, { id: "S" }],
+        last_bar_liquidations: [null, 42, { id: "L" }],
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("live-session-liquidations").textContent?.trim(),
+      ).toBe(String.fromCharCode(0x2014));
+    });
+  });
+
+  it("강제 청산 건수와 격리 증거금 고지를 표시한다", async () => {
+    // 픽스처는 생산자(`Trade.to_dict()`)가 실제로 주는 형태를 쓴다.
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: {
+        last_bar_liquidations: [
+          { id: "L", direction: "long", qty: 1, liquidated: true },
+          { id: "S", direction: "short", qty: 2, liquidated: true },
+        ],
       },
     });
     eventsMock.mockResolvedValue({ items: [] });

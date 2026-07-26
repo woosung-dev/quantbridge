@@ -17,12 +17,13 @@
 
 ### Completed
 
-- [x] **BL-486 ✅ Resolved.** carry는 append-only `live_signal_events`를 `bar_time < window_start`로 자른 합으로 정했다. `sum_realized_pnl_before`는 사이징 자본 경계, `sum_realized_pnl_all`은 화면 총계 원장 SSOT다. 새 close 이벤트만 `equity_curve`에 append한다.
+- [x] **BL-486 ✅ Resolved.** carry는 append-only `live_signal_events`를 `bar_time < window_start`로 자른 합으로 정했다. `sum_realized_pnl_before`는 **사이징 자본 경계**(`initial_capital`), `sum_realized_pnl_all`은 **상태 행 총계**의 원장 SSOT다. 새 close 이벤트만 `equity_curve`에 append한다.
+      ★★**정정 — 상태 행은 화면이 아니다.** 최종 리뷰에서 확인했다. `router.py:474-483`(2026-07-01 dogfood)이 `GET /live-sessions/{id}/state` 응답의 `total_realized_pnl`·`total_closed_trades`·`equity_curve` 를 **체결(`state=filled`) 주문으로 재계산해 덮어쓴다**. 즉 화면은 원래부터 창 드리프트를 타지 않았고, 이번 상태 행 수정은 **내부 정합 + `equity_curve` 무한 증식 차단**(분당 1 포인트 → 청산당 1)이다. **사용자에게 보이는 실제 효과는 `initial_capital` carry = 주문 수량**이다. 아래 dogfood 표의 "화면" 은 전부 **상태 행**으로 읽어야 한다.
 - [x] **BL-483 ✅ Resolved.** leverage를 라이브 엔진에 전달하고, 진입 skip을 reason별로 마지막 bar만 표면화했다. 라이브 리포트에서 `has_lastbar_skips=t`, `has_liq=t`, `liquidation_count=0` 을 확인했다.
 - [x] **BL-481 ✅ Resolved.** `Strategy.trading_sessions`를 전달하고, 값이 있을 때만 `timestamp`로 tz-aware 인덱스를 복원해 세션 밖 진입을 fail-closed로 막는다.
 - [x] **BL-482 ✅ Resolved.** 선언 `pyramiding` cap을 전달하고 cap 미만·초과 양방향 회귀를 뒀다.
 - [x] **BL-487 ✅ Resolved.** pool 객체 참조를 붙잡아 `id()` 재사용 flake를 `is not` 단정으로 바꿨다.
-- [x] 화면과 원장은 17:10Z와 17:23Z에 2회 연속 일치했다. curve는 청산 0건·tick 24회에서 +0, 청산 1건에서 정확히 +1을 기록했다.
+- [x] **상태 행**과 원장은 17:10Z·17:23Z·19:02Z 에 연속 일치했다(약 1시간 52분). curve는 청산 0건·tick 24회에서 +0, 청산 1건에서 정확히 +1이었다. ★이 값들은 API 가 덮어쓰므로 화면 렌더값이 아니다(위 정정 참조).
 - [x] 변이 10종이 전부 적발됐고 매 변이에서 음성 95/96이 GREEN을 유지했다. `MUTANT` 잔존은 0, 복원은 바이트 동일이다.
 - [x] **독립 raw HMAC 오라클** — ccxt·`providers.py` 미경유로 `X-BAPI-SIGN` 을 손서명해 `/v5/position/closed-pnl` 직격. 청산 **5건 전부 DB 와 정확히 일치**(불일치 0). 시뮬 `+1.09877350` vs 거래소 `-1.09767393` 의 부호 반전이 외부 진실로 확정됐다.
 - [x] 게이트: BE **3102**(+28) · FE **1156**(+5) · **canon 32** · **e2e:authed 65-0** · ruff·mypy·tsc·lint 0 · 마이그레이션 **0**
@@ -66,7 +67,7 @@ live_signal.py:873-885      exchange_svc 는 Celery 경계 뒤 dispatch 소속 -
 | `s4_hma` 는 명시 `qty=` 라 사이징 **대조군** | ✗ **세 번째 양성.** `capital = strategy.equity` 인데 `running_equity is None` 이면 NaN → BL-376 chokepoint 가 주문을 **skip**. 라이브에서 hma 는 진입 신호가 0 건이었다 |
 | 우선순위 사슬을 `compat.py` 에 두고 공유     | ✗ **순환 import** (`compat.py:23` 이 `event_loop` 를 module-level import) → 신규 `sizing.py` 필수                                                                       |
 | 잔고 = `fetch_balance_usdt`                  | ✗ 그건 `data["free"]` 만 읽는다. 포지션이 있으면 왜곡 → **`total`** 이 맞다                                                                                             |
-| preflight 차단 시 divergence 카운터 inc      | ✗ `metrics.py:354` = "0 초과 = 즉시 운영 page". 예상 가능한 사용자 상황은 page 대상 아님                                                                                |
+| preflight 차단 시 divergence 카운터 inc      | ✗ `common/metrics.py` 의 divergence 카운터 정의 = "0 초과 = 즉시 운영 page". 예상 가능한 사용자 상황은 page 대상 아님                                                   |
 
 ### Completed
 

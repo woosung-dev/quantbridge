@@ -416,6 +416,37 @@ strategy.entry("L", strategy.long, qty=1)
     ]
 
 
+def test_when_false_does_not_record_a_phantom_session_closed_skip() -> None:
+    """`when=false` 는 진입 의도 자체가 없으므로 세션 skip 으로 기록하면 안 된다.
+
+    최종 리뷰 지적. 세션 게이트가 `when=` 판정보다 먼저 돌면, 애초에 나갈 생각이
+    없던 진입이 "거래 시간대 밖에서 막혔다" 로 둔갑해 메트릭과 화면에 유령 1건이
+    뜬다. 두 분기 모두 `return None` 이라 실행 결과는 같고 사유만 정확해진다.
+    """
+    blocked_bar = _ohlcv([64.0], start=datetime(2026, 5, 1, 12, tzinfo=UTC)).set_index(
+        "timestamp"
+    )
+
+    # 양성 대조군 — when 이 없으면 세션 밖 진입은 여전히 기록된다.
+    positive = run_historical(
+        '//@version=5\nstrategy("s")\nstrategy.entry("L", strategy.long, qty=1)\n',
+        blocked_bar,
+        sessions_allowed=("asia",),
+    )
+    assert positive.strategy_state is not None
+    assert [s["reason"] for s in positive.strategy_state.entry_skips] == ["session_closed"]
+
+    # 본 케이스 — when=false 면 세션 밖이어도 기록이 없어야 한다.
+    result = run_historical(
+        '//@version=5\nstrategy("s")\nstrategy.entry("L", strategy.long, qty=1, when=false)\n',
+        blocked_bar,
+        sessions_allowed=("asia",),
+    )
+    assert result.strategy_state is not None
+    assert result.strategy_state.entry_skips == []
+    assert result.strategy_state.open_trades == {}
+
+
 def test_run_live_forwards_leverage_to_margin_gate() -> None:
     """2x가 필요한 증거금을 켜고 1x 호환 경로는 기존 진입을 유지한다."""
     source = """//@version=5

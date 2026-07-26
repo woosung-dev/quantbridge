@@ -80,8 +80,18 @@ export function LiveSessionDetail({ session }: Props) {
     }
   }
   const hasMarginInsufficient = entrySkipCounts.has("margin_insufficient");
+  // 열린 record 스키마라 원소가 `null` 이나 숫자일 수 있다. 길이만 세면
+  // `[null]` 이 "강제 청산 1건" 으로 위장된다. 진입 스킵과 같은 강도로 검증한다.
   const liquidations = state?.last_strategy_state_report?.last_bar_liquidations;
-  const liquidationCount = Array.isArray(liquidations) ? liquidations.length : 0;
+  const liquidationCount = Array.isArray(liquidations)
+    ? liquidations.filter(
+        (item) =>
+          item !== null &&
+          typeof item === "object" &&
+          "direction" in item &&
+          typeof item.direction === "string",
+      ).length
+    : 0;
 
   // Sprint 33-A: chart data 사전 계산 (lightweight-charts 호환).
   // useMemo — RQ structural sharing 이 items/equity_curve 하위 참조 identity 를
