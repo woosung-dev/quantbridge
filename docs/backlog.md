@@ -7,7 +7,7 @@
 **작성일:** 2026-04-30
 **최종 갱신:** 2026-07-26 (**dogfood-restore 스프린트** — 로컬 실사용 복원 + 3스프린트 누적 신뢰 작업 실화면 검증. **BL-465/467 Resolved** + 신규 **BL-466/468~472/474** + **BL-473 Resolved**(WS auth `expires` 창 — 라이브 체결 스트리밍이 통째로 죽어 있었다). ★**dogfood 가 P1 을 잡았다** — `_periodic_returns` 가 음수 자본을 안 걸러 파산한 실행에 **양수 샤프**가 붙었고(실측 -2179.68% 에 +0.029), **committed Trust Layer baseline 이 그걸 담고 있었다**(s1_pbr 샤프 +0.600 · 소르티노 +2.349 on -536%). 코퍼스 5종 중 4종이 음수 자본이고 골든이 깨진 것도 정확히 그 4종. baseline 재생성 diff = 12 메트릭 키 중 2개 한정. ★**옵티마이저는 이 스택에서 구조적으로 죽어 있었다** — `optimizer_heavy` 유일 소비자에 OHLCV env 3종 부재. ★**`make seed` 신설** — 백테스트 1회가 곧 OHLCV 시딩(TimescaleProvider cache-first). 마이그레이션 0.) // 이전: 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **87 active BL / 전체 131 항목** (2026-07-26 dogfood-restore 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **86 active BL / 전체 135 항목** (2026-07-26 live-engine-parity 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 > ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 하게 남아 있었다. 산식 = `### BL-` 헤딩 수(전체) 대비 각 섹션 본문에 `Resolved` 가 등장하지 않는 항목 수(active). 부분 Resolved 는 active 로 세지 않는다(본문에 `Resolved` 문자열이 있으므로).
 >
@@ -125,6 +125,7 @@
 | [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                    | Stage 2c 2차 fixture 활성화 후                  | S (1-2h)   | TODO.md L20-22                  |
 | [BL-308](#bl-308) | trading websocket test coverage 4% → ≥70%                                                          | dogfood 직후 (Day 7 후)                         | L (12-16h) | 2026-05-15 trading-deepen audit |
 | [BL-404](#bl-404) | ✅ Resolved — watchdog `fetch_order` Bybit 전면 실패 (acknowledged 게이트 + futures 심볼 미정규화) | ✅ `fix/trading-bl404-fetch-order-acknowledged` | S (1-2h)   | 2026-07-05 데모 라이브 dogfood  |
+| [BL-488](#bl-488) | 평가 갭 orphan close → 보유분 없는 `reduce_only` 주문과 시뮬 손익 오염                             | 즉시. 평가 갭이 재현되거나 beat 안정화 전       | M          | 2026-07-26 live-engine-parity   |
 
 > Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -285,6 +286,27 @@
 **해소:** `_bybit_fetch_order_impl` 에 `params={"acknowledged": True}`(게이트 도입 전 realtime 조회 동작 복원) + `BybitFuturesProvider.fetch_order` 에 `_to_bybit_linear_symbol()` 적용. TDD(red 3 → green, `test_provider_fetch_order.py` 회귀 2건 추가) + trading 스위트 440 pass + 실 Bybit demo end-to-end(신선 주문 생성 → spot 포맷 경로 fetch `status=filled` 확인 → flatten). **잔여(후속 후보):** `fetch_mark_price` 도 spot 티커 근사 사용(동일 계열, 실패 아님 — notional 가드 정밀도) / realtime 범위(최근 500) 밖 장기 고착 주문은 여전히 미조회 → Reconciler 커버(BL-375 계열) / BL-003 mainnet 시 재점검: classic(비-UTA) live 계정 경로(`fetch_orders_classic`)에선 acknowledged 가 쿼리 param 으로 누수(현재는 live stub 이라 dead, adversarial 리뷰 footnote).
 
 **Status:** ✅ Resolved (2026-07-05, `fix/trading-bl404-fetch-order-acknowledged`)
+
+---
+
+### BL-488
+
+**Title:** 평가 갭이 orphan close 를 만든다
+**Category:** Backend / trading (라이브 신호 평가)
+**Priority:** P1
+**Trigger:** 즉시. 평가 갭이 재현되거나 beat 안정화 전
+**Est:** M
+**출처:** 2026-07-26 live-engine-parity preflight 실측. 라이브 세션 `e1f6d84c`.
+
+**원인 / 영향:** `run_live` 는 마지막 bar 신호만 dispatch 하고 warmup replay 는 창 전체를 재구성한다. 워커가 어떤 bar를 평가하지 못하면 그 bar의 진입은 발주된 적 없는데, 이후 청산은 정상 발주된다. 결과는 보유분 없는 `reduce_only` 주문의 거래소 거부와 시뮬 이익의 오염이다.
+
+실측은 11:45~15:57 사이 252 bar 중 180 bar만 평가했고 13:10~13:59에 50분 구멍이 있었다. 약 13:19 시뮬 진입은 `live_signal_events`에 0건인데 15:11 청산은 발주돼 `orders.state = rejected` 였으며, 시뮬은 `+4.87330864` 를 이익으로 계상했다. `Σ orders.realized_pnl` 도 그 추정치를 담아 원장 합계를 오염시킨다.
+
+**권장 접근:** 연속 `bar_time` 결손을 감지해 갭 뒤 첫 tick에서 포지션을 재동기화하거나, close 발주 전에 거래소 포지션을 확인한다. 후자는 BL-476이 REST 왕복 1.5~1.7초를 실측했으므로 지연 비용 측정이 먼저다. 어느 쪽이든 갭 자체를 줄이는 beat 안정화가 선행한다.
+
+**영향 파일:** `tasks/live_signal.py`, `strategy/pine_v2/event_loop.py`.
+
+**Risk:** 🔴 (실주문 거부 + 시뮬 손익 오염).
 
 ---
 
@@ -958,9 +980,91 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ---
 
+### BL-489
+
+**Title:** 사이징 자본이 D2 구간(진입 창 밖 / 청산 창 안)에서 일시 함몰한다
+**Category:** Backend / trading (라이브 사이징)
+**Priority:** P2
+**Trigger:** BL-488 해소 후 (진입 이벤트 신뢰가 선행 조건)
+**Est:** M (설계 선행 필요)
+**출처:** 2026-07-26 live-engine-parity. 적대적 검증 지적 → 프로덕션 실증.
+
+**원인 / 영향:** `run_live` 는 warmup 창을 flat 에서 재실행하므로 창 시작 이전에 진입한 포지션은 열려 있지 않다. `close()` 가 `None` 을 반환해 그 거래의 청산이 재현되지 않는데, 그 청산의 `bar_time` 은 아직 `>= window_start` 라 carry(`bar_time < window_start`)에도 잡히지 않는다. 진입이 창을 벗어난 순간부터 청산이 창을 벗어날 때까지(보유 기간 + 지표 warmup) 그 손익이 **0 회 계상**된다.
+
+프로덕션 실증 (창은 정확히 300 바 = 11:50~16:49):
+
+```
+16:12Z  화면 3 건 · 5.16879987
+16:49Z  화면 2 건 · 4.07002377     <- 12:34 청산(+1.09877350)이 사라졌다
+        원장은 불변 3 건 · 5.16882074
+```
+
+★ 창을 벗어나서가 아니다. 그 거래의 **진입(11:50)이 창의 bar 0** 이 되어 EMA 가 재현 불가해진 것이다.
+
+**화면 총계는 이번 스프린트에서 해결됐다** (`sum_realized_pnl_all` 원장 SSOT — 17:10Z 실측으로 화면 == 원장 확인, 이후 1.5시간 유지). **남은 것은 `initial_capital` 뿐**이며, 미수정 시절의 영구 누락이 "일시 함몰 후 복귀" 로 완화된 상태다. `test_run_live_sizing.py` 의 KNOWN_LIMITATION 테스트가 이 한계를 못 박고 있다.
+
+**권장 접근:** (a) 2-pass — 잠정 자본으로 1회 실행해 엔진이 재현한 청산 집합을 얻고 `전체 원장 − 재현분` 을 정확한 carry 로 삼아 재실행한다. 레버리지 게이트 활성 시 진동 가능성 검증 필요. (b) entry↔close 페어링으로 진입 `bar_time` 기준 절단 — 단 **BL-488 이 진입 이벤트를 떨어뜨리므로 신뢰 불가**. (a) 우선.
+
+**영향 파일:** `tasks/live_signal.py`, `strategy/pine_v2/event_loop.py`.
+
+**Risk:** 🟡 (수량이 일시적으로 작아진다. 과대가 아니라 과소 방향).
+
+---
+
+### BL-490
+
+**Title:** `margin_mode` 가 엔진에 전달되지 않고 청산 모델이 isolated 전용이다
+**Category:** Backend / trading (레버리지 모델 정확도)
+**Priority:** P2
+**Trigger:** cross 계정 라이브 사용 시 / BL-186 풀 모델 진행 시
+**Est:** M-L (구조 변경)
+**출처:** 2026-07-26 live-engine-parity 적대적 검증 (BL-483 구현 중).
+
+**원인 / 영향:** `StrategySettings.margin_mode`(`cross`/`isolated`)가 엔진에 전달되지 않고 `strategy/pine_v2/leverage_model.py` 는 **isolated 전용**이다(MMR 0.5% 고정, `liquidation_price = entry x (1 - 1/lev + mmr)`). BL-483 이 `leverage` 를 배선하면서 `check_liquidations` 가 라이브에서 처음 활성화됐는데, **cross 계정은 실제보다 훨씬 이르게 강제 청산으로 판정**된다. 강제 청산은 실제 reduce-only 주문을 낸다.
+
+레버리지별 롱 청산 임계 실측:
+
+```
+lev   2x -> 진입가 x 0.50500  (하락 49.50%)
+lev  10x -> 진입가 x 0.90500  (하락  9.50%)
+lev  25x -> 진입가 x 0.96500  (하락  3.50%)
+lev 125x -> 진입가 x 0.99700  (하락  0.30%)
+```
+
+현재 등록된 라이브 전략은 전부 `isolated` / 레버리지 2 라 즉각 영향은 없다. 이번 스프린트는 **화면 고지**로 정직 처리했다(강제 청산 행 + "격리 증거금 기준이며 거래소의 실제 청산과 다를 수 있습니다" 문구).
+
+**권장 접근:** cross 계정 통합 증거금 모델 신설. 계정 전체 자산 대비 유지증거금 합으로 판정해야 하는데 현재 엔진은 포지션 단위라 구조 변경이 크다. BL-186 과 묶어 설계.
+
+**영향 파일:** `strategy/pine_v2/leverage_model.py`, `strategy/pine_v2/strategy_state.py`, `tasks/live_signal.py`.
+
+**Risk:** 🟡 (cross 사용자 조기 강제 청산 — 화면 고지로 완화 중).
+
+---
+
 ## P3 — Nice-to-have / 컨벤션 정합
 
 > 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](archive/refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 8** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen).
+
+### BL-491
+
+**Title:** 백테스트 폼이 Live 레버리지를 미러하지 않는다 (차단 사유가 이미 사실이 아니다)
+**Category:** Frontend / 정합
+**Priority:** P3
+**Trigger:** 백테스트↔라이브 폼 패리티 작업 시
+**Est:** S (2-3h)
+**출처:** 2026-07-26 live-engine-parity 적대적 검증.
+
+**원인 / 영향:** `useBacktestForm.ts` 의 `liveLeverage != null && liveLeverage !== 1` 이 `live_blocked_leverage` 를 내고 `BacktestSizingFieldSet.tsx` 가 "Live 미러" 옵션을 `liveLeverage === 1` 로 막는다. 원래 문구는 "백테스트의 1배 자기자본 기준과 비대칭" 이라 설명했는데 **거짓**이다. 같은 폼에 백테스트 레버리지 입력이 있고 `v2_adapter` 가 `leverage=cfg.leverage` 를 같은 엔진 게이트로 넣는다. BL-483 배선 후엔 라이브도 레버리지를 반영하므로 차단 사유가 더 이상 없다.
+
+이번 스프린트는 **문구만** 사실대로 고쳤다(술어 불변). 실제 미러링 배선은 미착수.
+
+**권장 접근:** Live 설정(leverage / margin_mode / position_size_pct)을 백테스트 config 로 미러하는 경로를 열고 `live_blocked_leverage` 분기를 제거한다. 미러 시 백테스트↔라이브 패리티가 폼 수준에서도 성립한다.
+
+**영향 파일:** `frontend/src/app/(dashboard)/backtests/_components/forms/useBacktestForm.ts`, `.../BacktestSizingFieldSet.tsx`, `.../live-settings-badge.tsx`.
+
+**Risk:** 🟢 (UX / 정합. 금전 영향 없음).
+
+---
 
 ### BL-389
 
@@ -2746,6 +2850,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 **Risk:** 🟡 (사용자가 명시한 제약을 라이브가 무시한다)
 
+**Status:** ✅ Resolved (2026-07-26, `feat/live-engine-parity`)
+
 ---
 
 ### BL-482
@@ -2764,6 +2870,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 **권장 접근:** BL-481 과 같은 배선. `extract_content(source).declaration.pyramiding` 을 `run_live` 로 전달. BL-481 과 한 PR 로 묶는 게 자연스럽다.
 
 **Risk:** 🟢 (진입이 열리기 전까지는 도달 불가)
+
+**Status:** ✅ Resolved (2026-07-26, `feat/live-engine-parity`)
 
 ---
 
@@ -2785,6 +2893,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 **권장 접근:** (1) `run_live` 에 `leverage` 전달 (2) `_can_afford_entry` skip 을 `warnings` 가 아니라 관측 가능한 신호로 승격 — preflight 카테고리 또는 `qb_live_signal_skipped_total` reason (3) 회귀 = 증거금 부족 진입이 skip 되고 **그 사실이 화면/메트릭에 보이는지** 양쪽 단정.
 
 **Risk:** 🔴 (백테스트가 거부할 포지션을 라이브가 연다)
+
+**Status:** ✅ Resolved (2026-07-26, `feat/live-engine-parity`)
 
 ---
 
@@ -2863,6 +2973,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 **Risk:** 🔴 (주문 수량이 조용히 변한다. 머니-패스)
 
+**Status:** ✅ Resolved (2026-07-26, `feat/live-engine-parity`)
+
 ---
 
 ### BL-487
@@ -2881,6 +2993,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 **권장 접근:** `id()` 대신 **객체 참조 자체를 반환해 붙잡고** `assert first is not second` 로 단정한다. 두 객체가 동시에 살아 있으면 주소 재사용이 원천 불가능하다.
 
 **Risk:** 🟢 (테스트 전용. 프로덕션 영향 없음)
+
+**Status:** ✅ Resolved (2026-07-26, `feat/live-engine-parity`)
 
 ---
 

@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.models import LiveSignalEvent, LiveSignalEventStatus
@@ -126,6 +126,42 @@ class LiveSignalEventRepository:
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def sum_realized_pnl_before(
+        self, session_id: UUID, *, bar_time: datetime
+    ) -> tuple[Decimal, int]:
+        """사이징 자본 경계용으로 창 시작 전 발주 청산의 Pine 추정 손익을 반환한다.
+
+        엔진은 kill switch, 거래소 거부, 발주 실패를 모르므로 창 안 청산은 dispatch 결과와
+        무관하게 모두 누적한다. 여기만 status로 거르면 창 경계의 계산 규칙이 달라진다.
+        거래소 확정 순손익은 gross 시뮬레이션 누적기와 단위가 다르고 event에는 backfill되지
+        않는다. 따라서 이 값은 의도적으로 pine_v2가 계산한 realized_pnl을 사용한다.
+        """
+        return await self._sum_realized_pnl(session_id, before=bar_time)
+
+    async def sum_realized_pnl_all(self, session_id: UUID) -> tuple[Decimal, int]:
+        """화면 총계용으로 창과 무관한 세션 원장 전체의 Pine 추정 손익을 반환한다."""
+        return await self._sum_realized_pnl(session_id)
+
+    async def _sum_realized_pnl(
+        self, session_id: UUID, *, before: datetime | None = None
+    ) -> tuple[Decimal, int]:
+        """세션 원장의 non-null realized PnL 합계와 건수를 반환한다."""
+        stmt = (
+            select(
+                func.sum(LiveSignalEvent.realized_pnl),
+                func.count(LiveSignalEvent.id),  # type: ignore[arg-type]
+            )
+            .where(LiveSignalEvent.session_id == session_id)  # type: ignore[arg-type]
+            .where(LiveSignalEvent.realized_pnl.is_not(None))  # type: ignore[union-attr]
+        )
+        if before is not None:
+            stmt = stmt.where(LiveSignalEvent.bar_time < before)  # type: ignore[arg-type]
+        result = await self.session.execute(stmt)
+        total_pnl, closed_count = result.one()
+        return Decimal(str(total_pnl)) if total_pnl is not None else Decimal("0"), int(
+            closed_count or 0
+        )
 
     async def mark_dispatched(self, event_id: UUID, *, order_id: UUID) -> int:
         """dispatch_task 가 broker 발주 성공 시 호출. status=dispatched + order_id."""

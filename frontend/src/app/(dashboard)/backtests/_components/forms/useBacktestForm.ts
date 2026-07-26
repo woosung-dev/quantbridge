@@ -66,6 +66,7 @@ function detectSizingSource(
   livePct: number | null,
 ): SizingSource {
   if (pineDeclared) return "pine";
+  // Live 레버리지는 라이브 신호 평가에 반영되지만, 백테스트 폼은 자동 미러하지 않는다.
   if (liveLeverage != null && liveLeverage !== 1) return "live_blocked_leverage";
   if (livePct != null) return "live";
   return "manual";

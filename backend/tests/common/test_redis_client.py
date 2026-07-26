@@ -14,6 +14,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from redis.asyncio import Redis
 
 
 @pytest.mark.asyncio
@@ -47,6 +48,8 @@ def test_get_pool_safe_across_event_loops() -> None:
     Celery prefork worker (`asyncio.run(_execute(...))`) 가 task 마다
     새 이벤트 루프를 만드는 상황을 시뮬레이션.
 
+    객체 참조를 유지해 CPython 주소 재사용을 막는다.
+
     NOTE: 본 테스트는 reset 후 신규 instance 생성만 검증. 실제 prefork
     worker FD 복제 시나리오 (부모 process 의 socket FD 가 child 로 복제) 검증은
     Phase A2 integration 테스트에 위임.
@@ -56,9 +59,8 @@ def test_get_pool_safe_across_event_loops() -> None:
         reset_redis_lock_pool,
     )
 
-    async def _touch() -> int:
-        pool = get_redis_lock_pool()
-        return id(pool)
+    async def _touch() -> Redis:
+        return get_redis_lock_pool()
 
     reset_redis_lock_pool()
     first = asyncio.run(_touch())
@@ -67,7 +69,7 @@ def test_get_pool_safe_across_event_loops() -> None:
     reset_redis_lock_pool()
     second = asyncio.run(_touch())
 
-    assert first != second  # 다른 instance — close timing 무관 무문제
+    assert first is not second
 
 
 @pytest.mark.asyncio

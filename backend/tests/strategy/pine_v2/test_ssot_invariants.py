@@ -278,18 +278,18 @@ def test_bl188_d2_chain_priority_4_collection_sync():
     )
 
 
-def test_bl188_sessions_allowed_propagation_4_layer_sync():
-    """BL-188 v3: sessions_allowed 가 cfg.trading_sessions → 4 layer 동기 전파.
+def test_bl188_sessions_allowed_propagation_5_layer_sync():
+    """BL-188 v3: sessions_allowed 가 cfg.trading_sessions → 5 layer 동기 전파.
 
     cfg.trading_sessions → compat.parse_and_run_v2(sessions_allowed=...)
-      → run_historical / run_virtual_strategy(sessions_allowed=...)
+      → run_historical / run_virtual_strategy / run_live(sessions_allowed=...)
       → StrategyState.sessions_allowed → entry placement + pending fill gate.
 
-    4 layer 중 하나라도 sessions_allowed 를 받지 못하면 entry/fill gate 끊김
+    5 layer 중 하나라도 sessions_allowed 를 받지 못하면 entry/fill gate 끊김
     → silent skip 누락 + Live `is_allowed` 와 결과 불일치 risk.
     """
     from src.strategy.pine_v2.compat import parse_and_run_v2
-    from src.strategy.pine_v2.event_loop import run_historical
+    from src.strategy.pine_v2.event_loop import run_historical, run_live
     from src.strategy.pine_v2.strategy_state import StrategyState
     from src.strategy.pine_v2.virtual_strategy import run_virtual_strategy
 
@@ -300,6 +300,7 @@ def test_bl188_sessions_allowed_propagation_4_layer_sync():
         "event_loop.run_historical": set(
             inspect.signature(run_historical).parameters
         ),
+        "event_loop.run_live": set(inspect.signature(run_live).parameters),
         "virtual_strategy.run_virtual_strategy": set(
             inspect.signature(run_virtual_strategy).parameters
         ),

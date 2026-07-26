@@ -14,6 +14,8 @@
 - qb_live_signal_evaluated_total  (Counter, labels: interval, outcome)  ← Sprint 26 B.4
 - qb_live_signal_dispatch_total   (Counter, labels: action, outcome)    ← Sprint 26 B.4
 - qb_live_signal_skipped_total    (Counter, labels: reason)             ← Sprint 26 B.4
+- qb_live_signal_entry_skipped_total (Counter, labels: reason)          ← BL-483
+- qb_live_signal_liquidation_total (Counter, labels: direction)         ← BL-483
 - qb_live_signal_eval_duration_seconds (Histogram, labels: interval)    ← Sprint 26 B.4
 - qb_live_signal_outbox_pending_gauge  (Gauge)                          ← Sprint 26 B.4
 - qb_closed_pnl_backfill_total       (Counter, labels: outcome)         ← MP-2
@@ -340,6 +342,18 @@ qb_live_signal_skipped_total = Counter(
     "Live signal evaluate skipped reason",
     # stop_entry_unsupported | equity_baseline_missing 등 preflight 차단 사유를 포함한다.
     labelnames=("reason",),  # contention | non_demo_account | invalid_settings | session_inactive
+)
+qb_live_signal_entry_skipped_total = Counter(
+    "qb_live_signal_entry_skipped_total",
+    "Live signal entry swallowed by an engine gate (not a divergence)",
+    labelnames=(
+        "reason",
+    ),  # margin_insufficient | non_finite_qty | pyramiding_cap | session_closed
+)
+qb_live_signal_liquidation_total = Counter(
+    "qb_live_signal_liquidation_total",
+    "Live signal simulated liquidations",
+    labelnames=("direction",),  # long | short
 )
 qb_live_signal_eval_duration_seconds = Histogram(
     "qb_live_signal_eval_duration_seconds",

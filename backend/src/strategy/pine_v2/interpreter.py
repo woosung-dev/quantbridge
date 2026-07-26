@@ -1457,6 +1457,17 @@ class Interpreter:
                 positional.append(val)
 
         if name == "strategy.entry":
+            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
+
+            # when= kwarg: False면 entry skip (Pine v4 backtest range 필터)
+            # ★세션 게이트보다 **먼저** 판정한다. `when=false` 는 애초에 진입 의도가
+            # 없다는 뜻이라, 세션을 먼저 보면 "거래 시간대 밖에서 막혔다" 는 skip 이
+            # 기록되고 화면·메트릭에 유령 1건이 뜬다. 두 분기 모두 `return None` 이라
+            # 실행 결과는 동일하고 **기록되는 사유만** 정확해진다.
+            when_val = kwargs.get("when")
+            if when_val is not None and not self._truthy(when_val):
+                return None
+
             # BL-188 v3 entry placement gate (Track S) — disallowed session 이면
             # silent skip → equity/state 영향 0. 단일 reference =
             # `src.strategy.trading_sessions.is_allowed`. timestamps 미주입 시 skip 하지 않음
@@ -1467,13 +1478,12 @@ class Interpreter:
                     from src.strategy.trading_sessions import is_allowed
 
                     if not is_allowed(list(self.strategy.sessions_allowed), bar_ts.to_pydatetime()):
+                        self.strategy._record_entry_skip(
+                            bar=bar_idx,
+                            reason="session_closed",
+                            trade_id=trade_id,
+                        )
                         return None
-
-            trade_id = str(positional[0]) if positional else str(kwargs.get("id", "default"))
-            # when= kwarg: False면 entry skip (Pine v4 backtest range 필터)
-            when_val = kwargs.get("when")
-            if when_val is not None and not self._truthy(when_val):
-                return None
 
             # direction 결정 — v4는 2번째 positional이 boolean(true=long, false=short),
             # v5는 strategy.long/short 상수 문자열. direction= kwarg도 가능.

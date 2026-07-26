@@ -11,7 +11,8 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 
 공개 API:
 - `run_historical(source, ohlcv) -> RunResult`
-- `run_live(source, ohlcv, *, initial_capital=None, live_position_size_pct=None)
+- `run_live(source, ohlcv, *, initial_capital=None, live_position_size_pct=None, leverage=1.0,
+  sessions_allowed=(), pyramiding=None)
   -> LiveSignalResult` (Sprint 26. 사이징 인자는 BL-479 — 미지정 시 qty=1.0 fallback)
 """
 
@@ -228,6 +229,10 @@ class LiveSignalResult:
     strategy_state_report: dict[str, Any]
     total_closed_trades: int
     total_realized_pnl: Decimal
+    # 마지막 bar 에서 엔진 게이트가 삼킨 진입만 표면화한다.
+    entry_skips: list[dict[str, Any]] = field(default_factory=list)
+    # 마지막 bar 에서 엔진이 판정한 강제청산 close만 표면화한다.
+    liquidations: list[dict[str, Any]] = field(default_factory=list)
     # BL-362 — run_historical(strict=False) 가 삼킨 PineRuntimeError (bar_index, msg).
     # 호출자(live_signal task)가 coverage↔interpreter 발산을 fail-closed 처리하도록 표면화.
     errors: list[tuple[int, str]] = field(default_factory=list)
@@ -252,6 +257,9 @@ def run_live(
     *,
     initial_capital: float | None = None,
     live_position_size_pct: float | None = None,
+    leverage: float = 1.0,
+    sessions_allowed: tuple[str, ...] = (),
+    pyramiding: int | None = None,
 ) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
 
@@ -270,14 +278,33 @@ def run_live(
             (or index) 가 마지막 bar time 추출에 사용.
         initial_capital: 세션 시작 시 스냅샷한 자본 기준선. None 이면 기존 qty=1.0 fallback.
         live_position_size_pct: `StrategySettings.position_size_pct`.
+        leverage: 1.0 초과 시 격리 증거금 게이트와 청산가 모델을 적용한다.
+        sessions_allowed: 비어있으면 OHLCV 프레임을 그대로 사용한다. 비어있지 않을 때
+            tz-aware DatetimeIndex가 없으면 tz-aware `timestamp` 컬럼으로 인덱스를 세우되,
+            해당 컬럼은 보존한다. 둘 다 불가하면 세션 필터가 조용히 무시되지 않도록 실패한다.
+        pyramiding: 같은 방향 동시 진입 cap. None 이면 cap을 적용하지 않는다.
 
     Returns:
         LiveSignalResult — last_bar_time + signals + strategy_state_report + 누적 통계.
 
     Raises:
-        ValueError: ohlcv 비어있음 / required 컬럼 누락.
+        ValueError: ohlcv 비어있음 / required 컬럼 누락 / 세션 필터에 필요한 tz-aware 시각 부재.
     """
     _validate_ohlcv(ohlcv)
+
+    if sessions_allowed and (
+        not isinstance(ohlcv.index, pd.DatetimeIndex) or ohlcv.index.tz is None
+    ):
+        if "timestamp" not in ohlcv.columns:
+            raise ValueError(
+                "sessions_allowed requires a timezone-aware DatetimeIndex or timestamp column"
+            )
+        timestamps = pd.DatetimeIndex(ohlcv["timestamp"])
+        if timestamps.tz is None:
+            raise ValueError(
+                "sessions_allowed requires a timezone-aware DatetimeIndex or timestamp column"
+            )
+        ohlcv = ohlcv.set_index(timestamps, drop=False)
 
     # run_historical 전체 재실행 (warmup replay)
     qty_type, qty_value = resolve_default_qty(
@@ -293,6 +320,9 @@ def run_live(
         initial_capital=initial_capital,
         default_qty_type=qty_type,
         default_qty_value=qty_value,
+        leverage=leverage,
+        sessions_allowed=sessions_allowed,
+        pyramiding=pyramiding,
     )
     strategy_state = result.strategy_state
     if strategy_state is None:
@@ -308,6 +338,14 @@ def run_live(
     # 마지막 bar 의 TradeEvent → LiveSignal 변환
     last_bar_index = len(ohlcv) - 1
     last_bar_events = [e for e in strategy_state.events if e.bar_index == last_bar_index]
+    last_bar_entry_skips = [
+        skip for skip in strategy_state.entry_skips if skip["bar_index"] == last_bar_index
+    ]
+    last_bar_liquidations = [
+        trade.to_dict()
+        for trade in strategy_state.closed_trades
+        if trade.exit_bar == last_bar_index and trade.is_liquidation
+    ]
     # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
     signals: list[LiveSignal] = []
     for e in last_bar_events:
@@ -347,13 +385,19 @@ def run_live(
         (Decimal(str(t.pnl)) for t in closed if t.pnl is not None),
         Decimal("0"),
     )
+    strategy_state_report = strategy_state.to_report().copy()
+    strategy_state_report.pop("entry_skips", None)
+    strategy_state_report["last_bar_entry_skips"] = last_bar_entry_skips
+    strategy_state_report["last_bar_liquidations"] = last_bar_liquidations
 
     return LiveSignalResult(
         last_bar_time=last_bar_time,
         signals=signals,
-        strategy_state_report=strategy_state.to_report(),
+        strategy_state_report=strategy_state_report,
         total_closed_trades=len(closed),
         total_realized_pnl=total_pnl,
+        entry_skips=last_bar_entry_skips,
+        liquidations=last_bar_liquidations,
         errors=result.errors,  # BL-362 — 삼켜진 발산 표면화
     )
 

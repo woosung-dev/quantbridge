@@ -54,8 +54,7 @@ export function BacktestSizingFieldSet({
         </p>
       ) : sizingSource === "live_blocked_leverage" ? (
         <p className="field-hint">
-          Live 레버리지 {liveLeverage ?? 0}x 는 백테스트의 1배 자기자본 기준과
-          비대칭이라 미러를 차단했습니다. 수동 입력만 가능합니다.
+          Live 레버리지는 이 폼에 자동으로 미러되지 않습니다. 백테스트 레버리지 필드에 직접 입력하세요.
         </p>
       ) : (
         <div className="field sizing-narrow">
