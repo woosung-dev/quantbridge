@@ -42,9 +42,43 @@ take_profit / stop_loss  프론트는 보냄, 파서가 안 읽음 → UI 입력
 - **[BL-476] 지연 +4.8초 실측** — `fetch_mark_price 1663ms · fetch_min_notional 1549ms · fetch_balance_usdt 1600ms`. leverage 가 채워지며 notional 가드가 webhook 에서 처음 도달 가능해진 대가. ★**게이트는 provider 를 stub 으로 갈아끼우므로 영원히 0ms** — 프로덕션에서만 보이는 회귀라 예상만 하지 않고 쟀다
 - **[BL-477] 청산 원장 유령 `unknown`** — API 키 2개가 같은 Bybit 서브계정을 가리켜 같은 청산이 2행 적재. 07-24 행도 같은 패턴이라 **선재**. 금액은 안전(`aggregate_closed_pnl` 계정 스코프 + 세션 손익은 `orders.realized_pnl` 을 셈 — 실측 확인). 영향은 귀속/알림 표면뿐
 
+---
+
+## ⚡ 체크리스트 B — pine_v2 ↔ 거래소 발산 (조사 완료, 2026-07-26)
+
+### ★★가설이 틀렸다 — "상태가 롤백 안 된다" 가 아니라 **진입이 나간 적이 없다**
+
+체크리스트 B 는 "발주 실패 후 pine_v2 상태가 롤백되는가" 를 물었다. 답은 "롤백 경로 0" 이지만 **그게 원인이 아니었다.**
+
+```
+strategy.entry(..., stop=)  →  PendingOrder 파킹 + return None   (이벤트 미발행)
+                            →  체결 시 event_action="fill"
+run_live                    →  fill 은 dispatch 대상에서 제외      ← event_loop.py:287-288
+독스트링                     →  "broker 가 자체 fill 알림 처리"
+실측                        →  live_signal.py 에 trigger_price 참조 0건
+```
+
+**broker 에 그 stop 주문을 올린 적이 없다.** 그래서 진입 이벤트가 0건이고, 반전 시 생기는 `close` 만 나가서 매번 110017. 라이브 세션 `0e15c3c0` 의 주문 전량이 `reduce_only=true`·`rejected` 이고 **진입 주문은 한 건도 없다** — 이게 그 증거였는데 "사이징 문제" 로 읽었다.
+
+**영향 범위는 `stop=` 진입 전략 한정.** 시장가 진입은 `strategy_state.py:634-642` 가 `event_action="entry"` 를 정상 발행한다. 시드 `s1_pbr` 은 진입 2개가 전부 `stop=` 이라 100% 이 경로.
+
+### 등재한 BL
+
+- **[BL-478] P1** — stop-entry 전략은 라이브에서 진입이 구조적으로 안 나간다. 최소 정직안 = 그런 전략의 세션 시작을 **차단하고 이유를 표시**(지금은 조용히 안 되면서 되는 척)
+- **[BL-479] P1** — 라이브 사이징 미배선. `run_live` 가 사이징 인자 없이 `run_historical` 호출 → `compute_qty()` 항상 `1.0`. `position_size_pct` 는 라이브에서 **아무 데서도 안 읽힌다**(유일한 소비처 `compat.parse_and_run_v2` 의 프로덕션 호출자는 백테스트 어댑터 하나). Pine `default_qty_type` 선언조차 무시됨
+- **[BL-480] P2** — ★**화면이 발산을 은폐한다.** 백엔드는 정확히 안다(실측 `verdict="local_only"` + `PivRevLE long qty 1 @ 64557.51`), 프론트에 문구도 있다. 그런데 행 생성이 `positions` 순회라 **`local_only` = `positions` 빈 배열**인 그 순간에만 렌더 불가 → 화면은 "열린 포지션이 없습니다"
+
+### 확인된 설계 사실 (결함 아님)
+
+- 상태 쓰기가 dispatch 보다 **먼저**고 그 사이 Celery 경계가 2개 — 거래소 결과를 알 수 없는 게 정상이다(transactional outbox)
+- Option B(warmup replay)라 매 tick `run_historical` 재실행 → **되먹일 자리 자체가 없다**. 되먹여도 다음 tick 이 덮어쓴다
+- 재동기화 경로(`Reconciler`·`orphan_scanner`·`resync_exchange_realized_pnl`)는 전부 **orders 만** 본다. 포지션/시뮬 재동기화는 없다
+- `router.py:504-544` 가 응답 시점에 체결 주문으로 PnL 을 재계산하는 건 **read-side mask** 다 — DB 의 `total_realized_pnl -175.82` 는 그대로 남아 있다
+
 ### Next Actions
 
-- [ ] **체크리스트 B** — pine_v2 시뮬 상태 ↔ 거래소 포지션 발산. ★dogfood 가 범위를 좁혔다: 라이브 신호는 계속 `qty=1.0` reduce-only 를 쏘고(전략 `position_size_pct: 0.01` 미반영) 무포지션이라 110017 로 죽는데, 다이얼로그 경로는 0.001 로 정상 왕복했다 → **사이징 경로만 다르다**
+- [ ] **BL-478 결정** — (a) conditional order 등재 · (b) 시장가 근사 · (c) 세션 시작 차단. **(c) 가 최소 정직안**
+- [ ] BL-480 은 (a)/(b) 와 독립적으로 지금 고칠 수 있다 — BL-478 이 살아 있는 동안 **유일한 발산 표면**
 - [ ] BL-476 결정 — 가드를 Celery 경계 뒤로 옮길지(거부 시점이 응답 뒤로 밀리는 계약 변경)
 - [ ] BL-477 — 읽기 전용 계정 `0277c150` 삭제 여부(사용자 판단, 삭제하면 자연 소멸)
 

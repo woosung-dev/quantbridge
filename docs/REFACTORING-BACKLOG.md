@@ -2597,6 +2597,106 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 ---
 
+### BL-478
+
+**Title:** stop-entry 전략은 라이브에서 **진입이 구조적으로 절대 나가지 않는다** — 청산만 나가서 매번 110017
+**Category:** Backend / trading (라이브 신호 dispatch)
+**Priority:** **P1**
+**Trigger:** 즉시 (라이브 세션이 지금 이 상태로 돌고 있다)
+**Est:** M
+**출처:** 2026-07-26 dogfood-restore 체크리스트 B 조사
+
+**원인 / 영향:** `run_live` 가 `fill` 액션을 dispatch 대상에서 제외한다 — `event_loop.py:287-288`:
+
+```python
+    # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
+    if e.action not in ("entry", "close"):
+        continue
+```
+
+독스트링(`event_loop.py:253-255`)이 근거를 명시한다: _"action="fill" 은 broker 이벤트 (pending stop 체결) 이므로 Pine signal 로 dispatch 안 함 — **broker 가 자체 fill 알림 처리**"_.
+
+**★그 전제가 성립하지 않는다. broker 에 그 stop 주문을 올린 적이 없다.** `src/tasks/live_signal.py` 에 `trigger_price` / `trigger_direction` / `PendingOrder` 참조가 **0건**이다(전수 grep). 즉 조건부 진입 주문을 거래소에 등재하는 코드가 존재하지 않는다.
+
+**영향 범위 = `strategy.entry(..., stop=...)` 를 쓰는 전략 한정.** `strategy_state.py:598-608` 이 `stop` 이 있으면 `PendingOrder` 만 파킹하고 **`return None`**(이벤트 미발행) 한다. `stop` 없는 시장가 진입은 `:634-642` 가 `event_action="entry"` 로 정상 발행하므로 영향 없다.
+
+**결과 사슬** — 진입 이벤트 0건 → 거래소 포지션 0 → 다음 반전 시 pine 이 `close` 이벤트 발행(`strategy_state.py:748` `_flip_opposite_positions` → `close()` → `:671-679`) → 그건 dispatch 됨 → reduce-only 인데 포지션이 없음 → `retCode 110017 "current position is zero"`. 실측 = 라이브 세션 `0e15c3c0` 의 주문 전량이 `reduce_only=true`·`rejected`·110017 이고 진입 주문은 **한 건도 없다**.
+
+시드 전략 `s1_pbr` 은 진입 2개가 모두 `stop=` 이라(`s1_pbr.pine:7,20`) **100% 이 경로다.**
+
+**권장 접근:** 셋 중 택일 — (a) `PendingOrder` 를 거래소 conditional order 로 등재(`OrderRequest.trigger_price`/`trigger_direction` 이 이미 있고 `_merge_exit_params` 가 처리한다) · (b) `fill` 도 dispatch 대상에 넣어 시장가로 근사(체결가 괴리 발생, TV parity 훼손) · (c) stop-entry 전략의 라이브 세션 시작을 **명시적으로 차단**하고 이유를 화면에 표시. **최소 정직안은 (c)** — 지금은 조용히 안 되면서 되는 척한다.
+
+**Risk:** 🔴 (라이브 자동매매가 진입을 못 하는데 화면상 "돌고 있음")
+
+---
+
+### BL-479
+
+**Title:** 라이브 경로에 사이징이 배선돼 있지 않다 — `compute_qty()` 가 항상 `1.0`, `position_size_pct` 는 읽히지 않는다
+**Category:** Backend / trading (라이브 포지션 사이징)
+**Priority:** **P1**
+**Trigger:** BL-478 과 함께 (진입이 열리면 즉시 수량이 문제가 된다)
+**Est:** M
+**출처:** 2026-07-26 dogfood-restore 체크리스트 B 조사
+
+**원인 / 영향:** `run_live`(`event_loop.py:270-272`)가 `run_historical` 을 **사이징 인자 없이** 호출한다.
+
+```python
+    # run_historical 전체 재실행 (warmup replay)
+    result = run_historical(source, ohlcv, capture_history=False, strict=False)
+```
+
+`run_historical` 은 `initial_capital` / `default_qty_type` / `default_qty_value` / `leverage` 를 받지만(`event_loop.py:62-76`) `configure_sizing` 은 `if initial_capital is not None` 게이트 뒤에 있다(`:107-113`). 라이브에선 `None` → 미호출 → `compute_qty()` 가 fallback `1.0` 반환(`strategy_state.py:311-317`).
+
+그 `1.0` 이 그대로 `LiveSignal.qty` → `LiveSignalEvent.qty` → `OrderRequest.quantity`(`live_signal.py:929`)로 흐른다. **1 BTC ≈ $64,000 명목.**
+
+**`StrategySettings.position_size_pct` 는 라이브에서 아무 데서도 읽히지 않는다.** 전수 분류 결과 사이징 계산에 쓰이는 유일한 자리는 `compat.parse_and_run_v2`(`compat.py:99-111`)이고, 그 함수의 프로덕션 호출자는 `backtest/engine/v2_adapter.py:96` **하나뿐**이다. `live_signal.py` 는 `parsed_settings` 를 `leverage`(`:931`)·`margin_mode`(`:932`) 두 곳에만 쓰고 `position_size_pct` 는 검증만 하고 버린다. `live_session_service.py:80` 은 필드 **존재**만 요구하고 값은 안 본다.
+
+★**Pine 선언도 마찬가지로 무시된다.** `strategy(default_qty_type=..., default_qty_value=...)` 를 선언한 스크립트조차 라이브에선 `1.0` 이다 — 추출 경로(`ast_extractor.py:259-280` → `compat.py:41-57`) 전체가 `initial_capital is not None` 게이트 뒤에 있기 때문. 즉 사이징 우선순위 사슬(Pine > form > Live)이 라이브에선 통째로 죽어 있다.
+
+**권장 접근:** `run_live` 에 자본 기준선 + 사이징을 전달한다. `position_size_pct` 는 evaluate 단계에서 이미 `parsed_settings` 로 손에 있고(`live_signal.py:396`), 없는 것은 **equity 기준선**이다 — kill-switch 가 이미 쓰는 balance provider(`live_signal.py:880-885`)를 재사용하는 게 가장 짧다. 다만 "라이브 equity 를 매 tick 거래소에서 가져올 것인가"는 지연·정합성 결정이 필요하다(BL-476 과 같은 종류의 trade-off).
+
+**BL-466 과 뿌리가 다르다** — 그쪽은 백테스트 마진 게이트 no-op(L=1), 이쪽은 라이브 배선 부재다.
+
+**Risk:** 🔴 (열리면 곧바로 과대 포지션)
+
+---
+
+### BL-480
+
+**Title:** `local_only` 판정이 화면에서 **구조적으로 렌더 불가** — 발산을 은폐하고 "포지션 없음" 이라 안심시킨다
+**Category:** Frontend / trading (Surface Trust)
+**Priority:** P2
+**Trigger:** BL-478 수정 전 (지금은 이게 유일한 발산 표면)
+**Est:** S
+**출처:** 2026-07-26 dogfood-restore 체크리스트 B 실측
+
+**원인 / 영향:** 백엔드는 발산을 **정확히 안다**. 실측(2026-07-26 04:47, 세션 `0e15c3c0`):
+
+```json
+{
+  "positions": [],
+  "local_open_trades_snapshot": [
+    { "id": "PivRevLE", "direction": "long", "qty": 1, "entry_price": 64557.51 }
+  ],
+  "diff": { "verdict": "local_only", "local_source": "strategy_state_report" }
+}
+```
+
+프론트에도 문구가 있다 — `open-positions-table.tsx:29` `local_only: "전략에만 열린 거래가 있습니다."`
+
+**그런데 그 행이 만들어지지 않는다.** `hooks.ts:161-170` 이 행을 `positions.positions` 를 순회해 만드는데, `local_only` 는 **정의상 `positions` 가 비어 있는 경우**다. 루프 본문이 한 번도 안 돌아 `rows.length === 0` → `open-positions-table.tsx:234-247` 이 대신 렌더한다:
+
+> **"열린 포지션이 없습니다. 활성 세션의 거래소 보고값에서 열린 포지션을 찾지 못했습니다."**
+
+거래소 기준으로는 참이지만, **pine 이 롱을 들고 있다고 믿는다는 사실을 적극적으로 감춘다.** 같은 이유로 `exchange_only` 도 로컬이 빈 세션에서는 죽는다. 즉 6종 verdict 중 **불일치를 뜻하는 2종이 정확히 그 상황에서만 안 보인다.**
+
+**권장 접근:** 행 생성을 `positions` 순회가 아니라 **세션 단위**로 바꾼다 — 세션마다 최소 1행을 만들고 `positions` 가 비면 verdict 와 `local_open_trades_snapshot` 을 보여주는 행으로 렌더. 회귀 방어는 `verdict='local_only' + positions=[]` 픽스처로 "열린 포지션이 없습니다" 가 **아닌** 것을 단정.
+
+**Risk:** 🟡 (Surface Trust — 화면이 아는 것을 숨긴다)
+
+---
+
 ## 운영 규약
 
 ### 신규 항목 추가
