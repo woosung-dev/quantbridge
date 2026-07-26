@@ -55,7 +55,7 @@
 
 - [ ] 사용자: Bybit demo 키 재등록 → S4 실행(출처 라벨 · 세션 커브 · 심볼 거부 D3)
 - [ ] 최종 codex 누적 diff 리뷰
-- [ ] `stage/dogfood-restore` → main PR (squash 는 사용자)
+- [x] **PR [#482](https://github.com/woosung-dev/quantbridge/pull/482)** `stage/dogfood-restore` → main — **squash 는 사용자**
 
 ---
 
