@@ -30,6 +30,7 @@ function aggregate(overrides: Record<string, unknown> = {}) {
   return {
     rows: [],
     unsupported: [],
+    divergences: [],
     latestFetchedAt: null,
     isLoading: false,
     isPending: false,

@@ -233,7 +233,9 @@ export function OpenPositionsTable({
 
   // BL-480 — 발산이 있으면 이 빈 상태로 떨어지면 안 된다. 거래소 기준으로는
   // 참이지만 전략이 포지션을 들고 있다고 믿는 사실을 적극적으로 감추게 된다.
-  const divergences = positions.divergences ?? [];
+  // ★`?? []` 로 무르게 두지 않는다 — 그러면 이 필드가 사라져도 화면이 조용히
+  //   은폐 상태로 되돌아간다. 타입 계약을 그대로 신뢰한다.
+  const { divergences } = positions;
 
   if (
     positions.rows.length === 0 &&
