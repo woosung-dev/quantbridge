@@ -5,9 +5,9 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
+**최종 갱신:** 2026-07-26 (**dogfood-restore 스프린트** — 로컬 실사용 복원 + 3스프린트 누적 신뢰 작업 실화면 검증. **BL-465/467 Resolved** + 신규 **BL-466/468~472**. ★**dogfood 가 P1 을 잡았다** — `_periodic_returns` 가 음수 자본을 안 걸러 파산한 실행에 **양수 샤프**가 붙었고(실측 -2179.68% 에 +0.029), **committed Trust Layer baseline 이 그걸 담고 있었다**(s1_pbr 샤프 +0.600 · 소르티노 +2.349 on -536%). 코퍼스 5종 중 4종이 음수 자본이고 골든이 깨진 것도 정확히 그 4종. baseline 재생성 diff = 12 메트릭 키 중 2개 한정. ★**옵티마이저는 이 스택에서 구조적으로 죽어 있었다** — `optimizer_heavy` 유일 소비자에 OHLCV env 3종 부재. ★**`make seed` 신설** — 백테스트 1회가 곧 OHLCV 시딩(TimescaleProvider cache-first). 마이그레이션 0.) // 이전: 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **80 active BL / 전체 121 항목** (2026-07-26 money-path-finish 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **86 active BL / 전체 129 항목** (2026-07-26 dogfood-restore 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 > ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 하게 남아 있었다. 산식 = `### BL-` 헤딩 수(전체) 대비 각 섹션 본문에 `Resolved` 가 등장하지 않는 항목 수(active). 부분 Resolved 는 active 로 세지 않는다(본문에 `Resolved` 문자열이 있으므로).
 >
@@ -2309,6 +2309,143 @@ JOIN trading.orders ON exchange_order_id → 0 행
 **Risk:** 🟡 (원장 귀속 결손. 소비처가 0 이라 오늘 머니-패스 영향은 없다)
 
 **Dependency:** [BL-454](#bl-454) 와 같은 뿌리(심볼 표기 비대칭)이지만 ingress 정규화로는 안 고쳐진다 — 거래소 쪽 피연산자는 구조상 원문이다.
+
+---
+
+### BL-465
+
+**Title:** `_periodic_returns` 가 음수 자본을 걸러내지 않아 파산한 실행에 양수 위험조정수익이 붙었다
+**Category:** Backend / backtest (지표 정직성)
+**Priority:** P1
+**Trigger:** 즉시
+**Est:** S (1h)
+**출처:** 2026-07-26 dogfood-restore 실화면 검증 — 백로그에 없던 신규 발견
+
+**원인 / 영향:** 기간 수익률은 `(cur - prev) / prev` 다. `prev` 가 음수면 부호가 뒤집혀 **더 잃을수록 수익률이 양수**가 된다. `_periodic_returns` 는 `prev == 0` 만 막아(분모를 고민한 흔적은 있다) 음수 구간이 그대로 통과했다.
+
+실측 — `s1_pbr` BTC/USDT 1h 2025-07-01→2026-07-25 실행이 10,000 → **-207,968**(총수익률 -2179.68%)로 끝났고 자본이 9,337 지점 중 8,874(95%)에서 음수였다. 월간 수익률 13개 중 **11개가 양수**로 계산돼 **샤프 +0.029**. BL-398(#480)이 없애려던 거짓말과 같은 부류이나 원인이 다르다 — 그쪽은 수식(bar t-통계량), 이쪽은 **분모 부호**.
+
+**★committed Trust Layer baseline 이 이걸 담고 있었다** — `s1_pbr` baseline 샤프 **+0.600** · 소르티노 **+2.349**(총수익률 -536%). 코퍼스 5종 중 4종이 자본을 음수로 몬다(s1_pbr 81.8% · s2_utbot 84.2% · i1_utbot 84.2% · s3_rsid 3.6%). 거래가 없는 `i2_luxalgo` 만 무관하고, **골든이 깨진 것도 정확히 그 4종**이다.
+
+**상태:** ✅ **Resolved (2026-07-26, `stage/dogfood-restore`).** `_has_nonpositive_equity` 술어를 `sharpe_ratio`·`sortino_ratio` 앞에 두고 신규 마커 `unavailable_nonpositive_equity` 를 반환한다. `unavailable` 과 합치지 않은 이유 — 그쪽 문구("변동이 없거나 기간이 짧아")가 파산한 계좌에는 적극적으로 틀리다. baseline 재생성 diff 는 **12 메트릭 키 중 2개**(`sharpe_ratio`·`sortino_ratio`)·해당 4 코퍼스 한정, `ohlcv_sha256` 불변, 거래수·수익률·드로다운 전부 동일.
+
+**Risk:** 🟢 (해소. 회귀 테스트 5건 — 실측 월말 계열 그대로 사용, 표본을 줄이면 큰 음수 하나가 평균을 지배해 성질이 죽는다)
+
+**Dependency:** [BL-466](#bl-466) 이 음수 자본 자체를 다룬다. 본 항목은 **그 위에서 지표가 거짓말하지 않는 것** 만 닫았다.
+
+---
+
+### BL-466
+
+**Title:** 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 (마진 게이트 no-op + 청산 없음)
+**Category:** Backend / backtest engine (모델 충실도)
+**Priority:** P2
+**Trigger:** 실자금 전 · 또는 사이징 모델 재검토 시
+**Est:** M (설계 결정 선행)
+**출처:** 2026-07-26 dogfood-restore — [BL-465](#bl-465) 조사 중 파생
+
+**원인 / 영향:** `_can_afford_entry` 는 `is_leverage_active(self.leverage)` 가 거짓이면 즉시 `True` 를 반환한다(`strategy_state.py:374`). L=1 에는 마진 개념이 없다는 #480 TV/MT5 컨벤션 결정의 귀결이고 그 자체로는 일관적이다. 문제는 **L=1 에서 청산도 없다**는 것과 겹칠 때다 — 사이징을 선언하지 않은 전략은 `compute_qty` 가 `1.0` 을 돌려주므로(`strategy_state.py:317`) 1 BTC ≈ $64,000 명목이 $10,000 자본 위에서 돌고, 손실이 무한정 누적된다. 실측 = 초기자본의 **21.8배 손실**. 현물 1x 에서는 물리적으로 불가능한 결과다.
+
+`test_mdd_exceeds_capital_when_equity_goes_negative` 가 이미 존재하므로 음수 자본은 **알려진·테스트된 조건**이었다. 다만 그 위에서 지표가 무엇을 보고해야 하는지는 정해져 있지 않았다.
+
+**권장 접근:** 선택지 3 — (a) L=1 에도 자본 소진 시 강제 종료(현물 파산 모델) (b) 무담보 명목을 자본으로 상한 (c) 현 동작 유지 + 리포트에 "이 실행은 자본을 초과해 손실했다" 명시 고지. (c) 가 가장 싸고 baseline 을 안 흔든다.
+
+**Risk:** 🟡 (숫자가 물리적으로 불가능하지만 지표는 BL-465 로 이미 입을 닫았다)
+
+---
+
+### BL-467
+
+**Title:** `backend-optimizer-heavy` 에 OHLCV 설정 3종이 없어 모든 optimizer 실행이 실패했다
+**Category:** Infra / docker-compose
+**Priority:** P1
+**Trigger:** 즉시
+**Est:** S (10m)
+**출처:** 2026-07-26 dogfood-restore 실측
+
+**원인 / 영향:** `optimizer.run` 은 `optimizer_heavy` 큐로만 라우팅되고(`celery_app.py` task_routes) `backend-optimizer-heavy` 가 유일한 소비자다. 그런데 그 서비스에 `OHLCV_PROVIDER`·`OHLCV_FIXTURE_ROOT`·`DEFAULT_EXCHANGE` 가 없어 `ohlcv_provider` 가 코드 기본값 `"fixture"` 로 떨어지고, `ohlcv_fixture_root` 는 CWD(/app) 상대라 `/app/backend/data/fixtures/ohlcv` 로 풀려 **컨테이너 안에 존재하지 않는다** → 전 실행이 `OHLCVFixtureNotFound`. 아무도 짐작 못 할 경로다.
+
+**상태:** ✅ **Resolved (2026-07-26, `stage/dogfood-restore`).** `backend-worker` 와 동일한 3종을 추가하고, 격리 오버레이에도 서비스를 등재해 다른 3 워커와 코드 세대가 갈리지 않게 했다(§7.2).
+
+**Risk:** 🟢
+
+---
+
+### BL-468
+
+**Title:** `OHLCV_FIXTURE_ROOT` 기본값이 CWD 상대라 host 실행에서 깨지고, `FixtureProvider` 는 canonical 심볼을 서빙할 수 없다
+**Category:** Backend / market_data
+**Priority:** P3
+**Trigger:** fixture provider 를 실제로 쓸 때
+**Est:** S
+
+**원인 / 영향:** ① 코드 기본값 `"backend/data/fixtures/ohlcv"` 가 프로세스 CWD 상대인데 `make be`/`make be-isolated` 는 `cd backend` 후 실행하므로 `backend/backend/…` 로 풀린다(존재하지 않음). 오늘 무해한 이유는 host uvicorn 이 `FixtureProvider.get_ohlcv()` 를 실제로 호출하지 않기 때문뿐이다. ② `FixtureProvider` 는 `root / f"{symbol}_{tf}.csv"` 를 만드는데(`fixture.py:30`) canonical `BTC/USDT` 의 슬래시가 **경로 구분자**가 되어 `<root>/BTC/USDT_1h.csv` 를 찾는다. 커밋된 픽스처는 평면 `BTCUSDT_1h.csv` 뿐 — 레포의 빈 `backend/data/fixtures/ohlcv/BTC/` 디렉터리가 과거에 누가 여기 부딪힌 흔적이다.
+
+**권장 접근:** 기본값을 레포 루트 기준 절대경로로 해석하거나, `FixtureProvider` 가 심볼의 `/` 를 파일명 안에서 치환.
+
+**Risk:** 🟡 (오늘은 timescale provider 만 쓰여서 잠복)
+
+---
+
+### BL-469
+
+**Title:** `market_data.backfill_ohlcv` 태스크가 celery 에 등록돼 있지 않고, docstring 의 실행법도 존재하지 않는다
+**Category:** Backend / tasks (dead code + 거짓 문서)
+**Priority:** P3
+**Trigger:** 백필을 태스크로 돌릴 필요가 생길 때
+**Est:** S (10m)
+
+**원인 / 영향:** `celery_app.py:29-42` `include=[…]` 10개에 `src.tasks.market_data_backfill` 이 없고 autodiscover 도 없다 → `.delay()`/`celery call` 은 `Received unregistered task` 로 끝난다. 게다가 docstring 이 안내하는 `python -m src.tasks.market_data_backfill BTC/USDT 1h 60` 은 **`__main__` 블록이 없어 무동작**이다. 직접 await 가능한 `_async_backfill` 은 동작하지만 `[now-N일, now]` 창만 표현한다.
+
+오늘 이게 안 아픈 이유 = `TimescaleProvider` 가 cache-miss 시 스스로 fetch 하므로 별도 백필이 필요 없다. 그래서 **경로 자체가 불필요할 수 있다** — 등록하기 전에 존치 여부부터 결정할 것.
+
+**Risk:** 🟢 (dead)
+
+---
+
+### BL-470
+
+**Title:** 캐논 감사 9건이 빈 DB 에서 조용히 통과한다 (데이터 전제 부재)
+**Category:** Frontend / e2e
+**Priority:** P2
+**Trigger:** 다음 캐논 baseline 재측정 시
+**Est:** S
+
+**원인 / 영향:** authed 캐논 감사는 **렌더된 것**의 하드 실패 수만 센다. 빈 DB 에서는 `StateBox` 하나만 렌더되므로 11열 표·최대 585 체결 원장이 통째로 사라진 걸 **빨간 신호 없이** 놓친다. `authed-canon-p1.spec.ts:16-18` 이 baseline 측정 조건을 명시해 뒀다(`/backtests` 6건 · `/trades` 최대 585 체결 · `/trading` 거래소 1) — 즉 조건이 문서화돼 있는데 단정되지 않는다.
+
+**권장 접근:** 각 캐논 스펙에 데이터 전제 사전조건 단정 추가(없으면 skip 이 아니라 시끄럽게 실패). `make seed` 가 그 전제를 재현 가능하게 만들어 뒀다.
+
+**Risk:** 🟡 (감사 커버리지가 조용히 증발)
+
+---
+
+### BL-471
+
+**Title:** `exchange_exits` 는 `row_hash` 멱등이라 분류 로직이 바뀌어도 기존 행이 재분류되지 않는다
+**Category:** Backend / trading (원장)
+**Priority:** P3
+**Trigger:** 분류·귀속 로직 변경 시
+**Est:** S
+
+**원인 / 영향:** 원장 적재는 `row_hash` 로 멱등이라 이미 있는 행은 건너뛴다. 그래서 BL-457(#481)이 `classify_exit` 의미를 바꿨는데도 기존 행은 pre-fix 라벨로 고착돼 있다. 실측 — 현 개발 DB 4행 중 3행이 `ours` 인데 `matched_order_id` 는 전부 NULL 이고 `orders` 는 0행이다. 포스트-#481 로직이면 `unknown` 이 나와야 한다.
+
+**권장 접근:** 재분류 마이그레이션 또는 `classification_version` 컬럼 + 버전 불일치 시 재계산.
+
+**Risk:** 🟢 (라벨 전용 축이고 소비처가 0)
+
+---
+
+### BL-472
+
+**Title:** 백테스트 목록이 정상 컨벤션(monthly/daily)에는 각주를 달지 않아 두 기준을 구분할 수 없다
+**Category:** Frontend / backtest
+**Priority:** P3
+**Trigger:** BL-461(sub-daily fallback) 처리 시 함께
+**Est:** S
+
+**원인 / 영향:** `backtest-list.tsx` 는 legacy·unavailable 계열에만 `title` 을 단다. `tv_monthly_rfr2` 와 `tv_daily_rfr2` 는 **분모 기간이 다른 별개 척도**인데 목록에서는 둘 다 그냥 숫자로 보여 나란히 정렬된다. 리포트는 각주를 달지만 목록은 달지 않는다.
+
+**Risk:** 🟢
 
 ---
 

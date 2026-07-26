@@ -1,8 +1,63 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-26 (money-path-finish 스프린트 — 머니-패스 정확도 마감 팩)
-> **Active Sprint:** **money-path-finish** — BL-457 + BL-454 + BL-458 + 신규 BL-464
-> **Active Branch:** `stage/money-path-finish` (main @ `b97ac57` 베이스)
+> **Last Updated:** 2026-07-26 (dogfood-restore 스프린트 — 로컬 실사용 복원 + 누적 신뢰 작업 실화면 검증)
+> **Active Sprint:** **dogfood-restore** — `make seed` 신설 + 3스프린트 누적 신뢰 작업 실화면 검증 + 발견 결함 수정
+> **Active Branch:** `stage/dogfood-restore` (main @ `0f84d51` 베이스)
+
+## ⚡ dogfood-restore 스프린트 (2026-07-26)
+
+**스코프**: #477·#480·#481 이 전부 **실화면 dogfood 없이** 닫혔고(07-25 DB 전소로 `ts.ohlcv` 0행 → 백테스트 불가), 세 스프린트 분량 신뢰 작업이 우리가 쓴 테스트로만 검증돼 있었다 — §7.3 이 금지하는 circular oracle. (A) 복원 경로 + (B) 실화면 검증 + (C) e2e 소생. 마이그레이션 **0**.
+
+### ★§0.5 실측이 킥오프 전제를 3건 정정했다
+
+```
+"authed 13 spec 실패" = 파일 수를 테스트 수로 오독. 실제 = 13파일/64테스트 중
+  하드 실패 6, 나머지 57 은 page.route 목킹이라 빈 DB 에서도 통과.
+  ★진짜 문제는 따로 — 캐논 감사 9건이 StateBox 만 감사하며 조용히 통과(BL-470).
+
+복원은 거의 공짜 — TimescaleProvider 가 cache-first + live CCXT fill 이라
+  백테스트 1회가 곧 시딩. 실측 9,337행 · 갭 0.
+
+프로즌 픽스처는 현재 경로에서 도달 불가 — FixtureProvider 가 canonical
+  `BTC/USDT` 의 슬래시를 경로로 해석(BL-468).
+```
+
+### ★★워커가 구 코드였다 — 그래서 legacy 행이 공짜였다
+
+착수 시 `quantbridge-worker` 가 `b97ac57`(#480) **8시간 전** 이미지로 돌고 있었다(§7.2 위반). 덕분에 **조작 0의 진짜 pre-#480 행**을 얻었다 — 계획했던 "`metrics` 에서 마커만 SQL 로 제거" 는 오히려 **부정직**했다(신 컨벤션 숫자에 구 기준 각주가 붙는다). 순서가 비가역이라 legacy 를 먼저 돌리고 워커를 bind-mount 로 교체했다(재빌드 0).
+
+### ★★dogfood 가 P1 을 잡았다 — 파산한 계좌에 양수 샤프
+
+`_periodic_returns` 가 `prev == 0` 만 막고 **`prev < 0` 을 안 막아** 자본이 음수면 부호가 뒤집힌다 → **더 잃을수록 수익률이 양수**. 실측 = 10,000 → **-207,968**(총수익률 **-2179.68%**) 실행의 월간 수익률 13개 중 11개가 양수, **샤프 +0.029**. BL-398(#480)이 없애려던 거짓말의 다른 얼굴(그쪽은 수식, 이쪽은 분모 부호).
+
+**★committed Trust Layer baseline 이 이걸 담고 있었다** — `s1_pbr` baseline 샤프 **+0.600** · 소르티노 **+2.349**(총수익률 -536%). 코퍼스 5종 중 4종이 음수 자본이고 **골든이 깨진 것도 정확히 그 4종**(거래 0인 `i2_luxalgo` 만 무관). baseline 재생성 diff = **12 메트릭 키 중 2개**(sharpe/sortino)·해당 4종 한정, `ohlcv_sha256` 불변.
+
+### Completed
+
+- [x] **S0 환경** — `docker builder prune -f`(8.9G→12.9G) · **`ts.ohlcv` hypertable 복구**(dev DB 만 평범한 테이블이었다, test DB 는 정상 = 07-25 사고 잔재. 0행이라 무료) · BE 8100 기동
+- [x] **S1 `make seed`** — `backend/scripts/seed_dogfood.py`. **실 서비스 계층 + 실 Celery** 경유(HTTP/auth 만 우회 — clerk SDK 가 `azp` 클레임을 필수로 요구해 헤드리스 HTTP 시딩이 구조적으로 불가). 함정 3종을 상수로 박음(canonical `BTC/USDT` · 격자 정렬 UTC · `exchange` NOT NULL). **멱등**
+- [x] **S2 커버리지** — 전략 3 / 백테스트 6 / 거래 3,194 / OHLCV 9,337 / optimizer 1. 샤프 4상태 전부 + 100x 청산 503
+- [x] **S3 외부 오라클 대조**(엔진 미개입) — 샤프 **양 컨벤션 독립 재계산 일치**(구 수식 6.66e-16, 신 수식 1.5e-05) · legacy↔monthly **에쿼티 9,337 포인트 바이트 동일**(격차 42배가 전부 컨벤션) · 청산수 **엔진 503 = trades 테이블 503**, 1x 대조군 0 · 청산가 **롱 최대 0.995000 / 숏 최소 1.005000 = 손수식 정확 일치**(유리한 체결 0건)
+- [x] **S5 결함 수정 4건** — **D1** 샤프 raw 렌더 **5곳**(계획은 4곳, CSV export 를 놓쳤다) → `describeSharpe` 경유 + 소스 스캔 가드 · **D2** 전체 원장 청산 사유 열(리포트 미리보기는 최신 25건 한정이라 503 청산이 안 보였다) · **BL-465** 음수 자본 가드 · **BL-467** optimizer-heavy OHLCV env
+- [x] 게이트: BE **3005**(+5) · FE **1125**(+1) · ruff/mypy/tsc/lint 0 · **canon 32 불변** · build ok · **마이그레이션 0**
+- [x] **e2e:authed 65 passed / 0 failed** — 빈 DB 하드 실패 6건 전부 초록
+- [x] 실브라우저(MCP Playwright) — 전략목록 degenerate `—` · 목록 5행 각 컨벤션 각주 · **혼재 정렬 고지 발화** · 전체 원장 "청산 사유" 열 · 콘솔 error 0
+
+### ★사용자가 알아야 할 것
+
+**Bybit demo API 키가 죽었다.** ws-stream 실측 — `00:45:02Z ws_stream_auth_failed … Params Error` → `ws_circuit_opened`(1h). 시계 드리프트는 배제(호스트·컨테이너·Bybit 서버 시각 일치). **키 재등록 전까지 S4(실주문 머니-패스 dogfood)는 불가** — #481 출처 라벨과 #477 SessionScope 는 여전히 화면 미검증이다.
+
+### Blocked
+
+- **S4 실주문 dogfood** — Bybit demo 키 재등록 대기
+
+### Next Actions
+
+- [ ] 사용자: Bybit demo 키 재등록 → S4 실행(출처 라벨 · 세션 커브 · 심볼 거부 D3)
+- [ ] 최종 codex 누적 diff 리뷰
+- [ ] `stage/dogfood-restore` → main PR (squash 는 사용자)
+
+---
 
 ## ⚡ money-path-finish 스프린트 (2026-07-26, `docs/money-path-finish/`)
 

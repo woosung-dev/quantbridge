@@ -4,7 +4,7 @@
 
 > **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`REFACTORING-BACKLOG.md`](REFACTORING-BACKLOG.md), 활성 sprint 상태 = [`TODO.md`](TODO.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
-> **최종 갱신:** 2026-07-26 (#481 money-path-finish **main 머지 완료** @`0f84d51`. ★§현황 요약에 신규 갭 등재 — 로컬 앱이 실사용 불가 상태(ohlcv 0행)이고 3스프린트 연속 실화면 dogfood 미실행). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
+> **최종 갱신:** 2026-07-26 (**dogfood-restore 완료** — 로컬 실사용 복원(`make seed`) + 3스프린트 누적 신뢰 작업 실화면 검증. 잔여 = 실주문 경로만). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
 >
 > **동기화 규약.** BL Resolved 시 (1) REFACTORING-BACKLOG.md 에서 ✅ 마킹 (2) 본 문서 해당 체크박스 `[x]` + 스프린트/PR 표기. 신규 BL 등재 시 본 문서 해당 그룹에 1행 추가. 표류 방지 = 스프린트 마감 산출물 체크리스트에 "product-roadmap.md 갱신" 포함.
 
@@ -51,7 +51,7 @@
 
 1. ✅ **backtest-trust** (완료 · PR #480 머지) — 매일 보는 백테스트 숫자 신뢰(Sharpe·레버리지 청산).
 2. ✅ **머니-패스 정확도 마감 팩** (#481 완료 — BL-457/454 Resolved · BL-458 부분 · 신규 BL-464 Resolved). **잔여 = BL-446 1건**(cumulative_loss 시간축/분모 오염 — 구조 결함이지만 실측 여유 54,117배).
-3. ★ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (★★강추 · 신규 항목) — 위 §현황 요약의 새 갭. OHLCV 0행이라 백테스트조차 못 돌리는 상태를 복원하고, 3스프린트 분량의 신뢰 작업(출처 라벨·원장 라벨·심볼 정규화)을 **우리가 쓴 테스트가 아닌 실제 화면·실주문**으로 검증한다. dogfood-first 원칙의 직접 이행이고, 과거 dogfood 가 매번 진짜 P1 을 잡았다.
+3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `make seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **잔여 = 실주문 경로**(Bybit demo 키 만료로 미실행 — #481 출처 라벨 · #477 SessionScope 화면 미검증).
 4. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
 5. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 6. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
@@ -78,7 +78,15 @@
 - [ ] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
 - [ ] **BL-461** [P3] `_periodic_returns` daily fallback 이 sub-daily 를 "1 bar = 1 day" 로 계산 — resample 부재. sortino 도 동일 영향이라 고치면 baseline 2 metric 확산
 - [ ] **BL-462** [P3] Sharpe 목록 정렬 신·구 컨벤션 혼재 — `repository.py:75` 가 원시 JSONB 숫자만 캐스팅. 현재는 FE 고지로 대응, 완전 해소는 read-time recompute
-- [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기 — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
+- [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기
+- [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
+- [ ] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
+- [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**
+- [ ] **BL-468** [P3] `OHLCV_FIXTURE_ROOT` CWD 상대 기본값 + `FixtureProvider` 가 canonical 슬래시 심볼 미지원
+- [ ] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead)
+- [ ] **BL-470** [P2] 캐논 감사 9건이 빈 DB 에서 조용히 통과(데이터 전제 부재)
+- [ ] **BL-471** [P3] `exchange_exits` row_hash 멱등 → 분류 로직 변경 시 기존 행 재분류 경로 부재
+- [ ] **BL-472** [P3] 백테스트 목록이 monthly/daily 컨벤션 각주 미표기 — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
 
 ## 3) 리팩토링 부채 (80 OPEN · P0 1 / P1 6 / P2 26 / P3 47)
 
