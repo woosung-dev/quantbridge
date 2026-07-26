@@ -119,7 +119,7 @@ BE **3005**(+5) · FE **1125**(+1) · ruff·mypy·tsc·lint 0 · **canon 32 불�
 
 위 "미완" 절은 실패 원인을 **API 키 만료**로 적었고 사용자에게 재등록을 요청했다. **틀렸다.** 독립 HMAC 오라클로 REST 를 치니 **양쪽 키 모두 `retCode 0`**(자산 846,921.08)이었다. 기존 키는 2026-10-26 까지 유효했고 거래 권한도 있었다.
 
-진짜 원인은 **우리 WS 인증 코드**였다 → [BL-473](../REFACTORING-BACKLOG.md#bl-473). `expires` 를 `now+1s` 로 보내는데 프레임이 Bybit 에 닿을 때 이미 만료돼 `Params Error` 로 거부된다. 통제 실험 —
+진짜 원인은 **우리 WS 인증 코드**였다 → [BL-473](../backlog.md#bl-473). `expires` 를 `now+1s` 로 보내는데 프레임이 Bybit 에 닿을 때 이미 만료돼 `Params Error` 로 거부된다. 통제 실험 —
 
 ```
 +1s → success=False "Params Error"   (demo·mainnet 동일)
@@ -144,7 +144,7 @@ BE **3005**(+5) · FE **1125**(+1) · ruff·mypy·tsc·lint 0 · **canon 32 불�
 테스트 주문 다이얼로그  leverage=NULL  margin_mode=NULL  has_leverage=false  → spot
 ```
 
-우리 주문 `2267433208968908032` 는 Bybit **spot** 히스토리에만 있다(숫자형 ID; linear 는 UUID). 청산 원장·포지션 코크핏·`exchange_exits` 는 전부 linear 만 보므로, **이 도구로 낸 체결은 `realized_pnl_synced_at` 을 영원히 못 받고 원장에도 안 뜬다.** "dogfood-only" 도구가 프로덕션이 쓰는 시장을 연습하지 않는다 → [BL-474](../REFACTORING-BACKLOG.md#bl-474).
+우리 주문 `2267433208968908032` 는 Bybit **spot** 히스토리에만 있다(숫자형 ID; linear 는 UUID). 청산 원장·포지션 코크핏·`exchange_exits` 는 전부 linear 만 보므로, **이 도구로 낸 체결은 `realized_pnl_synced_at` 을 영원히 못 받고 원장에도 안 뜬다.** "dogfood-only" 도구가 프로덕션이 쓰는 시장을 연습하지 않는다 → [BL-474](../backlog.md#bl-474).
 
 ★내가 "최소 노출" 이라고 전략 레버리지를 1 로 둔 것도 같은 함정을 지났다 — 레버리지 1 은 위험만 줄이는 게 아니라 **시장 유형을 바꾼다**.
 

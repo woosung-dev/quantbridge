@@ -29,9 +29,9 @@ Sprint {N}을 시작하려고 해.
 
 다음 문서를 참조해서 Sprint {N} 범위 옵션 매트릭스 제시:
 
-- docs/TODO.md §Sprint {N}+ 이관 (이전 sprint에서 이관된 미완 항목)
-- docs/superpowers/specs/ 최신 spec §10.5 (세부 사유/긴급도 맥락)
-- docs/03_api/endpoints.md (다음 도메인 후보)
+- docs/status.md §Sprint {N}+ 이관 (이전 sprint에서 이관된 미완 항목)
+- docs/archive/superpowers/specs/ 최신 spec §10.5 (세부 사유/긴급도 맥락)
+- docs/reference/endpoints.md (다음 도메인 후보)
 - CLAUDE.md §현재 컨텍스트 (도메인 진행 순서)
 
 ### 옵션 매트릭스 축 (sprint별 조정)
@@ -134,7 +134,7 @@ Sprint 1~4 패턴 답습:
 
 - Draft로 시작 → Sprint 완료 시 `gh pr ready <N>` + WIP 타이틀 제거
 - Description: test plan 체크리스트 + milestone 테이블 + review trail
-- Sprint 완료 표시: `docs/TODO.md` 업데이트
+- Sprint 완료 표시: `docs/status.md` 업데이트
 
 ## 완료 기준 (DoD)
 
@@ -153,8 +153,8 @@ Milestone 단위 checkpoint:
 
 ## 참고 파일
 
-- `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` — spec 포맷
-- `docs/superpowers/plans/YYYY-MM-DD-<topic>.md` — plan 포맷
+- `docs/archive/superpowers/specs/YYYY-MM-DD-<topic>-design.md` — spec 포맷
+- `docs/archive/superpowers/plans/YYYY-MM-DD-<topic>.md` — plan 포맷
 - `.ai/stacks/fastapi/backend.md` — Router/Service/Repository 3-Layer 규칙
 - `.ai/common/global.md` — 전역 워크플로우 규칙
 - `CLAUDE.md` — 프로젝트 고유 규칙 (Celery 비동기, Decimal, AES-256)

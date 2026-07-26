@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://quantbridge.internal/schemas/baseline_metrics.schema.json",
   "title": "Trust Layer P-3 Baseline Metrics",
-  "description": "Path β Trust Layer CI — P-3 Execution Golden 의 baseline 스키마. 6 corpus × corpus_ohlcv_frozen.parquet 실행 결과의 metrics + digests 스냅샷. Stage 1 (2026-04-23) 정의, Stage 2 에서 실 값 채움. 관련: docs/dev-log/020-trust-layer-ci-design.md §4.3.",
+  "description": "Path β Trust Layer CI — P-3 Execution Golden 의 baseline 스키마. 6 corpus × corpus_ohlcv_frozen.parquet 실행 결과의 metrics + digests 스냅샷. Stage 1 (2026-04-23) 정의, Stage 2 에서 실 값 채움. 관련: docs/decisions/020-trust-layer-ci-design.md §4.3.",
   "type": "object",
   "required": [
     "schema_version",

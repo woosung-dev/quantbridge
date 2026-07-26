@@ -1,7 +1,8 @@
 # QuantBridge — TradingView Pine Script 전략 → 백테스트·데모·라이브 트레이딩 퀀트 플랫폼
 
-> **새 AI 세션 첫 step:** `CONTEXT.md` (도메인 헌법 — 용어/관계 SSOT, Stage 0) + 본 파일 + `docs/TODO.md` (활성 sprint 상태) + `docs/REFACTORING-BACKLOG.md` (open BL) + `docs/product-roadmap.md` (남은 작업 로드맵 — 매 세션 다음 후보 확인 + 완료 체크) 5 종 읽기.
-> 본 파일은 **stable orientation** 만 보존. Sprint-specific narrative 는 `docs/TODO.md`, 회고/ADR 은 `docs/dev-log/INDEX.md`.
+> **새 AI 세션 첫 step — 3 종만 읽는다.** `CONTEXT.md` (도메인 헌법 — 용어/관계 SSOT) + 본 파일 + `docs/status.md` (활성 sprint).
+> `docs/roadmap.md` (다음 후보) 와 `docs/backlog.md` (open BL) 은 **필요할 때 열어본다** — 통째로 읽지 않는다.
+> 본 파일은 **stable orientation** 만 보존. Sprint narrative 는 `docs/status.md`, 회고는 `docs/dev-log/INDEX.md`, 결정 근거는 `docs/decisions/`.
 
 ---
 
@@ -41,18 +42,15 @@
 
 ---
 
-## 문서화 구조 (Plan → Docs → Review → Implement 루프)
+## 문서
 
-| docs/ 위치              | 용도                     |
-| ----------------------- | ------------------------ |
-| `00_project/`           | 프로젝트 개요            |
-| `01_requirements/`      | PRD, 기능 명세 (REQ-)    |
-| `02_domain/`            | 도메인 모델, ERD (ENT-)  |
-| `03_api/`               | API 명세 (API-)          |
-| `04_architecture/`      | 시스템 설계              |
-| `05_env/` ~ `07_infra/` | 환경 설정, CI/CD, 인프라 |
-| `dev-log/`              | ADR (의사결정 기록)      |
-| `guides/` · `TODO.md`   | 가이드, 활성 작업 추적   |
+- **지금 상태** — `docs/status.md`(활성 sprint) · `docs/roadmap.md`(다음 후보) · `docs/backlog.md`(BL 원장)
+- **정본** — `docs/reference/`. 코드와 어긋나면 **코드가 맞다**, 문서를 고쳐라
+- **결정 근거** — `docs/decisions/`. 규칙 변경 전 필독. 폐기는 삭제가 아니라 `Superseded` 표기
+- **끝난 것** — `docs/archive/`. 읽기 전용, 기존 항목 수정 금지
+- 전체 목차 = `docs/README.md`
+
+**스프린트가 끝나면 그 스프린트 문서를 승격(`reference/`) 하거나 강등(`archive/`) 한다. 그대로 두지 않는다** (`docs/guides/sprint-template.md` §9).
 
 ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-` 백로그. 한 번 부여한 ID 재사용 금지.
 
@@ -79,12 +77,12 @@ ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-`
 - **Trading** — CCXT 데모·라이브 주문 실행, 리스크 관리, Kill Switch
 - **Market Data** — OHLCV 수집, TimescaleDB 저장, 실시간 가격 스트림
 
-### 활성 sprint / BL / dev-log
+### 활성 sprint / 이력
 
-- **활성 sprint 상태 / 다음 분기 결정:** [`docs/TODO.md`](docs/TODO.md)
-- **미해결 BL:** [`docs/REFACTORING-BACKLOG.md`](docs/REFACTORING-BACKLOG.md)
-- **남은 작업 로드맵 / 다음 후보 (매 세션 체크):** [`docs/product-roadmap.md`](docs/product-roadmap.md)
+- **활성 sprint 상태 / 다음 분기 결정:** [`docs/status.md`](docs/status.md)
 - **전체 sprint 이력:** [`docs/dev-log/INDEX.md`](docs/dev-log/INDEX.md)
+
+> 나머지 문서 위치는 위 **§문서** 참조 — 여기서 중복 나열하지 않는다.
 
 ---
 

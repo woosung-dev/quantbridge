@@ -32,7 +32,7 @@ class SessionScope:
       닫았다**. dispatch 와 수동 청산은 세션 심볼을 그대로 복사하므로 구조적으로 항상
       일치한다. 술어를 느슨하게 바꿀 이유는 없다.
 
-    수용한 트레이드오프 1 종 — 되돌리기 전에 `docs/exit-money-path/` 를 읽을 것.
+    수용한 트레이드오프 1 종 — 되돌리기 전에 `docs/archive/sprints/exit-money-path/` 를 읽을 것.
 
     - 창은 `filled_at` 기준 반열림 `[started_at, ended_at)` 이다. 세션 종료 뒤에
       체결된 주문(늦은 체결)은 인접 세션이 있으면 그쪽으로, 없으면 어디에도 안

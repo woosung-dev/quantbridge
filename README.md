@@ -96,7 +96,7 @@ open http://localhost:3000                          # FE 홈 → Clerk 로그인
 cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 기준)
 ```
 
-상세 셋업·환경변수·트러블슈팅은 **[`docs/05_env/local-setup.md`](docs/05_env/local-setup.md)** 참조.
+상세 셋업·환경변수·트러블슈팅은 **[`docs/reference/local-setup.md`](docs/reference/local-setup.md)** 참조.
 
 ---
 
@@ -108,15 +108,15 @@ cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 
 | [`DESIGN.md`](DESIGN.md)                             | Stage 2 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                                                          |
 | [`QUANTBRIDGE_PRD.md`](QUANTBRIDGE_PRD.md)           | 제품 요구사항                                                                                               |
 | [`docs/`](docs/)                                     | 설계 산출물 (00_project ~ 07_infra) · ADR (`dev-log/`) · 로컬 셋업 (`05_env/`) · 프로토타입 (`prototypes/`) |
-| [`docs/TODO.md`](docs/TODO.md)                       | Sprint 진행 상태 + 백로그                                                                                   |
-| [`docs/superpowers/plans/`](docs/superpowers/plans/) | superpowers:writing-plans 산출물 (Sprint별 implementation plan)                                             |
+| [`docs/status.md`](docs/status.md)                       | Sprint 진행 상태 + 백로그                                                                                   |
+| [`docs/archive/superpowers/plans/`](docs/archive/superpowers/plans/) | superpowers:writing-plans 산출물 (Sprint별 implementation plan)                                             |
 | [`.ai/rules/`](.ai/rules/)                           | 스택별 강제 규칙 (backend.md, frontend.md, typescript.md 등)                                                |
 
 ---
 
 ## Sprint 진행 요약 (2026-04-17 기준 — ⚠ Sprint 7c 에서 고정, 이력 스냅샷)
 
-> **현행 sprint 상태·이력은 [`docs/TODO.md`](docs/TODO.md) + [`docs/dev-log/INDEX.md`](docs/dev-log/INDEX.md) SSOT** (현재 Sprint 60+, Beta 진입). 아래 표는 Sprint 1-7c 초기 이력만.
+> **현행 sprint 상태·이력은 [`docs/status.md`](docs/status.md) + [`docs/dev-log/INDEX.md`](docs/dev-log/INDEX.md) SSOT** (현재 Sprint 60+, Beta 진입). 아래 표는 Sprint 1-7c 초기 이력만.
 
 | Sprint      | 내용                                                                                           | 상태                        |
 | ----------- | ---------------------------------------------------------------------------------------------- | --------------------------- |

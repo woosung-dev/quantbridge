@@ -103,8 +103,8 @@ Sprint 52 BL-222 fix 이전 (2026-05-04 ~ 2026-05-11) 생성된 Cost Assumption 
 **권고 (사용자 manual 의무)**:
 
 - 본인 dogfood Sprint 50/51 안에서 실행한 CA/PS 결과는 신뢰하지 말고 Sprint 52 fix 머지 후 재실행.
-- `docs/dogfood/sprint42-feedback.md` Day 7 row 작성 시 명시.
-- `docs/TODO.md` 에 affected stress_test id 또는 date range 기록.
+- `docs/archive/dogfood/sprint42-feedback.md` Day 7 row 작성 시 명시.
+- `docs/status.md` 에 affected stress_test id 또는 date range 기록.
 
 ## Phase 3 path (Sprint 53+ 갱신)
 

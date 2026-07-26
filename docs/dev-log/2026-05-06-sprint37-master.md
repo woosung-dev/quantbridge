@@ -68,7 +68,7 @@ f0c547c PR #162 chore(sprint37): BL-184/185/186 등록 + AGENTS 갱신 (PR4 docs
 
 ### PR #162 docs — BL-184/185/186 등록 + AGENTS 갱신
 
-- `docs/REFACTORING-BACKLOG.md` BL-184/185/186 신규 등록 + BL-150/176 Resolved 갱신
+- `docs/backlog.md` BL-184/185/186 신규 등록 + BL-150/176 Resolved 갱신
 - `AGENTS.md` "현재 컨텍스트" Sprint 36 → Sprint 37 transition
 
 ### PR #163 infra — pre-push hook branch-prefix 화이트리스트
@@ -254,5 +254,5 @@ dogfood Day 7 검증 시 사용자가 백테스트 폼 `default_qty_value` 입�
 - Sprint 36 dogfood Day 7 entry: `docs/dev-log/2026-05-06-dogfood-day7-sprint36.md` (BL-183 발견 + Day 7 ≤6/10 borderline)
 - 직전 Sprint 35 retro (master 포맷 차용): `docs/dev-log/2026-05-05-sprint35-master-retrospective.md`
 - office-hours design doc: `~/.gstack/projects/quant-bridge/woosung-main-design-20260506-084244.md`
-- BACKLOG: `docs/REFACTORING-BACKLOG.md` (BL-183/184/185/187/187a/188a Resolved + BL-186/188 신규 deferred)
+- BACKLOG: `docs/backlog.md` (BL-183/184/185/187/187a/188a Resolved + BL-186/188 신규 deferred)
 - Playwright Day 7 screenshots: `.claude/playwright-day7/01-04-*.png`

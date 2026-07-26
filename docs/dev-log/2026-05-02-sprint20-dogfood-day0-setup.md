@@ -71,7 +71,7 @@ EMA crossover 가 4월 변동성에서 over-trading + whip-saw + short entry 의
 
 ### §3.4 BL-091 등록 (P1 / M)
 
-`docs/REFACTORING-BACKLOG.md` BL-091 신규. Sprint 21+ proper fix:
+`docs/backlog.md` BL-091 신규. Sprint 21+ proper fix:
 
 - `_get_exchange_provider(account: ExchangeAccount) -> ExchangeProvider` 시그니처 변경
 - account 의 `(exchange, mode)` tuple 기반 dynamic dispatch
@@ -273,7 +273,7 @@ ws-stream:
 ## §10. Atomic Update (본 sprint 운영)
 
 - 본 dev-log: `docs/dev-log/2026-05-02-sprint20-dogfood-day0-setup.md` ✅
-- 백로그: `docs/REFACTORING-BACKLOG.md` BL-091 등록 ✅
+- 백로그: `docs/backlog.md` BL-091 등록 ✅
 - 코드: `docker-compose.yml` worker/beat 에 `EXCHANGE_PROVIDER` env 라인 추가 ✅
 - 환경: `.env` `EXCHANGE_PROVIDER=bybit_demo` (gitignored, no commit)
 - 다음: 사용자 self-assessment 후 `stage/h2-sprint20` 브랜치 + commit + 사용자 stage→main PR

@@ -2,7 +2,7 @@
 # Pine 배치 QA 용 실제 Bybit OHLCV 4 세트(2024·최근1년 × 1h·4h) 수집 + 검증 스크립트
 """Pine 코퍼스 배치 백테스트용 고정 OHLCV 데이터 수집.
 
-배경 (2026-07-12 QA, docs/qa/2026-07-12-pine-batch-1h4h):
+배경 (2026-07-12 QA, docs/archive/qa/2026-07-12-pine-batch-1h4h):
 - 기존 `data/fixtures/ohlcv/BTCUSDT_1h.csv` 는 Sprint 4 합성 데이터 —
   8,760봉 중 ~77% 가 OHLC 불변식(high>=max(o,c), low<=min(o,c)) 위반.
   실제 전략 백테스트 결과가 무의미하고 stop 주문 fill 로직이 왜곡됨.

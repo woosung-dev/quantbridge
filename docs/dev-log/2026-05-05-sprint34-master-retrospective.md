@@ -227,6 +227,6 @@ mid-dogfood 가 **PR #150 머지 직후 진행** = Sprint 33 lesson #1 직접 �
 - codex session: `019df7cc-c59a-7e51-b89e-ae87a724e8c1`
 - 직전 Sprint 33 retro: `docs/dev-log/2026-05-05-sprint33-master-retrospective.md`
 - ADR-019 (Surface Trust): `docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md`
-- BACKLOG: `docs/REFACTORING-BACKLOG.md` (변경 이력 entry 갱신 + BL-177-A/B/C / BL-178 / BL-179 신규 등록)
+- BACKLOG: `docs/backlog.md` (변경 이력 entry 갱신 + BL-177-A/B/C / BL-178 / BL-179 신규 등록)
 - mid-dogfood Day 6.5: `docs/dev-log/2026-05-05-dogfood-day-6.5.md`
 - mid-dogfood screenshot: `docs/dev-log/screenshots/2026-05-05-sprint34-mid-dogfood-detail.png`

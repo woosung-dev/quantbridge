@@ -21,7 +21,7 @@ Sprint 41 = 외부 사용자 첫 5분 가치 확보. 3 worker 자율 병렬 (Spr
 | 1    | H      | 백테스트 share link (PDF P1 deferral)              | PR #179 머지 |
 | 2    | B-2    | 프로토타입 기반 App Shell + 4 페이지 visual layout | PR #180 머지 |
 
-**Wave 2 추가 정당화**: dogfood 시점에 사용자가 "기존이랑 달라진게 없는것 같다 + `docs/prototypes/` 12 HTML 활용" 보고 → 첫 prereq 답변 ("DESIGN.md 기반 polish") 시점에 prototypes 가 인지 안 됨이 root cause. B 산출 (token 정합 + radius 4px 미세 조정) 은 시각 변화 미미 → B-2 가 진짜 visual 변화 추가.
+**Wave 2 추가 정당화**: dogfood 시점에 사용자가 "기존이랑 달라진게 없는것 같다 + `docs/reference/prototypes/` 12 HTML 활용" 보고 → 첫 prereq 답변 ("DESIGN.md 기반 polish") 시점에 prototypes 가 인지 안 됨이 root cause. B 산출 (token 정합 + radius 4px 미세 조정) 은 시각 변화 미미 → B-2 가 진짜 visual 변화 추가.
 
 ---
 
@@ -131,7 +131,7 @@ clipboard 자동 복사 + toast / og:image 시각 / 모바일 viewport sidebar �
 
 - **LESSON-048 후보 1/3**: **Playwright MCP + 인증 cookie 활용 자동 dogfood** — 메인 세션 browser 가 사용자 Clerk cookie 보유 시 인증 필요 페이지 자동 검증 가능. 본 sprint 에서 10/10 자동 검증 (App Shell / Full Dark / share full flow / og:image) → manual dogfood 시간 1/3 단축 + 회귀 결정성 확보. 일관 적용 시 LESSON 승격.
 - **LESSON-049 후보 1/3**: **codex G.4 P1 P2 즉시 fix 패턴** — worker pr_ready 후 codex review P2 발견 시 (a) cmux send 로 worker 자체 iter +1 또는 (b) 메인 세션이 worktree 에서 직접 push (worker session stuck 시) 모두 LESSON-035 worker isolation 의 "branch swap 금지" 와 양립 가능. 본 sprint H race condition / B-2 status filter 2건 모두 5-15분 내 fix + stage 머지 검증.
-- **LESSON-050 후보 1/3**: **Sprint kickoff 시 사용자 prereq 답변에 design source 명시 의무** — Sprint 41 의 첫 prereq 답변 ("DESIGN.md 기반 polish") 시점에 `docs/prototypes/` 12 HTML 가 인지 안 됨 → Worker B 가 token 정합 미세 조정만 → 사용자 dogfood 인지 X → Wave 2 (B-2) 추가 spawn 발생. 다음 sprint 부터 디자인 트랙 prereq 질문에 "디자인 source = \_\_\_ (DESIGN.md / 프로토타입 디렉토리 / Figma / .pen / 없음)" 4지선다 명시.
+- **LESSON-050 후보 1/3**: **Sprint kickoff 시 사용자 prereq 답변에 design source 명시 의무** — Sprint 41 의 첫 prereq 답변 ("DESIGN.md 기반 polish") 시점에 `docs/reference/prototypes/` 12 HTML 가 인지 안 됨 → Worker B 가 token 정합 미세 조정만 → 사용자 dogfood 인지 X → Wave 2 (B-2) 추가 spawn 발생. 다음 sprint 부터 디자인 트랙 prereq 질문에 "디자인 source = \_\_\_ (DESIGN.md / 프로토타입 디렉토리 / Figma / .pen / 없음)" 4지선다 명시.
 
 ---
 

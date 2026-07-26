@@ -52,7 +52,7 @@
 
 - `make be-isolated` + `make fe-isolated` Stack live (BE 8100 / FE 3100)
 - 본인 backtest `f7670303` 위에 MC + WFA + CA submit 자동화
-- screenshot 5장 저장 (`docs/dogfood/sprint50-stress-test-screens/`):
+- screenshot 5장 저장 (`docs/archive/dogfood/sprint50-stress-test-screens/`):
   - 01 overview tab + AssumptionsCard
   - 02 stress-test tab + AssumptionsCard 표시 (codex P1#3 시각 검증) ✅
   - 03 Monte Carlo fan chart + 4 통계
@@ -162,4 +162,4 @@ dogfood Day 7 (2026-05-16) + 본인 의지 second gate 결과 따라:
 - **신규 LESSON 후보**: 1건 (LESSON-066 — Playwright e2e SAEnum case mismatch 잡음)
 - **시간**: ≈12-15h (사용자 결정 scope 10-12h + Playwright e2e 자동화 + BL-221 hotfix 추가)
 - **codex G.0**: 1회 (518k tokens, GO_WITH_FIXES)
-- **Playwright MCP screenshot**: 5장 (`docs/dogfood/sprint50-stress-test-screens/`)
+- **Playwright MCP screenshot**: 5장 (`docs/archive/dogfood/sprint50-stress-test-screens/`)

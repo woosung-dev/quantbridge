@@ -164,7 +164,7 @@ PR 수 metric 폐기. dogfood-grade quality 단일 metric.
 
 ## 6. 미해결 BL 갱신 권장 (Sprint 32 진입 전)
 
-`docs/REFACTORING-BACKLOG.md` 에 신규 BL 추가:
+`docs/backlog.md` 에 신규 BL 추가:
 
 - BL-163~167 (Day 3+ 발견)
 - BL-168 (P0 alembic auto-apply)
@@ -186,5 +186,5 @@ PR 수 metric 폐기. dogfood-grade quality 단일 metric.
 - `docs/dev-log/2026-05-05-sprint30-master-retrospective.md` (Sprint 30 회고 + Day 3 4/10)
 - `docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md` (ADR-019)
 - `docs/dev-log/2026-05-05-sprint31-pine-v6-compat-adr.md` (BL-161)
-- `docs/REFACTORING-BACKLOG.md`
+- `docs/backlog.md`
 - codex session: `019df68f-3ed3-7ac0-b3e9-d0a47c87f7d2` (resume 가능)

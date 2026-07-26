@@ -15,7 +15,7 @@ Tier 1/2 refactor audit (`deep-jumping-treehouse.md` plan) 의 코드 + 메타 l
 | ---- | ------------------------------------------------------------------- | ----------------- |
 | #273 | refactor(tasks): `_worker_engine` SSOT 추출 (10 task file 통합)     | -163              |
 | #274 | refactor(pine): Pine v1 legacy 2407L 제거 (pine_v2 SSOT 단독화)     | -4838             |
-| #275 | docs(backlog): `REFACTORING-BACKLOG.md` 1028→587L 압축              | -441              |
+| #275 | docs(backlog): `backlog.md` 1028→587L 압축              | -441              |
 | #276 | docs(backlog): 158 BL → 13 Active 트리아주 + archived/deferred 분리 | -300 (+분리 파일) |
 | #277 | refactor(backtest-form): 866L → 232L 5-split                        | -634 (+분리)      |
 
@@ -54,9 +54,9 @@ Tier 1/2 refactor audit (`deep-jumping-treehouse.md` plan) 의 코드 + 메타 l
   - P0 (1): BL-003 (mainnet runbook)
   - P1 (7): BL-014 partial fill / BL-015 OKX WS / BL-022 golden 재생성 / BL-023 KIND-B/C / BL-024 real_broker E2E / BL-025 autonomous-parallel patch / BL-026 mutation fixture
   - P2 (5): BL-186 full leverage / BL-190 PDF export / BL-195 form animation / BL-235 N-dim viz / BL-236 objective whitelist
-- **Deferred 8** ([`refactoring-backlog/_deferred.md`](../refactoring-backlog/_deferred.md)): BL-005 + BL-070~075 Beta + BL-145
-- **Archived 137** ([`refactoring-backlog/_archived.md`](../refactoring-backlog/_archived.md)): 모든 ✅ Resolved + Sprint 16~30 stale + P3 전부
-- `docs/TODO.md` "89 active BL" → "13 active BL" 갱신
+- **Deferred 8** ([`refactoring-backlog/_deferred.md`](../archive/refactoring-backlog/_deferred.md)): BL-005 + BL-070~075 Beta + BL-145
+- **Archived 137** ([`refactoring-backlog/_archived.md`](../archive/refactoring-backlog/_archived.md)): 모든 ✅ Resolved + Sprint 16~30 stale + P3 전부
+- `docs/status.md` "89 active BL" → "13 active BL" 갱신
 
 ### PR-E #277 — backtest-form 5-split
 

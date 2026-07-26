@@ -10,7 +10,7 @@ cp .env.example .env.local       # frontend 전용 env (Next.js 자동 로드)
 pnpm dev                         # http://localhost:3000
 ```
 
-> `.env.example`은 **서비스별 분리**. frontend는 `frontend/.env.example` 사용 (NEXT_PUBLIC_* 3개만). backend/docker 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/05_env/local-setup.md#2-클론--환경-설정) 참조.
+> `.env.example`은 **서비스별 분리**. frontend는 `frontend/.env.example` 사용 (NEXT_PUBLIC_* 3개만). backend/docker 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/reference/local-setup.md#2-클론--환경-설정) 참조.
 
 ## 필수 환경 변수 (`frontend/.env.example` 참조)
 
@@ -67,4 +67,4 @@ src/
 
 1. `pnpm dlx shadcn@latest init` 후 Button/Card/Input 등 기본 컴포넌트 설치
 2. `features/strategy/api.ts` + `hooks.ts` — FastAPI `/strategies` 연동
-3. 랜딩 페이지 (`docs/prototypes/00-landing.html`) → 실제 컴포넌트로 포팅
+3. 랜딩 페이지 (`docs/reference/prototypes/00-landing.html`) → 실제 컴포넌트로 포팅

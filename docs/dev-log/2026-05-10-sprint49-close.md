@@ -9,7 +9,7 @@
 | PR   | BL                      | Track | 변경                                                                                                                                                                                        | 검증                                                                                                                   |
 | ---- | ----------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | #249 | BL-203/204 shim removal | A     | 49 files / +220 / -479 line. 3 commit 분할 (A1 src/ 17 / A2 tests/ 30 + shim test 2 삭제 / A3 shim 2 삭제). 176 import line + 13 monkeypatch alias 사이트 + shim 4 파일 cleanup.            | pytest 1016 PASS / 0 FAILED / 180 errors (환경 baseline 동일). ruff 0 / mypy 0 / zero-gate 0 line / import smoke PASS. |
-| #250 | dogfood Track B Day 0   | B     | `docs/dogfood/sprint42-cohort-outreach.md` Day 0 prereq **6 → 9 항목 확장** + 각 항목 명령 1줄 inline. 신규 3 = Bybit Demo walkthrough / share token 만료 정책 / 외부 시크릿 브라우저 검증. | Day 0 prereq 섹션 9 line / 절대날짜 grep '2026-05-[0-9]{2}' Day 0 prereq 섹션 = 0 line (codex Fix #7).                 |
+| #250 | dogfood Track B Day 0   | B     | `docs/archive/dogfood/sprint42-cohort-outreach.md` Day 0 prereq **6 → 9 항목 확장** + 각 항목 명령 1줄 inline. 신규 3 = Bybit Demo walkthrough / share token 만료 정책 / 외부 시크릿 브라우저 검증. | Day 0 prereq 섹션 9 line / 절대날짜 grep '2026-05-[0-9]{2}' Day 0 prereq 섹션 = 0 line (codex Fix #7).                 |
 
 **합계:** 2 PR / 50 files / 회귀 0 / 신규 tests = 0 (refactor only + docs only).
 
@@ -137,7 +137,7 @@ Sprint 48 close-out 시점 신규 등재 LESSON. Sprint 49 = **Sprint 단위 1�
 **Sprint 50 첫 step = 사용자 manual sprint42-feedback.md 발송일 timestamp 기록 검증**:
 
 - 본 sprint = 발송 timestamp 기록 = 사용자 manual (placeholder 채움 의무)
-- Sprint 50 메인 세션 진입 시 `grep '발송일.*2026-05' docs/dogfood/sprint42-feedback.md` 검증 의무 (codex Fix #7 absolute date 의무)
+- Sprint 50 메인 세션 진입 시 `grep '발송일.*2026-05' docs/archive/dogfood/sprint42-feedback.md` 검증 의무 (codex Fix #7 absolute date 의무)
 
 **Sprint 47/48 shim wrapper 1 sprint 만료 패턴 = Sprint 49 검증 통과**:
 

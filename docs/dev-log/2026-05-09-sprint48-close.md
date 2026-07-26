@@ -57,7 +57,7 @@ Sprint 47 = cmux 6번째 wall-clock ≈45min. **Sprint 48 = superpowers `subagen
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Fix #1: B → C 순차 (cmux 충돌 비용)                              | ✅ B 머지 후 C 진입 / import 충돌 0                                              |
 | Fix #2: BL-201 invariants (D2 sizing/sessions/V2RunResult/ValueError) | ✅ Worker A 5 invariant test 보존 / classify_script 변경 0                        |
-| Fix #3: Worker D scope = docs/dogfood/* + day7-midcheck.md 만 | ✅ write scope 위반 0 (TODO/backlog/sprint48-close.md 변경 0)                      |
+| Fix #3: Worker D scope = docs/archive/dogfood/* + day7-midcheck.md 만 | ✅ write scope 위반 0 (TODO/backlog/sprint48-close.md 변경 0)                      |
 | Fix #4: services/live_session_service.py module-level state 0 | ✅ Worker C audit test 가 module attribute 0 검증 + BL-084 scope 확장             |
 | Fix #5: LESSON-064 bounded audit                              | ✅ Worker E caller trace 1 + identity 4/4 + dead-code 0 / over-engineering 0     |
 | Fix #6: shim 1 sprint 유지                                    | ✅ service.py + repository.py 둘 다 1 sprint shim wrapper / Sprint 49 제거 TODO  |

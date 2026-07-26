@@ -102,9 +102,9 @@ fi
 ### Sprint 56 PR #261 과의 conflict 검증
 
 - 영향 파일 disjoint:
-  - PR #261 → `backend/src/optimizer/*` / `frontend/src/*` / `docs/dev-log/2026-05-11-sprint56-close.md` / `docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` / `docs/REFACTORING-BACKLOG.md` (BL-233 row) / `docs/dev-log/INDEX.md` (Sprint 56 row) / `AGENTS.md`.
-  - 본 PR → `package.json` / `.husky/pre-push` / `docs/REFACTORING-BACKLOG.md` (BL-238/239/240 row) / `docs/dev-log/2026-05-11-sprint56-chore-prereq-cicd.md` (신규).
-- `docs/REFACTORING-BACKLOG.md` 양쪽 변경 = 서로 다른 BL row → conflict 없음 (git 3-way merge 자동 해결).
+  - PR #261 → `backend/src/optimizer/*` / `frontend/src/*` / `docs/dev-log/2026-05-11-sprint56-close.md` / `docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` / `docs/backlog.md` (BL-233 row) / `docs/dev-log/INDEX.md` (Sprint 56 row) / `AGENTS.md`.
+  - 본 PR → `package.json` / `.husky/pre-push` / `docs/backlog.md` (BL-238/239/240 row) / `docs/dev-log/2026-05-11-sprint56-chore-prereq-cicd.md` (신규).
+- `docs/backlog.md` 양쪽 변경 = 서로 다른 BL row → conflict 없음 (git 3-way merge 자동 해결).
 
 ---
 
@@ -123,7 +123,7 @@ fi
 ## 5. 후속 의무
 
 - (사용자) `backend/.env.local` 에 `TEST_DATABASE_URL=...` / `TEST_REDIS_LOCK_URL=...` 추가 (BL-240 효과 발현 prereq).
-- Sprint 57+ runbook (`docs/06_devops/runbook.md` 또는 신규) 에 BL-240 환경 변수 예시 명시 권장.
+- Sprint 57+ runbook (`docs/reference/runbook.md` 또는 신규) 에 BL-240 환경 변수 예시 명시 권장.
 
 ---
 

@@ -107,7 +107,7 @@ up-isolated-build:
 # backend-worker / backend-ws-stream / backend-beat 3 서비스 한정으로
 # `./backend/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
-# 패키지 변경은 image rebuild 의무 (ADR docs/07_infra/2026-05-06-bl-181-*).
+# 패키지 변경은 image rebuild 의무 (ADR docs/reference/infra/2026-05-06-bl-181-*).
 up-isolated-watch:
 	docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 

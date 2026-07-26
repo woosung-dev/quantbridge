@@ -1,7 +1,7 @@
 # 2026-07-26 — money-path-finish 스프린트 회고
 
 > 머니-패스 정확도 마감 팩. **BL-457 + BL-454 + BL-458(부분) + 신규 BL-464.** 마이그레이션 **0**.
-> 계약 = [`../money-path-finish/operating-contract.md`](../money-path-finish/operating-contract.md) · 결정 = [`../money-path-finish/context-notes.md`](../money-path-finish/context-notes.md)
+> 계약 = [`../money-path-finish/operating-contract.md`](../archive/sprints/money-path-finish/operating-contract.md) · 결정 = [`../money-path-finish/context-notes.md`](../archive/sprints/money-path-finish/context-notes.md)
 
 ---
 

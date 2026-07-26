@@ -73,7 +73,7 @@ dogfood Day 1-2 의 broken bug 패턴 (Sprint 6 webhook commit / Sprint 13 Order
 
 #### Phase 2.3 — dogfood guide 업데이트 ✅
 
-- [x] `docs/07_infra/dogfood-day2-7-guide.md` §3 — `make fe-e2e-authed` + 만료 시 재생성 절차
+- [x] `docs/reference/infra/dogfood-day2-7-guide.md` §3 — `make fe-e2e-authed` + 만료 시 재생성 절차
 
 ### Track 2 — Backend test 강화
 
@@ -294,7 +294,7 @@ dogfood Day 1-2 의 broken bug 패턴 (Sprint 6 webhook commit / Sprint 13 Order
 - 이전 sprint dev-log: [`2026-05-03-sprint24b-auto-dogfood.md`](./2026-05-03-sprint24b-auto-dogfood.md) (Track 1 자동 dogfood) · [`2026-05-03-sprint24a-ws-stability.md`](./2026-05-03-sprint24a-ws-stability.md) (Track 2 WS 안정화)
 - plan 파일: `~/.claude/plans/claude-plans-h2-sprint-25-prompt-md-snappy-bee.md` (v3, ~600 lines + Edge Cases 19)
 - codex G.0 session: `019ded09-8442-7c63-8193-2e671f9f8601` (iter 1+2 = 1.9M tokens)
-- 운영: `docs/07_infra/dogfood-day2-7-guide.md` · `docs/REFACTORING-BACKLOG.md`
+- 운영: `docs/reference/infra/dogfood-day2-7-guide.md` · `docs/backlog.md`
 
 ---
 

@@ -73,6 +73,6 @@
 ## Cross-link
 
 - Sprint 36 retro: 미작성 (Sprint 37 kickoff 시 작성 예정)
-- BL-183: `docs/REFACTORING-BACKLOG.md` P2 테이블
+- BL-183: `docs/backlog.md` P2 테이블
 - PR #157 (BL-150 + BL-176): merged `main` 2026-05-06
 - dogfood Day 6.5: `docs/dev-log/2026-05-05-dogfood-day-6.5.md`

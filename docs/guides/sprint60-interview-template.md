@@ -1,7 +1,7 @@
 # Sprint 60 진입 prereq — Day 7 인터뷰 2 tier 카톡 template
 
 > **목적**: dogfood Day 7 (2026-05-16) 인터뷰 진행용. **외부 사용자 부담 최소화** — Tier 1 (30초 객관식) + Tier 2 (선택, 자유 텍스트).
-> **결과 기록 위치**: [`docs/dogfood/sprint42-feedback.md`](../dogfood/sprint42-feedback.md) 의 `Friend 1` / `Friend 2` 섹션 + `Day 7 mid-check row`.
+> **결과 기록 위치**: [`docs/archive/dogfood/sprint42-feedback.md`](../archive/dogfood/sprint42-feedback.md) 의 `Friend 1` / `Friend 2` 섹션 + `Day 7 mid-check row`.
 > **인터뷰 후 의사결정**: 4-AND gate 통과 여부 → Sprint 60 분기 (a/b/c/d) 결정. **Tier 1 만으로 분기 가능**.
 
 ---
@@ -145,7 +145,7 @@
 
 ## 관련 cross-link
 
-- [`docs/dogfood/sprint42-feedback.md`](../dogfood/sprint42-feedback.md) — 결과 기록 위치
+- [`docs/archive/dogfood/sprint42-feedback.md`](../archive/dogfood/sprint42-feedback.md) — 결과 기록 위치
 - [`docs/guides/demo-onboarding.md`](demo-onboarding.md) — 첫 가입 5분 시나리오 가이드
-- [`docs/REFACTORING-BACKLOG.md`](../REFACTORING-BACKLOG.md) — Sprint 60 진입 후 신규 BL 등재
+- [`docs/backlog.md`](../backlog.md) — Sprint 60 진입 후 신규 BL 등재
 - [`docs/dev-log/2026-05-13-sprint59-close.md`](../dev-log/2026-05-13-sprint59-close.md) — Sprint 59 결과 + Sprint 60 prereq 명시

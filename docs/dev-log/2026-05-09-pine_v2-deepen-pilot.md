@@ -60,7 +60,7 @@ YouTube _"How to fix an AI-fucked Codebase"_ (John Ousterhout _A Philosophy of S
 
 ## Phase 4 등재
 
-### `docs/REFACTORING-BACKLOG.md` 신규 BL 2건 (P2 섹션)
+### `docs/backlog.md` 신규 BL 2건 (P2 섹션)
 
 - **BL-200** — pine_v2 STDLIB triple SSOT 단일화 (`stdlib_registry.py` 신설)
   - **현 상태:** `STDLIB_NAMES` 가 interpreter.py:55-77 (19개) / stdlib.py:598-660 dispatch (19개) / coverage.py:26-46 `_TA_FUNCTIONS` (17개, na/nz 누락) 3중 SSOT
@@ -175,7 +175,7 @@ registry 패턴 디폴트 의무.
 
 - [x] `~/.claude/skills/deepen-modules/SKILL.md` 존재 (9836 bytes)
 - [x] available-skills 목록에 `deepen-modules` 등록 (auto-discover)
-- [x] `docs/REFACTORING-BACKLOG.md` 에 BL-200 / BL-201 신규 row (P2 섹션 끝)
+- [x] `docs/backlog.md` 에 BL-200 / BL-201 신규 row (P2 섹션 끝)
 - [x] BL 항목의 영향 파일 경로 실제 존재 확인 (interpreter.py / stdlib.py / coverage.py / compat.py / ast_classifier.py / virtual_strategy.py — `ls backend/src/strategy/pine_v2/` 검증 가능)
 - [x] `.ai/common/global.md` §7.5 신규 + 적용 의무 시점 표 1줄 추가
 - [x] dev-log 본 파일 작성

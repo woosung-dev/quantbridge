@@ -197,7 +197,7 @@ Sprint 28 종료 후 본인 dogfood:
 
 - plan v2: `~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`
 - LESSON 후보: `.ai/project/lessons.md` LESSON-037 entry
-- 영구 규칙 출처: `docs/04_architecture/pine-execution-architecture.md` (Slice C 갱신 후)
+- 영구 규칙 출처: `docs/reference/pine-execution-architecture.md` (Slice C 갱신 후)
 - baseline snapshot: `docs/dev-log/2026-05-04-sprint29-baseline-snapshot.md` (Slice C 안 작성)
 - heikinashi ADR: `docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md` (Slice A 안 작성)
 

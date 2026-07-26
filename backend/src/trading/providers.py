@@ -698,7 +698,7 @@ def _to_bybit_linear_symbol(symbol: str) -> str:
 class BybitFuturesProvider:
     """Bybit futures (Linear Perpetual, USDT margined) demo/live provider.
 
-    Spec decisions (docs/dev-log/007-sprint7a-futures-decisions.md):
+    Spec decisions (docs/decisions/007-sprint7a-futures-decisions.md):
     - Q1: BybitDemoProvider 파라미터화 대신 별도 클래스 (심볼/설정/에러 표면이 다름)
     - Q3: One-way position mode only (Hedge는 CCXT 이슈 #24848)
 

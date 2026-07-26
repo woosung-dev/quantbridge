@@ -110,4 +110,4 @@ mid-dogfood Day 6.5 PASS = sprint 진행 정상. Day 7 = sprint 끝 사용자 �
 - Sprint 33 master retro: `docs/dev-log/2026-05-05-sprint33-master-retrospective.md`
 - PR #150 (BL-175): https://github.com/woosung-dev/quantbridge/pull/150
 - PR #149 (BL-177): https://github.com/woosung-dev/quantbridge/pull/149
-- BL-178 신규 후보: `docs/REFACTORING-BACKLOG.md` (Sprint 34 종료 시 등록)
+- BL-178 신규 후보: `docs/backlog.md` (Sprint 34 종료 시 등록)

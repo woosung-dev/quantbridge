@@ -63,4 +63,4 @@ dogfood = automated test (vitest 398 + e2e all pass) 가 잡지 못하는 critic
 
 - Sprint 33 retro: `docs/dev-log/2026-05-05-sprint33-master-retrospective.md`
 - BL-175 hotfix PR #146 / BL-176 hotfix PR #147 / BL-177 신규 등록
-- BACKLOG: `docs/REFACTORING-BACKLOG.md` 변경 이력 entry
+- BACKLOG: `docs/backlog.md` 변경 이력 entry

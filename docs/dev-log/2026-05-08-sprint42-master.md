@@ -42,7 +42,7 @@ Sprint 42 = \_\_\_ (Day 14 시점 사용자 보강).
 - 본인 backtest **_ (전략 _**, 기간 **_) + share token _**
 - 본인 backtest **_ (전략 _**, 기간 **_) + share token _** (선택)
 
-### Phase 2 — 1-2주 dogfood + feedback (`docs/dogfood/sprint42-feedback.md` 누적)
+### Phase 2 — 1-2주 dogfood + feedback (`docs/archive/dogfood/sprint42-feedback.md` 누적)
 
 > live 누적 기록 → Day 14 close-out 시점 요약 옮겨 적기.
 
@@ -119,7 +119,7 @@ Sprint 42 = \_\_\_ (Day 14 시점 사용자 보강).
 
 ## 5. 신규 BL 등록 (Sprint 42 dogfood 발견)
 
-> `docs/dogfood/sprint42-feedback.md` 의 BL 큐 candidate → BL-XXX 부여 후 `docs/REFACTORING-BACKLOG.md` 등재.
+> `docs/archive/dogfood/sprint42-feedback.md` 의 BL 큐 candidate → BL-XXX 부여 후 `docs/backlog.md` 등재.
 
 | BL      | 우선순위 | trigger | 1-line | 발견자                     |
 | ------- | -------- | ------- | ------ | -------------------------- |
@@ -166,7 +166,7 @@ Sprint 42 = \_\_\_ (Day 14 시점 사용자 보강).
 
 ## Cross-link
 
-- feedback 누적: [`docs/dogfood/sprint42-feedback.md`](../dogfood/sprint42-feedback.md)
+- feedback 누적: [`docs/archive/dogfood/sprint42-feedback.md`](../archive/dogfood/sprint42-feedback.md)
 - Day 7 mid-check: [`docs/dev-log/2026-05-XX-sprint42-day7-midcheck.md`](2026-05-08-sprint42-day7-midcheck.md) (Day 7 도래 시 rename)
 - onboarding 가이드: [`docs/guides/demo-onboarding.md`](../guides/demo-onboarding.md)
 - Sprint 42 prompt: [`<repo>/.claude/plans/sprint42-demo-friend-open-prompt.md`](../../.claude/plans/sprint42-demo-friend-open-prompt.md) (gitignored)

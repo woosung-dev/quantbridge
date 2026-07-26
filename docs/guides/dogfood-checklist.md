@@ -2,7 +2,7 @@
 
 > **역할 구분:**
 >
-> - 환경 셋업 + 리스크 대응은 [`07_infra/h1-testnet-dogfood-guide.md`](../07_infra/h1-testnet-dogfood-guide.md) 이 SSOT.
+> - 환경 셋업 + 리스크 대응은 [`07_infra/h1-testnet-dogfood-guide.md`](../reference/infra/h1-testnet-dogfood-guide.md) 이 SSOT.
 > - 본 문서는 **Path β (Tier-2 Trust Layer CI 병행 dogfood)** 의 일일/주간 **관찰·기록 시트**.
 > - 중복은 최소화 — 여기선 **Path β 특화 지표** (backtest predicted vs live realized 편차, Coverage Analyzer 실사용 감지) 만 추적.
 

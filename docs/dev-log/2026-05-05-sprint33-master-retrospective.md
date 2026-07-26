@@ -93,7 +93,7 @@ session `019df729` / medium tier / **124,335 tokens** / Verdict = **GO_WITH_FIXE
 ### PR #142 (Worker C) BL-071 audit — codex P1-2 surgery
 
 - 코드 변경 0
-- `docs/07_infra/cloud-run-runbook.md` 신규 (393 lines) — 7 절:
+- `docs/reference/infra/cloud-run-runbook.md` 신규 (393 lines) — 7 절:
   1. Background — Sprint 30 ε B1/B3/B6 자산 인용
   2. Topology decision matrix — api/worker/beat/ws_stream × Cloud Run service vs job vs single-instance
   3. healthz Celery 의존이 Cloud Run readiness probe race 위험 분석 (옵션 A `/livez` 분리 권장)
@@ -269,6 +269,6 @@ session `019df729` / medium tier / **124,335 tokens** / Verdict = **GO_WITH_FIXE
 - codex session: `019df729-8c98-7130-b265-0ba62f4993ff`
 - 직전 Sprint 32 retro: `docs/dev-log/2026-05-05-sprint32-master-retrospective.md`
 - ADR-019 (Surface Trust): `docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md`
-- BACKLOG: `docs/REFACTORING-BACKLOG.md` (변경 이력 entry 갱신)
-- BL-071 runbook: `docs/07_infra/cloud-run-runbook.md` (Sprint 33 신규)
+- BACKLOG: `docs/backlog.md` (변경 이력 entry 갱신)
+- BL-071 runbook: `docs/reference/infra/cloud-run-runbook.md` (Sprint 33 신규)
 - dogfood Day 6 dev-log: `docs/dev-log/2026-05-05-dogfood-day6.md` (사용자 점수 입력 후 작성)

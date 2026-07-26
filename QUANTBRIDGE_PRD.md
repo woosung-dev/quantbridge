@@ -6,9 +6,9 @@
 >
 > - 백테스트 = **`pine_v2` 자체 AST 인터프리터** (vectorbt/backtrader 아님; vectorbt 는 지표계산 보조로 강등 — ADR-011)
 > - Optimizer = **scikit-optimize + 자체구현 GA** (Optuna 아님 — ADR-013)
-> - Phase 1-4 16주 선형 타임라인 → dogfood-first Sprint 모델 (`docs/00_project/phase-vs-sprint-mapping.md`)
+> - Phase 1-4 16주 선형 타임라인 → dogfood-first Sprint 모델 (`docs/reference/project/phase-vs-sprint-mapping.md`)
 >
-> 목표·전략·현황 SSOT = `docs/00_project/vision.md` · `roadmap.md` · `AGENTS.md` · `docs/TODO.md`. 본 문서는 **historical reference**.
+> 목표·전략·현황 SSOT = `docs/reference/project/vision.md` · `roadmap.md` · `AGENTS.md` · `docs/status.md`. 본 문서는 **historical reference**.
 
 ## 프로젝트 정의
 

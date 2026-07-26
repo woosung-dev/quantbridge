@@ -1,0 +1,1 @@
+../stacks/nextjs/frontend.md

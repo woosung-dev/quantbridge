@@ -33,13 +33,13 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
 
 **Files (Phase B):**
 
-- `docs/01_requirements/requirements-overview.md` — Phase 1.5b 신규 + Phase 2/3 일정 재산정
-- `docs/01_requirements/domain-progress-matrix.md` — 7 도메인 × 6 컬럼 매트릭스 (신규)
-- `docs/00_project/phase-vs-sprint-mapping.md` — Phase 0~4 ↔ Sprint 1~28 ↔ H1/H2 (신규)
-- `docs/00_project/roadmap.md:88-106` — H1 종료 정량 gate (Prometheus alert / dogfood Day N / BL P0 잔여)
-- `docs/00_project/beta-path-decision.md` — Path A1/B framework + 결정 trigger (신규)
-- `docs/REFACTORING-BACKLOG.md` — 50→81+ 갱신
-- `docs/01_requirements/requirements-overview.md` — REQ-WS / REQ-AUTH / REQ-TRD / REQ-OPS 4 카테고리 추가
+- `docs/reference/requirements-overview.md` — Phase 1.5b 신규 + Phase 2/3 일정 재산정
+- `docs/reference/domain-progress-matrix.md` — 7 도메인 × 6 컬럼 매트릭스 (신규)
+- `docs/reference/project/phase-vs-sprint-mapping.md` — Phase 0~4 ↔ Sprint 1~28 ↔ H1/H2 (신규)
+- `docs/reference/project/roadmap.md:88-106` — H1 종료 정량 gate (Prometheus alert / dogfood Day N / BL P0 잔여)
+- `docs/reference/project/beta-path-decision.md` — Path A1/B framework + 결정 trigger (신규)
+- `docs/backlog.md` — 50→81+ 갱신
+- `docs/reference/requirements-overview.md` — REQ-WS / REQ-AUTH / REQ-TRD / REQ-OPS 4 카테고리 추가
 
 **Files (Phase C):**
 
@@ -48,7 +48,7 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
 - `.github/pull_request_template.md` — codex Gates 섹션 추가
 - `.claude/settings.json` — `hooks` 키 신규 (Stop / SessionStart)
 - `.husky/pre-commit` — dev-log INDEX 갱신 reminder (선택, reminder only)
-- `docs/TODO.md` — 메타 헤더 표준화 (Last Updated / Active Sprint / Recent BLs)
+- `docs/status.md` — 메타 헤더 표준화 (Last Updated / Active Sprint / Recent BLs)
 
 **검증:** `~/.claude/plans/dreamy-dancing-pizza.md` 의 Phase B/C 검증 표 100% 충족.
 
@@ -94,13 +94,13 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
 
 **도메인:** Trading (Risk Management) — BE 검증 (FE 영향 X)
 
-**증거:** `docs/REFACTORING-BACKLOG.md` BL-004 (P0, in-progress) — `docs/00_project/roadmap.md:54,131` (Kill Switch capital_base 레버리지 반영 검증). [ADR-006 미해결]
+**증거:** `docs/backlog.md` BL-004 (P0, in-progress) — `docs/reference/project/roadmap.md:54,131` (Kill Switch capital_base 레버리지 반영 검증). [ADR-006 미해결]
 
 **Files (예상):**
 
 - `backend/src/services/trading/kill_switch.py` — capital_base 동적 fetch_balance 호출
 - `backend/src/services/trading/kill_switch_test.py` — 통합 테스트 (Bybit Demo 실측)
-- `docs/dev-log/006-sprint6-design-review-summary.md` — ADR-006 결의 (capital_base 동적 명시)
+- `docs/decisions/006-sprint6-design-review-summary.md` — ADR-006 결의 (capital_base 동적 명시)
 
 **검증:**
 
@@ -121,7 +121,7 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
 
 ### Stage 2 — 디자인 (이미 완료)
 
-- `docs/prototypes/` 12 HTML + DESIGN.md 활용. 단 Slice 2 (Backtest UI) + Slice 3 (equity curve) 는 prototypes 02 (`02-backtest-report.html`) reference.
+- `docs/reference/prototypes/` 12 HTML + DESIGN.md 활용. 단 Slice 2 (Backtest UI) + Slice 3 (equity curve) 는 prototypes 02 (`02-backtest-report.html`) reference.
 
 ### Stage 3 — Sprint 계획 (새 세션 첫 진입)
 
@@ -133,7 +133,7 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
 
 #### Step 0 — office-hours 재진행 (O-11, 140분 포함 사전, 의무)
 
-**근거:** 처음 office-hours (`docs/dev-log/008-sprint7c-scope-decision.md`, 2026-04-17) 의 Q4 (narrowest wedge) Q5 (observation) 답이 dogfood 3개월 결과로 **부분 무효화**:
+**근거:** 처음 office-hours (`docs/decisions/008-sprint7c-scope-decision.md`, 2026-04-17) 의 Q4 (narrowest wedge) Q5 (observation) 답이 dogfood 3개월 결과로 **부분 무효화**:
 
 - Q4 "Strategy CRUD UI 단독" → 4 신규 도메인 (WebSocket Stability / Auth Trust Layer / Auto-Loop / Multi-account)
 - Q5 "curl/psql 감내" → Auto-Loop 자동화 필수 판명
@@ -156,8 +156,8 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
    - Q1 demand reality — 본인 dogfood 만족도 정량 (시스템 / UX / 종합)
 
 3. **(30분 산출물)**:
-   - `docs/dev-log/008-sprint7c-scope-decision.md` 말미 "2026-05-04 office-hours Addendum" 섹션 추가
-   - `docs/00_project/vision.md` + `docs/00_project/roadmap.md` 5-10줄 추가 (4 신규 도메인 + Auto-Loop)
+   - `docs/decisions/008-sprint7c-scope-decision.md` 말미 "2026-05-04 office-hours Addendum" 섹션 추가
+   - `docs/reference/project/vision.md` + `docs/reference/project/roadmap.md` 5-10줄 추가 (4 신규 도메인 + Auto-Loop)
    - 본 산출물 = Slice 1 Phase B (PRD/Roadmap 갱신) 의 사전 input
 
 #### Step 1-4 — Slice 별 brainstorming + writing-plans + codex G0 (Sprint type 차등, 4.5h)
@@ -278,8 +278,8 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
    - 핵심 발견 3-line 요약
 9. (50분 본진행) /office-hours skill — Q4 narrowest wedge 재정의 + Q5 observation 재정의 + Q1-indie 변형
 10. (30분 산출물):
-    - docs/dev-log/008-sprint7c-scope-decision.md 말미 "2026-05-04 Addendum"
-    - docs/00_project/vision.md + roadmap.md 5-10줄 추가 (4 신규 도메인)
+    - docs/decisions/008-sprint7c-scope-decision.md 말미 "2026-05-04 Addendum"
+    - docs/reference/project/vision.md + roadmap.md 5-10줄 추가 (4 신규 도메인)
     - 본 산출물 = Slice 1 Phase B PRD 갱신 input
 
 === Stage 3 — Step 1-4: Slice 별 brainstorming + writing-plans + codex G0 (Sprint type 차등) ===
@@ -324,7 +324,7 @@ Phase A audit 에서 발견된 PRD/Roadmap/workflow 격차 (Phase B+C) 를 dogfo
 - **Phase A 결과:** `docs/dev-log/INDEX.md` (Sprint 1-28 매트릭스), `docs/_archive/2026-Q2-h1/next-session/INDEX.md` (12 파일 archive)
 - **dogfood Day 1 finding:** `docs/dev-log/2026-05-04-dogfood-day1-sprint27-launch.md` (BL-140/141 발견 근거)
 - **활성 Sprint 27 회고:** `docs/dev-log/2026-05-04-sprint27-beta-prereq-hotfix.md`
-- **Beta path framework:** `docs/00_project/roadmap.md:88-106` (H1→H2 gate, 정량화는 Slice 1 Phase B.4 산출물)
+- **Beta path framework:** `docs/reference/project/roadmap.md:88-106` (H1→H2 gate, 정량화는 Slice 1 Phase B.4 산출물)
 - **CLAUDE.md "현재 컨텍스트":** Sprint 28 진입 시 갱신
 
 ---
