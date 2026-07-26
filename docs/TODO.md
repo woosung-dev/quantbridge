@@ -47,9 +47,17 @@
 
 **Bybit demo API 키가 죽었다.** ws-stream 실측 — `00:45:02Z ws_stream_auth_failed … Params Error` → `ws_circuit_opened`(1h). 시계 드리프트는 배제(호스트·컨테이너·Bybit 서버 시각 일치). **키 재등록 전까지 S4(실주문 머니-패스 dogfood)는 불가** — #481 출처 라벨과 #477 SessionScope 는 여전히 화면 미검증이다.
 
+### ★S4 실주문 — 진단 정정 + 부분 완주
+
+**"키 만료" 진단이 틀렸다.** 독립 HMAC 오라클로 REST 를 치니 **양쪽 키 모두 `retCode 0`**(자산 846,921.08). 진짜 원인은 **우리 WS 인증 `expires` 창이 +1s** 라 왕복 지연에 먹힌 것(**BL-473 Resolved**, 통제 실험 +1s 실패 / +10s·+60s 성공). 사용자에게 불필요한 키 재등록을 시켰다. 새 키는 `readOnly: 1` 로 생성돼 거래 불가였고 기존 키로 진행했다.
+
+**검증됨** — Bybit 데모 **실주문 체결**(독립 오라클로 거래소 확인) · **BL-454 심볼 정규화 실경로 작동**(다이얼로그 `BTCUSDT` → `Order.symbol` canonical `BTC/USDT`) · 라이브 신호 경로 종단(`live_signal_events` dispatched + 주문 연결 + pine_v2 추정 손익) · **D3 수정 화면 확인**(`API 422 …` → `Cannot normalize symbol: BTCUSDT.P`).
+
+**★신규 발견 BL-474** — 테스트 주문 다이얼로그는 `has_leverage=false` 라 **spot** 으로, 라이브 신호는 `true` 라 **linear perp** 로 나간다. 청산 원장·코크핏은 linear 만 보므로 **이 도구로 머니-패스를 dogfood 하면 조용히 아무것도 검증하지 못한다.**
+
 ### Blocked
 
-- **S4 실주문 dogfood** — Bybit demo 키 재등록 대기
+- **출처 라벨(#481)·SessionScope(#477) 화면 검증** — linear perp 체결이 청산까지 가야 확정/추정이 섞인다. 라이브 세션은 1분마다 평가 중이나 PbR 피벗 신호 미발생(`events_inserted: 0`). 시드로 만들면 조작이라 하지 않음
 
 ### Next Actions
 

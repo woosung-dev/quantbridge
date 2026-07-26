@@ -51,7 +51,7 @@
 
 1. ✅ **backtest-trust** (완료 · PR #480 머지) — 매일 보는 백테스트 숫자 신뢰(Sharpe·레버리지 청산).
 2. ✅ **머니-패스 정확도 마감 팩** (#481 완료 — BL-457/454 Resolved · BL-458 부분 · 신규 BL-464 Resolved). **잔여 = BL-446 1건**(cumulative_loss 시간축/분모 오염 — 구조 결함이지만 실측 여유 54,117배).
-3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `make seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **잔여 = 실주문 경로**(Bybit demo 키 만료로 미실행 — #481 출처 라벨 · #477 SessionScope 화면 미검증).
+3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `make seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **실주문 부분 완주** — 데모 실체결 + 심볼 정규화 실경로 확인. ★키 만료 진단은 **오진**이었고 진짜 원인은 WS `expires` 창(BL-473). **잔여 = 출처 라벨·SessionScope 화면 검증**(linear perp 청산까지 가야 확정/추정이 섞인다).
 4. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
 5. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 6. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
@@ -86,7 +86,9 @@
 - [ ] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead)
 - [ ] **BL-470** [P2] 캐논 감사 9건이 빈 DB 에서 조용히 통과(데이터 전제 부재)
 - [ ] **BL-471** [P3] `exchange_exits` row_hash 멱등 → 분류 로직 변경 시 기존 행 재분류 경로 부재
-- [ ] **BL-472** [P3] 백테스트 목록이 monthly/daily 컨벤션 각주 미표기 — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
+- [ ] **BL-472** [P3] 백테스트 목록이 monthly/daily 컨벤션 각주 미표기
+- [x] **BL-473** [P1] Bybit private WS 인증 `expires` 창 +1s 가 왕복 지연에 먹혀 **라이브 체결 스트리밍이 죽어 있었다** — ✅ **dogfood-restore 완료**. 통제 실험(+1s 실패 / +10s·+60s 성공)으로 격리, 10s 로 확대
+- [ ] **BL-474** [P2] 테스트 주문 다이얼로그가 **spot** 으로 나가는데 라이브 신호는 **linear perp** — 청산 원장·코크핏이 linear 만 보므로 이 도구로 한 머니-패스 dogfood 는 조용히 무효 — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
 
 ## 3) 리팩토링 부채 (80 OPEN · P0 1 / P1 6 / P2 26 / P3 47)
 

@@ -111,9 +111,57 @@ BE **3005**(+5) · FE **1125**(+1) · ruff·mypy·tsc·lint 0 · **canon 32 불�
 
 ---
 
+---
+
+## S4 실주문 — 사용자 키 재등록 후 (같은 세션 후속)
+
+### ★진단이 틀렸고, 그게 사용자에게 헛수고를 시켰다
+
+위 "미완" 절은 실패 원인을 **API 키 만료**로 적었고 사용자에게 재등록을 요청했다. **틀렸다.** 독립 HMAC 오라클로 REST 를 치니 **양쪽 키 모두 `retCode 0`**(자산 846,921.08)이었다. 기존 키는 2026-10-26 까지 유효했고 거래 권한도 있었다.
+
+진짜 원인은 **우리 WS 인증 코드**였다 → [BL-473](../REFACTORING-BACKLOG.md#bl-473). `expires` 를 `now+1s` 로 보내는데 프레임이 Bybit 에 닿을 때 이미 만료돼 `Params Error` 로 거부된다. 통제 실험 —
+
+```
++1s → success=False "Params Error"   (demo·mainnet 동일)
++10s → success=True
++60s → success=True
+```
+
+**지연 의존이라 회귀처럼 안 보인다.** #472 dogfood 때는 WS 실주문 4점이 통과했다. 10s 로 넓히고(문서화된 ±5s 드리프트 허용과 같은 크기 이상) 라이브 검증 = 양쪽 계정 `ws_stream_connected`.
+
+**교훈** — "키가 죽었다" 는 그럴듯한 서사였고 로그 문구(`Check API key validity, IP whitelist, system clock`)가 그쪽을 가리켰다. 하지만 그건 **우리가 쓴 에러 메시지**지 거래소의 진단이 아니다. 외부 오라클을 먼저 쳤어야 했다.
+
+### 새로 등록된 키는 읽기 전용이었다
+
+`GET /v5/user/query-api` 실측 — 신규 키 `readOnly: 1`, 기존 키 `readOnly: 0`. 그래서 신규 키로 낸 주문은 `retCode 10005 Permission denied` 로 거부됐다. 기존 키로 세션을 옮겨 진행.
+
+### ★테스트 주문 다이얼로그는 라이브와 다른 시장으로 나간다
+
+실주문이 체결됐다 — 하지만 dispatch snapshot 을 보니 —
+
+```
+라이브 신호 주문      leverage=1  margin_mode=isolated  has_leverage=true   → linear perp
+테스트 주문 다이얼로그  leverage=NULL  margin_mode=NULL  has_leverage=false  → spot
+```
+
+우리 주문 `2267433208968908032` 는 Bybit **spot** 히스토리에만 있다(숫자형 ID; linear 는 UUID). 청산 원장·포지션 코크핏·`exchange_exits` 는 전부 linear 만 보므로, **이 도구로 낸 체결은 `realized_pnl_synced_at` 을 영원히 못 받고 원장에도 안 뜬다.** "dogfood-only" 도구가 프로덕션이 쓰는 시장을 연습하지 않는다 → [BL-474](../REFACTORING-BACKLOG.md#bl-474).
+
+★내가 "최소 노출" 이라고 전략 레버리지를 1 로 둔 것도 같은 함정을 지났다 — 레버리지 1 은 위험만 줄이는 게 아니라 **시장 유형을 바꾼다**.
+
+### 검증된 것
+
+- **Bybit 데모 실주문 체결** — `filled`, `filled_quantity 0.001`, 거래소 주문 ID 저장. 독립 오라클로 거래소 히스토리에서 확인.
+- **BL-454 심볼 정규화가 실경로에서 작동** — 다이얼로그에 거래소 원문 `BTCUSDT` 를 넣었는데 `Order.symbol` 은 canonical `BTC/USDT` 로 저장됐다.
+- **라이브 신호 경로 종단 작동** — `live_signal_events` 가 `dispatched` 로 생기고 주문에 연결, `realized_pnl 44.2`(pine_v2 추정)까지 실렸다. 거부 사유는 읽기 전용 키뿐이었다.
+- **D3 수정 화면 확인** — `API 422 /api/v1/live-sessions` → **`Cannot normalize symbol: BTCUSDT.P`**. 바로 다음 실패(Live Settings 미설정)도 실제 안내문으로 떴다.
+
+### 여전히 미검증
+
+**출처 라벨(#481)과 SessionScope(#477) 는 아직 화면에서 못 봤다.** 필요 조건이 남아 있다 — linear perp 체결이 **청산까지** 가서 `realized_pnl` 이 생기고, 스윕이 `realized_pnl_synced_at` 을 채워 **확정/추정이 섞여야** 칩 두 개가 서로 다른 값을 읽는다. 지금 라이브 세션은 1분마다 평가 중이지만 PbR 피벗 신호가 아직 나지 않았다(`events_inserted: 0`). 시드로 만들 수 있지만 그건 조작이라 하지 않았다.
+
 ## 신규 BL
 
-**BL-465**(P1, ✅ Resolved) 음수 자본 위험조정수익 · **BL-466**(P2) L=1 무제한 음수 자본 · **BL-467**(P1, ✅ Resolved) optimizer-heavy OHLCV env · **BL-468**(P3) `OHLCV_FIXTURE_ROOT` CWD 상대 + FixtureProvider 슬래시 · **BL-469**(P3) `backfill_ohlcv` 미등록 + 거짓 docstring · **BL-470**(P2) 캐논 감사 헛통과 · **BL-471**(P3) 원장 재분류 경로 부재 · **BL-472**(P3) 목록 컨벤션 각주 부재.
+**BL-465**(P1, ✅ Resolved) 음수 자본 위험조정수익 · **BL-466**(P2) L=1 무제한 음수 자본 · **BL-467**(P1, ✅ Resolved) optimizer-heavy OHLCV env · **BL-468**(P3) `OHLCV_FIXTURE_ROOT` CWD 상대 + FixtureProvider 슬래시 · **BL-469**(P3) `backfill_ohlcv` 미등록 + 거짓 docstring · **BL-470**(P2) 캐논 감사 헛통과 · **BL-471**(P3) 원장 재분류 경로 부재 · **BL-472**(P3) 목록 컨벤션 각주 부재 · **BL-473**(P1, ✅ Resolved) WS auth `expires` 창 · **BL-474**(P2) 테스트 주문 다이얼로그가 spot 으로 나감.
 
 ---
 

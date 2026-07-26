@@ -5,9 +5,9 @@
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
 **작성일:** 2026-04-30
-**최종 갱신:** 2026-07-26 (**dogfood-restore 스프린트** — 로컬 실사용 복원 + 3스프린트 누적 신뢰 작업 실화면 검증. **BL-465/467 Resolved** + 신규 **BL-466/468~472**. ★**dogfood 가 P1 을 잡았다** — `_periodic_returns` 가 음수 자본을 안 걸러 파산한 실행에 **양수 샤프**가 붙었고(실측 -2179.68% 에 +0.029), **committed Trust Layer baseline 이 그걸 담고 있었다**(s1_pbr 샤프 +0.600 · 소르티노 +2.349 on -536%). 코퍼스 5종 중 4종이 음수 자본이고 골든이 깨진 것도 정확히 그 4종. baseline 재생성 diff = 12 메트릭 키 중 2개 한정. ★**옵티마이저는 이 스택에서 구조적으로 죽어 있었다** — `optimizer_heavy` 유일 소비자에 OHLCV env 3종 부재. ★**`make seed` 신설** — 백테스트 1회가 곧 OHLCV 시딩(TimescaleProvider cache-first). 마이그레이션 0.) // 이전: 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
+**최종 갱신:** 2026-07-26 (**dogfood-restore 스프린트** — 로컬 실사용 복원 + 3스프린트 누적 신뢰 작업 실화면 검증. **BL-465/467 Resolved** + 신규 **BL-466/468~472/474** + **BL-473 Resolved**(WS auth `expires` 창 — 라이브 체결 스트리밍이 통째로 죽어 있었다). ★**dogfood 가 P1 을 잡았다** — `_periodic_returns` 가 음수 자본을 안 걸러 파산한 실행에 **양수 샤프**가 붙었고(실측 -2179.68% 에 +0.029), **committed Trust Layer baseline 이 그걸 담고 있었다**(s1_pbr 샤프 +0.600 · 소르티노 +2.349 on -536%). 코퍼스 5종 중 4종이 음수 자본이고 골든이 깨진 것도 정확히 그 4종. baseline 재생성 diff = 12 메트릭 키 중 2개 한정. ★**옵티마이저는 이 스택에서 구조적으로 죽어 있었다** — `optimizer_heavy` 유일 소비자에 OHLCV env 3종 부재. ★**`make seed` 신설** — 백테스트 1회가 곧 OHLCV 시딩(TimescaleProvider cache-first). 마이그레이션 0.) // 이전: 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **86 active BL / 전체 129 항목** (2026-07-26 dogfood-restore 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **87 active BL / 전체 131 항목** (2026-07-26 dogfood-restore 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 > ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 하게 남아 있었다. 산식 = `### BL-` 헤딩 수(전체) 대비 각 섹션 본문에 `Resolved` 가 등장하지 않는 항목 수(active). 부분 Resolved 는 active 로 세지 않는다(본문에 `Resolved` 문자열이 있으므로).
 >
@@ -2446,6 +2446,62 @@ JOIN trading.orders ON exchange_order_id → 0 행
 **원인 / 영향:** `backtest-list.tsx` 는 legacy·unavailable 계열에만 `title` 을 단다. `tv_monthly_rfr2` 와 `tv_daily_rfr2` 는 **분모 기간이 다른 별개 척도**인데 목록에서는 둘 다 그냥 숫자로 보여 나란히 정렬된다. 리포트는 각주를 달지만 목록은 달지 않는다.
 
 **Risk:** 🟢
+
+---
+
+### BL-473
+
+**Title:** Bybit private WS 인증 `expires` 창이 +1s 라 왕복 지연에 먹혀 라이브 체결 스트리밍이 죽어 있었다
+**Category:** Backend / trading (WebSocket)
+**Priority:** P1
+**Trigger:** 즉시
+**Est:** S (30m)
+**출처:** 2026-07-26 dogfood-restore 실측
+
+**원인 / 영향:** `_authenticate` 가 `expires = int((time.time() + 1) * 1000)` 을 보낸다("codex G0-5: 공식 예시 기준 +1s" 주석). 프레임이 Bybit 서버에 닿는 시점에 이미 만료돼 `{"success":false,"ret_msg":"Params Error"}` 로 거부되고, auth circuit breaker 가 1시간 열려 **라이브 체결 스트리밍이 통째로 멈춘다**. 주문 발주(REST)는 되지만 체결 이벤트가 실시간으로 안 들어온다.
+
+**★지연 의존이라 회귀처럼 안 보인다.** #472 dogfood 때는 WS 실주문 4점이 통과했다. 지연이 낮을 때만 붙는 시한폭탄이라 스프린트마다 붙었다 떨어졌다 했다.
+
+**★진단 경로 기록** — 처음엔 "API 키 만료" 로 오진해 사용자에게 재등록을 요청했다. 독립 HMAC 오라클로 REST 를 치자 **양쪽 키 모두 `retCode 0`**(자산 846,921.08) 이었다. 키는 처음부터 멀쩡했다. 이어서 **우리 코드가 아닌 독립 WS 클라이언트**로 같은 페이로드를 보내 동일 재현 → 배관이 아니라 페이로드 문제로 좁혔고, 통제 실험으로 창 크기가 원인임을 확정했다.
+
+```
+expires = now +1s   → success=False "Params Error"   (demo·mainnet 동일)
+expires = now +10s  → success=True
+expires = now +60s  → success=True
+```
+
+**상태:** ✅ **Resolved (2026-07-26, `stage/dogfood-restore`).** `_AUTH_EXPIRES_WINDOW_S = 10.0`. Bybit 이 문서화한 시계 드리프트 허용(±5s)과 같은 크기 이상이어야 드리프트만으로 창이 사라지지 않는다. 서명 만료창일 뿐 비밀이 아니라 넉넉히 잡는 게 옳다. 회귀 테스트가 `expires` 가 현재보다 ≥5s 앞서는지 단정하고 구 값(+1s)에 RED 임을 확인했다. 라이브 검증 = circuit 키 제거 후 양쪽 계정 `ws_stream_connected`.
+
+**Risk:** 🟢
+
+---
+
+### BL-474
+
+**Title:** 테스트 주문 다이얼로그가 라이브 경로와 **다른 시장**으로 나간다 (spot vs linear perp)
+**Category:** Frontend / trading (dogfood 도구 충실도)
+**Priority:** P2
+**Trigger:** 다음 실주문 dogfood 전
+**Est:** S~M
+
+**원인 / 영향:** 라우팅은 `(exchange, mode, has_leverage)` 튜플이다(`registry.py:35-39`) — `False` → `BybitDemoProvider`(**Spot**), `True` → `BybitFuturesProvider`(**Linear Perp**).
+
+실측 dispatch snapshot —
+
+```
+라이브 신호 주문   leverage=1  margin_mode=isolated  has_leverage=true   → linear perp
+테스트 주문 다이얼로그  leverage=NULL  margin_mode=NULL  has_leverage=false  → spot
+```
+
+즉 "dogfood-only" 라고 이름 붙은 도구가 **프로덕션이 실제로 쓰는 시장을 연습하지 않는다**. 확인 = 우리 주문 `2267433208968908032` 는 Bybit **spot** 히스토리에만 있고 linear 에는 없다(숫자형 ID = spot, linear 는 UUID).
+
+**따라오는 결과** — 청산 원장(`/v5/position/closed-pnl`)·포지션 코크핏·`exchange_exits` 는 전부 linear 만 본다. 그래서 다이얼로그로 낸 체결은 **`realized_pnl_synced_at` 을 영원히 못 받고 원장에도 안 뜬다**. 이 도구로 머니-패스를 dogfood 하면 조용히 아무것도 검증하지 못한다.
+
+**권장 접근:** 다이얼로그가 전략의 Live Settings(leverage/margin_mode)를 실어 보내 라이브 경로와 같은 튜플로 dispatch 되게 하거나, 최소한 화면에 **어느 시장으로 나가는지 표시**한다. 후자만으로도 조용한 오검증은 막힌다.
+
+**부수 관측:** 시더로 만든 전략은 평문 webhook secret 이 브라우저에 없어 다이얼로그가 "캐시 없음" 으로 막힌다 — Secret 회전 1회가 선행돼야 한다. 정상 동작이지만 안내문이 "Strategy 페이지에서 Rotate" 라고만 해서 §05 Webhook 카드까지 스크롤해야 한다는 걸 알기 어렵다.
+
+**Risk:** 🟡 (도구가 잘못된 확신을 준다)
 
 ---
 
