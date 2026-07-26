@@ -61,9 +61,9 @@
 
 ### Next Actions
 
-- [ ] 사용자: Bybit demo 키 재등록 → S4 실행(출처 라벨 · 세션 커브 · 심볼 거부 D3)
-- [ ] 최종 codex 누적 diff 리뷰
 - [x] **PR [#482](https://github.com/woosung-dev/quantbridge/pull/482)** `stage/dogfood-restore` → main — **squash 는 사용자**
+- [ ] **다음 세션 = [`docs/dogfood-restore/checklist.md`](dogfood-restore/checklist.md)** — 사용자 확정. (A) **BL-474** 테스트 주문 다이얼로그가 spot 으로 나가는 것 먼저 → 고치면 perp 진입→청산을 결정적으로 만들 수 있어 **출처 라벨·SessionScope 화면 검증이 열린다** (B) pine_v2 시뮬 상태 ↔ 거래소 포지션 발산 조사(`retCode 110017`, 수량 1.0 사이징 미반영 의혹 포함)
+- [ ] (선택) 최종 codex 누적 diff 리뷰
 
 ---
 
