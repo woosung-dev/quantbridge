@@ -69,8 +69,8 @@ from src.market_data.providers import OHLCVProvider
 from src.market_data.repository import OHLCVRepository
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import Strategy
-from src.strategy.pine_v2.compat import _extract_default_qty
 from src.strategy.pine_v2.coverage import analyze_coverage
+from src.strategy.pine_v2.sizing import extract_pine_default_qty
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings
 from src.trading.repositories.funding_rate_repository import FundingRateRepository
@@ -847,7 +847,7 @@ def _resolve_sizing_canonical(
       - Live mirror 의도 + leverage != 1 → MirrorNotAllowed (BL-186 후 unlock)
     """
     # 1. Pine declaration 추출 + partial reject (codex iter 1 [P1] #5)
-    pine_qty_type, pine_qty_value = _extract_default_qty(strategy.pine_source)
+    pine_qty_type, pine_qty_value = extract_pine_default_qty(strategy.pine_source)
     if (pine_qty_type is None) != (pine_qty_value is None):
         raise PinePartialDeclaration(
             detail=(

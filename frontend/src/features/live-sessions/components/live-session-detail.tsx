@@ -114,6 +114,18 @@ export function LiveSessionDetail({ session }: Props) {
               </dd>
             ) : null}
           </div>
+          <div>
+            <dt className="text-muted-foreground">기준 자본</dt>
+            {/* 부재는 자리표로 둔다 — 모르는 값에 단위를 붙이면 0 을 아는 척하는 것과 같다.
+                형제 `실현 손익` 칩과 같은 <dd> 를 쓴다 (<dl> 자식은 dt/dd 만 허용). */}
+            <dd className="font-mono" data-testid="live-session-equity-baseline">
+              {session.equity_baseline_usdt ? `${session.equity_baseline_usdt} USDT` : "—"}
+            </dd>
+            <dd className="mt-1 text-xs text-muted-foreground">
+              세션 시작 시점의 거래소 잔고 스냅샷입니다. 주문 수량이 이 값을 기준으로 계산되며 이후
+              입출금과 손익은 반영되지 않습니다.
+            </dd>
+          </div>
         </dl>
       </div>
 

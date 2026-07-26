@@ -185,9 +185,24 @@ async def get_order_service(
     )
 
 
+# ── AccountBalance ───────────────────────────────────────────────────
+async def get_balance_service(
+    session: AsyncSession = Depends(get_async_session),
+    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
+    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
+) -> AccountBalanceService:
+    return AccountBalanceService(
+        account_repo=ExchangeAccountRepository(session),
+        account_service=account_service,
+        bybit_futures_provider=bybit_futures_provider,
+        redis=get_redis_lock_pool(),
+    )
+
+
 # ── Sprint 26: LiveSignalSessionService ──────────────────────────────
 async def get_live_signal_session_service(
     session: AsyncSession = Depends(get_async_session),
+    balance_service: AccountBalanceService = Depends(get_balance_service),
 ) -> LiveSignalSessionService:
     """Sprint 26 — Live Signal Auto-Trading session 등록/조회/종료.
 
@@ -198,6 +213,7 @@ async def get_live_signal_session_service(
         repo=LiveSignalSessionRepository(session),
         account_repo=ExchangeAccountRepository(session),
         strategy_repo=StrategyRepository(session),
+        balance_service=balance_service,
         user_repo=UserRepository(session),
     )
 
@@ -238,17 +254,4 @@ async def get_close_service(
         account_service=account_service,
         bybit_futures_provider=bybit_futures_provider,
         order_service=order_service,
-    )
-
-
-async def get_balance_service(
-    session: AsyncSession = Depends(get_async_session),
-    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
-    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
-) -> AccountBalanceService:
-    return AccountBalanceService(
-        account_repo=ExchangeAccountRepository(session),
-        account_service=account_service,
-        bybit_futures_provider=bybit_futures_provider,
-        redis=get_redis_lock_pool(),
     )

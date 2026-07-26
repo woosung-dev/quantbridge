@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -11,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.auth.repository import UserRepository
 from src.strategy.exceptions import StrategyNotFoundError
+from src.strategy.pine_v2.ast_extractor import uses_stop_entry
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.exceptions import (
@@ -19,7 +21,10 @@ from src.trading.exceptions import (
     DemoAccountNotYetStable,
     InvalidStrategySettings,
     LiveSessionQuotaExceeded,
+    LiveStopEntryUnsupported,
+    ProviderError,
     SessionAlreadyActive,
+    SizingBaselineUnavailable,
     StrategySettingsRequired,
 )
 from src.trading.models import (
@@ -35,11 +40,23 @@ from src.trading.repositories.live_signal_session_repository import (
     LiveSignalSessionRepository,
 )
 from src.trading.schemas import RegisterLiveSessionRequest
+from src.trading.services.balance_service import AccountBalanceService
 
 logger = logging.getLogger(__name__)
 
 # Wave 0 W4 — 라이브 전환 전 요구 데모 안정화 기간(일). ponytail: 상수, 튜닝 필요 시 config 승격.
 _MIN_DEMO_STABLE_DAYS = 7
+
+
+def _uses_stop_entry_safe(pine_source: str) -> bool:
+    """파싱 실패는 실시간 평가의 차단 경로에 맡기고 세션 등록은 통과시킨다."""
+    try:
+        return uses_stop_entry(pine_source)
+    except Exception as exc:
+        # 문법 오류는 첫 evaluate tick의 run_live가 run_live_error로 세션을 fail-closed 비활성화한다.
+        # 여기서 500 또는 차단하면 실제 실패 사유를 부정확하게 만든다.
+        logger.warning("stop_entry_detection_failed err=%s", exc)
+        return False
 
 
 class LiveSignalSessionService:
@@ -59,12 +76,14 @@ class LiveSignalSessionService:
         account_repo: ExchangeAccountRepository,
         strategy_repo: StrategyRepository,
         *,
+        balance_service: AccountBalanceService,
         user_repo: UserRepository | None = None,
         max_active_per_user: int = 5,
     ) -> None:
         self._repo = repo
         self._account_repo = account_repo
         self._strategy_repo = strategy_repo
+        self._balance_service = balance_service
         self._user_repo = user_repo
         self._max_active_per_user = max_active_per_user
 
@@ -86,6 +105,9 @@ class LiveSignalSessionService:
         except ValidationError as e:
             raise InvalidStrategySettings(error=str(e)) from e
 
+        if _uses_stop_entry_safe(strategy.pine_source):
+            raise LiveStopEntryUnsupported()
+
         # 2. ExchangeAccount 조회 + ownership + Bybit Demo 강제 (codex G.0 P2 #1)
         account = await self._account_repo.get_by_id(req.exchange_account_id)
         if account is None or account.user_id != user_id:
@@ -105,7 +127,34 @@ class LiveSignalSessionService:
                 mode=account.mode.value,
             )
 
-        # 3. Quota lock (advisory + count_active + partial unique 이중 방어)
+        # 2.5 quota 사전 검사 (락 없음). 아래 잔고 조회는 CCXT 왕복이라 어차피 거부될 요청에
+        # 태우면 낭비다. 권위 판정은 여전히 락 안의 재검사(:157) 이므로 레이스 안전성 무변경.
+        pre_count = await self._repo.count_active_by_user(user_id)
+        if pre_count >= self._max_active_per_user:
+            raise LiveSessionQuotaExceeded(current=pre_count, cap=self._max_active_per_user)
+
+        # 3. BL-479 자본 기준선 스냅샷 (세션당 1회).
+        # free 는 기존 포지션 증거금을 제외하므로, 백테스트 init_cash 에 대응하는 total 을 쓴다.
+        # 기준선 없이 통과하면 initial_capital=None 이 되어 compute_qty() 가 1.0 을 반환한다.
+        # 1 BTC 명목이 나가는 그 실패가 BL-479 그 자체라 fail-closed 한다.
+        # ProviderError(502) 로 새면 여기 적은 안내 문구가 가장 흔한 실패(네트워크/CCXT)에서
+        # 도달 불가해지므로 같은 422 표면으로 모은다.
+        # force_refresh — 이 값은 세션 내내 남는 사이징 기준선이라 15초 캐시를 물려받으면
+        # 안 된다. 입금 직후 시작하면 입금 전 잔고로 세션 전체를 사이징하게 된다.
+        try:
+            balance = await self._balance_service.get_balance(
+                user_id, account.id, force_refresh=True
+            )
+        except ProviderError as exc:
+            raise SizingBaselineUnavailable(account_id=account.id, reason=str(exc)) from exc
+        if not balance.supported or balance.total is None or balance.total <= Decimal("0"):
+            raise SizingBaselineUnavailable(
+                account_id=account.id,
+                reason=balance.reason,
+            )
+
+        # 4. Quota lock (advisory + count_active + partial unique 이중 방어)
+        # 잔고 조회를 락 앞에서 끝내 사용자별 등록 직렬화를 피한다.
         await self._repo.acquire_quota_lock(user_id)
         current = await self._repo.count_active_by_user(user_id)
         if current >= self._max_active_per_user:
@@ -118,6 +167,7 @@ class LiveSignalSessionService:
             exchange_account_id=req.exchange_account_id,
             symbol=req.symbol,
             interval=LiveSignalInterval(req.interval),
+            equity_baseline_usdt=balance.total,
         )
         try:
             saved = await self._repo.save(sess)

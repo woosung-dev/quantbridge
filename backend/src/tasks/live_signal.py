@@ -45,6 +45,7 @@ from src.common.metrics import (
 )
 from src.common.redlock import RedisLock
 from src.core.config import settings
+from src.strategy.pine_v2.ast_extractor import uses_stop_entry
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.alerting import send_rule_alert
@@ -67,6 +68,28 @@ from src.trading.models import (
 from src.trading.realtime_publisher import publish_realtime
 
 logger = logging.getLogger(__name__)
+
+
+# 발산 alert 의 기본 사유/제목. preflight 비-발산 카테고리는 아래 메타데이터가 덮어쓴다.
+_DIVERGENCE_REASON = "pine_v2 coverage↔interpreter 발산"
+_DIVERGENCE_TITLE = "Live signal divergence — 세션 자동 비활성화 (무신호 차단)"
+
+
+# preflight 카테고리별 운영 처리 계약. pageable=True 만 divergence metric으로 즉시 page한다.
+_PREFLIGHT_CATEGORY_METADATA: dict[str, tuple[bool, str, str | None]] = {
+    "coverage_unrunnable": (True, _DIVERGENCE_REASON, None),
+    "degraded_unconsented": (True, _DIVERGENCE_REASON, None),
+    "stop_entry_unsupported": (
+        False,
+        "라이브 미지원 기능",
+        "strategy.entry(stop=) 는 라이브 발주 미지원",
+    ),
+    "equity_baseline_missing": (
+        False,
+        "자본 기준선 부재",
+        "세션에 자본 기준선(equity_baseline_usdt)이 없습니다",
+    ),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +196,20 @@ def _classify_live_divergence(msg: str) -> str:
     return "unexpected"
 
 
+def _uses_stop_entry_safe(pine_source: str) -> bool:
+    """stop-entry 사용 여부를 확인하되 파싱 실패는 여기서 미지원 사유로 오판하지 않는다.
+
+    파싱 실패 소스는 다음 단계의 `run_live`가 raise하여 같은 함수의 `run_live_error` 경로가
+    fail-closed로 세션을 비활성화한다. 여기서 예외를 전파하거나 stop-entry로 분류하면 사유가
+    부정확해지고 비활성화 경로가 중복된다.
+    """
+    try:
+        return uses_stop_entry(pine_source)
+    except Exception:
+        logger.warning("live_signal_stop_entry_detection_failed", exc_info=True)
+        return False
+
+
 async def _alert_live_divergence(
     *,
     session_id: UUID,
@@ -181,6 +218,8 @@ async def _alert_live_divergence(
     raw_msg: str,
     error_count: int,
     last_error_bar: int,
+    reason: str = _DIVERGENCE_REASON,
+    title: str = _DIVERGENCE_TITLE,
 ) -> None:
     """BL-362 — 발산 감지 → 세션 자동 비활성화 critical alert (무신호 차단 고지).
 
@@ -195,9 +234,9 @@ async def _alert_live_divergence(
         await send_rule_alert(
             settings,
             channel=AlertChannel.both,
-            title="Live signal divergence — 세션 자동 비활성화 (무신호 차단)",
+            title=title,
             message=(
-                f"pine_v2 coverage↔interpreter 발산({stage}/{category}) 감지 — 세션을 "
+                f"{reason}({stage}/{category}) 감지 — 세션을 "
                 "비활성화했습니다(오신호 dispatch 차단, 고정 SL/포지션은 거래소측 유지). "
                 f"전략 수정 후 재활성화 필요. detail: {raw_msg[:200]}"
             ),
@@ -224,11 +263,24 @@ def _fire_divergence_alert(
     raw_msg: str,
     error_count: int,
     last_error_bar: int,
+    reason: str | None = None,
 ) -> None:
     """fire-and-forget alert. `_evaluate_session_inner` 는 이미 persistent `_WORKER_LOOP`
     안이므로 `create_task` + `track_pending_alert` (kill_switch.py 패턴).
     `run_in_worker_loop` 금지 (nested ban §9.4).
+
+    사유와 제목은 `_PREFLIGHT_CATEGORY_METADATA` 에서 끌어온다. 문자열 동등 비교로
+    override 를 판정하면 리터럴 하나만 어긋나도 조용히 멈춰 그럴듯하지만 틀린 사유가
+    나가므로, 미지정(None)일 때만 메타데이터/기본값으로 채운다.
+
+    ★제목도 함께 바꾼다 — 카운터가 페이징을 안 해도 제목이 "divergence" 면 사람은
+    제목을 보고 호출된다. 계약을 반만 고치는 셈이다.
     """
+    metadata = _PREFLIGHT_CATEGORY_METADATA.get(category)
+    pageable = metadata[0] if metadata is not None else True
+    if reason is None:
+        reason = metadata[1] if metadata is not None else _DIVERGENCE_REASON
+    title = _DIVERGENCE_TITLE if pageable else f"Live signal 세션 자동 비활성화 — {reason}"
     task = asyncio.create_task(
         _alert_live_divergence(
             session_id=session_id,
@@ -237,6 +289,8 @@ def _fire_divergence_alert(
             raw_msg=raw_msg,
             error_count=error_count,
             last_error_bar=last_error_bar,
+            reason=reason,
+            title=title,
         )
     )
     track_pending_alert(task)
@@ -425,26 +479,38 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             cov = analyze_coverage(strategy.pine_source)
             preflight_cat: str | None = None
             preflight_symbols: tuple[str, ...] = ()
+            equity_baseline_usdt = sess.equity_baseline_usdt
             if not cov.is_runnable:
                 preflight_cat, preflight_symbols = "coverage_unrunnable", cov.all_unsupported
             elif cov.has_degraded:
                 preflight_cat, preflight_symbols = "degraded_unconsented", cov.degraded_calls
+            # stop-entry가 baseline 부재보다 근본 원인이므로 먼저 사용자에게 알린다.
+            elif _uses_stop_entry_safe(strategy.pine_source):
+                preflight_cat = "stop_entry_unsupported"
+            elif equity_baseline_usdt is None or equity_baseline_usdt <= Decimal("0"):
+                preflight_cat = "equity_baseline_missing"
             if preflight_cat is not None:
+                preflight_pageable, _, preflight_raw_msg = _PREFLIGHT_CATEGORY_METADATA[
+                    preflight_cat
+                ]
+                if preflight_raw_msg is None:
+                    preflight_raw_msg = ", ".join(preflight_symbols)[:200]
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
-                    qb_live_signal_divergence_total.labels(
-                        stage="preflight", category=preflight_cat
-                    ).inc()
+                    if preflight_pageable:
+                        qb_live_signal_divergence_total.labels(
+                            stage="preflight", category=preflight_cat
+                        ).inc()
                     qb_live_signal_skipped_total.labels(reason=preflight_cat).inc()
                     _fire_divergence_alert(
                         session_id=sess.id,
                         stage="preflight",
                         category=preflight_cat,
-                        raw_msg=", ".join(preflight_symbols)[:200],
+                        raw_msg=preflight_raw_msg,
                         error_count=0,
                         last_error_bar=-1,
                     )
@@ -492,7 +558,22 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
             try:
-                result = run_live(strategy.pine_source, df)
+                # preflight와 같은 코루틴의 같은 sess 객체라 baseline은 이미 유효하다. settings도
+                # 위에서 검증됐고 position_size_pct는 필수 범위 필드다. pine_v2 float 경계 뒤 qty는
+                # dispatch에서 Decimal(str(...))로 복원한다.
+                if equity_baseline_usdt is None:
+                    # 도달 불가 — 위 preflight 의 equity_baseline_missing 이 이미 걸렀다.
+                    # return 으로 때우면 "deactivated" 를 보고하면서 실제로는 세션을 안 끄는
+                    # 거짓말이 된다. raise 하면 아래 except 가 실제로 비활성화한다 (fail-closed).
+                    raise RuntimeError(
+                        "equity_baseline_usdt is None past preflight — invariant broken"
+                    )
+                result = run_live(
+                    strategy.pine_source,
+                    df,
+                    initial_capital=float(equity_baseline_usdt),
+                    live_position_size_pct=parsed_settings.position_size_pct,
+                )
             except Exception as exc:
                 # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
                 # parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /

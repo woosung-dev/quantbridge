@@ -89,7 +89,9 @@ export function LiveSessionForm({
       form.reset();
       onSuccess?.(session);
     } catch (err) {
-      setServerError(describeApiError(err, "등록 실패"));
+      setServerError(
+        describeApiError(err, "세션을 시작하지 못했습니다. 잠시 후 다시 시도해주세요."),
+      );
     }
   };
 

@@ -1,12 +1,125 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-26 (dogfood-restore 체크리스트 **A** — BL-474 webhook ingress 패리티)
-> **Active Sprint:** **dogfood-restore 체크리스트 A** — 테스트 주문이 라이브와 같은 시장(linear perp)으로 나가게 해 출처 라벨 검증을 연다
-> **Active Branch:** `feat/bl-474-webhook-ingress-parity` (main @ `a716ef3` 베이스)
+> **Last Updated:** 2026-07-26 (**live-entry-wiring** — BL-478 (c) + BL-479)
+> **Active Sprint:** **live-entry-wiring** — 라이브 자동매매가 못 하는 일을 못 한다고 말하게 만든다
+> **Active Branch:** `feat/live-entry-wiring` (main @ `fcc36bf` 베이스)
+
+## ⚡ live-entry-wiring — BL-478 (c) 세션 차단 + BL-479 라이브 사이징 (2026-07-26)
+
+**스코프**: 라이브 자동매매는 **진입 주문을 낸 적이 없다.** `strategy.entry(..., stop=)` 는 `PendingOrder` 만 파킹하고 이벤트를 발행하지 않는데(`strategy_state.py:598-609`) 거래소에 그 조건부 주문을 올리는 코드가 없다. 청산만 나가 매번 `110017`. 진입이 열리면 곧바로 수량이 문제가 된다 — `compute_qty()` 가 항상 `1.0`(1 BTC 명목). **기능을 늘리지 않고 거짓말을 멈춘다.**
+
+### ★★사용자 요청 실측이 후보 3 을 반증했다
+
+equity 기준선 후보 3(kill-switch balance provider 재사용)의 **갱신 주기를 먼저 재라**는 지시였고, 답은 "갱신 주기라는 개념이 없다" 였다.
+
+```
+account_service.py:126-157  캐시 0줄. TTL·Redis·beat 갱신 태스크 전부 부재
+                            매 호출 = DB 2회 + AES 복호화 + ephemeral ccxt -> REST -> close
+                            실측 1600ms (BL-476). 독스트링의 "~200ms" 는 8배 낙관
+kill_switch.py:106-107      total_pnl >= 0 이면 조기 반환 -> "이미 부르니 공짜" 가 아니다
+live_signal.py:873-885      exchange_svc 는 Celery 경계 뒤 dispatch 소속 -> 코드 재사용일 뿐
+```
+
+★**지연보다 큰 문제는 시맨틱이었다.** `run_live` 는 warmup replay(300바)라 매 tick 히스토리를 재실행하고 `running_equity` 는 `initial_capital` 에서 시작해 청산 손익을 **다시** 누적한다. 거래소 실잔고는 이미 그 손익이 반영된 값 → **이중 계상**. 300바를 벗어나면 빠지므로 이중 계상량이 시간에 따라 변한다 = 같은 바가 tick 마다 다른 수량. → **세션 시작 1회 스냅샷 + 컬럼 저장**으로 확정(사용자 승인).
+
+★**다만 절반만 닫혔다.** 실잔고 주입에서 오던 이중 계상은 없앴지만 `running_equity` 가 **창 안 청산 손익**을 누적하는 것은 그대로다 → 창이 밀리면 같은 바의 수량이 바뀐다. 최종 codex 리뷰가 잡았고 실측 재현했다(**BL-486**).
+
+### ★탐색이 뒤집은 전제 4건
+
+| 전제                                         | 실측                                                                                                                                                                    |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `s4_hma` 는 명시 `qty=` 라 사이징 **대조군** | ✗ **세 번째 양성.** `capital = strategy.equity` 인데 `running_equity is None` 이면 NaN → BL-376 chokepoint 가 주문을 **skip**. 라이브에서 hma 는 진입 신호가 0 건이었다 |
+| 우선순위 사슬을 `compat.py` 에 두고 공유     | ✗ **순환 import** (`compat.py:23` 이 `event_loop` 를 module-level import) → 신규 `sizing.py` 필수                                                                       |
+| 잔고 = `fetch_balance_usdt`                  | ✗ 그건 `data["free"]` 만 읽는다. 포지션이 있으면 왜곡 → **`total`** 이 맞다                                                                                             |
+| preflight 차단 시 divergence 카운터 inc      | ✗ `metrics.py:354` = "0 초과 = 즉시 운영 page". 예상 가능한 사용자 상황은 page 대상 아님                                                                                |
+
+### Completed
+
+- [x] **BL-478 (c) Resolved** — `ast_extractor.uses_stop_entry()` 신설(리터럴 `stop=na` 는 인터프리터와 동일하게 제외, 변수 표현식은 보수적 차단). `register()` 가 422 `live_stop_entry_unsupported` 로 거부 + evaluate preflight 가 이미 도는 세션을 자동 종료
+- [x] **BL-479 Resolved** — `register()` 가 `AccountBalanceService.get_balance().total` 로 1회 스냅샷 → `live_signal_sessions.equity_baseline_usdt`(`Numeric(18,8)`, nullable) → evaluate 가 `run_live(initial_capital=..., live_position_size_pct=...)` 로 전달. Pine > form > Live 우선순위 사슬이 라이브에서도 성립
+- [x] **`pine_v2/sizing.py` 신설** — 우선순위 사슬 SSOT. 백테스트(`compat`)와 라이브(`event_loop`)가 공유. `_extract_default_qty` 는 alias 없이 삭제(SSOT 2개 방지)
+- [x] **fail-closed 4종** — `supported=False` / `total is None` / `total <= 0` / `ProviderError`(502를 422로 흡수해 안내 문구가 도달 가능해짐). 통과시키면 `initial_capital=None` → `compute_qty()=1.0` 이라 "고친 척" 이 된다
+- [x] **페이징 계약 분리** — 신규 2종은 `qb_live_signal_skipped_total` 만 올리고 `qb_live_signal_divergence_total` 은 **안 올린다**. ★알림 **제목**도 함께 갈랐다 — 카운터가 page 를 안 해도 제목이 "divergence" 면 사람은 제목 보고 호출된다(계약을 반만 고치는 것)
+- [x] **FE** — 코크핏 `selected` 를 목록에서 `useMemo` 파생(객체 스냅샷이라 자동 종료 후에도 "돌고 있는 것처럼" 렌더되던 결함) + 중단 안내 · 세션 상세 **기준 자본** 노출(부재는 `—`, 0 위장 금지) · 폼 폴백 문구. ★`FormErrorInline` 교체는 **기각** — 그 컴포넌트가 `detail.detail` 을 안 읽어 기존 422 4종이 조용히 `"API 422 …"` 로 퇴행한다
+- [x] 게이트: BE **3074**(+45) · FE **1151**(+7) · canon **32** · **e2e:authed 65-0** · ruff·mypy·tsc·lint 0 · 마이그레이션 **1**
+
+### ★★판별력 증명 — 전체 stash 대신 표적 변이 6종
+
+전체 stash 는 import/TypeError 를 내서 **"심볼이 없다"** 만 증명한다. 행동적 RED 를 만들려고 변이를 넣었다 뺐다.
+
+```
+M1 uses_stop_entry -> False   양성 5 FAIL / 음성 17 PASS  <- 과잉차단 아님을 동시 증명
+M2 uses_stop_entry -> True    25 FAIL                     <- 음성 케이스가 진짜 판별력을 가짐
+M3 compute_qty 의 /100 제거    4 FAIL                      <- 손계산 오라클이 산술을 잡음
+M4 total -> free              2 FAIL                      <- 필드 혼동을 잡음
+M5 신규 2종도 page             1 FAIL                      <- 카운터 계약을 잡음
+M6 initial_capital 미전달      6 FAIL                      <- 배선이 가정이 아니라 증명됨
+변이 잔존 0 · 복원 5/5 바이트 동일
+```
+
+손계산 오라클은 2의 거듭제곱만 골라 부동소수 오차를 0 으로 만들었다 — `8192 x 50 / 100 / 65536 = 0.0625`. 오답(1.0 / 0.03125 / 6.25 / 0.000625)이 정답과 충돌하지 않는다.
+
+### 실화면 dogfood
+
+- [x] **자동 종료** — `0e15c3c0` 이 마이그레이션 후 첫 tick(30초 내)에 `{'deactivated': 'stop_entry_unsupported'}`. ★이 세션은 **stop-entry 와 NULL baseline 둘 다** 해당인데 근본 원인을 보고했다(설계한 우선순위대로). 화면 "활성 세션" 이 1 → 0
+- [x] **차단 문구** — PbR 로 세션 시작 → `live-session-form-error` 에 BE 문구 원문. `"API 422"` 미포함
+- [x] **음성 대조군** — EMA 로 바꾸면 **201**, 활성 세션 1. 설정 없을 땐 기존 `StrategySettingsRequired` 문구가 정상 렌더(= `FormErrorInline` 을 기각한 판단이 옳았음을 실화면이 확인)
+- [x] **독립 raw HMAC 오라클**(ccxt·`providers.py` 미경유) — `USDT walletBalance 190549.99467459` = DB `equity_baseline_usdt` **바이트 동일**, `retCode 0`
+- [x] **M-4 마이그레이션** — 활성 세션이 있는 개발 DB 에서 upgrade → `is_active` 불변, 신규 컬럼 NULL, hydrate 정상. 클린 DB 에서 `downgrade base → upgrade head → downgrade -1 → upgrade head` 왕복 통과
+
+### ★★프로덕션 진입 — 실주문 체결까지 3중 대조
+
+기다렸더니 EMA 크로스가 실제로 났다. **시드로 만들지 않았다.**
+
+```
+손계산   190549.99467459 x 1% / 64512.50  = 0.02953691
+DB       live_signal_events.qty            = 0.02953691   (action=entry, dispatched)
+         orders.quantity                   = 0.02953691   (state=filled)
+거래소    qty 0.029 · cumExecQty 0.029 · avgPrice 64484.2 · Filled · retCode 0
+         orderId d474e540-… (UUID = linear perp)
+```
+
+DB → 거래소 `0.02953691 → 0.029` 차이는 **`amount_to_precision` 절삭**(BTCUSDT linear 수량 스텝 0.001)으로 정확히 설명된다. 실집행 명목 **$1,870** — 미배선이었다면 `1.0` = **$64,484**, **34.5 배**다.
+
+### ★프로덕션 원장의 before / after
+
+같은 계정, 같은 심볼, 같은 날. 수정 전후가 `trading.orders` 에 그대로 남았다.
+
+```
+10:02  sell 1.00000000  reduce_only=t  rejected   <- BL-478 증상. 진입이 없으니 청산만 나가 110017
+10:17  buy  1.00000000  reduce_only=t  rejected
+10:36  buy  1.00000000  reduce_only=t  rejected
+11:51  buy  0.02953691  reduce_only=f  filled     <- 수정 후. 진짜 진입 + 자본 기준 수량
+```
+
+`1.0`(미배선 fallback) 이 전부 `reduce_only=t` 이고 전부 `rejected` 라는 것이 BL-478 과 BL-479 가
+**한 증상의 두 얼굴**이었다는 증거다. 진입이 안 나가니 청산만 남고, 그 청산 수량조차 `1.0` 이었다.
+
+### ★정직하게 남기는 것
+
+- **플랜의 대안 하나가 틀렸다** — "신호 없이도 `last_strategy_state_report.running_equity` 로 배선을 증명한다" 고 적었는데 `to_report()` 에 그 키가 없다(7개 키뿐). 결국 진짜 신호를 기다려서 증명했다.
+- **지금 `total == free`** (`totalPositionIM: 0`). dogfood 만으로는 둘을 구별할 수 없고, 그걸 증명한 건 **M4 변이뿐**이다.
+- **배포 순서는 마이그레이션이 먼저다.** 워커가 신규 코드인데 DB 에 컬럼이 없던 몇 분 동안 `UndefinedColumnError` 로 전 세션 평가가 실패했다(실측). fail-closed 지만 시끄럽다.
+
+### 신규 BL 5건
+
+- **[BL-481]** P2 `sessions_allowed` 라이브 미배선 — 거래 시간대를 제한해도 라이브는 24h 진입
+- **[BL-482]** P3 `pyramiding` cap 라이브 미배선
+- **[BL-483]** **P1** `leverage` 라이브 마진게이트 미배선 — 백테스트가 거부할 진입을 라이브가 통과시킨다. ★그냥 넘기면 안 된다: 증거금 부족 skip 이 `warnings` 로만 남아 **완전 무음**이라 표면화 경로를 같이 만들어야 한다
+- **[BL-484]** P2 자동 중단 **사유**가 화면에 안 남는다(알림 채널 전용)
+- **[BL-485]** P3 `FormErrorInline` 이 `detail.detail` 폴백을 안 해 공통 컴포넌트를 못 쓴다
+- **[BL-487]** P3 `test_get_pool_safe_across_event_loops` 가 `id()` 재사용에 취약한 선재 flake — pool 객체를 붙잡지 않고 `id()` 만 비교해 CPython 이 주소를 재사용하면 random RED. 전체 스위트에서 1회 관측, 격리 실행과 재실행은 통과
+- **[BL-486]** **P1** ★라이브 사이징 equity 가 **300바 롤링 창**에 따라 변한다 — 같은 마지막 바에서 창 안 청산 유무로 `qty 0.09375 vs 0.0625`(**50% 차이**) 실측. 미배선 `1.0` 보다는 낫지만 완결이 아니다. KNOWN_LIMITATION 테스트로 못 박아 조용한 드리프트를 차단했고, 고치려면 라이브 equity 시맨틱((a) 세션 고정 / (b) 세션 누적 / (c) 실잔고 추종)을 먼저 정해야 한다
+
+### 문서 종결 (sprint-template §9)
+
+강등 2(`dogfood-restore` · `live-entry-wiring` → `archive/sprints/`) + 승격 1(**`reference/gates-and-traps.md`** — 게이트 지식이 7개 스프린트 문서에 복붙되고 있었다) → **`docs/` 최상위 12 → 10**. `README.md` 에 `<테마>/` 지위 명문화.
+
+---
 
 ## ⚡ 체크리스트 A — BL-474 webhook ingress 패리티 (2026-07-26)
 
-**스코프**: [`docs/dogfood-restore/checklist.md`](dogfood-restore/checklist.md) §A. #481 출처 라벨·#477 SessionScope 를 화면에서 보려면 linear perp **진입 → 청산 → 스윕 확정**이 실제로 일어나야 하는데, 그 경로를 테스트 주문 도구가 막고 있었다.
+**스코프**: [`docs/archive/sprints/dogfood-restore/checklist.md`](archive/sprints/dogfood-restore/checklist.md) §A. #481 출처 라벨·#477 SessionScope 를 화면에서 보려면 linear perp **진입 → 청산 → 스윕 확정**이 실제로 일어나야 하는데, 그 경로를 테스트 주문 도구가 막고 있었다.
 
 ### ★진단이 한 겹 더 깊었다 — 다이얼로그가 아니라 webhook ingress
 
@@ -77,10 +190,10 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 
 ### Next Actions
 
-**이 스프린트는 여기서 닫는다.** 잔여 전량은 [`docs/live-entry-wiring/checklist.md`](live-entry-wiring/checklist.md) 로 이관 — 조사는 끝났고 남은 건 **결정 + 구현**이다.
+**이 스프린트는 여기서 닫는다.** 잔여 전량은 [`docs/archive/sprints/live-entry-wiring/checklist.md`](archive/sprints/live-entry-wiring/checklist.md) 로 이관 — 조사는 끝났고 남은 건 **결정 + 구현**이다.
 
 - [x] **PR [#484](https://github.com/woosung-dev/quantbridge/pull/484)** `feat/bl-474-webhook-ingress-parity` → main — **squash 는 사용자**
-- [ ] **다음 세션 = `docs/live-entry-wiring/checklist.md`.** 첫 step = **BL-478 선택지 (a)/(b)/(c) 사용자 결정** — 라이브 매매 시맨틱을 바꾸므로 blocking 이다. 권고 = (c) 먼저(거짓말을 즉시 멈추고 (a) 설계 시간을 번다), (b) 는 백테스트↔라이브 일치를 조용히 깨므로 비권장
+- [ ] **다음 세션 = `docs/archive/sprints/live-entry-wiring/checklist.md`.** 첫 step = **BL-478 선택지 (a)/(b)/(c) 사용자 결정** — 라이브 매매 시맨틱을 바꾸므로 blocking 이다. 권고 = (c) 먼저(거짓말을 즉시 멈추고 (a) 설계 시간을 번다), (b) 는 백테스트↔라이브 일치를 조용히 깨므로 비권장
 
 ---
 
@@ -142,11 +255,10 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 ### Next Actions
 
 - [x] **PR [#482](https://github.com/woosung-dev/quantbridge/pull/482)** `stage/dogfood-restore` → main — **squash 는 사용자**
-- [ ] **다음 세션 = [`docs/dogfood-restore/checklist.md`](dogfood-restore/checklist.md)** — 사용자 확정. (A) **BL-474** 테스트 주문 다이얼로그가 spot 으로 나가는 것 먼저 → 고치면 perp 진입→청산을 결정적으로 만들 수 있어 **출처 라벨·SessionScope 화면 검증이 열린다** (B) pine_v2 시뮬 상태 ↔ 거래소 포지션 발산 조사(`retCode 110017`, 수량 1.0 사이징 미반영 의혹 포함)
+- [ ] **다음 세션 = [`docs/archive/sprints/dogfood-restore/checklist.md`](archive/sprints/dogfood-restore/checklist.md)** — 사용자 확정. (A) **BL-474** 테스트 주문 다이얼로그가 spot 으로 나가는 것 먼저 → 고치면 perp 진입→청산을 결정적으로 만들 수 있어 **출처 라벨·SessionScope 화면 검증이 열린다** (B) pine_v2 시뮬 상태 ↔ 거래소 포지션 발산 조사(`retCode 110017`, 수량 1.0 사이징 미반영 의혹 포함)
 - [ ] (선택) 최종 codex 누적 diff 리뷰
 
 ---
-
 
 ---
 

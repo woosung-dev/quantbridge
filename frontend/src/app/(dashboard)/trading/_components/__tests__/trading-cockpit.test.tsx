@@ -1,5 +1,5 @@
 // 트레이딩 코크핏의 WS 미실현 손익 KPI 상태를 검증한다.
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useLiveSessionsMock = vi.fn();
@@ -12,9 +12,17 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 vi.mock("@/features/live-sessions", () => ({
-  LiveSessionDetail: () => null,
+  LiveSessionDetail: () => <div data-testid="mock-detail" />,
   LiveSessionForm: () => null,
-  LiveSessionList: () => null,
+  LiveSessionList: ({ onSelect }: { onSelect?: (session: { id: string }) => void }) => (
+    <button
+      type="button"
+      data-testid="mock-live-session-select"
+      onClick={() => onSelect?.({ id: "session-1" })}
+    >
+      세션 선택
+    </button>
+  ),
   LiveSessionTable: () => null,
   useLiveSessions: () => useLiveSessionsMock(),
   useUnrealizedPnlEstimate: () => useUnrealizedPnlEstimateMock(),
@@ -107,5 +115,29 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
     expect(screen.getByRole("region", { name: "열린 포지션" })).toHaveTextContent("03 열린 포지션");
     expect(screen.getByRole("region", { name: "리스크 가드" })).toHaveTextContent("04 리스크 가드");
     expect(screen.getByRole("region", { name: "진단" })).toHaveTextContent("08 진단");
+  });
+
+  it("선택한 세션이 목록에서 사라지면 중단 안내를 보여준다", () => {
+    const { rerender } = render(<TradingCockpit />);
+
+    fireEvent.click(screen.getByTestId("mock-live-session-select"));
+    useLiveSessionsMock.mockReturnValue({
+      data: { items: [] },
+      isError: false,
+      isPending: false,
+    });
+    rerender(<TradingCockpit />);
+
+    expect(screen.getByTestId("live-session-stopped-notice")).toBeInTheDocument();
+    expect(screen.queryByTestId("mock-detail")).not.toBeInTheDocument();
+  });
+
+  it("목록에 남아 있으면 상세를 보여준다", () => {
+    render(<TradingCockpit />);
+
+    fireEvent.click(screen.getByTestId("mock-live-session-select"));
+
+    expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
+    expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
   });
 });

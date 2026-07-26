@@ -1,7 +1,7 @@
 # 2026-07-26 — BL-474 webhook ingress 패리티 (dogfood-restore 체크리스트 A)
 
 > 브랜치 `feat/bl-474-webhook-ingress-parity` · main `a716ef3` 베이스.
-> 출발점 = [`docs/dogfood-restore/checklist.md`](../dogfood-restore/checklist.md) §A.
+> 출발점 = [`docs/dogfood-restore/checklist.md`](../archive/sprints/dogfood-restore/checklist.md) §A.
 
 ---
 

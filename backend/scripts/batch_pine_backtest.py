@@ -193,9 +193,9 @@ def _pine_sizing(source: str) -> dict[str, Any]:
     엔진 우선순위 Pine > form 이므로 pine_declared 가 있으면 --normalized 의 form 폴백은 무효.
     """
     try:
-        from src.strategy.pine_v2.compat import _extract_default_qty
+        from src.strategy.pine_v2.sizing import extract_pine_default_qty
 
-        qty_type, qty_value = _extract_default_qty(source)
+        qty_type, qty_value = extract_pine_default_qty(source)
     except Exception as exc:
         return {"pine_declared": None, "note": f"extract_error: {exc}"}
     if qty_type is None:

@@ -165,3 +165,29 @@ async def test_balance_service_uses_cache_without_calling_provider():
     account_service.get_credentials_for_order.assert_not_awaited()
     provider.fetch_usdt_balance_snapshot.assert_not_awaited()
     redis.set.assert_not_awaited()
+
+
+async def test_balance_service_force_refresh_bypasses_cache():
+    """BL-479 — 세션 기준선처럼 영구히 남는 값은 15초 stale 을 물려받으면 안 된다.
+
+    ★위 캐시 테스트와 **쌍으로** 판별력이다. 캐시 히트 상황을 그대로 두고 플래그만 켜서
+    거래소를 실제로 치는지 본다. 한쪽만 있으면 "항상 캐시를 건너뛰는" 구현을 정상으로
+    착각한다.
+    """
+    account_id, user_id = uuid4(), uuid4()
+    fetched_at = datetime(2026, 7, 24, 12, 0, tzinfo=UTC)
+    cache_value = json.dumps(
+        {"total": "100.5", "free": "90.25", "fetched_at": fetched_at.isoformat()}
+    ).encode()
+    service, account_service, provider, redis = _service(
+        _account(account_id, user_id), redis_value=cache_value
+    )
+
+    response = await service.get_balance(user_id, account_id, force_refresh=True)
+
+    # 캐시(100.5)가 아니라 provider 가 준 값이 나와야 한다.
+    assert response.total != Decimal("100.5")
+    account_service.get_credentials_for_order.assert_awaited_once()
+    provider.fetch_usdt_balance_snapshot.assert_awaited_once()
+    # 갱신값은 캐시에 다시 써서 뒤따르는 조회가 이득을 본다.
+    redis.set.assert_awaited_once()

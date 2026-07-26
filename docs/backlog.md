@@ -1378,8 +1378,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### ADR ↔ Backlog
 
-| ADR                                                                                      | 미해소 BL                                           |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| ADR                                                                                        | 미해소 BL                                           |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------- |
 | [ADR-005](decisions/005-datetime-tz-aware.md) DateTime tz-aware                            | (Sprint 5 backfill 완료, 잔여 없음)                 |
 | [ADR-011](decisions/011-pine-execution-strategy-v4.md) Pine Execution v4                   | (Path γ/δ archived — BL-040/041)                    |
 | [ADR-020](decisions/020-trust-layer-ci-design.md) Trust Layer CI (구 ADR-013)              | BL-026 (skip 활성화 회귀), BL-023 (KIND-B/C 정밀도) |
@@ -2507,7 +2507,7 @@ expires = now +60s  → success=True
 
 **★leverage 만 고쳤으면 A(출처 라벨 검증)는 여전히 안 열렸다.** 청산 확정 경로 전체가 `reduce_only` 를 요구한다 — `tasks/trading.py:1342` 조기 반환 + 스윕의 `list_unsynced_reduce_only`. 그 플래그 없이는 다이얼로그 청산이 **영원히 `realized_pnl_synced_at` 을 못 받는다**.
 
-**★위 실측 표의 "leverage=1" 은 맞고, 체크리스트 §2 가 여기서 끌어낸 "레버리지 1 은 시장 유형을 바꾼다(`has_leverage=False`)" 는 틀렸다.** `order_service.py:194` = `req.leverage is not None and req.leverage > 0`, `tasks/trading.py:135` = `return lev > 0` → **1 이면 True → linear perp**. 진짜 원인은 값이 1이어서가 아니라 **아무 값도 안 보내서**다. `docs/dogfood-restore/checklist.md` 에서 정정했다.
+**★위 실측 표의 "leverage=1" 은 맞고, 체크리스트 §2 가 여기서 끌어낸 "레버리지 1 은 시장 유형을 바꾼다(`has_leverage=False`)" 는 틀렸다.** `order_service.py:194` = `req.leverage is not None and req.leverage > 0`, `tasks/trading.py:135` = `return lev > 0` → **1 이면 True → linear perp**. 진짜 원인은 값이 1이어서가 아니라 **아무 값도 안 보내서**다. `docs/archive/sprints/dogfood-restore/checklist.md` 에서 정정했다.
 
 **해결:** `WebhookService.resolve_trading_params()` 신설 — `Strategy.settings` 에서 leverage/margin_mode 를 해결하고 미설정/무효는 **422 fail-closed**(`live_signal.py:852-866` / `close_service.py:47-58` 와 동일 정책). payload 로는 받지 않는다(secret 보유자가 운영자 리스크 설정을 우회하는 걸 차단). HMAC 검증 **뒤에** 호출해 응답코드 차이로 settings 유무를 탐지당하지 않게 했다. `reduce_only`/TP/SL/`risk_percent` 는 파서가 읽어 전달하며, `reduce_only` 는 `bool("false") is True` 함정을 명시 화이트리스트로 막았다.
 
@@ -2624,6 +2624,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 시드 전략 `s1_pbr` 은 진입 2개가 모두 `stop=` 이라(`s1_pbr.pine:7,20`) **100% 이 경로다.**
 
+**상태:** ✅ **(c) Resolved (2026-07-26, `feat/live-entry-wiring`)** — 세션 시작 422 `live_stop_entry_unsupported` + evaluate preflight 자동 종료. 실화면 확인(`0e15c3c0` 이 첫 tick 30초 내 자동 종료, PbR 422 문구 + EMA 201 음성 대조). **(a) 조건부 주문 등재는 열려 있다** — (c) 는 거짓말을 멈춘 것이지 기능을 만든 것이 아니다.
+
 **권장 접근:** 셋 중 택일 — (a) `PendingOrder` 를 거래소 conditional order 로 등재(`OrderRequest.trigger_price`/`trigger_direction` 이 이미 있고 `_merge_exit_params` 가 처리한다) · (b) `fill` 도 dispatch 대상에 넣어 시장가로 근사(체결가 괴리 발생, TV parity 훼손) · (c) stop-entry 전략의 라이브 세션 시작을 **명시적으로 차단**하고 이유를 화면에 표시. **최소 정직안은 (c)** — 지금은 조용히 안 되면서 되는 척한다.
 
 **Risk:** 🔴 (라이브 자동매매가 진입을 못 하는데 화면상 "돌고 있음")
@@ -2653,6 +2655,10 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **`StrategySettings.position_size_pct` 는 라이브에서 아무 데서도 읽히지 않는다.** 전수 분류 결과 사이징 계산에 쓰이는 유일한 자리는 `compat.parse_and_run_v2`(`compat.py:99-111`)이고, 그 함수의 프로덕션 호출자는 `backtest/engine/v2_adapter.py:96` **하나뿐**이다. `live_signal.py` 는 `parsed_settings` 를 `leverage`(`:931`)·`margin_mode`(`:932`) 두 곳에만 쓰고 `position_size_pct` 는 검증만 하고 버린다. `live_session_service.py:80` 은 필드 **존재**만 요구하고 값은 안 본다.
 
 ★**Pine 선언도 마찬가지로 무시된다.** `strategy(default_qty_type=..., default_qty_value=...)` 를 선언한 스크립트조차 라이브에선 `1.0` 이다 — 추출 경로(`ast_extractor.py:259-280` → `compat.py:41-57`) 전체가 `initial_capital is not None` 게이트 뒤에 있기 때문. 즉 사이징 우선순위 사슬(Pine > form > Live)이 라이브에선 통째로 죽어 있다.
+
+**상태:** ✅ **Resolved (2026-07-26, `feat/live-entry-wiring`)** — 세션 시작 시 `AccountBalanceService.get_balance().total` 1회 스냅샷 → `live_signal_sessions.equity_baseline_usdt` → evaluate 가 `run_live(initial_capital=..., live_position_size_pct=...)` 로 전달. 우선순위 사슬은 신규 `pine_v2/sizing.py` SSOT 로 백테스트와 공유. **실주문 3중 대조** — 손계산 `190549.99467459 x 1% / 64512.50 = 0.02953691` = DB = 거래소(`qty 0.029 Filled`), 실집행 $1,870 vs 미배선 $64,484(34.5배).
+
+★기준선은 **매 tick 조회가 아니라 세션 시작 1회 스냅샷**이다. warmup replay 라 매 tick 실잔고를 주입하면 실현손익이 이중 계상되고, 300바를 벗어나면 빠져 같은 바가 tick 마다 다른 수량을 갖는다.
 
 **권장 접근:** `run_live` 에 자본 기준선 + 사이징을 전달한다. `position_size_pct` 는 evaluate 단계에서 이미 `parsed_settings` 로 손에 있고(`live_signal.py:396`), 없는 것은 **equity 기준선**이다 — kill-switch 가 이미 쓰는 balance provider(`live_signal.py:880-885`)를 재사용하는 게 가장 짧다. 다만 "라이브 equity 를 매 tick 거래소에서 가져올 것인가"는 지연·정합성 결정이 필요하다(BL-476 과 같은 종류의 trade-off).
 
@@ -2721,12 +2727,169 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 ---
 
+### BL-481
+
+**Title:** `sessions_allowed` 가 라이브에 미배선 — 거래 시간대를 제한해도 라이브는 24 시간 진입한다
+**Category:** Backend / trading (라이브 게이팅 parity)
+**Priority:** P2
+**Trigger:** 세션 시간대 제한을 실제로 쓰는 사용자 등장 시
+**Est:** S
+**출처:** 2026-07-26 live-entry-wiring (BL-479 배선 중 발견)
+
+**원인 / 영향:** 백테스트는 `cfg.trading_sessions → compat.parse_and_run_v2(sessions_allowed=...) → run_historical` 로 entry placement 와 pending fill 양쪽에 게이트를 건다(`compat.py:75`, `event_loop.py:72`). `run_live` 는 그 인자를 넘기지 않으므로 `run_historical` 기본값 `()` 가 적용돼 **24 시간 무제한**이다.
+
+`Strategy.trading_sessions` 컬럼은 존재하고 백테스트는 존중한다. 즉 같은 전략이 백테스트에서는 아시아 세션만 거래하는데 라이브에서는 밤새 진입한다.
+
+BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했는데 라이브 쪽이 비어 있다.
+
+**권장 접근:** `run_live` 에 `sessions_allowed` 를 추가하고 `live_signal.py` 가 `strategy.trading_sessions` 를 넘긴다. 단 `sessions_allowed` 가 비어 있지 않으면 OHLCV 인덱스가 tz-aware 여야 하므로(`event_loop.py:90-92`) 라이브 DataFrame 구성이 그 조건을 만족하는지 먼저 실측할 것. 회귀 = 허용 세션 밖 bar 에서 진입이 **안 나가는지**와 안 밖 양쪽 단정.
+
+**Risk:** 🟡 (사용자가 명시한 제약을 라이브가 무시한다)
+
+---
+
+### BL-482
+
+**Title:** `pyramiding` cap 이 라이브에 미배선 — 같은 전략이 백테스트는 cap, 라이브는 무제한 중첩
+**Category:** Backend / trading (라이브 게이팅 parity)
+**Priority:** P3
+**Trigger:** BL-478 (a) 로 진입이 실제로 열린 뒤
+**Est:** S
+**출처:** 2026-07-26 live-entry-wiring (BL-479 배선 중 발견)
+
+**원인 / 영향:** `compat.py:101` 이 `strategy(pyramiding=N)` 을 추출해 `run_historical` 로 넘기지만 `run_live` 는 안 넘긴다 → `pyramiding=None` = cap 무효(`event_loop.py:115` 주석이 "None 시 무효" 를 명시).
+
+지금은 진입 자체가 드물어 노출이 적지만, BL-478 (a) 로 조건부 진입이 열리면 같은 방향 포지션이 백테스트가 허용한 것보다 많이 쌓일 수 있다.
+
+**권장 접근:** BL-481 과 같은 배선. `extract_content(source).declaration.pyramiding` 을 `run_live` 로 전달. BL-481 과 한 PR 로 묶는 게 자연스럽다.
+
+**Risk:** 🟢 (진입이 열리기 전까지는 도달 불가)
+
+---
+
+### BL-483
+
+**Title:** `leverage` 가 라이브 엔진에 미배선 — 증거금 게이트와 청산가 모델이 L=1 로 no-op
+**Category:** Backend / trading (라이브 리스크 게이트)
+**Priority:** **P1**
+**Trigger:** BL-479 머지 직후 (사이징이 켜지는 순간 증거금 판정이 유의미해진다)
+**Est:** M
+**출처:** 2026-07-26 live-entry-wiring (BL-479 배선 중 발견)
+
+**원인 / 영향:** `StrategySettings.leverage`(1~125)는 `OrderRequest.leverage`(`live_signal.py:931` 근처)로만 흐르고 `configure_sizing(leverage=...)` 에는 안 들어간다. 그래서 라이브 엔진에서 `is_leverage_active(1.0)` 이 False → `_can_afford_entry` 격리증거금 게이트(`strategy_state.py:374`)와 청산가 모델(BL-186a / BL-480 계열)이 **통째로 no-op** 이다.
+
+결과: **백테스트가 증거금 부족으로 거부할 진입을 라이브는 통과시킨다.**
+
+★**그냥 넘기면 안 된다.** 넘기는 순간 그 게이트가 켜지는데, 증거금 부족 시 진입이 `warnings` 만 남기고 **조용히 skip** 된다. `warnings` 는 divergence 를 트리거하지 않으므로 완전 무음이다. BL-479 가 스코프에서 뺀 이유가 이것이고, 배선하려면 **skip 을 표면화하는 경로를 같이 만들어야 한다.**
+
+**권장 접근:** (1) `run_live` 에 `leverage` 전달 (2) `_can_afford_entry` skip 을 `warnings` 가 아니라 관측 가능한 신호로 승격 — preflight 카테고리 또는 `qb_live_signal_skipped_total` reason (3) 회귀 = 증거금 부족 진입이 skip 되고 **그 사실이 화면/메트릭에 보이는지** 양쪽 단정.
+
+**Risk:** 🔴 (백테스트가 거부할 포지션을 라이브가 연다)
+
+---
+
+### BL-484
+
+**Title:** 세션 자동 중단 **사유**가 화면에 남지 않는다 — 알림 채널로만 나가고 DB 에 없다
+**Category:** Frontend + Backend / trading (Surface Trust)
+**Priority:** P2
+**Trigger:** 자동 중단이 실제로 자주 일어나기 시작할 때
+**Est:** M
+**출처:** 2026-07-26 live-entry-wiring
+
+**원인 / 영향:** preflight/runtime 자동 비활성화는 `_fire_divergence_alert` 로 Slack·Telegram 에만 사유를 보내고, DB 에는 `deactivated_at` 만 남는다. `publish_realtime(user_id, "session_state", {session_id})` 도 세션 ID 만 싣는다.
+
+`GET /live-sessions` 는 `is_active=true` 만 돌려주므로 중단된 세션은 목록에서 **사라진다**. 사용자는 "왜 꺼졌는지" 는커녕 **꺼졌다는 사실도** 화면에서 알기 어렵다. BL-480 이 고친 "화면이 아는 것을 숨긴다" 와 같은 클래스다.
+
+이번 스프린트는 최소 정직안만 했다 — 코크핏이 선택 세션을 목록에서 파생시켜, 사라지면 "이 세션은 중단되었습니다 + 알림 채널을 보라 + 재시작하면 사유가 보인다" 를 렌더한다. 그 문장은 전부 참이지만 **사유 자체는 여전히 화면에 없다.**
+
+**권장 접근:** `live_signal_sessions` 에 `deactivated_reason` 컬럼 추가 + `GET /live-sessions?include_inactive=true`(BL-423 와 동일 요구) + 세션 카드에 사유 표시. BL-423 과 한 PR 로 묶는 게 자연스럽다.
+
+**Risk:** 🟡 (조용한 중단. 금액 정확도 영향 없음)
+
+---
+
+### BL-485
+
+**Title:** `FormErrorInline` 이 `detail.detail` 로 폴백하지 않아 공통 컴포넌트를 쓸 수 없다
+**Category:** Frontend (에러 표면)
+**Priority:** P3
+**Trigger:** 422 에러 표면을 공통화하고 싶을 때
+**Est:** S
+**출처:** 2026-07-26 live-entry-wiring
+
+**원인 / 영향:** `form-error-inline.tsx:93-97` 의 422 general 분기가 `friendly_message` 만 읽고, 없으면 `fallback = err.message` 로 떨어진다. 그 `err.message` 는 `"API 422 /api/v1/live-sessions"` 라 사람이 못 읽는다.
+
+그리고 `friendly_message` 를 응답에 싣는 곳은 `main.py:17-54` 의 `isinstance` **하드코딩 화이트리스트**(`StrategyNotRunnable` / `StrategyDegraded`) 뿐이라, 새 예외는 그 필드를 못 갖는다.
+
+결과: 라이브 세션 폼을 `FormErrorInline` 으로 교체하면 기존 422 **4종**(`StrategySettingsRequired` / `InvalidStrategySettings` / `AccountModeNotAllowed` / `LiveSessionQuotaExceeded`)이 전부 `"API 422 ..."` 로 **조용히 퇴행**한다. 그래서 이번 스프린트는 교체하지 않고 서버 `detail` 문자열 + `describeApiError` 경로를 유지했다.
+
+**권장 접근:** `parseError` 에 `friendly_message ?? detail.detail` 폴백 3줄 추가. 그러면 공통 컴포넌트가 모든 도메인 예외에 안전해지고, 라이브 세션 폼 교체를 재검토할 수 있다. 회귀 = `friendly_message` 없는 422 가 `detail` 문구를 렌더하고 `"API 422"` 를 포함하지 않는지.
+
+**Risk:** 🟢
+
+---
+
+### BL-486
+
+**Title:** 라이브 사이징 equity 가 **300바 롤링 창**에 따라 변한다 — 같은 신호가 볼 때마다 다른 수량
+**Category:** Backend / trading (라이브 사이징 정합)
+**Priority:** **P1**
+**Trigger:** 세션이 warmup 창(1m 기준 5시간)보다 오래 살기 시작할 때. 즉 **지금 바로**
+**Est:** M
+**출처:** 2026-07-26 live-entry-wiring 최종 codex diff 리뷰 → 실측 재현
+
+**원인 / 영향:** BL-479 가 `initial_capital` 을 배선하면서 `configure_sizing` 이 `running_equity = initial_capital` 로 시작하고, `strategy_state.py:668` 이 청산 손익을 누적한다. 백테스트에서는 이게 정확하다(inception 부터 전부 replay 하므로 누적 = 전체 손익).
+
+**라이브는 warmup replay 라 누적 범위가 300 바 롤링 창이다.** 세션 나이가 창보다 짧으면 창 누적 = 세션 누적이라 정확하지만, 넘어가면 오래된 거래가 창 밖으로 밀리며 **같은 바의 수량이 바뀐다.**
+
+실측 재현 (`tests/strategy/pine_v2/test_run_live_sizing.py::test_run_live_qty_drifts_with_warmup_window_KNOWN_LIMITATION`):
+
+```
+같은 마지막 바(종가 65536) · 같은 initial_capital=8192 · 같은 pct=50
+  창 안에 청산 1건(+4096)  ->  qty 0.09375
+  그 청산이 창 밖          ->  qty 0.0625      (50% 차이)
+```
+
+**미배선 시절의 `1.0`(모든 상황에서 틀림)보다는 낫지만 완결이 아니다.** BL-479 는 수량을 자본에 연동시켰고, 이 항목은 그 자본이 무엇이어야 하는지를 정한다.
+
+**권장 접근:** 먼저 **시맨틱 결정**이 필요하다 — 셋 중 하나다.
+
+- (a) **세션 시작 고정** — `running_equity` 를 라이브에서 누적하지 않는다. 결정적이지만 복리가 없고, 오래된 세션은 낡은 잔고로 사이징한다
+- (b) **세션 누적** — `initial_capital = 스냅샷 + 창 이전 세션 실현손익`(DB 의 세션 손익을 이미 갖고 있다). 백테스트와 가장 가깝지만 실현손익(실제)과 replay 손익(시뮬)을 섞는다
+- (c) **실잔고 추종** — 매 tick 조회. 지연(1.6s/tick)에 더해 실잔고에 이미 반영된 손익을 replay 가 다시 더하는 **이중 계상**이 생긴다 (BL-479 가 이 이유로 기각했다)
+
+권고 = **(b)**. 다만 "실현/시뮬 혼합" 을 화면에 고지해야 한다. 어느 쪽이든 회귀는 위 KNOWN_LIMITATION 테스트를 **뒤집어** 같은 바가 창과 무관하게 같은 수량을 내는지 단정하는 형태가 된다.
+
+**Risk:** 🔴 (주문 수량이 조용히 변한다. 머니-패스)
+
+---
+
+### BL-487
+
+**Title:** `test_get_pool_safe_across_event_loops` 가 `id()` 재사용에 취약 — 전체 스위트에서 random RED
+**Category:** Test / 인프라 (flake)
+**Priority:** P3
+**Trigger:** CI 가 이유 없이 빨개질 때
+**Est:** S
+**출처:** 2026-07-26 live-entry-wiring 최종 게이트 (전체 스위트 1회 관측, 격리 실행·재실행은 통과)
+
+**원인 / 영향:** `tests/common/test_redis_client.py:44` 가 두 `asyncio.run` 의 pool 인스턴스가 다름을 `assert first != second` 로 단정하는데, `_touch()` 가 **`id(pool)` 만 반환하고 pool 객체 자체는 붙잡지 않는다.** 첫 pool 이 GC 되면 CPython 이 같은 주소를 재사용할 수 있고 그때 `id` 가 같아진다.
+
+즉 테스트가 검증하려는 것("reset 후 새 인스턴스")은 옳지만 **측정 도구가 틀렸다.** 이 스프린트 변경과 무관한 선재 결함이고, `pytest-randomly` 로 실행 순서/할당 패턴이 바뀔 때 드물게 드러난다.
+
+**권장 접근:** `id()` 대신 **객체 참조 자체를 반환해 붙잡고** `assert first is not second` 로 단정한다. 두 객체가 동시에 살아 있으면 주소 재사용이 원천 불가능하다.
+
+**Risk:** 🟢 (테스트 전용. 프로덕션 영향 없음)
+
+---
+
 ## 운영 규약
 
 ### 신규 항목 추가
 
 1. 적절한 priority 결정 (P0~P3 정의 표 참조)
-2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~464)
+2. 다음 BL ID 부여 (현재 사용 범위: BL-001~005, BL-010~487)
 3. 표준 8 필드 모두 채우기: ID / 제목 / 카테고리 / priority / trigger / est / 출처 / 권장 접근
 4. 출처 cross-link (파일:라인 또는 dev-log 파일명) 필수
 5. 의존성 있으면 명시 (다른 BL ID 또는 외부 자원)

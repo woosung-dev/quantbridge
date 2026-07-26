@@ -447,6 +447,10 @@ class LiveSignalSession(SQLModel, table=True):
         sa_column=Column(AwareDateTime(), nullable=True),
     )
     bar_claim_token: UUID | None = Field(default=None)
+    # 활성 레거시 세션은 실제 시작 잔고를 알 수 없다. NULL은 진실의 부재이며 소비 측이 fail-closed한다.
+    equity_baseline_usdt: Decimal | None = Field(
+        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),

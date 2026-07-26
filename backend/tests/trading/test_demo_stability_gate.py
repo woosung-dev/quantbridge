@@ -15,6 +15,7 @@ from src.trading.services.live_session_service import (
     _MIN_DEMO_STABLE_DAYS,
     LiveSignalSessionService,
 )
+from tests.trading.test_live_session_commits import _make_balance_service
 
 _VALID_SETTINGS = {
     "schema_version": 1,
@@ -70,6 +71,7 @@ def _svc(*, strategy, account, created_at):
         repo=repo,
         account_repo=account_repo,
         strategy_repo=strategy_repo,
+        balance_service=_make_balance_service(),
         user_repo=user_repo,
     )
     return svc, repo, user_repo

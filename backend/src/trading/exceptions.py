@@ -231,6 +231,41 @@ class DemoAccountNotYetStable(AppException):
         self.min_required = min_required
 
 
+class LiveStopEntryUnsupported(AppException):
+    """BL-478 (a) 조건부 주문 등재가 구현되면 해제할 임시 라이브 세션 차단."""
+
+    status_code = 422
+    code = "live_stop_entry_unsupported"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "이 전략은 조건부 진입(strategy.entry 의 stop 인자)을 사용합니다. 조건부 진입 주문을 "
+            "거래소에 등재하는 경로가 아직 없어서, 세션을 시작해도 진입 주문은 나가지 않고 청산 신호만 "
+            "나갑니다. 시장가로 진입하는 다른 전략을 고르거나, 전략에서 stop 인자를 빼고 시장가 "
+            "진입으로 바꾼 뒤 다시 시작해주세요."
+        )
+
+
+class SizingBaselineUnavailable(AppException):
+    """BL-479 — 세션 시작 시 자본 기준선 스냅샷 실패. 사이징 없이 발주하느니 세션을 안 연다.
+
+    BL-478 (a) 와 무관하다. 조건부 주문 등재가 구현돼도 이 게이트는 남는다 —
+    자본 기준선이 없으면 `compute_qty()` 가 1.0 을 돌려주고 1 BTC 명목이 나간다.
+    """
+
+    status_code = 422
+    code = "sizing_baseline_unavailable"
+
+    def __init__(self, *, account_id: UUID, reason: str | None = None) -> None:
+        super().__init__(
+            "세션 시작 시점의 거래소 잔고를 읽지 못했습니다. 잔고를 모르면 주문 수량을 계산할 수 "
+            "없어서 세션을 시작하지 않습니다. 거래소 계정의 API 키 상태를 확인한 뒤 다시 "
+            "시도해주세요."
+        )
+        self.account_id = account_id
+        self.reason = reason
+
+
 class BalanceUnverified(AppException):
     """CF5 — live 모드에서 잔고 검증 불가 (fetch 실패/0) → 주문 거부 (fail-closed).
 

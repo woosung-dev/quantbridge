@@ -212,6 +212,7 @@ class LiveSessionResponse(BaseModel):
     created_at: AwareDatetime
     updated_at: AwareDatetime
     deactivated_at: AwareDatetime | None
+    equity_baseline_usdt: Decimal | None = None
 
 
 class LiveSessionListResponse(BaseModel):
