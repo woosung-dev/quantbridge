@@ -2693,7 +2693,31 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 **권장 접근:** 행 생성을 `positions` 순회가 아니라 **세션 단위**로 바꾼다 — 세션마다 최소 1행을 만들고 `positions` 가 비면 verdict 와 `local_open_trades_snapshot` 을 보여주는 행으로 렌더. 회귀 방어는 `verdict='local_only' + positions=[]` 픽스처로 "열린 포지션이 없습니다" 가 **아닌** 것을 단정.
 
-**Risk:** 🟡 (Surface Trust — 화면이 아는 것을 숨긴다)
+**상태:** ✅ **Resolved (2026-07-26, `feat/bl-474-webhook-ingress-parity`).**
+
+`combineLiveSessionPositions` 에 `divergences` 를 추가했다. `positions` 가 비었을 때 **숨기면 안 되는 판정만** 골라 세션 단위로 건져 올린다(`isDivergentWithoutExchangePosition`):
+
+| 판정                                               | 처리       | 이유                                                     |
+| -------------------------------------------------- | ---------- | -------------------------------------------------------- |
+| `local_only`                                       | **표면화** | 발산 그 자체                                             |
+| `unknown` + `local_source='strategy_state_report'` | **표면화** | 상태 보고는 있는데 대조 실패 = 알아야 하는 상태          |
+| `unknown` + `local_source='none'`                  | 조용히     | 아직 평가 전 — 숨길 것이 없다                            |
+| `match`                                            | 조용히     | 양쪽 다 비었다. 정상                                     |
+| `exchange_only`                                    | 해당 없음  | 정의상 거래소 포지션이 있어야 하므로 이 분기에 도달 불가 |
+
+`isEmpty` 와 빈 상태 가드에 `divergences` 를 포함시켜 "열린 포지션이 없습니다" 로 떨어지지 않게 했다. 표에는 `unsupported` 와 같은 colSpan 행으로 렌더하며 전략이 들고 있다고 **보고한 내용까지** 같이 적는다.
+
+**실화면 확인** — 라이브 세션이 마침 이 상태라 천연 픽스처였다:
+
+> BTC/USDT · PbR Pivot Reversal · **전략에만 열린 거래가 있습니다.** 전략 보고: **PivRevLE 롱 1** 거래소 보고 포지션은 0건입니다.
+
+[`screenshots/2026-07-26-bl480-divergence-surfaced.png`](dev-log/screenshots/2026-07-26-bl480-divergence-surfaced.png)
+
+회귀 = 7건 **수정 전 RED 확인**(훅 5 · 컴포넌트 2). `match`/평가-전 `unknown` 이 조용히 남는 것도 함께 단정해, 가드가 무차별로 시끄러워지지 않음을 증명했다.
+
+★**BL-478 이 살아 있는 동안 이게 유일한 발산 표면이다.** 근본 원인(진입 미발주)은 그대로다 — 이 수정은 **화면이 아는 것을 숨기지 않게** 만든 것뿐이다.
+
+**Risk:** 🟢
 
 ---
 

@@ -77,15 +77,57 @@ export interface UnsupportedLiveSessionPosition {
   fetchedAt: string | null;
 }
 
+/** 전략이 들고 있다고 보고한 미청산 거래. 백엔드가 느슨한 record 로 주므로 가드해서 읽는다. */
+export interface LocalOpenTradeSummary {
+  id: string | null;
+  direction: string | null;
+  qty: string | null;
+}
+
+/**
+ * BL-480 — 거래소 포지션이 0인데 전략은 들고 있다고 보는 상태.
+ *
+ * 행(`rows`)은 거래소 포지션을 펼쳐서 만들기 때문에, `positions` 가 비어 있는 것이
+ * 곧 정의인 `local_only` 는 **정확히 그 순간에만** 행이 하나도 안 만들어졌다.
+ * 그래서 표가 "열린 포지션이 없습니다" 로 떨어지며 발산을 은폐했다.
+ */
+export interface LiveSessionPositionDivergence {
+  sessionId: string;
+  sessionLabel: string;
+  symbol: string;
+  verdict: LiveSessionPositions["diff"]["verdict"];
+  localOpenTrades: LocalOpenTradeSummary[];
+  fetchedAt: string | null;
+}
+
 export interface LiveSessionsPositionsAggregate {
   rows: LiveSessionPositionRow[];
   unsupported: UnsupportedLiveSessionPosition[];
+  divergences: LiveSessionPositionDivergence[];
   latestFetchedAt: string | null;
   isLoading: boolean;
   isError: boolean;
   isPending: boolean;
   isEmpty: boolean;
   refetch: () => Promise<unknown[]>;
+}
+
+function readTradeField(trade: Record<string, unknown>, key: string): string | null {
+  const raw = trade[key];
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+  return null;
+}
+
+function summarizeLocalOpenTrades(
+  snapshot: readonly Record<string, unknown>[] | undefined,
+): LocalOpenTradeSummary[] {
+  if (!snapshot) return [];
+  return snapshot.map((trade) => ({
+    id: readTradeField(trade, "id"),
+    direction: readTradeField(trade, "direction"),
+    qty: readTradeField(trade, "qty"),
+  }));
 }
 
 /**
@@ -138,6 +180,7 @@ export function combineLiveSessionPositions(
 ): LiveSessionsPositionsAggregate {
   const rows: LiveSessionPositionRow[] = [];
   const unsupported: UnsupportedLiveSessionPosition[] = [];
+  const divergences: LiveSessionPositionDivergence[] = [];
   let latestFetchedAt: string | null = null;
 
   for (const [index, result] of results.entries()) {
@@ -158,6 +201,22 @@ export function combineLiveSessionPositions(
       });
       continue;
     }
+    // BL-480 — 거래소 포지션이 0이면 행이 만들어지지 않는다. 그런데 그게 곧
+    // `local_only` 의 정의라, 발산을 뜻하는 판정이 하필 그때만 화면에서 사라졌다.
+    // 여기서 세션 단위로 건져 올린다.
+    if (positions.positions.length === 0) {
+      if (isDivergentWithoutExchangePosition(positions.diff)) {
+        divergences.push({
+          sessionId: session.id,
+          sessionLabel,
+          symbol: positions.symbol,
+          verdict: positions.diff.verdict,
+          localOpenTrades: summarizeLocalOpenTrades(positions.local_open_trades_snapshot),
+          fetchedAt: positions.fetched_at,
+        });
+      }
+      continue;
+    }
     for (const position of positions.positions) {
       rows.push({
         sessionId: session.id,
@@ -173,13 +232,31 @@ export function combineLiveSessionPositions(
   return {
     rows,
     unsupported,
+    divergences,
     latestFetchedAt,
     isLoading: results.some((result) => result.isLoading),
     isError: results.some((result) => result.isError),
     isPending: results.some((result) => result.isPending),
-    isEmpty: results.length === 0 || (rows.length === 0 && unsupported.length === 0),
+    isEmpty:
+      results.length === 0 ||
+      (rows.length === 0 && unsupported.length === 0 && divergences.length === 0),
     refetch: () => Promise.all(results.map((result) => result.refetch())),
   };
+}
+
+/**
+ * 거래소 포지션이 0인 상태에서 "숨기면 안 되는" 판정만 고른다.
+ *
+ * - `local_only` — 전략은 들고 있다고 보는데 거래소는 비었다. 발산 그 자체.
+ * - `unknown` + 전략 상태 있음 — 상태 보고는 있는데 대조에 실패했다는 뜻이라 알아야 한다.
+ * - `unknown` + 전략 상태 없음(`none`) — 아직 평가 전. 숨길 것이 없으므로 조용히 둔다.
+ * - `match` — 양쪽 다 비었다. 정상.
+ *
+ * `exchange_only` 는 정의상 거래소 포지션이 있어야 하므로 이 분기에 도달하지 않는다.
+ */
+function isDivergentWithoutExchangePosition(diff: LiveSessionPositions["diff"]): boolean {
+  if (diff.verdict === "local_only") return true;
+  return diff.verdict === "unknown" && diff.local_source === "strategy_state_report";
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────────

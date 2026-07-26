@@ -231,7 +231,15 @@ export function OpenPositionsTable({
     );
   }
 
-  if (positions.rows.length === 0 && positions.unsupported.length === 0) {
+  // BL-480 — 발산이 있으면 이 빈 상태로 떨어지면 안 된다. 거래소 기준으로는
+  // 참이지만 전략이 포지션을 들고 있다고 믿는 사실을 적극적으로 감추게 된다.
+  const divergences = positions.divergences ?? [];
+
+  if (
+    positions.rows.length === 0 &&
+    positions.unsupported.length === 0 &&
+    divergences.length === 0
+  ) {
     return (
       <div className="card" data-testid="open-positions-table">
         <div className="card-body">
@@ -277,6 +285,34 @@ export function OpenPositionsTable({
                     setCloseTarget(target);
                   }}
                 />
+              ))}
+              {divergences.map((item) => (
+                <tr key={`div-${item.sessionId}`} data-testid="open-positions-divergence">
+                  <td colSpan={14}>
+                    {item.symbol} ·{" "}
+                    {resolveStrategyName?.(item.sessionId, item.sessionLabel) ??
+                      item.sessionLabel}{" "}
+                    · <strong>{POSITION_VERDICT_HEADING[item.verdict]}</strong>
+                    {item.localOpenTrades.length > 0 ? (
+                      <>
+                        {" "}
+                        전략 보고:{" "}
+                        {item.localOpenTrades
+                          .map((trade) =>
+                            [
+                              trade.id,
+                              trade.direction ? directionLabel(trade.direction) : null,
+                              trade.qty,
+                            ]
+                              .filter((part) => part != null && part !== "")
+                              .join(" "),
+                          )
+                          .join(" / ")}
+                      </>
+                    ) : null}{" "}
+                    거래소 보고 포지션은 0건입니다.
+                  </td>
+                </tr>
               ))}
               {positions.unsupported.map((item) => (
                 <tr key={item.sessionId} data-testid="open-positions-unsupported">

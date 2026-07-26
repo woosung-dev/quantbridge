@@ -66,7 +66,7 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 
 - **[BL-478] P1** — stop-entry 전략은 라이브에서 진입이 구조적으로 안 나간다. 최소 정직안 = 그런 전략의 세션 시작을 **차단하고 이유를 표시**(지금은 조용히 안 되면서 되는 척)
 - **[BL-479] P1** — 라이브 사이징 미배선. `run_live` 가 사이징 인자 없이 `run_historical` 호출 → `compute_qty()` 항상 `1.0`. `position_size_pct` 는 라이브에서 **아무 데서도 안 읽힌다**(유일한 소비처 `compat.parse_and_run_v2` 의 프로덕션 호출자는 백테스트 어댑터 하나). Pine `default_qty_type` 선언조차 무시됨
-- **[BL-480] P2** — ★**화면이 발산을 은폐한다.** 백엔드는 정확히 안다(실측 `verdict="local_only"` + `PivRevLE long qty 1 @ 64557.51`), 프론트에 문구도 있다. 그런데 행 생성이 `positions` 순회라 **`local_only` = `positions` 빈 배열**인 그 순간에만 렌더 불가 → 화면은 "열린 포지션이 없습니다"
+- **[BL-480] P2 → ✅ Resolved** — ★**화면이 발산을 은폐했다.** 백엔드는 정확히 알고(실측 `verdict="local_only"` + `PivRevLE long qty 1 @ 64557.51`) 프론트에 문구도 있었는데, 행 생성이 `positions` 순회라 **`local_only` = `positions` 빈 배열**인 그 순간에만 렌더 불가였다. `divergences` 를 세션 단위로 건져 올려 수정. **실화면 확인** — _"BTC/USDT · PbR Pivot Reversal · 전략에만 열린 거래가 있습니다. 전략 보고: PivRevLE 롱 1 거래소 보고 포지션은 0건입니다."_ RED 7건 선확인. ★근본 원인(BL-478 진입 미발주)은 그대로 — **화면이 숨기지 않게** 만든 것뿐
 
 ### 확인된 설계 사실 (결함 아님)
 
@@ -77,8 +77,7 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 
 ### Next Actions
 
-- [ ] **BL-478 결정** — (a) conditional order 등재 · (b) 시장가 근사 · (c) 세션 시작 차단. **(c) 가 최소 정직안**
-- [ ] BL-480 은 (a)/(b) 와 독립적으로 지금 고칠 수 있다 — BL-478 이 살아 있는 동안 **유일한 발산 표면**
+- [ ] **BL-478 결정** — (a) conditional order 등재 · (b) 시장가 근사 · (c) 세션 시작 차단. **(c) 가 최소 정직안**. BL-480 을 고쳐 발산이 이제 화면에 보이므로, 그 상태로 방치해도 **조용히 속지는 않는다**
 - [ ] BL-476 결정 — 가드를 Celery 경계 뒤로 옮길지(거부 시점이 응답 뒤로 밀리는 계약 변경)
 - [ ] BL-477 — 읽기 전용 계정 `0277c150` 삭제 여부(사용자 판단, 삭제하면 자연 소멸)
 
