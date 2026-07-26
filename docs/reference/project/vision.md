@@ -77,7 +77,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 
 ## Sprint 로드맵 요약 (기술 관점)
 
-> 상세 진행 상황은 [`docs/status.md`](../../../.ai/templates/docs/TODO.md). 본 섹션은 Phase 단위 **기술** 로드맵 한눈에 보기.
+> 상세 진행 상황은 [`docs/status.md`](../../../.ai/templates/docs/status.md). 본 섹션은 Phase 단위 **기술** 로드맵 한눈에 보기.
 > **제품 로드맵(Horizon × Pillars, 비즈니스·수익화·Launch 포함)**은 [`docs/reference/project/roadmap.md`](./roadmap.md) 참조.
 
 | Phase     | 기간 (계획) | 핵심 산출물                                             | 진행 상태                                              | Horizon 매핑 |
@@ -122,7 +122,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 - 도메인 모델: [`02_domain/domain-overview.md`](../domain-overview.md)
 - 시스템 설계: [`04_architecture/system-architecture.md`](../system-architecture.md)
 - 의사결정 트레일: [`dev-log/`](../../dev-log/) (ADR-001~012)
-- 작업 추적: [`status.md`](../../../.ai/templates/docs/TODO.md)
+- 작업 추적: [`status.md`](../../../.ai/templates/docs/status.md)
 
 ## 변경 이력
 

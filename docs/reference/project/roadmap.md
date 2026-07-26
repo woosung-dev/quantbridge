@@ -179,7 +179,7 @@
 ## 참조 문서
 
 - **비전 / 타깃 사용자**: [`vision.md`](./vision.md)
-- **Sprint 추적**: [`status.md`](../../../.ai/templates/docs/TODO.md) — Completed / Next Actions / Blocked / Questions
+- **Sprint 추적**: [`status.md`](../../../.ai/templates/docs/status.md) — Completed / Next Actions / Blocked / Questions
 - **프레임·철학 근거**: [`dev-log/010b-product-roadmap.md`](../../decisions/010b-product-roadmap.md) (ADR)
 - **Sprint 7c scope (H1)**: [`dev-log/008-sprint7c-scope-decision.md`](../../decisions/008-sprint7c-scope-decision.md)
 - **요구사항 상세**: [`01_requirements/requirements-overview.md`](../requirements-overview.md)

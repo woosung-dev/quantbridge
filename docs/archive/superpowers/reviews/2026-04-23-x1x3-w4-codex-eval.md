@@ -784,7 +784,7 @@ exec
 | [prototypes/](../../../reference/prototypes/) | Stage 2 HTML 프로토타입 (12개 화면) | ✅ 확정 |
 | [dev-log/](../../../dev-log/) | ADR (의사결정 기록) | 활성 |
 | [guides/](../../../guides/) | 개발 가이드, Sprint 킥오프 템플릿 | 활성 |
-| [TODO.md](../../../../.ai/templates/docs/TODO.md) | 작업 추적 | 활성 |
+| [TODO.md](../../../../.ai/templates/docs/status.md) | 작업 추적 | 활성 |
 
 ## 빠른 시작
 

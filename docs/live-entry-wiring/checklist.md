@@ -156,6 +156,6 @@ fetch_mark_price 1663ms · fetch_min_notional 1549ms · fetch_balance_usdt 1600m
 
 ## 9. 다음 세션 첫 step
 
-1. `docs/TODO.md` 에서 이 스프린트 상태 확인
+1. `docs/status.md` 에서 이 스프린트 상태 확인
 2. **BL-478 선택지 (a)/(b)/(c) 를 사용자에게 물어보고 시작** — 이게 blocking 결정이다
 3. (c) 라면 BL-479 와 묶어서 한 스프린트, (a) 라면 BL-478 단독으로 한 스프린트

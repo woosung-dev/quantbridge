@@ -98,7 +98,7 @@
 **Priority:** P0 (H1 Stealth 종료 직전)
 **Trigger:** Bybit Demo 1주 안정 운영 후 + BL-004 완료 후 (BL-004 ✅ Resolved Sprint 28)
 **Est:** M (4-5h)
-**출처:** [`docs/status.md`](../.ai/templates/docs/TODO.md) L646~651
+**출처:** [`docs/status.md`](../.ai/templates/docs/status.md) L646~651
 
 **원인 / 영향:** dogfood 가 Bybit Demo 만으로는 H1 종료 gate 충족 안 됨. mainnet 전환 시 수동 step 누락 위험 (IP whitelist / 출금 권한 차단 / 레버리지 1:1 / 소액 시작).
 
@@ -1395,7 +1395,7 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### Test Skip 추적표 ↔ Backlog
 
-[`docs/status.md` "Test Skip / xfail 추적표"](../.ai/templates/docs/TODO.md) 의 dette 2 건이 백로그로 이관:
+[`docs/status.md` "Test Skip / xfail 추적표"](../.ai/templates/docs/status.md) 의 dette 2 건이 백로그로 이관:
 
 | Skip #                | 위치                                                 | BL ID                |
 | --------------------- | ---------------------------------------------------- | -------------------- |

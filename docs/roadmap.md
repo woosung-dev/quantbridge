@@ -2,7 +2,7 @@
 
 # QuantBridge — 제품 로드맵 · 남은 작업 체크리스트 (Living)
 
-> **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](../.ai/templates/docs/TODO.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
+> **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](../.ai/templates/docs/status.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
 > **최종 갱신:** 2026-07-26 (**BL-474 ingress 패리티 완료, PR #484** — 출처 라벨·SessionScope 실화면 검증까지 닫힘. ★**신규 P1 2건** — 라이브 자동매매가 진입 주문을 낸 적이 없다(BL-478/479), 핸드오프 = `live-entry-wiring/checklist.md`). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
 >

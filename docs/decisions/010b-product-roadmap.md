@@ -153,7 +153,7 @@ H2 말에 Beta 5명 확보 실패 시 Launch 전략 재검토 (Build in public �
 - [docs/reference/project/vision.md](../reference/project/vision.md) — 페르소나·차별점·Phase 로드맵 (Horizon 매핑 기반)
 - [docs/reference/project/roadmap.md](../roadmap.md) — 본 ADR의 산출물
 - [docs/decisions/008-sprint7c-scope-decision.md](./008-sprint7c-scope-decision.md) — ADR-008, red flag 원출처
-- [docs/status.md](../../.ai/templates/docs/TODO.md) — 기술 부채 목록
+- [docs/status.md](../../.ai/templates/docs/status.md) — 기술 부채 목록
 - [docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md](../archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md) — H1 Sprint 7c 상세 plan
 
 ### User-local (참조용, 프로젝트 미커밋)

@@ -257,7 +257,7 @@ pnpm tsc --noEmit
 - Compose 운영: [`../06_devops/docker-compose-guide.md`](docker-compose-guide.md)
 - CI/CD: [`../06_devops/ci-cd.md`](ci-cd.md)
 - 개발 방법론: [`../guides/development-methodology.md`](../guides/development-methodology.md)
-- Sprint 진행 상태: [`../status.md`](../../.ai/templates/docs/TODO.md)
+- Sprint 진행 상태: [`../status.md`](../../.ai/templates/docs/status.md)
 
 ---
 

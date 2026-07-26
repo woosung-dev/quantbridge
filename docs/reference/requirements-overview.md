@@ -59,7 +59,7 @@ PRD §구현 순서를 sprint 단위로 매핑.
 
 > **Phase 1.5b 정의 (Sprint 28 Slice 1b):** dogfood-first 진화로 Live Trading 이 Phase 4 → Phase 1.5b 로 조기 진입. 4 신규 cross-cutting 도메인 (WebSocket Stability / Auth Trust Layer / Auto-Loop / Multi-account) 부상. 상세 매핑: [`../00_project/phase-vs-sprint-mapping.md`](project/phase-vs-sprint-mapping.md), 도메인 진행도: [`./domain-progress-matrix.md`](./domain-progress-matrix.md).
 
-진행 중 상세는 [`docs/status.md`](../../.ai/templates/docs/TODO.md) §"Stage 3 / Sprint \*" 참조.
+진행 중 상세는 [`docs/status.md`](../../.ai/templates/docs/status.md) §"Stage 3 / Sprint \*" 참조.
 
 ## 5. KPI (Vision 인용)
 
