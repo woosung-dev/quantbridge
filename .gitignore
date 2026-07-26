@@ -6,7 +6,8 @@ sprint*-day*-*.jpeg
 !docs/dev-log/screenshots/**
 
 # === AI tooling ===
-.ai/
+# .ai/ 는 AGENTS.md 가 규범 근거로 인용하는 코딩 규칙 원본 → 버전 관리 대상.
+# (2026-07-26: 무시 상태여서 AGENTS.md 참조 11건이 전부 죽어 있었다)
 # .claude/ 하위는 전체 무시하되 settings.json만 예외 (팀 공유 baseline)
 .claude/*
 !.claude/settings.json

@@ -1,0 +1,25 @@
+{
+  "_comment": "스택에 맞게 PostToolUse command를 수정하세요. hooks만 포함, permissions는 settings.local.json에서 관리.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "command": "FILEPATH=\"$FILEPATH\"; case \"$FILEPATH\" in *.ts|*.tsx|*.js|*.jsx) npx prettier --write \"$FILEPATH\" 2>/dev/null ;; *.py) python -m black \"$FILEPATH\" --quiet 2>/dev/null ;; *.dart) dart format \"$FILEPATH\" 2>/dev/null ;; esac; exit 0"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "echo '\\n[Stop] 체크리스트:\\n  - [ ] 타입체크?\\n  - [ ] 테스트?\\n  - [ ] 문서?\\n  - [ ] lessons.md?'"
+          }
+        ]
+      }
+    ]
+  }
+}
