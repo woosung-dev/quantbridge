@@ -21,7 +21,7 @@
 
 ## S2. 증식 차단 (이걸 안 하면 나머지가 3주짜리)
 
-- [ ] 스프린트 종료 체크리스트에 **승격/강등 택1** 단계 추가
+- [x] 스프린트 종료 체크리스트에 **승격/강등 택1** 단계 추가
       → 검증: 템플릿에 항목 존재 + 본 스프린트가 스스로 그 규칙을 적용
 
 ## S3. 구조 재편
@@ -39,22 +39,26 @@
 - [x] `docs/` 내부 상호 링크 876건 중 이동 대상 갱신
       → 검증: 깨진 링크가 main 기준선(388건) 아래
 
-## S5. 에이전트 자산 공유
+## S5. 에이전트 자산 공유 — ★축소 (근거 = context-notes §8)
 
-- [ ] `.gitignore` 에 `!.claude/skills/` 추가 + 팀 자산 스킬 선별 커밋
-- [ ] `docs/guides/` 절차 문서 → `.claude/skills/` 이관 검토
-- [ ] `.claude/{plans,worktrees}` 명시적 무시
+- [x] ~~`!.claude/skills/` 추가 + 팀 자산 스킬 선별 커밋~~ → **보류**
+      실물 확인 결과 `.claude/skills/` 28개가 **전부 서드파티 설치 패키지**라 공유 대상이 없다.
+      예외를 열면 다음 `git add -A` 가 남의 스킬 28벌을 벤더링한다. 규칙만 주석으로 남김.
+- [x] ~~`docs/guides/` → `.claude/skills/` 이관~~ → **보류**
+      `bl-audit-checklist.md` 는 `.claude/settings.json:71` 훅이 경로를 직접 참조.
+      어느 것을 스킬로 올릴지는 사용자 판단 영역.
+- [x] `.claude/{plans,worktrees,sessions}` 명시적 무시
 
 ## S6. 진입 문서
 
-- [ ] `AGENTS.md` §문서화 구조 표(14줄) → 5줄 교체
-- [ ] 첫-step 5종 → 3종 축소
-- [ ] `docs/README.md` 목차 재작성 (**반드시 마지막**)
+- [x] `AGENTS.md` §문서화 구조 표(14줄) → 5줄 교체
+- [x] 첫-step 5종 → 3종 축소
+- [x] `docs/README.md` 목차 재작성 (**반드시 마지막**)
 
 ## S7. 게이트
 
-- [ ] BE pytest 전량 (3-env 필수)
-- [ ] FE vitest 전량 (canon 32 포함)
+- [ ] BE pytest 전량 (3052 collected) · ruff **passed** · mypy **205 files clean** · tsc **clean**
+- [x] FE vitest 전량 — **1130 passed** (canon 11건 포함, 이동한 prototypes 실제 로드 확인)
 - [ ] `git ls-files` 기준 최종 구조 확인
 - [ ] 본 스프린트 문서를 새 규칙대로 강등 (`docs/archive/sprints/docs-restructure/`)
 

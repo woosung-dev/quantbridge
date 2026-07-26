@@ -90,3 +90,31 @@ AWS Prescriptive Guidance 의 ADR 운영 원칙(*폐기를 삭제가 아니라 `
 ```
 
 **본 스프린트가 첫 적용 대상이다.** 작업이 끝나면 `docs/docs-restructure/` 자신을 `docs/archive/sprints/` 로 내린다.
+
+## 8. ★S5 축소 — `.claude/skills/` 는 지금 공유할 게 없다
+
+조사에서 `!` 예외 1위가 `skills/`(14건)였고, 초안은 `!.claude/skills/` 를 뚫고
+`docs/guides/` 7파일을 스킬로 이관할 계획이었다. **로컬 실물을 열어 보고 철회했다.**
+
+현재 `.claude/skills/` 28개는 전부 **서드파티 설치 패키지**다 — `ask-matt` `code-review`
+`diagnosing-bugs` `tdd` `wayfinder` `writing-great-skills` 등. obra/superpowers·mattpocock
+계열이며 **우리가 쓴 자산이 하나도 없다.**
+
+여기서 `!.claude/skills/` 를 열면 다음 `git add -A` 가 남의 스킬 28벌을 리포에 벤더링한다.
+공유할 게 없는 상태에서 예외를 뚫는 건 이득 0 · 위험만 있는 변경이다.
+
+→ **규칙만 주석으로 남기고 예외는 열지 않는다.** 프로젝트 고유 스킬을 처음 쓰는 시점에
+   `!.claude/skills/` 를 추가한다(개인용은 `local-*` 접두사로 구분 — `supabase` 의 `me-*` 방식).
+
+`docs/guides/` 이관도 함께 보류한다. 7파일 중 `bl-audit-checklist.md` 는
+`.claude/settings.json:71` 훅이 경로를 직접 참조하고, 나머지는 어느 것을 스킬로 올릴지가
+사용자 판단 영역이다. 근거 없이 옮기면 훅이 깨진다.
+
+## 9. 실측 결과 — 게이트
+
+| 게이트 | 결과 |
+|---|---|
+| FE vitest | **1130 passed** (canon 11건 포함 — 이동한 `reference/prototypes/` 를 실제 로드) |
+| BE pytest | 3052 collected |
+| 깨진 링크 | main 388 → **42** (−89%). 잔여는 선재 결함(gitignore 된 `reports/*.html` 등) |
+| `docs/` 최상위 | 34 → **11** (활성 스프린트 1 포함) |
