@@ -6,7 +6,11 @@
 import { AlertTriangleIcon, DownloadIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { TRADE_DIRECTION_LABEL, TRADE_STATUS_LABEL } from "@/features/backtest/labels";
+import {
+  TRADE_DIRECTION_LABEL,
+  TRADE_STATUS_LABEL,
+  exitReasonLabel,
+} from "@/features/backtest/labels";
 import type { TradeItem } from "@/features/backtest/schemas";
 import {
   type TradeSortDir,
@@ -30,7 +34,8 @@ import {
 import { TradeRangeChart } from "@/app/(dashboard)/backtests/_components/trades/trade-range-chart";
 
 const PAGE_SIZE = 50;
-const COL_COUNT = 11;
+// 번호·방향·진입시각·청산시각·진입가·청산가·수량·손익·수익률·수수료·청산사유·펼침
+const COL_COUNT = 12;
 
 interface TradeDetailTableProps {
   backtestId?: string;
@@ -250,6 +255,7 @@ export function TradeDetailTable({
                 <th scope="col" className="num">
                   수수료
                 </th>
+                <th scope="col">청산 사유</th>
                 <th scope="col" aria-label="상세 펼치기" />
               </tr>
             </thead>
@@ -287,6 +293,7 @@ export function TradeDetailTable({
                     <td className={toneClass}>{formatCurrency(t.pnl)}</td>
                     <td className={toneClass}>{formatPercent(t.return_pct)}</td>
                     <td className="num">{formatCurrency(t.fees)}</td>
+                    <td>{t.exit_time ? exitReasonLabel(t.exit_kind) : "보유 중"}</td>
                     <td>
                       <button
                         type="button"

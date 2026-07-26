@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 import { DownloadIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
-import { TRADE_DIRECTION_LABEL } from "@/features/backtest/labels";
+import { TRADE_DIRECTION_LABEL, exitReasonLabel } from "@/features/backtest/labels";
 import type { TradeItem } from "@/features/backtest/schemas";
 import {
   type TradeFilters,
@@ -24,14 +24,6 @@ import { EMPTY_CELL } from "@/lib/labels";
 
 // 리포트 미리보기 상한. 전체 원장은 /backtests/[id]/trades 가 담당한다.
 const PREVIEW_LIMIT = 25;
-
-// 청산 사유 표기 — 원시 enum 노출 금지(labels 경유 관례). exit_kind 없으면 시그널 청산.
-const EXIT_REASON_LABEL: Record<string, string> = {
-  take_profit: "익절",
-  stop_loss: "손절",
-  trailing_stop: "추적 손절",
-  liquidation: "강제청산",
-};
 
 interface TradeLedgerTableProps {
   trades: readonly TradeItem[];
@@ -160,9 +152,7 @@ function TradeRow({ trade: t }: { trade: TradeItem }) {
   const isClosed = t.status === "closed" && t.exit_time !== null;
   const pnlTone = t.pnl >= 0 ? "num pos" : "num neg";
   const returnTone = t.return_pct >= 0 ? "num pos" : "num neg";
-  const exitReason = isClosed
-    ? (t.exit_kind != null ? EXIT_REASON_LABEL[t.exit_kind] : undefined) ?? "시그널 청산"
-    : "보유 중";
+  const exitReason = isClosed ? exitReasonLabel(t.exit_kind) : "보유 중";
 
   return (
     <tr data-testid={`trade-row-${t.trade_index}`} data-direction={t.direction}>
