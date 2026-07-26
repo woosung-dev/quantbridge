@@ -24,6 +24,8 @@ export const LiveSessionSchema = z.object({
   last_evaluated_bar_time: z.string().nullable(),
   created_at: z.string(),
   deactivated_at: z.string().nullable(),
+  // 세션 시작 시 1회 스냅샷한 자본 기준선. 주문 수량이 이 값에서 나온다.
+  equity_baseline_usdt: z.string().nullable().optional(),
 });
 export type LiveSession = z.infer<typeof LiveSessionSchema>;
 

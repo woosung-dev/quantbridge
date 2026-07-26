@@ -287,6 +287,31 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     expect(screen.getByText("+98.76")).toBeInTheDocument();
   });
 
+  it("기준 자본은 세션 시작 잔고와 USDT 단위를 표시한다", () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(
+      <LiveSessionDetail session={{ ...SESSION, equity_baseline_usdt: "1234.5" }} />,
+    );
+
+    expect(screen.getByText("기준 자본")).toBeInTheDocument();
+    expect(screen.getByTestId("live-session-equity-baseline")).toHaveTextContent("1234.5 USDT");
+  });
+
+  it("기준 자본이 null이면 0 대신 자리표를 표시한다", () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={{ ...SESSION, equity_baseline_usdt: null }} />);
+
+    // 자리표만 남기고 단위를 붙이지 않는다 — 모르는 값에 USDT 를 붙이면 0 을 아는 척하는 것과 같다.
+    const baseline = screen.getByTestId("live-session-equity-baseline");
+    expect(baseline.textContent?.trim()).toBe("—");
+    expect(baseline).not.toHaveTextContent("USDT");
+    expect(baseline).not.toHaveTextContent("0");
+  });
+
   it("BL-458 — 출처 소계가 오면 확정/추정 칩 두 개를 그린다", async () => {
     stateMock.mockResolvedValue({
       ...STATE_NO_EQUITY,

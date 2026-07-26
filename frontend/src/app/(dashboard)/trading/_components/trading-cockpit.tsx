@@ -72,12 +72,16 @@ export function TradingCockpit() {
     is_archived: false,
   });
 
-  const [selected, setSelected] = useState<LiveSession | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // H-1 준수 — RQ data 객체를 dep 로 직접 쓰지 않고 .items/array 참조를 memoize.
   const sessionItems = useMemo<readonly LiveSession[]>(
     () => sessionsQ.data?.items ?? [],
     [sessionsQ.data?.items],
+  );
+  const selected = useMemo(
+    () => sessionItems.find((session) => session.id === selectedId) ?? null,
+    [sessionItems, selectedId],
   );
   const accountItems = useMemo<readonly ExchangeAccount[]>(
     () => accountsQ.data ?? [],
@@ -389,21 +393,33 @@ export function TradingCockpit() {
                 strategies={formStrategies}
                 exchangeAccounts={formAccounts}
                 activeSessionsCount={activeSessions.length}
-                onSuccess={(s) => setSelected(s)}
+                onSuccess={(session) => setSelectedId(session.id)}
               />
             </div>
             <div className="card card-pad">
               <h3 className="card-title">활성 세션</h3>
               <p className="card-sub session-card-sub">
-                지금 돌고 있는 세션을 고르면 오른쪽에 상세가 열립니다.
+                지금 돌고 있는 세션을 고르면 오른쪽에 상세가 열립니다. 안전 점검이 세션을 자동으로
+                중단하면 이 목록에서 사라집니다.
               </p>
-              <LiveSessionList onSelect={setSelected} selectedId={selected?.id ?? null} />
+              <LiveSessionList
+                onSelect={(session) => setSelectedId(session.id)}
+                selectedId={selectedId}
+              />
             </div>
           </div>
           <div className="session-manage-col">
             {selected ? (
               <div className="card card-pad">
                 <LiveSessionDetail session={selected} />
+              </div>
+            ) : selectedId ? (
+              <div className="card card-pad">
+                <StateBox
+                  title="이 세션은 중단되었습니다."
+                  body="안전 점검이 세션을 자동으로 중단하면 활성 목록에서 사라집니다. 중단 사유는 등록한 알림 채널로 보냈고, 같은 전략으로 다시 시작하면 화면에서도 사유를 볼 수 있습니다."
+                  testId="live-session-stopped-notice"
+                />
               </div>
             ) : (
               <div className="card card-pad">

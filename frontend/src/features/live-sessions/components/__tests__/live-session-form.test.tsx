@@ -15,9 +15,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/lib/api-client";
+
 // ── React Query / Clerk 환경 ──
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8000");
+  mutateAsyncMock.mockReset();
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -151,6 +154,24 @@ function renderForm() {
   );
 }
 
+function submitValidForm() {
+  const strategy = screen
+    .getAllByText(STRATEGY_NAME)
+    .map((element) => element.closest("button"))
+    .find((element): element is HTMLButtonElement => element !== null);
+  if (!strategy) throw new Error("expected strategy item");
+  fireEvent.click(strategy);
+
+  const account = screen
+    .getAllByText(ACCOUNT_LABEL)
+    .map((element) => element.closest("button"))
+    .find((element): element is HTMLButtonElement => element !== null);
+  if (!account) throw new Error("expected account item");
+  fireEvent.click(account);
+
+  fireEvent.click(screen.getByTestId("live-session-submit"));
+}
+
 describe("LiveSessionForm — BL-164 dropdown UUID 노출 차단", () => {
   it("strategy dropdown trigger 가 초기에는 placeholder 를 표시 (UUID 노출 X)", () => {
     renderForm();
@@ -242,5 +263,50 @@ describe("LiveSessionForm — BL-164 emptyMessage", () => {
     // submit 버튼 disabled 검증.
     const submit = screen.getByTestId("live-session-submit");
     expect(submit).toBeDisabled();
+  });
+});
+
+describe("LiveSessionForm — 라이브 세션 시작 거부 사유", () => {
+  it("stop-entry 거부 사유가 화면에 그대로 뜬다", async () => {
+    const detail =
+      "이 전략은 조건부 진입(strategy.entry 의 stop 인자)을 사용합니다. 라이브 세션을 시작할 수 없습니다.";
+    mutateAsyncMock.mockRejectedValue(
+      new ApiError(422, "live_stop_entry_unsupported", "API 422 /api/v1/live-sessions", {
+        detail: { code: "live_stop_entry_unsupported", detail },
+      }),
+    );
+
+    renderForm();
+    submitValidForm();
+
+    const error = await screen.findByTestId("live-session-form-error");
+    expect(error).toHaveTextContent(detail);
+    expect(error).not.toHaveTextContent("API 422");
+  });
+
+  /** 서로 다른 422 응답을 대조해 서버 detail을 하드코딩 없이 그대로 표시함을 검증한다. */
+  it("다른 422 는 자기 문구를 낸다", async () => {
+    const detail = "활성 라이브 세션 한도를 초과했습니다.";
+    mutateAsyncMock.mockRejectedValue(
+      new ApiError(422, "live_session_quota_exceeded", "API 422 /api/v1/live-sessions", {
+        detail: { code: "live_session_quota_exceeded", detail },
+      }),
+    );
+
+    renderForm();
+    submitValidForm();
+
+    expect(await screen.findByTestId("live-session-form-error")).toHaveTextContent(detail);
+  });
+
+  it("detail 이 없는 응답은 폴백 문구", async () => {
+    mutateAsyncMock.mockRejectedValue(new ApiError(422, "unknown", ""));
+
+    renderForm();
+    submitValidForm();
+
+    const error = await screen.findByTestId("live-session-form-error");
+    expect(error).toHaveTextContent("세션을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    expect(error).not.toHaveTextContent("API 422");
   });
 });
