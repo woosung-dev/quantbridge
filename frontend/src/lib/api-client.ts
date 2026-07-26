@@ -60,3 +60,45 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+/**
+ * 사용자에게 보여줄 에러 문구. `ApiError.message` 는 `API 422 /api/v1/…` 라
+ * 사람에게 아무것도 알려주지 않는다 — 서버가 보낸 이유가 `detail` 에 있는데
+ * 버려지고 있었다.
+ *
+ * 실측한 두 모양만 다룬다(2026-07-26 dogfood).
+ *   FastAPI 검증 422 — `{detail: [{loc, msg, …}]}`
+ *     예) `Value error, Cannot normalize symbol: BTCUSDT.P`
+ *   도메인 예외    — `{detail: {code, detail}}`
+ *
+ * Pydantic 이 붙이는 `Value error, ` 접두사는 제거한다. 사용자에게는 잡음이다.
+ */
+export function describeApiError(err: unknown, fallback = "요청에 실패했습니다"): string {
+  if (!(err instanceof ApiError)) {
+    return err instanceof Error ? err.message : fallback;
+  }
+  const body = err.detail;
+  const inner =
+    body && typeof body === "object" && "detail" in body
+      ? (body as { detail: unknown }).detail
+      : undefined;
+
+  if (Array.isArray(inner)) {
+    const messages = inner
+      .map((item) =>
+        item && typeof item === "object" && "msg" in item
+          ? String((item as { msg: unknown }).msg).replace(/^Value error,\s*/, "")
+          : null,
+      )
+      .filter((m): m is string => Boolean(m));
+    if (messages.length > 0) return messages.join(" · ");
+  }
+
+  if (inner && typeof inner === "object" && "detail" in inner) {
+    const nested = (inner as { detail: unknown }).detail;
+    if (typeof nested === "string" && nested) return nested;
+  }
+  if (typeof inner === "string" && inner) return inner;
+
+  return err.message || fallback;
+}
