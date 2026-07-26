@@ -50,6 +50,26 @@ export const TRADE_STATUS_LABEL: Record<TradeStatus, string> = {
 };
 
 /**
+ * 청산 사유. `exit_kind` 가 없으면 시그널 청산이다 — 그 폴백까지가 계약이므로
+ * `exitReasonLabel` 을 거치고 맵을 직접 인덱싱하지 않는다.
+ *
+ * 리포트 §04 미리보기에만 있던 것을 공용으로 올렸다. 전체 원장 페이지
+ * (`/backtests/[id]/trades`)에는 이 열 자체가 없어서, 미리보기 상한(최신 25건)
+ * 밖에서 일어난 강제청산은 화면 어디에도 안 보였다.
+ */
+export const EXIT_REASON_LABEL: Record<string, string> = {
+  take_profit: "익절",
+  stop_loss: "손절",
+  trailing_stop: "추적 손절",
+  liquidation: "강제청산",
+};
+
+/** 청산된 거래의 사유 라벨. 미청산(`exit_time` 없음)은 호출부가 판단한다. */
+export function exitReasonLabel(exitKind: string | null | undefined): string {
+  return (exitKind != null ? EXIT_REASON_LABEL[exitKind] : undefined) ?? "시그널 청산";
+}
+
+/**
  * 성과 지표 이름. 완전형만 화면 텍스트로 쓰고 축약은 th 의 abbr 속성에만 넣는다.
  * total_return 계열 3종은 서로 다른 enum 이므로 합치지 않는다.
  */

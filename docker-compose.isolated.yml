@@ -48,6 +48,20 @@ services:
       - "celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=3 --queues=ws_stream"
       - "/app/src"
 
+  # optimizer-heavy 도 같은 취급 — 빠져 있으면 이 컨테이너만 baked image 에 고정돼
+  # 다른 3 워커와 코드 세대가 갈린다(§7.2 가 막으려는 stale worker 상황 그 자체).
+  backend-optimizer-heavy:
+    volumes: !override
+      - ./backend/src:/app/src:ro
+    command: !override
+      - "uv"
+      - "run"
+      - "watchfiles"
+      - "--filter"
+      - "python"
+      - "celery -A src.tasks.celery_app worker -Q optimizer_heavy --pool=prefork --concurrency=1 --loglevel=info"
+      - "/app/src"
+
   backend-beat:
     volumes: !override
       - ./backend/src:/app/src:ro

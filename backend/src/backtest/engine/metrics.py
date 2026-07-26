@@ -24,9 +24,26 @@ _RFR_ANNUAL = 0.02  # TV 기본 risk-free rate
 SHARPE_CONVENTION_MONTHLY = "tv_monthly_rfr2"
 SHARPE_CONVENTION_DAILY = "tv_daily_rfr2"
 SHARPE_CONVENTION_UNAVAILABLE = "unavailable"
+# 자본이 0 이하로 내려간 구간이 있으면 기간 수익률의 분모가 음수가 되어 **더 잃을수록
+# 수익률이 양수**가 된다. 그 위에서 계산한 위험조정수익은 아첨하는 거짓말이다.
+# `unavailable` 과 분리하는 이유 = 그쪽 문구("변동이 없거나 기간이 짧아")가 여기선
+# 적극적으로 틀리다. 계좌가 파산한 것과 잔잔한 것은 다른 사실이다.
+SHARPE_CONVENTION_NONPOSITIVE_EQUITY = "unavailable_nonpositive_equity"
 
 
 # ── sortino ──────────────────────────────────────────────────────────────────
+
+
+def _has_nonpositive_equity(equity: pd.Series) -> bool:
+    """자본이 한 번이라도 0 이하로 내려갔는가.
+
+    기간 수익률은 `(cur - prev) / prev` 다. `prev` 가 음수면 부호가 뒤집혀
+    **손실이 커질수록 수익률이 양수**가 된다. 실측 사례 — 초기자본 10,000 에서
+    -207,968 로 끝난 실행(총수익률 -2179.68%)의 월간 수익률 13개 중 11개가
+    양수였고 샤프가 +0.029 로 나왔다. `_periodic_returns` 는 `prev == 0` 만 막고
+    있어서 음수 구간이 그대로 통과했다.
+    """
+    return bool((equity <= 0).any())
 
 
 def _periodic_returns(equity: pd.Series) -> tuple[list[float], float, str] | None:
@@ -57,7 +74,12 @@ def _periodic_returns(equity: pd.Series) -> tuple[list[float], float, str] | Non
 
 
 def sortino_ratio(equity: pd.Series) -> Decimal | None:
-    """TV Sortino = (MR - RFR) / downside deviation. 하방 편차 0 → None."""
+    """TV Sortino = (MR - RFR) / downside deviation. 하방 편차 0 → None.
+
+    자본이 0 이하로 간 구간이 있으면 산출하지 않는다 — `_has_nonpositive_equity` 참조.
+    """
+    if _has_nonpositive_equity(equity):
+        return None
     periodic = _periodic_returns(equity)
     if periodic is None:
         return None
@@ -88,6 +110,11 @@ def sharpe_ratio(equity: pd.Series) -> tuple[Decimal, str]:
     영향받는다. 이 슬라이스에서는 고치지 않는다. 고치면 Sortino baseline까지
     흔들린다.
     """
+    # 파산한 계좌에 위험조정수익을 매기지 않는다. 이걸 막지 않으면 분모 부호가
+    # 뒤집혀 **손실이 클수록 좋아 보이는** 숫자가 나온다 — BL-398 이 없애려던
+    # 거짓말의 다른 얼굴이다(구 수식은 수식 때문에, 이쪽은 분모 부호 때문에).
+    if _has_nonpositive_equity(equity):
+        return Decimal("0"), SHARPE_CONVENTION_NONPOSITIVE_EQUITY
     periodic = _periodic_returns(equity)
     if periodic is None:
         return Decimal("0"), SHARPE_CONVENTION_UNAVAILABLE

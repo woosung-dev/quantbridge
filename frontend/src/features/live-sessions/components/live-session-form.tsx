@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
+import { describeApiError } from "@/lib/api-client";
 import { toast } from "sonner";
 
 import {
@@ -88,8 +89,7 @@ export function LiveSessionForm({
       form.reset();
       onSuccess?.(session);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "등록 실패";
-      setServerError(msg);
+      setServerError(describeApiError(err, "등록 실패"));
     }
   };
 

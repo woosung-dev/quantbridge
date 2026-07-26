@@ -5,6 +5,7 @@ import { ImageResponse } from "next/og";
 import { getApiBase } from "@/lib/api-base";
 import { BRAND_PALETTE } from "@/lib/brand-palette";
 import { BacktestDetailSchema } from "@/features/backtest/schemas";
+import { describeSharpe } from "@/features/backtest/sharpe-convention";
 
 // 다크 디폴트 브랜드와 일치 — OG 는 카본/스틸 다크 팔레트 고정
 const P = BRAND_PALETTE.dark;
@@ -36,7 +37,10 @@ export default async function OG({ params }: OGProps) {
   const symbol = detail?.symbol ?? "—";
   const timeframe = detail?.timeframe ?? "";
   const totalReturn = detail?.metrics?.total_return ?? null;
-  const sharpe = detail?.metrics?.sharpe_ratio ?? null;
+  const sharpeDisplay = describeSharpe(
+    detail?.metrics?.sharpe_convention,
+    detail?.metrics?.sharpe_ratio,
+  ).display;
   const mdd = detail?.metrics?.max_drawdown ?? null;
 
   return new ImageResponse(
@@ -92,7 +96,7 @@ export default async function OG({ params }: OGProps) {
           }}
         >
           <Stat label="총 수익률" value={pct(totalReturn)} accent={P.bullish} />
-          <Stat label="Sharpe" value={num(sharpe)} accent={P.primary} />
+          <Stat label="Sharpe" value={sharpeDisplay} accent={P.primary} />
           <Stat label="MDD" value={pct(mdd)} accent={P.bearish} />
         </div>
         <div
@@ -155,10 +159,4 @@ function pct(v: number | string | null | undefined): string {
   if (v == null) return "—";
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : "—";
-}
-
-function num(v: number | string | null | undefined): string {
-  if (v == null) return "—";
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n.toFixed(2) : "—";
 }

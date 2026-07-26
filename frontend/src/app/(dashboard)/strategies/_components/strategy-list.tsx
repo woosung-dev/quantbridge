@@ -34,6 +34,8 @@ import { useStrategies } from "@/features/strategy/hooks";
 import type { ParseStatus, StrategyListItem, StrategyListQuery } from "@/features/strategy/schemas";
 import { formatDateTime } from "@/features/strategy/utils";
 import { formatPercent } from "@/features/backtest/utils";
+import { describeSharpe } from "@/features/backtest/sharpe-convention";
+import type { BacktestMetricsSummary } from "@/features/backtest/schemas";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
@@ -448,10 +450,9 @@ export function StrategyList() {
                           missing={s.latest_backtest == null}
                           format={(value) => formatPercent(value)}
                         />
-                        <StrategyMetricCell
-                          value={s.latest_backtest?.metrics?.sharpe_ratio}
+                        <StrategySharpeCell
+                          metrics={s.latest_backtest?.metrics}
                           missing={s.latest_backtest == null}
-                          format={(value) => value.toFixed(2)}
                         />
                         <td
                           className="num"
@@ -499,6 +500,24 @@ function StrategyMetricCell({
   );
 }
 
+// 샤프는 값만으로 표시할 수 없다 — 컨벤션이 있어야 degenerate 실행을 `—` 로
+// 구분한다. 엔진이 그 경우 의도적으로 0 을 반환하므로(`engine/metrics.py:76-103`)
+// 형제 `StrategyMetricCell` 의 `format(value)` 서명으로는 표현 불가라 전용 셀을 둔다.
+function StrategySharpeCell({
+  metrics,
+  missing,
+}: {
+  metrics: BacktestMetricsSummary | null | undefined;
+  missing: boolean;
+}) {
+  const sharpe = describeSharpe(metrics?.sharpe_convention, metrics?.sharpe_ratio);
+  return (
+    <td className="num" title={missing ? "완료 실행 없음" : sharpe.foot}>
+      {sharpe.display}
+    </td>
+  );
+}
+
 function buildParseStatusCounts(items: readonly StrategyListItem[]) {
   const result: Record<ParseStatus, number> = { ok: 0, unsupported: 0, error: 0 };
   for (const s of items) result[s.parse_status] += 1;
@@ -538,9 +557,10 @@ function buildCsv(rows: readonly StrategyListItem[]): string {
         s.latest_backtest?.metrics?.max_drawdown != null
           ? formatPercent(s.latest_backtest.metrics.max_drawdown)
           : EMPTY_CELL,
-        s.latest_backtest?.metrics?.sharpe_ratio != null
-          ? s.latest_backtest.metrics.sharpe_ratio.toFixed(2)
-          : EMPTY_CELL,
+        describeSharpe(
+          s.latest_backtest?.metrics?.sharpe_convention,
+          s.latest_backtest?.metrics?.sharpe_ratio,
+        ).display,
         String(s.backtest_count ?? EMPTY_CELL),
         formatDateTime(s.updated_at),
       ]

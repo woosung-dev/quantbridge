@@ -20,6 +20,7 @@ import { useBacktests } from "@/features/backtest/hooks";
 import { BACKTEST_STATUS_LABEL } from "@/features/backtest/labels";
 import type { BacktestSummary } from "@/features/backtest/schemas";
 import { formatDateTime, formatPercent } from "@/features/backtest/utils";
+import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import {
   useLiveSessions,
   useLiveSessionsAggregate,
@@ -541,6 +542,10 @@ function StrategyPerformanceRow({ strategy }: { strategy: StrategyListItem }) {
   const latest = strategy.latest_backtest;
   const metrics = latest?.metrics;
   const totalReturn = metrics?.total_return;
+  // 컨벤션 SSOT 경유 — raw `.toFixed(2)` 는 degenerate 실행(`unavailable`)을
+  // 자신만만한 `0.00` 으로 인쇄한다. 엔진은 그 경우 의도적으로 Decimal("0") 을
+  // 반환하므로(`engine/metrics.py:76-103`) null 검사로는 걸러지지 않는다.
+  const sharpe = describeSharpe(metrics?.sharpe_convention, metrics?.sharpe_ratio);
   const returnPct = totalReturn == null ? null : totalReturn * 100;
   const meterPct = returnPct == null ? null : Math.max(0, Math.min(returnPct, METER_CAP_PCT));
   const meterWidth = meterPct == null ? 0 : (meterPct / METER_CAP_PCT) * 100;
@@ -566,9 +571,9 @@ function StrategyPerformanceRow({ strategy }: { strategy: StrategyListItem }) {
           {totalReturn == null ? EMPTY_CELL : formatPercent(totalReturn)}
         </span>
       </div>
-      <div className="perf-figure" title={latest == null ? "완료 실행 없음" : undefined}>
+      <div className="perf-figure" title={latest == null ? "완료 실행 없음" : sharpe.foot}>
         <span className="k">샤프</span>
-        <span className="v">{metrics?.sharpe_ratio == null ? EMPTY_CELL : metrics.sharpe_ratio.toFixed(2)}</span>
+        <span className="v">{sharpe.display}</span>
       </div>
       <div className="perf-bar" title={latest == null ? "완료 실행 없음" : undefined}>
         {meterPct == null ? (
