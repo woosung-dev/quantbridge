@@ -32,7 +32,16 @@ class AccountBalanceService:
         self._bybit_futures_provider = bybit_futures_provider
         self._redis = redis
 
-    async def get_balance(self, user_id: UUID, account_id: UUID) -> AccountBalanceResponse:
+    async def get_balance(
+        self, user_id: UUID, account_id: UUID, *, force_refresh: bool = False
+    ) -> AccountBalanceResponse:
+        """USDT 잔고 조회. 기본은 15초 캐시.
+
+        BL-479 — `force_refresh=True` 는 캐시를 건너뛰고 거래소를 직접 친다. 라이브 세션
+        기준선처럼 **한 번 찍으면 세션 내내 남는 값**은 15초 stale 을 영구히 물려받으면
+        안 된다(입금 직후 시작하면 입금 전 잔고로 세션 전체를 사이징한다). 갱신한 값은
+        캐시에도 다시 써서 뒤따르는 조회가 이득을 본다.
+        """
         account = await self._account_repo.get_by_id(account_id)
         if account is None or account.user_id != user_id:
             raise AccountNotFound(account_id)
@@ -48,10 +57,11 @@ class AccountBalanceService:
             )
 
         cache_key = f"qb_balance_snapshot:{account_id}"
-        cached = await self._read_cache(cache_key)
-        if cached is not None:
-            total, free, fetched_at = cached
-            return self._response(account_id, total, free, fetched_at)
+        if not force_refresh:
+            cached = await self._read_cache(cache_key)
+            if cached is not None:
+                total, free, fetched_at = cached
+                return self._response(account_id, total, free, fetched_at)
 
         credentials = await self._account_service.get_credentials_for_order(account_id)
         snapshot = await self._bybit_futures_provider.fetch_usdt_balance_snapshot(credentials)

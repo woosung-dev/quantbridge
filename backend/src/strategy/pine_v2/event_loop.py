@@ -11,7 +11,8 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 
 공개 API:
 - `run_historical(source, ohlcv) -> RunResult`
-- `run_live(source, ohlcv) -> LiveSignalResult` (Sprint 26)
+- `run_live(source, ohlcv, *, initial_capital=None, live_position_size_pct=None)
+  -> LiveSignalResult` (Sprint 26. 사이징 인자는 BL-479 — 미지정 시 qty=1.0 fallback)
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from src.strategy.pine_v2.interpreter import (
 )
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.pine_v2.runtime import PersistentStore
+from src.strategy.pine_v2.sizing import resolve_default_qty
 
 
 @dataclass
@@ -244,7 +246,13 @@ def _to_decimal(value: float | None) -> Decimal | None:
     return Decimal(str(value))
 
 
-def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
+def run_live(
+    source: str,
+    ohlcv: pd.DataFrame,
+    *,
+    initial_capital: float | None = None,
+    live_position_size_pct: float | None = None,
+) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
 
     매 evaluate 마다 충분한 warmup OHLCV (호출자가 limit_bars=300 등으로 fetch)
@@ -260,6 +268,8 @@ def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
         source: Pine source code.
         ohlcv: 최근 N bars OHLCV (warmup + last evaluate bar 포함). 'timestamp' 컬럼
             (or index) 가 마지막 bar time 추출에 사용.
+        initial_capital: 세션 시작 시 스냅샷한 자본 기준선. None 이면 기존 qty=1.0 fallback.
+        live_position_size_pct: `StrategySettings.position_size_pct`.
 
     Returns:
         LiveSignalResult — last_bar_time + signals + strategy_state_report + 누적 통계.
@@ -270,7 +280,20 @@ def run_live(source: str, ohlcv: pd.DataFrame) -> LiveSignalResult:
     _validate_ohlcv(ohlcv)
 
     # run_historical 전체 재실행 (warmup replay)
-    result = run_historical(source, ohlcv, capture_history=False, strict=False)
+    qty_type, qty_value = resolve_default_qty(
+        source,
+        initial_capital=initial_capital,
+        live_position_size_pct=live_position_size_pct,
+    )
+    result = run_historical(
+        source,
+        ohlcv,
+        capture_history=False,
+        strict=False,
+        initial_capital=initial_capital,
+        default_qty_type=qty_type,
+        default_qty_value=qty_value,
+    )
     strategy_state = result.strategy_state
     if strategy_state is None:
         raise RuntimeError("run_historical returned no strategy_state")

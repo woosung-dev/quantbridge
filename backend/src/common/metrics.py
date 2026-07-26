@@ -338,6 +338,7 @@ qb_partial_fill_total = Counter(
 qb_live_signal_skipped_total = Counter(
     "qb_live_signal_skipped_total",
     "Live signal evaluate skipped reason",
+    # stop_entry_unsupported | equity_baseline_missing 등 preflight 차단 사유를 포함한다.
     labelnames=("reason",),  # contention | non_demo_account | invalid_settings | session_inactive
 )
 qb_live_signal_eval_duration_seconds = Histogram(
@@ -357,6 +358,7 @@ qb_live_signal_divergence_total = Counter(
     "Live signal money-path divergence blocked (auto-deactivate session)",
     # stage: preflight | runtime
     # category(preflight): coverage_unrunnable | degraded_unconsented
+    #   stop_entry_unsupported | equity_baseline_missing 는 skipped 전용이며 이 counter 대상 아님.
     # category(runtime): undefined_name | unsupported_attr | unsupported_call
     #                    | unsupported_node | unexpected | run_live_error
     #   run_live_error = run_live 가 result.errors 밖으로 raise (parse/raw arithmetic 등)

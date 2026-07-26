@@ -21,6 +21,7 @@ import pandas as pd
 from src.strategy.pine_v2.ast_classifier import Track, classify_script
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.event_loop import RunResult
+from src.strategy.pine_v2.sizing import resolve_default_qty
 from src.strategy.pine_v2.virtual_strategy import VirtualRunResult
 
 
@@ -36,25 +37,6 @@ class V2RunResult:
     track: Track
     historical: RunResult | None = None
     virtual: VirtualRunResult | None = None
-
-
-def _extract_default_qty(source: str) -> tuple[str | None, float | None]:
-    """Pine strategy() 의 default_qty_type/value 를 추출. strategy 가 아니면 (None, None).
-
-    BL-185: ScriptContent.declaration 의 명시 필드 (TDD-1.1) 사용.
-    """
-    decl = extract_content(source).declaration
-    if decl.kind != "strategy":
-        return None, None
-    qt = decl.default_qty_type
-    qv_str = decl.default_qty_value
-    qv: float | None = None
-    if qv_str is not None:
-        try:
-            qv = float(qv_str)
-        except (TypeError, ValueError):
-            qv = None
-    return qt, qv
 
 
 def parse_and_run_v2(
@@ -82,6 +64,7 @@ def parse_and_run_v2(
       2. Pine 미명시 + form_default_qty_type/value 명시 → 폼 값 사용
       3. Pine·form 미명시 + live_position_size_pct 명시 → ("strategy.percent_of_equity", live_pct)
       4. 모두 None → qty=1.0 fallback (회귀 호환)
+    체인의 단일 SSOT는 `sizing.resolve_default_qty`.
 
     sessions_allowed: tuple of session names ("asia"/"london"/"ny"). 비어있으면 24h.
     runner 가 StrategyState.sessions_allowed 에 주입 → entry placement + pending fill 양쪽
@@ -96,19 +79,13 @@ def parse_and_run_v2(
     profile = classify_script(source)
     track = profile.track
 
-    default_qty_type: str | None = None
-    default_qty_value: float | None = None
-    if initial_capital is not None:
-        pine_qty_type, pine_qty_value = _extract_default_qty(source)
-        if pine_qty_type is not None and pine_qty_value is not None:
-            default_qty_type = pine_qty_type
-            default_qty_value = pine_qty_value
-        elif form_default_qty_type is not None and form_default_qty_value is not None:
-            default_qty_type = form_default_qty_type
-            default_qty_value = form_default_qty_value
-        elif live_position_size_pct is not None:
-            default_qty_type = "strategy.percent_of_equity"
-            default_qty_value = float(live_position_size_pct)
+    default_qty_type, default_qty_value = resolve_default_qty(
+        source,
+        initial_capital=initial_capital,
+        live_position_size_pct=live_position_size_pct,
+        form_default_qty_type=form_default_qty_type,
+        form_default_qty_value=form_default_qty_value,
+    )
 
     # BL-201: Track S/A/M dispatch → TrackRunner registry. unknown track 은
     # TrackRunner.invoke 가 ValueError raise (compat.py:137 형식 보존).

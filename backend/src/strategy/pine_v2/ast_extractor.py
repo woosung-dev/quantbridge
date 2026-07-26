@@ -386,3 +386,18 @@ def extract_content(source: str) -> ScriptContent:
         var_declarations=_extract_var_declarations(tree),
         strategy_calls=_extract_strategy_calls(tree),
     )
+
+
+def uses_stop_entry(source: str) -> bool:
+    """조건부 진입 사용 여부를 반환한다.
+
+    `extract_content`는 pynescript 파싱 실패 시 예외를 던지므로 호출자가 안전망을 둬야 한다.
+    변수 표현식의 stop 값은 정적으로 na 여부를 알 수 없어 보수적으로 조건부 진입으로 판정한다.
+    """
+    return any(
+        _strip_string_quotes(arg.value) != "na"
+        for call in extract_content(source).strategy_calls
+        if call.name == "strategy.entry"
+        for arg in call.args
+        if arg.name == "stop"
+    )
