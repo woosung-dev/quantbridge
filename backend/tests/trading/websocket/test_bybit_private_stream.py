@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -244,3 +245,36 @@ async def test_sign_matches_bybit_v5_spec():
     ).hexdigest()
     assert sig == expected
     assert len(sig) == 64
+
+
+@pytest.mark.asyncio
+async def test_auth_expires_window_survives_round_trip_latency(fake_ws, fake_connect):
+    """auth `expires` 는 왕복 지연을 견딜 만큼 앞서 있어야 한다.
+
+    ★실측 회귀(2026-07-26). 이전 값 `+1s` 는 프레임이 Bybit 서버에 닿는 시점에
+    이미 만료돼 `Params Error` 로 거부됐다. demo·mainnet 양쪽에서 동일하게
+    재현되고 `+10s`/`+60s` 는 통과한다. 지연이 낮을 때만 붙는 시한폭탄이라
+    스프린트마다 붙었다 떨어졌다 했다.
+
+    하한 5s = Bybit 이 문서에 적은 시계 드리프트 허용(±5s)과 같은 크기. 그보다
+    좁으면 드리프트만으로도 창이 사라진다.
+    """
+    fake_ws.queue_recv(_success_auth())
+    stream = BybitPrivateStream(
+        endpoint="wss://test",
+        api_key="key123",
+        api_secret="secret456",
+        account_id=uuid4(),
+        connect_func=fake_connect,
+    )
+    before_ms = int(time.time() * 1000)
+    async with stream:
+        auth_msg = fake_ws.sent[0]
+
+    expires = auth_msg["args"][1]
+    assert isinstance(expires, int), "Bybit 은 정수 ms 를 요구한다"
+    lead_ms = expires - before_ms
+    assert lead_ms >= 5_000, (
+        f"expires 가 현재보다 {lead_ms}ms 앞설 뿐이다 — 왕복 지연에 먹힌다. "
+        "실측상 +1s 는 Params Error 로 거부됐다."
+    )

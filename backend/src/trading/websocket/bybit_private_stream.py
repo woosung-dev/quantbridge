@@ -4,7 +4,8 @@
 - **supervisor 패턴** (G4 fix): ``__aenter__`` 가 supervisor task 를 시작하고
   첫 connect 까지 대기 후 반환. supervisor 가 connection 라이프사이클 전체를 관리:
   ConnectionClosed/heartbeat 종료 시 자동 reconnect, auth 실패 시 fatal raise.
-- auth: HMAC-SHA256 (`GET/realtime{expires}`), `expires = int((time.time()+1)*1000)`.
+- auth: HMAC-SHA256 (`GET/realtime{expires}`), `expires = now + _AUTH_EXPIRES_WINDOW_S`
+  (10s — +1s 는 왕복 지연에 먹혀 `Params Error` 가 난다, 상수 주석 참조).
   공식 예시 기준 +1s. auth response `success != true` 시 즉시 ``BybitAuthError``.
 - heartbeat: 20s ping, ConnectionClosed 시 종료 → supervisor 가 재연결.
 - reconnect: exponential backoff 1→2→4→8→16→30s. `qb_ws_reconnect_total` inc.
@@ -37,6 +38,16 @@ logger = logging.getLogger(__name__)
 
 _RECONCILE_DEBOUNCE_S = 30.0
 _AUTH_TIMEOUT_S = 5.0
+# auth 서명 유효창. 이전 값 +1s 는 **왕복 지연에 먹혔다** — 프레임이 Bybit 서버에
+# 닿는 시점에 `expires` 가 이미 지나 `Params Error` 로 거부된다. 지연이 낮을 때만
+# 붙는 시한폭탄이라 스프린트마다 붙었다 떨어졌다 했다.
+#
+# 실측(2026-07-26, demo·mainnet 양쪽 동일) —
+#   now+1s  → success=False "Params Error"
+#   now+10s → success=True
+#   now+60s → success=True
+# 서명 만료창일 뿐 비밀이 아니므로 넉넉히 잡는 게 옳다.
+_AUTH_EXPIRES_WINDOW_S = 10.0
 _MAX_BACKOFF_S = 30.0
 # G4 revisit fix B: 첫 connect 가 60s 안에 성공 못 하면 fail-fast.
 # 무한 connection failure 시 __aenter__ 영원 block 방지.
@@ -134,8 +145,7 @@ class BybitPrivateStream:
         """auth payload 송신 + response 검증. 실패 시 BybitAuthError."""
         if self.api_key is None:
             raise BybitAuthError("Bybit API key is required for authenticated stream")
-        # codex G0-5: 공식 예시 기준 +1s
-        expires = int((time.time() + 1) * 1000)
+        expires = int((time.time() + _AUTH_EXPIRES_WINDOW_S) * 1000)
         signature = self._sign(expires)
         await self._ws.send(json.dumps({"op": "auth", "args": [self.api_key, expires, signature]}))
         try:
