@@ -3,6 +3,8 @@
 > 2026-07-26 작성. 브랜치 `stage/dogfood-restore` · PR [#482](https://github.com/woosung-dev/quantbridge/pull/482).
 > **이 스프린트는 여기서 닫는다.** 아래 A·B 는 다음 세션 몫이고, 사용자 확정 사항이다.
 > 배경 전문 = [`dev-log/2026-07-26-dogfood-restore.md`](../dev-log/2026-07-26-dogfood-restore.md).
+>
+> ★**진입점은 여기가 아니라 [`../TODO.md`](../TODO.md) 의 '다음 세션' 절이다.** 본 파일은 A·B 의 상세 지시서이고, 문서 구조 정리(D4)를 하면 TODO 로 흡수돼 사라진다 — [`dev-log/2026-07-26-docs-architecture.md`](../dev-log/2026-07-26-docs-architecture.md).
 
 ---
 

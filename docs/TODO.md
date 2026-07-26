@@ -4,6 +4,64 @@
 > **Active Sprint:** **dogfood-restore** — `make seed` 신설 + 3스프린트 누적 신뢰 작업 실화면 검증 + 발견 결함 수정
 > **Active Branch:** `stage/dogfood-restore` (main @ `0f84d51` 베이스)
 
+## ▶ 다음 세션 — 이 절만 보고 시작하면 된다
+
+> 사용자 확정(2026-07-26). **D → A → B 순서.** D 를 먼저 하는 이유 = A·B 의 산출물이 정리된 구조 위에 떨어지게 하려고. D 는 docs-only 라 짧다.
+
+### D. 문서 구조 정리 (docs-only · 먼저)
+
+**결정과 근거 = [`dev-log/2026-07-26-docs-architecture.md`](dev-log/2026-07-26-docs-architecture.md).** 그 문서의 D1~D5 를 실행한다. 서로 독립이라 **부분만 해도 된다** — 체감이 가장 큰 건 D1·D3 다.
+
+- [ ] **D1** `QUANTBRIDGE_PRD.md`(루트, 1,724줄, 스스로 LEGACY 라 자백) → `docs/archive/` 이동 + 참조 링크 갱신
+- [ ] **D2** roadmap 두 개 이름 구분(`00_project/roadmap.md` 전략 ↔ `product-roadmap.md` 실행). 이름 변경이 부담이면 양쪽 머리 2줄 배너로 대체. **stale(2026-04-21 이후 미수정) 살릴지 archive 할지 같이 판단**
+- [ ] **D3** 본 파일 다이어트 — 과거 스프린트 14절 삭제(**삭제 전 각 스프린트가 dev-log 에 실제로 있는지 1건씩 확인**), 919 → 약 150줄
+- [ ] **D4** `docs/<sprint>/checklist.md` · `~/.claude/plans/` 킥오프 폐지 → 본 절로 흡수. 신규 스프린트부터 `checklist.md`·`context-notes.md` 미생성. **과거 15폴더는 손대지 않는다.** `operating-contract.md` 는 유지
+- [ ] **D5** 13개 문서에 복붙된 반복 함정을 `AGENTS.md` 또는 `docs/guides/` 1곳으로 승격, 나머지는 가리키기만
+- [ ] 마감 — `AGENTS.md` 첫-step 문구를 새 구조에 맞게 갱신
+
+### A. BL-474 — 테스트 주문 다이얼로그가 라이브와 다른 시장으로 나간다
+
+**작업 지시서 = [`dogfood-restore/checklist.md`](dogfood-restore/checklist.md) §A.** (D4 를 하면 그 내용이 이 절로 올라온다.)
+
+한 줄 요약 — 라우팅이 `(exchange, mode, has_leverage)` 튜플인데(`backend/src/trading/registry.py:35-39`) 다이얼로그가 전략 Live Settings 를 안 실어서 `leverage=NULL` → **spot** 으로 간다. 라이브 신호는 **linear perp** 로 간다. 청산 원장·코크핏·`exchange_exits` 는 linear 만 보므로 **그 도구로 머니-패스를 dogfood 하면 조용히 아무것도 검증하지 못한다.**
+
+**A 를 고치면 perp 진입→청산을 결정적으로 만들 수 있고, 그때 #481 출처 라벨 · #477 SessionScope 화면 검증이 열린다.** 그게 이 스프린트의 마지막 미검증분이다.
+
+- [ ] 첫 항목은 **조사** — 페이로드에 Live Settings 가 실리는지, 안 실린다면 다이얼로그인지 `webhook.py` 인지 **코드로 특정**
+- [ ] 수정 범위는 **사용자 확인 후** — checklist §A 에 최소안("이 주문은 spot 으로 나갑니다" 표시만)과 본안(Live Settings 실어 보내기)이 둘 다 있다
+- [ ] A 가 열리면 checklist §A "A 가 열리면 바로 할 것" 의 출처 라벨 검증 수행
+
+### B. pine_v2 시뮬 상태 ↔ 거래소 포지션 발산
+
+**지시서 = [`dogfood-restore/checklist.md`](dogfood-restore/checklist.md) §B.** A 이후. 시간이 부족하면 다음 세션으로 넘겨도 된다(사용자 확정).
+
+**단정하지 말고 측정부터** — outbox 설계상 의도된 동작이고 재동기화 수단 부재가 진짜 결함일 수 있다. 수량 1.0 BTC(`position_size_pct 0.01` 미반영 의혹)도 함께 판정.
+
+### 환경 (세션 시작 시 재확인)
+
+| 항목        | 값                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------- |
+| 브랜치      | `stage/dogfood-restore` (PR #482 — **머지됐는지 먼저 확인**)                        |
+| 스택        | db **5433** · redis **6380** · BE **8100** · FE **3100**                            |
+| compose     | 항상 `-f docker-compose.yml -f docker-compose.isolated.yml` + **`--no-deps`**       |
+| 거래소 계정 | `19a8166a` **거래 가능**(`readOnly:0`) / `0277c150` **주문 불가**(`readOnly:1`)     |
+| 라이브 세션 | `0e15c3c0` PbR / BTC/USDT / 1m / `19a8166a`                                         |
+| 시드        | `make seed` (멱등)                                                                  |
+| baseline    | BE **3005** · FE **1130** · canon **32** · e2e:authed **65-0** · 마이그레이션 **0** |
+
+### 검증 규율 (이 스프린트가 존재하는 이유)
+
+- **엔진 출력을 같은 엔진으로 검증하지 마라**(`.ai/common/global.md` §7.3). 거래소 값은 **raw HMAC 독립 오라클**로 대조.
+- ★**우리가 쓴 에러 문구를 외부 시스템의 진단으로 믿지 마라.** 지난 세션이 `ws_stream_auth_failed … Check API key validity` 를 보고 "키 만료" 로 오진해 사용자에게 불필요한 키 재등록을 시켰다. 실제 원인은 우리 `expires` 창이었다(BL-473).
+- ★**가드를 만들면 판별력을 증명하라** — 수정 전 코드에 RED 인지 확인. 지난 세션 첫 규칙은 5곳 중 2곳만 잡았다.
+- **시드로 만들어 통과시키지 마라.** 확정/추정이 섞인 상태는 **실제 스윕 전/후**로 만들어야 의미가 있다.
+- **레버리지 1 은 위험만 줄이는 게 아니라 시장 유형을 바꾼다**(`has_leverage=False` → spot).
+- `git push` 는 **사용자 승인 필수**(Golden Rule).
+
+---
+
+---
+
 ## ⚡ dogfood-restore 스프린트 (2026-07-26)
 
 **스코프**: #477·#480·#481 이 전부 **실화면 dogfood 없이** 닫혔고(07-25 DB 전소로 `ts.ohlcv` 0행 → 백테스트 불가), 세 스프린트 분량 신뢰 작업이 우리가 쓴 테스트로만 검증돼 있었다 — §7.3 이 금지하는 circular oracle. (A) 복원 경로 + (B) 실화면 검증 + (C) e2e 소생. 마이그레이션 **0**.
@@ -62,8 +120,6 @@
 ### Next Actions
 
 - [x] **PR [#482](https://github.com/woosung-dev/quantbridge/pull/482)** `stage/dogfood-restore` → main — **squash 는 사용자**
-- [ ] **다음 세션 = [`docs/dogfood-restore/checklist.md`](dogfood-restore/checklist.md)** — 사용자 확정. (A) **BL-474** 테스트 주문 다이얼로그가 spot 으로 나가는 것 먼저 → 고치면 perp 진입→청산을 결정적으로 만들 수 있어 **출처 라벨·SessionScope 화면 검증이 열린다** (B) pine_v2 시뮬 상태 ↔ 거래소 포지션 발산 조사(`retCode 110017`, 수량 1.0 사이징 미반영 의혹 포함)
-- [ ] (선택) 최종 codex 누적 diff 리뷰
 
 ---
 
