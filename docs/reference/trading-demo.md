@@ -213,7 +213,7 @@ POST   /v1/kill-switch/resolve/{id}  # 수동 해제
 **Sprint 6 D1 코딩 착수 전 또는 착수와 병행** 반드시 실행 — "The Assignment" 섹션 참조.
 
 - 본인 현재 TradingView 이메일 워크플로우의 **주당 신호 수 + 놓친 비율 + 실행 지연**을 48h 이상 측정
-- 결과: `docs/01_requirements/trading-demo-baseline.md` (신호 5건 이상)
+- 결과: `docs/reference/trading-demo-baseline.md` (신호 5건 이상)
 - 이 파일 없으면 Success Criteria #5("진입 멈침률 ≤ 5%") 검증 불가 — Sprint 6 배포 후 baseline 요청하면 이미 늦음
 
 ### Implementation Priority (Sprint 6 D 트랙 14 working days, parallel-friendly)
@@ -306,7 +306,7 @@ Sprint 6 timebox 보호를 위해 **전부** 이연:
 | Webhook 수신 → Bybit demo 주문 전송 latency | < 2초 (P95) | 동일 Celery worker 내, CCXT create_order 응답까지 |
 | Kill Switch 발동 → 실제 차단까지 | < 1초 | 동일 Celery worker 내 |
 | 주문 중복 방지 | 동일 idempotency_key 재시도 시 동일 결과, 중복 주문 0건 | E2E 테스트 |
-| 검증된 전략의 "진입 멈침률" (baseline 대비) | 수동 30-50% → 자동 ≤ 5% | **D0 baseline 파일 필수** (`docs/01_requirements/trading-demo-baseline.md`) — 파일 없으면 이 metric 자동 fail |
+| 검증된 전략의 "진입 멈침률" (baseline 대비) | 수동 30-50% → 자동 ≤ 5% | **D0 baseline 파일 필수** (`docs/reference/trading-demo-baseline.md`) — 파일 없으면 이 metric 자동 fail |
 | 테스트: 380 → 440+ pass | 신규 Trading 도메인 60+ 테스트 추가 | pytest full suite |
 | CI | ruff/mypy/pytest/alembic 모두 green, flaky ≤ 1% | main 브랜치 최종 PR |
 | /cso audit | High/Critical 취약점 0건 (해결되지 않은 것) | Sprint 6 말 cso 실행 |
@@ -337,7 +337,7 @@ Sprint 6 내부 배포 — 기존 배포 파이프라인(docker-compose / backen
 
 - **매 신호마다 기록:** (1) 신호 수신 timestamp (이메일 헤더), (2) 본인 실행 시점 timestamp, (3) 지연 분, (4) 완전 놓친 경우 O/X, (5) 슬리피지 추정(시장가 기준)
 - **최소 48시간 / 최소 5개 신호**
-- **한 줄 요약 파일로 저장:** `docs/01_requirements/trading-demo-baseline.md`
+- **한 줄 요약 파일로 저장:** `docs/reference/trading-demo-baseline.md`
 
 왜 이 과제가 먼저인가: Sprint 6 Trading 데모 MVP의 **성공 지표 중 "진입 멈침률 30-50% → ≤ 5%"** 는 이 baseline 없이는 검증 불가능하다. 코드가 잘 돌아도 이 숫자가 개선되지 않으면 MVP는 실패다. baseline은 **코드 구현과 병행**(Sprint 6 진입과 동시에) 해도 되지만, **늦어도 Sprint 6 종료 전에는 있어야** deploy 후 비교 가능.
 

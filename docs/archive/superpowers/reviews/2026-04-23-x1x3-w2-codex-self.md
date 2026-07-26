@@ -3,7 +3,7 @@
 **Sprint:** X1+X3 / Worker 2
 **Date:** 2026-04-23
 **Branch:** `worktree-agent-a2493f6f` (base: `stage/x1-x3-indicator-ui`)
-**Plan:** [`docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`](../plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md)
+**Plan:** [`docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`](../plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md)
 
 ---
 

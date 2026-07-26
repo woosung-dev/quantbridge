@@ -234,12 +234,12 @@ Worker 환경에서 `pnpm dev` 가 안 되면 이 step 스킵 가능. Phase 4 �
 codex exec --sandbox read-only "Review git diff for equity-chart width(-1) fix. Check: (1) useEffect dep array is primitive-only per LESSON-004, (2) no RQ/Zustand unstable ref in dep, (3) SSR-safe (no window access before mount), (4) layout shift minimized (placeholder same size), (5) recharts ResponsiveContainer usage idiomatic."
 ```
 
-출력 → `docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md`.
+출력 → `docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md`.
 
 ### T5. Stage push
 
 ```bash
-git add frontend/src/app/\(dashboard\)/backtests/_components/equity-chart.tsx frontend/src/app/\(dashboard\)/backtests/_components/__tests__/equity-chart.test.tsx docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md
+git add frontend/src/app/\(dashboard\)/backtests/_components/equity-chart.tsx frontend/src/app/\(dashboard\)/backtests/_components/__tests__/equity-chart.test.tsx docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md
 git commit -m "fix(backtest): EquityChart width(-1) warning via mount gate (W3)"
 git push origin stage/x1-x3-indicator-ui
 ```

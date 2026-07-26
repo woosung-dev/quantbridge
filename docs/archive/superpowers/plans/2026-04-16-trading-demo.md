@@ -12,9 +12,9 @@
 > | 4 | `ensure_not_gated`를 `session.begin()` **안**, INSERT 직전으로 이동 (race 방지) | Eng E9 | T15 execute flow |
 > | 5 | `MddEvaluator` → `CumulativeLossEvaluator` rename (peak-based MDD 아님). enum value도 `cumulative_loss`로 정합. Real MDD는 Sprint 7 equity snapshot | CEO F4 | T13, enum, CHECK constraint |
 >
-> **추가 공수:** +1.85d → buffer 1.5d → -0.35d 초과. 대응: M1→M1a/M1b 분할 + T 병렬화 (CEO F6). 상세 41 findings은 [ADR-006](../../dev-log/006-sprint6-design-review-summary.md) 참조.
+> **추가 공수:** +1.85d → buffer 1.5d → -0.35d 초과. 대응: M1→M1a/M1b 분할 + T 병렬화 (CEO F6). 상세 41 findings은 [ADR-006](../../../decisions/006-sprint6-design-review-summary.md) 참조.
 
-> **🔒 /cso 보안 감사 결과 (2026-04-16, daily mode 8/10):** 6 findings (3 HIGH, 3 MEDIUM). Critical 0. 상세는 [docs/audit/2026-04-16-trading-demo-security.md](../../audit/2026-04-16-trading-demo-security.md) 참조.
+> **🔒 /cso 보안 감사 결과 (2026-04-16, daily mode 8/10):** 6 findings (3 HIGH, 3 MEDIUM). Critical 0. 상세는 [docs/archive/audit/2026-04-16-trading-demo-security.md](../../audit/2026-04-16-trading-demo-security.md) 참조.
 >
 > **CSO-1 이미 plan 반영:** `WebhookSecret.secret_encrypted: bytes` — spec §8 Open Item 1 해소 (평문 TEXT → MultiFernet 암호화). T10/T11/T17 구현 시 EncryptionService 복호화 경로 배선 필요.
 >
@@ -49,8 +49,8 @@
 - Frontend: Next.js 16 + shadcn (Sprint 3+ 스택 재사용)
 - Test: pytest + pytest-asyncio, httpx AsyncClient, pg_try_advisory_xact_lock probe (Sprint 5 T17)
 
-**Spec reference:** `docs/superpowers/specs/2026-04-16-trading-demo-design.md`
-**Parent design doc:** `docs/01_requirements/trading-demo.md`
+**Spec reference:** `docs/archive/superpowers/specs/2026-04-16-trading-demo-design.md`
+**Parent design doc:** `docs/reference/trading-demo.md`
 **Branch:** `feat/sprint6-trading-demo-docs` (docs 머지 후 `feat/sprint6-trading-impl` worktree 권장)
 
 ---
@@ -118,9 +118,9 @@ backend/alembic/env.py                     # trading.models import
 backend/tests/conftest.py                  # trading fixture provider autouse
 frontend/src/app/trading/page.tsx          # 신규 /trading 라우트 (read-only 대시보드)
 frontend/src/features/trading/*            # 3 panel 컴포넌트
-docs/01_requirements/trading-demo.md       # Parent doc §Architecture / §해결된 질문 업데이트 (webhook_secret 변경 반영)
-docs/03_api/endpoints.md                   # 9 신규 엔드포인트 문서화
-docs/TODO.md                               # Sprint 6 진행 상태
+docs/reference/trading-demo.md       # Parent doc §Architecture / §해결된 질문 업데이트 (webhook_secret 변경 반영)
+docs/reference/endpoints.md                   # 9 신규 엔드포인트 문서화
+docs/status.md                               # Sprint 6 진행 상태
 ```
 
 ---
@@ -5202,14 +5202,14 @@ git commit -m "feat(trading): T22 — read-only /trading dashboard (Orders + Kil
 ## Task 23: Parent doc 동기화 + endpoints.md + TODO.md + /cso audit + PR ready
 
 **Files:**
-- Modify: `docs/01_requirements/trading-demo.md` (spec §7 변경점 반영)
-- Modify: `docs/03_api/endpoints.md`
-- Modify: `docs/TODO.md`
+- Modify: `docs/reference/trading-demo.md` (spec §7 변경점 반영)
+- Modify: `docs/reference/endpoints.md`
+- Modify: `docs/status.md`
 - Modify: `.claude/CLAUDE.md` (현재 컨텍스트 Sprint 6 완료 표시)
 
 - [ ] **Step 1: Parent doc 3개 섹션 업데이트**
 
-`docs/01_requirements/trading-demo.md`에서 다음 3 위치 수정:
+`docs/reference/trading-demo.md`에서 다음 3 위치 수정:
 
 1. **"Architecture (high-level) / DB 스키마"** 섹션의 `strategies.webhook_secret` 관련 설명을 제거하고 `trading.webhook_secrets` 테이블 정의 추가:
 
@@ -5232,7 +5232,7 @@ trading.webhook_secrets                    # Sprint 6 기술 결정 Q4 (spec §2
 - HMAC secret은 `trading.webhook_secrets` 테이블 lookup (rev grace period)
 ```
 
-- [ ] **Step 2: `docs/03_api/endpoints.md`에 9개 신규 엔드포인트 문서화**
+- [ ] **Step 2: `docs/reference/endpoints.md`에 9개 신규 엔드포인트 문서화**
 
 기존 endpoints.md 끝에 추가:
 
@@ -5253,7 +5253,7 @@ trading.webhook_secrets                    # Sprint 6 기술 결정 Q4 (spec §2
 | POST | `/v1/strategies/{id}/rotate-webhook-secret?grace_period_seconds=3600` | Webhook secret rotate | Clerk JWT |
 ```
 
-- [ ] **Step 3: `docs/TODO.md` 업데이트**
+- [ ] **Step 3: `docs/status.md` 업데이트**
 
 ```markdown
 ## Completed
@@ -5299,7 +5299,7 @@ Claude Code 세션에서:
 - [ ] **Step 7: 커밋 + PR create**
 
 ```bash
-git add docs/01_requirements/trading-demo.md docs/03_api/endpoints.md docs/TODO.md .claude/CLAUDE.md
+git add docs/reference/trading-demo.md docs/reference/endpoints.md docs/status.md .claude/CLAUDE.md
 git commit -m "docs(trading): T23 — Sprint 6 완료 동기화 (Parent doc + endpoints + TODO + CLAUDE.md)"
 
 git push origin feat/sprint6-trading-demo-docs  # 또는 impl 브랜치
@@ -5345,7 +5345,7 @@ EOF
 ## 리뷰 결과 요약 (autoplan + /cso, 2026-04-16)
 
 > **상세 findings는 별도 문서 참조:**
-> - **autoplan 41 findings (CEO/Design/Eng/DX 4-phase subagent-only 리뷰):** [ADR-006](../../dev-log/006-sprint6-design-review-summary.md)
+> - **autoplan 41 findings (CEO/Design/Eng/DX 4-phase subagent-only 리뷰):** [ADR-006](../../../decisions/006-sprint6-design-review-summary.md)
 > - **/cso 6 findings (daily mode 보안 감사):** [audit/2026-04-16-trading-demo-security.md](../../audit/2026-04-16-trading-demo-security.md)
 > - **원본 audit JSON (local, gitignored):** `.gstack/security-reports/20260416-daily.json`
 

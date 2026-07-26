@@ -1,10 +1,10 @@
 # Pine Script Execution Architecture — v4 (Alert Hook + 3-Track)
 
-> **SSOT (2026-05-04 cleanup):** 본 문서가 **Pine 실행 엔진 아키텍처의 단일 진실 원천**. 관련 ADR: [`dev-log/011-pine-execution-strategy-v4.md`](../dev-log/011-pine-execution-strategy-v4.md) (결정 근거), 세션 archive: [`superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../superpowers/specs/2026-04-17-pine-execution-v4-design.md) (50+ 턴 학술 archive).
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Pine 실행 엔진 아키텍처의 단일 진실 원천**. 관련 ADR: [`dev-log/011-pine-execution-strategy-v4.md`](../decisions/011-pine-execution-strategy-v4.md) (결정 근거), 세션 archive: [`superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md) (50+ 턴 학술 archive).
 >
 > **상태:** 설계 확정 (2026-04-17), Phase -1 실측 진행 중
-> **ADR:** [`dev-log/011-pine-execution-strategy-v4.md`](../dev-log/011-pine-execution-strategy-v4.md)
-> **세션 근거:** [`superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../superpowers/specs/2026-04-17-pine-execution-v4-design.md)
+> **ADR:** [`dev-log/011-pine-execution-strategy-v4.md`](../decisions/011-pine-execution-strategy-v4.md)
+> **세션 근거:** [`superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md)
 > **관련 ADR:** ADR-003(exec 금지), ADR-004(AST 인터프리터 선택)
 
 본 문서는 QuantBridge의 Pine Script 실행 엔진 아키텍처를 **구현 수준 상세도**로 명세한다. 전략 결정의 근거는 ADR-011에, 세션 전체 탐구 과정은 Session Spec에 있다.
@@ -295,7 +295,7 @@ def classify_track(ast: PineProgram) -> Track:
 
 **외부 계약:** `V2RunResult` 에 `strategy_state`, `var_series` 포함. Path β P-3 Execution Golden 이 이 필드로 metrics digest 비교.
 
-**주의:** Track 판별은 내부에서만 분기 — 호출자 (service/adapter) API 는 변경 없이 3-Track 확장 수용. Sprint 8c 회고 [ADR-014](../dev-log/014-sprint-8b-8c-pine-v2-expansion.md) §2.2 참조.
+**주의:** Track 판별은 내부에서만 분기 — 호출자 (service/adapter) API 는 변경 없이 3-Track 확장 수용. Sprint 8c 회고 [ADR-014](../decisions/014-sprint-8b-8c-pine-v2-expansion.md) §2.2 참조.
 
 ### 🏗️ Tier-2: PyneCore 골든 오라클 + Day 1 CI
 
@@ -470,7 +470,7 @@ backend/src/backtest/engine/
 
 **목표:** 본 아키텍처의 가정 실증. 원안의 2-way(LLM vs PyneCore vs TV 3-way)에서 **N-way 매트릭스**로 확장하여 LLM 모델 편향 + 단일 엔진 해석 모호성 동시 차단.
 
-**상세 실행 계획:** [`docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md)
+**상세 실행 계획:** [`docs/archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md)
 
 #### 실측 후보 (Day 1-3 주후보 8 + 조건부 3)
 
@@ -591,10 +591,10 @@ Tier-5 LLM 하이브리드 + 베타 오픈
 
 ### 내부
 
-- [ADR-011 Pine Execution Strategy v4](../dev-log/011-pine-execution-strategy-v4.md) — 결정 기록
-- [ADR-003 Pine 런타임 안전성](../dev-log/003-pine-runtime-safety-and-parser-scope.md) — exec 금지 원칙
-- [ADR-004 Pine 파서 접근법](../dev-log/004-pine-parser-approach-selection.md) — AST 인터프리터 선택
-- [Session Spec v4 Design](../superpowers/specs/2026-04-17-pine-execution-v4-design.md) — 세션 전체 아카이브
+- [ADR-011 Pine Execution Strategy v4](../decisions/011-pine-execution-strategy-v4.md) — 결정 기록
+- [ADR-003 Pine 런타임 안전성](../decisions/003-pine-runtime-safety-and-parser-scope.md) — exec 금지 원칙
+- [ADR-004 Pine 파서 접근법](../decisions/004-pine-parser-approach-selection.md) — AST 인터프리터 선택
+- [Session Spec v4 Design](../archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md) — 세션 전체 아카이브
 
 ### 외부
 

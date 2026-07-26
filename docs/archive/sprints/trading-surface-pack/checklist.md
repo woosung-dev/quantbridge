@@ -41,6 +41,6 @@
 
 ## §8 마감
 
-- [x] docs/trading-surface-pack/{operating-contract,context-notes,checklist}.md
+- [x] docs/archive/sprints/trading-surface-pack/{operating-contract,context-notes,checklist}.md
 - [x] TODO.md 섹션 + BL-431/416/425/432/433 Resolved + 신규 BL-434~436 + dev-log INDEX
 - [x] 메모리 갱신 (project_trading_surface_pack_sprint_20260724 + MEMORY.md)

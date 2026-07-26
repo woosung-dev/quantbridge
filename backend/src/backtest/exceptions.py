@@ -80,7 +80,7 @@ def format_friendly_message(unsupported_builtins: list[str]) -> str:
     summary = " | ".join(parts)
     return (
         f"이 strategy 는 미지원 Pine 빌트인을 포함합니다. {summary} "
-        f"ADR-003 supported list 참조 (docs/02_domain/supported-indicators.md). "
+        f"ADR-003 supported list 참조 (docs/reference/supported-indicators.md). "
         f"strategy 편집 화면의 Coverage Analyzer pre-flight 에서 자세한 내역 확인 가능."
     )
 

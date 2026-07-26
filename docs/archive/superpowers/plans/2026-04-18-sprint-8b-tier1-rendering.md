@@ -1606,7 +1606,7 @@ git commit -m "feat(pine_v2): i2_luxalgo.pine E2E — rendering scope A 4/6 corp
 ### Task 10: 전체 regression + docs 동기화
 
 **Files:**
-- Modify: `docs/TODO.md` (진행 반영)
+- Modify: `docs/status.md` (진행 반영)
 - Modify: `.claude/CLAUDE.md` "현재 작업" 섹션 (Sprint 8b 추가)
 
 - [ ] **Step 1: 전체 backend 테스트**
@@ -1621,7 +1621,7 @@ Expected: 기존 green 유지 (Sprint 8b는 backend 전용이라 영향 없음 �
 
 - [ ] **Step 3: TODO.md 갱신**
 
-`docs/TODO.md`의 Completed 섹션에 추가:
+`docs/status.md`의 Completed 섹션에 추가:
 
 ```markdown
 - [x] Sprint 8b Tier-1 가상 strategy 래퍼 + Tier-0 렌더링 scope A (2026-04-18~2026-04-XX)
@@ -1643,7 +1643,7 @@ Expected: 기존 green 유지 (Sprint 8b는 backend 전용이라 영향 없음 �
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add docs/TODO.md .claude/CLAUDE.md
+git add docs/status.md .claude/CLAUDE.md
 git commit -m "docs: sync Sprint 8b completion — Tier-1 wrapper + rendering scope A, 4/6 corpus"
 ```
 
@@ -1702,9 +1702,9 @@ Expected: 기존 526 + Sprint 8b ~27 = 550+ green
 ## Critical Files Reference
 
 ### 읽기/참조 전용
-- `docs/dev-log/011-pine-execution-strategy-v4.md` — ADR-011 §2.0.4(렌더링 scope A), §2.1.4(Tier-1 virtual strategy), §13(H1 MVP scope)
-- `docs/04_architecture/pine-execution-architecture.md:93-103, 336-363` — 3-Track + 범위 A 표
-- `docs/dev-log/012-sprint-8a-tier0-final-report.md:167-177` — 남은 gap/Sprint 8b roadmap
+- `docs/decisions/011-pine-execution-strategy-v4.md` — ADR-011 §2.0.4(렌더링 scope A), §2.1.4(Tier-1 virtual strategy), §13(H1 MVP scope)
+- `docs/reference/pine-execution-architecture.md:93-103, 336-363` — 3-Track + 범위 A 표
+- `docs/decisions/012-sprint-8a-tier0-final-report.md:167-177` — 남은 gap/Sprint 8b roadmap
 - `backend/tests/fixtures/pine_corpus_v2/i1_utbot.pine` — v4 UT Bot 원본
 - `backend/tests/fixtures/pine_corpus_v2/i2_luxalgo.pine` — v5 LuxAlgo 원본
 

@@ -61,12 +61,12 @@
 - **본 sprint plan:** `~/.claude/plans/quantbridge-sprint-28-parsed-muffin.md` (P1 5건 self-review 반영)
 - **kickoff plan:** [`2026-05-04-sprint28-kickoff.md`](2026-05-04-sprint28-kickoff.md)
 - **office-hours design doc:** `~/.gstack/projects/quant-bridge/woosung-stage-h2-sprint28-comprehensive-design-20260504-173422.md`
-- **5 Slice plans:** `docs/superpowers/specs/2026-05-04-sprint28-slice{1a,1b,2,3,4}.md`
-- **office-hours Addendum:** [`008-sprint7c-scope-decision.md`](008-sprint7c-scope-decision.md) "2026-05-04 Addendum"
-- **ADR-006 결의:** [`006-sprint6-design-review-summary.md`](006-sprint6-design-review-summary.md) "Resolved 2026-05-04 (Sprint 28 Slice 4)"
+- **5 Slice plans:** `docs/archive/superpowers/specs/2026-05-04-sprint28-slice{1a,1b,2,3,4}.md`
+- **office-hours Addendum:** [`008-sprint7c-scope-decision.md`](../decisions/008-sprint7c-scope-decision.md) "2026-05-04 Addendum"
+- **ADR-006 결의:** [`006-sprint6-design-review-summary.md`](../decisions/006-sprint6-design-review-summary.md) "Resolved 2026-05-04 (Sprint 28 Slice 4)"
 - **Resolved BL:** BL-141 (Slice 2 PR #110) / BL-140b (Slice 3 PR #111) / BL-004 (Slice 4 PR #108)
-- **신규 BL:** BL-142~147 (6건, 모두 후속 sprint 이관) — `docs/REFACTORING-BACKLOG.md`
-- **신규 docs (Phase B):** `docs/01_requirements/domain-progress-matrix.md` / `docs/00_project/phase-vs-sprint-mapping.md` / `docs/00_project/beta-path-decision.md`
+- **신규 BL:** BL-142~147 (6건, 모두 후속 sprint 이관) — `docs/backlog.md`
+- **신규 docs (Phase B):** `docs/reference/domain-progress-matrix.md` / `docs/reference/project/phase-vs-sprint-mapping.md` / `docs/reference/project/beta-path-decision.md`
 - **신규 docs (Phase C):** `docs/guides/sprint-template.md` (본 회고 = 첫 사용) / `docs/guides/bl-audit-checklist.md`
 
 ---
@@ -147,7 +147,7 @@ dogfood Day 5-7 자연 사용 + dual metric 유지 시:
 
 ### TODO.md / INDEX.md 갱신
 
-- [x] `docs/TODO.md` 메타 헤더 갱신 (Slice 1a 에서 적용 완료, Sprint 28 진입 → 종료 시점 반영)
+- [x] `docs/status.md` 메타 헤더 갱신 (Slice 1a 에서 적용 완료, Sprint 28 진입 → 종료 시점 반영)
 - [x] `docs/dev-log/INDEX.md` Sprint 28 항목 추가 (kickoff + retrospective)
 - [ ] `CLAUDE.md` "현재 컨텍스트" 갱신 (Sprint 28 활성 → 종료, Sprint 29 후보)
 

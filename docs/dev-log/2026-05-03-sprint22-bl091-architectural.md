@@ -131,7 +131,7 @@ Sprint 20 dogfood Day 0 라이브 시나리오에서 사용자가 `/trading` Tes
 
 ### Phase D — docs + commit + PR
 
-- `docs/REFACTORING-BACKLOG.md` BL-091 entry ✅ Resolved 마킹 + Sprint 22 결과 상세화
+- `docs/backlog.md` BL-091 entry ✅ Resolved 마킹 + Sprint 22 결과 상세화
 - 본 dev-log
 - CLAUDE.md `## 현재 작업` 섹션 Sprint 22 entry
 - Phase 별 commit 분리
@@ -207,7 +207,7 @@ uv run pytest --timeout=120
 
 - Sprint 22 plan v2: `~/.claude/plans/claude-plans-h2-sprint-22-prompt-md-elegant-cerf.md`
 - Sprint 21 dogfood Day 1 dev-log: `docs/dev-log/2026-05-03-dogfood-day1-sprint21.md`
-- BL-091 상세: `docs/REFACTORING-BACKLOG.md` BL-091 섹션
+- BL-091 상세: `docs/backlog.md` BL-091 섹션
 - Sprint 20 dogfood Day 0 dev-log: `docs/dev-log/2026-05-02-sprint20-dogfood-day0-setup.md`
 - backend.md §11 prefork-safe 패턴: `.ai/stacks/fastapi/backend.md`
 - LESSON-019 commit-spy 의무 (관련 없으나 Sprint 22 가 trading.py 만지므로 미래 mutation method 추가 시 적용)

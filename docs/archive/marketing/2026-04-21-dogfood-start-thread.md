@@ -109,4 +109,4 @@ QuantBridge open beta after testnet passes — follow if interested.
 - [ ] 트윗 1 한 → 영 순서로 게시 (같은 날)
 - [ ] 스크린샷: Bybit testnet 첫 주문 진입 시 첨부
 - [ ] 첫 주 결과 요약 트윗 예약 (2026-04-28)
-- [ ] 반응 보고 "기능 요청" 댓글 docs/TODO.md에 수집
+- [ ] 반응 보고 "기능 요청" 댓글 docs/status.md에 수집

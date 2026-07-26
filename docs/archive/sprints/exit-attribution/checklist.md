@@ -142,6 +142,6 @@
 ## 마감
 
 - [x] 최종 codex 누적 diff 리뷰 1회 (생략 금지) — **축소 후 재실행에서 P1 1건 추가 발견·수정**
-- [x] docs/exit-attribution/{checklist,operating-contract,context-notes}.md
+- [x] docs/archive/sprints/exit-attribution/{checklist,operating-contract,context-notes}.md
 - [x] TODO / dev-log / BL — BL-438 부분 Resolved(관측 원장 최근 7일) · BL-442 Resolved · 신규 BL-443~**452**
 - [x] push (QB_PRE_PUSH_BYPASS=1) → PR #476 본문 갱신 (squash 는 사용자)

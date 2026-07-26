@@ -185,5 +185,5 @@ uv run pytest --timeout=120
 
 - Sprint 23 plan v2: `~/.claude/plans/h2-sprint-23-c3-bundle.md`
 - Sprint 22 dev-log: `docs/dev-log/2026-05-03-sprint22-bl091-architectural.md`
-- BL 상세: `docs/REFACTORING-BACKLOG.md`
+- BL 상세: `docs/backlog.md`
 - backend.md §11 prefork-safe / LESSON-019 commit-spy: `.ai/stacks/fastapi/backend.md`

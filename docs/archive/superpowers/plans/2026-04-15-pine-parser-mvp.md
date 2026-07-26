@@ -9,9 +9,9 @@
 **Tech Stack:** Python 3.11+, pandas, numpy, pandas-ta, pytest, pytest-asyncio
 
 **Related docs:**
-- Spec: `docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`
-- ADR-003: `docs/dev-log/003-pine-runtime-safety-and-parser-scope.md`
-- ADR-004: `docs/dev-log/004-pine-parser-approach-selection.md`
+- Spec: `docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`
+- ADR-003: `docs/decisions/003-pine-runtime-safety-and-parser-scope.md`
+- ADR-004: `docs/decisions/004-pine-parser-approach-selection.md`
 
 **Working directory:** `backend/` (모든 상대 경로는 이 기준)
 
@@ -22,7 +22,7 @@
 50개 TradingView 전략을 분류할 템플릿. 실제 수집은 사용자 수작업이지만, 구조와 기준을 문서로 먼저 확정.
 
 **Files:**
-- Create: `docs/01_requirements/pine-coverage-assignment.md`
+- Create: `docs/reference/pine-coverage-assignment.md`
 
 - [ ] **Step 1: 템플릿 문서 작성**
 
@@ -114,7 +114,7 @@
 - [ ] **Step 2: 커밋**
 
 ```bash
-git add docs/01_requirements/pine-coverage-assignment.md
+git add docs/reference/pine-coverage-assignment.md
 git commit -m "docs: add Pine coverage assignment template for sprint 1 parser"
 ```
 
@@ -4384,9 +4384,9 @@ touch backend/scripts/__init__.py
 """Pine Coverage Go/No-Go 판정 스크립트.
 
 사용법:
-  uv run python scripts/pine_coverage_report.py [--cases docs/01_requirements/pine-coverage-assignment.yaml]
+  uv run python scripts/pine_coverage_report.py [--cases docs/reference/pine-coverage-assignment.yaml]
 
-기본은 docs/01_requirements/pine-coverage-assignment.yaml 에서 케이스 목록을 읽는다.
+기본은 docs/reference/pine-coverage-assignment.yaml 에서 케이스 목록을 읽는다.
 파일이 없거나 Phase A가 아직 진행 중이면 `--cases` 생략 시 경고 후 0건 리포트.
 
 exit code:
@@ -4539,7 +4539,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--cases",
         type=Path,
-        default=Path("docs/01_requirements/pine-coverage-assignment.yaml"),
+        default=Path("docs/reference/pine-coverage-assignment.yaml"),
     )
     parser.add_argument(
         "--medium-target",
@@ -4680,8 +4680,8 @@ Expected:
 - [ ] `cd backend && uv run ruff check src/strategy/pine tests/strategy/pine scripts/` 통과
 - [ ] `cd backend && uv run mypy src/strategy/pine scripts/pine_coverage_report.py` 통과
 - [ ] Task 21 Step 7의 수동 Ground Zero 증명 성공 (v4/v5 결과 일치)
-- [ ] Phase A (Assignment 50개 수집) 진행 상황을 `docs/01_requirements/pine-coverage-assignment.md` 에 기록
-- [ ] Phase A 완료 시 `scripts/pine_coverage_report.py --cases docs/01_requirements/pine-coverage-assignment.yaml` 실행해 Go/No-Go 최종 판정
+- [ ] Phase A (Assignment 50개 수집) 진행 상황을 `docs/reference/pine-coverage-assignment.md` 에 기록
+- [ ] Phase A 완료 시 `scripts/pine_coverage_report.py --cases docs/reference/pine-coverage-assignment.yaml` 실행해 Go/No-Go 최종 판정
 
 > **Phase A 완료 전에도 Task 21까지 구현 가능.** Phase A는 병행/후속으로 완료하면서 중간 티어 목표치(`--medium-target`)를 데이터 기반으로 갱신한다.
 

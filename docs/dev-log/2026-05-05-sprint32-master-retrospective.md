@@ -239,5 +239,5 @@ surgery 5건 모두 plan 본문 반영 후 GO. tokens: 145.5k.
 - handoff: `docs/dev-log/2026-05-05-sprint31-day4-handoff.md`
 - Sprint 30 retro: `docs/dev-log/2026-05-05-sprint30-master-retrospective.md`
 - ADR-019 (Surface Trust): `docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md`
-- BACKLOG: `docs/REFACTORING-BACKLOG.md` (변경 이력 entry 갱신)
+- BACKLOG: `docs/backlog.md` (변경 이력 entry 갱신)
 - ui-ux-pro-max 진단: handoff §3

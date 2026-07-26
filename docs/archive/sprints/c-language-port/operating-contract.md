@@ -62,7 +62,7 @@
 
 ## 6. 워커 프롬프트 필수 동봉 3종
 
-① 해당 프로토타입 HTML **절대경로** (`docs/prototypes/shotgun-2026-07/…`) — 직접 열어 마크업·클래스·간격을 읽는다. 요약·기억 금지.
+① 해당 프로토타입 HTML **절대경로** (`docs/reference/prototypes/shotgun-2026-07/…`) — 직접 열어 마크업·클래스·간격을 읽는다. 요약·기억 금지.
 ② 해당 도메인 `frontend/src/features/<도메인>/schemas.ts` + `api.ts` **절대경로** — §4.9(스키마가 받치지 않는 값은 그리지 않는다)는 워커가 스키마를 직접 읽어야 실행 가능. unbacked 필드는 미렌더 + 근거 보고.
 ③ S5 확립 패턴 참조 구현: `frontend/src/app/(dashboard)/backtests/_components/backtest-list.tsx`.
 

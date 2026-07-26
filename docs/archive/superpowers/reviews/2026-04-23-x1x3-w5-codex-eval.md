@@ -19,9 +19,9 @@ You are an adversarial code reviewer for QuantBridge Sprint X1+X3 Worker 5 (Re-r
 
 ## Inputs
 
-- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md
+- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md
 - Diff: /tmp/w5-diff.txt (482 lines, 5 files, +434/-6)
-- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
+- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
 
 ## Project Rules
 
@@ -43,7 +43,7 @@ You are an adversarial code reviewer for QuantBridge Sprint X1+X3 Worker 5 (Re-r
    exec
    /bin/zsh -lc "sed -n '1,260p' /tmp/w5-diff.txt" in /Users/woosung/project/agy-project/quant-bridge
    exec
-   /bin/zsh -lc "sed -n '1,240p' docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md" in /Users/woosung/project/agy-project/quant-bridge
+   /bin/zsh -lc "sed -n '1,240p' docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md" in /Users/woosung/project/agy-project/quant-bridge
    succeeded in 0ms:
 
 # W5 — Backtest "재실행" 버튼
@@ -288,16 +288,16 @@ const TERMINAL = (s?: string) =>
       href="/backtests"
 
  succeeded in 0ms:
-diff --git a/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
+diff --git a/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
 new file mode 100644
 index 0000000..6a1e358
 --- /dev/null
-+++ b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
++++ b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
 @@ -0,0 +1,89 @@
 +# W5 Codex Self-Review — RerunButton
 +
 +> Sprint X1+X3 W5, 2026-04-23 — `feat/x1x3-w5-rerun-button`
-+> Plan: `docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
++> Plan: `docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
 +
 +---
 +
@@ -550,12 +550,12 @@ index 0000000..9d67730
 +      mockMutate(...args);
 
 exec
-/bin/zsh -lc "sed -n '1,260p' .claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "sed -n '1,260p' .claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge
  succeeded in 0ms:
 # W5 Codex Self-Review — RerunButton
 
 > Sprint X1+X3 W5, 2026-04-23 — `feat/x1x3-w5-rerun-button`
-> Plan: `docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
+> Plan: `docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
 
 ---
 
@@ -677,11 +677,11 @@ exec
 | [05_env/](./05_env/) | 로컬 셋업, 환경 변수, Clerk 가이드 | ✅ 완료 |
 | [06_devops/](./06_devops/) | Docker Compose, CI/CD, Pre-commit | ✅ 완료 |
 | [07_infra/](./07_infra/) | 배포·Observability·Runbook (draft) | 📝 Draft |
-| [DESIGN.md](../DESIGN.md) | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정 |
-| [prototypes/](./prototypes/) | Stage 2 HTML 프로토타입 (12개 화면) | ✅ 확정 |
-| [dev-log/](./dev-log/) | ADR (의사결정 기록) | 활성 |
-| [guides/](./guides/) | 개발 가이드, Sprint 킥오프 템플릿 | 활성 |
-| [TODO.md](./TODO.md) | 작업 추적 | 활성 |
+| [DESIGN.md](../../../../DESIGN.md) | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정 |
+| [prototypes/](../../../reference/prototypes/) | Stage 2 HTML 프로토타입 (12개 화면) | ✅ 확정 |
+| [dev-log/](../../../dev-log/) | ADR (의사결정 기록) | 활성 |
+| [guides/](../../../guides/) | 개발 가이드, Sprint 킥오프 템플릿 | 활성 |
+| [TODO.md](../../../../.ai/templates/docs/TODO.md) | 작업 추적 | 활성 |
 
 ## 빠른 시작
 
@@ -706,7 +706,7 @@ cd backend && uv sync && uvicorn src.main:app --reload
   타겟: 파트타임 크립토 트레이더, $1K~$50K, Python 없음
   `[/office-hours 2026-04-13]`
 
-- **Pine 런타임 + 파서 범위:** [ADR-003](./dev-log/003-pine-runtime-safety-and-parser-scope.md)
+- **Pine 런타임 + 파서 범위:** [ADR-003](../../../decisions/003-pine-runtime-safety-and-parser-scope.md)
   - `exec()`/`eval()` 금지 → 인터프리터 패턴
   - 미지원 함수 1개라도 있으면 전체 "Unsupported" (부분 실행 금지)
   - Celery zombie task 복구 인프라 필수 (on_failure + Beat cleanup + cancel)
@@ -717,32 +717,32 @@ cd backend && uv sync && uvicorn src.main:app --reload
 
 | 문서                                                                                                         | 설명                                    |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| [DESIGN.md](../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
-| [QUANTBRIDGE_PRD.md](../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
-| [AGENTS.md](../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
-| [.ai/](../.ai/)                                                                                              | 코딩 규칙                               |
-| [01_requirements/requirements-overview.md](./01_requirements/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
-| [01_requirements/req-catalog.md](./01_requirements/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
-| [02_domain/domain-overview.md](./02_domain/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
-| [02_domain/entities.md](./02_domain/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
-| [02_domain/state-machines.md](./02_domain/state-machines.md)                                                 | 도메인 상태 전이도                      |
-| [04_architecture/system-architecture.md](./04_architecture/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
-| [04_architecture/data-flow.md](./04_architecture/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
-| [05_env/local-setup.md](./05_env/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
-| [05_env/env-vars.md](./05_env/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
-| [05_env/clerk-setup.md](./05_env/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
-| [06_devops/docker-compose-guide.md](./06_devops/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
-| [06_devops/ci-cd.md](./06_devops/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
-| [06_devops/pre-commit.md](./06_devops/pre-commit.md)                                                         | husky + lint-staged 가이드              |
-| [07_infra/deployment-plan.md](./07_infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
-| [07_infra/observability-plan.md](./07_infra/observability-plan.md)                                           | Observability 계획 (draft)              |
-| [07_infra/runbook.md](./07_infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
-| [guides/development-methodology.md](./guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
-| [guides/sprint-kickoff-template.md](./guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
-| [dev-log/001-tech-stack.md](./dev-log/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
-| [dev-log/002-parallel-scaffold-strategy.md](./dev-log/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
-| [dev-log/003-pine-runtime-safety-and-parser-scope.md](./dev-log/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
-| [dev-log/004-pine-parser-approach-selection.md](./dev-log/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
+| [DESIGN.md](../../../../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
+| [QUANTBRIDGE_PRD.md](../../../../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
+| [AGENTS.md](../../../../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
+| [.ai/](../../../../.ai/)                                                                                              | 코딩 규칙                               |
+| [01_requirements/requirements-overview.md](../../../reference/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
+| [01_requirements/req-catalog.md](../../../reference/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
+| [02_domain/domain-overview.md](../../../reference/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
+| [02_domain/entities.md](../../../reference/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
+| [02_domain/state-machines.md](../../../reference/state-machines.md)                                                 | 도메인 상태 전이도                      |
+| [04_architecture/system-architecture.md](../../../reference/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
+| [04_architecture/data-flow.md](../../../reference/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
+| [05_env/local-setup.md](../../../reference/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
+| [05_env/env-vars.md](../../../reference/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
+| [05_env/clerk-setup.md](../../../reference/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
+| [06_devops/docker-compose-guide.md](../../../reference/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
+| [06_devops/ci-cd.md](../../../reference/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
+| [06_devops/pre-commit.md](../../../reference/pre-commit.md)                                                         | husky + lint-staged 가이드              |
+| [07_infra/deployment-plan.md](../../../reference/infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
+| [07_infra/observability-plan.md](../../../reference/infra/observability-plan.md)                                           | Observability 계획 (draft)              |
+| [07_infra/runbook.md](../../../reference/infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
+| [guides/development-methodology.md](../../../guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
+| [guides/sprint-kickoff-template.md](../../../guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
+| [dev-log/001-tech-stack.md](../../../decisions/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
+| [dev-log/002-parallel-scaffold-strategy.md](../../../decisions/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
+| [dev-log/003-pine-runtime-safety-and-parser-scope.md](../../../decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
+| [dev-log/004-pine-parser-approach-selection.md](../../../decisions/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
 
 codex
 계획서와 self-review를 기준으로 실제 diff 내용을 더 좁혀 읽는 중입니다. 지금부터는 `mock`의 느슨함, `effectiveStatus` 우선순위, `useEffect` 유입 여부를 코드 라인 단위로 확인하겠습니다.
@@ -1184,7 +1184,7 @@ return (
 }
 
 exec
-/bin/zsh -lc "rg -n \"useEffect|router\\.push|useCreateBacktest|effectiveStatus|RerunButton|151/151|pnpm test -- --run|pnpm tsc --noEmit|pnpm lint\" frontend/src/app/'(dashboard)'/backtests/\_components .claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md /tmp/w5-diff.txt" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "rg -n \"useEffect|router\\.push|useCreateBacktest|effectiveStatus|RerunButton|151/151|pnpm test -- --run|pnpm tsc --noEmit|pnpm lint\" frontend/src/app/'(dashboard)'/backtests/\_components .claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md /tmp/w5-diff.txt" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
 /tmp/w5-diff.txt:7:+# W5 Codex Self-Review — RerunButton
 /tmp/w5-diff.txt:26:+| 1 | NO useEffect 추가 (LESSON-004) | PASS |
@@ -1229,20 +1229,20 @@ succeeded in 0ms:
 /tmp/w5-diff.txt:432:+export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
 /tmp/w5-diff.txt:434:+ const create = useCreateBacktest({
 /tmp/w5-diff.txt:437:+ router.push(`/backtests/${created.backtest_id}`);
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:1:# W5 Codex Self-Review — RerunButton
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:32:> 부모 통합 커버리지 부족: `RerunButton` 단위 테스트는 `isEnabled=false` prop 만 검증.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:33:> `BacktestDetailView` 가 `effectiveStatus` 를 통해 올바른 `isEnabled` 를 매핑하는지 직접 검증 안 됨.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:44:> 부모가 `effectiveStatus = progress.data?.status ?? bt.status` 우선순위를 정확히 쓰는지,
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:57:> 추가한 두 상충 케이스로, 이전에 있던 `BacktestDetailView -> RerunButton` 상태 매핑
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:71:pnpm tsc --noEmit => 0 errors
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:72:pnpm lint => 0 errors
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:78:git diff stage/x1-x3-indicator-ui...HEAD | grep -c "useEffect" => 0
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:81:추가 useEffect 0건. (rerun-button.tsx 코드 주석에 "LESSON-004: useEffect 사용 금지"
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:82:문구가 1라인 있을 뿐, 실제 useEffect import / 호출 없음.)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:1:# W5 Codex Self-Review — RerunButton
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:32:> 부모 통합 커버리지 부족: `RerunButton` 단위 테스트는 `isEnabled=false` prop 만 검증.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:33:> `BacktestDetailView` 가 `effectiveStatus` 를 통해 올바른 `isEnabled` 를 매핑하는지 직접 검증 안 됨.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:44:> 부모가 `effectiveStatus = progress.data?.status ?? bt.status` 우선순위를 정확히 쓰는지,
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:57:> 추가한 두 상충 케이스로, 이전에 있던 `BacktestDetailView -> RerunButton` 상태 매핑
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:71:pnpm tsc --noEmit => 0 errors
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:72:pnpm lint => 0 errors
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:78:git diff stage/x1-x3-indicator-ui...HEAD | grep -c "useEffect" => 0
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:81:추가 useEffect 0건. (rerun-button.tsx 코드 주석에 "LESSON-004: useEffect 사용 금지"
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:82:문구가 1라인 있을 뿐, 실제 useEffect import / 호출 없음.)
 frontend/src/app/(dashboard)/backtests/\_components/**tests**/backtest-form.test.tsx:27: useCreateBacktest: () => ({ mutate: vi.fn(), isPending: false }),
 frontend/src/app/(dashboard)/backtests/\_components/backtest-detail-view.tsx:4:import { useEffect } from "react";
 frontend/src/app/(dashboard)/backtests/\_components/backtest-detail-view.tsx:46: useEffect(() => {
@@ -2169,35 +2169,35 @@ succeeded in 0ms:
 .claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/\_components/**tests**/backtest-detail-view.rerun-integration.test.tsx:117: const btn = screen.getByRole("button", { name: /재실행/ });
 
 exec
-/bin/zsh -lc "rg -n \"151/151|150/150|pnpm test -- --run|pnpm tsc --noEmit|pnpm lint|FAIL|PASS|TDD\" docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md .claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md .claude/worktrees/agent-a0d2ef2b -g '"'!**/node_modules/**'"'" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "rg -n \"151/151|150/150|pnpm test -- --run|pnpm tsc --noEmit|pnpm lint|FAIL|PASS|TDD\" docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md .claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md .claude/worktrees/agent-a0d2ef2b -g '"'!**/node_modules/**'"'" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:22:| 3 | success / error 모두 toast | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:23:| 4 | disabled = `!isEnabled || isPending` | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:24:| 5 | initial_capital = `Number()` + `Number.isFinite` + `> 0` 가드 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:25:| 6 | hooks.ts 변경 없음 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:27:| 8 | 테스트 mock — mutate args, push args 둘 다 명시 검증 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:28:| 9 | edge cases — terminal/pending/error/invalid capital | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:45:> 아니면 실수로 `bt.status` 만 써도 통과하는 spurious PASS 위험.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:71:pnpm tsc --noEmit => 0 errors
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:72:pnpm lint => 0 errors
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:5:> **TDD Mode:** **정석 TDD** — mutation 호출 + navigation 라우팅, side-effect 있음
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:32:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` clean
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:56:## 4. TDD Tasks
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:208:cd frontend && pnpm test -- --run rerun-button
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:211:Expected: FAIL — `RerunButton` import 불가 (또는 컴포넌트 없음).
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:252:cd frontend && pnpm test -- --run
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:253:cd frontend && pnpm tsc --noEmit
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:254:cd frontend && pnpm lint
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:257:Expected: 모두 PASS / clean.
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:292:2. spurious PASS: mock 이 너무 헐겁지 않은가? (mutate args 검증 포함됨)
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:293:3. TDD: FAIL → PASS 전환 evidence?
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:304:cd frontend && pnpm test -- --run
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:305:cd frontend && pnpm tsc --noEmit
-docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:22:| 3 | success / error 모두 toast | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:23:| 4 | disabled = `!isEnabled || isPending` | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:24:| 5 | initial_capital = `Number()` + `Number.isFinite` + `> 0` 가드 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:25:| 6 | hooks.ts 변경 없음 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:27:| 8 | 테스트 mock — mutate args, push args 둘 다 명시 검증 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:28:| 9 | edge cases — terminal/pending/error/invalid capital | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:45:> 아니면 실수로 `bt.status` 만 써도 통과하는 spurious PASS 위험.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:71:pnpm tsc --noEmit => 0 errors
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:72:pnpm lint => 0 errors
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:5:> **TDD Mode:** **정석 TDD** — mutation 호출 + navigation 라우팅, side-effect 있음
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:32:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` clean
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:56:## 4. TDD Tasks
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:208:cd frontend && pnpm test -- --run rerun-button
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:211:Expected: FAIL — `RerunButton` import 불가 (또는 컴포넌트 없음).
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:252:cd frontend && pnpm test -- --run
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:253:cd frontend && pnpm tsc --noEmit
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:254:cd frontend && pnpm lint
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:257:Expected: 모두 PASS / clean.
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:292:2. spurious PASS: mock 이 너무 헐겁지 않은가? (mutate args 검증 포함됨)
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:293:3. TDD: FAIL → PASS 전환 evidence?
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:304:cd frontend && pnpm test -- --run
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:305:cd frontend && pnpm tsc --noEmit
+docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnpm lint
 .claude/worktrees/agent-a0d2ef2b/QUANTBRIDGE_PRD.md:1403: POSTGRES_PASSWORD: password
 .claude/worktrees/agent-a0d2ef2b/QUANTBRIDGE_PRD.md:1414: POSTGRES_PASSWORD: password
 .claude/worktrees/agent-a0d2ef2b/.env.example:20:POSTGRES_PASSWORD=password # [기본값 OK] 로컬 전용
@@ -2206,20 +2206,20 @@ docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnp
 .claude/worktrees/agent-a0d2ef2b/docker-compose.yml:14: POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
 .claude/worktrees/agent-a0d2ef2b/docker-compose.yml:62:      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-8b-prompt.md:65:3. **executing-plans 스킬로 task-by-task 진행** — TDD (test 먼저 → 구현 → verification)
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/h1-testnet-dogfood-guide.md:79:[PASS] order submitted: order_id=abc123
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/h1-testnet-dogfood-guide.md:80:[PASS] order cancelled
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/h1-testnet-dogfood-guide.md:81:[PASS] DB row exists: trading.orders
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:18: RUNNING --> FAILED : engine 예외 / stale reclaim
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:21: CANCELLING --> FAILED : 3-guard rows=0 + finalize fallback 실패
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:23: FAILED --> [*]
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:33:| `CANCELLING` | 사용자 cancel 요청 — transient | `BacktestService.cancel()` 호출 | 워커 3-guard에서 CANCELLED 또는 fallback 실패 시 FAILED |
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:35:| `FAILED` | engine 예외, stale reclaim, fallback 실패 | 예외 catch 또는 reclaim hook | terminal |
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:44:| RUNNING → FAILED | engine 예외 | 조건부 UPDATE; rows=0이면 이미 cancel 처리됨 → 무시 |
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:47:| CANCELLING → FAILED | rows=0 + fallback 실패 | `finalize_cancelled` rows=0 시 logger.error + FAILED 처리 |
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:75:| `status=RUNNING` + `started_at < now - threshold` | startup hook 또는 beat task가 FAILED로 전환 + `error_reason="stale_reclaimed"` |
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/state-machines.md:173: RUNNING --> FAILED : trial 예외 burst
-.claude/worktrees/agent-a0d2ef2b/docs/01_requirements/trading-demo-baseline.md:82:- PASS: 놓침률 ≤ 5% 달성
-.claude/worktrees/agent-a0d2ef2b/docs/01_requirements/trading-demo-baseline.md:83:- FAIL: 놓침률 > 5% → 원인 분석 + Sprint 7 과제화
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/h1-testnet-dogfood-guide.md:79:[PASS] order submitted: order_id=abc123
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/h1-testnet-dogfood-guide.md:80:[PASS] order cancelled
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/h1-testnet-dogfood-guide.md:81:[PASS] DB row exists: trading.orders
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:18: RUNNING --> FAILED : engine 예외 / stale reclaim
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:21: CANCELLING --> FAILED : 3-guard rows=0 + finalize fallback 실패
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:23: FAILED --> [*]
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:33:| `CANCELLING` | 사용자 cancel 요청 — transient | `BacktestService.cancel()` 호출 | 워커 3-guard에서 CANCELLED 또는 fallback 실패 시 FAILED |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:35:| `FAILED` | engine 예외, stale reclaim, fallback 실패 | 예외 catch 또는 reclaim hook | terminal |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:44:| RUNNING → FAILED | engine 예외 | 조건부 UPDATE; rows=0이면 이미 cancel 처리됨 → 무시 |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:47:| CANCELLING → FAILED | rows=0 + fallback 실패 | `finalize_cancelled` rows=0 시 logger.error + FAILED 처리 |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:75:| `status=RUNNING` + `started_at < now - threshold` | startup hook 또는 beat task가 FAILED로 전환 + `error_reason="stale_reclaimed"` |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/state-machines.md:173: RUNNING --> FAILED : trial 예외 burst
+.claude/worktrees/agent-a0d2ef2b/docs/reference/trading-demo-baseline.md:82:- PASS: 놓침률 ≤ 5% 달성
+.claude/worktrees/agent-a0d2ef2b/docs/reference/trading-demo-baseline.md:83:- FAIL: 놓침률 > 5% → 원인 분석 + Sprint 7 과제화
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-8c-prompt.md:123: 4. **executing-plans 스킬로 task-by-task 진행** (superpowers) — TDD
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-sprint-design.html:92: P5["Phase 5 · Execute<br/>━━━━━━━<br/>superpowers:executing-plans<br/>(내부: TDD 정석 필수)<br/>중간 checkpoint 3 task 마다<br/>Evaluator-lite 검증"]
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-sprint-design.html:94: CP -->|FAIL| DEBUG["systematic-debugging<br/>+ plan 수정 (loop)"]
@@ -2233,17 +2233,17 @@ docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnp
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-sprint-design.html:176:<li><strong>확인 항목</strong>: task 분해 / TDD 적용 대상 / 예상 소요 / 리스크 섹션</li>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-sprint-design.html:200:<tr><td>FAIL 시 대응</td><td>actionable_issues → self-fix → 재 dispatch</td><td><strong>systematic-debugging 내장 invoke</strong> → plan 수정 → Execute 재진입</td></tr>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-sprint-design.html:231:│ ├── plan-template.md # ★ Phase 3 plan 파일 skeleton (task + TDD 분기 포함)
-.claude/worktrees/agent-a0d2ef2b/docs/02_domain/entities.md:61: - 상태: `status: BacktestStatus` (QUEUED → RUNNING → COMPLETED/FAILED, 또는 CANCELLING transient → CANCELLED)
-.claude/worktrees/agent-a0d2ef2b/docs/01_requirements/req-catalog.md:73:| REQ-BT-03 | 진행 상태 조회 (PENDING→QUEUED→RUNNING→COMPLETED/FAILED) | P0 | `GET /backtests/:id/progress` | ✅ Sprint 4 |
-.claude/worktrees/agent-a0d2ef2b/docs/01_requirements/req-catalog.md:95:- Then: started_at(또는 created_at) 기준으로 stale 판정 → status=FAILED + reason="stale_reclaimed"
+.claude/worktrees/agent-a0d2ef2b/docs/reference/entities.md:61: - 상태: `status: BacktestStatus` (QUEUED → RUNNING → COMPLETED/FAILED, 또는 CANCELLING transient → CANCELLED)
+.claude/worktrees/agent-a0d2ef2b/docs/reference/req-catalog.md:73:| REQ-BT-03 | 진행 상태 조회 (PENDING→QUEUED→RUNNING→COMPLETED/FAILED) | P0 | `GET /backtests/:id/progress` | ✅ Sprint 4 |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/req-catalog.md:95:- Then: started_at(또는 created_at) 기준으로 stale 판정 → status=FAILED + reason="stale_reclaimed"
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-autonomous.md:105:- `pnpm lint` / `pnpm tsc --noEmit` / `pnpm test -- --run` 전부 green
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-autonomous.md:282:| Evaluator 3회 FAIL | blocked |
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/runbook.md:343:- 본인 "이 시스템을 친한 지인 5명에게 추천할 수 있다" 주관 평가 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/TODO.md:287: - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
-.claude/worktrees/agent-a0d2ef2b/docs/TODO.md:370:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) 모델별 PASS/FAIL
-.claude/worktrees/agent-a0d2ef2b/docs/TODO.md:409:> **브랜치:** `feat/sprint8b-tier1-rendering`. 10 tasks TDD × commit 단위로 완수.
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/bybit-mainnet-checklist.md:71:모두 PASS → **H2 직진입** 또는 **선택: mainnet 72h** 진행.
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/bybit-mainnet-checklist.md:272:모두 PASS → `/office-hours` (H2 kickoff) 세션 스케줄링.
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/runbook.md:343:- 본인 "이 시스템을 친한 지인 5명에게 추천할 수 있다" 주관 평가 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/status.md:287: - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
+.claude/worktrees/agent-a0d2ef2b/docs/status.md:370:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) 모델별 PASS/FAIL
+.claude/worktrees/agent-a0d2ef2b/docs/status.md:409:> **브랜치:** `feat/sprint8b-tier1-rendering`. 10 tasks TDD × commit 단위로 완수.
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/bybit-mainnet-checklist.md:71:모두 PASS → **H2 직진입** 또는 **선택: mainnet 72h** 진행.
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/bybit-mainnet-checklist.md:272:모두 PASS → `/office-hours` (H2 kickoff) 세션 스케줄링.
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:97: L3["Level 3 · Task 체인<br/>━━━━━━━<br/>superpowers:<br/>&nbsp;&nbsp;brainstorming → git-worktrees →<br/>&nbsp;&nbsp;writing-plans → subagent-driven-dev →<br/>&nbsp;&nbsp;TDD → requesting-code-review →<br/>&nbsp;&nbsp;finishing-a-development-branch"]
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:115:<li><strong>③ <code>autonomous-depth-sprint</code> (설계 완료)</strong>: <strong>raw idea 한 줄</strong>부터 <code>brainstorming → autoplan 조건부 → writing-plans → executing-plans (TDD 정석) → Evaluator iter 5 → PR</code>. 병렬 없음 (1 sprint 전용).</li>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:177:<tr><td><strong>TDD</strong></td><td>Risk-based</td><td>Risk-based</td><td>정석 필수</td><td><strong>정석 필수 (스킬 3 상속)</strong></td></tr>
@@ -2271,11 +2271,11 @@ docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnp
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-bundle2-autonomous.md:366:- Evaluator iter=1 PASS: 3/3
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-bundle2-autonomous.md:391:| Evaluator 3회 FAIL | blocked |
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-bundle2-autonomous.md:426:- ✅ Evaluator iter=1 PASS 3/3
-.claude/worktrees/agent-a0d2ef2b/docs/ai-rules-prompt-react-hooks-safety.md:107: expect(counter).toHaveText("1 / 2"); // PASS
-.claude/worktrees/agent-a0d2ef2b/docs/ai-rules-prompt-react-hooks-safety.md:296:> 1. `pnpm lint` + `pnpm test` (기본)
-.claude/worktrees/agent-a0d2ef2b/docs/05_env/local-setup.md:176:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/05_env/local-setup.md:177:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/05_env/local-setup.md:193:| FE tsc/lint | `cd frontend && pnpm tsc --noEmit && pnpm lint` | EXIT 0 (Sprint 7c 기준) |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/ai-rules-prompt-react-hooks-safety.md:107: expect(counter).toHaveText("1 / 2"); // PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/ai-rules-prompt-react-hooks-safety.md:296:> 1. `pnpm lint` + `pnpm test` (기본)
+.claude/worktrees/agent-a0d2ef2b/docs/reference/local-setup.md:176:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/reference/local-setup.md:177:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/reference/local-setup.md:193:| FE tsc/lint | `cd frontend && pnpm tsc --noEmit && pnpm lint` | EXIT 0 (Sprint 7c 기준) |
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-chain-design.html:81: P_IG --> IPASS{"Integration<br/>PASS?"}
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-chain-design.html:82: IPASS -->|FAIL 3회| ROLLBACK["해당 sprint revert<br/>+ 사용자 에스컬레이션"]
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-chain-design.html:83: IPASS -->|PASS + 다음 있음| LOOP_START
@@ -2283,23 +2283,23 @@ docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnp
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-chain-design.html:126:<td><code class="gs">/qa</code> Quick tier<br>+ state consistency 체크 (엔진 레이어 특성)<br>+ FE 포함: <code class="gs">/design-review</code><br>+ FAIL 3회 시 해당 sprint revert + 에스컬레이션</td>
 .claude/worktrees/agent-a0d2ef2b/docs/guides/development-methodology.md:29: │ TDD → /simplify → /browse │
 .claude/worktrees/agent-a0d2ef2b/docs/guides/development-methodology.md:74:| TDD 사이클 | `test-driven-development` | RED → GREEN → REFACTOR |
-.claude/worktrees/agent-a0d2ef2b/docs/audit/2026-04-16-trading-demo-security.md:27:| P2 Secrets archaeology | **PASS** — `.env` gitignored, git history 깨끗, AWS/OpenAI/GitHub/Slack 키 미노출 |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/audit/2026-04-16-trading-demo-security.md:27:| P2 Secrets archaeology | **PASS** — `.env` gitignored, git history 깨끗, AWS/OpenAI/GitHub/Slack 키 미노출 |
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-after-fe-01-prompt.md:34:**완료 조건**: `pnpm lint` 0 errors 0 warnings + CI build + e2e job 자동 실행 + Clerk auth queryKey 통합. 이 스프린트 끝나면 FE tech debt 제로.
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-after-fe-01-prompt.md:116:4. `pnpm lint` → **0 errors 0 warnings** 확인
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-after-fe-01-prompt.md:231:- [ ] `pnpm lint` → **0 errors, 0 warnings** (이전 8 warnings 제거)
-.claude/worktrees/agent-a0d2ef2b/docs/06_devops/ci-cd.md:42:| Lint | `pnpm lint` | ESLint + Prettier |
-.claude/worktrees/agent-a0d2ef2b/docs/06_devops/ci-cd.md:43:| Type | `pnpm tsc --noEmit` | TypeScript Strict |
-.claude/worktrees/agent-a0d2ef2b/docs/06_devops/ci-cd.md:44:| Test | `pnpm test -- --run` | vitest |
-.claude/worktrees/agent-a0d2ef2b/docs/05_env/env-vars.md:55:| `POSTGRES_PASSWORD` | [자동] | 동일. 로컬 전용 비밀번호 |
-.claude/worktrees/agent-a0d2ef2b/docs/06_devops/pre-commit.md:25:| `frontend/**/*.{ts,tsx,js,jsx}` | `pnpm lint --fix --file <path>` |
-.claude/worktrees/agent-a0d2ef2b/docs/06_devops/pre-commit.md:69:### 5.2 `pnpm lint --fix`가 ESLint 캐시로 stale
-.claude/worktrees/agent-a0d2ef2b/docs/06_devops/pre-commit.md:70:- `cd frontend && pnpm lint --cache=false` 강제 재실행
-.claude/worktrees/agent-a0d2ef2b/docs/04_architecture/data-flow.md:124: alt status terminal (COMPLETED/FAILED/CANCELLED)
+.claude/worktrees/agent-a0d2ef2b/docs/reference/ci-cd.md:42:| Lint | `pnpm lint` | ESLint + Prettier |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/ci-cd.md:43:| Type | `pnpm tsc --noEmit` | TypeScript Strict |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/ci-cd.md:44:| Test | `pnpm test -- --run` | vitest |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/env-vars.md:55:| `POSTGRES_PASSWORD` | [자동] | 동일. 로컬 전용 비밀번호 |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/pre-commit.md:25:| `frontend/**/*.{ts,tsx,js,jsx}` | `pnpm lint --fix --file <path>` |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/pre-commit.md:69:### 5.2 `pnpm lint --fix`가 ESLint 캐시로 stale
+.claude/worktrees/agent-a0d2ef2b/docs/reference/pre-commit.md:70:- `cd frontend && pnpm lint --cache=false` 강제 재실행
+.claude/worktrees/agent-a0d2ef2b/docs/reference/data-flow.md:124: alt status terminal (COMPLETED/FAILED/CANCELLED)
 .claude/worktrees/agent-a0d2ef2b/docs/reports/session-2026-04-18-sprint-8a-tier0.html:247: <strong>169 pine_v2 tests PASS</strong> + 526 기존 regression green.
 .claude/worktrees/agent-a0d2ef2b/docs/reports/session-2026-04-18-sprint-8a-tier0.html:257: <div class="metric-label">Tests PASS</div>
-.claude/worktrees/agent-a0d2ef2b/docs/dev-log/007-sprint7a-futures-decisions.md:69:T2: BybitFuturesProvider 구현 (TDD)
+.claude/worktrees/agent-a0d2ef2b/docs/decisions/007-sprint7a-futures-decisions.md:69:T2: BybitFuturesProvider 구현 (TDD)
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:35:- **Generator-Evaluator 2-session 게이트 필수**: 메인 세션(Generator)이 구현 후 `isolation=worktree` subagent(Evaluator)를 dispatch → cold-start 재검증 → PASS 판정 시에만 PR 생성 + auto-merge. 최대 3 iteration 의 FAIL/fix 루프 후에도 FAIL 이면 스프린트 blocked.
-.claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:36:- 한 스프린트 실패 시 (CI 3회 연속 red / 테스트 green 복구 불가 / PR 머지 거부 / Evaluator 3회 FAIL) → **다음 스프린트로 넘어감**. 실패 기록은 `docs/TODO.md` 의 `Blocked` 섹션에.
+.claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:36:- 한 스프린트 실패 시 (CI 3회 연속 red / 테스트 green 복구 불가 / PR 머지 거부 / Evaluator 3회 FAIL) → **다음 스프린트로 넘어감**. 실패 기록은 `docs/status.md` 의 `Blocked` 섹션에.
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:55:scope 달성 여부 판정. Evaluator PASS 일 때만 PR 생성 + auto-merge.
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:85: │ │ (FAIL ↔ fix, ≤3) │ │ ... │ │ ... │
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:128:`superpowers:executing-plans` 또는 직접 구현. TDD 패턴 권장 (`superpowers:test-driven-development`).
@@ -2324,7 +2324,7 @@ docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnp
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:341:- fresh install 시 네트워크 에러 / lockfile 충돌은 **3회 재시도** 후에도 지속되면 "reproducibility.\*:fail — install 단계" 로 보고 → FAIL.
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:350:- `verdict == "PASS"` → PR 생성 + `gh pr merge --auto --squash --delete-branch` 진행 (절차 5~8)
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:351:- `verdict == "FAIL"` 이면:
-.claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:354: - **최대 3 iteration**. 3회째에도 FAIL 이면 스프린트 blocked, `docs/TODO.md` 에 기록, 다음 스프린트로 진행
+.claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:354: - **최대 3 iteration**. 3회째에도 FAIL 이면 스프린트 blocked, `docs/status.md` 에 기록, 다음 스프린트로 진행
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:355:- 리포트 파싱 실패 (JSON 블록 없음 / 포맷 깨짐) → Evaluator 1회 재dispatch 후에도 같으면 FAIL 처리
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:416:5. Evaluator subagent dispatch (isolation=worktree). 최대 3 iteration 의 FAIL ↔ fix loop.
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:417:6. Evaluator PASS 시 PR 생성. signals/b.status = "pr_ready" + signals/b.pr = <PR번호>.
@@ -2333,19 +2333,19 @@ docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnp
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:786:| `pnpm lint` 실패 | 최대 3회 자동 fix 시도 후 실패 시 PR 생성하지 않고 다음 스프린트로 |
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:787:| `pnpm tsc --noEmit` 실패 | 최대 3회 자동 fix 시도 후 실패 시 다음 스프린트 |
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-sprint-bcd-autonomous.md:795:| **Evaluator FAIL 3회 연속** (Generator-Evaluator loop) | 스프린트 blocked, PR 생성 안 함, 다음 스프린트로 |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:22:| 3 | success / error 모두 toast | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:23:| 4 | disabled = `!isEnabled || isPending` | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:24:| 5 | initial_capital = `Number()` + `Number.isFinite` + `> 0` 가드 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:25:| 6 | hooks.ts 변경 없음 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:27:| 8 | 테스트 mock — mutate args, push args 둘 다 명시 검증 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:28:| 9 | edge cases — terminal/pending/error/invalid capital | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:45:> 아니면 실수로 `bt.status` 만 써도 통과하는 spurious PASS 위험.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:71:pnpm tsc --noEmit => 0 errors
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:72:pnpm lint => 0 errors
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:22:| 3 | success / error 모두 toast | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:23:| 4 | disabled = `!isEnabled || isPending` | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:24:| 5 | initial_capital = `Number()` + `Number.isFinite` + `> 0` 가드 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:25:| 6 | hooks.ts 변경 없음 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:27:| 8 | 테스트 mock — mutate args, push args 둘 다 명시 검증 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:28:| 9 | edge cases — terminal/pending/error/invalid capital | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:45:> 아니면 실수로 `bt.status` 만 써도 통과하는 spurious PASS 위험.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:71:pnpm tsc --noEmit => 0 errors
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:72:pnpm lint => 0 errors
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:155: <tr><td>C</td><td>FE-03 · Edit Zustand lift-up</td><td><a href="https://github.com/woosung-dev/quantbridge/pull/27">#27</a></td><td><code>0c78b10</code></td><td>15m 25s</td><td><span class="pill ok">CLEAN</span></td><td><span class="pill ok">PASS 1-pass</span></td></tr>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:156: <tr><td>D</td><td>FE-04 · Backtest UI MVP</td><td><a href="https://github.com/woosung-dev/quantbridge/pull/26">#26</a></td><td><code>f307f60</code></td><td>16m 0s</td><td><span class="pill ok">CLEAN</span></td><td><span class="pill ok">PASS 1-pass</span></td></tr>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:157: <tr><td>B</td><td>Sprint 7d · OKX + Trading Sessions (BE)</td><td><a href="https://github.com/woosung-dev/quantbridge/pull/28">#28</a></td><td><code>06f10f0</code></td><td>32m 37s</td><td><span class="pill ok">CLEAN (최종)</span></td><td><span class="pill ok">PASS 1-pass</span></td></tr>
@@ -2355,368 +2355,368 @@ docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnp
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:192: PASS → PR 생성 → pr_ready → 종료
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:193: FAIL (≤3) → actionable_issues 반영 → 재dispatch</pre>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:468: <span class="kw">await</span> page.fill(<span class="str">'input[name=password]'</span>, process.env.CLERK_TEST_PASSWORD!);
-.claude/worktrees/agent-a0d2ef2b/docs/dev-log/012-sprint-8a-tier0-final-report.md:49:| **합계** | **9 source / 10 test / 4 fixture** | — | **169 PASS** | ruff/mypy clean |
+.claude/worktrees/agent-a0d2ef2b/docs/decisions/012-sprint-8a-tier0-final-report.md:49:| **합계** | **9 source / 10 test / 4 fixture** | — | **169 PASS** | ruff/mypy clean |
 .claude/worktrees/agent-a0d2ef2b/docs/dev-log/010-dev-cpu-budget.md:173:**검증:** `pnpm tsc --noEmit` ✅ / `pnpm lint` ✅ / `pnpm test` 7/7 ✅
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-21-h1-closing-status-dashboard.html:462: <td>M6 완료 + H2→H3 gate PASS</td>
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-tabparse-fe-1q-prompt.md:59: 4. executing-plans (superpowers) — TDD task-by-task (vitest 기반)
 .claude/worktrees/agent-a0d2ef2b/frontend/README.md:31:pnpm lint # ESLint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md:6:- **방법론:** brainstorming → writing-plans → TDD 구현
-.claude/worktrees/agent-a0d2ef2b/docs/prototypes/09-backtests-list.html:1693: <!-- Row 10 — FAILED -->
-.claude/worktrees/agent-a0d2ef2b/docs/prototypes/09-backtests-list.html:1823: <!-- Row 15 — FAILED -->
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:7:- **방법론:** brainstorming → writing-plans → TDD 구현 (Sprint 1/2/3과 동일)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:346: FAILED = "failed"
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:1016: status=BacktestStatus.FAILED,
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:1236:- [ ] **Engine bar_index TypeError** (Task 18 integration 중 발견): `engine/trades.py`의 `int(row["Entry Timestamp"])` — vectorbt가 DatetimeIndex OHLCV와 함께 사용될 때 `Entry Timestamp`가 `pd.Timestamp` 반환 → `int()` 실패. 현재 `test_run_happy_path`는 `COMPLETED | FAILED` 둘 다 허용하며 우회. Sprint 5에서 bar_index 계산을 `ohlcv.index.get_loc(ts)` 또는 vectorbt `records` (raw int index) 사용으로 전환 예정.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md:7:- **방법론:** brainstorming → writing-plans → TDD 구현 (Sprint 1/2와 동일)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:19:2. **Engine bar_index TypeError:** `engine/trades.py:68`에서 vectorbt가 DatetimeIndex OHLCV와 함께 사용될 때 `Entry Timestamp`를 `pd.Timestamp`로 반환하는데 `int()`로 강제 변환하여 실패. 현재 L4 smoke test가 `COMPLETED | FAILED` 둘 다 허용하며 우회 중이며, engine 정상 경로가 검증되지 않은 상태.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:114:- 기존 `test_run_happy_path`: `COMPLETED | FAILED` 허용 → `COMPLETED` only로 강화 + bar_index 값 검증
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:971: DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md:6:- **방법론:** brainstorming → writing-plans → TDD 구현
+.claude/worktrees/agent-a0d2ef2b/docs/reference/prototypes/09-backtests-list.html:1693: <!-- Row 10 — FAILED -->
+.claude/worktrees/agent-a0d2ef2b/docs/reference/prototypes/09-backtests-list.html:1823: <!-- Row 15 — FAILED -->
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:7:- **방법론:** brainstorming → writing-plans → TDD 구현 (Sprint 1/2/3과 동일)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:346: FAILED = "failed"
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:1016: status=BacktestStatus.FAILED,
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md:1236:- [ ] **Engine bar_index TypeError** (Task 18 integration 중 발견): `engine/trades.py`의 `int(row["Entry Timestamp"])` — vectorbt가 DatetimeIndex OHLCV와 함께 사용될 때 `Entry Timestamp`가 `pd.Timestamp` 반환 → `int()` 실패. 현재 `test_run_happy_path`는 `COMPLETED | FAILED` 둘 다 허용하며 우회. Sprint 5에서 bar_index 계산을 `ohlcv.index.get_loc(ts)` 또는 vectorbt `records` (raw int index) 사용으로 전환 예정.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md:7:- **방법론:** brainstorming → writing-plans → TDD 구현 (Sprint 1/2와 동일)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:19:2. **Engine bar_index TypeError:** `engine/trades.py:68`에서 vectorbt가 DatetimeIndex OHLCV와 함께 사용될 때 `Entry Timestamp`를 `pd.Timestamp`로 반환하는데 `int()`로 강제 변환하여 실패. 현재 L4 smoke test가 `COMPLETED | FAILED` 둘 다 허용하며 우회 중이며, engine 정상 경로가 검증되지 않은 상태.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:114:- 기존 `test_run_happy_path`: `COMPLETED | FAILED` 허용 → `COMPLETED` only로 강화 + bar_index 값 검증
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:971: DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
 .claude/worktrees/agent-a0d2ef2b/backend/scripts/pine_coverage_report.py:184:        print("[FAIL] ground zero (standard tier) not 100%", file=sys.stderr)
 .claude/worktrees/agent-a0d2ef2b/backend/scripts/pine_coverage_report.py:188:            f"[FAIL] medium tier {report.tier_pass_rate('medium'):.1%} < target {args.medium_target:.1%}",
 .claude/worktrees/agent-a0d2ef2b/backend/scripts/smoke_sprint4.py:82:        BacktestStatus.FAILED,
 .claude/worktrees/agent-a0d2ef2b/backend/scripts/smoke_sprint4.py:129:    ok = final in {BacktestStatus.COMPLETED, BacktestStatus.FAILED}
 .claude/worktrees/agent-a0d2ef2b/backend/scripts/smoke_sprint4.py:215:            BacktestStatus.FAILED,
 .claude/worktrees/agent-a0d2ef2b/backend/scripts/smoke_sprint4.py:236:        print(f"  {name}: {'✅ PASS' if ok else '❌ FAIL'}")
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md:7:- **방법론:** brainstorming → writing-plans → TDD 구현
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md:361:| BracketState carry forward 구현 복잡도 과소평가 | 중 | 중 | Step 1에서 TDD. 청산 엣지 케이스(강제 exits, EOD) 테스트 우선 |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md:7:- **방법론:** brainstorming → writing-plans → TDD 구현
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md:361:| BracketState carry forward 구현 복잡도 과소평가 | 중 | 중 | Step 1에서 TDD. 청산 엣지 케이스(강제 exits, EOD) 테스트 우선 |
 .claude/worktrees/agent-a0d2ef2b/backend/alembic/versions/20260416_0059_add_backtests_and_backtest_trades_tables.py:8:- backtest_status: 6개 값 (QUEUED, RUNNING, CANCELLING, COMPLETED, FAILED, CANCELLED)
 .claude/worktrees/agent-a0d2ef2b/backend/alembic/versions/20260416_0059_add_backtests_and_backtest_trades_tables.py:43:                'QUEUED', 'RUNNING', 'CANCELLING', 'COMPLETED', 'FAILED', 'CANCELLED'
 .claude/worktrees/agent-a0d2ef2b/backend/alembic/versions/20260416_0059_add_backtests_and_backtest_trades_tables.py:79:                'QUEUED', 'RUNNING', 'CANCELLING', 'COMPLETED', 'FAILED', 'CANCELLED',
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-pine-parser-mvp.md:4561:        print("[FAIL] ground zero (standard tier) not 100%", file=sys.stderr)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-pine-parser-mvp.md:4565:            f"[FAIL] medium tier {report.tier_pass_rate('medium'):.1%} < target {args.medium_target:.1%}",
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-pine-parser-mvp.md:4712:| §7 테스트 전략 | Task 4~20 TDD로 각 레이어 |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-pine-parser-mvp.md:4561:        print("[FAIL] ground zero (standard tier) not 100%", file=sys.stderr)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-pine-parser-mvp.md:4565:            f"[FAIL] medium tier {report.tier_pass_rate('medium'):.1%} < target {args.medium_target:.1%}",
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-pine-parser-mvp.md:4712:| §7 테스트 전략 | Task 4~20 TDD로 각 레이어 |
 .claude/worktrees/agent-a0d2ef2b/backend/src/backtest/models.py:27:    FAILED = "failed"
 .claude/worktrees/agent-a0d2ef2b/backend/src/backtest/service.py:354:            BacktestStatus.FAILED,
 .claude/worktrees/agent-a0d2ef2b/backend/src/backtest/repository.py:116:                status=BacktestStatus.FAILED,
 .claude/worktrees/agent-a0d2ef2b/backend/src/backtest/repository.py:219:                status=BacktestStatus.FAILED,
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:17:- **Q5 (테스트 전략):** FE testing infra가 아직 없으므로 Sprint 7c는 **manual QA checklist + `pnpm tsc --noEmit` + `pnpm lint`를 primary gate로 사용**. 자동 component test는 Sprint 7d+ 이관.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:792:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:793:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1196:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1197:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1723:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1724:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:2617:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:2618:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3134:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3135:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3254:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3255:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3283:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3284:pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3301:Expected: 기존 524 tests 모두 PASS (Sprint 7a 이후 baseline 유지). Sprint 7c는 FE만 변경하므로 BE 테스트 수 변화 없어야 정상.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-d-chip-tag-input.md:70:2. `components/__tests__/tag-input.test.tsx` 작성 (동시 이지만 TDD 는 오버헤드, 구현 직후 테스트)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:195:Expected: FAIL — module not found.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:315:Expected: PASS — all 7 test cases green.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:417:Expected: FAIL — module not found.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:516:Expected: PASS — 6 test cases green.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:598:Expected: FAIL — module not found.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:800:Expected: PASS — 4 test cases green.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:956:Run: `cd frontend && pnpm lint && pnpm typecheck`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:1006:- [ ] `cd frontend && pnpm lint` — no new warnings
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:5:> **TDD Mode:** **정석 TDD** — mutation 호출 + navigation 라우팅, side-effect 있음
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:32:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` clean
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:56:## 4. TDD Tasks
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:208:cd frontend && pnpm test -- --run rerun-button
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:211:Expected: FAIL — `RerunButton` import 불가 (또는 컴포넌트 없음).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:252:cd frontend && pnpm test -- --run
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:253:cd frontend && pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:254:cd frontend && pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:257:Expected: 모두 PASS / clean.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:292:2. spurious PASS: mock 이 너무 헐겁지 않은가? (mutate args 검증 포함됨)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:293:3. TDD: FAIL → PASS 전환 evidence?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:304:cd frontend && pnpm test -- --run
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:305:cd frontend && pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md:108:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) — 모델별 PASS/FAIL 표
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:5:> **TDD Mode:** **정석 TDD** — heuristic rule은 공유 로직 + semantic drift 위험
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:26:- [ ] `PINE_ALERT_HEURISTIC_MODE=strict` (or unset) 기본: 기존 `test_alert_hook.py` 전수 PASS (24+ 테스트)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:50:## 4. TDD Tasks
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:105:Expected: FAIL (loose 분기 없음 → 여전히 INFORMATION 반환)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:194:Expected: PASS — 모든 loose/strict 테스트 + 기존 테스트 전수 녹색
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:204:Expected: PASS (기존 통과 유지)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:212:Expected: 전수 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:255:2. spurious PASS: 테스트가 강제로 녹색되도록 설계됐나? (e.g. env 전역 오염)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:256:3. TDD: step 2 에서 실제 FAIL 재현 확인 후 step 4 에서 녹색 전환?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:5:> **TDD Mode:** **test + impl 동시 허용** — pure UI 렌더링 (no hooks/state/effect 로직 변경)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:25:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` 모두 clean
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:26:- [ ] 기존 equity 데이터 렌더링 회귀 0 (기존 테스트 PASS)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:48:## 4. TDD Tasks
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:97:cd frontend && pnpm test -- --run equity-chart.test
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:100:Expected: 가능하면 FAIL 또는 render crash; 적어도 smoke 형태로 돌아감 (완전 FAIL 이 아니어도 mount 보장).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:212:cd frontend && pnpm test -- --run equity-chart.test
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:213:cd frontend && pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:214:cd frontend && pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:261:2. spurious PASS: console.warn spy 가 실제 warning 을 잡을 수 있는 환경인가? (jsdom 에서 recharts 가 warning 을 emit 하는지 확인)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:262:3. TDD: 실패 테스트 → 녹색 전환 evidence?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:273:cd frontend && pnpm test -- --run
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:274:cd frontend && pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:275:cd frontend && pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:17:- **Q5 (테스트 전략):** FE testing infra가 아직 없으므로 Sprint 7c는 **manual QA checklist + `pnpm tsc --noEmit` + `pnpm lint`를 primary gate로 사용**. 자동 component test는 Sprint 7d+ 이관.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:792:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:793:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1196:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1197:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1723:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:1724:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:2617:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:2618:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3134:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3135:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3254:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3255:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3283:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3284:pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3301:Expected: 기존 524 tests 모두 PASS (Sprint 7a 이후 baseline 유지). Sprint 7c는 FE만 변경하므로 BE 테스트 수 변화 없어야 정상.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-d-chip-tag-input.md:70:2. `components/__tests__/tag-input.test.tsx` 작성 (동시 이지만 TDD 는 오버헤드, 구현 직후 테스트)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:195:Expected: FAIL — module not found.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:315:Expected: PASS — all 7 test cases green.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:417:Expected: FAIL — module not found.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:516:Expected: PASS — 6 test cases green.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:598:Expected: FAIL — module not found.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:800:Expected: PASS — 4 test cases green.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:956:Run: `cd frontend && pnpm lint && pnpm typecheck`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:1006:- [ ] `cd frontend && pnpm lint` — no new warnings
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:5:> **TDD Mode:** **정석 TDD** — mutation 호출 + navigation 라우팅, side-effect 있음
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:32:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` clean
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:56:## 4. TDD Tasks
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:208:cd frontend && pnpm test -- --run rerun-button
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:211:Expected: FAIL — `RerunButton` import 불가 (또는 컴포넌트 없음).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:252:cd frontend && pnpm test -- --run
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:253:cd frontend && pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:254:cd frontend && pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:257:Expected: 모두 PASS / clean.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:292:2. spurious PASS: mock 이 너무 헐겁지 않은가? (mutate args 검증 포함됨)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:293:3. TDD: FAIL → PASS 전환 evidence?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:304:cd frontend && pnpm test -- --run
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:305:cd frontend && pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:306:cd frontend && pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md:108:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) — 모델별 PASS/FAIL 표
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:5:> **TDD Mode:** **정석 TDD** — heuristic rule은 공유 로직 + semantic drift 위험
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:26:- [ ] `PINE_ALERT_HEURISTIC_MODE=strict` (or unset) 기본: 기존 `test_alert_hook.py` 전수 PASS (24+ 테스트)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:50:## 4. TDD Tasks
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:105:Expected: FAIL (loose 분기 없음 → 여전히 INFORMATION 반환)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:194:Expected: PASS — 모든 loose/strict 테스트 + 기존 테스트 전수 녹색
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:204:Expected: PASS (기존 통과 유지)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:212:Expected: 전수 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:255:2. spurious PASS: 테스트가 강제로 녹색되도록 설계됐나? (e.g. env 전역 오염)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:256:3. TDD: step 2 에서 실제 FAIL 재현 확인 후 step 4 에서 녹색 전환?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:5:> **TDD Mode:** **test + impl 동시 허용** — pure UI 렌더링 (no hooks/state/effect 로직 변경)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:25:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` 모두 clean
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:26:- [ ] 기존 equity 데이터 렌더링 회귀 0 (기존 테스트 PASS)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:48:## 4. TDD Tasks
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:97:cd frontend && pnpm test -- --run equity-chart.test
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:100:Expected: 가능하면 FAIL 또는 render crash; 적어도 smoke 형태로 돌아감 (완전 FAIL 이 아니어도 mount 보장).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:212:cd frontend && pnpm test -- --run equity-chart.test
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:213:cd frontend && pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:214:cd frontend && pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:261:2. spurious PASS: console.warn spy 가 실제 warning 을 잡을 수 있는 환경인가? (jsdom 에서 recharts 가 warning 을 emit 하는지 확인)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:262:3. TDD: 실패 테스트 → 녹색 전환 evidence?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:273:cd frontend && pnpm test -- --run
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:274:cd frontend && pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:275:cd frontend && pnpm lint
 .claude/worktrees/agent-a0d2ef2b/backend/tests/strategy/pine/test_parser_expr.py:1:"""Parser 표현식 테스트 — T11 TDD."""
 .claude/worktrees/agent-a0d2ef2b/backend/tests/backtest/test_service.py:139:        따라서 서비스는 fail() 경로를 타고 FAILED 상태로 귀결된다.
 .claude/worktrees/agent-a0d2ef2b/backend/tests/backtest/test_service.py:150:        # 엔진 trade 추출 버그로 인해 현재 FAILED가 예상되는 정상 경로.
 .claude/worktrees/agent-a0d2ef2b/backend/tests/backtest/test_service.py:152:        assert bt.status in (BacktestStatus.COMPLETED, BacktestStatus.FAILED)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:53:- **FE:** `cd frontend && pnpm tsc --noEmit`, `pnpm lint`, `pnpm test`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:58:## Task 1: BE — ParsePreviewResponse에 `functions_used` 필드 추가 (TDD)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:118:- [ ] **Step 2: Run test → verify FAIL**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:121:Expected: FAIL with `AttributeError: 'ParsePreviewResponse' object has no attribute 'functions_used'` (또는 Pydantic validation error).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:236:- [ ] **Step 5: Run test → verify PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:239:Expected: PASS 2/2.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:255:## Task 2: FE — Zod `ParsePreviewResponseSchema` 확장 (TDD)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:303:- [ ] **Step 2: Run test → verify FAIL**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:306:Expected: FAIL with "Cannot find property 'functions_used'" or type error.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:326:- [ ] **Step 4: Run test → verify PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:329:Expected: PASS 2/2.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:333:Run: `cd frontend && pnpm tsc --noEmit`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:533:Run: `cd frontend && pnpm tsc --noEmit && pnpm lint src/app/\(dashboard\)/strategies/new/_components/parse-preview-panel.tsx`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:637:Run: `cd frontend && pnpm tsc --noEmit && pnpm lint src/app/\(dashboard\)/strategies/\[id\]/edit/_components/tab-code.tsx`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:905:Run: `cd frontend && pnpm tsc --noEmit && pnpm lint src/app/\(dashboard\)/strategies/\[id\]/edit/_components/tab-parse.tsx`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:941:cd frontend && pnpm tsc --noEmit && pnpm lint && pnpm test
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:1055:- [ ] `cd frontend && pnpm tsc --noEmit && pnpm lint && pnpm test` 전체 green
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:1083:cd frontend && pnpm tsc --noEmit && pnpm test
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:158:- [ ] **Step 2: Run test — FAIL (function not defined)**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:247:Expected: 모든 기존 테스트 + 신규 4건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:321:- [ ] **Step 2: Run test — FAIL**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:367:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:373:Expected: 5건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:665:cd backend && uv run pytest 2>&1 | grep -E "FAILED|ERROR" | head -50
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:693:Expected: 368+ tests PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:771:Expected: PASS (M1 migration 후라면 일치).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:822:- [ ] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 모두 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:984:- [ ] **Step 2: Run test — FAIL**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1030:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1036:Expected: 5건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1294:- [ ] **Step 2: Run test — FAIL**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1413:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1419:Expected: 3건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1483:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1640:- [ ] **Step 2: Run test — FAIL**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1756:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1762:Expected: 2건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1849:- [ ] **Step 2: Run — FAIL**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1955:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1961:Expected: 2건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2029:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2218:Expected: 모두 PASS (fixture provider 경로 유지).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2254:Expected: 모두 PASS. 어떤 테스트도 우연히 timescale provider를 호출하지 않음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2326:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2413:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2496:      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2640:Expected: 신규 + 기존 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2721:- [x] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:234:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:492:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:554:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:560:Expected: FAIL — trading schema 없음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:585:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:591:Expected: 전체 기존 테스트 + 신규 2 테스트 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:657:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:743:- [ ] **Step 6: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:749:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:760:## Task 4: `EncryptionService` — **MultiFernet** wrapper (TDD, autoplan CEO F3 + Eng E4 반영)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:881:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:996:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1094:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1188:- [ ] **Step 4: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1205:## Task 6: `BybitDemoProvider` — per-account ephemeral CCXT client (TDD + mock)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1322:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1403:- [ ] **Step 4: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1563:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1631:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1815:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1941:- [ ] **Step 4: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2089:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2163:- [ ] **Step 4: 테스트 실행 — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2261:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2320:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2490:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2680:- [ ] **Step 6: 테스트 실행 — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2811:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2906:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3044:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3228:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3347:- [ ] **Step 2: 테스트 실행 — PASS (T13에서 이미 구현되어 있음)**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3447:- [ ] **Step 2: 테스트 실행 — FAIL (현재 OrderService는 kill_switch 파라미터 없음)**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3579:- [ ] **Step 5: 전체 트레이딩 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3585:Expected: T1-T15까지 전체 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3827:- [ ] **Step 5: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3951:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4027:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4111:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4314:- [ ] **Step 7: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4459:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4548:- [ ] **Step 5: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4756:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4899:- [ ] **Step 2: 테스트 실행 — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:5189:- [ ] **Step 5: 테스트 PASS + 수동 확인 + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:5275:cd frontend && pnpm lint && pnpm tsc --noEmit && pnpm test
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:42:- `pnpm lint` 0/0
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:43:- `pnpm tsc --noEmit`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:44:- `pnpm test -- --run` (기존 landing/dashboard 관련 unit test 영향 없음 확인)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:56:- PASS 시만 PR create (base `stage/fe-polish`)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:35:## 구현 단계 (TDD)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:94:pnpm lint # 0/0
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:95:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:96:pnpm test -- --run
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md:165:Expected: FAIL — `warnings` 필드가 있어도 `duplicate` 메시지가 없음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md:297:Expected: FAIL — assert 실패. 현재 interpreter가 gate 무시하고 SL을 전 구간에 설정.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md:1030:Expected: FAIL — UserRepository 메서드 미정의.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md:1363:Expected: FAIL — UserService 미구현.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md:2184:Expected: FAIL — `create`/`find_by_id`/`list_by_owner` 등 미구현.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md:2552:Expected: FAIL — StrategyService 미구현.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint7d-okx-trading-sessions.md:187:On self-verify green: dispatch `Agent(subagent_type=superpowers:code-reviewer, isolation=worktree)` with the SSOT evaluator template. PASS → PR create; FAIL ≤3 iter → fix; 3× FAIL → blocked.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:162:Expected: FAIL (currently strategy.exit with stop/limit raises `PineUnsupportedError` → outcome.status="unsupported", but our new test expects "ok")
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:371:Expected: PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:383:Expected: PASS (EMA Cross v4, v5)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:450:Expected: FAIL (`position_size is None` currently)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:511:Expected: PASS (5 tests total)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:593:Expected: FAIL (currently short/qty_percent/non-literal qty go through as no-op or partial handling)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:666:Expected: PASS (8 tests total)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:758:Expected: PASS (2 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:863:Expected: FAIL — ImportError (`src.backtest.engine.types` 아직 없음)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:931:Expected: PASS (5 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1073:Expected: FAIL — ImportError (`src.backtest.engine.adapter` 없음)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1139:Expected: PASS (6 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1230:Expected: FAIL — ImportError
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1275:Expected: PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1415:Expected: FAIL — `run_backtest` not yet exported.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1507:Expected: PASS (all Task 4-8 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1592:Expected: PASS (EMA Cross v4/v5 — no `backtest` key yet, so snapshot branch skipped)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1664:Expected: PASS (both cases — signal + backtest snapshot match)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1835:Expected: PASS (1 case `ema_cross_atr_sltp_v5`)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md:94:pnpm lint # 0 / 0
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md:95:pnpm tsc --noEmit # 통과
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md:96:pnpm test -- --run # 신규 2건 + 기존 통과
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:113:On PASS, push branch and `gh pr create --base stage/fe-polish` with the SSOT-mandated title/body. Never merge.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:141:- Evaluator cold-start PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-20-h2-kickoff.md:182:- [ ] 인터뷰 3회에서 narrowest wedge 정의 PASS 확인 (미해당이면 scope 재정의)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-20-h2-kickoff.md:268:- [ ] **[신규]** 본인 주관 평가: "이 시스템을 친한 지인 5명 넘어 **낯선 Twitter 팔로어 3명**에게 권할 수 있다" PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:160:Expected: FAIL — ValueError 미발생 (현재 `_price_to_sl_ratio`가 조용히 음수 반환)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:194:Expected: PASS (4 신규 + 기존 엔진 골든 테스트 모두 green)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:314:Expected: PASS — `trades`가 default `[]`라 기존 테스트 영향 없음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:427:Expected: FAIL — `ModuleNotFoundError: src.backtest.engine.trades`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:485:Expected: PASS (6 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:615:Expected: PASS. 골든 테스트는 `outcome.result.metrics`/`equity_curve`만 참조하므로 trades 추가로 회귀 없음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:625:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:729:Expected: 3 tests PASS. 커버리지 % 숫자 관찰 → §10.2 기록용.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:797:Expected: PASS (Settings import 시 validation 통과).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:857: FAILED = "failed"
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:990:Expected: PASS. 새 테이블이 create_all()에 반영됨.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1174:Expected: FAIL — module not found.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1403:Expected: FAIL — module not found.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1632:Expected: FAIL — modules not found.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1873:Expected: FAIL — attributes/methods not defined.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1998: status=BacktestStatus.FAILED,
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2073: status=BacktestStatus.FAILED,
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2093:Expected: 8 tests PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2371:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2511: assert stale_bt.status == BacktestStatus.FAILED
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2520:Expected: PASS (단, dependencies.build_backtest_service_for_worker가 없어서 `_execute` 테스트는 아직 skip)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2664: assert bt.status in (BacktestStatus.COMPLETED, BacktestStatus.FAILED)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3023: terminal = (BacktestStatus.COMPLETED, BacktestStatus.FAILED, BacktestStatus.CANCELLED)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3132:Expected: 7 tests PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3249:Expected: PASS (기존 백테스트 없는 케이스 여전히 204).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3333:Expected: 회귀 테스트 + 신규 테스트 모두 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:92:Expected: FAIL — `AttributeError: 'AlertHook' object has no attribute 'condition_ast'`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:140:Expected: ALL PASS (기존 + 신규 2개)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:211:Expected: FAIL — `ModuleNotFoundError: No module named 'src.strategy.pine_v2.virtual_strategy'`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:265:Expected: ALL PASS (6 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:384:Expected: FAIL — `ImportError: cannot import name 'VirtualStrategyWrapper'`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:539:Expected: ALL PASS (9 tests 누적)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:625:Expected: FAIL — `PineRuntimeError: Call to 'atr' not supported in current scope`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:667:Expected: ALL PASS (기존 + 신규)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:766:Expected: 일부 FAIL 가능. 전형적 실패 케이스:
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:788:Expected: ALL PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:862:Expected: FAIL — `ModuleNotFoundError: No module named 'src.strategy.pine_v2.rendering'`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1024:Expected: ALL PASS (4 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1103:Expected: FAIL — `PineRuntimeError: Call to 'line.new' not supported in current scope`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1250:Expected: ALL PASS (6 tests 누적)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1354:Expected: FAIL
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1428:Expected: ALL PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1555:Expected: 초기에는 FAIL 가능. 예상되는 에러와 해결 방식:
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1590:Expected: ALL PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1619:Run: `cd frontend && pnpm test -- --run 2>&1 | tail -20`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1652:Run: `cd backend && pytest -q && ruff check src/strategy/pine_v2 && mypy src/strategy/pine_v2 && cd ../frontend && pnpm test -- --run 2>&1 | tail -5`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1755:- [x] **TDD 순서:** 각 task "실패 테스트 작성 → 실패 확인 → 구현 → 통과 확인 → ruff/mypy → 커밋"
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:59:Expected: PASS (현재 green baseline 확인. Order model 변경 전)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:105:Expected: FAIL (TypeError: **init**() got an unexpected keyword argument 'leverage')
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:127:Expected: 모든 기존 테스트 + 신규 테스트 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:166:Expected: FAIL (AttributeError 또는 SQLAlchemy unknown column)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:211:Expected: PASS (drift 없음 + leverage/margin_mode persistence 테스트 통과)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:260:Expected: FAIL (Pydantic ValidationError — unknown field)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:312:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:360:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:489:Expected: FAIL (ImportError: cannot import name 'BybitFuturesProvider')
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:589:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:617:Expected: PASS (2.3 구현이 이미 커버)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:643:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:666:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:684:Expected: 모든 테스트 (5건) PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:775:Expected: FAIL (AssertionError: resp.leverage is None)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:803:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:860:Expected: FAIL (OrderSubmit에 leverage/margin_mode 전달 안 됨 — captured 값 None)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:904:Expected: 모든 테스트 PASS (기존 Spot 경로 회귀 없음)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:924:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1061:Expected: FAIL or ERROR — dependency 이름/경로 확인 필요
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1075:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1092:Expected: 기존 그대로 PASS (회귀 없음 확인)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:1:# W2 — `ta.sar` (Parabolic SAR) stdlib 구현 (i3_drfx FAILED 해소)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:5:> **TDD Mode:** **정석 TDD** — 금융 숫자 + stdlib 공유 로직, 회귀 위험 극대
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:31:- [ ] 기존 `ta.*` 테스트 전수 PASS (ta.sma, ta.rsi, ta.atr 등 semantic drift 없음)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:56:## 4. TDD Tasks
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:157:Expected: FAIL — `SarState` 와 `ta_sar` import 불가.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:273:Expected: 5/6 tests PASS (일부 경계 케이스 tweak 가능).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:291:Expected: 기존 strict=False PASS 유지, 가능하면 ta.sar 관련 error 메시지 소거.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:335:2. spurious PASS: state 초기값이 우연히 테스트와 맞아떨어진 것?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:336:3. TDD: FAIL → PASS 전환 evidence (step 2 FAIL 확인)?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:111:Expected: FAIL — `AttributeError: 'Interpreter' object has no attribute '_user_functions'`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:138:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:206:Expected: FAIL — `_resolve_name`이 local을 모름.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:266:Expected: PASS (2/2)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:330:Expected: FAIL — `PineRuntimeError: Call to 'foo' not supported in current scope`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:385:Expected: 5/5 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:466:Expected: FAIL — 현재 `_exec_assign`은 Tuple target을 skip(`target_name=None`).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:550:Expected: 8/8 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:610:Expected: depth guard는 이미 Task 1에서 세팅됨 → 모두 PASS. na는 `x * 2`에서 nan 전파 자동 (기존 BinOp).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:618:Expected: 기존 224 + 신규 ~12 모두 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:692:Expected: FAIL — `PineRuntimeError: Call to 'ta.barssince' not supported`
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:717:Expected: 2/2 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:790:Expected: 4/4 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:895:Expected: 8/8 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:982:Expected: 기존 run_historical을 사용하는 모든 테스트 계속 PASS + 신규 2개 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1051:Expected: FAIL — `NotImplementedError` 및 `V2RunResult` ImportError.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1126:Expected: 3/3 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1217:Expected: 2/2 PASS. 실패 시 → strict=True 실행 로그에서 errors 첫 원인 조사 → Task 6-8 보완. 가능한 실패 원인:
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1229:Expected: 기존 750 + 신규 테스트 전부 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1326:Expected: 1/1 FAIL 또는 PASS depending on var_series 접근 방식.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1391:기대: 224(기존) + 신규 20개 이상 = 244+ tests, 모두 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1416: print(f'{name}: FAIL — {e}')
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:52:pnpm lint # 0/0
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:53:pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:54:pnpm test -- --run
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:69:- Evaluator 3회 FAIL → `sig status blocked`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:53:- **FE:** `cd frontend && pnpm tsc --noEmit`, `pnpm lint`, `pnpm test`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:58:## Task 1: BE — ParsePreviewResponse에 `functions_used` 필드 추가 (TDD)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:118:- [ ] **Step 2: Run test → verify FAIL**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:121:Expected: FAIL with `AttributeError: 'ParsePreviewResponse' object has no attribute 'functions_used'` (또는 Pydantic validation error).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:236:- [ ] **Step 5: Run test → verify PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:239:Expected: PASS 2/2.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:255:## Task 2: FE — Zod `ParsePreviewResponseSchema` 확장 (TDD)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:303:- [ ] **Step 2: Run test → verify FAIL**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:306:Expected: FAIL with "Cannot find property 'functions_used'" or type error.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:326:- [ ] **Step 4: Run test → verify PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:329:Expected: PASS 2/2.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:333:Run: `cd frontend && pnpm tsc --noEmit`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:533:Run: `cd frontend && pnpm tsc --noEmit && pnpm lint src/app/\(dashboard\)/strategies/new/_components/parse-preview-panel.tsx`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:637:Run: `cd frontend && pnpm tsc --noEmit && pnpm lint src/app/\(dashboard\)/strategies/\[id\]/edit/_components/tab-code.tsx`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:905:Run: `cd frontend && pnpm tsc --noEmit && pnpm lint src/app/\(dashboard\)/strategies/\[id\]/edit/_components/tab-parse.tsx`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:941:cd frontend && pnpm tsc --noEmit && pnpm lint && pnpm test
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:1055:- [ ] `cd frontend && pnpm tsc --noEmit && pnpm lint && pnpm test` 전체 green
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:1083:cd frontend && pnpm tsc --noEmit && pnpm test
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:158:- [ ] **Step 2: Run test — FAIL (function not defined)**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:247:Expected: 모든 기존 테스트 + 신규 4건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:321:- [ ] **Step 2: Run test — FAIL**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:367:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:373:Expected: 5건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:665:cd backend && uv run pytest 2>&1 | grep -E "FAILED|ERROR" | head -50
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:693:Expected: 368+ tests PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:771:Expected: PASS (M1 migration 후라면 일치).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:822:- [ ] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 모두 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:984:- [ ] **Step 2: Run test — FAIL**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1030:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1036:Expected: 5건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1294:- [ ] **Step 2: Run test — FAIL**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1413:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1419:Expected: 3건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1483:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1640:- [ ] **Step 2: Run test — FAIL**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1756:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1762:Expected: 2건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1849:- [ ] **Step 2: Run — FAIL**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1955:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1961:Expected: 2건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2029:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2218:Expected: 모두 PASS (fixture provider 경로 유지).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2254:Expected: 모두 PASS. 어떤 테스트도 우연히 timescale provider를 호출하지 않음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2326:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2413:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2496:      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2640:Expected: 신규 + 기존 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2721:- [x] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:234:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:492:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:554:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:560:Expected: FAIL — trading schema 없음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:585:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:591:Expected: 전체 기존 테스트 + 신규 2 테스트 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:657:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:743:- [ ] **Step 6: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:749:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:760:## Task 4: `EncryptionService` — **MultiFernet** wrapper (TDD, autoplan CEO F3 + Eng E4 반영)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:881:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:996:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1094:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1188:- [ ] **Step 4: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1205:## Task 6: `BybitDemoProvider` — per-account ephemeral CCXT client (TDD + mock)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1322:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1403:- [ ] **Step 4: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1563:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1631:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1815:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1941:- [ ] **Step 4: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2089:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2163:- [ ] **Step 4: 테스트 실행 — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2261:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2320:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2490:- [ ] **Step 3: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2680:- [ ] **Step 6: 테스트 실행 — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2811:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2906:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3044:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3228:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3347:- [ ] **Step 2: 테스트 실행 — PASS (T13에서 이미 구현되어 있음)**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3447:- [ ] **Step 2: 테스트 실행 — FAIL (현재 OrderService는 kill_switch 파라미터 없음)**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3579:- [ ] **Step 5: 전체 트레이딩 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3585:Expected: T1-T15까지 전체 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3827:- [ ] **Step 5: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3951:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4027:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4111:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4314:- [ ] **Step 7: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4459:- [ ] **Step 2: 테스트 실행 — FAIL 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4548:- [ ] **Step 5: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4756:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4899:- [ ] **Step 2: 테스트 실행 — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:5189:- [ ] **Step 5: 테스트 PASS + 수동 확인 + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:5275:cd frontend && pnpm lint && pnpm tsc --noEmit && pnpm test
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:42:- `pnpm lint` 0/0
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:43:- `pnpm tsc --noEmit`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:44:- `pnpm test -- --run` (기존 landing/dashboard 관련 unit test 영향 없음 확인)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:56:- PASS 시만 PR create (base `stage/fe-polish`)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:35:## 구현 단계 (TDD)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:94:pnpm lint # 0/0
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:95:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md:96:pnpm test -- --run
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md:165:Expected: FAIL — `warnings` 필드가 있어도 `duplicate` 메시지가 없음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md:297:Expected: FAIL — assert 실패. 현재 interpreter가 gate 무시하고 SL을 전 구간에 설정.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md:1030:Expected: FAIL — UserRepository 메서드 미정의.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md:1363:Expected: FAIL — UserService 미구현.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md:2184:Expected: FAIL — `create`/`find_by_id`/`list_by_owner` 등 미구현.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md:2552:Expected: FAIL — StrategyService 미구현.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint7d-okx-trading-sessions.md:187:On self-verify green: dispatch `Agent(subagent_type=superpowers:code-reviewer, isolation=worktree)` with the SSOT evaluator template. PASS → PR create; FAIL ≤3 iter → fix; 3× FAIL → blocked.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:162:Expected: FAIL (currently strategy.exit with stop/limit raises `PineUnsupportedError` → outcome.status="unsupported", but our new test expects "ok")
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:371:Expected: PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:383:Expected: PASS (EMA Cross v4, v5)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:450:Expected: FAIL (`position_size is None` currently)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:511:Expected: PASS (5 tests total)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:593:Expected: FAIL (currently short/qty_percent/non-literal qty go through as no-op or partial handling)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:666:Expected: PASS (8 tests total)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:758:Expected: PASS (2 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:863:Expected: FAIL — ImportError (`src.backtest.engine.types` 아직 없음)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:931:Expected: PASS (5 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1073:Expected: FAIL — ImportError (`src.backtest.engine.adapter` 없음)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1139:Expected: PASS (6 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1230:Expected: FAIL — ImportError
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1275:Expected: PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1415:Expected: FAIL — `run_backtest` not yet exported.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1507:Expected: PASS (all Task 4-8 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1592:Expected: PASS (EMA Cross v4/v5 — no `backtest` key yet, so snapshot branch skipped)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1664:Expected: PASS (both cases — signal + backtest snapshot match)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1835:Expected: PASS (1 case `ema_cross_atr_sltp_v5`)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md:94:pnpm lint # 0 / 0
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md:95:pnpm tsc --noEmit # 통과
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md:96:pnpm test -- --run # 신규 2건 + 기존 통과
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:113:On PASS, push branch and `gh pr create --base stage/fe-polish` with the SSOT-mandated title/body. Never merge.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:141:- Evaluator cold-start PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-20-h2-kickoff.md:182:- [ ] 인터뷰 3회에서 narrowest wedge 정의 PASS 확인 (미해당이면 scope 재정의)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-20-h2-kickoff.md:268:- [ ] **[신규]** 본인 주관 평가: "이 시스템을 친한 지인 5명 넘어 **낯선 Twitter 팔로어 3명**에게 권할 수 있다" PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:160:Expected: FAIL — ValueError 미발생 (현재 `_price_to_sl_ratio`가 조용히 음수 반환)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:194:Expected: PASS (4 신규 + 기존 엔진 골든 테스트 모두 green)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:314:Expected: PASS — `trades`가 default `[]`라 기존 테스트 영향 없음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:427:Expected: FAIL — `ModuleNotFoundError: src.backtest.engine.trades`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:485:Expected: PASS (6 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:615:Expected: PASS. 골든 테스트는 `outcome.result.metrics`/`equity_curve`만 참조하므로 trades 추가로 회귀 없음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:625:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:729:Expected: 3 tests PASS. 커버리지 % 숫자 관찰 → §10.2 기록용.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:797:Expected: PASS (Settings import 시 validation 통과).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:857: FAILED = "failed"
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:990:Expected: PASS. 새 테이블이 create_all()에 반영됨.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1174:Expected: FAIL — module not found.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1403:Expected: FAIL — module not found.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1632:Expected: FAIL — modules not found.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1873:Expected: FAIL — attributes/methods not defined.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:1998: status=BacktestStatus.FAILED,
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2073: status=BacktestStatus.FAILED,
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2093:Expected: 8 tests PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2371:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2511: assert stale_bt.status == BacktestStatus.FAILED
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2520:Expected: PASS (단, dependencies.build_backtest_service_for_worker가 없어서 `_execute` 테스트는 아직 skip)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2664: assert bt.status in (BacktestStatus.COMPLETED, BacktestStatus.FAILED)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3023: terminal = (BacktestStatus.COMPLETED, BacktestStatus.FAILED, BacktestStatus.CANCELLED)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3132:Expected: 7 tests PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3249:Expected: PASS (기존 백테스트 없는 케이스 여전히 204).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3333:Expected: 회귀 테스트 + 신규 테스트 모두 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:92:Expected: FAIL — `AttributeError: 'AlertHook' object has no attribute 'condition_ast'`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:140:Expected: ALL PASS (기존 + 신규 2개)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:211:Expected: FAIL — `ModuleNotFoundError: No module named 'src.strategy.pine_v2.virtual_strategy'`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:265:Expected: ALL PASS (6 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:384:Expected: FAIL — `ImportError: cannot import name 'VirtualStrategyWrapper'`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:539:Expected: ALL PASS (9 tests 누적)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:625:Expected: FAIL — `PineRuntimeError: Call to 'atr' not supported in current scope`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:667:Expected: ALL PASS (기존 + 신규)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:766:Expected: 일부 FAIL 가능. 전형적 실패 케이스:
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:788:Expected: ALL PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:862:Expected: FAIL — `ModuleNotFoundError: No module named 'src.strategy.pine_v2.rendering'`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1024:Expected: ALL PASS (4 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1103:Expected: FAIL — `PineRuntimeError: Call to 'line.new' not supported in current scope`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1250:Expected: ALL PASS (6 tests 누적)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1354:Expected: FAIL
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1428:Expected: ALL PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1555:Expected: 초기에는 FAIL 가능. 예상되는 에러와 해결 방식:
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1590:Expected: ALL PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1619:Run: `cd frontend && pnpm test -- --run 2>&1 | tail -20`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1652:Run: `cd backend && pytest -q && ruff check src/strategy/pine_v2 && mypy src/strategy/pine_v2 && cd ../frontend && pnpm test -- --run 2>&1 | tail -5`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1755:- [x] **TDD 순서:** 각 task "실패 테스트 작성 → 실패 확인 → 구현 → 통과 확인 → ruff/mypy → 커밋"
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:59:Expected: PASS (현재 green baseline 확인. Order model 변경 전)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:105:Expected: FAIL (TypeError: **init**() got an unexpected keyword argument 'leverage')
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:127:Expected: 모든 기존 테스트 + 신규 테스트 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:166:Expected: FAIL (AttributeError 또는 SQLAlchemy unknown column)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:211:Expected: PASS (drift 없음 + leverage/margin_mode persistence 테스트 통과)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:260:Expected: FAIL (Pydantic ValidationError — unknown field)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:312:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:360:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:489:Expected: FAIL (ImportError: cannot import name 'BybitFuturesProvider')
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:589:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:617:Expected: PASS (2.3 구현이 이미 커버)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:643:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:666:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:684:Expected: 모든 테스트 (5건) PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:775:Expected: FAIL (AssertionError: resp.leverage is None)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:803:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:860:Expected: FAIL (OrderSubmit에 leverage/margin_mode 전달 안 됨 — captured 값 None)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:904:Expected: 모든 테스트 PASS (기존 Spot 경로 회귀 없음)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:924:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1061:Expected: FAIL or ERROR — dependency 이름/경로 확인 필요
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1075:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1092:Expected: 기존 그대로 PASS (회귀 없음 확인)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:1:# W2 — `ta.sar` (Parabolic SAR) stdlib 구현 (i3_drfx FAILED 해소)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:5:> **TDD Mode:** **정석 TDD** — 금융 숫자 + stdlib 공유 로직, 회귀 위험 극대
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:31:- [ ] 기존 `ta.*` 테스트 전수 PASS (ta.sma, ta.rsi, ta.atr 등 semantic drift 없음)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:56:## 4. TDD Tasks
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:157:Expected: FAIL — `SarState` 와 `ta_sar` import 불가.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:273:Expected: 5/6 tests PASS (일부 경계 케이스 tweak 가능).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:291:Expected: 기존 strict=False PASS 유지, 가능하면 ta.sar 관련 error 메시지 소거.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:335:2. spurious PASS: state 초기값이 우연히 테스트와 맞아떨어진 것?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:336:3. TDD: FAIL → PASS 전환 evidence (step 2 FAIL 확인)?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:111:Expected: FAIL — `AttributeError: 'Interpreter' object has no attribute '_user_functions'`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:138:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:206:Expected: FAIL — `_resolve_name`이 local을 모름.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:266:Expected: PASS (2/2)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:330:Expected: FAIL — `PineRuntimeError: Call to 'foo' not supported in current scope`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:385:Expected: 5/5 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:466:Expected: FAIL — 현재 `_exec_assign`은 Tuple target을 skip(`target_name=None`).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:550:Expected: 8/8 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:610:Expected: depth guard는 이미 Task 1에서 세팅됨 → 모두 PASS. na는 `x * 2`에서 nan 전파 자동 (기존 BinOp).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:618:Expected: 기존 224 + 신규 ~12 모두 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:692:Expected: FAIL — `PineRuntimeError: Call to 'ta.barssince' not supported`
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:717:Expected: 2/2 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:790:Expected: 4/4 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:895:Expected: 8/8 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:982:Expected: 기존 run_historical을 사용하는 모든 테스트 계속 PASS + 신규 2개 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1051:Expected: FAIL — `NotImplementedError` 및 `V2RunResult` ImportError.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1126:Expected: 3/3 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1217:Expected: 2/2 PASS. 실패 시 → strict=True 실행 로그에서 errors 첫 원인 조사 → Task 6-8 보완. 가능한 실패 원인:
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1229:Expected: 기존 750 + 신규 테스트 전부 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1326:Expected: 1/1 FAIL 또는 PASS depending on var_series 접근 방식.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1391:기대: 224(기존) + 신규 20개 이상 = 244+ tests, 모두 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1416: print(f'{name}: FAIL — {e}')
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:52:pnpm lint # 0/0
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:53:pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:54:pnpm test -- --run
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md:69:- Evaluator 3회 FAIL → `sig status blocked`
 .claude/worktrees/agent-a0d2ef2b/backend/tests/tasks/test_backtest_task.py:96: assert stale_bt.status == BacktestStatus.FAILED
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:5:> **TDD Mode:** **정석 TDD** — 계산 로직 (승률/평균) 을 포함하므로 unit 테스트 필수
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:25:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` clean
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:26:- [ ] 기존 TradeAnalysis 테스트 PASS (회귀 0)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:53:## 4. TDD Tasks
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:141:cd frontend && pnpm test -- --run direction-breakdown
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:144:Expected: FAIL — `computeDirectionBreakdown` import 불가.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:203:cd frontend && pnpm test -- --run direction-breakdown
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:206:Expected: 5/5 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:444:cd frontend && pnpm test -- --run trade-analysis direction-breakdown
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:445:cd frontend && pnpm tsc --noEmit && pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:448:Expected: 모두 PASS/clean.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:482:2. spurious PASS: mkTrade 헬퍼가 실제 schema 와 일치하는가?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:483:3. TDD: FAIL → PASS 전환 evidence?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:494:cd frontend && pnpm test -- --run
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:495:cd frontend && pnpm tsc --noEmit
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:496:cd frontend && pnpm lint
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:27:### Phase 1 — feature 모듈 (TDD)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:135:- `pnpm lint` 0 errors 0 warnings
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:136:- `pnpm tsc --noEmit` clean
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:137:- `pnpm test -- --run` all green
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:140:- Evaluator PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:5:> **TDD Mode:** **정석 TDD** — 계산 로직 (승률/평균) 을 포함하므로 unit 테스트 필수
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:25:- [ ] FE `pnpm test -- --run`, `pnpm tsc --noEmit`, `pnpm lint` clean
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:26:- [ ] 기존 TradeAnalysis 테스트 PASS (회귀 0)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:53:## 4. TDD Tasks
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:141:cd frontend && pnpm test -- --run direction-breakdown
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:144:Expected: FAIL — `computeDirectionBreakdown` import 불가.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:203:cd frontend && pnpm test -- --run direction-breakdown
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:206:Expected: 5/5 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:444:cd frontend && pnpm test -- --run trade-analysis direction-breakdown
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:445:cd frontend && pnpm tsc --noEmit && pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:448:Expected: 모두 PASS/clean.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:482:2. spurious PASS: mkTrade 헬퍼가 실제 schema 와 일치하는가?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:483:3. TDD: FAIL → PASS 전환 evidence?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:494:cd frontend && pnpm test -- --run
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:495:cd frontend && pnpm tsc --noEmit
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:496:cd frontend && pnpm lint
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:27:### Phase 1 — feature 모듈 (TDD)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:135:- `pnpm lint` 0 errors 0 warnings
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:136:- `pnpm tsc --noEmit` clean
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:137:- `pnpm test -- --run` all green
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:140:- Evaluator PASS
 
 exec
 /bin/zsh -lc "nl -ba .claude/worktrees/agent-a0d2ef2b/frontend/src/app/'(dashboard)'/backtests/\_components/**tests**/backtest-detail-view.test.tsx | sed -n '1,260p'" in /Users/woosung/project/agy-project/quant-bridge
@@ -2784,13 +2784,13 @@ succeeded in 0ms:
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-bundle2-autonomous.md:54:| Evaluator iter=1 PASS 비율 | 3/3 | 3/3 유지 |
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-bundle2-autonomous.md:366:- Evaluator iter=1 PASS: 3/3
 .claude/worktrees/agent-a0d2ef2b/docs/next-session-fe-polish-bundle2-autonomous.md:426:- ✅ Evaluator iter=1 PASS 3/3
-.claude/worktrees/agent-a0d2ef2b/docs/TODO.md:287: - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
-.claude/worktrees/agent-a0d2ef2b/docs/TODO.md:370:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) 모델별 PASS/FAIL
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/h1-testnet-dogfood-guide.md:79:[PASS] order submitted: order_id=abc123
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/h1-testnet-dogfood-guide.md:80:[PASS] order cancelled
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/h1-testnet-dogfood-guide.md:81:[PASS] DB row exists: trading.orders
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/runbook.md:343:- 본인 "이 시스템을 친한 지인 5명에게 추천할 수 있다" 주관 평가 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/dev-log/012-sprint-8a-tier0-final-report.md:49:| **합계** | **9 source / 10 test / 4 fixture** | — | **169 PASS** | ruff/mypy clean |
+.claude/worktrees/agent-a0d2ef2b/docs/status.md:287: - [x] Sprint 7c Playwright E2E 9/9 시나리오 돌림: 7 PASS, 1 PARTIAL→FIX (필터 URL sync — 본 커밋에 해소), 1 NOT TESTED (409 archive fallback — 백테스트 연결 전략 부재)
+.claude/worktrees/agent-a0d2ef2b/docs/status.md:370:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) 모델별 PASS/FAIL
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/h1-testnet-dogfood-guide.md:79:[PASS] order submitted: order_id=abc123
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/h1-testnet-dogfood-guide.md:80:[PASS] order cancelled
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/h1-testnet-dogfood-guide.md:81:[PASS] DB row exists: trading.orders
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/runbook.md:343:- 본인 "이 시스템을 친한 지인 5명에게 추천할 수 있다" 주관 평가 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/decisions/012-sprint-8a-tier0-final-report.md:49:| **합계** | **9 source / 10 test / 4 fixture** | — | **169 PASS** | ruff/mypy clean |
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:214: P1 --> P2["Phase 2 · Worker 체인 (each)<br/>━━━━━━━━━━━━━<br/>superpowers:using-git-worktrees (자동)<br/>→ superpowers:writing-plans (task 분해)<br/>→ superpowers:subagent-driven-development<br/>&nbsp;&nbsp;&nbsp;(TDD 내부 + requesting-code-review 내부)<br/>→ superpowers:verification-before-completion<br/>→ Reviewer subagent dispatch<br/>&nbsp;&nbsp;&nbsp;(superpowers:code-reviewer, isolation=worktree)<br/>→ PASS 시 PR 생성 (finishing-a-development-branch)"]
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:269:<strong>Evaluator PASS 기준</strong> (code-reviewer subagent 판정 기준):<br>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:301: P4 --> IPASS{"통합 PASS?"}
@@ -2800,9 +2800,9 @@ succeeded in 0ms:
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:403: P7 --> EVAL{"PASS?"}
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:406: EVAL -->|PASS| P8["Phase 8 · PR<br/>(base = main or stage)"]
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-pipeline-skills-design.html:534:<li><strong>자동 skip 조건</strong>: 직전 retro PASS + Scholar 제안 다음 spec 이 유사 theme + 시간 예산 내</li>
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/bybit-mainnet-checklist.md:71:모두 PASS → **H2 직진입** 또는 **선택: mainnet 72h** 진행.
-.claude/worktrees/agent-a0d2ef2b/docs/07_infra/bybit-mainnet-checklist.md:272:모두 PASS → `/office-hours` (H2 kickoff) 세션 스케줄링.
-.claude/worktrees/agent-a0d2ef2b/docs/05_env/env-vars.md:55:| `POSTGRES_PASSWORD` | [자동] | 동일. 로컬 전용 비밀번호 |
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/bybit-mainnet-checklist.md:71:모두 PASS → **H2 직진입** 또는 **선택: mainnet 72h** 진행.
+.claude/worktrees/agent-a0d2ef2b/docs/reference/infra/bybit-mainnet-checklist.md:272:모두 PASS → `/office-hours` (H2 kickoff) 세션 스케줄링.
+.claude/worktrees/agent-a0d2ef2b/docs/reference/env-vars.md:55:| `POSTGRES_PASSWORD` | [자동] | 동일. 로컬 전용 비밀번호 |
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-chain-design.html:81: P_IG --> IPASS{"Integration<br/>PASS?"}
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-chain-design.html:82: IPASS -->|FAIL 3회| ROLLBACK["해당 sprint revert<br/>+ 사용자 에스컬레이션"]
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-20-autonomous-depth-chain-design.html:83: IPASS -->|PASS + 다음 있음| LOOP_START
@@ -2831,176 +2831,176 @@ succeeded in 0ms:
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:173: <div class="t-item ok"><span class="t-time">00:35:40</span><div class="t-title">B pr_ready — PR #28</div><div class="t-body">Sprint 7d · 32분 · 6 커밋 · 823/823 tests · ruff/mypy clean · Evaluator PASS.</div></div>
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:192: PASS → PR 생성 → pr_ready → 종료
 .claude/worktrees/agent-a0d2ef2b/docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html:468: <span class="kw">await</span> page.fill(<span class="str">'input[name=password]'</span>, process.env.CLERK_TEST_PASSWORD!);
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:22:| 3 | success / error 모두 toast | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:23:| 4 | disabled = `!isEnabled || isPending` | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:24:| 5 | initial_capital = `Number()` + `Number.isFinite` + `> 0` 가드 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:25:| 6 | hooks.ts 변경 없음 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:27:| 8 | 테스트 mock — mutate args, push args 둘 다 명시 검증 | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:28:| 9 | edge cases — terminal/pending/error/invalid capital | PASS |
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:45:> 아니면 실수로 `bt.status` 만 써도 통과하는 spurious PASS 위험.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:971: DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
-.claude/worktrees/agent-a0d2ef2b/docs/audit/2026-04-16-trading-demo-security.md:27:| P2 Secrets archaeology | **PASS** — `.env` gitignored, git history 깨끗, AWS/OpenAI/GitHub/Slack 키 미노출 |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:20:| 1 | NO useEffect 추가 (LESSON-004) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:21:| 2 | router.push 가 click handler / onSuccess 안에서만 호출 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:22:| 3 | success / error 모두 toast | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:23:| 4 | disabled = `!isEnabled || isPending` | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:24:| 5 | initial_capital = `Number()` + `Number.isFinite` + `> 0` 가드 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:25:| 6 | hooks.ts 변경 없음 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:26:| 7 | backtest-detail-view.tsx 변경은 헤더 only (Tabs/InProgressCard/ErrorCard/useEffect 블록 unchanged) | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:27:| 8 | 테스트 mock — mutate args, push args 둘 다 명시 검증 | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:28:| 9 | edge cases — terminal/pending/error/invalid capital | PASS |
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:45:> 아니면 실수로 `bt.status` 만 써도 통과하는 spurious PASS 위험.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:70:pnpm test -- --run => 151/151 PASS (rerun-button 6 + integration 8 포함)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md:971: DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+.claude/worktrees/agent-a0d2ef2b/docs/archive/audit/2026-04-16-trading-demo-security.md:27:| P2 Secrets archaeology | **PASS** — `.env` gitignored, git history 깨끗, AWS/OpenAI/GitHub/Slack 키 미노출 |
 .claude/worktrees/agent-a0d2ef2b/backend/scripts/smoke_sprint4.py:236:        print(f"  {name}: {'✅ PASS' if ok else '❌ FAIL'}")
-.claude/worktrees/agent-a0d2ef2b/docs/01_requirements/trading-demo-baseline.md:82:- PASS: 놓침률 ≤ 5% 달성
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:492:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:585:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:591:Expected: 전체 기존 테스트 + 신규 2 테스트 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:743:- [ ] **Step 6: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:749:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:996:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1188:- [ ] **Step 4: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1403:- [ ] **Step 4: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1631:- [ ] **Step 5: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:1941:- [ ] **Step 4: 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2163:- [ ] **Step 4: 테스트 실행 — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2320:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2680:- [ ] **Step 6: 테스트 실행 — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:2906:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3228:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3347:- [ ] **Step 2: 테스트 실행 — PASS (T13에서 이미 구현되어 있음)**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3579:- [ ] **Step 5: 전체 트레이딩 테스트 실행 — PASS 확인**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3585:Expected: T1-T15까지 전체 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:3827:- [ ] **Step 5: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4027:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4314:- [ ] **Step 7: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4548:- [ ] **Step 5: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4756:- [ ] **Step 4: 테스트 PASS + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:4899:- [ ] **Step 2: 테스트 실행 — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-trading-demo.md:5189:- [ ] **Step 5: 테스트 PASS + 수동 확인 + 커밋**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:56:- PASS 시만 PR create (base `stage/fe-polish`)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-20-h2-kickoff.md:182:- [ ] 인터뷰 3회에서 narrowest wedge 정의 PASS 확인 (미해당이면 scope 재정의)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-20-h2-kickoff.md:268:- [ ] **[신규]** 본인 주관 평가: "이 시스템을 친한 지인 5명 넘어 **낯선 Twitter 팔로어 3명**에게 권할 수 있다" PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:113:On PASS, push branch and `gh pr create --base stage/fe-polish` with the SSOT-mandated title/body. Never merge.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:141:- Evaluator cold-start PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/ai-rules-prompt-react-hooks-safety.md:107:  expect(counter).toHaveText("1 / 2");  // PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3301:Expected: 기존 524 tests 모두 PASS (Sprint 7a 이후 baseline 유지). Sprint 7c는 FE만 변경하므로 BE 테스트 수 변화 없어야 정상.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint7d-okx-trading-sessions.md:187:On self-verify green: dispatch `Agent(subagent_type=superpowers:code-reviewer, isolation=worktree)` with the SSOT evaluator template. PASS → PR create; FAIL ≤3 iter → fix; 3× FAIL → blocked.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:371:Expected: PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:383:Expected: PASS (EMA Cross v4, v5)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:511:Expected: PASS (5 tests total)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:666:Expected: PASS (8 tests total)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:758:Expected: PASS (2 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:931:Expected: PASS (5 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1139:Expected: PASS (6 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1275:Expected: PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1507:Expected: PASS (all Task 4-8 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1592:Expected: PASS (EMA Cross v4/v5 — no `backtest` key yet, so snapshot branch skipped)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1664:Expected: PASS (both cases — signal + backtest snapshot match)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1835:Expected: PASS (1 case `ema_cross_atr_sltp_v5`)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:315:Expected: PASS — all 7 test cases green.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:516:Expected: PASS — 6 test cases green.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:800:Expected: PASS — 4 test cases green.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md:108:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) — 모델별 PASS/FAIL 표
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:31:- [ ] 기존 `ta.*` 테스트 전수 PASS (ta.sma, ta.rsi, ta.atr 등 semantic drift 없음)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:273:Expected: 5/6 tests PASS (일부 경계 케이스 tweak 가능).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:291:Expected: 기존 strict=False PASS 유지, 가능하면 ta.sar 관련 error 메시지 소거.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:335:2. spurious PASS: state 초기값이 우연히 테스트와 맞아떨어진 것?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:336:3. TDD: FAIL → PASS 전환 evidence (step 2 FAIL 확인)?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:257:Expected: 모두 PASS / clean.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:292:2. spurious PASS: mock 이 너무 헐겁지 않은가? (mutate args 검증 포함됨)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:293:3. TDD: FAIL → PASS 전환 evidence?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:26:- [ ] 기존 equity 데이터 렌더링 회귀 0 (기존 테스트 PASS)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:261:2. spurious PASS: console.warn spy 가 실제 warning 을 잡을 수 있는 환경인가? (jsdom 에서 recharts 가 warning 을 emit 하는지 확인)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:26:- [ ] `PINE_ALERT_HEURISTIC_MODE=strict` (or unset) 기본: 기존 `test_alert_hook.py` 전수 PASS (24+ 테스트)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:194:Expected: PASS — 모든 loose/strict 테스트 + 기존 테스트 전수 녹색
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:204:Expected: PASS (기존 통과 유지)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:212:Expected: 전수 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:255:2. spurious PASS: 테스트가 강제로 녹색되도록 설계됐나? (e.g. env 전역 오염)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:140:- Evaluator PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:138:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:266:Expected: PASS (2/2)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:385:Expected: 5/5 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:550:Expected: 8/8 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:610:Expected: depth guard는 이미 Task 1에서 세팅됨 → 모두 PASS. na는 `x * 2`에서 nan 전파 자동 (기존 BinOp).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:618:Expected: 기존 224 + 신규 ~12 모두 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:717:Expected: 2/2 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:790:Expected: 4/4 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:895:Expected: 8/8 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:982:Expected: 기존 run_historical을 사용하는 모든 테스트 계속 PASS + 신규 2개 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1126:Expected: 3/3 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1217:Expected: 2/2 PASS. 실패 시 → strict=True 실행 로그에서 errors 첫 원인 조사 → Task 6-8 보완. 가능한 실패 원인:
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1229:Expected: 기존 750 + 신규 테스트 전부 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1326:Expected: 1/1 FAIL 또는 PASS depending on var_series 접근 방식.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1391:기대: 224(기존) + 신규 20개 이상 = 244+ tests, 모두 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:140:Expected: ALL PASS (기존 + 신규 2개)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:265:Expected: ALL PASS (6 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:539:Expected: ALL PASS (9 tests 누적)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:667:Expected: ALL PASS (기존 + 신규)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:788:Expected: ALL PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1024:Expected: ALL PASS (4 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1250:Expected: ALL PASS (6 tests 누적)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1428:Expected: ALL PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1590:Expected: ALL PASS (3 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:247:Expected: 모든 기존 테스트 + 신규 4건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:367:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:373:Expected: 5건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:693:Expected: 368+ tests PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:771:Expected: PASS (M1 migration 후라면 일치).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:822:- [ ] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 모두 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1030:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1036:Expected: 5건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1413:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1419:Expected: 3건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1483:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1756:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1762:Expected: 2건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1955:- [ ] **Step 4: Run test — PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:1961:Expected: 2건 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2029:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2218:Expected: 모두 PASS (fixture provider 경로 유지).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2254:Expected: 모두 PASS. 어떤 테스트도 우연히 timescale provider를 호출하지 않음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2326:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2413:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2496:      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2640:Expected: 신규 + 기존 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-16-sprint5-stage-b.md:2721:- [x] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:59:Expected: PASS (현재 green baseline 확인. Order model 변경 전)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:127:Expected: 모든 기존 테스트 + 신규 테스트 PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:211:Expected: PASS (drift 없음 + leverage/margin_mode persistence 테스트 통과)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:312:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:360:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:589:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:617:Expected: PASS (2.3 구현이 이미 커버)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:643:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:666:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:684:Expected: 모든 테스트 (5건) PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:803:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:904:Expected: 모든 테스트 PASS (기존 Spot 경로 회귀 없음)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:924:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1075:Expected: PASS
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1092:Expected: 기존 그대로 PASS (회귀 없음 확인)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:26:- [ ] 기존 TradeAnalysis 테스트 PASS (회귀 0)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:206:Expected: 5/5 PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:448:Expected: 모두 PASS/clean.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:482:2. spurious PASS: mkTrade 헬퍼가 실제 schema 와 일치하는가?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:483:3. TDD: FAIL → PASS 전환 evidence?
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:236:- [ ] **Step 5: Run test → verify PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:239:Expected: PASS 2/2.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:326:- [ ] **Step 4: Run test → verify PASS**
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:329:Expected: PASS 2/2.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:194:Expected: PASS (4 신규 + 기존 엔진 골든 테스트 모두 green)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:314:Expected: PASS — `trades`가 default `[]`라 기존 테스트 영향 없음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:485:Expected: PASS (6 tests)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:615:Expected: PASS. 골든 테스트는 `outcome.result.metrics`/`equity_curve`만 참조하므로 trades 추가로 회귀 없음.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:625:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:729:Expected: 3 tests PASS. 커버리지 % 숫자 관찰 → §10.2 기록용.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:797:Expected: PASS (Settings import 시 validation 통과).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:990:Expected: PASS. 새 테이블이 create_all()에 반영됨.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2093:Expected: 8 tests PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2371:Expected: PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2520:Expected: PASS (단, dependencies.build_backtest_service_for_worker가 없어서 `_execute` 테스트는 아직 skip)
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3132:Expected: 7 tests PASS.
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3249:Expected: PASS (기존 백테스트 없는 케이스 여전히 204).
-.claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3333:Expected: 회귀 테스트 + 신규 테스트 모두 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/reference/trading-demo-baseline.md:82:- PASS: 놓침률 ≤ 5% 달성
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:492:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:585:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:591:Expected: 전체 기존 테스트 + 신규 2 테스트 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:743:- [ ] **Step 6: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:749:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:996:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1188:- [ ] **Step 4: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1403:- [ ] **Step 4: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1631:- [ ] **Step 5: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:1941:- [ ] **Step 4: 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2163:- [ ] **Step 4: 테스트 실행 — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2320:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2680:- [ ] **Step 6: 테스트 실행 — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:2906:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3228:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3347:- [ ] **Step 2: 테스트 실행 — PASS (T13에서 이미 구현되어 있음)**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3579:- [ ] **Step 5: 전체 트레이딩 테스트 실행 — PASS 확인**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3585:Expected: T1-T15까지 전체 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:3827:- [ ] **Step 5: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4027:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4314:- [ ] **Step 7: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4548:- [ ] **Step 5: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4756:- [ ] **Step 4: 테스트 PASS + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4899:- [ ] **Step 2: 테스트 실행 — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-trading-demo.md:5189:- [ ] **Step 5: 테스트 PASS + 수동 확인 + 커밋**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md:56:- PASS 시만 PR create (base `stage/fe-polish`)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-20-h2-kickoff.md:182:- [ ] 인터뷰 3회에서 narrowest wedge 정의 PASS 확인 (미해당이면 scope 재정의)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-20-h2-kickoff.md:268:- [ ] **[신규]** 본인 주관 평가: "이 시스템을 친한 지인 5명 넘어 **낯선 Twitter 팔로어 3명**에게 권할 수 있다" PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:113:On PASS, push branch and `gh pr create --base stage/fe-polish` with the SSOT-mandated title/body. Never merge.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md:141:- Evaluator cold-start PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/ai-rules-prompt-react-hooks-safety.md:107:  expect(counter).toHaveText("1 / 2");  // PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md:3301:Expected: 기존 524 tests 모두 PASS (Sprint 7a 이후 baseline 유지). Sprint 7c는 FE만 변경하므로 BE 테스트 수 변화 없어야 정상.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint7d-okx-trading-sessions.md:187:On self-verify green: dispatch `Agent(subagent_type=superpowers:code-reviewer, isolation=worktree)` with the SSOT evaluator template. PASS → PR create; FAIL ≤3 iter → fix; 3× FAIL → blocked.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:371:Expected: PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:383:Expected: PASS (EMA Cross v4, v5)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:511:Expected: PASS (5 tests total)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:666:Expected: PASS (8 tests total)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:758:Expected: PASS (2 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:931:Expected: PASS (5 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1139:Expected: PASS (6 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1275:Expected: PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1507:Expected: PASS (all Task 4-8 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1592:Expected: PASS (EMA Cross v4/v5 — no `backtest` key yet, so snapshot branch skipped)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1664:Expected: PASS (both cases — signal + backtest snapshot match)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md:1835:Expected: PASS (1 case `ema_cross_atr_sltp_v5`)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:315:Expected: PASS — all 7 test cases green.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:516:Expected: PASS — 6 test cases green.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md:800:Expected: PASS — 4 test cases green.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md:108:- [ ] LLM 버그 3개 재현성 체크 (SL 기준점 / float `==` / look-ahead) — 모델별 PASS/FAIL 표
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:31:- [ ] 기존 `ta.*` 테스트 전수 PASS (ta.sma, ta.rsi, ta.atr 등 semantic drift 없음)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:273:Expected: 5/6 tests PASS (일부 경계 케이스 tweak 가능).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:291:Expected: 기존 strict=False PASS 유지, 가능하면 ta.sar 관련 error 메시지 소거.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:335:2. spurious PASS: state 초기값이 우연히 테스트와 맞아떨어진 것?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:336:3. TDD: FAIL → PASS 전환 evidence (step 2 FAIL 확인)?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:257:Expected: 모두 PASS / clean.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:292:2. spurious PASS: mock 이 너무 헐겁지 않은가? (mutate args 검증 포함됨)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:293:3. TDD: FAIL → PASS 전환 evidence?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:26:- [ ] 기존 equity 데이터 렌더링 회귀 0 (기존 테스트 PASS)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:261:2. spurious PASS: console.warn spy 가 실제 warning 을 잡을 수 있는 환경인가? (jsdom 에서 recharts 가 warning 을 emit 하는지 확인)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:26:- [ ] `PINE_ALERT_HEURISTIC_MODE=strict` (or unset) 기본: 기존 `test_alert_hook.py` 전수 PASS (24+ 테스트)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:194:Expected: PASS — 모든 loose/strict 테스트 + 기존 테스트 전수 녹색
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:204:Expected: PASS (기존 통과 유지)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:212:Expected: 전수 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:255:2. spurious PASS: 테스트가 강제로 녹색되도록 설계됐나? (e.g. env 전역 오염)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md:140:- Evaluator PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:138:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:266:Expected: PASS (2/2)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:385:Expected: 5/5 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:550:Expected: 8/8 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:610:Expected: depth guard는 이미 Task 1에서 세팅됨 → 모두 PASS. na는 `x * 2`에서 nan 전파 자동 (기존 BinOp).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:618:Expected: 기존 224 + 신규 ~12 모두 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:717:Expected: 2/2 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:790:Expected: 4/4 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:895:Expected: 8/8 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:982:Expected: 기존 run_historical을 사용하는 모든 테스트 계속 PASS + 신규 2개 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1126:Expected: 3/3 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1217:Expected: 2/2 PASS. 실패 시 → strict=True 실행 로그에서 errors 첫 원인 조사 → Task 6-8 보완. 가능한 실패 원인:
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1229:Expected: 기존 750 + 신규 테스트 전부 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1326:Expected: 1/1 FAIL 또는 PASS depending on var_series 접근 방식.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md:1391:기대: 224(기존) + 신규 20개 이상 = 244+ tests, 모두 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:140:Expected: ALL PASS (기존 + 신규 2개)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:265:Expected: ALL PASS (6 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:539:Expected: ALL PASS (9 tests 누적)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:667:Expected: ALL PASS (기존 + 신규)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:788:Expected: ALL PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1024:Expected: ALL PASS (4 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1250:Expected: ALL PASS (6 tests 누적)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1428:Expected: ALL PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md:1590:Expected: ALL PASS (3 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:247:Expected: 모든 기존 테스트 + 신규 4건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:367:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:373:Expected: 5건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:693:Expected: 368+ tests PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:771:Expected: PASS (M1 migration 후라면 일치).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:822:- [ ] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 모두 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1030:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1036:Expected: 5건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1413:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1419:Expected: 3건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1483:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1756:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1762:Expected: 2건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1955:- [ ] **Step 4: Run test — PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:1961:Expected: 2건 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2029:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2218:Expected: 모두 PASS (fixture provider 경로 유지).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2254:Expected: 모두 PASS. 어떤 테스트도 우연히 timescale provider를 호출하지 않음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2326:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2413:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2496:      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2640:Expected: 신규 + 기존 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md:2721:- [x] M1: 368+ 기존 테스트 + AwareDateTime + bar_index 신규 테스트 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:59:Expected: PASS (현재 green baseline 확인. Order model 변경 전)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:127:Expected: 모든 기존 테스트 + 신규 테스트 PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:211:Expected: PASS (drift 없음 + leverage/margin_mode persistence 테스트 통과)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:312:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:360:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:589:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:617:Expected: PASS (2.3 구현이 이미 커버)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:643:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:666:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:684:Expected: 모든 테스트 (5건) PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:803:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:904:Expected: 모든 테스트 PASS (기존 Spot 경로 회귀 없음)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:924:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1075:Expected: PASS
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md:1092:Expected: 기존 그대로 PASS (회귀 없음 확인)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:26:- [ ] 기존 TradeAnalysis 테스트 PASS (회귀 0)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:206:Expected: 5/5 PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:448:Expected: 모두 PASS/clean.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:482:2. spurious PASS: mkTrade 헬퍼가 실제 schema 와 일치하는가?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md:483:3. TDD: FAIL → PASS 전환 evidence?
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:236:- [ ] **Step 5: Run test → verify PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:239:Expected: PASS 2/2.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:326:- [ ] **Step 4: Run test → verify PASS**
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md:329:Expected: PASS 2/2.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:194:Expected: PASS (4 신규 + 기존 엔진 골든 테스트 모두 green)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:314:Expected: PASS — `trades`가 default `[]`라 기존 테스트 영향 없음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:485:Expected: PASS (6 tests)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:615:Expected: PASS. 골든 테스트는 `outcome.result.metrics`/`equity_curve`만 참조하므로 trades 추가로 회귀 없음.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:625:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:729:Expected: 3 tests PASS. 커버리지 % 숫자 관찰 → §10.2 기록용.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:797:Expected: PASS (Settings import 시 validation 통과).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:990:Expected: PASS. 새 테이블이 create_all()에 반영됨.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2093:Expected: 8 tests PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2371:Expected: PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:2520:Expected: PASS (단, dependencies.build_backtest_service_for_worker가 없어서 `_execute` 테스트는 아직 skip)
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3132:Expected: 7 tests PASS.
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3249:Expected: PASS (기존 백테스트 없는 케이스 여전히 204).
+.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md:3333:Expected: 회귀 테스트 + 신규 테스트 모두 PASS.
 
 codex
 지금까지 확인된 사실 하나는 중요합니다. `backtest-detail-view` 전용 기존 테스트 파일은 보이지 않고, 이 PR이 추가한 것은 신규 2개 테스트 파일뿐입니다. 그래서 "기존 헤더 테스트 회귀 151/151"은 코드 증거보다 self-report 의존도가 높습니다.
 exec
-/bin/zsh -lc "nl -ba docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md | sed -n '150,330p'" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "nl -ba docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md | sed -n '150,330p'" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
 150 mockMutate(...args);
 151 opts.onSuccess?.({ backtest_id: "new-id" });
@@ -3117,12 +3117,12 @@ succeeded in 0ms:
 262 codex exec --sandbox read-only "Review git diff for RerunButton + BacktestDetailView integration. Check: (1) no useEffect added per LESSON-004, (2) router.push only inside click handler, (3) toast on both success/error, (4) disabled state covers running/queued/cancelling, (5) initial_capital string→number conversion safe (decimalString in schema), (6) hooks.ts unchanged (reuse useCreateBacktest)."
 263 ``
    264	
-   265	출력 → `docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`.
+   265	출력 → `docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`.
    266	
    267	### T4. Stage push
    268	
    269	``bash
-270 git add frontend/src/app/\(dashboard\)/backtests/\_components/rerun-button.tsx frontend/src/app/\(dashboard\)/backtests/\_components/**tests**/rerun-button.test.tsx frontend/src/app/\(dashboard\)/backtests/\_components/backtest-detail-view.tsx docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
+270 git add frontend/src/app/\(dashboard\)/backtests/\_components/rerun-button.tsx frontend/src/app/\(dashboard\)/backtests/\_components/**tests**/rerun-button.test.tsx frontend/src/app/\(dashboard\)/backtests/\_components/backtest-detail-view.tsx docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
 271 git commit -m "feat(backtest): re-run button in detail header (W5)"
 272 git push origin stage/x1-x3-indicator-ui
 273 ``
@@ -3163,7 +3163,7 @@ succeeded in 0ms:
 308 ```
 
 exec
-/bin/zsh -lc "nl -ba .claude/worktrees/agent-a0d2ef2b/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md | sed -n '150,330p'" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "nl -ba .claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md | sed -n '150,330p'" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
 150 mockMutate(...args);
 151 opts.onSuccess?.({ backtest_id: "new-id" });
@@ -3280,12 +3280,12 @@ succeeded in 0ms:
 262 codex exec --sandbox read-only "Review git diff for RerunButton + BacktestDetailView integration. Check: (1) no useEffect added per LESSON-004, (2) router.push only inside click handler, (3) toast on both success/error, (4) disabled state covers running/queued/cancelling, (5) initial_capital string→number conversion safe (decimalString in schema), (6) hooks.ts unchanged (reuse useCreateBacktest)."
 263 ``
    264	
-   265	출력 → `docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`.
+   265	출력 → `docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`.
    266	
    267	### T4. Stage push
    268	
    269	``bash
-270 git add frontend/src/app/\(dashboard\)/backtests/\_components/rerun-button.tsx frontend/src/app/\(dashboard\)/backtests/\_components/**tests**/rerun-button.test.tsx frontend/src/app/\(dashboard\)/backtests/\_components/backtest-detail-view.tsx docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
+270 git add frontend/src/app/\(dashboard\)/backtests/\_components/rerun-button.tsx frontend/src/app/\(dashboard\)/backtests/\_components/**tests**/rerun-button.test.tsx frontend/src/app/\(dashboard\)/backtests/\_components/backtest-detail-view.tsx docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
 271 git commit -m "feat(backtest): re-run button in detail header (W5)"
 272 git push origin stage/x1-x3-indicator-ui
 273 ``
@@ -3326,12 +3326,12 @@ succeeded in 0ms:
 308 ```
 
 exec
-/bin/zsh -lc "nl -ba .claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md | sed -n '1,140p'" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "nl -ba .claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md | sed -n '1,140p'" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
 1 # W5 Codex Self-Review — RerunButton
 2
 3 > Sprint X1+X3 W5, 2026-04-23 — `feat/x1x3-w5-rerun-button`
-4 > Plan: `docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
+4 > Plan: `docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
 5
 6 ---
 7
@@ -3545,21 +3545,21 @@ succeeded in 0ms:
 codex
 **Findings**
 
-1. `LESSON-004` self-review 증거는 신뢰할 수 없습니다. 실제 코드 위반은 없지만, 보고서의 `grep -c "useEffect" => 0` 주장은 현재 산출물과 모순됩니다. `rerun-button.tsx` 주석에 이미 `"useEffect"` 문자열이 있고, self-review 본문에도 여러 번 등장합니다. 근거: [rerun-button.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/rerun-button.tsx:3>), [2026-04-23-x1x3-w5-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:77).
-2. TDD와 전체 green 주장은 “최종 self-report”만 있고 실행 로그가 없습니다. 계획서는 FAIL 단계를 요구하지만 실제 FAIL→PASS 전환 증거는 제공되지 않았습니다. 근거: [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205), [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).
+1. `LESSON-004` self-review 증거는 신뢰할 수 없습니다. 실제 코드 위반은 없지만, 보고서의 `grep -c "useEffect" => 0` 주장은 현재 산출물과 모순됩니다. `rerun-button.tsx` 주석에 이미 `"useEffect"` 문자열이 있고, self-review 본문에도 여러 번 등장합니다. 근거: [rerun-button.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/rerun-button.tsx:3>), [2026-04-23-x1x3-w5-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:77).
+2. TDD와 전체 green 주장은 “최종 self-report”만 있고 실행 로그가 없습니다. 계획서는 FAIL 단계를 요구하지만 실제 FAIL→PASS 전환 증거는 제공되지 않았습니다. 근거: [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205), [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).
 
 **7 Questions**
 
 1. AC met?  
-   [사실] worker report에는 `151/151 PASS`, `tsc 0`, `lint 0`가 적혀 있습니다: [self-review:67-73](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).  
-   [가정] 실행 로그가 없어 독립 검증은 불가합니다. 테스트 수 자체는 신규 `6 unit + 8 integration`과 일치합니다: [self-review:86-88](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:86).
+   [사실] worker report에는 `151/151 PASS`, `tsc 0`, `lint 0`가 적혀 있습니다: [self-review:67-73](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).  
+   [가정] 실행 로그가 없어 독립 검증은 불가합니다. 테스트 수 자체는 신규 `6 unit + 8 integration`과 일치합니다: [self-review:86-88](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:86).
 
 2. Spurious PASS?  
    단위 테스트 mock은 너무 느슨하진 않습니다. `mutate` mock이 실제로 `opts.onSuccess`/`opts.onError`를 호출하고, 테스트가 `mockPush("/backtests/new-backtest-id")`까지 검증합니다. 근거: [rerun-button.test.tsx:27-44](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/__tests__/rerun-button.test.tsx:27>), [rerun-button.test.tsx:92-118](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/__tests__/rerun-button.test.tsx:92>).  
    다만 integration 쪽은 클릭/네비게이션을 보지 않고 enable/disable 매핑만 검증합니다: [backtest-detail-view.rerun-integration.test.tsx:79-120](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/__tests__/backtest-detail-view.rerun-integration.test.tsx:79>).
 
 3. TDD?  
-   [사실] 계획에는 RED 단계가 명시돼 있습니다: [plan:205-211](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205).  
+   [사실] 계획에는 RED 단계가 명시돼 있습니다: [plan:205-211](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205).  
    [사실] 제출물에는 실제 FAIL 로그가 없습니다.  
    판정: “정석 TDD였다고 보기엔 증거 부족”.
 
@@ -3589,21 +3589,21 @@ tokens used
 84,734
 **Findings**
 
-1. `LESSON-004` self-review 증거는 신뢰할 수 없습니다. 실제 코드 위반은 없지만, 보고서의 `grep -c "useEffect" => 0` 주장은 현재 산출물과 모순됩니다. `rerun-button.tsx` 주석에 이미 `"useEffect"` 문자열이 있고, self-review 본문에도 여러 번 등장합니다. 근거: [rerun-button.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/rerun-button.tsx:3>), [2026-04-23-x1x3-w5-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:77).
-2. TDD와 전체 green 주장은 “최종 self-report”만 있고 실행 로그가 없습니다. 계획서는 FAIL 단계를 요구하지만 실제 FAIL→PASS 전환 증거는 제공되지 않았습니다. 근거: [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205), [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).
+1. `LESSON-004` self-review 증거는 신뢰할 수 없습니다. 실제 코드 위반은 없지만, 보고서의 `grep -c "useEffect" => 0` 주장은 현재 산출물과 모순됩니다. `rerun-button.tsx` 주석에 이미 `"useEffect"` 문자열이 있고, self-review 본문에도 여러 번 등장합니다. 근거: [rerun-button.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/rerun-button.tsx:3>), [2026-04-23-x1x3-w5-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:77).
+2. TDD와 전체 green 주장은 “최종 self-report”만 있고 실행 로그가 없습니다. 계획서는 FAIL 단계를 요구하지만 실제 FAIL→PASS 전환 증거는 제공되지 않았습니다. 근거: [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205), [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).
 
 **7 Questions**
 
 1. AC met?  
-   [사실] worker report에는 `151/151 PASS`, `tsc 0`, `lint 0`가 적혀 있습니다: [self-review:67-73](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).  
-   [가정] 실행 로그가 없어 독립 검증은 불가합니다. 테스트 수 자체는 신규 `6 unit + 8 integration`과 일치합니다: [self-review:86-88](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:86).
+   [사실] worker report에는 `151/151 PASS`, `tsc 0`, `lint 0`가 적혀 있습니다: [self-review:67-73](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:67).  
+   [가정] 실행 로그가 없어 독립 검증은 불가합니다. 테스트 수 자체는 신규 `6 unit + 8 integration`과 일치합니다: [self-review:86-88](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md:86).
 
 2. Spurious PASS?  
    단위 테스트 mock은 너무 느슨하진 않습니다. `mutate` mock이 실제로 `opts.onSuccess`/`opts.onError`를 호출하고, 테스트가 `mockPush("/backtests/new-backtest-id")`까지 검증합니다. 근거: [rerun-button.test.tsx:27-44](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/__tests__/rerun-button.test.tsx:27>), [rerun-button.test.tsx:92-118](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/__tests__/rerun-button.test.tsx:92>).  
    다만 integration 쪽은 클릭/네비게이션을 보지 않고 enable/disable 매핑만 검증합니다: [backtest-detail-view.rerun-integration.test.tsx:79-120](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a0d2ef2b/frontend/src/app/(dashboard)/backtests/_components/__tests__/backtest-detail-view.rerun-integration.test.tsx:79>).
 
 3. TDD?  
-   [사실] 계획에는 RED 단계가 명시돼 있습니다: [plan:205-211](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205).  
+   [사실] 계획에는 RED 단계가 명시돼 있습니다: [plan:205-211](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md:205).  
    [사실] 제출물에는 실제 FAIL 로그가 없습니다.  
    판정: “정석 TDD였다고 보기엔 증거 부족”.
 

@@ -2,8 +2,8 @@
 
 > **상태:** Phase A (Docs) 작성 완료 · Phase B (구현) ExitPlanMode 승인 대기
 > **일자:** 2026-04-23
-> **상위 ADR:** [`dev-log/020-trust-layer-ci-design.md §10.4`](../../dev-log/020-trust-layer-ci-design.md#104-stage-2c-2차-구현-설계-2026-04-23-pre-entry)
-> **아키텍처:** [`04_architecture/trust-layer-architecture.md §3.1.2`](../../04_architecture/trust-layer-architecture.md#312-mutation-oracle-커버리지-stage-2c-1차-실측--2차-설계-2026-04-23)
+> **상위 ADR:** [`dev-log/020-trust-layer-ci-design.md §10.4`](../../../decisions/020-trust-layer-ci-design.md#104-stage-2c-2차-구현-설계-2026-04-23-pre-entry)
+> **아키텍처:** [`04_architecture/trust-layer-architecture.md §3.1.2`](../../../reference/trust-layer-architecture.md#312-mutation-oracle-커버리지-stage-2c-1차-실측--2차-설계-2026-04-23)
 > **Plan 세션 파일:** `~/.claude/plans/path-lucky-squid.md`
 
 ---
@@ -30,10 +30,10 @@ Path β Trust Layer CI 의 마지막 마일스톤. 현재 main(`115292a`) 상태
 
 | #   | 파일                                                    | 변경                                                             | 상태 |
 | --- | ------------------------------------------------------- | ---------------------------------------------------------------- | ---- |
-| 1   | `docs/dev-log/020-trust-layer-ci-design.md`             | §10.4 Stage 2c 2차 구현 설계 서브섹션 신설 + §11 pre-entry 행    | ✅   |
-| 2   | `docs/04_architecture/trust-layer-architecture.md`      | §3.1.2 Mutation Oracle 커버리지 신설 (mutation × 레이어 매핑 표) | ✅   |
-| 3   | `docs/TODO.md`                                          | Stage 2c 1차 완료 체크 + 2차 In Progress (T1~T6) 추가            | ✅   |
-| 4   | `docs/superpowers/plans/2026-04-23-stage2c-2nd-plan.md` | 본 파일 신규 (SDD 실행 플랜 공식화)                              | ✅   |
+| 1   | `docs/decisions/020-trust-layer-ci-design.md`             | §10.4 Stage 2c 2차 구현 설계 서브섹션 신설 + §11 pre-entry 행    | ✅   |
+| 2   | `docs/reference/trust-layer-architecture.md`      | §3.1.2 Mutation Oracle 커버리지 신설 (mutation × 레이어 매핑 표) | ✅   |
+| 3   | `docs/status.md`                                          | Stage 2c 1차 완료 체크 + 2차 In Progress (T1~T6) 추가            | ✅   |
+| 4   | `docs/archive/superpowers/plans/2026-04-23-stage2c-2nd-plan.md` | 본 파일 신규 (SDD 실행 플랜 공식화)                              | ✅   |
 
 ---
 
@@ -81,9 +81,9 @@ T1~T5 는 모두 `backend/tests/strategy/pine_v2/test_mutation_oracle.py` 한 �
 
 #### T6 — 회고 / 문서 sync (직렬, T1-T5 수집 필수)
 
-- `docs/dev-log/020-trust-layer-ci-design.md` §11 Amendment 표:
+- `docs/decisions/020-trust-layer-ci-design.md` §11 Amendment 표:
   `2026-04-XX | Stage 2c 2차 완료 | M3/M5/M6/M8 4 mutation 감지 + W-2/W-3 클로즈 | TL-E-5 GREEN`
-- `docs/TODO.md` Stage 2c 2차 행 → `✅ 완료`
+- `docs/status.md` Stage 2c 2차 행 → `✅ 완료`
 - memory `project_path_beta_stage2c_2nd_complete.md` 신규: monkeypatch scope, Track 분기, xfail vs skip, Decimal drift amplifier 패턴
 - (선택) Gate-4 결과 JSON `docs/gates/gate-4-stage2c-2nd.json`
 

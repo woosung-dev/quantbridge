@@ -1,19 +1,19 @@
 # ADR-010b: Product Roadmap 프레임 & 입력 결정 (재작성본)
 
-> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 ADR 재작성본. **SSOT 는 [`docs/00_project/roadmap.md`](../00_project/roadmap.md)**. 본 파일은 결정 근거 + 프레임 도출 과정 기록 보존용.
+> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 ADR 재작성본. **SSOT 는 [`docs/reference/project/roadmap.md`](../00_project/roadmap.md)**. 본 파일은 결정 근거 + 프레임 도출 과정 기록 보존용.
 > **1차 초안 (010-product-roadmap.md)** = 2026-05-15 cleanup audit 으로 git rm 완료. 본문은 010b 와 동일 — 결정 근거 보존은 본 file 단독으로 충분. 1차 초안 자체는 git history 에서 조회 가능.
 >
 > **작성일:** 2026-04-17 (재작성)
 > **작성 세션:** Claude Code 플랜 모드 brainstorming 세션
 > **상태:** ✅ 채택 (현재 활성 ADR)
-> **관련 산출물:** [`docs/00_project/roadmap.md`](../00_project/roadmap.md) — 본 ADR 의 implementation
+> **관련 산출물:** [`docs/reference/project/roadmap.md`](../00_project/roadmap.md) — 본 ADR 의 implementation
 > **연계 ADR:** [ADR-008](./008-sprint7c-scope-decision.md) (외부 demand red flag 해소 경로)
 
 ---
 
 ## 배경
 
-`vision.md`는 Phase 1~4 기술 Horizon을, `TODO.md`는 Sprint 단위 추적을 제공한다. 그러나 **비즈니스·사용자·수익화·법무·Launch 축**은 문서에 없었다. 구체적으로:
+`vision.md`는 Phase 1~4 기술 Horizon을, `status.md`는 Sprint 단위 추적을 제공한다. 그러나 **비즈니스·사용자·수익화·법무·Launch 축**은 문서에 없었다. 구체적으로:
 
 - 수익 모델 (Freemium / Subscription / Fee share) 미기록
 - GTM·사용자 획득 전략 미기록
@@ -150,11 +150,11 @@ H2 말에 Beta 5명 확보 실패 시 Launch 전략 재검토 (Build in public �
 
 ### 프로젝트 내부
 
-- [docs/00_project/vision.md](../00_project/vision.md) — 페르소나·차별점·Phase 로드맵 (Horizon 매핑 기반)
-- [docs/00_project/roadmap.md](../00_project/roadmap.md) — 본 ADR의 산출물
-- [docs/dev-log/008-sprint7c-scope-decision.md](./008-sprint7c-scope-decision.md) — ADR-008, red flag 원출처
-- [docs/TODO.md](../TODO.md) — 기술 부채 목록
-- [docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md) — H1 Sprint 7c 상세 plan
+- [docs/reference/project/vision.md](../reference/project/vision.md) — 페르소나·차별점·Phase 로드맵 (Horizon 매핑 기반)
+- [docs/reference/project/roadmap.md](../00_project/roadmap.md) — 본 ADR의 산출물
+- [docs/decisions/008-sprint7c-scope-decision.md](./008-sprint7c-scope-decision.md) — ADR-008, red flag 원출처
+- [docs/status.md](../../.ai/templates/docs/TODO.md) — 기술 부채 목록
+- [docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md](../archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md) — H1 Sprint 7c 상세 plan
 
 ### User-local (참조용, 프로젝트 미커밋)
 

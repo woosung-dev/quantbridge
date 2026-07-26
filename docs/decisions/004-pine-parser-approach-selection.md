@@ -2,7 +2,7 @@
 
 > **상태:** 확정
 > **일자:** 2026-04-15
-> **출처:** Stage 3 Sprint 1 brainstorming 세션 (spec: `docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`)
+> **출처:** Stage 3 Sprint 1 brainstorming 세션 (spec: `docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`)
 > **관련:** ADR-003 (Pine 런타임 안전성 + 파서 범위)
 
 ---
@@ -161,5 +161,5 @@ AST는 실행을 위한 중간 자료구조를 넘어서 **제품의 "중앙 편
 ## 참조
 
 - ADR-003: Pine 런타임 안전성 + 파서 범위
-- docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md (본 결정을 기반으로 한 스프린트 1 설계)
+- docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md (본 결정을 기반으로 한 스프린트 1 설계)
 - CLAUDE.md §QuantBridge 고유 규칙

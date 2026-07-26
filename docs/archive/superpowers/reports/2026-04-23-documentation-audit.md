@@ -47,7 +47,7 @@ Explore 에이전트로 `docs/` 전체를 스캔한 결과, **13 개 sprint (7d,
 | `00_project/vision.md`                           | 010 → 010b 참조 갱신 + ADR 범위 001~010 → 001~012                                                |
 | `00_project/roadmap.md`                          | 010 → 010b 참조 갱신 (2 곳)                                                                      |
 | `04_architecture/pine-execution-architecture.md` | Y1 Coverage Analyzer (§2.0.4a) + 3-Track dispatcher (§2.1.6a) 섹션 추가 + 용어집 확장 + 변경이력 |
-| `TODO.md`                                        | Path β Stage 0/1/2 섹션 + Y1 완료 반영 + LLM 후보 L-1/L-2/L-3 + Path γ/δ 후보                    |
+| `status.md`                                        | Path β Stage 0/1/2 섹션 + Y1 완료 반영 + LLM 후보 L-1/L-2/L-3 + Path γ/δ 후보                    |
 | `.ai/stacks/nextjs/frontend.md`                  | §3 "React Hooks 안전 규칙 H-1/H-2/H-3" 섹션 추가 (LESSON-004/005/006 승격)                       |
 | `.ai/project/lessons.md`                         | LESSON-004/005/006 에 "[승격 완료 2026-04-23]" 표시                                              |
 
@@ -96,7 +96,7 @@ Explore 에이전트로 `docs/` 전체를 스캔한 결과, **13 개 sprint (7d,
 
 - [ ] `dev-log/NNN-sprint-<id>-retro.md` 작성 (2~3 페이지)
   - 배경, 결정 요약, 테스트 결과, 학습 (L-1, L-2, ...), 영향, 다음 단계
-- [ ] `TODO.md` 의 Sprint 섹션에 완료 표시 + PR 번호
+- [ ] `status.md` 의 Sprint 섹션에 완료 표시 + PR 번호
 - [ ] Memory (`MEMORY.md`) 에 한 줄 항목 추가 (있을 때)
 - [ ] 관련 아키텍처 문서에 섹션 추가 (필요 시)
 
@@ -108,7 +108,7 @@ Explore 에이전트로 `docs/` 전체를 스캔한 결과, **13 개 sprint (7d,
 
 ### 4.3 자동화 후보 (H2 이후 검토)
 
-- **pre-merge hook**: PR 에 `docs/dev-log/NNN-*` 또는 `docs/superpowers/reports/` 포함 여부 검증 (skip label 허용)
+- **pre-merge hook**: PR 에 `docs/dev-log/NNN-*` 또는 `docs/archive/superpowers/reports/` 포함 여부 검증 (skip label 허용)
 - **ADR 번호 lint**: `ls docs/dev-log/ | cut -c1-3 | sort | uniq -d` 가 empty 아니면 CI red
 - **memory → dev-log 변환 스크립트**: `MEMORY.md` 의 sprint 완료 항목에서 회고 ADR 초안 생성
 

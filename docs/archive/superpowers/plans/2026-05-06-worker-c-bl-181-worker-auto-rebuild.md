@@ -12,7 +12,7 @@ isolated mode 한정으로 backend src 의 host 변경이 worker / ws-stream / b
 2. **`docker-compose.isolated.yml` 3 서비스 override** — `backend-worker`, `backend-ws-stream`, `backend-beat` 각각에 `volumes: ./backend/src:/app/src:ro` bind-mount + `command:` 를 `uv run watchfiles --filter python "<celery cmd>" /app/src` 로 wrap.
 3. **`Makefile up-isolated-watch` 신규 타깃** — `docker compose -f docker-compose.yml -f docker-compose.isolated.yml up -d --build backend-worker backend-ws-stream backend-beat`.
 4. **`scripts/sentinel_bl181_worker_reload.sh`** — backend src 에 marker 작성 → 5 초 대기 → worker logs 에서 reload 흔적 grep → exit 0/1.
-5. **ADR `docs/07_infra/2026-05-06-bl-181-worker-auto-rebuild-adr.md`** — 결정 / ws-stream prefork fact 정정 / container_name 충돌 명시 / out-of-scope.
+5. **ADR `docs/reference/infra/2026-05-06-bl-181-worker-auto-rebuild-adr.md`** — 결정 / ws-stream prefork fact 정정 / container_name 충돌 명시 / out-of-scope.
 6. **부팅 검증** — `make down-isolated || true` → `make up-isolated-watch` → 30s sleep → 컨테이너 UP.
 7. **sentinel 검증** — `bash scripts/sentinel_bl181_worker_reload.sh` exit 0.
 8. **Evaluator dispatch** — `superpowers:code-reviewer` cold-start, isolation=worktree.

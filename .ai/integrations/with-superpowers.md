@@ -87,7 +87,7 @@ ai-rules의 Git Safety Protocol(커밋/푸쉬 전 사용자 승인)은 worktree�
 
 superpowers의 `writing-plans` 스킬이 계획을 작성하지만,
 ai-rules의 `docs/` 디렉토리 구조(AGENTS.md §4)는 별도로 유지하세요.
-계획 문서를 `docs/04_architecture/`에 저장하면 두 시스템이 자연스럽게 공존합니다.
+계획 문서를 `docs/reference/`에 저장하면 두 시스템이 자연스럽게 공존합니다.
 
 ### 커스텀 스킬과 자기개선 루프
 

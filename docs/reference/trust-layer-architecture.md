@@ -1,11 +1,11 @@
 # Trust Layer Architecture — 3-Layer Parity (P-1/2/3) + Future P-4
 
-> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 아키텍처/구현의 단일 진실 원천**. 요구사항: [`01_requirements/trust-layer-requirements.md`](../01_requirements/trust-layer-requirements.md), ADR: [`dev-log/020-trust-layer-ci-design.md`](../dev-log/020-trust-layer-ci-design.md).
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 아키텍처/구현의 단일 진실 원천**. 요구사항: [`01_requirements/trust-layer-requirements.md`](trust-layer-requirements.md), ADR: [`dev-log/020-trust-layer-ci-design.md`](../decisions/020-trust-layer-ci-design.md).
 >
 > **상태:** Path β Stage 0 초안 (2026-04-23). Stage 2 구현 완료 시 확정
-> **ADR:** [`dev-log/020-trust-layer-ci-design.md`](../dev-log/020-trust-layer-ci-design.md)
+> **ADR:** [`dev-log/020-trust-layer-ci-design.md`](../decisions/020-trust-layer-ci-design.md)
 > **상위:** [`pine-execution-architecture.md` §2 Tier-2](./pine-execution-architecture.md#🏗️-tier-2-pynecore-골든-오라클--day-1-ci) (본 문서는 Tier-2 의 실용화 상세)
-> **관련 ADR:** [ADR-011 Pine v4](../dev-log/011-pine-execution-strategy-v4.md), [ADR-012 Sprint 8a](../dev-log/012-sprint-8a-tier0-final-report.md), [ADR-016 Sprint Y1](../dev-log/016-sprint-y1-coverage-analyzer.md)
+> **관련 ADR:** [ADR-011 Pine v4](../decisions/011-pine-execution-strategy-v4.md), [ADR-012 Sprint 8a](../decisions/012-sprint-8a-tier0-final-report.md), [ADR-016 Sprint Y1](../decisions/016-sprint-y1-coverage-analyzer.md)
 
 ---
 
@@ -144,7 +144,7 @@ Stage 2b baseline 생성 후 실측 조사 결과:
 
 ### 3.1.2 Mutation Oracle 커버리지 (Stage 2c 1차 실측 + 2차 설계, 2026-04-23)
 
-`test_mutation_oracle.py` 는 **P-1/2/3 이 실제 regression 을 잡는가?** 를 검증하는 메타 게이트. 현재 (Stage 2c 1차, PR #66) **4/8 감지**, SLO TL-E-5 (≥ 7/8) 는 Stage 2c 2차 (Deadline 2026-05-31) 로 이연. 자세한 설계는 [ADR-020 §10.4](../dev-log/020-trust-layer-ci-design.md#104-stage-2c-2차-구현-설계-2026-04-23-pre-entry) 참조.
+`test_mutation_oracle.py` 는 **P-1/2/3 이 실제 regression 을 잡는가?** 를 검증하는 메타 게이트. 현재 (Stage 2c 1차, PR #66) **4/8 감지**, SLO TL-E-5 (≥ 7/8) 는 Stage 2c 2차 (Deadline 2026-05-31) 로 이연. 자세한 설계는 [ADR-020 §10.4](../decisions/020-trust-layer-ci-design.md#104-stage-2c-2차-구현-설계-2026-04-23-pre-entry) 참조.
 
 **Mutation × 대상 레이어 매핑**:
 
@@ -387,8 +387,8 @@ def test_corpus_execution_matches_pynecore_reference(corpus_id):
 
 ## 10. 관련 문서
 
-- [ADR-020 Trust Layer CI — 3-Layer Parity 설계](../dev-log/020-trust-layer-ci-design.md) — 결정 기록
-- [ADR-011 Pine Execution Strategy v4](../dev-log/011-pine-execution-strategy-v4.md) — Tier 0~5 원안
-- [ADR-016 Sprint Y1 Coverage Analyzer](../dev-log/016-sprint-y1-coverage-analyzer.md) (예정) — SSOT 규약
-- [Trust Layer Requirements + SLO](../01_requirements/trust-layer-requirements.md) (예정)
+- [ADR-020 Trust Layer CI — 3-Layer Parity 설계](../decisions/020-trust-layer-ci-design.md) — 결정 기록
+- [ADR-011 Pine Execution Strategy v4](../decisions/011-pine-execution-strategy-v4.md) — Tier 0~5 원안
+- [ADR-016 Sprint Y1 Coverage Analyzer](../decisions/016-sprint-y1-coverage-analyzer.md) (예정) — SSOT 규약
+- [Trust Layer Requirements + SLO](trust-layer-requirements.md) (예정)
 - [pine-execution-architecture.md §2.2 Tier-2](./pine-execution-architecture.md) — 상위 참조

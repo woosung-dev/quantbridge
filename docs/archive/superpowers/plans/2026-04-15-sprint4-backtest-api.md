@@ -16,7 +16,7 @@
 - Test: pytest + pytest-asyncio, httpx AsyncClient, Postgres savepoint fixture
 - Engine: vectorbt 0.28.x (기존 유지), pandas
 
-**Spec reference:** `docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md`
+**Spec reference:** `docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md`
 
 **Branch:** `feat/sprint4-backtest-api` (이미 생성됨, main @ `3687028` 기반)
 
@@ -65,8 +65,8 @@ backend/src/core/config.py                       # backtest_stale_threshold_seco
 backend/src/main.py                              # backtest router 등록
 backend/tests/conftest.py                        # from src.backtest.models import ...
 backend/.env.example                             # BACKTEST_STALE_THRESHOLD_SECONDS + OHLCV_FIXTURE_ROOT
-docs/03_api/endpoints.md                         # cancel 추가 + task_id → backtest_id
-docs/TODO.md                                     # Sprint 4 완료 표시
+docs/reference/endpoints.md                         # cancel 추가 + task_id → backtest_id
+docs/status.md                                     # Sprint 4 완료 표시
 ```
 
 ### 테스트 파일 (신규)
@@ -3911,7 +3911,7 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 ### Task 23: L4 로컬 실 broker smoke 3건
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` (§10.1 기록)
+- Modify: `docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` (§10.1 기록)
 
 - [ ] **Step 1: Docker 서비스 기동**
 
@@ -3955,7 +3955,7 @@ docker start quantbridge-redis
 - [ ] **Step 6: §10.1 결과 커밋**
 
 ```bash
-git add docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md
+git add docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md
 git commit -m "docs(sprint4): L4 smoke 3건 결과 기록 (§10.1)
 
 S1 happy: <소요> / <trades 수>
@@ -3970,8 +3970,8 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 ### Task 24: endpoints.md + TODO.md 동기화 + 최종 검증
 
 **Files:**
-- Modify: `docs/03_api/endpoints.md`
-- Modify: `docs/TODO.md`
+- Modify: `docs/reference/endpoints.md`
+- Modify: `docs/status.md`
 
 - [ ] **Step 1: `endpoints.md` §Backtests 수정**
 
@@ -3981,7 +3981,7 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
   | `POST` | `/api/v1/backtests/:id/cancel` | 실행 중 백테스트 취소 (best-effort) | Required | **202** |
   ```
 
-- [ ] **Step 2: `docs/TODO.md` 업데이트**
+- [ ] **Step 2: `docs/status.md` 업데이트**
 
 ```markdown
 ### Stage 3 / Sprint 4 — Celery + Backtest API ✅ 완료 (2026-04-15)
@@ -4012,7 +4012,7 @@ Expected: 모두 green.
 - [ ] **Step 4: 최종 커밋**
 
 ```bash
-git add docs/03_api/endpoints.md docs/TODO.md
+git add docs/reference/endpoints.md docs/status.md
 git commit -m "docs(sprint4): endpoints.md cancel 추가 + task_id→backtest_id + TODO 동기화
 
 Sprint 4 완료 표시. Open Issues #1-14 Sprint 5+ 이관.
@@ -4046,7 +4046,7 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 
 ## 참고
 
-- **Spec:** `docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` (1262 라인)
-- **선행 스프린트 plan:** `docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md`
+- **Spec:** `docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` (1262 라인)
+- **선행 스프린트 plan:** `docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md`
 - **Backend rules:** `.ai/stacks/fastapi/backend.md`
 - **CLAUDE.md QuantBridge 고유 규칙:** 금융 Decimal, Celery 비동기, AES-256

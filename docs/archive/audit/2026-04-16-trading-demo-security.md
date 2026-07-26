@@ -4,7 +4,7 @@
 > **스킬:** `/cso` daily mode (8/10 confidence gate)
 > **범위:** Sprint 6 Trading 데모 (구현 전) + Sprint 1-5 기존 코드
 > **관련 PR:** [#8](https://github.com/woosung-dev/quantbridge/pull/8) — commits `ebaa9b3` → `0842fa9`
-> **관련 ADR:** [006-sprint6-design-review-summary.md](../dev-log/006-sprint6-design-review-summary.md)
+> **관련 ADR:** [006-sprint6-design-review-summary.md](../../decisions/006-sprint6-design-review-summary.md)
 > **원본 JSON 리포트:** `.gstack/security-reports/20260416-daily.json` (로컬, gitignored)
 
 ---
@@ -62,7 +62,7 @@ Sprint 6 Trading 도메인(`backend/src/trading/`)은 현재 **Phase 0 스캐폴
 * **Status:** VERIFIED
 * **Phase:** 11 (Data Classification)
 * **Category:** Secrets / OWASP A02 Cryptographic Failures
-* **File:** `docs/superpowers/specs/2026-04-16-trading-demo-design.md` §2.4
+* **File:** `docs/archive/superpowers/specs/2026-04-16-trading-demo-design.md` §2.4
 
 ### Description
 
@@ -266,7 +266,7 @@ TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fe
 * **Status:** VERIFIED (autoplan Eng E14 confirmed)
 * **Phase:** 6 (Webhook Audit)
 * **Category:** OWASP A04 Insecure Design
-* **File:** `docs/superpowers/plans/2026-04-16-trading-demo.md:4288` (T19 `receive_webhook`)
+* **File:** `docs/archive/superpowers/plans/2026-04-16-trading-demo.md:4288` (T19 `receive_webhook`)
 
 ### Description
 

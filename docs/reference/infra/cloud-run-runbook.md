@@ -5,7 +5,7 @@
 > **명시:** 본 runbook 은 "Beta prereq 충분" 또는 "prod ready" 표기를 **하지 않음**. Sprint 34 deploy 실험 prereq 인 unresolved gap (Cloud SQL connector / VPC connector / IAM SA 등) 을 강조.
 > **scope:** docs only — 코드 변경 0. dry-run 명령어 sketch 만 (실제 `gcloud run deploy` 실행 없음).
 >
-> 의존: [`./deployment-plan.md`](./deployment-plan.md), [`../../backend/Dockerfile`](../../backend/Dockerfile), [`../../backend/src/health/router.py`](../../backend/src/health/router.py), [`../../backend/docker-entrypoint.sh`](../../backend/docker-entrypoint.sh), [`../../backend/.env.example`](../../backend/.env.example), [`../../docker-compose.yml`](../../docker-compose.yml)
+> 의존: [`./deployment-plan.md`](./deployment-plan.md), [`../../backend/Dockerfile`](../../../backend/Dockerfile), [`../../backend/src/health/router.py`](../../../backend/src/health/router.py), [`../../backend/docker-entrypoint.sh`](../../../backend/docker-entrypoint.sh), [`../../backend/.env.example`](../../../backend/.env.example), [`../../docker-compose.yml`](../../../docker-compose.yml)
 >
 > 작성: 2026-05-05 (Sprint 33 Worker C — codex P1-2 surgery, BL-071 audit)
 >
@@ -25,7 +25,7 @@ Sprint 30 ε 가 backend 프로덕션 진입 prereq 의 **컨테이너 빌드 + 
 
 ### 1.1. Sprint 30 ε B1 — `backend/Dockerfile` (multi-stage uv builder)
 
-[`backend/Dockerfile`](../../backend/Dockerfile):
+[`backend/Dockerfile`](../../../backend/Dockerfile):
 
 - **Stage 1 (builder):** `python:3.12-slim` + uv 공식 binary copy. `pyproject.toml` + `uv.lock` 먼저 layer cache → 코드 후 layer 로 분리. `uv sync --frozen --no-dev`.
 - **Stage 2 (runner):** slim runtime + 비root user (`appuser:1000`, CSO-2 정합) + `ENV PORT=8080` (Cloud Run 표준).
@@ -34,7 +34,7 @@ Sprint 30 ε 가 backend 프로덕션 진입 prereq 의 **컨테이너 빌드 + 
 
 ### 1.2. Sprint 30 ε B3 — `/healthz` 3-dep readiness probe
 
-[`backend/src/health/router.py`](../../backend/src/health/router.py):
+[`backend/src/health/router.py`](../../../backend/src/health/router.py):
 
 - **Postgres:** `SELECT 1` round-trip (timeout 5s) — pool_pre_ping 으로 stale 회피.
 - **Redis:** lock pool `PING` (timeout 5s).
@@ -44,7 +44,7 @@ Sprint 30 ε 가 backend 프로덕션 진입 prereq 의 **컨테이너 빌드 + 
 
 ### 1.3. Sprint 30 ε B6 — `docker-entrypoint.sh` (alembic advisory lock + role 분기)
 
-[`backend/docker-entrypoint.sh`](../../backend/docker-entrypoint.sh):
+[`backend/docker-entrypoint.sh`](../../../backend/docker-entrypoint.sh):
 
 - **api role:** `run_alembic_with_lock` (advisory lock key `0x71626730 = 'qbg0'`, timeout 30s) → `uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}`.
 - **worker role:** alembic skip + `celery -A src.tasks worker --pool=prefork --concurrency=${CELERY_CONCURRENCY:-4}`.
@@ -54,7 +54,7 @@ Sprint 30 ε 가 backend 프로덕션 진입 prereq 의 **컨테이너 빌드 + 
 
 ### 1.4. 현재 docker-compose 와의 대조
 
-[`docker-compose.yml`](../../docker-compose.yml) 안 backend 관련 service 는 **api 미포함**:
+[`docker-compose.yml`](../../../docker-compose.yml) 안 backend 관련 service 는 **api 미포함**:
 
 - `backend-worker` — celery prefork
 - `backend-ws-stream` — celery prefork (Q ws_stream, BL-012)
@@ -108,7 +108,7 @@ Network:
 
 ### 3.1. 현재 정책
 
-[`backend/src/health/router.py`](../../backend/src/health/router.py) L142:
+[`backend/src/health/router.py`](../../../backend/src/health/router.py) L142:
 
 ```python
 healthy = pg_status == "ok" and redis_status == "ok" and celery_count >= 1
@@ -154,7 +154,7 @@ Cloud Run service 는 `/healthz` (또는 startup probe) 200 미반환 시 traffi
 
 ## 4. Env 매핑 — `.env.example` → Cloud Run
 
-[`backend/.env.example`](../../backend/.env.example) 의 환경변수를 Cloud Run service 의 (1) `--set-env-vars` (plain), (2) `--update-secrets` (Secret Manager mount), (3) Cloud SQL Auth Proxy / VPC connector (네트워크) 로 매핑.
+[`backend/.env.example`](../../../backend/.env.example) 의 환경변수를 Cloud Run service 의 (1) `--set-env-vars` (plain), (2) `--update-secrets` (Secret Manager mount), (3) Cloud SQL Auth Proxy / VPC connector (네트워크) 로 매핑.
 
 ### 4.1. 매핑 표
 
@@ -384,12 +384,12 @@ gcloud run deploy quantbridge-ws-stream \
 
 - [`./deployment-plan.md`](./deployment-plan.md) — Cloud Run vs Fly.io vs K8s 비교
 - [`./runbook.md`](./runbook.md) — 일반 운영 runbook
-- [`../REFACTORING-BACKLOG.md`](../REFACTORING-BACKLOG.md) BL-070 / BL-071 / BL-072
-- [`../../backend/Dockerfile`](../../backend/Dockerfile) — Sprint 30 ε B1
-- [`../../backend/src/health/router.py`](../../backend/src/health/router.py) — Sprint 30 ε B3
-- [`../../backend/docker-entrypoint.sh`](../../backend/docker-entrypoint.sh) — Sprint 30 ε B6
-- [`../../backend/.env.example`](../../backend/.env.example) — env Single Source of Truth
-- [`../../docker-compose.yml`](../../docker-compose.yml) — 현재 service topology
+- [`../backlog.md`](../backlog.md) BL-070 / BL-071 / BL-072
+- [`../../backend/Dockerfile`](../../../backend/Dockerfile) — Sprint 30 ε B1
+- [`../../backend/src/health/router.py`](../../../backend/src/health/router.py) — Sprint 30 ε B3
+- [`../../backend/docker-entrypoint.sh`](../../../backend/docker-entrypoint.sh) — Sprint 30 ε B6
+- [`../../backend/.env.example`](../../../backend/.env.example) — env Single Source of Truth
+- [`../../docker-compose.yml`](../../../docker-compose.yml) — 현재 service topology
 
 ---
 

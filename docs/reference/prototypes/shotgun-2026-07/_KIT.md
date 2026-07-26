@@ -10,7 +10,7 @@
 ## 0. 시작 절차 (반드시 이 순서)
 
 ```bash
-cd docs/prototypes/shotgun-2026-07
+cd docs/reference/prototypes/shotgun-2026-07
 cp _kit.html screen-NN-이름.html      # 절대 처음부터 쓰지 않는다
 ```
 
@@ -582,7 +582,7 @@ IS 평균 샤프 지수 `1.71` / OOS 평균 샤프 지수 `1.02` / 격차 `0.69`
 ## 7. 자기 검증 (제출 전 반드시 실행, 자기보고 금지)
 
 ```bash
-cd docs/prototypes/shotgun-2026-07
+cd docs/reference/prototypes/shotgun-2026-07
 python3 preflight.py screen-NN-이름.html          # FAIL 0 이어야 제출
 node runtime-check.mjs screen-NN-이름.html        # PASS 여야 제출
 ```

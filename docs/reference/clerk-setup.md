@@ -79,7 +79,7 @@ CLERK_WEBHOOK_SECRET=whsec_placeholder_sprint7_real_value
   - `user.updated` → `User` UPDATE
   - `user.deleted` → `User` DELETE (CASCADE → strategies/backtests/...)
 
-상세 흐름: [`../04_architecture/data-flow.md`](../04_architecture/data-flow.md) §5
+상세 흐름: [`../04_architecture/data-flow.md`](data-flow.md) §5
 
 ---
 

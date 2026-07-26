@@ -59,7 +59,7 @@ S3-05 (`_utcnow()` naive UTC → `DateTime(timezone=True)` 전환)는 migration 
    - `docker-compose.yml`에 worker 서비스 없음 → worker는 수동 기동 (§10.1 커맨드 명시)
 8. **CI green:** `ruff`/`mypy`/`pytest` 로컬과 CI 모두 pass. `backend` 잡 `alembic upgrade head` 스텝 유지
 9. **Stale running 최소 완화:** worker startup 시 `status='running' AND started_at < now()-threshold`인 row를 `failed`로 reclaim하는 one-shot 함수 제공 + `GET /:id/progress`에 파생 `stale` 플래그 노출 (threshold 기본 30분, settings)
-10. **docs 동기화:** `endpoints.md`에 `POST /:id/cancel` 반영 + `task_id → backtest_id` 용어 통일, `docs/TODO.md` Sprint 4 완료 표시 + Open Issues 이월
+10. **docs 동기화:** `endpoints.md`에 `POST /:id/cancel` 반영 + `task_id → backtest_id` 용어 통일, `docs/status.md` Sprint 4 완료 표시 + Open Issues 이월
 
 ### 1.3 범위 밖 (Out of Scope)
 
@@ -451,7 +451,7 @@ class Page(BaseModel, Generic[T]):
     offset: int
 ```
 
-Sprint 4 전체 페이지네이션은 `limit/offset` 포맷 사용. (Sprint 3 strategy router가 `page/limit` 포맷을 쓰고 있다면 Sprint 3 drift — 본 Sprint 범위 밖이지만 `docs/TODO.md` Open Issues에 기록)
+Sprint 4 전체 페이지네이션은 `limit/offset` 포맷 사용. (Sprint 3 strategy router가 `page/limit` 포맷을 쓰고 있다면 Sprint 3 drift — 본 Sprint 범위 밖이지만 `docs/status.md` Open Issues에 기록)
 
 **스키마 목록:**
 - `CreateBacktestRequest` — 입력 검증 (`symbol` 3~32자, `timeframe` Literal, `period_end > period_start`, `initial_capital > 0`)
@@ -1215,7 +1215,7 @@ from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 (Sprint 4 
 - [ ] Alembic round-trip 결과
 - [ ] 최종 테스트 개수 + 통과 여부
 - [ ] `endpoints.md` 갱신 (cancel 추가 + task_id → backtest_id)
-- [ ] `docs/TODO.md` Sprint 4 완료 표시 + Sprint 5 이월 목록
+- [ ] `docs/status.md` Sprint 4 완료 표시 + Sprint 5 이월 목록
 
 ### 10.5 Sprint 5 이관 목록 (구현 중 발견)
 
@@ -1283,12 +1283,12 @@ from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 (Sprint 4 
 ## 12. 참고
 
 - **선행 스프린트 spec:**
-  - Sprint 1 (Pine Parser MVP): `docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`
-  - Sprint 2 (vectorbt engine + SignalResult): `docs/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md`
-  - Sprint 3 (Strategy API + Clerk): `docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md`
-- **API 명세:** `docs/03_api/endpoints.md` §Backtests (본 스프린트에서 `POST /:id/cancel` 추가)
+  - Sprint 1 (Pine Parser MVP): `docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`
+  - Sprint 2 (vectorbt engine + SignalResult): `docs/archive/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md`
+  - Sprint 3 (Strategy API + Clerk): `docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md`
+- **API 명세:** `docs/reference/endpoints.md` §Backtests (본 스프린트에서 `POST /:id/cancel` 추가)
 - **도메인 규칙:** `CLAUDE.md` §QuantBridge 고유 규칙 (Celery 비동기 필수, Decimal, AES-256)
-- **ADR-003:** `docs/dev-log/003-pine-runtime-safety-and-parser-scope.md`
+- **ADR-003:** `docs/decisions/003-pine-runtime-safety-and-parser-scope.md`
 - **Backend rules:** `.ai/stacks/fastapi/backend.md` §8 비동기 장기 작업 패턴
 - **선행 구현:**
   - Sprint 2 `run_backtest()`: `backend/src/backtest/engine/__init__.py`

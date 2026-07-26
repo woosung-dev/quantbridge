@@ -95,7 +95,7 @@ docker compose ps
 # quantbridge-redis   Up (healthy)
 ```
 
-서비스 상세는 [`../06_devops/docker-compose-guide.md`](../06_devops/docker-compose-guide.md).
+서비스 상세는 [`../06_devops/docker-compose-guide.md`](docker-compose-guide.md).
 
 ---
 
@@ -254,10 +254,10 @@ pnpm tsc --noEmit
 
 - 환경 변수 의미: [`env-vars.md`](./env-vars.md)
 - Clerk 셋업 상세: [`clerk-setup.md`](./clerk-setup.md)
-- Compose 운영: [`../06_devops/docker-compose-guide.md`](../06_devops/docker-compose-guide.md)
-- CI/CD: [`../06_devops/ci-cd.md`](../06_devops/ci-cd.md)
+- Compose 운영: [`../06_devops/docker-compose-guide.md`](docker-compose-guide.md)
+- CI/CD: [`../06_devops/ci-cd.md`](ci-cd.md)
 - 개발 방법론: [`../guides/development-methodology.md`](../guides/development-methodology.md)
-- Sprint 진행 상태: [`../TODO.md`](../TODO.md)
+- Sprint 진행 상태: [`../status.md`](../../.ai/templates/docs/TODO.md)
 
 ---
 

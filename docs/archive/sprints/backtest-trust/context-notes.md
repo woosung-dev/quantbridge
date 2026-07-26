@@ -103,7 +103,7 @@ Plan 에이전트를 붙여 설계를 교차검증했고, **설계를 바꾸는 
 
 ### 문서 간 포트 표기 불일치
 
-`docs/perf-surface/*`·`docs/money-path-accuracy/*` 는 5436, `docs/exit-money-path/*` 만 5433 이다. **최신(exit-money-path)이 맞다.** 그래서 본 스프린트 문서는 **포트 숫자를 적지 않고** `.env.local`/Makefile 을 SSOT 로 참조하도록 썼다.
+`docs/archive/sprints/perf-surface/*`·`docs/archive/sprints/money-path-accuracy/*` 는 5436, `docs/archive/sprints/exit-money-path/*` 만 5433 이다. **최신(exit-money-path)이 맞다.** 그래서 본 스프린트 문서는 **포트 숫자를 적지 않고** `.env.local`/Makefile 을 SSOT 로 참조하도록 썼다.
 
 ## 8b. ★랭킹 flip 실측 (S3 의무, 2026-07-25)
 

@@ -147,7 +147,7 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 
 ---
 
-## ⚡ money-path-finish 스프린트 (2026-07-26, `docs/money-path-finish/`)
+## ⚡ money-path-finish 스프린트 (2026-07-26, `docs/archive/sprints/money-path-finish/`)
 
 **스코프**: 트레이딩 6스프린트(#472~#478)가 남긴 **숫자 정확도 부채**. 로드맵 권장 착수 순서 #2. 마이그레이션 **0**.
 
@@ -190,7 +190,7 @@ lint-staged 가 FE TS 에 eslint 만 돌려서 드리프트가 누적된 구조�
 
 ---
 
-## ⚡ backtest-trust 스프린트 (2026-07-26, `docs/backtest-trust/`)
+## ⚡ backtest-trust 스프린트 (2026-07-26, `docs/archive/sprints/backtest-trust/`)
 
 **스코프**: 라이브 머니-패스 5스프린트(#474~#478) 완주 후, 이번엔 **백테스트가 화면에 내놓는 숫자**. **BL-398**(Sharpe TV 컨벤션) + **BL-186a**(레버리지 충실도) + **BL-388**(SSOT close). 마이그레이션 **0**.
 
@@ -235,7 +235,7 @@ BL-186a "M" → 실제 L — FE 폼에 레버리지 입력이 아예 없어(Spri
 
 ---
 
-## ⚡ exit-money-path 스프린트 (2026-07-25, `docs/exit-money-path/`)
+## ⚡ exit-money-path 스프린트 (2026-07-25, `docs/archive/sprints/exit-money-path/`)
 
 **스코프**: exit-attribution(#476) 후속. **BL-444(P1) + BL-445(P2)** — 라이브 세션 손익을 읽는 두 소비처가 서로 다른 행 집합을 세면서 둘 다 "이 세션의 손익" 이라고 주장하던 것을 **하나의 스코프 정의**로 통일한다. 마이그레이션 **0**.
 
@@ -277,7 +277,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## exit-attribution 스프린트 (2026-07-25, `docs/exit-attribution/`) — 완료 · main @ `0a8e229` (#476)
+## exit-attribution 스프린트 (2026-07-25, `docs/archive/sprints/exit-attribution/`) — 완료 · main @ `0a8e229` (#476)
 
 **스코프**: money-path-accuracy(#475) 후속. **BL-438 부분** — 거래소에만 존재하는 청산 기록을 원장으로 흡수해 보이게 만들고, 우리 주문의 손익만 계상한다. 마이그레이션 **1**(`20260725_0002`, 신규 테이블 1개 — 과거 스캔 경계 테이블은 머지 전 범위 축소로 제거).
 
@@ -308,7 +308,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ### Questions
 
-- ★**사고 기록** — 적대 평가 서브에이전트에 `DATABASE_URL`(개발 DB)만 export 한 셸을 주었고 거기서 `pytest tests/test_migrations.py` 가 돌아 `downgrade base` 로 **개발 DB 가 전소**했다. 주문 17행 · 거래소 계정(암호화 API 키) · 전략 6종 Pine 소스 소실. 주문 17행 SQL 스냅샷만 남았으나 부모 행이 없어 단독 복원 불가. 가드는 넣었고([BL-451](REFACTORING-BACKLOG.md#bl-451)) 잔여는 **로컬 DB 주기 백업 부재** [확인 필요]
+- ★**사고 기록** — 적대 평가 서브에이전트에 `DATABASE_URL`(개발 DB)만 export 한 셸을 주었고 거기서 `pytest tests/test_migrations.py` 가 돌아 `downgrade base` 로 **개발 DB 가 전소**했다. 주문 17행 · 거래소 계정(암호화 API 키) · 전략 6종 Pine 소스 소실. 주문 17행 SQL 스냅샷만 남았으나 부모 행이 없어 단독 복원 불가. 가드는 넣었고([BL-451](backlog.md#bl-451)) 잔여는 **로컬 DB 주기 백업 부재** [확인 필요]
 - wf_b2f8516a-320-1/2/3 워크트리 3개 보류 지속 (pine_v2 na-safe 실험 잔재) [확인 필요]
 
 ### Next Actions
@@ -327,7 +327,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 > **office-hours 진행:** N
 > **Next Trigger:** money-path-accuracy 머지 후 → **BL-438**(거래소 네이티브 TP/SL 청산 손익 미계상, P1) 또는 다음 deepen = tasks 도메인. // 사용자 manual = G1 (TimescaleDB↔DB 호스팅) + BL-070~072 → 실 prod 배포.
 
-## ⚡ money-path-accuracy 스프린트 (2026-07-25, `docs/money-path-accuracy/`)
+## ⚡ money-path-accuracy 스프린트 (2026-07-25, `docs/archive/sprints/money-path-accuracy/`)
 
 **스코프**: close-completeness(#474) 후속. ① **BL-014 부분** — `Order.realized_pnl` 이 close 주문 _생성 시점_ pine_v2 시뮬레이션 값(수수료 0·바 종가·전량청산 가정)이고 체결 후 보정이 없었다. 머니-패스 5곳(Kill Switch 2 · 세션 에쿼티 커브 · loss-limit 알림 · 일일 보고)이 이 값을 SUM 하므로 **리스크 게이트가 시뮬레이션으로 작동**했고, `close_service` 의 수동 청산은 아예 NULL 이라 5곳 전부에서 보이지 않았다 → Bybit `/v5/position/closed-pnl` 의 `closedPnl`(net) 로 reduce-only 체결분 overwrite + `realized_pnl_synced_at` 출처 마커 + 4 winner 공용 backfill task + beat 스윕 ② dead 컬럼 `filled_quantity` 를 4 체결 경로 전부에 write + `qb_partial_fill_total` + API/블로터 노출 ③ **BL-362** 발산 알림 Slack→Slack+Telegram(raw 예외 문자열은 호출부에서 제거). **마이그레이션 1**(`20260725_0001`, 순수 증분).
 
@@ -358,7 +358,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## ⚡ close-completeness 스프린트 (2026-07-25, `docs/close-completeness/`)
+## ⚡ close-completeness 스프린트 (2026-07-25, `docs/archive/sprints/close-completeness/`)
 
 **스코프**: trading-surface-pack(#473) 후속. ① **BL-435** 청산 즉시 flat — post-fill Celery 캐시 DEL(accept-time DEL 은 async close 라 무효; `_execute_with_session` reduce_only fill 승자 → 활성 세션 캐시 DEL, SSOT 키 헬퍼) ② **BL-436** 청산 margin 503 회피 — `create_order` reduce_only 시 set_margin_mode/set_leverage skip(ccxt marginMode 신뢰불가 우회) ③ **BL-434 부분** 완전 TP/SL 보고(display) — `fetch_open_conditional_orders`(2콜 union+orderId dedupe+stopOrderType 엄격분류) → §03 병합 리스트(익절/손절 plural)+has_trailing_stop 각주; **스윕 BL-437 이연** ④ hedge positionIdx 409 가드. 마이그레이션 0.
 
@@ -388,7 +388,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## ⚡ trading-surface-pack 스프린트 (2026-07-24, `docs/trading-surface-pack/`)
+## ⚡ trading-surface-pack 스프린트 (2026-07-24, `docs/archive/sprints/trading-surface-pack/`)
 
 **스코프**: position-cockpit(#472) 후속. ① BL-431 코크핏 §03 포지션 표 **TP/SL 열**(거래소 보고 포지션-부착, 0→— 정직) + **reduce-only 시장가 청산**(세션스코프 `POST /live-sessions/{id}/positions/close` 202, `OrderService.execute(flatten=True)` 진입-위험 가드 ②~⑧ bypass·ownership 유지·청산 leverage=포지션값) ② BL-416 주문취소 polish ③ BL-425 alert 409 콘솔 노이즈 ④ BL-432 select→combine ⑤ BL-433 subscribe-reject metric. 마이그레이션 0.
 
@@ -419,7 +419,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## ⚡ position-cockpit 스프린트 (2026-07-24, `docs/position-cockpit/`)
+## ⚡ position-cockpit 스프린트 (2026-07-24, `docs/archive/sprints/position-cockpit/`)
 
 **스코프**: Phase B(perf-surface #471 후속). ① BybitPrivateStream 에 WS **position 토픽 + 실시간 팬아웃** ② 코크핏 **계좌 잔고 KPI**(활성 세션 계정) ③ **세션별 열린 포지션 표**. 캐논 screen-01 정직 실현, 미실현 계정-보고 vs 세션-추정 불일치 보정 금지. 마이그레이션 0(비영속).
 
@@ -449,7 +449,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## ⚡ perf-surface 스프린트 (2026-07-24, `docs/perf-surface/`)
+## ⚡ perf-surface 스프린트 (2026-07-24, `docs/archive/sprints/perf-surface/`)
 
 **스코프**: 이미 계산돼 있으나 미노출이던 백테스트 성과 지표(`backtests.metrics` JSONB)를 목록/전략목록/대시보드 표면으로 read-time 파생 노출 + 트레이드 상세 구간 OHLCV 미니차트. 2단계 스프린트의 Phase A(Phase B=position-cockpit 별도 세션). 마이그레이션 0.
 
@@ -481,7 +481,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## ⚡ opspack-ws2 스프린트 (2026-07-24, `docs/opspack-ws2/`)
+## ⚡ opspack-ws2 스프린트 (2026-07-24, `docs/archive/sprints/opspack-ws2/`)
 
 **스코프**: Phase 1 정비 팩 6종(beat /data 권한 영구픽스·BL-417 제거·BL-421 pending·BL-422·BL-418·BL-419) → ★단계 게이트 → Phase 2 WS Tier 2(public ticker + 미실현 P&L 추정, position 채널 제외). 실측 반전 — TELEGRAM env 가 세팅되어 있어 실수신 dogfood 로 승격.
 
@@ -511,7 +511,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## ⚡ tier-c 스프린트 (2026-07-24, `docs/tier-c/`)
+## ⚡ tier-c 스프린트 (2026-07-24, `docs/archive/sprints/tier-c/`)
 
 **스코프**: functional-parity 에서 제외했던 Tier C 4종 전부 + WS Tier 1 (사용자 A안 확정). 실측 반전 2건 — 펀딩은 이미 엔진 배선 완료(노출 완성만), WS 는 인바운드 전층 신설(최대 규모).
 
@@ -546,7 +546,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## ⚡ functional-parity 스프린트 (2026-07-23, `docs/functional-parity/`)
+## ⚡ functional-parity 스프린트 (2026-07-23, `docs/archive/sprints/functional-parity/`)
 
 **스코프**: C 디자인 이식(PR #463/#464)이 남긴 기능 격차 마감 (Tier A+B, 사용자 확정. Tier C = WS/포지션동기화/알림/펀딩 제외).
 
@@ -576,7 +576,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## 🔁 Verification Loop — 문서검증 + 아키텍처 감사 (2026-06-30, `docs/audit/2026-06-30-verification-loop.md`)
+## 🔁 Verification Loop — 문서검증 + 아키텍처 감사 (2026-06-30, `docs/archive/audit/2026-06-30-verification-loop.md`)
 
 **스코프**: methodology-tooled Stage 0/4 를 quant-bridge 에 실제 적용. 코드 로직 변경 0. 브랜치 `docs/verification-loop-2026-06-30` (docs-only commits, **푸시/PR 사용자 승인 대기**).
 
@@ -597,7 +597,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## 🧪 Phase C 라이브 QA (2026-05-30, `docs/qa/2026-05-30-phase-c/report.md`)
+## 🧪 Phase C 라이브 QA (2026-05-30, `docs/archive/qa/2026-05-30-phase-c/report.md`)
 
 **스코프**: audit Phase C deferred 실행 + S5/S6/S7 (#315/#316/#318) 머지 후 라이브 재검증. MCP Playwright `:8100/:3100` 격리 stack + Clerk test 계정.
 
@@ -623,7 +623,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 ---
 
-## 🔬 Full-Inspection Audit (2026-05-30, `docs/audit/2026-05-30-full-inspection.md`)
+## 🔬 Full-Inspection Audit (2026-05-30, `docs/archive/audit/2026-05-30-full-inspection.md`)
 
 **스코프**: main @ `4aa5c2a` (PR #305~#310 머지 후). 8 차원 멀티에이전트 평가자 패널 (198 에이전트 / ~32M 토큰, stall → 트랜스크립트 복구). Decision Log DEC-1~14.
 
@@ -687,12 +687,12 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 
 - [x] **🚨 신규 P1 발견**: S7-A 의 OKX passphrase superRefine 이 `zodResolver` 와 호환 안 됨 → console `ZodError unhandled` + FormMessage 미표시 = silent bypass.
 - [x] **Hotfix**: `frontend/src/lib/zod-v4-resolver.ts` 공유 helper 추출 (test-order-dialog 의 inline 버전) + register-exchange-account-dialog 적용.
-- [x] **라이브 재검증**: OKX 선택 + passphrase 비운 채 등록 → "OKX 계정은 Passphrase 가 필수입니다" inline FormMessage 정상 표시 (`docs/qa/2026-05-30-phase-c/12-s7a-hotfix-validated.png`).
-- [x] **상세 report**: `docs/qa/2026-05-30-phase-c/report.md` (Coverage 매트릭스 + Evidence + 근본 원인 + LESSON-068 4번째 누적 + P3 follow-up).
+- [x] **라이브 재검증**: OKX 선택 + passphrase 비운 채 등록 → "OKX 계정은 Passphrase 가 필수입니다" inline FormMessage 정상 표시 (`docs/archive/qa/2026-05-30-phase-c/12-s7a-hotfix-validated.png`).
+- [x] **상세 report**: `docs/archive/qa/2026-05-30-phase-c/report.md` (Coverage 매트릭스 + Evidence + 근본 원인 + LESSON-068 4번째 누적 + P3 follow-up).
 
 ### D2 — Phase C QA report + TODO.md governance 갱신 (본 commit, `docs/phase-c-qa-report`)
 
-- [x] `docs/qa/2026-05-30-phase-c/report.md` + screenshot 12개 commit.
+- [x] `docs/archive/qa/2026-05-30-phase-c/report.md` + screenshot 12개 commit.
 - [x] TODO.md last-updated 2026-05-30 갱신 + Phase C 발견·hotfix 반영. docs-only.
 
 ---
@@ -798,13 +798,13 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 - [x] **PR #288 merge** — 8 BL fix (T-4 BL-312 OpenAPI gate / T-5 BL-311 보안 헤더 / T-6 BL-310 healthz /livez / T-1 BL-340 overflow / T-2 BL-339 터치 / T-3 BL-319+321+328 Clerk dev surface / T-7 BL-327 KPI tooltip / T-8 BL-322+323 Hero copy + Optimizer 메뉴)
 - [x] **Hotfix PR #289** — BL-348 protected route accounts.dev redirect (clerkMiddleware second arg signInUrl/signUpUrl 명시) + BL-349 healthz timeout 8→12s
 
-### Multi-Agent QA 재측정 (Standard depth, `docs/qa/2026-05-17-post-sprint61/`)
+### Multi-Agent QA 재측정 (Standard depth, `docs/archive/qa/2026-05-17-post-sprint61/`)
 
 - [x] **QA Sentinel 재측정** — 7.45 → 7.8 (+0.35), Sprint 61 fix 11 BL 직접 검증 8 PASS / 2 PARTIAL / 1 manual pending
 - [x] **Curious 재측정** — 6.5 → 8.0 (+1.5), Maybe → **Yes (가벼운 조건부)**, 친구 추천도 ★★★ → ★★★★
 - [x] **Casual 재측정** — 5.2 → 7.4 (+2.2), 용어 해독률 22% → **89%**, 막힘 9 → 3, 포기 abandon 안 함
 - [x] **Mobile 재측정** — 3.8 → 6.5 (+2.7), Critical 2 → 1 (BL-340 회복 ✅, BL-339 페이지 내부 ~15 잔존)
-- [x] **통합 HTML** `docs/qa/2026-05-17-post-sprint61/integrated-report.html` — **Composite 7.5/10** (목표 정확 도달, Pre 6.08 → △ +1.42)
+- [x] **통합 HTML** `docs/archive/qa/2026-05-17-post-sprint61/integrated-report.html` — **Composite 7.5/10** (목표 정확 도달, Pre 6.08 → △ +1.42)
 
 ### Sprint 61 BL Resolved 마킹 (11 BL)
 
@@ -838,8 +838,8 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 - [x] **Curious** Exhaustive — 6.5/10 Maybe, BL-317~326 (10건, Critical 0 / High 2 / Med 5 / Low 3)
 - [x] **Casual** Exhaustive — 5.2/10, BL-327~337 (11건, Critical 0 / High 2 / Med 4 / Low 5), 막힘 9건 + 용어 해독률 40% + axe-core 92 serious
 - [x] **Mobile** Exhaustive — 3.8/10, BL-338~346 (9건, **Critical 2** / High 3 / Med 2 / Low 1) — Casual PASS 보고 중 2건 false positive 검출
-- [x] **통합 HTML** `docs/qa/2026-05-17/integrated-report.html` — Composite 6.08/10 (베이스라인 4.18 → △ +1.90)
-- [x] **Sprint 61 plan** `docs/sprint-61-plan.md` — 8 BL fix-first, ≈ 23h scope
+- [x] **통합 HTML** `docs/archive/qa/2026-05-17/integrated-report.html` — Composite 6.08/10 (베이스라인 4.18 → △ +1.90)
+- [x] **Sprint 61 plan** `docs/archive/sprint-61-plan.md` — 8 BL fix-first, ≈ 23h scope
 
 **Composite 6.08 / 10** — Beta 4-AND gate (a) FAIL 6.08<7 / (b) FAIL Crit 2 / (c) FAIL High 11 / (d) Day 7 NPS 결과 보류.
 **분기 결론**: Sprint 61 fix-first 진입 → Sprint 62 Beta gate 재측정.
@@ -890,7 +890,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 - [ ] BL-신규 Backend test fixture DB password 환경 (S1/S5 integration test 3 ERROR 공통)
 
 > 사람과 AI 가 공동 관리하는 활성 작업 추적 파일.
-> 차단 항목은 `[blocked]` 표시 / 질문은 §Questions / 활성 BL 상세는 [`REFACTORING-BACKLOG.md`](./REFACTORING-BACKLOG.md) / sprint 회고는 [`dev-log/INDEX.md`](./dev-log/INDEX.md).
+> 차단 항목은 `[blocked]` 표시 / 질문은 §Questions / 활성 BL 상세는 [`backlog.md`](./backlog.md) / sprint 회고는 [`dev-log/INDEX.md`](./dev-log/INDEX.md).
 
 ---
 
@@ -903,7 +903,7 @@ trading.orders 0 | live_signal_sessions 0 | live_signal_events 0 | strategies 0
 - **신규 BL:** 0 / Resolved (PR-D 5-rule triage): 158 BL → **13 Active + 8 Deferred + 137 Archived**
 - **누적 net deletion:** ~6,000+ lines (메타 노이즈 + dead code + locality 정리)
 - **상세:** [`docs/dev-log/2026-05-13-sprint59-close.md`](./dev-log/2026-05-13-sprint59-close.md)
-- **13 active BL** (상세 = [`REFACTORING-BACKLOG.md`](./REFACTORING-BACKLOG.md) + [`refactoring-backlog/_archived.md`](./refactoring-backlog/_archived.md) + [`refactoring-backlog/_deferred.md`](./refactoring-backlog/_deferred.md))
+- **13 active BL** (상세 = [`backlog.md`](./backlog.md) + [`refactoring-backlog/_archived.md`](archive/refactoring-backlog/_archived.md) + [`refactoring-backlog/_deferred.md`](archive/refactoring-backlog/_deferred.md))
 
 ### 직전 sprint: Sprint 58 (BL-241/242/243 Pine TA 확장)
 
@@ -940,18 +940,18 @@ dogfood Day 7 인터뷰 (2026-05-16, 사용자 manual) 결과 + 본인 의지 se
 
 ---
 
-## 활성 BL 요약 (상세는 [`REFACTORING-BACKLOG.md`](./REFACTORING-BACKLOG.md))
+## 활성 BL 요약 (상세는 [`backlog.md`](./backlog.md))
 
 > 본 sprint kickoff 시 백로그 review 의무. 자연어 표현은 컨텍스트 복원성 위해 sprint 회고 안에 유지하되, 새 항목 추가 시 BL ID 부여 후 등록.
 
 핵심 cross-link (Sprint 59 PR-D 트리아주 후):
 
-- **P0 active**: [BL-003](./REFACTORING-BACKLOG.md#bl-003) Bybit mainnet runbook
-- **P1 active**: [BL-014](./REFACTORING-BACKLOG.md#bl-014) partial fill / [BL-015](./REFACTORING-BACKLOG.md#bl-015) OKX WS / [BL-022](./REFACTORING-BACKLOG.md#bl-022) golden 재생성 / [BL-023](./REFACTORING-BACKLOG.md#bl-023) KIND-B/C / [BL-024](./REFACTORING-BACKLOG.md#bl-024) real_broker E2E / [BL-025](./REFACTORING-BACKLOG.md#bl-025) autonomous-parallel patch / [BL-026](./REFACTORING-BACKLOG.md#bl-026) mutation fixture
-- **P2 active**: [BL-186](./REFACTORING-BACKLOG.md#bl-186) full leverage model / [BL-190](./REFACTORING-BACKLOG.md#bl-190) PDF export / [BL-195](./REFACTORING-BACKLOG.md#bl-195) form animation / [BL-235](./REFACTORING-BACKLOG.md#bl-235) N-dim viz / [BL-236](./REFACTORING-BACKLOG.md#bl-236) objective whitelist
-- **Deferred milestone** ([`_deferred.md`](./refactoring-backlog/_deferred.md)): BL-005 본인 dogfood / BL-070~075 Beta 본격 진입 / BL-145 EffectiveLeverageEvaluator
-- **Archived 138건** ([`_archived.md`](./refactoring-backlog/_archived.md)): 모든 ✅ Resolved + Sprint 16~30 stale follow-up + P3 전부
-- **정합성 audit:** [`04_architecture/architecture-conformance.md`](./04_architecture/architecture-conformance.md) — 15 항목 영구 체크리스트
+- **P0 active**: [BL-003](./backlog.md#bl-003) Bybit mainnet runbook
+- **P1 active**: [BL-014](./backlog.md#bl-014) partial fill / [BL-015](./backlog.md#bl-015) OKX WS / [BL-022](./backlog.md#bl-022) golden 재생성 / [BL-023](./backlog.md#bl-023) KIND-B/C / [BL-024](./backlog.md#bl-024) real_broker E2E / [BL-025](./backlog.md#bl-025) autonomous-parallel patch / [BL-026](./backlog.md#bl-026) mutation fixture
+- **P2 active**: [BL-186](./backlog.md#bl-186) full leverage model / [BL-190](./backlog.md#bl-190) PDF export / [BL-195](./backlog.md#bl-195) form animation / [BL-235](./backlog.md#bl-235) N-dim viz / [BL-236](./backlog.md#bl-236) objective whitelist
+- **Deferred milestone** ([`_deferred.md`](archive/refactoring-backlog/_deferred.md)): BL-005 본인 dogfood / BL-070~075 Beta 본격 진입 / BL-145 EffectiveLeverageEvaluator
+- **Archived 138건** ([`_archived.md`](archive/refactoring-backlog/_archived.md)): 모든 ✅ Resolved + Sprint 16~30 stale follow-up + P3 전부
+- **정합성 audit:** [`04_architecture/architecture-conformance.md`](reference/architecture-conformance.md) — 15 항목 영구 체크리스트
 
 ---
 
@@ -974,8 +974,8 @@ dogfood Day 7 인터뷰 (2026-05-16, 사용자 manual) 결과 + 본인 의지 se
 **카테고리:**
 
 - 영구 (정상): #2, #3, #8, #17 — opt-in flag 가 정확한 안전장치
-- fixture 활성화 후 자동 해소: #4-7, #9-15 — Path β Stage 2c 2 차 후 회귀 검토 → [BL-026](./REFACTORING-BACKLOG.md#bl-026)
-- dette: #1 (golden 재생성) → [BL-022](./REFACTORING-BACKLOG.md#bl-022) / #16 (KIND-B/C 정밀도) → [BL-023](./REFACTORING-BACKLOG.md#bl-023)
+- fixture 활성화 후 자동 해소: #4-7, #9-15 — Path β Stage 2c 2 차 후 회귀 검토 → [BL-026](./backlog.md#bl-026)
+- dette: #1 (golden 재생성) → [BL-022](./backlog.md#bl-022) / #16 (KIND-B/C 정밀도) → [BL-023](./backlog.md#bl-023)
 
 **관리 규약:** 신규 skip 추가 시 본 표 동일 PR 업데이트 / 매 sprint 끝 fixture 카테고리 재검토.
 

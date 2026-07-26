@@ -67,7 +67,7 @@
 
 ## 3. 지금까지 된 것 (복제하지 말고 읽어라)
 
-`docs/prototypes/shotgun-2026-07/` 에 전부 있다.
+`docs/reference/prototypes/shotgun-2026-07/` 에 전부 있다.
 
 | 파일                                 | 내용                                                                                                                       |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
@@ -394,7 +394,7 @@ B2 로 가려면 `--copper-fill` / `--bull-fill` / `--bear-fill` 3줄을 지우�
 **프로토타입 전체가 아직 untracked 이고 현재 브랜치가 `main` 이다.**
 
 ```
-?? docs/prototypes/shotgun-2026-07/
+?? docs/reference/prototypes/shotgun-2026-07/
 ?? skills-lock.json
 ```
 
@@ -419,7 +419,7 @@ on:
 
 ## 11. 다음 세션 첫 스텝
 
-1. `CONTEXT.md` + `.claude/CLAUDE.md` + `docs/TODO.md` + `docs/REFACTORING-BACKLOG.md` 4종 읽기 (프로젝트 규칙)
+1. `CONTEXT.md` + `.claude/CLAUDE.md` + `docs/status.md` + `docs/backlog.md` 4종 읽기 (프로젝트 규칙)
 2. 이 문서 + `_KIT.md` §4 캐논 + `terminology-ssot.md` 읽기
 3. **프로토타입 커밋용 브랜치 생성** (§10)
 4. **이식 계획 수립** — §2 의 뒤집힌 전제를 반영해서. "색 교체"가 아니라 "이름 정합 + 반경 통합 + 아이콘 레일 신설"이 실제 작업이다

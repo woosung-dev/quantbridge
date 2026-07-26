@@ -4,7 +4,7 @@
 **환경**: Isolated mode (FE :3100 / BE :8100 / DB :5433 / Redis :6380)
 **git HEAD**: `60d8518` (main)
 **페르소나**: QA Sentinel (Exhaustive ~90-120분)
-**베이스라인**: `docs/qa/2026-05-13/integrated-report.html` (Composite 4.18/10, Critical 11+High 14)
+**베이스라인**: `docs/archive/qa/2026-05-13/integrated-report.html` (Composite 4.18/10, Critical 11+High 14)
 
 ---
 
@@ -188,7 +188,7 @@
 
 - `docker logs quantbridge-ws-stream` (실제 worker 안에서 실행 중) = 5초 tail 안 `Task trading.run_bybit_private_stream[...]` 수신 → `ws_stream_circuit_open_skip account=<uuid>` → `succeeded {status: circuit_open}` 정상 동작 → **PASS** (circuit breaker 작동, 외부 거래소 미연결 시 skip).
 - WS reconnect supervisor = `circuit_open` 상태에서 강제 disconnect 시뮬레이션 = sub-agent scope 외 (live trading 계정 + 외부 거래소 필요).
-- BL-308/309 audit 결과 verify = `docs/REFACTORING-BACKLOG.md` 안 BL-308/309 detail 위 trading 코드 비교 deferred → **Deferred to architectural review session**.
+- BL-308/309 audit 결과 verify = `docs/backlog.md` 안 BL-308/309 detail 위 trading 코드 비교 deferred → **Deferred to architectural review session**.
 
 ---
 

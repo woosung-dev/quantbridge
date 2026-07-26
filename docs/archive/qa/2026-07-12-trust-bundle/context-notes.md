@@ -5,7 +5,7 @@
 ## Phase 0 — Preflight (§7.1)
 
 - PR #425 (stage/pine-batch-qa → main) **MERGED @9398a36**. 로컬 main = origin/main 동기. → 분기 기준 = **main**.
-- `docs/qa/2026-07-12-pine-batch-1h4h/results.json` 존재 확인.
+- `docs/archive/qa/2026-07-12-pine-batch-1h4h/results.json` 존재 확인.
 - baseline 실측: `uv run pytest tests/strategy/pine_v2 -q` → **815 passed, 16 skipped** (skipped = nightly mutation oracle). 기억 아닌 실측 일치.
 - 브랜치: `stage/trust-bundle`(main 분기, origin push) → `feat/pine-405-na-propagation` 분기.
 - Task B 엔진-diff-0 사전확정: `BacktestConfig.default_qty_type/value`(types.py:40-41) + `run_backtest_v2` form-tier 전달(v2_adapter.py:100-101). `--normalized` 는 config-only.

@@ -1,7 +1,7 @@
 # QuantBridge — 요구사항 개요
 
 > **목적:** PRD 핵심을 응축하고, 상세 REQ-### 카탈로그(`req-catalog.md`)의 진입점 역할.
-> **SSOT:** 상세 비즈니스 규칙은 [`QUANTBRIDGE_PRD.md`](../../QUANTBRIDGE_PRD.md), 비전은 [`00_project/vision.md`](../00_project/vision.md).
+> **SSOT:** 상세 비즈니스 규칙은 [`QUANTBRIDGE_PRD.md`](../../QUANTBRIDGE_PRD.md), 비전은 [`00_project/vision.md`](project/vision.md).
 
 ---
 
@@ -57,9 +57,9 @@ PRD §구현 순서를 sprint 단위로 매핑.
 | Phase 3                                                | 4주          | 외부 user dogfood + Optimizer + Freemium 티어 결정                                                                                           | ⏳ H2/H3 Sprint 후속                                             |
 | Phase 4                                                | (deprecated) | ~~라이브 트레이딩 (Phase 1.5b 흡수)~~                                                                                                        | (Phase 1.5b 통합)                                                |
 
-> **Phase 1.5b 정의 (Sprint 28 Slice 1b):** dogfood-first 진화로 Live Trading 이 Phase 4 → Phase 1.5b 로 조기 진입. 4 신규 cross-cutting 도메인 (WebSocket Stability / Auth Trust Layer / Auto-Loop / Multi-account) 부상. 상세 매핑: [`../00_project/phase-vs-sprint-mapping.md`](../00_project/phase-vs-sprint-mapping.md), 도메인 진행도: [`./domain-progress-matrix.md`](./domain-progress-matrix.md).
+> **Phase 1.5b 정의 (Sprint 28 Slice 1b):** dogfood-first 진화로 Live Trading 이 Phase 4 → Phase 1.5b 로 조기 진입. 4 신규 cross-cutting 도메인 (WebSocket Stability / Auth Trust Layer / Auto-Loop / Multi-account) 부상. 상세 매핑: [`../00_project/phase-vs-sprint-mapping.md`](project/phase-vs-sprint-mapping.md), 도메인 진행도: [`./domain-progress-matrix.md`](./domain-progress-matrix.md).
 
-진행 중 상세는 [`docs/TODO.md`](../TODO.md) §"Stage 3 / Sprint \*" 참조.
+진행 중 상세는 [`docs/status.md`](../../.ai/templates/docs/TODO.md) §"Stage 3 / Sprint \*" 참조.
 
 ## 5. KPI (Vision 인용)
 
@@ -112,20 +112,20 @@ PRD에서 명시되지 않았거나 의식적으로 제외한 항목:
 - OHLCV 데이터는 **TimescaleDB hypertable** 저장 (Sprint 5 도입)
 - 실시간 데이터는 **WebSocket + Zustand 캐시** (React Query와 분리)
 - Pine Script → Python 변환 시 `exec()`/`eval()` **절대 금지** — 인터프리터 패턴 또는 RestrictedPython 필수
-  ([ADR-003](../dev-log/003-pine-runtime-safety-and-parser-scope.md))
+  ([ADR-003](../decisions/003-pine-runtime-safety-and-parser-scope.md))
 - Pine Script 미지원 함수 1개라도 포함 시 전체 "Unsupported" 반환 — 부분 실행 금지
 
 ## 9. 의사결정 트레일
 
 - **Trust Layer 프레이밍** — `[/office-hours 2026-04-13]`
-- **기술 스택** — [ADR-001](../dev-log/001-tech-stack.md)
-- **병렬 스캐폴딩** — [ADR-002](../dev-log/002-parallel-scaffold-strategy.md)
-- **Pine 런타임 안전성 + 파서 범위** — [ADR-003](../dev-log/003-pine-runtime-safety-and-parser-scope.md) `[/autoplan 2026-04-13]`
-- **Pine 파서 접근법 선택** — [ADR-004](../dev-log/004-pine-parser-approach-selection.md)
+- **기술 스택** — [ADR-001](../decisions/001-tech-stack.md)
+- **병렬 스캐폴딩** — [ADR-002](../decisions/002-parallel-scaffold-strategy.md)
+- **Pine 런타임 안전성 + 파서 범위** — [ADR-003](../decisions/003-pine-runtime-safety-and-parser-scope.md) `[/autoplan 2026-04-13]`
+- **Pine 파서 접근법 선택** — [ADR-004](../decisions/004-pine-parser-approach-selection.md)
 
 ## 10. 미해결 질문 (Open Questions)
 
-`docs/TODO.md` §Questions에서 이관:
+`docs/status.md` §Questions에서 이관:
 
 | ID    | 질문                                      | 영향 도메인    | 상태                                                                                         |
 | ----- | ----------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |

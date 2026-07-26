@@ -84,4 +84,4 @@ strategy 편집 →
 - Sprint 21 dev-log: [`docs/dev-log/2026-05-02-sprint21-bl096-coverage-expansion.md`](2026-05-02-sprint21-bl096-coverage-expansion.md)
 - PR #93: https://github.com/woosung-dev/quantbridge/pull/93
 - Sprint 22 prompt: `~/.claude/plans/h2-sprint-22-prompt.md`
-- BL backlog: [`docs/REFACTORING-BACKLOG.md`](../REFACTORING-BACKLOG.md)
+- BL backlog: [`docs/backlog.md`](../backlog.md)

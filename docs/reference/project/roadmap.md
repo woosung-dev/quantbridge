@@ -1,13 +1,13 @@
 # QuantBridge — Product Roadmap
 
-> **SSOT (2026-05-04 cleanup):** 본 문서가 **Horizon × Pillar 로드맵의 단일 진실 원천**. 관련 ADR: [`../dev-log/010b-product-roadmap.md`](../dev-log/010b-product-roadmap.md) (재작성본, 활성). 1차 초안: [`../dev-log/010-product-roadmap.md`](../dev-log/010-product-roadmap.md) (DEPRECATED).
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Horizon × Pillar 로드맵의 단일 진실 원천**. 관련 ADR: [`../dev-log/010b-product-roadmap.md`](../../decisions/010b-product-roadmap.md) (재작성본, 활성). 1차 초안: [`../dev-log/010-product-roadmap.md`](../dev-log/010-product-roadmap.md) (DEPRECATED).
 > **PRD ↔ 본 로드맵 ↔ Phase 매핑:** Phase 정의 = `00_project/phase-vs-sprint-mapping.md`, 도메인 진행도 = `01_requirements/domain-progress-matrix.md` (둘 다 생성 완료).
 >
 > **작성일:** 2026-04-17 (초안) · **최종 수정:** 2026-04-21 (testnet dogfood 결정 반영)
 > **프레임:** Horizon 3 × Strategy Pillars 하이브리드
 > **철학:** Dogfood-first Indie SaaS — "내가 돈 내고 쓰고 싶은 것"이 quality bar
-> **현재 단계 (2026-05-29 갱신):** **H2 / Beta 진입** (2026-05-17 결정). H1 코드 게이트 + Sprint 27-62 dogfood·Multi-Agent QA cycle 완료, **"4-AND" Beta gate**(Composite ≥7 / Critical 0 / High ≤3 / 본인 의지) 통과. Sprint 63 = Beta 외부 의존 셋업(도메인·prod deploy·Resend). ⚠ 아래 §"H1 → H2 전환 조건"(testnet dogfood + Prometheus alert 기준)은 **원래 계획** — 실제 전환은 QA Composite 4-AND 게이트로 대체됨 (`docs/TODO.md` SSOT).
-> **H2 Kickoff plan:** [`../superpowers/plans/2026-04-20-h2-kickoff.md`](../superpowers/plans/2026-04-20-h2-kickoff.md) — 6 결정 포인트 + Sprint 9~11 분해 + Beta 5~10명 획득 경로
+> **현재 단계 (2026-05-29 갱신):** **H2 / Beta 진입** (2026-05-17 결정). H1 코드 게이트 + Sprint 27-62 dogfood·Multi-Agent QA cycle 완료, **"4-AND" Beta gate**(Composite ≥7 / Critical 0 / High ≤3 / 본인 의지) 통과. Sprint 63 = Beta 외부 의존 셋업(도메인·prod deploy·Resend). ⚠ 아래 §"H1 → H2 전환 조건"(testnet dogfood + Prometheus alert 기준)은 **원래 계획** — 실제 전환은 QA Composite 4-AND 게이트로 대체됨 (`docs/status.md` SSOT).
+> **H2 Kickoff plan:** [`../superpowers/plans/2026-04-20-h2-kickoff.md`](../../archive/superpowers/plans/2026-04-20-h2-kickoff.md) — 6 결정 포인트 + Sprint 9~11 분해 + Beta 5~10명 획득 경로
 
 ---
 
@@ -25,7 +25,7 @@
 
 ### 왜 이 로드맵이 필요한가
 
-`vision.md`의 Phase 1~4와 `TODO.md` Sprint 추적은 **기술 관점**이다. 본 문서는 거기에 **비즈니스·사용자·수익화 축**을 더해서, "언제 외부에 공개할 것인가", "어떤 기능을 어느 시점에 수익화 후보로 볼 것인가", "규제·법무 리스크를 어떻게 프레이밍할 것인가"를 통합한 **제품 로드맵**이다.
+`vision.md`의 Phase 1~4와 `status.md` Sprint 추적은 **기술 관점**이다. 본 문서는 거기에 **비즈니스·사용자·수익화 축**을 더해서, "언제 외부에 공개할 것인가", "어떤 기능을 어느 시점에 수익화 후보로 볼 것인가", "규제·법무 리스크를 어떻게 프레이밍할 것인가"를 통합한 **제품 로드맵**이다.
 
 ### 핵심 전제
 
@@ -46,7 +46,7 @@
 
 **원칙:** Trust가 깨지면 Scale/Monetize 정지. 예) mainnet 버그 발견 → H2 Monte Carlo 연기하고 fix 먼저.
 
-**Surface Trust sub-pillar 측정 기준 (Sprint 30 ADR-019):** PRD `backtests.results` 24 metric BE+FE 100% / `backtests.config` 5 가정 FE 노출 100% / lightweight-charts PRD §Phase 1 주 4 부분 마이그레이션 / dogfood self-assess Day 3 ≥ 7. 상세 [`docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md`](../dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md).
+**Surface Trust sub-pillar 측정 기준 (Sprint 30 ADR-019):** PRD `backtests.results` 24 metric BE+FE 100% / `backtests.config` 5 가정 FE 노출 100% / lightweight-charts PRD §Phase 1 주 4 부분 마이그레이션 / dogfood self-assess Day 3 ≥ 7. 상세 [`docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md`](../../dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md).
 
 ---
 
@@ -56,7 +56,7 @@
 
 | Pillar      | 작업                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🛡 Trust    | **Sprint 7c** Strategy CRUD UI (plan: [`docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md))<br>**Sprint 7b** OKX 통합 + Trading Sessions<br>**Sprint 8a** Binance mainnet DB CHECK constraint + `margin_mode` string↔Literal 경계 검증 ([ADR-007](../dev-log/007-sprint7a-futures-decisions.md) 미해결)<br>**Sprint 8b** Kill Switch `capital_base` 레버리지 반영 검증 (ADR-006 미해결)<br>**Testnet dogfood 3~4주** — Bybit Futures testnet. 기술 검증 90%+ 충분. 선택: Beta 오픈 전 극소액 mainnet 72h |
+| 🛡 Trust    | **Sprint 7c** Strategy CRUD UI (plan: [`docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../../archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md))<br>**Sprint 7b** OKX 통합 + Trading Sessions<br>**Sprint 8a** Binance mainnet DB CHECK constraint + `margin_mode` string↔Literal 경계 검증 ([ADR-007](../../decisions/007-sprint7a-futures-decisions.md) 미해결)<br>**Sprint 8b** Kill Switch `capital_base` 레버리지 반영 검증 (ADR-006 미해결)<br>**Testnet dogfood 3~4주** — Bybit Futures testnet. 기술 검증 90%+ 충분. 선택: Beta 오픈 전 극소액 mainnet 72h |
 | 🚀 Scale    | CCXT 계측 초기 (Prometheus 최소)<br>초기 backfill Celery task 분리 (대용량 OHLCV)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 💰 Monetize | ❌ **설계 금지.** 신규 기능에 `[free/paid 후보]` 태그만 부착하여 H2 가설 수립 재료로 축적.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Launch      | Stealth. Twitter/X `#buildinpublic` 주 1회 포스트 시작 (한국어+영어 병기).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -74,7 +74,7 @@
 
 | Pillar      | 작업                                                                                                                                                                                                                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 🛡 Trust    | Binance + OKX + Bybit 풀 라이브 안정화<br>(실험 태그) AI 전략 생성·최적화 — [ADR-003](../dev-log/003-pine-runtime-safety-and-parser-scope.md) Pine 보안과의 충돌 검증 선행<br>(실험 태그) Strategy DevOps 카테고리 메시징 — [BL-153](../REFACTORING-BACKLOG.md#bl-153) H3 격리, 가격 실험과 묶음 |
+| 🛡 Trust    | Binance + OKX + Bybit 풀 라이브 안정화<br>(실험 태그) AI 전략 생성·최적화 — [ADR-003](../../decisions/003-pine-runtime-safety-and-parser-scope.md) Pine 보안과의 충돌 검증 선행<br>(실험 태그) Strategy DevOps 카테고리 메시징 — [BL-153](../backlog.md#bl-153) H3 격리, 가격 실험과 묶음 |
 | 🚀 Scale    | **TV 커뮤니티 공식 공개** (r/TradingView, TV Scripts, Discord 서버)<br>(실험 태그) 전략 마켓플레이스 기초 가설 검증                                                                                                                                                                              |
 | 💰 Monetize | **가격 실험 A/B** ($19 / $29 / 단일)<br>(실험 태그) 거래소 referral fee share<br>**첫 $1 유료 사용자 목표**                                                                                                                                                                                      |
 | Launch      | TV 커뮤니티 공개 포스트. Post-H3 Product Hunt 런치 준비.                                                                                                                                                                                                                                         |
@@ -84,7 +84,7 @@
 ## 가드레일
 
 - **H1에 Monetize 작업 금지** — 태깅은 허용, 구현·가격 책정·결제 셋업은 H2로 연기.
-- **Scope creep 차단** — Sprint 7c에서 잘라낸 항목(전략 versioning / inline backtest / ExchangeAccount UI)은 H2 재평가 전까지 재도입 금지. [ADR-008](../dev-log/008-sprint7c-scope-decision.md) 참조.
+- **Scope creep 차단** — Sprint 7c에서 잘라낸 항목(전략 versioning / inline backtest / ExchangeAccount UI)은 H2 재평가 전까지 재도입 금지. [ADR-008](../../decisions/008-sprint7c-scope-decision.md) 참조.
 - **Trust 우선 인터럽트** — mainnet 실거래 중 버그·데이터 손실·security 이슈 발견 시 현재 Sprint 즉시 중단, 해당 Pillar fix 우선.
 - **Dogfood 체크** — H1 종료 시점에 본인이 주 3회 이상 QuantBridge를 쓰지 않았다면 Trust 정의 재검토.
 
@@ -109,7 +109,7 @@
 3. **Auto-Loop 자동화** (Sprint 27 §0.5) — Beat scheduler + Worker dispatch + ccxt + Bybit Demo end-to-end 무결. **"curl/psql 감내" → "자동화 필수성" 영구 규칙 승격** (외부 노출 가능 핵심 신뢰 지표)
 4. **Multi-account / symbol / timeframe Live Trading** (Sprint 26 PR #100) — 두 ExchangeAccount 동시 + BTC/SOL 동시 + 4 timeframe 혼합
 
-**Beta open path 결정:** Path A1 (자연 시간 1-2주 + Day 7 dual metric 통과 시 Beta open). Path B (mainnet 72h + 지인 5인) 는 BL-001/002/003 처리 시 검토. 상세: `docs/dev-log/008-sprint7c-scope-decision.md` "2026-05-04 Addendum" 섹션.
+**Beta open path 결정:** Path A1 (자연 시간 1-2주 + Day 7 dual metric 통과 시 Beta open). Path B (mainnet 72h + 지인 5인) 는 BL-001/002/003 처리 시 검토. 상세: `docs/decisions/008-sprint7c-scope-decision.md` "2026-05-04 Addendum" 섹션.
 
 ### H2 → H3 전환 조건 (모두 충족)
 
@@ -130,7 +130,7 @@
 | 리스크                                                                                    | 발동 조건                               | 대응                                                                                  |
 | ----------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------- |
 | **번아웃** (9m 공격적 페이스)                                                             | Sprint 3개 연속 overrun                 | H2/H3 time-box 10% 확장 허용. 주 1일 휴식 규칙.                                       |
-| **외부 demand 없음 지속** ([ADR-008](../dev-log/008-sprint7c-scope-decision.md) red flag) | H2 말 Beta 5명 미확보                   | Launch 전략 재검토 — Build in public 비중↑, 타깃 페르소나 재정렬.                     |
+| **외부 demand 없음 지속** ([ADR-008](../../decisions/008-sprint7c-scope-decision.md) red flag) | H2 말 Beta 5명 미확보                   | Launch 전략 재검토 — Build in public 비중↑, 타깃 페르소나 재정렬.                     |
 | **규제 변화** (한국 특금법 개정 등)                                                       | 2026년 내 금융 당국 발표                | BYOK/tool-framed 프레이밍 재검토. 최악의 경우 글로벌 타깃만 유지 (KR 차단).           |
 | **Dogfood 불일치**                                                                        | H1 종료 시점 본인 사용 빈도 주 3회 미만 | NoCode 편집 UX 집중으로 "통합·속도" 가치 재증명. Python-capable 페르소나 가설 재검토. |
 | **Trust 회귀**                                                                            | mainnet 실거래 중 데이터 손실·버그      | 현 Sprint 즉시 중단. Post-mortem ADR 작성. 외부 공개 시점 연기.                       |
@@ -139,7 +139,7 @@
 
 ## TODO.md 매핑 (참조용)
 
-`docs/TODO.md`의 Pending 항목이 본 로드맵 6칸 중 어디에 속하는지 명시 (out of roadmap이면 별도 태그):
+`docs/status.md`의 Pending 항목이 본 로드맵 6칸 중 어디에 속하는지 명시 (out of roadmap이면 별도 태그):
 
 | TODO 항목                                          | Horizon | Pillar      | 비고                                                               |
 | -------------------------------------------------- | ------- | ----------- | ------------------------------------------------------------------ |
@@ -179,15 +179,15 @@
 ## 참조 문서
 
 - **비전 / 타깃 사용자**: [`vision.md`](./vision.md)
-- **Sprint 추적**: [`TODO.md`](../TODO.md) — Completed / Next Actions / Blocked / Questions
-- **프레임·철학 근거**: [`dev-log/010b-product-roadmap.md`](../dev-log/010b-product-roadmap.md) (ADR)
-- **Sprint 7c scope (H1)**: [`dev-log/008-sprint7c-scope-decision.md`](../dev-log/008-sprint7c-scope-decision.md)
-- **요구사항 상세**: [`01_requirements/requirements-overview.md`](../01_requirements/requirements-overview.md)
-- **배포 플랜**: [`07_infra/deployment-plan.md`](../07_infra/deployment-plan.md)
-- **관측성 플랜**: [`07_infra/observability-plan.md`](../07_infra/observability-plan.md)
+- **Sprint 추적**: [`status.md`](../../../.ai/templates/docs/TODO.md) — Completed / Next Actions / Blocked / Questions
+- **프레임·철학 근거**: [`dev-log/010b-product-roadmap.md`](../../decisions/010b-product-roadmap.md) (ADR)
+- **Sprint 7c scope (H1)**: [`dev-log/008-sprint7c-scope-decision.md`](../../decisions/008-sprint7c-scope-decision.md)
+- **요구사항 상세**: [`01_requirements/requirements-overview.md`](../requirements-overview.md)
+- **배포 플랜**: [`07_infra/deployment-plan.md`](../infra/deployment-plan.md)
+- **관측성 플랜**: [`07_infra/observability-plan.md`](../infra/observability-plan.md)
 
 ## 변경 이력
 
-- **2026-04-17** — 초안. Horizon × Pillars 프레임, Indie SaaS dogfood-first 철학 확정. 11개 입력값 결정([ADR-010b](../dev-log/010b-product-roadmap.md) 참조).
-- **2026-04-20** — H1 클로징 sync. Sprint 7d/8c/Kill Switch capital_base/mainnet 준비 완료 반영. H2 kickoff plan 링크 추가 (`docs/superpowers/plans/2026-04-20-h2-kickoff.md`). TODO.md 매핑 업데이트.
+- **2026-04-17** — 초안. Horizon × Pillars 프레임, Indie SaaS dogfood-first 철학 확정. 11개 입력값 결정([ADR-010b](../../decisions/010b-product-roadmap.md) 참조).
+- **2026-04-20** — H1 클로징 sync. Sprint 7d/8c/Kill Switch capital_base/mainnet 준비 완료 반영. H2 kickoff plan 링크 추가 (`docs/archive/superpowers/plans/2026-04-20-h2-kickoff.md`). TODO.md 매핑 업데이트.
 - **2026-04-21** — Testnet dogfood 결정 반영. H1→H2 gate: "실자본 1주" → "Testnet 3~4주 + 선택 mainnet 72h". 이유: 기술 검증 90%+ testnet 충분, 실자본 부담 제거.

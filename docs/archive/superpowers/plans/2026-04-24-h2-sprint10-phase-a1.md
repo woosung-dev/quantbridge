@@ -487,7 +487,7 @@ Expected:
  A backend/src/common/redis_client.py
  A backend/tests/common/test_redis_client.py
  M backend/src/main.py
- A docs/superpowers/plans/2026-04-24-h2-sprint10-phase-a1.md
+ A docs/archive/superpowers/plans/2026-04-24-h2-sprint10-phase-a1.md
 ```
 
 - [ ] **Step 7.3: 커밋 (사용자 승인 후)**
@@ -496,7 +496,7 @@ Expected:
 git add backend/src/common/redis_client.py \
         backend/tests/common/test_redis_client.py \
         backend/src/main.py \
-        docs/superpowers/plans/2026-04-24-h2-sprint10-phase-a1.md
+        docs/archive/superpowers/plans/2026-04-24-h2-sprint10-phase-a1.md
 git commit -m "feat(common): add Redis lock pool client + lifespan healthcheck
 
 H2 Sprint 10 Phase A1 — 분산 락 + rate-limit 공유 Redis client.

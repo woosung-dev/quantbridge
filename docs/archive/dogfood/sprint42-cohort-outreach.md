@@ -2,9 +2,9 @@
 
 # Sprint 42 Dogfood Phase 2 — Cohort Outreach + 인터뷰 골격
 
-> **위치:** `docs/dogfood/` Track 2 — 본인 + 1-2명 micro-cohort 발송·인터뷰 raw text.
+> **위치:** `docs/archive/dogfood/` Track 2 — 본인 + 1-2명 micro-cohort 발송·인터뷰 raw text.
 > **작성일:** 2026-05-09 (Sprint 47 close-out → Sprint 48 kickoff 시점 갱신)
-> **상위:** [`sprint42-feedback.md`](sprint42-feedback.md) (live 누적 기록), [`../dev-log/2026-05-08-sprint42-day7-midcheck.md`](../dev-log/2026-05-08-sprint42-day7-midcheck.md), [`../dev-log/2026-05-08-sprint42-master.md`](../dev-log/2026-05-08-sprint42-master.md)
+> **상위:** [`sprint42-feedback.md`](sprint42-feedback.md) (live 누적 기록), [`../dev-log/2026-05-08-sprint42-day7-midcheck.md`](../../dev-log/2026-05-08-sprint42-day7-midcheck.md), [`../dev-log/2026-05-08-sprint42-master.md`](../../dev-log/2026-05-08-sprint42-master.md)
 > **발송 prereq:** Sprint 41~46 visual fidelity 16+ 페이지 prototype-grade 통과 ✅, Sprint 47 architectural deepening 1차 통과 (pine_v2 STDLIB SSOT 통합 / trading provider registry / Skeleton·EmptyState variant API) ✅, 본인 5분 시나리오 OK ✅, share token + 본인 backtest sample 1-2건 (사용자 manual)
 
 ---
@@ -136,7 +136,7 @@ Day 14 close-out 인터뷰 (15-20분) — 5 질문:
 
 ## raw 저장 위치
 
-- 카톡 raw → `docs/dogfood/sprint42-feedback.md` 의 "외부 cohort feedback" 섹션 (수동 채워 넣음)
+- 카톡 raw → `docs/archive/dogfood/sprint42-feedback.md` 의 "외부 cohort feedback" 섹션 (수동 채워 넣음)
 - Day 7 정리 → `docs/dev-log/2026-05-08-sprint42-day7-midcheck.md`
 - Day 14 정리 → `docs/dev-log/2026-05-08-sprint42-master.md` (Beta trigger 결정)
 

@@ -138,7 +138,7 @@
 ## Day 7 mid-check row (= Day 0 발송일 + 6일 = 2026-05-16)
 
 > **2 tier 인터뷰 구조 (외부 사용자 부담 최소화)**: Tier 1 (객관식 3개, 30초) + Tier 2 (자유 텍스트 3개, 선택). **Tier 1 만으로도 4-AND gate 분기 가능**.
-> **카톡 questionnaire** = [`docs/guides/sprint60-interview-template.md`](../guides/sprint60-interview-template.md) 그대로 발송.
+> **카톡 questionnaire** = [`docs/guides/sprint60-interview-template.md`](../../guides/sprint60-interview-template.md) 그대로 발송.
 > codex Fix #7 (Sprint 48): Day 7 = Day 0 (2026-05-10) + 6일 = **2026-05-16**.
 
 ### Tier 1 (필수, 객관식 3개 — 30초)
@@ -159,7 +159,7 @@
 
 ### 4-AND gate 적용 결과 (응답 수집 후 채움)
 
-> 채점 가이드 = [`docs/guides/sprint60-interview-template.md`](../guides/sprint60-interview-template.md) "채점 가이드" 섹션 참조.
+> 채점 가이드 = [`docs/guides/sprint60-interview-template.md`](../../guides/sprint60-interview-template.md) "채점 가이드" 섹션 참조.
 
 | Gate                                    | 결과 (PASS/FAIL)                   | 근거                                                            |
 | --------------------------------------- | ---------------------------------- | --------------------------------------------------------------- |
@@ -170,7 +170,7 @@
 
 ### Sprint 60 분기 결정 (4-AND gate 결과 후 채움)
 
-> 매트릭스 = [`docs/guides/sprint60-interview-template.md`](../guides/sprint60-interview-template.md) "Sprint 60 분기 매트릭스" 참조.
+> 매트릭스 = [`docs/guides/sprint60-interview-template.md`](../../guides/sprint60-interview-template.md) "Sprint 60 분기 매트릭스" 참조.
 
 - **분기 선택**: ☐ (a) Beta 본격 / ☐ (b) 잔여 active BL / ☐ (c) mainnet / ☐ (d) trust-breaking bug fix
 - **본인 의지**: ☐ 있음 (next sprint 진입 의지 분명) / ☐ 보류 (1-2주 더 dogfood 권장)
@@ -191,7 +191,7 @@
 
 ## BL 등록 큐 (Sprint 42 → REFACTORING-BACKLOG.md append candidate)
 
-> 본 sprint dogfood 발견분 → close-out 시점에 `docs/REFACTORING-BACKLOG.md` 로 BL-XXX 부여 후 이관.
+> 본 sprint dogfood 발견분 → close-out 시점에 `docs/backlog.md` 로 BL-XXX 부여 후 이관.
 > 진행 중에는 candidate ID (`Sprint42-Cand-N`) 로 임시 추적.
 
 | Cand ID         | Priority | trigger | 1-line 설명 | 발견자 / Day |
@@ -220,7 +220,7 @@ P1 (UX 막힘 / 일부 페이지 작동 안 함) 발견 시:
 ## Cross-link
 
 - Sprint 42 prompt: [`<repo>/.claude/plans/sprint42-demo-friend-open-prompt.md`](../../.claude/plans/sprint42-demo-friend-open-prompt.md) (gitignored)
-- onboarding 가이드 (외부 발송용): [`docs/guides/demo-onboarding.md`](../guides/demo-onboarding.md)
-- Day 7 mid-check: [`docs/dev-log/2026-05-XX-sprint42-day7-midcheck.md`](../dev-log/2026-05-08-sprint42-day7-midcheck.md) (Day 7 도래 시 rename)
-- Day 14 master: [`docs/dev-log/2026-05-XX-sprint42-master.md`](../dev-log/2026-05-08-sprint42-master.md) (Day 14 도래 시 rename)
-- Sprint 41 master (직전 완료): [`docs/dev-log/2026-05-07-sprint41-master.md`](../dev-log/2026-05-07-sprint41-master.md)
+- onboarding 가이드 (외부 발송용): [`docs/guides/demo-onboarding.md`](../../guides/demo-onboarding.md)
+- Day 7 mid-check: [`docs/dev-log/2026-05-XX-sprint42-day7-midcheck.md`](../../dev-log/2026-05-08-sprint42-day7-midcheck.md) (Day 7 도래 시 rename)
+- Day 14 master: [`docs/dev-log/2026-05-XX-sprint42-master.md`](../../dev-log/2026-05-08-sprint42-master.md) (Day 14 도래 시 rename)
+- Sprint 41 master (직전 완료): [`docs/dev-log/2026-05-07-sprint41-master.md`](../../dev-log/2026-05-07-sprint41-master.md)

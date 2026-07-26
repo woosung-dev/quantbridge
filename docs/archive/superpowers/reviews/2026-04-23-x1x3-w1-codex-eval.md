@@ -19,9 +19,9 @@ You are an adversarial code reviewer for QuantBridge Sprint X1+X3 Worker 1 (aler
 
 ## Inputs
 
-- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md
+- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md
 - Diff (vs stage/x1-x3-indicator-ui): /tmp/w1-diff.txt (244 lines, 3 files)
-- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
+- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
 
 ## Context
 
@@ -39,7 +39,7 @@ Goal: introduce PINE_ALERT_HEURISTIC_MODE env var (strict default, loose option)
    codex
    리뷰 범위를 확인했고, 먼저 규칙 문서와 입력 산출물을 읽어 현재 구현 주장과 실제 diff를 대조하겠습니다. 이어서 관련 소스의 기존 규칙 순서와 테스트 케이스를 확인해 7개 질문에 직접 답하겠습니다.
    exec
-   /bin/zsh -lc "sed -n '1,240p' /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
+   /bin/zsh -lc "sed -n '1,240p' /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
    exec
    /bin/zsh -lc "sed -n '1,220p' AGENTS.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
    succeeded in 0ms:
@@ -273,12 +273,12 @@ Expected: 922 passed (기존 baseline) + 신규 5 tests → 927+ passed.
 codex exec --sandbox read-only "Review git diff vs main for PINE_ALERT_HEURISTIC_MODE loose/strict logic. Check: (1) strict default preserves all prior behavior, (2) loose never over-classifies pure INFORMATION, (3) env read is lazy so tests can monkeypatch, (4) no semantic drift in _KEYWORD_RULES_LOOSE vs _KEYWORD_RULES other than order."
 ```
 
-출력을 `docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md` 에 저장.
+출력을 `docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md` 에 저장.
 
 ### T6. Stage 브랜치 push
 
 ```bash
-git add backend/src/strategy/pine_v2/alert_hook.py backend/tests/strategy/pine_v2/test_alert_hook.py docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
+git add backend/src/strategy/pine_v2/alert_hook.py backend/tests/strategy/pine_v2/test_alert_hook.py docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
 git commit -m "feat(pine_v2): alert heuristic loose mode for i2_luxalgo (W1)"
 git push origin stage/x1-x3-indicator-ui
 ```
@@ -372,7 +372,7 @@ succeeded in 0ms:
 ### Communication
 
 - 사용자에게 빈번하게 질문하여 작업 흐름을 끊지 않는다
-- 확인이 필요한 항목은 `docs/TODO.md`에 기록하고, 자연스러운 타이밍에 한 번에 정리하여 전달한다
+- 확인이 필요한 항목은 `docs/status.md`에 기록하고, 자연스러운 타이밍에 한 번에 정리하여 전달한다
 - 차단(blocked) 상황이 아닌 한, 작업을 계속 진행한다
 
 ---
@@ -394,7 +394,7 @@ succeeded in 0ms:
 | `05_env/` ~ `07_infra/` | 환경 설정, CI/CD, 인프라 |
 | **상시 문서**           |                          |
 | `dev-log/`              | ADR (의사결정 기록)      |
-| `guides/` · `TODO.md`   | 가이드, 작업 추적        |
+| `guides/` · `status.md`   | 가이드, 작업 추적        |
 
 ---
 
@@ -459,7 +459,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 - Stage 3 / Sprint 4: Celery + Backtest REST API ✅ 완료 (2026-04-16, PR #3 merge `777e623`)
 - Sprint 5 Stage A: docs sync ✅ 완료 (2026-04-16, vision.md 보강 + ADR-005 + TODO.md 동기화)
 - Sprint 5 Stage B ✅ 완료 (2026-04-16, PR #6 ready, 406 tests / CI green)
-  - M1: DateTime tz-aware + Engine bar_index fix + Metadata diff ([ADR-005](docs/dev-log/005-datetime-tz-aware.md))
+  - M1: DateTime tz-aware + Engine bar_index fix + Metadata diff ([ADR-005](../../../decisions/005-datetime-tz-aware.md))
   - M2: market_data infra (TimescaleDB hypertable + OHLCVRepository + advisory lock)
   - M3: CCXT + TimescaleProvider + lifespan/worker singleton + backtest 통합
   - M4: Beat schedule (5분 reclaim) + docker-compose worker/beat + Strategy pagination drift
@@ -468,7 +468,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 - Sprint 7c FE 따라잡기 (Strategy CRUD UI) ✅ 완료 (2026-04-17, 3 라우트 + Monaco Pine Monarch + shadcn/ui 12개 + sonner + Delete 409 archive fallback + design-review 7-pass 5/10→9/10)
 - Sprint 7b Edit 페이지 Pine 이터레이션 UX ✅ 완료 (2026-04-17, `feat/sprint7b-edit-parse-ux`) — ISSUE-003/004 해소. BE `ParsePreviewResponse.functions_used` 1필드 확장(migration 없음) + FE TabCode 마운트 자동 파싱 + TabParse 4-섹션 구조(에러→경고→감지→메타). 528 BE / 9 FE vitest green
 - ADR-011 Pine Execution Strategy v4 (Alert Hook Parser + 3-Track) ✅ 문서화 완료 (2026-04-17, PR #17 merge `d36793e`) — 상위 아키텍처 + Phase -1 ~ Phase 4 로드맵 + 세션 아카이브
-- Sprint 8a-pre Phase -1 실측 ✅ 완료 (2026-04-18, PR #18 merge `0f6583d`) — pynescript 6/6 vs QB 0/6 실증. 상세: [`docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md) · [`findings.md`](.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
+- Sprint 8a-pre Phase -1 실측 ✅ 완료 (2026-04-18, PR #18 merge `0f6583d`) — pynescript 6/6 vs QB 0/6 실증. 상세: [`docs/archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../plans/2026-04-18-phase-minus-1-measurement-plan.md) · [`findings.md`](.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
 - ADR-011 Phase -1 amendment ✅ 완료 (2026-04-18, PR #19 merge `41037a9`) — §9 신뢰도 8→9, §12 blocker 2개 해소, §4 Tier-2 KPI 재정의, §6 H1 MVP scope 축소, §13 실측 부록
 - Sprint 8a Tier-0 Foundation ✅ 완료 (2026-04-18, PR #20 merge `08c6388`) — pine_v2/ 8 레이어 + s1_pbr.pine E2E 완주, 169 tests
 - Sprint 8b Tier-1 + Tier-0 렌더링 + 6/6 corpus + Opus/Sonnet 교차 hardening ✅ 완료 (2026-04-18, PR #21 merge `c79b10c`) — VirtualStrategyWrapper + RenderingRegistry + v4 alias/iff + switch/stdev/variance + v4 strategy.entry boolean/when= + time/timestamp(month/day 반영) + 40+ Pine enum constants + deleted line 정책. **6 corpus 완주 (2/6 → 6/6)**, 224 pine_v2 tests (+55), backend 750 전체 green
@@ -510,7 +510,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
   `[/autoplan 2026-04-13, Codex+Claude 듀얼 검증, 신뢰도 10/10, ADR-003 참조]`
 
 exec
-/bin/zsh -lc "sed -n '1,240p' /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
+/bin/zsh -lc "sed -n '1,240p' /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
 succeeded in 0ms:
 
 # W1 Codex Self-Review — Alert Heuristic `loose` 모드
@@ -744,11 +744,11 @@ from dataclasses import dataclass
 - +def test_loose_mode_bearish_break_is_short_entry(loose_mode: None) -> None:
 - """대칭: 'Bearish breakdown' → loose=SHORT_ENTRY."""
 - assert classify_message("Bearish breakdown") == SignalKind.SHORT_ENTRY
-  diff --git a/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md b/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
+  diff --git a/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
   new file mode 100644
   index 0000000..fee9196
   --- /dev/null
-  +++ b/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
+  +++ b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
   @@ -0,0 +1,47 @@
   +# W1 Codex Self-Review — Alert Heuristic `loose` 모드
 - +**Date:** 2026-04-23 +**Worker:** Sprint X1+X3 W1 +**Diff scope:** `backend/src/strategy/pine_v2/alert_hook.py` + `backend/tests/strategy/pine_v2/test_alert_hook.py` +**Reviewer:** `codex exec --sandbox read-only` (codex-cli 0.122.0)
@@ -816,11 +816,11 @@ succeeded in 0ms:
 | [05_env/](./05_env/)                   | 로컬 셋업, 환경 변수, Clerk 가이드     | ✅ 완료  |
 | [06_devops/](./06_devops/)             | Docker Compose, CI/CD, Pre-commit      | ✅ 완료  |
 | [07_infra/](./07_infra/)               | 배포·Observability·Runbook (draft)     | 📝 Draft |
-| [DESIGN.md](../DESIGN.md)              | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정  |
-| [prototypes/](./prototypes/)           | Stage 2 HTML 프로토타입 (12개 화면)    | ✅ 확정  |
-| [dev-log/](./dev-log/)                 | ADR (의사결정 기록)                    | 활성     |
-| [guides/](./guides/)                   | 개발 가이드, Sprint 킥오프 템플릿      | 활성     |
-| [TODO.md](./TODO.md)                   | 작업 추적                              | 활성     |
+| [DESIGN.md](../../../../DESIGN.md)              | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정  |
+| [prototypes/](../../../reference/prototypes/)           | Stage 2 HTML 프로토타입 (12개 화면)    | ✅ 확정  |
+| [dev-log/](../../../dev-log/)                 | ADR (의사결정 기록)                    | 활성     |
+| [guides/](../../../guides/)                   | 개발 가이드, Sprint 킥오프 템플릿      | 활성     |
+| [TODO.md](../../../../.ai/templates/docs/TODO.md)                   | 작업 추적                              | 활성     |
 
 ## 빠른 시작
 
@@ -845,7 +845,7 @@ cd backend && uv sync && uvicorn src.main:app --reload
   타겟: 파트타임 크립토 트레이더, $1K~$50K, Python 없음
   `[/office-hours 2026-04-13]`
 
-- **Pine 런타임 + 파서 범위:** [ADR-003](./dev-log/003-pine-runtime-safety-and-parser-scope.md)
+- **Pine 런타임 + 파서 범위:** [ADR-003](../../../decisions/003-pine-runtime-safety-and-parser-scope.md)
   - `exec()`/`eval()` 금지 → 인터프리터 패턴
   - 미지원 함수 1개라도 있으면 전체 "Unsupported" (부분 실행 금지)
   - Celery zombie task 복구 인프라 필수 (on_failure + Beat cleanup + cancel)
@@ -856,32 +856,32 @@ cd backend && uv sync && uvicorn src.main:app --reload
 
 | 문서                                                                                                         | 설명                                    |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| [DESIGN.md](../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
-| [QUANTBRIDGE_PRD.md](../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
-| [AGENTS.md](../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
-| [.ai/](../.ai/)                                                                                              | 코딩 규칙                               |
-| [01_requirements/requirements-overview.md](./01_requirements/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
-| [01_requirements/req-catalog.md](./01_requirements/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
-| [02_domain/domain-overview.md](./02_domain/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
-| [02_domain/entities.md](./02_domain/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
-| [02_domain/state-machines.md](./02_domain/state-machines.md)                                                 | 도메인 상태 전이도                      |
-| [04_architecture/system-architecture.md](./04_architecture/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
-| [04_architecture/data-flow.md](./04_architecture/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
-| [05_env/local-setup.md](./05_env/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
-| [05_env/env-vars.md](./05_env/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
-| [05_env/clerk-setup.md](./05_env/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
-| [06_devops/docker-compose-guide.md](./06_devops/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
-| [06_devops/ci-cd.md](./06_devops/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
-| [06_devops/pre-commit.md](./06_devops/pre-commit.md)                                                         | husky + lint-staged 가이드              |
-| [07_infra/deployment-plan.md](./07_infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
-| [07_infra/observability-plan.md](./07_infra/observability-plan.md)                                           | Observability 계획 (draft)              |
-| [07_infra/runbook.md](./07_infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
-| [guides/development-methodology.md](./guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
-| [guides/sprint-kickoff-template.md](./guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
-| [dev-log/001-tech-stack.md](./dev-log/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
-| [dev-log/002-parallel-scaffold-strategy.md](./dev-log/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
-| [dev-log/003-pine-runtime-safety-and-parser-scope.md](./dev-log/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
-| [dev-log/004-pine-parser-approach-selection.md](./dev-log/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
+| [DESIGN.md](../../../../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
+| [QUANTBRIDGE_PRD.md](../../../../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
+| [AGENTS.md](../../../../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
+| [.ai/](../../../../.ai/)                                                                                              | 코딩 규칙                               |
+| [01_requirements/requirements-overview.md](../../../reference/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
+| [01_requirements/req-catalog.md](../../../reference/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
+| [02_domain/domain-overview.md](../../../reference/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
+| [02_domain/entities.md](../../../reference/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
+| [02_domain/state-machines.md](../../../reference/state-machines.md)                                                 | 도메인 상태 전이도                      |
+| [04_architecture/system-architecture.md](../../../reference/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
+| [04_architecture/data-flow.md](../../../reference/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
+| [05_env/local-setup.md](../../../reference/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
+| [05_env/env-vars.md](../../../reference/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
+| [05_env/clerk-setup.md](../../../reference/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
+| [06_devops/docker-compose-guide.md](../../../reference/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
+| [06_devops/ci-cd.md](../../../reference/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
+| [06_devops/pre-commit.md](../../../reference/pre-commit.md)                                                         | husky + lint-staged 가이드              |
+| [07_infra/deployment-plan.md](../../../reference/infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
+| [07_infra/observability-plan.md](../../../reference/infra/observability-plan.md)                                           | Observability 계획 (draft)              |
+| [07_infra/runbook.md](../../../reference/infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
+| [guides/development-methodology.md](../../../guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
+| [guides/sprint-kickoff-template.md](../../../guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
+| [dev-log/001-tech-stack.md](../../../decisions/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
+| [dev-log/002-parallel-scaffold-strategy.md](../../../decisions/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
+| [dev-log/003-pine-runtime-safety-and-parser-scope.md](../../../decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
+| [dev-log/004-pine-parser-approach-selection.md](../../../decisions/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
 
 succeeded in 0ms:
 80 def to_dict(self) -> dict[str, Any]:
@@ -1489,10 +1489,10 @@ succeeded in 0ms:
 /tmp/w1-diff.txt:237:+backend/tests/strategy/pine_v2/test_alert_hook.py — 43 passed
 /tmp/w1-diff.txt:238:+backend/tests/strategy/pine_v2/test_e2e_i2_luxalgo.py — 3 passed (PINE_ALERT_HEURISTIC_MODE=loose)
 /tmp/w1-diff.txt:239:+backend pytest -q — 934 passed, 1 skipped (pre-existing)
-docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:14:1. **Missing empty-string env coverage** — Requirement (5) asked for env edge cases including empty string, but `monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "")` was not tested. Code falls back to strict via `strip()` but coverage gap.
-docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:40:backend/tests/strategy/pine_v2/test_alert_hook.py — 43 passed
-docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:41:backend/tests/strategy/pine_v2/test_e2e_i2_luxalgo.py — 3 passed (PINE_ALERT_HEURISTIC_MODE=loose)
-docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:42:backend pytest -q — 934 passed, 1 skipped (pre-existing)
+docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:14:1. **Missing empty-string env coverage** — Requirement (5) asked for env edge cases including empty string, but `monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "")` was not tested. Code falls back to strict via `strip()` but coverage gap.
+docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:40:backend/tests/strategy/pine_v2/test_alert_hook.py — 43 passed
+docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:41:backend/tests/strategy/pine_v2/test_e2e_i2_luxalgo.py — 3 passed (PINE_ALERT_HEURISTIC_MODE=loose)
+docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:42:backend pytest -q — 934 passed, 1 skipped (pre-existing)
 backend/src/strategy/pine_v2/alert_hook.py:140: """환경변수 `PINE_ALERT_HEURISTIC_MODE` 를 읽어 'strict' 또는 'loose' 반환.
 backend/src/strategy/pine_v2/alert_hook.py:151: raw = os.environ.get("PINE_ALERT_HEURISTIC_MODE", "strict")
 backend/src/strategy/pine_v2/alert_hook.py:159: 모드 (환경변수 `PINE_ALERT_HEURISTIC_MODE`):
@@ -1520,8 +1520,8 @@ succeeded in 0ms:
 ./backend/src/strategy/pine_v2/alert_hook.py:140: """환경변수 `PINE_ALERT_HEURISTIC_MODE` 를 읽어 'strict' 또는 'loose' 반환.
 ./backend/src/strategy/pine_v2/alert_hook.py:151: raw = os.environ.get("PINE_ALERT_HEURISTIC_MODE", "strict")
 ./backend/src/strategy/pine_v2/alert_hook.py:159: 모드 (환경변수 `PINE_ALERT_HEURISTIC_MODE`):
-./docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:14:1. **Missing empty-string env coverage** — Requirement (5) asked for env edge cases including empty string, but `monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "")` was not tested. Code falls back to strict via `strip()` but coverage gap.
-./docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:41:backend/tests/strategy/pine_v2/test_e2e_i2_luxalgo.py — 3 passed (PINE_ALERT_HEURISTIC_MODE=loose)
+./docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:14:1. **Missing empty-string env coverage** — Requirement (5) asked for env edge cases including empty string, but `monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "")` was not tested. Code falls back to strict via `strip()` but coverage gap.
+./docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:41:backend/tests/strategy/pine_v2/test_e2e_i2_luxalgo.py — 3 passed (PINE_ALERT_HEURISTIC_MODE=loose)
 ./backend/tests/strategy/pine_v2/test_alert_hook.py:215: monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "loose")
 ./backend/tests/strategy/pine_v2/test_alert_hook.py:220: monkeypatch.setenv("PINE_ALERT_HEURISTIC_MODE", "strict")
 ./backend/tests/strategy/pine_v2/test_alert_hook.py:261: monkeypatch.delenv("PINE_ALERT_HEURISTIC_MODE", raising=False)
@@ -1753,12 +1753,12 @@ DEFAULT_EXCHANGE=bybit # [기본값 OK]
 BACKTEST_STALE_THRESHOLD_SECONDS=1800 # [기본값 OK] worker stale 재클레임 threshold
 
 exec
-/bin/zsh -lc 'rg -n "PINE_ALERT_HEURISTIC_MODE|TRADING_ENCRYPTION_KEYS|BACKTEST_STALE_THRESHOLD_SECONDS" docs/05_env/env-vars.md' in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
+/bin/zsh -lc 'rg -n "PINE_ALERT_HEURISTIC_MODE|TRADING_ENCRYPTION_KEYS|BACKTEST_STALE_THRESHOLD_SECONDS" docs/reference/env-vars.md' in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
 succeeded in 0ms:
 80:| `BACKTEST_STALE_THRESHOLD_SECONDS` | [기본값 OK] | RUNNING/CANCELLING 자동 reclaim 임계 (기본 1800s = 30분). Beat 5분 주기 + worker_ready hook 이중 안전망 |
 
 exec
-/bin/zsh -lc "nl -ba docs/05_env/env-vars.md | sed -n '60,100p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
+/bin/zsh -lc "nl -ba docs/reference/env-vars.md | sed -n '60,100p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
 succeeded in 0ms:
 60 > 테스트는 별도 DB `quantbridge_test` 사용. `pytest conftest`가 `DATABASE_URL` 우선.
 61
@@ -1805,9 +1805,9 @@ succeeded in 0ms:
 codex
 질문 3과 7은 정적 diff만으로는 부족해서, 계획서/자가리뷰 문서의 라인 번호 근거까지 붙이겠습니다. 그다음 바로 판정을 정리하겠습니다.
 exec
-/bin/zsh -lc "nl -ba /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md | sed -n '1,240p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
+/bin/zsh -lc "nl -ba /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md | sed -n '1,240p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
 exec
-/bin/zsh -lc "nl -ba docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md | sed -n '1,120p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
+/bin/zsh -lc "nl -ba docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md | sed -n '1,120p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41
 succeeded in 0ms:
 1 # W1 Codex Self-Review — Alert Heuristic `loose` 모드
 2
@@ -2087,12 +2087,12 @@ succeeded in 0ms:
    227	codex exec --sandbox read-only "Review git diff vs main for PINE_ALERT_HEURISTIC_MODE loose/strict logic. Check: (1) strict default preserves all prior behavior, (2) loose never over-classifies pure INFORMATION, (3) env read is lazy so tests can monkeypatch, (4) no semantic drift in _KEYWORD_RULES_LOOSE vs _KEYWORD_RULES other than order."
    228	`
 229
-230 출력을 `docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md` 에 저장.
+230 출력을 `docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md` 에 저장.
 231
 232 ### T6. Stage 브랜치 push
 233
 234 `bash
-   235	git add backend/src/strategy/pine_v2/alert_hook.py backend/tests/strategy/pine_v2/test_alert_hook.py docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
+   235	git add backend/src/strategy/pine_v2/alert_hook.py backend/tests/strategy/pine_v2/test_alert_hook.py docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
    236	git commit -m "feat(pine_v2): alert heuristic loose mode for i2_luxalgo (W1)"
    237	git push origin stage/x1-x3-indicator-ui
    238	`
@@ -2234,25 +2234,25 @@ succeeded in 0ms:
 codex
 **Findings**
 
-- `PINE_ALERT_HEURISTIC_MODE`를 코드에서 새로 읽지만 env 카탈로그에는 추가되지 않았습니다. 프로젝트 불변 규칙이 “`.env.example`에 없는 환경 변수를 코드에서 참조 금지”인데, 실제 참조는 [backend/src/strategy/pine_v2/alert_hook.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 에 있고, 선언은 [backend/.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/.env.example:1), [.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/.env.example:1), [docs/05_env/env-vars.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/05_env/env-vars.md:76) 어디에도 없습니다. 이건 구현 로직보다 운영/재현성 문제라 `GO_WITH_FIX`가 맞습니다.
+- `PINE_ALERT_HEURISTIC_MODE`를 코드에서 새로 읽지만 env 카탈로그에는 추가되지 않았습니다. 프로젝트 불변 규칙이 “`.env.example`에 없는 환경 변수를 코드에서 참조 금지”인데, 실제 참조는 [backend/src/strategy/pine_v2/alert_hook.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 에 있고, 선언은 [backend/.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/.env.example:1), [.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/.env.example:1), [docs/reference/env-vars.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/reference/env-vars.md:76) 어디에도 없습니다. 이건 구현 로직보다 운영/재현성 문제라 `GO_WITH_FIX`가 맞습니다.
 
-1. AC는 부분 충족입니다. strict 기본 동작 보존은 [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98) 의 기존 `_KEYWORD_RULES` 유지와 [alert_hook.py:151-153](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 의 strict fallback으로 논리상 성립합니다. loose 신규 동작도 [alert_hook.py:119-136](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:119) 와 신규 테스트 [test_alert_hook.py:223-305](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:223) 로 성립합니다. 다만 “11 new tests”는 사실상 12개이고, “backend total 936 passed”는 근거가 없습니다. self-review는 오히려 [934 passed, 1 skipped](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:37) 라고 적고 있어 수치가 맞지 않습니다. 이 환경에서는 `pytest` 재실행도 못 했습니다.
+1. AC는 부분 충족입니다. strict 기본 동작 보존은 [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98) 의 기존 `_KEYWORD_RULES` 유지와 [alert_hook.py:151-153](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 의 strict fallback으로 논리상 성립합니다. loose 신규 동작도 [alert_hook.py:119-136](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:119) 와 신규 테스트 [test_alert_hook.py:223-305](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:223) 로 성립합니다. 다만 “11 new tests”는 사실상 12개이고, “backend total 936 passed”는 근거가 없습니다. self-review는 오히려 [934 passed, 1 skipped](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:37) 라고 적고 있어 수치가 맞지 않습니다. 이 환경에서는 `pytest` 재실행도 못 했습니다.
 2. Spurious PASS는 아닙니다. 경계 테스트 `"Long break of trendline"`은 strict에서 `_KEYWORD_RULES`의 INFORMATION이 먼저 매칭됩니다: [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98). loose에서는 `_KEYWORD_RULES_LOOSE`에서 LONG_ENTRY가 INFORMATION보다 앞서고 `\blong\b`가 먼저 걸립니다: [alert_hook.py:119-136](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:119). 이를 직접 검증하는 테스트가 [test_alert_hook.py:223-252](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:223) 입니다.
-3. TDD evidence는 부족합니다. 계획서는 분명 red-first를 요구합니다([plan:50-105](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:50)), 하지만 diff와 self-review에는 실제 실패 로그나 red commit 증거가 없습니다. self-review는 사후 설명만 있습니다([self-review:19-23](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:19)).
+3. TDD evidence는 부족합니다. 계획서는 분명 red-first를 요구합니다([plan:50-105](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:50)), 하지만 diff와 self-review에는 실제 실패 로그나 red commit 증거가 없습니다. self-review는 사후 설명만 있습니다([self-review:19-23](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:19)).
 4. strict mode 회귀는 코드상 보존됐습니다. `_KEYWORD_RULES` 내용 자체는 base branch와 byte-identical이고, diff는 새 `_KEYWORD_RULES_LOOSE`와 selector만 추가했습니다. 현재 strict 규칙은 [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98) 에 그대로 있습니다.
 5. 질문한 8개 edge case는 모두 테스트로 커버됩니다. uppercase env [test_alert_hook.py:265](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:265), invalid [271](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:271), empty string [277](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:277), whitespace [283](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:283), missing env [255](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:255), empty message [289](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:289), pure information [237](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:237), bullish breakout [294](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:294).
 6. 제약 조건은 충족합니다. `classify_message()` 시그니처는 그대로 [alert_hook.py:156](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:156) 이고, `_get_heuristic_mode()`는 `os.environ.get(...)`를 helper 내부에서 수행하며 `classify_message()`가 매 호출마다 helper를 호출하므로 lazy read입니다([alert_hook.py:139-153](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:139), [184-185](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:184)).
-7. Verdict는 `GO_WITH_FIX`, confidence `8/10`입니다. 로직 자체는 목표에 맞고 strict/loose 경계도 제대로 잡혔습니다. 다만 merge 전 `PINE_ALERT_HEURISTIC_MODE`를 `backend/.env.example`, 루트 `.env.example`, `docs/05_env/env-vars.md`에 추가해야 하고, 테스트 총합 수치 `936 passed` 주장은 현재 증거와 맞지 않으니 실제 실행 로그로 정정하는 편이 맞습니다.
+7. Verdict는 `GO_WITH_FIX`, confidence `8/10`입니다. 로직 자체는 목표에 맞고 strict/loose 경계도 제대로 잡혔습니다. 다만 merge 전 `PINE_ALERT_HEURISTIC_MODE`를 `backend/.env.example`, 루트 `.env.example`, `docs/reference/env-vars.md`에 추가해야 하고, 테스트 총합 수치 `936 passed` 주장은 현재 증거와 맞지 않으니 실제 실행 로그로 정정하는 편이 맞습니다.
    tokens used
    52,761
    **Findings**
 
-- `PINE_ALERT_HEURISTIC_MODE`를 코드에서 새로 읽지만 env 카탈로그에는 추가되지 않았습니다. 프로젝트 불변 규칙이 “`.env.example`에 없는 환경 변수를 코드에서 참조 금지”인데, 실제 참조는 [backend/src/strategy/pine_v2/alert_hook.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 에 있고, 선언은 [backend/.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/.env.example:1), [.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/.env.example:1), [docs/05_env/env-vars.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/05_env/env-vars.md:76) 어디에도 없습니다. 이건 구현 로직보다 운영/재현성 문제라 `GO_WITH_FIX`가 맞습니다.
+- `PINE_ALERT_HEURISTIC_MODE`를 코드에서 새로 읽지만 env 카탈로그에는 추가되지 않았습니다. 프로젝트 불변 규칙이 “`.env.example`에 없는 환경 변수를 코드에서 참조 금지”인데, 실제 참조는 [backend/src/strategy/pine_v2/alert_hook.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 에 있고, 선언은 [backend/.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/.env.example:1), [.env.example](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/.env.example:1), [docs/reference/env-vars.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/reference/env-vars.md:76) 어디에도 없습니다. 이건 구현 로직보다 운영/재현성 문제라 `GO_WITH_FIX`가 맞습니다.
 
-1. AC는 부분 충족입니다. strict 기본 동작 보존은 [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98) 의 기존 `_KEYWORD_RULES` 유지와 [alert_hook.py:151-153](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 의 strict fallback으로 논리상 성립합니다. loose 신규 동작도 [alert_hook.py:119-136](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:119) 와 신규 테스트 [test_alert_hook.py:223-305](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:223) 로 성립합니다. 다만 “11 new tests”는 사실상 12개이고, “backend total 936 passed”는 근거가 없습니다. self-review는 오히려 [934 passed, 1 skipped](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:37) 라고 적고 있어 수치가 맞지 않습니다. 이 환경에서는 `pytest` 재실행도 못 했습니다.
+1. AC는 부분 충족입니다. strict 기본 동작 보존은 [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98) 의 기존 `_KEYWORD_RULES` 유지와 [alert_hook.py:151-153](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:151) 의 strict fallback으로 논리상 성립합니다. loose 신규 동작도 [alert_hook.py:119-136](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:119) 와 신규 테스트 [test_alert_hook.py:223-305](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:223) 로 성립합니다. 다만 “11 new tests”는 사실상 12개이고, “backend total 936 passed”는 근거가 없습니다. self-review는 오히려 [934 passed, 1 skipped](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:37) 라고 적고 있어 수치가 맞지 않습니다. 이 환경에서는 `pytest` 재실행도 못 했습니다.
 2. Spurious PASS는 아닙니다. 경계 테스트 `"Long break of trendline"`은 strict에서 `_KEYWORD_RULES`의 INFORMATION이 먼저 매칭됩니다: [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98). loose에서는 `_KEYWORD_RULES_LOOSE`에서 LONG_ENTRY가 INFORMATION보다 앞서고 `\blong\b`가 먼저 걸립니다: [alert_hook.py:119-136](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:119). 이를 직접 검증하는 테스트가 [test_alert_hook.py:223-252](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:223) 입니다.
-3. TDD evidence는 부족합니다. 계획서는 분명 red-first를 요구합니다([plan:50-105](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:50)), 하지만 diff와 self-review에는 실제 실패 로그나 red commit 증거가 없습니다. self-review는 사후 설명만 있습니다([self-review:19-23](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:19)).
+3. TDD evidence는 부족합니다. 계획서는 분명 red-first를 요구합니다([plan:50-105](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w1-alert-heuristic-loose.md:50)), 하지만 diff와 self-review에는 실제 실패 로그나 red commit 증거가 없습니다. self-review는 사후 설명만 있습니다([self-review:19-23](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md:19)).
 4. strict mode 회귀는 코드상 보존됐습니다. `_KEYWORD_RULES` 내용 자체는 base branch와 byte-identical이고, diff는 새 `_KEYWORD_RULES_LOOSE`와 selector만 추가했습니다. 현재 strict 규칙은 [alert_hook.py:98-115](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:98) 에 그대로 있습니다.
 5. 질문한 8개 edge case는 모두 테스트로 커버됩니다. uppercase env [test_alert_hook.py:265](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:265), invalid [271](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:271), empty string [277](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:277), whitespace [283](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:283), missing env [255](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:255), empty message [289](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:289), pure information [237](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:237), bullish breakout [294](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/tests/strategy/pine_v2/test_alert_hook.py:294).
 6. 제약 조건은 충족합니다. `classify_message()` 시그니처는 그대로 [alert_hook.py:156](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:156) 이고, `_get_heuristic_mode()`는 `os.environ.get(...)`를 helper 내부에서 수행하며 `classify_message()`가 매 호출마다 helper를 호출하므로 lazy read입니다([alert_hook.py:139-153](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:139), [184-185](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3edae41/backend/src/strategy/pine_v2/alert_hook.py:184)).
-7. Verdict는 `GO_WITH_FIX`, confidence `8/10`입니다. 로직 자체는 목표에 맞고 strict/loose 경계도 제대로 잡혔습니다. 다만 merge 전 `PINE_ALERT_HEURISTIC_MODE`를 `backend/.env.example`, 루트 `.env.example`, `docs/05_env/env-vars.md`에 추가해야 하고, 테스트 총합 수치 `936 passed` 주장은 현재 증거와 맞지 않으니 실제 실행 로그로 정정하는 편이 맞습니다.
+7. Verdict는 `GO_WITH_FIX`, confidence `8/10`입니다. 로직 자체는 목표에 맞고 strict/loose 경계도 제대로 잡혔습니다. 다만 merge 전 `PINE_ALERT_HEURISTIC_MODE`를 `backend/.env.example`, 루트 `.env.example`, `docs/reference/env-vars.md`에 추가해야 하고, 테스트 총합 수치 `936 passed` 주장은 현재 증거와 맞지 않으니 실제 실행 로그로 정정하는 편이 맞습니다.

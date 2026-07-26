@@ -82,7 +82,7 @@
 
 ### B3 — Track A `VirtualRunResult` var_series/warnings 미반환 → trust-parity 공허 [P2, meta]
 
-**파일:** `virtual_strategy.py:61,238`(VirtualRunResult 에 var_series 필드 없음). 그러나 `docs/04_architecture/trust-layer-architecture.md:129`는 i2_luxalgo 0-trade 를 `var_series_digest + warnings_digest`로 검증한다 주장 → 실제로는 빈 dict/빈 warnings digest. Track A 의 documented trust-parity 검증이 부분 공허. **→ [BL-381].**
+**파일:** `virtual_strategy.py:61,238`(VirtualRunResult 에 var_series 필드 없음). 그러나 `docs/reference/trust-layer-architecture.md:129`는 i2_luxalgo 0-trade 를 `var_series_digest + warnings_digest`로 검증한다 주장 → 실제로는 빈 dict/빈 warnings digest. Track A 의 documented trust-parity 검증이 부분 공허. **→ [BL-381].**
 
 ### F1 — `qty=1.0` fallback 자본초과 백테스트 [P2, 투명성]
 

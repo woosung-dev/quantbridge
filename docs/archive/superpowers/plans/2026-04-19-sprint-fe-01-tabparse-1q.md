@@ -1024,8 +1024,8 @@ git commit -m "fix(fe-01): address design-review findings on ParseDialog"
 ## 참조
 
 - 메모리: `project_sprint7c_complete` (FE 패턴), `feedback_dogfood_first_indie`
-- Sprint 7b plan: `docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md`
-- Sprint 7c plan: `docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`
+- Sprint 7b plan: `docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md`
+- Sprint 7c plan: `docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`
 - Next Session prompt: `docs/next-session-tabparse-fe-1q-prompt.md`
 
 ---

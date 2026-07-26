@@ -17,7 +17,7 @@
 - DB: PostgreSQL 15 + TimescaleDB 2.14 extension (single instance, ts schema 분리)
 - Test: pytest + pytest-asyncio, httpx AsyncClient, mock CCXT
 
-**Spec reference:** `docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`
+**Spec reference:** `docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`
 
 **Branch:** `feat/sprint5-stage-b` (생성 완료, main `b696a70` 기반, spec commit `721dab7`)
 
@@ -83,8 +83,8 @@ backend/tests/test_migrations.py               # ohlcv hypertable round-trip + m
 backend/pyproject.toml                         # ccxt + tenacity 추가
 backend/.env.example                           # OHLCV_PROVIDER, DEFAULT_EXCHANGE
 docker-compose.yml                             # backend-worker + backend-beat
-docs/03_api/endpoints.md                       # market_data 통합 노트 + Strategy pagination 변경
-docs/TODO.md                                   # Sprint 5 Stage B 완료 표시
+docs/reference/endpoints.md                       # market_data 통합 노트 + Strategy pagination 변경
+docs/status.md                                   # Sprint 5 Stage B 완료 표시
 ```
 
 ---
@@ -814,8 +814,8 @@ Sprint 5 Stage B 구현 (M1-M4).
 
 ## Spec & Plan
 
-- Spec: `docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`
-- Plan: `docs/superpowers/plans/2026-04-16-sprint5-stage-b.md`
+- Spec: `docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`
+- Plan: `docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md`
 
 ## Test Plan
 
@@ -2651,12 +2651,12 @@ git commit -m "fix(strategy): pagination drift — limit/offset 표준화 + page
 ## Task 33: M4 Milestone — Final Push + PR Ready + TODO 업데이트
 
 **Files:**
-- Modify: `docs/TODO.md`
-- Modify: `docs/03_api/endpoints.md`
+- Modify: `docs/status.md`
+- Modify: `docs/reference/endpoints.md`
 
 - [ ] **Step 1: Update TODO.md**
 
-`docs/TODO.md`에 추가 (Sprint 5 Stage B 섹션):
+`docs/status.md`에 추가 (Sprint 5 Stage B 섹션):
 
 ```markdown
 ### Sprint 5 Stage B — Infra Hardening + market_data ✅ 완료 (2026-04-XX)
@@ -2673,7 +2673,7 @@ PR: https://github.com/woosung-dev/quantbridge/pull/<N>
 
 - [ ] **Step 2: Update endpoints.md**
 
-`docs/03_api/endpoints.md`에:
+`docs/reference/endpoints.md`에:
 - Strategy list: `?page=` deprecated, `?limit=&offset=` 권장 명시
 - 새 OHLCVProvider 통합 noted (REST API 미공개, 내부 backtest 경로 전용)
 
@@ -2713,8 +2713,8 @@ Sprint 5 Stage B 완료 — Sprint 4 backtest API의 운영 진입을 위한 inf
 
 ## Spec & Plan
 
-- Spec: `docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`
-- Plan: `docs/superpowers/plans/2026-04-16-sprint5-stage-b.md`
+- Spec: `docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`
+- Plan: `docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md`
 
 ## Test Plan
 
@@ -2737,7 +2737,7 @@ gh pr ready
 - [ ] **Step 6: Final push + CI confirmation**
 
 ```bash
-git add docs/TODO.md docs/03_api/endpoints.md
+git add docs/status.md docs/reference/endpoints.md
 git commit -m "docs(sprint5-stage-b): TODO + endpoints 갱신, Sprint 5 Stage B 완료 표시"
 git push
 sleep 60

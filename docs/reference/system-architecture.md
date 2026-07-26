@@ -2,7 +2,7 @@
 
 > **목적:** C4 Level 1~2 (System Context + Container) 다이어그램 + 인증/인가 경계.
 > **SSOT:** 컴포넌트 코드는 `frontend/`, `backend/`. 인프라는 `docker-compose.yml`, `.github/workflows/ci.yml`.
-> 데이터 흐름 시퀀스는 [`data-flow.md`](./data-flow.md), 도메인 경계는 [`02_domain/domain-overview.md`](../02_domain/domain-overview.md).
+> 데이터 흐름 시퀀스는 [`data-flow.md`](./data-flow.md), 도메인 경계는 [`02_domain/domain-overview.md`](domain-overview.md).
 
 ---
 
@@ -370,7 +370,7 @@ sequenceDiagram
 
 ## 8. Observability (Sprint 10/12 도입 ✅)
 
-> 상세는 [`07_infra/observability-plan.md`](../07_infra/observability-plan.md). 메트릭 카탈로그는 [`backend/src/common/metrics.py`](../../backend/src/common/metrics.py).
+> 상세는 [`07_infra/observability-plan.md`](infra/observability-plan.md). 메트릭 카탈로그는 [`backend/src/common/metrics.py`](../../backend/src/common/metrics.py).
 
 | 영역     | 현재 상태                                                               | 도입 sprint                              |
 | -------- | ----------------------------------------------------------------------- | ---------------------------------------- |
@@ -423,7 +423,7 @@ sequenceDiagram
 
 ## 9. 배포 토폴로지 (계획)
 
-> 상세는 [`07_infra/deployment-plan.md`](../07_infra/deployment-plan.md).
+> 상세는 [`07_infra/deployment-plan.md`](infra/deployment-plan.md).
 
 현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.
 

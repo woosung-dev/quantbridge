@@ -3,7 +3,7 @@
 > **목적:** Beta 오픈 시점 + 방식 결정 framework. dogfood Day 7 종료 후 본 문서 기반 결정.
 > **SSOT:** Beta path 결정 단일 진실 원천.
 > **도입:** Sprint 28 Slice 1b (Phase B.5) — 첫 작성.
-> **상위 plan:** [`docs/dev-log/008-sprint7c-scope-decision.md`](../dev-log/008-sprint7c-scope-decision.md) "2026-05-04 Addendum" (Sprint 28 office-hours)
+> **상위 plan:** [`docs/decisions/008-sprint7c-scope-decision.md`](../../decisions/008-sprint7c-scope-decision.md) "2026-05-04 Addendum" (Sprint 28 office-hours)
 
 ## Path A1 — 자연 시간 1-2주 dogfood + Day 7 dual metric 통과 시 Beta open
 

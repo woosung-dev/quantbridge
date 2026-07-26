@@ -1,9 +1,9 @@
 # Phase -1 실측 계획 (Sprint 8a-pre, Day 1-3 N-way 비교 매트릭스)
 
 > **일자:** 2026-04-18
-> **관련 ADR:** [ADR-011 Pine Execution Strategy v4](../../dev-log/011-pine-execution-strategy-v4.md)
-> **관련 아키텍처:** [`04_architecture/pine-execution-architecture.md`](../../04_architecture/pine-execution-architecture.md) §5 Phase -1
-> **세션 아카이브:** [`docs/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../specs/2026-04-17-pine-execution-v4-design.md)
+> **관련 ADR:** [ADR-011 Pine Execution Strategy v4](../../../decisions/011-pine-execution-strategy-v4.md)
+> **관련 아키텍처:** [`04_architecture/pine-execution-architecture.md`](../../../reference/pine-execution-architecture.md) §5 Phase -1
+> **세션 아카이브:** [`docs/archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../specs/2026-04-17-pine-execution-v4-design.md)
 > **브랜치:** `experiment/phase-minus-1-drfx` (PR #17 머지 이후 `main` 기준)
 > **작업 디렉토리:** `.gstack/experiments/phase-minus-1-drfx/` (격리)
 
@@ -171,13 +171,13 @@
 ### 5.1 재사용 자산
 
 - `/tmp/drfx_test/drfx_backtest.py` — E4 variant (재현성 위해 고정 CSV 입력으로 1줄 수정)
-- `docs/superpowers/specs/2026-04-17-pine-execution-v4-design.md` §2/§3/§5 — 후보 선정 근거
+- `docs/archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md` §2/§3/§5 — 후보 선정 근거
 - `backend/src/strategy/pine/` — E3 baseline (읽기만, 변경 금지)
 
 ### 5.2 변경 금지 (Phase -1 기간)
 
 - `backend/src/**`, `frontend/src/**`
-- `docs/dev-log/011-*`, `docs/04_architecture/pine-execution-architecture.md` 본문 (Day 6-7 ADR amendment 단계까지 freeze)
+- `docs/dev-log/011-*`, `docs/reference/pine-execution-architecture.md` 본문 (Day 6-7 ADR amendment 단계까지 freeze)
 
 ---
 

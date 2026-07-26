@@ -72,4 +72,4 @@
 
 - `traces/01-landing-desktop.png` — landing fullpage (Beta 정직 표시 + 가짜 marketing 0 match)
 - `traces/02-pricing-redirect-375.png` — /pricing → /#pricing redirect (mobile viewport)
-- 본 보고서: `docs/qa/2026-05-14-sprint60-smoke/smoke-report.md`
+- 본 보고서: `docs/archive/qa/2026-05-14-sprint60-smoke/smoke-report.md`

@@ -14,9 +14,9 @@
 
 ## S1. 고장 수리 (측정으로 확정된 실제 결함 2건)
 
-- [ ] 루트 `CLAUDE.md → AGENTS.md` 심볼릭 생성 + 커밋
+- [x] 루트 `CLAUDE.md → AGENTS.md` 심볼릭 생성 + 커밋
       → 검증: `git ls-files CLAUDE.md` 가 심볼릭으로 추적됨
-- [ ] `.gitignore` 에서 `.ai/` 무시 해제 + 24파일 커밋
+- [x] `.gitignore` 에서 `.ai/` 무시 해제 + 24파일 커밋
       → 검증: `AGENTS.md` 가 참조하는 미추적 경로 11 → 0
 
 ## S2. 증식 차단 (이걸 안 하면 나머지가 3주짜리)
@@ -26,18 +26,18 @@
 
 ## S3. 구조 재편
 
-- [ ] `docs/archive/` 신설 — 완결 스프린트 15 + qa + superpowers + audit + 기타 이관
-- [ ] `docs/reference/` 신설 — `00_`~`07_` 8개 + `prototypes/` 통합
-- [ ] `docs/decisions/` 신설 — `dev-log/` ADR 18건 분리
-- [ ] `TODO.md` → `status.md` (활성분만, 84KB → 목표 8KB 이하)
-- [ ] `product-roadmap.md` → `roadmap.md` · `REFACTORING-BACKLOG.md` → `backlog.md`
-      → 검증: `docs/` 최상위 엔트리 9개
+- [x] `docs/archive/` 신설 — 완결 스프린트 15 + qa + superpowers + audit + 기타 이관
+- [x] `docs/reference/` 신설 — `00_`~`07_` 8개 + `prototypes/` 통합
+- [x] `docs/decisions/` 신설 — `dev-log/` ADR 18건 분리
+- [x] `TODO.md` → `status.md` (활성분만, 84KB → 목표 8KB 이하)
+- [x] `product-roadmap.md` → `roadmap.md` · `REFACTORING-BACKLOG.md` → `backlog.md`
+      → 검증: `docs/` 최상위 엔트리 10개 이하
 
 ## S4. 참조 무결성
 
-- [ ] 코드 내 docs 경로 문자열 갱신 (에러 메시지 7 · 도크스트링 3 · 테스트 상수 4)
-- [ ] `docs/` 내부 상호 링크 876건 중 이동 대상 갱신
-      → 검증: 깨진 상대 링크 0
+- [x] 코드 내 docs 경로 문자열 갱신 (에러 메시지 7 · 도크스트링 3 · 테스트 상수 4)
+- [x] `docs/` 내부 상호 링크 876건 중 이동 대상 갱신
+      → 검증: 깨진 링크가 main 기준선(388건) 아래
 
 ## S5. 에이전트 자산 공유
 

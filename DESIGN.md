@@ -8,7 +8,7 @@
 
 ## 0. 방향 v3 — "Precision Instrument" (2026-07-06, 본 섹션이 v2 "Terminal Tape"를 supersede)
 
-> 전면 리디자인. 작업 SSOT: `docs/redesign-precision-instrument/` (checklist·context-notes) + `~/.claude/plans/golden-enchanting-teacup.md`. 채택 근거: v2의 웜크림+코퍼 조합이 AI 생성 디자인 기본값 클러스터(웜크림+테라코타)와 인접 → 뉴트럴 전면 교체로 브랜드 확보.
+> 전면 리디자인. 작업 SSOT: `docs/archive/sprints/redesign-precision-instrument/` (checklist·context-notes) + `~/.claude/plans/golden-enchanting-teacup.md`. 채택 근거: v2의 웜크림+코퍼 조합이 AI 생성 디자인 기본값 클러스터(웜크림+테라코타)와 인접 → 뉴트럴 전면 교체로 브랜드 확보.
 
 - **컨셉:** QuantBridge = **전략을 정직하게 계측하는 정밀 계측기.** 제품의 영혼(TV-parity·oracle 검증·honesty gate)과 일치하는 시각 언어 — 측정, 교정(calibration), 검증.
 - **테마:** **다크 디폴트** (카본/스틸 — 트레이딩 표준, 차트 몰입). 라이트(쿨 페이퍼) 완전 지원, `next-themes` 토글 유지. `enableSystem` 유지 — 기존 사용자 localStorage 선택 우선.

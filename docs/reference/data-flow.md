@@ -1,7 +1,7 @@
 # QuantBridge — 데이터 흐름
 
 > **목적:** 도메인별 주요 시퀀스 다이어그램.
-> **상위 문서:** [`system-architecture.md`](./system-architecture.md), 도메인 경계는 [`02_domain/domain-overview.md`](../02_domain/domain-overview.md).
+> **상위 문서:** [`system-architecture.md`](./system-architecture.md), 도메인 경계는 [`02_domain/domain-overview.md`](domain-overview.md).
 
 ---
 

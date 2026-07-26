@@ -3,7 +3,7 @@
 > **Date drafted:** 2026-05-14 (v1 → v2 sync, codex G.0 31 finding 반영)
 > **Sprint type:** Type B (risk-critical — trust-breaking bug 회복)
 > **Trigger:** Multi-Agent QA 2026-05-13 통합 보고서 — Composite Health **4.18/10** · Critical **11** · 4-AND Beta gate 4/4 FAIL
-> **Origin doc:** [`docs/qa/2026-05-13/integrated-report.html`](../qa/2026-05-13/integrated-report.html)
+> **Origin doc:** [`docs/archive/qa/2026-05-13/integrated-report.html`](../archive/qa/2026-05-13/integrated-report.html)
 > **Master plan:** `/Users/woosung/.claude/plans/proud-splashing-rossum.md` (사용자 승인 완료)
 > **Parent decision:** TODO.md "다음 분기" §(d) trust-breaking bug 노출 → trust 회복 1 sprint 우선
 
@@ -357,8 +357,8 @@ S3_MERGED=$(git log --oneline origin/main --grep "Sprint 60 S3" | head -1)
 | `frontend/src/app/error.tsx` + 도메인 error.tsx            | T-8 forced-error fallback (P1-12)        |
 | `frontend/tests/e2e/*.spec.ts`                             | RED 7 spec                               |
 | `docs/dev-log/2026-05-XX-sprint60-close.md`                | T-9                                      |
-| `docs/REFACTORING-BACKLOG.md`                              | T-9 BL Resolved                          |
-| `docs/TODO.md`                                             | T-9                                      |
+| `docs/backlog.md`                              | T-9 BL Resolved                          |
+| `docs/status.md`                                             | T-9                                      |
 
 ---
 

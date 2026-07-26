@@ -1,7 +1,7 @@
 # W3 — Codex Self-Review (EquityChart width(-1) fix)
 
 > **Session:** Sprint X1+X3, 2026-04-23 | **Worker:** 3 / 5
-> **Plan:** [docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md](../plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md)
+> **Plan:** [docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md](../plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md)
 > **Reviewer:** `codex-cli 0.122.0` (sandbox=read-only)
 
 ---

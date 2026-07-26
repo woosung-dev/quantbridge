@@ -8,7 +8,7 @@ Sprint 6(자동 집행 + Kill Switch + AES-256, PR #9) + Sprint 7a(Bybit Futures
 
 Sprint 7c는 **pure FE sprint**: Stage 2(2026-04-14)에서 확정된 디자인 시스템(`DESIGN.md`)과 프로토타입 3개(`06-strategies-list.html`, `07-strategy-create.html`, `01-strategy-editor.html`) + `INTERACTION_SPEC.md`를 reference로 `/strategies`, `/strategies/new`, `/strategies/[id]/edit` 3 라우트를 구현한다. Sprint 7b(OKX 멀티 거래소 + Trading Sessions)로 가기 전 FE 부채 1개 해소.
 
-**사전 결정:** [`docs/dev-log/008-sprint7c-scope-decision.md`](../../dev-log/008-sprint7c-scope-decision.md) + writing-plans 세션 decision (2026-04-17)
+**사전 결정:** [`docs/decisions/008-sprint7c-scope-decision.md`](../../../decisions/008-sprint7c-scope-decision.md) + writing-plans 세션 decision (2026-04-17)
 
 - **Q1 (Monaco 범위):** **Minimal Pine Monarch tokenizer** — `@monaco-editor/react`에 Pine v5 keyword/function/string/number/comment 5색 토크나이저 등록 (반나절 작업). Plain Monaco은 textarea와 시각적 구분 부재로 탈락, 풀 TextMate grammar는 time box 위반.
 - **Q2 (UI primitives):** **shadcn/ui CLI + 필요 컴포넌트만 add** — Button/Card/Tabs/Dialog/Select/Input/Form/DropdownMenu/Badge 9개 + `sonner` 토스트. `src/components/ui/`에 복사됨 (외부 의존 아님).
@@ -641,8 +641,8 @@ Sprint 7c가 **재구현 금지**하고 기존 자산을 써야 할 것들:
 - `frontend/src/app/layout.tsx` — `<Toaster />` (sonner) 추가
 - `frontend/src/lib/api-client.ts` — (필요 시) `ApiError` 409 `strategy_has_backtests` 판별용 code 필드 노출 확인 + PUT/DELETE 메서드 지원 확인
 - `frontend/src/features/strategy/index.ts` — 현재 `export {};` 빈 파일 → public re-export 추가
-- `docs/TODO.md` — Sprint 7c 완료 마크, Sprint 7 Next Actions 업데이트
-- `docs/dev-log/008-sprint7c-scope-decision.md` — 상태 `scope 결정 완료` → `구현 완료 (2026-04-XX)`
+- `docs/status.md` — Sprint 7c 완료 마크, Sprint 7 Next Actions 업데이트
+- `docs/decisions/008-sprint7c-scope-decision.md` — 상태 `scope 결정 완료` → `구현 완료 (2026-04-XX)`
 - `.claude/CLAUDE.md` — "현재 작업" 섹션에 Sprint 7c 항목 추가
 
 ---
@@ -1234,7 +1234,7 @@ git commit -m "feat(frontend): Sprint 7c T2 — Strategy Zod 스키마 + apiFetc
 - Create: `frontend/src/app/(dashboard)/strategies/_components/strategy-table.tsx`
 - Create: `frontend/src/app/(dashboard)/strategies/_components/strategy-empty-state.tsx`
 
-**Reference prototype:** `docs/prototypes/06-strategies-list.html` — 그리드/목록 뷰 토글, 상태 필터 chips, 정렬 드롭다운, 페이지네이션, 카드(이름/심볼/TF/parse_status 배지/태그/수정 시간/액션 메뉴), 빈 상태(환영 일러스트 + CTA 2개).
+**Reference prototype:** `docs/reference/prototypes/06-strategies-list.html` — 그리드/목록 뷰 토글, 상태 필터 chips, 정렬 드롭다운, 페이지네이션, 카드(이름/심볼/TF/parse_status 배지/태그/수정 시간/액션 메뉴), 빈 상태(환영 일러스트 + CTA 2개).
 
 **Interaction ref:** `INTERACTION_SPEC.md` §06 — 케밥 메뉴(복제/삭제/보관), 카드 클릭 → `/strategies/[id]/edit`, "+ 새 전략" → `/strategies/new`, 페이지네이션은 실제 쿼리 (offset/limit).
 
@@ -1755,7 +1755,7 @@ git commit -m "feat(frontend): Sprint 7c T3 — /strategies 목록 페이지 (�
 - Create: `frontend/src/components/monaco/pine-language.ts`
 - Create: `frontend/src/components/monaco/pine-editor.tsx`
 
-**Reference:** `docs/prototypes/07-strategy-create.html` 구조 그대로 — stepper 3단계(업로드 방식 → 코드 입력 → 메타데이터+확인), Monaco 스타일 에디터 + 실시간 파싱 패널, ⌘+Enter 파싱 트리거.
+**Reference:** `docs/reference/prototypes/07-strategy-create.html` 구조 그대로 — stepper 3단계(업로드 방식 → 코드 입력 → 메타데이터+확인), Monaco 스타일 에디터 + 실시간 파싱 패널, ⌘+Enter 파싱 트리거.
 **Interaction ref:** `INTERACTION_SPEC.md` §07 — debounce 300ms → `POST /strategies/parse`, Step 1은 직접입력만 active (파일/URL 업로드는 disabled + notice), Step 3 제출 → `POST /strategies` → `/strategies/[id]/edit` 이동.
 
 - [ ] **Step 4.1: Pine Monarch 토크나이저 등록**
@@ -2622,7 +2622,7 @@ pnpm dev
 브라우저 수동 시나리오:
 1. `/strategies/new` 접속 → Step 1 렌더링. 직접입력 카드 active, 나머지 2개 disabled + opacity 50%.
 2. "다음" 클릭 → Step 2. Monaco 에디터 나타남 + Pine Monarch 하이라이트 (keyword 오렌지, string 녹색, number 보라 등) 육안 확인.
-3. `docs/prototypes/07-strategy-create.html`의 샘플 Pine 코드 붙여넣기 → 300ms 후 `POST /strategies/parse` 네트워크 호출 + 오른쪽 패널에 `ok` + entry/exit count 표시.
+3. `docs/reference/prototypes/07-strategy-create.html`의 샘플 Pine 코드 붙여넣기 → 300ms 후 `POST /strategies/parse` 네트워크 호출 + 오른쪽 패널에 `ok` + entry/exit count 표시.
 4. 코드를 잠깐 "asdf" 같은 garbage로 바꾸면 status=`error` 배지 + 에러 메시지 리스트, "다음" 비활성화.
 5. 정상 코드 복귀 → "다음" 활성화 → Step 3.
 6. 이름 빈칸 제출 시도 → Zod validation 에러 메시지 표시.
@@ -2648,11 +2648,11 @@ git commit -m "feat(frontend): Sprint 7c T4 — /strategies/new 3-step wizard + 
 - Create: `frontend/src/app/(dashboard)/strategies/[id]/edit/_components/tab-parse.tsx`
 - Create: `frontend/src/app/(dashboard)/strategies/[id]/edit/_components/tab-metadata.tsx`
 - Create: `frontend/src/app/(dashboard)/strategies/[id]/edit/_components/delete-dialog.tsx`
-- Modify: `docs/TODO.md`
-- Modify: `docs/dev-log/008-sprint7c-scope-decision.md`
+- Modify: `docs/status.md`
+- Modify: `docs/decisions/008-sprint7c-scope-decision.md`
 - Modify: `.claude/CLAUDE.md`
 
-**Reference:** `docs/prototypes/01-strategy-editor.html` — 상단 탭 3개(코드/파싱/메타데이터) + 우측 분석 패널(파라미터/리스크/백테스트 이력). Sprint 7c 범위: **탭 3개 + 저장/삭제/아카이브만**. 우측 분석 패널은 **stub** ("백테스트 이력은 Sprint 7b에서 /backtest 탭과 함께 연결" 안내).
+**Reference:** `docs/reference/prototypes/01-strategy-editor.html` — 상단 탭 3개(코드/파싱/메타데이터) + 우측 분석 패널(파라미터/리스크/백테스트 이력). Sprint 7c 범위: **탭 3개 + 저장/삭제/아카이브만**. 우측 분석 패널은 **stub** ("백테스트 이력은 Sprint 7b에서 /backtest 탭과 함께 연결" 안내).
 
 **Interaction ref:** `INTERACTION_SPEC.md` §01 — 저장은 PATCH(본 구현은 PUT), 백테스트 실행은 `/backtest?strategy_id=:id` 네비게이션 stub, 탭 전환은 URL 쿼리 동기화(?tab=code|parse|metadata).
 
@@ -3179,7 +3179,7 @@ pnpm dev
 
 **Expected:** 모든 항목 pass. 실패 항목은 debug 후 fix commit.
 
-- [ ] **Step 5.8: `docs/TODO.md` 업데이트**
+- [ ] **Step 5.8: `docs/status.md` 업데이트**
 
 기존 `### Sprint 7 Next Actions` 섹션 상단에 추가:
 
@@ -3211,7 +3211,7 @@ pnpm dev
 - [ ] localStorage draft user_id scoping — Clerk session 만료 시 draft auto-clear + user_id key prefix. Context: plan P7-9
 ```
 
-- [ ] **Step 5.9: `docs/dev-log/008-sprint7c-scope-decision.md` 상태 업데이트**
+- [ ] **Step 5.9: `docs/decisions/008-sprint7c-scope-decision.md` 상태 업데이트**
 
 frontmatter 수정:
 
@@ -3219,7 +3219,7 @@ frontmatter 수정:
 > **상태:** ✅ 구현 완료 (2026-04-XX)
 > **구현 브랜치:** feat/sprint7c-strategy-ui
 > **관련 PR:** #11 (예정)
-> **관련 plan:** [`docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md)
+> **관련 plan:** [`docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](2026-04-17-sprint7c-strategy-ui.md)
 ```
 
 본문 말미 "Approach 비교" 아래 "실행 결과" 섹션 신규 추가:
@@ -3262,7 +3262,7 @@ Expected: tsc/lint clean. Test command는 infra 미설치 시 skip 메시지 노
 
 ```bash
 cd /Users/woosung/project/agy-project/quant-bridge
-git add frontend/src/app/\(dashboard\)/strategies/\[id\]/ docs/TODO.md docs/dev-log/008-sprint7c-scope-decision.md .claude/CLAUDE.md
+git add frontend/src/app/\(dashboard\)/strategies/\[id\]/ docs/status.md docs/decisions/008-sprint7c-scope-decision.md .claude/CLAUDE.md
 git commit -m "feat(frontend): Sprint 7c T5 — /strategies/[id]/edit 3탭 + delete 409 archive fallback + docs"
 ```
 
@@ -3340,14 +3340,14 @@ ADR 008 § "결정: Strategy CRUD UI 단독" 기반. 아래는 **의도적 제�
 
 ## 참고 파일
 
-- Scope 결정: [`docs/dev-log/008-sprint7c-scope-decision.md`](../../dev-log/008-sprint7c-scope-decision.md)
-- 선례 plan: [`docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md`](./2026-04-17-sprint7a-bybit-futures.md)
-- 디자인 시스템 SSOT: [`DESIGN.md`](../../../DESIGN.md)
+- Scope 결정: [`docs/decisions/008-sprint7c-scope-decision.md`](../../../decisions/008-sprint7c-scope-decision.md)
+- 선례 plan: [`docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md`](./2026-04-17-sprint7a-bybit-futures.md)
+- 디자인 시스템 SSOT: [`DESIGN.md`](../../../../DESIGN.md)
 - 프로토타입:
-  - `docs/prototypes/06-strategies-list.html`
-  - `docs/prototypes/07-strategy-create.html`
-  - `docs/prototypes/01-strategy-editor.html`
-  - `docs/prototypes/INTERACTION_SPEC.md`
+  - `docs/reference/prototypes/06-strategies-list.html`
+  - `docs/reference/prototypes/07-strategy-create.html`
+  - `docs/reference/prototypes/01-strategy-editor.html`
+  - `docs/reference/prototypes/INTERACTION_SPEC.md`
 - Backend API: `backend/src/strategy/router.py`, `backend/src/strategy/schemas.py`, `backend/src/strategy/pine/__init__.py`
 - 기존 FE 패턴 참조: `frontend/src/app/trading/page.tsx` (React Query + Zod + `apiFetch`)
 - 기존 FE App Shell: `frontend/src/components/layout/dashboard-shell.tsx`

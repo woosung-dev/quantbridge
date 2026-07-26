@@ -180,4 +180,4 @@ equity=[1000,1020,1020,1000,1030,1030], BH=[1000,1200,900,1100,800,1000]
 - office-hours 분기 결정: `docs/dev-log/2026-05-05-office-hours-sprint-35-decision.md`
 - BL-178 root cause spike: `docs/dev-log/2026-05-05-bl178-rootcause-spike.md`
 - 직전 Sprint 34 retro: `docs/dev-log/2026-05-05-sprint34-master-retrospective.md`
-- BACKLOG: `docs/REFACTORING-BACKLOG.md` (BL-178 Resolved / BL-180 Resolved / BL-181 신규)
+- BACKLOG: `docs/backlog.md` (BL-178 Resolved / BL-180 Resolved / BL-181 신규)

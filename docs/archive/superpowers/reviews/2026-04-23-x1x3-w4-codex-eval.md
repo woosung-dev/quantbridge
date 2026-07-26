@@ -19,9 +19,9 @@ You are an adversarial code reviewer for QuantBridge Sprint X1+X3 Worker 4 (Trad
 
 ## Inputs
 
-- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md
+- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md
 - Diff (vs stage/x1-x3-indicator-ui): /tmp/w4-diff.txt (529 lines, 6 files)
-- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
+- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
 
 ## Context
 
@@ -39,7 +39,7 @@ W4 adds long/short direction breakdown to TradeAnalysis component using existing
    codex
    요청한 범위는 W4 변경분의 적대적 리뷰입니다. 먼저 계획서, self-review, diff를 읽고 실제 수정 파일과 테스트 근거를 대조한 뒤, 7개 질문에 대해 파일:라인 기준으로 판정하겠습니다.
    exec
-   /bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0
+   /bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0
    succeeded in 0ms:
 
 # W4 — Trade Analysis 방향별 승률/평균 PnL Breakdown
@@ -269,18 +269,18 @@ exec
 /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0
 rg: .ai/rules: No such file or directory (os error 2)
 docs/README.md
-docs/TODO.md
+docs/status.md
 docs/next-session-tabparse-fe-1q-prompt.md
 docs/next-session-fe-polish-bundle2-autonomous.md
 docs/next-session-sprint-8c-prompt.md
 docs/next-session-fe-polish-autonomous.md
-docs/05_env/local-setup.md
-docs/05_env/clerk-setup.md
-docs/05_env/env-vars.md
+docs/reference/local-setup.md
+docs/reference/clerk-setup.md
+docs/reference/env-vars.md
 docs/next-session-sprint-bcd-autonomous.md
-docs/06_devops/ci-cd.md
-docs/06_devops/pre-commit.md
-docs/06_devops/docker-compose-guide.md
+docs/reference/ci-cd.md
+docs/reference/pre-commit.md
+docs/reference/docker-compose-guide.md
 docs/reports/2026-04-20-autonomous-depth-sprint-design.html
 docs/reports/2026-04-19-sprint-pipeline-skills-design.html
 docs/reports/2026-04-20-autonomous-depth-chain-design.html
@@ -289,106 +289,106 @@ docs/reports/2026-04-21-h1-closing-status-dashboard.html
 docs/reports/2026-04-19-sprint-bcd-autonomous-retrospective.html
 docs/reports/2026-04-22-dogfood-start-dashboard.html
 docs/reports/_template-h1-dogfood-retrospective.html
-docs/03_api/endpoints.md
+docs/reference/endpoints.md
 docs/next-session-testnet-dogfood-longrun.md
-docs/07_infra/h1-testnet-dogfood-guide.md
-docs/07_infra/observability-plan.md
-docs/07_infra/deployment-plan.md
-docs/07_infra/runbook.md
-docs/07_infra/bybit-mainnet-checklist.md
+docs/reference/infra/h1-testnet-dogfood-guide.md
+docs/reference/infra/observability-plan.md
+docs/reference/infra/deployment-plan.md
+docs/reference/infra/runbook.md
+docs/reference/infra/bybit-mainnet-checklist.md
 docs/next-session-sprint-8b-prompt.md
-docs/dev-log/004-pine-parser-approach-selection.md
-docs/dev-log/011-pine-execution-strategy-v4.md
-docs/dev-log/006-sprint6-design-review-summary.md
-docs/dev-log/003-pine-runtime-safety-and-parser-scope.md
-docs/dev-log/008-sprint7c-scope-decision.md
-docs/dev-log/009-shadcn-v4-form-radix-exception.md
-docs/dev-log/001-tech-stack.md
-docs/dev-log/002-parallel-scaffold-strategy.md
+docs/decisions/004-pine-parser-approach-selection.md
+docs/decisions/011-pine-execution-strategy-v4.md
+docs/decisions/006-sprint6-design-review-summary.md
+docs/decisions/003-pine-runtime-safety-and-parser-scope.md
+docs/decisions/008-sprint7c-scope-decision.md
+docs/decisions/009-shadcn-v4-form-radix-exception.md
+docs/decisions/001-tech-stack.md
+docs/decisions/002-parallel-scaffold-strategy.md
 docs/dev-log/010-product-roadmap.md
-docs/dev-log/012-sprint-8a-tier0-final-report.md
-docs/dev-log/007-sprint7a-futures-decisions.md
-docs/dev-log/005-datetime-tz-aware.md
+docs/decisions/012-sprint-8a-tier0-final-report.md
+docs/decisions/007-sprint7a-futures-decisions.md
+docs/decisions/005-datetime-tz-aware.md
 docs/dev-log/010-dev-cpu-budget.md
-docs/00_project/roadmap.md
-docs/00_project/vision.md
+docs/reference/project/roadmap.md
+docs/reference/project/vision.md
 docs/guides/development-methodology.md
-docs/04_architecture/pine-execution-architecture.md
-docs/04_architecture/data-flow.md
-docs/04_architecture/system-architecture.md
-docs/04_architecture/erd.md
+docs/reference/pine-execution-architecture.md
+docs/reference/data-flow.md
+docs/reference/system-architecture.md
+docs/reference/erd.md
 docs/guides/sprint-kickoff-template.md
-docs/audit/2026-04-16-trading-demo-security.md
+docs/archive/audit/2026-04-16-trading-demo-security.md
 docs/next-session-after-fe-01-prompt.md
-docs/01_requirements/trading-demo-baseline.md
-docs/01_requirements/pine-script-analysis.md
-docs/01_requirements/req-catalog.md
-docs/01_requirements/trading-demo.md
-docs/01_requirements/pine-coverage-assignment.md
-docs/01_requirements/requirements-overview.md
-docs/prototypes/10-trades-detail.html
-docs/prototypes/01-strategy-editor.html
-docs/prototypes/05-onboarding.html
-docs/prototypes/00-landing.html
-docs/prototypes/INTERACTION_SPEC.md
-docs/prototypes/04-login.html
-docs/prototypes/08-backtest-setup.html
-docs/prototypes/README.md
-docs/prototypes/06-strategies-list.html
-docs/prototypes/11-error-pages.html
-docs/prototypes/09-backtests-list.html
-docs/prototypes/03-trading-dashboard.html
-docs/prototypes/02-backtest-report.html
-docs/prototypes/07-strategy-create.html
-docs/marketing/2026-04-21-dogfood-start-thread.md
-docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
-docs/ai-rules-prompt-react-hooks-safety.md
-docs/02_domain/state-machines.md
-docs/02_domain/domain-overview.md
-docs/02_domain/entities.md
-docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md
-docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md
-docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md
-docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md
-docs/superpowers/specs/2026-04-16-trading-demo-design.md
-docs/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md
-docs/superpowers/specs/2026-04-17-pine-execution-v4-design.md
-docs/superpowers/plans/2026-04-15-pine-parser-mvp.md
-docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md
-docs/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md
-docs/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md
-docs/superpowers/plans/2026-04-15-sprint4-backtest-api.md
-docs/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md
-docs/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md
-docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md
-docs/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md
-docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md
-docs/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md
-docs/superpowers/plans/2026-04-20-kill-switch-capital-base.md
-docs/superpowers/plans/2026-04-19-sprint-fe-d-chip-tag-input.md
-docs/superpowers/plans/2026-04-19-sprint-fe-f-edit-to-backtest.md
-docs/superpowers/plans/2026-04-16-trading-demo.md
-docs/superpowers/plans/2026-04-19-sprint7d-okx-trading-sessions.md
-docs/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md
-docs/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md
-docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md
-docs/superpowers/plans/2026-04-16-sprint5-stage-b.md
-docs/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md
-docs/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md
-docs/superpowers/plans/2026-04-15-vectorbt-signal-fill.md
-docs/superpowers/plans/2026-04-20-h2-kickoff.md
+docs/reference/trading-demo-baseline.md
+docs/reference/pine-script-analysis.md
+docs/reference/req-catalog.md
+docs/reference/trading-demo.md
+docs/reference/pine-coverage-assignment.md
+docs/reference/requirements-overview.md
+docs/reference/prototypes/10-trades-detail.html
+docs/reference/prototypes/01-strategy-editor.html
+docs/reference/prototypes/05-onboarding.html
+docs/reference/prototypes/00-landing.html
+docs/reference/prototypes/INTERACTION_SPEC.md
+docs/reference/prototypes/04-login.html
+docs/reference/prototypes/08-backtest-setup.html
+docs/reference/prototypes/README.md
+docs/reference/prototypes/06-strategies-list.html
+docs/reference/prototypes/11-error-pages.html
+docs/reference/prototypes/09-backtests-list.html
+docs/reference/prototypes/03-trading-dashboard.html
+docs/reference/prototypes/02-backtest-report.html
+docs/reference/prototypes/07-strategy-create.html
+docs/archive/marketing/2026-04-21-dogfood-start-thread.md
+docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
+docs/archive/ai-rules-prompt-react-hooks-safety.md
+docs/reference/state-machines.md
+docs/reference/domain-overview.md
+docs/reference/entities.md
+docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md
+docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md
+docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md
+docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md
+docs/archive/superpowers/specs/2026-04-16-trading-demo-design.md
+docs/archive/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md
+docs/archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md
+docs/archive/superpowers/plans/2026-04-15-pine-parser-mvp.md
+docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe-01-tabparse-1q.md
+docs/archive/superpowers/plans/2026-04-17-sprint7b-edit-parse-ux.md
+docs/archive/superpowers/plans/2026-04-15-sprint4-backtest-api.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe-e-delete-bottom-sheet.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe04-backtest-ui-mvp.md
+docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md
+docs/archive/superpowers/plans/2026-04-19-sprint-8c-user-function-3track.md
+docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md
+docs/archive/superpowers/plans/2026-04-18-sprint-8b-tier1-rendering.md
+docs/archive/superpowers/plans/2026-04-20-kill-switch-capital-base.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe-d-chip-tag-input.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe-f-edit-to-backtest.md
+docs/archive/superpowers/plans/2026-04-16-trading-demo.md
+docs/archive/superpowers/plans/2026-04-19-sprint7d-okx-trading-sessions.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe-b-trading-mobile-empty.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe-c-shortcut-help-draft-scope.md
+docs/archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md
+docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe03-edit-lift-up.md
+docs/archive/superpowers/plans/2026-04-19-sprint-fe-a-landing-dashboard.md
+docs/archive/superpowers/plans/2026-04-15-vectorbt-signal-fill.md
+docs/archive/superpowers/plans/2026-04-20-h2-kickoff.md
 
 exec
 /bin/zsh -lc "sed -n '1,260p' /tmp/w4-diff.txt" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0
 exec
-/bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0
+/bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0
  succeeded in 0ms:
 # W4 Codex Self-Review — Sprint X1+X3
 
 **Date:** 2026-04-23
 **Worker:** 4 / 5 (Trade Analysis 방향별 breakdown)
 **Branch:** `w4/trade-analysis-breakdown`
-**Plan:** [`docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md`](../plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md)
+**Plan:** [`docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md`](../plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md)
 **Reviewer:** codex CLI 0.122.0 (gpt-5)
 
 ---
@@ -484,18 +484,18 @@ exec
 W5 는 동일 파일의 헤더(상단) 영역 수정 예정 — 이 변경과 컨텍스트가 분리되어 git auto-merge 가능성 높음. 충돌 발생 시 orchestrator 가 양쪽 변경 모두 보존하는 방향으로 resolve.
 
  succeeded in 0ms:
-diff --git a/docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md b/docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
+diff --git a/docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
 new file mode 100644
 index 0000000..01945b1
 --- /dev/null
-+++ b/docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
++++ b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
 @@ -0,0 +1,99 @@
 +# W4 Codex Self-Review — Sprint X1+X3
 +
 +**Date:** 2026-04-23
 +**Worker:** 4 / 5 (Trade Analysis 방향별 breakdown)
 +**Branch:** `w4/trade-analysis-breakdown`
-+**Plan:** [`docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md`](../plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md)
++**Plan:** [`docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md`](../plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md)
 +**Reviewer:** codex CLI 0.122.0 (gpt-5)
 +
 +---
@@ -780,11 +780,11 @@ exec
 | [05_env/](./05_env/) | 로컬 셋업, 환경 변수, Clerk 가이드 | ✅ 완료 |
 | [06_devops/](./06_devops/) | Docker Compose, CI/CD, Pre-commit | ✅ 완료 |
 | [07_infra/](./07_infra/) | 배포·Observability·Runbook (draft) | 📝 Draft |
-| [DESIGN.md](../DESIGN.md) | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정 |
-| [prototypes/](./prototypes/) | Stage 2 HTML 프로토타입 (12개 화면) | ✅ 확정 |
-| [dev-log/](./dev-log/) | ADR (의사결정 기록) | 활성 |
-| [guides/](./guides/) | 개발 가이드, Sprint 킥오프 템플릿 | 활성 |
-| [TODO.md](./TODO.md) | 작업 추적 | 활성 |
+| [DESIGN.md](../../../../DESIGN.md) | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정 |
+| [prototypes/](../../../reference/prototypes/) | Stage 2 HTML 프로토타입 (12개 화면) | ✅ 확정 |
+| [dev-log/](../../../dev-log/) | ADR (의사결정 기록) | 활성 |
+| [guides/](../../../guides/) | 개발 가이드, Sprint 킥오프 템플릿 | 활성 |
+| [TODO.md](../../../../.ai/templates/docs/TODO.md) | 작업 추적 | 활성 |
 
 ## 빠른 시작
 
@@ -809,7 +809,7 @@ cd backend && uv sync && uvicorn src.main:app --reload
   타겟: 파트타임 크립토 트레이더, $1K~$50K, Python 없음
   `[/office-hours 2026-04-13]`
 
-- **Pine 런타임 + 파서 범위:** [ADR-003](./dev-log/003-pine-runtime-safety-and-parser-scope.md)
+- **Pine 런타임 + 파서 범위:** [ADR-003](../../../decisions/003-pine-runtime-safety-and-parser-scope.md)
   - `exec()`/`eval()` 금지 → 인터프리터 패턴
   - 미지원 함수 1개라도 있으면 전체 "Unsupported" (부분 실행 금지)
   - Celery zombie task 복구 인프라 필수 (on_failure + Beat cleanup + cancel)
@@ -820,32 +820,32 @@ cd backend && uv sync && uvicorn src.main:app --reload
 
 | 문서                                                                                                         | 설명                                    |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| [DESIGN.md](../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
-| [QUANTBRIDGE_PRD.md](../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
-| [AGENTS.md](../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
-| [.ai/](../.ai/)                                                                                              | 코딩 규칙                               |
-| [01_requirements/requirements-overview.md](./01_requirements/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
-| [01_requirements/req-catalog.md](./01_requirements/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
-| [02_domain/domain-overview.md](./02_domain/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
-| [02_domain/entities.md](./02_domain/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
-| [02_domain/state-machines.md](./02_domain/state-machines.md)                                                 | 도메인 상태 전이도                      |
-| [04_architecture/system-architecture.md](./04_architecture/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
-| [04_architecture/data-flow.md](./04_architecture/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
-| [05_env/local-setup.md](./05_env/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
-| [05_env/env-vars.md](./05_env/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
-| [05_env/clerk-setup.md](./05_env/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
-| [06_devops/docker-compose-guide.md](./06_devops/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
-| [06_devops/ci-cd.md](./06_devops/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
-| [06_devops/pre-commit.md](./06_devops/pre-commit.md)                                                         | husky + lint-staged 가이드              |
-| [07_infra/deployment-plan.md](./07_infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
-| [07_infra/observability-plan.md](./07_infra/observability-plan.md)                                           | Observability 계획 (draft)              |
-| [07_infra/runbook.md](./07_infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
-| [guides/development-methodology.md](./guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
-| [guides/sprint-kickoff-template.md](./guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
-| [dev-log/001-tech-stack.md](./dev-log/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
-| [dev-log/002-parallel-scaffold-strategy.md](./dev-log/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
-| [dev-log/003-pine-runtime-safety-and-parser-scope.md](./dev-log/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
-| [dev-log/004-pine-parser-approach-selection.md](./dev-log/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
+| [DESIGN.md](../../../../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
+| [QUANTBRIDGE_PRD.md](../../../../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
+| [AGENTS.md](../../../../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
+| [.ai/](../../../../.ai/)                                                                                              | 코딩 규칙                               |
+| [01_requirements/requirements-overview.md](../../../reference/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
+| [01_requirements/req-catalog.md](../../../reference/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
+| [02_domain/domain-overview.md](../../../reference/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
+| [02_domain/entities.md](../../../reference/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
+| [02_domain/state-machines.md](../../../reference/state-machines.md)                                                 | 도메인 상태 전이도                      |
+| [04_architecture/system-architecture.md](../../../reference/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
+| [04_architecture/data-flow.md](../../../reference/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
+| [05_env/local-setup.md](../../../reference/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
+| [05_env/env-vars.md](../../../reference/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
+| [05_env/clerk-setup.md](../../../reference/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
+| [06_devops/docker-compose-guide.md](../../../reference/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
+| [06_devops/ci-cd.md](../../../reference/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
+| [06_devops/pre-commit.md](../../../reference/pre-commit.md)                                                         | husky + lint-staged 가이드              |
+| [07_infra/deployment-plan.md](../../../reference/infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
+| [07_infra/observability-plan.md](../../../reference/infra/observability-plan.md)                                           | Observability 계획 (draft)              |
+| [07_infra/runbook.md](../../../reference/infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
+| [guides/development-methodology.md](../../../guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
+| [guides/sprint-kickoff-template.md](../../../guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
+| [dev-log/001-tech-stack.md](../../../decisions/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
+| [dev-log/002-parallel-scaffold-strategy.md](../../../decisions/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
+| [dev-log/003-pine-runtime-safety-and-parser-scope.md](../../../decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
+| [dev-log/004-pine-parser-approach-selection.md](../../../decisions/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
 
 succeeded in 0ms:
 
@@ -2350,7 +2350,7 @@ codex
 - `7 util tests`: 맞습니다. [direction-breakdown.test.ts](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/frontend/src/features/backtest/__tests__/direction-breakdown.test.ts:27) 에 7개 있습니다.
 - `4 component tests`: 맞습니다. [trade-analysis.test.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/frontend/src/app/(dashboard)/backtests/_components/__tests__/trade-analysis.test.tsx:46>) 에 4개 있습니다.
 - `tsc/lint clean`: 직접 확인했습니다. `pnpm tsc --noEmit`, `pnpm lint` 둘 다 exit 0.
-- `25 files / 148 tests pass`: [확인된 사실] self-review에는 그렇게 적혀 있습니다 ([self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md:79)). [확인 불가] 이 환경은 read-only라 vitest가 temp/results cache를 쓰려다 EPERM으로 실패해 전체 테스트 PASS는 독립 검증 못 했습니다.
+- `25 files / 148 tests pass`: [확인된 사실] self-review에는 그렇게 적혀 있습니다 ([self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md:79)). [확인 불가] 이 환경은 read-only라 vitest가 temp/results cache를 쓰려다 EPERM으로 실패해 전체 테스트 PASS는 독립 검증 못 했습니다.
 
 2. Spurious PASS?
 
@@ -2398,7 +2398,7 @@ tokens used
 - `7 util tests`: 맞습니다. [direction-breakdown.test.ts](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/frontend/src/features/backtest/__tests__/direction-breakdown.test.ts:27) 에 7개 있습니다.
 - `4 component tests`: 맞습니다. [trade-analysis.test.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/frontend/src/app/(dashboard)/backtests/_components/__tests__/trade-analysis.test.tsx:46>) 에 4개 있습니다.
 - `tsc/lint clean`: 직접 확인했습니다. `pnpm tsc --noEmit`, `pnpm lint` 둘 다 exit 0.
-- `25 files / 148 tests pass`: [확인된 사실] self-review에는 그렇게 적혀 있습니다 ([self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md:79)). [확인 불가] 이 환경은 read-only라 vitest가 temp/results cache를 쓰려다 EPERM으로 실패해 전체 테스트 PASS는 독립 검증 못 했습니다.
+- `25 files / 148 tests pass`: [확인된 사실] self-review에는 그렇게 적혀 있습니다 ([self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a5bc9ad0/docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md:79)). [확인 불가] 이 환경은 read-only라 vitest가 temp/results cache를 쓰려다 EPERM으로 실패해 전체 테스트 PASS는 독립 검증 못 했습니다.
 
 2. Spurious PASS?
 

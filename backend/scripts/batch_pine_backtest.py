@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # tmp_code/pine_code Pine 스크립트 8종 × {1h,4h} × {2024,recent} 배치 coverage+백테스트 하니스
-"""Pine 코퍼스 배치 백테스트 하니스 (docs/qa/2026-07-12-pine-batch-1h4h).
+"""Pine 코퍼스 배치 백테스트 하니스 (docs/archive/qa/2026-07-12-pine-batch-1h4h).
 
 각 (스크립트, 기간, TF) 셀에 대해:
 1. `analyze_coverage` — is_runnable / degraded / unsupported (Trust Layer preflight)

@@ -56,7 +56,7 @@ fable 오케스트레이터 + opus 워커 12기(화면 9 + FIX + 부채 + e2e �
 
 ## 1. 먼저 읽을 것
 
-`checklist.md`(전 항목 체크됨) · `context-notes.md`(결정 근거 — S9 절 + 교차 감사 결과 포함) · `docs/prototypes/shotgun-2026-07/_KIT.md` + `terminology-ssot.md` · 프로토타입 뷰어 `python3 serve.py` → 4173.
+`checklist.md`(전 항목 체크됨) · `context-notes.md`(결정 근거 — S9 절 + 교차 감사 결과 포함) · `docs/reference/prototypes/shotgun-2026-07/_KIT.md` + `terminology-ssot.md` · 프로토타입 뷰어 `python3 serve.py` → 4173.
 
 ## 2. 확정된 것 (재론 금지)
 

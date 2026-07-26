@@ -116,7 +116,7 @@ cd backend && set -a; source .env.local; set +a && uv run pytest -q
 ```
 
 - env 없이 돌리면 conftest 가 `localhost:5432` 로 폴백해 **400+ errors** 가 난다.
-- `docs/perf-surface/*` · `docs/money-path-accuracy/*` 의 **5436 표기는 stale**. 2026-07-25 포트 정렬로 현재는 `.env.local` 값(5433)이다.
+- `docs/archive/sprints/perf-surface/*` · `docs/archive/sprints/money-path-accuracy/*` 의 **5436 표기는 stale**. 2026-07-25 포트 정렬로 현재는 `.env.local` 값(5433)이다.
 - **8100 백엔드**: 2026-07-24 기동 프로세스가 닫힌 5436 을 향해 모든 API 가 실패하고 브라우저엔 CORS 로 보였다. **CORS 문제가 아니다.** Makefile 은 이미 정정돼 있으므로 `pkill -f "uvicorn src.main:app.*8100"` 후 `make be-isolated` 로 해소. (본 스프린트 §0 에서 해소 완료 — 401/26ms 확인.)
 - **FE 테스트는 `pnpm test`** (= `vitest run`). `pnpm test --run` 은 `Unknown option: 'run'` 으로 죽는데 **exit code 0** 이라 조용히 통과한 것처럼 보인다.
 - **Docker VM 디스크** — 포화 시 Postgres 가 `PANIC: No space left` 무한 크래시 루프. 회복은 **`docker builder prune -f` 만**. 볼륨·이미지 금지(캐시는 재생성되지만 볼륨은 아니다).

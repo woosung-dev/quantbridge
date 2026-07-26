@@ -5,7 +5,7 @@ Generated: 2026-05-13 19:41:27 KST
 - Branch: feat/convert-llm-fallback
 - HEAD: 1a1dbda  fix(convert): resilient LLM chain (slowapi + retry + Gemini fallback)
 - Status (top 10):
-  ?? docs/qa/
+  ?? docs/archive/qa/
 
 ## Runtime
 - node: v24.12.0

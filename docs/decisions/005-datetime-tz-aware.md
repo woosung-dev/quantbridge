@@ -124,7 +124,7 @@ ALTER TABLE backtests ALTER COLUMN created_at TYPE TIMESTAMPTZ
 
 ## 의사결정 트레일
 
-- M1 spec: [`docs/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`](../superpowers/specs/2026-04-16-sprint5-stage-b-design.md) §M1
-- M1 plan: [`docs/superpowers/plans/2026-04-16-sprint5-stage-b.md`](../superpowers/plans/2026-04-16-sprint5-stage-b.md) §Task 2~9
+- M1 spec: [`docs/archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md`](../archive/superpowers/specs/2026-04-16-sprint5-stage-b-design.md) §M1
+- M1 plan: [`docs/archive/superpowers/plans/2026-04-16-sprint5-stage-b.md`](../archive/superpowers/plans/2026-04-16-sprint5-stage-b.md) §Task 2~9
 - 외부 검토: Opus M1/M3 검토 12개 보강안 반영 (drift 감지 강화, ORM 가드 추가가 핵심 권고)
-- 사전 이력: Sprint 3 [S3-05] `_utcnow()` 우회 결정 (`docs/TODO.md` "Sprint 5+ 이관" 참조)
+- 사전 이력: Sprint 3 [S3-05] `_utcnow()` 우회 결정 (`docs/status.md` "Sprint 5+ 이관" 참조)

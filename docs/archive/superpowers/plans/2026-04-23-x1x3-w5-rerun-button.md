@@ -262,12 +262,12 @@ Expected: 모두 PASS / clean.
 codex exec --sandbox read-only "Review git diff for RerunButton + BacktestDetailView integration. Check: (1) no useEffect added per LESSON-004, (2) router.push only inside click handler, (3) toast on both success/error, (4) disabled state covers running/queued/cancelling, (5) initial_capital string→number conversion safe (decimalString in schema), (6) hooks.ts unchanged (reuse useCreateBacktest)."
 ```
 
-출력 → `docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`.
+출력 → `docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`.
 
 ### T4. Stage push
 
 ```bash
-git add frontend/src/app/\(dashboard\)/backtests/_components/rerun-button.tsx frontend/src/app/\(dashboard\)/backtests/_components/__tests__/rerun-button.test.tsx frontend/src/app/\(dashboard\)/backtests/_components/backtest-detail-view.tsx docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
+git add frontend/src/app/\(dashboard\)/backtests/_components/rerun-button.tsx frontend/src/app/\(dashboard\)/backtests/_components/__tests__/rerun-button.test.tsx frontend/src/app/\(dashboard\)/backtests/_components/backtest-detail-view.tsx docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md
 git commit -m "feat(backtest): re-run button in detail header (W5)"
 git push origin stage/x1-x3-indicator-ui
 ```

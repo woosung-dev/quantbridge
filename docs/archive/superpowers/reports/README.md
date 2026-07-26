@@ -15,10 +15,10 @@
 
 - **HTML 리포트** (`*.html`) — 브라우저로 직접 확인. 갱신 시 자동 재생성 권고.
 - **Markdown 리포트** — git diff 추적 가능. 사용자 직접 갱신 시 자동 생성 origin 명시.
-- 신규 리포트 (예: dogfood retro, security audit) 는 `docs/audit/`, `docs/reports/` 의 활성 디렉토리에 생성. 본 디렉토리는 H1 archive 로 보존.
+- 신규 리포트 (예: dogfood retro, security audit) 는 `docs/archive/audit/`, `docs/reports/` 의 활성 디렉토리에 생성. 본 디렉토리는 H1 archive 로 보존.
 
 ## Cross-link
 
 - `2026-04-23-x1x3-final.md` ↔ [`../reviews/`](../reviews/) (20 review 합산 origin)
 - `2026-04-23-documentation-audit.md` ↔ 향후 docs cleanup 시 reference (현재 Sprint 27 + dogfood Day 1 cleanup 의 baseline)
-- `2026-04-23-architecture-survey.html` ↔ [`../../04_architecture/architecture-conformance.md`](../../04_architecture/architecture-conformance.md) (15 항목 정합성 audit 영구 체크리스트)
+- `2026-04-23-architecture-survey.html` ↔ [`../../04_architecture/architecture-conformance.md`](../../../reference/architecture-conformance.md) (15 항목 정합성 audit 영구 체크리스트)

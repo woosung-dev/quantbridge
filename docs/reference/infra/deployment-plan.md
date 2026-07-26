@@ -2,7 +2,7 @@
 
 > **상태:** Draft — 프로덕션 결정 미정 항목 다수 `[확인 필요]`.
 > **목적:** 배포 옵션 비교 + 결정 게이트 정리.
-> 의존: [`../04_architecture/system-architecture.md`](../04_architecture/system-architecture.md), [`../06_devops/docker-compose-guide.md`](../06_devops/docker-compose-guide.md)
+> 의존: [`../04_architecture/system-architecture.md`](../system-architecture.md), [`../06_devops/docker-compose-guide.md`](../docker-compose-guide.md)
 
 ---
 
@@ -154,8 +154,8 @@ flowchart TB
 
 ## 11. 참고
 
-- ADR-001 기술 스택: [`../dev-log/001-tech-stack.md`](../dev-log/001-tech-stack.md)
-- Compose: [`../06_devops/docker-compose-guide.md`](../06_devops/docker-compose-guide.md)
+- ADR-001 기술 스택: [`../dev-log/001-tech-stack.md`](../../decisions/001-tech-stack.md)
+- Compose: [`../06_devops/docker-compose-guide.md`](../docker-compose-guide.md)
 - Observability: [`./observability-plan.md`](./observability-plan.md)
 - Runbook: [`./runbook.md`](./runbook.md)
 

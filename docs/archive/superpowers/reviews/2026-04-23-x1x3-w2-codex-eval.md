@@ -19,9 +19,9 @@ You are an adversarial code reviewer for QuantBridge Sprint X1+X3 Worker 2 (ta.s
 
 ## Inputs
 
-- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md
+- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md
 - Diff (vs stage/x1-x3-indicator-ui): /tmp/w2-diff.txt (456 lines, 4 files)
-- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md
+- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md
 
 ## Context
 
@@ -39,9 +39,9 @@ Pine Script v5 ta.sar(start, increment, maximum) — Wilder Parabolic SAR. Worke
    codex
    요청하신 범위는 `ta.sar` 워커 변경분의 적대적 코드리뷰입니다. 먼저 계획서·self-review·diff·관련 테스트를 읽고, 7개 질문에 대해 `file:line` 근거 중심으로 사실과 가정을 분리해 정리하겠습니다.
    exec
-   /bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
+   /bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
    exec
-   /bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
+   /bin/zsh -lc "sed -n '1,220p' /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
    succeeded in 0ms:
 
 # W2 — `ta.sar` (Parabolic SAR) stdlib 구현 (i3_drfx FAILED 해소)
@@ -271,7 +271,7 @@ def ta_sar(
 **Sprint:** X1+X3 / Worker 2
 **Date:** 2026-04-23
 **Branch:** `worktree-agent-a2493f6f` (base: `stage/x1-x3-indicator-ui`)
-**Plan:** [`docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`](../plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md)
+**Plan:** [`docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`](../plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md)
 
 ---
 
@@ -1971,7 +1971,7 @@ backend/tests/strategy/pine_v2/test_stdlib_sar.py:162:def test_ta_sar_two_bar_cl
 codex
 코드 외 근거는 이제 self-review와 plan에만 남았습니다. 마지막으로 그 문서들의 주장 위치를 line 번호로 고정해서, “확인된 사실”과 “문서상 주장만 있는 항목”을 분리하겠습니다.
 exec
-/bin/zsh -lc "nl -ba /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md | sed -n '1,220p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
+/bin/zsh -lc "nl -ba /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md | sed -n '1,220p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
  succeeded in 0ms:
      1	# W2 — `ta.sar` (Parabolic SAR) stdlib 구현 (i3_drfx FAILED 해소)
      2
@@ -2195,14 +2195,14 @@ exec
    220	            state.sar = state.prev_high
 
 exec
-/bin/zsh -lc "nl -ba /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md | sed -n '1,240p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
+/bin/zsh -lc "nl -ba /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md | sed -n '1,240p'" in /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f
  succeeded in 0ms:
      1	# W2 Codex Self-Review — `ta.sar` Parabolic SAR
      2
      3	**Sprint:** X1+X3 / Worker 2
      4	**Date:** 2026-04-23
      5	**Branch:** `worktree-agent-a2493f6f` (base: `stage/x1-x3-indicator-ui`)
-     6	**Plan:** [`docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`](../plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md)
+     6	**Plan:** [`docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`](../plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md)
      7
      8	---
      9
@@ -2332,7 +2332,7 @@ codex
 **Findings**
 1. Medium: `Wilder correctness`를 입증한다고 보기 어려운 테스트가 여럿 있습니다. 반전 테스트는 주석에서 “정확값 110”을 말하지만 실제 assert는 `sar[6] > sar[4]`와 `sar[6] >= highs[6]`뿐이라 반전 시점/값이 틀려도 통과할 수 있습니다. AF cap 테스트도 `last_sar`가 finite이고 `af <= 0.2`만 보므로 AF가 전혀 증가하지 않는 버그도 놓칠 수 있습니다. `nan` 테스트는 다음 bar가 `nan`이어도 finite여도 둘 다 허용하고, `high==low` 테스트도 `inf`만 금지합니다. 근거: [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:69), [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:86), [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:100), [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:110).
 
-2. Medium: `TDD`와 `934 passed` 주장은 저장소 증거가 아니라 문서상 자기보고에 가깝습니다. 계획서는 fail-first를 요구하지만 실제 failing run 로그나 red→green 흔적은 없습니다. self-review도 전체 회귀는 “사용자 보고 934 passed 인용”이라고 적고 있어 독립 검증이 아닙니다. 근거: [2026-04-23-x1x3-w2-ta-sar-parabolic.md](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:36), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:38), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:73).
+2. Medium: `TDD`와 `934 passed` 주장은 저장소 증거가 아니라 문서상 자기보고에 가깝습니다. 계획서는 fail-first를 요구하지만 실제 failing run 로그나 red→green 흔적은 없습니다. self-review도 전체 회귀는 “사용자 보고 934 passed 인용”이라고 적고 있어 독립 검증이 아닙니다. 근거: [2026-04-23-x1x3-w2-ta-sar-parabolic.md](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:36), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:38), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:73).
 
 **7 Questions**
 1. AC met?
@@ -2348,7 +2348,7 @@ codex
 예. 정확값 기반 검증은 clamp 2개 외에는 약합니다. reversal/AF cap/nan/high=low는 대부분 sanity 수준입니다. 특히 reversal은 exact `110.0`을 assert하지 않습니다. [test_stdlib_sar.py:69](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:69), [test_stdlib_sar.py:86](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:86)
 
 3. TDD evidence?
-없습니다. 계획서에는 fail-first 절차가 적혀 있지만 실행 로그/커밋 순서/실패 스냅샷이 없습니다. [plan:56](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:56), [plan:151](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151)
+없습니다. 계획서에는 fail-first 절차가 적혀 있지만 실행 로그/커밋 순서/실패 스냅샷이 없습니다. [plan:56](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:56), [plan:151](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151)
 
 4. Regression?
 정적 리뷰 기준 위험은 낮습니다. 기존 `ta.sma/ta.atr/ta.rsi` 구현은 그대로이고, `_STDLIB_NAMES`에 `"ta.sar"`를 추가하고 dispatcher에 새 branch를 넣은 정도입니다. 다른 `ta.*` 경로를 건드린 흔적은 없습니다. 다만 “여전히 pass”는 미실행이라 확인 불가입니다. [stdlib.py:530](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/stdlib.py:530), [stdlib.py:534](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/stdlib.py:534), [stdlib.py:537](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/stdlib.py:537), [interpreter.py:698](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/interpreter.py:698)
@@ -2384,7 +2384,7 @@ tokens used
 **Findings**
 1. Medium: `Wilder correctness`를 입증한다고 보기 어려운 테스트가 여럿 있습니다. 반전 테스트는 주석에서 “정확값 110”을 말하지만 실제 assert는 `sar[6] > sar[4]`와 `sar[6] >= highs[6]`뿐이라 반전 시점/값이 틀려도 통과할 수 있습니다. AF cap 테스트도 `last_sar`가 finite이고 `af <= 0.2`만 보므로 AF가 전혀 증가하지 않는 버그도 놓칠 수 있습니다. `nan` 테스트는 다음 bar가 `nan`이어도 finite여도 둘 다 허용하고, `high==low` 테스트도 `inf`만 금지합니다. 근거: [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:69), [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:86), [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:100), [backend/tests/strategy/pine_v2/test_stdlib_sar.py](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:110).
 
-2. Medium: `TDD`와 `934 passed` 주장은 저장소 증거가 아니라 문서상 자기보고에 가깝습니다. 계획서는 fail-first를 요구하지만 실제 failing run 로그나 red→green 흔적은 없습니다. self-review도 전체 회귀는 “사용자 보고 934 passed 인용”이라고 적고 있어 독립 검증이 아닙니다. 근거: [2026-04-23-x1x3-w2-ta-sar-parabolic.md](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:36), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:38), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:73).
+2. Medium: `TDD`와 `934 passed` 주장은 저장소 증거가 아니라 문서상 자기보고에 가깝습니다. 계획서는 fail-first를 요구하지만 실제 failing run 로그나 red→green 흔적은 없습니다. self-review도 전체 회귀는 “사용자 보고 934 passed 인용”이라고 적고 있어 독립 검증이 아닙니다. 근거: [2026-04-23-x1x3-w2-ta-sar-parabolic.md](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:36), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:38), [2026-04-23-x1x3-w2-codex-self.md](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md:73).
 
 **7 Questions**
 1. AC met?
@@ -2400,7 +2400,7 @@ tokens used
 예. 정확값 기반 검증은 clamp 2개 외에는 약합니다. reversal/AF cap/nan/high=low는 대부분 sanity 수준입니다. 특히 reversal은 exact `110.0`을 assert하지 않습니다. [test_stdlib_sar.py:69](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:69), [test_stdlib_sar.py:86](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/tests/strategy/pine_v2/test_stdlib_sar.py:86)
 
 3. TDD evidence?
-없습니다. 계획서에는 fail-first 절차가 적혀 있지만 실행 로그/커밋 순서/실패 스냅샷이 없습니다. [plan:56](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:56), [plan:151](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151)
+없습니다. 계획서에는 fail-first 절차가 적혀 있지만 실행 로그/커밋 순서/실패 스냅샷이 없습니다. [plan:56](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:56), [plan:151](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md:151)
 
 4. Regression?
 정적 리뷰 기준 위험은 낮습니다. 기존 `ta.sma/ta.atr/ta.rsi` 구현은 그대로이고, `_STDLIB_NAMES`에 `"ta.sar"`를 추가하고 dispatcher에 새 branch를 넣은 정도입니다. 다른 `ta.*` 경로를 건드린 흔적은 없습니다. 다만 “여전히 pass”는 미실행이라 확인 불가입니다. [stdlib.py:530](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/stdlib.py:530), [stdlib.py:534](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/stdlib.py:534), [stdlib.py:537](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/stdlib.py:537), [interpreter.py:698](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a2493f6f/backend/src/strategy/pine_v2/interpreter.py:698)

@@ -303,7 +303,7 @@ $B js "Array.from(document.querySelectorAll('button, a')).filter(el => { const r
 - **Network**: localhost (3G 추정 = 별도 throttle 미진행)
 - **Auth**: 다른 페르소나가 만든 로그인 세션 재사용 (Clerk: 우성 장)
 - **측정**: `getBoundingClientRect()` + ARIA snapshot + perf API
-- **스크린샷**: `docs/qa/2026-05-17/screenshots/mobile-{01..09}-*.png` (9개)
+- **스크린샷**: `docs/archive/qa/2026-05-17/screenshots/mobile-{01..09}-*.png` (9개)
 
 ---
 

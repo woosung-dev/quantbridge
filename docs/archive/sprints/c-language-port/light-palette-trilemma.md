@@ -23,7 +23,7 @@
 ## 0. 보는 법
 
 ```bash
-cd docs/prototypes/shotgun-2026-07 && python3 serve.py
+cd docs/reference/prototypes/shotgun-2026-07 && python3 serve.py
 # http://localhost:4173/viewer.html
 # 좌측 레일 "라이트 테마 (팔레트 B2 확정)" 그룹 L1 / L2
 ```

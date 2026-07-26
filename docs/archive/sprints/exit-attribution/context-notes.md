@@ -183,7 +183,7 @@ BE **2706 passed / 46 skipped / 0 failed**(축소 전 2710). 감소분의 내역
 
 **수정** — `str(row.classification)` 로 교체(`StrEnum.__str__` 은 값 자체를 돌려주므로 reload 된 plain str 과 메모리상 enum 인스턴스 양쪽에 안전). 회귀 테스트는 실 DB 에 커밋 후 `session.expire_all()` 로 강제 재조회시켜 SQLAlchemy 의 실제 hydration 경로를 태운다(fake 로는 재현 불가) — 구 코드로 되돌리면 정확히 이 `AttributeError` 로 red 가 되는 것을 확인했다. ★테스트 작성 중 부수 함정 1건 — `expire_all()` 뒤에 `row.row_hash`/`account.id` 를 **동기 접근**하면 SQLAlchemy 가 그 자리에서 강제 재조회를 시도해 `MissingGreenlet` 이 뜬다. 넘길 값은 expire 전에 미리 로컬 변수로 꺼내둬야 한다.
 
-**감사 — 같은 패턴이 다른 곳에도 있는가.** `StrEnum` 타입인데 평문 `String` 컬럼인 필드가 5개 더 있다(`LiveSignalSession.interval` · `LiveSignalEvent.status` · `AlertRule.rule_type`/`channel` · `ExchangeExit.attribution_confidence`) — 전부 Sprint 26 의 동일 워크어라운드다. 호출부 전수 조사 결과 **실제 크래시 사이트는 이 한 곳뿐**이었다(나머지는 `==`/`!=`/`str()` 만 쓰거나 호출부 자체가 없음, `StrEnum` 이 `str` 서브클래스라 비교 연산은 reload 여부와 무관하게 안전). → 재발 방지를 위한 최소 등재 [BL-453](../REFACTORING-BACKLOG.md#bl-453).
+**감사 — 같은 패턴이 다른 곳에도 있는가.** `StrEnum` 타입인데 평문 `String` 컬럼인 필드가 5개 더 있다(`LiveSignalSession.interval` · `LiveSignalEvent.status` · `AlertRule.rule_type`/`channel` · `ExchangeExit.attribution_confidence`) — 전부 Sprint 26 의 동일 워크어라운드다. 호출부 전수 조사 결과 **실제 크래시 사이트는 이 한 곳뿐**이었다(나머지는 `==`/`!=`/`str()` 만 쓰거나 호출부 자체가 없음, `StrEnum` 이 `str` 서브클래스라 비교 연산은 reload 여부와 무관하게 안전). → 재발 방지를 위한 최소 등재 [BL-453](../backlog.md#bl-453).
 
 **재검증** — 알림 fix 적용 + 워커 재빌드 → 원장 TRUNCATE(거래소에서 7일 안에 언제든 재조회 가능한 관측 캐시라 안전) → 재스윕 → **`alerted:1`**, `exchange_exit_alert_failed` 로그 0건. 2회차 재스윕 → `inserted:0`·`alerted:0`(멱등 확인). 최종 상태 = 활성 세션 0 · 미체결 주문 0 · 계정 1(사용자 등록분 보존) · 원장 4행 · 포트 보존.
 

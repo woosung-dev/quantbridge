@@ -3,7 +3,7 @@
 > **상태:** 사후 기록 (Sprint 12 = 2026-04-25 / Sprint 15 = 2026-04-28)
 > **관련 PRs:** Sprint 12 stage `74fd00a` / Sprint 15 stage TBD
 > **관련 LESSON:** LESSON-019 (broken-bug 3rd 재발 → backend.md 트랜잭션 commit 보장 §3 승격)
-> **상위 문서:** [`04_architecture/system-architecture.md`](../04_architecture/system-architecture.md), [`04_architecture/data-flow.md`](../04_architecture/data-flow.md)
+> **상위 문서:** [`04_architecture/system-architecture.md`](../reference/system-architecture.md), [`04_architecture/data-flow.md`](../reference/data-flow.md)
 > **합본 이유:** Sprint 12 의 WS 도입 결정이 ADR 누락 상태였고, Sprint 15-A/B 가 그 후속 cleanup 이라 한 묶음으로 기록
 
 ---

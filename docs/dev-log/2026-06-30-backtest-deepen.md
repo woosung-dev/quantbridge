@@ -38,8 +38,8 @@ deepen STOP(coverage <70% → test 우선)을 재측정. backtest 는 46 test(3.
 
 ## Phase 4 — 등재
 
-- `REFACTORING-BACKLOG.md` P2 = **BL-387**(C4 sizing typed seam) / **BL-388**(C2 metrics 4-SSOT), P3 = **BL-389**(C1 metrics 추출) / **BL-390**(C6 fill_type 위임) / **BL-391**(C5 reconciliation oracle). 45 → 50 active.
-- [ADR-021](021-backtest-idempotency-dual-lock.md) — C3 idempotency dual-lock 유지(통합 거부) 기록.
+- `backlog.md` P2 = **BL-387**(C4 sizing typed seam) / **BL-388**(C2 metrics 4-SSOT), P3 = **BL-389**(C1 metrics 추출) / **BL-390**(C6 fill_type 위임) / **BL-391**(C5 reconciliation oracle). 45 → 50 active.
+- [ADR-021](../decisions/021-backtest-idempotency-dual-lock.md) — C3 idempotency dual-lock 유지(통합 거부) 기록.
 - Sprint 권고: backtest deepening sprint 에 BL-387(money-path 우선) + BL-388 묶음, BL-389+391 묶음(metrics 추출 + reconciliation oracle 동반), BL-390 clean win.
 
 ## 교훈 (LESSON 후보)

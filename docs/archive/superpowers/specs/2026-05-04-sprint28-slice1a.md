@@ -31,7 +31,7 @@ methodology Stage 1~6 적용 격차를 자동/반자동으로 봉합. 향후 spr
 **내용:**
 
 - sprint 시작 시 review 의무 항목 (P0 BL trigger 도래 / P1 BL trigger 도래 / Beta BL 진행 상황)
-- 자동화 가능 부분 — `grep -E "BL-[0-9]+" docs/REFACTORING-BACKLOG.md` 로 active BL 추출 + status grep
+- 자동화 가능 부분 — `grep -E "BL-[0-9]+" docs/backlog.md` 로 active BL 추출 + status grep
 - 영구 규칙: 각 sprint kickoff 시 bl-audit-checklist 1회 실행 + 결과 sprint-template.md frontmatter 안 명시
 
 **검증:** Sprint 28 종료 시 본 checklist 사용 1건 검증 (Step 5 학습 단계)
@@ -90,7 +90,7 @@ methodology Stage 1~6 적용 격차를 자동/반자동으로 봉합. 향후 spr
 
 ### T6 — TODO.md 메타 헤더 표준화 (10분)
 
-**File:** `docs/TODO.md` (수정 — 현재 882줄)
+**File:** `docs/status.md` (수정 — 현재 882줄)
 
 **변경:**
 
@@ -117,7 +117,7 @@ methodology Stage 1~6 적용 격차를 자동/반자동으로 봉합. 향후 spr
 - `.github/pull_request_template.md`
 - `.claude/settings.json`
 - `.husky/pre-commit`
-- `docs/TODO.md`
+- `docs/status.md`
 
 ## Risks & Mitigations
 
@@ -134,7 +134,7 @@ methodology Stage 1~6 적용 격차를 자동/반자동으로 봉합. 향후 spr
 - [ ] T3 PR template Codex Gates 섹션 = 4 체크박스 + self-assess 슬롯
 - [ ] T4 `.claude/settings.json` hooks 키 ≥1 hook 정의 + 1회 fire 검증
 - [ ] T5 (선택) `.husky/pre-commit` reminder 동작 검증
-- [ ] T6 `docs/TODO.md` L1-L10 4 필드 채움
+- [ ] T6 `docs/status.md` L1-L10 4 필드 채움
 
 ## PR Strategy
 

@@ -118,7 +118,7 @@ python3 backend/scripts/run_auto_dogfood.py
 
 ## 2. Pain 발견 시 BL 등록 흐름
 
-1. `docs/REFACTORING-BACKLOG.md` 에 신규 BL ID (다음 번호) 추가
+1. `docs/backlog.md` 에 신규 BL ID (다음 번호) 추가
 2. **Trigger** 명시 (어떤 시나리오에서 발견)
 3. **Priority** + **Est** + **Resolved 조건**
 4. AI 가 다음 sprint 에 plan v2 surgery 후 처리
@@ -259,5 +259,5 @@ curl http://localhost:8100/metrics | grep -E "qb_active_orders|qb_ws_|qb_order_s
 - Sprint 23 dev-log (BL-098/099/101/102/103): `docs/dev-log/2026-05-03-sprint23-c3-bundle.md`
 - Sprint 24a dev-log (BL-011/012/013/016): `docs/dev-log/2026-05-03-sprint24a-ws-stability.md`
 - Sprint 24b dev-log (자동 dogfood): `docs/dev-log/2026-05-03-sprint24b-auto-dogfood.md`
-- BL 백로그 전체: `docs/REFACTORING-BACKLOG.md`
-- Sprint 12 dogfood checklist: `docs/07_infra/sprint12-dogfood-checklist.md`
+- BL 백로그 전체: `docs/backlog.md`
+- Sprint 12 dogfood checklist: `docs/reference/infra/sprint12-dogfood-checklist.md`

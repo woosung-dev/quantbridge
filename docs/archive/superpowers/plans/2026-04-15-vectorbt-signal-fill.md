@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, pandas, vectorbt (new: BSD, `>=0.26,<0.27`), pytest.
 
-**Spec:** `docs/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md`
+**Spec:** `docs/archive/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md`
 
 ---
 

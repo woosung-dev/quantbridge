@@ -1,6 +1,6 @@
 # Architecture Conformance Audit — 영구 체크리스트
 
-> **목적:** docs/04_architecture/ + .ai/rules/ 가 정의한 아키텍처 / 디자인 패턴이 실제 코드에서 지켜지고 있는지 검증하는 **재실행 가능 체크리스트**.
+> **목적:** docs/reference/ + .ai/rules/ 가 정의한 아키텍처 / 디자인 패턴이 실제 코드에서 지켜지고 있는지 검증하는 **재실행 가능 체크리스트**.
 >
 > 매 sprint 회고 또는 Beta 오픈 전 1회 본 문서 전체를 1 hop 으로 재실행 → 정합성 점수 추적.
 >
@@ -24,7 +24,7 @@
 | F. Celery prefork-safe (Sprint 18+19) | F17~F18 | 2      | 0      | 0     |
 | **합계**                              | **17**  | **16** | **1**  | **0** |
 
-**결론:** Sprint 18+19 의 BL-080 architectural fix + BL-081/083/084/085 technical debt + Sprint 16 BL-010 commit-spy backfill 완료로 정합성 점수 86% → **94% (16/17 OK + 1 TBD)** 도달. 잔여 TBD 1 건 = B5 (PINE_ALERT_HEURISTIC_MODE env 사용 ADR 신설, [BL-050](../REFACTORING-BACKLOG.md#bl-050)) — Sprint 20+ 정리 sprint 시 해소.
+**결론:** Sprint 18+19 의 BL-080 architectural fix + BL-081/083/084/085 technical debt + Sprint 16 BL-010 commit-spy backfill 완료로 정합성 점수 86% → **94% (16/17 OK + 1 TBD)** 도달. 잔여 TBD 1 건 = B5 (PINE_ALERT_HEURISTIC_MODE env 사용 ADR 신설, [BL-050](../backlog.md#bl-050)) — Sprint 20+ 정리 sprint 시 해소.
 
 ---
 
@@ -81,7 +81,7 @@ rg -l 'repo.commit.assert_awaited_once|AsyncMock.*commit' backend/tests/
 
 ### A3 — `backend/src/exchange/` dead module 부재
 
-**검증 출처:** [ADR-018](../dev-log/018-sprint12-ws-supervisor-and-exchange-stub-removal.md) Sprint 15-B cleanup
+**검증 출처:** [ADR-018](../decisions/018-sprint12-ws-supervisor-and-exchange-stub-removal.md) Sprint 15-B cleanup
 
 **검증 명령어:**
 
@@ -98,7 +98,7 @@ rg -l 'from src.exchange|import src.exchange' backend/src/ frontend/src/
 
 ### A4 — Layered architecture (Service → Repository 만 DB 접근)
 
-**검증 출처:** [`docs/02_domain/domain-overview.md`](../02_domain/domain-overview.md) §3 / [`.ai/stacks/fastapi/backend.md`](../../.ai/stacks/fastapi/backend.md) 3-Layer 구조
+**검증 출처:** [`docs/reference/domain-overview.md`](domain-overview.md) §3 / [`.ai/stacks/fastapi/backend.md`](../../.ai/stacks/fastapi/backend.md) 3-Layer 구조
 
 **검증 명령어:**
 
@@ -140,7 +140,7 @@ rg -n 'os\.(environ|getenv)' backend/src/ \
 - 컨텍스트: Pine 전용 sandbox runtime heuristic. lazy read 명시 (pytest monkeypatch 호환성).
 - 평가: 정책 범위 내 허용 — Pine 샌드박스 특수성 + 1 건 제한.
 
-**처리:** [BL-050](../REFACTORING-BACKLOG.md#bl-050) 등록 — ADR 신설 또는 주석 강화로 정당성 명시.
+**처리:** [BL-050](../backlog.md#bl-050) 등록 — ADR 신설 또는 주석 강화로 정당성 명시.
 
 #### B5-ADR — `PINE_ALERT_HEURISTIC_MODE` env 직접 read 정당성 (Sprint 46, 2026-05-09)
 
@@ -165,13 +165,13 @@ rg -n 'os\.(environ|getenv)' backend/src/ \
 - `functools.lru_cache(maxsize=1)` 래퍼: monkeypatch 후 cache invalidate 추가 step 필요 → 가독성 저하.
 - env injection via fixture parameter: alert_hook signature 변경 → caller 4+ 곳 수정 → blast radius 증가.
 
-**Related:** ADR-020 (Mutation policy), [BL-050](../REFACTORING-BACKLOG.md#bl-050)
+**Related:** ADR-020 (Mutation policy), [BL-050](../backlog.md#bl-050)
 
 ---
 
 ### B6 — AES-256 (Fernet) 암호화 적용
 
-**검증 출처:** CLAUDE.md "거래소 API Key는 AES-256 암호화 저장 (평문 금지)" / [`docs/02_domain/entities.md`](../02_domain/entities.md) ExchangeAccount
+**검증 출처:** CLAUDE.md "거래소 API Key는 AES-256 암호화 저장 (평문 금지)" / [`docs/reference/entities.md`](entities.md) ExchangeAccount
 
 **검증 명령어:**
 
@@ -209,7 +209,7 @@ rg -nE 'class Settings|^\s+[a-z_]+:.*Field' backend/src/core/config.py
 
 ### B8 — `eval()` / `exec()` 사용처
 
-**검증 출처:** CLAUDE.md "Pine Script → Python 변환 시 `exec()`/`eval()` 절대 금지" / [ADR-003](../dev-log/003-pine-runtime-safety-and-parser-scope.md)
+**검증 출처:** CLAUDE.md "Pine Script → Python 변환 시 `exec()`/`eval()` 절대 금지" / [ADR-003](../decisions/003-pine-runtime-safety-and-parser-scope.md)
 
 **검증 명령어:**
 
@@ -228,7 +228,7 @@ rg -nE '\beval\(|\bexec\(' backend/src/ frontend/src/ \
 
 ### C9 — FastAPI handler 가 무거운 작업 직접 실행 안 함
 
-**검증 출처:** [`docs/04_architecture/system-architecture.md`](system-architecture.md) §4 / CLAUDE.md "백테스트/최적화는 반드시 Celery 비동기"
+**검증 출처:** [`docs/reference/system-architecture.md`](system-architecture.md) §4 / CLAUDE.md "백테스트/최적화는 반드시 Celery 비동기"
 
 **검증 명령어:**
 
@@ -354,7 +354,7 @@ rg -nE 'Decimal\(str\([a-z_]+\)\)\s*\+\s*Decimal\(str' backend/src/
 
 ### E15 — 금액 / 가격 / 수량 필드는 `Decimal` (float 금지)
 
-**검증 출처:** CLAUDE.md "금융 숫자는 `Decimal` 사용 (float 금지)" / [`docs/02_domain/domain-overview.md`](../02_domain/domain-overview.md) §4.5
+**검증 출처:** CLAUDE.md "금융 숫자는 `Decimal` 사용 (float 금지)" / [`docs/reference/domain-overview.md`](domain-overview.md) §4.5
 
 **검증 명령어:**
 
@@ -376,7 +376,7 @@ rg -nE '(price|quantity|amount|leverage|fee).*float' backend/src/*/models.py
 
 ### F17 — `run_in_worker_loop` 의무 (Sprint 18 BL-080)
 
-**검증 출처:** [`docs/04_architecture/system-architecture.md`](system-architecture.md) §7.5 / [`backend/src/tasks/_worker_loop.py`](../../backend/src/tasks/_worker_loop.py) / [Sprint 18 dev-log](../dev-log/2026-05-02-sprint18-bl080-architectural.md)
+**검증 출처:** [`docs/reference/system-architecture.md`](system-architecture.md) §7.5 / [`backend/src/tasks/_worker_loop.py`](../../backend/src/tasks/_worker_loop.py) / [Sprint 18 dev-log](../dev-log/2026-05-02-sprint18-bl080-architectural.md)
 **근거:** Sprint 17 의 `asyncio.run()` per task 패턴 + module-level async state = 2nd+ task fail (asyncpg `BaseProtocol._on_waiter_completed` stale loop binding). Option C 영속 `_WORKER_LOOP` 통일.
 
 **검증 명령어:**
@@ -436,7 +436,7 @@ uv run pytest backend/tests/tasks/test_no_module_level_loop_bound_state.py -v
 ### 본 문서 재실행 시점
 
 1. **Sprint 회고 직전** — 회고 metric 의 한 항목으로 "정합성 점수" 추가
-2. **Beta 오픈 직전** ([BL-070~072](../REFACTORING-BACKLOG.md)) — 위반 발견 시 차단
+2. **Beta 오픈 직전** ([BL-070~072](../backlog.md)) — 위반 발견 시 차단
 3. **Major refactor 직후** — refactor 가 정합성 깨뜨렸는지 확인
 4. **신규 도메인 추가 시** — A1~A4 + B5~B8 항목 새 도메인 적용 여부
 
@@ -445,7 +445,7 @@ uv run pytest backend/tests/tasks/test_no_module_level_loop_bound_state.py -v
 1. **위반 라인 + 컨텍스트** 를 본 문서 해당 항목 아래 "위반 이력" 서브섹션에 기록 (날짜 + PR # + 라인)
 2. P 레벨 결정:
    - 즉시 fix 필요 (P0 broken bug 패턴) → active TODO 로 등록
-   - 후속 sprint 처리 가능 (P1~P2) → [REFACTORING-BACKLOG.md](../REFACTORING-BACKLOG.md) 신규 BL 등록
+   - 후속 sprint 처리 가능 (P1~P2) → [REFACTORING-BACKLOG.md](../backlog.md) 신규 BL 등록
 3. fix PR merge 시 본 문서의 "최근 audit 결과" 갱신
 
 ### 변경 이력

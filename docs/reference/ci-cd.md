@@ -114,7 +114,7 @@ flowchart TB
 - production deploy on tag `v*.*.*`
 - 자동 alembic migration (Docker entrypoint)
 
-상세는 [`../07_infra/deployment-plan.md`](../07_infra/deployment-plan.md).
+상세는 [`../07_infra/deployment-plan.md`](infra/deployment-plan.md).
 
 ---
 
@@ -149,7 +149,7 @@ flowchart TB
 
 - CI workflow: [`../../.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
 - Pre-commit: [`./pre-commit.md`](./pre-commit.md)
-- Local setup: [`../05_env/local-setup.md`](../05_env/local-setup.md)
+- Local setup: [`../05_env/local-setup.md`](local-setup.md)
 - Sprint kickoff: [`../guides/sprint-kickoff-template.md`](../guides/sprint-kickoff-template.md) §B
 
 ---

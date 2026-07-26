@@ -1,9 +1,9 @@
 # Trust Layer 요구사항 · SLO · 수용 기준
 
-> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 요구사항/SLO 의 단일 진실 원천**. 아키텍처: [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md) (3-Layer Parity 설계), ADR: [`dev-log/020-trust-layer-ci-design.md`](../dev-log/020-trust-layer-ci-design.md) (결정 근거).
+> **SSOT (2026-05-04 cleanup):** 본 문서가 **Trust Layer 요구사항/SLO 의 단일 진실 원천**. 아키텍처: [`04_architecture/trust-layer-architecture.md`](trust-layer-architecture.md) (3-Layer Parity 설계), ADR: [`dev-log/020-trust-layer-ci-design.md`](../decisions/020-trust-layer-ci-design.md) (결정 근거).
 >
 > **상태:** Path β Stage 0 초안 (2026-04-23). Stage 2 구현 + Gate-2 통과 시 **확정**.
-> **상위 문서:** [`04_architecture/trust-layer-architecture.md`](../04_architecture/trust-layer-architecture.md), [`dev-log/020-trust-layer-ci-design.md`](../dev-log/020-trust-layer-ci-design.md), [`dev-log/016-sprint-y1-coverage-analyzer.md`](../dev-log/016-sprint-y1-coverage-analyzer.md)
+> **상위 문서:** [`04_architecture/trust-layer-architecture.md`](trust-layer-architecture.md), [`dev-log/020-trust-layer-ci-design.md`](../decisions/020-trust-layer-ci-design.md), [`dev-log/016-sprint-y1-coverage-analyzer.md`](../decisions/016-sprint-y1-coverage-analyzer.md)
 > **관련 Sprint:** Path β · 관련 PR: Stage 2 에서 작성 예정
 > **상호 참조:** [`trading-demo-baseline.md`](./trading-demo-baseline.md) (dogfood 체결 baseline), [`pine-coverage-assignment.md`](./pine-coverage-assignment.md) (coverage SSOT)
 
@@ -92,14 +92,14 @@ def within_tolerance(actual, expected):
 
 **적용 절차:**
 
-1. Mutation 측정 실패 layer / 케이스 식별 → `docs/01_requirements/trust-layer-requirements.md` §4.2 표에 1 row 추가 (SLO + 실패 사유 + scope-reducing 결정).
+1. Mutation 측정 실패 layer / 케이스 식별 → `docs/reference/trust-layer-requirements.md` §4.2 표에 1 row 추가 (SLO + 실패 사유 + scope-reducing 결정).
 2. `pytest.mark.skip(reason="mutation instrumentation unavailable — see TL §4.1.1")` 으로 명시적 skip.
 3. nightly Mutation Oracle 보고서에서 **분모 차감** (4/8 → 4/7 처럼 측정 가능 mutation 기준 비율 산정).
 4. 분기별 review 시 instrumentation 복구 가능성 재평가 (skip 해제 시도).
 
 **Anti-pattern:** Mutation 미감지 = Gate-2 fail 자동 적용 (false-fail 양산 → developer trust 손상).
 
-**Related:** ADR-020 (CLAUDE.md), [B5-ADR](../04_architecture/architecture-conformance.md#b5-adr), [BL-057](../REFACTORING-BACKLOG.md#bl-057)
+**Related:** ADR-020 (CLAUDE.md), [B5-ADR](architecture-conformance.md#b5-adr), [BL-057](../backlog.md#bl-057)
 
 ### 4.2 Degrade 허용 (SLO 초과 시)
 

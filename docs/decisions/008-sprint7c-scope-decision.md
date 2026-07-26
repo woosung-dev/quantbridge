@@ -4,7 +4,7 @@
 > **작성 세션:** /office-hours (gstack skill, session 12, inner_circle tier)
 > **상태:** ✅ 구현 완료 (2026-04-17)
 > **구현 브랜치:** feat/sprint7c-strategy-ui
-> **관련 plan:** [`docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../superpowers/plans/2026-04-17-sprint7c-strategy-ui.md)
+> **관련 plan:** [`docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md)
 
 ---
 
@@ -42,15 +42,15 @@ office-hours 시작 시점에 user가 나열한 candidate:
 
 ## Stage 2 Design Assets 재채택 (2026-04-17 plan-design-review 결과 반영)
 
-**배경:** office-hours 세션이 DESIGN.md + `docs/prototypes/` + `INTERACTION_SPEC.md` 등 Stage 2(2026-04-14 확정) 자산을 참조하지 않고 진행. plan-design-review에서 Design Completeness 3/10로 채점됨. 아래 자산을 **Sprint 7c 구현의 시각·인터랙션 reference**로 채택한다.
+**배경:** office-hours 세션이 DESIGN.md + `docs/reference/prototypes/` + `INTERACTION_SPEC.md` 등 Stage 2(2026-04-14 확정) 자산을 참조하지 않고 진행. plan-design-review에서 Design Completeness 3/10로 채점됨. 아래 자산을 **Sprint 7c 구현의 시각·인터랙션 reference**로 채택한다.
 
 | 자산                 | 경로                                      | Sprint 7c 구현 역할                                                                 |
 | -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------- |
 | DESIGN.md            | `/DESIGN.md`                              | 색상·타이포·간격 CSS 토큰 SSOT. 하드코딩 금지, 기존 변수 재사용                     |
-| 전략 목록 프로토타입 | `docs/prototypes/06-strategies-list.html` | `/strategies` 페이지 layout + App Shell 패턴                                        |
-| 전략 편집 프로토타입 | `docs/prototypes/01-strategy-editor.html` | `/strategies/[id]/edit` 편집 페이지 — 탭(코드/파싱/메타데이터) + 에디터 + 분석 패널 |
-| 전략 생성 프로토타입 | `docs/prototypes/07-strategy-create.html` | `/strategies/new` — 3-step 위저드                                                   |
-| 인터랙션 명세        | `docs/prototypes/INTERACTION_SPEC.md`     | `@monaco-editor/react`, react-hook-form, 실시간 파싱 구현 방식                      |
+| 전략 목록 프로토타입 | `docs/reference/prototypes/06-strategies-list.html` | `/strategies` 페이지 layout + App Shell 패턴                                        |
+| 전략 편집 프로토타입 | `docs/reference/prototypes/01-strategy-editor.html` | `/strategies/[id]/edit` 편집 페이지 — 탭(코드/파싱/메타데이터) + 에디터 + 분석 패널 |
+| 전략 생성 프로토타입 | `docs/reference/prototypes/07-strategy-create.html` | `/strategies/new` — 3-step 위저드                                                   |
+| 인터랙션 명세        | `docs/reference/prototypes/INTERACTION_SPEC.md`     | `@monaco-editor/react`, react-hook-form, 실시간 파싱 구현 방식                      |
 
 ## 기술 결정 3가지
 
@@ -93,11 +93,11 @@ office-hours 시작 시점에 user가 나열한 candidate:
 
 1. **gstack `/office-hours` 스코프 결정** → 이 문서 ✅
 2. **gstack `/plan-design-review` (Step 0 lite)** → Stage 2 자산 재채택 반영 ✅ (2026-04-17)
-3. **`/superpowers:writing-plans` 별도 세션 호출** → `docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md` 생성 예정 (대기). 본 ADR의 "Stage 2 Design Assets 재채택" 섹션과 개정된 P2·Q1·Q2를 input으로 사용
+3. **`/superpowers:writing-plans` 별도 세션 호출** → `docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md` 생성 예정 (대기). 본 ADR의 "Stage 2 Design Assets 재채택" 섹션과 개정된 P2·Q1·Q2를 input으로 사용
 4. **(선택) gstack `/plan-design-review` 정식 7-pass** → writing-plans 출력물을 대상으로 empty/error/responsive/a11y 등 세부 design gap 확인
 5. **`/superpowers:subagent-driven-development` 실행** → T1~Tn task 단위 구현
 
-> **주의:** gstack office-hours 산출물과 superpowers writing-plans 산출물은 **스킬 체계가 다르다**. office-hours는 scope/requirement 결정까지, implementation plan은 반드시 `/superpowers:writing-plans` 세션에서 생성해서 `docs/superpowers/plans/`에 배치한다. Sprint 7a 선례 참조.
+> **주의:** gstack office-hours 산출물과 superpowers writing-plans 산출물은 **스킬 체계가 다르다**. office-hours는 scope/requirement 결정까지, implementation plan은 반드시 `/superpowers:writing-plans` 세션에서 생성해서 `docs/archive/superpowers/plans/`에 배치한다. Sprint 7a 선례 참조.
 
 ## 선행 Assignment (구현 전 반드시)
 
@@ -112,14 +112,14 @@ T1 착수 전에 Pine 소스 1개를 **현재 curl 방식**으로 등록·Parse�
 ### 프로젝트 내부 (Stage 2 Design System — Sprint 7c가 반드시 준수)
 
 - [DESIGN.md](../../DESIGN.md) — 색상·타이포·간격 토큰 SSOT (2026-04-14 확정)
-- [docs/prototypes/06-strategies-list.html](../prototypes/06-strategies-list.html) — `/strategies` reference
-- [docs/prototypes/01-strategy-editor.html](../prototypes/01-strategy-editor.html) — `/strategies/[id]/edit` reference (Monaco)
-- [docs/prototypes/07-strategy-create.html](../prototypes/07-strategy-create.html) — `/strategies/new` 3-step wizard reference
-- [docs/prototypes/INTERACTION_SPEC.md](../prototypes/INTERACTION_SPEC.md) — `@monaco-editor/react` + react-hook-form + 실시간 파싱 인터랙션 스펙
+- [docs/reference/prototypes/06-strategies-list.html](../reference/prototypes/06-strategies-list.html) — `/strategies` reference
+- [docs/reference/prototypes/01-strategy-editor.html](../reference/prototypes/01-strategy-editor.html) — `/strategies/[id]/edit` reference (Monaco)
+- [docs/reference/prototypes/07-strategy-create.html](../reference/prototypes/07-strategy-create.html) — `/strategies/new` 3-step wizard reference
+- [docs/reference/prototypes/INTERACTION_SPEC.md](../reference/prototypes/INTERACTION_SPEC.md) — `@monaco-editor/react` + react-hook-form + 실시간 파싱 인터랙션 스펙
 
 ### 선행 sprint 자산
 
-- Sprint 6 design doc: [`docs/01_requirements/trading-demo.md`](../01_requirements/trading-demo.md)
+- Sprint 6 design doc: [`docs/reference/trading-demo.md`](../reference/trading-demo.md)
 
 ### User-local (참조용, 프로젝트 미커밋)
 

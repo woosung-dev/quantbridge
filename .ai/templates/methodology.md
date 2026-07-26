@@ -28,7 +28,7 @@
 
 1. 6개 강제 질문: 수요 증거, 현재 해결법, 구체적 사용자, 가장 좁은 쐐기, 관찰, 미래 적합성
 2. 전제(Premises) 확인 → 3가지 접근 방안 비교 → 선택
-3. 디자인 문서 생성 → `docs/00_project/`
+3. 디자인 문서 생성 → `docs/reference/project/`
 
 **선택적:** 스코프 검증 도구 (예: Gstack /plan-ceo-review, /autoplan)
 
@@ -39,10 +39,10 @@
 **도구:** 아키텍처 리뷰 도구 (예: Gstack /plan-eng-review) + 직접 문서 작성
 
 1. 아키텍처 방향 검증 (리뷰 도구) — 상세 문서 작성 전에 먼저
-2. 기술 스택 결정 → `docs/dev-log/001-tech-stack.md` (ADR)
-3. 데이터 모델 설계 → `docs/04_architecture/erd.md` (전체 Phase 고려)
-4. API 경계 설계 → `docs/03_api/endpoints.md` (FE mock API와 1:1 대응)
-5. 파이프라인 설계 → `docs/04_architecture/` (데이터 흐름, 비동기 패턴)
+2. 기술 스택 결정 → `docs/decisions/001-tech-stack.md` (ADR)
+3. 데이터 모델 설계 → `docs/reference/erd.md` (전체 Phase 고려)
+4. API 경계 설계 → `docs/reference/endpoints.md` (FE mock API와 1:1 대응)
+5. 파이프라인 설계 → `docs/reference/` (데이터 흐름, 비동기 패턴)
 
 **핵심:** 아키텍처는 전체 Phase 커버. 실행 계획은 Sprint 직전에만 상세화.
 
@@ -205,7 +205,7 @@ Stage 6 완료 후 Stage 3로 돌아갈 때:
 
 ```
 □ ai-rules 복사 (README.md "가져온 후 할 일" 참조) + .ai/rules/ 심링크 설정
-□ docs/ 스타터 복사: cp .ai/templates/docs/TODO.md docs/TODO.md
+□ docs/ 스타터 복사: cp .ai/templates/docs/status.md docs/status.md
 □ lessons.md 초기화: cp .ai/templates/lessons-starter.md .ai/project/lessons.md
 □ PostToolUse/Stop 훅 설정 (.ai/templates/settings.json.example 참조)
 ```
@@ -215,13 +215,13 @@ Stage 6 완료 후 Stage 3로 돌아갈 때:
 ```
 □ 제품 비전 수립
   → 프롬프트: "이 프로젝트의 타겟 유저, 핵심 차별점, MVP 범위를 정의해줘"
-  → 산출물: docs/00_project/vision.md
+  → 산출물: docs/reference/project/vision.md
 □ AGENTS.md "현재 컨텍스트" 채우기 (프로젝트명, 설명, 스택, 도메인)
-□ 기술 스택 ADR → docs/dev-log/001-tech-stack.md
-□ ERD 설계 (전체 Phase 고려) → docs/04_architecture/erd.md
-□ API 명세 (FE mock과 1:1 대응) → docs/03_api/endpoints.md
+□ 기술 스택 ADR → docs/decisions/001-tech-stack.md
+□ ERD 설계 (전체 Phase 고려) → docs/reference/erd.md
+□ API 명세 (FE mock과 1:1 대응) → docs/reference/endpoints.md
 □ (선택) 디자인 시스템 → DESIGN.md
-□ PRD Sprint 분해 → docs/01_requirements/
+□ PRD Sprint 분해 → docs/reference/
 □ Sprint 1 시작 → Stage 3~6 반복
 ```
 

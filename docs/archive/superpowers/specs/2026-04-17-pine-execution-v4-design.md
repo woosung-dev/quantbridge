@@ -1,11 +1,11 @@
 # Pine Execution Strategy v4 — Session Design Deep-Dive
 
-> **SESSION ARCHIVE (2026-05-04 cleanup):** 본 문서는 50+ 턴 세션의 **학술 archive**. **SSOT 는 [`04_architecture/pine-execution-architecture.md`](../../04_architecture/pine-execution-architecture.md)** (구현 수준 상세도), ADR: [`dev-log/011-pine-execution-strategy-v4.md`](../../dev-log/011-pine-execution-strategy-v4.md). 본 파일은 의사결정 근거의 시간순 추적 보존용으로만 유지.
+> **SESSION ARCHIVE (2026-05-04 cleanup):** 본 문서는 50+ 턴 세션의 **학술 archive**. **SSOT 는 [`04_architecture/pine-execution-architecture.md`](../../../reference/pine-execution-architecture.md)** (구현 수준 상세도), ADR: [`dev-log/011-pine-execution-strategy-v4.md`](../../../decisions/011-pine-execution-strategy-v4.md). 본 파일은 의사결정 근거의 시간순 추적 보존용으로만 유지.
 >
 > **Generated:** 2026-04-17 (50+ 턴 세션 아카이브)
 > **Session ID:** QuantBridge Sprint 7b 완료 직후 세션
-> **ADR 출력:** [`dev-log/011-pine-execution-strategy-v4.md`](../../dev-log/011-pine-execution-strategy-v4.md)
-> **Architecture 출력:** [`04_architecture/pine-execution-architecture.md`](../../04_architecture/pine-execution-architecture.md)
+> **ADR 출력:** [`dev-log/011-pine-execution-strategy-v4.md`](../../../decisions/011-pine-execution-strategy-v4.md)
+> **Architecture 출력:** [`04_architecture/pine-execution-architecture.md`](../../../reference/pine-execution-architecture.md)
 
 본 문서는 QuantBridge의 Pine Script 실행 전략 v4(Alert Hook Parser + 3-Track) 수렴 과정의 **학술적 아카이브**다. 50+ 대화 턴에서 나온 모든 핵심 근거·통찰·반박·실측을 시간순으로 보존하여, 향후 이 결정이 뒤집히거나 amendment될 때 참조 가능하도록 한다.
 

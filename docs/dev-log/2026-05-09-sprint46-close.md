@@ -42,8 +42,8 @@
 | BL-195 | `frontend/src/styles/globals.css` `@keyframes qb-form-slide-down` `to { max-height: 600px }` 1줄 제거 | -1 / +1 |
 | BL-194 | `frontend/src/app/favicon.ico` (PIL 32×32 ICO 670B) + `icon.svg` (Next.js 16 metadata convention) | +1 file (binary) + 1 file (svg) |
 | BL-138 | `frontend/src/features/live-sessions/components/live-session-list.tsx` `<p>→<h3>` + `created` → `created:` (label colon 정합) | -2 / +2 |
-| BL-050 | `docs/04_architecture/architecture-conformance.md` §B5-ADR PINE_ALERT_HEURISTIC_MODE env ADR (TBD → ✅ Accepted) | +35 |
-| BL-057 | `docs/01_requirements/trust-layer-requirements.md` §4.1.1 Mutation scope-reducing 명시 | +24 |
+| BL-050 | `docs/reference/architecture-conformance.md` §B5-ADR PINE_ALERT_HEURISTIC_MODE env ADR (TBD → ✅ Accepted) | +35 |
+| BL-057 | `docs/reference/trust-layer-requirements.md` §4.1.1 Mutation scope-reducing 명시 | +24 |
 | BL-146 | `.ai/common/global.md` §7 메타-방법론 4종 영구 규칙 승격 (`.ai/` gitignored canonical) | +47 (untracked) |
 
 **4 commit semantic split**:

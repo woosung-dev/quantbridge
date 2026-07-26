@@ -2,7 +2,7 @@
 
 **일자**: 2026-05-17 (Sprint 61 fix-first 머지 후 즉시)
 **Type**: B (risk-critical fix-first, Sprint 60/61 패턴 재현)
-**근거**: `docs/qa/2026-05-17-post-sprint61/integrated-report.html` Composite 7.5/10, 4-AND Beta gate (a) PASS / (b) PARTIAL / (c) borderline → fix-first 후 Beta 본격 진입 자격.
+**근거**: `docs/archive/qa/2026-05-17-post-sprint61/integrated-report.html` Composite 7.5/10, 4-AND Beta gate (a) PASS / (b) PARTIAL / (c) borderline → fix-first 후 Beta 본격 진입 자격.
 
 ---
 

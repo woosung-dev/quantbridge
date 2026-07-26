@@ -3,7 +3,7 @@
 # Sprint 42 Day 7 mid-check (= Day 0 발송일 + 6일)
 
 > **상태**: 빈 골격 (Sprint 42 Phase 2 setup 시점 미리 작성, 2026-05-08. Sprint 48 Track 2 Worker D 갱신 2026-05-09).
-> **codex Fix #7 (Sprint 48 G.0):** **Day 7 schedule = Day 0 발송일 + 6일**. Day 0 미기록 시 Day 7 고정 금지. 절대 날짜 (예: 2026-05-15, 2026-05-16, 2026-05-17, 2026-05-18, 2026-05-19) 사용 금지. Day 0 = 사용자 manual 카톡 발송 timestamp ([`../dogfood/sprint42-feedback.md`](../dogfood/sprint42-feedback.md) 의 "1-2명 micro-cohort log" 발송일 칸 기록).
+> **codex Fix #7 (Sprint 48 G.0):** **Day 7 schedule = Day 0 발송일 + 6일**. Day 0 미기록 시 Day 7 고정 금지. 절대 날짜 (예: 2026-05-15, 2026-05-16, 2026-05-17, 2026-05-18, 2026-05-19) 사용 금지. Day 0 = 사용자 manual 카톡 발송 timestamp ([`../dogfood/sprint42-feedback.md`](../archive/dogfood/sprint42-feedback.md) 의 "1-2명 micro-cohort log" 발송일 칸 기록).
 > Day 7 도래 시 사용자가 본 파일 채움 + 파일명 `<Day 0 + 6일 실 일자>-sprint42-day7-midcheck.md` 로 rename (실 일자 반영).
 > 4중 AND gate 결과 + N=1-2 행동 metric + 분기 결정.
 
@@ -21,7 +21,7 @@
 | **(a)** self-assess ≥ 7/10 + 근거 ≥ 3              | ☐ PASS / ☐ FAIL (\_\_\_/10) | (3 줄 근거 아래)                                                            |
 | **(b)** BL-178 BH curve                            | ☐ PASS / ☐ FAIL             | (main `6d6a836` baseline 변경 X 영역. Day 7 시점 재확인)                    |
 | **(c)** BL-180 hand oracle 8                       | ☐ PASS / ☐ FAIL             | (`tests/strategy/pine_v2/test_hand_oracle.py` 무수정 영역. 재확인)          |
-| **(d)** new P0=0 AND unresolved Sprint-caused P1=0 | ☐ PASS / ☐ FAIL             | (`docs/dogfood/sprint42-feedback.md` BL 큐 P0 / Sprint 42-caused P1 카운트) |
+| **(d)** new P0=0 AND unresolved Sprint-caused P1=0 | ☐ PASS / ☐ FAIL             | (`docs/archive/dogfood/sprint42-feedback.md` BL 큐 P0 / Sprint 42-caused P1 카운트) |
 
 ### Gate (a) 근거 3줄 (사용자 작성)
 
@@ -75,7 +75,7 @@
 
 ## 4. 신규 등록 BL (Sprint 42 dogfood 발견)
 
-> `docs/dogfood/sprint42-feedback.md` 의 BL 큐 candidate ID → REFACTORING-BACKLOG.md BL-XXX 부여.
+> `docs/archive/dogfood/sprint42-feedback.md` 의 BL 큐 candidate ID → REFACTORING-BACKLOG.md BL-XXX 부여.
 > Day 7 시점은 candidate 그대로 (close-out Day 14 시점 일괄 부여). 본 섹션 = Day 7 시점 가시성.
 
 | Cand ID         | Priority | trigger | 1-line | 발견자 |
@@ -102,7 +102,7 @@
 
 ## Cross-link
 
-- feedback 누적: [`docs/dogfood/sprint42-feedback.md`](../dogfood/sprint42-feedback.md)
+- feedback 누적: [`docs/archive/dogfood/sprint42-feedback.md`](../archive/dogfood/sprint42-feedback.md)
 - Day 14 close-out 골격: [`docs/dev-log/2026-05-XX-sprint42-master.md`](2026-05-08-sprint42-master.md) (Day 14 도래 시 rename)
 - Sprint 41 master (직전 완료): [`docs/dev-log/2026-05-07-sprint41-master.md`](2026-05-07-sprint41-master.md)
 - Sprint 36 Day 7 양식 참조: [`2026-05-06-dogfood-day7-sprint36.md`](2026-05-06-dogfood-day7-sprint36.md)

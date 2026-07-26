@@ -113,4 +113,4 @@ runtime에서는 잡히지 않고 CCXT 호출 시점까지 전파된다. Sprint 
 - `backend/src/trading/providers.py:63` — ExchangeProvider Protocol
 - `backend/src/core/config.py:57` — exchange_provider Literal
 - `backend/src/tasks/trading.py:65` — _build_exchange_provider() 분기
-- `docs/dev-log/006-sprint6-design-review-summary.md` — ADR-006
+- `docs/decisions/006-sprint6-design-review-summary.md` — ADR-006

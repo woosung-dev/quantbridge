@@ -67,7 +67,7 @@ Sprint 46 같은 세션 안 두 번째 audit. 첫 audit (pine_v2 SSOT) 는 사�
 
 ## Phase 4 등재
 
-### `docs/REFACTORING-BACKLOG.md` 신규 BL 4건 (P2 섹션)
+### `docs/backlog.md` 신규 BL 4건 (P2 섹션)
 
 - **BL-202** trading Provider Registry/Factory (★★★★★, M 6-9h)
   - **현 상태:** providers.py 5 class + dependencies.py:51 singleton 1개 + service.py:146/515 ad-hoc 분기

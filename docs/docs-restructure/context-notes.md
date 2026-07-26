@@ -28,13 +28,13 @@
 
 그리고 성격상으로도 둘은 "완결 기록" 이 아니다. `dev-log/` 는 **append-only 활성 로그**이고 `reports/` 는 **생성물 출력 디렉토리**다. archive(= 기존 항목 수정 금지)에 넣으면 의미가 어긋난다.
 
-→ **최상위 목표를 7개에서 9개로 조정한다.** 위험 대비 이득이 나쁜 2개를 뺀 것이지 물러선 게 아니다.
+→ **최상위 목표를 7개에서 9개로 조정한다.** (실제 착지는 활성 스프린트 1개 포함 10개) 위험 대비 이득이 나쁜 2개를 뺀 것이지 물러선 게 아니다.
 
 ## 3. ★`prototypes/` 는 archive 가 아니라 `reference/` 다
 
 초안에서 `docs/prototypes/`(49파일)를 완결 산출물로 보고 archive 후보에 넣었다. **틀렸다.**
 
-- `frontend/src/__tests__/design-canon-kit-port.test.ts:21` 이 `docs/prototypes/shotgun-2026-07/_kit.html` 을 **실제로 로드한다**.
+- `frontend/src/__tests__/design-canon-kit-port.test.ts:21` 이 `docs/reference/prototypes/shotgun-2026-07/_kit.html` 을 **실제로 로드한다**.
 - `design-canon-tokens.test.ts:21` 도 `variant-c.html` 을 로드한다.
 
 즉 프로토타입은 **FE 디자인 캐논의 살아있는 정본**이다. 테스트가 매번 대조하는 대상을 "읽기 전용 보관소" 에 넣을 수 없다. → `reference/prototypes/` 로 승격한다.

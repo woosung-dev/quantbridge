@@ -33,8 +33,8 @@
 
 | 문서 | 위치 |
 |------|------|
-| 기능 명세 | `docs/01_requirements/` |
-| 도메인 모델 | `docs/02_domain/` |
-| API 명세 | `docs/03_api/` |
-| 아키텍처 | `docs/04_architecture/` |
-| TODO | `docs/TODO.md` |
+| 기능 명세 | `docs/reference/` |
+| 도메인 모델 | `docs/reference/` |
+| API 명세 | `docs/reference/` |
+| 아키텍처 | `docs/reference/` |
+| TODO | `docs/status.md` |

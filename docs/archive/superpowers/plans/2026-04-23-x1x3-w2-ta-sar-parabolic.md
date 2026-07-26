@@ -306,12 +306,12 @@ Expected: 922+ baseline + 신규 5-6 SAR tests → 927+ passed.
 codex exec --sandbox read-only "Review git diff for ta.sar implementation. Check: (1) Wilder algorithm correctness (EP / AF / reversal), (2) nan propagation, (3) state encapsulation (no globals), (4) interpreter dispatch parity with ta.rsi/ta.atr pattern, (5) no regression in other ta.* tests."
 ```
 
-출력 → `docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md`.
+출력 → `docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md`.
 
 ### T6. Stage push
 
 ```bash
-git add backend/src/strategy/pine_v2/stdlib.py backend/src/strategy/pine_v2/interpreter.py backend/tests/strategy/pine_v2/test_stdlib_sar.py docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md
+git add backend/src/strategy/pine_v2/stdlib.py backend/src/strategy/pine_v2/interpreter.py backend/tests/strategy/pine_v2/test_stdlib_sar.py docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md
 git commit -m "feat(pine_v2): ta.sar Parabolic SAR stdlib (W2)"
 git push origin stage/x1-x3-indicator-ui
 ```

@@ -6,10 +6,10 @@
 > **관련 PR:** [#8](https://github.com/woosung-dev/quantbridge/pull/8) (Sprint 6 설계/리뷰, commits `ebaa9b3` → `0842fa9`)
 > **관련 문서:**
 >
-> - Parent design doc: `docs/01_requirements/trading-demo.md`
-> - Brainstorming spec: `docs/superpowers/specs/2026-04-16-trading-demo-design.md`
-> - Implementation plan: `docs/superpowers/plans/2026-04-16-trading-demo.md`
-> - Security audit: `docs/audit/2026-04-16-trading-demo-security.md`
+> - Parent design doc: `docs/reference/trading-demo.md`
+> - Brainstorming spec: `docs/archive/superpowers/specs/2026-04-16-trading-demo-design.md`
+> - Implementation plan: `docs/archive/superpowers/plans/2026-04-16-trading-demo.md`
+> - Security audit: `docs/archive/audit/2026-04-16-trading-demo-security.md`
 
 ---
 
@@ -239,5 +239,5 @@ Sprint 6 plan의 T1/T3/T4/T13/T15는 이 ADR의 결정대로 업데이트 완료
 ## 참조
 
 - autoplan 전체 findings 41건: Sprint 6 plan 파일의 "/autoplan 리뷰 결과" 섹션 (축약 예정, 본 ADR로 대체)
-- /cso 6 findings: `docs/audit/2026-04-16-trading-demo-security.md`
+- /cso 6 findings: `docs/archive/audit/2026-04-16-trading-demo-security.md`
 - Restore point: `~/.gstack/projects/quant-bridge/feat-sprint6-trading-demo-docs-autoplan-restore-20260416-203650.md` (로컬)

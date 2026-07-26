@@ -3,7 +3,7 @@
 # backtest-trust — 백테스트 숫자 신뢰도 (2026-07-26)
 
 > 브랜치 `stage/backtest-trust` (main @ `a4954e4` 베이스) · 마이그레이션 **0**
-> 산출물: [`docs/backtest-trust/`](../backtest-trust/) (operating-contract / checklist / context-notes)
+> 산출물: [`docs/archive/sprints/backtest-trust/`](../archive/sprints/backtest-trust/) (operating-contract / checklist / context-notes)
 > **BL-398 Resolved · BL-388 Resolved · BL-186 부분 Resolved(186a)** · 신규 BL-460~463
 
 ---

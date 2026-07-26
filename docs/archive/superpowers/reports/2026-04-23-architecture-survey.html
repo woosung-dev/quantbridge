@@ -556,7 +556,7 @@ sequenceDiagram
 3. 사용자가 backtest 시도:
    → 422 StrategyNotRunnable
    → 미지원 목록 + 문서 링크</code></pre>
-          <p class="why" style="margin-top: 10px;">백테스트 실행 <strong>전</strong> 에 명확. <code>docs/02_domain/supported-indicators.md</code> 화이트리스트로 사용자가 strategy 선택. <strong>Trust layer 철학 정합</strong>.</p>
+          <p class="why" style="margin-top: 10px;">백테스트 실행 <strong>전</strong> 에 명확. <code>docs/reference/supported-indicators.md</code> 화이트리스트로 사용자가 strategy 선택. <strong>Trust layer 철학 정합</strong>.</p>
         </div>
       </div>
 
@@ -569,7 +569,7 @@ sequenceDiagram
     <!-- ============================================================ -->
     <section id="blueprint">
       <h2>5. ADR-011 원래 청사진 — Tier 0~5 + 3-Track + Phase -1~4</h2>
-      <p class="lede">출처: <code>docs/dev-log/011-pine-execution-strategy-v4.md</code> + <code>docs/04_architecture/pine-execution-architecture.md</code> (확정 신뢰도 8/10, 2026-04-18 amendment).</p>
+      <p class="lede">출처: <code>docs/decisions/011-pine-execution-strategy-v4.md</code> + <code>docs/reference/pine-execution-architecture.md</code> (확정 신뢰도 8/10, 2026-04-18 amendment).</p>
 
       <h3>3-Track 분류 (Pine 스크립트 입력 분기)</h3>
       <div class="mermaid-wrap">
@@ -768,7 +768,7 @@ gantt
             <span class="badge defer">corpus 프로파일링 후</span>
           </div>
           <dl>
-            <dt>출처</dt><dd><code>docs/01_requirements/pine-coverage-assignment.md</code> — pending 함수 목록</dd>
+            <dt>출처</dt><dd><code>docs/reference/pine-coverage-assignment.md</code> — pending 함수 목록</dd>
             <dt>효과</dt><dd><code>fixnan / ta.supertrend / ta.cci / ta.mom / ta.mfi / ta.willr / array.from / ta.tostring</code> 등 일괄 추가. i3_drfx 류 indicator 차단 해소</dd>
             <dt>시간</dt><dd>1~2주 (함수당 ~30분 + 테스트)</dd>
             <dt>위험</dt><dd>중간 — semantic mismatch 위험. Tier-2 CI 가 있으면 안전</dd>
@@ -863,7 +863,7 @@ gantt
 
     <footer>
       QuantBridge Architecture Survey · 생성: 2026-04-23 · 출처: ADR-011 (확정), Sprint Y1 (PR #61), 코드 SSOT (<code>backend/src/strategy/pine_v2/coverage.py</code>)
-      <br>이 파일은 <code>docs/superpowers/reports/2026-04-23-architecture-survey.html</code> 에 저장됨. 인쇄 시 자동 page-break.
+      <br>이 파일은 <code>docs/archive/superpowers/reports/2026-04-23-architecture-survey.html</code> 에 저장됨. 인쇄 시 자동 page-break.
     </footer>
   </main>
 </div>

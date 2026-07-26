@@ -41,7 +41,7 @@ Q-1 verify 결과 `strategy.parse_metadata` JSONB는 DB에 존재하지 않으�
 
 ### Docs
 
-- **Modify** `docs/TODO.md` — /qa Quick tier findings 섹션에 ISSUE-003/004 ✅ 체크. Next 7b/7c 표시 업데이트.
+- **Modify** `docs/status.md` — /qa Quick tier findings 섹션에 ISSUE-003/004 ✅ 체크. Next 7b/7c 표시 업데이트.
 
 ---
 
@@ -979,11 +979,11 @@ Dev server: `docker compose up -d && cd frontend && pnpm dev` + `cd backend && u
 ## Task 7: Docs 동기화
 
 **Files:**
-- Modify: `docs/TODO.md`
+- Modify: `docs/status.md`
 
 - [ ] **Step 1: /qa findings 섹션 업데이트**
 
-`docs/TODO.md`의 `/qa Quick tier findings (2026-04-17 ...)` 섹션에 다음 표기 추가:
+`docs/status.md`의 `/qa Quick tier findings (2026-04-17 ...)` 섹션에 다음 표기 추가:
 
 ```markdown
 - ISSUE-003 Edit 코드 탭 우측 패널 misleading empty state — ✅ FIXED (Sprint 7b, TabCode 마운트 자동 파싱)
@@ -992,7 +992,7 @@ Dev server: `docker compose up -d && cd frontend && pnpm dev` + `cd backend && u
 
 - [ ] **Step 2: Sprint 7b 완료 기록**
 
-`docs/TODO.md` Sprint 7 섹션에 Sprint 7b 완료 항목 추가:
+`docs/status.md` Sprint 7 섹션에 Sprint 7b 완료 항목 추가:
 
 ```markdown
 ### Sprint 7b Edit UX 풍부화 ✅ 완료 (YYYY-MM-DD, PR #N)
@@ -1015,7 +1015,7 @@ Dev server: `docker compose up -d && cd frontend && pnpm dev` + `cd backend && u
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/TODO.md .claude/CLAUDE.md
+git add docs/status.md .claude/CLAUDE.md
 git commit -m "docs(sprint7b): mark ISSUE-003/004 fixed + sprint completion log"
 ```
 

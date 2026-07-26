@@ -2,7 +2,7 @@
 
 **일자**: 2026-05-17 (Day 8 of dogfood, NPS+1)
 **Type**: B (risk-critical fix-first)
-**근거**: `docs/qa/2026-05-17/integrated-report.html` 4-페르소나 Multi-Agent QA. Composite 6.08/10, Critical 2, High 11. 4-AND Beta gate (a)(b)(c) **3/4 FAIL** → Beta 본격 진입 차단.
+**근거**: `docs/archive/qa/2026-05-17/integrated-report.html` 4-페르소나 Multi-Agent QA. Composite 6.08/10, Critical 2, High 11. 4-AND Beta gate (a)(b)(c) **3/4 FAIL** → Beta 본격 진입 차단.
 
 ---
 
@@ -235,7 +235,7 @@
 ### Sprint 61 진입 의무 (로컬 dev 환경, 외부 의존 0)
 
 - [ ] (T-3 manual 1분) Clerk dashboard → Application → Settings → Application name: `quant-bridge` → **QuantBridge** 변경. **dev instance 안에서, dev key 그대로**. 별도 발급 불요.
-- [ ] (Sprint 종료) Multi-Agent QA 재실행 (`docs/qa/2026-05-19~21/` 생성) — 본 plan 의 검증 기준 합격 판정 의무
+- [ ] (Sprint 종료) Multi-Agent QA 재실행 (`docs/archive/qa/2026-05-19~21/` 생성) — 본 plan 의 검증 기준 합격 판정 의무
 - [ ] (Sprint 종료) Beta 4-AND gate (d) 본인 의지 결정 — Day 7 NPS + 본 QA 재실행 결과 cross-reference
 
 ### Sprint 62 Beta production deploy 시점 의무 (외부 의존 = DNS + Clerk production)
@@ -252,7 +252,7 @@
 
 | 파일                                                                       | 역할                                                                      |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `docs/qa/2026-05-17/integrated-report.html`                                | 베이스라인 (Composite 6.08, 37 BL)                                        |
+| `docs/archive/qa/2026-05-17/integrated-report.html`                                | 베이스라인 (Composite 6.08, 37 BL)                                        |
 | `frontend/src/app/(dashboard)/trading/page.tsx`                            | T-1 대상                                                                  |
 | `frontend/src/components/layout/UserButton.tsx` 또는 wrapper               | T-2 대상                                                                  |
 | `frontend/src/app/layout.tsx`                                              | T-3 ClerkProvider                                                         |

@@ -199,6 +199,6 @@ Week 3 추가 (+17 tests):
 - [ADR-011 Pine Execution Strategy v4](011-pine-execution-strategy-v4.md)
 - [ADR-011 Phase -1 amendment (#19, merged)](https://github.com/woosung-dev/quantbridge/pull/19)
 - [Phase -1 findings](../../.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
-- [pine-execution-architecture](../04_architecture/pine-execution-architecture.md)
+- [pine-execution-architecture](../reference/pine-execution-architecture.md)
 - [pine_v2 README](../../backend/src/strategy/pine_v2/README.md)
 - [NOTICE](../../NOTICE)

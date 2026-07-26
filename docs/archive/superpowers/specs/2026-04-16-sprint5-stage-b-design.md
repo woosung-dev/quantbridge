@@ -6,7 +6,7 @@
 > **관련:**
 > - Sprint 4 spec §10.5 (Sprint 5 이관 목록)
 > - Sprint 4 spec §11.2 (Open Issues #1, #2, #6, #9, #10, #11, #13)
-> - `docs/TODO.md` §Sprint 5+ 이관
+> - `docs/status.md` §Sprint 5+ 이관
 
 ---
 

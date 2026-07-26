@@ -51,7 +51,7 @@
 
 ## Phase 4 등재
 
-### `docs/REFACTORING-BACKLOG.md` 신규 BL 1건 (P2 섹션)
+### `docs/backlog.md` 신규 BL 1건 (P2 섹션)
 
 - **BL-206** frontend cross-page primitive cleanup (★★★★☆/★★★☆☆ 묶음, S-M 3-4h)
   - **현 상태:** components/skeleton.tsx 가 있으나 5+ inline duplicate hardcode

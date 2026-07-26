@@ -38,7 +38,7 @@
 - [x] 기구현 5건 회귀 검증 — 통합 vitest 980 그린 + authed 62 (sprint55 재실행 포함)
 - [x] e2e: `authed-functional-parity.spec.ts` 신설(5 case — A1 클릭스루 포함으로 tier1 확장 대체) + testMatch 등재 + sprint55 BL-401 확장 1 case
 - [x] BL 등재: defer BL-413·BL-414 + 평가 파생 BL-415·BL-416 / Resolved: BL-401·BL-402·BL-411
-- [x] `docs/TODO.md` 갱신 · `terminology-ssot.md` §6-3 해소 기록 · `HANDOFF.md` 6판 §3 소거 표기
+- [x] `docs/status.md` 갱신 · `terminology-ssot.md` §6-3 해소 기록 · `HANDOFF.md` 6판 §3 소거 표기
 
 ## 2. Defer 확정 (프로토타입 근거 부재 — 캐논 준수)
 

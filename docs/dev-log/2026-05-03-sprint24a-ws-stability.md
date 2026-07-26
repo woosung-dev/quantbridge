@@ -188,5 +188,5 @@ docker exec quantbridge-redis redis-cli -n 3 KEYS "ws:lease:*"
 - Sprint 24 plan v2 (Track 1+2 통합): `~/.claude/plans/claude-plans-h2-sprint-22-prompt-md-elegant-cerf.md`
 - Sprint 23 dev-log: `docs/dev-log/2026-05-03-sprint23-c3-bundle.md`
 - Sprint 22 dev-log: `docs/dev-log/2026-05-03-sprint22-bl091-architectural.md`
-- BL 상세: `docs/REFACTORING-BACKLOG.md`
+- BL 상세: `docs/backlog.md`
 - backend.md §11 prefork-safe + LESSON-019: `.ai/stacks/fastapi/backend.md`

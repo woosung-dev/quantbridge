@@ -22,7 +22,7 @@ description: 전역 규칙 — 워크플로우, 문서화, Git, 환경변수, �
 > **"문서가 없으면 기능도 없다."**
 > docs/ 디렉토리 상세 구조는 `AGENTS.md` 섹션 4 참조. 아래는 ID 체계와 TODO.md 운영 규칙:
 
-`00_project/` · `01_requirements/` · `02_domain/` · `03_api/` · `04_architecture/` · `05_env/` · `06_devops/` · `07_infra/` · `dev-log/` · `guides/` · `TODO.md`
+`00_project/` · `01_requirements/` · `02_domain/` · `03_api/` · `04_architecture/` · `05_env/` · `06_devops/` · `07_infra/` · `dev-log/` · `guides/` · `status.md`
 
 ### ID 체계
 
@@ -35,7 +35,7 @@ description: 전역 규칙 — 워크플로우, 문서화, Git, 환경변수, �
 
 ### TODO.md 운영
 
-프로젝트 루트에 `docs/TODO.md`를 유지하며, 주요 작업 후 아래 4가지 섹션을 업데이트한다.
+프로젝트 루트에 `docs/status.md`를 유지하며, 주요 작업 후 아래 4가지 섹션을 업데이트한다.
 
 ```markdown
 ## Completed

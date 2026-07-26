@@ -115,8 +115,8 @@
 
 ## §4 마감
 
-- [x] `docs/money-path-finish/{checklist,operating-contract,context-notes}.md`
-- [ ] `docs/exit-money-path/operating-contract.md` §1·§3.2·§4 갱신
-- [ ] `docs/REFACTORING-BACKLOG.md` — BL-457/454 Resolved · BL-458 부분 · **BL-464 신규** · ★BL-457 의 잘못된 "권장 접근" 제자리 정정 · `:2287` stale ID 범위 정정
-- [ ] `docs/TODO.md` · `docs/dev-log/` 회고 + `INDEX.md` · `docs/product-roadmap.md` 체크박스
+- [x] `docs/archive/sprints/money-path-finish/{checklist,operating-contract,context-notes}.md`
+- [ ] `docs/archive/sprints/exit-money-path/operating-contract.md` §1·§3.2·§4 갱신
+- [ ] `docs/backlog.md` — BL-457/454 Resolved · BL-458 부분 · **BL-464 신규** · ★BL-457 의 잘못된 "권장 접근" 제자리 정정 · `:2287` stale ID 범위 정정
+- [ ] `docs/status.md` · `docs/dev-log/` 회고 + `INDEX.md` · `docs/roadmap.md` 체크박스
 - [ ] 커밋 1개 → push → PR (squash 는 사용자)

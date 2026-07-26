@@ -27,7 +27,7 @@
 **충돌 회피:**
 - A = `backend/src/strategy/pine_v2/` 단독
 - B/C = `backend/src/trading/{repository,service}.py` 분할 (B 가 repo 안정화 후 C 진입 — codex G.0 권장)
-- D = `docs/dogfood/*` only (codex Fix #3 — `docs/TODO.md`/backlog/dev-log 는 P3 메인 세션 처리)
+- D = `docs/archive/dogfood/*` only (codex Fix #3 — `docs/status.md`/backlog/dev-log 는 P3 메인 세션 처리)
 - E = grep + read-only audit, write 0
 
 ---
@@ -217,11 +217,11 @@
 
 **Sub-Skill 필수:** 없음 (docs only, TDD 면제)
 
-**Write scope (codex Fix #3 — 의무):** `docs/dogfood/*` + Day 7 skeleton **만**. `docs/TODO.md`, `docs/REFACTORING-BACKLOG.md`, `docs/dev-log/sprint48-close.md` 는 P3 메인 세션 처리. 위반 시 Evaluator FAIL.
+**Write scope (codex Fix #3 — 의무):** `docs/archive/dogfood/*` + Day 7 skeleton **만**. `docs/status.md`, `docs/backlog.md`, `docs/dev-log/sprint48-close.md` 는 P3 메인 세션 처리. 위반 시 Evaluator FAIL.
 
 **Files:**
-- Modify: `docs/dogfood/sprint42-cohort-outreach.md` (Day 0 발송 메시지 갱신, 본문 검토)
-- Modify: `docs/dogfood/sprint42-feedback.md` (Day 7 mid-check skeleton row 추가)
+- Modify: `docs/archive/dogfood/sprint42-cohort-outreach.md` (Day 0 발송 메시지 갱신, 본문 검토)
+- Modify: `docs/archive/dogfood/sprint42-feedback.md` (Day 7 mid-check skeleton row 추가)
 - Modify: `docs/dev-log/2026-05-08-sprint42-day7-midcheck.md` (Day 7 schedule = Day 0 발송일 +6 의무 명시 — codex Fix #7)
 
 **Steps:**
@@ -243,8 +243,8 @@
   - 기존 절대 날짜 references 삭제
 
 - [ ] **D.5: Self-verify**
-  - `git diff docs/dogfood/ docs/dev-log/2026-05-08-sprint42-day7-midcheck.md` 검토
-  - write scope 위반 0 (`docs/TODO.md`, `docs/REFACTORING-BACKLOG.md` 변경 0)
+  - `git diff docs/archive/dogfood/ docs/dev-log/2026-05-08-sprint42-day7-midcheck.md` 검토
+  - write scope 위반 0 (`docs/status.md`, `docs/backlog.md` 변경 0)
 
 - [ ] **D.6: commit + push + PR**
   - Commit: "docs(dogfood): BL-204/sprint48 Track 2 — Day 0 발송 메시지 + Day 7 relative schedule"
@@ -299,7 +299,7 @@
 
 **Files:**
 - Create: `docs/dev-log/2026-05-09-sprint48-close.md`
-- Modify: `docs/REFACTORING-BACKLOG.md` (BL-201/203/204 Resolved + Sprint 49 shim removal TODO)
+- Modify: `docs/backlog.md` (BL-201/203/204 Resolved + Sprint 49 shim removal TODO)
 - Modify: `.ai/project/lessons.md` (LESSON 누적 — BL-201 reverse-map 사례 / BL-204 wrong premise 정정)
 - Modify: `.claude/CLAUDE.md` (Sprint 47 → Sprint 48 활성 sprint, Sprint 49 분기 추가)
 

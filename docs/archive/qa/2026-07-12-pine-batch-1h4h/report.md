@@ -72,7 +72,7 @@ upos/dnos 플립은 실존(4h 308/112 bars), alert 2종 수집도 정상. 원인
 | ① UtBot 4h 2024 | Wilder ATR(10) 시드=SMA + 트레일링 스탑 iff 체인 독립 재구현 | 첫 시그널 **bar 14 short @ 43736.2** — 엔진과 바/방향/가격 3항목 **완전 일치 PASS**                                                                                                          |
 | ② bs 4h 2024    | ta.ema(SMA 시드) + EMA(5/13) 크로스 + 양봉 확인              | 엔진 시멘틱(nan→False) 수계산 **bar 12 long — 완전 일치**. 단 TV na-전파 시멘틱으로는 첫 시그널이 bar 15 short — ~~워밍업 경계 스퓨리어스 시그널 1건 발견 → BL-405~~ **(아래 erratum 참조)** |
 
-> **⚠️ Erratum (2026-07-12, A+B+C Trust 번들):** 오라클 ②의 "TV na-전파 시멘틱 → bar 15" 는 **잘못된 전제**였다. TradingView 공식 문서 검증 결과 **Pine 의 bool 은 절대 na 가 아니며, 비교 연산은 na 피연산자에 concrete `false` 를 반환**한다(na 전파 아님 — na 전파는 산술만). 즉 엔진의 bar 12 동작이 TV 정답이고, 오라클이 가정한 "bool na 전파 → bar 15" 는 존재하지 않는 시멘틱이었다. **BL-405 는 not-a-bug 로 재분류(폐기)** 되었고, TV-정합 회귀 테스트(`tests/strategy/pine_v2/test_na_bool_tv_parity.py` 13건)로 잠갔다. bar12↔bar15 실측 편차가 (실제 TV 대비) 존재한다면 그 원인은 bool-na 가 아니라 **ta.ema 워밍업 시딩 → BL-409** 로 분리 추적한다. 상세: `docs/REFACTORING-BACKLOG.md` BL-405/BL-409.
+> **⚠️ Erratum (2026-07-12, A+B+C Trust 번들):** 오라클 ②의 "TV na-전파 시멘틱 → bar 15" 는 **잘못된 전제**였다. TradingView 공식 문서 검증 결과 **Pine 의 bool 은 절대 na 가 아니며, 비교 연산은 na 피연산자에 concrete `false` 를 반환**한다(na 전파 아님 — na 전파는 산술만). 즉 엔진의 bar 12 동작이 TV 정답이고, 오라클이 가정한 "bool na 전파 → bar 15" 는 존재하지 않는 시멘틱이었다. **BL-405 는 not-a-bug 로 재분류(폐기)** 되었고, TV-정합 회귀 테스트(`tests/strategy/pine_v2/test_na_bool_tv_parity.py` 13건)로 잠갔다. bar12↔bar15 실측 편차가 (실제 TV 대비) 존재한다면 그 원인은 bool-na 가 아니라 **ta.ema 워밍업 시딩 → BL-409** 로 분리 추적한다. 상세: `docs/backlog.md` BL-405/BL-409.
 
 ### 4.3 데이터 신뢰
 

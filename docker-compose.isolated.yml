@@ -13,7 +13,7 @@
 # host src 가 SoT 이므로 `:ro` 안전. 패키지 추가는 image rebuild 가 의무 (별도 ADR).
 #
 # WARNING: base mode (`make up`) 와 isolated mode 동시 운영 시 `quantbridge-*` container_name
-# 충돌 발생. base 와 isolated 는 mutually exclusive (ADR docs/07_infra/2026-05-06-bl-181-*.md).
+# 충돌 발생. base 와 isolated 는 mutually exclusive (ADR docs/reference/infra/2026-05-06-bl-181-*.md).
 
 services:
   db:

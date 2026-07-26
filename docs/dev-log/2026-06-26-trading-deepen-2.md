@@ -40,7 +40,7 @@ deepen skill §3.4 STOP(test coverage <70% → test 우선)을 재측정. Agent 
 
 ## Phase 4 — 등재
 
-- `REFACTORING-BACKLOG.md` P2 = BL-365/366/368/369, P3 = BL-367/370/371.
+- `backlog.md` P2 = BL-365/366/368/369, P3 = BL-367/370/371.
 - Sprint 권고: 트레일링 live-placement 안정화 + stage→main 후, trading deepening sprint 로 BL-366/368/369 묶음(architectural) + BL-367(clean win). BL-365 는 서버 standalone-trigger 발주 시점까지 보류. BL-370 은 over-abstraction 위험 재평가 후. BL-371 은 post-Beta monitor.
 
 ## 교훈 (LESSON 후보)

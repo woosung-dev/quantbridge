@@ -453,12 +453,12 @@ Expected: 모두 PASS/clean.
 codex exec --sandbox read-only "Review git diff for TradeAnalysis direction breakdown. Check: (1) computeDirectionBreakdown pure + no side effects, (2) TradeAnalysis trades prop optional backward-compat, (3) useMemo dep is [trades] stable ref — LESSON-004 compliant, (4) TypeScript strict: no any, (5) Tailwind v4 class conventions, (6) empty/single/mixed edge cases covered."
 ```
 
-출력 → `docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md`.
+출력 → `docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md`.
 
 ### T6. Stage push
 
 ```bash
-git add frontend/src/features/backtest/utils.ts frontend/src/features/backtest/__tests__/direction-breakdown.test.ts frontend/src/app/\(dashboard\)/backtests/_components/trade-analysis.tsx frontend/src/app/\(dashboard\)/backtests/_components/__tests__/trade-analysis.test.tsx frontend/src/app/\(dashboard\)/backtests/_components/backtest-detail-view.tsx docs/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
+git add frontend/src/features/backtest/utils.ts frontend/src/features/backtest/__tests__/direction-breakdown.test.ts frontend/src/app/\(dashboard\)/backtests/_components/trade-analysis.tsx frontend/src/app/\(dashboard\)/backtests/_components/__tests__/trade-analysis.test.tsx frontend/src/app/\(dashboard\)/backtests/_components/backtest-detail-view.tsx docs/archive/superpowers/reviews/2026-04-23-x1x3-w4-codex-self.md
 git commit -m "feat(backtest): Trade Analysis direction breakdown (long/short win rate + avg PnL) (W4)"
 git push origin stage/x1-x3-indicator-ui
 ```

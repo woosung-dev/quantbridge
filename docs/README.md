@@ -27,15 +27,15 @@
 | [06_devops/](./06_devops/)                         | Docker Compose, CI/CD, Pre-commit                                    | ✅ 완료  |
 | [07_infra/](./07_infra/)                           | 배포·Observability·Runbook (draft)                                   | 📝 Draft |
 | [DESIGN.md](../DESIGN.md)                          | 디자인 시스템 (색상, 타이포, 컴포넌트)                               | ✅ 확정  |
-| [prototypes/](./prototypes/)                       | Stage 2 HTML 프로토타입 (12개 화면)                                  | ✅ 확정  |
-| [audit/](./audit/)                                 | 보안 감사 리포트 archive (CSO/Security review 산출물)                | 활성     |
-| [marketing/](./marketing/)                         | build-in-public 콘텐츠 archive (Twitter thread / blog draft)         | 활성     |
+| [prototypes/](reference/prototypes/)                       | Stage 2 HTML 프로토타입 (12개 화면)                                  | ✅ 확정  |
+| [audit/](archive/audit/)                                 | 보안 감사 리포트 archive (CSO/Security review 산출물)                | 활성     |
+| [marketing/](archive/marketing/)                         | build-in-public 콘텐츠 archive (Twitter thread / blog draft)         | 활성     |
 | [reports/](./reports/)                             | 자동 생성 dogfood/retro/audit HTML 리포트                            | 활성     |
 | [superpowers/](./superpowers/)                     | H1 sprint plan/spec/review 누적 (~71 파일, INDEX 참조)               | 활성     |
 | [dev-log/](./dev-log/)                             | ADR (의사결정 기록) + sprint 회고 + dogfood 기록                     | 활성     |
 | [guides/](./guides/)                               | 개발 가이드, Sprint 킥오프/종료 템플릿, BL audit checklist           | 활성     |
-| [TODO.md](./TODO.md)                               | active sprint 작업 추적 (4 섹션)                                     | 활성     |
-| [REFACTORING-BACKLOG.md](./REFACTORING-BACKLOG.md) | deferred 작업 백로그 (BL-XXX, 50+ 항목, 4 priority + Beta 번들)      | 활성     |
+| [TODO.md](../.ai/templates/docs/TODO.md)                               | active sprint 작업 추적 (4 섹션)                                     | 활성     |
+| [REFACTORING-BACKLOG.md](./backlog.md) | deferred 작업 백로그 (BL-XXX, 50+ 항목, 4 priority + Beta 번들)      | 활성     |
 | [\_archive/](./_archive/)                          | Deprecated docs 보관소 (6개월+ 미참조 / 삭제 금지 / 분기별 디렉토리) | archive  |
 
 ## 빠른 시작
@@ -61,7 +61,7 @@ cd backend && uv sync && uvicorn src.main:app --reload
   타겟: 파트타임 크립토 트레이더, $1K~$50K, Python 없음
   `[/office-hours 2026-04-13]`
 
-- **Pine 런타임 + 파서 범위:** [ADR-003](./dev-log/003-pine-runtime-safety-and-parser-scope.md)
+- **Pine 런타임 + 파서 범위:** [ADR-003](decisions/003-pine-runtime-safety-and-parser-scope.md)
   - `exec()`/`eval()` 금지 → 인터프리터 패턴
   - 미지원 함수 1개라도 있으면 전체 "Unsupported" (부분 실행 금지)
   - Celery zombie task 복구 인프라 필수 (on_failure + Beat cleanup + cancel)
@@ -76,26 +76,26 @@ cd backend && uv sync && uvicorn src.main:app --reload
 | [QUANTBRIDGE_PRD.md](../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                            |
 | [AGENTS.md](../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                                |
 | [.ai/](../.ai/)                                                                                              | 코딩 규칙                                           |
-| [01_requirements/requirements-overview.md](./01_requirements/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스                          |
-| [01_requirements/req-catalog.md](./01_requirements/req-catalog.md)                                           | REQ-### 상세 카탈로그                               |
-| [02_domain/domain-overview.md](./02_domain/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스                       |
-| [02_domain/entities.md](./02_domain/entities.md)                                                             | ENT-### 엔티티 카탈로그                             |
-| [02_domain/state-machines.md](./02_domain/state-machines.md)                                                 | 도메인 상태 전이도                                  |
-| [04_architecture/system-architecture.md](./04_architecture/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계                      |
-| [04_architecture/data-flow.md](./04_architecture/data-flow.md)                                               | 도메인별 시퀀스 다이어그램                          |
-| [04_architecture/architecture-conformance.md](./04_architecture/architecture-conformance.md)                 | 정합성 audit 영구 체크리스트 (15 항목, 재실행 가능) |
-| [05_env/local-setup.md](./05_env/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                             |
-| [05_env/env-vars.md](./05_env/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그                      |
-| [05_env/clerk-setup.md](./05_env/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                              |
-| [06_devops/docker-compose-guide.md](./06_devops/docker-compose-guide.md)                                     | Compose 운영 가이드                                 |
-| [06_devops/ci-cd.md](./06_devops/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                               |
-| [06_devops/pre-commit.md](./06_devops/pre-commit.md)                                                         | husky + lint-staged 가이드                          |
-| [07_infra/deployment-plan.md](./07_infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                              |
-| [07_infra/observability-plan.md](./07_infra/observability-plan.md)                                           | Observability 계획 (draft)                          |
-| [07_infra/runbook.md](./07_infra/runbook.md)                                                                 | 운영 Runbook (draft)                                |
+| [01_requirements/requirements-overview.md](reference/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스                          |
+| [01_requirements/req-catalog.md](reference/req-catalog.md)                                           | REQ-### 상세 카탈로그                               |
+| [02_domain/domain-overview.md](reference/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스                       |
+| [02_domain/entities.md](reference/entities.md)                                                             | ENT-### 엔티티 카탈로그                             |
+| [02_domain/state-machines.md](reference/state-machines.md)                                                 | 도메인 상태 전이도                                  |
+| [04_architecture/system-architecture.md](reference/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계                      |
+| [04_architecture/data-flow.md](reference/data-flow.md)                                               | 도메인별 시퀀스 다이어그램                          |
+| [04_architecture/architecture-conformance.md](reference/architecture-conformance.md)                 | 정합성 audit 영구 체크리스트 (15 항목, 재실행 가능) |
+| [05_env/local-setup.md](reference/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                             |
+| [05_env/env-vars.md](reference/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그                      |
+| [05_env/clerk-setup.md](reference/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                              |
+| [06_devops/docker-compose-guide.md](reference/docker-compose-guide.md)                                     | Compose 운영 가이드                                 |
+| [06_devops/ci-cd.md](reference/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                               |
+| [06_devops/pre-commit.md](reference/pre-commit.md)                                                         | husky + lint-staged 가이드                          |
+| [07_infra/deployment-plan.md](reference/infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                              |
+| [07_infra/observability-plan.md](reference/infra/observability-plan.md)                                           | Observability 계획 (draft)                          |
+| [07_infra/runbook.md](reference/infra/runbook.md)                                                                 | 운영 Runbook (draft)                                |
 | [guides/development-methodology.md](./guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략                |
 | [guides/sprint-kickoff-template.md](./guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿                       |
-| [dev-log/001-tech-stack.md](./dev-log/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                             |
-| [dev-log/002-parallel-scaffold-strategy.md](./dev-log/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략                         |
-| [dev-log/003-pine-runtime-safety-and-parser-scope.md](./dev-log/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위             |
-| [dev-log/004-pine-parser-approach-selection.md](./dev-log/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택                      |
+| [dev-log/001-tech-stack.md](decisions/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                             |
+| [dev-log/002-parallel-scaffold-strategy.md](decisions/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략                         |
+| [dev-log/003-pine-runtime-safety-and-parser-scope.md](decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위             |
+| [dev-log/004-pine-parser-approach-selection.md](decisions/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택                      |

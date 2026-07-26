@@ -1,13 +1,13 @@
 # ADR-011: Pine Script 실행 전략 v4 — Alert Hook Parser + 3-Track Architecture
 
-> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 결정 근거 + 의사결정 ADR. **SSOT 는 [`docs/04_architecture/pine-execution-architecture.md`](../04_architecture/pine-execution-architecture.md)** (구현 수준 상세도). 50+ 턴 세션 학술 archive: [`docs/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../superpowers/specs/2026-04-17-pine-execution-v4-design.md).
+> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 결정 근거 + 의사결정 ADR. **SSOT 는 [`docs/reference/pine-execution-architecture.md`](../reference/pine-execution-architecture.md)** (구현 수준 상세도). 50+ 턴 세션 학술 archive: [`docs/archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md).
 >
 > **상태:** 확정 (신뢰도 8/10, Phase -1 실측 완료 전까지 일부 가정)
 > **일자:** 2026-04-17
 > **출처:** 50+ 턴 세션 (3-way evaluator + Gemini Deep Research + 5개 LLM 반박 + DrFX 실측)
 > **관련:** ADR-003(exec 금지), ADR-004(AST 인터프리터 선택)
-> **상위 문서 (SSOT):** [`docs/04_architecture/pine-execution-architecture.md`](../04_architecture/pine-execution-architecture.md)
-> **세션 아카이브:** [`docs/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../superpowers/specs/2026-04-17-pine-execution-v4-design.md)
+> **상위 문서 (SSOT):** [`docs/reference/pine-execution-architecture.md`](../reference/pine-execution-architecture.md)
+> **세션 아카이브:** [`docs/archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md)
 
 ---
 
@@ -97,7 +97,7 @@ DrFX Diamond Algo 650줄 분해 실측:
 | **4** | Variable Explorer                                                                           |   ⭐⭐⭐   | Track M Fallback. H1 Stealth엔 우선순위 낮음                                                                                                              |
 | **5** | LLM 하이브리드 + MTF                                                                        |   ⭐⭐⭐   | 장기 지속 개선. Rule+LLM (Oxidizer 73% 패턴)                                                                                                              |
 
-상세 명세는 [`pine-execution-architecture.md`](../04_architecture/pine-execution-architecture.md) 참조.
+상세 명세는 [`pine-execution-architecture.md`](../reference/pine-execution-architecture.md) 참조.
 
 ---
 
@@ -223,9 +223,9 @@ ADR-011 (2026-04-17): Alert Hook Parser + 3-Track 상위 아키텍처 ← 본 AD
 
 ### 세션 내부
 
-- [`docs/04_architecture/pine-execution-architecture.md`](../04_architecture/pine-execution-architecture.md) — 메인 아키텍처 명세
-- [`docs/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../superpowers/specs/2026-04-17-pine-execution-v4-design.md) — 세션 전체 아카이브
-- [`docs/04_architecture/pine-ecosystem-landscape.md`](../04_architecture/pine-ecosystem-landscape.md) — 13개 프로젝트 비교 (Phase B)
+- [`docs/reference/pine-execution-architecture.md`](../reference/pine-execution-architecture.md) — 메인 아키텍처 명세
+- [`docs/archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md`](../archive/superpowers/specs/2026-04-17-pine-execution-v4-design.md) — 세션 전체 아카이브
+- [`docs/reference/pine-ecosystem-landscape.md`](../04_architecture/pine-ecosystem-landscape.md) — 13개 프로젝트 비교 (Phase B)
 - [`docs/guides/pine-semantics-gotchas.md`](../guides/pine-semantics-gotchas.md) — 의미론 함정 가이드 (Phase B)
 - [`.gstack/experiments/phase-minus-1-drfx/README.md`](../../.gstack/experiments/phase-minus-1-drfx/README.md) — Phase -1 실측 기록 (Phase B)
 
@@ -263,7 +263,7 @@ ADR-011 (2026-04-17): Alert Hook Parser + 3-Track 상위 아키텍처 ← 본 AD
 ## 13. Phase -1 실측 결과 부록 (2026-04-18)
 
 **상세 리포트:** [`.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md`](../../.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
-**실측 계획:** [`docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md)
+**실측 계획:** [`docs/archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md)
 **관련 PR:** [#18](https://github.com/woosung-dev/quantbridge/pull/18) (main merge `0f6583d`)
 
 ### 13.1 핵심 수치 3가지

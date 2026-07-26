@@ -3,7 +3,7 @@
 > **운영 기간:** 2026-04-24 ~
 > **전략:** `s1_pbr.pine` (Pivot Breakout Reversal)
 > **환경:** Bybit Demo Trading (`api-demo.bybit.com`)
-> **연관 문서:** [h1-testnet-dogfood-guide.md](../07_infra/h1-testnet-dogfood-guide.md)
+> **연관 문서:** [h1-testnet-dogfood-guide.md](../reference/infra/h1-testnet-dogfood-guide.md)
 > **체크리스트:** [dogfood-checklist.md](../guides/dogfood-checklist.md)
 >
 > **2026-05-15 cleanup:** 본 file = Path β week 1 **baseline anchor** 전용. 실제 일일 운영 기록 + 주간 요약 + 에스컬레이션 절차는 아래 `## 일일 로그 cross-ref` 안 9 file (Sprint 21~36 dogfood-day series) 참조. template/skeleton 중복은 cleanup 으로 제거 (`dogfood-checklist.md` + `h1-testnet-dogfood-guide.md` 가 운영 SSOT).
@@ -51,7 +51,7 @@
 본 file 1차 안 inline 되어있던 (1) 일일 체크리스트 (2) 주간 요약 template (3) Kill Switch 에스컬레이션 절차 (4) Smoke test 절차 (5) 잔여 포지션 정리 SQL = 모두 다음 SSOT file 로 위임.
 
 - **체크리스트 + 주간 요약 template:** [`docs/guides/dogfood-checklist.md`](../guides/dogfood-checklist.md)
-- **환경 + Smoke test + 에스컬레이션:** [`docs/07_infra/h1-testnet-dogfood-guide.md`](../07_infra/h1-testnet-dogfood-guide.md)
+- **환경 + Smoke test + 에스컬레이션:** [`docs/reference/infra/h1-testnet-dogfood-guide.md`](../reference/infra/h1-testnet-dogfood-guide.md)
 
 ---
 
@@ -67,8 +67,8 @@
 
 ## 참조
 
-- [ADR-011 Pine Execution Strategy v4](011-pine-execution-strategy-v4.md)
-- [Path β Trust Layer CI 설계](020-trust-layer-ci-design.md)
-- [Sprint Y1 Coverage Analyzer](016-sprint-y1-coverage-analyzer.md)
+- [ADR-011 Pine Execution Strategy v4](../decisions/011-pine-execution-strategy-v4.md)
+- [Path β Trust Layer CI 설계](../decisions/020-trust-layer-ci-design.md)
+- [Sprint Y1 Coverage Analyzer](../decisions/016-sprint-y1-coverage-analyzer.md)
 - [Dogfood Checklist](../guides/dogfood-checklist.md)
-- [H2 Sprint 1 Phase A SDD](../superpowers/plans/2026-04-24-h2-sprint1-phase-a.md)
+- [H2 Sprint 1 Phase A SDD](../archive/superpowers/plans/2026-04-24-h2-sprint1-phase-a.md)

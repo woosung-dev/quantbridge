@@ -7,7 +7,7 @@
 
 ## 1. Context — 왜 이 정검을 했는가
 
-QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안 감사(PR #305) → Phase C 배포 준비(#306~#310)** 로 자연 피벗했다. 그 결과 (a) `docs/TODO.md` 가 2026-05-17 에서 멈춰 실제 코드(#305~#310)와 drift 가 생겼고, (b) money-path 만 깊게 감사되어 trading 의 _정확성/커버리지/실패모드_ 축과 optimizer·stress·market_data·frontend 는 미감사 상태였으며, (c) Beta-ready 주장(Composite 7.5, Critical 0)이 #305~#310 이후 재검증되지 않았다.
+QuantBridge 는 Beta 본격 진입 결정(2026-05-17) 직후 **money-path 보안 감사(PR #305) → Phase C 배포 준비(#306~#310)** 로 자연 피벗했다. 그 결과 (a) `docs/status.md` 가 2026-05-17 에서 멈춰 실제 코드(#305~#310)와 drift 가 생겼고, (b) money-path 만 깊게 감사되어 trading 의 _정확성/커버리지/실패모드_ 축과 optimizer·stress·market_data·frontend 는 미감사 상태였으며, (c) Beta-ready 주장(Composite 7.5, Critical 0)이 #305~#310 이후 재검증되지 않았다.
 
 본 정검은 프로젝트 goal/phase/로드맵 + 아키텍처/기능을 8 차원으로 하나하나 감사하고, adversarial 검증으로 false positive 를 걸러, 발견을 우선순위화한 결과다.
 
@@ -291,9 +291,9 @@ _(아래는 평가자 패널 원시 발견 — refuter 검증 생존분 전량.)
 | # | 위치 | 주장 (요약) | BL |
 |---|------|-------------|----|
 | 1 | `backend/src/health/router.py:48`[:60] | HEALTHZ_CELERY_TIMEOUT_S is read via os.environ.get('HEALTHZ_CELERY_TIMEOUT_S', '12.0') (bypassing the Setting | (new — golden-rule env violation) |
-| 2 | `docs/TODO.md:3-8`[:60] | TODO.md header is stale by 8 merged PRs. Declares 'Last Updated: 2026-05-17', 'Active Branch: main (PR #288 + | (new — governance drift, no existing BL) |
-| 3 | `docs/REFACTORING-BACKLOG.md:107, 211-231`[:60] | BL-308 is listed as active P1 with '현 상태: ...3 file... 안 test 2/48 file 만 reference = ~4% 추정 coverage' (L220). | BL-308 |
-| 4 | `docs/REFACTORING-BACKLOG.md:8-9`[:60] | REFACTORING-BACKLOG.md header is stale: '최종 갱신: 2026-05-17', 'main @ 36bb4e0', '45 active BL'. HEAD is now 4aa | (new — governance drift) |
+| 2 | `docs/status.md:3-8`[:60] | TODO.md header is stale by 8 merged PRs. Declares 'Last Updated: 2026-05-17', 'Active Branch: main (PR #288 + | (new — governance drift, no existing BL) |
+| 3 | `docs/backlog.md:107, 211-231`[:60] | BL-308 is listed as active P1 with '현 상태: ...3 file... 안 test 2/48 file 만 reference = ~4% 추정 coverage' (L220). | BL-308 |
+| 4 | `docs/backlog.md:8-9`[:60] | REFACTORING-BACKLOG.md header is stale: '최종 갱신: 2026-05-17', 'main @ 36bb4e0', '45 active BL'. HEAD is now 4aa | (new — governance drift) |
 
 **deploy** (6)
 | # | 위치 | 주장 (요약) | BL |

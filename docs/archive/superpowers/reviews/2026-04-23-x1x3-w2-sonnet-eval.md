@@ -6,9 +6,9 @@
 **Branch:** `worktree-agent-a2493f6f` (base: `stage/x1-x3-indicator-ui`)
 **Input files:**
 
-- Plan: `docs/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`
+- Plan: `docs/archive/superpowers/plans/2026-04-23-x1x3-w2-ta-sar-parabolic.md`
 - Diff: `/tmp/w2-diff.txt`
-- Codex self-review: `docs/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md`
+- Codex self-review: `docs/archive/superpowers/reviews/2026-04-23-x1x3-w2-codex-self.md`
 
 ---
 

@@ -59,6 +59,6 @@
 ## 마감
 
 - [x] 최종 codex 누적 diff — **DO-NOT-SHIP 2 BLOCKING** 전건 코드 대조 후 수정(분할 행 합산 / 스윕 페이징)
-- [x] docs/money-path-accuracy/{checklist,operating-contract,context-notes}.md
+- [x] docs/archive/sprints/money-path-accuracy/{checklist,operating-contract,context-notes}.md
 - [x] TODO / BL — **BL-014 부분 Resolved** · **BL-362 Resolved** · 신규 **BL-438~442**
 - [ ] push (QB_PRE_PUSH_BYPASS=1) → main PR 1개 (squash 는 사용자)

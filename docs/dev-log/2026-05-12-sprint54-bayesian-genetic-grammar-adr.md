@@ -1,6 +1,6 @@
 # ADR-013 — Bayesian / Genetic Optimizer 알고리즘 ParamSpace grammar 확장 사전 lock
 
-> **ADR ID 충돌 해소 (2026-05-29 정식 renumber):** 본 문서(Optimizer grammar)가 **ADR-013** 을 유지한다 (CLAUDE.md + optimizer 코드 + Sprint 54-57 전반에 깊게 참조됨). 동일 ID 를 쓰던 Trust Layer CI 문서는 [`020-trust-layer-ci-design.md`](020-trust-layer-ci-design.md) (**ADR-020**) 로 renumber 되어 충돌이 해소됐다 ("ID 재사용 금지" global §3). 본 문서의 "ADR-013 §2·§6·§7·§8·§9" 는 모두 Optimizer grammar 를 가리킨다.
+> **ADR ID 충돌 해소 (2026-05-29 정식 renumber):** 본 문서(Optimizer grammar)가 **ADR-013** 을 유지한다 (CLAUDE.md + optimizer 코드 + Sprint 54-57 전반에 깊게 참조됨). 동일 ID 를 쓰던 Trust Layer CI 문서는 [`020-trust-layer-ci-design.md`](../decisions/020-trust-layer-ci-design.md) (**ADR-020**) 로 renumber 되어 충돌이 해소됐다 ("ID 재사용 금지" global §3). 본 문서의 "ADR-013 §2·§6·§7·§8·§9" 는 모두 Optimizer grammar 를 가리킨다.
 
 > **Status:** Accepted (BL-231 — Sprint 54 Slice 5, 코드 변경 X, 문서 lock 만)
 > **Sprint:** Sprint 54 (Phase 3 Optimizer 본격 진입)
@@ -195,7 +195,7 @@ Sprint 55+ 진입 시 사용자가 `CategoricalField` 에 `encoding: Literal["on
 
 ### 7.5 신규 BL 등재 (Sprint 56+ roadmap)
 
-Sprint 55 close-out 시 `docs/REFACTORING-BACKLOG.md` 5건 신규:
+Sprint 55 close-out 시 `docs/backlog.md` 5건 신규:
 
 - **BL-233** (P2, Sprint 56) — Genetic 본격 구현 (`GeneticHyperparamsField` + `optimizer/engine/genetic.py` + `service.submit_genetic`). Sprint 55 패턴 mirror, scope ≈ 0.8× (schema/alembic/router/FE 이미 활성).
 - **BL-234** (P3, Sprint 56+) — `BayesianHyperparamsField.prior="normal"` 자체 sampler 활성 + CategoricalField `encoding="one_hot"` Bayesian 활성.

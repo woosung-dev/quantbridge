@@ -4,7 +4,7 @@
 // 이름이 어긋나면 에러 없이 폴백을 반환한다. 런타임 에러 없이 색만 틀리는, 가장 탐지하기
 // 어려운 회귀다. 이 테스트가 그 회귀를 리네임과 같은 슬라이스에서 빨갛게 만든다.
 //
-// 기대값의 출처는 프로토타입 정본 `docs/prototypes/shotgun-2026-07/variant-c.html` 이다.
+// 기대값의 출처는 프로토타입 정본 `docs/reference/prototypes/shotgun-2026-07/variant-c.html` 이다.
 // 코드에서 재계산하지 않고 별도 진실원에서 읽는다 (tautological test 회피).
 //
 // allowlist 는 래칫이다. 알려진 불일치를 고정해 두고 슬라이스마다 줄인다.
@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 const REPO_ROOT = resolve(__dirname, "../../..");
 const CANON_HTML = resolve(
   REPO_ROOT,
-  "docs/prototypes/shotgun-2026-07/variant-c.html",
+  "docs/reference/prototypes/shotgun-2026-07/variant-c.html",
 );
 const GLOBALS_CSS = resolve(
   REPO_ROOT,
@@ -59,7 +59,7 @@ const TOKEN_MAP: ReadonlyArray<readonly [canon: string, app: string]> = [
 
 /**
  * 알려진 불일치 래칫. S1a 가 5건 전부 `.dark` 값 교정으로 해소하고 비웠다 (2026-07-20).
- * 근거는 `docs/c-language-port/context-notes.md` §1 (프로토타입 22종 대조).
+ * 근거는 `docs/archive/sprints/c-language-port/context-notes.md` §1 (프로토타입 22종 대조).
  * 이제 22종 전부 값이 일치한다 — 새 불일치가 생기면 allowlist 가 비어 있어 즉시 빨개진다.
  */
 const KNOWN_MISMATCHES: ReadonlyArray<{ canon: string; fixedBy: string }> = [];

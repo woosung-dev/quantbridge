@@ -35,7 +35,7 @@
 
 - **데이터 = 둘 다** (사용자 선택): 2024 고정 세트(재현성·오라클·개선 루프) + 최근 1년 CCXT fetch(국면 비교). 4h(2024) 는 1h 픽스처 리샘플 — Bybit 4h 봉은 1h 봉의 정확한 집계(UTC 정렬)이므로 왜곡 없음.
 - 4h CSV 위치 = `backend/data/fixtures/ohlcv/BTCUSDT_4h.csv` — FixtureProvider `{root}/{SYMBOL}_{TIMEFRAME}.csv` 규칙을 따라 웹 UI 백테스트에도 그대로 서빙되게 함.
-- 산출물 위치 = `docs/qa/2026-07-12-pine-batch-1h4h/` (기존 `docs/qa/2026-06-30-pine-tiered-backtest/` 관례).
+- 산출물 위치 = `docs/archive/qa/2026-07-12-pine-batch-1h4h/` (기존 `docs/archive/qa/2026-06-30-pine-tiered-backtest/` 관례).
 
 ## 2026-07-12 Phase 1 실측 후 계획 수정 (중대)
 

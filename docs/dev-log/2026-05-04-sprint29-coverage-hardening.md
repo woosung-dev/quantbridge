@@ -4,8 +4,8 @@
 > **Sprint:** 29 (Type A, 신규 기능)
 > **Status:** ✅ DONE — dual metric ALL PASS
 > **Branch:** `stage/h2-sprint29-pine-coverage-hardening` @ `ae4798f` (17 commits 누적, origin pushed)
-> **Plan:** [`docs/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`](../superpowers/plans/2026-05-04-sprint29-coverage-hardening.md)
-> **Spec:** [`docs/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`](../superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md)
+> **Plan:** [`docs/archive/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`](../archive/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md)
+> **Spec:** [`docs/archive/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`](../archive/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md)
 
 ---
 
@@ -131,7 +131,7 @@ UtBot indicator + UtBot strategy 가 `heikinashi()` 사용. Heikin-Ashi 캔들�
 
 - heikin-ashi 캔들 ↔ 일반 OHLC 차이로 backtest 결과 거짓 양성 가능
 - 사용자가 warning 무시 시 잘못된 전략 검증 risk
-- Trust Layer 정합 위반 (`docs/04_architecture/pine-execution-architecture.md:286-318`)
+- Trust Layer 정합 위반 (`docs/reference/pine-execution-architecture.md:286-318`)
 
 ### Alternatives Considered
 
@@ -267,13 +267,13 @@ A 권장 — Sprint 29 가 Beta path A1 narrowest wedge 도달 (UtBot 양방 + D
 
 ### Plan + Spec
 
-- Plan: [`docs/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`](../superpowers/plans/2026-05-04-sprint29-coverage-hardening.md)
-- Spec: [`docs/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`](../superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md)
+- Plan: [`docs/archive/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`](../archive/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md)
+- Spec: [`docs/archive/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`](../archive/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md)
 - Plan v2.1 (private): `~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`
 
 ### 영구 규칙 갱신
 
-- `docs/04_architecture/pine-execution-architecture.md:101-139` — SSOT 명세 (실측 size + 4 invariant audit 의무)
+- `docs/reference/pine-execution-architecture.md:101-139` — SSOT 명세 (실측 size + 4 invariant audit 의무)
 - `.ai/project/lessons.md` LESSON-037 third validation entry
 
 ### Resolved BL

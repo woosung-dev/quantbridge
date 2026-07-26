@@ -20,6 +20,6 @@ Server header (leak?) : server: uvicorn
 
 Baseline 비교
 ------------
-Initial : docs/qa/2026-05-13/integrated-report.html (Composite 4.18)
-Pre-S61 : docs/qa/2026-05-17/integrated-report.html (Composite 6.08)
-Post-S61: docs/qa/2026-05-17-post-sprint61/integrated-report.html (목표 7.5+)
+Initial : docs/archive/qa/2026-05-13/integrated-report.html (Composite 4.18)
+Pre-S61 : docs/archive/qa/2026-05-17/integrated-report.html (Composite 6.08)
+Post-S61: docs/archive/qa/2026-05-17-post-sprint61/integrated-report.html (목표 7.5+)

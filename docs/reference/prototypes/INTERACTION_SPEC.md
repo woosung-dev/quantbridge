@@ -371,8 +371,8 @@ WebSocket (Socket.IO) 사용 요소:
 
 1. **시각:** 프로토타입 HTML/CSS 확인 → DESIGN.md 토큰으로 재구성
 2. **동작:** 이 INTERACTION_SPEC.md 확인 → 실제 인터랙션 구현
-3. **API:** `docs/03_api/endpoints.md` 확인 → 엔드포인트 호출
-4. **데이터:** `docs/04_architecture/erd.md` 확인 → DB 구조 이해
+3. **API:** `docs/reference/endpoints.md` 확인 → 엔드포인트 호출
+4. **데이터:** `docs/reference/erd.md` 확인 → DB 구조 이해
 5. **테스트:** 엣지 케이스 (빈 상태, 에러, 로딩) 각각 구현
 
 ---

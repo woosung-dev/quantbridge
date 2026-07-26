@@ -2,10 +2,10 @@
 
 # QuantBridge — Absorption Funnels (E1~E6)
 
-> **위치:** `docs/01_requirements/` Tier-0 — Sprint 48+ 흡수 펀넬 구현 PRD.
+> **위치:** `docs/reference/` Tier-0 — Sprint 48+ 흡수 펀넬 구현 PRD.
 > **작성일:** 2026-05-09 (Sprint 47, 포화 시장 reframe 인사이트 기반)
 > **철학:** 신규 사용자 _획득_ 보다 기존 사용자 _이탈 경로 설계_ 가 ROI 압도적. 포화 시장 = 검증된 수요 4중 (TAM/가격/페르소나/채널). 자세한 근거: 본 세션 인사이트 트리 v2 ④.
-> **상위:** [`../00_project/positioning.md`](../00_project/positioning.md) (한 줄 카피), [`../00_project/competitive-landscape.md`](../00_project/competitive-landscape.md) (5+1 비교)
+> **상위:** [`../00_project/positioning.md`](project/positioning.md) (한 줄 카피), [`../00_project/competitive-landscape.md`](project/competitive-landscape.md) (5+1 비교)
 
 ---
 

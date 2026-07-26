@@ -59,7 +59,7 @@
   - ✅ 평가자 직접 실행: **`pnpm test` 1109 passed / 194 files**(baseline 1097 → +12) · `pnpm typecheck` 0 · `pnpm lint` 0
   - ✅ **거짓 각주 제거 확인** — `key-stats-strip.tsx` 의 `foot="무위험 수익률 0% 가정"` 이 실제로 사라지고 컨벤션 파생 문구로 교체됨
   - ✅ `unavailable` 에서 `.toFixed(2)` 미호출 → `EMPTY_CELL` 렌더(값 0 을 "0.00" 으로 그리는 거짓 차단)
-  - ⚠️ 워커가 `frontend/{checklist,context-notes}.md` 를 잘못된 위치에 생성 → **제거함**(내용은 `docs/backtest-trust/` 에 이미 있음)
+  - ⚠️ 워커가 `frontend/{checklist,context-notes}.md` 를 잘못된 위치에 생성 → **제거함**(내용은 `docs/archive/sprints/backtest-trust/` 에 이미 있음)
 
 ## B2 — 레버리지 충실도 (BL-186a) · ★설계 전환: TV/MT5 컨벤션
 
@@ -121,6 +121,6 @@
   - **P1 ②** 폼 배너에 **TV=부분청산 vs 우리=전량청산** 차이 미고지(계약 요구사항 누락) → "TradingView·MT5 와 동일" 문구 **바로 뒤**에 배치
   - **P2** 구 Nx 실행이 "레버리지 1배 실행" 오표기 / "지표 24종" 라벨이 실제 25행과 불일치(★숫자 재기입 금지 규약대로 숫자 없는 표현으로)
   - ✅ 수정 후 재검증: **R2 PASS**(5 corpus 1x 동일) · **R3 PASS**(10 조합, 6→10 증가) · FE **1115 passed** · typecheck/lint 0 · dogfood 재실행 고지 7종 + **콘솔 0**
-- [ ] `context-notes.md` + TODO + dev-log + 백로그(BL-398/388 Resolved · BL-186 부분) + **`product-roadmap.md` 갱신**
+- [ ] `context-notes.md` + TODO + dev-log + 백로그(BL-398/388 Resolved · BL-186 부분) + **`roadmap.md` 갱신**
 - [ ] 신규 BL: BL-186b · `_periodic_returns` sub-daily fallback · Sharpe 목록 read-time recompute · BL-389 재실사
 - [ ] PR `stage/backtest-trust` → main (squash 는 사용자)

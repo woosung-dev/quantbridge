@@ -2,10 +2,10 @@
 
 # QuantBridge — Positioning Statement
 
-> **본 문서 위치:** `docs/00_project/` Tier-0 — 프로젝트 외부 노출 카피의 SSOT.
+> **본 문서 위치:** `docs/reference/project/` Tier-0 — 프로젝트 외부 노출 카피의 SSOT.
 > **작성일:** 2026-05-09 (Sprint 47 kickoff)
 > **상위 문서:** [`vision.md`](vision.md) §차별화 — 본 문서는 그 _상세화·운영 layer_
-> **하위 문서:** [`competitive-landscape.md`](competitive-landscape.md) (5+1 비교), [`../01_requirements/absorption-funnels.md`](../01_requirements/absorption-funnels.md) (E1~E6 흡수 펀넬)
+> **하위 문서:** [`competitive-landscape.md`](competitive-landscape.md) (5+1 비교), [`../01_requirements/absorption-funnels.md`](../absorption-funnels.md) (E1~E6 흡수 펀넬)
 
 ---
 

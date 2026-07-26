@@ -1,7 +1,7 @@
 # W5 Codex Self-Review — RerunButton
 
 > Sprint X1+X3 W5, 2026-04-23 — `feat/x1x3-w5-rerun-button`
-> Plan: `docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
+> Plan: `docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`
 
 ---
 

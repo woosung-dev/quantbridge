@@ -4,7 +4,7 @@
 
 > **작성일:** 2026-05-09 (Sprint 47, 이번 세션 검색 데이터 기반)
 > **상위:** [`positioning.md`](positioning.md) — 본 문서가 한 줄 카피의 비교 근거 layer
-> **하위:** [`../01_requirements/absorption-funnels.md`](../01_requirements/absorption-funnels.md) — 각 경쟁군에서 사용자를 흡수하는 펀넬 PRD
+> **하위:** [`../01_requirements/absorption-funnels.md`](../absorption-funnels.md) — 각 경쟁군에서 사용자를 흡수하는 펀넬 PRD
 > **출처:** GitHub API (2026-05-09), Reddit r/algotrading top posts (1년), 각 OSS README, ADR-011 §6/§8
 
 ---

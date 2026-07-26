@@ -15,7 +15,7 @@
 **Modify:**
 
 - `backend/src/common/metrics.py:48-79` — `qb_ccxt_request_errors_total` Counter 1개 추가 + `ccxt_timer` 의 try block 확장
-- `docs/07_infra/grafana-cloud-setup.md` — panel + alert rule 추가
+- `docs/reference/infra/grafana-cloud-setup.md` — panel + alert rule 추가
 
 **Create:**
 
@@ -339,19 +339,19 @@ Expected: 0 error / 0 error.
 
 **Files:**
 
-- Modify: `docs/07_infra/grafana-cloud-setup.md`
+- Modify: `docs/reference/infra/grafana-cloud-setup.md`
 
 - [ ] **Step 6.1: 현 내용 확인**
 
 ```bash
-cat docs/07_infra/grafana-cloud-setup.md | head -50
+cat docs/reference/infra/grafana-cloud-setup.md | head -50
 ```
 
 기존 5 metrics panel + 1 alert (order_rejected_rate > 10%) 구조 파악.
 
 - [ ] **Step 6.2: panel + alert 추가**
 
-`docs/07_infra/grafana-cloud-setup.md` 의 기존 "Alert rules" 섹션 끝에 추가:
+`docs/reference/infra/grafana-cloud-setup.md` 의 기존 "Alert rules" 섹션 끝에 추가:
 
 ````markdown
 ### Alert: CCXT error rate > 5%
@@ -404,7 +404,7 @@ sum by (exchange) (rate(qb_ccxt_request_errors_total[5m]))
 - [ ] **Step 6.3: 커밋**
 
 ```bash
-git add docs/07_infra/grafana-cloud-setup.md
+git add docs/reference/infra/grafana-cloud-setup.md
 git commit -m "docs(observability): Grafana CCXT error rate alert runbook
 
 Sprint 10 Phase D — rate(qb_ccxt_request_errors_total[5m]) /
@@ -465,7 +465,7 @@ Expected: `OK: ...` + 최소 3 라인 (metric + HELP + TYPE + labeled series).
 | Tests           | `pytest -q -p no:randomly`                                                     | 1087 + 3 = 1090 green / 17 skip / 0 fail |
 | Counter 등록    | `python -c "from src.common.metrics import qb_ccxt_request_errors_total; ..."` | labels match                             |
 | /metrics 노출   | trigger + generate_latest()                                                    | `qb_ccxt_request_errors_total` 포함      |
-| Grafana runbook | `docs/07_infra/grafana-cloud-setup.md`                                         | alert rule + 해결 체크리스트             |
+| Grafana runbook | `docs/reference/infra/grafana-cloud-setup.md`                                         | alert rule + 해결 체크리스트             |
 
 ---
 

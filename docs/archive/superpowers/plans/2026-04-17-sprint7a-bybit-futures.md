@@ -8,7 +8,7 @@ Sprint 6에서 Trading 데모 MVP가 완료됐다 (PR #9, 34 commits, 506 backen
 
 Sprint 7a는 **Bybit testnet에서 Futures + Cross Margin 주문을 실행**하는 최소 확장이다. Sprint 7b(OKX 멀티 거래소), Sprint 8+(Binance mainnet 실거래)로 이어지는 Trading 도메인 성숙 단계의 첫 확장.
 
-**사전 결정:** [`docs/dev-log/007-sprint7a-futures-decisions.md`](../../project/agy-project/quant-bridge/docs/dev-log/007-sprint7a-futures-decisions.md)
+**사전 결정:** [`docs/decisions/007-sprint7a-futures-decisions.md`](../../../decisions/007-sprint7a-futures-decisions.md)
 - **Q1:** 별도 클래스 `BybitFuturesProvider` (BybitDemoProvider 파라미터화 아님)
 - **Q2:** `OrderSubmit` DTO에 `leverage: int | None` + `margin_mode: Literal["cross", "isolated"] | None` 필드 추가
 - **Q3:** One-way position mode only (Hedge 미지원, CCXT 이슈 #24848 회피)
@@ -496,7 +496,7 @@ Expected: FAIL (ImportError: cannot import name 'BybitFuturesProvider')
 class BybitFuturesProvider:
     """Bybit futures (Linear Perpetual, USDT margined) testnet provider.
 
-    Spec decisions (docs/dev-log/007-sprint7a-futures-decisions.md):
+    Spec decisions (docs/decisions/007-sprint7a-futures-decisions.md):
     - Q1: BybitDemoProvider 파라미터화 대신 별도 클래스 (심볼/설정/에러 표면이 다름)
     - Q3: One-way position mode only (Hedge는 CCXT 이슈 #24848)
 
@@ -948,8 +948,8 @@ git commit -m "feat(trading): Sprint 7a T3 — OrderService/Celery가 leverage+m
 **Files:**
 - Create: `backend/tests/trading/test_e2e_webhook_to_futures_order.py`
 - Modify: `backend/src/trading/kill_switch.py` (주석 1개 추가, 로직 변경 없음)
-- Modify: `docs/TODO.md` (Sprint 7a 완료 마크)
-- Modify: `docs/dev-log/007-sprint7a-futures-decisions.md` (상태: 결정 완료 → 구현 완료)
+- Modify: `docs/status.md` (Sprint 7a 완료 마크)
+- Modify: `docs/decisions/007-sprint7a-futures-decisions.md` (상태: 결정 완료 → 구현 완료)
 
 ### 4a. E2E 통합 테스트
 
@@ -1093,7 +1093,7 @@ Expected: 기존 그대로 PASS (회귀 없음 확인)
 
 ### 4c. 문서 업데이트
 
-- [ ] **Step 4.6: docs/TODO.md — Sprint 7 Next Actions 업데이트**
+- [ ] **Step 4.6: docs/status.md — Sprint 7 Next Actions 업데이트**
 
 기존 `Sprint 7 Next Actions` 섹션에서 첫 항목 수정:
 
@@ -1110,7 +1110,7 @@ Expected: 기존 그대로 PASS (회귀 없음 확인)
 ...
 ```
 
-- [ ] **Step 4.7: docs/dev-log/007-sprint7a-futures-decisions.md — 상태 업데이트**
+- [ ] **Step 4.7: docs/decisions/007-sprint7a-futures-decisions.md — 상태 업데이트**
 
 상단 frontmatter 수정:
 
@@ -1137,7 +1137,7 @@ Expected: 모두 green. 최종 테스트 수 513~517 (Sprint 6 baseline 506 + �
 
 ```bash
 cd /Users/woosung/project/agy-project/quant-bridge
-git add backend/tests/trading/test_e2e_webhook_to_futures_order.py backend/src/trading/kill_switch.py docs/TODO.md docs/dev-log/007-sprint7a-futures-decisions.md
+git add backend/tests/trading/test_e2e_webhook_to_futures_order.py backend/src/trading/kill_switch.py docs/status.md docs/decisions/007-sprint7a-futures-decisions.md
 git commit -m "feat(trading): Sprint 7a T4 — E2E webhook→futures order + Kill Switch 경계 주석 + docs"
 ```
 
@@ -1145,7 +1145,7 @@ git commit -m "feat(trading): Sprint 7a T4 — E2E webhook→futures order + Kil
 
 ## Security Checklist (플랜 실행 중 수시 확인)
 
-`docs/dev-log/007-sprint7a-futures-decisions.md` 보안 체크리스트 — Sprint 7a 범위:
+`docs/decisions/007-sprint7a-futures-decisions.md` 보안 체크리스트 — Sprint 7a 범위:
 
 - [x] **레버리지 상한 검증:** config `bybit_futures_max_leverage=20` + `OrderRequest.leverage Field(le=125)` 이중 가드. T1 Step 1.13 + 1.15.
 - [ ] **Cross margin 청산 시뮬레이션:** testnet 수동 smoke (사용자 단계, 이 플랜 범위 밖 — TODO.md에 Sprint 7 수동 smoke 추가).
@@ -1213,9 +1213,9 @@ git log --oneline main..feat/sprint7a-futures
 
 ## 참고 파일
 
-- 설계 근거: [`docs/dev-log/007-sprint7a-futures-decisions.md`](../../project/agy-project/quant-bridge/docs/dev-log/007-sprint7a-futures-decisions.md)
-- Sprint 6 spec: `docs/superpowers/specs/2026-04-16-trading-demo-design.md`
-- Sprint 6 plan: `docs/superpowers/plans/2026-04-16-trading-demo.md`
+- 설계 근거: [`docs/decisions/007-sprint7a-futures-decisions.md`](../../../decisions/007-sprint7a-futures-decisions.md)
+- Sprint 6 spec: `docs/archive/superpowers/specs/2026-04-16-trading-demo-design.md`
+- Sprint 6 plan: `docs/archive/superpowers/plans/2026-04-16-trading-demo.md`
 - 기존 BybitDemoProvider: `backend/src/trading/providers.py:102-185`
 - 기존 Celery task: `backend/src/tasks/trading.py`
 - 기존 OrderService: `backend/src/trading/service.py:120-215`
@@ -1226,5 +1226,5 @@ git log --oneline main..feat/sprint7a-futures
 ## 실행 준비 체크 (플랜 수락 후)
 
 1. 현재 main 기반 새 브랜치 생성: `git switch -c feat/sprint7a-futures`
-2. 이 플랜을 `docs/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md`로 복사 (선택 — Plan Mode 제약으로 최종 플랜은 이 파일에 있음)
+2. 이 플랜을 `docs/archive/superpowers/plans/2026-04-17-sprint7a-bybit-futures.md`로 복사 (선택 — Plan Mode 제약으로 최종 플랜은 이 파일에 있음)
 3. SDD 실행: `superpowers:subagent-driven-development`

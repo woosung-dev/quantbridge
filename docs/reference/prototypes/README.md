@@ -1,9 +1,9 @@
 # QuantBridge — Stage 2 프로토타입
 
 > **상태:** 확정 (2026-04-14)
-> **디자인 시스템:** [DESIGN.md](../../DESIGN.md)
-> **App Shell 패턴:** [DESIGN.md §10](../../DESIGN.md#10-app-shell-패턴-인증된-앱-페이지-공통)
-> **방법론:** [development-methodology.md](../guides/development-methodology.md) (Stage 2)
+> **디자인 시스템:** [DESIGN.md](../../../DESIGN.md)
+> **App Shell 패턴:** [DESIGN.md §10](../../../DESIGN.md#10-app-shell-패턴-인증된-앱-페이지-공통)
+> **방법론:** [development-methodology.md](../../guides/development-methodology.md) (Stage 2)
 
 ---
 

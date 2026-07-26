@@ -194,7 +194,7 @@ export function ParseDialog({ result, ... }) {
 
 **먼저 읽기**: 190줄 파일. 'React Query' / 'Zustand' / 'Zod' / 'React Hook Form' 섹션이 있다면 Deliverable 1의 관련 행 (RQ / Zustand / RHF / Zod) 으로 **crosslink 추가**.
 
-예시 추가 문구: "> Hook safety 사용법은 [frontend.md §React Hooks 안전 규칙](./nextjs/frontend.md#react-hooks-안전-규칙) 참조."
+예시 추가 문구: "> Hook safety 사용법은 [frontend.md §React Hooks 안전 규칙](../../.ai/stacks/nextjs/frontend.md#react-hooks-안전-규칙) 참조."
 
 기존 문구 중 다음 패턴이 있다면 **교정**:
 - "useEffect로 server state 동기화" — 명시적으로 "React Query가 담당, useEffect 불필요" 로 교정

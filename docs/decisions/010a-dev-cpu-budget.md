@@ -164,7 +164,7 @@ rm -rf frontend/.next
 **2026-04-17 session3 적용 변경:**
 
 - `frontend/next.config.ts`: 3개 커스텀 필드 제거 → 기본값 회귀
-- `docs/TODO.md`: 본 ADR 원인 정정 + P4 zod 규칙 완화 follow-up
+- `docs/status.md`: 본 ADR 원인 정정 + P4 zod 규칙 완화 follow-up
 - Filter URL sync (`parse_status`/`archived`/`page` 쿼리 반영) — 독립 작업
 
 ---
@@ -230,4 +230,4 @@ Critical 초과 시 **즉시** 본 ADR 참조 + fix 체크리스트 적용.
 - Sprint 7c PR #13 (Strategy CRUD UI) — 본 CPU 분석이 Playwright MCP smoke 중에 도출됨
 - `AGENTS.md` — 본 ADR이 지적하는 anti-pattern 1, 4, 6의 위치
 - `.ai/stacks/` — P1 수정 대상 (별도 repo 작업)
-- `docs/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md` — design review 7-pass 중 CPU 언급 없었던 회고 증거
+- `docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md` — design review 7-pass 중 CPU 언급 없었던 회고 증거

@@ -3,7 +3,7 @@
 > **Session:** H1 Stealth 클로징 5-Step 풀패키지 Step 3 (2026-04-20)
 > **Branch:** `feat/kill-switch-capital-base`
 > **Goal:** CumulativeLossEvaluator가 ExchangeAccount의 실제 잔고를 기준으로 MDD를 계산하도록 전환 + 주문 직전 `notional = qty × price × leverage` 검증으로 자본 초과 포지션 hard-reject.
-> **ADR 참조:** [ADR-007 §보안 체크리스트 line 93](../../dev-log/007-sprint7a-futures-decisions.md) — Sprint 8+ 작업으로 예정돼 있던 항목.
+> **ADR 참조:** [ADR-007 §보안 체크리스트 line 93](../../../decisions/007-sprint7a-futures-decisions.md) — Sprint 8+ 작업으로 예정돼 있던 항목.
 > **H1 종료 게이트:** 본인 Bybit Futures 실자본 dogfood 착수의 전제.
 
 ---

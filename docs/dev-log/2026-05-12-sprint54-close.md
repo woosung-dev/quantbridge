@@ -188,7 +188,7 @@ PR 생성 + 머지 전 사용자 manual 실행 권장:
 
 **수정:**
 
-- `docs/REFACTORING-BACKLOG.md` (BL-226/227/228/229/230/231 row 갱신 + Sprint 54 timeline entry)
+- `docs/backlog.md` (BL-226/227/228/229/230/231 row 갱신 + Sprint 54 timeline entry)
 
 ---
 

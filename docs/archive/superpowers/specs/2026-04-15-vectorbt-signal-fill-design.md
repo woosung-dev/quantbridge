@@ -377,10 +377,10 @@ tests/backtest/engine/golden/ema_cross_atr_sltp_v5/
 ## 9. 참조
 
 - ADR-003: Pine 런타임 안전성 + 파서 범위
-- Sprint 1 spec: `docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md` §4.7, §9 (장기 로드맵)
-- Sprint 1 plan: `docs/superpowers/plans/2026-04-15-pine-parser-mvp.md`
+- Sprint 1 spec: `docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md` §4.7, §9 (장기 로드맵)
+- Sprint 1 plan: `docs/archive/superpowers/plans/2026-04-15-pine-parser-mvp.md`
 - CLAUDE.md §QuantBridge 고유 규칙 (금융 숫자 Decimal, Celery 비동기, exec/eval 금지)
-- docs/01_requirements/pine-coverage-assignment.md (Phase A 템플릿)
+- docs/reference/pine-coverage-assignment.md (Phase A 템플릿)
 - vectorbt: https://vectorbt.dev/ (BSD, `Portfolio.from_signals` API)
 
 ---

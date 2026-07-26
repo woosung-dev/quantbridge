@@ -350,9 +350,9 @@ FROM trading.strategies WHERE user_id = '<user_uuid>';
 
 ## 13. 참고
 
-- Backtest 3-guard pattern: `docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` §5.1
+- Backtest 3-guard pattern: `docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` §5.1
 - Stale reclaim: 동일 spec §8.3
-- Sprint 4 D1~D10 교훈: [`../guides/sprint-kickoff-template.md`](../guides/sprint-kickoff-template.md)
+- Sprint 4 D1~D10 교훈: [`../guides/sprint-kickoff-template.md`](../../guides/sprint-kickoff-template.md)
 - Alembic: `.ai/stacks/fastapi/backend.md` §9
 
 ---

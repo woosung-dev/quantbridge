@@ -3,7 +3,7 @@
 **Date:** 2026-05-05
 **Status:** Accepted
 **Sprint:** 30 (Surface Hardening + Beta 인프라 하이브리드)
-**Cross-link:** `docs/00_project/roadmap.md` §Pillar 정의 / Plan `~/.claude/plans/quantbridge-vectorized-snowglobe.md`
+**Cross-link:** `docs/reference/project/roadmap.md` §Pillar 정의 / Plan `~/.claude/plans/quantbridge-vectorized-snowglobe.md`
 
 ---
 
@@ -74,8 +74,8 @@ Sprint 29 종료 시점 dogfood Day 2 self-assess **6/10** (H1→H2 게이트 �
 
 ## Cross-link
 
-- `docs/00_project/roadmap.md` §Pillar 정의 (L43 갱신 후)
-- `docs/REFACTORING-BACKLOG.md` BL-150 ~ BL-153 (Sprint 30+ 후속)
+- `docs/reference/project/roadmap.md` §Pillar 정의 (L43 갱신 후)
+- `docs/backlog.md` BL-150 ~ BL-153 (Sprint 30+ 후속)
 - `~/.claude/plans/quantbridge-vectorized-snowglobe.md` §3 Surface Trust Pillar 갱신
 - PRD `backtests.results` JSONB 24 필드 spec / §Phase 1 주 4 / §UI 가이드라인
 - 외부 LLM YC 브리프 v2 (사실 검증 결과 정확 12 / 부정확·과장 8) — 메인 세션 대화 archive

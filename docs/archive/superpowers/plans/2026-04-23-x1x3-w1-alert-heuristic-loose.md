@@ -227,12 +227,12 @@ Expected: 922 passed (기존 baseline) + 신규 5 tests → 927+ passed.
 codex exec --sandbox read-only "Review git diff vs main for PINE_ALERT_HEURISTIC_MODE loose/strict logic. Check: (1) strict default preserves all prior behavior, (2) loose never over-classifies pure INFORMATION, (3) env read is lazy so tests can monkeypatch, (4) no semantic drift in _KEYWORD_RULES_LOOSE vs _KEYWORD_RULES other than order."
 ```
 
-출력을 `docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md` 에 저장.
+출력을 `docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md` 에 저장.
 
 ### T6. Stage 브랜치 push
 
 ```bash
-git add backend/src/strategy/pine_v2/alert_hook.py backend/tests/strategy/pine_v2/test_alert_hook.py docs/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
+git add backend/src/strategy/pine_v2/alert_hook.py backend/tests/strategy/pine_v2/test_alert_hook.py docs/archive/superpowers/reviews/2026-04-23-x1x3-w1-codex-self.md
 git commit -m "feat(pine_v2): alert heuristic loose mode for i2_luxalgo (W1)"
 git push origin stage/x1-x3-indicator-ui
 ```

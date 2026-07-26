@@ -19,9 +19,9 @@ You are an adversarial code reviewer evaluating Worker 3 (W3) of QuantBridge Spr
 
 ## Inputs
 
-- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md
+- Plan: /Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md
 - Diff (vs stage/x1-x3-indicator-ui): /tmp/w3-diff.txt
-- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md
+- Worker self-review: /Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md
 
 ## Context
 
@@ -74,11 +74,11 @@ succeeded in 0ms:
 | [05_env/](./05_env/)                   | 로컬 셋업, 환경 변수, Clerk 가이드     | ✅ 완료  |
 | [06_devops/](./06_devops/)             | Docker Compose, CI/CD, Pre-commit      | ✅ 완료  |
 | [07_infra/](./07_infra/)               | 배포·Observability·Runbook (draft)     | 📝 Draft |
-| [DESIGN.md](../DESIGN.md)              | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정  |
-| [prototypes/](./prototypes/)           | Stage 2 HTML 프로토타입 (12개 화면)    | ✅ 확정  |
-| [dev-log/](./dev-log/)                 | ADR (의사결정 기록)                    | 활성     |
-| [guides/](./guides/)                   | 개발 가이드, Sprint 킥오프 템플릿      | 활성     |
-| [TODO.md](./TODO.md)                   | 작업 추적                              | 활성     |
+| [DESIGN.md](../../../../DESIGN.md)              | 디자인 시스템 (색상, 타이포, 컴포넌트) | ✅ 확정  |
+| [prototypes/](../../../reference/prototypes/)           | Stage 2 HTML 프로토타입 (12개 화면)    | ✅ 확정  |
+| [dev-log/](../../../dev-log/)                 | ADR (의사결정 기록)                    | 활성     |
+| [guides/](../../../guides/)                   | 개발 가이드, Sprint 킥오프 템플릿      | 활성     |
+| [TODO.md](../../../../.ai/templates/docs/TODO.md)                   | 작업 추적                              | 활성     |
 
 ## 빠른 시작
 
@@ -103,7 +103,7 @@ cd backend && uv sync && uvicorn src.main:app --reload
   타겟: 파트타임 크립토 트레이더, $1K~$50K, Python 없음
   `[/office-hours 2026-04-13]`
 
-- **Pine 런타임 + 파서 범위:** [ADR-003](./dev-log/003-pine-runtime-safety-and-parser-scope.md)
+- **Pine 런타임 + 파서 범위:** [ADR-003](../../../decisions/003-pine-runtime-safety-and-parser-scope.md)
   - `exec()`/`eval()` 금지 → 인터프리터 패턴
   - 미지원 함수 1개라도 있으면 전체 "Unsupported" (부분 실행 금지)
   - Celery zombie task 복구 인프라 필수 (on_failure + Beat cleanup + cancel)
@@ -114,32 +114,32 @@ cd backend && uv sync && uvicorn src.main:app --reload
 
 | 문서                                                                                                         | 설명                                    |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| [DESIGN.md](../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
-| [QUANTBRIDGE_PRD.md](../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
-| [AGENTS.md](../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
-| [.ai/](../.ai/)                                                                                              | 코딩 규칙                               |
-| [01_requirements/requirements-overview.md](./01_requirements/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
-| [01_requirements/req-catalog.md](./01_requirements/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
-| [02_domain/domain-overview.md](./02_domain/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
-| [02_domain/entities.md](./02_domain/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
-| [02_domain/state-machines.md](./02_domain/state-machines.md)                                                 | 도메인 상태 전이도                      |
-| [04_architecture/system-architecture.md](./04_architecture/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
-| [04_architecture/data-flow.md](./04_architecture/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
-| [05_env/local-setup.md](./05_env/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
-| [05_env/env-vars.md](./05_env/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
-| [05_env/clerk-setup.md](./05_env/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
-| [06_devops/docker-compose-guide.md](./06_devops/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
-| [06_devops/ci-cd.md](./06_devops/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
-| [06_devops/pre-commit.md](./06_devops/pre-commit.md)                                                         | husky + lint-staged 가이드              |
-| [07_infra/deployment-plan.md](./07_infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
-| [07_infra/observability-plan.md](./07_infra/observability-plan.md)                                           | Observability 계획 (draft)              |
-| [07_infra/runbook.md](./07_infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
-| [guides/development-methodology.md](./guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
-| [guides/sprint-kickoff-template.md](./guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
-| [dev-log/001-tech-stack.md](./dev-log/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
-| [dev-log/002-parallel-scaffold-strategy.md](./dev-log/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
-| [dev-log/003-pine-runtime-safety-and-parser-scope.md](./dev-log/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
-| [dev-log/004-pine-parser-approach-selection.md](./dev-log/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
+| [DESIGN.md](../../../../DESIGN.md)                                                                                    | 디자인 시스템 (Stage 2 산출물)          |
+| [QUANTBRIDGE_PRD.md](../../../../QUANTBRIDGE_PRD.md)                                                                  | 상세 PRD                                |
+| [AGENTS.md](../../../../AGENTS.md)                                                                                    | AI 에이전트 컨텍스트                    |
+| [.ai/](../../../../.ai/)                                                                                              | 코딩 규칙                               |
+| [01_requirements/requirements-overview.md](../../../reference/requirements-overview.md)                       | 요구사항 개요 + REQ 인덱스              |
+| [01_requirements/req-catalog.md](../../../reference/req-catalog.md)                                           | REQ-### 상세 카탈로그                   |
+| [02_domain/domain-overview.md](../../../reference/domain-overview.md)                                               | 8 도메인 경계 + 책임 매트릭스           |
+| [02_domain/entities.md](../../../reference/entities.md)                                                             | ENT-### 엔티티 카탈로그                 |
+| [02_domain/state-machines.md](../../../reference/state-machines.md)                                                 | 도메인 상태 전이도                      |
+| [04_architecture/system-architecture.md](../../../reference/system-architecture.md)                           | C4 다이어그램 + 인증/에러 경계          |
+| [04_architecture/data-flow.md](../../../reference/data-flow.md)                                               | 도메인별 시퀀스 다이어그램              |
+| [05_env/local-setup.md](../../../reference/local-setup.md)                                                             | 로컬 개발 환경 5분 셋업                 |
+| [05_env/env-vars.md](../../../reference/env-vars.md)                                                                   | 환경 변수 의미·획득법 카탈로그          |
+| [05_env/clerk-setup.md](../../../reference/clerk-setup.md)                                                             | Clerk 외부 의존성 셋업                  |
+| [06_devops/docker-compose-guide.md](../../../reference/docker-compose-guide.md)                                     | Compose 운영 가이드                     |
+| [06_devops/ci-cd.md](../../../reference/ci-cd.md)                                                                   | CI 잡 그래프 + 게이트                   |
+| [06_devops/pre-commit.md](../../../reference/pre-commit.md)                                                         | husky + lint-staged 가이드              |
+| [07_infra/deployment-plan.md](../../../reference/infra/deployment-plan.md)                                                 | 배포 옵션 비교 (draft)                  |
+| [07_infra/observability-plan.md](../../../reference/infra/observability-plan.md)                                           | Observability 계획 (draft)              |
+| [07_infra/runbook.md](../../../reference/infra/runbook.md)                                                                 | 운영 Runbook (draft)                    |
+| [guides/development-methodology.md](../../../guides/development-methodology.md)                                     | 6-Stage 개발 방법론 + 병렬 개발 전략    |
+| [guides/sprint-kickoff-template.md](../../../guides/sprint-kickoff-template.md)                                     | Sprint 킥오프 프롬프트 템플릿           |
+| [dev-log/001-tech-stack.md](../../../decisions/001-tech-stack.md)                                                     | ADR-001: 기술 스택 결정                 |
+| [dev-log/002-parallel-scaffold-strategy.md](../../../decisions/002-parallel-scaffold-strategy.md)                     | ADR-002: 병렬 스캐폴딩 전략             |
+| [dev-log/003-pine-runtime-safety-and-parser-scope.md](../../../decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위 |
+| [dev-log/004-pine-parser-approach-selection.md](../../../decisions/004-pine-parser-approach-selection.md)             | ADR-004: Pine 파서 접근법 선택          |
 
 succeeded in 0ms:
 /Users/woosung/project/agy-project/quant-bridge
@@ -229,7 +229,7 @@ succeeded in 0ms:
 ### Communication
 
 - 사용자에게 빈번하게 질문하여 작업 흐름을 끊지 않는다
-- 확인이 필요한 항목은 `docs/TODO.md`에 기록하고, 자연스러운 타이밍에 한 번에 정리하여 전달한다
+- 확인이 필요한 항목은 `docs/status.md`에 기록하고, 자연스러운 타이밍에 한 번에 정리하여 전달한다
 - 차단(blocked) 상황이 아닌 한, 작업을 계속 진행한다
 
 ---
@@ -251,7 +251,7 @@ succeeded in 0ms:
 | `05_env/` ~ `07_infra/` | 환경 설정, CI/CD, 인프라 |
 | **상시 문서**           |                          |
 | `dev-log/`              | ADR (의사결정 기록)      |
-| `guides/` · `TODO.md`   | 가이드, 작업 추적        |
+| `guides/` · `status.md`   | 가이드, 작업 추적        |
 
 ---
 
@@ -316,7 +316,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 - Stage 3 / Sprint 4: Celery + Backtest REST API ✅ 완료 (2026-04-16, PR #3 merge `777e623`)
 - Sprint 5 Stage A: docs sync ✅ 완료 (2026-04-16, vision.md 보강 + ADR-005 + TODO.md 동기화)
 - Sprint 5 Stage B ✅ 완료 (2026-04-16, PR #6 ready, 406 tests / CI green)
-  - M1: DateTime tz-aware + Engine bar_index fix + Metadata diff ([ADR-005](docs/dev-log/005-datetime-tz-aware.md))
+  - M1: DateTime tz-aware + Engine bar_index fix + Metadata diff ([ADR-005](../../../decisions/005-datetime-tz-aware.md))
   - M2: market_data infra (TimescaleDB hypertable + OHLCVRepository + advisory lock)
   - M3: CCXT + TimescaleProvider + lifespan/worker singleton + backtest 통합
   - M4: Beat schedule (5분 reclaim) + docker-compose worker/beat + Strategy pagination drift
@@ -325,7 +325,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
 - Sprint 7c FE 따라잡기 (Strategy CRUD UI) ✅ 완료 (2026-04-17, 3 라우트 + Monaco Pine Monarch + shadcn/ui 12개 + sonner + Delete 409 archive fallback + design-review 7-pass 5/10→9/10)
 - Sprint 7b Edit 페이지 Pine 이터레이션 UX ✅ 완료 (2026-04-17, `feat/sprint7b-edit-parse-ux`) — ISSUE-003/004 해소. BE `ParsePreviewResponse.functions_used` 1필드 확장(migration 없음) + FE TabCode 마운트 자동 파싱 + TabParse 4-섹션 구조(에러→경고→감지→메타). 528 BE / 9 FE vitest green
 - ADR-011 Pine Execution Strategy v4 (Alert Hook Parser + 3-Track) ✅ 문서화 완료 (2026-04-17, PR #17 merge `d36793e`) — 상위 아키텍처 + Phase -1 ~ Phase 4 로드맵 + 세션 아카이브
-- Sprint 8a-pre Phase -1 실측 ✅ 완료 (2026-04-18, PR #18 merge `0f6583d`) — pynescript 6/6 vs QB 0/6 실증. 상세: [`docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](docs/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md) · [`findings.md`](.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
+- Sprint 8a-pre Phase -1 실측 ✅ 완료 (2026-04-18, PR #18 merge `0f6583d`) — pynescript 6/6 vs QB 0/6 실증. 상세: [`docs/archive/superpowers/plans/2026-04-18-phase-minus-1-measurement-plan.md`](../plans/2026-04-18-phase-minus-1-measurement-plan.md) · [`findings.md`](.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
 - ADR-011 Phase -1 amendment ✅ 완료 (2026-04-18, PR #19 merge `41037a9`) — §9 신뢰도 8→9, §12 blocker 2개 해소, §4 Tier-2 KPI 재정의, §6 H1 MVP scope 축소, §13 실측 부록
 - Sprint 8a Tier-0 Foundation ✅ 완료 (2026-04-18, PR #20 merge `08c6388`) — pine_v2/ 8 레이어 + s1_pbr.pine E2E 완주, 169 tests
 - Sprint 8b Tier-1 + Tier-0 렌더링 + 6/6 corpus + Opus/Sonnet 교차 hardening ✅ 완료 (2026-04-18, PR #21 merge `c79b10c`) — VirtualStrategyWrapper + RenderingRegistry + v4 alias/iff + switch/stdev/variance + v4 strategy.entry boolean/when= + time/timestamp(month/day 반영) + 40+ Pine enum constants + deleted line 정책. **6 corpus 완주 (2/6 → 6/6)**, 224 pine_v2 tests (+55), backend 750 전체 green
@@ -367,7 +367,7 @@ cd backend && celery -A src.tasks beat --loglevel=info                    # 스�
   `[/autoplan 2026-04-13, Codex+Claude 듀얼 검증, 신뢰도 10/10, ADR-003 참조]`
 
 exec
-/bin/zsh -lc "sed -n '1,240p' docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "sed -n '1,240p' docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
 
 # W3 — EquityChart `width(-1)` Warning 제거
@@ -606,12 +606,12 @@ Worker 환경에서 `pnpm dev` 가 안 되면 이 step 스킵 가능. Phase 4 �
 codex exec --sandbox read-only "Review git diff for equity-chart width(-1) fix. Check: (1) useEffect dep array is primitive-only per LESSON-004, (2) no RQ/Zustand unstable ref in dep, (3) SSR-safe (no window access before mount), (4) layout shift minimized (placeholder same size), (5) recharts ResponsiveContainer usage idiomatic."
 ```
 
-출력 → `docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md`.
+출력 → `docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md`.
 
 ### T5. Stage push
 
 exec
-/bin/zsh -lc "sed -n '1,260p' .claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "sed -n '1,260p' .claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md" in /Users/woosung/project/agy-project/quant-bridge
 exec
 /bin/zsh -lc "sed -n '1,260p' /tmp/w3-diff.txt" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
@@ -619,7 +619,7 @@ succeeded in 0ms:
 # W3 — Codex Self-Review (EquityChart width(-1) fix)
 
 > **Session:** Sprint X1+X3, 2026-04-23 | **Worker:** 3 / 5
-> **Plan:** [docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md](../plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md)
+> **Plan:** [docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md](../plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md)
 > **Reviewer:** `codex-cli 0.122.0` (sandbox=read-only)
 
 ---
@@ -1709,9 +1709,9 @@ succeeded in 0ms:
 codex
 이 시점에서 핵심 리스크는 세 가지입니다: Playwright AC 미충족, fail-first TDD 증거 부재, `ResizeObserver` 미지원 시 영구 placeholder 가능성입니다. 문서 line reference까지 맞추기 위해 계획서와 self-review에도 줄 번호를 붙여 보겠습니다.
 exec
-/bin/zsh -lc "nl -ba 'docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md' | sed -n '1,220p'" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "nl -ba 'docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md' | sed -n '1,220p'" in /Users/woosung/project/agy-project/quant-bridge
 exec
-/bin/zsh -lc "nl -ba '.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md' | sed -n '1,260p'" in /Users/woosung/project/agy-project/quant-bridge
+/bin/zsh -lc "nl -ba '.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md' | sed -n '1,260p'" in /Users/woosung/project/agy-project/quant-bridge
 succeeded in 0ms:
 1 # W3 — EquityChart `width(-1)` Warning 제거
 2
@@ -1938,7 +1938,7 @@ succeeded in 0ms:
 1 # W3 — Codex Self-Review (EquityChart width(-1) fix)
 2
 3 > **Session:** Sprint X1+X3, 2026-04-23 | **Worker:** 3 / 5
-4 > **Plan:** [docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md](../plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md)
+4 > **Plan:** [docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md](../plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md)
 5 > **Reviewer:** `codex-cli 0.122.0` (sandbox=read-only)
 6
 7 ---
@@ -2102,24 +2102,24 @@ succeeded in 0ms:
 codex
 **Findings**
 
-1. `GO`는 아닙니다. plan의 정량 AC는 전부 충족되지 않았습니다. Playwright의 “첫 페인트부터 `width(-1)` warning 0건” 항목이 plan에 명시돼 있는데 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:23) 실제 self-review에서는 미실행으로 남아 있습니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:91). 따라서 “최종 acceptance 완료” 판정은 불가합니다.
+1. `GO`는 아닙니다. plan의 정량 AC는 전부 충족되지 않았습니다. Playwright의 “첫 페인트부터 `width(-1)` warning 0건” 항목이 plan에 명시돼 있는데 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:23) 실제 self-review에서는 미실행으로 남아 있습니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:91). 따라서 “최종 acceptance 완료” 판정은 불가합니다.
 
 2. `ResizeObserver`가 없는 환경에서 초기 width가 0이면 차트가 영구 placeholder에 머뭅니다. [equity-chart.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/equity-chart.tsx:67>)에서 초기 폭이 0이면 RO 경로로 넘어가고, [75-77](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/equity-chart.tsx:75>)에서 `ResizeObserver`가 없으면 그대로 `return`합니다. 결과적으로 [137-139](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/equity-chart.tsx:137>)의 `aria-busy` placeholder만 남습니다. edge-case 미커버가 아니라 실제 기능 저하입니다.
 
-3. fail-first TDD 증거는 없습니다. plan 자체가 `test + impl 동시 허용`으로 열어두고 있고 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:5), git history도 단일 커밋 `acfa9b1` 하나뿐입니다. self-review 역시 post-fix green run만 기록합니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:66). “먼저 실패했다”는 근거는 없습니다.
+3. fail-first TDD 증거는 없습니다. plan 자체가 `test + impl 동시 허용`으로 열어두고 있고 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:5), git history도 단일 커밋 `acfa9b1` 하나뿐입니다. self-review 역시 post-fix green run만 기록합니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:66). “먼저 실패했다”는 근거는 없습니다.
 
 **7 Answers**
 
 1. Acceptance Criteria 정량 충족 여부  
-   아니오, 전량 충족은 아닙니다. [사실] plan §2 정량 항목은 사용자가 말한 5개가 아니라 4개입니다 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:21).  
+   아니오, 전량 충족은 아닙니다. [사실] plan §2 정량 항목은 사용자가 말한 5개가 아니라 4개입니다 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:21).  
    충족:
 
-- `equity-chart.test.tsx`: `3 tests passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:69)
-- 전체 FE vitest: `24 passed`, `140 passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74)
-- `pnpm tsc --noEmit`: `exit=0` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:78)
-- `pnpm lint`: `exit=0`, `0 errors / 0 warnings` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:81)  
+- `equity-chart.test.tsx`: `3 tests passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:69)
+- 전체 FE vitest: `24 passed`, `140 passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74)
+- `pnpm tsc --noEmit`: `exit=0` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:78)
+- `pnpm lint`: `exit=0`, `0 errors / 0 warnings` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:81)  
   미충족:
-- Playwright first-paint warning 0건: 미실행 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:94)
+- Playwright first-paint warning 0건: 미실행 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:94)
 
 2. Spurious PASS 시나리오 존재 여부  
    주요 회귀인 “mount gate 제거”는 테스트가 잡습니다. [test](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/__tests__/equity-chart.test.tsx:56>)는 width=0 경로에서 `.recharts-responsive-container`가 없어야 하고 [66-68], placeholder가 있어야 하며 [70], warning도 없어야 한다고 봅니다 [73-80]. gate를 제거하면 첫 `render()` 직후 컨테이너 존재 assertion이 바로 깨집니다.  
@@ -2132,7 +2132,7 @@ codex
    없습니다. [사실] 단일 커밋 `acfa9b1`에 구현과 테스트가 함께 들어가 있고, worker report에는 fail-first 로그가 없습니다. [가정] 실제로는 함께 작성했을 가능성이 높습니다. 최소한 “먼저 실패 후 수정”을 입증할 증거는 없습니다.
 
 4. Regression surface  
-   영향 표면은 작습니다. `EquityChart` 실제 사용처는 [backtest-detail-view.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/backtest-detail-view.tsx:139>) 한 곳뿐입니다. 전체 FE suite는 24 files / 140 tests로 green입니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74).  
+   영향 표면은 작습니다. `EquityChart` 실제 사용처는 [backtest-detail-view.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/backtest-detail-view.tsx:139>) 한 곳뿐입니다. 전체 FE suite는 24 files / 140 tests로 green입니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74).  
    하지만 통합 테스트는 없습니다. `BacktestDetailView` 수준에서 placeholder→chart 전환이나 실제 `/backtests/[id]` 렌더 흐름을 검증하는 테스트는 보이지 않습니다.
 
 5. Edge cases 커버 여부
@@ -2162,24 +2162,24 @@ tokens used
 49,065
 **Findings**
 
-1. `GO`는 아닙니다. plan의 정량 AC는 전부 충족되지 않았습니다. Playwright의 “첫 페인트부터 `width(-1)` warning 0건” 항목이 plan에 명시돼 있는데 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:23) 실제 self-review에서는 미실행으로 남아 있습니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:91). 따라서 “최종 acceptance 완료” 판정은 불가합니다.
+1. `GO`는 아닙니다. plan의 정량 AC는 전부 충족되지 않았습니다. Playwright의 “첫 페인트부터 `width(-1)` warning 0건” 항목이 plan에 명시돼 있는데 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:23) 실제 self-review에서는 미실행으로 남아 있습니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:91). 따라서 “최종 acceptance 완료” 판정은 불가합니다.
 
 2. `ResizeObserver`가 없는 환경에서 초기 width가 0이면 차트가 영구 placeholder에 머뭅니다. [equity-chart.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/equity-chart.tsx:67>)에서 초기 폭이 0이면 RO 경로로 넘어가고, [75-77](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/equity-chart.tsx:75>)에서 `ResizeObserver`가 없으면 그대로 `return`합니다. 결과적으로 [137-139](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/equity-chart.tsx:137>)의 `aria-busy` placeholder만 남습니다. edge-case 미커버가 아니라 실제 기능 저하입니다.
 
-3. fail-first TDD 증거는 없습니다. plan 자체가 `test + impl 동시 허용`으로 열어두고 있고 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:5), git history도 단일 커밋 `acfa9b1` 하나뿐입니다. self-review 역시 post-fix green run만 기록합니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:66). “먼저 실패했다”는 근거는 없습니다.
+3. fail-first TDD 증거는 없습니다. plan 자체가 `test + impl 동시 허용`으로 열어두고 있고 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:5), git history도 단일 커밋 `acfa9b1` 하나뿐입니다. self-review 역시 post-fix green run만 기록합니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:66). “먼저 실패했다”는 근거는 없습니다.
 
 **7 Answers**
 
 1. Acceptance Criteria 정량 충족 여부  
-   아니오, 전량 충족은 아닙니다. [사실] plan §2 정량 항목은 사용자가 말한 5개가 아니라 4개입니다 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:21).  
+   아니오, 전량 충족은 아닙니다. [사실] plan §2 정량 항목은 사용자가 말한 5개가 아니라 4개입니다 [plan](/Users/woosung/project/agy-project/quant-bridge/docs/archive/superpowers/plans/2026-04-23-x1x3-w3-equity-chart-width-fix.md:21).  
    충족:
 
-- `equity-chart.test.tsx`: `3 tests passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:69)
-- 전체 FE vitest: `24 passed`, `140 passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74)
-- `pnpm tsc --noEmit`: `exit=0` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:78)
-- `pnpm lint`: `exit=0`, `0 errors / 0 warnings` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:81)  
+- `equity-chart.test.tsx`: `3 tests passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:69)
+- 전체 FE vitest: `24 passed`, `140 passed` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74)
+- `pnpm tsc --noEmit`: `exit=0` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:78)
+- `pnpm lint`: `exit=0`, `0 errors / 0 warnings` [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:81)  
   미충족:
-- Playwright first-paint warning 0건: 미실행 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:94)
+- Playwright first-paint warning 0건: 미실행 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:94)
 
 2. Spurious PASS 시나리오 존재 여부  
    주요 회귀인 “mount gate 제거”는 테스트가 잡습니다. [test](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/__tests__/equity-chart.test.tsx:56>)는 width=0 경로에서 `.recharts-responsive-container`가 없어야 하고 [66-68], placeholder가 있어야 하며 [70], warning도 없어야 한다고 봅니다 [73-80]. gate를 제거하면 첫 `render()` 직후 컨테이너 존재 assertion이 바로 깨집니다.  
@@ -2192,7 +2192,7 @@ tokens used
    없습니다. [사실] 단일 커밋 `acfa9b1`에 구현과 테스트가 함께 들어가 있고, worker report에는 fail-first 로그가 없습니다. [가정] 실제로는 함께 작성했을 가능성이 높습니다. 최소한 “먼저 실패 후 수정”을 입증할 증거는 없습니다.
 
 4. Regression surface  
-   영향 표면은 작습니다. `EquityChart` 실제 사용처는 [backtest-detail-view.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/backtest-detail-view.tsx:139>) 한 곳뿐입니다. 전체 FE suite는 24 files / 140 tests로 green입니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74).  
+   영향 표면은 작습니다. `EquityChart` 실제 사용처는 [backtest-detail-view.tsx](</Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/frontend/src/app/(dashboard)/backtests/_components/backtest-detail-view.tsx:139>) 한 곳뿐입니다. 전체 FE suite는 24 files / 140 tests로 green입니다 [self-review](/Users/woosung/project/agy-project/quant-bridge/.claude/worktrees/agent-a3916c29/docs/archive/superpowers/reviews/2026-04-23-x1x3-w3-codex-self.md:74).  
    하지만 통합 테스트는 없습니다. `BacktestDetailView` 수준에서 placeholder→chart 전환이나 실제 `/backtests/[id]` 렌더 흐름을 검증하는 테스트는 보이지 않습니다.
 
 5. Edge cases 커버 여부

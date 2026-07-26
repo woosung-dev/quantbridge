@@ -9,7 +9,7 @@
 
 ## Context
 
-PRD `docs/01_requirements/PRD.md` §Phase 1 주 4 spec에서 차트 라이브러리로 **lightweight-charts** (TradingView 오픈소스, ~150KB) 를 명시했다. 그러나 Sprint FE-04 (2026-04-19) 에서 dependency 우선순위에 따라 **recharts ^3.8.1** 을 임시 도입했고, 이후 Sprint 22까지 8개월 동안 spec 격차를 해소하지 못했다.
+PRD `docs/reference/PRD.md` §Phase 1 주 4 spec에서 차트 라이브러리로 **lightweight-charts** (TradingView 오픈소스, ~150KB) 를 명시했다. 그러나 Sprint FE-04 (2026-04-19) 에서 dependency 우선순위에 따라 **recharts ^3.8.1** 을 임시 도입했고, 이후 Sprint 22까지 8개월 동안 spec 격차를 해소하지 못했다.
 
 Sprint 30 Surface Hardening 진입 시점:
 
@@ -88,7 +88,7 @@ Sprint 30 Surface Hardening 진입 시점:
 
 ## References
 
-- PRD: `docs/01_requirements/PRD.md` §Phase 1 주 4
+- PRD: `docs/reference/PRD.md` §Phase 1 주 4
 - plan: `.claude/plans/quantbridge-vectorized-snowglobe.md` §2.β
 - LESSON-004: `.ai/project/lessons.md` (useEffect dep 가이드 + 라이브 smoke 의무)
 - lightweight-charts docs: https://tradingview.github.io/lightweight-charts/ (v4.2)

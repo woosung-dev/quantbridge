@@ -12,7 +12,7 @@
 
 ## evidence (Playwright MCP 자동화)
 
-스크린샷 5장 (`docs/dogfood/sprint50-stress-test-screens/`):
+스크린샷 5장 (`docs/archive/dogfood/sprint50-stress-test-screens/`):
 
 1. `01-overview-tab-with-assumptions.png` — overview tab 안 AssumptionsCard 표시
 2. `02-stress-test-tab-with-assumptions.png` — **stress-test tab 진입 시에도 AssumptionsCard 표시 (codex P1#3 fix 작동)** ✅

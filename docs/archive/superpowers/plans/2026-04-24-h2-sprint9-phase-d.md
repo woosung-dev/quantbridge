@@ -12,7 +12,7 @@
 2. **`GET /metrics` endpoint** — prometheus_client text exposition format, Clerk 인증 제외, bearer-token 으로 보호.
 3. **Instrumentation 5 지점** — backtest task 실행 시간, 주문 거부, Kill Switch 발동, CCXT latency, active orders.
 4. **`.env.example` 에 `PROMETHEUS_BEARER_TOKEN`** 추가.
-5. **Grafana Cloud Free 설정 runbook** — `docs/07_infra/grafana-cloud-setup.md` (사용자 수동 Grafana 계정 설정 가이드).
+5. **Grafana Cloud Free 설정 runbook** — `docs/reference/infra/grafana-cloud-setup.md` (사용자 수동 Grafana 계정 설정 가이드).
 
 ## Out of scope
 
@@ -334,7 +334,7 @@ async def test_leverage_cap_exceeded_increments_metric(
     assert after == before + 1
 ```
 
-## 8. Runbook — `docs/07_infra/grafana-cloud-setup.md`
+## 8. Runbook — `docs/reference/infra/grafana-cloud-setup.md`
 
 사용자 수동 설정 가이드 (문서화 only, 코드 변경 없음):
 
@@ -475,7 +475,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 
 c2 docs(observability): Grafana Cloud Free runbook + alert rule (Phase D)
 
-- docs/07_infra/grafana-cloud-setup.md (사용자 수동 가이드)
+- docs/reference/infra/grafana-cloud-setup.md (사용자 수동 가이드)
 - 5 대시보드 패널 예시 쿼리 + 1 alert rule (order_rejected_rate > 10%)
 - Prometheus remote_write 설정 예시
 

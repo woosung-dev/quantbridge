@@ -1,7 +1,7 @@
 # QuantBridge — 도메인 개요
 
 > **목적:** 8개 도메인 경계, 책임, 상호작용을 명세.
-> **SSOT:** 코드는 [`backend/src/<domain>/`](../../backend/src/), 스키마는 [`04_architecture/erd.md`](../04_architecture/erd.md), API 계약은 [`03_api/endpoints.md`](../03_api/endpoints.md).
+> **SSOT:** 코드는 [`backend/src/<domain>/`](../../backend/src/), 스키마는 [`04_architecture/erd.md`](erd.md), API 계약은 [`03_api/endpoints.md`](endpoints.md).
 
 ## 1. Bounded Contexts
 
@@ -89,7 +89,7 @@ flowchart TB
 
 ### 4.1 FK 정책
 
-> **⚠️ 2026-06-30 reconcile 노트:** 아래 표는 초기 계획기 명세로, `trading_sessions`·`live_trades` 는 **미구현 phantom** 테이블이다(entities.md ENT-007/008). 실제 trading lifecycle 은 `live_signal_sessions` + `orders` + `live_signal_events` (state-machines.md §3). **FK 실제 구조 SSOT = [`04_architecture/erd.md`](../04_architecture/erd.md)** (16-table). 본 표의 trading 관련 행은 historical reference.
+> **⚠️ 2026-06-30 reconcile 노트:** 아래 표는 초기 계획기 명세로, `trading_sessions`·`live_trades` 는 **미구현 phantom** 테이블이다(entities.md ENT-007/008). 실제 trading lifecycle 은 `live_signal_sessions` + `orders` + `live_signal_events` (state-machines.md §3). **FK 실제 구조 SSOT = [`04_architecture/erd.md`](erd.md)** (16-table). 본 표의 trading 관련 행은 historical reference.
 
 | 부모                | 자식                                                                                              | ON DELETE | 이유                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------ |
@@ -133,7 +133,7 @@ flowchart TB
 
 ## 5. 도메인 간 데이터 흐름 (요약)
 
-> 상세 시퀀스는 [`04_architecture/data-flow.md`](../04_architecture/data-flow.md) 참조.
+> 상세 시퀀스는 [`04_architecture/data-flow.md`](data-flow.md) 참조.
 
 ### Strategy → Backtest
 
@@ -183,9 +183,9 @@ flowchart TB
 
 ## 8. 참고
 
-- ADR-002 병렬 스캐폴딩: [`dev-log/002-parallel-scaffold-strategy.md`](../dev-log/002-parallel-scaffold-strategy.md)
+- ADR-002 병렬 스캐폴딩: [`dev-log/002-parallel-scaffold-strategy.md`](../decisions/002-parallel-scaffold-strategy.md)
 - Backend rules: `.ai/stacks/fastapi/backend.md`
-- Sprint 4 cross-domain 패턴: `docs/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` §4.8
+- Sprint 4 cross-domain 패턴: `docs/archive/superpowers/specs/2026-04-15-sprint4-backtest-api-design.md` §4.8
 
 ---
 

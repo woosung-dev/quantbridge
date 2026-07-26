@@ -84,7 +84,7 @@ uv run python scripts/bybit_demo_smoke.py \
 [PASS] DB row exists: trading.orders
 ```
 
-Smoke test 실패 시 → 운영 시작 금지. `docs/TODO.md` Blocked 항목 추가.
+Smoke test 실패 시 → 운영 시작 금지. `docs/status.md` Blocked 항목 추가.
 
 ---
 
@@ -192,7 +192,7 @@ WHERE status = 'filled'
 **조치:**
 
 1. **dogfood 일시 중단** (H2 진입 계획 재검토)
-2. `docs/TODO.md` Blocked 항목 추가: 원인 명시
+2. `docs/status.md` Blocked 항목 추가: 원인 명시
 3. 관련 Sprint (9 or 10) 우선순위로 격상
 4. 수정 완료 + 회귀 테스트 green 확인 후 dogfood 재개
 
@@ -234,7 +234,7 @@ WHERE status = 'filled'
 | [`./bybit-mainnet-checklist.md`](./bybit-mainnet-checklist.md)                                   | 환경 설정 체크리스트 (demo + mainnet) |
 | [`./runbook.md`](./runbook.md) §12                                                               | Demo → Mainnet 전환 절차              |
 | [`../dev-log/006-kill-switch.md`](../dev-log/006-kill-switch.md)                                 | Kill Switch 설계 근거                 |
-| [`../superpowers/plans/2026-04-20-h2-kickoff.md`](../superpowers/plans/2026-04-20-h2-kickoff.md) | H2 Sprint 9~11 분해                   |
+| [`../superpowers/plans/2026-04-20-h2-kickoff.md`](../../archive/superpowers/plans/2026-04-20-h2-kickoff.md) | H2 Sprint 9~11 분해                   |
 | `docs/reports/dogfood/YYYY-MM-DD.html`                                                           | 자동 생성 일일 리포트 (PR-D 이후)     |
 
 ---

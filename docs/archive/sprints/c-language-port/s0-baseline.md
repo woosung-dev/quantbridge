@@ -7,7 +7,7 @@
 
 ---
 
-## 1. 프로토타입 정본 — `node docs/prototypes/shotgun-2026-07/runtime-check.mjs`
+## 1. 프로토타입 정본 — `node docs/reference/prototypes/shotgun-2026-07/runtime-check.mjs`
 
 착수 전 재현. **17/17 PASS, exit 0.**
 

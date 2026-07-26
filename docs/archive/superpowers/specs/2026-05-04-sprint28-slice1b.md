@@ -79,7 +79,7 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 
 ### T1 — `requirements-overview.md` Phase 표 갱신 (1h)
 
-**File:** `docs/01_requirements/requirements-overview.md` (수정)
+**File:** `docs/reference/requirements-overview.md` (수정)
 
 **변경:**
 
@@ -90,7 +90,7 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 
 ### T2 — `domain-progress-matrix.md` 신규 (1.5h)
 
-**File:** `docs/01_requirements/domain-progress-matrix.md` (신규)
+**File:** `docs/reference/domain-progress-matrix.md` (신규)
 
 **내용:**
 
@@ -101,7 +101,7 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 
 ### T3 — `phase-vs-sprint-mapping.md` 신규 (1h)
 
-**File:** `docs/00_project/phase-vs-sprint-mapping.md` (신규)
+**File:** `docs/reference/project/phase-vs-sprint-mapping.md` (신규)
 
 **내용:**
 
@@ -112,7 +112,7 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 
 ### T4 — `roadmap.md` H1 종료 정량 gate (45분)
 
-**File:** `docs/00_project/roadmap.md` (수정 L88-106 + 본 sprint 28 office-hours Addendum 추가)
+**File:** `docs/reference/project/roadmap.md` (수정 L88-106 + 본 sprint 28 office-hours Addendum 추가)
 
 **변경:**
 
@@ -122,7 +122,7 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 
 ### T5 — `beta-path-decision.md` 신규 (1h)
 
-**File:** `docs/00_project/beta-path-decision.md` (신규)
+**File:** `docs/reference/project/beta-path-decision.md` (신규)
 
 **내용:**
 
@@ -131,9 +131,9 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 - 결정 trigger — dogfood Day 7 결과 (critical bug / self-assessment / BL P0 잔여)
 - Trade-off 표 (각 path 의 ★별 추천도 + 사용자 상황 추천도)
 
-### T6 — `REFACTORING-BACKLOG.md` 갱신 (1.5h)
+### T6 — `backlog.md` 갱신 (1.5h)
 
-**File:** `docs/REFACTORING-BACKLOG.md` (수정 — 현재 762줄)
+**File:** `docs/backlog.md` (수정 — 현재 762줄)
 
 **변경:**
 
@@ -145,7 +145,7 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 
 ### T7 — PRD 노후 항목 보강 (1h)
 
-**File:** `docs/01_requirements/requirements-overview.md` (수정)
+**File:** `docs/reference/requirements-overview.md` (수정)
 
 **변경:**
 
@@ -158,15 +158,15 @@ PRD/Roadmap/Phase 의 정합성 격차를 정량 매트릭스 + Phase 매핑 문
 
 **신규 (3 파일):**
 
-- `docs/01_requirements/domain-progress-matrix.md`
-- `docs/00_project/phase-vs-sprint-mapping.md`
-- `docs/00_project/beta-path-decision.md`
+- `docs/reference/domain-progress-matrix.md`
+- `docs/reference/project/phase-vs-sprint-mapping.md`
+- `docs/reference/project/beta-path-decision.md`
 
 **수정 (3 파일):**
 
-- `docs/01_requirements/requirements-overview.md` (Phase 표 + 4 신규 REQ 카테고리)
-- `docs/00_project/roadmap.md` (H1/H2/H3 정량 gate)
-- `docs/REFACTORING-BACKLOG.md` (50→81+ 갱신)
+- `docs/reference/requirements-overview.md` (Phase 표 + 4 신규 REQ 카테고리)
+- `docs/reference/project/roadmap.md` (H1/H2/H3 정량 gate)
+- `docs/backlog.md` (50→81+ 갱신)
 
 ## Risks & Mitigations
 

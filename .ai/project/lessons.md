@@ -187,7 +187,7 @@
 
 ### LESSON-050 — Sprint kickoff design source 명시 의무
 
-- **해결:** 디자인 트랙 sprint kickoff prereq 첫 step = `docs/prototypes/` + `DESIGN.md` + `*.pen` + Figma URL 모두 grep + 5지선다 prereq 옵션 (없음 + 4 source 종류). design source 누락 발견 시 즉시 Wave 2 추가 spawn.
+- **해결:** 디자인 트랙 sprint kickoff prereq 첫 step = `docs/reference/prototypes/` + `DESIGN.md` + `*.pen` + Figma URL 모두 grep + 5지선다 prereq 옵션 (없음 + 4 source 종류). design source 누락 발견 시 즉시 Wave 2 추가 spawn.
 
 ### LESSON-051 — Agent isolation worktree 4 spawn 시 baseline 정리 의무
 

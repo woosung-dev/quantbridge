@@ -3,7 +3,7 @@
 **Date:** 2026-04-23
 **Worker:** 4 / 5 (Trade Analysis 방향별 breakdown)
 **Branch:** `w4/trade-analysis-breakdown`
-**Plan:** [`docs/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md`](../plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md)
+**Plan:** [`docs/archive/superpowers/plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md`](../plans/2026-04-23-x1x3-w4-trade-analysis-breakdown.md)
 **Reviewer:** codex CLI 0.122.0 (gpt-5)
 
 ---

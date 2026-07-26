@@ -2,9 +2,9 @@
 
 > **목적:** 도메인별 요구사항 ID 카탈로그 + Given/When/Then 시나리오.
 > **상위 문서:** [`requirements-overview.md`](./requirements-overview.md)
-> **SSOT:** API 계약은 [`03_api/endpoints.md`](../03_api/endpoints.md), 도메인 규칙은 [`02_domain/`](../02_domain/).
+> **SSOT:** API 계약은 [`03_api/endpoints.md`](endpoints.md), 도메인 규칙은 [`02_domain/`](../02_domain/).
 >
-> **⚠ 상태 (2026-05-29 audit):** 본 카탈로그는 Sprint 7a 시점에서 **고정**되어 status 컬럼(⏳ Sprint 6+/7+ 등)이 stale. REQ-ST(Stress)·REQ-OPT(Optimizer)·REQ-TRD(Trading) 는 **모두 구현됨**(Sprint 50-57). 실제 작업 추적은 Sprint 8+ 부터 **BL 시스템**([`docs/REFACTORING-BACKLOG.md`](../REFACTORING-BACKLOG.md))으로 이관됨 — REQ↔BL bridge 는 미작성. 본 카탈로그는 Phase 1-1.5b baseline 요구사항 reference 로 사용.
+> **⚠ 상태 (2026-05-29 audit):** 본 카탈로그는 Sprint 7a 시점에서 **고정**되어 status 컬럼(⏳ Sprint 6+/7+ 등)이 stale. REQ-ST(Stress)·REQ-OPT(Optimizer)·REQ-TRD(Trading) 는 **모두 구현됨**(Sprint 50-57). 실제 작업 추적은 Sprint 8+ 부터 **BL 시스템**([`docs/backlog.md`](../backlog.md))으로 이관됨 — REQ↔BL bridge 는 미작성. 본 카탈로그는 Phase 1-1.5b baseline 요구사항 reference 로 사용.
 
 ## 우선순위
 

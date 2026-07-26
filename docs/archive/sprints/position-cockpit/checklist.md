@@ -22,7 +22,7 @@
 
 ## 마감
 
-- [x] docs/position-cockpit/{checklist,operating-contract,context-notes}.md
+- [x] docs/archive/sprints/position-cockpit/{checklist,operating-contract,context-notes}.md
 - [x] TODO.md position-cockpit 섹션 + Next Action 갱신
 - [x] dev-log INDEX 한 줄 + perf-surface #471 머지 반영
 - [x] BL 등재 — BL-431(포지션 표 TP/SL·청산 액션) / BL-432(잔고 selector 클로저) / BL-433(subscribe metric + BL-423 연계)

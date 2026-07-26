@@ -18,7 +18,7 @@ Bybit Demo Trading API 키 발급 완료. `ExchangeMode.demo` 인프라 완전 �
 
 - Bybit Demo Trading API 키 발급 완료 (mainnet 계정 → API 관리 → Demo Trading 탭)
 - Demo 잔고 충전 완료: Demo Trading 진입 → Asset → Demo USDT 무료 지급 클릭
-- `docs/07_infra/h1-testnet-dogfood-guide.md` §2 환경 준비 완독
+- `docs/reference/infra/h1-testnet-dogfood-guide.md` §2 환경 준비 완독
 - `docs/guides/dogfood-checklist.md` §1 시작 전 1회 체크 완료
 
 ---
@@ -199,7 +199,7 @@ uv run python scripts/bybit_demo_smoke.py \
 
 > ⚠️ **Smoke Test 잔여 주문 정리:** smoke test 스크립트가 반드시 주문을 취소하도록 설계되어야 함. cancel 단계 실패 시 `backend/scripts/cancel_all_demo_orders.py` (없으면 수동 취소) 실행.
 
-**FAIL 시 전체 대응:** `docs/TODO.md` Blocked 섹션에 오류 내용 기록 → Phase B/C 먼저 진행.
+**FAIL 시 전체 대응:** `docs/status.md` Blocked 섹션에 오류 내용 기록 → Phase B/C 먼저 진행.
 
 ---
 

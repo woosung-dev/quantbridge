@@ -199,7 +199,7 @@ class ParseOutcome:
 ```
 TradingView 전략 수집 (N=50)
     ↓ 수동 분류 (난이도별 3티어)
-docs/01_requirements/pine-coverage-assignment.md
+docs/reference/pine-coverage-assignment.md
     ├─ 필수 지원 함수 (빈도순)
     ├─ Pine v4 / v5 비율
     ├─ 난이도별 분포 (표준 / 중간 / 헤비)
@@ -337,5 +337,5 @@ Phase A 결과에서 50개를 3티어로 분류:
 
 - ADR-003: Pine 런타임 안전성 + 파서 범위
 - CLAUDE.md §QuantBridge 고유 규칙 (exec/eval 금지, Unsupported 전체 반환)
-- docs/01_requirements/pine-script-analysis.md
-- docs/01_requirements/pine-coverage-assignment.md (Phase A 산출물, 본 스프린트에서 작성)
+- docs/reference/pine-script-analysis.md
+- docs/reference/pine-coverage-assignment.md (Phase A 산출물, 본 스프린트에서 작성)

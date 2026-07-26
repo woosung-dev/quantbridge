@@ -10,7 +10,7 @@
 
 **Time budget:** 12-18h (Slice C 4-6h + Slice A 8-12h + Slice B 8-12h, A‖B 병렬 시 12-18h 최대)
 
-**Spec:** [`docs/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`](../specs/2026-05-04-sprint29-coverage-hardening-design.md)
+**Spec:** [`docs/archive/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`](../specs/2026-05-04-sprint29-coverage-hardening-design.md)
 **Plan v2.1:** `~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`
 **Branch:** `stage/h2-sprint29-pine-coverage-hardening` @ `dc93f57`
 
@@ -36,7 +36,7 @@
 | `backend/src/strategy/pine_v2/interpreter.py`                       | barcolor NOP 강화 / timeframe.period 상수 / heikinashi NOP / \_ATTR_CONSTANTS module-level export                                                                               | A     |
 | `backend/src/strategy/router.py`                                    | parse-preview 응답 schema 갱신                                                                                                                                                  | B     |
 | `backend/src/strategy/schemas.py`                                   | UnsupportedCallResponse Pydantic 모델 추가                                                                                                                                      | B     |
-| `docs/04_architecture/pine-execution-architecture.md` (line 95-126) | SSOT 명세 갱신 (실측 size + fictional 표현 제거)                                                                                                                                | C     |
+| `docs/reference/pine-execution-architecture.md` (line 95-126) | SSOT 명세 갱신 (실측 size + fictional 표현 제거)                                                                                                                                | C     |
 
 ---
 
@@ -258,12 +258,12 @@ git commit -m "feat(pine_v2): expand SUPPORTED_FUNCTIONS with ~11 rendering meth
 
 **Files:**
 
-- Modify: `docs/04_architecture/pine-execution-architecture.md:95-126`
+- Modify: `docs/reference/pine-execution-architecture.md:95-126`
 
 - [ ] **Step 1: 현재 SSOT 명세 line 95-126 확인**
 
 ```bash
-sed -n '95,126p' docs/04_architecture/pine-execution-architecture.md
+sed -n '95,126p' docs/reference/pine-execution-architecture.md
 ```
 
 기존 표기 (예: `SUPPORTED_FUNCTIONS=91` 또는 `SUPPORTED_ENUM_CONSTANTS`) 발견.
@@ -302,7 +302,7 @@ drift 발생 시 CI 차단. supported list 추가 시 4 collection 동시 갱신
 - [ ] **Step 3: commit**
 
 ```bash
-git add docs/04_architecture/pine-execution-architecture.md
+git add docs/reference/pine-execution-architecture.md
 git commit -m "docs(architecture): update SSOT spec with actual sizes (Slice C, fictional SUPPORTED_ENUM_CONSTANTS removed)"
 ```
 
@@ -561,10 +561,10 @@ ADR-009 Candle transformation layer 신설 — Heikin-Ashi + Renko + Range bar �
 
 ## References
 
-- Spec: `docs/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md` D1
+- Spec: `docs/archive/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md` D1
 - Plan v2.1: `~/.claude/plans/quantbridge-sprint-29-sunny-origami.md` §4 Slice A
-- BL-096 partial: `docs/REFACTORING-BACKLOG.md`
-- architecture.md Trust Layer: `docs/04_architecture/pine-execution-architecture.md:286-318`
+- BL-096 partial: `docs/backlog.md`
+- architecture.md Trust Layer: `docs/reference/pine-execution-architecture.md:286-318`
 ```
 
 - [ ] **Step 2: red test**
@@ -1450,8 +1450,8 @@ gh pr create --base main --title "Sprint 29 — Pine Coverage Layer Hardening + 
 
 ## References
 
-- Spec: `docs/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`
-- Plan: `docs/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`
+- Spec: `docs/archive/superpowers/specs/2026-05-04-sprint29-coverage-hardening-design.md`
+- Plan: `docs/archive/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`
 - Plan v2.1: `~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`
 - v1→v2 pivot: `docs/dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md`
 - Baseline snapshot: `docs/dev-log/2026-05-04-sprint29-baseline-snapshot.md`
@@ -1513,7 +1513,7 @@ plan v2.1 §14 항목 따라 진행.
 
 ## Execution Handoff
 
-**Plan complete and saved to `docs/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`. Two execution options:**
+**Plan complete and saved to `docs/archive/superpowers/plans/2026-05-04-sprint29-coverage-hardening.md`. Two execution options:**
 
 **1. Subagent-Driven (recommended)** — fresh subagent per task, review between tasks, fast iteration. cmux 2 워커 (Slice A‖B 병렬) 자연 적용 가능.
 

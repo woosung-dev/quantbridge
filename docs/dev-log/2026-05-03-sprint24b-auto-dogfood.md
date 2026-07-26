@@ -144,4 +144,4 @@ python backend/scripts/run_auto_dogfood.py
 
 - Sprint 24 plan v2 (Track 1+2 통합): `~/.claude/plans/claude-plans-h2-sprint-22-prompt-md-elegant-cerf.md`
 - Sprint 24a dev-log (Track 2): `docs/dev-log/2026-05-03-sprint24a-ws-stability.md`
-- BL 상세: `docs/REFACTORING-BACKLOG.md`
+- BL 상세: `docs/backlog.md`

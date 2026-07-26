@@ -1,5 +1,5 @@
 // 온보딩 일러스트 SVG 프레임 — Sprint 42-polish W2-fidelity + Sprint 44 W F2
-// docs/prototypes/05-onboarding.html 의 풍부한 inline SVG 를 4 variant 로 1:1 모방.
+// docs/reference/prototypes/05-onboarding.html 의 풍부한 inline SVG 를 4 variant 로 1:1 모방.
 // - code: Pine Script 코드 카드 + dashed 화살표 + bridge target + spark
 // - chart: 백테스트 equity curve + chart bars + 축 + active dot
 // - trade: BTC/USDT 가격 + uptrend line + BUY 라벨 + arrow

@@ -20,7 +20,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 2. **고급 검증** — TV 백테스터가 제공하지 못하는 Monte Carlo, Walk-Forward, 현실적 슬리피지/수수료 시뮬레이션
 3. **실시간 검증** — 데모 트레이딩으로 백테스트 기대치와 실제 시장 사이의 괴리 측정
 4. **원클릭 라이브 전환** — 동일 코드, URL만 변경하여 라이브 트레이딩
-5. **(2026-05-04 Addendum) Auto-Loop 자동화** — Beat scheduler + Worker dispatch 로 dogfood/Beta 사용자가 매분 수동 개입 없이 평가→주문→close cycle 자동 실행 (Sprint 27 §0.5 dogfood Day 0-4 evidence: 26h+ 무중단, dispatch rate 1.0/min, 5 sessions 동시). **외부 노출 가능 핵심 신뢰 지표** — 처음 office-hours (Sprint 7c) 의 "curl/psql 감내" 가정이 dogfood 결과로 무효화, 자동화 필수성으로 승격. 상세: [`docs/dev-log/008-sprint7c-scope-decision.md`](../dev-log/008-sprint7c-scope-decision.md) "2026-05-04 Addendum"
+5. **(2026-05-04 Addendum) Auto-Loop 자동화** — Beat scheduler + Worker dispatch 로 dogfood/Beta 사용자가 매분 수동 개입 없이 평가→주문→close cycle 자동 실행 (Sprint 27 §0.5 dogfood Day 0-4 evidence: 26h+ 무중단, dispatch rate 1.0/min, 5 sessions 동시). **외부 노출 가능 핵심 신뢰 지표** — 처음 office-hours (Sprint 7c) 의 "curl/psql 감내" 가정이 dogfood 결과로 무효화, 자동화 필수성으로 승격. 상세: [`docs/decisions/008-sprint7c-scope-decision.md`](../../decisions/008-sprint7c-scope-decision.md) "2026-05-04 Addendum"
 
 ## 4 신규 도메인 (Sprint 12-27 dogfood 부상, Sprint 28 office-hours 재진행 시 명시)
 
@@ -35,7 +35,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 
 ## 차별화 (Positioning)
 
-> 자세한 비교 매트릭스는 [`requirements-overview.md`](../01_requirements/requirements-overview.md) §1 참조. 본 문서는 한 줄 결론만.
+> 자세한 비교 매트릭스는 [`requirements-overview.md`](../requirements-overview.md) §1 참조. 본 문서는 한 줄 결론만.
 
 | 도구                                   | 강점                           | QuantBridge가 채우는 공백                 |
 | -------------------------------------- | ------------------------------ | ----------------------------------------- |
@@ -52,7 +52,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 - 고급 백테스팅 도구가 부족한 개인 퀀트
 - Bybit/Binance에서 자동화 트레이딩을 원하는 트레이더
 
-> 페르소나·Pain Point 상세는 [`requirements-overview.md`](../01_requirements/requirements-overview.md) §2 참조.
+> 페르소나·Pain Point 상세는 [`requirements-overview.md`](../requirements-overview.md) §2 참조.
 
 ## 성공 지표 (KPI)
 
@@ -77,8 +77,8 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 
 ## Sprint 로드맵 요약 (기술 관점)
 
-> 상세 진행 상황은 [`docs/TODO.md`](../TODO.md). 본 섹션은 Phase 단위 **기술** 로드맵 한눈에 보기.
-> **제품 로드맵(Horizon × Pillars, 비즈니스·수익화·Launch 포함)**은 [`docs/00_project/roadmap.md`](./roadmap.md) 참조.
+> 상세 진행 상황은 [`docs/status.md`](../../../.ai/templates/docs/TODO.md). 본 섹션은 Phase 단위 **기술** 로드맵 한눈에 보기.
+> **제품 로드맵(Horizon × Pillars, 비즈니스·수익화·Launch 포함)**은 [`docs/reference/project/roadmap.md`](./roadmap.md) 참조.
 
 | Phase     | 기간 (계획) | 핵심 산출물                                             | 진행 상태                                              | Horizon 매핑 |
 | --------- | ----------- | ------------------------------------------------------- | ------------------------------------------------------ | ------------ |
@@ -105,7 +105,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 
 ## 핵심 비즈니스 규칙
 
-본 비전을 코드로 옮길 때 반드시 지킬 규칙은 [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md) §"QuantBridge 고유 규칙" 및 [`requirements-overview.md`](../01_requirements/requirements-overview.md) §8에 정리.
+본 비전을 코드로 옮길 때 반드시 지킬 규칙은 [`.claude/CLAUDE.md`](../../../CLAUDE.md) §"QuantBridge 고유 규칙" 및 [`requirements-overview.md`](../requirements-overview.md) §8에 정리.
 
 대표 원칙:
 
@@ -118,14 +118,14 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 ## 참조 문서
 
 - **제품 로드맵** (Horizon × Pillars + 수익화 + Launch): [`roadmap.md`](./roadmap.md)
-- 요구사항 상세: [`01_requirements/requirements-overview.md`](../01_requirements/requirements-overview.md), [`req-catalog.md`](../01_requirements/req-catalog.md)
-- 도메인 모델: [`02_domain/domain-overview.md`](../02_domain/domain-overview.md)
-- 시스템 설계: [`04_architecture/system-architecture.md`](../04_architecture/system-architecture.md)
-- 의사결정 트레일: [`dev-log/`](../dev-log/) (ADR-001~012)
-- 작업 추적: [`TODO.md`](../TODO.md)
+- 요구사항 상세: [`01_requirements/requirements-overview.md`](../requirements-overview.md), [`req-catalog.md`](../req-catalog.md)
+- 도메인 모델: [`02_domain/domain-overview.md`](../domain-overview.md)
+- 시스템 설계: [`04_architecture/system-architecture.md`](../system-architecture.md)
+- 의사결정 트레일: [`dev-log/`](../../dev-log/) (ADR-001~012)
+- 작업 추적: [`status.md`](../../../.ai/templates/docs/TODO.md)
 
 ## 변경 이력
 
 - **2026-04-15** — 초안 작성 (한 줄 요약 + 핵심 가치 + KPI + Phase 1 MVP)
 - **2026-04-16** — 가벼운 보강 (Sprint 5 Stage A docs sync). 문제 정의·차별화·Sprint 로드맵·Out of Scope·참조 문서 섹션 추가
-- **2026-04-17** — Phase 로드맵에 Horizon 매핑 열 추가 + 제품 로드맵([`roadmap.md`](./roadmap.md)) 링크 추가 ([ADR-010b](../dev-log/010b-product-roadmap.md))
+- **2026-04-17** — Phase 로드맵에 Horizon 매핑 열 추가 + 제품 로드맵([`roadmap.md`](./roadmap.md)) 링크 추가 ([ADR-010b](../../decisions/010b-product-roadmap.md))

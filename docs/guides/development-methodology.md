@@ -106,7 +106,7 @@ Stage 2: 디자인
 
 ## 병렬 개발 전략
 
-> Git Worktree를 활용한 멀티 에이전트 병렬 개발. 상세: `docs/dev-log/002-parallel-scaffold-strategy.md`
+> Git Worktree를 활용한 멀티 에이전트 병렬 개발. 상세: `docs/decisions/002-parallel-scaffold-strategy.md`
 
 ### 원칙
 

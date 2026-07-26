@@ -4,8 +4,8 @@
 > **Sprint:** 29 (Type A, 신규 기능)
 > **Branch:** `stage/h2-sprint29-pine-coverage-hardening` @ `9cf55f6`
 > **Plan v2.1:** `~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`
-> **Preflight evidence:** [`docs/dev-log/2026-05-04-sprint29-baseline-snapshot.md`](../../dev-log/2026-05-04-sprint29-baseline-snapshot.md)
-> **v1→v2 pivot evidence:** [`docs/dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md`](../../dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md)
+> **Preflight evidence:** [`docs/dev-log/2026-05-04-sprint29-baseline-snapshot.md`](../../../dev-log/2026-05-04-sprint29-baseline-snapshot.md)
+> **v1→v2 pivot evidence:** [`docs/dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md`](../../../dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md)
 > **Time budget:** 12-18h (3 Slice, C → A‖B 순서, cmux 2 워커)
 
 ---
@@ -97,7 +97,7 @@ unsupported  DrFXGOD response
   - `line.delete`, `line.get_price`
   - `label.delete`, `label.get_x`, `label.set_x`, `label.set_y`
   - `table.cell`
-- `docs/04_architecture/pine-execution-architecture.md:95-126` — SSOT 명세 갱신:
+- `docs/reference/pine-execution-architecture.md:95-126` — SSOT 명세 갱신:
   - 실측 size: `SUPPORTED_FUNCTIONS=99` / `SUPPORTED_ATTRIBUTES=39` / `_ENUM_PREFIXES=13` / `_KNOWN_UNSUPPORTED_FUNCTIONS=7`
   - fictional `SUPPORTED_ENUM_CONSTANTS` 표현 제거 (실제 `_ENUM_PREFIXES` prefix lookup 명시)
   - 4 invariant audit 의무 명시
@@ -349,16 +349,16 @@ ADR-008 Addendum 후보 — Sprint 29 종료 시점에 작성. 본인 dogfood �
 ### 10.1 Plan + dev-log
 
 - Plan v2.1: `~/.claude/plans/quantbridge-sprint-29-sunny-origami.md`
-- v1→v2 pivot: [`docs/dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md`](../../dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md)
-- Baseline snapshot: [`docs/dev-log/2026-05-04-sprint29-baseline-snapshot.md`](../../dev-log/2026-05-04-sprint29-baseline-snapshot.md)
-- Sprint 28 §13 (Sprint 29 scope 결정): [`docs/dev-log/2026-05-04-sprint28-retrospective.md`](../../dev-log/2026-05-04-sprint28-retrospective.md)
+- v1→v2 pivot: [`docs/dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md`](../../../dev-log/2026-05-04-sprint29-v1-to-v2-pivot.md)
+- Baseline snapshot: [`docs/dev-log/2026-05-04-sprint29-baseline-snapshot.md`](../../../dev-log/2026-05-04-sprint29-baseline-snapshot.md)
+- Sprint 28 §13 (Sprint 29 scope 결정): [`docs/dev-log/2026-05-04-sprint28-retrospective.md`](../../../dev-log/2026-05-04-sprint28-retrospective.md)
 
 ### 10.2 Architecture / 영구 규칙
 
-- SSOT for Pine v4: `docs/04_architecture/pine-execution-architecture.md`
+- SSOT for Pine v4: `docs/reference/pine-execution-architecture.md`
 - Pine 영구 규칙: `.claude/CLAUDE.md` (exec/eval 금지, 1 unsupported = 전체 Unsupported, Tier-0 Execution-First, 범위 A, 3-Track 분류)
-- ADR-003 Pine runtime safety: `docs/dev-log/003-pine-runtime-safety-and-parser-scope.md`
-- ADR-016 Sprint Y1 Coverage Analyzer: `docs/dev-log/016-sprint-y1-coverage-analyzer.md`
+- ADR-003 Pine runtime safety: `docs/decisions/003-pine-runtime-safety-and-parser-scope.md`
+- ADR-016 Sprint Y1 Coverage Analyzer: `docs/decisions/016-sprint-y1-coverage-analyzer.md`
 
 ### 10.3 BL audit
 

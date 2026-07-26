@@ -2,7 +2,7 @@
 
 > **목적:** 로컬 dev compose 운영 가이드.
 > **SSOT:** [`../../docker-compose.yml`](../../docker-compose.yml). 본 문서는 의도/조작법.
-> 셋업: [`../05_env/local-setup.md`](../05_env/local-setup.md)
+> 셋업: [`../05_env/local-setup.md`](local-setup.md)
 
 ---
 
@@ -169,8 +169,8 @@ docker compose exec redis redis-cli FLUSHALL       # 전체
 ## 10. 참고
 
 - Compose 파일: [`../../docker-compose.yml`](../../docker-compose.yml)
-- 환경 변수: [`../05_env/env-vars.md`](../05_env/env-vars.md)
-- ADR-002 병렬 스캐폴딩: [`../dev-log/002-parallel-scaffold-strategy.md`](../dev-log/002-parallel-scaffold-strategy.md)
+- 환경 변수: [`../05_env/env-vars.md`](env-vars.md)
+- ADR-002 병렬 스캐폴딩: [`../dev-log/002-parallel-scaffold-strategy.md`](../decisions/002-parallel-scaffold-strategy.md)
 
 ---
 

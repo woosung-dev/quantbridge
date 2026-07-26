@@ -1,7 +1,7 @@
 # QuantBridge — 엔티티 카탈로그 (ENT-###)
 
 > **목적:** 도메인 엔티티의 책임·핵심 필드·상태·코드 위치 인덱스.
-> **SSOT:** 컬럼 정의는 [`04_architecture/erd.md`](../04_architecture/erd.md), 실 SQLModel은 `backend/src/<domain>/models.py`.
+> **SSOT:** 컬럼 정의는 [`04_architecture/erd.md`](erd.md), 실 SQLModel은 `backend/src/<domain>/models.py`.
 > **Note (2026-05-29 reconcile):** 이전 "계획 명세"였던 StressTest(ENT-005)·Optimization(ENT-006)·ExchangeAccount(ENT-009)·OHLCV(ENT-010)·FundingRate(ENT-011) 는 **모두 구현됨** — 정확한 컬럼은 코드 `models.py` + `erd.md` SSOT. `trading_sessions`(ENT-007)·`live_trades`(ENT-008) 테이블은 **미구현(phantom)** — 실제 trading lifecycle 은 `live_signal_sessions` + `orders` + `live_signal_events` (state-machines.md §3).
 
 ---

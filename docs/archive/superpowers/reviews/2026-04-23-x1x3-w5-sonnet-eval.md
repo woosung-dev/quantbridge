@@ -2,7 +2,7 @@
 
 > Sprint X1+X3 W5, 2026-04-23  
 > 리뷰어: Claude Sonnet 4.6 (독립 에이전트)  
-> 입력: Plan (`docs/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`) + Diff (`/tmp/w5-diff.txt`) + Codex Self-Review (`worktrees/agent-a0d2ef2b/docs/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`)
+> 입력: Plan (`docs/archive/superpowers/plans/2026-04-23-x1x3-w5-rerun-button.md`) + Diff (`/tmp/w5-diff.txt`) + Codex Self-Review (`worktrees/agent-a0d2ef2b/docs/archive/superpowers/reviews/2026-04-23-x1x3-w5-codex-self.md`)
 
 ---
 

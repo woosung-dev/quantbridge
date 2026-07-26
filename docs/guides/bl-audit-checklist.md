@@ -18,9 +18,9 @@ Sprint kickoff 시 (sprint-kickoff-template.md 첫 작업) 본 checklist 1회 �
 
 ```bash
 # P0 BL (Beta blocker / risk-critical)
-grep -E "^### BL-[0-9]+" docs/REFACTORING-BACKLOG.md | head -20
+grep -E "^### BL-[0-9]+" docs/backlog.md | head -20
 echo "---"
-grep -B1 "P0" docs/REFACTORING-BACKLOG.md | grep "BL-" | head -20
+grep -B1 "P0" docs/backlog.md | grep "BL-" | head -20
 ```
 
 기대 결과: 진행 중 P0 BL 목록 (Sprint 28 진입 시점 = BL-001/002/003/004).
@@ -35,7 +35,7 @@ grep -B1 "P0" docs/REFACTORING-BACKLOG.md | grep "BL-" | head -20
 ### C. Beta BL 진행 상황 (BL-070~075)
 
 ```bash
-grep -A3 "BL-07" docs/REFACTORING-BACKLOG.md | head -20
+grep -A3 "BL-07" docs/backlog.md | head -20
 ```
 
 기대 결과: 도메인 + DNS / Backend production / Resend / 캠페인 / 인터뷰 / H2 게이트 6 항목 status.

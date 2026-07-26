@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12 · FastAPI · SQLModel · asyncpg · Alembic · pytest-asyncio · httpx.AsyncClient · clerk-backend-api · svix
 
-**Spec:** `docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md`
+**Spec:** `docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md`
 
 ---
 
@@ -37,10 +37,10 @@ backend/src/strategy/pine/interpreter.py             — S3-01 gate, S3-02 warni
 backend/src/strategy/pine/types.py                   — (필요시 warnings 필드)
 backend/.env.example                                 — CLERK_WEBHOOK_SECRET 플레이스홀더
 .github/workflows/ci.yml                             — alembic upgrade 스텝
-docs/TODO.md                                         — Sprint 3/4 follow-ups 이동
-docs/03_api/endpoints.md                             — 구현 완료 마킹
+docs/status.md                                         — Sprint 3/4 follow-ups 이동
+docs/reference/endpoints.md                             — 구현 완료 마킹
 CLAUDE.md                                            — §현재 작업 갱신
-docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md — §10 post-impl notes
+docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md — §10 post-impl notes
 ```
 
 ### 신규 (Create)
@@ -3374,10 +3374,10 @@ GET /strategies 목록이 current user 소유만 반환하는지 검증.
 
 **Files:**
 - Modify: `.github/workflows/ci.yml` — alembic upgrade 스텝
-- Modify: `docs/TODO.md`
-- Modify: `docs/03_api/endpoints.md`
+- Modify: `docs/status.md`
+- Modify: `docs/reference/endpoints.md`
 - Modify: `CLAUDE.md`
-- Modify: `docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md` §10
+- Modify: `docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md` §10
 
 - [ ] **Step 1: CI workflow — alembic upgrade 스텝 추가**
 
@@ -3406,9 +3406,9 @@ GET /strategies 목록이 current user 소유만 반환하는지 검증.
 
 (이 스텝은 실패 발생 시 추가. 기본은 `options: --health-retries 5`로 충분.)
 
-- [ ] **Step 3: docs/TODO.md 업데이트**
+- [ ] **Step 3: docs/status.md 업데이트**
 
-`docs/TODO.md` 수정:
+`docs/status.md` 수정:
 
 - `### Sprint 3 follow-ups` 섹션을 `### Sprint 4 follow-ups`로 이름 변경
 - S3-01/S3-02 항목은 `Completed`로 이동 (Sprint 3에서 처리됨)
@@ -3435,7 +3435,7 @@ GET /strategies 목록이 current user 소유만 반환하는지 검증.
 
 - [ ] **Step 4: endpoints.md 업데이트**
 
-`docs/03_api/endpoints.md`에서 Sprint 3 구현 엔드포인트에 ✅ 마킹:
+`docs/reference/endpoints.md`에서 Sprint 3 구현 엔드포인트에 ✅ 마킹:
 
 | Method | Path | 상태 |
 |--------|------|------|
@@ -3464,7 +3464,7 @@ GET /strategies 목록이 current user 소유만 반환하는지 검증.
 
 - [ ] **Step 6: spec §10 post-impl notes 채움**
 
-`docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md` §10에 실측 이탈 기록:
+`docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md` §10에 실측 이탈 기록:
 
 ```markdown
 ## 10. Sprint 3 구현 후 노트 (스펙 이탈 기록)
@@ -3491,7 +3491,7 @@ Expected: ~267 passed, 0 failed, 0 errors.
 - [ ] **Step 8: CI green 확인 (푸시 후)**
 
 ```bash
-git add .github/workflows/ci.yml docs/TODO.md docs/03_api/endpoints.md CLAUDE.md docs/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md
+git add .github/workflows/ci.yml docs/status.md docs/reference/endpoints.md CLAUDE.md docs/archive/superpowers/specs/2026-04-15-sprint3-strategy-api-design.md
 git commit -m "docs(sprint3): post-implementation notes + TODO/CLAUDE.md/CI advance"
 ```
 
@@ -3538,7 +3538,7 @@ PR #2 CI green 확인 후 머지.
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-04-15-sprint3-strategy-api.md`.
+Plan complete and saved to `docs/archive/superpowers/plans/2026-04-15-sprint3-strategy-api.md`.
 
 **Two execution options:**
 

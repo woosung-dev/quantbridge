@@ -27,7 +27,7 @@ Sprint 1 + 2로 Pine 파서와 vectorbt 백테스트 엔진이 순수 라이브�
 4. **Alembic migration 검증:** upgrade/downgrade/upgrade round-trip 테스트 통과
 5. **테스트 카운트 목표:** ~267 passing (Sprint 2 230 + Sprint 3 신규 ~37)
 6. **CI green:** `ruff`/`mypy`/`pytest` 로컬과 CI 모두 pass. `backend` 잡의 `alembic upgrade head` 스텝 신규 포함
-7. **의존성 & docs:** `svix` 추가된 `pyproject.toml`/`uv.lock` 커밋, `.env.example` 갱신, `docs/TODO.md`/`endpoints.md` 업데이트
+7. **의존성 & docs:** `svix` 추가된 `pyproject.toml`/`uv.lock` 커밋, `.env.example` 갱신, `docs/status.md`/`endpoints.md` 업데이트
 
 ### 1.3 범위 밖 (Out of Scope)
 
@@ -686,15 +686,15 @@ def test_alembic_roundtrip():
 
 ## 9. 참조
 
-- Sprint 1 spec: `docs/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`
-- Sprint 2 spec: `docs/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md`
-- ADR-003: `docs/dev-log/003-pine-runtime-safety-and-parser-scope.md`
-- API 명세: `docs/03_api/endpoints.md`
+- Sprint 1 spec: `docs/archive/superpowers/specs/2026-04-15-pine-parser-mvp-design.md`
+- Sprint 2 spec: `docs/archive/superpowers/specs/2026-04-15-vectorbt-signal-fill-design.md`
+- ADR-003: `docs/decisions/003-pine-runtime-safety-and-parser-scope.md`
+- API 명세: `docs/reference/endpoints.md`
 - 백엔드 규칙: `.ai/stacks/fastapi/backend.md` (3-Layer Router/Service/Repository)
 - 프로젝트 규칙: `CLAUDE.md` §QuantBridge 고유 규칙 (Celery 비동기, Decimal, AES-256 등)
 - Clerk Python SDK: `clerk-backend-api>=1.0.0` (이미 `pyproject.toml`)
 - Svix Python SDK: `svix` (이번 스프린트 추가)
-- 프로토타입: `docs/prototypes/01-strategy-editor.html`, `06-strategies-list.html`, `07-strategy-create.html`
+- 프로토타입: `docs/reference/prototypes/01-strategy-editor.html`, `06-strategies-list.html`, `07-strategy-create.html`
 
 ---
 

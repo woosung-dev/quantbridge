@@ -122,7 +122,7 @@ Sprint 51 ~1.0-1.3M → Sprint 52 ~216k → Sprint 53 ~1.03M. Sprint 52 의 spot
 - Sprint 53 fix 이후 service 가 `Decimal(v)` JSONB 재복원 시 canonicalization check 실패 가능 → 사용자 manual 재실행 권고.
 - dogfood Day 7+ (2026-05-16) 발견 시 사용자 hard refresh + 재실행.
 
-`docs/dogfood/sprint42-feedback.md` retro 컬럼 추가 의무 (Sprint 53 close-out 시점).
+`docs/archive/dogfood/sprint42-feedback.md` retro 컬럼 추가 의무 (Sprint 53 close-out 시점).
 
 ## BL 등재 변경
 
