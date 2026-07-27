@@ -261,6 +261,21 @@ qb_live_signal_dispatch_total = Counter(
         "outcome",
     ),  # action: entry|close, outcome: dispatched|kill_switched|notional|other
 )
+qb_live_conditional_placed_total = Counter(
+    "qb_live_conditional_placed_total",
+    "Live conditional entry intents accepted for execution",
+    labelnames=("direction",),
+)
+qb_live_conditional_cancelled_total = Counter(
+    "qb_live_conditional_cancelled_total",
+    "Live conditional entries cancelled during reconciliation",
+    labelnames=("reason",),
+)
+qb_live_conditional_reconcile_errors_total = Counter(
+    "qb_live_conditional_reconcile_errors_total",
+    "Live conditional entry reconciliation failures",
+    labelnames=("stage",),
+)
 qb_trailing_placement_total = Counter(
     "qb_trailing_placement_total",
     "STEP B — fill 후 native trailing-stop placement 결과",

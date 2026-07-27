@@ -217,6 +217,11 @@ class OrderService:
             # 시 live = fail-closed (BalanceUnverified), demo = fail-open (기존 정책 유지).
             if self._exchange_service is not None and req.leverage is not None:
                 effective_price: Decimal | None = req.price
+                # 조건부 주문은 mark 가 아니라 **트리거가**에서 집행된다. mark 로 검사하면
+                # long 돌파(트리거가 > mark)에서 명목을 과소평가해 게이트를 통과시키고,
+                # 정작 트리거 시점에 거래소가 증거금 부족으로 조용히 거부한다.
+                if effective_price is None and req.trigger_price is not None:
+                    effective_price = req.trigger_price
                 if effective_price is None:
                     # P1-13 (S5-B) — market order: mark price 근사 (네트워크 1회 추가)
                     mark = await self._exchange_service.fetch_mark_price(

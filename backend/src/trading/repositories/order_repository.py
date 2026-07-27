@@ -122,6 +122,21 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_resting_conditional_entries(
+        self, strategy_id: UUID, exchange_account_id: UUID
+    ) -> Sequence[Order]:
+        """한 전략·계정의 미체결 조건부 진입 주문만 최대 100건 조회한다."""
+        stmt = (
+            select(Order)
+            .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .where(Order.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(Order.exchange_account_id == exchange_account_id)  # type: ignore[arg-type]
+            .limit(100)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
     async def list_by_user(
         self,
         user_id: UUID,

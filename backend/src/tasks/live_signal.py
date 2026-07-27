@@ -36,6 +36,9 @@ from pydantic import ValidationError
 
 from src.common.alert import track_pending_alert
 from src.common.metrics import (
+    qb_live_conditional_cancelled_total,
+    qb_live_conditional_placed_total,
+    qb_live_conditional_reconcile_errors_total,
     qb_live_signal_dispatch_total,
     qb_live_signal_divergence_total,
     qb_live_signal_entry_skipped_total,
@@ -215,6 +218,293 @@ def _uses_stop_entry_safe(pine_source: str) -> bool:
     except Exception:
         logger.warning("live_signal_stop_entry_detection_failed", exc_info=True)
         return False
+
+
+async def _reconcile_conditional_entries(
+    sess: Any,
+    result: Any,
+    parsed_settings: StrategySettings,
+    sm: Any,
+    *,
+    bar_time: datetime,
+    market_orders_in_flight: bool,
+) -> None:
+    """조건부 진입 desired 상태를 안전하게 거래소 resting 주문으로 수렴시킨다.
+
+    ★`market_orders_in_flight` 가 True 면 이번 tick 은 건너뛴다. 이 함수는 dispatch
+    태스크를 `apply_async` 한 **직후**에 불리므로, 그 시장가 진입/청산이 아직 거래소에
+    반영되기 전의 포지션을 읽는다. 그 값으로 사이징하면 초과 수량 주문이 나간다 -
+    실측 예: 청산 대기 중 포지션 +1 에서 target -0.5 를 보면 수량 1.5 를 등재하고,
+    청산이 체결된 뒤 돌파가 오면 의도의 3배가 열린다. 한 tick 늦추는 편이 낫다.
+    """
+    if market_orders_in_flight:
+        qb_live_conditional_reconcile_errors_total.labels(stage="deferred_market_inflight").inc()
+        return
+    try:
+        from src.tasks.celery_app import get_ccxt_provider_for_worker
+        from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
+        from src.trading.encryption import EncryptionService
+        from src.trading.exit_attribution import parse_our_order_link_id
+        from src.trading.kill_switch import (
+            CumulativeLossEvaluator,
+            DailyLossEvaluator,
+            KillSwitchEvaluator,
+            KillSwitchService,
+        )
+        from src.trading.providers import BybitFuturesProvider, _to_bybit_linear_symbol
+        from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+        from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+        from src.trading.repositories.order_repository import OrderRepository
+        from src.trading.schemas import OrderRequest
+        from src.trading.services.account_service import ExchangeAccountService
+        from src.trading.services.conditional_entry_planner import (
+            RestingConditionalEntry,
+            build_conditional_entry_key,
+            parse_conditional_entry_key,
+            plan_reconcile,
+        )
+        from src.trading.services.order_service import OrderService
+
+        async with sm() as session:
+            order_repo = OrderRepository(session)
+            local_orders = await order_repo.list_resting_conditional_entries(
+                sess.strategy_id, sess.exchange_account_id
+            )
+            desired = list(result.pending_orders)
+
+            # stop-entry를 쓰지 않는 전략에는 DB 조회 하나 외 비용을 지우고 REST를 절대 열지 않는다.
+            if not desired and not local_orders:
+                return
+
+            account_repo = ExchangeAccountRepository(session)
+            kse_repo = KillSwitchEventRepository(session)
+            active_kill_switch = await kse_repo.get_active(
+                strategy_id=sess.strategy_id, account_id=sess.exchange_account_id
+            )
+            cancel_reason = "desired_removed"
+            if not sess.is_active:
+                desired = []
+                cancel_reason = "session_inactive"
+            elif active_kill_switch is not None:
+                desired = []
+                cancel_reason = "kill_switch"
+
+            bybit_provider = BybitFuturesProvider()
+            exchange_service = ExchangeAccountService(
+                repo=account_repo,
+                crypto=EncryptionService(settings.trading_encryption_keys),
+                bybit_futures_provider=bybit_provider,
+            )
+            creds = await exchange_service.get_credentials_for_order(sess.exchange_account_id)
+
+            actual_by_order_id: dict[str, RestingConditionalEntry] = {}
+            for order in local_orders:
+                parsed_key = parse_conditional_entry_key(order.idempotency_key)
+                if (
+                    parsed_key is None
+                    or parsed_key[0] != sess.id
+                    or order.trigger_price is None
+                ):
+                    continue
+                actual_by_order_id[str(order.id)] = RestingConditionalEntry(
+                    trade_id=parsed_key[1],
+                    order_id=str(order.id),
+                    exchange_order_id=order.exchange_order_id,
+                    stop_price=order.trigger_price,
+                    quantity=order.quantity,
+                    side=order.side.value,
+                    trigger_direction=order.trigger_direction,
+                    reduce_only=order.reduce_only,
+                )
+
+            exchange_orders = await bybit_provider.fetch_open_conditional_orders(
+                creds, sess.symbol, reduce_only=None
+            )
+            for exchange_order in exchange_orders:
+                linked_order_id = parse_our_order_link_id(exchange_order.order_link_id)
+                if linked_order_id is None:
+                    continue
+                linked_order = await order_repo.get_by_id(linked_order_id)
+                if (
+                    linked_order is None
+                    or linked_order.strategy_id != sess.strategy_id
+                    or linked_order.exchange_account_id != sess.exchange_account_id
+                    or linked_order.trigger_price is None
+                    or linked_order.reduce_only
+                ):
+                    continue
+                parsed_key = parse_conditional_entry_key(linked_order.idempotency_key)
+                if parsed_key is None or parsed_key[0] != sess.id:
+                    continue
+                # 가격·수량은 거래소 echo가 아니라 우리가 저장한 요청값이 SSOT다.
+                actual_by_order_id[str(linked_order.id)] = RestingConditionalEntry(
+                    trade_id=parsed_key[1],
+                    order_id=str(linked_order.id),
+                    exchange_order_id=exchange_order.order_id,
+                    stop_price=linked_order.trigger_price,
+                    quantity=linked_order.quantity,
+                    side=linked_order.side.value,
+                    trigger_direction=linked_order.trigger_direction,
+                    reduce_only=exchange_order.reduce_only,
+                )
+
+            try:
+                market_provider = get_ccxt_provider_for_worker()
+                await market_provider.exchange.load_markets()
+                market = market_provider.exchange.market(_to_bybit_linear_symbol(sess.symbol))
+                precision = market.get("precision") if isinstance(market, dict) else None
+                if not isinstance(precision, dict):
+                    raise ValueError("conditional entry market precision is unavailable")
+                qty_step = Decimal(str(precision["amount"]))
+                price_tick = Decimal(str(precision["price"]))
+                if (
+                    not qty_step.is_finite()
+                    or not price_tick.is_finite()
+                    or qty_step <= Decimal("0")
+                    or price_tick <= Decimal("0")
+                ):
+                    raise ValueError("conditional entry market precision is unavailable")
+            except Exception:
+                qb_live_conditional_reconcile_errors_total.labels(stage="precision").inc()
+                logger.exception(
+                    "live_conditional_reconcile_precision_failed",
+                    extra={"session_id": str(sess.id), "symbol": sess.symbol},
+                )
+                return
+
+            positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
+            if len(positions) > 1 or any(
+                position.position_idx not in (None, 0) for position in positions
+            ):
+                qb_live_conditional_reconcile_errors_total.labels(stage="positions").inc()
+                logger.error(
+                    "live_conditional_reconcile_divergence",
+                    extra={"session_id": str(sess.id), "reason": "hedge_mode"},
+                )
+                return
+            current_position = Decimal("0")
+            for position in positions:
+                if position.side == "long":
+                    current_position += position.size
+                elif position.side == "short":
+                    current_position -= position.size
+                else:
+                    raise ValueError(f"unknown position side: {position.side!r}")
+
+            plan = plan_reconcile(
+                desired=desired,
+                actual=tuple(actual_by_order_id.values()),
+                current_position=current_position,
+                qty_step=qty_step,
+                price_tick=price_tick,
+            )
+            for divergence in plan.divergences:
+                logger.warning(
+                    "live_conditional_reconcile_divergence",
+                    extra={"session_id": str(sess.id), **divergence},
+                )
+
+            cancel_failed = False
+            desired_trade_ids = {entry.trade_id for entry in desired}
+            for entry in plan.to_cancel:
+                try:
+                    if entry.exchange_order_id is None:
+                        rows = await order_repo.transition_pending_to_cancelled(
+                            UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+                        )
+                    else:
+                        await bybit_provider.cancel_order(
+                            creds, entry.exchange_order_id, sess.symbol
+                        )
+                        rows = await order_repo.transition_to_cancelled(
+                            UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+                        )
+                    if rows != 1:
+                        raise RuntimeError("conditional entry cancel lost its state transition")
+                    await order_repo.commit()
+                    reason = (
+                        cancel_reason
+                        if not desired_trade_ids
+                        else "replaced" if entry.trade_id in desired_trade_ids else "desired_removed"
+                    )
+                    qb_live_conditional_cancelled_total.labels(reason=reason).inc()
+                except Exception:
+                    cancel_failed = True
+                    qb_live_conditional_reconcile_errors_total.labels(stage="cancel").inc()
+                    logger.exception(
+                        "live_conditional_reconcile_cancel_failed",
+                        extra={"session_id": str(sess.id), "order_id": entry.order_id},
+                    )
+            if cancel_failed:
+                return
+            if not plan.to_place:
+                return
+
+            evaluators: list[KillSwitchEvaluator] = [
+                CumulativeLossEvaluator(
+                    order_repo,
+                    threshold_percent=settings.kill_switch_cumulative_loss_percent,
+                    capital_base=settings.kill_switch_capital_base_usd,
+                    balance_provider=exchange_service,
+                ),
+                DailyLossEvaluator(
+                    order_repo,
+                    threshold_usd=settings.kill_switch_daily_loss_usd,
+                ),
+            ]
+            order_service = OrderService(
+                session=session,
+                repo=order_repo,
+                dispatcher=_CeleryOrderDispatcher(),
+                kill_switch=KillSwitchService(evaluators=evaluators, events_repo=kse_repo),
+                sessions_port=_StrategySessionsAdapter(session),
+                exchange_service=exchange_service,
+            )
+            for planned_entry in plan.to_place:
+                try:
+                    request = OrderRequest(
+                        strategy_id=sess.strategy_id,
+                        exchange_account_id=sess.exchange_account_id,
+                        symbol=sess.symbol,
+                        side=OrderSide(planned_entry.side),
+                        type=OrderType.market,
+                        quantity=planned_entry.quantity,
+                        price=None,
+                        trigger_price=planned_entry.trigger_price,
+                        trigger_direction=planned_entry.trigger_direction,
+                        trigger_by="LastPrice",
+                        reduce_only=False,
+                        leverage=parsed_settings.leverage,
+                        margin_mode=parsed_settings.margin_mode,
+                    )
+                    idempotency_key = build_conditional_entry_key(
+                        sess.id,
+                        planned_entry.trade_id,
+                        bar_time,
+                        planned_entry.trigger_price,
+                        planned_entry.quantity,
+                    )
+                    if idempotency_key is None:
+                        # 되짚지 못할 key 로 발주하면 우리 주문을 영원히 남의 것으로 본다.
+                        qb_live_conditional_reconcile_errors_total.labels(
+                            stage="unrepresentable_key"
+                        ).inc()
+                        continue
+                    await order_service.execute(
+                        request,
+                        idempotency_key=idempotency_key,
+                        body_hash=None,
+                    )
+                    qb_live_conditional_placed_total.labels(direction=planned_entry.direction).inc()
+                except Exception:
+                    qb_live_conditional_reconcile_errors_total.labels(stage="place").inc()
+                    logger.exception(
+                        "live_conditional_reconcile_place_failed",
+                        extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
+                    )
+    except Exception:
+        qb_live_conditional_reconcile_errors_total.labels(stage="reconcile").inc()
+        logger.exception("live_conditional_reconcile_failed", extra={"session_id": str(sess.id)})
 
 
 async def _alert_live_divergence(
@@ -826,6 +1116,15 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     args=[str(ev.id)],
                     expires=300,
                 )
+
+        await _reconcile_conditional_entries(
+            sess,
+            result,
+            parsed_settings,
+            sm,
+            bar_time=last_bar_time,
+            market_orders_in_flight=bool(new_events),
+        )
 
         qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()
         return {

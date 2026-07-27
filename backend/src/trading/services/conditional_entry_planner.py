@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
 from typing import Any, Literal
+from uuid import UUID
 
 from src.strategy.pine_v2.event_loop import PendingOrderSnapshot
 
@@ -67,6 +69,67 @@ def entry_trigger_direction(direction: EntryDirection) -> int:
     long 진입 breakout은 RISE(1)에서 trigger되어야 한다.
     """
     return 1 if direction == "long" else 2
+
+
+# `Order.idempotency_key` 는 VARCHAR(200) 이다. 초과하면 Postgres 가
+# StringDataRightTruncation 을 던지고 상위 except 가 그것을 삼켜, 엔진은 진입이
+# 장전됐다고 믿는데 거래소엔 아무것도 없는 상태가 된다. 미리 잘라내고 거부한다.
+_IDEMPOTENCY_KEY_MAX_LENGTH = 200
+
+
+def build_conditional_entry_key(
+    session_id: UUID,
+    trade_id: str,
+    bar_time: datetime,
+    stop_price: Decimal,
+    quantity: Decimal,
+) -> str | None:
+    """조건부 진입의 세션·의도를 마이그레이션 없이 idempotency key 에 보존한다.
+
+    ★`bar_time` 이 들어가는 이유 — `OrderService.execute` 는 같은 key 를 다시 보면
+    거래소로 **dispatch 하지 않고** 캐시된 응답을 돌려준다(`order_service.py:417-419`).
+    key 가 `(trade_id, 가격, 수량)` 만으로 결정되면, 취소했다가 같은 의도로 재등재할 때
+    거래소엔 아무것도 안 올라가는데 DB 와 metric 은 "등재됨" 이라고 보고한다.
+    bar 단위로 갈라두면 같은 bar 안 재시도는 여전히 멱등이고, 다음 bar 의 재등재는
+    실제로 나간다. 라이브 시그널 key 가 이미 같은 이유로 bar_time 을 싣는다.
+
+    반환이 `None` 이면 그 레그는 발주하지 않는다 — 길이 초과와 빈 `trade_id` 는
+    파서가 되짚지 못해 우리 주문을 영원히 남의 것으로 보게 만든다.
+    """
+    # trade_id 는 마지막 필드라 `:` 를 포함해도 되지만, 비어 있으면 파서가 되짚지 못한다.
+    if not trade_id.strip():
+        return None
+    # ★bar_time 은 epoch 초로 싣는다. isoformat() 은 `:` 를 포함해 split 파싱을 깨뜨린다.
+    bar_epoch = int(bar_time.timestamp())
+    key = f"live:{session_id}:cond:{bar_epoch}:{stop_price}:{quantity}:{trade_id}"
+    if len(key) > _IDEMPOTENCY_KEY_MAX_LENGTH:
+        return None
+    return key
+
+
+def parse_conditional_entry_key(key: str | None) -> tuple[UUID, str] | None:
+    """우리 조건부 진입 key에서 세션과 Pine trade id를 복원한다.
+
+    `trade_id`는 Pine 사용자 입력이라 `:`를 포함할 수 있다. 따라서 앞의 다섯 구분자만
+    분리하고 나머지는 trade id 그대로 보존한다. 이 형식 판정은 한 곳만 유지한다.
+    """
+    if not key:
+        return None
+    parts = key.split(":", 6)
+    if (
+        len(parts) != 7
+        or parts[0] != "live"
+        or parts[2] != "cond"
+        or not parts[3]
+        or not parts[4]
+        or not parts[5]
+        or not parts[6]
+    ):
+        return None
+    try:
+        return UUID(parts[1]), parts[6]
+    except (TypeError, ValueError):
+        return None
 
 
 def _normalize(value: Decimal, step: Decimal) -> Decimal:
