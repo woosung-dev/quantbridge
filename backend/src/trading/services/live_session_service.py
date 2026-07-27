@@ -215,3 +215,9 @@ class LiveSignalSessionService:
         # rowcount==0 일 수 있음 (이미 deactivated). idempotent — error 안 함.
         if rowcount > 0:
             await self._repo.commit()  # LESSON-019
+            from src.tasks.live_signal import sweep_conditional_entries_task
+
+            try:
+                sweep_conditional_entries_task.apply_async(expires=240)
+            except Exception:
+                logger.exception("conditional_entry_sweep_enqueue_failed")

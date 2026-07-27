@@ -617,6 +617,15 @@ async def _heartbeat_extend(lock: RedisLock, *, period_s: float, ttl_ms: int) ->
 # Sprint 18 BL-080 prefork-safe engine factory — `_worker_engine.py` 단일 SSOT.
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 
+
+def _enqueue_conditional_entry_sweep() -> None:
+    """비활성화 직후 고아 조건부 진입 취소를 best-effort로 요청한다."""
+    try:
+        sweep_conditional_entries_task.apply_async(expires=240)
+    except Exception:
+        logger.exception("conditional_entry_sweep_enqueue_failed")
+
+
 # ---------------------------------------------------------------------------
 # Task #1: evaluate_live_signals_task (Beat 1분 fire)
 # ---------------------------------------------------------------------------
@@ -803,6 +812,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -870,6 +880,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -939,6 +950,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -975,6 +987,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -1250,6 +1263,74 @@ async def _async_dispatch_pending() -> dict[str, Any]:
                 expires=300,
             )
         return {"reenqueued": len(pending)}
+    finally:
+        await engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# Task #4: sweep_conditional_entries_task (Beat 5min + session 종료 직후)
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="live_signal.sweep_conditional_entries", max_retries=0)  # type: ignore[untyped-decorator]
+def sweep_conditional_entries_task() -> dict[str, int]:
+    """비활성 세션의 거래소 조건부 진입 주문을 취소한다."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_sweep_conditional_entries())
+
+
+async def _async_sweep_conditional_entries() -> dict[str, int]:
+    """고아 조건부 진입을 거래소 취소 뒤에만 cancelled로 전이한다."""
+    from src.trading.encryption import EncryptionService
+    from src.trading.providers import BybitFuturesProvider
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.account_service import ExchangeAccountService
+
+    engine, sm = create_worker_engine_and_sm()
+    cancelled = 0
+    try:
+        async with sm() as session:
+            order_repo = OrderRepository(session)
+            account_repo = ExchangeAccountRepository(session)
+            provider = BybitFuturesProvider()
+            exchange_service = ExchangeAccountService(
+                repo=account_repo,
+                crypto=EncryptionService(settings.trading_encryption_keys),
+                bybit_futures_provider=provider,
+            )
+            for order in await order_repo.list_orphan_conditional_entries():
+                # ★ORM 속성을 try 밖에서 미리 확보한다. `session.rollback()` 은 객체를
+                # expire 시키므로, except 안에서 `order.id` 를 읽으면 lazy refresh 가
+                # 동기 컨텍스트에서 IO 를 시도해 MissingGreenlet 으로 **에러 핸들러가
+                # 크래시한다**. 그러면 취소 실패 1건이 sweeper 전체를 죽인다(실측).
+                order_id = order.id
+                account_id = order.exchange_account_id
+                exchange_order_id = order.exchange_order_id
+                symbol = order.symbol
+                try:
+                    if exchange_order_id is None:
+                        raise RuntimeError("orphan conditional entry has no exchange order id")
+                    creds = await exchange_service.get_credentials_for_order(account_id)
+                    await provider.cancel_order(creds, exchange_order_id, symbol)
+                    if (
+                        await order_repo.transition_to_cancelled(
+                            order_id, cancelled_at=datetime.now(UTC)
+                        )
+                        == 1
+                    ):
+                        cancelled += 1
+                    await order_repo.commit()
+                except Exception:
+                    with contextlib.suppress(Exception):
+                        await session.rollback()
+                    qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel").inc()
+                    logger.exception(
+                        "live_conditional_entry_sweep_cancel_failed",
+                        extra={"order_id": str(order_id)},
+                    )
+        return {"cancelled": cancelled}
     finally:
         await engine.dispose()
 
