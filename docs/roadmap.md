@@ -55,7 +55,7 @@
 4. ✅ **live-entry-wiring** (완료 · **PR #486 머지** — **BL-478 (c)** 세션 시작 차단 + evaluate 자동 종료, **BL-479** 자본 기준선 스냅샷 + 사이징 배선). 사용자 결정 = **(c)**. 실주문 3중 대조로 종단 확인(손계산 = DB = 거래소 `0.029 Filled`, 실집행 $1,870 vs 미배선 $64,484). 신규 BL-481~485. **잔여였던 BL-478 (a) 는 #489 에서 Resolved.**
    4b. ✅ **live-engine-parity** (완료 · **PR #487 머지 @840b1259**) — `run_live` 인자 4종 패리티(BL-481/482/483/486/487). ★"화면 총계" 검증은 실제로 **DB 상태 행**이었다(최종 리뷰가 반박). 신규 BL-488~491.
    4c. ✅ **live-conditional-entry** (완료 · **PR #489 머지 @30031efe**) — **BL-478 (a) Resolved** 선언적 reconcile 로 조건부 진입 등재. 데모 실체결 5건 3중 대조. 최종 codex 리뷰가 4세션 연속 P1 적발(계정 공유 시 남의 포지션까지 반전). 신규 BL-492~500.
-   4d. ✅ **live-conditional-hardening** (완료 — **BL-498 Resolved**(활성 세션 0건에서도 잔여 포지션 표시·청산) · **BL-500 Resolved**(거래소 부재가 로컬 행을 이긴다, 나이 게이트 3분) · **BL-499 부분 완화**(패자 분류 metric, 근본 경합은 열림)). ★preflight 결론이 **틀렸음을 codex 가 반박**(성공 경로와 시도 횟수 혼동). ★e2e 가 **dev 서버 stale CSS 로 거짓 red**. 신규 BL-501/502.
+   4d. ✅ **live-conditional-hardening** (완료 · **PR #490 머지 @9ec56e89**) — **BL-498 Resolved**(활성 세션 0건에서도 잔여 포지션 표시·청산) · **BL-500 Resolved**(거래소 부재가 로컬 행을 이긴다 — 후보마다 `fetch_order` 로 terminal 확인 후에만 제거. ★**나이 게이트 3분은 폐기했다** — reconcile 은 bar 마다 돌아 게이트가 늘 열려 있었고 `submitted_at` 은 부재의 나이가 아니다) · **BL-499 부분 완화**(패자 분류 metric, 근본 경합은 열림). ★preflight 결론이 **틀렸음을 codex 가 반박**(성공 경로와 시도 횟수 혼동). ★e2e 가 **dev 서버 stale CSS 로 거짓 red**. 신규 BL-501/502/503.
 5. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
 6. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 7. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
