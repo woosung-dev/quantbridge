@@ -36,6 +36,7 @@ from pydantic import ValidationError
 
 from src.common.alert import track_pending_alert
 from src.common.metrics import (
+    qb_active_orders,
     qb_live_conditional_cancelled_total,
     qb_live_conditional_placed_total,
     qb_live_conditional_reconcile_errors_total,
@@ -254,6 +255,9 @@ async def _reconcile_conditional_entries(
         from src.trading.providers import BybitFuturesProvider, _to_bybit_linear_symbol
         from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
         from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+        from src.trading.repositories.live_signal_session_repository import (
+            LiveSignalSessionRepository,
+        )
         from src.trading.repositories.order_repository import OrderRepository
         from src.trading.schemas import OrderRequest
         from src.trading.services.account_service import ExchangeAccountService
@@ -368,24 +372,51 @@ async def _reconcile_conditional_entries(
                 )
                 return
 
+            # ★계정 순포지션을 세션 target 에서 빼는 산술은 "이 계정·심볼의 포지션이 이
+            # 세션 것뿐" 이라는 전제 위에 선다. 그 전제가 깨지는 경우가 둘이고 둘 다
+            # 실주문을 파괴적으로 만든다.
+            #   (a) hedge mode — long/short 가 동시에 열려 순포지션이 우리 사이징 모델과
+            #       다른 의미가 된다.
+            #   (b) 같은 계정·심볼에 다른 전략 세션 — 활성 세션 unique 키가
+            #       `strategy_id` 를 포함하므로(`models.py` uq_live_sessions_active_unique)
+            #       구조적으로 허용된다. 전략 A 가 +1 보유 중 전략 B 가 -1 을 목표하면
+            #       B 는 수량 2 를 내 **A 의 포지션까지 닫고 반전**한다.
+            # 두 경우 모두 stand-down 한다 — 새로 등재하지 않고 이미 올려둔 우리 조건부
+            # 진입을 걷는다. 취소는 어느 경우에도 안전하고(포지션을 늘리지 않는다),
+            # 남겨두면 그게 잘못된 전제로 체결된다.
             positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
-            if len(positions) > 1 or any(
+            hedge_mode = len(positions) > 1 or any(
                 position.position_idx not in (None, 0) for position in positions
-            ):
+            )
+            session_repo = LiveSignalSessionRepository(session)
+            shares_account_symbol = any(
+                other.id != sess.id and other.symbol == sess.symbol
+                for other in await session_repo.list_active_by_account(sess.exchange_account_id)
+            )
+            stand_down_reason = (
+                "hedge_mode"
+                if hedge_mode
+                else "shared_account_symbol"
+                if shares_account_symbol
+                else None
+            )
+            current_position = Decimal("0")
+            if stand_down_reason is not None:
                 qb_live_conditional_reconcile_errors_total.labels(stage="positions").inc()
                 logger.error(
                     "live_conditional_reconcile_divergence",
-                    extra={"session_id": str(sess.id), "reason": "hedge_mode"},
+                    extra={"session_id": str(sess.id), "reason": stand_down_reason},
                 )
-                return
-            current_position = Decimal("0")
-            for position in positions:
-                if position.side == "long":
-                    current_position += position.size
-                elif position.side == "short":
-                    current_position -= position.size
-                else:
-                    raise ValueError(f"unknown position side: {position.side!r}")
+                desired = []
+                cancel_reason = stand_down_reason
+            else:
+                for position in positions:
+                    if position.side == "long":
+                        current_position += position.size
+                    elif position.side == "short":
+                        current_position -= position.size
+                    else:
+                        raise ValueError(f"unknown position side: {position.side!r}")
 
             plan = plan_reconcile(
                 desired=desired,
@@ -419,6 +450,10 @@ async def _reconcile_conditional_entries(
                     if rows != 1:
                         raise RuntimeError("conditional entry cancel lost its state transition")
                     await order_repo.commit()
+                    # OrderService.execute 가 생성 시 inc 했으므로 terminal 전이에서 dec.
+                    # 조건부 진입은 교체·세션 종료로 반복 취소되므로 빠뜨리면 active gauge 가
+                    # 단조 증가해 운영 경보가 왜곡된다(표준 취소 경로는 trading.py 가 dec 한다).
+                    qb_active_orders.dec()
                     reason = (
                         cancel_reason
                         if not desired_trade_ids
@@ -1384,6 +1419,7 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         == 1
                     ):
                         cancelled += 1
+                        qb_active_orders.dec()  # 생성 시 inc 된 것의 terminal 전이
                     await order_repo.commit()
                 except Exception:
                     with contextlib.suppress(Exception):

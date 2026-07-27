@@ -114,6 +114,7 @@ def _patch_reconcile(
     database_orders: list[SimpleNamespace] | None = None,
     precision_error: Exception | None = None,
     execute_error: Exception | None = None,
+    active_sessions: list[SimpleNamespace] | None = None,
 ) -> SimpleNamespace:
     session = AsyncMock()
     order_repo = AsyncMock()
@@ -132,10 +133,20 @@ def _patch_reconcile(
     kill_switch_repo = AsyncMock()
     kill_switch_repo.get_active = AsyncMock(return_value=None)
 
+    # 같은 계정·심볼의 다른 활성 세션 = 계정 순포지션이 우리 것만이 아니라는 신호.
+    live_session_repo = AsyncMock()
+    live_session_repo.list_active_by_account = AsyncMock(return_value=active_sessions or [])
+
     import src.trading.repositories.exchange_account_repository as account_repo_module
     import src.trading.repositories.kill_switch_event_repository as kill_switch_repo_module
+    import src.trading.repositories.live_signal_session_repository as live_session_repo_module
     import src.trading.repositories.order_repository as order_repo_module
 
+    monkeypatch.setattr(
+        live_session_repo_module,
+        "LiveSignalSessionRepository",
+        MagicMock(return_value=live_session_repo),
+    )
     monkeypatch.setattr(order_repo_module, "OrderRepository", MagicMock(return_value=order_repo))
     monkeypatch.setattr(
         account_repo_module, "ExchangeAccountRepository", MagicMock(return_value=account_repo)
@@ -406,6 +417,140 @@ async def test_hedge_positions_abort_reconcile(monkeypatch: pytest.MonkeyPatch) 
     await _reconcile(session, _result([_pending()]), harness)
 
     harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_hedge_positions_also_cancel_our_resting_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """hedge mode 는 발주만 멈추는 게 아니라 이미 올려둔 우리 주문도 걷는다.
+
+    포지션 산술을 더 이상 신뢰할 수 없는 상태인데 기존 조건부 진입을 남겨두면 그게
+    잘못된 전제 위에서 체결된다. 취소는 포지션을 늘리지 않으므로 어느 경우에도 안전하다.
+    """
+    session = _session()
+    resting = _order(session, exchange_order_id="exchange-entry")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[resting],
+        exchange_orders=[_exchange_order(resting)],
+        positions=[
+            PositionSnapshot(
+                side="long",
+                size=Decimal("1"),
+                entry_price=None,
+                mark_price=None,
+                unrealized_pnl=None,
+                liquidation_price=None,
+                leverage=None,
+                take_profit_price=None,
+                stop_loss_price=None,
+                position_idx=1,
+            ),
+            PositionSnapshot(
+                side="short",
+                size=Decimal("1"),
+                entry_price=None,
+                mark_price=None,
+                unrealized_pnl=None,
+                liquidation_price=None,
+                leverage=None,
+                take_profit_price=None,
+                stop_loss_price=None,
+                position_idx=2,
+            ),
+        ],
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_not_awaited()
+    harness.provider.cancel_order.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_other_strategy_session_on_same_account_symbol_stands_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """같은 계정·심볼에 다른 전략 세션이 살아 있으면 사이징 전제가 깨진다.
+
+    활성 세션 unique 키가 `strategy_id` 를 포함하므로 구조적으로 허용되는 배치다.
+    reconciler 는 **계정 전체** 순포지션을 세션별 target 에서 빼므로, 전략 A 가 +1 을
+    보유한 상태에서 전략 B 가 -1 을 목표하면 B 는 수량 2 를 내 A 의 포지션까지 닫고
+    반전시킨다. 그래서 stand-down 하고 우리 주문을 걷는다.
+    """
+    session = _session()
+    resting = _order(session, exchange_order_id="exchange-entry")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[resting],
+        exchange_orders=[_exchange_order(resting)],
+        active_sessions=[
+            SimpleNamespace(
+                id=uuid4(),  # 다른 세션
+                strategy_id=uuid4(),  # 다른 전략
+                exchange_account_id=session.exchange_account_id,
+                symbol=session.symbol,  # 같은 심볼
+            )
+        ],
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_not_awaited()
+    harness.provider.cancel_order.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_other_session_on_different_symbol_does_not_stand_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """음성 대조 — 같은 계정이라도 심볼이 다르면 포지션이 섞이지 않는다.
+
+    이게 GREEN 을 유지해야 위 가드가 과잉차단이 아님이 증명된다.
+    """
+    session = _session()
+    harness = _patch_reconcile(
+        monkeypatch,
+        active_sessions=[
+            SimpleNamespace(
+                id=uuid4(),
+                strategy_id=uuid4(),
+                exchange_account_id=session.exchange_account_id,
+                symbol="ETH/USDT",  # 다른 심볼
+            )
+        ],
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_same_session_in_active_list_does_not_stand_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """음성 대조 — 자기 자신은 계정 활성 목록에 당연히 들어 있다.
+
+    `other.id != sess.id` 를 빠뜨리면 모든 세션이 영원히 stand-down 한다(기능 전면 정지).
+    """
+    session = _session()
+    harness = _patch_reconcile(
+        monkeypatch,
+        active_sessions=[
+            SimpleNamespace(
+                id=session.id,
+                strategy_id=session.strategy_id,
+                exchange_account_id=session.exchange_account_id,
+                symbol=session.symbol,
+            )
+        ],
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
