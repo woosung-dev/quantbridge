@@ -227,7 +227,17 @@ export function LiveSessionDetail({ session }: Props) {
 
       {pendingConditionalEntries.length > 0 ? (
         <div className="rounded-md border p-4" data-testid="live-session-pending-orders">
-          <h4 className="mb-2 text-sm font-medium">대기 중인 조건부 진입</h4>
+          <h4 className="mb-2 text-sm font-medium">전략이 의도한 조건부 진입</h4>
+          {/* ★이 목록의 출처는 엔진 desired set(`last_strategy_state_report.pending_orders`)
+              이고 reconcile **이전**에 저장된다. 즉 거래소 등재 여부를 말해주지 않는다 —
+              목표 수량이 거래소 눈금 미만이거나 트리거가 이미 돌파됐으면 계획기가 발주를
+              걷어내는데 이 목록은 그대로 남는다. "대기 중" 이라고 쓰면 안 나간 주문을
+              나간 것처럼 보이게 하는 "되는 척" 이 된다. 등재 확정은 주문 원장이 SSOT. */}
+          <p className="mb-2 text-xs text-muted-foreground">
+            전략 엔진이 다음 bar 에 걸려고 하는 조건부 진입입니다. 거래소 등재 여부는 주문 원장에서
+            확인하세요. 목표 수량이 거래소 최소 눈금 미만이거나 트리거가 이미 돌파된 경우 발주되지
+            않습니다.
+          </p>
           <ul className="space-y-1 text-sm">
             {pendingConditionalEntries.map((order, index) => (
               <li key={`${order.direction}-${order.stopPrice}-${index}`} className="font-mono">

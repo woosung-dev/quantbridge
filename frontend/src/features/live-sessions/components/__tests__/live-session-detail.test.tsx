@@ -389,6 +389,27 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     expect(pendingOrders).toHaveTextContent("99.50");
   });
 
+  it("대기 조건부 진입을 거래소 등재로 주장하지 않는다", async () => {
+    // ★출처는 엔진 desired set(reconcile 이전 저장)이라 거래소 등재 여부를 모른다.
+    // 목표 수량이 눈금 미만이거나 트리거가 이미 돌파됐으면 계획기가 발주를 걷어내는데
+    // 이 목록은 그대로 남는다. "대기 중" 이라고 쓰면 안 나간 주문을 나간 것처럼 보이게
+    // 하는 "되는 척" 이 된다 (최종 codex 리뷰 P2).
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: {
+        pending_orders: [{ direction: "long", stop_price: "101.25", target_position: "1" }],
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    const pendingOrders = await screen.findByTestId("live-session-pending-orders");
+    expect(pendingOrders).toHaveTextContent("전략이 의도한 조건부 진입");
+    expect(pendingOrders).not.toHaveTextContent("대기 중인 조건부 진입");
+    expect(pendingOrders).toHaveTextContent("거래소 등재 여부는 주문 원장에서 확인");
+  });
+
   it("대기 조건부 진입이 비면 구역을 표시하지 않는다", async () => {
     stateMock.mockResolvedValue({
       ...STATE_NO_EQUITY,
