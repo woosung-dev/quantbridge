@@ -58,16 +58,6 @@ ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-`
 
 ## 현재 컨텍스트
 
-### 프로젝트 개요
-
-- **이름:** QuantBridge
-- **기술 스택:** Next.js 16 (FE) + FastAPI (BE) — 상세는 `.ai/stacks/` 참조
-- **인증:** Clerk (FE + BE JWT 검증)
-- **DB:** PostgreSQL + TimescaleDB (시계열) + Redis (캐시 / Celery broker)
-- **비동기 작업:** Celery + Redis (백테스트, 최적화, 데이터 수집) — prefork-safe pattern §`.ai/stacks/fastapi/backend.md` §9
-- **거래소:** CCXT (Bybit / OKX / Binance)
-- **시크릿:** API Key AES-256 (Fernet) 암호화
-
 ### 핵심 도메인
 
 - **Strategy** — Pine Script 파싱, 전략 CRUD, `pine_v2` 인터프리터 (Track S/A/M)
@@ -93,22 +83,15 @@ ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-`
 > - 기본: `make up` / `make be` / `make fe` → 3000 / 8000 / 5432 / 6379
 > - 격리: `make up-isolated` / `make be-isolated` / `make fe-isolated` → 3100 / 8100 / 5433 / 6380 (다른 웹앱 병렬 시)
 
+### BE pytest — env 소싱 의무
+
+`uv run` 은 `.env.local` 을 `os.environ` 에 올리지 않는다 (pydantic-settings 의 `env_file` 은 앱 Settings 만 채운다). `conftest.py` 는 `os.environ` 만 읽으므로, `make be-test` / 맨 `uv run pytest` 는 기본값 `localhost:5432` 로 붙어 격리 스택 DB (5433) 를 못 찾고 대량 에러가 난다.
+
 ```bash
-# Frontend (Next.js 16)
-cd frontend && pnpm dev && pnpm test && pnpm tsc --noEmit && pnpm lint
-
-# Backend (FastAPI)
-cd backend && uvicorn src.main:app --reload --port 8000 && pytest -v && ruff check . && mypy src/
-cd backend && alembic upgrade head && alembic revision --autogenerate -m "description"
-
-# Infrastructure
-docker compose up -d                          # 또는 make up
-docker compose logs -f backend
-
-# Celery
-cd backend && celery -A src.tasks worker --loglevel=info --concurrency=4
-cd backend && celery -A src.tasks beat --loglevel=info
+cd backend && set -a; . ./.env.local; set +a; uv run pytest -v
 ```
+
+> ⚠️ **`DATABASE_URL` 만 단독으로 주입하지 마라** (서브에이전트 포함). `conftest.py` 우선순위는 `TEST_DATABASE_URL` > `DATABASE_URL` > 기본값이라, `TEST_` 가 없으면 개발 DB (`quantbridge`) 를 물고 세션 픽스처의 `SQLModel.metadata.drop_all` 이 **개발 DB 테이블을 전부 날린다**. `.env.local` 은 두 변수를 모두 정의하므로 위처럼 통째로 소싱하면 안전하다.
 
 ---
 
@@ -116,14 +99,8 @@ cd backend && celery -A src.tasks beat --loglevel=info
 
 > `.ai/rules/` 는 심볼릭 허브. 원본은 `.ai/common/`, `.ai/stacks/`, `.ai/project/`.
 
-| 파일                         | 내용                                                                                             | 적용         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------ | ------------ |
-| `.ai/rules/global.md`        | 워크플로우, 문서화, Git, 환경변수, 메타-방법론 영구 규칙 §7 (LESSON-037~040/063 승격)            | **전체**     |
-| `.ai/rules/typescript.md`    | TypeScript Strict, 네이밍 컨벤션                                                                 | **전체**     |
-| `.ai/rules/nextjs-shared.md` | Next.js 공통 (Zod v4, shadcn, 반응형)                                                            | **Frontend** |
-| `.ai/rules/frontend.md`      | Next.js 16 FE-only (FastAPI BE 조합) + 차용 패턴 3 종 (Server/Client / error.tsx / ActionResult) | **Frontend** |
-| `.ai/rules/backend.md`       | FastAPI + SQLModel + Celery prefork-safe                                                         | **Backend**  |
-| `.ai/project/lessons.md`     | 학습 기록 (실수 → 규칙 승격 path)                                                                | **활성**     |
+- `.ai/rules/*.md` 는 각 파일의 `paths` frontmatter 에 따라 **해당 경로를 만질 때 자동 로드**된다. 여기서 목록을 중복 관리하지 않는다 (`global.md` 만 항상 로드).
+- **자동 로드 아님, 필요할 때 직접 연다** — `.ai/project/lessons.md` (학습 기록, 실수 → 규칙 승격 path)
 
 ---
 
