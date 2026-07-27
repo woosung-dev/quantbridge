@@ -1,9 +1,61 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-27 (**live-conditional-entry** — 조건부 진입 등재 종결)
-> **Active Sprint:** **live-conditional-entry** — `strategy.entry(stop=)` 진입을 실제로 거래소에 올린다
-> **Active Branch:** `feat/live-conditional-entry`
-> **요약:** 선언적 reconcile 로 등재·취소·동기화·청소를 배선하고 BL-478 (c) 차단을 풀었다. 데모에서 조건부 진입 5건이 실체결됐고 거래소 원문과 3중 대조로 일치했다. 마이그레이션 0.
+> **Last Updated:** 2026-07-27 (**live-conditional-hardening** — 잔여 노출·견고성 3건 종결)
+> **Active Sprint:** **live-conditional-hardening** — 조건부 진입 경로가 남긴 관리 불가 노출 1건 + 무음 미진입 2건
+> **Active Branch:** `feat/live-conditional-hardening`
+> **요약:** 활성 세션이 0건이어도 계정 잔여 포지션을 보고 닫을 수 있게 했고(BL-498), 거래소 부재가 로컬 행을 이기게 했다(BL-500). BL-499 는 패자 분류까지만(부분 완화). 마이그레이션 0.
+
+## ⚡ live-conditional-hardening — 잔여 노출·견고성 (BL-498 · BL-499 · BL-500) (2026-07-27)
+
+**스코프.** 라이브 조건부 진입 실전 투입 직후, 그 경로가 남긴 **관리 불가 노출 1건 + 무음 미진입 2건**. 기능을 늘리지 않는다. **마이그레이션 0.**
+
+### ★핵심 발견
+
+- **preflight 가 BL-498 을 줄였다.** `close_position` 이 세션 `is_active` 를 **요구하지 않는다** — 비활성 세션 id 로도 청산된다. 막힌 건 화면이 활성 세션만 순회하는 것뿐이었다. 신규 청산 경로 0, **읽기 엔드포인트 1개 + 화면**으로 닫혔다.
+- **★★내 preflight 결론이 틀렸고 codex 가 반박했다.** "취소 16건이 전부 `exchange_order_id` 를 보유 ⇒ DB-only 취소 경로 미주행" 은 성립하지 않는다 — **패배한 호출은 행에 아무것도 안 쓴다.** 증명된 것은 "DB-only 취소 _성공_ 0건" 뿐이다.
+- **★★dogfood 가 결함을 더 찾았다.** 등록된 두 계정이 **같은 Bybit uid `558689281`** 이라 같은 포지션이 두 행으로 나왔고, 그중 하나는 `readOnly=1` 이라 청산 버튼이 실패한다(BL-501 등재, 이번엔 각주 고지까지).
+- **★★★e2e 가 dev 서버의 stale CSS 로 거짓 red 를 냈다.** 소스·프로덕션 빌드에는 `.pager-nums{flex-wrap:wrap}` 이 있고 **dev 서빙본에만 없었다.** 프로덕션 빌드를 별도 포트에 띄우니 그 캐논이 통과했다. 이 함정의 **4차 재발**이고 처음으로 게이트를 red 로 만들었다.
+
+### Completed
+
+- [x] **BL-498 ✅ Resolved.** `GET /exchange-accounts/{id}/positions` + 코크핏 §03 "계정 잔여 포지션" 표(세션별 대조 **위**). ccxt `fetch_positions()` 심볼 없는 1콜. 청산 가능 판정을 **서버에서** — `no_owning_session` / `hedge_unsupported`. 조회 범위(USDT linear 전용) 고지.
+- [x] **BL-500 ✅ Resolved.** 거래소 목록에 없는 로컬 행을 **`fetch_order` 로 직접 물어** terminal 확인 뒤에만 `actual` 에서 제거(확인 못 하면 유지). 체결 확인 시 그 tick 등재 중단. ★중간에 넣었던 **나이 게이트 3분은 적대 검증이 반박해 폐기**했다 — reconcile 은 bar 마다 돌고 `submitted_at` 은 부재의 나이가 아니다.
+- [x] **BL-499 🟡 부분 완화.** `cancel_raced` / `cancel_stalled` 분류 metric + **패배해도 `to_place` 는 건너뜀**(fail-closed). 근본 경합은 열려 있다.
+- [x] **G0.5 codex 8건 + G3 적대 검증 3렌즈 9건 전건 재현 판정** — 수정 13 / 기각 2 / BL 등재 3.
+- [x] **표적 변이 13종** 전부 의도한 테스트만 red, 음성 green 유지.
+- [x] 게이트: BE **3205**(+26) · 커버리지 **93.18%** · FE **1179**(+18) · canon **32** · ruff·mypy·tsc·lint 0 · **마이그레이션 0**
+
+### ★★dogfood — 3중 대조 종단 증명
+
+활성 세션 **0건** 상태에서 raw HMAC 으로 **우리 앱 밖에서** 포지션을 만들고, 화면으로 닫았다.
+
+```
+진입(앱 밖) d74c5206 Buy  0.002 @65331.1  → 코크핏 §03 렌더된 화면에 표시
+청산(화면)  bedc278b Sell 0.002 @65315.1 reduceOnly=True  orderLinkId=a8765854…
+우리 원장 a8765854 = 거래소 orderLinkId / exchange_order_id bedc278b = orderId / 65315.1 = avg
+거래소 포지션 legs=0 (독립 raw HMAC).  콘솔 error 0.
+```
+
+### Blocked
+
+- **e2e:authed 최종 숫자 미측정** — dev 서버(3100, 금요일부터 실행)가 stale CSS 를 서빙한다. 그 서버 대상 실행은 64 passed / 1 failed 이고 **그 1건은 코드 결함이 아님이 증명됐다**(프로덕션 빌드에서 통과). 정확한 숫자는 **dev 서버 재기동 후** 재측정해야 한다.
+
+### ★★적대 검증이 "내가 이미 맞다고 쓴 문장" 을 또 반박했다
+
+**계정 스코프 Redis 캐시(15초)를 지우는 코드가 0건**이었다. 쿼리 키를 `positionsPrefix` 아래 둔 것만 보고 "캐시 무효화는 이미 맞다" 를 세 문서에 썼는데 React Query 층에서만 참이었다 — 청산 직후 15초 동안 **닫은 포지션이 살아 있는 청산 버튼과 함께 다시 렌더**된다. ★**dogfood 는 이 창을 못 밟았다**(확인까지 30초 넘게 걸려 TTL 만료 후였다).
+
+★★**그 수정도 처음엔 절반이었다** — 즉시 `filled` 경로만 덮었고 **watchdog 확정 경로**(접수 응답이 `submitted` 이고 position WS 를 놓친 조합)는 빠져 있었다. G6 최종 codex 리뷰가 잡았다. 지금은 즉시 체결·watchdog·WS position 세 경로를 덮는다. 잔여 = WS order 이벤트만 오는 조합(15초 TTL 이 닫는다).
+
+### 신규 BL
+
+- **BL-501 P3** — 같은 거래소 계정을 가리키는 API 키가 둘이면 포지션 중복 + read-only 키에 실패하는 청산 버튼.
+- **BL-502 P3** — 세션 표와 계정 표의 청산 버튼에 공유 lock 부재.
+- **BL-503 P2** — 제출 중단(`submitted` + `exchange_order_id` NULL)·유령 조건부 진입 행을 아무도 치우지 않는다. `orphan_scanner` 는 면제, WS `Reconciler` 는 `trigger=True` 미사용이라 구조적으로 못 본다.
+
+### Next Actions
+
+- [ ] **dev 서버 재기동 후 `PLAYWRIGHT_BASE_URL=http://localhost:3100 pnpm e2e:authed` 재측정** (기준선 65-0)
+- [ ] PR 생성 → **squash 는 사용자**
 
 ## ⚡ live-conditional-entry — 조건부 진입 등재 (BL-478 (a) · BL-488 · BL-365) (2026-07-27)
 
@@ -291,7 +343,7 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 **이 스프린트는 여기서 닫는다.** 잔여 전량은 [`docs/archive/sprints/live-entry-wiring/checklist.md`](archive/sprints/live-entry-wiring/checklist.md) 로 이관 — 조사는 끝났고 남은 건 **결정 + 구현**이다.
 
 - [x] **PR [#484](https://github.com/woosung-dev/quantbridge/pull/484)** `feat/bl-474-webhook-ingress-parity` → main — **squash 는 사용자**
-- [ ] **다음 세션 = `docs/archive/sprints/live-entry-wiring/checklist.md`.** 첫 step = **BL-478 선택지 (a)/(b)/(c) 사용자 결정** — 라이브 매매 시맨틱을 바꾸므로 blocking 이다. 권고 = (c) 먼저(거짓말을 즉시 멈추고 (a) 설계 시간을 번다), (b) 는 백테스트↔라이브 일치를 조용히 깨므로 비권장
+- [x] ~~다음 세션 = `docs/archive/sprints/live-entry-wiring/checklist.md`~~ **완료** — BL-478 은 (c) 차단 후 (a) 조건부 등재까지 끝났다(#486·#489). 첫 step = **BL-478 선택지 (a)/(b)/(c) 사용자 결정** — 라이브 매매 시맨틱을 바꾸므로 blocking 이다. 권고 = (c) 먼저(거짓말을 즉시 멈추고 (a) 설계 시간을 번다), (b) 는 백테스트↔라이브 일치를 조용히 깨므로 비권장
 
 ---
 
@@ -353,7 +405,7 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 ### Next Actions
 
 - [x] **PR [#482](https://github.com/woosung-dev/quantbridge/pull/482)** `stage/dogfood-restore` → main — **squash 는 사용자**
-- [ ] **다음 세션 = [`docs/archive/sprints/dogfood-restore/checklist.md`](archive/sprints/dogfood-restore/checklist.md)** — 사용자 확정. (A) **BL-474** 테스트 주문 다이얼로그가 spot 으로 나가는 것 먼저 → 고치면 perp 진입→청산을 결정적으로 만들 수 있어 **출처 라벨·SessionScope 화면 검증이 열린다** (B) pine_v2 시뮬 상태 ↔ 거래소 포지션 발산 조사(`retCode 110017`, 수량 1.0 사이징 미반영 의혹 포함)
+- [x] ~~다음 세션 = `docs/archive/sprints/dogfood-restore/checklist.md`~~ **완료** — (A) BL-474 는 #484 로 닫혔고 (B) 발산 조사는 #486~#489 로 이어졌다. 원문: 사용자 확정. (A) **BL-474** 테스트 주문 다이얼로그가 spot 으로 나가는 것 먼저 → 고치면 perp 진입→청산을 결정적으로 만들 수 있어 **출처 라벨·SessionScope 화면 검증이 열린다** (B) pine_v2 시뮬 상태 ↔ 거래소 포지션 발산 조사(`retCode 110017`, 수량 1.0 사이징 미반영 의혹 포함)
 - [ ] (선택) 최종 codex 누적 diff 리뷰
 
 ---
@@ -431,5 +483,7 @@ run_live                    →  fill 은 dispatch 대상에서 제외      ← 
 
 ## Next Actions
 
-- Sprint 59 진입 = Day 7 인터뷰 2026-05-16 결과 분석 후 결정
-- Tier 1 refactor audit (현재 진행 중) → 사용자 승인 후 commit + PR
+> ★이 절은 2026-05-16(Sprint 59)에서 멈춰 있었다. 활성 sprint 의 Next Actions 는 **문서 최상단 절**을 본다 — 여기가 아니다.
+
+- 활성 sprint 의 다음 행동은 이 문서 **맨 위 sprint 절**의 `### Next Actions` 를 따른다
+- 다음 후보 = [`docs/roadmap.md`](roadmap.md) · open BL = [`docs/backlog.md`](backlog.md)
