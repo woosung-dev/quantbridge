@@ -69,6 +69,7 @@ from src.trading.models import (
     ExchangeName,
     LiveSignalEventStatus,
     OrderSide,
+    OrderState,
     OrderType,
 )
 from src.trading.realtime_publisher import publish_realtime
@@ -320,6 +321,7 @@ async def _reconcile_conditional_entries(
             exchange_orders = await bybit_provider.fetch_open_conditional_orders(
                 creds, sess.symbol, reduce_only=None
             )
+            confirmed_order_ids: set[str] = set()
             for exchange_order in exchange_orders:
                 linked_order_id = parse_our_order_link_id(exchange_order.order_link_id)
                 if linked_order_id is None:
@@ -337,6 +339,7 @@ async def _reconcile_conditional_entries(
                 if parsed_key is None or parsed_key[0] != sess.id:
                     continue
                 # 가격·수량은 거래소 echo가 아니라 우리가 저장한 요청값이 SSOT다.
+                confirmed_order_ids.add(str(linked_order.id))
                 actual_by_order_id[str(linked_order.id)] = RestingConditionalEntry(
                     trade_id=parsed_key[1],
                     order_id=str(linked_order.id),
@@ -346,6 +349,69 @@ async def _reconcile_conditional_entries(
                     side=linked_order.side.value,
                     trigger_direction=linked_order.trigger_direction,
                     reduce_only=exchange_order.reduce_only,
+                )
+
+            # BL-500 — 거래소 부재가 로컬 행을 이긴다.
+            #
+            # `actual` 은 로컬 `pending`/`submitted` 행으로 먼저 채우고 거래소 응답으로
+            # 덮어쓰기만 했다(이중 등재 봉인, D4). 그래서 거래소엔 없고 DB 만 남은
+            # 주문이 desired 와 일치하면 계획기가 "이미 등재됨" 으로 보고 재등재하지
+            # 않아 그 trade_id 가 **영구 no-op** 이 된다.
+            #
+            # ★"목록에 없다" 는 부재의 증거로 **부족하다.** 세 가지가 겹친다.
+            #   (1) 주문 조회와 포지션 조회는 원자적 스냅샷이 아니다 — 방금 트리거된
+            #       주문은 open-order 에서 먼저 사라지고 포지션에는 늦게 뜬다.
+            #   (2) 응답이 열화(레이트리밋·부분 응답)됐을 수 있고, 그러면 살아 있는
+            #       주문 전체가 한 tick 에 "사라진" 것으로 보인다.
+            #   (3) 이 함수의 다른 모든 열화 입력은 fail-closed 인데(정밀도 실패·취소
+            #       실패·stand-down·시장가 지연) 여기만 "주문을 더 낸다" 방향이다.
+            #
+            # 그래서 후보마다 **거래소에 직접 물어** terminal 인지 확인한다. 확인하지
+            # 못하면 그대로 둔다. `exchange_order_id` 가 아직 없는 in-flight 행은 물어볼
+            # 대상 자체가 없으므로 건드리지 않는다(진짜 이중 등재 방어).
+            #
+            # ★상태 전이는 하지 않는다 — 그건 watchdog·`Reconciler` 책임이다. 여기서는
+            #   `actual` 에서만 뺀다.
+            fill_confirmed = False
+            for order_id, resting in list(actual_by_order_id.items()):
+                if order_id in confirmed_order_ids or resting.exchange_order_id is None:
+                    continue
+                try:
+                    probe = await bybit_provider.fetch_order(
+                        creds, resting.exchange_order_id, sess.symbol
+                    )
+                except Exception:
+                    qb_live_conditional_reconcile_errors_total.labels(
+                        stage="exchange_missing_probe_failed"
+                    ).inc()
+                    logger.warning(
+                        "live_conditional_reconcile_probe_failed",
+                        extra={
+                            "session_id": str(sess.id),
+                            "order_id": order_id,
+                            "exchange_order_id": resting.exchange_order_id,
+                        },
+                        exc_info=True,
+                    )
+                    continue
+                if probe.status not in ("filled", "cancelled", "rejected"):
+                    continue  # 거래소는 아직 살아 있다고 말한다. 목록 쪽이 열화였다.
+                del actual_by_order_id[order_id]
+                # 체결이 확인됐다면 위(`:387`)에서 찍을 포지션 스냅샷이 그 체결보다
+                # 앞설 수 있다. 낡은 포지션으로 사이징하면 이중 포지션이 되므로 이번
+                # tick 은 등재하지 않는다.
+                if probe.status == "filled":
+                    fill_confirmed = True
+                qb_live_conditional_reconcile_errors_total.labels(stage="exchange_missing").inc()
+                logger.warning(
+                    "live_conditional_reconcile_divergence",
+                    extra={
+                        "session_id": str(sess.id),
+                        "order_id": order_id,
+                        "exchange_order_id": resting.exchange_order_id,
+                        "reason": "exchange_missing_resting_order",
+                        "exchange_status": probe.status,
+                    },
                 )
 
             try:
@@ -433,6 +499,7 @@ async def _reconcile_conditional_entries(
                 )
 
             cancel_failed = False
+            cancel_raced = False
             desired_trade_ids = {entry.trade_id for entry in desired}
             for entry in plan.to_cancel:
                 try:
@@ -440,6 +507,41 @@ async def _reconcile_conditional_entries(
                         rows = await order_repo.transition_pending_to_cancelled(
                             UUID(entry.order_id), cancelled_at=datetime.now(UTC)
                         )
+                        if rows != 1:
+                            # BL-499 — 실행 워커가 `pending → submitted` 를 먼저 커밋했다.
+                            # 진짜 실패가 아니라 **경합 패배**다. 예외로 만들면 스택과
+                            # `stage="cancel"` 오류 metric 이 실패와 구분되지 않고, 그
+                            # 결과로 "이 경합이 실제로 나는가" 를 원장에서 물을 수 없다.
+                            # (preflight 가 이 구분 부재 때문에 잘못된 결론을 냈다.)
+                            fresh = await order_repo.get_state_and_exchange_id_fresh(
+                                UUID(entry.order_id)
+                            )
+                            if fresh is not None and fresh[0] != OrderState.pending:
+                                state, exchange_id = fresh
+                                # ★`submitted` 인데 거래소 id 가 없으면 경합이 아니라
+                                #   **제출 중단**이다. dispatch 가 `pending → submitted` 를
+                                #   커밋한 뒤 거래소 왕복에서 죽으면 그 상태로 영구 고착하고,
+                                #   `orphan_scanner` 는 조건부 진입을 면제하므로 아무도 안
+                                #   치운다. 그 행이 매 tick 이 분기를 타면 이 세션의 등재가
+                                #   영구 정지한다 — 경합 카운터로 강등하면 안 된다.
+                                stalled = state == OrderState.submitted and exchange_id is None
+                                cancel_raced = True
+                                qb_live_conditional_reconcile_errors_total.labels(
+                                    stage="cancel_stalled" if stalled else "cancel_raced"
+                                ).inc()
+                                log = logger.error if stalled else logger.warning
+                                log(
+                                    "live_conditional_reconcile_cancel_stalled"
+                                    if stalled
+                                    else "live_conditional_reconcile_cancel_raced",
+                                    extra={
+                                        "session_id": str(sess.id),
+                                        "order_id": entry.order_id,
+                                        "observed_state": state.value,
+                                        "has_exchange_order_id": exchange_id is not None,
+                                    },
+                                )
+                                continue
                     else:
                         await bybit_provider.cancel_order(
                             creds, entry.exchange_order_id, sess.symbol
@@ -470,6 +572,17 @@ async def _reconcile_conditional_entries(
                         extra={"session_id": str(sess.id), "order_id": entry.order_id},
                     )
             if cancel_failed:
+                return
+            if fill_confirmed:
+                # 위에서 거래소가 체결을 확인해 준 조건부 진입이 있다. 이번 tick 의
+                # `current_position` 은 그 체결보다 앞선 스냅샷일 수 있으므로 등재하지
+                # 않는다. 다음 tick 이 새 포지션으로 다시 계획한다.
+                return
+            if cancel_raced:
+                # ★패배해도 이번 tick 의 등재는 하지 않는다(fail-closed 유지).
+                #   `current_position` 은 취소 루프보다 **먼저** 찍은 스냅샷이라, 패배한
+                #   주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다.
+                #   다음 tick 이 새 포지션·거래소 스냅샷으로 다시 계획하면 된다.
                 return
             if not plan.to_place:
                 return
