@@ -48,6 +48,7 @@
 - **정본** — `docs/reference/`. 코드와 어긋나면 **코드가 맞다**, 문서를 고쳐라
 - **결정 근거** — `docs/decisions/`. 규칙 변경 전 필독. 폐기는 삭제가 아니라 `Superseded` 표기
 - **끝난 것** — `docs/archive/`. 읽기 전용, 기존 항목 수정 금지
+- **뭘 돌려야 통과인가** — `docs/reference/gates-and-traps.md`. 게이트 커맨드 + 조용히 통과하는 함정
 - 전체 목차 = `docs/README.md`
 
 **스프린트가 끝나면 그 스프린트 문서를 승격(`reference/`) 하거나 강등(`archive/`) 한다. 그대로 두지 않는다** (`docs/guides/sprint-template.md` §9).
@@ -64,7 +65,7 @@ ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-`
 - **Backtest** — **`pine_v2` 자체 인터프리터 SSOT** (AST + bar-by-bar 이벤트 루프). vectorbt 는 _지표 계산 전용_ 으로 강등 (ADR-011 §6/§8, Sprint 8a PR #20). 리포트 24 metric.
 - **Stress Test** — Monte Carlo, Walk-Forward, 파라미터 안정성 분석
 - **Optimizer** — Grid / Bayesian / Genetic 파라미터 최적화 (ADR-013)
-- **Trading** — CCXT 데모·라이브 주문 실행, 리스크 관리, Kill Switch
+- **Trading** — CCXT 주문 실행(계정 모드는 **Bybit demo 만** — CONTEXT.md), 리스크 관리, Kill Switch
 - **Market Data** — OHLCV 수집, TimescaleDB 저장, 실시간 가격 스트림
 
 ### 활성 sprint / 이력
