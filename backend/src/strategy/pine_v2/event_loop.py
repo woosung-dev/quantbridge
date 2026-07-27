@@ -218,6 +218,9 @@ class LiveSignal:
     take_profit: Decimal | None = None
     stop_loss: Decimal | None = None
     trailing_stop: Decimal | None = None
+    # catch-up 발행에서만 원래 이벤트가 난 bar 시각을 보존한다. 기본 라이브 호출은 None으로
+    # 유지해 마지막 bar만 발행하던 기존 계약을 그대로 둔다.
+    bar_time: datetime | None = None
 
 
 @dataclass
@@ -318,6 +321,7 @@ def run_live(
     leverage: float = 1.0,
     sessions_allowed: tuple[str, ...] = (),
     pyramiding: int | None = None,
+    emit_from_bar_time: datetime | None = None,
 ) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
 
@@ -326,9 +330,10 @@ def run_live(
     는 자연 재생되어 PersistentStore.hydrate 같은 별도 직렬화 path 불필요
     (codex G.0 P1 #1 — hydrate 부족 → Option B 선택).
 
-    마지막 bar 의 TradeEvent 만 LiveSignal 로 변환 (codex G.0 P1 #2 — same-bar
-    entry+close 회귀 방어). action="fill" 은 broker 이벤트 (pending stop 체결) 이므로
-    Pine signal 로 dispatch 안 함 — broker 가 자체 fill 알림 처리.
+    기본값에서는 마지막 bar 의 TradeEvent 만 LiveSignal 로 변환한다 (codex G.0 P1 #2 —
+    same-bar entry+close 회귀 방어). `emit_from_bar_time`을 명시한 catch-up 호출만 그 시각
+    뒤의 모든 bar 이벤트를 변환한다. action="fill" 은 broker 이벤트 (pending stop 체결)
+    이므로 Pine signal 로 dispatch 안 함 — broker 가 자체 fill 알림 처리.
 
     Args:
         source: Pine source code.
@@ -341,6 +346,8 @@ def run_live(
             tz-aware DatetimeIndex가 없으면 tz-aware `timestamp` 컬럼으로 인덱스를 세우되,
             해당 컬럼은 보존한다. 둘 다 불가하면 세션 필터가 조용히 무시되지 않도록 실패한다.
         pyramiding: 같은 방향 동시 진입 cap. None 이면 cap을 적용하지 않는다.
+        emit_from_bar_time: 지정 시 이 시각보다 뒤의 bar 이벤트를 모두 발행한다. None이면
+            기존처럼 마지막 bar 이벤트만 발행한다.
 
     Returns:
         LiveSignalResult — last_bar_time + signals + strategy_state_report + 누적 통계.
@@ -393,9 +400,17 @@ def run_live(
         t.id: Decimal(str(t.pnl)) for t in strategy_state.closed_trades if t.pnl is not None
     }
 
-    # 마지막 bar 의 TradeEvent → LiveSignal 변환
+    # 마지막 bar 의 TradeEvent → LiveSignal 변환. 기본 경로는 기존 마지막-bar 필터를
+    # 그대로 쓴다. catch-up만 각 event의 bar_index를 timestamp 컬럼 우선으로 매핑한다.
     last_bar_index = len(ohlcv) - 1
     last_bar_events = [e for e in strategy_state.events if e.bar_index == last_bar_index]
+    emitted_events = last_bar_events
+    if emit_from_bar_time is not None:
+        emitted_events = [
+            e
+            for e in strategy_state.events
+            if _extract_bar_time(ohlcv, e.bar_index) > emit_from_bar_time
+        ]
     last_bar_entry_skips = [
         skip for skip in strategy_state.entry_skips if skip["bar_index"] == last_bar_index
     ]
@@ -406,7 +421,7 @@ def run_live(
     ]
     # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
     signals: list[LiveSignal] = []
-    for e in last_bar_events:
+    for e in emitted_events:
         if e.action not in ("entry", "close"):
             continue
         # Phase 3 — entry signal 은 pending_exits 의 TP/SL/trail 레벨을 fold
@@ -431,6 +446,11 @@ def run_live(
                 take_profit=take_profit,
                 stop_loss=stop_loss,
                 trailing_stop=trailing_stop,
+                bar_time=(
+                    _extract_bar_time(ohlcv, e.bar_index)
+                    if emit_from_bar_time is not None
+                    else None
+                ),
             )
         )
 
@@ -564,10 +584,15 @@ def _extract_last_bar_time(ohlcv: pd.DataFrame) -> datetime:
 
     'timestamp' 컬럼 우선 → DatetimeIndex fallback. naive 인 경우 UTC localize.
     """
+    return _extract_bar_time(ohlcv, len(ohlcv) - 1)
+
+
+def _extract_bar_time(ohlcv: pd.DataFrame, bar_index: int) -> datetime:
+    """OHLCV의 bar 인덱스를 UTC tz-aware 시각으로 변환한다."""
     if "timestamp" in ohlcv.columns:
-        ts = pd.Timestamp(ohlcv.iloc[-1]["timestamp"])
+        ts = pd.Timestamp(ohlcv.iloc[bar_index]["timestamp"])
     elif isinstance(ohlcv.index, pd.DatetimeIndex):
-        ts = pd.Timestamp(ohlcv.index[-1])
+        ts = pd.Timestamp(ohlcv.index[bar_index])
     else:
         raise ValueError("OHLCV must have 'timestamp' column or DatetimeIndex")
     if ts.tzinfo is None:

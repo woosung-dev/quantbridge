@@ -26,7 +26,7 @@ import asyncio
 import contextlib
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID, uuid4
@@ -99,7 +99,16 @@ _PREFLIGHT_CATEGORY_METADATA: dict[str, tuple[bool, str, str | None]] = {
         "자본 소진",
         "세션 누적 손익이 기준 자본을 초과했습니다",
     ),
+    "gap_resync_position_mismatch": (
+        False,
+        "평가 공백 후 포지션 불일치",
+        "평가 공백이 상한을 초과했고 거래소와 시뮬레이션 포지션을 재동기화할 수 없습니다",
+    ),
 }
+
+# 실측된 서버 기전은 1 bar 지연뿐이다. 봉 개수 대신 벽시계 5분으로 제한해 1h 봉 장기
+# 공백을 과거 주문으로 되살리지 않는다.
+_MAX_CATCHUP_WALL_CLOCK_GAP = timedelta(minutes=5)
 
 
 # ---------------------------------------------------------------------------
@@ -848,18 +857,24 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ).inc()
                 return {"skipped": "empty_ohlcv"}
 
-            # 5. warmup 창의 첫/마지막 bar → no new bar skip
+            # 5. warmup 창의 첫/마지막 bar → no new bar skip + catch-up 범위 판정
             window_start = datetime.fromtimestamp(int(ohlcv_rows[0][0]) / 1000, tz=UTC)
             last_bar_ms = int(ohlcv_rows[-1][0])
             last_bar_time = datetime.fromtimestamp(last_bar_ms / 1000, tz=UTC)
-            if (
-                sess.last_evaluated_bar_time is not None
-                and last_bar_time <= sess.last_evaluated_bar_time
-            ):
+            last_evaluated_bar_time = sess.last_evaluated_bar_time
+            if last_evaluated_bar_time is not None and last_bar_time <= last_evaluated_bar_time:
                 qb_live_signal_evaluated_total.labels(
                     interval=interval_value, outcome="no_new_bar"
                 ).inc()
                 return {"skipped": "no_new_bar"}
+            emit_from_bar_time: datetime | None = None
+            requires_gap_resync = False
+            if last_evaluated_bar_time is not None:
+                elapsed = last_bar_time - last_evaluated_bar_time
+                if elapsed <= _MAX_CATCHUP_WALL_CLOCK_GAP:
+                    emit_from_bar_time = last_evaluated_bar_time
+                else:
+                    requires_gap_resync = True
 
             carry_pnl, _ = await event_repo.sum_realized_pnl_before(
                 sess.id, bar_time=window_start
@@ -917,6 +932,32 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ).inc()
                 return {"skipped": "claim_lost"}
 
+            # 장기 공백은 과거 이벤트를 발주하지 않는다. 거래소가 flat인지 먼저 확인하고,
+            # 아래 warmup replay 결과의 시뮬레이션 flat과 함께 조용한 resync를 판정한다.
+            exchange_positions: list[Any] | None = None
+            if requires_gap_resync:
+                from src.trading.encryption import EncryptionService
+                from src.trading.providers import BybitFuturesProvider
+                from src.trading.services.account_service import ExchangeAccountService
+
+                try:
+                    bybit_provider = BybitFuturesProvider()
+                    exchange_svc = ExchangeAccountService(
+                        repo=account_repo,
+                        crypto=EncryptionService(settings.trading_encryption_keys),
+                        bybit_futures_provider=bybit_provider,
+                    )
+                    creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
+                    exchange_positions = await bybit_provider.fetch_open_positions(
+                        creds, sess.symbol
+                    )
+                except Exception:
+                    logger.warning(
+                        "live_signal_gap_resync_position_fetch_failed",
+                        exc_info=True,
+                        extra={"session_id": str(sess.id), "symbol": sess.symbol},
+                    )
+
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
             pyramiding: int | None = None
@@ -928,18 +969,19 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     exc_info=True,
                     extra={"session_id": str(sess.id)},
                 )
+            run_live_kwargs: dict[str, Any] = {
+                "initial_capital": float(effective_capital),
+                "live_position_size_pct": parsed_settings.position_size_pct,
+                # BL-483 후속: pine_v2 청산 모델은 isolated 기준이다.
+                # margin_mode는 아직 전달하지 않으며 cross 모델은 별도 BL 설계가 필요하다.
+                "leverage": float(parsed_settings.leverage),
+                "sessions_allowed": tuple(strategy.trading_sessions or ()),
+                "pyramiding": pyramiding,
+            }
+            if emit_from_bar_time is not None:
+                run_live_kwargs["emit_from_bar_time"] = emit_from_bar_time
             try:
-                result = run_live(
-                    strategy.pine_source,
-                    df,
-                    initial_capital=float(effective_capital),
-                    live_position_size_pct=parsed_settings.position_size_pct,
-                    # BL-483 후속: pine_v2 청산 모델은 isolated 기준이다.
-                    # margin_mode는 아직 전달하지 않으며 cross 모델은 별도 BL 설계가 필요하다.
-                    leverage=float(parsed_settings.leverage),
-                    sessions_allowed=tuple(strategy.trading_sessions or ()),
-                    pyramiding=pyramiding,
-                )
+                result = run_live(strategy.pine_source, df, **run_live_kwargs)
             except Exception as exc:
                 # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
                 # parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /
@@ -1014,6 +1056,38 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     )
                 return {"deactivated": "runtime_divergence", "category": category}
 
+            if requires_gap_resync:
+                # `to_report()["open_trades"]` 는 **list** 다(`strategy_state.py:1005`).
+                # dict 로 검사하면 항상 False 라 조용한 resync 가 절대 안 타고 모든 장기
+                # 공백이 세션을 죽인다 - 수면·배포 공백이 정확히 그 경로다.
+                simulated_open_trades = result.strategy_state_report.get("open_trades")
+                simulated_flat = (
+                    isinstance(simulated_open_trades, list) and not simulated_open_trades
+                )
+                if exchange_positions == [] and simulated_flat:
+                    # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
+                    # 처리해 수면·배포 공백을 조용히 정상화한다.
+                    pass
+                else:
+                    category = "gap_resync_position_mismatch"
+                    rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                    await sess_repo.commit()
+                    if rows == 1:
+                        _enqueue_conditional_entry_sweep()
+                        await publish_realtime(
+                            str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                        )
+                        qb_live_signal_skipped_total.labels(reason=category).inc()
+                        _fire_divergence_alert(
+                            session_id=sess.id,
+                            stage="gap_resync",
+                            category=category,
+                            raw_msg="exchange_or_simulated_position_not_flat",
+                            error_count=0,
+                            last_error_bar=-1,
+                        )
+                    return {"deactivated": category}
+
             for entry_skip in result.entry_skips:
                 reason = entry_skip.get("reason")
                 if not isinstance(reason, str) or reason not in (
@@ -1038,6 +1112,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     "qty": s.qty,
                     "sequence_no": s.sequence_no,
                     "comment": s.comment,
+                    # catch-up은 signal별 원래 bar 시각을 보존한다. 기본 호출의 None은
+                    # repository가 이번 last_bar_time으로 기존처럼 폴백한다.
+                    "bar_time": s.bar_time,
                     # MP-1 — close signal 의 청산 realized PnL (entry 는 None).
                     "realized_pnl": s.realized_pnl,
                     # Phase 3 — entry signal 의 exit 레벨 (bracket placement + trailing). close 는 None.
@@ -1424,6 +1501,28 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 crypto=crypto,
                 bybit_futures_provider=bybit_provider,
             )
+
+            # close만 거래소 flat을 확인한다. 명시적 0건이면 reduce-only 거부 주문을 만들지
+            # 않고 실패 전이한다. 조회 실패는 정당한 청산을 막지 않도록 fail-open이다.
+            if event.action == "close":
+                try:
+                    positions = await bybit_provider.fetch_open_positions(
+                        await exchange_svc.get_credentials_for_order(sess.exchange_account_id),
+                        sess.symbol,
+                    )
+                    if len(positions) == 0:
+                        await event_repo.mark_failed(event.id, error="close_position_flat")
+                        await event_repo.commit()
+                        qb_live_signal_dispatch_total.labels(
+                            action=event.action, outcome="close_position_flat"
+                        ).inc()
+                        return {"failed": "close_position_flat"}
+                except Exception:
+                    logger.warning(
+                        "live_signal_close_position_check_failed_open",
+                        exc_info=True,
+                        extra={"event_id": str(event.id), "session_id": str(sess.id)},
+                    )
             evaluators: list[KillSwitchEvaluator] = [
                 CumulativeLossEvaluator(
                     order_repo,
