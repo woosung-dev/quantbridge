@@ -231,21 +231,6 @@ class DemoAccountNotYetStable(AppException):
         self.min_required = min_required
 
 
-class LiveStopEntryUnsupported(AppException):
-    """BL-478 (a) 조건부 주문 등재가 구현되면 해제할 임시 라이브 세션 차단."""
-
-    status_code = 422
-    code = "live_stop_entry_unsupported"
-
-    def __init__(self) -> None:
-        super().__init__(
-            "이 전략은 조건부 진입(strategy.entry 의 stop 인자)을 사용합니다. 조건부 진입 주문을 "
-            "거래소에 등재하는 경로가 아직 없어서, 세션을 시작해도 진입 주문은 나가지 않고 청산 신호만 "
-            "나갑니다. 시장가로 진입하는 다른 전략을 고르거나, 전략에서 stop 인자를 빼고 시장가 "
-            "진입으로 바꾼 뒤 다시 시작해주세요."
-        )
-
-
 class SizingBaselineUnavailable(AppException):
     """BL-479 — 세션 시작 시 자본 기준선 스냅샷 실패. 사이징 없이 발주하느니 세션을 안 연다.
 

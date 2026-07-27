@@ -368,6 +368,55 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     });
   });
 
+  it("대기 중인 조건부 진입의 방향과 트리거가를 표시한다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: {
+        pending_orders: [
+          { direction: "long", stop_price: "101.25", target_position: "1" },
+          { direction: "short", stop_price: "99.50", target_position: "-1" },
+        ],
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    const pendingOrders = await screen.findByTestId("live-session-pending-orders");
+    expect(pendingOrders).toHaveTextContent("롱");
+    expect(pendingOrders).toHaveTextContent("101.25");
+    expect(pendingOrders).toHaveTextContent("숏");
+    expect(pendingOrders).toHaveTextContent("99.50");
+  });
+
+  it("대기 조건부 진입이 비면 구역을 표시하지 않는다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: { pending_orders: [] },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await screen.findByText("BTCUSDT");
+    expect(screen.queryByTestId("live-session-pending-orders")).not.toBeInTheDocument();
+  });
+
+  it("검증 실패한 대기 조건부 진입은 구역을 표시하지 않는다", async () => {
+    stateMock.mockResolvedValue({
+      ...STATE_NO_EQUITY,
+      last_strategy_state_report: {
+        pending_orders: [null, 42, { direction: "long", stop_price: 101 }],
+      },
+    });
+    eventsMock.mockResolvedValue({ items: [] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    await screen.findByText("BTCUSDT");
+    expect(screen.queryByTestId("live-session-pending-orders")).not.toBeInTheDocument();
+  });
+
   it("쓰레기 원소는 강제 청산으로 세지 않는다", async () => {
     // 열린 record 스키마라 `null`·숫자가 올 수 있다. 길이만 세면 `[null]` 이
     // "강제 청산 1건" 으로 위장된다 (최종 리뷰 지적).

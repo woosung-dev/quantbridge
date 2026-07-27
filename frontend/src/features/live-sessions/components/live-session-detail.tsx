@@ -92,6 +92,34 @@ export function LiveSessionDetail({ session }: Props) {
           typeof item.direction === "string",
       ).length
     : 0;
+  const pendingConditionalEntries: Array<{
+    direction: string;
+    stopPrice: string;
+    targetPosition: string;
+  }> = [];
+  const pendingOrders = state?.last_strategy_state_report?.pending_orders;
+  if (Array.isArray(pendingOrders)) {
+    for (const pendingOrder of pendingOrders) {
+      // 열린 record 스키마라 원소가 `null` 이나 숫자일 수 있다. 방향·트리거·목표 포지션을
+      // 모두 검증하지 않으면 `[null]` 이 대기 조건부 진입으로 위장된다.
+      if (
+        pendingOrder !== null &&
+        typeof pendingOrder === "object" &&
+        "direction" in pendingOrder &&
+        typeof pendingOrder.direction === "string" &&
+        "stop_price" in pendingOrder &&
+        typeof pendingOrder.stop_price === "string" &&
+        "target_position" in pendingOrder &&
+        typeof pendingOrder.target_position === "string"
+      ) {
+        pendingConditionalEntries.push({
+          direction: pendingOrder.direction,
+          stopPrice: pendingOrder.stop_price,
+          targetPosition: pendingOrder.target_position,
+        });
+      }
+    }
+  }
 
   // Sprint 33-A: chart data 사전 계산 (lightweight-charts 호환).
   // useMemo — RQ structural sharing 이 items/equity_curve 하위 참조 identity 를
@@ -196,6 +224,19 @@ export function LiveSessionDetail({ session }: Props) {
           </div>
         </dl>
       </div>
+
+      {pendingConditionalEntries.length > 0 ? (
+        <div className="rounded-md border p-4" data-testid="live-session-pending-orders">
+          <h4 className="mb-2 text-sm font-medium">대기 중인 조건부 진입</h4>
+          <ul className="space-y-1 text-sm">
+            {pendingConditionalEntries.map((order, index) => (
+              <li key={`${order.direction}-${order.stopPrice}-${index}`} className="font-mono">
+                {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, order.direction, "live-signal-direction")} · 트리거 {order.stopPrice} · 목표 포지션 {order.targetPosition}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* Sprint 27 BL-140 — Activity Timeline (recent N events cumulative chart) */}
       <div className="rounded-md border p-4">

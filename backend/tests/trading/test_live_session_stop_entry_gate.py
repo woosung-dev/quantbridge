@@ -1,4 +1,4 @@
-# 라이브 세션 등록의 stop-entry 및 자본 기준선 게이트를 검증한다.
+# 라이브 세션 등록의 조건부 진입 허용 및 자본 기준선 게이트를 검증한다.
 from __future__ import annotations
 
 from decimal import Decimal
@@ -80,17 +80,16 @@ def _allow_ticker_kick(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_register_rejects_stop_entry_strategy() -> None:
-    """stop= 진입은 저장·commit 전에 422로 거부한다."""
-    service, repo, _balance_service, user_id, request = _svc(pine_source=_STOP_ENTRY_SOURCE)
+async def test_register_allows_stop_entry_strategy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """stop= 진입 전략도 조건부 주문 등재 경로로 세션을 등록한다."""
+    service, repo, balance_service, user_id, request = _svc(pine_source=_STOP_ENTRY_SOURCE)
+    _allow_ticker_kick(monkeypatch)
 
-    with pytest.raises(AppException) as exc_info:
-        await service.register(user_id, request)
+    await service.register(user_id, request)
 
-    assert exc_info.value.code == "live_stop_entry_unsupported"
-    assert exc_info.value.status_code == 422
-    repo.save.assert_not_called()
-    repo.commit.assert_not_called()
+    repo.save.assert_awaited_once()
+    repo.commit.assert_awaited_once()
+    balance_service.get_balance.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -105,27 +104,6 @@ async def test_register_allows_market_entry_strategy(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
-async def test_register_stop_entry_gate_runs_before_quota_lock() -> None:
-    """거부 전략은 quota lock을 획득하지 않는다."""
-    service, repo, _balance_service, user_id, request = _svc(pine_source=_STOP_ENTRY_SOURCE)
-
-    with pytest.raises(AppException):
-        await service.register(user_id, request)
-
-    repo.acquire_quota_lock.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_register_stop_entry_does_not_touch_exchange() -> None:
-    """거부될 전략은 잔고 조회 CCXT 왕복을 하지 않는다."""
-    service, _repo, balance_service, user_id, request = _svc(pine_source=_STOP_ENTRY_SOURCE)
-
-    with pytest.raises(AppException):
-        await service.register(user_id, request)
-
-    balance_service.get_balance.assert_not_awaited()
-
-
 @pytest.mark.asyncio
 async def test_register_rejects_when_balance_total_is_none() -> None:
     """총자본 미확인은 기준선 부재로 fail-closed 한다."""

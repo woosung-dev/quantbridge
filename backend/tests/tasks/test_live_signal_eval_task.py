@@ -966,45 +966,20 @@ async def test_preflight_non_demo_skips_not_deactivated(
 
 
 @pytest.mark.asyncio
-async def test_preflight_deactivates_stop_entry_session(
+async def test_preflight_allows_stop_entry_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """stop= 진입 세션은 OHLCV fetch 전에 자동 비활성화한다."""
-    sess, sess_repo, _event_repo, publisher, provider = _preflight_scaffold(
+    """stop= 진입 세션은 preflight를 통과해 조건부 주문 수렴으로 이어진다."""
+    sess, sess_repo, _event_repo, _publisher, provider = _preflight_scaffold(
         monkeypatch,
         pine_source=_STOP_ENTRY_SOURCE,
     )
 
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
-    assert res == {"deactivated": "stop_entry_unsupported"}
-    sess_repo.deactivate.assert_awaited_once()
-    publisher.assert_awaited_once_with(
-        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-    )
-    provider.fetch_ohlcv.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_preflight_stop_entry_does_not_increment_divergence_counter(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """예상 가능한 stop-entry 종료는 page용 divergence counter를 올리지 않는다."""
-    sess, _sess_repo, _event_repo, _publisher, _provider = _preflight_scaffold(
-        monkeypatch,
-        pine_source=_STOP_ENTRY_SOURCE,
-    )
-    before_divergence = _divergence_count("preflight", "stop_entry_unsupported")
-    before_skipped = qb_live_signal_skipped_total.labels(
-        reason="stop_entry_unsupported"
-    )._value.get()
-
-    await live_signal_module._evaluate_session_inner(sess.id, "1m")
-
-    assert _divergence_count("preflight", "stop_entry_unsupported") == before_divergence
-    assert qb_live_signal_skipped_total.labels(reason="stop_entry_unsupported")._value.get() == (
-        before_skipped + 1
-    )
+    assert res["evaluated"] is True
+    sess_repo.deactivate.assert_not_called()
+    provider.fetch_ohlcv.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -1111,10 +1086,10 @@ async def test_market_entry_session_with_baseline_passes_preflight(
 
 
 @pytest.mark.asyncio
-async def test_coverage_unrunnable_wins_over_stop_entry(
+async def test_coverage_unrunnable_still_deactivates_stop_entry_strategy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """미지원 builtin과 stop=이 함께 있으면 coverage_unrunnable이 우선한다."""
+    """stop=이 허용돼도 미지원 builtin은 coverage 게이트에서 계속 차단한다."""
     source = (
         "//@version=5\nstrategy('t')\nx = ta.ewma(close, 10)\n"
         "strategy.entry('L', strategy.long, stop=close)\n"

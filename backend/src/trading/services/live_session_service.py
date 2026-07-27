@@ -12,7 +12,6 @@ from sqlalchemy.exc import IntegrityError
 
 from src.auth.repository import UserRepository
 from src.strategy.exceptions import StrategyNotFoundError
-from src.strategy.pine_v2.ast_extractor import uses_stop_entry
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.exceptions import (
@@ -21,7 +20,6 @@ from src.trading.exceptions import (
     DemoAccountNotYetStable,
     InvalidStrategySettings,
     LiveSessionQuotaExceeded,
-    LiveStopEntryUnsupported,
     ProviderError,
     SessionAlreadyActive,
     SizingBaselineUnavailable,
@@ -46,17 +44,6 @@ logger = logging.getLogger(__name__)
 
 # Wave 0 W4 — 라이브 전환 전 요구 데모 안정화 기간(일). ponytail: 상수, 튜닝 필요 시 config 승격.
 _MIN_DEMO_STABLE_DAYS = 7
-
-
-def _uses_stop_entry_safe(pine_source: str) -> bool:
-    """파싱 실패는 실시간 평가의 차단 경로에 맡기고 세션 등록은 통과시킨다."""
-    try:
-        return uses_stop_entry(pine_source)
-    except Exception as exc:
-        # 문법 오류는 첫 evaluate tick의 run_live가 run_live_error로 세션을 fail-closed 비활성화한다.
-        # 여기서 500 또는 차단하면 실제 실패 사유를 부정확하게 만든다.
-        logger.warning("stop_entry_detection_failed err=%s", exc)
-        return False
 
 
 class LiveSignalSessionService:
@@ -104,9 +91,6 @@ class LiveSignalSessionService:
             _settings: StrategySettings | None = validate_strategy_settings(strategy.settings)
         except ValidationError as e:
             raise InvalidStrategySettings(error=str(e)) from e
-
-        if _uses_stop_entry_safe(strategy.pine_source):
-            raise LiveStopEntryUnsupported()
 
         # 2. ExchangeAccount 조회 + ownership + Bybit Demo 강제 (codex G.0 P2 #1)
         account = await self._account_repo.get_by_id(req.exchange_account_id)

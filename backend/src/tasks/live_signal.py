@@ -50,7 +50,7 @@ from src.common.metrics import (
 )
 from src.common.redlock import RedisLock
 from src.core.config import settings
-from src.strategy.pine_v2.ast_extractor import extract_content, uses_stop_entry
+from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.alerting import send_rule_alert
@@ -84,11 +84,6 @@ _DIVERGENCE_TITLE = "Live signal divergence — 세션 자동 비활성화 (무�
 _PREFLIGHT_CATEGORY_METADATA: dict[str, tuple[bool, str, str | None]] = {
     "coverage_unrunnable": (True, _DIVERGENCE_REASON, None),
     "degraded_unconsented": (True, _DIVERGENCE_REASON, None),
-    "stop_entry_unsupported": (
-        False,
-        "라이브 미지원 기능",
-        "strategy.entry(stop=) 는 라이브 발주 미지원",
-    ),
     "equity_baseline_missing": (
         False,
         "자본 기준선 부재",
@@ -215,20 +210,6 @@ def _classify_live_divergence(msg: str) -> str:
     return "unexpected"
 
 
-def _uses_stop_entry_safe(pine_source: str) -> bool:
-    """stop-entry 사용 여부를 확인하되 파싱 실패는 여기서 미지원 사유로 오판하지 않는다.
-
-    파싱 실패 소스는 다음 단계의 `run_live`가 raise하여 같은 함수의 `run_live_error` 경로가
-    fail-closed로 세션을 비활성화한다. 여기서 예외를 전파하거나 stop-entry로 분류하면 사유가
-    부정확해지고 비활성화 경로가 중복된다.
-    """
-    try:
-        return uses_stop_entry(pine_source)
-    except Exception:
-        logger.warning("live_signal_stop_entry_detection_failed", exc_info=True)
-        return False
-
-
 async def _reconcile_conditional_entries(
     sess: Any,
     result: Any,
@@ -309,11 +290,7 @@ async def _reconcile_conditional_entries(
             actual_by_order_id: dict[str, RestingConditionalEntry] = {}
             for order in local_orders:
                 parsed_key = parse_conditional_entry_key(order.idempotency_key)
-                if (
-                    parsed_key is None
-                    or parsed_key[0] != sess.id
-                    or order.trigger_price is None
-                ):
+                if parsed_key is None or parsed_key[0] != sess.id or order.trigger_price is None:
                     continue
                 actual_by_order_id[str(order.id)] = RestingConditionalEntry(
                     trade_id=parsed_key[1],
@@ -434,7 +411,9 @@ async def _reconcile_conditional_entries(
                     reason = (
                         cancel_reason
                         if not desired_trade_ids
-                        else "replaced" if entry.trade_id in desired_trade_ids else "desired_removed"
+                        else "replaced"
+                        if entry.trade_id in desired_trade_ids
+                        else "desired_removed"
                     )
                     qb_live_conditional_cancelled_total.labels(reason=reason).inc()
                 except Exception:
@@ -799,9 +778,6 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 preflight_cat, preflight_symbols = "coverage_unrunnable", cov.all_unsupported
             elif cov.has_degraded:
                 preflight_cat, preflight_symbols = "degraded_unconsented", cov.degraded_calls
-            # stop-entry가 baseline 부재보다 근본 원인이므로 먼저 사용자에게 알린다.
-            elif _uses_stop_entry_safe(strategy.pine_source):
-                preflight_cat = "stop_entry_unsupported"
             # NaN/Infinity 를 먼저 걸러야 한다 — `Decimal('NaN') <= 0` 은 False 가 아니라
             # InvalidOperation 을 raise 한다(실측). 그리고 그건 "자본 소진"이 아니라
             # 애초에 쓸 수 없는 기준선이므로 equity_baseline_missing 으로 진단해야 맞다.
@@ -876,9 +852,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 else:
                     requires_gap_resync = True
 
-            carry_pnl, _ = await event_repo.sum_realized_pnl_before(
-                sess.id, bar_time=window_start
-            )
+            carry_pnl, _ = await event_repo.sum_realized_pnl_before(sess.id, bar_time=window_start)
             assert equity_baseline_usdt is not None  # 위 preflight가 None을 이미 비활성화한다.
             effective_capital = equity_baseline_usdt + carry_pnl
             if (
@@ -1195,9 +1169,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             # LESSON-019 — claim UPDATE + events INSERT + state upsert 단일 commit
             await sess_repo.commit()
-            await publish_realtime(
-                str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-            )
+            await publish_realtime(str(sess.user_id), "session_state", {"session_id": str(sess.id)})
 
         # 9. dispatch task enqueue — outbox commit 후 (visibility race 방지)
         for ev in new_events:
