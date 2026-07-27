@@ -20,18 +20,7 @@ description: 전역 규칙 — 워크플로우, 문서화, Git, 환경변수, �
 ## 2. 문서화 규칙
 
 > **"문서가 없으면 기능도 없다."**
-> docs/ 디렉토리 상세 구조는 `AGENTS.md` 섹션 4 참조. 아래는 ID 체계와 TODO.md 운영 규칙:
-
-`00_project/` · `01_requirements/` · `02_domain/` · `03_api/` · `04_architecture/` · `05_env/` · `06_devops/` · `07_infra/` · `dev-log/` · `guides/` · `status.md`
-
-### ID 체계
-
-| 대상 | 접두사 | 예시 | 규칙 |
-|------|--------|------|------|
-| 화면 | `SCR-` | `SCR-001` 로그인 화면 | ID 변경·재사용 금지 |
-| API | `API-` | `API-012` 사용자 목록 조회 | |
-| 엔티티 | `ENT-` | `ENT-003` Order | |
-| 기능 명세 | `REQ-` | `REQ-007` 알림 발송 | |
+> docs/ 구조와 ID 체계는 `AGENTS.md` §문서 참조. 아래는 TODO.md 운영 규칙.
 
 ### TODO.md 운영
 
@@ -39,15 +28,19 @@ description: 전역 규칙 — 워크플로우, 문서화, Git, 환경변수, �
 
 ```markdown
 ## Completed
+
 - [x] SCR-001 로그인 화면 구현
 
 ## Blocked
+
 - [ ] API-005 결제 연동 — PG사 API 키 미발급 [확인 필요]
 
 ## Questions
+
 - ENT-003 Order 엔티티에 `canceled_at` 필드가 필요한가? [확인 필요]
 
 ## Next Actions
+
 - [ ] SCR-002 대시보드 화면 설계
 ```
 
@@ -106,6 +99,7 @@ test: 테스트 추가/수정
 - `lessons.md`는 주기적으로 정리 — 이미 규칙화된 항목은 제거
 
 ### 승격 경로
+
 lessons.md → `.ai/project/` (3회 반복) → `.ai/stacks/` 또는 `.ai/common/` (프로젝트 간 공통) → 삭제 (모델 개선으로 불필요 시)
 
 모든 규칙은 "모델이 못하는 것"에 대한 가정이므로, 모델 업그레이드 시 주기적으로 검증하여 불필요한 규칙을 제거한다.
@@ -153,7 +147,7 @@ lessons.md → `.ai/project/` (3회 반복) → `.ai/stacks/` 또는 `.ai/common
 
 ### 7.5 신규 도메인 / 큰 모듈 신설 직후 = `/deepen-modules` 1회 권장 (Sprint 46 pilot 채택)
 
-> AI 누적 작성 코드는 **shallow module + locality 깨짐** 을 누적시킨다 (Ousterhout, *A Philosophy of Software Design*). 신규 도메인 / 5+ 파일 모듈 신설 직후, stage→main 진입 전, `/deepen-modules` 1회 호출로 사전 차단.
+> AI 누적 작성 코드는 **shallow module + locality 깨짐** 을 누적시킨다 (Ousterhout, _A Philosophy of Software Design_). 신규 도메인 / 5+ 파일 모듈 신설 직후, stage→main 진입 전, `/deepen-modules` 1회 호출로 사전 차단.
 
 - **호출 시점:** Sprint kickoff 가 아니라 **신규 도메인/모듈 신설 직후 + stage→main 진입 전**. 또는 PR 30+ 누적 후 architectural debt 점검.
 - **Iron Law:** 1회 호출 = 1 도메인만 audit. 전체 코드베이스 동시 audit 금지.
@@ -165,12 +159,12 @@ lessons.md → `.ai/project/` (3회 반복) → `.ai/stacks/` 또는 `.ai/common
 
 ### 적용 의무 시점
 
-| 시점 | 적용 규칙 |
-|------|----------|
-| Sprint kickoff (Type A/B) | §7.1 |
-| codex G.0 master plan validation 직후 | §7.4 |
-| PR 머지 후 (worker 코드 영향 시) | §7.2 |
-| Mid-dogfood verification | §7.3 |
-| 신규 도메인 / 큰 모듈 신설 직후 (권장) | §7.5 |
+| 시점                                   | 적용 규칙 |
+| -------------------------------------- | --------- |
+| Sprint kickoff (Type A/B)              | §7.1      |
+| codex G.0 master plan validation 직후  | §7.4      |
+| PR 머지 후 (worker 코드 영향 시)       | §7.2      |
+| Mid-dogfood verification               | §7.3      |
+| 신규 도메인 / 큰 모듈 신설 직후 (권장) | §7.5      |
 
 위반 detect: codex G.X gate / sprint close-out audit / dual metric (LESSON-035) cross-check.
