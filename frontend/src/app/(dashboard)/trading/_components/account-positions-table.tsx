@@ -57,7 +57,7 @@ function collapseRows(rows: readonly Row[]): Row[] {
   const ungrouped: Row[] = [];
   const groups = new Map<string, Row[]>();
   for (const row of rows) {
-    if (row.exchangeUid === null) {
+    if (row.exchangeUid === null || row.close_blocked_reason === "hedge_unsupported") {
       ungrouped.push(row);
       continue;
     }

@@ -160,6 +160,40 @@ describe("AccountPositionsTable", () => {
     );
   });
 
+  it("같은 uid·심볼의 양방향 두 leg를 모두 보존하고 차단한다", () => {
+    mockAccountPositions.mockReturnValue([
+      query({
+        data: payload({
+          rows: [
+            {
+              symbol: "BTC/USDT",
+              position: position({ side: "long" }),
+              closable_session_id: null,
+              close_blocked_reason: "hedge_unsupported",
+            },
+            {
+              symbol: "BTC/USDT",
+              position: position({ side: "short" }),
+              closable_session_id: null,
+              close_blocked_reason: "hedge_unsupported",
+            },
+          ],
+        } as Partial<AccountPositions>),
+      }),
+    ]);
+
+    render(<AccountPositionsTable accounts={[{ ...ACCOUNT, exchangeUid: EXCHANGE_UID }]} />);
+
+    expect(screen.getAllByText("BTC/USDT")).toHaveLength(2);
+    const blockedRows = screen.getAllByTestId("account-position-blocked-BTC/USDT");
+    expect(blockedRows).toHaveLength(2);
+    for (const blockedRow of blockedRows) {
+      expect(blockedRow).toHaveTextContent("양방향 포지션은 화면에서 청산할 수 없습니다.");
+    }
+    expect(screen.getByText("롱")).toBeInTheDocument();
+    expect(screen.getByText("숏")).toBeInTheDocument();
+  });
+
   it("조회 범위를 각주로 고지한다", () => {
     render(<AccountPositionsTable accounts={[ACCOUNT]} />);
 

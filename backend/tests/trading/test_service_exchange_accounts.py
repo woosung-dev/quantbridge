@@ -112,6 +112,54 @@ async def test_backfill_only_queries_accounts_without_exchange_uid(db_session, u
     assert refreshed_known.exchange_uid == "known-uid"
 
 
+async def test_backfill_identity_updates_call_repo_commit(crypto):
+    """LESSON-019 spy: identity backfill은 변경을 commit한다."""
+    from src.trading.services.account_service import ExchangeAccountService
+
+    account = ExchangeAccount(
+        user_id=uuid4(),
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=crypto.encrypt("key"),
+        api_secret_encrypted=crypto.encrypt("secret"),
+    )
+    repo = AsyncMock()
+    repo.list_without_exchange_uid.return_value = [account]
+    provider = MagicMock()
+    provider.fetch_api_identity = AsyncMock(return_value=("558689281", False))
+    service = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=provider)
+
+    result = await service.backfill_exchange_identities()
+
+    assert result == {"scanned": 1, "updated": 1}
+    assert account.exchange_uid == "558689281"
+    repo.commit.assert_awaited_once()
+
+
+async def test_register_identity_save_calls_repo_commit(crypto):
+    """LESSON-019 spy: identity를 저장하는 register()는 commit한다."""
+    from src.trading.services.account_service import ExchangeAccountService
+
+    repo = AsyncMock()
+    repo.save.side_effect = lambda account: account
+    provider = MagicMock()
+    provider.fetch_api_identity = AsyncMock(return_value=("558689281", False))
+    service = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=provider)
+
+    account = await service.register(
+        uuid4(),
+        RegisterAccountRequest(
+            exchange=ExchangeName.bybit,
+            mode=ExchangeMode.demo,
+            api_key="key",
+            api_secret="secret",
+        ),
+    )
+
+    assert account.exchange_uid == "558689281"
+    repo.commit.assert_awaited_once()
+
+
 async def test_register_keeps_account_when_identity_query_fails(db_session, user: User, crypto):
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.services.account_service import ExchangeAccountService
