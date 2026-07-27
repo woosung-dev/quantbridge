@@ -22,8 +22,8 @@
 - [x] **BL-500 ✅ Resolved.** 거래소 목록에 없는 로컬 행을 **`fetch_order` 로 직접 물어** terminal 확인 뒤에만 `actual` 에서 제거(확인 못 하면 유지). 체결 확인 시 그 tick 등재 중단. ★중간에 넣었던 **나이 게이트 3분은 적대 검증이 반박해 폐기**했다 — reconcile 은 bar 마다 돌고 `submitted_at` 은 부재의 나이가 아니다.
 - [x] **BL-499 🟡 부분 완화.** `cancel_raced` / `cancel_stalled` 분류 metric + **패배해도 `to_place` 는 건너뜀**(fail-closed). 근본 경합은 열려 있다.
 - [x] **G0.5 codex 8건 + G3 적대 검증 3렌즈 9건 전건 재현 판정** — 수정 13 / 기각 2 / BL 등재 3.
-- [x] **표적 변이 13종** 전부 의도한 테스트만 red, 음성 green 유지.
-- [x] 게이트: BE **3205**(+26) · 커버리지 **93.18%** · FE **1179**(+18) · canon **32** · ruff·mypy·tsc·lint 0 · **마이그레이션 0**
+- [x] **표적 변이 15종** 전부 의도한 테스트만 red, 음성 green 유지.
+- [x] 게이트: BE **3212**(+33) · 커버리지 **93.21%** · FE **1175**(+14) · canon **32** · **e2e:authed 65-0** · ruff·mypy·tsc·lint 0 · **마이그레이션 0**
 
 ### ★★dogfood — 3중 대조 종단 증명
 
@@ -38,7 +38,7 @@
 
 ### Blocked
 
-- **e2e:authed 최종 숫자 미측정** — dev 서버(3100, 금요일부터 실행)가 stale CSS 를 서빙한다. 그 서버 대상 실행은 64 passed / 1 failed 이고 **그 1건은 코드 결함이 아님이 증명됐다**(프로덕션 빌드에서 통과). 정확한 숫자는 **dev 서버 재기동 후** 재측정해야 한다.
+- 없음. ★**e2e:authed 는 dev 서버 재기동 후 65 passed / 0 failed 로 실측 확정**됐다 — 재기동 전 실행의 1건 red 는 Turbopack 이 서빙하던 stale CSS 가 만든 **거짓 red** 였고, 코드는 손대지 않았는데 재기동만으로 사라졌다.
 
 ### ★★적대 검증이 "내가 이미 맞다고 쓴 문장" 을 또 반박했다
 
@@ -54,7 +54,7 @@
 
 ### Next Actions
 
-- [ ] **dev 서버 재기동 후 `PLAYWRIGHT_BASE_URL=http://localhost:3100 pnpm e2e:authed` 재측정** (기준선 65-0)
+- [x] **e2e:authed 재측정 완료** — dev 서버 재기동 후 **65 passed / 0 failed**(3.6분).
 - [ ] PR 생성 → **squash 는 사용자**
 
 ## ⚡ live-conditional-entry — 조건부 진입 등재 (BL-478 (a) · BL-488 · BL-365) (2026-07-27)

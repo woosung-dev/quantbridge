@@ -108,6 +108,7 @@ cd $QB/frontend && pnpm e2e:authed
   - 서빙본 확인은 CSSOM 이 아니라 **원문 fetch** 로 해라 — `document.styleSheets` 순회는 inline sheet 를 놓치거나 `cssRules` 접근이 막힐 수 있어 "매치 규칙 0개" 같은 오답을 준다. `fetch(sheet.href).then(r => r.text())` 후 정규식으로 규칙을 찾아라.
   - 실측 — 소스·프로덕션 빌드에는 `.pager-nums{flex-wrap:wrap}` 이 있고 dev 서빙본에는 **없었다**. 프로덕션 빌드를 별도 포트에 띄워 재실행하니 그 캐논이 통과했다.
   - **이 함정의 4차 재발이다.** 앞선 세 번은 "고쳐도 적용이 안 된다" 는 인상으로 나타났다.
+  - ★**복구 = 재기동뿐.** dev 서버를 죽이고 다시 띄운 뒤 같은 명령을 돌리니 코드 변경 0으로 **64/1 → 65-0** 이 됐다. `.next` 캐시를 **실행 중인 서버 밑에서 지우면** `routes-manifest.json` ENOENT 로 그 서버가 500 을 내니, 지우지 말고 **재기동**해라.
 - ★**프로덕션 빌드로 e2e:authed 를 대신 돌리면 다른 것이 깨진다.** 그 suite 는 로컬 dev 전용이다(빌드 타임 env·Clerk storageState 전제). 프로덕션 실행은 **"코드가 맞다" 의 증명**으로만 쓰고, 게이트 숫자는 dev 서버를 재기동한 뒤 다시 재라.
 
 ### 캐시·주기 (2026-07-27 live-conditional-hardening)
