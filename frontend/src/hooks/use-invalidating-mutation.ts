@@ -7,6 +7,7 @@
 import {
   useMutation,
   useQueryClient,
+  type MutationKey,
   type QueryKey,
   type UseMutationResult,
 } from "@tanstack/react-query";
@@ -19,6 +20,8 @@ export interface MutationCallbacks<TData, TError = Error> {
 }
 
 export interface InvalidatingMutationOptions<TData, TVars> {
+  /** React Query mutation 식별 키. */
+  mutationKey?: MutationKey;
   /** Clerk 토큰을 두 번째 인자로 받는 API 호출 — `(vars, token) => api(...)`. */
   mutationFn: (vars: TVars, token: string | null) => Promise<TData>;
   /** 성공 시 invalidate 할 queryKey 목록 — uid/응답/변수로 도출. */
@@ -34,6 +37,7 @@ export function useInvalidatingMutation<TData, TVars>(
   const { uid, getToken } = useAuthCtx();
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: options.mutationKey,
     mutationFn: async (vars: TVars) => {
       const token = await getToken();
       return options.mutationFn(vars, token);

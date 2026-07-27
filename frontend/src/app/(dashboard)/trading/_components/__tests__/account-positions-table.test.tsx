@@ -5,7 +5,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAccountPositions, useClosePosition } from "@/features/live-sessions/hooks";
 import type { AccountPositions } from "@/features/live-sessions/schemas";
 
+const mockUseIsMutating = vi.hoisted(() => vi.fn());
+
+vi.mock("@tanstack/react-query", () => ({
+  useIsMutating: (...args: unknown[]) => mockUseIsMutating(...args),
+}));
+
 vi.mock("@/features/live-sessions/hooks", () => ({
+  closePositionMutationKey: ({ sessionId, symbol }: { sessionId: string; symbol: string }) =>
+    ["close-position", sessionId, symbol],
   useAccountPositions: vi.fn(),
   useClosePosition: vi.fn(),
 }));
@@ -69,6 +77,8 @@ function query(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   closePosition.mockReset();
   refetch.mockReset();
+  mockUseIsMutating.mockReset();
+  mockUseIsMutating.mockReturnValue(0);
   mockAccountPositions.mockReturnValue([query()]);
   mockClosePosition.mockReturnValue({
     mutateAsync: closePosition,
@@ -90,14 +100,13 @@ describe("AccountPositionsTable", () => {
     render(<AccountPositionsTable accounts={[ACCOUNT]} />);
 
     fireEvent.click(screen.getByTestId("account-position-close-BTC/USDT"));
+    expect(mockClosePosition).toHaveBeenLastCalledWith({
+      sessionId: SESSION_ID,
+      symbol: "BTC/USDT",
+    });
     fireEvent.click(screen.getByRole("button", { name: "청산 실행" }));
 
-    await waitFor(() =>
-      expect(closePosition).toHaveBeenCalledWith({
-        sessionId: SESSION_ID,
-        symbol: "BTC/USDT",
-      }),
-    );
+    await waitFor(() => expect(closePosition).toHaveBeenCalledWith());
   });
 
   it("귀속 세션이 없으면 버튼 대신 사유를 보여준다", () => {

@@ -498,13 +498,23 @@ export interface ClosePositionVariables {
   symbol: string;
 }
 
-export function useClosePosition(): UseMutationResult<
+export function closePositionMutationKey({ sessionId, symbol }: ClosePositionVariables) {
+  return ["close-position", sessionId, symbol] as const;
+}
+
+export function useClosePosition(
+  target?: ClosePositionVariables,
+): UseMutationResult<
   ClosePositionResponse,
   Error,
-  ClosePositionVariables
+  void
 > {
   return useInvalidatingMutation({
-    mutationFn: ({ sessionId }, token) => closePosition(sessionId, token),
+    mutationKey: target ? closePositionMutationKey(target) : undefined,
+    mutationFn: (_void, token) => {
+      if (!target) return Promise.reject(new Error("close position target is required"));
+      return closePosition(target.sessionId, token);
+    },
     invalidateKeys: (uid) => [liveSessionKeys.positionsPrefix(uid)],
   });
 }

@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { useIsMutating } from "@tanstack/react-query";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
@@ -15,7 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAccountPositions, useClosePosition } from "@/features/live-sessions/hooks";
+import {
+  closePositionMutationKey,
+  useAccountPositions,
+  useClosePosition,
+} from "@/features/live-sessions/hooks";
 import type { AccountPositionRow } from "@/features/live-sessions/schemas";
 
 import { EMPTY_CELL, directionLabel, formatPositionReturn } from "./open-positions-table";
@@ -59,13 +64,17 @@ function TableHeaders() {
 
 function PositionRow({
   row,
-  isClosing,
   onClose,
 }: {
   row: Row;
-  isClosing: boolean;
   onClose: (row: Row) => void;
 }) {
+  const isClosing = useIsMutating({
+    mutationKey: closePositionMutationKey({
+      sessionId: row.closable_session_id ?? "",
+      symbol: row.symbol,
+    }),
+  }) > 0;
   const { position } = row;
   const returnValue = formatPositionReturn(position.side, position.entry_price, position.mark_price);
   const pnl = Number(position.unrealized_pnl);
@@ -110,17 +119,18 @@ function PositionRow({
 
 export function AccountPositionsTable({ accounts }: { accounts: readonly AccountTarget[] }) {
   const queries = useAccountPositions(accounts);
-  const closePosition = useClosePosition();
   const [closeTarget, setCloseTarget] = useState<Row | null>(null);
+  const closePosition = useClosePosition(
+    closeTarget?.closable_session_id
+      ? { sessionId: closeTarget.closable_session_id, symbol: closeTarget.symbol }
+      : undefined,
+  );
   const [closeError, setCloseError] = useState<string | null>(null);
 
   const handleClose = async () => {
     if (!closeTarget?.closable_session_id) return;
     try {
-      await closePosition.mutateAsync({
-        sessionId: closeTarget.closable_session_id,
-        symbol: closeTarget.symbol,
-      });
+      await closePosition.mutateAsync();
       setCloseTarget(null);
     } catch (error) {
       // ★`ApiError.message` 는 `API 422 /api/v1/…` 라 사람에게 아무것도 알려주지 않는다.
@@ -269,11 +279,6 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
                 <PositionRow
                   key={`${row.accountId}-${row.symbol}-${row.position.side}-${index}`}
                   row={row}
-                  isClosing={
-                    closePosition.isPending &&
-                    closePosition.variables?.sessionId === row.closable_session_id &&
-                    closePosition.variables.symbol === row.symbol
-                  }
                   onClose={(target) => {
                     setCloseError(null);
                     setCloseTarget(target);

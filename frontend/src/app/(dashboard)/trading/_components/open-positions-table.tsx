@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { useIsMutating } from "@tanstack/react-query";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
@@ -15,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  closePositionMutationKey,
   useClosePosition,
   useLiveSessionsPositions,
   type LiveSessionPositionRow,
@@ -92,15 +94,16 @@ function PositionRow({
   row,
   resolveStrategyName,
   canClose,
-  isClosing,
   onClose,
 }: {
   row: LiveSessionPositionRow;
   resolveStrategyName?: (sessionId: string, fallback: string) => string;
   canClose: boolean;
-  isClosing: boolean;
   onClose: (row: LiveSessionPositionRow) => void;
 }) {
+  const isClosing = useIsMutating({
+    mutationKey: closePositionMutationKey({ sessionId: row.sessionId, symbol: row.symbol }),
+  }) > 0;
   const { position } = row;
   const returnValue = formatPositionReturn(position.side, position.entry_price, position.mark_price);
   const pnl = Number(position.unrealized_pnl);
@@ -170,17 +173,18 @@ export function OpenPositionsTable({
   resolveStrategyName?: (sessionId: string, fallback: string) => string;
 }) {
   const positions = useLiveSessionsPositions(sessions);
-  const closePosition = useClosePosition();
   const [closeTarget, setCloseTarget] = useState<LiveSessionPositionRow | null>(null);
+  const closePosition = useClosePosition(
+    closeTarget
+      ? { sessionId: closeTarget.sessionId, symbol: closeTarget.symbol }
+      : undefined,
+  );
   const [closeError, setCloseError] = useState<string | null>(null);
 
   const handleClose = async () => {
     if (!closeTarget) return;
     try {
-      await closePosition.mutateAsync({
-        sessionId: closeTarget.sessionId,
-        symbol: closeTarget.symbol,
-      });
+      await closePosition.mutateAsync();
       setCloseTarget(null);
     } catch (error) {
       setCloseError(error instanceof Error ? error.message : "청산 요청을 보내지 못했습니다.");
@@ -277,11 +281,6 @@ export function OpenPositionsTable({
                   row={row}
                   resolveStrategyName={resolveStrategyName}
                   canClose={demoSessionIds.has(row.sessionId)}
-                  isClosing={
-                    closePosition.isPending &&
-                    closePosition.variables?.sessionId === row.sessionId &&
-                    closePosition.variables.symbol === row.symbol
-                  }
                   onClose={(target) => {
                     setCloseError(null);
                     setCloseTarget(target);
