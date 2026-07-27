@@ -78,6 +78,14 @@ const COCKPIT_RISE_DELAYS = normalize(`
   .d9 { animation-delay: 440ms; }
 `);
 
+// .pager-nums 줄바꿈 (BL-495). _kit.html 은 페이지 수가 고정된 목업이라 nowrap 이 정당하지만,
+// 앱은 페이지 수가 데이터에 따라 늘어난다. 실측 — 주문 99건 -> 10 페이지 -> span 453px 로
+// 375px 폭에서 문서가 통째로 넘쳤다(scrollWidth 490 > innerWidth 375, 캐논 overflow 하드 실패).
+// 부모 `.pager` 는 이미 flex-wrap: wrap 이라 그 안에서만 줄바꿈이 막혀 있던 것이다.
+// _kit.html 이 줄바꿈을 반영하면 이 항목을 지운다.
+const PAGER_WRAP_PORTED = normalize(`.pager-nums { display: inline-flex; gap: 4px; flex-wrap: wrap; }`);
+const PAGER_WRAP_KIT = normalize(`.pager-nums { display: inline-flex; gap: 4px; }`);
+
 describe("C 공용 CSS 이식 무결성 (S2)", () => {
   const globalsSrc = readFileSync(GLOBALS, "utf8");
   const kitSrc = readFileSync(KIT, "utf8");
@@ -98,12 +106,18 @@ describe("C 공용 CSS 이식 무결성 (S2)", () => {
     expect(portedNorm).toContain(COCKPIT_RISE_DELAYS);
   });
 
+  it(".pager-nums 줄바꿈 allowlist 는 이식본에 실재한다 (silent no-op 방지)", () => {
+    expect(portedNorm).toContain(PAGER_WRAP_PORTED);
+    expect(kitNorm).toContain(PAGER_WRAP_KIT);
+  });
+
   it("이식 블록은 allowlist 를 제외하면 _kit.html 공용 블록과 정규화 동일하다", () => {
     // allowlist(선행 공백 포함)를 걷어내면 정본과 완전히 일치해야 한다.
     const portedMinusAllowlist = portedNorm
       .replace(" " + TD_NUM_FIX, "")
       .replace(TOPBAR_BG_PORTED, TOPBAR_BG_KIT)
-      .replace(" " + COCKPIT_RISE_DELAYS, "");
+      .replace(" " + COCKPIT_RISE_DELAYS, "")
+      .replace(PAGER_WRAP_PORTED, PAGER_WRAP_KIT);
     expect(portedMinusAllowlist).toBe(kitNorm);
   });
 });

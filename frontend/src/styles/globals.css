@@ -1672,7 +1672,7 @@ h6 {
     font-size: 0.8rem;
     color: var(--ink-3);
   }
-  .pager-nums { display: inline-flex; gap: 4px; }
+  .pager-nums { display: inline-flex; gap: 4px; flex-wrap: wrap; }
   .pg {
     min-width: 34px;
     height: 34px;
