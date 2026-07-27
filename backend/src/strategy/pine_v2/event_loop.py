@@ -22,7 +22,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Any, Literal
 
 import pandas as pd
@@ -218,6 +218,37 @@ class LiveSignal:
     take_profit: Decimal | None = None
     stop_loss: Decimal | None = None
     trailing_stop: Decimal | None = None
+    # catch-up 발행에서만 원래 이벤트가 난 bar 시각을 보존한다. 기본 라이브 호출은 None으로
+    # 유지해 마지막 bar만 발행하던 기존 계약을 그대로 둔다.
+    bar_time: datetime | None = None
+
+
+@dataclass
+class PendingOrderSnapshot:
+    """거래소 조건부 진입 주문과 reconcile할 엔진의 desired 상태.
+
+    ★`target_position` 이 사이징의 SSOT다. "이 주문이 체결되면 순 포지션이 얼마가 되어야
+    하는가"(long +, short -)를 담으며, 주문 수량은 reconciler 가 **거래소 실포지션과의 차**
+    로 계산한다. 엔진이 계산한 delta 를 그대로 내보내면 안 되는 이유는 세 가지다.
+
+    - 같은 id 재발행 — `check_pending_fills` 는 체결 시 같은 id 의 open trade 를 먼저
+      닫고 다시 연다(`strategy_state.py:788-796`). 순 변화가 0인데 delta 를 보내면
+      거래소 포지션이 2배가 된다. 시드 전략 `s1_pbr` 이 정확히 이 형태다.
+    - pending 이 2건 이상이면 delta 는 서로 모순된다. 각자 "지금 포지션" 을 가정하는데
+      한쪽이 체결되면 그 가정이 깨진다.
+    - 거래소 실포지션이 시뮬과 어긋났을 때 delta 로는 복구할 방법이 없다. 목표를 보내면
+      reconciler 가 매 tick 스스로 수렴한다.
+
+    `entry_qty` 는 엔진이 의도한 진입 수량으로 표시·진단용이다. 사이징에 쓰지 마라.
+    """
+
+    trade_id: str
+    direction: Literal["long", "short"]
+    target_position: Decimal
+    entry_qty: Decimal
+    stop_price: Decimal
+    placed_bar: int
+    comment: str = ""
 
 
 @dataclass
@@ -236,6 +267,7 @@ class LiveSignalResult:
     # BL-362 — run_historical(strict=False) 가 삼킨 PineRuntimeError (bar_index, msg).
     # 호출자(live_signal task)가 coverage↔interpreter 발산을 fail-closed 처리하도록 표면화.
     errors: list[tuple[int, str]] = field(default_factory=list)
+    pending_orders: list[PendingOrderSnapshot] = field(default_factory=list)
 
 
 def _to_decimal(value: float | None) -> Decimal | None:
@@ -251,6 +283,35 @@ def _to_decimal(value: float | None) -> Decimal | None:
     return Decimal(str(value))
 
 
+# 조건부 진입이 거치는 API 경계의 정밀도. `OrderRequest.quantity` 와 `trigger_price` 는
+# 둘 다 Field(decimal_places=8) 이다. 시장가 경로는 `LiveSignalEvent.qty` 가
+# Numeric(18,8) 이라 DB 왕복이 양자화해 주지만, 조건부 경로는 JSONB 문자열로만 나가서
+# 그 양자화가 없다. percent_of_equity 사이징은 소수 20자리를 만들므로(실측
+# 0.00029537036490054884) 여기서 자르지 않으면 전량 ValidationError 로 거부된다.
+_AMOUNT_QUANTUM = Decimal("1E-8")
+
+
+def _quantize_amount(value: Decimal) -> Decimal:
+    """API 경계(소수 8자리)로 절삭한다. 0 방향 절삭이라 의도보다 커지지 않는다."""
+    return value.quantize(_AMOUNT_QUANTUM, rounding=ROUND_DOWN)
+
+
+def _pending_fills_blocked_by_session(strategy_state: Any, last_bar_time: datetime) -> bool:
+    """마지막 bar 가 금지 세션이면 True.
+
+    엔진은 금지 세션 bar 에서 `check_pending_fills` 를 통째로 건너뛰고 주문을
+    carry-over 한다(`strategy_state.py:748-752`). 그 동안 거래소에 조건부 주문을
+    남겨두면 엔진은 절대 체결하지 않는데 거래소는 체결해 발산한다.
+
+    ★한계 — 판정 기준은 마지막 **종료된** bar 다. 세션 경계에서 최대 1 bar 어긋난다.
+    """
+    if not strategy_state.sessions_allowed:
+        return False
+    from src.strategy.trading_sessions import is_allowed
+
+    return not is_allowed(list(strategy_state.sessions_allowed), last_bar_time)
+
+
 def run_live(
     source: str,
     ohlcv: pd.DataFrame,
@@ -260,6 +321,7 @@ def run_live(
     leverage: float = 1.0,
     sessions_allowed: tuple[str, ...] = (),
     pyramiding: int | None = None,
+    emit_from_bar_time: datetime | None = None,
 ) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
 
@@ -268,9 +330,10 @@ def run_live(
     는 자연 재생되어 PersistentStore.hydrate 같은 별도 직렬화 path 불필요
     (codex G.0 P1 #1 — hydrate 부족 → Option B 선택).
 
-    마지막 bar 의 TradeEvent 만 LiveSignal 로 변환 (codex G.0 P1 #2 — same-bar
-    entry+close 회귀 방어). action="fill" 은 broker 이벤트 (pending stop 체결) 이므로
-    Pine signal 로 dispatch 안 함 — broker 가 자체 fill 알림 처리.
+    기본값에서는 마지막 bar 의 TradeEvent 만 LiveSignal 로 변환한다 (codex G.0 P1 #2 —
+    same-bar entry+close 회귀 방어). `emit_from_bar_time`을 명시한 catch-up 호출만 그 시각
+    뒤의 모든 bar 이벤트를 변환한다. action="fill" 은 broker 이벤트 (pending stop 체결)
+    이므로 Pine signal 로 dispatch 안 함 — broker 가 자체 fill 알림 처리.
 
     Args:
         source: Pine source code.
@@ -283,6 +346,8 @@ def run_live(
             tz-aware DatetimeIndex가 없으면 tz-aware `timestamp` 컬럼으로 인덱스를 세우되,
             해당 컬럼은 보존한다. 둘 다 불가하면 세션 필터가 조용히 무시되지 않도록 실패한다.
         pyramiding: 같은 방향 동시 진입 cap. None 이면 cap을 적용하지 않는다.
+        emit_from_bar_time: 지정 시 이 시각보다 뒤의 bar 이벤트를 모두 발행한다. None이면
+            기존처럼 마지막 bar 이벤트만 발행한다.
 
     Returns:
         LiveSignalResult — last_bar_time + signals + strategy_state_report + 누적 통계.
@@ -335,9 +400,17 @@ def run_live(
         t.id: Decimal(str(t.pnl)) for t in strategy_state.closed_trades if t.pnl is not None
     }
 
-    # 마지막 bar 의 TradeEvent → LiveSignal 변환
+    # 마지막 bar 의 TradeEvent → LiveSignal 변환. 기본 경로는 기존 마지막-bar 필터를
+    # 그대로 쓴다. catch-up만 각 event의 bar_index를 timestamp 컬럼 우선으로 매핑한다.
     last_bar_index = len(ohlcv) - 1
     last_bar_events = [e for e in strategy_state.events if e.bar_index == last_bar_index]
+    emitted_events = last_bar_events
+    if emit_from_bar_time is not None:
+        emitted_events = [
+            e
+            for e in strategy_state.events
+            if _extract_bar_time(ohlcv, e.bar_index) > emit_from_bar_time
+        ]
     last_bar_entry_skips = [
         skip for skip in strategy_state.entry_skips if skip["bar_index"] == last_bar_index
     ]
@@ -348,7 +421,7 @@ def run_live(
     ]
     # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
     signals: list[LiveSignal] = []
-    for e in last_bar_events:
+    for e in emitted_events:
         if e.action not in ("entry", "close"):
             continue
         # Phase 3 — entry signal 은 pending_exits 의 TP/SL/trail 레벨을 fold
@@ -373,6 +446,11 @@ def run_live(
                 take_profit=take_profit,
                 stop_loss=stop_loss,
                 trailing_stop=trailing_stop,
+                bar_time=(
+                    _extract_bar_time(ohlcv, e.bar_index)
+                    if emit_from_bar_time is not None
+                    else None
+                ),
             )
         )
 
@@ -385,10 +463,108 @@ def run_live(
         (Decimal(str(t.pnl)) for t in closed if t.pnl is not None),
         Decimal("0"),
     )
+    # 조건부 진입의 desired set. 엔진 상태(`strategy_state`)는 읽기만 한다 —
+    # 여기서 warnings 에 append 하면 "run_live 는 run_historical 의 단순 wrapper" 라는
+    # mutation oracle 불변식(test_run_live_consistent_with_run_historical_final_state)이
+    # 비정상 레그 입력에서 깨진다. 드롭 사유는 live 전용 키로만 표면화한다.
+    pending_orders: list[PendingOrderSnapshot] = []
+    pending_order_skips: list[dict[str, Any]] = []
+    # 금지 세션 동안 엔진은 pending 체결을 아예 건너뛰고 주문을 carry-over 한다
+    # (`strategy_state.py:748-752`). 그때 거래소에 주문을 남겨두면 엔진은 절대 체결하지
+    # 않는데 거래소는 체결한다 -> 조용한 발산. desired 를 비워 reconciler 가 걷어내게 한다.
+    if _pending_fills_blocked_by_session(strategy_state, last_bar_time):
+        pending_order_skips.extend(
+            {"trade_id": trade_id, "reason": "session_disallowed", "invalid_fields": []}
+            for trade_id in sorted(strategy_state.pending_orders)
+        )
+    else:
+        for trade_id, order in sorted(strategy_state.pending_orders.items()):
+            entry_qty = _to_decimal(order.qty)
+            stop_price = _to_decimal(order.stop_price)
+            if entry_qty is None or stop_price is None:
+                # OrderRequest 의 trigger_price/quantity 는 Field(gt=0) 이라 비정상 값이
+                # 도달하면 ValidationError 로 outbox 가 영구 재시도하는 poison pill 이 된다.
+                pending_order_skips.append(
+                    {
+                        "trade_id": trade_id,
+                        "reason": "invalid_leg",
+                        "invalid_fields": [
+                            name
+                            for name, value in (("qty", entry_qty), ("stop_price", stop_price))
+                            if value is None
+                        ],
+                    }
+                )
+                continue
+            # 체결 후 순 포지션 = (같은 방향 open 중 이 id 를 제외한 합) + 신규 수량.
+            # `check_pending_fills` 가 반대 방향 전량 close -> 같은 id close -> 신규 open
+            # 순으로 도는 것을 그대로 옮긴 것이다(`strategy_state.py:788-796`).
+            # 합산은 Decimal-first — `position_size` 는 float 누적이라 실측 라이브 수량에서
+            # 오염된다(0.02953691 + 0.02946167 -> 0.058998579999999995).
+            same_side_kept = sum(
+                (
+                    Decimal(str(trade.qty))
+                    for other_id, trade in strategy_state.open_trades.items()
+                    if trade.direction == order.direction and other_id != trade_id
+                ),
+                Decimal("0"),
+            )
+            magnitude = same_side_kept + entry_qty
+            target = magnitude if order.direction == "long" else -magnitude
+            # ★양자화 후 재검증. 절삭은 1E-8 미만 양수를 0 으로 만들 수 있고, 그 0 이
+            # 그대로 나가면 Field(gt=0) ValidationError = 막으려던 바로 그 poison pill 이다.
+            # 드롭 검사(`_to_decimal`)는 절삭 이전 값을 봤으므로 여기서 한 번 더 본다.
+            quantized_qty = _quantize_amount(entry_qty)
+            quantized_stop = _quantize_amount(stop_price)
+            quantized_target = _quantize_amount(target)
+            if quantized_qty <= 0 or quantized_stop <= 0 or quantized_target == 0:
+                pending_order_skips.append(
+                    {
+                        "trade_id": trade_id,
+                        "reason": "below_api_precision",
+                        "invalid_fields": [
+                            name
+                            for name, value in (
+                                ("qty", quantized_qty),
+                                ("stop_price", quantized_stop),
+                                ("target_position", quantized_target),
+                            )
+                            if value == 0
+                        ],
+                    }
+                )
+                continue
+            pending_orders.append(
+                PendingOrderSnapshot(
+                    trade_id=trade_id,
+                    direction=order.direction,
+                    target_position=quantized_target,
+                    entry_qty=quantized_qty,
+                    stop_price=quantized_stop,
+                    placed_bar=order.placed_bar,
+                    comment=order.comment,
+                )
+            )
+
     strategy_state_report = strategy_state.to_report().copy()
     strategy_state_report.pop("entry_skips", None)
     strategy_state_report["last_bar_entry_skips"] = last_bar_entry_skips
     strategy_state_report["last_bar_liquidations"] = last_bar_liquidations
+    strategy_state_report["pending_orders"] = [
+        {
+            "trade_id": order.trade_id,
+            "direction": order.direction,
+            "target_position": str(order.target_position),
+            "entry_qty": str(order.entry_qty),
+            "stop_price": str(order.stop_price),
+            "placed_bar": order.placed_bar,
+        }
+        for order in pending_orders
+    ]
+    strategy_state_report["pending_order_skips"] = pending_order_skips
+    # `placed_bar` 는 창 상대 인덱스라 그 자체로는 "창 이탈 임박" 을 판정할 수 없다.
+    # 소비자가 headroom 을 계산할 수 있도록 창 크기를 함께 내보낸다.
+    strategy_state_report["window_bars"] = len(ohlcv)
 
     return LiveSignalResult(
         last_bar_time=last_bar_time,
@@ -399,6 +575,7 @@ def run_live(
         entry_skips=last_bar_entry_skips,
         liquidations=last_bar_liquidations,
         errors=result.errors,  # BL-362 — 삼켜진 발산 표면화
+        pending_orders=pending_orders,
     )
 
 
@@ -407,10 +584,15 @@ def _extract_last_bar_time(ohlcv: pd.DataFrame) -> datetime:
 
     'timestamp' 컬럼 우선 → DatetimeIndex fallback. naive 인 경우 UTC localize.
     """
+    return _extract_bar_time(ohlcv, len(ohlcv) - 1)
+
+
+def _extract_bar_time(ohlcv: pd.DataFrame, bar_index: int) -> datetime:
+    """OHLCV의 bar 인덱스를 UTC tz-aware 시각으로 변환한다."""
     if "timestamp" in ohlcv.columns:
-        ts = pd.Timestamp(ohlcv.iloc[-1]["timestamp"])
+        ts = pd.Timestamp(ohlcv.iloc[bar_index]["timestamp"])
     elif isinstance(ohlcv.index, pd.DatetimeIndex):
-        ts = pd.Timestamp(ohlcv.index[-1])
+        ts = pd.Timestamp(ohlcv.index[bar_index])
     else:
         raise ValueError("OHLCV must have 'timestamp' column or DatetimeIndex")
     if ts.tzinfo is None:

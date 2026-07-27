@@ -7,7 +7,7 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select, text, update
@@ -121,6 +121,54 @@ class OrderRepository:
             select(Order).where(Order.idempotency_key == key)  # type: ignore[arg-type]
         )
         return result.scalar_one_or_none()
+
+    async def list_resting_conditional_entries(
+        self, strategy_id: UUID, exchange_account_id: UUID
+    ) -> Sequence[Order]:
+        """한 전략·계정의 미체결 조건부 진입 주문만 최대 100건 조회한다."""
+        stmt = (
+            select(Order)
+            .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .where(Order.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(Order.exchange_account_id == exchange_account_id)  # type: ignore[arg-type]
+            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .limit(100)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_orphan_conditional_entries(self) -> Sequence[Order]:
+        """비활성 또는 없는 라이브 세션 소유의 조건부 진입 주문을 찾는다."""
+        from src.trading.services.conditional_entry_planner import parse_conditional_entry_key
+
+        stmt = (
+            select(Order)
+            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+        )
+        candidates = (await self.session.execute(stmt)).scalars().all()
+        parsed_orders = [(order, parse_conditional_entry_key(order.idempotency_key)) for order in candidates]
+        session_ids = {parsed[0] for _, parsed in parsed_orders if parsed is not None}
+        if not session_ids:
+            return []
+
+        active_session_ids = set(
+            (
+                await self.session.execute(
+                    select(cast(Any, LiveSignalSession.id))
+                    .where(cast(Any, LiveSignalSession.id).in_(session_ids))
+                    .where(cast(Any, LiveSignalSession.is_active) == True)  # noqa: E712
+                )
+            ).scalars()
+        )
+        return [
+            order
+            for order, parsed in parsed_orders
+            if parsed is not None and parsed[0] not in active_session_ids
+        ]
 
     async def list_by_user(
         self,
@@ -483,6 +531,7 @@ class OrderRepository:
             .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
             .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
+            .where(Order.trigger_price.is_(None))  # type: ignore[union-attr]
             .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
             .limit(100)
         )
@@ -500,6 +549,7 @@ class OrderRepository:
             .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
             .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
             .where(Order.exchange_order_id.is_(None))  # type: ignore[union-attr]
+            .where(Order.trigger_price.is_(None))  # type: ignore[union-attr]
             .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
             .limit(100)
         )

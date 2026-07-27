@@ -226,6 +226,7 @@ class ConditionalOrderSnapshot:
     qty: Decimal | None
     reduce_only: bool
     position_idx: int | None
+    order_link_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1052,9 +1053,9 @@ class BybitFuturesProvider:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_open_conditional_orders(
-        self, creds: Credentials, symbol: str
+        self, creds: Credentials, symbol: str, *, reduce_only: bool | None = True
     ) -> list[ConditionalOrderSnapshot]:
-        """현재 linear reduce-only 조건부 주문을 대조용으로 반환한다."""
+        """현재 linear 조건부 주문을 reduce-only 필터로 대조용 반환한다."""
         linear_symbol = _to_bybit_linear_symbol(symbol)
         exchange = ccxt_async.bybit(
             {
@@ -1089,12 +1090,12 @@ class BybitFuturesProvider:
                 seen_order_ids.add(order_id)
 
                 raw_reduce_only = order.get("reduceOnly", info.get("reduceOnly", False))
-                reduce_only = (
+                order_reduce_only = (
                     raw_reduce_only.lower() == "true"
                     if isinstance(raw_reduce_only, str)
                     else bool(raw_reduce_only)
                 )
-                if not reduce_only:
+                if reduce_only is not None and order_reduce_only != reduce_only:
                     continue
 
                 stop_order_type = str(info.get("stopOrderType") or "")
@@ -1121,10 +1122,15 @@ class BybitFuturesProvider:
                             zero_as_none=True,
                             strict=True,
                         ),
-                        reduce_only=True,
+                        reduce_only=order_reduce_only,
                         position_idx=(
                             int(info["positionIdx"])
                             if info.get("positionIdx") is not None
+                            else None
+                        ),
+                        order_link_id=(
+                            str(order.get("clientOrderId") or info.get("orderLinkId"))
+                            if order.get("clientOrderId") or info.get("orderLinkId")
                             else None
                         ),
                     )

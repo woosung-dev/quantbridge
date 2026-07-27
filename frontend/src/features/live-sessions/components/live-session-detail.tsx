@@ -92,6 +92,34 @@ export function LiveSessionDetail({ session }: Props) {
           typeof item.direction === "string",
       ).length
     : 0;
+  const pendingConditionalEntries: Array<{
+    direction: string;
+    stopPrice: string;
+    targetPosition: string;
+  }> = [];
+  const pendingOrders = state?.last_strategy_state_report?.pending_orders;
+  if (Array.isArray(pendingOrders)) {
+    for (const pendingOrder of pendingOrders) {
+      // 열린 record 스키마라 원소가 `null` 이나 숫자일 수 있다. 방향·트리거·목표 포지션을
+      // 모두 검증하지 않으면 `[null]` 이 대기 조건부 진입으로 위장된다.
+      if (
+        pendingOrder !== null &&
+        typeof pendingOrder === "object" &&
+        "direction" in pendingOrder &&
+        typeof pendingOrder.direction === "string" &&
+        "stop_price" in pendingOrder &&
+        typeof pendingOrder.stop_price === "string" &&
+        "target_position" in pendingOrder &&
+        typeof pendingOrder.target_position === "string"
+      ) {
+        pendingConditionalEntries.push({
+          direction: pendingOrder.direction,
+          stopPrice: pendingOrder.stop_price,
+          targetPosition: pendingOrder.target_position,
+        });
+      }
+    }
+  }
 
   // Sprint 33-A: chart data 사전 계산 (lightweight-charts 호환).
   // useMemo — RQ structural sharing 이 items/equity_curve 하위 참조 identity 를
@@ -196,6 +224,29 @@ export function LiveSessionDetail({ session }: Props) {
           </div>
         </dl>
       </div>
+
+      {pendingConditionalEntries.length > 0 ? (
+        <div className="rounded-md border p-4" data-testid="live-session-pending-orders">
+          <h4 className="mb-2 text-sm font-medium">전략이 의도한 조건부 진입</h4>
+          {/* ★이 목록의 출처는 엔진 desired set(`last_strategy_state_report.pending_orders`)
+              이고 reconcile **이전**에 저장된다. 즉 거래소 등재 여부를 말해주지 않는다 —
+              목표 수량이 거래소 눈금 미만이거나 트리거가 이미 돌파됐으면 계획기가 발주를
+              걷어내는데 이 목록은 그대로 남는다. "대기 중" 이라고 쓰면 안 나간 주문을
+              나간 것처럼 보이게 하는 "되는 척" 이 된다. 등재 확정은 주문 원장이 SSOT. */}
+          <p className="mb-2 text-xs text-muted-foreground">
+            전략 엔진이 다음 bar 에 걸려고 하는 조건부 진입입니다. 거래소 등재 여부는 주문 원장에서
+            확인하세요. 목표 수량이 거래소 최소 눈금 미만이거나 트리거가 이미 돌파된 경우 발주되지
+            않습니다.
+          </p>
+          <ul className="space-y-1 text-sm">
+            {pendingConditionalEntries.map((order, index) => (
+              <li key={`${order.direction}-${order.stopPrice}-${index}`} className="font-mono">
+                {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, order.direction, "live-signal-direction")} · 트리거 {order.stopPrice} · 목표 포지션 {order.targetPosition}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* Sprint 27 BL-140 — Activity Timeline (recent N events cumulative chart) */}
       <div className="rounded-md border p-4">

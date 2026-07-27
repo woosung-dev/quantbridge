@@ -152,6 +152,11 @@ celery_app.conf.beat_schedule = {
         "schedule": 300.0,
         "options": {"expires": 240},
     },
+    "sweep-orphan-conditional-entries": {
+        "task": "live_signal.sweep_conditional_entries",
+        "schedule": 300.0,
+        "options": {"expires": 240},
+    },
     "evaluate-alert-rules": {
         "task": "alert_rules.evaluate_loss",
         "schedule": 300.0,

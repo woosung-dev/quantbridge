@@ -26,7 +26,7 @@ import asyncio
 import contextlib
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID, uuid4
@@ -36,6 +36,10 @@ from pydantic import ValidationError
 
 from src.common.alert import track_pending_alert
 from src.common.metrics import (
+    qb_active_orders,
+    qb_live_conditional_cancelled_total,
+    qb_live_conditional_placed_total,
+    qb_live_conditional_reconcile_errors_total,
     qb_live_signal_dispatch_total,
     qb_live_signal_divergence_total,
     qb_live_signal_entry_skipped_total,
@@ -47,7 +51,7 @@ from src.common.metrics import (
 )
 from src.common.redlock import RedisLock
 from src.core.config import settings
-from src.strategy.pine_v2.ast_extractor import extract_content, uses_stop_entry
+from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.alerting import send_rule_alert
@@ -81,11 +85,6 @@ _DIVERGENCE_TITLE = "Live signal divergence — 세션 자동 비활성화 (무�
 _PREFLIGHT_CATEGORY_METADATA: dict[str, tuple[bool, str, str | None]] = {
     "coverage_unrunnable": (True, _DIVERGENCE_REASON, None),
     "degraded_unconsented": (True, _DIVERGENCE_REASON, None),
-    "stop_entry_unsupported": (
-        False,
-        "라이브 미지원 기능",
-        "strategy.entry(stop=) 는 라이브 발주 미지원",
-    ),
     "equity_baseline_missing": (
         False,
         "자본 기준선 부재",
@@ -96,7 +95,16 @@ _PREFLIGHT_CATEGORY_METADATA: dict[str, tuple[bool, str, str | None]] = {
         "자본 소진",
         "세션 누적 손익이 기준 자본을 초과했습니다",
     ),
+    "gap_resync_position_mismatch": (
+        False,
+        "평가 공백 후 포지션 불일치",
+        "평가 공백이 상한을 초과했고 거래소와 시뮬레이션 포지션을 재동기화할 수 없습니다",
+    ),
 }
+
+# 실측된 서버 기전은 1 bar 지연뿐이다. 봉 개수 대신 벽시계 5분으로 제한해 1h 봉 장기
+# 공백을 과거 주문으로 되살리지 않는다.
+_MAX_CATCHUP_WALL_CLOCK_GAP = timedelta(minutes=5)
 
 
 # ---------------------------------------------------------------------------
@@ -203,18 +211,334 @@ def _classify_live_divergence(msg: str) -> str:
     return "unexpected"
 
 
-def _uses_stop_entry_safe(pine_source: str) -> bool:
-    """stop-entry 사용 여부를 확인하되 파싱 실패는 여기서 미지원 사유로 오판하지 않는다.
-
-    파싱 실패 소스는 다음 단계의 `run_live`가 raise하여 같은 함수의 `run_live_error` 경로가
-    fail-closed로 세션을 비활성화한다. 여기서 예외를 전파하거나 stop-entry로 분류하면 사유가
-    부정확해지고 비활성화 경로가 중복된다.
-    """
+def _last_close_or_none(df: Any) -> Decimal | None:
+    """마지막 종료 bar 의 종가. 얻지 못하면 None (검사를 건너뛴다)."""
     try:
-        return uses_stop_entry(pine_source)
+        value = Decimal(str(df["close"].iloc[-1]))
     except Exception:
-        logger.warning("live_signal_stop_entry_detection_failed", exc_info=True)
-        return False
+        return None
+    return value if value.is_finite() and value > 0 else None
+
+
+async def _reconcile_conditional_entries(
+    sess: Any,
+    result: Any,
+    parsed_settings: StrategySettings,
+    sm: Any,
+    *,
+    bar_time: datetime,
+    market_orders_in_flight: bool,
+    reference_price: Decimal | None = None,
+) -> None:
+    """조건부 진입 desired 상태를 안전하게 거래소 resting 주문으로 수렴시킨다.
+
+    ★`market_orders_in_flight` 가 True 면 이번 tick 은 건너뛴다. 이 함수는 dispatch
+    태스크를 `apply_async` 한 **직후**에 불리므로, 그 시장가 진입/청산이 아직 거래소에
+    반영되기 전의 포지션을 읽는다. 그 값으로 사이징하면 초과 수량 주문이 나간다 -
+    실측 예: 청산 대기 중 포지션 +1 에서 target -0.5 를 보면 수량 1.5 를 등재하고,
+    청산이 체결된 뒤 돌파가 오면 의도의 3배가 열린다. 한 tick 늦추는 편이 낫다.
+    """
+    if market_orders_in_flight:
+        qb_live_conditional_reconcile_errors_total.labels(stage="deferred_market_inflight").inc()
+        return
+    try:
+        from src.tasks.celery_app import get_ccxt_provider_for_worker
+        from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
+        from src.trading.encryption import EncryptionService
+        from src.trading.exit_attribution import parse_our_order_link_id
+        from src.trading.kill_switch import (
+            CumulativeLossEvaluator,
+            DailyLossEvaluator,
+            KillSwitchEvaluator,
+            KillSwitchService,
+        )
+        from src.trading.providers import BybitFuturesProvider, _to_bybit_linear_symbol
+        from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+        from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+        from src.trading.repositories.live_signal_session_repository import (
+            LiveSignalSessionRepository,
+        )
+        from src.trading.repositories.order_repository import OrderRepository
+        from src.trading.schemas import OrderRequest
+        from src.trading.services.account_service import ExchangeAccountService
+        from src.trading.services.conditional_entry_planner import (
+            RestingConditionalEntry,
+            build_conditional_entry_key,
+            parse_conditional_entry_key,
+            plan_reconcile,
+        )
+        from src.trading.services.order_service import OrderService
+
+        async with sm() as session:
+            order_repo = OrderRepository(session)
+            local_orders = await order_repo.list_resting_conditional_entries(
+                sess.strategy_id, sess.exchange_account_id
+            )
+            desired = list(result.pending_orders)
+
+            # stop-entry를 쓰지 않는 전략에는 DB 조회 하나 외 비용을 지우고 REST를 절대 열지 않는다.
+            if not desired and not local_orders:
+                return
+
+            account_repo = ExchangeAccountRepository(session)
+            kse_repo = KillSwitchEventRepository(session)
+            active_kill_switch = await kse_repo.get_active(
+                strategy_id=sess.strategy_id, account_id=sess.exchange_account_id
+            )
+            cancel_reason = "desired_removed"
+            if not sess.is_active:
+                desired = []
+                cancel_reason = "session_inactive"
+            elif active_kill_switch is not None:
+                desired = []
+                cancel_reason = "kill_switch"
+
+            bybit_provider = BybitFuturesProvider()
+            exchange_service = ExchangeAccountService(
+                repo=account_repo,
+                crypto=EncryptionService(settings.trading_encryption_keys),
+                bybit_futures_provider=bybit_provider,
+            )
+            creds = await exchange_service.get_credentials_for_order(sess.exchange_account_id)
+
+            actual_by_order_id: dict[str, RestingConditionalEntry] = {}
+            for order in local_orders:
+                parsed_key = parse_conditional_entry_key(order.idempotency_key)
+                if parsed_key is None or parsed_key[0] != sess.id or order.trigger_price is None:
+                    continue
+                actual_by_order_id[str(order.id)] = RestingConditionalEntry(
+                    trade_id=parsed_key[1],
+                    order_id=str(order.id),
+                    exchange_order_id=order.exchange_order_id,
+                    stop_price=order.trigger_price,
+                    quantity=order.quantity,
+                    side=order.side.value,
+                    trigger_direction=order.trigger_direction,
+                    reduce_only=order.reduce_only,
+                )
+
+            exchange_orders = await bybit_provider.fetch_open_conditional_orders(
+                creds, sess.symbol, reduce_only=None
+            )
+            for exchange_order in exchange_orders:
+                linked_order_id = parse_our_order_link_id(exchange_order.order_link_id)
+                if linked_order_id is None:
+                    continue
+                linked_order = await order_repo.get_by_id(linked_order_id)
+                if (
+                    linked_order is None
+                    or linked_order.strategy_id != sess.strategy_id
+                    or linked_order.exchange_account_id != sess.exchange_account_id
+                    or linked_order.trigger_price is None
+                    or linked_order.reduce_only
+                ):
+                    continue
+                parsed_key = parse_conditional_entry_key(linked_order.idempotency_key)
+                if parsed_key is None or parsed_key[0] != sess.id:
+                    continue
+                # 가격·수량은 거래소 echo가 아니라 우리가 저장한 요청값이 SSOT다.
+                actual_by_order_id[str(linked_order.id)] = RestingConditionalEntry(
+                    trade_id=parsed_key[1],
+                    order_id=str(linked_order.id),
+                    exchange_order_id=exchange_order.order_id,
+                    stop_price=linked_order.trigger_price,
+                    quantity=linked_order.quantity,
+                    side=linked_order.side.value,
+                    trigger_direction=linked_order.trigger_direction,
+                    reduce_only=exchange_order.reduce_only,
+                )
+
+            try:
+                market_provider = get_ccxt_provider_for_worker()
+                await market_provider.exchange.load_markets()
+                market = market_provider.exchange.market(_to_bybit_linear_symbol(sess.symbol))
+                precision = market.get("precision") if isinstance(market, dict) else None
+                if not isinstance(precision, dict):
+                    raise ValueError("conditional entry market precision is unavailable")
+                qty_step = Decimal(str(precision["amount"]))
+                price_tick = Decimal(str(precision["price"]))
+                if (
+                    not qty_step.is_finite()
+                    or not price_tick.is_finite()
+                    or qty_step <= Decimal("0")
+                    or price_tick <= Decimal("0")
+                ):
+                    raise ValueError("conditional entry market precision is unavailable")
+            except Exception:
+                qb_live_conditional_reconcile_errors_total.labels(stage="precision").inc()
+                logger.exception(
+                    "live_conditional_reconcile_precision_failed",
+                    extra={"session_id": str(sess.id), "symbol": sess.symbol},
+                )
+                return
+
+            # ★계정 순포지션을 세션 target 에서 빼는 산술은 "이 계정·심볼의 포지션이 이
+            # 세션 것뿐" 이라는 전제 위에 선다. 그 전제가 깨지는 경우가 둘이고 둘 다
+            # 실주문을 파괴적으로 만든다.
+            #   (a) hedge mode — long/short 가 동시에 열려 순포지션이 우리 사이징 모델과
+            #       다른 의미가 된다.
+            #   (b) 같은 계정·심볼에 다른 전략 세션 — 활성 세션 unique 키가
+            #       `strategy_id` 를 포함하므로(`models.py` uq_live_sessions_active_unique)
+            #       구조적으로 허용된다. 전략 A 가 +1 보유 중 전략 B 가 -1 을 목표하면
+            #       B 는 수량 2 를 내 **A 의 포지션까지 닫고 반전**한다.
+            # 두 경우 모두 stand-down 한다 — 새로 등재하지 않고 이미 올려둔 우리 조건부
+            # 진입을 걷는다. 취소는 어느 경우에도 안전하고(포지션을 늘리지 않는다),
+            # 남겨두면 그게 잘못된 전제로 체결된다.
+            positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
+            hedge_mode = len(positions) > 1 or any(
+                position.position_idx not in (None, 0) for position in positions
+            )
+            session_repo = LiveSignalSessionRepository(session)
+            shares_account_symbol = any(
+                other.id != sess.id and other.symbol == sess.symbol
+                for other in await session_repo.list_active_by_account(sess.exchange_account_id)
+            )
+            stand_down_reason = (
+                "hedge_mode"
+                if hedge_mode
+                else "shared_account_symbol"
+                if shares_account_symbol
+                else None
+            )
+            current_position = Decimal("0")
+            if stand_down_reason is not None:
+                qb_live_conditional_reconcile_errors_total.labels(stage="positions").inc()
+                logger.error(
+                    "live_conditional_reconcile_divergence",
+                    extra={"session_id": str(sess.id), "reason": stand_down_reason},
+                )
+                desired = []
+                cancel_reason = stand_down_reason
+            else:
+                for position in positions:
+                    if position.side == "long":
+                        current_position += position.size
+                    elif position.side == "short":
+                        current_position -= position.size
+                    else:
+                        raise ValueError(f"unknown position side: {position.side!r}")
+
+            plan = plan_reconcile(
+                desired=desired,
+                actual=tuple(actual_by_order_id.values()),
+                current_position=current_position,
+                qty_step=qty_step,
+                price_tick=price_tick,
+                reference_price=reference_price,
+            )
+            for divergence in plan.divergences:
+                logger.warning(
+                    "live_conditional_reconcile_divergence",
+                    extra={"session_id": str(sess.id), **divergence},
+                )
+
+            cancel_failed = False
+            desired_trade_ids = {entry.trade_id for entry in desired}
+            for entry in plan.to_cancel:
+                try:
+                    if entry.exchange_order_id is None:
+                        rows = await order_repo.transition_pending_to_cancelled(
+                            UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+                        )
+                    else:
+                        await bybit_provider.cancel_order(
+                            creds, entry.exchange_order_id, sess.symbol
+                        )
+                        rows = await order_repo.transition_to_cancelled(
+                            UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+                        )
+                    if rows != 1:
+                        raise RuntimeError("conditional entry cancel lost its state transition")
+                    await order_repo.commit()
+                    # OrderService.execute 가 생성 시 inc 했으므로 terminal 전이에서 dec.
+                    # 조건부 진입은 교체·세션 종료로 반복 취소되므로 빠뜨리면 active gauge 가
+                    # 단조 증가해 운영 경보가 왜곡된다(표준 취소 경로는 trading.py 가 dec 한다).
+                    qb_active_orders.dec()
+                    reason = (
+                        cancel_reason
+                        if not desired_trade_ids
+                        else "replaced"
+                        if entry.trade_id in desired_trade_ids
+                        else "desired_removed"
+                    )
+                    qb_live_conditional_cancelled_total.labels(reason=reason).inc()
+                except Exception:
+                    cancel_failed = True
+                    qb_live_conditional_reconcile_errors_total.labels(stage="cancel").inc()
+                    logger.exception(
+                        "live_conditional_reconcile_cancel_failed",
+                        extra={"session_id": str(sess.id), "order_id": entry.order_id},
+                    )
+            if cancel_failed:
+                return
+            if not plan.to_place:
+                return
+
+            evaluators: list[KillSwitchEvaluator] = [
+                CumulativeLossEvaluator(
+                    order_repo,
+                    threshold_percent=settings.kill_switch_cumulative_loss_percent,
+                    capital_base=settings.kill_switch_capital_base_usd,
+                    balance_provider=exchange_service,
+                ),
+                DailyLossEvaluator(
+                    order_repo,
+                    threshold_usd=settings.kill_switch_daily_loss_usd,
+                ),
+            ]
+            order_service = OrderService(
+                session=session,
+                repo=order_repo,
+                dispatcher=_CeleryOrderDispatcher(),
+                kill_switch=KillSwitchService(evaluators=evaluators, events_repo=kse_repo),
+                sessions_port=_StrategySessionsAdapter(session),
+                exchange_service=exchange_service,
+            )
+            for planned_entry in plan.to_place:
+                try:
+                    request = OrderRequest(
+                        strategy_id=sess.strategy_id,
+                        exchange_account_id=sess.exchange_account_id,
+                        symbol=sess.symbol,
+                        side=OrderSide(planned_entry.side),
+                        type=OrderType.market,
+                        quantity=planned_entry.quantity,
+                        price=None,
+                        trigger_price=planned_entry.trigger_price,
+                        trigger_direction=planned_entry.trigger_direction,
+                        trigger_by="LastPrice",
+                        reduce_only=False,
+                        leverage=parsed_settings.leverage,
+                        margin_mode=parsed_settings.margin_mode,
+                    )
+                    idempotency_key = build_conditional_entry_key(
+                        sess.id,
+                        planned_entry.trade_id,
+                        bar_time,
+                        planned_entry.trigger_price,
+                        planned_entry.quantity,
+                    )
+                    if idempotency_key is None:
+                        # 되짚지 못할 key 로 발주하면 우리 주문을 영원히 남의 것으로 본다.
+                        qb_live_conditional_reconcile_errors_total.labels(
+                            stage="unrepresentable_key"
+                        ).inc()
+                        continue
+                    await order_service.execute(
+                        request,
+                        idempotency_key=idempotency_key,
+                        body_hash=None,
+                    )
+                    qb_live_conditional_placed_total.labels(direction=planned_entry.direction).inc()
+                except Exception:
+                    qb_live_conditional_reconcile_errors_total.labels(stage="place").inc()
+                    logger.exception(
+                        "live_conditional_reconcile_place_failed",
+                        extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
+                    )
+    except Exception:
+        qb_live_conditional_reconcile_errors_total.labels(stage="reconcile").inc()
+        logger.exception("live_conditional_reconcile_failed", extra={"session_id": str(sess.id)})
 
 
 async def _alert_live_divergence(
@@ -326,6 +650,15 @@ async def _heartbeat_extend(lock: RedisLock, *, period_s: float, ttl_ms: int) ->
 
 # Sprint 18 BL-080 prefork-safe engine factory — `_worker_engine.py` 단일 SSOT.
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
+
+
+def _enqueue_conditional_entry_sweep() -> None:
+    """비활성화 직후 고아 조건부 진입 취소를 best-effort로 요청한다."""
+    try:
+        sweep_conditional_entries_task.apply_async(expires=240)
+    except Exception:
+        logger.exception("conditional_entry_sweep_enqueue_failed")
+
 
 # ---------------------------------------------------------------------------
 # Task #1: evaluate_live_signals_task (Beat 1분 fire)
@@ -491,9 +824,6 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 preflight_cat, preflight_symbols = "coverage_unrunnable", cov.all_unsupported
             elif cov.has_degraded:
                 preflight_cat, preflight_symbols = "degraded_unconsented", cov.degraded_calls
-            # stop-entry가 baseline 부재보다 근본 원인이므로 먼저 사용자에게 알린다.
-            elif _uses_stop_entry_safe(strategy.pine_source):
-                preflight_cat = "stop_entry_unsupported"
             # NaN/Infinity 를 먼저 걸러야 한다 — `Decimal('NaN') <= 0` 은 False 가 아니라
             # InvalidOperation 을 raise 한다(실측). 그리고 그건 "자본 소진"이 아니라
             # 애초에 쓸 수 없는 기준선이므로 equity_baseline_missing 으로 진단해야 맞다.
@@ -513,6 +843,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -548,22 +879,26 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ).inc()
                 return {"skipped": "empty_ohlcv"}
 
-            # 5. warmup 창의 첫/마지막 bar → no new bar skip
+            # 5. warmup 창의 첫/마지막 bar → no new bar skip + catch-up 범위 판정
             window_start = datetime.fromtimestamp(int(ohlcv_rows[0][0]) / 1000, tz=UTC)
             last_bar_ms = int(ohlcv_rows[-1][0])
             last_bar_time = datetime.fromtimestamp(last_bar_ms / 1000, tz=UTC)
-            if (
-                sess.last_evaluated_bar_time is not None
-                and last_bar_time <= sess.last_evaluated_bar_time
-            ):
+            last_evaluated_bar_time = sess.last_evaluated_bar_time
+            if last_evaluated_bar_time is not None and last_bar_time <= last_evaluated_bar_time:
                 qb_live_signal_evaluated_total.labels(
                     interval=interval_value, outcome="no_new_bar"
                 ).inc()
                 return {"skipped": "no_new_bar"}
+            emit_from_bar_time: datetime | None = None
+            requires_gap_resync = False
+            if last_evaluated_bar_time is not None:
+                elapsed = last_bar_time - last_evaluated_bar_time
+                if elapsed <= _MAX_CATCHUP_WALL_CLOCK_GAP:
+                    emit_from_bar_time = last_evaluated_bar_time
+                else:
+                    requires_gap_resync = True
 
-            carry_pnl, _ = await event_repo.sum_realized_pnl_before(
-                sess.id, bar_time=window_start
-            )
+            carry_pnl, _ = await event_repo.sum_realized_pnl_before(sess.id, bar_time=window_start)
             assert equity_baseline_usdt is not None  # 위 preflight가 None을 이미 비활성화한다.
             effective_capital = equity_baseline_usdt + carry_pnl
             if (
@@ -580,6 +915,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -616,6 +952,32 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ).inc()
                 return {"skipped": "claim_lost"}
 
+            # 장기 공백은 과거 이벤트를 발주하지 않는다. 거래소가 flat인지 먼저 확인하고,
+            # 아래 warmup replay 결과의 시뮬레이션 flat과 함께 조용한 resync를 판정한다.
+            exchange_positions: list[Any] | None = None
+            if requires_gap_resync:
+                from src.trading.encryption import EncryptionService
+                from src.trading.providers import BybitFuturesProvider
+                from src.trading.services.account_service import ExchangeAccountService
+
+                try:
+                    bybit_provider = BybitFuturesProvider()
+                    exchange_svc = ExchangeAccountService(
+                        repo=account_repo,
+                        crypto=EncryptionService(settings.trading_encryption_keys),
+                        bybit_futures_provider=bybit_provider,
+                    )
+                    creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
+                    exchange_positions = await bybit_provider.fetch_open_positions(
+                        creds, sess.symbol
+                    )
+                except Exception:
+                    logger.warning(
+                        "live_signal_gap_resync_position_fetch_failed",
+                        exc_info=True,
+                        extra={"session_id": str(sess.id), "symbol": sess.symbol},
+                    )
+
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
             pyramiding: int | None = None
@@ -627,18 +989,19 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     exc_info=True,
                     extra={"session_id": str(sess.id)},
                 )
+            run_live_kwargs: dict[str, Any] = {
+                "initial_capital": float(effective_capital),
+                "live_position_size_pct": parsed_settings.position_size_pct,
+                # BL-483 후속: pine_v2 청산 모델은 isolated 기준이다.
+                # margin_mode는 아직 전달하지 않으며 cross 모델은 별도 BL 설계가 필요하다.
+                "leverage": float(parsed_settings.leverage),
+                "sessions_allowed": tuple(strategy.trading_sessions or ()),
+                "pyramiding": pyramiding,
+            }
+            if emit_from_bar_time is not None:
+                run_live_kwargs["emit_from_bar_time"] = emit_from_bar_time
             try:
-                result = run_live(
-                    strategy.pine_source,
-                    df,
-                    initial_capital=float(effective_capital),
-                    live_position_size_pct=parsed_settings.position_size_pct,
-                    # BL-483 후속: pine_v2 청산 모델은 isolated 기준이다.
-                    # margin_mode는 아직 전달하지 않으며 cross 모델은 별도 BL 설계가 필요하다.
-                    leverage=float(parsed_settings.leverage),
-                    sessions_allowed=tuple(strategy.trading_sessions or ()),
-                    pyramiding=pyramiding,
-                )
+                result = run_live(strategy.pine_source, df, **run_live_kwargs)
             except Exception as exc:
                 # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
                 # parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /
@@ -649,6 +1012,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -685,6 +1049,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe
+                    _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
@@ -711,6 +1076,38 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     )
                 return {"deactivated": "runtime_divergence", "category": category}
 
+            if requires_gap_resync:
+                # `to_report()["open_trades"]` 는 **list** 다(`strategy_state.py:1005`).
+                # dict 로 검사하면 항상 False 라 조용한 resync 가 절대 안 타고 모든 장기
+                # 공백이 세션을 죽인다 - 수면·배포 공백이 정확히 그 경로다.
+                simulated_open_trades = result.strategy_state_report.get("open_trades")
+                simulated_flat = (
+                    isinstance(simulated_open_trades, list) and not simulated_open_trades
+                )
+                if exchange_positions == [] and simulated_flat:
+                    # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
+                    # 처리해 수면·배포 공백을 조용히 정상화한다.
+                    pass
+                else:
+                    category = "gap_resync_position_mismatch"
+                    rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                    await sess_repo.commit()
+                    if rows == 1:
+                        _enqueue_conditional_entry_sweep()
+                        await publish_realtime(
+                            str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                        )
+                        qb_live_signal_skipped_total.labels(reason=category).inc()
+                        _fire_divergence_alert(
+                            session_id=sess.id,
+                            stage="gap_resync",
+                            category=category,
+                            raw_msg="exchange_or_simulated_position_not_flat",
+                            error_count=0,
+                            last_error_bar=-1,
+                        )
+                    return {"deactivated": category}
+
             for entry_skip in result.entry_skips:
                 reason = entry_skip.get("reason")
                 if not isinstance(reason, str) or reason not in (
@@ -735,6 +1132,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     "qty": s.qty,
                     "sequence_no": s.sequence_no,
                     "comment": s.comment,
+                    # catch-up은 signal별 원래 bar 시각을 보존한다. 기본 호출의 None은
+                    # repository가 이번 last_bar_time으로 기존처럼 폴백한다.
+                    "bar_time": s.bar_time,
                     # MP-1 — close signal 의 청산 realized PnL (entry 는 None).
                     "realized_pnl": s.realized_pnl,
                     # Phase 3 — entry signal 의 exit 레벨 (bracket placement + trailing). close 는 None.
@@ -815,9 +1215,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             # LESSON-019 — claim UPDATE + events INSERT + state upsert 단일 commit
             await sess_repo.commit()
-            await publish_realtime(
-                str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-            )
+            await publish_realtime(str(sess.user_id), "session_state", {"session_id": str(sess.id)})
 
         # 9. dispatch task enqueue — outbox commit 후 (visibility race 방지)
         for ev in new_events:
@@ -826,6 +1224,18 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     args=[str(ev.id)],
                     expires=300,
                 )
+
+        await _reconcile_conditional_entries(
+            sess,
+            result,
+            parsed_settings,
+            sm,
+            bar_time=last_bar_time,
+            market_orders_in_flight=bool(new_events),
+            # 마지막 종료 bar 종가를 트리거 도달 가능성 판정의 참조가로 쓴다.
+            # 분 안 변동은 못 잡지만 "피벗을 이미 지나갔다" 는 체계적 케이스를 잡는다.
+            reference_price=_last_close_or_none(df),
+        )
 
         qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()
         return {
@@ -955,6 +1365,75 @@ async def _async_dispatch_pending() -> dict[str, Any]:
         await engine.dispose()
 
 
+# ---------------------------------------------------------------------------
+# Task #4: sweep_conditional_entries_task (Beat 5min + session 종료 직후)
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="live_signal.sweep_conditional_entries", max_retries=0)  # type: ignore[untyped-decorator]
+def sweep_conditional_entries_task() -> dict[str, int]:
+    """비활성 세션의 거래소 조건부 진입 주문을 취소한다."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_sweep_conditional_entries())
+
+
+async def _async_sweep_conditional_entries() -> dict[str, int]:
+    """고아 조건부 진입을 거래소 취소 뒤에만 cancelled로 전이한다."""
+    from src.trading.encryption import EncryptionService
+    from src.trading.providers import BybitFuturesProvider
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.account_service import ExchangeAccountService
+
+    engine, sm = create_worker_engine_and_sm()
+    cancelled = 0
+    try:
+        async with sm() as session:
+            order_repo = OrderRepository(session)
+            account_repo = ExchangeAccountRepository(session)
+            provider = BybitFuturesProvider()
+            exchange_service = ExchangeAccountService(
+                repo=account_repo,
+                crypto=EncryptionService(settings.trading_encryption_keys),
+                bybit_futures_provider=provider,
+            )
+            for order in await order_repo.list_orphan_conditional_entries():
+                # ★ORM 속성을 try 밖에서 미리 확보한다. `session.rollback()` 은 객체를
+                # expire 시키므로, except 안에서 `order.id` 를 읽으면 lazy refresh 가
+                # 동기 컨텍스트에서 IO 를 시도해 MissingGreenlet 으로 **에러 핸들러가
+                # 크래시한다**. 그러면 취소 실패 1건이 sweeper 전체를 죽인다(실측).
+                order_id = order.id
+                account_id = order.exchange_account_id
+                exchange_order_id = order.exchange_order_id
+                symbol = order.symbol
+                try:
+                    if exchange_order_id is None:
+                        raise RuntimeError("orphan conditional entry has no exchange order id")
+                    creds = await exchange_service.get_credentials_for_order(account_id)
+                    await provider.cancel_order(creds, exchange_order_id, symbol)
+                    if (
+                        await order_repo.transition_to_cancelled(
+                            order_id, cancelled_at=datetime.now(UTC)
+                        )
+                        == 1
+                    ):
+                        cancelled += 1
+                        qb_active_orders.dec()  # 생성 시 inc 된 것의 terminal 전이
+                    await order_repo.commit()
+                except Exception:
+                    with contextlib.suppress(Exception):
+                        await session.rollback()
+                    qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel").inc()
+                    logger.exception(
+                        "live_conditional_entry_sweep_cancel_failed",
+                        extra={"order_id": str(order_id)},
+                    )
+        return {"cancelled": cancelled}
+    finally:
+        await engine.dispose()
+
+
 async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
     """Per-call engine + dispose. OrderService 조립 + execute + mark_dispatched/failed.
 
@@ -1044,6 +1523,28 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 crypto=crypto,
                 bybit_futures_provider=bybit_provider,
             )
+
+            # close만 거래소 flat을 확인한다. 명시적 0건이면 reduce-only 거부 주문을 만들지
+            # 않고 실패 전이한다. 조회 실패는 정당한 청산을 막지 않도록 fail-open이다.
+            if event.action == "close":
+                try:
+                    positions = await bybit_provider.fetch_open_positions(
+                        await exchange_svc.get_credentials_for_order(sess.exchange_account_id),
+                        sess.symbol,
+                    )
+                    if len(positions) == 0:
+                        await event_repo.mark_failed(event.id, error="close_position_flat")
+                        await event_repo.commit()
+                        qb_live_signal_dispatch_total.labels(
+                            action=event.action, outcome="close_position_flat"
+                        ).inc()
+                        return {"failed": "close_position_flat"}
+                except Exception:
+                    logger.warning(
+                        "live_signal_close_position_check_failed_open",
+                        exc_info=True,
+                        extra={"event_id": str(event.id), "session_id": str(sess.id)},
+                    )
             evaluators: list[KillSwitchEvaluator] = [
                 CumulativeLossEvaluator(
                     order_repo,

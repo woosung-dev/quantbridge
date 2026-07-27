@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -42,7 +43,8 @@ class LiveSignalEventRepository:
         """Pine signals → LiveSignalEvent INSERT (status=pending).
 
         signals 각 dict: {action, direction, trade_id, qty, sequence_no, comment,
-        realized_pnl, take_profit, stop_loss, trailing_stop}. exit 레벨은 entry 만 set.
+        realized_pnl, take_profit, stop_loss, trailing_stop, bar_time}. `bar_time`이 없거나
+        None이면 기존 인자 `bar_time`으로 폴백한다. exit 레벨은 entry 만 set.
         UNIQUE (session_id, bar_time, sequence_no, action, trade_id) 가 idempotency 보장
         — 같은 evaluate 가 두 번 fire 해도 INSERT 1번만 성공 (다른 INSERT 는 IntegrityError
         대신 ON CONFLICT DO NOTHING 으로 silent skip).
@@ -57,7 +59,7 @@ class LiveSignalEventRepository:
         rows = [
             {
                 "session_id": session_id,
-                "bar_time": bar_time,
+                "bar_time": sig.get("bar_time") or bar_time,
                 "sequence_no": int(sig["sequence_no"]),  # type: ignore[call-overload]
                 "action": str(sig["action"]),
                 "direction": str(sig["direction"]),
@@ -96,12 +98,19 @@ class LiveSignalEventRepository:
         )
         await self.session.execute(stmt)
         await self.session.flush()
-        # 최종 상태 조회 (이미 존재하던 + 신규 모두 반환)
+        # 최종 상태 조회 (이미 존재하던 + 신규 모두 반환). catch-up은 여러 bar를 한 번에
+        # 넣으므로 signal별 bar_time 전체를 조회한다.
+        event_bar_times = list(
+            dict.fromkeys(cast(datetime, row["bar_time"]) for row in rows)
+        )
         result = await self.session.execute(
             select(LiveSignalEvent)
             .where(LiveSignalEvent.session_id == session_id)  # type: ignore[arg-type]
-            .where(LiveSignalEvent.bar_time == bar_time)  # type: ignore[arg-type]
-            .order_by(LiveSignalEvent.sequence_no.asc())  # type: ignore[attr-defined]
+            .where(cast(Any, LiveSignalEvent.bar_time).in_(event_bar_times))
+            .order_by(
+                cast(Any, LiveSignalEvent.bar_time).asc(),
+                cast(Any, LiveSignalEvent.sequence_no).asc(),
+            )
         )
         return result.scalars().all()
 

@@ -254,6 +254,11 @@ def test_run_live_consistent_with_run_historical_final_state() -> None:
         },
         "last_bar_entry_skips": [],
         "last_bar_liquidations": [],
+        # G1 — 조건부 진입 desired set 도 live 전용 키다. run_live 는 엔진 상태를
+        # 읽기만 하므로 나머지 키는 여전히 run_historical 과 byte-identical 이어야 한다.
+        "pending_orders": [],
+        "pending_order_skips": [],
+        "window_bars": len(ohlcv),
     }
 
 
