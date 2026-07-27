@@ -165,6 +165,26 @@ async def test_transition_to_rejected_records_error_message(db_session, strategy
     assert fetched.error_message == "InsufficientFunds"
 
 
+async def test_janitor_reject_cas_loses_to_late_exchange_id_attach(db_session, strategy, account):
+    """Janitor는 exchange_order_id가 붙은 submitted 행을 reject하면 안 된다."""
+    repo, order = await _make_order(db_session, strategy, account)
+    await repo.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
+    await repo.attach_exchange_order_id(order.id, "late-exchange-id")
+    await repo.commit()
+
+    rowcount = await repo.transition_submitted_without_exchange_id_to_rejected(
+        order.id,
+        error_message="not found",
+        failed_at=datetime.now(UTC),
+    )
+    await repo.commit()
+    await db_session.refresh(order)
+
+    assert rowcount == 0
+    assert order.state == OrderState.submitted
+    assert order.exchange_order_id == "late-exchange-id"
+
+
 async def test_get_by_idempotency_key_returns_order(db_session, strategy, account):
     repo, order = await _make_order(db_session, strategy, account, idem="tv-signal-001")
     fetched = await repo.get_by_idempotency_key("tv-signal-001")

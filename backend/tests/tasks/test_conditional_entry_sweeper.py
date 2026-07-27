@@ -6,6 +6,7 @@ import sys
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -185,6 +186,12 @@ async def test_sweeper_logs_and_metrics_provider_cancel_failure(
         async def cancel_order(self, _creds: Any, _exchange_order_id: str, _symbol: str) -> None:
             raise RuntimeError("provider unavailable")
 
+        async def fetch_order(
+            self, _creds: Any, _exchange_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            assert trigger is True
+            raise RuntimeError("provider unavailable")
+
     monkeypatch.setattr(
         live_signal_module,
         "create_worker_engine_and_sm",
@@ -200,6 +207,46 @@ async def test_sweeper_logs_and_metrics_provider_cancel_failure(
     assert result == {"cancelled": 0}
     assert metric._value.get() == before + 1
     assert orphan.state == OrderState.submitted
+
+
+@pytest.mark.asyncio
+async def test_sweeper_uses_conditional_probe_after_cancel_failure(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    orphan = await conditional_entry_factory(active=False)
+    await db_session.commit()
+
+    class _Provider:
+        async def cancel_order(self, _creds: Any, _exchange_order_id: str, _symbol: str) -> None:
+            raise RuntimeError("cancel raced with fill")
+
+        async def fetch_order(
+            self, _creds: Any, exchange_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            assert exchange_order_id == orphan.exchange_order_id
+            assert trigger is True
+            return SimpleNamespace(
+                exchange_order_id=exchange_order_id,
+                status="filled",
+                filled_price=Decimal("101"),
+                filled_quantity=Decimal("0.001"),
+            )
+
+    monkeypatch.setattr(
+        live_signal_module,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
+    )
+    monkeypatch.setattr("src.trading.providers.BybitFuturesProvider", _Provider)
+
+    result = await live_signal_module._async_sweep_conditional_entries()
+    await db_session.refresh(orphan)
+
+    assert result == {"cancelled": 0}
+    assert orphan.state == OrderState.filled
+    assert orphan.filled_price == Decimal("101")
 
 
 def test_conditional_entry_sweeper_beat_schedule() -> None:

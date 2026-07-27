@@ -1,4 +1,4 @@
-"""Sprint 15 Phase A.1 — provider.fetch_order interface + 4 provider 구현.
+"""provider.fetch_order와 Bybit client-id 조회 계약을 검증한다.
 
 ExchangeProvider Protocol 에 fetch_order 추가. submitted watchdog (BL-001) 의
 terminal 전이 evidence 확보. CCXT fetch_order(id, symbol) wrap.
@@ -64,6 +64,11 @@ def test_map_ccxt_status_for_fetch_four_states():
     assert _map_ccxt_status_for_fetch("open") == "submitted"
     assert _map_ccxt_status_for_fetch("pending") == "submitted"
     assert _map_ccxt_status_for_fetch(None) == "submitted"
+    assert _map_ccxt_status_for_fetch("New") == "submitted"
+    assert _map_ccxt_status_for_fetch("Untriggered") == "submitted"
+    assert _map_ccxt_status_for_fetch("Triggered") == "submitted"
+    assert _map_ccxt_status_for_fetch("Cancelled") == "cancelled"
+    assert _map_ccxt_status_for_fetch("Deactivated") == "rejected"
 
 
 # -------------------------------------------------------------------------
@@ -115,6 +120,14 @@ def bybit_fetch_mock(monkeypatch):
         }
     )
     mock_exchange.close = AsyncMock()
+    mock_exchange.load_markets = AsyncMock()
+    mock_exchange.market = MagicMock(return_value={"id": "BTCUSDT"})
+    mock_exchange.privateGetV5OrderRealtime = AsyncMock(
+        return_value={"result": {"list": []}}
+    )
+    mock_exchange.privateGetV5OrderHistory = AsyncMock(
+        return_value={"result": {"list": []}}
+    )
     mock_bybit_cls = MagicMock(return_value=mock_exchange)
     import ccxt.async_support as ccxt_async
 
@@ -235,6 +248,131 @@ async def test_bybit_fetch_order_passes_acknowledged_param(
     await BybitFuturesProvider().fetch_order(credentials, "ord-2", "BTC/USDT:USDT")
     fut_call = mock_exchange.fetch_order.await_args
     assert fut_call.kwargs.get("params", {}).get("acknowledged") is True
+
+
+async def test_bybit_futures_conditional_fetch_order_passes_trigger_param(
+    credentials, bybit_fetch_mock
+):
+    """조건부 진입 probe는 StopOrder 필터를 명시적으로 전달한다."""
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.providers import BybitFuturesProvider
+
+    await BybitFuturesProvider().fetch_order(
+        credentials, "conditional-1", "BTC/USDT", trigger=True
+    )
+
+    call = mock_exchange.fetch_order.await_args
+    assert call.kwargs["params"] == {"acknowledged": True, "trigger": True}
+
+
+async def test_bybit_futures_client_id_lookup_passes_order_link_id_and_trigger(
+    credentials, bybit_fetch_mock
+):
+    """Janitor client-id 조회는 orderId 없이 orderLinkId만 요청한다."""
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.providers import BybitFuturesProvider
+
+    mock_exchange.privateGetV5OrderRealtime = AsyncMock(
+        return_value={
+            "result": {
+                "list": [
+                    {
+                        "orderId": "bybit-order-99",
+                        "orderStatus": "Untriggered",
+                        "avgPrice": "",
+                        "cumExecQty": "0",
+                    }
+                ]
+            }
+        }
+    )
+
+    result = await BybitFuturesProvider().fetch_order_by_client_id(
+        credentials, "local-order-id", "BTC/USDT", trigger=True
+    )
+
+    request = mock_exchange.privateGetV5OrderRealtime.await_args.args[0]
+    assert request == {
+        "category": "linear",
+        "symbol": "BTCUSDT",
+        "orderLinkId": "local-order-id",
+        "orderFilter": "StopOrder",
+    }
+    assert "orderId" not in request
+    mock_exchange.privateGetV5OrderHistory.assert_not_awaited()
+    assert result is not None
+    assert result.exchange_order_id == "bybit-order-99"
+    assert result.status == "submitted"
+
+
+async def test_bybit_futures_client_id_lookup_checks_history_before_absence(
+    credentials, bybit_fetch_mock
+):
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.providers import BybitFuturesProvider
+
+    mock_exchange.privateGetV5OrderHistory = AsyncMock(
+        return_value={
+            "result": {
+                "list": [
+                    {
+                        "orderId": "bybit-filled-1",
+                        "orderStatus": "Filled",
+                        "avgPrice": "50123.45",
+                        "cumExecQty": "0.001",
+                    }
+                ]
+            }
+        }
+    )
+
+    result = await BybitFuturesProvider().fetch_order_by_client_id(
+        credentials, "local-order-id", "BTC/USDT", trigger=True
+    )
+
+    history_request = mock_exchange.privateGetV5OrderHistory.await_args.args[0]
+    assert "orderId" not in history_request
+    assert history_request["orderLinkId"] == "local-order-id"
+    assert result is not None
+    assert result.status == "filled"
+    assert result.filled_price == Decimal("50123.45")
+    assert result.filled_quantity == Decimal("0.001")
+
+
+async def test_bybit_futures_client_id_lookup_returns_none_after_both_lists_are_empty(
+    credentials, bybit_fetch_mock
+):
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.providers import BybitFuturesProvider
+
+    result = await BybitFuturesProvider().fetch_order_by_client_id(
+        credentials, "local-order-id", "BTC/USDT", trigger=True
+    )
+
+    assert result is None
+    mock_exchange.privateGetV5OrderRealtime.assert_awaited_once()
+    mock_exchange.privateGetV5OrderHistory.assert_awaited_once()
+
+
+async def test_bybit_futures_client_id_lookup_raises_on_probe_failure(
+    credentials, bybit_fetch_mock
+):
+    mock_exchange, _ = bybit_fetch_mock
+    import ccxt.async_support as ccxt_async
+
+    from src.trading.exceptions import ProviderError
+    from src.trading.providers import BybitFuturesProvider
+
+    mock_exchange.privateGetV5OrderRealtime = AsyncMock(
+        side_effect=ccxt_async.NetworkError("unavailable")
+    )
+
+    with pytest.raises(ProviderError):
+        await BybitFuturesProvider().fetch_order_by_client_id(
+            credentials, "local-order-id", "BTC/USDT", trigger=True
+        )
+
+    mock_exchange.privateGetV5OrderHistory.assert_not_awaited()
 
 
 async def test_bybit_futures_fetch_order_normalizes_spot_symbol(

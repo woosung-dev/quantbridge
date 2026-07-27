@@ -490,8 +490,22 @@ class ExchangeProvider(Protocol):
     ) -> None: ...
 
     async def fetch_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
+        self,
+        creds: Credentials,
+        exchange_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
     ) -> OrderStatusFetch: ...
+
+    async def fetch_order_by_client_id(
+        self,
+        creds: Credentials,
+        client_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
+    ) -> OrderStatusFetch | None: ...
 
 
 class FixtureExchangeProvider:
@@ -534,7 +548,12 @@ class FixtureExchangeProvider:
         )
 
     async def fetch_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
+        self,
+        creds: Credentials,
+        exchange_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
     ) -> OrderStatusFetch:
         """Sprint 15 Phase A.1 — 결정적 fetch_order. fetch_status_override 로 조작 가능."""
         override = self._fetch_status_override
@@ -548,6 +567,16 @@ class FixtureExchangeProvider:
             filled_quantity=None,
             raw={"id": exchange_order_id, "symbol": symbol, "status": status},
         )
+
+    async def fetch_order_by_client_id(
+        self,
+        creds: Credentials,
+        client_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
+    ) -> OrderStatusFetch | None:
+        return await self.fetch_order(creds, client_order_id, symbol, trigger=trigger)
 
 
 class BybitDemoProvider:
@@ -664,7 +693,12 @@ class BybitDemoProvider:
                 logger.warning("bybit_close_failed", exc_info=True)
 
     async def fetch_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
+        self,
+        creds: Credentials,
+        exchange_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
     ) -> OrderStatusFetch:
         """Sprint 15 Phase A.1 — Bybit Demo spot fetch_order."""
         return await _bybit_fetch_order_impl(
@@ -673,6 +707,24 @@ class BybitDemoProvider:
             symbol=symbol,
             default_type="spot",
             timer_label="bybit",
+            trigger=trigger,
+        )
+
+    async def fetch_order_by_client_id(
+        self,
+        creds: Credentials,
+        client_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
+    ) -> OrderStatusFetch | None:
+        return await _bybit_fetch_order_by_client_id_impl(
+            creds=creds,
+            symbol=symbol,
+            default_type="spot",
+            timer_label="bybit",
+            trigger=trigger,
+            client_order_id=client_order_id,
         )
 
 
@@ -1540,7 +1592,12 @@ class BybitFuturesProvider:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
     async def fetch_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
+        self,
+        creds: Credentials,
+        exchange_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
     ) -> OrderStatusFetch:
         """Sprint 15 Phase A.1 — Bybit Linear Perp futures fetch_order."""
         # BL-404 — spot 포맷 symbol 이면 ccxt 가 category=spot 으로 조회해
@@ -1551,6 +1608,24 @@ class BybitFuturesProvider:
             symbol=_to_bybit_linear_symbol(symbol),
             default_type="linear",
             timer_label="bybit_futures",
+            trigger=trigger,
+        )
+
+    async def fetch_order_by_client_id(
+        self,
+        creds: Credentials,
+        client_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
+    ) -> OrderStatusFetch | None:
+        return await _bybit_fetch_order_by_client_id_impl(
+            creds=creds,
+            symbol=_to_bybit_linear_symbol(symbol),
+            default_type="linear",
+            timer_label="bybit_futures",
+            trigger=trigger,
+            client_order_id=client_order_id,
         )
 
     async def fetch_balance(self, creds: Credentials) -> dict[str, Decimal]:
@@ -1847,7 +1922,12 @@ class OkxDemoProvider:
                 logger.warning("okx_close_failed", exc_info=True)
 
     async def fetch_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
+        self,
+        creds: Credentials,
+        exchange_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
     ) -> OrderStatusFetch:
         """Sprint 15 Phase A.1 — OKX Demo spot fetch_order. passphrase 필수."""
         if creds.passphrase is None:
@@ -1881,6 +1961,16 @@ class OkxDemoProvider:
             except Exception:
                 logger.warning("okx_close_failed", exc_info=True)
 
+    async def fetch_order_by_client_id(
+        self,
+        creds: Credentials,
+        client_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
+    ) -> OrderStatusFetch | None:
+        raise ProviderError("OKX client order id lookup is unsupported")
+
 
 async def _bybit_fetch_order_impl(
     *,
@@ -1889,6 +1979,7 @@ async def _bybit_fetch_order_impl(
     symbol: str,
     default_type: Literal["spot", "linear"],
     timer_label: str,
+    trigger: bool = False,
 ) -> OrderStatusFetch:
     """Sprint 15 Phase A.1 — Bybit Demo / Futures 공유 fetch_order 구현.
 
@@ -1912,9 +2003,10 @@ async def _bybit_fetch_order_impl(
             # BL-404 — ccxt bybit fetchOrder 는 acknowledged=True 없이
             # ArgumentsRequired raise (last-500-orders 제약 인지 게이트).
             # watchdog 은 방금 제출한 주문만 조회하므로 제약 수용 가능.
-            result = await exchange.fetch_order(
-                exchange_order_id, symbol, params={"acknowledged": True}
-            )
+            params: dict[str, Any] = {"acknowledged": True}
+            if trigger:
+                params["trigger"] = True
+            result = await exchange.fetch_order(exchange_order_id, symbol, params=params)
         return _build_order_status_fetch(exchange_order_id, result)
     except ProviderError:
         raise
@@ -1923,6 +2015,92 @@ async def _bybit_fetch_order_impl(
     except Exception:
         # SECURITY: non-CCXT 예외 traceback 에 secret 노출 차단.
         raise ProviderError("unexpected non-CCXT error in fetch_order") from None
+    finally:
+        try:
+            await exchange.close()
+        except Exception:
+            logger.warning("%s_close_failed", timer_label, exc_info=True)
+
+
+def _bybit_v5_first_order(response: dict[str, Any]) -> dict[str, Any] | None:
+    """V5 order realtime/history 응답에서 첫 주문을 꺼낸다."""
+    result = response.get("result")
+    if not isinstance(result, dict):
+        raise ProviderError("malformed Bybit order lookup response: missing result")
+    orders = result.get("list")
+    if not isinstance(orders, list):
+        raise ProviderError("malformed Bybit order lookup response: missing list")
+    if not orders:
+        return None
+    order = orders[0]
+    if not isinstance(order, dict):
+        raise ProviderError("malformed Bybit order lookup response: invalid order")
+    return order
+
+
+def _build_bybit_v5_order_status_fetch(order: dict[str, Any]) -> OrderStatusFetch:
+    """Bybit V5 raw order를 janitor가 쓰는 상태 조회 결과로 정규화한다."""
+    order_id = order.get("orderId")
+    if not isinstance(order_id, str) or not order_id:
+        raise ProviderError("malformed Bybit order lookup response: missing orderId")
+    return OrderStatusFetch(
+        exchange_order_id=order_id,
+        status=_map_ccxt_status_for_fetch(order.get("orderStatus")),
+        filled_price=_decimal_or_none(order.get("avgPrice"), zero_as_none=True),
+        filled_quantity=_decimal_or_none(order.get("cumExecQty"), zero_as_none=True),
+        raw=dict(order),
+    )
+
+
+async def _bybit_fetch_order_by_client_id_impl(
+    *,
+    creds: Credentials,
+    client_order_id: str,
+    symbol: str,
+    default_type: Literal["spot", "linear"],
+    timer_label: str,
+    trigger: bool = False,
+) -> OrderStatusFetch | None:
+    """orderLinkId만으로 V5 realtime 뒤 history를 조회한다.
+
+    ccxt fetch_order는 orderId를 항상 함께 보내므로 이 경로에 사용할 수 없다.
+    realtime에서 빠진 terminal 주문은 history가 최종 부재 판정을 보완한다.
+    """
+    exchange = ccxt_async.bybit(
+        {
+            "apiKey": creds.api_key,
+            "secret": creds.api_secret,
+            "enableRateLimit": True,
+            "timeout": 30000,
+            "options": {"defaultType": default_type, "testnet": False},
+        }
+    )
+    _apply_bybit_env(exchange, creds.environment)
+    try:
+        await exchange.load_markets()
+        market = exchange.market(symbol)
+        request: dict[str, Any] = {
+            "category": default_type,
+            "symbol": market["id"],
+            "orderLinkId": client_order_id,
+        }
+        if trigger:
+            request["orderFilter"] = "StopOrder"
+        async with ccxt_timer(timer_label, "fetch_order_by_client_id"):
+            realtime = await exchange.privateGetV5OrderRealtime(request)
+        order = _bybit_v5_first_order(realtime)
+        if order is not None:
+            return _build_bybit_v5_order_status_fetch(order)
+        async with ccxt_timer(timer_label, "fetch_order_by_client_id"):
+            history = await exchange.privateGetV5OrderHistory(request)
+        order = _bybit_v5_first_order(history)
+        return None if order is None else _build_bybit_v5_order_status_fetch(order)
+    except ProviderError:
+        raise
+    except ccxt_async.BaseError as e:
+        raise ProviderError(f"{type(e).__name__}: {e}") from e
+    except Exception:
+        raise ProviderError("unexpected non-CCXT error in fetch_order_by_client_id") from None
     finally:
         try:
             await exchange.close()
@@ -1976,18 +2154,20 @@ def _map_ccxt_status(ccxt_status: str | None) -> Literal["filled", "submitted", 
 def _map_ccxt_status_for_fetch(
     ccxt_status: str | None,
 ) -> Literal["filled", "submitted", "rejected", "cancelled"]:
-    """CCXT status → OrderStatusFetch status 매핑 (4-state, fetch_order 응답 용).
+    """CCXT/V5 orderStatus → OrderStatusFetch 상태로 매핑한다.
 
-    Sprint 15 Phase A.1 — submitted watchdog 가 cancelled 와 rejected 를 구분
-    필요 (cancelled = 사용자/exchange 정상 취소, rejected = 검증 실패 / 자금 부족).
+    `New`/`Untriggered`/`Triggered`는 submitted, `Deactivated`는 rejected다.
     """
-    match ccxt_status:
+    normalized = ccxt_status.lower() if ccxt_status is not None else None
+    match normalized:
         case "closed" | "filled":
             return "filled"
         case "canceled" | "cancelled":
             return "cancelled"
-        case "rejected" | "expired":
+        case "rejected" | "expired" | "deactivated":
             return "rejected"
+        case "new" | "untriggered" | "triggered":
+            return "submitted"
         case _:
             return "submitted"
 
@@ -2011,6 +2191,21 @@ class BybitLiveProvider:
         raise ProviderError("Bybit live cancel 미지원 — BL-003 mainnet runbook 대기")
 
     async def fetch_order(
-        self, creds: Credentials, exchange_order_id: str, symbol: str
+        self,
+        creds: Credentials,
+        exchange_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
     ) -> OrderStatusFetch:
         raise ProviderError("Bybit live fetch 미지원 — BL-003 mainnet runbook 대기")
+
+    async def fetch_order_by_client_id(
+        self,
+        creds: Credentials,
+        client_order_id: str,
+        symbol: str,
+        *,
+        trigger: bool = False,
+    ) -> OrderStatusFetch | None:
+        raise ProviderError("Bybit live client order id lookup 미지원 — BL-003 mainnet runbook 대기")

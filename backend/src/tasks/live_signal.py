@@ -377,8 +377,10 @@ async def _reconcile_conditional_entries(
                 if order_id in confirmed_order_ids or resting.exchange_order_id is None:
                     continue
                 try:
+                    # orderId 조회에서는 필터가 느슨해도, 조건부 주문임을 명시해 client-id
+                    # 조회 경로와 같은 StopOrder 계약을 유지한다.
                     probe = await bybit_provider.fetch_order(
-                        creds, resting.exchange_order_id, sess.symbol
+                        creds, resting.exchange_order_id, sess.symbol, trigger=True
                     )
                 except Exception:
                     qb_live_conditional_reconcile_errors_total.labels(
@@ -1520,11 +1522,55 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                 account_id = order.exchange_account_id
                 exchange_order_id = order.exchange_order_id
                 symbol = order.symbol
+                if exchange_order_id is None:
+                    continue  # submitted + null id는 janitor가 client id로 확인한다.
                 try:
-                    if exchange_order_id is None:
-                        raise RuntimeError("orphan conditional entry has no exchange order id")
                     creds = await exchange_service.get_credentials_for_order(account_id)
-                    await provider.cancel_order(creds, exchange_order_id, symbol)
+                    try:
+                        await provider.cancel_order(creds, exchange_order_id, symbol)
+                    except Exception:
+                        try:
+                            probe = await provider.fetch_order(
+                                creds, exchange_order_id, symbol, trigger=True
+                            )
+                        except Exception:
+                            with contextlib.suppress(Exception):
+                                await session.rollback()
+                            qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel").inc()
+                            logger.exception(
+                                "live_conditional_entry_sweep_cancel_failed",
+                                extra={"order_id": str(order_id)},
+                            )
+                            continue
+
+                        now = datetime.now(UTC)
+                        if probe.status == "filled":
+                            rows = await order_repo.transition_to_filled(
+                                order_id,
+                                exchange_order_id=probe.exchange_order_id,
+                                filled_price=probe.filled_price,
+                                filled_quantity=probe.filled_quantity,
+                                filled_at=now,
+                            )
+                        elif probe.status == "cancelled":
+                            rows = await order_repo.transition_to_cancelled(
+                                order_id, cancelled_at=now
+                            )
+                        elif probe.status == "rejected":
+                            rows = await order_repo.transition_to_rejected(
+                                order_id,
+                                error_message="Conditional entry rejected on exchange",
+                                failed_at=now,
+                            )
+                        else:
+                            continue
+                        if rows == 1:
+                            await order_repo.commit()
+                            if probe.status == "cancelled":
+                                cancelled += 1
+                            qb_active_orders.dec()
+                        continue
+
                     if (
                         await order_repo.transition_to_cancelled(
                             order_id, cancelled_at=datetime.now(UTC)
