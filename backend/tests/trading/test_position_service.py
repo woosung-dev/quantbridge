@@ -597,6 +597,7 @@ def _account_service(
     sessions=None,
     mode=ExchangeMode.demo,
     exchange=ExchangeName.bybit,
+    read_only=None,
 ):
     """계정 스코프 조회용 서비스. 세션 순회가 아니라 계정 1콜이 원천이다."""
     user_id = uuid4()
@@ -609,7 +610,11 @@ def _account_service(
     account_repo = SimpleNamespace(
         get_by_id=AsyncMock(
             return_value=SimpleNamespace(
-                id=account_id, user_id=user_id, mode=mode, exchange=exchange
+                id=account_id,
+                user_id=user_id,
+                mode=mode,
+                exchange=exchange,
+                read_only=read_only,
             )
         )
     )
@@ -687,6 +692,22 @@ async def test_account_position_without_owning_session_is_not_closable(monkeypat
 
     assert result.rows[0].closable_session_id is None
     assert result.rows[0].close_blocked_reason == "no_owning_session"
+
+
+async def test_read_only_account_position_is_not_closable(monkeypatch):
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, session_repo, _ = _account_service(
+        account_positions=[("BTC/USDT", _position(position_idx=0))],
+        read_only=True,
+    )
+    session_repo.list_by_account = AsyncMock(return_value=[_live_session(account_id)])
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert result.rows[0].closable_session_id is None
+    assert result.rows[0].close_blocked_reason == "read_only_key"
 
 
 async def test_hedge_legs_are_not_closable(monkeypatch):

@@ -21,7 +21,10 @@ vi.mock("@/features/live-sessions/hooks", () => ({
 import { AccountPositionsTable } from "../account-positions-table";
 
 const ACCOUNT = { id: "b0000000-0000-4000-8000-000000000001", label: "Bybit 데모" };
+const ACCOUNT_TWO = { id: "b0000000-0000-4000-8000-000000000002", label: "Bybit 데모 2" };
 const SESSION_ID = "c0000000-0000-4000-8000-000000000001";
+const WRITABLE_SESSION_ID = "c0000000-0000-4000-8000-000000000002";
+const EXCHANGE_UID = "558689281";
 
 const closePosition = vi.fn();
 const refetch = vi.fn();
@@ -165,25 +168,94 @@ describe("AccountPositionsTable", () => {
     ).toBeInTheDocument();
   });
 
-  it("계정이 둘 이상이면 같은 포지션이 중복 표시될 수 있음을 말한다", () => {
-    // dogfood 실측 — 등록된 두 API 키가 같은 Bybit uid 였고 같은 포지션이 두 행으로 나왔다.
-    mockAccountPositions.mockReturnValue([query(), query()]);
+  it("같은 uid와 심볼의 포지션을 한 행으로 접는다", () => {
+    mockAccountPositions.mockReturnValue([
+      query({
+        data: payload({
+          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+        } as Partial<AccountPositions>),
+      }),
+      query(),
+    ]);
 
     render(
       <AccountPositionsTable
-        accounts={[ACCOUNT, { id: "b0000000-0000-4000-8000-000000000002", label: "Bybit 데모 2" }]}
+        accounts={[
+          { ...ACCOUNT, exchangeUid: EXCHANGE_UID, readOnly: true },
+          { ...ACCOUNT_TWO, exchangeUid: EXCHANGE_UID, readOnly: false },
+        ]}
       />,
     );
 
-    expect(
-      screen.getByText(/여러 API 키가 같은 거래소 계정을 가리키면/),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText("BTC/USDT")).toHaveLength(1);
   });
 
-  it("계정이 하나면 중복 안내를 띄우지 않는다", () => {
-    render(<AccountPositionsTable accounts={[ACCOUNT]} />);
+  it("접힌 행은 쓰기 가능하고 귀속 세션이 있는 형제로 청산한다", () => {
+    mockAccountPositions.mockReturnValue([
+      query({
+        data: payload({
+          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+        } as Partial<AccountPositions>),
+      }),
+      query({
+        data: payload({
+          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: WRITABLE_SESSION_ID, close_blocked_reason: null }],
+        } as Partial<AccountPositions>),
+      }),
+    ]);
 
-    expect(screen.queryByText(/여러 API 키가 같은 거래소 계정을 가리키면/)).not.toBeInTheDocument();
+    render(
+      <AccountPositionsTable
+        accounts={[
+          { ...ACCOUNT, exchangeUid: EXCHANGE_UID, readOnly: true },
+          { ...ACCOUNT_TWO, exchangeUid: EXCHANGE_UID, readOnly: false },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("account-position-close-BTC/USDT"));
+
+    expect(mockClosePosition).toHaveBeenLastCalledWith({
+      sessionId: WRITABLE_SESSION_ID,
+      symbol: "BTC/USDT",
+    });
+  });
+
+  it("쓰기 가능하고 귀속된 형제가 없으면 이유와 함께 차단한다", () => {
+    mockAccountPositions.mockReturnValue([
+      query({
+        data: payload({
+          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+        } as Partial<AccountPositions>),
+      }),
+      query({
+        data: payload({
+          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+        } as Partial<AccountPositions>),
+      }),
+    ]);
+
+    render(
+      <AccountPositionsTable
+        accounts={[
+          { ...ACCOUNT, exchangeUid: EXCHANGE_UID, readOnly: true },
+          { ...ACCOUNT_TWO, exchangeUid: EXCHANGE_UID, readOnly: true },
+        ]}
+      />,
+    );
+
+    expect(screen.queryByTestId("account-position-close-BTC/USDT")).not.toBeInTheDocument();
+    expect(screen.getByTestId("account-position-blocked-BTC/USDT")).toHaveTextContent(
+      "이 API 키는 읽기 전용이라 화면에서 청산할 수 없습니다.",
+    );
+  });
+
+  it("exchange_uid가 없으면 같은 심볼도 접지 않는다", () => {
+    mockAccountPositions.mockReturnValue([query(), query()]);
+
+    render(<AccountPositionsTable accounts={[ACCOUNT, ACCOUNT_TWO]} />);
+
+    expect(screen.getAllByText("BTC/USDT")).toHaveLength(2);
   });
 
   it("거래소가 더 있다고 하면 첫 200건만 보여준다고 말한다", () => {

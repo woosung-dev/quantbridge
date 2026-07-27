@@ -160,7 +160,9 @@ export const AccountPositionRowSchema = z.object({
   symbol: z.string(),
   position: ExchangePositionSchema,
   closable_session_id: z.uuid().nullable(),
-  close_blocked_reason: z.enum(["no_owning_session", "hedge_unsupported"]).nullable(),
+  close_blocked_reason: z
+    .enum(["no_owning_session", "hedge_unsupported", "read_only_key"])
+    .nullable(),
 });
 export type AccountPositionRow = z.infer<typeof AccountPositionRowSchema>;
 

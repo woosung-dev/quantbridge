@@ -130,6 +130,15 @@ class ExchangeAccount(SQLModel, table=True):
         sa_column=Column(LargeBinary, nullable=True),
     )
     label: str | None = Field(default=None, max_length=120, nullable=True)
+    # BL-501 — Bybit query-api로 확인한 거래소 계정 식별자/권한. NULL은 아직 미확인이다.
+    exchange_uid: str | None = Field(
+        default=None,
+        sa_column=Column(String(64), nullable=True),
+    )
+    read_only: bool | None = Field(
+        default=None,
+        sa_column=Column(Boolean, nullable=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),

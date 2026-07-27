@@ -1082,6 +1082,45 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
+    async def fetch_api_identity(self, creds: Credentials) -> tuple[str, bool]:
+        """Bybit API key가 가리키는 계정 UID와 read-only 권한을 읽는다."""
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {"defaultType": "linear", "testnet": False},
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_api_identity"):
+                response = await exchange.privateGetV5UserQueryApi()
+            result = response.get("result") if isinstance(response, dict) else None
+            if not isinstance(result, dict):
+                raise ProviderError("malformed Bybit query-api response")
+            user_id = result.get("userID")
+            read_only = result.get("readOnly")
+            if not isinstance(user_id, (str, int)) or isinstance(user_id, bool) or not str(user_id):
+                raise ProviderError("malformed Bybit query-api userID")
+            if isinstance(read_only, bool):
+                return str(user_id), read_only
+            if isinstance(read_only, int) and read_only in (0, 1):
+                return str(user_id), bool(read_only)
+            raise ProviderError("malformed Bybit query-api readOnly")
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
     async def fetch_open_positions(self, creds: Credentials, symbol: str) -> list[PositionSnapshot]:
         """현재 linear 포지션 leg 전체를 대조용으로 반환한다.
 

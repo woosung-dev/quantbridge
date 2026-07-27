@@ -111,6 +111,22 @@ async def test_bybit_futures_create_order_sets_leverage_and_margin_mode(
     assert receipt.status == "filled"
 
 
+async def test_bybit_futures_fetches_api_identity_via_demo_route(credentials, ccxt_mock):
+    mock_exchange, _ = ccxt_mock
+    mock_exchange.privateGetV5UserQueryApi = AsyncMock(
+        return_value={"result": {"userID": "558689281", "readOnly": 1}}
+    )
+
+    from src.trading.providers import BybitFuturesProvider
+
+    exchange_uid, read_only = await BybitFuturesProvider().fetch_api_identity(credentials)
+
+    assert (exchange_uid, read_only) == ("558689281", True)
+    mock_exchange.enable_demo_trading.assert_called_once_with(True)
+    mock_exchange.privateGetV5UserQueryApi.assert_awaited_once()
+    mock_exchange.close.assert_awaited_once()
+
+
 @pytest.mark.parametrize("filled", [None, "not-a-number"])
 async def test_bybit_futures_create_order_ignores_missing_or_malformed_filled_quantity(
     credentials, order_submit_futures, ccxt_mock, filled

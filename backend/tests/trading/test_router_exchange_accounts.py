@@ -5,7 +5,18 @@ URLs: /api/v1/exchange-accounts (router has no prefix; main.py adds /api/v1).
 """
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
+
+from src.trading.providers import BybitFuturesProvider
+
+
+@pytest.fixture(autouse=True)
+def mock_exchange_identity(monkeypatch):
+    identity = AsyncMock(return_value=("558689281", False))
+    monkeypatch.setattr(BybitFuturesProvider, "fetch_api_identity", identity)
+    return identity
 
 
 @pytest.mark.asyncio
@@ -34,7 +45,9 @@ async def test_register_exchange_account_returns_201(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_list_exchange_accounts_returns_registered(client, mock_clerk_auth):
+async def test_list_exchange_accounts_returns_registered(
+    client, mock_clerk_auth, mock_exchange_identity
+):
     # Register an account first
     await client.post(
         "/api/v1/exchange-accounts",
@@ -45,6 +58,7 @@ async def test_list_exchange_accounts_returns_registered(client, mock_clerk_auth
             "api_secret": "secret_value_here_1234",
         },
     )
+    mock_exchange_identity.reset_mock()
 
     res = await client.get("/api/v1/exchange-accounts")
     assert res.status_code == 200, res.text
@@ -54,6 +68,9 @@ async def test_list_exchange_accounts_returns_registered(client, mock_clerk_auth
     item = body["items"][0]
     assert item["exchange"] == "bybit"
     assert "******" in item["api_key_masked"]
+    assert item["exchange_uid"] == "558689281"
+    assert item["read_only"] is False
+    mock_exchange_identity.assert_not_awaited()
 
 
 @pytest.mark.asyncio

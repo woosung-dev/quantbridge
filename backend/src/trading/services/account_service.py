@@ -8,7 +8,7 @@ from uuid import UUID
 
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import AccountNotFound, ProviderError
-from src.trading.models import ExchangeAccount
+from src.trading.models import ExchangeAccount, ExchangeName
 from src.trading.providers import BybitFuturesProvider, Credentials
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.schemas import RegisterAccountRequest
@@ -40,11 +40,57 @@ class ExchangeAccountService:
             label=req.label,
         )
         saved = await self._repo.save(account)
+        await self._populate_exchange_identity(saved)
         # Sprint 15-A: commit 누락 fix. Sprint 6 (webhook_secret) / Sprint 13 (OrderService)
         # 와 동일 broken bug 3 번째 재발 — get_async_session() 자동 commit 안 함이라
         # request 종료 시 ROLLBACK. 회귀 테스트 test_register_calls_repo_commit.
         await self._repo.commit()
         return saved
+
+    async def backfill_exchange_identities(self) -> dict[str, int]:
+        """UID가 아직 없는 계정만 식별해 채운다. 실패는 다음 beat에 재시도한다."""
+        accounts = await self._repo.list_without_exchange_uid()
+        updated = 0
+        for account in accounts:
+            if await self._populate_exchange_identity(account):
+                updated += 1
+        if updated:
+            await self._repo.commit()
+        return {"scanned": len(accounts), "updated": updated}
+
+    async def _populate_exchange_identity(self, account: ExchangeAccount) -> bool:
+        if (
+            account.exchange != ExchangeName.bybit
+            or account.exchange_uid is not None
+            or self._bybit_futures_provider is None
+        ):
+            return False
+        try:
+            exchange_uid, read_only = await self._bybit_futures_provider.fetch_api_identity(
+                self._credentials_for(account)
+            )
+        except Exception as exc:
+            logger.warning(
+                "exchange_account_identity_fetch_failed",
+                extra={"account_id": str(account.id), "error": type(exc).__name__},
+            )
+            return False
+        account.exchange_uid = exchange_uid
+        account.read_only = read_only
+        return True
+
+    def _credentials_for(self, account: ExchangeAccount) -> Credentials:
+        passphrase_pt = (
+            self._crypto.decrypt(account.passphrase_encrypted)
+            if account.passphrase_encrypted is not None
+            else None
+        )
+        return Credentials(
+            api_key=self._crypto.decrypt(account.api_key_encrypted),
+            api_secret=self._crypto.decrypt(account.api_secret_encrypted),
+            passphrase=passphrase_pt,
+            environment=account.mode,
+        )
 
     async def get_credentials_for_order(self, account_id: UUID) -> Credentials:
         """Provider가 주문 직전에만 호출. 감사 로깅 포인트."""
@@ -60,17 +106,7 @@ class ExchangeAccountService:
                 "purpose": "order_execution",
             },
         )
-        passphrase_pt = (
-            self._crypto.decrypt(account.passphrase_encrypted)
-            if account.passphrase_encrypted is not None
-            else None
-        )
-        return Credentials(
-            api_key=self._crypto.decrypt(account.api_key_encrypted),
-            api_secret=self._crypto.decrypt(account.api_secret_encrypted),
-            passphrase=passphrase_pt,
-            environment=account.mode,
-        )
+        return self._credentials_for(account)
 
     async def fetch_mark_price(
         self, account_id: UUID, symbol: str

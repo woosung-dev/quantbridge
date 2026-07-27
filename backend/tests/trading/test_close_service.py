@@ -42,6 +42,7 @@ def _service(
     positions: list[PositionSnapshot] | None = None,
     mode: ExchangeMode = ExchangeMode.demo,
     exchange: ExchangeName = ExchangeName.bybit,
+    read_only: bool | None = None,
     order_service: object | None = None,
 ) -> tuple[ClosePositionService, object, object, object]:
     user_id = uuid4()
@@ -59,6 +60,7 @@ def _service(
                 id=session.exchange_account_id,
                 mode=mode,
                 exchange=exchange,
+                read_only=read_only,
             )
         )
     )
@@ -110,6 +112,17 @@ async def test_close_rejects_non_owned_session() -> None:
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "live session not found"
+
+
+async def test_close_rejects_read_only_key() -> None:
+    service, user_id, session, orders = _service(positions=[_position()], read_only=True)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.close_position(user_id, session.id)
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == "read_only_key"
+    orders.execute.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

@@ -45,6 +45,8 @@ class ExchangeAccountResponse(BaseModel):
     mode: ExchangeMode
     label: str | None
     api_key_masked: str
+    exchange_uid: str | None
+    read_only: bool | None
     created_at: AwareDatetime
 
 
@@ -364,7 +366,9 @@ class AccountPositionRow(BaseModel):
     symbol: str
     position: ExchangePositionSchema
     closable_session_id: UUID | None
-    close_blocked_reason: Literal["no_owning_session", "hedge_unsupported"] | None
+    close_blocked_reason: Literal[
+        "no_owning_session", "hedge_unsupported", "read_only_key"
+    ] | None
 
 
 class AccountPositionsResponse(BaseModel):

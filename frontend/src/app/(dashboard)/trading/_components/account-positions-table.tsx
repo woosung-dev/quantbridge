@@ -36,11 +36,60 @@ const CLOSE_BLOCKED_BODY: Record<string, string> = {
   no_owning_session: "이 계정·심볼로 만든 세션이 없어 원장에 귀속할 수 없습니다.",
   // 감소전용 시장가 청산은 one-way 단일 leg 만 지원한다(양방향은 어느 leg 인지 추론 불가).
   hedge_unsupported: "양방향 포지션은 화면에서 청산할 수 없습니다. 거래소에서 정리해주세요.",
+  read_only_key: "이 API 키는 읽기 전용이라 화면에서 청산할 수 없습니다.",
 };
 
-export type AccountTarget = { id: string; label: string };
+export type AccountTarget = {
+  id: string;
+  label: string;
+  exchangeUid?: string | null;
+  readOnly?: boolean | null;
+};
 
-type Row = AccountPositionRow & { accountId: string; accountLabel: string };
+type Row = AccountPositionRow & {
+  accountId: string;
+  accountLabel: string;
+  exchangeUid: string | null;
+  readOnly: boolean | null;
+};
+
+function collapseRows(rows: readonly Row[]): Row[] {
+  const ungrouped: Row[] = [];
+  const groups = new Map<string, Row[]>();
+  for (const row of rows) {
+    if (row.exchangeUid === null) {
+      ungrouped.push(row);
+      continue;
+    }
+    const key = `${row.exchangeUid}\u0000${row.symbol}`;
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+
+  for (const group of groups.values()) {
+    const closable = group.find(
+      (row) =>
+        row.readOnly !== true &&
+        row.closable_session_id !== null &&
+        row.close_blocked_reason === null,
+    );
+    if (closable) {
+      ungrouped.push(closable);
+      continue;
+    }
+    const survivor = group.find((row) => row.readOnly !== true) ?? group[0];
+    if (!survivor) continue;
+    ungrouped.push({
+      ...survivor,
+      closable_session_id: null,
+      close_blocked_reason: group.every((row) => row.readOnly === true)
+        ? "read_only_key"
+        : (survivor.close_blocked_reason ?? "no_owning_session"),
+    });
+  }
+  return ungrouped;
+}
 
 function TableHeaders() {
   return (
@@ -239,11 +288,19 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
       if (data.truncated) truncated = true;
     }
     for (const row of data.rows) {
-      rows.push({ ...row, accountId: account.id, accountLabel: account.label });
+      rows.push({
+        ...row,
+        accountId: account.id,
+        accountLabel: account.label,
+        exchangeUid: account.exchangeUid ?? null,
+        readOnly: account.readOnly ?? null,
+      });
     }
   }
 
-  if (rows.length === 0 && unsupported.length === 0 && failed.length === 0) {
+  const visibleRows = collapseRows(rows);
+
+  if (visibleRows.length === 0 && unsupported.length === 0 && failed.length === 0) {
     return (
       <div className="card" data-testid="account-positions-table">
         <div className="card-body">
@@ -253,11 +310,7 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
             body="등록된 거래소 계정에서 열린 포지션을 찾지 못했습니다."
           />
         </div>
-        <ScopeFootnote
-          settleCoins={settleCoins}
-          accountCount={accounts.length}
-          truncated={truncated}
-        />
+        <ScopeFootnote settleCoins={settleCoins} truncated={truncated} />
       </div>
     );
   }
@@ -275,7 +328,7 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
           <table className="trades" aria-label="계정별 잔여 포지션">
             <TableHeaders />
             <tbody>
-              {rows.map((row, index) => (
+              {visibleRows.map((row, index) => (
                 <PositionRow
                   key={`${row.accountId}-${row.symbol}-${row.position.side}-${index}`}
                   row={row}
@@ -310,11 +363,7 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
             </tbody>
           </table>
         </div>
-        <ScopeFootnote
-          settleCoins={settleCoins}
-          accountCount={accounts.length}
-          truncated={truncated}
-        />
+        <ScopeFootnote settleCoins={settleCoins} truncated={truncated} />
       </div>
       <Dialog
         open={closeTarget !== null}
@@ -353,11 +402,9 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
 
 function ScopeFootnote({
   settleCoins,
-  accountCount,
   truncated,
 }: {
   settleCoins: ReadonlySet<string>;
-  accountCount: number;
   truncated: boolean;
 }) {
   if (settleCoins.size === 0) return null;
@@ -373,13 +420,6 @@ function ScopeFootnote({
       <p className="table-foot-note">
         {[...settleCoins].join(", ")} 정산 선물(무기한·만기물)만 조회합니다. 다른 정산통화나 인버스 계약의 포지션은 이 표에 나타나지 않습니다.
       </p>
-      {/* dogfood 실측 — 등록된 두 API 키가 같은 Bybit 계정(uid)을 가리켜 같은 포지션이 두 행으로
-          보였다. 계정별 조회라 구조적으로 생기는 일이므로 숨기지 않고 말한다. */}
-      {accountCount > 1 ? (
-        <p className="table-foot-note">
-          계정별로 조회하므로, 여러 API 키가 같은 거래소 계정을 가리키면 같은 포지션이 계정마다 한 번씩 나타납니다. 한 행만 청산하면 그 포지션은 닫힙니다.
-        </p>
-      ) : null}
     </>
   );
 }
