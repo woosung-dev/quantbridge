@@ -210,6 +210,15 @@ def _classify_live_divergence(msg: str) -> str:
     return "unexpected"
 
 
+def _last_close_or_none(df: Any) -> Decimal | None:
+    """마지막 종료 bar 의 종가. 얻지 못하면 None (검사를 건너뛴다)."""
+    try:
+        value = Decimal(str(df["close"].iloc[-1]))
+    except Exception:
+        return None
+    return value if value.is_finite() and value > 0 else None
+
+
 async def _reconcile_conditional_entries(
     sess: Any,
     result: Any,
@@ -218,6 +227,7 @@ async def _reconcile_conditional_entries(
     *,
     bar_time: datetime,
     market_orders_in_flight: bool,
+    reference_price: Decimal | None = None,
 ) -> None:
     """조건부 진입 desired 상태를 안전하게 거래소 resting 주문으로 수렴시킨다.
 
@@ -383,6 +393,7 @@ async def _reconcile_conditional_entries(
                 current_position=current_position,
                 qty_step=qty_step,
                 price_tick=price_tick,
+                reference_price=reference_price,
             )
             for divergence in plan.divergences:
                 logger.warning(
@@ -1186,6 +1197,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             sm,
             bar_time=last_bar_time,
             market_orders_in_flight=bool(new_events),
+            # 마지막 종료 bar 종가를 트리거 도달 가능성 판정의 참조가로 쓴다.
+            # 분 안 변동은 못 잡지만 "피벗을 이미 지나갔다" 는 체계적 케이스를 잡는다.
+            reference_price=_last_close_or_none(df),
         )
 
         qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()

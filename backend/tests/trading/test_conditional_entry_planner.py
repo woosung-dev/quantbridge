@@ -59,6 +59,7 @@ def _plan(
     current: Decimal = Decimal("0"),
     qty_step: Decimal = Decimal("1"),
     price_tick: Decimal = Decimal("1"),
+    reference_price: Decimal | None = None,
 ):
     return plan_reconcile(
         desired=desired,
@@ -66,6 +67,7 @@ def _plan(
         current_position=current,
         qty_step=qty_step,
         price_tick=price_tick,
+        reference_price=reference_price,
     )
 
 
@@ -295,4 +297,43 @@ def test_target_already_met_stays_a_quiet_noop() -> None:
     )
 
     assert plan.to_place == ()
+    assert plan.divergences == ()
+
+
+def test_already_breached_trigger_is_not_placed() -> None:
+    """★이미 돌파된 트리거는 거래소가 받지 않는다 (retCode 110093).
+
+    숏 stop 은 트리거가 < 현재가여야 하는데 가격이 피벗 저점 아래로 내려가면
+    시뮬은 즉시 체결로 보고 거래소는 거부한다. 매 tick 재시도하면 거부 행만 쌓인다
+    (실측 104분에 10건).
+    """
+    plan = _plan(
+        [_desired(direction="short", target=Decimal("-8"), stop=Decimal("128"))],
+        [],
+        reference_price=Decimal("64"),
+    )
+
+    assert plan.to_place == ()
+    assert [item["reason"] for item in plan.divergences] == ["trigger_already_breached"]
+
+
+def test_reachable_trigger_still_places() -> None:
+    """음성 대조 - 정상 방향이면 그대로 발주한다(과잉차단 아님)."""
+    long_ok = _plan([_desired(stop=Decimal("128"))], [], reference_price=Decimal("64"))
+    short_ok = _plan(
+        [_desired(direction="short", target=Decimal("-8"), stop=Decimal("64"))],
+        [],
+        reference_price=Decimal("128"),
+    )
+
+    assert [e.trade_id for e in long_ok.to_place] == ["entry"]
+    assert [e.trade_id for e in short_ok.to_place] == ["entry"]
+    assert long_ok.divergences == () and short_ok.divergences == ()
+
+
+def test_reference_price_omitted_keeps_previous_behaviour() -> None:
+    """참조가 미지정이면 검사를 건너뛴다 - 기존 호출자 무영향."""
+    plan = _plan([_desired(direction="short", target=Decimal("-8"), stop=Decimal("128"))], [])
+
+    assert [e.trade_id for e in plan.to_place] == ["entry"]
     assert plan.divergences == ()

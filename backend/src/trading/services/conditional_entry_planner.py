@@ -146,6 +146,7 @@ def plan_reconcile(
     current_position: Decimal,
     qty_step: Decimal,
     price_tick: Decimal,
+    reference_price: Decimal | None = None,
 ) -> ReconcilePlan:
     """조건부 진입 desired 상태를 거래소 실제와 비교해 결정론적 계획을 만든다.
 
@@ -177,6 +178,29 @@ def plan_reconcile(
 
     for pending in sorted(desired, key=lambda entry: entry.trade_id):
         matching_actual = actual_by_trade_id.pop(pending.trade_id, [])
+        # ★이미 돌파된 트리거는 거래소가 받지 않는다.
+        # 롱 stop 은 트리거가 > 현재가, 숏 stop 은 트리거가 < 현재가여야 한다. 가격이
+        # 피벗을 이미 지나가면 시뮬은 `low <= stop` 으로 즉시 체결로 보는데 거래소는
+        # retCode 110093("expect Falling, but trigger price is above current price")로
+        # 거부한다. 매 tick 재시도하면 거부 행만 쌓인다(실측 104분에 10건).
+        # 참조가 미지정이면 이 검사를 건너뛴다 - 기존 호출자 무영향.
+        if reference_price is not None and reference_price > 0:
+            unreachable = (
+                pending.direction == "long" and pending.stop_price <= reference_price
+            ) or (pending.direction == "short" and pending.stop_price >= reference_price)
+            if unreachable:
+                divergences.append(
+                    {
+                        "trade_id": pending.trade_id,
+                        "reason": "trigger_already_breached",
+                        "direction": pending.direction,
+                        "stop_price": str(pending.stop_price),
+                        "reference_price": str(reference_price),
+                    }
+                )
+                to_cancel.extend(matching_actual)
+                continue
+
         # ★전략이 의도한 포지션 자체가 거래소 눈금으로 표현 불가능한 경우.
         # 잔여 드리프트(목표에 거의 도달해 남은 차이가 눈금 미만)와는 다르다 - 이쪽은
         # 그 전략이 이 계정에서 **영원히 한 주도 못 낸다**는 뜻이다. 조용히 넘기면
