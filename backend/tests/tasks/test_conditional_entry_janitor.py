@@ -14,6 +14,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
+from src.common.metrics import qb_live_conditional_reconcile_errors_total
 from src.core.config import settings
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.tasks import conditional_entry_janitor as janitor_module
@@ -115,16 +116,17 @@ def _patch_task(
     monkeypatch: pytest.MonkeyPatch,
     db_session: AsyncSession,
     provider: type[object],
-) -> MagicMock:
+) -> tuple[MagicMock, MagicMock]:
     dec = MagicMock()
+    dispatch = MagicMock(return_value=provider())
     monkeypatch.setattr(
         janitor_module,
         "create_worker_engine_and_sm",
         _fake_create_worker_engine_and_sm(db_session),
     )
-    monkeypatch.setattr("src.trading.providers.BybitFuturesProvider", provider)
+    monkeypatch.setattr("src.trading.registry.dispatch", dispatch)
     monkeypatch.setattr(janitor_module, "qb_active_orders", SimpleNamespace(dec=dec))
-    return dec
+    return dec, dispatch
 
 
 @pytest.mark.asyncio
@@ -144,7 +146,7 @@ async def test_janitor_rejects_missing_form_one_and_decrements_gauge(
             assert trigger is True
             return None
 
-    dec = _patch_task(monkeypatch, db_session, _Provider)
+    dec, _ = _patch_task(monkeypatch, db_session, _Provider)
 
     result = await janitor_module._async_conditional_entry_janitor()
     await db_session.refresh(order)
@@ -176,7 +178,7 @@ async def test_janitor_repairs_form_one_when_client_id_query_finds_live_order(
                 raw={},
             )
 
-    dec = _patch_task(monkeypatch, db_session, _Provider)
+    dec, _ = _patch_task(monkeypatch, db_session, _Provider)
 
     result = await janitor_module._async_conditional_entry_janitor()
     await db_session.refresh(order)
@@ -197,10 +199,10 @@ async def test_janitor_transitions_form_two_only_after_terminal_probe(
     await db_session.commit()
 
     class _Provider:
-        async def fetch_order(
-            self, _creds: object, exchange_order_id: str, _symbol: str, *, trigger: bool = False
+        async def fetch_order_by_client_id(
+            self, _creds: object, client_order_id: str, _symbol: str, *, trigger: bool = False
         ) -> OrderStatusFetch:
-            assert exchange_order_id == "exchange-ghost"
+            assert client_order_id == str(order.id)
             assert trigger is True
             return OrderStatusFetch(
                 exchange_order_id="exchange-ghost",
@@ -210,7 +212,13 @@ async def test_janitor_transitions_form_two_only_after_terminal_probe(
                 raw={},
             )
 
-    dec = _patch_task(monkeypatch, db_session, _Provider)
+    from src.tasks import trading as trading_module
+
+    trailing = MagicMock()
+    closed_pnl = MagicMock()
+    monkeypatch.setattr(trading_module, "_enqueue_trailing_if_intended", trailing)
+    monkeypatch.setattr(trading_module, "_enqueue_closed_pnl_refresh", closed_pnl)
+    dec, dispatch = _patch_task(monkeypatch, db_session, _Provider)
 
     result = await janitor_module._async_conditional_entry_janitor()
     await db_session.refresh(order)
@@ -219,6 +227,53 @@ async def test_janitor_transitions_form_two_only_after_terminal_probe(
     assert order.state == OrderState.filled
     assert order.filled_price == Decimal("101")
     dec.assert_called_once()
+    dispatch.assert_called_once_with(ExchangeName.bybit, ExchangeMode.demo, False)
+    trailing.assert_called_once()
+    closed_pnl.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "filled_quantity", "expected_state"),
+    [
+        ("cancelled", Decimal("0.0005"), OrderState.cancelled),
+        ("rejected", Decimal("0.0005"), OrderState.rejected),
+        ("cancelled", None, OrderState.cancelled),
+        ("cancelled", Decimal("0"), OrderState.cancelled),
+    ],
+)
+async def test_janitor_terminal_probe_records_only_nonzero_partial_fill(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    filled_quantity: Decimal | None,
+    expected_state: OrderState,
+) -> None:
+    order = await conditional_entry_factory(exchange_order_id="exchange-terminal")
+    await db_session.commit()
+
+    class _Provider:
+        async def fetch_order_by_client_id(
+            self, _creds: object, _client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> OrderStatusFetch:
+            assert trigger is True
+            return OrderStatusFetch(
+                exchange_order_id="exchange-terminal",
+                status=status,  # type: ignore[arg-type]
+                filled_price=Decimal("101") if filled_quantity else None,
+                filled_quantity=filled_quantity,
+                raw={},
+            )
+
+    _patch_task(monkeypatch, db_session, _Provider)
+
+    await janitor_module._async_conditional_entry_janitor()
+    await db_session.refresh(order)
+
+    assert order.state == expected_state
+    assert order.filled_quantity == (filled_quantity if filled_quantity else None)
+    assert order.filled_price == (Decimal("101") if filled_quantity else None)
 
 
 @pytest.mark.asyncio
@@ -233,8 +288,8 @@ async def test_janitor_keeps_form_two_when_probe_is_open_or_fails(
     await db_session.commit()
 
     class _Provider:
-        async def fetch_order(
-            self, _creds: object, _exchange_order_id: str, _symbol: str, *, trigger: bool = False
+        async def fetch_order_by_client_id(
+            self, _creds: object, _client_order_id: str, _symbol: str, *, trigger: bool = False
         ) -> OrderStatusFetch:
             assert trigger is True
             if probe_fails:
@@ -247,7 +302,7 @@ async def test_janitor_keeps_form_two_when_probe_is_open_or_fails(
                 raw={},
             )
 
-    dec = _patch_task(monkeypatch, db_session, _Provider)
+    dec, _ = _patch_task(monkeypatch, db_session, _Provider)
 
     result = await janitor_module._async_conditional_entry_janitor()
     await db_session.refresh(order)
@@ -255,6 +310,82 @@ async def test_janitor_keeps_form_two_when_probe_is_open_or_fails(
     assert result == {"repaired": 0, "rejected": 0, "terminal": 0}
     assert order.state == OrderState.submitted
     dec.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_janitor_rejects_form_two_only_after_client_id_lookup_is_absent(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """form 2도 realtime+history 모두 비었을 때만 부재로 종결한다."""
+    order = await conditional_entry_factory(exchange_order_id="exchange-ghost")
+    await db_session.commit()
+
+    class _Provider:
+        async def fetch_order_by_client_id(
+            self, _creds: object, client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> None:
+            assert client_order_id == str(order.id)
+            assert trigger is True
+            return None
+
+    dec, _ = _patch_task(monkeypatch, db_session, _Provider)
+
+    result = await janitor_module._async_conditional_entry_janitor()
+    await db_session.refresh(order)
+
+    assert result == {"repaired": 0, "rejected": 1, "terminal": 0}
+    assert order.state == OrderState.rejected
+    dec.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_janitor_failure_does_not_stop_later_snapshot(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """첫 rollback 뒤에도 같은 SELECT의 다음 행을 처리한다."""
+    first = await conditional_entry_factory(
+        exchange_order_id="exchange-first",
+        submitted_at=datetime.now(UTC) - timedelta(minutes=32),
+    )
+    second = await conditional_entry_factory(
+        exchange_order_id="exchange-second",
+        submitted_at=datetime.now(UTC) - timedelta(minutes=31),
+    )
+    first_id, second_id = first.id, second.id
+    await db_session.commit()
+
+    class _Provider:
+        async def fetch_order_by_client_id(
+            self, _creds: object, client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> OrderStatusFetch:
+            if client_order_id == str(first_id):
+                raise RuntimeError("first probe fails")
+            assert client_order_id == str(second_id)
+            return OrderStatusFetch(
+                exchange_order_id="exchange-second",
+                status="filled",
+                filled_price=Decimal("101"),
+                filled_quantity=Decimal("0.001"),
+                raw={},
+            )
+
+    dec, _ = _patch_task(monkeypatch, db_session, _Provider)
+    metric = qb_live_conditional_reconcile_errors_total.labels(stage="janitor_probe")
+    before = metric._value.get()
+
+    result = await janitor_module._async_conditional_entry_janitor()
+    first_after = await db_session.get(Order, first_id)
+    second_after = await db_session.get(Order, second_id)
+
+    assert result == {"repaired": 0, "rejected": 0, "terminal": 1}
+    assert first_after is not None and first_after.state == OrderState.submitted
+    assert second_after is not None and second_after.state == OrderState.filled
+    assert metric._value.get() == before + 1
+    dec.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -276,7 +407,7 @@ async def test_janitor_ignores_conditional_entry_inside_cutoff(
             calls.append(args)
             return None
 
-    dec = _patch_task(monkeypatch, db_session, _Provider)
+    dec, _ = _patch_task(monkeypatch, db_session, _Provider)
 
     result = await janitor_module._async_conditional_entry_janitor()
     await db_session.refresh(order)

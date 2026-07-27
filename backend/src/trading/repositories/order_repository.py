@@ -496,17 +496,27 @@ class OrderRepository:
         return result.rowcount or 0  # type: ignore[attr-defined]
 
     async def transition_to_rejected(
-        self, order_id: UUID, *, error_message: str, failed_at: datetime
+        self,
+        order_id: UUID,
+        *,
+        error_message: str,
+        failed_at: datetime,
+        filled_price: Decimal | None = None,
+        filled_quantity: Decimal | None = None,
     ) -> int:
+        values: dict[str, object] = {
+            "state": OrderState.rejected,
+            "error_message": error_message[:2000],
+            "filled_at": failed_at,
+        }
+        if filled_quantity is not None and filled_quantity != 0:
+            values["filled_price"] = filled_price
+            values["filled_quantity"] = filled_quantity
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
-            .values(
-                state=OrderState.rejected,
-                error_message=error_message[:2000],
-                filled_at=failed_at,
-            )
+            .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
@@ -527,12 +537,26 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
-    async def transition_to_cancelled(self, order_id: UUID, *, cancelled_at: datetime) -> int:
+    async def transition_to_cancelled(
+        self,
+        order_id: UUID,
+        *,
+        cancelled_at: datetime,
+        filled_price: Decimal | None = None,
+        filled_quantity: Decimal | None = None,
+    ) -> int:
+        values: dict[str, object] = {
+            "state": OrderState.cancelled,
+            "filled_at": cancelled_at,
+        }
+        if filled_quantity is not None and filled_quantity != 0:
+            values["filled_price"] = filled_price
+            values["filled_quantity"] = filled_quantity
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
-            .values(state=OrderState.cancelled, filled_at=cancelled_at)
+            .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 

@@ -68,7 +68,8 @@ def test_map_ccxt_status_for_fetch_four_states():
     assert _map_ccxt_status_for_fetch("Untriggered") == "submitted"
     assert _map_ccxt_status_for_fetch("Triggered") == "submitted"
     assert _map_ccxt_status_for_fetch("Cancelled") == "cancelled"
-    assert _map_ccxt_status_for_fetch("Deactivated") == "rejected"
+    assert _map_ccxt_status_for_fetch("Deactivated") == "cancelled"
+    assert _map_ccxt_status_for_fetch("PartiallyFilledCanceled") == "filled"
 
 
 # -------------------------------------------------------------------------
@@ -279,6 +280,7 @@ async def test_bybit_futures_client_id_lookup_passes_order_link_id_and_trigger(
                     {
                         "orderId": "bybit-order-99",
                         "orderStatus": "Untriggered",
+                        "orderLinkId": "local-order-id",
                         "avgPrice": "",
                         "cumExecQty": "0",
                     }
@@ -296,7 +298,6 @@ async def test_bybit_futures_client_id_lookup_passes_order_link_id_and_trigger(
         "category": "linear",
         "symbol": "BTCUSDT",
         "orderLinkId": "local-order-id",
-        "orderFilter": "StopOrder",
     }
     assert "orderId" not in request
     mock_exchange.privateGetV5OrderHistory.assert_not_awaited()
@@ -318,6 +319,7 @@ async def test_bybit_futures_client_id_lookup_checks_history_before_absence(
                     {
                         "orderId": "bybit-filled-1",
                         "orderStatus": "Filled",
+                        "orderLinkId": "local-order-id",
                         "avgPrice": "50123.45",
                         "cumExecQty": "0.001",
                     }
@@ -333,6 +335,70 @@ async def test_bybit_futures_client_id_lookup_checks_history_before_absence(
     history_request = mock_exchange.privateGetV5OrderHistory.await_args.args[0]
     assert "orderId" not in history_request
     assert history_request["orderLinkId"] == "local-order-id"
+    assert result is not None
+    assert result.status == "filled"
+    assert result.filled_price == Decimal("50123.45")
+    assert result.filled_quantity == Decimal("0.001")
+
+
+async def test_bybit_futures_client_id_lookup_rejects_another_orders_response(
+    credentials, bybit_fetch_mock
+):
+    """orderId 우선 응답으로 다른 orderLinkId를 반환하면 fail-closed한다."""
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.exceptions import ProviderError
+    from src.trading.providers import BybitFuturesProvider
+
+    mock_exchange.privateGetV5OrderRealtime = AsyncMock(
+        return_value={
+            "result": {
+                "list": [
+                    {
+                        "orderId": "another-order",
+                        "orderLinkId": "another-client-id",
+                        "orderStatus": "Filled",
+                    }
+                ]
+            }
+        }
+    )
+
+    with pytest.raises(ProviderError, match="client id mismatch"):
+        await BybitFuturesProvider().fetch_order_by_client_id(
+            credentials, "local-order-id", "BTC/USDT", trigger=True
+        )
+
+    mock_exchange.privateGetV5OrderHistory.assert_not_awaited()
+
+
+@pytest.mark.parametrize("order_status", ["Cancelled", "Rejected"])
+async def test_bybit_futures_client_id_lookup_promotes_partial_terminal_to_filled(
+    credentials, bybit_fetch_mock, order_status: str
+):
+    """취소/거부 terminal이라도 이미 체결된 수량은 실포지션으로 원장화한다."""
+    mock_exchange, _ = bybit_fetch_mock
+    from src.trading.providers import BybitFuturesProvider
+
+    mock_exchange.privateGetV5OrderRealtime = AsyncMock(
+        return_value={
+            "result": {
+                "list": [
+                    {
+                        "orderId": "bybit-partial-cancel",
+                        "orderLinkId": "local-order-id",
+                        "orderStatus": order_status,
+                        "avgPrice": "50123.45",
+                        "cumExecQty": "0.001",
+                    }
+                ]
+            }
+        }
+    )
+
+    result = await BybitFuturesProvider().fetch_order_by_client_id(
+        credentials, "local-order-id", "BTC/USDT", trigger=True
+    )
+
     assert result is not None
     assert result.status == "filled"
     assert result.filled_price == Decimal("50123.45")

@@ -5,10 +5,11 @@ from __future__ import annotations
 import contextlib
 import logging
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 from celery import shared_task
 
-from src.common.metrics import qb_active_orders
+from src.common.metrics import qb_active_orders, qb_live_conditional_reconcile_errors_total
 from src.core.config import settings
 from src.tasks._worker_engine import create_worker_engine_and_sm
 from src.tasks.orphan_scanner import _SCAN_STUCK_THRESHOLD_MINUTES
@@ -26,8 +27,13 @@ def conditional_entry_janitor_task() -> dict[str, int]:
 
 async def _async_conditional_entry_janitor() -> dict[str, int]:
     """거래소 부재는 CAS reject, 발견된 주문은 수리 또는 terminal 전이한다."""
+    from src.tasks.trading import (
+        _enqueue_closed_pnl_refresh,
+        _enqueue_trailing_if_intended,
+        _has_leverage,
+    )
     from src.trading.encryption import EncryptionService
-    from src.trading.providers import BybitFuturesProvider
+    from src.trading.registry import dispatch
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.repositories.order_repository import OrderRepository
     from src.trading.services.account_service import ExchangeAccountService
@@ -41,25 +47,37 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
         async with sm() as session:
             order_repo = OrderRepository(session)
             account_repo = ExchangeAccountRepository(session)
-            provider = BybitFuturesProvider()
             exchange_service = ExchangeAccountService(
                 repo=account_repo,
                 crypto=EncryptionService(settings.trading_encryption_keys),
-                bybit_futures_provider=provider,
             )
-            for order in await order_repo.list_stale_conditional_entries(cutoff):
-                # rollback 뒤 ORM 객체의 lazy refresh가 MissingGreenlet을 내지 않게 미리 보관한다.
-                order_id = order.id
-                account_id = order.exchange_account_id
-                symbol = order.symbol
-                exchange_order_id = order.exchange_order_id
+            orders = [
+                (
+                    order.id,
+                    order.exchange_account_id,
+                    order.symbol,
+                    order.exchange_order_id,
+                    _has_leverage(order),
+                    SimpleNamespace(
+                        id=order.id,
+                        trailing_stop=order.trailing_stop,
+                        reduce_only=order.reduce_only,
+                    ),
+                )
+                for order in await order_repo.list_stale_conditional_entries(cutoff)
+            ]
+            for order_id, account_id, symbol, exchange_order_id, has_leverage, hook_order in orders:
                 try:
+                    account = await account_repo.get_by_id(account_id)
+                    if account is None:
+                        raise RuntimeError("conditional entry account missing")
+                    provider = dispatch(account.exchange, account.mode, has_leverage)
                     creds = await exchange_service.get_credentials_for_order(account_id)
-                    if exchange_order_id is None:
-                        probe = await provider.fetch_order_by_client_id(
-                            creds, str(order_id), symbol, trigger=True
-                        )
-                        if probe is None:
+                    probe = await provider.fetch_order_by_client_id(
+                        creds, str(order_id), symbol, trigger=True
+                    )
+                    if probe is None:
+                        if exchange_order_id is None:
                             rows = await order_repo.transition_submitted_without_exchange_id_to_rejected(
                                 order_id,
                                 error_message="Conditional entry was not found on exchange",
@@ -69,30 +87,38 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                                 await order_repo.commit()
                                 rejected += 1
                                 qb_active_orders.dec()
+                            else:
+                                qb_live_conditional_reconcile_errors_total.labels(
+                                    stage="janitor_race"
+                                ).inc()
                             continue
-                        exchange_order_id = probe.exchange_order_id
-                        if probe.status == "submitted":
-                            if (
-                                await order_repo.attach_exchange_order_id(
-                                    order_id, exchange_order_id
-                                )
-                                == 1
-                            ):
+                        rows = await order_repo.transition_to_rejected(
+                            order_id,
+                            error_message="Conditional entry was not found on exchange",
+                            failed_at=datetime.now(UTC),
+                        )
+                        if rows == 1:
+                            await order_repo.commit()
+                            rejected += 1
+                            qb_active_orders.dec()
+                        else:
+                            qb_live_conditional_reconcile_errors_total.labels(
+                                stage="janitor_race"
+                            ).inc()
+                        continue
+                    if probe.status == "submitted":
+                        if exchange_order_id != probe.exchange_order_id:
+                            rows = await order_repo.attach_exchange_order_id(
+                                order_id, probe.exchange_order_id
+                            )
+                            if rows == 1:
                                 await order_repo.commit()
                                 repaired += 1
-                            continue
-                        if (
-                            await order_repo.attach_exchange_order_id(order_id, exchange_order_id)
-                            != 1
-                        ):
-                            continue
-                        await order_repo.commit()
-                    else:
-                        probe = await provider.fetch_order(
-                            creds, exchange_order_id, symbol, trigger=True
-                        )
-                        if probe.status == "submitted":
-                            continue
+                            else:
+                                qb_live_conditional_reconcile_errors_total.labels(
+                                    stage="janitor_race"
+                                ).inc()
+                        continue
 
                     now = datetime.now(UTC)
                     if probe.status == "filled":
@@ -104,12 +130,19 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                             filled_at=now,
                         )
                     elif probe.status == "cancelled":
-                        rows = await order_repo.transition_to_cancelled(order_id, cancelled_at=now)
+                        rows = await order_repo.transition_to_cancelled(
+                            order_id,
+                            cancelled_at=now,
+                            filled_price=probe.filled_price,
+                            filled_quantity=probe.filled_quantity,
+                        )
                     elif probe.status == "rejected":
                         rows = await order_repo.transition_to_rejected(
                             order_id,
                             error_message="Conditional entry rejected on exchange",
                             failed_at=now,
+                            filled_price=probe.filled_price,
+                            filled_quantity=probe.filled_quantity,
                         )
                     else:
                         continue
@@ -117,9 +150,17 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                         await order_repo.commit()
                         terminal += 1
                         qb_active_orders.dec()
+                        if probe.status == "filled":
+                            _enqueue_trailing_if_intended(hook_order)
+                            _enqueue_closed_pnl_refresh(hook_order)
+                    else:
+                        qb_live_conditional_reconcile_errors_total.labels(
+                            stage="janitor_race"
+                        ).inc()
                 except Exception:
                     with contextlib.suppress(Exception):
                         await session.rollback()
+                    qb_live_conditional_reconcile_errors_total.labels(stage="janitor_probe").inc()
                     logger.exception(
                         "conditional_entry_janitor_probe_failed",
                         extra={"order_id": str(order_id)},

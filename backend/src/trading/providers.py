@@ -2022,8 +2022,10 @@ async def _bybit_fetch_order_impl(
             logger.warning("%s_close_failed", timer_label, exc_info=True)
 
 
-def _bybit_v5_first_order(response: dict[str, Any]) -> dict[str, Any] | None:
-    """V5 order realtime/history 응답에서 첫 주문을 꺼낸다."""
+def _bybit_v5_first_order(
+    response: dict[str, Any], *, client_order_id: str
+) -> dict[str, Any] | None:
+    """V5 client-id 조회 응답의 주문이 요청한 orderLinkId와 같은지 확인한다."""
     result = response.get("result")
     if not isinstance(result, dict):
         raise ProviderError("malformed Bybit order lookup response: missing result")
@@ -2035,6 +2037,8 @@ def _bybit_v5_first_order(response: dict[str, Any]) -> dict[str, Any] | None:
     order = orders[0]
     if not isinstance(order, dict):
         raise ProviderError("malformed Bybit order lookup response: invalid order")
+    if order.get("orderLinkId") != client_order_id:
+        raise ProviderError("Bybit order lookup client id mismatch")
     return order
 
 
@@ -2043,11 +2047,15 @@ def _build_bybit_v5_order_status_fetch(order: dict[str, Any]) -> OrderStatusFetc
     order_id = order.get("orderId")
     if not isinstance(order_id, str) or not order_id:
         raise ProviderError("malformed Bybit order lookup response: missing orderId")
+    filled_quantity = _decimal_or_none(order.get("cumExecQty"), zero_as_none=True, finite_only=True)
+    status = _map_ccxt_status_for_fetch(order.get("orderStatus"))
+    if status in ("cancelled", "rejected") and filled_quantity is not None and filled_quantity > 0:
+        status = "filled"
     return OrderStatusFetch(
         exchange_order_id=order_id,
-        status=_map_ccxt_status_for_fetch(order.get("orderStatus")),
+        status=status,
         filled_price=_decimal_or_none(order.get("avgPrice"), zero_as_none=True),
-        filled_quantity=_decimal_or_none(order.get("cumExecQty"), zero_as_none=True),
+        filled_quantity=filled_quantity,
         raw=dict(order),
     )
 
@@ -2084,16 +2092,15 @@ async def _bybit_fetch_order_by_client_id_impl(
             "symbol": market["id"],
             "orderLinkId": client_order_id,
         }
-        if trigger:
-            request["orderFilter"] = "StopOrder"
+        # triggered conditional orders leave StopOrder; client-id 조회에는 filter를 보내지 않는다.
         async with ccxt_timer(timer_label, "fetch_order_by_client_id"):
             realtime = await exchange.privateGetV5OrderRealtime(request)
-        order = _bybit_v5_first_order(realtime)
+        order = _bybit_v5_first_order(realtime, client_order_id=client_order_id)
         if order is not None:
             return _build_bybit_v5_order_status_fetch(order)
         async with ccxt_timer(timer_label, "fetch_order_by_client_id"):
             history = await exchange.privateGetV5OrderHistory(request)
-        order = _bybit_v5_first_order(history)
+        order = _bybit_v5_first_order(history, client_order_id=client_order_id)
         return None if order is None else _build_bybit_v5_order_status_fetch(order)
     except ProviderError:
         raise
@@ -2156,15 +2163,15 @@ def _map_ccxt_status_for_fetch(
 ) -> Literal["filled", "submitted", "rejected", "cancelled"]:
     """CCXT/V5 orderStatus → OrderStatusFetch 상태로 매핑한다.
 
-    `New`/`Untriggered`/`Triggered`는 submitted, `Deactivated`는 rejected다.
+    `New`/`Untriggered`/`Triggered`는 submitted, `Deactivated`는 cancelled다.
     """
     normalized = ccxt_status.lower() if ccxt_status is not None else None
     match normalized:
-        case "closed" | "filled":
+        case "closed" | "filled" | "partiallyfilledcanceled":
             return "filled"
-        case "canceled" | "cancelled":
+        case "canceled" | "cancelled" | "deactivated":
             return "cancelled"
-        case "rejected" | "expired" | "deactivated":
+        case "rejected" | "expired":
             return "rejected"
         case "new" | "untriggered" | "triggered":
             return "submitted"
@@ -2208,4 +2215,6 @@ class BybitLiveProvider:
         *,
         trigger: bool = False,
     ) -> OrderStatusFetch | None:
-        raise ProviderError("Bybit live client order id lookup 미지원 — BL-003 mainnet runbook 대기")
+        raise ProviderError(
+            "Bybit live client order id lookup 미지원 — BL-003 mainnet runbook 대기"
+        )
