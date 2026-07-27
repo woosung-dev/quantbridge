@@ -1,9 +1,58 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-26 (**live-engine-parity** — 라이브 엔진 인자 4종 패리티 종결)
-> **Active Sprint:** **live-engine-parity** — 라이브와 백테스트가 같은 진입·사이징 규칙을 쓰게 만든다
-> **Active Branch:** `feat/live-engine-parity`
-> **요약:** 화면 총계는 원장 SSOT로 일치시켰고, leverage·세션·pyramiding·사이징 equity 경계를 배선했다. D7의 사이징 자본 일시 함몰은 BL-489로 정직하게 남긴다.
+> **Last Updated:** 2026-07-27 (**live-conditional-entry** — 조건부 진입 등재 종결)
+> **Active Sprint:** **live-conditional-entry** — `strategy.entry(stop=)` 진입을 실제로 거래소에 올린다
+> **Active Branch:** `feat/live-conditional-entry`
+> **요약:** 선언적 reconcile 로 등재·취소·동기화·청소를 배선하고 BL-478 (c) 차단을 풀었다. 데모에서 조건부 진입 5건이 실체결됐고 거래소 원문과 3중 대조로 일치했다. 마이그레이션 0.
+
+## ⚡ live-conditional-entry — 조건부 진입 등재 (BL-478 (a) · BL-488 · BL-365) (2026-07-27)
+
+**스코프.** 라이브가 `strategy.entry(..., stop=)` 진입을 **거래소에 올린 적이 없었다.** 시드 `s1_pbr` 은 진입 2개가 100% 이 경로라 라이브를 아예 못 돌았다(세션 `0e15c3c0` 이 8시간 동안 close 29건 / entry 0건). 선언적 reconcile 로 등재·취소·동기화·청소를 배선하고 차단을 푼다. **마이그레이션 0.**
+
+### ★핵심 발견
+
+- **preflight 가 킥오프 전제 4건을 반박했다.** 24h 평가 갭 131바의 원인은 beat 가 아니라 **macOS 클램셸 수면 73바 + 우리 배포창 50바**였고(`pmset` 과 컨테이너 4종 동시 침묵 + RestartCount 0 으로 확정), 서버에서도 나는 진짜 기전은 **늦은 tick 4바(0.29%)** 뿐이었다. 정체는 인프라가 아니라 `run_live` 가 마지막 바 이벤트만 발행하는 계약이다.
+- **G0 거래소 실측이 설계 전제 2건을 더 반박해 스코프를 줄였다** — 필터 없는 `fetch_open_orders` 에도 조건부가 보이고(Reconciler 수정 불필요), 현행 `cancel_order` 형태로 취소가 된다(신설 불필요). 문서만 믿었으면 두 파일을 헛되이 고쳤다.
+- **★★E1 이 내 설계 지시 자체를 반박했다.** delta 를 방출하면 같은 id 재발행에서 포지션이 **2배**가 된다 — `check_pending_fills` 가 체결 시 같은 id 를 **먼저 닫고 다시 열기** 때문이고 시드 `s1_pbr` 이 정확히 그 형태다. **`target_position`**(체결 후 순 포지션)으로 교체했고, dogfood 가 그 값을 실증했다(시뮬 -0.0291 / 거래소 0 에서 delta 였다면 정확히 2배 발주).
+- **E2** = 계획기의 미매칭 정리 루프에 소유 판정이 0이라 **사용자 손절이 지워질 경로**가 있었다. **E4** = 취소 후 재등재가 **거래소에 닿지 않는데 DB·metric 은 "등재됨" 으로 보고**하는 멱등성 재생(키에 `bar_time` 추가로 해결).
+
+### Completed
+
+- [x] **BL-478 (a) ✅ Resolved.** `PendingOrderSnapshot`(`target_position` SSOT) → 순수 계획기 → reconcile 태스크 → provider. 귀속 불변식 5조건(`orderLinkId` UUID · 전략/계정 일치 · `trigger_price` 존재 · `reduce_only=false` · 키 세션 일치)으로 남의 주문·TP/SL·다른 세션 주문을 건드리지 않는다. `trade_id` 는 `idempotency_key` 에 구조적으로 실어 **마이그레이션 0**.
+- [x] **BL-488 ✅ Resolved.** `run_live(..., emit_from_bar_time=)` opt-in(기본값 byte-identical). 상한은 **벽시계**(바 개수 아님). 초과는 catch-up 대신 resync — 양쪽 flat 이면 조용히 정상화, 불일치면 비활성화 + 조건부 진입 청소. close dispatch 전 포지션 확인(조회 실패는 fail-OPEN).
+- [x] **BL-365 ✅ Resolved.** `entry_trigger_direction` 신설. `trigger_direction_for` 는 청산 side 기준 역시맨틱이라 진입에 재사용하면 정반대가 나온다(프로덕션 호출자 0인 dead code 였다).
+- [x] **BL-478 (c) 차단 해제** — 세션 생성 422 와 preflight 자동 종료 제거. 다른 preflight 카테고리는 그대로 차단(음성 대조로 고정).
+- [x] **오탐·청소** — `orphan_scanner` 가 쉬는 조건부 진입을 stuck 으로 오판해 30분마다 CRITICAL 을 울리던 것 면제. 비활성화 4경로 + HTTP 정지에서 조건부 진입 청소 + beat 안전망.
+- [x] **화면** — 세션 상세 "대기 중인 조건부 진입"(방향·트리거가·목표 포지션). 열린 record 원소를 세 필드 전부 타입 검증.
+- [x] 게이트: BE **3175** · FE **1159** · **canon 32** · ruff·mypy·tsc·lint 0 · **마이그레이션 0**
+      ★**authed 는 64-1** — `/orders` 캐논 하드 실패 1건. 추적 결과 **이번 스프린트 코드 회귀가 아니라** dogfood 가 주문을 62->99건으로 늘려 페이저가 10 페이지가 되며 375px 를 넘친 것이다(`.pager-nums` 줄바꿈 없음, 453px). **BL-495** 등재. `flex-wrap` 시도가 적용되지 않아(computed 여전히 `nowrap`) 검증 못 한 수정은 싣지 않고 되돌렸다.
+      ★**내 테스트가 DB 를 오염시켜 랜덤 순서 flake 3건**을 만들었다 — sweeper 프로덕션 경로가 `commit()` 을 해 테스트 트랜잭션 격리가 깨지고 픽스처의 `Strategy` 행이 남아 전략 페이지네이션 카운트를 흔들었다. 픽스처 정리 추가 후 랜덤 순서 3175-0.
+
+### ★★dogfood — 3중 대조 종단 증명
+
+브라우저에서 PbR 세션 시작(어제는 이 동작이 422) → 104분 관측 → **조건부 진입 5건 실체결**.
+
+```
+PivRevLE buy  0.029 트리거 65425.90 dir=1(RISE) -> 체결 65429.60   ← 트리거 위
+PivRevSE sell 0.029 트리거 65465.20 dir=2(FALL) -> 체결 65461.20   ← 트리거 아래
+우리 DB / raw HMAC /v5/order/history 5/5 / /v5/execution/list 5/5 (stopOrderType=Stop, closedSize=0 = 진입)
+```
+
+`trading.orders` 의 `reduce_only=f` + `trigger_price` 행이 **62행 중 0 → 생성**됐다. 렌더된 화면(3100, 콘솔 error 0)에도 대기 조건부 진입이 보인다.
+
+**★dogfood 가 P1 2건을 추가 적발했다.** (1) 시드 `position_size_pct` 0.01% 로 목표가 눈금 미만이라 **조용히 아무것도 안 나가는데 화면엔 대기 주문이 뜨는** 되는 척 — 발산 보고로 수정. (2) 이미 돌파된 트리거를 매 tick 재시도해 `110093` 거부 10건 — 참조가로 사전 차단.
+
+**★예정에 없이 G5+G6 이 함께 작동하는 것을 관측했다.** 평가 갭 → 포지션 불일치 → `gap_resync_position_mismatch` fail-closed 비활성화 → sweeper 가 쉬는 주문 전량 취소 → 거래소 미체결 0. 조용히 계속했다면 BL-488 이 만들던 orphan close 가 났을 것이다.
+
+### 신규 BL
+
+- **BL-492 P2.** 이미 돌파된 stop 의 시뮬↔거래소 시맨틱. 시뮬은 `low <= stop` 을 즉시 체결로 보고 거래소는 `110093` 으로 거부한다. 시장가 근사는 라이브 매매 의미를 바꾸므로 별도 설계.
+- **BL-493 P3.** 조건부 진입 첫 바 커버리지 공백 — tick 이 바 종료 56초 뒤에 도는 구조상 그 바의 93% 를 놓친다.
+- **BL-494 P3.** `min_qty != qty_step` 인 심볼에서 스텝 절삭이 최소수량을 보장하지 않는다.
+
+### 문서 종결
+
+`reference/gates-and-traps.md` 에 함정 8종 승격(조건부 주문의 stuck 오판 · 멱등성 재생 · 키 길이/콜론 · except 블록 크래시 · TICK_SIZE · 110093 · codex 파일 수 제약 · no-op 변이). 작업 문서는 커밋하지 않는다. **`docs/` 최상위 10 유지.**
 
 ## ⚡ live-engine-parity — `run_live` 인자 4종 패리티와 라이브 원장 신뢰 (2026-07-26)
 

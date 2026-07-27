@@ -10,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.tasks.celery_app
@@ -116,7 +117,23 @@ async def conditional_entry_factory(db_session: AsyncSession):
         await db_session.flush()
         return order
 
-    return _make
+    # ★sweeper 프로덕션 경로가 `commit()` 을 하므로 테스트 트랜잭션 격리가 깨진다.
+    # 정리하지 않으면 여기서 만든 user/strategy 행이 남아 다른 테스트(전략 페이지네이션
+    # 등)의 카운트를 흔든다 - 실측으로 랜덤 순서에서 3건이 flake 났다.
+    # ★id 를 yield 전에 확보한다. rollback 은 ORM 객체를 expire 시키므로 그 뒤에
+    # `strategy.id` 를 읽으면 lazy refresh 가 MissingGreenlet 을 낸다 - 프로덕션
+    # sweeper 에서 고친 것과 같은 함정이다.
+    strategy_id, account_id, user_id = strategy.id, account.id, user.id
+    yield _make
+    await db_session.rollback()
+    await db_session.execute(delete(Order).where(Order.strategy_id == strategy_id))
+    await db_session.execute(
+        delete(LiveSignalSession).where(LiveSignalSession.strategy_id == strategy_id)
+    )
+    await db_session.execute(delete(ExchangeAccount).where(ExchangeAccount.id == account_id))
+    await db_session.execute(delete(Strategy).where(Strategy.id == strategy_id))
+    await db_session.execute(delete(User).where(User.id == user_id))
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -136,7 +153,11 @@ async def test_sweeper_cancels_only_inactive_owned_conditional_entries(
         async def cancel_order(self, _creds: Any, exchange_order_id: str, _symbol: str) -> None:
             cancelled_exchange_ids.append(exchange_order_id)
 
-    monkeypatch.setattr(live_signal_module, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        live_signal_module,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
+    )
     monkeypatch.setattr("src.trading.providers.BybitFuturesProvider", _Provider)
 
     result = await live_signal_module._async_sweep_conditional_entries()
@@ -164,7 +185,11 @@ async def test_sweeper_logs_and_metrics_provider_cancel_failure(
         async def cancel_order(self, _creds: Any, _exchange_order_id: str, _symbol: str) -> None:
             raise RuntimeError("provider unavailable")
 
-    monkeypatch.setattr(live_signal_module, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        live_signal_module,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
+    )
     monkeypatch.setattr("src.trading.providers.BybitFuturesProvider", _FailingProvider)
     metric = qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel")
     before = metric._value.get()

@@ -4,7 +4,7 @@
 
 > **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](../.ai/templates/docs/status.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
-> **최종 갱신:** 2026-07-26 (**live-engine-parity 완료** — BL-481/482/483/486/487 Resolved. `run_live` 가 `run_historical` 로 안 넘기던 인자 4종을 종결하고 화면 총계를 원장 SSOT 로 바꿨다. ★잔여 P1 = **BL-488** 평가 갭 orphan close). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
+> **최종 갱신:** 2026-07-27 (**live-conditional-entry 완료** — **BL-478 (a) · BL-488 · BL-365 Resolved**. 조건부 진입을 선언적 reconcile 로 거래소에 등재하고 (c) 차단을 풀었다. 데모에서 5건 실체결 + 거래소 원문 3중 대조. 마이그레이션 0. ★잔여 P1 = 없음). **상태 범례:** ✅ 완료 · 🔵 진행중 · 📋 계획됨(핸드오프 존재) · ⬜ 미착수 · ⏸ 보류(사용자/deferred).
 >
 > **동기화 규약.** BL Resolved 시 (1) REFACTORING-BACKLOG.md 에서 ✅ 마킹 (2) 본 문서 해당 체크박스 `[x]` + 스프린트/PR 표기. 신규 BL 등재 시 본 문서 해당 그룹에 1행 추가. 표류 방지 = 스프린트 마감 산출물 체크리스트에 "product-roadmap.md 갱신" 포함.
 
@@ -105,7 +105,7 @@
 - [x] **BL-486 ✅ Resolved** [P1] 라이브 사이징 equity 의 창 드리프트 — carry(`live_signal_events` 를 `bar_time < window_start` 로 자른 합)를 `initial_capital` 에 접고, **화면 총계는 원장 SSOT**(`sum_realized_pnl_all`)로 바꿔 창과 무관한 단조 값으로 만들었다. `equity_curve` 는 새 close 이벤트에만 append. 프로덕션 실증 = 화면 3건 `4.78803856` vs 원장 4건 `5.88683554` → 한 tick 만에 **바이트 동일**. ★**사이징 자본의 D2 일시 함몰은 남는다 → BL-489**
 - [x] **BL-483 ✅ Resolved** [P1] `leverage` 라이브 마진게이트 배선 + **무음 skip 표면화** — `entry_skips` 구조화 6지점(margin / non_finite_qty / pyramiding_cap / session_closed) + `qb_live_signal_entry_skipped_total`(divergence 아님) + 화면 행. ★배선이 켠 것은 게이트만이 아니었다 — `check_liquidations` 도 살아나 **실제 reduce-only 주문을 내는 머니-패스**라 청산 표면화를 함께 넣었다. cross 증거금 모델 부재는 **BL-490**
 - [x] **BL-481 / BL-482 ✅ Resolved** [P2/P3] `sessions_allowed` · `pyramiding` 라이브 배선 — ★`sessions_allowed` 는 넘기기만 하면 **조용한 no-op** 이었다(라이브 프레임이 `RangeIndex` + `timestamp` 컬럼). tz-aware 인덱스 복원 + fail-closed 로 수리하고 SSOT 불변식 감사를 **5계층**으로 확장했다
-- [ ] **BL-488** [P1] ★평가 갭이 orphan close 를 만든다 — 워커가 252 바 중 180 바만 평가(50분 구멍)했고, 구멍에 빠진 진입은 발주된 적 없는데 그 청산은 발주돼 `reduce_only` 주문이 `rejected`. 시뮬은 거래소가 준 적 없는 `+4.87330864` 를 이익 계상했다. 갭 감지 + 재동기화 설계 필요
+- [x] **BL-488 ✅ Resolved** [P1] ★평가 갭이 orphan close 를 만든다 — 원인은 beat 가 아니라 `run_live` 의 마지막-bar 발행 계약이었다(실측 갭 131바 중 수면 76 + 배포 50, 서버 기전은 4바). `emit_from_bar_time` opt-in + 벽시계 상한 + resync + close 포지션 가드. 프로덕션에서 resync 발동 관측 · 회고 = [`dev-log/2026-07-27-live-conditional-entry.md`](dev-log/2026-07-27-live-conditional-entry.md) ~~ — 워커가 252 바 중 180 바만 평가(50분 구멍)했고, 구멍에 빠진 진입은 발주된 적 없는데 그 청산은 발주돼 `reduce_only` 주문이 `rejected`. 시뮬은 거래소가 준 적 없는 `+4.87330864` 를 이익 계상했다. 갭 감지 + 재동기화 설계 필요
 - [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
 - [ ] **BL-022** [P1] Golden expectations 재생성 — strategy.exit 지원 후
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
@@ -125,7 +125,7 @@
 ### P2 — 트레이딩/엔진 부채
 
 - [ ] **BL-476** [P2] 공개 webhook 핸들러 동기 CCXT 왕복 3회 — **+4.8초 실측**(mark 1663 · min-notional 1549 · balance 1600). ★게이트는 provider stub 이라 영원히 0ms — 프로덕션에서만 보이는 회귀. 가드를 Celery 경계 뒤로 옮기는 건 **거부 시점이 응답 뒤로 밀리는 계약 변경**
-- [ ] **BL-365** [P2] trigger_direction_for dead-code + 서버 미배선 — standalone-trigger 방향 · (standalone exit 도입 시)
+- [x] **BL-365 ✅ Resolved** [P2] `trigger_direction_for` dead-code + 서버 미배선 — 진입 전용 `entry_trigger_direction` 신설(long breakout=1 RISE / short breakdown=2 FALL). 청산 side 기준 역시맨틱을 재사용하면 정반대가 나온다
 - [ ] **BL-366** [P2] live-signal OrderService DI 인라인 중복 — HTTP factory drift
 - [ ] **BL-368** [P2] \_merge_exit_params ccxt 키명 3 call site 누설
 - [ ] **BL-369** [P2] 3 provider create_order try/except ~40 LOC 복붙

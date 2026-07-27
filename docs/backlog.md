@@ -291,6 +291,8 @@
 
 ### BL-488
 
+**상태:** ✅ **Resolved (2026-07-27, `feat/live-conditional-entry`).** 원인은 인프라가 아니라 `run_live` 가 마지막 bar 이벤트만 발행하는 계약이었다. 24h 실측으로 갭 131바를 분해하니 macOS 클램셸 수면 73바 + 우리 배포창 50바 + idle sleep 3바였고 **서버 기전은 늦은 tick 4바(0.29%)** 뿐이었다(`/data` uid 1000, permission denied 0건, RestartCount 0 으로 beat 가설 기각). `emit_from_bar_time` opt-in catch-up(기본값 byte-identical) + **벽시계** staleness 상한 + 초과 시 resync(양쪽 flat 이면 조용히 정상화, 불일치면 비활성화 + 조건부 진입 청소) + close dispatch 전 포지션 확인(조회 실패는 fail-OPEN). 프로덕션에서 resync 가 실제로 발동해 orphan close 를 막는 것을 관측했다.
+
 **Title:** 평가 갭이 orphan close 를 만든다
 **Category:** Backend / trading (라이브 신호 평가)
 **Priority:** P1
@@ -307,6 +309,74 @@
 **영향 파일:** `tasks/live_signal.py`, `strategy/pine_v2/event_loop.py`.
 
 **Risk:** 🔴 (실주문 거부 + 시뮬 손익 오염).
+
+---
+
+### BL-492
+
+**Title:** 이미 돌파된 stop 의 시뮬↔거래소 시맨틱
+**Category:** Backend / trading (조건부 진입)
+**Priority:** P2
+**Trigger:** 실자금 cutover 전, 또는 110093 거부가 잦아질 때
+**Est:** S-M
+**출처:** 2026-07-27 live-conditional-entry dogfood 실측
+
+**원인 / 영향:** pine_v2 는 `low <= stop`(숏) / `high >= stop`(롱)을 즉시 체결로 보는데, 거래소는 이미 돌파된 트리거를 `retCode 110093` 으로 거부한다. 가격이 피벗을 지나가면 시뮬은 진입했다고 믿고 거래소엔 포지션이 없다. 104분 dogfood 에서 10건 관측. 참조가(마지막 종료 bar 종가) 사전 차단을 넣어 재시도 루프는 없앴지만 **시맨틱 차이 자체는 남는다**.
+
+**권장 접근:** (a) 이미 돌파된 stop 을 시장가로 근사 — 시뮬과 맞지만 체결가가 달라 백테스트↔라이브 일치를 미묘하게 깬다. (b) 엔진 쪽에서 그 케이스를 진입 skip 으로 처리 — 라이브가 기준이 되어 백테스트 결과가 바뀐다. **라이브 매매 의미를 바꾸므로 사용자 결정이 선행**한다.
+
+**영향 파일:** `strategy/pine_v2/strategy_state.py`, `trading/services/conditional_entry_planner.py`.
+
+**Risk:** 🟡 (fail-closed 이고 원장에 사유가 남는다).
+
+---
+
+### BL-493
+
+**Title:** 조건부 진입 첫 bar 커버리지 공백
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** 진입 누락이 실측될 때
+**Est:** S
+**출처:** 2026-07-27 live-conditional-entry
+
+**원인 / 영향:** 평가 tick 은 bar 종료 **56초 뒤**에 돈다(실측 16:17:56 tick 이 16:16 bar 를 읽음). 시뮬은 stop 을 다음 bar 전체에서 체결 가능하다고 보지만 거래소 주문은 그 bar 의 93% 가 지난 뒤 올라간다. PbR 처럼 매 bar 재발행하는 전략은 최초 1바만 해당하나, 한 번만 발행하는 전략은 그 bar 를 통째로 놓친다.
+
+**Risk:** 🟢
+
+---
+
+### BL-494
+
+**Title:** `min_qty != qty_step` 심볼에서 최소수량 미보장
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** BTCUSDT 외 심볼 지원 시
+**Est:** XS
+**출처:** 2026-07-27 live-conditional-entry
+
+**원인 / 영향:** 조건부 진입 계획기는 `qty_step` 절삭만 한다. BTCUSDT 는 `limits.amount.min == qtyStep == 0.001` 이라 절삭이 최소수량을 겸하지만 일반 보장은 아니다. 둘이 다른 심볼에서는 스텝은 통과하고 최소수량은 미달인 주문이 매 tick 거부될 수 있다.
+
+**Risk:** 🟢
+
+---
+
+### BL-495
+
+**Title:** `/orders` 페이저가 좁은 폭에서 가로 오버플로
+**Category:** Frontend / 디자인 캐논
+**Priority:** P3
+**Trigger:** 즉시(게이트 red). authed 캐논 `/orders` 하드 실패 1건
+**Est:** XS
+**출처:** 2026-07-27 live-conditional-entry dogfood (데이터 유발로 드러난 잠복 결함)
+
+**원인 / 영향:** `.pager-nums` 가 `display: inline-flex` 에 줄바꿈이 없다(`styles/globals.css:1675`). 페이지 수가 늘면 375px 폭에서 넘친다 — 실측 주문 99건 -> 10 페이지 -> `span.pager-nums` **453px**, 문서 `scrollWidth 490 > innerWidth 375`. **이번 스프린트 코드 회귀가 아니다**(주문 페이지·페이저 미변경). dogfood 가 주문을 62 -> 99건으로 늘리며 잠복 결함이 드러난 것이다.
+
+**권장 접근:** `flex-wrap: wrap` 이 자연스러운 후보지만 **한 번 시도했을 때 적용되지 않았다**(`getComputedStyle` 이 여전히 `nowrap`). 다른 규칙이 이기고 있거나 dev 서버 재컴파일 문제일 수 있으니 **원인부터 확인**해라. 검증 없이 싣지 말 것 — 그래서 이번엔 되돌리고 등재만 한다.
+
+**영향 파일:** `frontend/src/styles/globals.css`.
+
+**Risk:** 🟢 (표시 전용. 단 authed 캐논 게이트가 red 다).
 
 ---
 
@@ -503,6 +573,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 ---
 
 ### BL-365
+
+**상태:** ✅ **Resolved (2026-07-27, `feat/live-conditional-entry`).** 진입 전용 `entry_trigger_direction` 신설. `trigger_direction_for` 는 청산 side + SL/TP 종류 기준이라 진입에 재사용하면 정반대가 나온다(롱 청산 sell+SL 은 2, 롱 진입 breakout 은 1). 실거래 체결가로 검증 — 롱은 트리거 위, 숏은 트리거 아래에서 체결됐다.
 
 **Title:** `trigger_direction_for` / `map_exit_kind` dead-code + 서버 미배선 (standalone-trigger 방향 latent gap)
 **Category:** Trading / pine_v2 (money path, latent correctness)
@@ -2702,6 +2774,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 ---
 
 ### BL-478
+
+**상태:** ✅ **Resolved (2026-07-27, `feat/live-conditional-entry`).** (c) 차단은 2026-07-26 에, **(a) 조건부 주문 등재는 이번에** 해소했다. 선언적 reconcile — `PendingOrderSnapshot.target_position`(체결 후 순 포지션)이 사이징 SSOT 이고 주문 수량은 거래소 실포지션과의 차로 계산한다(delta 를 보내면 같은 id 재발행에서 포지션이 2배가 된다). 귀속 불변식 5조건 · `idempotency_key` 에 `trade_id` 를 실어 마이그레이션 0 · 세션 종료 시 청소 · `orphan_scanner` 오탐 면제 · 화면 노출. **데모에서 조건부 진입 5건 실체결**, 거래소 `/v5/order/history` 5/5 + `/v5/execution/list` 5/5(`closedSize=0` = 진입) 대조 일치.
 
 **Title:** stop-entry 전략은 라이브에서 **진입이 구조적으로 절대 나가지 않는다** — 청산만 나가서 매번 110017
 **Category:** Backend / trading (라이브 신호 dispatch)
