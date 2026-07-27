@@ -40,6 +40,13 @@ vi.mock("@/features/trading", () => ({
 vi.mock("../kill-switch-banner", () => ({ KillSwitchBanner: () => null }));
 vi.mock("../account-balance-section", () => ({ AccountBalanceSection: () => null }));
 vi.mock("../open-positions-table", () => ({ OpenPositionsTable: () => null }));
+const accountPositionsProps = vi.fn();
+vi.mock("../account-positions-table", () => ({
+  AccountPositionsTable: (props: { accounts: readonly { id: string }[] }) => {
+    accountPositionsProps(props);
+    return null;
+  },
+}));
 vi.mock("../session-diagnostics", () => ({ SessionDiagnostics: () => null }));
 
 import { TradingCockpit } from "../trading-cockpit";
@@ -139,5 +146,29 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
 
     expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
     expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
+  });
+
+  it("★계정 잔여 포지션 표에 활성 세션이 아니라 **등록된 모든 계정**을 넘긴다", () => {
+    // BL-498 의 핵심 배선. 활성 세션 기준으로 좁히면 세션 0건일 때 잔여 노출이
+    // 다시 화면에서 사라진다 — 그게 이 기능이 존재하는 이유다.
+    useLiveSessionsMock.mockReturnValue({
+      data: { items: [] },
+      isError: false,
+      isPending: false,
+    });
+    useExchangeAccountsMock.mockReturnValue({
+      data: [
+        { id: "acc-1", mode: "demo", label: "데모 1" },
+        { id: "acc-2", mode: "demo", label: "데모 2" },
+      ],
+      isError: false,
+      isPending: false,
+    });
+    accountPositionsProps.mockClear();
+
+    render(<TradingCockpit />);
+
+    const last = accountPositionsProps.mock.calls.at(-1)?.[0];
+    expect(last.accounts.map((a: { id: string }) => a.id)).toEqual(["acc-1", "acc-2"]);
   });
 });

@@ -742,3 +742,69 @@ async def test_async_execute_submitted_enqueues_fetch_order_status_task(
     args, _kwargs, countdown = enqueued[0]
     assert args == [str(order_id)]
     assert countdown == 15
+
+
+@pytest.mark.asyncio
+async def test_watchdog_reduce_only_fill_clears_account_position_cache(
+    db_session: AsyncSession,
+    submitted_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★BL-498 — watchdog 도 체결을 확정하는 경로다.
+
+    접수 응답이 `submitted` 이고 position WS 를 놓치면 체결을 확정하는 것은 watchdog
+    뿐이다. 즉시 `filled` 경로에만 캐시 무효화를 걸면 그 조합에서 계정 표가 **이미
+    닫힌 포지션**을 최대 15초 더 보여준다.
+    """
+    import src.tasks.trading as task_mod
+    from src.trading.providers import FixtureExchangeProvider
+    from src.trading.services.position_service import account_position_snapshot_cache_key
+
+    order, account = submitted_order
+    order.reduce_only = True
+    await db_session.commit()
+
+    redis = SimpleNamespace(delete=AsyncMock())
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="filled"),
+    )
+    monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+
+    result = await task_mod._async_fetch_order_status(order.id, 1)
+
+    assert result["state"] == "filled"
+    assert [call.args for call in redis.delete.await_args_list] == [
+        (account_position_snapshot_cache_key(account.id),),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_watchdog_entry_fill_does_not_clear_account_position_cache(
+    db_session: AsyncSession,
+    submitted_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★음성 대조 — 진입(reduce_only=False) 체결은 캐시를 버릴 이유가 없다."""
+    import src.tasks.trading as task_mod
+    from src.trading.providers import FixtureExchangeProvider
+
+    order, _ = submitted_order
+    assert order.reduce_only is False
+
+    redis = SimpleNamespace(delete=AsyncMock())
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="filled"),
+    )
+    monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+
+    await task_mod._async_fetch_order_status(order.id, 1)
+
+    redis.delete.assert_not_awaited()

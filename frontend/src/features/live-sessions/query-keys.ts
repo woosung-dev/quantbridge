@@ -18,4 +18,9 @@ export const liveSessionKeys = {
     [...liveSessionKeys.all(userId), "positions"] as const,
   positions: (userId: string, sessionId: string) =>
     [...liveSessionKeys.positionsPrefix(userId), sessionId] as const,
+  // BL-498 — 계정 스코프 포지션. `positionsPrefix` 아래 두어 청산 성공 시 기존
+  // invalidate 가 세션 표와 계정 표를 **함께** 무효화하게 한다(둘이 같은 포지션을
+  // 보여주므로 한쪽만 갱신되면 화면이 서로 모순된다).
+  accountPositions: (userId: string, accountId: string) =>
+    [...liveSessionKeys.positionsPrefix(userId), "account", accountId] as const,
 };

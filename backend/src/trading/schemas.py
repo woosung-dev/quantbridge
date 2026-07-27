@@ -351,3 +351,36 @@ class LiveSessionPositionsResponse(BaseModel):
     positions: list[ExchangePositionSchema]
     local_open_trades_snapshot: list[dict[str, object]]
     diff: PositionDiffSchema
+
+
+class AccountPositionRow(BaseModel):
+    """BL-498 — 계정에 남아 있는 거래소 포지션 한 줄.
+
+    `closable_session_id` 는 이 계정·심볼로 만든 **가장 최근 세션**(비활성 포함)이다.
+    수동 청산은 주문 원장에 기록되고 `Order.strategy_id` 가 NOT NULL 이므로,
+    귀속할 세션이 없으면 청산을 제공하지 않고 `close_blocked_reason` 을 남긴다.
+    """
+
+    symbol: str
+    position: ExchangePositionSchema
+    closable_session_id: UUID | None
+    close_blocked_reason: Literal["no_owning_session", "hedge_unsupported"] | None
+
+
+class AccountPositionsResponse(BaseModel):
+    """GET /exchange-accounts/{account_id}/positions 응답.
+
+    세션 스코프 대조(`LiveSessionPositionsResponse`)와 용도가 다르다 — 그쪽은
+    발산 감지이고 이쪽은 **잔여 노출 관리**다. 활성 세션이 0건이어도 렌더된다.
+    """
+
+    account_id: UUID
+    supported: bool
+    reason: str | None
+    fetched_at: AwareDatetime | None
+    rows: list[AccountPositionRow]
+    # 조회 범위 고지 — ccxt bybit 는 심볼 없는 조회에서 settleCoin 을 USDT 로
+    # 채우므로 USDC 정산 linear 와 inverse 는 여기 잡히지 않는다.
+    settle_coin: str
+    # 거래소가 "더 있다"(nextPageCursor)고 말했는가. True 면 이 목록이 전부가 아니다.
+    truncated: bool

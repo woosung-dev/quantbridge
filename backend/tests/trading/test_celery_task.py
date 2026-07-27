@@ -175,7 +175,10 @@ async def test_reduce_only_filled_order_deletes_active_position_snapshot_caches(
 ) -> None:
     import src.tasks.trading as task_mod
     from src.trading.providers import FixtureExchangeProvider
-    from src.trading.services.position_service import position_snapshot_cache_key
+    from src.trading.services.position_service import (
+        account_position_snapshot_cache_key,
+        position_snapshot_cache_key,
+    )
 
     order, account = pending_order
     order.reduce_only = True
@@ -202,9 +205,51 @@ async def test_reduce_only_filled_order_deletes_active_position_snapshot_caches(
 
     assert result["state"] == "filled"
     assert queried_account_ids == [account.id]
+    # ★계정 스코프 키도 함께 버려야 한다(BL-498). 위 세션 순회는 **활성** 세션만
+    #   보므로 활성 0건이면 아무것도 안 지우는데, 계정 표는 바로 그 상태를 위해 있다.
+    #   안 지우면 청산 직후 최대 15초 동안 방금 닫은 포지션이 살아 있는 청산 버튼과
+    #   함께 다시 렌더된다.
     assert [call.args for call in redis.delete.await_args_list] == [
         (position_snapshot_cache_key(active_sessions[0].id),),
         (position_snapshot_cache_key(active_sessions[1].id),),
+        (account_position_snapshot_cache_key(account.id),),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reduce_only_fill_clears_account_cache_even_without_active_sessions(
+    db_session: AsyncSession,
+    pending_order,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★활성 세션이 0건인 상태가 정확히 BL-498 이다. 그때도 계정 캐시는 버려야 한다."""
+    import src.tasks.trading as task_mod
+    from src.trading.providers import FixtureExchangeProvider
+    from src.trading.services.position_service import account_position_snapshot_cache_key
+
+    order, account = pending_order
+    order.reduce_only = True
+    await db_session.commit()
+
+    async def list_active_by_account(_self, _account_id):  # type: ignore[no-untyped-def]
+        return []
+
+    redis = SimpleNamespace(delete=AsyncMock())
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
+    )
+    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
+    monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
+
+    result = await task_mod._async_execute(order.id)
+
+    assert result["state"] == "filled"
+    assert [call.args for call in redis.delete.await_args_list] == [
+        (account_position_snapshot_cache_key(account.id),),
     ]
 
 

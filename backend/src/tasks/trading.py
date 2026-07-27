@@ -85,7 +85,10 @@ from src.trading.repositories.exchange_account_repository import ExchangeAccount
 from src.trading.repositories.exchange_exit_repository import ExchangeExitRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
-from src.trading.services.position_service import position_snapshot_cache_key
+from src.trading.services.position_service import (
+    account_position_snapshot_cache_key,
+    position_snapshot_cache_key,
+)
 
 # Sprint 15 Phase A.2 — submitted watchdog (BL-001) 상수.
 _WATCHDOG_ALERT_TTL_SECONDS = 3600  # 1h Redis throttle (G.0 P1 #2)
@@ -462,6 +465,11 @@ async def _execute_with_session(
                     redis = get_redis_lock_pool()
                     for live_session in sessions:
                         await redis.delete(position_snapshot_cache_key(live_session.id))
+                    # ★계정 스코프 스냅샷도 함께 버린다(BL-498). 위 순회는 **활성** 세션만
+                    #   보므로 활성 세션이 0건이면 아무것도 지우지 않는데, 계정 표는 바로
+                    #   그 상태를 위해 존재한다. 안 지우면 청산 직후 최대 15초 동안 방금
+                    #   닫은 포지션이 살아 있는 청산 버튼과 함께 다시 렌더된다.
+                    await redis.delete(account_position_snapshot_cache_key(account.id))
                 except Exception:
                     logger.warning(
                         "position_snapshot_cache_delete_failed",
@@ -781,6 +789,21 @@ async def _fetch_order_status_with_session(
                     },
                 )
                 qb_active_orders.dec()
+                # ★BL-498 — watchdog 도 체결을 확정하는 경로다. 즉시 `filled` 경로에만
+                #   캐시 무효화를 걸면, 접수 응답이 `submitted` 이고 position WS 를
+                #   놓친 조합에서 계정 표가 **이미 닫힌 포지션**을 최대 15초 더 보여준다.
+                #   terminal 을 확정하는 곳마다 같은 키를 버려야 보장이 성립한다.
+                if order.reduce_only:
+                    try:
+                        await get_redis_lock_pool().delete(
+                            account_position_snapshot_cache_key(order.exchange_account_id)
+                        )
+                    except Exception:
+                        logger.warning(
+                            "account_position_snapshot_cache_delete_failed",
+                            extra={"order_id": str(order_id)},
+                            exc_info=True,
+                        )
                 # STEP B — watchdog fill winner (WS 유실 fallback): trailing enqueue.
                 if (
                     status_fetch.filled_quantity is not None

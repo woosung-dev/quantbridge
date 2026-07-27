@@ -12,7 +12,10 @@ from src.common.metrics import qb_ws_subscribe_rejected_total
 from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
-from src.trading.services.position_service import position_snapshot_cache_key
+from src.trading.services.position_service import (
+    account_position_snapshot_cache_key,
+    position_snapshot_cache_key,
+)
 from src.trading.websocket.bybit_private_stream import MessageEventHandler
 from src.trading.websocket.state_handler import StateHandler
 
@@ -65,6 +68,19 @@ class PositionFanoutHandler:
             sessions = await LiveSignalSessionRepository(session).list_active_by_account(
                 self._account_id
             )
+
+        # ★계정 스코프 스냅샷은 활성 세션 유무와 무관하게 버린다(BL-498). 아래 순회는
+        #   활성 세션만 보고 `if not sessions: return` 으로 빠지는데, 계정 표는 바로 그
+        #   상태(활성 0건)를 위해 존재한다.
+        try:
+            await self._redis.delete(account_position_snapshot_cache_key(self._account_id))
+        except Exception as exc:
+            logger.warning(
+                "account_position_snapshot_cache_delete_failed account=%s err=%s",
+                self._account_id,
+                exc,
+            )
+
         if not sessions:
             return
 

@@ -586,3 +586,206 @@ async def test_bybit_fetch_open_conditional_orders_fails_loud_on_unparseable_tri
         await BybitFuturesProvider().fetch_open_conditional_orders(
             Credentials(api_key="key", api_secret="secret"), "BTC/USDT"
         )
+
+
+# ── BL-498 계정 스코프 포지션 ──────────────────────────────────────────
+
+
+def _account_service(
+    *,
+    account_positions=None,
+    sessions=None,
+    mode=ExchangeMode.demo,
+    exchange=ExchangeName.bybit,
+):
+    """계정 스코프 조회용 서비스. 세션 순회가 아니라 계정 1콜이 원천이다."""
+    user_id = uuid4()
+    account_id = uuid4()
+    session_repo = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=None),
+        get_state=AsyncMock(return_value=None),
+        list_by_account=AsyncMock(return_value=sessions or []),
+    )
+    account_repo = SimpleNamespace(
+        get_by_id=AsyncMock(
+            return_value=SimpleNamespace(
+                id=account_id, user_id=user_id, mode=mode, exchange=exchange
+            )
+        )
+    )
+    provider = SimpleNamespace(
+        fetch_all_open_positions=AsyncMock(return_value=(account_positions or [], False)),
+    )
+    return (
+        PositionService(
+            session_repo=session_repo,
+            account_repo=account_repo,
+            strategy_repo=SimpleNamespace(),
+            account_service=SimpleNamespace(
+                get_credentials_for_order=AsyncMock(return_value=object())
+            ),
+            bybit_futures_provider=provider,
+        ),
+        user_id,
+        account_id,
+        session_repo,
+        provider,
+    )
+
+
+def _live_session(account_id, *, symbol="BTC/USDT"):
+    return SimpleNamespace(id=uuid4(), symbol=symbol, exchange_account_id=account_id)
+
+
+async def test_account_positions_render_without_any_active_session(monkeypatch):
+    """★BL-498 본체 — 활성 세션이 0건이어도 계정에 남은 포지션이 나온다."""
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, _, _ = _account_service(
+        account_positions=[("BTC/USDT", _position(position_idx=0))],
+        sessions=[],
+    )
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert result.supported is True
+    assert [row.symbol for row in result.rows] == ["BTC/USDT"]
+    assert result.settle_coin == "USDT"
+
+
+async def test_account_position_is_closable_via_inactive_owning_session(monkeypatch):
+    """★청산 귀속 — 비활성 세션도 귀속 대상이다. fail-closed 종료가 남긴 게 정확히 그것이다."""
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, session_repo, _ = _account_service(
+        account_positions=[("BTC/USDT", _position(position_idx=0))],
+    )
+    owning = _live_session(account_id)
+    session_repo.list_by_account = AsyncMock(return_value=[owning])
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert result.rows[0].closable_session_id == owning.id
+    assert result.rows[0].close_blocked_reason is None
+    # 소유 검증은 계정만으로 끝내지 않는다 — 귀속을 정하는 조회이므로 user_id 도 건다.
+    assert session_repo.list_by_account.await_args.kwargs["user_id"] == user_id
+
+
+async def test_account_position_without_owning_session_is_not_closable(monkeypatch):
+    """★주문 원장은 `strategy_id` 를 요구한다. 귀속 못 하면 닫지 않고 사유를 남긴다."""
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, session_repo, _ = _account_service(
+        account_positions=[("ETH/USDT", _position(position_idx=0))],
+    )
+    session_repo.list_by_account = AsyncMock(return_value=[_live_session(account_id)])
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert result.rows[0].closable_session_id is None
+    assert result.rows[0].close_blocked_reason == "no_owning_session"
+
+
+async def test_hedge_legs_are_not_closable(monkeypatch):
+    """★`close_service` 는 leg 2개를 409 로 거부한다. 누르면 실패하는 버튼을 주지 않는다."""
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, session_repo, _ = _account_service(
+        account_positions=[
+            ("BTC/USDT", _position(side="long", position_idx=1)),
+            ("BTC/USDT", _position(side="short", position_idx=2)),
+        ],
+    )
+    session_repo.list_by_account = AsyncMock(return_value=[_live_session(account_id)])
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert [row.close_blocked_reason for row in result.rows] == [
+        "hedge_unsupported",
+        "hedge_unsupported",
+    ]
+    assert all(row.closable_session_id is None for row in result.rows)
+
+
+async def test_non_zero_position_idx_alone_is_not_closable(monkeypatch):
+    """★단일 leg 라도 `position_idx` 가 0/None 이 아니면 감소전용 청산이 거부된다."""
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, session_repo, _ = _account_service(
+        account_positions=[("BTC/USDT", _position(position_idx=2))],
+    )
+    session_repo.list_by_account = AsyncMock(return_value=[_live_session(account_id)])
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert result.rows[0].close_blocked_reason == "hedge_unsupported"
+
+
+async def test_account_positions_reject_other_users_account(monkeypatch):
+    """★IDOR — 계정 소유자가 아니면 조회 자체가 404 다."""
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, _, account_id, _, provider = _account_service(
+        account_positions=[("BTC/USDT", _position(position_idx=0))],
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await service.get_account_positions(uuid4(), account_id)
+
+    assert exc.value.status_code == 404
+    provider.fetch_all_open_positions.assert_not_awaited()
+
+
+async def test_live_mode_account_is_unsupported_without_touching_exchange(monkeypatch):
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, _, provider = _account_service(mode=ExchangeMode.live)
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert result.supported is False
+    assert result.reason == "live_mode_stub"
+    provider.fetch_all_open_positions.assert_not_awaited()
+
+
+async def test_account_cache_does_not_collide_with_session_cache(monkeypatch):
+    """★캐시 네임스페이스 분리 — 같은 키를 쓰면 계정 조회가 세션 대조 근거를 덮어쓴다."""
+    from src.trading.services import position_service
+
+    redis = _FakeRedis()
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", lambda: redis)
+    service, user_id, account_id, session_repo, _ = _account_service(
+        account_positions=[("BTC/USDT", _position(position_idx=0))],
+    )
+    session_repo.list_by_account = AsyncMock(return_value=[])
+
+    await service.get_account_positions(user_id, account_id)
+
+    keys = list(redis.values)
+    assert keys == [position_service.account_position_snapshot_cache_key(account_id)]
+    assert position_service.position_snapshot_cache_key(account_id) not in redis.values
+
+
+async def test_account_positions_are_served_from_cache_on_second_call(monkeypatch):
+    from src.trading.services import position_service
+
+    redis = _FakeRedis()
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", lambda: redis)
+    service, user_id, account_id, session_repo, provider = _account_service(
+        account_positions=[("BTC/USDT", _position(position_idx=0))],
+    )
+    session_repo.list_by_account = AsyncMock(return_value=[])
+
+    first = await service.get_account_positions(user_id, account_id)
+    second = await service.get_account_positions(user_id, account_id)
+
+    assert provider.fetch_all_open_positions.await_count == 1
+    assert first.rows[0].position.size == second.rows[0].position.size
+    assert first.fetched_at == second.fetched_at

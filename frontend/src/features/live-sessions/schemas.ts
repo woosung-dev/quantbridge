@@ -148,6 +148,33 @@ export const LiveSessionPositionsResponseSchema = z.object({
 });
 export type LiveSessionPositions = z.infer<typeof LiveSessionPositionsResponseSchema>;
 
+// ── BL-498 계정 스코프 포지션 ──────────────────────────────────────────
+// 세션 스코프 대조와 용도가 다르다 — 그쪽은 발산 감지, 이쪽은 **잔여 노출 관리**다.
+// fail-closed 종료가 주문만 걷고 포지션은 남기는 것은 설계이므로 활성 세션이 0건인
+// 상태가 반복된다. 그때도 보이고 닫을 수 있어야 한다.
+// ★계약이 `live-sessions` 에 사는 이유 — `ExchangePositionSchema` 와 청산 훅이 여기
+//   있고, 행의 핵심 필드가 `closable_session_id` 다. 계정 id 는 조회 파라미터일 뿐이라
+//   `features/trading` 으로 옮기면 두 feature 사이에 새 순환 의존이 생긴다.
+
+export const AccountPositionRowSchema = z.object({
+  symbol: z.string(),
+  position: ExchangePositionSchema,
+  closable_session_id: z.uuid().nullable(),
+  close_blocked_reason: z.enum(["no_owning_session", "hedge_unsupported"]).nullable(),
+});
+export type AccountPositionRow = z.infer<typeof AccountPositionRowSchema>;
+
+export const AccountPositionsResponseSchema = z.object({
+  account_id: z.uuid(),
+  supported: z.boolean(),
+  reason: z.enum(["live_mode_stub", "exchange_unsupported"]).nullable(),
+  fetched_at: z.string().nullable(),
+  rows: z.array(AccountPositionRowSchema),
+  settle_coin: z.string(),
+  truncated: z.boolean(),
+});
+export type AccountPositions = z.infer<typeof AccountPositionsResponseSchema>;
+
 export const ClosePositionResponseSchema = z.object({
   order_id: z.string(),
   state: z.string(),

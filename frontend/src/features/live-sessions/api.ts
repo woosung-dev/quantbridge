@@ -4,12 +4,14 @@
 import { apiFetch } from "@/lib/api-client";
 
 import {
+  AccountPositionsResponseSchema,
   ClosePositionResponseSchema,
   LiveSessionListResponseSchema,
   LiveSessionPositionsResponseSchema,
   LiveSessionSchema,
   LiveSignalEventListResponseSchema,
   LiveSignalStateSchema,
+  type AccountPositions,
   type ClosePositionResponse,
   type LiveSession,
   type LiveSessionPositions,
@@ -19,6 +21,7 @@ import {
 } from "./schemas";
 
 const LIVE_SESSIONS_PATH = "/api/v1/live-sessions";
+const EXCHANGE_ACCOUNTS_PATH = "/api/v1/exchange-accounts";
 
 export async function listLiveSessions(
   token: string | null,
@@ -89,6 +92,17 @@ export async function getLiveSessionPositions(
     token,
   });
   return LiveSessionPositionsResponseSchema.parse(raw);
+}
+
+export async function getAccountPositions(
+  accountId: string,
+  token: string | null,
+): Promise<AccountPositions> {
+  const raw = await apiFetch<unknown>(`${EXCHANGE_ACCOUNTS_PATH}/${accountId}/positions`, {
+    method: "GET",
+    token,
+  });
+  return AccountPositionsResponseSchema.parse(raw);
 }
 
 export async function closePosition(
