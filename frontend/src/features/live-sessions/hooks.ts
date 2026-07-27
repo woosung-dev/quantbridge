@@ -23,6 +23,7 @@ import { mergeCumulativeCurves, type CurvePoint } from "./aggregate";
 import {
   closePosition,
   deactivateLiveSession,
+  getAccountPositions,
   getLiveSessionPositions,
   getLiveSessionState,
   listLiveSessionEvents,
@@ -31,6 +32,7 @@ import {
 } from "./api";
 import { liveSessionKeys } from "./query-keys";
 import type {
+  AccountPositions,
   ClosePositionResponse,
   LiveSession,
   LiveSessionPositions,
@@ -57,6 +59,10 @@ const eventsRefetchInterval = makeRefetchInterval<{
 }>(() => LIVE_SESSION_LIST_REFETCH_MS);
 
 const positionsRefetchInterval = makeRefetchInterval<LiveSessionPositions>(
+  () => LIVE_SESSION_LIST_REFETCH_MS,
+);
+
+const accountPositionsRefetchInterval = makeRefetchInterval<AccountPositions>(
   () => LIVE_SESSION_LIST_REFETCH_MS,
 );
 
@@ -170,6 +176,13 @@ function makePositionsFetcher(sessionId: string, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return getLiveSessionPositions(sessionId, token);
+  };
+}
+
+function makeAccountPositionsFetcher(accountId: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getAccountPositions(accountId, token);
   };
 }
 
@@ -439,6 +452,21 @@ export function useLiveSessionsPositions(
       refetchInterval: positionsRefetchInterval,
     })),
     combine: (results) => combineLiveSessionPositions(sessions, results),
+  });
+}
+
+/** BL-498 — 계정별 잔여 포지션을 조회한다. 활성 세션이 0건이어도 돈다. */
+export function useAccountPositions(
+  accounts: readonly { id: string }[],
+): UseQueryResult<AccountPositions, Error>[] {
+  const { uid, getToken } = useAuthCtx();
+  return useQueries({
+    queries: accounts.map((account) => ({
+      queryKey: liveSessionKeys.accountPositions(uid, account.id),
+      queryFn: makeAccountPositionsFetcher(account.id, getToken),
+      enabled: Boolean(account.id),
+      refetchInterval: accountPositionsRefetchInterval,
+    })),
   });
 }
 

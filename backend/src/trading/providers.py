@@ -696,6 +696,62 @@ def _to_bybit_linear_symbol(symbol: str) -> str:
     return f"{symbol}:{quote}"
 
 
+def _from_bybit_linear_symbol(symbol: str) -> str:
+    """BL-498 — ccxt linear unified symbol 을 우리 canonical 로 되돌린다.
+
+    `_to_bybit_linear_symbol` 의 역방향이다. 계정 전체 포지션 조회는 심볼을 인자로
+    주지 않으므로 응답의 `BTC/USDT:USDT` 를 우리가 저장·표시하는 `BTC/USDT` 로
+    되돌려야 세션·주문 원장과 대조된다.
+
+    settle 접미사가 quote 와 다른 심볼(inverse `BTC/USD:BTC`)은 **그대로 둔다** —
+    되돌리면 서로 다른 시장이 같은 문자열로 뭉개진다. 왕복 항등은 USDT-settled
+    linear 에서만 성립하고, 그것이 이 프로젝트가 다루는 범위다.
+    """
+    if ":" not in symbol:
+        return symbol
+    base_pair, _, settle = symbol.partition(":")
+    if "/" not in base_pair:
+        return symbol
+    quote = base_pair.split("/")[1].upper()
+    return base_pair if settle.upper() == quote else symbol
+
+
+def _position_snapshot_from_ccxt(position: dict[str, Any]) -> PositionSnapshot | None:
+    """ccxt position 항목을 `PositionSnapshot` 으로 정규화한다. 무포지션이면 None.
+
+    `fetch_open_positions`(심볼 지정)와 `fetch_all_open_positions`(계정 전체)가
+    공유한다. 파싱이 두 벌이 되면 한쪽만 고쳐지는 표류가 난다.
+    """
+    contracts = position.get("contracts")
+    if contracts is None:
+        return None
+    size = Decimal(str(contracts))
+    if size <= 0:
+        return None
+
+    side = position.get("side")
+    if not isinstance(side, str):
+        raise ProviderError("malformed Bybit position: missing side")
+    info = position.get("info") or {}
+    return PositionSnapshot(
+        side=side,
+        size=size,
+        entry_price=_decimal_or_none(position.get("entryPrice"), strict=True),
+        mark_price=_decimal_or_none(position.get("markPrice"), strict=True),
+        unrealized_pnl=_decimal_or_none(position.get("unrealizedPnl"), strict=True),
+        liquidation_price=_decimal_or_none(position.get("liquidationPrice"), strict=True),
+        leverage=_decimal_or_none(position.get("leverage"), strict=True),
+        take_profit_price=_decimal_or_none(
+            position.get("takeProfitPrice"), zero_as_none=True, strict=True
+        ),
+        stop_loss_price=_decimal_or_none(
+            position.get("stopLossPrice"), zero_as_none=True, strict=True
+        ),
+        position_idx=int(info["positionIdx"]) if info.get("positionIdx") is not None else None,
+        trailing_stop=_decimal_or_none(info.get("trailingStop"), zero_as_none=True, strict=True),
+    )
+
+
 class BybitFuturesProvider:
     """Bybit futures (Linear Perpetual, USDT margined) demo/live provider.
 
@@ -999,47 +1055,79 @@ class BybitFuturesProvider:
                 positions = await exchange.fetch_positions([linear_symbol])
             snapshots: list[PositionSnapshot] = []
             for position in positions:
-                contracts = position.get("contracts")
-                if contracts is None:
-                    continue
-                size = Decimal(str(contracts))
-                if size <= 0:
-                    continue
-
-                side = position.get("side")
-                if not isinstance(side, str):
-                    raise ProviderError("malformed Bybit position: missing side")
-                take_profit_price = _decimal_or_none(
-                    position.get("takeProfitPrice"), zero_as_none=True, strict=True
-                )
-                stop_loss_price = _decimal_or_none(
-                    position.get("stopLossPrice"), zero_as_none=True, strict=True
-                )
-                info = position.get("info") or {}
-                position_idx = (
-                    int(info["positionIdx"]) if info.get("positionIdx") is not None else None
-                )
-                trailing_stop = _decimal_or_none(
-                    info.get("trailingStop"), zero_as_none=True, strict=True
-                )
-                snapshots.append(
-                    PositionSnapshot(
-                        side=side,
-                        size=size,
-                        entry_price=_decimal_or_none(position.get("entryPrice"), strict=True),
-                        mark_price=_decimal_or_none(position.get("markPrice"), strict=True),
-                        unrealized_pnl=_decimal_or_none(position.get("unrealizedPnl"), strict=True),
-                        liquidation_price=_decimal_or_none(
-                            position.get("liquidationPrice"), strict=True
-                        ),
-                        leverage=_decimal_or_none(position.get("leverage"), strict=True),
-                        take_profit_price=take_profit_price,
-                        stop_loss_price=stop_loss_price,
-                        position_idx=position_idx,
-                        trailing_stop=trailing_stop,
-                    )
-                )
+                snapshot = _position_snapshot_from_ccxt(position)
+                if snapshot is not None:
+                    snapshots.append(snapshot)
             return snapshots
+        except ProviderError:
+            raise
+        except ccxt_async.BaseError as e:
+            raise ProviderError(f"{type(e).__name__}: {e}") from e
+        except Exception as e:
+            raise ProviderError(f"unexpected non-CCXT error: {type(e).__name__}") from None
+        finally:
+            try:
+                await exchange.close()
+            except Exception:
+                logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_all_open_positions(
+        self, creds: Credentials
+    ) -> tuple[list[tuple[str, PositionSnapshot]], bool]:
+        """BL-498 — 계정 전체의 열린 linear 포지션을 심볼과 함께 반환한다.
+
+        ``fetch_open_positions`` 는 심볼을 받아야 하므로 "이 계정에 무엇이 남아
+        있는가" 를 물을 수 없다. 활성 세션이 없으면 물어볼 심볼조차 없기 때문에
+        잔여 노출이 화면에서 사라지는 것이 BL-498 이다.
+
+        ccxt bybit 는 심볼 인자가 없으면 ``settleCoin`` 을 ``defaultSettle``(=USDT)
+        로 채우고 ``category=linear`` 로 조회한다. **따라서 USDC 정산 linear 와
+        inverse 는 이 조회에 잡히지 않는다** — 호출자가 그 한계를 표면에 고지해야
+        한다. USDT 정산 **dated futures 도 함께** 온다(무기한 전용이 아니다).
+        심볼은 우리 canonical 로 되돌려 세션·주문 원장과 대조 가능하게 한다.
+
+        반환 = ``(행 목록, 잘렸는가)``. 두 번째 값이 True 면 거래소가 더 있다고
+        말한 것이므로 화면이 "이게 전부" 라고 말하면 안 된다.
+        """
+        exchange = ccxt_async.bybit(
+            {
+                "apiKey": creds.api_key,
+                "secret": creds.api_secret,
+                "enableRateLimit": True,
+                "timeout": 30000,
+                "options": {
+                    "defaultType": "linear",
+                    "testnet": False,
+                },
+            }
+        )
+        _apply_bybit_env(exchange, creds.environment)
+        try:
+            async with ccxt_timer("bybit_futures", "fetch_all_open_positions"):
+                positions = await exchange.fetch_positions()
+            rows: list[tuple[str, PositionSnapshot]] = []
+            truncated = False
+            for position in positions:
+                # ★ccxt 는 `limit=200` 으로 **한 페이지만** 부르고, 다음 페이지를 가져오는
+                #   대신 커서를 첫 항목에 도장만 찍는다(`add_pagination_cursor_to_result`).
+                #   그 커서가 있으면 우리가 본 것이 전부가 아니라는 뜻이므로, 조용히
+                #   자르지 말고 호출자에게 알린다 — 이 표의 용도가 잔여 노출 관리다.
+                info = position.get("info") or {}
+                if position.get("nextPageCursor") or info.get("nextPageCursor"):
+                    truncated = True
+                snapshot = _position_snapshot_from_ccxt(position)
+                if snapshot is None:
+                    continue
+                symbol = position.get("symbol")
+                if not isinstance(symbol, str) or not symbol:
+                    raise ProviderError("malformed Bybit position: missing symbol")
+                rows.append((_from_bybit_linear_symbol(symbol), snapshot))
+            if truncated:
+                logger.warning(
+                    "bybit_account_positions_truncated",
+                    extra={"returned": len(positions)},
+                )
+            return rows, truncated
         except ProviderError:
             raise
         except ccxt_async.BaseError as e:

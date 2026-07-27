@@ -35,6 +35,7 @@ import { StatValue } from "@/components/stat-value";
 
 import { KillSwitchBanner } from "./kill-switch-banner";
 import { AccountBalanceSection } from "./account-balance-section";
+import { AccountPositionsTable } from "./account-positions-table";
 import { OpenPositionsTable } from "./open-positions-table";
 import { SessionDiagnostics } from "./session-diagnostics";
 
@@ -134,6 +135,16 @@ export function TradingCockpit() {
       label: accountLabelById.get(id) ?? id.slice(0, 8),
     }));
   }, [accountLabelById, activeSessions]);
+  // BL-498 — 계정 스코프 포지션은 **모든** 등록 계정을 순회한다. 활성 세션 기준으로
+  // 좁히면 세션이 0건일 때 잔여 노출이 다시 화면에서 사라진다.
+  const allAccountTargets = useMemo(
+    () =>
+      accountItems.map((account) => ({
+        id: account.id,
+        label: accountLabelById.get(account.id) ?? account.id.slice(0, 8),
+      })),
+    [accountItems, accountLabelById],
+  );
   const strategyNameBySessionId = useMemo(() => {
     const map = new Map<string, string>();
     for (const session of activeSessions) {
@@ -308,9 +319,10 @@ export function TradingCockpit() {
           </p>
           <h2 className="section-title">거래소 보고 포지션</h2>
           <p className="section-desc">
-            같은 계정과 심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
+            먼저 계정에 남아 있는 포지션을 활성 세션과 무관하게 보여주고, 그 아래에서 같은 계정과 심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
           </p>
         </header>
+        <AccountPositionsTable accounts={allAccountTargets} />
         <OpenPositionsTable
           sessions={activeSessions}
           demoSessionIds={demoSessionIds}

@@ -116,6 +116,40 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_state_and_exchange_id_fresh(
+        self, order_id: UUID
+    ) -> tuple[OrderState, str | None] | None:
+        """BL-499 — 식별맵을 우회해 DB 의 현재 `state` 와 `exchange_order_id` 를 읽는다.
+
+        `exchange_order_id` 가 함께 필요한 이유 — `submitted` 인데 거래소 id 가 없는
+        행은 **경합 패배가 아니라 제출 중단**이다(dispatch 가 `pending → submitted` 를
+        커밋한 뒤 거래소 왕복에서 죽으면 그 상태로 영구 고착한다). 둘을 같은 라벨로
+        묶으면 영구 장애가 1회성 경합 카운터에 섞여 사라진다.
+        """
+        result = await self.session.execute(
+            select(cast(Any, Order.state), cast(Any, Order.exchange_order_id)).where(
+                Order.id == order_id  # type: ignore[arg-type]
+            )
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+        return row[0], row[1]
+
+    async def get_state_fresh(self, order_id: UUID) -> OrderState | None:
+        """BL-499 — 식별맵을 우회해 DB 의 현재 `state` 를 읽는다. 행이 없으면 None.
+
+        ★`get_by_id` 로는 안 된다. 같은 세션이 이미 그 행을 적재했다면 SQLAlchemy
+        식별맵이 **적재 당시의 인스턴스**를 그대로 돌려주므로 경합 상대가 커밋한
+        최신 상태를 못 본다. 컬럼 하나만 select 하면 ORM 객체를 거치지 않아
+        READ COMMITTED 아래에서 항상 최신 커밋 값을 본다.
+        """
+        result = await self.session.execute(
+            select(cast(Any, Order.state)).where(Order.id == order_id)  # type: ignore[arg-type]
+        )
+        state: OrderState | None = result.scalar_one_or_none()
+        return state
+
     async def get_by_idempotency_key(self, key: str) -> Order | None:
         result = await self.session.execute(
             select(Order).where(Order.idempotency_key == key)  # type: ignore[arg-type]

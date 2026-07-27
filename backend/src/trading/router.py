@@ -49,6 +49,7 @@ from src.trading.repositories.live_signal_session_repository import LiveSignalSe
 from src.trading.repositories.order_repository import OrderRepository, SessionScope
 from src.trading.schemas import (
     AccountBalanceResponse,
+    AccountPositionsResponse,
     AlertRuleCreateRequest,
     AlertRuleListResponse,
     AlertRuleResponse,
@@ -244,6 +245,22 @@ async def get_exchange_account_balance(
         return await service.get_balance(current_user.id, account_id)
     except ProviderError as exc:
         raise HTTPException(status_code=503, detail="exchange balance lookup unavailable") from exc
+
+
+@router.get(
+    "/exchange-accounts/{account_id}/positions",
+    response_model=AccountPositionsResponse,
+)
+async def get_exchange_account_positions(
+    account_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: PositionService = Depends(get_position_service),
+) -> AccountPositionsResponse:
+    """BL-498 — 활성 세션이 없어도 계정에 남은 거래소 포지션을 보여준다."""
+    try:
+        return await service.get_account_positions(current_user.id, account_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=503, detail="exchange position lookup unavailable") from exc
 
 
 @router.delete(

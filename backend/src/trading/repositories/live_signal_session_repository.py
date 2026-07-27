@@ -75,6 +75,26 @@ class LiveSignalSessionRepository:
         )
         return result.scalars().all()
 
+    async def list_by_account(
+        self, account_id: UUID, *, user_id: UUID
+    ) -> Sequence[LiveSignalSession]:
+        """BL-498 — 계정의 세션을 **활성 여부 무관**하게 최신순으로 조회한다.
+
+        계정 스코프 포지션의 청산 귀속에 쓴다. fail-closed 종료는 세션을 비활성으로
+        만들고 포지션은 남기므로, 활성만 보면 정작 그 포지션을 만든 세션을 놓친다.
+
+        ★`user_id` 를 함께 요구한다. 호출자가 계정 소유를 이미 검증하더라도
+        `LiveSignalSession.user_id` 와 `exchange_account_id` 는 독립 FK 라 둘의
+        소유자가 같다는 DB 제약이 없다. 귀속을 결정하는 조회이므로 방어한다.
+        """
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.exchange_account_id == account_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+            .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
     async def count_active_by_user(self, user_id: UUID) -> int:
         """Sprint 26 quota check — 사용자별 active session ≤ 5."""
         result = await self.session.execute(

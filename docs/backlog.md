@@ -424,6 +424,8 @@
 
 ### BL-498
 
+**상태:** ✅ **Resolved (2026-07-27, `feat/live-conditional-hardening`).** 계정 스코프 조회 `GET /exchange-accounts/{id}/positions` 신설 + 코크핏 §03 에 "계정 잔여 포지션" 표를 세션별 대조 **위**에 추가. **신규 청산 경로는 만들지 않았다** — preflight 가 `ClosePositionService.close_position` 이 `is_active` 를 요구하지 않는다는 것을 밝혔으므로(비활성 세션 id 로도 청산된다) 막혀 있던 건 화면이 활성 세션만 순회하는 것뿐이었다. ccxt `fetch_positions()` 는 심볼 인자 없이 `settleCoin=USDT`·`category=linear` 로 계정 전체를 1콜에 준다. ★**dogfood 종단 증명** — 활성 세션 0건 상태에서 raw HMAC 으로 앱 밖에서 `BTCUSDT Buy 0.002 @65331.1` 생성 → 코크핏 §03 렌더된 화면에 표시 → 화면 청산 버튼 → 거래소 `Sell 0.002 reduceOnly=True @65315.1`, 포지션 `legs=0`. 3중 대조 일치(우리 원장 `a8765854` = 거래소 `orderLinkId`, `exchange_order_id bedc278b` = 거래소 `orderId`, `filled_price 65315.1` = `avg`). 콘솔 error 0. ★청산 불가 사유를 **서버에서** 판정한다 — 귀속 세션 없음(`no_owning_session`) · hedge/`position_idx != 0`(`hedge_unsupported`). 누르면 409 로 실패할 버튼을 주지 않는다. ★조회 범위(USDT 정산 linear 전용)를 응답 필드와 화면 각주로 고지한다.
+
 **Title:** 활성 세션이 없으면 거래소 포지션을 화면에서 보지도 닫지도 못한다
 **Category:** Frontend / trading (코크핏 §03)
 **Priority:** **P2**
@@ -444,6 +446,10 @@
 ---
 
 ### BL-499
+
+**상태:** 🟡 **부분 완화 (2026-07-27, `feat/live-conditional-hardening`). 열려 있다.** 근본 경합(취소 의도 영속 또는 dispatch 시점 재검사)은 사용자 결정으로 **마이그레이션 0** 을 택해 그대로 남는다. 이번에 한 것은 **패배와 진짜 실패를 구분해 관측 가능하게 만든 것**이다 — `transition_pending_to_cancelled` 가 rowcount 0 이면 `get_state_and_exchange_id_fresh`(식별맵 우회 컬럼 select)로 재조회해, 비-`pending` 이면 `RuntimeError` 대신 metric + 로그를 남긴다. ★**경합과 제출 중단을 라벨로 가른다** — `submitted` 인데 `exchange_order_id` 가 없으면 경합이 아니라 dispatch 가 상태만 커밋하고 거래소 왕복에서 죽은 **영구 고착**이고(`orphan_scanner` 가 조건부 진입을 면제해 아무도 안 치운다) 그 행은 매 tick 이 분기를 타 세션 등재를 영구 정지시킨다. `stage="cancel_stalled"` + `logger.error` 로 분리한다(적대 검증 지적 — 안 가르면 영구 장애가 1회성 경합 카운터에 섞여 사라진다). ★**패배해도 그 tick 의 `to_place` 는 건너뛴다(fail-closed 유지)** — `current_position` 은 취소 루프보다 **먼저** 찍은 스냅샷이라, 패배한 주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다(G0.5 codex 지적, 재현 판정 후 플랜 개정).
+
+★★**preflight 결론을 정정한다.** "취소된 16건이 전부 `exchange_order_id` 를 보유하므로 이 경로는 미주행" 은 **성립하지 않는다.** 패배한 호출은 rowcount 0 이라 행에 아무것도 안 쓰고, 이후 dispatch 가 `exchange_order_id` 를 붙이면 최종 행은 정확히 그 16건과 같은 모습이 된다. 증명된 것은 **"DB-only 취소 _성공_ 0건"** 뿐이다. 신설 metric 이 앞으로 호출·패배 횟수를 따로 센다.
 
 **Title:** 조건부 진입 취소와 비동기 dispatch 의 경합 — 취소하려던 주문이 거래소에 올라간다
 **Category:** Backend / trading (조건부 진입)
@@ -466,6 +472,16 @@
 
 ### BL-500
 
+**상태:** ✅ **Resolved (2026-07-27, `feat/live-conditional-hardening`).** 거래소 조회가 **성공한** tick 에 한해, `exchange_order_id` 가 있는데 거래소 응답에 없는 로컬 행을 `actual` 에서 제거하고 `stage="exchange_missing"` metric + 발산 로그를 남긴다. 계획기가 그 trade_id 를 다시 등재하므로 영구 no-op 이 풀린다.
+
+★★**"목록에 없다" 는 부재의 증거로 쓰지 않는다.** 후보마다 `fetch_order(exchange_order_id)` 로 **거래소에 직접 물어** terminal(`filled`/`cancelled`/`rejected`)임을 확인한 뒤에만 제거한다. 확인하지 못하면(조회 실패·아직 열려 있음) 그대로 둔다. `exchange_order_id` 가 없는 in-flight 행은 물어볼 대상이 없으므로 건드리지 않는다.
+
+★**나이 게이트(3분)는 폐기했다 — 적대 검증이 잘못된 시계를 잰다는 것을 증명했다.** reconcile 은 60초마다가 아니라 **bar 마다** 돈다(`no_new_bar` 조기 return). 1h 세션이면 어떤 주문이든 나이가 항상 3분을 넘어 게이트가 늘 열려 있었다. 게다가 `submitted_at` 은 **주문의 나이**이지 **부재의 나이**가 아니고, 조건부 진입은 정의상 몇 시간 resting 하다 트리거된다 — 막겠다던 창의 주문은 거의 전부 이미 늙어 있다.
+
+★**체결이 확인되면 그 tick 은 등재하지 않는다.** 포지션 스냅샷이 그 체결보다 앞서 찍혔을 수 있어 낡은 포지션으로 사이징하면 이중 포지션이 된다.
+
+★**상태 전이는 하지 않는다** — watchdog·`Reconciler` 책임이다. **한계(정정)** — 유령 행은 자연 해소되지 않는다. `websocket/reconcile_fetcher.py` 는 `trigger=True`/`orderFilter=StopOrder` 를 쓰지 않아 **미트리거 조건부 주문을 구조적으로 볼 수 없다**(이전 서술 "WS 재연결 reconcile 까지" 는 틀렸다). `orphan_scanner` 도 조건부 진입을 면제하므로 아무도 안 치운다 → **BL-503** 등재.
+
 **Title:** 거래소에서 사라진 `submitted` 조건부 주문을 DB 행만으로 resting 이라 오인한다
 **Category:** Backend / trading (조건부 진입)
 **Priority:** P2
@@ -484,6 +500,82 @@
 **영향 파일:** `tasks/live_signal.py`, `trading/services/conditional_entry_planner.py`.
 
 **Risk:** 🟡 (무음 미진입 — 관측 가능성이 낮다).
+
+---
+
+### BL-501
+
+**Title:** 같은 거래소 계정을 가리키는 API 키가 둘이면 포지션이 중복되고 read-only 키에도 청산 버튼이 붙는다
+**Category:** Backend / Frontend / trading (계정 스코프)
+**Priority:** P3
+**Trigger:** 사용자가 같은 서브계정에 API 키를 2개 이상 등록해 둔 동안
+**Est:** S-M
+**출처:** 2026-07-27 live-conditional-hardening dogfood 실측
+
+**원인 / 영향:** 계정 스코프 포지션은 **등록된 계정마다** 거래소를 조회한다. 그런데 등록된 두 계정이 같은 Bybit 서브계정을 가리킬 수 있다 — 실측으로 `19a8166a`('bybit demo')와 `0277c150`('bybit demo- aaa')가 **같은 uid `558689281`** 이었다(`/v5/user/query-api` raw HMAC 확인, BL-477 과 같은 사실). 그래서 하나뿐인 포지션이 계정마다 한 행씩 **두 번** 렌더된다.
+
+두 번째 문제는 그중 `0277c150` 이 **`readOnly=1`** 이라는 것이다. 그 계정에도 BTC/USDT 세션이 있어 귀속 판정을 통과하므로 청산 버튼이 붙는데, 누르면 거래소가 권한 오류로 거부한다. 즉 `close_service` 가 걸러내는 hedge 와 같은 부류의 "누르면 실패하는 버튼" 이 권한 축에서 남아 있다.
+
+**이번 스프린트 조치** — 계정이 2개 이상일 때 "여러 API 키가 같은 거래소 계정을 가리키면 같은 포지션이 계정마다 한 번씩 나타납니다" 각주를 렌더한다(무음 중복을 고지로 바꾼 것이지 해결이 아니다).
+
+★**세 번째 귀결이 dogfood 로 드러났다 — 캐시 무효화가 계정 id 단위다.** 청산 주문은 자기 `exchange_account_id` 의 스냅샷 키만 지운다. 같은 거래소 계정을 가리키는 **다른 자격증명의 키는 그대로 남아** 최대 15초 동안 이미 닫힌 포지션을 계속 보여준다. 실측 — `19a8166a` 로 청산하니 그 키는 즉시 사라졌고 `0277c150` 키는 TTL 만료까지 남았다. uid 로 접으면 이 문제도 함께 닫힌다.
+
+**권장 접근:** 계정 등록/조회 시 `/v5/user/query-api` 의 `userID` 를 캐시해 (a) 같은 uid 계정을 한 행으로 접고 (b) `readOnly` 키를 청산 불가로 판정한다. 등록 시점 1회 조회 + 계정 행 저장이면 조회 경로에 REST 비용이 안 붙는다. **마이그레이션 1건**(컬럼 2개)이 필요하다.
+
+**영향 파일:** `trading/services/position_service.py`, `trading/services/account_service.py`, `trading/models.py`, `frontend/src/app/(dashboard)/trading/_components/account-positions-table.tsx`.
+
+**Risk:** 🟢 (표시 중복 + 실패하는 버튼. 중복 청산을 눌러도 두 번째 감소전용 주문은 평탄해진 포지션에서 거부된다).
+
+---
+
+### BL-502
+
+**Title:** 세션 표와 계정 표의 청산 버튼에 공유 lock 이 없다
+**Category:** Frontend / trading (코크핏 §03)
+**Priority:** P3
+**Trigger:** 두 표가 같은 포지션을 보여주는 동안 사용자가 양쪽을 연달아 누를 때
+**Est:** S
+**출처:** 2026-07-27 live-conditional-hardening G0.5 codex 지적 (재현 판정 후 등재)
+
+**원인 / 영향:** 두 표가 각각 별도의 `useClosePosition` 인스턴스를 쓰므로 `isPending` 이 공유되지 않는다. 같은 순 포지션에 대해 두 개의 감소전용 시장가 주문이 비동기로 나갈 수 있다.
+
+★★**"캐시 무효화는 이미 맞다" 고 썼던 것을 정정한다.** React Query 층에서만 참이었다 — 재조회가 서버의 **15초 Redis 스냅샷**에 그대로 적중해 방금 닫은 포지션이 다시 왔다. 적대 검증이 잡았고 같은 스프린트에서 수정했다(reduce-only 즉시 체결 + **watchdog 확정** + WS position 팬아웃 세 경로에서 계정 키 삭제. ★watchdog 경로는 G6 최종 리뷰가 추가로 잡았다 — 첫 수정은 즉시 `filled` 만 덮어 절반이었다. 기존 세션 키 삭제는 **활성** 세션 순회라 활성 0건이면 아무것도 안 지웠다 — 계정 표는 바로 그 상태를 위해 있다). 남은 것은 in-flight 중복뿐이고, 두 번째 주문은 평탄해진 포지션에서 거래소가 거부하므로 손실이 아니라 **원장 잡음**이다.
+
+**권장 접근:** `useClosePosition` 에 `mutationKey` 를 부여하고 두 표가 `useIsMutating({ mutationKey })` 로 버튼을 함께 비활성화한다. 서버 측 중복 방어(계정·심볼 단위 flatten 멱등성)는 별도 결정이 필요하다.
+
+**영향 파일:** `frontend/src/features/live-sessions/hooks.ts`, `open-positions-table.tsx`, `account-positions-table.tsx`.
+
+**Risk:** 🟢
+
+---
+
+### BL-503
+
+**Title:** 제출 중단·유령 조건부 진입 행을 아무도 치우지 않는다
+**Category:** Backend / trading (조건부 진입)
+**Priority:** P2
+**Trigger:** `stage="cancel_stalled"` 또는 `stage="exchange_missing"` 이 같은 `order_id` 로 반복 관측될 때
+**Est:** M
+**출처:** 2026-07-27 live-conditional-hardening 적대 검증(동시성 렌즈, 재현 판정 후 등재)
+
+**원인 / 영향:** 조건부 진입 주문 행이 아래 두 모양으로 **영구 고착**할 수 있고, 현재 어떤 복구 주체도 그 행을 보지 못한다.
+
+1. **제출 중단** — dispatch 가 `pending → submitted` 를 커밋하고(`tasks/trading.py:297-304`) 거래소 왕복(`:398`) 또는 `attach_exchange_order_id`(`:521`) 전에 죽으면 `state=submitted, exchange_order_id=NULL` 이 남는다. 이 행은 `list_resting_conditional_entries` 에 **매 tick 영원히** 들어오고, desired 와 어긋나면 `to_cancel` → DB-only 취소 rowcount 0 → `cancel_stalled` → **그 tick 등재 0**. 즉 그 세션의 조건부 진입이 영구 정지한다.
+2. **유령** — 로컬 `submitted` + `exchange_order_id` 보유인데 거래소에 없는 행. 이번 스프린트가 `actual` 에서 빼도록 고쳤지만 **DB 행은 그대로 남는다.**
+
+복구 주체가 전부 이 행들을 못 본다.
+
+- `orphan_scanner` 의 `list_stuck_submitted` / `list_stuck_submission_interrupted` 는 둘 다 `Order.trigger_price.is_(None)` — 조건부 진입 **구조적 제외**(이건 30분 CRITICAL 오탐을 막으려던 이번 시리즈의 의도된 면제다).
+- WS `Reconciler` 의 `reconcile_fetcher` 는 `fetch_open_orders`/`fetch_closed_orders`/`fetch_canceled_orders` 어디에도 `trigger=True`·`orderFilter=StopOrder` 를 쓰지 않는다 → **미트리거 조건부 주문이 스냅샷에 나타나지 않는다** → `_handle_unknown` → 상태 유지 + `send_critical_alert`(스로틀 없음).
+- 세션 종료 후 beat sweeper 는 사라진 `exchange_order_id` 로 `cancel_order` 를 호출해 `OrderNotFound` → `ProviderError` → `stage="sweep_cancel"` 예외 로그를 **5분마다 영원히** 반복한다.
+
+부수 — 그동안 `qb_active_orders` 게이지가 행당 +1 영구 표류한다.
+
+**권장 접근:** (a) `reconcile_fetcher` 에 trigger 조회를 추가해 `Reconciler` 가 조건부 주문에도 terminal evidence 를 얻게 하거나, (b) 조건부 진입 전용 정리 스캐너를 두어 `fetch_order` 로 terminal 확인 후 전이한다. (b) 는 이번 스프린트가 reconcile 안에 넣은 probe 와 같은 기전이라 재사용 가능하다. sweeper 의 `OrderNotFound` 는 "이미 없다 = 취소 성공" 으로 흡수해야 한다.
+
+**영향 파일:** `trading/websocket/reconcile_fetcher.py`, `tasks/live_signal.py`(sweeper), `trading/repositories/order_repository.py`.
+
+**Risk:** 🟡 (세션 등재 영구 정지 + 무한 오경보. 실주문을 잘못 내지는 않는다).
 
 ---
 

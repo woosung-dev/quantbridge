@@ -73,6 +73,7 @@ def _order(
     strategy_id: UUID | None = None,
     exchange_account_id: UUID | None = None,
     exchange_order_id: str | None = None,
+    submitted_at: datetime | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
@@ -85,6 +86,9 @@ def _order(
         reduce_only=False,
         state=OrderState.submitted,
         exchange_order_id=exchange_order_id,
+        # BL-500 나이 게이트 기본값 = "방금 제출" — 게이트가 열리려면 테스트가 명시적으로
+        # 늙혀야 한다. 기본이 늙은 값이면 무관한 테스트가 조용히 제거 경로를 탄다.
+        submitted_at=submitted_at if submitted_at is not None else datetime.now(UTC),
         idempotency_key=build_conditional_entry_key(
             session.id, trade_id, _BAR_TIME, Decimal("100"), Decimal("1")
         ),
@@ -115,6 +119,12 @@ def _patch_reconcile(
     precision_error: Exception | None = None,
     execute_error: Exception | None = None,
     active_sessions: list[SimpleNamespace] | None = None,
+    pending_cancel_rows: int = 1,
+    fresh_state: OrderState | None = OrderState.submitted,
+    fresh_exchange_order_id: str | None = "exchange-raced",
+    exchange_orders_error: Exception | None = None,
+    probe_status: str | None = "submitted",
+    probe_error: Exception | None = None,
 ) -> SimpleNamespace:
     session = AsyncMock()
     order_repo = AsyncMock()
@@ -126,7 +136,10 @@ def _patch_reconcile(
 
     order_repo.get_by_id = AsyncMock(side_effect=get_by_id)
     order_repo.transition_to_cancelled = AsyncMock(return_value=1)
-    order_repo.transition_pending_to_cancelled = AsyncMock(return_value=1)
+    order_repo.transition_pending_to_cancelled = AsyncMock(return_value=pending_cancel_rows)
+    order_repo.get_state_and_exchange_id_fresh = AsyncMock(
+        return_value=None if fresh_state is None else (fresh_state, fresh_exchange_order_id)
+    )
     order_repo.commit = AsyncMock()
 
     account_repo = AsyncMock()
@@ -158,9 +171,21 @@ def _patch_reconcile(
     )
 
     provider = AsyncMock()
-    provider.fetch_open_conditional_orders = AsyncMock(return_value=exchange_orders or [])
+    provider.fetch_open_conditional_orders = AsyncMock(
+        return_value=exchange_orders or [], side_effect=exchange_orders_error
+    )
     provider.fetch_open_positions = AsyncMock(return_value=positions or [])
     provider.cancel_order = AsyncMock()
+    provider.fetch_order = AsyncMock(
+        return_value=SimpleNamespace(
+            exchange_order_id="probe",
+            status=probe_status,
+            filled_price=None,
+            filled_quantity=None,
+            raw={},
+        ),
+        side_effect=probe_error,
+    )
 
     import src.trading.providers as providers_module
 
@@ -633,3 +658,257 @@ async def test_reconcile_defers_while_market_orders_are_in_flight(
 
     harness.provider.fetch_open_conditional_orders.assert_not_awaited()
     harness.order_service.execute.assert_not_awaited()
+
+
+# ── BL-499 취소↔dispatch 경합의 패자 경로 ─────────────────────────────────
+
+
+def _capture_error_stages(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """`qb_live_conditional_reconcile_errors_total` 의 stage 라벨을 수집한다."""
+    stages: list[str] = []
+    metric = MagicMock()
+    metric.labels = MagicMock(
+        side_effect=lambda stage: (stages.append(stage), MagicMock())[1]
+    )
+    monkeypatch.setattr(
+        live_signal_module, "qb_live_conditional_reconcile_errors_total", metric
+    )
+    return stages
+
+
+@pytest.mark.asyncio
+async def test_cancel_race_is_classified_and_skips_placement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★경합 패배는 진짜 실패와 구분되고, 그 tick 의 등재는 하지 않는다.
+
+    실행 워커가 `pending → submitted` 를 먼저 커밋하면 DB-only 취소는 rowcount 0 이다.
+    이것은 실패가 아니라 패배이므로 `cancel_raced` 로 분류한다. 그래도 `to_place` 는
+    건너뛴다 — `current_position` 은 취소 루프보다 먼저 찍은 스냅샷이라, 패배한 주문이
+    그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다.
+    """
+    session = _session()
+    stale = _order(session, trade_id="old", exchange_order_id=None)
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[stale],
+        pending_cancel_rows=0,
+        fresh_state=OrderState.submitted,
+    )
+    stages = _capture_error_stages(monkeypatch)
+
+    await _reconcile(session, _result([_pending(trade_id="new")]), harness)
+
+    assert stages == ["cancel_raced"]
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cancel_race_does_not_touch_active_orders_gauge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★패배는 terminal 전이가 아니다. dec 하면 게이지가 음수로 표류한다."""
+    session = _session()
+    stale = _order(session, trade_id="old", exchange_order_id=None)
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[stale],
+        pending_cancel_rows=0,
+        fresh_state=OrderState.filled,
+    )
+    _capture_error_stages(monkeypatch)
+    gauge = MagicMock()
+    monkeypatch.setattr(live_signal_module, "qb_active_orders", gauge)
+
+    await _reconcile(session, _result([_pending(trade_id="new")]), harness)
+
+    gauge.dec.assert_not_called()
+    harness.order_repo.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_row_is_still_a_genuine_cancel_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★음성 대조 — 행 자체가 없으면 여전히 실패다. 완화가 진짜 실패를 삼키면 안 된다."""
+    session = _session()
+    stale = _order(session, trade_id="old", exchange_order_id=None)
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[stale],
+        pending_cancel_rows=0,
+        fresh_state=None,
+    )
+    stages = _capture_error_stages(monkeypatch)
+
+    await _reconcile(session, _result([_pending(trade_id="new")]), harness)
+
+    assert stages == ["cancel"]
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_next_tick_cancels_the_raced_order_on_the_exchange(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★자가 치유 — 패배한 주문은 다음 tick 에 `exchange_order_id` 로 정상 취소된다."""
+    session = _session()
+    raced = _order(session, trade_id="old", exchange_order_id="exchange-old")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[raced],
+        exchange_orders=[_exchange_order(raced)],
+        database_orders=[raced],
+    )
+
+    await _reconcile(session, _result([_pending(trade_id="new")]), harness)
+
+    harness.provider.cancel_order.assert_awaited_once_with(ANY, "exchange-old", session.symbol)
+
+
+# ── BL-500 거래소 부재가 로컬 행을 이긴다 ─────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_missing_order_confirmed_cancelled_is_replaced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★거래소가 "취소됨" 이라고 확인해 주면 `actual` 에서 빠지고 재등재된다.
+
+    이걸 안 하면 그 trade_id 는 영구 no-op 이다 — 계획기가 로컬 행만 보고
+    "이미 등재됨" 으로 판정하기 때문이다.
+    """
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch, local_orders=[ghost], exchange_orders=[], probe_status="cancelled"
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.provider.fetch_order.assert_awaited_once()
+    harness.order_service.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_missing_order_still_open_on_exchange_is_kept(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★목록에 없다고 사라진 것이 아니다.
+
+    주문 조회 응답이 열화(레이트리밋·부분 응답)됐거나 방금 트리거돼 목록에서만
+    먼저 빠졌을 수 있다. 거래소가 아직 살아 있다고 말하면 그대로 둔다.
+    """
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch, local_orders=[ghost], exchange_orders=[], probe_status="submitted"
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_probe_failure_removes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """★확인하지 못하면 그대로 둔다.
+
+    이 함수의 다른 모든 열화 입력은 fail-closed 다. 여기만 "주문을 더 낸다" 방향으로
+    fail-open 하면 REST 한 번의 열화가 중복 등재로 번역된다.
+    """
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[ghost],
+        exchange_orders=[],
+        probe_error=RuntimeError("rate limited"),
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirmed_fill_stands_down_this_tick(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★체결이 확인되면 이번 tick 은 등재하지 않는다.
+
+    포지션 스냅샷은 이 확인보다 앞서 찍혔을 수 있다. 낡은 포지션으로 사이징하면
+    이중 포지션이 된다 — 다음 tick 이 새 포지션으로 다시 계획한다.
+    """
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch, local_orders=[ghost], exchange_orders=[], probe_status="filled"
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_in_flight_order_without_exchange_id_is_never_probed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★음성 대조 — `exchange_order_id` 가 없는 행은 물어볼 대상 자체가 없다.
+
+    그건 아직 dispatch 가 거래소 id 를 붙이지 못한 in-flight 행이고, 지우면 진짜
+    이중 등재 방어가 무너진다.
+    """
+    session = _session()
+    in_flight = _order(session, exchange_order_id=None)
+    harness = _patch_reconcile(monkeypatch, local_orders=[in_flight], exchange_orders=[])
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.provider.fetch_order.assert_not_awaited()
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_exchange_lookup_failure_removes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★조회 실패 tick 에는 현상 유지다. 실패를 "거래소에 없다" 로 읽으면 안 된다."""
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[ghost],
+        exchange_orders_error=RuntimeError("exchange unavailable"),
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_stalled_submission_is_not_labelled_as_a_race(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★`submitted` 인데 거래소 id 가 없으면 경합이 아니라 제출 중단이다.
+
+    dispatch 가 상태만 커밋하고 거래소 왕복에서 죽으면 그 행은 영구 고착하는데
+    `orphan_scanner` 는 조건부 진입을 면제한다. 경합 카운터로 강등하면 영구 장애가
+    1회성 경합에 섞여 사라진다.
+    """
+    session = _session()
+    stale = _order(session, trade_id="old", exchange_order_id=None)
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[stale],
+        pending_cancel_rows=0,
+        fresh_state=OrderState.submitted,
+        fresh_exchange_order_id=None,
+    )
+    stages = _capture_error_stages(monkeypatch)
+
+    await _reconcile(session, _result([_pending(trade_id="new")]), harness)
+
+    assert stages == ["cancel_stalled"]

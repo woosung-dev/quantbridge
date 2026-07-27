@@ -110,7 +110,10 @@ async def test_position_event_publishes_frozen_payload(monkeypatch: pytest.Monke
 
     await handler.handle_position_event({"symbol": "BTCUSDT", "side": "Buy", "size": "1.25"})
 
-    assert redis.deleted == [f"qb_pos_snapshot:{session.id}"]
+    assert redis.deleted == [
+        f"qb_acct_pos_snapshot:{handler._account_id}",
+        f"qb_pos_snapshot:{session.id}",
+    ]
     publisher.assert_awaited_once_with(
         "user-1",
         "position_update",
@@ -154,7 +157,12 @@ async def test_position_debounce_does_not_skip_cache_delete(
     await handler.handle_position_event(item)
     await handler.handle_position_event(item)
 
-    assert redis.deleted == [f"qb_pos_snapshot:{session.id}"] * 2
+    assert redis.deleted == [
+        f"qb_acct_pos_snapshot:{handler._account_id}",
+        f"qb_pos_snapshot:{session.id}",
+        f"qb_acct_pos_snapshot:{handler._account_id}",
+        f"qb_pos_snapshot:{session.id}",
+    ]
     publisher.assert_awaited_once()
 
 
@@ -166,7 +174,10 @@ async def test_position_deletes_only_matching_session_cache(monkeypatch: pytest.
 
     await handler.handle_position_event({"symbol": "BTCUSDT", "side": "Buy", "size": "1"})
 
-    assert redis.deleted == [f"qb_pos_snapshot:{matching.id}"]
+    assert redis.deleted == [
+        f"qb_acct_pos_snapshot:{handler._account_id}",
+        f"qb_pos_snapshot:{matching.id}",
+    ]
 
 
 @pytest.mark.asyncio
@@ -232,17 +243,28 @@ async def test_malformed_position_payloads_are_safe(monkeypatch: pytest.MonkeyPa
     )
     await handler.handle_position_event({"symbol": "BTCUSDT", "side": "Buy", "size": "0"})
 
-    assert redis.deleted == [f"qb_pos_snapshot:{session.id}"]
+    assert redis.deleted == [
+        f"qb_acct_pos_snapshot:{handler._account_id}",
+        f"qb_pos_snapshot:{session.id}",
+    ]
     assert publisher.await_args.args[2]["side"] == "flat"
 
 
 @pytest.mark.asyncio
-async def test_position_event_with_no_active_sessions_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_position_event_without_active_sessions_still_clears_account_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★활성 세션이 0건이어도 계정 스코프 캐시는 버린다(BL-498).
+
+    세션 팬아웃(퍼블리시·세션 키 삭제)은 그대로 no-op 이다. 그런데 계정 잔여 포지션
+    표는 **정확히 이 상태**(활성 세션 0건)를 위해 존재하므로, 여기서 안 지우면 그
+    표만 낡은 스냅샷을 계속 보게 된다.
+    """
     handler, redis, publisher = _handler(monkeypatch, [])
 
     await handler.handle_position_event({"symbol": "BTCUSDT", "side": "Buy", "size": "1"})
 
-    assert redis.deleted == []
+    assert redis.deleted == [f"qb_acct_pos_snapshot:{handler._account_id}"]
     publisher.assert_not_awaited()
 
 

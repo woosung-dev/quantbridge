@@ -37,13 +37,13 @@ const POSITION_UNSUPPORTED_BODY: Record<string, string> = {
   settings_unset: "전략 레버리지 설정이 없어 포지션을 대조할 수 없습니다.",
 };
 
-const EMPTY_CELL = "—";
+export const EMPTY_CELL = "—";
 
 function formatPrices(prices: string[]): string {
   return prices.length > 0 ? prices.join(", ") : EMPTY_CELL;
 }
 
-function directionLabel(side: string): string {
+export function directionLabel(side: string): string {
   if (side === "long") return "롱";
   if (side === "short") return "숏";
   if (side === "flat") return "플랫";
