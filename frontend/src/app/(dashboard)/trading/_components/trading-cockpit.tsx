@@ -142,6 +142,8 @@ export function TradingCockpit() {
       accountItems.map((account) => ({
         id: account.id,
         label: accountLabelById.get(account.id) ?? account.id.slice(0, 8),
+        exchangeUid: account.exchange_uid,
+        readOnly: account.read_only,
       })),
     [accountItems, accountLabelById],
   );

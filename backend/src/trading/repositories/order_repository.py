@@ -204,6 +204,19 @@ class OrderRepository:
             if parsed is not None and parsed[0] not in active_session_ids
         ]
 
+    async def list_stale_conditional_entries(self, cutoff: datetime) -> Sequence[Order]:
+        """활성 여부와 무관하게 오래된 submitted 조건부 진입을 최대 100건 찾는다."""
+        stmt = (
+            select(Order)
+            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .where(Order.submitted_at < cutoff)  # type: ignore[operator, arg-type]
+            .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
+            .limit(100)
+        )
+        return (await self.session.execute(stmt)).scalars().all()
+
     async def list_by_user(
         self,
         user_id: UUID,
@@ -483,12 +496,39 @@ class OrderRepository:
         return result.rowcount or 0  # type: ignore[attr-defined]
 
     async def transition_to_rejected(
-        self, order_id: UUID, *, error_message: str, failed_at: datetime
+        self,
+        order_id: UUID,
+        *,
+        error_message: str,
+        failed_at: datetime,
+        filled_price: Decimal | None = None,
+        filled_quantity: Decimal | None = None,
     ) -> int:
+        values: dict[str, object] = {
+            "state": OrderState.rejected,
+            "error_message": error_message[:2000],
+            "filled_at": failed_at,
+        }
+        if filled_quantity is not None and filled_quantity != 0:
+            values["filled_price"] = filled_price
+            values["filled_quantity"] = filled_quantity
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
+            .values(**values)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
+    async def transition_submitted_without_exchange_id_to_rejected(
+        self, order_id: UUID, *, error_message: str, failed_at: datetime
+    ) -> int:
+        """Janitor 전용 CAS. 늦은 attach 와 경합하면 DB 상태를 바꾸지 않는다."""
+        result = await self.session.execute(
+            update(Order)
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(Order.state == OrderState.submitted)  # type: ignore[arg-type]
+            .where(Order.exchange_order_id.is_(None))  # type: ignore[union-attr]
             .values(
                 state=OrderState.rejected,
                 error_message=error_message[:2000],
@@ -497,12 +537,26 @@ class OrderRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
-    async def transition_to_cancelled(self, order_id: UUID, *, cancelled_at: datetime) -> int:
+    async def transition_to_cancelled(
+        self,
+        order_id: UUID,
+        *,
+        cancelled_at: datetime,
+        filled_price: Decimal | None = None,
+        filled_quantity: Decimal | None = None,
+    ) -> int:
+        values: dict[str, object] = {
+            "state": OrderState.cancelled,
+            "filled_at": cancelled_at,
+        }
+        if filled_quantity is not None and filled_quantity != 0:
+            values["filled_price"] = filled_price
+            values["filled_quantity"] = filled_quantity
         result = await self.session.execute(
             update(Order)
             .where(Order.id == order_id)  # type: ignore[arg-type]
             .where(Order.state.in_([OrderState.pending, OrderState.submitted]))  # type: ignore[attr-defined]
-            .values(state=OrderState.cancelled, filled_at=cancelled_at)
+            .values(**values)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 

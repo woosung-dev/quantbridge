@@ -56,6 +56,8 @@ class ClosePositionService:
             raise HTTPException(status_code=422, detail="live_mode_stub")
         if account.exchange != ExchangeName.bybit:
             raise HTTPException(status_code=422, detail="exchange_unsupported")
+        if account.read_only is True:
+            raise HTTPException(status_code=422, detail="read_only_key")
 
         credentials = await self._account_service.get_credentials_for_order(account.id)
         positions = await self._bybit_futures_provider.fetch_open_positions(

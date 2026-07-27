@@ -35,7 +35,7 @@ _CACHE_TTL_SECONDS = 15
 # 응답에 이 값을 실어 "무엇이 조회 범위 밖인가" 를 화면이 숨기지 않게 한다.
 _ACCOUNT_SETTLE_COIN = "USDT"
 _LocalSource = Literal["strategy_state_report", "none"]
-_CloseBlockedReason = Literal["no_owning_session", "hedge_unsupported"]
+_CloseBlockedReason = Literal["no_owning_session", "hedge_unsupported", "read_only_key"]
 _MarketType = Literal["futures", "spot"]
 _Verdict = Literal[
     "match", "qty_mismatch", "side_mismatch", "exchange_only", "local_only", "unknown"
@@ -298,6 +298,8 @@ class PositionService:
             blocked_reason: _CloseBlockedReason | None = (
                 "hedge_unsupported"
                 if hedged
+                else "read_only_key"
+                if account.read_only is True
                 else "no_owning_session"
                 if owning_session is None
                 else None

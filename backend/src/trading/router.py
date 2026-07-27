@@ -203,6 +203,8 @@ async def register_exchange_account(
         mode=account.mode,
         label=account.label,
         api_key_masked=mask_api_key(plaintext_key),
+        exchange_uid=account.exchange_uid,
+        read_only=account.read_only,
         created_at=account.created_at,
     )
 
@@ -226,6 +228,8 @@ async def list_exchange_accounts(
                 mode=acct.mode,
                 label=acct.label,
                 api_key_masked=mask_api_key(plaintext_key),
+                exchange_uid=acct.exchange_uid,
+                read_only=acct.read_only,
                 created_at=acct.created_at,
             )
         )

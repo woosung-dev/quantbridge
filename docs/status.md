@@ -1,9 +1,53 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-27 (**live-conditional-hardening** — 잔여 노출·견고성 3건 종결)
-> **Active Sprint:** **live-conditional-hardening** — 조건부 진입 경로가 남긴 관리 불가 노출 1건 + 무음 미진입 2건
-> **Active Branch:** `feat/live-conditional-hardening`
-> **요약:** 활성 세션이 0건이어도 계정 잔여 포지션을 보고 닫을 수 있게 했고(BL-498), 거래소 부재가 로컬 행을 이기게 했다(BL-500). BL-499 는 패자 분류까지만(부분 완화). 마이그레이션 0.
+> **Last Updated:** 2026-07-28 (**live-ops-hygiene** — 조건부 진입 정리 주체 + 계정 스코프 위생 3건 종결)
+> **Active Sprint:** **live-ops-hygiene** — 라이브 조건부 진입이 남긴 정리 주체 부재 1건 + 누르면 실패하는 버튼 2축
+> **Active Branch:** `feat/live-ops-hygiene`
+> **요약:** 조건부 진입 정리 janitor 를 신설해 제출 중단·유령 행을 **거래소에 물어본 뒤에만** 처분하게 했고(BL-503), 같은 uid 계정의 포지션 중복과 read-only 청산 버튼을 없앴다(BL-501, **마이그레이션 1**). 두 표의 청산 lock 을 공유한다(BL-502). BL-499 는 실관측 0건으로 열려 있다. **Generator(codex)/Evaluator(Claude) 파이프라인 1/3 검증.**
+
+## ⚡ live-ops-hygiene — 조건부 진입 운영 위생 (BL-503 · BL-501 · BL-502) (2026-07-28)
+
+**스코프.** 4스프린트 연속으로 만든 라이브 조건부 진입이 남긴 **정리 주체 부재(BL-503)** + 계정 스코프 표의 **누르면 실패하는 버튼 두 축(BL-501/502)**. 새 기능 없음. **마이그레이션 1건.**
+
+### ★핵심 발견
+
+- **★★★게이트가 전부 green 인 상태에서 P1 이 세 번 나왔다.** 거래소 오라클(Bybit 이 `orderId` 를 우선해 **살아 있는 주문을 "미발주" 로 오판**), 변이 주입(**거짓 게이트 3건** — cutoff 를 0으로 무력화해도·과차단으로 바꿔도·`commit()` 을 지워도 통과), codex 최종 리뷰(**접기가 hedge 의 실포지션 leg 를 화면에서 지움**). 원인은 하나 — **생성자가 쓴 테스트는 생성자의 구현을 비춘다.** codex 의 테스트는 ccxt 를 mock 하므로 거래소 실동작을 구조적으로 볼 수 없다.
+- **★★내 결론이 거래소에 반증됐다.** "`trigger=True` 없이는 조건부 주문을 못 본다"(codex 도 독립적으로 같은 결론)는 **틀렸다** — 진짜 `orderId` 로 조회하면 `orderFilter` 유무와 무관하게 나온다. 나와 codex 는 **같은 내부 증거(ccxt 소스+우리 코드)** 를 봐서 독립 표본이 아니었다. 게다가 그 필터는 **트리거된 주문을 숨겨** 체결을 `rejected` 로 찍을 수 있었다.
+- **★★초안이 장부 잡음을 관리 불가 실주문으로 바꿀 뻔했다.** form 1 을 "물어볼 대상이 없으니 `rejected`" 로 처분하려 했는데, dispatch 는 `create_order`(거래소 등재) → `attach_exchange_order_id` 순서라 **그 사이에 죽으면 주문은 거래소에 살아 있다.** 물어볼 대상은 있었다 — `orderLinkId = str(Order.id)`.
+- **★★화면 검증이 P1 을 통과시켰다.** 실포지션을 열어 접기 1행·실클릭 체결·거래소 flat 을 3중 대조로 확인했는데, dogfood 계정이 **one-way 단일 leg** 라 hedge 은폐가 재현되지 않았다. **화면에 없는 상태는 화면 검증이 못 본다.**
+- **★uid 로 접되 청산은 계정 id 로.** 세션 귀속·자격증명이 `exchange_account_id` 에 묶여 있어 "uid 대표만 조회" 로 갔으면 read-only 형제가 세션을 가진 경우 **청산 버튼이 오히려 사라진다.** 그래서 접기는 표시 전용이고 `close_service` 는 무변경이다.
+
+### Completed
+
+- [x] **BL-503** 조건부 진입 janitor(beat 5분) + sweeper 를 예외추론→probe 확인으로 교체
+- [x] **BL-501** `exchange_uid`·`read_only` 마이그레이션 + 등록 1회/beat 백필 + 표시 전용 접기 + readOnly 이중 차단 + uid 형제 캐시 무효화(3 사이트)
+- [x] **BL-502** 포지션 단위 `mutationKey` 공유 lock
+- [x] roadmap 4d 드리프트 3건 정정(폐기된 나이 게이트가 출시된 것처럼 · BL-503 누락 · PR 번호 부재)
+- [x] `docs/guides/generator-evaluator-pipeline.md` 신설 + README 목차 등재
+
+### 게이트 (실측)
+
+BE **3249**(baseline 3212) / 커버리지 래칫 통과 / FE **1182**(baseline 1175) / ruff·mypy·typecheck·lint 0 / `pnpm build` ✅ / e2e:authed **65-0** · canon **32** · CI 전용 **4** / **alembic fresh chain ✅**(throwaway DB) / **변이 28건 전건 판별, 실패 0**.
+
+### Blocked / 확인 필요
+
+- **배포 순서가 강제되어야 한다** — 새 ORM 필드가 모든 `ExchangeAccount` select 에 즉시 포함되므로 **마이그레이션 → 코드** 순서여야 한다. 코드가 먼저 뜨면 `UndefinedColumn`. 롤백은 반대(코드 → 마이그레이션). nullable 추가라 구 코드와는 호환된다.
+- **BL-506** — worker 프로세스의 metric 이 스크레이프되지 않는다. BL-503 이 닫았다고 적은 gauge 표류가 **배포 토폴로지에서는 보이지 않는다.** metric 기반 trigger(BL-499 포함)가 이 상태에선 성립하지 않는다.
+- `AGENTS.md` / `docs/backlog.md` 의 `/claude-md-improver` 산출물(BL-504 포함)이 이 브랜치 작업 트리에 있다. **스코프 밖이라 내 커밋에서 제외**했다 — 이 PR 에 포함할지 사용자 결정 필요.
+
+### 신규 BL
+
+- **BL-505** [P3] 청산 lock 축이 포지션 정체성이 아니라 `sessionId + symbol`
+- **BL-506** [P2] worker metric 미스크레이프 → gauge 규율 전체가 관측 불가
+- **BL-507** [P3] 접기·청산 가능성 판정이 view 안에 (이번 P1 이 그 경계에서 나왔다)
+
+### Next Actions
+
+- [ ] 사용자 PR 리뷰 → squash 머지
+- [ ] 머지 후 **마이그레이션 → 코드** 순서로 배포, worker/beat 재기동
+- [ ] 파이프라인 2/3 회차 — 태스크 스펙에 "DB 의존 테스트는 평가자가 돌린다" 명시 + **표적 변이를 수용 기준에 포함**해 생성자가 처음부터 만족시키게 한다
+
+---
 
 ## ⚡ live-conditional-hardening — 잔여 노출·견고성 (BL-498 · BL-499 · BL-500) (2026-07-27)
 

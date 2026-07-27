@@ -276,6 +276,10 @@ qb_live_conditional_reconcile_errors_total = Counter(
     "Live conditional entry reconciliation failures",
     labelnames=("stage",),
 )
+qb_live_conditional_sweep_filled_total = Counter(
+    "qb_live_conditional_sweep_filled_total",
+    "Inactive-session conditional entries found filled during sweep",
+)
 qb_trailing_placement_total = Counter(
     "qb_trailing_placement_total",
     "STEP B — fill 후 native trailing-stop placement 결과",

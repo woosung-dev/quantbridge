@@ -11,6 +11,7 @@ from uuid import UUID
 from src.common.metrics import qb_ws_subscribe_rejected_total
 from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.realtime_publisher import publish_realtime
+from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.services.position_service import (
     account_position_snapshot_cache_key,
@@ -68,12 +69,28 @@ class PositionFanoutHandler:
             sessions = await LiveSignalSessionRepository(session).list_active_by_account(
                 self._account_id
             )
+            account_ids = [self._account_id]
+            try:
+                account = await ExchangeAccountRepository(session).get_by_id(self._account_id)
+                if account is not None and account.exchange_uid is not None:
+                    for sibling in await ExchangeAccountRepository(session).list_by_exchange_uid(
+                        account.exchange_uid
+                    ):
+                        if sibling.id != self._account_id:
+                            account_ids.append(sibling.id)
+            except Exception as exc:
+                logger.warning(
+                    "account_position_snapshot_sibling_lookup_failed account=%s err=%s",
+                    self._account_id,
+                    exc,
+                )
 
         # ★계정 스코프 스냅샷은 활성 세션 유무와 무관하게 버린다(BL-498). 아래 순회는
         #   활성 세션만 보고 `if not sessions: return` 으로 빠지는데, 계정 표는 바로 그
         #   상태(활성 0건)를 위해 존재한다.
         try:
-            await self._redis.delete(account_position_snapshot_cache_key(self._account_id))
+            for account_id in account_ids:
+                await self._redis.delete(account_position_snapshot_cache_key(account_id))
         except Exception as exc:
             logger.warning(
                 "account_position_snapshot_cache_delete_failed account=%s err=%s",

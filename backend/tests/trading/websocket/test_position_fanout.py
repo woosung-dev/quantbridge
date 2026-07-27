@@ -41,6 +41,18 @@ def _install_sessions(monkeypatch: pytest.MonkeyPatch, sessions: list[object]) -
 
     monkeypatch.setattr(position_fanout, "LiveSignalSessionRepository", _SessionRepo)
 
+    class _AccountRepo:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def get_by_id(self, _account_id: object) -> None:
+            return None
+
+        async def list_by_exchange_uid(self, _exchange_uid: str) -> list[object]:
+            return []
+
+    monkeypatch.setattr(position_fanout, "ExchangeAccountRepository", _AccountRepo)
+
 
 def _handler(
     monkeypatch: pytest.MonkeyPatch,
@@ -266,6 +278,31 @@ async def test_position_event_without_active_sessions_still_clears_account_cache
 
     assert redis.deleted == [f"qb_acct_pos_snapshot:{handler._account_id}"]
     publisher.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_position_event_clears_uid_sibling_account_caches(monkeypatch: pytest.MonkeyPatch) -> None:
+    handler, redis, _ = _handler(monkeypatch, [])
+    sibling_id = uuid4()
+
+    class _AccountRepo:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def get_by_id(self, _account_id: object) -> object:
+            return SimpleNamespace(exchange_uid="same-uid")
+
+        async def list_by_exchange_uid(self, _exchange_uid: str) -> list[object]:
+            return [SimpleNamespace(id=handler._account_id), SimpleNamespace(id=sibling_id)]
+
+    monkeypatch.setattr(position_fanout, "ExchangeAccountRepository", _AccountRepo)
+
+    await handler.handle_position_event({"symbol": "BTCUSDT", "side": "Buy", "size": "1"})
+
+    assert redis.deleted == [
+        f"qb_acct_pos_snapshot:{handler._account_id}",
+        f"qb_acct_pos_snapshot:{sibling_id}",
+    ]
 
 
 @pytest.mark.asyncio

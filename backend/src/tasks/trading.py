@@ -85,6 +85,7 @@ from src.trading.repositories.exchange_account_repository import ExchangeAccount
 from src.trading.repositories.exchange_exit_repository import ExchangeExitRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.position_service import (
     account_position_snapshot_cache_key,
     position_snapshot_cache_key,
@@ -465,11 +466,15 @@ async def _execute_with_session(
                     redis = get_redis_lock_pool()
                     for live_session in sessions:
                         await redis.delete(position_snapshot_cache_key(live_session.id))
-                    # ★계정 스코프 스냅샷도 함께 버린다(BL-498). 위 순회는 **활성** 세션만
-                    #   보므로 활성 세션이 0건이면 아무것도 지우지 않는데, 계정 표는 바로
-                    #   그 상태를 위해 존재한다. 안 지우면 청산 직후 최대 15초 동안 방금
-                    #   닫은 포지션이 살아 있는 청산 버튼과 함께 다시 렌더된다.
-                    await redis.delete(account_position_snapshot_cache_key(account.id))
+                    account_ids = [account.id]
+                    if account.exchange_uid is not None:
+                        for sibling in await ExchangeAccountRepository(session).list_by_exchange_uid(
+                            account.exchange_uid
+                        ):
+                            if sibling.id != account.id:
+                                account_ids.append(sibling.id)
+                    for account_id in account_ids:
+                        await redis.delete(account_position_snapshot_cache_key(account_id))
                 except Exception:
                     logger.warning(
                         "position_snapshot_cache_delete_failed",
@@ -795,9 +800,16 @@ async def _fetch_order_status_with_session(
                 #   terminal 을 확정하는 곳마다 같은 키를 버려야 보장이 성립한다.
                 if order.reduce_only:
                     try:
-                        await get_redis_lock_pool().delete(
-                            account_position_snapshot_cache_key(order.exchange_account_id)
-                        )
+                        account_ids = [account.id]
+                        if account.exchange_uid is not None:
+                            for sibling in await ExchangeAccountRepository(session).list_by_exchange_uid(
+                                account.exchange_uid
+                            ):
+                                if sibling.id != account.id:
+                                    account_ids.append(sibling.id)
+                        redis = get_redis_lock_pool()
+                        for account_id in account_ids:
+                            await redis.delete(account_position_snapshot_cache_key(account_id))
                     except Exception:
                         logger.warning(
                             "account_position_snapshot_cache_delete_failed",
@@ -1874,3 +1886,25 @@ def sweep_closed_pnl_task() -> dict[str, int]:
     from src.tasks._worker_loop import run_in_worker_loop
 
     return run_in_worker_loop(_async_sweep_closed_pnl())
+
+
+async def _async_backfill_exchange_account_identities() -> dict[str, int]:
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            service = ExchangeAccountService(
+                repo=ExchangeAccountRepository(session),
+                crypto=EncryptionService(settings.trading_encryption_keys),
+                bybit_futures_provider=BybitFuturesProvider(),
+            )
+            return await service.backfill_exchange_identities()
+    finally:
+        await engine.dispose()
+
+
+@shared_task(name="trading.backfill_exchange_account_identities")  # type: ignore[untyped-decorator]
+def backfill_exchange_account_identities_task() -> dict[str, int]:
+    """Bybit UID/read-only 미확인 계정을 5분 주기로 보완한다."""
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    return run_in_worker_loop(_async_backfill_exchange_account_identities())

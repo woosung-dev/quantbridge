@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -16,7 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.tasks.celery_app
 import src.tasks.live_signal  # noqa: F401
 from src.auth.models import User
-from src.common.metrics import qb_live_conditional_reconcile_errors_total
+from src.common.metrics import (
+    qb_live_conditional_reconcile_errors_total,
+    qb_live_conditional_sweep_filled_total,
+)
 from src.core.config import settings
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.trading.encryption import EncryptionService
@@ -51,6 +57,19 @@ def _fake_create_worker_engine_and_sm(db_session: AsyncSession):
             return _context()
 
     return lambda: (_NoopEngine(), _SessionMaker())
+
+
+def _patch_sweeper(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession, provider: type[object]
+) -> MagicMock:
+    dispatch = MagicMock(return_value=provider())
+    monkeypatch.setattr(
+        live_signal_module,
+        "create_worker_engine_and_sm",
+        _fake_create_worker_engine_and_sm(db_session),
+    )
+    monkeypatch.setattr("src.trading.registry.dispatch", dispatch)
+    return dispatch
 
 
 @pytest.fixture
@@ -153,12 +172,7 @@ async def test_sweeper_cancels_only_inactive_owned_conditional_entries(
         async def cancel_order(self, _creds: Any, exchange_order_id: str, _symbol: str) -> None:
             cancelled_exchange_ids.append(exchange_order_id)
 
-    monkeypatch.setattr(
-        live_signal_module,
-        "create_worker_engine_and_sm",
-        _fake_create_worker_engine_and_sm(db_session),
-    )
-    monkeypatch.setattr("src.trading.providers.BybitFuturesProvider", _Provider)
+    dispatch = _patch_sweeper(monkeypatch, db_session, _Provider)
 
     result = await live_signal_module._async_sweep_conditional_entries()
     await db_session.refresh(inactive)
@@ -170,6 +184,7 @@ async def test_sweeper_cancels_only_inactive_owned_conditional_entries(
     assert inactive.state == OrderState.cancelled
     assert active.state == OrderState.submitted
     assert foreign.state == OrderState.submitted
+    dispatch.assert_called_once_with(ExchangeName.bybit, ExchangeMode.demo, False)
 
 
 @pytest.mark.asyncio
@@ -185,12 +200,13 @@ async def test_sweeper_logs_and_metrics_provider_cancel_failure(
         async def cancel_order(self, _creds: Any, _exchange_order_id: str, _symbol: str) -> None:
             raise RuntimeError("provider unavailable")
 
-    monkeypatch.setattr(
-        live_signal_module,
-        "create_worker_engine_and_sm",
-        _fake_create_worker_engine_and_sm(db_session),
-    )
-    monkeypatch.setattr("src.trading.providers.BybitFuturesProvider", _FailingProvider)
+        async def fetch_order_by_client_id(
+            self, _creds: Any, _client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            assert trigger is True
+            raise RuntimeError("provider unavailable")
+
+    _patch_sweeper(monkeypatch, db_session, _FailingProvider)
     metric = qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel")
     before = metric._value.get()
 
@@ -200,6 +216,176 @@ async def test_sweeper_logs_and_metrics_provider_cancel_failure(
     assert result == {"cancelled": 0}
     assert metric._value.get() == before + 1
     assert orphan.state == OrderState.submitted
+
+
+@pytest.mark.asyncio
+async def test_sweeper_uses_conditional_probe_after_cancel_failure(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    orphan = await conditional_entry_factory(active=False)
+    await db_session.commit()
+
+    class _Provider:
+        async def cancel_order(self, _creds: Any, _exchange_order_id: str, _symbol: str) -> None:
+            raise RuntimeError("cancel raced with fill")
+
+        async def fetch_order_by_client_id(
+            self, _creds: Any, client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            assert client_order_id == str(orphan.id)
+            assert trigger is True
+            return SimpleNamespace(
+                exchange_order_id=orphan.exchange_order_id,
+                status="filled",
+                filled_price=Decimal("101"),
+                filled_quantity=Decimal("0.001"),
+            )
+
+    from src.tasks import trading as trading_module
+
+    trailing = MagicMock()
+    closed_pnl = MagicMock()
+    monkeypatch.setattr(trading_module, "_enqueue_trailing_if_intended", trailing)
+    monkeypatch.setattr(trading_module, "_enqueue_closed_pnl_refresh", closed_pnl)
+    _patch_sweeper(monkeypatch, db_session, _Provider)
+    filled_metric = qb_live_conditional_sweep_filled_total
+    before = filled_metric._value.get()
+
+    result = await live_signal_module._async_sweep_conditional_entries()
+    await db_session.refresh(orphan)
+
+    assert result == {"cancelled": 0}
+    assert orphan.state == OrderState.filled
+    assert orphan.filled_price == Decimal("101")
+    assert filled_metric._value.get() == before + 1
+    trailing.assert_called_once()
+    closed_pnl.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "filled_quantity", "expected_state"),
+    [
+        ("cancelled", Decimal("0.0005"), OrderState.cancelled),
+        ("rejected", Decimal("0.0005"), OrderState.rejected),
+        ("cancelled", None, OrderState.cancelled),
+        ("cancelled", Decimal("0"), OrderState.cancelled),
+    ],
+)
+async def test_sweeper_terminal_probe_records_only_nonzero_partial_fill(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    filled_quantity: Decimal | None,
+    expected_state: OrderState,
+) -> None:
+    orphan = await conditional_entry_factory(active=False)
+    await db_session.commit()
+
+    class _Provider:
+        async def cancel_order(self, _creds: Any, _exchange_order_id: str, _symbol: str) -> None:
+            raise RuntimeError("cancel raced with terminal transition")
+
+        async def fetch_order_by_client_id(
+            self, _creds: Any, _client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            assert trigger is True
+            return SimpleNamespace(
+                exchange_order_id=orphan.exchange_order_id,
+                status=status,
+                filled_price=Decimal("101") if filled_quantity else None,
+                filled_quantity=filled_quantity,
+            )
+
+    _patch_sweeper(monkeypatch, db_session, _Provider)
+
+    await live_signal_module._async_sweep_conditional_entries()
+    await db_session.refresh(orphan)
+
+    assert orphan.state == expected_state
+    assert orphan.filled_quantity == (filled_quantity if filled_quantity else None)
+    assert orphan.filled_price == (Decimal("101") if filled_quantity else None)
+
+
+@pytest.mark.asyncio
+async def test_sweeper_reports_live_probe_after_cancel_failure(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    orphan = await conditional_entry_factory(active=False)
+    await db_session.commit()
+
+    class _Provider:
+        async def cancel_order(self, _creds: Any, _exchange_order_id: str, _symbol: str) -> None:
+            raise RuntimeError("cancel failed")
+
+        async def fetch_order_by_client_id(
+            self, _creds: Any, _client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            assert trigger is True
+            return SimpleNamespace(
+                exchange_order_id=orphan.exchange_order_id,
+                status="submitted",
+                filled_price=None,
+                filled_quantity=None,
+            )
+
+    _patch_sweeper(monkeypatch, db_session, _Provider)
+    metric = qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel_stalled")
+    before = metric._value.get()
+    caplog.set_level(logging.WARNING, logger=live_signal_module.__name__)
+
+    result = await live_signal_module._async_sweep_conditional_entries()
+    await db_session.refresh(orphan)
+
+    assert result == {"cancelled": 0}
+    assert orphan.state == OrderState.submitted
+    assert metric._value.get() == before + 1
+    assert "live_conditional_entry_sweep_cancel_stalled" in caplog.messages
+
+
+@pytest.mark.asyncio
+async def test_sweeper_failure_does_not_stop_later_snapshot(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = await conditional_entry_factory(active=False)
+    second = await conditional_entry_factory(active=False)
+    first.submitted_at = datetime(2026, 1, 1, tzinfo=UTC)
+    second.submitted_at = datetime(2026, 1, 1, 0, 1, tzinfo=UTC)
+    first_id, second_id, first_exchange_order_id = (
+        first.id,
+        second.id,
+        first.exchange_order_id,
+    )
+    await db_session.commit()
+
+    class _Provider:
+        async def cancel_order(self, _creds: Any, exchange_order_id: str, _symbol: str) -> None:
+            if exchange_order_id == first_exchange_order_id:
+                raise RuntimeError("first cancel fails")
+
+        async def fetch_order_by_client_id(
+            self, _creds: Any, client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> None:
+            assert client_order_id == str(first_id)
+            raise RuntimeError("first probe fails")
+
+    _patch_sweeper(monkeypatch, db_session, _Provider)
+
+    result = await live_signal_module._async_sweep_conditional_entries()
+    first_after = await db_session.get(Order, first_id)
+    second_after = await db_session.get(Order, second_id)
+
+    assert result == {"cancelled": 1}
+    assert first_after is not None and first_after.state == OrderState.submitted
+    assert second_after is not None and second_after.state == OrderState.cancelled
 
 
 def test_conditional_entry_sweeper_beat_schedule() -> None:

@@ -182,8 +182,10 @@ async def test_reduce_only_filled_order_deletes_active_position_snapshot_caches(
 
     order, account = pending_order
     order.reduce_only = True
+    account.exchange_uid = "same-uid"
     await db_session.commit()
     active_sessions = [SimpleNamespace(id=uuid4()), SimpleNamespace(id=uuid4())]
+    sibling_id = uuid4()
     queried_account_ids: list[object] = []
 
     async def list_active_by_account(_self, account_id):  # type: ignore[no-untyped-def]
@@ -198,6 +200,11 @@ async def test_reduce_only_filled_order_deletes_active_position_snapshot_caches(
         lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
     )
     monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(
+        task_mod.ExchangeAccountRepository,
+        "list_by_exchange_uid",
+        AsyncMock(return_value=[SimpleNamespace(id=account.id), SimpleNamespace(id=sibling_id)]),
+    )
     monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
 
@@ -213,6 +220,7 @@ async def test_reduce_only_filled_order_deletes_active_position_snapshot_caches(
         (position_snapshot_cache_key(active_sessions[0].id),),
         (position_snapshot_cache_key(active_sessions[1].id),),
         (account_position_snapshot_cache_key(account.id),),
+        (account_position_snapshot_cache_key(sibling_id),),
     ]
 
 

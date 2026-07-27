@@ -13,7 +13,7 @@ from pydantic import SecretStr
 from src.auth.models import User
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import AccountNotFound, ProviderError
-from src.trading.models import ExchangeMode, ExchangeName
+from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
 from src.trading.schemas import RegisterAccountRequest
 
 
@@ -73,6 +73,116 @@ async def test_get_credentials_for_missing_account_raises(db_session, user: User
 
     with pytest.raises(AccountNotFound):
         await svc.get_credentials_for_order(uuid4())
+
+
+async def test_backfill_only_queries_accounts_without_exchange_uid(db_session, user: User, crypto):
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
+
+    repo = ExchangeAccountRepository(db_session)
+    missing = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=crypto.encrypt("missing-key"),
+        api_secret_encrypted=crypto.encrypt("missing-secret"),
+    )
+    known = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=crypto.encrypt("known-key"),
+        api_secret_encrypted=crypto.encrypt("known-secret"),
+        exchange_uid="known-uid",
+        read_only=False,
+    )
+    await repo.save(missing)
+    await repo.save(known)
+    await repo.commit()
+    provider = MagicMock()
+    provider.fetch_api_identity = AsyncMock(return_value=("missing-uid", True))
+    service = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=provider)
+
+    result = await service.backfill_exchange_identities()
+
+    assert result == {"scanned": 1, "updated": 1}
+    provider.fetch_api_identity.assert_awaited_once()
+    refreshed_known = await repo.get_by_id(known.id)
+    assert refreshed_known is not None
+    assert refreshed_known.exchange_uid == "known-uid"
+
+
+async def test_backfill_identity_updates_call_repo_commit(crypto):
+    """LESSON-019 spy: identity backfill은 변경을 commit한다."""
+    from src.trading.services.account_service import ExchangeAccountService
+
+    account = ExchangeAccount(
+        user_id=uuid4(),
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=crypto.encrypt("key"),
+        api_secret_encrypted=crypto.encrypt("secret"),
+    )
+    repo = AsyncMock()
+    repo.list_without_exchange_uid.return_value = [account]
+    provider = MagicMock()
+    provider.fetch_api_identity = AsyncMock(return_value=("558689281", False))
+    service = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=provider)
+
+    result = await service.backfill_exchange_identities()
+
+    assert result == {"scanned": 1, "updated": 1}
+    assert account.exchange_uid == "558689281"
+    repo.commit.assert_awaited_once()
+
+
+async def test_register_identity_save_calls_repo_commit(crypto):
+    """LESSON-019 spy: identity를 저장하는 register()는 commit한다."""
+    from src.trading.services.account_service import ExchangeAccountService
+
+    repo = AsyncMock()
+    repo.save.side_effect = lambda account: account
+    provider = MagicMock()
+    provider.fetch_api_identity = AsyncMock(return_value=("558689281", False))
+    service = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=provider)
+
+    account = await service.register(
+        uuid4(),
+        RegisterAccountRequest(
+            exchange=ExchangeName.bybit,
+            mode=ExchangeMode.demo,
+            api_key="key",
+            api_secret="secret",
+        ),
+    )
+
+    assert account.exchange_uid == "558689281"
+    repo.commit.assert_awaited_once()
+
+
+async def test_register_keeps_account_when_identity_query_fails(db_session, user: User, crypto):
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.services.account_service import ExchangeAccountService
+
+    provider = MagicMock()
+    provider.fetch_api_identity = AsyncMock(side_effect=ProviderError("query-api unavailable"))
+    repo = ExchangeAccountRepository(db_session)
+    service = ExchangeAccountService(repo=repo, crypto=crypto, bybit_futures_provider=provider)
+
+    account = await service.register(
+        user.id,
+        RegisterAccountRequest(
+            exchange=ExchangeName.bybit,
+            mode=ExchangeMode.demo,
+            api_key="key",
+            api_secret="secret",
+        ),
+    )
+
+    stored = await repo.get_by_id(account.id)
+    assert stored is not None
+    assert stored.exchange_uid is None
+    assert stored.read_only is None
 
 
 # ── Sprint 8+ fetch_balance_usdt ──────────────────────────────────────

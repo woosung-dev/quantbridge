@@ -2,6 +2,7 @@
 from src.tasks import alert_rules as _alert_rules  # noqa: F401 — task 등록 강제
 from src.tasks import backtest as _backtest  # noqa: F401 — task 등록 강제
 from src.tasks import celery_app  # type: ignore[attr-defined]
+from src.tasks import conditional_entry_janitor as _conditional_entry_janitor  # noqa: F401
 from src.tasks import optimizer_tasks as _optimizer  # noqa: F401 — task 등록 강제
 from src.tasks import stress_test_tasks as _stress  # noqa: F401 — task 등록 강제
 from src.tasks import trading as _trading  # noqa: F401 — task 등록 강제
@@ -66,3 +67,13 @@ def test_closed_pnl_tasks_registered() -> None:
     assert "trading.sweep_closed_pnl" in celery_app.tasks
     assert "trading.refresh_closed_pnl" in celery_app.tasks
     assert celery_app.amqp.router.route({}, "trading.sweep_closed_pnl")["queue"].name == "celery"
+
+
+def test_conditional_entry_janitor_beat_registered() -> None:
+    schedule = celery_app.conf.beat_schedule
+    entry = schedule["janitor-conditional-entries"]
+
+    assert entry["task"] == "live_signal.janitor_conditional_entries"
+    assert entry["schedule"] == 300.0
+    assert entry["options"]["expires"] == 240
+    assert "live_signal.janitor_conditional_entries" in celery_app.tasks

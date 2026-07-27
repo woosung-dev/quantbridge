@@ -46,6 +46,22 @@ class ExchangeAccountRepository:
         )
         return result.scalars().all()
 
+    async def list_without_exchange_uid(self) -> Sequence[ExchangeAccount]:
+        result = await self.session.execute(
+            select(ExchangeAccount)
+            .where(ExchangeAccount.exchange_uid.is_(None))  # type: ignore[union-attr]
+            .order_by(ExchangeAccount.created_at.asc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
+    async def list_by_exchange_uid(self, exchange_uid: str) -> Sequence[ExchangeAccount]:
+        result = await self.session.execute(
+            select(ExchangeAccount)
+            .where(ExchangeAccount.exchange_uid == exchange_uid)  # type: ignore[arg-type]
+            .order_by(ExchangeAccount.created_at.asc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
     async def delete(self, account_id: UUID) -> int:
         result = await self.session.execute(
             delete(ExchangeAccount).where(ExchangeAccount.id == account_id)  # type: ignore[arg-type]

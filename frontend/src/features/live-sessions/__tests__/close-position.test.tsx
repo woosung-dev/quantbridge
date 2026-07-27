@@ -17,7 +17,7 @@ vi.mock("@clerk/nextjs", () => ({
 
 vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
 
-import { useClosePosition } from "../hooks";
+import { closePositionMutationKey, useClosePosition } from "../hooks";
 
 function makeWrapper(queryClient: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -34,13 +34,15 @@ describe("useClosePosition", () => {
       state: "submitted",
       detail: null,
     });
-    const { result } = renderHook(() => useClosePosition(), {
+    const target = { sessionId: "session-1", symbol: "BTCUSDT" };
+    const { result } = renderHook(() => useClosePosition(target), {
       wrapper: makeWrapper(queryClient),
     });
 
-    await expect(
-      result.current.mutateAsync({ sessionId: "session-1", symbol: "BTCUSDT" }),
-    ).resolves.toMatchObject({ order_id: "order-1", state: "submitted" });
+    await expect(result.current.mutateAsync()).resolves.toMatchObject({
+      order_id: "order-1",
+      state: "submitted",
+    });
 
     expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/live-sessions/session-1/positions/close", {
       method: "POST",
@@ -50,6 +52,9 @@ describe("useClosePosition", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: liveSessionKeys.positionsPrefix("user-1"),
       }),
+    );
+    expect(queryClient.getMutationCache().getAll()[0]?.options.mutationKey).toEqual(
+      closePositionMutationKey(target),
     );
   });
 });

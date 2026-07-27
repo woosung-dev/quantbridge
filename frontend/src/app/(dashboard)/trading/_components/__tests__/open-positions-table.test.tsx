@@ -8,7 +8,15 @@ import {
 } from "@/features/live-sessions/hooks";
 import type { LiveSession } from "@/features/live-sessions/schemas";
 
+const mockUseIsMutating = vi.hoisted(() => vi.fn());
+
+vi.mock("@tanstack/react-query", () => ({
+  useIsMutating: (...args: unknown[]) => mockUseIsMutating(...args),
+}));
+
 vi.mock("@/features/live-sessions/hooks", () => ({
+  closePositionMutationKey: ({ sessionId, symbol }: { sessionId: string; symbol: string }) =>
+    ["close-position", sessionId, symbol],
   useClosePosition: vi.fn(),
   useLiveSessionsPositions: vi.fn(),
 }));
@@ -43,6 +51,8 @@ function aggregate(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   refetch.mockReset();
   closePosition.mockReset();
+  mockUseIsMutating.mockReset();
+  mockUseIsMutating.mockReturnValue(0);
   mockPositions.mockReturnValue(aggregate());
   mockClosePosition.mockReturnValue({
     mutateAsync: closePosition,
@@ -211,6 +221,10 @@ describe("OpenPositionsTable", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "청산" }));
 
+    expect(mockClosePosition).toHaveBeenLastCalledWith({
+      sessionId: session.id,
+      symbol: "BTCUSDT",
+    });
     expect(screen.getByRole("heading", { name: "포지션 청산" })).toBeInTheDocument();
     expect(screen.getByText(/감소전용 시장가 주문/)).toBeInTheDocument();
     expect(screen.getByText(/수동 청산은 봇을 중단하지 않습니다/)).toBeInTheDocument();
@@ -218,11 +232,7 @@ describe("OpenPositionsTable", () => {
 
   it("진행 중인 청산은 해당 세션과 심볼 행만 비활성화한다", () => {
     const otherSession = { ...session, id: "a0000000-0000-4000-8000-000000000009" };
-    mockClosePosition.mockReturnValue({
-      mutateAsync: closePosition,
-      isPending: true,
-      variables: { sessionId: session.id, symbol: "BTCUSDT" },
-    } as never);
+    mockUseIsMutating.mockReturnValueOnce(1).mockReturnValueOnce(0);
     mockPositions.mockReturnValue(
       aggregate({
         rows: [
@@ -307,10 +317,7 @@ describe("OpenPositionsTable", () => {
     fireEvent.click(screen.getByRole("button", { name: "청산" }));
     fireEvent.click(screen.getByRole("button", { name: "청산 실행" }));
 
-    await waitFor(() => expect(closePosition).toHaveBeenCalledWith({
-      sessionId: session.id,
-      symbol: "BTCUSDT",
-    }));
+    await waitFor(() => expect(closePosition).toHaveBeenCalledWith());
     expect(await screen.findByRole("alert")).toHaveTextContent("거래소 연결 실패");
   });
 });

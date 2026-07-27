@@ -1,6 +1,7 @@
 # 조건부 진입 reconcile의 거래소 배선과 귀속 불변식을 검증한다.
 from __future__ import annotations
 
+import logging
 import sys
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -889,8 +890,9 @@ async def test_exchange_lookup_failure_removes_nothing(
 
 
 @pytest.mark.asyncio
-async def test_stalled_submission_is_not_labelled_as_a_race(
+async def test_submitted_without_exchange_id_is_deferred_to_janitor(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """★`submitted` 인데 거래소 id 가 없으면 경합이 아니라 제출 중단이다.
 
@@ -908,7 +910,9 @@ async def test_stalled_submission_is_not_labelled_as_a_race(
         fresh_exchange_order_id=None,
     )
     stages = _capture_error_stages(monkeypatch)
+    caplog.set_level(logging.WARNING, logger=live_signal_module.__name__)
 
     await _reconcile(session, _result([_pending(trade_id="new")]), harness)
 
-    assert stages == ["cancel_stalled"]
+    assert stages == ["cancel_deferred"]
+    assert "live_conditional_reconcile_cancel_deferred_to_janitor" in caplog.messages

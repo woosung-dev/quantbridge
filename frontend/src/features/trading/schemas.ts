@@ -68,6 +68,8 @@ export const ExchangeAccountSchema = z.object({
   mode: z.string(),
   label: z.string().nullable(),
   api_key_masked: z.string(),
+  exchange_uid: z.string().nullable().default(null),
+  read_only: z.boolean().nullable().default(null),
   created_at: z.string(),
 });
 export type ExchangeAccount = z.infer<typeof ExchangeAccountSchema>;

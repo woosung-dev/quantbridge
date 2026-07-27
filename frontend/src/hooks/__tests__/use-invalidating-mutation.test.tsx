@@ -46,6 +46,26 @@ describe("useAuthCtx", () => {
 });
 
 describe("useInvalidatingMutation", () => {
+  it("mutationKey를 React Query mutation에 전달한다", async () => {
+    const qc = new QueryClient();
+    const mutationKey = ["mutation", "target"] as const;
+    const { result } = renderHook(
+      () =>
+        useInvalidatingMutation<{ ok: true }, void>({
+          mutationKey,
+          mutationFn: async () => ({ ok: true as const }),
+          invalidateKeys: () => [],
+        }),
+      { wrapper: makeWrapper(qc) },
+    );
+
+    result.current.mutate();
+
+    await waitFor(() =>
+      expect(qc.getMutationCache().getAll()[0]?.options.mutationKey).toEqual(mutationKey),
+    );
+  });
+
   it("토큰을 mutationFn 에 전달하고 removeKeys → invalidateKeys 순서로 캐시 정리 후 onSuccess 위임", async () => {
     authState.userId = "user_1";
     const qc = new QueryClient();

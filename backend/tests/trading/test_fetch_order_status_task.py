@@ -762,7 +762,9 @@ async def test_watchdog_reduce_only_fill_clears_account_position_cache(
 
     order, account = submitted_order
     order.reduce_only = True
+    account.exchange_uid = "same-uid"
     await db_session.commit()
+    sibling_id = uuid4()
 
     redis = SimpleNamespace(delete=AsyncMock())
     monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
@@ -772,6 +774,11 @@ async def test_watchdog_reduce_only_fill_clears_account_position_cache(
         lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="filled"),
     )
     monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
+    monkeypatch.setattr(
+        task_mod.ExchangeAccountRepository,
+        "list_by_exchange_uid",
+        AsyncMock(return_value=[SimpleNamespace(id=account.id), SimpleNamespace(id=sibling_id)]),
+    )
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
 
     result = await task_mod._async_fetch_order_status(order.id, 1)
@@ -779,6 +786,7 @@ async def test_watchdog_reduce_only_fill_clears_account_position_cache(
     assert result["state"] == "filled"
     assert [call.args for call in redis.delete.await_args_list] == [
         (account_position_snapshot_cache_key(account.id),),
+        (account_position_snapshot_cache_key(sibling_id),),
     ]
 
 

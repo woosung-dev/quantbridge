@@ -36,6 +36,7 @@ celery_app = Celery(
         "src.tasks.websocket_task",
         "src.tasks.orphan_scanner",
         "src.tasks.live_signal",  # Sprint 26 — Pine Signal Auto-Trading
+        "src.tasks.conditional_entry_janitor",
         "src.tasks.alert_rules",
     ],
 )
@@ -138,6 +139,11 @@ celery_app.conf.beat_schedule = {
         "schedule": 300.0,
         "options": {"expires": 240},
     },
+    "backfill-exchange-account-identities": {
+        "task": "trading.backfill_exchange_account_identities",
+        "schedule": 300.0,
+        "options": {"expires": 240},
+    },
     # Sprint 26 — Pine Signal Auto-Trading. 1분 fire, list_active_due 가
     # interval (1m/5m/15m/1h) 별 due session 만 평가.
     "evaluate-live-signals": {
@@ -154,6 +160,11 @@ celery_app.conf.beat_schedule = {
     },
     "sweep-orphan-conditional-entries": {
         "task": "live_signal.sweep_conditional_entries",
+        "schedule": 300.0,
+        "options": {"expires": 240},
+    },
+    "janitor-conditional-entries": {
+        "task": "live_signal.janitor_conditional_entries",
         "schedule": 300.0,
         "options": {"expires": 240},
     },
