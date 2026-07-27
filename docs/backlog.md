@@ -447,7 +447,9 @@
 
 ### BL-499
 
-**상태:** 🟡 **부분 완화 (2026-07-27, `feat/live-conditional-hardening`). 열려 있다.** 근본 경합(취소 의도 영속 또는 dispatch 시점 재검사)은 사용자 결정으로 **마이그레이션 0** 을 택해 그대로 남는다. 이번에 한 것은 **패배와 진짜 실패를 구분해 관측 가능하게 만든 것**이다 — `transition_pending_to_cancelled` 가 rowcount 0 이면 `get_state_and_exchange_id_fresh`(식별맵 우회 컬럼 select)로 재조회해, 비-`pending` 이면 `RuntimeError` 대신 metric + 로그를 남긴다. ★**경합과 제출 중단을 라벨로 가른다** — `submitted` 인데 `exchange_order_id` 가 없으면 경합이 아니라 dispatch 가 상태만 커밋하고 거래소 왕복에서 죽은 **영구 고착**이고(`orphan_scanner` 가 조건부 진입을 면제해 아무도 안 치운다) 그 행은 매 tick 이 분기를 타 세션 등재를 영구 정지시킨다. `stage="cancel_stalled"` + `logger.error` 로 분리한다(적대 검증 지적 — 안 가르면 영구 장애가 1회성 경합 카운터에 섞여 사라진다). ★**패배해도 그 tick 의 `to_place` 는 건너뛴다(fail-closed 유지)** — `current_position` 은 취소 루프보다 **먼저** 찍은 스냅샷이라, 패배한 주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다(G0.5 codex 지적, 재현 판정 후 플랜 개정).
+**상태:** 🟡 **열려 있다.** ★2026-07-28 `feat/live-ops-hygiene` 에서 **신설 metric 실관측을 확인만 했다 — 결과는 0건이다.** janitor·sweeper beat 은 5분 주기로 정상 발화하지만(30분에 각 6회) `cancel_stalled`/`cancel_raced` 는 한 번도 오르지 않았다. 고착 행이 DB 에 0건이라 그 경로가 **주행되지 않았기 때문**이고, "관측되지 않음" 이지 "일어나지 않음이 증명됨" 이 아니다. 근본 경합은 그대로 열려 있다. ★단 BL-503 janitor 가 생기면서 `cancel_stalled` 의 **근거 문장이 낡았다** — "아무도 안 치운다" 는 이제 거짓이고 30분 뒤 janitor 가 처리한다(그 문구는 BL-503 에서 정정).
+
+**이전 상태:** 🟡 부분 완화 (2026-07-27, `feat/live-conditional-hardening`). 근본 경합(취소 의도 영속 또는 dispatch 시점 재검사)은 사용자 결정으로 **마이그레이션 0** 을 택해 그대로 남는다. 이번에 한 것은 **패배와 진짜 실패를 구분해 관측 가능하게 만든 것**이다 — `transition_pending_to_cancelled` 가 rowcount 0 이면 `get_state_and_exchange_id_fresh`(식별맵 우회 컬럼 select)로 재조회해, 비-`pending` 이면 `RuntimeError` 대신 metric + 로그를 남긴다. ★**경합과 제출 중단을 라벨로 가른다** — `submitted` 인데 `exchange_order_id` 가 없으면 경합이 아니라 dispatch 가 상태만 커밋하고 거래소 왕복에서 죽은 **영구 고착**이고(`orphan_scanner` 가 조건부 진입을 면제해 아무도 안 치운다) 그 행은 매 tick 이 분기를 타 세션 등재를 영구 정지시킨다. `stage="cancel_stalled"` + `logger.error` 로 분리한다(적대 검증 지적 — 안 가르면 영구 장애가 1회성 경합 카운터에 섞여 사라진다). ★**패배해도 그 tick 의 `to_place` 는 건너뛴다(fail-closed 유지)** — `current_position` 은 취소 루프보다 **먼저** 찍은 스냅샷이라, 패배한 주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다(G0.5 codex 지적, 재현 판정 후 플랜 개정).
 
 ★★**preflight 결론을 정정한다.** "취소된 16건이 전부 `exchange_order_id` 를 보유하므로 이 경로는 미주행" 은 **성립하지 않는다.** 패배한 호출은 rowcount 0 이라 행에 아무것도 안 쓰고, 이후 dispatch 가 `exchange_order_id` 를 붙이면 최종 행은 정확히 그 16건과 같은 모습이 된다. 증명된 것은 **"DB-only 취소 _성공_ 0건"** 뿐이다. 신설 metric 이 앞으로 호출·패배 횟수를 따로 센다.
 
@@ -505,6 +507,16 @@
 
 ### BL-501
 
+**상태:** ✅ **Resolved (2026-07-28, `feat/live-ops-hygiene`).** 마이그레이션 1건(`exchange_uid`·`read_only`, 둘 다 nullable = "아직 모른다"). 등록 시 1회 + 5분 beat 백필로 채우고, **목록 엔드포인트는 순수 DB 읽기로 유지**한다(hot path 에 무제한 REST 를 붙이지 않는다). 화면에서 `(uid, symbol)` 로 행을 병합하되 **계정은 전부 조회**한다. read-only 는 `close_blocked_reason="read_only_key"` + 서버 422 로 이중 차단. 15초 잔존 창은 **청산 시 uid 형제 계정의 스냅샷 키까지 삭제**해 닫았다(3 사이트 전부).
+
+★★**"uid 대표 계정만 조회" 로 갔으면 기능이 역효과였다.** 세션 귀속과 자격증명은 uid 가 아니라 `exchange_account_id` 에 묶여 있어(`live_signal_session_repository.py:92`, `close_service` 가 세션의 계정으로 서명), 실측 배치처럼 read-only 형제가 그 심볼 세션을 갖고 있으면 쓰기 대표는 `no_owning_session` 이 되어 **청산 버튼이 오히려 사라진다.** 그래서 접기는 **표시 전용**이고 `close_service` 는 손대지 않았다.
+
+★★**최종 리뷰가 P1 을 잡았다 — 접기가 hedge 의 두 leg 를 한 행으로 지웠다.** 서버는 leg 마다 행을 주는데(`position_service.py:287-300`, `test_hedge_legs_are_not_closable` 가 2행 단언) 그룹 키가 `(uid, symbol)` 뿐이라 long/short 이 병합돼 하나가 **화면에서 사라졌다.** uid 가 채워진 계정 하나만 있어도 재현된다. `hedge_unsupported` 행은 접지 않도록 고쳤다. ★화면 검증이 이걸 놓친 이유는 dogfood 계정이 one-way 단일 leg 였기 때문이다 — **재현 상태를 만들지 못하면 화면 검증도 못 본다.**
+
+★**알려진 한계** — 저장값은 등록 시점 스냅샷이다. 나중에 키 권한을 바꾸면 낡고, 재등록이 해소 경로다. identity 조회가 실패하면 두 컬럼이 NULL 로 남고 그동안은 차단하지 않는다(**의도적 fail-open** — 모를 때 막으면 정상 계정의 청산까지 끊긴다).
+
+**외부 오라클** — raw HMAC `/v5/user/query-api` 로 `19a8166a`→`userID=558689281, readOnly=0` · `0277c150`→`같은 uid, readOnly=1` 확인. 백필이 채운 DB 값과 일치.
+
 **Title:** 같은 거래소 계정을 가리키는 API 키가 둘이면 포지션이 중복되고 read-only 키에도 청산 버튼이 붙는다
 **Category:** Backend / Frontend / trading (계정 스코프)
 **Priority:** P3
@@ -530,6 +542,14 @@
 
 ### BL-502
 
+**상태:** ✅ **Resolved (2026-07-28, `feat/live-ops-hygiene`).** `useClosePosition` 이 대상을 받아 `["close-position", sessionId, symbol]` mutationKey 를 만들고, 두 표가 `useIsMutating` 으로 같은 키를 구독한다. `useInvalidatingMutation` 에 `mutationKey` 통과 옵션 1개만 추가했고 나머지 동작은 무변경.
+
+★**고정 단일 키를 쓰지 않았다** — 그러면 계정·심볼이 달라도 모든 청산이 함께 잠겨 서로 다른 두 포지션을 연달아 닫지 못한다.
+
+★★**테스트가 거짓 게이트였고 변이가 잡았다.** 과차단 음성 테스트가 `waitFor` 로 "여전히 활성" 을 단언했는데 그 콜백은 **t=0 에 즉시 성공**한다(변이가 in-flight 로 등록되기 전). 고정 단일 키로 바꿔도 통과했다. 클릭한 표의 버튼이 pending 라벨로 바뀌는 것을 **먼저 기다린 뒤** 다른 표를 단언하도록 고쳤고, 그 뒤 두 변이(키 제거·고정 키)가 각각 red 가 되는 것을 확인했다.
+
+★**잔여** — lock 축이 포지션 정체성이 아니라 `sessionId + symbol` 이다. 계정 표는 계정·심볼의 **최신** 귀속 세션(비활성 포함)을, 세션 표는 **활성** 세션을 잡으므로 둘이 갈리면 lock 이 분리된다 → **BL-505** 등재.
+
 **Title:** 세션 표와 계정 표의 청산 버튼에 공유 lock 이 없다
 **Category:** Frontend / trading (코크핏 §03)
 **Priority:** P3
@@ -550,6 +570,20 @@
 ---
 
 ### BL-503
+
+**상태:** ✅ **Resolved (2026-07-28, `feat/live-ops-hygiene`).** `tasks/conditional_entry_janitor.py` 신설(beat 5분). 대상은 `submitted` + `trigger_price` + `reduce_only=false` + 30분 경과이고 **세션 활성 여부를 가리지 않는다** — 기존 sweeper 의 `list_orphan_conditional_entries` 는 비활성 세션 행만 봐서 **진짜 피해(활성 세션의 등재 영구 정지)를 구조적으로 못 봤다**.
+
+★**거래소에 물어본 뒤에만 처분한다.** 우리 앱은 `orderLinkId = str(Order.id)` 를 싣는다(`tasks/trading.py:377`). 살아 있으면 `exchange_order_id` 를 **붙이고(수리)**, terminal 이면 그 상태로 전이, **명확한 부재일 때만** `rejected`, 조회 실패면 아무것도 안 한다. reject 는 `state=submitted AND exchange_order_id IS NULL` **CAS** 라 늦은 attach 를 덮지 않는다.
+
+★★**초안은 "id 가 없으니 그냥 rejected" 였고 그건 위험했다** — dispatch 는 `create_order`(거래소 등재) 뒤에 `attach_exchange_order_id` 를 하므로 그 사이에 죽으면 주문은 **거래소에 살아 있다**. 장부 잡음을 관리 불가 실주문으로 바꿀 뻔했다.
+
+★★**sweeper 는 예외 코드 추론을 버렸다.** 실측 — Bybit `110001`→`OrderNotFound`, **`110010`("already cancelled")·`110008`("finished or canceled")→`InvalidOrder`**. 즉 "이미 취소됨" 은 `OrderNotFound` 로 안 잡히고, 잡히는 `110001` 은 체결 후 사라진 경우일 수도 있다. 이제 취소 실패 시 **거래소에 상태를 물어** 그 답대로 전이한다.
+
+★★**적대 검증이 "유령 케이스가 한 건도 안 닫힌다" 를 잡았다** — ccxt `fetch_order` 는 `/v5/order/realtime` 만 치고 빈 list 에 `OrderNotFound` 를 던지는데, janitor 는 정의상 30분 이상 된 행만 보므로 terminal 주문은 이미 realtime 창 밖이다. 그런데 task 는 `{0,0,0}` 을 돌려줘 "고칠 게 없었다" 로 보였다. 양 분기를 **realtime→history** 단일 계약으로 통일했다.
+
+★**F-A 는 반증됐다** — "`trigger=True` 없이는 조건부 주문을 못 본다" 는 내 결론과 codex 의 동의는 **둘 다 내부 증거(ccxt 소스·우리 코드)만** 본 것이었고, 거래소 실측에서 진짜 `orderId` 로 조회하면 `orderFilter` 유무와 무관하게 나왔다. 기존 probe 는 죽어 있지 않았다. `orderFilter=StopOrder` 는 오히려 **트리거된 주문을 숨겨** 체결을 `rejected` 로 찍을 수 있어 제거했다.
+
+그 외 — `Deactivated`→`cancelled`(ccxt 와 일치) · `PartiallyFilledCanceled`→terminal(영구 좀비 제거) · `cancelled` 의 부분 체결 기록 · provider 를 `registry.dispatch` 로 주문마다 선택 · `orderLinkId` 에코 대조 · 루프 전 스칼라 선추출(`session.rollback()` 이 배치 나머지를 expire 시켜 다음 순회가 `MissingGreenlet` 으로 죽던 것) · `filled` winner 의 trailing/closed-pnl 후속 훅 · rowcount 0 경합과 "취소 실패 + 아직 살아 있음" 분기의 metric·로그.
 
 **Title:** 제출 중단·유령 조건부 진입 행을 아무도 치우지 않는다
 **Category:** Backend / trading (조건부 진입)
@@ -1738,6 +1772,92 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **권장 접근:** 두 도메인 result JSONB 에도 컨벤션 마커 추가 + FE 표기. 3 도메인 동시 마킹은 스코프 폭발이라 분리했다.
 
 **Risk:** 🟢 (신규 실행은 일관 · 구 결과 비교 시에만 오해 가능).
+
+---
+
+### BL-504
+
+**Title:** ADR-013 / ADR-019 가 존재하지 않는데 진입 문서 4곳이 가리킨다
+**Category:** Docs / decisions (참조 정합)
+**Priority:** P3
+**Trigger:** Optimizer 설계 근거를 다시 물을 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)
+**출처:** 2026-07-27 `/claude-md-improver` CLAUDE.md 감사
+
+**원인 / 영향:** `docs/decisions/` 는 001~012 · 014~018 · 020 · 021 로 **013 과 019 가 결번**이다. 그런데 다음이 ADR-013 을 실재하는 근거처럼 인용한다.
+
+- `AGENTS.md:67` — "Optimizer — Grid / Bayesian / Genetic 파라미터 최적화 (ADR-013)". **새 세션이 첫 step 에 읽는 3종 중 하나다.**
+- `CONTEXT.md:46` — 도메인 헌법의 Optimizer 정의
+- `QUANTBRIDGE_PRD.md:8` — "scikit-optimize + 자체구현 GA (Optuna 아님 — ADR-013)"
+- `docs/backlog.md:589,708,1828` — BL-235 근거 및 "ADR-013 §6 #8 deferred" · "§7.2/§8.2 result grammar"
+
+경위는 `docs/archive/status-history.md:564` 에 남아 있다 — PR #306 이 _"ADR-013 충돌 해소 (trust-layer → ADR-020, optimizer 013 유지)"_. trust-layer 는 020 으로 이동했는데, **013 을 유지하기로 한 optimizer ADR 은 끝내 작성되지 않았다.** ADR-019 도 같은 모양이다 — 실체는 `docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md` 인데 `docs/status.md:426` 등이 "ADR-019" 로 부른다.
+
+영향은 조용하다. 인용된 `§6 #8` · `§7.2/§8.2` 는 **검증할 수 없는 근거**이고, Optimizer 설계를 바꿀 때 필독해야 할 문서가 열리지 않는다. `AGENTS.md` §문서의 자체 규칙(_"폐기는 삭제가 아니라 `Superseded` 표기"_)도 지금 상태로는 위반이다.
+
+**권장 접근:** Sprint 53~57 dev-log + backlog 인용문(§6 #8 / §7.2 / §8.2)을 근거로 `013-optimizer-strategy.md` 를 소급 작성하고, ADR-019 는 dev-log 실체를 `decisions/019-*.md` 로 승격하거나 인용 4곳을 dev-log 경로로 교정한다. 소급 작성은 **결정을 새로 만드는 게 아니라 이미 실행된 결정을 기록**하는 것이므로, 없는 근거를 지어내지 말고 실제 코드(`optimizer/executors/`)와 대조한다.
+
+**Risk:** 🟢 (동작 무영향 · Optimizer 설계 변경 시에만 근거 부재가 드러난다).
+
+---
+
+### BL-505
+
+**Title:** 청산 공유 lock 의 축이 포지션 정체성이 아니라 `sessionId + symbol` 이다
+**Category:** Frontend / trading (코크핏 §03)
+**Priority:** P3
+**Trigger:** 같은 계정·심볼에 세션이 여러 개 생긴 뒤 두 표에서 연달아 청산을 누를 때
+**Est:** S
+**출처:** 2026-07-28 live-ops-hygiene codex 최종 적대 리뷰 (재현 판정 후 등재)
+
+**원인 / 영향:** BL-502 의 `mutationKey` 는 `["close-position", sessionId, symbol]` 이다. 그런데 두 표가 같은 포지션에 대해 **서로 다른 `sessionId` 를 잡을 수 있다** — 계정 표는 그 계정·심볼의 **최신** 귀속 세션(비활성 포함, `position_service.py:283`)을 쓰고, 세션 표는 **활성** 세션별로 렌더한다. 최신 세션이 비활성이고 더 오래된 세션이 활성이면 두 키가 갈리고 lock 이 분리된다 → 같은 순 포지션에 감소전용 주문 2개가 나갈 수 있다(BL-502 가 없애려던 바로 그 상태).
+
+★**추가된 테스트도 이 경로를 판별하지 못한다** — `close-position-lock.test.tsx` 가 두 표에 **같은** `SESSION_ID` 를 주입한다. 정렬된 경우만 덮는다.
+
+**권장 접근:** lock 축을 세션이 아니라 **포지션 정체성**(계정 또는 uid + 심볼 + 방향)으로 바꾼다. 다만 `close_position` API 가 세션 id 를 받으므로 키와 요청 인자가 갈라진다 — 그 분리를 감당할지 결정이 필요하다. 손실이 아니라 **원장 잡음**(두 번째 주문은 평탄해진 포지션에서 거부)이라 우선순위는 낮다.
+
+**영향 파일:** `frontend/src/features/live-sessions/hooks.ts`, `.../account-positions-table.tsx`, `.../open-positions-table.tsx`.
+
+**Risk:** 🟢
+
+---
+
+### BL-506
+
+**Title:** worker 프로세스의 Prometheus metric 이 스크레이프되지 않아 gauge 규율이 전부 관측 불가다
+**Category:** Infra / observability
+**Priority:** P2
+**Trigger:** 운영 알림을 metric 기반으로 붙이려 할 때, 또는 실자금 cutover 전
+**Est:** M
+**출처:** 2026-07-28 live-ops-hygiene 적대 검증 (3기 중 2기가 독립 지적)
+
+**원인 / 영향:** `/metrics` 는 FastAPI 프로세스만 노출한다(`src/main.py`). `docker-compose.yml` 의 `backend-worker`·`backend-beat`·ws-stream·optimizer_heavy 는 포트도 exporter 도 없고 레포에 `prometheus.yml` 도 없다. `prometheus_client` 의 기본 레지스트리는 프로세스 단위이고 `PROMETHEUS_MULTIPROC_DIR` 설정도 없다.
+
+★그래서 **worker 에서 올리는 모든 counter/gauge 가 수집되지 않는다** — `qb_active_orders` 의 winner-only dec 규율, `qb_live_conditional_reconcile_errors_total` 의 `cancel_stalled`/`cancel_raced`/`sweep_cancel`/`exchange_missing`/신설 `janitor_*` 라벨 전부. 반대로 API 프로세스의 `inc` 만 수집되므로 **스크레이프되는 gauge 는 단조 증가**한다.
+
+★이번 스프린트의 BL-503 이 gauge 표류를 닫는다고 적었는데, 배포 토폴로지에서는 그 dec 이 보이지 않는다. **코드는 맞고 관측 경로가 없다.** BL-499 의 "metric 이 관측되면 trigger" 도 이 상태에서는 성립하지 않는다.
+
+**권장 접근:** `PROMETHEUS_MULTIPROC_DIR` + `MultiProcessCollector` 를 도입하거나, worker 별 exporter 포트를 열고 스크레이프 대상에 추가한다. 어느 쪽이든 **먼저 "지금 무엇이 수집되고 있는가" 를 실측**하고, 그 뒤에 metric 기반 trigger 를 쓰는 BL(499·503)의 문구를 정정한다.
+
+**Risk:** 🟡 (동작 무영향 · 그러나 metric 을 근거로 한 판단이 전부 공허해진다).
+
+---
+
+### BL-507
+
+**Title:** 계정 표의 접기·청산 가능성 판정이 view 컴포넌트 안에 있다
+**Category:** Frontend / trading (레이어)
+**Priority:** P3
+**Trigger:** 접기 규칙이 한 번 더 바뀔 때
+**Est:** S
+**출처:** 2026-07-28 live-ops-hygiene codex 최종 적대 리뷰
+
+**원인 / 영향:** `collapseRows`(`account-positions-table.tsx`)가 권한(`readOnly`)·귀속 세션·차단 사유를 해석해 대표 행과 청산 가능성을 결정한다. `.ai/rules/frontend.md` 의 view ↔ 비즈니스 로직 분리 원칙 위반이다.
+
+★**이번 스프린트의 P1 이 정확히 이 경계에서 나왔다** — hedge 의 두 leg 를 한 행으로 지운 것이 이 함수였다. 규칙 위반이 실제 결함으로 이어진 사례이므로 nit 로만 두지 않는다.
+
+**권장 접근:** 접기·대표 선택을 순수 함수로 분리해 단독 테스트 가능하게 하거나, 서버가 접힌 형태를 계산해 내려준다. 후자는 uid 가 계정 목록 계약에 이미 있으므로 가능하지만 **응답 계약 변경**이라 결정이 필요하다.
+
+**Risk:** 🟢
 
 ---
 
