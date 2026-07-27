@@ -267,3 +267,32 @@ def test_divergences_are_deterministic_regardless_of_input_order() -> None:
 
     assert [item["trade_id"] for item in plan.divergences] == ["b", "z"]
     assert plan.to_place == ()
+
+
+def test_sub_minimum_quantity_is_reported_not_silently_dropped() -> None:
+    """★목표와 실포지션이 다른데 눈금 미만이면 조용히 넘어가면 안 된다.
+
+    화면엔 "대기 중인 조건부 진입" 이 뜨는데 주문은 영원히 안 나가는 "되는 척" 이 된다.
+    실측으로 걸렸다 - 시드 전략의 position_size_pct 가 0.01% 라 수량이 0.00029138 이고
+    거래소 스텝은 0.001 이었다.
+    """
+    plan = _plan(
+        [_desired(target=Decimal("0.00029138"))],
+        [],
+        current=Decimal("0"),
+        qty_step=Decimal("0.001"),
+    )
+
+    assert plan.to_place == ()
+    assert [item["reason"] for item in plan.divergences] == ["below_exchange_minimum"]
+    assert plan.divergences[0]["target_position"] == "0.00029138"
+
+
+def test_target_already_met_stays_a_quiet_noop() -> None:
+    """음성 대조 - 목표와 실포지션이 같으면 발산이 아니라 정상 no-op 이다."""
+    plan = _plan(
+        [_desired(target=Decimal("8"))], [], current=Decimal("8"), qty_step=Decimal("0.001")
+    )
+
+    assert plan.to_place == ()
+    assert plan.divergences == ()

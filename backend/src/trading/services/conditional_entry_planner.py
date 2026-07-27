@@ -177,6 +177,26 @@ def plan_reconcile(
 
     for pending in sorted(desired, key=lambda entry: entry.trade_id):
         matching_actual = actual_by_trade_id.pop(pending.trade_id, [])
+        # ★전략이 의도한 포지션 자체가 거래소 눈금으로 표현 불가능한 경우.
+        # 잔여 드리프트(목표에 거의 도달해 남은 차이가 눈금 미만)와는 다르다 - 이쪽은
+        # 그 전략이 이 계정에서 **영원히 한 주도 못 낸다**는 뜻이다. 조용히 넘기면
+        # 화면엔 "대기 중인 조건부 진입" 이 뜨는데 주문은 안 나가는 "되는 척" 이 된다.
+        # 실측으로 걸렸다 - 시드 전략의 position_size_pct 가 0.01% 라 목표가
+        # 0.00029138 이고 BTCUSDT 스텝은 0.001 이었다.
+        if pending.target_position != 0 and _normalize(
+            abs(pending.target_position), qty_step
+        ) == Decimal("0"):
+            divergences.append(
+                {
+                    "trade_id": pending.trade_id,
+                    "reason": "below_exchange_minimum",
+                    "target_position": str(pending.target_position),
+                    "qty_step": str(qty_step),
+                }
+            )
+            to_cancel.extend(matching_actual)
+            continue
+
         quantity = _normalize(abs(pending.target_position - current_position), qty_step)
         if quantity == Decimal("0"):
             # 목표와 실포지션이 이미 같다 = 낼 주문이 없다. 조용한 no-op 이지 발산이 아니다
