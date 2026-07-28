@@ -27,6 +27,7 @@ from src.trading.dependencies import (
     get_liquidation_service,
     get_live_signal_session_service,
     get_order_service,
+    get_outcome_parity_service,
     get_position_service,
     get_webhook_service,
 )
@@ -41,6 +42,10 @@ from src.trading.liquidation_schemas import (
     LiquidationPreviewRequest,
 )
 from src.trading.models import OrderState
+from src.trading.outcome_parity_service import (
+    OutcomeParityService,
+    OutcomeParitySessionNotFound,
+)
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
@@ -64,6 +69,7 @@ from src.trading.schemas import (
     LiveSignalStateResponse,
     OrderRequest,
     OrderResponse,
+    OutcomeParityResponse,
     PaginatedExchangeAccounts,
     RegisterAccountRequest,
     RegisterLiveSessionRequest,
@@ -481,6 +487,22 @@ async def delete_live_session(
     service: LiveSignalSessionService = Depends(get_live_signal_session_service),
 ) -> None:
     await service.deactivate(current_user.id, session_id)
+
+
+@router.get(
+    "/live-sessions/{session_id}/outcome-parity",
+    response_model=OutcomeParityResponse,
+)
+async def get_live_session_outcome_parity(
+    session_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: OutcomeParityService = Depends(get_outcome_parity_service),
+) -> OutcomeParityResponse:
+    """화면 진입 시 한 번 읽는 세션 및 전략 누적 parity 요약이다."""
+    try:
+        return await service.get_parity(current_user.id, session_id)
+    except OutcomeParitySessionNotFound as exc:
+        raise HTTPException(status_code=404, detail="live session not found") from exc
 
 
 @router.get(

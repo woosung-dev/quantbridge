@@ -286,6 +286,59 @@ class LiveSignalStateResponse(BaseModel):
     updated_at: AwareDatetime | None
 
 
+class OutcomeParityScope(BaseModel):
+    """한 스코프(세션 또는 전략 누적)의 parity 요약."""
+
+    matched_count: int
+    expected_gross: Decimal
+    actual_net: Decimal
+    decomposable_count: int
+    decomposable_expected_gross: Decimal | None
+    execution_gap: Decimal | None
+    cost: Decimal | None
+    decomposable_actual_net: Decimal | None
+    actual_gross: Decimal | None
+    round_trip_notional: Decimal | None
+    effective_cost_pct: Decimal | None
+    undecomposed_count: int
+    undecomposed_net: Decimal
+    expected_only_count: int
+    expected_only_gross: Decimal
+    actual_only_count: int
+    actual_only_net: Decimal
+    unattributed_count: int
+    coverage_pct: Decimal | None
+    sample_n: int
+    sample_mean_net: Decimal | None
+    sample_sd_net: Decimal | None
+    sample_required_n: int | None
+    sample_sufficient: bool
+
+
+class OutcomeParityAssumption(BaseModel):
+    """비교 기준 비용 가정이다.
+
+    `source="house_default"`는 BacktestConfig 기본값이며 사용자의 백테스트 설정과
+    다를 수 있다. `implied_round_trip_pct`는 taker 왕복 기준이라 TP resting limit
+    leg의 maker 수수료와 슬리피지 면제를 반영하지 못해 그 경우 비용을 과대계상한다.
+    """
+
+    source: Literal["house_default"]
+    taker_fee_pct: Decimal
+    slippage_pct: Decimal
+    maker_fee_pct: Decimal
+    implied_round_trip_pct: Decimal
+
+
+class OutcomeParityResponse(BaseModel):
+    """한 라이브 세션과 전략 누적 parity를 함께 반환한다."""
+
+    session_id: UUID
+    session: OutcomeParityScope
+    strategy: OutcomeParityScope
+    assumption: OutcomeParityAssumption
+
+
 class LiveSignalEventResponse(BaseModel):
     """GET /api/v1/live-sessions/{id}/events — debug + UI 용."""
 

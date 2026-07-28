@@ -95,6 +95,25 @@ class LiveSignalSessionRepository:
         )
         return result.scalars().all()
 
+    async def list_by_strategy_account_symbol(
+        self,
+        *,
+        user_id: UUID,
+        strategy_id: UUID,
+        exchange_account_id: UUID,
+        symbol: str,
+    ) -> Sequence[LiveSignalSession]:
+        """전략 누적 parity용 세션을 활성 여부와 무관하게 읽는다."""
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.strategy_id == strategy_id)  # type: ignore[arg-type]
+            .where(cast(Any, LiveSignalSession.exchange_account_id) == exchange_account_id)
+            .where(LiveSignalSession.symbol == symbol)  # type: ignore[arg-type]
+            .order_by(LiveSignalSession.created_at.asc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
     async def count_active_by_user(self, user_id: UUID) -> int:
         """Sprint 26 quota check — 사용자별 active session ≤ 5."""
         result = await self.session.execute(
