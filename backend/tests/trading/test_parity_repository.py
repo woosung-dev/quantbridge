@@ -134,12 +134,13 @@ async def _close_event(
     realized_pnl: str | None,
     order_id: UUID | None = None,
     status: LiveSignalEventStatus = LiveSignalEventStatus.dispatched,
+    action: str = "close",
 ) -> LiveSignalEvent:
     event = LiveSignalEvent(
         session_id=seed.session.id,
         bar_time=_BASE + timedelta(seconds=sequence_no),
         sequence_no=sequence_no,
-        action="close",
+        action=action,
         direction="long",
         trade_id=f"close-{sequence_no}-{uuid4().hex}",
         qty=Decimal("1"),
@@ -196,15 +197,9 @@ async def test_load_parity_inputs_uses_only_synced_orders_as_actuals(
     confirmed = await _order(db_session, seed, realized_pnl="-4", synced=True)
     unsynced = await _order(db_session, seed, realized_pnl="99", synced=False)
     await _order(db_session, seed, realized_pnl="8", synced=True)
-    await _close_event(
-        db_session, seed, sequence_no=1, realized_pnl="-1", order_id=confirmed.id
-    )
-    await _close_event(
-        db_session, seed, sequence_no=2, realized_pnl="-2", order_id=confirmed.id
-    )
-    await _close_event(
-        db_session, seed, sequence_no=3, realized_pnl="99", order_id=unsynced.id
-    )
+    await _close_event(db_session, seed, sequence_no=1, realized_pnl="-1", order_id=confirmed.id)
+    await _close_event(db_session, seed, sequence_no=2, realized_pnl="-2", order_id=confirmed.id)
+    await _close_event(db_session, seed, sequence_no=3, realized_pnl="99", order_id=unsynced.id)
 
     observations, buckets = await ParityRepository(db_session).load_parity_inputs(
         session_ids=[seed.session.id], scopes=[seed.scope]
@@ -225,6 +220,31 @@ async def test_load_parity_inputs_uses_only_synced_orders_as_actuals(
         actual_only_net=Decimal("8"),
         unattributed_count=0,
     )
+
+
+@pytest.mark.asyncio
+async def test_entry_events_are_excluded_from_the_expected_axis(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    order = await _order(db_session, seed, realized_pnl="2", synced=True)
+    await _close_event(db_session, seed, sequence_no=1, realized_pnl="1", order_id=order.id)
+    await _close_event(
+        db_session,
+        seed,
+        sequence_no=2,
+        realized_pnl="99",
+        action="entry",
+    )
+
+    observations, buckets = await ParityRepository(db_session).load_parity_inputs(
+        session_ids=[seed.session.id], scopes=[seed.scope]
+    )
+
+    assert len(observations) == 1
+    assert observations[0].expected_gross == Decimal("1")
+    assert buckets.expected_only_count == 0
+    assert buckets.expected_only_gross == Decimal("0")
 
 
 @pytest.mark.asyncio
