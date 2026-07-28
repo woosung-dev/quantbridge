@@ -227,6 +227,7 @@ async def get_outcome_parity_service(
     return OutcomeParityService(
         session_repo=LiveSignalSessionRepository(session),
         parity_repo=ParityRepository(session),
+        exchange_account_repo=ExchangeAccountRepository(session),
     )
 
 

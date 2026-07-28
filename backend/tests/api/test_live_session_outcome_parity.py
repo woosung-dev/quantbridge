@@ -37,6 +37,8 @@ _BASE = datetime(2026, 7, 28, 12, tzinfo=UTC)
 async def _create_session(
     db_session: AsyncSession,
     user: User,
+    *,
+    exchange: ExchangeName = ExchangeName.bybit,
 ) -> LiveSignalSession:
     strategy = Strategy(
         user_id=user.id,
@@ -47,7 +49,7 @@ async def _create_session(
     )
     account = ExchangeAccount(
         user_id=user.id,
-        exchange=ExchangeName.bybit,
+        exchange=exchange,
         mode=ExchangeMode.demo,
         api_key_encrypted=b"key",
         api_secret_encrypted=b"secret",
@@ -93,6 +95,7 @@ async def _seed_parity_data(
         side=OrderSide.sell,
         type=OrderType.market,
         quantity=Decimal("1"),
+        filled_quantity=Decimal("1"),
         state=OrderState.filled,
         realized_pnl=Decimal("7"),
         realized_pnl_synced_at=_BASE + timedelta(minutes=2),
@@ -105,6 +108,7 @@ async def _seed_parity_data(
         side=OrderSide.sell,
         type=OrderType.market,
         quantity=Decimal("1"),
+        filled_quantity=Decimal("1"),
         state=OrderState.filled,
         realized_pnl=Decimal("999"),
         filled_at=_BASE + timedelta(minutes=2),
@@ -116,6 +120,7 @@ async def _seed_parity_data(
         side=OrderSide.sell,
         type=OrderType.market,
         quantity=Decimal("1"),
+        filled_quantity=Decimal("1"),
         state=OrderState.filled,
         realized_pnl=Decimal("3"),
         realized_pnl_synced_at=_BASE - timedelta(hours=1, minutes=30),
@@ -196,9 +201,26 @@ async def test_response_has_three_blocks_and_required_fields(
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert {"session", "strategy", "assumption"} <= body.keys()
+    assert {
+        "session",
+        "strategy",
+        "unattributed_count",
+        "ledger_supported",
+        "strategy_session_count",
+        "assumption",
+    } <= body.keys()
     for scope in (body["session"], body["strategy"]):
-        assert {"coverage_pct", "sample_required_n", "unattributed_count"} <= scope.keys()
+        assert {
+            "match_coverage_pct",
+            "decomposition_coverage_pct",
+            "effective_cost_pct_per_leg",
+            "effective_cost_pct_round_trip",
+            "sample_required_n",
+        } <= scope.keys()
+        assert "unattributed_count" not in scope
+    assert body["unattributed_count"] == 0
+    assert body["ledger_supported"] is True
+    assert body["strategy_session_count"] == 2
 
 
 @pytest.mark.asyncio
@@ -251,6 +273,26 @@ async def test_strategy_scope_contains_the_session_scope(
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["strategy"]["matched_count"] >= body["session"]["matched_count"]
+    assert body["strategy_session_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_non_bybit_account_reports_ledger_as_unsupported(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    mock_clerk_auth,
+) -> None:
+    session = await _create_session(
+        db_session,
+        mock_clerk_auth,
+        exchange=ExchangeName.okx,
+    )
+    await db_session.commit()
+
+    response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["ledger_supported"] is False
 
 
 @pytest.mark.asyncio

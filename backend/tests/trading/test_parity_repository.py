@@ -108,6 +108,7 @@ async def _order(
     synced: bool,
     filled_at: datetime | None = None,
     state: OrderState = OrderState.filled,
+    filled_quantity: str | None = "1",
 ) -> Order:
     order = Order(
         strategy_id=seed.strategy.id,
@@ -116,6 +117,7 @@ async def _order(
         side=OrderSide.sell,
         type=OrderType.market,
         quantity=Decimal("1"),
+        filled_quantity=Decimal(filled_quantity) if filled_quantity is not None else None,
         state=state,
         realized_pnl=Decimal(realized_pnl) if realized_pnl is not None else None,
         realized_pnl_synced_at=_BASE + timedelta(minutes=30) if synced else None,
@@ -216,6 +218,9 @@ async def test_load_parity_inputs_uses_only_synced_orders_as_actuals(
     assert buckets == ParityBuckets(
         expected_only_count=1,
         expected_only_gross=Decimal("99"),
+        expected_only_pending_count=0,
+        expected_only_failed_count=0,
+        expected_only_dispatched_count=1,
         actual_only_count=1,
         actual_only_net=Decimal("8"),
         unattributed_count=0,
@@ -338,6 +343,29 @@ async def test_load_parity_inputs_fails_closed_for_null_ledger_evaluation_field(
 
 
 @pytest.mark.asyncio
+async def test_load_parity_inputs_fails_closed_when_ledger_size_is_smaller_than_fill(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    order = await _order(
+        db_session,
+        seed,
+        realized_pnl="3",
+        synced=True,
+        filled_quantity="2",
+    )
+    await _close_event(db_session, seed, sequence_no=1, realized_pnl="2", order_id=order.id)
+    await _exchange_exit(db_session, seed, matched_order_id=order.id, closed_size="1")
+
+    observations, _ = await ParityRepository(db_session).load_parity_inputs(
+        session_ids=[seed.session.id], scopes=[seed.scope]
+    )
+
+    assert observations[0].actual_gross is None
+    assert observations[0].round_trip_notional is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("side", "expected_gross"),
     [("Buy", Decimal("-10")), ("Sell", Decimal("10"))],
@@ -357,6 +385,23 @@ async def test_load_parity_inputs_uses_exchange_exit_side_for_gross_sign(
     )
 
     assert observations[0].actual_gross == expected_gross
+
+
+@pytest.mark.asyncio
+async def test_load_parity_inputs_fails_closed_for_unknown_exchange_exit_side(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    order = await _order(db_session, seed, realized_pnl="1", synced=True)
+    await _close_event(db_session, seed, sequence_no=1, realized_pnl="1", order_id=order.id)
+    await _exchange_exit(db_session, seed, matched_order_id=order.id, side="sell")
+
+    observations, _ = await ParityRepository(db_session).load_parity_inputs(
+        session_ids=[seed.session.id], scopes=[seed.scope]
+    )
+
+    assert observations[0].actual_gross is None
+    assert observations[0].round_trip_notional is None
 
 
 @pytest.mark.asyncio
@@ -414,7 +459,7 @@ async def test_load_parity_inputs_scopes_events_by_session_id_not_order_scope(
         seed,
         sequence_no=1,
         realized_pnl="4",
-        status=LiveSignalEventStatus.failed,
+        status=LiveSignalEventStatus.pending,
     )
     await _close_event(
         db_session,
@@ -438,6 +483,15 @@ async def test_load_parity_inputs_scopes_events_by_session_id_not_order_scope(
     assert observations == []
     assert buckets.expected_only_count == 3
     assert buckets.expected_only_gross == Decimal("7")
+    assert buckets.expected_only_pending_count == 1
+    assert buckets.expected_only_failed_count == 1
+    assert buckets.expected_only_dispatched_count == 1
+    assert (
+        buckets.expected_only_pending_count
+        + buckets.expected_only_failed_count
+        + buckets.expected_only_dispatched_count
+        == buckets.expected_only_count
+    )
 
 
 @pytest.mark.asyncio
@@ -459,6 +513,9 @@ async def test_load_parity_inputs_keeps_unmatched_bracket_exit_out_of_money_tota
     assert buckets == ParityBuckets(
         expected_only_count=0,
         expected_only_gross=Decimal("0"),
+        expected_only_pending_count=0,
+        expected_only_failed_count=0,
+        expected_only_dispatched_count=0,
         actual_only_count=0,
         actual_only_net=Decimal("0"),
         unattributed_count=1,

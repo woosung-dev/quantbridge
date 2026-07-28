@@ -12,7 +12,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.market_data.constants import to_bybit_raw_symbol
-from src.trading.models import ExchangeExit, LiveSignalEvent, Order
+from src.trading.models import ExchangeExit, LiveSignalEvent, LiveSignalEventStatus, Order
 from src.trading.outcome_parity import ParityBuckets, ParityObservation
 from src.trading.repositories.order_repository import SessionScope, _session_scope_where
 
@@ -34,9 +34,10 @@ def _required_decimal(value: Decimal | None, *, source: str) -> Decimal:
 
 def _derive_ledger_values(
     exchange_exits: Sequence[ExchangeExit],
+    filled_quantity: Decimal | None,
 ) -> tuple[Decimal | None, Decimal | None]:
     """한 주문의 원장 행이 단 하나일 때만 gross 와 notional 을 분해한다."""
-    if len(exchange_exits) != 1:
+    if len(exchange_exits) != 1 or filled_quantity is None:
         return None, None
 
     exchange_exit = exchange_exits[0]
@@ -48,12 +49,21 @@ def _derive_ledger_values(
         return None, None
 
     closed_size = Decimal(str(exchange_exit.closed_size))
+    # 원장이 이 주문의 청산 전부를 담고 있는지 확인하는 유일한 방법이 수량 대조다.
+    ledger_closed_size = _sum_decimals(
+        Decimal(str(exchange_exit.closed_size)) for exchange_exit in exchange_exits
+    )
+    if ledger_closed_size != Decimal(str(filled_quantity)):
+        return None, None
+
     avg_entry_price = Decimal(str(exchange_exit.avg_entry_price))
     avg_exit_price = Decimal(str(exchange_exit.avg_exit_price))
     if exchange_exit.side == "Buy":
         actual_gross = (avg_entry_price - avg_exit_price) * closed_size
-    else:
+    elif exchange_exit.side == "Sell":
         actual_gross = (avg_exit_price - avg_entry_price) * closed_size
+    else:
+        return None, None
     round_trip_notional = (avg_entry_price + avg_exit_price) * closed_size
     return actual_gross, round_trip_notional
 
@@ -80,7 +90,11 @@ class ParityRepository:
 
         expected_by_order: dict[UUID, list[Decimal]] = defaultdict(list)
         expected_only_values: list[Decimal] = []
-        expected_only_count = 0
+        expected_only_counts = {
+            LiveSignalEventStatus.pending: 0,
+            LiveSignalEventStatus.failed: 0,
+            LiveSignalEventStatus.dispatched: 0,
+        }
         for event in events:
             if event.order_id in actual_orders_by_id:
                 expected_by_order[event.order_id].append(
@@ -88,7 +102,7 @@ class ParityRepository:
                 )
                 continue
 
-            expected_only_count += 1
+            expected_only_counts[event.status] += 1
             if event.realized_pnl is not None:
                 expected_only_values.append(Decimal(str(event.realized_pnl)))
 
@@ -98,7 +112,7 @@ class ParityRepository:
         observations: list[ParityObservation] = []
         for order in matched_orders:
             actual_gross, round_trip_notional = _derive_ledger_values(
-                exchange_exits_by_order.get(order.id, [])
+                exchange_exits_by_order.get(order.id, []), order.filled_quantity
             )
             observations.append(
                 ParityObservation(
@@ -111,8 +125,11 @@ class ParityRepository:
 
         actual_only_orders = [order for order in actual_orders if order.id not in expected_by_order]
         buckets = ParityBuckets(
-            expected_only_count=expected_only_count,
+            expected_only_count=sum(expected_only_counts.values()),
             expected_only_gross=_sum_decimals(expected_only_values),
+            expected_only_pending_count=expected_only_counts[LiveSignalEventStatus.pending],
+            expected_only_failed_count=expected_only_counts[LiveSignalEventStatus.failed],
+            expected_only_dispatched_count=expected_only_counts[LiveSignalEventStatus.dispatched],
             actual_only_count=len(actual_only_orders),
             actual_only_net=_sum_decimals(
                 _required_decimal(order.realized_pnl, source="confirmed order")
@@ -226,6 +243,9 @@ def _empty_buckets() -> ParityBuckets:
     return ParityBuckets(
         expected_only_count=0,
         expected_only_gross=Decimal("0"),
+        expected_only_pending_count=0,
+        expected_only_failed_count=0,
+        expected_only_dispatched_count=0,
         actual_only_count=0,
         actual_only_net=Decimal("0"),
         unattributed_count=0,

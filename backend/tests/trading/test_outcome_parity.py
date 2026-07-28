@@ -17,6 +17,9 @@ def _empty_buckets() -> ParityBuckets:
     return ParityBuckets(
         expected_only_count=0,
         expected_only_gross=Decimal("0"),
+        expected_only_pending_count=0,
+        expected_only_failed_count=0,
+        expected_only_dispatched_count=0,
         actual_only_count=0,
         actual_only_net=Decimal("0"),
         unattributed_count=0,
@@ -38,7 +41,7 @@ def _observation(
     )
 
 
-def test_reproduces_sql_oracle_totals_and_effective_cost_rate() -> None:
+def test_reproduces_sql_oracle_totals_and_effective_cost_rates() -> None:
     """프로덕션 DB SQL 손계산 오라클을 주문 합계로 재현한다.
 
     기대값 21건과 거래소 확정 27건의 집계 차이를 표현할 때, 이 순수 모듈에는
@@ -66,8 +69,10 @@ def test_reproduces_sql_oracle_totals_and_effective_cost_rate() -> None:
     assert summary.actual_net == Decimal("-27.6433")
     assert summary.round_trip_notional == Decimal("80145.51")
     assert summary.cost == Decimal("-44.2870")
-    assert summary.effective_cost_pct is not None
-    assert abs(summary.effective_cost_pct - Decimal("0.05526")) <= Decimal("0.00001")
+    assert summary.effective_cost_pct_per_leg is not None
+    assert summary.effective_cost_pct_round_trip is not None
+    assert abs(summary.effective_cost_pct_per_leg - Decimal("0.05526")) <= Decimal("0.00001")
+    assert summary.effective_cost_pct_round_trip == summary.effective_cost_pct_per_leg * Decimal("2")
 
 
 def test_decomposable_totals_obey_expected_gap_cost_net_identity() -> None:
@@ -100,7 +105,8 @@ def test_decomposable_totals_obey_expected_gap_cost_net_identity() -> None:
     assert summary.execution_gap == Decimal("-4")
     assert summary.cost == Decimal("-7")
     assert summary.round_trip_notional == Decimal("1200")
-    assert summary.effective_cost_pct == Decimal("0.5833333333333333333333333333")
+    assert summary.effective_cost_pct_per_leg == Decimal("0.5833333333333333333333333333")
+    assert summary.effective_cost_pct_round_trip == Decimal("1.166666666666666666666666667")
     assert summary.expected_gross + summary.execution_gap + summary.cost == summary.actual_net
 
 
@@ -273,6 +279,22 @@ def test_sample_gate_rejects_undefined_or_zero_signal_cases() -> None:
         assert summary.sample.sufficient is False
 
 
+def test_sample_gate_requires_variance_estimator_minimum_even_when_sd_is_small() -> None:
+    """세 건이 우연히 비슷해도 표본 표준편차로 성과를 판정하지 않는다."""
+    summary = summarize_parity(
+        [
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-0.9000")),
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-0.9200")),
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-0.9430")),
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.sample.n == 3
+    assert summary.sample.required_n == 30
+    assert summary.sample.sufficient is False
+
+
 def test_empty_input_returns_zero_or_none_without_raising() -> None:
     """매칭 주문이 하나도 없어도 빈 상태를 소비자가 안전하게 렌더할 수 있다."""
     buckets = _empty_buckets()
@@ -289,11 +311,13 @@ def test_empty_input_returns_zero_or_none_without_raising() -> None:
     assert summary.execution_gap is None
     assert summary.cost is None
     assert summary.round_trip_notional is None
-    assert summary.effective_cost_pct is None
+    assert summary.effective_cost_pct_per_leg is None
+    assert summary.effective_cost_pct_round_trip is None
     assert summary.undecomposed_count == 0
     assert summary.undecomposed_net == Decimal("0")
     assert summary.buckets == buckets
-    assert summary.coverage_pct is None
+    assert summary.match_coverage_pct is None
+    assert summary.decomposition_coverage_pct is None
     assert summary.sample.n == 0
     assert summary.sample.mean_net is None
     assert summary.sample.sd_net is None
@@ -301,14 +325,17 @@ def test_empty_input_returns_zero_or_none_without_raising() -> None:
     assert summary.sample.sufficient is False
 
 
-def test_coverage_uses_all_matched_and_unmatched_order_counts() -> None:
-    """coverage 분모는 matched, expected-only, actual-only 주문 수의 합이다."""
+def test_match_coverage_uses_all_matched_and_unmatched_order_counts() -> None:
+    """매칭 커버리지 분모는 matched, expected-only, actual-only 주문 수의 합이다."""
     observations = [
         _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(21)
     ]
     buckets = ParityBuckets(
         expected_only_count=51,
         expected_only_gross=Decimal("0"),
+        expected_only_pending_count=17,
+        expected_only_failed_count=17,
+        expected_only_dispatched_count=17,
         actual_only_count=6,
         actual_only_net=Decimal("0"),
         unattributed_count=0,
@@ -316,4 +343,5 @@ def test_coverage_uses_all_matched_and_unmatched_order_counts() -> None:
 
     summary = summarize_parity(observations, buckets)
 
-    assert summary.coverage_pct == Decimal("26.92307692307692307692307692")
+    assert summary.match_coverage_pct == Decimal("26.92307692307692307692307692")
+    assert summary.decomposition_coverage_pct == Decimal("100")

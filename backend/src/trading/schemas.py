@@ -287,7 +287,11 @@ class LiveSignalStateResponse(BaseModel):
 
 
 class OutcomeParityScope(BaseModel):
-    """한 스코프(세션 또는 전략 누적)의 parity 요약."""
+    """한 스코프(세션 또는 전략 누적)의 parity 요약이다.
+
+    `round_trip_notional`은 두 leg 합이므로 이를 분모로 한 비용률은 편도다. 왕복 비용
+    가정과 비교할 소비자는 `effective_cost_pct_round_trip`만 사용해야 한다.
+    """
 
     matched_count: int
     expected_gross: Decimal
@@ -299,15 +303,19 @@ class OutcomeParityScope(BaseModel):
     decomposable_actual_net: Decimal | None
     actual_gross: Decimal | None
     round_trip_notional: Decimal | None
-    effective_cost_pct: Decimal | None
+    effective_cost_pct_per_leg: Decimal | None
+    effective_cost_pct_round_trip: Decimal | None
     undecomposed_count: int
     undecomposed_net: Decimal
     expected_only_count: int
     expected_only_gross: Decimal
+    expected_only_pending_count: int
+    expected_only_failed_count: int
+    expected_only_dispatched_count: int
     actual_only_count: int
     actual_only_net: Decimal
-    unattributed_count: int
-    coverage_pct: Decimal | None
+    match_coverage_pct: Decimal | None
+    decomposition_coverage_pct: Decimal | None
     sample_n: int
     sample_mean_net: Decimal | None
     sample_sd_net: Decimal | None
@@ -336,6 +344,9 @@ class OutcomeParityResponse(BaseModel):
     session_id: UUID
     session: OutcomeParityScope
     strategy: OutcomeParityScope
+    unattributed_count: int
+    ledger_supported: bool
+    strategy_session_count: int
     assumption: OutcomeParityAssumption
 
 

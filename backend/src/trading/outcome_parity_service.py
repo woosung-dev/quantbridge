@@ -6,7 +6,9 @@ from decimal import Decimal
 from uuid import UUID
 
 from src.backtest.engine.types import BacktestConfig
+from src.trading.models import ExchangeName
 from src.trading.outcome_parity import ParitySummary, summarize_parity
+from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.live_signal_session_repository import (
     LiveSignalSessionRepository,
 )
@@ -30,15 +32,20 @@ class OutcomeParityService:
         self,
         session_repo: LiveSignalSessionRepository,
         parity_repo: ParityRepository,
+        exchange_account_repo: ExchangeAccountRepository,
     ) -> None:
         self._session_repo = session_repo
         self._parity_repo = parity_repo
+        self._exchange_account_repo = exchange_account_repo
 
     async def get_parity(self, user_id: UUID, session_id: UUID) -> OutcomeParityResponse:
         """요청 세션과 동일 전략 축의 누적 parity를 함께 반환한다."""
         session = await self._session_repo.get_by_id(session_id)
         if session is None or session.user_id != user_id:
             raise OutcomeParitySessionNotFound
+
+        account = await self._exchange_account_repo.get_by_id(session.exchange_account_id)
+        ledger_supported = account is not None and account.exchange == ExchangeName.bybit
 
         strategy_sessions = await self._session_repo.list_by_strategy_account_symbol(
             user_id=user_id,
@@ -62,6 +69,9 @@ class OutcomeParityService:
             session_id=session.id,
             session=_to_scope(session_summary),
             strategy=_to_scope(strategy_summary),
+            unattributed_count=session_summary.buckets.unattributed_count,
+            ledger_supported=ledger_supported,
+            strategy_session_count=len(strategy_sessions),
             assumption=_house_default_assumption(),
         )
 
@@ -90,15 +100,19 @@ def _to_scope(summary: ParitySummary) -> OutcomeParityScope:
         decomposable_actual_net=summary.decomposable_actual_net,
         actual_gross=summary.actual_gross,
         round_trip_notional=summary.round_trip_notional,
-        effective_cost_pct=summary.effective_cost_pct,
+        effective_cost_pct_per_leg=summary.effective_cost_pct_per_leg,
+        effective_cost_pct_round_trip=summary.effective_cost_pct_round_trip,
         undecomposed_count=summary.undecomposed_count,
         undecomposed_net=summary.undecomposed_net,
         expected_only_count=summary.buckets.expected_only_count,
         expected_only_gross=summary.buckets.expected_only_gross,
+        expected_only_pending_count=summary.buckets.expected_only_pending_count,
+        expected_only_failed_count=summary.buckets.expected_only_failed_count,
+        expected_only_dispatched_count=summary.buckets.expected_only_dispatched_count,
         actual_only_count=summary.buckets.actual_only_count,
         actual_only_net=summary.buckets.actual_only_net,
-        unattributed_count=summary.buckets.unattributed_count,
-        coverage_pct=summary.coverage_pct,
+        match_coverage_pct=summary.match_coverage_pct,
+        decomposition_coverage_pct=summary.decomposition_coverage_pct,
         sample_n=summary.sample.n,
         sample_mean_net=summary.sample.mean_net,
         sample_sd_net=summary.sample.sd_net,

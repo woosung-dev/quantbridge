@@ -17,6 +17,11 @@ from decimal import ROUND_CEILING, Decimal
 # 바꾸게 되므로, 정책 상수로 고정한다.
 PARITY_SE_MULTIPLIER = Decimal("2")
 
+# 표본 표준편차가 평균의 분포를 대표하려면 중심극한정리 근사가 성립해야 한다.
+# n 이 이보다 작으면 sd 추정 자체가 신뢰할 수 없어, 정밀도 계산이 무의미하다.
+# 이 값은 관측 데이터가 아니라 추정량의 요구조건에서 온다.
+MIN_OBSERVATIONS_FOR_VARIANCE = 30
+
 
 @dataclass(frozen=True, slots=True)
 class ParityObservation:
@@ -50,6 +55,9 @@ class ParityBuckets:
 
     expected_only_count: int
     expected_only_gross: Decimal
+    expected_only_pending_count: int
+    expected_only_failed_count: int
+    expected_only_dispatched_count: int
     actual_only_count: int
     actual_only_net: Decimal
     unattributed_count: int
@@ -82,6 +90,9 @@ class ParitySummary:
     워터폴은 `decomposable_expected_gross`, `execution_gap`, `cost`,
     `decomposable_actual_net` 네 값만으로 그린다. 전 관측 합계를 분해 파생값과 섞으면
     분해 불가 주문의 net이 빠져 막대가 닫히지 않는다.
+
+    `round_trip_notional`은 진입과 청산 두 leg의 notional 합이다. 따라서 이를 분모로 한
+    비용률은 편도 값이며, 비용 가정의 왕복 값과 비교할 때는 별도 왕복 값만 사용한다.
     """
 
     matched_count: int
@@ -94,11 +105,13 @@ class ParitySummary:
     execution_gap: Decimal | None
     cost: Decimal | None
     round_trip_notional: Decimal | None
-    effective_cost_pct: Decimal | None
+    effective_cost_pct_per_leg: Decimal | None
+    effective_cost_pct_round_trip: Decimal | None
     undecomposed_count: int
     undecomposed_net: Decimal
     buckets: ParityBuckets
-    coverage_pct: Decimal | None
+    match_coverage_pct: Decimal | None
+    decomposition_coverage_pct: Decimal | None
     sample: SampleVerdict
 
 
@@ -120,6 +133,10 @@ def _sample_verdict(
     n 이 1 이하이면 표본 표준편차가 정의되지 않는다. n 이 충분해도 평균이 0 이거나
     표준편차가 0 이면 요구 표본 수를 정직하게 산출할 수 없으므로, 작은 표본을
     조용히 통과시키지 않고 모두 insufficient 로 둔다.
+
+    실측 n=3, sd=0.1593, mean=-0.9210에서는 기존 정밀도 공식의 required_n 이 1이 되어
+    표본 세 건을 충분하다고 잘못 판정했다. 작은 n에서는 sd 추정도 신뢰할 수 없으므로
+    요구 표본 수에 추정량 자체의 하한을 적용한다.
     """
     n = len(observations)
     if n == 0:
@@ -157,7 +174,10 @@ def _sample_verdict(
         )
 
     required_decimal = ((se_multiplier * sd_net) / abs(mean_net)) ** 2
-    required_n = int(required_decimal.to_integral_value(rounding=ROUND_CEILING))
+    required_n = max(
+        int(required_decimal.to_integral_value(rounding=ROUND_CEILING)),
+        MIN_OBSERVATIONS_FOR_VARIANCE,
+    )
     return SampleVerdict(
         n=n,
         mean_net=mean_net,
@@ -205,7 +225,8 @@ def summarize_parity(
     execution_gap: Decimal | None = None
     cost: Decimal | None = None
     round_trip_notional: Decimal | None = None
-    effective_cost_pct: Decimal | None = None
+    effective_cost_pct_per_leg: Decimal | None = None
+    effective_cost_pct_round_trip: Decimal | None = None
 
     if decomposable:
         decomposable_expected_gross = _sum_decimals(row[0] for row in decomposable)
@@ -217,12 +238,19 @@ def summarize_parity(
         )
         cost = Decimal(str(decomposable_actual_net)) - Decimal(str(decomposable_actual_gross))
         if round_trip_notional != Decimal("0"):
-            effective_cost_pct = (-cost / round_trip_notional) * Decimal("100")
+            # 분모가 두 leg 합이라 이 값은 편도다.
+            effective_cost_pct_per_leg = (-cost / round_trip_notional) * Decimal("100")
+            effective_cost_pct_round_trip = Decimal(str(effective_cost_pct_per_leg)) * Decimal("2")
 
     covered_count = matched_count + buckets.expected_only_count + buckets.actual_only_count
-    coverage_pct = (
+    match_coverage_pct = (
         (Decimal(str(matched_count)) / Decimal(str(covered_count))) * Decimal("100")
         if covered_count != 0
+        else None
+    )
+    decomposition_coverage_pct = (
+        (Decimal(str(decomposable_count)) / Decimal(str(matched_count))) * Decimal("100")
+        if matched_count != 0
         else None
     )
 
@@ -237,10 +265,12 @@ def summarize_parity(
         execution_gap=execution_gap,
         cost=cost,
         round_trip_notional=round_trip_notional,
-        effective_cost_pct=effective_cost_pct,
+        effective_cost_pct_per_leg=effective_cost_pct_per_leg,
+        effective_cost_pct_round_trip=effective_cost_pct_round_trip,
         undecomposed_count=undecomposed_count,
         undecomposed_net=undecomposed_net,
         buckets=buckets,
-        coverage_pct=coverage_pct,
+        match_coverage_pct=match_coverage_pct,
+        decomposition_coverage_pct=decomposition_coverage_pct,
         sample=_sample_verdict(observations, se_multiplier=se_multiplier),
     )
