@@ -11,12 +11,14 @@ import {
   LiveSessionSchema,
   LiveSignalEventListResponseSchema,
   LiveSignalStateSchema,
+  OutcomeParityResponseSchema,
   type AccountPositions,
   type ClosePositionResponse,
   type LiveSession,
   type LiveSessionPositions,
   type LiveSignalEvent,
   type LiveSignalState,
+  type OutcomeParityResponse,
   type RegisterLiveSessionRequest,
 } from "./schemas";
 
@@ -92,6 +94,17 @@ export async function getLiveSessionPositions(
     token,
   });
   return LiveSessionPositionsResponseSchema.parse(raw);
+}
+
+export async function getLiveSessionOutcomeParity(
+  sessionId: string,
+  token: string | null,
+): Promise<OutcomeParityResponse> {
+  const raw = await apiFetch<unknown>(`${LIVE_SESSIONS_PATH}/${sessionId}/outcome-parity`, {
+    method: "GET",
+    token,
+  });
+  return OutcomeParityResponseSchema.parse(raw);
 }
 
 export async function getAccountPositions(

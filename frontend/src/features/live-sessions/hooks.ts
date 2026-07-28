@@ -24,6 +24,7 @@ import {
   closePosition,
   deactivateLiveSession,
   getAccountPositions,
+  getLiveSessionOutcomeParity,
   getLiveSessionPositions,
   getLiveSessionState,
   listLiveSessionEvents,
@@ -39,13 +40,10 @@ import type {
   ExchangePosition,
   LiveSignalEvent,
   LiveSignalState,
+  OutcomeParityResponse,
   RegisterLiveSessionRequest,
 } from "./schemas";
-import {
-  LIVE_SESSION_LIST_REFETCH_MS,
-  computeLiveSessionStateRefetchInterval,
-} from "./utils";
-
+import { LIVE_SESSION_LIST_REFETCH_MS, computeLiveSessionStateRefetchInterval } from "./utils";
 
 // ── refetchInterval (module-level — LESSON-004 error→false 가드) ────────
 
@@ -65,6 +63,8 @@ const positionsRefetchInterval = makeRefetchInterval<LiveSessionPositions>(
 const accountPositionsRefetchInterval = makeRefetchInterval<AccountPositions>(
   () => LIVE_SESSION_LIST_REFETCH_MS,
 );
+
+const OUTCOME_PARITY_STALE_TIME_MS = 5 * 60_000;
 
 export interface LiveSessionPositionRow {
   sessionId: string;
@@ -144,9 +144,7 @@ function summarizeLocalOpenTrades(
 export function liveStateRefetchInterval(
   isActive: boolean,
 ): RefetchIntervalFn<LiveSignalState | null> {
-  return makeRefetchInterval(() =>
-    computeLiveSessionStateRefetchInterval(isActive),
-  );
+  return makeRefetchInterval(() => computeLiveSessionStateRefetchInterval(isActive));
 }
 
 // ── queryFn factories (module-level — H-2 우회 패턴) ────────────────────
@@ -162,6 +160,13 @@ function makeStateFetcher(sessionId: string, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return getLiveSessionState(sessionId, token);
+  };
+}
+
+function makeOutcomeParityFetcher(sessionId: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getLiveSessionOutcomeParity(sessionId, token);
   };
 }
 
@@ -274,10 +279,7 @@ function isDivergentWithoutExchangePosition(diff: LiveSessionPositions["diff"]):
 
 // ── Hooks ──────────────────────────────────────────────────────────────
 
-export function useLiveSessions(): UseQueryResult<
-  { items: LiveSession[]; total: number },
-  Error
-> {
+export function useLiveSessions(): UseQueryResult<{ items: LiveSession[]; total: number }, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: liveSessionKeys.list(uid),
@@ -296,6 +298,19 @@ export function useLiveSessionState(
     queryFn: makeStateFetcher(sessionId ?? "", getToken),
     enabled: Boolean(sessionId),
     refetchInterval: liveStateRefetchInterval(isActive),
+  });
+}
+
+/** 3테이블 조인 결과라 자동 폴링 없이 긴 staleTime으로만 재사용한다. */
+export function useLiveSessionOutcomeParity(
+  sessionId: string | null,
+): UseQueryResult<OutcomeParityResponse, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: liveSessionKeys.outcomeParity(uid, sessionId ?? ""),
+    queryFn: makeOutcomeParityFetcher(sessionId ?? "", getToken),
+    enabled: Boolean(sessionId),
+    staleTime: OUTCOME_PARITY_STALE_TIME_MS,
   });
 }
 
@@ -375,8 +390,7 @@ function combineLiveSessionStates(
     }
   }
 
-  const splitComplete =
-    populatedSessions > 0 && splitReportedSessions === populatedSessions;
+  const splitComplete = populatedSessions > 0 && splitReportedSessions === populatedSessions;
 
   return {
     totalRealizedPnl,
@@ -400,9 +414,7 @@ function combineLiveSessionStates(
  * MAX_LIVE_SESSIONS_PER_USER(=5) 상한이라 N+1 팬아웃 비용 제한적.
  * 집계는 combine 옵션 (combineLiveSessionStates) — 반환 identity 안정화.
  */
-export function useLiveSessionsAggregate(
-  sessions: readonly LiveSession[],
-): LiveSessionsAggregate {
+export function useLiveSessionsAggregate(sessions: readonly LiveSession[]): LiveSessionsAggregate {
   const { uid, getToken } = useAuthCtx();
   return useQueries({
     queries: sessions.map((s) => ({
@@ -476,17 +488,12 @@ export function useRegisterLiveSession(): UseMutationResult<
   RegisterLiveSessionRequest
 > {
   return useInvalidatingMutation({
-    mutationFn: (req: RegisterLiveSessionRequest, token) =>
-      registerLiveSession(req, token),
+    mutationFn: (req: RegisterLiveSessionRequest, token) => registerLiveSession(req, token),
     invalidateKeys: (uid) => [liveSessionKeys.list(uid)],
   });
 }
 
-export function useDeactivateLiveSession(): UseMutationResult<
-  void,
-  Error,
-  string
-> {
+export function useDeactivateLiveSession(): UseMutationResult<void, Error, string> {
   return useInvalidatingMutation({
     mutationFn: (id: string, token) => deactivateLiveSession(id, token),
     invalidateKeys: (uid) => [liveSessionKeys.list(uid)],
@@ -504,11 +511,7 @@ export function closePositionMutationKey({ sessionId, symbol }: ClosePositionVar
 
 export function useClosePosition(
   target?: ClosePositionVariables,
-): UseMutationResult<
-  ClosePositionResponse,
-  Error,
-  void
-> {
+): UseMutationResult<ClosePositionResponse, Error, void> {
   return useInvalidatingMutation({
     mutationKey: target ? closePositionMutationKey(target) : undefined,
     mutationFn: (_void, token) => {

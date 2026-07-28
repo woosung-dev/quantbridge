@@ -184,6 +184,53 @@ export const ClosePositionResponseSchema = z.object({
 });
 export type ClosePositionResponse = z.infer<typeof ClosePositionResponseSchema>;
 
+// ── Outcome parity response ───────────────────────────────────────────
+
+export const OutcomeParityScopeSchema = z.object({
+  matched_count: z.number(),
+  expected_gross: z.string(),
+  actual_net: z.string(),
+  decomposable_count: z.number(),
+  decomposable_expected_gross: z.string().nullable(),
+  execution_gap: z.string().nullable(),
+  cost: z.string().nullable(),
+  decomposable_actual_net: z.string().nullable(),
+  actual_gross: z.string().nullable(),
+  round_trip_notional: z.string().nullable(),
+  effective_cost_pct: z.string().nullable(),
+  undecomposed_count: z.number(),
+  undecomposed_net: z.string(),
+  expected_only_count: z.number(),
+  expected_only_gross: z.string(),
+  actual_only_count: z.number(),
+  actual_only_net: z.string(),
+  unattributed_count: z.number(),
+  coverage_pct: z.string().nullable(),
+  sample_n: z.number(),
+  sample_mean_net: z.string().nullable(),
+  sample_sd_net: z.string().nullable(),
+  sample_required_n: z.number().nullable(),
+  sample_sufficient: z.boolean(),
+});
+export type OutcomeParityScope = z.infer<typeof OutcomeParityScopeSchema>;
+
+export const OutcomeParityAssumptionSchema = z.object({
+  source: z.literal("house_default"),
+  taker_fee_pct: z.string(),
+  slippage_pct: z.string(),
+  maker_fee_pct: z.string(),
+  implied_round_trip_pct: z.string(),
+});
+export type OutcomeParityAssumption = z.infer<typeof OutcomeParityAssumptionSchema>;
+
+export const OutcomeParityResponseSchema = z.object({
+  session_id: z.uuid(),
+  session: OutcomeParityScopeSchema,
+  strategy: OutcomeParityScopeSchema,
+  assumption: OutcomeParityAssumptionSchema,
+});
+export type OutcomeParityResponse = z.infer<typeof OutcomeParityResponseSchema>;
+
 // ── Form schema — UI input only (RHF + Zod v4 transform 불필요) ────────
 
 export const LiveSessionFormSchema = z.object({

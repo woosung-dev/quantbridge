@@ -6,16 +6,16 @@
 
 export const liveSessionKeys = {
   all: (userId: string) => ["live-sessions", userId] as const,
-  list: (userId: string) =>
-    [...liveSessionKeys.all(userId), "list"] as const,
+  list: (userId: string) => [...liveSessionKeys.all(userId), "list"] as const,
   detail: (userId: string, sessionId: string) =>
     [...liveSessionKeys.all(userId), "detail", sessionId] as const,
   state: (userId: string, sessionId: string) =>
     [...liveSessionKeys.all(userId), "state", sessionId] as const,
+  outcomeParity: (userId: string, sessionId: string) =>
+    [...liveSessionKeys.all(userId), "outcome-parity", sessionId] as const,
   events: (userId: string, sessionId: string) =>
     [...liveSessionKeys.all(userId), "events", sessionId] as const,
-  positionsPrefix: (userId: string) =>
-    [...liveSessionKeys.all(userId), "positions"] as const,
+  positionsPrefix: (userId: string) => [...liveSessionKeys.all(userId), "positions"] as const,
   positions: (userId: string, sessionId: string) =>
     [...liveSessionKeys.positionsPrefix(userId), sessionId] as const,
   // BL-498 — 계정 스코프 포지션. `positionsPrefix` 아래 두어 청산 성공 시 기존
