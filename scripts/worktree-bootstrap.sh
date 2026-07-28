@@ -68,6 +68,27 @@ port_busy() {
   lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
 }
 
+write_slot_file() {
+  cat > "$WT_ROOT/.worktree-slot" <<EOF
+# scripts/worktree-bootstrap.sh 생성 — Makefile 이 -include 로 읽는다. 커밋 대상 아님.
+QB_SLOT = $1
+EOF
+}
+
+# 슬롯 "탐색 → 예약" 은 원자적이어야 한다. 두 워크트리에서 동시에 부트스트랩하면
+# 둘 다 아직 리스너도 `.worktree-slot` 도 없는 상태를 보고 같은 번호를 집을 수 있고,
+# 그러면 테스트 DB 와 Redis lock DB 가 겹쳐 격리가 통째로 무너진다.
+# `mkdir` 은 POSIX 상 원자적이므로 그걸 락으로 쓴다.
+SLOT_LOCK="$MAIN_ROOT/.claude/worktrees/.slot-lock"
+mkdir -p "$MAIN_ROOT/.claude/worktrees"
+_lock_wait=0
+while ! mkdir "$SLOT_LOCK" 2>/dev/null; do
+  _lock_wait=$((_lock_wait + 1))
+  [ "$_lock_wait" -gt 100 ] && die "슬롯 락 획득 실패(10초). 죽은 프로세스가 남긴 락이면: rmdir '$SLOT_LOCK'"
+  sleep 0.1
+done
+trap 'rmdir "$SLOT_LOCK" 2>/dev/null || true' EXIT INT TERM
+
 if [ -z "$SLOT" ]; then
   USED=""
   for f in "$MAIN_ROOT"/.claude/worktrees/*/.worktree-slot; do
@@ -90,9 +111,14 @@ else
     port_busy "$p" && echo "  ! 경고: 포트 $p 가 이미 사용 중이다. 그 프로세스가 네 것이 아니면 e2e 가 남의 앱을 검사한다."
   done
 fi
+
 case "$SLOT" in ''|*[!0-9]*) die "슬롯은 정수여야 한다: $SLOT" ;; esac
 [ "$SLOT" -ge 1 ] && [ "$SLOT" -le 12 ] || die "슬롯은 1..12 범위여야 한다 (0 은 메인 체크아웃 예약): $SLOT"
 
+# 락을 놓기 **전에** 기록한다 — 다음 부트스트랩이 이 번호를 USED 로 보게 하는 것이 예약이다.
+write_slot_file "$SLOT"
+rmdir "$SLOT_LOCK" 2>/dev/null || true
+trap - EXIT INT TERM
 FE_PORT=$((3100 + SLOT))
 BE_PORT=$((8100 + SLOT))
 LOCK_DB=$((3 + SLOT))
@@ -123,6 +149,14 @@ fi
     && ok ".claude/settings.local.json (수동 복사)" \
     || echo "  ! .claude/settings.local.json 없음 — 권한 프롬프트가 늘어난다 (치명적이지 않음)"
 }
+# 루트 lockfile 이 없으면 아래 §8 의 `pnpm install --frozen-lockfile` 이 실패하고,
+# 훅이 무력화된 채 커밋이 통과하는 워크트리가 만들어진다(실측). 수동 워크트리 경로에서
+# 특히 잘 빠지므로 여기서 메꾼다.
+[ -f pnpm-lock.yaml ] || {
+  cp "$MAIN_ROOT/pnpm-lock.yaml" pnpm-lock.yaml 2>/dev/null \
+    && ok "pnpm-lock.yaml (수동 복사)" \
+    || echo "  ! 루트 pnpm-lock.yaml 없음 — pre-commit 훅(lint-staged)이 조용히 죽는다"
+}
 
 # ── 4. 심볼릭 링크 복구 ─────────────────────────────────────────────────────
 # .worktreeinclude 는 심볼릭을 스킵한다. 대상(.ai/rules)은 트래킹되므로 링크만 다시 건다.
@@ -132,28 +166,46 @@ echo "▶ 심볼릭 링크"
 [ -e .claude/rules ] && [ -e .claude/CLAUDE.md ] && ok "이미 존재 (변경 없음)"
 
 # ── 5. 백엔드 테스트 env 를 슬롯 값으로 재작성 ──────────────────────────────
-# 앱 DATABASE_URL 은 건드리지 않는다 (공유). TEST_ 두 개만 슬롯화한다.
+# 앱 `DATABASE_URL` 은 건드리지 않는다 (공유).
+#
+# `sed -i` 는 못 쓴다 — BSD(macOS)는 빈 인자를 요구하고 GNU(Linux)는 그 빈 문자열을
+# 파일명으로 읽어 죽는다. 양쪽에서 도는 awk 경유로 치환하고, 파일을 갈아끼우지 않고
+# 내용만 덮어써 `.env.local` 의 퍼미션(시크릿 파일이다)을 보존한다.
+set_env_var() {
+  key="$1"; val="$2"; file="$3"
+  tmp="$(mktemp)" || die "mktemp 실패"
+  if grep -q "^${key}=" "$file"; then
+    awk -v k="$key" -v v="$val" '
+      index($0, k "=") == 1 && !done { print k "=" v; done = 1; next }
+      { print }
+    ' "$file" > "$tmp" || { rm -f "$tmp"; die "$key 치환 실패"; }
+    cat "$tmp" > "$file"
+  else
+    printf '%s=%s\n' "$key" "$val" >> "$file"
+  fi
+  rm -f "$tmp"
+}
+
 echo "▶ backend/.env.local 슬롯 반영"
 TEST_DB_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/${TEST_DB}"
 TEST_LOCK_URL="redis://localhost:6380/${LOCK_DB}"
-if grep -q '^TEST_DATABASE_URL=' backend/.env.local; then
-  sed -i '' -E "s|^TEST_DATABASE_URL=.*|TEST_DATABASE_URL=${TEST_DB_URL}|" backend/.env.local
-else
-  printf '\nTEST_DATABASE_URL=%s\n' "$TEST_DB_URL" >> backend/.env.local
-fi
+
+set_env_var TEST_DATABASE_URL "$TEST_DB_URL" backend/.env.local
 ok "TEST_DATABASE_URL → $TEST_DB"
-if grep -q '^TEST_REDIS_LOCK_URL=' backend/.env.local; then
-  sed -i '' -E "s|^TEST_REDIS_LOCK_URL=.*|TEST_REDIS_LOCK_URL=${TEST_LOCK_URL}|" backend/.env.local
-else
-  printf 'TEST_REDIS_LOCK_URL=%s\n' "$TEST_LOCK_URL" >> backend/.env.local
-fi
-ok "TEST_REDIS_LOCK_URL → db $LOCK_DB"
+
+# ⚠️ `TEST_REDIS_LOCK_URL` 만 써서는 격리가 **작동하지 않는다.** `conftest.py:50` 은
+#    `if not os.environ.get("REDIS_LOCK_URL")` 일 때만 TEST_ 값을 본다. `.env.local` 에는
+#    `REDIS_LOCK_URL` 이 이미 있으므로, 의무인 `set -a; . ./.env.local` 소싱을 거치면
+#    그 분기가 거짓이 되어 모든 워크트리가 lock DB 3 을 계속 공유한다.
+#    그래서 둘 다 쓴다. 앱 서버 쪽은 `make be-isolated` 가 inline 으로 3 을 덮으므로
+#    런타임 락은 공유 그대로다 — 앱 DB 를 공유하니 런타임 락도 공유하는 것이 맞다.
+set_env_var TEST_REDIS_LOCK_URL "$TEST_LOCK_URL" backend/.env.local
+set_env_var REDIS_LOCK_URL "$TEST_LOCK_URL" backend/.env.local
+ok "REDIS_LOCK_URL + TEST_REDIS_LOCK_URL → db $LOCK_DB"
 
 # ── 6. Makefile 이 읽을 슬롯 파일 ───────────────────────────────────────────
-cat > .worktree-slot <<EOF
-# scripts/worktree-bootstrap.sh 생성 — Makefile 이 -include 로 읽는다. 커밋 대상 아님.
-QB_SLOT = $SLOT
-EOF
+# 실제 기록은 §2 의 락 안에서 이미 끝났다(예약이 곧 기록이다). 여기서는 확인만 한다.
+[ -f .worktree-slot ] || die ".worktree-slot 이 없다 — 슬롯 예약이 실패했다."
 ok ".worktree-slot (QB_SLOT=$SLOT)"
 
 # ── 7. 테스트 DB 생성 + alembic 초기 스탬프 (멱등) ──────────────────────────

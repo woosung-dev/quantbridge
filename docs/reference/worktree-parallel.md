@@ -45,6 +45,17 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 > 점유하고 있었다. 부트스트랩은 자동 할당 시 `3100+N`/`8100+N` 이 살아 있으면 그 슬롯을 건너뛰고,
 > `--slot` 으로 명시 지정한 경우에는 경고만 낸다. 이걸 무시하면 e2e 가 남의 앱을 검사해 거짓 그린이 난다.
 
+### 2.1 Redis lock 은 테스트만 갈라진다
+
+`conftest.py:50` 은 `if not os.environ.get("REDIS_LOCK_URL")` 일 때만 `TEST_REDIS_LOCK_URL` 을 본다.
+`.env.local` 에는 `REDIS_LOCK_URL` 이 이미 있으므로, 의무인 `set -a; . ./.env.local` 소싱을 거치면
+그 분기가 거짓이 되어 **`TEST_REDIS_LOCK_URL` 은 무시된다.** 그래서 부트스트랩은 `.env.local` 의
+**두 키를 모두** `6380/{3+N}` 으로 쓴다.
+
+앱 서버 쪽은 `make be-isolated` 가 `REDIS_LOCK_URL=redis://localhost:6380/3` 을 inline 으로 덮으므로
+**런타임 락은 슬롯과 무관하게 공유**된다. 앱 DB 를 공유하는 이상 런타임 락도 공유하는 것이 맞다.
+갈라지는 건 pytest 안의 락뿐이다.
+
 ---
 
 ## 3. 해결 불가 — celery worker 는 메인의 코드를 본다
