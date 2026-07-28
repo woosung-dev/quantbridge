@@ -172,6 +172,7 @@ async def _exchange_exit(
     avg_entry_price: str | None = "100",
     avg_exit_price: str | None = "110",
     classification: ExitClassification = ExitClassification.ours,
+    attribution_confidence: ExitAttribution = ExitAttribution.none,
 ) -> ExchangeExit:
     exchange_exit = ExchangeExit(
         exchange_account_id=(account or seed.account).id,
@@ -188,7 +189,7 @@ async def _exchange_exit(
         order_link_id=order_link_id,
         matched_order_id=matched_order_id,
         attributed_strategy_id=attributed_strategy_id,
-        attribution_confidence=ExitAttribution.none,
+        attribution_confidence=attribution_confidence,
         raw={"source": "parity-repository-test"},
     )
     db_session.add(exchange_exit)
@@ -230,6 +231,7 @@ async def test_load_parity_inputs_uses_only_synced_orders_as_actuals(
         actual_only_net=Decimal("8"),
         ledger_only_count=0,
         ledger_only_net=Decimal("0"),
+        inferred_attribution_count=0,
     )
 
 
@@ -505,6 +507,7 @@ async def test_account_ledger_diagnostics_places_unmatched_bracket_exit_in_ledge
         seed,
         classification=ExitClassification.bracket_tp,
         attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
     )
 
     observations, buckets = await ParityRepository(db_session).load_parity_inputs(
@@ -525,6 +528,7 @@ async def test_account_ledger_diagnostics_places_unmatched_bracket_exit_in_ledge
         actual_only_net=Decimal("0"),
         ledger_only_count=0,
         ledger_only_net=Decimal("0"),
+        inferred_attribution_count=0,
     )
     assert diagnostics.ledger_only_count == 1
     assert diagnostics.ledger_only_net == Decimal("-1")
@@ -543,6 +547,7 @@ async def test_scoped_ledger_only_diagnostics_sums_split_exchange_exit_rows(
         closed_pnl="-1.0",
         classification=ExitClassification.bracket_tp,
         attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
     )
     await _exchange_exit(
         db_session,
@@ -551,6 +556,7 @@ async def test_scoped_ledger_only_diagnostics_sums_split_exchange_exit_rows(
         closed_pnl="-2.0",
         classification=ExitClassification.bracket_tp,
         attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
     )
 
     diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
@@ -583,6 +589,42 @@ async def test_scoped_ledger_only_keeps_bracket_linked_to_entry_order(
 
 
 @pytest.mark.asyncio
+async def test_scoped_ledger_only_excludes_inferred_attribution_but_keeps_exact(
+    db_session: AsyncSession,
+) -> None:
+    """검정력 없는 inferred 귀속은 전략 손익과 커버리지에 쓰지 않는다."""
+    seed = await _seed(db_session)
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-1",
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.inferred,
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-2",
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
+    )
+
+    diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope]
+    )
+    account_diagnostics = await ParityRepository(db_session).load_account_ledger_diagnostics(
+        [seed.scope]
+    )
+
+    assert diagnostics.ledger_only_count == 1
+    assert diagnostics.ledger_only_net == Decimal("-2")
+    assert diagnostics.inferred_attribution_count == 1
+    assert account_diagnostics.inferred_attribution_count == 1
+
+
+@pytest.mark.asyncio
 async def test_ledger_only_respects_the_scope_window(
     db_session: AsyncSession,
 ) -> None:
@@ -609,6 +651,7 @@ async def test_ledger_only_respects_the_scope_window(
         exchange_created_at=_BASE - timedelta(minutes=1),
         classification=ExitClassification.bracket_tp,
         attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
     )
     await _exchange_exit(
         db_session,
@@ -617,6 +660,7 @@ async def test_ledger_only_respects_the_scope_window(
         exchange_created_at=_BASE + timedelta(minutes=30),
         classification=ExitClassification.bracket_tp,
         attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
     )
     await _exchange_exit(
         db_session,
@@ -625,6 +669,7 @@ async def test_ledger_only_respects_the_scope_window(
         exchange_created_at=first_ended_at + timedelta(minutes=30),
         classification=ExitClassification.bracket_tp,
         attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
     )
 
     session_diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(

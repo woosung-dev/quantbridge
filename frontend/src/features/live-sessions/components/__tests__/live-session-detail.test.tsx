@@ -208,6 +208,7 @@ const OUTCOME_PARITY_SCOPE: OutcomeParityResponse["session"] = {
   actual_only_net: "0",
   ledger_only_count: 0,
   ledger_only_net: "0",
+  inferred_attribution_count: 0,
   match_coverage_pct: "100",
   decomposition_coverage_pct: "100",
   sample_n: 1,
@@ -215,6 +216,9 @@ const OUTCOME_PARITY_SCOPE: OutcomeParityResponse["session"] = {
   sample_sd_net: null,
   sample_required_n: null,
   sample_sufficient: false,
+  ratio_sample_n: 1,
+  ratio_sample_required_n: null,
+  ratio_sample_sufficient: false,
 };
 
 const OUTCOME_PARITY_RESPONSE: OutcomeParityResponse = {
@@ -222,6 +226,7 @@ const OUTCOME_PARITY_RESPONSE: OutcomeParityResponse = {
   session: OUTCOME_PARITY_SCOPE,
   strategy: OUTCOME_PARITY_SCOPE,
   unattributed_count: 0,
+  inferred_attribution_count: 0,
   ledger_supported: true,
   strategy_session_count: 1,
   assumption: {

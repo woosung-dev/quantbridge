@@ -66,11 +66,12 @@ class ParityBuckets:
     actual_only_net: Decimal
     ledger_only_count: int
     ledger_only_net: Decimal
+    inferred_attribution_count: int
 
 
 @dataclass(frozen=True, slots=True)
 class SampleVerdict:
-    """매칭 주문 net 표본이 성능 비율을 말할 만큼 충분한지의 판정이다.
+    """한 관측 집합의 net 표본이 성능을 말할 만큼 충분한지의 판정이다.
 
     gross 와 수수료는 한 주문에서 함께 나온 짝지어진 값이다. 이를 독립 표본처럼
     세면 불확실성을 잘못 줄이므로, 주문당 확정 net 하나만 표본으로 삼아 평균의
@@ -98,6 +99,9 @@ class ParitySummary:
 
     `round_trip_notional`은 진입과 청산 두 leg의 notional 합이다. 따라서 이를 분모로 한
     비용률은 편도 값이며, 비용 가정의 왕복 값과 비교할 때는 별도 왕복 값만 사용한다.
+
+    `sample`은 매칭된 모든 확정 net의 기술통계 표본이다. `ratio_sample`은 gross와
+    round-trip notional이 모두 있어 성과 비율을 분해할 수 있는 주문의 net 표본이다.
     """
 
     matched_count: int
@@ -120,6 +124,7 @@ class ParitySummary:
     match_coverage_pct: Decimal | None
     decomposition_coverage_pct: Decimal | None
     sample: SampleVerdict
+    ratio_sample: SampleVerdict
 
 
 def _sum_decimals(values: Iterable[Decimal]) -> Decimal:
@@ -217,16 +222,20 @@ def summarize_parity(
     expected_gross = _sum_decimals(observation.expected_gross for observation in observations)
     actual_net = _sum_decimals(observation.actual_net for observation in observations)
 
-    decomposable = [
-        (
-            observation.expected_gross,
-            observation.actual_net,
-            observation.actual_gross,
-            observation.round_trip_notional,
+    decomposable_observations: list[ParityObservation] = []
+    decomposable: list[tuple[Decimal, Decimal, Decimal, Decimal]] = []
+    for observation in observations:
+        if observation.actual_gross is None or observation.round_trip_notional is None:
+            continue
+        decomposable_observations.append(observation)
+        decomposable.append(
+            (
+                observation.expected_gross,
+                observation.actual_net,
+                observation.actual_gross,
+                observation.round_trip_notional,
+            )
         )
-        for observation in observations
-        if observation.actual_gross is not None and observation.round_trip_notional is not None
-    ]
     undecomposed = [observation for observation in observations if observation.actual_gross is None]
     decomposable_count = len(decomposable)
     undecomposed_count = len(undecomposed)
@@ -304,4 +313,5 @@ def summarize_parity(
         match_coverage_pct=match_coverage_pct,
         decomposition_coverage_pct=decomposition_coverage_pct,
         sample=_sample_verdict(observations, se_multiplier=se_multiplier),
+        ratio_sample=_sample_verdict(decomposable_observations, se_multiplier=se_multiplier),
     )

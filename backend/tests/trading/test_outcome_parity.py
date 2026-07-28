@@ -25,6 +25,7 @@ def _empty_buckets() -> ParityBuckets:
         actual_only_net=Decimal("0"),
         ledger_only_count=0,
         ledger_only_net=Decimal("0"),
+        inferred_attribution_count=0,
     )
 
 
@@ -248,6 +249,44 @@ def test_performance_ratios_remain_available_before_the_sample_gate_opens() -> N
     assert summary.cost_to_edge_ratio == Decimal("0.2")
 
 
+def test_ratio_sample_uses_only_decomposable_observations() -> None:
+    """매칭 표본이 충분해도 비율 표본이 적으면 성과 비율을 열지 않는다."""
+    observations = [
+        *[
+            _observation(
+                expected_gross=Decimal("0"),
+                actual_net=Decimal("9"),
+                actual_gross=None,
+                round_trip_notional=None,
+            )
+            for _ in range(15)
+        ],
+        *[
+            _observation(
+                expected_gross=Decimal("0"),
+                actual_net=Decimal("11"),
+                actual_gross=None,
+                round_trip_notional=None,
+            )
+            for _ in range(14)
+        ],
+        _observation(
+            expected_gross=Decimal("10"),
+            actual_net=Decimal("10"),
+            actual_gross=Decimal("11"),
+            round_trip_notional=Decimal("100"),
+        ),
+    ]
+
+    summary = summarize_parity(observations, _empty_buckets())
+
+    assert summary.sample.n == 30
+    assert summary.sample.sufficient is True
+    assert summary.ratio_sample.n == 1
+    assert summary.ratio_sample.required_n is None
+    assert summary.ratio_sample.sufficient is False
+
+
 @pytest.mark.parametrize(
     ("actual_gross", "round_trip_notional"),
     [
@@ -372,6 +411,7 @@ def test_match_coverage_includes_ledger_only_exits() -> None:
         actual_only_net=Decimal("0"),
         ledger_only_count=3,
         ledger_only_net=Decimal("0"),
+        inferred_attribution_count=0,
     )
 
     summary = summarize_parity(observations, buckets)

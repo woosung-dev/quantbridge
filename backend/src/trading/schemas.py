@@ -293,7 +293,7 @@ class OutcomeParityScope(BaseModel):
     가정과 비교할 소비자는 `effective_cost_pct_round_trip`만 사용해야 한다.
 
     `edge_pct_round_trip`와 `cost_to_edge_ratio`는 표본 충분성과 무관하게 계산된다.
-    소비자는 `sample_sufficient`를 반드시 확인해야 한다.
+    소비자는 두 비율을 표시하기 전에 `ratio_sample_sufficient`를 반드시 확인해야 한다.
     """
 
     matched_count: int
@@ -321,6 +321,7 @@ class OutcomeParityScope(BaseModel):
     actual_only_net: Decimal
     ledger_only_count: int
     ledger_only_net: Decimal
+    inferred_attribution_count: int
     match_coverage_pct: Decimal | None
     decomposition_coverage_pct: Decimal | None
     sample_n: int
@@ -328,6 +329,9 @@ class OutcomeParityScope(BaseModel):
     sample_sd_net: Decimal | None
     sample_required_n: int | None
     sample_sufficient: bool
+    ratio_sample_n: int
+    ratio_sample_required_n: int | None
+    ratio_sample_sufficient: bool
 
 
 class OutcomeParityAssumption(BaseModel):
@@ -352,6 +356,7 @@ class OutcomeParityResponse(BaseModel):
     session: OutcomeParityScope
     strategy: OutcomeParityScope
     unattributed_count: int
+    inferred_attribution_count: int
     ledger_supported: bool
     strategy_session_count: int
     assumption: OutcomeParityAssumption

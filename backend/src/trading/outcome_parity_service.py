@@ -86,6 +86,7 @@ class OutcomeParityService:
             session=_to_scope(session_summary),
             strategy=_to_scope(strategy_summary),
             unattributed_count=account_diagnostics.unattributed_count,
+            inferred_attribution_count=account_diagnostics.inferred_attribution_count,
             ledger_supported=ledger_supported,
             strategy_session_count=len(strategy_sessions),
             assumption=_house_default_assumption(),
@@ -107,6 +108,7 @@ class OutcomeParityService:
                 buckets,
                 ledger_only_count=ledger_diagnostics.ledger_only_count,
                 ledger_only_net=ledger_diagnostics.ledger_only_net,
+                inferred_attribution_count=ledger_diagnostics.inferred_attribution_count,
             ),
         )
 
@@ -139,6 +141,7 @@ def _to_scope(summary: ParitySummary) -> OutcomeParityScope:
         actual_only_net=summary.buckets.actual_only_net,
         ledger_only_count=summary.buckets.ledger_only_count,
         ledger_only_net=summary.buckets.ledger_only_net,
+        inferred_attribution_count=summary.buckets.inferred_attribution_count,
         match_coverage_pct=summary.match_coverage_pct,
         decomposition_coverage_pct=summary.decomposition_coverage_pct,
         sample_n=summary.sample.n,
@@ -146,6 +149,9 @@ def _to_scope(summary: ParitySummary) -> OutcomeParityScope:
         sample_sd_net=summary.sample.sd_net,
         sample_required_n=summary.sample.required_n,
         sample_sufficient=summary.sample.sufficient,
+        ratio_sample_n=summary.ratio_sample.n,
+        ratio_sample_required_n=summary.ratio_sample.required_n,
+        ratio_sample_sufficient=summary.ratio_sample.sufficient,
     )
 
 

@@ -212,6 +212,7 @@ export const OutcomeParityScopeSchema = z.object({
   actual_only_net: z.string(),
   ledger_only_count: z.number(),
   ledger_only_net: z.string(),
+  inferred_attribution_count: z.number(),
   match_coverage_pct: z.string().nullable(),
   decomposition_coverage_pct: z.string().nullable(),
   sample_n: z.number(),
@@ -219,6 +220,9 @@ export const OutcomeParityScopeSchema = z.object({
   sample_sd_net: z.string().nullable(),
   sample_required_n: z.number().nullable(),
   sample_sufficient: z.boolean(),
+  ratio_sample_n: z.number(),
+  ratio_sample_required_n: z.number().nullable(),
+  ratio_sample_sufficient: z.boolean(),
 });
 export type OutcomeParityScope = z.infer<typeof OutcomeParityScopeSchema>;
 
@@ -236,6 +240,7 @@ export const OutcomeParityResponseSchema = z.object({
   session: OutcomeParityScopeSchema,
   strategy: OutcomeParityScopeSchema,
   unattributed_count: z.number(),
+  inferred_attribution_count: z.number(),
   ledger_supported: z.boolean(),
   strategy_session_count: z.number(),
   assumption: OutcomeParityAssumptionSchema,

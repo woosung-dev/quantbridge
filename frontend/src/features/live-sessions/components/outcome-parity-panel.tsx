@@ -196,26 +196,43 @@ function ScopeParity({
         </section>
       )}
 
-      {scope.sample_sufficient ? (
-        <section className="mt-4 border-t pt-4" data-testid={`${scopeId}-performance`}>
-          <h5 className="text-sm font-medium">표본 기반 성과</h5>
-          <p className="text-muted-foreground mt-1 text-xs">
-            표본 {scope.sample_n}건 기준 근사입니다.
-          </p>
+      <section className="mt-4 border-t pt-4" data-testid={`${scopeId}-performance`}>
+        <h5 className="text-sm font-medium">표본 기반 성과</h5>
+        {scope.sample_sufficient ? (
+          <>
+            <p className="text-muted-foreground mt-1 text-xs">
+              표본 {scope.sample_n}건 기준 근사입니다.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <MetricTile
+                label="표본 평균 순손익"
+                value={displayDecimal(scope.sample_mean_net)}
+                tone={decimalTone(scope.sample_mean_net)}
+                size="sm"
+                valueTestId={`${scopeId}-sample-mean-net`}
+              />
+              <MetricTile
+                label="표본 순손익 표준편차"
+                value={displayDecimal(scope.sample_sd_net)}
+                size="sm"
+                valueTestId={`${scopeId}-sample-sd-net`}
+              />
+            </div>
+          </>
+        ) : (
+          <div data-testid={`${scopeId}-performance-blocked`}>
+            <p className="text-muted-foreground mt-1 text-xs">
+              표본 {scope.sample_n}건 기준으로는 순손익 기술통계를 표시하지 않습니다.
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {scope.sample_required_n === null
+                ? `현재 표본 ${scope.sample_n}건. 필요 표본 수는 아직 산출할 수 없음.`
+                : `현재 표본 ${scope.sample_n}건, 필요 표본 ${scope.sample_required_n}건.`}
+            </p>
+          </div>
+        )}
+        {scope.ratio_sample_sufficient ? (
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <MetricTile
-              label="표본 평균 순손익"
-              value={displayDecimal(scope.sample_mean_net)}
-              tone={decimalTone(scope.sample_mean_net)}
-              size="sm"
-              valueTestId={`${scopeId}-sample-mean-net`}
-            />
-            <MetricTile
-              label="표본 순손익 표준편차"
-              value={displayDecimal(scope.sample_sd_net)}
-              size="sm"
-              valueTestId={`${scopeId}-sample-sd-net`}
-            />
             <MetricTile
               label="엣지율 (왕복)"
               value={displayPercent(scope.edge_pct_round_trip)}
@@ -230,20 +247,20 @@ function ScopeParity({
               valueTestId={`${scopeId}-cost-to-edge-ratio`}
             />
           </div>
-        </section>
-      ) : (
-        <section className="mt-4 border-t pt-4" data-testid={`${scopeId}-performance-blocked`}>
-          <h5 className="text-sm font-medium">표본 기반 성과</h5>
-          <p className="text-muted-foreground mt-1 text-xs">
-            표본 {scope.sample_n}건 기준으로는 성과 비율을 표시하지 않습니다.
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            {scope.sample_required_n === null
-              ? `현재 표본 ${scope.sample_n}건. 필요 표본 수는 아직 산출할 수 없음.`
-              : `현재 표본 ${scope.sample_n}건, 필요 표본 ${scope.sample_required_n}건.`}
-          </p>
-        </section>
-      )}
+        ) : (
+          <div className="mt-3" data-testid={`${scopeId}-ratio-performance-blocked`}>
+            <p className="text-muted-foreground text-xs">
+              분해 가능한 표본 {scope.ratio_sample_n}건 기준으로는 엣지율과 비용/엣지 배수를
+              표시하지 않습니다.
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {scope.ratio_sample_required_n === null
+                ? `현재 비율 표본 ${scope.ratio_sample_n}건. 필요 표본 수는 아직 산출할 수 없음.`
+                : `현재 비율 표본 ${scope.ratio_sample_n}건, 필요 표본 ${scope.ratio_sample_required_n}건.`}
+            </p>
+          </div>
+        )}
+      </section>
 
       <section className="mt-4 border-t pt-4" data-testid={`${scopeId}-outside-coverage`}>
         <h5 className="text-sm font-medium">커버리지 밖 관측</h5>
@@ -324,7 +341,8 @@ export function OutcomeParityPanel({ sessionId }: OutcomeParityPanelProps) {
   const hasOutsideCoverage =
     scopeHasOutsideCoverage(data.session) ||
     scopeHasOutsideCoverage(data.strategy) ||
-    data.unattributed_count > 0;
+    data.unattributed_count > 0 ||
+    data.inferred_attribution_count > 0;
   const strategyUnconfirmedCount = data.strategy.expected_only_count;
 
   if (!hasMatchedClosures && !hasOutsideCoverage) {
@@ -377,14 +395,21 @@ export function OutcomeParityPanel({ sessionId }: OutcomeParityPanelProps) {
       <section className="mt-4 border-t pt-4" data-testid="outcome-parity-account-diagnostic">
         <h4 className="text-sm font-medium">계정 원장 진단</h4>
         {data.ledger_supported ? (
-          <p className="text-muted-foreground mt-1 text-xs">
-            미귀속 원장 행 (계정 전체, 기간 무관): {data.unattributed_count}건. 같은 청산이 계정
-            행마다 중복 적재될 수 있어 실제 청산 수보다 클 수 있습니다.
-          </p>
+          <>
+            <p className="text-muted-foreground mt-1 text-xs">
+              미귀속 원장 행 (이 심볼 · 계정 기준, 기간 무관): {data.unattributed_count}건. 다른
+              심볼의 미귀속 청산은 이 수에 포함되지 않습니다. 같은 청산이 계정 행마다 중복 적재될 수
+              있어 실제 청산 수보다 클 수 있습니다.
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              추정 귀속(검정력 없음): {data.inferred_attribution_count}건. 같은 계정·심볼에 여러
+              전략이 있으면 틀릴 수 있어 집계에서 제외합니다.
+            </p>
+          </>
         ) : (
           <p className="text-muted-foreground mt-1 text-xs">
-            미귀속 원장 행 (계정 전체, 기간 무관)은 이 거래소에서 청산 원장 적재가 지원되기 전까지
-            판정할 수 없습니다.
+            미귀속 원장 행 (이 심볼 · 계정 기준, 기간 무관)은 이 거래소에서 청산 원장 적재가
+            지원되기 전까지 판정할 수 없습니다.
           </p>
         )}
       </section>

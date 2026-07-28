@@ -39,6 +39,7 @@ const COMPLETE_SCOPE: OutcomeParityScope = {
   actual_only_net: "-4",
   ledger_only_count: 1,
   ledger_only_net: "-0.75",
+  inferred_attribution_count: 0,
   match_coverage_pct: "28.169014084507042253521126760",
   decomposition_coverage_pct: "66.66666666666666666666666667",
   sample_n: 12,
@@ -46,6 +47,9 @@ const COMPLETE_SCOPE: OutcomeParityScope = {
   sample_sd_net: "1.2",
   sample_required_n: 30,
   sample_sufficient: false,
+  ratio_sample_n: 8,
+  ratio_sample_required_n: 30,
+  ratio_sample_sufficient: false,
 };
 
 const SUFFICIENT_SCOPE: OutcomeParityScope = {
@@ -53,13 +57,22 @@ const SUFFICIENT_SCOPE: OutcomeParityScope = {
   sample_n: 30,
   sample_required_n: 30,
   sample_sufficient: true,
+  ratio_sample_n: 30,
+  ratio_sample_required_n: 30,
+  ratio_sample_sufficient: true,
 };
 
 function responseWith(
   session: OutcomeParityScope = COMPLETE_SCOPE,
   strategy: OutcomeParityScope = COMPLETE_SCOPE,
   overrides: Partial<
-    Pick<OutcomeParityResponse, "ledger_supported" | "strategy_session_count" | "unattributed_count">
+    Pick<
+      OutcomeParityResponse,
+      | "ledger_supported"
+      | "strategy_session_count"
+      | "unattributed_count"
+      | "inferred_attribution_count"
+    >
   > = {},
 ): OutcomeParityResponse {
   return {
@@ -67,6 +80,7 @@ function responseWith(
     session,
     strategy,
     unattributed_count: 3,
+    inferred_attribution_count: 0,
     ledger_supported: true,
     strategy_session_count: 2,
     assumption: {
@@ -135,6 +149,9 @@ describe("OutcomeParityPanel", () => {
       sample_sd_net: null,
       sample_required_n: null,
       sample_sufficient: false,
+      ratio_sample_n: 0,
+      ratio_sample_required_n: null,
+      ratio_sample_sufficient: false,
     };
 
     renderLoaded(responseWith(unmatched, unmatched));
@@ -295,6 +312,24 @@ describe("OutcomeParityPanel", () => {
     expect(screen.queryByTestId("outcome-parity-session-cost-to-edge-ratio")).not.toBeInTheDocument();
   });
 
+  it("매칭 표본이 충분해도 분해 가능 표본이 적으면 성과 비율을 차단한다", () => {
+    const insufficientRatioSample: OutcomeParityScope = {
+      ...SUFFICIENT_SCOPE,
+      decomposable_count: 1,
+      ratio_sample_n: 1,
+      ratio_sample_required_n: null,
+      ratio_sample_sufficient: false,
+    };
+
+    renderLoaded(responseWith(insufficientRatioSample, insufficientRatioSample));
+
+    expect(screen.getByTestId("outcome-parity-session-sample-mean-net")).toBeInTheDocument();
+    expect(screen.queryByTestId("outcome-parity-session-edge-pct-round-trip")).not.toBeInTheDocument();
+    expect(screen.getByTestId("outcome-parity-session-ratio-performance-blocked")).toHaveTextContent(
+      "분해 가능한 표본 1건",
+    );
+  });
+
   it("분해 가능한 거래소 gross를 워터폴 근처에 표시한다", () => {
     renderLoaded();
 
@@ -310,11 +345,17 @@ describe("OutcomeParityPanel", () => {
     );
   });
 
-  it("계정 원장 진단과 전략 세션 수를 스코프 밖에서 표시한다", () => {
-    renderLoaded();
+  it("계정 원장 진단의 실제 심볼 범위와 추정 귀속 제외를 표시한다", () => {
+    renderLoaded(responseWith(COMPLETE_SCOPE, COMPLETE_SCOPE, { inferred_attribution_count: 2 }));
 
     expect(screen.getByTestId("outcome-parity-account-diagnostic")).toHaveTextContent(
-      "미귀속 원장 행 (계정 전체, 기간 무관): 3건",
+      "미귀속 원장 행 (이 심볼 · 계정 기준, 기간 무관): 3건",
+    );
+    expect(screen.getByTestId("outcome-parity-account-diagnostic")).toHaveTextContent(
+      "다른 심볼의 미귀속 청산은 이 수에 포함되지 않습니다.",
+    );
+    expect(screen.getByTestId("outcome-parity-account-diagnostic")).toHaveTextContent(
+      "추정 귀속(검정력 없음): 2건",
     );
     expect(screen.getByTestId("outcome-parity-strategy-scope-badge")).toHaveTextContent("세션 2건");
   });

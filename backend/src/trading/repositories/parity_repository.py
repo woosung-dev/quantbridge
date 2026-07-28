@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.market_data.constants import to_bybit_raw_symbol
 from src.trading.models import (
     ExchangeExit,
+    ExitAttribution,
     ExitClassification,
     LiveSignalEvent,
     LiveSignalEventStatus,
@@ -40,9 +41,10 @@ _LEDGER_ONLY_CLASSIFICATIONS = (
 
 @dataclass(frozen=True, slots=True)
 class AccountLedgerDiagnostics:
-    """계정 전체, 기간 무관 미귀속 원장 진단이다."""
+    """이 심볼과 계정 기준, 기간 무관 원장 진단이다."""
 
     unattributed_count: int
+    inferred_attribution_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +53,7 @@ class LedgerOnlyDiagnostics:
 
     ledger_only_count: int
     ledger_only_net: Decimal
+    inferred_attribution_count: int
 
 
 def _sum_decimals(values: Iterable[Decimal]) -> Decimal:
@@ -174,6 +177,7 @@ class ParityRepository:
             ),
             ledger_only_count=0,
             ledger_only_net=Decimal("0"),
+            inferred_attribution_count=0,
         )
         return observations, buckets
 
@@ -248,9 +252,9 @@ class ParityRepository:
         self,
         scopes: Sequence[SessionScope],
     ) -> AccountLedgerDiagnostics:
-        """계정 전체, 기간 무관 미귀속 원장 행을 SQL 집계로 읽는다."""
+        """이 심볼과 계정 기준, 기간 무관 원장 행을 SQL 집계로 읽는다."""
         if not scopes:
-            return AccountLedgerDiagnostics(unattributed_count=0)
+            return AccountLedgerDiagnostics(unattributed_count=0, inferred_attribution_count=0)
 
         ledger_scope_predicates = [
             and_(
@@ -292,8 +296,27 @@ class ParityRepository:
             .where(~scoped_exits.c.classification.in_(_LEDGER_ONLY_CLASSIFICATIONS))
             .scalar_subquery()
         )
-        result = await self.session.execute(select(unattributed_count))
-        return AccountLedgerDiagnostics(unattributed_count=int(result.scalar_one()))
+        inferred_attribution_predicates = [
+            and_(
+                cast(Any, ExchangeExit.exchange_account_id) == scope.exchange_account_id,
+                cast(Any, ExchangeExit.symbol) == to_bybit_raw_symbol(scope.symbol),
+                cast(Any, ExchangeExit.attributed_strategy_id) == scope.strategy_id,
+                cast(Any, ExchangeExit.attribution_confidence) == ExitAttribution.inferred,
+            )
+            for scope in scopes
+        ]
+        inferred_attribution_count = (
+            select(func.count())
+            .select_from(ExchangeExit)
+            .where(or_(*inferred_attribution_predicates))
+            .scalar_subquery()
+        )
+        result = await self.session.execute(select(unattributed_count, inferred_attribution_count))
+        unattributed, inferred = result.one()
+        return AccountLedgerDiagnostics(
+            unattributed_count=int(unattributed),
+            inferred_attribution_count=int(inferred),
+        )
 
     async def load_scoped_ledger_only_diagnostics(
         self,
@@ -301,9 +324,14 @@ class ParityRepository:
     ) -> LedgerOnlyDiagnostics:
         """원장 전용 청산을 세션 또는 전략 누적 범위에서 주문 단위로 집계한다."""
         if not scopes:
-            return LedgerOnlyDiagnostics(ledger_only_count=0, ledger_only_net=Decimal("0"))
+            return LedgerOnlyDiagnostics(
+                ledger_only_count=0,
+                ledger_only_net=Decimal("0"),
+                inferred_attribution_count=0,
+            )
 
         ledger_scope_predicates: list[Any] = []
+        inferred_attribution_scope_predicates: list[Any] = []
         confirmed_close_scope_predicates: list[Any] = []
         for scope in scopes:
             linked_order_scope = [
@@ -313,7 +341,7 @@ class ParityRepository:
                 cast(Any, Order.state) == OrderState.filled,
                 cast(Any, Order.filled_at) >= scope.started_at,
             ]
-            ledger_scope = [
+            ledger_base_scope = [
                 cast(Any, ExchangeExit.exchange_account_id) == scope.exchange_account_id,
                 cast(Any, ExchangeExit.symbol) == to_bybit_raw_symbol(scope.symbol),
                 cast(Any, ExchangeExit.exchange_created_at) >= scope.started_at,
@@ -327,10 +355,19 @@ class ParityRepository:
             ]
             if scope.ended_at is not None:
                 # 거래소 청산 시계와 우리 주문의 filled_at 시계는 다르므로 이 경계는 근사다.
-                ledger_scope.append(cast(Any, ExchangeExit.exchange_created_at) < scope.ended_at)
+                ledger_base_scope.append(
+                    cast(Any, ExchangeExit.exchange_created_at) < scope.ended_at
+                )
                 linked_order_scope.append(cast(Any, Order.filled_at) < scope.ended_at)
                 confirmed_close_scope.append(cast(Any, Order.filled_at) < scope.ended_at)
             confirmed_close_scope_predicates.append(and_(*confirmed_close_scope))
+            inferred_attribution_scope_predicates.append(
+                and_(
+                    *ledger_base_scope,
+                    cast(Any, ExchangeExit.attributed_strategy_id) == scope.strategy_id,
+                    cast(Any, ExchangeExit.attribution_confidence) == ExitAttribution.inferred,
+                )
+            )
 
             has_scoped_linked_order = (
                 select(cast(Any, Order.id))
@@ -339,13 +376,21 @@ class ParityRepository:
                 .where(and_(*linked_order_scope))
                 .exists()
             )
-            ledger_scope.append(
-                or_(
-                    cast(Any, ExchangeExit.attributed_strategy_id) == scope.strategy_id,
-                    has_scoped_linked_order,
+            # "같은 계정·심볼에 서로 다른 전략의 활성 세션이 공존할 수 있으므로 검정력이 없다."
+            # `exit_attribution.py`의 봉인대로 inferred는 리스크 게이트 입력으로 쓰지 않는다.
+            ledger_scope_predicates.append(
+                and_(
+                    *ledger_base_scope,
+                    or_(
+                        and_(
+                            cast(Any, ExchangeExit.attributed_strategy_id) == scope.strategy_id,
+                            cast(Any, ExchangeExit.attribution_confidence)
+                            == ExitAttribution.exact,
+                        ),
+                        has_scoped_linked_order,
+                    ),
                 )
             )
-            ledger_scope_predicates.append(and_(*ledger_scope))
 
         has_confirmed_close_order = (
             select(cast(Any, Order.id))
@@ -363,6 +408,7 @@ class ParityRepository:
                 cast(Any, ExchangeExit.closed_pnl),
                 cast(Any, ExchangeExit.classification),
                 cast(Any, ExchangeExit.matched_order_id),
+                cast(Any, ExchangeExit.attribution_confidence),
                 has_confirmed_close_order.label("has_confirmed_close_order"),
             )
             .where(or_(*ledger_scope_predicates))
@@ -377,6 +423,9 @@ class ParityRepository:
             )
             .where(scoped_exits.c.matched_order_id.is_(None))
             .where(scoped_exits.c.has_confirmed_close_order.is_(False))
+            .where(
+                scoped_exits.c.attribution_confidence.is_distinct_from(ExitAttribution.inferred)
+            )
             .where(scoped_exits.c.classification.in_(_LEDGER_ONLY_CLASSIFICATIONS))
             .group_by(scoped_exits.c.exchange_account_id, scoped_exits.c.exchange_order_id)
             .cte("ledger_only_exchange_exits")
@@ -387,11 +436,20 @@ class ParityRepository:
             .select_from(ledger_only_exits)
             .scalar_subquery()
         )
-        result = await self.session.execute(select(ledger_only_count, ledger_only_net))
-        count, net = result.one()
+        inferred_attribution_count = (
+            select(func.count())
+            .select_from(ExchangeExit)
+            .where(or_(*inferred_attribution_scope_predicates))
+            .scalar_subquery()
+        )
+        result = await self.session.execute(
+            select(ledger_only_count, ledger_only_net, inferred_attribution_count)
+        )
+        count, net, inferred = result.one()
         return LedgerOnlyDiagnostics(
             ledger_only_count=int(count),
             ledger_only_net=Decimal(str(net)),
+            inferred_attribution_count=int(inferred),
         )
 
 
@@ -406,4 +464,5 @@ def _empty_buckets() -> ParityBuckets:
         actual_only_net=Decimal("0"),
         ledger_only_count=0,
         ledger_only_net=Decimal("0"),
+        inferred_attribution_count=0,
     )

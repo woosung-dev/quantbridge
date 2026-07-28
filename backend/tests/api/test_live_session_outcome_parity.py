@@ -206,6 +206,7 @@ async def test_response_has_three_blocks_and_required_fields(
         "session",
         "strategy",
         "unattributed_count",
+        "inferred_attribution_count",
         "ledger_supported",
         "strategy_session_count",
         "assumption",
@@ -221,9 +222,13 @@ async def test_response_has_three_blocks_and_required_fields(
             "ledger_only_count",
             "ledger_only_net",
             "sample_required_n",
+            "ratio_sample_n",
+            "ratio_sample_required_n",
+            "ratio_sample_sufficient",
         } <= scope.keys()
         assert "unattributed_count" not in scope
     assert body["unattributed_count"] == 0
+    assert body["inferred_attribution_count"] == 0
     assert body["ledger_supported"] is True
     assert body["strategy_session_count"] == 2
 
@@ -281,6 +286,41 @@ async def test_native_bracket_split_exit_is_summed_in_ledger_only_bucket_and_low
 
 
 @pytest.mark.asyncio
+async def test_inferred_attribution_is_exposed_without_entering_ledger_only(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    mock_clerk_auth,
+) -> None:
+    """검정력 없는 귀속은 진단만 하고 전략 손익 버킷에는 넣지 않는다."""
+    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    db_session.add(
+        ExchangeExit(
+            exchange_account_id=session.exchange_account_id,
+            exchange_order_id="inferred-bracket",
+            row_hash="inferred-bracket-row",
+            symbol="BTCUSDT",
+            side="Sell",
+            closed_pnl=Decimal("-1"),
+            exchange_created_at=_BASE + timedelta(minutes=3),
+            classification=ExitClassification.bracket_tp,
+            attributed_strategy_id=session.strategy_id,
+            attribution_confidence=ExitAttribution.inferred,
+            raw={"source": "inferred-bracket"},
+        )
+    )
+    await db_session.commit()
+
+    response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["session"]["ledger_only_count"] == 0
+    assert body["session"]["inferred_attribution_count"] == 1
+    assert body["strategy"]["inferred_attribution_count"] == 1
+    assert body["inferred_attribution_count"] == 1
+
+
+@pytest.mark.asyncio
 async def test_ledger_only_is_scoped_per_session_and_strategy_union(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -306,7 +346,7 @@ async def test_ledger_only_is_scoped_per_session_and_strategy_union(
                 exchange_created_at=previous_session.created_at + timedelta(minutes=30),
                 classification=ExitClassification.bracket_tp,
                 attributed_strategy_id=session.strategy_id,
-                attribution_confidence=ExitAttribution.none,
+                attribution_confidence=ExitAttribution.exact,
                 raw={"source": "previous-native-bracket"},
             ),
             ExchangeExit(
@@ -319,7 +359,7 @@ async def test_ledger_only_is_scoped_per_session_and_strategy_union(
                 exchange_created_at=_BASE + timedelta(minutes=3),
                 classification=ExitClassification.bracket_tp,
                 attributed_strategy_id=session.strategy_id,
-                attribution_confidence=ExitAttribution.none,
+                attribution_confidence=ExitAttribution.exact,
                 raw={"source": "current-native-bracket"},
             ),
         ]
