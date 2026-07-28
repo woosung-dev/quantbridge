@@ -26,6 +26,8 @@ const COMPLETE_SCOPE: OutcomeParityScope = {
   round_trip_notional: "2000",
   effective_cost_pct_per_leg: "0.0558",
   effective_cost_pct_round_trip: "0.1116",
+  edge_pct_round_trip: "0.55",
+  cost_to_edge_ratio: "0.590909090909090909",
   undecomposed_count: 4,
   undecomposed_net: "1.50",
   expected_only_count: 7,
@@ -35,6 +37,8 @@ const COMPLETE_SCOPE: OutcomeParityScope = {
   expected_only_dispatched_count: 2,
   actual_only_count: 2,
   actual_only_net: "-4",
+  ledger_only_count: 1,
+  ledger_only_net: "-0.75",
   match_coverage_pct: "28.169014084507042253521126760",
   decomposition_coverage_pct: "66.66666666666666666666666667",
   sample_n: 12,
@@ -42,6 +46,13 @@ const COMPLETE_SCOPE: OutcomeParityScope = {
   sample_sd_net: "1.2",
   sample_required_n: 30,
   sample_sufficient: false,
+};
+
+const SUFFICIENT_SCOPE: OutcomeParityScope = {
+  ...COMPLETE_SCOPE,
+  sample_n: 30,
+  sample_required_n: 30,
+  sample_sufficient: true,
 };
 
 function responseWith(
@@ -115,6 +126,8 @@ describe("OutcomeParityPanel", () => {
       expected_only_failed_count: 17,
       expected_only_dispatched_count: 17,
       actual_only_count: 0,
+      ledger_only_count: 0,
+      ledger_only_net: "0",
       match_coverage_pct: "0",
       decomposition_coverage_pct: null,
       sample_n: 0,
@@ -149,6 +162,8 @@ describe("OutcomeParityPanel", () => {
       expected_only_dispatched_count: 0,
       actual_only_count: 0,
       actual_only_net: "0",
+      ledger_only_count: 0,
+      ledger_only_net: "0",
       match_coverage_pct: null,
       decomposition_coverage_pct: null,
     };
@@ -170,6 +185,17 @@ describe("OutcomeParityPanel", () => {
         "매칭됐으나 비용 분해 불가",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("원장에만 있는 청산을 별도 버킷으로 표시한다", () => {
+    renderLoaded();
+
+    expect(screen.getByTestId("outcome-parity-session-ledger-only-count")).toHaveTextContent(
+      "1건",
+    );
+    expect(screen.getByTestId("outcome-parity-session-outside-coverage")).toHaveTextContent(
+      "거래소 네이티브 TP/SL 등 로컬 주문 없이 실행된 청산입니다",
+    );
   });
 
   it("비용 분해 커버리지가 0이면 워터폴의 반영 표본을 경고한다", () => {
@@ -249,6 +275,30 @@ describe("OutcomeParityPanel", () => {
     expect(screen.getByTestId("outcome-parity-session-assumption-compare")).toHaveTextContent(
       "0.1116%",
     );
+  });
+
+  it("표본 게이트가 열리면 엣지율과 비용 엣지 배수를 표시한다", () => {
+    renderLoaded(responseWith(SUFFICIENT_SCOPE, SUFFICIENT_SCOPE));
+
+    expect(screen.getByTestId("outcome-parity-session-edge-pct-round-trip")).toHaveTextContent(
+      "0.5500%",
+    );
+    expect(screen.getByTestId("outcome-parity-session-cost-to-edge-ratio")).toHaveTextContent(
+      "0.590909090909090909",
+    );
+  });
+
+  it("표본 게이트가 닫히면 엣지율과 비용 엣지 배수를 표시하지 않는다", () => {
+    renderLoaded();
+
+    expect(screen.queryByTestId("outcome-parity-session-edge-pct-round-trip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("outcome-parity-session-cost-to-edge-ratio")).not.toBeInTheDocument();
+  });
+
+  it("분해 가능한 거래소 gross를 워터폴 근처에 표시한다", () => {
+    renderLoaded();
+
+    expect(screen.getByTestId("outcome-parity-session-actual-gross")).toHaveTextContent("8.75");
   });
 
   it("원장 미지원 거래소는 워터폴 대신 비용 분해 불가 안내를 표시한다", () => {

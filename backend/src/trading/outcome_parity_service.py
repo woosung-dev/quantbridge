@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from uuid import UUID
 
@@ -13,7 +14,10 @@ from src.trading.repositories.live_signal_session_repository import (
     LiveSignalSessionRepository,
 )
 from src.trading.repositories.order_repository import SessionScope
-from src.trading.repositories.parity_repository import ParityRepository
+from src.trading.repositories.parity_repository import (
+    AccountLedgerDiagnostics,
+    ParityRepository,
+)
 from src.trading.schemas import (
     OutcomeParityAssumption,
     OutcomeParityResponse,
@@ -54,22 +58,23 @@ class OutcomeParityService:
             symbol=session.symbol,
         )
 
-        session_summary = await self._load_summary(
-            [session.id], [SessionScope.from_live_session(session)]
-        )
+        session_scopes = [SessionScope.from_live_session(session)]
+        ledger_diagnostics = await self._parity_repo.load_account_ledger_diagnostics(session_scopes)
+        session_summary = await self._load_summary([session.id], session_scopes, ledger_diagnostics)
         strategy_summary = await self._load_summary(
             [strategy_session.id for strategy_session in strategy_sessions],
             [
                 SessionScope.from_live_session(strategy_session)
                 for strategy_session in strategy_sessions
             ],
+            ledger_diagnostics,
         )
 
         return OutcomeParityResponse(
             session_id=session.id,
             session=_to_scope(session_summary),
             strategy=_to_scope(strategy_summary),
-            unattributed_count=session_summary.buckets.unattributed_count,
+            unattributed_count=ledger_diagnostics.unattributed_count,
             ledger_supported=ledger_supported,
             strategy_session_count=len(strategy_sessions),
             assumption=_house_default_assumption(),
@@ -79,12 +84,20 @@ class OutcomeParityService:
         self,
         session_ids: list[UUID],
         scopes: list[SessionScope],
+        ledger_diagnostics: AccountLedgerDiagnostics,
     ) -> ParitySummary:
         observations, buckets = await self._parity_repo.load_parity_inputs(
             session_ids=session_ids,
             scopes=scopes,
         )
-        return summarize_parity(observations, buckets)
+        return summarize_parity(
+            observations,
+            replace(
+                buckets,
+                ledger_only_count=ledger_diagnostics.ledger_only_count,
+                ledger_only_net=ledger_diagnostics.ledger_only_net,
+            ),
+        )
 
 
 def _to_scope(summary: ParitySummary) -> OutcomeParityScope:
@@ -102,6 +115,8 @@ def _to_scope(summary: ParitySummary) -> OutcomeParityScope:
         round_trip_notional=summary.round_trip_notional,
         effective_cost_pct_per_leg=summary.effective_cost_pct_per_leg,
         effective_cost_pct_round_trip=summary.effective_cost_pct_round_trip,
+        edge_pct_round_trip=summary.edge_pct_round_trip,
+        cost_to_edge_ratio=summary.cost_to_edge_ratio,
         undecomposed_count=summary.undecomposed_count,
         undecomposed_net=summary.undecomposed_net,
         expected_only_count=summary.buckets.expected_only_count,
@@ -111,6 +126,8 @@ def _to_scope(summary: ParitySummary) -> OutcomeParityScope:
         expected_only_dispatched_count=summary.buckets.expected_only_dispatched_count,
         actual_only_count=summary.buckets.actual_only_count,
         actual_only_net=summary.buckets.actual_only_net,
+        ledger_only_count=summary.buckets.ledger_only_count,
+        ledger_only_net=summary.buckets.ledger_only_net,
         match_coverage_pct=summary.match_coverage_pct,
         decomposition_coverage_pct=summary.decomposition_coverage_pct,
         sample_n=summary.sample.n,

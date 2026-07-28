@@ -305,6 +305,8 @@ class OutcomeParityScope(BaseModel):
     round_trip_notional: Decimal | None
     effective_cost_pct_per_leg: Decimal | None
     effective_cost_pct_round_trip: Decimal | None
+    edge_pct_round_trip: Decimal | None
+    cost_to_edge_ratio: Decimal | None
     undecomposed_count: int
     undecomposed_net: Decimal
     expected_only_count: int
@@ -314,6 +316,8 @@ class OutcomeParityScope(BaseModel):
     expected_only_dispatched_count: int
     actual_only_count: int
     actual_only_net: Decimal
+    ledger_only_count: int
+    ledger_only_net: Decimal
     match_coverage_pct: Decimal | None
     decomposition_coverage_pct: Decimal | None
     sample_n: int

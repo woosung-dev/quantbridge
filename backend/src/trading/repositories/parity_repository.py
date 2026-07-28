@@ -4,17 +4,46 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
-from decimal import Decimal
+from dataclasses import dataclass
+from decimal import Decimal, localcontext
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import String, and_, func, or_, select
+from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.market_data.constants import to_bybit_raw_symbol
-from src.trading.models import ExchangeExit, LiveSignalEvent, LiveSignalEventStatus, Order
-from src.trading.outcome_parity import ParityBuckets, ParityObservation
+from src.trading.models import (
+    ExchangeExit,
+    ExitClassification,
+    LiveSignalEvent,
+    LiveSignalEventStatus,
+    Order,
+)
+from src.trading.outcome_parity import (
+    PARITY_DECIMAL_CONTEXT,
+    ParityBuckets,
+    ParityObservation,
+)
 from src.trading.repositories.order_repository import SessionScope, _session_scope_where
+
+_LEDGER_ONLY_CLASSIFICATIONS = (
+    ExitClassification.ours,
+    ExitClassification.bracket_tp,
+    ExitClassification.bracket_sl,
+    ExitClassification.trailing,
+    ExitClassification.liquidation,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class AccountLedgerDiagnostics:
+    """계정과 심볼 범위에서 스코프 요약이 공유하는 원장 진단이다."""
+
+    unattributed_count: int
+    ledger_only_count: int
+    ledger_only_net: Decimal
 
 
 def _sum_decimals(values: Iterable[Decimal]) -> Decimal:
@@ -58,14 +87,15 @@ def _derive_ledger_values(
 
     avg_entry_price = Decimal(str(exchange_exit.avg_entry_price))
     avg_exit_price = Decimal(str(exchange_exit.avg_exit_price))
-    if exchange_exit.side == "Buy":
-        actual_gross = (avg_entry_price - avg_exit_price) * closed_size
-    elif exchange_exit.side == "Sell":
-        actual_gross = (avg_exit_price - avg_entry_price) * closed_size
-    else:
-        return None, None
-    round_trip_notional = (avg_entry_price + avg_exit_price) * closed_size
-    return actual_gross, round_trip_notional
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        if exchange_exit.side == "Buy":
+            actual_gross = (avg_entry_price - avg_exit_price) * closed_size
+        elif exchange_exit.side == "Sell":
+            actual_gross = (avg_exit_price - avg_entry_price) * closed_size
+        else:
+            return None, None
+        round_trip_notional = (avg_entry_price + avg_exit_price) * closed_size
+        return actual_gross, round_trip_notional
 
 
 class ParityRepository:
@@ -135,7 +165,8 @@ class ParityRepository:
                 _required_decimal(order.realized_pnl, source="confirmed order")
                 for order in actual_only_orders
             ),
-            unattributed_count=await self._count_unattributed_exchange_exits(scopes),
+            ledger_only_count=0,
+            ledger_only_net=Decimal("0"),
         )
         return observations, buckets
 
@@ -206,9 +237,17 @@ class ParityRepository:
                 exchange_exits_by_order[order_id].append(exchange_exit)
         return dict(exchange_exits_by_order)
 
-    async def _count_unattributed_exchange_exits(self, scopes: Sequence[SessionScope]) -> int:
+    async def load_account_ledger_diagnostics(
+        self,
+        scopes: Sequence[SessionScope],
+    ) -> AccountLedgerDiagnostics:
+        """원장 전용과 미귀속 원장 행을 단일 SQL 집계로 읽는다."""
         if not scopes:
-            return 0
+            return AccountLedgerDiagnostics(
+                unattributed_count=0,
+                ledger_only_count=0,
+                ledger_only_net=Decimal("0"),
+            )
 
         ledger_scope_predicates = [
             and_(
@@ -217,25 +256,64 @@ class ParityRepository:
             )
             for scope in scopes
         ]
-        exchange_exits_result = await self.session.execute(
-            select(ExchangeExit).where(or_(*ledger_scope_predicates))
+        has_local_order = (
+            select(cast(Any, Order.id))
+            .where(cast(Any, Order.exchange_account_id) == ExchangeExit.exchange_account_id)
+            .where(sa_cast(cast(Any, Order.id), String) == ExchangeExit.order_link_id)
+            .exists()
         )
-        account_ids = {scope.exchange_account_id for scope in scopes}
-        known_orders_result = await self.session.execute(
-            select(cast(Any, Order.exchange_account_id), cast(Any, Order.id)).where(
-                cast(Any, Order.exchange_account_id).in_(account_ids)
+        scoped_exits = (
+            select(
+                cast(Any, ExchangeExit.exchange_order_id),
+                cast(Any, ExchangeExit.exchange_created_at),
+                cast(Any, ExchangeExit.closed_pnl),
+                cast(Any, ExchangeExit.classification),
+                cast(Any, ExchangeExit.matched_order_id),
+                cast(Any, ExchangeExit.order_link_id),
+                has_local_order.label("has_local_order"),
             )
+            .where(or_(*ledger_scope_predicates))
+            .cte("scoped_exchange_exits")
         )
-        known_order_ids: dict[UUID, set[str]] = defaultdict(set)
-        for exchange_account_id, order_id in known_orders_result.all():
-            known_order_ids[exchange_account_id].add(str(order_id))
-
-        return sum(
-            1
-            for exchange_exit in exchange_exits_result.scalars().all()
-            if exchange_exit.matched_order_id is None
-            and exchange_exit.order_link_id
-            not in known_order_ids[exchange_exit.exchange_account_id]
+        unlinked_exit = and_(
+            scoped_exits.c.matched_order_id.is_(None),
+            or_(
+                scoped_exits.c.order_link_id.is_(None),
+                scoped_exits.c.has_local_order.is_(False),
+            ),
+        )
+        ledger_only_exits = (
+            select(
+                scoped_exits.c.exchange_order_id,
+                scoped_exits.c.exchange_created_at,
+                func.max(scoped_exits.c.closed_pnl).label("closed_pnl"),
+            )
+            .where(unlinked_exit)
+            .where(scoped_exits.c.classification.in_(_LEDGER_ONLY_CLASSIFICATIONS))
+            .group_by(scoped_exits.c.exchange_order_id, scoped_exits.c.exchange_created_at)
+            .cte("ledger_only_exchange_exits")
+        )
+        unattributed_count = (
+            select(func.count())
+            .select_from(scoped_exits)
+            .where(unlinked_exit)
+            .where(~scoped_exits.c.classification.in_(_LEDGER_ONLY_CLASSIFICATIONS))
+            .scalar_subquery()
+        )
+        ledger_only_count = select(func.count()).select_from(ledger_only_exits).scalar_subquery()
+        ledger_only_net = (
+            select(func.coalesce(func.sum(ledger_only_exits.c.closed_pnl), Decimal("0")))
+            .select_from(ledger_only_exits)
+            .scalar_subquery()
+        )
+        result = await self.session.execute(
+            select(unattributed_count, ledger_only_count, ledger_only_net)
+        )
+        unattributed, ledger_only, net = result.one()
+        return AccountLedgerDiagnostics(
+            unattributed_count=int(unattributed),
+            ledger_only_count=int(ledger_only),
+            ledger_only_net=Decimal(str(net)),
         )
 
 
@@ -248,5 +326,6 @@ def _empty_buckets() -> ParityBuckets:
         expected_only_dispatched_count=0,
         actual_only_count=0,
         actual_only_net=Decimal("0"),
-        unattributed_count=0,
+        ledger_only_count=0,
+        ledger_only_net=Decimal("0"),
     )

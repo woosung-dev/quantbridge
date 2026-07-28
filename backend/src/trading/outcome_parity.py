@@ -11,7 +11,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from decimal import ROUND_CEILING, Decimal
+from decimal import ROUND_CEILING, Context, Decimal, localcontext
+
+# Numeric(18,8) 곱은 36 자리까지 갈 수 있어 기본 28 자리에서는 조용히 반올림된다.
+# 요약의 합산, 분산, 제곱근은 이 로컬 컨텍스트 안에서만 계산한다.
+PARITY_DECIMAL_CONTEXT = Context(prec=50)
 
 # 표본 크기 기준의 관례값이다. 관측 데이터에서 역산하면 표본이 자신의 통과 기준을
 # 바꾸게 되므로, 정책 상수로 고정한다.
@@ -48,9 +52,9 @@ class ParityObservation:
 class ParityBuckets:
     """주문 매칭에 들어오지 못한 우리 청산의 손익 버킷이다.
 
-    이 버킷은 요약 산술에 억지로 합치지 않는다. expected-only 와 actual-only 는
-    서로 다른 관측 집합이고, unattributed 는 주문으로 읽을 수조차 없으므로 각각을
-    남겨야 coverage 가 손익의 완전성을 정직하게 드러낸다.
+    이 버킷은 요약 산술에 억지로 합치지 않는다. expected-only, actual-only,
+    ledger-only는 서로 다른 관측 집합이므로 각각을 남겨야 coverage 가 손익의
+    완전성을 정직하게 드러낸다.
     """
 
     expected_only_count: int
@@ -60,7 +64,8 @@ class ParityBuckets:
     expected_only_dispatched_count: int
     actual_only_count: int
     actual_only_net: Decimal
-    unattributed_count: int
+    ledger_only_count: int
+    ledger_only_net: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +112,8 @@ class ParitySummary:
     round_trip_notional: Decimal | None
     effective_cost_pct_per_leg: Decimal | None
     effective_cost_pct_round_trip: Decimal | None
+    edge_pct_round_trip: Decimal | None
+    cost_to_edge_ratio: Decimal | None
     undecomposed_count: int
     undecomposed_net: Decimal
     buckets: ParityBuckets
@@ -117,10 +124,11 @@ class ParitySummary:
 
 def _sum_decimals(values: Iterable[Decimal]) -> Decimal:
     """금융 합산을 Decimal 영역에서만 수행한다."""
-    total = Decimal("0")
-    for value in values:
-        total = Decimal(str(total)) + Decimal(str(value))
-    return total
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        total = Decimal("0")
+        for value in values:
+            total = Decimal(str(total)) + Decimal(str(value))
+        return total
 
 
 def _sample_verdict(
@@ -148,7 +156,10 @@ def _sample_verdict(
             sufficient=False,
         )
 
-    mean_net = _sum_decimals(observation.actual_net for observation in observations) / Decimal(n)
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        mean_net = _sum_decimals(observation.actual_net for observation in observations) / Decimal(
+            n
+        )
     if n < 2:
         return SampleVerdict(
             n=n,
@@ -158,12 +169,13 @@ def _sample_verdict(
             sufficient=False,
         )
 
-    squared_deviations = (
-        (Decimal(str(observation.actual_net)) - Decimal(str(mean_net))) ** 2
-        for observation in observations
-    )
-    variance = _sum_decimals(squared_deviations) / Decimal(n - 1)
-    sd_net = variance.sqrt()
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        squared_deviations = (
+            (Decimal(str(observation.actual_net)) - Decimal(str(mean_net))) ** 2
+            for observation in observations
+        )
+        variance = _sum_decimals(squared_deviations) / Decimal(n - 1)
+        sd_net = variance.sqrt()
     if sd_net == Decimal("0") or mean_net == Decimal("0"):
         return SampleVerdict(
             n=n,
@@ -173,7 +185,8 @@ def _sample_verdict(
             sufficient=False,
         )
 
-    required_decimal = ((se_multiplier * sd_net) / abs(mean_net)) ** 2
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        required_decimal = ((se_multiplier * sd_net) / abs(mean_net)) ** 2
     required_n = max(
         int(required_decimal.to_integral_value(rounding=ROUND_CEILING)),
         MIN_OBSERVATIONS_FOR_VARIANCE,
@@ -227,32 +240,48 @@ def summarize_parity(
     round_trip_notional: Decimal | None = None
     effective_cost_pct_per_leg: Decimal | None = None
     effective_cost_pct_round_trip: Decimal | None = None
+    edge_pct_round_trip: Decimal | None = None
+    cost_to_edge_ratio: Decimal | None = None
 
     if decomposable:
-        decomposable_expected_gross = _sum_decimals(row[0] for row in decomposable)
-        decomposable_actual_net = _sum_decimals(row[1] for row in decomposable)
-        decomposable_actual_gross = _sum_decimals(row[2] for row in decomposable)
-        round_trip_notional = _sum_decimals(row[3] for row in decomposable)
-        execution_gap = Decimal(str(decomposable_actual_gross)) - Decimal(
-            str(decomposable_expected_gross)
-        )
-        cost = Decimal(str(decomposable_actual_net)) - Decimal(str(decomposable_actual_gross))
-        if round_trip_notional != Decimal("0"):
-            # 분모가 두 leg 합이라 이 값은 편도다.
-            effective_cost_pct_per_leg = (-cost / round_trip_notional) * Decimal("100")
-            effective_cost_pct_round_trip = Decimal(str(effective_cost_pct_per_leg)) * Decimal("2")
+        with localcontext(PARITY_DECIMAL_CONTEXT):
+            decomposable_expected_gross = _sum_decimals(row[0] for row in decomposable)
+            decomposable_actual_net = _sum_decimals(row[1] for row in decomposable)
+            decomposable_actual_gross = _sum_decimals(row[2] for row in decomposable)
+            round_trip_notional = _sum_decimals(row[3] for row in decomposable)
+            execution_gap = Decimal(str(decomposable_actual_gross)) - Decimal(
+                str(decomposable_expected_gross)
+            )
+            cost = Decimal(str(decomposable_actual_net)) - Decimal(str(decomposable_actual_gross))
+            if round_trip_notional != Decimal("0"):
+                # 분모가 두 leg 합이라 이 값은 편도다.
+                effective_cost_pct_per_leg = (-cost / round_trip_notional) * Decimal("100")
+                effective_cost_pct_round_trip = Decimal(str(effective_cost_pct_per_leg)) * Decimal(
+                    "2"
+                )
+                edge_pct_round_trip = (
+                    (decomposable_actual_net / round_trip_notional) * Decimal("2") * Decimal("100")
+                )
+            if decomposable_actual_net != Decimal("0"):
+                cost_to_edge_ratio = abs(cost) / abs(decomposable_actual_net)
 
-    covered_count = matched_count + buckets.expected_only_count + buckets.actual_only_count
-    match_coverage_pct = (
-        (Decimal(str(matched_count)) / Decimal(str(covered_count))) * Decimal("100")
-        if covered_count != 0
-        else None
-    )
-    decomposition_coverage_pct = (
-        (Decimal(str(decomposable_count)) / Decimal(str(matched_count))) * Decimal("100")
-        if matched_count != 0
-        else None
-    )
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        covered_count = (
+            matched_count
+            + buckets.expected_only_count
+            + buckets.actual_only_count
+            + buckets.ledger_only_count
+        )
+        match_coverage_pct = (
+            (Decimal(str(matched_count)) / Decimal(str(covered_count))) * Decimal("100")
+            if covered_count != 0
+            else None
+        )
+        decomposition_coverage_pct = (
+            (Decimal(str(decomposable_count)) / Decimal(str(matched_count))) * Decimal("100")
+            if matched_count != 0
+            else None
+        )
 
     return ParitySummary(
         matched_count=matched_count,
@@ -267,6 +296,8 @@ def summarize_parity(
         round_trip_notional=round_trip_notional,
         effective_cost_pct_per_leg=effective_cost_pct_per_leg,
         effective_cost_pct_round_trip=effective_cost_pct_round_trip,
+        edge_pct_round_trip=edge_pct_round_trip,
+        cost_to_edge_ratio=cost_to_edge_ratio,
         undecomposed_count=undecomposed_count,
         undecomposed_net=undecomposed_net,
         buckets=buckets,

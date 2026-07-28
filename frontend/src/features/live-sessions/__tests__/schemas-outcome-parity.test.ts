@@ -17,6 +17,8 @@ const nullScope = {
   round_trip_notional: null,
   effective_cost_pct_per_leg: null,
   effective_cost_pct_round_trip: null,
+  edge_pct_round_trip: null,
+  cost_to_edge_ratio: null,
   undecomposed_count: 1,
   undecomposed_net: "120.000000000000001",
   expected_only_count: 2,
@@ -26,6 +28,8 @@ const nullScope = {
   expected_only_dispatched_count: 0,
   actual_only_count: 3,
   actual_only_net: "-2.5",
+  ledger_only_count: 0,
+  ledger_only_net: "0",
   match_coverage_pct: null,
   decomposition_coverage_pct: null,
   sample_n: 1,
@@ -55,6 +59,7 @@ describe("OutcomeParityResponseSchema", () => {
 
     expect(parsed.session.decomposable_expected_gross).toBeNull();
     expect(parsed.session.sample_required_n).toBeNull();
+    expect(parsed.session.edge_pct_round_trip).toBeNull();
     expect(parsed.session.expected_gross).toBe("123.456789123456789");
     expect(typeof parsed.session.actual_net).toBe("string");
     expect(parsed.unattributed_count).toBe(4);

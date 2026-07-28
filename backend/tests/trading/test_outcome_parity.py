@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 import pytest
 
 from src.trading.outcome_parity import (
+    PARITY_DECIMAL_CONTEXT,
     ParityBuckets,
     ParityObservation,
     summarize_parity,
@@ -22,7 +23,8 @@ def _empty_buckets() -> ParityBuckets:
         expected_only_dispatched_count=0,
         actual_only_count=0,
         actual_only_net=Decimal("0"),
-        unattributed_count=0,
+        ledger_only_count=0,
+        ledger_only_net=Decimal("0"),
     )
 
 
@@ -72,7 +74,14 @@ def test_reproduces_sql_oracle_totals_and_effective_cost_rates() -> None:
     assert summary.effective_cost_pct_per_leg is not None
     assert summary.effective_cost_pct_round_trip is not None
     assert abs(summary.effective_cost_pct_per_leg - Decimal("0.05526")) <= Decimal("0.00001")
-    assert summary.effective_cost_pct_round_trip == summary.effective_cost_pct_per_leg * Decimal("2")
+    # 왕복은 편도에서 산술로 유도된다. 다만 모듈이 prec=50 컨텍스트에서 곱하므로
+    # (Numeric(18,8) 곱이 36 자리까지 간다) 기본 컨텍스트(prec=28)로 여기서 다시 곱하면
+    # 마지막 자리가 어긋난다. 같은 컨텍스트에서 비교해야 이 항등식이 의미를 갖는다.
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        assert (
+            summary.effective_cost_pct_round_trip
+            == summary.effective_cost_pct_per_leg * Decimal("2")
+        )
 
 
 def test_decomposable_totals_obey_expected_gap_cost_net_identity() -> None:
@@ -105,8 +114,12 @@ def test_decomposable_totals_obey_expected_gap_cost_net_identity() -> None:
     assert summary.execution_gap == Decimal("-4")
     assert summary.cost == Decimal("-7")
     assert summary.round_trip_notional == Decimal("1200")
-    assert summary.effective_cost_pct_per_leg == Decimal("0.5833333333333333333333333333")
-    assert summary.effective_cost_pct_round_trip == Decimal("1.166666666666666666666666667")
+    assert summary.effective_cost_pct_per_leg == Decimal(
+        "0.58333333333333333333333333333333333333333333333333"
+    )
+    assert summary.effective_cost_pct_round_trip == Decimal(
+        "1.1666666666666666666666666666666666666666666666667"
+    )
     assert summary.expected_gross + summary.execution_gap + summary.cost == summary.actual_net
 
 
@@ -214,6 +227,25 @@ def test_undecomposable_observation_stays_out_of_gross_cost_and_notional() -> No
     assert summary.round_trip_notional == Decimal("100")
     assert summary.undecomposed_count == 1
     assert summary.undecomposed_net == Decimal("-3")
+
+
+def test_performance_ratios_remain_available_before_the_sample_gate_opens() -> None:
+    """표본 충분성과 무관하게 API가 성과 비율을 구분해 전달한다."""
+    summary = summarize_parity(
+        [
+            _observation(
+                expected_gross=Decimal("11"),
+                actual_gross=Decimal("12"),
+                actual_net=Decimal("10"),
+                round_trip_notional=Decimal("1000"),
+            )
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.sample.sufficient is False
+    assert summary.edge_pct_round_trip == Decimal("2")
+    assert summary.cost_to_edge_ratio == Decimal("0.2")
 
 
 @pytest.mark.parametrize(
@@ -325,8 +357,8 @@ def test_empty_input_returns_zero_or_none_without_raising() -> None:
     assert summary.sample.sufficient is False
 
 
-def test_match_coverage_uses_all_matched_and_unmatched_order_counts() -> None:
-    """매칭 커버리지 분모는 matched, expected-only, actual-only 주문 수의 합이다."""
+def test_match_coverage_includes_ledger_only_exits() -> None:
+    """매칭 커버리지 분모는 주문 버킷과 원장 전용 청산을 모두 포함한다."""
     observations = [
         _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(21)
     ]
@@ -338,10 +370,13 @@ def test_match_coverage_uses_all_matched_and_unmatched_order_counts() -> None:
         expected_only_dispatched_count=17,
         actual_only_count=6,
         actual_only_net=Decimal("0"),
-        unattributed_count=0,
+        ledger_only_count=3,
+        ledger_only_net=Decimal("0"),
     )
 
     summary = summarize_parity(observations, buckets)
 
-    assert summary.match_coverage_pct == Decimal("26.92307692307692307692307692")
+    assert summary.match_coverage_pct == Decimal(
+        "25.925925925925925925925925925925925925925925925926"
+    )
     assert summary.decomposition_coverage_pct == Decimal("100")

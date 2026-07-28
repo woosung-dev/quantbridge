@@ -124,14 +124,24 @@ function ScopeParity({
 
       {ledgerSupported ? (
         <section className="mt-4 border-t pt-4" data-testid={`${scopeId}-waterfall`}>
-          <MetricTile
-            label="비용 분해 커버리지"
-            value={displayPercent(scope.decomposition_coverage_pct)}
-            tone={coverageTone(scope.decomposition_coverage_pct)}
-            size="sm"
-            variant="bare"
-            valueTestId={`${scopeId}-decomposition-coverage`}
-          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <MetricTile
+              label="비용 분해 커버리지"
+              value={displayPercent(scope.decomposition_coverage_pct)}
+              tone={coverageTone(scope.decomposition_coverage_pct)}
+              size="sm"
+              variant="bare"
+              valueTestId={`${scopeId}-decomposition-coverage`}
+            />
+            <MetricTile
+              label="거래소 체결 gross (분해 가능분)"
+              value={displayDecimal(scope.actual_gross)}
+              tone={decimalTone(scope.actual_gross)}
+              size="sm"
+              variant="bare"
+              valueTestId={`${scopeId}-actual-gross`}
+            />
+          </div>
           {hasPartialDecomposition ? (
             <p className="text-muted-foreground mt-1 text-xs" data-testid={`${scopeId}-waterfall-note`}>
               이 막대는 매칭 {scope.matched_count}건 중 {scope.decomposable_count}건만 반영합니다.
@@ -206,6 +216,19 @@ function ScopeParity({
               size="sm"
               valueTestId={`${scopeId}-sample-sd-net`}
             />
+            <MetricTile
+              label="엣지율 (왕복)"
+              value={displayPercent(scope.edge_pct_round_trip)}
+              tone={decimalTone(scope.edge_pct_round_trip)}
+              size="sm"
+              valueTestId={`${scopeId}-edge-pct-round-trip`}
+            />
+            <MetricTile
+              label="비용/엣지 배수"
+              value={displayDecimal(scope.cost_to_edge_ratio)}
+              size="sm"
+              valueTestId={`${scopeId}-cost-to-edge-ratio`}
+            />
           </div>
         </section>
       ) : (
@@ -242,6 +265,13 @@ function ScopeParity({
             sub={`net ${scope.actual_only_net}`}
             valueTestId={`${scopeId}-actual-only-count`}
           />
+          <MetricTile
+            label="원장에만 있는 청산"
+            value={`${scope.ledger_only_count}건`}
+            size="sm"
+            sub={`net ${scope.ledger_only_net}. 거래소 네이티브 TP/SL 등 로컬 주문 없이 실행된 청산입니다.`}
+            valueTestId={`${scopeId}-ledger-only-count`}
+          />
         </div>
       </section>
     </article>
@@ -249,7 +279,11 @@ function ScopeParity({
 }
 
 function scopeHasOutsideCoverage(scope: OutcomeParityScope): boolean {
-  return scope.expected_only_count > 0 || scope.actual_only_count > 0;
+  return (
+    scope.expected_only_count > 0 ||
+    scope.actual_only_count > 0 ||
+    scope.ledger_only_count > 0
+  );
 }
 
 export function OutcomeParityPanel({ sessionId }: OutcomeParityPanelProps) {

@@ -215,12 +215,66 @@ async def test_response_has_three_blocks_and_required_fields(
             "decomposition_coverage_pct",
             "effective_cost_pct_per_leg",
             "effective_cost_pct_round_trip",
+            "edge_pct_round_trip",
+            "cost_to_edge_ratio",
+            "ledger_only_count",
+            "ledger_only_net",
             "sample_required_n",
         } <= scope.keys()
         assert "unattributed_count" not in scope
     assert body["unattributed_count"] == 0
     assert body["ledger_supported"] is True
     assert body["strategy_session_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_native_bracket_exit_is_deduplicated_in_ledger_only_bucket_and_lowers_coverage(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    mock_clerk_auth,
+) -> None:
+    """로컬 reduce-only 주문 없는 거래소 TP는 원장 전용으로만 보인다."""
+    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    exchange_created_at = _BASE + timedelta(minutes=3)
+    db_session.add_all(
+        [
+            ExchangeExit(
+                exchange_account_id=session.exchange_account_id,
+                exchange_order_id="native-bracket-tp",
+                row_hash="native-bracket-tp-primary",
+                symbol="BTCUSDT",
+                side="Sell",
+                closed_pnl=Decimal("3.25"),
+                exchange_created_at=exchange_created_at,
+                classification=ExitClassification.bracket_tp,
+                attribution_confidence=ExitAttribution.exact,
+                raw={"source": "native-bracket-tp"},
+            ),
+            ExchangeExit(
+                exchange_account_id=session.exchange_account_id,
+                exchange_order_id="native-bracket-tp",
+                row_hash="native-bracket-tp-mirror",
+                symbol="BTCUSDT",
+                side="Sell",
+                closed_pnl=Decimal("3.25"),
+                exchange_created_at=exchange_created_at,
+                classification=ExitClassification.bracket_tp,
+                attribution_confidence=ExitAttribution.exact,
+                raw={"source": "native-bracket-tp-mirror"},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    session_scope = body["session"]
+    assert session_scope["ledger_only_count"] == 1
+    assert Decimal(session_scope["ledger_only_net"]) == Decimal("3.25")
+    assert Decimal(session_scope["match_coverage_pct"]) < Decimal("50")
+    assert body["unattributed_count"] == 0
 
 
 @pytest.mark.asyncio

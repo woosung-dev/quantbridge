@@ -223,7 +223,8 @@ async def test_load_parity_inputs_uses_only_synced_orders_as_actuals(
         expected_only_dispatched_count=1,
         actual_only_count=1,
         actual_only_net=Decimal("8"),
-        unattributed_count=0,
+        ledger_only_count=0,
+        ledger_only_net=Decimal("0"),
     )
 
 
@@ -267,7 +268,7 @@ async def test_load_parity_inputs_keeps_ledger_rows_in_the_order_account(
         matched_order_id=order.id,
     )
 
-    observations, buckets = await ParityRepository(db_session).load_parity_inputs(
+    observations, _ = await ParityRepository(db_session).load_parity_inputs(
         session_ids=[seed.session.id], scopes=[seed.scope]
     )
 
@@ -279,7 +280,6 @@ async def test_load_parity_inputs_keeps_ledger_rows_in_the_order_account(
             round_trip_notional=Decimal("210"),
         )
     ]
-    assert buckets.unattributed_count == 0
 
 
 @pytest.mark.asyncio
@@ -292,13 +292,12 @@ async def test_load_parity_inputs_recovers_link_id_without_casting_malformed_lin
     await _exchange_exit(db_session, seed, order_link_id=str(order.id))
     await _exchange_exit(db_session, seed, order_link_id="not-a-uuid")
 
-    observations, buckets = await ParityRepository(db_session).load_parity_inputs(
+    observations, _ = await ParityRepository(db_session).load_parity_inputs(
         session_ids=[seed.session.id], scopes=[seed.scope]
     )
 
     assert observations[0].actual_gross == Decimal("10")
     assert observations[0].round_trip_notional == Decimal("210")
-    assert buckets.unattributed_count == 1
 
 
 @pytest.mark.asyncio
@@ -405,18 +404,16 @@ async def test_load_parity_inputs_fails_closed_for_unknown_exchange_exit_side(
 
 
 @pytest.mark.asyncio
-async def test_load_parity_inputs_counts_raw_symbol_unattributed_exit(
+async def test_account_ledger_diagnostics_counts_unattributed_raw_symbol_exit(
     db_session: AsyncSession,
 ) -> None:
     seed = await _seed(db_session)
-    await _exchange_exit(db_session, seed)
+    await _exchange_exit(db_session, seed, classification=ExitClassification.external_manual)
 
-    observations, buckets = await ParityRepository(db_session).load_parity_inputs(
-        session_ids=[seed.session.id], scopes=[seed.scope]
-    )
+    diagnostics = await ParityRepository(db_session).load_account_ledger_diagnostics([seed.scope])
 
-    assert observations == []
-    assert buckets.unattributed_count == 1
+    assert diagnostics.unattributed_count == 1
+    assert diagnostics.ledger_only_count == 0
 
 
 @pytest.mark.asyncio
@@ -495,7 +492,7 @@ async def test_load_parity_inputs_scopes_events_by_session_id_not_order_scope(
 
 
 @pytest.mark.asyncio
-async def test_load_parity_inputs_keeps_unmatched_bracket_exit_out_of_money_totals(
+async def test_account_ledger_diagnostics_places_unmatched_bracket_exit_in_ledger_only_bucket(
     db_session: AsyncSession,
 ) -> None:
     seed = await _seed(db_session)
@@ -508,6 +505,7 @@ async def test_load_parity_inputs_keeps_unmatched_bracket_exit_out_of_money_tota
     observations, buckets = await ParityRepository(db_session).load_parity_inputs(
         session_ids=[seed.session.id], scopes=[seed.scope]
     )
+    diagnostics = await ParityRepository(db_session).load_account_ledger_diagnostics([seed.scope])
 
     assert observations == []
     assert buckets == ParityBuckets(
@@ -518,5 +516,9 @@ async def test_load_parity_inputs_keeps_unmatched_bracket_exit_out_of_money_tota
         expected_only_dispatched_count=0,
         actual_only_count=0,
         actual_only_net=Decimal("0"),
-        unattributed_count=1,
+        ledger_only_count=0,
+        ledger_only_net=Decimal("0"),
     )
+    assert diagnostics.unattributed_count == 0
+    assert diagnostics.ledger_only_count == 1
+    assert diagnostics.ledger_only_net == Decimal("-1")
