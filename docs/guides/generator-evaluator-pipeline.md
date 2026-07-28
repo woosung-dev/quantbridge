@@ -135,7 +135,11 @@ git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter �
 - dev-log 신규 + INDEX + status + roadmap + backlog 를 **같은 커밋에서** 갱신한다.
 - ★**요약 레이어는 본문보다 늦는다.** 2026-07-27 종결 시 `dev-log/INDEX.md` 가 **폐기된 설계를 출시된 것처럼** 적고 있었고 `roadmap.md` 도 같은 상태였다. 종결 체크리스트에 **"요약(INDEX·roadmap·status)을 본문과 대조"** 를 고정 항목으로 넣는다.
 - 작업 문서(`docs/<theme>/`)는 **흡수 대조 후 삭제**한다. 대조 없이 지우지 마라 — 2세션 연속으로 미흡수 2건이 나왔다. `docs/` 최상위 10 유지.
-- PR 생성까지. **squash 는 사용자.** 명시 위임이 있을 때만 머지한다.
+- PR 생성까지. **squash 는 사용자.**
+- ★**다음 스프린트 핸드오프는 `docs/status.md` 의 「다음 스프린트」 블록 하나로 한다. 별도 킥오프 파일을 만들지 마라.**
+  `AGENTS.md` 가 이미 새 세션 첫 step 을 `CONTEXT.md` + `AGENTS.md` + `docs/status.md` 3종으로 정해뒀다. 레포 밖(`~/.claude/plans/`)에 킥오프를 두면 **진입점이 둘이 되고 그 파일은 아무도 검증하지 않는다** — 2026-07-28 실측: 킥오프가 `gates-and-traps.md` §3.5 를 "있다" 고 적었으나 **그 섹션이 없었고**, 자기 사용법("전체를 붙여넣는다")도 틀렸다(사용자는 경로만 줬고 그게 더 잘 동작했다).
+  블록에 담을 것 = 한 줄 테마 · 본체 BL · **왜 지금인가(실측 숫자)** · 설계 시 짚을 것 · blocking 결정 후보 · 하지 않을 것 · baseline. 나머지는 전부 레포 안 제자리를 가리킨다(절차는 §4·§7, 함정은 `gates-and-traps.md`, 상세 8필드는 `backlog.md`).
+  명시 위임이 있을 때만 머지한다.
 
 ## 5. 실패 모드
 
