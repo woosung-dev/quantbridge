@@ -98,11 +98,7 @@ qb_live_conditional_reconcile_errors_total{stage="positions"}                3
 
 ### ★★ `convert_suppressed` 가 실제로 발화했다
 
-적대 검증(시간·경합 렌즈)이 요구한 **cross-bar 이중 진입 억제기**가 soak 중 1회 발화했다. 이론이 아니라 **실재하는 경합**이었고, 그 수정이 없었으면 같은 진입이 두 번 나갔을 것이다.
-
-### ★★ `convert_suppressed` 가 실제로 발화했다
-
-적대 검증(시간·경합 렌즈)이 요구한 **cross-bar 이중 진입 억제기**가 soak 첫 몇 분 안에 1회 발화했다. 이론이 아니라 **실재하는 경합**이었고, 그 수정이 없었으면 같은 진입이 두 번 나갔을 것이다.
+적대 검증(시간·경합 렌즈)이 요구한 **cross-bar 이중 진입 억제기**가 soak 첫 몇 분 안에 1회 발화했다. 전환 주문은 `trigger_price=NULL` 이라 다음 tick 의 `actual` 에 영원히 들어오지 않으므로 `return` 만으로는 다음 bar 를 못 막는다는 지적이었다. 이론이 아니라 **실재하는 경합**이었고, 그 수정이 없었으면 같은 진입이 두 번 나갔을 것이다.
 
 ### ★`reason="filled"` 는 이 거래소에서 사실상 죽은 버킷이다
 
