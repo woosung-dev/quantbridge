@@ -4,8 +4,11 @@
 #
 # 사용법:
 #   scripts/worktree-bootstrap.sh              # 슬롯 자동 할당 + deps 설치
-#   scripts/worktree-bootstrap.sh --slot 2     # 슬롯 지정
-#   scripts/worktree-bootstrap.sh --skip-deps  # deps 설치 생략 (문서/계획 전용 워크트리)
+#   scripts/worktree-bootstrap.sh --slot 2     # 슬롯 지정 (다른 워크트리가 쥔 번호면 거부한다)
+#   scripts/worktree-bootstrap.sh --skip-deps  # deps 설치 생략
+#   scripts/worktree-bootstrap.sh --skip-db    # 테스트 DB 생성 생략 (문서/계획 전용 워크트리)
+#
+# 재실행은 안전하다 — 이미 슬롯이 있으면 그 번호를 유지한다(바뀌면 떠 있는 서버와 어긋난다).
 #
 # 무엇을 격리하고 무엇을 공유하는가 — 판단 기준은 "이 작업이 남의 상태를 지우는가":
 #
@@ -27,12 +30,14 @@
 set -euo pipefail
 
 SKIP_DEPS=0
+SKIP_DB=0
 SLOT=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --slot)      SLOT="${2:-}"; shift 2 ;;
     --skip-deps) SKIP_DEPS=1; shift ;;
+    --skip-db)   SKIP_DB=1; shift ;;
     -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
     *)           echo "알 수 없는 인자: $1" >&2; exit 2 ;;
   esac
@@ -89,13 +94,23 @@ while ! mkdir "$SLOT_LOCK" 2>/dev/null; do
 done
 trap 'rmdir "$SLOT_LOCK" 2>/dev/null || true' EXIT INT TERM
 
+# 다른 워크트리들이 이미 쥔 슬롯. 자기 것은 뺀다(자기 슬롯은 아래에서 따로 다룬다).
+USED=""
+for f in "$MAIN_ROOT"/.claude/worktrees/*/.worktree-slot; do
+  [ -f "$f" ] || continue
+  [ "$f" = "$WT_ROOT/.worktree-slot" ] && continue
+  USED="$USED $(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$f")"
+done
+
+# 재실행이 슬롯을 바꾸면 안 된다. 이미 떠 있는 서버는 옛 포트에 남아 있는데
+# env·테스트 DB·Makefile 만 새 번호로 갈아타면, 이후 테스트와 E2E 가 서로 다른
+# 인스턴스를 보게 된다. 그래서 자기 `.worktree-slot` 이 있으면 그게 기본값이다.
+if [ -z "$SLOT" ] && [ -f "$WT_ROOT/.worktree-slot" ]; then
+  SLOT="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$WT_ROOT/.worktree-slot")"
+  [ -n "$SLOT" ] && echo "  · 기존 슬롯 $SLOT 재사용 (이미 부트스트랩된 워크트리)"
+fi
+
 if [ -z "$SLOT" ]; then
-  USED=""
-  for f in "$MAIN_ROOT"/.claude/worktrees/*/.worktree-slot; do
-    [ -f "$f" ] || continue
-    [ "$f" = "$WT_ROOT/.worktree-slot" ] && continue
-    USED="$USED $(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$f")"
-  done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
     case " $USED " in *" $n "*) continue ;; esac
     if port_busy $((3100 + n)) || port_busy $((8100 + n)); then
@@ -106,7 +121,16 @@ if [ -z "$SLOT" ]; then
   done
   [ -n "$SLOT" ] || die "슬롯 1..12 이 모두 사용 중이거나 포트가 점유돼 있다."
 else
-  # 명시 지정은 존중하되(자기 서버를 재시작하는 경우가 있다) 조용히 넘어가지는 않는다.
+  case "$SLOT" in ''|*[!0-9]*) die "슬롯은 정수여야 한다: $SLOT" ;; esac
+  # 명시 지정(--slot)이든 자기 슬롯 재사용이든, 다른 워크트리가 쥔 번호면 **거부**한다.
+  # 포트가 비어 있다고 안전한 게 아니다 — 그 워크트리가 서버를 안 띄웠을 뿐,
+  # 같은 `quantbridge_w{N}_test` 와 Redis lock DB 를 공유하게 되어
+  # pytest 의 drop_all 과 마이그레이션이 서로를 파괴한다.
+  case " $USED " in
+    *" $SLOT "*) die "슬롯 $SLOT 은 다른 워크트리가 쓰고 있다 (그쪽 .worktree-slot 에 기록됨).
+    다른 번호를 주거나, 그 워크트리를 정리해라: git worktree remove <경로>" ;;
+  esac
+  # 포트 점유는 남의 앱일 수도 자기 서버 재시작일 수도 있으니 경고만 낸다.
   for p in $((3100 + SLOT)) $((8100 + SLOT)); do
     port_busy "$p" && echo "  ! 경고: 포트 $p 가 이미 사용 중이다. 그 프로세스가 네 것이 아니면 e2e 가 남의 앱을 검사한다."
   done
@@ -217,9 +241,14 @@ ok ".worktree-slot (QB_SLOT=$SLOT)"
 #    로 5 개가 깨진다(실측). 그래서 생성 직후 alembic 을 한 번 찍어 버전 테이블을 심는다.
 #    `alembic_version` 은 SQLModel metadata 밖이라 conftest 의 drop_all 이 지우지 않는다.
 echo "▶ 테스트 DB"
-if ! docker exec quantbridge-db pg_isready -U quantbridge -d quantbridge >/dev/null 2>&1; then
-  echo "  ! quantbridge-db 컨테이너가 안 떠 있다 — 메인 체크아웃에서 'make up-isolated' 후 재실행."
-  echo "    (다른 단계는 완료됐다. DB 생성만 남았다.)"
+if [ "$SKIP_DB" -eq 1 ]; then
+  ok "--skip-db — 이 워크트리에서 pytest 는 돌지 않는다"
+elif ! docker exec quantbridge-db pg_isready -U quantbridge -d quantbridge >/dev/null 2>&1; then
+  # 여기서 경고만 하고 성공 종료하면 안 된다. 슬롯 테스트 DB 없이 "준비 완료" 를 찍으면
+  # 호출자(사람이든 자동화든)는 부트스트랩이 끝난 줄 알지만 pytest 는 즉시 실패한다.
+  die "quantbridge-db 컨테이너가 안 떠 있어 슬롯 테스트 DB 를 만들 수 없다.
+    메인 체크아웃에서 'make up-isolated' 를 먼저 실행하고 이 스크립트를 다시 돌려라.
+    (DB 가 필요 없는 문서·계획 전용 워크트리라면 --skip-db)"
 else
   EXISTS="$(docker exec quantbridge-db psql -U quantbridge -d postgres -tAc \
     "SELECT 1 FROM pg_database WHERE datname='${TEST_DB}'" 2>/dev/null || true)"

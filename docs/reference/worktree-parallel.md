@@ -131,9 +131,21 @@ git worktree add .claude/worktrees/<이름> -b <브랜치>
 
 # 어느 쪽이든 부트스트랩은 필수
 cd .claude/worktrees/<이름>
-./scripts/worktree-bootstrap.sh              # 슬롯 자동 할당 + deps
-./scripts/worktree-bootstrap.sh --skip-deps  # 문서/계획 전용
+./scripts/worktree-bootstrap.sh                          # 슬롯 자동 할당 + deps
+./scripts/worktree-bootstrap.sh --skip-deps --skip-db    # 문서/계획 전용
+./scripts/worktree-bootstrap.sh --slot 3                 # 슬롯 지정
 ```
+
+**재실행은 안전하다.** 이미 슬롯이 있으면 그 번호를 유지한다 — 재실행이 슬롯을 바꾸면
+이미 떠 있는 서버는 옛 포트에 남고 env·테스트 DB·Makefile 만 새 번호로 갈아타서,
+이후 테스트와 E2E 가 서로 다른 인스턴스를 보게 된다.
+
+`--slot N` 으로 **다른 워크트리가 쥔 번호를 지정하면 거부한다.** 그쪽이 서버를 안 띄워
+포트가 비어 있어도 마찬가지다 — 포트가 아니라 `quantbridge_w{N}_test` 와 Redis lock DB 가
+겹치는 것이 문제이고, 그러면 pytest 의 `drop_all` 과 마이그레이션이 서로를 파괴한다.
+
+컨테이너가 안 떠 있으면 부트스트랩은 **실패로 끝난다**(`--skip-db` 로 명시 우회 가능).
+경고만 하고 "준비 완료" 를 찍으면 슬롯 테스트 DB 없이 성공한 것처럼 보이고 pytest 가 즉시 깨진다.
 
 브랜치가 이 스크립트를 포함하기 전 시점(구 베이스)에서 만든 워크트리라면
 `../../../scripts/worktree-bootstrap.sh` 처럼 메인 체크아웃의 것을 직접 호출해도 된다 — cwd 기준으로 동작한다.
