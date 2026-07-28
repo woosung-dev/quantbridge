@@ -691,6 +691,9 @@
 | [BL-532](#bl-532) | `_sum_decimals` 사본이 `PARITY_DECIMAL_CONTEXT` 밖에서 돈다 (본 레포가 방금 세운 규칙과 불일치)                                                                | 다음 parity 손질 시                                                            | XS           | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-533](#bl-533) | 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다                                                                                    | 코크핏 손질 시                                                                 | XS           | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-534](#bl-534) | 외부 오라클 테스트가 27 leg Decimal 합산을 실제로 실행하지 않는다 (총계를 관측 1건에 몰아넣음)                                                                 | parity 산술을 손댈 때                                                          | XS           | 2026-07-29 PR #496 코드리뷰                            |
+| [BL-535](#bl-535) | ★백테스트는 스팟 봉으로 perp 전략을 검증한다 (라이브만 계기 정렬 — 의도된 잔여)                                                                                | 백테스트를 라이브 판단 근거로 쓰기 전                                          | M            | 2026-07-28 live-close-completeness                     |
+| [BL-536](#bl-536) | BL-522 진입 완결성 — 계기 정렬 후 유실 채널 5종 재측정 후 설계                                                                                                 | 실자금 cutover 전 필수                                                         | M            | 2026-07-28 live-close-completeness                     |
+| [BL-537](#bl-537) | 활성 세션이 없으면 고아 포지션을 앱에서 청산할 수 없다 (SL 없는 short 0.03 을 9시간 방치)                                                                      | 실자금 cutover 전 필수                                                         | S            | 2026-07-28 live-close-completeness                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -4005,6 +4008,14 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 **권장 접근:** 거절 코드별 분해 -> 진입 유실 하류인지 독립 결함인지 판정 -> 그 다음 수리. BL-522(진입 완결성)와 같은 뿌리일 가능성이 높으므로 묶어서 본다.
 **Risk:** 🔴 (실자금에서 포지션 상태 발산)
 
+**✅ Resolved (2026-07-28, live-close-completeness):** 뿌리는 **계기 불일치**였다 — 엔진이 **Bybit 스팟** 1m 봉을 재생하는데 주문은 **무기한선물**에 나갔다(`market_data/providers/ccxt.py:46` `defaultType: "spot"`). 라이브 OHLCV fetch 를 `to_ccxt_perpetual_symbol` 로 통과시켜 정렬했다. **마이그레이션 0 · 1사이트.** 회고는 [`dev-log/2026-07-28-live-close-completeness.md`](dev-log/2026-07-28-live-close-completeness.md).
+
+- **분해 실측** — 51건 중 **46건(90%)이 한 갈래**다: 엔진은 포지션을 믿는데 거래소는 flat(`close_position_flat` 16 + `110017 current position is zero` 30). 나머지 4건은 **반대 방향**(`reduce-only ... same side`)이고, `reduce_only=True` 하나가 포지션 반전을 막는 유일한 방벽이었다. 1건은 read-only 계정(BL-501 계열).
+- ★**외부 오라클이 기전을 확정했다** — 2026-07-28 08:06 UTC **스팟 고가 63541.7** 이 시뮬 스톱과 **소수점까지 일치**했고, 같은 분 **perp 고가는 63499.4**(42.3 아래). 스톱 가격 자체가 스팟 피벗에서 계산됐다는 뜻이다. 두 봉 계열을 픽스처로 고정했다(`tests/fixtures/bybit_spot_vs_perp_bars.py`).
+- ★**헤드라인 71% 는 창을 안 건 값이었다** — 3일·3스프린트 누적이라 BL-511 이전 데이터가 대부분이다(reduce-only 거절 35건 중 31건이 07-26). **수리 전 기준선은 50%(n=6)** 로 정정한다.
+- **BL-522 는 미착수** — 계기 수리 후 재측정한 크기 위에서 설계한다. 사라질 문제에 새 상태 저장소를 만드는 것이 최대 위험이라는 BL-522 자신의 경고를 따랐다.
+- 부수: 엔진↔거래소 포지션 발산 감지 신설(`qb_live_position_divergence_total`) — **방향 불일치만 fail-closed**, 나머지는 관측만. 진단 절차는 [`reference/live-close-diagnostics.md`](reference/live-close-diagnostics.md).
+
 ---
 
 ### BL-531
@@ -4078,3 +4089,57 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 **권장 접근:** 27개 관측에 실제 leg 값을 넣어 합산을 재현하거나, 테스트 이름을 실제 검증 범위에 맞게 좁힌다.
 **Risk:** 🟢
+
+---
+
+### BL-535
+
+**Title:** ★**백테스트는 스팟 봉으로 perp 전략을 검증한다** — 라이브만 계기를 맞춰 두 축이 갈렸다
+**Category:** Backend / market_data
+**Priority:** **P1**
+**Trigger:** 백테스트 결과를 라이브 판단 근거로 쓰기 전
+**Est:** M
+**출처:** 2026-07-28 live-close-completeness (BL-530 수리의 의도된 잔여)
+
+**원인 / 영향:** BL-530 이 **라이브 경로만** perp 로 정렬했다(`tasks/live_signal.py` 1사이트). 백테스트는 여전히 `TimescaleProvider` → `CCXTProvider`(`defaultType: "spot"`) 경로라 **스팟 이력**으로 돈다. 즉 지금은 **백테스트=스팟 / 라이브=perp** 다.
+
+★**이것은 버그가 아니라 명시적 트레이드오프다.** 라이브 실행 패리티(P1, cutover 블로커)를 먼저 닫는 대가로 남겼다. 다음 사람이 이 상태를 결함으로 오진하고 라이브를 스팟으로 되돌리면 BL-530 이 그대로 재발한다.
+
+**영향** — 같은 전략이 두 축에서 다른 신호를 낸다. 실측 괴리는 **25~42 USDT(0.04~0.066%)** 이고 **한쪽으로 치우친다**(스팟이 위). 스톱·피벗이 그 폭 안에 있는 전략일수록 발산이 크다. BL-526 의 라이브↔백테스트 대조 표면도 이 confound 를 안고 있다.
+
+**권장 접근:** `ts.ohlcv` 에 perp 를 **`BTC/USDT:USDT` 키로 신규 적재**한다 — 기존 행 불변이라 **마이그레이션 0** 이고, `TimescaleProvider` 는 cache-first 라 백테스트 1회가 곧 시딩이다(dogfood-restore 선례). 심볼 컨벤션이 전략·UI·기존 백테스트에 파급되므로 그 경계를 먼저 정해야 한다.
+**Risk:** 🟡 (판단 근거의 정합성. 머니-패스 직접 영향은 없다)
+
+---
+
+### BL-536
+
+**Title:** BL-522 진입 완결성 — 계기 정렬 후 유실 채널 5종을 **재측정**하고 그 크기 위에서 설계한다
+**Category:** Backend / trading
+**Priority:** P1
+**Trigger:** 실자금 cutover 전 필수
+**Est:** M
+**출처:** 2026-07-28 live-close-completeness (BL-522 의 재조준)
+
+**원인 / 영향:** BL-522 는 유실 채널 5종과 실측(`deferred_market_inflight` 시간당 14회)을 남겼다. 그런데 그 측정은 **계기가 어긋난 상태**에서 나온 값이다. 유령 진입이 사라지면 각 채널의 크기가 달라지므로, 그 값 위에서 설계하면 사라질 문제에 새 상태 저장소를 만들게 된다 — BL-522 자신이 경고한 함정이다.
+
+**권장 접근:** 계기 정렬 후 soak 에서 채널별 크기를 다시 재고, `qb_live_position_divergence_total{category=engine_only}` 가 유의미하게 남는지 먼저 본다. 남지 않으면 BL-522 는 축소되거나 소멸한다. 남으면 그 잔여 위에서 설계한다.
+**Risk:** 🟡
+
+---
+
+### BL-537
+
+**Title:** 활성 세션이 없으면 고아 포지션을 앱에서 청산할 수 없다 (실사례 — SL 없는 short 0.03 을 9시간 방치)
+**Category:** Backend / trading (BL-498 실사례 보강)
+**Priority:** P1
+**Trigger:** 실자금 cutover 전 필수
+**Est:** S
+**출처:** 2026-07-28 live-close-completeness soak 준비 중 실측
+
+**원인 / 영향:** `close_service.close_position(user_id, session_id)` 이 **세션 id 를 요구**한다. 세션이 꺼지면 그 세션이 연 포지션은 앱에서 **보이지도 닫히지도 않는다**(BL-498 이 지적한 것과 같은 뿌리).
+
+★**이번에 실제로 밟았다** — 07-28 세션이 남긴 **short 0.03 @ 63470.6, SL 없음, 미실현 −7.24 USDT** 가 약 9시간 방치돼 있었다. 청산하려면 provider 원시 호출로 내려가야 했다(`OrderService` 우회 = Order 행 없음 · kill-switch 미평가). 레버리지 2x 에 SL 이 없으므로 **손실 상한이 없다.**
+
+**권장 접근:** 계정·심볼 단위 청산 경로를 세션과 독립적으로 둔다. `OrderService` 를 거치게 해 원장·리스크 게이트가 유지돼야 한다.
+**Risk:** 🔴 (무방비 노출이 무기한 지속)

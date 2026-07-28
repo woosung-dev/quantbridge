@@ -495,13 +495,34 @@ qb_live_signal_outbox_pending_gauge = Gauge(
 qb_live_signal_divergence_total = Counter(
     "qb_live_signal_divergence_total",
     "Live signal money-path divergence blocked (auto-deactivate session)",
-    # stage: preflight | runtime
+    # stage: preflight | runtime | position
     # category(preflight): coverage_unrunnable | degraded_unconsented
     #   stop_entry_unsupported | equity_baseline_missing 는 skipped 전용이며 이 counter 대상 아님.
     # category(runtime): undefined_name | unsupported_attr | unsupported_call
     #                    | unsupported_node | unexpected | run_live_error
     #   run_live_error = run_live 가 result.errors 밖으로 raise (parse/raw arithmetic 등)
+    # category(position): direction — 엔진과 거래소가 **반대 방향**을 들고 있다(BL-530).
+    #   ★차단된 것만 싣는다. 차단하지 않는 발산 관측은 아래
+    #   `qb_live_position_divergence_total` 이며, 여기에 섞으면 "0 초과 = 즉시 page"
+    #   계약이 깨져 관측이 곧 오탐 페이징이 된다.
     labelnames=("stage", "category"),
+)
+
+# BL-530 — 엔진↔거래소 포지션 발산 **관측**(차단 아님). 위 counter 와 분리한 이유는
+# 페이징 계약이 다르기 때문이다. 여기 값은 정상 운영 중에도 0 이 아닐 수 있고,
+# BL-522(진입 완결성) 설계에 쓸 유실 크기의 입력이다.
+#   category: engine_only    — 엔진만 포지션을 믿는다(유령 진입 → close 전량 거절)
+#             exchange_only  — 거래소에만 포지션이 남았다(고아 노출)
+#             size           — 방향은 같고 크기가 다르다(부분체결·수량 step)
+#             probe_failed   — 거래소를 못 읽어 판정 자체를 못 했다(fail-open)
+#             direction_transient — 방향 불일치 **1회차**. 거래소는 bar 안에서 스톱을
+#               트리거하고 엔진은 bar 종가에만 평가하므로 stop-and-reverse 는 한 bar
+#               동안 정상적으로 어긋난다(실측). 연속 2회 살아남아야 차단이다.
+# 차단된 `direction` 은 여기 없다 — 위 counter 가 SSOT 다.
+qb_live_position_divergence_total = Counter(
+    "qb_live_position_divergence_total",
+    "Live engine vs exchange position divergence observed (not blocked)",
+    labelnames=("category",),
 )
 
 # Redis 실시간 팬아웃 발행 실패. user/event ID는 label로 사용하지 않는다.
