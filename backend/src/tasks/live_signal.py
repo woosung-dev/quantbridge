@@ -26,6 +26,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
@@ -43,6 +44,7 @@ from src.common.metrics import (
     qb_live_conditional_placed_total,
     qb_live_conditional_reconcile_errors_total,
     qb_live_conditional_sweep_filled_total,
+    qb_live_position_divergence_total,
     qb_live_signal_dispatch_total,
     qb_live_signal_divergence_total,
     qb_live_signal_entry_skipped_total,
@@ -54,6 +56,7 @@ from src.common.metrics import (
 )
 from src.common.redlock import RedisLock
 from src.core.config import settings
+from src.market_data.constants import to_ccxt_perpetual_symbol
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
@@ -197,6 +200,144 @@ def _action_is_reduce_only(action: str) -> bool:
     포지션 반전 위험. entry 는 신규 포지션 오픈이므로 reduce_only=False.
     """
     return action == "close"
+
+
+# API 경계 정밀도(`OrderRequest.quantity` = decimal_places=8) 아래의 값은 주문으로 나갈 수
+# 없으므로 포지션으로도 존재할 수 없다. 부동소수 누적 잔재를 방향으로 오독하지 않기 위한
+# 바닥값이며, 이보다 크게 잡으면 진짜 소액 포지션이 flat 으로 위장된다.
+_POSITION_DUST = Decimal("1E-8")
+
+# 같은 방향 크기 차이를 발산이라 부르기 위한 **상대** 문턱.
+#
+# ★엔진의 `position_size` 는 float 누적이고(실측 `-0.029910810628287526`) 거래소는
+# 수량 step 으로 양자화한다(실측 `0.029`, BTC linear step 0.001). 즉 **의도가 같아도
+# 두 값은 절대 같아지지 않는다.** 정확 비교를 쓰면 이 counter 는 정상 상태에서 매 tick
+# 발화해 아무것도 말하지 않게 된다.
+#
+# 실측 양자화 폭 = step 0.001 / 포지션 0.029 = **3.45%**. 문턱은 그보다 위여야 하고,
+# 실제로 잡아야 할 부분체결(실측 0.001 vs 0.029 = 96.5%)보다는 한참 아래여야 한다.
+_POSITION_SIZE_REL_TOL = Decimal("0.05")
+
+# 방향 불일치를 **연속 2회** 봤는지 기억하는 자리. `last_strategy_state_report` JSONB 에
+# 얹으므로 **마이그레이션이 없다.** `run_live` 도 그 dict 에 자기 키를 얹으므로
+# (`pending_orders` / `window_bars` 등) 관행에 맞고, 밑줄 접두어로 엔진 산출물이 아님을
+# 표시한다. 엔진 키와 충돌하면 그 순간 판정이 조용히 틀리므로 이름을 겹치게 두지 마라.
+_DIRECTION_MISMATCH_KEY = "_qb_direction_mismatch_seen"
+
+
+def _net_position_size(positions: Sequence[Any]) -> Decimal:
+    """거래소 포지션 목록 → 부호 있는 순포지션(long 양수 / short 음수).
+
+    조건부 reconciler 의 사이징과 발산 감지가 **같은 산술**을 써야 한다. 둘이 갈리면
+    한쪽이 발산이라 부르는 상태를 다른 쪽이 정상으로 사이징한다.
+    """
+    net = Decimal("0")
+    for position in positions:
+        if position.side == "long":
+            net += position.size
+        elif position.side == "short":
+            net -= position.size
+        else:
+            raise ValueError(f"unknown position side: {position.side!r}")
+    return net
+
+
+def _classify_position_divergence(engine: Decimal, exchange: Decimal) -> str | None:
+    """엔진이 믿는 포지션과 거래소 순포지션의 불일치를 분류한다. 일치하면 None.
+
+    ★`direction` 만 fail-closed 대상이다. 엔진이 롱을 믿는데 거래소가 숏이면 엔진의
+    close 는 **거래소 포지션과 같은 방향** 주문이 되고, `reduce_only=True` 하나가
+    포지션 증가를 막는 유일한 방벽이 된다(실측 `110017 reduce-only order has same
+    side` 4건). 나머지 갈래는 관측만 한다 — `engine_only` 는 유령 포지션이라 close 가
+    무해하게 거절되고, `size` 는 부분체결·수량 step 의 정상 결과일 수 있으며,
+    양쪽을 죽이면 이 스프린트가 고치려는 상태에서 세션이 상시 사망한다.
+    """
+    engine_flat = abs(engine) < _POSITION_DUST
+    exchange_flat = abs(exchange) < _POSITION_DUST
+    if engine_flat and exchange_flat:
+        return None
+    if engine_flat:
+        return "exchange_only"
+    if exchange_flat:
+        return "engine_only"
+    if (engine > 0) != (exchange > 0):
+        return "direction"
+    larger = max(abs(engine), abs(exchange))
+    if abs(engine - exchange) > larger * _POSITION_SIZE_REL_TOL:
+        return "size"
+    return None
+
+
+def _to_engine_position(strategy_state_report: dict[str, Any]) -> Decimal | None:
+    """`to_report()["position_size"]` → Decimal. 읽을 수 없으면 None(감지 건너뜀).
+
+    `position_size` 는 float 누적이라(`event_loop.py:506` 주석) Decimal 경계에서 한 번만
+    변환한다. NaN/Inf 는 warmup 지표가 낼 수 있으므로 비교에 넣지 않고 조용히 뺀다 —
+    발산 판정의 입력이 비정상이면 그 판정 자체가 의미 없다.
+    """
+    raw = strategy_state_report.get("position_size")
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = Decimal(str(raw))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+    return value if value.is_finite() else None
+
+
+async def _detect_position_divergence(
+    sess: Any,
+    engine_position: Decimal,
+    *,
+    account_repo: Any,
+) -> str | None:
+    """엔진 포지션과 거래소 순포지션을 대조해 발산 갈래를 돌려준다.
+
+    조회 실패는 None(fail-open) — 감지기가 거래소를 못 읽었다는 사실을 세션 사망으로
+    바꾸지 않는다. 감지 못 한 발산은 close 거절로 여전히 드러난다.
+
+    ★조회를 `_reconcile_conditional_entries` 의 것과 공유하지 않는 이유 — 그 함수는
+    desired 도 로컬 주문도 없으면 **REST 를 열기 전에 조기 반환한다**(stop-entry 를 안
+    쓰는 전략에 비용을 지우지 않으려는 의도적 계약). 그런데 유령 포지션이 남는 상태가
+    바로 그 상태다(진입은 이미 sim 에서 체결됐고 pending 이 없다). 거기에 얹으면 감지가
+    가장 필요한 순간에 정확히 눈을 감는다. 그래서 tick 당 조회 1회를 더 쓴다.
+    """
+    from src.trading.encryption import EncryptionService
+    from src.trading.providers import BybitFuturesProvider
+    from src.trading.services.account_service import ExchangeAccountService
+
+    try:
+        bybit_provider = BybitFuturesProvider()
+        exchange_svc = ExchangeAccountService(
+            repo=account_repo,
+            crypto=EncryptionService(settings.trading_encryption_keys),
+            bybit_futures_provider=bybit_provider,
+        )
+        creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
+        positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
+        exchange_position = _net_position_size(positions)
+    except Exception:
+        qb_live_position_divergence_total.labels(category="probe_failed").inc()
+        logger.warning(
+            "live_signal_position_divergence_probe_failed",
+            exc_info=True,
+            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+        )
+        return None
+
+    category = _classify_position_divergence(engine_position, exchange_position)
+    if category is not None:
+        logger.warning(
+            "live_signal_position_divergence",
+            extra={
+                "session_id": str(sess.id),
+                "symbol": sess.symbol,
+                "category": category,
+                "engine_position": str(engine_position),
+                "exchange_position": str(exchange_position),
+            },
+        )
+    return category
 
 
 def _classify_live_divergence(msg: str) -> str:
@@ -486,13 +627,7 @@ async def _reconcile_conditional_entries(
                 desired = []
                 cancel_reason = stand_down_reason
             else:
-                for position in positions:
-                    if position.side == "long":
-                        current_position += position.size
-                    elif position.side == "short":
-                        current_position -= position.size
-                    else:
-                        raise ValueError(f"unknown position side: {position.side!r}")
+                current_position = _net_position_size(positions)
 
             reference_price = fallback_reference_price
             allow_market_conversion = False
@@ -1189,8 +1324,22 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 return {"deactivated": preflight_cat}
 
             # 4. CCXT fetch_ohlcv (P1 #6 closed-bar)
+            #
+            # ★BL-530 — 엔진이 재생하는 봉은 주문이 나가는 상품과 같아야 한다.
+            # `CCXTProvider` 는 `defaultType: "spot"` 이라 `sess.symbol`("BTC/USDT")을 그대로
+            # 넘기면 **스팟** 봉이 온다. 그런데 주문은 `BybitFuturesProvider`(defaultType
+            # "linear")로 **무기한선물**에 나간다. 두 상품 가격은 붙어 있지 않아(실측 스팟이
+            # perp 보다 ~40 USDT / 0.066% 높음) 시뮬은 스팟 고가로 매수 스톱을 체결하는데
+            # 거래소 perp 는 그 근처도 안 간다 → 엔진만 포지션을 믿는 유령 진입이 생기고,
+            # 그 포지션의 close 는 전량 거절된다(실측 46/51 이 이 갈래). 방향까지 어긋나면
+            # reduce-only 하나가 반대 방향 포지션 증가를 막는 유일한 방벽이 된다.
+            #
+            # ★`sess.symbol` 자체는 canonical 로 **불변**이다 — 주문 라우팅·세션 스코프·
+            # 원장 매칭이 전부 그 값에 묶여 있다. 바꾸는 것은 이 fetch 인자뿐이다.
             provider = get_ccxt_provider_for_worker()
-            ohlcv_rows = await provider.fetch_ohlcv(sess.symbol, str(sess.interval), limit_bars=300)
+            ohlcv_rows = await provider.fetch_ohlcv(
+                to_ccxt_perpetual_symbol(sess.symbol), str(sess.interval), limit_bars=300
+            )
             if not ohlcv_rows:
                 qb_live_signal_evaluated_total.labels(
                     interval=interval_value, outcome="no_new_bar"
@@ -1427,6 +1576,69 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                         )
                     return {"deactivated": category}
 
+            # 7.6 BL-530 — 엔진↔거래소 포지션 발산 감지.
+            #
+            # 지금까지 이 발산은 **close 가 거절될 때까지 보이지 않았다.** 계기를 perp 로
+            # 맞춰도(위 4단계) 진입 유실·부분체결로 재발할 수 있으므로 감지는 계기 수리와
+            # 독립적으로 필요하다. 조회 실패는 fail-open — REST 한 번 실패로 세션을 죽이지
+            # 않는다(이 파일의 다른 포지션 조회와 같은 계약).
+            #
+            # ★**방향 불일치는 한 번 봤다고 죽이지 않는다.** 거래소는 스톱을 **bar 안에서
+            # 실시간으로** 트리거하는데 엔진은 **bar 종가에만** 평가한다. stop-and-reverse
+            # 전략에서는 거래소가 먼저 반대편으로 넘어가고 엔진이 다음 bar 에 따라가는
+            # 구간이 정상적으로 존재한다 — 실측(2026-07-28 soak): 거래소가 17:46:28 에
+            # 롱으로 체결됐는데 엔진이 평가한 bar 는 17:45 종가라 아직 숏이었고, 초판
+            # 가드가 이 **자기해소되는 skew** 로 세션을 죽였다.
+            # 그래서 **연속 2회 평가에서 살아남은 경우에만** 차단한다. 한 bar 를 넘겨도
+            # 반대편이면 그건 스스로 풀리는 상태가 아니다.
+            engine_position = _to_engine_position(result.strategy_state_report)
+            direction_mismatch_seen = False
+            if engine_position is not None:
+                divergence_category = await _detect_position_divergence(
+                    sess, engine_position, account_repo=account_repo
+                )
+                direction_mismatch_seen = divergence_category == "direction"
+                previous_state = await sess_repo.get_state(sess.id)
+                previous_report = (
+                    previous_state.last_strategy_state_report if previous_state is not None else None
+                )
+                direction_mismatch_persisted = direction_mismatch_seen and (
+                    isinstance(previous_report, dict)
+                    and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
+                )
+                if direction_mismatch_seen and not direction_mismatch_persisted:
+                    # 첫 관측 — 다음 평가까지 유예한다. 플래그는 아래 upsert 로 넘어간다.
+                    qb_live_position_divergence_total.labels(category="direction_transient").inc()
+                if direction_mismatch_persisted:
+                    rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                    await sess_repo.commit()
+                    if rows == 1:
+                        _enqueue_conditional_entry_sweep()
+                        await publish_realtime(
+                            str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                        )
+                        qb_live_signal_divergence_total.labels(
+                            stage="position", category="direction"
+                        ).inc()
+                        qb_live_signal_evaluated_total.labels(
+                            interval=interval_value, outcome="divergence_blocked"
+                        ).inc()
+                        _fire_divergence_alert(
+                            session_id=sess.id,
+                            stage="position",
+                            category="position_direction_mismatch",
+                            raw_msg="engine and exchange hold opposite sides for two evaluations",
+                            error_count=0,
+                            last_error_bar=-1,
+                        )
+                    return {"deactivated": "position_divergence", "category": "direction"}
+                if divergence_category is not None and not direction_mismatch_seen:
+                    # 죽이지는 않는다 — 크기를 재서 BL-522 설계 입력으로 삼는다.
+                    # 차단 counter 와 분리한다(페이징 계약이 다르다).
+                    qb_live_position_divergence_total.labels(
+                        category=divergence_category
+                    ).inc()
+
             for entry_skip in result.entry_skips:
                 reason = entry_skip.get("reason")
                 if not isinstance(reason, str) or reason not in (
@@ -1485,6 +1697,10 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # BL-123 — JSONB 호환 sanitize (NaN/Infinity → None). run_historical 의
             # warmup 중 ATR/EMA 등이 NaN 반환 가능 → PG strict JSONB reject.
             sanitized_report = _sanitize_for_jsonb(result.strategy_state_report)
+            # 방향 불일치 1회차를 다음 평가로 넘긴다(위 7.6). 여기 얹는 이유는 이 dict 가
+            # 이미 매 tick upsert 되기 때문이다 — 새 컬럼도 새 저장소도 만들지 않는다.
+            if isinstance(sanitized_report, dict):
+                sanitized_report[_DIRECTION_MISMATCH_KEY] = direction_mismatch_seen
             # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
             # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
             # 재계산의 미세 변동은 point 를 추가하지 않는다.
