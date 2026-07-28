@@ -126,6 +126,7 @@
 | [BL-308](#bl-308) | trading websocket test coverage 4% → ≥70%                                                          | dogfood 직후 (Day 7 후)                         | L (12-16h) | 2026-05-15 trading-deepen audit |
 | [BL-404](#bl-404) | ✅ Resolved — watchdog `fetch_order` Bybit 전면 실패 (acknowledged 게이트 + futures 심볼 미정규화) | ✅ `fix/trading-bl404-fetch-order-acknowledged` | S (1-2h)   | 2026-07-05 데모 라이브 dogfood  |
 | [BL-488](#bl-488) | 평가 갭 orphan close → 보유분 없는 `reduce_only` 주문과 시뮬 손익 오염                             | 즉시. 평가 갭이 재현되거나 beat 안정화 전       | M          | 2026-07-26 live-engine-parity   |
+| [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종)             | 실자금 cutover 전 필수                          | M-L        | 2026-07-28 live-entry-parity    |
 
 > Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -678,6 +679,10 @@
 | [BL-392](#bl-392) | stress_test CA/PS "2D grid sweep" DTO 8-site 평행 정의 통합 (engine dataclass↔serializer↔OutSchema, untyped JSONB seam)                                        | stress_test deepening 또는 grid-cell 필드 추가 / 3번째 grid-sweep 타입 등장 시 | M (4-6h)     | 2026-06-30 stress_test-deepen (deepen-modules 1차)     |
 | [BL-401](#bl-401) | ✅ Resolved (2026-07-23) — optimizer 3폼 field-level zod 에러 렌더 (`.field-error` + role=alert, 메시지 한국어화)                                              | ✅ `stage/functional-parity`                                                   | S-M (2-4h)   | 2026-07-05 PR #394 FE 리팩토링 번들 dogfood            |
 | [BL-402](#bl-402) | ✅ Resolved (2026-07-23, 구조 소멸) — C 이식 네이티브 select 전환으로 4사이트 결함 자체 소멸 (실측 재확인, 코드 변경 0)                                        | ✅ `stage/functional-parity` (문서만)                                          | XS-S (1-2h)  | 2026-07-05 PR #394 FE 리팩토링 번들 dogfood            |
+| [BL-523](#bl-523) | 조건부·전환 진입에 TP/SL 브래킷이 붙지 않는다 (현재 코퍼스 미발현 — `stop=`+`strategy.exit` 동시 사용 시 발현)                                                 | 실자금 cutover 전                                                              | M            | 2026-07-28 live-entry-parity                           |
+| [BL-524](#bl-524) | `strategy.entry(limit=...)` 이 조용히 버려지고 시장가 진입으로 대체된다 (TV 충실도)                                                                            | limit 진입 전략 지원 시                                                        | M            | 2026-07-28 live-entry-parity                           |
+| [BL-525](#bl-525) | 라이브가 Track A(indicator + alertcondition) 전략을 어떻게 다루는지 정의되지 않았다                                                                            | Track A 로 라이브 세션을 열 때                                                 | S            | 2026-07-28 live-entry-parity                           |
+| [BL-526](#bl-526) | ★라이브 실적이 백테스트 기대치와 맞는지 화면에서 물을 수 없다 (패리티가 진입까지만 증명됨)                                                                     | 다음 스프린트                                                                  | M            | 2026-07-28 live-entry-parity                           |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -3874,3 +3879,26 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 **권장 접근:** 라이브 세션 등록 시 Track 을 판정해 미지원이면 422 로 막거나(BL-478 (c) 선례), `run_live` 에 Track 분기를 넣는다.
 **Risk:** 🟢
+
+---
+
+### BL-526
+
+**Title:** ★**라이브 실적이 백테스트 기대치와 맞는지 화면에서 물을 수 없다** — 패리티가 진입까지만 증명됐다
+**Category:** Frontend + Backend / 성과 표면
+**Priority:** P2 (제품 전제 검증)
+**Trigger:** 다음 스프린트
+**Est:** M
+**출처:** 2026-07-28 live-entry-parity 종결 판단
+
+**원인 / 영향:** 11스프린트에 걸쳐 "라이브가 백테스트대로 **주문하는가**" 를 고쳤고 BL-511 로 그것이 닫혔다(거절 43.3% → 0%). 그런데 **"라이브가 백테스트대로 **버는가**" 는 아직 어디에서도 물을 수 없다.**
+
+- 라이브는 주문별 `realized_pnl` 과 세션 이벤트만 있다. 백테스트는 24 metric 리포트가 있다. **둘을 같은 자로 놓는 표면이 없다.**
+- 프론트 grep 결과 라이브↔백테스트 대조 컴포넌트 **0건**.
+
+★**첫 실측이 문제를 가리킨다** — 62분 soak 실현손익 **−5.74 USDT**, 체결당 수수료 **≈1.01 USDT**. 0.029 BTC(≈1,840 USDT notional) 라운드트립 수수료가 **notional 의 약 0.11%** 다. **1m PbR 이 그 문턱을 넘는 엣지가 있는지 아무도 모른다.** 이 대조가 없으면 이후 배선 작업이 전부 "지는 전략을 더 정확하게 실행" 하는 데 쓰일 수 있다.
+
+**권장 접근:** 새 엔진 코드 없이 **read-time 파생**으로 만든다(#471 perf-surface 선례). 같은 전략·같은 기간의 백테스트 기대치와 라이브 세션 실적을 나란히 놓고, **수수료·슬리피지를 포함한 실효 격차**를 보여준다.
+
+★**설계 시 반드시 짚을 것** — (a) 라이브 세션 손익의 SSOT 는 `live_signal_states.total_realized_pnl` 이 **아니라** append-only `live_signal_events` 다(단조가 아니다). (b) 시뮬 PnL 과 거래소 PnL 은 **부호까지 다를 수 있다**(수수료 왕복). 같은 누적기에 넣지 마라. 둘 다 `gates-and-traps.md` 에 실측 근거가 있다.
+**Risk:** 🟢 (읽기 전용 파생 — 머니-패스 무영향)
