@@ -208,6 +208,15 @@ cd $QB/frontend && pnpm e2e:authed
 
 - ★**"그 코드 경로의 흔적이 원장에 없다" 는 "그 코드가 호출된 적 없다" 가 아니다.** 조건부 UPDATE 가 경합에 **패배**하면 `rowcount=0` 이라 행에 아무것도 쓰지 않는다. 최종 행만 보고 "미주행" 을 결론내면 성공 경로와 시도 횟수를 혼동한 것이다. 호출·패배를 세려면 **전용 metric** 이 필요하다.
 
+### 계기(instrument) — 어떤 상품의 가격을 보고 있는가 (2026-07-28)
+
+- ★★★**"같은 심볼" 이 같은 상품이라는 뜻이 아니다.** `ccxt` 인스턴스의 `defaultType` 이 심볼 해석을 바꾼다. 이 저장소에서 `BTC/USDT` 는 **스팟**, `BTC/USDT:USDT` 가 **무기한선물**이다. `market_data/providers/ccxt.py` 는 `defaultType: "spot"` 이고 `trading/providers.py` 의 `BybitFuturesProvider` 는 `"linear"` 다 — **두 모듈이 같은 문자열을 서로 다른 상품으로 읽는다.**
+  - 그래서 라이브 엔진이 **스팟 봉을 재생하면서 perp 에 주문을 냈다**(BL-530). 실측 괴리는 **25~42 USDT (0.04~0.066%)** 로 지속적이고 **한쪽으로 치우친다** — 스팟이 위. 매수 스톱은 시뮬에서만 걸리고 매도 스톱은 거래소에서만 걸리는 **방향성 편향**이 된다.
+  - 결정적 증거: 2026-07-28 08:06 UTC 스팟 고가가 **63541.7** 로 시뮬 스톱과 **소수점까지 일치**했는데 같은 분 perp 고가는 **63499.4**. 픽스처로 고정했다(`tests/fixtures/bybit_spot_vs_perp_bars.py`).
+  - ★**BL-511 이 같은 결함을 가드 기준가에서 한 번 고쳤는데도 엔진 봉은 그대로였다.** 계기 정렬은 **한 사이트씩** 고쳐지므로, 가격을 읽는 새 코드를 쓸 때마다 _"이건 어느 상품인가"_ 를 되물어라. 실측 대조 1회(`category=spot` vs `category=linear` kline)면 끝난다.
+- ★**시뮬 포지션과 거래소 포지션은 자동으로 수렴하지 않는다.** `run_live` 는 OHLCV 재생만 하고 거래소 포지션을 **입력으로 받지 않는다**. 진입이 라이브에서 유실되면 그 유령 포지션은 영원히 남고, 이후 close 는 전부 거절된다(`110017 current position is zero`). 방향까지 어긋나면 `reduce_only=True` 하나가 **반대 방향 포지션 증가**를 막는 유일한 방벽이다.
+  - 관측 지점 = `qb_live_position_divergence_total{category}` + `qb_live_signal_divergence_total{stage="position"}`. 진단 SQL 은 [`live-close-diagnostics.md`](live-close-diagnostics.md).
+
 ## 3.5 컨텍스트 예산 — 세션이 새는 두 채널
 
 > 2026-07-28 승격. 직전 회차가 이 규칙을 **참조는 했으나 이 파일에 없었다** — 핸드오프가 "여기 있다" 고 적었지만 실제로는 없었고, 이번에 실제로 넣는다.
