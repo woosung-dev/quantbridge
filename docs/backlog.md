@@ -447,7 +447,11 @@
 
 ### BL-499
 
-**상태:** 🟡 **열려 있다.** ★2026-07-28 `feat/live-ops-hygiene` 에서 **신설 metric 실관측을 확인만 했다 — 결과는 0건이다.** janitor·sweeper beat 은 5분 주기로 정상 발화하지만(30분에 각 6회) `cancel_stalled`/`cancel_raced` 는 한 번도 오르지 않았다. 고착 행이 DB 에 0건이라 그 경로가 **주행되지 않았기 때문**이고, "관측되지 않음" 이지 "일어나지 않음이 증명됨" 이 아니다. 근본 경합은 그대로 열려 있다. ★단 BL-503 janitor 가 생기면서 `cancel_stalled` 의 **근거 문장이 낡았다** — "아무도 안 치운다" 는 이제 거짓이고 30분 뒤 janitor 가 처리한다(그 문구는 BL-503 에서 정정).
+**상태:** 🟡 **열려 있다 — 단 trigger 는 이제 발화 가능하다.** ★★2026-07-28 `feat/live-observability` 정정: 이 항목의 **Trigger("취소 실패 metric 이 관측되면")가 BL-506 이전에는 구조적으로 충족 불가**였다. 그 카운터는 worker 전용이라 어떤 스크레이프 경로에도 노출되지 않았기 때문이다(BL-506 이 그 모순을 지적했다). **BL-506 Resolved 로 관측 가능성 자체는 확보됐다** — 배선 후 `qb_live_conditional_reconcile_errors_total` 의 다른 라벨(`deferred_market_inflight` 8 · `positions` 3)이 실제로 관측된다.
+★그럼에도 **1시간 40분 soak 에서 `cancel`/`cancel_raced`/`cancel_stalled` 는 시리즈조차 나타나지 않았다.** 여전히 **"관측 안 됨" 이지 "일어나지 않음이 증명됨" 이 아니다.** 근본 경합은 열려 있다.
+★**부수 발견** — 라벨 있는 Counter 는 자식이 처음 생길 때 노출되므로, 이 항목들은 `/metrics` 에 **0 으로도 나오지 않는다. 시리즈가 아예 없다.** 대시보드에서 "아직 안 일어남" 과 "그런 metric 이 없음" 이 구분되지 않는다.
+
+**이전 상태(2026-07-28 live-ops-hygiene):** ★**신설 metric 실관측을 확인만 했다 — 결과는 0건이다.** janitor·sweeper beat 은 5분 주기로 정상 발화하지만(30분에 각 6회) `cancel_stalled`/`cancel_raced` 는 한 번도 오르지 않았다. 고착 행이 DB 에 0건이라 그 경로가 **주행되지 않았기 때문**이고, "관측되지 않음" 이지 "일어나지 않음이 증명됨" 이 아니다. 근본 경합은 그대로 열려 있다. ★단 BL-503 janitor 가 생기면서 `cancel_stalled` 의 **근거 문장이 낡았다** — "아무도 안 치운다" 는 이제 거짓이고 30분 뒤 janitor 가 처리한다(그 문구는 BL-503 에서 정정).
 
 **이전 상태:** 🟡 부분 완화 (2026-07-27, `feat/live-conditional-hardening`). 근본 경합(취소 의도 영속 또는 dispatch 시점 재검사)은 사용자 결정으로 **마이그레이션 0** 을 택해 그대로 남는다. 이번에 한 것은 **패배와 진짜 실패를 구분해 관측 가능하게 만든 것**이다 — `transition_pending_to_cancelled` 가 rowcount 0 이면 `get_state_and_exchange_id_fresh`(식별맵 우회 컬럼 select)로 재조회해, 비-`pending` 이면 `RuntimeError` 대신 metric + 로그를 남긴다. ★**경합과 제출 중단을 라벨로 가른다** — `submitted` 인데 `exchange_order_id` 가 없으면 경합이 아니라 dispatch 가 상태만 커밋하고 거래소 왕복에서 죽은 **영구 고착**이고(`orphan_scanner` 가 조건부 진입을 면제해 아무도 안 치운다) 그 행은 매 tick 이 분기를 타 세션 등재를 영구 정지시킨다. `stage="cancel_stalled"` + `logger.error` 로 분리한다(적대 검증 지적 — 안 가르면 영구 장애가 1회성 경합 카운터에 섞여 사라진다). ★**패배해도 그 tick 의 `to_place` 는 건너뛴다(fail-closed 유지)** — `current_position` 은 취소 루프보다 **먼저** 찍은 스냅샷이라, 패배한 주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다(G0.5 codex 지적, 재현 판정 후 플랜 개정).
 
@@ -612,6 +616,28 @@
 **Risk:** 🟡 (세션 등재 영구 정지 + 무한 오경보. 실주문을 잘못 내지는 않는다).
 
 ---
+
+### BL-511
+
+**Title:** ★조건부 진입의 **절반이 거래소에 거절된다** — stale 기준가로 인한 매 tick 재시도 루프, 백테스트↔라이브 조용한 발산
+**Category:** Backend / trading (조건부 진입)
+**Priority:** **P1**
+**Trigger:** **이미 진행 중.** 실자금 cutover 전 필수
+**Est:** M
+**출처:** 2026-07-28 live-observability soak 실관측 (1시간 40분 전수 집계)
+
+★★**실측 규모 — 이것이 P1 인 이유.** soak 창에서 발주된 주문 38건 중 **거절 19건(50%)이고 100% 가 `110093`** 이다. 체결은 4건뿐이었다. 거절 시각이 `03:54–03:57` · `04:07–04:12` · `04:25–04:27` 처럼 **연속 분 단위 클러스터**를 이룬다 — 같은 트리거 값으로 **bar 가 바뀔 때까지 매 tick 재시도**하는 루프다. 즉 **백테스트가 의도한 진입의 절반가량이 라이브에서 조용히 사라진다.** 백테스트→라이브 패리티가 제품 전제인 플랫폼에서 이건 신뢰 문제다.
+
+**원인 / 영향:** PbR 의 `strategy.entry("PivRevSE", strategy.short, stop=lprice - syminfo.mintick)` 가 주문을 올리는 시점에 가격이 이미 피벗 저점 아래면 트리거가 현재가 **위**가 되어 Bybit 이 거절한다 — `retCode 110093 "expect Falling, but trigger_price[63180.2] >= current[63149.1]"`.
+
+★**TradingView 는 트리거를 이미 지난 stop 주문을 시장가로 전환**하지만 라이브는 거절한다. **백테스트는 진입하고 라이브는 진입하지 않는다.**
+
+★**원장 전수 집계** — `110093` **12건**(2026-07-27 05:50 ~ 현재도 발생). 이번 soak 창에서만 2건.
+
+★**기계적 원인이 특정됐다** — `trigger_already_breached` 가드(`conditional_entry_planner.py:195`, 주석이 이미 110093 을 알고 있다)의 기준가가 `live_signal.py:1355` `reference_price=_last_close_or_none(df)` = **마지막 종료 bar 종가**다. 거래소는 **현재가**로 판정한다. 1m 세션에서 최대 60초 스테일 → 가드가 체계적으로 뚫린다.
+
+**권장 접근:** 가드 기준가를 실시간 가격(티커/마크)으로 교체하거나, 돌파 판정 시 등재를 건너뛰고 그 사실을 계측한다. BL-478 (a) 선택 시 남는 **잔여 격차**다.
+**Risk:** 🟡
 
 ## P2 — Hardening / 건강도 작업
 
@@ -1346,6 +1372,146 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ---
 
+### BL-508
+
+**Title:** `qb_active_orders` 의 inc/dec 계약이 multiprocess 에서 절대값을 보장하지 못한다 — 재기동마다 영구 편향
+**Category:** Backend / observability (trading)
+**Priority:** P2
+**Trigger:** gauge 를 근거로 운영 판단·경보를 붙이려 할 때, 또는 실자금 cutover 전
+**Est:** M
+**출처:** 2026-07-28 live-observability — G1 codex 적대 검증이 예측하고 **soak 이 산술까지 맞춰 확증**
+
+**원인 / 영향:** `inc` 는 1곳(`order_service.py:431`, API+worker), `dec` 는 13곳(worker 11 · ws_stream 2 · API 1)에 흩어져 있다. multiprocess 모드에서 `sum` 은 **프로세스별 델타 파일의 합**이므로, 콜드 스타트로 파일이 비면 그 순간 in-flight 였던 주문의 `inc` 가 유실되고 `dec` 만 나중에 찍혀 **영구 −N 편향**이 남는다.
+
+★**실측으로 확증했다.** soak 중 metric `qb_active_orders = 0.0` 인데 DB 실제 in-flight = **1**. 산술이 전부 설명된다 — 재기동 이후 생성 **+7** / 종료 **−6** / **재기동 이전 생성 → 이후 종료 1건의 고아 dec −1** = **0**. 그 1건은 `03:13:52` 생성 → `03:34:10` 취소로 원장에서 특정된다.
+
+★**BL-506 이 만든 결함이 아니다.** 배선 전에는 API 프로세스의 `inc` 만 수집돼 **단조 증가**였으니 더 나빴다. BL-506 이 한 일은 **편향을 보이게 만든 것**이다.
+
+**권장 접근:** inc/dec 계약을 버리고, 한 프로세스가 DB 의 `pending + submitted` 개수를 주기적으로 `.set()` 하는 **스냅샷 gauge** 로 교체한다. ★**주의** — `mark_process_dead` 는 `live*` 파일만 지우므로 지금은 **죽은 자식의 델타 파일이 남아 있어야 산술이 맞는다**(BL-509 와 결합). 파일 회수를 먼저 하면 이 gauge 가 즉시 깨진다.
+
+**영향 파일:** `common/metrics.py`, `trading/services/order_service.py`, `tasks/trading.py`, `tasks/live_signal.py`, `tasks/conditional_entry_janitor.py`, `trading/websocket/*`.
+**Risk:** 🟡 (동작 무영향 · 그러나 이 gauge 를 근거로 한 판단이 공허하다)
+
+---
+
+### BL-510
+
+**Title:** 라이브 세션 생성이 `read_only` 계정을 막지 않는다 — 화면은 그 계정을 기본 선택으로 놓는다
+**Category:** Backend / trading (세션 등록) + Frontend
+**Priority:** P2
+**Trigger:** 사용자가 계정을 여러 개 등록한 상태에서 세션을 시작할 때
+**Est:** S
+**출처:** 2026-07-28 live-observability — soak 세션 생성 중 화면 관측 + 코드 대조
+
+**원인 / 영향:** `LiveSignalSessionService.register()` 의 계정 게이트는 `account.exchange != bybit or account.mode != demo` **뿐**(`live_session_service.py:108-112`). `read_only` 는 검사하지 않는다. `read_only` 강제는 **청산**(`close_service.py:59-60` → 422)과 **표시**(`position_service.py:301-302`)에만 있다.
+
+즉 **읽기 전용 키로 라이브 자동매매 세션을 시작할 수 있다.** 세션은 평가·신호 생성까지 정상 진행하고 **주문 단계에서야** 실패한다(과거 원장에 `retCode 10005 Permission denied` 2건 실재).
+
+★**화면이 악화시킨다** — 계정 선택 콤보박스가 `bybit demo- aaa`(`read_only=true`)를 **기본 활성 옵션**으로 놓고, 라벨만으로 두 계정을 구분할 수 없다. 쓰기 계정은 `bybit demo` 다.
+
+**권장 접근:** `register()` 에서 `read_only` fail-closed(422) + 콤보박스에 읽기 전용 배지·비활성화.
+**Risk:** 🟡
+
+---
+
+### BL-512
+
+**Title:** 계측이 "우리가 하려던 것" 만 세고 "거래소가 한 것" 은 안 센다 — 거절 미계상 · 낙관적 placed · **정상 체결이 error 카운터**
+**Category:** Backend / observability (trading)
+**Priority:** P2
+**Trigger:** metric 기반 경보를 붙이려 할 때
+**Est:** M
+**출처:** 2026-07-28 live-observability 적대 검증(거래소 실상 렌즈), 전건 코드 재현
+
+**원인 / 영향:** 세 가지가 겹친다.
+
+1. **거래소 거절이 `qb_order_rejected_total` 을 올리지 않는다.** 이 카운터의 import 지점은 `common/metrics.py`·`order_service.py`·`webhook.py` **3곳뿐**이고, 거절이 착지하는 `tasks/trading.py:403-415` 는 import 조차 없다. 그 카운터는 **pre-flight 게이트 전용**이다. 실제로 오르는 건 `qb_ccxt_request_errors_total{error_class="InvalidOrder"}` 하나인데, 증거금부족·심볼오류·트리거방향오류가 한 버킷에 섞인다.
+2. **`qb_live_conditional_placed_total` 이 거래소 수락 전에 오른다.** `live_signal.py:645-652` — `order_service.execute()`(로컬 INSERT + Celery enqueue) 직후 `.inc()`. 거래소 왕복은 **다른 프로세스**다. `stage="place"` 의 `try` 도 로컬만 감싼다. **이번 soak 의 거절 2건도 "placed" 로 계상됐다.**
+3. ★**정상 체결이 error 카운터를 올린다.** `live_signal.py:400-409` — probe 결과가 `filled` 면 `fill_confirmed = True` 로 두고 **무조건** `stage="exchange_missing"` 을 `.inc()` 한다. 대시보드에서 **체결이 곧 에러**로 보인다.
+
+**권장 접근:** 거래소 응답 축의 카운터를 신설한다(`retCode` 를 저-카디널리티 사유로 매핑). `placed_total` 은 거래소 수락 후로 옮기거나 `submitted`/`accepted` 를 분리한다. `exchange_missing` 은 체결 확인 시 `.inc()` 하지 않는다(2줄).
+**Risk:** 🟡 (동작 무영향 · 관측이 사실과 어긋난다)
+
+---
+
+### BL-516
+
+**Title:** 조건부 진입이 `reduce_only=False` 로 하드코딩돼 반전 주문이 기존 포지션을 보호 없이 가로지른다
+**Category:** Backend / trading (조건부 진입)
+**Priority:** P2
+**Trigger:** 실자금 cutover 전
+**Est:** S
+**출처:** 2026-07-28 live-observability soak 실관측 + 코드 대조
+
+**원인 / 영향:** `live_signal.py:628` 이 조건부 진입 `OrderRequest` 를 **무조건 `reduce_only=False`** 로 만든다. `_action_is_reduce_only`(`:182-188`)는 **시장가 close 에만** 적용된다.
+
+★**soak 실관측** — 03:13:52 에 `qty 0.06` 매도 조건부 주문이 나갔다. 이는 기존 롱 0.03 청산 + 신규 숏 0.03 진입(stop-and-reverse)인데, **청산 부분에 reduce-only 보호가 없다.** 포지션이 그 사이에 이미 줄어 있으면 초과분이 반대 포지션을 연다.
+
+**권장 접근:** 반전 주문을 청산 leg(`reduce_only=True`)와 진입 leg 로 분리하거나, 거래소의 reduce-only 시맨틱을 쓸 수 없다면 발주 직전 포지션 재확인을 강제한다.
+**Risk:** 🟡
+
+---
+
+### BL-517
+
+**Title:** stand-down 축이 거래소 uid 가 아니라 DB 계정 행 id 다 — 같은 계정을 두 번 등록하면 우회된다
+**Category:** Backend / trading (조건부 진입)
+**Priority:** P2
+**Trigger:** 사용자가 같은 거래소 계정을 키 두 개로 등록한 상태에서 세션 두 개를 돌릴 때
+**Est:** S
+**출처:** 2026-07-28 live-observability 코드 대조 (실행 재현은 read_only 제약으로 불가)
+
+**원인 / 영향:** stand-down 술어는 `live_signal.py:462-464` → `list_active_by_account(sess.exchange_account_id)`, 구현은 `WHERE exchange_account_id == account_id`(`live_signal_session_repository.py:69-76`). **DB 행 id 축이다.**
+
+우리 DB 의 두 계정 행 `19a8166a`·`0277c150` 은 **같은 `exchange_uid = 558689281`**(실측). 세션 둘을 서로 다른 계정 행에 붙이면 `shares_account_symbol = False` → **stand-down 미발화**. 그런데 두 세션은 **같은 거래소 포지션**을 건드린다.
+
+★코드 주석(`live_signal.py:444-456`)이 스스로 전제를 밝힌다 — _"계정 순포지션을 세션 target 에서 빼는 산술은 '이 계정·심볼의 포지션이 이 세션 것뿐' 이라는 전제 위에 선다"_. 중복 등록에서 그 전제가 **조용히** 깨진다.
+
+★지금 폭발하지 않는 이유는 `0277c150` 이 `read_only=true` 라서다 — **가드가 아니라 우연**이다. 등록 시 `exchange_uid` 를 이미 조회해 저장한다(`account_service.py:69,79`) — **가진 정보를 안 쓰고 있다.**
+
+**권장 접근:** stand-down 축을 `exchange_uid + symbol` 로 올린다. **BL-505**(청산 lock 축이 포지션 정체성이 아니다)와 **같은 계열의 축 문제**다.
+**Risk:** 🟡
+
+---
+
+### BL-519
+
+**Title:** 컨테이너로 API 를 띄우는 배포에는 multiprocess 배선이 없다 — 조용히 폴백해 worker 지표를 영영 못 본다
+**Category:** Infra / observability
+**Priority:** P2
+**Trigger:** 프로덕션 배포 시
+**Est:** S
+**출처:** 2026-07-28 live-observability 적대 검증
+
+**원인 / 영향:** `docker-compose.yml` 에 API 서비스가 **없다**(호스트 uvicorn). `PROMETHEUS_MULTIPROC_DIR` 을 주입하는 곳은 compose 의 worker 4곳 + Makefile 2곳뿐이다. `Dockerfile` 이 `/metrics` 디렉토리를 만들어 두지만 **그 값을 주입하는 곳이 레포 전체에 없다.**
+
+컨테이너 API 배포에서는 env 미설정 → 단일 프로세스 폴백 → **worker 지표가 안 보인다.** 그리고 그 상태가 200 을 반환하므로 **무증상**이다.
+
+★이번 세션에서는 `.env.example` 과 `docker-entrypoint.sh` 주석으로 **경고만** 남겼다. 배포 매니페스트가 이 레포에 없어 코드로 강제할 수 없다.
+
+**권장 접근:** 배포 매니페스트에 env + 공유 볼륨을 넣고, API 기동 시 `PROMETHEUS_MULTIPROC_DIR` 미설정을 **production 에서 경고 로그**로 남긴다.
+**Risk:** 🟡
+
+---
+
+### BL-520
+
+**Title:** 머니-패스의 metric mutation 전면 sweep — 관측 코드가 주문 경로를 막을 수 없어야 한다
+**Category:** Backend / trading (money-path)
+**Priority:** P2
+**Trigger:** 실자금 cutover 전
+**Est:** S
+**출처:** 2026-07-28 live-observability G6 codex 최종 적대 리뷰 (P1 의 후속)
+
+**원인 / 영향:** BL-506 이 metric mutation 을 in-memory 증가에서 **공유 mmap 파일 쓰기**로 바꿨다. 그래서 read-only 마운트·ENOSPC·I/O 오류에 예외를 던질 수 있다.
+
+이번 세션은 **주문을 영구 좌초시키는 유일한 지점** 하나만 고쳤다 — `order_service.py` 의 commit 직후·dispatch 직전 `qb_active_orders.inc()`(예외 시 주문 행은 commit 됐는데 dispatch 가 안 되고, 멱등 재시도는 캐시 조기 반환에 걸려 **영구 미발주**).
+
+남은 것: `dec()` **13곳**과 `tasks/trading.py`·`tasks/live_signal.py`의 다른 metric 호출. 이들은 terminal 전이 이후라 예외 시 Celery 재시도로 회복되므로 좌초시키지는 않지만, **불변식으로 못박는 것이 옳다.**
+
+**권장 접근:** 머니-패스의 모든 metric mutation 을 `record_metric_safely` 로 감싸고, 그 규칙을 `.ai/stacks/fastapi/backend.md` 에 등재한다.
+**Risk:** 🟡
+
 ## P3 — Nice-to-have / 컨벤션 정합
 
 > 12 archived ([BL-050/051/052/053/054/055/056/057/138/139/151/153](archive/refactoring-backlog/_archived.md#p3-전부-nice-to-have-컨벤션-정합)). **활성 P3 = 8** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen).
@@ -1823,6 +1989,13 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-506
 
+**상태:** ✅ **Resolved** (2026-07-28, `feat/live-observability`). `PROMETHEUS_MULTIPROC_DIR` + `MultiProcessCollector` 배선. 호스트 `backend/.metrics` → 컨테이너 `/metrics` bind mount 를 worker 4종이 공유하고, 식별자는 `{role}-{hostname}-{pid}`(언더스코어 금지 — 수집기가 basename 을 `split('_')` 로 파싱한다).
+
+★**실증 (같은 순간 두 프로세스 대조)** — 미배선 API(:8100)에는 `qb_live_signal_evaluated_total` 이 **없고**, 배선 API(:8101)에는 **1.0** 이 있다. `qb_` 라인 수 **75 → 105**. 값을 올리는 주체가 master 가 아니라 **prefork 자식**(`counter_worker-64/65`)이라 "worker 별 exporter 포트" 안이었으면 못 봤다.
+★**정확성 대조** — `placed_total` 합 **21** = DB 조건부 행 **21**, `evaluated_total` **29 = 29분**(beat 60초와 1:1).
+★**실측된 제약 3건** — ① bind mount 전파가 **최대 18~20초 지연**(mmap 계층에 `msync` 호출이 없다) ② **PID 충돌은 파괴적**(컨테이너 4종의 master 가 전부 pid 51 — role 접두어가 없으면 같은 파일을 파괴적으로 공유) ③ `_created` 시리즈 **전면 소실**(30줄 → 0, multiprocess 모드의 내재적 성질).
+★후속은 **BL-508**(gauge 절대값) · **BL-509**(파일 회수) · **BL-518**(관측 계약) · **BL-519**(컨테이너 API 배포) · **BL-520**(머니-패스 sweep) 으로 분리 등재.
+
 **Title:** worker 프로세스의 Prometheus metric 이 스크레이프되지 않아 gauge 규율이 전부 관측 불가다
 **Category:** Infra / observability
 **Priority:** P2
@@ -1835,6 +2008,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 ★그래서 **worker 에서 올리는 모든 counter/gauge 가 수집되지 않는다** — `qb_active_orders` 의 winner-only dec 규율, `qb_live_conditional_reconcile_errors_total` 의 `cancel_stalled`/`cancel_raced`/`sweep_cancel`/`exchange_missing`/신설 `janitor_*` 라벨 전부. 반대로 API 프로세스의 `inc` 만 수집되므로 **스크레이프되는 gauge 는 단조 증가**한다.
 
 ★이번 스프린트의 BL-503 이 gauge 표류를 닫는다고 적었는데, 배포 토폴로지에서는 그 dec 이 보이지 않는다. **코드는 맞고 관측 경로가 없다.** BL-499 의 "metric 이 관측되면 trigger" 도 이 상태에서는 성립하지 않는다.
+
+> **(2026-07-28 정정)** 위 두 문장은 **해소됐다.** dec 은 이제 보인다 — 단 보이자마자 **gauge 절대값을 믿을 수 없다는 것**이 드러났다(BL-508). BL-499 의 trigger 도 발화 가능해졌으나 실관측은 여전히 0건이다(BL-499 본문 정정 참조).
 
 **권장 접근:** `PROMETHEUS_MULTIPROC_DIR` + `MultiProcessCollector` 를 도입하거나, worker 별 exporter 포트를 열고 스크레이프 대상에 추가한다. 어느 쪽이든 **먼저 "지금 무엇이 수집되고 있는가" 를 실측**하고, 그 뒤에 metric 기반 trigger 를 쓰는 BL(499·503)의 문구를 정정한다.
 
@@ -1860,6 +2035,124 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Risk:** 🟢
 
 ---
+
+### BL-509
+
+**Title:** multiprocess mmap 파일이 무한히 쌓이고, 그 누수가 `qb_active_orders` 의 정확성을 떠받치고 있다
+**Category:** Infra / observability
+**Priority:** P3
+**Trigger:** 스크레이프 지연이 눈에 띌 때, 또는 장기 무중단 가동 시
+**Est:** M
+**출처:** 2026-07-28 live-observability 적대 검증(프로세스 경계 렌즈)
+
+**원인 / 영향:** `mark_process_dead` 는 `gauge_live*` 파일만 지운다. `counter_`/`histogram_`/`gauge_sum_`/`gauge_mostrecent_` 는 **아무도 지우지 않는다**. `worker_max_tasks_per_child=250` 자식 교체마다 +4 파일, `uvicorn --reload`/watchfiles 재기동도 각각 새 식별자다. 수집기는 매 스크레이프마다 전 파일을 re-mmap + 키마다 `json.loads` 하므로 비용이 **O(F×K)** 다.
+
+★**soak 실측 — 아직 문제로 관측되지는 않았다.** 약 1시간 창에서 파일 50 → 54(자식 1회 재활용), `scrape_seconds` 는 **24샘플 전부 0.01 고정**. 즉 이 태스크 부하에서는 열화가 나타나지 않았다. 원리상 실재하되 **긴급하지 않다.**
+
+★★**함정: 순진하게 고치면 BL-508 이 즉시 깨진다.** 죽은 자식의 **음수 delta 파일이 남아 있어야** `sum` gauge 산술이 맞는다. 회수 janitor 를 만들 때 `multiprocess.merge(files, accumulate=False)` 로 role 별 집계 파일에 **접고** 삭제하는 형태여야 한다.
+
+**권장 접근:** 콜드 스타트 wipe(현행) 유지 + role 별 dead-pid 접기 janitor. 런타임 중 counter 파일 pruning 은 **가짜 counter reset** 이므로 금지.
+**Risk:** 🟢
+
+---
+
+### BL-513
+
+**Title:** 성공은 안 보이고 실패만 보인다 — 완전체결 카운터 부재 · janitor 실적 미노출 · planner divergence 5종 무계측
+**Category:** Backend / observability (trading)
+**Priority:** P3
+**Trigger:** 운영 대시보드를 만들 때
+**Est:** S
+**출처:** 2026-07-28 live-observability 적대 검증(거래소 실상 렌즈)
+
+**원인 / 영향:**
+
+- **완전체결을 세는 카운터가 코드베이스에 없다.** `qb_partial_fill_total{source}` 는 **부분체결 전용**이다. 체결 시 일어나는 건 `qb_active_orders.dec()` 뿐이라 "몇 건 체결됐나" 를 물을 수 없다.
+- **janitor 실적이 Prometheus 에 없다.** `conditional_entry_janitor.py:168` 이 `{repaired, rejected, terminal}` 를 **return 만** 한다. 오류 stage(`janitor_race`/`janitor_probe`)만 계측된다. soak 실측에서 janitor 는 5분마다 정상 발화하며 전부 0 을 반환했는데, **그 사실이 Celery 결과 로그에만 있다.**
+- **planner divergence 5종 전량 무계측** — `conditional_entry_planner.py:172/195/216/240/255` → 소비처는 `live_signal.py:499-503` `logger.warning` 뿐. 특히 `below_exchange_minimum` 은 "전략이 영원히 한 주도 못 낸다" 는 뜻인데 무계측이다.
+
+**권장 접근:** `qb_order_filled_total{source}`, `qb_conditional_janitor_actions_total{action}`, `qb_conditional_plan_divergence_total{reason}` 신설.
+**Risk:** 🟢
+
+---
+
+### BL-514
+
+**Title:** stand-down 이 발화한 것은 알 수 있어도 **왜** 발화했는지는 알 수 없다
+**Category:** Backend / observability (trading)
+**Priority:** P3
+**Trigger:** stand-down 이 실제로 발화해 조치가 필요할 때
+**Est:** XS
+**출처:** 2026-07-28 live-observability — **유도 실험 중 직접 관측**
+
+**원인 / 영향:** stand-down 사유는 `hedge_mode` 와 `shared_account_symbol` 둘인데 조치가 완전히 다르다(계정 설정 문제 vs 운영 실수). 그런데 셋 다 사유를 안 준다.
+
+- `qb_live_conditional_reconcile_errors_total{stage="positions"}` — **라벨에 사유 없음**(두 경우가 같은 시리즈).
+- `logger.error("live_conditional_reconcile_divergence", extra={"reason": ...})` — ★**포맷터가 `extra` 를 렌더하지 않는다.** 실측: 발화 3건 전부 `live_conditional_reconcile_divergence` **한 줄로만** 출력됐다.
+- `qb_live_conditional_cancelled_total{reason=...}` 만 사유를 담는데 **취소할 대상이 있을 때만** 오른다.
+  → **취소 대상이 없는 stand-down 은 사유를 알 방법이 전혀 없다.**
+
+**권장 접근:** `{stage="positions"}` 를 `{stage="positions", reason=...}` 로 분리하거나 `stage` 값을 `positions_hedge`/`positions_shared` 로 가른다. 로그는 `extra` 대신 메시지에 사유를 넣는다.
+**Risk:** 🟢
+
+---
+
+### BL-515
+
+**Title:** 정상 교체 사이클이 이상 판별을 삼킨다 + 경보 규칙이 2개뿐이라 카운터가 올라도 아무도 안 본다
+**Category:** Infra / observability
+**Priority:** P3
+**Trigger:** metric 기반 운영 경보 도입 시
+**Est:** S
+**출처:** 2026-07-28 live-observability 적대 검증
+
+**원인 / 영향:** PbR 같은 전략은 매 bar 피벗이 움직여 `conditional_entry_planner.py:285-289` 가 항상 불일치 → **매 tick** `cancelled_total{reason="replaced"}` +1 · `placed_total` +1 이 정상이다. 병리(거절 루프)도 **같은 패턴**이라 두 카운터로는 구분할 수 없다. 유일한 신호는 `placed − cancelled` 의 발산인데 recording rule 이 없다.
+
+그리고 `backend/prometheus/alerts.yml` 에 rule 이 **2개뿐**(`QbPendingAlertsHigh`, `QbRedisLockPoolUnhealthy`). 이번 세션이 관측 가능하게 만든 어떤 카운터도 경보에 연결돼 있지 않다.
+
+★**단, BL-506 이전에는 이 논의 자체가 불가능했다** — 그 카운터들이 스크레이프되지 않았기 때문이다.
+
+**권장 접근:** `placed − cancelled` recording rule + 이번 세션 판정표의 "관측됨" 계열에 대한 경보 규칙.
+**Risk:** 🟢
+
+---
+
+### BL-518
+
+**Title:** multiprocess 모드의 관측 계약 변화 — `_created` 전면 소실 · 프로덕션 경로 미테스트 · 값 범위 변화
+**Category:** Infra / observability
+**Priority:** P3
+**Trigger:** `/metrics` 소비자(대시보드·경보)를 만들 때
+**Est:** S
+**출처:** 2026-07-28 live-observability 적대 검증(관측 계약 렌즈) + 실측
+
+**원인 / 영향:**
+
+- ★**`_created` 시리즈 전면 소실.** 실측 — 미배선 API **30줄** → 배선 API **0줄**. `prometheus_client` 의 `_created` 는 `ValueClass` 를 거치지 않는 순수 float 이라 mmap 에 실리지 않는다. `rate()` 는 무영향이나 `_created` 기반 쿼리는 깨진다. **multiprocess 모드의 내재적 성질**이지 우리 버그가 아니다.
+- **프로덕션 경로가 테스트되지 않는다.** 테스트 env 에 `PROMETHEUS_MULTIPROC_DIR` 이 없어 전 스위트가 폴백을 탄다. **`/metrics` HTTP 를 multiproc 모드로 때리는 테스트가 0건**이다(신규 테스트도 `render_metrics()` 단위까지).
+- **`qb_ws_orphan_buffer_size` 값 범위 변화.** docstring 은 "capped at 1000" 인데 `concurrency=3` + `livesum` 이라 0~3000. 기존 임계 재조정 필요.
+- **`qb_redis_lock_pool_healthy` 가 fail-open.** `mostrecent` 는 죽은 프로세스가 남긴 `1` 을 계속 서빙한다 — 건강한 프로세스가 없어도 healthy=1. `livemostrecent`/`min` 이 후보이나 각각 다른 실패 모드가 있다.
+
+**권장 접근:** 위 4건을 `docs/reference/` 관측 계약 문서에 명시 + multiproc 모드 endpoint 테스트 추가.
+**Risk:** 🟢
+
+---
+
+### BL-521
+
+**Title:** `qb_live_signal_outbox_pending_gauge` 를 두 곳이 서로 다른 상한으로 덮어써 경보 신호가 잘린다
+**Category:** Backend / observability
+**Priority:** P3
+**Trigger:** outbox 적체 경보를 붙일 때
+**Est:** XS
+**출처:** 2026-07-28 live-observability G1 codex 적대 검증, 코드 재현 완료
+
+**원인 / 영향:** `live_signal.py:813` 은 `list_pending(limit=10_000)` 결과를 `.set()` 하고, `:1475` 는 `list_pending(limit=50)` 결과를 같은 gauge 에 `.set()` 한다. **마지막 writer 가 이긴다.** 실제 pending 이 50 을 넘으면 recovery task 가 **50 으로 덮어써** 적체 신호가 조용히 잘린다.
+
+★**단일 프로세스에서도 이미 그런 선재 결함**이다 — BL-506 이 만든 것이 아니다.
+
+**권장 접근:** recovery task 의 `.set()` 을 제거하거나(문서상 계약은 "last eval cycle"), 두 소스를 라벨로 가른다.
+**Risk:** 🟢
 
 ## Beta 오픈 번들 — 단일 milestone
 

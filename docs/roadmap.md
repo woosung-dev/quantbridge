@@ -246,5 +246,5 @@
 
 ### 즉시 이월 (다음 단계 후보)
 
-- [ ] **tasks 도메인 deepen** — 최대 미감사 4,098 LOC (trading.py + live_signal.py, money-path Celery). Iron Law = 새 세션
+- [ ] **tasks 도메인 deepen** — 최대 미감사 **6,342 LOC** (2026-07-28 실측; `trading.py` 1,910 + `live_signal.py` 1,877, money-path Celery). ★기재됐던 4,098 은 **55% 낡은 값**이었다. Iron Law = 새 세션
 - [ ] **verification-loop 브랜치 종결** — `docs/verification-loop-2026-06-30` (origin 푸시됨, PR 미생성)

@@ -7,10 +7,11 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from src.backtest.exceptions import StrategyDegraded, StrategyNotRunnable
 from src.common.exceptions import AppException
+from src.common.metrics_multiproc import mark_metrics_process_dead, render_metrics
 from src.core.config import settings
 
 
@@ -153,13 +154,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
-    app.state.realtime_listener_task.cancel()
-    with suppress(asyncio.CancelledError):
-        await app.state.realtime_listener_task
-    await app.state.realtime_manager.close()
+    try:
+        app.state.realtime_listener_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await app.state.realtime_listener_task
+        await app.state.realtime_manager.close()
 
-    if getattr(app.state, "ccxt_provider", None) is not None:
-        await app.state.ccxt_provider.close()
+        if getattr(app.state, "ccxt_provider", None) is not None:
+            await app.state.ccxt_provider.close()
+    finally:
+        try:
+            mark_metrics_process_dead()
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("metrics_process_dead_mark_failed_on_shutdown")
 
 
 def create_app() -> FastAPI:
@@ -230,11 +239,7 @@ def create_app() -> FastAPI:
         Clerk 인증 제외, bearer token (settings.prometheus_bearer_token) 으로 보호.
         settings.prometheus_bearer_token 이 None/empty 면 인증 없이 접근 가능 (dev/local).
         """
-        # 모듈 import — Histogram/Counter/Gauge 객체가 default REGISTRY 에 등록됨.
-        # 여기서 import 하여 instrumentation 지점에서만 필요한 lazy binding.
-        from src.common import metrics as _metrics  # noqa: F401  (ensure registration)
-
-        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+        return Response(content=render_metrics(), media_type=CONTENT_TYPE_LATEST)
 
     # Sprint 10 Phase B — /metrics, /health 는 rate limit 면제
     # (Prometheus 스크래퍼 + health-check 는 무제한 허용)
