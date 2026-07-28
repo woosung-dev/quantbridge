@@ -52,12 +52,10 @@ def test_reproduces_sql_oracle_totals_and_effective_cost_rate() -> None:
         round_trip_notional=Decimal("80145.51"),
     )
     expected_events = [oracle_observation] + [
-        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0"))
-        for _ in range(20)
+        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(20)
     ]
     exchange_only_expected = [
-        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0"))
-        for _ in range(6)
+        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(6)
     ]
 
     summary = summarize_parity([*expected_events, *exchange_only_expected], _empty_buckets())
@@ -73,7 +71,7 @@ def test_reproduces_sql_oracle_totals_and_effective_cost_rate() -> None:
 
 
 def test_decomposable_totals_obey_expected_gap_cost_net_identity() -> None:
-    """분해 가능한 관측에서는 항등식이 Decimal 산술로 정확히 성립한다."""
+    """분해 합계의 구체 값과 그 Decimal 항등식을 함께 고정한다."""
     summary = summarize_parity(
         [
             _observation(
@@ -92,8 +90,17 @@ def test_decomposable_totals_obey_expected_gap_cost_net_identity() -> None:
         _empty_buckets(),
     )
 
-    assert summary.execution_gap is not None
-    assert summary.cost is not None
+    assert summary.matched_count == 2
+    assert summary.expected_gross == Decimal("95")
+    assert summary.actual_net == Decimal("84")
+    assert summary.decomposable_count == 2
+    assert summary.decomposable_expected_gross == Decimal("95")
+    assert summary.decomposable_actual_net == Decimal("84")
+    assert summary.actual_gross == Decimal("91")
+    assert summary.execution_gap == Decimal("-4")
+    assert summary.cost == Decimal("-7")
+    assert summary.round_trip_notional == Decimal("1200")
+    assert summary.effective_cost_pct == Decimal("0.5833333333333333333333333333")
     assert summary.expected_gross + summary.execution_gap + summary.cost == summary.actual_net
 
 
@@ -117,10 +124,14 @@ def test_waterfall_closes_on_decomposable_subset_only() -> None:
         _empty_buckets(),
     )
 
-    assert summary.decomposable_expected_gross is not None
-    assert summary.execution_gap is not None
-    assert summary.cost is not None
-    assert summary.decomposable_actual_net is not None
+    assert summary.decomposable_expected_gross == Decimal("10")
+    assert summary.actual_gross == Decimal("12")
+    assert summary.execution_gap == Decimal("2")
+    assert summary.cost == Decimal("-15")
+    assert summary.decomposable_actual_net == Decimal("-3")
+    assert summary.round_trip_notional == Decimal("1000")
+    assert summary.expected_gross == Decimal("14")
+    assert summary.actual_net == Decimal("-4")
     assert (
         summary.decomposable_expected_gross + summary.execution_gap + summary.cost
         == summary.decomposable_actual_net
@@ -225,9 +236,7 @@ def test_sample_gate_rejects_the_measured_27_order_sample() -> None:
     mean_net = Decimal("-1.0238")
     sd_net = Decimal("4.0943")
     nets = [mean_net + sd_net] * 13 + [mean_net - sd_net] * 13 + [mean_net]
-    observations = [
-        _observation(expected_gross=Decimal("0"), actual_net=net) for net in nets
-    ]
+    observations = [_observation(expected_gross=Decimal("0"), actual_net=net) for net in nets]
 
     summary = summarize_parity(observations, _empty_buckets())
 
@@ -295,8 +304,7 @@ def test_empty_input_returns_zero_or_none_without_raising() -> None:
 def test_coverage_uses_all_matched_and_unmatched_order_counts() -> None:
     """coverage 분모는 matched, expected-only, actual-only 주문 수의 합이다."""
     observations = [
-        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0"))
-        for _ in range(21)
+        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(21)
     ]
     buckets = ParityBuckets(
         expected_only_count=51,
