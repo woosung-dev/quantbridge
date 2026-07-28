@@ -60,6 +60,14 @@ echo "  branch   : $(git branch --show-current)"
 # ── 2. 슬롯 번호 결정 ───────────────────────────────────────────────────────
 # 슬롯 0 = 메인 체크아웃(3100/8100/quantbridge_test/redis 3). 워크트리는 1부터.
 # Redis DB 는 0..15 이고 0,1,2 를 앱/celery 가 쓰므로 슬롯 상한은 12.
+# 포트가 살아 있으면 그 슬롯은 피한다. 다른 워크트리가 아니라 **다른 프로젝트**가 잡고 있을 수 있다
+# (실측: 이 머신의 3101 을 무관한 next-server 가 점유 중이었다). 그대로 배정하면 `fe-isolated` 가
+# 엉뚱한 포트로 밀리고, 더 나쁘게는 e2e 가 남의 앱을 검사해 거짓 그린이 난다(이 레포의 실제 사고 이력).
+port_busy() {
+  command -v lsof >/dev/null 2>&1 || return 1
+  lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+}
+
 if [ -z "$SLOT" ]; then
   USED=""
   for f in "$MAIN_ROOT"/.claude/worktrees/*/.worktree-slot; do
@@ -69,9 +77,18 @@ if [ -z "$SLOT" ]; then
   done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
     case " $USED " in *" $n "*) continue ;; esac
+    if port_busy $((3100 + n)) || port_busy $((8100 + n)); then
+      echo "  · 슬롯 $n 건너뜀 — 포트 $((3100 + n))/$((8100 + n)) 중 하나가 이미 사용 중"
+      continue
+    fi
     SLOT="$n"; break
   done
-  [ -n "$SLOT" ] || die "슬롯 1..12 이 모두 사용 중이다."
+  [ -n "$SLOT" ] || die "슬롯 1..12 이 모두 사용 중이거나 포트가 점유돼 있다."
+else
+  # 명시 지정은 존중하되(자기 서버를 재시작하는 경우가 있다) 조용히 넘어가지는 않는다.
+  for p in $((3100 + SLOT)) $((8100 + SLOT)); do
+    port_busy "$p" && echo "  ! 경고: 포트 $p 가 이미 사용 중이다. 그 프로세스가 네 것이 아니면 e2e 가 남의 앱을 검사한다."
+  done
 fi
 case "$SLOT" in ''|*[!0-9]*) die "슬롯은 정수여야 한다: $SLOT" ;; esac
 [ "$SLOT" -ge 1 ] && [ "$SLOT" -le 12 ] || die "슬롯은 1..12 범위여야 한다 (0 은 메인 체크아웃 예약): $SLOT"
