@@ -22,6 +22,14 @@ ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
 METRICS_COMPOSE_FILES :=
 METRICS_WRITER_SERVICES := backend-worker backend-ws-stream backend-optimizer-heavy backend-beat
 
+# 워크트리 병렬 슬롯 — scripts/worktree-bootstrap.sh 가 워크트리 루트에 `.worktree-slot` 을 쓴다.
+# 파일이 없으면(= 메인 체크아웃) 슬롯 0 이고, 그때 포트는 기존 값 3100/8100 과 정확히 같다.
+# 컨테이너(5433/6380)는 슬롯과 무관하게 공유한다 — container_name 이 고정이라 스택은 1벌뿐이다.
+-include .worktree-slot
+QB_SLOT ?= 0
+QB_FE_PORT := $(shell expr 3100 + $(QB_SLOT))
+QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
+
 # 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
 # .env.local 변형 없이 inline override 패턴 (process env > pydantic-settings dotenv 우선순위).
 ISOLATED_DATABASE_URL := postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge
@@ -48,6 +56,10 @@ help:
 	@echo "    make logs-isolated"
 	@echo "    make be-isolated       # migrate-isolated 선행 + backend uvicorn (port 8100)"
 	@echo "    make fe-isolated       # frontend Next.js (port 3100)"
+	@echo ""
+	@echo "  워크트리 병렬 — 현재 슬롯 $(QB_SLOT) (FE $(QB_FE_PORT) / BE $(QB_BE_PORT))"
+	@echo "    scripts/worktree-bootstrap.sh   # 새 워크트리를 실행 가능 상태로 (슬롯·테스트DB·env)"
+	@echo "    docs/reference/worktree-parallel.md   # 무엇이 병렬 가능하고 무엇이 불가능한가"
 	@echo ""
 	@echo "  품질"
 	@echo "    make test           # backend pytest + frontend vitest"
@@ -199,17 +211,17 @@ be-isolated: metrics-prepare
 	  CELERY_BROKER_URL=redis://localhost:6380/1 \
 	  CELERY_RESULT_BACKEND=redis://localhost:6380/2 \
 	  REDIS_LOCK_URL=redis://localhost:6380/3 \
-	  FRONTEND_URL=http://localhost:3100 \
-	  WAITLIST_INVITE_BASE_URL=http://localhost:3100/invite \
+	  FRONTEND_URL=http://localhost:$(QB_FE_PORT) \
+	  WAITLIST_INVITE_BASE_URL=http://localhost:$(QB_FE_PORT)/invite \
 	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/backend/.metrics \
 	  QB_METRICS_ROLE=api \
-	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8100
+	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port $(QB_BE_PORT)
 
 fe-isolated:
 	cd frontend && \
-	  NEXT_PUBLIC_API_URL=http://localhost:8100 \
-	  NEXT_PUBLIC_WS_URL=ws://localhost:8100 \
-	  PORT=3100 \
+	  NEXT_PUBLIC_API_URL=http://localhost:$(QB_BE_PORT) \
+	  NEXT_PUBLIC_WS_URL=ws://localhost:$(QB_BE_PORT) \
+	  PORT=$(QB_FE_PORT) \
 	  pnpm dev
 
 # === 품질 ===
